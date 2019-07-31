@@ -230,7 +230,7 @@ class HEDMInstrument(object):
                 )
             ct.eta_vec
             # now build detector dict
-            detector_ids = instrument_config['detectors'].keys()
+            detector_ids = list(instrument_config['detectors'].keys())
             pixel_info = [instrument_config['detectors'][i]['pixels']
                           for i in detector_ids]
             affine_info = [instrument_config['detectors'][i]['transform']
@@ -290,7 +290,7 @@ class HEDMInstrument(object):
     @property
     def detector_parameters(self):
         pdict = {}
-        for key, panel in self.detectors.iteritems():
+        for key, panel in self.detectors.items():
             pdict[key] = panel.config_dict(self.chi, self.tvec)
         return pdict
 
@@ -427,7 +427,7 @@ class HEDMInstrument(object):
         )
         par_dict['oscillation_stage'] = ostage
 
-        det_names = self.detectors.keys()
+        det_names = list(self.detectors.keys())
         det_dict = dict.fromkeys(det_names)
         for det_name in det_names:
             panel = self.detectors[det_name]
@@ -716,7 +716,7 @@ class HEDMInstrument(object):
         TODO: revisit output; dict, or concatenated list?
         """
         results = dict.fromkeys(self.detectors)
-        for det_key, panel in self.detectors.iteritems():
+        for det_key, panel in self.detectors.items():
             results[det_key] = panel.simulate_laue_pattern(
                 crystal_data,
                 minEnergy=minEnergy, maxEnergy=maxEnergy,
@@ -734,7 +734,7 @@ class HEDMInstrument(object):
         TODO: revisit output; dict, or concatenated list?
         """
         results = dict.fromkeys(self.detectors)
-        for det_key, panel in self.detectors.iteritems():
+        for det_key, panel in self.detectors.items():
             results[det_key] = panel.simulate_rotation_series(
                 plane_data, grain_param_list,
                 eta_ranges=eta_ranges,
@@ -767,7 +767,7 @@ class HEDMInstrument(object):
         #
         # WARNING: all imageseries AND all wedges within are assumed to have
         # the same omega values; put in a check that they are all the same???
-        oims0 = imgser_dict[imgser_dict.keys()[0]]
+        (det_key, oims0), = imgser_dict.items()        
         ome_ranges = [np.radians([i['ostart'], i['ostop']])
                       for i in oims0.omegawedges.wedges]
 
@@ -2347,7 +2347,7 @@ class GenerateEtaOmeMaps(object):
         # grab a det key
         # WARNING: this process assumes that the imageseries for all panels
         # have the same length and omegas
-        det_key = eta_mapping.keys()[0]
+        det_key = list(eta_mapping.keys())[0]
         data_store = []
         for i_ring in range(n_rings):
             full_map = np.zeros_like(eta_mapping[det_key][i_ring])
@@ -2355,7 +2355,7 @@ class GenerateEtaOmeMaps(object):
                 (len(eta_mapping), full_map.shape[0], full_map.shape[1])
             )
             i_p = 0
-            for det_key, eta_map in eta_mapping.iteritems():
+            for det_key, eta_map in eta_mapping.items():
                 nan_mask = ~np.isnan(eta_map[i_ring])
                 nan_mask_full[i_p] = nan_mask
                 full_map[nan_mask] += eta_map[i_ring][nan_mask]
