@@ -385,7 +385,7 @@ class HEDMInstrument(object):
         plist[8], plist[9], plist[10] = tvec_c
 
         ii = 11
-        for panel in self.detectors.itervalues():
+        for panel in self.detectors.values():
             plist[ii:ii + 6] = np.hstack([
                 panel.tilt.flatten(),
                 panel.tvec.flatten(),
@@ -395,7 +395,7 @@ class HEDMInstrument(object):
         # FIXME: FML!!!
         # this assumes old style distiortion = (func, params)
         retval = plist
-        for panel in self.detectors.itervalues():
+        for panel in self.detectors.values():
             if panel.distortion is not None:
                 retval = np.hstack([retval, panel.distortion[1]])
         return retval
