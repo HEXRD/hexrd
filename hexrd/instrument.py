@@ -521,7 +521,7 @@ class HEDMInstrument(object):
         for det_name, detector in self.detectors.items():
             this_det_params = detector.calibration_parameters
             npd = len(this_det_params)  # total number of params
-            dpdp = npd - 6  # number of distortion params
+            dpnp = npd - 6  # number of distortion params
 
             # first do tilt
             tilt = np.r_[p[ii:jj]]
