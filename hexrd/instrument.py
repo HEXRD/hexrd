@@ -94,13 +94,44 @@ t_vec_d_DFLT = np.r_[0., 0., -1000.]
 chi_DFLT = 0.
 t_vec_s_DFLT = np.zeros(3)
 
-# [wavelength, chi, tvec_s, expmap_c, tec_c], len is 11
-instr_param_flags_DFLT = np.array(
-    [0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1],
-    dtype=bool)
-panel_param_flags_DFLT = np.array(
+"""
+Calibration parameter flags
+
+ for instrument level, len is 7
+
+ [wavelength,
+  beam azimuth,
+  beam elevation,
+  chi,
+  tvec[0],
+  tvec[1],
+  tvec[2],
+  ]
+"""
+instr_calibration_flags_DFLT = np.array(
+    [0, 0, 0, 1, 0, 0, 0],
+    dtype=bool
+)
+
+"""
+ for each panel, order is:
+
+ [tilt[0],
+  tilt[1],
+  tilt[2],
+  tvec[0],
+  tvec[1],
+  tvec[2],
+  <dparams>,
+  ]
+
+ len is 6 + len(dparams) for each panel
+ by default, dparams are not set for refinement
+"""
+panel_calibration_flags_DFLT = np.array(
     [1, 1, 1, 1, 1, 1],
-    dtype=bool)
+    dtype=bool
+)
 
 # =============================================================================
 # UTILITY METHODS
@@ -188,7 +219,7 @@ class HEDMInstrument(object):
     """
     def __init__(self, instrument_config=None,
                  image_series=None, eta_vector=None,
-                 instrument_name=None):
+                 instrument_name=None, tilt_calibration_mapping=None):
         self._id = instrument_name_DFLT
 
         if eta_vector is None:
@@ -268,9 +299,48 @@ class HEDMInstrument(object):
             ]
             self._chi = instrument_config['oscillation_stage']['chi']
 
-        self._param_flags = np.hstack(
-            [instr_param_flags_DFLT,
-             np.tile(panel_param_flags_DFLT, self._num_panels)]
+        #
+        # set up calibration parameter list and refinement flags
+        #
+        # first, grab the mapping function for tilt parameters if specified
+        self._tilt_calibration_mapping = tilt_calibration_mapping
+
+        # grab angles from beam vec
+        azim, pola = calc_angles_from_beam_vec(self._beam_vector)
+
+        # stack instrument level parameters
+        self._calibration_parameters = [
+            self.beam_energy,
+            azim,
+            pola,
+            self._chi,
+            *self._tvec,
+        ]
+        self._calibration_flags = instr_calibration_flags_DFLT
+
+        # collect info from panels and append
+        det_params = []
+        det_flags = []
+        for detector in self._detectors.values():
+            affine_params = detector.calibration_parameters
+            if self._tilt_calibration_mapping is not None:
+                rmat = makeRotMatOfExpMap(detector.tilt)
+                tilt = tilt_calibration_mapping(rmat)
+                affine_params[:3] = tilt
+            det_params.append(affine_params)
+            det_flags.append(detector.calibration_flags)
+        det_params = np.hstack(det_params)
+        det_flags = np.hstack(det_flags)
+
+        # !!! hstack here assumes that calib params will be float and
+        # !!! flags will all be bool
+        self._calibration_parameters = np.hstack(
+            [self._calibration_parameters,
+             det_params]
+        ).flatten()
+        self._calibration_flags = np.hstack(
+            [self._calibration_flags,
+             det_flags]
         )
         return
 
@@ -360,45 +430,38 @@ class HEDMInstrument(object):
             panel.evec = self._eta_vector
 
     @property
-    def param_flags(self):
-        return self._param_flags
+    def tilt_calibration_mapping(self):
+        return self._tilt_calibration_mapping
 
-    @param_flags.setter
-    def param_flags(self, x):
+    @tilt_calibration_mapping.setter
+    def tilt_calibration_mapping(self, x):
+        if not callable(x):
+            raise RuntimeError(
+                    "tilt mapping must be set to a callable function"
+                )
+        self._tilt_calibration_mapping = x
+
+    @property
+    def calibration_parameters(self):
+        return self._calibration_parameters
+
+    @property
+    def calibration_flags(self):
+        return self._calibration_flags
+
+    @calibration_flags.setter
+    def calibration_flags(self, x):
         x = np.array(x, dtype=bool).flatten()
-        assert len(x) == 11 + 6*self.num_panels, \
-            "length of parameter list must be %d; you gave %d" \
-            % (len(self._param_flags), len(x))
-        self._param_flags = x
+        if len(x) != len(self._calibration_flags):
+            raise RuntimeError(
+                "length of parameter list must be %d; you gave %d"
+                % (len(self._calibration_flags), len(x))
+            )
+        self._calibration_flags = x
 
     # =========================================================================
     # METHODS
     # =========================================================================
-
-    def calibration_params(self, expmap_c, tvec_c):
-        plist = np.zeros(11 + 6*self.num_panels)
-
-        plist[0] = self.beam_wavelength
-        plist[1] = self.chi
-        plist[2], plist[3], plist[4] = self.tvec
-        plist[5], plist[6], plist[7] = expmap_c
-        plist[8], plist[9], plist[10] = tvec_c
-
-        ii = 11
-        for panel in self.detectors.values():
-            plist[ii:ii + 6] = np.hstack([
-                panel.tilt.flatten(),
-                panel.tvec.flatten(),
-            ])
-            ii += 6
-
-        # FIXME: FML!!!
-        # this assumes old style distiortion = (func, params)
-        retval = plist
-        for panel in self.detectors.values():
-            if panel.distortion is not None:
-                retval = np.hstack([retval, panel.distortion[1]])
-        return retval
 
     def write_config(self, filename=None, calibration_dict={}):
         """ WRITE OUT YAML FILE """
@@ -438,6 +501,13 @@ class HEDMInstrument(object):
             with open(filename, 'w') as f:
                 yaml.dump(par_dict, stream=f)
         return par_dict
+
+    def update_from_parameter_list(self, p):
+        """
+        Utility function to update instrument parameters from a 1-d master
+        parameter list (e.g. as used in calibration)
+        """
+        return
 
     def extract_polar_maps(self, plane_data, imgser_dict,
                            active_hkls=None, threshold=None,
@@ -767,7 +837,7 @@ class HEDMInstrument(object):
         #
         # WARNING: all imageseries AND all wedges within are assumed to have
         # the same omega values; put in a check that they are all the same???
-        (det_key, oims0), = imgser_dict.items()        
+        (det_key, oims0), = imgser_dict.items()
         ome_ranges = [np.radians([i['ostart'], i['ostop']])
                       for i in oims0.omegawedges.wedges]
 
@@ -1168,6 +1238,25 @@ class PlanarDetector(object):
 
         self._distortion = distortion
 
+        #
+        # set up calibration parameter list and refinement flags
+        #
+        # order for a single detector will be
+        #
+        #     [tilt, translation, <distortion>]
+        dparams = []
+        if self.distortion is not None:
+            # need dparams
+            # FIXME: must update when we fix distortion
+            dparams.append(np.atleast_1d(self.distortion[1]).flatten())
+        dparams = np.array(dparams).flatten()
+        self._calibration_parameters = np.hstack(
+                [self._tilt, self._tvec, dparams]
+            )
+        self._calibration_flags = np.hstack(
+                [panel_calibration_flags_DFLT,
+                 np.zeros(len(dparams), dtype=bool)]
+            )
         return
 
     # detector ID
@@ -1388,9 +1477,27 @@ class PlanarDetector(object):
             indexing='ij')
         return pix_i, pix_j
 
-    """
-    ##################### METHODS
-    """
+    @property
+    def calibration_parameters(self):
+        return self._calibration_parameters
+
+    @property
+    def calibration_flags(self):
+        return self._calibration_flags
+
+    @calibration_flags.setter
+    def calibration_flags(self, x):
+        x = np.array(x, dtype=bool).flatten()
+        if len(x) != len(self._calibration_flags):
+            raise RuntimeError(
+                "length of parameter list must be %d; you gave %d"
+                % (len(self._calibration_flags), len(x))
+            )
+        self._calibration_flags = x
+
+    # =========================================================================
+    # METHODS
+    # =========================================================================
 
     def config_dict(self, chi, t_vec_s, sat_level=None):
         """
