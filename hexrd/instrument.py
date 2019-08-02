@@ -59,6 +59,7 @@ from hexrd.transforms.xfcapi import \
 from hexrd import xrdutil
 from hexrd.crystallography import PlaneData
 from hexrd import constants as ct
+from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
 
 # FIXME: distortion kludge
 from hexrd.distortion import GE_41RT  # BAD, VERY BAD!!!
@@ -99,7 +100,7 @@ Calibration parameter flags
 
  for instrument level, len is 7
 
- [wavelength,
+ [beam energy,
   beam azimuth,
   beam elevation,
   chi,
@@ -108,10 +109,7 @@ Calibration parameter flags
   tvec[2],
   ]
 """
-instr_calibration_flags_DFLT = np.array(
-    [0, 0, 0, 1, 0, 0, 0],
-    dtype=bool
-)
+instr_calibration_flags_DFLT = np.zeros(7, dtype=bool)
 
 """
  for each panel, order is:
@@ -303,17 +301,22 @@ class HEDMInstrument(object):
         # set up calibration parameter list and refinement flags
         #
         # first, grab the mapping function for tilt parameters if specified
+        if tilt_calibration_mapping is not None:
+            if not isinstance(tilt_calibration_mapping, RotMatEuler):
+                raise RuntimeError("tilt mapping must be a 'RotMatEuler' instance")
         self._tilt_calibration_mapping = tilt_calibration_mapping
 
         # grab angles from beam vec
+        # !!! these are in DEGREES!
         azim, pola = calc_angles_from_beam_vec(self._beam_vector)
 
         # stack instrument level parameters
+        # units: keV, degrees, mm
         self._calibration_parameters = [
             self.beam_energy,
             azim,
             pola,
-            self._chi,
+            np.degrees(self._chi),
             *self._tvec,
         ]
         self._calibration_flags = instr_calibration_flags_DFLT
@@ -322,12 +325,13 @@ class HEDMInstrument(object):
         det_params = []
         det_flags = []
         for detector in self._detectors.values():
-            affine_params = detector.calibration_parameters
+            this_det_params = detector.calibration_parameters
             if self._tilt_calibration_mapping is not None:
                 rmat = makeRotMatOfExpMap(detector.tilt)
-                tilt = tilt_calibration_mapping(rmat)
-                affine_params[:3] = tilt
-            det_params.append(affine_params)
+                self._tilt_calibration_mapping.rmat = rmat
+                tilt = self._tilt_calibration_mapping.angles
+                this_det_params[:3] = tilt
+            det_params.append(this_det_params)
             det_flags.append(detector.calibration_flags)
         det_params = np.hstack(det_params)
         det_flags = np.hstack(det_flags)
@@ -435,9 +439,9 @@ class HEDMInstrument(object):
 
     @tilt_calibration_mapping.setter
     def tilt_calibration_mapping(self, x):
-        if not callable(x):
+        if not isinstance(x, RotMatEuler):
             raise RuntimeError(
-                    "tilt mapping must be set to a callable function"
+                    "tilt mapping must be a 'RotMatEuler' instance"
                 )
         self._tilt_calibration_mapping = x
 
@@ -490,10 +494,8 @@ class HEDMInstrument(object):
         )
         par_dict['oscillation_stage'] = ostage
 
-        det_names = list(self.detectors.keys())
-        det_dict = dict.fromkeys(det_names)
-        for det_name in det_names:
-            panel = self.detectors[det_name]
+        det_dict = dict.fromkeys(self.detectors.keys())
+        for det_name, panel in self.detectors.items():
             pdict = panel.config_dict(self.chi, self.tvec)
             det_dict[det_name] = pdict['detector']
         par_dict['detectors'] = det_dict
@@ -506,7 +508,51 @@ class HEDMInstrument(object):
         """
         Utility function to update instrument parameters from a 1-d master
         parameter list (e.g. as used in calibration)
+
+        !!! Note that angles are reported in DEGREES!      
         """
+        self.beam_energy = p[0]
+        self.beam_vector = calc_beam_vec(p[1], p[2])
+        self.chi = np.radians(p[3])
+        self.tvec = np.r_[p[4:7]]
+
+        ii = 7
+        jj = ii + 3
+        for det_name, detector in self.detectors.items():
+            this_det_params = detector.calibration_parameters
+            npd = len(this_det_params)  # total number of params
+            dpdp = npd - 6  # number of distortion params
+
+            # first do tilt
+            tilt = np.r_[p[ii:jj]]
+            if self._tilt_calibration_mapping is not None:
+                self.tilt_calibration_mapping.angles = tilt
+                rmat = self.tilt_calibration_mapping.rmat
+                phi, n = angleAxisOfRotMat(rmat)
+                tilt = phi*n.flatten()
+            detector.tilt = tilt
+
+            # then do translation
+            ii = jj
+            jj = ii + 3
+            detector.tvec = np.r_[p[ii:jj]]
+
+            # then do distortion (if necessart)
+            # FIXME will need to update this with distortion fix
+            ii = jj
+            jj = ii + dpnp
+            if dpnp > 0:
+                if detector.distortion is None:
+                    raise RuntimeError(
+                        "distortion discrepancy for '%s'!"
+                        % det_name
+                    )
+                else:
+                    if len(detector.distortion[1]) != dpnp:
+                        raise RuntimeError(
+                            "length of dist params is incorrect"
+                        )                            
+                detector.distortion[1] = p[ii:jj]
         return
 
     def extract_polar_maps(self, plane_data, imgser_dict,
