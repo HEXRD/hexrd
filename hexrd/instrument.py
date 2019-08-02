@@ -313,7 +313,7 @@ class HEDMInstrument(object):
         # stack instrument level parameters
         # units: keV, degrees, mm
         self._calibration_parameters = [
-            self.beam_energy,
+            self._beam_energy,
             azim,
             pola,
             np.degrees(self._chi),
@@ -447,6 +447,42 @@ class HEDMInstrument(object):
 
     @property
     def calibration_parameters(self):
+        # grab angles from beam vec
+        # !!! these are in DEGREES!
+        azim, pola = calc_angles_from_beam_vec(self.beam_vector)
+
+        # stack instrument level parameters
+        # units: keV, degrees, mm
+        calibration_parameters = [
+            self.beam_energy,
+            azim,
+            pola,
+            np.degrees(self.chi),
+            *self.tvec,
+        ]
+
+        # collect info from panels and append
+        det_params = []
+        det_flags = []
+        for detector in self.detectors.values():
+            this_det_params = detector.calibration_parameters
+            if self.tilt_calibration_mapping is not None:
+                rmat = makeRotMatOfExpMap(detector.tilt)
+                self.tilt_calibration_mapping.rmat = rmat
+                tilt = self.tilt_calibration_mapping.angles
+                this_det_params[:3] = tilt
+            det_params.append(this_det_params)
+            det_flags.append(detector.calibration_flags)
+        det_params = np.hstack(det_params)
+        det_flags = np.hstack(det_flags)
+
+        # !!! hstack here assumes that calib params will be float and
+        # !!! flags will all be bool
+        calibration_parameters = np.hstack(
+            [calibration_parameters,
+             det_params]
+        ).flatten()
+        self._calibration_parameters = calibration_parameters
         return self._calibration_parameters
 
     @property
@@ -517,15 +553,14 @@ class HEDMInstrument(object):
         self.tvec = np.r_[p[4:7]]
 
         ii = 7
-        jj = ii + 3
         for det_name, detector in self.detectors.items():
             this_det_params = detector.calibration_parameters
             npd = len(this_det_params)  # total number of params
             dpnp = npd - 6  # number of distortion params
-
+            
             # first do tilt
-            tilt = np.r_[p[ii:jj]]
-            if self._tilt_calibration_mapping is not None:
+            tilt = np.r_[p[ii:ii + 3]]
+            if self.tilt_calibration_mapping is not None:
                 self.tilt_calibration_mapping.angles = tilt
                 rmat = self.tilt_calibration_mapping.rmat
                 phi, n = angleAxisOfRotMat(rmat)
@@ -533,13 +568,12 @@ class HEDMInstrument(object):
             detector.tilt = tilt
 
             # then do translation
-            ii = jj
-            jj = ii + 3
-            detector.tvec = np.r_[p[ii:jj]]
+            ii += 3
+            detector.tvec = np.r_[p[ii:ii + 3]]
 
             # then do distortion (if necessart)
             # FIXME will need to update this with distortion fix
-            ii = jj
+            ii += 3
             jj = ii + dpnp
             if dpnp > 0:
                 if detector.distortion is None:
