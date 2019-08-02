@@ -30,7 +30,7 @@
 #
 import sys
 import time
-import numpy
+import numpy as np
 
 from numpy import \
      arange, arctan2, array, asarray, atleast_1d, average, \
@@ -45,6 +45,8 @@ from numpy import int_ as nInt
 
 from scipy.optimize import leastsq
 
+from hexrd import constants as cnst
+
 from hexrd.matrixutil import \
     columnNorm, unitVector, \
     skewMatrixOfVector, findDuplicateVectors, \
@@ -56,13 +58,19 @@ from hexrd.matrixutil import \
 # =============================================================================
 
 
-tinyRotAng = finfo(float).eps         # ~2e-16
-angularUnits = 'radians'              # module-level angle units
-I3 = array([[1., 0., 0.],   # (3, 3) identity
-            [0., 1., 0.],
-            [0., 0., 1.]])
-periodDict = {'degrees': 360.0, 'radians': 2*numpy.pi}
+angularUnits = 'radians'  # module-level angle units
+periodDict = {'degrees': 360.0, 'radians': 2*np.pi}
+I3 = cnst.identity_3x3    # (3, 3) identity matrix
 
+# axes orders, all permutations
+axes_orders = [
+    'xyz', 'zyx',
+    'zxy', 'yxz',
+    'yzx', 'xzy',
+    'xyx', 'xzx',
+    'yxy', 'yzy',
+    'zxz', 'zyz',
+]
 
 # =============================================================================
 # Functions
@@ -481,7 +489,7 @@ def rotMatOfExpMap_opt(expMap):
     W = skewMatrixOfVector(expMap)
 
     # Find tiny angles to avoid divide-by-zero and apply limits in expressions
-    zeroIndex = phi < tinyRotAng
+    zeroIndex = phi < cnst.epsf
     phi[zeroIndex] = 1
 
     # first term
@@ -494,21 +502,21 @@ def rotMatOfExpMap_opt(expMap):
 
     numObjs = expMap.shape[1]
     if numObjs == 1:  # case of single point
-        W = numpy.reshape(W, [1, 3, 3])
+        W = np.reshape(W, [1, 3, 3])
         pass
 
-    C1 = numpy.tile(
-        numpy.reshape(C1, [numObjs, 1]),
+    C1 = np.tile(
+        np.reshape(C1, [numObjs, 1]),
         [1, 9]).reshape([numObjs, 3, 3])
-    C2 = numpy.tile(
-        numpy.reshape(C2, [numObjs, 1]),
+    C2 = np.tile(
+        np.reshape(C2, [numObjs, 1]),
         [1, 9]).reshape([numObjs, 3, 3])
 
-    W2 = numpy.zeros([numObjs, 3, 3])
+    W2 = np.zeros([numObjs, 3, 3])
 
     for i in range(3):
         for j in range(3):
-            W2[:, i, j] = numpy.sum(W[:, i, :]*W[:, :, j], 1)
+            W2[:, i, j] = np.sum(W[:, i, :]*W[:, :, j], 1)
             pass
         pass
 
@@ -560,7 +568,7 @@ def rotMatOfExpMap_orig(expMap):
     W = skewMatrixOfVector(expMap)  # skew matrices of exponential maps
 
     # Find tiny angles to avoid divide-by-zero and apply limits in expressions
-    zeroIndex = phi < tinyRotAng
+    zeroIndex = phi < cnst.epsf
     phi[zeroIndex] = 1
 
     # first term
@@ -592,7 +600,7 @@ def rotMatOfQuat(quat):
     array of rotation matrices (n x 3 x 3)
 
     Uses the truncated series expansion for the exponential map;
-    didvide-by-zero is checked using the global 'tinyRotAng'
+    didvide-by-zero is checked using the global 'cnst.epsf'
     """
     if quat.ndim == 1:
         if len(quat) != 4:
@@ -630,7 +638,7 @@ def rotMatOfQuat(quat):
     #     theta = 2. * arccosSafe(quat[0, i])
     #
     #     # find axial vector
-    #     if (theta > tinyRotAng):
+    #     if (theta > cnst.epsf):
     #         a = sin(theta) / theta
     #         b = (1. - cos(theta)) / theta**2
     #         w = (theta / sin(0.5 * theta)) * quat[1:4, i]
@@ -713,36 +721,47 @@ def angleAxisOfRotMat(R):
     return angle, unitVector(raxis)
 
 
+def _check_axes_order(x):
+    if not isinstance(x, str):
+        raise RuntimeError("argument must be str")
+    axo = x.lower()
+    if axo not in axes_orders:
+        raise RuntimeError(
+            "order '%s' is not a valid choice"
+            % x
+        )
+    return axo
+
+
+def _check_is_rmat(x):
+    x = np.asarray(x)
+    if x.shape != (3, 3):
+        raise RuntimeError("shape of input must be (3, 3)")
+    chk1 = np.linalg.det(x)
+    chk2 = np.sum(abs(np.eye(3) - np.dot(x, x.T)))
+    if 1. - abs(chk1) < cnst.sqrt_epsf and chk2 < cnst.sqrt_epsf:
+        return x
+    else:
+        raise RuntimeError("input is not an orthogonal matrix")
+
+
 def make_rmat_euler(tilt_angles, axes_order, extrinsic=True):
     """
     extrinsic (PASSIVE) or intrinsic (ACTIVE) by kw
     tilt_angles are in RADIANS
     """
-    axes = numpy.eye(3)
-
+    axes = np.eye(3)
     axes_dict = dict(x=0, y=1, z=2)
 
-    # axes orders, all permutations
-    orders = [
-        'xyz', 'zyx',
-        'zxy', 'yxz',
-        'yzx', 'xzy',
-        'xyx', 'xzx',
-        'yxy', 'yzy',
-        'zxz', 'zyz',
-    ]
-
-    axo = axes_order.lower()
-    assert axo in orders and len(axes_order) == 3, \
-        '%s is not a valid choice' % axes_order
+    axo = _check_axes_order(axes_order)
 
     if extrinsic:
-        rmats = numpy.zeros((3, 3, 3))
+        rmats = np.zeros((3, 3, 3))
         for i, ax in enumerate(axo):
             rmats[i] = rotMatOfExpMap(
                 tilt_angles[i]*axes[axes_dict[ax]]
             )
-        return numpy.dot(rmats[2], numpy.dot(rmats[1], rmats[0]))
+        return np.dot(rmats[2], np.dot(rmats[1], rmats[0]))
     else:
         rm0 = rotMatOfExpMap(
             tilt_angles[0]*axes[axes_dict[axo[0]]]
@@ -751,9 +770,9 @@ def make_rmat_euler(tilt_angles, axes_order, extrinsic=True):
             tilt_angles[1]*rm0[:, axes_dict[axo[1]]]
         )
         rm2 = rotMatOfExpMap(
-            tilt_angles[2]*numpy.dot(rm1, rm0[:, axes_dict[axo[2]]])
+            tilt_angles[2]*np.dot(rm1, rm0[:, axes_dict[axo[2]]])
         )
-        return numpy.dot(rm2, numpy.dot(rm1, rm0))
+        return np.dot(rm2, np.dot(rm1, rm0))
 
 
 def angles_from_rmat_xyz(rmat):
@@ -761,6 +780,8 @@ def angles_from_rmat_xyz(rmat):
     calculate x-y-z euler angles from a rotation matrix in
     the PASSIVE convention
     """
+    rmat = _check_is_rmat(rmat)
+
     eps = sqrt(finfo('float').eps)
     ry = -arcsin(rmat[2, 0])
     sgny = sign(ry)
@@ -776,7 +797,6 @@ def angles_from_rmat_xyz(rmat):
             rx = rz
     return rx, ry, rz
 
-
 def angles_from_rmat_zxz(rmat):
     """
     calculate z-x-z euler angles from a rotation matrix in
@@ -784,6 +804,8 @@ def angles_from_rmat_zxz(rmat):
 
     alpha, beta, gamma
     """
+    rmat = _check_is_rmat(rmat)
+
     if abs(rmat[2, 2]) > 1. - sqrt(finfo('float').eps):
         beta = 0.
         alpha = arctan2(rmat[1, 0], rmat[0, 0])
@@ -799,6 +821,77 @@ def angles_from_rmat_zxz(rmat):
         xnew2 = dot(rma.T, dot(rmb.T, xnew))
         gamma = arctan2(xnew2[1], xnew2[0])
     return alpha, beta, gamma
+
+
+class RotMatEuler(object):
+    def __init__(self, angles, axes_order, extrinsic=True):
+        """
+        ??? add check that angle input is array-like, len() = 3?
+        ??? add check on extrinsic as bool
+        """
+        self._axes = np.eye(3)
+        self._axes_dict = dict(x=0, y=1, z=2)
+
+        # these will be properties
+        self._angles = angles
+        self._axes_order = _check_axes_order(axes_order)
+        self._extrinsic = extrinsic
+
+    @property
+    def angles(self):
+        return self._angles
+
+    @angles.setter
+    def angles(self, x):
+        x = np.atleast_1d(x).flatten()
+        if len(x) == 3:
+            self._angles = x
+        else:
+            raise RuntimeError("input must be array-like with __len__ = 3")
+
+    @property
+    def axes_order(self):
+        return self._axes_order
+
+    @axes_order.setter
+    def axes_order(self, x):
+        axo = _check_axes_order(x)
+        self._axes_order = axo
+
+    @property
+    def extrinsic(self):
+        return self._extrinsic
+
+    @extrinsic.setter
+    def extrinsic(self, x):
+        if isinstance(x, bool):
+            self._extrinsic = x
+        else:
+            raise RuntimeError("input must be a bool")
+
+    @property
+    def rmat(self):
+        self._rmat = make_rmat_euler(
+            self.angles, self.axes_order, self.extrinsic)
+        return self._rmat
+
+    @rmat.setter
+    def rmat(self, x):
+        rmat = _check_is_rmat(x)
+        self._rmat = rmat
+        if self.axes_order == 'xyz':
+            if self.extrinsic == True:
+                angles = angles_from_rmat_xyz(rmat)
+            else:
+                raise NotImplementedError
+        elif self.axes_order == 'zxz':
+            if self.extrinsic == True:
+                raise NotImplementedError
+            else:
+                angles = angles_from_rmat_zxz(rmat)
+        else:
+            raise NotImplementedError
+        self._angles = angles
 
 
 #
@@ -1047,7 +1140,7 @@ def angularDifference_opt(angList0, angList1, units=angularUnits):
     """
     period = periodDict[units]
     d = abs(angList1 - angList0)
-    return numpy.minimum(d, period - d)
+    return np.minimum(d, period - d)
 
 
 angularDifference = angularDifference_opt
@@ -1088,15 +1181,15 @@ def testRotMatOfExpMap(numpts):
     """Test rotation matrix from axial vector"""
 
     print('* checking case of 1D vector input')
-    map = numpy.zeros(3)
+    map = np.zeros(3)
     rmat_1 = rotMatOfExpMap_orig(map)
     rmat_2 = rotMatOfExpMap_opt(map)
     print('resulting shapes:  ', rmat_1.shape, rmat_2.shape)
     #
     #
-    map = numpy.random.rand(3, numPts)
-    map = numpy.zeros([3, numPts])
-    map[0, :] = numpy.linspace(0, numpy.pi, numPts)
+    map = np.random.rand(3, numPts)
+    map = np.zeros([3, numPts])
+    map[0, :] = np.linspace(0, np.pi, numPts)
     #
     print('* testing rotMatOfExpMap with %d random points' % numPts)
     #
@@ -1111,9 +1204,9 @@ def testRotMatOfExpMap(numpts):
     print('   timings:\n   ... original ', et1)
     print('   ... optimized', et2)
     #
-    drmat = numpy.absolute(rmat_2 - rmat_1)
+    drmat = np.absolute(rmat_2 - rmat_1)
     print('maximum difference between results')
-    print(numpy.amax(drmat, 0))
+    print(np.amax(drmat, 0))
 
     return
 
@@ -1136,8 +1229,8 @@ if __name__ == '__main__':
     printTestName(num, name)
     units = 'radians'
     numPts = 1000000
-    a1 = 2*numpy.pi * numpy.random.rand(3, numPts) - numpy.pi
-    a2 = 2*numpy.pi * numpy.random.rand(3, numPts) - numpy.pi
+    a1 = 2*np.pi * np.random.rand(3, numPts) - np.pi
+    a2 = 2*np.pi * np.random.rand(3, numPts) - np.pi
     print('* testing %s with %d random points' % (name, numPts))
     #
     t0 = time.clock()
@@ -1151,8 +1244,8 @@ if __name__ == '__main__':
     print('   timings:\n   ... original ', et1)
     print('   ... optimized', et2)
     #
-    dd = numpy.absolute(d2 - d1)
+    dd = np.absolute(d2 - d1)
     print('maximum difference between results')
-    print(numpy.max(dd, 0).max())
+    print(np.max(dd, 0).max())
 
     pass
