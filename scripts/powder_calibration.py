@@ -36,8 +36,10 @@ class InstrumentCalibrator(object):
 
     def run_calibration(self, use_robust_optimization=False):
         """
-        FIXME: only coding serial powder case to get things going...
-
+        FIXME: only coding serial powder case to get things going.  Will
+        eventually figure out how to loop over multiple calibrator classes.
+        All will have a reference the same instrument, but some -- like single
+        crystal -- will have to add parameters as well as contribute to the RHS
         """
         calib_class = self.calibrators[0]
 
