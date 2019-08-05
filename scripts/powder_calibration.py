@@ -12,6 +12,7 @@ from hexrd.fitting import fitpeak
 from hexrd.matrixutil import findDuplicateVectors
 
 
+# %%
 class InstrumentCalibrator(object):
     def __init__(self, instr, *args):
         self._instr = instr
@@ -172,28 +173,18 @@ class PowderCalibrator(object):
             pass
         return rhs
 
-    def residual(self, params):
+    def residual(self, reduced_params, data_dict):
+        """
+        """
 
+        # first update instrument from input parameters
+        full_params = self.instr.calibration_parameters
+        full_params[self.instr.calibration_flags] = reduced_params
+        self.instr.update_from_parameter_list(full_params)
+
+        # build residual
+        resd = []
         for det_key, panel in self.instr.detectors.items():
-            # strip params for this panel
-            params = param_list[ii:jj]
-
-            # tilt first
-            tilt = np.degrees(angles_from_rmat_xyz(panel.rmat))
-            tilt[:2] = params[:2]
-            rmat = make_rmat_euler(
-                np.radians(tilt), 'xyz', extrinsic=True
-            )
-            phi, n = angleAxisOfRotMat(rmat)
-            panel.tilt = phi*n.flatten()
-
-            # translation
-            panel.tvec = params[2:]
-
-            # advance counters
-            ii += npp
-            jj += npp
-
             pdata = np.vstack(data_dict[det_key])
             if len(pdata) > 0:
                 calc_xy = panel.angles_to_cart(pdata[:, -2:])
@@ -204,5 +195,5 @@ class PowderCalibrator(object):
             else:
                 continue
         return np.hstack(resd)
-        pass
+
 

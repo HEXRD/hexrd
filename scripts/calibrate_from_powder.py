@@ -72,7 +72,7 @@ def make_matl(mat_name, sgnum, lparms, hkl_ssq_max=50):
 # =============================================================================
 
 # dirs
-working_dir = '/Users/Shared/PUP_AFRL_Feb19'
+working_dir = '/Users/Shared/APS/PUP_AFRL_Feb19'
 image_dir = os.path.join(working_dir, 'image_data')
 
 samp_name = 'ceria_cal'

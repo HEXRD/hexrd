@@ -545,7 +545,7 @@ class HEDMInstrument(object):
         Utility function to update instrument parameters from a 1-d master
         parameter list (e.g. as used in calibration)
 
-        !!! Note that angles are reported in DEGREES!      
+        !!! Note that angles are reported in DEGREES!
         """
         self.beam_energy = p[0]
         self.beam_vector = calc_beam_vec(p[1], p[2])
@@ -557,7 +557,7 @@ class HEDMInstrument(object):
             this_det_params = detector.calibration_parameters
             npd = len(this_det_params)  # total number of params
             dpnp = npd - 6  # number of distortion params
-            
+
             # first do tilt
             tilt = np.r_[p[ii:ii + 3]]
             if self.tilt_calibration_mapping is not None:
@@ -574,7 +574,6 @@ class HEDMInstrument(object):
             # then do distortion (if necessart)
             # FIXME will need to update this with distortion fix
             ii += 3
-            jj = ii + dpnp
             if dpnp > 0:
                 if detector.distortion is None:
                     raise RuntimeError(
@@ -585,8 +584,9 @@ class HEDMInstrument(object):
                     if len(detector.distortion[1]) != dpnp:
                         raise RuntimeError(
                             "length of dist params is incorrect"
-                        )                            
-                detector.distortion[1] = p[ii:jj]
+                        )
+                detector.distortion[1] = p[ii:ii + dpnp]
+                ii += dpnp
         return
 
     def extract_polar_maps(self, plane_data, imgser_dict,
@@ -1325,10 +1325,10 @@ class PlanarDetector(object):
         #
         #     [tilt, translation, <distortion>]
         dparams = []
-        if self.distortion is not None:
+        if self._distortion is not None:
             # need dparams
             # FIXME: must update when we fix distortion
-            dparams.append(np.atleast_1d(self.distortion[1]).flatten())
+            dparams.append(np.atleast_1d(self._distortion[1]).flatten())
         dparams = np.array(dparams).flatten()
         self._calibration_parameters = np.hstack(
                 [self._tilt, self._tvec, dparams]
@@ -1559,6 +1559,21 @@ class PlanarDetector(object):
 
     @property
     def calibration_parameters(self):
+        #
+        # set up calibration parameter list and refinement flags
+        #
+        # order for a single detector will be
+        #
+        #     [tilt, translation, <distortion>]
+        dparams = []
+        if self.distortion is not None:
+            # need dparams
+            # FIXME: must update when we fix distortion
+            dparams.append(np.atleast_1d(self.distortion[1]).flatten())
+        dparams = np.array(dparams).flatten()
+        self._calibration_parameters = np.hstack(
+                [self.tilt, self.tvec, dparams]
+            )
         return self._calibration_parameters
 
     @property
