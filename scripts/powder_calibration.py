@@ -8,21 +8,72 @@ Created on Tue Jul 30 20:45:01 2019
 
 import numpy as np
 
+from scipy.optimize import least_squares, leastsq
+
 from hexrd.fitting import fitpeak
 from hexrd.matrixutil import findDuplicateVectors
 
 
 # %%
 class InstrumentCalibrator(object):
-    def __init__(self, instr, *args):
-        self._instr = instr
+    def __init__(self, *args):
         assert len(args) > 0, \
             "must have at least one calibrator"
-        self._calibrators = *args
+        self._calibrators = args
+        self._instr = self._calibrators[0].instr
 
     @property
     def instr(self):
         return self._instr
+
+    @property
+    def calibrators(self):
+        return self._calibrators
+
+    # =========================================================================
+    # METHODS
+    # =========================================================================
+
+    def run_calibration(self, use_robust_optimization=False):
+        """
+        FIXME: only coding serial powder case to get things going...
+
+        """
+        calib_class = self.calibrators[0]
+
+        obj_func = calib_class.residual
+
+        data_dict = calib_class._extract_powder_lines()
+
+        # grab reduced optimizaion parameter set
+        x0 = self._instr.calibration_parameters[
+                self._instr.calibration_flags
+            ]
+
+        resd0 = obj_func(x0, data_dict)
+
+        if use_robust_optimization:
+            oresult = least_squares(
+                obj_func, x0, args=(data_dict, ),
+                method='trf', loss='soft_l1'
+            )
+            x1 = oresult['x']
+        else:
+            x1, cox_x, infodict, mesg, ierr = leastsq(
+                obj_func, x0, args=(data_dict, ),
+                full_output=True
+            )
+        resd1 = obj_func(x1, data_dict)
+
+        delta_r = sum(resd0**2)/float(len(resd0)) - \
+            sum(resd1**2)/float(len(resd1))
+
+        if delta_r > 0:
+            print(('OPTIMIZATION SUCCESSFUL\nfinal ssr: %f' % sum(resd1**2)))
+            print(('delta_r: %f' % delta_r))
+            # self.instr.write_config(instrument_filename)
+        else:
+            print('no improvement in residual!!!')
 
 
 # %%
