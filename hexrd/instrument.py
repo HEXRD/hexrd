@@ -1887,6 +1887,8 @@ class PlanarDetector(object):
                                 delta_tth, -delta_eta,
                                 0.0, 0.0]), (len(tth), 1)
                 )
+            # Convert to radians as is done below
+            del_eta = np.radians(delta_eta)
         else:
             # Okay, we have a PlaneData object
             try:
