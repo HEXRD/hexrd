@@ -1,5 +1,6 @@
 import numpy as np
 
+from .beam import Beam
 from hexrd import constants as ct
 from hexrd.gridutil import cellIndices
 from hexrd import matrixutil as mutil
@@ -39,7 +40,8 @@ class PlanarDetector(object):
                  saturation_level=None,
                  panel_buffer=None,
                  roi=None,
-                 distortion=None):
+                 distortion=None,
+                 beam=None):
         """
         panel buffer is in pixels...
 
@@ -63,7 +65,8 @@ class PlanarDetector(object):
         self._tvec = np.array(tvec).flatten()
         self._tilt = np.array(tilt).flatten()
 
-        self._bvec = np.array(bvec).flatten()
+        self.beam = Beam() if beam is None else beam
+        # self._bvec = np.array(bvec).flatten()
         self._evec = np.array(evec).flatten()
 
         self._distortion = distortion
@@ -239,14 +242,11 @@ class PlanarDetector(object):
 
     @property
     def bvec(self):
-        return self._bvec
+        return self.beam.vector
 
     @bvec.setter
     def bvec(self, x):
-        x = np.array(x).flatten()
-        assert len(x) == 3 and sum(x*x) > 1-ct.sqrt_epsf, \
-            'input must have length = 3 and have unit magnitude'
-        self._bvec = x
+        self.beam.vector = x
 
     @property
     def evec(self):
