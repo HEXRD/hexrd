@@ -37,6 +37,9 @@ import numpy as np
 from scipy import ndimage
 from scipy.linalg.matfuncs import logm
 
+from .beam import Beam
+from .detector import PlanarDetector
+
 from hexrd.gridutil import make_tolerance_grid
 from hexrd import matrixutil as mutil
 from hexrd.valunits import valWUnit
@@ -174,84 +177,36 @@ class HEDMInstrument(object):
     * Distortion needs to be moved to a class with registry; tuple unworkable
     * where should reference eta be defined? currently set to default config
     """
-    def __init__(self, instrument_config=None,
-                 image_series=None, eta_vector=None,
-                 instrument_name=None, tilt_calibration_mapping=None):
+    def __init__(self,
+                 beam=None,
+                 eta_vector=None,
+                 instrument_name=None,
+                 tilt_calibration_mapping=None):
+
         self._id = instrument_name_DFLT
+        self.beam = Beam() if beam is None else beam
 
         if eta_vector is None:
             self._eta_vector = eta_vec_DFLT
         else:
             self._eta_vector = eta_vector
 
-        if instrument_config is None:
-            if instrument_name is not None:
-                self._id = instrument_name
-            self._num_panels = 1
+        if instrument_name is not None:
+            self._id = instrument_name
+        self._num_panels = 1
 
-            self._detectors = dict(
-                panel_id_DFLT=PlanarDetector(
-                    rows=nrows_DFLT, cols=ncols_DFLT,
-                    pixel_size=pixel_size_DFLT,
-                    tvec=t_vec_d_DFLT,
-                    tilt=tilt_params_DFLT,
-                    evec=self._eta_vector,
-                    distortion=None),
-                )
+        self._detectors = dict(
+            panel_id_DFLT=PlanarDetector(
+                rows=nrows_DFLT, cols=ncols_DFLT,
+                pixel_size=pixel_size_DFLT,
+                tvec=t_vec_d_DFLT,
+                tilt=tilt_params_DFLT,
+                evec=self._eta_vector,
+                distortion=None),
+            )
 
-            self._tvec = t_vec_s_DFLT
-            self._chi = chi_DFLT
-        else:
-            if instrument_name is None:
-                if 'id' in instrument_config:
-                    self._id = instrument_config['id']
-            else:
-                self._id = instrument_name
-            self._num_panels = len(instrument_config['detectors'])
-            self._beam_energy = instrument_config['beam']['energy']  # keV
-            self._beam_vector = calc_beam_vec(
-                instrument_config['beam']['vector']['azimuth'],
-                instrument_config['beam']['vector']['polar_angle'],
-                )
-            ct.eta_vec
-            # now build detector dict
-            detector_ids = list(instrument_config['detectors'].keys())
-            pixel_info = [instrument_config['detectors'][i]['pixels']
-                          for i in detector_ids]
-            affine_info = [instrument_config['detectors'][i]['transform']
-                           for i in detector_ids]
-            distortion = []
-            for i in detector_ids:
-                try:
-                    distortion.append(
-                        instrument_config['detectors'][i]['distortion']
-                        )
-                except KeyError:
-                    distortion.append(None)
-            det_list = []
-            for pix, xform, dist in zip(pixel_info, affine_info, distortion):
-                # HARD CODED GE DISTORTION !!! FIX
-                dist_list = None
-                if dist is not None:
-                    dist_list = [GE_41RT, dist['parameters']]
-
-                det_list.append(
-                    PlanarDetector(
-                        rows=pix['rows'], cols=pix['columns'],
-                        pixel_size=pix['size'],
-                        tvec=xform['translation'],
-                        tilt=xform['tilt'],
-                        bvec=self._beam_vector,
-                        evec=ct.eta_vec,
-                        distortion=dist_list)
-                    )
-                pass
-            self._detectors = dict(zip(detector_ids, det_list))
-
-            self._tvec = np.r_[
-                instrument_config['oscillation_stage']['translation']
-            ]
-            self._chi = instrument_config['oscillation_stage']['chi']
+        self._tvec = t_vec_s_DFLT
+        self._chi = chi_DFLT
 
         #
         # set up calibration parameter list and refinement flags
@@ -264,7 +219,7 @@ class HEDMInstrument(object):
 
         # grab angles from beam vec
         # !!! these are in DEGREES!
-        azim, pola = calc_angles_from_beam_vec(self._beam_vector)
+        azim, pola = calc_angles_from_beam_vec(self.beam.vector)
 
         # stack instrument level parameters
         # units: keV, degrees, mm
@@ -344,31 +299,23 @@ class HEDMInstrument(object):
 
     @property
     def beam_energy(self):
-        return self._beam_energy
+        return self.beam.energy
 
     @beam_energy.setter
     def beam_energy(self, x):
-        self._beam_energy = float(x)
+        self.beam.energy = x
 
     @property
     def beam_wavelength(self):
-        return ct.keVToAngstrom(self.beam_energy)
+        return self.beam.wavelength
 
     @property
     def beam_vector(self):
-        return self._beam_vector
+        return self.beam.vector
 
     @beam_vector.setter
     def beam_vector(self, x):
-        x = np.array(x).flatten()
-        if len(x) == 3:
-            assert sum(x*x) > 1-ct.sqrt_epsf, \
-                'input must have length = 3 and have unit magnitude'
-            self._beam_vector = x
-        elif len(x) == 2:
-            self._beam_vector = calc_beam_vec(*x)
-        else:
-            raise RuntimeError("input must be a unit vector or angle pair")
+        self.beam.vector = x
         # ...maybe change dictionary item behavior for 3.x compatibility?
         for detector_id in self.detectors:
             panel = self.detectors[detector_id]
