@@ -219,12 +219,12 @@ class HEDMInstrument(object):
 
         # grab angles from beam vec
         # !!! these are in DEGREES!
-        azim, pola = calc_angles_from_beam_vec(self.beam.vector)
+        azim, pola = self.beam.angles
 
         # stack instrument level parameters
         # units: keV, degrees, mm
         self._calibration_parameters = [
-            self._beam_energy,
+            self.beam_energy,
             azim,
             pola,
             np.degrees(self._chi),
@@ -316,10 +316,10 @@ class HEDMInstrument(object):
     @beam_vector.setter
     def beam_vector(self, x):
         self.beam.vector = x
-        # ...maybe change dictionary item behavior for 3.x compatibility?
-        for detector_id in self.detectors:
-            panel = self.detectors[detector_id]
-            panel.bvec = self._beam_vector
+        #TBR# # ...maybe change dictionary item behavior for 3.x compatibility?
+        #TBR# for detector_id in self.detectors:
+        #TBR#     panel = self.detectors[detector_id]
+        #TBR#     panel.bvec = self._beam_vector
 
     @property
     def eta_vector(self):
