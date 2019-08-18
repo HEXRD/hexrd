@@ -2,12 +2,17 @@
 
 import numpy as np
 
+chi_DFLT = 0.
+t_vec_s_DFLT = np.zeros(3)
+
 
 class OscillationStage(object):
 
-    def __init__(self, tvec, chi):
-        self._tvec = np.atleast_1d(tvec).flatten()
-        self._chi = chi
+    def __init__(self,
+                 tvec=t_vec_s_DFLT,
+                 chi=chi_DFLT):
+        self.tvec = tvec
+        self.chi = chi
 
     @property
     def chi(self):

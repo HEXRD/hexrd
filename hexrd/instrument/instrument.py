@@ -38,11 +38,11 @@ from scipy import ndimage
 from scipy.linalg.matfuncs import logm
 
 from .beam import Beam
+from .oscillation_stage import OscillationStage
 from .detector import PlanarDetector
 
 from hexrd.gridutil import make_tolerance_grid
 from hexrd import matrixutil as mutil
-from hexrd.valunits import valWUnit
 from hexrd.transforms.xfcapi import \
     anglesToGVec, \
     angularDifference, \
@@ -86,8 +86,6 @@ pixel_size_DFLT = (0.2, 0.2)
 tilt_params_DFLT = np.zeros(3)
 t_vec_d_DFLT = np.r_[0., 0., -1000.]
 
-chi_DFLT = 0.
-t_vec_s_DFLT = np.zeros(3)
 
 """
 Calibration parameter flags
@@ -178,13 +176,17 @@ class HEDMInstrument(object):
     * where should reference eta be defined? currently set to default config
     """
     def __init__(self,
-                 beam=None,
                  eta_vector=None,
                  instrument_name=None,
-                 tilt_calibration_mapping=None):
+                 tilt_calibration_mapping=None,
+                 beam=None,
+                 oscillation_stage=None):
 
         self._id = instrument_name_DFLT
+
         self.beam = Beam() if beam is None else beam
+        self.oscillation_stage = OscillationStage() if oscillation_stage is None\
+                                 else oscillation_stage
 
         if eta_vector is None:
             self._eta_vector = eta_vec_DFLT
@@ -205,9 +207,6 @@ class HEDMInstrument(object):
                 distortion=None),
             )
 
-        self._tvec = t_vec_s_DFLT
-        self._chi = chi_DFLT
-
         #
         # set up calibration parameter list and refinement flags
         #
@@ -227,8 +226,8 @@ class HEDMInstrument(object):
             self.beam_energy,
             azim,
             pola,
-            np.degrees(self._chi),
-            *self._tvec,
+            np.degrees(self.chi),
+            *self.tvec,
         ]
         self._calibration_flags = instr_calibration_flags_DFLT
 
@@ -281,21 +280,19 @@ class HEDMInstrument(object):
 
     @property
     def tvec(self):
-        return self._tvec
+        return self.oscillation_stage.tvec
 
     @tvec.setter
     def tvec(self, x):
-        x = np.array(x).flatten()
-        assert len(x) == 3, 'input must have length = 3'
-        self._tvec = x
+        self.oscillation_stage.tvec = x
 
     @property
     def chi(self):
-        return self._chi
+        return self.oscillation_stage.chi
 
     @chi.setter
     def chi(self, x):
-        self._chi = float(x)
+        self.oscillation_stage.chi = x
 
     @property
     def beam_energy(self):
