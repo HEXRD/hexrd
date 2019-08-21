@@ -4,7 +4,6 @@ from hexrd.instrument import detector
 
 class TestDetector(InstrumentTest):
 
-    def
     def test_instantiation(self):
         # make sure it instantiates successfully
         self.assertTrue(isinstance(detector.PlanarDetector(),
@@ -12,3 +11,4 @@ class TestDetector(InstrumentTest):
         )
 
     def test_pixel_size(self):
+        pass
