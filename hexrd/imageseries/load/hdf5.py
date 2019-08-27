@@ -1,6 +1,7 @@
 """HDF5 adapter class
 """
 import h5py
+import warnings
 
 from . import ImageSeriesAdapter
 from ..imageseriesiter import ImageSeriesIterator
@@ -21,42 +22,53 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
         self.__path = kwargs['path']
         self.__dataname = kwargs.pop('dataname', 'images')
         self.__images = '/'.join([self.__path, self.__dataname])
+        self.__h5file = h5py.File(self.__h5name, 'r')
+        self.__image_dataset = self.__h5file[self.__images]
+        self.__data_group = self.__h5file[self.__path]
         self._meta = self._getmeta()
 
+
+    def close(self):
+        self.__image_dataset = None
+        self.__data_group = None
+        self.__h5file.close()
+        self.__h5file = None
+
+
+    def __del__(self):
+        # Note this is not ideal, as the use of __del__ is problematic. However,
+        # it is highly unlikely that the usage of a ImageSeries would pose
+        # a problem.
+        #
+        # A warning will (hopefully) be emitted if an issue arises at some point.
+        try:
+            self.close()
+        except:
+            warnings.warn("HDF5ImageSeries could not close h5file")
+            pass
+
+
     def __getitem__(self, key):
-        with self._dset as dset:
-            return dset.__getitem__(key)
+        return self.__image_dataset[key]
+
 
     def __iter__(self):
         return ImageSeriesIterator(self)
 
-    #@memoize
+
     def __len__(self):
-        with self._dset as dset:
-            return len(dset)
+        return len(self.__image_dataset)
 
-    @property
-    def _dgroup(self):
-        # return a context manager to ensure proper file handling
-        # always use like: "with self._dgroup as dgroup:"
-        return H5ContextManager(self.__h5name, self.__path)
-
-    @property
-    def _dset(self):
-        # return a context manager to ensure proper file handling
-        # always use like: "with self._dset as dset:"
-        return H5ContextManager(self.__h5name, self.__images)
 
     def _getmeta(self):
         mdict = {}
-        with self._dgroup as dgroup:
-            for k, v in list(dgroup.attrs.items()):
-                mdict[k] = v
+        for k, v in list(self.__data_group.attrs.items()):
+            mdict[k] = v
 
         return mdict
 
+
     @property
-    #@memoize
     def metadata(self):
         """(read-only) Image sequence metadata
 
@@ -64,30 +76,14 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
         """
         return self._meta
 
+
     @property
     def dtype(self):
-        with self._dset as dset:
-            return dset.dtype
+        return self.__image_dataset.dtype
+
 
     @property
-    #@memoize so you only need to do this once
     def shape(self):
-        with self._dset as dset:
-            return dset.shape[1:]
+        return self.__image_dataset.shape[1:]
 
     pass  # end class
-
-
-class H5ContextManager:
-
-    def __init__(self, fname, path):
-        self._fname = fname
-        self._path = path
-        self._f = None
-
-    def __enter__(self):
-        self._f = h5py.File(self._fname, 'r')
-        return self._f[self._path]
-
-    def __exit__(self, *args):
-        self._f.close()
