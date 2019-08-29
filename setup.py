@@ -8,9 +8,15 @@ np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 install_reqs = [
     'h5py',
     'scipy',
-    'scikit-image',
     'numba'
 ]
+
+# This a hack to get around the fact that scikit-image on conda-forge doesn't install
+# dist info so setuptools can't find it, even though its there, which results in
+# pkg_resources.DistributionNotFound, even though the package is available. So we
+# only added it if we aren't buildding with conda.
+if os.environ.get('CONDA_BUILD') != '1':
+    install_reqs.append('scikit-image')
 
 def get_extension_modules():
     # for SgLite
