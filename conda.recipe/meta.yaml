@@ -13,6 +13,8 @@ requirements:
     - numpy
     - python
     - setuptools
+    - setuptools_scm
+
   run:
     - h5py
     - scipy
