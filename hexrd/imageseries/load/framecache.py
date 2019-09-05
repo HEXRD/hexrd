@@ -65,7 +65,16 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
             keysd = dict.fromkeys(list(arrs.keys()))
             self._nframes = int(arrs['nframes'])
             self._shape = tuple(arrs['shape'])
-            self._dtype = np.dtype(arrs['dtype'].tobytes().decode())
+            # Check the type so we can read files written
+            # using Python 2.7
+            array_dtype = arrs['dtype'].dtype
+            # Python 3
+            if array_dtype.type == np.str_:
+                dtype_str = str(arrs['dtype'])
+            # Python 2.7
+            else:
+                dtype_str = arrs['dtype'].tobytes().decode()
+            self._dtype = np.dtype(dtype_str)
             keysd.pop('nframes')
             keysd.pop('shape')
             keysd.pop('dtype')

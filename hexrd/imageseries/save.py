@@ -229,7 +229,7 @@ class WriteFrameCache(Writer):
             pass
         arrd['shape'] = self._ims.shape
         arrd['nframes'] = len(self._ims)
-        arrd['dtype'] = str(self._ims.dtype)
+        arrd['dtype'] = str(self._ims.dtype).encode()
         arrd.update(self._process_meta())
         np.savez_compressed(self._cache, **arrd)
 
