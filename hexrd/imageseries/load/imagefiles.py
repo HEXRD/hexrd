@@ -54,8 +54,11 @@ class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
             img = fimg.getframe(frame)
         if self._dtype is not None:
             # !!! handled in self._process_files
-            iinfo = np.iinfo(self._dtype)
-            if np.max(img.data) > iinfo.max:
+            try:
+                dinfo = np.iinfo(self._dtype)
+            except(ValueError):
+                dinfo = np.finfo(self._dtype)
+            if np.max(img.data) > dinfo.max:
                 raise RuntimeError("specified dtype will truncate image")
             return np.array(img.data, dtype=self._dtype)
         else:
