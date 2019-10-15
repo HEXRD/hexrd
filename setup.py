@@ -11,41 +11,53 @@ install_reqs = [
     'numba'
 ]
 
-# This a hack to get around the fact that scikit-image on conda-forge doesn't install
-# dist info so setuptools can't find it, even though its there, which results in
-# pkg_resources.DistributionNotFound, even though the package is available. So we
-# only added it if we aren't buildding with conda.
+# This a hack to get around the fact that scikit-image on conda-forge doesn't
+# install dist info so setuptools can't find it, even though its there, which
+# results in pkg_resources.DistributionNotFound, even though the package is
+# available. So we only added it if we aren't buildding with conda.
 if os.environ.get('CONDA_BUILD') != '1':
     install_reqs.append('scikit-image')
 
-def get_extension_modules():
-    # for SgLite
-    srclist = [
-        'sgglobal.c', 'sgcb.c', 'sgcharmx.c', 'sgfile.c', 'sggen.c', 'sghall.c',
-        'sghkl.c', 'sgltr.c', 'sgmath.c', 'sgmetric.c', 'sgnorm.c', 'sgprop.c',
-        'sgss.c', 'sgstr.c', 'sgsymbols.c', 'sgtidy.c', 'sgtype.c', 'sgutil.c',
-        'runtests.c', 'sglitemodule.c'
-        ]
-    srclist = [os.path.join('hexrd/sglite', f) for f in srclist]
-    sglite_mod = Extension(
-        'hexrd.extensions.sglite',
-        sources=srclist,
-        define_macros=[('PythonTypes', 1)]
-        )
+##############################################################################
+# Extensions
+EXTENSIONS_BASE_PATH = 'hexrd'
+def make_hexrd_extension_name(name):
+    return '.'.join(('hexrd.extensions', name))
 
-    # for transforms
-    srclist = ['transforms_CAPI.c', 'transforms_CFUNC.c']
-    srclist = [os.path.join('hexrd/transforms', f) for f in srclist]
-    transforms_mod = Extension(
-        'hexrd.extensions._transforms_CAPI',
-        sources=srclist,
-        include_dirs=[np_include_dir]
-        )
+## sglite
+sglite_location = os.path.join(EXTENSIONS_BASE_PATH, 'sglite')
 
-    return [sglite_mod, transforms_mod]
+sglite_srcs = [
+    'sgglobal.c', 'sgcb.c', 'sgcharmx.c', 'sgfile.c', 'sggen.c', 'sghall.c',
+    'sghkl.c', 'sgltr.c', 'sgmath.c', 'sgmetric.c', 'sgnorm.c', 'sgprop.c',
+    'sgss.c', 'sgstr.c', 'sgsymbols.c', 'sgtidy.c', 'sgtype.c', 'sgutil.c',
+    'runtests.c', 'sglitemodule.c'
+]
 
-ext_modules = get_extension_modules()
+sglite_extension = Extension(
+    make_hexrd_extension_name('sglite'),
+    sources=[os.path.join(sglite_location, f) for f in sglite_srcs],
+    define_macros=[('PythonTypes', 1)]
+)
 
+## legacy transforms module
+legacy_transforms_location = os.path.join(EXTENSIONS_BASE_PATH, 'transforms')
+legacy_transforms_srcs = ['transforms_CAPI.c', 'transforms_CFUNC.c']
+legacy_transforms_extension = Extension(
+    make_hexrd_extension_name('_transforms_CAPI'),
+    sources=[os.path.join(legacy_transforms_location, f)
+               for f in legacy_transforms_srcs],
+    include_dirs=[np_include_dir]
+)
+
+## list of modules to include
+ext_modules = [
+    sglite_extension,
+    legacy_transforms_extension,
+]
+
+##############################################################################
+# Module configuration
 setup(
     name='hexrd',
     use_scm_version=True,
