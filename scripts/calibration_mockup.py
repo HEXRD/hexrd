@@ -1,20 +1,73 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Jul 30 20:45:01 2019
+import os
 
-@author: joel
-"""
+import glob
+
+import matplotlib.gridspec as gridspec
+from matplotlib import pyplot as plt
 
 import numpy as np
 
-from scipy.optimize import least_squares, leastsq
+from scipy.optimize import leastsq, least_squares
+try:
+    import dill as cpl
+except(ImportError):
+    import pickle as cpl
 
-from hexrd.fitting import fitpeak
+from skimage.exposure import equalize_adapthist, rescale_intensity
+from skimage.morphology import disk, binary_erosion
+
+import yaml
+
+from hexrd import imageseries
+from hexrd import instrument
+from hexrd import material
 from hexrd.matrixutil import findDuplicateVectors
+from hexrd.fitting import fitpeak
+from hexrd.rotations import \
+    angleAxisOfRotMat, \
+    angles_from_rmat_xyz, make_rmat_euler, \
+    RotMatEuler
+from hexrd.transforms.xfcapi import mapAngle
+from hexrd.xrdutil import make_reflection_patches
+
+
+# plane data
+def load_pdata(cpkl, key):
+    with open(cpkl, "rb") as matf:
+        mat_list = cpl.load(matf)
+    return dict(list(zip([i.name for i in mat_list], mat_list)))[key].planeData
+
+
+# images
+def load_images(yml):
+    return imageseries.open(yml, format="image-files")
+
+
+# instrument
+def load_instrument(yml):
+    with open(yml, 'r') as f:
+        icfg = yaml.safe_load(f)
+    return instrument.HEDMInstrument(instrument_config=icfg)
+
+
+# build a material on the fly
+def make_matl(mat_name, sgnum, lparms, hkl_ssq_max=50):
+    matl = material.Material(mat_name)
+    matl.sgnum = sgnum
+    matl.latticeParameters = lparms
+    matl.hklMax = hkl_ssq_max
+
+    nhkls = len(matl.planeData.exclusions)
+    matl.planeData.set_exclusions(np.zeros(nhkls, dtype=bool))
+    return matl
 
 
 # %%
+# =============================================================================
+# CLASSES
+# =============================================================================
+
+
 class InstrumentCalibrator(object):
     def __init__(self, *args):
         assert len(args) > 0, \
@@ -211,6 +264,15 @@ class PowderCalibrator(object):
                     if p[0] < 0.1 or center_err > np.radians(self.tth_tol):
                         continue
                     xy_meas = panel.angles_to_cart([[tth_meas, eta_ref], ])
+
+                    # FIXME: distortion kludge
+                    if panel.distortion is not None:
+                        xy_meas = panel.distortion[0](
+                                xy_meas,
+                                panel.distortion[1],
+                                invert=True
+                            )
+                    # cat results
                     tmp.append(
                         np.hstack(
                             [xy_meas.squeeze(),
@@ -242,6 +304,14 @@ class PowderCalibrator(object):
             if len(pdata) > 0:
                 calc_xy = panel.angles_to_cart(pdata[:, -2:])
 
+                # FIXME: distortion kludge
+                if panel.distortion is not None:
+                    calc_xy = panel.distortion[0](
+                            calc_xy,
+                            panel.distortion[1],
+                            invert=True
+                        )
+
                 resd.append(
                     (pdata[:, :2].flatten() - calc_xy.flatten())
                 )
@@ -250,3 +320,155 @@ class PowderCalibrator(object):
         return np.hstack(resd)
 
 
+# %%
+# =============================================================================
+# USER INPUT
+# =============================================================================
+
+# dirs
+working_dir = '/Users/Shared/APS/PUP_AFRL_Feb19'
+image_dir = os.path.join(working_dir, 'image_data')
+
+samp_name = 'ceria_cal'
+scan_number = 0
+
+raw_data_dir_template = os.path.join(
+    image_dir,
+    'raw_images_%s_%06d-%s.yml'
+)
+
+instrument_filename = 'Hydra_Feb19.yml'
+
+# !!! make material on the fly as pickles are broken
+matl = make_matl('ceria', 225, [5.411102, ])
+
+# tolerances for patches
+tth_tol = 0.2
+eta_tol = 2.
+
+tth_max = 11.
+
+# peak fit type
+# pktype = 'gaussian'
+pktype = 'pvoigt'
+
+# Try it
+use_robust_optimization = False
+
+
+# %%
+# =============================================================================
+# IMAGESERIES
+# =============================================================================
+
+# for applying processing options (flips, dark subtretc...)
+PIS = imageseries.process.ProcessedImageSeries
+
+# load instrument
+#instr = load_instrument(os.path.join(working_dir, instrument_filename))
+instr = load_instrument(instrument_filename)
+det_keys = list(instr.detectors.keys())
+
+# hijack panel buffer
+edge_buff = 5
+for k, v in list(instr.detectors.items()):
+    try:
+        mask = np.load(mask_template % k)
+    except(NameError):
+        mask = np.ones((v.rows, v.cols), dtype=bool)
+    mask[:edge_buff, :] = False
+    mask[:, :edge_buff] = False
+    mask[-edge_buff:, :] = False
+    mask[:, -edge_buff:] = False
+    v.panel_buffer = mask
+
+
+# grab imageseries filenames
+file_names = glob.glob(
+    raw_data_dir_template % (samp_name, scan_number, '*')
+)
+check_files_exist = [os.path.exists(file_name) for file_name in file_names]
+if not np.all(check_files_exist):
+    raise RuntimeError("files don't exist!")
+
+img_dict = dict.fromkeys(det_keys)
+for k, v in img_dict.items():
+    file_name = glob.glob(
+        raw_data_dir_template % (samp_name, scan_number, k)
+    )
+    ims = load_images(file_name[0])
+    img_dict[k] = ims[0]
+
+# plane data munging
+matl.beamEnergy = instr.beam_energy
+plane_data = matl.planeData
+if tth_tol is not None:
+    plane_data.tThWidth = np.radians(tth_tol)
+
+if tth_max is not None:
+    plane_data.exclusions = None
+    plane_data.tThMax = np.radians(tth_max)
+
+
+# %%
+# =============================================================================
+# SETUP CALIBRATION
+# =============================================================================
+
+# first, add tilt calibration
+# !!! This needs to come from the GUI input somehow
+rme = RotMatEuler(np.zeros(3), 'xyz', extrinsic=True)
+instr.tilt_calibration_mapping = rme
+
+# !!! this comes from GUI checkboxes
+# set flags for first 2 tilt angles, translation for each panel (default)
+# first three distortion params
+cf = instr.calibration_flags
+ii = 7
+for i in range(instr.num_panels):
+    cf[ii + 2] = False
+    cf[ii + 6:ii + 9] = True
+    ii += 12
+    pass
+instr.calibration_flags = cf
+
+# powder calibrator
+pc = PowderCalibrator(instr, plane_data, img_dict,
+                      tth_tol=tth_tol, eta_tol=eta_tol)
+
+# make instrument calibrator
+ic = InstrumentCalibrator(pc)
+
+ic.run_calibration()
+
+# %% sample plot to check fit line poistions ahead of fitting
+fig, ax = plt.subplots(2, 2)
+fig_row, fig_col = np.unravel_index(np.arange(instr.num_panels), (2, 2))
+
+data_dict = pc._extract_powder_lines()
+
+ifig = 0
+for det_key, panel in instr.detectors.items():
+    all_pts = np.vstack(data_dict[det_key])
+    '''
+    pimg = equalize_adapthist(
+            rescale_intensity(img_dict[det_key], out_range=(0, 1)),
+            10, clip_limit=0.2)
+    '''
+    pimg = np.array(img_dict[det_key], dtype=float)
+    pimg[~panel.panel_buffer] = np.nan
+    ax[fig_row[ifig], fig_col[ifig]].imshow(
+        pimg,
+        vmin=np.percentile(img_dict[det_key], 5),
+        vmax=np.percentile(img_dict[det_key], 90),
+        cmap=plt.cm.bone_r
+    )
+    ideal_angs, ideal_xys = panel.make_powder_rings(plane_data,
+                                                    delta_eta=eta_tol)
+    rijs = panel.cartToPixel(np.vstack(ideal_xys))
+    ax[fig_row[ifig], fig_col[ifig]].plot(rijs[:, 1], rijs[:, 0], 'cx')
+    ax[fig_row[ifig], fig_col[ifig]].set_title(det_key)
+    rijs = panel.cartToPixel(all_pts[:, :2])
+    ax[fig_row[ifig], fig_col[ifig]].plot(rijs[:, 1], rijs[:, 0], 'm+')
+    ax[fig_row[ifig], fig_col[ifig]].set_title(det_key)
+    ifig += 1

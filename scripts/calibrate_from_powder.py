@@ -72,8 +72,8 @@ def make_matl(mat_name, sgnum, lparms, hkl_ssq_max=50):
 # =============================================================================
 
 # dirs
-working_dir = '/Users/Shared/PUP_AFRL_Feb19/'
-image_dir = '/Users/Shared/PUP_AFRL_Feb19/image_data'
+working_dir = '/Users/Shared/APS/PUP_AFRL_Feb19'
+image_dir = os.path.join(working_dir, 'image_data')
 
 samp_name = 'ceria_cal'
 scan_number = 0
@@ -118,7 +118,8 @@ refinement_type = "translation_and_tilt"
 PIS = imageseries.process.ProcessedImageSeries
 
 # load instrument
-instr = load_instrument(os.path.join(working_dir, instrument_filename))
+#instr = load_instrument(os.path.join(working_dir, instrument_filename))
+instr = load_instrument(instrument_filename)
 det_keys = list(instr.detectors.keys())
 
 # hijack panel buffer
