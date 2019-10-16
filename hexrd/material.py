@@ -261,6 +261,30 @@ class Material(object):
         self.sgnum   = sgnum
         self._lparms = self._toSixLP(sgnum, lparams)
 
+        fracsitekey = ['_atom_site_fract_x', '_atom_site_fract_y',\
+                        '_atom_site_fract_z', '_atom_site_occupancy',\
+                        '_atom_site_U_iso_or_equiv']
+        sitedata = True
+        for key in fracsitekey:
+            sitedata = sitedata and (key in cifdata)
+
+        if(not(sitedata)):
+            raise RuntimeError(' fractional site position, occupation or isotropic vibration amplitude \
+                                 data is not present or incomplete! ')
+
+        atompos = []
+        for key in fracsitekey:
+            atompos.append(numpy.asarray(cifdata[key]).astype(numpy.float64))
+        
+        """note that the vibration amplitude, U is just the amplitude (in A)
+            to convert to the typical B which occurs in the debye-waller factor,
+            we will use the following formula
+            B = 8 * pi ^2 * < U_av^2 >
+            this will be done here so we dont have to worry about it later 
+        """
+        self._atominfo = numpy.asarray(atompos).T
+        atominfo[:,4] = 8.0 * (numpy.pi**2) * (atominfo[:,4]**2)
+
     #
     # ============================== API
     #
