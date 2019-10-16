@@ -36,8 +36,11 @@ import numpy
 
 from hexrd.crystallography import PlaneData as PData
 from hexrd.spacegroup import SpaceGroup as SG
-
+import hexrd.spacegroup as sg
 from hexrd.valunits import valWUnit
+
+from os import path
+from CifFile import ReadCif 
 
 __all__ = ['Material', 'loadMaterialList']
 
@@ -79,7 +82,7 @@ class Material(object):
     DFLT_KEV = valWUnit('wavelength', 'energy', 80.725e0, 'keV')
     DFLT_STR = 0.0025
     DFLT_TTH = numpy.radians(0.25)
-    DFLT_ATOMINFO = numpy.array([[0, 0, 0, 1]])
+    DFLT_ATOMINFO = numpy.array([[0, 0, 0, 1, 0.05]])
     """Fractional Atom Position of an atom in the unit cell followed by the
     number of electrons within that atom. The max number of electrons is 96.
     """
@@ -202,6 +205,61 @@ class Material(object):
             pass
 
         return lp6
+
+
+    def _readCif(self, fcif=DFLT_NAME+'.cif'):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       10/16/2019 SS 1.0 original
+        >> @DETAILS:    hexrd3 will have real structure factors and will require the overhaul
+                        of the crystallography. In this effort, we will have a cif reader and
+                        also the HDF5 format reader in the material class. We will be using 
+                        pycifrw for i/o
+        """
+        if(fcif == Material.DFLT_NAME+'.cif'):
+            try:
+                cif = ReadCif(fcif)
+            except(OSError):
+                raise RuntimeError('OS Error: No file name supplied and default file name not found.')
+        else:
+            try:
+                cif = ReadCif(fcif)
+            except(OSError):
+                raise RuntimeError('OS Error: File not found')
+
+        cifdata = cif[cif.keys()[0]]
+
+        sgkey = ['_space_group_IT_number', '_symmetry_space_group_name_h-m', \
+                 '_symmetry_space_group_name_hall']
+
+        sgdata = False
+        for key in sgkey:
+            sgdata = sgdata or (key in cifdata)
+
+        if(not(sgdata)):
+            raise RuntimeError(' No space group information in CIF file! ')
+
+        sgnum = 0
+        if sgkey[0] in cifdata:
+            sgnum = int(cifdata[sgkey[0]])
+
+        if (sgnum == 0):
+            if (sgkey[1] in cifdata):
+                HM = cifdata[sgkey[1]]
+                sgnum = sg.HM_to_sgnum[HM]
+            if (sgkey[2] in cifdata):
+                hall = cifdata[sgkey[2]]
+                sgnum = sg.Hall_to_sgnum[HM]  
+
+        lparams = []
+        lpkey = ['_cell_length_a', '_cell_length_b', \
+                 '_cell_length_c', '_cell_angle_alpha', \
+                 '_cell_angle_beta', '_cell_angle_gamma']   
+        for key in lpkey:
+            lparams.append(cifdata[key])
+
+        self.sgnum   = sgnum
+        self._lparms = self._toSixLP(sgnum, lparams)
 
     #
     # ============================== API
