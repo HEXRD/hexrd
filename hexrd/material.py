@@ -270,7 +270,7 @@ class Material(object):
 
         if(not(sitedata)):
             raise RuntimeError(' fractional site position, occupation or isotropic vibration amplitude \
-                                 data is not present or incomplete! ')
+                                 data is not present or incomplete in the CIF file! ')
 
         atompos = []
         for key in fracsitekey:
@@ -283,7 +283,7 @@ class Material(object):
             this will be done here so we dont have to worry about it later 
         """
         self._atominfo = numpy.asarray(atompos).T
-        atominfo[:,4] = 8.0 * (numpy.pi**2) * (atominfo[:,4]**2)
+        self._atominfo[:,4] = 8.0 * (numpy.pi**2) * (self._atominfo[:,4]**2)
 
     #
     # ============================== API
