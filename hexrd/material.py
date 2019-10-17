@@ -41,6 +41,7 @@ from hexrd.valunits import valWUnit
 
 from os import path
 from CifFile import ReadCif 
+import  h5py
 
 __all__ = ['Material', 'loadMaterialList']
 
@@ -216,6 +217,8 @@ class Material(object):
                         also the HDF5 format reader in the material class. We will be using 
                         pycifrw for i/o
         """
+
+        # make sure file exists etc.
         if(fcif == Material.DFLT_NAME+'.cif'):
             try:
                 cif = ReadCif(fcif)
@@ -227,8 +230,11 @@ class Material(object):
             except(OSError):
                 raise RuntimeError('OS Error: File not found')
 
+        # read the file
         cifdata = cif[cif.keys()[0]]
 
+        # make sure the space group is present in the cif file, either as 
+        # international table number, hermann-maguain or hall symbol
         sgkey = ['_space_group_IT_number', '_symmetry_space_group_name_h-m', \
                  '_symmetry_space_group_name_hall']
 
@@ -251,6 +257,7 @@ class Material(object):
                 hall = cifdata[sgkey[2]]
                 sgnum = sg.Hall_to_sgnum[HM]  
 
+        # lattice parameters
         lparams = []
         lpkey = ['_cell_length_a', '_cell_length_b', \
                  '_cell_length_c', '_cell_angle_alpha', \
@@ -258,9 +265,11 @@ class Material(object):
         for key in lpkey:
             lparams.append(cifdata[key])
 
+
         self.sgnum   = sgnum
         self._lparms = self._toSixLP(sgnum, lparams)
 
+        # fractional atomic site, occ and vibration amplitude
         fracsitekey = ['_atom_site_fract_x', '_atom_site_fract_y',\
                         '_atom_site_fract_z', '_atom_site_occupancy',\
                         '_atom_site_U_iso_or_equiv']
@@ -284,6 +293,46 @@ class Material(object):
         """
         self._atominfo = numpy.asarray(atompos).T
         self._atominfo[:,4] = 8.0 * (numpy.pi**2) * (self._atominfo[:,4]**2)
+
+    def _readHDFxtal(self, fhdf=DFLT_NAME+'.cif'):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       10/17/2019 SS 1.0 original
+        >> @DETAILS:    hexrd3 will have real structure factors and will require the overhaul
+                        of the crystallography. In this effort, we will have a HDF file reader.
+                        the file will be the same as the EMsoft xtal file. h5py will be used for
+                        i/o
+        """
+        fid = h5py.File(fhdf, 'r')
+
+        for groups in list(fid.keys()):
+            
+            gid         = fid.get(groups)
+            
+            sgnum       = numpy.asscalar(numpy.array(gid.get('SpaceGroupNumber'), \
+                                        dtype = numpy.int32))
+            """ 
+                IMPORTANT NOTE:
+                note that the latice parameters in EMsoft is nm by default
+                hexrd on the other hand uses A as the default units, so we
+                need to be careful and convert it right here, so there is no
+                confusion later on
+            """
+            lparms      = numpy.asarray(gid.get('LatticeParameters'), dtype=numpy.float64)
+            lparms[0:3] = lparms[0:3] * 10.0
+
+        # fill space group and lattice parameters
+        self.sgnum      = sgnum
+
+        self._lparms    = self._toSixLP(sgnum, lparms)
+
+        # the last field in this is already the B factor, so no need to convert
+        self._atominfo  = numpy.transpose(numpy.array(gid.get('AtomData'), dtype = numpy.float64))
+
+        # read atom types (by atomic number, Z)
+        self._atomtypes = numpy.array(gid.get('Atomtypes'), dtype = numpy.int32)
+        self._atom_ntype = self._atomtypes.shape[0]
+
 
     #
     # ============================== API
