@@ -8,6 +8,8 @@ np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 install_reqs = [
     'h5py',
     'scipy',
+    'pycifrw',
+    'f90wrap',
     'numba'
 ]
 
@@ -41,6 +43,25 @@ def get_extension_modules():
         sources=srclist,
         include_dirs=[np_include_dir]
         )
+
+    srclist = ['local.f90', 'typedefs.f90', 'error.f90', 'io.f90', 
+            'constants.f90', 'math.f90', 'quaternions.f90', 
+            'rotations.f90', 'symmetry.f90', 'diffraction.f90',
+            'crystal.f90'
+        ]
+    srclist = [os.path.join('hexrd/EMsoft', f) for f in srclist]
+    srclist_str = ''
+    for f in srclist:
+        srclist_str = srclist_str+f+' '
+
+
+    # this is the kind map for f90wrap
+    kmap = 'kind_map'
+    kmap = os.path.join('hexrd/EMsoft',kmap)
+
+
+    cmd = 'f90wrap -k '+ kmap + ' -m ' + srclist_str + ' -p hexrd/EMsoft/f90wrap_'
+    os.system(cmd)
 
     return [sglite_mod, transforms_mod]
 
