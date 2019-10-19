@@ -897,14 +897,14 @@ integer(kind=irg), dimension(32,32) :: FZtypeTable = reshape( (/ &
 !
 ! linked list of reflections
 type reflisttype  
-  integer(kind=irg)             :: num, &               ! sequential number
-                                   hkl(3),&             ! Miller indices
-                                   famhkl(3),&          ! family representative Miller indices
-                                   HOLZN,&              ! belongs to this HOLZ layer
-                                   strongnum,&          ! sequential number for strong beams
-                                   weaknum,&            ! sequential number for weak beams
-                                   famnum,&             ! family number
-                                   nab(2)               ! decomposition with respect to ga and gb
+  integer(kind=irg)             :: num               ! sequential number
+  integer(kind=irg)             :: HOLZN              ! belongs to this HOLZ layer
+  integer(kind=irg)             :: strongnum          ! sequential number for strong beams
+  integer(kind=irg)             :: weaknum            ! sequential number for weak beams
+  integer(kind=irg)             :: famnum             ! family number
+  integer(kind=irg)             :: hkl(3)             ! Miller indices
+  integer(kind=irg)             :: famhkl(3)          ! family representative Miller indices
+  integer(kind=irg)             :: nab(2)               ! decomposition with respect to ga and gb
   logical                       :: dbdiff               ! double diffraction reflection ?
   real(kind=dbl)                :: sg, &               ! excitation error
                                    xg, &              ! extinction distance
@@ -922,13 +922,13 @@ end type reflisttype
 
 ! linked list of quasi-crystal reflections [03/15/17, MDG]
 type QCreflisttype  
-  integer(kind=irg)             :: num, &               ! sequential number
-                                   hkl(6),&             ! Miller indices
-                                   strongnum,&          ! sequential number for strong beams
-                                   weaknum              ! sequential number for weak beams
-  real(kind=dbl)                :: sg, &                ! excitation error
-                                   xg, &                ! extinction distance
-                                   glen                 ! length of reciprocal lattice vector
+  integer(kind=irg)             :: num               ! sequential number
+  integer(kind=irg)             :: strongnum          ! sequential number for strong beams
+  integer(kind=irg)             :: weaknum           ! sequential number for weak beams
+  integer(kind=irg)             :: hkl(6)               ! Miller indices
+  real(kind=dbl)                :: sg                ! excitation error
+  real(kind=dbl)                :: xg                ! extinction distance
+  real(kind=dbl)                :: glen                 ! length of reciprocal lattice vector
   logical                       :: strong, weak         ! is this a strong beam or not; both .FALSE. means 'do not consider'
   complex(kind=dbl)             :: Ucg                  ! Fourier coefficient
   complex(kind=dbl)             :: qg                   ! scaled Fourier coefficient
@@ -939,13 +939,13 @@ end type QCreflisttype
 
 ! linked list of quasi-crystal reflections [03/23/18, SS]
 type TDQCreflisttype  
-  integer(kind=irg)                 ::  num, &               ! sequential number
-                                        hkl(5),&             ! Miller indices
-                                        strongnum,&          ! sequential number for strong beams
-                                        weaknum              ! sequential number for weak beams
-  real(kind=dbl)                    ::  sg, &                ! excitation error
-                                        xg, &                ! extinction distance
-                                        glen                 ! length of reciprocal lattice vector
+  integer(kind=irg)                 ::  num               ! sequential number
+  integer(kind=irg)                 ::  strongnum          ! sequential number for strong beams
+  integer(kind=irg)                 ::  weaknum           ! sequential number for weak beams
+  integer(kind=irg)                 ::  hkl(5)               ! Miller indices
+  real(kind=dbl)                    ::  sg                ! excitation error
+  real(kind=dbl)                    ::  xg                ! extinction distance
+  real(kind=dbl)                    ::  glen                 ! length of reciprocal lattice vector
   logical                           ::  strong, weak         ! is this a strong beam or not; both .FALSE. means 'do not consider'
   complex(kind=dbl)                 ::  Ucg                  ! Fourier coefficient
   complex(kind=dbl)                 ::  qg                   ! scaled Fourier coefficient
@@ -1231,13 +1231,13 @@ type gnode
   character(2)          :: method   ! computation method (WK = Weickenmeier-Kohl, DT = Doyle-Turner/Smith-Burge, XR for XRD)
   logical               :: absorption ! is absorption included or not ?
   integer(kind=irg)     :: hkl(3)   ! Miller indices
-  real(kind=sgl)        :: xg, &    ! extinction distance [nm]
-                           xgp, &   ! absorption length [nm]
-                           ar, &    ! aborption ratio
-                           g, &     ! length of reciprocal lattice vectors [nm^-1]
-                           Vmod,Vpmod, & ! modulus of Vg and Vgprime [V]
-                           Umod,Upmod, & ! modulus of Ug and Ugprime [nm^-2]
-                           Vphase,Vpphase ! phase factors of Vg and Vgprime [rad]
+  real(kind=sgl)        :: xg    ! extinction distance [nm]
+  real(kind=sgl)        :: xgp   ! absorption length [nm]
+  real(kind=sgl)        :: ar    ! aborption ratio
+  real(kind=sgl)        :: g     ! length of reciprocal lattice vectors [nm^-1]
+  real(kind=sgl)        :: Vmod,Vpmod ! modulus of Vg and Vgprime [V]
+  real(kind=sgl)        :: Umod,Upmod ! modulus of Ug and Ugprime [nm^-2]
+  real(kind=sgl)        :: Vphase,Vpphase ! phase factors of Vg and Vgprime [rad]
   complex(kind=sgl)     :: Ucg, &   ! scaled potential Fourier coefficient [nm^-2]
                            Vg, &    ! potential Fourier coefficient [V]
                            qg       ! interaction parameter for Darwin-Howie-Whelan equations [nm^-1]
@@ -1812,7 +1812,8 @@ end type MT_block
 
 ! COMMON/MKT/AT(3,3),ATR(3,3)
 type MKT_block
- real(kind=sgl)            :: AT(3,3), ATR(3,3)
+ real(kind=sgl)            :: AT(3,3)
+ real(kind=sgl)            :: ATR(3,3)
 end type MKT_block
 
 ! COMMON/SCALE30/LTEST
@@ -1822,7 +1823,9 @@ end type SCALE30_block
 
 ! COMMON/MP/PC(4),AS(4,4),EL(4,4) 
 type MP_block
- complex(kind=sgl)         :: PC(4), AS(4,4), EL(4,4) 
+ complex(kind=sgl)         :: PC(4)
+ complex(kind=sgl)         :: AS(4,4)
+ complex(kind=sgl)         :: EL(4,4) 
 end type MP_block
 
 ! COMMON/MAP/DC(3,3)

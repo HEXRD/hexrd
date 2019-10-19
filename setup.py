@@ -44,11 +44,14 @@ def get_extension_modules():
         include_dirs=[np_include_dir]
         )
 
-    srclist = ['local.f90', 'typedefs.f90', 'error.f90', 'io.f90', 
-            'constants.f90', 'math.f90', 'quaternions.f90', 
-            'rotations.f90', 'symmetry.f90', 'diffraction.f90',
-            'crystal.f90'
-        ]
+    '''
+        this is the fortran compilation part. pretty janky for now 
+    '''
+    srclist = ['local.f90', 'io.f90', 'error.f90', 'typedefs.f90',
+                'constants.f90', 'math.f90', 'quaternions.f90', 
+                'crystal.f90','symmetry.f90','Lambert.f90',
+                'rotations.f90', 'others.f90', 'diffraction.f90'  
+              ]
     srclist = [os.path.join('hexrd/EMsoft', f) for f in srclist]
     srclist_str = ''
     for f in srclist:
@@ -60,8 +63,16 @@ def get_extension_modules():
     kmap = os.path.join('hexrd/EMsoft',kmap)
 
 
-    cmd = 'f90wrap -k '+ kmap + ' -m ' + srclist_str + ' -p hexrd/EMsoft/f90wrap_'
+    cmd = 'f90wrap -k '+ kmap + ' -m ' + srclist_str
     os.system(cmd)
+
+    cmd = 'gfortran -c '+ srclist_str + ' -fno-unsafe-math-optimizations -frounding-math -fsignaling-nans'
+    os.system(cmd)
+
+    cmd = 'ar cr libEMsoft.a *.o'
+    os.system(cmd)
+
+    cmd = 'f2py-f90wrap -c -m _EMsoft f90wrap_*.f90 --build-dir build/'+' --link-lapack_opt -L/Users/saransh1/hexrd3 -lEMsoft'
 
     return [sglite_mod, transforms_mod]
 

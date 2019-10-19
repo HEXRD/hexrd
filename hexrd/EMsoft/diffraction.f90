@@ -1173,610 +1173,610 @@ real(kind=sgl) :: q, r, sq, qgsi, e, sr, si, cp, ch, pr, pi, xigi, xigpi, sgs
 end subroutine
 
 
-!--------------------------------------------------------------------------
-!
-! SUBROUTINE: DiffPage
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief draw kinematical zone axis electron diffraction patterns
-!
-!> @param cell unit cell pointer
-!> @param PS Postscript structure
-!
-!> @date   10/20/98 MDG 1.0 original
-!> @date    5/22/01 MDG 2.0 f90
-!> @date   11/27/01 MDG 2.1 added kind support
-!> @date   03/26/13 MDG 3.0 updated IO
-!> @date   01/10/14 MDG 4.0 update for new cell type
-!> @date   06/09/14 MDG 4.1 added cell, PS as arguments
-!> @date   12/02/14 MDG 4.2 added camlen as argument; modified Vg and Vgsave arrays
-!--------------------------------------------------------------------------
-recursive subroutine DiffPage(PS,cell,rlp,camlen)
-!DEC$ ATTRIBUTES DLLEXPORT :: DiffPage
+! !--------------------------------------------------------------------------
+! !
+! ! SUBROUTINE: DiffPage
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief draw kinematical zone axis electron diffraction patterns
+! !
+! !> @param cell unit cell pointer
+! !> @param PS Postscript structure
+! !
+! !> @date   10/20/98 MDG 1.0 original
+! !> @date    5/22/01 MDG 2.0 f90
+! !> @date   11/27/01 MDG 2.1 added kind support
+! !> @date   03/26/13 MDG 3.0 updated IO
+! !> @date   01/10/14 MDG 4.0 update for new cell type
+! !> @date   06/09/14 MDG 4.1 added cell, PS as arguments
+! !> @date   12/02/14 MDG 4.2 added camlen as argument; modified Vg and Vgsave arrays
+! !--------------------------------------------------------------------------
+! recursive subroutine DiffPage(PS,cell,rlp,camlen)
+! !DEC$ ATTRIBUTES DLLEXPORT :: DiffPage
 
-use postscript
-use crystal
-use symmetry
-use math
-use io
-use constants
+! use postscript
+! use crystal
+! use symmetry
+! use math
+! use io
+! use constants
 
-IMPLICIT NONE
+! IMPLICIT NONE
 
-type(unitcell)                  :: cell
-type(postscript_type),INTENT(INOUT) :: PS
-!f2py intent(in,out) ::  PS
-type(gnode),INTENT(INOUT)       :: rlp
-!f2py intent(in,out) ::  rlp
-real(kind=sgl),INTENT(IN)       :: camlen
+! type(unitcell)                  :: cell
+! type(postscript_type),INTENT(INOUT) :: PS
+! !f2py intent(in,out) ::  PS
+! type(gnode),INTENT(INOUT)       :: rlp
+! !f2py intent(in,out) ::  rlp
+! real(kind=sgl),INTENT(IN)       :: camlen
 
-integer(kind=irg),parameter     :: inm = 5
-character(1)                    :: list(256)
-logical                         :: first,np,ppat,a
-logical,allocatable             :: z(:,:,:),zr(:,:,:)
-integer(kind=irg)               :: i,j,h,k,l,m,totfam,hh,ll,fmax,inmhkl(3),ricnt,icnt,ind(3),uu,vv,ww,slect(256), &
-                                   js,ii,num,hc,hhcc,iinm,dpcnt,imo,ih,ik,il,ier,iref, io_int(4)
-integer(kind=irg),allocatable   :: idx(:)
-integer(kind=irg),allocatable   :: family(:,:),numfam(:)
-real(kind=sgl)                  :: twopi,ggl,g(3),Vmax,laL,gmax,RR,thr, oi_real(1)
-real(kind=sgl),allocatable      :: gg(:)
-real(kind=sgl),parameter        :: xoff(0:5)=(/0.0,3.3125,0.0,3.3125,0.0,3.3125/),yoff(0:5)=(/6.0,6.0,3.0,3.0,0.0,0.0/), &
-                                   eps = 1.0E-3
-logical,allocatable             :: dbdiff(:)
-integer(kind=irg)               :: itmp(48,3)   !< array used for family computations etc
+! integer(kind=irg),parameter     :: inm = 5
+! character(1)                    :: list(256)
+! logical                         :: first,np,ppat,a
+! logical,allocatable             :: z(:,:,:),zr(:,:,:)
+! integer(kind=irg)               :: i,j,h,k,l,m,totfam,hh,ll,fmax,inmhkl(3),ricnt,icnt,ind(3),uu,vv,ww,slect(256), &
+!                                    js,ii,num,hc,hhcc,iinm,dpcnt,imo,ih,ik,il,ier,iref, io_int(4)
+! integer(kind=irg),allocatable   :: idx(:)
+! integer(kind=irg),allocatable   :: family(:,:),numfam(:)
+! real(kind=sgl)                  :: twopi,ggl,g(3),Vmax,laL,gmax,RR,thr, oi_real(1)
+! real(kind=sgl),allocatable      :: gg(:)
+! real(kind=sgl),parameter        :: xoff(0:5)=(/0.0,3.3125,0.0,3.3125,0.0,3.3125/),yoff(0:5)=(/6.0,6.0,3.0,3.0,0.0,0.0/), &
+!                                    eps = 1.0E-3
+! logical,allocatable             :: dbdiff(:)
+! integer(kind=irg)               :: itmp(48,3)   !< array used for family computations etc
 
-real(kind=sgl),allocatable      :: Vg(:),rg(:),Vgsave(:)
-integer(kind=irg),allocatable   :: rfamily(:,:,:),rnumfam(:)
+! real(kind=sgl),allocatable      :: Vg(:),rg(:),Vgsave(:)
+! integer(kind=irg),allocatable   :: rfamily(:,:,:),rnumfam(:)
 
 
-! set some parameters
- cell % SG % SYM_reduce=.TRUE.
- thr = 1.E-4 
- twopi = 2.0*cPi
- Vmax = 0.0
+! ! set some parameters
+!  cell % SG % SYM_reduce=.TRUE.
+!  thr = 1.E-4 
+!  twopi = 2.0*cPi
+!  Vmax = 0.0
 
-! gmax is the radius of the sphere whose intersection with the 
-! back focal plane is the circle on the output zone axis patterns
- laL = sngl(cell%mLambda) * camlen
- RR = 1.375 * 25.4
- gmax = RR/laL
+! ! gmax is the radius of the sphere whose intersection with the 
+! ! back focal plane is the circle on the output zone axis patterns
+!  laL = sngl(cell%mLambda) * camlen
+!  RR = 1.375 * 25.4
+!  gmax = RR/laL
 
- oi_real(1) = sngl(cell%mLambda)
- call WriteValue('wavelength [nm] = ', oi_real, 1)
- oi_real(1) = camlen
- call WriteValue(' L         [mm] = ', oi_real, 1)
- oi_real(1) = laL
- call WriteValue('camera length lambda*L [mm nm] = ', oi_real, 1) 
+!  oi_real(1) = sngl(cell%mLambda)
+!  call WriteValue('wavelength [nm] = ', oi_real, 1)
+!  oi_real(1) = camlen
+!  call WriteValue(' L         [mm] = ', oi_real, 1)
+!  oi_real(1) = laL
+!  call WriteValue('camera length lambda*L [mm nm] = ', oi_real, 1) 
 
-! determine the families of reciprocal lattice points
-! in a region of reciprocal space.
-! set the index boundaries
- do i=1,3
-  inmhkl(i) = 2*int(gmax/sqrt(cell % rmt(i,i)))
- end do
- hc = maxval(inmhkl)
+! ! determine the families of reciprocal lattice points
+! ! in a region of reciprocal space.
+! ! set the index boundaries
+!  do i=1,3
+!   inmhkl(i) = 2*int(gmax/sqrt(cell % rmt(i,i)))
+!  end do
+!  hc = maxval(inmhkl)
 
-! allocate all the necessary arrays
- allocate(zr(-hc:hc,-hc:hc,-hc:hc))
- allocate(z(-inm:inm,-inm:inm,-inm:inm))
- hhcc = (2*hc+1)**3
- allocate(Vg(hhcc))
- allocate(Vgsave(hhcc))
- allocate(rfamily(hhcc,48,3))
- allocate(rnumfam(hhcc))
- allocate(rg(hhcc))
- iinm = (2*inm+1)**3
- allocate(family(iinm,3))
- allocate(numfam(iinm))
+! ! allocate all the necessary arrays
+!  allocate(zr(-hc:hc,-hc:hc,-hc:hc))
+!  allocate(z(-inm:inm,-inm:inm,-inm:inm))
+!  hhcc = (2*hc+1)**3
+!  allocate(Vg(hhcc))
+!  allocate(Vgsave(hhcc))
+!  allocate(rfamily(hhcc,48,3))
+!  allocate(rnumfam(hhcc))
+!  allocate(rg(hhcc))
+!  iinm = (2*inm+1)**3
+!  allocate(family(iinm,3))
+!  allocate(numfam(iinm))
 
-! if this is a non-symmorphic space group, then also
-! allocate the dbdiff array to tag potential double 
-! diffraction reflections
- if (cell%nonsymmorphic) then
-   allocate(dbdiff(hhcc))
-   dbdiff(1:hhcc) = .FALSE.
- endif
+! ! if this is a non-symmorphic space group, then also
+! ! allocate the dbdiff array to tag potential double 
+! ! diffraction reflections
+!  if (cell%nonsymmorphic) then
+!    allocate(dbdiff(hhcc))
+!    dbdiff(1:hhcc) = .FALSE.
+!  endif
 
-! and initialize the ones that need to be initialized
- zr(-hc:hc,-hc:hc,-hc:hc) = .FALSE.
- z(-inm:inm,-inm:inm,-inm:inm) = .FALSE.
+! ! and initialize the ones that need to be initialized
+!  zr(-hc:hc,-hc:hc,-hc:hc) = .FALSE.
+!  z(-inm:inm,-inm:inm,-inm:inm) = .FALSE.
 
-! here we go:
- first = .TRUE.
- icnt = 1
- totfam=0
- do h=-inmhkl(1),inmhkl(1)
-  ind(1)=h
-  do k=-inmhkl(2),inmhkl(2)
-   ind(2)=k
-   do l=-inmhkl(3),inmhkl(3)
-    ind(3)=l
-! make sure we have not already done this one in another family
-    if (.not.zr(h,k,l)) then
-! check the length, to make sure it lies within the sphere gmax
-     ggl=CalcLength(cell,float(ind),'r')
-! if it is larger than gmax, then compute the entire family
-     if (ggl.ge.gmax) then
-      call CalcFamily(cell,ind,num,'r',itmp)
-! and label the family members in the zr array so that we 
-! do not include those points later on in the loop
-      do i=1,num
-       zr(itmp(i,1),itmp(i,2),itmp(i,3))=.TRUE.
-      end do
-     else 
-! if the length is smaller than gmax, then compute the 
-! Fourier coefficient Vg and determine the entire family
-! [recall that all members in a family have the same Vg]
-! Do this only for those reflections that are allowed by
-! the lattice centering !
-      a = IsGAllowed(cell,(/h,k,l/))
-      if (a) then
-       call CalcUcg(cell,rlp,ind)
-! check for nonsymmorphic systematic absences
-       if ((cell%nonsymmorphic).and.(rlp%Vmod.lt.eps)) then
-        io_int = (/ h, k, l, 0 /)
-        call WriteValue(' potential double diffraction family :', io_int,3,"('{',I3,I3,I3,'}')")
-        dbdiff(icnt) = .TRUE.
-        rlp%Vmod = 0.0
-       endif
-! compute the entire family
-       call CalcFamily(cell,ind,num,'r',itmp)
-       rg(icnt)=ggl
-! copy family in array
-       do i=1,num
-        rfamily(icnt,i,1:3)=itmp(i,1:3)
-        zr(itmp(i,1),itmp(i,2),itmp(i,3))=.TRUE.
-       end do
-! and take the modulus squared for the intensity
-       Vg(icnt)=rlp%Vmod**2
-       Vgsave(icnt)=Vg(icnt)
-! update the maximum value 
-       Vmax = max(Vg(icnt),Vmax)
-      else
-! remove the equivalent systematic absences
-       call CalcFamily(cell,ind,num,'r',itmp)
-       rg(icnt)=ggl
-       do i=1,num
-        rfamily(icnt,i,1:3)=itmp(i,1:3)
-        zr(itmp(i,1),itmp(i,2),itmp(i,3))=.TRUE.
-       end do
-! and put the intensity to a negative value
-! that way we will know whether or not to draw them
-       Vg(icnt)=-100.0
-       Vgsave(icnt)=Vg(icnt)
-      end if
-! and increment the family counter
-      rnumfam(icnt)=num
-      totfam=totfam+num-1
-      icnt=icnt+1
-     end if 
-    end if 
-   end do
-  end do
- end do
+! ! here we go:
+!  first = .TRUE.
+!  icnt = 1
+!  totfam=0
+!  do h=-inmhkl(1),inmhkl(1)
+!   ind(1)=h
+!   do k=-inmhkl(2),inmhkl(2)
+!    ind(2)=k
+!    do l=-inmhkl(3),inmhkl(3)
+!     ind(3)=l
+! ! make sure we have not already done this one in another family
+!     if (.not.zr(h,k,l)) then
+! ! check the length, to make sure it lies within the sphere gmax
+!      ggl=CalcLength(cell,float(ind),'r')
+! ! if it is larger than gmax, then compute the entire family
+!      if (ggl.ge.gmax) then
+!       call CalcFamily(cell,ind,num,'r',itmp)
+! ! and label the family members in the zr array so that we 
+! ! do not include those points later on in the loop
+!       do i=1,num
+!        zr(itmp(i,1),itmp(i,2),itmp(i,3))=.TRUE.
+!       end do
+!      else 
+! ! if the length is smaller than gmax, then compute the 
+! ! Fourier coefficient Vg and determine the entire family
+! ! [recall that all members in a family have the same Vg]
+! ! Do this only for those reflections that are allowed by
+! ! the lattice centering !
+!       a = IsGAllowed(cell,(/h,k,l/))
+!       if (a) then
+!        call CalcUcg(cell,rlp,ind)
+! ! check for nonsymmorphic systematic absences
+!        if ((cell%nonsymmorphic).and.(rlp%Vmod.lt.eps)) then
+!         io_int = (/ h, k, l, 0 /)
+!         call WriteValue(' potential double diffraction family :', io_int,3,"('{',I3,I3,I3,'}')")
+!         dbdiff(icnt) = .TRUE.
+!         rlp%Vmod = 0.0
+!        endif
+! ! compute the entire family
+!        call CalcFamily(cell,ind,num,'r',itmp)
+!        rg(icnt)=ggl
+! ! copy family in array
+!        do i=1,num
+!         rfamily(icnt,i,1:3)=itmp(i,1:3)
+!         zr(itmp(i,1),itmp(i,2),itmp(i,3))=.TRUE.
+!        end do
+! ! and take the modulus squared for the intensity
+!        Vg(icnt)=rlp%Vmod**2
+!        Vgsave(icnt)=Vg(icnt)
+! ! update the maximum value 
+!        Vmax = max(Vg(icnt),Vmax)
+!       else
+! ! remove the equivalent systematic absences
+!        call CalcFamily(cell,ind,num,'r',itmp)
+!        rg(icnt)=ggl
+!        do i=1,num
+!         rfamily(icnt,i,1:3)=itmp(i,1:3)
+!         zr(itmp(i,1),itmp(i,2),itmp(i,3))=.TRUE.
+!        end do
+! ! and put the intensity to a negative value
+! ! that way we will know whether or not to draw them
+!        Vg(icnt)=-100.0
+!        Vgsave(icnt)=Vg(icnt)
+!       end if
+! ! and increment the family counter
+!       rnumfam(icnt)=num
+!       totfam=totfam+num-1
+!       icnt=icnt+1
+!      end if 
+!     end if 
+!    end do
+!   end do
+!  end do
 
- icnt=icnt-1
-! normalize potential coefficients to largest one
-! and scale in a non-linear way to mimic density on 
-! an electron micrograph [Gonzalez & Windtz]
-! Use the where operator to avoid the negative intensities
- call ReadValue('logarithmic[0] or exponential[1] intensity scale ', io_int, 1)
- ll = io_int(1)
- if (ll.eq.0) then
-  where(Vg.gt.0.0) Vg=0.01*alog(1.0+0.1*Vg)
- else
-  where(Vg.gt.0.0) Vg=0.05*(Vg/Vmax)**0.2
- end if
- ricnt=icnt
+!  icnt=icnt-1
+! ! normalize potential coefficients to largest one
+! ! and scale in a non-linear way to mimic density on 
+! ! an electron micrograph [Gonzalez & Windtz]
+! ! Use the where operator to avoid the negative intensities
+!  call ReadValue('logarithmic[0] or exponential[1] intensity scale ', io_int, 1)
+!  ll = io_int(1)
+!  if (ll.eq.0) then
+!   where(Vg.gt.0.0) Vg=0.01*alog(1.0+0.1*Vg)
+!  else
+!   where(Vg.gt.0.0) Vg=0.05*(Vg/Vmax)**0.2
+!  end if
+!  ricnt=icnt
 
-! determine families of directions
- first = .TRUE.
- icnt = 1
- totfam=0
- do uu=-inm,inm
-  do vv=-inm,inm
-   do ww=-inm,inm
-    if ((uu**2+vv**2+ww**2).ne.0) then
-! make sure we have not already done this one in another family
-     ind= (/ -uu, -vv, -ww /)
-     call IndexReduce(ind)
-     if (.not.z(ind(1),ind(2),ind(3))) then
-! determine the family <uvw>
-      call CalcFamily(cell,ind,num,'d',itmp)
-! and keep only one family member, namely the one with the
-! largest sum of the three integers, i.e. u+v+w
-! [this is a simple way to get mostly positive indices as
-! the zone axis indices]
-      js = -100
-      ii = 0
-      do i=1,num
-       hh = itmp(i,1)+itmp(i,2)+itmp(i,3)
-       if (hh.gt.js) then 
-        ii = i
-        js = hh
-       end if
-! then remove the multiples of those direction indices from list 
-       do m=-inm,inm
-        ih=itmp(i,1)*m
-        ik=itmp(i,2)*m
-        il=itmp(i,3)*m
-        if (((abs(ih).le.inm).and.(abs(ik).le.inm)).and.(abs(il).le.inm)) then 
-         z(ih,ik,il)=.TRUE.
-        end if
-       end do
-      end do
-      family(icnt,1:3)=itmp(ii,1:3)
-! increment family counter
-      numfam(icnt)=num
-      totfam=totfam+num-1
-      icnt=icnt+1
-     end if
-    end if
-   end do
-  end do
- end do
- icnt=icnt-1
- io_int(1) = icnt
- call WriteValue('->Total number of direction families = ', io_int, 1)
+! ! determine families of directions
+!  first = .TRUE.
+!  icnt = 1
+!  totfam=0
+!  do uu=-inm,inm
+!   do vv=-inm,inm
+!    do ww=-inm,inm
+!     if ((uu**2+vv**2+ww**2).ne.0) then
+! ! make sure we have not already done this one in another family
+!      ind= (/ -uu, -vv, -ww /)
+!      call IndexReduce(ind)
+!      if (.not.z(ind(1),ind(2),ind(3))) then
+! ! determine the family <uvw>
+!       call CalcFamily(cell,ind,num,'d',itmp)
+! ! and keep only one family member, namely the one with the
+! ! largest sum of the three integers, i.e. u+v+w
+! ! [this is a simple way to get mostly positive indices as
+! ! the zone axis indices]
+!       js = -100
+!       ii = 0
+!       do i=1,num
+!        hh = itmp(i,1)+itmp(i,2)+itmp(i,3)
+!        if (hh.gt.js) then 
+!         ii = i
+!         js = hh
+!        end if
+! ! then remove the multiples of those direction indices from list 
+!        do m=-inm,inm
+!         ih=itmp(i,1)*m
+!         ik=itmp(i,2)*m
+!         il=itmp(i,3)*m
+!         if (((abs(ih).le.inm).and.(abs(ik).le.inm)).and.(abs(il).le.inm)) then 
+!          z(ih,ik,il)=.TRUE.
+!         end if
+!        end do
+!       end do
+!       family(icnt,1:3)=itmp(ii,1:3)
+! ! increment family counter
+!       numfam(icnt)=num
+!       totfam=totfam+num-1
+!       icnt=icnt+1
+!      end if
+!     end if
+!    end do
+!   end do
+!  end do
+!  icnt=icnt-1
+!  io_int(1) = icnt
+!  call WriteValue('->Total number of direction families = ', io_int, 1)
 
-! compute length of direction vectors and rank by increasing length
- allocate(idx(icnt))
- allocate(gg(icnt))
- gg(1:icnt) = 0.0
- do k=1,icnt
-  g(1:3)=float(family(k,1:3))
-  gg(k)=CalcLength(cell,g,'d')
- end do
+! ! compute length of direction vectors and rank by increasing length
+!  allocate(idx(icnt))
+!  allocate(gg(icnt))
+!  gg(1:icnt) = 0.0
+!  do k=1,icnt
+!   g(1:3)=float(family(k,1:3))
+!   gg(k)=CalcLength(cell,g,'d')
+!  end do
 
-! rank by increasing value of gg (use SLATEC routine)
- call SPSORT(gg,icnt,idx,1,ier)
+! ! rank by increasing value of gg (use SLATEC routine)
+!  call SPSORT(gg,icnt,idx,1,ier)
 
-! ask for number to be included in output
- call Message('List of available zone axis patterns', frm = "(A)")
- do i=1,icnt
-  j=idx(i)
-  io_int(1)=i
-  do k=1,3
-   io_int(k+1) = family(j,k)
-  end do
-  if (mod(i,4).eq.0) then 
-   call WriteValue('', io_int,4,"(I3,' [',3I3,'];')")
-  else
-   call WriteValue('', io_int,4,"(I3,' [',3I3,'];')",advance="no")
-  endif
- end do
- call Message('Enter selection (e.g. 4,10-20, ... ) ', frm = "(//,A)")
- call Message('[Include 0 to also draw a powder pattern] ', frm = "(A)")
- list = (/ (' ',j=1,256) /)
- call Message(' -> ', frm = "(A,' ')",advance="no")
- read (5,"(256A)") list
- call studylist(list,slect,fmax,ppat)
+! ! ask for number to be included in output
+!  call Message('List of available zone axis patterns', frm = "(A)")
+!  do i=1,icnt
+!   j=idx(i)
+!   io_int(1)=i
+!   do k=1,3
+!    io_int(k+1) = family(j,k)
+!   end do
+!   if (mod(i,4).eq.0) then 
+!    call WriteValue('', io_int,4,"(I3,' [',3I3,'];')")
+!   else
+!    call WriteValue('', io_int,4,"(I3,' [',3I3,'];')",advance="no")
+!   endif
+!  end do
+!  call Message('Enter selection (e.g. 4,10-20, ... ) ', frm = "(//,A)")
+!  call Message('[Include 0 to also draw a powder pattern] ', frm = "(A)")
+!  list = (/ (' ',j=1,256) /)
+!  call Message(' -> ', frm = "(A,' ')",advance="no")
+!  read (5,"(256A)") list
+!  call studylist(list,slect,fmax,ppat)
 
- if (cell%nonsymmorphic) then
-  call Message('Potential double diffraction reflections will be indicated by open squares.', frm = "(A,/)")
- end if
- call ReadValue('No indices (0), labels (1), extinctions (2), labels + extinctions (3): ', io_int, 1)
- iref = io_int(1)
+!  if (cell%nonsymmorphic) then
+!   call Message('Potential double diffraction reflections will be indicated by open squares.', frm = "(A,/)")
+!  end if
+!  call ReadValue('No indices (0), labels (1), extinctions (2), labels + extinctions (3): ', io_int, 1)
+!  iref = io_int(1)
 
-! and create output in 2 columns, 3 rows 
- do i=1,fmax  
-  dpcnt=dpcnt+1
-  j=idx(slect(i))
-  imo = mod(i-1,6)
-  if (imo.eq.0) then 
-   np=.TRUE.
-  else
-   np=.FALSE.
-  endif
-  if (i.eq.1) then
-   first=.TRUE.
-  else
-   first=.FALSE.
-  endif
-  if (slect(i).eq.0) then
-   call Message('Creating Powder Pattern ', frm = "(A)")
-   call DumpPP(PS,cell,xoff(imo),yoff(imo),np,laL,ricnt,Vgsave,rg,rnumfam)
-   ppat=.FALSE.
-  else
-   io_int(1:3) = family(j,1:3)
-   call WriteValue('Creating ZAP ', io_int,3, "('[',3i3,'] : ')",advance="no")
-   call DumpZAP(PS,cell,xoff(imo),yoff(imo),family(j,1),family(j,2),family(j,3),numfam(j),np,first,iref,laL,ricnt,dbdiff, &
-        Vg, Vgsave, rg, rfamily, rnumfam, hhcc)
-  endif
- end do
+! ! and create output in 2 columns, 3 rows 
+!  do i=1,fmax  
+!   dpcnt=dpcnt+1
+!   j=idx(slect(i))
+!   imo = mod(i-1,6)
+!   if (imo.eq.0) then 
+!    np=.TRUE.
+!   else
+!    np=.FALSE.
+!   endif
+!   if (i.eq.1) then
+!    first=.TRUE.
+!   else
+!    first=.FALSE.
+!   endif
+!   if (slect(i).eq.0) then
+!    call Message('Creating Powder Pattern ', frm = "(A)")
+!    call DumpPP(PS,cell,xoff(imo),yoff(imo),np,laL,ricnt,Vgsave,rg,rnumfam)
+!    ppat=.FALSE.
+!   else
+!    io_int(1:3) = family(j,1:3)
+!    call WriteValue('Creating ZAP ', io_int,3, "('[',3i3,'] : ')",advance="no")
+!    call DumpZAP(PS,cell,xoff(imo),yoff(imo),family(j,1),family(j,2),family(j,3),numfam(j),np,first,iref,laL,ricnt,dbdiff, &
+!         Vg, Vgsave, rg, rfamily, rnumfam, hhcc)
+!   endif
+!  end do
 
-! and clean up all variables
- deallocate(zr,z,Vg, Vgsave, rfamily, rnumfam, rg, family, numfam, idx, gg)
- if (cell%nonsymmorphic) deallocate(dbdiff)
+! ! and clean up all variables
+!  deallocate(zr,z,Vg, Vgsave, rfamily, rnumfam, rg, family, numfam, idx, gg)
+!  if (cell%nonsymmorphic) deallocate(dbdiff)
 
-end subroutine DiffPage
+! end subroutine DiffPage
 
-!--------------------------------------------------------------------------
-!
-! SUBROUTINE: DumpZAP
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief draw a single zone axis diffraction pattern
-!
-!> @param PS Postscript structure
-!> @param cell unit cell pointer
-!> @param xo lower left x position
-!> @param yo lower left y position
-!> @param u direction index u
-!> @param v direction index v
-!> @param w direction index w
-!> @param p ??
-!> @param np logical (is this a new page?)
-!> @param first logical
-!> @param indi 
-!> @param laL camera length
-!> @param icnt counter
-!> @param dbdiff double diffraction logical array
-!
-!> @date   10/20/98 MDG 1.0 original
-!> @date    5/22/01 MDG 2.0 f90
-!> @date   11/27/01 MDG 2.1 added kind support
-!> @date  03/26/13  MDG 3.0 updated IO
-!> @date  06/09/14  MDG 4.0 added PS argument
-!--------------------------------------------------------------------------
-recursive subroutine DumpZAP(PS,cell,xo,yo,u,v,w,p,np,first,indi,laL,icnt,dbdiff,Vg,Vgsave,rg,rfamily,rnumfam,hhcc)
-!DEC$ ATTRIBUTES DLLEXPORT :: DumpZAP
+! !--------------------------------------------------------------------------
+! !
+! ! SUBROUTINE: DumpZAP
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief draw a single zone axis diffraction pattern
+! !
+! !> @param PS Postscript structure
+! !> @param cell unit cell pointer
+! !> @param xo lower left x position
+! !> @param yo lower left y position
+! !> @param u direction index u
+! !> @param v direction index v
+! !> @param w direction index w
+! !> @param p ??
+! !> @param np logical (is this a new page?)
+! !> @param first logical
+! !> @param indi 
+! !> @param laL camera length
+! !> @param icnt counter
+! !> @param dbdiff double diffraction logical array
+! !
+! !> @date   10/20/98 MDG 1.0 original
+! !> @date    5/22/01 MDG 2.0 f90
+! !> @date   11/27/01 MDG 2.1 added kind support
+! !> @date  03/26/13  MDG 3.0 updated IO
+! !> @date  06/09/14  MDG 4.0 added PS argument
+! !--------------------------------------------------------------------------
+! recursive subroutine DumpZAP(PS,cell,xo,yo,u,v,w,p,np,first,indi,laL,icnt,dbdiff,Vg,Vgsave,rg,rfamily,rnumfam,hhcc)
+! !DEC$ ATTRIBUTES DLLEXPORT :: DumpZAP
 
-use io
-use postscript
-use crystal
-use error
+! use io
+! use postscript
+! use crystal
+! use error
 
-IMPLICIT NONE
+! IMPLICIT NONE
 
-type(postscript_type),INTENT(INOUT) :: PS
-!f2py intent(in,out) ::  PS
-type(unitcell)                  :: cell
-real(kind=sgl),INTENT(IN)       :: xo, yo               !< lower left position
-integer(kind=irg),INTENT(IN)    :: u, v, w              !< zone axis components
-integer(kind=irg),INTENT(IN)    :: p                    !< ??
-logical,INTENT(IN)              :: np                   !< logical for new page
-logical,INTENT(IN)              :: first                !< logical
-integer(kind=irg),INTENT(IN)    :: indi                 !< ??
-real(kind=sgl),INTENT(IN)       :: laL                  !< camera length
-integer(kind=irg),INTENT(IN)    :: icnt                 !< counter
-logical,INTENT(IN)              :: dbdiff(icnt)         !< array to deal with double diffraction spots
-real(kind=sgl),INTENT(IN)       :: Vg(*),rg(*),Vgsave(*)
-integer(kind=irg),INTENT(IN)    :: hhcc
-integer(kind=irg),INTENT(IN)    :: rfamily(hhcc,48,3),rnumfam(*)
+! type(postscript_type),INTENT(INOUT) :: PS
+! !f2py intent(in,out) ::  PS
+! type(unitcell)                  :: cell
+! real(kind=sgl),INTENT(IN)       :: xo, yo               !< lower left position
+! integer(kind=irg),INTENT(IN)    :: u, v, w              !< zone axis components
+! integer(kind=irg),INTENT(IN)    :: p                    !< ??
+! logical,INTENT(IN)              :: np                   !< logical for new page
+! logical,INTENT(IN)              :: first                !< logical
+! integer(kind=irg),INTENT(IN)    :: indi                 !< ??
+! real(kind=sgl),INTENT(IN)       :: laL                  !< camera length
+! integer(kind=irg),INTENT(IN)    :: icnt                 !< counter
+! logical,INTENT(IN)              :: dbdiff(icnt)         !< array to deal with double diffraction spots
+! real(kind=sgl),INTENT(IN)       :: Vg(*),rg(*),Vgsave(*)
+! integer(kind=irg),INTENT(IN)    :: hhcc
+! integer(kind=irg),INTENT(IN)    :: rfamily(hhcc,48,3),rnumfam(*)
 
-! nref is the anticipated maximum number of reflections per pattern
-integer(kind=irg),parameter     :: nref = 2000
-integer(kind=irg)               :: dp,i,j,jcnt,ui,vi,wi,pp,locg(nref,3),ier, io_int(1)
-integer(kind=irg),allocatable   :: idx(:)
-real(kind=sgl)                  :: sc,gmax,leng(nref),PX,PY,qx,qy,locv(nref),locvsave(nref),t(3),c(3),gg(3),gx(3),gy(3)
-real(kind=sgl),allocatable      :: lng(:)
-real(kind=sgl),parameter        :: le=3.25,he=2.9375,thr=1.0E-4
-logical                         :: dbd(nref)
+! ! nref is the anticipated maximum number of reflections per pattern
+! integer(kind=irg),parameter     :: nref = 2000
+! integer(kind=irg)               :: dp,i,j,jcnt,ui,vi,wi,pp,locg(nref,3),ier, io_int(1)
+! integer(kind=irg),allocatable   :: idx(:)
+! real(kind=sgl)                  :: sc,gmax,leng(nref),PX,PY,qx,qy,locv(nref),locvsave(nref),t(3),c(3),gg(3),gx(3),gy(3)
+! real(kind=sgl),allocatable      :: lng(:)
+! real(kind=sgl),parameter        :: le=3.25,he=2.9375,thr=1.0E-4
+! logical                         :: dbd(nref)
 
-! do page preamble stuff if this is a new page
-! [This assumes that the PostScript file has already been opened]
- if (np) then
-  call PS_newpage(PS,.FALSE.,'Kinematical Zone Axis Patterns')
-  call PS_text(5.25,-0.05,'scale bar in reciprocal nm')
-  gmax = laL
-  call PS_textvar(5.25,PS % psfigheight+0.02,'Camera Constant [nm mm]',gmax)
-  call PS_setfont(PSfonts(2),0.15)
-  call PS_text(-0.25,PS % psfigheight+0.02,'Structure File : '//cell % fname)
- end if
+! ! do page preamble stuff if this is a new page
+! ! [This assumes that the PostScript file has already been opened]
+!  if (np) then
+!   call PS_newpage(PS,.FALSE.,'Kinematical Zone Axis Patterns')
+!   call PS_text(5.25,-0.05,'scale bar in reciprocal nm')
+!   gmax = laL
+!   call PS_textvar(5.25,PS % psfigheight+0.02,'Camera Constant [nm mm]',gmax)
+!   call PS_setfont(PSfonts(2),0.15)
+!   call PS_text(-0.25,PS % psfigheight+0.02,'Structure File : '//cell % fname)
+!  end if
 
-! draw frame and related stuff
- call PS_setlinewidth(0.012)
- call PS_balloon(xo,yo,le,he,0.0312)
- call PS_setlinewidth(0.001)
- PX = xo+1.8125
- PY = yo+1.0+15.0/32.0
- call PS_circle(PX,PY,1.375)
+! ! draw frame and related stuff
+!  call PS_setlinewidth(0.012)
+!  call PS_balloon(xo,yo,le,he,0.0312)
+!  call PS_setlinewidth(0.001)
+!  PX = xo+1.8125
+!  PY = yo+1.0+15.0/32.0
+!  call PS_circle(PX,PY,1.375)
 
-! zone axis
- call PS_setfont(PSfonts(2),0.12)
- call PS_text(xo+0.05,yo+he-0.15,'Zone axis ')
- ui=u
- vi=v
- wi=w
- call PrintIndices('d',cell%hexset,ui,vi,wi,xo+0.6,yo+he-0.15)
+! ! zone axis
+!  call PS_setfont(PSfonts(2),0.12)
+!  call PS_text(xo+0.05,yo+he-0.15,'Zone axis ')
+!  ui=u
+!  vi=v
+!  wi=w
+!  call PrintIndices('d',cell%hexset,ui,vi,wi,xo+0.6,yo+he-0.15)
 
-! multiplicity
- call PS_setfont(PSfonts(2),0.12)
- pp=p
- call PS_textint(xo+0.05,yo+he-0.30,'Multiplicity ',pp)
+! ! multiplicity
+!  call PS_setfont(PSfonts(2),0.12)
+!  pp=p
+!  call PS_textint(xo+0.05,yo+he-0.30,'Multiplicity ',pp)
 
-! scale bar (sc is the conversion factor from nm-1 to inches)
- sc = laL/25.4
- call PS_setlinewidth(0.020)
- call PS_line(xo+0.05,yo+0.06,xo+0.05+5.0*sc,yo+0.06)
- call PS_setfont(PSfonts(2),0.15)
- call PS_text(xo+0.05+2.5*sc,yo+0.10,'5 ')
+! ! scale bar (sc is the conversion factor from nm-1 to inches)
+!  sc = laL/25.4
+!  call PS_setlinewidth(0.020)
+!  call PS_line(xo+0.05,yo+0.06,xo+0.05+5.0*sc,yo+0.06)
+!  call PS_setfont(PSfonts(2),0.15)
+!  call PS_text(xo+0.05+2.5*sc,yo+0.10,'5 ')
 
-! select all reflections belonging to this zone axis pattern
- leng(1:nref)=0.0
- jcnt=0
- do i=1,icnt
-  do j=1,rnumfam(i)
-   dp=u*rfamily(i,j,1)+v*rfamily(i,j,2)+w*rfamily(i,j,3)
-   if (dp.eq.0) then
-    jcnt=jcnt+1
-    if (jcnt.gt.nref) call FatalError('DumpZAP ',' too many reflections (<2000)' )
-    locg(jcnt,1:3)=rfamily(i,j,1:3)
-    leng(jcnt)=rg(i)
-    locv(jcnt)=Vg(i)
-    locvsave(jcnt)=Vgsave(i)
-    dbd(jcnt)=.FALSE.
-! take care of potential double diffraction reflections
-    if ((cell%nonsymmorphic).and.(dbdiff(i))) dbd(jcnt) = .TRUE.
-   end if
-  end do
- end do
+! ! select all reflections belonging to this zone axis pattern
+!  leng(1:nref)=0.0
+!  jcnt=0
+!  do i=1,icnt
+!   do j=1,rnumfam(i)
+!    dp=u*rfamily(i,j,1)+v*rfamily(i,j,2)+w*rfamily(i,j,3)
+!    if (dp.eq.0) then
+!     jcnt=jcnt+1
+!     if (jcnt.gt.nref) call FatalError('DumpZAP ',' too many reflections (<2000)' )
+!     locg(jcnt,1:3)=rfamily(i,j,1:3)
+!     leng(jcnt)=rg(i)
+!     locv(jcnt)=Vg(i)
+!     locvsave(jcnt)=Vgsave(i)
+!     dbd(jcnt)=.FALSE.
+! ! take care of potential double diffraction reflections
+!     if ((cell%nonsymmorphic).and.(dbdiff(i))) dbd(jcnt) = .TRUE.
+!    end if
+!   end do
+!  end do
 
-! rank them by length (use SLATEC routine)
- allocate(idx(jcnt))
- allocate(lng(jcnt))
- lng(1:jcnt) = leng(1:jcnt)
- call SPSORT(lng,jcnt,idx,1,ier)
- io_int(1) = jcnt
- call WriteValue(' Number of reflections : ', io_int, 1)
+! ! rank them by length (use SLATEC routine)
+!  allocate(idx(jcnt))
+!  allocate(lng(jcnt))
+!  lng(1:jcnt) = leng(1:jcnt)
+!  call SPSORT(lng,jcnt,idx,1,ier)
+!  io_int(1) = jcnt
+!  call WriteValue(' Number of reflections : ', io_int, 1)
 
-! normalize the zone axis in cartesian components; this is the z-axis
- t(1)=-float(u)
- t(2)=-float(v)
- t(3)=-float(w)
- call TransSpace(cell,t,c,'d','c')
- call NormVec(cell,c,'c')
+! ! normalize the zone axis in cartesian components; this is the z-axis
+!  t(1)=-float(u)
+!  t(2)=-float(v)
+!  t(3)=-float(w)
+!  call TransSpace(cell,t,c,'d','c')
+!  call NormVec(cell,c,'c')
 
-! take the first reflection in the list and make that the x-axis
-! skip the zero reflection !!
- j=idx(2)
+! ! take the first reflection in the list and make that the x-axis
+! ! skip the zero reflection !!
+!  j=idx(2)
 
-! normalize the first reciprocal vector in cartesian components
-! this will be the x-axis of the diffraction pattern
- gg(1:3)=float(locg(j,1:3))
- call TransSpace(cell,gg,gx,'r','c')
- call NormVec(cell,gx,'c')
+! ! normalize the first reciprocal vector in cartesian components
+! ! this will be the x-axis of the diffraction pattern
+!  gg(1:3)=float(locg(j,1:3))
+!  call TransSpace(cell,gg,gx,'r','c')
+!  call NormVec(cell,gx,'c')
 
-! then get the cross product between t and g; this is the y-axis
- call CalcCross(cell,c,gx,gy,'c','c',0)
+! ! then get the cross product between t and g; this is the y-axis
+!  call CalcCross(cell,c,gx,gy,'c','c',0)
 
-! plot origin of reciprocal space 
- call PS_filledcircle(PX,PY,0.05,0.0)
+! ! plot origin of reciprocal space 
+!  call PS_filledcircle(PX,PY,0.05,0.0)
 
-! then plot the remaining reflections
- do i=1,jcnt
-  j=idx(i)
-  gg(1:3)=float(locg(j,1:3))
-  call TransSpace(cell,gg,c,'r','c')
-  qx=PX-CalcDot(cell,c,gx,'c')*sc
-  qy=PY+CalcDot(cell,c,gy,'c')*sc
+! ! then plot the remaining reflections
+!  do i=1,jcnt
+!   j=idx(i)
+!   gg(1:3)=float(locg(j,1:3))
+!   call TransSpace(cell,gg,c,'r','c')
+!   qx=PX-CalcDot(cell,c,gx,'c')*sc
+!   qy=PY+CalcDot(cell,c,gy,'c')*sc
 
-! first check for systematic absence due to lattice centering
-  if ((locvsave(j).eq.-100.0).and.(indi.ge.2)) then
-    call PS_cross(qx,qy,0.03,0.001)
-  end if
+! ! first check for systematic absence due to lattice centering
+!   if ((locvsave(j).eq.-100.0).and.(indi.ge.2)) then
+!     call PS_cross(qx,qy,0.03,0.001)
+!   end if
 
-! could it be a double diffraction spot ?
-  if ((cell%nonsymmorphic).and.(dbd(j))) call PS_square(qx,qy,0.04)
+! ! could it be a double diffraction spot ?
+!   if ((cell%nonsymmorphic).and.(dbd(j))) call PS_square(qx,qy,0.04)
 
-! is it a regular reflection ?
-  if (locv(j).ge.thr) then
-   call PS_filledcircle(qx,qy,locv(j),0.0)
-   if ((indi.eq.1).or.(indi.eq.3)) then 
-    call Printhkl(qx,qy,locg(j,1),locg(j,2),locg(j,3))
-   end if
-  end if
+! ! is it a regular reflection ?
+!   if (locv(j).ge.thr) then
+!    call PS_filledcircle(qx,qy,locv(j),0.0)
+!    if ((indi.eq.1).or.(indi.eq.3)) then 
+!     call Printhkl(qx,qy,locg(j,1),locg(j,2),locg(j,3))
+!    end if
+!   end if
 
- end do
+!  end do
 
- deallocate(idx, lng)
+!  deallocate(idx, lng)
  
-end subroutine
+! end subroutine
 
-!--------------------------------------------------------------------------
-!
-! SUBROUTINE: DumpPP
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief draw a kinematical powder pattern
-!
-!> @param PS Postscript structure
-!> @param cell unit cell pointer
-!> @param xo lower left x position
-!> @param yo lower left y position
-!> @param np logical (is this a new page?)
-!> @param laL camera length
-!> @param icnt counter
-!
-!> @date   10/20/98 MDG 1.0 original
-!> @date    5/22/01 MDG 2.0 f90
-!> @date   11/27/01 MDG 2.1 added kind support
-!> @date  03/26/13  MDG 3.0 updated IO
-!> @date  06/09/14  MDG 4.0 added PS, cell as arguments
-!--------------------------------------------------------------------------
-recursive subroutine DumpPP(PS,cell,xo,yo,np,laL,icnt,Vgsave,rg,rnumfam)
-!DEC$ ATTRIBUTES DLLEXPORT :: DumpPP
+! !--------------------------------------------------------------------------
+! !
+! ! SUBROUTINE: DumpPP
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief draw a kinematical powder pattern
+! !
+! !> @param PS Postscript structure
+! !> @param cell unit cell pointer
+! !> @param xo lower left x position
+! !> @param yo lower left y position
+! !> @param np logical (is this a new page?)
+! !> @param laL camera length
+! !> @param icnt counter
+! !
+! !> @date   10/20/98 MDG 1.0 original
+! !> @date    5/22/01 MDG 2.0 f90
+! !> @date   11/27/01 MDG 2.1 added kind support
+! !> @date  03/26/13  MDG 3.0 updated IO
+! !> @date  06/09/14  MDG 4.0 added PS, cell as arguments
+! !--------------------------------------------------------------------------
+! recursive subroutine DumpPP(PS,cell,xo,yo,np,laL,icnt,Vgsave,rg,rnumfam)
+! !DEC$ ATTRIBUTES DLLEXPORT :: DumpPP
 
-use postscript
+! use postscript
 
-IMPLICIT NONE 
+! IMPLICIT NONE 
 
-type(postscript_type),INTENT(INOUT) :: PS
-!f2py intent(in,out) ::  PS
-type(unitcell)                  :: cell
-real(kind=sgl),INTENT(IN)       :: xo, yo               !< lower left position
-logical,INTENT(IN)              :: np                   !< logical for new page
-real(kind=sgl),INTENT(IN)       :: laL                  !< camera length
-integer(kind=irg),INTENT(IN)    :: icnt         !< counter
-real(kind=sgl),INTENT(IN)       :: rg(*),Vgsave(*)
-integer(kind=irg),INTENT(IN)    :: rnumfam(*)
+! type(postscript_type),INTENT(INOUT) :: PS
+! !f2py intent(in,out) ::  PS
+! type(unitcell)                  :: cell
+! real(kind=sgl),INTENT(IN)       :: xo, yo               !< lower left position
+! logical,INTENT(IN)              :: np                   !< logical for new page
+! real(kind=sgl),INTENT(IN)       :: laL                  !< camera length
+! integer(kind=irg),INTENT(IN)    :: icnt         !< counter
+! real(kind=sgl),INTENT(IN)       :: rg(*),Vgsave(*)
+! integer(kind=irg),INTENT(IN)    :: rnumfam(*)
 
-! nref = max number of rings
-integer(kind=irg),parameter     :: nref = 500
-integer(kind=irg)               :: i,j
-real(kind=sgl)                  :: sc,gmax,leng(nref),PX,PY,locv(nref),grad,w,Vmax
-real(kind=sgl),parameter        :: le=3.25,he=2.9375,thr=1.0E-4
+! ! nref = max number of rings
+! integer(kind=irg),parameter     :: nref = 500
+! integer(kind=irg)               :: i,j
+! real(kind=sgl)                  :: sc,gmax,leng(nref),PX,PY,locv(nref),grad,w,Vmax
+! real(kind=sgl),parameter        :: le=3.25,he=2.9375,thr=1.0E-4
 
-! do page preamble stuff if this is a new page
-! [This assumes that the PostScript file has already been opened]
- if (np) then
-  call PS_newpage(PS,.FALSE.,'Kinematical Zone Axis Patterns')
-  call PS_text(5.25,-0.05,'scale bar in reciprocal nm')
-  gmax = laL
-  call PS_textvar(5.25,PS % psfigheight+0.02,'Camera Constant [nm mm]',gmax)
-  call PS_setfont(PSfonts(2),0.15)
-  call PS_text(-0.25,PS % psfigheight+0.02,'Structure File : '//cell % fname)
- end if
+! ! do page preamble stuff if this is a new page
+! ! [This assumes that the PostScript file has already been opened]
+!  if (np) then
+!   call PS_newpage(PS,.FALSE.,'Kinematical Zone Axis Patterns')
+!   call PS_text(5.25,-0.05,'scale bar in reciprocal nm')
+!   gmax = laL
+!   call PS_textvar(5.25,PS % psfigheight+0.02,'Camera Constant [nm mm]',gmax)
+!   call PS_setfont(PSfonts(2),0.15)
+!   call PS_text(-0.25,PS % psfigheight+0.02,'Structure File : '//cell % fname)
+!  end if
 
-! draw frame and related stuff
- call PS_setlinewidth(0.012)
- call PS_balloon(xo,yo,le,he,0.0312)
- call PS_setlinewidth(0.001)
- PX = xo+1.8125
- PY = yo+1.0+15.0/32.0
- call PS_circle(PX,PY,1.375)
+! ! draw frame and related stuff
+!  call PS_setlinewidth(0.012)
+!  call PS_balloon(xo,yo,le,he,0.0312)
+!  call PS_setlinewidth(0.001)
+!  PX = xo+1.8125
+!  PY = yo+1.0+15.0/32.0
+!  call PS_circle(PX,PY,1.375)
 
-! frame title
- call PS_setfont(PSfonts(2),0.12)
- call PS_text(xo+0.05,yo+he-0.15,'Powder Pattern')
+! ! frame title
+!  call PS_setfont(PSfonts(2),0.12)
+!  call PS_text(xo+0.05,yo+he-0.15,'Powder Pattern')
 
-! scale bar (sc is the conversion factor from nm-1 to inches)
- sc = laL/25.4
- call PS_setlinewidth(0.020)
- call PS_line(xo+0.05,yo+0.06,xo+0.05+5.0*sc,yo+0.06)
- call PS_setfont(PSfonts(2),0.15)
- call PS_text(xo+0.05+2.5*sc,yo+0.10,'5 ')
+! ! scale bar (sc is the conversion factor from nm-1 to inches)
+!  sc = laL/25.4
+!  call PS_setlinewidth(0.020)
+!  call PS_line(xo+0.05,yo+0.06,xo+0.05+5.0*sc,yo+0.06)
+!  call PS_setfont(PSfonts(2),0.15)
+!  call PS_text(xo+0.05+2.5*sc,yo+0.10,'5 ')
 
-! scale all reflection intensities by the multiplicity
- leng(1:nref)=0.0
- Vmax = 0.0
- do i=1,icnt-1
-  leng(i)=rg(i)
-  locv(i)=Vgsave(i)*rnumfam(i)
-  if (locv(i).gt.Vmax) Vmax=locv(i)
- end do
+! ! scale all reflection intensities by the multiplicity
+!  leng(1:nref)=0.0
+!  Vmax = 0.0
+!  do i=1,icnt-1
+!   leng(i)=rg(i)
+!   locv(i)=Vgsave(i)*rnumfam(i)
+!   if (locv(i).gt.Vmax) Vmax=locv(i)
+!  end do
 
-! plot origin of reciprocal space 
- call PS_filledcircle(PX,PY,0.05,0.0)
+! ! plot origin of reciprocal space 
+!  call PS_filledcircle(PX,PY,0.05,0.0)
 
-! then plot the diffraction circles 
- do i=1,icnt
-  j=icnt+1-i
-! get the circle radius and intensity
-  grad = leng(j)*sc
-  w = locv(j)*0.03/Vmax
-! draw circle if radius fits in drawing frame and intensity large enough
-  if ((w.gt.0.0001).AND.(grad.le.1.375)) then 
-   call PS_setlinewidth(w)
-   call PS_circle(PX,PY,grad)
-  end if
- end do
+! ! then plot the diffraction circles 
+!  do i=1,icnt
+!   j=icnt+1-i
+! ! get the circle radius and intensity
+!   grad = leng(j)*sc
+!   w = locv(j)*0.03/Vmax
+! ! draw circle if radius fits in drawing frame and intensity large enough
+!   if ((w.gt.0.0001).AND.(grad.le.1.375)) then 
+!    call PS_setlinewidth(w)
+!    call PS_circle(PX,PY,grad)
+!   end if
+!  end do
 
-end subroutine
+! end subroutine
 
 !--------------------------------------------------------------------------
 !
@@ -2116,60 +2116,60 @@ end subroutine BWsolve
 !   9/29/01 MDG 2.0 f90
 !  11/27/01 MDG 2.1 added kind support
 ! ###################################################################
-recursive subroutine CalcFresnelPropagator(beam,dimi,dimj,dz,scl,propname,lambda)
-!DEC$ ATTRIBUTES DLLEXPORT :: CalcFresnelPropagator
+! recursive subroutine CalcFresnelPropagator(beam,dimi,dimj,dz,scl,propname,lambda)
+! !DEC$ ATTRIBUTES DLLEXPORT :: CalcFresnelPropagator
 
-use constants
-use io
-use files
+! use constants
+! use io
+! use files
 
-IMPLICIT NONE
+! IMPLICIT NONE
 
-real(kind=sgl)                  :: beam(3),b,bm(2),dz,fidim,fjdim,prefac,scl, oi_real(2), lambda
-real(kind=sgl),allocatable      :: idimi(:),jdimj(:)
-complex(kind=sgl),allocatable   :: fr(:,:)
-integer(kind=irg)               :: dimi,dimj,i,ix,iy
-character(fnlen)                   :: propname
+! real(kind=sgl)                  :: beam(3),b,bm(2),dz,fidim,fjdim,prefac,scl, oi_real(2), lambda
+! real(kind=sgl),allocatable      :: idimi(:),jdimj(:)
+! complex(kind=sgl),allocatable   :: fr(:,:)
+! integer(kind=irg)               :: dimi,dimj,i,ix,iy
+! character(fnlen)                   :: propname
 
-INTENT(IN) :: beam,dimi,dimj,dz
+! INTENT(IN) :: beam,dimi,dimj,dz
 
-  fidim = 1.0/float(dimi)
-  fjdim = 1.0/float(dimj)
-  prefac = scl*cPi*lambda*dz
-  call Message('Computing Fresnel propagator', frm = "(A)")
-! normalize the incident beam direction and rescale to the wavevector
-  b = sqrt(sum(beam**2))
-  bm= beam(1:2)/b/lambda
-  oi_real(1:2) = bm(1:2) 
-  call WriteValue(' Laue center at ', oi_real, 2, "(F8.4,',',F8.4)")
-! allocate variables
-  allocate(fr(dimi,dimj))
-  allocate(idimi(dimi),jdimj(dimj))
-  idimi = float((/ (i, i=0,dimi-1) /))
-  jdimj = float((/ (i, i=0,dimj-1) /))
-!
-  where(idimi.ge.dimi/2) idimi = idimi-float(dimi)
-  where(jdimj.ge.dimj/2) jdimj = jdimj-float(dimj)
-!
-  idimi = prefac*idimi*fidim
-  jdimj = prefac*jdimj*fjdim
-!
-  idimi = idimi*(idimi + 2.0*bm(1))
-  jdimj = jdimj*(jdimj + 2.0*bm(2))
-! loop over y axis  
-  do iy=1,dimj
-! loop over x-axis
-    do ix=1,dimi
-      fr(ix,iy)=cmplx(cos(idimi(ix)+jdimj(iy)),sin(idimi(ix)+jdimj(iy)))
-    end do
-  end do
-  deallocate(idimi,jdimj)
-! and store it in a file
-  open(unit=dataunit,file=trim(EMsoft_toNativePath(propname)),form='unformatted')
-  write (dataunit) dimi,dimj
-  write (dataunit) fr
-  close(unit=dataunit,status='keep')
-  deallocate(fr)
-end subroutine
+!   fidim = 1.0/float(dimi)
+!   fjdim = 1.0/float(dimj)
+!   prefac = scl*cPi*lambda*dz
+!   call Message('Computing Fresnel propagator', frm = "(A)")
+! ! normalize the incident beam direction and rescale to the wavevector
+!   b = sqrt(sum(beam**2))
+!   bm= beam(1:2)/b/lambda
+!   oi_real(1:2) = bm(1:2) 
+!   call WriteValue(' Laue center at ', oi_real, 2, "(F8.4,',',F8.4)")
+! ! allocate variables
+!   allocate(fr(dimi,dimj))
+!   allocate(idimi(dimi),jdimj(dimj))
+!   idimi = float((/ (i, i=0,dimi-1) /))
+!   jdimj = float((/ (i, i=0,dimj-1) /))
+! !
+!   where(idimi.ge.dimi/2) idimi = idimi-float(dimi)
+!   where(jdimj.ge.dimj/2) jdimj = jdimj-float(dimj)
+! !
+!   idimi = prefac*idimi*fidim
+!   jdimj = prefac*jdimj*fjdim
+! !
+!   idimi = idimi*(idimi + 2.0*bm(1))
+!   jdimj = jdimj*(jdimj + 2.0*bm(2))
+! ! loop over y axis  
+!   do iy=1,dimj
+! ! loop over x-axis
+!     do ix=1,dimi
+!       fr(ix,iy)=cmplx(cos(idimi(ix)+jdimj(iy)),sin(idimi(ix)+jdimj(iy)))
+!     end do
+!   end do
+!   deallocate(idimi,jdimj)
+! ! and store it in a file
+!   open(unit=dataunit,file=trim(EMsoft_toNativePath(propname)),form='unformatted')
+!   write (dataunit) dimi,dimj
+!   write (dataunit) fr
+!   close(unit=dataunit,status='keep')
+!   deallocate(fr)
+! end subroutine
 
 end module diffraction

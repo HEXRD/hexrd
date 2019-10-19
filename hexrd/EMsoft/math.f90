@@ -216,53 +216,53 @@ infinity = big + HUGE(1.D0)
 
 end function inftyd
 
-!--------------------------------------------------------------------------
-!
-! FUNCTION: nan
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief return the single precision IEEE value for nan
-!
-!> @date  10/04/19 MDG 1.0 original
-!--------------------------------------------------------------------------
-recursive function nan() result(x)
-!DEC$ ATTRIBUTES DLLEXPORT :: nan
+! !--------------------------------------------------------------------------
+! !
+! ! FUNCTION: nan
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief return the single precision IEEE value for nan
+! !
+! !> @date  10/04/19 MDG 1.0 original
+! !--------------------------------------------------------------------------
+! recursive function nan() result(x)
+! !DEC$ ATTRIBUTES DLLEXPORT :: nan
 
- use, intrinsic :: iso_fortran_env
- use, intrinsic :: ieee_arithmetic
+!  use, intrinsic :: iso_fortran_env
+!  use, intrinsic :: ieee_arithmetic
 
- IMPLICIT NONE 
+!  IMPLICIT NONE 
 
-real(kind=sgl)        :: x
+! real(kind=sgl)        :: x
 
-x = ieee_value(x, ieee_quiet_nan)
+! x = ieee_value(x, ieee_quiet_nan)
 
-end function nan
+! end function nan
 
-!--------------------------------------------------------------------------
-!
-! FUNCTION: nan_d
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief return the sngle precision IEEE value for nan
-!
-!> @date  10/04/19 MDG 1.0 original
-!--------------------------------------------------------------------------
-recursive function nan_d() result(x)
-!DEC$ ATTRIBUTES DLLEXPORT :: nan_d
+! !--------------------------------------------------------------------------
+! !
+! ! FUNCTION: nan_d
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief return the sngle precision IEEE value for nan
+! !
+! !> @date  10/04/19 MDG 1.0 original
+! !--------------------------------------------------------------------------
+! recursive function nan_d() result(x)
+! !DEC$ ATTRIBUTES DLLEXPORT :: nan_d
 
- use, intrinsic :: iso_fortran_env
- use, intrinsic :: ieee_arithmetic
+!  use, intrinsic :: iso_fortran_env
+!  use, intrinsic :: ieee_arithmetic
 
- IMPLICIT NONE 
+!  IMPLICIT NONE 
 
-real(kind=dbl)        :: x
+! real(kind=dbl)        :: x
 
-x = ieee_value(x, ieee_quiet_nan)
+! x = ieee_value(x, ieee_quiet_nan)
 
-end function nan_d
+! end function nan_d
 
 
 !--------------------------------------------------------------------------
@@ -2929,331 +2929,332 @@ X(2) = pre * (cmplx(co(2),0.D0) + u(3) * C + u(2) * cmplx(del0,0.D0)/C);
 X(3) = pre * (cmplx(co(2),0.D0) + u(2) * C + u(3) * cmplx(del0,0.D0)/C);
 
 end subroutine cubicroots
-!--------------------------------------------------------------------------
-!
-! SUBROUTINE: KClusterWeights
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief Weight factor computation for KCluster routine
-!
-!> @param Matrix Input matrix
-!> @param NRow number of rows in matrix
-!> @param NCol number of columns
-!> @param NClusters number of clusters
-!> @param Wts returns the Weights array
-! 
-!> @date  12/27/15 MDG 1.0 original
-!--------------------------------------------------------------------------
-recursive subroutine KClusterWeights(Matrix, NRow, NCol, NClusters, Niter, Wts)
-!DEC$ ATTRIBUTES DLLEXPORT :: KClusterWeights
 
-use local
-use io
+! !--------------------------------------------------------------------------
+! !
+! ! SUBROUTINE: KClusterWeights
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief Weight factor computation for KCluster routine
+! !
+! !> @param Matrix Input matrix
+! !> @param NRow number of rows in matrix
+! !> @param NCol number of columns
+! !> @param NClusters number of clusters
+! !> @param Wts returns the Weights array
+! ! 
+! !> @date  12/27/15 MDG 1.0 original
+! !--------------------------------------------------------------------------
+! recursive subroutine KClusterWeights(Matrix, NRow, NCol, NClusters, Niter, Wts)
+! !DEC$ ATTRIBUTES DLLEXPORT :: KClusterWeights
 
-IMPLICIT NONE
+! use local
+! use io
 
-integer(kind=irg),INTENT(IN)    :: NRow
-integer(kind=irg),INTENT(IN)    :: NCol
-real(kind=dbl),INTENT(IN)       :: Matrix(NCol, NRow)
-integer(kind=irg),INTENT(IN)    :: NClusters
-integer(kind=irg),INTENT(IN)    :: Niter
-real(kind=dbl),INTENT(OUT)      :: Wts(NCol, NCLusters)
+! IMPLICIT NONE
 
-integer(kind=irg)               :: i, j, k, cnt, cr, cm, mloc(1), mnm, seed, io_int(2), ier
-real(kind=dbl)                  :: ILR, DLR, V(NCol,NClusters), rn(NCol), s, M(NClusters)
-integer(kind=irg)               :: idx(NClusters)
-real(kind=dbl)                  :: MM(NClusters)
+! integer(kind=irg),INTENT(IN)    :: NRow
+! integer(kind=irg),INTENT(IN)    :: NCol
+! real(kind=dbl),INTENT(IN)       :: Matrix(NCol, NRow)
+! integer(kind=irg),INTENT(IN)    :: NClusters
+! integer(kind=irg),INTENT(IN)    :: Niter
+! real(kind=dbl),INTENT(OUT)      :: Wts(NCol, NCLusters)
 
-call Message('KClusterWeights: determining cluster weight factors')
+! integer(kind=irg)               :: i, j, k, cnt, cr, cm, mloc(1), mnm, seed, io_int(2), ier
+! real(kind=dbl)                  :: ILR, DLR, V(NCol,NClusters), rn(NCol), s, M(NClusters)
+! integer(kind=irg)               :: idx(NClusters)
+! real(kind=dbl)                  :: MM(NClusters)
 
-! initial parameters
-io_int(2) = Niter
-Wts = 0.D0
+! call Message('KClusterWeights: determining cluster weight factors')
 
-ILR = 0.2D0
-DLR = 0.1D0 / dble(Niter)
+! ! initial parameters
+! io_int(2) = Niter
+! Wts = 0.D0
 
-! generate uniformly random cluster weights (normalized).
-call SYSTEM_CLOCK(cnt,cr,cm)
-seed =  cnt
-do k=1,NClusters
-  call r8vec_uniform_01 ( NCol, seed, rn )
-  Wts(1:NCol,k) = rn(1:NCol)
-end do
+! ILR = 0.2D0
+! DLR = 0.1D0 / dble(Niter)
 
-do k=1,NClusters
-  s = 1.D0/sum(Wts(1:NCol,k))
-  Wts(1:NCol,k) = Wts(1:NCol,k) * s
-end do
+! ! generate uniformly random cluster weights (normalized).
+! call SYSTEM_CLOCK(cnt,cr,cm)
+! seed =  cnt
+! do k=1,NClusters
+!   call r8vec_uniform_01 ( NCol, seed, rn )
+!   Wts(1:NCol,k) = rn(1:NCol)
+! end do
 
-! use the spsort.f routine from SLATEC for sorting purposes
-!open(unit=dataunit,file='weights.data',status='unknown',form='unformatted')
-!write (dataunit) Niter+1, NCol, NClusters
-!write (dataunit) Wts
+! do k=1,NClusters
+!   s = 1.D0/sum(Wts(1:NCol,k))
+!   Wts(1:NCol,k) = Wts(1:NCol,k) * s
+! end do
 
-do k=1,Niter
-  io_int(1) = k
-  call WriteValue('Iteration ',io_int,2,"(I4,' of ',I4)")
-  do i=1,NRow
-    do j=1,NClusters
-      V(1:NCol,j) = Matrix(1:NCol,i)
-    end do
-    V = V - Wts
-    MM = sum( dabs( V ), 1 )
-    idx = 0
-    call SPSORT(sngl(MM),NClusters,idx,1,ier)
+! ! use the spsort.f routine from SLATEC for sorting purposes
+! !open(unit=dataunit,file='weights.data',status='unknown',form='unformatted')
+! !write (dataunit) Niter+1, NCol, NClusters
+! !write (dataunit) Wts
 
-    mnm = idx(1)
-    Wts(1:NCol,mnm) = ILR * V(1:NCol,mnm) + Wts(1:NCol,mnm)
+! do k=1,Niter
+!   io_int(1) = k
+!   call WriteValue('Iteration ',io_int,2,"(I4,' of ',I4)")
+!   do i=1,NRow
+!     do j=1,NClusters
+!       V(1:NCol,j) = Matrix(1:NCol,i)
+!     end do
+!     V = V - Wts
+!     MM = sum( dabs( V ), 1 )
+!     idx = 0
+!     call SPSORT(sngl(MM),NClusters,idx,1,ier)
 
-    findothers: do j=2,NClusters
-        if (MM(idx(j)).eq.MM(idx(1))) then 
-          mnm = idx(j)
-          Wts(1:NCol,mnm) = ILR * V(1:NCol,mnm) + Wts(1:NCol,mnm)
-        else
-          EXIT findothers
-        end if
-    end do findothers
-! if (mod(i,5000).eq.0) write (*,*) 'completed pattern ',i
-  end do
-  ILR = ILR - DLR
-!write(dataunit) Wts
-end do
+!     mnm = idx(1)
+!     Wts(1:NCol,mnm) = ILR * V(1:NCol,mnm) + Wts(1:NCol,mnm)
 
-!close(unit=dataunit,status='keep')
+!     findothers: do j=2,NClusters
+!         if (MM(idx(j)).eq.MM(idx(1))) then 
+!           mnm = idx(j)
+!           Wts(1:NCol,mnm) = ILR * V(1:NCol,mnm) + Wts(1:NCol,mnm)
+!         else
+!           EXIT findothers
+!         end if
+!     end do findothers
+! ! if (mod(i,5000).eq.0) write (*,*) 'completed pattern ',i
+!   end do
+!   ILR = ILR - DLR
+! !write(dataunit) Wts
+! end do
 
-end subroutine KClusterWeights
+! !close(unit=dataunit,status='keep')
 
-!--------------------------------------------------------------------------
-!
-! SUBROUTINE: KCluster
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief a sort of K-means clustering routine, based on CLUSTER ANALYSIS (Third Edition)
-!> Brian S. Everitt, ISBN 0-340-58479-3, and IDL implementation in Cluster.pro
-!
-!> @param Matrix Input matrix
-!> @param NRow number of rows in matrix
-!> @param NCol number of columns
-!> @param NClusters number of cluster to look for
-!> @param IndexArray returns the IndexArray
-! 
-!> @date  12/27/15 MDG 1.0 original
-!--------------------------------------------------------------------------
-recursive subroutine KCluster(Matrix, NRow, NCol, NClusters, Niter, IndexArray)
-!DEC$ ATTRIBUTES DLLEXPORT :: KCluster
+! end subroutine KClusterWeights
 
-use local
-use io
+! !--------------------------------------------------------------------------
+! !
+! ! SUBROUTINE: KCluster
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief a sort of K-means clustering routine, based on CLUSTER ANALYSIS (Third Edition)
+! !> Brian S. Everitt, ISBN 0-340-58479-3, and IDL implementation in Cluster.pro
+! !
+! !> @param Matrix Input matrix
+! !> @param NRow number of rows in matrix
+! !> @param NCol number of columns
+! !> @param NClusters number of cluster to look for
+! !> @param IndexArray returns the IndexArray
+! ! 
+! !> @date  12/27/15 MDG 1.0 original
+! !--------------------------------------------------------------------------
+! recursive subroutine KCluster(Matrix, NRow, NCol, NClusters, Niter, IndexArray)
+! !DEC$ ATTRIBUTES DLLEXPORT :: KCluster
 
-IMPLICIT NONE
+! use local
+! use io
 
-integer(kind=irg),INTENT(IN)    :: NRow
-integer(kind=irg),INTENT(IN)    :: NCol
-real(kind=dbl),INTENT(IN)       :: Matrix(NCol,NRow)
-integer(kind=irg),INTENT(IN)    :: NClusters
-integer(kind=irg),INTENT(IN)    :: Niter
-integer(kind=irg),INTENT(OUT)   :: IndexArray(NRow)
+! IMPLICIT NONE
 
-real(kind=dbl)                  :: Weights(NCol,NClusters), M(NClusters), tW(NClusters,NCol)
-integer(kind=irg)               :: i, j, mloc(1), iaHist(NClusters), Hmin, Hmax, io_int(5), cntarr(NClusters), ebin
+! integer(kind=irg),INTENT(IN)    :: NRow
+! integer(kind=irg),INTENT(IN)    :: NCol
+! real(kind=dbl),INTENT(IN)       :: Matrix(NCol,NRow)
+! integer(kind=irg),INTENT(IN)    :: NClusters
+! integer(kind=irg),INTENT(IN)    :: Niter
+! integer(kind=irg),INTENT(OUT)   :: IndexArray(NRow)
 
-! determine the weights 
-call KClusterWeights(Matrix, NRow, NCol, NClusters, Niter, Weights)
+! real(kind=dbl)                  :: Weights(NCol,NClusters), M(NClusters), tW(NClusters,NCol)
+! integer(kind=irg)               :: i, j, mloc(1), iaHist(NClusters), Hmin, Hmax, io_int(5), cntarr(NClusters), ebin
 
-! and loop over all rows of the input array
-tw = transpose(Weights)
-do i = 1, NRow
-    M = sum( dabs( spread( Matrix(1:NCol,i),dim=1,ncopies=NClusters ) - tw ), 2 )
-    mloc = minloc(M)
-    IndexArray(i) = mloc(1)
-if (mod(i,2500).eq.0) write (*,*) 'done with row ',i
-end do
+! ! determine the weights 
+! call KClusterWeights(Matrix, NRow, NCol, NClusters, Niter, Weights)
 
-! here we need to analyze the IndexArray; easiest way to do this is to compute 
-! its histogram and determine whether or not all the bins have counts in them.
-! if they do, then the NClusters variable was likely set too small, so we need 
-! to let the user know about this.  If there are bins with no entries in them, 
-! then we need to relabel the indices to make sure there are no empty bins
-! anywhere... If there are a lot of empty bins, then we also need to let the user know.
-iaHist = -1 
-do i=1,NRow
-  j = IndexArray(i)
-  if (iaHist(j).lt.0) then 
-   iaHist(j) = 1 
-  else 
-   iaHist(j) = iaHist(j) + 1
-  end if
-end do
+! ! and loop over all rows of the input array
+! tw = transpose(Weights)
+! do i = 1, NRow
+!     M = sum( dabs( spread( Matrix(1:NCol,i),dim=1,ncopies=NClusters ) - tw ), 2 )
+!     mloc = minloc(M)
+!     IndexArray(i) = mloc(1)
+! if (mod(i,2500).eq.0) write (*,*) 'done with row ',i
+! end do
 
-Hmin = minval(iaHist)
-Hmax = maxval(iaHist)
+! ! here we need to analyze the IndexArray; easiest way to do this is to compute 
+! ! its histogram and determine whether or not all the bins have counts in them.
+! ! if they do, then the NClusters variable was likely set too small, so we need 
+! ! to let the user know about this.  If there are bins with no entries in them, 
+! ! then we need to relabel the indices to make sure there are no empty bins
+! ! anywhere... If there are a lot of empty bins, then we also need to let the user know.
+! iaHist = -1 
+! do i=1,NRow
+!   j = IndexArray(i)
+!   if (iaHist(j).lt.0) then 
+!    iaHist(j) = 1 
+!   else 
+!    iaHist(j) = iaHist(j) + 1
+!   end if
+! end do
 
-cntarr = 0
-where (iaHist.eq.-1) 
-  cntarr = 1
-end where
-ebin = sum(cntarr)
+! Hmin = minval(iaHist)
+! Hmax = maxval(iaHist)
 
-call Message('KCluster:  IndexArray analysis ')
-io_int(1) = NClusters
-call WriteValue('  Number of bins       : ',io_int,1,"(I5)")
-io_int(1) = Hmin 
-io_int(2) = Hmax
-call WriteValue('  Min/Max bin counts   : ',io_int,2,"(I5,'/',I5)")
-io_int(1) = ebin
-call WriteValue('  Number of empty bins : ',io_int,1,"(I5)")
+! cntarr = 0
+! where (iaHist.eq.-1) 
+!   cntarr = 1
+! end where
+! ebin = sum(cntarr)
 
-
-end subroutine KCluster
+! call Message('KCluster:  IndexArray analysis ')
+! io_int(1) = NClusters
+! call WriteValue('  Number of bins       : ',io_int,1,"(I5)")
+! io_int(1) = Hmin 
+! io_int(2) = Hmax
+! call WriteValue('  Min/Max bin counts   : ',io_int,2,"(I5,'/',I5)")
+! io_int(1) = ebin
+! call WriteValue('  Number of empty bins : ',io_int,1,"(I5)")
 
 
-!--------------------------------------------------------------------------
-!
-! SUBROUTINE: ReorganizeClusters
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief use Monte Carlo style algorithm to minimize the sum of deviations from
-!> the cluster centroids
-!
-!> @param Matrix Input matrix
-!> @param NRow number of rows in matrix
-!> @param NCol number of columns
-!> @param NClusters number of cluster to look for
-!> @param NSC number of scan columns
-!> @param NSR number of scan rows
-!> @param IndexArray returns the IndexArray
-! 
-!> @date  01/06/15 MDG 1.0 original
-!--------------------------------------------------------------------------
-recursive subroutine ReorganizeClusters(Matrix, NRow, NCol, NClusters, NSC, NSR, IndexArray)
-!DEC$ ATTRIBUTES DLLEXPORT :: ReorganizeClusters
+! end subroutine KCluster
 
-use local
-use io
 
-IMPLICIT NONE
+! !--------------------------------------------------------------------------
+! !
+! ! SUBROUTINE: ReorganizeClusters
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief use Monte Carlo style algorithm to minimize the sum of deviations from
+! !> the cluster centroids
+! !
+! !> @param Matrix Input matrix
+! !> @param NRow number of rows in matrix
+! !> @param NCol number of columns
+! !> @param NClusters number of cluster to look for
+! !> @param NSC number of scan columns
+! !> @param NSR number of scan rows
+! !> @param IndexArray returns the IndexArray
+! ! 
+! !> @date  01/06/15 MDG 1.0 original
+! !--------------------------------------------------------------------------
+! recursive subroutine ReorganizeClusters(Matrix, NRow, NCol, NClusters, NSC, NSR, IndexArray)
+! !DEC$ ATTRIBUTES DLLEXPORT :: ReorganizeClusters
 
-integer(kind=irg),INTENT(IN)    :: NRow
-integer(kind=irg),INTENT(IN)    :: NCol
-real(kind=dbl),INTENT(IN)       :: Matrix(NCol, NRow)
-integer(kind=irg),INTENT(IN)    :: NClusters
-integer(kind=irg),INTENT(IN)    :: NSC
-integer(kind=irg),INTENT(IN)    :: NSR
-integer(kind=irg),INTENT(INOUT) :: IndexArray(NRow)
-!f2py intent(in,out) ::  IndexArray
+! use local
+! use io
 
-integer(kind=irg)               :: IA(NSC,NSR), NinC(NClusters)
-integer(kind=irg)               :: i, j, k, ic, nc, ix, px, py, Emax(1), Emin(1), nloop, nchanged, totswap
-real(kind=dbl)                  :: TotalEnergy, LastEnergy
-real(kind=dbl)                  :: PointEnergy(NRow), ClusterEnergy(NClusters), Col(NCol)
-real(kind=dbl),allocatable      :: centroids(:,:), cE(:), cds(:,:)
-integer(kind=irg),allocatable   :: cset(:)
-logical                         :: go
+! IMPLICIT NONE
 
-!-------- set things up for the Monte Carlo part -------
-!-------------------------------------------------------
-! reshape the index array for easier neighbor finding
-!IA = reshape( IndexArray, (/ NSC, NSR /) )
-!write (*,*) 'reshaped IndexArray ', shape (IA)
+! integer(kind=irg),INTENT(IN)    :: NRow
+! integer(kind=irg),INTENT(IN)    :: NCol
+! real(kind=dbl),INTENT(IN)       :: Matrix(NCol, NRow)
+! integer(kind=irg),INTENT(IN)    :: NClusters
+! integer(kind=irg),INTENT(IN)    :: NSC
+! integer(kind=irg),INTENT(IN)    :: NSR
+! integer(kind=irg),INTENT(INOUT) :: IndexArray(NRow)
+! !f2py intent(in,out) ::  IndexArray
 
-! count the number of points in each cluster and add the x-y coordinates to get the cluster centroid 
-allocate(centroids(NCol, NClusters))
-NinC = 0
-do i=1,NRow
-  ix = IndexArray(i)
-  NinC(ix) = NinC(ix) + 1
-  centroids(1:NCol,ix) = centroids(1:NCol,ix) + Matrix(1:NCol,i)
-end do
+! integer(kind=irg)               :: IA(NSC,NSR), NinC(NClusters)
+! integer(kind=irg)               :: i, j, k, ic, nc, ix, px, py, Emax(1), Emin(1), nloop, nchanged, totswap
+! real(kind=dbl)                  :: TotalEnergy, LastEnergy
+! real(kind=dbl)                  :: PointEnergy(NRow), ClusterEnergy(NClusters), Col(NCol)
+! real(kind=dbl),allocatable      :: centroids(:,:), cE(:), cds(:,:)
+! integer(kind=irg),allocatable   :: cset(:)
+! logical                         :: go
 
-! and divide by the number of entries in each cluster
-do i=1,NClusters
-  if (NinC(i).ne.0) centroids(1:NCol,i) = centroids(1:NCol,i) / dble( NinC(i) )
-end do
+! !-------- set things up for the Monte Carlo part -------
+! !-------------------------------------------------------
+! ! reshape the index array for easier neighbor finding
+! !IA = reshape( IndexArray, (/ NSC, NSR /) )
+! !write (*,*) 'reshaped IndexArray ', shape (IA)
 
-! initialize the PointEnergy array, which contains the contribution of each pattern to the TotalEnergy
-! we do not need to take a square root!
-do i=1,NRow
-  PointEnergy(i) = sum( (Matrix(1:NCol,i) - centroids(1:NCol,IndexArray(i)))**2 )
-end do 
+! ! count the number of points in each cluster and add the x-y coordinates to get the cluster centroid 
+! allocate(centroids(NCol, NClusters))
+! NinC = 0
+! do i=1,NRow
+!   ix = IndexArray(i)
+!   NinC(ix) = NinC(ix) + 1
+!   centroids(1:NCol,ix) = centroids(1:NCol,ix) + Matrix(1:NCol,i)
+! end do
 
-TotalEnergy = sum(PointEnergy)
-write (*,*) ' Total Energy       = ',dsqrt(TotalEnergy)
+! ! and divide by the number of entries in each cluster
+! do i=1,NClusters
+!   if (NinC(i).ne.0) centroids(1:NCol,i) = centroids(1:NCol,i) / dble( NinC(i) )
+! end do
 
-! next we try one loop of the following algorithm
-! for each cluster, we determine the point with the highest energy and compute 
-! its energy with respect to all the other centroids; if any one of them is lower,
-! then we swap the point to the other cluster.  We run through the array once for now
-nloop = 0
-totswap = 0
-nchanged = 0
-go = .TRUE.
-do while (go)
- nloop = nloop+1
- totswap = totswap + nchanged
- nchanged = 0
- LastEnergy = TotalEnergy
- do ic=1,NClusters
-! define an array to hold all the members of the cluster
-  nc = NinC(ic)
-  allocate(cset(nc),cE(nc))
-! add all member indices to cset and their corresponding energies to cE
-  k = 1
-  do j=1,NRow
-     if (IndexArray(j).eq.ic) then
-       cset(k) = j
-       cE(k) = PointEnergy(j)
-       k = k+1
-     end if
-  end do 
+! ! initialize the PointEnergy array, which contains the contribution of each pattern to the TotalEnergy
+! ! we do not need to take a square root!
+! do i=1,NRow
+!   PointEnergy(i) = sum( (Matrix(1:NCol,i) - centroids(1:NCol,IndexArray(i)))**2 )
+! end do 
 
-! get the point with the largest energy
-  Emax = maxloc(cE)
-! compute the point energies if this point were to belong to all the other clusters
-  do i=1,NClusters
-    ClusterEnergy(i) = sum( (Matrix(1:NCol,cset(Emax(1))) - centroids(1:NCol,i))**2 )
-  end do
-! find the lowest energy point
-  Emin = minloc(ClusterEnergy)
-! if this point is not the original point, then we add the point to the new cluster
-  if (Emin(1).ne.ic) then
-    nchanged = nchanged + 1
-    NinC(ic) = NinC(ic) - 1
-    NinC(Emin(1)) = NinC(Emin(1)) + 1
-    PointEnergy(cset(Emax(1))) = ClusterEnergy(Emin(1))
-    IndexArray(cset(Emax(1))) = Emin(1)
-! we must also update the centroids ... 
-    Col = Matrix(1:NCol,cset(Emax(1)))
-    centroids(1:NCol,ic) = ( centroids(1:NCol,ic)*dble(NinC(ic)+1) - Col ) / dble(NinC(ic))
-    centroids(1:NCol,Emin(1)) = ( centroids(1:NCol,Emin(1))*dble(NinC(Emin(1))-1) + Col ) / dble(NinC(Emin(1)))
-  end if 
-! and repeat this for all the clusters
-  deallocate(cset, cE)
+! TotalEnergy = sum(PointEnergy)
+! write (*,*) ' Total Energy       = ',dsqrt(TotalEnergy)
 
-  TotalEnergy = sum(PointEnergy)
- end do
-write (*,*) 'loop ', nloop, nchanged, dsqrt(TotalEnergy)
-if (LastEnergy.eq.TotalEnergy) go=.FALSE.
-end do
+! ! next we try one loop of the following algorithm
+! ! for each cluster, we determine the point with the highest energy and compute 
+! ! its energy with respect to all the other centroids; if any one of them is lower,
+! ! then we swap the point to the other cluster.  We run through the array once for now
+! nloop = 0
+! totswap = 0
+! nchanged = 0
+! go = .TRUE.
+! do while (go)
+!  nloop = nloop+1
+!  totswap = totswap + nchanged
+!  nchanged = 0
+!  LastEnergy = TotalEnergy
+!  do ic=1,NClusters
+! ! define an array to hold all the members of the cluster
+!   nc = NinC(ic)
+!   allocate(cset(nc),cE(nc))
+! ! add all member indices to cset and their corresponding energies to cE
+!   k = 1
+!   do j=1,NRow
+!      if (IndexArray(j).eq.ic) then
+!        cset(k) = j
+!        cE(k) = PointEnergy(j)
+!        k = k+1
+!      end if
+!   end do 
 
-write (*,*) ' --> total number of cluster assignments changed : ',totswap
+! ! get the point with the largest energy
+!   Emax = maxloc(cE)
+! ! compute the point energies if this point were to belong to all the other clusters
+!   do i=1,NClusters
+!     ClusterEnergy(i) = sum( (Matrix(1:NCol,cset(Emax(1))) - centroids(1:NCol,i))**2 )
+!   end do
+! ! find the lowest energy point
+!   Emin = minloc(ClusterEnergy)
+! ! if this point is not the original point, then we add the point to the new cluster
+!   if (Emin(1).ne.ic) then
+!     nchanged = nchanged + 1
+!     NinC(ic) = NinC(ic) - 1
+!     NinC(Emin(1)) = NinC(Emin(1)) + 1
+!     PointEnergy(cset(Emax(1))) = ClusterEnergy(Emin(1))
+!     IndexArray(cset(Emax(1))) = Emin(1)
+! ! we must also update the centroids ... 
+!     Col = Matrix(1:NCol,cset(Emax(1)))
+!     centroids(1:NCol,ic) = ( centroids(1:NCol,ic)*dble(NinC(ic)+1) - Col ) / dble(NinC(ic))
+!     centroids(1:NCol,Emin(1)) = ( centroids(1:NCol,Emin(1))*dble(NinC(Emin(1))-1) + Col ) / dble(NinC(Emin(1)))
+!   end if 
+! ! and repeat this for all the clusters
+!   deallocate(cset, cE)
 
-! write an array of centroid-centroid distances to a file for further analysis 
-open(unit=dataunit2,file='cds.data',status='unknown',form='unformatted')
-allocate(cds(NClusters,NClusters))
-do i=1,NClusters
-  do j=1,NClusters
-    cds(i,j) = dsqrt(sum( (centroids(1:NCol,i)-centroids(1:NCol,j))**2 )) 
-  end do
-end do
-write(dataunit2) NClusters
-write(dataunit2) cds
-close(unit=dataunit2,status='keep')
+!   TotalEnergy = sum(PointEnergy)
+!  end do
+! write (*,*) 'loop ', nloop, nchanged, dsqrt(TotalEnergy)
+! if (LastEnergy.eq.TotalEnergy) go=.FALSE.
+! end do
 
-end subroutine ReorganizeClusters
+! write (*,*) ' --> total number of cluster assignments changed : ',totswap
+
+! ! write an array of centroid-centroid distances to a file for further analysis 
+! open(unit=dataunit2,file='cds.data',status='unknown',form='unformatted')
+! allocate(cds(NClusters,NClusters))
+! do i=1,NClusters
+!   do j=1,NClusters
+!     cds(i,j) = dsqrt(sum( (centroids(1:NCol,i)-centroids(1:NCol,j))**2 )) 
+!   end do
+! end do
+! write(dataunit2) NClusters
+! write(dataunit2) cds
+! close(unit=dataunit2,status='keep')
+
+! end subroutine ReorganizeClusters
 
 !--------------------------------------------------------------------------
 !

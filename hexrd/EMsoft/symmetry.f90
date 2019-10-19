@@ -2615,335 +2615,335 @@ end select
 end function interpretWyckoffletter
 
 
-!--------------------------------------------------------------------------
-!
-! SUBROUTINE: SYM_getWPstring
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief retrieve the Wyckoff positions encoder string
-!
-!> @param sgnum space group number
-!> @param wpstring Wyckoff Position encoder string
-!
-!> @date  09/06/16 MDG 1.0 original
-!--------------------------------------------------------------------------
-recursive subroutine SYM_getWPstring(sgnum,wpstring) 
-!DEC$ ATTRIBUTES DLLEXPORT :: SYM_getWPstring
+! !--------------------------------------------------------------------------
+! !
+! ! SUBROUTINE: SYM_getWPstring
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief retrieve the Wyckoff positions encoder string
+! !
+! !> @param sgnum space group number
+! !> @param wpstring Wyckoff Position encoder string
+! !
+! !> @date  09/06/16 MDG 1.0 original
+! !--------------------------------------------------------------------------
+! recursive subroutine SYM_getWPstring(sgnum,wpstring) 
+! !DEC$ ATTRIBUTES DLLEXPORT :: SYM_getWPstring
 
-use local
-use constants
-use crystal
-use error
+! use local
+! use constants
+! use crystal
+! use error
 
-IMPLICIT NONE
+! IMPLICIT NONE
 
-integer(kind=irg),INTENT(IN)            :: sgnum
-character(fnlen),INTENT(INOUT)          :: wpstring
-!f2py intent(in,out) ::  wpstring
+! integer(kind=irg),INTENT(IN)            :: sgnum
+! character(fnlen),INTENT(INOUT)          :: wpstring
+! !f2py intent(in,out) ::  wpstring
 
-character(fnlen)                        :: line, wpf
-logical                                 :: fexists
-integer(kind=irg)                       :: ios, i, j
+! character(fnlen)                        :: line, wpf
+! logical                                 :: fexists
+! integer(kind=irg)                       :: ios, i, j
 
-wpf = trim(EMsoft_toNativePath(EMsoft_getWyckoffPositionsfilename()))
-inquire(file=trim(wpf),exist=fexists)
-if (.not.fexists) then 
-  call FatalError('SYM_getWPstring','Wyckoff Positions file not found')
-end if
+! wpf = trim(EMsoft_toNativePath(EMsoft_getWyckoffPositionsfilename()))
+! inquire(file=trim(wpf),exist=fexists)
+! if (.not.fexists) then 
+!   call FatalError('SYM_getWPstring','Wyckoff Positions file not found')
+! end if
 
-open(UNIT=dataunit,FILE=trim(wpf), STATUS='old', FORM='formatted', ACCESS='sequential')
-wpstring = ''
-do i = 1, sgnum
- line = ''
- read(dataunit,'(I2,A)',iostat=ios) j, line
- if (ios.ne.0) then 
-  exit
- end if
-end do
-CLOSE(UNIT=dataunit, STATUS='keep')
+! open(UNIT=dataunit,FILE=trim(wpf), STATUS='old', FORM='formatted', ACCESS='sequential')
+! wpstring = ''
+! do i = 1, sgnum
+!  line = ''
+!  read(dataunit,'(I2,A)',iostat=ios) j, line
+!  if (ios.ne.0) then 
+!   exit
+!  end if
+! end do
+! CLOSE(UNIT=dataunit, STATUS='keep')
 
-! wp contains the string of encoded special positions
-wpstring = trim(line)
+! ! wp contains the string of encoded special positions
+! wpstring = trim(line)
 
-end subroutine SYM_getWPstring
+! end subroutine SYM_getWPstring
 
-!--------------------------------------------------------------------------
-!
-! SUBROUTINE: SYM_printWyckoffPositions
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief Print a list of Wyckoff positions for the current space group
-!
-!> @param sgnum space group number
-!> @param wpstring Wyckoff Position encoder string
-!> @param WyckoffList (optional) list of all Wyckoff position strings
-!
-!> @date  09/05/16 MDG 1.0 original routine
-!--------------------------------------------------------------------------
-recursive subroutine SYM_printWyckoffPositions(sgnum,wpstring,WyckoffList) 
-!DEC$ ATTRIBUTES DLLEXPORT :: SYM_printWyckoffPositions
+! !--------------------------------------------------------------------------
+! !
+! ! SUBROUTINE: SYM_printWyckoffPositions
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief Print a list of Wyckoff positions for the current space group
+! !
+! !> @param sgnum space group number
+! !> @param wpstring Wyckoff Position encoder string
+! !> @param WyckoffList (optional) list of all Wyckoff position strings
+! !
+! !> @date  09/05/16 MDG 1.0 original routine
+! !--------------------------------------------------------------------------
+! recursive subroutine SYM_printWyckoffPositions(sgnum,wpstring,WyckoffList) 
+! !DEC$ ATTRIBUTES DLLEXPORT :: SYM_printWyckoffPositions
 
-use local
-use constants
-use crystal
-use error
-use io
+! use local
+! use constants
+! use crystal
+! use error
+! use io
 
-IMPLICIT NONE
+! IMPLICIT NONE
 
-integer(kind=irg),INTENT(IN)            :: sgnum
-character(fnlen),INTENT(INOUT)          :: wpstring
-!f2py intent(in,out) ::  wpstring
-character(6),INTENT(OUT),OPTIONAL       :: WyckoffList(27)
+! integer(kind=irg),INTENT(IN)            :: sgnum
+! character(fnlen),INTENT(INOUT)          :: wpstring
+! !f2py intent(in,out) ::  wpstring
+! character(6),INTENT(OUT),OPTIONAL       :: WyckoffList(27)
 
-character(fnlen)                        :: line, wpf, mess, gpstring, spstring
-logical                                 :: fexists
-integer(kind=irg)                       :: ios, i, j, numsp, ipos, io_int(1) 
-character(3)                            :: gpmul, spmul, pos
-character(5)                            :: splett
+! character(fnlen)                        :: line, wpf, mess, gpstring, spstring
+! logical                                 :: fexists
+! integer(kind=irg)                       :: ios, i, j, numsp, ipos, io_int(1) 
+! character(3)                            :: gpmul, spmul, pos
+! character(5)                            :: splett
 
-call SYM_getWPstring(sgnum,wpstring)
+! call SYM_getWPstring(sgnum,wpstring)
 
-! number of special positions encoded in string 
-numsp = (len(trim(wpstring))-1)/4
+! ! number of special positions encoded in string 
+! numsp = (len(trim(wpstring))-1)/4
 
-io_int(1) = sgnum
-call WriteValue('Wyckoff positions for space group ',io_int, 1, "(I4)")
-mess = '-------------------------------------'
-call Message(mess)
+! io_int(1) = sgnum
+! call WriteValue('Wyckoff positions for space group ',io_int, 1, "(I4)")
+! mess = '-------------------------------------'
+! call Message(mess)
 
-! next, loop through all the sets of 4 characters and interpret them
-if (numsp.ne.0) then
-  do i=1,numsp
-    ipos = (i-1)*4+1
-! get the multiplicity
-    spmul = SYM_getmultiplicity(wpstring(ipos:ipos))
-! and interpret the position symbols
-    do j=1,3
-      pos(j:j) = wpstring(ipos+j:ipos+j)
-    end do
-    spstring = SYM_getposition(pos)
-! and finally the Wyckoff letter
-    splett = char(96+i)
-! and put them all together
-    mess = trim(spmul)//trim(splett)//trim(spstring)
-    call Message(mess)
-! should we store this in the optional WyckoffList variable?
-    if (PRESENT(WyckoffList)) then 
-      WyckoffList(i) =  trim(spmul)//trim(splett)
-    end if
-  end do
-end if
+! ! next, loop through all the sets of 4 characters and interpret them
+! if (numsp.ne.0) then
+!   do i=1,numsp
+!     ipos = (i-1)*4+1
+! ! get the multiplicity
+!     spmul = SYM_getmultiplicity(wpstring(ipos:ipos))
+! ! and interpret the position symbols
+!     do j=1,3
+!       pos(j:j) = wpstring(ipos+j:ipos+j)
+!     end do
+!     spstring = SYM_getposition(pos)
+! ! and finally the Wyckoff letter
+!     splett = char(96+i)
+! ! and put them all together
+!     mess = trim(spmul)//trim(splett)//trim(spstring)
+!     call Message(mess)
+! ! should we store this in the optional WyckoffList variable?
+!     if (PRESENT(WyckoffList)) then 
+!       WyckoffList(i) =  trim(spmul)//trim(splett)
+!     end if
+!   end do
+! end if
 
-! print the general position
-if (numsp.eq.26) then
-  splett = 'alpha'
-else
-  splett = char(96+numsp+1)
-end if
-ipos = numsp*4+1
-gpmul = SYM_getmultiplicity(wpstring(ipos:ipos))
-mess = trim(gpmul)//trim(splett)//' ( x, y, z )'
-! should we store this in the optional WyckoffList variable?
-if (PRESENT(WyckoffList)) then 
-  WyckoffList(numsp+1) =  trim(gpmul)//trim(splett)
-end if
-call Message(mess)
+! ! print the general position
+! if (numsp.eq.26) then
+!   splett = 'alpha'
+! else
+!   splett = char(96+numsp+1)
+! end if
+! ipos = numsp*4+1
+! gpmul = SYM_getmultiplicity(wpstring(ipos:ipos))
+! mess = trim(gpmul)//trim(splett)//' ( x, y, z )'
+! ! should we store this in the optional WyckoffList variable?
+! if (PRESENT(WyckoffList)) then 
+!   WyckoffList(numsp+1) =  trim(gpmul)//trim(splett)
+! end if
+! call Message(mess)
 
-end subroutine SYM_printWyckoffPositions
-
-
-!--------------------------------------------------------------------------
-!
-! SUBROUTINE: GetAsymPosWyckoff
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief read the atom coordinates from standard input in Wyckoff format
-!
-!> @details ask the user for the atom type, coordinates, site occupation parameter
-!> and Debye-Waller parameter for each atom type; this uses the Wyckoff positions
-!
-!> @param cell unit cell pointer
-!!
-!> @date   09/06/16 MDG 1.0 original
-!--------------------------------------------------------------------------
-recursive subroutine GetAsymPosWyckoff(cell)
-!DEC$ ATTRIBUTES DLLEXPORT :: GetAsymPosWyckoff
-
-use io
-use crystal
-use error
-
-IMPLICIT NONE
-
-type(unitcell),INTENT(INOUT)            :: cell
-!f2py intent(in,out) ::  cell
-
-logical                                 :: more, found                !< logical to determine if more atoms need to be entered
-character(1)                            :: ans, list(6)        !< used for IO
-real(kind=sgl)                          :: pt(3), out_real(5)  !< used to read and write asymmetric position data
-integer(kind=irg)                       :: i, j, ipos, std, numsp  !< auxiliary variables
-real(kind=sgl)                          :: io_real(3)
-character(fnlen)                        :: wpstring
-character(3)                            :: Wyckoffpos
-character(6)                            :: Wyckoffstring
-character(6)                            :: WyckoffList(27)
+! end subroutine SYM_printWyckoffPositions
 
 
- more=.TRUE.
- cell%ATOM_ntype = 0
- call Message(' Enter atoms in asymmetric unit using Wyckoff positions', frm = "(/A)")
- call DisplayElements()
- call SYM_printWyckoffPositions(cell%SYM_SGnum,wpstring,WyckoffList)
+! !--------------------------------------------------------------------------
+! !
+! ! SUBROUTINE: GetAsymPosWyckoff
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief read the atom coordinates from standard input in Wyckoff format
+! !
+! !> @details ask the user for the atom type, coordinates, site occupation parameter
+! !> and Debye-Waller parameter for each atom type; this uses the Wyckoff positions
+! !
+! !> @param cell unit cell pointer
+! !!
+! !> @date   09/06/16 MDG 1.0 original
+! !--------------------------------------------------------------------------
+! recursive subroutine GetAsymPosWyckoff(cell)
+! !DEC$ ATTRIBUTES DLLEXPORT :: GetAsymPosWyckoff
 
-! number of special positions encoded in string 
- numsp = (len(trim(wpstring))-1)/4+1
+! use io
+! use crystal
+! use error
 
-write (*,*) 'WPstring : ',trim(wpstring)
+! IMPLICIT NONE
 
- do while (more)
-  cell%ATOM_ntype = cell%ATOM_ntype + 1
+! type(unitcell),INTENT(INOUT)            :: cell
+! !f2py intent(in,out) ::  cell
 
-! atomic number
-  call ReadValue(' ->  Atomic number, site occupation, Debye-Waller factor : ', io_real, 3)
-  cell%ATOM_type(cell%ATOM_ntype) = int(io_real(1))
-  cell%ATOM_pos(cell%ATOM_ntype,4:5) = io_real(2:3)
+! logical                                 :: more, found                !< logical to determine if more atoms need to be entered
+! character(1)                            :: ans, list(6)        !< used for IO
+! real(kind=sgl)                          :: pt(3), out_real(5)  !< used to read and write asymmetric position data
+! integer(kind=irg)                       :: i, j, ipos, std, numsp  !< auxiliary variables
+! real(kind=sgl)                          :: io_real(3)
+! character(fnlen)                        :: wpstring
+! character(3)                            :: Wyckoffpos
+! character(6)                            :: Wyckoffstring
+! character(6)                            :: WyckoffList(27)
 
-! ask for the Wyckoff position and make sure it actually exists in the list
-  found = .FALSE.
-  do while (found.eqv..FALSE.)
-! ask for the Wyckoff position
-    list = (/ (' ',j=1,6) /)
-    call Message(' ->  Wyckoff position : ', frm = "(A,' ')",advance="no")
-    read (5,"(6A)") list
 
-! find the corresponding encoded triplet
-    do i=1,6
-      Wyckoffstring(i:i) = list(i)
-    end do
-    do i=1,numsp
-      if (trim(Wyckoffstring).eq.trim(WyckoffList(i))) then 
-        found = .TRUE.
-        if (i.eq.numsp) then 
-          Wyckoffpos = 'xyz'
-        else
-          do j=1,3
-            ipos = (i-1)*4+1+j
-            Wyckoffpos(j:j) = wpstring(ipos:ipos)
-          end do 
-        end if
-      end if
-    end do 
-    if (found.eqv..FALSE.) then
-      call Message(' incorrect Wyckoff position; please try again ', frm = "(A,' ')",advance="no")
-!   else
-!     write (*,*) 'Found Wyckoff position '//Wyckoffpos
-    end if
-  end do
+!  more=.TRUE.
+!  cell%ATOM_ntype = 0
+!  call Message(' Enter atoms in asymmetric unit using Wyckoff positions', frm = "(/A)")
+!  call DisplayElements()
+!  call SYM_printWyckoffPositions(cell%SYM_SGnum,wpstring,WyckoffList)
 
-! interpret this encoded string and extract coordinates and such ...
-  call extractWyckoffposition(Wyckoffpos, pt) 
+! ! number of special positions encoded in string 
+!  numsp = (len(trim(wpstring))-1)/4+1
+
+! write (*,*) 'WPstring : ',trim(wpstring)
+
+!  do while (more)
+!   cell%ATOM_ntype = cell%ATOM_ntype + 1
+
+! ! atomic number
+!   call ReadValue(' ->  Atomic number, site occupation, Debye-Waller factor : ', io_real, 3)
+!   cell%ATOM_type(cell%ATOM_ntype) = int(io_real(1))
+!   cell%ATOM_pos(cell%ATOM_ntype,4:5) = io_real(2:3)
+
+! ! ask for the Wyckoff position and make sure it actually exists in the list
+!   found = .FALSE.
+!   do while (found.eqv..FALSE.)
+! ! ask for the Wyckoff position
+!     list = (/ (' ',j=1,6) /)
+!     call Message(' ->  Wyckoff position : ', frm = "(A,' ')",advance="no")
+!     read (5,"(6A)") list
+
+! ! find the corresponding encoded triplet
+!     do i=1,6
+!       Wyckoffstring(i:i) = list(i)
+!     end do
+!     do i=1,numsp
+!       if (trim(Wyckoffstring).eq.trim(WyckoffList(i))) then 
+!         found = .TRUE.
+!         if (i.eq.numsp) then 
+!           Wyckoffpos = 'xyz'
+!         else
+!           do j=1,3
+!             ipos = (i-1)*4+1+j
+!             Wyckoffpos(j:j) = wpstring(ipos:ipos)
+!           end do 
+!         end if
+!       end if
+!     end do 
+!     if (found.eqv..FALSE.) then
+!       call Message(' incorrect Wyckoff position; please try again ', frm = "(A,' ')",advance="no")
+! !   else
+! !     write (*,*) 'Found Wyckoff position '//Wyckoffpos
+!     end if
+!   end do
+
+! ! interpret this encoded string and extract coordinates and such ...
+!   call extractWyckoffposition(Wyckoffpos, pt) 
   
-! store in the appropriate component of the cell variable  
-  cell%ATOM_pos(cell%ATOM_ntype,1:3) = pt(1:3)
+! ! store in the appropriate component of the cell variable  
+!   cell%ATOM_pos(cell%ATOM_ntype,1:3) = pt(1:3)
 
-! and write the coordinate back to the terminal  
-  out_real = (/ (cell%ATOM_pos(cell%ATOM_ntype,j),j=1,5) /)
-  call WriteValue('    -> ', out_real, 5, frm = "(1x,4(F10.7,2x),F10.7)") 
+! ! and write the coordinate back to the terminal  
+!   out_real = (/ (cell%ATOM_pos(cell%ATOM_ntype,j),j=1,5) /)
+!   call WriteValue('    -> ', out_real, 5, frm = "(1x,4(F10.7,2x),F10.7)") 
 
-  call ReadValue(' ->  Another atom ? (y/n) ', ans, frm = "(A1)")
-  if ((ans.eq.'y').or.(ans.eq.'Y')) then 
-   more=.TRUE.
-  else
-   more=.FALSE.
-  end if 
+!   call ReadValue(' ->  Another atom ? (y/n) ', ans, frm = "(A1)")
+!   if ((ans.eq.'y').or.(ans.eq.'Y')) then 
+!    more=.TRUE.
+!   else
+!    more=.FALSE.
+!   end if 
 
- end do
+!  end do
 
-end subroutine GetAsymPosWyckoff
+! end subroutine GetAsymPosWyckoff
 
 
-!--------------------------------------------------------------------------
-!
-! SUBROUTINE: extractWyckoffposition
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief extract atom position data 
-!
-!> @details Extract the coordinates by interpreting the Wyckoff encoded string
-!
-!> @param Wyckoffpos Wyckoff position string
-!> @param pt set of 3 reals returned to the calling routine
-!
-!> @date   09/06/16 MDG 1.0 original
-!> @date   10/07/16 MDG 1.1 corrected (added) case accum=0 which caused FatalError
-!--------------------------------------------------------------------------
-recursive subroutine extractWyckoffposition(Wyckoffpos, pt)
-!DEC$ ATTRIBUTES DLLEXPORT :: extractWyckoffposition
+! !--------------------------------------------------------------------------
+! !
+! ! SUBROUTINE: extractWyckoffposition
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief extract atom position data 
+! !
+! !> @details Extract the coordinates by interpreting the Wyckoff encoded string
+! !
+! !> @param Wyckoffpos Wyckoff position string
+! !> @param pt set of 3 reals returned to the calling routine
+! !
+! !> @date   09/06/16 MDG 1.0 original
+! !> @date   10/07/16 MDG 1.1 corrected (added) case accum=0 which caused FatalError
+! !--------------------------------------------------------------------------
+! recursive subroutine extractWyckoffposition(Wyckoffpos, pt)
+! !DEC$ ATTRIBUTES DLLEXPORT :: extractWyckoffposition
 
-use error 
-use io
+! use error 
+! use io
 
-IMPLICIT NONE
+! IMPLICIT NONE
 
-character(3),INTENT(IN)                 :: Wyckoffpos
-real(kind=sgl),INTENT(OUT)              :: pt(3)             !< output real array
+! character(3),INTENT(IN)                 :: Wyckoffpos
+! real(kind=sgl),INTENT(OUT)              :: pt(3)             !< output real array
 
-integer(kind=irg)                       :: i, accum, findx, findy, findz
-real(kind=sgl)                          :: io_real(3), xval, yval, zval
+! integer(kind=irg)                       :: i, accum, findx, findy, findz
+! real(kind=sgl)                          :: io_real(3), xval, yval, zval
 
-! first we need to figure out which coordinate values we need to ask for
-accum = 0
-findx = scan(Wyckoffpos,'mptuvwx')
-if (findx.ne.0) accum = accum + 1
-findy = scan(Wyckoffpos,'noqrsy')
-if (findy.ne.0) accum = accum + 2
-findz = scan(Wyckoffpos,'z')
-if (findz.ne.0) accum = accum + 4
+! ! first we need to figure out which coordinate values we need to ask for
+! accum = 0
+! findx = scan(Wyckoffpos,'mptuvwx')
+! if (findx.ne.0) accum = accum + 1
+! findy = scan(Wyckoffpos,'noqrsy')
+! if (findy.ne.0) accum = accum + 2
+! findz = scan(Wyckoffpos,'z')
+! if (findz.ne.0) accum = accum + 4
 
-! then we do a case statement to ask for the correct values:
-select case (accum)
-   case (0)
+! ! then we do a case statement to ask for the correct values:
+! select case (accum)
+!    case (0)
 
-   case (1)   
-              call ReadValue(' Enter x value : ',io_real,1)
-              xval = io_real(1)
-   case (2)   
-              call ReadValue(' Enter y value : ',io_real,1)
-              yval = io_real(1)
-   case (3)   
-              call ReadValue(' Enter x, y values : ',io_real,2)
-              xval = io_real(1)
-              yval = io_real(2)
-   case (4)   
-              call ReadValue(' Enter z value : ',io_real,1)
-              zval = io_real(1)
-   case (5)   
-              call ReadValue(' Enter x, z values : ',io_real,2)
-              xval = io_real(1)
-              zval = io_real(2)
-   case (6)   
-              call ReadValue(' Enter y, z values : ',io_real,2)
-              yval = io_real(1)
-              zval = io_real(2)
-   case (7)   
-              call ReadValue(' Enter x, y, z values : ',io_real,3)
-              xval = io_real(1)
-              yval = io_real(2)
-              zval = io_real(3)
-   case default
-              call FatalError('extractWyckoffposition','Unknown Wyckoff symbol')
-end select
+!    case (1)   
+!               call ReadValue(' Enter x value : ',io_real,1)
+!               xval = io_real(1)
+!    case (2)   
+!               call ReadValue(' Enter y value : ',io_real,1)
+!               yval = io_real(1)
+!    case (3)   
+!               call ReadValue(' Enter x, y values : ',io_real,2)
+!               xval = io_real(1)
+!               yval = io_real(2)
+!    case (4)   
+!               call ReadValue(' Enter z value : ',io_real,1)
+!               zval = io_real(1)
+!    case (5)   
+!               call ReadValue(' Enter x, z values : ',io_real,2)
+!               xval = io_real(1)
+!               zval = io_real(2)
+!    case (6)   
+!               call ReadValue(' Enter y, z values : ',io_real,2)
+!               yval = io_real(1)
+!               zval = io_real(2)
+!    case (7)   
+!               call ReadValue(' Enter x, y, z values : ',io_real,3)
+!               xval = io_real(1)
+!               yval = io_real(2)
+!               zval = io_real(3)
+!    case default
+!               call FatalError('extractWyckoffposition','Unknown Wyckoff symbol')
+! end select
 
-do i=1,3
-  pt(i) = interpretWyckoffletter(Wyckoffpos(i:i), xval, yval, zval)
-end do
+! do i=1,3
+!   pt(i) = interpretWyckoffletter(Wyckoffpos(i:i), xval, yval, zval)
+! end do
 
-end subroutine extractWyckoffposition
+! end subroutine extractWyckoffposition
 
 !--------------------------------------------------------------------------
 !
