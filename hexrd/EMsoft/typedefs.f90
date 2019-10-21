@@ -878,11 +878,6 @@ integer(kind=irg), dimension(32,32) :: FZtypeTable = reshape( (/ &
  3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3 &
  /), (/ 32, 32/) )
 
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-! and this used to be the crystalvars module 
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
@@ -958,135 +953,6 @@ end type TDQCreflisttype
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
 
-!> [note added on 11/28/14]
-!> we define the refliststrongsubstype for the purpose of the film+substrate system. This linked list
-!> stores the list of beams diffracted by the film which are incident on the substrate.
-!>
-!> @todo: we will need to figure out which beams to neglect and which beams to consider while 
-!> doing the calculations. Right now we consider all the beams.
-!
-! linked list of incident beams to the substrate
-type refliststrongsubstype
-    real(kind=dbl),allocatable              :: hlist(:,:)
-    complex(kind=dbl),allocatable           :: DynMat(:,:)
-    real(kind=dbl)                          :: kg(3)
-    real(kind=dbl)                          :: g(3) ! the g vector corresponding to kg
-    integer(kind=irg)                       :: nns 
-    type(refliststrongsubstype),pointer     :: next ! only strong beams are considered
-end type refliststrongsubstype
-
-
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-! linked list for Laue XRD computations.
-type Laue_g_list  
-  integer(kind=irg)   :: hkl(3)       ! Miller indices
-  real(kind=dbl)      :: xyz(3)       ! Cartesian components of the plane normal
-  real(kind=dbl)      :: tt           ! 2theta value
-  real(kind=dbl)      :: polar        ! polarization factor
-  real(kind=dbl)      :: sfs          ! |structure factor|^2
-  type(Laue_g_list),pointer :: next   ! connection to next reflector
-end type Laue_g_list
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-
-! a structure that contains all the relevant HOLZ geometry information;
-! it can be filled by calling the GetHOLZGeometry subroutine in crystal.f90
-type HOLZentries
-  real(kind=sgl)        :: g1(3),g2(3),g3(3),gx(3),gy(3),LC1,LC2,H,FNr(3),FNg(3),gp(2),gtoc(2,2),gshort(3)
-  integer(kind=irg)     :: uvw(3),FN(3)
-end type HOLZentries
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-!> [note added on 1/10/14]
-!> To make this package functional for multi-phase materials, we must have
-!> a way to load the structural information for multiple crystal structures
-!> simultaneously.  And we must also be able to perform scattering computations
-!> for any given phase. This means that it is probably best if we define a 
-!> pointer type to a large collection of unit cell related parameters, so that
-!> we can easily switch from one to the other.  As a consequence, we need to 
-!> pass the cell pointer along with the other arguments for every single routine
-!> that performs simulations that require cell information.  So, first we define a 
-!> pointer to a unitcell, and then we can fill in all the information needed,
-!> including symmetry operators, atom coordinates, the potential coefficient lookup
-!> table, pointers to the linked g-vector list, etc. In order to reduce the number
-!> of changes to be made to the source code, we will keep the current variable names
-!> as much as possible.
-!> [end note]  
-!
-!> The following are the components of the unitcell type:
-!
-!> lattice parameters
-!> a        = a parameter [nm]
-!> b        = b parameter [nm]
-!> c        = c parameter [nm]
-!> alpha    = alpha angle [deg]
-!> beta         = beta angle [deg]
-!> gamma    = gamma angle [deg]
-!> vol      = unit cell volume [nm^3]
-!
-!> metric information
-!> dmt          = direct space metric tensor
-!> rmt      = reciprocal space metric tensor
-!> dsm          = direct space structure matrix
-!> rsm          = reciprocal space structure matrix
-!> trigmat      = direct structure matrix for the trigonal/rhombohedral case, used for Lambert projections
-!> [removed on 1/10/14] krdel   = Kronecker delta (unit matrix)
-!
-!> asymmetric unit contents
-!> ATOM_ntype   = actual number of occupied positions in asymmetric unit
-!> ATOM_type    = atomic number for each atom in asymmetric unit
-!> ATOM_pos = fractional coordinates (x,y,z), occupation, Debye-Waller factor for each atom in asymmetric unit
-!
-!> the structure file name
-!> fname    = crystal structure file name
-!
-!> use hexagonal or regular indices (comes from old local.f90 module)
-!> hexset   = logical to determine whether to use 3(FALSE) or 4(TRUE) index notation 
-!
-!> atom coordinate array
-!> apos        = allocatable array for atom coordinates
-!
-!> storage space for the potential Fourier coefficient lookup table
-!> LUT          = lookup table (allocatable)
-!
-!> double diffraction logical array
-!> dbdiff   = indicates whether a reflection could be due to double diffraction
-!
-!> is this space group non-symmorphic or not ?
-!> nonsymmorphic = logical .TRUE. or .FALSE.
-!
-!> space group symmetry
-!> SG          = space group symmetry structure defined in symmetryvars.f90
-!
-!> linked g-vector list (used to be in gvectors.f90)
-!> reflist     = starting point of linked list of g-vectors
-!
-!> firstw   = pointer to first weak beam entry in list
-        
-!> number of beams in linked list (used to be in dynamical.f90)
-!> DynNbeams   = current number being considered
-!> DynNbeamsLinked = total number
-!> nns  = number of strong beams
-!> nnw = number of weak beams
-!
-!> the following entries used to be globals in diffraction.f90 [MDG, 12/02/14]
-!>  voltage,mLambda,mRelcor,mSigma,mPsihat
-!>
-!> added source string on 07/19/18 [MDG]
-!>
-!> added scatfac(s) arrays to store pre-computed FSCATT values on 08/09/18 [MDG]
-!>
-
 
 type unitcell
   real(kind=dbl)                       :: a,b,c,alpha,beta,gamma
@@ -1116,6 +982,28 @@ end type unitcell
 !     class(unitcell), pointer :: cell
 ! end type multicell
 
+! The parameters in gnode are computed by CalcUcg 
+type gnode
+  character(2)          :: method   ! computation method (WK = Weickenmeier-Kohl, DT = Doyle-Turner/Smith-Burge, XR for XRD)
+  logical               :: absorption ! is absorption included or not ?
+  integer(kind=irg)     :: hkl(3)   ! Miller indices
+  real(kind=sgl)        :: xg    ! extinction distance [nm]
+  real(kind=sgl)        :: xgp   ! absorption length [nm]
+  real(kind=sgl)        :: ar    ! aborption ratio
+  real(kind=sgl)        :: g     ! length of reciprocal lattice vectors [nm^-1]
+  real(kind=sgl)        :: Vmod,Vpmod ! modulus of Vg and Vgprime [V]
+  real(kind=sgl)        :: Umod,Upmod ! modulus of Ug and Ugprime [nm^-2]
+  real(kind=sgl)        :: Vphase,Vpphase ! phase factors of Vg and Vgprime [rad]
+  complex(kind=sgl)     :: Ucg, &   ! scaled potential Fourier coefficient [nm^-2]
+                           Vg, &    ! potential Fourier coefficient [V]
+                           qg       ! interaction parameter for Darwin-Howie-Whelan equations [nm^-1]
+end type gnode
+
+!--------------------------------------------------------------------------
+!--------------------------------------------------------------------------
+!--------------------------------------------------------------------------
+
+
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
@@ -1138,182 +1026,6 @@ end type orientation
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
 
-! all variables related to the foil orientation, normal, thickness, etc...
-! also, transformation quaternions from various reference frames to the foil and back
-! material properties are also stored here, such as the elastic moduli
-type foiltype
-  real(kind=dbl)                :: F(3), q(3),Fn(3),qn(3),brx,bry,brxy,cpx,cpy, & 
-                                   alP,alS,alR,beP,elmo(6,6),z0,zb,B(3),Bn(3),Bm(3)
-  real(kind=dbl)                :: a_fc(4), a_fm(4), a_mi(4), a_ic(4), a_mc(4), a_fi(4)
-  integer(kind=irg)             :: npix,npiy
-  real(kind=sgl),allocatable    :: sg(:,:)
-end type foiltype
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-! define all defect types
-type dislocationtype
-  real(kind=dbl)                :: burg(3),burgd(3),u(3),un(3),g(3),gn(3),id,jd, zfrac, zu
-  real(kind=dbl)                :: top(3), bottom(3)
-  real(kind=dbl)                :: a_dc(4), a_id(4), a_di(4), a_df(4)
-  complex(kind=dbl)             :: dismat(3,3),pa(3)
-end type dislocationtype
-
-type inclusiontype
-        real(kind=sgl)       ::  xpos,ypos,zpos,radius,C
-end type inclusiontype
-
-! variables to be read from JSON file
-! xyz(3), a123(3), principalaxes(3,3), nu, epsstarvoight(6)
-
-type Einclusiontype
-        real(kind=dbl)                  :: xyz(3), a123(3)
-        real(kind=dbl)                  :: a1, a2, a3, principalaxes(3,3), permut(3,3), rotell(3,3), epsstar(3,3)
-        real(kind=dbl)                  :: nu, omnu, pre, V, a12, a22, a32, asq(3), eta, ss1, svec(3), qs1, qvec1(3), & 
-                                           qvec2(3), Deltaij(3,3), kEl, preI1, preI3, s3, c1, c2, mith, math, thpre, &
-                                           IIinside(3), IIJinside(3,3), xpos, ypos, zpos, ESV(6,6), EshelbyS(3,3,3,3)
-        real(kind=dbl),allocatable      :: EFLUT(:), EELUT(:)
-        integer(kind=irg)               :: nLUT
-end type Einclusiontype
-
-type stackingfaulttype
-  real(kind=sgl)             :: lpu(3),tpu(3),lpb(3),lpbc(3),tpb(3),plane(3),sep,id,jd, &
-                                lptop(3),lpbot(3),tptop(3),tpbot(3),thetan,a_if(3,3), &
-                                lpr(3),tpr(3), Rdisp(3), poisson
-  real(kind=sgl),allocatable     :: zpos(:,:)
-end type stackingfaulttype
-
-type voidtype
-        real(kind=sgl)       ::  xpos,ypos,zpos,radius
-end type voidtype
-
-type YDtype
-  real(kind=dbl)             :: burg(3), burgd(3), u(3), un(3), g(3), gn(3), id, jd, zu, bs, be, bx, beta
-  real(kind=dbl)             :: alpha, ca, sa, ta, cota,  top(3), bottom(3), sig
-  real(kind=dbl)             :: a_dc(4), a_id(4), a_di(4)
-end type YDtype
-
-type apbtype
-        real(kind=sgl)       ::  xpos,ypos,zpos,radius,w,Rdisp(3)
-end type apbtype
-
-
-! here is a new type definition that simplifies defect handling quite a bit...
-! instead of passing many arrays to the defect routines, now we only need to 
-! pass a single master defect variable "defects", which must be defined by
-! the calling program as type(defecttype) :: defects
-! we've also added a few other variables here for lack of a better place to do so...
-type defecttype
-  integer(kind=irg)                        :: numvoids,numdisl,numYdisl,numsf,numinc,numEinc,numapb
-  character(fnlen)                         :: foilname
-  integer(kind=irg)                        :: Nmat,DF_g(3),DF_npix,DF_npiy,DF_nums,DF_numinclusion,DF_numvoid
-  real(kind=sgl)                           :: DF_slice,DF_L,DF_gc(3),DF_gstar(3), DF_gf(3)
-  type (foiltype)                          :: foil
-  real(kind=sgl),allocatable               :: DF_foilsg(:,:),DF_R(:,:)
-  type (dislocationtype), allocatable      :: DL(:)
-  type (inclusiontype), allocatable        :: inclusions(:)
-  type (Einclusiontype), allocatable       :: Einclusions(:)
-  type (stackingfaulttype), allocatable    :: SF(:)
-  type (voidtype), allocatable             :: voids(:)
-  type (YDtype), allocatable               :: YD(:)    
-  type (apbtype), allocatable              :: apbs(:)
-end type defecttype
-
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-! The parameters in gnode are computed by CalcUcg 
-type gnode
-  character(2)          :: method   ! computation method (WK = Weickenmeier-Kohl, DT = Doyle-Turner/Smith-Burge, XR for XRD)
-  logical               :: absorption ! is absorption included or not ?
-  integer(kind=irg)     :: hkl(3)   ! Miller indices
-  real(kind=sgl)        :: xg    ! extinction distance [nm]
-  real(kind=sgl)        :: xgp   ! absorption length [nm]
-  real(kind=sgl)        :: ar    ! aborption ratio
-  real(kind=sgl)        :: g     ! length of reciprocal lattice vectors [nm^-1]
-  real(kind=sgl)        :: Vmod,Vpmod ! modulus of Vg and Vgprime [V]
-  real(kind=sgl)        :: Umod,Upmod ! modulus of Ug and Ugprime [nm^-2]
-  real(kind=sgl)        :: Vphase,Vpphase ! phase factors of Vg and Vgprime [rad]
-  complex(kind=sgl)     :: Ucg, &   ! scaled potential Fourier coefficient [nm^-2]
-                           Vg, &    ! potential Fourier coefficient [V]
-                           qg       ! interaction parameter for Darwin-Howie-Whelan equations [nm^-1]
-end type gnode
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-! we'll also need to replace a bunch of variables that have to do with dynamical simulations
-type DynType
-  real(kind=sgl)                            :: WV(3)                  ! wave vector expressed in reciprocal frame
-  real(kind=sgl)                            :: FN(3)                  ! Foil normal in reciprocal frame
-  real(kind=sgl)                            :: Upz                    ! U'_0 normal absorption parameter
-! complex(kind=dbl),allocatable            :: W(:), &           ! eigenvalue vector for Bloch wave method
-!                                             CG(:,:), &        ! eigenvector matrix
-!                                             alpha(:), &       ! excitation amplitude vector
-!                                             DHWMz(:,:),&      ! Darwin-Howie-Whelan matrix
-  complex(kind=dbl),allocatable           :: DynMat(:,:)    ! dynamical matrix
-!                                             DynMat0(:,:), &   ! dynamical matrix (for programs that need two or more of them)
-!                                             DynMat1(:,:), &   ! dynamical matrix (for programs that need two or more of them)
-!                                             DynMat2(:,:), &   ! dynamical matrix (for programs that need two or more of them)
-!                                             DynMat3(:,:), &   ! dynamical matrix (for programs that need two or more of them)
-!                                             phiz(:),Az(:,:)   ! used for Taylor expansion of scattering matrix
-end type DynType
-
-
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-! define the cutoff parameters for the Bethe potential approach 
-type BetheParameterType
-        real(kind=sgl)                 :: c1 = 8.0_sgl         ! changed from 8 and 12 for a test on 8/14/15
-        real(kind=sgl)                 :: c2 = 50.0_sgl
-        real(kind=sgl)                 :: c3 = 100.0_sgl
-        real(kind=sgl)                 :: sgdbdiff = 1.00_sgl    ! changed from 0.05 on 08/14/15 by MDG
-        real(kind=sgl)                 :: weakcutoff = 0.0_sgl
-        real(kind=sgl)                 :: cutoff = 0.0_sgl
-        real(kind=sgl)                 :: sgcutoff = 0.0_sgl
-        integer(kind=irg)              :: nns
-        integer(kind=irg)              :: nnw
-        integer(kind=irg)              :: minweak
-        integer(kind=irg)              :: minstrong
-        integer(kind=irg)              :: maxweak
-        integer(kind=irg)              :: maxstrong
-        integer(kind=irg)              :: totweak
-        integer(kind=irg)              :: totstrong
-        integer(kind=irg),allocatable  :: weaklist(:) 
-        integer(kind=irg),allocatable  :: stronglist(:)
-        integer(kind=irg),allocatable  :: weakhkl(:,:)
-        integer(kind=irg),allocatable  :: stronghkl(:,:)
-        real(kind=sgl),allocatable     :: weaksg(:)
-        real(kind=sgl),allocatable     :: strongsg(:)
-        integer(kind=irg),allocatable  :: strongID(:)
-        integer(kind=sgl),allocatable  :: reflistindex(:)              ! used to map strong reflections onto the original reflist
-        integer(kind=sgl),allocatable  :: weakreflistindex(:)          ! used to map weak reflections onto the original reflist
-end type BetheParameterType
-
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-type STEMtype
-        integer(kind=irg)               :: numk
-        real(kind=sgl)                  :: BFmrad,ADFimrad,ADFomrad, diffapmrad, diffapmcenter
-        logical,allocatable             :: ZABFweightsarray(:,:,:),ZAADFweightsarray(:,:,:)       ! only used for the zone axis case
-        real(kind=sgl),allocatable      :: sgarray(:,:),BFweightsarray(:,:,:),ADFweightsarray(:,:,:)   ! only used for the systematic row case
-end type STEMtype
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
 ! linked list of wave vectors (used by all diffraction programs)
 type kvectorlist  
   integer(kind=irg)             :: i,j,hs       ! image coordinates
@@ -1322,46 +1034,6 @@ type kvectorlist
   real(kind=dbl)                :: k(3)         ! full wave vector
   type(kvectorlist),pointer     :: next         ! connection to next wave vector
 end type kvectorlist
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-! collection of formatting parameters
-type postscript_type
- integer(kind=irg)      :: pspage
- real(kind=sgl)         :: psdash(20),psfigwidth,psfigheight,psscale
- character(fnlen)       :: psname
-end type postscript_type
-
-! used by axonometry-related routines
-type axonotype
- integer(kind=irg)      :: xi,yi,beta,xmod,ymod,countx,county
- real(kind=sgl)         :: grid,scle,vscle,xstart,ystart
- logical                :: visibility
-end type axonotype
-
-! used by axis and its routines
-type axistype
- real(kind=sgl)         :: axw,xll,yll
-end type axistype
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-type timetype
-  real(kind=sgl)        :: TIME_t_count
-  real(kind=sgl)        :: TIME_unit_count
-  real(kind=sgl)        :: TIME_interval
-  real(kind=sgl)        :: TIME_fraction
-  integer(kind=irg)     :: TIME_newcount
-  integer(kind=irg)     :: TIME_count_rate
-  integer(kind=irg)     :: TIME_count_max
-  integer(kind=irg)     :: TIME_count
-  integer(kind=irg)     :: TIME_old
-  integer(kind=irg)     :: TIME_loops
-end type timetype
 
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
@@ -1404,22 +1076,6 @@ type FZpointd
         type(FZpointd),pointer  :: next          ! link to next point
 end type FZpointd
 
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-! type definition for linked list in substrate Bloch wave calculations
-type substrateBW
-        integer(kind=irg)               :: NSg          ! number of strong substrate reflections for this film g-vector
-        real(kind=sgl)                  :: kg(3)        ! incident reciprocal wave vector for particular g in substrate reference frame
-        integer(kind=irg),allocatable   :: hg(:,:)      ! reciprocal lattice point list for substrate (hg(3,NSg))
-        complex(kind=dbl),allocatable   :: Gammam(:)    ! Gamma eigenvalues of dynamical matrix
-        complex(kind=dbl),allocatable   :: Dmg(:,:)     ! Bloch wave coefficients (they already include the beta^(m) excitation amplitudes)
-        type(substrateBW),pointer       :: nextg        ! pointer to next entry in list
-end type substrateBW
-
-
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
@@ -1436,60 +1092,6 @@ type dicttype
         integer(kind=irg)               :: Num_of_init  ! number of times that the EM algorithm needs to be carried out (set by user)
         integer(kind=irg)               :: Num_of_iterations    ! number of iterations inside each EM call (set by user)
 end type dicttype
-
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-type kikuchireflection
-  integer(kind=irg)                     :: hkl(3),rnum
-  logical                               :: drawh,drawk,drawc
-  real(kind=sgl)                        :: hlx(2),hly(2),klx(2),kly(2),clx(2),cly(2),beta,theta,Ig
-  type(kikuchireflection),pointer       :: next
-end type kikuchireflection
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-! type definitions for kinematical HOLZ patterns
-type holzreflection
-  integer(kind=irg)                     :: hkl(3),n1,n2,N
-  logical                               :: draw,dbdiff
-  real(kind=sgl)                        :: hlphi,hlx(2),hly(2),sg,Ig,pxy(2)
-  type(holzreflection),pointer          :: next
-end type holzreflection
-
-type HOLZvartype
-  real(kind=sgl)                        :: g1(3),g2(3),g3(3),H,FNg(3),FNr(3),gshort(3),gp(3),LC1,LC2,thickness,rectangle(2), &
-                                           PX,PY,thetac,laL,Gmax,Imax,gtoc(2,2),glen,phi,CBEDrad,CBEDsc
-  integer(kind=irg)                     :: uvw(3),FN(3) 
-end type HOLZvartype
-
-! typedef for simulated annealing minimization routine
-TYPE COMP_WKS_TYP
-        DOUBLE PRECISION         :: FOB,ALFAMAX,ALFANR2,FSTOP
-        DOUBLE PRECISION,POINTER :: DOLDALFA(:)
-        DOUBLE PRECISION,POINTER :: X(:)
-        DOUBLE PRECISION,POINTER :: D(:)
-        INTEGER                  :: NUMCOST
-END TYPE COMP_WKS_TYP
-
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-type MuellerMatrixType
-  real(kind=dbl)                        :: M(4,4)
-  character(fnlen)                      :: descriptor
-end type MuellerMatrixType
-
-type StokesVectorType
-  real(kind=dbl)                        :: S(0:3)
-  character(fnlen)                      :: descriptor
-end type StokesVectorType
 
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
@@ -1607,41 +1209,9 @@ type TDQCStructureType
   real(kind=sgl),allocatable            :: apos(:,:,:)
 end type TDQCStructureType
 
-type PoleFigures
-  integer(kind=irg),allocatable         :: hkl(:,:)
-  real(kind=dbl),allocatable            :: PFhkl(:,:,:)
-  complex(kind=dbl),allocatable         :: xraysf(:)  
-  real(kind=dbl),allocatable            :: wf(:)  
-end type PoleFigures
-
-type sparse_ll
-    integer(kind=ill)               :: idcol, idrow, idlin, idrow_inc, idlin_inc
-    real(kind=dbl)                  :: val
-    type(sparse_ll),pointer         :: next, next_inc
-end type sparse_ll
-
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
-
-! type definitions for mrc file format writing
-type FEIstruct
-    real(kind=sgl)      :: a_tilt = 0.0
-    real(kind=sgl)      :: b_tilt = 0.0
-    real(kind=sgl)      :: x_stage = 0.0
-    real(kind=sgl)      :: y_stage = 0.0
-    real(kind=sgl)      :: z_stage = 0.0
-    real(kind=sgl)      :: x_shift = 0.0
-    real(kind=sgl)      :: y_shift = 0.0
-    real(kind=sgl)      :: defocus = 0.0
-    real(kind=sgl)      :: exp_time = 0.0
-    real(kind=sgl)      :: mean_int = 0.0
-    real(kind=sgl)      :: tiltaxis = 0.0
-    real(kind=sgl)      :: pixelsize = 0.0
-    real(kind=sgl)      :: magnification = 0.0
-    real(kind=sgl)      :: voltage = 0.0
-    character(72)       :: unused
-end type FEIstruct
 
 type MRCstruct
     integer(kind=irg)       :: nx = 0 ! number of columns
@@ -1693,33 +1263,6 @@ type MRCstruct
     character(800)          :: labels ! string(' ',format='(A800)') $ ; 10 labels of 80 characters each
 end type MRCstruct
 
-type sggamma
-    real(kind=dbl)          :: sg     ! excitation error for a g vector
-    integer(kind=irg)       :: hkl(3) ! g vector associated with sg
-    complex(kind=dbl)       :: expsg  ! exp(2*cPi*sg + q0)
-    type(sggamma),pointer   :: next   ! pointer to next element
-end type sggamma
-
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-!--------------------------------------------------------------------------
-
-type LTEMstruct
-    real(kind=dbl),allocatable      :: kx(:,:,:)
-    real(kind=dbl),allocatable      :: ky(:,:,:)
-    real(kind=dbl),allocatable      :: kz(:,:,:)
-    real(C_DOUBLE),pointer          :: Mx(:,:,:)
-    real(C_DOUBLE),pointer          :: My(:,:,:)
-    real(C_DOUBLE),pointer          :: Mz(:,:,:)
-    real(C_DOUBLE),pointer          :: Bx(:,:,:)
-    real(C_DOUBLE),pointer          :: By(:,:,:)
-    real(C_DOUBLE),pointer          :: Bz(:,:,:)
-    real(C_DOUBLE),pointer          :: Ax(:,:,:)
-    real(C_DOUBLE),pointer          :: Ay(:,:,:)
-    real(C_DOUBLE),pointer          :: Az(:,:,:)
-    real(kind=dbl),allocatable      :: kmag(:,:,:)
-end type LTEMstruct
-
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
@@ -1767,136 +1310,5 @@ integer(kind=irg),dimension(6,CSLnumberdefined)         :: CSLintegers = reshape
 type AngleType
         real(kind=sgl),allocatable      :: quatang(:,:)
 end type AngleType
-
-!=======================================
-!=======================================
-!=======================================
-! below are type definitions for the f90 EMsoft version of the original
-! Head&Humble hh4.f90 program, now called EMhh4.f90. The comment line
-! before each type def is the original COMMON block definition
-!
-! COMMON/MAPN/NEW,ZR,ZI,QR(9),QI(9),KRASH 
-type MAPN_block
-  integer(kind=irg)        :: KRASH, NEW
-  real(kind=sgl)           :: ZR, ZI, QR(9), QI(9)
-end type MAPN_block
-
-! COMMON/MA/PR(4),PI(4),AR(4,4),AI(4,4),EMR(4,4),EMI(4,4),H(4,4) 
-type MA_block
-  real(kind=sgl)           :: PR(4), PI(4), AR(4,4), AI(4,4), EMR(4,4), EMI(4,4), H(4,4) 
-end type MA_block
-
-! COMMON/MKAP/D1(6,6),EP(3,6),EA(3,3) 
-type MKAP_block
- real(kind=sgl)            :: D1(6,6), EP(3,6), EA(3,3) 
-end type MKAP_block
-
-! COMMON/MRD/CN(61),X,X1,Y(8),ERROR,Q,KOUNT,D(8),YT(8),DT(8,4),ANO,SKIP 
-type MRD_block
- real(kind=sgl)            :: CN(61), X, X1, Y(8), ERROR, Q, D(8), YT(8), DT(8,4), ANO, SKIP 
- integer(kind=irg)         :: KOUNT
-end type MRD_block
-
-! COMMON/MT/LU(3),LG(3),LBM(3),LFN(3),LB(3),LB2(3),LB3(3),LB4(3), 
-!           LFP(3),LFP1(3),LFP3(3),LS1(3),LS2(3),LS3(3),TLU(3),TLG(3),
-!           TLBM(3),TLFN(3),TLB(3),TLB2(3),TLB3(3),TLB4(3),TLFP(3),
-!           TLFP1(3),TLFP3(3),TLS1(3),TLS2(3),TLS3(3),LF1(3),
-!           LF2(3),LF3(3),LF4(3),TLF1(3),TLF2(3),TLF3(3),TLF4(3) 
-type MT_block
- real(kind=sgl)            :: TLU(3), TLG(3), TLBM(3), TLFN(3), TLB(3), TLB2(3), TLB3(3), TLB4(3), TLFP(3), &
-                              TLFP1(3), TLFP3(3), TLS1(3), TLS2(3), TLS3(3), TLF1(3), TLF2(3), TLF3(3), TLF4(3) 
- integer(kind=irg)         :: LU(3), LG(3), LBM(3), LFN(3), LB(3), LB2(3), LB3(3), LB4(3), LD, LD2, LD3, LD4, &
-                              LFP(3), LFP1(3), LFP3(3), LS1(3), LS2(3), LS3(3), LF1(3), LF2(3), LF3(3), LF4(3), &
-                              LQ1, LQ2, LQ3
-end type MT_block
-
-! COMMON/MKT/AT(3,3),ATR(3,3)
-type MKT_block
- real(kind=sgl)            :: AT(3,3)
- real(kind=sgl)            :: ATR(3,3)
-end type MKT_block
-
-! COMMON/SCALE30/LTEST
-type SCALE30_block
- integer(kind=irg)         :: LTEST
-end type SCALE30_block
-
-! COMMON/MP/PC(4),AS(4,4),EL(4,4) 
-type MP_block
- complex(kind=sgl)         :: PC(4)
- complex(kind=sgl)         :: AS(4,4)
- complex(kind=sgl)         :: EL(4,4) 
-end type MP_block
-
-! COMMON/MAP/DC(3,3)
-type MAP_block
- real(kind=sgl)            :: DC(3,3)
-end type MAP_block
-
-!=======================================
-!=======================================
-!=======================================
-
-! the following is a type definition for a 3D magnetization state 
-type LTEM_Magnetization
-  integer(kind=irg)                 :: nx
-  integer(kind=irg)                 :: ny
-  integer(kind=irg)                 :: nz
-  real(kind=dbl)                    :: dx
-  real(kind=dbl)                    :: dy
-  real(kind=dbl)                    :: dz
-  real(kind=dbl),allocatable        :: originalMag(:,:,:)
-  real(kind=dbl),allocatable        :: resampledMag(:,:,:)
-  real(kind=dbl)                    :: Mmagnitude
-  real(kind=dbl)                    :: Bzero
-  real(kind=dbl)                    :: thick
-  character(fnlen)                  :: origin 
-end type LTEM_Magnetization
-
-!=======================================
-!=======================================
-!=======================================
-! these are used by the detectors module and various programs
-type EBSDPixel
-        real(kind=sgl),allocatable      :: lambdaEZ(:,:)
-        real(kind=dbl)                  :: dc(3) ! direction cosine in sample frame
-        real(kind=dbl)                  :: cfactor
-end type EBSDPixel
-
-type EBSDMCdataType
-        integer(kind=irg)               :: multiplier
-        integer(kind=irg)               :: numEbins
-        integer(kind=irg)               :: numzbins
-        integer(kind=irg)               :: totnum_el
-        integer(kind=irg),allocatable   :: accum_e(:,:,:)
-        integer(kind=irg),allocatable   :: accum_z(:,:,:,:)
-        real(kind=sgl),allocatable      :: accumSP(:,:,:)
-end type EBSDMCdataType
-
-type EBSDMPdataType
-        integer(kind=irg)               :: lastEnergy
-        integer(kind=irg)               :: numEbins
-        integer(kind=irg)               :: numset
-        integer(kind=irg)               :: newPGnumber
-        logical                         :: AveragedMP
-        character(fnlen)                :: xtalname
-        real(kind=sgl),allocatable      :: BetheParameters(:)
-        real(kind=sgl),allocatable      :: keVs(:)
-        real(kind=sgl),allocatable      :: mLPNH4(:,:,:,:)
-        real(kind=sgl),allocatable      :: mLPSH4(:,:,:,:)
-        real(kind=sgl),allocatable      :: mLPNH(:,:,:)
-        real(kind=sgl),allocatable      :: mLPSH(:,:,:)
-        real(kind=sgl),allocatable      :: masterSPNH(:,:,:)
-        real(kind=sgl),allocatable      :: masterSPSH(:,:,:)
-end type EBSDMPdataType
-
-type EBSDDetectorType
-        real(kind=sgl),allocatable      :: rgx(:,:), rgy(:,:), rgz(:,:)  ! auxiliary detector arrays needed for interpolation
-        real(kind=sgl),allocatable      :: accum_e_detector(:,:,:)
-        type(EBSDPixel),allocatable     :: detector(:,:) 
-end type EBSDDetectorType
-
-
-
 
 end module typedefs

@@ -63,7 +63,7 @@ def get_extension_modules():
     kmap = os.path.join('hexrd/EMsoft',kmap)
 
 
-    cmd = 'f90wrap -k '+ kmap + ' -m ' + srclist_str
+    cmd = 'f90wrap -k '+ kmap + ' -m EMsoft --package ' + srclist_str
     os.system(cmd)
 
     cmd = 'gfortran -c '+ srclist_str + ' -fno-unsafe-math-optimizations -frounding-math -fsignaling-nans'
@@ -72,7 +72,9 @@ def get_extension_modules():
     cmd = 'ar cr libEMsoft.a *.o'
     os.system(cmd)
 
-    cmd = 'f2py-f90wrap -c -m _EMsoft f90wrap_*.f90 --build-dir build/'+' --link-lapack_opt -L/Users/saransh1/hexrd3 -lEMsoft'
+    cmd = 'f2py-f90wrap -c -m _EMsoft --build-dir build/ \
+            f90wrap_*.f90 --link-lapack_opt -L/Users/saransh1/hexrd3 -lEMsoft'
+    os.system(cmd)
 
     return [sglite_mod, transforms_mod]
 

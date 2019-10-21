@@ -718,48 +718,4 @@ end if
 
 end subroutine WriteValueRealComplex
 
-
-
-
-recursive subroutine PrintMatrixd(s,a)
-!DEC$ ATTRIBUTES DLLEXPORT :: PrintMatrixd
-
-use local
-
-IMPLICIT NONE
-
-real(kind=dbl)   :: a(3,3)
-integer(kind=irg):: i,j
-character(4)     :: s
-
-write (stdout,"(A/)") s
-do i=1,3
-  write (stdout,"(3(F12.5,2x))") (a(i,j),j=1,3)
-end do
-write (stdout,"(/)")
-
-end subroutine
-
-recursive subroutine PrintMatrixcd(s,a)
-!DEC$ ATTRIBUTES DLLEXPORT :: PrintMatrixcd
-
-use local
-
-IMPLICIT NONE
-
-complex(kind=dbl)   :: a(3,3)
-integer(kind=irg):: i,j
-character(4)     :: s
-
-write (stdout,"(A/)") s
-do i=1,3
-  write (stdout,*) (a(i,j),j=1,3)
-end do
-write (stdout,"(/)")
-
-end subroutine
-! 
-
-
-
 end module io
