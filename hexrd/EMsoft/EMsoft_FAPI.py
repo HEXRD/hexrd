@@ -207,6 +207,8 @@ class rotation:
 	ho = homochoric vector
 	st = stereographic vector 
 	'''
+	def __init__(self):
+		self.tol = 1.0e-6
 
 	def check_eu(self, eu):
 
@@ -256,10 +258,16 @@ class rotation:
 
 	def check_om(self, om):
 
-		om = np.atleast_3d(om)
+		if(om.ndim == 2):
+			om = np.atleast_3d(om).T
+		else:
+			om = np.atleast_3d(om)
 
-		assert(om.ndim == 2), 'dimension of array should be 3-d (3 x 3 x n).'
-		assert(om.shape[0:2] == (3,3) ), 'first two-dimensions should be 3 x 3.'
+		assert(om.ndim == 3), 'dimension of array should be 3-d (n x 3 x 3).'
+		assert(om.shape[1:3] == (3,3) ), 'first two-dimensions should be 3 x 3.'
+
+		diff = np.asarray([ np.sum( np.abs(np.linalg.inv(o) - o.T) ) for o in om ])
+		assert(np.all(diff) < self.tol), "orientation matrices are not orthonormal"
 
 	def check_ho(self, ho):
 
@@ -279,283 +287,341 @@ class rotation:
 
 	# 1. euler to orientation matrix
 	def eu2om(self, eu):
-	    om = rotations.eu2om_d(eu)
-	    return om
+
+		self.check_eu(eu)
+		om = rotations.eu2om_d(eu)
+		return om
 
 	# 2. euler to axis-angle pair
 	def eu2ax(self, eu):
-	    ax = rotations.eu2ax_d(eu)
-	    return ax
+
+		self.check_eu(eu)
+		ax = rotations.eu2ax_d(eu)
+		return ax
 
 	# 3. euler to rodrigues vector
 	def eu2ro(self, eu):
-	    ro = rotations.eu2ro_d(eu)
-	    return ro
+		self.check_eu(eu)
+		ro = rotations.eu2ro_d(eu)
+		return ro
 
 	# 4.
 	def eu2qu(self, eu):
-	    qu = rotations.eu2qu_d(eu)
-	    return qu
+		self.check_eu(eu)
+		qu = rotations.eu2qu_d(eu)
+		return qu
 
 	# 5. orientation matrix to euler angles
 	def om2eu(self, om):
-	    eu = rotations.om2eu_d(om)
-	    return eu
+		self.check_om(om)
+		eu = rotations.om2eu_d(om)
+		return eu
 
 	# 6.
 	def ax2om(self, ax):
-	    om = rotations.ax2om_d(ax)
-	    return om
+		self.check_ax(ax)
+		om = rotations.ax2om_d(ax)
+		return om
 
 	# 7.
 	def qu2eu(self, qu):
-	    eu = rotations.qu2eu_d(qu)
-	    return eu
+		self.check_qu(qu)
+		eu = rotations.qu2eu_d(qu)
+		return eu
 
 	# 8.
 	def ax2ho(self, ax):
-	    ho = rotations.ax2ho_d(ax)
-	    return ho
+		self.check_ax(ax)
+		ho = rotations.ax2ho_d(ax)
+		return ho
 
 	# 9.
 	def ho2ax(self, ho):
-	    ax = rotations.ho2ax_d(ho)
-	    return ax
+		self.check_ho(ho)
+		ax = rotations.ho2ax_d(ho)
+		return ax
 
 	# 10.
 	def om2ax(self, om):
-	    ax = rotations.om2ax_d(om)
-	    return ax
+		self.check_om(om)
+		ax = rotations.om2ax_d(om)
+		return ax
 
 	# 11.
 	def ro2ax(self, ro):
-	    ax = rotations.ro2ax_d(ro)
-	    return ax
+		self.check_ro(ro)
+		ax = rotations.ro2ax_d(ro)
+		return ax
 
 	# 12.
 	def ax2ro(self, ax):
-	    ro = rotations.ax2ro_d(ax)
-	    return ro
+		self.check_ax(ax)
+		ro = rotations.ax2ro_d(ax)
+		return ro
 
 	# 13.
 	def ax2qu(self, ax):
-	    qu = rotations.ax2qu_d(ax)
-	    return qu
+		self.check_ax(ax)
+		qu = rotations.ax2qu_d(ax)
+		return qu
 
 	# 14.
 	def  ro2ho(self, ro):
-	    ho = rotations. ro2ho_d(ro)
-	    return ho
+		self.check_ro(ro)
+		ho = rotations. ro2ho_d(ro)
+		return ho
 
 	# 15.
 	def qu2om(self, qu):
-	    om = rotations.qu2om_d(qu)
-	    return om
+		self.check_qu(qu)
+		om = rotations.qu2om_d(qu)
+		return om
 
 	# 16. 
 	def om2qu(self, om):
-	    qu = rotations.om2qu_d(om)
-	    return qu
+		self.check_om(om)
+		qu = rotations.om2qu_d(om)
+		return qu
 
 	# 17.
 	def qu2ax(self, qu):
-	    ax = rotations.qu2ax_d(qu)
-	    return qu
+		self.check_qu(qu)
+		ax = rotations.qu2ax_d(qu)
+		return qu
 
 	# 18.
 	def qu2ro(self, qu):
-	    ro = rotations.qu2ro_d(qu)
-	    return ro
+		self.check_qu(qu)
+		ro = rotations.qu2ro_d(qu)
+		return ro
 
 	# 19.
 	def qu2ho(self, qu):
-	    ho = rotations.qu2ho_d(qu)
-	    return ho
+		self.check_qu(qu)
+		ho = rotations.qu2ho_d(qu)
+		return ho
 
 	# 20.
 	def ho2cu(self, ho):
-	    cu = rotations.ho2cu_d(ho)
-	    return cu
+		self.check_ho(ho)
+		cu = rotations.ho2cu_d(ho)
+		return cu
 
 	# 21.
 	def cu2ho(self, cu):
-	    ho = rotations.cu2ho_d(cu)
-	    return ho
+		self.check_cu(cu)
+		ho = rotations.cu2ho_d(cu)
+		return ho
 
 	# 22.
 	def ro2eu(self, ro):
-	    eu = rotations.ro2eu_d(ro)
-	    return eu
+		self.check_ro(ro)
+		eu = rotations.ro2eu_d(ro)
+		return eu
 
 	# 23.
 	def eu2ho(self, eu):
-	    ho = rotations.eu2ho_d(eu)
-	    return ho
+		self.check_eu(eu)
+		ho = rotations.eu2ho_d(eu)
+		return ho
 
 	# 24.
 	def om2ro(self, om):
-	    ro = rotations.om2ro_d(om)
-	    return ro
+		self.check_om(om)
+		ro = rotations.om2ro_d(om)
+		return ro
 
 	# 25.
 	def om2ho(self, om):
-	    ho = rotations.om2ho_d(om)
-	    return ho
+		self.check_om(om)
+		ho = rotations.om2ho_d(om)
+		return ho
 
 	# 26.
 	def ax2eu(self, ax):
-	    eu = rotations.ax2eu_d(ax)
-	    return eu
+		self.check_ax(ax)
+		eu = rotations.ax2eu_d(ax)
+		return eu
 
 	# 27.
 	def ro2om(self, ro):
-	    om = rotations.ro2om_d(ro)
-	    return om
+		self.check_ro(ro)
+		om = rotations.ro2om_d(ro)
+		return om
 
 	# 28.
 	def ro2qu(self, ro):
-	    qu = rotations.ro2qu_d(ro)
-	    return qu
+		self.check_ro(ro)
+		qu = rotations.ro2qu_d(ro)
+		return qu
 
 	# 29.
 	def ho2eu(self, ho):
-	    eu = rotations.ho2eu_d(ho)
-	    return eu
+		self.check_ho(ho)
+		eu = rotations.ho2eu_d(ho)
+		return eu
 
 	# 30.
 	def ho2om(self, ho):
-	    om = rotations.ho2om_d(ho)
-	    return om
+		self.check_ho(ho)
+		om = rotations.ho2om_d(ho)
+		return om
 
 	# 31.
 	def ho2ro(self, ho):
-	    ro = rotations.ho2ro_d(ho)
-	    return ro
+		self.check_ho(ho)
+		ro = rotations.ho2ro_d(ho)
+		return ro
 
 	# 32.
 	def ho2qu(self, ho):
-	    qu = rotations.ho2qu_d(ho)
-	    return qu
+		self.check_ho(ho)
+		qu = rotations.ho2qu_d(ho)
+		return qu
 
 	# 33.
 	def eu2cu(self, eu):
-	    cu = rotations.eu2cu_d(eu)
-	    return cu
+		self.check_eu(eu)
+		cu = rotations.eu2cu_d(eu)
+		return cu
 
 	# 34.
 	def om2cu(self, om):
-	    cu = rotations.om2cu_d(om)
-	    return cu
+		self.check_om(om)
+		cu = rotations.om2cu_d(om)
+		return cu
 
 	# 35.
 	def ax2cu(self, ax):
-	    cu = rotations.ax2cu_d(ax)
-	    return cu
+		self.check_ax(ax)
+		cu = rotations.ax2cu_d(ax)
+		return cu
 
 	# 36.
 	def ro2cu(self, ro):
-	    cu = rotations.ro2cu_d(ro)
-	    return cu
+		self.check_ro(ro)
+		cu = rotations.ro2cu_d(ro)
+		return cu
 
 	# 37.
 	def qu2cu(self, qu):
-	    cu = rotations.qu2cu_d(qu)
-	    return cu
+		self.check_cu(cu)
+		cu = rotations.qu2cu_d(qu)
+		return cu
 
 	# 38.
 	def cu2eu(self, cu):
-	    eu = rotations.cu2eu_d(cu)
-	    return eu
+		self.check_cu(cu)
+		eu = rotations.cu2eu_d(cu)
+		return eu
 
 	# 39.
 	def cu2om(self, cu):
-	    om = rotations.cu2om_d(cu)
-	    return om
+		self.check_cu(cu)
+		om = rotations.cu2om_d(cu)
+		return om
 
 	# 40.
 	def cu2ax(self, cu):
-	    ax = rotations.cu2ax_d(cu)
-	    return ax
+		self.check_cu(cu)
+		ax = rotations.cu2ax_d(cu)
+		return ax
 
 	# 41.
 	def cu2ro(self, cu):
-	    ro = rotations.cu2ro_d(cu)
-	    return ro
+		self.check_cu(cu)
+		ro = rotations.cu2ro_d(cu)
+		return ro
 
 	# 42.
 	def cu2qu(self, cu):
-	    qu = rotations.cu2qu_d(cu)
-	    return qu
+		self.check_cu(cu)
+		qu = rotations.cu2qu_d(cu)
+		return qu
 
 	# 43.
 	def om2st(self, om):
-	    st = rotations.om2st_d(om)
-	    return st
+		self.check_om(om)
+		st = rotations.om2st_d(om)
+		return st
 
 	# 44.
 	def ax2st_d(self, ax):
-	    st = rotations.ax2st_d(ax)
-	    return st
+		self.check_ax(ax)
+		st = rotations.ax2st_d(ax)
+		return st
 
 	# 45.
 	def ro2st_d(self, ro):
-	    st = rotations.ro2st_d(ro)
-	    return st
+		self.check_ro(ro)
+		st = rotations.ro2st_d(ro)
+		return st
 
 	# 46.
 	def ho2st_d(self, ho):
-	    st = rotations.ho2st_d(ho)
-	    return st
+		self.check_ho(ho)
+		st = rotations.ho2st_d(ho)
+		return st
 
 	# 47.
 	def cu2st_d(self, cu):
-	    st = rotations.cu2st_d(cu)
-	    return st
+		self.check_cu(cu)
+		st = rotations.cu2st_d(cu)
+		return st
 
 	# 48.
 	def eu2st_d(self, eu):
-	    st = rotations.eu2st_d(eu)
-	    return st
+		self.check_eu(eu)
+		st = rotations.eu2st_d(eu)
+		return st
 
 	# 49.
 	def qu2st_d(self, qu):
-	    st = rotations.qu2st_d(qu)
-	    return st
+		self.check_qu(qu)
+		st = rotations.qu2st_d(qu)
+		return st
 
 	# 50.
 	def st2om_d(self, st):
-	    om = rotations.st2om_d(st)
-	    return om
+		self.check_st(st)
+		om = rotations.st2om_d(st)
+		return om
 
 	# 51.
 	def st2eu_d(self, st):
-	    eu = rotations.st2eu_d(st)
-	    return eu
+		self.check_st(st)
+		eu = rotations.st2eu_d(st)
+		return eu
 
 	# 52.
 	def st2qu_d(self, st):
-	    qu = rotations.st2qu_d(st)
-	    return qu
+		self.check_st(st)
+		qu = rotations.st2qu_d(st)
+		return qu
 
 	# 53.
 	def st2ax_d(self, st):
-	    ax = rotations.st2ax_d(st)
-	    return ax
+		self.check_st(st)
+		ax = rotations.st2ax_d(st)
+		return ax
 
 	# 54.
 	def st2ro_d(self, st):
-	    ro = rotations.st2ro_d(st)
-	    return ro
+		self.check_st(st)
+		ro = rotations.st2ro_d(st)
+		return ro
 
 	# 55.
 	def st2ho_d(self, st):
-	    ho = rotations.st2ho_d(st)
-	    return ho
+		self.check_st(st)
+		ho = rotations.st2ho_d(st)
+		return ho
 
 	# 56.
 	def st2cu_d(self, st):
-	    cu = rotations.st2cu_d(st)
-	    return cu
+		self.check_st(st)
+		cu = rotations.st2cu_d(st)
+		return cu
 
 class crystal:
 	'''
