@@ -58,7 +58,6 @@ class EMsoft_constants:
 		self.atom_spradii 	= constants.atom_spradii
 		self.atom_sym 		= constants.atom_sym
 		self.atom_weights 	= constants.atom_weights
-		self.butterfly9x9 	= constants.butterfly9x9
 
 		# physical constants
 		self.cAvogadro 		= constants.cAvogadro
