@@ -45,8 +45,8 @@ from EMsoft import rotations
 from EMsoft import symmetry
 from EMsoft import crystal
 from EMsoft import quaternions
-from Emsoft import typedefs
-# from EMsoft import so3
+from EMsoft import typedefs
+from EMsoft import so3
 
 class EMsoft_constants:
 
@@ -161,8 +161,9 @@ class EMsoft_Types:
 	'''
 	# these are just standard classes in python
 	# the unitcell type is the mmost important one
-	cell = typedefs.unitcell()
+	cell 		= typedefs.unitcell()
 
+	FZpointd	= typedefs.FZpointd()
 
 class Symmetry:
 	'''
@@ -639,9 +640,64 @@ class Sampling:
 	>> @DETAILS:  	this is the sampling class 
 
 	'''
+	def __init__(self, pgnum):
 
-	def __init__(self):
-		pass
+		self.pgnum 			= pgnum
+		self.samplingtype 	= 'undefined'
+
+	def SampleRFZ(self, nsteps, gridtype):
+
+		self.samplingtype = 'RFZ'
+		self.gridtype 		= gridtype
+		FZlist 	= EMsoft_Types.FZpointd
+		FZcnt 	= 0
+
+		FZcnt = so3.samplerfz(nsteps, self.pgnum, 
+				gridtype, FZlist)
+
+		FZarray = self.convert_to_array(FZlist, FZcnt)
+
+		self.samples 	= FZarray
+		self.nsamples 	= FZcnt
+
+	def SampleIsoCube(self, misang, nsteps):
+		
+		self.samplingtype = 'IsoCube'
+		CMlist = EMsoft_Types.FZpointd
+		CMcnt = 0
+
+		CMCnt = so3.sample_isocube(misang, nsteps, CMlist)
+
+		CMarray = self.convert_to_array(CMlist, CMcnt)
+
+		self.samples 	= CMarray
+		self.nsamples	= CMcnt
+
+	def SampleIsoCubeFilled(self, misang, nsteps):
+		
+		self.samplingtype = 'IsoCubeFilled'
+		CMlist = EMsoft_Types.FZpointd
+		CMcnt = 0
+
+		CMCnt = so3.sample_isocubefilled(misang, nsteps, CMlist)
+
+		CMarray = self.convert_to_array(CMlist, CMcnt)
+
+		self.samples 	= CMarray
+		self.nsamples	= CMcnt
+
+	def convert_to_array(self, FZlist, FZcnt):
+
+		FZarray = []
+		FZtmp = FZlist
+
+		for i in range(FZcnt):
+			FZarray.append(FZtmp.rod)
+			FZtmp = FZtmp.next
+
+		FZarray = np.asarray(FZarray)
+
+		return FZarray
 
 class FundamentalZone:
 	'''

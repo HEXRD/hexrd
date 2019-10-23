@@ -53,11 +53,11 @@ use local
 IMPLICIT NONE
 
 ! sampler routine
-public :: SampleRFZ, IsinsideFZ, CubochoricNeighbors
+! public :: SampleRFZ, IsinsideFZ, CubochoricNeighbors
 
 ! logical functions to determine if point is inside specific FZ
 !private :: insideCyclicFZ, insideDihedralFZ, insideCubicFZ
-public:: insideCyclicFZ, insideDihedralFZ, insideCubicFZ
+! public:: insideCyclicFZ, insideDihedralFZ, insideCubicFZ
 
 
 contains
@@ -545,7 +545,7 @@ use typedefs
 
 IMPLICIT NONE
 
-type(FZpointd),pointer,INTENT(INOUT)  :: top
+type(FZpointd), INTENT(INOUT), pointer  :: top
 !f2py intent(in,out) ::  top
 
 type(FZpointd),pointer                :: ltail, ltmp
@@ -636,7 +636,7 @@ integer(kind=irg), INTENT(IN)        :: nsteps
 integer(kind=irg), INTENT(IN)        :: pgnum
 integer(kind=irg), INTENT(IN)        :: gridtype
 integer(kind=irg),INTENT(OUT)        :: FZcnt                ! counts number of entries in linked list
-type(FZpointd),pointer,INTENT(OUT)   :: FZlist               ! pointers
+type(FZpointd),INTENT(INOUT), target                       :: FZlist               ! pointers
 real(kind=dbl),INTENT(IN),OPTIONAL   :: qFZ(4)
 
 real(kind=dbl)                       :: x, y, z, rod(4), delta, shift, sedge, ztmp
@@ -659,25 +659,31 @@ end if
 
 ! set the counter to zero
 FZcnt = 0
-
+!======================================================================
+! in order to play nice with python wrapping, the allocation of the
+! head pointer needs to be done in python. therefore these lines are
+! being commented out.
+!======================================================================
 ! make sure the linked lists are empty
-if (associated(FZlist)) then
-  FZtmp => FZlist%next
-  FZtmp2 => FZlist
-  do
-    deallocate(FZtmp2)  
-    if (.not. associated(FZtmp) ) EXIT
-    FZtmp2 => FZtmp
-    FZtmp => FZtmp%next
-  end do
-  nullify(FZlist)
-else
-  nullify(FZlist)
-end if
+! if (associated(FZlist)) then
+!   FZtmp => FZlist%next
+!   FZtmp2 => FZlist
+!   do
+!     deallocate(FZtmp2)  
+!     if (.not. associated(FZtmp) ) EXIT
+!     FZtmp2 => FZtmp
+!     FZtmp => FZtmp%next
+!   end do
+!   nullify(FZlist)
+! else
+!   nullify(FZlist)
+! end if
 
 ! determine which function we should call for this point group symmetry
 FZtype = FZtarray(pgnum)
 FZorder = FZoarray(pgnum)
+
+FZtmp => FZlist
 
 ! note that when FZtype is cyclic (1) and FZorder is 2, then we must rotate the 
 ! rotation axis to lie along the b (y) direction, not z !!!!
@@ -706,9 +712,13 @@ FZorder = FZoarray(pgnum)
          b = IsinsideFZ(rod,FZtype,FZorder)
        end if
        if (b) then 
-        if (.not.associated(FZlist)) then
-          allocate(FZlist)
-          FZtmp => FZlist
+        ! if (.not.associated(FZlist)) then
+        !   allocate(FZlist)
+
+          FZtmp%rod = rod
+          FZtmp%gridpt(1:3) = (/i, j, k/)
+          FZcnt = FZcnt + 1
+
 ! in DEBUG mode, there is a strange error here ... 
 ! if gridtype = 0 then we must add the identity rotation here
 ! currently, the identity is not automatically recognized since the 
@@ -721,11 +731,11 @@ FZorder = FZoarray(pgnum)
 !            FZtmp => FZtmp%next
 !            nullify(FZtmp%next)
 !          end if 
-        else
+        ! else
           allocate(FZtmp%next)
           FZtmp => FZtmp%next
-        end if
-        nullify(FZtmp%next)
+        ! end if
+          nullify(FZtmp%next)
 ! if monoclinic, then reorder the components !!!
 !        if ((FZtype.eq.1).and.(FZorder.eq.2)) then
 !          ztmp = rod(3)
@@ -733,9 +743,6 @@ FZorder = FZoarray(pgnum)
 !          rod(1) = rod(2)
 !          rod(2) = ztmp
 !        end if
-        FZtmp%rod = rod
-        FZtmp%gridpt(1:3) = (/i, j, k/)
-        FZcnt = FZcnt + 1
        end if
     end if
   end do
@@ -1127,9 +1134,9 @@ IMPLICIT NONE
 
 real(kind=dbl),INTENT(IN)               :: misang       ! desired misorientation angle (degrees)
 integer(kind=irg),INTENT(IN)            :: N            ! desired number of sampling points along cube edge
-integer(kind=irg),INTENT(INOUT)         :: CMcnt        ! number of entries in linked list
+integer(kind=irg),INTENT(OUT)         :: CMcnt        ! number of entries in linked list
 !f2py intent(in,out) ::  CMcnt        ! number of entries in linked list
-type(FZpointd),pointer                  :: CMlist       ! pointer to start of linked list
+type(FZpointd),INTENT(INOUT),target                  :: CMlist       ! pointer to start of linked list
 
 type(FZpointd),pointer                  :: CMtmp, CMtmp2
 real(kind=dbl)                          :: edge, misangr, dx, cu(3), x, y, z
@@ -1141,21 +1148,27 @@ CMcnt = 0
 ! convert the misorientation angle to radians
 misangr = misang * cPi/180.D0
 
-! make sure the linked list is empty
-if (associated(CMlist)) then
-  CMtmp => CMlist%next
-  CMtmp2 => CMlist
-  do
-    deallocate(CMtmp2)  
-    if (.not. associated(CMtmp) ) EXIT
-    CMtmp2 => CMtmp
-    CMtmp => CMtmp%next
-  end do
-  nullify(CMlist)
-end if
+!======================================================================
+! in order to play nice with python wrapping, the allocation of the
+! head pointer needs to be done in python. therefore these lines are
+! being commented out.
+!======================================================================
 
-! allocate the linked list
-allocate(CMlist)
+! make sure the linked list is empty
+! if (associated(CMlist)) then
+!   CMtmp => CMlist%next
+!   CMtmp2 => CMlist
+!   do
+!     deallocate(CMtmp2)  
+!     if (.not. associated(CMtmp) ) EXIT
+!     CMtmp2 => CMtmp
+!     CMtmp => CMtmp%next
+!   end do
+!   nullify(CMlist)
+! end if
+
+! ! allocate the linked list
+! allocate(CMlist)
 CMtmp => CMlist
 
 ! set the cube edge length based on the misorientation angle
@@ -1268,9 +1281,9 @@ IMPLICIT NONE
 
 real(kind=dbl),INTENT(IN)               :: misang       ! desired misorientation angle (degrees)
 integer(kind=irg),INTENT(IN)            :: N            ! desired number of sampling points along cube edge
-integer(kind=irg),INTENT(INOUT)         :: CMcnt        ! number of entries in linked list
+integer(kind=irg),INTENT(OUT)         :: CMcnt        ! number of entries in linked list
 !f2py intent(in,out) ::  CMcnt        ! number of entries in linked list
-type(FZpointd),pointer                  :: CMlist       ! pointer to start of linked list
+type(FZpointd),INTENT(INOUT),target                :: CMlist       ! pointer to start of linked list
 
 type(FZpointd),pointer                  :: CMtmp, CMtmp2
 real(kind=dbl)                          :: edge, misangr, dx, cu(3), x, y, z, xc, yc, zc
@@ -1282,21 +1295,27 @@ CMcnt = 0
 ! convert the misorientation angle to radians
 misangr = misang * cPi/180.D0
 
+!======================================================================
+! in order to play nice with python wrapping, the allocation of the
+! head pointer needs to be done in python. therefore these lines are
+! being commented out.
+!======================================================================
 ! make sure the linked list is empty
-if (associated(CMlist)) then
-  CMtmp => CMlist%next
-  CMtmp2 => CMlist
-  do
-    deallocate(CMtmp2)  
-    if (.not. associated(CMtmp) ) EXIT
-    CMtmp2 => CMtmp
-    CMtmp => CMtmp%next
-  end do
-  nullify(CMlist)
-end if
+! if (associated(CMlist)) then
+!   CMtmp => CMlist%next
+!   CMtmp2 => CMlist
+!   do
+!     deallocate(CMtmp2)  
+!     if (.not. associated(CMtmp) ) EXIT
+!     CMtmp2 => CMtmp
+!     CMtmp => CMtmp%next
+!   end do
+!   nullify(CMlist)
+! end if
 
-! allocate the linked list
-allocate(CMlist)
+! ! allocate the linked list
+! allocate(CMlist)
+
 CMtmp => CMlist
 
 ! set the cube edge length based on the misorientation angle
@@ -1324,204 +1343,204 @@ end do
 
 end subroutine sample_isoCubeFilled
 
-!--------------------------------------------------------------------------
-!
-! SUBROUTINE: sample_Cone
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief sample a cone centered on a unit vector with apex in the origin and given opening angle
-!
-!> @param unitvector  unit vector describing the cone axis
-!> @param dpmin = cosine of half the cone angle
-!> @param N number of points along cube edge
-!> @param CMcnt the number of components in the returned linked list
-!> @param CMlist (output) linked list of Rodrigues vectors
-!
-!> @date 02/01/17 MDG 1.0 original
-!--------------------------------------------------------------------------
-recursive subroutine sample_Cone(unitvector, dpmin, N, FZtype, FZorder, cnt, list) 
-!DEC$ ATTRIBUTES DLLEXPORT :: sample_Cone
+! !--------------------------------------------------------------------------
+! !
+! ! SUBROUTINE: sample_Cone
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief sample a cone centered on a unit vector with apex in the origin and given opening angle
+! !
+! !> @param unitvector  unit vector describing the cone axis
+! !> @param dpmin = cosine of half the cone angle
+! !> @param N number of points along cube edge
+! !> @param CMcnt the number of components in the returned linked list
+! !> @param CMlist (output) linked list of Rodrigues vectors
+! !
+! !> @date 02/01/17 MDG 1.0 original
+! !--------------------------------------------------------------------------
+! recursive subroutine sample_Cone(unitvector, dpmin, N, FZtype, FZorder, cnt, list) 
+! !DEC$ ATTRIBUTES DLLEXPORT :: sample_Cone
 
-use constants
-use typedefs
-use rotations
+! use constants
+! use typedefs
+! use rotations
 
-IMPLICIT NONE
+! IMPLICIT NONE
 
-real(kind=dbl),INTENT(IN)               :: unitvector(3)! axis of cone
-real(kind=dbl),INTENT(IN)               :: dpmin        ! maximum dot product
-integer(kind=irg),INTENT(IN)            :: N            ! number of sampling points along cube semi edge
-integer(kind=irg),INTENT(IN)            :: FZtype
-integer(kind=irg),INTENT(IN)            :: FZorder
-integer(kind=irg),INTENT(INOUT)         :: cnt          ! number of entries in linked list
-!f2py intent(in,out) ::  cnt          ! number of entries in linked list
-type(FZpointd),pointer                  :: list         ! pointer to start of linked list
+! real(kind=dbl),INTENT(IN)               :: unitvector(3)! axis of cone
+! real(kind=dbl),INTENT(IN)               :: dpmin        ! maximum dot product
+! integer(kind=irg),INTENT(IN)            :: N            ! number of sampling points along cube semi edge
+! integer(kind=irg),INTENT(IN)            :: FZtype
+! integer(kind=irg),INTENT(IN)            :: FZorder
+! integer(kind=irg),INTENT(INOUT)         :: cnt          ! number of entries in linked list
+! !f2py intent(in,out) ::  cnt          ! number of entries in linked list
+! type(FZpointd),INTENT(INOUT),target,allocatable                  :: list         ! pointer to start of linked list
 
-type(FZpointd),pointer                  :: tmp, tmp2
-real(kind=dbl)                          :: dx, rod(4), x, y, z, s, delta, dp, r(3)
+! type(FZpointd),pointer                  :: tmp, tmp2
+! real(kind=dbl)                          :: dx, rod(4), x, y, z, s, delta, dp, r(3)
 
-! initialize parameters
-cnt = 0
-! cube semi-edge length
-s = 0.5D0 * LPs%ap
-! step size for sampling of grid; total number of samples = (2*nsteps+1)**3
-delta = s/dble(N)
+! ! initialize parameters
+! cnt = 0
+! ! cube semi-edge length
+! s = 0.5D0 * LPs%ap
+! ! step size for sampling of grid; total number of samples = (2*nsteps+1)**3
+! delta = s/dble(N)
 
-! make sure the linked list is empty
-if (associated(list)) then
-  tmp => list%next
-  tmp2 => list
-  do
-    deallocate(tmp2)  
-    if (.not. associated(tmp) ) EXIT
-    tmp2 => tmp
-    tmp => tmp%next
-  end do
-  nullify(list)
-end if
+! ! make sure the linked list is empty
+! if (associated(list)) then
+!   tmp => list%next
+!   tmp2 => list
+!   do
+!     deallocate(tmp2)  
+!     if (.not. associated(tmp) ) EXIT
+!     tmp2 => tmp
+!     tmp => tmp%next
+!   end do
+!   nullify(list)
+! end if
 
-! allocate the linked list and insert the origin
-allocate(list)
-tmp => list
-nullify(tmp%next)
-tmp%rod = (/ 0.D0, 0.D0, 0.D0, 0.D0 /)
-cnt = 1
+! ! allocate the linked list and insert the origin
+! allocate(list)
+! tmp => list
+! nullify(tmp%next)
+! tmp%rod = (/ 0.D0, 0.D0, 0.D0, 0.D0 /)
+! cnt = 1
 
-! and generate the linked list of points inside the cone
-x = -s
-do while (x.lt.s)
-  y = -s
-  do while (y.lt.s)
-    z = -s
-    do while (z.lt.s)
+! ! and generate the linked list of points inside the cone
+! x = -s
+! do while (x.lt.s)
+!   y = -s
+!   do while (y.lt.s)
+!     z = -s
+!     do while (z.lt.s)
 
-     if ((x.ne.0.D0).and.(y.ne.0.D0).and.(z.ne.0.D0)) then
-! convert to Rodrigues representation
-      rod = cu2ro( (/ x, y, z /) )
-      r = rod(1:3)/sqrt(sum(rod(1:3)**2))
-! compute the dot product of this vector and the unitvector
-      dp = unitvector(1)*r(1)+unitvector(2)*r(2)+unitvector(3)*r(3)
-! conditionally add the point to the list if it lies inside the cone (dpmax <= dp)
-      if ((dp.ge.dpmin).and.(IsinsideFZ(rod,FZtype,FZorder))) then
-        allocate(tmp%next)
-        tmp => tmp%next
-        nullify(tmp%next)
-        tmp%trod = rod
-        cnt = cnt + 1
-      end if
-     end if
+!      if ((x.ne.0.D0).and.(y.ne.0.D0).and.(z.ne.0.D0)) then
+! ! convert to Rodrigues representation
+!       rod = cu2ro( (/ x, y, z /) )
+!       r = rod(1:3)/sqrt(sum(rod(1:3)**2))
+! ! compute the dot product of this vector and the unitvector
+!       dp = unitvector(1)*r(1)+unitvector(2)*r(2)+unitvector(3)*r(3)
+! ! conditionally add the point to the list if it lies inside the cone (dpmax <= dp)
+!       if ((dp.ge.dpmin).and.(IsinsideFZ(rod,FZtype,FZorder))) then
+!         allocate(tmp%next)
+!         tmp => tmp%next
+!         nullify(tmp%next)
+!         tmp%trod = rod
+!         cnt = cnt + 1
+!       end if
+!      end if
 
-    z = z + delta
-  end do
-  y = y + delta
- end do
- x = x + delta
-end do
+!     z = z + delta
+!   end do
+!   y = y + delta
+!  end do
+!  x = x + delta
+! end do
 
-end subroutine sample_Cone
+! end subroutine sample_Cone
 
-!--------------------------------------------------------------------------
-!
-! SUBROUTINE: sample_Fiber
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief sample a fiber texture with a given fiber axis and angular spread
-!
-!> @param itmp  array of equivalent unit vectors describing the fiber axis in the crystal frame
-!> @param num  number of unique entries in itmp array
-!> @param dpmin = cosine of half the cone angle
-!> @param N number of points along cube edge
-!> @param CMcnt the number of components in the returned linked list
-!> @param CMlist (output) linked list of Rodrigues vectors
-!
-!> @date 08/16/17 MDG 1.0 original
-!> @date 08/16/17 MDG 1.1 incorporate family symmetry for the input unitvector
-!--------------------------------------------------------------------------
-recursive subroutine sample_Fiber(itmp, num, dpmin, N, FZtype, FZorder, cnt, list) 
-!DEC$ ATTRIBUTES DLLEXPORT :: sample_Fiber
+! !--------------------------------------------------------------------------
+! !
+! ! SUBROUTINE: sample_Fiber
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief sample a fiber texture with a given fiber axis and angular spread
+! !
+! !> @param itmp  array of equivalent unit vectors describing the fiber axis in the crystal frame
+! !> @param num  number of unique entries in itmp array
+! !> @param dpmin = cosine of half the cone angle
+! !> @param N number of points along cube edge
+! !> @param CMcnt the number of components in the returned linked list
+! !> @param CMlist (output) linked list of Rodrigues vectors
+! !
+! !> @date 08/16/17 MDG 1.0 original
+! !> @date 08/16/17 MDG 1.1 incorporate family symmetry for the input unitvector
+! !--------------------------------------------------------------------------
+! recursive subroutine sample_Fiber(itmp, num, dpmin, N, FZtype, FZorder, cnt, list) 
+! !DEC$ ATTRIBUTES DLLEXPORT :: sample_Fiber
 
-use constants
-use typedefs
-use rotations
+! use constants
+! use typedefs
+! use rotations
 
-IMPLICIT NONE
+! IMPLICIT NONE
 
-real(kind=dbl),INTENT(IN)               :: itmp(48,3)   ! equivalent fiber axis unit vectors
-integer(kind=irg),INTENT(IN)            :: num
-real(kind=dbl),INTENT(IN)               :: dpmin        ! maximum dot product
-integer(kind=irg),INTENT(IN)            :: N            ! number of sampling points along cube semi edge
-integer(kind=irg),INTENT(IN)            :: FZtype
-integer(kind=irg),INTENT(IN)            :: FZorder
-integer(kind=irg),INTENT(INOUT)         :: cnt          ! number of entries in linked list
-!f2py intent(in,out) ::  cnt          ! number of entries in linked list
-type(FZpointd),pointer                  :: list         ! pointer to start of linked list
+! real(kind=dbl),INTENT(IN)               :: itmp(48,3)   ! equivalent fiber axis unit vectors
+! integer(kind=irg),INTENT(IN)            :: num
+! real(kind=dbl),INTENT(IN)               :: dpmin        ! maximum dot product
+! integer(kind=irg),INTENT(IN)            :: N            ! number of sampling points along cube semi edge
+! integer(kind=irg),INTENT(IN)            :: FZtype
+! integer(kind=irg),INTENT(IN)            :: FZorder
+! integer(kind=irg),INTENT(INOUT)         :: cnt          ! number of entries in linked list
+! !f2py intent(in,out) ::  cnt          ! number of entries in linked list
+! type(FZpointd),INTENT(INOUT),target,allocatable                  :: list         ! pointer to start of linked list
 
-type(FZpointd),pointer                  :: tmp, tmp2
-real(kind=dbl)                          :: dx, qu(4), x, y, z, s, delta, dp, Fr(3), Fn(3), rod(4)
-integer(kind=irg)                       :: j
+! type(FZpointd),pointer                  :: tmp, tmp2
+! real(kind=dbl)                          :: dx, qu(4), x, y, z, s, delta, dp, Fr(3), Fn(3), rod(4)
+! integer(kind=irg)                       :: j
 
-! initialize parameters
-cnt = 0
-! cube semi-edge length
-s = 0.5D0 * LPs%ap
-! step size for sampling of grid; total number of samples = (2*nsteps+1)**3
-delta = s/dble(N)
+! ! initialize parameters
+! cnt = 0
+! ! cube semi-edge length
+! s = 0.5D0 * LPs%ap
+! ! step size for sampling of grid; total number of samples = (2*nsteps+1)**3
+! delta = s/dble(N)
 
-! make sure the linked list is empty
-if (associated(list)) then
-  tmp => list%next
-  tmp2 => list
-  do
-    deallocate(tmp2)  
-    if (.not. associated(tmp) ) EXIT
-    tmp2 => tmp
-    tmp => tmp%next
-  end do
-  nullify(list)
-end if
+! ! make sure the linked list is empty
+! if (associated(list)) then
+!   tmp => list%next
+!   tmp2 => list
+!   do
+!     deallocate(tmp2)  
+!     if (.not. associated(tmp) ) EXIT
+!     tmp2 => tmp
+!     tmp => tmp%next
+!   end do
+!   nullify(list)
+! end if
 
-! allocate the linked list and insert the origin
-allocate(list)
-tmp => list
-nullify(tmp%next)
-cnt = 0
+! ! allocate the linked list and insert the origin
+! allocate(list)
+! tmp => list
+! nullify(tmp%next)
+! cnt = 0
 
-! and generate the linked list of points inside the cone
-x = -s
-do while (x.lt.s)
-  y = -s
-  do while (y.lt.s)
-    z = -s
-    do while (z.lt.s)
+! ! and generate the linked list of points inside the cone
+! x = -s
+! do while (x.lt.s)
+!   y = -s
+!   do while (y.lt.s)
+!     z = -s
+!     do while (z.lt.s)
 
-! convert to Rodrigues representation
-      qu = cu2qu( (/ x, y, z /) )
-      rod = cu2ro( (/ x, y, z /) )
+! ! convert to Rodrigues representation
+!       qu = cu2qu( (/ x, y, z /) )
+!       rod = cu2ro( (/ x, y, z /) )
 
-! loop over the equivalent fiber axis indices
-      do j=1,num
-        Fr = quat_Lp(conjg(qu), itmp(j,1:3))
+! ! loop over the equivalent fiber axis indices
+!       do j=1,num
+!         Fr = quat_Lp(conjg(qu), itmp(j,1:3))
 
-! conditionally add the point to the list if it lies inside the cone (dpmax <= dp)
-        if ((Fr(3).ge.dpmin).and.(IsinsideFZ(rod,FZtype,FZorder))) then
-          tmp%trod = rod
-          allocate(tmp%next)
-          tmp => tmp%next
-          nullify(tmp%next)
-          cnt = cnt + 1
-        end if
-      end do
+! ! conditionally add the point to the list if it lies inside the cone (dpmax <= dp)
+!         if ((Fr(3).ge.dpmin).and.(IsinsideFZ(rod,FZtype,FZorder))) then
+!           tmp%trod = rod
+!           allocate(tmp%next)
+!           tmp => tmp%next
+!           nullify(tmp%next)
+!           cnt = cnt + 1
+!         end if
+!       end do
 
-    z = z + delta
-  end do
-  y = y + delta
- end do
- x = x + delta
-end do
+!     z = z + delta
+!   end do
+!   y = y + delta
+!  end do
+!  x = x + delta
+! end do
 
-end subroutine sample_Fiber
+! end subroutine sample_Fiber
 
 !--------------------------------------------------------------------------
 !
@@ -1551,7 +1570,7 @@ real(kind=dbl),INTENT(IN)               :: rhozero(4)   ! center Rodrigues vecto
 real(kind=dbl),INTENT(IN)               :: misang       ! desired misorientation angle (degrees)
 integer(kind=irg),INTENT(INOUT)         :: CMcnt        ! number of entries in linked list
 !f2py intent(in,out) ::  CMcnt        ! number of entries in linked list
-type(FZpointd),pointer                  :: CMlist       ! pointer to start of linked list
+type(FZpointd),INTENT(INOUT),target,allocatable                  :: CMlist       ! pointer to start of linked list
 
 type(FZpointd),pointer                  :: CMtmp
 real(kind=dbl)                          :: rhovec(3), s, vv(3)
@@ -1579,80 +1598,6 @@ do i=1,CMcnt
 end do
 
 end subroutine SampleIsoMisorientation
-
-! !--------------------------------------------------------------------------
-! !
-! ! SUBROUTINE: getEulersfromFile
-! !
-! !> @author Marc De Graef, Carnegie Mellon University
-! !
-! !> @brief read a list of Euler angles from a text file and insert them in a linked list
-! !
-! !> @param eulerfile name of the Euler angle file (with usual path handling)
-! !> @param FZcnt the number of components in the returned linked list
-! !> @param FZlist (output) linked list of Rodrigues vectors, with transformed vectors in trod(4) entries
-! !
-! !> @date 12/22/16 MDG 1.0 original
-! !--------------------------------------------------------------------------
-! recursive subroutine getEulersfromFile(eulerfile, FZcnt, FZlist)
-! !DEC$ ATTRIBUTES DLLEXPORT :: getEulersfromFile
-
-! use constants
-! use typedefs
-! use rotations
-
-! IMPLICIT NONE
-
-! character(fnlen),INTENT(IN)             :: eulerfile
-! integer(kind=irg),INTENT(INOUT)         :: FZcnt        ! number of entries in linked list
-! !f2py intent(in,out) ::  FZcnt        ! number of entries in linked list
-! type(FZpointd),pointer                  :: FZlist       ! pointer to start of linked list
-
-! character(fnlen)                        :: filepath
-! character(2)                            :: anglemode
-! integer(kind=irg)                       :: numang, i
-! real(kind=dbl)                          :: eu(3), dtor
-! type(FZpointd),pointer                  :: FZtmp, FZtmp2
-
-! dtor = cPi/180.D0
-
-! ! set the file path
-! filepath = trim(EMsoft_getEMdatapathname())//trim(eulerfile)
-! filepath = EMsoft_toNativePath(filepath)
-
-! open(unit=53,file=trim(filepath),status='old',action='read')
-! read (53,*) anglemode
-! read (53,*) numang
-
-! ! make sure the linked list is empty
-! if (associated(FZlist)) then
-!   FZtmp => FZlist%next
-!   FZtmp2 => FZlist
-!   do
-!     deallocate(FZtmp2)  
-!     if (.not. associated(FZtmp) ) EXIT
-!     FZtmp2 => FZtmp
-!     FZtmp => FZtmp%next
-!   end do
-!   nullify(FZlist)
-! end if
-
-! ! allocate the linked list
-! allocate(FZlist)
-! FZtmp => FZlist
-
-! do i=1,numang
-!   read (53,*) eu(1:3)
-!   FZtmp%rod = eu2ro(eu*dtor)
-!   FZcnt = FZcnt + 1
-!   allocate(FZtmp%next)
-!   FZtmp => FZtmp%next
-!   nullify(FZtmp%next)
-! end do
-
-! close(unit=53,status='keep')
-
-! end subroutine getEulersfromFile
 
 !--------------------------------------------------------------------------
 !
