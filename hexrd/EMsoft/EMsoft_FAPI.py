@@ -45,6 +45,7 @@ from EMsoft import rotations
 from EMsoft import symmetry
 from EMsoft import crystal
 from EMsoft import quaternions
+from Emsoft import typedefs
 # from EMsoft import so3
 
 class EMsoft_constants:
@@ -151,16 +152,17 @@ class quaternions:
 	def slerp(self, qu_slp, n):
 		return quaternions(quaternions.quat_slerp(self.qu, qu_slp.qu, n))
 
-class Typedefs:
+class EMsoft_Types:
 	'''
 	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:     	10/22/2019 SS 1.0 original
     >> @DETAILS:  	all the necessary interface for typedefs for the fortran library
 
 	'''
+	# these are just standard classes in python
+	# the unitcell type is the mmost important one
+	cell = typedefs.unitcell()
 
-	def __init__(self):
-		pass
 
 class Symmetry:
 	'''
@@ -204,6 +206,15 @@ class rotation:
 	om = orientation matrix
 	ho = homochoric vector
 	st = stereographic vector 
+
+	ROTATION CONVENTIONS:
+	1.	all angles are in RADIANS
+	2.	all rotations are PASSIVE i.e. describe the rotation of reference frame 
+	3.	the euler angle is in the Z-X-Z Bunge convention 
+	4. 	the first component of quaternion is the scalar component
+	5. 	the last component of rodrigues vector is the magnitude (can be infinity for 180 degree rotation)
+	6.	axis-angle is defined in that order, so the angle is the last component. 
+
 	'''
 	def __init__(self):
 		self.tol = 1.0e-6

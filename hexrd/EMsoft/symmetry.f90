@@ -2446,173 +2446,173 @@ end if
 
 end function getHexvsRho
 
-!--------------------------------------------------------------------------
-!
-! FUNCTION: SYM_getmultiplicity
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief convert multiplicity letter into a number string
-!
-!> @param t single upper case character
-!
-!> @date  09/05/16 MDG 1.0 original
-!--------------------------------------------------------------------------
-recursive function SYM_getmultiplicity(t) result(stmult)
-!DEC$ ATTRIBUTES DLLEXPORT :: SYM_getmultiplicity
+! !--------------------------------------------------------------------------
+! !
+! ! FUNCTION: SYM_getmultiplicity
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief convert multiplicity letter into a number string
+! !
+! !> @param t single upper case character
+! !
+! !> @date  09/05/16 MDG 1.0 original
+! !--------------------------------------------------------------------------
+! recursive function SYM_getmultiplicity(t) result(stmult)
+! !DEC$ ATTRIBUTES DLLEXPORT :: SYM_getmultiplicity
 
-use local
-use constants
-use crystal
+! use local
+! use constants
+! use crystal
 
-IMPLICIT NONE
+! IMPLICIT NONE
 
-character(1),INTENT(IN)                 :: t
-character(3)                            :: stmult
+! character(1),INTENT(IN)                 :: t
+! character(3)                            :: stmult
 
- select case (t(1:1))
-  case ('A');  stmult = '1'
-  case ('B');  stmult = '2'
-  case ('C');  stmult = '3'
-  case ('D');  stmult = '4'
-  case ('E');  stmult = '6'
-  case ('F');  stmult = '8'
-  case ('G');  stmult = '9'
-  case ('H');  stmult = '12'
-  case ('I');  stmult = '16'
-  case ('J');  stmult = '18'
-  case ('K');  stmult = '24'
-  case ('L');  stmult = '32'
-  case ('M');  stmult = '36'
-  case ('N');  stmult = '48'
-  case ('O');  stmult = '64'
-  case ('P');  stmult = '96'
-  case ('Q');  stmult = '192'
- end select
+!  select case (t(1:1))
+!   case ('A');  stmult = '1'
+!   case ('B');  stmult = '2'
+!   case ('C');  stmult = '3'
+!   case ('D');  stmult = '4'
+!   case ('E');  stmult = '6'
+!   case ('F');  stmult = '8'
+!   case ('G');  stmult = '9'
+!   case ('H');  stmult = '12'
+!   case ('I');  stmult = '16'
+!   case ('J');  stmult = '18'
+!   case ('K');  stmult = '24'
+!   case ('L');  stmult = '32'
+!   case ('M');  stmult = '36'
+!   case ('N');  stmult = '48'
+!   case ('O');  stmult = '64'
+!   case ('P');  stmult = '96'
+!   case ('Q');  stmult = '192'
+!  end select
 
-end function SYM_getmultiplicity
+! end function SYM_getmultiplicity
 
-!--------------------------------------------------------------------------
-!
-! FUNCTION: SYM_getposition
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief convert multiplicity letter into a number string
-!
-!> @param t single upper case character
-!
-!> @date  09/05/16 MDG 1.0 original
-!--------------------------------------------------------------------------
-recursive function SYM_getposition(t) result(st)
-!DEC$ ATTRIBUTES DLLEXPORT :: SYM_getposition
+! !--------------------------------------------------------------------------
+! !
+! ! FUNCTION: SYM_getposition
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief convert multiplicity letter into a number string
+! !
+! !> @param t single upper case character
+! !
+! !> @date  09/05/16 MDG 1.0 original
+! !--------------------------------------------------------------------------
+! recursive function SYM_getposition(t) result(st)
+! !DEC$ ATTRIBUTES DLLEXPORT :: SYM_getposition
 
-use local
-use constants
-use crystal
+! use local
+! use constants
+! use crystal
 
-IMPLICIT NONE
+! IMPLICIT NONE
 
-character(3),INTENT(IN)                 :: t
-character(fnlen)                        :: st
-integer(kind=irg)                       :: i
+! character(3),INTENT(IN)                 :: t
+! character(fnlen)                        :: st
+! integer(kind=irg)                       :: i
 
-st = ' ( '
-do i=1,3
- select case (t(i:i))
-  case ('a');  st = trim(st)//' 0'
-  case ('b');  st = trim(st)//' 1/2'
-  case ('c');  st = trim(st)//' 1/4'
-  case ('d');  st = trim(st)//' 3/4'
-  case ('e');  st = trim(st)//' 1/6'
-  case ('f');  st = trim(st)//' 1/3'
-  case ('g');  st = trim(st)//' 2/3'
-  case ('h');  st = trim(st)//' 5/6'
-  case ('i');  st = trim(st)//' 1/8'
-  case ('j');  st = trim(st)//' 3/8'
-  case ('k');  st = trim(st)//' 5/8'
-  case ('l');  st = trim(st)//' 7/8'
-  case ('m');  st = trim(st)//' -x'
-  case ('n');  st = trim(st)//' -y'
-  case ('o');  st = trim(st)//' y+1/4'
-  case ('p');  st = trim(st)//' x+1/4'
-  case ('q');  st = trim(st)//' -y+1/4'
-  case ('r');  st = trim(st)//' y+1/2'
-  case ('s');  st = trim(st)//' -y+1/2'
-  case ('t');  st = trim(st)//' x+1/4'
-  case ('u');  st = trim(st)//' x+1/2'
-  case ('v');  st = trim(st)//' -x+1/2'
-  case ('w');  st = trim(st)//' 2x'
-  case ('x');  st = trim(st)//' x'
-  case ('y');  st = trim(st)//' y'
-  case ('z');  st = trim(st)//' z'
- end select
- if (i.ne.3) then
-   st = trim(st)//',' 
- else
-   st = trim(st)//' )' 
- end if
-end do
+! st = ' ( '
+! do i=1,3
+!  select case (t(i:i))
+!   case ('a');  st = trim(st)//' 0'
+!   case ('b');  st = trim(st)//' 1/2'
+!   case ('c');  st = trim(st)//' 1/4'
+!   case ('d');  st = trim(st)//' 3/4'
+!   case ('e');  st = trim(st)//' 1/6'
+!   case ('f');  st = trim(st)//' 1/3'
+!   case ('g');  st = trim(st)//' 2/3'
+!   case ('h');  st = trim(st)//' 5/6'
+!   case ('i');  st = trim(st)//' 1/8'
+!   case ('j');  st = trim(st)//' 3/8'
+!   case ('k');  st = trim(st)//' 5/8'
+!   case ('l');  st = trim(st)//' 7/8'
+!   case ('m');  st = trim(st)//' -x'
+!   case ('n');  st = trim(st)//' -y'
+!   case ('o');  st = trim(st)//' y+1/4'
+!   case ('p');  st = trim(st)//' x+1/4'
+!   case ('q');  st = trim(st)//' -y+1/4'
+!   case ('r');  st = trim(st)//' y+1/2'
+!   case ('s');  st = trim(st)//' -y+1/2'
+!   case ('t');  st = trim(st)//' x+1/4'
+!   case ('u');  st = trim(st)//' x+1/2'
+!   case ('v');  st = trim(st)//' -x+1/2'
+!   case ('w');  st = trim(st)//' 2x'
+!   case ('x');  st = trim(st)//' x'
+!   case ('y');  st = trim(st)//' y'
+!   case ('z');  st = trim(st)//' z'
+!  end select
+!  if (i.ne.3) then
+!    st = trim(st)//',' 
+!  else
+!    st = trim(st)//' )' 
+!  end if
+! end do
 
-end function SYM_getposition
+! end function SYM_getposition
 
-!--------------------------------------------------------------------------
-!
-! FUNCTION: interpretWyckoffletter
-!
-!> @author Marc De Graef, Carnegie Mellon University
-!
-!> @brief convert Wyckff letter into numerical value
-!
-!> @param t single upper case character
-!> @param x, y, z  x, y, z coordinate values
-!
-!> @date  09/06/16 MDG 1.0 original
-!--------------------------------------------------------------------------
-recursive function interpretWyckoffletter(t,x,y,z) result(st)
-!DEC$ ATTRIBUTES DLLEXPORT :: interpretWyckoffletter
+! !--------------------------------------------------------------------------
+! !
+! ! FUNCTION: interpretWyckoffletter
+! !
+! !> @author Marc De Graef, Carnegie Mellon University
+! !
+! !> @brief convert Wyckff letter into numerical value
+! !
+! !> @param t single upper case character
+! !> @param x, y, z  x, y, z coordinate values
+! !
+! !> @date  09/06/16 MDG 1.0 original
+! !--------------------------------------------------------------------------
+! recursive function interpretWyckoffletter(t,x,y,z) result(st)
+! !DEC$ ATTRIBUTES DLLEXPORT :: interpretWyckoffletter
 
-use local
-use constants
-use crystal
+! use local
+! use constants
+! use crystal
 
-IMPLICIT NONE
+! IMPLICIT NONE
 
-character(1),INTENT(IN)                 :: t
-real(kind=sgl),INTENT(IN)               :: x, y, z
+! character(1),INTENT(IN)                 :: t
+! real(kind=sgl),INTENT(IN)               :: x, y, z
 
-real(kind=sgl)                          :: st
+! real(kind=sgl)                          :: st
 
-select case (t(1:1))
-  case ('a');  st = 0.0
-  case ('b');  st = 1.0/2.0
-  case ('c');  st = 1.0/4.0
-  case ('d');  st = 3.0/4.0
-  case ('e');  st = 1.0/6.0
-  case ('f');  st = 1.0/3.0
-  case ('g');  st = 2.0/3.0
-  case ('h');  st = 5.0/6.0
-  case ('i');  st = 1.0/8.0
-  case ('j');  st = 3.0/8.0
-  case ('k');  st = 5.0/8.0
-  case ('l');  st = 7.0/8.0
-  case ('m');  st = -x
-  case ('n');  st = -y
-  case ('o');  st = y+1.0/4.0
-  case ('p');  st = x+1.0/4.0
-  case ('q');  st = -y+1.0/4.0
-  case ('r');  st = y+1.0/2.0
-  case ('s');  st = -y+1.0/2.0
-  case ('t');  st = x+1.0/4.0
-  case ('u');  st = x+1.0/2.0
-  case ('v');  st = -x+1.0/2.0
-  case ('w');  st = 2.0*x
-  case ('x');  st = x
-  case ('y');  st = y
-  case ('z');  st = z
-end select
+! select case (t(1:1))
+!   case ('a');  st = 0.0
+!   case ('b');  st = 1.0/2.0
+!   case ('c');  st = 1.0/4.0
+!   case ('d');  st = 3.0/4.0
+!   case ('e');  st = 1.0/6.0
+!   case ('f');  st = 1.0/3.0
+!   case ('g');  st = 2.0/3.0
+!   case ('h');  st = 5.0/6.0
+!   case ('i');  st = 1.0/8.0
+!   case ('j');  st = 3.0/8.0
+!   case ('k');  st = 5.0/8.0
+!   case ('l');  st = 7.0/8.0
+!   case ('m');  st = -x
+!   case ('n');  st = -y
+!   case ('o');  st = y+1.0/4.0
+!   case ('p');  st = x+1.0/4.0
+!   case ('q');  st = -y+1.0/4.0
+!   case ('r');  st = y+1.0/2.0
+!   case ('s');  st = -y+1.0/2.0
+!   case ('t');  st = x+1.0/4.0
+!   case ('u');  st = x+1.0/2.0
+!   case ('v');  st = -x+1.0/2.0
+!   case ('w');  st = 2.0*x
+!   case ('x');  st = x
+!   case ('y');  st = y
+!   case ('z');  st = z
+! end select
 
-end function interpretWyckoffletter
+! end function interpretWyckoffletter
 
 
 ! !--------------------------------------------------------------------------
