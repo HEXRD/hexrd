@@ -632,6 +632,27 @@ class rotation:
 		cu = np.asarray([rotations.st2cu(s) for s in st])
 		return cu
 
+class Sampling:
+	'''
+	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+	>> @DATE:     	10/22/2019 SS 1.0 original
+	>> @DETAILS:  	this is the sampling class 
+
+	'''
+
+	def __init__(self):
+		pass
+
+class FundamentalZone:
+	'''
+	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+	>> @DATE:     	10/22/2019 SS 1.0 original
+	>> @DETAILS:  	everything to do with fundamental region due to crystal symmetry
+
+	'''
+	def __init__(self):
+		pass
+
 class crystal:
 	'''
 	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
