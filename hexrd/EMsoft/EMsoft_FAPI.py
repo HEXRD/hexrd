@@ -705,8 +705,17 @@ class FundamentalZone:
 	>> @DETAILS:  	everything to do with fundamental region due to crystal symmetry
 
 	'''
-	def __init__(self):
-		pass
+	def __init__(self, pgnum):
+		self.pgnum = pgnum
+		self.FZtype, self.FZorder = so3.getfztypeandorder(self.pgnum)
+
+
+	def IsInsideFZ(self, ro):
+
+		r = rotation()
+		r.check_ro(ro)
+		self.isin = np.asarray([so3.isinsidefz(r, self.FZtype, self.FZorder) for r in ro])
+
 
 class crystal:
 	'''
