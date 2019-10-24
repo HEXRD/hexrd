@@ -666,8 +666,7 @@ class Sampling:
 		CMlist = EMsoft_Types.FZpointd
 		CMcnt = 0
 
-		CMCnt = so3.sample_isocube(misang, nsteps, CMlist)
-
+		CMcnt = so3.sample_isocube(misang, nsteps, CMlist)
 		CMarray = self.convert_to_array(CMlist, CMcnt)
 
 		self.samples 	= CMarray
@@ -679,7 +678,7 @@ class Sampling:
 		CMlist = EMsoft_Types.FZpointd
 		CMcnt = 0
 
-		CMCnt = so3.sample_isocubefilled(misang, nsteps, CMlist)
+		CMcnt = so3.sample_isocubefilled(misang, nsteps, CMlist)
 
 		CMarray = self.convert_to_array(CMlist, CMcnt)
 

@@ -1134,7 +1134,7 @@ IMPLICIT NONE
 
 real(kind=dbl),INTENT(IN)               :: misang       ! desired misorientation angle (degrees)
 integer(kind=irg),INTENT(IN)            :: N            ! desired number of sampling points along cube edge
-integer(kind=irg),INTENT(OUT)         :: CMcnt        ! number of entries in linked list
+integer(kind=irg),INTENT(OUT)           :: CMcnt        ! number of entries in linked list
 !f2py intent(in,out) ::  CMcnt        ! number of entries in linked list
 type(FZpointd),INTENT(INOUT),target                  :: CMlist       ! pointer to start of linked list
 
@@ -1321,6 +1321,8 @@ CMtmp => CMlist
 ! set the cube edge length based on the misorientation angle
 edge = (cPi * (misangr-sin(misangr)))**(1.D0/3.D0) * 0.5D0
 dx = edge / dble(N)
+
+write (*,*) ' edge = ', edge, '; delta = ', dx
 
 ! and generate the linked list of surface points
 ! loop over the (2N+1)^3 points
