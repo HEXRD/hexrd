@@ -303,7 +303,7 @@ class rotation:
 
 		assert(ex.ndim == 2), 'dimension of array should be 2-d (n x 3).'
 		assert(ex.shape[1] == 3), 'second dimension should be 3.'
-		if( np.any(np.linalg.norm(ex, axis=1) > 2.0*np.pi) ):
+		if( np.any(np.linalg.norm(ex, axis=1) > np.pi) ):
 			warnings.warn(" The angles in the exponential map seems to be too large. \
 							Please check if you've converted to radians.")
 
@@ -720,6 +720,8 @@ class rotation:
 		self.check_st(st)
 		cu = np.asarray([rotations.st2cu(s) for s in st])
 		return cu
+
+	# adding all the conversion to and from exponential map
 
 # class orientations:
 # 		'''
