@@ -46,6 +46,7 @@ from EMsoft import symmetry
 from EMsoft import crystal
 from EMsoft import quaternions
 from EMsoft import typedefs
+from EMsoft import diffraction
 from EMsoft import so3
 
 class EMsoft_constants:
@@ -152,7 +153,7 @@ class quaternions:
 	def slerp(self, qu_slp, n):
 		return quaternions(quaternions.quat_slerp(self.qu, qu_slp.qu, n))
 
-class EMsoft_Types:
+class EMsoftTypes:
 	'''
 	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:     	10/22/2019 SS 1.0 original
@@ -165,6 +166,8 @@ class EMsoft_Types:
 
 	FZpointd	= typedefs.FZpointd()
 
+	rlp 		= typedefs.gnode()
+
 class Symmetry:
 	'''
 	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -173,20 +176,53 @@ class Symmetry:
 	    		  	symmetries for any crystal.
 	'''
 
+	''' get symmetry operators for a rotational point group. 
+		i.e. points group with no inversion or mirror symmetry
+	'''
+	class Rotational:
 
-	''' initialize all the symmetry matrices for the space group'''
-	def __init__(self, cell):  #cell argument removed for now
-		pass
+		def __init__(self):
+			pass
+	'''
+		get symmetry operations for all the 11 Laue classes
+	'''
+	class Laue:
 
-		# self.SYM_PGnum = symmetry.sg2pg(cell.SGnum)
+		def __init__(self):
+			pass
 
-		# [self.FZtype, self.FZorder] = so3.getfztypeandorder(self.SYM_PGnum)
+	'''
+		get symmetry operators for the different specimen symmetries
+		these are only rotational symmetries (can bejust using the Rotational class)
 
-		# [self.Nqsym, self.Pm] = sym.generaterotationalsymmetry(self.SYM_PGnum)
+		1		triclinic (default)
+		2		monoclinic
+		3		trigonal
+		4		tetragional
+		222		orthorhombic
+		23 		cubic
+		432 	cubic
+	'''
+	class Sample:
 
-		# [self.SYM_name, self.SYM_GENnum, self.centrosym, self.SYM_data, self.SYM_direc, \
-		#  self.SYM_recip, self.SYM_NUMpt, self.SYM_MATnum, self.nonsymmorphic] 		= 	\
-		# sym.generatesymmetry(cell.SGnum, 1, cell.dmt, cell.rmt) 
+		def __init__(self):
+			pass
+
+	class Crystal:
+
+		''' initialize all the symmetry matrices for the space group
+			the direct and reciprocal pint group symmetry matrices are also 
+			initialized along with the full space group symmetry matrices
+			this is needed for computation of the structure factors 
+
+			this class assumes that the metric tensors etc. for the cell have already
+			been initialized
+		'''
+		def __init__(self, cell): 
+			assert(np.linalg.det(cell.dmt) != 0), 'the unitcell volume seems to be too very small. \
+			Please make sure its properly initialized'
+
+			symmetry.generatesymmetry(cell, True)
 
 class rotation:
 
@@ -207,6 +243,7 @@ class rotation:
 	om = orientation matrix
 	ho = homochoric vector
 	st = stereographic vector 
+	ex = exponential map (theta * hat_n)
 
 	ROTATION CONVENTIONS:
 	1.	all angles are in RADIANS
@@ -217,8 +254,59 @@ class rotation:
 	6.	axis-angle is defined in that order, so the angle is the last component. 
 
 	'''
-	def __init__(self):
+
+	def __init__(self, repr='expmap', arr):
 		self.tol = 1.0e-6
+
+		if(repr == 'expmap'):
+			self.check_ex(arr)
+			self.ex = arr
+
+		elif(repr == 'euler'):
+			self.check_eu(arr)
+			self.eu = arr
+
+		elif(repr == 'quat'):
+			self.check_qu(arr)
+			self.qu = arr
+
+		elif(repr == 'rod'):
+			self.check_ro(arr)
+			self.ro = arr
+
+		elif(repr == 'cub'):
+			self.check_cu(arr)
+			self.cu = arr
+
+		elif(repr == 'axis-angle'):
+			self.check_ax(arr)
+			self.ax = arr
+
+		elif(repr == 'rotation-matrix'):
+			self.check_om(arr)
+			self.om = arr
+
+		elif(repr == 'homochoric'):
+			self.check_ho(arr)
+			self.ho = arr
+
+		elif(repr == 'stereographic'):
+			self.check_st(arr)
+			self.st = arr
+
+		else:
+			raise TypeError("unknown rotation representation.")
+
+	def check_ex(self, ex):
+
+		ex = np.atleast_2d(ex)
+
+		assert(ex.ndim == 2), 'dimension of array should be 2-d (n x 3).'
+		assert(ex.shape[1] == 3), 'second dimension should be 3.'
+		if( np.any(np.linalg.norm(ex, axis=1) > 2.0*np.pi) ):
+			warnings.warn(" The angles in the exponential map seems to be too large. \
+							Please check if you've converted to radians.")
+
 
 	def check_eu(self, eu):
 
@@ -633,6 +721,17 @@ class rotation:
 		cu = np.asarray([rotations.st2cu(s) for s in st])
 		return cu
 
+# class orientations:
+# 		'''
+# 	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+# 	>> @DATE:     	10/22/2019 SS 1.0 original
+# 	>> @DETAILS:  	this is the orientation class i.e. rotation + crystal & sample symmetries
+
+# 	'''
+
+# 	def __init__(self, CS, SS):
+# 		pass
+
 class Sampling:
 	'''
 	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -649,7 +748,7 @@ class Sampling:
 
 		self.samplingtype = 'RFZ'
 		self.gridtype 		= gridtype
-		FZlist 	= EMsoft_Types.FZpointd
+		FZlist 	= EMsoftTypes.FZpointd
 		FZcnt 	= 0
 
 		FZcnt = so3.samplerfz(nsteps, self.pgnum, 
@@ -663,7 +762,7 @@ class Sampling:
 	def SampleIsoCube(self, misang, nsteps):
 		
 		self.samplingtype = 'IsoCube'
-		CMlist = EMsoft_Types.FZpointd
+		CMlist = EMsoftTypes.FZpointd
 		CMcnt = 0
 
 		CMcnt = so3.sample_isocube(misang, nsteps, CMlist)
@@ -675,7 +774,7 @@ class Sampling:
 	def SampleIsoCubeFilled(self, misang, nsteps):
 		
 		self.samplingtype = 'IsoCubeFilled'
-		CMlist = EMsoft_Types.FZpointd
+		CMlist = EMsoftTypes.FZpointd
 		CMcnt = 0
 
 		CMcnt = so3.sample_isocubefilled(misang, nsteps, CMlist)
@@ -717,12 +816,12 @@ class FundamentalZone:
 		self.isin = np.asarray([so3.isinsidefz(r, self.FZtype, self.FZorder) for r in ro])
 
 
-class crystal:
+class unitcell:
 	'''
 	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
 	>> @DATE:     	10/09/2018 SS 1.0 original
 	   @DATE:		10/15/2018 SS 1.1 added space group handling
-	>> @DETAILS:  	this is the crystal class 
+	>> @DETAILS:  	this is the unitcell class 
 
 	'''
 

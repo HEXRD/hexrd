@@ -393,7 +393,7 @@ recursive subroutine GenerateSymmetry(cell,dopg)
 
 IMPLICIT NONE
 
-type(unitcell)          :: cell
+type(unitcell)                  :: cell
 logical,INTENT(IN)              :: dopg                         !< logical to determine if point group matrices are to be computed as well
 
 integer(kind=irg)               :: i,j,k,nsym,k1,k2,l1,l2       !< loop counters (mostly)
