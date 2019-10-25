@@ -6464,7 +6464,7 @@ end function ax2ex_d
 !>  
 !> @date 10/25/19   SS 1.0 original
 !--------------------------------------------------------------------------
-recursive function ho2ex(c) result(res)
+recursive function ho2ex(h) result(res)
 !DEC$ ATTRIBUTES DLLEXPORT :: ho2ex
 
 use local
