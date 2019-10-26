@@ -224,6 +224,115 @@ class Symmetry:
 
 			symmetry.generatesymmetry(cell, True)
 
+
+
+# class orientations:
+# 		'''
+# 	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+# 	>> @DATE:     	10/22/2019 SS 1.0 original
+# 	>> @DETAILS:  	this is the orientation class i.e. rotation + crystal & sample symmetries
+
+# 	'''
+
+# 	def __init__(self, CS, SS):
+# 		pass
+
+class Sampling:
+	'''
+	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+	>> @DATE:     	10/22/2019 SS 1.0 original
+	>> @DETAILS:  	this is the sampling class 
+
+	'''
+	def __init__(self, pgnum):
+
+		self.pgnum 			= pgnum
+		self.samplingtype 	= 'undefined'
+
+	def SampleRFZ(self, nsteps, gridtype):
+
+		self.samplingtype = 'RFZ'
+		self.gridtype 		= gridtype
+		FZlist 	= EMsoftTypes.FZpointd
+		FZcnt 	= 0
+
+		FZcnt = so3.samplerfz(nsteps, self.pgnum, 
+				gridtype, FZlist)
+
+		FZarray = self.convert_to_array(FZlist, FZcnt)
+
+		self.samples 	= FZarray
+		self.nsamples 	= FZcnt
+
+	def SampleIsoCube(self, misang, nsteps):
+		
+		self.samplingtype = 'IsoCube'
+		CMlist = EMsoftTypes.FZpointd
+		CMcnt = 0
+
+		CMcnt = so3.sample_isocube(misang, nsteps, CMlist)
+		CMarray = self.convert_to_array(CMlist, CMcnt)
+
+		self.samples 	= CMarray
+		self.nsamples	= CMcnt
+
+	def SampleIsoCubeFilled(self, misang, nsteps):
+		
+		self.samplingtype = 'IsoCubeFilled'
+		CMlist = EMsoftTypes.FZpointd
+		CMcnt = 0
+
+		CMcnt = so3.sample_isocubefilled(misang, nsteps, CMlist)
+
+		CMarray = self.convert_to_array(CMlist, CMcnt)
+
+		self.samples 	= CMarray
+		self.nsamples	= CMcnt
+
+	def convert_to_array(self, FZlist, FZcnt):
+
+		FZarray = []
+		FZtmp = FZlist
+
+		for i in range(FZcnt):
+			FZarray.append(FZtmp.rod)
+			FZtmp = FZtmp.next
+
+		FZarray = np.asarray(FZarray)
+
+		return FZarray
+
+class FundamentalZone:
+	'''
+	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+	>> @DATE:     	10/22/2019 SS 1.0 original
+	>> @DETAILS:  	everything to do with fundamental region due to crystal symmetry
+
+	'''
+	def __init__(self, pgnum):
+		self.pgnum = pgnum
+		self.FZtype, self.FZorder = so3.getfztypeandorder(self.pgnum)
+
+
+	def IsInsideFZ(self, ro):
+
+		r = rotation()
+		r.check_ro(ro)
+		self.isin = np.asarray([so3.isinsidefz(r, self.FZtype, self.FZorder) for r in ro])
+
+
+class unitcell:
+	'''
+	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+	>> @DATE:     	10/09/2018 SS 1.0 original
+	   @DATE:		10/15/2018 SS 1.1 added space group handling
+	>> @DETAILS:  	this is the unitcell class 
+
+	'''
+
+	def __init__(self):
+		pass
+
 class rotation:
 
 	''' 
@@ -255,44 +364,47 @@ class rotation:
 
 	'''
 
-	def __init__(self, repr='expmap', arr):
+	def __init__(self, repr='expmap', arr=None):
 		self.tol = 1.0e-6
 
 		if(repr == 'expmap'):
 			self.check_ex(arr)
-			self.ex = arr
+			self.ex = np.atleast_2d(arr)
 
 		elif(repr == 'euler'):
 			self.check_eu(arr)
-			self.eu = arr
+			self.eu = np.atleast_2d(arr)
 
 		elif(repr == 'quat'):
 			self.check_qu(arr)
-			self.qu = arr
+			self.qu = np.atleast_2d(arr)
 
 		elif(repr == 'rod'):
 			self.check_ro(arr)
-			self.ro = arr
+			self.ro = np.atleast_2d(arr)
 
 		elif(repr == 'cub'):
 			self.check_cu(arr)
-			self.cu = arr
+			self.cu = np.atleast_2d(arr)
 
 		elif(repr == 'axis-angle'):
 			self.check_ax(arr)
-			self.ax = arr
+			self.ax = np.atleast_2d(arr)
 
 		elif(repr == 'rotation-matrix'):
 			self.check_om(arr)
-			self.om = arr
+			if(arr.ndim == 2):
+				self.om = np.atleast_3d(arr).T
+			else:
+				self.om = np.atleast_3d(arr)
 
 		elif(repr == 'homochoric'):
 			self.check_ho(arr)
-			self.ho = arr
+			self.ho = np.atleast_2d(arr)
 
 		elif(repr == 'stereographic'):
 			self.check_st(arr)
-			self.st = arr
+			self.st = np.atleast_2d(arr)
 
 		else:
 			raise TypeError("unknown rotation representation.")
@@ -722,111 +834,98 @@ class rotation:
 		return cu
 
 	# adding all the conversion to and from exponential map
+	# 57.
+	def ex2eu(self, ex):
+		self.check_eu(ex)
+		eu = np.asarray([rotations.ex2eu(e) for e in ex])
+		return eu
 
-# class orientations:
-# 		'''
-# 	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-# 	>> @DATE:     	10/22/2019 SS 1.0 original
-# 	>> @DETAILS:  	this is the orientation class i.e. rotation + crystal & sample symmetries
+	# 58.
+	def ex2om(self, ex):
+		self.check_eu(ex)
+		om = np.asarray([rotations.ex2om(e) for e in ex])
+		return om
 
-# 	'''
+	# 59.
+	def ex2qu(self, ex):
+		self.check_eu(ex)
+		qu = np.asarray([rotations.ex2qu(e) for e in ex])
+		return qu
 
-# 	def __init__(self, CS, SS):
-# 		pass
+	# 60.
+	def ex2ro(self, ex):
+		self.check_eu(ex)
+		ro = np.asarray([rotations.ex2ro(e) for e in ex])
+		return ro
 
-class Sampling:
-	'''
-	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-	>> @DATE:     	10/22/2019 SS 1.0 original
-	>> @DETAILS:  	this is the sampling class 
+	# 61.
+	def ex2cu(self, ex):
+		self.check_eu(ex)
+		cu = np.asarray([rotations.ex2cu(e) for e in ex])
+		return cu
 
-	'''
-	def __init__(self, pgnum):
+	# 62.
+	def ex2ho(self, ex):
+		self.check_eu(ex)
+		ho = np.asarray([rotations.ex2ho(e) for e in ex])
+		return ho
 
-		self.pgnum 			= pgnum
-		self.samplingtype 	= 'undefined'
+	# 63.
+	def ex2st(self, ex):
+		self.check_eu(ex)
+		st = np.asarray([rotations.ex2st(e) for e in ex])
+		return st
 
-	def SampleRFZ(self, nsteps, gridtype):
+	# 64.
+	def ex2qu(self, ex):
+		self.check_eu(ex)
+		ax = np.asarray([rotations.ex2ax(e) for e in ex])
+		return ax
 
-		self.samplingtype = 'RFZ'
-		self.gridtype 		= gridtype
-		FZlist 	= EMsoftTypes.FZpointd
-		FZcnt 	= 0
+	# 65. 
+	def eu2ex(self, eu):
+		self.check_eu(eu)
+		ex = np.asarray([rotations.eu2ex(e) for e in eu])
+		return ex
 
-		FZcnt = so3.samplerfz(nsteps, self.pgnum, 
-				gridtype, FZlist)
+	# 66. 
+	def qu2ex(self, qu):
+		self.check_qu(qu)
+		ex = np.asarray([rotations.qu2ex(q) for q in qu])
+		return ex
 
-		FZarray = self.convert_to_array(FZlist, FZcnt)
+	# 67. 
+	def om2ex(self, om):
+		self.check_om(om)
+		ex = np.asarray([rotations.om2ex(o) for o in om])
+		return ex
 
-		self.samples 	= FZarray
-		self.nsamples 	= FZcnt
+	# 68.
+	def ro2ex(self, ro):
+		self.check_ro(ro)
+		ex = np.asarray([rotations.ro2ex(r) for r in ro])
+		return ex
 
-	def SampleIsoCube(self, misang, nsteps):
-		
-		self.samplingtype = 'IsoCube'
-		CMlist = EMsoftTypes.FZpointd
-		CMcnt = 0
+	# 69.
+	def ax2ex(self, ax):
+		self.check_ax(ax)
+		ex = np.asarray([rotations.ax2ex(a) for a in ax])
+		return ex
 
-		CMcnt = so3.sample_isocube(misang, nsteps, CMlist)
-		CMarray = self.convert_to_array(CMlist, CMcnt)
+	# 70.
+	def cu2ex(self, cu):
+		self.check_cu(cu)
+		ex = np.asarray([rotations.cu2ex(c) for c in cu])
+		return ex
 
-		self.samples 	= CMarray
-		self.nsamples	= CMcnt
+	# 71.
+	def ho2ex(self, ho):
+		self.check_ho(ho)
+		ex = np.asarray([rotations.ho2ex(h) for h in ho])
+		return ex
 
-	def SampleIsoCubeFilled(self, misang, nsteps):
-		
-		self.samplingtype = 'IsoCubeFilled'
-		CMlist = EMsoftTypes.FZpointd
-		CMcnt = 0
-
-		CMcnt = so3.sample_isocubefilled(misang, nsteps, CMlist)
-
-		CMarray = self.convert_to_array(CMlist, CMcnt)
-
-		self.samples 	= CMarray
-		self.nsamples	= CMcnt
-
-	def convert_to_array(self, FZlist, FZcnt):
-
-		FZarray = []
-		FZtmp = FZlist
-
-		for i in range(FZcnt):
-			FZarray.append(FZtmp.rod)
-			FZtmp = FZtmp.next
-
-		FZarray = np.asarray(FZarray)
-
-		return FZarray
-
-class FundamentalZone:
-	'''
-	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-	>> @DATE:     	10/22/2019 SS 1.0 original
-	>> @DETAILS:  	everything to do with fundamental region due to crystal symmetry
-
-	'''
-	def __init__(self, pgnum):
-		self.pgnum = pgnum
-		self.FZtype, self.FZorder = so3.getfztypeandorder(self.pgnum)
-
-
-	def IsInsideFZ(self, ro):
-
-		r = rotation()
-		r.check_ro(ro)
-		self.isin = np.asarray([so3.isinsidefz(r, self.FZtype, self.FZorder) for r in ro])
-
-
-class unitcell:
-	'''
-	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-	>> @DATE:     	10/09/2018 SS 1.0 original
-	   @DATE:		10/15/2018 SS 1.1 added space group handling
-	>> @DETAILS:  	this is the unitcell class 
-
-	'''
-
-	def __init__(self):
-		pass
-
+	# 72.
+	def st2ex(self, st):
+		self.check_st(st)
+		ex = np.asarray([rotations.st2ex(s) for s in st])
+		return ex
