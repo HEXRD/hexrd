@@ -1510,7 +1510,8 @@ real(kind=dbl), parameter       :: eps = 1.e-15
 
 res = 1
 
-r = NORM2(ex)
+r = vecnorm(ex)
+
 if ((r - cPi) .ge. eps) then
    call FatalError('rotations:ex_check_d','magnitude must be in range [0,pi]')
 endif
@@ -1549,7 +1550,8 @@ real(kind=dbl), parameter       :: eps = 1.e-15
 
 res = 1
 
-r = NORM2(ex)
+r = vecnorm(ex)
+
 if ((r - cPi) .ge. eps) then
    call FatalError('rotations:ex_check_d','magnitude must be in range [0,pi]')
 endif
@@ -6175,9 +6177,7 @@ real(kind=dbl)                  :: res(3)       !< output exponential map
 
 real(kind=dbl)                  :: ax(4)
 
-ax = om2ax(o)
-
-res = ax(1:3) * ax(4)
+res = qu2ex(om2qu(o))
 
 end function om2ex
 
@@ -6206,9 +6206,7 @@ real(kind=dbl)                  :: res(3)       !< output exponential map
 
 real(kind=dbl)                  :: ax(4)
 
-ax = om2ax(o)
-
-res = ax(1:3) * ax(4)
+res = qu2ex(om2qu(o))
 
 end function om2ex_d
 
@@ -6237,9 +6235,7 @@ real(kind=dbl)                  :: res(3)       !< output exponential map
 
 real(kind=dbl)                  :: ax(4)
 
-ax = ro2ax(r)
-
-res = ax(1:3) * ax(4)
+res = eu2ex(ro2eu(r))
 
 end function ro2ex
 
@@ -6268,9 +6264,7 @@ real(kind=dbl)                  :: res(3)       !< output exponential map
 
 real(kind=dbl)                  :: ax(4)
 
-ax = ro2ax(r)
-
-res = ax(1:3) * ax(4)
+res = eu2ex(ro2eu(r))
 
 end function ro2ex_d
 
@@ -6299,9 +6293,7 @@ real(kind=dbl)                  :: res(3)       !< output exponential map
 
 real(kind=dbl)                  :: ax(4)
 
-ax = qu2ax(q)
-
-res = ax(1:3) * ax(4)
+res = eu2ex(qu2eu(q))
 
 end function qu2ex
 
@@ -6330,9 +6322,7 @@ real(kind=dbl)                  :: res(3)       !< output exponential map
 
 real(kind=dbl)                  :: ax(4)
 
-ax = qu2ax(q)
-
-res = ax(1:3) * ax(4)
+res = eu2ex(qu2eu(q))
 
 end function qu2ex_d
 
@@ -6361,9 +6351,7 @@ real(kind=dbl)                  :: res(3)       !< output exponential map
 
 real(kind=dbl)                  :: ax(4)
 
-ax = cu2ax(c)
-
-res = ax(1:3) * ax(4)
+res = eu2ex(cu2eu(c))
 
 end function cu2ex
 
@@ -6392,9 +6380,7 @@ real(kind=dbl)                  :: res(3)       !< output exponential map
 
 real(kind=dbl)                  :: ax(4)
 
-ax = cu2ax(c)
-
-res = ax(1:3) * ax(4)
+res = eu2ex(cu2eu(c))
 
 end function cu2ex_d
 
@@ -6420,6 +6406,8 @@ IMPLICIT NONE
 
 real(kind=sgl),INTENT(IN)       :: a(4)        
 real(kind=dbl)                  :: res(3)       !< output exponential map
+integer(kind=irg)               :: ii, ctr
+real(kind=sgl),parameter        :: thr = 1.0E-6
 
 res = a(1:3) * a(4)
 
@@ -6447,6 +6435,8 @@ IMPLICIT NONE
 
 real(kind=dbl),INTENT(IN)       :: a(4)         
 real(kind=dbl)                  :: res(3)       !< output exponential map
+integer(kind=irg)               :: ii, ctr
+real(kind=sgl),parameter        :: thr = 1.0D-8
 
 res = a(1:3) * a(4)
 
@@ -6477,9 +6467,7 @@ real(kind=dbl)                  :: res(3)       !< output exponential map
 
 real(kind=dbl)                  :: ax(4)
 
-ax = ho2ax(h)
-
-res = ax(1:3) * ax(4)
+res = eu2ex(ho2eu(h))
 
 end function ho2ex
 
@@ -6508,9 +6496,7 @@ real(kind=dbl)                  :: res(3)       !< output exponential map
 
 real(kind=dbl)                  :: ax(4)
 
-ax = cu2ax(h)
-
-res = ax(1:3) * ax(4)
+res = eu2ex(ho2eu(h))
 
 end function ho2ex_d
 
@@ -6539,9 +6525,7 @@ real(kind=dbl)                  :: res(3)       !< output exponential map
 
 real(kind=dbl)                  :: ax(4)
 
-ax = st2ax(s)
-
-res = ax(1:3) * ax(4)
+res = eu2ex(st2eu(s))
 
 end function st2ex
 
@@ -6570,9 +6554,7 @@ real(kind=dbl)                  :: res(3)       !< output exponential map
 
 real(kind=dbl)                  :: ax(4)
 
-ax = st2ax(s)
-
-res = ax(1:3) * ax(4)
+res = eu2ex(st2eu(s))
 
 end function st2ex_d
 
@@ -6602,9 +6584,9 @@ real(kind=dbl)                  :: res(4)       !< output axis angle pair
 real(kind=dbl)                  :: an, n(3)
 real(kind=dbl), parameter       :: tol = 1.0D-10
 
-an = NORM2(e)
+an = sqrt(sum(e**2))
 
-if(abs(an) .gt. tol) then
+if(an .gt. tol) then
         n = e / an
 else
         n = (/0.0, 0.0, 1.0/)
@@ -6640,9 +6622,9 @@ real(kind=dbl)                  :: res(4)       !< output exponential map
 real(kind=dbl)                  :: an, n(3)
 real(kind=dbl), parameter       :: tol = 1.0D-10
 
-an = NORM2(e)
+an = sqrt(sum(e**2))
 
-if(abs(an) .gt. tol) then
+if(an .gt. tol) then
         n = e / an
 else
         n = (/0.0, 0.0, 1.0/)

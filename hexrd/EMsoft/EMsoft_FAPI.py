@@ -168,64 +168,6 @@ class EMsoftTypes:
 
 	rlp 		= typedefs.gnode()
 
-class Symmetry:
-	'''
-	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-    >> @DATE:     	10/22/2019 SS 1.0 original
-    >> @DETAILS:  	this is the symmetry class and handels all the "ROTATIONAL, POINT/SPACE GROUP"
-	    		  	symmetries for any crystal.
-	'''
-
-	''' get symmetry operators for a rotational point group. 
-		i.e. points group with no inversion or mirror symmetry
-	'''
-	class Rotational:
-
-		def __init__(self):
-			pass
-	'''
-		get symmetry operations for all the 11 Laue classes
-	'''
-	class Laue:
-
-		def __init__(self):
-			pass
-
-	'''
-		get symmetry operators for the different specimen symmetries
-		these are only rotational symmetries (can bejust using the Rotational class)
-
-		1		triclinic (default)
-		2		monoclinic
-		3		trigonal
-		4		tetragional
-		222		orthorhombic
-		23 		cubic
-		432 	cubic
-	'''
-	class Sample:
-
-		def __init__(self):
-			pass
-
-	class Crystal:
-
-		''' initialize all the symmetry matrices for the space group
-			the direct and reciprocal pint group symmetry matrices are also 
-			initialized along with the full space group symmetry matrices
-			this is needed for computation of the structure factors 
-
-			this class assumes that the metric tensors etc. for the cell have already
-			been initialized
-		'''
-		def __init__(self, cell): 
-			assert(np.linalg.det(cell.dmt) != 0), 'the unitcell volume seems to be too very small. \
-			Please make sure its properly initialized'
-
-			symmetry.generatesymmetry(cell, True)
-
-
-
 # class orientations:
 # 		'''
 # 	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -330,8 +272,166 @@ class unitcell:
 
 	'''
 
-	def __init__(self):
-		pass
+	# initialize using the EMsoft unitcell type
+	# need lattice parameters and space group data from HDF5 file
+	def __init__(self, lp, sgnum, atomtypes, atominfo, dmin, sgsetting=1):
+
+		self.cell = EMsoftTypes.cell
+
+		if(lp[0].unit == 'angstrom'):
+			self.cell.a = lp[0].value * 0.1
+		elif(lp[0].unit == 'nm'):
+			self.cell.a = lp[0].value
+		else:
+			raise ValueError('unknown unit in lattice parameter')
+
+		if(lp[1].unit == 'angstrom'):
+			self.cell.b = lp[1].value * 0.1
+		elif(lp[1].unit == 'nm'):
+			self.cell.b = lp[1].value
+		else:
+			raise ValueError('unknown unit in lattice parameter')
+
+		if(lp[2].unit == 'angstrom'):
+			self.cell.c = lp[2].value * 0.1
+		elif(lp[2].unit == 'nm'):
+			self.cell.c = lp[2].value
+		else:
+			raise ValueError('unknown unit in lattice parameter')
+
+		if(lp[3].unit == 'degrees'):
+			self.cell.alpha = lp[3].value
+		elif(lp[3].unit == 'radians'):
+			self.cell.alpha = np.degrees(lp[3].value)
+
+		if(lp[4].unit == 'degrees'):
+			self.cell.beta = lp[4].value
+		elif(lp[4].unit == 'radians'):
+			self.cell.beta = np.degrees(lp[4].value)
+
+		if(lp[5].unit == 'degrees'):
+			self.cell.gamma = lp[5].value
+		elif(lp[5].unit == 'radians'):
+			self.cell.gamma = np.degrees(lp[5].value)
+
+		self.cell.sym_sgnum  = sgnum
+		self.cell.atom_type  = atomtypes
+		self.cell.atom_ntype = atominfo.shape[0]
+		self.cell.atom_pos[0:self.cell.atom_ntype,:]   = atominfo 
+
+		crystal.calcmatrices(self.cell)
+		symmetry.generatesymmetry(self.cell, True)
+		symmetry.calcpositions(self.cell, 'v')
+
+		self.dmin = dmin
+		self.ih = 1
+		self.ik = 1
+		self.il = 1
+		self.CalcMaxGIndex()
+
+	# class Symmetry:
+	# '''
+	# >> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+	# >> @DATE:     	10/22/2019 SS 1.0 original
+	# >> @DETAILS:  	this is the symmetry class and handels all the "ROTATIONAL, POINT/SPACE GROUP"
+	#     		  	symmetries for any crystal.'''
+
+	# ''' get symmetry operators for a rotational point group. 
+	# 	i.e. points group with no inversion or mirror symmetry
+	# '''
+	# class Rotational:
+
+	# 	def __init__(self):
+	# 		pass
+	# '''
+	# 	get symmetry operations for all the 11 Laue classes
+	# '''
+	# class Laue:
+
+	# 	def __init__(self):
+	# 		pass
+
+	# '''
+	# 	get symmetry operators for the different specimen symmetries
+	# 	these are only rotational symmetries (can bejust using the Rotational class)
+
+	# 	1		triclinic (default)
+	# 	2		monoclinic
+	# 	3		trigonal
+	# 	4		tetragional
+	# 	222		orthorhombic
+	# 	23 		cubic
+	# 	432 	cubic
+	# '''
+	# class Sample:
+
+	# 	def __init__(self):
+	# 		pass
+
+	# class Crystal:
+
+	# 	''' initialize all the symmetry matrices for the space group
+	# 		the direct and reciprocal pint group symmetry matrices are also 
+	# 		initialized along with the full space group symmetry matrices
+	# 		this is needed for computation of the structure factors 
+
+	# 		this class assumes that the metric tensors etc. for the cell have already
+	# 		been initialized
+	# 	'''
+	# 	def __init__(self): 
+	# 		assert(np.linalg.det(cell.dmt) != 0), 'the unitcell volume seems to be too very small. \
+	# 		Please make sure its properly initialized'
+
+	# 		symmetry.generatesymmetry(cell, True)
+
+	''' transform between any crystal space to any other space.
+ 		choices are 'd' (direct), 'r' (reciprocal) and 'c' (cartesian)'''
+	def TransSpace(self, v_in, inspace, outspace):
+		v_out = crystal.transspace(self.cell, v_in, inspace, outspace)
+		return v_out
+
+	''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
+	def CalcDot(self, u, v, space):
+		dot = crystal.calcdot(self.cell, u, v, space)
+		return dot
+
+	''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
+	def CalcLength(self, u, space):
+		vlen = crystal.calclength(self.cell, u, space)
+		return vlen
+
+	''' normalize vector in any space 'd' 'r' or 'c' '''
+	def NormVec(self, u, space):
+		crystal.normvec(self.cell, u, space)
+		return u
+
+	''' calculate angle between two vectors in any space'''
+	def CalcAngle(self, u, v, space):
+		angle = crystal.calcangle(self.cell, u, v, space)
+		return angle
+
+	''' calculate cross product between two vectors in any space.
+	 @NOTE: iv is the switch (0/1) which will either turn division 
+	 by volume of the unit cell on or off.'''
+	def CalcCross(self, u, v, inspace, outspace, iv):
+		uxv = crystal.calccross(self.cell, u, v, inspace, \
+		outspace, iv)
+
+	''' calculate density '''
+	def CalcDensity(self):
+		[self.density, self.avZ, self.avA, self.Z2percent] = crystal.calcdensity(self.cell)
+
+	''' calculate the maximum index of diffraction vector along each of the three reciprocal
+	 basis vectors '''
+	def CalcMaxGIndex(self):
+		while (1.0 / self.CalcLength(np.array([self.ih, 0, 0], dtype=np.float64), 'r') > self.dmin):
+			self.ih = self.ih + 1
+		while (1.0 / self.CalcLength(np.array([0, self.ik, 0], dtype=np.float64), 'r') > self.dmin):
+			self.ik = self.ik + 1
+		while (1.0 / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64),'r') > self.dmin):
+			self.il = self.il + 1
+
+		print("Maximum g-vector index in [a*, b*, c*] = ",self.ih, self.ik, self.il)
 
 class rotation:
 

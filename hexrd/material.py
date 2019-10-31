@@ -43,6 +43,8 @@ from os import path
 from CifFile import ReadCif 
 import  h5py
 
+from hexrd.EMsoft import EMsoft_FAPI
+
 __all__ = ['Material', 'loadMaterialList']
 
 
@@ -73,22 +75,42 @@ class Material(object):
 
     The class references materials by name and contains lattice and
     space group data.
+    default data is for nickel, but name is material
     """
     DFLT_NAME = 'material'
-    DFLT_SGNUM = 230
-    DFLT_LPARMS = [_angstroms(1.0), _angstroms(1.0), _angstroms(1.0),
+    DFLT_SGNUM = 225
+    '''
+    some materials have more than one space group setting. for ex
+    the diamond cubic system has two settings with the origin either
+    at (0,0,0) or at (1/4,1/4,1/4) etc. this handle takes care of these
+    cases. but the defaiult is always 1
+    '''
+    DFLT_SGSETTING = 1
+
+    DFLT_LPARMS = [_angstroms(3.61), _angstroms(3.61), _angstroms(3.61),
                    _degrees(90.0), _degrees(90.0), _degrees(90.0)]
     DFLT_SSMAX = 50
 
     DFLT_KEV = valWUnit('wavelength', 'energy', 80.725e0, 'keV')
     DFLT_STR = 0.0025
     DFLT_TTH = numpy.radians(0.25)
-    DFLT_ATOMINFO = numpy.array([[0, 0, 0, 1, 0.05]])
-    """Fractional Atom Position of an atom in the unit cell followed by the
-    number of electrons within that atom. The max number of electrons is 96.
-    """
 
-    def __init__(self, name=DFLT_NAME, cfgP=None):
+    """
+    ATOMINFO    Fractional Atom Position of an atom in the unit cell followed by the
+    site occupany and debye waller (B) factor in nm^(-2)
+
+    ATOMTYPE    atomic number of all the different species in the unitcell
+    """
+    DFLT_ATOMINFO = numpy.array([[0, 0, 0, 1, 0.033]])    
+    DFLT_ATOMTYPE = numpy.array([28])
+
+    '''
+    the dmin parameter is used to figure out the maximum sampling for g-vectors
+    this parameter is in angstroms
+    '''
+    DFLT_DMIN = _angstroms(0.5)
+
+    def __init__(self, name=DFLT_NAME, cfgP=None, dmin=DFLT_DMIN):
         """Constructor for Material
 
         name -- (str) name of material
@@ -97,6 +119,15 @@ class Material(object):
         """
         self.name = name
         self.description = ''
+        self._dmin = dmin
+
+        if(self._dmin.unit == 'angstrom'):
+            # convert to nm
+            uc_dmin = self._dmin.value * 0.1
+
+        elif(self._dmin.unit == 'nm'):
+            uc_dmin = self._dmin.value
+
         if cfgP:
             # Get values from configuration
             self._readCfg(cfgP)
@@ -111,10 +142,20 @@ class Material(object):
             self.description = ''
             #
             self.sgnum = Material.DFLT_SGNUM
+            self._sgsetting = Material.DFLT_SGSETTING
             #
             self._atominfo = Material.DFLT_ATOMINFO
             #
-            pass
+            self._atomtype = Material.DFLT_ATOMTYPE
+            #
+
+        self.unitcell = EMsoft_FAPI.unitcell(self._lparms, 
+                                             self.sgnum, 
+                                             self._atomtype,
+                                             self._atominfo,
+                                             uc_dmin,
+                                             sgsetting=self._sgsetting
+                                             )
         return
 
     def __str__(self):
