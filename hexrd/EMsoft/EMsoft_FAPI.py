@@ -277,6 +277,9 @@ class unitcell:
 	def __init__(self, lp, sgnum, atomtypes, atominfo, dmin, sgsetting=1):
 
 		self.cell = EMsoftTypes.cell
+		
+		self.rlp   = EMsoftTypes.rlp
+		self.rlp.method = 'XR' 
 
 		if(lp[0].unit == 'angstrom'):
 			self.cell.a = lp[0].value * 0.1
@@ -433,6 +436,12 @@ class unitcell:
 
 		print("Maximum g-vector index in [a*, b*, c*] = ",self.ih, self.ik, self.il)
 
+	def CalcXRSF(self, hkl):
+
+		diffraction.calcucg(self.cell,
+									 self.rlp,
+									 hkl)
+		return rlp.ucg
 class rotation:
 
 	''' 
