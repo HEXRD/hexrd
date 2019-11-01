@@ -274,10 +274,11 @@ class unitcell:
 
 	# initialize using the EMsoft unitcell type
 	# need lattice parameters and space group data from HDF5 file
-	def __init__(self, lp, sgnum, atomtypes, atominfo, dmin, sgsetting=1):
+	def __init__(self, lp, sgnum, atomtypes, atominfo, dmin, beamenergy, sgsetting=1):
 
 		self.cell = EMsoftTypes.cell
-		
+		self.cell.voltage = beamenergy * 1000.0
+
 		self.rlp   = EMsoftTypes.rlp
 		self.rlp.method = 'XR' 
 
@@ -439,9 +440,10 @@ class unitcell:
 	def CalcXRSF(self, hkl):
 
 		diffraction.calcucg(self.cell,
-									 self.rlp,
-									 hkl)
-		return rlp.ucg
+							self.rlp,
+							hkl)
+		return self.rlp.ucg
+		
 class rotation:
 
 	''' 

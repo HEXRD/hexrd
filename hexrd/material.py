@@ -154,6 +154,7 @@ class Material(object):
                                              self._atomtype,
                                              self._atominfo,
                                              uc_dmin,
+                                             self._beamEnergy.value,
                                              sgsetting=self._sgsetting
                                              )
         return
