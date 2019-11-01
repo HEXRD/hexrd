@@ -164,6 +164,11 @@ class Material(object):
 
         self.planeData.set_structFact(sf)
 
+        nsym  = self.unitcell.cell.sg.sym_matnum
+        sgsym = self.unitcell.cell.sg.sym_data[0:nsym,:,:]
+
+        self.planeData.set_SGsym(sgsym)
+
         return
 
     def __str__(self):

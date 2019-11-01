@@ -334,39 +334,39 @@ class unitcell:
 		self.CalcMaxGIndex()
 
 	# class Symmetry:
-	# '''
-	# >> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-	# >> @DATE:     	10/22/2019 SS 1.0 original
-	# >> @DETAILS:  	this is the symmetry class and handels all the "ROTATIONAL, POINT/SPACE GROUP"
-	#     		  	symmetries for any crystal.'''
+	'''
+	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+	>> @DATE:     	10/22/2019 SS 1.0 original
+	>> @DETAILS:  	this is the symmetry class and handels all the "ROTATIONAL, POINT/SPACE GROUP"
+	    		  	symmetries for any crystal.'''
 
-	# ''' get symmetry operators for a rotational point group. 
-	# 	i.e. points group with no inversion or mirror symmetry
-	# '''
+	''' get symmetry operators for a rotational point group. 
+		i.e. points group with no inversion or mirror symmetry
+	'''
 	# class Rotational:
 
 	# 	def __init__(self):
 	# 		pass
-	# '''
-	# 	get symmetry operations for all the 11 Laue classes
-	# '''
+	'''
+		get symmetry operations for all the 11 Laue classes
+	'''
 	# class Laue:
 
 	# 	def __init__(self):
 	# 		pass
 
-	# '''
-	# 	get symmetry operators for the different specimen symmetries
-	# 	these are only rotational symmetries (can bejust using the Rotational class)
+	'''
+		get symmetry operators for the different specimen symmetries
+		these are only rotational symmetries (can bejust using the Rotational class)
 
-	# 	1		triclinic (default)
-	# 	2		monoclinic
-	# 	3		trigonal
-	# 	4		tetragional
-	# 	222		orthorhombic
-	# 	23 		cubic
-	# 	432 	cubic
-	# '''
+		1		triclinic (default)
+		2		monoclinic
+		3		trigonal
+		4		tetragional
+		222		orthorhombic
+		23 		cubic
+		432 	cubic
+	'''
 	# class Sample:
 
 	# 	def __init__(self):
