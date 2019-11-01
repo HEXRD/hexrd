@@ -442,8 +442,8 @@ class unitcell:
 		diffraction.calcucg(self.cell,
 							self.rlp,
 							hkl)
-		return self.rlp.ucg
-		
+		return np.abs(self.rlp.ucg)**2
+
 class rotation:
 
 	''' 

@@ -770,8 +770,8 @@ class PlaneData(object):
         return self.__structFact
 
     def set_structFact(self, structFact):
-        print("Setting of structure factor is disabled, use calcStructFact")
-        return
+        self.__structFact = structFact
+
     structFact = property(get_wavelength, set_wavelength, None)
 
     @staticmethod
