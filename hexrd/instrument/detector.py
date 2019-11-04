@@ -21,6 +21,12 @@ panel_calibration_flags_DFLT = np.array(
     dtype=bool
 )
 pixel_size_DFLT = [0.2, 0.2]
+rows_DFLT = 2048
+cols_DFLT = 2048
+evec_DFLT = ct.eta_vec
+name_DFLT = 'default'
+tilt_DFLT = ct.zeros_3
+tvec_DFLT = np.r_[0., 0., -1000.]
 
 class PlanarDetector(object):
     """
@@ -30,13 +36,12 @@ class PlanarDetector(object):
     __pixelPitchUnit = 'mm'
 
     def __init__(self,
-                 rows=2048, cols=2048,
+                 rows=rows_DFLT, cols=cols_DFLT,
                  pixel_size=pixel_size_DFLT,
-                 tvec=np.r_[0., 0., -1000.],
-                 tilt=ct.zeros_3,
-                 name='default',
-                 bvec=ct.beam_vec,
-                 evec=ct.eta_vec,
+                 tvec=tvec_DFLT,
+                 tilt=tilt_DFLT,
+                 name=name_DFLT,
+                 evec=evec_DFLT,
                  saturation_level=None,
                  panel_buffer=None,
                  roi=None,
@@ -46,30 +51,30 @@ class PlanarDetector(object):
         panel buffer is in pixels...
 
         """
-        self._name = name
+        self.name = name
 
-        self._rows = rows
-        self._cols = cols
+        self.rows = rows
+        self.cols = cols
 
-        self._pixel_size_row = pixel_size[0]
-        self._pixel_size_col = pixel_size[1]
+        self.pixel_size_row = pixel_size[0]
+        self.pixel_size_col = pixel_size[1]
 
-        self._saturation_level = saturation_level
+        self.saturation_level = saturation_level
 
         if panel_buffer is None:
             self._panel_buffer = 20*np.r_[self._pixel_size_col,
                                           self._pixel_size_row]
 
-        self._roi = roi
+        self.roi = roi
 
-        self._tvec = np.array(tvec).flatten()
-        self._tilt = np.array(tilt).flatten()
+        self.tvec = np.array(tvec).flatten()
+        self.tilt = np.array(tilt).flatten()
 
         self.beam = Beam() if beam is None else beam
         # self._bvec = np.array(bvec).flatten()
-        self._evec = np.array(evec).flatten()
+        self.evec = np.array(evec).flatten()
 
-        self._distortion = distortion
+        self.distortion = distortion
 
         #
         # set up calibration parameter list and refinement flags
@@ -83,13 +88,11 @@ class PlanarDetector(object):
             # FIXME: must update when we fix distortion
             dparams.append(np.atleast_1d(self._distortion[1]).flatten())
         dparams = np.array(dparams).flatten()
-        self._calibration_parameters = np.hstack(
-                [self._tilt, self._tvec, dparams]
-            )
+
         self._calibration_flags = np.hstack(
-                [panel_calibration_flags_DFLT,
-                 np.zeros(len(dparams), dtype=bool)]
-            )
+            [panel_calibration_flags_DFLT,
+             np.zeros(len(dparams), dtype=bool)]
+        )
         return
 
     # detector ID
@@ -99,7 +102,7 @@ class PlanarDetector(object):
 
     @name.setter
     def name(self, s):
-        assert isinstance(s, (str, unicode)), "requires string input"
+        assert isinstance(s, str), "requires string input"
         self._name = s
 
     # properties for physical size of rectangular detector
@@ -269,8 +272,13 @@ class PlanarDetector(object):
         Probably should make distortion a class...
         ***FIX THIS***
         """
-        assert len(x) == 2 and hasattr(x[0], '__call__'), \
-            'distortion must be a tuple: (<func>, params)'
+        if x is not None:
+            lenx2 = (len(x) == 2)
+            hascall = hasattr(x[0], '__call__')
+            if not (lex2 and hascall):
+                emsg = 'distortion must be a tuple: (<func>, params)'
+                raise ValueError(emsg)
+
         self._distortion = x
 
     @property
@@ -879,7 +887,7 @@ class PlanarDetector(object):
             bmat = crystal_data[1]
             gvec_c = np.dot(bmat, hkls)
         else:
-            raise(RuntimeError, 'argument list not understood')
+            raise RuntimeError('argument list not understood')
         nhkls_tot = hkls.shape[1]
 
         # parse energy ranges
@@ -965,8 +973,8 @@ class PlanarDetector(object):
                             dpts, self.distortion[1],
                             invert=True)
                     else:
-                        raise(RuntimeError,
-                              "something is wrong with the distortion")
+                        raise RuntimeError(
+                            "something is wrong with the distortion")
 
                 # plane spacings and energies
                 dsp = 1. / rowNorm(gvec_s_str[:, canIntersect].T)
