@@ -329,7 +329,7 @@ class HEDMInstrument(object):
             if self._tilt_calibration_mapping is not None:
                 rmat = makeRotMatOfExpMap(detector.tilt)
                 self._tilt_calibration_mapping.rmat = rmat
-                tilt = self._tilt_calibration_mapping.angles
+                tilt = np.degrees(self._tilt_calibration_mapping.angles)
                 this_det_params[:3] = tilt
             det_params.append(this_det_params)
             det_flags.append(detector.calibration_flags)
@@ -439,9 +439,9 @@ class HEDMInstrument(object):
 
     @tilt_calibration_mapping.setter
     def tilt_calibration_mapping(self, x):
-        if not isinstance(x, RotMatEuler):
+        if not isinstance(x, RotMatEuler) and x is not None:
             raise RuntimeError(
-                    "tilt mapping must be a 'RotMatEuler' instance"
+                    "tilt mapping must be None or a 'RotMatEuler' instance"
                 )
         self._tilt_calibration_mapping = x
 
@@ -469,7 +469,7 @@ class HEDMInstrument(object):
             if self.tilt_calibration_mapping is not None:
                 rmat = makeRotMatOfExpMap(detector.tilt)
                 self.tilt_calibration_mapping.rmat = rmat
-                tilt = self.tilt_calibration_mapping.angles
+                tilt = np.degrees(self.tilt_calibration_mapping.angles)
                 this_det_params[:3] = tilt
             det_params.append(this_det_params)
             det_flags.append(detector.calibration_flags)
@@ -561,7 +561,7 @@ class HEDMInstrument(object):
             # first do tilt
             tilt = np.r_[p[ii:ii + 3]]
             if self.tilt_calibration_mapping is not None:
-                self.tilt_calibration_mapping.angles = tilt
+                self.tilt_calibration_mapping.angles = np.radians(tilt)
                 rmat = self.tilt_calibration_mapping.rmat
                 phi, n = angleAxisOfRotMat(rmat)
                 tilt = phi*n.flatten()
