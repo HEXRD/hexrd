@@ -417,7 +417,11 @@ class unitcell:
 	''' calculate cross product between two vectors in any space.
 	 @NOTE: iv is the switch (0/1) which will either turn division 
 	 by volume of the unit cell on or off.'''
-	def CalcCross(self, u, v, inspace, outspace, iv):
+	def CalcCross(self, u, v, inspace, outspace, vol_divide=False):
+		iv = 0
+		if(vol_divide):
+			iv = 1
+		
 		uxv = crystal.calccross(self.cell, u, v, inspace, \
 		outspace, iv)
 
