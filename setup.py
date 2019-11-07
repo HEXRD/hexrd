@@ -42,7 +42,8 @@ sglite_extension = Extension(
 )
 
 ## legacy transforms module
-legacy_transforms_location = os.path.join(EXTENSIONS_BASE_PATH, 'transforms')
+legacy_transforms_location = os.path.join(EXTENSIONS_BASE_PATH,
+                                          'legacy_transforms')
 legacy_transforms_srcs = ['transforms_CAPI.c', 'transforms_CFUNC.c']
 legacy_transforms_extension = Extension(
     make_hexrd_extension_name('_transforms_CAPI'),
@@ -69,11 +70,9 @@ transforms_module_location = os.path.join(NEW_EXTENSIONS_BASE_PATH,
 transforms_module_srcs = ['transforms_CAPI.c', 'transforms_CFUNC.c']
 transforms_module_extension = Extension(
     make_hexrd_extension_name('transforms_CAPI_new'),
-    sources=[os.path.join(transforms_module_location, f)
-             for f in transforms_module_srcs],
+    sources=[os.path.join(transforms_module_location, 'module.c')],
     include_dirs=[numpy.get_include()]
 )
-
 
 ## list of modules to include
 ext_modules = [

@@ -46,7 +46,7 @@ from scipy.linalg.matfuncs import logm
 from hexrd.gridutil import cellIndices, make_tolerance_grid
 from hexrd import matrixutil as mutil
 from hexrd.valunits import valWUnit
-from hexrd.transforms.xfcapi import \
+from hexrd.legacy_transforms.xfcapi import \
     anglesToGVec, \
     angularDifference, \
     detectorXYToGvec, \

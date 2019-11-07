@@ -34,8 +34,8 @@ from hexrd import gridutil as gutil
 
 from hexrd.crystallography import processWavelength
 
-from hexrd.transforms import xf
-from hexrd.transforms import xfcapi
+from hexrd.legacy_transforms import xf
+from hexrd.legacy_transforms import xfcapi
 
 from hexrd import distortion
 
