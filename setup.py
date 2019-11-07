@@ -21,6 +21,7 @@ if os.environ.get('CONDA_BUILD') != '1':
 ##############################################################################
 # Extensions
 EXTENSIONS_BASE_PATH = 'hexrd'
+NEW_EXTENSIONS_BASE_PATH = 'extensions'
 def make_hexrd_extension_name(name):
     return '.'.join(('hexrd.extensions', name))
 
@@ -49,6 +50,30 @@ legacy_transforms_extension = Extension(
                for f in legacy_transforms_srcs],
     include_dirs=[np_include_dir]
 )
+
+
+## transforms module
+transforms_module_location = os.path.join(NEW_EXTENSIONS_BASE_PATH,
+                                          '_transforms_CAPI')
+transforms_module_srcs = ['transforms_CAPI.c', 'transforms_CFUNC.c']
+transforms_module_extension = Extension(
+    make_hexrd_extension_name('transforms_CAPI'),
+    sources=[os.path.join(transforms_module_location, f)
+             for f in transforms_module_srcs],
+    include_dirs=[numpy.get_include()]
+)
+
+## transforms module
+transforms_module_location = os.path.join(NEW_EXTENSIONS_BASE_PATH,
+                                          '_transforms_CAPI_new')
+transforms_module_srcs = ['transforms_CAPI.c', 'transforms_CFUNC.c']
+transforms_module_extension = Extension(
+    make_hexrd_extension_name('transforms_CAPI_new'),
+    sources=[os.path.join(transforms_module_location, f)
+             for f in transforms_module_srcs],
+    include_dirs=[numpy.get_include()]
+)
+
 
 ## list of modules to include
 ext_modules = [
