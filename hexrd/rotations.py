@@ -880,12 +880,12 @@ class RotMatEuler(object):
         rmat = _check_is_rmat(x)
         self._rmat = rmat
         if self.axes_order == 'xyz':
-            if self.extrinsic == True:
+            if self.extrinsic:
                 angles = angles_from_rmat_xyz(rmat)
             else:
                 raise NotImplementedError
         elif self.axes_order == 'zxz':
-            if self.extrinsic == True:
+            if self.extrinsic:
                 raise NotImplementedError
             else:
                 angles = angles_from_rmat_zxz(rmat)
