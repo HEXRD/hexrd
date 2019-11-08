@@ -92,7 +92,7 @@ class RootConfig(Config):
     def multiprocessing(self, val):
         if val in ('half', 'all', -1):
             self.set('multiprocessing', val)
-        elif (val >= 0 and val <= mp.cpu_count):
+        elif isinstance(val, int) and (val >= 0 and val <= mp.cpu_count()):
             self.set('multiprocessing', int(val))
         else:
             raise RuntimeError(

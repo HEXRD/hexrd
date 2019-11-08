@@ -40,7 +40,7 @@ class Beam(object):
                 raise RuntimeError("beam vector not a unit vector")
             self._vector = x
         elif len(x) == 2:
-            self._vector = self._calc_beam_vec(*x)
+            self._vector = self.calc_beam_vec(*x)
         else:
             raise RuntimeError("input must be a unit vector or angle pair")
         assert len(x) == 3
@@ -68,7 +68,7 @@ class Beam(object):
         return azim, pola
 
     @staticmethod
-    def _calc_beam_vec(azim, pola):
+    def calc_beam_vec(azim, pola):
         """
         Calculate unit beam propagation vector from
         spherical coordinate spec in DEGREES

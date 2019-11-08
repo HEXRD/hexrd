@@ -54,7 +54,7 @@ class Instrument(Config):
 
         d = instrument.PlanarDetector(
             rows=rows, cols=cols, pixel_size=pixel_size, tvec=tvec, tilt=tilt,
-            bvec=bvec, evec=evec, distortion=distortion)
+            beam=self.beam, evec=evec, distortion=distortion)
 
         return d
 
@@ -101,7 +101,7 @@ class Beam(Config):
 
         az = d['azimuth']
         pa = d['polar_angle']
-        return instrument.beam.calc_beam_vec(az, pa)
+        return instrument.beam.Beam.calc_beam_vec(az, pa)
 
 
 class OscillationStage(Config):

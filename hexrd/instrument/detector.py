@@ -275,7 +275,7 @@ class PlanarDetector(object):
         if x is not None:
             lenx2 = (len(x) == 2)
             hascall = hasattr(x[0], '__call__')
-            if not (lex2 and hascall):
+            if not (lenx2 and hascall):
                 emsg = 'distortion must be a tuple: (<func>, params)'
                 raise ValueError(emsg)
 
