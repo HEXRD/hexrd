@@ -2,7 +2,7 @@ import os
 
 import hexrd.instrument
 from .common import TestConfig, test_data
-from ..instrument import Instrument, Beam, OscillationStage
+from ..instrument import Instrument, Beam, OscillationStage, Detector
 
 reference_data = \
 """
@@ -66,8 +66,9 @@ class TestInstrument(TestConfig):
                         "Failed to produce an OscillationStage instance")
 
     def test_detector(self):
-        icfg = Instrument(self.cfgs[3])
-        det = icfg.get_detector('GE1')
+        cfg = self.cfgs[3]
+        icfg = Detector(cfg, 'GE1')
+        det = icfg.detector(Beam(cfg).beam)
         self.assertTrue(isinstance(det, hexrd.instrument.PlanarDetector),
                         "Failed to produce an Detector instance")
 
@@ -90,18 +91,18 @@ class TestBeam(TestConfig):
 
     def test_beam_energy_dflt(self):
         bcfg = Beam(self.cfgs[0])
-        energy = bcfg.energy
+        energy = bcfg._energy
         self.assertEqual(energy, Beam.beam_energy_DFLT, "Incorrect default beam energy")
 
     def test_beam_energy(self):
         bcfg = Beam(self.cfgs[1])
-        energy = bcfg.energy
+        energy = bcfg._energy
         self.assertEqual(energy, 2.0, "Incorrect beam energy")
 
     def test_beam_vector_dflt(self):
         bcfg = Beam(self.cfgs[0])
         bvecdflt = Beam.beam_vec_DFLT
-        bvec = bcfg.vector
+        bvec = bcfg._vector
 
         self.assertEqual(bvec[0], bvecdflt[0], "Incorrect default beam vector")
         self.assertEqual(bvec[1], bvecdflt[1], "Incorrect default beam vector")
@@ -109,7 +110,7 @@ class TestBeam(TestConfig):
 
     def test_beam_vector(self):
         bcfg = Beam(self.cfgs[1])
-        bvec = bcfg.vector
+        bvec = bcfg._vector
 
         self.assertEqual(bvec[0], 0.0, "Incorrect default beam vector")
         self.assertEqual(bvec[1], -1.0, "Incorrect default beam vector")
