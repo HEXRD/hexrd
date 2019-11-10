@@ -125,16 +125,16 @@ class TestOscillationStage(TestConfig):
 
     def test_chi_dflt(self):
         oscfg = OscillationStage(self.cfgs[0])
-        self.assertEqual(oscfg.chi, OscillationStage.chi_DFLT, "Incorrect default chi for oscillation stage")
+        self.assertEqual(oscfg._chi, OscillationStage.chi_DFLT, "Incorrect default chi for oscillation stage")
 
     def test_chi(self):
         oscfg = OscillationStage(self.cfgs[2])
-        self.assertEqual(oscfg.chi, 0.05, "Incorrect default chi for oscillation stage")
+        self.assertEqual(oscfg._chi, 0.05, "Incorrect default chi for oscillation stage")
 
     def test_tvec_dflt(self):
         oscfg = OscillationStage(self.cfgs[0])
         tvec_dflt = OscillationStage.tvec_DFLT
-        tvec = oscfg.tvec
+        tvec = oscfg._tvec
 
         self.assertEqual(tvec[0], tvec_dflt[0], "Incorrect default translation vector")
         self.assertEqual(tvec[1], tvec_dflt[1], "Incorrect default translation vector")
@@ -142,7 +142,7 @@ class TestOscillationStage(TestConfig):
 
     def test_tvec(self):
         oscfg = OscillationStage(self.cfgs[2])
-        tvec = oscfg.tvec
+        tvec = oscfg._tvec
 
         self.assertEqual(tvec[0], 1., "Incorrect translation vector")
         self.assertEqual(tvec[1], 2., "Incorrect translation vector")

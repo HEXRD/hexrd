@@ -19,12 +19,16 @@ class Instrument(Config):
 
     @property
     def beam(self):
-        return Beam(self).beam
+        # Ensure that a single beam instance is generated here, so that
+        # multiple detectors will all share the same instance. We want to
+        # avoid having a new instance created on each call.
+        if not hasattr(self, '_beam'):
+            self._beam = Beam(self).beam
+        return self._beam
 
     @property
     def oscillation_stage(self):
-        oscfg = OscillationStage(self)
-        return instrument.oscillation_stage.OscillationStage(oscfg.tvec, oscfg.chi)
+        return OscillationStage(self).oscillation_stage
 
     @property
     def detector_dict(self):
@@ -154,9 +158,14 @@ class OscillationStage(Config):
         return self._cfg.get(':'.join([self.BASEKEY, key]), **kwargs)
 
     @property
-    def tvec(self):
+    def oscillation_stage(self):
+        return instrument.oscillation_stage.OscillationStage(self._tvec, self._chi)
+
+    # ========== Input Values
+    @property
+    def _tvec(self):
         return self.get('t_vec_s', default=self.tvec_DFLT)
 
     @property
-    def chi(self):
+    def _chi(self):
         return self.get('chi', default=self.chi_DFLT)
