@@ -11,8 +11,8 @@ import math
 
 import numpy as np
 
-import xrd_transforms as xf
-from xrd_transforms import constants as xf_cnst
+from hexrd import transforms as xf
+from hexrd.transforms import constants as xf_cnst
 
 def function_implementations(api_func_name):
     """returns a list of pairs (function, implementation_name) for all

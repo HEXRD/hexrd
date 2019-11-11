@@ -65,12 +65,12 @@ transforms_module_extension = Extension(
 )
 
 ## transforms module
-transforms_module_location = os.path.join(NEW_EXTENSIONS_BASE_PATH,
+new_transforms_module_location = os.path.join(NEW_EXTENSIONS_BASE_PATH,
                                           '_transforms_CAPI_new')
-transforms_module_srcs = ['transforms_CAPI.c', 'transforms_CFUNC.c']
-transforms_module_extension = Extension(
+new_transforms_module_srcs = ['transforms_CAPI.c', 'transforms_CFUNC.c']
+new_transforms_module_extension = Extension(
     make_hexrd_extension_name('transforms_CAPI_new'),
-    sources=[os.path.join(transforms_module_location, 'module.c')],
+    sources=[os.path.join(new_transforms_module_location, 'module.c')],
     include_dirs=[numpy.get_include()]
 )
 
@@ -78,6 +78,8 @@ transforms_module_extension = Extension(
 ext_modules = [
     sglite_extension,
     legacy_transforms_extension,
+    transforms_module_extension,
+    new_transforms_module_extension
 ]
 
 ##############################################################################
