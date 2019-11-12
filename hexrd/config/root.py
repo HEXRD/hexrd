@@ -43,7 +43,7 @@ class RootConfig(Config):
     def instrument(self):
         instr_file = self.get('instrument')
         with open(instr_file, 'r') as f:
-            icfg = yaml.load(f)
+            icfg = yaml.load(f, Loader=yaml.SafeLoader)
         return Instrument(Config(icfg))
 
     @property
