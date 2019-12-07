@@ -1,18 +1,20 @@
 import os
 
-try:
-    import dill as cpl
-except(ImportError):
-    import pickle as cpl
+import pickle as cpl
 
 from .config import Config
 
 
 class MaterialConfig(Config):
 
+    BASEKEY = 'material'
+
+    def get(self, key, **kwargs):
+        return self._cfg.get(':'.join([self.BASEKEY, key]), **kwargs)
+
     @property
     def definitions(self):
-        temp = self._cfg.get('material:definitions')
+        temp = self.get('definitions')
         if not os.path.isabs(temp):
             temp = os.path.join(self._cfg.working_dir, temp)
         if os.path.exists(temp):
@@ -23,10 +25,14 @@ class MaterialConfig(Config):
 
     @property
     def active(self):
-        return self._cfg.get('material:active')
+        return self.get('active')
+
+    @property
+    def material_dict(self):
+        with open(self.definitions, "rb") as matf:
+            mat_list = cpl.load(matf, encoding='latin1')
+        return dict(list(zip([i.name for i in mat_list], mat_list)))
 
     @property
     def plane_data(self):
-        with file(self.definitions, "r") as matf:
-            mat_list = cpl.load(matf)
-        return dict(list(zip([i.name for i in mat_list], mat_list)))[self.active].planeData
+        return self.material_dict[self.active].planeData
