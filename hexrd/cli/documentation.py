@@ -1,7 +1,6 @@
-import sys
+"""Browse documentation"""
 
-
-help = "Launches the hexrd documentation in a web browser"
+help = "Launches the hexrd documentation (work in progress) in a web browser"
 
 
 def configure_parser(sub_parsers):

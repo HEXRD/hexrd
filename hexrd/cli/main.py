@@ -8,15 +8,15 @@ import warnings
 
 # These can't be relative imports on Windows because of the hack
 # in main() for multiprocessing.freeze_support()
-# from hexrd.cli import cacheframes
+from hexrd.cli import help
+from hexrd.cli import test
 from hexrd.cli import documentation
+from hexrd.utils import profiler
+
 from hexrd.cli import findorientations
 from hexrd.cli import fitgrains
 from hexrd.cli import gui
-from hexrd.cli import help
-from hexrd.cli import test
 from hexrd.cli import pickle23
-from hexrd.utils import profiler
 
 
 def main():
@@ -29,8 +29,6 @@ def main():
 
     if len(sys.argv) == 1:
         sys.argv.append('-h')
-
-    import hexrd
 
     p = argparse.ArgumentParser(
         description='High energy diffraction data analysis'
