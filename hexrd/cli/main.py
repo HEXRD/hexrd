@@ -13,7 +13,7 @@ from hexrd.cli import test
 from hexrd.cli import documentation
 from hexrd.utils import profiler
 
-from hexrd.cli import findorientations
+from hexrd.cli import find_orientations
 from hexrd.cli import fitgrains
 from hexrd.cli import gui
 from hexrd.cli import pickle23
@@ -49,11 +49,12 @@ def main():
     )
 
     help.configure_parser(sub_parsers)
-    documentation.configure_parser(sub_parsers)
-    gui.configure_parser(sub_parsers)
-    findorientations.configure_parser(sub_parsers)
-    fitgrains.configure_parser(sub_parsers)
     test.configure_parser(sub_parsers)
+    documentation.configure_parser(sub_parsers)
+
+    find_orientations.configure_parser(sub_parsers)
+    fitgrains.configure_parser(sub_parsers)
+    gui.configure_parser(sub_parsers)
     pickle23.configure_parser(sub_parsers)
 
     try:
