@@ -1,4 +1,4 @@
-
+"""Command to find orientations"""
 
 
 descr = 'Process diffraction data to find grain orientations'
@@ -51,7 +51,7 @@ def execute(args, parser):
     import yaml
 
     from hexrd import config
-    from hexrd.actions.find_orientations import find_orientations
+    from .find_orientations import find_orientations
 
 
     # make sure hkls are passed in as a list of ints
