@@ -15,7 +15,9 @@ from hexrd.cli import fitgrains
 from hexrd.cli import gui
 from hexrd.cli import help
 from hexrd.cli import test
+from hexrd.cli import pickle23
 from hexrd.utils import profiler
+
 
 def main():
     if sys.platform.startswith('win'):
@@ -54,6 +56,7 @@ def main():
     findorientations.configure_parser(sub_parsers)
     fitgrains.configure_parser(sub_parsers)
     test.configure_parser(sub_parsers)
+    pickle23.configure_parser(sub_parsers)
 
     try:
         import argcomplete
