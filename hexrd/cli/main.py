@@ -1,4 +1,4 @@
-
+"""Entry point for hexrd command line interface"""
 
 import argparse
 import logging
@@ -8,7 +8,7 @@ import warnings
 
 # These can't be relative imports on Windows because of the hack
 # in main() for multiprocessing.freeze_support()
-from hexrd.cli import cacheframes
+# from hexrd.cli import cacheframes
 from hexrd.cli import documentation
 from hexrd.cli import findorientations
 from hexrd.cli import fitgrains
@@ -34,11 +34,6 @@ def main():
         description='High energy diffraction data analysis'
     )
     p.add_argument(
-        '-V', '--version',
-        action = 'version',
-        version = 'hexrd %s' % hexrd.__version__,
-    )
-    p.add_argument(
         "--debug",
         action = "store_true",
         help = 'verbose reporting',
@@ -58,7 +53,6 @@ def main():
     gui.configure_parser(sub_parsers)
     findorientations.configure_parser(sub_parsers)
     fitgrains.configure_parser(sub_parsers)
-    cacheframes.configure_parser(sub_parsers)
     test.configure_parser(sub_parsers)
 
     try:

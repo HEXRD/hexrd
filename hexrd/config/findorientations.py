@@ -16,6 +16,7 @@ class FindOrientationsConfig(Config):
     @property
     def seed_search(self):
         return SeedSearchConfig(self._cfg)
+
     @property
     def clustering(self):
         return ClusteringConfig(self._cfg)
