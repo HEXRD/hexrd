@@ -1,10 +1,12 @@
-class GenerateEtaOmeMaps(object):
-    """
-    eta-ome map class derived from new image_series and YAML config
+"""Eta-Omega maps"""
+import numpy as np
 
-    ...for now...
+from hexrd import crystallography
 
-    must provide:
+class EtaOmeMap(object):
+    """Class for eta-omega maps
+
+    data includes:
 
     self.dataStore
     self.planeData
@@ -13,16 +15,33 @@ class GenerateEtaOmeMaps(object):
     self.omeEdges # IN RADIANS
     self.etas     # IN RADIANS
     self.omegas   # IN RADIANS
-
     """
-    def __init__(self, image_series_dict, instrument, plane_data,
-                 active_hkls=None, eta_step=0.25, threshold=None,
-                 ome_period=(0, 360)):
+    def __init__(self,
+                 image_series_dict=None,
+                 instrument=None,
+                 plane_data=None, *,
+                 load=None,
+                 active_hkls=None,
+                 eta_step=0.25,
+                 threshold=None,
+                 ome_period=(0, 360)
+    ):
+        """Build or load an eta-omega map
+        To build the map, call with the three positional/keyword args.
+           image_series - OmegaImageSeries class
+           instrument  must be a dict (loaded from yaml spec)
+           plane_data - crystallography parameters
+           eomap = EtaOmeMap(images, instrument, plane_data)
+
+        To load from a file, just pass the *load* keyword arg
+           eomap = EtaOmeMap(load=<filename>)
         """
-        image_series must be OmegaImageSeries class
-        instrument_params must be a dict (loaded from yaml spec)
-        active_hkls must be a list (required for now)
-        """
+        no_ims = image_series_dict is None
+        no_ins = instrument is None
+        no_pd = plane_data is None
+        if no_ims and no_ins and no_pd:
+            self._load(load)
+            return
 
         self._planeData = plane_data
 
@@ -117,9 +136,9 @@ class GenerateEtaOmeMaps(object):
         return self._omegas
 
     def save(self, filename):
-        """
+        """ save map
         self.dataStore
-        self.planeData
+        self.planeData (args to rebuild)
         self.iHKLList
         self.etaEdges
         self.omeEdges
@@ -138,5 +157,18 @@ class GenerateEtaOmeMaps(object):
                      'planeData_args': args,
                      'planeData_hkls': hkls}
         np.savez_compressed(filename, **save_dict)
-        return
-    pass  # end of class: GenerateEtaOmeMaps
+
+    def _load(self, fname):
+        """load a saved eta-omega map"""
+        ome_eta = np.load(fname)
+
+        planeData_args = ome_eta['planeData_args']
+        planeData_hkls = ome_eta['planeData_hkls']
+        self.planeData = crystallography.PlaneData(planeData_hkls, *planeData_args)
+
+        self.dataStore = ome_eta['dataStore']
+        self.iHKLList = ome_eta['iHKLList']
+        self.etaEdges = ome_eta['etaEdges']
+        self.omeEdges = ome_eta['omeEdges']
+        self.etas = ome_eta['etas']
+        self.omegas = ome_eta['omegas']
