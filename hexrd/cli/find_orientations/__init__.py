@@ -14,6 +14,8 @@ def configure_parser(sub_parsers):
         description = descr,
         help = descr
         )
+    p.set_defaults(func=execute)
+
     p.add_argument(
         'yml', type=str,
         help='YAML configuration file'
@@ -40,7 +42,6 @@ if None, defaults to list specified in the yml file"""
         '-p', '--profile', action='store_true',
         help='runs the analysis with cProfile enabled',
         )
-    p.set_defaults(func=execute)
 
 
 def execute(args, parser):
