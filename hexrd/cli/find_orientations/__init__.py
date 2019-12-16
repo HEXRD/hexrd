@@ -11,8 +11,8 @@ examples:
 def configure_parser(sub_parsers):
     p = sub_parsers.add_parser(
         'find-orientations',
-        description = descr,
-        help = descr
+        description=descr,
+        help=descr
         )
     p.set_defaults(func=execute)
 
@@ -54,7 +54,6 @@ def execute(args, parser):
     from hexrd import config
     from .find_orientations import find_orientations
 
-
     # make sure hkls are passed in as a list of ints
     try:
         if args.hkls is not None:
@@ -81,20 +80,20 @@ def execute(args, parser):
     cfg = config.open(args.yml)[0]
 
     # ...make this an attribute in cfg?
-    analysis_id = '%s_%s' %(
+    analysis_id = '%s_%s' % (
         cfg.analysis_name.strip().replace(' ', '-'),
         cfg.material.active.strip().replace(' ', '-'),
-        )
+    )
 
     # prepare the analysis directory
     quats_f = os.path.join(
         cfg.working_dir,
-        'accepted_orientations_%s.dat' %analysis_id
+        'accepted_orientations_%s.dat' % analysis_id
         )
     if os.path.exists(quats_f) and not (args.force or args.clean):
-        logger.error(
-            '%s already exists. Change yml file or specify "force" or "clean"', quats_f
-            )
+        msg = '%s already exists. '\
+              'Change yml file or specify "force" or "clean"' % quats_f
+        logger.error(msg)
         sys.exit()
     if not os.path.exists(cfg.working_dir):
         os.makedirs(cfg.working_dir)
@@ -102,7 +101,7 @@ def execute(args, parser):
     # configure logging to file
     logfile = os.path.join(
         cfg.working_dir,
-        'find-orientations_%s.log' %analysis_id
+        'find-orientations_%s.log' % analysis_id
         )
     fh = logging.FileHandler(logfile, mode='w')
     fh.setLevel(log_level)
@@ -116,12 +115,16 @@ def execute(args, parser):
     logger.addHandler(fh)
 
     if args.profile:
-        import cProfile as profile, pstats, io
+        import cProfile as profile
+        import pstats
+        import io
         pr = profile.Profile()
         pr.enable()
 
     # process the data
-    find_orientations(cfg, hkls=args.hkls, clean=args.clean, profile=args.profile)
+    find_orientations(
+        cfg, hkls=args.hkls, clean=args.clean, profile=args.profile
+    )
 
     if args.profile:
         pr.disable()
