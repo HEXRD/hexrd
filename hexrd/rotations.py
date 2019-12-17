@@ -30,8 +30,8 @@
 #
 import sys
 import time
-import numpy as np
 
+import numpy as np
 from numpy import \
      arange, arctan2, array, asarray, atleast_1d, average, \
      ndarray, diag, zeros, \
@@ -39,24 +39,22 @@ from numpy import \
      sort, tile, vstack, hstack, c_, ix_, \
      abs, mod, sign, \
      finfo, isscalar
-
 from numpy import float_ as nFloat
 from numpy import int_ as nInt
-
 from scipy.optimize import leastsq
 
 from hexrd import constants as cnst
-
 from hexrd.matrixutil import \
     columnNorm, unitVector, \
     skewMatrixOfVector, findDuplicateVectors, \
     multMatArray, nullSpace
+from hexrd.symmetry import toFundamentalRegion
+import hexrd.symmetry as S
 
 
 # =============================================================================
 # Module Data
 # =============================================================================
-
 
 angularUnits = 'radians'  # module-level angle units
 periodDict = {'degrees': 360.0, 'radians': 2*np.pi}
@@ -315,15 +313,15 @@ def quatProductMatrix(quats, mult='right'):
     q3 = quats[3, :].copy()
 
     if mult == 'right':
-        qmats = array([[ q0], [ q1], [ q2], [ q3],
-                       [-q1], [ q0], [-q3], [ q2],
-                       [-q2], [ q3], [ q0], [-q1],
-                       [-q3], [-q2], [ q1], [ q0]])
+        qmats = array([[q0], [q1], [q2], [q3],
+                       [-q1], [q0], [-q3], [q2],
+                       [-q2], [q3], [q0], [-q1],
+                       [-q3], [-q2], [q1], [q0]])
     elif mult == 'left':
-        qmats = array([[ q0], [ q1], [ q2], [ q3],
-                       [-q1], [ q0], [ q3], [-q2],
-                       [-q2], [-q3], [ q0], [ q1],
-                       [-q3], [ q2], [-q1], [ q0]])
+        qmats = array([[q0], [q1], [q2], [q3],
+                       [-q1], [q0], [q3], [-q2],
+                       [-q2], [-q3], [q0], [q1],
+                       [-q3], [q2], [-q1], [q0]])
 
     # some fancy reshuffling...
     qmats = qmats.T.reshape(nq, 4, 4).transpose(0, 2, 1)
@@ -387,8 +385,6 @@ def quatOfRotMat(R):
 def quatAverageCluster(q_in, qsym):
     """
     """
-    from symmetry import toFundamentalRegion
-
     assert q_in.ndim == 2, 'input must be 2-s hstacked quats'
 
     # renormalize
@@ -797,6 +793,7 @@ def angles_from_rmat_xyz(rmat):
             rx = rz
     return rx, ry, rz
 
+
 def angles_from_rmat_zxz(rmat):
     """
     calculate z-x-z euler angles from a rotation matrix in
@@ -880,12 +877,12 @@ class RotMatEuler(object):
         rmat = _check_is_rmat(x)
         self._rmat = rmat
         if self.axes_order == 'xyz':
-            if self.extrinsic == True:
+            if self.extrinsic:
                 angles = angles_from_rmat_xyz(rmat)
             else:
                 raise NotImplementedError
         elif self.axes_order == 'zxz':
-            if self.extrinsic == True:
+            if self.extrinsic:
                 raise NotImplementedError
             else:
                 angles = angles_from_rmat_zxz(rmat)
@@ -953,7 +950,6 @@ def distanceToFiber(c, s, q, qsym, **kwargs):
 def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
     """
     """
-    import symmetry as S
 
     ztol = 1.e-8
 
