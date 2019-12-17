@@ -48,8 +48,7 @@ from hexrd.matrixutil import \
     columnNorm, unitVector, \
     skewMatrixOfVector, findDuplicateVectors, \
     multMatArray, nullSpace
-from hexrd.symmetry import toFundamentalRegion
-import hexrd.symmetry as S
+from hexrd import symmetry
 
 
 # =============================================================================
@@ -409,7 +408,7 @@ def quatAverageCluster(q_in, qsym):
             q_in)
 
         # second, re-cast to FR
-        qrot = toFundamentalRegion(qrot.squeeze(), crysSym=qsym)
+        qrot = symmetry.toFundamentalRegion(qrot.squeeze(), crysSym=qsym)
 
         # compute arithmetic average
         q_bar = unitVector(average(qrot, axis=1).reshape(4, 1))
@@ -420,7 +419,7 @@ def quatAverageCluster(q_in, qsym):
             q_bar)
 
         # re-map
-        q_bar = toFundamentalRegion(q_bar, crysSym=qsym)
+        q_bar = symmetry.toFundamentalRegion(q_bar, crysSym=qsym)
     return q_bar
 
 
@@ -1036,9 +1035,9 @@ def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
             q0
         ).transpose(2, 1, 0)
         if csym is not None:
-            retval.append(S.toFundamentalRegion(qfib.squeeze(),
-                                                crysSym=csym,
-                                                sampSym=ssym))
+            retval.append(symmetry.toFundamentalRegion(qfib.squeeze(),
+                                                       crysSym=csym,
+                                                       sampSym=ssym))
         else:
             retval.append(fixQuat(qfib).squeeze())
     return retval
