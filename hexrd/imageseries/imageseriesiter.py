@@ -18,6 +18,3 @@ class ImageSeriesIterator(collections.Iterator):
             return self._iterable[self._remaining.pop(0)]
         except IndexError:
             raise StopIteration
-
-    def __next__(self):
-        return self.__next__()
