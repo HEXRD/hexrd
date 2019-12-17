@@ -1,7 +1,14 @@
 """Eta-Omega maps"""
+import logging
+
 import numpy as np
 
+from hexrd import constants
 from hexrd import crystallography
+from hexrd.transforms.xfcapi import mapAngle
+from hexrd.valunits import valWUnit
+
+logger = logging.getLogger('hexrd')
 
 class EtaOmeMap(object):
     """Class for eta-omega maps
@@ -94,7 +101,7 @@ class EtaOmeMap(object):
 
         # !!! must avoid the case where omeEdges[0] = omeEdges[-1] for the
         # indexer to work properly
-        if abs(self._omeEdges[0] - self._omeEdges[-1]) <= ct.sqrt_epsf:
+        if abs(self._omeEdges[0] - self._omeEdges[-1]) <= constants.sqrt_epsf:
             # !!! SIGNED delta ome
             del_ome = np.radians(omegas_array[0, 1] - omegas_array[0, 0])
             self._omeEdges[-1] = self._omeEdges[-2] + del_ome
@@ -160,15 +167,15 @@ class EtaOmeMap(object):
 
     def _load(self, fname):
         """load a saved eta-omega map"""
-        ome_eta = np.load(fname)
+        ome_eta = np.load(fname, allow_pickle=True)
 
         planeData_args = ome_eta['planeData_args']
         planeData_hkls = ome_eta['planeData_hkls']
-        self.planeData = crystallography.PlaneData(planeData_hkls, *planeData_args)
+        self._planeData = crystallography.PlaneData(planeData_hkls, *planeData_args)
 
-        self.dataStore = ome_eta['dataStore']
-        self.iHKLList = ome_eta['iHKLList']
-        self.etaEdges = ome_eta['etaEdges']
-        self.omeEdges = ome_eta['omeEdges']
-        self.etas = ome_eta['etas']
-        self.omegas = ome_eta['omegas']
+        self._dataStore = ome_eta['dataStore']
+        self._iHKLList = ome_eta['iHKLList']
+        self._etaEdges = ome_eta['etaEdges']
+        self._omeEdges = ome_eta['omeEdges']
+        self._etas = ome_eta['etas']
+        self._omegas = ome_eta['omegas']

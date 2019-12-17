@@ -175,12 +175,14 @@ class HEDMInstrument(object):
     * Distortion needs to be moved to a class with registry; tuple unworkable
     * where should reference eta be defined? currently set to default config
     """
-    def __init__(self,
+    def __init__(self, *, # keyword only args
+                 beam=None,
+                 detector_dict=None,
+                 oscillation_stage=None,
                  eta_vector=None,
                  instrument_name=None,
                  tilt_calibration_mapping=None,
-                 beam=None,
-                 oscillation_stage=None):
+    ):
 
         self._id = instrument_name_DFLT
 
@@ -188,23 +190,24 @@ class HEDMInstrument(object):
         self.oscillation_stage = OscillationStage() if oscillation_stage is None\
                                  else oscillation_stage
 
-        if eta_vector is None:
-            self._eta_vector = eta_vec_DFLT
-        else:
-            self._eta_vector = eta_vector
+        self._eta_vector = eta_vec_DFLT if eta_vector is None else eta_vector
 
         if instrument_name is not None:
             self._id = instrument_name
-        self._num_panels = 1
 
-        self._detectors = dict(
-            panel_id_DFLT=PlanarDetector(
-                rows=nrows_DFLT, cols=ncols_DFLT,
-                pixel_size=pixel_size_DFLT,
-                tvec=t_vec_d_DFLT,
-                tilt=tilt_params_DFLT,
-                evec=self._eta_vector,
-                distortion=None),
+        if detector_dict is not None:
+            self._detectors = detector_dict
+        else:
+            self._num_panels = 1
+
+            self._detectors = dict(
+                panel_id_DFLT=PlanarDetector(
+                    rows=nrows_DFLT, cols=ncols_DFLT,
+                    pixel_size=pixel_size_DFLT,
+                    tvec=t_vec_d_DFLT,
+                    tilt=tilt_params_DFLT,
+                    evec=self._eta_vector,
+                    distortion=None),
             )
 
         #

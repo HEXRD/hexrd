@@ -13,9 +13,11 @@ class Instrument(Config):
     #       to instantiate classes based on this one
     @property
     def hedm(self):
-        return instrument.HEDMInstrument(self.beam,
-                                         self.detector_dict,
-                                         self.oscillation_stage)
+        return instrument.HEDMInstrument(
+            beam=self.beam,
+            detector_dict=self.detector_dict,
+            oscillation_stage=self.oscillation_stage
+        )
 
     @property
     def beam(self):
@@ -62,6 +64,7 @@ class Detector(Config):
         return self._cfg.get(':'.join([self.BASEKEY, self.id, key]), **kwargs)
 
     def detector(self, beam):
+        print("eta vec: ", self._eta_vec)
         return instrument.PlanarDetector(
             rows=self._pixel_rows,
             cols=self._pixel_cols,

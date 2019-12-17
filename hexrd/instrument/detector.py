@@ -6,7 +6,15 @@ from hexrd.gridutil import cellIndices
 from hexrd import matrixutil as mutil
 from hexrd import xrdutil
 from hexrd.crystallography import PlaneData
-from hexrd.extensions._transforms_CAPI import\
+#from hexrd.extensions._transforms_CAPI import\
+#    anglesToGVec, \
+#    detectorXYToGvec, \
+#    gvecToDetectorXY, \
+#    makeRotMatOfExpMap, \
+#    mapAngle, \
+#    oscillAnglesOfHKLs,\
+#    rowNorm
+from hexrd.transforms.xfcapi import\
     anglesToGVec, \
     detectorXYToGvec, \
     gvecToDetectorXY, \

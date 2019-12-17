@@ -24,6 +24,7 @@ try:
 except ImportError:
     have_sklearn = False
 
+logger = logging.getLogger('hexrd')
 
 # ==================== Hardwired options
 # maps options
