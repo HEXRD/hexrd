@@ -1,4 +1,5 @@
 """Functions used in find_orientations"""
+from __future__ import print_function, division, absolute_import
 
 import os
 import time
@@ -9,11 +10,7 @@ import numpy as np
 import timeit
 from scipy import ndimage, cluster
 
-from hexrd import instrument
-from hexrd import matrixutil as mutil
-from hexrd.transforms import xfcapi
-from hexrd import rotations as rot
-
+have_sklearn = False
 try:
     import sklearn
     vstring = sklearn.__version__.split('.')
@@ -22,8 +19,16 @@ try:
         from sklearn.metrics.pairwise import pairwise_distances
         have_sklearn = True
 except ImportError:
-    have_sklearn = False
+    pass
 
+
+from hexrd import instrument
+from hexrd import matrixutil as mutil
+from hexrd.transforms import xfcapi
+from hexrd import rotations as rot
+
+print (__name__)
+logger = logging.getLogger(__name__)
 
 # ==================== Hardwired options
 # maps options
@@ -31,7 +36,6 @@ clobber_maps = False
 show_maps = False
 
 # ==================== Functions
-
 
 def analysis_id(cfg):
     return '%s_%s' % (
@@ -75,7 +79,6 @@ def get_eta_ome(cfg):
     return eta_ome
 
 # ============================== Fibers
-
 
 def generate_orientation_fibers(
         eta_ome, chi, threshold, seed_hkl_ids, fiber_ndiv,
@@ -163,7 +166,7 @@ def generate_orientation_fibers(
         # single process version.
         global paramMP
         discretefiber_init(params)  # sets paramMP
-        qfib = list(map(discretefiber_reduced, input_p))
+        qfib = map(discretefiber_reduced, input_p)
         paramMP = None  # clear paramMP
     elapsed = (time.time() - start)
     logger.info("fiber generation took %.3f seconds", elapsed)
