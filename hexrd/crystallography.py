@@ -41,7 +41,7 @@ except(ImportError):
 from hexrd.matrixutil import unitVector, sum
 from hexrd.rotations import rotMatOfExpMap, mapAngle, applySym
 from hexrd import symmetry
-from hexrd.transforms import xfcapi
+from hexrd.legacy_transforms import xfcapi
 from hexrd import valunits
 from hexrd.valunits import toFloat
 from hexrd.constants import d2r, r2d, sqrt3by2, sqrt_epsf
