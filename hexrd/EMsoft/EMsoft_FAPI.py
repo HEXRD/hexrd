@@ -319,9 +319,16 @@ class unitcell:
 			self.cell.gamma = np.degrees(lp[5].value)
 
 		self.cell.sym_sgnum  = sgnum
-		self.cell.atom_type  = atomtypes
 		self.cell.atom_ntype = atominfo.shape[0]
+		self.cell.atom_type[0:self.cell.atom_ntype]    = atomtypes
 		self.cell.atom_pos[0:self.cell.atom_ntype,:]   = atominfo 
+
+		# wavelength in nm
+		self.cell.mlambda = EMsoft_constants().cPlanck * \
+							EMsoft_constants().cLight /  \
+							EMsoft_constants().cCharge / \
+							self.cell.voltage
+		self.cell.mlambda *= 1e9 
 
 		crystal.calcmatrices(self.cell)
 		symmetry.generatesymmetry(self.cell, True)
@@ -391,7 +398,8 @@ class unitcell:
 	''' transform between any crystal space to any other space.
  		choices are 'd' (direct), 'r' (reciprocal) and 'c' (cartesian)'''
 	def TransSpace(self, v_in, inspace, outspace):
-		v_out = crystal.transspace(self.cell, v_in, inspace, outspace)
+		v_out = np.zeros([3,],dtype=np.float32)
+		crystal.transspace(self.cell, v_in, v_out, inspace, outspace)
 		return v_out
 
 	''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
@@ -421,13 +429,13 @@ class unitcell:
 		iv = 0
 		if(vol_divide):
 			iv = 1
-		
+
 		uxv = crystal.calccross(self.cell, u, v, inspace, \
 		outspace, iv)
 
 	''' calculate density '''
 	def CalcDensity(self):
-		[self.density, self.avZ, self.avA, self.Z2percent] = crystal.calcdensity(self.cell)
+		[self.density, self.avZ, self.avA] = crystal.calcdensity(self.cell)
 
 	''' calculate the maximum index of diffraction vector along each of the three reciprocal
 	 basis vectors '''
@@ -447,6 +455,219 @@ class unitcell:
 							self.rlp,
 							hkl)
 		return np.abs(self.rlp.ucg)**2
+
+	''' calculate bragg angle for a reflection. returns Nan if
+		the reflections is not possible for the voltage/wavelength
+	'''
+	def CalcBraggAngle(self, hkl):
+		glen = self.CalcLength(hkl, 'r')
+		sth  = self.cell.mlambda * glen * 0.5
+		return np.arcsin(sth)
+
+
+
+	'''
+		set some properties for the unitcell class. only the lattice
+		parameters, space group and asymmetric positions can change,
+		but all the dependent parameters will be automatically updated
+	'''
+
+	# lattice constants as properties
+	@property
+	def a(self):
+		return self.cell.a
+
+	@a.setter
+	def a(self, val):
+		self.cell.a = val
+		crystal.calcmatrices(self.cell)
+		# symmetry.generatesymmetry(self.cell, True)
+		symmetry.calcpositions(self.cell, 'v')
+		self.ih = 1
+		self.ik = 1
+		self.il = 1
+		self.CalcMaxGIndex()
+
+	@property
+	def b(self):
+		return self.cell.b
+
+	@b.setter
+	def b(self, val):
+		self.cell.b = val
+		crystal.calcmatrices(self.cell)
+		# symmetry.generatesymmetry(self.cell, True)
+		symmetry.calcpositions(self.cell, 'v')
+		self.ih = 1
+		self.ik = 1
+		self.il = 1
+		self.CalcMaxGIndex()
+
+	@property
+	def c(self):
+		return self.cell.c
+
+	@c.setter
+	def c(self, val):
+		self.cell.c = val
+		crystal.calcmatrices(self.cell)
+		# symmetry.generatesymmetry(self.cell, True)
+		symmetry.calcpositions(self.cell, 'v')
+		self.ih = 1
+		self.ik = 1
+		self.il = 1
+		self.CalcMaxGIndex()	
+
+	@property
+	def alpha(self):
+		return self.cell.alpha
+
+	@alpha.setter
+	def alpha(self, val):
+		self.cell.alpha = val
+		crystal.calcmatrices(self.cell)
+		# symmetry.generatesymmetry(self.cell, True)
+		symmetry.calcpositions(self.cell, 'v')
+		self.ih = 1
+		self.ik = 1
+		self.il = 1
+		self.CalcMaxGIndex()
+
+	@property
+	def beta(self):
+		return self.cell.beta
+
+	@beta.setter
+	def beta(self, val):
+		self.cell.beta = val
+		crystal.calcmatrices(self.cell)
+		# symmetry.generatesymmetry(self.cell, True)
+		symmetry.calcpositions(self.cell, 'v')
+		self.ih = 1
+		self.ik = 1
+		self.il = 1
+		self.CalcMaxGIndex()
+
+	@property
+	def gamma(self):
+		return self.cell.gamma
+
+	@gamma.setter
+	def gamma(self, val):
+		self.cell.gamma = val
+		crystal.calcmatrices(self.cell)
+		# symmetry.generatesymmetry(self.cell, True)
+		symmetry.calcpositions(self.cell, 'v')
+		self.ih = 1
+		self.ik = 1
+		self.il = 1
+		self.CalcMaxGIndex()
+
+	@property 
+	def voltage(self):
+		return self.cell.voltage
+
+	# read only for now
+	# @voltage.setter
+	# def voltage(self,v):
+	# 	self.cell.voltage = v.value
+	# 	self.cell.mlambda = self.CalcWavelength()
+
+	@property
+	def wavelength(self):
+		return self.cell.mlambda
+
+	# read only for now
+	# @wavelength.setter
+	# def wavelength(self,mlambda):
+	# 	self.cell.mlambda = mlambda	
+
+	# space group number
+	@property
+	def sgnum(self):
+		return self.cell.sym_sgnum
+	
+	@sgnum.setter
+	def sgnum(self, val):
+		if(not(isinstance(val, int))):
+			raise ValueError('space group should be integer')
+		if(not( (val >= 1) and (val <= 230) ) ):
+			raise ValueError('space group number should be between 1 and 230.')
+
+		self.cell.sym_sgnum = val
+		symmetry.generatesymmetry(self.cell, True)
+		symmetry.calcpositions(self.cell, 'v')
+
+	@property
+	def ATOM_pos(self):
+		sz = self.cell.atom_ntype
+		return self.cell.atom_pos[0:sz,:]
+
+	@ATOM_pos.setter
+	def ATOM_pos(self, val):
+		val = np.atleast_2d(val)
+		if( (val.shape[1] != 5) ):
+			raise ValueError('Incorrect shape for atomic positions')
+		sz = val.shape[0]
+		if(sz != self.cell.atom_ntype):
+			raise ValueError('different number of atom types than previously specified.')
+		self.cell.atom_pos[0:sz,:] = val[:,:]
+		symmetry.calcpositions(self.cell, 'v')
+
+	# asymmetric positions in unit cell; read only
+	@property
+	def asym_pos(self):
+		retlist = []
+		for i in range(self.cell.atom_ntype):
+			sz = self.cell.numat[i]
+			retlist.append(self.cell.apos[i,0:sz,:])
+		return retlist
+	
+	# different atom types; read only
+	@property
+	def Z(self):
+		sz = self.cell.atom_ntype
+		return self.cell.atom_type[0:atom_ntype]
+	
+	# direct metric tensor is read only
+	@property
+	def dmt(self):
+		return self.cell.dmt
+
+	# reciprocal metric tensor is read only
+	@property
+	def rmt(self):
+		return self.cell.rmt
+
+	# direct structure matrix is read only
+	@property
+	def dsm(self):
+		return self.cell.dsm
+
+	# reciprocal structure matrix is read only
+	@property
+	def rsm(self):
+		return self.cell.rsm
+
+	# space group symmetry matrices
+	@property
+	def sym_spacegroup(self):
+		nsym = self.cell.sg.sym_matnum
+		return self.cell.sg.sym_data[0:nsym,:,:]
+
+	# point group symmetry matrices
+	# first in direct space
+	@property
+	def sym_pointgroup_direct(self):
+		nsym = self.cell.sg.sym_numpt
+		return self.cell.sg.sym_direc[0:nsym,:,:]
+	
+	# and then in reciprocal space
+	@property
+	def sym_pointgroup_reciprocal(self):
+		nsym = self.cell.sg.sym_numpt
+		return self.cell.sg.sym_recip[0:nsym,:,:]
+	
 
 class rotation:
 

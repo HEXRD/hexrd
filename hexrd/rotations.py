@@ -953,7 +953,7 @@ def distanceToFiber(c, s, q, qsym, **kwargs):
 def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
     """
     """
-    import symmetry as S
+    import hexrd.symmetry as S
 
     ztol = 1.e-8
 

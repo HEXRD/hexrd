@@ -110,7 +110,7 @@ class Material(object):
     '''
     DFLT_DMIN = _angstroms(0.5)
 
-    def __init__(self, name=DFLT_NAME, cfgP=None, dmin=DFLT_DMIN):
+    def __init__(self, name=DFLT_NAME, cfgP=None, dmin=DFLT_DMIN, kev=DFLT_KEV):
         """Constructor for Material
 
         name -- (str) name of material
@@ -120,7 +120,7 @@ class Material(object):
         self.name = name
         self.description = ''
         self._dmin = dmin
-
+        self._beamEnergy = kev
         if(self._dmin.unit == 'angstrom'):
             # convert to nm
             uc_dmin = self._dmin.value * 0.1
@@ -130,14 +130,15 @@ class Material(object):
 
         if cfgP:
             # Get values from configuration
-            self._readCfg(cfgP)
+            #self._readCfg(cfgP)
+            self._hklMax = Material.DFLT_SSMAX
+            # self._beamEnergy = Material.DFLT_KEV
+            self._readHDFxtal(cfgP)
             pass
         else:
             # Use default values
             self._lparms = Material.DFLT_LPARMS
             self._hklMax = Material.DFLT_SSMAX
-            #
-            self._beamEnergy = Material.DFLT_KEV
             #
             self.description = ''
             #
@@ -375,18 +376,18 @@ class Material(object):
             lparms      = numpy.asarray(gid.get('LatticeParameters'), dtype=numpy.float64)
             lparms[0:3] = lparms[0:3] * 10.0
 
-        # fill space group and lattice parameters
-        self.sgnum      = sgnum
 
         self._lparms    = self._toSixLP(sgnum, lparms)
+        # fill space group and lattice parameters
+        self.sgnum      = sgnum
 
         # the last field in this is already the B factor, so no need to convert
         self._atominfo  = numpy.transpose(numpy.array(gid.get('AtomData'), dtype = numpy.float64))
 
         # read atom types (by atomic number, Z)
-        self._atomtypes = numpy.array(gid.get('Atomtypes'), dtype = numpy.int32)
-        self._atom_ntype = self._atomtypes.shape[0]
-
+        self._atomtype = numpy.array(gid.get('Atomtypes'), dtype = numpy.int32)
+        self._atom_ntype = self._atomtype.shape[0]
+        self._sgsetting = gid.get('SpaceGroupSetting')
 
     #
     # ============================== API
