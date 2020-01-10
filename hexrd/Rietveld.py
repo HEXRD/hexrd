@@ -15,22 +15,23 @@ class Rietveld:
 
     				1. Spectrum  		contains the experimental spectrum
     				2. Background  		contains the background extracted from spectrum
-    				3. Peak 			contains everything to characterize a peak
-    				4. Refine 			contains all the machinery for refinement
+    				3. Refine 			contains all the machinery for refinement
     	======================================================================================================== 
 		======================================================================================================== 
 	'''
 
-	def __init__(self, pdata, inp_spectrum, spec_tth_min, spec_tth_max):
+	def __init__(self, pdata, inp_spectrum, 
+				 spec_tth_min, spec_tth_max,
+				 snipw=8, numiter=2, deg=8):
 
 		'''
 			these contain the main refinement parameters for the rietveld code
 		'''
 
 		# Cagliotti parameters for the half width of the peak
-		self._U = 1.0e-3
-		self._V = 1.0e-3
-		self._W = 1.0e-3
+		self._U = 1.0e-4
+		self._V = 1.0e-4
+		self._W = 1.0e-4
 
 		# Pseudo-Voight mixing parameters
 		self._eta1 = 4.0e-1
@@ -46,15 +47,17 @@ class Rietveld:
 		self.S  = self.Spectrum(inp_spectrum, spec_tth_min, spec_tth_max)
 
 		# initialize the background class
-		self.B = self.Background(self.S.spec_arr, method='snip', snipw=8, numiter=2, deg=4)
+		self.B = self.Background(self.S.spec_arr, method='snip', 
+								 snipw=snipw, numiter=numiter, 
+								 deg=deg)
 
 		self.generate_tthlist()
 
-		# initialize the refine class
-		#self.Refine()
-
 		# initialize simulated spectrum
 		self.initialize_spectrum(pdata)
+
+		# initialize the refine class
+		#self.Refine()
 
 	def checkangle(ang, name):
 
@@ -316,7 +319,17 @@ class Rietveld:
 		def initialize_bkg(self, spec_arr):
 
 			if (self.method.lower() == 'snip'):
+				'''
+					the snip method usually produces a pretty decent background, but
+					it was observed that the estimated background has a small offset 
+					thus we will add a small offset back to the background generated 
+					here
+				'''
 				self.background = snip1d(spec_arr, w=self.snipw, numiter=self.snip_niter)
+				d 	= spec_arr - self.background
+				h 	= np.histogram(d, bins=spec_arr.shape[0])
+				off = h[1][np.argmax(h[0])+1]
+				self.background += off
 
 			elif (self.method.lower() == 'poly'):
 				self.background = polyfit(spec_arr, deg=self.deg)
