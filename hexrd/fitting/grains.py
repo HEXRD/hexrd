@@ -33,7 +33,7 @@ def fitGrain(gFull, instrument, reflections_dict,
     # FIXME: will currently fail if omePeriod is specifed
     if omePeriod is not None:
         # xyo_det[:, 2] = xf.mapAngle(xyo_det[:, 2], omePeriod)
-        raise(RuntimeError, "ome period must be specified")
+        raise RuntimeError
 
     gFit = gFull[gFlag]
 
@@ -102,7 +102,7 @@ def objFuncFitGrain(gFit, gFull, gFlag,
     calc_xy_dict = dict.fromkeys(instrument.detectors)
     meas_xyo_all = []
     det_keys_ordered = []
-    for det_key, panel in instrument.detectors.iteritems():
+    for det_key, panel in instrument.detectors.items():
         det_keys_ordered.append(det_key)
 
         rMat_d, tVec_d, chi, tVec_s = extract_detector_transformation(
