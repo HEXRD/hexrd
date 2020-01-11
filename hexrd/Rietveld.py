@@ -2,6 +2,7 @@ import numpy as np
 from hexrd import material
 import warnings
 from hexrd.imageutil import snip1d
+import statsmodels.api as sm
 
 class Rietveld:
 
@@ -28,6 +29,9 @@ class Rietveld:
 			these contain the main refinement parameters for the rietveld code
 		'''
 
+		# plane data
+		self._pdata = pdata
+
 		# Cagliotti parameters for the half width of the peak
 		self._U = 1.0e-4
 		self._V = 1.0e-4
@@ -44,17 +48,19 @@ class Rietveld:
 		self._Imax 	= 1.0
 
 		# initialize the spectrum class
-		self.S  = self.Spectrum(inp_spectrum, spec_tth_min, spec_tth_max)
+		self.Spectrum  = self.Spectrum(inp_spectrum, spec_tth_min, spec_tth_max,
+								method='snip', snipw=snipw, numiter=numiter, 
+								deg=deg)
 
 		# initialize the background class
-		self.B = self.Background(self.S.spec_arr, method='snip', 
-								 snipw=snipw, numiter=numiter, 
-								 deg=deg)
+		# self.B = self.Background(self.S.spec_arr, method='snip', 
+		# 						 snipw=snipw, numiter=numiter, 
+		# 						 deg=deg)
 
 		self.generate_tthlist()
 
 		# initialize simulated spectrum
-		self.initialize_spectrum(pdata)
+		self.initialize_spectrum()
 
 		# initialize the refine class
 		#self.Refine()
@@ -95,19 +101,18 @@ class Rietveld:
 	def SpecimenBroadening(self):
 		self.SB = np.sinc((self.tth_list - self.tth) / 2.0 / np.pi)
 
-	def initialize_spectrum(self, pdata):
+	def initialize_spectrum(self):
 
-		peak_tth 		= pdata.getTTh()
-		mask 			= (peak_tth < self.S.spec_tth_max) & (peak_tth > self.S.spec_tth_min)
+		peak_tth 		= self.pdata.getTTh()
+		mask 			= (peak_tth < self.Spectrum.spec_tth_max) & \
+						  (peak_tth > self.Spectrum.spec_tth_min)
 		peak_tth 		= peak_tth[mask]
 
-		if(self.S.ndim == 1):
-			self.spec_sim 	= np.zeros(self.S.nspec[0])
+		if(self.Spectrum.ndim == 1):
+			self.spec_sim 	= np.zeros(self.Spectrum.nspec[0])
 
-		elif(self.S.ndim == 2):
-			self.spec_sim 	= np.zeros(self.S.nspec[1])
-
-		self.spec_sim =  np.copy(self.B.background)
+		elif(self.Spectrum.ndim == 2):
+			self.spec_sim 	= np.zeros(self.Spectrum.nspec[1])
 
 		for tth in peak_tth:
 
@@ -118,16 +123,42 @@ class Rietveld:
 
 	def generate_tthlist(self):
 
-		tthmin = self.S.spec_tth_min
-		tthmax = self.S.spec_tth_max
+		tthmin = self.Spectrum.spec_tth_min
+		tthmax = self.Spectrum.spec_tth_max
 
-		if(self.S.ndim == 1):
-			nspec 	= self.S.nspec[0]
+		if(self.Spectrum.ndim == 1):
+			nspec 	= self.Spectrum.nspec[0]
 
-		elif(self.S.ndim == 2):
-			nspec 	= self.S.nspec[1]
+		elif(self.Spectrum.ndim == 2):
+			nspec 	= self.Spectrum.nspec[1]
 
 		self.tth_list = np.linspace(tthmin, tthmax, nspec)
+
+	'''
+		this is the function which evaluates the residual between 
+		simulated and experimental spectra. this is the objective
+		which needs to be minimized by the refine class. the input
+		is a vector of values for different parameters in the model.
+
+		@NOTE:
+		for now it is limited to the U,V,W and eta1, eta2, eta3 just 
+		for testing purpose
+
+	'''
+	def evalResidual(self, x0):
+
+		self.U = x0[0]
+		self.V = x0[1]
+		self.W = x0[2]
+
+		self.eta1 = x0[3]
+		self.eta2 = x0[4]
+		self.eta3 = x0[5]
+
+		# return residual as percent
+		residual = 100.0 * np.sum((self.spec_sim - self.Spectrum.spec_arr)**2) / \
+						   np.sum(self.Spectrum.spec_arr**2)
+		return residual
 
 	'''
 		all the properties for rietveld class
@@ -139,11 +170,8 @@ class Rietveld:
 	@U.setter
 	def U(self, Uinp):
 		self._U = Uinp
-		# self.CagliottiH()
-		# self.Gaussian()
-		# self.Lorentzian()
-		# self.PseudoVoight()
-		# return
+		self.initialize_spectrum()
+		return
 
 	@property
 	def V(self):
@@ -152,11 +180,8 @@ class Rietveld:
 	@V.setter
 	def V(self, Vinp):
 		self._V = Vinp
-		# self.CagliottiH()
-		# self.Gaussian()
-		# self.Lorentzian()
-		# self.PseudoVoight()
-		# return
+		self.initialize_spectrum()
+		return
 
 	@property
 	def W(self):
@@ -165,11 +190,8 @@ class Rietveld:
 	@W.setter
 	def W(self, Winp):
 		self._W = Winp
-		# self.CagliottiH()
-		# self.Gaussian()
-		# self.Lorentzian()
-		# self.PseudoVoight()
-		# return
+		self.initialize_spectrum()
+		return
 
 	@property
 	def eta1(self):
@@ -178,9 +200,8 @@ class Rietveld:
 	@eta1.setter
 	def eta1(self, val):
 		self._eta1 = val
-		# self.MixingFact()
-		# self.PseudoVoight()
-		# return
+		self.initialize_spectrum()
+		return
 
 	@property
 	def eta2(self):
@@ -189,9 +210,8 @@ class Rietveld:
 	@eta2.setter
 	def eta2(self, val):
 		self._eta2 = val
-		# self.MixingFact()
-		# self.PseudoVoight()
-		# return
+		self.initialize_spectrum()
+		return
 
 	@property
 	def eta3(self):
@@ -200,9 +220,8 @@ class Rietveld:
 	@eta3.setter
 	def eta3(self, val):
 		self._eta3 = val
-		# self.MixingFact()
-		# self.PseudoVoight()
-		# return
+		self.initialize_spectrum()
+		return
 
 	@property
 	def Imax(self):
@@ -212,27 +231,44 @@ class Rietveld:
 	def Imax(self, val):
 		self._Imax = val
 
+	@property
+	def pdata(self):
+		return self._pdata
+	
+	@pdata.setter
+	def pdata(self, inp_pdata):
+		self._pdata = inp_pdata
+		self.initialize_spectrum()
+
 	''' ======================================================================================================== 
 		======================================================================================================== 
 
 	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:     	01/08/2020 SS 1.0 original
+    				01/10/2020 SS 1.1 Background class absorbed in spectrum class
     >> @DETAILS:  	this is the spectrum class which takes in an input diffraction spectrum.
     				it could be either a 1d or 2d spectrum depending on the type of data.
     				the spectrum class will be a sub-class of the main Rietveld class
+
     	======================================================================================================== 
 		======================================================================================================== 
 	'''
 	class Spectrum:
 
-		def __init__(self, spectrum_arr, spec_tth_min, spec_tth_max):
+		def __init__(self, spectrum_arr, spec_tth_min, spec_tth_max,
+					method='snip', snipw=8, numiter=2, deg = 8):
 			
 			# make sure angles are in radians, otherwise throw warning
 			Rietveld.checkangle(spec_tth_min, 'spec_tth_min')
 			Rietveld.checkangle(spec_tth_max, 'spec_tth_max')
 
+			self._method 		= method
+			self._snipw 		= snipw
+			self._snip_niter 	= numiter
+			self._deg 			= deg
+
 			# fill value and check dimensionality. only 1d or 2d allowed
-			self._spec_arr 		= spectrum_arr
+			self.spec_arr 		= spectrum_arr
 
 			if(self.ndim > 2):
 				raise ValueError('incorrect number of dimensions in spectrum. \
@@ -241,6 +277,45 @@ class Rietveld:
 			# minimum and maximum angular range of the spectrum
 			self._spec_tth_min 	= spec_tth_min
 			self._spec_tth_max 	= spec_tth_max
+
+
+		def polyfit(self, spectrum, deg=4):
+			pass
+
+		def chebfit(self, spectrum, deg=4):
+			pass
+
+		def initialize_bkg(self):
+
+			if (self.method.lower() == 'snip'):
+				'''
+					the snip method usually produces a pretty decent background, but
+					it was observed that the estimated background has a small offset 
+					thus we will add a small offset back to the background generated 
+					here. this is done using a robust linear model
+				'''
+				background 			= snip1d(self.spec_arr, w=self.snipw, numiter=self.snip_niter)
+				self.background 	= background
+
+				# res 						= sm.RLM(spec_arr,background).fit()
+				# self.background 			= res.fittedvalues
+
+				# d 	= spec_arr - self.background
+				# h 	= np.histogram(d, bins=spec_arr.shape[0])
+				# off = h[1][np.argmax(h[0])+1]
+				# self.background += off
+
+			elif (self.method.lower() == 'poly'):
+				self._background = polyfit(spec_arr, deg=self.deg)
+
+			elif (self.method.lower() == 'cheb'):
+				self._background = chebfit(spec_arr, deg=self.deg)
+
+		def remove_bkg(self):
+
+			self._spec_arr_nbkg = self.spec_arr - self.background
+			mask = self._spec_arr_nbkg < 0.0
+			self._spec_arr_nbkg[mask] = 0.0
 
 		# define all properties of this class
 		@property
@@ -252,7 +327,18 @@ class Rietveld:
 			self._spec_arr 		= val
 			self._nspec 		= self._spec_arr.shape
 			self._ndim 			= self._spec_arr.ndim
-			Rietveld.Background.initialize_bkg()
+			self.initialize_bkg()
+			self.remove_bkg()
+
+		@property
+		def spec_arr_nbkg(self):
+			return self._spec_arr_nbkg
+
+		# @spec_arr.setter
+		# def spec_arr_nbkg(self, val):
+		# 	assert(val.ndim == self.ndim), "dimensionality not equal"
+		# 	assert(np.all(val.shape == self.nspec)), " number of dimensions do not match"
+		# 	self._spec_arr_nbkg = val
 
 		''' ndim can't be set, so will have no setter function 
 			ndim tells if the spectrum is 1-d, 2-d etc.
@@ -286,56 +372,6 @@ class Rietveld:
 		def spec_tth_max(self, val):
 			Rietveld.checkangle(val, 'spec_tth_max')
 			self._spec_tth_max = val
-		
-	''' ======================================================================================================== 
-		========================================================================================================
-
-	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-	>> @DATE:     	01/08/2020 SS 1.0 original
-	>> @DETAILS:  	this is the background class which takes the spectrum and calculates
-					the background using a variety of methods. default will be snip, but 
-					polynomial, chebyshev polynomials etc. are also implemented
-
-		======================================================================================================== 
-		========================================================================================================
-	'''
-	class Background:
-
-		def __init__(self, spec_arr, method='snip', snipw=8, numiter=2, deg=4):
-
-			self._method 		= method
-			self._snipw 		= snipw
-			self._snip_niter 	= numiter
-			self._deg 			= deg
-
-			self.initialize_bkg(spec_arr)
-			
-		def polyfit(self, spectrum, deg=4):
-			pass
-
-		def chebfit(self, spectrum, deg=4):
-			pass
-
-		def initialize_bkg(self, spec_arr):
-
-			if (self.method.lower() == 'snip'):
-				'''
-					the snip method usually produces a pretty decent background, but
-					it was observed that the estimated background has a small offset 
-					thus we will add a small offset back to the background generated 
-					here
-				'''
-				self.background = snip1d(spec_arr, w=self.snipw, numiter=self.snip_niter)
-				d 	= spec_arr - self.background
-				h 	= np.histogram(d, bins=spec_arr.shape[0])
-				off = h[1][np.argmax(h[0])+1]
-				self.background += off
-
-			elif (self.method.lower() == 'poly'):
-				self.background = polyfit(spec_arr, deg=self.deg)
-
-			elif (self.method.lower() == 'cheb'):
-				self.background = chebfit(spec_arr, deg=self.deg)
 
 		@property
 		def method(self):
@@ -389,6 +425,15 @@ class Rietveld:
 				self.initialize_bkg()
 		
 
+		@property
+		def background(self):
+			return self._background
+
+		@background.setter
+		def background(self, val):
+			assert(val.ndim == self.ndim), "dimensionality of background not equal to spectrum"
+			assert(np.all(val.shape == self.nspec)), " shape of background does not match background"
+			self._background = val
 
 	''' ======================================================================================================== 
 		========================================================================================================
