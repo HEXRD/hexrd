@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 import copy
 import logging
@@ -146,7 +146,7 @@ def execute(args, parser):
         logger.addHandler(fh)
 
         if args.profile:
-            import cProfile as profile, pstats, StringIO
+            import cProfile as profile, pstats, io
             pr = profile.Profile()
             pr.enable()
 
@@ -165,7 +165,7 @@ def execute(args, parser):
 
         if args.profile:
             pr.disable()
-            s = StringIO.StringIO()
+            s = io.StringIO()
             ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
             ps.print_stats(50)
             logger.info('%s', s.getvalue())
@@ -244,14 +244,14 @@ def get_data(cfg, show_progress=False, force=False, clean=False):
 
     # instrument and plane data from config
     # set planedata exclusions
-    plane_data = cfg.material.plane_data
+    pd = plane_data = cfg.material.plane_data
     tth_max = cfg.fit_grains.tth_max
     if tth_max is True:
         pd.exclusions = np.zeros_like(pd.exclusions, dtype=bool)
-        pd.exclusions = plane_data.getTTh() > cfg.instrument.hedm.max_tth()
+        pd.exclusions = pd.getTTh() > cfg.instrument.hedm.max_tth()
     elif tth_max > 0:
         pd.exclusions = np.zeros_like(pd.exclusions, dtype=bool)
-        pd.exclusions = plane_data.getTTh() >= np.radians(tth_max)
+        pd.exclusions = pd.getTTh() >= np.radians(tth_max)
 
     pkwargs = {
         'analysis_directory': cfg.analysis_dir,
@@ -385,7 +385,7 @@ class FitGrainsWorker(object):
         # handle panel buffer input fron cfg
         # !!! panel buffer setting is global and assumes same type of panel!
         pbuff_arr = np.array(self._p['panel_buffer'])
-        for det_key, panel in instr.detectors.iteritems():
+        for det_key, panel in instr.detectors.items():
             panel.panel_buffer = pbuff_arr
             self._imgsd[det_key] = OmegaImageSeries(imgser_dict[det_key])
         buff_str = str(pbuff_arr)
@@ -433,7 +433,7 @@ class FitGrainsWorker(object):
         """
         # !!! load resuts form spots
         spots_fname_dict = {}
-        for det_key in self._instr.detectors.iterkeys():
+        for det_key in self._instr.detectors.keys():
             spots_fname_dict[det_key] = os.path.join(
                 self._p['analysis_directory'],
                 os.path.join(
@@ -469,7 +469,7 @@ class FitGrainsWorker(object):
                         'overlap_table.npz'
                     )
                 )
-                for key in ot.keys():
+                for key in list(ot.keys()):
                     for this_table in ot[key]:
                         these_overlaps = np.where(
                             this_table[:, 0] == grain_id)[0]
