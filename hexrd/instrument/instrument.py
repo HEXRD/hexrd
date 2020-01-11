@@ -40,6 +40,7 @@ from scipy.linalg.matfuncs import logm
 from .beam import Beam
 from .oscillation_stage import OscillationStage
 from .detector import PlanarDetector
+from .io import PatchDataWriter
 
 from hexrd.gridutil import make_tolerance_grid
 from hexrd import matrixutil as mutil
@@ -237,7 +238,7 @@ class HEDMInstrument(object):
         # collect info from panels and append
         det_params = []
         det_flags = []
-        for detector in self._detectors.values():
+        for detector in list(self._detectors.values()):
             this_det_params = detector.calibration_parameters
             if self._tilt_calibration_mapping is not None:
                 rmat = makeRotMatOfExpMap(detector.tilt)
@@ -277,7 +278,7 @@ class HEDMInstrument(object):
     @property
     def detector_parameters(self):
         pdict = {}
-        for key, panel in self.detectors.items():
+        for key, panel in list(self.detectors.items()):
             pdict[key] = panel.config_dict(self.chi, self.tvec)
         return pdict
 
@@ -367,7 +368,7 @@ class HEDMInstrument(object):
         # collect info from panels and append
         det_params = []
         det_flags = []
-        for detector in self.detectors.values():
+        for detector in list(self.detectors.values()):
             this_det_params = detector.calibration_parameters
             if self.tilt_calibration_mapping is not None:
                 rmat = makeRotMatOfExpMap(detector.tilt)
@@ -433,8 +434,8 @@ class HEDMInstrument(object):
         )
         par_dict['oscillation_stage'] = ostage
 
-        det_dict = dict.fromkeys(self.detectors.keys())
-        for det_name, panel in self.detectors.items():
+        det_dict = dict.fromkeys(list(self.detectors.keys()))
+        for det_name, panel in list(self.detectors.items()):
             pdict = panel.config_dict(self.chi, self.tvec)
             det_dict[det_name] = pdict['detector']
         par_dict['detectors'] = det_dict
@@ -456,7 +457,7 @@ class HEDMInstrument(object):
         self.tvec = np.r_[p[4:7]]
 
         ii = 7
-        for det_name, detector in self.detectors.items():
+        for det_name, detector in list(self.detectors.items()):
             this_det_params = detector.calibration_parameters
             npd = len(this_det_params)  # total number of params
             dpnp = npd - 6  # number of distortion params
@@ -518,7 +519,7 @@ class HEDMInstrument(object):
 
         ring_maps_panel = dict.fromkeys(self.detectors)
         for i_d, det_key in enumerate(self.detectors):
-            print("working on detector '%s'..." % det_key)
+            print(("working on detector '%s'..." % det_key))
 
             # grab panel
             panel = self.detectors[det_key]
@@ -550,7 +551,7 @@ class HEDMInstrument(object):
 
             ring_maps = []
             for i_r, tthr in enumerate(tth_ranges):
-                print("working on ring %d..." % i_r)
+                print(("working on ring %d..." % i_r))
                 # ???: faster to index with bool or use np.where,
                 # or recode in numba?
                 rtth_idx = np.where(
@@ -658,7 +659,7 @@ class HEDMInstrument(object):
         # =====================================================================
         panel_data = dict.fromkeys(self.detectors)
         for i_det, detector_id in enumerate(self.detectors):
-            print("working on detector '%s'..." % detector_id)
+            print(("working on detector '%s'..." % detector_id))
             # pbar.update(i_det + 1)
             # grab panel
             panel = self.detectors[detector_id]
@@ -683,7 +684,7 @@ class HEDMInstrument(object):
             # =================================================================
             ring_data = []
             for i_ring, these_data in enumerate(zip(pow_angs, pow_xys)):
-                print("working on 2theta bin (ring) %d..." % i_ring)
+                print(("working on 2theta bin (ring) %d..." % i_ring))
 
                 # points are already checked to fall on detector
                 angs = these_data[0]
@@ -769,7 +770,7 @@ class HEDMInstrument(object):
         TODO: revisit output; dict, or concatenated list?
         """
         results = dict.fromkeys(self.detectors)
-        for det_key, panel in self.detectors.items():
+        for det_key, panel in list(self.detectors.items()):
             results[det_key] = panel.simulate_laue_pattern(
                 crystal_data,
                 minEnergy=minEnergy, maxEnergy=maxEnergy,
@@ -787,7 +788,7 @@ class HEDMInstrument(object):
         TODO: revisit output; dict, or concatenated list?
         """
         results = dict.fromkeys(self.detectors)
-        for det_key, panel in self.detectors.items():
+        for det_key, panel in list(self.detectors.items()):
             results[det_key] = panel.simulate_rotation_series(
                 plane_data, grain_param_list,
                 eta_ranges=eta_ranges,
@@ -820,7 +821,8 @@ class HEDMInstrument(object):
         #
         # WARNING: all imageseries AND all wedges within are assumed to have
         # the same omega values; put in a check that they are all the same???
-        (det_key, oims0), = imgser_dict.items()
+        dkey = list(imgser_dict.keys())[0]
+        oims0 = imgser_dict[dkey]
         ome_ranges = [np.radians([i['ostart'], i['ostop']])
                       for i in oims0.omegawedges.wedges]
 
@@ -1049,7 +1051,7 @@ class HEDMInstrument(object):
                             else:
                                 msg = "interpolation option " + \
                                     "'%s' not understood"
-                                raise(RuntimeError, msg % interp)
+                                raise RuntimeError
 
                             # now have interpolated patch data...
                             labels, num_peaks = ndimage.label(
