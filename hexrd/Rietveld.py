@@ -2,7 +2,6 @@ import numpy as np
 from hexrd import material
 import warnings
 from hexrd.imageutil import snip1d
-import statsmodels.api as sm
 
 class Rietveld:
 
@@ -156,8 +155,8 @@ class Rietveld:
 		self.eta3 = x0[5]
 
 		# return residual as percent
-		residual = 100.0 * np.sum((self.spec_sim - self.Spectrum.spec_arr)**2) / \
-						   np.sum(self.Spectrum.spec_arr**2)
+		residual = 100.0 * np.sum((self.spec_sim - self.Spectrum.spec_arr_nbkg)**2) / \
+						   np.sum(self.Spectrum.spec_arr_nbkg**2)
 		return residual
 
 	'''
