@@ -960,7 +960,7 @@ def extract_detector_transformation(detector_params):
     """    # extract variables for convenience
     if isinstance(detector_params, dict):
         rMat_d = xfcapi.makeRotMatOfExpMap(
-            detector_params['detector']['transform']['tilt']
+            np.array(detector_params['detector']['transform']['tilt'])
             )
         tVec_d = np.r_[detector_params['detector']['transform']['translation']]
         chi = detector_params['oscillation_stage']['chi']

@@ -17,6 +17,10 @@ return_value_flag = None
 epsf = np.finfo(float).eps  # ~2.2e-16
 sqrt_epsf = np.sqrt(epsf)  # ~1.5e-8
 
+bVec_ref = xfcapi.bVec_ref
+eta_ref = xfcapi.eta_ref
+vInv_ref = np.r_[1., 1., 1., 0., 0., 0.]
+
 
 # for grain parameters
 gFlag_ref = np.ones(12, dtype=bool)
@@ -32,7 +36,7 @@ def fitGrain(gFull, instrument, reflections_dict,
     """
     # FIXME: will currently fail if omePeriod is specifed
     if omePeriod is not None:
-        # xyo_det[:, 2] = xf.mapAngle(xyo_det[:, 2], omePeriod)
+        # xyo_det[:, 2] = xfcapi.mapAngle(xyo_det[:, 2], omePeriod)
         raise RuntimeError
 
     gFit = gFull[gFlag]
@@ -210,7 +214,7 @@ def objFuncFitGrain(gFit, gFull, gFlag,
         # return residual vector
         # IDEA: try angles instead of xys?
         diff_vecs_xy = calc_xy_all - meas_xyo_all[:, :2]
-        diff_ome = xf.angularDifference(calc_omes_all, meas_xyo_all[:, 2])
+        diff_ome = xfcapi.angularDifference(calc_omes_all, meas_xyo_all[:, 2])
         retval = np.hstack([diff_vecs_xy,
                             diff_ome.reshape(npts, 1)
                             ]).flatten()
@@ -227,3 +231,45 @@ def objFuncFitGrain(gFit, gFull, gFlag,
                 nu_fac = 1.
             retval = nu_fac * sum(retval**2)
     return retval
+
+
+def matchOmegas(xyo_det, hkls_idx, chi, rMat_c, bMat, wavelength,
+                vInv=vInv_ref, beamVec=bVec_ref, etaVec=eta_ref,
+                omePeriod=None):
+    """
+    For a given list of (x, y, ome) points, outputs the index into the results
+    from oscillAnglesOfHKLs, including the calculated omega values.
+    """
+    # get omegas for rMat_s calculation
+    if omePeriod is not None:
+        meas_omes = xfcapi.mapAngle(xyo_det[:, 2], omePeriod)
+    else:
+        meas_omes = xyo_det[:, 2]
+
+    oangs0, oangs1 = xfcapi.oscillAnglesOfHKLs(
+            hkls_idx.T, chi, rMat_c, bMat, wavelength,
+            vInv=vInv,
+            beamVec=beamVec,
+            etaVec=etaVec)
+    if np.any(np.isnan(oangs0)):
+        # debugging
+        # TODO: remove this
+        import pdb
+        pdb.set_trace()
+        nanIdx = np.where(np.isnan(oangs0[:, 0]))[0]
+        errorString = "Infeasible parameters for hkls:\n"
+        for i in range(len(nanIdx)):
+            errorString += "%d  %d  %d\n" % tuple(hkls_idx[:, nanIdx[i]])
+        raise RuntimeError(errorString)
+    else:
+        # CAPI version gives vstacked angles... must be (2, nhkls)
+        calc_omes = np.vstack([oangs0[:, 2], oangs1[:, 2]])
+    if omePeriod is not None:
+        calc_omes = np.vstack([xfcapi.mapAngle(oangs0[:, 2], omePeriod),
+                               xfcapi.mapAngle(oangs1[:, 2], omePeriod)])
+    # do angular difference
+    diff_omes = xfcapi.angularDifference(np.tile(meas_omes, (2, 1)), calc_omes)
+    match_omes = np.argsort(diff_omes, axis=0) == 0
+    calc_omes = calc_omes.T.flatten()[match_omes.T.flatten()]
+
+    return match_omes, calc_omes
