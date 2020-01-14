@@ -2,6 +2,9 @@ import numpy as np
 from hexrd import material
 import warnings
 from hexrd.imageutil import snip1d
+from scipy.optimize import minimize, Bounds
+import matplotlib.pyplot as plt
+from scipy.interpolate import CubicSpline
 
 class Rietveld:
 
@@ -22,7 +25,8 @@ class Rietveld:
 
 	def __init__(self, pdata, inp_spectrum, 
 				 spec_tth_min, spec_tth_max,
-				 snipw=8, numiter=2, deg=8):
+				 bkgmethod='spline', snipw=8, 
+				 numiter=2, deg=8):
 
 		'''
 			these contain the main refinement parameters for the rietveld code
@@ -48,21 +52,20 @@ class Rietveld:
 
 		# initialize the spectrum class
 		self.Spectrum  = self.Spectrum(inp_spectrum, spec_tth_min, spec_tth_max,
-								method='snip', snipw=snipw, numiter=numiter, 
+								method=bkgmethod, snipw=snipw, numiter=numiter, 
 								deg=deg)
-
-		# initialize the background class
-		# self.B = self.Background(self.S.spec_arr, method='snip', 
-		# 						 snipw=snipw, numiter=numiter, 
-		# 						 deg=deg)
 
 		self.generate_tthlist()
 
 		# initialize simulated spectrum
 		self.initialize_spectrum()
 
+		x0 		= np.asarray([self.U,self.V,self.W,self.eta1,self.eta2,self.eta3])
+		bounds 	= Bounds([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], \
+						 [1e-2, 1e-2, 1e-2, 1.0, 1.0, 1.0]) 
+
 		# initialize the refine class
-		#self.Refine()
+		self.Optimize = self.Refine(x0, bounds)
 
 	def checkangle(ang, name):
 
@@ -158,6 +161,21 @@ class Rietveld:
 		residual = 100.0 * np.sum((self.spec_sim - self.Spectrum.spec_arr_nbkg)**2) / \
 						   np.sum(self.Spectrum.spec_arr_nbkg**2)
 		return residual
+
+	def fit(self):
+
+		res = minimize(self.evalResidual, self.Optimize.x0, \
+					   method=self.Optimize.method, \
+					   options=self.Optimize.options, \
+					   bounds = self.Optimize.bounds)
+
+		print(res.message+'\t'+'[ Exit status '+str(res.status)+' ]')
+		print('\t minimum function value: '+str(res.fun))
+		print('\t iterations: '+str(res.nit))
+		print('\t function evaluations: '+str(res.nfev))
+		print('\t gradient evaluations: '+str(res.njev))
+		print('\t optimum values of parameters: '+str(res.x))
+		return res
 
 	'''
 		all the properties for rietveld class
@@ -266,6 +284,18 @@ class Rietveld:
 			self._snip_niter 	= numiter
 			self._deg 			= deg
 
+			# minimum and maximum angular range of the spectrum
+			self._spec_tth_min 	= spec_tth_min
+			self._spec_tth_max 	= spec_tth_max
+
+			if(spectrum_arr.ndim == 1):
+				nspec 	= spectrum_arr.shape[0]
+
+			elif(spectrum_arr.ndim == 2):
+				nspec 	= spectrum_arr.shape[1]
+
+			self.tth_list = np.linspace(spec_tth_min, spec_tth_max, nspec)
+
 			# fill value and check dimensionality. only 1d or 2d allowed
 			self.spec_arr 		= spectrum_arr
 
@@ -273,13 +303,11 @@ class Rietveld:
 				raise ValueError('incorrect number of dimensions in spectrum. \
 								  should be 1d or 2d')
 
-			# minimum and maximum angular range of the spectrum
-			self._spec_tth_min 	= spec_tth_min
-			self._spec_tth_max 	= spec_tth_max
 
-
-		def polyfit(self, spectrum, deg=4):
-			pass
+		# cubic spline fit of background using custom points chosen from plot
+		def splinefit(self, x, y):
+			cs = CubicSpline(x,y)
+			self.background = cs(self.tth_list)
 
 		def chebfit(self, spectrum, deg=4):
 			pass
@@ -296,19 +324,26 @@ class Rietveld:
 				background 			= snip1d(self.spec_arr, w=self.snipw, numiter=self.snip_niter)
 				self.background 	= background
 
-				# res 						= sm.RLM(spec_arr,background).fit()
-				# self.background 			= res.fittedvalues
+			elif (self.method.lower() == 'spline'):
+				'''
+					the cubic spline seems to be the ideal route in terms
+					of determining the background intensity. this involves 
+					selecting a small (~5) number of points from the spectrum,
+					usually called the anchor points. a cubic spline interpolation
+					is performed on this subset to estimate the overall background.
+					scipy provides some useful routines for this
+				'''
+				self.selectpoints()
+				x = self.points[:,0]
+				y = self.points[:,1]
 
-				# d 	= spec_arr - self.background
-				# h 	= np.histogram(d, bins=spec_arr.shape[0])
-				# off = h[1][np.argmax(h[0])+1]
-				# self.background += off
+				self.splinefit(x, y)
 
 			elif (self.method.lower() == 'poly'):
-				self._background = polyfit(spec_arr, deg=self.deg)
+				self.background = polyfit(spec_arr, deg=self.deg)
 
 			elif (self.method.lower() == 'cheb'):
-				self._background = chebfit(spec_arr, deg=self.deg)
+				self.background = chebfit(spec_arr, deg=self.deg)
 
 		def remove_bkg(self):
 
@@ -316,6 +351,17 @@ class Rietveld:
 			mask = self._spec_arr_nbkg < 0.0
 			self._spec_arr_nbkg[mask] = 0.0
 
+		def selectpoints(self):
+
+			fig = plt.figure()
+			ax = fig.add_subplot(111)
+			ax.set_title('Select 5 points for background estimation')
+
+			line, = ax.plot(self.tth_list, self.spec_arr, '-b', picker=5)  # 5 points tolerance
+			plt.show()
+
+			self.points = np.asarray(plt.ginput(5,timeout=-1, show_clicks=True))			
+			plt.close()
 		# define all properties of this class
 		@property
 		def spec_arr(self):
@@ -433,7 +479,7 @@ class Rietveld:
 			assert(val.ndim == self.ndim), "dimensionality of background not equal to spectrum"
 			assert(np.all(val.shape == self.nspec)), " shape of background does not match background"
 			self._background = val
-
+			self.remove_bkg()
 	''' ======================================================================================================== 
 		========================================================================================================
 
@@ -572,7 +618,18 @@ class Rietveld:
 		======================================================================================================== 
 		========================================================================================================
 	'''
-	class Refine:
 
-		def __init__(self):
-			pass
+	class Refine:
+		'''
+			set up the minimization class
+		'''
+		def __init__(self,x0,bounds,method='SLSQP',ftol=1e-9,disp=False):
+
+			self.bounds 		= bounds
+			self.x0 			= x0
+
+			self.method 		= 'SLSQP'
+			self.ftol 			= 1e-9
+			self.disp 			= False
+			self.options 		= {'ftol':self.ftol, \
+								   'disp':self.disp}
