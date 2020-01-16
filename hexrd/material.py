@@ -158,7 +158,7 @@ class Material(object):
                                              self._beamEnergy.value,
                                              sgsetting=self._sgsetting
                                              )
-        hkls = self.planeData.getHKLs(allHKLs=True)
+        hkls = self.planeData.getHKLs()
         sf = numpy.zeros([hkls.shape[0],])
         for i,g in enumerate(hkls):
             sf[i] = self.unitcell.CalcXRSF(g)
