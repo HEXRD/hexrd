@@ -238,7 +238,9 @@ class Material(object):
         '''
         tth = numpy.array([hkldata['tTheta'] for hkldata in self._pData.hklDataList])
 
-        dflt_excl = ~( (tth >= 0.0) & (tth <= numpy.pi/2.0) )
+        dflt_excl = numpy.ones(tth.shape,dtype=numpy.bool)
+        dflt_excl[~numpy.isnan(tth)] = ~( (tth[~numpy.isnan(tth)] >= 0.0) & \
+                                     (tth[~numpy.isnan(tth)] <= numpy.pi/2.0) )
         self._pData.exclusions = dflt_excl
 
         return
@@ -321,9 +323,14 @@ class Material(object):
         for key in lpkey:
             lparams.append(cifdata[key])
 
+        for i in range(6):
+                if(i < 3):
+                    lparms[i] = _angstroms(lparms[i]*10.0)
+                else:
+                    lparms[i] = _degrees(lparms[i])
 
         self.sgnum   = sgnum
-        self._lparms = self._toSixLP(sgnum, lparams)
+        self._lparms = lparms
 
         # fractional atomic site, occ and vibration amplitude
         fracsitekey = ['_atom_site_fract_x', '_atom_site_fract_y',\

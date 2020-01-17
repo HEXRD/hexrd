@@ -22,10 +22,12 @@ class Rietveld:
 		======================================================================================================== 
 	'''
 
-	def __init__(self, pdata_tuple, inp_spectrum, 
+	def __init__(self, pdatalist, inp_spectrum, 
 				 spec_tth_min, spec_tth_max,
-				 bkgmethod='spline', snipw=8, 
-				 numiter=2, deg=8, parms_to_refine={}):
+				 bkgmethod='spline',
+				 optmethod='SLSQP', 
+				 parms_to_refine={},
+				 snipw=8, numiter=2, deg=8):
 
 		'''
 			these contain the main refinement parameters for the rietveld code
@@ -38,12 +40,13 @@ class Rietveld:
 		'''
 
 		# plane data
-		self._pdata = pdata_tuple
+		self._pdata 	= pdatalist
+		self._phasefrac = np.array( [1.0/len(pdatalist)] * len(pdatalist) )
 
 		# Cagliotti parameters for the half width of the peak
-		self._U = 1.0e-3
-		self._V = 1.0e-3
-		self._W = 1.0e-3
+		self._U = 1.0e-4
+		self._V = 1.0e-4
+		self._W = 1.0e-4
 
 		# Pseudo-Voight mixing parameters
 		self._eta1 = 4.0e-1
@@ -62,7 +65,6 @@ class Rietveld:
 			...
 			etc.
 		'''
-		self.initialize_Imax()
 
 		self.parms_to_refine = parms_to_refine
 
@@ -77,7 +79,8 @@ class Rietveld:
 		self.initialize_spectrum()  
 
 		# initialize the refine class
-		self.Optimize = self.Refine(self.refine_dict)
+		self.Optimize = self.Refine(self.refine_dict, 
+									method=optmethod)
 
 	def checkangle(ang, name):
 
@@ -120,7 +123,7 @@ class Rietveld:
 		self.sf = []
 		for pdata in self.pdata:
 			sf 			= pdata.get_structFact()
-			self.sf.append(sf)
+			self.sf.append(sf[self.nanmask])
 
 	def initialize_Imax(self):
 
@@ -131,8 +134,7 @@ class Rietveld:
 
 			m 			= pdata.getMultiplicity() 
 			m 			= m.astype(np.float64)
-			Imax 		= self.sf[i] * m
-			Imax 		= Imax / np.amax(Imax)
+			Imax 		= self.sf[i] * m[self.nanmask]
 			self.Imax.append(Imax)
 
 	def initialize_spectrum(self):
@@ -146,11 +148,18 @@ class Rietveld:
 		for i,pdata in enumerate(self.pdata):
 
 			peak_tth 		= pdata.getTTh()
+			self.nanmask 	= ~np.isnan(peak_tth)
+			peak_tth 		= peak_tth[self.nanmask]
+			
+			self.initialize_Imax()
+
 			mask 			= (peak_tth < self.Spectrum.spec_tth_max) & \
 							  (peak_tth > self.Spectrum.spec_tth_min)
 			peak_tth 		= peak_tth[mask]
 
 			Imax 			= self.Imax[i][mask]
+
+			pf 				= self.phasefrac[i]
 
 			for j in np.arange(peak_tth.shape[0]):
 
@@ -159,7 +168,9 @@ class Rietveld:
 				self.CagliottiH(tth)
 				self.MixingFact(tth)
 				self.PseudoVoight(tth)
-				self.spec_sim += I * self.PV
+				self.spec_sim += I * pf * self.PV
+
+		self.spec_sim = self.spec_sim / np.amax(self.spec_sim)
 
 	def generate_tthlist(self):
 
@@ -188,6 +199,13 @@ class Rietveld:
 	def evalResidual(self, x0):
 
 		ctr = 0
+		if(self.refine_dict['lparms'][0]):
+			for i, pdata in enumerate(self.pdata):
+				lp = x0[np.sum(self.nlp[ctr:i+1]):np.sum(self.nlp[ctr:i+2])]
+				ctr += np.sum(self.nlp[ctr:i+1])
+				pdata.set_lparms(lp)
+				self.initialize_spectrum()
+
 		if(self.refine_dict['cagliotti'][0]):
 			self.U = x0[ctr]
 			self.V = x0[ctr+1]
@@ -199,9 +217,6 @@ class Rietveld:
 			self.eta2 = x0[ctr+1]
 			self.eta3 = x0[ctr+2]
 			ctr += 3
-
-		if(self.refine_dict['lparms'][0]):
-			pass
 
 		if(self.refine_dict['specimenbroad'][0]):
 			pass
@@ -232,9 +247,18 @@ class Rietveld:
 		''' 
 			initial values of all the refinable parameters
 		'''
+		self.nlp = [0]
+		for pdata in self.pdata:
+			self.nlp.append(len(pdata.get_lparms()))
+
+		self.nlp = np.asarray(self.nlp)
+
+		x0_lparms = np.zeros([np.sum(self.nlp),])
+		for i, pdata in enumerate(self.pdata):
+			x0_lparms[np.sum(self.nlp[0:i+1]):np.sum(self.nlp[0:i+2])] 	= pdata.get_lparms()
+
 		x0_cag 		= np.array([self.U, self.V, self.W]) 
 		x0_eta 		= np.array([self.eta1, self.eta2, self.eta3])
-		x0_lparms 	= np.array([])
 		x0_sb 		= np.array([])
 		x0_strain 	= np.array([])
 		x0_tex 		= np.array([])
@@ -243,24 +267,29 @@ class Rietveld:
 			bounds for all refinable parameters
 		'''
 		bounds_cag 		= Bounds(np.array([0.0, 0.0, 0.0]),np.array([1e-2, 1e-2, 1e-2]))
-		bounds_eta 		= Bounds(np.array([0.0, 0.0, 0.0]),np.array([1e-2, 1e-2, 1e-2]))
-		bounds_lparms 	= Bounds(np.array([]),np.array([]))
+		bounds_eta 		= Bounds(np.array([0.0, 0.0, 0.0]),np.array([1., 1., 1.]))
+
+		# lattice parameters in +/- 10% of guess value
+		lp_lb 			= 0.9 * x0_lparms 
+		lp_ub 			= 1.1 * x0_lparms
+		bounds_lparms 	= Bounds(lp_lb, lp_ub)
+
 		bounds_sb 		= Bounds(np.array([]),np.array([]))
 		bounds_strain 	= Bounds(np.array([]),np.array([]))
 		bounds_tex 		= Bounds(np.array([]),np.array([]))
 
 
 		if (self.parms_to_refine == {}):
-			refine_dict = { 'cagliotti' : [True, x0_cag, bounds_cag],
-							'eta' : [True, x0_eta, bounds_eta], 
-							'lparms' : [True, x0_lparms, bounds_lparms], 
+			refine_dict = { 'lparms' : [True, x0_lparms, bounds_lparms],
+							'cagliotti' : [True, x0_cag, bounds_cag],
+							'eta' : [True, x0_eta, bounds_eta],  
 							'specimenbroad' : [True, x0_sb, bounds_sb], 
 							'strain' : [True, x0_strain, bounds_strain], 
 							'texture' : [True, x0_tex, bounds_tex] }
 		else:
-			refine_dict = { 'cagliotti' : [False, x0_cag, bounds_cag], 
+			refine_dict = { 'lparms' : [False, x0_lparms, bounds_lparms],
+							'cagliotti' : [False, x0_cag, bounds_cag], 
 							'eta' : [False, x0_eta, bounds_eta], 
-							'lparms' : [False, x0_lparms, bounds_lparms], 
 							'specimenbroad' : [False, x0_sb, bounds_sb], 
 							'strain' : [False, x0_strain, bounds_strain], 
 							'texture' : [False, x0_tex, bounds_tex]
@@ -278,10 +307,10 @@ class Rietveld:
 					   	bounds = self.Optimize.bounds)
 
 		print(res.message+'\t'+'[ Exit status '+str(res.status)+' ]')
-		print('\t minimum function value: '+str(res.fun))
-		print('\t iterations: '+str(res.nit))
-		print('\t function evaluations: '+str(res.nfev))
-		print('\t gradient evaluations: '+str(res.njev))
+		# print('\t minimum function value: '+str(res.fun))
+		# print('\t iterations: '+str(res.nit))
+		# print('\t function evaluations: '+str(res.nfev))
+		# print('\t gradient evaluations: '+str(res.njev))
 		print('\t optimum values of parameters: '+str(res.x))
 
 		self.initialize_refinedict()
@@ -290,6 +319,15 @@ class Rietveld:
 	'''
 		all the properties for rietveld class
 	'''
+	@property
+	def phasefrac(self):
+		return self._phasefrac
+	
+	@phasefrac.setter
+	def phasefrac(self,val):
+		assert(val.shape[0] == len(self._pdata)), "incorrect number of entries in phase fraction array"
+		self.initialize_spectrum()
+
 	@property
 	def U(self):
 		return self._U
@@ -358,6 +396,7 @@ class Rietveld:
 	def Imax(self, val):
 		self._Imax = val
 
+
 	@property
 	def pdata(self):
 		return self._pdata
@@ -365,7 +404,6 @@ class Rietveld:
 	@pdata.setter
 	def pdata(self, inp_pdata):
 		self._pdata = inp_pdata
-		self.initialize_Imax()
 		self.initialize_spectrum()
 
 	@property
@@ -480,6 +518,7 @@ class Rietveld:
 		def remove_bkg(self):
 
 			self._spec_arr_nbkg = self.spec_arr - self.background
+			self._spec_arr_nbkg = self._spec_arr_nbkg / np.amax(np.abs(self._spec_arr_nbkg))
 
 		def selectpoints(self):
 
@@ -628,7 +667,7 @@ class Rietveld:
 			'''
 				initialize the class
 			'''
-			self.method 		= 'SLSQP'
+			self.method 		= method
 			self.ftol 			= 1e-9
 			self.disp 			= False
 			self.options 		= {'ftol':self.ftol, \

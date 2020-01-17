@@ -238,16 +238,33 @@ def latticePlanes(hkls, lparms,
     aconv = 1.
     if outputDegrees:
         aconv = r2d
+
     # two thetas
-    tth = aconv * 2 * np.arcsin(wlen / 2 / d)
+    sth  = wlen / 2. / d
+    mask = (np.abs(sth) < 1.)
+    tth = np.zeros(sth.shape)
+
+    tth[~mask] = np.nan
+    tth[mask]  = aconv * 2. * np.arcsin(sth[mask])
+
 
     p = dict(normals=unitVector(G),
              dspacings=d,
              tThetas=tth)
 
     if strainMag is not None:
-        p['tThetasLo'] = aconv * 2 * np.arcsin(wlen/2./(d*(1. + strainMag)))
-        p['tThetasHi'] = aconv * 2 * np.arcsin(wlen/2./(d*(1. - strainMag)))
+
+      p['tThetasLo'] = np.zeros(sth.shape)
+      p['tThetasHi'] = np.zeros(sth.shape)
+
+      mask = ( ( np.abs(wlen / 2. / (d * (1. + strainMag))) < 1.) & 
+               ( np.abs(wlen / 2. / (d * (1. - strainMag))) < 1.0 ) )
+
+      p['tThetasLo'][~mask] = np.nan
+      p['tThetasHi'][~mask] = np.nan
+
+      p['tThetasLo'][mask] = aconv * 2 * np.arcsin(wlen/2./(d[mask]*(1. + strainMag)))
+      p['tThetasHi'][mask] = aconv * 2 * np.arcsin(wlen/2./(d[mask]*(1. - strainMag)))
 
     return p
 
