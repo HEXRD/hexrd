@@ -22,7 +22,7 @@ class Rietveld:
 		======================================================================================================== 
 	'''
 
-	def __init__(self, pdata, inp_spectrum, 
+	def __init__(self, pdata_tuple, inp_spectrum, 
 				 spec_tth_min, spec_tth_max,
 				 bkgmethod='spline', snipw=8, 
 				 numiter=2, deg=8, parms_to_refine={}):
@@ -38,7 +38,7 @@ class Rietveld:
 		'''
 
 		# plane data
-		self._pdata = pdata
+		self._pdata = pdata_tuple
 
 		# Cagliotti parameters for the half width of the peak
 		self._U = 1.0e-3
@@ -116,22 +116,26 @@ class Rietveld:
 		self.SB = np.sinc((self.tth_list - self.tth) / 2.0 / np.pi)
 
 	def initialize_sf(self):
-		sf 			= self.pdata.get_structFact()
-		self.sf 	= sf / np.amax(sf)
+
+		self.sf = []
+		for pdata in self.pdata:
+			sf 			= pdata.get_structFact()
+			self.sf.append(sf)
 
 	def initialize_Imax(self):
 
+		self.Imax = []
 		self.initialize_sf()
-		self._Imax = self.sf
+
+		for i,pdata in enumerate(self.pdata):
+
+			m 			= pdata.getMultiplicity() 
+			m 			= m.astype(np.float64)
+			Imax 		= self.sf[i] * m
+			Imax 		= Imax / np.amax(Imax)
+			self.Imax.append(Imax)
 
 	def initialize_spectrum(self):
-
-		peak_tth 		= self.pdata.getTTh()
-		mask 			= (peak_tth < self.Spectrum.spec_tth_max) & \
-						  (peak_tth > self.Spectrum.spec_tth_min)
-		peak_tth 		= peak_tth[mask]
-
-		Imax 			= self.Imax[mask]
 
 		if(self.Spectrum.ndim == 1):
 			self.spec_sim 	= np.zeros(self.Spectrum.nspec[0])
@@ -139,14 +143,23 @@ class Rietveld:
 		elif(self.Spectrum.ndim == 2):
 			self.spec_sim 	= np.zeros(self.Spectrum.nspec[1])
 
-		for i in np.arange(peak_tth.shape[0]):
+		for i,pdata in enumerate(self.pdata):
 
-			tth = peak_tth[i]
-			I 	= Imax[i]
-			self.CagliottiH(tth)
-			self.MixingFact(tth)
-			self.PseudoVoight(tth)
-			self.spec_sim += I * self.PV
+			peak_tth 		= pdata.getTTh()
+			mask 			= (peak_tth < self.Spectrum.spec_tth_max) & \
+							  (peak_tth > self.Spectrum.spec_tth_min)
+			peak_tth 		= peak_tth[mask]
+
+			Imax 			= self.Imax[i][mask]
+
+			for j in np.arange(peak_tth.shape[0]):
+
+				tth = peak_tth[j]
+				I 	= Imax[j]
+				self.CagliottiH(tth)
+				self.MixingFact(tth)
+				self.PseudoVoight(tth)
+				self.spec_sim += I * self.PV
 
 	def generate_tthlist(self):
 
@@ -352,9 +365,8 @@ class Rietveld:
 	@pdata.setter
 	def pdata(self, inp_pdata):
 		self._pdata = inp_pdata
-		self.initialize_spectrum()
-		self.initialize_sf()
 		self.initialize_Imax()
+		self.initialize_spectrum()
 
 	@property
 	def parms_to_refine(self):

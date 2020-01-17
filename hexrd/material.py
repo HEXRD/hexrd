@@ -158,12 +158,12 @@ class Material(object):
                                              self._beamEnergy.value,
                                              sgsetting=self._sgsetting
                                              )
-        hkls = self.planeData.getHKLs()
+        hkls = self.planeData.getHKLs(allHKLs=True)
         sf = numpy.zeros([hkls.shape[0],])
         for i,g in enumerate(hkls):
             sf[i] = self.unitcell.CalcXRSF(g)
 
-        self.planeData.set_structFact(sf)
+        self.planeData.set_structFact(sf[~self.planeData.exclusions])
 
         nsym  = self.unitcell.cell.sg.sym_matnum
         sgsym = self.unitcell.cell.sg.sym_data[0:nsym,:,:]
@@ -232,12 +232,13 @@ class Material(object):
         self._pData = PData(hkls, lprm, laue,
                             self._beamEnergy, Material.DFLT_STR,
                             tThWidth=Material.DFLT_TTH)
-        #
-        #  Set default exclusions
-        #
-        dflt_excl = numpy.array(
-            [1 for i in range(len(self._pData.exclusions))], dtype=bool)
-        dflt_excl[:5] = False
+        '''
+          Set default exclusions
+          all reflections with two-theta smaller than 90 degrees
+        '''
+        tth = numpy.array([hkldata['tTheta'] for hkldata in self._pData.hklDataList])
+
+        dflt_excl = ~( (tth >= 0.0) & (tth <= numpy.pi/2.0) )
         self._pData.exclusions = dflt_excl
 
         return
@@ -373,11 +374,16 @@ class Material(object):
                 need to be careful and convert it right here, so there is no
                 confusion later on
             """
-            lparms      = numpy.asarray(gid.get('LatticeParameters'), dtype=numpy.float64)
-            lparms[0:3] = lparms[0:3] * 10.0
+            lparms      = list(gid.get('LatticeParameters'))
 
+            for i in range(6):
+                if(i < 3):
+                    lparms[i] = _angstroms(lparms[i]*10.0)
+                else:
+                    lparms[i] = _degrees(lparms[i])
 
-        self._lparms    = self._toSixLP(sgnum, lparms)
+        self._lparms    = lparms
+        #self._lparms    = self._toSixLP(sgnum, lparms)
         # fill space group and lattice parameters
         self.sgnum      = sgnum
 
