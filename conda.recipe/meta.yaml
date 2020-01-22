@@ -17,9 +17,11 @@ requirements:
 
   run:
     - h5py
-    - scipy
     - numba
+    - numpy
+    - scipy
     - scikit-image
+    - scikit-learn
 
 test:
   imports:
