@@ -19,6 +19,7 @@ requirements:
     - h5py
     - numba
     - numpy
+    - pyyaml
     - scipy
     - scikit-image
     - scikit-learn
