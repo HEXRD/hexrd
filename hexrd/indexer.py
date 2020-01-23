@@ -260,7 +260,7 @@ def paintGrid(quats, etaOmeMaps,
         }
 
     # do the mapping
-    start = timeit.time()
+    start = timeit.default_timer()
     retval = None
     if multiProcMode:
         # multiple process version
@@ -273,7 +273,7 @@ def paintGrid(quats, etaOmeMaps,
         paintgrid_init(params)    # sets paramMP
         retval = list(map(paintGridThis, quats.T))
         paramMP = None    # clear paramMP
-    elapsed = (timeit.time() - start)
+    elapsed = (timeit.default_timer() - start)
     logger.info("paintGrid took %.3f seconds", elapsed)
 
     return retval

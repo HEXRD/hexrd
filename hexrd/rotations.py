@@ -29,11 +29,11 @@
 # Module containing functions relevant to rotations
 #
 import sys
-import time
+import timeit
 import numpy as np
 
 from numpy import \
-     arange, arctan2, array, asarray, atleast_1d, average, \
+     arange, arctan2, array, argmax, asarray, atleast_1d, average, \
      ndarray, diag, zeros, \
      cross, dot, pi, arccos, arcsin, cos, sin, sqrt, \
      sort, tile, vstack, hstack, c_, ix_, \
@@ -71,6 +71,12 @@ axes_orders = [
     'yxy', 'yzy',
     'zxz', 'zyz',
 ]
+
+sq3by2 = sqrt(3.)/2.
+piby2 = pi/2.
+piby3 = pi/3.
+piby4 = pi/4.
+piby6 = pi/6.
 
 # =============================================================================
 # Functions
@@ -596,9 +602,28 @@ rotMatOfExpMap = rotMatOfExpMap_opt
 
 def rotMatOfQuat(quat):
     """
+    Convert quaternions to rotation matrices.
+
     Take an array of n quats (numpy ndarray, 4 x n) and generate an
     array of rotation matrices (n x 3 x 3)
 
+    Parameters
+    ----------
+    quat : TYPE
+        DESCRIPTION.
+
+    Raises
+    ------
+    RuntimeError
+        DESCRIPTION.
+
+    Returns
+    -------
+    rmat : TYPE
+        DESCRIPTION.
+
+    Notes
+    -----
     Uses the truncated series expansion for the exponential map;
     didvide-by-zero is checked using the global 'cnst.epsf'
     """
@@ -656,16 +681,32 @@ def rotMatOfQuat(quat):
 
 def angleAxisOfRotMat(R):
     """
+    Extract angle and axis invariants from a rotation matrix.
+
+    Parameters
+    ----------
+    R : TYPE
+        DESCRIPTION.
+
+    Raises
+    ------
+    RuntimeError
+        DESCRIPTION.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
     """
     if not isinstance(R, ndarray):
         raise RuntimeError('Input must be a 2 or 3-d ndarray')
     else:
         rdim = R.ndim
         if rdim == 2:
-            nrot = 1
             R = tile(R, (1, 1, 1))
         elif rdim == 3:
-            nrot = R.shape[0]
+            pass
         else:
             raise RuntimeError(
                 "R array must be (3, 3) or (n, 3, 3); input has dimension %d"
@@ -747,8 +788,25 @@ def _check_is_rmat(x):
 
 def make_rmat_euler(tilt_angles, axes_order, extrinsic=True):
     """
+    Generate rotation matrix from Euler angles.
+
     extrinsic (PASSIVE) or intrinsic (ACTIVE) by kw
     tilt_angles are in RADIANS
+
+    Parameters
+    ----------
+    tilt_angles : TYPE
+        DESCRIPTION.
+    axes_order : TYPE
+        DESCRIPTION.
+    extrinsic : TYPE, optional
+        DESCRIPTION. The default is True.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
     """
     axes = np.eye(3)
     axes_dict = dict(x=0, y=1, z=2)
@@ -777,8 +835,22 @@ def make_rmat_euler(tilt_angles, axes_order, extrinsic=True):
 
 def angles_from_rmat_xyz(rmat):
     """
-    calculate x-y-z euler angles from a rotation matrix in
-    the PASSIVE convention
+    Calculate passive x-y-z Euler angles from a rotation matrix.
+
+    Parameters
+    ----------
+    rmat : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    rx : TYPE
+        DESCRIPTION.
+    ry : TYPE
+        DESCRIPTION.
+    rz : TYPE
+        DESCRIPTION.
+
     """
     rmat = _check_is_rmat(rmat)
 
@@ -797,12 +869,25 @@ def angles_from_rmat_xyz(rmat):
             rx = rz
     return rx, ry, rz
 
+
 def angles_from_rmat_zxz(rmat):
     """
-    calculate z-x-z euler angles from a rotation matrix in
-    the ACTIVE convention
+    Calculate active z-x-z Euler angles from a rotation matrix.
 
-    alpha, beta, gamma
+    Parameters
+    ----------
+    rmat : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    alpha : TYPE
+        DESCRIPTION.
+    beta : TYPE
+        DESCRIPTION.
+    gamma : TYPE
+        DESCRIPTION.
+
     """
     rmat = _check_is_rmat(rmat)
 
@@ -901,6 +986,31 @@ class RotMatEuler(object):
 
 def distanceToFiber(c, s, q, qsym, **kwargs):
     """
+    Calculate symmetrically reduced distance to orientation fiber.
+
+    Parameters
+    ----------
+    c : TYPE
+        DESCRIPTION.
+    s : TYPE
+        DESCRIPTION.
+    q : TYPE
+        DESCRIPTION.
+    qsym : TYPE
+        DESCRIPTION.
+    **kwargs : TYPE
+        DESCRIPTION.
+
+    Raises
+    ------
+    RuntimeError
+        DESCRIPTION.
+
+    Returns
+    -------
+    d : TYPE
+        DESCRIPTION.
+
     """
     csymFlag = False
     B = I3
@@ -952,10 +1062,38 @@ def distanceToFiber(c, s, q, qsym, **kwargs):
 
 def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
     """
-    """
-    import symmetry as S
+    Generate symmetrically reduced discrete orientation fiber.
 
-    ztol = 1.e-8
+    Parameters
+    ----------
+    c : TYPE
+        DESCRIPTION.
+    s : TYPE
+        DESCRIPTION.
+    B : TYPE, optional
+        DESCRIPTION. The default is I3.
+    ndiv : TYPE, optional
+        DESCRIPTION. The default is 120.
+    invert : TYPE, optional
+        DESCRIPTION. The default is False.
+    csym : TYPE, optional
+        DESCRIPTION. The default is None.
+    ssym : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Raises
+    ------
+    RuntimeError
+        DESCRIPTION.
+
+    Returns
+    -------
+    retval : TYPE
+        DESCRIPTION.
+
+    """
+
+    ztol = cnst.sqrt_epsf
 
     # arg handling for c
     if hasattr(c, '__len__'):
@@ -1040,9 +1178,13 @@ def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
             q0
         ).transpose(2, 1, 0)
         if csym is not None:
-            retval.append(S.toFundamentalRegion(qfib.squeeze(),
-                                                crysSym=csym,
-                                                sampSym=ssym))
+            retval.append(
+                toFundamentalRegion(
+                    qfib.squeeze(),
+                    crysSym=csym,
+                    sampSym=ssym
+                )
+            )
         else:
             retval.append(fixQuat(qfib).squeeze())
     return retval
@@ -1148,7 +1290,7 @@ angularDifference = angularDifference_opt
 
 def applySym(vec, qsym, csFlag=False, cullPM=False, tol=1e-8):
     """
-    apply symmetry group to a single 3-vector (columnar) argument
+    Apply symmetry group to a single 3-vector (columnar) argument.
 
     csFlag : centrosymmetry flag
     cullPM : cull +/- flag
@@ -1169,6 +1311,332 @@ def applySym(vec, qsym, csFlag=False, cullPM=False, tol=1e-8):
 
 
 # =============================================================================
+# Symmetry functions
+# =============================================================================
+
+
+def toFundamentalRegion(q, crysSym='Oh', sampSym=None):
+    """
+    Map quaternions to fundamental region.
+
+    Parameters
+    ----------
+    q : TYPE
+        DESCRIPTION.
+    crysSym : TYPE, optional
+        DESCRIPTION. The default is 'Oh'.
+    sampSym : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Raises
+    ------
+    NotImplementedError
+        DESCRIPTION.
+
+    Returns
+    -------
+    qr : TYPE
+        DESCRIPTION.
+    """
+    qdims = q.ndim
+    if qdims == 3:
+        l3, m3, n3 = q.shape
+        assert m3 == 4, 'your 3-d quaternion array isn\'t the right shape'
+        q = q.transpose(0, 2, 1).reshape(l3*n3, 4).T
+    if isinstance(crysSym, str):
+        qsym_c = quatProductMatrix(
+            quatOfLaueGroup(crysSym), 'right'
+        )  # crystal symmetry operator
+    else:
+        qsym_c = quatProductMatrix(crysSym, 'right')
+
+    n = q.shape[1]              # total number of quats
+    m = qsym_c.shape[0]         # number of symmetry operations
+
+    #
+    # MAKE EQUIVALENCE CLASS
+    #
+    # Do R * Gc, store as
+    # [q[:, 0] * Gc[:, 0:m], ..., 2[:, n-1] * Gc[:, 0:m]]
+    qeqv = dot(qsym_c, q).transpose(2, 0, 1).reshape(m*n, 4).T
+
+    if sampSym is None:
+        # need to fix quats to sort
+        qeqv = fixQuat(qeqv)
+
+        # Reshape scalar comp columnwise by point in qeqv
+        q0 = qeqv[0, :].reshape(n, m).T
+
+        # Find q0 closest to origin for each n equivalence classes
+        q0maxColInd = argmax(q0, 0) + [x*m for x in range(n)]
+
+        # store representatives in qr
+        qr = qeqv[:, q0maxColInd]
+    else:
+        if isinstance(sampSym, str):
+            qsym_s = quatProductMatrix(
+                quatOfLaueGroup(sampSym), 'left'
+            )  # sample symmetry operator
+        else:
+            qsym_s = quatProductMatrix(sampSym, 'left')
+
+        p = qsym_s.shape[0]         # number of sample symmetry operations
+
+        # Do Gs * (R * Gc), store as
+        # [Gs[:, 0:p] * q[:,   0] * Gc[:, 0], ... , Gs[:, 0:p] * q[:,   0] * Gc[:, m-1], ...
+        #  Gs[:, 0:p] * q[:, n-1] * Gc[:, 0], ... , Gs[:, 0:p] * q[:, n-1] * Gc[:, m-1]]
+        qeqv = fixQuat(
+            dot(qsym_s, qeqv).transpose(2, 0, 1).reshape(p*m*n, 4).T
+        )
+
+        raise NotImplementedError
+
+    # debug
+    assert qr.shape[1] == n, 'oops, something wrong here with your reshaping'
+
+    if qdims == 3:
+        qr = qr.T.reshape(l3, n3, 4).transpose(0, 2, 1)
+
+    return qr
+
+
+def ltypeOfLaueGroup(tag):
+    """
+    Yield lattice type of input tag.
+
+    Parameters
+    ----------
+    tag : TYPE
+        DESCRIPTION.
+
+    Raises
+    ------
+    RuntimeError
+        DESCRIPTION.
+
+    Returns
+    -------
+    ltype : TYPE
+        DESCRIPTION.
+
+    """
+    if not isinstance(tag, str):
+        raise RuntimeError("entered flag is not a string!")
+
+    if tag.lower() == 'ci' or tag.lower() == 's2':
+        ltype = 'triclinic'
+    elif tag.lower() == 'c2h':
+        ltype = 'monoclinic'
+    elif tag.lower() == 'd2h' or tag.lower() == 'vh':
+        ltype = 'orthorhombic'
+    elif tag.lower() == 'c4h' or tag.lower() == 'd4h':
+        ltype = 'tetragonal'
+    elif tag.lower() == 'c3i' or tag.lower() == 's6' or tag.lower() == 'd3d':
+        ltype = 'trigonal'
+    elif tag.lower() == 'c6h' or tag.lower() == 'd6h':
+        ltype = 'hexagonal'
+    elif tag.lower() == 'th' or tag.lower() == 'oh':
+        ltype = 'cubic'
+    else:
+        raise RuntimeError(
+            "unrecognized symmetry group.  "
+            + "See ''help(quatOfLaueGroup)'' for a list of valid options.  "
+            + "Oh, and have a great day ;-)"
+        )
+
+    return ltype
+
+
+def quatOfLaueGroup(tag):
+    """
+    Return quaternion representation of requested symmetry group.
+
+    Parameters
+    ----------
+    tag : str
+        A case-insensitive string representing the Schoenflies symbol for the
+        desired Laue group.  The 14 available choices are:
+
+              Class           Symbol      N
+             -------------------------------
+              Triclinic       Ci (S2)     1
+              Monoclinic      C2h         2
+              Orthorhombic    D2h (Vh)    4
+              Tetragonal      C4h         4
+                              D4h         8
+              Trigonal        C3i (S6)    3
+                              D3d         6
+              Hexagonal       C6h         6
+                              D6h         12
+              Cubic           Th          12
+                              Oh          24
+
+    Raises
+    ------
+    RuntimeError
+        For invalid symmetry group tag.
+
+    Returns
+    -------
+    qsym : (4, N) ndarray
+        the quaterions associated with each element of the chosen symmetry
+        group having n elements (dep. on group -- see INPUTS list above).
+
+    Notes
+    -----
+    The conventions used for assigning a RHON basis, {x1, x2, x3}, to each
+    point group are consistent with those published in Appendix B of [1]_.
+
+    References
+    ----------
+    [1] Nye, J. F., ``Physical Properties of Crystals: Their
+    Representation by Tensors and Matrices'', Oxford University Press,
+    1985. ISBN 0198511655
+    """
+    if not isinstance(tag, str):
+        raise RuntimeError("entered flag is not a string!")
+
+    if tag.lower() == 'ci' or tag.lower() == 's2':
+        # TRICLINIC
+        angleAxis = vstack([0., 1., 0., 0.])  # identity
+    elif tag.lower() == 'c2h':
+        # MONOCLINIC
+        angleAxis = c_[
+            [0.,   1,   0,   0],  # identity
+            [pi,   0,   1,   0],  # twofold about 010 (x2)
+            ]
+    elif tag.lower() == 'd2h' or tag.lower() == 'vh':
+        # ORTHORHOMBIC
+        angleAxis = c_[
+            [0.,   1,   0,   0],  # identity
+            [pi,   1,   0,   0],  # twofold about 100
+            [pi,   0,   1,   0],  # twofold about 010
+            [pi,   0,   0,   1],  # twofold about 001
+            ]
+    elif tag.lower() == 'c4h':
+        # TETRAGONAL (LOW)
+        angleAxis = c_[
+            [0.0,       1,    0,    0],  # identity
+            [piby2,     0,    0,    1],  # fourfold about 001 (x3)
+            [pi,        0,    0,    1],  #
+            [piby2*3,   0,    0,    1],  #
+            ]
+    elif tag.lower() == 'd4h':
+        # TETRAGONAL (HIGH)
+        angleAxis = c_[
+            [0.0,       1,    0,    0],  # identity
+            [piby2,     0,    0,    1],  # fourfold about 0  0  1 (x3)
+            [pi,        0,    0,    1],  #
+            [piby2*3,   0,    0,    1],  #
+            [pi,        1,    0,    0],  # twofold about  1  0  0 (x1)
+            [pi,        0,    1,    0],  # twofold about  0  1  0 (x2)
+            [pi,        1,    1,    0],  # twofold about  1  1  0
+            [pi,       -1,    1,    0],  # twofold about -1  1  0
+            ]
+    elif tag.lower() == 'c3i' or tag.lower() == 's6':
+        # TRIGONAL (LOW)
+        angleAxis = c_[
+            [0.0,       1,    0,    0],  # identity
+            [piby3*2,   0,    0,    1],  # threefold about 0001 (x3,c)
+            [piby3*4,   0,    0,    1],  #
+            ]
+    elif tag.lower() == 'd3d':
+        # TRIGONAL (HIGH)
+        angleAxis = c_[
+            [0.0,       1,     0,    0],  # identity
+            [piby3*2,   0,     0,    1],  # threefold about 0001 (x3,c)
+            [piby3*4,   0,     0,    1],  #
+            [pi,        1,     0,    0],  # twofold about  2 -1 -1  0 (x1,a1)
+            [pi,       -0.5,   sq3by2,  0],  # twofold about -1  2 -1  0 (a2)
+            [pi,       -0.5,  -sq3by2,  0],  # twofold about -1 -1  2  0 (a3)
+            ]
+    elif tag.lower() == 'c6h':
+        # HEXAGONAL (LOW)
+        angleAxis = c_[
+            [0.0,       1,     0,    0],  # identity
+            [piby3,     0,     0,    1],  # sixfold about 0001 (x3,c)
+            [piby3*2,   0,     0,    1],  #
+            [pi,        0,     0,    1],  #
+            [piby3*4,   0,     0,    1],  #
+            [piby3*5,   0,     0,    1],  #
+            ]
+    elif tag.lower() == 'd6h':
+        # HEXAGONAL (HIGH)
+        angleAxis = c_[
+            [0.0,       1,       0,       0],  # identity
+            [piby3,     0,       0,       1],  # sixfold about  0  0  1 (x3,c)
+            [piby3*2,   0,       0,       1],  #
+            [pi,        0,       0,       1],  #
+            [piby3*4,   0,       0,       1],  #
+            [piby3*5,   0,       0,       1],  #
+            [pi,        1,       0,       0],  # twofold about  2 -1  0 (x1,a1)
+            [pi,       -0.5,     sq3by2,  0],  # twofold about -1  2  0 (a2)
+            [pi,       -0.5,    -sq3by2,  0],  # twofold about -1 -1  0 (a3)
+            [pi,        sq3by2,  0.5,     0],  # twofold about  1  0  0
+            [pi,        0,       1,       0],  # twofold about -1  1  0 (x2)
+            [pi,       -sq3by2,  0.5,     0],  # twofold about  0 -1  0
+            ]
+    elif tag.lower() == 'th':
+        # CUBIC (LOW)
+        angleAxis = c_[
+            [0.0,       1,    0,    0],  # identity
+            [pi,        1,    0,    0],  # twofold about    1  0  0 (x1)
+            [pi,        0,    1,    0],  # twofold about    0  1  0 (x2)
+            [pi,        0,    0,    1],  # twofold about    0  0  1 (x3)
+            [piby3*2,   1,    1,    1],  # threefold about  1  1  1
+            [piby3*4,   1,    1,    1],  #
+            [piby3*2,  -1,    1,    1],  # threefold about -1  1  1
+            [piby3*4,  -1,    1,    1],  #
+            [piby3*2,  -1,   -1,    1],  # threefold about -1 -1  1
+            [piby3*4,  -1,   -1,    1],  #
+            [piby3*2,   1,   -1,    1],  # threefold about  1 -1  1
+            [piby3*4,   1,   -1,    1],  #
+            ]
+    elif tag.lower() == 'oh':
+        # CUBIC (HIGH)
+        angleAxis = c_[
+            [0.0,       1,    0,    0],  # identity
+            [piby2,     1,    0,    0],  # fourfold about   1  0  0 (x1)
+            [pi,        1,    0,    0],  #
+            [piby2*3,   1,    0,    0],  #
+            [piby2,     0,    1,    0],  # fourfold about   0  1  0 (x2)
+            [pi,        0,    1,    0],  #
+            [piby2*3,   0,    1,    0],  #
+            [piby2,     0,    0,    1],  # fourfold about   0  0  1 (x3)
+            [pi,        0,    0,    1],  #
+            [piby2*3,   0,    0,    1],  #
+            [piby3*2,   1,    1,    1],  # threefold about  1  1  1
+            [piby3*4,   1,    1,    1],  #
+            [piby3*2,  -1,    1,    1],  # threefold about -1  1  1
+            [piby3*4,  -1,    1,    1],  #
+            [piby3*2,  -1,   -1,    1],  # threefold about -1 -1  1
+            [piby3*4,  -1,   -1,    1],  #
+            [piby3*2,   1,   -1,    1],  # threefold about  1 -1  1
+            [piby3*4,   1,   -1,    1],  #
+            [pi,        1,    1,    0],  # twofold about    1  1  0
+            [pi,       -1,    1,    0],  # twofold about   -1  1  0
+            [pi,        1,    0,    1],  # twofold about    1  0  1
+            [pi,        0,    1,    1],  # twofold about    0  1  1
+            [pi,       -1,    0,    1],  # twofold about   -1  0  1
+            [pi,        0,   -1,    1],  # twofold about    0 -1  1
+            ]
+    else:
+        raise RuntimeError(
+            "unrecognized symmetry group.  "
+            + "See ``help(quatOfLaueGroup)'' for a list of valid options.  "
+            + "Oh, and have a great day ;-)"
+        )
+
+    angle = angleAxis[0, ]
+    axis = angleAxis[1:, ]
+
+    #  Note: Axis does not need to be normalized in call to quatOfAngleAxis
+    #  05/01/2014 JVB -- made output a contiguous C-ordered array
+    qsym = array(quatOfAngleAxis(angle, axis).T, order='C').T
+
+    return qsym
+
+# =============================================================================
 # Tests
 # =============================================================================
 
@@ -1178,8 +1646,7 @@ def printTestName(num, name):
 
 
 def testRotMatOfExpMap(numpts):
-    """Test rotation matrix from axial vector"""
-
+    """Test rotation matrix from axial vector."""
     print('* checking case of 1D vector input')
     map = np.zeros(3)
     rmat_1 = rotMatOfExpMap_orig(map)
@@ -1193,13 +1660,13 @@ def testRotMatOfExpMap(numpts):
     #
     print('* testing rotMatOfExpMap with %d random points' % numPts)
     #
-    t0 = time.clock()
+    t0 = timeit.default_timer()
     rmat_1 = rotMatOfExpMap_orig(map)
-    et1 = time.clock() - t0
+    et1 = timeit.default_timer() - t0
     #
-    t0 = time.clock()
+    t0 = timeit.default_timer()
     rmat_2 = rotMatOfExpMap_opt(map)
-    et2 = time.clock() - t0
+    et2 = timeit.default_timer() - t0
     #
     print('   timings:\n   ... original ', et1)
     print('   ... optimized', et2)
@@ -1211,7 +1678,6 @@ def testRotMatOfExpMap(numpts):
     return
 
 
-# FIXME: DeprecationWarning on time.clock
 if __name__ == '__main__':
     #
     #  Simple tests.
@@ -1233,13 +1699,13 @@ if __name__ == '__main__':
     a2 = 2*np.pi * np.random.rand(3, numPts) - np.pi
     print('* testing %s with %d random points' % (name, numPts))
     #
-    t0 = time.clock()
+    t0 = timeit.default_timer()
     d1 = angularDifference_orig(a1, a2)
-    et1 = time.clock() - t0
+    et1 = timeit.default_timer() - t0
     #
-    t0 = time.clock()
+    t0 = timeit.default_timer()
     d2 = angularDifference_opt(a1, a2)
-    et2 = time.clock() - t0
+    et2 = timeit.default_timer() - t0
     #
     print('   timings:\n   ... original ', et1)
     print('   ... optimized', et2)
