@@ -40,6 +40,7 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
     start = timeit.default_timer()
 
     eta_ome = get_eta_ome(cfg)
+
     qfib = generate_orientation_fibers(
         eta_ome, hedm.chi, on_map_threshold,
         fiber_seeds, fiber_ndiv,

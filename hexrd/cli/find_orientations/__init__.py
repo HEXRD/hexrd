@@ -18,7 +18,7 @@ def configure_parser(sub_parsers):
 
     p.add_argument(
         'yml', type=str,
-        help='YAML configuration file'
+        help="YAML configuration file; add :<n> to filename to select n'th doc"
         )
     p.add_argument(
         '-q', '--quiet', action='store_true',
@@ -77,7 +77,10 @@ def execute(args, parser):
     logger.info('=== begin find-orientations ===')
 
     # load the configuration settings
-    cfg = config.open(args.yml)[0]
+    yinfo = args.yml.split(':', 1)
+    yname = yinfo[0]
+    ydoc = 0 if len(yinfo) == 1 else int(yinfo[1])
+    cfg = config.open(yname)[ydoc]
 
     # ...make this an attribute in cfg?
     analysis_id = '%s_%s' % (

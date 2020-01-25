@@ -29,7 +29,6 @@ logger = logging.getLogger('hexrd')
 # ==================== Hardwired options
 # maps options
 clobber_maps = False
-show_maps = False
 
 # ==================== Functions
 
