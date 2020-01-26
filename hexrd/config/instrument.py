@@ -7,6 +7,23 @@ from hexrd import instrument
 from hexrd import distortion
 from .config import Config
 
+# Defaults
+class Dflt:
+    nrows = 2048
+    ncols = 2048
+    pixel_size = (0.2, 0.2)
+
+    # property:  translation
+
+    @property
+    def translation(self):
+        """(get-only) default translation"""
+        return np.r_[0., 0., -1000.]
+
+    @property
+    def tilt(self):
+        return np.zeros(3)
+
 
 class Instrument(Config):
     # Note: instrument is instantiated with a yaml dictionary; use self
@@ -48,13 +65,6 @@ class Detector(Config):
 
     BASEKEY = 'detectors'
 
-    nrows_DFLT = 2048
-    ncols_DFLT = 2048
-    pixel_size_DFLT = (0.2, 0.2)
-
-    tilt_angles_DFLT = np.zeros(3)
-    t_vec_d_DFLT = np.r_[0., 0., -1000.]
-
     def __init__(self, cfg, id):
         """Detector with given ID string"""
         super(Detector, self).__init__(cfg)
@@ -69,7 +79,7 @@ class Detector(Config):
             rows=self._pixel_rows,
             cols=self._pixel_cols,
             pixel_size=self._pixel_size,
-            tvec=self._transform_tvec,
+            tvec=self._translation,
             tilt=self._tilt,
             beam=beam,
             evec=self._eta_vec,
@@ -78,27 +88,29 @@ class Detector(Config):
     # ========== Input Values
     @property
     def _pixel_rows(self):
-        return self.get('pixels:rows', default=self.nrows_DFLT)
+        return self.get('pixels:rows', default=Dflt.nrows)
 
     @property
     def _pixel_cols(self):
-        return self.get('pixels:columns', default=self.ncols_DFLT)
+        return self.get('pixels:columns', default=Dflt.ncols)
 
     @property
     def _pixel_size(self):
-        return self.get('pixels:pixel_size', default=self.pixel_size_DFLT)
+        return self.get('pixels:pixel_size', default=Dflt.pixel_size)
 
     @property
-    def _transform_tvec(self):
-        return self.get('transform:t_vec_d', default=self.t_vec_d_DFLT)
+    def _translation(self):
+        trans = self.get('transform:translation', default=Dflt.translation)
+        return np.array(trans)
 
     @property
     def _tilt(self):
-        return self.get('transform:tilt_angles', default=self.tilt_angles_DFLT)
+        tilt = self.get('transform:tilt', default=Dflt.tilt)
+        return np.array(tilt)
 
     @property
     def _eta_vec(self):
-        return self.get('eta_vec', default=constants.eta_vec)
+        return self.get('eta_vec', default=constants.eta_vec.copy())
 
     @property
     def _dparams(self):
