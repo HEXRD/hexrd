@@ -809,8 +809,58 @@ class HEDMInstrument(object):
                    quiet=True, check_only=False,
                    interp='nearest'):
         """
-        Exctract reflection info from a rotation series encoded as an
-        OmegaImageseries object
+        Exctract reflection info from a rotation series encoded as a dict of
+        OmegaImageseries objects.
+
+        Parameters
+        ----------
+        plane_data : TYPE
+            DESCRIPTION.
+        grain_params : TYPE
+            DESCRIPTION.
+        imgser_dict : TYPE
+            DESCRIPTION.
+        tth_tol : TYPE, optional
+            DESCRIPTION. The default is 0.25.
+        eta_tol : TYPE, optional
+            DESCRIPTION. The default is 1..
+        ome_tol : TYPE, optional
+            DESCRIPTION. The default is 1..
+        npdiv : TYPE, optional
+            DESCRIPTION. The default is 2.
+        threshold : TYPE, optional
+            DESCRIPTION. The default is 10.
+        eta_ranges : TYPE, optional
+            DESCRIPTION. The default is [(-np.pi, np.pi), ].
+        ome_period : TYPE, optional
+            DESCRIPTION. The default is (-np.pi, np.pi).
+        dirname : TYPE, optional
+            DESCRIPTION. The default is 'results'.
+        filename : TYPE, optional
+            DESCRIPTION. The default is None.
+        output_format : TYPE, optional
+            DESCRIPTION. The default is 'text'.
+        save_spot_list : TYPE, optional
+            DESCRIPTION. The default is False.
+        quiet : TYPE, optional
+            DESCRIPTION. The default is True.
+        check_only : TYPE, optional
+            DESCRIPTION. The default is False.
+        interp : TYPE, optional
+            DESCRIPTION. The default is 'nearest'.
+
+        Raises
+        ------
+        RuntimeError
+            DESCRIPTION.
+
+        Returns
+        -------
+        compl : TYPE
+            DESCRIPTION.
+        output : TYPE
+            DESCRIPTION.
+
         """
 
         # grain parameters
