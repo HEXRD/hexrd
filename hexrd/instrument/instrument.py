@@ -346,7 +346,7 @@ class HEDMInstrument(object):
     def calibration_parameters(self):
         # grab angles from beam vec
         # !!! these are in DEGREES!
-        azim, pola = calc_angles_from_beam_vec(self.beam_vector)
+        azim, pola = self.beam.angles
 
         # stack instrument level parameters
         # units: keV, degrees, mm
@@ -408,7 +408,7 @@ class HEDMInstrument(object):
 
         par_dict['id'] = self.id
 
-        azim, pola = calc_angles_from_beam_vec(self.beam_vector)
+        azim, pola = self.beam.angles
         beam = dict(
             energy=self.beam_energy,
             vector=dict(
@@ -445,7 +445,7 @@ class HEDMInstrument(object):
         !!! Note that angles are reported in DEGREES!
         """
         self.beam_energy = p[0]
-        self.beam_vector = calc_beam_vec(p[1], p[2])
+        self.beam_vector = self.beam.calc_beam_vec(p[1], p[2])
         self.chi = np.radians(p[3])
         self.tvec = np.r_[p[4:7]]
 

@@ -257,6 +257,11 @@ def unwrap_dict_to_h5(grp, d, asattr=True):
             if asattr:
                 grp.attrs.create(key, item)
             else:
+                data = np.atleast_1d(item)
+                try:
+                    grp.create_dataset(key, data=data)
+                except(TypeError):
+                    grp.create_dataset(key, data=str(data[0]))
                 grp.create_dataset(key, data=np.atleast_1d(item))
 
 
