@@ -40,7 +40,7 @@ from scipy.linalg.matfuncs import logm
 from .beam import Beam
 from .oscillation_stage import OscillationStage
 from .detector import PlanarDetector
-from .io import PatchDataWriter
+from .io import PatchDataWriter, GrainDataWriter, GrainDataWriter_h5
 
 from hexrd.gridutil import make_tolerance_grid
 from hexrd import matrixutil as mutil
