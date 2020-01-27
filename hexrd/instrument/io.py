@@ -1,5 +1,6 @@
 """Utilities for output"""
 from io import IOBase
+import os
 
 import h5py
 import numpy as np
@@ -138,7 +139,10 @@ class GrainDataWriter_h5(object):
         if isinstance(filename, h5py.File):
             self.fid = filename
         else:
-            self.fid = h5py.File(filename + ".hdf5", "w")
+            newfile = filename + ".hdf5"
+            self.fid = h5py.File(, "w")
+            if os.path.exists(newfile):
+                    raise(OSError("file not found: check path"))
         icfg = {}
         icfg.update(instr_cfg)
 
@@ -254,3 +258,8 @@ def unwrap_dict_to_h5(grp, d, asattr=True):
                 grp.attrs.create(key, item)
             else:
                 grp.create_dataset(key, data=np.atleast_1d(item))
+
+
+def centers_of_edge_vec(edges):
+    assert np.r_[edges].ndim == 1, "edges must be 1-d"
+    return np.average(np.vstack([edges[:-1], edges[1:]]), axis=0)
