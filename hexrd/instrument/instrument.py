@@ -159,13 +159,6 @@ def angle_in_range(angle, ranges, ccw=True, units='degrees'):
             break
     return w
 
-
-# ???: move to gridutil?
-def centers_of_edge_vec(edges):
-    assert np.r_[edges].ndim == 1, "edges must be 1-d"
-    return np.average(np.vstack([edges[:-1], edges[1:]]), axis=0)
-
-
 # =============================================================================
 # CLASSES
 # =============================================================================
