@@ -389,7 +389,7 @@ class FitGrainsWorker(object):
             panel.panel_buffer = pbuff_arr
             self._imgsd[det_key] = OmegaImageSeries(imgser_dict[det_key])
         buff_str = str(pbuff_arr)
-        # logger.info("\tset panel buffer for %s to: %s", det_key, buff_str)
+        logger.info("\tset panel buffer for %s to: %s", det_key, buff_str)
         self._instr = instr
 
         # lets make a couple shortcuts:

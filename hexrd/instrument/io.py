@@ -140,8 +140,8 @@ class GrainDataWriter_h5(object):
             self.fid = filename
         else:
             newfile = filename + ".hdf5"
-            self.fid = h5py.File(, "w")
-            if os.path.exists(newfile):
+            self.fid = h5py.File(newfile, "a")
+            if not os.path.exists(newfile):
                     raise(OSError("file not found: check path"))
         icfg = {}
         icfg.update(instr_cfg)
@@ -262,7 +262,6 @@ def unwrap_dict_to_h5(grp, d, asattr=True):
                     grp.create_dataset(key, data=data)
                 except(TypeError):
                     grp.create_dataset(key, data=str(data[0]))
-                grp.create_dataset(key, data=np.atleast_1d(item))
 
 
 def centers_of_edge_vec(edges):
