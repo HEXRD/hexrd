@@ -24,7 +24,6 @@ requirements:
     - numba
     - numpy
     - python
-    - python.app
     - pyyaml
     - scikit-image
     - scikit-learn
