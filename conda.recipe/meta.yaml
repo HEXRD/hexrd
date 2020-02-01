@@ -7,6 +7,10 @@ source:
 
 build:
   number: {{ environ.get('GIT_DESCRIBE_NUMBER', 0) }}
+  detect_binary_files_with_prefix: true
+  osx_is_app: yes
+  entry_points:
+    - hexrd = hexrd.cli:main
 
 requirements:
   build:
@@ -17,9 +21,14 @@ requirements:
 
   run:
     - h5py
-    - scipy
     - numba
+    - numpy
+    - python
+    - python.app
+    - pyyaml
     - scikit-image
+    - scikit-learn
+    - scipy
 
 test:
   imports:
