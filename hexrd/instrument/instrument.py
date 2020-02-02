@@ -512,7 +512,7 @@ class HEDMInstrument(object):
 
         ring_maps_panel = dict.fromkeys(self.detectors)
         for i_d, det_key in enumerate(self.detectors):
-            print(("working on detector '%s'..." % det_key))
+            print("working on detector '%s'..." % det_key)
 
             # grab panel
             panel = self.detectors[det_key]
@@ -544,7 +544,7 @@ class HEDMInstrument(object):
 
             ring_maps = []
             for i_r, tthr in enumerate(tth_ranges):
-                print(("working on ring %d..." % i_r))
+                print("working on ring %d..." % i_r)
                 # ???: faster to index with bool or use np.where,
                 # or recode in numba?
                 rtth_idx = np.where(
@@ -574,7 +574,7 @@ class HEDMInstrument(object):
                 arc_length = angularDifference(
                     eta_edges[reta_bin_idx[0]],
                     eta_edges[reta_bin_idx[-1]]
-                )
+                ).squeeze()
 
                 # Munge eta bins
                 # !!! need to work with the subset to preserve
@@ -599,10 +599,11 @@ class HEDMInstrument(object):
                         # remap
                         retas = mapAngle(retas, new_period)
                         tmp_bins = mapAngle(eta_edges[reta_idx], new_period)
-                        reta_idx = np.argsort(tmp_bins)
+                        tmp_idx = np.argsort(tmp_bins)
+                        reta_idx = reta_idx[np.argsort(tmp_bins)]
                         eta_bins = np.hstack(
-                            [tmp_bins[reta_idx],
-                             tmp_bins[reta_idx][-1] + delta_eta]
+                            [tmp_bins[tmp_idx],
+                             tmp_bins[tmp_idx][-1] + delta_eta]
                         )
                         pass
                     pass
