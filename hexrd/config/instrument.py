@@ -74,7 +74,6 @@ class Detector(Config):
         return self._cfg.get(':'.join([self.BASEKEY, self.id, key]), **kwargs)
 
     def detector(self, beam):
-        print("eta vec: ", self._eta_vec)
         return instrument.PlanarDetector(
             rows=self._pixel_rows,
             cols=self._pixel_cols,
@@ -96,7 +95,7 @@ class Detector(Config):
 
     @property
     def _pixel_size(self):
-        return self.get('pixels:pixel_size', default=Dflt.pixel_size)
+        return self.get('pixels:size', default=Dflt.pixel_size)
 
     @property
     def _translation(self):
