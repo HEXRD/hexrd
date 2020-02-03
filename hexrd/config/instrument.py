@@ -178,7 +178,7 @@ class OscillationStage(Config):
     # ========== Input Values
     @property
     def _tvec(self):
-        return self.get('t_vec_s', default=self.tvec_DFLT)
+        return self.get('translation', default=self.tvec_DFLT)
 
     @property
     def _chi(self):
