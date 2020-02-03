@@ -8,6 +8,7 @@ np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 install_reqs = [
     'fabio@git+https://github.com/joelvbernier/fabio.git@master',
     'h5py',
+    'psutil',
     'scipy',
     'numba'
 ]
