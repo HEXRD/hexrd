@@ -702,10 +702,11 @@ class HEDMInstrument(object):
                         # remap
                         retas = mapAngle(retas, new_period)
                         tmp_bins = mapAngle(eta_edges[reta_idx], new_period)
-                        reta_idx = np.argsort(tmp_bins)
+                        tmp_idx = np.argsort(tmp_bins)
+                        reta_idx = reta_idx[np.argsort(tmp_bins)]
                         eta_bins = np.hstack(
-                            [tmp_bins[reta_idx],
-                             tmp_bins[reta_idx][-1] + delta_eta]
+                            [tmp_bins[tmp_idx],
+                             tmp_bins[tmp_idx][-1] + delta_eta]
                         )
                         pass
                     pass
