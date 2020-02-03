@@ -31,9 +31,10 @@ class EtaOmeMap(object):
                  active_hkls=None,
                  eta_step=0.25,
                  threshold=None,
-                 ome_period=(0, 360)
-    ):
-        """Build or load an eta-omega map
+                 ome_period=(0, 360)):
+        """
+        Build or load eta-ome map object.
+
         To build the map, call with the three positional/keyword args.
            image_series - OmegaImageSeries class
            instrument  must be a dict (loaded from yaml spec)
@@ -42,6 +43,34 @@ class EtaOmeMap(object):
 
         To load from a file, just pass the *load* keyword arg
            eomap = EtaOmeMap(load=<filename>)
+
+        Parameters
+        ----------
+        image_series_dict : dict, optional
+            dictionary of hexrd.imageseries.omega.OmegaImageSeries classes.
+            The default is None.
+        instrument : hexrd.instrument.HEDMInstrument, optional
+            An instrument object. The default is None.
+        plane_data : hexrd.crystallography.PlaneData, optional
+            DESCRIPTION. The default is None.
+        * : TYPE
+            DESCRIPTION.
+        load : str, optional
+            filename to load maps from. The default is None.
+        active_hkls : array_like, optional
+            index list for which hkls to use from `plane_data`.
+            The default is None.
+        eta_step : scalar, optional
+            the aximuthal bin size to use. The default is 0.25.
+        threshold : scalar, optional
+            threshold value for build maps. The default is None.
+        ome_period : array_like (2,), optional
+            the desired omega period. The default is (0, 360).
+
+        Returns
+        -------
+        None.
+
         """
         no_ims = image_series_dict is None
         no_ins = instrument is None
@@ -143,7 +172,22 @@ class EtaOmeMap(object):
         return self._omegas
 
     def save(self, filename):
-        """ save map
+        """
+        Save method for class data.
+
+        Parameters
+        ----------
+        filename : str
+            Filename for npz archive.
+
+        Returns
+        -------
+        None.
+
+        Notes
+        -----
+        The API is as follows:
+
         self.dataStore
         self.planeData (args to rebuild)
         self.iHKLList
@@ -151,8 +195,9 @@ class EtaOmeMap(object):
         self.omeEdges
         self.etas
         self.omegas
+
         """
-        args = np.array(self.planeData.getParams())[:4]
+        args = np.array(self.planeData.getParams())
         args[2] = valWUnit('wavelength', 'length', args[2], 'angstrom')
         hkls = self.planeData.hkls
         save_dict = {'dataStore': self.dataStore,
@@ -166,13 +211,17 @@ class EtaOmeMap(object):
         np.savez_compressed(filename, **save_dict)
 
     def _load(self, fname):
-        """load a saved eta-omega map"""
+        """Load a saved eta-omega map."""
         ome_eta = np.load(fname, allow_pickle=True)
 
         planeData_args = ome_eta['planeData_args']
         planeData_hkls = ome_eta['planeData_hkls']
-        self._planeData = crystallography.PlaneData(planeData_hkls, *planeData_args)
-
+        # make planeData object
+        # FIXME: have to set tThWidth after init; behavior if not set is buggy
+        self._planeData = crystallography.PlaneData(
+            planeData_hkls, *planeData_args[:4]
+        )
+        self._planeData.tThWidth = planeData_args[4]
         self._dataStore = ome_eta['dataStore']
         self._iHKLList = ome_eta['iHKLList']
         self._etaEdges = ome_eta['etaEdges']
