@@ -1,5 +1,4 @@
 """find_orientations command"""
-from __future__ import print_function, division, absolute_import
 
 import os
 
@@ -7,11 +6,14 @@ import numpy as np
 import timeit
 
 from hexrd import constants as cnst
+from hexrd.imageseries.omega import OmegaImageSeries
 from hexrd import instrument
 from hexrd import indexer
 from hexrd.transforms import xfcapi
-from .utils import get_eta_ome, generate_orientation_fibers, run_cluster
+from .utils import get_eta_ome, generate_orientation_fibers,\
+                   run_cluster, compute_neighborhood_size
 from .utils import analysis_id
+
 
 def find_orientations(cfg, hkls=None, clean=False, profile=False):
     print('ready to run find_orientations')
@@ -22,6 +24,9 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
 
     hedm = cfg.instrument.hedm
     plane_data = cfg.material.plane_data
+    active_hkls = cfg.find_orientations.orientation_maps.active_hkls
+    if active_hkls == 'all':
+        active_hkls = None
 
     ncpus = cfg.multiprocessing
 
@@ -30,13 +35,23 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
     fiber_seeds = cfg.find_orientations.seed_search.hkl_seeds
     on_map_threshold = cfg.find_orientations.threshold
 
+    # for neighborhood estimation
+    eta_ranges = np.radians(cfg.find_orientations.eta.range)
+    ims = next(iter(cfg.image_series.values()))
+    oims = OmegaImageSeries(ims)
+    # !!! we assume all detector ims have the same ome ranges, so any will do!
+    ome_ranges = [
+        (np.radians([i['ostart'], i['ostop']]))
+        for i in oims.omegawedges.wedges
+    ]
+
     # for clustering
     cl_radius = cfg.find_orientations.clustering.radius
-    min_compl = cfg.find_orientations.clustering.completeness
     compl_thresh = cfg.find_orientations.clustering.completeness
-    min_samples = 15
 
-    print("INFO:\tgenerating search quaternion list using %d processes" % ncpus)
+    print("INFO:\tgenerating search quaternion list using %d processes"
+          % ncpus)
+
     start = timeit.default_timer()
 
     eta_ome = get_eta_ome(cfg)
@@ -82,9 +97,16 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
         os.makedirs(cfg.analysis_dir)
     qbar_filename = 'accepted_orientations_' + analysis_id(cfg) + '.dat'
 
+    min_samples, mean_rpg = compute_neighborhood_size(
+        plane_data, active_hkls, fiber_seeds,
+        hedm, eta_ranges, ome_ranges,
+        compl_thresh, ngrains=100)
+    print("INFO:\tmean reflections per grain: %d" % mean_rpg)
+    print("INFO:\tneighborhood size: %d" % min_samples)
+
     print("INFO:\trunning clustering using '%s'"
-          % cfg.find_orientations.clustering.algorithm
-    )
+          % cfg.find_orientations.clustering.algorithm)
+
     start = timeit.default_timer()
 
     qbar, cl = run_cluster(
@@ -101,7 +123,10 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
     np.savetxt(qbar_filename, qbar.T,
                fmt='%.18e', delimiter='\t')
 
-    gw = instrument.GrainDataWriter(os.path.join(cfg.analysis_dir, 'grains.out'))
+    gw = instrument.GrainDataWriter(
+            os.path.join(cfg.analysis_dir, 'grains.out')
+        )
+
     grain_params_list = []
     for gid, q in enumerate(qbar.T):
         phi = 2*np.arccos(q[0])

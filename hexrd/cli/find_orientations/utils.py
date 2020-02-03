@@ -6,9 +6,9 @@ import logging
 import multiprocessing as mp
 
 import numpy as np
-import timeit
 from scipy import ndimage, cluster
 
+from hexrd import constants as cnst
 from hexrd import instrument
 from hexrd import matrixutil as mutil
 from hexrd.transforms import xfcapi
@@ -166,7 +166,7 @@ def generate_orientation_fibers(
         pass
 
     # do the mapping
-    start = time.time()
+    start = timeit.default_timer()
     qfib = None
     if ncpus > 1:
         # multiple process version
@@ -180,7 +180,7 @@ def generate_orientation_fibers(
         discretefiber_init(params)  # sets paramMP
         qfib = list(map(discretefiber_reduced, input_p))
         paramMP = None  # clear paramMP
-    elapsed = (time.time() - start)
+    elapsed = (timeit.default_timer() - start)
     logger.info("fiber generation took %.3f seconds", elapsed)
     return np.hstack(qfib)
 
@@ -194,9 +194,9 @@ def discretefiber_reduced(params_in):
     """
     input parameters are [hkl_id, com_ome, com_eta]
     """
-    bMat       = paramMP['bMat']
-    chi        = paramMP['chi']
-    csym       = paramMP['csym']
+    bMat = paramMP['bMat']
+    chi = paramMP['chi']
+    csym = paramMP['csym']
     fiber_ndiv = paramMP['fiber_ndiv']
 
     hkl = params_in[:3].reshape(3, 1)
@@ -217,6 +217,52 @@ def discretefiber_reduced(params_in):
             )[0]
         )
     return tmp
+
+
+def compute_neighborhood_size(plane_data, active_hkls, fiber_seeds,
+                              instr, eta_ranges, ome_ranges,
+                              min_compl, ngrains=100):
+    """
+    !!! eta_ranges and ome_ranges ARE IN RADIANS
+    """
+    seed_hkl_ids = [
+        plane_data.hklDataList[active_hkls[i]]['hklID'] for i in fiber_seeds
+    ]
+
+    if seed_hkl_ids is not None:
+        rand_q = mutil.unitVector(np.random.randn(4, ngrains))
+        rand_e = np.tile(2.*np.arccos(rand_q[0, :]), (3, 1)) \
+            * mutil.unitVector(rand_q[1:, :])
+        refl_per_grain = np.zeros(ngrains)
+        grain_param_list = np.vstack(
+            [rand_e,
+             np.zeros((3, ngrains)),
+             np.tile(cnst.identity_6x1, (ngrains, 1)).T]
+        ).T
+        sim_results = instr.simulate_rotation_series(
+                plane_data, grain_param_list,
+                eta_ranges=eta_ranges,
+                ome_ranges=ome_ranges,
+        )
+
+        refl_per_grain = np.zeros(ngrains)
+        seed_refl_per_grain = np.zeros(ngrains)
+        for sim_result in sim_results.itervalues():
+            for i, refl_ids in enumerate(sim_result[0]):
+                refl_per_grain[i] += len(refl_ids)
+                seed_refl_per_grain[i] += np.sum(
+                        [sum(refl_ids == hkl_id) for hkl_id in seed_hkl_ids]
+                    )
+
+        min_samples = max(
+            int(np.floor(0.5*min_compl*min(seed_refl_per_grain))),
+            2
+        )
+        mean_rpg = int(np.round(np.average(refl_per_grain)))
+    else:
+        min_samples = 1
+        mean_rpg = 1
+    return min_samples, mean_rpg
 
 
 def run_cluster(compl, qfib, qsym, cfg,
@@ -258,7 +304,7 @@ def run_cluster(compl, qfib, qsym, cfg,
         num_ors = qfib_r.shape[1]
 
         if num_ors > 25000:
-            if algorithm == 'sph-dbscan' or algorithm == 'fclusterdata':
+            if algorithm in ['sph-dbscan', 'fclusterdata']:
                 logger.info("falling back to euclidean DBSCAN")
                 algorithm = 'ort-dbscan'
 
@@ -273,9 +319,10 @@ def run_cluster(compl, qfib, qsym, cfg,
                 "sklearn >= 0.14 required for dbscan; using fclusterdata"
                 )
 
-        if algorithm == 'dbscan' or algorithm == 'ort-dbscan' or algorithm == 'sph-dbscan':
+        if algorithm in ['dbscan', 'ort-dbscan', 'sph-dbscan']:
             # munge min_samples according to options
-            if min_samples is None or cfg.find_orientations.use_quaternion_grid is not None:
+            if min_samples is None \
+                    or cfg.find_orientations.use_quaternion_grid is not None:
                 min_samples = 1
 
             if algorithm == 'sph-dbscan':
@@ -311,10 +358,10 @@ def run_cluster(compl, qfib, qsym, cfg,
                     )
 
             # extract cluster labels
-            cl = np.array(labels, dtype=int) # convert to array
-            noise_points = cl == -1 # index for marking noise
-            cl += 1 # move index to 1-based instead of 0
-            cl[noise_points] = -1 # re-mark noise as -1
+            cl = np.array(labels, dtype=int)  # convert to array
+            noise_points = cl == -1  # index for marking noise
+            cl += 1  # move index to 1-based instead of 0
+            cl[noise_points] = -1  # re-mark noise as -1
             logger.info("dbscan found %d noise points", sum(noise_points))
         elif algorithm == 'fclusterdata':
             logger.info("using spherical fclusetrdata")
@@ -345,8 +392,7 @@ def run_cluster(compl, qfib, qsym, cfg,
             pass
         pass
 
-    if (algorithm == 'dbscan' or algorithm == 'ort-dbscan') \
-      and qbar.size/4 > 1:
+    if algorithm in ['dbscan', 'ort-dbscan'] and qbar.size/4 > 1:
         logger.info("\tchecking for duplicate orientations...")
         cl = cluster.hierarchy.fclusterdata(
             qbar.T,
@@ -355,8 +401,10 @@ def run_cluster(compl, qfib, qsym, cfg,
             metric=quat_distance)
         nblobs_new = len(np.unique(cl))
         if nblobs_new < nblobs:
-            logger.info("\tfound %d duplicates within %f degrees" \
-                        %(nblobs-nblobs_new, cl_radius))
+            logger.info(
+                "\tfound %d duplicates within %f degrees"
+                % (nblobs-nblobs_new, cl_radius)
+            )
             tmp = np.zeros((4, nblobs_new))
             for i in range(nblobs_new):
                 npts = sum(cl == i + 1)
