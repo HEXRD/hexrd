@@ -7,6 +7,7 @@ np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 
 install_reqs = [
     'h5py',
+    'psutil',
     'scipy',
     'numba'
 ]
