@@ -35,7 +35,7 @@ test:
     - hexrd
 
 about:
-  home: https://github.com/joelvbernier/hexrd3
+  home: https://github.com/HEXRD/hexrd3
   license: BSD
   license_family: BSD
   summary: High energy diffraction data analysis
