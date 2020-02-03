@@ -21,6 +21,7 @@ requirements:
     - h5py
     - numba
     - numpy
+    - psutil
     - pyyaml
     - scipy
     - scikit-image
