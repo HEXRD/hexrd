@@ -1,7 +1,7 @@
 """Functions used in find_orientations"""
 
 import os
-import time
+import timeit
 import logging
 import multiprocessing as mp
 
@@ -24,7 +24,10 @@ try:
 except ImportError:
     have_sklearn = False
 
+from skimage.feature import blob_log
+
 logger = logging.getLogger('hexrd')
+method = "blob_log"  # !!! have to get this from the config
 
 # ==================== Hardwired options
 # maps options
@@ -58,7 +61,6 @@ def get_eta_ome(cfg):
     plane_data = cfg.material.plane_data
     active_hkls = cfg.find_orientations.orientation_maps.active_hkls
     build_map_threshold = cfg.find_orientations.orientation_maps.threshold
-    ome_period = np.radians(cfg.find_orientations.omega.period)
 
     eta_ome = instrument.eta_omega.EtaOmeMap(
         imsd, instr, plane_data,
@@ -116,21 +118,34 @@ def generate_orientation_fibers(
     numSpots = []
     coms = []
     for i in seed_hkl_ids:
-        # First apply filter
-        this_map_f = -ndimage.filters.gaussian_laplace(
-            eta_ome.dataStore[i], filt_stdev)
+        if method == "label":
+            # First apply filter
+            this_map_f = -ndimage.filters.gaussian_laplace(
+                eta_ome.dataStore[i], filt_stdev)
 
-        labels_t, numSpots_t = ndimage.label(
-            this_map_f > threshold,
-            structureNDI_label
-            )
-        coms_t = np.atleast_2d(
-            ndimage.center_of_mass(
-                this_map_f,
-                labels=labels_t,
-                index=np.arange(1, np.amax(labels_t)+1)
+            labels_t, numSpots_t = ndimage.label(
+                this_map_f > threshold,
+                structureNDI_label
                 )
+            coms_t = np.atleast_2d(
+                ndimage.center_of_mass(
+                    this_map_f,
+                    labels=labels_t,
+                    index=np.arange(1, np.amax(labels_t)+1)
+                    )
+                )
+        elif method == "blob_log":
+            # must scale map
+            this_map = eta_ome.dataStore[i]
+            scl_map = 2*this_map/np.max(this_map) - 1.
+
+            # FIXME: need to expose the parameters to config options.
+            blobs_log = np.atleast_2d(
+                blob_log(scl_map, min_sigma=0.5, max_sigma=5,
+                         num_sigma=10, threshold=0.01, overlap=0.1)
             )
+            numSpots_t = len(blobs_log)
+            coms_t = blobs_log[:, 2]
         numSpots.append(numSpots_t)
         coms.append(coms_t)
         pass
@@ -203,7 +218,9 @@ def discretefiber_reduced(params_in):
         )
     return tmp
 
-def run_cluster(compl, qfib, qsym, cfg, min_samples=None, compl_thresh=None, radius=None):
+
+def run_cluster(compl, qfib, qsym, cfg,
+                min_samples=None, compl_thresh=None, radius=None):
     """
     """
     algorithm = cfg.find_orientations.clustering.algorithm
@@ -216,7 +233,7 @@ def run_cluster(compl, qfib, qsym, cfg, min_samples=None, compl_thresh=None, rad
     if radius is not None:
         cl_radius = radius
 
-    start = time.clock() # time this
+    start = timeit.default_timer()  # time this
 
     num_above = sum(np.array(compl) > min_compl)
     if num_above == 0:
@@ -229,9 +246,12 @@ def run_cluster(compl, qfib, qsym, cfg, min_samples=None, compl_thresh=None, rad
     else:
         # use compiled module for distance
         # just to be safe, must order qsym as C-contiguous
-        qsym  = np.array(qsym.T, order='C').T
+        qsym = np.array(qsym.T, order='C').T
+
         def quat_distance(x, y):
-            return xfcapi.quat_distance(np.array(x, order='C'), np.array(y, order='C'), qsym)
+            return xfcapi.quat_distance(np.array(x, order='C'),
+                                        np.array(y, order='C'),
+                                        qsym)
 
         qfib_r = qfib[:, np.array(compl) > min_compl]
 
@@ -241,8 +261,6 @@ def run_cluster(compl, qfib, qsym, cfg, min_samples=None, compl_thresh=None, rad
             if algorithm == 'sph-dbscan' or algorithm == 'fclusterdata':
                 logger.info("falling back to euclidean DBSCAN")
                 algorithm = 'ort-dbscan'
-            #raise RuntimeError, \
-            #    "Requested clustering of %d orientations, which would be too slow!" %qfib_r.shape[1]
 
         logger.info(
             "Feeding %d orientations above %.1f%% to clustering",
@@ -350,7 +368,7 @@ def run_cluster(compl, qfib, qsym, cfg, min_samples=None, compl_thresh=None, rad
             pass
         pass
 
-    logger.info("clustering took %f seconds", time.clock() - start)
+    logger.info("clustering took %f seconds", timeit.default_timer() - start)
     logger.info(
         "Found %d orientation clusters with >=%.1f%% completeness"
         " and %2f misorientation",
