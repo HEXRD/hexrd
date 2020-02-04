@@ -24,10 +24,10 @@ try:
 except ImportError:
     have_sklearn = False
 
-from skimage.feature import blob_log
+from skimage.feature import blob_dog, blob_log
 
 logger = logging.getLogger('hexrd')
-method = "blob_log"  # !!! have to get this from the config
+method = "blob_dog"  # !!! have to get this from the config
 
 
 # =============================================================================
@@ -133,7 +133,7 @@ def generate_orientation_fibers(
                     index=np.arange(1, np.amax(labels_t)+1)
                     )
                 )
-        elif method == "blob_log":
+        elif method in ["blob_log", "blob_dog"]:
             # must scale map
             this_map = eta_ome.dataStore[i]
             this_map[np.isnan(this_map)] = 0.
@@ -141,12 +141,16 @@ def generate_orientation_fibers(
             scl_map = 2*this_map/np.max(this_map) - 1.
 
             # FIXME: need to expose the parameters to config options.
-            blobs_log = np.atleast_2d(
-                blob_log(scl_map, min_sigma=0.5, max_sigma=5,
-                         num_sigma=10, threshold=0.01, overlap=0.1)
-            )
-            numSpots_t = len(blobs_log)
-            coms_t = blobs_log[:, 2]
+            if method == "blob_log":
+                blobs = np.atleast_2d(
+                    blob_log(scl_map, min_sigma=0.5, max_sigma=5,
+                             num_sigma=10, threshold=0.01, overlap=0.1)
+                )
+            else:
+                blobs = blob_dog(scl_map, min_sigma=0.5, max_sigma=5,
+                                 sigma_ratio=1.6, threshold=0.01, overlap=0.1)
+            numSpots_t = len(blobs)
+            coms_t = blobs[:, :2]
         numSpots.append(numSpots_t)
         coms.append(coms_t)
         pass
