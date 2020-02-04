@@ -1,4 +1,4 @@
-"""find_orientations command"""
+"""find_orientations command."""
 
 import os
 
@@ -16,6 +16,25 @@ from .utils import analysis_id
 
 
 def find_orientations(cfg, hkls=None, clean=False, profile=False):
+    """
+    Execute workflow to perform indexing.
+
+    Parameters
+    ----------
+    cfg : TYPE
+        DESCRIPTION.
+    hkls : TYPE, optional
+        DESCRIPTION. The default is None.
+    clean : TYPE, optional
+        DESCRIPTION. The default is False.
+    profile : TYPE, optional
+        DESCRIPTION. The default is False.
+
+    Returns
+    -------
+    None.
+
+    """
     print('ready to run find_orientations')
     # %%
     # =============================================================================
@@ -54,7 +73,7 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
 
     start = timeit.default_timer()
 
-    eta_ome = get_eta_ome(cfg)
+    eta_ome = get_eta_ome(cfg, clobber_maps=clean)
 
     qfib = generate_orientation_fibers(
         eta_ome, hedm.chi, on_map_threshold,

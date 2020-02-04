@@ -29,11 +29,10 @@ from skimage.feature import blob_log
 logger = logging.getLogger('hexrd')
 method = "blob_log"  # !!! have to get this from the config
 
-# ==================== Hardwired options
-# maps options
-clobber_maps = False
 
-# ==================== Functions
+# =============================================================================
+# FUNCTIONS
+# =============================================================================
 
 
 def analysis_id(cfg):
@@ -43,10 +42,10 @@ def analysis_id(cfg):
     )
 
 
-def get_eta_ome(cfg):
+def get_eta_ome(cfg, clobber_maps=False):
     """Return eta-omega maps"""
     # Use existing ones if available
-    maps_fname = analysis_id(cfg) + "_maps.npz"
+    maps_fname = cfg.find_orientations.orientation_maps.file
     if os.path.exists(maps_fname) and not clobber_maps:
         print("INFO: loading existing eta_ome maps")
         eta_ome = instrument.eta_omega.EtaOmeMap(load=maps_fname)
