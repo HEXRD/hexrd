@@ -136,6 +136,8 @@ def generate_orientation_fibers(
         elif method == "blob_log":
             # must scale map
             this_map = eta_ome.dataStore[i]
+            this_map[np.isnan(this_map)] = 0.
+            this_map -= np.min(this_map)
             scl_map = 2*this_map/np.max(this_map) - 1.
 
             # FIXME: need to expose the parameters to config options.
