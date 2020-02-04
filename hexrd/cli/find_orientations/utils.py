@@ -147,8 +147,10 @@ def generate_orientation_fibers(
                              num_sigma=10, threshold=0.01, overlap=0.1)
                 )
             else:
-                blobs = blob_dog(scl_map, min_sigma=0.5, max_sigma=5,
-                                 sigma_ratio=1.6, threshold=0.01, overlap=0.1)
+                blobs = np.atleast_2d(
+                    blob_dog(scl_map, min_sigma=0.5, max_sigma=5,
+                             sigma_ratio=1.6, threshold=0.01, overlap=0.1)
+                    )
             numSpots_t = len(blobs)
             coms_t = blobs[:, :2]
         numSpots.append(numSpots_t)
