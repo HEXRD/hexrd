@@ -254,7 +254,7 @@ def compute_neighborhood_size(plane_data, active_hkls, fiber_seeds,
 
         refl_per_grain = np.zeros(ngrains)
         seed_refl_per_grain = np.zeros(ngrains)
-        for sim_result in sim_results.itervalues():
+        for sim_result in sim_results.values():
             for i, refl_ids in enumerate(sim_result[0]):
                 refl_per_grain[i] += len(refl_ids)
                 seed_refl_per_grain[i] += np.sum(
