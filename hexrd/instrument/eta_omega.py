@@ -221,7 +221,8 @@ class EtaOmeMap(object):
         self._planeData = crystallography.PlaneData(
             planeData_hkls, *planeData_args[:4]
         )
-        self._planeData.tThWidth = planeData_args[4]
+        if len(planeData_args) > 4:
+            self._planeData.tThWidth = planeData_args[4]
         self._dataStore = ome_eta['dataStore']
         self._iHKLList = ome_eta['iHKLList']
         self._etaEdges = ome_eta['etaEdges']

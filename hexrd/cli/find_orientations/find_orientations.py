@@ -1,7 +1,7 @@
 """find_orientations command."""
 
 import os
-
+import logging
 import numpy as np
 import timeit
 
@@ -13,6 +13,9 @@ from hexrd.transforms import xfcapi
 from .utils import get_eta_ome, generate_orientation_fibers,\
                    run_cluster, compute_neighborhood_size
 from .utils import analysis_id
+
+
+logger = logging.getLogger(__name__)
 
 
 def find_orientations(cfg, hkls=None, clean=False, profile=False):
@@ -36,6 +39,7 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
 
     """
     print('ready to run find_orientations')
+    
     # %%
     # =============================================================================
     # SEARCH SPACE GENERATION
@@ -107,6 +111,11 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
     print("INFO:\t\t...took %f seconds" % (timeit.default_timer() - start))
     completeness = np.array(completeness)
 
+    np.savez_compressed(
+        'scored_orientations_' + analysis_id(cfg) + '.npz',
+        test_quaternions=qfib, score=completeness
+    )
+    
     # %%
     # =============================================================================
     # CLUSTERING AND GRAINS OUTPUT
