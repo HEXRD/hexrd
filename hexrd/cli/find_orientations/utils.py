@@ -9,10 +9,12 @@ import numpy as np
 from scipy import ndimage, cluster
 
 from hexrd import constants as cnst
+from hexrd.crystallography import PlaneData
 from hexrd import instrument
 from hexrd import matrixutil as mutil
-from hexrd.transforms import xfcapi
 from hexrd import rotations as rot
+from hexrd.transforms import xfcapi
+from hexrd.valunits import valWUnit
 
 try:
     import sklearn
@@ -235,6 +237,13 @@ def compute_neighborhood_size(plane_data, active_hkls, fiber_seeds,
     seed_hkl_ids = [
         plane_data.hklDataList[active_hkls[i]]['hklID'] for i in fiber_seeds
     ]
+    
+    # make a copy of plane data with only active hkls for sim
+    # ??? revist API for PlaneData?  A bit kludge
+    hkls = plane_data.hkls[:, active_hkls]
+    pdargs = np.array(plane_data.getParams()[:4])
+    pdargs[2] = valWUnit('wavelength', 'length', pdargs[2], 'angstrom')
+    pd4sim = PlaneData(hkls, *pdargs)
 
     if seed_hkl_ids is not None:
         rand_q = mutil.unitVector(np.random.randn(4, ngrains))
@@ -247,7 +256,7 @@ def compute_neighborhood_size(plane_data, active_hkls, fiber_seeds,
              np.tile(cnst.identity_6x1, (ngrains, 1)).T]
         ).T
         sim_results = instr.simulate_rotation_series(
-                plane_data, grain_param_list,
+                pd4sim, grain_param_list,
                 eta_ranges=eta_ranges,
                 ome_ranges=ome_ranges,
         )
