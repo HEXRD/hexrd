@@ -132,7 +132,7 @@ def generate_orientation_fibers(
                 ndimage.center_of_mass(
                     this_map_f,
                     labels=labels_t,
-                    index=np.arange(1, np.amax(labels_t)+1)
+                    index=np.arange(1, np.amax(labels_t) + 1)
                     )
                 )
         elif method in ["blob_log", "blob_dog"]:
