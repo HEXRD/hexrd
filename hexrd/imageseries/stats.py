@@ -8,9 +8,7 @@ from psutil import virtual_memory
 
 from hexrd.imageseries.process import ProcessedImageSeries as PIS
 
-# Default Buffer: 100 MB
-#STATS_BUFFER = 419430400    # 50 GE frames
-#STATS_BUFFER = 838860800    # 100 GE frames
+# Default Buffer: half of available memory
 vmem = virtual_memory()
 STATS_BUFFER = int(0.5*vmem.available)
 
