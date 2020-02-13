@@ -1,4 +1,12 @@
-"""Stats for imageseries"""
+"""Stats for imageseries
+
+runs in chunks:
+if chunks is None, chunks are determined here and all are run
+otherwise, chunks is tuple of (i, n, img) where
+ i < n is the current chunk to compute,
+ n is the total number of chunks,
+ and img is the current image
+"""
 
 
 import numpy as np
@@ -13,7 +21,25 @@ vmem = virtual_memory()
 STATS_BUFFER = int(0.5*vmem.available)
 
 
-def max(ims, nframes=0):
+def max(ims, chunk=None, nframes=0):
+    """maximum over frames"""
+    nf = _nframes(ims, nframes)
+    if chunk is None:
+        dt = ims.dtype
+        (nr, nc) = ims.shape
+        mem = nf*nr*nc*dt.itemsize
+        nchunks = 1 + mem // STATS_BUFFER
+        img = np.zeros((nr, nc), dtype=dt)
+        for i in range(nchunks):
+            chunk = (i, nchunks, img)
+            img = _chunk_op(np.max, ims, nf, chunk)
+    else:
+        img = _chunk_op(np.max, ims, nf, chunk)
+
+    return img
+
+
+def _old_max(ims, nframes=0):
     nf = _nframes(ims, nframes)
     imgmax = ims[0]
     for i in range(1, nf):
