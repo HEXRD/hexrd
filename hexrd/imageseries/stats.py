@@ -110,6 +110,27 @@ def _chunk_ranges(nrows, nchunk, chunk):
     return r0, r1
 
 
+def _chunk_op(op, ims, nf, chunk, *args):
+    """run operation on one chunk of image data
+    ims -- the imageseries
+    nf -- total number of frames to use
+    chunk -- tuple of (i, n, img)
+    args -- args to pass to op
+"""
+    nf = len(ims)
+    nrows, ncols = ims.shape
+    i = chunk[0]
+    nchunk = chunk[1]
+    img = chunk[2]
+    r0, r1 = _chunk_ranges(nrows, nchunk, i)
+    rect = np.array([[r0, r1], [0, ncols]])
+    pims = PIS(ims, [('rectangle', rect)])
+    a = _toarray(pims, nf)
+    img[r0:r1, :] = op(a, *args, axis=0)
+
+    return img
+
+
 def _row_ranges(n, m):
     """return row ranges, representing m rows or remainder, until exhausted"""
     i = 0
