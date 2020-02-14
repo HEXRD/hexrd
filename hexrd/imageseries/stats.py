@@ -22,83 +22,25 @@ STATS_BUFFER = int(0.5*vmem.available)
 
 
 def max(ims, chunk=None, nframes=0):
-    """maximum over frames"""
-    nf = _nframes(ims, nframes)
-    if chunk is None:
-        dt = ims.dtype
-        (nr, nc) = ims.shape
-        mem = nf*nr*nc*dt.itemsize
-        nchunks = 1 + mem // STATS_BUFFER
-        img = np.zeros((nr, nc), dtype=dt)
-        for i in range(nchunks):
-            chunk = (i, nchunks, img)
-            img = _chunk_op(np.max, ims, nf, chunk)
-    else:
-        img = _chunk_op(np.max, ims, nf, chunk)
-
-    return img
+    return _run_chunks(np.max, ims, chunk, nframes)
 
 
-def _old_max(ims, nframes=0):
-    nf = _nframes(ims, nframes)
-    imgmax = ims[0]
-    for i in range(1, nf):
-        imgmax = np.maximum(imgmax, ims[i])
-    return imgmax
+def min(ims, chunk=None, nframes=0):
+    return _run_chunks(np.min, ims, chunk, nframes)
 
 
-def average(ims, nframes=0):
-    """return image with average values over all frames"""
-    nf = _nframes(ims, nframes)
-    avg = np.array(ims[0], dtype=float)
-    for i in range(1, nf):
-        avg += ims[i]
-    return avg/nf
+def median(ims, chunk=None, nframes=0):
+    return _run_chunks(np.median, ims, chunk, nframes)
 
 
-def median(ims, nframes=0, chunk=None):
-    """return image with median values over all frames
-
-    chunk -- a tuple: (i, n, img), where i is the current chunk (0-based), n is total number of chunks,
-             and img is the current state of the image and will be updated on return
-
-    For example, to use 50 chunks, call 50 times consecutively with (0, 50, img) ... (49, 50, img)
-    Each time, a number of rows of the image is updated.
-"""
-    # use percentile since it has better performance
-    if chunk is None:
-        return percentile(ims, 50, nframes=nframes)
-
-    nf = _nframes(ims, nframes)
-    nrows, ncols = ims.shape
-    i = chunk[0]
-    nchunk = chunk[1]
-    img = chunk[2]
-    r0, r1 = _chunk_ranges(nrows, nchunk, i)
-    rect = np.array([[r0, r1], [0, ncols]])
-    pims = PIS(ims, [('rectangle', rect)])
-    img[r0:r1, :] = np.median(_toarray(pims, nf), axis=0)
-
-    return img
+def percentile(ims, pctl, chunk=None, nframes=0):
+    return _run_chunks(np.percentile, ims, chunk, nframes, *(pctl,))
 
 
-def percentile(ims, pct, nframes=0):
-    """return image with given percentile values over all frames"""
-    # could be done by rectangle by rectangle if full series
-    # too  big for memory
-    nf = _nframes(ims, nframes)
-    dt = ims.dtype
-    (nr, nc) = ims.shape
-    nrpb  = _rows_in_buffer(nframes, nf*nc*dt.itemsize)
+def average(ims, chunk=None, nframes=0):
+    return _run_chunks(np.average, ims, chunk, nframes)
 
-    # now build the result a rectangle at a time
-    img = np.zeros_like(ims[0])
-    for rr in _row_ranges(nr, nrpb):
-        rect = np.array([[rr[0], rr[1]], [0, nc]])
-        pims = PIS(ims, [('rectangle', rect)])
-        img[rr[0]:rr[1], :] = np.percentile(_toarray(pims, nf), pct, axis=0)
-    return img
-#
+
 # ==================== Utilities
 #
 def _nframes(ims, nframes):
@@ -157,20 +99,19 @@ def _chunk_op(op, ims, nf, chunk, *args):
     return img
 
 
-def _row_ranges(n, m):
-    """return row ranges, representing m rows or remainder, until exhausted"""
-    i = 0
-    while i < n:
-        imax = i+m
-        if imax <= n:
-            yield (i, imax)
-        else:
-            yield (i, n)
-        i = imax
+def _run_chunks(op, ims, chunk, nframes, *args):
+    """run chunked operation"""
+    nf = _nframes(ims, nframes)
+    if chunk is None:
+        dt = ims.dtype
+        (nr, nc) = ims.shape
+        mem = nf*nr*nc*dt.itemsize
+        nchunks = 1 + mem // STATS_BUFFER
+        img = np.zeros((nr, nc), dtype=dt)
+        for i in range(nchunks):
+            chunk = (i, nchunks, img)
+            img = _chunk_op(op, ims, nf, chunk, *args)
+    else:
+        img = _chunk_op(op, ims, nf, chunk, *args)
 
-
-def _rows_in_buffer(ncol, rsize):
-    """number of rows in buffer
-
-    NOTE: Use ceiling to make sure at it has at least one row"""
-    return int(np.ceil(STATS_BUFFER/rsize))
+    return img
