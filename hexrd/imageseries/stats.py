@@ -1,11 +1,31 @@
-"""Stats for imageseries
+"""aggregate statistics for imageseries
 
-runs in chunks:
-if chunks is None, chunks are determined here and all are run
-otherwise, chunks is tuple of (i, n, img) where
- i < n is the current chunk to compute,
- n is the total number of chunks,
- and img is the current image
+The functions here operate on the frames of an imageseries.
+Because there may be an large number of images, the images
+are processed in chunks, some number of rows at a time.
+All of the functions take a keyword arguments of "chunk" and "nframes".
+If "nframes" is greater than 0, it means use only that many frames of
+the imageseries; otherwise use all the frames.
+The "chunks" argument may be either None or a 3-tuple (i, n, img), where:
+
+ i is the current chunk to compute,
+ n is the total number of chunks, and
+ img is the current image with same shape as the imageseries
+
+If chunks is not None, then the the function needs to be called n times,
+and after each call an intermediate image is returned, the last being complete.
+
+If chunks is None, then only one call is needed, and the number of chunks is
+determined by the STATS_BUFFER variable.
+
+For example, to find the median image for an imageseries "ims" using "nchunk" chunks:
+
+    img = np.zeros(ims.shape)
+    for i in range(nchunk):
+        img = op(ims, chunk=(i, nchunk, img))
+        print("%d/%d" % (i, nchunk), img)
+    return img
+
 """
 
 
@@ -19,6 +39,7 @@ from hexrd.imageseries.process import ProcessedImageSeries as PIS
 # Default Buffer: half of available memory
 vmem = virtual_memory()
 STATS_BUFFER = int(0.5*vmem.available)
+del vmem
 
 
 def max(ims, chunk=None, nframes=0):
