@@ -1901,8 +1901,6 @@ class PlanarDetector(object):
 
             if delta_tth is not None:
                 pd.tThWidth = np.radians(delta_tth)
-            else:
-                delta_tth = np.degrees(pd.tThWidth)
 
             # conversions, meh...
             del_eta = np.radians(delta_eta)
