@@ -105,8 +105,6 @@ def _chunk_op(op, ims, nf, chunk, *args):
     nchunk = chunk[1]
     img = chunk[2]
     r0, r1 = _chunk_ranges(nrows, nchunk, i)
-    rect = np.array([[r0, r1], [0, ncols]])
-    # pims = PIS(ims, [('rectangle', rect)])
     a = _toarray(ims, nf, r0, r1)
     img[r0:r1, :] = op(a, *args, axis=0)
 
