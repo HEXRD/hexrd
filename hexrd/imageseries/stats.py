@@ -24,17 +24,11 @@ For example, to find the median image for an imageseries "ims" using "nchunk" ch
     for i in range(nchunk):
         img = op(ims, chunk=(i, nchunk, img))
         print("%d/%d" % (i, nchunk), img)
-    return img
 
 """
-
-
 import numpy as np
-import logging
 
 from psutil import virtual_memory
-
-from hexrd.imageseries.process import ProcessedImageSeries as PIS
 
 # Default Buffer: half of available memory
 vmem = virtual_memory()
@@ -70,12 +64,12 @@ def _nframes(ims, nframes):
     return np.min((mynf, nframes)) if nframes > 0 else mynf
 
 
-def _toarray(ims, nframes):
-    ashp = (nframes,) + ims.shape
+def _toarray(ims, nframes, r0, r1):
+    _, nc = ims.shape
+    ashp = (nframes, r1 - r0, nc)
     a = np.zeros(ashp, dtype=ims.dtype)
     for i in range(nframes):
-        logging.info('frame: %s', i)
-        a[i] = ims[i]
+        a[i] = ims[i][r0:r1, :]
 
     return a
 
@@ -106,15 +100,14 @@ def _chunk_op(op, ims, nf, chunk, *args):
     chunk -- tuple of (i, n, img)
     args -- args to pass to op
 """
-    nf = len(ims)
     nrows, ncols = ims.shape
     i = chunk[0]
     nchunk = chunk[1]
     img = chunk[2]
     r0, r1 = _chunk_ranges(nrows, nchunk, i)
     rect = np.array([[r0, r1], [0, ncols]])
-    pims = PIS(ims, [('rectangle', rect)])
-    a = _toarray(pims, nf)
+    # pims = PIS(ims, [('rectangle', rect)])
+    a = _toarray(ims, nf, r0, r1)
     img[r0:r1, :] = op(a, *args, axis=0)
 
     return img
