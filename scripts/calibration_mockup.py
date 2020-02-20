@@ -87,6 +87,34 @@ class InstrumentCalibrator(object):
     # METHODS
     # =========================================================================
 
+    def parameters(self):
+        # instrument comes first
+        x = self.instr.calibration_parameters.tolist()
+        for calib in self.calibrators:
+            x += calib.parameters
+        return x
+    
+    def flags(self):
+        # instrument comes first
+        x = self.instr.calibration_flags.tolist()
+        for calib in self.calibrators:
+            x += calib.parameter_flags
+        return x
+    
+    def measured_data(self):
+        meas_data = []
+        for calib in self.calibrators:
+            meas_data.append(calib.measure())
+        return meas_data
+    
+    def residual(self):
+        resd = []
+        x0 = self.parameters
+        for ic, calib in enumerate(self.calibrators):
+            resd_contrib = calib.residual(x0, self.measured_data, ic)
+            resd += resd_contrib.tolist()
+        
+        
     def run_calibration(self, use_robust_optimization=False):
         """
         FIXME: only coding serial powder case to get things going.  Will
@@ -98,7 +126,7 @@ class InstrumentCalibrator(object):
 
         obj_func = calib_class.residual
 
-        data_dict = calib_class._extract_powder_lines()
+        data_dict = calib_class.measure()
 
         # grab reduced optimizaion parameter set
         x0 = self._instr.calibration_parameters[
@@ -133,7 +161,7 @@ class InstrumentCalibrator(object):
 
 # %%
 class PowderCalibrator(object):
-    def __init__(self, instr, plane_data, img_dict,
+    def __init__(self, instr, plane_data, img_dict, 
                  tth_tol=None, eta_tol=0.25,
                  pktype='pvoigt'):
         assert list(instr.detectors.keys()) == list(img_dict.keys()), \
@@ -149,6 +177,11 @@ class PowderCalibrator(object):
         # for peak fitting
         # ??? fitting only, or do alternative peak detection?
         self._pktype = pktype
+
+        # must set list of additional parameters
+        # in this case, none
+        self._parameters = []
+        self._parameter_flags = []
 
     @property
     def instr(self):
@@ -192,6 +225,14 @@ class PowderCalibrator(object):
         assert isinstance(x, str), "tth_tol must be a scalar value"
         self._pktype = x
 
+    @property
+    def parameters(self):
+        return self._parameters
+    
+    @property
+    def parameter_flags(self):
+        return self._parameter_flags
+
     def _interpolate_images(self):
         """
         returns the iterpolated powder line data from the images in img_dict
@@ -204,7 +245,7 @@ class PowderCalibrator(object):
                 npdiv=2, collapse_eta=False, collapse_tth=False,
                 do_interpolation=True)
 
-    def _extract_powder_lines(self):
+    def measure(self):
         """
         return the RHS for the instrument DOF and image dict
 
@@ -288,10 +329,11 @@ class PowderCalibrator(object):
             pass
         return rhs
 
-    def residual(self, reduced_params, data_dict):
+    def residual(self, reduced_params, meas_data_list, cindex):
         """
         """
-
+        data_dict = meas_data_list[cindex]
+        
         # first update instrument from input parameters
         full_params = self.instr.calibration_parameters
         full_params[self.instr.calibration_flags] = reduced_params
@@ -445,7 +487,7 @@ ic.run_calibration()
 fig, ax = plt.subplots(2, 2)
 fig_row, fig_col = np.unravel_index(np.arange(instr.num_panels), (2, 2))
 
-data_dict = pc._extract_powder_lines()
+data_dict = pc.measure()
 
 ifig = 0
 for det_key, panel in instr.detectors.items():

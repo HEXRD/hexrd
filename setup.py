@@ -73,6 +73,7 @@ setup(
     ],
     ext_modules=ext_modules,
     packages=find_packages(),
+    entry_points = entry_points,    
     python_requires='>=3.6',
     install_requires=install_reqs
 )
