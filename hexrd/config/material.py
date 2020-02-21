@@ -20,7 +20,8 @@ class MaterialConfig(Config):
         if os.path.exists(temp):
             return temp
         raise IOError(
-            '"material:definitions": "%s" does not exist'
+            "'material:definitions': '%s' does not exist"
+            % temp
             )
 
     @property

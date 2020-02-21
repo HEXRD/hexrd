@@ -7,9 +7,9 @@ np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 
 install_reqs = [
     'h5py',
+    'numba',
     'psutil',
     'scipy',
-    'numba'
 ]
 
 # This a hack to get around the fact that scikit-image on conda-forge doesn't install

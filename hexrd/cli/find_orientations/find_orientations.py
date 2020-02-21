@@ -38,7 +38,7 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
     None.
 
     """
-    print('ready to run find_orientations')
+    logger.info('ready to run find_orientations')
     
     # %%
     # =============================================================================
@@ -60,9 +60,10 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
 
     # for neighborhood estimation
     eta_ranges = np.radians(cfg.find_orientations.eta.range)
+
+    # !!! we assume all detector ims have the same ome ranges, so any will do!
     ims = next(iter(cfg.image_series.values()))
     oims = OmegaImageSeries(ims)
-    # !!! we assume all detector ims have the same ome ranges, so any will do!
     ome_ranges = [
         (np.radians([i['ostart'], i['ostop']]))
         for i in oims.omegawedges.wedges
@@ -72,8 +73,10 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
     cl_radius = cfg.find_orientations.clustering.radius
     compl_thresh = cfg.find_orientations.clustering.completeness
 
-    print("INFO:\tgenerating search quaternion list using %d processes"
-          % ncpus)
+    logger.info(
+        "INFO:\tgenerating search quaternion list using %d processes"
+         % ncpus
+    )
 
     start = timeit.default_timer()
 
@@ -90,10 +93,10 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
     # ORIENTATION SCORING
     # =============================================================================
 
-    print("INFO:\t\t...took %f seconds" % (timeit.default_timer() - start))
-    print("INFO: will test %d quaternions using %d processes"
+    logger.info("INFO:\t\t...took %f seconds" % (timeit.default_timer() - start))
+    logger.info("INFO: will test %d quaternions using %d processes"
           % (qfib.shape[1], ncpus))
-    print("INFO:\tusing map search with paintGrid on %d processes"
+    logger.info("INFO:\tusing map search with paintGrid on %d processes"
           % ncpus)
     start = timeit.default_timer()
 
@@ -108,7 +111,7 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
         doMultiProc=ncpus > 1,
         nCPUs=ncpus
         )
-    print("INFO:\t\t...took %f seconds" % (timeit.default_timer() - start))
+    logger.info("INFO:\t\t...took %f seconds" % (timeit.default_timer() - start))
     completeness = np.array(completeness)
 
     np.savez_compressed(
@@ -129,10 +132,10 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
         plane_data, active_hkls, fiber_seeds,
         hedm, eta_ranges, ome_ranges,
         compl_thresh, ngrains=100)
-    print("INFO:\tmean reflections per grain: %d" % mean_rpg)
-    print("INFO:\tneighborhood size: %d" % min_samples)
+    logger.info("INFO:\tmean reflections per grain: %d" % mean_rpg)
+    logger.info("INFO:\tneighborhood size: %d" % min_samples)
 
-    print("INFO:\trunning clustering using '%s'"
+    logger.info("INFO:\trunning clustering using '%s'"
           % cfg.find_orientations.clustering.algorithm)
 
     start = timeit.default_timer()
@@ -144,8 +147,8 @@ def find_orientations(cfg, hkls=None, clean=False, profile=False):
         radius=cl_radius
     )
 
-    print("INFO:\t\t...took %f seconds" % (timeit.default_timer() - start))
-    print("INFO:\tfound %d grains; saved to file: '%s'"
+    logger.info("INFO:\t\t...took %f seconds" % (timeit.default_timer() - start))
+    logger.info("INFO:\tfound %d grains; saved to file: '%s'"
           % (qbar.shape[1], qbar_filename))
 
     np.savetxt(qbar_filename, qbar.T,
