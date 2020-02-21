@@ -29,7 +29,6 @@ except ImportError:
 from skimage.feature import blob_dog, blob_log
 
 logger = logging.getLogger('hexrd')
-method = "blob_dog"  # !!! have to get this from the config
 
 
 # =============================================================================
@@ -67,7 +66,7 @@ def get_eta_ome(cfg, clobber_maps=False):
         imsd, instr, plane_data,
         active_hkls=active_hkls,
         threshold=build_map_threshold,
-        ome_period=cfg.find_orientations.omega.period
+        ome_period=np.array(cfg.find_orientations.omega.period)
     )
 
     print("INFO:  ...took %f seconds" % (timeit.default_timer() - start))
@@ -82,20 +81,43 @@ def get_eta_ome(cfg, clobber_maps=False):
 
 def generate_orientation_fibers(
         eta_ome, chi, threshold, seed_hkl_ids, fiber_ndiv,
-        filt_stdev=0.8, ncpus=1):
+        method='blob_dog', filt_stdev=0.8, ncpus=1):
     """
-    From ome-eta maps and hklid spec, generate list of
-    quaternions from fibers
+    Generate list of quaternions on discrete fibers from eta-ome maps
+    and hklid spec.
+
+    Parameters
+    ----------
+    eta_ome : TYPE
+        DESCRIPTION.
+    chi : TYPE
+        DESCRIPTION.
+    threshold : TYPE
+        DESCRIPTION.
+    seed_hkl_ids : TYPE
+        DESCRIPTION.
+    fiber_ndiv : TYPE
+        DESCRIPTION.
+    method : TYPE, optional
+        DESCRIPTION. The default is 'blob_dog'.
+    filt_stdev : TYPE, optional
+        DESCRIPTION. The default is 0.8.
+    ncpus : TYPE, optional
+        DESCRIPTION. The default is 1.
+
+    Returns
+    -------
+    ndarray
+        the (4, m) array of hstacked unit quaternions in the fundamental zone.
+
     """
+
     # seed_hkl_ids must be consistent with this...
     pd_hkl_ids = eta_ome.iHKLList[seed_hkl_ids]
 
     # grab angular grid infor from maps
     del_ome = eta_ome.omegas[1] - eta_ome.omegas[0]
     del_eta = eta_ome.etas[1] - eta_ome.etas[0]
-
-    # labeling mask
-    structureNDI_label = ndimage.generate_binary_structure(2, 1)
 
     # crystallography data from the pd object
     pd = eta_ome.planeData
@@ -120,6 +142,9 @@ def generate_orientation_fibers(
     coms = []
     for i in seed_hkl_ids:
         if method == "label":
+            # labeling mask
+            structureNDI_label = ndimage.generate_binary_structure(2, 1)
+
             # First apply filter
             this_map_f = -ndimage.filters.gaussian_laplace(
                 eta_ome.dataStore[i], filt_stdev)
