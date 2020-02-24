@@ -52,7 +52,7 @@ class ArrayImageSeriesAdapter(ImageSeriesAdapter):
         return self._data.dtype
 
     def __getitem__(self, key):
-        return self._data[key]
+        return self._data[key].copy()
 
     def __iter__(self):
         return ImageSeriesIterator(self)

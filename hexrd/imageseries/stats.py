@@ -1,30 +1,20 @@
 """aggregate statistics for imageseries
 
-The functions here operate on the frames of an imageseries.
-Because there may be an large number of images, the images
-are processed in chunks, some number of rows at a time.
-All of the functions take a keyword arguments of "chunk" and "nframes".
-If "nframes" is greater than 0, it means use only that many frames of
-the imageseries; otherwise use all the frames.
-The "chunks" argument may be either None or a 3-tuple (i, n, img), where:
+The functions here operate on the frames of an imageseries and return a
+single aggregate image. For each function, there is a corresponding iterable
+that allows you to run the function in smaller bits; the bits are either groups
+of frames or groups of rows, depending on the function. The iterable returns a
+sequence of images, the last being the final result.
 
- i is the current chunk to compute,
- n is the total number of chunks, and
- img is the current image with same shape as the imageseries
+For example:
 
-If chunks is not None, then the the function needs to be called n times,
-and after each call an intermediate image is returned, the last being complete.
+#  Using the standard function call
+img = stats.average(ims)
 
-If chunks is None, then only one call is needed, and the number of chunks is
-determined by the STATS_BUFFER variable.
-
-For example, to find the median image for an imageseries "ims" using "nchunk" chunks:
-
-    img = np.zeros(ims.shape)
-    for i in range(nchunk):
-        img = op(ims, chunk=(i, nchunk, img))
-        print("%d/%d" % (i, nchunk), img)
-
+# Using the iterable with 10 chunks
+for img in stats.average_iter(ims, 10):
+    # update progress bar
+    pass
 """
 import numpy as np
 
@@ -36,24 +26,120 @@ STATS_BUFFER = int(0.5*vmem.available)
 del vmem
 
 
-def max(ims, chunk=None, nframes=0):
-    return _run_chunks(np.max, ims, chunk, nframes)
+def max(ims, nframes=0):
+    """maximum over frames"""
+    nf = _nframes(ims, nframes)
+    img = ims[0]
+    for i in range(1, nf):
+        img = np.maximum(img, ims[i])
+    return img
 
 
-def min(ims, chunk=None, nframes=0):
-    return _run_chunks(np.min, ims, chunk, nframes)
+def max_iter(ims, nchunk, nframes=0):
+    """iterator for max function"""
+    nf = _nframes(ims, nframes)
+    stops = _chunk_stops(nf, nchunk)
+    s0 = 0
+    stop = stops[s0]
+    img = ims[0]
+    if stop == 0:
+        yield img
+        s0 += 1
+        stop = stops[s0]
+
+    for i in range(1, nf):
+        img = np.maximum(img, ims[i])
+        if i >= stop:
+            yield img
+            if (i + 1) < nf:
+                s0 += 1
+                stop = stops[s0]
 
 
-def median(ims, chunk=None, nframes=0):
-    return _run_chunks(np.median, ims, chunk, nframes)
+def min(ims, nframes=0):
+    """minimum over frames"""
+    nf = _nframes(ims, nframes)
+    img = ims[0]
+    for i in range(1, nf):
+        img = np.minimum(img, ims[i])
+    return img
 
 
-def percentile(ims, pctl, chunk=None, nframes=0):
-    return _run_chunks(np.percentile, ims, chunk, nframes, *(pctl,))
+def min_iter(ims, nchunk, nframes=0):
+    """iterator for min function"""
+    nf = _nframes(ims, nframes)
+    stops = _chunk_stops(nf, nchunk)
+    s0, stop = 0, stops[0]
+    img = ims[0]
+    if stop == 0:
+        yield img
+        s0 += 1
+        stop = stops[s0]
+    for i in range(1, nf):
+        img = np.minimum(img, ims[i])
+        if i >= stop:
+            yield img
+            if (i + 1) < nf:
+                s0 += 1
+                stop = stops[s0]
 
 
-def average(ims, chunk=None, nframes=0):
-    return _run_chunks(np.average, ims, chunk, nframes)
+def average(ims, nframes=0):
+    """average over frames"""
+    nf = _nframes(ims, nframes)
+    img = ims[0]
+    for i in range(1, nf):
+        img += ims[i]
+    return img/nf
+
+
+def average_iter(ims, nchunk, nframes=0):
+    """average over frames
+
+    Note: average returns a float even if images are uint
+"""
+    nf = _nframes(ims, nframes)
+    stops = _chunk_stops(nf, nchunk)
+    s0, stop = 0, stops[0]
+    img = ims[0]
+    if stop == 0:
+        s0, stop = 1, stops[1]
+        yield img
+    for i in range(1, nf):
+        img += ims[i]
+        if i >= stop:
+            if (i + 1) < nf:
+                s0 += 1
+                stop = stops[s0]
+            yield img/(i+1)
+
+
+def percentile(ims, pctl, nframes=0):
+    """percentile function over frames"""
+    nf = _nframes(ims, nframes)
+    return np.percentile(_toarray(ims, nf), pctl, axis=0)
+
+
+def percentile_iter(ims, pctl, nchunks,  nframes=0):
+    """iterator for percentile function"""
+    nf = _nframes(ims, nframes)
+    nr, nc = ims.shape
+    stops = _chunk_stops(nr, nchunks)
+    r0 = 0
+    img = np.zeros(ims.shape)
+    for s in stops:
+        r1 = s + 1
+        img[r0:r1] = np.percentile(_toarray(ims, nf, (r0, r1)), pctl, axis=0)
+        r0 = s
+        yield img
+
+
+def median(ims, nframes=0):
+    return percentile(ims, 50, nframes=nframes)
+
+
+def median_iter(ims, nchunks, nframes=0):
+    return percentile_iter(ims, 50, nchunks, nframes=nframes)
 
 
 # ==================== Utilities
@@ -64,66 +150,33 @@ def _nframes(ims, nframes):
     return np.min((mynf, nframes)) if nframes > 0 else mynf
 
 
-def _toarray(ims, nframes, r0, r1):
-    _, nc = ims.shape
-    ashp = (nframes, r1 - r0, nc)
-    a = np.zeros(ashp, dtype=ims.dtype)
+def _chunk_stops(n, nchunks):
+    """Return yield points
+
+    n -- number of items to be chunked (e.g. frames/rows)
+    nchunks -- number of chunks
+"""
+    if nchunks > n:
+        raise ValueError("number of chunks cannot exceed number of items")
+    csize = n//nchunks
+    rem = n % nchunks
+    pieces = csize*np.ones(nchunks, dtype=int)
+    pieces[:rem] += 1
+    pieces[0] += -1
+
+    return np.cumsum(pieces)
+
+
+def _toarray(ims, nframes, rows=None):
+    nr, nc = ims.shape
+    if rows is None: # use all
+        r0, r1 = 0, nr
+        ashp = (nframes, nr, nc)
+    else:
+        r0, r1 = rows
+        ashp = (nframes, r1 - r0, nc)
+    a = np.empty(ashp, dtype=ims.dtype)
     for i in range(nframes):
-        a[i] = ims[i][r0:r1, :]
+        a[i] = ims[i][r0:r1]
 
     return a
-
-
-def _chunk_ranges(nrows, nchunk, chunk):
-    """Return start and end row for current chunk
-
-    nrows -- total number of rows (row indices are 0-based)
-    nchunk -- number of chunks
-    chunk -- current chunk (0-based, i.e. ranges from 0 to nchunk - 1)
-"""
-    csize = nrows//nchunk
-    rem = nrows % nchunk
-    if chunk < rem:
-        r0 = (chunk)*(csize + 1)
-        r1 = r0 + csize + 1
-    else:
-        r0 = chunk*csize + rem
-        r1 = r0 + csize
-
-    return r0, r1
-
-
-def _chunk_op(op, ims, nf, chunk, *args):
-    """run operation on one chunk of image data
-    ims -- the imageseries
-    nf -- total number of frames to use
-    chunk -- tuple of (i, n, img)
-    args -- args to pass to op
-"""
-    nrows, ncols = ims.shape
-    i = chunk[0]
-    nchunk = chunk[1]
-    img = chunk[2]
-    r0, r1 = _chunk_ranges(nrows, nchunk, i)
-    a = _toarray(ims, nf, r0, r1)
-    img[r0:r1, :] = op(a, *args, axis=0)
-
-    return img
-
-
-def _run_chunks(op, ims, chunk, nframes, *args):
-    """run chunked operation"""
-    nf = _nframes(ims, nframes)
-    if chunk is None:
-        dt = ims.dtype
-        (nr, nc) = ims.shape
-        mem = nf*nr*nc*dt.itemsize
-        nchunks = 1 + mem // STATS_BUFFER
-        img = np.zeros((nr, nc), dtype=dt)
-        for i in range(nchunks):
-            chunk = (i, nchunks, img)
-            img = _chunk_op(op, ims, nf, chunk, *args)
-    else:
-        img = _chunk_op(op, ims, nf, chunk, *args)
-
-    return img
