@@ -43,9 +43,9 @@ def max_iter(ims, nchunk, nframes=0):
     stop = stops[s0]
     img = ims[0]
     if stop == 0:
+        if nf > 1:
+            s0, stop = 1, stops[1]
         yield img
-        s0 += 1
-        stop = stops[s0]
 
     for i in range(1, nf):
         img = np.maximum(img, ims[i])
@@ -72,9 +72,10 @@ def min_iter(ims, nchunk, nframes=0):
     s0, stop = 0, stops[0]
     img = ims[0]
     if stop == 0:
+        if nf > 1:
+            s0, stop = 1, stops[1]
         yield img
-        s0 += 1
-        stop = stops[s0]
+
     for i in range(1, nf):
         img = np.minimum(img, ims[i])
         if i >= stop:
@@ -103,8 +104,10 @@ def average_iter(ims, nchunk, nframes=0):
     s0, stop = 0, stops[0]
     img = ims[0]
     if stop == 0:
-        s0, stop = 1, stops[1]
+        if nf > 1:
+            s0, stop = 1, stops[1]
         yield img
+
     for i in range(1, nf):
         img += ims[i]
         if i >= stop:
