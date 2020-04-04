@@ -10,23 +10,29 @@ build:
 
 requirements:
   build:
+    - python {{PY_VER}}*
     - numpy
     - python
     - setuptools
     - setuptools_scm
 
   run:
+    - python {{PY_VER}}*
     - h5py
-    - scipy
     - numba
+    - numpy
+    - psutil
+    - pyyaml
+    - scipy
     - scikit-image
+    - scikit-learn
 
 test:
   imports:
     - hexrd
 
 about:
-  home: https://github.com/joelvbernier/hexrd3
+  home: https://github.com/HEXRD/hexrd
   license: BSD
   license_family: BSD
   summary: High energy diffraction data analysis

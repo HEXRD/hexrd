@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 # ============================================================
 # Copyright (c) 2012, Lawrence Livermore National Security, LLC.
 # Produced at the Lawrence Livermore National Laboratory.
@@ -66,6 +66,8 @@ def _zproject(x, y):
 
 def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
     """
+    Indetify angles that fall within specified ranges.
+
     A better way to go.  find out if an angle is in the range
     CCW or CW from start to stop
 
@@ -168,12 +170,46 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
                        etaRanges=None, omeRanges=None,
                        bVec=xf.bVec_ref, eVec=xf.eta_ref, vInv=xf.vInv_ref):
     """
+    Simulate spherical maps.
+
+    Parameters
+    ----------
+    omeEdges : TYPE
+        DESCRIPTION.
+    etaEdges : TYPE
+        DESCRIPTION.
+    planeData : TYPE
+        DESCRIPTION.
+    expMaps : (3, n) ndarray
+        DESCRIPTION.
+    chi : TYPE, optional
+        DESCRIPTION. The default is 0..
+    etaTol : TYPE, optional
+        DESCRIPTION. The default is None.
+    omeTol : TYPE, optional
+        DESCRIPTION. The default is None.
+    etaRanges : TYPE, optional
+        DESCRIPTION. The default is None.
+    omeRanges : TYPE, optional
+        DESCRIPTION. The default is None.
+    bVec : TYPE, optional
+        DESCRIPTION. The default is xf.bVec_ref.
+    eVec : TYPE, optional
+        DESCRIPTION. The default is xf.eta_ref.
+    vInv : TYPE, optional
+        DESCRIPTION. The default is xf.vInv_ref.
+
+    Returns
+    -------
+    eta_ome : TYPE
+        DESCRIPTION.
+
+    Notes
+    -----
     all angular info is entered in degrees
 
-    expMaps are (3, n)
-
-    ...might want to creat module-level angluar unit flag
-    ...might want to allow resvers delta omega
+    ??? might want to creat module-level angluar unit flag
+    ??? might want to allow resvers delta omega
 
     """
     # convert to radians
@@ -680,6 +716,8 @@ if USE_NUMBA:
             tVec_d, tVec_s, tVec_c,
             distortion=None, beamVec=None, etaVec=None):
         """
+        Calculate angular pixel sizes on a detector.
+
         * choices to beam vector and eta vector specs have been supressed
         * assumes xy_det in UNWARPED configuration
         """
@@ -709,10 +747,11 @@ else:
                          tVec_d, tVec_s, tVec_c,
                          distortion=None, beamVec=None, etaVec=None):
         """
+        Calculate angular pixel sizes on a detector.
+
         * choices to beam vector and eta vector specs have been supressed
         * assumes xy_det in UNWARPED configuration
         """
-
         xy_det = np.atleast_2d(xy_det)
         if distortion is not None and len(distortion) == 2:
             xy_det = distortion[0](xy_det, distortion[1])
@@ -802,7 +841,7 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
                             compute_areas_func=gutil.compute_areas,
                             beamVec=None):
     """
-    prototype function for making angular patches on a detector
+    Make angular patches on a detector.
 
     panel_dims are [(xmin, ymin), (xmax, ymax)] in mm
 
@@ -813,23 +852,23 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
     patches are:
 
                  delta tth
-   d  ------------- ... -------------
-   e  | x | x | x | ... | x | x | x |
-   l  ------------- ... -------------
-   t                 .
-   a                 .
+    d  ------------- ... -------------
+    e  | x | x | x | ... | x | x | x |
+    l  ------------- ... -------------
+    t                 .
+    a                 .
                      .
-   e  ------------- ... -------------
-   t  | x | x | x | ... | x | x | x |
-   a  ------------- ... -------------
+    e  ------------- ... -------------
+    t  | x | x | x | ... | x | x | x |
+    a  ------------- ... -------------
 
-   outputs are:
-       (tth_vtx, eta_vtx),
-       (x_vtx, y_vtx),
-       connectivity,
-       subpixel_areas,
-       (x_center, y_center),
-       (i_row, j_col)
+    outputs are:
+        (tth_vtx, eta_vtx),
+        (x_vtx, y_vtx),
+        connectivity,
+        subpixel_areas,
+        (x_center, y_center),
+        (i_row, j_col)
     """
     npts = len(tth_eta)
 
@@ -955,9 +994,29 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
 
 def extract_detector_transformation(detector_params):
     """
+    Construct arrays from detector parameters.
+
     goes from 10 vector of detector parames OR instrument config dictionary
     (from YAML spec) to affine transformation arrays
-    """    # extract variables for convenience
+
+    Parameters
+    ----------
+    detector_params : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    rMat_d : TYPE
+        DESCRIPTION.
+    tVec_d : TYPE
+        DESCRIPTION.
+    chi : TYPE
+        DESCRIPTION.
+    tVec_s : TYPE
+        DESCRIPTION.
+
+    """
+    # extract variables for convenience
     if isinstance(detector_params, dict):
         rMat_d = xfcapi.makeRotMatOfExpMap(
             np.array(detector_params['detector']['transform']['tilt'])

@@ -16,4 +16,4 @@ for k, d in icfg['detectors'].items():
     tilt_angles = np.r_[d['transform']['tilt_angles']]
     rmat_d = xfcapi.makeDetectorRotMat(tilt_angles)
     phi, n = rotations.angleAxisOfRotMat(rmat_d)
-    print("%s: [%.8e, %.8e, %.8e]" % tuple([k, *(phi*n.flatten())]))
+    print("%s: [%.8e, %.8e, %.8e]" % tuple([k, ] + np.ndarray.tolist(phi*n.flatten())))
