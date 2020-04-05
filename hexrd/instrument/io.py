@@ -140,7 +140,7 @@ class GrainDataWriter_h5(object):
             self.fid = filename
         else:
             newfile = filename + ".hdf5"
-            self.fid = h5py.File(, "w")
+            self.fid = h5py.File(newfile, "w")
             if os.path.exists(newfile):
                     raise(OSError("file not found: check path"))
         icfg = {}

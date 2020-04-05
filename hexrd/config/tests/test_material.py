@@ -10,6 +10,7 @@ material:
 material:
   definitions: %(nonexistent_file)s
   active: ruby
+  two-theta-width: 0.02
 ---
 material:
 #  definitions: # not set to test inheritance
@@ -43,3 +44,8 @@ class TestMaterialConfig(TestConfig):
             )
         self.assertEqual(self.cfgs[1].material.active, 'ruby')
         self.assertEqual(self.cfgs[2].material.active, 'CeO2')
+
+    def test_two_theta_width(self):
+        self.assertEqual(self.cfgs[0].material.two_theta_width, None)
+        self.assertEqual(self.cfgs[1].material.two_theta_width, 0.02)
+        self.assertEqual(self.cfgs[2].material.two_theta_width, None)

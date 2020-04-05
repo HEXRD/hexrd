@@ -34,5 +34,13 @@ class MaterialConfig(Config):
         return dict(list(zip([i.name for i in mat_list], mat_list)))
 
     @property
+    def two_theta_width(self):
+        return self.get('two-theta-width', default=None)
+
+    @property
     def plane_data(self):
-        return self.material_dict[self.active].planeData
+        pd = self.material_dict[self.active].planeData
+        tthw = self.two_theta_width
+        if tthw is not None:
+            pd.tThWidth = tthw
+        return pd
