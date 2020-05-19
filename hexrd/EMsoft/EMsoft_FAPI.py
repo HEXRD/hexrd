@@ -61,6 +61,9 @@ class EMsoft_constants:
 		self.atom_sym 		= constants.atom_sym
 		self.atom_weights 	= constants.atom_weights
 
+		# Doyle-Turner electron scattering factors for elements 1-98
+		self.scatfac 		= constants.scatfac
+
 		# physical constants
 		self.cAvogadro 		= constants.cAvogadro
 		self.cBoltzmann 	= constants.cBoltzmann
@@ -258,8 +261,8 @@ class FundamentalZone:
 
 	def IsInsideFZ(self, ro):
 
-		r = rotation()
-		r.check_ro(ro)
+		r = rotation(repr='rod',arr=ro)
+		r.check_ro(r.ro)
 		self.isin = np.asarray([so3.isinsidefz(r, self.FZtype, self.FZorder) for r in ro])
 
 
@@ -278,9 +281,15 @@ class unitcell:
 
 		self.cell = EMsoftTypes.cell
 		self.cell.voltage = beamenergy * 1000.0
+		self.scatfac = EMsoft_constants().scatfac
 
+		self.pref  = 0.4178214
 		self.rlp   = EMsoftTypes.rlp
-		self.rlp.method = 'XR' 
+		self.rlp.method = 'XR'
+
+		self.ATOM_ntype = atomtypes.shape[0]
+		self.ATOM_type  = atomtypes 
+		self._ATOM_pos  = atominfo
 
 		if(lp[0].unit == 'angstrom'):
 			self.cell.a = lp[0].value * 0.1
@@ -328,11 +337,24 @@ class unitcell:
 							EMsoft_constants().cLight /  \
 							EMsoft_constants().cCharge / \
 							self.cell.voltage
-		self.cell.mlambda *= 1e9 
+		self.cell.mlambda *= 1e9
 
 		crystal.calcmatrices(self.cell)
 		symmetry.generatesymmetry(self.cell, True)
 		symmetry.calcpositions(self.cell, 'v')
+
+		self.vol = self.cell.vol
+		
+		numat = []
+		asym_pos = []
+		for i in range(self.ATOM_ntype):
+			n = self.cell.numat[i]
+			numat.append(n)
+			asym_pos.append(self.cell.apos[i,0:n,:])
+
+		numat = np.array(numat)
+		self.numat = numat
+		self.asym_pos = asym_pos
 
 		self.dmin = dmin
 		self.ih = 1
@@ -432,7 +454,7 @@ class unitcell:
 
 		uxv = crystal.calccross(self.cell, u, v, inspace, \
 		outspace, iv)
-
+		return uxv
 	''' calculate density '''
 	def CalcDensity(self):
 		[self.density, self.avZ, self.avA] = crystal.calcdensity(self.cell)
@@ -449,12 +471,36 @@ class unitcell:
 
 		print("Maximum g-vector index in [a*, b*, c*] = ",self.ih, self.ik, self.il)
 
+	def CalcXRFormFactor(self, Z, s):
+		fe = 0.0
+		sfact = self.scatfac[:,Z]
+		for i in range(4):
+			fe += sfact[i] * np.exp(-sfact[i+4]*s)
+
+		ff = Z - self.pref * s * fe
+
+		return ff
+
 	def CalcXRSF(self, hkl):
 
-		diffraction.calcucg(self.cell,
-							self.rlp,
-							hkl)
-		return np.abs(self.rlp.ucg)**2
+		s =  0.25 * np.dot(hkl,np.dot(self.rmt,hkl))
+		for i in range(0,self.ATOM_ntype):
+
+			Z   = self.ATOM_type[i]
+			ff  = self.CalcXRFormFactor(Z,s)
+			ff *= self.ATOM_pos[i,3] * np.exp(-self.ATOM_pos[i,4]*s)
+
+			sf = np.complex(0.,0.)
+			for j in range(self.asym_pos[i].shape[0]):
+				arg =  2.0 * np.pi * np.sum( hkl * self.asym_pos[i][j,:] )
+				sf  = sf + ff * np.complex(np.cos(arg),-np.sin(arg))
+
+			return np.abs(sf)**2
+
+		# diffraction.calcucg(self.cell,
+		# 					self.rlp,
+		# 					hkl)
+		# return np.abs(self.rlp.ucg)**2
 
 	''' calculate bragg angle for a reflection. returns Nan if
 		the reflections is not possible for the voltage/wavelength
@@ -600,28 +646,49 @@ class unitcell:
 
 	@property
 	def ATOM_pos(self):
-		sz = self.cell.atom_ntype
-		return self.cell.atom_pos[0:sz,:]
+		return self._ATOM_pos
 
 	@ATOM_pos.setter
 	def ATOM_pos(self, val):
-		val = np.atleast_2d(val)
-		if( (val.shape[1] != 5) ):
-			raise ValueError('Incorrect shape for atomic positions')
-		sz = val.shape[0]
-		if(sz != self.cell.atom_ntype):
-			raise ValueError('different number of atom types than previously specified.')
-		self.cell.atom_pos[0:sz,:] = val[:,:]
-		symmetry.calcpositions(self.cell, 'v')
+		self._ATOM_pos = val
 
-	# asymmetric positions in unit cell; read only
+	@property
+	def B_factor(self):
+		return self._ATOM_pos[:,4]
+
+	@B_factor.setter
+	def B_factor(self, val):
+		if (val.shape[0] != self.ATOM_ntype):
+			raise ValueError('Incorrect shape for B factor')
+		self._ATOM_pos[:,4] = val
+	
+		# val = np.atleast_2d(val)
+		# if( (val.shape[1] != 5) ):
+		# 	raise ValueError('Incorrect shape for atomic positions')
+		# sz = val.shape[0]
+		# if(sz != self.cell.atom_ntype):
+		# 	raise ValueError('different number of atom types than previously specified.')
+		# self.cell.atom_pos[0:sz,:] = val[:,:]
+		# symmetry.calcpositions(self.cell, 'v')
+
+	# asymmetric positions in unit cell
 	@property
 	def asym_pos(self):
-		retlist = []
-		for i in range(self.cell.atom_ntype):
-			sz = self.cell.numat[i]
-			retlist.append(self.cell.apos[i,0:sz,:])
-		return retlist
+		return self._asym_pos
+
+	@asym_pos.setter
+	def asym_pos(self, val):
+		assert(type(val) == list), 'input type to asymmetric positions should be list'
+		self._asym_pos = val
+
+	@property
+	def numat(self):
+		return self._numat
+	
+	@numat.setter
+	def numat(self, val):
+		assert(val.shape[0] == self.ATOM_ntype),'shape of numat is not consistent'
+		self._numat = val
 	
 	# different atom types; read only
 	@property
@@ -669,6 +736,14 @@ class unitcell:
 		return self.cell.sg.sym_recip[0:nsym,:,:]
 	
 
+	@property
+	def vol(self):
+		return self._vol
+	
+	@vol.setter
+	def vol(self, val):
+		self._vol = val
+
 class rotation:
 
 	''' 
@@ -703,47 +778,47 @@ class rotation:
 	def __init__(self, repr='expmap', arr=None):
 		self.tol = 1.0e-6
 
-		if(repr == 'expmap'):
-			self.check_ex(arr)
-			self.ex = np.atleast_2d(arr)
+		# if(repr == 'expmap'):
+		# 	self.check_ex(arr)
+		# 	self.ex = np.atleast_2d(arr)
 
-		elif(repr == 'euler'):
-			self.check_eu(arr)
-			self.eu = np.atleast_2d(arr)
+		# elif(repr == 'euler'):
+		# 	self.check_eu(arr)
+		# 	self.eu = np.atleast_2d(arr)
 
-		elif(repr == 'quat'):
-			self.check_qu(arr)
-			self.qu = np.atleast_2d(arr)
+		# elif(repr == 'quat'):
+		# 	self.check_qu(arr)
+		# 	self.qu = np.atleast_2d(arr)
 
-		elif(repr == 'rod'):
-			self.check_ro(arr)
-			self.ro = np.atleast_2d(arr)
+		# elif(repr == 'rod'):
+		# 	self.check_ro(arr)
+		# 	self.ro = np.atleast_2d(arr)
 
-		elif(repr == 'cub'):
-			self.check_cu(arr)
-			self.cu = np.atleast_2d(arr)
+		# elif(repr == 'cub'):
+		# 	self.check_cu(arr)
+		# 	self.cu = np.atleast_2d(arr)
 
-		elif(repr == 'axis-angle'):
-			self.check_ax(arr)
-			self.ax = np.atleast_2d(arr)
+		# elif(repr == 'axis-angle'):
+		# 	self.check_ax(arr)
+		# 	self.ax = np.atleast_2d(arr)
 
-		elif(repr == 'rotation-matrix'):
-			self.check_om(arr)
-			if(arr.ndim == 2):
-				self.om = np.atleast_3d(arr).T
-			else:
-				self.om = np.atleast_3d(arr)
+		# elif(repr == 'rotation-matrix'):
+		# 	self.check_om(arr)
+		# 	if(arr.ndim == 2):
+		# 		self.om = np.atleast_3d(arr).T
+		# 	else:
+		# 		self.om = np.atleast_3d(arr)
 
-		elif(repr == 'homochoric'):
-			self.check_ho(arr)
-			self.ho = np.atleast_2d(arr)
+		# elif(repr == 'homochoric'):
+		# 	self.check_ho(arr)
+		# 	self.ho = np.atleast_2d(arr)
 
-		elif(repr == 'stereographic'):
-			self.check_st(arr)
-			self.st = np.atleast_2d(arr)
+		# elif(repr == 'stereographic'):
+		# 	self.check_st(arr)
+		# 	self.st = np.atleast_2d(arr)
 
-		else:
-			raise TypeError("unknown rotation representation.")
+		# else:
+		# 	raise TypeError("unknown rotation representation.")
 
 	def check_ex(self, ex):
 
@@ -774,7 +849,7 @@ class rotation:
 
 		assert(ro.ndim == 2), 'dimension of array should be 2-d (n x 4).'
 		assert(ro.shape[1] == 4), 'second dimension should be 4.'
-		assert( np.all(np.linalg.norm(ro[:,0:3], axis=1) == 1) ), 'the unit vectors are not normal'
+		assert( np.all(np.abs(np.linalg.norm(ro[:,0:3], axis=1) - 1.0) ) < self.tol ), 'the unit vectors are not normal'
 
 	def check_qu(self, qu):
 
@@ -782,7 +857,7 @@ class rotation:
 
 		assert(qu.ndim == 2), 'dimension of array should be 2-d (n x 4).'
 		assert(qu.shape[1] == 4), 'second dimension should be 4.'
-		assert( np.all(np.linalg.norm(qu, axis=1) == 1 ) ), 'the unit vectors are not normal'
+		assert( np.all(np.abs(np.linalg.norm(qu, axis=1) - 1.0) ) < self.tol ), 'the unit vectors are not normal'
 
 	def check_cu(self, cu):
 
@@ -798,7 +873,7 @@ class rotation:
 
 		assert(ax.ndim == 2), 'dimension of array should be 2-d (n x 4).'
 		assert(ax.shape[1] == 4), 'second dimension should be 4.'
-		assert(np.all(np.linalg.norm(ax[:,0:3], axis=1) == 1 ) ), 'the unit vectors are not normal'
+		assert(np.all(np.abs(np.linalg.norm(ax[:,0:3], axis=1) - 1.0) ) < self.tol ), 'the unit vectors are not normal'
 		if(np.any(np.abs(ax[:,3]) > 2.0*np.pi)):
 			warnings.warn("angle seems to be too large. Please check if you've converted to radians.")
 

@@ -38,6 +38,7 @@ from hexrd.crystallography import PlaneData as PData
 from hexrd.spacegroup import SpaceGroup as SG
 import hexrd.spacegroup as sg
 from hexrd.valunits import valWUnit
+import copy
 
 from os import path
 from CifFile import ReadCif 
@@ -89,7 +90,7 @@ class Material(object):
 
     DFLT_LPARMS = [_angstroms(3.61), _angstroms(3.61), _angstroms(3.61),
                    _degrees(90.0), _degrees(90.0), _degrees(90.0)]
-    DFLT_SSMAX = 50
+    DFLT_SSMAX = 100
 
     DFLT_KEV = valWUnit('wavelength', 'energy', 80.725e0, 'keV')
     DFLT_STR = 0.0025
@@ -134,6 +135,7 @@ class Material(object):
             self._hklMax = Material.DFLT_SSMAX
             # self._beamEnergy = Material.DFLT_KEV
             self._readHDFxtal(cfgP)
+            # self._readCif(cfgP)
             pass
         else:
             # Use default values
@@ -150,14 +152,14 @@ class Material(object):
             self._atomtype = Material.DFLT_ATOMTYPE
             #
 
-        self.unitcell = EMsoft_FAPI.unitcell(self._lparms, 
+        self.unitcell = copy.deepcopy(EMsoft_FAPI.unitcell(self._lparms, 
                                              self.sgnum, 
                                              self._atomtype,
                                              self._atominfo,
                                              uc_dmin,
                                              self._beamEnergy.value,
                                              sgsetting=self._sgsetting
-                                             )
+                                             ))
         hkls = self.planeData.getHKLs(allHKLs=True)
         sf = numpy.zeros([hkls.shape[0],])
         for i,g in enumerate(hkls):
@@ -316,12 +318,12 @@ class Material(object):
                 sgnum = sg.Hall_to_sgnum[HM]  
 
         # lattice parameters
-        lparams = []
+        lparms = []
         lpkey = ['_cell_length_a', '_cell_length_b', \
                  '_cell_length_c', '_cell_angle_alpha', \
                  '_cell_angle_beta', '_cell_angle_gamma']   
         for key in lpkey:
-            lparams.append(cifdata[key])
+            lparms.append(float(cifdata[key]))
 
         for i in range(6):
                 if(i < 3):
@@ -329,20 +331,20 @@ class Material(object):
                 else:
                     lparms[i] = _degrees(lparms[i])
 
-        self.sgnum   = sgnum
         self._lparms = lparms
+        self.sgnum   = sgnum
 
         # fractional atomic site, occ and vibration amplitude
         fracsitekey = ['_atom_site_fract_x', '_atom_site_fract_y',\
-                        '_atom_site_fract_z', '_atom_site_occupancy',\
+                        '_atom_site_fract_z',]
+        occ_U       = ['_atom_site_occupancy',\
                         '_atom_site_U_iso_or_equiv']
         sitedata = True
         for key in fracsitekey:
             sitedata = sitedata and (key in cifdata)
 
         if(not(sitedata)):
-            raise RuntimeError(' fractional site position, occupation or isotropic vibration amplitude \
-                                 data is not present or incomplete in the CIF file! ')
+            raise RuntimeError(' fractional site position is not present or incomplete in the CIF file! ')
 
         atompos = []
         for key in fracsitekey:

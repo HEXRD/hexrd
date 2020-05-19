@@ -436,8 +436,8 @@ if (rlp%method.eq.'XR') then
 ! scale and include Debye-Waller factor and site occupation parameter
   fsp = pref * s * sct 
   fs = (float(cell % ATOM_type(m)) - fsp ) * cell % ATOM_pos(m,4) * exp(-cell % ATOM_pos(m,5)*s)
-!  write (*,*) 'atom type ',cell % ATOM_type(m),'; s = ',sqrt(s),'; fs = ',float(cell % ATOM_type(m))-fsp, &
-!      '; occ. ',cell % ATOM_pos(m,4),'; DW ',exp(-cell % ATOM_pos(m,5)*s),'; fs = ',fs,'; sct = ',sct
+  ! write (*,*) 'atom type ',cell % ATOM_type(m),'; s = ',sqrt(s), &
+  !    '; DW ',cell % ATOM_pos(m,5),-cell % ATOM_pos(m,5)*s,exp(-cell % ATOM_pos(m,5)*s)
 
 ! loop over all atoms in the orbit
   do j=1,cell%numat(m)
