@@ -10,14 +10,14 @@ build:
 
 requirements:
   build:
-    - python {{PY_VER}}*
+    - python {{PY_VER}}
     - numpy
     - python
     - setuptools
     - setuptools_scm
 
   run:
-    - python {{PY_VER}}*
+    - python {{PY_VER}}
     - h5py
     - numba
     - numpy
