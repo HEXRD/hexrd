@@ -361,7 +361,7 @@ def loadMaterialList(cfgFile):
     names = p.sections()
     matList = [Material(n, p) for n in names]
     # Sort the list
-    matList = sorted(matList, _key)
+    matList = sorted(matList, key=_key)
 
     return matList
 

@@ -30,8 +30,8 @@
 #
 import sys
 import timeit
-import numpy as np
 
+import numpy as np
 from numpy import \
      arange, arctan2, array, argmax, asarray, atleast_1d, average, \
      ndarray, diag, zeros, \
@@ -39,24 +39,21 @@ from numpy import \
      sort, tile, vstack, hstack, c_, ix_, \
      abs, mod, sign, \
      finfo, isscalar
-
 from numpy import float_ as nFloat
 from numpy import int_ as nInt
-
 from scipy.optimize import leastsq
 
 from hexrd import constants as cnst
-
 from hexrd.matrixutil import \
     columnNorm, unitVector, \
     skewMatrixOfVector, findDuplicateVectors, \
     multMatArray, nullSpace
+from hexrd import symmetry
 
 
 # =============================================================================
 # Module Data
 # =============================================================================
-
 
 angularUnits = 'radians'  # module-level angle units
 periodDict = {'degrees': 360.0, 'radians': 2*np.pi}
@@ -321,15 +318,15 @@ def quatProductMatrix(quats, mult='right'):
     q3 = quats[3, :].copy()
 
     if mult == 'right':
-        qmats = array([[ q0], [ q1], [ q2], [ q3],
-                       [-q1], [ q0], [-q3], [ q2],
-                       [-q2], [ q3], [ q0], [-q1],
-                       [-q3], [-q2], [ q1], [ q0]])
+        qmats = array([[q0], [q1], [q2], [q3],
+                       [-q1], [q0], [-q3], [q2],
+                       [-q2], [q3], [q0], [-q1],
+                       [-q3], [-q2], [q1], [q0]])
     elif mult == 'left':
-        qmats = array([[ q0], [ q1], [ q2], [ q3],
-                       [-q1], [ q0], [ q3], [-q2],
-                       [-q2], [-q3], [ q0], [ q1],
-                       [-q3], [ q2], [-q1], [ q0]])
+        qmats = array([[q0], [q1], [q2], [q3],
+                       [-q1], [q0], [q3], [-q2],
+                       [-q2], [-q3], [q0], [q1],
+                       [-q3], [q2], [-q1], [q0]])
 
     # some fancy reshuffling...
     qmats = qmats.T.reshape(nq, 4, 4).transpose(0, 2, 1)
@@ -393,8 +390,6 @@ def quatOfRotMat(R):
 def quatAverageCluster(q_in, qsym):
     """
     """
-    from symmetry import toFundamentalRegion
-
     assert q_in.ndim == 2, 'input must be 2-s hstacked quats'
 
     # renormalize
@@ -419,7 +414,7 @@ def quatAverageCluster(q_in, qsym):
             q_in)
 
         # second, re-cast to FR
-        qrot = toFundamentalRegion(qrot.squeeze(), crysSym=qsym)
+        qrot = symmetry.toFundamentalRegion(qrot.squeeze(), crysSym=qsym)
 
         # compute arithmetic average
         q_bar = unitVector(average(qrot, axis=1).reshape(4, 1))
@@ -430,7 +425,7 @@ def quatAverageCluster(q_in, qsym):
             q_bar)
 
         # re-map
-        q_bar = toFundamentalRegion(q_bar, crysSym=qsym)
+        q_bar = symmetry.toFundamentalRegion(q_bar, crysSym=qsym)
     return q_bar
 
 

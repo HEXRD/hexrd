@@ -9,6 +9,16 @@ from .common import ImageSeriesTest, make_array, make_array_ims
 class TestImageSeriesStats(ImageSeriesTest):
 
 
+    def test_stats_average(self):
+        """Processed imageseries: median"""
+        a = make_array()
+        is_a = imageseries.open(None, 'array', data=a)
+        is_avg = stats.average(is_a)
+        np_avg = np.average(a, axis=0)
+        err = np.linalg.norm(np_avg - is_avg)
+        self.assertAlmostEqual(err, 0., msg="stats.median failed")
+        self.assertEqual(is_avg.dtype, np.float32)
+
     def test_stats_median(self):
         """Processed imageseries: median"""
         a = make_array()
@@ -17,7 +27,7 @@ class TestImageSeriesStats(ImageSeriesTest):
         amed = np.median(a, axis=0)
         err = np.linalg.norm(amed - ismed)
         self.assertAlmostEqual(err, 0., msg="stats.median failed")
-
+        self.assertEqual(ismed.dtype, np.float32)
 
     def test_stats_max(self):
         """Processed imageseries: median"""
@@ -27,6 +37,7 @@ class TestImageSeriesStats(ImageSeriesTest):
         amax = np.max(a, axis=0)
         err = np.linalg.norm(amax - ismax)
         self.assertAlmostEqual(err, 0., msg="stats.max failed")
+        self.assertEqual(ismax.dtype, is_a.dtype)
 
 
     def test_stats_min(self):
@@ -37,6 +48,7 @@ class TestImageSeriesStats(ImageSeriesTest):
         amin = np.min(a, axis=0)
         err = np.linalg.norm(amin - ismin)
         self.assertAlmostEqual(err, 0., msg="stats.min failed")
+        self.assertEqual(ismin.dtype, is_a.dtype)
 
 
     def test_stats_percentile(self):
@@ -47,6 +59,7 @@ class TestImageSeriesStats(ImageSeriesTest):
         ap90 = np.percentile(a, 90, axis=0)
         err = np.linalg.norm(ap90 - isp90)
         self.assertAlmostEqual(err, 0., msg="stats.min failed")
+        self.assertEqual(isp90.dtype, np.float32)
 
 
     def test_stats_chunk(self):
@@ -57,13 +70,13 @@ class TestImageSeriesStats(ImageSeriesTest):
 
         # Run with 1 chunk
         img = np.zeros(is_a.shape)
-        ismed1 = stats.median(is_a, chunk=(0, 1, img))
+        for ismed1 in stats.average_iter(is_a, 1):
+            pass
         err = np.linalg.norm(amed - ismed1)
         self.assertAlmostEqual(err, 0., msg="stats.median failed")
 
         # Run with 2 chunks
-        img = np.zeros(is_a.shape)
-        img = stats.median(is_a, chunk=(0, 2, img))
-        ismed2 = stats.median(is_a, chunk=(1, 2, img))
+        for ismed2 in stats.average_iter(is_a, 2):
+            pass
         err = np.linalg.norm(amed - ismed2)
         self.assertAlmostEqual(err, 0., msg="stats.median failed")

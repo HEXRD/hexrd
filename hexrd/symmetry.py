@@ -33,7 +33,7 @@ from numpy import array, sqrt, pi, \
      vstack, c_, dot, \
      argmax
 
-from hexrd.rotations import quatOfAngleAxis, quatProductMatrix, fixQuat
+from hexrd import rotations as rot
 
 
 # =============================================================================
@@ -62,11 +62,11 @@ def toFundamentalRegion(q, crysSym='Oh', sampSym=None):
         assert m3 == 4, 'your 3-d quaternion array isn\'t the right shape'
         q = q.transpose(0, 2, 1).reshape(l3*n3, 4).T
     if isinstance(crysSym, str):
-        qsym_c = quatProductMatrix(
+        qsym_c = rot.quatProductMatrix(
             quatOfLaueGroup(crysSym), 'right'
         )  # crystal symmetry operator
     else:
-        qsym_c = quatProductMatrix(crysSym, 'right')
+        qsym_c = rot.quatProductMatrix(crysSym, 'right')
 
     n = q.shape[1]              # total number of quats
     m = qsym_c.shape[0]         # number of symmetry operations
@@ -80,7 +80,7 @@ def toFundamentalRegion(q, crysSym='Oh', sampSym=None):
 
     if sampSym is None:
         # need to fix quats to sort
-        qeqv = fixQuat(qeqv)
+        qeqv = rot.fixQuat(qeqv)
 
         # Reshape scalar comp columnwise by point in qeqv
         q0 = qeqv[0, :].reshape(n, m).T
@@ -92,18 +92,18 @@ def toFundamentalRegion(q, crysSym='Oh', sampSym=None):
         qr = qeqv[:, q0maxColInd]
     else:
         if isinstance(sampSym, str):
-            qsym_s = quatProductMatrix(
+            qsym_s = rot.quatProductMatrix(
                 quatOfLaueGroup(sampSym), 'left'
             )  # sample symmetry operator
         else:
-            qsym_s = quatProductMatrix(sampSym, 'left')
+            qsym_s = rot.quatProductMatrix(sampSym, 'left')
 
         p = qsym_s.shape[0]         # number of sample symmetry operations
 
         # Do Gs * (R * Gc), store as
         # [Gs[:, 0:p] * q[:,   0] * Gc[:, 0], ... , Gs[:, 0:p] * q[:,   0] * Gc[:, m-1], ...
         #  Gs[:, 0:p] * q[:, n-1] * Gc[:, 0], ... , Gs[:, 0:p] * q[:, n-1] * Gc[:, m-1]]
-        qeqv = fixQuat(
+        qeqv = rot.fixQuat(
             dot(qsym_s, qeqv).transpose(2, 0, 1).reshape(p*m*n, 4).T
         )
 
@@ -336,6 +336,6 @@ def quatOfLaueGroup(tag):
 
     #  Note: Axis does not need to be normalized in call to quatOfAngleAxis
     #  05/01/2014 JVB -- made output a contiguous C-ordered array
-    qsym = array(quatOfAngleAxis(angle, axis).T, order='C').T
+    qsym = array(rot.quatOfAngleAxis(angle, axis).T, order='C').T
 
     return qsym

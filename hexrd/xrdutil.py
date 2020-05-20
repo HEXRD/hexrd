@@ -1019,7 +1019,7 @@ def extract_detector_transformation(detector_params):
     # extract variables for convenience
     if isinstance(detector_params, dict):
         rMat_d = xfcapi.makeRotMatOfExpMap(
-            detector_params['detector']['transform']['tilt']
+            np.array(detector_params['detector']['transform']['tilt'])
             )
         tVec_d = np.r_[detector_params['detector']['transform']['translation']]
         chi = detector_params['oscillation_stage']['chi']
@@ -1034,41 +1034,66 @@ def extract_detector_transformation(detector_params):
     return rMat_d, tVec_d, chi, tVec_s
 
 
-class EtaOmeMaps(object):
+def makeMeasuredScatteringVectors(tTh, eta, ome, convention='hexrd', frame='sample'):
     """
-    Wrap spherical maps.
+    Construct scattering vectors from angles (2theta, eta, ome)
+    will do HEXRD/APS and Fable frames, sample or lab.
 
-    find-orientations loads pickled eta-ome data, but CollapseOmeEta is not
-    pickleable, because it holds a list of ReadGE, each of which holds a
-    reference to an open file object, which is not pickleable.
+    for fable frame geomtery, see:
+
+    http://sourceforge.net/apps/trac/fable/attachment/wiki/WikiStart/Geometry_version_1.0.8.pdf
     """
+    ome = num.atleast_1d(ome)
 
-    def __init__(self, ome_eta_archive):
-        """
-        Initialize.
+    rIndex = None
+    if not hasattr(convention, 'lower'):
+        raise RuntimeError("something is amiss with your keywork argument")
+    else:
+        if convention.lower() == 'fable':
+            # must convert eta coordinate
+            eta = 0.5*num.pi - eta
 
-        Parameters
-        ----------
-        ome_eta_archive : TYPE
-            DESCRIPTION.
+            'ome axis is lab Z'
+            # raxis = num.c_[0, 0, 1].T
+            rIndex = 2
 
-        Returns
-        -------
-        None.
+            # the unit qVec
+            retVal = num.vstack( [
+                -num.sin(0.5*tTh),
+                -num.cos(0.5*tTh)*num.sin(eta),
+                 num.cos(0.5*tTh)*num.cos(eta) ] )
 
-        """
-        ome_eta = np.load(ome_eta_archive)
+        elif convention.lower() == 'hexrd':
+            'ome axis is lab Y'
+            # raxis = num.c_[0, 1, 0].T
+            rIndex = 1
 
-        planeData_args = ome_eta['planeData_args']
-        planeData_hkls = ome_eta['planeData_hkls']
-        self.planeData = crystallography.PlaneData(planeData_hkls, *planeData_args)
+            # the unit qVec
+            retVal = num.vstack( [
+                num.cos(eta)*num.cos(0.5*tTh),
+                num.sin(eta)*num.cos(0.5*tTh),
+                num.sin(0.5*tTh) ] )
+        else:
+            raise RuntimeError("unrecognized token '%s'" % (convention))
 
-        self.dataStore = ome_eta['dataStore']
-        self.iHKLList = ome_eta['iHKLList']
-        self.etaEdges = ome_eta['etaEdges']
-        self.omeEdges = ome_eta['omeEdges']
-        self.etas = ome_eta['etas']
-        self.omegas = ome_eta['omegas']
-
-        return
-    pass # end of class: EtaOmeMaps
+        # convert to sample frame from lab frame (as measured)
+        if frame.lower() == 'sample':
+            ## for i in range(retVal.shape[1]):
+            ##     retVal[:, i] = num.dot(R.rotMatOfExpMap(ome[i]*raxis).T, retVal[:, i])
+            cOme = num.cos(ome)
+            sOme = num.sin(ome)
+            if rIndex == 1:
+                retVal = num.vstack( [
+                        cOme * retVal[0,:] - sOme * retVal[2,:], # Note: -sOme due to transpose
+                        retVal[1,:],
+                        sOme * retVal[0,:] + cOme * retVal[2,:], # Note: +sOme due to transpose
+                        ] )
+            elif rIndex == 2:
+                retVal = num.vstack( [
+                        cOme  * retVal[0,:] + sOme * retVal[1,:], # Note: +sOme due to transpose
+                        -sOme * retVal[0,:] + cOme * retVal[1,:], # Note: -sOme due to transpose
+                        retVal[2,:],
+                        ])
+            else:
+                raise RuntimeError("unrecognized rIndex %d" % (rIndex))
+    return retVal

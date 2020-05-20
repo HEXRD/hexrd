@@ -91,7 +91,7 @@ def average(ims, nframes=0):
     img = ims[0]
     for i in range(1, nf):
         img += ims[i]
-    return img/nf
+    return (img/nf).astype(np.float32)
 
 
 def average_iter(ims, nchunk, nframes=0):
@@ -114,13 +114,13 @@ def average_iter(ims, nchunk, nframes=0):
             if (i + 1) < nf:
                 s0 += 1
                 stop = stops[s0]
-            yield img/(i+1)
+            yield (img/(i+1)).astype(np.float32)
 
 
 def percentile(ims, pctl, nframes=0):
     """percentile function over frames"""
     nf = _nframes(ims, nframes)
-    return np.percentile(_toarray(ims, nf), pctl, axis=0)
+    return np.percentile(_toarray(ims, nf), pctl, axis=0).astype(np.float32)
 
 
 def percentile_iter(ims, pctl, nchunks,  nframes=0):
@@ -134,7 +134,7 @@ def percentile_iter(ims, pctl, nchunks,  nframes=0):
         r1 = s + 1
         img[r0:r1] = np.percentile(_toarray(ims, nf, (r0, r1)), pctl, axis=0)
         r0 = s
-        yield img
+        yield img.astype(np.float32)
 
 
 def median(ims, nframes=0):

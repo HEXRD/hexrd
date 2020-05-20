@@ -37,7 +37,7 @@ import timeit
 
 from hexrd import constants
 from hexrd.transforms import xfcapi
-from hexrd import USE_NUMBA
+from hexrd.constants import USE_NUMBA
 if USE_NUMBA:
     import numba
 

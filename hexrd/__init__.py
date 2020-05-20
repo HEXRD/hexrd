@@ -47,3 +47,5 @@ del _readenv
 # path for pkgutil
 __path__ = __import__('pkgutil').extend_path(__path__, __name__)
 
+# Documentation URL (temporary)
+doc_url = "https://github.com/donald-e-boyce/hexrd3/wiki"
