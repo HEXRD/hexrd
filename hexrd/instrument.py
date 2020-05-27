@@ -1007,7 +1007,7 @@ class HEDMInstrument(object):
             ).T.reshape(len(patch_vertices), 1)
 
             # find vertices that all fall on the panel
-            det_xy, _ = xrdutil._project_on_detector_plane(
+            det_xy, rmats_s, on_plane = xrdutil._project_on_detector_plane(
                 np.hstack([patch_vertices, ome_dupl]),
                 panel.rmat, rMat_c, self.chi,
                 panel.tvec, tVec_c, self.tvec,
@@ -2093,7 +2093,7 @@ class PlanarDetector(object):
             allAngs[:, 2] = mapAngle(allAngs[:, 2], ome_period)
 
             # find points that fall on the panel
-            det_xy, rMat_s = xrdutil._project_on_detector_plane(
+            det_xy, rMat_s, on_plane = xrdutil._project_on_detector_plane(
                 allAngs,
                 self.rmat, rMat_c, chi,
                 self.tvec, tVec_c, tVec_s,
@@ -2102,11 +2102,13 @@ class PlanarDetector(object):
             valid_xys.append(xys_p)
 
             # grab hkls and gvec ids for this panel
-            valid_hkls.append(allHKLs[on_panel, 1:])
-            valid_ids.append(allHKLs[on_panel, 0])
+            filtered_hkldata = allHKLs[on_plane, :]
+            valid_hkls.append(filtered_hkldata[on_panel, 1:])
+            valid_ids.append(filtered_hkldata[on_panel, 0])
 
             # reflection angles (voxel centers) and pixel size in (tth, eta)
-            valid_angs.append(allAngs[on_panel, :])
+            filtered_angdata = allAngs[on_plane, :]
+            valid_angs.append(filtered_angdata[on_panel, :])
             ang_pixel_size.append(self.angularPixelSize(xys_p))
         return valid_ids, valid_hkls, valid_angs, valid_xys, ang_pixel_size
 

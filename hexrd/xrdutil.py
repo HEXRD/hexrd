@@ -431,7 +431,7 @@ def _project_on_detector_plane(allAngs,
         det_xy = distortion[0](det_xy,
                                distortion[1],
                                invert=True)
-    return det_xy, rMat_ss
+    return det_xy, rMat_ss, valid_mask
 
 
 def simulateGVecs(pd, detector_params, grain_params,
@@ -504,7 +504,7 @@ def simulateGVecs(pd, detector_params, grain_params,
         ang_ps = []
     else:
         # ??? preallocate for speed?
-        det_xy, rMat_s = _project_on_detector_plane(
+        det_xy, rMat_s, on_plane = _project_on_detector_plane(
             allAngs,
             rMat_d, rMat_c, chi,
             tVec_d, tVec_c, tVec_s,
@@ -943,7 +943,7 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
                 ).T
             )
 
-        xy_eval_vtx, _ = _project_on_detector_plane(
+        xy_eval_vtx, rmats_s, on_plane = _project_on_detector_plane(
                 gVec_angs_vtx,
                 rMat_d, rMat_c,
                 chi,
@@ -964,7 +964,7 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
             [tth_eta_cen, np.tile(angs[2], (len(tth_eta_cen), 1))]
         )
 
-        xy_eval, _ = _project_on_detector_plane(
+        xy_eval, rmats_s, on_plane = _project_on_detector_plane(
                 gVec_angs,
                 rMat_d, rMat_c,
                 chi,
