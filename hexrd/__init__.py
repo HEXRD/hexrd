@@ -3,7 +3,7 @@ import logging
 
 # Release data
 __author__ = 'HEXRD Development Team <praxes@googlegroups.com>'
-__license__ = 'LGPLv2'
+__license__ = 'BSD'
 
 from ._version import get_versions
 __version__ = get_versions()['version']

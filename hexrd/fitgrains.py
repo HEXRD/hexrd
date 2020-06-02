@@ -5,25 +5,21 @@ Created on Wed Mar 22 19:04:10 2017
 
 @author: bernier2
 """
-from __future__ import print_function, absolute_import
-
 import os
 import logging
 import multiprocessing
 import numpy as np
 import timeit
-import sys
-import yaml
 
-from hexrd import config
 from hexrd import constants as cnst
 from hexrd import instrument
-from hexrd.xrd import transforms_CAPI as xfcapi
+from hexrd.transforms import xfcapi
+from hexrd.fitting import fitGrain, objFuncFitGrain, gFlag_ref
 
 logger = logging.getLogger(__name__)
 
-# multiprocessing fit funcs
 
+# multiprocessing fit funcs
 def fit_grain_FF_init(params):
     """
     Broadcast the fitting parameters as globals for multiprocessing
@@ -36,7 +32,7 @@ def fit_grain_FF_init(params):
     Returns
     -------
     None.
-    
+
     Notes
     -----
     See fit_grain_FF_reduced for specification.
@@ -70,7 +66,7 @@ def fit_grain_FF_reduced(grain_id):
         The ratio of predicted to measured (observed) Bragg reflections.
     chisq: float
         Figure of merit describing the sum of squared residuals for each Bragg
-        reflection in the form (x, y, omega) normalized by the total number of 
+        reflection in the form (x, y, omega) normalized by the total number of
         degrees of freedom.
     grain_params : array_like
         The optimized grain parameters
@@ -78,7 +74,7 @@ def fit_grain_FF_reduced(grain_id):
 
     Notes
     -----
-    input parameters are 
+    input parameters are
     [plane_data, instrument, imgser_dict,
     tth_tol, eta_tol, ome_tol, npdiv, threshold]
     """
@@ -284,7 +280,7 @@ def fit_grains(cfg,
     grains_filename = os.path.join(
         cfg.analysis_dir, 'grains.out'
     )
-        
+
     # grab imageseries dict
     imsd = cfg.image_series
 
@@ -320,28 +316,30 @@ def fit_grains(cfg,
         for det_key in instr.detectors:
             if not os.path.exists(os.path.join(cfg.analysis_dir, det_key)):
                 os.mkdir(os.path.join(cfg.analysis_dir, det_key))
-    
+
     # grab eta ranges and ome_period
     eta_ranges = np.radians(cfg.find_orientations.eta.range)
 
     # handle omega period
     # !!! we assume all detector ims have the same ome ranges, so any will do!
-    oims = next(imsd.itervalues())
+    oims = next(iter(imsd.values()))
     ome_period = np.radians(oims.omega[0, 0] + np.r_[0., 360.])
-    
+
     # number of processes
     ncpus = cfg.multiprocessing
-    
+
     # threshold for fitting
     threshold = cfg.fit_grains.threshold
 
     # some conditions for arg handling
     existing_analysis = os.path.exists(grains_filename)
-    new_with_estimate = not existing_analysis and estimate is not None
-    new_without_estimate = not existing_analysis and estimate is None
-    force_with_estimate = force and cfg.fit_grains.estimate is not None 
+    new_with_estimate = not existing_analysis \
+        and cfg.fit_grains.estimate is not None
+    new_without_estimate = not existing_analysis \
+        and cfg.fit_grains.estimate is None
+    force_with_estimate = force and cfg.fit_grains.estimate is not None
     force_without_estimate = force and cfg.fit_grains.estimate is None
-    
+
     # handle args
     if clean or force_without_estimate or new_without_estimate:
         # need accepted orientations from indexing in this case
@@ -358,7 +356,7 @@ def fit_grains(cfg,
             qbar = np.loadtxt(
                 'accepted_orientations_' + cfg.analysis_id + '.dat',
                 ndmin=2).T
-            
+
             gw = instrument.GrainDataWriter(grains_filename)
             for i_g, q in enumerate(qbar.T):
                 phi = 2*np.arccos(q[0])
@@ -376,9 +374,9 @@ def fit_grains(cfg,
         grains_filename = cfg.fit_grains.estimate
     elif existing_analysis and not (clean or force):
         raise(RuntimeError,
-              "fit results '%s' exist, but --clean or --force options not specified"
-              % grains_filename)
-        
+              "fit results '%s' exist, " % grains_filename
+              + "but --clean or --force options not specified")
+
     # load grains table
     grains_table = np.loadtxt(grains_filename, ndmin=2)
     if ids_to_refine is not None:
@@ -399,11 +397,11 @@ def fit_grains(cfg,
             ome_period=ome_period,
             analysis_dirname=cfg.analysis_dir,
             spots_filename=spots_filename)
-    
+
     # =====================================================================
     # EXECUTE MP FIT
     # =====================================================================
-    
+
     # DO FIT!
     if len(grains_table) == 1 or ncpus == 1:
         logger.info("\tstarting serial fit")
@@ -434,11 +432,11 @@ def fit_grains(cfg,
         pool.join()
         elapsed = timeit.default_timer() - start
     logger.info("fitting took %f seconds", elapsed)
-    
+
     # =====================================================================
     # WRITE OUTPUT
     # =====================================================================
-    
+
     gw = instrument.GrainDataWriter(
         os.path.join(cfg.analysis_dir, 'grains.out')
     )
@@ -446,4 +444,3 @@ def fit_grains(cfg,
         gw.dump_grain(*fit_result)
         pass
     gw.close()
-

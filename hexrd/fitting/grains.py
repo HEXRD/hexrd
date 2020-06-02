@@ -6,9 +6,7 @@ from scipy import optimize
 
 from hexrd import matrixutil as mutil
 
-from hexrd import transforms as xf
 from hexrd.transforms import xfcapi
-from hexrd import distortion as dFuncs
 
 from hexrd.xrdutil import extract_detector_transformation
 
@@ -33,6 +31,43 @@ def fitGrain(gFull, instrument, reflections_dict,
              omePeriod=None,
              factor=0.1, xtol=sqrt_epsf, ftol=sqrt_epsf):
     """
+    Perform least-squares optimization of grain parameters.
+
+    Parameters
+    ----------
+    gFull : TYPE
+        DESCRIPTION.
+    instrument : TYPE
+        DESCRIPTION.
+    reflections_dict : TYPE
+        DESCRIPTION.
+    bMat : TYPE
+        DESCRIPTION.
+    wavelength : TYPE
+        DESCRIPTION.
+    gFlag : TYPE, optional
+        DESCRIPTION. The default is gFlag_ref.
+    gScl : TYPE, optional
+        DESCRIPTION. The default is gScl_ref.
+    omePeriod : TYPE, optional
+        DESCRIPTION. The default is None.
+    factor : TYPE, optional
+        DESCRIPTION. The default is 0.1.
+    xtol : TYPE, optional
+        DESCRIPTION. The default is sqrt_epsf.
+    ftol : TYPE, optional
+        DESCRIPTION. The default is sqrt_epsf.
+
+    Raises
+    ------
+    RuntimeError
+        DESCRIPTION.
+
+    Returns
+    -------
+    retval : TYPE
+        DESCRIPTION.
+
     """
     # FIXME: will currently fail if omePeriod is specifed
     if omePeriod is not None:
@@ -62,6 +97,8 @@ def objFuncFitGrain(gFit, gFull, gFlag,
                     simOnly=False,
                     return_value_flag=return_value_flag):
     """
+    Calculate residual between measured and simulated ff-HEDM G-vectors.
+
     gFull[0]  = expMap_c[0]
     gFull[1]  = expMap_c[1]
     gFull[2]  = expMap_c[2]
@@ -83,8 +120,41 @@ def objFuncFitGrain(gFit, gFull, gFlag,
                     dFunc, dParams,
                     omePeriod,
                     simOnly=False, return_value_flag=return_value_flag)
-    """
 
+    Parameters
+    ----------
+    gFit : TYPE
+        DESCRIPTION.
+    gFull : TYPE
+        DESCRIPTION.
+    gFlag : TYPE
+        DESCRIPTION.
+    instrument : TYPE
+        DESCRIPTION.
+    reflections_dict : TYPE
+        DESCRIPTION.
+    bMat : TYPE
+        DESCRIPTION.
+    wavelength : TYPE
+        DESCRIPTION.
+    omePeriod : TYPE
+        DESCRIPTION.
+    simOnly : TYPE, optional
+        DESCRIPTION. The default is False.
+    return_value_flag : TYPE, optional
+        DESCRIPTION. The default is return_value_flag.
+
+    Raises
+    ------
+    RuntimeError
+        DESCRIPTION.
+
+    Returns
+    -------
+    retval : TYPE
+        DESCRIPTION.
+
+    """
     bVec = instrument.beam_vector
     eVec = instrument.eta_vector
 

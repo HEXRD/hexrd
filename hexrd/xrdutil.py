@@ -32,7 +32,7 @@ from hexrd import constants
 from hexrd import matrixutil as mutil
 from hexrd import gridutil as gutil
 
-from hexrd.crystallography import processWavelength
+from hexrd.crystallography import processWavelength, PlaneData
 
 from hexrd.transforms import xf
 from hexrd.transforms import xfcapi
@@ -58,6 +58,29 @@ bHat_l_DFLT = constants.beam_vec.flatten()
 eHat_l_DFLT = constants.eta_vec.flatten()
 
 _memo_hkls = {}
+
+
+class EtaOmeMaps(object):
+    """
+    find-orientations loads pickled eta-ome data, but CollapseOmeEta is not
+    pickleable, because it holds a list of ReadGE, each of which holds a
+    reference to an open file object, which is not pickleable.
+    """
+
+    def __init__(self, ome_eta_archive):
+
+        ome_eta = np.load(ome_eta_archive, allow_pickle=True)
+
+        planeData_args = ome_eta['planeData_args']
+        planeData_hkls = ome_eta['planeData_hkls']
+        self.planeData = PlaneData(planeData_hkls, *planeData_args)
+        self.dataStore = ome_eta['dataStore']
+        self.iHKLList = ome_eta['iHKLList']
+        self.etaEdges = ome_eta['etaEdges']
+        self.omeEdges = ome_eta['omeEdges']
+        self.etas = ome_eta['etas']
+        self.omegas = ome_eta['omegas']
+    pass  # end of class: EtaOmeMaps
 
 
 def _zproject(x, y):

@@ -1094,7 +1094,7 @@ class HEDMInstrument(object):
         #
         # WARNING: all imageseries AND all wedges within are assumed to have
         # the same omega values; put in a check that they are all the same???
-        (det_key, oims0), = imgser_dict.items()
+        oims0 = next(iter(imgser_dict.values()))
         ome_ranges = [np.radians([i['ostart'], i['ostop']])
                       for i in oims0.omegawedges.wedges]
 
@@ -1512,9 +1512,7 @@ class PlanarDetector(object):
 
         self._saturation_level = saturation_level
 
-        if panel_buffer is None:
-            self._panel_buffer = 20*np.r_[self._pixel_size_col,
-                                          self._pixel_size_row]
+        self._panel_buffer = panel_buffer
 
         self._roi = roi
 

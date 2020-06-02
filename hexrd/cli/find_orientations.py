@@ -11,8 +11,8 @@ examples:
 def configure_parser(sub_parsers):
     p = sub_parsers.add_parser(
         'find-orientations',
-        description = descr,
-        help = descr
+        description=descr,
+        help=descr
         )
     p.add_argument(
         'yml', type=str,
@@ -21,10 +21,7 @@ def configure_parser(sub_parsers):
     p.add_argument(
         '-q', '--quiet', action='store_true',
         help="don't report progress in terminal"
-        )            import cProfile as profile
-            import pstats
-            from io import StringIO
-
+        )
     p.add_argument(
         '-f', '--force', action='store_true',
         help='overwrites existing analysis'
@@ -81,10 +78,7 @@ def execute(args, parser):
 
     # prepare the analysis directory
     quats_f = os.path.join(
-        cfg.working_dir,            import cProfile as profile
-            import pstats
-            from io import StringIO
-
+        cfg.working_dir,
         'accepted_orientations_%s.dat' % cfg.analysis_id
         )
     if os.path.exists(quats_f) and not (args.force or args.clean):

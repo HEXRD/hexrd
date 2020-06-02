@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 from setuptools import setup, find_packages, Extension
+import versioneer
 
 import numpy
 np_include_dir = os.path.join(numpy.get_include(), 'numpy')
@@ -48,15 +49,22 @@ def get_extension_modules():
 
 ext_modules = get_extension_modules()
 
+# use entry_points, not scripts:
+entry_points = {
+    'console_scripts': ["hexrd = hexrd.cli.main:main"]
+    }
+
 setup(
     name='hexrd',
-    use_scm_version=True,
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     setup_requires=['setuptools-scm'],
-    description='',
-    long_description='',
-    author='Kitware, Inc.',
-    author_email='kitware@kitware.com',
-    url='https://github.com/cryos/hexrd',
+    use_scm_version=True,
+    description = 'hexrd X-ray diffraction data analysis tool',
+    long_description = open('README.md').read(),
+    author='The hexrd Development Team',
+    author_email='joelvbernier@me.com',
+    url='https://github.com/HEXRD/hexrd',
     license='BSD',
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -67,8 +75,9 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6'
     ],
+    entry_points = entry_points,
     ext_modules=ext_modules,
     packages=find_packages(),
-    python_requires='>=3.6',
+    python_requires='>=3.8',
     install_requires=install_reqs
 )

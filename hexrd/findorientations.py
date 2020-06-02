@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import logging
 import multiprocessing as mp
 import os
@@ -8,19 +6,20 @@ import timeit
 import numpy as np
 # np.seterr(over='ignore', invalid='ignore')
 
-import tqdm
+# import tqdm
 
 import scipy.cluster as cluster
 from scipy import ndimage
+
 from skimage.feature import blob_dog, blob_log
 
 from hexrd import constants as const
 from hexrd import matrixutil as mutil
-from hexrd.xrd import indexer
+from hexrd import indexer
 from hexrd import instrument
-from hexrd.xrd import rotations as rot
-from hexrd.xrd import transforms_CAPI as xfcapi
-from hexrd.xrd.xrdutil import EtaOmeMaps
+from hexrd import rotations as rot
+from hexrd.transforms import xfcapi
+from hexrd.xrdutil import EtaOmeMaps
 
 # just require scikit-learn?
 have_sklearn = False
@@ -35,7 +34,7 @@ except ImportError:
     pass
 
 
-save_as_ascii = False  # FIX LATER...
+save_as_ascii = False  # FIXME LATER...
 fwhm_to_stdev = 1./np.sqrt(8*np.log(2))
 
 logger = logging.getLogger(__name__)
@@ -44,6 +43,17 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # FUNCTIONS
 # =============================================================================
+
+
+def _process_omegas(omegaimageseries_dict):
+    """Extract omega period and ranges from an OmegaImageseries dictionary."""
+    oims = next(iter(omegaimageseries_dict.values()))
+    ome_period = oims.omega[0, 0] + np.r_[0., 360.]
+    ome_ranges = [
+        ([i['ostart'], i['ostop']])
+        for i in oims.omegawedges.wedges
+    ]    
+    return ome_period, ome_ranges
 
 
 def generate_orientation_fibers(cfg, eta_ome):
@@ -62,7 +72,7 @@ def generate_orientation_fibers(cfg, eta_ome):
     # !!! note that the config enforces that method is a dict with length 1
     # TODO: put a consistency check on required kwargs, or otherwise specify
     #       default values for each case?  They must be specified as of now.
-    method = next(method_dict.iterkeys())
+    method = next(iter(method_dict.keys()))
     method_kwargs = method_dict[method]
     logger.info('\tusing "%s" method for fiber generation'
                 % method)
@@ -198,11 +208,11 @@ def discretefiber_init(params):
     global paramMP
     paramMP = params
 
-    
+
 def discretefiber_cleanup():
     global paramMP
     del paramMP
-    
+
 
 def discretefiber_reduced(params_in):
     """
@@ -493,10 +503,8 @@ def generate_eta_ome_maps(cfg, hkls=None):
     imsd = cfg.image_series
 
     # handle omega period
-    # !!! we assume all detector ims have the same ome ranges, so any will do!
-    oims = next(imsd.itervalues())
-    ome_period = oims.omega[0, 0] + np.r_[0., 360.]
-
+    ome_period, _ = _process_omegas(imsd)
+    
     start = timeit.default_timer()
 
     # make eta_ome maps
@@ -564,15 +572,8 @@ def find_orientations(cfg,
     ome_tol = np.radians(cfg.find_orientations.omega.tolerance)
 
     # handle omega period
-    # !!! We assume all detector ims have the same ome ranges;
-    #     therefore any will do for this purpose.
-    oims = next(imsd.itervalues())
-    ome_period = oims.omega[0, 0] + np.r_[0., 360.]
-    ome_ranges = [
-            ([i['ostart'], i['ostop']])
-            for i in oims.omegawedges.wedges
-        ]
-
+    ome_period, ome_ranges = _process_omegas(imsd)
+    
     # for multiprocessing
     ncpus = cfg.multiprocessing
 
@@ -748,7 +749,7 @@ def find_orientations(cfg,
 
         refl_per_grain = np.zeros(ngrains)
         seed_refl_per_grain = np.zeros(ngrains)
-        for sim_result in sim_results.itervalues():
+        for sim_result in sim_results.values():
             for i, refl_ids in enumerate(sim_result[0]):
                 refl_per_grain[i] += len(refl_ids)
                 seed_refl_per_grain[i] += np.sum(

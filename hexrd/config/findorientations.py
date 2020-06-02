@@ -1,5 +1,7 @@
 import os
 
+import logging
+
 import numpy as np
 
 from .config import Config
@@ -9,14 +11,15 @@ logger = logging.getLogger('hexrd.config')
 
 # TODO: set these as defaults
 seed_search_methods = {
-    'label':dict(filter_radius=1, threshold=1),
-    'blob_log':dict(min_sigma=0.5, max_sigma=5,
-                    num_sigma=10, threshold=0.01,
-                    overlap=0.1),
-    'blob_dog':dict(min_sigma=0.5, max_sigma=5,
-                    sigma_ratio=1.6,
-                    threshold=0.01, overlap=0.1)
+    'label': dict(filter_radius=1, threshold=1),
+    'blob_log': dict(min_sigma=0.5, max_sigma=5,
+                     num_sigma=10, threshold=0.01,
+                     overlap=0.1),
+    'blob_dog': dict(min_sigma=0.5, max_sigma=5,
+                     sigma_ratio=1.6,
+                     threshold=0.01, overlap=0.1)
 }
+
 
 class FindOrientationsConfig(Config):
 
@@ -28,7 +31,7 @@ class FindOrientationsConfig(Config):
     @property
     def seed_search(self):
         return SeedSearchConfig(self._cfg)
-    
+
     @property
     def clustering(self):
         return ClusteringConfig(self._cfg)
@@ -40,7 +43,6 @@ class FindOrientationsConfig(Config):
     @property
     def omega(self):
         return OmegaConfig(self._cfg)
-
 
     # Simple Values
     @property
@@ -150,8 +152,7 @@ class EtaConfig(Config):
         mask = self.mask
         if mask is None:
             return mask
-        return [[-90 + mask, 90 - mask],
-                [ 90 + mask, 270 - mask]]
+        return np.array([[-90. + mask, 90. - mask], [90. + mask, 270. - mask]])
 
 
 class SeedSearchConfig(Config):
@@ -162,7 +163,7 @@ class SeedSearchConfig(Config):
         try:
             temp = self._cfg.get(key)
             if isinstance(temp, int):
-                temp = [temp,]
+                temp = [temp, ]
             return temp
         except:
             if self._cfg.find_orientations.use_quaternion_grid is None:
