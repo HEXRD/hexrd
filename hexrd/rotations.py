@@ -292,9 +292,9 @@ def quatProductMatrix(quats, mult='right'):
         2) mult is a keyword arg, either 'left' or 'right', denoting
            the sense of the multiplication:
 
-                       / quatProductMatrix(h, mult='right') * q
+                       | quatProductMatrix(h, mult='right') * q
            q * h  --> <
-                       \ quatProductMatrix(q, mult='left') * h
+                       | quatProductMatrix(q, mult='left') * h
 
     OUTPUTS
         1) qmats is (n, 4, 4), the left or right quaternion product

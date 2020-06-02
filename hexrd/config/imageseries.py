@@ -1,14 +1,10 @@
-import glob
-import os
-
-import numpy as np
-
 from .config import Config
 from hexrd import imageseries
 
 
 class ImageSeries(Config):
-
+    """
+    """
     BASEKEY = 'image_series'
 
     def __init__(self, cfg):
@@ -16,12 +12,12 @@ class ImageSeries(Config):
         self._image_dict = None
 
     def get(self, key):
-        """get item with given key"""
+        """Get item with given key."""
         return self._cfg.get(':'.join([self.BASEKEY, key]))
 
     @property
     def imageseries(self):
-        """return the imageseries dictionary"""
+        """Return the imageseries dictionar.y"""
         if self._image_dict is None:
             self._image_dict = dict()
             fmt = self.format
@@ -30,8 +26,8 @@ class ImageSeries(Config):
                 args = ispec['args']
                 ims = imageseries.open(fname, fmt, **args)
                 oms = imageseries.omega.OmegaImageSeries(ims)
-                panel = ims.metadata['panel']
-                self._image_dict[panel] = ims
+                panel = oms.metadata['panel']
+                self._image_dict[panel] = oms
 
         return self._image_dict
 

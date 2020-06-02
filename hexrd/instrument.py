@@ -55,7 +55,8 @@ from hexrd.transforms.xfcapi import \
     makeRotMatOfExpMap, \
     mapAngle, \
     oscillAnglesOfHKLs, \
-    rowNorm
+    rowNorm, \
+    unitRowVector
 from hexrd import xrdutil
 from hexrd.crystallography import PlaneData
 from hexrd import constants as ct
@@ -77,14 +78,14 @@ except(ImportError):
 # PARAMETERS
 # =============================================================================
 
-instrument_name_DFLT = 'GE'
+instrument_name_DFLT = 'instrument'
 
 beam_energy_DFLT = 65.351
 beam_vec_DFLT = ct.beam_vec
 
 eta_vec_DFLT = ct.eta_vec
 
-panel_id_DFLT = "generic"
+panel_id_DFLT = 'generic'
 nrows_DFLT = 2048
 ncols_DFLT = 2048
 pixel_size_DFLT = (0.2, 0.2)
@@ -131,6 +132,9 @@ panel_calibration_flags_DFLT = np.array(
     dtype=bool
 )
 
+buffer_key = 'buffer'
+distortion_key = 'distortion'
+
 # =============================================================================
 # UTILITY METHODS
 # =============================================================================
@@ -139,7 +143,7 @@ panel_calibration_flags_DFLT = np.array(
 def calc_beam_vec(azim, pola):
     """
     Calculate unit beam propagation vector from
-    spherical coordinate spec in DEGREES
+    spherical coordinate spec in DEGREES.
 
     ...MAY CHANGE; THIS IS ALSO LOCATED IN XRDUTIL!
     """
@@ -157,8 +161,8 @@ def calc_angles_from_beam_vec(bvec):
     Return the azimuth and polar angle from a beam
     vector
     """
-    bvec = np.atleast_2d(bvec).reshape(3, 1)
-    nvec = mutil.unitVector(-bvec)
+    bvec = np.atleast_1d(bvec).flatten()
+    nvec = unitRowVector(-bvec)
     azim = float(
         np.degrees(np.arctan2(nvec[2], nvec[0]))
     )
@@ -205,6 +209,27 @@ def centers_of_edge_vec(edges):
     return np.average(np.vstack([edges[:-1], edges[1:]]), axis=0)
 
 
+def max_tth(instr):
+    """
+    Return the maximum Bragg angle (in radians) subtended by the instrument.
+
+    Parameters
+    ----------
+    instr : hexrd.instrument.HEDMInstrument instance
+        the instrument class to evalutate.
+
+    Returns
+    -------
+    tth_max : float
+        The maximum observable Bragg angle by the instrument in radians.
+    """
+    tth_max = 0.
+    for det in instr.detectors.values():
+        ptth, peta = det.pixel_angles()
+        tth_max = max(np.max(ptth), tth_max)
+    return tth_max
+
+
 # =============================================================================
 # CLASSES
 # =============================================================================
@@ -212,9 +237,12 @@ def centers_of_edge_vec(edges):
 
 class HEDMInstrument(object):
     """
+    Abstraction of XRD instrument.
+
     * Distortion needs to be moved to a class with registry; tuple unworkable
     * where should reference eta be defined? currently set to default config
     """
+
     def __init__(self, instrument_config=None,
                  image_series=None, eta_vector=None,
                  instrument_name=None, tilt_calibration_mapping=None):
@@ -257,40 +285,56 @@ class HEDMInstrument(object):
                 instrument_config['beam']['vector']['azimuth'],
                 instrument_config['beam']['vector']['polar_angle'],
                 )
-            ct.eta_vec
-            # now build detector dict
-            detector_ids = list(instrument_config['detectors'].keys())
-            pixel_info = [instrument_config['detectors'][i]['pixels']
-                          for i in detector_ids]
-            affine_info = [instrument_config['detectors'][i]['transform']
-                           for i in detector_ids]
-            distortion = []
-            for i in detector_ids:
-                try:
-                    distortion.append(
-                        instrument_config['detectors'][i]['distortion']
-                        )
-                except KeyError:
-                    distortion.append(None)
-            det_list = []
-            for pix, xform, dist in zip(pixel_info, affine_info, distortion):
-                # HARD CODED GE DISTORTION !!! FIX
-                dist_list = None
-                if dist is not None:
-                    dist_list = [GE_41RT, dist['parameters']]
 
-                det_list.append(
-                    PlanarDetector(
-                        rows=pix['rows'], cols=pix['columns'],
-                        pixel_size=pix['size'],
-                        tvec=xform['translation'],
-                        tilt=xform['tilt'],
+            # now build detector dict
+            detectors_config = instrument_config['detectors']
+            det_dict = dict.fromkeys(detectors_config)
+            for det_id, det_info in detectors_config.items():
+                pixel_info = det_info['pixels']
+                saturation_level = det_info['saturation_level']
+                affine_info = det_info['transform']
+
+                shape = (pixel_info['rows'], pixel_info['columns'])
+
+                panel_buffer = None
+                if buffer_key in det_info:
+                    det_buffer = det_info[buffer_key]
+                    if det_buffer is not None:
+                        if isinstance(det_buffer, str):
+                            panel_buffer = np.load(det_buffer)
+                            assert panel_buffer.shape == shape, \
+                                "buffer shape must match detector"
+                        elif isinstance(det_buffer, list):
+                            panel_buffer = np.asarray(det_buffer)
+                        elif np.isscalar(det_buffer):
+                            panel_buffer = det_buffer*np.ones(2)
+                        else:
+                            raise RuntimeError(
+                                "panel buffer spec invalid for %s" % det_id
+                            )
+
+                # FIXME: must promote this to a class w/ registry
+                distortion = None
+                if distortion_key in det_info:
+                    distortion = det_info[distortion_key]
+                    if det_info[distortion_key] is not None:
+                        # !!! hard-coded GE distortion
+                        distortion = [GE_41RT, distortion['parameters']]
+
+                det_dict[det_id] = PlanarDetector(
+                        name=det_id,
+                        rows=pixel_info['rows'],
+                        cols=pixel_info['columns'],
+                        pixel_size=pixel_info['size'],
+                        panel_buffer=panel_buffer,
+                        saturation_level=saturation_level,
+                        tvec=affine_info['translation'],
+                        tilt=affine_info['tilt'],
                         bvec=self._beam_vector,
-                        evec=ct.eta_vec,
-                        distortion=dist_list)
-                    )
-                pass
-            self._detectors = dict(zip(detector_ids, det_list))
+                        evec=self._eta_vector,
+                        distortion=distortion)
+
+            self._detectors = det_dict
 
             self._tvec = np.r_[
                 instrument_config['oscillation_stage']['translation']
@@ -303,7 +347,9 @@ class HEDMInstrument(object):
         # first, grab the mapping function for tilt parameters if specified
         if tilt_calibration_mapping is not None:
             if not isinstance(tilt_calibration_mapping, RotMatEuler):
-                raise RuntimeError("tilt mapping must be a 'RotMatEuler' instance")
+                raise RuntimeError(
+                    "tilt mapping must be a 'RotMatEuler' instance"
+                )
         self._tilt_calibration_mapping = tilt_calibration_mapping
 
         # grab angles from beam vec
@@ -530,7 +576,7 @@ class HEDMInstrument(object):
         )
         par_dict['oscillation_stage'] = ostage
 
-        det_dict = dict.fromkeys(self.detectors.keys())
+        det_dict = dict.fromkeys(self.detectors)
         for det_name, panel in self.detectors.items():
             pdict = panel.config_dict(self.chi, self.tvec)
             det_dict[det_name] = pdict['detector']
@@ -542,6 +588,8 @@ class HEDMInstrument(object):
 
     def update_from_parameter_list(self, p):
         """
+        Update the instrument class from a parameter list.
+
         Utility function to update instrument parameters from a 1-d master
         parameter list (e.g. as used in calibration)
 
@@ -593,6 +641,8 @@ class HEDMInstrument(object):
                            active_hkls=None, threshold=None,
                            tth_tol=None, eta_tol=0.25):
         """
+        Extract eta-omega maps from an imageseries.
+
         Quick and dirty way to histogram angular patch data for make
         pole figures suitable for fiber generation
 
@@ -648,11 +698,23 @@ class HEDMInstrument(object):
             ring_maps = []
             for i_r, tthr in enumerate(tth_ranges):
                 print("working on ring %d..." % i_r)
+
+                # init map with NaNs
+                this_map = np.nan*np.ones((nrows_ome, ncols_eta))
+
+                # mark pixels in the spec'd tth range
+                pixels_in_tthr = np.logical_and(
+                    ptth >= tthr[0], ptth <= tthr[1]
+                )
+
+                # catch case where ring isn't on detector
+                if not np.any(pixels_in_tthr):
+                    ring_maps.append(this_map)
+                    continue
+
                 # ???: faster to index with bool or use np.where,
                 # or recode in numba?
-                rtth_idx = np.where(
-                    np.logical_and(ptth >= tthr[0], ptth <= tthr[1])
-                )
+                rtth_idx = np.where(pixels_in_tthr)
 
                 # grab relevant eta coords using histogram
                 # !!!: This allows use to calculate arc length and
@@ -711,7 +773,6 @@ class HEDMInstrument(object):
                         pass
                     pass
                 # histogram intensities over eta ranges
-                this_map = np.nan*np.ones((nrows_ome, ncols_eta))
                 for i_row, image in enumerate(imgser_dict[det_key]):
                     if fast_histogram:
                         this_map[i_row, reta_idx] = histogram1d(
@@ -737,11 +798,39 @@ class HEDMInstrument(object):
                                collapse_eta=True, collapse_tth=False,
                                do_interpolation=True):
         """
-        export 'caked' sector data over an instrument
+        Extract the line positions from powder diffraction images.
 
-        FIXME: must handle merged ranges (fixed by JVB 2018/06/28)
+        Generates and processes 'caked' sector data over an instrument.
+
+        Parameters
+        ----------
+        plane_data : TYPE
+            DESCRIPTION.
+        imgser_dict : TYPE
+            DESCRIPTION.
+        tth_tol : TYPE, optional
+            DESCRIPTION. The default is None.
+        eta_tol : TYPE, optional
+            DESCRIPTION. The default is 1..
+        npdiv : TYPE, optional
+            DESCRIPTION. The default is 2.
+        collapse_eta : TYPE, optional
+            DESCRIPTION. The default is True.
+        collapse_tth : TYPE, optional
+            DESCRIPTION. The default is False.
+        do_interpolation : TYPE, optional
+            DESCRIPTION. The default is True.
+
+        Raises
+        ------
+        RuntimeError
+            DESCRIPTION.
+
+        Returns
+        -------
+        panel_data : TYPE
+            DESCRIPTION.
         """
-
         if not hasattr(plane_data, '__len__'):
             plane_data = plane_data.makeNew()  # make local copy to munge
             if tth_tol is not None:
@@ -864,6 +953,26 @@ class HEDMInstrument(object):
                               minEnergy=5., maxEnergy=35.,
                               rmat_s=None, grain_params=None):
         """
+        Simulate Laue diffraction over the instrument.
+
+        Parameters
+        ----------
+        crystal_data : TYPE
+            DESCRIPTION.
+        minEnergy : TYPE, optional
+            DESCRIPTION. The default is 5..
+        maxEnergy : TYPE, optional
+            DESCRIPTION. The default is 35..
+        rmat_s : TYPE, optional
+            DESCRIPTION. The default is None.
+        grain_params : TYPE, optional
+            DESCRIPTION. The default is None.
+
+        Returns
+        -------
+        results : TYPE
+            DESCRIPTION.
+
         TODO: revisit output; dict, or concatenated list?
         """
         results = dict.fromkeys(self.detectors)
@@ -882,6 +991,28 @@ class HEDMInstrument(object):
                                  ome_period=(-np.pi, np.pi),
                                  wavelength=None):
         """
+        Simulate a monochromatic rotation series over the instrument.
+
+        Parameters
+        ----------
+        plane_data : TYPE
+            DESCRIPTION.
+        grain_param_list : TYPE
+            DESCRIPTION.
+        eta_ranges : TYPE, optional
+            DESCRIPTION. The default is [(-np.pi, np.pi), ].
+        ome_ranges : TYPE, optional
+            DESCRIPTION. The default is [(-np.pi, np.pi), ].
+        ome_period : TYPE, optional
+            DESCRIPTION. The default is (-np.pi, np.pi).
+        wavelength : TYPE, optional
+            DESCRIPTION. The default is None.
+
+        Returns
+        -------
+        results : TYPE
+            DESCRIPTION.
+
         TODO: revisit output; dict, or concatenated list?
         """
         results = dict.fromkeys(self.detectors)
@@ -906,10 +1037,55 @@ class HEDMInstrument(object):
                    quiet=True, check_only=False,
                    interp='nearest'):
         """
-        Exctract reflection info from a rotation series encoded as an
-        OmegaImageseries object
-        """
+        Exctract reflection info from a rotation series.
 
+        Input must be encoded as an OmegaImageseries object.
+
+        Parameters
+        ----------
+        plane_data : TYPE
+            DESCRIPTION.
+        grain_params : TYPE
+            DESCRIPTION.
+        imgser_dict : TYPE
+            DESCRIPTION.
+        tth_tol : TYPE, optional
+            DESCRIPTION. The default is 0.25.
+        eta_tol : TYPE, optional
+            DESCRIPTION. The default is 1..
+        ome_tol : TYPE, optional
+            DESCRIPTION. The default is 1..
+        npdiv : TYPE, optional
+            DESCRIPTION. The default is 2.
+        threshold : TYPE, optional
+            DESCRIPTION. The default is 10.
+        eta_ranges : TYPE, optional
+            DESCRIPTION. The default is [(-np.pi, np.pi), ].
+        ome_period : TYPE, optional
+            DESCRIPTION. The default is (-np.pi, np.pi).
+        dirname : TYPE, optional
+            DESCRIPTION. The default is 'results'.
+        filename : TYPE, optional
+            DESCRIPTION. The default is None.
+        output_format : TYPE, optional
+            DESCRIPTION. The default is 'text'.
+        save_spot_list : TYPE, optional
+            DESCRIPTION. The default is False.
+        quiet : TYPE, optional
+            DESCRIPTION. The default is True.
+        check_only : TYPE, optional
+            DESCRIPTION. The default is False.
+        interp : TYPE, optional
+            DESCRIPTION. The default is 'nearest'.
+
+        Returns
+        -------
+        compl : TYPE
+            DESCRIPTION.
+        output : TYPE
+            DESCRIPTION.
+
+        """
         # grain parameters
         rMat_c = makeRotMatOfExpMap(grain_params[:3])
         tVec_c = grain_params[3:6]
@@ -1273,9 +1449,7 @@ class HEDMInstrument(object):
 
 
 class PlanarDetector(object):
-    """
-    base class for 2D planar, rectangular row-column detector
-    """
+    """Base class for 2D planar, rectangular row-column detector"""
 
     __pixelPitchUnit = 'mm'
 
@@ -1292,7 +1466,40 @@ class PlanarDetector(object):
                  roi=None,
                  distortion=None):
         """
-        panel buffer is in pixels...
+        Instantiate a PlanarDetector object.
+
+        Parameters
+        ----------
+        rows : TYPE, optional
+            DESCRIPTION. The default is 2048.
+        cols : TYPE, optional
+            DESCRIPTION. The default is 2048.
+        pixel_size : TYPE, optional
+            DESCRIPTION. The default is (0.2, 0.2).
+        tvec : TYPE, optional
+            DESCRIPTION. The default is np.r_[0., 0., -1000.].
+        tilt : TYPE, optional
+            DESCRIPTION. The default is ct.zeros_3.
+        name : TYPE, optional
+            DESCRIPTION. The default is 'default'.
+        bvec : TYPE, optional
+            DESCRIPTION. The default is ct.beam_vec.
+        evec : TYPE, optional
+            DESCRIPTION. The default is ct.eta_vec.
+        saturation_level : TYPE, optional
+            DESCRIPTION. The default is None.
+        panel_buffer : TYPE, optional
+            If a scalar or len(2) array_like, the interpretation is a border
+            in mm. If an array with shape (nrows, ncols), interpretation is a
+            boolean with True marking valid pixels.  The default is None.
+        roi : TYPE, optional
+            DESCRIPTION. The default is None.
+        distortion : TYPE, optional
+            DESCRIPTION. The default is None.
+
+        Returns
+        -------
+        None.
 
         """
         self._name = name
@@ -1753,7 +1960,7 @@ class PlanarDetector(object):
                         xy[:, 1] >= -ylim, xy[:, 1] <= ylim
                     )
                     on_panel = np.logical_and(on_panel_x, on_panel_y)
-            elif not buffer_edges:
+            elif not buffer_edges or self.panel_buffer is None:
                 on_panel_x = np.logical_and(
                     xy[:, 0] >= -xlim, xy[:, 0] <= xlim
                 )
@@ -1871,8 +2078,42 @@ class PlanarDetector(object):
             rmat_s=ct.identity_3x3,  tvec_s=ct.zeros_3,
             tvec_c=ct.zeros_3, full_output=False):
         """
-        !!! it is assuming that rmat_s is built from (chi, ome)
-        !!! as it the case for HEDM
+        Generate points on Debye_Scherrer rings over the detector.
+
+        !!! it is assuming that rmat_s is built from (chi, ome) as it the case
+            for HEDM!
+
+        Parameters
+        ----------
+        pd : TYPE
+            DESCRIPTION.
+        merge_hkls : TYPE, optional
+            DESCRIPTION. The default is False.
+        delta_tth : TYPE, optional
+            DESCRIPTION. The default is None.
+        delta_eta : TYPE, optional
+            DESCRIPTION. The default is 10..
+        eta_period : TYPE, optional
+            DESCRIPTION. The default is None.
+        rmat_s : TYPE, optional
+            DESCRIPTION. The default is ct.identity_3x3.
+        tvec_s : TYPE, optional
+            DESCRIPTION. The default is ct.zeros_3.
+        tvec_c : TYPE, optional
+            DESCRIPTION. The default is ct.zeros_3.
+        full_output : TYPE, optional
+            DESCRIPTION. The default is False.
+
+        Raises
+        ------
+        RuntimeError
+            DESCRIPTION.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+
         """
         # in case you want to give it tth angles directly
         if hasattr(pd, '__len__'):
@@ -1944,7 +2185,7 @@ class PlanarDetector(object):
             axis=0)
         """
         # !!! should be safe as eta_edges are monotonic
-        eta_centers = eta_edges[:-1] + del_eta
+        eta_centers = eta_edges[:-1] + 0.5*del_eta
 
         # !!! get chi and ome from rmat_s
         # chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
@@ -2006,13 +2247,30 @@ class PlanarDetector(object):
 
     def map_to_plane(self, pts, rmat, tvec):
         """
-        map detctor points to specified plane
+        Map detctor points to specified plane.
 
-        by convention
+        Parameters
+        ----------
+        pts : TYPE
+            DESCRIPTION.
+        rmat : TYPE
+            DESCRIPTION.
+        tvec : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+
+        Notes
+        -----
+        by convention:
 
         n * (u*pts_l - tvec) = 0
 
         [pts]_l = rmat*[pts]_m + tvec
+
         """
         # arg munging
         pts = np.atleast_2d(pts)
@@ -2043,8 +2301,41 @@ class PlanarDetector(object):
                                  chi=0., tVec_s=ct.zeros_3,
                                  wavelength=None):
         """
-        """
+        Simulate a monochromatic rotation series for a list of grains.
 
+        Parameters
+        ----------
+        plane_data : TYPE
+            DESCRIPTION.
+        grain_param_list : TYPE
+            DESCRIPTION.
+        eta_ranges : TYPE, optional
+            DESCRIPTION. The default is [(-np.pi, np.pi), ].
+        ome_ranges : TYPE, optional
+            DESCRIPTION. The default is [(-np.pi, np.pi), ].
+        ome_period : TYPE, optional
+            DESCRIPTION. The default is (-np.pi, np.pi).
+        chi : TYPE, optional
+            DESCRIPTION. The default is 0..
+        tVec_s : TYPE, optional
+            DESCRIPTION. The default is ct.zeros_3.
+        wavelength : TYPE, optional
+            DESCRIPTION. The default is None.
+
+        Returns
+        -------
+        valid_ids : TYPE
+            DESCRIPTION.
+        valid_hkls : TYPE
+            DESCRIPTION.
+        valid_angs : TYPE
+            DESCRIPTION.
+        valid_xys : TYPE
+            DESCRIPTION.
+        ang_pixel_size : TYPE
+            DESCRIPTION.
+
+        """
         # grab B-matrix from plane data
         bMat = plane_data.latVecOps['B']
 
@@ -2101,14 +2392,20 @@ class PlanarDetector(object):
             xys_p, on_panel = self.clip_to_panel(det_xy)
             valid_xys.append(xys_p)
 
+            # filter angs and hkls that are on the detector plane
+            # !!! check this -- seems unnecessary but the results of
+            #     _project_on_detector_plane() can have len < the input.
+            #     the output of _project_on_detector_plane has been modified to
+            #     hand back the index array to remedy this JVB 2020-05-27
+            filtered_angs = np.atleast_2d(allAngs[on_plane, :])
+            filtered_hkls = np.atleast_2d(allHKLs[on_plane, :])
+
             # grab hkls and gvec ids for this panel
-            filtered_hkldata = allHKLs[on_plane, :]
-            valid_hkls.append(filtered_hkldata[on_panel, 1:])
-            valid_ids.append(filtered_hkldata[on_panel, 0])
+            valid_hkls.append(filtered_hkls[on_panel, 1:])
+            valid_ids.append(filtered_hkls[on_panel, 0])
 
             # reflection angles (voxel centers) and pixel size in (tth, eta)
-            filtered_angdata = allAngs[on_plane, :]
-            valid_angs.append(filtered_angdata[on_panel, :])
+            valid_angs.append(filtered_angs[on_panel, :])
             ang_pixel_size.append(self.angularPixelSize(xys_p))
         return valid_ids, valid_hkls, valid_angs, valid_xys, ang_pixel_size
 
@@ -2262,8 +2559,8 @@ class PlanarDetector(object):
 
 
 class PatchDataWriter(object):
-    """
-    """
+    """Class for dumping Bragg reflection data."""
+
     def __init__(self, filename):
         self._delim = '  '
         header_items = (
@@ -2322,8 +2619,8 @@ class PatchDataWriter(object):
 
 
 class GrainDataWriter(object):
-    """
-    """
+    """Class for dumping grain data."""
+
     def __init__(self, filename):
         self._delim = '  '
         header_items = (
@@ -2382,17 +2679,17 @@ class GrainDataWriter(object):
 
 
 class GrainDataWriter_h5(object):
-    """
+    """Class for dumping grain results to an HDF5 archive.
+
     TODO: add material spec
     """
-    def __init__(self, filename, instr_cfg, grain_params, use_attr=False):
 
+    def __init__(self, filename, instr_cfg, grain_params, use_attr=False):
         if isinstance(filename, h5py.File):
             self.fid = filename
         else:
             self.fid = h5py.File(filename + ".hdf5", "w")
-        icfg = {}
-        icfg.update(instr_cfg)
+        icfg = dict(instr_cfg)
 
         # add instrument groups and attributes
         self.instr_grp = self.fid.create_group('instrument')
@@ -2525,6 +2822,7 @@ class GenerateEtaOmeMaps(object):
     self.omegas   # IN RADIANS
 
     """
+
     def __init__(self, image_series_dict, instrument, plane_data,
                  active_hkls=None, eta_step=0.25, threshold=None,
                  ome_period=(0, 360)):
@@ -2593,10 +2891,8 @@ class GenerateEtaOmeMaps(object):
         # handle etas
         # WARNING: unlinke the omegas in imageseries metadata,
         # these are in RADIANS and represent bin centers
-        self._etas = etas
-        self._etaEdges = np.r_[
-            etas - 0.5*np.radians(eta_step),
-            etas[-1] + 0.5*np.radians(eta_step)]
+        self._etaEdges = etas
+        self._etas = self._etaEdges[:-1] + 0.5*np.radians(eta_step)
 
     @property
     def dataStore(self):

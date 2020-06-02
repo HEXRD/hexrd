@@ -13,9 +13,6 @@ class Config(object):
     def __init__(self, cfg):
         self._cfg = cfg
 
-    def __getitem__(self, key):
-        return self.get(key)
-
     @property
     def dirty(self):
         return self._dirty

@@ -1,10 +1,22 @@
-import logging
 import os
 
 import numpy as np
 
 from .config import Config
 
+
+logger = logging.getLogger('hexrd.config')
+
+# TODO: set these as defaults
+seed_search_methods = {
+    'label':dict(filter_radius=1, threshold=1),
+    'blob_log':dict(min_sigma=0.5, max_sigma=5,
+                    num_sigma=10, threshold=0.01,
+                    overlap=0.1),
+    'blob_dog':dict(min_sigma=0.5, max_sigma=5,
+                    sigma_ratio=1.6,
+                    threshold=0.01, overlap=0.1)
+}
 
 class FindOrientationsConfig(Config):
 
@@ -16,7 +28,7 @@ class FindOrientationsConfig(Config):
     @property
     def seed_search(self):
         return SeedSearchConfig(self._cfg)
-
+    
     @property
     def clustering(self):
         return ClusteringConfig(self._cfg)
@@ -98,9 +110,11 @@ class OmegaConfig(Config):
 
     @property
     def period(self):
+        # ??? maybe should get from image_series like before in v0.3.x
         key = 'find_orientations:omega:period'
         temp = self._cfg.get(key, [-180., 180])
         range = np.abs(temp[1]-temp[0])
+        logger.warning('omega period specification is deprecated')
         if range != 360:
             raise RuntimeError(
                 '"%s": range must be 360 degrees, range of %s is %g'
@@ -164,6 +178,27 @@ class SeedSearchConfig(Config):
             )
 
     @property
+    def method(self):
+        key = 'find_orientations:seed_search:method'
+        try:
+            temp = self._cfg.get(key)
+            assert len(temp) == 1., \
+                "method must have exactly one key"
+            if isinstance(temp, dict):
+                method_spec = next(iter(list(temp.keys())))
+                if method_spec.lower() not in seed_search_methods:
+                    raise RuntimeError(
+                        'invalid seed search method "%s"'
+                        % method_spec
+                    )
+                else:
+                    return temp
+        except:
+            raise RuntimeError(
+                '"%s" must be defined for seeded search' % key
+            )
+
+    @property
     def fiber_ndiv(self):
         return int(360.0 / self.fiber_step)
 
@@ -189,9 +224,11 @@ class OrientationMapsConfig(Config):
 
     @property
     def file(self):
-        temp = self._cfg.get('find_orientations:orientation_maps:file')
-        if not os.path.isabs(temp):
-            temp = os.path.join(self._cfg.working_dir, temp)
+        temp = self._cfg.get('find_orientations:orientation_maps:file',
+                             default=None)
+        if temp is not None:
+            if not os.path.isabs(temp):
+                temp = os.path.join(self._cfg.working_dir, temp)
         return temp
 
     @property

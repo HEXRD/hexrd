@@ -1,11 +1,8 @@
 import os
 import logging
 import multiprocessing as mp
-import sys
 
-import yaml
-
-from hexrd.utils.decorators import memoized
+# from hexrd.utils.decorators import memoized
 from hexrd import imageseries
 
 from .config import Config
@@ -42,13 +39,18 @@ class RootConfig(Config):
     @property
     def instrument(self):
         instr_file = self.get('instrument')
-        with open(instr_file, 'r') as f:
-            icfg = yaml.load(f, Loader=yaml.SafeLoader)
-        return Instrument(Config(icfg))
+        return Instrument(instr_file)
 
     @property
     def material(self):
         return MaterialConfig(self)
+
+    @property
+    def analysis_id(self):
+        return '_'.join(
+            [self.analysis_name.strip().replace(' ', '-'),
+             self.material.active.strip().replace(' ', '-')]
+        )
 
     @property
     def multiprocessing(self):
@@ -58,7 +60,8 @@ class RootConfig(Config):
         if multiproc == 'all':
             res = ncpus
         elif multiproc == 'half':
-            res = ncpus // 2 if ncpus > 1 else 1
+            temp = ncpus / 2
+            res = temp if temp else 1
         elif isinstance(multiproc, int):
             if multiproc >= 0:
                 if multiproc > ncpus:
@@ -92,7 +95,7 @@ class RootConfig(Config):
     def multiprocessing(self, val):
         if val in ('half', 'all', -1):
             self.set('multiprocessing', val)
-        elif isinstance(val, int) and (val >= 0 and val <= mp.cpu_count()):
+        elif (val >= 0 and val <= mp.cpu_count):
             self.set('multiprocessing', int(val))
         else:
             raise RuntimeError(
@@ -129,7 +132,7 @@ class RootConfig(Config):
 
     @property
     def image_series(self):
-        """return the imageseries dictionary"""
+        """Return the imageseries dictionary."""
         if not hasattr(self, '_image_dict'):
             self._image_dict = dict()
             fmt = self.get('image_series:format')
@@ -140,9 +143,9 @@ class RootConfig(Config):
                 ims = imageseries.open(fname, fmt, **args)
                 oms = imageseries.omega.OmegaImageSeries(ims)
                 try:
-                    panel=ispec['panel']
-                except KeyError:
-                    panel = ims.metadata['panel']
-                self._image_dict[panel] = ims
+                    panel = ispec['panel']
+                except(KeyError):
+                    panel = oms.metadata['panel']
+                self._image_dict[panel] = oms
 
         return self._image_dict

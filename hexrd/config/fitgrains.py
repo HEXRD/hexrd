@@ -53,18 +53,12 @@ class FitGrainsConfig(Config):
             temp = os.path.join(self._cfg.working_dir, temp)
         if os.path.isfile(temp):
             return temp
+        logger.warning('"%s": "%s" does not exist', key, temp)
+
 
     @property
     def npdiv(self):
         return self._cfg.get('fit_grains:npdiv', 2)
-
-
-    @property
-    def panel_buffer(self):
-        temp = self._cfg.get('fit_grains:panel_buffer')
-        if isinstance(temp, (int, float)):
-            temp = [temp, temp]
-        return temp
 
 
     @property
@@ -76,7 +70,7 @@ class FitGrainsConfig(Config):
     def tolerance(self):
         return ToleranceConfig(self._cfg)
 
-
+    
     @property
     def refit(self):
         key = 'fit_grains:refit'
@@ -86,7 +80,8 @@ class FitGrainsConfig(Config):
         else:
             if not isinstance(temp, (int, float, list)):
                 raise RuntimeError(
-                    '"%s" must be None, a scalar, or a list, got "%s"' % (key, temp)
+                    '"%s" must be None, a scalar, or a list, got "%s"'
+                    % (key, temp)
                     )
             if isinstance(temp, (int, float)):
                 temp = [temp, temp]
@@ -94,7 +89,7 @@ class FitGrainsConfig(Config):
 
 
     """
-    PROBABLY JUST SCRAP THIS...s
+    TODO: evaluate the need for this
     """
     @property
     def skip_on_estimate(self):
@@ -117,12 +112,12 @@ class FitGrainsConfig(Config):
             '"%s" must be true or false, got "%s"' % (key, temp)
             )
 
-
+    
     @property
     def tth_max(self):
         key = 'fit_grains:tth_max'
         temp = self._cfg.get(key, True)
-        if temp in (True, False):
+        if isinstance(temp, bool):
             return temp
         if isinstance(temp, (int, float)):
             if temp > 0:

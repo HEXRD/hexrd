@@ -1,20 +1,20 @@
 import os
 
-import pickle as cpl
+try:
+    import dill as cpl
+except(ImportError):
+    import pickle as cpl
 
 from .config import Config
 
 
 class MaterialConfig(Config):
-
-    BASEKEY = 'material'
-
-    def get(self, key, **kwargs):
-        return self._cfg.get(':'.join([self.BASEKEY, key]), **kwargs)
+    """Handle material configuration."""
 
     @property
     def definitions(self):
-        temp = self.get('definitions')
+        """Return the materials database filename."""
+        temp = self._cfg.get('material:definitions')
         if not os.path.isabs(temp):
             temp = os.path.join(self._cfg.working_dir, temp)
         if os.path.exists(temp):
@@ -25,22 +25,14 @@ class MaterialConfig(Config):
 
     @property
     def active(self):
-        return self.get('active')
-
-    @property
-    def material_dict(self):
-        with open(self.definitions, "rb") as matf:
-            mat_list = cpl.load(matf, encoding='latin1')
-        return dict(list(zip([i.name for i in mat_list], mat_list)))
-
-    @property
-    def two_theta_width(self):
-        return self.get('two-theta-width', default=None)
+        """Return the active material key."""
+        return self._cfg.get('material:active')
 
     @property
     def plane_data(self):
-        pd = self.material_dict[self.active].planeData
-        tthw = self.two_theta_width
-        if tthw is not None:
-            pd.tThWidth = tthw
-        return pd
+        """Return the active material PlaneData class."""
+        with open(self.definitions, "rb") as matf:
+            mat_list = cpl.load(matf)
+        return dict(
+            zip([i.name for i in mat_list], mat_list)
+        )[self.active].planeData

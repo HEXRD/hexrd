@@ -4,7 +4,6 @@ import argparse
 import logging
 import sys
 import multiprocessing
-import warnings
 
 # These can't be relative imports on Windows because of the hack
 # in main() for multiprocessing.freeze_support()
@@ -35,8 +34,8 @@ def main():
     )
     p.add_argument(
         "--debug",
-        action = "store_true",
-        help = 'verbose reporting',
+        action="store_true",
+        help='verbose reporting',
     )
     p.add_argument(
         "--inst-profile",
@@ -44,8 +43,8 @@ def main():
         help='use the following files as source for functions to instrument',
     )
     sub_parsers = p.add_subparsers(
-        metavar = 'command',
-        dest = 'cmd',
+        metavar='command',
+        dest='cmd',
     )
 
     help.configure_parser(sub_parsers)
