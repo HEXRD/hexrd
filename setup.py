@@ -42,7 +42,7 @@ def get_extension_modules():
         include_dirs=[np_include_dir]
         )
 
-    return [sglite_mod]
+    return [sglite_mod, transforms_mod]
 
 ext_modules = get_extension_modules()
 
