@@ -44,8 +44,6 @@ from os import path
 from CifFile import ReadCif 
 import  h5py
 
-from hexrd.EMsoft import EMsoft_FAPI
-
 __all__ = ['Material', 'loadMaterialList']
 
 
@@ -131,10 +129,10 @@ class Material(object):
 
         if cfgP:
             # Get values from configuration
-            #self._readCfg(cfgP)
+            self._readCfg(cfgP)
             self._hklMax = Material.DFLT_SSMAX
             # self._beamEnergy = Material.DFLT_KEV
-            self._readHDFxtal(cfgP)
+            # self._readHDFxtal(cfgP)
             # self._readCif(cfgP)
             pass
         else:
