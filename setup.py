@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 from setuptools import setup, find_packages, Extension
-
 import numpy
 np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 
@@ -9,7 +8,6 @@ install_reqs = [
     'h5py',
     'scipy',
     'pycifrw',
-    'f90wrap',
     'numba'
 ]
 
@@ -44,39 +42,7 @@ def get_extension_modules():
         include_dirs=[np_include_dir]
         )
 
-    '''
-        this is the fortran compilation part. pretty janky for now 
-    '''
-    srclist = ['local.f90', 'io.f90', 'error.f90', 'typedefs.f90',
-                'constants.f90', 'math.f90', 'quaternions.f90', 
-                'crystal.f90','symmetry.f90','Lambert.f90',
-                'rotations.f90', 'others.f90', 'diffraction.f90'  
-              ]
-    srclist = [os.path.join('hexrd/EMsoft', f) for f in srclist]
-    srclist_str = ''
-    for f in srclist:
-        srclist_str = srclist_str+f+' '
-
-
-    # this is the kind map for f90wrap
-    kmap = 'kind_map'
-    kmap = os.path.join('hexrd/EMsoft',kmap)
-
-
-    cmd = 'f90wrap -k '+ kmap + ' -m EMsoft --package ' + srclist_str
-    os.system(cmd)
-
-    cmd = 'gfortran -c '+ srclist_str + ' -fno-unsafe-math-optimizations -frounding-math -fsignaling-nans'
-    os.system(cmd)
-
-    cmd = 'ar cr libEMsoft.a *.o'
-    os.system(cmd)
-
-    cmd = 'f2py-f90wrap -c -m _EMsoft --build-dir build/ \
-            f90wrap_*.f90 --link-lapack_opt -L/Users/saransh1/hexrd3 -lEMsoft'
-    os.system(cmd)
-
-    return [sglite_mod, transforms_mod]
+    return [sglite_mod]
 
 ext_modules = get_extension_modules()
 
@@ -104,3 +70,12 @@ setup(
     python_requires='>=3.6',
     install_requires=install_reqs
 )
+
+# ext_modules = get_extension_modulesf()
+# setupF(
+#     name='hexrd',
+#     url='https://github.com/cryos/hexrd',
+#     license='BSD',
+#     ext_modules=ext_modules,
+#     packages=find_packages(),
+# )

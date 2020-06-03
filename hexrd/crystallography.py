@@ -605,11 +605,6 @@ class PlaneData(object):
         self.__structFact = np.ones(self.__hkls.shape[1])
         self.tThWidth = tThWidth
 
-        # adding crystal symmetry operator including translations
-        # the symmetry is in the form of wigner-seitz 4 x 4 matrices
-        # [added by SS 11/01/2019]
-        self.__sgsym = np.zeros([1,4,4]) 
-
         # ... need to implement tThMin too
         if 'phaseID' in kwargs:
             self.phaseID = kwargs.pop('phaseID')
