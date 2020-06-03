@@ -1288,10 +1288,10 @@ class HEDMInstrument(object):
                         # initialize spot data parameters
                         # !!! maybe change these to nan to not fuck up writer
                         peak_id = -999
-                        sum_int = None
-                        max_int = None
-                        meas_angs = None
-                        meas_xy = None
+                        sum_int = np.nan
+                        max_int = np.nan
+                        meas_angs = np.nan*np.ones(3)
+                        meas_xy = np.nan*np.ones(2)
 
                         # quick check for intensity
                         contains_signal = False
@@ -2596,8 +2596,8 @@ class PatchDataWriter(object):
         if mangs is None:
             spot_int = np.nan
             max_int = np.nan
-            mangs = np.ones(3)*np.nan
-            mxy = np.ones(2)*np.nan
+            mangs = np.nan*np.ones(3)
+            mxy = np.nan*np.ones(2)
 
         res = [int(peak_id), int(hkl_id)] \
             + np.array(hkl, dtype=int).tolist() \

@@ -118,18 +118,34 @@ def fit_grain_FF_reduced(grain_id):
         for det_key in culled_results:
             panel = instrument.detectors[det_key]
 
+            '''
+            grab panel results:
+                peak_id
+                hkl_id
+                hkl
+                sum_int
+                max_int,
+                pred_angs,
+                meas_angs,
+                meas_xy
+            '''
             presults = results[det_key]
+            nrefl = len(presults)
 
-            valid_refl_ids = np.array([x[0] for x in presults]) >= 0
+            # make data arrays
+            refl_ids = np.empty(nrefl)
+            max_int = np.empty(nrefl)
+            for i, spot_data in enumerate(presults):
+                refl_ids[i] = spot_data[0]
+                max_int[i] = spot_data[4]
 
-            spot_ids = np.array([x[0] for x in presults])
+            valid_refl_ids = refl_ids >= 0
 
             # find unsaturated spots on this panel
-            if panel.saturation_level is None:
-                unsat_spots = np.ones(len(valid_refl_ids))
-            else:
-                unsat_spots = \
-                    np.array([x[4] for x in presults]) < panel.saturation_level
+            unsat_spots = np.ones(len(valid_refl_ids), dtype=bool)
+            if panel.saturation_level is not None:
+                unsat_spots[valid_refl_ids] = \
+                    max_int[valid_refl_ids] < panel.saturation_level
 
             idx = np.logical_and(valid_refl_ids, unsat_spots)
 
@@ -152,17 +168,18 @@ def fit_grain_FF_reduced(grain_id):
                                 this_table[these_overlaps, 1], dtype=int
                             )
                             otidx = [
-                                np.where(spot_ids == mt)[0]
+                                np.where(refl_ids == mt)[0]
                                 for mt in mark_these
                             ]
                             overlaps[otidx] = True
                 idx = np.logical_and(idx, ~overlaps)
-                # print("found overlap table for '%s'" % det_key)
+                # logger.info("found overlap table for '%s'", det_key)
             except(IOError, IndexError):
-                # print("no overlap table found for '%s'" % det_key)
+                # logger.info("no overlap table found for '%s'", det_key)
                 pass
 
             # attach to proper dict entry
+            # FIXME: want to avoid looping again here
             culled_results[det_key] = [presults[i] for i in np.where(idx)[0]]
             num_refl_tot += len(valid_refl_ids)
             num_refl_valid += sum(valid_refl_ids)
@@ -407,16 +424,17 @@ def fit_grains(cfg,
         logger.info("\tstarting serial fit")
         start = timeit.default_timer()
         fit_grain_FF_init(params)
-        fit_results = map(
-            fit_grain_FF_reduced,
-            np.array(grains_table[:, 0], dtype=int)
+        fit_results = list(
+            map(fit_grain_FF_reduced,
+                np.array(grains_table[:, 0], dtype=int))
         )
         fit_grain_FF_cleanup()
         elapsed = timeit.default_timer() - start
     else:
         nproc = min(ncpus, len(grains_table))
         chunksize = max(1, len(grains_table)//ncpus)
-        logger.info("\tstarting fit on %d processes", nproc)
+        logger.info("\tstarting fit on %d processes with chunksize %d",
+                    nproc, chunksize)
         start = timeit.default_timer()
         pool = multiprocessing.Pool(
             nproc,
