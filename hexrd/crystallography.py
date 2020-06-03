@@ -791,14 +791,6 @@ class PlaneData(object):
 
     structFact = property(get_wavelength, set_wavelength, None)
 
-    def get_SGsym(self):
-        return self.__sgsym
-
-    def set_SGsym(self, sgsym):
-        self.__sgsym = sgsym 
-
-    SGsym = property(get_SGsym, set_SGsym, None)
-
     @staticmethod
     def makePlaneData(hkls, lparms, qsym, symmGroup, strainMag, wavelength):
         """
