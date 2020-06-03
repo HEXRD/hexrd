@@ -61,9 +61,9 @@ class Rietveld:
 		self._pinkbeam_spec = pinkbeam_spec
 
 		# Cagliotti parameters for the half width of the peak
-		self._U = 0.
-		self._V = 0.
-		self._W = 1.7e-05
+		self._U = np.radians(1e-2)
+		self._V = np.radians(5e-2)
+		self._W = np.radians(1e-2)
 
 		# Pseudo-Voight mixing parameters
 		self._eta1 = 1.
@@ -73,7 +73,7 @@ class Rietveld:
 		# arbitrary scale factor
 		self._scalef = 1.0
 
-		self._Pmd = 1.855
+		self._Pmd = 1.#1.855
 		''' maximum intensity, Imax = S * Mk * Lk * |Fk|**2 * Pk * Ak * Ek * ...
 			S  = arbitrary scale factor
 			Mk = multiplicity of reflection
@@ -178,8 +178,8 @@ class Rietveld:
 			self.Gaussian(tth, 88.)
 			self.Lorentzian(tth, 88.)
 			# self.CrystalliteSizeFactor(tth, 88.)
-			self.PV = self.CrystalliteSizeF * (self.eta * self.GaussianI + \
-					(1.0 - self.eta) * self.LorentzI )
+			self.PV = self.eta * self.GaussianI + \
+					(1.0 - self.eta) * self.LorentzI 
 
 	def SpecimenBroadening(self):
 		self.SB = np.sinc((self.tth_list - self.tth) / 2.0 / np.pi)
@@ -197,13 +197,13 @@ class Rietveld:
 		self.LP = (1 + np.cos(self.tth_list)**2)/ \
 		np.cos(0.5*self.tth_list)/np.sin(0.5*self.tth_list)**2
 
-	# def CrystalliteSizeFactor(self, tth, L_eff):
-	# 	# scherrer constant
-	# 	K = 1.0
-	# 	invcth = 1.0/np.cos(tth*0.5)
-	# 	self.CrystalliteSizeF = K * (self.pdata[0].get_wavelength()*10) * \
-	# 							invcth / L_eff
-		# self.CrystalliteSizeF = self.pb.lambda_mean
+	def CrystalliteSizeFactor(self, tth, L_eff):
+		# scherrer constant
+		K = 1.0
+		invcth = 1.0/np.cos(tth*0.5)
+		self.CrystalliteSizeF = K * (self.pdata[0].get_wavelength()*10) * \
+								invcth / L_eff
+		self.CrystalliteSizeF = self.pb.lambda_mean
 
 	def AbsorptionFactor(self, mu, thickness):
 		# abs fact = 1 - exp(-2*mu*t/sin(theta))

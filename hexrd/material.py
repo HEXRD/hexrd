@@ -404,7 +404,6 @@ class Material(object):
         self._atom_ntype = self._atomtype.shape[0]
         self._sgsetting = gid.get('SpaceGroupSetting')
 
-    #
     # ============================== API
     #
     #  ========== Properties

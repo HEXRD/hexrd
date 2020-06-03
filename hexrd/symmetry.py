@@ -34,7 +34,8 @@ from numpy import array, sqrt, pi, \
      argmax
 
 from hexrd.rotations import quatOfAngleAxis, quatProductMatrix, fixQuat
-
+from hexrd import constants
+import numpy as np
 
 # =============================================================================
 # Module vars
@@ -339,3 +340,155 @@ def quatOfLaueGroup(tag):
     qsym = array(quatOfAngleAxis(angle, axis).T, order='C').T
 
     return qsym
+
+def GeneratorString(sgnum):
+    return constants.SYM_GL[sgnum-1]
+
+def MakeGenerators(genstr, setting):
+
+    t = 'aOOO'
+    mat = SYM_fillgen(t)
+    genmat = mat
+
+    # genmat[0,:,:] = constants.SYM_GENERATORS['a']
+
+    # check if space group has inversion symmetry
+    if(genstr[0] == '1'):
+        t = 'hOOO'
+        mat = SYM_fillgen(t)
+        genmat = np.concatenate((genmat, mat))
+
+    n = int(genstr[1])
+    if(n > 0):
+        for i in range(n):
+            istart = 2 + i * 4
+            istop  = 2 + (i+1) * 4
+
+            t = genstr[istart:istop]
+
+            mat = SYM_fillgen(t)
+            genmat = np.concatenate((genmat, mat))
+    else:
+        istop = 2
+    '''
+    if there is an alternate setting for this space group
+    check if the alternate setting needs to be used
+    '''
+    if(genstr[istop] != '0'):
+        if(setting != 0):
+            t = genstr[istop+1:istop+4]
+            trans = np.array([constants.SYM_GENERATORS[t[1]],\
+                              constants.SYM_GENERATORS[t[2]],\
+                              constants.SYM_GENERATORS[t[3]]
+                              ])
+            for i in genmat.shape[0]:
+                genmat[0:3,3] -= trans
+
+    return genmat
+
+def SYM_fillgen(t):
+    mat = np.zeros([4,4])
+    mat[3,3] = 1.
+
+    mat[0:3,0:3] = constants.SYM_GENERATORS[t[0]]
+    mat[0:3,3] = np.array([constants.SYM_GENERATORS[t[1]],\
+                           constants.SYM_GENERATORS[t[2]],\
+                           constants.SYM_GENERATORS[t[3]]
+                           ])
+
+    mat = np.broadcast_to(mat, [1,4,4])
+    return mat
+
+def GenerateSGSym(sgnum, setting=0):
+
+    '''
+    get the generators for a space group using the
+    generator string
+    '''
+    genstr = GeneratorString(sgnum)
+    genmat = MakeGenerators(genstr, setting)
+
+    '''
+    use the generator string to get the rest of the
+    factor group
+
+    genmat has shape ngenerators x 4 x 4
+    '''
+    nsym = genmat.shape[0]
+
+    SYM_SG = genmat
+
+    '''
+    generate the factor group
+    '''
+
+    k1 = 0
+    while k1 < nsym:
+
+        g1 = np.squeeze(SYM_SG[k1,:,:])
+        k2 = k1
+
+        while k2 < nsym:
+            g2 = np.squeeze(SYM_SG[k2,:,:])
+            gnew = np.dot(g1, g2)
+
+            # only fractional parts
+            frac = np.modf(gnew[0:3,3])[0]
+            frac[frac < 0.] += 1.
+            frac[np.abs(frac) < 1E-5] = 0.0
+
+            gnew[0:3,3] = frac
+
+            if(isnew(gnew, SYM_SG)):
+                gnew = np.broadcast_to(gnew, [1,4,4])
+                SYM_SG = np.concatenate((SYM_SG, gnew))
+                nsym += 1
+
+                if (nsym >= 192):
+                    k2 = nsym
+                    k1 = nsym
+
+            k2 += 1
+        k1 += 1
+
+    SYM_PG_d = GeneratePGSym(SYM_SG)
+
+    return SYM_SG, SYM_PG_d
+
+def GeneratePGSym(SYM_SG):
+    '''
+    calculate the direct space point group symmetries 
+    from the space group symmetry. the direct point 
+    group symmetries are merely the space group 
+    symmetries with zero translation part. The reciprocal
+    ones are calculated from the direct symmetries by
+    using the metric tensors, but that is done in the unitcell
+    class
+    '''
+    nsgsym = SYM_SG.shape[0]
+
+    # first fill the identity rotation
+    SYM_PG_d = SYM_SG[0,0:3,0:3]
+    SYM_PG_d = np.broadcast_to(SYM_PG_d,[1,3,3])
+
+    for i in range(1,nsgsym):
+        g = SYM_SG[i,:,:]
+        t = g[0:3,3]
+        g = g[0:3,0:3]
+        if(np.sum(t**2) < 1E-1):
+            g = np.broadcast_to(g,[1,3,3])
+            SYM_PG_d = np.concatenate((SYM_PG_d, g))
+        elif(isnew(g,SYM_PG_d)):
+            g = np.broadcast_to(g,[1,3,3])
+            SYM_PG_d = np.concatenate((SYM_PG_d, g))
+            
+    return SYM_PG_d
+
+def isnew(mat, sym_mats):
+    isnew = True
+    for g in sym_mats:
+        diff = np.sum(np.abs(mat-g))
+        if(diff < 1E-5):
+            isnew = False
+            break
+    return isnew
