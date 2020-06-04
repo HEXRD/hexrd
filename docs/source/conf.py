@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.abspath('../sphinxext'))
 
 # We load the ipython release info into a dict by explicit execution
 from hexrd import __version__
-print __version__
+print(__version__)
 
 # -- General configuration ------------------------------------------------
 
@@ -75,7 +75,7 @@ project = u'hexrd'
 copyright = u'2014, Joel Bernier, Darren Dale, et. al.'
 
 # ghissue config
-github_project_url = "https://github.com/praxes/hexrd"
+github_project_url = "https://github.com/HEXRD/hexrd"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
