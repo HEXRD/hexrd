@@ -1,2 +1,0 @@
-include versioneer.py
-include hexrd/_version.py
