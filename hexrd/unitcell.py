@@ -16,7 +16,7 @@ class unitcell:
 	# need lattice parameters and space group data from HDF5 file
 	def __init__(self, lp, sgnum, atomtypes, atominfo, dmin, beamenergy, sgsetting=0):
 
-		self.voltage = beamenergy.value * 1000.0
+		self.voltage = beamenergy * 1000.0
 
 		self.pref  = 0.4178214
 

@@ -38,6 +38,8 @@ from hexrd.crystallography import PlaneData as PData
 from hexrd.spacegroup import SpaceGroup as SG
 import hexrd.spacegroup as sg
 from hexrd.valunits import valWUnit
+from hexrd.unitcell import unitcell
+
 import copy
 
 from os import path
@@ -109,7 +111,12 @@ class Material(object):
     '''
     DFLT_DMIN = _angstroms(0.5)
 
-    def __init__(self, name=DFLT_NAME, cfgP=None, dmin=DFLT_DMIN, kev=DFLT_KEV):
+    '''
+    default space group setting
+    '''
+    DFLT_SGSETTING = 0
+
+    def __init__(self, name=DFLT_NAME, cfgP=None, dmin=DFLT_DMIN, kev=DFLT_KEV, sgsetting=DFLT_SGSETTING):
         """Constructor for Material
 
         name -- (str) name of material
@@ -120,6 +127,7 @@ class Material(object):
         self.description = ''
         self._dmin = dmin
         self._beamEnergy = kev
+        self.sgsetting = sgsetting
         if(self._dmin.unit == 'angstrom'):
             # convert to nm
             uc_dmin = self._dmin.value * 0.1
@@ -129,10 +137,10 @@ class Material(object):
 
         if cfgP:
             # Get values from configuration
-            self._readCfg(cfgP)
+            # self._readCfg(cfgP)
             self._hklMax = Material.DFLT_SSMAX
             # self._beamEnergy = Material.DFLT_KEV
-            # self._readHDFxtal(cfgP)
+            self._readHDFxtal(cfgP)
             # self._readCif(cfgP)
             pass
         else:
@@ -150,25 +158,16 @@ class Material(object):
             self._atomtype = Material.DFLT_ATOMTYPE
             #
 
-        self.unitcell = copy.deepcopy(EMsoft_FAPI.unitcell(self._lparms, 
-                                             self.sgnum, 
-                                             self._atomtype,
-                                             self._atominfo,
-                                             uc_dmin,
-                                             self._beamEnergy.value,
-                                             sgsetting=self._sgsetting
-                                             ))
+        self.unitcell = unitcell(self._lparms, self.sgnum, self._atomtype,
+                                self._atominfo, self._dmin.value, 
+                                self._beamEnergy.value, self.sgsetting)
+
         hkls = self.planeData.getHKLs(allHKLs=True)
         sf = numpy.zeros([hkls.shape[0],])
         for i,g in enumerate(hkls):
             sf[i] = self.unitcell.CalcXRSF(g)
 
         self.planeData.set_structFact(sf[~self.planeData.exclusions])
-
-        nsym  = self.unitcell.cell.sg.sym_matnum
-        sgsym = self.unitcell.cell.sg.sym_data[0:nsym,:,:]
-
-        self.planeData.set_SGsym(sgsym)
 
         return
 
