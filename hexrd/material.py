@@ -78,7 +78,8 @@ class Material(object):
     space group data.
     default data is for nickel, but name is material
     """
-    DFLT_NAME = 'material'
+    DFLT_NAME = 'material.xtal'
+    DFLT_XTAL = 'Ni'
     DFLT_SGNUM = 225
     '''
     some materials have more than one space group setting. for ex
@@ -140,7 +141,7 @@ class Material(object):
             # self._readCfg(cfgP)
             self._hklMax = Material.DFLT_SSMAX
             # self._beamEnergy = Material.DFLT_KEV
-            self._readHDFxtal(cfgP)
+            self._readHDFxtal(fhdf=cfgP, xtal=name)
             # self._readCif(cfgP)
             pass
         else:
@@ -356,7 +357,7 @@ class Material(object):
         self._atominfo = numpy.asarray(atompos).T
         self._atominfo[:,4] = 8.0 * (numpy.pi**2) * (self._atominfo[:,4]**2)
 
-    def _readHDFxtal(self, fhdf=DFLT_NAME+'.cif'):
+    def _readHDFxtal(self, fhdf=DFLT_NAME, xtal=DFLT_NAME):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       10/17/2019 SS 1.0 original
@@ -365,7 +366,16 @@ class Material(object):
                         the file will be the same as the EMsoft xtal file. h5py will be used for
                         i/o
         """
-        fid = h5py.File(fhdf, 'r')
+
+        try:
+            fid = h5py.File(fhdf, 'r')
+        except IOError:
+            IOError('material file does not exist.')
+
+        try:
+            fid["/"+xtal]
+        except:
+            KeyError('crystal doesn''t exist in material file.')
 
         for groups in list(fid.keys()):
             
