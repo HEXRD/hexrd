@@ -143,7 +143,6 @@ class Material(object):
             # self._beamEnergy = Material.DFLT_KEV
             self._readHDFxtal(fhdf=cfgP, xtal=name)
             # self._readCif(cfgP)
-            pass
         else:
             # Use default values
             self._lparms = Material.DFLT_LPARMS
@@ -161,7 +160,7 @@ class Material(object):
 
         self.unitcell = unitcell(self._lparms, self.sgnum, self._atomtype,
                                 self._atominfo, self._dmin.value, 
-                                self._beamEnergy.value, self.sgsetting)
+                                self._beamEnergy.value, self._sgsetting)
 
         hkls = self.planeData.getHKLs(allHKLs=True)
         sf = numpy.zeros([hkls.shape[0],])
@@ -367,15 +366,14 @@ class Material(object):
                         i/o
         """
 
-        try:
+        fexist = path.exists(fhdf)
+        if(fexist):
             fid = h5py.File(fhdf, 'r')
-        except IOError:
-            IOError('material file does not exist.')
+            if "/"+xtal not in fid:
+                raise IOError('crystal doesn''t exist in material file.')
+        else:
+            raise IOError('material file does not exist.')
 
-        try:
-            fid["/"+xtal]
-        except:
-            KeyError('crystal doesn''t exist in material file.')
 
         for groups in list(fid.keys()):
             
@@ -409,7 +407,11 @@ class Material(object):
         # read atom types (by atomic number, Z)
         self._atomtype = numpy.array(gid.get('Atomtypes'), dtype = numpy.int32)
         self._atom_ntype = self._atomtype.shape[0]
-        self._sgsetting = gid.get('SpaceGroupSetting')
+        
+        self._sgsetting = numpy.asscalar(numpy.array(gid.get('SpaceGroupSetting'), \
+                                        dtype = numpy.int32))
+        self._sgsetting -= 1
+
 
     # ============================== API
     #
