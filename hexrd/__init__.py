@@ -1,13 +1,16 @@
 """package init for hexrd"""
 import logging
+from pkg_resources import DistributionNotFound, get_distribution
 
 # Release data
 __author__ = 'HEXRD Development Team <praxes@googlegroups.com>'
 __license__ = 'BSD'
 
-from ._version import get_versions
-__version__ = get_versions()['version']
-del get_versions
+try:
+    __version__ = get_distribution(__name__).version
+except DistributionNotFound:
+    # package is not installed
+    __version__ = None
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
