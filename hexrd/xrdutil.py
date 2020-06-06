@@ -855,14 +855,12 @@ else:  # not USE_NUMBA
         return window
 
 
-def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
-                            omega=None,
+def make_reflection_patches(instr_cfg,
+                            tth_eta, ang_pixel_size, omega=None,
                             tth_tol=0.2, eta_tol=1.0,
-                            rMat_c=np.eye(3), tVec_c=np.zeros((3, 1)),
-                            distortion=None,
+                            rmat_c=np.eye(3), tvec_c=np.zeros((3, 1)),
                             npdiv=1, quiet=False,
-                            compute_areas_func=gutil.compute_areas,
-                            beamVec=None):
+                            compute_areas_func=gutil.compute_areas):
     """
     Make angular patches on a detector.
 
@@ -895,11 +893,11 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
     """
     npts = len(tth_eta)
 
-    # detector frame
-    rMat_d = xfcapi.makeRotMatOfExpMap(
+    # detector quantities
+    rmat_d = xfcapi.makeRotMatOfExpMap(
         np.r_[instr_cfg['detector']['transform']['tilt']]
         )
-    tVec_d = np.r_[instr_cfg['detector']['transform']['translation']]
+    tvec_d = np.r_[instr_cfg['detector']['transform']['translation']]
     pixel_size = instr_cfg['detector']['pixels']['size']
 
     frame_nrows = instr_cfg['detector']['pixels']['rows']
@@ -914,16 +912,31 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
     col_edges = np.arange(frame_ncols + 1)*pixel_size[0] \
         + panel_dims[0][0]
 
+    # grab distortion
+    # FIXME: distortion function is still hard-coded here
+    try:
+        dfunc_name = instr_cfg['detector']['distortion']['function_name']
+    except(KeyError):
+        dfunc_name = None
+
+    if dfunc_name is None:
+        distortion = None
+    else:
+        # !!!: warning -- hard-coded distortion
+        distortion = (
+            distortion_module.GE_41RT,
+            np.r_[instr_cfg['detector']['distortion']['parameters']]
+        )
+
     # sample frame
     chi = instr_cfg['oscillation_stage']['chi']
-    tVec_s = np.r_[instr_cfg['oscillation_stage']['translation']]
+    tvec_s = np.r_[instr_cfg['oscillation_stage']['translation']]
 
     # beam vector
-    if beamVec is None:
-        beamVec = xfcapi.bVec_ref
+    bvec = np.r_[instr_cfg['beam']['vector']]
 
     # data to loop
-    # ...WOULD IT BE CHEAPER TO CARRY ZEROS OR USE CONDITIONAL?
+    # ??? WOULD IT BE CHEAPER TO CARRY ZEROS OR USE CONDITIONAL?
     if omega is None:
         full_angs = np.hstack([tth_eta, np.zeros((npts, 1))])
     else:
@@ -931,69 +944,72 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
 
     patches = []
     for angs, pix in zip(full_angs, ang_pixel_size):
-        ndiv_tth = npdiv*np.ceil(tth_tol/np.degrees(pix[0]))
-        ndiv_eta = npdiv*np.ceil(eta_tol/np.degrees(pix[1]))
+        # calculate bin edges for patch based on local angular pixel size
+        # tth
+        ntths, tth_edges = gutil.make_tolerance_grid(
+            bin_width=np.degrees(pix[0]),
+            window_width=tth_tol,
+            num_subdivisions=npdiv
+        )
 
-        tth_del = np.arange(0, ndiv_tth + 1)*tth_tol/float(ndiv_tth) \
-            - 0.5*tth_tol
-        eta_del = np.arange(0, ndiv_eta + 1)*eta_tol/float(ndiv_eta) \
-            - 0.5*eta_tol
-
-        # store dimensions for convenience
-        #   * etas and tths are bin vertices, ome is already centers
-        sdims = [len(eta_del) - 1, len(tth_del) - 1]
+        # eta
+        netas, eta_edges = gutil.make_tolerance_grid(
+            bin_width=np.degrees(pix[1]),
+            window_width=eta_tol,
+            num_subdivisions=npdiv
+        )
 
         # FOR ANGULAR MESH
         conn = gutil.cellConnectivity(
-            sdims[0],
-            sdims[1],
+            netas,
+            ntths,
             origin='ll'
         )
 
         # meshgrid args are (cols, rows), a.k.a (fast, slow)
-        m_tth, m_eta = np.meshgrid(tth_del, eta_del)
+        m_tth, m_eta = np.meshgrid(tth_edges, eta_edges)
         npts_patch = m_tth.size
 
         # calculate the patch XY coords from the (tth, eta) angles
-        # * will CHEAT and ignore the small perturbation the different
-        #   omega angle values causes and simply use the central value
+        # !!! will CHEAT and ignore the small perturbation the different
+        #     omega angle values causes and simply use the central value
         gVec_angs_vtx = np.tile(angs, (npts_patch, 1)) \
             + np.radians(
-                np.vstack(
-                    [m_tth.flatten(),
-                     m_eta.flatten(),
-                     np.zeros(npts_patch)]
-                ).T
+                np.vstack([m_tth.flatten(),
+                            m_eta.flatten(),
+                            np.zeros(npts_patch)
+                ]).T
             )
 
         xy_eval_vtx, rmats_s, on_plane = _project_on_detector_plane(
                 gVec_angs_vtx,
-                rMat_d, rMat_c,
+                rmat_d, rmat_c,
                 chi,
-                tVec_d, tVec_c, tVec_s,
+                tvec_d, tvec_c, tvec_s,
                 distortion,
-                beamVec=beamVec)
+                beamVec=bvec)
 
         areas = compute_areas_func(xy_eval_vtx, conn)
 
         # EVALUATION POINTS
-        #   * for lack of a better option will use centroids
+        # !!! for lack of a better option will use centroids
         tth_eta_cen = gutil.cellCentroids(
             np.atleast_2d(gVec_angs_vtx[:, :2]),
             conn
         )
 
         gVec_angs = np.hstack(
-            [tth_eta_cen, np.tile(angs[2], (len(tth_eta_cen), 1))]
+            [tth_eta_cen,
+             np.tile(angs[2], (len(tth_eta_cen), 1))]
         )
 
         xy_eval, rmats_s, on_plane = _project_on_detector_plane(
                 gVec_angs,
-                rMat_d, rMat_c,
+                rmat_d, rmat_c,
                 chi,
-                tVec_d, tVec_c, tVec_s,
+                tvec_d, tvec_c, tvec_s,
                 distortion,
-                beamVec=beamVec)
+                beamVec=bvec)
 
         row_indices = gutil.cellIndices(row_edges, xy_eval[:, 1])
         col_indices = gutil.cellIndices(col_edges, xy_eval[:, 0])
@@ -1005,11 +1021,11 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
              (xy_eval_vtx[:, 0].reshape(m_tth.shape),
               xy_eval_vtx[:, 1].reshape(m_tth.shape)),
              conn,
-             areas.reshape(sdims[0], sdims[1]),
-             (xy_eval[:, 0].reshape(sdims[0], sdims[1]),
-              xy_eval[:, 1].reshape(sdims[0], sdims[1])),
-             (row_indices.reshape(sdims[0], sdims[1]),
-              col_indices.reshape(sdims[0], sdims[1])))
+             areas.reshape(netas, ntths),
+             (xy_eval[:, 0].reshape(netas, ntths),
+              xy_eval[:, 1].reshape(netas, ntths)),
+             (row_indices.reshape(netas, ntths),
+              col_indices.reshape(netas, ntths)))
         )
         pass    # close loop over angles
     return patches

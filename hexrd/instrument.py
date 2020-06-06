@@ -493,6 +493,15 @@ class HEDMInstrument(object):
 
     @property
     def calibration_parameters(self):
+        """
+        Yields concatenated list of instrument parameters.
+
+        Returns
+        -------
+        array_like
+            concatenated list of instrument parameters.
+
+        """
         # grab angles from beam vec
         # !!! these are in DEGREES!
         azim, pola = calc_angles_from_beam_vec(self.beam_vector)
@@ -880,9 +889,7 @@ class HEDMInstrument(object):
                 patches = xrdutil.make_reflection_patches(
                     instr_cfg, angs, panel.angularPixelSize(xys),
                     tth_tol=tth_tols[i_ring], eta_tol=eta_tol,
-                    distortion=panel.distortion,
-                    npdiv=npdiv, quiet=True,
-                    beamVec=self.beam_vector)
+                    npdiv=npdiv, quiet=True)
 
                 # loop over patches
                 # FIXME: fix initialization
@@ -1235,13 +1242,12 @@ class HEDMInstrument(object):
             else:
                 # make the tth,eta patches for interpolation
                 patches = xrdutil.make_reflection_patches(
-                    instr_cfg, ang_centers[:, :2], ang_pixel_size,
+                    instr_cfg,
+                    ang_centers[:, :2], ang_pixel_size,
                     omega=ang_centers[:, 2],
                     tth_tol=tth_tol, eta_tol=eta_tol,
-                    rMat_c=rMat_c, tVec_c=tVec_c,
-                    distortion=panel.distortion,
-                    npdiv=npdiv, quiet=True,
-                    beamVec=self.beam_vector)
+                    rmat_c=rMat_c, tvec_c=tVec_c,
+                    npdiv=npdiv, quiet=True)
 
                 # GRAND LOOP over reflections for this panel
                 patch_output = []
@@ -1800,16 +1806,51 @@ class PlanarDetector(object):
     # METHODS
     # =========================================================================
 
-    def config_dict(self, chi, t_vec_s, sat_level=None):
+    def config_dict(self, chi=0, tvec=ct.zeros_3,
+                    beam_energy=beam_energy_DFLT, beam_vector=ct.beam_vec,
+                    sat_level=None, panel_buffer=None):
         """
+        Return a dictionary of detector parameters.
+
+        Optional instrument level parameters.  This is a convenience function
+        to work with the APIs in several functions in xrdutil.
+
+        Parameters
+        ----------
+        chi : float, optional
+            DESCRIPTION. The default is 0.
+        tvec : array_like (3,), optional
+            DESCRIPTION. The default is ct.zeros_3.
+        beam_energy : float, optional
+            DESCRIPTION. The default is beam_energy_DFLT.
+        beam_vector : aray_like (3,), optional
+            DESCRIPTION. The default is ct.beam_vec.
+        sat_level : scalar, optional
+            DESCRIPTION. The default is None.
+        panel_buffer : scalar, array_like (2,), optional
+            DESCRIPTION. The default is None.
+
+        Returns
+        -------
+        config_dict : dict
+            DESCRIPTION.
+
         """
+        config_dict = {}
+
+        # =====================================================================
+        # DETECTOR PARAMETERS
+        # =====================================================================
         if sat_level is None:
             sat_level = self.saturation_level
 
-        t_vec_s = np.atleast_1d(t_vec_s)
+        if panel_buffer is None:
+            # FIXME: won't work right if it is an array
+            panel_buffer = self.panel_buffer
+        if isinstance(panel_buffer, np.ndarray):
+            panel_buffer = panel_buffer.flatten().tolist()
 
-        d = dict(
-            detector=dict(
+        det_dict = dict(
                 transform=dict(
                     tilt=self.tilt.tolist(),
                     translation=self.tvec.tolist(),
@@ -1818,25 +1859,45 @@ class PlanarDetector(object):
                     rows=self.rows,
                     columns=self.cols,
                     size=[self.pixel_size_row, self.pixel_size_col],
-                ),
-            ),
-            oscillation_stage=dict(
-                chi=chi,
-                translation=t_vec_s.tolist(),
-            ),
-        )
+                )
+            )
 
-        if sat_level is not None:
-            d['detector']['saturation_level'] = sat_level
+        # saturation level
+        det_dict['saturation_level'] = sat_level
+
+        # panel buffer
+        # FIXME if it is an array, the write will be a mess
+        det_dict['panel_buffer'] = panel_buffer
 
         if self.distortion is not None:
-            """...HARD CODED DISTORTION! FIX THIS!!!"""
+            # FIXME: HARD CODED DISTORTION!
             dist_d = dict(
                 function_name='GE_41RT',
                 parameters=np.r_[self.distortion[1]].tolist()
             )
-            d['detector']['distortion'] = dist_d
-        return d
+            det_dict['distortion'] = dist_d
+
+        # =====================================================================
+        # SAMPLE STAGE PARAMETERS
+        # =====================================================================
+        stage_dict = dict(
+            chi=chi,
+            translation=tvec.tolist()
+        )
+
+        # =====================================================================
+        # BEAM PARAMETERS
+        # =====================================================================
+        beam_dict = dict(
+            energy=beam_energy,
+            vector=beam_vector
+        )
+
+        config_dict['detector'] = det_dict
+        config_dict['oscillation_stage'] = stage_dict
+        config_dict['beam'] = beam_dict
+
+        return config_dict
 
     def pixel_angles(self, origin=ct.zeros_3):
         assert len(origin) == 3, "origin must have 3 elemnts"
