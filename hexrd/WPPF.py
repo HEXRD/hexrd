@@ -2,6 +2,8 @@ import numpy as np
 import warnings
 from hexrd.imageutil import snip1d
 from hexrd.crystallography import PlaneData
+from hexrd.material import Material
+from hexrd.valunits import valWUnit
 from scipy.optimize import minimize, Bounds, shgo, least_squares
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
@@ -437,25 +439,29 @@ class Phases:
 		======================================================================================================== 
 		======================================================================================================== 
 	'''
-	def __init__(self, material_file=None, material_key=None):
+	def _kev(x):
+		return valWUnit('beamenergy','energy', x,'keV')
+
+	def _nm(x):
+		return valWUnit('lp', 'length', x, 'nm')
+
+	def __init__(self, material_file=None, material_keys=None, 
+				 dmin=_nm(0.05), beamenergy=_kev(10.0)):
 
 		self.phase_dict = {}
 		self.num_phases = 0
+		self._dmin = dmin
+		self._beamenergy = beamenergy
+
 		if(material_file is not None):
 			if(material_key is not None):
-				self.add(material_file, material_key)
+				self.add(material_file, material_key, dmin, beamenergy)
 
 	def __str__(self):
-		resstr = 'Phases in class:\n'
+		resstr = 'Phases in calculation:\n'
 		for i,k in enumerate(self.phase_dict.keys()):
-			resstr += '\t'+str(i)+'. '+k+'\n'
+			resstr += '\t'+str(i+1)+'. '+k+'\n'
 		return resstr
-
-	def __getitem__(self, key):
-		pass
-
-	def __setitem__(self, key, value):
-		pass
 
 	def __getitem__(self, key):
 		if(key in self.phase_dict.keys()):
@@ -463,14 +469,14 @@ class Phases:
 		else:
 			raise ValueError('phase with name not found')
 
-	def __setitem__(self, key, planedata_cls):
+	def __setitem__(self, key, mat_cls):
 
 		if(key in self.phase_dict.keys()):
 			warnings.warn('phase already in parameter list. overwriting ...')
-		if(isinstance(planedata_cls, PlaneData)):
-			self.phase_dict[key] = planedata_cls
+		if(isinstance(mat_cls, Material)):
+			self.phase_dict[key] = mat_cls
 		else:
-			raise ValueError('input not a PlaneData class')
+			raise ValueError('input not a material class')
 
 	def __iter__(self):
 		self.n = 0
@@ -478,24 +484,35 @@ class Phases:
 
 	def __next__(self):
 		if(self.n < len(self.phase_dict.keys())):
-			res = list(self.param_dict.keys())[self.n]
+			res = list(self.phase_dict.keys())[self.n]
 			self.n += 1
 			return res
 		else:
 			raise StopIteration
 
-	def add(material_file, material_key):
-		self[material_key] = load_planedata(material_file, material_key)
+	def add(self, material_file, material_key):
+		self[material_key] = Material(name=material_key, cfgP=material_file, \
+									  dmin=self._dmin, kev=self._beamenergy)
 		self.num_phases += 1
 
-	def add_many(material_file, material_keys):
+	def add_many(self, material_file, material_keys):
 		for k in material_keys:
-			self[k] = load_planedata(material_file, k)
+			self[k] = Material(name=k, cfgP=material_file, \
+							   dmin=self._dmin, kev=self._beamenergy)
 			self.num_phases += 1
 
-	def load_pdata(material_file, material_key):
-		pass
-		#return pdata
+	def load(self, fname):
+		'''
+			>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+			>> @DATE:     	06/08/2020 SS 1.0 original
+			>> @DETAILS:  	load parameters from yaml file
+		'''
+		with open(fname) as file:
+			dic = yaml.load(file, Loader=yaml.FullLoader)
+
+		for mfile in dic.keys():
+			mat_keys = dic[mfile]
+			self.add_many(mfile, mat_keys)
 
 class LeBail:
 	''' ======================================================================================================== 
@@ -516,7 +533,7 @@ class LeBail:
 		======================================================================================================== 
 		======================================================================================================== 
 	'''
-	def __init__(self,expt_file=None,param_file=None):
+	def __init__(self,expt_file=None,param_file=None,phase_file=None):
 		
 		self.initialize_expt_spectrum(expt_file)
 		self.initialize_parameters(param_file)
@@ -579,6 +596,19 @@ class LeBail:
 				self.weights = 1.0 / np.sqrt(self.spectrum_expt.y)
 			else:
 				raise FileError('input spectrum file doesn\'t exist.')
+
+	def initialize_phases(self, phase_file):
+		'''
+		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+		>> @DATE:     	06/08/2020 SS 1.0 original
+		>> @DETAILS:  	load the phases for the LeBail fits
+		'''
+		p = Phases()
+		if(phase_file is not None):
+			if(path.exists(phase_file)):
+				p.load(phase_file)
+			else:
+				raise FileError('phase file doesn\'t exist.')
 
 	def CagliottiH(self, tth):
 		'''
