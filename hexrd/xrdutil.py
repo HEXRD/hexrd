@@ -37,14 +37,14 @@ from hexrd.crystallography import processWavelength, PlaneData
 from hexrd.transforms import xf
 from hexrd.transforms import xfcapi
 
-from hexrd import distortion
+from hexrd import distortion as distortion_module
 
 from hexrd.constants import USE_NUMBA
 if USE_NUMBA:
     import numba
 
 
-dFunc_ref = distortion.dummy
+dFunc_ref = distortion_module.dummy
 dParams_ref = []
 
 d2r = piby180 = np.pi/180.
