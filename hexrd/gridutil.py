@@ -28,7 +28,7 @@
 import numpy as np
 from numpy.linalg import det
 
-from hexrd.constants import USE_NUMBA
+from hexrd.constants import USE_NUMBA, sqrt_epsf
 if USE_NUMBA:
     import numba
 
@@ -62,15 +62,12 @@ def cellIndices(edges, points_1d):
       must be mapped to the same branch cut, and
       abs(edges[0] - edges[-1]) = 2*pi
     """
-    ztol = 1e-12
+    ztol = sqrt_epsf
 
     assert len(edges) >= 2, "must have at least 2 edges"
 
     points_1d = np.r_[points_1d].flatten()
     delta = float(edges[1] - edges[0])
-
-    on_last_rhs = points_1d >= edges[-1] - ztol
-    points_1d[on_last_rhs] = points_1d[on_last_rhs] - ztol
 
     if delta > 0:
         on_last_rhs = points_1d >= edges[-1] - ztol
@@ -82,9 +79,14 @@ def cellIndices(edges, points_1d):
         idx = np.ceil((points_1d - edges[0]) / delta) - 1
     else:
         raise RuntimeError("edges array gives delta of 0")
-    # ...will catch exceptions elsewhere...
-    # if np.any(np.logical_or(idx < 0, idx > len(edges) - 1)):
-    #     raise RuntimeWarning, "some input points are outside the grid"
+
+    # # mark points outside range with NaN
+    # off_lo = idx < 0
+    # off_hi = idx >= len(edges) - 1
+    # if np.any(off_lo):
+    #     idx[off_lo] = np.nan
+    # if np.any(off_hi):
+    #     idx[off_hi] = np.nan
     return np.array(idx, dtype=int)
 
 
