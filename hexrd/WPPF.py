@@ -66,7 +66,8 @@ class Parameters:
 
 		for k in dic.keys():
 			v = dic[k]
-			self.add(k, value=v[0], lb=v[1], ub=v[2], vary=v[3])
+			self.add(k, value=np.float(v[0]), lb=np.float(v[1]),\
+					 ub=np.float(v[2]), vary=np.bool(v[3]))
 
 	def dump(self, fname):
 		'''
@@ -455,7 +456,7 @@ class Phases:
 
 		if(material_file is not None):
 			if(material_key is not None):
-				self.add(material_file, material_key, dmin, beamenergy)
+				self.add(self.material_file, self.material_key, self._dmin, self._beamenergy)
 
 	def __str__(self):
 		resstr = 'Phases in calculation:\n'
@@ -490,16 +491,30 @@ class Phases:
 		else:
 			raise StopIteration
 
+	def __len__(self):
+         return len(self.phase_dict)
+
 	def add(self, material_file, material_key):
 		self[material_key] = Material(name=material_key, cfgP=material_file, \
 									  dmin=self._dmin, kev=self._beamenergy)
+		self[material_key].pf = 1.0/len(self)
 		self.num_phases += 1
+		self.material_file = material_file
+		self.material_keys = material_keys
 
 	def add_many(self, material_file, material_keys):
+		
 		for k in material_keys:
 			self[k] = Material(name=k, cfgP=material_file, \
 							   dmin=self._dmin, kev=self._beamenergy)
+
 			self.num_phases += 1
+
+		for k in self:
+			self[k].pf = 1.0/len(self)
+
+		self.material_file = material_file
+		self.material_keys = material_keys
 
 	def load(self, fname):
 		'''
@@ -514,6 +529,19 @@ class Phases:
 			mat_keys = dic[mfile]
 			self.add_many(mfile, mat_keys)
 
+	def dump(self, fname):
+		'''
+			>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+			>> @DATE:     	06/08/2020 SS 1.0 original
+			>> @DETAILS:  	dump parameters to yaml file
+		'''
+		dic = {}
+		k = self.material_file
+		dic[k] =  [m for m in self]
+
+		with open(fname, 'w') as f:
+			data = yaml.dump(dic, f, sort_keys=False)
+	
 class LeBail:
 	''' ======================================================================================================== 
 		======================================================================================================== 
@@ -536,6 +564,7 @@ class LeBail:
 	def __init__(self,expt_file=None,param_file=None,phase_file=None):
 		
 		self.initialize_expt_spectrum(expt_file)
+		self.initialize_phases(phase_file)
 		self.initialize_parameters(param_file)
 
 	def __str__(self):
@@ -582,6 +611,14 @@ class LeBail:
 
 		self.params = params
 
+		self._U = self.params['U'].value
+		self._V = self.params['V'].value
+		self._W = self.params['W'].value
+		self._eta1 = self.params['eta1'].value
+		self._eta2 = self.params['eta2'].value
+		self._eta3 = self.params['eta3'].value
+		self._zero_error = self.params['zero_error'].value
+
 	def initialize_expt_spectrum(self, expt_file):
 		'''
 		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -609,6 +646,7 @@ class LeBail:
 				p.load(phase_file)
 			else:
 				raise FileError('phase file doesn\'t exist.')
+		self.phases = p
 
 	def CagliottiH(self, tth):
 		'''
@@ -659,9 +697,42 @@ class LeBail:
 		>> @DETAILS:  	this routine computes the pseudo-voight function as weighted 
 						average of gaussian and lorentzian
 		'''
-		self.PV = np.zeros(self.tth_list.shape)
+		self.Gaussian(tth)
+		self.Lorentzian(tth)
+
 		self.PV = self.eta * self.GaussianI + \
 				  (1.0 - self.eta) * self.LorentzI
+
+	def IntegratedIntensity(self):
+		'''
+		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+		>> @DATE:     	06/08/2020 SS 1.0 original
+		>> @DETAILS:  	Integrated intensity of the pseudo-voight peak
+		'''
+		return np.trapz(self.tth_list, self.PV)
+
+	def computespectrum(self):
+		'''
+		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+		>> @DATE:     	06/08/2020 SS 1.0 original
+		>> @DETAILS:  	compute the simulated spectrum
+		'''
+		x = self.tth_list
+		y = np.zeros(x.shape)
+		for k in self.phases:
+			mat = self.phases[k]
+
+			tth = np.degrees(mat.planeData.getTTh())
+			# sf  = mat.planeData.get_structFact()
+
+			for i,t in enumerate(tth):
+
+				self.CagliottiH(t)
+				self.MixingFact(t)
+				self.PseudoVoight(t)
+				y += self.PV
+
+		self.spectrum_sim = Spectrum(x=x, y=y)
 
 	def calcRwp(self):
 		'''
@@ -727,13 +798,9 @@ class LeBail:
 		res = least_squares(self.calcRwp,x0,bounds=(lb,ub))
 
 		print(res.message+'\t'+'[ Exit status '+str(res.status)+' ]')
-		# print('\t minimum function value: '+str(res.fun))
-		# print('\t iterations: '+str(res.nit))
-		# print('\t function evaluations: '+str(res.nfev))
-		# print('\t gradient evaluations: '+str(res.njev))
+
 		print('\t optimum values of parameters: '+str(res.x))
 
-		self.initialize_refinedict()
 		return res
 
 	@property
@@ -743,7 +810,7 @@ class LeBail:
 	@U.setter
 	def U(self, Uinp):
 		self._U = Uinp
-		self.initialize_spectrum()
+		self.computespectrum()
 		return
 
 	@property
@@ -753,7 +820,7 @@ class LeBail:
 	@V.setter
 	def V(self, Vinp):
 		self._V = Vinp
-		self.initialize_spectrum()
+		self.computespectrum()
 		return
 
 	@property
@@ -763,7 +830,7 @@ class LeBail:
 	@W.setter
 	def W(self, Winp):
 		self._W = Winp
-		self.initialize_spectrum()
+		self.computespectrum()
 		return
 
 	@property
@@ -781,7 +848,7 @@ class LeBail:
 	@eta1.setter
 	def eta1(self, val):
 		self._eta1 = val
-		self.initialize_spectrum()
+		self.computespectrum()
 		return
 
 	@property
@@ -791,7 +858,7 @@ class LeBail:
 	@eta2.setter
 	def eta2(self, val):
 		self._eta2 = val
-		self.initialize_spectrum()
+		self.computespectrum()
 		return
 
 	@property
@@ -801,12 +868,22 @@ class LeBail:
 	@eta3.setter
 	def eta3(self, val):
 		self._eta3 = val
-		self.initialize_spectrum()
+		self.computespectrum()
 		return
 
 	@property
 	def tth_list(self):
 		return self.spectrum_expt._x
+
+	@property
+	def zero_error(self):
+		return self._zero_error
+	
+	@zero_error.setter
+	def zero_setter(self, value):
+		self._zero_error = value
+		self.computespectrum()
+		return
 
 class Rietveld:
 

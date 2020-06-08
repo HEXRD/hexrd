@@ -117,7 +117,7 @@ class Material(object):
     '''
     DFLT_SGSETTING = 0
 
-    def __init__(self, name=DFLT_NAME, cfgP=None, dmin=DFLT_DMIN, kev=DFLT_KEV, sgsetting=DFLT_SGSETTING):
+    def __init__(self, name=None, cfgP=None, dmin=DFLT_DMIN, kev=DFLT_KEV, sgsetting=DFLT_SGSETTING):
         """Constructor for Material
 
         name -- (str) name of material
@@ -369,32 +369,30 @@ class Material(object):
         fexist = path.exists(fhdf)
         if(fexist):
             fid = h5py.File(fhdf, 'r')
-            if "/"+xtal not in fid:
+            xtal = "/"+xtal
+            if xtal not in fid:
                 raise IOError('crystal doesn''t exist in material file.')
         else:
             raise IOError('material file does not exist.')
 
+        gid         = fid.get(xtal)
+        
+        sgnum       = numpy.asscalar(numpy.array(gid.get('SpaceGroupNumber'), \
+                                    dtype = numpy.int32))
+        """ 
+            IMPORTANT NOTE:
+            note that the latice parameters in EMsoft is nm by default
+            hexrd on the other hand uses A as the default units, so we
+            need to be careful and convert it right here, so there is no
+            confusion later on
+        """
+        lparms      = list(gid.get('LatticeParameters'))
 
-        for groups in list(fid.keys()):
-            
-            gid         = fid.get(groups)
-            
-            sgnum       = numpy.asscalar(numpy.array(gid.get('SpaceGroupNumber'), \
-                                        dtype = numpy.int32))
-            """ 
-                IMPORTANT NOTE:
-                note that the latice parameters in EMsoft is nm by default
-                hexrd on the other hand uses A as the default units, so we
-                need to be careful and convert it right here, so there is no
-                confusion later on
-            """
-            lparms      = list(gid.get('LatticeParameters'))
-
-            for i in range(6):
-                if(i < 3):
-                    lparms[i] = _angstroms(lparms[i]*10.0)
-                else:
-                    lparms[i] = _degrees(lparms[i])
+        for i in range(6):
+            if(i < 3):
+                lparms[i] = _angstroms(lparms[i]*10.0)
+            else:
+                lparms[i] = _degrees(lparms[i])
 
         self._lparms    = lparms
         #self._lparms    = self._toSixLP(sgnum, lparms)
@@ -412,6 +410,7 @@ class Material(object):
                                         dtype = numpy.int32))
         self._sgsetting -= 1
 
+        fid.close()
 
     # ============================== API
     #
@@ -424,6 +423,11 @@ class Material(object):
     def spaceGroup(self):
         """(read only) Space group"""
         return self._spaceGroup
+
+    @property
+    def vol(self):
+        return self.unitcell.vol
+    
 
     # property:  sgnum
 
