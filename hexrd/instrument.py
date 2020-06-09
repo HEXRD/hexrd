@@ -148,6 +148,7 @@ def _fix_indices(idx, lo, hi):
     nidx[off_hi] = hi
     return nidx
 
+
 def calc_beam_vec(azim, pola):
     """
     Calculate unit beam propagation vector from
@@ -866,7 +867,9 @@ class HEDMInstrument(object):
             # pbar.update(i_det + 1)
             # grab panel
             panel = self.detectors[detector_id]
-            instr_cfg = panel.config_dict(self.chi, self.tvec)
+            instr_cfg = panel.config_dict(
+                chi=self.chi, tvec=self.tvec, beam_vector=self.beam_vector
+            )
             native_area = panel.pixel_area  # pixel ref area
             images = imgser_dict[detector_id]
             if images.ndim == 2:
@@ -887,7 +890,7 @@ class HEDMInstrument(object):
             # =================================================================
             ring_data = []
             for i_ring, these_data in enumerate(zip(pow_angs, pow_xys)):
-                print("working on 2theta bin (ring) %d..." % i_ring)
+                print("interpolating 2theta bin %d..." % i_ring)
 
                 # points are already checked to fall on detector
                 angs = these_data[0]
@@ -907,13 +910,15 @@ class HEDMInstrument(object):
                     patch_data = []
                 for i_p, patch in enumerate(patches):
                     # strip relevant objects out of current patch
-                    vtx_angs, vtx_xy, conn, areas, xy_eval, ijs = patch
+                    vtx_angs, vtx_xys, conn, areas, xys_eval, ijs = patch
 
-                    _, on_panel = panel.clip_to_panel(
-                        np.vstack(
-                            [xy_eval[0].flatten(), xy_eval[1].flatten()]
-                        ).T
-                    )
+                    # need to reshape eval pts for interpolation
+                    xy_eval = np.vstack([
+                        xys_eval[0].flatten(),
+                        xys_eval[1].flatten()]).T
+
+                    _, on_panel = panel.clip_to_panel(xy_eval)
+
                     if np.any(~on_panel):
                         continue
 
@@ -923,12 +928,9 @@ class HEDMInstrument(object):
                     else:
                         ang_data = (vtx_angs[0][0, :],
                                     angs[i_p][-1])
+
                     prows, pcols = areas.shape
                     area_fac = areas/float(native_area)
-                    # need to reshape eval pts for interpolation
-                    xy_eval = np.vstack([
-                        xy_eval[0].flatten(),
-                        xy_eval[1].flatten()]).T
 
                     # interpolate
                     if not collapse_tth:
