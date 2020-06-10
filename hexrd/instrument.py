@@ -420,7 +420,11 @@ class HEDMInstrument(object):
     def detector_parameters(self):
         pdict = {}
         for key, panel in self.detectors.items():
-            pdict[key] = panel.config_dict(self.chi, self.tvec)
+            pdict[key] = panel.config_dict(
+                self.chi, self.tvec,
+                beam_energy=self.beam_energy,
+                beam_vector=self.beam_vector
+            )
         return pdict
 
     @property
@@ -596,7 +600,7 @@ class HEDMInstrument(object):
 
         det_dict = dict.fromkeys(self.detectors)
         for det_name, panel in self.detectors.items():
-            pdict = panel.config_dict(self.chi, self.tvec)
+            pdict = panel.config_dict(self.chi, self.tvec)  # don't need beam
             det_dict[det_name] = pdict['detector']
         par_dict['detectors'] = det_dict
         if filename is not None:
@@ -868,7 +872,9 @@ class HEDMInstrument(object):
             # grab panel
             panel = self.detectors[detector_id]
             instr_cfg = panel.config_dict(
-                chi=self.chi, tvec=self.tvec, beam_vector=self.beam_vector
+                chi=self.chi, tvec=self.tvec,
+                beam_energy=self.beam_energy,
+                beam_vector=self.beam_vector
             )
             native_area = panel.pixel_area  # pixel ref area
             images = imgser_dict[detector_id]
@@ -1172,7 +1178,11 @@ class HEDMInstrument(object):
 
             # grab panel
             panel = self.detectors[detector_id]
-            instr_cfg = panel.config_dict(self.chi, self.tvec)
+            instr_cfg = panel.config_dict(
+                self.chi, self.tvec,
+                beam_energy=self.beam_energy,
+                beam_vector=self.beam_vector
+            )
             native_area = panel.pixel_area  # pixel ref area
 
             # pull out the OmegaImageSeries for this panel from input dict

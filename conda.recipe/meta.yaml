@@ -1,12 +1,17 @@
 package:
   name: hexrd
-  version: {{ environ.get('GIT_DESCRIBE_TAG', environ['GIT_FULL_HASH'][:8]) }}
+  #version: {{ environ.get('GIT_DESCRIBE_TAG', environ['GIT_FULL_HASH'][:8]) }}
+  version: {{ environ.get('GIT_DESCRIBE_TAG', '')[1:] }}
 
 source:
   path: ../
 
 build:
   number: {{ environ.get('GIT_DESCRIBE_NUMBER', 0) }}
+  detect_binary_files_with_prefix: true
+  osx_is_app: yes
+  entry_points:
+    - hexrd = hexrd.cli:main
 
 requirements:
   build:
