@@ -54,8 +54,17 @@ jobs:
     - name: Build the package
       run: |
           conda activate hexrd-test
-          conda config --set anaconda_upload yes
-          conda build --token ${{ secrets.ANACONDA_TOKEN }} --user HEXRD conda.recipe/
+          mkdir output
+          conda build --output-folder output/ conda.recipe/
+      # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
+      # command works.
+      shell: bash -l {0}
+
+    - name: Upload the package (upload only on master)
+      if: github.ref == 'refs/heads/master'
+      run: |
+          conda activate hexrd-test
+          anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --user HEXRD output/**/*.tar.bz2
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
       shell: bash -l {0}
