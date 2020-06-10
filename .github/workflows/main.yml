@@ -1,0 +1,61 @@
+name: conda-package
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  package:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+        - {
+            name: "Linux",
+            os: ubuntu-latest
+          }
+        - {
+            name: "MacOS",
+            os: macos-latest,
+          }
+        - {
+            name: "Windows",
+            os: windows-latest
+          }
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Install conda
+      uses: goanpeca/setup-miniconda@v1
+      with:
+        auto-update-conda: true
+        python-version: 3.8
+        activate-environment: hexrd-test
+        auto-activate-base: false
+
+    - name: Install build requirements
+      run: |
+          conda activate hexrd-test
+          conda install anaconda conda-build
+
+      # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
+      # command works.
+      shell: bash -l {0}
+
+    - name: Build the package
+      run: |
+          conda activate hexrd-test
+          conda config --set anaconda_upload yes
+          conda build --token ${{ secrets.ANACONDA_TOKEN }} --user HEXRD conda.recipe/
+      # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
+      # command works.
+      shell: bash -l {0}

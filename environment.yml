@@ -1,0 +1,4 @@
+name: hexrd-test
+dependencies:
+  - python=3.8
+  - conda-build
