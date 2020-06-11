@@ -119,7 +119,7 @@ class unitcell:
 		self._dmt = np.array([[a**2, a*b*cg, a*c*cb],\
 							 [a*b*cg, b**2, b*c*ca],\
 							 [a*c*cb, b*c*ca, c**2]])
-		self._vol = np.linalg.det(self.dmt)
+		self._vol = np.sqrt(np.linalg.det(self.dmt))
 
 		if(self.vol < 1e-5):
 			warnings.warn('unitcell volume is suspiciously small')
@@ -373,7 +373,7 @@ class unitcell:
 			atype = self.atom_type[i]
 			numat = self.numat[i]
 			occ   = self.atom_pos[i,3]
-			avA  += numat * constants.atom_weights[atype] * occ
+			avA  += numat * constants.atom_weights[atype-1] * occ # -1 due to 0 indexing in python
 			avZ  += numat * atype
 
 
@@ -395,30 +395,30 @@ class unitcell:
 			self.il = self.il + 1
 
 	def CalcXRFormFactor(self, Z, s):
-		fe = 0.0
-		sfact = constants.scatfac[:,Z]
-		for i in range(4):
-			fe += sfact[i] * np.exp(-sfact[i+4]*s)
 
-		ff = Z - self.pref * s * fe
+		elem = constants.ptableinverse[Z]
+		sfact = constants.scatfac[elem]
+		fe = sfact[5]
+		for i in range(5):
+			fe += sfact[i] * np.exp(-sfact[i+6]*s)
 
-		return ff
+		return fe
 
 	def CalcXRSF(self, hkl):
 
-		s =  0.25 * np.dot(hkl,np.dot(self.rmt,hkl))
+		s =  0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2 # the 1E-2 is to convert to A^-2
+		sf = np.complex(0.,0.)
 		for i in range(0,self.atom_ntype):
 
 			Z   = self.atom_type[i]
 			ff  = self.CalcXRFormFactor(Z,s)
 			ff *= self.atom_pos[i,3] * np.exp(-self.atom_pos[i,4]*s)
 
-			sf = np.complex(0.,0.)
 			for j in range(self.asym_pos[i].shape[0]):
 				arg =  2.0 * np.pi * np.sum( hkl * self.asym_pos[i][j,:] )
 				sf  = sf + ff * np.complex(np.cos(arg),-np.sin(arg))
 
-			return np.abs(sf)**2
+		return np.abs(sf)
 
 	''' calculate bragg angle for a reflection. returns Nan if
 		the reflections is not possible for the voltage/wavelength

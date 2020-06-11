@@ -39,12 +39,13 @@ from hexrd.spacegroup import SpaceGroup as SG
 import hexrd.spacegroup as sg
 from hexrd.valunits import valWUnit
 from hexrd.unitcell import unitcell
-
+from hexrd.constants import ptable
 import copy
 
 from os import path
 from CifFile import ReadCif 
 import  h5py
+from warnings import warn
 
 __all__ = ['Material', 'loadMaterialList']
 
@@ -141,8 +142,13 @@ class Material(object):
             # self._readCfg(cfgP)
             self._hklMax = Material.DFLT_SSMAX
             # self._beamEnergy = Material.DFLT_KEV
-            self._readHDFxtal(fhdf=cfgP, xtal=name)
-            # self._readCif(cfgP)
+            n = cfgP.find('.')
+            form = cfgP[n+1:]
+
+            if(form == 'cif'):
+                self._readCif(cfgP)
+            elif(form in ['h5', 'hdf5', 'xtal']):
+                self._readHDFxtal(fhdf=cfgP, xtal=name)
         else:
             # Use default values
             self._lparms = Material.DFLT_LPARMS
@@ -298,33 +304,39 @@ class Material(object):
         sgdata = False
         for key in sgkey:
             sgdata = sgdata or (key in cifdata)
+            if(sgdata):
+                skey = key
+                break
 
         if(not(sgdata)):
             raise RuntimeError(' No space group information in CIF file! ')
 
         sgnum = 0
-        if sgkey[0] in cifdata:
+        if skey is sgkey[0]:
             sgnum = int(cifdata[sgkey[0]])
-
-        if (sgnum == 0):
-            if (sgkey[1] in cifdata):
-                HM = cifdata[sgkey[1]]
-                sgnum = sg.HM_to_sgnum[HM]
-            if (sgkey[2] in cifdata):
-                hall = cifdata[sgkey[2]]
-                sgnum = sg.Hall_to_sgnum[HM]  
+        elif (skey is sgkey[1]):
+            HM = cifdata[sgkey[1]]
+            sgnum = sg.HM_to_sgnum[HM]
+        elif (skey is sgkey[2]):
+            hall = cifdata[sgkey[2]]
+            sgnum = sg.Hall_to_sgnum[HM]  
 
         # lattice parameters
         lparms = []
         lpkey = ['_cell_length_a', '_cell_length_b', \
                  '_cell_length_c', '_cell_angle_alpha', \
                  '_cell_angle_beta', '_cell_angle_gamma']   
+
         for key in lpkey:
-            lparms.append(float(cifdata[key]))
+            n = cifdata[key].find('(')
+            if(n != -1):
+                lparms.append(float(cifdata[key][:n]))
+            else:
+                lparms.append(float(cifdata[key]))
 
         for i in range(6):
                 if(i < 3):
-                    lparms[i] = _angstroms(lparms[i]*10.0)
+                    lparms[i] = _angstroms(lparms[i])
                 else:
                     lparms[i] = _degrees(lparms[i])
 
@@ -334,8 +346,10 @@ class Material(object):
         # fractional atomic site, occ and vibration amplitude
         fracsitekey = ['_atom_site_fract_x', '_atom_site_fract_y',\
                         '_atom_site_fract_z',]
+
         occ_U       = ['_atom_site_occupancy',\
-                        '_atom_site_U_iso_or_equiv']
+                        '_atom_site_u_iso_or_equiv','_atom_site_U_iso_or_equiv']
+
         sitedata = True
         for key in fracsitekey:
             sitedata = sitedata and (key in cifdata)
@@ -345,7 +359,24 @@ class Material(object):
 
         atompos = []
         for key in fracsitekey:
-            atompos.append(numpy.asarray(cifdata[key]).astype(numpy.float64))
+            slist = cifdata[key]
+            pos = []
+
+            for p in slist:
+                n = p.find('(')
+
+                if(n != -1):
+                    pos.append(p[:n])
+                else:
+                    pos.append(p)
+
+            '''
+            sometimes cif files have negative values so need to 
+            bring them back to fractional coordinates between 0-1
+            '''
+            pos = numpy.asarray(pos).astype(numpy.float64)
+            # pos,_ = numpy.modf(pos+100.0)
+            atompos.append(pos)
         
         """note that the vibration amplitude, U is just the amplitude (in A)
             to convert to the typical B which occurs in the debye-waller factor,
@@ -353,8 +384,71 @@ class Material(object):
             B = 8 * pi ^2 * < U_av^2 >
             this will be done here so we dont have to worry about it later 
         """
+
+        pocc = (occ_U[0] in cifdata.keys())
+        pU   = (occ_U[1] in cifdata.keys()) or (occ_U[2] in cifdata.keys())
+
+        if(not pocc):
+            warn('occupation fraction not present. setting it to 1')
+            occ = numpy.ones(atompos[0].shape)
+            atompos.append(occ)
+        else:
+            slist = cifdata[occ_U[0]]
+            occ = []
+            for p in slist:
+                n = p.find('(')
+
+                if(n != -1):
+                    occ.append(p[:n])
+                else:
+                    occ.append(p)
+
+            atompos.append(numpy.asarray(occ).astype(numpy.float64))
+
+        if(not pU):
+            warn('Debye-Waller factors not present. setting to same values for all atoms.')
+            U = 1.0/numpy.pi/2./numpy.sqrt(2.) * numpy.ones(atompos[0].shape)
+            atompos.append(U)
+        else:
+            if(occ_U[1] in cifdata.keys()):
+                k = occ_U[1]
+            else:
+                k = occ_U[2]
+
+            slist = cifdata[k]
+            U = []
+            for p in slist:
+                n = p.find('(')
+
+                if(n != -1):
+                    U.append(p[:n])
+                else:
+                    U.append(p)
+
+            atompos.append(numpy.asarray(U).astype(numpy.float64))
+
+        '''
+        format everything in the right shape etc.
+        '''
         self._atominfo = numpy.asarray(atompos).T
-        self._atominfo[:,4] = 8.0 * (numpy.pi**2) * (self._atominfo[:,4]**2)
+        self._atominfo[:,4] = 8.0 * (numpy.pi**2) * (self._atominfo[:,4]**2) * 1E-2
+
+        '''
+        get atome types here i.e. the atomic number of atoms at each site
+        '''
+        atype = '_atom_site_type_symbol'
+        patype = (atype in cifdata)
+        if(not patype):
+            raise RuntimeError('atom types not defined in cif file.')
+
+        satype = cifdata[atype]
+        atomtype = []
+
+        for s in satype:
+            atomtype.append(ptable[s])
+
+        self._atomtype  = numpy.asarray(atomtype).astype(numpy.int32)
+        self._sgsetting = 0
 
     def _readHDFxtal(self, fhdf=DFLT_NAME, xtal=DFLT_NAME):
         """

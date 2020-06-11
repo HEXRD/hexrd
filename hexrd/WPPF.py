@@ -723,14 +723,22 @@ class LeBail:
 			mat = self.phases[k]
 
 			tth = np.degrees(mat.planeData.getTTh())
-			# sf  = mat.planeData.get_structFact()
+			
+			tth_min = np.amin(self.tth_min)
+			tth_max = np.amax(self.tth_max)
+			limit = np.logical_and(tth >= tth_min, \
+									 tth <= tth_max ) 
+
+			tth = tth[limit]
+			# sf  = mat.planeData.get_structFact()[limit]
 
 			for i,t in enumerate(tth):
 
 				self.CagliottiH(t)
 				self.MixingFact(t)
 				self.PseudoVoight(t)
-				y += self.PV
+				II = self.IntegratedIntensity()
+				y += self.Iobs * self.PV/II
 
 		self.spectrum_sim = Spectrum(x=x, y=y)
 
@@ -746,7 +754,7 @@ class LeBail:
 		'''
 		the err variable is the difference between simulated and experimental spectra
 		'''
-		err = (-self.spectrum_sim + self.spectrum_expt)
+		err = (self.spectrum_sim - self.spectrum_expt)
 
 		''' weighted sum of square '''
 		wss =  np.sum(self.weights * err**2)
@@ -767,6 +775,15 @@ class LeBail:
 		self.gofF = Rwp / Rexp
 
 		return Rwp
+
+	def Iobs(self):
+		'''
+		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+		>> @DATE:     	06/08/2020 SS 1.0 original
+		>> @DETAILS:  	this step partitions the intensity between different
+						overlapping peaks
+		'''
+		
 
 	def Refine(self):
 		'''
