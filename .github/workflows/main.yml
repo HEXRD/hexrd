@@ -19,8 +19,8 @@ jobs:
             os: ubuntu-latest
           }
         - {
-            name: "MacOS",
-            os: macos-latest,
+            name: "MacOSX",
+            os: macos-latest
           }
         - {
             name: "Windows",
@@ -60,7 +60,7 @@ jobs:
       # command works.
       shell: bash -l {0}
 
-    - name: Upload the package (upload only on master)
+    - name: Upload the package to anaconda channel (upload only on master)
       if: github.ref == 'refs/heads/master'
       run: |
           conda activate hexrd-test
@@ -68,3 +68,13 @@ jobs:
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
       shell: bash -l {0}
+
+    - name: Get version for the artifact names
+      id: describe
+      run: echo "::set-output name=version::$(git describe --tag)"
+
+    - name: Upload the package to github
+      uses: actions/upload-artifact@v2
+      with:
+        name: HEXRD-${{ matrix.config.name }}-${{ steps.describe.outputs.version }}.tar.bz2
+        path: output/**/*.tar.bz2
