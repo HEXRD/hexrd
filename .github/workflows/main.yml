@@ -39,12 +39,12 @@ jobs:
       with:
         auto-update-conda: true
         python-version: 3.8
-        activate-environment: hexrd-test
+        activate-environment: hexrd
         auto-activate-base: false
 
     - name: Install build requirements
       run: |
-          conda activate hexrd-test
+          conda activate hexrd
           conda install anaconda conda-build
 
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
@@ -53,7 +53,7 @@ jobs:
 
     - name: Build the package
       run: |
-          conda activate hexrd-test
+          conda activate hexrd
           mkdir output
           conda build --output-folder output/ conda.recipe/
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
@@ -63,7 +63,7 @@ jobs:
     - name: Upload the package to anaconda channel (upload only on master)
       if: github.ref == 'refs/heads/master'
       run: |
-          conda activate hexrd-test
+          conda activate hexrd
           anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --user HEXRD output/**/*.tar.bz2
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
