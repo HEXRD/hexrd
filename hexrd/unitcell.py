@@ -2,6 +2,9 @@ import numpy as np
 from hexrd import constants
 from hexrd import symmetry
 import warnings
+import h5py
+from pathlib import Path
+from scipy.interpolate import interp1d
 
 class unitcell:
 	'''
@@ -15,8 +18,6 @@ class unitcell:
 	# initialize using the EMsoft unitcell type
 	# need lattice parameters and space group data from HDF5 file
 	def __init__(self, lp, sgnum, atomtypes, atominfo, dmin, beamenergy, sgsetting=0):
-
-		self.voltage = beamenergy * 1000.0
 
 		self.pref  = 0.4178214
 
@@ -71,10 +72,16 @@ class unitcell:
 			self.gamma = np.degrees(lp[5].value) 
 
 		'''
-		calculate wavelength
+		initialize interpolation from table for anomalous scattering
 		'''
-		self.CalcWavelength()
+		self.InitializeInterpTable()
 
+		'''
+		sets x-ray energy
+		calculate wavelength 
+		also calculates anomalous form factors for xray scattering
+		'''
+		self.voltage = beamenergy * 1000.0
 		'''
 		calculate symmetry
 		'''
@@ -94,6 +101,7 @@ class unitcell:
 							constants.cCharge / \
 							self.voltage
 		self.wavelength *= 1e9
+		self.CalcAnomalous()
 
 	def calcmatrices(self):
 
@@ -394,20 +402,77 @@ class unitcell:
 		while (1.0 / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64),'r') > self.dmin):
 			self.il = self.il + 1
 
+	def InitializeInterpTable(self):
+
+		self.f1 = {}
+		self.f2 = {}
+		self.f_anam = {}
+
+		fid = h5py.File(str(Path(__file__).resolve().parent)+'/Anomalous.h5','r')
+
+		for i in range(0,self.atom_ntype):
+
+			Z    = self.atom_type[i]
+			elem = constants.ptableinverse[Z]
+			gid = fid.get('/'+elem)
+			data = gid.get('data')
+
+			self.f1[elem] = interp1d(data[:,7], data[:,1])
+			self.f2[elem] = interp1d(data[:,7], data[:,2])
+
+		fid.close()
+
+	def CalcAnomalous(self):
+
+		for i in range(self.atom_ntype):
+
+			Z = self.atom_type[i]
+			elem = constants.ptableinverse[Z]
+			f1 = self.f1[elem](self.wavelength)
+			f2 = self.f2[elem](self.wavelength)
+			frel = constants.frel[elem]
+			Z = constants.ptable[elem]
+			self.f_anam[elem] = np.complex(f1+frel-Z, f2)
+
 	def CalcXRFormFactor(self, Z, s):
 
+		'''
+		we are using the following form factors for x-aray scattering:
+		1. coherent x-ray scattering, f0 tabulated in Acta Cryst. (1995). A51,416-431
+		2. Anomalous x-ray scattering (complex (f'+if")) tabulated in J. Phys. Chem. Ref. Data, 24, 71 (1995)
+		and J. Phys. Chem. Ref. Data, 29, 597 (2000).
+		3. Thompson nuclear scattring, fNT tabulated in Phys. Lett. B, 69, 281 (1977).
+
+		the anomalous scattering is a complex number (f' + if"), where the two terms are given by
+		f' = f1 + frel - Z
+		f" = f2
+
+		f1 and f2 have been tabulated as a function of energy in Anomalous.h5 in hexrd folder
+
+		overall f = (f0 + f' + if" +fNT)
+		'''
 		elem = constants.ptableinverse[Z]
 		sfact = constants.scatfac[elem]
 		fe = sfact[5]
+		fNT = constants.fNT[elem]
+		frel = constants.frel[elem]
+		f_anomalous = self.f_anam[elem]
+
 		for i in range(5):
 			fe += sfact[i] * np.exp(-sfact[i+6]*s)
 
-		return fe
+		return (fe+fNT+f_anomalous)
+
 
 	def CalcXRSF(self, hkl):
 
-		s =  0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2 # the 1E-2 is to convert to A^-2
+		'''
+		the 1E-2 is to convert to A^-2
+		since the fitting is done in those units
+		'''
+		s =  0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2
 		sf = np.complex(0.,0.)
+
 		for i in range(0,self.atom_ntype):
 
 			Z   = self.atom_type[i]
@@ -418,7 +483,7 @@ class unitcell:
 				arg =  2.0 * np.pi * np.sum( hkl * self.asym_pos[i][j,:] )
 				sf  = sf + ff * np.complex(np.cos(arg),-np.sin(arg))
 
-		return np.abs(sf)
+		return np.abs(sf)**2
 
 	''' calculate bragg angle for a reflection. returns Nan if
 		the reflections is not possible for the voltage/wavelength

@@ -67,6 +67,8 @@ setup(
     ],
     ext_modules=ext_modules,
     packages=find_packages(),
+    package_data={'':['Anomalous.h5']},
+    include_package_data=True,
     python_requires='>=3.6',
     install_requires=install_reqs
 )

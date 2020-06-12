@@ -127,9 +127,14 @@ class Material(object):
         """
         self.name = name
         self.description = ''
+        
         self._dmin = dmin
+
         self._beamEnergy = kev
+        
         self.sgsetting = sgsetting
+
+
         if(self._dmin.unit == 'angstrom'):
             # convert to nm
             uc_dmin = self._dmin.value * 0.1
@@ -165,7 +170,7 @@ class Material(object):
             #
 
         self.unitcell = unitcell(self._lparms, self.sgnum, self._atomtype,
-                                self._atominfo, self._dmin.value, 
+                                self._atominfo, uc_dmin, 
                                 self._beamEnergy.value, self._sgsetting)
 
         hkls = self.planeData.getHKLs(allHKLs=True)
@@ -375,7 +380,7 @@ class Material(object):
             bring them back to fractional coordinates between 0-1
             '''
             pos = numpy.asarray(pos).astype(numpy.float64)
-            # pos,_ = numpy.modf(pos+100.0)
+            pos,_ = numpy.modf(pos+100.0)
             atompos.append(pos)
         
         """note that the vibration amplitude, U is just the amplitude (in A)
