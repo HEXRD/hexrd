@@ -5,6 +5,7 @@ import warnings
 import h5py
 from pathlib import Path
 from scipy.interpolate import interp1d
+import time
 
 class unitcell:
 	'''
@@ -19,6 +20,7 @@ class unitcell:
 	# need lattice parameters and space group data from HDF5 file
 	def __init__(self, lp, sgnum, atomtypes, atominfo, dmin, beamenergy, sgsetting=0):
 
+		self._tstart = time.time()
 		self.pref  = 0.4178214
 
 		self.atom_ntype = atomtypes.shape[0]
@@ -93,6 +95,9 @@ class unitcell:
 		used for structure factor calculations
 		'''
 		self.CalcPositions()
+		
+		self._tstop = time.time()
+		self.tinit = self._tstop - self._tstart
 
 	def CalcWavelength(self):
 		# wavelength in nm

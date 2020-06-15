@@ -7,12 +7,13 @@ from hexrd.valunits import valWUnit
 from scipy.optimize import minimize, Bounds, shgo, least_squares
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
+from scipy.integrate import simps
 from scipy import signal
 from hexrd.valunits import valWUnit
 import yaml
 from os import path
 import pickle
-
+import time
 
 class Parameters:
 	''' ======================================================================================================== 
@@ -563,9 +564,16 @@ class LeBail:
 	'''
 	def __init__(self,expt_file=None,param_file=None,phase_file=None):
 		
+		self._tstart = time.time()
+
 		self.initialize_expt_spectrum(expt_file)
 		self.initialize_phases(phase_file)
 		self.initialize_parameters(param_file)
+		self.initialize_Icalc()
+		self.computespectrum()
+
+		self._tstop = time.time()
+		self.tinit = self._tstop - self._tstart
 
 	def __str__(self):
 		resstr = '<LeBail Fit class>\nParameters of the model are as follows:\n'
@@ -629,10 +637,48 @@ class LeBail:
 		if(expt_file is not None):
 			if(path.exists(expt_file)):
 				self.spectrum_expt = Spectrum.from_file(expt_file,skip_rows=0)
+				self.tth_max = np.amax(self.spectrum_expt._x)
+				self.tth_min = np.amin(self.spectrum_expt._x)
+
 				''' also initialize statistical weights for the error calculation'''
 				self.weights = 1.0 / np.sqrt(self.spectrum_expt.y)
+				self.initialize_bkg()
+				self.background.plot(1)
 			else:
 				raise FileError('input spectrum file doesn\'t exist.')
+
+	def initialize_bkg(self):
+
+		'''
+			the cubic spline seems to be the ideal route in terms
+			of determining the background intensity. this involves 
+			selecting a small (~5) number of points from the spectrum,
+			usually called the anchor points. a cubic spline interpolation
+			is performed on this subset to estimate the overall background.
+			scipy provides some useful routines for this
+		'''
+		self.selectpoints()
+		x = self.points[:,0]
+		y = self.points[:,1]
+		self.splinefit(x, y)
+
+	def selectpoints(self):
+
+		fig = plt.figure()
+		ax = fig.add_subplot(111)
+		ax.set_title('Select 5 points for background estimation')
+
+		line = ax.plot(self.tth_list, self.spectrum_expt._y, '-b', picker=5)  # 5 points tolerance
+		plt.show()
+
+		self.points = np.asarray(plt.ginput(5,timeout=-1, show_clicks=True))
+
+	# cubic spline fit of background using custom points chosen from plot
+	def splinefit(self, x, y):
+		cs = CubicSpline(x,y)
+		bkg = cs(self.tth_list)
+		self.background = Spectrum(x=self.tth_list, y=bkg)
+
 
 	def initialize_phases(self, phase_file):
 		'''
@@ -647,6 +693,20 @@ class LeBail:
 			else:
 				raise FileError('phase file doesn\'t exist.')
 		self.phases = p
+
+	def initialize_Icalc(self):
+
+		self.Icalc = []
+		for p in self.phases:
+			tth = np.degrees(self.phases[p].planeData.getTTh())
+				
+			tth_min = np.amin(self.tth_min)
+			tth_max = np.amax(self.tth_max)
+			limit = np.logical_and(tth >= tth_min, \
+									 tth <= tth_max )
+
+			tth = tth[limit]
+			self.Icalc.append(1000.0 * np.ones(tth.shape))
 
 	def CagliottiH(self, tth):
 		'''
@@ -703,13 +763,16 @@ class LeBail:
 		self.PV = self.eta * self.GaussianI + \
 				  (1.0 - self.eta) * self.LorentzI
 
+		I = self.IntegratedIntensity()
+		self.PV /= I
+
 	def IntegratedIntensity(self):
 		'''
 		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
 		>> @DATE:     	06/08/2020 SS 1.0 original
 		>> @DETAILS:  	Integrated intensity of the pseudo-voight peak
 		'''
-		return np.trapz(self.tth_list, self.PV)
+		return simps(self.PV, self.tth_list)
 
 	def computespectrum(self):
 		'''
@@ -719,15 +782,14 @@ class LeBail:
 		'''
 		x = self.tth_list
 		y = np.zeros(x.shape)
-		for k in self.phases:
-			mat = self.phases[k]
 
-			tth = np.degrees(mat.planeData.getTTh())
+		for iph,p in enumerate(self.phases):
+
+			Ic = self.Icalc[iph]
+			tth = np.degrees(self.phases[p].planeData.getTTh())
 			
-			tth_min = np.amin(self.tth_min)
-			tth_max = np.amax(self.tth_max)
-			limit = np.logical_and(tth >= tth_min, \
-									 tth <= tth_max ) 
+			limit = np.logical_and(tth >= self.tth_min, \
+									 tth <= self.tth_max ) 
 
 			tth = tth[limit]
 			# sf  = mat.planeData.get_structFact()[limit]
@@ -737,12 +799,45 @@ class LeBail:
 				self.CagliottiH(t)
 				self.MixingFact(t)
 				self.PseudoVoight(t)
-				II = self.IntegratedIntensity()
-				y += self.Iobs * self.PV/II
+
+				y += Ic[i] * self.PV
 
 		self.spectrum_sim = Spectrum(x=x, y=y)
+		self.spectrum_sim = self.spectrum_sim + self.background
 
-	def calcRwp(self):
+	def CalcIobs(self):
+		'''
+		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+		>> @DATE:     	06/08/2020 SS 1.0 original
+		>> @DETAILS:  	this is one of the main functions to partition the expt intensities
+						to overlapping peaks in the calculated pattern
+		'''
+
+		self.Iobs = []
+		for iph,p in enumerate(self.phases):
+
+			Ic = self.Icalc[iph]
+			tth = np.degrees(self.phases[p].planeData.getTTh())
+				
+			limit = np.logical_and(tth >= self.tth_min, \
+									 tth <= self.tth_max )
+
+			tth = tth[limit]
+
+			Iobs = []
+
+			for i,t in enumerate(tth):
+
+				self.PseudoVoight(t)
+				y   = self.PV * Ic[i]
+				_,yo  = self.spectrum_expt.data
+				_,yc  = self.spectrum_sim.data
+				I = simps(yo * y / yc, self.tth_list)
+				Iobs.append(I)
+
+			self.Iobs.append(np.array(Iobs))
+
+	def calcRwp(self, x0):
 		'''
 		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
 		>> @DATE:     	05/19/2020 SS 1.0 original
@@ -754,36 +849,75 @@ class LeBail:
 		'''
 		the err variable is the difference between simulated and experimental spectra
 		'''
+
+		ctr = 0
+		for par in self.params:
+
+			if(self.params[par].vary):
+
+				if(par == 'zero_error'):
+					self.zero_error = x0[ctr]
+					ctr += 1
+				if(par == 'U'):
+					self.U = x0[ctr]
+					ctr += 1
+				if(par == 'V'):
+					self.V = x0[ctr]
+					ctr += 1
+				if(par == 'W'):
+					self.W = x0[ctr]
+					ctr += 1
+				if(par == 'eta1'):
+					self.eta1 = x0[ctr]
+					ctr += 1
+				if(par == 'eta2'):
+					self.eta2 = x0[ctr]
+					ctr += 1
+				if(par == 'eta3'):
+					self.eta3 = x0[ctr]
+					ctr += 1
+				if(par == 'lp'):
+					self.phases['CeO2'].planeData.set_lparms([x0[ctr]])
+					self.computespectrum()
+					ctr += 1
+
+
 		err = (self.spectrum_sim - self.spectrum_expt)
 
 		''' weighted sum of square '''
-		wss =  np.sum(self.weights * err**2)
+		# wss =  np.sum(self.weights * err**2)
+		wss = simps(self.weights*err._y**2, err._x)
 
-		den = np.sum(self.weights * self.spectrum_sim**2)
+		# den = np.sum(self.weights * self.spectrum_sim.**2)
+		den = simps(self.weights * self.spectrum_sim._y**2, self.spectrum_sim._x)
 
 		''' standard Rwp i.e. weighted residual '''
 		Rwp = np.sqrt(wss/den)
 
 		''' number of observations to fit i.e. number of data points '''
-		N = self.spectrum_sim.shape[0]
+		N = self.spectrum_sim._y.shape[0]
 		''' number of independent parameters in fitting '''
-		P = 13
+		P = 11
 		Rexp = np.sqrt((N-P)/den)
 
 		# Rwp and goodness of fit parameters
 		self.Rwp = Rwp
 		self.gofF = Rwp / Rexp
+		print(x0, Rwp)
 
 		return Rwp
 
-	def Iobs(self):
+	def RefineCycle(self):
 		'''
 		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
 		>> @DATE:     	06/08/2020 SS 1.0 original
-		>> @DETAILS:  	this step partitions the intensity between different
-						overlapping peaks
+		>> @DETAILS:  	this is one refinement cycle for the least squares, typically few
+						10s to 100s of cycles are required for convergence
 		'''
-		
+		self.CalcIobs()
+		self.Icalc = self.Iobs
+
+		self.Refine()
 
 	def Refine(self):
 		'''
@@ -792,17 +926,12 @@ class LeBail:
 		>> @DETAILS:  	this routine performs the least squares refinement for all variables
 						which are allowed to be varied.
 		'''
-
-		'''
-		the err variable is the difference between simulated and experimental spectra
-		'''
-
 		x0 = []
 		lb = []
-		rb = []
+		ub = []
 
-		for k in iter(self.P):
-			par = self.P[k]
+		for p in self.params:
+			par = self.params[p]
 			if(par.vary):
 				x0.append(par.value)
 				lb.append(par.lb)
@@ -812,7 +941,8 @@ class LeBail:
 		x0 = np.array(x0)
 		lb = np.array(lb)
 		ub = np.array(ub)
-		res = least_squares(self.calcRwp,x0,bounds=(lb,ub))
+		res = least_squares(self.calcRwp, x0, bounds=(lb,ub), \
+							gtol=1e-4, xtol=1e-4, max_nfev=100)
 
 		print(res.message+'\t'+'[ Exit status '+str(res.status)+' ]')
 
@@ -956,9 +1086,9 @@ class Rietveld:
 		self._pinkbeam_spec = pinkbeam_spec
 
 		# Cagliotti parameters for the half width of the peak
-		self._U = np.radians(1e-2)
-		self._V = np.radians(5e-2)
-		self._W = np.radians(1e-2)
+		self._U = np.radians(7e-3)
+		self._V = np.radians(1e-2)
+		self._W = np.radians(7e-3)
 
 		# Pseudo-Voight mixing parameters
 		self._eta1 = 1.
@@ -968,7 +1098,7 @@ class Rietveld:
 		# arbitrary scale factor
 		self._scalef = 1.0
 
-		self._Pmd = 1.#1.855
+		self._Pmd = 1.855
 		''' maximum intensity, Imax = S * Mk * Lk * |Fk|**2 * Pk * Ak * Ek * ...
 			S  = arbitrary scale factor
 			Mk = multiplicity of reflection
@@ -1030,7 +1160,7 @@ class Rietveld:
 
 		self.GaussianI = np.exp(-((self.tth_list - tth)/beta)**2 * np.log(2.))
 		# self.GaussianI = np.exp(-np.pi * (self.tth_list - tth)**2 / beta**2)
-		# self.GaussianI /= np.trapz(self.GaussianI)
+		# self.GaussianI /= simps(self.GaussianI)
 
 	def Lorentzian(self, tth, L_eff):
 		w = 0.5 * self.Hcag
@@ -1038,7 +1168,7 @@ class Rietveld:
 
 		self.LorentzI = 1. / ( 1. + ((self.tth_list - tth)/w)**2)
 		# self.LorentzI = (w**2 / (w**2 + (self.tth_list - tth)**2 ) )
-		# self.LorentzI /= np.trapz(self.LorentzI)
+		# self.LorentzI /= simps(self.LorentzI)
 
 	def PseudoVoight(self, tth, kernel=None):
 
@@ -1084,8 +1214,8 @@ class Rietveld:
 		self.sf = []
 		for i, pdata in enumerate(self.pdata):
 			hkl = pdata.getHKLs()
-			sf 	= np.array([self.unitcell[i].CalcXRSF(g) for g in hkl])
-			self.sf.append(sf[self.nanmask])
+			sf 	= pdata.get_structFact()#np.array([self.unitcell[i].CalcXRSF(g) for g in hkl])
+			self.sf.append(sf)
 
 	def PolarizationFactor(self):
 
@@ -1131,7 +1261,7 @@ class Rietveld:
 
 			m 			= pdata.getMultiplicity() 
 			m 			= m.astype(np.float64)
-			Imax 		= self.sf[i] * m[self.nanmask]
+			Imax 		= self.sf[i] * m#[self.nanmask]
 			self.Imax.append(Imax)
 
 		Imax = np.array(Imax)
@@ -1195,7 +1325,7 @@ class Rietveld:
 					peak = self.PV
 
 				# peak = self.PV
-				peak_int = np.trapz(peak)
+				peak_int = simps(peak)
 
 				'''
 				integrated intensity is product of 
@@ -1262,7 +1392,7 @@ class Rietveld:
 		if(self.refine_dict['B_factor'][0]):
 			ndw = 0
 			for uc in self.unitcell:
-				ndw += uc.ATOM_ntype
+				ndw += uc.atom_ntype
 			self.DW = x0[ctr:ctr+ndw]
 			ctr += ndw
 			
@@ -1339,8 +1469,8 @@ class Rietveld:
 
 		x0_dw = []
 		for uc in self.unitcell:
-			for i in range(uc.ATOM_ntype):
-				x0_dw.append(uc.ATOM_pos[i,4])
+			for i in range(uc.atom_ntype):
+				x0_dw.append(uc.atom_pos[i,4])
 		x0_dw = np.array(x0_dw)
 
 		x0_cag 		= np.array([self.U, self.V, self.W]) 
@@ -1548,11 +1678,11 @@ class Rietveld:
 	def DW(self, val):
 		sz = 0
 		for uc in self.unitcell:
-			sz += uc.ATOM_ntype
+			sz += uc.atom_ntype
 		assert(val.shape[0] == sz), 'size of input in DW factor is not correct'
 		ctr = 0
 		for uc in self.unitcell:
-			n = uc.ATOM_ntype
+			n = uc.atom_ntype
 			uc.ATOM_pos[0:n,4] = val[ctr:ctr+n]
 			ctr += n
 
@@ -1722,11 +1852,11 @@ class Rietveld:
 			ax = fig.add_subplot(111)
 			ax.set_title('Select 5 points for background estimation')
 
-			line, = ax.plot(np.degrees(self.tth_list), self.spec_arr, '-b', picker=5)  # 5 points tolerance
+			line = ax.plot(np.degrees(self.tth_list), self.spec_arr, '-b', picker=6)  # 5 points tolerance
 			plt.show()
 
-			self.points = np.asarray(plt.ginput(5,timeout=-1, show_clicks=True))			
-			# plt.close()
+			self.points = np.asarray(plt.ginput(6,timeout=-1, show_clicks=True))
+			plt.close()
 
 		# define all properties of this class
 		@property
@@ -1926,7 +2056,7 @@ class Rietveld:
 			self._tth_list = tth_list
 
 			self.E  = self._pbspec[:,0]
-			self.ww = self._pbspec[:,1]/np.trapz(self._pbspec[:,1])
+			self.ww = self._pbspec[:,1]/simps(self._pbspec[:,1])
 			
 			self.Emean = np.average(self.E, weights=self.ww)
 			self.lambda_mean = self.hc / self.Emean
