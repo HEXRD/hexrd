@@ -52,7 +52,7 @@ def _process_omegas(omegaimageseries_dict):
     ome_ranges = [
         ([i['ostart'], i['ostop']])
         for i in oims.omegawedges.wedges
-    ]    
+    ]
     return ome_period, ome_ranges
 
 
@@ -504,7 +504,7 @@ def generate_eta_ome_maps(cfg, hkls=None):
 
     # handle omega period
     ome_period, _ = _process_omegas(imsd)
-    
+
     start = timeit.default_timer()
 
     # make eta_ome maps
@@ -573,7 +573,7 @@ def find_orientations(cfg,
 
     # handle omega period
     ome_period, ome_ranges = _process_omegas(imsd)
-    
+
     # for multiprocessing
     ncpus = cfg.multiprocessing
 
@@ -698,18 +698,15 @@ def find_orientations(cfg,
     logger.info("\tSaving %d scored orientations with max completeness %f%%",
                 qfib.shape[1], 100*np.max(completeness))
 
-    np.savez_compressed(
-        '_'.join(['scored_orientations', cfg.analysis_id]),
-        test_quaternions=qfib, score=completeness
-    )
+    results = {}
+    results['scored_orientations'] = {
+        'test_quaternions': qfib,
+        'score': completeness
+    }
 
     # =========================================================================
     # CLUSTERING AND GRAINS OUTPUT
     # =========================================================================
-
-    if not os.path.exists(cfg.analysis_dir):
-        os.makedirs(cfg.analysis_dir)
-    qbar_filename = 'accepted_orientations_' + cfg.analysis_id + '.dat'
 
     logger.info("\trunning clustering using '%s'", cl_algorithm)
 
@@ -772,22 +769,8 @@ def find_orientations(cfg,
         radius=cl_radius)
 
     logger.info("\t\t...took %f seconds", (timeit.default_timer() - start))
-    logger.info("\tfound %d grains; saved to file: '%s'",
-                qbar.shape[1], qbar_filename)
+    logger.info("\tfound %d grains", qbar.shape[1])
 
-    np.savetxt(qbar_filename, qbar.T,
-               fmt='%.18e', delimiter='\t')
+    results['qbar'] = qbar
 
-    gw = instrument.GrainDataWriter(
-        os.path.join(cfg.analysis_dir, 'grains.out')
-    )
-    grain_params_list = []
-    for gid, q in enumerate(qbar.T):
-        phi = 2*np.arccos(q[0])
-        n = xfcapi.unitRowVector(q[1:])
-        grain_params = np.hstack([phi*n, const.zeros_3, const.identity_6x1])
-        gw.dump_grain(gid, 1., 0., grain_params)
-        grain_params_list.append(grain_params)
-    gw.close()
-
-    return
+    return results
