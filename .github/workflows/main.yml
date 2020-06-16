@@ -1,0 +1,80 @@
+name: conda-package
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  package:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+        - {
+            name: "Linux",
+            os: ubuntu-latest
+          }
+        - {
+            name: "MacOSX",
+            os: macos-latest
+          }
+        - {
+            name: "Windows",
+            os: windows-latest
+          }
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Install conda
+      uses: goanpeca/setup-miniconda@v1
+      with:
+        auto-update-conda: true
+        python-version: 3.8
+        activate-environment: hexrd
+        auto-activate-base: false
+
+    - name: Install build requirements
+      run: |
+          conda activate hexrd
+          conda install anaconda conda-build
+
+      # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
+      # command works.
+      shell: bash -l {0}
+
+    - name: Build the package
+      run: |
+          conda activate hexrd
+          mkdir output
+          conda build --output-folder output/ conda.recipe/
+      # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
+      # command works.
+      shell: bash -l {0}
+
+    - name: Upload the package to anaconda channel (upload only on master)
+      if: github.ref == 'refs/heads/master'
+      run: |
+          conda activate hexrd
+          anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --user HEXRD output/**/*.tar.bz2
+      # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
+      # command works.
+      shell: bash -l {0}
+
+    - name: Get version for the artifact names
+      id: describe
+      run: echo "::set-output name=version::$(git describe --tag)"
+
+    - name: Upload the package to github
+      uses: actions/upload-artifact@v2
+      with:
+        name: HEXRD-${{ matrix.config.name }}-${{ steps.describe.outputs.version }}.tar.bz2
+        path: output/**/*.tar.bz2

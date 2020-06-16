@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 from setuptools import setup, find_packages, Extension
-import versioneer
 
 import numpy
 np_include_dir = os.path.join(numpy.get_include(), 'numpy')
@@ -56,8 +55,6 @@ entry_points = {
 
 setup(
     name='hexrd',
-    version=versioneer.get_version(),
-    cmdclass=versioneer.get_cmdclass(),
     setup_requires=['setuptools-scm'],
     use_scm_version=True,
     description = 'hexrd X-ray diffraction data analysis tool',
