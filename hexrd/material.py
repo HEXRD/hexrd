@@ -97,7 +97,7 @@ class Material(object):
     DFLT_KEV = valWUnit('wavelength', 'energy', 80.725e0, 'keV')
     DFLT_STR = 0.0025
     DFLT_TTH = numpy.radians(0.25)
-
+    DFLT_TTHMAX = numpy.radians(160.0)
     """
     ATOMINFO    Fractional Atom Position of an atom in the unit cell followed by the
     site occupany and debye waller (B) factor in nm^(-2)
@@ -111,7 +111,7 @@ class Material(object):
     the dmin parameter is used to figure out the maximum sampling for g-vectors
     this parameter is in angstroms
     '''
-    DFLT_DMIN = _angstroms(0.5)
+    DFLT_DMIN = _angstroms(0.2)
 
     '''
     default space group setting
@@ -133,7 +133,6 @@ class Material(object):
         self._beamEnergy = kev
         
         self.sgsetting = sgsetting
-
 
         if(self._dmin.unit == 'angstrom'):
             # convert to nm
@@ -235,13 +234,14 @@ class Material(object):
 
     def _newPdata(self):
         """Create a new plane data instance"""
-        # spaceGroup module calculates forbidden reflections
+        # spaceGroup module calulates forbidden reflections
         hkls = numpy.array(self.spaceGroup.getHKLs(self.hklMax)).T
         lprm = [self._lparms[i] for i in self.spaceGroup.reqParams]
         laue = self.spaceGroup.laueGroup
         self._pData = PData(hkls, lprm, laue,
                             self._beamEnergy, Material.DFLT_STR,
-                            tThWidth=Material.DFLT_TTH)
+                            tThWidth=Material.DFLT_TTH,
+                            tThMax=Material.DFLT_TTHMAX)
         '''
           Set default exclusions
           all reflections with two-theta smaller than 90 degrees

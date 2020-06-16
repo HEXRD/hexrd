@@ -4,7 +4,8 @@ from hexrd.imageutil import snip1d
 from hexrd.crystallography import PlaneData
 from hexrd.material import Material
 from hexrd.valunits import valWUnit
-from scipy.optimize import minimize, Bounds, shgo, least_squares
+# from scipy.optimize import minimize, Bounds, shgo, least_squares
+import lmfit
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
 from scipy.integrate import simps
@@ -448,7 +449,7 @@ class Phases:
 		return valWUnit('lp', 'length', x, 'nm')
 
 	def __init__(self, material_file=None, material_keys=None, 
-				 dmin=_nm(0.05), beamenergy=_kev(10.0)):
+				 dmin=_nm(0.05), beamenergy=_kev(8.04778)):
 
 		self.phase_dict = {}
 		self.num_phases = 0
@@ -496,6 +497,7 @@ class Phases:
          return len(self.phase_dict)
 
 	def add(self, material_file, material_key):
+
 		self[material_key] = Material(name=material_key, cfgP=material_file, \
 									  dmin=self._dmin, kev=self._beamenergy)
 		self[material_key].pf = 1.0/len(self)
@@ -506,8 +508,12 @@ class Phases:
 	def add_many(self, material_file, material_keys):
 		
 		for k in material_keys:
-			self[k] = Material(name=k, cfgP=material_file, \
-							   dmin=self._dmin, kev=self._beamenergy)
+
+			n,e = k
+			pname = n+str(e)
+			kev = valWUnit("beamenergy", "ENERGY",e,"keV")
+			self[pname] = Material(name=n, cfgP=material_file, \
+							   dmin=self._dmin, kev=kev)
 
 			self.num_phases += 1
 
@@ -637,6 +643,7 @@ class LeBail:
 		if(expt_file is not None):
 			if(path.exists(expt_file)):
 				self.spectrum_expt = Spectrum.from_file(expt_file,skip_rows=0)
+				self.spectrum_expt = self.spectrum_expt.limit(0.0, 90.0)
 				self.tth_max = np.amax(self.spectrum_expt._x)
 				self.tth_min = np.amin(self.spectrum_expt._x)
 
@@ -668,10 +675,10 @@ class LeBail:
 		ax = fig.add_subplot(111)
 		ax.set_title('Select 5 points for background estimation')
 
-		line = ax.plot(self.tth_list, self.spectrum_expt._y, '-b', picker=5)  # 5 points tolerance
+		line = ax.plot(self.tth_list, self.spectrum_expt._y, '-b', picker=8)  # 5 points tolerance
 		plt.show()
 
-		self.points = np.asarray(plt.ginput(5,timeout=-1, show_clicks=True))
+		self.points = np.asarray(plt.ginput(8,timeout=-1, show_clicks=True))
 
 	# cubic spline fit of background using custom points chosen from plot
 	def splinefit(self, x, y):
@@ -791,7 +798,7 @@ class LeBail:
 			limit = np.logical_and(tth >= self.tth_min, \
 									 tth <= self.tth_max ) 
 
-			tth = tth[limit]
+			tth = tth[limit] + self.zero_error
 			# sf  = mat.planeData.get_structFact()[limit]
 
 			for i,t in enumerate(tth):
@@ -837,7 +844,7 @@ class LeBail:
 
 			self.Iobs.append(np.array(Iobs))
 
-	def calcRwp(self, x0):
+	def calcRwp(self, params):
 		'''
 		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
 		>> @DATE:     	05/19/2020 SS 1.0 original
@@ -849,40 +856,42 @@ class LeBail:
 		'''
 		the err variable is the difference between simulated and experimental spectra
 		'''
+		for p in params:
+			setattr(self, p, params[p].value)
+		# ctr = 0
+		# for par in self.params:
 
-		ctr = 0
-		for par in self.params:
+		# 	if(self.params[par].vary):
 
-			if(self.params[par].vary):
-
-				if(par == 'zero_error'):
-					self.zero_error = x0[ctr]
-					ctr += 1
-				if(par == 'U'):
-					self.U = x0[ctr]
-					ctr += 1
-				if(par == 'V'):
-					self.V = x0[ctr]
-					ctr += 1
-				if(par == 'W'):
-					self.W = x0[ctr]
-					ctr += 1
-				if(par == 'eta1'):
-					self.eta1 = x0[ctr]
-					ctr += 1
-				if(par == 'eta2'):
-					self.eta2 = x0[ctr]
-					ctr += 1
-				if(par == 'eta3'):
-					self.eta3 = x0[ctr]
-					ctr += 1
-				if(par == 'lp'):
-					self.phases['CeO2'].planeData.set_lparms([x0[ctr]])
-					self.computespectrum()
-					ctr += 1
-
+		# 		if(par == 'zero_error'):
+		# 			self.zero_error = x0[ctr]
+		# 			ctr += 1
+		# 		if(par == 'U'):
+		# 			self.U = x0[ctr]
+		# 			ctr += 1
+		# 		if(par == 'V'):
+		# 			self.V = x0[ctr]
+		# 			ctr += 1
+		# 		if(par == 'W'):
+		# 			self.W = x0[ctr]
+		# 			ctr += 1
+		# 		if(par == 'eta1'):
+		# 			self.eta1 = x0[ctr]
+		# 			ctr += 1
+		# 		if(par == 'eta2'):
+		# 			self.eta2 = x0[ctr]
+		# 			ctr += 1
+		# 		if(par == 'eta3'):
+		# 			self.eta3 = x0[ctr]
+		# 			ctr += 1
+		# 		if(par == 'lp'):
+		# 			self.phases['PbSO4'].planeData.set_lparms([x0[ctr]])
+		# 			self.computespectrum()
+		# 			ctr += 1
 
 		err = (self.spectrum_sim - self.spectrum_expt)
+
+		errvec = self.weights*err._y**2
 
 		''' weighted sum of square '''
 		# wss =  np.sum(self.weights * err**2)
@@ -903,9 +912,27 @@ class LeBail:
 		# Rwp and goodness of fit parameters
 		self.Rwp = Rwp
 		self.gofF = Rwp / Rexp
-		print(x0, Rwp)
 
-		return Rwp
+		print(Rwp)
+
+		return errvec
+
+	def initialize_lmfit_parameters(self):
+
+		params = lmfit.Parameters()
+
+		for p in self.params:
+			par = self.params[p]
+			if(par.vary):
+				params.add(p, value=par.value, min=par.lb, max = par.ub)
+
+		return params
+
+	def update_parameters(self, params):
+
+		for p in params:
+			par = params[p]
+			self.params[p].value = par.value
 
 	def RefineCycle(self):
 		'''
@@ -917,7 +944,8 @@ class LeBail:
 		self.CalcIobs()
 		self.Icalc = self.Iobs
 
-		self.Refine()
+		res = self.Refine()
+		self.update_parameters(res.params)
 
 	def Refine(self):
 		'''
@@ -926,27 +954,11 @@ class LeBail:
 		>> @DETAILS:  	this routine performs the least squares refinement for all variables
 						which are allowed to be varied.
 		'''
-		x0 = []
-		lb = []
-		ub = []
 
-		for p in self.params:
-			par = self.params[p]
-			if(par.vary):
-				x0.append(par.value)
-				lb.append(par.lb)
-				ub.append(par.ub)
+		params = self.initialize_lmfit_parameters()
 
-
-		x0 = np.array(x0)
-		lb = np.array(lb)
-		ub = np.array(ub)
-		res = least_squares(self.calcRwp, x0, bounds=(lb,ub), \
-							gtol=1e-4, xtol=1e-4, max_nfev=100)
-
-		print(res.message+'\t'+'[ Exit status '+str(res.status)+' ]')
-
-		print('\t optimum values of parameters: '+str(res.x))
+		res = lmfit.minimize(self.calcRwp, params, \
+			method='least_squares',reduce_fcn=None)
 
 		return res
 
@@ -1027,7 +1039,7 @@ class LeBail:
 		return self._zero_error
 	
 	@zero_error.setter
-	def zero_setter(self, value):
+	def zero_error(self, value):
 		self._zero_error = value
 		self.computespectrum()
 		return
