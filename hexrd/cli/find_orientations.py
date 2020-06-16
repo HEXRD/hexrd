@@ -1,5 +1,12 @@
 from __future__ import print_function, division, absolute_import
 
+import os
+import numpy as np
+
+from hexrd import constants as const
+from hexrd import instrument
+from hexrd.transforms import xfcapi
+
 
 descr = 'Process rotation image series to find grain orientations'
 example = """
@@ -43,9 +50,32 @@ if None, defaults to list specified in the yml file"""
     p.set_defaults(func=execute)
 
 
+def write_results(results, cfg):
+    # Write out the data
+    np.savez_compressed(
+        '_'.join(['scored_orientations', cfg.analysis_id]),
+        **results['scored_orientations']
+    )
+
+    if not os.path.exists(cfg.analysis_dir):
+        os.makedirs(cfg.analysis_dir)
+    qbar_filename = 'accepted_orientations_' + cfg.analysis_id + '.dat'
+    np.savetxt(qbar_filename, results['qbar'].T,
+               fmt='%.18e', delimiter='\t')
+
+    gw = instrument.GrainDataWriter(
+        os.path.join(cfg.analysis_dir, 'grains.out')
+    )
+    for gid, q in enumerate(results['qbar'].T):
+        phi = 2*np.arccos(q[0])
+        n = xfcapi.unitRowVector(q[1:])
+        grain_params = np.hstack([phi*n, const.zeros_3, const.identity_6x1])
+        gw.dump_grain(gid, 1., 0., grain_params)
+    gw.close()
+
+
 def execute(args, parser):
     import logging
-    import os
     import sys
 
     from hexrd import config
@@ -114,12 +144,15 @@ def execute(args, parser):
         pr.enable()
 
     # process the data
-    find_orientations(
+    results = find_orientations(
         cfg,
         hkls=args.hkls,
         clean=args.clean,
         profile=args.profile
     )
+
+    # Write out the results
+    write_results(results, cfg)
 
     if args.profile:
         pr.disable()
