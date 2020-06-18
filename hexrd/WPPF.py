@@ -4,17 +4,19 @@ from hexrd.imageutil import snip1d
 from hexrd.crystallography import PlaneData
 from hexrd.material import Material
 from hexrd.valunits import valWUnit
+from hexrd import spacegroup as SG
 # from scipy.optimize import minimize, Bounds, shgo, least_squares
 import lmfit
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
-from scipy.integrate import simps
 from scipy import signal
 from hexrd.valunits import valWUnit
 import yaml
 from os import path
 import pickle
 import time
+import h5py
+import numba
 
 class Parameters:
 	''' ======================================================================================================== 
@@ -548,7 +550,206 @@ class Phases:
 
 		with open(fname, 'w') as f:
 			data = yaml.dump(dic, f, sort_keys=False)
-	
+
+class Material_LeBail:
+
+	def __init__(self, fhdf, xtal):
+
+		self._readHDF(fhdf, xtal)
+		self._calcrmt()
+		self.SG = SG.SpaceGroup(self.sgnum)
+		self._calchkls()
+
+	def _readHDF(self, fhdf, xtal):
+
+		# fexist = path.exists(fhdf)
+		# if(fexist):
+		fid = h5py.File(fhdf, 'r')
+		xtal = "/"+xtal
+		# if xtal not in fid:
+		# 	raise IOError('crystal doesn''t exist in material file.')
+		# else:
+		# 	raise IOError('material file does not exist.')
+
+		gid         = fid.get(xtal)
+
+		self.sgnum       = np.asscalar(np.array(gid.get('SpaceGroupNumber'), \
+									 dtype = np.int32))
+		""" 
+		    IMPORTANT NOTE:
+		    note that the latice parameters in EMsoft is nm by default
+		    hexrd on the other hand uses A as the default units, so we
+		    need to be careful and convert it right here, so there is no
+		    confusion later on
+		"""
+		self.lparms      = list(gid.get('LatticeParameters'))
+		fid.close()
+
+	def _calcrmt(self):
+
+		a = self.lparms[0]
+		b = self.lparms[1]
+		c = self.lparms[2]
+
+		alpha = np.radians(self.lparms[3])
+		beta  = np.radians(self.lparms[4])
+		gamma = np.radians(self.lparms[5])
+
+		ca = np.cos(alpha);
+		cb = np.cos(beta);
+		cg = np.cos(gamma);
+		sa = np.sin(alpha);
+		sb = np.sin(beta);
+		sg = np.sin(gamma);
+		tg = np.tan(gamma);
+
+		'''
+			direct metric tensor
+		'''
+		self.dmt = np.array([[a**2, a*b*cg, a*c*cb],\
+							 [a*b*cg, b**2, b*c*ca],\
+							 [a*c*cb, b*c*ca, c**2]])
+		self.vol = np.sqrt(np.linalg.det(self.dmt))
+
+		if(self.vol < 1e-5):
+			warnings.warn('unitcell volume is suspiciously small')
+
+		'''
+			reciprocal metric tensor
+		'''
+		self.rmt = np.linalg.inv(self.dmt)
+
+	def _calchkls(self):
+		self.hkls = np.array(self.SG.getHKLs(100))
+
+	def getTTh(self, wavelength):
+
+		tth = []
+		for g in self.hkls:
+			glen = np.sqrt(np.dot(g,np.dot(self.rmt,g)))
+			sth = glen*wavelength/2.
+			if(np.abs(sth) <= 1.0):
+				t = 2. * np.degrees(np.arcsin(sth))
+				tth.append(t)
+
+		tth = np.array(tth)
+		return tth
+
+class Phases_LeBail:
+	''' ======================================================================================================== 
+		======================================================================================================== 
+
+	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+	>> @DATE:     	05/20/2020 SS 1.0 original
+	>> @DETAILS:  	class to handle different phases in the LeBail fit. this is a stripped down
+					version of main Phase class for efficiency. only the components necessary for 
+					calculating peak positions are retained. further this will have a slight
+					modification to account for different wavelengths in the same phase name
+		======================================================================================================== 
+		======================================================================================================== 
+	'''
+	def _kev(x):
+		return valWUnit('beamenergy','energy', x,'keV')
+
+	def _nm(x):
+		return valWUnit('lp', 'length', x, 'nm')
+
+	def __init__(self, material_file=None, 
+				 material_keys=None, 
+				 wavelength={'alpha1':_nm(0.15406),'alpha2':_nm(0.154443)}
+				 ):
+
+		self.phase_dict = {}
+		self.num_phases = 0
+		self.wavelength = wavelength
+
+		if(material_file is not None):
+			if(material_keys is not None):
+				if(type(material_keys) is not list):
+					self.add(material_file, material_keys)
+				else:
+					self.add_many(material_file, material_keys)
+
+	def __str__(self):
+		resstr = 'Phases in calculation:\n'
+		for i,k in enumerate(self.phase_dict.keys()):
+			resstr += '\t'+str(i+1)+'. '+k+'\n'
+		return resstr
+
+	def __getitem__(self, key):
+		if(key in self.phase_dict.keys()):
+			return self.phase_dict[key]
+		else:
+			raise ValueError('phase with name not found')
+
+	def __setitem__(self, key, mat_cls):
+
+		if(key in self.phase_dict.keys()):
+			warnings.warn('phase already in parameter list. overwriting ...')
+		if(isinstance(mat_cls, Material_LeBail)):
+			self.phase_dict[key] = mat_cls
+		else:
+			raise ValueError('input not a material class')
+
+	def __iter__(self):
+		self.n = 0
+		return self
+
+	def __next__(self):
+		if(self.n < len(self.phase_dict.keys())):
+			res = list(self.phase_dict.keys())[self.n]
+			self.n += 1
+			return res
+		else:
+			raise StopIteration
+
+	def __len__(self):
+         return len(self.phase_dict)
+
+	def add(self, material_file, material_key):
+
+		self[material_key] = Material_LeBail(material_file, material_key)
+
+	def add_many(self, material_file, material_keys):
+		
+		for k in material_keys:
+
+			self[k] = Material_LeBail(material_file, k)
+
+			self.num_phases += 1
+
+		for k in self:
+			self[k].pf = 1.0/len(self)
+
+		self.material_file = material_file
+		self.material_keys = material_keys
+
+	def load(self, fname):
+		'''
+			>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+			>> @DATE:     	06/08/2020 SS 1.0 original
+			>> @DETAILS:  	load parameters from yaml file
+		'''
+		with open(fname) as file:
+			dic = yaml.load(file, Loader=yaml.FullLoader)
+
+		for mfile in dic.keys():
+			mat_keys = list(dic[mfile])
+			self.add_many(mfile, mat_keys)
+
+	def dump(self, fname):
+		'''
+			>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+			>> @DATE:     	06/08/2020 SS 1.0 original
+			>> @DETAILS:  	dump parameters to yaml file
+		'''
+		dic = {}
+		k = self.material_file
+		dic[k] =  [m for m in self]
+
+		with open(fname, 'w') as f:
+			data = yaml.dump(dic, f, sort_keys=False)
+
 class LeBail:
 	''' ======================================================================================================== 
 		======================================================================================================== 
@@ -568,11 +769,13 @@ class LeBail:
 		======================================================================================================== 
 		======================================================================================================== 
 	'''
+
 	def __init__(self,expt_file=None,param_file=None,phase_file=None):
 		
-		self._tstart = time.time()
+		
 
 		self.initialize_expt_spectrum(expt_file)
+		self._tstart = time.time()
 		self.initialize_phases(phase_file)
 		self.initialize_parameters(param_file)
 		self.initialize_Icalc()
@@ -580,7 +783,9 @@ class LeBail:
 
 		self._tstop = time.time()
 		self.tinit = self._tstop - self._tstart
-
+		self.niter = 0
+		self.Rwplist  = np.empty([0])
+		self.gofFlist = np.empty([0])
 	def __str__(self):
 		resstr = '<LeBail Fit class>\nParameters of the model are as follows:\n'
 		resstr += self.params.__str__()
@@ -643,14 +848,12 @@ class LeBail:
 		if(expt_file is not None):
 			if(path.exists(expt_file)):
 				self.spectrum_expt = Spectrum.from_file(expt_file,skip_rows=0)
-				self.spectrum_expt = self.spectrum_expt.limit(0.0, 90.0)
 				self.tth_max = np.amax(self.spectrum_expt._x)
 				self.tth_min = np.amin(self.spectrum_expt._x)
 
 				''' also initialize statistical weights for the error calculation'''
 				self.weights = 1.0 / np.sqrt(self.spectrum_expt.y)
 				self.initialize_bkg()
-				self.background.plot(1)
 			else:
 				raise FileError('input spectrum file doesn\'t exist.')
 
@@ -679,6 +882,7 @@ class LeBail:
 		plt.show()
 
 		self.points = np.asarray(plt.ginput(8,timeout=-1, show_clicks=True))
+		plt.close()
 
 	# cubic spline fit of background using custom points chosen from plot
 	def splinefit(self, x, y):
@@ -693,7 +897,7 @@ class LeBail:
 		>> @DATE:     	06/08/2020 SS 1.0 original
 		>> @DETAILS:  	load the phases for the LeBail fits
 		'''
-		p = Phases()
+		p = Phases_LeBail()
 		if(phase_file is not None):
 			if(path.exists(phase_file)):
 				p.load(phase_file)
@@ -701,19 +905,26 @@ class LeBail:
 				raise FileError('phase file doesn\'t exist.')
 		self.phases = p
 
+		self.calctth()
+
+	def calctth(self):
+		self.tth = {}
+		for p in self.phases:
+			self.tth[p] = {}
+			for k,l in self.phases.wavelength.items():
+				t = self.phases[p].getTTh(l.value)
+				limit = np.logical_and(t >= self.tth_min,\
+									   t <= self.tth_max)
+				self.tth[p][k] = t[limit]
+
 	def initialize_Icalc(self):
 
-		self.Icalc = []
+		self.Icalc = {}
 		for p in self.phases:
-			tth = np.degrees(self.phases[p].planeData.getTTh())
-				
-			tth_min = np.amin(self.tth_min)
-			tth_max = np.amax(self.tth_max)
-			limit = np.logical_and(tth >= tth_min, \
-									 tth <= tth_max )
+			self.Icalc[p] = {}
+			for k,l in self.phases.wavelength.items():
 
-			tth = tth[limit]
-			self.Icalc.append(1000.0 * np.ones(tth.shape))
+				self.Icalc[p][k] = 1000.0 * np.ones(self.tth[p][k].shape)
 
 	def CagliottiH(self, tth):
 		'''
@@ -779,7 +990,7 @@ class LeBail:
 		>> @DATE:     	06/08/2020 SS 1.0 original
 		>> @DETAILS:  	Integrated intensity of the pseudo-voight peak
 		'''
-		return simps(self.PV, self.tth_list)
+		return np.trapz(self.PV, self.tth_list)
 
 	def computespectrum(self):
 		'''
@@ -792,22 +1003,20 @@ class LeBail:
 
 		for iph,p in enumerate(self.phases):
 
-			Ic = self.Icalc[iph]
-			tth = np.degrees(self.phases[p].planeData.getTTh())
-			
-			limit = np.logical_and(tth >= self.tth_min, \
-									 tth <= self.tth_max ) 
+			for k,l in self.phases.wavelength.items():
+		
+				Ic = self.Icalc[p][k]
 
-			tth = tth[limit] + self.zero_error
-			# sf  = mat.planeData.get_structFact()[limit]
+				tth = self.tth[p][k] + self.zero_error
+				n = np.min((tth.shape[0],Ic.shape[0]))
 
-			for i,t in enumerate(tth):
+				for i in range(n):
+					t = tth[i]
+					self.CagliottiH(t)
+					self.MixingFact(t)
+					self.PseudoVoight(t)
 
-				self.CagliottiH(t)
-				self.MixingFact(t)
-				self.PseudoVoight(t)
-
-				y += Ic[i] * self.PV
+					y += Ic[i] * self.PV
 
 		self.spectrum_sim = Spectrum(x=x, y=y)
 		self.spectrum_sim = self.spectrum_sim + self.background
@@ -820,29 +1029,28 @@ class LeBail:
 						to overlapping peaks in the calculated pattern
 		'''
 
-		self.Iobs = []
+		self.Iobs = {}
 		for iph,p in enumerate(self.phases):
 
-			Ic = self.Icalc[iph]
-			tth = np.degrees(self.phases[p].planeData.getTTh())
-				
-			limit = np.logical_and(tth >= self.tth_min, \
-									 tth <= self.tth_max )
+			self.Iobs[p] = {}
 
-			tth = tth[limit]
+			for k,l in self.phases.wavelength.items():
+				Ic = self.Icalc[p][k]
 
-			Iobs = []
+				tth = self.tth[p][k] + self.zero_error
 
-			for i,t in enumerate(tth):
+				Iobs = []
+				n = np.min((tth.shape[0],Ic.shape[0]))
+				for i in range(n):
+					t = tth[i]
+					self.PseudoVoight(t)
+					y   = self.PV * Ic[i]
+					_,yo  = self.spectrum_expt.data
+					_,yc  = self.spectrum_sim.data
+					I = np.trapz(yo * y / yc, self.tth_list)
+					Iobs.append(I)
 
-				self.PseudoVoight(t)
-				y   = self.PV * Ic[i]
-				_,yo  = self.spectrum_expt.data
-				_,yc  = self.spectrum_sim.data
-				I = simps(yo * y / yc, self.tth_list)
-				Iobs.append(I)
-
-			self.Iobs.append(np.array(Iobs))
+				self.Iobs[p][k] = np.array(Iobs)
 
 	def calcRwp(self, params):
 		'''
@@ -858,47 +1066,48 @@ class LeBail:
 		'''
 		for p in params:
 			setattr(self, p, params[p].value)
-		# ctr = 0
-		# for par in self.params:
 
-		# 	if(self.params[par].vary):
+		lp = []
+		if('a' in params):
+			if(params['a'].vary):
+				lp.append(params['a'].value)
+		if('b' in params):
+			if(params['b'].vary):
+				lp.append(params['b'].value)
+		if('c' in params):
+			if(params['c'].vary):
+				lp.append(params['c'].value)
+		if('alpha' in params):
+			if(params['alpha'].vary):
+				lp.append(params['alpha'].value)
+		if('beta' in params):
+			if(params['beta'].vary):
+				lp.append(params['beta'].value)
+		if('gamma' in params):
+			if(params['gamma'].vary):
+				lp.append(params['gamma'].value)
 
-		# 		if(par == 'zero_error'):
-		# 			self.zero_error = x0[ctr]
-		# 			ctr += 1
-		# 		if(par == 'U'):
-		# 			self.U = x0[ctr]
-		# 			ctr += 1
-		# 		if(par == 'V'):
-		# 			self.V = x0[ctr]
-		# 			ctr += 1
-		# 		if(par == 'W'):
-		# 			self.W = x0[ctr]
-		# 			ctr += 1
-		# 		if(par == 'eta1'):
-		# 			self.eta1 = x0[ctr]
-		# 			ctr += 1
-		# 		if(par == 'eta2'):
-		# 			self.eta2 = x0[ctr]
-		# 			ctr += 1
-		# 		if(par == 'eta3'):
-		# 			self.eta3 = x0[ctr]
-		# 			ctr += 1
-		# 		if(par == 'lp'):
-		# 			self.phases['PbSO4'].planeData.set_lparms([x0[ctr]])
-		# 			self.computespectrum()
-		# 			ctr += 1
+		if(not lp):
+			pass
+		else:
+			for p in self.phases:
+				lp = SG._rqpDict[self.phases[p].SG.latticeType][1](lp)
+				self.phases[p].lparms = np.array(lp)
+				self.phases[p]._calcrmt()
+				self.calctth()
+
+		self.computespectrum()
 
 		err = (self.spectrum_sim - self.spectrum_expt)
-
+		self.err = err
 		errvec = self.weights*err._y**2
 
 		''' weighted sum of square '''
 		# wss =  np.sum(self.weights * err**2)
-		wss = simps(self.weights*err._y**2, err._x)
+		wss = np.trapz(self.weights*err._y**2, err._x)
 
 		# den = np.sum(self.weights * self.spectrum_sim.**2)
-		den = simps(self.weights * self.spectrum_sim._y**2, self.spectrum_sim._x)
+		den = np.trapz(self.weights * self.spectrum_sim._y**2, self.spectrum_sim._x)
 
 		''' standard Rwp i.e. weighted residual '''
 		Rwp = np.sqrt(wss/den)
@@ -906,14 +1115,12 @@ class LeBail:
 		''' number of observations to fit i.e. number of data points '''
 		N = self.spectrum_sim._y.shape[0]
 		''' number of independent parameters in fitting '''
-		P = 11
+		P = len(params)
 		Rexp = np.sqrt((N-P)/den)
 
 		# Rwp and goodness of fit parameters
 		self.Rwp = Rwp
 		self.gofF = Rwp / Rexp
-
-		print(Rwp)
 
 		return errvec
 
@@ -928,10 +1135,10 @@ class LeBail:
 
 		return params
 
-	def update_parameters(self, params):
+	def update_parameters(self):
 
-		for p in params:
-			par = params[p]
+		for p in self.res.params:
+			par = self.res.params[p]
 			self.params[p].value = par.value
 
 	def RefineCycle(self):
@@ -939,13 +1146,17 @@ class LeBail:
 		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
 		>> @DATE:     	06/08/2020 SS 1.0 original
 		>> @DETAILS:  	this is one refinement cycle for the least squares, typically few
-						10s to 100s of cycles are required for convergence
+						10s to 100s of cycles may be required for convergence
 		'''
 		self.CalcIobs()
 		self.Icalc = self.Iobs
 
-		res = self.Refine()
-		self.update_parameters(res.params)
+		self.res = self.Refine()
+		self.update_parameters()
+		self.niter += 1
+		self.Rwplist  = np.append(self.Rwplist, self.Rwp)
+		self.gofFlist = np.append(self.gofFlist, self.gofF)
+		print('Finished iteration. Rwp: {:.3f} % goodness of fit: {:.3f}'.format(self.Rwp*100., self.gofF))
 
 	def Refine(self):
 		'''
@@ -957,9 +1168,12 @@ class LeBail:
 
 		params = self.initialize_lmfit_parameters()
 
-		res = lmfit.minimize(self.calcRwp, params, \
-			method='least_squares',reduce_fcn=None)
+		fdict = {'ftol':1e-4, 'xtol':1e-4, 'gtol':1e-4, \
+				 'verbose':0, 'max_nfev':8}
 
+		fitter = lmfit.Minimizer(self.calcRwp, params)
+
+		res = fitter.least_squares(**fdict)
 		return res
 
 	@property
@@ -969,7 +1183,7 @@ class LeBail:
 	@U.setter
 	def U(self, Uinp):
 		self._U = Uinp
-		self.computespectrum()
+		# self.computespectrum()
 		return
 
 	@property
@@ -979,7 +1193,7 @@ class LeBail:
 	@V.setter
 	def V(self, Vinp):
 		self._V = Vinp
-		self.computespectrum()
+		# self.computespectrum()
 		return
 
 	@property
@@ -989,7 +1203,7 @@ class LeBail:
 	@W.setter
 	def W(self, Winp):
 		self._W = Winp
-		self.computespectrum()
+		# self.computespectrum()
 		return
 
 	@property
@@ -1007,7 +1221,7 @@ class LeBail:
 	@eta1.setter
 	def eta1(self, val):
 		self._eta1 = val
-		self.computespectrum()
+		# self.computespectrum()
 		return
 
 	@property
@@ -1017,7 +1231,7 @@ class LeBail:
 	@eta2.setter
 	def eta2(self, val):
 		self._eta2 = val
-		self.computespectrum()
+		# self.computespectrum()
 		return
 
 	@property
@@ -1027,7 +1241,7 @@ class LeBail:
 	@eta3.setter
 	def eta3(self, val):
 		self._eta3 = val
-		self.computespectrum()
+		# self.computespectrum()
 		return
 
 	@property
@@ -1041,7 +1255,7 @@ class LeBail:
 	@zero_error.setter
 	def zero_error(self, value):
 		self._zero_error = value
-		self.computespectrum()
+		# self.computespectrum()
 		return
 
 class Rietveld:
@@ -1337,7 +1551,7 @@ class Rietveld:
 					peak = self.PV
 
 				# peak = self.PV
-				peak_int = simps(peak)
+				peak_int = np.trapz(peak)
 
 				'''
 				integrated intensity is product of 
@@ -2068,7 +2282,7 @@ class Rietveld:
 			self._tth_list = tth_list
 
 			self.E  = self._pbspec[:,0]
-			self.ww = self._pbspec[:,1]/simps(self._pbspec[:,1])
+			self.ww = self._pbspec[:,1]/np.trapz(self._pbspec[:,1])
 			
 			self.Emean = np.average(self.E, weights=self.ww)
 			self.lambda_mean = self.hc / self.Emean
