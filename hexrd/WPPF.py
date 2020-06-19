@@ -942,7 +942,7 @@ class LeBail:
 		>> @DATE:     	05/20/2020 SS 1.0 original
 		>> @DETAILS:  	calculates the mixing factor eta
 		'''
-		self.eta = self.eta1 + self.eta2 * tth + self.eta3 * (tth*0.5)**2
+		self.eta = self.eta1 + self.eta2 * tth + self.eta3 * (tth)**2
 
 		if(self.eta > 1.0):
 			self.eta = 1.0
@@ -956,8 +956,15 @@ class LeBail:
 		>> @DATE:     	05/20/2020 SS 1.0 original
 		>> @DETAILS:  	this routine computes the gaussian peak profile
 		'''
-		beta = 0.5 * self.Hcag
-		self.GaussianI = np.exp( -((self.tth_list - tth)/beta)**2 * np.log(2.) )
+		'''
+		commenting out for now. implementing analytical expression for normalized 
+		peaks to save time 
+		'''
+		# beta = 0.5 * self.Hcag
+		# self.GaussianI = np.exp( -((self.tth_list - tth)/beta)**2 * np.log(2.) )
+		H  = self.Hcag
+		cg = 4.*np.log(2.)
+		self.GaussianI = (np.sqrt(cg/np.pi)/H) * np.exp( -cg * ((self.tth_list - tth)/H)**2 )
 
 	def Lorentzian(self, tth):
 		'''
@@ -965,8 +972,15 @@ class LeBail:
 		>> @DATE:     	05/20/2020 SS 1.0 original
 		>> @DETAILS:  	this routine computes the lorentzian peak profile
 		'''
-		w = 0.5 * self.Hcag
-		self.LorentzI = 1. / ( 1. + ((self.tth_list - tth)/w)**2)
+		'''
+		commenting out for now. implementing analytical expression for normalized 
+		peaks to save time 
+		'''
+		# w = 0.5 * self.Hcag
+		# self.LorentzI = 1. / ( 1. + ((self.tth_list - tth)/w)**2)
+		H = self.Hcag
+		cl = 4.
+		self.LorentzI = (2./np.pi/H) / ( 1. + cl*((self.tth_list - tth)/H)**2)
 
 	def PseudoVoight(self, tth):
 		'''
@@ -980,9 +994,6 @@ class LeBail:
 
 		self.PV = self.eta * self.GaussianI + \
 				  (1.0 - self.eta) * self.LorentzI
-
-		I = self.IntegratedIntensity()
-		self.PV /= I
 
 	def IntegratedIntensity(self):
 		'''
@@ -1100,20 +1111,20 @@ class LeBail:
 
 		err = (self.spectrum_sim - self.spectrum_expt)
 		self.err = err
+
 		errvec = self.weights*err._y**2
 
 		''' weighted sum of square '''
-		# wss =  np.sum(self.weights * err**2)
-		wss = np.trapz(self.weights*err._y**2, err._x)
+		wss = np.sum(self.weights * err._y**2)
 
-		# den = np.sum(self.weights * self.spectrum_sim.**2)
-		den = np.trapz(self.weights * self.spectrum_sim._y**2, self.spectrum_sim._x)
+		den = np.sum(self.weights * self.spectrum_sim._y**2)
 
 		''' standard Rwp i.e. weighted residual '''
 		Rwp = np.sqrt(wss/den)
 
 		''' number of observations to fit i.e. number of data points '''
 		N = self.spectrum_sim._y.shape[0]
+		
 		''' number of independent parameters in fitting '''
 		P = len(params)
 		Rexp = np.sqrt((N-P)/den)
