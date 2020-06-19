@@ -956,12 +956,7 @@ class LeBail:
 		>> @DATE:     	05/20/2020 SS 1.0 original
 		>> @DETAILS:  	this routine computes the gaussian peak profile
 		'''
-		'''
-		commenting out for now. implementing analytical expression for normalized 
-		peaks to save time 
-		'''
-		# beta = 0.5 * self.Hcag
-		# self.GaussianI = np.exp( -((self.tth_list - tth)/beta)**2 * np.log(2.) )
+
 		H  = self.Hcag
 		cg = 4.*np.log(2.)
 		self.GaussianI = (np.sqrt(cg/np.pi)/H) * np.exp( -cg * ((self.tth_list - tth)/H)**2 )
@@ -972,12 +967,7 @@ class LeBail:
 		>> @DATE:     	05/20/2020 SS 1.0 original
 		>> @DETAILS:  	this routine computes the lorentzian peak profile
 		'''
-		'''
-		commenting out for now. implementing analytical expression for normalized 
-		peaks to save time 
-		'''
-		# w = 0.5 * self.Hcag
-		# self.LorentzI = 1. / ( 1. + ((self.tth_list - tth)/w)**2)
+
 		H = self.Hcag
 		cl = 4.
 		self.LorentzI = (2./np.pi/H) / ( 1. + cl*((self.tth_list - tth)/H)**2)
@@ -989,9 +979,10 @@ class LeBail:
 		>> @DETAILS:  	this routine computes the pseudo-voight function as weighted 
 						average of gaussian and lorentzian
 		'''
+		self.CagliottiH(t)
 		self.Gaussian(tth)
 		self.Lorentzian(tth)
-
+		self.MixingFact(t)
 		self.PV = self.eta * self.GaussianI + \
 				  (1.0 - self.eta) * self.LorentzI
 
@@ -1022,9 +1013,8 @@ class LeBail:
 				n = np.min((tth.shape[0],Ic.shape[0]))
 
 				for i in range(n):
+
 					t = tth[i]
-					self.CagliottiH(t)
-					self.MixingFact(t)
 					self.PseudoVoight(t)
 
 					y += Ic[i] * self.PV
@@ -1124,7 +1114,7 @@ class LeBail:
 
 		''' number of observations to fit i.e. number of data points '''
 		N = self.spectrum_sim._y.shape[0]
-		
+
 		''' number of independent parameters in fitting '''
 		P = len(params)
 		Rexp = np.sqrt((N-P)/den)
