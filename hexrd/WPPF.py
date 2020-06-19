@@ -979,10 +979,11 @@ class LeBail:
 		>> @DETAILS:  	this routine computes the pseudo-voight function as weighted 
 						average of gaussian and lorentzian
 		'''
-		self.CagliottiH(t)
+		
+		self.CagliottiH(tth)
 		self.Gaussian(tth)
 		self.Lorentzian(tth)
-		self.MixingFact(t)
+		self.MixingFact(tth)
 		self.PV = self.eta * self.GaussianI + \
 				  (1.0 - self.eta) * self.LorentzI
 
@@ -1042,12 +1043,15 @@ class LeBail:
 
 				Iobs = []
 				n = np.min((tth.shape[0],Ic.shape[0]))
+
 				for i in range(n):
 					t = tth[i]
 					self.PseudoVoight(t)
+
 					y   = self.PV * Ic[i]
 					_,yo  = self.spectrum_expt.data
 					_,yc  = self.spectrum_sim.data
+
 					I = np.trapz(yo * y / yc, self.tth_list)
 					Iobs.append(I)
 
@@ -1121,7 +1125,7 @@ class LeBail:
 
 		# Rwp and goodness of fit parameters
 		self.Rwp = Rwp
-		self.gofF = Rwp / Rexp
+		self.gofF = (Rwp / Rexp)**2
 
 		return errvec
 
