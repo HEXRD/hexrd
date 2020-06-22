@@ -61,14 +61,24 @@ jobs:
       # command works.
       shell: bash -l {0}
 
-    - name: Upload the package to anaconda channel (upload only on master)
-      if: github.ref == 'refs/heads/master'
+    - name: Upload the package to anaconda channel ( tag push to master)
+      if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
       run: |
           conda activate hexrd
           anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --user HEXRD output/**/*.tar.bz2
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
       shell: bash -l {0}
+
+    - name: Upload the package to anaconda prerelease channel (upload push to master)
+      if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+      run: |
+          conda activate hexrd
+          anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --user HEXRD/label/hexrd-prerelease output/**/*.tar.bz2
+      # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
+      # command works.
+      shell: bash -l {0}
+
 
     - name: Get version for the artifact names
       id: describe
