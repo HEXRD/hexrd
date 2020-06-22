@@ -74,7 +74,7 @@ jobs:
       if: github.event_name == 'push' && github.ref == 'refs/heads/master'
       run: |
           conda activate hexrd
-          anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --user HEXRD/label/hexrd-prerelease output/**/*.tar.bz2
+          anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --user HEXRD --label hexrd-prerelease output/**/*.tar.bz2
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
       shell: bash -l {0}
