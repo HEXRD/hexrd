@@ -38,12 +38,24 @@ class RootConfig(Config):
 
     @property
     def instrument(self):
-        instr_file = self.get('instrument')
-        return Instrument(instr_file)
+        if not hasattr(self, '_instr_config'):
+            instr_file = self.get('instrument')
+            self._instr_config = Instrument(instr_file)
+        return self._instr_config
+
+    @instrument.setter
+    def instrument(self, instr_config):
+        self._instr_config = instr_config
 
     @property
     def material(self):
-        return MaterialConfig(self)
+        if not hasattr(self, '_material_config'):
+            self._material_config = MaterialConfig(self)
+        return self._material_config
+
+    @material.setter
+    def material(self, material_config):
+        self._material_config = material_config
 
     @property
     def analysis_id(self):
@@ -149,3 +161,7 @@ class RootConfig(Config):
                 self._image_dict[panel] = oms
 
         return self._image_dict
+
+    @image_series.setter
+    def image_series(self, ims_dict):
+        self._image_dict = ims_dict

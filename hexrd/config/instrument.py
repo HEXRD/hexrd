@@ -8,11 +8,8 @@ from hexrd import instrument
 class Instrument(Config):
     """Handle HEDM instrument config."""
 
-    def __init__(self, instr_file):
+    def __init__(self, instr_file=None):
         self._configuration = instr_file
-        with open(instr_file, 'r') as f:
-            icfg = yaml.safe_load(f)
-        self._hedm = instrument.HEDMInstrument(icfg)
 
     # Note: instrument is instantiated with a yaml dictionary; use self
     #       to instantiate classes based on this one
@@ -24,6 +21,10 @@ class Instrument(Config):
     @property
     def hedm(self):
         """Return the HEDMInstrument class."""
+        if not hasattr(self, '_hedm'):
+            with open(self.configuration, 'r') as f:
+                icfg = yaml.safe_load(f)
+            self._hedm = instrument.HEDMInstrument(icfg)
         return self._hedm
 
     @hedm.setter
