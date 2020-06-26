@@ -1,3 +1,4 @@
+// Taken from astropy
 #ifndef CONVOLVE_INCLUDE
 #define CONVOLVE_INCLUDE
 

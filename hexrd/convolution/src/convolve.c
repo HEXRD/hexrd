@@ -1,4 +1,5 @@
-// Licensed under a 3-clause BSD style license - see LICENSE.rst
+// Taken from astropy
+// Licensed under a 3-clause BSD style license
 
 /*----------------------------- WARNING! -----------------------------
  * The C functions below are NOT designed to be called externally to
