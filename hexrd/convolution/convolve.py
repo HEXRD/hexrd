@@ -9,7 +9,6 @@ from functools import partial
 import numpy as np
 from numpy.ctypeslib import ndpointer, load_library
 
-from .core import Kernel, Kernel1D, Kernel2D, MAX_NORMALIZATION
 from .utils import KernelSizeError, has_even_axis, raise_even_kernel_exception
 
 LIBRARY_PATH = os.path.dirname(__file__)
@@ -46,11 +45,10 @@ __doctest_skip__ = ['*']
 
 BOUNDARY_OPTIONS = [None, 'fill', 'wrap', 'extend']
 
+MAX_NORMALIZATION = 100
 
 def _copy_input_if_needed(input, dtype=float, order='C', nan_treatment=None,
                           mask=None, fill_value=None):
-    # Alias input
-    input = input.array if isinstance(input, Kernel) else input
     # strip quantity attributes
     if hasattr(input, 'unit'):
         input = input.value
@@ -209,20 +207,6 @@ def convolve(array, kernel, boundary='fill', fill_value=0.,
     if has_even_axis(kernel_internal):
         raise_even_kernel_exception()
 
-    # If both image array and kernel are Kernel instances
-    # constrain convolution method
-    # This must occur before the main alias/copy of ``passed_kernel`` to
-    # ``kernel_internal`` as it is used for filling masked kernels.
-    if isinstance(passed_array, Kernel) and isinstance(passed_kernel, Kernel):
-        warnings.warn("Both array and kernel are Kernel instances, hardwiring "
-                      "the following parameters: boundary='fill', fill_value=0,"
-                      " normalize_Kernel=True, nan_treatment='interpolate'",
-                      AstropyUserWarning)
-        boundary = 'fill'
-        fill_value = 0
-        normalize_kernel = True
-        nan_treatment = 'interpolate'
-
     # -----------------------------------------------------------------------
     # From this point onwards refer only to ``array_internal`` and
     # ``kernel_internal``.
@@ -339,25 +323,13 @@ def convolve(array, kernel, boundary='fill', fill_value=0.,
         warnings.warn("nan_treatment='interpolate', however, NaN values detected "
                       "post convolution. A contiguous region of NaN values, larger "
                       "than the kernel size, are present in the input array. "
-                      "Increase the kernel size to avoid this.", AstropyUserWarning)
+                      "Increase the kernel size to avoid this.")
 
     if preserve_nan:
         result[initially_nan] = np.nan
 
     # Convert result to original data type
-    if isinstance(passed_array, Kernel):
-        if isinstance(passed_array, Kernel1D):
-            new_result = Kernel1D(array=result)
-        elif isinstance(passed_array, Kernel2D):
-            new_result = Kernel2D(array=result)
-        else:
-            raise TypeError("Only 1D and 2D Kernels are supported.")
-        new_result._is_bool = False
-        new_result._separable = passed_array._separable
-        if isinstance(passed_kernel, Kernel):
-            new_result._separable = new_result._separable and passed_kernel._separable
-        return new_result
-    elif array_dtype.kind == 'f':
+    if array_dtype.kind == 'f':
         # Try to preserve the input type if it's a floating point type
         # Avoid making another copy if possible
         try:
