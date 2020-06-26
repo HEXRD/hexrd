@@ -6,9 +6,7 @@ import numpy as np
 
 from .core import Kernel1D, Kernel2D, Kernel
 from .utils import has_even_axis, raise_even_kernel_exception
-from astropy.modeling import models
-from astropy.modeling.core import Fittable1DModel, Fittable2DModel
-from astropy.utils.decorators import deprecated
+
 
 __all__ = ['Gaussian1DKernel', 'Gaussian2DKernel', 'CustomKernel',
            'Box1DKernel', 'Box2DKernel', 'Tophat2DKernel',
@@ -1035,13 +1033,3 @@ class CustomKernel(Kernel):
         self._is_bool = bool(np.all(np.logical_or(ones, zeros)))
 
         self._truncation = 0.0
-
-
-@deprecated('4.0', alternative='RickerWavelet1DKernel')
-class MexicanHat1DKernel(RickerWavelet1DKernel):
-    pass
-
-
-@deprecated('4.0', alternative='RickerWavelet2DKernel')
-class MexicanHat2DKernel(RickerWavelet2DKernel):
-    pass
