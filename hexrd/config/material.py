@@ -31,8 +31,19 @@ class MaterialConfig(Config):
     @property
     def plane_data(self):
         """Return the active material PlaneData class."""
-        with open(self.definitions, "rb") as matf:
-            mat_list = cpl.load(matf)
-        return dict(
-            zip([i.name for i in mat_list], mat_list)
-        )[self.active].planeData
+        return self.materials[self.active].planeData
+
+    @property
+    def materials(self):
+        """Return a dict of materials."""
+        if not hasattr(self, '_materials'):
+            with open(self.definitions, "rb") as matf:
+                mat_list = cpl.load(matf)
+            self._materials = dict(
+                zip([i.name for i in mat_list], mat_list)
+            )
+        return self._materials
+
+    @materials.setter
+    def materials(self, mats):
+        self._materials = mats
