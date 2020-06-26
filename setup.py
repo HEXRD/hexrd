@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
+import sys
 from setuptools import setup, find_packages, Extension
+from pathlib import Path
 
 import numpy
 np_include_dir = os.path.join(numpy.get_include(), 'numpy')
@@ -19,6 +21,25 @@ install_reqs = [
 # only added it if we aren't buildding with conda.
 if os.environ.get('CONDA_BUILD') != '1':
     install_reqs.append('scikit-image')
+
+
+# extension for convolution from astropy
+def get_convolution_extensions():
+    c_convolve_pkgdir = Path(__file__).parent / 'hexrd' / 'convolution'
+
+    src_files = [str(c_convolve_pkgdir / 'src/convolve.c')]
+
+    extra_compile_args=['-UNDEBUG']
+    if not sys.platform.startswith('win'):
+        extra_compile_args.append('-fPIC')
+    # Add '-Rpass-missed=.*' to ``extra_compile_args`` when compiling with clang
+    # to report missed optimizations
+    _convolve_ext = Extension(name='hexrd.convolution._convolve', sources=src_files,
+                              extra_compile_args=extra_compile_args,
+                              include_dirs=[numpy.get_include()],
+                              language='c')
+
+    return [_convolve_ext]
 
 def get_extension_modules():
     # for SgLite
@@ -44,7 +65,7 @@ def get_extension_modules():
         include_dirs=[np_include_dir]
         )
 
-    return [sglite_mod, transforms_mod]
+    return [sglite_mod, transforms_mod] + get_convolution_extensions()
 
 ext_modules = get_extension_modules()
 
