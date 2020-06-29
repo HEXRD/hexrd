@@ -351,13 +351,15 @@ def MakeGenerators(genstr, setting):
     genmat = mat
 
     # genmat[0,:,:] = constants.SYM_GENERATORS['a']
+    centrosymmetric = False
 
     # check if space group has inversion symmetry
     if(genstr[0] == '1'):
         t = 'hOOO'
         mat = SYM_fillgen(t)
         genmat = np.concatenate((genmat, mat))
-
+        centrosymmetric = True
+        
     n = int(genstr[1])
     if(n > 0):
         for i in range(n):
@@ -384,7 +386,7 @@ def MakeGenerators(genstr, setting):
             for i in genmat.shape[0]:
                 genmat[0:3,3] -= trans
 
-    return genmat
+    return genmat, centrosymmetric
 
 def SYM_fillgen(t):
     mat = np.zeros([4,4])
@@ -406,8 +408,10 @@ def GenerateSGSym(sgnum, setting=0):
     generator string
     '''
     genstr = GeneratorString(sgnum)
-    genmat = MakeGenerators(genstr, setting)
-
+    genmat, centrosymmetric = MakeGenerators(genstr, setting)
+    symmorphic = False
+    if(sgnum in constants.sgnum_symmorphic):
+        symmorphic = True
     '''
     use the generator string to get the rest of the
     factor group
@@ -452,8 +456,14 @@ def GenerateSGSym(sgnum, setting=0):
         k1 += 1
 
     SYM_PG_d = GeneratePGSym(SYM_SG)
+    SYM_PG_d_laue = GeneratePGSym_Laue(SYM_PG_d)
 
-    return SYM_SG, SYM_PG_d
+    for s in SYM_PG_d:
+        if(np.allclose(-np.eye(3),s)):
+            centrosymmetric = True
+        
+
+    return SYM_SG, SYM_PG_d, SYM_PG_d_laue, centrosymmetric, symmorphic
 
 def GeneratePGSym(SYM_SG):
     '''
@@ -481,8 +491,59 @@ def GeneratePGSym(SYM_SG):
         elif(isnew(g,SYM_PG_d)):
             g = np.broadcast_to(g,[1,3,3])
             SYM_PG_d = np.concatenate((SYM_PG_d, g))
-            
-    return SYM_PG_d
+    
+    return SYM_PG_d.astype(np.int32)
+
+def GeneratePGSym_Laue(SYM_PG_d):
+    '''
+    generate the laue group symmetry for the given set of 
+    point group symmetry matrices. this function just adds
+    the inversion symmetry and goes through the group action
+    to generate the entire laue group for the direct point 
+    point group matrices
+    '''
+
+    '''
+    first check if the group already has the inversion symmetry
+    '''
+    for s in SYM_PG_d:
+        if(np.allclose(s,-np.eye(3))):
+            return SYM_PG_d
+
+    '''
+    if we get here, then the inversion symmetry is not present
+    add the inversion symmetry
+    '''
+    SYM_PG_d_laue = SYM_PG_d
+    g = np.broadcast_to(-np.eye(3).astype(np.int32),[1,3,3])
+    SYM_PG_d_laue = np.concatenate((SYM_PG_d_laue, g))
+
+    '''
+    now go through the group actions and see if its a new matrix
+    if it is then add it to the group
+    '''
+    nsym = SYM_PG_d_laue.shape[0]
+    k1 = 0
+    while k1 < nsym:
+        g1 = np.squeeze(SYM_PG_d_laue[k1,:,:])
+        k2 = k1
+        while k2 < nsym:
+            g2 = np.squeeze(SYM_PG_d_laue[k2,:,:])
+            gnew = np.dot(g1, g2)
+
+            if(isnew(gnew, SYM_PG_d_laue)):
+                gnew = np.broadcast_to(gnew, [1,3,3])
+                SYM_PG_d_laue = np.concatenate((SYM_PG_d_laue, gnew))
+                nsym += 1
+
+                if (nsym >= 48):
+                    k2 = nsym
+                    k1 = nsym
+
+            k2 += 1
+        k1 += 1
+
+    return SYM_PG_d_laue
 
 def isnew(mat, sym_mats):
     isnew = True
@@ -492,3 +553,22 @@ def isnew(mat, sym_mats):
             isnew = False
             break
     return isnew
+
+def latticeType(sgnum):
+
+    if(sgnum <= 2):
+        return 'triclinic'
+    elif(sgnum > 2 and sgnum <= 15):
+        return 'monoclinic'
+    elif(sgnum > 15 and sgnum <= 74):
+        return 'orthorhombic'
+    elif(sgnum > 74 and sgnum <= 142):
+        return 'tetragonal'
+    elif(sgnum > 142 and sgnum <= 161):
+        return 'trigonal'
+    elif(sgnum > 161 and sgnum <= 194):
+        return 'hexagonal'
+    elif(sgnum > 194 and sgnum <=230):
+        return 'cubic'
+    else:
+        raise RuntimeError('symmetry.latticeType: unknown space group number')

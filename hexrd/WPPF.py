@@ -5,7 +5,7 @@ from hexrd.crystallography import PlaneData
 from hexrd.material import Material
 from hexrd.valunits import valWUnit
 from hexrd import spacegroup as SG
-# from scipy.optimize import minimize, Bounds, shgo, least_squares
+from hexrd import symmetry, symbols
 import lmfit
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
@@ -16,7 +16,6 @@ from os import path
 import pickle
 import time
 import h5py
-import numba
 
 class Parameters:
 	''' ======================================================================================================== 
@@ -553,10 +552,17 @@ class Phases:
 
 class Material_LeBail:
 
-	def __init__(self, fhdf, xtal):
+	def __init__(self, fhdf, xtal, dmin):
 
+		self.dmin = dmin.value
 		self._readHDF(fhdf, xtal)
 		self._calcrmt()
+
+		_, self.SYM_PG_d, self.centrosymmetric, self.symmorphic = \
+		symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
+		self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum-1].strip()
+		self.GenerateRecipPGSym()
+		self.CalcMaxGIndex()
 		self.SG = SG.SpaceGroup(self.sgnum)
 		self._calchkls()
 
@@ -566,8 +572,8 @@ class Material_LeBail:
 		# if(fexist):
 		fid = h5py.File(fhdf, 'r')
 		xtal = "/"+xtal
-		# if xtal not in fid:
-		# 	raise IOError('crystal doesn''t exist in material file.')
+		if xtal not in fid:
+			raise IOError('crystal doesn''t exist in material file.')
 		# else:
 		# 	raise IOError('material file does not exist.')
 
@@ -575,6 +581,9 @@ class Material_LeBail:
 
 		self.sgnum       = np.asscalar(np.array(gid.get('SpaceGroupNumber'), \
 									 dtype = np.int32))
+		self.sgsetting = np.asscalar(np.array(gid.get('SpaceGroupSetting'), \
+                                        dtype = np.int32))
+		self.sgsetting -= 1
 		""" 
 		    IMPORTANT NOTE:
 		    note that the latice parameters in EMsoft is nm by default
@@ -621,12 +630,27 @@ class Material_LeBail:
 
 	def _calchkls(self):
 		self.hkls = np.array(self.SG.getHKLs(100))
+		# self.hkls = self.getHKLs()
+
+	''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
+	def CalcLength(self, u, space):
+
+		if(space =='d'):
+			vlen = np.sqrt(np.dot(u, np.dot(self.dmt, u)))
+		elif(space =='r'):
+			vlen = np.sqrt(np.dot(u, np.dot(self.rmt, u)))
+		elif(spec =='c'):
+			vlen = np.linalg.norm(u)
+		else:
+			raise ValueError('incorrect space argument')
+
+		return vlen
 
 	def getTTh(self, wavelength):
 
 		tth = []
 		for g in self.hkls:
-			glen = np.sqrt(np.dot(g,np.dot(self.rmt,g)))
+			glen = self.CalcLength(g,'r')
 			sth = glen*wavelength/2.
 			if(np.abs(sth) <= 1.0):
 				t = 2. * np.degrees(np.arcsin(sth))
@@ -634,6 +658,163 @@ class Material_LeBail:
 
 		tth = np.array(tth)
 		return tth
+
+	def GenerateRecipPGSym(self):
+
+		self.SYM_PG_d[np.abs(self.SYM_PG_d) < 1E-6] = 0.
+
+		self.SYM_PG_r = self.SYM_PG_d[0,:,:]
+		self.SYM_PG_r = np.broadcast_to(self.SYM_PG_r,[1,3,3])
+
+		for i in range(1,self.SYM_PG_d.shape[0]):
+			g = self.SYM_PG_d[i,:,:]
+			g = np.dot(self.dmt,np.dot(g,self.rmt))
+			g = np.broadcast_to(g,[1,3,3])
+			self.SYM_PG_r = np.concatenate((self.SYM_PG_r,g))
+
+		self.SYM_PG_r[np.abs(self.SYM_PG_r) < 1E-6] = 0.
+
+	def CalcMaxGIndex(self):
+		self.ih = 1
+		while (1.0 / self.CalcLength(np.array([self.ih, 0, 0], dtype=np.float64), 'r') > self.dmin):
+			self.ih = self.ih + 1
+		self.ik = 1
+		while (1.0 / self.CalcLength(np.array([0, self.ik, 0], dtype=np.float64), 'r') > self.dmin):
+			self.ik = self.ik + 1
+		self.il = 1
+		while (1.0 / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64),'r') > self.dmin):
+			self.il = self.il + 1
+
+	def CalcStar(self,v,space):
+		'''
+		this function calculates the symmetrically equivalent hkls (or uvws)
+		for the reciprocal (or direct) point group symmetry.
+		'''
+		if(space == 'd'):
+			sym = self.SYM_PG_d
+		elif(space == 'r'):
+			sym = self.SYM_PG_r
+		else:
+			raise ValueError('CalcStar: unrecognized space.')
+
+		vsym = np.atleast_2d(v)
+		for s in sym:
+			vp = np.dot(s,v)
+			# check if this is new
+			isnew = True
+			for vec in vsym:
+
+				if(np.sum(np.abs(vp - vec)) < 1E-4):
+					isnew = False
+					break
+			if(isnew):
+				vsym = np.vstack((vsym, vp))
+
+		return vsym
+
+	def Allowed_HKLs(self, hkllist):
+		'''
+		this function checks if a particular g vector is allowed
+		by lattice centering, screw axis or glide plane
+		'''
+		hkllist = np.atleast_2d(hkllist)
+
+		centering = self.sg_hmsymbol[0]
+
+		if(centering == 'P'):
+			# all reflections are allowed
+			mask = np.ones([hkllist.shape[0],],dtype=np.bool)
+
+		elif(centering == 'F'):
+			# same parity
+			seo = np.sum(np.mod(hkllist+100,2),axis=1)
+			mask = np.logical_not(np.logical_or(seo == 1, seo == 2))
+
+		elif(centering == 'I'):
+			# sum is even
+			seo = np.mod(np.sum(hkllist,axis=1)+100,2)
+			mask = (seo == 0)
+			
+
+		elif(centering == 'A'):
+			# k+l is even
+			seo = np.mod(np.sum(hkllist[:,1:3],axis=1)+100,2)
+			mask = seo == 0
+
+		elif(centering == 'B'):
+			# h+l is even
+			seo = np.mod(hkllist[:,0]+hkllist[:,2]+100,2)
+			mask = seo == 0
+
+		elif(centering == 'C'):
+			# h+k is even
+			seo = np.mod(np.sum(hkllist[:,1:3],axis=1)+100,2)
+			mask = seo == 0
+
+		elif(centering == 'R'):
+			# -h+k+l is divisible by 3
+			seo = np.mod(-hkllist[:,0]+hkllist[:,1]+hkllist[:,2]+90,3)
+			mask = seo == 0
+		else:
+			raise RunTimeError('IsGAllowed: unknown lattice centering encountered.')
+
+		hkls = hkllist[mask,:]
+		return hkls
+
+	def getHKLs(self):
+		'''
+		this function generates the symetrically unique set of 
+		hkls up to a given dmin.
+		dmin is in nm
+		'''
+		dmin = self.dmin
+		if(self.centrosymmetric):
+			hmin = -1
+			hmax = self.ih
+			kmin = -1
+			kmax = self.ik
+			lmin = -1
+			lmax = self.il
+		else:
+			hmin = -self.ih-1
+			hmax = self.ih
+			kmin = -self.ik-1
+			kmax = self.ik
+			lmin = -self.il-1
+			lmax = self.il
+
+		hkllist = np.array([[ih, ik, il] for ih in np.arange(hmax,hmin,-1) \
+				  for ik in np.arange(kmax,kmin,-1) \
+				  for il in np.arange(lmax,lmin,-1)])
+
+		hkl_allowed = self.Allowed_HKLs(hkllist)
+
+		hkl = []
+		dsp = []
+		for g in hkl_allowed:
+
+			# ignore [0 0 0] as it is the direct beam
+			if(np.sum(np.abs(g)) != 0):
+
+				dspace = 1./self.CalcLength(g,'r')
+
+				if(dspace >= dmin):
+
+					symhkl = self.CalcStar(g,'r')
+					toadd = True
+					i = np.argmax(np.sum(symhkl,axis=1))
+					toadd_g = symhkl[i,:]
+
+					if(np.any(np.array([np.sum(np.abs(symg-gg)) for symg in symhkl for gg in hkl]) < 1E-4)):
+						toadd = False
+					if(toadd):
+						dsp.append(dspace)
+						hkl.append(toadd_g)
+
+		dsp = np.array(dsp)
+		isort = np.argsort(dsp)[::-1]
+
+		return np.array(hkl)[isort,:]
 
 class Phases_LeBail:
 	''' ======================================================================================================== 
@@ -655,13 +836,15 @@ class Phases_LeBail:
 		return valWUnit('lp', 'length', x, 'nm')
 
 	def __init__(self, material_file=None, 
-				 material_keys=None, 
+				 material_keys=None,
+				 dmin = _nm(0.075),
 				 wavelength={'alpha1':_nm(0.15406),'alpha2':_nm(0.154443)}
 				 ):
 
 		self.phase_dict = {}
 		self.num_phases = 0
 		self.wavelength = wavelength
+		self.dmin = dmin
 
 		if(material_file is not None):
 			if(material_keys is not None):
@@ -708,13 +891,13 @@ class Phases_LeBail:
 
 	def add(self, material_file, material_key):
 
-		self[material_key] = Material_LeBail(material_file, material_key)
+		self[material_key] = Material_LeBail(material_file, material_key, dmin=self.dmin)
 
 	def add_many(self, material_file, material_keys):
 		
 		for k in material_keys:
 
-			self[k] = Material_LeBail(material_file, k)
+			self[k] = Material_LeBail(material_file, k, dmin=self.dmin)
 
 			self.num_phases += 1
 
@@ -979,7 +1162,7 @@ class LeBail:
 		>> @DETAILS:  	this routine computes the pseudo-voight function as weighted 
 						average of gaussian and lorentzian
 		'''
-		
+
 		self.CagliottiH(tth)
 		self.Gaussian(tth)
 		self.Lorentzian(tth)
@@ -1103,15 +1286,14 @@ class LeBail:
 
 		self.computespectrum()
 
-		err = (self.spectrum_sim - self.spectrum_expt)
-		self.err = err
+		self.err = (self.spectrum_sim - self.spectrum_expt)
 
-		errvec = self.weights*err._y**2
+		errvec = np.sqrt(self.weights * self.err._y**2)
 
 		''' weighted sum of square '''
-		wss = np.sum(self.weights * err._y**2)
+		wss = np.trapz(self.weights * self.err._y**2, self.err._x)
 
-		den = np.sum(self.weights * self.spectrum_sim._y**2)
+		den = np.trapz(self.weights * self.spectrum_sim._y**2, self.spectrum_sim._x)
 
 		''' standard Rwp i.e. weighted residual '''
 		Rwp = np.sqrt(wss/den)
