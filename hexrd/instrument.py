@@ -45,7 +45,6 @@ from scipy.linalg.matfuncs import logm
 
 from hexrd.gridutil import cellIndices, make_tolerance_grid
 from hexrd import matrixutil as mutil
-from hexrd.valunits import valWUnit
 from hexrd.transforms.xfcapi import \
     anglesToGVec, \
     angularDifference, \
@@ -3016,26 +3015,5 @@ class GenerateEtaOmeMaps(object):
         return self._omegas
 
     def save(self, filename):
-        """
-        self.dataStore
-        self.planeData
-        self.iHKLList
-        self.etaEdges
-        self.omeEdges
-        self.etas
-        self.omegas
-        """
-        args = np.array(self.planeData.getParams())[:4]
-        args[2] = valWUnit('wavelength', 'length', args[2], 'angstrom')
-        hkls = self.planeData.hkls
-        save_dict = {'dataStore': self.dataStore,
-                     'etas': self.etas,
-                     'etaEdges': self.etaEdges,
-                     'iHKLList': self.iHKLList,
-                     'omegas': self.omegas,
-                     'omeEdges': self.omeEdges,
-                     'planeData_args': args,
-                     'planeData_hkls': hkls}
-        np.savez_compressed(filename, **save_dict)
-        return
+        xrdutil.EtaOmeMaps.save_eta_ome_maps(self, filename)
     pass  # end of class: GenerateEtaOmeMaps
