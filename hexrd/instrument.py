@@ -32,6 +32,7 @@ Created on Fri Dec  9 13:05:27 2016
 """
 import os
 from concurrent.futures import ThreadPoolExecutor
+import functools
 
 import yaml
 
@@ -800,8 +801,8 @@ class HEDMInstrument(object):
                     # histogram intensities over eta ranges
                     for i_row, image in enumerate(imgser_dict[det_key]):
                         if fast_histogram:
-                            def _on_done(future):
-                                this_map[i_row, reta_idx] = future.result()
+                            def _on_done(map, row, reta, future):
+                                map[row, reta] = future.result()
 
                             f = tp.submit(histogram1d,
                                           retas,
@@ -809,17 +810,17 @@ class HEDMInstrument(object):
                                           (eta_bins[0], eta_bins[-1]),
                                           weights=image[rtth_idx]
                             )
-                            f.add_done_callback(_on_done)
+                            f.add_done_callback(functools.partial(_on_done, this_map, i_row, reta_idx))
                         else:
-                            def _on_done(future):
-                                this_map[i_row, reta_idx],_ = future.result()
+                            def _on_done(map, row, reta, future):
+                                map[row, reta],_ = future.result()
 
                             f = tp.submit(histogram1d,
                                           retas,
                                           bins=eta_bins,
                                           weights=image[rtth_idx]
                             )
-                            f.add_done_callback(_on_done)
+                            f.add_done_callback(functools.partial(_on_done, this_map, i_row, reta_idx))
 
                         pass    # end loop on rows
                     ring_maps.append(this_map)
