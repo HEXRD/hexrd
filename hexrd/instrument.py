@@ -31,6 +31,7 @@ Created on Fri Dec  9 13:05:27 2016
 @author: bernier2
 """
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 import yaml
 
@@ -686,133 +687,144 @@ class HEDMInstrument(object):
         # eta_tol_vec = 0.5*np.radians([-eta_tol, eta_tol])
 
         ring_maps_panel = dict.fromkeys(self.detectors)
-        for i_d, det_key in enumerate(self.detectors):
-            print("working on detector '%s'..." % det_key)
+        with ThreadPoolExecutor(max_workers=os.cpu_count()) as tp:
+            for i_d, det_key in enumerate(self.detectors):
+                print("working on detector '%s'..." % det_key)
 
-            # grab panel
-            panel = self.detectors[det_key]
-            # native_area = panel.pixel_area  # pixel ref area
+                # grab panel
+                panel = self.detectors[det_key]
+                # native_area = panel.pixel_area  # pixel ref area
 
-            # make rings clipped to panel
-            # !!! eta_idx has the same length as plane_data.exclusions
-            #       each entry are the integer indices into the bins
-            # !!! eta_edges is the list of eta bin EDGES
-            pow_angs, pow_xys, eta_idx, eta_edges = panel.make_powder_rings(
-                plane_data,
-                merge_hkls=False, delta_eta=eta_tol,
-                full_output=True)
-            delta_eta = eta_edges[1] - eta_edges[0]
+                # make rings clipped to panel
+                # !!! eta_idx has the same length as plane_data.exclusions
+                #       each entry are the integer indices into the bins
+                # !!! eta_edges is the list of eta bin EDGES
+                pow_angs, pow_xys, eta_idx, eta_edges = panel.make_powder_rings(
+                    plane_data,
+                    merge_hkls=False, delta_eta=eta_tol,
+                    full_output=True)
+                delta_eta = eta_edges[1] - eta_edges[0]
 
-            # pixel angular coords for the detector panel
-            ptth, peta = panel.pixel_angles()
+                # pixel angular coords for the detector panel
+                ptth, peta = panel.pixel_angles()
 
-            # grab omegas from imageseries and squawk if missing
-            try:
-                omegas = imgser_dict[det_key].metadata['omega']
-            except(KeyError):
-                msg = "imageseries for '%s' has no omega info" % det_key
-                raise RuntimeError(msg)
+                # grab omegas from imageseries and squawk if missing
+                try:
+                    omegas = imgser_dict[det_key].metadata['omega']
+                except(KeyError):
+                    msg = "imageseries for '%s' has no omega info" % det_key
+                    raise RuntimeError(msg)
 
-            # initialize maps and assing by row (omega/frame)
-            nrows_ome = len(omegas)
-            ncols_eta = len(eta_edges) - 1
+                # initialize maps and assing by row (omega/frame)
+                nrows_ome = len(omegas)
+                ncols_eta = len(eta_edges) - 1
 
-            ring_maps = []
-            for i_r, tthr in enumerate(tth_ranges):
-                print("working on ring %d..." % i_r)
+                ring_maps = []
+                for i_r, tthr in enumerate(tth_ranges):
+                    print("working on ring %d..." % i_r)
 
-                # init map with NaNs
-                this_map = np.nan*np.ones((nrows_ome, ncols_eta))
+                    # init map with NaNs
+                    this_map = np.nan*np.ones((nrows_ome, ncols_eta))
 
-                # mark pixels in the spec'd tth range
-                pixels_in_tthr = np.logical_and(
-                    ptth >= tthr[0], ptth <= tthr[1]
-                )
-
-                # catch case where ring isn't on detector
-                if not np.any(pixels_in_tthr):
-                    ring_maps.append(this_map)
-                    continue
-
-                # ???: faster to index with bool or use np.where,
-                # or recode in numba?
-                rtth_idx = np.where(pixels_in_tthr)
-
-                # grab relevant eta coords using histogram
-                # !!!: This allows use to calculate arc length and
-                #      detect a branch cut.  The histogram idx var
-                #      is the left-hand edges...
-                retas = peta[rtth_idx]
-                if fast_histogram:
-                    reta_hist = histogram1d(
-                        retas,
-                        len(eta_edges) - 1,
-                        (eta_edges[0], eta_edges[-1])
+                    # mark pixels in the spec'd tth range
+                    pixels_in_tthr = np.logical_and(
+                        ptth >= tthr[0], ptth <= tthr[1]
                     )
-                else:
-                    reta_hist, _ = histogram1d(retas, bins=eta_edges)
-                reta_idx = np.where(reta_hist)[0]
-                reta_bin_idx = np.hstack(
-                    [reta_idx,
-                     reta_idx[-1] + 1]
-                )
 
-                # ring arc lenght on panel
-                arc_length = angularDifference(
-                    eta_edges[reta_bin_idx[0]],
-                    eta_edges[reta_bin_idx[-1]]
-                )
+                    # catch case where ring isn't on detector
+                    if not np.any(pixels_in_tthr):
+                        ring_maps.append(this_map)
+                        continue
 
-                # Munge eta bins
-                # !!! need to work with the subset to preserve
-                #     NaN values at panel extents!
-                #
-                # !!! MUST RE-MAP IF BRANCH CUT IS IN RANGE
-                #
-                # The logic below assumes that eta_edges span 2*pi to
-                # single precision
-                eta_bins = eta_edges[reta_bin_idx]
-                if arc_length < 1e-4:
-                    # have branch cut in here
-                    ring_gap = np.where(
-                        reta_idx
-                        - np.arange(len(reta_idx))
-                    )[0]
-                    if len(ring_gap) > 0:
-                        # have incomplete ring
-                        eta_stop_idx = ring_gap[0]
-                        eta_stop = eta_edges[eta_stop_idx]
-                        new_period = np.cumsum([eta_stop, 2*np.pi])
-                        # remap
-                        retas = mapAngle(retas, new_period)
-                        tmp_bins = mapAngle(eta_edges[reta_idx], new_period)
-                        tmp_idx = np.argsort(tmp_bins)
-                        reta_idx = reta_idx[np.argsort(tmp_bins)]
-                        eta_bins = np.hstack(
-                            [tmp_bins[tmp_idx],
-                             tmp_bins[tmp_idx][-1] + delta_eta]
-                        )
-                        pass
-                    pass
-                # histogram intensities over eta ranges
-                for i_row, image in enumerate(imgser_dict[det_key]):
+                    # ???: faster to index with bool or use np.where,
+                    # or recode in numba?
+                    rtth_idx = np.where(pixels_in_tthr)
+
+                    # grab relevant eta coords using histogram
+                    # !!!: This allows use to calculate arc length and
+                    #      detect a branch cut.  The histogram idx var
+                    #      is the left-hand edges...
+                    retas = peta[rtth_idx]
                     if fast_histogram:
-                        this_map[i_row, reta_idx] = histogram1d(
+                        reta_hist = histogram1d(
                             retas,
-                            len(eta_bins) - 1,
-                            (eta_bins[0], eta_bins[-1]),
-                            weights=image[rtth_idx]
+                            len(eta_edges) - 1,
+                            (eta_edges[0], eta_edges[-1])
                         )
                     else:
-                        this_map[i_row, reta_idx], _ = histogram1d(
-                            retas,
-                            bins=eta_bins,
-                            weights=image[rtth_idx]
-                        )
-                    pass    # end loop on rows
-                ring_maps.append(this_map)
-                pass    # end loop on rings
-            ring_maps_panel[det_key] = ring_maps
+                        reta_hist, _ = histogram1d(retas, bins=eta_edges)
+                    reta_idx = np.where(reta_hist)[0]
+                    reta_bin_idx = np.hstack(
+                        [reta_idx,
+                        reta_idx[-1] + 1]
+                    )
+
+                    # ring arc lenght on panel
+                    arc_length = angularDifference(
+                        eta_edges[reta_bin_idx[0]],
+                        eta_edges[reta_bin_idx[-1]]
+                    )
+
+                    # Munge eta bins
+                    # !!! need to work with the subset to preserve
+                    #     NaN values at panel extents!
+                    #
+                    # !!! MUST RE-MAP IF BRANCH CUT IS IN RANGE
+                    #
+                    # The logic below assumes that eta_edges span 2*pi to
+                    # single precision
+                    eta_bins = eta_edges[reta_bin_idx]
+                    if arc_length < 1e-4:
+                        # have branch cut in here
+                        ring_gap = np.where(
+                            reta_idx
+                            - np.arange(len(reta_idx))
+                        )[0]
+                        if len(ring_gap) > 0:
+                            # have incomplete ring
+                            eta_stop_idx = ring_gap[0]
+                            eta_stop = eta_edges[eta_stop_idx]
+                            new_period = np.cumsum([eta_stop, 2*np.pi])
+                            # remap
+                            retas = mapAngle(retas, new_period)
+                            tmp_bins = mapAngle(eta_edges[reta_idx], new_period)
+                            tmp_idx = np.argsort(tmp_bins)
+                            reta_idx = reta_idx[np.argsort(tmp_bins)]
+                            eta_bins = np.hstack(
+                                [tmp_bins[tmp_idx],
+                                tmp_bins[tmp_idx][-1] + delta_eta]
+                            )
+                            pass
+                        pass
+                    # histogram intensities over eta ranges
+                    for i_row, image in enumerate(imgser_dict[det_key]):
+                        if fast_histogram:
+                            def _on_done(future):
+                                this_map[i_row, reta_idx] = future.result()
+
+                            f = tp.submit(histogram1d,
+                                          retas,
+                                          len(eta_bins) - 1,
+                                          (eta_bins[0], eta_bins[-1]),
+                                          weights=image[rtth_idx]
+                            )
+                            f.add_done_callback(_on_done)
+                        else:
+                            def _on_done(future):
+                                this_map[i_row, reta_idx],_ = future.result()
+
+                            f = tp.submit(histogram1d,
+                                          retas,
+                                          bins=eta_bins,
+                                          weights=image[rtth_idx]
+                            )
+                            f.add_done_callback(_on_done)
+
+                        pass    # end loop on rows
+                    ring_maps.append(this_map)
+                    pass    # end loop on rings
+                ring_maps_panel[det_key] = ring_maps
+
         return ring_maps_panel, eta_edges
 
     def extract_line_positions(self, plane_data, imgser_dict,
