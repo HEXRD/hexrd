@@ -686,6 +686,18 @@ class HEDMInstrument(object):
         # # need this for making eta ranges
         # eta_tol_vec = 0.5*np.radians([-eta_tol, eta_tol])
 
+        # make rings clipped to panel
+        # !!! eta_idx has the same length as plane_data.exclusions
+        #       each entry are the integer indices into the bins
+        # !!! eta_edges is the list of eta bin EDGES
+        # We can use the same eta_edge for all detectors, so calculate it once
+        pow_angs, pow_xys, eta_idx, eta_edges = list(self.detectors.values())[0].make_powder_rings(
+            plane_data,
+            merge_hkls=False, delta_eta=eta_tol,
+            full_output=True)
+        delta_eta = eta_edges[1] - eta_edges[0]
+        ncols_eta = len(eta_edges) - 1
+
         ring_maps_panel = dict.fromkeys(self.detectors)
         with ThreadPoolExecutor(max_workers=os.cpu_count()) as tp:
             for i_d, det_key in enumerate(self.detectors):
@@ -694,16 +706,6 @@ class HEDMInstrument(object):
                 # grab panel
                 panel = self.detectors[det_key]
                 # native_area = panel.pixel_area  # pixel ref area
-
-                # make rings clipped to panel
-                # !!! eta_idx has the same length as plane_data.exclusions
-                #       each entry are the integer indices into the bins
-                # !!! eta_edges is the list of eta bin EDGES
-                pow_angs, pow_xys, eta_idx, eta_edges = panel.make_powder_rings(
-                    plane_data,
-                    merge_hkls=False, delta_eta=eta_tol,
-                    full_output=True)
-                delta_eta = eta_edges[1] - eta_edges[0]
 
                 # pixel angular coords for the detector panel
                 ptth, peta = panel.pixel_angles()
@@ -717,7 +719,6 @@ class HEDMInstrument(object):
 
                 # initialize maps and assing by row (omega/frame)
                 nrows_ome = len(omegas)
-                ncols_eta = len(eta_edges) - 1
 
                 ring_maps = []
                 for i_r, tthr in enumerate(tth_ranges):
