@@ -890,20 +890,28 @@ class unitcell:
 			
 			if(ip == 1):
 
-				mask1 = hkllist[:,1] == 0
+				mask1 = hkllist[:,0] == 0
+				mask2 = hkllist[:,1] == 0
+				mask3 = hkllist[:,0] == -hkllist[:,1]
 				if(plane == 'c'):
-					mask2 = np.mod(hkllist[:,2]+100,2) != 0
+					mask4 = np.mod(hkllist[:,2]+100,2) != 0
 				else:
 					raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems.')
 
 			elif(ip == 2):
 				mask1 = hkllist[:,1] == hkllist[:,0]
+				mask2 = hkllist[:,0] == -2*hkllist[:,1]
+				mask3 = -2*hkllist[:,0] == hkllist[:,1]
 				if(plane == 'c'):
-					mask2 = np.mod(hkllist[:,2]+100,2) != 0
+					mask4 = np.mod(hkllist[:,2]+100,2) != 0
 				else:
 					raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems.')
 
-			mask = np.logical_not(np.logical_and(mask1,mask2))
+			mask1 = np.logical_and(mask1,mask4)
+			mask2 = np.logical_and(mask2,mask4)
+			mask3 = np.logical_and(mask3,mask4)
+
+			mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
 			hkllist = hkllist[mask,:]
 
 		elif(self.latticeType == 'hexagonal'):

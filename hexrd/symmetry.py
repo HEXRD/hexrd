@@ -574,9 +574,9 @@ def latticeType(sgnum):
         return 'orthorhombic'
     elif(sgnum > 74 and sgnum <= 142):
         return 'tetragonal'
-    elif(sgnum > 142 and sgnum <= 161):
+    elif(sgnum > 142 and sgnum <= 167):
         return 'trigonal'
-    elif(sgnum > 161 and sgnum <= 194):
+    elif(sgnum > 167 and sgnum <= 194):
         return 'hexagonal'
     elif(sgnum > 194 and sgnum <=230):
         return 'cubic'
