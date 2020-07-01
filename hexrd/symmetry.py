@@ -342,7 +342,20 @@ def quatOfLaueGroup(tag):
     return qsym
 
 def GeneratorString(sgnum):
-    return constants.SYM_GL[sgnum-1]
+    '''
+    these rhombohedral space groups have a hexagonal setting
+    with different symmetry matrices and generator strings
+    146: 231
+    148: 232
+    ...
+    and so on
+    '''
+    sg = sgnum-1
+    # sgdict = {146:231, 148:232, 155:233, 160:234, 161:235, 166:236, 167:237}
+    # if(sgnum in sgdict):
+    #     sg = sgdict[sgnum]-1
+
+    return constants.SYM_GL[sg]
 
 def MakeGenerators(genstr, setting):
 
@@ -485,13 +498,10 @@ def GeneratePGSym(SYM_SG):
         g = SYM_SG[i,:,:]
         t = g[0:3,3]
         g = g[0:3,0:3]
-        if(np.sum(t**2) < 1E-1):
+        if(isnew(g,SYM_PG_d)):
             g = np.broadcast_to(g,[1,3,3])
             SYM_PG_d = np.concatenate((SYM_PG_d, g))
-        elif(isnew(g,SYM_PG_d)):
-            g = np.broadcast_to(g,[1,3,3])
-            SYM_PG_d = np.concatenate((SYM_PG_d, g))
-    
+
     return SYM_PG_d.astype(np.int32)
 
 def GeneratePGSym_Laue(SYM_PG_d):

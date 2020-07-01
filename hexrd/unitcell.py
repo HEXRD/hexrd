@@ -308,6 +308,7 @@ class unitcell:
 
 	def GenerateRecipPGSym(self):
 
+
 		self.SYM_PG_r = self.SYM_PG_d[0,:,:]
 		self.SYM_PG_r = np.broadcast_to(self.SYM_PG_r,[1,3,3])
 
@@ -557,15 +558,15 @@ class unitcell:
 
 		elif(centering == 'F'):
 			# same parity
+
 			seo = np.sum(np.mod(hkllist+100,2),axis=1)
-			mask = np.logical_not(np.logical_or(seo == 1, seo == 2))
+			mask = np.logical_not(np.logical_or(seo==1, seo==2))
 
 		elif(centering == 'I'):
 			# sum is even
 			seo = np.mod(np.sum(hkllist,axis=1)+100,2)
 			mask = (seo == 0)
 			
-
 		elif(centering == 'A'):
 			# k+l is even
 			seo = np.mod(np.sum(hkllist[:,1:3],axis=1)+100,2)
@@ -910,14 +911,31 @@ class unitcell:
 			if(plane is not 'c'):
 				raise RuntimeError('omitglideplaneabsences: only c-glide allowed for hexagonal systems.')
 
-			if(ip == 1):
+			if(ip == 2):
 				mask1 = hkllist[:,0] == hkllist[:,1]
+				mask2 = hkllist[:,0] == -2*hkllist[:,1]
+				mask3 = -2*hkllist[:,0] == hkllist[:,1]
 
-			elif(ip == 2):
+				mask4 = np.mod(hkllist[:,2]+100,2) != 0
+
+				mask1 = np.logical_and(mask1,mask4)
+				mask2 = np.logical_and(mask2,mask4)
+				mask3 = np.logical_and(mask3,mask4)
+
+				mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
+
+			elif(ip == 1):
 				mask1 = hkllist[:,1] == 0
+				mask2 = hkllist[:,0] == 0
+				mask3 = hkllist[:,1] == -hkllist[:,0]
 
-			mask2 = np.mod(hkllist[:,2]+100,2) != 0
-			mask = np.logical_not(np.logical_and(mask1,mask2))
+				mask4 = np.mod(hkllist[:,2]+100,2) != 0
+
+			mask1 = np.logical_and(mask1,mask4)
+			mask2 = np.logical_and(mask2,mask4)
+			mask3 = np.logical_and(mask3,mask4)
+
+			mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
 			hkllist = hkllist[mask,:]
 
 		elif(self.latticeType == 'cubic'):
@@ -927,28 +945,50 @@ class unitcell:
 				mask2 = hkllist[:,1] == 0
 				mask3 = hkllist[:,2] == 0
 
-				if(plane in ['a','b','c']):
-					mask4 = np.mod(hkllist[:,0]+100,2) != 0
-					mask5 = np.mod(hkllist[:,1]+100,2) != 0
-					mask6 = np.mod(hkllist[:,2]+100,2) != 0
+				mask4 = np.mod(hkllist[:,0]+100,2) != 0
+				mask5 = np.mod(hkllist[:,1]+100,2) != 0
+				mask6 = np.mod(hkllist[:,2]+100,2) != 0
+
+				if(plane  == 'a'):
+					mask1 = np.logical_or(np.logical_and(mask1,mask5),np.logical_and(mask1,mask6))
+					mask2 = np.logical_or(np.logical_and(mask2,mask4),np.logical_and(mask2,mask6))
+					mask3 = np.logical_and(mask3,mask4)
+					
+					mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
+
+				elif(plane == 'b'):
+					mask1 = np.logical_and(mask1,mask5)
+					mask3 = np.logical_and(mask3,mask5)
+					mask = np.logical_not(np.logical_or(mask1,mask3))
+
+				elif(plane == 'c'):
+					mask1 = np.logical_and(mask1,mask6)
+					mask2 = np.logical_and(mask2,mask6)
+					mask = np.logical_not(np.logical_or(mask1,mask2))
 
 				elif(plane == 'n'):
 					mask4 = np.mod(hkllist[:,1]+hkllist[:,2]+100,2) != 0
 					mask5 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
 					mask6 = np.mod(hkllist[:,0]+hkllist[:,1]+100,2) != 0
 
+					mask1 = np.logical_not(np.logical_and(mask1,mask4))
+					mask2 = np.logical_not(np.logical_and(mask2,mask5))
+					mask3 = np.logical_not(np.logical_and(mask3,mask6))
+
+					mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
+
 				elif(plane == 'd'):
 					mask4 = np.mod(hkllist[:,1]+hkllist[:,2]+100,4) != 0
 					mask5 = np.mod(hkllist[:,0]+hkllist[:,2]+100,4) != 0
 					mask6 = np.mod(hkllist[:,0]+hkllist[:,1]+100,4) != 0
+
+					mask1 = np.logical_not(np.logical_and(mask1,mask4))
+					mask2 = np.logical_not(np.logical_and(mask2,mask5))
+					mask3 = np.logical_not(np.logical_and(mask3,mask6))
+
+					mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
 				else:
 					raise RuntimeError('omitglideplaneabsences: unknown glide plane encountered.')
-
-				mask1 = np.logical_not(np.logical_and(mask1,mask4))
-				mask2 = np.logical_not(np.logical_and(mask2,mask5))
-				mask3 = np.logical_not(np.logical_and(mask3,mask6))
-
-				mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
 
 				hkllist = hkllist[mask,:]
 
@@ -1039,17 +1079,18 @@ class unitcell:
 		'''
 		glen = []
 		for g in hkllist:
-			glen.append(self.CalcLength(g,'r'))
+			glen.append(np.round(self.CalcLength(g,'r'),8))
 
 		# glen = np.atleast_2d(np.array(glen,dtype=np.float)).T
-		dtype = [('glen', float), ('h', int), ('k', int), ('l', int)]
+		dtype = [('glen', float), ('max', int), ('sum', int), ('h', int), ('k', int), ('l', int)]
 
 		a = []
 		for i,gl in enumerate(glen):
-			a.append((gl, hkllist[i,0],hkllist[i,1],hkllist[i,2]))
+			g = hkllist[i,:]
+			a.append((gl, np.max(g), np.sum(g), g[0], g[1], g[2]))
 		a = np.array(a, dtype=dtype)
 
-		isort = np.argsort(a, order=['glen','l','k','h'])
+		isort = np.argsort(a, order=['glen','max','sum','l','k','h'])
 		return hkllist[isort,:]
 
 	def getHKLs(self, dmin):

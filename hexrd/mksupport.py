@@ -183,6 +183,9 @@ def GetLatticeParameters(xtal_sys, bool_trigonal):
 
 def GetSpaceGroup(xtal_sys, btrigonal, bhexset):
 
+	if(btrigonal):
+		xtal_sys = 5
+
 	if(btrigonal and (not bhexset) ):
 		print("\n The space groups below correspond to the ")
 		print("second (rhombohedral) setting.")
