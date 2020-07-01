@@ -5,7 +5,7 @@ from hexrd.crystallography import PlaneData
 from hexrd.material import Material
 from hexrd.valunits import valWUnit
 from hexrd import spacegroup as SG
-from hexrd import symmetry, symbols
+from hexrd import symmetry, symbols, constants
 import lmfit
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline
@@ -558,8 +558,9 @@ class Material_LeBail:
 		self._readHDF(fhdf, xtal)
 		self._calcrmt()
 
-		_, self.SYM_PG_d, self.centrosymmetric, self.symmorphic = \
+		_, self.SYM_PG_d, self.SYM_PG_d_laue, self.centrosymmetric, self.symmorphic = \
 		symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
+		self.latticeType = symmetry.latticeType(self.sgnum)
 		self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum-1].strip()
 		self.GenerateRecipPGSym()
 		self.CalcMaxGIndex()
@@ -629,8 +630,8 @@ class Material_LeBail:
 		self.rmt = np.linalg.inv(self.dmt)
 
 	def _calchkls(self):
-		self.hkls = np.array(self.SG.getHKLs(100))
-		# self.hkls = self.getHKLs()
+		# self.hkls = np.array(self.SG.getHKLs(100))
+		self.hkls = self.getHKLs(self.dmin)
 
 	''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
 	def CalcLength(self, u, space):
@@ -661,18 +662,25 @@ class Material_LeBail:
 
 	def GenerateRecipPGSym(self):
 
-		self.SYM_PG_d[np.abs(self.SYM_PG_d) < 1E-6] = 0.
-
 		self.SYM_PG_r = self.SYM_PG_d[0,:,:]
 		self.SYM_PG_r = np.broadcast_to(self.SYM_PG_r,[1,3,3])
+		self.SYM_PG_r_laue = self.SYM_PG_d[0,:,:]
+		self.SYM_PG_r_laue = np.broadcast_to(self.SYM_PG_r_laue,[1,3,3])
 
 		for i in range(1,self.SYM_PG_d.shape[0]):
 			g = self.SYM_PG_d[i,:,:]
-			g = np.dot(self.dmt,np.dot(g,self.rmt))
-			g = np.broadcast_to(g,[1,3,3])
+			g = np.dot(self.dmt, np.dot(g, self.rmt))
+			g = np.round(np.broadcast_to(g,[1,3,3]))
 			self.SYM_PG_r = np.concatenate((self.SYM_PG_r,g))
 
-		self.SYM_PG_r[np.abs(self.SYM_PG_r) < 1E-6] = 0.
+		for i in range(1,self.SYM_PG_d_laue.shape[0]):
+			g = self.SYM_PG_d_laue[i,:,:]
+			g = np.dot(self.dmt, np.dot(g, self.rmt))
+			g = np.round(np.broadcast_to(g,[1,3,3]))
+			self.SYM_PG_r_laue = np.concatenate((self.SYM_PG_r_laue,g))
+
+		self.SYM_PG_r = self.SYM_PG_r.astype(np.int32)
+		self.SYM_PG_r_laue = self.SYM_PG_r_laue.astype(np.int32)
 
 	def CalcMaxGIndex(self):
 		self.ih = 1
@@ -685,31 +693,34 @@ class Material_LeBail:
 		while (1.0 / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64),'r') > self.dmin):
 			self.il = self.il + 1
 
-	def CalcStar(self,v,space):
+	def CalcStar(self,v,space,applyLaue=False):
 		'''
 		this function calculates the symmetrically equivalent hkls (or uvws)
 		for the reciprocal (or direct) point group symmetry.
 		'''
 		if(space == 'd'):
-			sym = self.SYM_PG_d
+			if(applyLaue):
+				sym = self.SYM_PG_d_laue
+			else:
+				sym = self.SYM_PG_d
 		elif(space == 'r'):
-			sym = self.SYM_PG_r
+			if(applyLaue):
+				sym = self.SYM_PG_r_laue
+			else:
+				sym = self.SYM_PG_r
 		else:
 			raise ValueError('CalcStar: unrecognized space.')
-
 		vsym = np.atleast_2d(v)
 		for s in sym:
 			vp = np.dot(s,v)
 			# check if this is new
 			isnew = True
 			for vec in vsym:
-
 				if(np.sum(np.abs(vp - vec)) < 1E-4):
 					isnew = False
 					break
 			if(isnew):
 				vsym = np.vstack((vsym, vp))
-
 		return vsym
 
 	def Allowed_HKLs(self, hkllist):
@@ -718,103 +729,479 @@ class Material_LeBail:
 		by lattice centering, screw axis or glide plane
 		'''
 		hkllist = np.atleast_2d(hkllist)
-
 		centering = self.sg_hmsymbol[0]
-
 		if(centering == 'P'):
 			# all reflections are allowed
 			mask = np.ones([hkllist.shape[0],],dtype=np.bool)
-
 		elif(centering == 'F'):
 			# same parity
 			seo = np.sum(np.mod(hkllist+100,2),axis=1)
-			mask = np.logical_not(np.logical_or(seo == 1, seo == 2))
-
+			mask = np.logical_not(np.logical_or(seo==1, seo==2))
 		elif(centering == 'I'):
 			# sum is even
 			seo = np.mod(np.sum(hkllist,axis=1)+100,2)
 			mask = (seo == 0)
 			
-
 		elif(centering == 'A'):
 			# k+l is even
 			seo = np.mod(np.sum(hkllist[:,1:3],axis=1)+100,2)
 			mask = seo == 0
-
 		elif(centering == 'B'):
 			# h+l is even
 			seo = np.mod(hkllist[:,0]+hkllist[:,2]+100,2)
 			mask = seo == 0
-
 		elif(centering == 'C'):
 			# h+k is even
-			seo = np.mod(np.sum(hkllist[:,1:3],axis=1)+100,2)
+			seo = np.mod(hkllist[:,0]+hkllist[:,1]+100,2)
 			mask = seo == 0
-
 		elif(centering == 'R'):
 			# -h+k+l is divisible by 3
 			seo = np.mod(-hkllist[:,0]+hkllist[:,1]+hkllist[:,2]+90,3)
 			mask = seo == 0
 		else:
-			raise RunTimeError('IsGAllowed: unknown lattice centering encountered.')
-
+			raise RuntimeError('IsGAllowed: unknown lattice centering encountered.')
 		hkls = hkllist[mask,:]
-		return hkls
 
-	def getHKLs(self):
+		if(not self.symmorphic):
+			hkls = self.NonSymmorphicAbsences(hkls)
+		return hkls.astype(np.int32)
+
+	def omitscrewaxisabsences(self, hkllist, ax, iax):
+		'''
+		this function encodes the table on pg 48 of 
+		international table of crystallography vol A
+		the systematic absences due to different screw 
+		axis is encoded here. 
+		iax encodes the primary, secondary or tertiary axis
+		iax == 0 : primary
+		iax == 1 : secondary
+		iax == 2 : tertiary
+		@NOTE: only unique b axis in monoclinic systems 
+		implemented as thats the standard setting
+		'''
+		if(self.latticeType == 'triclinic'):
+			'''
+				no systematic absences for the triclinic crystals
+			'''
+			pass
+		elif(self.latticeType == 'monoclinic'):
+			if(ax is not '2_1'):
+				raise RuntimeError('omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis')
+			'''
+				only unique b-axis will be encoded
+				it is the users responsibility to input 
+				lattice parameters in the standard setting
+				with b-axis having the 2-fold symmetry
+			'''
+			if(iax == 1):
+				mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,2] == 0)
+				mask2 = np.mod(hkllist[:,1]+100,2) != 0
+				mask  = np.logical_not(np.logical_and(mask1,mask2))
+				hkllist = hkllist[mask,:]
+			else:
+				raise RuntimeError('omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
+		elif(self.latticeType == 'orthorhombic'):
+			if(ax is not '2_1'):
+				raise RuntimeError('omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis')
+			'''
+			2_1 screw on primary axis
+			h00 ; h = 2n
+			'''
+			if(iax == 0):
+				mask1 = np.logical_and(hkllist[:,1] == 0,hkllist[:,2] == 0)
+				mask2 = np.mod(hkllist[:,0]+100,2) != 0
+				mask  = np.logical_not(np.logical_and(mask1,mask2))
+				hkllist = hkllist[mask,:]
+			elif(iax == 1):
+				mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,2] == 0)
+				mask2 = np.mod(hkllist[:,1]+100,2) != 0
+				mask  = np.logical_not(np.logical_and(mask1,mask2))
+				hkllist = hkllist[mask,:]
+			elif(iax == 2):
+				mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
+				mask2 = np.mod(hkllist[:,2]+100,2) != 0
+				mask  = np.logical_not(np.logical_and(mask1,mask2))
+				hkllist = hkllist[mask,:]
+		elif(self.latticeType == 'tetragonal'):
+			if(iax == 0):
+				mask1 = np.logical_and(hkllist[:,0] == 0, hkllist[:,1] == 0)
+				if(ax == '4_2'):
+					mask2 = np.mod(hkllist[:,2]+100,2) != 0
+				elif(ax in ['4_1','4_3']):
+					mask2 = np.mod(hkllist[:,2]+100,4) != 0
+				mask = np.logical_not(np.logical_and(mask1,mask2))
+				hkllist = hkllist[mask,:]
+			elif(iax == 1):
+				mask1 = np.logical_and(hkllist[:,1] == 0, hkllist[:,2] == 0)
+				mask2 = np.logical_and(hkllist[:,0] == 0, hkllist[:,2] == 0)
+				if(ax == '2_1'):
+					mask3 = np.mod(hkllist[:,0]+100,2) != 0
+					mask4 = np.mod(hkllist[:,1]+100,2) != 0
+				mask1 = np.logical_not(np.logical_and(mask1,mask3))
+				mask2 = np.logical_not(np.logical_and(mask2,mask4))
+				mask = ~np.logical_or(~mask1,~mask2)
+				hkllist = hkllist[mask,:]
+		elif(self.latticeType == 'trigonal'):
+			mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
+			if(iax == 0):
+				if(ax in ['3_1', '3_2']):
+					mask2 = np.mod(hkllist[:,2]+90,3) != 0
+			else:
+				raise RuntimeError('omitscrewaxisabsences: trigonal systems can only have screw axis')
+			mask  = np.logical_not(np.logical_and(mask1,mask2))
+			hkllist = hkllist[mask,:]
+		elif(self.latticeType == 'hexagonal'):
+			mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
+			if(iax == 0):
+				if(ax is '6_3'):
+					mask2 = np.mod(hkllist[:,2]+100,2) != 0
+				elif(ax in['3_1','3_2','6_2','6_4']):
+					mask2 = np.mod(hkllist[:,2]+90,3) != 0
+				elif(ax in ['6_1','6_5']):
+					mask2 = np.mod(hkllist[:,2]+120,6) != 0
+			else:
+				raise RuntimeError('omitscrewaxisabsences: hexagonal systems can only have screw axis')
+			mask  = np.logical_not(np.logical_and(mask1,mask2))
+			hkllist = hkllist[mask,:]
+		elif(self.latticeType == 'cubic'):
+			mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
+			mask2 = np.logical_and(hkllist[:,0] == 0,hkllist[:,2] == 0)
+			mask3 = np.logical_and(hkllist[:,1] == 0,hkllist[:,2] == 0)
+			if(ax in ['2_1','4_2']):
+				mask4 = np.mod(hkllist[:,2]+100,2) != 0
+				mask5 = np.mod(hkllist[:,1]+100,2) != 0
+				mask6 = np.mod(hkllist[:,0]+100,2) != 0
+			elif(ax in ['4_1','4_3']):
+				mask4 = np.mod(hkllist[:,2]+100,4) != 0
+				mask5 = np.mod(hkllist[:,1]+100,4) != 0
+				mask6 = np.mod(hkllist[:,0]+100,4) != 0
+			mask1 = np.logical_not(np.logical_and(mask1,mask4))
+			mask2 = np.logical_not(np.logical_and(mask2,mask5))
+			mask3 = np.logical_not(np.logical_and(mask3,mask6))
+			mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
+			hkllist = hkllist[mask,:]
+		return hkllist.astype(np.int32)
+	def omitglideplaneabsences(self, hkllist, plane, ip):
+		'''
+		this function encodes the table on pg 47 of 
+		international table of crystallography vol A
+		the systematic absences due to different glide 
+		planes is encoded here. 
+		ip encodes the primary, secondary or tertiary plane normal
+		ip == 0 : primary
+		ip == 1 : secondary
+		ip == 2 : tertiary
+		@NOTE: only unique b axis in monoclinic systems 
+		implemented as thats the standard setting
+		'''
+		if(self.latticeType == 'triclinic'):
+			pass
+		elif(self.latticeType == 'monoclinic'):
+			if(ip == 1):
+				mask1 = hkllist[:,1] == 0
+				if(plane == 'c'):
+					mask2 = np.mod(hkllist[:,2]+100,2) != 0
+				elif(plane == 'a'):
+					mask2 = np.mod(hkllist[:,0]+100,2) != 0
+				elif(plane == 'n'):
+					mask2 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
+				mask = np.logical_not(np.logical_and(mask1,mask2))
+				hkllist = hkllist[mask,:]
+		elif(self.latticeType == 'orthorhombic'):
+			if(ip == 0):
+				mask1 = hkllist[:,0] == 0
+				if(plane == 'b'):
+					mask2 = np.mod(hkllist[:,1]+100,2) != 0
+				elif(plane == 'c'):
+					mask2 = np.mod(hkllist[:,2]+100,2) != 0
+				elif(plane == 'n'):
+					mask2 = np.mod(hkllist[:,1]+hkllist[:,2]+100,2) != 0
+				elif(plane == 'd'):
+					mask2 = np.mod(hkllist[:,1]+hkllist[:,2]+100,4) != 0
+				mask = np.logical_not(np.logical_and(mask1,mask2))
+				hkllist = hkllist[mask,:]
+			elif(ip == 1):
+				mask1 = hkllist[:,1] == 0
+				if(plane == 'c'):
+					mask2 = np.mod(hkllist[:,2]+100,2) != 0
+				elif(plane == 'a'):
+					mask2 = np.mod(hkllist[:,0]+100,2) != 0
+				elif(plane == 'n'):
+					mask2 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
+				elif(plane == 'd'):
+					mask2 = np.mod(hkllist[:,0]+hkllist[:,2]+100,4) != 0
+				mask = np.logical_not(np.logical_and(mask1,mask2))
+				hkllist = hkllist[mask,:]
+			elif(ip == 2):
+				mask1 = hkllist[:,2] == 0
+				if(plane == 'a'):
+					mask2 = np.mod(hkllist[:,0]+100,2) != 0
+				elif(plane == 'b'):
+					mask2 = np.mod(hkllist[:,1]+100,2) != 0
+				elif(plane == 'n'):
+					mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,2) != 0
+				elif(plane == 'd'):
+					mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,4) != 0
+				mask = np.logical_not(np.logical_and(mask1,mask2))
+				hkllist = hkllist[mask,:]
+		elif(self.latticeType == 'tetragonal'):
+			if(ip == 0):
+				mask1 = hkllist[:,2] == 0
+				if(plane == 'a'):
+					mask2 = np.mod(hkllist[:,0]+100,2) != 0
+				elif(plane == 'b'):
+					mask2 = np.mod(hkllist[:,1]+100,2) != 0
+				elif(plane == 'n'):
+					mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,2) != 0
+				elif(plane == 'd'):
+					mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,4) != 0
+				mask = np.logical_not(np.logical_and(mask1,mask2))
+				hkllist = hkllist[mask,:]
+			elif(ip == 1):
+				mask1 = hkllist[:,0] == 0
+				mask2 = hkllist[:,1] == 0
+				if(plane in ['a','b']):
+					mask3 = np.mod(hkllist[:,1]+100,2) != 0
+					mask4 = np.mod(hkllist[:,0]+100,2) != 0
+				elif(plane == 'c'):
+					mask3 = np.mod(hkllist[:,2]+100,2) != 0
+					mask4 = mask3
+				elif(plane == 'n'):
+					mask3 = np.mod(hkllist[:,1]+hkllist[:,2]+100,2) != 0
+					mask4 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
+				elif(plane == 'd'):
+					mask3 = np.mod(hkllist[:,1]+hkllist[:,2]+100,4) != 0
+					mask4 = np.mod(hkllist[:,0]+hkllist[:,2]+100,4) != 0
+				mask1 = np.logical_not(np.logical_and(mask1,mask3))
+				mask2 = np.logical_not(np.logical_and(mask2,mask4))
+				mask = ~np.logical_or(~mask1,~mask2)
+				hkllist = hkllist[mask,:]
+			elif(ip == 2):
+				mask1 = np.abs(hkllist[:,0]) == np.abs(hkllist[:,1])
+				if(plane in ['c','n']):
+					mask2 = np.mod(hkllist[:,2]+100,2) != 0
+				elif(plane == 'd'):
+					mask2 = np.mod(2*hkllist[:,0]+hkllist[:,2]+100,4) != 0
+				mask = np.logical_not(np.logical_and(mask1,mask2))
+				hkllist = hkllist[mask,:]
+		elif(self.latticeType == 'trigonal'):
+			if(plane is not 'c'):
+				raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems')
+			
+			if(ip == 1):
+				mask1 = hkllist[:,0] == 0
+				mask2 = hkllist[:,1] == 0
+				mask3 = hkllist[:,0] == -hkllist[:,1]
+				if(plane == 'c'):
+					mask4 = np.mod(hkllist[:,2]+100,2) != 0
+				else:
+					raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems')
+			elif(ip == 2):
+				mask1 = hkllist[:,1] == hkllist[:,0]
+				mask2 = hkllist[:,0] == -2*hkllist[:,1]
+				mask3 = -2*hkllist[:,0] == hkllist[:,1]
+				if(plane == 'c'):
+					mask4 = np.mod(hkllist[:,2]+100,2) != 0
+				else:
+					raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems')
+			mask1 = np.logical_and(mask1,mask4)
+			mask2 = np.logical_and(mask2,mask4)
+			mask3 = np.logical_and(mask3,mask4)
+			mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
+			hkllist = hkllist[mask,:]
+		elif(self.latticeType == 'hexagonal'):
+			if(plane is not 'c'):
+				raise RuntimeError('omitglideplaneabsences: only c-glide allowed for hexagonal systems')
+			if(ip == 2):
+				mask1 = hkllist[:,0] == hkllist[:,1]
+				mask2 = hkllist[:,0] == -2*hkllist[:,1]
+				mask3 = -2*hkllist[:,0] == hkllist[:,1]
+				mask4 = np.mod(hkllist[:,2]+100,2) != 0
+				mask1 = np.logical_and(mask1,mask4)
+				mask2 = np.logical_and(mask2,mask4)
+				mask3 = np.logical_and(mask3,mask4)
+				mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
+			elif(ip == 1):
+				mask1 = hkllist[:,1] == 0
+				mask2 = hkllist[:,0] == 0
+				mask3 = hkllist[:,1] == -hkllist[:,0]
+				mask4 = np.mod(hkllist[:,2]+100,2) != 0
+			mask1 = np.logical_and(mask1,mask4)
+			mask2 = np.logical_and(mask2,mask4)
+			mask3 = np.logical_and(mask3,mask4)
+			mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
+			hkllist = hkllist[mask,:]
+		elif(self.latticeType == 'cubic'):
+			if(ip == 0):
+				mask1 = hkllist[:,0] == 0
+				mask2 = hkllist[:,1] == 0
+				mask3 = hkllist[:,2] == 0
+				mask4 = np.mod(hkllist[:,0]+100,2) != 0
+				mask5 = np.mod(hkllist[:,1]+100,2) != 0
+				mask6 = np.mod(hkllist[:,2]+100,2) != 0
+				if(plane  == 'a'):
+					mask1 = np.logical_or(np.logical_and(mask1,mask5),np.logical_and(mask1,mask6))
+					mask2 = np.logical_or(np.logical_and(mask2,mask4),np.logical_and(mask2,mask6))
+					mask3 = np.logical_and(mask3,mask4)
+					
+					mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
+				elif(plane == 'b'):
+					mask1 = np.logical_and(mask1,mask5)
+					mask3 = np.logical_and(mask3,mask5)
+					mask = np.logical_not(np.logical_or(mask1,mask3))
+				elif(plane == 'c'):
+					mask1 = np.logical_and(mask1,mask6)
+					mask2 = np.logical_and(mask2,mask6)
+					mask = np.logical_not(np.logical_or(mask1,mask2))
+				elif(plane == 'n'):
+					mask4 = np.mod(hkllist[:,1]+hkllist[:,2]+100,2) != 0
+					mask5 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
+					mask6 = np.mod(hkllist[:,0]+hkllist[:,1]+100,2) != 0
+					mask1 = np.logical_not(np.logical_and(mask1,mask4))
+					mask2 = np.logical_not(np.logical_and(mask2,mask5))
+					mask3 = np.logical_not(np.logical_and(mask3,mask6))
+					mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
+				elif(plane == 'd'):
+					mask4 = np.mod(hkllist[:,1]+hkllist[:,2]+100,4) != 0
+					mask5 = np.mod(hkllist[:,0]+hkllist[:,2]+100,4) != 0
+					mask6 = np.mod(hkllist[:,0]+hkllist[:,1]+100,4) != 0
+					mask1 = np.logical_not(np.logical_and(mask1,mask4))
+					mask2 = np.logical_not(np.logical_and(mask2,mask5))
+					mask3 = np.logical_not(np.logical_and(mask3,mask6))
+					mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
+				else:
+					raise RuntimeError('omitglideplaneabsences: unknown glide plane encountered.')
+				hkllist = hkllist[mask,:]
+			if(ip == 2):
+				mask1 = np.abs(hkllist[:,0]) == np.abs(hkllist[:,1])
+				mask2 = np.abs(hkllist[:,1]) == np.abs(hkllist[:,2])
+				mask3 = np.abs(hkllist[:,0]) == np.abs(hkllist[:,2])
+				if(plane in ['a','b','c','n']):
+					mask4 = np.mod(hkllist[:,2]+100,2) != 0
+					mask5 = np.mod(hkllist[:,0]+100,2) != 0
+					mask6 = np.mod(hkllist[:,1]+100,2) != 0
+				elif(plane == 'd'):
+					mask4 = np.mod(2*hkllist[:,0]+hkllist[:,2]+100,4) != 0
+					mask5 = np.mod(hkllist[:,0]+2*hkllist[:,1]+100,4) != 0
+					mask6 = np.mod(2*hkllist[:,0]+hkllist[:,1]+100,4) != 0
+				else:
+					raise RuntimeError('omitglideplaneabsences: unknown glide plane encountered.')
+				mask1 = np.logical_not(np.logical_and(mask1,mask4))
+				mask2 = np.logical_not(np.logical_and(mask2,mask5))
+				mask3 = np.logical_not(np.logical_and(mask3,mask6))
+				mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
+				hkllist = hkllist[mask,:]
+		return hkllist
+
+	def NonSymmorphicAbsences(self, hkllist):
+		'''
+		this function prunes hkl list for the screw axis and glide 
+		plane absences
+		'''
+		planes = constants.SYS_AB[self.sgnum][0]
+		for ip,p in enumerate(planes):
+			if(p is not ''):
+				hkllist = self.omitglideplaneabsences(hkllist, p, ip)
+		axes = constants.SYS_AB[self.sgnum][1]
+		for iax,ax in enumerate(axes):
+			if(ax is not ''):
+				hkllist = self.omitscrewaxisabsences(hkllist, ax, iax)
+		return hkllist
+
+	def ChooseSymmetric(self, hkllist, InversionSymmetry=True):
+		'''
+		this function takes a list of hkl vectors and 
+		picks out a subset of the list picking only one
+		of the symmetrically equivalent one. The convention
+		is to choose the hkl with the most positive components.
+		'''
+		mask = np.ones(hkllist.shape[0],dtype=np.bool)
+		laue = InversionSymmetry
+		for i,g in enumerate(hkllist):
+			if(mask[i]):
+				geqv = self.CalcStar(g,'r',applyLaue=laue)
+				for r in geqv[1:,]:
+					rid = np.where(np.all(r==hkllist,axis=1))
+					mask[rid] = False
+		hkl = hkllist[mask,:].astype(np.int32)
+		hkl_max = []
+		for g in hkl:
+			geqv = self.CalcStar(g,'r',applyLaue=laue)
+			loc = np.argmax(np.sum(geqv,axis=1))
+			gmax = geqv[loc,:]
+			hkl_max.append(gmax)
+		return np.array(hkl_max).astype(np.int32)
+
+	def SortHKL(self, hkllist):
+		'''
+		this function sorts the hkllist by increasing |g| 
+		i.e. decreasing d-spacing. If two vectors are same 
+		length, then they are ordered with increasing 
+		priority to l, k and h
+		'''
+		glen = []
+		for g in hkllist:
+			glen.append(np.round(self.CalcLength(g,'r'),8))
+		# glen = np.atleast_2d(np.array(glen,dtype=np.float)).T
+		dtype = [('glen', float), ('max', int), ('sum', int), ('h', int), ('k', int), ('l', int)]
+		a = []
+		for i,gl in enumerate(glen):
+			g = hkllist[i,:]
+			a.append((gl, np.max(g), np.sum(g), g[0], g[1], g[2]))
+		a = np.array(a, dtype=dtype)
+		isort = np.argsort(a, order=['glen','max','sum','l','k','h'])
+		return hkllist[isort,:]
+
+	def getHKLs(self, dmin):
 		'''
 		this function generates the symetrically unique set of 
 		hkls up to a given dmin.
 		dmin is in nm
 		'''
-		dmin = self.dmin
-		if(self.centrosymmetric):
-			hmin = -1
-			hmax = self.ih
-			kmin = -1
-			kmax = self.ik
-			lmin = -1
-			lmax = self.il
-		else:
-			hmin = -self.ih-1
-			hmax = self.ih
-			kmin = -self.ik-1
-			kmax = self.ik
-			lmin = -self.il-1
-			lmax = self.il
-
+		'''
+		always have the centrosymmetric condition because of
+		Friedels law for xrays so only 4 of the 8 octants
+		are sampled for unique hkls. By convention we will
+		ignore all l < 0
+		'''
+		hmin = -self.ih-1
+		hmax = self.ih
+		kmin = -self.ik-1
+		kmax = self.ik
+		lmin = -1
+		lmax = self.il
 		hkllist = np.array([[ih, ik, il] for ih in np.arange(hmax,hmin,-1) \
 				  for ik in np.arange(kmax,kmin,-1) \
 				  for il in np.arange(lmax,lmin,-1)])
-
 		hkl_allowed = self.Allowed_HKLs(hkllist)
-
 		hkl = []
 		dsp = []
+		hkl_dsp = []
 		for g in hkl_allowed:
-
 			# ignore [0 0 0] as it is the direct beam
 			if(np.sum(np.abs(g)) != 0):
-
 				dspace = 1./self.CalcLength(g,'r')
-
 				if(dspace >= dmin):
-
-					symhkl = self.CalcStar(g,'r')
-					toadd = True
-					i = np.argmax(np.sum(symhkl,axis=1))
-					toadd_g = symhkl[i,:]
-
-					if(np.any(np.array([np.sum(np.abs(symg-gg)) for symg in symhkl for gg in hkl]) < 1E-4)):
-						toadd = False
-					if(toadd):
-						dsp.append(dspace)
-						hkl.append(toadd_g)
-
-		dsp = np.array(dsp)
-		isort = np.argsort(dsp)[::-1]
-
-		return np.array(hkl)[isort,:]
+					hkl_dsp.append(g)
+		'''
+		we now have a list of g vectors which are all within dmin range
+		plus the systematic absences due to lattice centering and glide
+		planes/screw axis has been taken care of
+		the next order of business is to go through the list and only pick
+		out one of the symetrically equivalent hkls from the list.
+		'''
+		hkl_dsp = np.array(hkl_dsp).astype(np.int32)
+		'''
+		the inversionsymmetry switch enforces the application of the inversion
+		symmetry regradless of whether the crystal has the symmetry or not
+		this is necessary in the case of xrays due to friedel's law
+		'''
+		hkl = self.ChooseSymmetric(hkl_dsp, InversionSymmetry=True)
+		'''
+		finally sort in order of decreasing dspacing
+		'''
+		self.hkl = self.SortHKL(hkl)
+		return self.hkl
 
 class Phases_LeBail:
 	''' ======================================================================================================== 
@@ -837,7 +1224,7 @@ class Phases_LeBail:
 
 	def __init__(self, material_file=None, 
 				 material_keys=None,
-				 dmin = _nm(0.075),
+				 dmin = _nm(0.05),
 				 wavelength={'alpha1':_nm(0.15406),'alpha2':_nm(0.154443)}
 				 ):
 
