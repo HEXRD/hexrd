@@ -471,7 +471,7 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
         return generate_eta_ome_maps(cfg, hkls=hkls)
 
 
-def generate_eta_ome_maps(cfg, hkls=None):
+def generate_eta_ome_maps(cfg, hkls=None, save=True):
     """
     Generates the eta-omega maps specified in the input config.
     """
@@ -516,22 +516,23 @@ def generate_eta_ome_maps(cfg, hkls=None):
 
     logger.info("\t\t...took %f seconds", timeit.default_timer() - start)
 
-    # save maps
-    # ???: should perhaps set default maps name at module level
-    map_fname = cfg.find_orientations.orientation_maps.file \
-        or '_'.join([cfg.analysis_id, "eta-ome_maps.npz"])
+    if save:
+        # save maps
+        # ???: should perhaps set default maps name at module level
+        map_fname = cfg.find_orientations.orientation_maps.file \
+            or '_'.join([cfg.analysis_id, "eta-ome_maps.npz"])
 
-    if not os.path.exists(cfg.working_dir):
-        os.mkdir(cfg.working_dir)
+        if not os.path.exists(cfg.working_dir):
+            os.mkdir(cfg.working_dir)
 
-    fn = os.path.join(
-        cfg.working_dir,
-        map_fname
-    )
+        fn = os.path.join(
+            cfg.working_dir,
+            map_fname
+        )
 
-    eta_ome.save(fn)
+        eta_ome.save(fn)
 
-    logger.info('saved eta/ome orientation maps to "%s"', fn)
+        logger.info('saved eta/ome orientation maps to "%s"', fn)
 
     return eta_ome
 
