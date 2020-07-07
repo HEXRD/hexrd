@@ -37,6 +37,8 @@ from hexrd.crystallography import processWavelength, PlaneData
 from hexrd.transforms import xf
 from hexrd.transforms import xfcapi
 
+from hexrd.valunits import valWUnit
+
 from hexrd import distortion as distortion_module
 
 from hexrd.constants import USE_NUMBA
@@ -80,6 +82,33 @@ class EtaOmeMaps(object):
         self.omeEdges = ome_eta['omeEdges']
         self.etas = ome_eta['etas']
         self.omegas = ome_eta['omegas']
+
+    def save(self, filename):
+        self.save_eta_ome_maps(self, filename)
+
+    @staticmethod
+    def save_eta_ome_maps(eta_ome, filename):
+        """
+        eta_ome.dataStore
+        eta_ome.planeData
+        eta_ome.iHKLList
+        eta_ome.etaEdges
+        eta_ome.omeEdges
+        eta_ome.etas
+        eta_ome.omegas
+        """
+        args = np.array(eta_ome.planeData.getParams())[:4]
+        args[2] = valWUnit('wavelength', 'length', args[2], 'angstrom')
+        hkls = eta_ome.planeData.hkls
+        save_dict = {'dataStore': eta_ome.dataStore,
+                     'etas': eta_ome.etas,
+                     'etaEdges': eta_ome.etaEdges,
+                     'iHKLList': eta_ome.iHKLList,
+                     'omegas': eta_ome.omegas,
+                     'omeEdges': eta_ome.omeEdges,
+                     'planeData_args': args,
+                     'planeData_hkls': hkls}
+        np.savez_compressed(filename, **save_dict)
     pass  # end of class: EtaOmeMaps
 
 
