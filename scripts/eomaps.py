@@ -66,7 +66,7 @@ class Comparison:
             l1, l2 = len(eta1), len(eta2)
             if l1 != l2:
                 msg = "eta: lengths differ: %d and %d" % (l1, l2)
-                logging.info(msg)
+                logging.error(msg)
                 return False, msg
 
             nrmdiff = np.linalg.norm(eta1 - eta2)
@@ -74,7 +74,7 @@ class Comparison:
                 return True, "eta: same"
             else:
                 msg = "eta: norm of difference: %s" % nrmdiff
-                logging.info(msg)
+                logging.error(msg)
                 return False, msg
 
         def hkl_indices(self):
@@ -92,7 +92,7 @@ class Comparison:
             d1, d2 = self.e1.data, self.e2.data
             if d1.shape != d2.shape:
                 msg = "data shapes do not match: " % (d1.shape, d2.shape)
-                logging.info(msg)
+                logging.error(msg)
                 return False, msg
 
             for ind in range(d1.shape[0]):
@@ -109,14 +109,14 @@ class Comparison:
                 nnz2 = np.count_nonzero(d2i)
                 if nnz1 != nnz2:
                     msg = "data: map %d: number nonzero differ: %d, %d" % (ind, nnz1, nnz2)
-                    logging.info(msg)
+                    logging.error(msg)
                     return False, msg
 
                 overlapping = d1i.astype(bool) | d2i.astype(bool)
                 nnz = np.count_nonzero(overlapping)
                 if nnz != nnz1:
                     msg = "data: map %d: overlaps differ: %d, %d" % (ind, nnz1, nnz)
-                    logging.info(msg)
+                    logging.error(msg)
                     return False, msg
 
                 d1over = d1i[overlapping]
@@ -126,7 +126,7 @@ class Comparison:
                     return True, "data: same"
                 else:
                     msg = "data: map %s: map values differ" % (ind)
-                    logging.info(msg)
+                    logging.error(msg)
                     return False, msg
 
 
