@@ -147,13 +147,6 @@ _keys = ['dataStore',
          'planeData_hkls'
 ]
 
-from importlib import reload
-import numpy as np
-
-from hexrd import imageseries, config
-import logging
-
-
 @click.command()
 @click.argument('emaps_file_1', type=click.Path(exists=True, dir_okay=False))
 @click.argument('emaps_file_2', type=click.Path(exists=True, dir_okay=False))
