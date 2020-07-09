@@ -1170,6 +1170,10 @@ class unitcell:
 		but all the dependent parameters will be automatically updated
 	'''
 
+	def Required_lp(self, p):
+		return _rqpDict[self.latticeType][1](p)
+
+
 	# lattice constants as properties
 	@property
 	def a(self):
@@ -1359,3 +1363,13 @@ class unitcell:
 	@property
 	def vol(self):
 		return self._vol
+
+_rqpDict = {
+	'triclinic': (tuple(range(6)), lambda p: p),  # all 6
+	'monoclinic': ((0,1,2,4), lambda p: (p[0], p[1], p[2], 90, p[3], 90)), # note beta
+	'orthorhombic': ((0,1,2),   lambda p: (p[0], p[1], p[2], 90, 90,   90)),
+	'tetragonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,   90)),
+	'trigonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
+	'hexagonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
+	'cubic': ((0,),      lambda p: (p[0], p[0], p[0], 90, 90,   90)),
+	}

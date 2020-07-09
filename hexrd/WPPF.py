@@ -564,7 +564,6 @@ class Material_LeBail:
 		self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum-1].strip()
 		self.GenerateRecipPGSym()
 		self.CalcMaxGIndex()
-		self.SG = SG.SpaceGroup(self.sgnum)
 		self._calchkls()
 
 	def _readHDF(self, fhdf, xtal):
@@ -630,7 +629,6 @@ class Material_LeBail:
 		self.rmt = np.linalg.inv(self.dmt)
 
 	def _calchkls(self):
-		# self.hkls = np.array(self.SG.getHKLs(100))
 		self.hkls = self.getHKLs(self.dmin)
 
 	''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
@@ -1203,6 +1201,9 @@ class Material_LeBail:
 		self.hkl = self.SortHKL(hkl)
 		return self.hkl
 
+	def Required_lp(self, p):
+		return _rqpDict[self.latticeType][1](p)
+
 class Phases_LeBail:
 	''' ======================================================================================================== 
 		======================================================================================================== 
@@ -1504,7 +1505,10 @@ class LeBail:
 		'''
 		th 			= np.radians(0.5*tth)
 		tanth 		= np.tan(th)
-		self.Hcag 	= np.sqrt(self.U * tanth**2 + self.V * tanth + self.W)
+		Hsq 		= self.U * tanth**2 + self.V * tanth + self.W
+		if(Hsq < 0.):
+			Hsq = 1.0e-12
+		self.Hcag 	= np.sqrt(Hsq)
 
 	def MixingFact(self, tth):
 		'''
@@ -1666,7 +1670,7 @@ class LeBail:
 			pass
 		else:
 			for p in self.phases:
-				lp = SG._rqpDict[self.phases[p].SG.latticeType][1](lp)
+				lp = self.phases[p].Required_lp(lp)
 				self.phases[p].lparms = np.array(lp)
 				self.phases[p]._calcrmt()
 				self.calctth()
@@ -2894,4 +2898,14 @@ class Rietveld:
 
 					kernel.append(np.nan_to_num(cs(self._tth_list)))
 
-			return kernel	
+			return kernel
+
+_rqpDict = {
+	'triclinic': (tuple(range(6)), lambda p: p),  # all 6
+	'monoclinic': ((0,1,2,4), lambda p: (p[0], p[1], p[2], 90, p[3], 90)), # note beta
+	'orthorhombic': ((0,1,2),   lambda p: (p[0], p[1], p[2], 90, 90,   90)),
+	'tetragonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,   90)),
+	'trigonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
+	'hexagonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
+	'cubic': ((0,),      lambda p: (p[0], p[0], p[0], 90, 90,   90)),
+	}
