@@ -492,7 +492,7 @@ class unitcell:
 		1. coherent x-ray scattering, f0 tabulated in Acta Cryst. (1995). A51,416-431
 		2. Anomalous x-ray scattering (complex (f'+if")) tabulated in J. Phys. Chem. Ref. Data, 24, 71 (1995)
 		and J. Phys. Chem. Ref. Data, 29, 597 (2000).
-		3. Thompson nuclear scattring, fNT tabulated in Phys. Lett. B, 69, 281 (1977).
+		3. Thompson nuclear scattering, fNT tabulated in Phys. Lett. B, 69, 281 (1977).
 
 		the anomalous scattering is a complex number (f' + if"), where the two terms are given by
 		f' = f1 + frel - Z

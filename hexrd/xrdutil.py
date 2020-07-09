@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 # ============================================================
 # Copyright (c) 2012, Lawrence Livermore National Security, LLC.
 # Produced at the Lawrence Livermore National Laboratory.
@@ -32,19 +32,21 @@ from hexrd import constants
 from hexrd import matrixutil as mutil
 from hexrd import gridutil as gutil
 
-from hexrd.crystallography import processWavelength
+from hexrd.crystallography import processWavelength, PlaneData
 
 from hexrd.transforms import xf
 from hexrd.transforms import xfcapi
 
-from hexrd import distortion
+from hexrd.valunits import valWUnit
+
+from hexrd import distortion as distortion_module
 
 from hexrd.constants import USE_NUMBA
 if USE_NUMBA:
     import numba
 
 
-dFunc_ref = distortion.dummy
+dFunc_ref = distortion_module.dummy
 dParams_ref = []
 
 d2r = piby180 = np.pi/180.
@@ -60,12 +62,64 @@ eHat_l_DFLT = constants.eta_vec.flatten()
 _memo_hkls = {}
 
 
+class EtaOmeMaps(object):
+    """
+    find-orientations loads pickled eta-ome data, but CollapseOmeEta is not
+    pickleable, because it holds a list of ReadGE, each of which holds a
+    reference to an open file object, which is not pickleable.
+    """
+
+    def __init__(self, ome_eta_archive):
+
+        ome_eta = np.load(ome_eta_archive, allow_pickle=True)
+
+        planeData_args = ome_eta['planeData_args']
+        planeData_hkls = ome_eta['planeData_hkls']
+        self.planeData = PlaneData(planeData_hkls, *planeData_args)
+        self.dataStore = ome_eta['dataStore']
+        self.iHKLList = ome_eta['iHKLList']
+        self.etaEdges = ome_eta['etaEdges']
+        self.omeEdges = ome_eta['omeEdges']
+        self.etas = ome_eta['etas']
+        self.omegas = ome_eta['omegas']
+
+    def save(self, filename):
+        self.save_eta_ome_maps(self, filename)
+
+    @staticmethod
+    def save_eta_ome_maps(eta_ome, filename):
+        """
+        eta_ome.dataStore
+        eta_ome.planeData
+        eta_ome.iHKLList
+        eta_ome.etaEdges
+        eta_ome.omeEdges
+        eta_ome.etas
+        eta_ome.omegas
+        """
+        args = np.array(eta_ome.planeData.getParams())[:4]
+        args[2] = valWUnit('wavelength', 'length', args[2], 'angstrom')
+        hkls = eta_ome.planeData.hkls
+        save_dict = {'dataStore': eta_ome.dataStore,
+                     'etas': eta_ome.etas,
+                     'etaEdges': eta_ome.etaEdges,
+                     'iHKLList': eta_ome.iHKLList,
+                     'omegas': eta_ome.omegas,
+                     'omeEdges': eta_ome.omeEdges,
+                     'planeData_args': args,
+                     'planeData_hkls': hkls}
+        np.savez_compressed(filename, **save_dict)
+    pass  # end of class: EtaOmeMaps
+
+
 def _zproject(x, y):
     return np.cos(x) * np.sin(y) - np.sin(x) * np.cos(y)
 
 
 def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
     """
+    Indetify angles that fall within specified ranges.
+
     A better way to go.  find out if an angle is in the range
     CCW or CW from start to stop
 
@@ -168,12 +222,46 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
                        etaRanges=None, omeRanges=None,
                        bVec=xf.bVec_ref, eVec=xf.eta_ref, vInv=xf.vInv_ref):
     """
+    Simulate spherical maps.
+
+    Parameters
+    ----------
+    omeEdges : TYPE
+        DESCRIPTION.
+    etaEdges : TYPE
+        DESCRIPTION.
+    planeData : TYPE
+        DESCRIPTION.
+    expMaps : (3, n) ndarray
+        DESCRIPTION.
+    chi : TYPE, optional
+        DESCRIPTION. The default is 0..
+    etaTol : TYPE, optional
+        DESCRIPTION. The default is None.
+    omeTol : TYPE, optional
+        DESCRIPTION. The default is None.
+    etaRanges : TYPE, optional
+        DESCRIPTION. The default is None.
+    omeRanges : TYPE, optional
+        DESCRIPTION. The default is None.
+    bVec : TYPE, optional
+        DESCRIPTION. The default is xf.bVec_ref.
+    eVec : TYPE, optional
+        DESCRIPTION. The default is xf.eta_ref.
+    vInv : TYPE, optional
+        DESCRIPTION. The default is xf.vInv_ref.
+
+    Returns
+    -------
+    eta_ome : TYPE
+        DESCRIPTION.
+
+    Notes
+    -----
     all angular info is entered in degrees
 
-    expMaps are (3, n)
-
-    ...might want to creat module-level angluar unit flag
-    ...might want to allow resvers delta omega
+    ??? might want to creat module-level angluar unit flag
+    ??? might want to allow resvers delta omega
 
     """
     # convert to radians
@@ -395,7 +483,7 @@ def _project_on_detector_plane(allAngs,
         det_xy = distortion[0](det_xy,
                                distortion[1],
                                invert=True)
-    return det_xy, rMat_ss
+    return det_xy, rMat_ss, valid_mask
 
 
 def simulateGVecs(pd, detector_params, grain_params,
@@ -468,7 +556,7 @@ def simulateGVecs(pd, detector_params, grain_params,
         ang_ps = []
     else:
         # ??? preallocate for speed?
-        det_xy, rMat_s = _project_on_detector_plane(
+        det_xy, rMat_s, on_plane = _project_on_detector_plane(
             allAngs,
             rMat_d, rMat_c, chi,
             tVec_d, tVec_c, tVec_s,
@@ -680,6 +768,8 @@ if USE_NUMBA:
             tVec_d, tVec_s, tVec_c,
             distortion=None, beamVec=None, etaVec=None):
         """
+        Calculate angular pixel sizes on a detector.
+
         * choices to beam vector and eta vector specs have been supressed
         * assumes xy_det in UNWARPED configuration
         """
@@ -709,10 +799,11 @@ else:
                          tVec_d, tVec_s, tVec_c,
                          distortion=None, beamVec=None, etaVec=None):
         """
+        Calculate angular pixel sizes on a detector.
+
         * choices to beam vector and eta vector specs have been supressed
         * assumes xy_det in UNWARPED configuration
         """
-
         xy_det = np.atleast_2d(xy_det)
         if distortion is not None and len(distortion) == 2:
             xy_det = distortion[0](xy_det, distortion[1])
@@ -793,16 +884,14 @@ else:  # not USE_NUMBA
         return window
 
 
-def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
-                            omega=None,
+def make_reflection_patches(instr_cfg,
+                            tth_eta, ang_pixel_size, omega=None,
                             tth_tol=0.2, eta_tol=1.0,
-                            rMat_c=np.eye(3), tVec_c=np.zeros((3, 1)),
-                            distortion=None,
+                            rmat_c=np.eye(3), tvec_c=np.zeros((3, 1)),
                             npdiv=1, quiet=False,
-                            compute_areas_func=gutil.compute_areas,
-                            beamVec=None):
+                            compute_areas_func=gutil.compute_areas):
     """
-    prototype function for making angular patches on a detector
+    Make angular patches on a detector.
 
     panel_dims are [(xmin, ymin), (xmax, ymax)] in mm
 
@@ -813,31 +902,31 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
     patches are:
 
                  delta tth
-   d  ------------- ... -------------
-   e  | x | x | x | ... | x | x | x |
-   l  ------------- ... -------------
-   t                 .
-   a                 .
+    d  ------------- ... -------------
+    e  | x | x | x | ... | x | x | x |
+    l  ------------- ... -------------
+    t                 .
+    a                 .
                      .
-   e  ------------- ... -------------
-   t  | x | x | x | ... | x | x | x |
-   a  ------------- ... -------------
+    e  ------------- ... -------------
+    t  | x | x | x | ... | x | x | x |
+    a  ------------- ... -------------
 
-   outputs are:
-       (tth_vtx, eta_vtx),
-       (x_vtx, y_vtx),
-       connectivity,
-       subpixel_areas,
-       (x_center, y_center),
-       (i_row, j_col)
+    outputs are:
+        (tth_vtx, eta_vtx),
+        (x_vtx, y_vtx),
+        connectivity,
+        subpixel_areas,
+        (x_center, y_center),
+        (i_row, j_col)
     """
     npts = len(tth_eta)
 
-    # detector frame
-    rMat_d = xfcapi.makeRotMatOfExpMap(
+    # detector quantities
+    rmat_d = xfcapi.makeRotMatOfExpMap(
         np.r_[instr_cfg['detector']['transform']['tilt']]
         )
-    tVec_d = np.r_[instr_cfg['detector']['transform']['translation']]
+    tvec_d = np.r_[instr_cfg['detector']['transform']['translation']]
     pixel_size = instr_cfg['detector']['pixels']['size']
 
     frame_nrows = instr_cfg['detector']['pixels']['rows']
@@ -852,16 +941,31 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
     col_edges = np.arange(frame_ncols + 1)*pixel_size[0] \
         + panel_dims[0][0]
 
+    # grab distortion
+    # FIXME: distortion function is still hard-coded here
+    try:
+        dfunc_name = instr_cfg['detector']['distortion']['function_name']
+    except(KeyError):
+        dfunc_name = None
+
+    if dfunc_name is None:
+        distortion = None
+    else:
+        # !!!: warning -- hard-coded distortion
+        distortion = (
+            distortion_module.GE_41RT,
+            np.r_[instr_cfg['detector']['distortion']['parameters']]
+        )
+
     # sample frame
     chi = instr_cfg['oscillation_stage']['chi']
-    tVec_s = np.r_[instr_cfg['oscillation_stage']['translation']]
+    tvec_s = np.r_[instr_cfg['oscillation_stage']['translation']]
 
     # beam vector
-    if beamVec is None:
-        beamVec = xfcapi.bVec_ref
+    bvec = np.r_[instr_cfg['beam']['vector']]
 
     # data to loop
-    # ...WOULD IT BE CHEAPER TO CARRY ZEROS OR USE CONDITIONAL?
+    # ??? WOULD IT BE CHEAPER TO CARRY ZEROS OR USE CONDITIONAL?
     if omega is None:
         full_angs = np.hstack([tth_eta, np.zeros((npts, 1))])
     else:
@@ -869,69 +973,72 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
 
     patches = []
     for angs, pix in zip(full_angs, ang_pixel_size):
-        ndiv_tth = npdiv*np.ceil(tth_tol/np.degrees(pix[0]))
-        ndiv_eta = npdiv*np.ceil(eta_tol/np.degrees(pix[1]))
+        # calculate bin edges for patch based on local angular pixel size
+        # tth
+        ntths, tth_edges = gutil.make_tolerance_grid(
+            bin_width=np.degrees(pix[0]),
+            window_width=tth_tol,
+            num_subdivisions=npdiv
+        )
 
-        tth_del = np.arange(0, ndiv_tth + 1)*tth_tol/float(ndiv_tth) \
-            - 0.5*tth_tol
-        eta_del = np.arange(0, ndiv_eta + 1)*eta_tol/float(ndiv_eta) \
-            - 0.5*eta_tol
-
-        # store dimensions for convenience
-        #   * etas and tths are bin vertices, ome is already centers
-        sdims = [len(eta_del) - 1, len(tth_del) - 1]
+        # eta
+        netas, eta_edges = gutil.make_tolerance_grid(
+            bin_width=np.degrees(pix[1]),
+            window_width=eta_tol,
+            num_subdivisions=npdiv
+        )
 
         # FOR ANGULAR MESH
         conn = gutil.cellConnectivity(
-            sdims[0],
-            sdims[1],
+            netas,
+            ntths,
             origin='ll'
         )
 
         # meshgrid args are (cols, rows), a.k.a (fast, slow)
-        m_tth, m_eta = np.meshgrid(tth_del, eta_del)
+        m_tth, m_eta = np.meshgrid(tth_edges, eta_edges)
         npts_patch = m_tth.size
 
         # calculate the patch XY coords from the (tth, eta) angles
-        # * will CHEAT and ignore the small perturbation the different
-        #   omega angle values causes and simply use the central value
+        # !!! will CHEAT and ignore the small perturbation the different
+        #     omega angle values causes and simply use the central value
         gVec_angs_vtx = np.tile(angs, (npts_patch, 1)) \
             + np.radians(
-                np.vstack(
-                    [m_tth.flatten(),
-                     m_eta.flatten(),
-                     np.zeros(npts_patch)]
-                ).T
+                np.vstack([m_tth.flatten(),
+                            m_eta.flatten(),
+                            np.zeros(npts_patch)
+                ]).T
             )
 
-        xy_eval_vtx, _ = _project_on_detector_plane(
+        xy_eval_vtx, rmats_s, on_plane = _project_on_detector_plane(
                 gVec_angs_vtx,
-                rMat_d, rMat_c,
+                rmat_d, rmat_c,
                 chi,
-                tVec_d, tVec_c, tVec_s,
+                tvec_d, tvec_c, tvec_s,
                 distortion,
-                beamVec=beamVec)
+                beamVec=bvec)
 
         areas = compute_areas_func(xy_eval_vtx, conn)
 
         # EVALUATION POINTS
-        #   * for lack of a better option will use centroids
+        # !!! for lack of a better option will use centroids
         tth_eta_cen = gutil.cellCentroids(
             np.atleast_2d(gVec_angs_vtx[:, :2]),
             conn
         )
 
         gVec_angs = np.hstack(
-            [tth_eta_cen, np.tile(angs[2], (len(tth_eta_cen), 1))]
+            [tth_eta_cen,
+             np.tile(angs[2], (len(tth_eta_cen), 1))]
         )
 
-        xy_eval, _ = _project_on_detector_plane(
+        xy_eval, rmats_s, on_plane = _project_on_detector_plane(
                 gVec_angs,
-                rMat_d, rMat_c,
+                rmat_d, rmat_c,
                 chi,
-                tVec_d, tVec_c, tVec_s,
+                tvec_d, tvec_c, tvec_s,
                 distortion,
-                beamVec=beamVec)
+                beamVec=bvec)
 
         row_indices = gutil.cellIndices(row_edges, xy_eval[:, 1])
         col_indices = gutil.cellIndices(col_edges, xy_eval[:, 0])
@@ -943,11 +1050,11 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
              (xy_eval_vtx[:, 0].reshape(m_tth.shape),
               xy_eval_vtx[:, 1].reshape(m_tth.shape)),
              conn,
-             areas.reshape(sdims[0], sdims[1]),
-             (xy_eval[:, 0].reshape(sdims[0], sdims[1]),
-              xy_eval[:, 1].reshape(sdims[0], sdims[1])),
-             (row_indices.reshape(sdims[0], sdims[1]),
-              col_indices.reshape(sdims[0], sdims[1])))
+             areas.reshape(netas, ntths),
+             (xy_eval[:, 0].reshape(netas, ntths),
+              xy_eval[:, 1].reshape(netas, ntths)),
+             (row_indices.reshape(netas, ntths),
+              col_indices.reshape(netas, ntths)))
         )
         pass    # close loop over angles
     return patches
@@ -955,12 +1062,32 @@ def make_reflection_patches(instr_cfg, tth_eta, ang_pixel_size,
 
 def extract_detector_transformation(detector_params):
     """
+    Construct arrays from detector parameters.
+
     goes from 10 vector of detector parames OR instrument config dictionary
     (from YAML spec) to affine transformation arrays
-    """    # extract variables for convenience
+
+    Parameters
+    ----------
+    detector_params : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    rMat_d : TYPE
+        DESCRIPTION.
+    tVec_d : TYPE
+        DESCRIPTION.
+    chi : TYPE
+        DESCRIPTION.
+    tVec_s : TYPE
+        DESCRIPTION.
+
+    """
+    # extract variables for convenience
     if isinstance(detector_params, dict):
         rMat_d = xfcapi.makeRotMatOfExpMap(
-            detector_params['detector']['transform']['tilt']
+            np.array(detector_params['detector']['transform']['tilt'])
             )
         tVec_d = np.r_[detector_params['detector']['transform']['translation']]
         chi = detector_params['oscillation_stage']['chi']

@@ -1,32 +1,43 @@
 package:
   name: hexrd
-  version: {{ environ.get('GIT_DESCRIBE_TAG', environ['GIT_FULL_HASH'][:8]) }}
+  #version: {{ environ.get('GIT_DESCRIBE_TAG', environ['GIT_FULL_HASH'][:8]) }}
+  version: {{ environ.get('GIT_DESCRIBE_TAG', '') }}
 
 source:
   path: ../
 
 build:
   number: {{ environ.get('GIT_DESCRIBE_NUMBER', 0) }}
+  detect_binary_files_with_prefix: true
+  osx_is_app: yes
+  entry_points:
+    - hexrd = hexrd.cli:main
 
 requirements:
   build:
+    - python {{PY_VER}}
     - numpy
     - python
     - setuptools
     - setuptools_scm
 
   run:
+    - python {{PY_VER}}
     - h5py
-    - scipy
     - numba
+    - numpy
+    - psutil
+    - pyyaml
+    - scipy
     - scikit-image
+    - scikit-learn
 
 test:
   imports:
     - hexrd
 
 about:
-  home: https://github.com/joelvbernier/hexrd3
+  home: https://github.com/HEXRD/hexrd
   license: BSD
   license_family: BSD
   summary: High energy diffraction data analysis

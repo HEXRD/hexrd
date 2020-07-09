@@ -39,8 +39,9 @@ except(ImportError):
     raise RuntimeError("scipy must be recent enough to have constants module")
 
 from hexrd.matrixutil import unitVector, sum
-from hexrd.rotations import rotMatOfExpMap, mapAngle, applySym
-from hexrd import symmetry
+from hexrd.rotations import \
+    rotMatOfExpMap, mapAngle, applySym, \
+    ltypeOfLaueGroup, quatOfLaueGroup
 from hexrd.transforms import xfcapi
 from hexrd import valunits
 from hexrd.valunits import toFloat
@@ -599,7 +600,7 @@ class PlaneData(object):
             raise NotImplementedError('args : '+str(args))
 
         self.__laueGroup = laueGroup
-        self.__qsym = symmetry.quatOfLaueGroup(self.__laueGroup)
+        self.__qsym = quatOfLaueGroup(self.__laueGroup)
         self.__hkls = copy.deepcopy(hkls)
         self.__strainMag = strainMag
         self.__structFact = np.ones(self.__hkls.shape[1])
@@ -625,7 +626,7 @@ class PlaneData(object):
         return
 
     def __calc(self):
-        symmGroup = symmetry.ltypeOfLaueGroup(self.__laueGroup)
+        symmGroup = ltypeOfLaueGroup(self.__laueGroup)
         latPlaneData, latVecOps, hklDataList = PlaneData.makePlaneData(
             self.__hkls, self.__lparms, self.__qsym,
             symmGroup, self.__strainMag, self.wavelength)
@@ -862,14 +863,14 @@ class PlaneData(object):
 
     def getLatticeType(self):
         """This is the lattice type"""
-        return symmetry.ltypeOfLaueGroup(self.__laueGroup)
+        return ltypeOfLaueGroup(self.__laueGroup)
 
     def getLaueGroup(self):
         """This is the Schoenflies tag"""
         return self.__laueGroup
 
     def getQSym(self):
-        return self.__qsym  # symmetry.quatOfLaueGroup(self.__laueGroup)
+        return self.__qsym  # rotations.quatOfLaueGroup(self.__laueGroup)
 
     def getPlaneSpacings(self):
         """

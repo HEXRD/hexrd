@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 import os
+import sys
 from setuptools import setup, find_packages, Extension
+from pathlib import Path
 import numpy
 np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 
 install_reqs = [
+    'fabio@git+https://github.com/joelvbernier/fabio.git@master',
     'h5py',
+    'psutil',
     'scipy',
     'pycifrw',
     'numba'
@@ -17,6 +21,25 @@ install_reqs = [
 # only added it if we aren't buildding with conda.
 if os.environ.get('CONDA_BUILD') != '1':
     install_reqs.append('scikit-image')
+
+
+# extension for convolution from astropy
+def get_convolution_extensions():
+    c_convolve_pkgdir = Path(__file__).parent / 'hexrd' / 'convolution'
+
+    src_files = [str(c_convolve_pkgdir / 'src/convolve.c')]
+
+    extra_compile_args=['-UNDEBUG']
+    if not sys.platform.startswith('win'):
+        extra_compile_args.append('-fPIC')
+    # Add '-Rpass-missed=.*' to ``extra_compile_args`` when compiling with clang
+    # to report missed optimizations
+    _convolve_ext = Extension(name='hexrd.convolution._convolve', sources=src_files,
+                              extra_compile_args=extra_compile_args,
+                              include_dirs=[numpy.get_include()],
+                              language='c')
+
+    return [_convolve_ext]
 
 def get_extension_modules():
     # for SgLite
@@ -42,19 +65,24 @@ def get_extension_modules():
         include_dirs=[np_include_dir]
         )
 
-    return [sglite_mod, transforms_mod]
+    return [sglite_mod, transforms_mod] + get_convolution_extensions()
 
 ext_modules = get_extension_modules()
 
+# use entry_points, not scripts:
+entry_points = {
+    'console_scripts': ["hexrd = hexrd.cli.main:main"]
+    }
+
 setup(
     name='hexrd',
-    use_scm_version=True,
     setup_requires=['setuptools-scm'],
-    description='',
-    long_description='',
-    author='Kitware, Inc.',
-    author_email='kitware@kitware.com',
-    url='https://github.com/cryos/hexrd',
+    use_scm_version=True,
+    description = 'hexrd X-ray diffraction data analysis tool',
+    long_description = open('README.md').read(),
+    author='The hexrd Development Team',
+    author_email='joelvbernier@me.com',
+    url='https://github.com/HEXRD/hexrd',
     license='BSD',
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -65,11 +93,12 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6'
     ],
+    entry_points = entry_points,
     ext_modules=ext_modules,
     packages=find_packages(),
     package_data={'':['Anomalous.h5']},
     include_package_data=True,
-    python_requires='>=3.6',
+    python_requires='>=3.8',
     install_requires=install_reqs
 )
 
