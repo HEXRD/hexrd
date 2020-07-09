@@ -7,6 +7,7 @@ import numpy as np
 
 from hexrd.crystallography import PlaneData
 
+import click
 
 EOMap = namedtuple('EOMap',
                    ['data', 'eta', 'eta_edges', 'omega', 'omega_edges',
@@ -143,3 +144,29 @@ _keys = ['dataStore',
          'planeData_args',
          'planeData_hkls'
 ]
+
+from importlib import reload
+import numpy as np
+
+from hexrd import imageseries, config
+import logging
+
+
+@click.command()
+@click.argument('emaps_file_1', type=click.Path(exists=True, dir_okay=False))
+@click.argument('emaps_file_2', type=click.Path(exists=True, dir_okay=False))
+def compare(emaps_file_1, emaps_file_2):
+    logging.basicConfig()
+    logging.getLogger().setLevel(logging.INFO)
+
+    e1 = load(emaps_file_1)
+    e2 = load(emaps_file_2)
+    comparison = Comparison(e1, e2)
+    match = comparison.compare()
+
+    if not match:
+        ex = click.ClickException('The eta-omega maps do not match!')
+        ex.exit_code = -1
+
+if __name__ == '__main__':
+    compare()
