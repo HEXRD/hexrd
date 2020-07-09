@@ -2,12 +2,14 @@
 from importlib import reload
 from collections import namedtuple
 import logging
+import sys
 
 import numpy as np
 
 from hexrd.crystallography import PlaneData
 
 import click
+import coloredlogs
 
 EOMap = namedtuple('EOMap',
                    ['data', 'eta', 'eta_edges', 'omega', 'omega_edges',
@@ -156,8 +158,14 @@ import logging
 @click.argument('emaps_file_1', type=click.Path(exists=True, dir_okay=False))
 @click.argument('emaps_file_2', type=click.Path(exists=True, dir_okay=False))
 def compare(emaps_file_1, emaps_file_2):
-    logging.basicConfig()
-    logging.getLogger().setLevel(logging.INFO)
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.INFO)
+    formatter = coloredlogs.ColoredFormatter('%(asctime)s,%(msecs)03d - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    root.addHandler(handler)
 
     e1 = load(emaps_file_1)
     e2 = load(emaps_file_2)
