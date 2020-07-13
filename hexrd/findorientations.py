@@ -446,6 +446,8 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
     # check maps filename
     if cfg.find_orientations.orientation_maps.file is None:
         maps_fname = '_'.join([cfg.analysis_id, "eta-ome_maps.npz"])
+    else:
+        maps_fname = cfg.find_orientations.orientation_maps.file
 
     fn = os.path.join(cfg.working_dir, maps_fname)
 
