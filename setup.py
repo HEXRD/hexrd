@@ -12,7 +12,8 @@ install_reqs = [
     'h5py',
     'psutil',
     'scipy',
-    'numba'
+    'numba',
+    'pyyaml'
 ]
 
 # This a hack to get around the fact that scikit-image on conda-forge doesn't install
