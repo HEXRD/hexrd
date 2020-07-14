@@ -33,7 +33,8 @@ from numpy import array, sqrt, pi, \
      vstack, c_, dot, \
      argmax
 
-from hexrd.rotations import quatOfAngleAxis, quatProductMatrix, fixQuat
+# from hexrd.rotations import quatOfAngleAxis, quatProductMatrix, fixQuat
+from hexrd import rotations as rot
 from hexrd import constants
 import numpy as np
 
