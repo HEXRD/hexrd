@@ -619,7 +619,7 @@ class unitcell:
 
 		elif(self.latticeType == 'monoclinic'):
 
-			if(ax is not '2_1'):
+			if(ax != '2_1'):
 				raise RuntimeError('omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis.')
 			'''
 				only unique b-axis will be encoded
@@ -637,7 +637,7 @@ class unitcell:
 
 		elif(self.latticeType == 'orthorhombic'):
 
-			if(ax is not '2_1'):
+			if(ax != '2_1'):
 				raise RuntimeError('omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis.')
 			'''
 			2_1 screw on primary axis
@@ -702,7 +702,7 @@ class unitcell:
 			mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
 
 			if(iax == 0):
-				if(ax is '6_3'):
+				if(ax == '6_3'):
 					mask2 = np.mod(hkllist[:,2]+100,2) != 0
 
 				elif(ax in['3_1','3_2','6_2','6_4']):
@@ -885,7 +885,7 @@ class unitcell:
 
 		elif(self.latticeType == 'trigonal'):
 
-			if(plane is not 'c'):
+			if(plane != 'c'):
 				raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems.')
 			
 			if(ip == 1):
@@ -916,7 +916,7 @@ class unitcell:
 
 		elif(self.latticeType == 'hexagonal'):
 
-			if(plane is not 'c'):
+			if(plane != 'c'):
 				raise RuntimeError('omitglideplaneabsences: only c-glide allowed for hexagonal systems.')
 
 			if(ip == 2):
@@ -1037,12 +1037,12 @@ class unitcell:
 		planes = constants.SYS_AB[self.sgnum][0]
 
 		for ip,p in enumerate(planes):
-			if(p is not ''):
+			if(p != ''):
 				hkllist = self.omitglideplaneabsences(hkllist, p, ip)
 
 		axes = constants.SYS_AB[self.sgnum][1]
 		for iax,ax in enumerate(axes):
-			if(ax is not ''):
+			if(ax != ''):
 				hkllist = self.omitscrewaxisabsences(hkllist, ax, iax)
 
 		return hkllist
