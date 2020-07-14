@@ -43,7 +43,7 @@ from hexrd.constants import ptable
 import copy
 
 from os import path
-from CifFile import ReadCif 
+from CifFile import ReadCif
 import  h5py
 from warnings import warn
 
