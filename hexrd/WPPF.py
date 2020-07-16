@@ -2751,7 +2751,7 @@ class Phases_Rietveld:
 		
 		for k in material_keys:
 			self[k] = {}
-
+			self.num_phases += 1
 			for l in self.wavelength:
 				lam = self.wavelength[l].value * 1e-9
 				E = constants.cPlanck * constants.cLight / constants.cCharge / lam
@@ -2759,11 +2759,10 @@ class Phases_Rietveld:
 				kev = valWUnit('beamenergy','energy', E,'keV')
 				self[k][l] = Material_Rietveld(material_file, k, dmin=self.dmin, kev=kev)
 
-			self.num_phases += 1
 
 		for k in self:
 			for l in self.wavelength:
-				self[k][l].pf = 1.0/len(self)
+				self[k][l].pf = 1.0/self.num_phases
 
 		self.material_file = material_file
 		self.material_keys = material_keys
@@ -2900,7 +2899,7 @@ class Rietveld:
 						params.add(nn,value=occ[i],lb=0.0,ub=1.0,vary=False)
 
 						nn = p+'_'+elem+str(atom_label[i])+'_dw'
-						params.add(nn,value=dw[i],lb=0.0,ub=1.0,vary=False)
+						params.add(nn,value=dw[i],lb=0.0,ub=np.inf,vary=False)
 
 			else:
 				raise FileError('parameter file doesn\'t exist.')
@@ -3090,6 +3089,7 @@ class Rietveld:
 		self.Gaussian(tth)
 		self.Lorentzian(tth)
 		self.MixingFact(tth)
+
 		self.PV = self.eta * self.GaussianI + \
 				  (1.0 - self.eta) * self.LorentzI
 
@@ -3104,14 +3104,16 @@ class Rietveld:
 		I = np.zeros(self.tth_list.shape)
 		for p in self.tth:
 			for l in self.tth[p]:
+
 				tth = self.tth[p][l]
-				sf = self.sf[p][l]
+				sf  = self.sf[p][l]
+				pf = self.phases[p][l].pf / self.phases[p][l].vol**2
+
 				for t,fsq in zip(tth,sf):
 					self.PseudoVoight(t+self.zero_error)
-					I += self.scale * self.PV * fsq * self.LP
+					I += self.scale * pf * self.PV * fsq * self.LP
 
 		self.spectrum_sim = Spectrum(self.tth_list, I) + self.background
-
 
 	def calcRwp(self, params):
 		'''
@@ -3128,6 +3130,8 @@ class Rietveld:
 		for p in params:
 			setattr(self, p, params[p].value)
 
+		self.updated_lp = False
+		self.updated_atominfo = False
 		for p in self.phases:
 			for l in self.phases[p]:
 				mat = self.phases[p][l]
@@ -3162,7 +3166,7 @@ class Rietveld:
 				else:
 					lp = self.phases[p][l].Required_lp(lp)
 					self.phases[p][l].lparms = np.array(lp)
-
+					self.updated_lp = True
 				'''
 				PART 2: update the atom info
 				'''
@@ -3180,35 +3184,42 @@ class Rietveld:
 
 					if(nx in params):
 						x = params[nx].value
+						self.updated_atominfo = True
 					else:
 						x = self.params[nx].value
 
 					if(ny in params):
 						y = params[ny].value
+						self.updated_atominfo = True
 					else:
 						y = self.params[ny].value
 
 					if(nz in params):
 						z = params[nz].value
+						self.updated_atominfo = True
 					else:
 						z = self.params[nz].value
 
 					if(oc in params):
 						oc = params[oc].value
+						self.updated_atominfo = True
 					else:
 						oc = self.params[oc].value
 
 					if(dw in params):
 						dw = params[dw].value
+						self.updated_atominfo = True
 					else:
 						dw = self.params[dw].value
 
 					mat.atom_pos[i,:] = np.array([x,y,z,oc,dw])
+				if(self.updated_lp):
+					mat._calcrmt()
 
-				mat._calcrmt()
-
-		self.calctth()
-		self.calcsf()
+		if(self.updated_lp):
+			self.calctth()
+		if(self.updated_lp or self.updated_atominfo):
+			self.calcsf()
 
 		self.computespectrum()
 
