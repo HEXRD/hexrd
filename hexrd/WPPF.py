@@ -1377,6 +1377,7 @@ class LeBail:
 		>> @DATE:     	05/19/2020 SS 1.0 original
 		>> @DETAILS:  	initialize parameter list from file. if no file given, then initialize
 						to some default values (lattice constants are for CeO2)
+
 		'''
 		params = Parameters()
 		if(param_file is not None):
@@ -1912,6 +1913,14 @@ class Material_Rietveld:
 		self.wavelength *= 1e9
 		self.CalcAnomalous()
 
+	def CalcKeV(self):
+		self.kev = constants.cPlanck * \
+				   constants.cLight /  \
+				   constants.cCharge / \
+				   self.wavelength
+
+		self.kev *= 1e-3
+
 	def _calcrmt(self):
 
 		a = self.lparms[0]
@@ -1947,7 +1956,7 @@ class Material_Rietveld:
 		self.rmt = np.linalg.inv(self.dmt)
 
 	def _calchkls(self):
-		self.hkls = self.getHKLs(self.dmin)
+		self.hkls, self.multiplicity = self.getHKLs(self.dmin)
 
 	''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
 	def CalcLength(self, u, space):
@@ -2523,7 +2532,13 @@ class Material_Rietveld:
 		finally sort in order of decreasing dspacing
 		'''
 		hkls = self.SortHKL(hkl)
-		return hkls
+
+		multiplicity = []
+		for g in hkls:
+			multiplicity.append(self.CalcStar(g,'r').shape[0])
+
+		multiplicity = np.array(multiplicity)
+		return hkls, multiplicity
 
 	def CalcPositions(self):
 		'''
@@ -2708,10 +2723,10 @@ class Phases_Rietveld:
 
 		if(key in self.phase_dict.keys()):
 			warnings.warn('phase already in parameter list. overwriting ...')
-		if(isinstance(mat_cls, Material_Rietveld)):
-			self.phase_dict[key] = mat_cls
-		else:
-			raise ValueError('input not a material class')
+		# if(isinstance(mat_cls, Material_Rietveld)):
+		self.phase_dict[key] = mat_cls
+		# else:
+			# raise ValueError('input not a material class')
 
 	def __iter__(self):
 		self.n = 0
@@ -2735,13 +2750,20 @@ class Phases_Rietveld:
 	def add_many(self, material_file, material_keys):
 		
 		for k in material_keys:
+			self[k] = {}
 
-			self[k] = Material_Rietveld(material_file, k, dmin=self.dmin)
+			for l in self.wavelength:
+				lam = self.wavelength[l].value * 1e-9
+				E = constants.cPlanck * constants.cLight / constants.cCharge / lam
+				E *= 1e-3
+				kev = valWUnit('beamenergy','energy', E,'keV')
+				self[k][l] = Material_Rietveld(material_file, k, dmin=self.dmin, kev=kev)
 
 			self.num_phases += 1
 
 		for k in self:
-			self[k].pf = 1.0/len(self)
+			for l in self.wavelength:
+				self[k][l].pf = 1.0/len(self)
 
 		self.material_file = material_file
 		self.material_keys = material_keys
@@ -2790,9 +2812,23 @@ class Rietveld:
 		======================================================================================================== 
 	'''
 	def __init__(self,expt_file=None,param_file=None,phase_file=None):
-		self.tth_min = 0.
-		self.tth_max = 90.
+
+
+		self.initialize_expt_spectrum(expt_file)
+		self._tstart = time.time()
+
 		self.initialize_phases(phase_file)
+		self.initialize_parameters(param_file)
+
+		self.PolarizationFactor()
+		self.computespectrum()
+
+		self._tstop = time.time()
+		self.tinit = self._tstop - self._tstart
+
+		self.niter = 0
+		self.Rwplist  = np.empty([0])
+		self.gofFlist = np.empty([0])
 
 	def __str__(self):
 		resstr = '<Rietveld Fit class>\nParameters of the model are as follows:\n'
@@ -2800,10 +2836,123 @@ class Rietveld:
 		return resstr
 
 	def initialize_parameters(self, param_file):
-		pass
+		'''
+		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+		>> @DATE:     	05/19/2020 SS 1.0 original
+		>> 				07/15/2020 SS 1.1 modified to add lattice parameters, atom positions
+						and isotropic DW factors
+		>> @DETAILS:  	initialize parameter list from file. if no file given, then initialize
+						to some default values (lattice constants are for CeO2)
+		'''
+		params = Parameters()
+		if(param_file is not None):
+			if(path.exists(param_file)):
+				params.load(param_file)
+				'''
+				this part initializes the lattice parameters, atom positions in asymmetric 
+				unit, occupation and the isotropic debye waller factor. the anisotropic DW 
+				factors will be added in the future
+				'''
+				for p in self.phases:
+					l = list(self.phases[p].keys())[0]
+
+					mat = self.phases[p][l] 
+					lp 		 = np.array(mat.lparms)
+					rid 	 = list(_rqpDict[mat.latticeType][0])
+
+					lp 		 = lp[rid]
+					name 	 = _lpname[rid]
+
+					for n,l in zip(name,lp):
+						nn = p+'_'+n
+						'''
+						is l is small, it is one of the length units
+						else it is an angle
+						'''
+						if(l < 10.):
+							params.add(nn,value=l,lb=l-0.05,ub=l+0.05,vary=False)
+						else:
+							params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=False)
+
+					atom_pos   = mat.atom_pos[:,0:3]
+					occ 	   = mat.atom_pos[:,3]
+					dw 		   = mat.atom_pos[:,4]
+					atom_type  = mat.atom_type
+
+					atom_label = _getnumber(atom_type)
+					self.atom_label = atom_label
+
+					for i in range(atom_type.shape[0]):
+
+						Z = atom_type[i]
+						elem = constants.ptableinverse[Z]
+						
+						nn = p+'_'+elem+str(atom_label[i])+'_x'
+						params.add(nn,value=atom_pos[i,0],lb=0.0,ub=1.0,vary=False)
+
+						nn = p+'_'+elem+str(atom_label[i])+'_y'
+						params.add(nn,value=atom_pos[i,1],lb=0.0,ub=1.0,vary=False)
+
+						nn = p+'_'+elem+str(atom_label[i])+'_z'
+						params.add(nn,value=atom_pos[i,2],lb=0.0,ub=1.0,vary=False)
+
+						nn = p+'_'+elem+str(atom_label[i])+'_occ'
+						params.add(nn,value=occ[i],lb=0.0,ub=1.0,vary=False)
+
+						nn = p+'_'+elem+str(atom_label[i])+'_dw'
+						params.add(nn,value=dw[i],lb=0.0,ub=1.0,vary=False)
+
+			else:
+				raise FileError('parameter file doesn\'t exist.')
+		else:
+			'''
+				first 6 are the lattice paramaters
+				next three are cagliotti parameters
+				next are the three gauss+lorentz mixing paramters
+				final is the zero instrumental peak position error
+			'''
+			names  	= ('a','b','c','alpha','beta','gamma',\
+					  'U','V','W','eta1','eta2','eta3','tth_zero',\
+					  'scale')
+			values 	= (5.415, 5.415, 5.415, 90., 90., 90., \
+						0.5, 0.5, 0.5, 1e-3, 1e-3, 1e-3, 0., \
+						1.0)
+
+			lbs 		= (-np.Inf,) * len(names)
+			ubs 		= (np.Inf,)  * len(names)
+			varies 	= (False,)   * len(names)
+
+			params.add_many(names,values=values,varies=varies,lbs=lbs,ubs=ubs)
+
+		self.params = params
+
+		self._scale = self.params['scale'].value
+		self._U = self.params['U'].value
+		self._V = self.params['V'].value
+		self._W = self.params['W'].value
+		self._eta1 = self.params['eta1'].value
+		self._eta2 = self.params['eta2'].value
+		self._eta3 = self.params['eta3'].value
+		self._zero_error = self.params['zero_error'].value
 
 	def initialize_expt_spectrum(self, expt_file):
-		pass
+		'''
+		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+		>> @DATE:     	05/19/2020 SS 1.0 original
+		>> @DETAILS:  	load the experimental spectum of 2theta-intensity
+		'''
+		# self.spectrum_expt = Spectrum.from_file()
+		if(expt_file is not None):
+			if(path.exists(expt_file)):
+				self.spectrum_expt = Spectrum.from_file(expt_file,skip_rows=0)
+				self.tth_max = np.amax(self.spectrum_expt._x)
+				self.tth_min = np.amin(self.spectrum_expt._x)
+
+				''' also initialize statistical weights for the error calculation'''
+				self.weights = 1.0 / np.sqrt(self.spectrum_expt.y)
+				self.initialize_bkg()
+			else:
+				raise FileError('input spectrum file doesn\'t exist.')
 
 	def initialize_bkg(self):
 
@@ -2838,7 +2987,6 @@ class Rietveld:
 		bkg = cs(self.tth_list)
 		self.background = Spectrum(x=self.tth_list, y=bkg)
 
-
 	def initialize_phases(self, phase_file):
 		'''
 		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -2861,7 +3009,7 @@ class Rietveld:
 		for p in self.phases:
 			self.tth[p] = {}
 			for k,l in self.phases.wavelength.items():
-				t,_ = self.phases[p].getTTh(l.value)
+				t,_ = self.phases[p][k].getTTh(l.value)
 				limit = np.logical_and(t >= self.tth_min,\
 									   t <= self.tth_max)
 				self.tth[p][k] = t[limit]
@@ -2871,13 +3019,14 @@ class Rietveld:
 		for p in self.phases:
 			self.sf[p] = {}
 			for k,l in self.phases.wavelength.items():
-				t,tmask = self.phases[p].getTTh(l.value)
+				t,tmask = self.phases[p][k].getTTh(l.value)
 				limit = np.logical_and(t >= self.tth_min,\
 									   t <= self.tth_max)
-				hkl = self.phases[p].hkl[tmask][limit]
+				hkl = self.phases[p][k].hkls[tmask][limit]
+				multiplicity = self.phases[p][k].multiplicity[tmask][limit]
 				sf = []
-				for g in hkl:
-					sf.append(self.phases[p].CalcXRSF(g))
+				for m,g in zip(multiplicity,hkl):
+					sf.append(m * self.phases[p][k].CalcXRSF(g))
 				self.sf[p][k] = np.array(sf)
 
 	def CagliottiH(self, tth):
@@ -2944,8 +3093,25 @@ class Rietveld:
 		self.PV = self.eta * self.GaussianI + \
 				  (1.0 - self.eta) * self.LorentzI
 
+	def PolarizationFactor(self):
+
+		tth = np.radians(self.tth_list)
+		self.LP = (1 + np.cos(tth)**2)/ \
+		np.cos(0.5*tth)/np.sin(0.5*tth)**2
+
 	def computespectrum(self):
-		pass
+
+		I = np.zeros(self.tth_list.shape)
+		for p in self.tth:
+			for l in self.tth[p]:
+				tth = self.tth[p][l]
+				sf = self.sf[p][l]
+				for t,fsq in zip(tth,sf):
+					self.PseudoVoight(t+self.zero_error)
+					I += self.scale * self.PV * fsq * self.LP
+
+		self.spectrum_sim = Spectrum(self.tth_list, I) + self.background
+
 
 	def calcRwp(self, params):
 		'''
@@ -2962,35 +3128,87 @@ class Rietveld:
 		for p in params:
 			setattr(self, p, params[p].value)
 
-		lp = []
-		if('a' in params):
-			if(params['a'].vary):
-				lp.append(params['a'].value)
-		if('b' in params):
-			if(params['b'].vary):
-				lp.append(params['b'].value)
-		if('c' in params):
-			if(params['c'].vary):
-				lp.append(params['c'].value)
-		if('alpha' in params):
-			if(params['alpha'].vary):
-				lp.append(params['alpha'].value)
-		if('beta' in params):
-			if(params['beta'].vary):
-				lp.append(params['beta'].value)
-		if('gamma' in params):
-			if(params['gamma'].vary):
-				lp.append(params['gamma'].value)
+		for p in self.phases:
+			for l in self.phases[p]:
+				mat = self.phases[p][l]
 
-		if(not lp):
-			pass
-		else:
-			for p in self.phases:
-				lp = self.phases[p].Required_lp(lp)
-				self.phases[p].lparms = np.array(lp)
-				self.phases[p]._calcrmt()
-				self.calctth()
-				#self.calcsf()
+				'''
+				PART 1: update the lattice parameters
+				'''
+				lp = []
+
+				pre = p + '_'
+				if(pre+'a' in params):
+					if(params[pre+'a'].vary):
+						lp.append(params[pre+'a'].value)
+				if(pre+'b' in params):
+					if(params[pre+'b'].vary):
+						lp.append(params[pre+'b'].value)
+				if(pre+'c' in params):
+					if(params[pre+'c'].vary):
+						lp.append(params[pre+'c'].value)
+				if(pre+'alpha' in params):
+					if(params[pre+'alpha'].vary):
+						lp.append(params[pre+'alpha'].value)
+				if(pre+'beta' in params):
+					if(params[pre+'beta'].vary):
+						lp.append(params[pre+'beta'].value)
+				if(pre+'gamma' in params):
+					if(params[pre+'gamma'].vary):
+						lp.append(params[pre+'gamma'].value)
+
+				if(not lp):
+					pass
+				else:
+					lp = self.phases[p][l].Required_lp(lp)
+					self.phases[p][l].lparms = np.array(lp)
+
+				'''
+				PART 2: update the atom info
+				'''
+
+				atom_type = mat.atom_type
+
+				for i in range(atom_type.shape[0]):
+					Z = atom_type[i]
+					elem = constants.ptableinverse[Z]
+					nx = p+'_'+elem+str(self.atom_label[i])+'_x'
+					ny = p+'_'+elem+str(self.atom_label[i])+'_y'
+					nz = p+'_'+elem+str(self.atom_label[i])+'_z'
+					oc = p+'_'+elem+str(self.atom_label[i])+'_occ'
+					dw = p+'_'+elem+str(self.atom_label[i])+'_dw'
+
+					if(nx in params):
+						x = params[nx].value
+					else:
+						x = self.params[nx].value
+
+					if(ny in params):
+						y = params[ny].value
+					else:
+						y = self.params[ny].value
+
+					if(nz in params):
+						z = params[nz].value
+					else:
+						z = self.params[nz].value
+
+					if(oc in params):
+						oc = params[oc].value
+					else:
+						oc = self.params[oc].value
+
+					if(dw in params):
+						dw = params[dw].value
+					else:
+						dw = self.params[dw].value
+
+					mat.atom_pos[i,:] = np.array([x,y,z,oc,dw])
+
+				mat._calcrmt()
+
+		self.calctth()
+		self.calcsf()
 
 		self.computespectrum()
 
@@ -3037,8 +3255,114 @@ class Rietveld:
 			self.params[p].value = par.value
 
 	def Refine(self):
-		pass
+		'''
+		>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+		>> @DATE:     	05/19/2020 SS 1.0 original
+		>> @DETAILS:  	this routine performs the least squares refinement for all variables
+						which are allowed to be varied.
+		'''
 
+		params = self.initialize_lmfit_parameters()
+
+		fdict = {'ftol':1e-4, 'xtol':1e-4, 'gtol':1e-4, \
+				 'verbose':0, 'max_nfev':8}
+
+		fitter = lmfit.Minimizer(self.calcRwp, params)
+
+		self.res = fitter.least_squares(**fdict)
+
+		self.update_parameters()
+
+		self.niter += 1
+		self.Rwplist  = np.append(self.Rwplist, self.Rwp)
+		self.gofFlist = np.append(self.gofFlist, self.gofF)
+
+		print('Finished iteration. Rwp: {:.3f} % goodness of fit: {:.3f}'.format(self.Rwp*100., self.gofF))
+
+	@property
+	def U(self):
+		return self._U
+
+	@U.setter
+	def U(self, Uinp):
+		self._U = Uinp
+		return
+
+	@property
+	def V(self):
+		return self._V
+
+	@V.setter
+	def V(self, Vinp):
+		self._V = Vinp
+		return
+
+	@property
+	def W(self):
+		return self._W
+
+	@W.setter
+	def W(self, Winp):
+		self._W = Winp
+		return
+
+	@property
+	def Hcag(self):
+		return self._Hcag
+
+	@Hcag.setter
+	def Hcag(self, val):
+		self._Hcag = val
+
+	@property
+	def eta1(self):
+		return self._eta1
+
+	@eta1.setter
+	def eta1(self, val):
+		self._eta1 = val
+		return
+
+	@property
+	def eta2(self):
+		return self._eta2
+
+	@eta2.setter
+	def eta2(self, val):
+		self._eta2 = val
+		return
+
+	@property
+	def eta3(self):
+		return self._eta3
+
+	@eta3.setter
+	def eta3(self, val):
+		self._eta3 = val
+		return
+
+	@property
+	def tth_list(self):
+		return self.spectrum_expt._x
+
+	@property
+	def zero_error(self):
+		return self._zero_error
+	
+	@zero_error.setter
+	def zero_error(self, value):
+		self._zero_error = value
+		return
+
+	@property
+	def scale(self):
+		return self._scale
+	
+
+	@scale.setter
+	def scale(self, value):
+		self._scale = value
+		return
 # class Rietveld:
 
 # 	''' ======================================================================================================== 
@@ -4112,3 +4436,14 @@ _rqpDict = {
 	'hexagonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
 	'cubic': ((0,),      lambda p: (p[0], p[0], p[0], 90, 90,   90)),
 	}
+
+_lpname = np.array(['a','b','c','alpha','beta','gamma'])
+
+def _getnumber(arr):
+
+	res = np.ones(arr.shape)
+	for i in range(arr.shape[0]):
+		res[i] = np.sum(arr[0:i+1] == arr[i])
+	res = res.astype(np.int32)
+
+	return res
