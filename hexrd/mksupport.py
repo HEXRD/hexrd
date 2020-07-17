@@ -84,6 +84,8 @@ def GetLatticeParameters(xtal_sys, bool_trigonal):
 		else:
 			c = float(c) 
 
+		lat_param['c'] = c
+
 	# orthorhombic symmetry
 	elif(xtal_sys == 3):
 		b = input("b [nm] :	")
@@ -97,6 +99,8 @@ def GetLatticeParameters(xtal_sys, bool_trigonal):
 			raise ValueError("Invalid floating point value.")
 		else:
 			c = float(c) 
+
+		lat_param['b'] = c; lat_param['c'] = c
 
 	# hexagonal system
 	elif(xtal_sys == 4):
@@ -255,10 +259,13 @@ def SpaceGroupSetting(sgnum):
 	return iset
 	    
 def GetAtomInfo():
+
 	print(pstr_Elements)
 	ctr  = 0
 	Z    = []
 	APOS = []
+	DW   = []
+	ani = 0
 
 	ques = 'y'
 	while(ques.strip().lower() == 'y' or ques.strip().lower() == 'yes'):
@@ -270,12 +277,14 @@ def GetAtomInfo():
 			tmp = int(tmp)
 
 		Z.append(tmp)
-		APOS.append(GetAsymmetricPositions())
+		asym, U, ani = GetAsymmetricPositions(aniU=ani)
+		APOS.append(asym)
+		DW.append(U)
 		ques = input("Another atom? (y/n) :	")
 
-	return {'Z':Z, 'APOS':APOS}
+	return {'Z':Z, 'APOS':APOS, 'U':DW}
 
-def GetAsymmetricPositions():
+def GetAsymmetricPositions(aniU=0):
 
 	asym = input("Enter asymmetric position of atom in unit cell separated by comma (fractional coordinates) :	")
 	asym = [x.strip() for x in asym.split(',')]
@@ -293,7 +302,6 @@ def GetAsymmetricPositions():
 	if(len(asym) != 3):
 		raise ValueError("Need 3 coordinates in x,y,z fractional coordinates.")
 
-
 	for i,x in enumerate(asym):
 		if(not x.replace('.','',1).isdigit()):
 				raise ValueError("Invalid floating point value in fractional coordinates.")
@@ -302,11 +310,17 @@ def GetAsymmetricPositions():
 			if(asym[i] < 0.0 or asym[i] >= 1.0):
 				raise ValueError(" fractional coordinates only in the range [0,1) i.e. 1 excluded")
 
-	occdw = GetOccDW()
-	asym.extend(occdw)
-	return asym
+	occ, dw = GetOccDW(aniU=aniU)
+	if(type(dw) == np.float):
+		aniU = 1
+	else:
+		aniU = 2
 
-def GetOccDW():
+	asym.extend([occ])
+	return asym, dw, aniU
+
+def GetOccDW(aniU=0):
+
 	occ = input("Enter site occupation :	")
 	if(not occ.replace('.','',1).isdigit()):
 			raise ValueError("Invalid floating point value in fractional coordinates.")
@@ -315,13 +329,69 @@ def GetOccDW():
 		if(occ > 1.0 or occ <= 0.0):
 			raise ValueError("site occupation can only in range (0,1.0] i.e. 0 excluded")
 
-	dw = input("Enter Debye-Waller factor [nm^(-2)] :	")
-	if(not dw.replace('.','',1).isdigit()):
-			raise ValueError("Invalid floating point value in fractional coordinates.")
+	if(aniU != 0):
+		ani = aniU
 	else:
-		dw = float(dw)
+		ani = input("Isotropic or anisotropic Debye-Waller factor? \n 1 for isotropic, 2 for anisotropic : ")
 
-	return [occ, dw]
+		if(not ani.isdigit()):
+				raise ValueError("Invalid integer value for atomic number.")
+		else:
+			ani = int(ani)
+
+	if(ani == 1):
+
+		dw = input("Enter isotropic Debye-Waller factor [nm^(-2)] :	")
+		if(not dw.replace('.','',1).isdigit()):
+				raise ValueError("Invalid floating point value in fractional coordinates.")
+		else:
+			dw = float(dw)
+
+		return [occ, dw]
+	elif(ani == 2):
+
+		U = np.zeros([6,])
+
+		U11 = input("Enter U11 [nm^2] :	")
+		if(not U11.replace('.','',1).isdigit()):
+				raise ValueError("Invalid floating point value in U11.")
+		else:
+			U[0] = float(U11)
+
+		U22 = input("Enter U22 [nm^2] :	")
+		if(not U22.replace('.','',1).isdigit()):
+			raise ValueError("Invalid floating point value in U22.")
+		else:
+			U[1] = float(U22)
+
+		U33 = input("Enter U33 [nm^2] :	")
+		if(not U33.replace('.','',1).isdigit()):
+			raise ValueError("Invalid floating point value in U33.")
+		else:
+			U[2] = float(U33)
+
+		U12 = input("Enter U12 [nm^2] :	")
+		if(not U12.replace('.','',1).isdigit()):
+			raise ValueError("Invalid floating point value in U12.")
+		else:
+			U[3] = float(U12)
+
+		U13 = input("Enter U13 [nm^2] :	")
+		if(not U13.replace('.','',1).isdigit()):
+			raise ValueError("Invalid floating point value in U13.")
+		else:
+			U[4] = float(U13)
+
+		U23 = input("Enter U23 [nm^2] :	")
+		if(not U23.replace('.','',1).isdigit()):
+			raise ValueError("Invalid floating point value in U23.")
+		else:
+			U[5] = float(U23)
+
+		return [occ, U]
+
+	else:
+		raise ValueError("Invalid input. Only 1 or 2 acceptable.")
 
 # write to H5 file
 def Write2H5File(AtomInfo, lat_param):
@@ -339,6 +409,11 @@ def Write2H5File(AtomInfo, lat_param):
 
 
 def WriteH5Data(fid, AtomInfo, lat_param):
+
+	node = "/"+AtomInfo['xtalname']
+	if node in fid:
+		print("crystal already exists. overwriting...\n")
+		del fid[node]
 
 	gid = fid.create_group(AtomInfo['xtalname'])
 
@@ -360,11 +435,25 @@ def WriteH5Data(fid, AtomInfo, lat_param):
 	did = gid.create_dataset("LatticeParameters",(6,), dtype = np.float64)
 	did.write_direct(np.array(list(lat_param.values()), dtype = np.float64))
 
-	did = gid.create_dataset("AtomData", (5, len(AtomInfo['Z'])), dtype = np.float32)
+	did = gid.create_dataset("AtomData", (4, len(AtomInfo['Z'])), dtype = np.float64)
 	# this is done for contiguous c-allocation
 	arr = np.array(AtomInfo['APOS'], dtype = np.float32).transpose()
 	arr2 = arr.copy()
 	did.write_direct(arr2)
+
+	'''
+		handling of isotropic vs
+		anisotropic debye waller factors
+	'''
+
+	if(type(AtomInfo['U'][0]) != np.float):
+		did = gid.create_dataset("U", (6, len(AtomInfo['Z'])), dtype = np.float64)
+		arr = np.array(AtomInfo['U'], dtype = np.float32).transpose()
+		arr2 = arr.copy()
+		did.write_direct(arr2)
+	else:
+		did = gid.create_dataset("U", (len(AtomInfo['Z']),), dtype = np.float32)
+		did.write_direct(np.array(AtomInfo['U'], dtype = np.float64))
 
 	# variable length string type
 	dt = h5py.special_dtype(vlen=str)
