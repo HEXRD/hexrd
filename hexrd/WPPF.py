@@ -1857,6 +1857,9 @@ class Material_Rietveld:
 		self._readHDF(fhdf, xtal)
 		self._calcrmt()
 
+		if(self.aniU):
+			self.calcBetaij()
+
 		self.SYM_SG, self.SYM_PG_d, self.SYM_PG_d_laue, self.centrosymmetric, self.symmorphic = \
 		symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
 		self.latticeType = symmetry.latticeType(self.sgnum)
@@ -1895,14 +1898,33 @@ class Material_Rietveld:
 		"""
 		self.lparms      = list(gid.get('LatticeParameters'))
 
-		# the last field in this is already the B factor, so no need to convert
+		# the last field in this is already
 		self.atom_pos  = np.transpose(np.array(gid.get('AtomData'), dtype = np.float64))
+
+		# the U factors are related to B by the relation B = 8pi^2 U
+		self.U         = np.transpose(np.array(gid.get('U'), dtype = np.float64))
+
+		self.aniU = False
+		if(self.U.ndim > 1):
+			self.aniU = True
 
 		# read atom types (by atomic number, Z)
 		self.atom_type = np.array(gid.get('Atomtypes'), dtype = np.int32)
 		self.atom_ntype = self.atom_type.shape[0]
 
 		fid.close()
+
+	def calcBetaij(self):
+
+		self.betaij = np.zeros([self.atom_ntype,3,3])
+		for i in range(self.U.shape[0]):
+			U = self.U[i,:]
+			self.betaij[i,:,:] = np.array([[U[0], U[3], U[4]],\
+										 [U[3], U[1], U[5]],\
+										 [U[4], U[5], U[2]]])
+
+			self.betaij[i,:,:] *= 2. * np.pi**2 * self.aij
+
 
 	def CalcWavelength(self):
 		# wavelength in nm
@@ -1954,6 +1976,14 @@ class Material_Rietveld:
 			reciprocal metric tensor
 		'''
 		self.rmt = np.linalg.inv(self.dmt)
+
+		ast = self.CalcLength([1,0,0],'r')
+		bst = self.CalcLength([0,1,0],'r')
+		cst = self.CalcLength([0,0,1],'r')
+
+		self.aij = np.array([[ast**2, ast*bst, ast*cst],\
+							  [bst*ast, bst**2, bst*cst],\
+							  [cst*ast, cst*bst, cst**2]])
 
 	def _calchkls(self):
 		self.hkls, self.multiplicity = self.getHKLs(self.dmin)
@@ -2659,7 +2689,13 @@ class Material_Rietveld:
 
 			Z   = self.atom_type[i]
 			ff  = self.CalcXRFormFactor(Z,s)
-			ff *= self.atom_pos[i,3] * np.exp(-self.atom_pos[i,4]*s)
+
+			if(self.aniU):
+				T = np.exp(-np.dot(hkl,np.dot(self.betaij[i,:,:], hkl)))
+			else:
+				T = np.exp(-8.0*np.pi**2 * self.U[i]*s)
+
+			ff *= self.atom_pos[i,3] * T
 
 			for j in range(self.asym_pos[i].shape[0]):
 				arg =  2.0 * np.pi * np.sum( hkl * self.asym_pos[i][j,:] )
@@ -2692,7 +2728,7 @@ class Phases_Rietveld:
 	def __init__(self, material_file=None, 
 				 material_keys=None,
 				 dmin = _nm(0.05),
-				 wavelength={'alpha1':_nm(0.15406),'alpha2':_nm(0.154443)}
+				 wavelength={'alpha1':[_nm(0.15406),1.],'alpha2':[_nm(0.154443),0.52]}
 				 ):
 
 		self.phase_dict = {}
@@ -2744,8 +2780,13 @@ class Phases_Rietveld:
          return len(self.phase_dict)
 
 	def add(self, material_file, material_key):
-
-		self[material_key] = Material_Rietveld(material_file, material_key, dmin=self.dmin)
+		self[material_key] = {}
+		for l in self.wavelength:
+			lam = self.wavelength[l][0].value * 1e-9
+			E = constants.cPlanck * constants.cLight / constants.cCharge / lam
+			E *= 1e-3
+			kev = valWUnit('beamenergy','energy', E,'keV')
+			self[material_key][l] = Material_Rietveld(material_file, material_key, dmin=self.dmin, kev=kev)
 
 	def add_many(self, material_file, material_keys):
 		
@@ -2753,7 +2794,7 @@ class Phases_Rietveld:
 			self[k] = {}
 			self.num_phases += 1
 			for l in self.wavelength:
-				lam = self.wavelength[l].value * 1e-9
+				lam = self.wavelength[l][0].value * 1e-9
 				E = constants.cPlanck * constants.cLight / constants.cCharge / lam
 				E *= 1e-3
 				kev = valWUnit('beamenergy','energy', E,'keV')
@@ -2875,7 +2916,6 @@ class Rietveld:
 
 					atom_pos   = mat.atom_pos[:,0:3]
 					occ 	   = mat.atom_pos[:,3]
-					dw 		   = mat.atom_pos[:,4]
 					atom_type  = mat.atom_type
 
 					atom_label = _getnumber(atom_type)
@@ -2898,8 +2938,15 @@ class Rietveld:
 						nn = p+'_'+elem+str(atom_label[i])+'_occ'
 						params.add(nn,value=occ[i],lb=0.0,ub=1.0,vary=False)
 
-						nn = p+'_'+elem+str(atom_label[i])+'_dw'
-						params.add(nn,value=dw[i],lb=0.0,ub=np.inf,vary=False)
+						if(mat.aniU):
+							U = mat.U
+							for j in range(6):
+								nn = p+'_'+elem+str(atom_label[i])+'_'+_nameU[j]
+								params.add(nn,value=U[i,j],lb=-1e-3,ub=np.inf,vary=False)
+						else:
+
+							nn = p+'_'+elem+str(atom_label[i])+'_dw'
+							params.add(nn,value=mat.U[i],lb=0.0,ub=np.inf,vary=False)
 
 			else:
 				raise FileError('parameter file doesn\'t exist.')
@@ -3008,7 +3055,7 @@ class Rietveld:
 		for p in self.phases:
 			self.tth[p] = {}
 			for k,l in self.phases.wavelength.items():
-				t,_ = self.phases[p][k].getTTh(l.value)
+				t,_ = self.phases[p][k].getTTh(l[0].value)
 				limit = np.logical_and(t >= self.tth_min,\
 									   t <= self.tth_max)
 				self.tth[p][k] = t[limit]
@@ -3018,14 +3065,15 @@ class Rietveld:
 		for p in self.phases:
 			self.sf[p] = {}
 			for k,l in self.phases.wavelength.items():
-				t,tmask = self.phases[p][k].getTTh(l.value)
+				w_int = l[1]
+				t,tmask = self.phases[p][k].getTTh(l[0].value)
 				limit = np.logical_and(t >= self.tth_min,\
 									   t <= self.tth_max)
 				hkl = self.phases[p][k].hkls[tmask][limit]
 				multiplicity = self.phases[p][k].multiplicity[tmask][limit]
 				sf = []
 				for m,g in zip(multiplicity,hkl):
-					sf.append(m * self.phases[p][k].CalcXRSF(g))
+					sf.append(w_int * m * self.phases[p][k].CalcXRSF(g))
 				self.sf[p][k] = np.array(sf)
 
 	def CagliottiH(self, tth):
@@ -3134,6 +3182,7 @@ class Rietveld:
 		self.updated_atominfo = False
 		for p in self.phases:
 			for l in self.phases[p]:
+
 				mat = self.phases[p][l]
 
 				'''
@@ -3174,13 +3223,20 @@ class Rietveld:
 				atom_type = mat.atom_type
 
 				for i in range(atom_type.shape[0]):
+
 					Z = atom_type[i]
 					elem = constants.ptableinverse[Z]
 					nx = p+'_'+elem+str(self.atom_label[i])+'_x'
 					ny = p+'_'+elem+str(self.atom_label[i])+'_y'
 					nz = p+'_'+elem+str(self.atom_label[i])+'_z'
 					oc = p+'_'+elem+str(self.atom_label[i])+'_occ'
-					dw = p+'_'+elem+str(self.atom_label[i])+'_dw'
+
+					if(mat.aniU):
+						Un = []
+						for j in range(6):
+							Un.append(p+'_'+elem+str(self.atom_label[i])+'_'+_nameU[j])
+					else:
+						dw = p+'_'+elem+str(self.atom_label[i])+'_dw'
 
 					if(nx in params):
 						x = params[nx].value
@@ -3206,13 +3262,28 @@ class Rietveld:
 					else:
 						oc = self.params[oc].value
 
-					if(dw in params):
-						dw = params[dw].value
-						self.updated_atominfo = True
+					if(mat.aniU):
+						U = []
+						for j in range(6):
+							if(Un[j] in params):
+								self.updated_atominfo = True
+								U.append(params[Un[j]].value)
+							else:
+								U.append(self.params[Un[j]].value)
+						U = np.array(U)
+						mat.U[i,:] = U
 					else:
-						dw = self.params[dw].value
+						if(dw in params):
+							dw = params[dw].value
+							self.updated_atominfo = True
+						else:
+							dw = self.params[dw].value
+						mat.U[i] = dw
 
-					mat.atom_pos[i,:] = np.array([x,y,z,oc,dw])
+					mat.atom_pos[i,:] = np.array([x,y,z,oc])
+
+				if(mat.aniU):
+					mat.calcBetaij()
 				if(self.updated_lp):
 					mat._calcrmt()
 
@@ -4449,6 +4520,7 @@ _rqpDict = {
 	}
 
 _lpname = np.array(['a','b','c','alpha','beta','gamma'])
+_nameU  = np.array(['U11','U22','U33','U12','U13','U23'])
 
 def _getnumber(arr):
 

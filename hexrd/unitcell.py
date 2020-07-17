@@ -18,7 +18,7 @@ class unitcell:
 
 	# initialize using the EMsoft unitcell type
 	# need lattice parameters and space group data from HDF5 file
-	def __init__(self, lp, sgnum, atomtypes, atominfo, dmin, beamenergy, sgsetting=0):
+	def __init__(self, lp, sgnum, atomtypes, atominfo, U, dmin, beamenergy, sgsetting=0):
 
 		self._tstart = time.time()
 		self.pref  = 0.4178214
@@ -26,6 +26,8 @@ class unitcell:
 		self.atom_ntype = atomtypes.shape[0]
 		self.atom_type  = atomtypes 
 		self.atom_pos   = atominfo
+		self.U 			= U
+
 		self.dmin 		= dmin
 
 		# set some default values for 
@@ -73,6 +75,11 @@ class unitcell:
 		elif(lp[5].unit == 'radians'):
 			self.gamma = np.degrees(lp[5].value) 
 
+		self.aniU 		= False 
+		if(self.U.ndim > 1):
+			self.aniU = True
+			self.calcBetaij()
+
 		'''
 		initialize interpolation from table for anomalous scattering
 		'''
@@ -107,6 +114,18 @@ class unitcell:
 							self.voltage
 		self.wavelength *= 1e9
 		self.CalcAnomalous()
+
+
+	def calcBetaij(self):
+
+		self.betaij = np.zeros([self.atom_ntype,3,3])
+		for i in range(self.U.shape[0]):
+			U = self.U[i,:]
+			self.betaij[i,:,:] = np.array([[U[0], U[3], U[4]],\
+										 [U[3], U[1], U[5]],\
+										 [U[4], U[5], U[2]]])
+
+			self.betaij[i,:,:] *= 2. * np.pi**2 * self._aij
 
 	def calcmatrices(self):
 
@@ -155,6 +174,14 @@ class unitcell:
 		self._rsm = np.array([[1./a, 0., 0.],\
 							 [-1./(a*tg), 1./(b*sg), 0.],
 							 [b*c*(cg*ca - cb)/(self.vol*sg), a*c*(cb*cg - ca)/(self.vol*sg), a*b*sg/self.vol]])
+
+		ast = self.CalcLength([1,0,0],'r')
+		bst = self.CalcLength([0,1,0],'r')
+		cst = self.CalcLength([0,0,1],'r')
+
+		self._aij = np.array([[ast**2, ast*bst, ast*cst],\
+							  [bst*ast, bst**2, bst*cst],\
+							  [cst*ast, cst*bst, cst**2]])
 
 	''' transform between any crystal space to any other space.
  		choices are 'd' (direct), 'r' (reciprocal) and 'c' (cartesian)'''
@@ -427,7 +454,7 @@ class unitcell:
 			'''
 			atype is atom type i.e. atomic number
 			numat is the number of atoms of atype
-			atom_pos(i,4) has the occupation factor
+			atom_pos(i,3) has the occupation factor
 			'''
 			atype = self.atom_type[i]
 			numat = self.numat[i]
@@ -522,13 +549,18 @@ class unitcell:
 		'''
 		s =  0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2
 		sf = np.complex(0.,0.)
-
 		for i in range(0,self.atom_ntype):
 
 			Z   = self.atom_type[i]
 			ff  = self.CalcXRFormFactor(Z,s)
-			ff *= self.atom_pos[i,3] * np.exp(-self.atom_pos[i,4]*s)
 
+			if(self.aniU):
+				T = np.exp(-np.dot(hkl,np.dot(self.betaij[i,:,:],hkl)))
+			else:
+				T = np.exp(-8.0*np.pi**2 * self.U[i]*s)
+
+			ff *= self.atom_pos[i,3] * T
+				
 			for j in range(self.asym_pos[i].shape[0]):
 				arg =  2.0 * np.pi * np.sum( hkl * self.asym_pos[i][j,:] )
 				sf  = sf + ff * np.complex(np.cos(arg),-np.sin(arg))
@@ -1252,6 +1284,14 @@ class unitcell:
 		self.ik = 1
 		self.il = 1
 		self.CalcMaxGIndex()
+
+	@property
+	def U(self):
+		return self._U
+
+	@U.setter
+	def U(self,Uarr):
+		self._U = Uarr
 
 	@property 
 	def voltage(self):

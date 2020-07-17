@@ -169,7 +169,7 @@ class Material(object):
             #
 
         self.unitcell = unitcell(self._lparms, self.sgnum, self._atomtype,
-                                self._atominfo, uc_dmin, 
+                                self._atominfo, self._U, uc_dmin, 
                                 self._beamEnergy.value, self._sgsetting)
 
         hkls = self.planeData.getHKLs(allHKLs=True)
@@ -498,8 +498,9 @@ class Material(object):
         # fill space group and lattice parameters
         self.sgnum      = sgnum
 
-        # the last field in this is already the B factor, so no need to convert
+        # the U factors are related to B by the relation B = 8pi^2 U
         self._atominfo  = numpy.transpose(numpy.array(gid.get('AtomData'), dtype = numpy.float64))
+        self._U         = numpy.transpose(numpy.array(gid.get('U'), dtype = numpy.float64))
 
         # read atom types (by atomic number, Z)
         self._atomtype = numpy.array(gid.get('Atomtypes'), dtype = numpy.int32)
