@@ -33,8 +33,10 @@ from numpy import array, sqrt, pi, \
      vstack, c_, dot, \
      argmax
 
+# from hexrd.rotations import quatOfAngleAxis, quatProductMatrix, fixQuat
 from hexrd import rotations as rot
-
+from hexrd import constants
+import numpy as np
 
 # =============================================================================
 # Module vars
@@ -339,3 +341,245 @@ def quatOfLaueGroup(tag):
     qsym = array(rot.quatOfAngleAxis(angle, axis).T, order='C').T
 
     return qsym
+
+def GeneratorString(sgnum):
+    '''
+    these rhombohedral space groups have a hexagonal setting
+    with different symmetry matrices and generator strings
+    146: 231
+    148: 232
+    ...
+    and so on
+    '''
+    sg = sgnum-1
+    # sgdict = {146:231, 148:232, 155:233, 160:234, 161:235, 166:236, 167:237}
+    # if(sgnum in sgdict):
+    #     sg = sgdict[sgnum]-1
+
+    return constants.SYM_GL[sg]
+
+def MakeGenerators(genstr, setting):
+
+    t = 'aOOO'
+    mat = SYM_fillgen(t)
+    genmat = mat
+
+    # genmat[0,:,:] = constants.SYM_GENERATORS['a']
+    centrosymmetric = False
+
+    # check if space group has inversion symmetry
+    if(genstr[0] == '1'):
+        t = 'hOOO'
+        mat = SYM_fillgen(t)
+        genmat = np.concatenate((genmat, mat))
+        centrosymmetric = True
+        
+    n = int(genstr[1])
+    if(n > 0):
+        for i in range(n):
+            istart = 2 + i * 4
+            istop  = 2 + (i+1) * 4
+
+            t = genstr[istart:istop]
+
+            mat = SYM_fillgen(t)
+            genmat = np.concatenate((genmat, mat))
+    else:
+        istop = 2
+    '''
+    if there is an alternate setting for this space group
+    check if the alternate setting needs to be used
+    '''
+    if(genstr[istop] != '0'):
+        if(setting != 0):
+            t = genstr[istop+1:istop+4]
+            trans = np.array([constants.SYM_GENERATORS[t[1]],\
+                              constants.SYM_GENERATORS[t[2]],\
+                              constants.SYM_GENERATORS[t[3]]
+                              ])
+            for i in genmat.shape[0]:
+                genmat[0:3,3] -= trans
+
+    return genmat, centrosymmetric
+
+def SYM_fillgen(t):
+    mat = np.zeros([4,4])
+    mat[3,3] = 1.
+
+    mat[0:3,0:3] = constants.SYM_GENERATORS[t[0]]
+    mat[0:3,3] = np.array([constants.SYM_GENERATORS[t[1]],\
+                           constants.SYM_GENERATORS[t[2]],\
+                           constants.SYM_GENERATORS[t[3]]
+                           ])
+
+    mat = np.broadcast_to(mat, [1,4,4])
+    return mat
+
+def GenerateSGSym(sgnum, setting=0):
+
+    '''
+    get the generators for a space group using the
+    generator string
+    '''
+    genstr = GeneratorString(sgnum)
+    genmat, centrosymmetric = MakeGenerators(genstr, setting)
+    symmorphic = False
+    if(sgnum in constants.sgnum_symmorphic):
+        symmorphic = True
+    '''
+    use the generator string to get the rest of the
+    factor group
+
+    genmat has shape ngenerators x 4 x 4
+    '''
+    nsym = genmat.shape[0]
+
+    SYM_SG = genmat
+
+    '''
+    generate the factor group
+    '''
+
+    k1 = 0
+    while k1 < nsym:
+
+        g1 = np.squeeze(SYM_SG[k1,:,:])
+        k2 = k1
+
+        while k2 < nsym:
+            g2 = np.squeeze(SYM_SG[k2,:,:])
+            gnew = np.dot(g1, g2)
+
+            # only fractional parts
+            frac = np.modf(gnew[0:3,3])[0]
+            frac[frac < 0.] += 1.
+            frac[np.abs(frac) < 1E-5] = 0.0
+
+            gnew[0:3,3] = frac
+
+            if(isnew(gnew, SYM_SG)):
+                gnew = np.broadcast_to(gnew, [1,4,4])
+                SYM_SG = np.concatenate((SYM_SG, gnew))
+                nsym += 1
+
+                if (nsym >= 192):
+                    k2 = nsym
+                    k1 = nsym
+
+            k2 += 1
+        k1 += 1
+
+    SYM_PG_d = GeneratePGSym(SYM_SG)
+    SYM_PG_d_laue = GeneratePGSym_Laue(SYM_PG_d)
+
+    for s in SYM_PG_d:
+        if(np.allclose(-np.eye(3),s)):
+            centrosymmetric = True
+        
+
+    return SYM_SG, SYM_PG_d, SYM_PG_d_laue, centrosymmetric, symmorphic
+
+def GeneratePGSym(SYM_SG):
+    '''
+    calculate the direct space point group symmetries 
+    from the space group symmetry. the direct point 
+    group symmetries are merely the space group 
+    symmetries with zero translation part. The reciprocal
+    ones are calculated from the direct symmetries by
+    using the metric tensors, but that is done in the unitcell
+    class
+    '''
+    nsgsym = SYM_SG.shape[0]
+
+    # first fill the identity rotation
+    SYM_PG_d = SYM_SG[0,0:3,0:3]
+    SYM_PG_d = np.broadcast_to(SYM_PG_d,[1,3,3])
+
+    for i in range(1,nsgsym):
+        g = SYM_SG[i,:,:]
+        t = g[0:3,3]
+        g = g[0:3,0:3]
+        if(isnew(g,SYM_PG_d)):
+            g = np.broadcast_to(g,[1,3,3])
+            SYM_PG_d = np.concatenate((SYM_PG_d, g))
+
+    return SYM_PG_d.astype(np.int32)
+
+def GeneratePGSym_Laue(SYM_PG_d):
+    '''
+    generate the laue group symmetry for the given set of 
+    point group symmetry matrices. this function just adds
+    the inversion symmetry and goes through the group action
+    to generate the entire laue group for the direct point 
+    point group matrices
+    '''
+
+    '''
+    first check if the group already has the inversion symmetry
+    '''
+    for s in SYM_PG_d:
+        if(np.allclose(s,-np.eye(3))):
+            return SYM_PG_d
+
+    '''
+    if we get here, then the inversion symmetry is not present
+    add the inversion symmetry
+    '''
+    SYM_PG_d_laue = SYM_PG_d
+    g = np.broadcast_to(-np.eye(3).astype(np.int32),[1,3,3])
+    SYM_PG_d_laue = np.concatenate((SYM_PG_d_laue, g))
+
+    '''
+    now go through the group actions and see if its a new matrix
+    if it is then add it to the group
+    '''
+    nsym = SYM_PG_d_laue.shape[0]
+    k1 = 0
+    while k1 < nsym:
+        g1 = np.squeeze(SYM_PG_d_laue[k1,:,:])
+        k2 = k1
+        while k2 < nsym:
+            g2 = np.squeeze(SYM_PG_d_laue[k2,:,:])
+            gnew = np.dot(g1, g2)
+
+            if(isnew(gnew, SYM_PG_d_laue)):
+                gnew = np.broadcast_to(gnew, [1,3,3])
+                SYM_PG_d_laue = np.concatenate((SYM_PG_d_laue, gnew))
+                nsym += 1
+
+                if (nsym >= 48):
+                    k2 = nsym
+                    k1 = nsym
+
+            k2 += 1
+        k1 += 1
+
+    return SYM_PG_d_laue
+
+def isnew(mat, sym_mats):
+    isnew = True
+    for g in sym_mats:
+        diff = np.sum(np.abs(mat-g))
+        if(diff < 1E-5):
+            isnew = False
+            break
+    return isnew
+
+def latticeType(sgnum):
+
+    if(sgnum <= 2):
+        return 'triclinic'
+    elif(sgnum > 2 and sgnum <= 15):
+        return 'monoclinic'
+    elif(sgnum > 15 and sgnum <= 74):
+        return 'orthorhombic'
+    elif(sgnum > 74 and sgnum <= 142):
+        return 'tetragonal'
+    elif(sgnum > 142 and sgnum <= 167):
+        return 'trigonal'
+    elif(sgnum > 167 and sgnum <= 194):
+        return 'hexagonal'
+    elif(sgnum > 194 and sgnum <=230):
+        return 'cubic'
+    else:
+        raise RuntimeError('symmetry.latticeType: unknown space group number')

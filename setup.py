@@ -3,7 +3,6 @@ import os
 import sys
 from setuptools import setup, find_packages, Extension
 from pathlib import Path
-
 import numpy
 np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 
@@ -12,6 +11,7 @@ install_reqs = [
     'h5py',
     'psutil',
     'scipy',
+    'pycifrw',
     'numba'
 ]
 
@@ -96,6 +96,17 @@ setup(
     entry_points = entry_points,
     ext_modules=ext_modules,
     packages=find_packages(),
+    package_data={'':['Anomalous.h5']},
+    include_package_data=True,
     python_requires='>=3.8',
     install_requires=install_reqs
 )
+
+# ext_modules = get_extension_modulesf()
+# setupF(
+#     name='hexrd',
+#     url='https://github.com/cryos/hexrd',
+#     license='BSD',
+#     ext_modules=ext_modules,
+#     packages=find_packages(),
+# )
