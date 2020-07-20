@@ -8,6 +8,7 @@ from scipy.interpolate import interp1d
 import time
 
 class unitcell:
+
     '''
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       10/09/2018 SS 1.0 original
@@ -773,16 +774,16 @@ class unitcell:
 
         return hkllist.astype(np.int32)
 
-    def omitglideplaneabsences(self, hkllist, plane, ip):
-        '''
-        this function encodes the table on pg 47 of 
-        international table of crystallography vol A
-        the systematic absences due to different glide 
-        planes is encoded here. 
-        ip encodes the primary, secondary or tertiary plane normal
-        ip == 0 : primary
-        ip == 1 : secondary
-        ip == 2 : tertiary
+	def omitglideplaneabsences(self, hkllist, plane, ip):
+		'''
+		this function encodes the table on pg 47 of 
+		international table of crystallography vol A
+		the systematic absences due to different glide 
+		planes is encoded here. 
+		ip encodes the primary, secondary or tertiary plane normal
+		ip == 0 : primary
+		ip == 1 : secondary
+		ip == 2 : tertiary
 
 
         @NOTE: only unique b axis in monoclinic systems 
@@ -917,7 +918,7 @@ class unitcell:
 
         elif(self.latticeType == 'trigonal'):
 
-            if(plane is not 'c'):
+            if(plane != 'c'):
                 raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems.')
             
             if(ip == 1):
@@ -948,7 +949,7 @@ class unitcell:
 
         elif(self.latticeType == 'hexagonal'):
 
-            if(plane is not 'c'):
+            if(plane != 'c'):
                 raise RuntimeError('omitglideplaneabsences: only c-glide allowed for hexagonal systems.')
 
             if(ip == 2):

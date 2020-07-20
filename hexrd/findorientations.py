@@ -537,6 +537,79 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
     return eta_ome
 
 
+def create_clustering_parameters(cfg, eta_ome):
+    """
+    Compute min samples and mean reflections per grain for clustering
+
+    Parameters
+    ----------
+    cfg : TYPE
+        DESCRIPTION.
+    eta_ome : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    Tuple of (min_samples, mean_rpg)
+
+    """
+
+    # grab objects from config
+    plane_data = cfg.material.plane_data
+    imsd = cfg.image_series
+    instr = cfg.instrument.hedm
+    eta_ranges = cfg.find_orientations.eta.range
+    compl_thresh = cfg.find_orientations.clustering.completeness
+
+    # handle omega period
+    ome_period, ome_ranges = _process_omegas(imsd)
+
+    active_hkls = cfg.find_orientations.orientation_maps.active_hkls \
+        or eta_ome.iHKLList
+
+    fiber_seeds = cfg.find_orientations.seed_search.hkl_seeds
+
+    # Simulate N random grains to get neighborhood size
+    seed_hkl_ids = [
+        plane_data.hklDataList[active_hkls[i]]['hklID']
+        for i in fiber_seeds
+    ]
+
+    # !!! default to use 100 grains
+    ngrains = 100
+    rand_q = mutil.unitVector(np.random.randn(4, ngrains))
+    rand_e = np.tile(2.*np.arccos(rand_q[0, :]), (3, 1)) \
+        * mutil.unitVector(rand_q[1:, :])
+    grain_param_list = np.vstack(
+            [rand_e,
+             np.zeros((3, ngrains)),
+             np.tile(const.identity_6x1, (ngrains, 1)).T]
+        ).T
+    sim_results = instr.simulate_rotation_series(
+            plane_data, grain_param_list,
+            eta_ranges=np.radians(eta_ranges),
+            ome_ranges=np.radians(ome_ranges),
+            ome_period=np.radians(ome_period)
+    )
+
+    refl_per_grain = np.zeros(ngrains)
+    seed_refl_per_grain = np.zeros(ngrains)
+    for sim_result in sim_results.values():
+        for i, refl_ids in enumerate(sim_result[0]):
+            refl_per_grain[i] += len(refl_ids)
+            seed_refl_per_grain[i] += np.sum(
+                    [sum(refl_ids == hkl_id) for hkl_id in seed_hkl_ids]
+                )
+
+    min_samples = max(
+        int(np.floor(0.5*compl_thresh*min(seed_refl_per_grain))),
+        2
+    )
+    mean_rpg = int(np.round(np.average(refl_per_grain)))
+
+    return min_samples, mean_rpg
+
+
 def find_orientations(cfg,
                       hkls=None, clean=False, profile=False,
                       use_direct_testing=False):
@@ -717,48 +790,7 @@ def find_orientations(cfg,
         min_samples = 1
         mean_rpg = 1
     else:
-        active_hkls = cfg.find_orientations.orientation_maps.active_hkls \
-            or eta_ome.iHKLList
-
-        fiber_seeds = cfg.find_orientations.seed_search.hkl_seeds
-
-        # Simulate N random grains to get neighborhood size
-        seed_hkl_ids = [
-            plane_data.hklDataList[active_hkls[i]]['hklID']
-            for i in fiber_seeds
-        ]
-
-        # !!! default to use 100 grains
-        ngrains = 100
-        rand_q = mutil.unitVector(np.random.randn(4, ngrains))
-        rand_e = np.tile(2.*np.arccos(rand_q[0, :]), (3, 1)) \
-            * mutil.unitVector(rand_q[1:, :])
-        grain_param_list = np.vstack(
-                [rand_e,
-                 np.zeros((3, ngrains)),
-                 np.tile(const.identity_6x1, (ngrains, 1)).T]
-            ).T
-        sim_results = instr.simulate_rotation_series(
-                plane_data, grain_param_list,
-                eta_ranges=np.radians(eta_ranges),
-                ome_ranges=np.radians(ome_ranges),
-                ome_period=np.radians(ome_period)
-        )
-
-        refl_per_grain = np.zeros(ngrains)
-        seed_refl_per_grain = np.zeros(ngrains)
-        for sim_result in sim_results.values():
-            for i, refl_ids in enumerate(sim_result[0]):
-                refl_per_grain[i] += len(refl_ids)
-                seed_refl_per_grain[i] += np.sum(
-                        [sum(refl_ids == hkl_id) for hkl_id in seed_hkl_ids]
-                    )
-
-        min_samples = max(
-            int(np.floor(0.5*compl_thresh*min(seed_refl_per_grain))),
-            2
-        )
-        mean_rpg = int(np.round(np.average(refl_per_grain)))
+        min_samples, mean_rpg = create_clustering_parameters(cfg, eta_ome)
 
     logger.info("\tmean reflections per grain: %d", mean_rpg)
     logger.info("\tneighborhood size: %d", min_samples)
