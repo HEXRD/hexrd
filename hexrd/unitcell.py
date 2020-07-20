@@ -16,7 +16,7 @@ class unitcell:
 
     '''
 
-    # initialize using the EMsoft unitcell type
+    # initialize the unitcell class
     # need lattice parameters and space group data from HDF5 file
     def __init__(self, lp, sgnum, atomtypes, atominfo, U, dmin, beamenergy, sgsetting=0):
 
@@ -917,7 +917,7 @@ class unitcell:
 
         elif(self.latticeType == 'trigonal'):
 
-            if(plane is not 'c'):
+            if(plane != 'c'):
                 raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems.')
             
             if(ip == 1):
@@ -948,7 +948,7 @@ class unitcell:
 
         elif(self.latticeType == 'hexagonal'):
 
-            if(plane is not 'c'):
+            if(plane != 'c'):
                 raise RuntimeError('omitglideplaneabsences: only c-glide allowed for hexagonal systems.')
 
             if(ip == 2):
