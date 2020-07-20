@@ -16,6 +16,9 @@ def open(filename, format=None, **kwargs):
     # find the appropriate adapter based on format specified
     reg = load.Registry.adapter_registry
     adapter = reg[format](filename, **kwargs)
-    return ImageSeries(adapter)
+    ims = ImageSeries(adapter)
+    if len(ims) == 0:
+        raise RuntimeError("zero length imageseries")
+    return ims
 
 write = save.write
