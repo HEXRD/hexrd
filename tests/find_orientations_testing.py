@@ -73,14 +73,15 @@ EOMap = namedtuple('EOMap',
                     'hkl_indices', 'plane_data']
 )
 
-_keys = ['dataStore',
-         'etas',
-         'etaEdges',
-         'iHKLList',
-         'omegas',
-         'omeEdges',
-         'planeData_args',
-         'planeData_hkls'
+_keys = [
+    'dataStore',
+    'etas',
+    'etaEdges',
+    'iHKLList',
+    'omegas',
+    'omeEdges',
+    'planeData_args',
+    'planeData_hkls'
 ]
 
 
