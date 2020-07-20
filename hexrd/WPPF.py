@@ -433,124 +433,6 @@ class Spectrum:
 			return True
 		return False
 
-class Phases:
-	''' ======================================================================================================== 
-		======================================================================================================== 
-
-	>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-	>> @DATE:     	05/20/2020 SS 1.0 original
-	>> @DETAILS:  	simple class to handle different phases in the LeBail fit. contains planedata
-					as member classes 
-		======================================================================================================== 
-		======================================================================================================== 
-	'''
-	def _kev(x):
-		return valWUnit('beamenergy','energy', x,'keV')
-
-	def _nm(x):
-		return valWUnit('lp', 'length', x, 'nm')
-
-	def __init__(self, material_file=None, material_keys=None, 
-				 dmin=_nm(0.05), beamenergy=_kev(8.04778)):
-
-		self.phase_dict = {}
-		self.num_phases = 0
-		self._dmin = dmin
-		self._beamenergy = beamenergy
-
-		if(material_file is not None):
-			if(material_key is not None):
-				self.add(self.material_file, self.material_key, self._dmin, self._beamenergy)
-
-	def __str__(self):
-		resstr = 'Phases in calculation:\n'
-		for i,k in enumerate(self.phase_dict.keys()):
-			resstr += '\t'+str(i+1)+'. '+k+'\n'
-		return resstr
-
-	def __getitem__(self, key):
-		if(key in self.phase_dict.keys()):
-			return self.phase_dict[key]
-		else:
-			raise ValueError('phase with name not found')
-
-	def __setitem__(self, key, mat_cls):
-
-		if(key in self.phase_dict.keys()):
-			warnings.warn('phase already in parameter list. overwriting ...')
-		if(isinstance(mat_cls, Material)):
-			self.phase_dict[key] = mat_cls
-		else:
-			raise ValueError('input not a material class')
-
-	def __iter__(self):
-		self.n = 0
-		return self
-
-	def __next__(self):
-		if(self.n < len(self.phase_dict.keys())):
-			res = list(self.phase_dict.keys())[self.n]
-			self.n += 1
-			return res
-		else:
-			raise StopIteration
-
-	def __len__(self):
-         return len(self.phase_dict)
-
-	def add(self, material_file, material_key):
-
-		self[material_key] = Material(name=material_key, cfgP=material_file, \
-									  dmin=self._dmin, kev=self._beamenergy)
-		self[material_key].pf = 1.0/len(self)
-		self.num_phases += 1
-		self.material_file = material_file
-		self.material_keys = material_keys
-
-	def add_many(self, material_file, material_keys):
-		
-		for k in material_keys:
-
-			n,e = k
-			pname = n+str(e)
-			kev = valWUnit("beamenergy", "ENERGY",e,"keV")
-			self[pname] = Material(name=n, cfgP=material_file, \
-							   dmin=self._dmin, kev=kev)
-
-			self.num_phases += 1
-
-		for k in self:
-			self[k].pf = 1.0/len(self)
-
-		self.material_file = material_file
-		self.material_keys = material_keys
-
-	def load(self, fname):
-		'''
-			>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-			>> @DATE:     	06/08/2020 SS 1.0 original
-			>> @DETAILS:  	load parameters from yaml file
-		'''
-		with open(fname) as file:
-			dic = yaml.load(file, Loader=yaml.FullLoader)
-
-		for mfile in dic.keys():
-			mat_keys = dic[mfile]
-			self.add_many(mfile, mat_keys)
-
-	def dump(self, fname):
-		'''
-			>> @AUTHOR:   	Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-			>> @DATE:     	06/08/2020 SS 1.0 original
-			>> @DETAILS:  	dump parameters to yaml file
-		'''
-		dic = {}
-		k = self.material_file
-		dic[k] =  [m for m in self]
-
-		with open(fname, 'w') as f:
-			data = yaml.dump(dic, f, sort_keys=False)
-
 class Material_LeBail:
 
 	def __init__(self, fhdf, xtal, dmin):
@@ -1343,14 +1225,16 @@ class LeBail:
 		======================================================================================================== 
 	'''
 
-	def __init__(self,expt_file=None,param_file=None,phase_file=None):
-		
-		
+	def __init__(self,expt_file=None,param_file=None,phase_file=None,wavelength=None):
 
 		self.initialize_expt_spectrum(expt_file)
+
+		if(wavelength is not None):
+			self.wavelength = wavelength
+
 		self._tstart = time.time()
-		self.initialize_phases(phase_file)
 		self.initialize_parameters(param_file)
+		self.initialize_phases(phase_file)
 		self.initialize_Icalc()
 		self.computespectrum()
 
@@ -1487,7 +1371,7 @@ class LeBail:
 		>> @DATE:     	06/08/2020 SS 1.0 original
 		>> @DETAILS:  	load the phases for the LeBail fits
 		'''
-		p = Phases_LeBail()
+		p = Phases_LeBail(wavelength=self.wavelength)
 		if(phase_file is not None):
 			if(path.exists(phase_file)):
 				p.load(phase_file)
@@ -2866,12 +2750,13 @@ class Rietveld:
     	======================================================================================================== 
 		======================================================================================================== 
 	'''
-	def __init__(self,expt_file=None,param_file=None,phase_file=None):
+	def __init__(self,expt_file=None,param_file=None,phase_file=None,wavelength=None):
 
 
 		self.initialize_expt_spectrum(expt_file)
 		self._tstart = time.time()
-
+		if(wavelength is not None):
+			self.wavelength = wavelength
 		self.initialize_phases(phase_file)
 		self.initialize_parameters(param_file)
 
@@ -3434,7 +3319,7 @@ class Rietveld:
 		>> @DATE:     	06/08/2020 SS 1.0 original
 		>> @DETAILS:  	load the phases for the LeBail fits
 		'''
-		p = Phases_Rietveld()
+		p = Phases_Rietveld(wavelength=self.wavelength)
 		if(phase_file is not None):
 			if(path.exists(phase_file)):
 				p.load(phase_file)
