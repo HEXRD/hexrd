@@ -1,20 +1,88 @@
-""""Eta Omega Maps"""
-from importlib import reload
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jul  9 09:06:02 2020
+
+@author: bernier2
+"""
+
 from collections import namedtuple
 import logging
-import sys
 
 import numpy as np
 
 from hexrd.crystallography import PlaneData
+from hexrd.rotations import misorientation
 
-import click
-import coloredlogs
 
+# =============================================================================
+# ORIENTATION LISTS
+# =============================================================================
+
+
+def compare_quaternion_lists(new_quats, ref_quats, tol=0.05):
+    """
+    Test an array of quaternions against reference values.
+
+    Parameters
+    ----------
+    new_quats : array_like, (n, 4)
+        The (n, 4) array of unit quaternions to test against reference.
+    ref_quats : array_like, Nn, 4)
+        The (n, 4) array of reference unit quaternions.
+    tol : scalar, optional
+        The angular tolerance in degrees for the comparison.
+        The default is 0.05.
+
+    Raises
+    ------
+    RuntimeError
+        Will raise if either the length of `new_quats` does not match the
+        reference, or the minimum misorientation of a member of `new_quats`
+        w.r.t. the reference is greater than `tol`.
+
+    Returns
+    -------
+    None.
+
+    """
+    nquats = len(ref_quats)  # 3 for multiruby case
+
+    # FIRST CHECK THAT NUMBER OF ORIENTATIONS MATCHES
+    if len(new_quats) != nquats:
+        raise RuntimeError(
+            "Incorrect number of orientations found; should be %d" % nquats
+            + ", currently found %d" % len(new_quats)
+        )
+
+    # NEXT CHECK THE ACTUAL MISORIENTATIONS
+    # !!! order may be different
+    for i, nq in enumerate(new_quats):
+        ang, mis = misorientation(nq.reshape(4, 1), ref_quats.T)
+        if np.min(ang) > np.radians(tol):
+            raise RuntimeError(
+                "Misorientation for test orientation %d " % i
+                + "is greater than threshold"
+            )
+
+# =============================================================================
+# ETA-OMEGA MAPS
+# =============================================================================
 EOMap = namedtuple('EOMap',
                    ['data', 'eta', 'eta_edges', 'omega', 'omega_edges',
                     'hkl_indices', 'plane_data']
 )
+
+_keys = [
+    'dataStore',
+    'etas',
+    'etaEdges',
+    'iHKLList',
+    'omegas',
+    'omeEdges',
+    'planeData_args',
+    'planeData_hkls'
+]
 
 
 def load(npz):
@@ -68,7 +136,7 @@ class Comparison:
             l1, l2 = len(eta1), len(eta2)
             if l1 != l2:
                 msg = "eta: lengths differ: %d and %d" % (l1, l2)
-                logging.error(msg)
+                logging.info(msg)
                 return False, msg
 
             nrmdiff = np.linalg.norm(eta1 - eta2)
@@ -76,7 +144,7 @@ class Comparison:
                 return True, "eta: same"
             else:
                 msg = "eta: norm of difference: %s" % nrmdiff
-                logging.error(msg)
+                logging.info(msg)
                 return False, msg
 
         def hkl_indices(self):
@@ -94,7 +162,7 @@ class Comparison:
             d1, d2 = self.e1.data, self.e2.data
             if d1.shape != d2.shape:
                 msg = "data shapes do not match: " % (d1.shape, d2.shape)
-                logging.error(msg)
+                logging.info(msg)
                 return False, msg
 
             for ind in range(d1.shape[0]):
@@ -111,14 +179,14 @@ class Comparison:
                 nnz2 = np.count_nonzero(d2i)
                 if nnz1 != nnz2:
                     msg = "data: map %d: number nonzero differ: %d, %d" % (ind, nnz1, nnz2)
-                    logging.error(msg)
+                    logging.info(msg)
                     return False, msg
 
                 overlapping = d1i.astype(bool) | d2i.astype(bool)
                 nnz = np.count_nonzero(overlapping)
                 if nnz != nnz1:
                     msg = "data: map %d: overlaps differ: %d, %d" % (ind, nnz1, nnz)
-                    logging.error(msg)
+                    logging.info(msg)
                     return False, msg
 
                 d1over = d1i[overlapping]
@@ -128,46 +196,8 @@ class Comparison:
                     return True, "data: same"
                 else:
                     msg = "data: map %s: map values differ" % (ind)
-                    logging.error(msg)
+                    logging.info(msg)
                     return False, msg
 
 
             return True, "data: same"
-
-
-# ================================================== Save
-
-_keys = ['dataStore',
-         'etas',
-         'etaEdges',
-         'iHKLList',
-         'omegas',
-         'omeEdges',
-         'planeData_args',
-         'planeData_hkls'
-]
-
-@click.command()
-@click.argument('emaps_file_1', type=click.Path(exists=True, dir_okay=False))
-@click.argument('emaps_file_2', type=click.Path(exists=True, dir_okay=False))
-def compare(emaps_file_1, emaps_file_2):
-    root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
-
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.INFO)
-    formatter = coloredlogs.ColoredFormatter('%(asctime)s,%(msecs)03d - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    root.addHandler(handler)
-
-    e1 = load(emaps_file_1)
-    e2 = load(emaps_file_2)
-    comparison = Comparison(e1, e2)
-    match = comparison.compare()
-
-    if not match:
-        ex = click.ClickException('The eta-omega maps do not match!')
-        ex.exit_code = -1
-
-if __name__ == '__main__':
-    compare()

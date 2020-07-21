@@ -197,7 +197,12 @@ def generate_orientation_fibers(cfg, eta_ome):
     else:
         # single process version.
         discretefiber_init(params)  # sets paramMP
-        qfib = map(discretefiber_reduced, input_p)
+
+        # We convert to a list to ensure the map is full iterated before
+        # clean up. Otherwise discretefiber_reduced will be called
+        # after cleanup.
+        qfib = list(map(discretefiber_reduced, input_p))
+
         discretefiber_cleanup()
     elapsed = (timeit.default_timer() - start)
     logger.info("\tfiber generation took %.3f seconds", elapsed)
@@ -218,6 +223,7 @@ def discretefiber_reduced(params_in):
     """
     input parameters are [hkl_id, com_ome, com_eta]
     """
+    global paramMP
     bMat = paramMP['bMat']
     chi = paramMP['chi']
     csym = paramMP['csym']
@@ -440,6 +446,8 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
     # check maps filename
     if cfg.find_orientations.orientation_maps.file is None:
         maps_fname = '_'.join([cfg.analysis_id, "eta-ome_maps.npz"])
+    else:
+        maps_fname = cfg.find_orientations.orientation_maps.file
 
     fn = os.path.join(cfg.working_dir, maps_fname)
 
