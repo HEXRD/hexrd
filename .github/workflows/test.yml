@@ -1,0 +1,66 @@
+name: test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  pytest:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: [3.8]
+        config:
+        - {
+            name: "Linux",
+            os: ubuntu-latest
+          }
+        - {
+            name: "MacOSX",
+            os: macos-latest
+          }
+        - {
+            name: "Windows",
+            os: windows-latest
+          }
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Checkout HEXRD
+      uses: actions/checkout@v2
+      with:
+        path: hexrd
+
+    - name: Checkout examples
+      uses: actions/checkout@v2
+      with:
+        repository: HEXRD/examples
+        path: examples
+
+    - name: Install HEXRD
+      run: |
+          pip install numpy
+          pip install .
+      working-directory: hexrd
+
+    - name: Install requirements-dev.txt
+      run: |
+          pip install -r tests/requirements-dev.txt
+      working-directory: hexrd
+
+    - name: Run tests
+      env:
+        HEXRD_EXAMPLE_REPO_PATH: ${{ github.workspace }}/examples
+      run: |
+          pytest -s tests/
+      working-directory: hexrd
