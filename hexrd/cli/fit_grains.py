@@ -65,8 +65,8 @@ def execute(args, parser):
     if not os.path.exists(quats_f):
         logger.info("Missing %s, running find-orientations", quats_f)
         logger.removeHandler(ch)
-        from . import findorientations
-        findorientations.execute(args, parser)
+        from . import find_orientations
+        find_orientations.execute(args, parser)
         logger.addHandler(ch)
 
     logger.info('=== begin fit-grains ===')
