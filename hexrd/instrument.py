@@ -572,7 +572,7 @@ class HEDMInstrument(object):
             if panel.distortion is not None:
                 # FIXME: pending distortion update
                 npp += len(panel.distortion[1])
-            panel.calibration_flags = x[ii:ii+ npp]
+            panel.calibration_flags = x[ii:ii + npp]
         self._calibration_flags = x
 
     # =========================================================================
@@ -698,10 +698,11 @@ class HEDMInstrument(object):
         #       each entry are the integer indices into the bins
         # !!! eta_edges is the list of eta bin EDGES
         # We can use the same eta_edge for all detectors, so calculate it once
-        pow_angs, pow_xys, eta_idx, eta_edges = list(self.detectors.values())[0].make_powder_rings(
-            plane_data,
-            merge_hkls=False, delta_eta=eta_tol,
-            full_output=True)
+        pow_angs, pow_xys, eta_idx, eta_edges = list(
+                self.detectors.values()
+            )[0].make_powder_rings(plane_data,
+                                   merge_hkls=False, delta_eta=eta_tol,
+                                   full_output=True)
         delta_eta = eta_edges[1] - eta_edges[0]
         ncols_eta = len(eta_edges) - 1
 
@@ -764,7 +765,7 @@ class HEDMInstrument(object):
                     reta_idx = np.where(reta_hist)[0]
                     reta_bin_idx = np.hstack(
                         [reta_idx,
-                        reta_idx[-1] + 1]
+                         reta_idx[-1] + 1]
                     )
 
                     # ring arc lenght on panel
@@ -795,12 +796,14 @@ class HEDMInstrument(object):
                             new_period = np.cumsum([eta_stop, 2*np.pi])
                             # remap
                             retas = mapAngle(retas, new_period)
-                            tmp_bins = mapAngle(eta_edges[reta_idx], new_period)
+                            tmp_bins = mapAngle(
+                                eta_edges[reta_idx], new_period
+                            )
                             tmp_idx = np.argsort(tmp_bins)
                             reta_idx = reta_idx[np.argsort(tmp_bins)]
                             eta_bins = np.hstack(
                                 [tmp_bins[tmp_idx],
-                                tmp_bins[tmp_idx][-1] + delta_eta]
+                                 tmp_bins[tmp_idx][-1] + delta_eta]
                             )
                             pass
                         pass
@@ -810,24 +813,33 @@ class HEDMInstrument(object):
                             def _on_done(map, row, reta, future):
                                 map[row, reta] = future.result()
 
-                            f = tp.submit(histogram1d,
-                                          retas,
-                                          len(eta_bins) - 1,
-                                          (eta_bins[0], eta_bins[-1]),
-                                          weights=image[rtth_idx]
+                            f = tp.submit(
+                                histogram1d,
+                                retas,
+                                len(eta_bins) - 1,
+                                (eta_bins[0], eta_bins[-1]),
+                                weights=image[rtth_idx]
                             )
-                            f.add_done_callback(functools.partial(_on_done, this_map, i_row, reta_idx))
+                            f.add_done_callback(
+                                functools.partial(
+                                    _on_done, this_map, i_row, reta_idx
+                                )
+                            )
                         else:
                             def _on_done(map, row, reta, future):
-                                map[row, reta],_ = future.result()
+                                map[row, reta], _ = future.result()
 
-                            f = tp.submit(histogram1d,
-                                          retas,
-                                          bins=eta_bins,
-                                          weights=image[rtth_idx]
+                            f = tp.submit(
+                                histogram1d,
+                                retas,
+                                bins=eta_bins,
+                                weights=image[rtth_idx]
                             )
-                            f.add_done_callback(functools.partial(_on_done, this_map, i_row, reta_idx))
-
+                            f.add_done_callback(
+                                functools.partial(
+                                    _on_done, this_map, i_row, reta_idx
+                                )
+                            )
                         pass    # end loop on rows
                     ring_maps.append(this_map)
                     pass    # end loop on rings
@@ -2153,7 +2165,7 @@ class PlanarDetector(object):
         -----
         TODO: revisit normalization in here?
         """
-        
+
         is_2d = img.ndim == 2
         right_shape = img.shape[0] == self.rows and img.shape[1] == self.cols
         assert is_2d and right_shape,\
