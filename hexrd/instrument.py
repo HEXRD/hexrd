@@ -566,6 +566,13 @@ class HEDMInstrument(object):
                 "length of parameter list must be %d; you gave %d"
                 % (len(self._calibration_flags), len(x))
             )
+        ii = 7
+        for panel in self.detectors.values():
+            npp = 6
+            if panel.distortion is not None:
+                # FIXME: pending distortion update
+                npp += len(panel.distortion[1])
+            panel.calibration_flags = x[ii:ii+ npp]
         self._calibration_flags = x
 
     # =========================================================================
@@ -2122,12 +2129,30 @@ class PlanarDetector(object):
 
     def interpolate_bilinear(self, xy, img, pad_with_nans=True):
         """
-        Interpolates an image array at the specified cartesian points.
+        Interpolate an image array at the specified cartesian points.
 
-        !!! the `xy` input is in *unwarped* detector coords!
+        Parameters
+        ----------
+        xy : array_like, (n, 2)
+            Array of cartesian coordinates in the image plane at which
+            to evaluate intensity.
+        img : array_like
+            2-dimensional image array.
+        pad_with_nans : bool, optional
+            Toggle for assigning NaN to points that fall off the detector.
+            The default is True.
 
+        Returns
+        -------
+        int_xy : array_like, (n,)
+            The array of interpolated intensities at each of the n input
+            coordinates.
+
+        Notes
+        -----
         TODO: revisit normalization in here?
         """
+        
         is_2d = img.ndim == 2
         right_shape = img.shape[0] == self.rows and img.shape[1] == self.cols
         assert is_2d and right_shape,\
