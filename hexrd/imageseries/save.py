@@ -46,7 +46,7 @@ class _Registry(object):
     @classmethod
     def register(cls, wcls):
         """Register writer class"""
-        if wcls.__name__ is not 'Writer':
+        if wcls.__name__ != 'Writer':
             cls.writer_registry[wcls.fmt] = wcls
 
     @classmethod
