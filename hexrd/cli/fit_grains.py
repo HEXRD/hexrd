@@ -62,11 +62,18 @@ def execute(args, parser):
         cfgs[0].working_dir,
         'accepted_orientations_%s.dat' % cfgs[0].analysis_id
         )
-    if not os.path.exists(quats_f):
+    if os.path.exists(quats_f):
+        try:
+            qbar = np.loadtxt(quats_f).T
+        except(IOError):
+            raise(RuntimeError,
+            "error loading indexing results '%s'" % quats_f)
+    else:
         logger.info("Missing %s, running find-orientations", quats_f)
         logger.removeHandler(ch)
-        from . import find_orientations
-        find_orientations.execute(args, parser)
+        from hexrd.findorientations import find_orientations
+        results = find_orientations(cfgs[0])
+        qbar = results['qbar']
         logger.addHandler(ch)
 
     logger.info('=== begin fit-grains ===')
