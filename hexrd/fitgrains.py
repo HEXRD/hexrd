@@ -11,7 +11,6 @@ import multiprocessing
 import numpy as np
 import timeit
 
-from hexrd import constants as cnst
 from hexrd import instrument
 from hexrd.transforms import xfcapi
 from hexrd.fitting import fitGrain, objFuncFitGrain, gFlag_ref
@@ -287,16 +286,13 @@ def fit_grain_FF_reduced(grain_id):
 
 
 def fit_grains(cfg,
-               force=False, clean=False,
+               grains_table,
                show_progress=False, ids_to_refine=None):
     """
     Performs optimization of grain parameters.
 
     operates on a single HEDM config block
     """
-    grains_filename = os.path.join(
-        cfg.analysis_dir, 'grains.out'
-    )
 
     # grab imageseries dict
     imsd = cfg.image_series
@@ -323,17 +319,6 @@ def fit_grains(cfg,
         logger.info("\tsetting the maximum 2theta to %.2f degrees",
                     tth_max)
 
-    # make output directories
-    if not os.path.exists(cfg.analysis_dir):
-        os.mkdir(cfg.analysis_dir)
-        for det_key in instr.detectors:
-            os.mkdir(os.path.join(cfg.analysis_dir, det_key))
-    else:
-        # make sure panel dirs exist under analysis dir
-        for det_key in instr.detectors:
-            if not os.path.exists(os.path.join(cfg.analysis_dir, det_key)):
-                os.mkdir(os.path.join(cfg.analysis_dir, det_key))
-
     # grab eta ranges and ome_period
     eta_ranges = np.radians(cfg.find_orientations.eta.range)
 
@@ -348,54 +333,6 @@ def fit_grains(cfg,
     # threshold for fitting
     threshold = cfg.fit_grains.threshold
 
-    # some conditions for arg handling
-    existing_analysis = os.path.exists(grains_filename)
-    new_with_estimate = not existing_analysis \
-        and cfg.fit_grains.estimate is not None
-    new_without_estimate = not existing_analysis \
-        and cfg.fit_grains.estimate is None
-    force_with_estimate = force and cfg.fit_grains.estimate is not None
-    force_without_estimate = force and cfg.fit_grains.estimate is None
-
-    # handle args
-    if clean or force_without_estimate or new_without_estimate:
-        # need accepted orientations from indexing in this case
-        if clean:
-            logger.info(
-                "'clean' specified; ignoring estimate and using default"
-            )
-        elif force_without_estimate:
-            logger.info(
-                "'force' option specified, but no initial estimate; "
-                + "using default"
-            )
-        try:
-            qbar = np.loadtxt(
-                'accepted_orientations_' + cfg.analysis_id + '.dat',
-                ndmin=2).T
-
-            gw = instrument.GrainDataWriter(grains_filename)
-            for i_g, q in enumerate(qbar.T):
-                phi = 2*np.arccos(q[0])
-                n = xfcapi.unitRowVector(q[1:])
-                grain_params = np.hstack(
-                    [phi*n, cnst.zeros_3, cnst.identity_6x1]
-                )
-                gw.dump_grain(int(i_g), 1., 0., grain_params)
-            gw.close()
-        except(IOError):
-            raise(RuntimeError,
-                  "indexing results '%s' not found!"
-                  % 'accepted_orientations_' + cfg.analysis_id + '.dat')
-    elif force_with_estimate or new_with_estimate:
-        grains_filename = cfg.fit_grains.estimate
-    elif existing_analysis and not (clean or force):
-        raise(RuntimeError,
-              "fit results '%s' exist, " % grains_filename
-              + "but --clean or --force options not specified")
-
-    # load grains table
-    grains_table = np.loadtxt(grains_filename, ndmin=2)
     if ids_to_refine is not None:
         grains_table = np.atleast_2d(grains_table[ids_to_refine, :])
     spots_filename = "spots_%05d.out"
@@ -450,15 +387,4 @@ def fit_grains(cfg,
         pool.join()
         elapsed = timeit.default_timer() - start
     logger.info("fitting took %f seconds", elapsed)
-
-    # =====================================================================
-    # WRITE OUTPUT
-    # =====================================================================
-
-    gw = instrument.GrainDataWriter(
-        os.path.join(cfg.analysis_dir, 'grains.out')
-    )
-    for fit_result in fit_results:
-        gw.dump_grain(*fit_result)
-        pass
-    gw.close()
+    return fit_results
