@@ -90,7 +90,8 @@ def fit_grain_FF_reduced(grain_id):
     eta_ranges = paramMP['eta_ranges']
     ome_period = paramMP['ome_period']
     analysis_dirname = paramMP['analysis_dirname']
-    spots_filename = paramMP['spots_filename']
+    prefix = paramMP['spots_filename']
+    spots_filename = None if prefix is None else prefix % grain_id
 
     grain = grains_table[grain_id]
     grain_params = grain[3:15]
@@ -105,7 +106,7 @@ def fit_grain_FF_reduced(grain_id):
             npdiv=npdiv, threshold=threshold,
             eta_ranges=eta_ranges,
             ome_period=ome_period,
-            dirname=analysis_dirname, filename=spots_filename % grain_id,
+            dirname=analysis_dirname, filename=spots_filename,
             save_spot_list=False,
             quiet=True, check_only=False, interp='nearest')
 
@@ -287,7 +288,7 @@ def fit_grain_FF_reduced(grain_id):
 
 def fit_grains(cfg,
                grains_table,
-               show_progress=False, ids_to_refine=None):
+               show_progress=False, ids_to_refine=None, write_spots_files=True):
     """
     Performs optimization of grain parameters.
 
@@ -335,7 +336,7 @@ def fit_grains(cfg,
 
     if ids_to_refine is not None:
         grains_table = np.atleast_2d(grains_table[ids_to_refine, :])
-    spots_filename = "spots_%05d.out"
+    spots_filename = "spots_%05d.out" if write_spots_files else None
     params = dict(
             grains_table=grains_table,
             plane_data=plane_data,
