@@ -288,7 +288,9 @@ def fit_grain_FF_reduced(grain_id):
 
 def fit_grains(cfg,
                grains_table,
-               show_progress=False, ids_to_refine=None, write_spots_files=True):
+               show_progress=False,
+               ids_to_refine=None,
+               write_spots_files=True):
     """
     Performs optimization of grain parameters.
 

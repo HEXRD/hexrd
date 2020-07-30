@@ -95,7 +95,7 @@ def execute(args, parser):
             qbar = np.loadtxt(quats_f).T
         except(IOError):
             raise(RuntimeError,
-            "error loading indexing results '%s'" % quats_f)
+                  "error loading indexing results '%s'" % quats_f)
     else:
         logger.info("Missing %s, running find-orientations", quats_f)
         logger.removeHandler(ch)
@@ -165,7 +165,8 @@ def execute(args, parser):
             and cfg.fit_grains.estimate is not None
         new_without_estimate = not existing_analysis \
             and cfg.fit_grains.estimate is None
-        force_with_estimate = args.force and cfg.fit_grains.estimate is not None
+        force_with_estimate = args.force \
+            and cfg.fit_grains.estimate is not None
         force_without_estimate = args.force and cfg.fit_grains.estimate is None
 
         # handle args
@@ -192,14 +193,14 @@ def execute(args, parser):
                 gw.close()
             except(IOError):
                 raise(RuntimeError,
-                    "indexing results '%s' not found!"
-                    % 'accepted_orientations_' + cfg.analysis_id + '.dat')
+                      "indexing results '%s' not found!"
+                      % 'accepted_orientations_' + cfg.analysis_id + '.dat')
         elif force_with_estimate or new_with_estimate:
             grains_filename = cfg.fit_grains.estimate
         elif existing_analysis and not (clean or force):
             raise(RuntimeError,
-                "fit results '%s' exist, " % grains_filename
-                + "but --clean or --force options not specified")
+                  "fit results '%s' exist, " % grains_filename
+                  + "but --clean or --force options not specified")
 
         grains_table = np.loadtxt(grains_filename, ndmin=2)
 

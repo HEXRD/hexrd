@@ -2733,7 +2733,8 @@ class GrainDataWriter(object):
         Array must be initialized with number of rows to be written.
         """
         if filename is None and array is None:
-            raise RuntimeError('GrainDataWriter must be specified with filename or array')
+            raise RuntimeError(
+                'GrainDataWriter must be specified with filename or array')
 
         self.array = None
         self.fid = None
@@ -2794,7 +2795,8 @@ class GrainDataWriter(object):
 
         if self.array is not None:
             row = self._array_row
-            assert row < self.array.shape[0], f'invalid row {row} in array table'
+            assert row < self.array.shape[0], \
+                f'invalid row {row} in array table'
             self.array[row] = res
             self._array_row += 1
             return res
