@@ -16,7 +16,7 @@ def fast_snip1d(y, w=4, numiter=2):
                 kernel = np.zeros(p*2 + 1)
                 kernel[0] = 0.5
                 kernel[-1] = 0.5
-                b = np.minimum(b, signal.fftconvolve(z, kernel, mode='same'))
+                b = np.minimum(b, signal.fft    (z, kernel, mode='same'))
             z = b
         bkg[k, :] = (np.exp(np.exp(b) - 1.) - 1.)**2 - 1.
     return bkg
@@ -112,18 +112,20 @@ def snip2d(y, w=4, numiter=2, order=1):
 
     # create list of kernels
     kernels = []
-    for p in range(w, 0, -1): # decrement window starting from w
-        N = 2 * p * order + 1 # size of filter kernels
+    for p in range(w, 0, -1):  # decrement window starting from w
+        N = 2 * p * order + 1  # size of filter kernels
         p1 = order * p
 
         # linear filter kernel
-        kern1 = np.zeros((N, N)) # initialize a kernel with all zeros
-        xx, yy = np.indices(kern1.shape) # x-y indices of kernel points
-        ij = np.round(np.hypot(xx - p1, yy - p1)) == p1 # select circular shape
-        kern1[ij] = 1 / ij.sum() # normalize so sum of kernel elements is 1
+        kern1 = np.zeros((N, N))  # initialize a kernel with all zeros
+        xx, yy = np.indices(kern1.shape)  # x-y indices of kernel points
+        ij = np.round(
+            np.hypot(xx - p1, yy - p1)
+        ) == p1  # select circular shape
+        kern1[ij] = 1 / ij.sum()  # normalize so sum of kernel elements is 1
         kernels.append([kern1])
 
-        if order >= 2: # add quadratic filter kernel
+        if order >= 2:  # add quadratic filter kernel
             p2 = p1 // 2
             kern2 = np.zeros_like(kern1)
             radii, norms = (p2, 2 * p2), (4/3, -1/3)
@@ -133,7 +135,7 @@ def snip2d(y, w=4, numiter=2, order=1):
             kernels[-1].append(kern2)
 
     # convolve kernels with input array
-    z = b = np.log(np.log(y + 1) + 1) # perform convolutions in logspace
+    z = b = np.log(np.log(y + 1) + 1)  # perform convolutions in logspace
     for i in range(numiter):
         for kk in kernels:
             if order > 1:
