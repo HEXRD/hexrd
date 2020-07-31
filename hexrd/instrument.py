@@ -635,8 +635,7 @@ class HEDMInstrument(object):
                 self.tilt_calibration_mapping.angles = np.radians(tilt)
                 rmat = self.tilt_calibration_mapping.rmat
                 phi, n = angleAxisOfRotMat(rmat)
-                tilt = phi*n.flatten()
-            detector.tilt = tilt
+            detector.tilt = phi*n.flatten()
 
             # then do translation
             ii += 3
@@ -1900,7 +1899,7 @@ class PlanarDetector(object):
 
         # panel buffer
         # FIXME if it is an array, the write will be a mess
-        det_dict['panel_buffer'] = panel_buffer
+        det_dict['buffer'] = panel_buffer
 
         if self.distortion is not None:
             # FIXME: HARD CODED DISTORTION!
