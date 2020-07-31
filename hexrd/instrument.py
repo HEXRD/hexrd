@@ -2726,7 +2726,26 @@ class PatchDataWriter(object):
 class GrainDataWriter(object):
     """Class for dumping grain data."""
 
-    def __init__(self, filename):
+    def __init__(self, filename=None, array=None):
+        """Writes to either file or np array
+
+        Array must be initialized with number of rows to be written.
+        """
+        if filename is None and array is None:
+            raise RuntimeError(
+                'GrainDataWriter must be specified with filename or array')
+
+        self.array = None
+        self.fid = None
+
+        # array supersedes filename
+        if array is not None:
+            assert array.shape[1] == 21, \
+                f'grain data table must have 21 columns not {array.shape[21]}'
+            self.array = array
+            self._array_row = 0
+            return
+
         self._delim = '  '
         header_items = (
             '# grain ID', 'completeness', 'chi^2',
@@ -2757,7 +2776,8 @@ class GrainDataWriter(object):
         self.close()
 
     def close(self):
-        self.fid.close()
+        if self.fid is not None:
+            self.fid.close()
 
     def dump_grain(self, grain_id, completeness, chisq,
                    grain_params):
@@ -2771,6 +2791,16 @@ class GrainDataWriter(object):
         res = [int(grain_id), completeness, chisq] \
             + grain_params.tolist() \
             + evec.tolist()
+
+        if self.array is not None:
+            row = self._array_row
+            assert row < self.array.shape[0], \
+                f'invalid row {row} in array table'
+            self.array[row] = res
+            self._array_row += 1
+            return res
+
+        # (else) format and write to file
         output_str = self._delim.join(
             [self._delim.join(
                 ['{:<12d}', '{:<12f}', '{:<12e}']
