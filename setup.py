@@ -8,7 +8,7 @@ import numpy
 np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 
 install_reqs = [
-    'fabio',
+    'fabio@git+https://github.com/joelvbernier/fabio.git@master',  # until patch is pushed to PyPI
     'h5py',
     'psutil',
     'scipy',
