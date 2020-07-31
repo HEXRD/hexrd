@@ -13,7 +13,8 @@ install_reqs = [
     'psutil',
     'scipy',
     'numba',
-    'pyyaml'
+    'pyyaml',
+    'fast-histogram'
 ]
 
 # This a hack to get around the fact that scikit-image on conda-forge doesn't install
