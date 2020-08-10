@@ -62,6 +62,7 @@ from hexrd import xrdutil
 from hexrd.crystallography import PlaneData
 from hexrd import constants as ct
 from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
+from hexrd.config.dumper import NumPyIncludeDumper
 
 # FIXME: distortion kludge
 from hexrd.distortion import GE_41RT  # BAD, VERY BAD!!!
@@ -310,9 +311,8 @@ class HEDMInstrument(object):
                 if buffer_key in det_info:
                     det_buffer = det_info[buffer_key]
                     if det_buffer is not None:
-                        if isinstance(det_buffer, str):
-                            panel_buffer = np.load(det_buffer)
-                            assert panel_buffer.shape == shape, \
+                        if isinstance(det_buffer, np.ndarray):
+                            assert det_buffer.shape == shape, \
                                 "buffer shape must match detector"
                         elif isinstance(det_buffer, list):
                             panel_buffer = np.asarray(det_buffer)
@@ -613,7 +613,7 @@ class HEDMInstrument(object):
         par_dict['detectors'] = det_dict
         if filename is not None:
             with open(filename, 'w') as f:
-                yaml.dump(par_dict, stream=f)
+                yaml.dump(par_dict, stream=f, Dumper=NumPyIncludeDumper)
         return par_dict
 
     def update_from_parameter_list(self, p):
