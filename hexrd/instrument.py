@@ -2094,12 +2094,17 @@ class PlanarDetector(object):
         tth_eta = np.vstack([angs[0], angs[1]]).T
         return tth_eta, g_vec
 
-    def angles_to_cart(self, tth_eta):
+    def angles_to_cart(self, tth_eta, rmat_c=None, tvec_c=None):
         """
         TODO: distortion
         """
-        rmat_s = rmat_c = ct.identity_3x3
-        tvec_s = tvec_c = ct.zeros_3
+        if rmat_c is None:
+            rmat_c = ct.identity_3x3
+        if tvec_c is None:
+            tvec_c = ct.zeros_3
+
+        rmat_s = ct.identity_3x3
+        tvec_s = ct.zeros_3
 
         angs = np.hstack([tth_eta, np.zeros((len(tth_eta), 1))])
 
