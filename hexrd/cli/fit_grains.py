@@ -232,7 +232,7 @@ def execute(args, parser):
 
         logger.info('*** end analysis "%s" ***', cfg.analysis_name)
 
-        write_results(fit_results, cfg, grains_filename)
+        write_results(fit_results, cfg)
 
     logger.info('=== end fit-grains ===')
     # stop logging to the console
