@@ -642,7 +642,8 @@ class HEDMInstrument(object):
                 self.tilt_calibration_mapping.angles = np.radians(tilt)
                 rmat = self.tilt_calibration_mapping.rmat
                 phi, n = angleAxisOfRotMat(rmat)
-            detector.tilt = phi*n.flatten()
+                tilt = phi*n.flatten()
+            detector.tilt = tilt
 
             # then do translation
             ii += 3
