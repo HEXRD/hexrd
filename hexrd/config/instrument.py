@@ -1,6 +1,7 @@
 import yaml
 
 from .config import Config
+from .loader import NumPyIncludeLoader
 
 from hexrd import instrument
 
@@ -23,7 +24,7 @@ class Instrument(Config):
         """Return the HEDMInstrument class."""
         if not hasattr(self, '_hedm'):
             with open(self.configuration, 'r') as f:
-                icfg = yaml.safe_load(f)
+                icfg = yaml.load(f, Loader=NumPyIncludeLoader)
             self._hedm = instrument.HEDMInstrument(icfg)
         return self._hedm
 
@@ -31,7 +32,7 @@ class Instrument(Config):
     def hedm(self, yml):
         """Set the HEDMInstrument class."""
         with open(yml, 'r') as f:
-            icfg = yaml.safe_load(f)
+            icfg = yaml.load(f, Loader=NumPyIncludeLoader)
         self._hedm = instrument.HEDMInstrument(icfg)
 
     @property

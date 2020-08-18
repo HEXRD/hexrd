@@ -72,7 +72,7 @@ class RootConfig(Config):
         if multiproc == 'all':
             res = ncpus
         elif multiproc == 'half':
-            temp = ncpus / 2
+            temp = ncpus // 2
             res = temp if temp else 1
         elif isinstance(multiproc, int):
             if multiproc >= 0:

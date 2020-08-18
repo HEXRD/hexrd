@@ -7,7 +7,7 @@ class Registry(object):
     @classmethod
     def register(cls, acls):
         """Register adapter class"""
-        if acls.__name__ is not 'ImageSeriesAdapter':
+        if acls.__name__ != 'ImageSeriesAdapter':
             cls.adapter_registry[acls.format] = acls
 
     pass  # end class

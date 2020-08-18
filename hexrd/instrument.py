@@ -62,6 +62,7 @@ from hexrd import xrdutil
 from hexrd.crystallography import PlaneData
 from hexrd import constants as ct
 from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
+from hexrd.config.dumper import NumPyIncludeDumper
 
 # FIXME: distortion kludge
 from hexrd.distortion import GE_41RT  # BAD, VERY BAD!!!
@@ -310,9 +311,8 @@ class HEDMInstrument(object):
                 if buffer_key in det_info:
                     det_buffer = det_info[buffer_key]
                     if det_buffer is not None:
-                        if isinstance(det_buffer, str):
-                            panel_buffer = np.load(det_buffer)
-                            assert panel_buffer.shape == shape, \
+                        if isinstance(det_buffer, np.ndarray):
+                            assert det_buffer.shape == shape, \
                                 "buffer shape must match detector"
                         elif isinstance(det_buffer, list):
                             panel_buffer = np.asarray(det_buffer)
@@ -566,6 +566,13 @@ class HEDMInstrument(object):
                 "length of parameter list must be %d; you gave %d"
                 % (len(self._calibration_flags), len(x))
             )
+        ii = 7
+        for panel in self.detectors.values():
+            npp = 6
+            if panel.distortion is not None:
+                # FIXME: pending distortion update
+                npp += len(panel.distortion[1])
+            panel.calibration_flags = x[ii:ii + npp]
         self._calibration_flags = x
 
     # =========================================================================
@@ -606,7 +613,7 @@ class HEDMInstrument(object):
         par_dict['detectors'] = det_dict
         if filename is not None:
             with open(filename, 'w') as f:
-                yaml.dump(par_dict, stream=f)
+                yaml.dump(par_dict, stream=f, Dumper=NumPyIncludeDumper)
         return par_dict
 
     def update_from_parameter_list(self, p):
@@ -691,10 +698,11 @@ class HEDMInstrument(object):
         #       each entry are the integer indices into the bins
         # !!! eta_edges is the list of eta bin EDGES
         # We can use the same eta_edge for all detectors, so calculate it once
-        pow_angs, pow_xys, eta_idx, eta_edges = list(self.detectors.values())[0].make_powder_rings(
-            plane_data,
-            merge_hkls=False, delta_eta=eta_tol,
-            full_output=True)
+        pow_angs, pow_xys, eta_idx, eta_edges = list(
+                self.detectors.values()
+            )[0].make_powder_rings(plane_data,
+                                   merge_hkls=False, delta_eta=eta_tol,
+                                   full_output=True)
         delta_eta = eta_edges[1] - eta_edges[0]
         ncols_eta = len(eta_edges) - 1
 
@@ -757,7 +765,7 @@ class HEDMInstrument(object):
                     reta_idx = np.where(reta_hist)[0]
                     reta_bin_idx = np.hstack(
                         [reta_idx,
-                        reta_idx[-1] + 1]
+                         reta_idx[-1] + 1]
                     )
 
                     # ring arc lenght on panel
@@ -788,12 +796,14 @@ class HEDMInstrument(object):
                             new_period = np.cumsum([eta_stop, 2*np.pi])
                             # remap
                             retas = mapAngle(retas, new_period)
-                            tmp_bins = mapAngle(eta_edges[reta_idx], new_period)
+                            tmp_bins = mapAngle(
+                                eta_edges[reta_idx], new_period
+                            )
                             tmp_idx = np.argsort(tmp_bins)
                             reta_idx = reta_idx[np.argsort(tmp_bins)]
                             eta_bins = np.hstack(
                                 [tmp_bins[tmp_idx],
-                                tmp_bins[tmp_idx][-1] + delta_eta]
+                                 tmp_bins[tmp_idx][-1] + delta_eta]
                             )
                             pass
                         pass
@@ -803,24 +813,33 @@ class HEDMInstrument(object):
                             def _on_done(map, row, reta, future):
                                 map[row, reta] = future.result()
 
-                            f = tp.submit(histogram1d,
-                                          retas,
-                                          len(eta_bins) - 1,
-                                          (eta_bins[0], eta_bins[-1]),
-                                          weights=image[rtth_idx]
+                            f = tp.submit(
+                                histogram1d,
+                                retas,
+                                len(eta_bins) - 1,
+                                (eta_bins[0], eta_bins[-1]),
+                                weights=image[rtth_idx]
                             )
-                            f.add_done_callback(functools.partial(_on_done, this_map, i_row, reta_idx))
+                            f.add_done_callback(
+                                functools.partial(
+                                    _on_done, this_map, i_row, reta_idx
+                                )
+                            )
                         else:
                             def _on_done(map, row, reta, future):
-                                map[row, reta],_ = future.result()
+                                map[row, reta], _ = future.result()
 
-                            f = tp.submit(histogram1d,
-                                          retas,
-                                          bins=eta_bins,
-                                          weights=image[rtth_idx]
+                            f = tp.submit(
+                                histogram1d,
+                                retas,
+                                bins=eta_bins,
+                                weights=image[rtth_idx]
                             )
-                            f.add_done_callback(functools.partial(_on_done, this_map, i_row, reta_idx))
-
+                            f.add_done_callback(
+                                functools.partial(
+                                    _on_done, this_map, i_row, reta_idx
+                                )
+                            )
                         pass    # end loop on rows
                     ring_maps.append(this_map)
                     pass    # end loop on rings
@@ -1900,7 +1919,7 @@ class PlanarDetector(object):
 
         # panel buffer
         # FIXME if it is an array, the write will be a mess
-        det_dict['panel_buffer'] = panel_buffer
+        det_dict['buffer'] = panel_buffer
 
         if self.distortion is not None:
             # FIXME: HARD CODED DISTORTION!
@@ -2076,12 +2095,17 @@ class PlanarDetector(object):
         tth_eta = np.vstack([angs[0], angs[1]]).T
         return tth_eta, g_vec
 
-    def angles_to_cart(self, tth_eta):
+    def angles_to_cart(self, tth_eta, rmat_c=None, tvec_c=None):
         """
         TODO: distortion
         """
-        rmat_s = rmat_c = ct.identity_3x3
-        tvec_s = tvec_c = ct.zeros_3
+        if rmat_c is None:
+            rmat_c = ct.identity_3x3
+        if tvec_c is None:
+            tvec_c = ct.zeros_3
+
+        rmat_s = ct.identity_3x3
+        tvec_s = ct.zeros_3
 
         angs = np.hstack([tth_eta, np.zeros((len(tth_eta), 1))])
 
@@ -2123,12 +2147,30 @@ class PlanarDetector(object):
 
     def interpolate_bilinear(self, xy, img, pad_with_nans=True):
         """
-        Interpolates an image array at the specified cartesian points.
+        Interpolate an image array at the specified cartesian points.
 
-        !!! the `xy` input is in *unwarped* detector coords!
+        Parameters
+        ----------
+        xy : array_like, (n, 2)
+            Array of cartesian coordinates in the image plane at which
+            to evaluate intensity.
+        img : array_like
+            2-dimensional image array.
+        pad_with_nans : bool, optional
+            Toggle for assigning NaN to points that fall off the detector.
+            The default is True.
 
+        Returns
+        -------
+        int_xy : array_like, (n,)
+            The array of interpolated intensities at each of the n input
+            coordinates.
+
+        Notes
+        -----
         TODO: revisit normalization in here?
         """
+
         is_2d = img.ndim == 2
         right_shape = img.shape[0] == self.rows and img.shape[1] == self.cols
         assert is_2d and right_shape,\
@@ -2727,7 +2769,26 @@ class PatchDataWriter(object):
 class GrainDataWriter(object):
     """Class for dumping grain data."""
 
-    def __init__(self, filename):
+    def __init__(self, filename=None, array=None):
+        """Writes to either file or np array
+
+        Array must be initialized with number of rows to be written.
+        """
+        if filename is None and array is None:
+            raise RuntimeError(
+                'GrainDataWriter must be specified with filename or array')
+
+        self.array = None
+        self.fid = None
+
+        # array supersedes filename
+        if array is not None:
+            assert array.shape[1] == 21, \
+                f'grain data table must have 21 columns not {array.shape[21]}'
+            self.array = array
+            self._array_row = 0
+            return
+
         self._delim = '  '
         header_items = (
             '# grain ID', 'completeness', 'chi^2',
@@ -2758,7 +2819,8 @@ class GrainDataWriter(object):
         self.close()
 
     def close(self):
-        self.fid.close()
+        if self.fid is not None:
+            self.fid.close()
 
     def dump_grain(self, grain_id, completeness, chisq,
                    grain_params):
@@ -2772,6 +2834,16 @@ class GrainDataWriter(object):
         res = [int(grain_id), completeness, chisq] \
             + grain_params.tolist() \
             + evec.tolist()
+
+        if self.array is not None:
+            row = self._array_row
+            assert row < self.array.shape[0], \
+                f'invalid row {row} in array table'
+            self.array[row] = res
+            self._array_row += 1
+            return res
+
+        # (else) format and write to file
         output_str = self._delim.join(
             [self._delim.join(
                 ['{:<12d}', '{:<12f}', '{:<12e}']
