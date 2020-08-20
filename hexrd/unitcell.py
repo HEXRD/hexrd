@@ -1475,3 +1475,7 @@ _pgDict = {
     _sgrange(215, 220): ('td', laue_11),
     _sgrange(221, 230): ('oh', laue_11),  #                    laue 11
     }
+
+_StifnessDict{
+    laue_1
+}
