@@ -35,8 +35,6 @@ from configparser import SafeConfigParser as Parser
 import numpy
 
 from hexrd.crystallography import PlaneData as PData
-from hexrd.spacegroup import SpaceGroup as SG
-import hexrd.spacegroup as sg
 from hexrd.valunits import valWUnit
 from hexrd import unitcell
 from hexrd.constants import ptable
@@ -244,9 +242,6 @@ class Material(object):
         initialization on the spaceGroup module. everything is 
         initialized using the unitcell module now
         '''
-        # hkls = numpy.array(self.spaceGroup.getHKLs(self.hklMax)).T
-        # lprm = [self._lparms[i] for i in self.spaceGroup.reqParams]
-        # laue = self.spaceGroup.laueGroup
         hkls = self.unitcell.getHKLs(self._dmin.value).T
         lprm = [self._lparms[i] for i in unitcell._rqpDict[self.unitcell.latticeType][0]]
         laue = self.unitcell._laueGroup
@@ -548,9 +543,14 @@ class Material(object):
         return self._sgnum
 
     def _set_sgnum(self, v):
-        """Set method for sgnum"""
+        """Set method for sgnum
+        >> @date 08/20/2020 SS removed planedata initialization
+            everytime sgnum is updated singe everything is initialized
+            using unitcell now
+        """
+
         self._sgnum = v
-        self._spaceGroup = SG(self._sgnum)
+        # self._spaceGroup = SG(self._sgnum)
         # self._newPdata()
 
         return
