@@ -17,6 +17,7 @@ import pickle
 import time
 import h5py
 from pathlib import Path
+from pylab import plot, ginput, show, axis, close, title
 
 class Parameters:
     ''' ======================================================================================================== 
@@ -1346,24 +1347,22 @@ class LeBail:
         y = self.points[:,1]
         self.splinefit(x, y)
 
+        plot(self.tth_list, self.spectrum_expt._y, '-k',lw=1.5)
+        plot(self.tth_list, self.background._y, '--r',lw=1.5)
+        show()
+
     def selectpoints(self):
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.set_title('Select 5 points for background estimation')
-
-        line = ax.plot(self.tth_list, self.spectrum_expt._y, '-b', picker=8)  # 5 points tolerance
-        plt.show()
-
-        self.points = np.asarray(plt.ginput(8,timeout=-1, show_clicks=True))
-        plt.close()
+        plot(self.tth_list, self.spectrum_expt._y, '-k',lw=1.5)
+        title('Select points for background estimation. Middle click once done')
+        self.points = np.array(ginput(0))
+        close()
 
     # cubic spline fit of background using custom points chosen from plot
     def splinefit(self, x, y):
         cs = CubicSpline(x,y)
         bkg = cs(self.tth_list)
         self.background = Spectrum(x=self.tth_list, y=bkg)
-
 
     def initialize_phases(self, phase_file):
         '''
@@ -3295,17 +3294,16 @@ class Rietveld:
         y = self.points[:,1]
         self.splinefit(x, y)
 
+        plot(self.tth_list, self.spectrum_expt._y, '-k',lw=1.5)
+        plot(self.tth_list, self.background._y, '--r',lw=1.5)
+        show()
+
     def selectpoints(self):
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.set_title('Select 5 points for background estimation')
-
-        line = ax.plot(self.tth_list, self.spectrum_expt._y, '-b', picker=8)  # 5 points tolerance
-        plt.show()
-
-        self.points = np.asarray(plt.ginput(8,timeout=-1, show_clicks=True))
-        plt.close()
+        plot(self.tth_list, self.spectrum_expt._y, '-k',lw=1.5)
+        title('Select points for background estimation. Middle click once done')
+        self.points = np.array(ginput(0))
+        close()
 
     # cubic spline fit of background using custom points chosen from plot
     def splinefit(self, x, y):

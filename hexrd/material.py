@@ -548,7 +548,6 @@ class Material(object):
             everytime sgnum is updated singe everything is initialized
             using unitcell now
         """
-
         self._sgnum = v
         # self._spaceGroup = SG(self._sgnum)
         # self._newPdata()
