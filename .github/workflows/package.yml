@@ -52,7 +52,8 @@ jobs:
       # command works.
       shell: bash -l {0}
 
-    - name: Build the package
+    - name: Build the package (host)
+      if: ${{ matrix.config.name != 'Linux' }}
       run: |
           conda activate hexrd
           mkdir output
@@ -61,7 +62,13 @@ jobs:
       # command works.
       shell: bash -l {0}
 
-    - name: Upload the package to anaconda channel ( tag push to master)
+    - name: Build the package (container)
+      if: ${{ matrix.config.name == 'Linux' }}
+      uses: docker://centos:6.10
+      with:
+        entrypoint: /github/workspace/.github/workflows/container_build.sh
+
+    - name: Upload the package to anaconda channel (tag push to master)
       if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
       run: |
           conda activate hexrd
@@ -78,7 +85,6 @@ jobs:
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
       shell: bash -l {0}
-
 
     - name: Get version for the artifact names
       id: describe
