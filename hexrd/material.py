@@ -38,7 +38,7 @@ from hexrd.crystallography import PlaneData as PData
 from hexrd.spacegroup import SpaceGroup as SG
 import hexrd.spacegroup as sg
 from hexrd.valunits import valWUnit
-from hexrd.unitcell import unitcell
+from hexrd import unitcell
 from hexrd.constants import ptable
 import copy
 
@@ -118,12 +118,13 @@ class Material(object):
     '''
     DFLT_SGSETTING = 0
 
-    def __init__(self, name=None, cfgP=None, dmin=DFLT_DMIN, kev=DFLT_KEV, sgsetting=DFLT_SGSETTING):
+    def __init__(self, name=None, material_file=None, dmin=DFLT_DMIN, kev=DFLT_KEV, sgsetting=DFLT_SGSETTING):
         """Constructor for Material
 
-        name -- (str) name of material
-        cfgP -- (instance) configuration file parser with
-             -- the material name as a section
+        name -- (str) name of crystal
+        material_file -- (str) name of the material file
+        which contains the crystal. this could be either cif
+        or hdf5
         """
         self.name = name
         self.description = ''
@@ -141,22 +142,23 @@ class Material(object):
         elif(self._dmin.unit == 'nm'):
             uc_dmin = self._dmin.value
 
-        if cfgP:
+        if material_file:
             # Get values from configuration
-            # self._readCfg(cfgP)
-            self._hklMax = Material.DFLT_SSMAX
+            # self._readCfg(material_file)
+            # >> @ date 08/20/2020 SS removing dependence on hklmax
+            #self._hklMax = Material.DFLT_SSMAX
             # self._beamEnergy = Material.DFLT_KEV
-            n = cfgP.find('.')
-            form = cfgP[n+1:]
+            n = material_file.find('.')
+            form = material_file[n+1:]
 
             if(form == 'cif'):
-                self._readCif(cfgP)
+                self._readCif(material_file)
             elif(form in ['h5', 'hdf5', 'xtal']):
-                self._readHDFxtal(fhdf=cfgP, xtal=name)
+                self._readHDFxtal(fhdf=material_file, xtal=name)
         else:
             # Use default values
             self._lparms = Material.DFLT_LPARMS
-            self._hklMax = Material.DFLT_SSMAX
+            # self._hklMax = Material.DFLT_SSMAX
             #
             self.description = ''
             #
@@ -168,10 +170,11 @@ class Material(object):
             self._atomtype = Material.DFLT_ATOMTYPE
             #
 
-        self.unitcell = unitcell(self._lparms, self.sgnum, self._atomtype,
+        self.unitcell = unitcell.unitcell(self._lparms, self.sgnum, self._atomtype,
                                 self._atominfo, self._U, uc_dmin, 
                                 self._beamEnergy.value, self._sgsetting)
 
+        self._newPdata()
         hkls = self.planeData.getHKLs(allHKLs=True)
         sf = numpy.zeros([hkls.shape[0],])
         for i,g in enumerate(hkls):
@@ -224,7 +227,8 @@ class Material(object):
             pass
 
         # Initialize
-        self._hklMax = hklMax
+        #>> @date 08/20/2020 removing dependence on hklmax
+        # self._hklMax = hklMax
         self._beamEnergy = beamEnergy
         self._lparms = self._toSixLP(sgnum, lparams)
         self.sgnum = sgnum
@@ -235,9 +239,17 @@ class Material(object):
     def _newPdata(self):
         """Create a new plane data instance"""
         # spaceGroup module calulates forbidden reflections
-        hkls = numpy.array(self.spaceGroup.getHKLs(self.hklMax)).T
-        lprm = [self._lparms[i] for i in self.spaceGroup.reqParams]
-        laue = self.spaceGroup.laueGroup
+        '''
+        >> @date 08/20/2020 SS removing dependence of planeData 
+        initialization on the spaceGroup module. everything is 
+        initialized using the unitcell module now
+        '''
+        # hkls = numpy.array(self.spaceGroup.getHKLs(self.hklMax)).T
+        # lprm = [self._lparms[i] for i in self.spaceGroup.reqParams]
+        # laue = self.spaceGroup.laueGroup
+        hkls = self.unitcell.getHKLs(self._dmin.value).T
+        lprm = [self._lparms[i] for i in unitcell._rqpDict[self.unitcell.latticeType][0]]
+        laue = self.unitcell._laueGroup
         self._pData = PData(hkls, lprm, laue,
                             self._beamEnergy, Material.DFLT_STR,
                             tThWidth=Material.DFLT_TTH,
@@ -539,7 +551,7 @@ class Material(object):
         """Set method for sgnum"""
         self._sgnum = v
         self._spaceGroup = SG(self._sgnum)
-        self._newPdata()
+        # self._newPdata()
 
         return
 
@@ -567,20 +579,21 @@ class Material(object):
     beamEnergy = property(_get_beamEnergy, _set_beamEnergy, None,
                           "Beam energy in keV")
 
+    #>> @date 08/20/2020 removing dependence on hklmax
     # property:  hklMax
 
-    def _get_hklMax(self):
-        """Get method for hklMax"""
-        return self._hklMax
+    # def _get_hklMax(self):
+    #     """Get method for hklMax"""
+    #     return self._hklMax
 
-    def _set_hklMax(self, v):
-        """Set method for hklMax"""
-        self._hklMax = v
-        self._newPdata()  # update planeData
-        return
+    # def _set_hklMax(self, v):
+    #     """Set method for hklMax"""
+    #     self._hklMax = v
+    #     self._newPdata()  # update planeData
+    #     return
 
-    hklMax = property(_get_hklMax, _set_hklMax, None,
-                      "Max sum of squares for HKLs")
+    # hklMax = property(_get_hklMax, _set_hklMax, None,
+    #                   "Max sum of squares for HKLs")
     # property:  planeData
 
     @property

@@ -103,9 +103,22 @@ class unitcell:
         used for structure factor calculations
         '''
         self.CalcPositions()
-        
+        self.GetPgLg()
+
         self._tstop = time.time()
         self.tinit = self._tstop - self._tstart
+
+    def GetPgLg(self):
+        '''
+        simple subroutine to get point and laue groups 
+        to maintain consistency for planedata initialization
+        in the materials class
+        '''
+        for k in list(_pgDict.keys()):
+            if self.sgnum in k:
+                pglg = _pgDict[k]
+                self._pointGroup = pglg[0]
+                self._laueGroup = pglg[1]
 
     def CalcWavelength(self):
         # wavelength in nm
@@ -1413,4 +1426,52 @@ _rqpDict = {
     'trigonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
     'hexagonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
     'cubic': ((0,),      lambda p: (p[0], p[0], p[0], 90, 90,   90)),
+    }
+
+laue_1 = 'ci'
+laue_2 = 'c2h'
+laue_3 = 'd2h'
+laue_4 = 'c4h'
+laue_5 = 'd4h'
+laue_6 = 's6'
+laue_7 = 'd3d'
+laue_8 = 'c6h'
+laue_9 = 'd6h'
+laue_10 = 'th'
+laue_11 = 'oh'
+
+_sgrange = lambda min, max: tuple(range(min, max + 1)) # inclusive range
+_pgDict = {
+    _sgrange(  1,   1): ('c1', laue_1),  # Triclinic
+    _sgrange(  2,   2): ('ci', laue_1),  #                    laue 1
+    _sgrange(  3,   5): ('c2', laue_2),  # Monoclinic
+    _sgrange(  6,   9): ('cs', laue_2),
+    _sgrange( 10,  15): ('c2h',laue_2),  #                    laue 2
+    _sgrange( 16,  24): ('d2', laue_3),  # Orthorhombic
+    _sgrange( 25,  46): ('c2v',laue_3),
+    _sgrange( 47,  74): ('d2h',laue_3),  #                    laue 3
+    _sgrange( 75,  80): ('c4', laue_4),  # Tetragonal
+    _sgrange( 81,  82): ('s4', laue_4),
+    _sgrange( 83,  88): ('c4h',laue_4),  #                    laue 4
+    _sgrange( 89,  98): ('d4', laue_5),
+    _sgrange( 99, 110): ('c4v',laue_5),
+    _sgrange(111, 122): ('d2d',laue_5),
+    _sgrange(123, 142): ('d4h',laue_5),  #                    laue 5
+    _sgrange(143, 146): ('c3', laue_6),  # Trigonal
+    _sgrange(147, 148): ('s6', laue_6),  #                    laue 6 [also c3i]
+    _sgrange(149, 155): ('d3', laue_7),
+    _sgrange(156, 161): ('c3v',laue_7),
+    _sgrange(162, 167): ('d3d',laue_7),  #                    laue 7
+    _sgrange(168, 173): ('c6', laue_8),  # Hexagonal
+    _sgrange(174, 174): ('c3h',laue_8),
+    _sgrange(175, 176): ('c6h',laue_8),  #                    laue 8
+    _sgrange(177, 182): ('d6', laue_9),
+    _sgrange(183, 186): ('c6v',laue_9),
+    _sgrange(187, 190): ('d3h',laue_9),
+    _sgrange(191, 194): ('d6h',laue_9),   #                    laue 9
+    _sgrange(195, 199): ('t',  laue_10),  # Cubic
+    _sgrange(200, 206): ('th', laue_10),  #                    laue 10
+    _sgrange(207, 214): ('o',  laue_11),
+    _sgrange(215, 220): ('td', laue_11),
+    _sgrange(221, 230): ('oh', laue_11),  #                    laue 11
     }
