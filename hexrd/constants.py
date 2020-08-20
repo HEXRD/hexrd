@@ -40,6 +40,9 @@ sqrt2 = np.sqrt(2.)
 sqrt3 = np.sqrt(3.)
 sqrt3by2 = 0.5 * sqrt3
 
+# fwhm
+sigma_to_fwhm = 2.*np.sqrt(2.*np.log(2.))
+
 # tolerancing
 epsf = np.finfo(float).eps      # ~2.2e-16
 ten_epsf = 10 * epsf            # ~2.2e-15
