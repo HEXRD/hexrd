@@ -1020,7 +1020,7 @@ class HEDMInstrument(object):
     def simulate_powder_pattern(self, plane_data_list, fwhm=2., noise=None):
         """
         Generates simple powder diffraction images.
-        
+
         FIXME: noise isn't connected
         TODO: add hooks to the Rietveld model
 
@@ -1039,16 +1039,22 @@ class HEDMInstrument(object):
         """
         img_dict = dict.fromkeys(self.detectors)
         for det_key, panel in self.detectors.items():
-            tth, eta = panel.pixel_angles(origin=self.tvec)
-            gint = np.zeros_like(tth)
+            ptth, peta = panel.pixel_angles(origin=self.tvec)
+            gint = np.zeros_like(ptth)
             sigm = np.radians(_fwhm_to_sigma(fwhm))
             for plane_data in plane_data_list:
-                for tth0 in plane_data.getTTh():
-                    gint += _gaussian_dist(tth, tth0, sigm)
+                if isinstance(plane_data, PlaneData):
+                    tths = plane_data.getTTh()
+                    weights = np.ones_like(tths)
+                else:
+                    tths = [i[0] for i in plane_data]
+                    weights = [i[1] for i in plane_data]
+                for pk in zip(tths, weights):
+                    gint += pk[1]*_gaussian_dist(ptth, pk[0], sigm)
             img_dict[det_key] = gint
         return img_dict
 
-    
+
     def simulate_laue_pattern(self, crystal_data,
                               minEnergy=5., maxEnergy=35.,
                               rmat_s=None, grain_params=None):
