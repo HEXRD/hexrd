@@ -1219,6 +1219,28 @@ class unitcell:
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)
 
+    def Required_C(self,C):
+        return np.array([C[x] for x in _StifnessDict[self._laueGroup][0]])
+
+    def MakeStifnessMatrix(self, inp_Cvals):
+        if(len(inp_Cvals) != len(_StifnessDict[self._laueGroup][0])):
+            raise IOError('number of constants entered is not correct. need a total of ',len(_StifnessDict[self._laueGroup][0]),'independent constants')
+
+        # initialize all zeros and fill the supplied values
+        C = np.zeros([6,6])
+        for i,x in enumerate(_StifnessDict[self._laueGroup][0]):
+            C[x] = inp_Cvals[i]
+
+        # enforce the equality constraints
+        C = _StifnessDict[self._laueGroup][1](C)
+
+        # finally fill the lower triangular matrix
+        for i in range(6):
+            for j in range(i):
+                C[i,j] = C[j,i]
+
+        self.stifness    = C
+        self.compliance  = np.linalg.inv(C)
 
     # lattice constants as properties
     @property
@@ -1476,6 +1498,122 @@ _pgDict = {
     _sgrange(221, 230): ('oh', laue_11),  #                    laue 11
     }
 
-_StifnessDict{
-    laue_1
+'''
+this dictionary has the mapping from laue group to number of elastic
+constants needed in the voight 6x6 stiffness matrix. the compliance
+matrix is just the inverse of the stiffness matrix
+taken from International Tables for Crystallography Volume H
+Powder diffraction
+Edited by C. J. Gilmore, J. A. Kaduk and H. Schenk
+'''
+# independent components for the triclinic laue group
+type1 = []
+for i in range(6):
+    for j in range(i,6):
+        type1.append((i,j))
+type1 = tuple(type1)
+
+# independent components for the monoclinic laue group
+# C14 = C15 = C24 = C25 = C34 = C35 = C46 = C56 = 0
+type2 = list(type1)
+type2.remove((0,3)); type2.remove((0,4)); type2.remove((1,3)); type2.remove((1,4))
+type2.remove((2,3)); type2.remove((2,4)); type2.remove((3,5)); type2.remove((4,5))
+type2 = tuple(type2)
+
+# independent components for the orthorhombic laue group
+# Above, plus C16 = C26 = C36 = C45 = 0
+type3 = list(type2)
+type3.remove((0,5));type3.remove((1,5));type3.remove((2,5));type3.remove((3,4))
+type3 = tuple(type3)
+
+# independent components for the cyclic tetragonal laue group
+# monoclinic, plus C36 = C45 = 0, C22 = C11, C23 = C13, C26 = −C16, C55 = C44
+type4 = list(type2)
+type4.remove((2,5));type4.remove((3,4));type4.remove((1,1))
+type4.remove((1,2));type4.remove((1,5));type4.remove((4,4))
+type4 = tuple(type4)
+
+# independent components for the dihedral tetragonal laue group
+# Above,  plus C16 = 0
+type5 = list(type4)
+type5.remove((0,5))
+type5 = tuple(type5)
+
+# independent components for the trigonal laue group
+# C16 = C26 = C34 = C35 = C36 = C45 = 0, C22 = C11, C23 = C13, C24 = −C14, 
+# C25 = −C15, C46 = −C15, C55 = C44, C56 = C14, C66 = (C11 − C12)/2
+type6 = list(type1)
+type6.remove((0,5));type6.remove((1,5));type6.remove((2,3))
+type6.remove((2,4));type6.remove((2,5));type6.remove((3,4))
+type6.remove((1,1));type6.remove((1,2));type6.remove((1,3))
+type6.remove((1,4));type6.remove((3,5));type6.remove((4,4))
+type6.remove((4,5));type6.remove((5,5))
+type6 = tuple(type6)
+
+# independent components for the rhombohedral laue group
+# Above, plus C15 = 0
+type7 = list(type6)
+type7.remove((0,4))
+type7 = tuple(type7)
+
+# independent components for the hexagonal laue group
+# Above, plus C14 = 0
+type8 = list(type7)
+type8.remove((0,3))
+type8 = tuple(type8)
+
+# independent components for the cubic laue group
+# As for dihedral tetragonal, plus C13 = C12, C33 = C11, C66 = C44
+type9 = list(type5)
+type9.remove((0,2));type9.remove((2,2));type9.remove((5,5));
+
+'''
+these lambda functions take care of the equality constrains in the 
+matrices. if there are no equality constraints, then the identity
+function is used
+C22 = C11, C23 = C13, C24 = −C14, 
+# C25 = −C15, C46 = −C15, C55 = C44, C56 = C14, C66 = (C11 − C12)/2
+'''
+identity = lambda x: x
+
+def C_cyclictet_eq(x):
+    x[1,1] = x[0,0]
+    x[1,2] = x[0,2]
+    x[1,5] = -x[0,5]
+    x[4,4] = x[3,3] 
+    return x
+
+def C_trigonal_eq(x):
+    x[1,1]=x[0,0]
+    x[1,2]=x[0,2]
+    x[1,3]=-x[0,3]
+    x[1,4]=-x[0,4]
+    x[3,5]=-x[0,4]
+    x[4,4]=x[3,3]
+    x[4,5]=x[0,3]
+    x[5,5]=0.5*(x[0,0]-x[0,1])
+    return x
+
+def C_cubic_eq(x): 
+    x[0,2] = x[0,1]
+    x[2,2] = x[0,0]
+    x[5,5] = x[3,3]
+    x[1,1] = x[0,0]
+    x[1,2] = x[0,2]
+    x[1,5] = -x[0,5]
+    x[4,4] = x[3,3]
+    return x
+
+_StifnessDict = {
+    laue_1: [type1,identity], # triclinic, all 21 components in upper triangular matrix needed
+    laue_2: [type2,identity], # monoclinic, 13 components needed
+    laue_3: [type3,identity], # orthorhombic, 9 components needed
+    laue_4: [type4,C_cyclictet_eq], # cyclic tetragonal, 7 components needed
+    laue_5: [type5,C_cyclictet_eq], # dihedral tetragonal, 6 components needed
+    laue_6: [type6,C_trigonal_eq], # trigonal I, 7 components
+    laue_7: [type7,C_trigonal_eq], # rhombohedral, 6 components
+    laue_8: [type8,C_trigonal_eq], # cyclic hexagonal, 5 components needed
+    laue_9: [type8,C_trigonal_eq], # dihedral hexagonal, 5 components
+    laue_10:[type9,C_cubic_eq],# cubic, 3 components
+    laue_11:[type9,C_cubic_eq] # cubic, 3 components
 }
