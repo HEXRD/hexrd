@@ -2010,6 +2010,9 @@ class PlanarDetector(object):
                 pix_j.flatten(), pix_i.flatten()
                 ]).T
             )
+        if self.distortion is not None:
+            # FIXME: old-style distortion
+            xy = self.distortion[0](xy, self.distortion[1], invert=False)
         angs, g_vec = detectorXYToGvec(
             xy, self.rmat, ct.identity_3x3,
             self.tvec, ct.zeros_3, origin,
