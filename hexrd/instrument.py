@@ -2330,7 +2330,7 @@ class PlanarDetector(object):
         eta_centers = eta_edges[:-1] + 0.5*del_eta
 
         # !!! get chi and ome from rmat_s
-        # chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
+        chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
         ome = np.arctan2(rmat_s[0, 2], rmat_s[0, 0])
 
         # make list of angle tuples
@@ -2359,6 +2359,7 @@ class PlanarDetector(object):
             ).T.reshape(npp*neta, 1)
 
             # find vertices that all fall on the panel
+            ''' Replaced; marked for removal
             gVec_ring_l = anglesToGVec(
                 np.hstack([patch_vertices, ome_dupl]),
                 bHat_l=self.bvec)
@@ -2367,10 +2368,22 @@ class PlanarDetector(object):
                 self.rmat, rmat_s, ct.identity_3x3,
                 self.tvec, tvec_s, tvec_c,
                 beamVec=self.bvec)
+            '''
+            all_xy, rmats_s, on_plane = xrdutil._project_on_detector_plane(
+                np.hstack([patch_vertices, ome_dupl]),
+                self.rmat, ct.identity_3x3, chi,
+                self.tvec, tvec_c, tvec_s,
+                self.distortion,
+                beamVec=self.bvec)
             _, on_panel = self.clip_to_panel(all_xy)
 
+            # index munging
+            combo_idx = np.where(on_plane)[0][on_panel]
+            master_idx = np.zeros_like(on_plane, dtype=bool)
+            master_idx[combo_idx] = True
+
             # all vertices must be on...
-            patch_is_on = np.all(on_panel.reshape(neta, npp), axis=1)
+            patch_is_on = np.all(master_idx.reshape(neta, npp), axis=1)
             patch_xys = all_xy.reshape(neta, 5, 2)[patch_is_on]
 
             # the surving indices
