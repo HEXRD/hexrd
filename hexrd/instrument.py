@@ -2389,8 +2389,8 @@ class PlanarDetector(object):
         # !!! should be safe as eta_edges are monotonic
         eta_centers = eta_edges[:-1] + 0.5*del_eta
 
-        # !!! get chi and ome from rmat_s
-        chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
+        # get chi and ome from rmat_s
+        # ??? not needed chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
         ome = np.arctan2(rmat_s[0, 2], rmat_s[0, 0])
 
         # make list of angle tuples
