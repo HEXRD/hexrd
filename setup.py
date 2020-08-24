@@ -27,7 +27,7 @@ if os.environ.get('CONDA_BUILD') != '1':
 
 # extension for convolution from astropy
 def get_convolution_extensions():
-    c_convolve_pkgdir = Path(__file__).parent / 'hexrd' / 'convolution'
+    c_convolve_pkgdir = Path('hexrd') / 'convolution'
 
     src_files = [str(c_convolve_pkgdir / 'src/convolve.c')]
 
