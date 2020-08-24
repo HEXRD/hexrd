@@ -98,8 +98,8 @@ setup(
     entry_points = entry_points,
     ext_modules=ext_modules,
     packages=find_packages(),
-    package_data={'':['Anomalous.h5']},
     include_package_data=True,
+    package_data={'':['Anomalous.h5']},
     python_requires='>=3.8',
     install_requires=install_reqs
 )

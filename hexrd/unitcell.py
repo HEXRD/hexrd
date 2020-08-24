@@ -500,8 +500,8 @@ class unitcell:
         self.f2 = {}
         self.f_anam = {}
 
-        fid = h5py.File(str(Path(__file__).resolve().parent)+'/Anomalous.h5','r')
 
+        fid = h5py.File(str(Path(__file__).resolve().parent)+'/Anomalous.h5','r')
         for i in range(0,self.atom_ntype):
 
             Z    = self.atom_type[i]
