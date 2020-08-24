@@ -2389,8 +2389,8 @@ class PlanarDetector(object):
         # !!! should be safe as eta_edges are monotonic
         eta_centers = eta_edges[:-1] + 0.5*del_eta
 
-        # !!! get chi and ome from rmat_s
-        # chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
+        # get chi and ome from rmat_s
+        # ??? not needed chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
         ome = np.arctan2(rmat_s[0, 2], rmat_s[0, 0])
 
         # make list of angle tuples
@@ -2427,6 +2427,12 @@ class PlanarDetector(object):
                 self.rmat, rmat_s, ct.identity_3x3,
                 self.tvec, tvec_s, tvec_c,
                 beamVec=self.bvec)
+            if self.distortion is not None:
+                # FIXME
+                all_xy = self.distortion[0](
+                    all_xy,
+                    self.distortion[1],
+                    invert=True)
             _, on_panel = self.clip_to_panel(all_xy)
 
             # all vertices must be on...
