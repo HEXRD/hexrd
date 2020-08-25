@@ -241,6 +241,19 @@ def max_tth(instr):
     return tth_max
 
 
+def _gaussian_dist(x, cen, fwhm):
+    sigm = fwhm/(2*np.sqrt(2*np.log(2)))
+    return np.exp(-0.5*(x - cen)**2/sigm**2)
+
+
+def _sigma_to_fwhm(sigm):
+    return sigm*ct.sigma_to_fwhm
+
+
+def _fwhm_to_sigma(fwhm):
+    return fwhm/ct.sigma_to_fwhm
+
+
 # =============================================================================
 # CLASSES
 # =============================================================================
@@ -302,9 +315,11 @@ class HEDMInstrument(object):
             det_dict = dict.fromkeys(detectors_config)
             for det_id, det_info in detectors_config.items():
                 pixel_info = det_info['pixels']
-                saturation_level = det_info['saturation_level']
                 affine_info = det_info['transform']
-
+                try:
+                    saturation_level = det_info['saturation_level']
+                except(KeyError):
+                    saturation_level = 2**16
                 shape = (pixel_info['rows'], pixel_info['columns'])
 
                 panel_buffer = None
@@ -1003,6 +1018,44 @@ class HEDMInstrument(object):
             pass  # close panel loop
             # pbar.finish()
         return panel_data
+
+    def simulate_powder_pattern(self, plane_data_list, fwhm=2., noise=None):
+        """
+        Generates simple powder diffraction images.
+
+        FIXME: noise isn't connected
+        TODO: add hooks to the Rietveld model
+
+        Parameters
+        ----------
+        plane_data_list : list, (n,)
+            List of n hexrd.crystallography.PlaneData objects.
+        fwhm : scalar, optional
+            The FWHM of the gaussian profile in degrees. The default is 2.0.
+
+        Returns
+        -------
+        img_dict : dict
+            Dictionary of simulated images for each detector.
+
+        """
+        img_dict = dict.fromkeys(self.detectors)
+        for det_key, panel in self.detectors.items():
+            ptth, peta = panel.pixel_angles(origin=self.tvec)
+            gint = np.zeros_like(ptth)
+            sigm = np.radians(_fwhm_to_sigma(fwhm))
+            for plane_data in plane_data_list:
+                if isinstance(plane_data, PlaneData):
+                    tths = plane_data.getTTh()
+                    weights = np.ones_like(tths)
+                else:
+                    tths = [i[0] for i in plane_data]
+                    weights = [i[1] for i in plane_data]
+                for pk in zip(tths, weights):
+                    gint += pk[1]*_gaussian_dist(ptth, pk[0], sigm)
+            img_dict[det_key] = gint
+        return img_dict
+
 
     def simulate_laue_pattern(self, crystal_data,
                               minEnergy=5., maxEnergy=35.,
@@ -1959,6 +2012,9 @@ class PlanarDetector(object):
                 pix_j.flatten(), pix_i.flatten()
                 ]).T
             )
+        if self.distortion is not None:
+            # FIXME: old-style distortion
+            xy = self.distortion[0](xy, self.distortion[1], invert=False)
         angs, g_vec = detectorXYToGvec(
             xy, self.rmat, ct.identity_3x3,
             self.tvec, ct.zeros_3, origin,
@@ -2335,8 +2391,8 @@ class PlanarDetector(object):
         # !!! should be safe as eta_edges are monotonic
         eta_centers = eta_edges[:-1] + 0.5*del_eta
 
-        # !!! get chi and ome from rmat_s
-        # chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
+        # get chi and ome from rmat_s
+        # ??? not needed chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
         ome = np.arctan2(rmat_s[0, 2], rmat_s[0, 0])
 
         # make list of angle tuples
@@ -2373,6 +2429,12 @@ class PlanarDetector(object):
                 self.rmat, rmat_s, ct.identity_3x3,
                 self.tvec, tvec_s, tvec_c,
                 beamVec=self.bvec)
+            if self.distortion is not None:
+                # FIXME
+                all_xy = self.distortion[0](
+                    all_xy,
+                    self.distortion[1],
+                    invert=True)
             _, on_panel = self.clip_to_panel(all_xy)
 
             # all vertices must be on...
