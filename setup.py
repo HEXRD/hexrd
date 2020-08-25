@@ -15,7 +15,7 @@ install_reqs = [
     'psutil',
     'pyyaml',
     'scipy',
-    'sklearn'
+    'scikit-learn'
 ]
 
 # This a hack to get around the fact that scikit-image on conda-forge doesn't install
