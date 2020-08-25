@@ -52,17 +52,28 @@ if None, defaults to list specified in the yml file"""
 
 def write_results(results, cfg):
     # Write out the data
+
+    # grab working directory from config
+    wdir = cfg.working_dir
+
+    scored_quats_filename = os.path.join(
+        wdir, '_'.join(['scored_orientations', cfg.analysis_id])
+    )
     np.savez_compressed(
-        '_'.join(['scored_orientations', cfg.analysis_id]),
+        scored_quats_filename,
         **results['scored_orientations']
     )
 
     if not os.path.exists(cfg.analysis_dir):
         os.makedirs(cfg.analysis_dir)
-    qbar_filename = 'accepted_orientations_' + cfg.analysis_id + '.dat'
+    qbar_filename = os.path.join(
+        wdir,
+        'accepted_orientations_' + cfg.analysis_id + '.dat'
+    )
     np.savetxt(qbar_filename, results['qbar'].T,
                fmt='%.18e', delimiter='\t')
 
+    # ??? do we want to do this by default?
     gw = instrument.GrainDataWriter(
         os.path.join(cfg.analysis_dir, 'grains.out')
     )

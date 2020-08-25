@@ -315,9 +315,11 @@ class HEDMInstrument(object):
             det_dict = dict.fromkeys(detectors_config)
             for det_id, det_info in detectors_config.items():
                 pixel_info = det_info['pixels']
-                saturation_level = det_info['saturation_level']
                 affine_info = det_info['transform']
-
+                try:
+                    saturation_level = det_info['saturation_level']
+                except(KeyError):
+                    saturation_level = 2**16
                 shape = (pixel_info['rows'], pixel_info['columns'])
 
                 panel_buffer = None

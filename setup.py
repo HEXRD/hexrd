@@ -8,13 +8,19 @@ np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 
 install_reqs = [
     'fabio@git+https://github.com/joelvbernier/fabio.git@master',  # until patch is pushed to PyPI
+    'fast-histogram',
     'h5py',
+<<<<<<< HEAD
     'psutil',
     'scipy',
     'pycifrw',
+=======
+>>>>>>> 4d488e4a4d9e73e20570913f26780a926835c0a4
     'numba',
+    'psutil',
     'pyyaml',
-    'fast-histogram'
+    'scipy',
+    'scikit-learn'
 ]
 
 # This a hack to get around the fact that scikit-image on conda-forge doesn't install
