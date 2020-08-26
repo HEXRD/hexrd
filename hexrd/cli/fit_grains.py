@@ -70,6 +70,8 @@ def write_results(fit_results, cfg, grains_filename='grains.out'):
 
 
 def execute(args, parser):
+    clobber = args.force or args.clean
+
     # load the configuration settings
     cfgs = config.open(args.yml)
 
@@ -85,28 +87,47 @@ def execute(args, parser):
     ch.setFormatter(cf)
     logger.addHandler(ch)
 
-    # if find-orientations has not already been run, do so:
+    # handle initial state
+    cfg = cfgs[0]
+
+    # use path to grains.out to determine if analysis exists
+    # !!! note that the analysis dir pre-pends the working_dir
+    grains_filename = os.path.join(cfg.analysis_dir, 'grains.out')
+
+    # path to accepted_orientations
     quats_f = os.path.join(
-        cfgs[0].working_dir,
-        'accepted_orientations_%s.dat' % cfgs[0].analysis_id
+        cfg.working_dir,
+        'accepted_orientations_%s.dat' % cfg.analysis_id
         )
-    if os.path.exists(quats_f):
-        try:
-            qbar = np.loadtxt(quats_f).T
-        except(IOError):
-            raise(RuntimeError,
-                  "error loading indexing results '%s'" % quats_f)
-    else:
-        logger.info("Missing %s, running find-orientations", quats_f)
-        logger.removeHandler(ch)
-        from hexrd.findorientations import find_orientations
-        results = find_orientations(cfgs[0])
-        qbar = results['qbar']
-        logger.addHandler(ch)
+
+    # some conditionals for arg handling
+    have_orientations = os.path.exists(quats_f)
+    existing_analysis = os.path.exists(grains_filename)
+    fit_estimate = cfg.fit_grains.estimate
+    force_without_estimate = args.force and fit_estimate is None
+    new_without_estimate = not existing_analysis and fit_estimate is None
+
+    # if no estimate is supplied, or the clean option is selected, will need
+    # the indexing results from find_orientations:
+    #   'accepted_orientations_*.dat'
+    # result stored in the variable qbar
+    if args.clean or force_without_estimate or new_without_estimate:
+        if have_orientations:
+            try:
+                qbar = np.loadtxt(quats_f, ndmin=2).T
+            except(IOError):
+                raise(RuntimeError,
+                      "error loading indexing results '%s'" % quats_f)
+        else:
+            logger.info("Missing %s, running find-orientations", quats_f)
+            logger.removeHandler(ch)
+            from hexrd.findorientations import find_orientations
+            results = find_orientations(cfg)
+            qbar = results['qbar']
+            logger.addHandler(ch)
 
     logger.info('=== begin fit-grains ===')
 
-    clobber = args.force or args.clean
     for cfg in cfgs:
         # prepare the analysis directory
         if os.path.exists(cfg.analysis_dir) and not clobber:
@@ -159,17 +180,21 @@ def execute(args, parser):
             cfg.analysis_dir, 'grains.out'
         )
 
-        # some conditions for arg handling
+        # some conditionals for arg handling
         existing_analysis = os.path.exists(grains_filename)
-        new_with_estimate = not existing_analysis \
-            and cfg.fit_grains.estimate is not None
-        new_without_estimate = not existing_analysis \
-            and cfg.fit_grains.estimate is None
-        force_with_estimate = args.force \
-            and cfg.fit_grains.estimate is not None
-        force_without_estimate = args.force and cfg.fit_grains.estimate is None
-
-        # handle args
+        fit_estimate = cfg.fit_grains.estimate
+        new_with_estimate = not existing_analysis and fit_estimate is not None
+        new_without_estimate = not existing_analysis and fit_estimate is None
+        force_with_estimate = args.force and fit_estimate is not None
+        force_without_estimate = args.force and fit_estimate is None
+        # ------- handle args
+        # - 'clean' indicates ignoring any estimate specified and starting with
+        #   the 'accepted_orientations' file.  Will run find-orientations if
+        #   it doesn't exist
+        # - 'force' means ignore existing analysis directory.  If the config
+        #   option "fit_grains:estimate" is None, will use results from
+        #   find-orientations.  If 'accepted_orientations' does not exists,
+        #   then it runs find-orientations.
         if args.clean or force_without_estimate or new_without_estimate:
             # need accepted orientations from indexing in this case
             if args.clean:
@@ -196,13 +221,18 @@ def execute(args, parser):
                       "indexing results '%s' not found!"
                       % 'accepted_orientations_' + cfg.analysis_id + '.dat')
         elif force_with_estimate or new_with_estimate:
-            grains_filename = cfg.fit_grains.estimate
-        elif existing_analysis and not (clean or force):
+            grains_filename = fit_estimate
+            logger.info("using initial estimate '%s'", fit_estimate)
+        elif existing_analysis and not clobber:
             raise(RuntimeError,
                   "fit results '%s' exist, " % grains_filename
                   + "but --clean or --force options not specified")
 
-        grains_table = np.loadtxt(grains_filename, ndmin=2)
+        # get grain parameters by loading grains table
+        try:
+            grains_table = np.loadtxt(grains_filename, ndmin=2)
+        except(IOError):
+            raise RuntimeError("problem loading '%s'" % grains_filename)
 
         # process the data
         gid_list = None
@@ -210,7 +240,6 @@ def execute(args, parser):
             gid_list = [int(i) for i in args.grains.split(',')]
             pass
 
-        cfg.fit_grains.qbar = qbar
         fit_results = fit_grains(
             cfg,
             grains_table,
