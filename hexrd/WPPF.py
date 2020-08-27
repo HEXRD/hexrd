@@ -1226,8 +1226,9 @@ class LeBail:
         ======================================================================================================== 
     '''
 
-    def __init__(self,expt_file=None,param_file=None,phase_file=None,wavelength=None):
+    def __init__(self,expt_file=None,param_file=None,phase_file=None,wavelength=None,bkgmethod='spline'):
 
+        self.bkgmethod = bkgmethod
         self.initialize_expt_spectrum(expt_file)
 
         if(wavelength is not None):
@@ -1342,14 +1343,19 @@ class LeBail:
             is performed on this subset to estimate the overall background.
             scipy provides some useful routines for this
         '''
-        self.selectpoints()
-        x = self.points[:,0]
-        y = self.points[:,1]
-        self.splinefit(x, y)
+        if(self.bkgmethod == 'spline'):
+            self.selectpoints()
+            x = self.points[:,0]
+            y = self.points[:,1]
+            self.splinefit(x, y)
 
-        plot(self.tth_list, self.spectrum_expt._y, '-k',lw=1.5)
-        plot(self.tth_list, self.background._y, '--r',lw=1.5)
-        show()
+            plot(self.tth_list, self.spectrum_expt._y, '-k',lw=1.5)
+            plot(self.tth_list, self.background._y, '--r',lw=1.5)
+            show()
+        elif(self.bkgmethod == 'chebyshev'):
+            self.chebyshev_background()
+        else:
+            raise ValueError('unknown background method.')
 
     def selectpoints(self):
 
@@ -1363,6 +1369,17 @@ class LeBail:
         cs = CubicSpline(x,y)
         bkg = cs(self.tth_list)
         self.background = Spectrum(x=self.tth_list, y=bkg)
+
+    def chebyshev_background(self):
+        '''
+        this function fits the background as chebyshev polynomial
+        default is 6th order
+        '''
+        x = self.spectrum_expt._x
+        y = self.spectrum_expt._y
+
+        p = np.polynomial.Chebyshev.fit(x,y,6,w=self.weights)
+        self.background = Spectrum(x=self.tth_list, y=p(x))
 
     def initialize_phases(self, phase_file):
         '''
