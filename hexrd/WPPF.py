@@ -1235,8 +1235,8 @@ class LeBail:
             self.wavelength = wavelength
 
         self._tstart = time.time()
-        self.initialize_parameters(param_file)
         self.initialize_phases(phase_file)
+        self.initialize_parameters(param_file)
         self.initialize_Icalc()
         self.computespectrum()
 
@@ -1269,6 +1269,26 @@ class LeBail:
         if(param_file is not None):
             if(path.exists(param_file)):
                 params.load(param_file)
+                '''
+                this part initializes the lattice parameters in the 
+                paramter list
+                '''
+                for p in self.phases:
+                    mat = self.phases[p]
+                    lp       = np.array(mat.lparms)
+                    rid      = list(_rqpDict[mat.latticeType][0])
+                    lp       = lp[rid]
+                    name     = _lpname[rid]
+                    for n,l in zip(name,lp):
+                        nn = p+'_'+n
+                        '''
+                        is l is small, it is one of the length units
+                        else it is an angle
+                        '''
+                        if(n in ['a','b','c']):
+                            params.add(nn,value=l,lb=l-0.05,ub=l+0.05,vary=False)
+                        else:
+                            params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=False)
             else:
                 raise FileError('parameter file doesn\'t exist.')
         else:
@@ -1565,30 +1585,38 @@ class LeBail:
         for p in params:
             setattr(self, p, params[p].value)
 
-        lp = []
-        if('a' in params):
-            if(params['a'].vary):
-                lp.append(params['a'].value)
-        if('b' in params):
-            if(params['b'].vary):
-                lp.append(params['b'].value)
-        if('c' in params):
-            if(params['c'].vary):
-                lp.append(params['c'].value)
-        if('alpha' in params):
-            if(params['alpha'].vary):
-                lp.append(params['alpha'].value)
-        if('beta' in params):
-            if(params['beta'].vary):
-                lp.append(params['beta'].value)
-        if('gamma' in params):
-            if(params['gamma'].vary):
-                lp.append(params['gamma'].value)
+        for p in self.phases:
 
-        if(not lp):
-            pass
-        else:
-            for p in self.phases:
+            mat = self.phases[p]
+
+            '''
+            PART 1: update the lattice parameters
+            '''
+            lp = []
+
+            pre = p + '_'
+            if(pre+'a' in params):
+                if(params[pre+'a'].vary):
+                    lp.append(params[pre+'a'].value)
+            if(pre+'b' in params):
+                if(params[pre+'b'].vary):
+                    lp.append(params[pre+'b'].value)
+            if(pre+'c' in params):
+                if(params[pre+'c'].vary):
+                    lp.append(params[pre+'c'].value)
+            if(pre+'alpha' in params):
+                if(params[pre+'alpha'].vary):
+                    lp.append(params[pre+'alpha'].value)
+            if(pre+'beta' in params):
+                if(params[pre+'beta'].vary):
+                    lp.append(params[pre+'beta'].value)
+            if(pre+'gamma' in params):
+                if(params[pre+'gamma'].vary):
+                    lp.append(params[pre+'gamma'].value)
+
+            if(not lp):
+                pass
+            else:
                 lp = self.phases[p].Required_lp(lp)
                 self.phases[p].lparms = np.array(lp)
                 self.phases[p]._calcrmt()
