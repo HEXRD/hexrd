@@ -29,6 +29,8 @@ import numpy as np
 
 from hexrd import constants as cnst
 from hexrd.constants import USE_NUMBA
+from hexrd.transforms import xfcapi
+
 if USE_NUMBA:
     import numba
 
@@ -254,3 +256,33 @@ def GE_41RT(xy_in, params, invert=False):
             )
 
         return xy_out
+
+def PXRDIP_Sample(instr, rx=50, zs=0.25):
+    '''
+    two-theta correction due to sample displacement
+    '''
+    cfact = rx/zs
+    correction_dict = {}
+    for k,d in instr.detectors.items():
+
+        (tth,eta) = d.pixel_angles()
+        tth = tth.reshape([d.rows*d.cols,])
+        eta = eta.reshape([d.rows*d.cols,])
+
+        omega = np.zeros(eta.shape)
+        angles = np.c_[tth,eta, omega]
+
+        dvec =  xfcapi.anglesToGVec(np.array(angles), 
+                                    bHat_l=d.bvec, 
+                                    eHat_l=d.evec, 
+                                    chi=0., 
+                                    rMat_c=np.eye(3))
+
+        ctthn  = np.cos(tth)
+        stthn  = np.sin(tth)
+        cbeta  = np.dot(dvec,[0.,0.,-1.]) 
+
+        correction = np.degrees(np.arctan(stthn / (cfact*cbeta - ctthn)))
+        correction_dict[k] = correction.reshape(d.rows,d.cols)
+
+    return correction_dict
