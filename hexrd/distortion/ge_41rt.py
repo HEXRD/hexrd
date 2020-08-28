@@ -185,7 +185,7 @@ def inverse_distortion_numpy(rho0, eta0, rhoMax, params):
 
 class GE_41RT(DistortionABC, metaclass=_RegisterDistortionClass):
 
-    maptype = "ge_41rt"
+    maptype = "GE_41RT"
 
     def __init__(self, params, **kwargs):
         self._params = params
@@ -197,7 +197,7 @@ class GE_41RT(DistortionABC, metaclass=_RegisterDistortionClass):
     @params.setter
     def params(self, x):
         assert len(x) == 6, "parameter list must have len of 6"
-        self._params = x
+        self._params = np.asarray(x).flatten()
 
     @property
     def is_trivial(self):

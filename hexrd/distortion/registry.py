@@ -17,7 +17,7 @@ class Registry(object):
     @classmethod
     def register(cls, acls):
         """Register adapter class"""
-        if acls.__name__ is not 'DistortionBase':
+        if acls.__name__ != 'DistortionBase':
             cls.distortion_registry[acls.maptype] = acls
 
     pass  # end class

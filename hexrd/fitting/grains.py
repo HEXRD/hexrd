@@ -213,11 +213,10 @@ def objFuncFitGrain(gFit, gFull, gFlag,
             hkls = np.atleast_2d(results[:, 2:5]).T
             meas_xyo = np.atleast_2d(results[:, [15, 16, 12]])
 
-        # FIXME: distortion handling must change to class-based
+        # distortion handling
         if panel.distortion is not None:
             meas_omes = meas_xyo[:, 2]
-            xy_unwarped = panel.distortion[0](
-                    meas_xyo[:, :2], panel.distortion[1])
+            xy_unwarped = panel.distortion.apply(meas_xyo[:, :2])
             meas_xyo = np.vstack([xy_unwarped.T, meas_omes]).T
             pass
 

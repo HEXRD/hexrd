@@ -38,7 +38,7 @@ from hexrd import matrixutil as mutil
 from numpy import float_ as nFloat
 from numpy import int_ as nInt
 
-from hexrd import distortion as dFuncs
+from hexrd import distortion as distortion_pkg
 
 from hexrd.constants import USE_NUMBA
 if USE_NUMBA:
@@ -70,11 +70,6 @@ eta_ref  =  Xl
 # reference stretch
 vInv_ref = np.array([[1., 1., 1., 0., 0., 0.]], order='C').T
 
-# distortion for warping detector coords
-dFunc_ref   = dFuncs.GE_41RT
-dParams_ref = [0., 0., 0., 2., 2., 2]
-
-#
 # ######################################################################
 
 # ######################################################################
@@ -220,7 +215,7 @@ def gvecToDetectorXY(gVec_c,
 def detectorXYToGvec(xy_det,
                      rMat_d, rMat_s,
                      tVec_d, tVec_s, tVec_c,
-                     distortion=(dFunc_ref, dParams_ref),
+                     distortion=None,
                      beamVec=bVec_ref, etaVec=eta_ref,
                      output_ref=False):
     """
@@ -249,7 +244,8 @@ def detectorXYToGvec(xy_det,
     bHat_l = unitVector(beamVec.reshape(3, 1)) # make sure beam direction is a unit vector
     eHat_l = unitVector(etaVec.reshape(3, 1))  # make sure eta=0 direction is a unit vector
 
-    xy_det = distortion[0](xy_det, distortion[1])
+    if distortion is not None:
+            xy_det = distortion.apply(xy_det)
 
     # form in-plane vectors for detector points list in DETECTOR FRAME
     P2_d = np.hstack([np.atleast_2d(xy_det), np.zeros((npts, 1))]).T

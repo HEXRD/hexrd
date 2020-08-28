@@ -111,7 +111,7 @@ def makeGVector(hkl, bMat):
       input.
     """
     assert hkl.shape[0] == 3, 'hkl input must be (3, n)'
-    return unitVector(np.dot(bMat, hkl))
+    return unitRowVector(np.dot(bMat, hkl))
 
 def gvecToDetectorXY(gVec_c,
                      rMat_d, rMat_s, rMat_c,
@@ -357,8 +357,8 @@ def arccosSafe(temp):
 
     # Oh, the tricks we must play to make this overloaded and robust...
     if type(temp) is list:
-        temp = nd.asarray(temp)
-    elif type(temp) is ndarray:
+        temp = np.asarray(temp)
+    elif type(temp) is np.ndarray:
         if len(temp.shape) == 0:
             temp = temp.reshape(1)
 
@@ -375,7 +375,7 @@ def arccosSafe(temp):
     temp[gte1] =  1
     temp[lte1] = -1
 
-    ang = arccos(temp)
+    ang = np.arccos(temp)
 
     return ang
 
@@ -469,7 +469,8 @@ def unitRowVector(vecIn):
     elif vecIn.ndim == 2:
         return _transforms_CAPI.unitRowVectors(vecIn)
     else:
-        assert vecIn.ndim in [1,2], "incorrect arg shape; must be 1-d or 2-d, yours is %d-d" % (a.ndim)
+        assert vecIn.ndim in [1, 2], \
+            "arg shape must be 1-d or 2-d, yours is %d-d" % (vecIn.ndim)
 
 def makeDetectorRotMat(tiltAngles):
     """

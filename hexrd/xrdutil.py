@@ -39,15 +39,14 @@ from hexrd.transforms import xfcapi
 
 from hexrd.valunits import valWUnit
 
-from hexrd import distortion as distortion_module
+from hexrd import distortion as distortion_pkg
 
 from hexrd.constants import USE_NUMBA
 if USE_NUMBA:
     import numba
 
 
-dFunc_ref = distortion_module.dummy
-dParams_ref = []
+distortion_key = 'distortion'
 
 d2r = piby180 = np.pi/180.
 r2d = 1.0/d2r
@@ -478,11 +477,10 @@ def _project_on_detector_plane(allAngs,
 
     det_xy = np.atleast_2d(tmp_xys[valid_mask, :])
 
-    # FIXME: distortion kludge
-    if distortion is not None and len(distortion) == 2:
-        det_xy = distortion[0](det_xy,
-                               distortion[1],
-                               invert=True)
+    # apply distortion if specified
+    if distortion is not None:
+        det_xy = distortion.apply_inverse(det_xy)
+
     return det_xy, rMat_ss, valid_mask
 
 
@@ -492,7 +490,7 @@ def simulateGVecs(pd, detector_params, grain_params,
                   eta_range=[(-np.pi, np.pi), ],
                   panel_dims=[(-204.8, -204.8), (204.8, 204.8)],
                   pixel_pitch=(0.2, 0.2),
-                  distortion=(dFunc_ref, dParams_ref)):
+                  distortion=None):
     """
     returns valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps
 
@@ -681,8 +679,7 @@ def simulateLauePattern(hkls, bMat,
 
             # warp measured points
             if distortion is not None:
-                if len(distortion) == 2:
-                    dpts = distortion[0](dpts, distortion[1], invert=True)
+                dpts = distortion.apply_inverse(dpts)
 
             # plane spacings and energies
             dsp = 1. / mutil.columnNorm(np.dot(bMat, dhkl))
@@ -774,8 +771,8 @@ if USE_NUMBA:
         * assumes xy_det in UNWARPED configuration
         """
         xy_det = np.atleast_2d(xy_det)
-        if distortion is not None and len(distortion) == 2:
-            xy_det = distortion[0](xy_det, distortion[1])
+        if distortion is not None:  # !!! check this logic
+            xy_det = distortion.apply(xy_det)
         if beamVec is None:
             beamVec = xfcapi.bVec_ref
         if etaVec is None:
@@ -805,8 +802,8 @@ else:
         * assumes xy_det in UNWARPED configuration
         """
         xy_det = np.atleast_2d(xy_det)
-        if distortion is not None and len(distortion) == 2:
-            xy_det = distortion[0](xy_det, distortion[1])
+        if distortion is not None:  # !!! check this logic
+            xy_det = distortion.apply(xy_det)
         if beamVec is None:
             beamVec = xfcapi.bVec_ref
         if etaVec is None:
@@ -941,21 +938,21 @@ def make_reflection_patches(instr_cfg,
     col_edges = np.arange(frame_ncols + 1)*pixel_size[0] \
         + panel_dims[0][0]
 
-    # grab distortion
-    # FIXME: distortion function is still hard-coded here
-    try:
-        dfunc_name = instr_cfg['detector']['distortion']['function_name']
-    except(KeyError):
-        dfunc_name = None
-
-    if dfunc_name is None:
-        distortion = None
-    else:
-        # !!!: warning -- hard-coded distortion
-        distortion = (
-            distortion_module.GE_41RT,
-            np.r_[instr_cfg['detector']['distortion']['parameters']]
-        )
+    # handle distortion
+    distortion = None
+    if distortion_key in instr_cfg['detector']:
+        distortion_cfg = instr_cfg['detector'][distortion_key]
+        if distortion_cfg is not None:
+            try:
+                func_name = distortion_cfg['function_name']
+                dparams = distortion_cfg['parameters']
+                distortion = distortion_pkg.get_mapping(
+                    func_name, dparams
+                )
+            except(KeyError):
+                raise RuntimeError(
+                    "problem with distortion specification"
+                )
 
     # sample frame
     chi = instr_cfg['oscillation_stage']['chi']
