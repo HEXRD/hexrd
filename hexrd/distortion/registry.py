@@ -3,6 +3,7 @@ import abc
 
 __all__ = ['maptypes', 'get_mapping']
 
+
 class _RegisterDistortionClass(abc.ABCMeta):
 
     def __init__(cls, name, bases, attrs):

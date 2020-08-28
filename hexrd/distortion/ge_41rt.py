@@ -203,8 +203,8 @@ class GE_41RT(DistortionABC, metaclass=_RegisterDistortionClass):
     def is_trivial(self):
         return \
             self.params[0] == 0 and \
-                self.params[1] == 0 and \
-                    self.params[2] == 0
+            self.params[1] == 0 and \
+            self.params[2] == 0
 
     def apply(self, xy_in):
         if self.is_trivial:

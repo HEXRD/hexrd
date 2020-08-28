@@ -28,6 +28,7 @@
 
 import numpy as np
 
+
 def newton(x0, f, fp, extra, prec=3e-16, maxiter=100):
     for i in range(maxiter):
         x = x0 - f(x0, *extra) / fp(x0, *extra)
