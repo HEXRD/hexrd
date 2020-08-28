@@ -667,7 +667,7 @@ class Material_LeBail:
             '''
             pass
         elif(self.latticeType == 'monoclinic'):
-            if(ax is not '2_1'):
+            if(ax != '2_1'):
                 raise RuntimeError('omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis')
             '''
                 only unique b-axis will be encoded
@@ -683,7 +683,7 @@ class Material_LeBail:
             else:
                 raise RuntimeError('omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
         elif(self.latticeType == 'orthorhombic'):
-            if(ax is not '2_1'):
+            if(ax != '2_1'):
                 raise RuntimeError('omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis')
             '''
             2_1 screw on primary axis
@@ -735,7 +735,7 @@ class Material_LeBail:
         elif(self.latticeType == 'hexagonal'):
             mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
             if(iax == 0):
-                if(ax is '6_3'):
+                if(ax == '6_3'):
                     mask2 = np.mod(hkllist[:,2]+100,2) != 0
                 elif(ax in['3_1','3_2','6_2','6_4']):
                     mask2 = np.mod(hkllist[:,2]+90,3) != 0
@@ -868,7 +868,7 @@ class Material_LeBail:
                 mask = np.logical_not(np.logical_and(mask1,mask2))
                 hkllist = hkllist[mask,:]
         elif(self.latticeType == 'trigonal'):
-            if(plane is not 'c'):
+            if(plane != 'c'):
                 raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems')
             
             if(ip == 1):
@@ -893,7 +893,7 @@ class Material_LeBail:
             mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
             hkllist = hkllist[mask,:]
         elif(self.latticeType == 'hexagonal'):
-            if(plane is not 'c'):
+            if(plane != 'c'):
                 raise RuntimeError('omitglideplaneabsences: only c-glide allowed for hexagonal systems')
             if(ip == 2):
                 mask1 = hkllist[:,0] == hkllist[:,1]
@@ -983,11 +983,11 @@ class Material_LeBail:
         '''
         planes = constants.SYS_AB[self.sgnum][0]
         for ip,p in enumerate(planes):
-            if(p is not ''):
+            if(p != ''):
                 hkllist = self.omitglideplaneabsences(hkllist, p, ip)
         axes = constants.SYS_AB[self.sgnum][1]
         for iax,ax in enumerate(axes):
-            if(ax is not ''):
+            if(ax != ''):
                 hkllist = self.omitscrewaxisabsences(hkllist, ax, iax)
         return hkllist
 
@@ -1286,9 +1286,9 @@ class LeBail:
                         else it is an angle
                         '''
                         if(n in ['a','b','c']):
-                            params.add(nn,value=l,lb=l-0.05,ub=l+0.05,vary=False)
+                            params.add(nn,value=l,lb=l-0.05,ub=l+0.05,vary=True)
                         else:
-                            params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=False)
+                            params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=True)
             else:
                 raise FileError('parameter file doesn\'t exist.')
         else:
@@ -2088,7 +2088,7 @@ class Material_Rietveld:
             '''
             pass
         elif(self.latticeType == 'monoclinic'):
-            if(ax is not '2_1'):
+            if(ax != '2_1'):
                 raise RuntimeError('omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis')
             '''
                 only unique b-axis will be encoded
@@ -2104,7 +2104,7 @@ class Material_Rietveld:
             else:
                 raise RuntimeError('omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
         elif(self.latticeType == 'orthorhombic'):
-            if(ax is not '2_1'):
+            if(ax != '2_1'):
                 raise RuntimeError('omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis')
             '''
             2_1 screw on primary axis
@@ -2156,7 +2156,7 @@ class Material_Rietveld:
         elif(self.latticeType == 'hexagonal'):
             mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
             if(iax == 0):
-                if(ax is '6_3'):
+                if(ax == '6_3'):
                     mask2 = np.mod(hkllist[:,2]+100,2) != 0
                 elif(ax in['3_1','3_2','6_2','6_4']):
                     mask2 = np.mod(hkllist[:,2]+90,3) != 0
@@ -2289,7 +2289,7 @@ class Material_Rietveld:
                 mask = np.logical_not(np.logical_and(mask1,mask2))
                 hkllist = hkllist[mask,:]
         elif(self.latticeType == 'trigonal'):
-            if(plane is not 'c'):
+            if(plane != 'c'):
                 raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems')
             
             if(ip == 1):
@@ -2314,7 +2314,7 @@ class Material_Rietveld:
             mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
             hkllist = hkllist[mask,:]
         elif(self.latticeType == 'hexagonal'):
-            if(plane is not 'c'):
+            if(plane != 'c'):
                 raise RuntimeError('omitglideplaneabsences: only c-glide allowed for hexagonal systems')
             if(ip == 2):
                 mask1 = hkllist[:,0] == hkllist[:,1]
@@ -2404,11 +2404,11 @@ class Material_Rietveld:
         '''
         planes = constants.SYS_AB[self.sgnum][0]
         for ip,p in enumerate(planes):
-            if(p is not ''):
+            if(p !=''):
                 hkllist = self.omitglideplaneabsences(hkllist, p, ip)
         axes = constants.SYS_AB[self.sgnum][1]
         for iax,ax in enumerate(axes):
-            if(ax is not ''):
+            if(ax != ''):
                 hkllist = self.omitscrewaxisabsences(hkllist, ax, iax)
         return hkllist
 
