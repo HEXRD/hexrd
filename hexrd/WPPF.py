@@ -1225,8 +1225,14 @@ class LeBail:
         ======================================================================================================== 
         ======================================================================================================== 
     '''
+    def _nm(x):
+        return valWUnit('lp', 'length', x, 'nm')
 
-    def __init__(self,expt_file=None,param_file=None,phase_file=None,wavelength=None,bkgmethod='spline'):
+    def __init__(self,expt_file=None,
+        param_file=None,
+        phase_file=None,
+        wavelength={'kalpha1':_nm(0.15406),'kalpha2':_nm(0.154443)},
+        bkgmethod='spline'):
 
         self.bkgmethod = bkgmethod
         self.initialize_expt_spectrum(expt_file)
@@ -1274,21 +1280,25 @@ class LeBail:
                 paramter list
                 '''
                 for p in self.phases:
+
                     mat = self.phases[p]
                     lp       = np.array(mat.lparms)
                     rid      = list(_rqpDict[mat.latticeType][0])
+
                     lp       = lp[rid]
                     name     = _lpname[rid]
+
                     for n,l in zip(name,lp):
                         nn = p+'_'+n
                         '''
                         is l is small, it is one of the length units
                         else it is an angle
                         '''
-                        if(n in ['a','b','c']):
-                            params.add(nn,value=l,lb=l-0.05,ub=l+0.05,vary=True)
+                        if(l < 10.):
+                            params.add(nn,value=l,lb=l-0.05,ub=l+0.05,vary=False)
                         else:
-                            params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=True)
+                            params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=False)
+
             else:
                 raise FileError('parameter file doesn\'t exist.')
         else:
@@ -1314,6 +1324,9 @@ class LeBail:
         self._U = self.params['U'].value
         self._V = self.params['V'].value
         self._W = self.params['W'].value
+        self._P = self.params['P'].value
+        self._X = self.params['X'].value
+        self._Y = self.params['Y'].value
         self._eta1 = self.params['eta1'].value
         self._eta2 = self.params['eta2'].value
         self._eta3 = self.params['eta3'].value
@@ -1377,19 +1390,6 @@ class LeBail:
         else:
             raise ValueError('unknown background method.')
 
-    def selectpoints(self):
-
-        plot(self.tth_list, self.spectrum_expt._y, '-k',lw=1.5)
-        title('Select points for background estimation. Middle click once done')
-        self.points = np.array(ginput(0))
-        close()
-
-    # cubic spline fit of background using custom points chosen from plot
-    def splinefit(self, x, y):
-        cs = CubicSpline(x,y)
-        bkg = cs(self.tth_list)
-        self.background = Spectrum(x=self.tth_list, y=bkg)
-
     def chebyshev_background(self):
         '''
         this function fits the background as chebyshev polynomial
@@ -1401,13 +1401,34 @@ class LeBail:
         p = np.polynomial.Chebyshev.fit(x,y,6,w=self.weights)
         self.background = Spectrum(x=self.tth_list, y=p(x))
 
+    def selectpoints(self):
+
+        title('Select points for background estimation; middle button when done.')
+
+        plot(self.tth_list, self.spectrum_expt._y, '-k')
+
+        self.points = np.asarray(ginput(0,timeout=-1))
+        close()
+
+    # cubic spline fit of background using custom points chosen from plot
+    def splinefit(self, x, y):
+        cs = CubicSpline(x,y)
+        bkg = cs(self.tth_list)
+        self.background = Spectrum(x=self.tth_list, y=bkg)
+
+
     def initialize_phases(self, phase_file):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       06/08/2020 SS 1.0 original
         >> @DETAILS:    load the phases for the LeBail fits
         '''
-        p = Phases_LeBail(wavelength=self.wavelength)
+        if(hasattr(self,'wavelength')):
+            if(self.wavelength is not None):
+                p = Phases_LeBail(wavelength=self.wavelength)
+        else:
+            p = Phases_LeBail()
+
         if(phase_file is not None):
             if(path.exists(phase_file)):
                 p.load(phase_file)
@@ -1449,6 +1470,17 @@ class LeBail:
             Hsq = 1.0e-12
         self.Hcag   = np.sqrt(Hsq)
 
+    def LorentzH(self, tth):
+        '''
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       07/20/2020 SS 1.0 original
+        >> @DETAILS:    calculates the size and strain broadening for Lorentzian peak
+        '''
+        th = np.radians(0.5*tth)
+        tanth       = np.tan(th)
+        cth         = np.cos(th)
+        self.gamma = self.X/cth + self.Y * tanth
+
     def MixingFact(self, tth):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -1481,7 +1513,7 @@ class LeBail:
         >> @DETAILS:    this routine computes the lorentzian peak profile
         '''
 
-        H = self.Hcag
+        H = self.gamma
         cl = 4.
         self.LorentzI = (2./np.pi/H) / ( 1. + cl*((self.tth_list - tth)/H)**2)
 
@@ -1495,6 +1527,7 @@ class LeBail:
 
         self.CagliottiH(tth)
         self.Gaussian(tth)
+        self.LorentzH(tth)
         self.Lorentzian(tth)
         self.MixingFact(tth)
         self.PV = self.eta * self.GaussianI + \
@@ -1583,7 +1616,8 @@ class LeBail:
         the err variable is the difference between simulated and experimental spectra
         '''
         for p in params:
-            setattr(self, p, params[p].value)
+            if(hasattr(self, p)):
+                setattr(self, p, params[p].value)
 
         for p in self.phases:
 
@@ -1730,6 +1764,41 @@ class LeBail:
         self._W = Winp
         # self.computespectrum()
         return
+
+    @property
+    def P(self):
+        return self._P
+
+    @P.setter
+    def P(self, Pinp):
+        self._P = Pinp
+        return
+
+    @property
+    def X(self):
+        return self._X
+
+    @X.setter
+    def X(self, Xinp):
+        self._X = Xinp
+        return
+
+    @property
+    def Y(self):
+        return self._Y
+
+    @Y.setter
+    def Y(self, Yinp):
+        self._Y = Yinp
+        return
+
+    @property
+    def gamma(self):
+        return self._gamma
+    
+    @gamma.setter
+    def gamma(self, val):
+        self._gamma = val
 
     @property
     def Hcag(self):
