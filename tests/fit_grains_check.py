@@ -10,7 +10,6 @@ import argparse
 import numpy as np
 
 from hexrd import config
-from hexrd import constants as cnst
 from hexrd.fitgrains import fit_grains
 from hexrd import matrixutil as mutil
 from hexrd import rotations as rot
@@ -126,4 +125,3 @@ if __name__ == '__main__':
         print("test passed")
     else:
         print("test failed")
-
