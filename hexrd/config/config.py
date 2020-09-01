@@ -67,8 +67,8 @@ class Config(object):
 
         Returns the absolute path of the filename if the file exists
 
-        If fname is an absolute path, use that; otherwise take it as a path relative
-        to the working directory.
+        If fname is an absolute path, use that; otherwise take it as a path
+        relative to the working directory.
 """
         temp = fname
         if not os.path.isabs(fname):
