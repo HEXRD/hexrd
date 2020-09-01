@@ -1,6 +1,8 @@
+import importlib.resources
 import numpy as np
 from hexrd import constants
 from hexrd import symmetry, symbols
+import hexrd.resources
 import warnings
 import h5py
 from pathlib import Path
@@ -13,7 +15,7 @@ class unitcell:
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       10/09/2018 SS 1.0 original
        @DATE:       10/15/2018 SS 1.1 added space group handling
-    >> @DETAILS:    this is the unitcell class 
+    >> @DETAILS:    this is the unitcell class
 
     '''
 
@@ -25,13 +27,13 @@ class unitcell:
         self.pref  = 0.4178214
 
         self.atom_ntype = atomtypes.shape[0]
-        self.atom_type  = atomtypes 
+        self.atom_type  = atomtypes
         self.atom_pos   = atominfo
         self.U          = U
 
         self.dmin       = dmin
 
-        # set some default values for 
+        # set some default values for
         # a,b,c,alpha,beta,gamma
         self._a = 1.
         self._b = 1.
@@ -74,9 +76,9 @@ class unitcell:
         if(lp[5].unit == 'degrees'):
             self.gamma = lp[5].value
         elif(lp[5].unit == 'radians'):
-            self.gamma = np.degrees(lp[5].value) 
+            self.gamma = np.degrees(lp[5].value)
 
-        self.aniU       = False 
+        self.aniU       = False
         if(self.U.ndim > 1):
             self.aniU = True
             self.calcBetaij()
@@ -88,7 +90,7 @@ class unitcell:
 
         '''
         sets x-ray energy
-        calculate wavelength 
+        calculate wavelength
         also calculates anomalous form factors for xray scattering
         '''
         self.voltage = beamenergy * 1000.0
@@ -110,7 +112,7 @@ class unitcell:
 
     def GetPgLg(self):
         '''
-        simple subroutine to get point and laue groups 
+        simple subroutine to get point and laue groups
         to maintain consistency for planedata initialization
         in the materials class
         '''
@@ -274,16 +276,16 @@ class unitcell:
         return angle
 
     ''' calculate cross product between two vectors in any space.
-    
-    cross product of two vectors in direct space is a vector in 
-    reciprocal space
-    
-    cross product of two vectors in reciprocal space is a vector in 
-    direct space
-    
-    the outspace specifies if a conversion needs to be made 
 
-     @NOTE: iv is the switch (0/1) which will either turn division 
+    cross product of two vectors in direct space is a vector in
+    reciprocal space
+
+    cross product of two vectors in reciprocal space is a vector in
+    direct space
+
+    the outspace specifies if a conversion needs to be made
+
+     @NOTE: iv is the switch (0/1) which will either turn division
      by volume of the unit cell on or off.'''
     def CalcCross(self, p, q, inspace, outspace, vol_divide=False):
         iv = 0
@@ -314,7 +316,7 @@ class unitcell:
 
         elif(inspace == 'r'):
             '''
-            cross product vector is in direct space and 
+            cross product vector is in direct space and
             can be converted to any other space
             '''
             pxq /= vol
@@ -329,7 +331,7 @@ class unitcell:
 
         elif(inspace == 'c'):
             '''
-            cross product is already in cartesian space so no 
+            cross product is already in cartesian space so no
             volume factor is involved. can be converted to any
             other space too
             '''
@@ -427,7 +429,7 @@ class unitcell:
             r = np.hstack((r, 1.))
 
             asym_pos.append(np.broadcast_to(r[0:3],[1,3]))
-            
+
             for symmat in self.SYM_SG:
                 # get new position
                 rnew = np.dot(symmat, r)
@@ -457,8 +459,8 @@ class unitcell:
         self.asym_pos = asym_pos
 
     def CalcDensity(self):
-        ''' 
-        calculate density, average atomic weight (avA) 
+        '''
+        calculate density, average atomic weight (avA)
         and average atomic number(avZ)
         '''
         self.avA = 0.0
@@ -478,7 +480,7 @@ class unitcell:
 
 
         self.density = avA / (self.vol * 1.0E-21 * constants.cAvogadro)
-        
+
         av_natom = np.dot(self.numat, self.atom_pos[:,3])
 
         self.avA = avA / av_natom
@@ -500,19 +502,17 @@ class unitcell:
         self.f2 = {}
         self.f_anam = {}
 
+        data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
+        with h5py.File(data, 'r') as fid:
+            for i in range(0,self.atom_ntype):
 
-        fid = h5py.File(str(Path(__file__).resolve().parent)+'/Anomalous.h5','r')
-        for i in range(0,self.atom_ntype):
+                Z    = self.atom_type[i]
+                elem = constants.ptableinverse[Z]
+                gid = fid.get('/'+elem)
+                data = gid.get('data')
 
-            Z    = self.atom_type[i]
-            elem = constants.ptableinverse[Z]
-            gid = fid.get('/'+elem)
-            data = gid.get('data')
-
-            self.f1[elem] = interp1d(data[:,7], data[:,1])
-            self.f2[elem] = interp1d(data[:,7], data[:,2])
-
-        fid.close()
+                self.f1[elem] = interp1d(data[:,7], data[:,1])
+                self.f2[elem] = interp1d(data[:,7], data[:,2])
 
     def CalcAnomalous(self):
 
@@ -574,7 +574,7 @@ class unitcell:
                 T = np.exp(-8.0*np.pi**2 * self.U[i]*s)
 
             ff *= self.atom_pos[i,3] * T
-                
+
             for j in range(self.asym_pos[i].shape[0]):
                 arg =  2.0 * np.pi * np.sum( hkl * self.asym_pos[i][j,:] )
                 sf  = sf + ff * np.complex(np.cos(arg),-np.sin(arg))
@@ -612,7 +612,7 @@ class unitcell:
             # sum is even
             seo = np.mod(np.sum(hkllist,axis=1)+100,2)
             mask = (seo == 0)
-            
+
         elif(centering == 'A'):
             # k+l is even
             seo = np.mod(np.sum(hkllist[:,1:3],axis=1)+100,2)
@@ -645,16 +645,16 @@ class unitcell:
     def omitscrewaxisabsences(self, hkllist, ax, iax):
 
         '''
-        this function encodes the table on pg 48 of 
+        this function encodes the table on pg 48 of
         international table of crystallography vol A
-        the systematic absences due to different screw 
-        axis is encoded here. 
+        the systematic absences due to different screw
+        axis is encoded here.
         iax encodes the primary, secondary or tertiary axis
         iax == 0 : primary
         iax == 1 : secondary
         iax == 2 : tertiary
 
-        @NOTE: only unique b axis in monoclinic systems 
+        @NOTE: only unique b axis in monoclinic systems
         implemented as thats the standard setting
         '''
         if(self.latticeType == 'triclinic'):
@@ -669,7 +669,7 @@ class unitcell:
                 raise RuntimeError('omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis.')
             '''
                 only unique b-axis will be encoded
-                it is the users responsibility to input 
+                it is the users responsibility to input
                 lattice parameters in the standard setting
                 with b-axis having the 2-fold symmetry
             '''
@@ -789,17 +789,17 @@ class unitcell:
 
     def omitglideplaneabsences(self, hkllist, plane, ip):
         '''
-        this function encodes the table on pg 47 of 
+        this function encodes the table on pg 47 of
         international table of crystallography vol A
-        the systematic absences due to different glide 
-        planes is encoded here. 
+        the systematic absences due to different glide
+        planes is encoded here.
         ip encodes the primary, secondary or tertiary plane normal
         ip == 0 : primary
         ip == 1 : secondary
         ip == 2 : tertiary
 
 
-        @NOTE: only unique b axis in monoclinic systems 
+        @NOTE: only unique b axis in monoclinic systems
         implemented as thats the standard setting
         '''
         if(self.latticeType == 'triclinic'):
@@ -933,7 +933,7 @@ class unitcell:
 
             if(plane != 'c'):
                 raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems.')
-            
+
             if(ip == 1):
 
                 mask1 = hkllist[:,0] == 0
@@ -1007,7 +1007,7 @@ class unitcell:
                     mask1 = np.logical_or(np.logical_and(mask1,mask5),np.logical_and(mask1,mask6))
                     mask2 = np.logical_or(np.logical_and(mask2,mask4),np.logical_and(mask2,mask6))
                     mask3 = np.logical_and(mask3,mask4)
-                    
+
                     mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
 
                 elif(plane == 'b'):
@@ -1077,7 +1077,7 @@ class unitcell:
 
     def NonSymmorphicAbsences(self, hkllist):
         '''
-        this function prunes hkl list for the screw axis and glide 
+        this function prunes hkl list for the screw axis and glide
         plane absences
         '''
         planes = constants.SYS_AB[self.sgnum][0]
@@ -1095,7 +1095,7 @@ class unitcell:
 
     def ChooseSymmetric(self, hkllist, InversionSymmetry=True):
         '''
-        this function takes a list of hkl vectors and 
+        this function takes a list of hkl vectors and
         picks out a subset of the list picking only one
         of the symmetrically equivalent one. The convention
         is to choose the hkl with the most positive components.
@@ -1126,9 +1126,9 @@ class unitcell:
 
     def SortHKL(self, hkllist):
         '''
-        this function sorts the hkllist by increasing |g| 
-        i.e. decreasing d-spacing. If two vectors are same 
-        length, then they are ordered with increasing 
+        this function sorts the hkllist by increasing |g|
+        i.e. decreasing d-spacing. If two vectors are same
+        length, then they are ordered with increasing
         priority to l, k and h
         '''
         glen = []
@@ -1149,7 +1149,7 @@ class unitcell:
 
     def getHKLs(self, dmin):
         '''
-        this function generates the symetrically unique set of 
+        this function generates the symetrically unique set of
         hkls up to a given dmin.
         dmin is in nm
         '''
@@ -1280,7 +1280,7 @@ class unitcell:
         self.ih = 1
         self.ik = 1
         self.il = 1
-        self.CalcMaxGIndex()    
+        self.CalcMaxGIndex()
 
     @property
     def alpha(self):
@@ -1329,7 +1329,7 @@ class unitcell:
     def U(self,Uarr):
         self._U = Uarr
 
-    @property 
+    @property
     def voltage(self):
         return self._voltage
 
@@ -1344,13 +1344,13 @@ class unitcell:
 
     @wavelength.setter
     def wavelength(self,mlambda):
-        self._mlambda = mlambda 
+        self._mlambda = mlambda
 
     # space group number
     @property
     def sgnum(self):
         return self._sym_sgnum
-    
+
     @sgnum.setter
     def sgnum(self, val):
         if(not(isinstance(val, int))):
@@ -1404,18 +1404,18 @@ class unitcell:
     @property
     def numat(self):
         return self._numat
-    
+
     @numat.setter
     def numat(self, val):
         assert(val.shape[0] == self.atom_ntype),'shape of numat is not consistent'
         self._numat = val
-    
+
     # different atom types; read only
     @property
     def Z(self):
         sz = self.atom_ntype
         return self.atom_type[0:atom_ntype]
-    
+
     # direct metric tensor is read only
     @property
     def dmt(self):
@@ -1435,7 +1435,7 @@ class unitcell:
     @property
     def rsm(self):
         return self._rsm
-    
+
     @property
     def vol(self):
         return self._vol
@@ -1540,7 +1540,7 @@ type5.remove((0,5))
 type5 = tuple(type5)
 
 # independent components for the trigonal laue group
-# C16 = C26 = C34 = C35 = C36 = C45 = 0, C22 = C11, C23 = C13, C24 = −C14, 
+# C16 = C26 = C34 = C35 = C36 = C45 = 0, C22 = C11, C23 = C13, C24 = −C14,
 # C25 = −C15, C46 = −C15, C55 = C44, C56 = C14, C66 = (C11 − C12)/2
 type6 = list(type1)
 type6.remove((0,5));type6.remove((1,5));type6.remove((2,3))
@@ -1568,10 +1568,10 @@ type9 = list(type5)
 type9.remove((0,2));type9.remove((2,2));type9.remove((5,5));
 
 '''
-these lambda functions take care of the equality constrains in the 
+these lambda functions take care of the equality constrains in the
 matrices. if there are no equality constraints, then the identity
 function is used
-C22 = C11, C23 = C13, C24 = −C14, 
+C22 = C11, C23 = C13, C24 = −C14,
 # C25 = −C15, C46 = −C15, C55 = C44, C56 = C14, C66 = (C11 − C12)/2
 '''
 identity = lambda x: x
@@ -1580,7 +1580,7 @@ def C_cyclictet_eq(x):
     x[1,1] = x[0,0]
     x[1,2] = x[0,2]
     x[1,5] = -x[0,5]
-    x[4,4] = x[3,3] 
+    x[4,4] = x[3,3]
     return x
 
 def C_trigonal_eq(x):
@@ -1594,7 +1594,7 @@ def C_trigonal_eq(x):
     x[5,5]=0.5*(x[0,0]-x[0,1])
     return x
 
-def C_cubic_eq(x): 
+def C_cubic_eq(x):
     x[0,2] = x[0,1]
     x[2,2] = x[0,0]
     x[5,5] = x[3,3]
