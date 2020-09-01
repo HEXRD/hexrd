@@ -1,6 +1,7 @@
 """Base Config class"""
 
 import logging
+import os
 
 from .utils import null
 
@@ -51,10 +52,29 @@ class Config(object):
             temp[item] = val
             self._dirty = True
 
-
     def dump(self, filename):
         import yaml
 
         with open(filename, 'w') as f:
             yaml.dump(self._cfg, f)
         self._dirty = False
+
+    @staticmethod
+    def check_filename(fname, wdir):
+        """Check whether filename is valid relative to working directory
+
+        fname - the name of the file
+
+        Returns the absolute path of the filename if the file exists
+
+        If fname is an absolute path, use that; otherwise take it as a path relative
+        to the working directory.
+"""
+        temp = fname
+        if not os.path.isabs(fname):
+            temp = os.path.join(wdir, temp)
+        if os.path.exists(temp):
+            return temp
+        raise IOError(
+            'file: "%s" not found' % temp
+            )
