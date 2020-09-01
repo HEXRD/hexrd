@@ -1,30 +1,4 @@
-# -*- coding: utf-8 -*-
-# =============================================================================
-# Copyright (c) 2012, Lawrence Livermore National Security, LLC.
-# Produced at the Lawrence Livermore National Laboratory.
-# Written by Joel Bernier <bernier2@llnl.gov> and others.
-# LLNL-CODE-529294.
-# All rights reserved.
-#
-# This file is part of HEXRD. For details on dowloading the source,
-# see the file COPYING.
-#
-# Please also see the file LICENSE.
-#
-# This program is free software; you can redistribute it and/or modify it under
-# the terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
-#
-# This program is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the IMPLIED WARRANTY OF MERCHANTABILITY
-# or FITNESS FOR A PARTICULAR PURPOSE. See the terms and conditions of the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public
-# License along with this program (see file LICENSE); if not, write to
-# the Free Software Foundation, Inc., 59 Temple Place, Suite 330,
-# Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
-# =============================================================================
+"""GE4RT Detector Distortion"""
 import numpy as np
 
 from hexrd import constants as cnst
@@ -32,23 +6,11 @@ from hexrd.constants import USE_NUMBA
 if USE_NUMBA:
     import numba
 
+from .distortionabc import DistortionABC
+from .registry import _RegisterDistortionClass
+from .utils import newton
 
-def dummy(xy_in, params, invert=False):
-    """
-    """
-    return xy_in
-
-
-def newton(x0, f, fp, extra, prec=3e-16, maxiter=100):
-    for i in range(maxiter):
-        x = x0 - f(x0, *extra) / fp(x0, *extra)
-        relerr = np.max(np.abs(x - x0)) / np.max(np.abs(x))
-        if relerr < prec:
-            # print 'stopping at %d iters' % i
-            return x
-        x0 = x
-    return x0
-
+RHO_MAX = 204.8  # max radius in mm for ge detector
 
 if USE_NUMBA:
     @numba.njit
@@ -221,36 +183,45 @@ def inverse_distortion_numpy(rho0, eta0, rhoMax, params):
                   (eta0, rho0, rhoMax, params))
 
 
-def GE_41RT(xy_in, params, invert=False):
-    """
-    Apply radial distortion to polar coordinates on GE detector
+class GE_41RT(DistortionABC, metaclass=_RegisterDistortionClass):
 
-    xin, yin are 1D arrays or scalars, assumed to be relative to
-    self.xc, self.yc. Units are [mm, radians].
-    This is the power-law based function of Bernier.
+    maptype = "GE_41RT"
 
-    Available Keyword Arguments :
+    def __init__(self, params, **kwargs):
+        self._params = params
 
-    invert = True or >False< :: apply inverse warping
-    """
+    @property
+    def params(self):
+        return self._params
 
-    if params[0] == 0 and params[1] == 0 and params[2] == 0:
-        return xy_in
-    else:
-        rhoMax = 204.8
-        xy_out = np.empty_like(xy_in)
-        if invert:
-            _ge_41rt_inverse_distortion(
-                xy_out, xy_in, float(rhoMax), np.asarray(params)
-            )
-            '''
-            rhoOut = inverse_distortion_numpy(
-                    rhoOut, rho0, eta0, rhoMax, params
-            )
-            '''
+    @params.setter
+    def params(self, x):
+        assert len(x) == 6, "parameter list must have len of 6"
+        self._params = np.asarray(x).flatten()
+
+    @property
+    def is_trivial(self):
+        return \
+            self.params[0] == 0 and \
+            self.params[1] == 0 and \
+            self.params[2] == 0
+
+    def apply(self, xy_in):
+        if self.is_trivial:
+            return xy_in
         else:
+            xy_out = np.empty_like(xy_in)
             _ge_41rt_distortion(
-                xy_out, xy_in, float(rhoMax), np.asarray(params)
+                xy_out, xy_in, float(RHO_MAX), np.asarray(self.params)
             )
+            return xy_out
 
-        return xy_out
+    def apply_inverse(self, xy_in):
+        if self.is_trivial:
+            return xy_in
+        else:
+            xy_out = np.empty_like(xy_in)
+            _ge_41rt_inverse_distortion(
+                xy_out, xy_in, float(RHO_MAX), np.asarray(self.params)
+            )
+            return xy_out
