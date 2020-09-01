@@ -1,6 +1,8 @@
+import importlib.resources
 import numpy as np
 from hexrd import constants
 from hexrd import symmetry, symbols
+import hexrd.resources
 import warnings
 import h5py
 from pathlib import Path
@@ -500,19 +502,17 @@ class unitcell:
         self.f2 = {}
         self.f_anam = {}
 
+        data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
+        with h5py.File(data, 'r') as fid:
+            for i in range(0,self.atom_ntype):
 
-        fid = h5py.File(str(Path(__file__).resolve().parent)+'/Anomalous.h5','r')
-        for i in range(0,self.atom_ntype):
+                Z    = self.atom_type[i]
+                elem = constants.ptableinverse[Z]
+                gid = fid.get('/'+elem)
+                data = gid.get('data')
 
-            Z    = self.atom_type[i]
-            elem = constants.ptableinverse[Z]
-            gid = fid.get('/'+elem)
-            data = gid.get('data')
-
-            self.f1[elem] = interp1d(data[:,7], data[:,1])
-            self.f2[elem] = interp1d(data[:,7], data[:,2])
-
-        fid.close()
+                self.f1[elem] = interp1d(data[:,7], data[:,1])
+                self.f2[elem] = interp1d(data[:,7], data[:,2])
 
     def CalcAnomalous(self):
 

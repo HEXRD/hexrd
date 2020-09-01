@@ -1,3 +1,4 @@
+import importlib.resources
 import numpy as np
 import warnings
 from hexrd.imageutil import snip1d
@@ -6,6 +7,7 @@ from hexrd.material import Material
 from hexrd.valunits import valWUnit
 from hexrd import spacegroup as SG
 from hexrd import symmetry, symbols, constants
+import hexrd.resources
 import lmfit
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline, interp1d
@@ -2633,19 +2635,17 @@ class Material_Rietveld:
         self.f2 = {}
         self.f_anam = {}
 
-        fid = h5py.File(str(Path(__file__).resolve().parent)+'/Anomalous.h5','r')
+        data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
+        with h5py.File(data, 'r') as fid:
+            for i in range(0,self.atom_ntype):
 
-        for i in range(0,self.atom_ntype):
+                Z    = self.atom_type[i]
+                elem = constants.ptableinverse[Z]
+                gid = fid.get('/'+elem)
+                data = gid.get('data')
 
-            Z    = self.atom_type[i]
-            elem = constants.ptableinverse[Z]
-            gid = fid.get('/'+elem)
-            data = gid.get('data')
-
-            self.f1[elem] = interp1d(data[:,7], data[:,1])
-            self.f2[elem] = interp1d(data[:,7], data[:,2])
-
-        fid.close()
+                self.f1[elem] = interp1d(data[:,7], data[:,1])
+                self.f2[elem] = interp1d(data[:,7], data[:,2])
 
     def CalcAnomalous(self):
 
