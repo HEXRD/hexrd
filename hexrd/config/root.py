@@ -40,6 +40,7 @@ class RootConfig(Config):
     def instrument(self):
         if not hasattr(self, '_instr_config'):
             instr_file = self.get('instrument')
+            instr_file = self.check_filename(instr_file, self.working_dir)
             self._instr_config = Instrument(instr_file)
         return self._instr_config
 
@@ -150,7 +151,7 @@ class RootConfig(Config):
             fmt = self.get('image_series:format')
             imsdata = self.get('image_series:data')
             for ispec in imsdata:
-                fname = ispec['file']
+                fname = self.check_filename(ispec['file'], self.working_dir)
                 args = ispec['args']
                 ims = imageseries.open(fname, fmt, **args)
                 oms = imageseries.omega.OmegaImageSeries(ims)

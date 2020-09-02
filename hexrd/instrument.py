@@ -63,9 +63,7 @@ from hexrd.crystallography import PlaneData
 from hexrd import constants as ct
 from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
 from hexrd.config.dumper import NumPyIncludeDumper
-
-# FIXME: distortion kludge
-from hexrd.distortion import GE_41RT  # BAD, VERY BAD!!!
+from hexrd import distortion as distortion_pkg
 
 from skimage.draw import polygon
 
@@ -338,13 +336,21 @@ class HEDMInstrument(object):
                                 "panel buffer spec invalid for %s" % det_id
                             )
 
-                # FIXME: must promote this to a class w/ registry
+                # handle distortion
                 distortion = None
                 if distortion_key in det_info:
-                    distortion = det_info[distortion_key]
-                    if det_info[distortion_key] is not None:
-                        # !!! hard-coded GE distortion
-                        distortion = [GE_41RT, distortion['parameters']]
+                    distortion_cfg = det_info[distortion_key]
+                    if distortion_cfg is not None:
+                        try:
+                            func_name = distortion_cfg['function_name']
+                            dparams = distortion_cfg['parameters']
+                            distortion = distortion_pkg.get_mapping(
+                                func_name, dparams
+                            )
+                        except(KeyError):
+                            raise RuntimeError(
+                                "problem with distortion specification"
+                            )
 
                 det_dict[det_id] = PlanarDetector(
                         name=det_id,
@@ -585,8 +591,7 @@ class HEDMInstrument(object):
         for panel in self.detectors.values():
             npp = 6
             if panel.distortion is not None:
-                # FIXME: pending distortion update
-                npp += len(panel.distortion[1])
+                npp += len(panel.distortion.params)
             panel.calibration_flags = x[ii:ii + npp]
         self._calibration_flags = x
 
@@ -674,11 +679,14 @@ class HEDMInstrument(object):
                         % det_name
                     )
                 else:
-                    if len(detector.distortion[1]) != dpnp:
+                    try:
+                        detector.distortion.params = p[ii:ii + dpnp]
+                    except(AssertionError):
                         raise RuntimeError(
-                            "length of dist params is incorrect"
+                            "distortion for '%s' " % det_name
+                            + "expects %d params but got %d"
+                            % (len(detector.distortion.params), dpnp)
                         )
-                detector.distortion[1] = p[ii:ii + dpnp]
                 ii += dpnp
         return
 
@@ -1508,11 +1516,9 @@ class HEDMInstrument(object):
                                     panel.tvec, self.tvec, tVec_c,
                                     beamVec=self.beam_vector)
                                 if panel.distortion is not None:
-                                    # FIXME: distortion handling
-                                    meas_xy = panel.distortion[0](
-                                        np.atleast_2d(meas_xy),
-                                        panel.distortion[1],
-                                        invert=True).flatten()
+                                    meas_xy = panel.distortion.apply_inverse(
+                                        np.atleast_2d(meas_xy)
+                                    ).flatten()
                                     pass
                                 # FIXME: why is this suddenly necessary???
                                 meas_xy = meas_xy.squeeze()
@@ -1643,10 +1649,7 @@ class PlanarDetector(object):
         #     [tilt, translation, <distortion>]
         dparams = []
         if self._distortion is not None:
-            # need dparams
-            # FIXME: must update when we fix distortion
-            dparams.append(np.atleast_1d(self._distortion[1]).flatten())
-        dparams = np.array(dparams).flatten()
+            dparams = self._distortion.params
         self._calibration_parameters = np.hstack(
                 [self._tilt, self._tvec, dparams]
             )
@@ -1832,10 +1835,7 @@ class PlanarDetector(object):
 
     @distortion.setter
     def distortion(self, x):
-        """
-        Probably should make distortion a class...
-        ***FIX THIS***
-        """
+        # FIXME: ne to reconcile check with new class type!
         assert len(x) == 2 and hasattr(x[0], '__call__'), \
             'distortion must be a tuple: (<func>, params)'
         self._distortion = x
@@ -1884,10 +1884,7 @@ class PlanarDetector(object):
         #     [tilt, translation, <distortion>]
         dparams = []
         if self.distortion is not None:
-            # need dparams
-            # FIXME: must update when we fix distortion
-            dparams.append(np.atleast_1d(self.distortion[1]).flatten())
-        dparams = np.array(dparams).flatten()
+            dparams = self.distortion.params
         self._calibration_parameters = np.hstack(
                 [self.tilt, self.tvec, dparams]
             )
@@ -1975,10 +1972,9 @@ class PlanarDetector(object):
         det_dict['buffer'] = panel_buffer
 
         if self.distortion is not None:
-            # FIXME: HARD CODED DISTORTION!
             dist_d = dict(
-                function_name='GE_41RT',
-                parameters=np.r_[self.distortion[1]].tolist()
+                function_name=self.distortion.maptype,
+                parameters=self.distortion.params.tolist()
             )
             det_dict['distortion'] = dist_d
 
@@ -2013,8 +2009,7 @@ class PlanarDetector(object):
                 ]).T
             )
         if self.distortion is not None:
-            # FIXME: old-style distortion
-            xy = self.distortion[0](xy, self.distortion[1], invert=False)
+            xy = self.distortion.apply(xy)
         angs, g_vec = detectorXYToGvec(
             xy, self.rmat, ct.identity_3x3,
             self.tvec, ct.zeros_3, origin,
@@ -2430,11 +2425,8 @@ class PlanarDetector(object):
                 self.tvec, tvec_s, tvec_c,
                 beamVec=self.bvec)
             if self.distortion is not None:
-                # FIXME
-                all_xy = self.distortion[0](
-                    all_xy,
-                    self.distortion[1],
-                    invert=True)
+                all_xy = self.distortion.apply_inverse(all_xy)
+
             _, on_panel = self.clip_to_panel(all_xy)
 
             # all vertices must be on...
@@ -2722,13 +2714,7 @@ class PlanarDetector(object):
 
                 # warp measured points
                 if self.distortion is not None:
-                    if len(self.distortion) == 2:
-                        dpts = self.distortion[0](
-                            dpts, self.distortion[1],
-                            invert=True)
-                    else:
-                        raise(RuntimeError,
-                              "something is wrong with the distortion")
+                    dpts = self.distortion.apply_inverse(dpts)
 
                 # plane spacings and energies
                 dsp = 1. / rowNorm(gvec_s_str[:, canIntersect].T)
