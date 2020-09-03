@@ -103,7 +103,7 @@ class Material(object):
     the dmin parameter is used to figure out the maximum sampling for g-vectors
     this parameter is in angstroms
     '''
-    DFLT_DMIN = _angstroms(0.2)
+    DFLT_DMIN = _angstroms(1.0)
 
     '''
     some materials have more than one space group setting. for ex
