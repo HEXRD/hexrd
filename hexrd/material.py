@@ -703,7 +703,7 @@ xtal_sys_dict = {'cubic': 1,
                  'tetragonal': 2,
                  'orthorhombic': 3,
                  'hexagonal': 4,
-                 'rhombohedral': 5,
+                 'trigonal': 5,
                  'monoclinic': 6,
                  'triclinic': 7}
 
