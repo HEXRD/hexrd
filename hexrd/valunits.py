@@ -60,6 +60,7 @@ class UNames(object):
 
     m = 'm'
     mm = 'mm'
+    nm = 'nm'
     meter = 'meter'
     angstrom = 'angstrom'
 
@@ -75,19 +76,23 @@ cv_dict = {
 
     (UNames.m, UNames.mm):  1.0e3,
     (UNames.m, UNames.meter):  1.0,
+    (UNames.m, UNames.nm): 1.0e9,
     (UNames.m, UNames.angstrom):  1.0e10,
 
     (UNames.meter, UNames.mm):  1.0e3,
     (UNames.meter, UNames.m):  1.0,
+    (UNames.meter, UNames.nm): 1.0e9,
     (UNames.meter, UNames.angstrom):  1.0e10,
 
     (UNames.mm, UNames.m):  1.0e-3,
     (UNames.mm, UNames.meter):  1.0e-3,
+    (UNames.mm, UNames.nm): 1.0e6,
     (UNames.mm, UNames.angstrom):  1.0e7,
 
     (UNames.angstrom, UNames.m):  1.0e-10,
     (UNames.angstrom, UNames.meter):  1.0e-10,
     (UNames.angstrom, UNames.mm):  1.0e-7,
+    (UNames.angstrom, UNames.nm): 1.0e-1,
 
     (UNames.keV, UNames.J): 1.60217646e-16,
     (UNames.J, UNames.keV): (1/1.60217646e-16)

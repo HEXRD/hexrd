@@ -81,7 +81,7 @@ class Material(object):
     DFLT_NAME = 'material.xtal'
     DFLT_XTAL = 'Ni'
     DFLT_SGNUM = 225
-    
+
     DFLT_LPARMS = [_angstroms(3.61), _angstroms(3.61), _angstroms(3.61),
                    _degrees(90.0), _degrees(90.0), _degrees(90.0)]
     DFLT_SSMAX = 100
@@ -96,14 +96,14 @@ class Material(object):
 
     ATOMTYPE    atomic number of all the different species in the unitcell
     """
-    DFLT_ATOMINFO = numpy.array([[0, 0, 0, 1, 0.033]])    
+    DFLT_ATOMINFO = numpy.array([[0, 0, 0, 1, 0.033]])
     DFLT_ATOMTYPE = numpy.array([28])
 
     '''
     the dmin parameter is used to figure out the maximum sampling for g-vectors
     this parameter is in angstroms
     '''
-    DFLT_DMIN = _angstroms(0.2)
+    DFLT_DMIN = _angstroms(1.0)
 
     '''
     some materials have more than one space group setting. for ex
@@ -125,19 +125,12 @@ class Material(object):
         """
         self.name = name
         self.description = ''
-        
+
         self._dmin = dmin
 
         self._beamEnergy = kev
-        
+
         self.sgsetting = sgsetting
-
-        if(self._dmin.unit == 'angstrom'):
-            # convert to nm
-            uc_dmin = self._dmin.value * 0.1
-
-        elif(self._dmin.unit == 'nm'):
-            uc_dmin = self._dmin.value
 
         if material_file:
             # Get values from configuration
@@ -167,9 +160,10 @@ class Material(object):
             self._atomtype = Material.DFLT_ATOMTYPE
             #
 
-        self.unitcell = unitcell.unitcell(self._lparms, self.sgnum, self._atomtype,
-                                self._atominfo, self._U, uc_dmin, 
-                                self._beamEnergy.value, self._sgsetting)
+        self.unitcell = unitcell.unitcell(
+            self._lparms, self.sgnum, self._atomtype, self._atominfo, self._U,
+            self._dmin.getVal('nm'), self._beamEnergy.value,
+            self._sgsetting)
 
         self._newPdata()
         hkls = self.planeData.getHKLs(allHKLs=True)
@@ -194,11 +188,11 @@ class Material(object):
         """Create a new plane data instance"""
         # spaceGroup module calulates forbidden reflections
         '''
-        >> @date 08/20/2020 SS removing dependence of planeData 
-        initialization on the spaceGroup module. everything is 
+        >> @date 08/20/2020 SS removing dependence of planeData
+        initialization on the spaceGroup module. everything is
         initialized using the unitcell module now
         '''
-        hkls = self.unitcell.getHKLs(self._dmin.value).T
+        hkls = self.unitcell.getHKLs(self._dmin.getVal('nm')).T
         lprm = [self._lparms[i] for i in unitcell._rqpDict[self.unitcell.latticeType][0]]
         laue = self.unitcell._laueGroup
         self._pData = PData(hkls, lprm, laue,
@@ -224,7 +218,7 @@ class Material(object):
         >> @DATE:       10/16/2019 SS 1.0 original
         >> @DETAILS:    hexrd3 will have real structure factors and will require the overhaul
                         of the crystallography. In this effort, we will have a cif reader and
-                        also the HDF5 format reader in the material class. We will be using 
+                        also the HDF5 format reader in the material class. We will be using
                         pycifrw for i/o
         """
 
@@ -243,7 +237,7 @@ class Material(object):
         # read the file
         cifdata = cif[cif.keys()[0]]
 
-        # make sure the space group is present in the cif file, either as 
+        # make sure the space group is present in the cif file, either as
         # international table number, hermann-maguain or hall symbol
         sgkey = ['_space_group_IT_number', '_symmetry_space_group_name_h-m', \
                  '_symmetry_space_group_name_hall']
@@ -266,13 +260,13 @@ class Material(object):
             sgnum = sg.HM_to_sgnum[HM]
         elif (skey is sgkey[2]):
             hall = cifdata[sgkey[2]]
-            sgnum = sg.Hall_to_sgnum[HM]  
+            sgnum = sg.Hall_to_sgnum[HM]
 
         # lattice parameters
         lparms = []
         lpkey = ['_cell_length_a', '_cell_length_b', \
                  '_cell_length_c', '_cell_angle_alpha', \
-                 '_cell_angle_beta', '_cell_angle_gamma']   
+                 '_cell_angle_beta', '_cell_angle_gamma']
 
         for key in lpkey:
             n = cifdata[key].find('(')
@@ -318,18 +312,18 @@ class Material(object):
                     pos.append(p)
 
             '''
-            sometimes cif files have negative values so need to 
+            sometimes cif files have negative values so need to
             bring them back to fractional coordinates between 0-1
             '''
             pos = numpy.asarray(pos).astype(numpy.float64)
             pos,_ = numpy.modf(pos+100.0)
             atompos.append(pos)
-        
+
         """note that the vibration amplitude, U is just the amplitude (in A)
             to convert to the typical B which occurs in the debye-waller factor,
             we will use the following formula
             B = 8 * pi ^2 * < U_av^2 >
-            this will be done here so we dont have to worry about it later 
+            this will be done here so we dont have to worry about it later
         """
 
         pocc = (occ_U[0] in cifdata.keys())
@@ -417,10 +411,10 @@ class Material(object):
             raise IOError('material file does not exist.')
 
         gid         = fid.get(xtal)
-        
+
         sgnum       = numpy.asscalar(numpy.array(gid.get('SpaceGroupNumber'), \
                                     dtype = numpy.int32))
-        """ 
+        """
             IMPORTANT NOTE:
             note that the latice parameters is nm by default
             hexrd on the other hand uses A as the default units, so we
@@ -447,7 +441,7 @@ class Material(object):
         # read atom types (by atomic number, Z)
         self._atomtype = numpy.array(gid.get('Atomtypes'), dtype = numpy.int32)
         self._atom_ntype = self._atomtype.shape[0]
-        
+
         self._sgsetting = numpy.asscalar(numpy.array(gid.get('SpaceGroupSetting'), \
                                         dtype = numpy.int32))
 
@@ -471,8 +465,8 @@ class Material(object):
         '''
         lattice parameters
         '''
-        lat_param = {'a': self.unitcell.a, 
-                     'b': self.unitcell.b, 
+        lat_param = {'a': self.unitcell.a,
+                     'b': self.unitcell.b,
                      'c': self.unitcell.c,
                      'alpha': self.unitcell.alpha,
                      'beta': self.unitcell.beta,
@@ -495,7 +489,7 @@ class Material(object):
     @property
     def vol(self):
         return self.unitcell.vol
-    
+
 
     # property:  sgnum
 
@@ -614,6 +608,20 @@ The values have units attached, i.e. they are valWunit instances.
     name = property(_get_name, _set_name, None,
                     "Name of material")
 
+    @property
+    def dmin(self):
+        return self._dmin
+
+    @dmin.setter
+    def dmin(self, v):
+        if self._dmin == v:
+            return
+
+        self._dmin = v
+
+        # Update the unit cell
+        self.unitcell.dmin = v.getVal('nm')
+
     # property: "atominfo"
     def _get_atominfo(self):
         """Set method for name"""
@@ -671,6 +679,26 @@ def loadMaterialList(cfgFile):
 
     return matList
 
+
+def load_materials_hdf5(f, dmin=Material.DFLT_DMIN, kev=Material.DFLT_KEV,
+                        sgsetting=Material.DFLT_SGSETTING):
+    """Load materials from an HDF5 file
+
+    The file uses the HDF5 file format.
+    """
+    with h5py.File(f, 'r') as rf:
+        names = list(rf)
+
+    return {
+        name: Material(name, f, dmin=dmin, kev=kev, sgsetting=sgsetting)
+        for name in names
+    }
+
+
+def save_materials_hdf5(f, materials):
+    """Save a dict of materials into an HDF5 file"""
+    for material in materials.values():
+        material.dump_material(f)
 
 #
 #  ============================== Executable section for testing
