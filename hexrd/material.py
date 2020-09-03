@@ -661,6 +661,20 @@ The values have units attached, i.e. they are valWunit instances.
     name = property(_get_name, _set_name, None,
                     "Name of material")
 
+    @property
+    def dmin(self):
+        return self._dmin
+
+    @dmin.setter
+    def dmin(self, v):
+        if self._dmin == v:
+            return
+
+        self._dmin = v
+
+        # Update the unit cell
+        self.unitcell.dmin = v.getVal('nm')
+
     # property: "atominfo"
     def _get_atominfo(self):
         """Set method for name"""
