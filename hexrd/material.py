@@ -44,6 +44,7 @@ from os import path
 from CifFile import ReadCif
 import  h5py
 from warnings import warn
+from hexrd.mksupport import Write2H5File
 
 __all__ = ['Material', 'loadMaterialList']
 
@@ -80,14 +81,7 @@ class Material(object):
     DFLT_NAME = 'material.xtal'
     DFLT_XTAL = 'Ni'
     DFLT_SGNUM = 225
-    '''
-    some materials have more than one space group setting. for ex
-    the diamond cubic system has two settings with the origin either
-    at (0,0,0) or at (1/4,1/4,1/4) etc. this handle takes care of these
-    cases. but the defaiult is always 1
-    '''
-    DFLT_SGSETTING = 1
-
+    
     DFLT_LPARMS = [_angstroms(3.61), _angstroms(3.61), _angstroms(3.61),
                    _degrees(90.0), _degrees(90.0), _degrees(90.0)]
     DFLT_SSMAX = 100
@@ -112,6 +106,11 @@ class Material(object):
     DFLT_DMIN = _angstroms(0.2)
 
     '''
+    some materials have more than one space group setting. for ex
+    the diamond cubic system has two settings with the origin either
+    at (0,0,0) or at (1/4,1/4,1/4) etc. this handle takes care of these
+    cases. but the defaiult is always 0
+
     default space group setting
     '''
     DFLT_SGSETTING = 0
@@ -487,7 +486,7 @@ class Material(object):
                                     dtype = numpy.int32))
         """ 
             IMPORTANT NOTE:
-            note that the latice parameters in EMsoft is nm by default
+            note that the latice parameters is nm by default
             hexrd on the other hand uses A as the default units, so we
             need to be careful and convert it right here, so there is no
             confusion later on
@@ -518,6 +517,33 @@ class Material(object):
         self._sgsetting -= 1
 
         fid.close()
+
+    def dump_material(self, filename):
+        '''
+        get the atominfo dictionaary aand the lattice parameters
+        '''
+        AtomInfo = {}
+
+        AtomInfo['file'] = filename
+        AtomInfo['xtalname'] = self.name
+        AtomInfo['xtal_sys'] = xtal_sys_dict[self.unitcell.latticeType.lower()]
+        AtomInfo['Z'] = self.unitcell.atom_type
+        AtomInfo['SG'] = self.unitcell.sgnum
+        AtomInfo['SGsetting'] = self.unitcell.sgsetting
+        AtomInfo['APOS'] = self.unitcell.atom_pos
+        AtomInfo['U'] = self.unitcell.U
+
+        '''
+        lattice parameters
+        '''
+        lat_param = {'a': self.unitcell.a, 
+                     'b': self.unitcell.b, 
+                     'c': self.unitcell.c,
+                     'alpha': self.unitcell.alpha,
+                     'beta': self.unitcell.beta,
+                     'gamma': self.unitcell.gamma}
+
+        Write2H5File(AtomInfo, lat_param)
 
     # ============================== API
     #
@@ -672,6 +698,14 @@ The values have units attached, i.e. they are valWunit instances.
 #  Utility Functions
 #
 
+
+xtal_sys_dict = {'cubic': 1,
+                 'tetragonal': 2,
+                 'orthorhombic': 3,
+                 'hexagonal': 4,
+                 'rhombohedral': 5,
+                 'monoclinic': 6,
+                 'triclinic': 7}
 
 def loadMaterialList(cfgFile):
     """Load a list of materials from a file

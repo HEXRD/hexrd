@@ -468,7 +468,7 @@ def WriteH5Data(fid, AtomInfo, lat_param):
 	did = gid.create_dataset("Creator", data = creator, dtype= dt)
 
 	pname = "ProgramName"
-	did = gid.create_dataset(pname, data = pname, dtype= dt)
+	did = gid.create_dataset(pname, data = "heXRD", dtype= dt)
 
 	fid.close()
 
