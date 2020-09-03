@@ -132,13 +132,6 @@ class Material(object):
 
         self.sgsetting = sgsetting
 
-        if(self._dmin.unit == 'angstrom'):
-            # convert to nm
-            uc_dmin = self._dmin.value * 0.1
-
-        elif(self._dmin.unit == 'nm'):
-            uc_dmin = self._dmin.value
-
         if material_file:
             # Get values from configuration
             # self._readCfg(material_file)
@@ -167,9 +160,10 @@ class Material(object):
             self._atomtype = Material.DFLT_ATOMTYPE
             #
 
-        self.unitcell = unitcell.unitcell(self._lparms, self.sgnum, self._atomtype,
-                                self._atominfo, self._U, uc_dmin,
-                                self._beamEnergy.value, self._sgsetting)
+        self.unitcell = unitcell.unitcell(
+            self._lparms, self.sgnum, self._atomtype, self._atominfo, self._U,
+            self._dmin.getVal('nm'), self._beamEnergy.value,
+            self._sgsetting)
 
         self._newPdata()
         hkls = self.planeData.getHKLs(allHKLs=True)
@@ -241,7 +235,7 @@ class Material(object):
         initialization on the spaceGroup module. everything is
         initialized using the unitcell module now
         '''
-        hkls = self.unitcell.getHKLs(self._dmin.value).T
+        hkls = self.unitcell.getHKLs(self._dmin.getVal('nm')).T
         lprm = [self._lparms[i] for i in unitcell._rqpDict[self.unitcell.latticeType][0]]
         laue = self.unitcell._laueGroup
         self._pData = PData(hkls, lprm, laue,
