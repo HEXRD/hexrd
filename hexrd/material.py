@@ -725,6 +725,26 @@ def loadMaterialList(cfgFile):
     return matList
 
 
+def load_materials_hdf5(f, dmin=Material.DFLT_DMIN, kev=Material.DFLT_KEV,
+                        sgsetting=Material.DFLT_SGSETTING):
+    """Load materials from an HDF5 file
+
+    The file uses the HDF5 file format.
+    """
+    with h5py.File(f, 'r') as rf:
+        names = list(rf)
+
+    return {
+        name: Material(name, f, dmin=dmin, kev=kev, sgsetting=sgsetting)
+        for name in names
+    }
+
+
+def save_materials_hdf5(f, materials):
+    """Save a dict of materials into an HDF5 file"""
+    for material in materials.values():
+        material.dump_material(f)
+
 #
 #  ============================== Executable section for testing
 #
