@@ -100,13 +100,6 @@ class unitcell:
         self.sgsetting = sgsetting
         self.sgnum = sgnum
 
-        '''
-        asymmetric positions due to space group symmetry
-        used for structure factor calculations
-        '''
-        self.CalcPositions()
-        self.GetPgLg()
-
         self._tstop = time.time()
         self.tinit = self._tstop - self._tstart
 
@@ -1388,7 +1381,13 @@ class unitcell:
         self.npgsym = self.SYM_PG_d.shape[0]
 
         self.GenerateRecipPGSym()
+
+        '''
+        asymmetric positions due to space group symmetry
+        used for structure factor calculations
+        '''
         self.CalcPositions()
+        self.GetPgLg()
 
     @property
     def atom_pos(self):
