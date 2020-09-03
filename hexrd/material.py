@@ -190,49 +190,6 @@ class Material(object):
         s += '   plane Data:  %s' % str(self.planeData)
         return s
 
-    def _readCfg(self, p):
-        """Read values from config parser"""
-
-        # Lattice parameters
-
-        lpStrings = (
-            ('a-in-angstroms', _angstroms),
-            ('b-in-angstroms', _angstroms),
-            ('c-in-angstroms', _angstroms),
-            ('alpha-in-degrees', _degrees),
-            ('beta-in-degrees',  _degrees),
-            ('gamma-in-degrees', _degrees)
-            )
-
-        sgnum = p.getint(self.name, 'space-group')
-        tmpSG = SG(sgnum)
-
-        try:
-            hklMax = p.getint(self.name, 'hkls-ssmax')
-        except:
-            hklMax = Material.DFLT_SSMAX
-
-        try:
-            beamEnergy = p.getfloat(self.name, 'beam-energy')
-        except:
-            beamEnergy = Material.DFLT_KEV
-
-        lparams = []
-        for ind in tmpSG.reqParams:
-            param, unit = lpStrings[ind]
-            lparams.append(unit(p.getfloat(self.name, param)))
-            pass
-
-        # Initialize
-        #>> @date 08/20/2020 removing dependence on hklmax
-        # self._hklMax = hklMax
-        self._beamEnergy = beamEnergy
-        self._lparms = self._toSixLP(sgnum, lparams)
-        self.sgnum = sgnum
-        self.description = p.get(self.name, 'description')
-
-        return
-
     def _newPdata(self):
         """Create a new plane data instance"""
         # spaceGroup module calulates forbidden reflections
@@ -260,27 +217,6 @@ class Material(object):
         self._pData.exclusions = dflt_excl
 
         return
-
-    def _toSixLP(self, sgn, lp):
-        """
-        Generate all six lattice parameters, making sure units are attached.
-        """
-        tmpSG = SG(sgn)
-        lp6 = list(tmpSG.sixLatticeParams(lp))
-
-        # make sure angles have attached units
-        for i in range(6):
-            if not hasattr(lp6[i], 'getVal'):
-                if i in range(3):
-                    lp6[i] = _angstroms(lp6[i])
-                else:
-                    lp6[i] = _degrees(lp6[i])
-                    pass
-                pass
-            pass
-
-        return lp6
-
 
     def _readCif(self, fcif=DFLT_NAME+'.cif'):
         """
@@ -634,8 +570,20 @@ class Material(object):
 
     def _set_latticeParameters(self, v):
         """Set method for latticeParameters"""
-        self._lparms = self._toSixLP(self.sgnum, v)
-        # self._newPdata()
+        v2 = unitcell._rqpDict[self.unitcell.latticeType][1](v)
+        lp = [_angstroms(v2[i]) for i in range(3)]
+        for i in range(3,6):
+            lp.append(_degrees(v2[i]))
+        self._lparms = lp
+        
+        # rq_lp = unitcell._rqpDict[self.unitcell.latticeType][0]
+        for i,vv in enumerate(lp):
+            if(vv.isLength()):
+                val = vv.value / 10.0
+            else:
+                val = vv.value
+            setattr(self.unitcell, unitcell._lpname[i], val)
+
         self.planeData.lparms = v
 
         return
@@ -703,7 +651,7 @@ xtal_sys_dict = {'cubic': 1,
                  'tetragonal': 2,
                  'orthorhombic': 3,
                  'hexagonal': 4,
-                 'rhombohedral': 5,
+                 'trigonal': 5,
                  'monoclinic': 6,
                  'triclinic': 7}
 

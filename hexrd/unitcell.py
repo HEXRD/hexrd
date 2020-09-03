@@ -1207,9 +1207,9 @@ class unitcell:
         '''
         finally sort in order of decreasing dspacing
         '''
-        self.hkl = self.SortHKL(hkl)
+        self.hkls = self.SortHKL(hkl)
 
-        return self.hkl
+        return self.hkls
     '''
         set some properties for the unitcell class. only the lattice
         parameters, space group and asymmetric positions can change,
@@ -1449,6 +1449,8 @@ _rqpDict = {
     'hexagonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
     'cubic': ((0,),      lambda p: (p[0], p[0], p[0], 90, 90,   90)),
     }
+
+_lpname = np.array(['a','b','c','alpha','beta','gamma'])
 
 laue_1 = 'ci'
 laue_2 = 'c2h'
