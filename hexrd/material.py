@@ -450,7 +450,6 @@ class Material(object):
         
         self._sgsetting = numpy.asscalar(numpy.array(gid.get('SpaceGroupSetting'), \
                                         dtype = numpy.int32))
-        self._sgsetting -= 1
 
         fid.close()
 

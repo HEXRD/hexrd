@@ -256,7 +256,7 @@ def SpaceGroupSetting(sgnum):
 			if(not iset in [1,2]):
 				raise ValueError(" Value entered for setting must be 1 or 2 !")
 
-	return iset
+	return iset-1
 	    
 def GetAtomInfo():
 
