@@ -31,7 +31,7 @@ class unitcell:
         self.atom_pos   = atominfo
         self.U          = U
 
-        self.dmin       = dmin
+        self._dmin      = dmin
 
         # set some default values for
         # a,b,c,alpha,beta,gamma
@@ -1316,6 +1316,23 @@ class unitcell:
     def gamma(self, val):
         self._gamma = val
         self.calcmatrices()
+        self.ih = 1
+        self.ik = 1
+        self.il = 1
+        self.CalcMaxGIndex()
+
+    @property
+    def dmin(self):
+        return self._dmin
+
+    @dmin.setter
+    def dmin(self, v):
+        if self._dmin == v:
+            return
+
+        self._dmin = v
+
+        # Update the Max G Index
         self.ih = 1
         self.ik = 1
         self.il = 1
