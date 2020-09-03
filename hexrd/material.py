@@ -504,10 +504,10 @@ class Material(object):
             using unitcell now
         """
         self._sgnum = v
-        # self._spaceGroup = SG(self._sgnum)
-        # self._newPdata()
 
-        return
+        # Update the unit cell if there is one
+        if hasattr(self, 'unitcell'):
+            self.unitcell.sgnum = v
 
     sgnum = property(_get_sgnum, _set_sgnum, None,
                      "Space group number")
@@ -568,7 +568,7 @@ class Material(object):
         for i in range(3,6):
             lp.append(_degrees(v2[i]))
         self._lparms = lp
-        
+
         # rq_lp = unitcell._rqpDict[self.unitcell.latticeType][0]
         for i,vv in enumerate(lp):
             if(vv.isLength()):
