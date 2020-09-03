@@ -104,7 +104,6 @@ class unitcell:
         asymmetric positions due to space group symmetry
         used for structure factor calculations
         '''
-        self.CalcPositions()
         self.GetPgLg()
 
         self._tstop = time.time()
