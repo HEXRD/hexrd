@@ -10,6 +10,7 @@ install_reqs = [
     'fabio@git+https://github.com/joelvbernier/fabio.git@master',  # until patch is pushed to PyPI
     'fast-histogram',
     'h5py',
+    'psutil',
     'scipy',
     'pycifrw',
     'numba',

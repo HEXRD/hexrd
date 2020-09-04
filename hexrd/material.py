@@ -366,13 +366,11 @@ class Material(object):
                 else:
                     U.append(p)
 
-            atompos.append(numpy.asarray(U).astype(numpy.float64))
-
+            self._U = numpy.asarray(U).astype(numpy.float64)
         '''
         format everything in the right shape etc.
         '''
         self._atominfo = numpy.asarray(atompos).T
-        self._atominfo[:,4] = 8.0 * (numpy.pi**2) * (self._atominfo[:,4]**2) * 1E-2
 
         '''
         get atome types here i.e. the atomic number of atoms at each site

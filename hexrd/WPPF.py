@@ -1230,7 +1230,8 @@ class LeBail:
     def _nm(x):
         return valWUnit('lp', 'length', x, 'nm')
 
-    def __init__(self,expt_file=None,
+    def __init__(self,
+        expt_file=None,
         param_file=None,
         phase_file=None,
         wavelength={'kalpha1':_nm(0.15406),'kalpha2':_nm(0.154443)},
@@ -1277,9 +1278,10 @@ class LeBail:
         if(param_file is not None):
             if(path.exists(param_file)):
                 params.load(param_file)
+
                 '''
                 this part initializes the lattice parameters in the
-                paramter list
+
                 '''
                 for p in self.phases:
 
@@ -1384,30 +1386,18 @@ class LeBail:
             y = self.points[:,1]
             self.splinefit(x, y)
 
-            plot(self.tth_list, self.spectrum_expt._y, '-k',lw=1.5)
-            plot(self.tth_list, self.background._y, '--r',lw=1.5)
-            show()
         elif(self.bkgmethod == 'chebyshev'):
-            self.chebyshev_background()
-        else:
-            raise ValueError('unknown background method.')
+            self.chebyshevfit()
 
-    def chebyshev_background(self):
-        '''
-        this function fits the background as chebyshev polynomial
-        default is 6th order
-        '''
-        x = self.spectrum_expt._x
-        y = self.spectrum_expt._y
-
-        p = np.polynomial.Chebyshev.fit(x,y,6,w=self.weights)
-        self.background = Spectrum(x=self.tth_list, y=p(x))
+    def chebyshevfit(self):
+        p = np.polynomial.Chebyshev.fit(self.tth_list, self.spectrum_expt._y, 6, w=self.weights)
+        self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
 
     def selectpoints(self):
 
-        title('Select points for background estimation; middle button when done.')
+        title('Select points for background estimation; click middle mouse button when done.')
 
-        plot(self.tth_list, self.spectrum_expt._y, '-k')
+        plot(self.tth_list, self.spectrum_expt._y, '-k')  # 5 points tolerance
 
         self.points = np.asarray(ginput(0,timeout=-1))
         close()
@@ -2159,7 +2149,9 @@ class Material_Rietveld:
             '''
             pass
         elif(self.latticeType == 'monoclinic'):
-            if(ax != '2_1'):
+
+            if(ax !='2_1'):
+
                 raise RuntimeError('omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis')
             '''
                 only unique b-axis will be encoded
@@ -2475,11 +2467,13 @@ class Material_Rietveld:
         '''
         planes = constants.SYS_AB[self.sgnum][0]
         for ip,p in enumerate(planes):
-            if(p !=''):
+
+            if(p != ''):
                 hkllist = self.omitglideplaneabsences(hkllist, p, ip)
         axes = constants.SYS_AB[self.sgnum][1]
         for iax,ax in enumerate(axes):
-            if(ax != ''):
+            if(ax !=''):
+
                 hkllist = self.omitscrewaxisabsences(hkllist, ax, iax)
         return hkllist
 
