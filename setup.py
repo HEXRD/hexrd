@@ -3,7 +3,6 @@ import os
 import sys
 from setuptools import setup, find_packages, Extension
 from pathlib import Path
-
 import numpy
 np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 
@@ -11,10 +10,12 @@ install_reqs = [
     'fabio@git+https://github.com/joelvbernier/fabio.git@master',  # until patch is pushed to PyPI
     'fast-histogram',
     'h5py',
+    'psutil',
+    'scipy',
+    'pycifrw',
     'numba',
     'psutil',
     'pyyaml',
-    'scipy',
     'scikit-learn'
 ]
 
@@ -28,7 +29,7 @@ if os.environ.get('CONDA_BUILD') != '1':
 
 # extension for convolution from astropy
 def get_convolution_extensions():
-    c_convolve_pkgdir = Path(__file__).parent / 'hexrd' / 'convolution'
+    c_convolve_pkgdir = Path('hexrd') / 'convolution'
 
     src_files = [str(c_convolve_pkgdir / 'src/convolve.c')]
 
@@ -99,6 +100,17 @@ setup(
     entry_points = entry_points,
     ext_modules=ext_modules,
     packages=find_packages(),
+    include_package_data=True,
+    package_data={'':['Anomalous.h5']},
     python_requires='>=3.8',
     install_requires=install_reqs
 )
+
+# ext_modules = get_extension_modulesf()
+# setupF(
+#     name='hexrd',
+#     url='https://github.com/cryos/hexrd',
+#     license='BSD',
+#     ext_modules=ext_modules,
+#     packages=find_packages(),
+# )

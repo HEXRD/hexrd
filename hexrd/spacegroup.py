@@ -1338,7 +1338,6 @@ _hmStr = r"""
    230        I a -3 d
 """
 
-
 def _buildDict(hstr):
     """build the dictionaries from the notation string
 
