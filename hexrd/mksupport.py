@@ -256,7 +256,7 @@ def SpaceGroupSetting(sgnum):
 			if(not iset in [1,2]):
 				raise ValueError(" Value entered for setting must be 1 or 2 !")
 
-	return iset
+	return iset-1
 	    
 def GetAtomInfo():
 
@@ -468,7 +468,7 @@ def WriteH5Data(fid, AtomInfo, lat_param):
 	did = gid.create_dataset("Creator", data = creator, dtype= dt)
 
 	pname = "ProgramName"
-	did = gid.create_dataset(pname, data = pname, dtype= dt)
+	did = gid.create_dataset(pname, data = "heXRD", dtype= dt)
 
 	fid.close()
 

@@ -1,3 +1,4 @@
+import importlib.resources
 import numpy as np
 import warnings
 from hexrd.imageutil import snip1d
@@ -6,6 +7,7 @@ from hexrd.material import Material
 from hexrd.valunits import valWUnit
 from hexrd import spacegroup as SG
 from hexrd import symmetry, symbols, constants
+import hexrd.resources
 import lmfit
 import matplotlib.pyplot as plt
 from scipy.interpolate import CubicSpline, interp1d
@@ -17,18 +19,19 @@ import pickle
 import time
 import h5py
 from pathlib import Path
+from pylab import plot, ginput, show, axis, close, title
 
 class Parameters:
-    ''' ======================================================================================================== 
-    ======================================================================================================== 
+    ''' ========================================================================================================
+    ========================================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/18/2020 SS 1.0 original
     >> @DETAILS:    this is the parameter class which handles all refinement parameters
         for both the Rietveld and the LeBail refimentment problems
 
-        ======================================================================================================== 
-        ======================================================================================================== 
+        ========================================================================================================
+        ========================================================================================================
     '''
     def __init__(self, name=None, vary=False, value=0.0, lb=-np.Inf, ub=np.Inf):
 
@@ -49,7 +52,7 @@ class Parameters:
         '''
             >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
             >> @DATE:       05/18/2020 SS 1.0 original
-            >> @DETAILS:    load a list of named parameters 
+            >> @DETAILS:    load a list of named parameters
         '''
         assert len(names)==len(varies),"lengths of tuples not consistent"
         assert len(names)==len(values),"lengths of tuples not consistent"
@@ -132,16 +135,16 @@ class Parameters:
         return retstr
 
 class Parameter:
-    ''' ======================================================================================================== 
-    ======================================================================================================== 
+    ''' ========================================================================================================
+    ========================================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/18/2020 SS 1.0 original
     >> @DETAILS:    the parameters class (previous one) is a collection of this
                     parameter class indexed by the name of each variable
 
-        ======================================================================================================== 
-        ======================================================================================================== 
+        ========================================================================================================
+        ========================================================================================================
     '''
 
     def __init__(self, name=None, vary=False, value=0.0, lb=-np.Inf, ub=np.Inf):
@@ -200,18 +203,18 @@ class Parameter:
     def vary(self, vary):
         if(isinstance(vary, bool)):
             self._vary = vary
-    
+
 class Spectrum:
-    ''' ======================================================================================================== 
-    ======================================================================================================== 
+    ''' ========================================================================================================
+    ========================================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/18/2020 SS 1.0 original
-    >> @DETAILS:    spectrum class holds the a pair of x,y data, in this case, would be 
+    >> @DETAILS:    spectrum class holds the a pair of x,y data, in this case, would be
                     2theta-intensity values
 
-        ======================================================================================================== 
-        ======================================================================================================== 
+        ========================================================================================================
+        ========================================================================================================
     '''
     def __init__(self, x=None, y=None, name=''):
         if x is None:
@@ -467,7 +470,7 @@ class Material_LeBail:
         self.sgsetting = np.asscalar(np.array(gid.get('SpaceGroupSetting'), \
                                         dtype = np.int32))
         self.sgsetting -= 1
-        """ 
+        """
             IMPORTANT NOTE:
             note that the latice parameters in EMsoft is nm by default
             hexrd on the other hand uses A as the default units, so we
@@ -622,7 +625,7 @@ class Material_LeBail:
             # sum is even
             seo = np.mod(np.sum(hkllist,axis=1)+100,2)
             mask = (seo == 0)
-            
+
         elif(centering == 'A'):
             # k+l is even
             seo = np.mod(np.sum(hkllist[:,1:3],axis=1)+100,2)
@@ -649,15 +652,15 @@ class Material_LeBail:
 
     def omitscrewaxisabsences(self, hkllist, ax, iax):
         '''
-        this function encodes the table on pg 48 of 
+        this function encodes the table on pg 48 of
         international table of crystallography vol A
-        the systematic absences due to different screw 
-        axis is encoded here. 
+        the systematic absences due to different screw
+        axis is encoded here.
         iax encodes the primary, secondary or tertiary axis
         iax == 0 : primary
         iax == 1 : secondary
         iax == 2 : tertiary
-        @NOTE: only unique b axis in monoclinic systems 
+        @NOTE: only unique b axis in monoclinic systems
         implemented as thats the standard setting
         '''
         if(self.latticeType == 'triclinic'):
@@ -666,11 +669,11 @@ class Material_LeBail:
             '''
             pass
         elif(self.latticeType == 'monoclinic'):
-            if(ax is not '2_1'):
+            if(ax != '2_1'):
                 raise RuntimeError('omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis')
             '''
                 only unique b-axis will be encoded
-                it is the users responsibility to input 
+                it is the users responsibility to input
                 lattice parameters in the standard setting
                 with b-axis having the 2-fold symmetry
             '''
@@ -682,7 +685,7 @@ class Material_LeBail:
             else:
                 raise RuntimeError('omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
         elif(self.latticeType == 'orthorhombic'):
-            if(ax is not '2_1'):
+            if(ax != '2_1'):
                 raise RuntimeError('omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis')
             '''
             2_1 screw on primary axis
@@ -734,7 +737,7 @@ class Material_LeBail:
         elif(self.latticeType == 'hexagonal'):
             mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
             if(iax == 0):
-                if(ax is '6_3'):
+                if(ax == '6_3'):
                     mask2 = np.mod(hkllist[:,2]+100,2) != 0
                 elif(ax in['3_1','3_2','6_2','6_4']):
                     mask2 = np.mod(hkllist[:,2]+90,3) != 0
@@ -765,15 +768,15 @@ class Material_LeBail:
 
     def omitglideplaneabsences(self, hkllist, plane, ip):
         '''
-        this function encodes the table on pg 47 of 
+        this function encodes the table on pg 47 of
         international table of crystallography vol A
-        the systematic absences due to different glide 
-        planes is encoded here. 
+        the systematic absences due to different glide
+        planes is encoded here.
         ip encodes the primary, secondary or tertiary plane normal
         ip == 0 : primary
         ip == 1 : secondary
         ip == 2 : tertiary
-        @NOTE: only unique b axis in monoclinic systems 
+        @NOTE: only unique b axis in monoclinic systems
         implemented as thats the standard setting
         '''
         if(self.latticeType == 'triclinic'):
@@ -867,9 +870,9 @@ class Material_LeBail:
                 mask = np.logical_not(np.logical_and(mask1,mask2))
                 hkllist = hkllist[mask,:]
         elif(self.latticeType == 'trigonal'):
-            if(plane is not 'c'):
+            if(plane != 'c'):
                 raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems')
-            
+
             if(ip == 1):
                 mask1 = hkllist[:,0] == 0
                 mask2 = hkllist[:,1] == 0
@@ -892,7 +895,7 @@ class Material_LeBail:
             mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
             hkllist = hkllist[mask,:]
         elif(self.latticeType == 'hexagonal'):
-            if(plane is not 'c'):
+            if(plane != 'c'):
                 raise RuntimeError('omitglideplaneabsences: only c-glide allowed for hexagonal systems')
             if(ip == 2):
                 mask1 = hkllist[:,0] == hkllist[:,1]
@@ -925,7 +928,7 @@ class Material_LeBail:
                     mask1 = np.logical_or(np.logical_and(mask1,mask5),np.logical_and(mask1,mask6))
                     mask2 = np.logical_or(np.logical_and(mask2,mask4),np.logical_and(mask2,mask6))
                     mask3 = np.logical_and(mask3,mask4)
-                    
+
                     mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
                 elif(plane == 'b'):
                     mask1 = np.logical_and(mask1,mask5)
@@ -977,22 +980,22 @@ class Material_LeBail:
 
     def NonSymmorphicAbsences(self, hkllist):
         '''
-        this function prunes hkl list for the screw axis and glide 
+        this function prunes hkl list for the screw axis and glide
         plane absences
         '''
         planes = constants.SYS_AB[self.sgnum][0]
         for ip,p in enumerate(planes):
-            if(p is not ''):
+            if(p != ''):
                 hkllist = self.omitglideplaneabsences(hkllist, p, ip)
         axes = constants.SYS_AB[self.sgnum][1]
         for iax,ax in enumerate(axes):
-            if(ax is not ''):
+            if(ax != ''):
                 hkllist = self.omitscrewaxisabsences(hkllist, ax, iax)
         return hkllist
 
     def ChooseSymmetric(self, hkllist, InversionSymmetry=True):
         '''
-        this function takes a list of hkl vectors and 
+        this function takes a list of hkl vectors and
         picks out a subset of the list picking only one
         of the symmetrically equivalent one. The convention
         is to choose the hkl with the most positive components.
@@ -1016,9 +1019,9 @@ class Material_LeBail:
 
     def SortHKL(self, hkllist):
         '''
-        this function sorts the hkllist by increasing |g| 
-        i.e. decreasing d-spacing. If two vectors are same 
-        length, then they are ordered with increasing 
+        this function sorts the hkllist by increasing |g|
+        i.e. decreasing d-spacing. If two vectors are same
+        length, then they are ordered with increasing
         priority to l, k and h
         '''
         glen = []
@@ -1036,7 +1039,7 @@ class Material_LeBail:
 
     def getHKLs(self, dmin):
         '''
-        this function generates the symetrically unique set of 
+        this function generates the symetrically unique set of
         hkls up to a given dmin.
         dmin is in nm
         '''
@@ -1089,17 +1092,17 @@ class Material_LeBail:
         return _rqpDict[self.latticeType][1](p)
 
 class Phases_LeBail:
-    ''' ======================================================================================================== 
-        ======================================================================================================== 
+    ''' ========================================================================================================
+        ========================================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/20/2020 SS 1.0 original
     >> @DETAILS:    class to handle different phases in the LeBail fit. this is a stripped down
-                    version of main Phase class for efficiency. only the components necessary for 
+                    version of main Phase class for efficiency. only the components necessary for
                     calculating peak positions are retained. further this will have a slight
                     modification to account for different wavelengths in the same phase name
-        ======================================================================================================== 
-        ======================================================================================================== 
+        ========================================================================================================
+        ========================================================================================================
     '''
     def _kev(x):
         return valWUnit('beamenergy','energy', x,'keV')
@@ -1107,7 +1110,7 @@ class Phases_LeBail:
     def _nm(x):
         return valWUnit('lp', 'length', x, 'nm')
 
-    def __init__(self, material_file=None, 
+    def __init__(self, material_file=None,
                  material_keys=None,
                  dmin = _nm(0.05),
                  wavelength={'alpha1':_nm(0.15406),'alpha2':_nm(0.154443)}
@@ -1166,7 +1169,7 @@ class Phases_LeBail:
         self[material_key] = Material_LeBail(material_file, material_key, dmin=self.dmin)
 
     def add_many(self, material_file, material_keys):
-        
+
         for k in material_keys:
 
             self[k] = Material_LeBail(material_file, k, dmin=self.dmin)
@@ -1206,13 +1209,13 @@ class Phases_LeBail:
             data = yaml.dump(dic, f, sort_keys=False)
 
 class LeBail:
-    ''' ======================================================================================================== 
-        ======================================================================================================== 
+    ''' ========================================================================================================
+        ========================================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/19/2020 SS 1.0 original
     >> @DETAILS:    this is the main LeBail class and contains all the refinable parameters
-                    for the analysis. Since the LeBail method has no structural information 
+                    for the analysis. Since the LeBail method has no structural information
                     during refinement, the refinable parameters for this model will be:
 
                     1. a, b, c, alpha, beta, gamma : unit cell parameters
@@ -1221,20 +1224,28 @@ class LeBail:
                     4. eta1, eta2, eta3 : weight factor for gaussian vs lorentzian
 
                     @NOTE: All angles are always going to be in degrees
-        ======================================================================================================== 
-        ======================================================================================================== 
+        ========================================================================================================
+        ========================================================================================================
     '''
+    def _nm(x):
+        return valWUnit('lp', 'length', x, 'nm')
 
-    def __init__(self,expt_file=None,param_file=None,phase_file=None,wavelength=None):
+    def __init__(self,
+        expt_file=None,
+        param_file=None,
+        phase_file=None,
+        wavelength={'kalpha1':_nm(0.15406),'kalpha2':_nm(0.154443)},
+        bkgmethod='spline'):
 
+        self.bkgmethod = bkgmethod
         self.initialize_expt_spectrum(expt_file)
 
         if(wavelength is not None):
             self.wavelength = wavelength
 
         self._tstart = time.time()
-        self.initialize_parameters(param_file)
         self.initialize_phases(phase_file)
+        self.initialize_parameters(param_file)
         self.initialize_Icalc()
         self.computespectrum()
 
@@ -1267,6 +1278,31 @@ class LeBail:
         if(param_file is not None):
             if(path.exists(param_file)):
                 params.load(param_file)
+
+                '''
+                this part initializes the lattice parameters in the
+
+                '''
+                for p in self.phases:
+
+                    mat = self.phases[p]
+                    lp       = np.array(mat.lparms)
+                    rid      = list(_rqpDict[mat.latticeType][0])
+
+                    lp       = lp[rid]
+                    name     = _lpname[rid]
+
+                    for n,l in zip(name,lp):
+                        nn = p+'_'+n
+                        '''
+                        is l is small, it is one of the length units
+                        else it is an angle
+                        '''
+                        if(l < 10.):
+                            params.add(nn,value=l,lb=l-0.05,ub=l+0.05,vary=False)
+                        else:
+                            params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=False)
+
             else:
                 raise FileError('parameter file doesn\'t exist.')
         else:
@@ -1292,6 +1328,9 @@ class LeBail:
         self._U = self.params['U'].value
         self._V = self.params['V'].value
         self._W = self.params['W'].value
+        self._P = self.params['P'].value
+        self._X = self.params['X'].value
+        self._Y = self.params['Y'].value
         self._eta1 = self.params['eta1'].value
         self._eta2 = self.params['eta2'].value
         self._eta3 = self.params['eta3'].value
@@ -1335,28 +1374,33 @@ class LeBail:
 
         '''
             the cubic spline seems to be the ideal route in terms
-            of determining the background intensity. this involves 
+            of determining the background intensity. this involves
             selecting a small (~5) number of points from the spectrum,
             usually called the anchor points. a cubic spline interpolation
             is performed on this subset to estimate the overall background.
             scipy provides some useful routines for this
         '''
-        self.selectpoints()
-        x = self.points[:,0]
-        y = self.points[:,1]
-        self.splinefit(x, y)
+        if(self.bkgmethod == 'spline'):
+            self.selectpoints()
+            x = self.points[:,0]
+            y = self.points[:,1]
+            self.splinefit(x, y)
+
+        elif(self.bkgmethod == 'chebyshev'):
+            self.chebyshevfit()
+
+    def chebyshevfit(self):
+        p = np.polynomial.Chebyshev.fit(self.tth_list, self.spectrum_expt._y, 6, w=self.weights)
+        self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
 
     def selectpoints(self):
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.set_title('Select 5 points for background estimation')
+        title('Select points for background estimation; click middle mouse button when done.')
 
-        line = ax.plot(self.tth_list, self.spectrum_expt._y, '-b', picker=8)  # 5 points tolerance
-        plt.show()
+        plot(self.tth_list, self.spectrum_expt._y, '-k')  # 5 points tolerance
 
-        self.points = np.asarray(plt.ginput(8,timeout=-1, show_clicks=True))
-        plt.close()
+        self.points = np.asarray(ginput(0,timeout=-1))
+        close()
 
     # cubic spline fit of background using custom points chosen from plot
     def splinefit(self, x, y):
@@ -1371,7 +1415,12 @@ class LeBail:
         >> @DATE:       06/08/2020 SS 1.0 original
         >> @DETAILS:    load the phases for the LeBail fits
         '''
-        p = Phases_LeBail(wavelength=self.wavelength)
+        if(hasattr(self,'wavelength')):
+            if(self.wavelength is not None):
+                p = Phases_LeBail(wavelength=self.wavelength)
+        else:
+            p = Phases_LeBail()
+
         if(phase_file is not None):
             if(path.exists(phase_file)):
                 p.load(phase_file)
@@ -1413,6 +1462,17 @@ class LeBail:
             Hsq = 1.0e-12
         self.Hcag   = np.sqrt(Hsq)
 
+    def LorentzH(self, tth):
+        '''
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       07/20/2020 SS 1.0 original
+        >> @DETAILS:    calculates the size and strain broadening for Lorentzian peak
+        '''
+        th = np.radians(0.5*tth)
+        tanth       = np.tan(th)
+        cth         = np.cos(th)
+        self.gamma = self.X/cth + self.Y * tanth
+
     def MixingFact(self, tth):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -1445,7 +1505,7 @@ class LeBail:
         >> @DETAILS:    this routine computes the lorentzian peak profile
         '''
 
-        H = self.Hcag
+        H = self.gamma
         cl = 4.
         self.LorentzI = (2./np.pi/H) / ( 1. + cl*((self.tth_list - tth)/H)**2)
 
@@ -1453,12 +1513,13 @@ class LeBail:
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/20/2020 SS 1.0 original
-        >> @DETAILS:    this routine computes the pseudo-voight function as weighted 
+        >> @DETAILS:    this routine computes the pseudo-voight function as weighted
                         average of gaussian and lorentzian
         '''
 
         self.CagliottiH(tth)
         self.Gaussian(tth)
+        self.LorentzH(tth)
         self.Lorentzian(tth)
         self.MixingFact(tth)
         self.PV = self.eta * self.GaussianI + \
@@ -1484,7 +1545,7 @@ class LeBail:
         for iph,p in enumerate(self.phases):
 
             for k,l in self.phases.wavelength.items():
-        
+
                 Ic = self.Icalc[p][k]
 
                 tth = self.tth[p][k] + self.zero_error
@@ -1539,7 +1600,7 @@ class LeBail:
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/19/2020 SS 1.0 original
         >> @DETAILS:    this routine computes the weighted error between calculated and
-                        experimental spectra. goodness of fit is also calculated. the 
+                        experimental spectra. goodness of fit is also calculated. the
                         weights are the inverse squareroot of the experimental intensities
         '''
 
@@ -1547,32 +1608,41 @@ class LeBail:
         the err variable is the difference between simulated and experimental spectra
         '''
         for p in params:
-            setattr(self, p, params[p].value)
+            if(hasattr(self, p)):
+                setattr(self, p, params[p].value)
 
-        lp = []
-        if('a' in params):
-            if(params['a'].vary):
-                lp.append(params['a'].value)
-        if('b' in params):
-            if(params['b'].vary):
-                lp.append(params['b'].value)
-        if('c' in params):
-            if(params['c'].vary):
-                lp.append(params['c'].value)
-        if('alpha' in params):
-            if(params['alpha'].vary):
-                lp.append(params['alpha'].value)
-        if('beta' in params):
-            if(params['beta'].vary):
-                lp.append(params['beta'].value)
-        if('gamma' in params):
-            if(params['gamma'].vary):
-                lp.append(params['gamma'].value)
+        for p in self.phases:
 
-        if(not lp):
-            pass
-        else:
-            for p in self.phases:
+            mat = self.phases[p]
+
+            '''
+            PART 1: update the lattice parameters
+            '''
+            lp = []
+
+            pre = p + '_'
+            if(pre+'a' in params):
+                if(params[pre+'a'].vary):
+                    lp.append(params[pre+'a'].value)
+            if(pre+'b' in params):
+                if(params[pre+'b'].vary):
+                    lp.append(params[pre+'b'].value)
+            if(pre+'c' in params):
+                if(params[pre+'c'].vary):
+                    lp.append(params[pre+'c'].value)
+            if(pre+'alpha' in params):
+                if(params[pre+'alpha'].vary):
+                    lp.append(params[pre+'alpha'].value)
+            if(pre+'beta' in params):
+                if(params[pre+'beta'].vary):
+                    lp.append(params[pre+'beta'].value)
+            if(pre+'gamma' in params):
+                if(params[pre+'gamma'].vary):
+                    lp.append(params[pre+'gamma'].value)
+
+            if(not lp):
+                pass
+            else:
                 lp = self.phases[p].Required_lp(lp)
                 self.phases[p].lparms = np.array(lp)
                 self.phases[p]._calcrmt()
@@ -1688,6 +1758,41 @@ class LeBail:
         return
 
     @property
+    def P(self):
+        return self._P
+
+    @P.setter
+    def P(self, Pinp):
+        self._P = Pinp
+        return
+
+    @property
+    def X(self):
+        return self._X
+
+    @X.setter
+    def X(self, Xinp):
+        self._X = Xinp
+        return
+
+    @property
+    def Y(self):
+        return self._Y
+
+    @Y.setter
+    def Y(self, Yinp):
+        self._Y = Yinp
+        return
+
+    @property
+    def gamma(self):
+        return self._gamma
+
+    @gamma.setter
+    def gamma(self, val):
+        self._gamma = val
+
+    @property
     def Hcag(self):
         return self._Hcag
 
@@ -1732,7 +1837,7 @@ class LeBail:
     @property
     def zero_error(self):
         return self._zero_error
-    
+
     @zero_error.setter
     def zero_error(self, value):
         self._zero_error = value
@@ -1788,7 +1893,7 @@ class Material_Rietveld:
         self.sgsetting = np.asscalar(np.array(gid.get('SpaceGroupSetting'), \
                                         dtype = np.int32))
         self.sgsetting -= 1
-        """ 
+        """
             IMPORTANT NOTE:
             note that the latice parameters in EMsoft is nm by default
             hexrd on the other hand uses A as the default units, so we
@@ -2000,7 +2105,7 @@ class Material_Rietveld:
             # sum is even
             seo = np.mod(np.sum(hkllist,axis=1)+100,2)
             mask = (seo == 0)
-            
+
         elif(centering == 'A'):
             # k+l is even
             seo = np.mod(np.sum(hkllist[:,1:3],axis=1)+100,2)
@@ -2027,15 +2132,15 @@ class Material_Rietveld:
 
     def omitscrewaxisabsences(self, hkllist, ax, iax):
         '''
-        this function encodes the table on pg 48 of 
+        this function encodes the table on pg 48 of
         international table of crystallography vol A
-        the systematic absences due to different screw 
-        axis is encoded here. 
+        the systematic absences due to different screw
+        axis is encoded here.
         iax encodes the primary, secondary or tertiary axis
         iax == 0 : primary
         iax == 1 : secondary
         iax == 2 : tertiary
-        @NOTE: only unique b axis in monoclinic systems 
+        @NOTE: only unique b axis in monoclinic systems
         implemented as thats the standard setting
         '''
         if(self.latticeType == 'triclinic'):
@@ -2044,11 +2149,13 @@ class Material_Rietveld:
             '''
             pass
         elif(self.latticeType == 'monoclinic'):
-            if(ax is not '2_1'):
+
+            if(ax !='2_1'):
+
                 raise RuntimeError('omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis')
             '''
                 only unique b-axis will be encoded
-                it is the users responsibility to input 
+                it is the users responsibility to input
                 lattice parameters in the standard setting
                 with b-axis having the 2-fold symmetry
             '''
@@ -2060,7 +2167,7 @@ class Material_Rietveld:
             else:
                 raise RuntimeError('omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
         elif(self.latticeType == 'orthorhombic'):
-            if(ax is not '2_1'):
+            if(ax != '2_1'):
                 raise RuntimeError('omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis')
             '''
             2_1 screw on primary axis
@@ -2112,7 +2219,7 @@ class Material_Rietveld:
         elif(self.latticeType == 'hexagonal'):
             mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
             if(iax == 0):
-                if(ax is '6_3'):
+                if(ax == '6_3'):
                     mask2 = np.mod(hkllist[:,2]+100,2) != 0
                 elif(ax in['3_1','3_2','6_2','6_4']):
                     mask2 = np.mod(hkllist[:,2]+90,3) != 0
@@ -2143,15 +2250,15 @@ class Material_Rietveld:
 
     def omitglideplaneabsences(self, hkllist, plane, ip):
         '''
-        this function encodes the table on pg 47 of 
+        this function encodes the table on pg 47 of
         international table of crystallography vol A
-        the systematic absences due to different glide 
-        planes is encoded here. 
+        the systematic absences due to different glide
+        planes is encoded here.
         ip encodes the primary, secondary or tertiary plane normal
         ip == 0 : primary
         ip == 1 : secondary
         ip == 2 : tertiary
-        @NOTE: only unique b axis in monoclinic systems 
+        @NOTE: only unique b axis in monoclinic systems
         implemented as thats the standard setting
         '''
         if(self.latticeType == 'triclinic'):
@@ -2245,9 +2352,9 @@ class Material_Rietveld:
                 mask = np.logical_not(np.logical_and(mask1,mask2))
                 hkllist = hkllist[mask,:]
         elif(self.latticeType == 'trigonal'):
-            if(plane is not 'c'):
+            if(plane != 'c'):
                 raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems')
-            
+
             if(ip == 1):
                 mask1 = hkllist[:,0] == 0
                 mask2 = hkllist[:,1] == 0
@@ -2270,7 +2377,7 @@ class Material_Rietveld:
             mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
             hkllist = hkllist[mask,:]
         elif(self.latticeType == 'hexagonal'):
-            if(plane is not 'c'):
+            if(plane != 'c'):
                 raise RuntimeError('omitglideplaneabsences: only c-glide allowed for hexagonal systems')
             if(ip == 2):
                 mask1 = hkllist[:,0] == hkllist[:,1]
@@ -2303,7 +2410,7 @@ class Material_Rietveld:
                     mask1 = np.logical_or(np.logical_and(mask1,mask5),np.logical_and(mask1,mask6))
                     mask2 = np.logical_or(np.logical_and(mask2,mask4),np.logical_and(mask2,mask6))
                     mask3 = np.logical_and(mask3,mask4)
-                    
+
                     mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
                 elif(plane == 'b'):
                     mask1 = np.logical_and(mask1,mask5)
@@ -2355,22 +2462,24 @@ class Material_Rietveld:
 
     def NonSymmorphicAbsences(self, hkllist):
         '''
-        this function prunes hkl list for the screw axis and glide 
+        this function prunes hkl list for the screw axis and glide
         plane absences
         '''
         planes = constants.SYS_AB[self.sgnum][0]
         for ip,p in enumerate(planes):
-            if(p is not ''):
+
+            if(p != ''):
                 hkllist = self.omitglideplaneabsences(hkllist, p, ip)
         axes = constants.SYS_AB[self.sgnum][1]
         for iax,ax in enumerate(axes):
-            if(ax is not ''):
+            if(ax !=''):
+
                 hkllist = self.omitscrewaxisabsences(hkllist, ax, iax)
         return hkllist
 
     def ChooseSymmetric(self, hkllist, InversionSymmetry=True):
         '''
-        this function takes a list of hkl vectors and 
+        this function takes a list of hkl vectors and
         picks out a subset of the list picking only one
         of the symmetrically equivalent one. The convention
         is to choose the hkl with the most positive components.
@@ -2394,9 +2503,9 @@ class Material_Rietveld:
 
     def SortHKL(self, hkllist):
         '''
-        this function sorts the hkllist by increasing |g| 
-        i.e. decreasing d-spacing. If two vectors are same 
-        length, then they are ordered with increasing 
+        this function sorts the hkllist by increasing |g|
+        i.e. decreasing d-spacing. If two vectors are same
+        length, then they are ordered with increasing
         priority to l, k and h
         '''
         glen = []
@@ -2414,7 +2523,7 @@ class Material_Rietveld:
 
     def getHKLs(self, dmin):
         '''
-        this function generates the symetrically unique set of 
+        this function generates the symetrically unique set of
         hkls up to a given dmin.
         dmin is in nm
         '''
@@ -2485,7 +2594,7 @@ class Material_Rietveld:
             r = np.hstack((r, 1.))
 
             asym_pos.append(np.broadcast_to(r[0:3],[1,3]))
-            
+
             for symmat in self.SYM_SG:
                 # get new position
                 rnew = np.dot(symmat, r)
@@ -2520,19 +2629,17 @@ class Material_Rietveld:
         self.f2 = {}
         self.f_anam = {}
 
-        fid = h5py.File(str(Path(__file__).resolve().parent)+'/Anomalous.h5','r')
+        data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
+        with h5py.File(data, 'r') as fid:
+            for i in range(0,self.atom_ntype):
 
-        for i in range(0,self.atom_ntype):
+                Z    = self.atom_type[i]
+                elem = constants.ptableinverse[Z]
+                gid = fid.get('/'+elem)
+                data = gid.get('data')
 
-            Z    = self.atom_type[i]
-            elem = constants.ptableinverse[Z]
-            gid = fid.get('/'+elem)
-            data = gid.get('data')
-
-            self.f1[elem] = interp1d(data[:,7], data[:,1])
-            self.f2[elem] = interp1d(data[:,7], data[:,2])
-
-        fid.close()
+                self.f1[elem] = interp1d(data[:,7], data[:,1])
+                self.f2[elem] = interp1d(data[:,7], data[:,2])
 
     def CalcAnomalous(self):
 
@@ -2606,17 +2713,17 @@ class Material_Rietveld:
         return _rqpDict[self.latticeType][1](p)
 
 class Phases_Rietveld:
-    ''' ======================================================================================================== 
-        ======================================================================================================== 
+    ''' ========================================================================================================
+        ========================================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/20/2020 SS 1.0 original
     >> @DETAILS:    class to handle different phases in the LeBail fit. this is a stripped down
-                    version of main Phase class for efficiency. only the components necessary for 
+                    version of main Phase class for efficiency. only the components necessary for
                     calculating peak positions are retained. further this will have a slight
                     modification to account for different wavelengths in the same phase name
-        ======================================================================================================== 
-        ======================================================================================================== 
+        ========================================================================================================
+        ========================================================================================================
     '''
     def _kev(x):
         return valWUnit('beamenergy','energy', x,'keV')
@@ -2624,7 +2731,7 @@ class Phases_Rietveld:
     def _nm(x):
         return valWUnit('lp', 'length', x, 'nm')
 
-    def __init__(self, material_file=None, 
+    def __init__(self, material_file=None,
                  material_keys=None,
                  dmin = _nm(0.05),
                  wavelength={'alpha1':[_nm(0.15406),1.],'alpha2':[_nm(0.154443),0.52]}
@@ -2688,7 +2795,7 @@ class Phases_Rietveld:
             self[material_key][l] = Material_Rietveld(material_file, material_key, dmin=self.dmin, kev=kev)
 
     def add_many(self, material_file, material_keys):
-        
+
         for k in material_keys:
             self[k] = {}
             self.num_phases += 1
@@ -2734,8 +2841,8 @@ class Phases_Rietveld:
             data = yaml.dump(dic, f, sort_keys=False)
 
 class Rietveld:
-    ''' ======================================================================================================== 
-    ======================================================================================================== 
+    ''' ========================================================================================================
+    ========================================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       01/08/2020 SS 1.0 original
@@ -2747,8 +2854,8 @@ class Rietveld:
                     1. Spectrum         contains the experimental spectrum
                     2. Background       contains the background extracted from spectrum
                     3. Refine           contains all the machinery for refinement
-        ======================================================================================================== 
-        ======================================================================================================== 
+        ========================================================================================================
+        ========================================================================================================
     '''
     def __init__(self,expt_file=None,param_file=None,phase_file=None,wavelength=None):
 
@@ -2789,14 +2896,14 @@ class Rietveld:
             if(path.exists(param_file)):
                 params.load(param_file)
                 '''
-                this part initializes the lattice parameters, atom positions in asymmetric 
-                unit, occupation and the isotropic debye waller factor. the anisotropic DW 
+                this part initializes the lattice parameters, atom positions in asymmetric
+                unit, occupation and the isotropic debye waller factor. the anisotropic DW
                 factors will be added in the future
                 '''
                 for p in self.phases:
                     l = list(self.phases[p].keys())[0]
 
-                    mat = self.phases[p][l] 
+                    mat = self.phases[p][l]
                     lp       = np.array(mat.lparms)
                     rid      = list(_rqpDict[mat.latticeType][0])
 
@@ -2825,7 +2932,7 @@ class Rietveld:
 
                         Z = atom_type[i]
                         elem = constants.ptableinverse[Z]
-                        
+
                         nn = p+'_'+elem+str(atom_label[i])+'_x'
                         params.add(nn,value=atom_pos[i,0],lb=0.0,ub=1.0,vary=False)
 
@@ -2937,7 +3044,7 @@ class Rietveld:
         for p in self.phases:
 
             l = list(self.phases[p].keys())[0]
-            mat = self.phases[p][l] 
+            mat = self.phases[p][l]
             rid      = list(_rqpDict[mat.latticeType][0])
             name     = _lpname[rid]
             for n in name:
@@ -2952,7 +3059,7 @@ class Rietveld:
         for p in self.phases:
 
             l = list(self.phases[p].keys())[0]
-            mat = self.phases[p][l] 
+            mat = self.phases[p][l]
             rid      = list(_rqpDict[mat.latticeType][0])
             name     = _lpname[rid]
             for n in name:
@@ -2965,7 +3072,7 @@ class Rietveld:
     def params_lp_vary_phase_on(self, phase_name):
 
         l = list(self.phases[phase_name].keys())[0]
-        mat = self.phases[phase_name][l] 
+        mat = self.phases[phase_name][l]
         rid      = list(_rqpDict[mat.latticeType][0])
         name     = _lpname[rid]
         for n in name:
@@ -2978,7 +3085,7 @@ class Rietveld:
     def params_lp_vary_phase_off(self, phase_name):
 
         l = list(self.phases[phase_name].keys())[0]
-        mat = self.phases[phase_name][l] 
+        mat = self.phases[phase_name][l]
         rid      = list(_rqpDict[mat.latticeType][0])
         name     = _lpname[rid]
         for n in name:
@@ -3032,7 +3139,7 @@ class Rietveld:
                     self.params[nn].vary = False
 
     '''
-        turn all the debye waller factors 
+        turn all the debye waller factors
         for an atom label off
     '''
     def params_U_vary_label_off(self, label):
@@ -3061,7 +3168,7 @@ class Rietveld:
                 raise ValueError('element not present any of the phases')
 
     '''
-        turn all the debye waller factors 
+        turn all the debye waller factors
         for an atom label on
     '''
     def params_U_vary_label_on(self, label):
@@ -3122,7 +3229,7 @@ class Rietveld:
                 self.params[nn].vary = False
 
     '''
-        turn all the occupation factors 
+        turn all the occupation factors
         for an atom label off
     '''
     def params_occ_vary_label_off(self, label):
@@ -3145,7 +3252,7 @@ class Rietveld:
                 raise ValueError('element not present any of the phases')
 
     '''
-        turn all the occupation factors 
+        turn all the occupation factors
         for an atom label on
     '''
     def params_occ_vary_label_on(self, label):
@@ -3284,7 +3391,7 @@ class Rietveld:
 
         '''
             the cubic spline seems to be the ideal route in terms
-            of determining the background intensity. this involves 
+            of determining the background intensity. this involves
             selecting a small (~5) number of points from the spectrum,
             usually called the anchor points. a cubic spline interpolation
             is performed on this subset to estimate the overall background.
@@ -3295,17 +3402,16 @@ class Rietveld:
         y = self.points[:,1]
         self.splinefit(x, y)
 
+        plot(self.tth_list, self.spectrum_expt._y, '-k',lw=1.5)
+        plot(self.tth_list, self.background._y, '--r',lw=1.5)
+        show()
+
     def selectpoints(self):
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.set_title('Select 5 points for background estimation')
-
-        line = ax.plot(self.tth_list, self.spectrum_expt._y, '-b', picker=8)  # 5 points tolerance
-        plt.show()
-
-        self.points = np.asarray(plt.ginput(8,timeout=-1, show_clicks=True))
-        plt.close()
+        plot(self.tth_list, self.spectrum_expt._y, '-k',lw=1.5)
+        title('Select points for background estimation. Middle click once done')
+        self.points = np.array(ginput(0))
+        close()
 
     # cubic spline fit of background using custom points chosen from plot
     def splinefit(self, x, y):
@@ -3409,7 +3515,7 @@ class Rietveld:
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/20/2020 SS 1.0 original
-        >> @DETAILS:    this routine computes the pseudo-voight function as weighted 
+        >> @DETAILS:    this routine computes the pseudo-voight function as weighted
                         average of gaussian and lorentzian
         '''
 
@@ -3448,7 +3554,7 @@ class Rietveld:
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/19/2020 SS 1.0 original
         >> @DETAILS:    this routine computes the weighted error between calculated and
-                        experimental spectra. goodness of fit is also calculated. the 
+                        experimental spectra. goodness of fit is also calculated. the
                         weights are the inverse squareroot of the experimental intensities
         '''
 
@@ -3710,7 +3816,7 @@ class Rietveld:
     @property
     def zero_error(self):
         return self._zero_error
-    
+
     @zero_error.setter
     def zero_error(self, value):
         self._zero_error = value
@@ -3719,7 +3825,7 @@ class Rietveld:
     @property
     def scale(self):
         return self._scale
-    
+
 
     @scale.setter
     def scale(self, value):
