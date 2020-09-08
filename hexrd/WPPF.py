@@ -1611,6 +1611,7 @@ class LeBail:
             if(hasattr(self, p)):
                 setattr(self, p, params[p].value)
 
+        self.updated_lp = False
         for p in self.phases:
 
             mat = self.phases[p]
@@ -1621,6 +1622,7 @@ class LeBail:
             lp = []
 
             pre = p + '_'
+
             if(pre+'a' in params):
                 if(params[pre+'a'].vary):
                     lp.append(params[pre+'a'].value)
@@ -1644,9 +1646,12 @@ class LeBail:
                 pass
             else:
                 lp = self.phases[p].Required_lp(lp)
-                self.phases[p].lparms = np.array(lp)
-                self.phases[p]._calcrmt()
-                self.calctth()
+                mat.lparms = np.array(lp)
+                mat._calcrmt()
+                self.updated_lp = True
+
+        if(self.updated_lp):
+            self.calctth()
 
         self.computespectrum()
 
@@ -3562,7 +3567,8 @@ class Rietveld:
         the err variable is the difference between simulated and experimental spectra
         '''
         for p in params:
-            setattr(self, p, params[p].value)
+            if(hasattr(self, p)):
+                setattr(self, p, params[p].value)
 
         self.updated_lp = False
         self.updated_atominfo = False
