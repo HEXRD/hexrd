@@ -1,0 +1,51 @@
+beam:
+  energy: 10.2505
+  vector:
+    azimuth: 60.6212291803227
+    polar_angle: 90.21969555888647
+detectors:
+  IMAGE-PLATE-2:
+    pixels:
+      columns: 901
+      rows: 421
+      size:
+      - 0.1
+      - 0.1
+    buffer:
+    - 0.2
+    - 0.2
+    transform:
+      tilt:
+      - 0.0
+      - -2.22144147e+00
+      - 2.22144147e+00
+      translation:
+      - 0.0
+      - -11.935
+      - -25.08
+  IMAGE-PLATE-4:
+    pixels:
+      columns: 901
+      rows: 421
+      size:
+      - 0.1
+      - 0.1
+    buffer:
+    - 0.2
+    - 0.2
+    transform:
+      tilt:
+      - -1.57079633e+00
+      - 0.0
+      - 0.0
+      translation:
+      - 0.0
+      - 11.935
+      - -25.08
+id: NXXXXXX-XXX
+oscillation_stage:
+  chi: 0.0
+  translation:
+  - 0.0
+  - 0.0
+  - 0.0
