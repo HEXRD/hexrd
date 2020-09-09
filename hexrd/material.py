@@ -159,7 +159,7 @@ class Material(object):
             #
             self._atominfo = Material.DFLT_ATOMINFO
             #
-            self._U = Matrial.DFLT_U
+            self._U = Material.DFLT_U
             #
             self._atomtype = Material.DFLT_ATOMTYPE
             #
