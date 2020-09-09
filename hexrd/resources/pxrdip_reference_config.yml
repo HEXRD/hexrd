@@ -1,0 +1,113 @@
+beam:
+  energy: 10.2505
+  vector:
+    azimuth: 90.
+    polar_angle: 70.
+detectors:
+  IMAGE-PLATE-L:
+    buffer:
+    - 1.0
+    - 1.0
+    pixels:
+      columns: 495
+      rows: 745
+      size:
+      - 0.1
+      - 0.1
+    saturation_level: 16535
+    transform:
+      tilt:
+      - -1.2091995761561454e+00
+      - 1.2091995761561454e+00
+      - -1.2091995761561454e+00
+      translation:
+      - -24.75
+      -  0.0
+      - -40.
+  IMAGE-PLATE-D:
+    buffer:
+    - 1.0
+    - 1.0
+    pixels:
+      columns: 495
+      rows: 745
+      size:
+      - 0.1
+      - 0.1
+    saturation_level: 16535
+    transform:
+      tilt:
+      - -1.5707963267948966e+00
+      -  0.0
+      -  0.0
+      translation:
+      - 0.0
+      - -24.75
+      - -40.
+  IMAGE-PLATE-R:
+    buffer:
+    - 1.0
+    - 1.0
+    pixels:
+      columns: 495
+      rows: 745
+      size:
+      - 0.1
+      - 0.1
+    saturation_level: 16535
+    transform:
+      tilt:
+      - -1.2091995761561454e+00
+      - -1.2091995761561454e+00
+      - 1.2091995761561454e+00
+      translation:
+      -  24.75
+      -  0.0
+      - -40.
+  IMAGE-PLATE-U:
+    buffer:
+    - 1.0
+    - 1.0
+    pixels:
+      columns: 495
+      rows: 745
+      size:
+      - 0.1
+      - 0.1
+    saturation_level: 16535
+    transform:
+      tilt:
+      - 0.0000000000000000e+00
+      - -2.2214414690791831e+00
+      - 2.2214414690791831e+00
+      translation:
+      -  0.0
+      -  24.75
+      - -40.
+  IMAGE-PLATE-B:
+    buffer:
+    - 1.0
+    - 1.0
+    pixels:
+      columns: 495
+      rows: 495
+      size:
+      - 0.1
+      - 0.1
+    saturation_level: 16535
+    transform:
+      tilt:
+      - 0.0
+      - 0.0
+      - 0.0
+      translation:
+      - 0.0
+      - 0.0
+      - -77.5
+id: reference pxrdip
+oscillation_stage:
+  chi: 0.0
+  translation:
+  - 0.0
+  - 0.0
+  - 0.0
