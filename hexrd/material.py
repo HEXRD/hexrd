@@ -92,11 +92,13 @@ class Material(object):
     DFLT_TTHMAX = numpy.radians(160.0)
     """
     ATOMINFO    Fractional Atom Position of an atom in the unit cell followed by the
-    site occupany and debye waller (B) factor in nm^(-2)
+    site occupany and debye waller (U) factor in A^(-2)
+    B is related to U by B = 8 pi^2 U
 
     ATOMTYPE    atomic number of all the different species in the unitcell
     """
-    DFLT_ATOMINFO = numpy.array([[0, 0, 0, 1, 0.033]])
+    DFLT_ATOMINFO = numpy.array([[0., 0., 0., 1.]])
+    DFLT_U = numpy.array([4.18e-7])
     DFLT_ATOMTYPE = numpy.array([28])
 
     '''
@@ -156,6 +158,8 @@ class Material(object):
             self._sgsetting = Material.DFLT_SGSETTING
             #
             self._atominfo = Material.DFLT_ATOMINFO
+            #
+            self._U = Matrial.DFLT_U
             #
             self._atomtype = Material.DFLT_ATOMTYPE
             #
