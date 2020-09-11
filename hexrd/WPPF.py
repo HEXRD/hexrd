@@ -1243,22 +1243,27 @@ class LeBail:
         return valWUnit('lp', 'length', x, 'nm')
 
     def __init__(self,
-        expt_file=None,
-        param_file=None,
-        phase_file=None,
+        expt_spectrum=None,
+        params=None,
+        phases=None,
         wavelength={'kalpha1':_nm(0.15406),'kalpha2':_nm(0.154443)},
         bkgmethod='spline'):
 
         self.bkgmethod = bkgmethod
-        self.initialize_expt_spectrum(expt_file)
+
+        self.initialize_expt_spectrum(expt_spectrum)
 
         if(wavelength is not None):
             self.wavelength = wavelength
 
         self._tstart = time.time()
-        self.initialize_phases(phase_file)
-        self.initialize_parameters(param_file)
+
+        self.initialize_phases(phases)
+
+        self.initialize_parameters(params)
+
         self.initialize_Icalc()
+
         self.computespectrum()
 
         self._tstop = time.time()
@@ -1282,10 +1287,34 @@ class LeBail:
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/19/2020 SS 1.0 original
+                        09/11/2020 SS 1.1 modified to accept multiple input types
         >> @DETAILS:    initialize parameter list from file. if no file given, then initialize
                         to some default values (lattice constants are for CeO2)
 
         '''
+        if(param_file is not None):
+            if(isinstance(param_file, Parameters)):
+                '''
+                directly passing the parameter class
+                '''
+                self.params = param_file
+
+
+            elif(isinstance(param_file, dict)):
+                '''
+                initialize class using a nx2 array
+                '''
+                pass
+
+            elif(isinstance(param_file, str)):
+                '''
+                load from a text file
+                '''
+                if(path.exists(expt_spectrum)):
+                    self.spectrum_expt = Spectrum.from_file(expt_spectrum,skip_rows=0)
+                else:
+                    raise FileError('input spectrum file doesn\'t exist.')
+
         params = Parameters()
         if(param_file is not None):
             if(path.exists(param_file)):
@@ -1311,9 +1340,9 @@ class LeBail:
                         else it is an angle
                         '''
                         if(l < 10.):
-                            params.add(nn,value=l,lb=l-0.05,ub=l+0.05,vary=False)
+                            params.add(nn,value=l,lb=l-0.05,ub=l+0.05,vary=True)
                         else:
-                            params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=False)
+                            params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=True)
 
             else:
                 raise FileError('parameter file doesn\'t exist.')
@@ -1363,24 +1392,42 @@ class LeBail:
             self.params[p].vary = True
 
 
-    def initialize_expt_spectrum(self, expt_file):
+    def initialize_expt_spectrum(self, expt_spectrum):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/19/2020 SS 1.0 original
+                        09/11/2020 SS 1.1 multiple data types accepted as input
         >> @DETAILS:    load the experimental spectum of 2theta-intensity
         '''
-        # self.spectrum_expt = Spectrum.from_file()
-        if(expt_file is not None):
-            if(path.exists(expt_file)):
-                self.spectrum_expt = Spectrum.from_file(expt_file,skip_rows=0)
-                self.tth_max = np.amax(self.spectrum_expt._x)
-                self.tth_min = np.amin(self.spectrum_expt._x)
+        if(expt_spectrum is not None):
+            if(isinstance(expt_spectrum, Spectrum)):
+                '''
+                directly passing the spectrum class
+                '''
+                self.spectrum_expt = expt_spectrum
 
-                ''' also initialize statistical weights for the error calculation'''
-                self.weights = 1.0 / np.sqrt(self.spectrum_expt.y)
-                self.initialize_bkg()
-            else:
-                raise FileError('input spectrum file doesn\'t exist.')
+
+            elif(isinstance(expt_spectrum, np.ndarray)):
+                '''
+                initialize class using a nx2 array
+                '''
+                pass
+
+            elif(isinstance(expt_spectrum, str)):
+                '''
+                load from a text file
+                '''
+                if(path.exists(expt_spectrum)):
+                    self.spectrum_expt = Spectrum.from_file(expt_spectrum,skip_rows=0)
+                else:
+                    raise FileError('input spectrum file doesn\'t exist.')
+
+            self.tth_max = self.spectrum_expt._x[-1]
+            self.tth_min = self.spectrum_expt._x[0]
+
+            ''' also initialize statistical weights for the error calculation'''
+            self.weights = 1.0 / np.sqrt(self.spectrum_expt.y)
+            self.initialize_bkg()
 
     def initialize_bkg(self):
 
