@@ -1118,7 +1118,19 @@ class Phases_LeBail:
 
         self.phase_dict = {}
         self.num_phases = 0
-        self.wavelength = wavelength
+
+        '''
+        set wavelength. check if wavelength is supplied in A, if it is
+        convert to nm since the rest of the code assumes those units
+        '''
+        wavelength_nm = {}
+        for k,v in wavelength.items():
+            if(v.unit == 'angstrom'):
+                wavelength_nm[k] = _nm(v.value*10.)
+            else:
+                wavelength_nm[k] = v
+        self.wavelength = wavelength_nm
+
         self.dmin = dmin
 
         if(material_file is not None):
@@ -2744,7 +2756,19 @@ class Phases_Rietveld:
 
         self.phase_dict = {}
         self.num_phases = 0
-        self.wavelength = wavelength
+
+        '''
+        set wavelength. check if wavelength is supplied in A, if it is
+        convert to nm since the rest of the code assumes those units
+        '''
+        wavelength_nm = {}
+        for k,v in wavelength.items():
+            if(v.unit == 'angstrom'):
+                wavelength_nm[k] = _nm(v.value*10.)
+            else:
+                wavelength_nm[k] = v
+        self.wavelength = wavelength_nm
+
         self.dmin = dmin
 
         if(material_file is not None):
