@@ -311,7 +311,7 @@ def GetAsymmetricPositions(aniU=0):
 				raise ValueError(" fractional coordinates only in the range [0,1) i.e. 1 excluded")
 
 	occ, dw = GetOccDW(aniU=aniU)
-	if(type(dw) == np.float):
+	if isinstance(dw, np.floating):
 		aniU = 1
 	else:
 		aniU = 2
@@ -446,7 +446,7 @@ def WriteH5Data(fid, AtomInfo, lat_param):
 		anisotropic debye waller factors
 	'''
 
-	if(type(AtomInfo['U'][0]) != np.float):
+	if not isinstance(AtomInfo['U'][0], np.floating):
 		did = gid.create_dataset("U", (6, len(AtomInfo['Z'])), dtype = np.float64)
 		arr = np.array(AtomInfo['U'], dtype = np.float32).transpose()
 		arr2 = arr.copy()
