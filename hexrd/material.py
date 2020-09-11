@@ -170,14 +170,7 @@ class Material(object):
             self._sgsetting)
 
         self._newPdata()
-        hkls = self.planeData.getHKLs(allHKLs=True)
-        sf = numpy.zeros([hkls.shape[0],])
-        for i,g in enumerate(hkls):
-            sf[i] = self.unitcell.CalcXRSF(g)
-
-        self.planeData.set_structFact(sf[~self.planeData.exclusions])
-
-        return
+        self.update_structure_factor()
 
     def __str__(self):
         """String representation"""
@@ -215,6 +208,14 @@ class Material(object):
         self._pData.exclusions = dflt_excl
 
         return
+
+    def update_structure_factor(self):
+        hkls = self.planeData.getHKLs(allHKLs=True)
+        sf = numpy.zeros([hkls.shape[0],])
+        for i,g in enumerate(hkls):
+            sf[i] = self.unitcell.CalcXRSF(g)
+
+        self.planeData.set_structFact(sf[~self.planeData.exclusions])
 
     def _readCif(self, fcif=DFLT_NAME+'.cif'):
         """
