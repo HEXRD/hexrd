@@ -45,6 +45,8 @@ from CifFile import ReadCif
 import  h5py
 from warnings import warn
 from hexrd.mksupport import Write2H5File
+from hexrd.symbols import xtal_sys_dict
+from hexrd.symbols import Hall_to_sgnum, HM_to_sgnum
 
 __all__ = ['Material', 'loadMaterialList']
 
@@ -261,10 +263,10 @@ class Material(object):
             sgnum = int(cifdata[sgkey[0]])
         elif (skey is sgkey[1]):
             HM = cifdata[sgkey[1]]
-            sgnum = sg.HM_to_sgnum[HM]
+            sgnum = HM_to_sgnum[HM]
         elif (skey is sgkey[2]):
             hall = cifdata[sgkey[2]]
-            sgnum = sg.Hall_to_sgnum[HM]
+            sgnum = Hall_to_sgnum[HM]
 
         # lattice parameters
         lparms = []
@@ -353,7 +355,7 @@ class Material(object):
         if(not pU):
             warn('Debye-Waller factors not present. setting to same values for all atoms.')
             U = 1.0/numpy.pi/2./numpy.sqrt(2.) * numpy.ones(atompos[0].shape)
-            atompos.append(U)
+            self._U = U
         else:
             if(occ_U[1] in cifdata.keys()):
                 k = occ_U[1]
@@ -655,14 +657,6 @@ The values have units attached, i.e. they are valWunit instances.
 #  Utility Functions
 #
 
-
-xtal_sys_dict = {'cubic': 1,
-                 'tetragonal': 2,
-                 'orthorhombic': 3,
-                 'hexagonal': 4,
-                 'trigonal': 5,
-                 'monoclinic': 6,
-                 'triclinic': 7}
 
 def loadMaterialList(cfgFile):
     """Load a list of materials from a file
