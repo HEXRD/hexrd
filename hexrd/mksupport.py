@@ -19,7 +19,7 @@ def mk(filename, xtalname):
 
 	# get the space group number. legend will be printed above
 	space_group, iset = GetSpaceGroup(xtal_sys, bool_trigonal, bool_hexset)
-	
+
 	AtomInfo = GetAtomInfo()
 	AtomInfo.update({'file':filename, 'xtalname':xtalname, 'xtal_sys':xtal_sys, 'SG':space_group, 'SGsetting':iset})
 
@@ -82,7 +82,7 @@ def GetLatticeParameters(xtal_sys, bool_trigonal):
 		if(not c.replace('.','',1).isdigit()):
 			raise ValueError("Invalid floating point value.")
 		else:
-			c = float(c) 
+			c = float(c)
 
 		lat_param['c'] = c
 
@@ -98,7 +98,7 @@ def GetLatticeParameters(xtal_sys, bool_trigonal):
 		if(not c.replace('.','',1).isdigit()):
 			raise ValueError("Invalid floating point value.")
 		else:
-			c = float(c) 
+			c = float(c)
 
 		lat_param['b'] = c; lat_param['c'] = c
 
@@ -257,7 +257,7 @@ def SpaceGroupSetting(sgnum):
 				raise ValueError(" Value entered for setting must be 1 or 2 !")
 
 	return iset-1
-	    
+
 def GetAtomInfo():
 
 	print(pstr_Elements)
@@ -398,7 +398,7 @@ def Write2H5File(AtomInfo, lat_param):
 	# first check if file exists
 
 	fexist = os.path.isfile(AtomInfo['file'])
-	
+
 	if(fexist):
 		fid = h5py.File(AtomInfo['file'],'r+')
 	else:
@@ -473,4 +473,4 @@ def WriteH5Data(fid, AtomInfo, lat_param):
 	fid.close()
 
 
-		
+
