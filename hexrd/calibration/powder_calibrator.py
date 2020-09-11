@@ -11,7 +11,7 @@ class PowderCalibrator(object):
         assert list(instr.detectors.keys()) == list(img_dict.keys()), \
             "instrument and image dict must have the same keys"
         self._instr = instr
-        self._plane_data = plane_data
+        self._plane_data = plane_data.makeNew()  # need a copy to munge
         self._plane_data.wavelength = self._instr.beam_energy  # force
         self._img_dict = img_dict
         self._params = np.asarray(self.plane_data.lparms, dtype=float)
