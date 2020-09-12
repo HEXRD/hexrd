@@ -1283,7 +1283,7 @@ class LeBail:
             warnings.warn(name + " : the absolute value of angles \
                                 seems to be large > 180 degrees")
 
-    def initialize_parameters(self, param_file):
+    def initialize_parameters(self, param_info):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/19/2020 SS 1.0 original
@@ -1292,37 +1292,36 @@ class LeBail:
                         to some default values (lattice constants are for CeO2)
 
         '''
-        if(param_file is not None):
-            if(isinstance(param_file, Parameters)):
+        if(param_info is not None):
+            if(isinstance(param_info, Parameters)):
                 '''
                 directly passing the parameter class
                 '''
-                self.params = param_file
+                self.params = param_info
 
+            else:
+                params = Parameters()
 
-            elif(isinstance(param_file, dict)):
-                '''
-                initialize class using a nx2 array
-                '''
-                pass
+                if(isinstance(param_info, dict)):
+                    '''
+                    initialize class using dictionary read from the yaml file
+                    '''
+                    for k,v in param_info.items():
+                        params.add(k, value=np.float(v[0]), 
+                            lb=np.float(v[1]), ub=np.float(v[2]), 
+                            vary=np.bool(v[3]))
 
-            elif(isinstance(param_file, str)):
-                '''
-                load from a text file
-                '''
-                if(path.exists(expt_spectrum)):
-                    self.spectrum_expt = Spectrum.from_file(expt_spectrum,skip_rows=0)
-                else:
-                    raise FileError('input spectrum file doesn\'t exist.')
-
-        params = Parameters()
-        if(param_file is not None):
-            if(path.exists(param_file)):
-                params.load(param_file)
+                elif(isinstance(param_info, str)):
+                    '''
+                    load from a yaml file
+                    '''
+                    if(path.exists(param_info)):
+                       params.load(param_info)
+                    else:
+                        raise FileError('input spectrum file doesn\'t exist.')
 
                 '''
                 this part initializes the lattice parameters in the
-
                 '''
                 for p in self.phases:
 
@@ -1344,27 +1343,38 @@ class LeBail:
                         else:
                             params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=True)
 
-            else:
-                raise FileError('parameter file doesn\'t exist.')
+                self.params = params
         else:
             '''
-                first 6 are the lattice paramaters
+                first entry is the lattice paramaters
                 next three are cagliotti parameters
                 next are the three gauss+lorentz mixing paramters
                 final is the zero instrumental peak position error
             '''
-            names   = ('a','b','c','alpha','beta','gamma',\
-                      'U','V','W','eta1','eta2','eta3','tth_zero')
-            values  = (5.415, 5.415, 5.415, 90., 90., 90., \
-                        0.5, 0.5, 0.5, 1e-3, 1e-3, 1e-3, 0.)
+            params = Parameters()
+            names = []
+            values = []
+            for p in self.phases:
+                names.append(p+'_a')
+                values.append(self.phases[p].lparms[0])
 
+            valdict = { 'U':1e-2,'V':1e-2,'W':1e-2,
+                        'P':1e-2,'X':1e-2,'Y':1e-2,
+                        'eta1':1e-3,'eta2':1e-3,
+                        'eta3':1e-3,'zero_error':0.}
+            for k,v in valdict.items():
+                names.append(k)
+                values.append(v)
+
+            names  = tuple(names)
+            values = tuple(values)
             lbs         = (-np.Inf,) * len(names)
             ubs         = (np.Inf,)  * len(names)
-            varies  = (False,)   * len(names)
+            varies      = (True,)   * len(names)
 
             params.add_many(names,values=values,varies=varies,lbs=lbs,ubs=ubs)
 
-        self.params = params
+            self.params = params
 
         self._U = self.params['U'].value
         self._V = self.params['V'].value
@@ -1411,7 +1421,13 @@ class LeBail:
                 '''
                 initialize class using a nx2 array
                 '''
-                pass
+                max_ang = expt_spectrum[-1,0]
+                if(max_ang < np.pi):
+                    warnings.warn('angles are small and appear to be in radians. please check')
+
+                self.spectrum_expt = Spectrum(x=expt_spectrum[:,0],
+                                    y=expt_spectrum[:,1],
+                                    name='expt_spectrum')
 
             elif(isinstance(expt_spectrum, str)):
                 '''
@@ -1468,24 +1484,47 @@ class LeBail:
         self.background = Spectrum(x=self.tth_list, y=bkg)
 
 
-    def initialize_phases(self, phase_file):
+    def initialize_phases(self, phase_info):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       06/08/2020 SS 1.0 original
         >> @DETAILS:    load the phases for the LeBail fits
         '''
-        if(hasattr(self,'wavelength')):
-            if(self.wavelength is not None):
-                p = Phases_LeBail(wavelength=self.wavelength)
-        else:
-            p = Phases_LeBail()
 
-        if(phase_file is not None):
-            if(path.exists(phase_file)):
-                p.load(phase_file)
+        if(phase_info is not None):
+            if(isinstance(phase_info, Phases_LeBail)):
+                '''
+                directly passing the phase class
+                '''
+                self.phases = phase_info
             else:
-                raise FileError('phase file doesn\'t exist.')
-        self.phases = p
+                if(hasattr(self,'wavelength')):
+                    if(self.wavelength is not None):
+                        p = Phases_LeBail(wavelength=self.wavelength)
+                else:
+                    p = Phases_LeBail()
+
+                if(isinstance(phase_info, dict)):
+                    '''
+                    initialize class using a dictionary with key as 
+                    material file and values as the name of each phase
+                    '''
+                    for material_file in phase_info:
+                        material_names = phase_info[material_file]
+                        if(not isinstance(material_names, list)):
+                            material_names = [material_names]
+                        p.add_many(material_file, material_names)
+
+                elif(isinstance(phase_info, str)):
+                    '''
+                    load from a yaml file
+                    '''
+                    if(path.exists(phase_info)):
+                        p.load(phase_info)
+                    else:
+                        raise FileError('phase file doesn\'t exist.')
+
+                self.phases = p
 
         self.calctth()
 
