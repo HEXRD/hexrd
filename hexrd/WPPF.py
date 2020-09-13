@@ -1118,7 +1118,19 @@ class Phases_LeBail:
 
         self.phase_dict = {}
         self.num_phases = 0
-        self.wavelength = wavelength
+
+        '''
+        set wavelength. check if wavelength is supplied in A, if it is
+        convert to nm since the rest of the code assumes those units
+        '''
+        wavelength_nm = {}
+        for k,v in wavelength.items():
+            if(v.unit == 'angstrom'):
+                wavelength_nm[k] = valWUnit('lp', 'length', v.value*10., 'nm')
+            else:
+                wavelength_nm[k] = v
+        self.wavelength = wavelength_nm
+
         self.dmin = dmin
 
         if(material_file is not None):
@@ -1231,22 +1243,27 @@ class LeBail:
         return valWUnit('lp', 'length', x, 'nm')
 
     def __init__(self,
-        expt_file=None,
-        param_file=None,
-        phase_file=None,
+        expt_spectrum=None,
+        params=None,
+        phases=None,
         wavelength={'kalpha1':_nm(0.15406),'kalpha2':_nm(0.154443)},
         bkgmethod='spline'):
 
         self.bkgmethod = bkgmethod
-        self.initialize_expt_spectrum(expt_file)
+
+        self.initialize_expt_spectrum(expt_spectrum)
 
         if(wavelength is not None):
             self.wavelength = wavelength
 
         self._tstart = time.time()
-        self.initialize_phases(phase_file)
-        self.initialize_parameters(param_file)
+
+        self.initialize_phases(phases)
+
+        self.initialize_parameters(params)
+
         self.initialize_Icalc()
+
         self.computespectrum()
 
         self._tstop = time.time()
@@ -1266,22 +1283,45 @@ class LeBail:
             warnings.warn(name + " : the absolute value of angles \
                                 seems to be large > 180 degrees")
 
-    def initialize_parameters(self, param_file):
+    def initialize_parameters(self, param_info):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/19/2020 SS 1.0 original
+                        09/11/2020 SS 1.1 modified to accept multiple input types
         >> @DETAILS:    initialize parameter list from file. if no file given, then initialize
                         to some default values (lattice constants are for CeO2)
 
         '''
-        params = Parameters()
-        if(param_file is not None):
-            if(path.exists(param_file)):
-                params.load(param_file)
+        if(param_info is not None):
+            if(isinstance(param_info, Parameters)):
+                '''
+                directly passing the parameter class
+                '''
+                self.params = param_info
+
+            else:
+                params = Parameters()
+
+                if(isinstance(param_info, dict)):
+                    '''
+                    initialize class using dictionary read from the yaml file
+                    '''
+                    for k,v in param_info.items():
+                        params.add(k, value=np.float(v[0]), 
+                            lb=np.float(v[1]), ub=np.float(v[2]), 
+                            vary=np.bool(v[3]))
+
+                elif(isinstance(param_info, str)):
+                    '''
+                    load from a yaml file
+                    '''
+                    if(path.exists(param_info)):
+                       params.load(param_info)
+                    else:
+                        raise FileError('input spectrum file doesn\'t exist.')
 
                 '''
                 this part initializes the lattice parameters in the
-
                 '''
                 for p in self.phases:
 
@@ -1299,31 +1339,42 @@ class LeBail:
                         else it is an angle
                         '''
                         if(l < 10.):
-                            params.add(nn,value=l,lb=l-0.05,ub=l+0.05,vary=False)
+                            params.add(nn,value=l,lb=l-0.05,ub=l+0.05,vary=True)
                         else:
-                            params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=False)
+                            params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=True)
 
-            else:
-                raise FileError('parameter file doesn\'t exist.')
+                self.params = params
         else:
             '''
-                first 6 are the lattice paramaters
+                first entry is the lattice paramaters
                 next three are cagliotti parameters
                 next are the three gauss+lorentz mixing paramters
                 final is the zero instrumental peak position error
             '''
-            names   = ('a','b','c','alpha','beta','gamma',\
-                      'U','V','W','eta1','eta2','eta3','tth_zero')
-            values  = (5.415, 5.415, 5.415, 90., 90., 90., \
-                        0.5, 0.5, 0.5, 1e-3, 1e-3, 1e-3, 0.)
+            params = Parameters()
+            names = []
+            values = []
+            for p in self.phases:
+                names.append(p+'_a')
+                values.append(self.phases[p].lparms[0])
 
+            valdict = { 'U':1e-2,'V':1e-2,'W':1e-2,
+                        'P':1e-2,'X':1e-2,'Y':1e-2,
+                        'eta1':1e-3,'eta2':1e-3,
+                        'eta3':1e-3,'zero_error':0.}
+            for k,v in valdict.items():
+                names.append(k)
+                values.append(v)
+
+            names  = tuple(names)
+            values = tuple(values)
             lbs         = (-np.Inf,) * len(names)
             ubs         = (np.Inf,)  * len(names)
-            varies  = (False,)   * len(names)
+            varies      = (True,)   * len(names)
 
             params.add_many(names,values=values,varies=varies,lbs=lbs,ubs=ubs)
 
-        self.params = params
+            self.params = params
 
         self._U = self.params['U'].value
         self._V = self.params['V'].value
@@ -1351,24 +1402,48 @@ class LeBail:
             self.params[p].vary = True
 
 
-    def initialize_expt_spectrum(self, expt_file):
+    def initialize_expt_spectrum(self, expt_spectrum):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/19/2020 SS 1.0 original
+                        09/11/2020 SS 1.1 multiple data types accepted as input
         >> @DETAILS:    load the experimental spectum of 2theta-intensity
         '''
-        # self.spectrum_expt = Spectrum.from_file()
-        if(expt_file is not None):
-            if(path.exists(expt_file)):
-                self.spectrum_expt = Spectrum.from_file(expt_file,skip_rows=0)
-                self.tth_max = np.amax(self.spectrum_expt._x)
-                self.tth_min = np.amin(self.spectrum_expt._x)
+        if(expt_spectrum is not None):
+            if(isinstance(expt_spectrum, Spectrum)):
+                '''
+                directly passing the spectrum class
+                '''
+                self.spectrum_expt = expt_spectrum
 
-                ''' also initialize statistical weights for the error calculation'''
-                self.weights = 1.0 / np.sqrt(self.spectrum_expt.y)
-                self.initialize_bkg()
-            else:
-                raise FileError('input spectrum file doesn\'t exist.')
+
+            elif(isinstance(expt_spectrum, np.ndarray)):
+                '''
+                initialize class using a nx2 array
+                '''
+                max_ang = expt_spectrum[-1,0]
+                if(max_ang < np.pi):
+                    warnings.warn('angles are small and appear to be in radians. please check')
+
+                self.spectrum_expt = Spectrum(x=expt_spectrum[:,0],
+                                    y=expt_spectrum[:,1],
+                                    name='expt_spectrum')
+
+            elif(isinstance(expt_spectrum, str)):
+                '''
+                load from a text file
+                '''
+                if(path.exists(expt_spectrum)):
+                    self.spectrum_expt = Spectrum.from_file(expt_spectrum,skip_rows=0)
+                else:
+                    raise FileError('input spectrum file doesn\'t exist.')
+
+            self.tth_max = self.spectrum_expt._x[-1]
+            self.tth_min = self.spectrum_expt._x[0]
+
+            ''' also initialize statistical weights for the error calculation'''
+            self.weights = 1.0 / np.sqrt(self.spectrum_expt.y)
+            self.initialize_bkg()
 
     def initialize_bkg(self):
 
@@ -1409,24 +1484,47 @@ class LeBail:
         self.background = Spectrum(x=self.tth_list, y=bkg)
 
 
-    def initialize_phases(self, phase_file):
+    def initialize_phases(self, phase_info):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       06/08/2020 SS 1.0 original
         >> @DETAILS:    load the phases for the LeBail fits
         '''
-        if(hasattr(self,'wavelength')):
-            if(self.wavelength is not None):
-                p = Phases_LeBail(wavelength=self.wavelength)
-        else:
-            p = Phases_LeBail()
 
-        if(phase_file is not None):
-            if(path.exists(phase_file)):
-                p.load(phase_file)
+        if(phase_info is not None):
+            if(isinstance(phase_info, Phases_LeBail)):
+                '''
+                directly passing the phase class
+                '''
+                self.phases = phase_info
             else:
-                raise FileError('phase file doesn\'t exist.')
-        self.phases = p
+                if(hasattr(self,'wavelength')):
+                    if(self.wavelength is not None):
+                        p = Phases_LeBail(wavelength=self.wavelength)
+                else:
+                    p = Phases_LeBail()
+
+                if(isinstance(phase_info, dict)):
+                    '''
+                    initialize class using a dictionary with key as 
+                    material file and values as the name of each phase
+                    '''
+                    for material_file in phase_info:
+                        material_names = phase_info[material_file]
+                        if(not isinstance(material_names, list)):
+                            material_names = [material_names]
+                        p.add_many(material_file, material_names)
+
+                elif(isinstance(phase_info, str)):
+                    '''
+                    load from a yaml file
+                    '''
+                    if(path.exists(phase_info)):
+                        p.load(phase_info)
+                    else:
+                        raise FileError('phase file doesn\'t exist.')
+
+                self.phases = p
 
         self.calctth()
 
@@ -2744,7 +2842,19 @@ class Phases_Rietveld:
 
         self.phase_dict = {}
         self.num_phases = 0
-        self.wavelength = wavelength
+
+        '''
+        set wavelength. check if wavelength is supplied in A, if it is
+        convert to nm since the rest of the code assumes those units
+        '''
+        wavelength_nm = {}
+        for k,v in wavelength.items():
+            if(v.unit == 'angstrom'):
+                wavelength_nm[k] = valWUnit('lp', 'length', v.value*10., 'nm')
+            else:
+                wavelength_nm[k] = v
+        self.wavelength = wavelength_nm
+
         self.dmin = dmin
 
         if(material_file is not None):
