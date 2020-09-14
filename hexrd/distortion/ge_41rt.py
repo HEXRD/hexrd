@@ -188,7 +188,7 @@ class GE_41RT(DistortionABC, metaclass=_RegisterDistortionClass):
     maptype = "GE_41RT"
 
     def __init__(self, params, **kwargs):
-        self.params = params
+        self._params = params
 
     @property
     def params(self):

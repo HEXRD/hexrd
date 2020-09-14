@@ -182,7 +182,7 @@ def _convert_angles(tth_eta, detector,
         beamVec=beam_vector, etaVec=eta_vector
     )
 
-    return tth_eta_ref
+    return np.vstack(tth_eta_ref).T
 
 
 def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
