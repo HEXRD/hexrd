@@ -1124,7 +1124,7 @@ class Phases_LeBail:
         convert to nm since the rest of the code assumes those units
         '''
         wavelength_nm = {}
-        for k,v in wavelength.items():
+        for k, v in wavelength.items():
             if(v.unit == 'angstrom'):
                 wavelength_nm[k] = valWUnit('lp', 'length', v.value*10., 'nm')
             else:
@@ -1226,6 +1226,11 @@ class LeBail:
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/19/2020 SS 1.0 original
+                    09/11/2020 SS 1.1 expt_spectrum, params and phases now have multiple input
+                    option for easy integration with hexrdgui
+                    09/14/2020 SS 1.2 bkgmethod is now a dictionary. if method is 'chebyshev'
+                    the the value specifies the degree of the polynomial to use for background
+                    estimation
     >> @DETAILS:    this is the main LeBail class and contains all the refinable parameters
                     for the analysis. Since the LeBail method has no structural information
                     during refinement, the refinable parameters for this model will be:
@@ -1243,11 +1248,11 @@ class LeBail:
         return valWUnit('lp', 'length', x, 'nm')
 
     def __init__(self,
-        expt_spectrum=None,
-        params=None,
-        phases=None,
-        wavelength={'kalpha1':_nm(0.15406),'kalpha2':_nm(0.154443)},
-        bkgmethod='spline'):
+                 expt_spectrum=None,
+                 params=None,
+                 phases=None,
+                 wavelength={'kalpha1':_nm(0.15406),'kalpha2':_nm(0.154443)},
+                 bkgmethod={'spline':None}):
 
         self.bkgmethod = bkgmethod
 
@@ -1407,6 +1412,8 @@ class LeBail:
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/19/2020 SS 1.0 original
                         09/11/2020 SS 1.1 multiple data types accepted as input
+                        09/14/2020 SS 1.2 background method chebyshev now has user specified 
+                        polynomial degree
         >> @DETAILS:    load the experimental spectum of 2theta-intensity
         '''
         if(expt_spectrum is not None):
@@ -1423,7 +1430,8 @@ class LeBail:
                 '''
                 max_ang = expt_spectrum[-1,0]
                 if(max_ang < np.pi):
-                    warnings.warn('angles are small and appear to be in radians. please check')
+                    warnings.warn('angles are small and appear to \
+                        be in radians. please check')
 
                 self.spectrum_expt = Spectrum(x=expt_spectrum[:,0],
                                     y=expt_spectrum[:,1],
@@ -1454,18 +1462,23 @@ class LeBail:
             usually called the anchor points. a cubic spline interpolation
             is performed on this subset to estimate the overall background.
             scipy provides some useful routines for this
+
+            the other option implemented is the chebyshev polynomials. this 
+            basically automates the background determination and removes the
+            user from the loop which is required for the spline type background.
         '''
-        if(self.bkgmethod == 'spline'):
+        if('spline' in self.bkgmethod.keys()):
             self.selectpoints()
             x = self.points[:,0]
             y = self.points[:,1]
             self.splinefit(x, y)
 
-        elif(self.bkgmethod == 'chebyshev'):
+        elif('chebyshev' in self.bkgmethod.keys()):
             self.chebyshevfit()
 
     def chebyshevfit(self):
-        p = np.polynomial.Chebyshev.fit(self.tth_list, self.spectrum_expt._y, 6, w=self.weights)
+        degree = self.bkgmethod['chebyshev']
+        p = np.polynomial.Chebyshev.fit(self.tth_list, self.spectrum_expt._y, degree, w=self.weights)
         self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
 
     def selectpoints(self):
