@@ -21,6 +21,7 @@ import h5py
 from pathlib import Path
 from pylab import plot, ginput, show, axis, close, title
 
+
 class Parameters:
     ''' ========================================================================================================
     ========================================================================================================
@@ -33,6 +34,7 @@ class Parameters:
         ========================================================================================================
         ========================================================================================================
     '''
+
     def __init__(self, name=None, vary=False, value=0.0, lb=-np.Inf, ub=np.Inf):
 
         self.param_dict = {}
@@ -54,12 +56,12 @@ class Parameters:
             >> @DATE:       05/18/2020 SS 1.0 original
             >> @DETAILS:    load a list of named parameters
         '''
-        assert len(names)==len(varies),"lengths of tuples not consistent"
-        assert len(names)==len(values),"lengths of tuples not consistent"
-        assert len(names)==len(lbs),"lengths of tuples not consistent"
-        assert len(names)==len(ubs),"lengths of tuples not consistent"
+        assert len(names) == len(varies), "lengths of tuples not consistent"
+        assert len(names) == len(values), "lengths of tuples not consistent"
+        assert len(names) == len(lbs), "lengths of tuples not consistent"
+        assert len(names) == len(ubs), "lengths of tuples not consistent"
 
-        for i,n in enumerate(names):
+        for i, n in enumerate(names):
             self.add(n, vary=varies[i], value=values[i], lb=lbs[i], ub=ubs[i])
 
     def load(self, fname):
@@ -73,7 +75,7 @@ class Parameters:
 
         for k in dic.keys():
             v = dic[k]
-            self.add(k, value=np.float(v[0]), lb=np.float(v[1]),\
+            self.add(k, value=np.float(v[0]), lb=np.float(v[1]),
                      ub=np.float(v[2]), vary=np.bool(v[3]))
 
     def dump(self, fname):
@@ -85,7 +87,7 @@ class Parameters:
         '''
         dic = {}
         for k in self.param_dict.keys():
-            dic[k] =  [self[k].value,self[k].lb,self[k].ub,self[k].vary]
+            dic[k] = [self[k].value, self[k].lb, self[k].ub, self[k].vary]
 
         with open(fname, 'w') as f:
             data = yaml.dump(dic, f, sort_keys=False)
@@ -107,7 +109,8 @@ class Parameters:
     def __setitem__(self, key, parm_cls):
 
         if(key in self.param_dict.keys()):
-            warnings.warn('variable already in parameter list. overwriting ...')
+            warnings.warn(
+                'variable already in parameter list. overwriting ...')
         if(isinstance(parm_cls, Parameter)):
             self.param_dict[key] = parm_cls
         else:
@@ -125,7 +128,6 @@ class Parameters:
         else:
             raise StopIteration
 
-
     def __str__(self):
         retstr = 'Parameters{\n'
         for k in self.param_dict.keys():
@@ -133,6 +135,7 @@ class Parameters:
 
         retstr += '}'
         return retstr
+
 
 class Parameter:
     ''' ========================================================================================================
@@ -156,9 +159,9 @@ class Parameter:
         self.ub = ub
 
     def __str__(self):
-        retstr =  '< Parameter \''+self.name+'\'; value : '+ \
-        str(self.value)+'; bounds : ['+str(self.lb)+','+ \
-        str(self.ub)+' ]; vary :'+str(self.vary)+' >'
+        retstr = '< Parameter \''+self.name+'\'; value : ' + \
+            str(self.value)+'; bounds : ['+str(self.lb)+',' + \
+            str(self.ub)+' ]; vary :'+str(self.vary)+' >'
 
         return retstr
 
@@ -204,6 +207,7 @@ class Parameter:
         if(isinstance(vary, bool)):
             self._vary = vary
 
+
 class Spectrum:
     ''' ========================================================================================================
         ========================================================================================================
@@ -216,6 +220,7 @@ class Spectrum:
         ========================================================================================================
         ========================================================================================================
     '''
+
     def __init__(self, x=None, y=None, name=''):
         if x is None:
             self._x = np.linspace(10., 100., 500)
@@ -269,7 +274,8 @@ class Spectrum:
         new_x = np.arange(x_min, x_max + 0.1 * bin_size, bin_size)
 
         bins = np.hstack((x_min - bin_size * 0.5, new_x + bin_size * 0.5))
-        new_y = (np.histogram(x, bins, weights=y)[0] / np.histogram(x, bins)[0])
+        new_y = (np.histogram(x, bins, weights=y)
+                 [0] / np.histogram(x, bins)[0])
 
         return Spectrum(new_x, new_y)
 
@@ -284,7 +290,8 @@ class Spectrum:
                 f_bkg = interp1d(x_bkg, y_bkg, kind='linear')
 
                 # find overlapping x and y values:
-                ind = np.where((self._x <= np.max(x_bkg)) & (self._x >= np.min(x_bkg)))
+                ind = np.where((self._x <= np.max(x_bkg)) &
+                               (self._x >= np.min(x_bkg)))
                 x = self._x[ind]
                 y = self._y[ind]
 
@@ -345,7 +352,7 @@ class Spectrum:
     def limit(self, x_min, x_max):
         x, y = self.data
         return Spectrum(x[np.where((x_min < x) & (x < x_max))],
-                       y[np.where((x_min < x) & (x < x_max))])
+                        y[np.where((x_min < x) & (x < x_max))])
 
     def extend_to(self, x_value, y_value):
         """
@@ -360,7 +367,8 @@ class Spectrum:
         x_min = np.min(self.x)
         x_max = np.max(self.x)
         if x_value < x_min:
-            x_fill = np.arange(x_min - x_step, x_value-x_step*0.5, -x_step)[::-1]
+            x_fill = np.arange(x_min - x_step, x_value -
+                               x_step*0.5, -x_step)[::-1]
             y_fill = np.zeros(x_fill.shape)
             y_fill.fill(y_value)
 
@@ -394,7 +402,8 @@ class Spectrum:
             other_fcn = interp1d(other_x, other_x, kind='linear')
 
             # find overlapping x and y values:
-            ind = np.where((orig_x <= np.max(other_x)) & (orig_x >= np.min(other_x)))
+            ind = np.where((orig_x <= np.max(other_x)) &
+                           (orig_x >= np.min(other_x)))
             x = orig_x[ind]
             y = orig_y[ind]
 
@@ -414,7 +423,8 @@ class Spectrum:
             other_fcn = interp1d(other_x, other_x, kind='linear')
 
             # find overlapping x and y values:
-            ind = np.where((orig_x <= np.max(other_x)) & (orig_x >= np.min(other_x)))
+            ind = np.where((orig_x <= np.max(other_x)) &
+                           (orig_x >= np.min(other_x)))
             x = orig_x[ind]
             y = orig_y[ind]
 
@@ -436,6 +446,7 @@ class Spectrum:
             return True
         return False
 
+
 class Material_LeBail:
     ''' ========================================================================================================
         ========================================================================================================
@@ -450,6 +461,7 @@ class Material_LeBail:
         ========================================================================================================
         ========================================================================================================
     '''
+
     def __init__(self, fhdf=None, xtal=None, dmin=None, material_obj=None):
 
         if(material_obj is None):
@@ -458,7 +470,7 @@ class Material_LeBail:
             self._calcrmt()
 
             _, self.SYM_PG_d, self.SYM_PG_d_laue, self.centrosymmetric, self.symmorphic = \
-            symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
+                symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
             self.latticeType = symmetry.latticeType(self.sgnum)
             self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum-1].strip()
             self.GenerateRecipPGSym()
@@ -468,7 +480,8 @@ class Material_LeBail:
             if(isinstance(material_obj, Material)):
                 self._init_from_materials(material_obj)
             else:
-                raise ValueError("Invalid material_obj argument. only Material class can be passed here.")
+                raise ValueError(
+                    "Invalid material_obj argument. only Material class can be passed here.")
 
     def _readHDF(self, fhdf, xtal):
 
@@ -481,12 +494,12 @@ class Material_LeBail:
         # else:
         #   raise IOError('material file does not exist.')
 
-        gid         = fid.get(xtal)
+        gid = fid.get(xtal)
 
-        self.sgnum       = np.asscalar(np.array(gid.get('SpaceGroupNumber'), \
-                                     dtype = np.int32))
-        self.sgsetting = np.asscalar(np.array(gid.get('SpaceGroupSetting'), \
-                                        dtype = np.int32))
+        self.sgnum = np.asscalar(np.array(gid.get('SpaceGroupNumber'),
+                                          dtype=np.int32))
+        self.sgsetting = np.asscalar(np.array(gid.get('SpaceGroupSetting'),
+                                              dtype=np.int32))
         """
             IMPORTANT NOTE:
             note that the latice parameters is nm by default
@@ -494,7 +507,7 @@ class Material_LeBail:
             need to be careful and convert it right here, so there is no
             confusion later on
         """
-        self.lparms      = list(gid.get('LatticeParameters'))
+        self.lparms = list(gid.get('LatticeParameters'))
         fid.close()
 
     def _init_from_materials(self, material_obj):
@@ -503,7 +516,7 @@ class Material_LeBail:
         from an instance of the material.Material class. this option is
         provided for easy integration of the hexrdgui with WPPF.
         '''
-        self.dmin  = material_obj.dmin.value
+        self.dmin = material_obj.dmin.value
         self.sgnum = material_obj.unitcell.sgnum
         self.sgsetting = material_obj.sgsetting
         self.lparms = [x.value for x in material_obj.latticeParameters]
@@ -522,10 +535,10 @@ class Material_LeBail:
         self.ik = material_obj.unitcell.ik
         self.il = material_obj.unitcell.il
 
-        self.SYM_PG_d       = material_obj.unitcell.SYM_PG_d
-        self.SYM_PG_d_laue  = material_obj.unitcell.SYM_PG_d_laue 
-        self.SYM_PG_r       = material_obj.unitcell.SYM_PG_r
-        self.SYM_PG_r_laue  = material_obj.unitcell.SYM_PG_r_laue
+        self.SYM_PG_d = material_obj.unitcell.SYM_PG_d
+        self.SYM_PG_d_laue = material_obj.unitcell.SYM_PG_d_laue
+        self.SYM_PG_r = material_obj.unitcell.SYM_PG_r
+        self.SYM_PG_r_laue = material_obj.unitcell.SYM_PG_r_laue
 
         self.hkls = material_obj.unitcell.hkls
 
@@ -536,22 +549,22 @@ class Material_LeBail:
         c = self.lparms[2]
 
         alpha = np.radians(self.lparms[3])
-        beta  = np.radians(self.lparms[4])
+        beta = np.radians(self.lparms[4])
         gamma = np.radians(self.lparms[5])
 
-        ca = np.cos(alpha);
-        cb = np.cos(beta);
-        cg = np.cos(gamma);
-        sa = np.sin(alpha);
-        sb = np.sin(beta);
-        sg = np.sin(gamma);
-        tg = np.tan(gamma);
+        ca = np.cos(alpha)
+        cb = np.cos(beta)
+        cg = np.cos(gamma)
+        sa = np.sin(alpha)
+        sb = np.sin(beta)
+        sg = np.sin(gamma)
+        tg = np.tan(gamma)
 
         '''
             direct metric tensor
         '''
-        self.dmt = np.array([[a**2, a*b*cg, a*c*cb],\
-                             [a*b*cg, b**2, b*c*ca],\
+        self.dmt = np.array([[a**2, a*b*cg, a*c*cb],
+                             [a*b*cg, b**2, b*c*ca],
                              [a*c*cb, b*c*ca, c**2]])
         self.vol = np.sqrt(np.linalg.det(self.dmt))
 
@@ -567,13 +580,14 @@ class Material_LeBail:
         self.hkls = self.getHKLs(self.dmin)
 
     ''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
+
     def CalcLength(self, u, space):
 
-        if(space =='d'):
+        if(space == 'd'):
             vlen = np.sqrt(np.dot(u, np.dot(self.dmt, u)))
-        elif(space =='r'):
+        elif(space == 'r'):
             vlen = np.sqrt(np.dot(u, np.dot(self.rmt, u)))
-        elif(spec =='c'):
+        elif(spec == 'c'):
             vlen = np.linalg.norm(u)
         else:
             raise ValueError('incorrect space argument')
@@ -584,7 +598,7 @@ class Material_LeBail:
 
         tth = []
         for g in self.hkls:
-            glen = self.CalcLength(g,'r')
+            glen = self.CalcLength(g, 'r')
             sth = glen*wavelength/2.
             if(np.abs(sth) <= 1.0):
                 t = 2. * np.degrees(np.arcsin(sth))
@@ -595,22 +609,22 @@ class Material_LeBail:
 
     def GenerateRecipPGSym(self):
 
-        self.SYM_PG_r = self.SYM_PG_d[0,:,:]
-        self.SYM_PG_r = np.broadcast_to(self.SYM_PG_r,[1,3,3])
-        self.SYM_PG_r_laue = self.SYM_PG_d[0,:,:]
-        self.SYM_PG_r_laue = np.broadcast_to(self.SYM_PG_r_laue,[1,3,3])
+        self.SYM_PG_r = self.SYM_PG_d[0, :, :]
+        self.SYM_PG_r = np.broadcast_to(self.SYM_PG_r, [1, 3, 3])
+        self.SYM_PG_r_laue = self.SYM_PG_d[0, :, :]
+        self.SYM_PG_r_laue = np.broadcast_to(self.SYM_PG_r_laue, [1, 3, 3])
 
-        for i in range(1,self.SYM_PG_d.shape[0]):
-            g = self.SYM_PG_d[i,:,:]
+        for i in range(1, self.SYM_PG_d.shape[0]):
+            g = self.SYM_PG_d[i, :, :]
             g = np.dot(self.dmt, np.dot(g, self.rmt))
-            g = np.round(np.broadcast_to(g,[1,3,3]))
-            self.SYM_PG_r = np.concatenate((self.SYM_PG_r,g))
+            g = np.round(np.broadcast_to(g, [1, 3, 3]))
+            self.SYM_PG_r = np.concatenate((self.SYM_PG_r, g))
 
-        for i in range(1,self.SYM_PG_d_laue.shape[0]):
-            g = self.SYM_PG_d_laue[i,:,:]
+        for i in range(1, self.SYM_PG_d_laue.shape[0]):
+            g = self.SYM_PG_d_laue[i, :, :]
             g = np.dot(self.dmt, np.dot(g, self.rmt))
-            g = np.round(np.broadcast_to(g,[1,3,3]))
-            self.SYM_PG_r_laue = np.concatenate((self.SYM_PG_r_laue,g))
+            g = np.round(np.broadcast_to(g, [1, 3, 3]))
+            self.SYM_PG_r_laue = np.concatenate((self.SYM_PG_r_laue, g))
 
         self.SYM_PG_r = self.SYM_PG_r.astype(np.int32)
         self.SYM_PG_r_laue = self.SYM_PG_r_laue.astype(np.int32)
@@ -623,10 +637,10 @@ class Material_LeBail:
         while (1.0 / self.CalcLength(np.array([0, self.ik, 0], dtype=np.float64), 'r') > self.dmin):
             self.ik = self.ik + 1
         self.il = 1
-        while (1.0 / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64),'r') > self.dmin):
+        while (1.0 / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64), 'r') > self.dmin):
             self.il = self.il + 1
 
-    def CalcStar(self,v,space,applyLaue=False):
+    def CalcStar(self, v, space, applyLaue=False):
         '''
         this function calculates the symmetrically equivalent hkls (or uvws)
         for the reciprocal (or direct) point group symmetry.
@@ -645,7 +659,7 @@ class Material_LeBail:
             raise ValueError('CalcStar: unrecognized space.')
         vsym = np.atleast_2d(v)
         for s in sym:
-            vp = np.dot(s,v)
+            vp = np.dot(s, v)
             # check if this is new
             isnew = True
             for vec in vsym:
@@ -665,35 +679,36 @@ class Material_LeBail:
         centering = self.sg_hmsymbol[0]
         if(centering == 'P'):
             # all reflections are allowed
-            mask = np.ones([hkllist.shape[0],],dtype=np.bool)
+            mask = np.ones([hkllist.shape[0], ], dtype=np.bool)
         elif(centering == 'F'):
             # same parity
-            seo = np.sum(np.mod(hkllist+100,2),axis=1)
-            mask = np.logical_not(np.logical_or(seo==1, seo==2))
+            seo = np.sum(np.mod(hkllist+100, 2), axis=1)
+            mask = np.logical_not(np.logical_or(seo == 1, seo == 2))
         elif(centering == 'I'):
             # sum is even
-            seo = np.mod(np.sum(hkllist,axis=1)+100,2)
+            seo = np.mod(np.sum(hkllist, axis=1)+100, 2)
             mask = (seo == 0)
 
         elif(centering == 'A'):
             # k+l is even
-            seo = np.mod(np.sum(hkllist[:,1:3],axis=1)+100,2)
+            seo = np.mod(np.sum(hkllist[:, 1:3], axis=1)+100, 2)
             mask = seo == 0
         elif(centering == 'B'):
             # h+l is even
-            seo = np.mod(hkllist[:,0]+hkllist[:,2]+100,2)
+            seo = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2)
             mask = seo == 0
         elif(centering == 'C'):
             # h+k is even
-            seo = np.mod(hkllist[:,0]+hkllist[:,1]+100,2)
+            seo = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2)
             mask = seo == 0
         elif(centering == 'R'):
             # -h+k+l is divisible by 3
-            seo = np.mod(-hkllist[:,0]+hkllist[:,1]+hkllist[:,2]+90,3)
+            seo = np.mod(-hkllist[:, 0]+hkllist[:, 1]+hkllist[:, 2]+90, 3)
             mask = seo == 0
         else:
-            raise RuntimeError('IsGAllowed: unknown lattice centering encountered.')
-        hkls = hkllist[mask,:]
+            raise RuntimeError(
+                'IsGAllowed: unknown lattice centering encountered.')
+        hkls = hkllist[mask, :]
 
         if(not self.symmorphic):
             hkls = self.NonSymmorphicAbsences(hkls)
@@ -719,7 +734,8 @@ class Material_LeBail:
             pass
         elif(self.latticeType == 'monoclinic'):
             if(ax != '2_1'):
-                raise RuntimeError('omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis')
+                raise RuntimeError(
+                    'omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis')
             '''
                 only unique b-axis will be encoded
                 it is the users responsibility to input
@@ -727,92 +743,96 @@ class Material_LeBail:
                 with b-axis having the 2-fold symmetry
             '''
             if(iax == 1):
-                mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,2] == 0)
-                mask2 = np.mod(hkllist[:,1]+100,2) != 0
-                mask  = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
+                mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             else:
-                raise RuntimeError('omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
+                raise RuntimeError(
+                    'omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
         elif(self.latticeType == 'orthorhombic'):
             if(ax != '2_1'):
-                raise RuntimeError('omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis')
+                raise RuntimeError(
+                    'omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis')
             '''
             2_1 screw on primary axis
             h00 ; h = 2n
             '''
             if(iax == 0):
-                mask1 = np.logical_and(hkllist[:,1] == 0,hkllist[:,2] == 0)
-                mask2 = np.mod(hkllist[:,0]+100,2) != 0
-                mask  = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask1 = np.logical_and(hkllist[:, 1] == 0, hkllist[:, 2] == 0)
+                mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             elif(iax == 1):
-                mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,2] == 0)
-                mask2 = np.mod(hkllist[:,1]+100,2) != 0
-                mask  = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
+                mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             elif(iax == 2):
-                mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
-                mask2 = np.mod(hkllist[:,2]+100,2) != 0
-                mask  = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
+                mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
         elif(self.latticeType == 'tetragonal'):
             if(iax == 0):
-                mask1 = np.logical_and(hkllist[:,0] == 0, hkllist[:,1] == 0)
+                mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
                 if(ax == '4_2'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
-                elif(ax in ['4_1','4_3']):
-                    mask2 = np.mod(hkllist[:,2]+100,4) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
+                elif(ax in ['4_1', '4_3']):
+                    mask2 = np.mod(hkllist[:, 2]+100, 4) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             elif(iax == 1):
-                mask1 = np.logical_and(hkllist[:,1] == 0, hkllist[:,2] == 0)
-                mask2 = np.logical_and(hkllist[:,0] == 0, hkllist[:,2] == 0)
+                mask1 = np.logical_and(hkllist[:, 1] == 0, hkllist[:, 2] == 0)
+                mask2 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
                 if(ax == '2_1'):
-                    mask3 = np.mod(hkllist[:,0]+100,2) != 0
-                    mask4 = np.mod(hkllist[:,1]+100,2) != 0
-                mask1 = np.logical_not(np.logical_and(mask1,mask3))
-                mask2 = np.logical_not(np.logical_and(mask2,mask4))
-                mask = ~np.logical_or(~mask1,~mask2)
-                hkllist = hkllist[mask,:]
+                    mask3 = np.mod(hkllist[:, 0]+100, 2) != 0
+                    mask4 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask1 = np.logical_not(np.logical_and(mask1, mask3))
+                mask2 = np.logical_not(np.logical_and(mask2, mask4))
+                mask = ~np.logical_or(~mask1, ~mask2)
+                hkllist = hkllist[mask, :]
         elif(self.latticeType == 'trigonal'):
-            mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
+            mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
             if(iax == 0):
                 if(ax in ['3_1', '3_2']):
-                    mask2 = np.mod(hkllist[:,2]+90,3) != 0
+                    mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
             else:
-                raise RuntimeError('omitscrewaxisabsences: trigonal systems can only have screw axis')
-            mask  = np.logical_not(np.logical_and(mask1,mask2))
-            hkllist = hkllist[mask,:]
+                raise RuntimeError(
+                    'omitscrewaxisabsences: trigonal systems can only have screw axis')
+            mask = np.logical_not(np.logical_and(mask1, mask2))
+            hkllist = hkllist[mask, :]
         elif(self.latticeType == 'hexagonal'):
-            mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
+            mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
             if(iax == 0):
                 if(ax == '6_3'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
-                elif(ax in['3_1','3_2','6_2','6_4']):
-                    mask2 = np.mod(hkllist[:,2]+90,3) != 0
-                elif(ax in ['6_1','6_5']):
-                    mask2 = np.mod(hkllist[:,2]+120,6) != 0
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
+                elif(ax in['3_1', '3_2', '6_2', '6_4']):
+                    mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
+                elif(ax in ['6_1', '6_5']):
+                    mask2 = np.mod(hkllist[:, 2]+120, 6) != 0
             else:
-                raise RuntimeError('omitscrewaxisabsences: hexagonal systems can only have screw axis')
-            mask  = np.logical_not(np.logical_and(mask1,mask2))
-            hkllist = hkllist[mask,:]
+                raise RuntimeError(
+                    'omitscrewaxisabsences: hexagonal systems can only have screw axis')
+            mask = np.logical_not(np.logical_and(mask1, mask2))
+            hkllist = hkllist[mask, :]
         elif(self.latticeType == 'cubic'):
-            mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
-            mask2 = np.logical_and(hkllist[:,0] == 0,hkllist[:,2] == 0)
-            mask3 = np.logical_and(hkllist[:,1] == 0,hkllist[:,2] == 0)
-            if(ax in ['2_1','4_2']):
-                mask4 = np.mod(hkllist[:,2]+100,2) != 0
-                mask5 = np.mod(hkllist[:,1]+100,2) != 0
-                mask6 = np.mod(hkllist[:,0]+100,2) != 0
-            elif(ax in ['4_1','4_3']):
-                mask4 = np.mod(hkllist[:,2]+100,4) != 0
-                mask5 = np.mod(hkllist[:,1]+100,4) != 0
-                mask6 = np.mod(hkllist[:,0]+100,4) != 0
-            mask1 = np.logical_not(np.logical_and(mask1,mask4))
-            mask2 = np.logical_not(np.logical_and(mask2,mask5))
-            mask3 = np.logical_not(np.logical_and(mask3,mask6))
-            mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
-            hkllist = hkllist[mask,:]
+            mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
+            mask2 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
+            mask3 = np.logical_and(hkllist[:, 1] == 0, hkllist[:, 2] == 0)
+            if(ax in ['2_1', '4_2']):
+                mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+                mask5 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask6 = np.mod(hkllist[:, 0]+100, 2) != 0
+            elif(ax in ['4_1', '4_3']):
+                mask4 = np.mod(hkllist[:, 2]+100, 4) != 0
+                mask5 = np.mod(hkllist[:, 1]+100, 4) != 0
+                mask6 = np.mod(hkllist[:, 0]+100, 4) != 0
+            mask1 = np.logical_not(np.logical_and(mask1, mask4))
+            mask2 = np.logical_not(np.logical_and(mask2, mask5))
+            mask3 = np.logical_not(np.logical_and(mask3, mask6))
+            mask = ~np.logical_or(~mask1, np.logical_or(~mask2, ~mask3))
+            hkllist = hkllist[mask, :]
         return hkllist.astype(np.int32)
 
     def omitglideplaneabsences(self, hkllist, plane, ip):
@@ -832,199 +852,213 @@ class Material_LeBail:
             pass
         elif(self.latticeType == 'monoclinic'):
             if(ip == 1):
-                mask1 = hkllist[:,1] == 0
+                mask1 = hkllist[:, 1] == 0
                 if(plane == 'c'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'a'):
-                    mask2 = np.mod(hkllist[:,0]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
         elif(self.latticeType == 'orthorhombic'):
             if(ip == 0):
-                mask1 = hkllist[:,0] == 0
+                mask1 = hkllist[:, 0] == 0
                 if(plane == 'b'):
-                    mask2 = np.mod(hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'c'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,1]+hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask2 = np.mod(hkllist[:,1]+hkllist[:,2]+100,4) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 4) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             elif(ip == 1):
-                mask1 = hkllist[:,1] == 0
+                mask1 = hkllist[:, 1] == 0
                 if(plane == 'c'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'a'):
-                    mask2 = np.mod(hkllist[:,0]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,2]+100,4) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             elif(ip == 2):
-                mask1 = hkllist[:,2] == 0
+                mask1 = hkllist[:, 2] == 0
                 if(plane == 'a'):
-                    mask2 = np.mod(hkllist[:,0]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
                 elif(plane == 'b'):
-                    mask2 = np.mod(hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,4) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
         elif(self.latticeType == 'tetragonal'):
             if(ip == 0):
-                mask1 = hkllist[:,2] == 0
+                mask1 = hkllist[:, 2] == 0
                 if(plane == 'a'):
-                    mask2 = np.mod(hkllist[:,0]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
                 elif(plane == 'b'):
-                    mask2 = np.mod(hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,4) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             elif(ip == 1):
-                mask1 = hkllist[:,0] == 0
-                mask2 = hkllist[:,1] == 0
-                if(plane in ['a','b']):
-                    mask3 = np.mod(hkllist[:,1]+100,2) != 0
-                    mask4 = np.mod(hkllist[:,0]+100,2) != 0
+                mask1 = hkllist[:, 0] == 0
+                mask2 = hkllist[:, 1] == 0
+                if(plane in ['a', 'b']):
+                    mask3 = np.mod(hkllist[:, 1]+100, 2) != 0
+                    mask4 = np.mod(hkllist[:, 0]+100, 2) != 0
                 elif(plane == 'c'):
-                    mask3 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask3 = np.mod(hkllist[:, 2]+100, 2) != 0
                     mask4 = mask3
                 elif(plane == 'n'):
-                    mask3 = np.mod(hkllist[:,1]+hkllist[:,2]+100,2) != 0
-                    mask4 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
+                    mask3 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 2) != 0
+                    mask4 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask3 = np.mod(hkllist[:,1]+hkllist[:,2]+100,4) != 0
-                    mask4 = np.mod(hkllist[:,0]+hkllist[:,2]+100,4) != 0
-                mask1 = np.logical_not(np.logical_and(mask1,mask3))
-                mask2 = np.logical_not(np.logical_and(mask2,mask4))
-                mask = ~np.logical_or(~mask1,~mask2)
-                hkllist = hkllist[mask,:]
+                    mask3 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 4) != 0
+                    mask4 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+                mask1 = np.logical_not(np.logical_and(mask1, mask3))
+                mask2 = np.logical_not(np.logical_and(mask2, mask4))
+                mask = ~np.logical_or(~mask1, ~mask2)
+                hkllist = hkllist[mask, :]
             elif(ip == 2):
-                mask1 = np.abs(hkllist[:,0]) == np.abs(hkllist[:,1])
-                if(plane in ['c','n']):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
+                mask1 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 1])
+                if(plane in ['c', 'n']):
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask2 = np.mod(2*hkllist[:,0]+hkllist[:,2]+100,4) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(2*hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
         elif(self.latticeType == 'trigonal'):
             if(plane != 'c'):
-                raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems')
+                raise RuntimeError(
+                    'omitglideplaneabsences: only c-glide allowed for trigonal systems')
 
             if(ip == 1):
-                mask1 = hkllist[:,0] == 0
-                mask2 = hkllist[:,1] == 0
-                mask3 = hkllist[:,0] == -hkllist[:,1]
+                mask1 = hkllist[:, 0] == 0
+                mask2 = hkllist[:, 1] == 0
+                mask3 = hkllist[:, 0] == -hkllist[:, 1]
                 if(plane == 'c'):
-                    mask4 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
-                    raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems')
+                    raise RuntimeError(
+                        'omitglideplaneabsences: only c-glide allowed for trigonal systems')
             elif(ip == 2):
-                mask1 = hkllist[:,1] == hkllist[:,0]
-                mask2 = hkllist[:,0] == -2*hkllist[:,1]
-                mask3 = -2*hkllist[:,0] == hkllist[:,1]
+                mask1 = hkllist[:, 1] == hkllist[:, 0]
+                mask2 = hkllist[:, 0] == -2*hkllist[:, 1]
+                mask3 = -2*hkllist[:, 0] == hkllist[:, 1]
                 if(plane == 'c'):
-                    mask4 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
-                    raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems')
-            mask1 = np.logical_and(mask1,mask4)
-            mask2 = np.logical_and(mask2,mask4)
-            mask3 = np.logical_and(mask3,mask4)
-            mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
-            hkllist = hkllist[mask,:]
+                    raise RuntimeError(
+                        'omitglideplaneabsences: only c-glide allowed for trigonal systems')
+            mask1 = np.logical_and(mask1, mask4)
+            mask2 = np.logical_and(mask2, mask4)
+            mask3 = np.logical_and(mask3, mask4)
+            mask = np.logical_not(np.logical_or(
+                mask1, np.logical_or(mask2, mask3)))
+            hkllist = hkllist[mask, :]
         elif(self.latticeType == 'hexagonal'):
             if(plane != 'c'):
-                raise RuntimeError('omitglideplaneabsences: only c-glide allowed for hexagonal systems')
+                raise RuntimeError(
+                    'omitglideplaneabsences: only c-glide allowed for hexagonal systems')
             if(ip == 2):
-                mask1 = hkllist[:,0] == hkllist[:,1]
-                mask2 = hkllist[:,0] == -2*hkllist[:,1]
-                mask3 = -2*hkllist[:,0] == hkllist[:,1]
-                mask4 = np.mod(hkllist[:,2]+100,2) != 0
-                mask1 = np.logical_and(mask1,mask4)
-                mask2 = np.logical_and(mask2,mask4)
-                mask3 = np.logical_and(mask3,mask4)
-                mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
+                mask1 = hkllist[:, 0] == hkllist[:, 1]
+                mask2 = hkllist[:, 0] == -2*hkllist[:, 1]
+                mask3 = -2*hkllist[:, 0] == hkllist[:, 1]
+                mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+                mask1 = np.logical_and(mask1, mask4)
+                mask2 = np.logical_and(mask2, mask4)
+                mask3 = np.logical_and(mask3, mask4)
+                mask = np.logical_not(np.logical_or(
+                    mask1, np.logical_or(mask2, mask3)))
             elif(ip == 1):
-                mask1 = hkllist[:,1] == 0
-                mask2 = hkllist[:,0] == 0
-                mask3 = hkllist[:,1] == -hkllist[:,0]
-                mask4 = np.mod(hkllist[:,2]+100,2) != 0
-            mask1 = np.logical_and(mask1,mask4)
-            mask2 = np.logical_and(mask2,mask4)
-            mask3 = np.logical_and(mask3,mask4)
-            mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
-            hkllist = hkllist[mask,:]
+                mask1 = hkllist[:, 1] == 0
+                mask2 = hkllist[:, 0] == 0
+                mask3 = hkllist[:, 1] == -hkllist[:, 0]
+                mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+            mask1 = np.logical_and(mask1, mask4)
+            mask2 = np.logical_and(mask2, mask4)
+            mask3 = np.logical_and(mask3, mask4)
+            mask = np.logical_not(np.logical_or(
+                mask1, np.logical_or(mask2, mask3)))
+            hkllist = hkllist[mask, :]
         elif(self.latticeType == 'cubic'):
             if(ip == 0):
-                mask1 = hkllist[:,0] == 0
-                mask2 = hkllist[:,1] == 0
-                mask3 = hkllist[:,2] == 0
-                mask4 = np.mod(hkllist[:,0]+100,2) != 0
-                mask5 = np.mod(hkllist[:,1]+100,2) != 0
-                mask6 = np.mod(hkllist[:,2]+100,2) != 0
-                if(plane  == 'a'):
-                    mask1 = np.logical_or(np.logical_and(mask1,mask5),np.logical_and(mask1,mask6))
-                    mask2 = np.logical_or(np.logical_and(mask2,mask4),np.logical_and(mask2,mask6))
-                    mask3 = np.logical_and(mask3,mask4)
+                mask1 = hkllist[:, 0] == 0
+                mask2 = hkllist[:, 1] == 0
+                mask3 = hkllist[:, 2] == 0
+                mask4 = np.mod(hkllist[:, 0]+100, 2) != 0
+                mask5 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask6 = np.mod(hkllist[:, 2]+100, 2) != 0
+                if(plane == 'a'):
+                    mask1 = np.logical_or(np.logical_and(
+                        mask1, mask5), np.logical_and(mask1, mask6))
+                    mask2 = np.logical_or(np.logical_and(
+                        mask2, mask4), np.logical_and(mask2, mask6))
+                    mask3 = np.logical_and(mask3, mask4)
 
-                    mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
+                    mask = np.logical_not(np.logical_or(
+                        mask1, np.logical_or(mask2, mask3)))
                 elif(plane == 'b'):
-                    mask1 = np.logical_and(mask1,mask5)
-                    mask3 = np.logical_and(mask3,mask5)
-                    mask = np.logical_not(np.logical_or(mask1,mask3))
+                    mask1 = np.logical_and(mask1, mask5)
+                    mask3 = np.logical_and(mask3, mask5)
+                    mask = np.logical_not(np.logical_or(mask1, mask3))
                 elif(plane == 'c'):
-                    mask1 = np.logical_and(mask1,mask6)
-                    mask2 = np.logical_and(mask2,mask6)
-                    mask = np.logical_not(np.logical_or(mask1,mask2))
+                    mask1 = np.logical_and(mask1, mask6)
+                    mask2 = np.logical_and(mask2, mask6)
+                    mask = np.logical_not(np.logical_or(mask1, mask2))
                 elif(plane == 'n'):
-                    mask4 = np.mod(hkllist[:,1]+hkllist[:,2]+100,2) != 0
-                    mask5 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
-                    mask6 = np.mod(hkllist[:,0]+hkllist[:,1]+100,2) != 0
-                    mask1 = np.logical_not(np.logical_and(mask1,mask4))
-                    mask2 = np.logical_not(np.logical_and(mask2,mask5))
-                    mask3 = np.logical_not(np.logical_and(mask3,mask6))
-                    mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
+                    mask4 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 2) != 0
+                    mask5 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
+                    mask6 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2) != 0
+                    mask1 = np.logical_not(np.logical_and(mask1, mask4))
+                    mask2 = np.logical_not(np.logical_and(mask2, mask5))
+                    mask3 = np.logical_not(np.logical_and(mask3, mask6))
+                    mask = ~np.logical_or(
+                        ~mask1, np.logical_or(~mask2, ~mask3))
                 elif(plane == 'd'):
-                    mask4 = np.mod(hkllist[:,1]+hkllist[:,2]+100,4) != 0
-                    mask5 = np.mod(hkllist[:,0]+hkllist[:,2]+100,4) != 0
-                    mask6 = np.mod(hkllist[:,0]+hkllist[:,1]+100,4) != 0
-                    mask1 = np.logical_not(np.logical_and(mask1,mask4))
-                    mask2 = np.logical_not(np.logical_and(mask2,mask5))
-                    mask3 = np.logical_not(np.logical_and(mask3,mask6))
-                    mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
+                    mask4 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 4) != 0
+                    mask5 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+                    mask6 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
+                    mask1 = np.logical_not(np.logical_and(mask1, mask4))
+                    mask2 = np.logical_not(np.logical_and(mask2, mask5))
+                    mask3 = np.logical_not(np.logical_and(mask3, mask6))
+                    mask = ~np.logical_or(
+                        ~mask1, np.logical_or(~mask2, ~mask3))
                 else:
-                    raise RuntimeError('omitglideplaneabsences: unknown glide plane encountered.')
-                hkllist = hkllist[mask,:]
+                    raise RuntimeError(
+                        'omitglideplaneabsences: unknown glide plane encountered.')
+                hkllist = hkllist[mask, :]
             if(ip == 2):
-                mask1 = np.abs(hkllist[:,0]) == np.abs(hkllist[:,1])
-                mask2 = np.abs(hkllist[:,1]) == np.abs(hkllist[:,2])
-                mask3 = np.abs(hkllist[:,0]) == np.abs(hkllist[:,2])
-                if(plane in ['a','b','c','n']):
-                    mask4 = np.mod(hkllist[:,2]+100,2) != 0
-                    mask5 = np.mod(hkllist[:,0]+100,2) != 0
-                    mask6 = np.mod(hkllist[:,1]+100,2) != 0
+                mask1 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 1])
+                mask2 = np.abs(hkllist[:, 1]) == np.abs(hkllist[:, 2])
+                mask3 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 2])
+                if(plane in ['a', 'b', 'c', 'n']):
+                    mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+                    mask5 = np.mod(hkllist[:, 0]+100, 2) != 0
+                    mask6 = np.mod(hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask4 = np.mod(2*hkllist[:,0]+hkllist[:,2]+100,4) != 0
-                    mask5 = np.mod(hkllist[:,0]+2*hkllist[:,1]+100,4) != 0
-                    mask6 = np.mod(2*hkllist[:,0]+hkllist[:,1]+100,4) != 0
+                    mask4 = np.mod(2*hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+                    mask5 = np.mod(hkllist[:, 0]+2*hkllist[:, 1]+100, 4) != 0
+                    mask6 = np.mod(2*hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
                 else:
-                    raise RuntimeError('omitglideplaneabsences: unknown glide plane encountered.')
-                mask1 = np.logical_not(np.logical_and(mask1,mask4))
-                mask2 = np.logical_not(np.logical_and(mask2,mask5))
-                mask3 = np.logical_not(np.logical_and(mask3,mask6))
-                mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
-                hkllist = hkllist[mask,:]
+                    raise RuntimeError(
+                        'omitglideplaneabsences: unknown glide plane encountered.')
+                mask1 = np.logical_not(np.logical_and(mask1, mask4))
+                mask2 = np.logical_not(np.logical_and(mask2, mask5))
+                mask3 = np.logical_not(np.logical_and(mask3, mask6))
+                mask = ~np.logical_or(~mask1, np.logical_or(~mask2, ~mask3))
+                hkllist = hkllist[mask, :]
         return hkllist
 
     def NonSymmorphicAbsences(self, hkllist):
@@ -1033,11 +1067,11 @@ class Material_LeBail:
         plane absences
         '''
         planes = constants.SYS_AB[self.sgnum][0]
-        for ip,p in enumerate(planes):
+        for ip, p in enumerate(planes):
             if(p != ''):
                 hkllist = self.omitglideplaneabsences(hkllist, p, ip)
         axes = constants.SYS_AB[self.sgnum][1]
-        for iax,ax in enumerate(axes):
+        for iax, ax in enumerate(axes):
             if(ax != ''):
                 hkllist = self.omitscrewaxisabsences(hkllist, ax, iax)
         return hkllist
@@ -1049,20 +1083,20 @@ class Material_LeBail:
         of the symmetrically equivalent one. The convention
         is to choose the hkl with the most positive components.
         '''
-        mask = np.ones(hkllist.shape[0],dtype=np.bool)
+        mask = np.ones(hkllist.shape[0], dtype=np.bool)
         laue = InversionSymmetry
-        for i,g in enumerate(hkllist):
+        for i, g in enumerate(hkllist):
             if(mask[i]):
-                geqv = self.CalcStar(g,'r',applyLaue=laue)
-                for r in geqv[1:,]:
-                    rid = np.where(np.all(r==hkllist,axis=1))
+                geqv = self.CalcStar(g, 'r', applyLaue=laue)
+                for r in geqv[1:, ]:
+                    rid = np.where(np.all(r == hkllist, axis=1))
                     mask[rid] = False
-        hkl = hkllist[mask,:].astype(np.int32)
+        hkl = hkllist[mask, :].astype(np.int32)
         hkl_max = []
         for g in hkl:
-            geqv = self.CalcStar(g,'r',applyLaue=laue)
-            loc = np.argmax(np.sum(geqv,axis=1))
-            gmax = geqv[loc,:]
+            geqv = self.CalcStar(g, 'r', applyLaue=laue)
+            loc = np.argmax(np.sum(geqv, axis=1))
+            gmax = geqv[loc, :]
             hkl_max.append(gmax)
         return np.array(hkl_max).astype(np.int32)
 
@@ -1075,16 +1109,17 @@ class Material_LeBail:
         '''
         glen = []
         for g in hkllist:
-            glen.append(np.round(self.CalcLength(g,'r'),8))
+            glen.append(np.round(self.CalcLength(g, 'r'), 8))
         # glen = np.atleast_2d(np.array(glen,dtype=np.float)).T
-        dtype = [('glen', float), ('max', int), ('sum', int), ('h', int), ('k', int), ('l', int)]
+        dtype = [('glen', float), ('max', int), ('sum', int),
+                 ('h', int), ('k', int), ('l', int)]
         a = []
-        for i,gl in enumerate(glen):
-            g = hkllist[i,:]
+        for i, gl in enumerate(glen):
+            g = hkllist[i, :]
             a.append((gl, np.max(g), np.sum(g), g[0], g[1], g[2]))
         a = np.array(a, dtype=dtype)
-        isort = np.argsort(a, order=['glen','max','sum','l','k','h'])
-        return hkllist[isort,:]
+        isort = np.argsort(a, order=['glen', 'max', 'sum', 'l', 'k', 'h'])
+        return hkllist[isort, :]
 
     def getHKLs(self, dmin):
         '''
@@ -1104,9 +1139,9 @@ class Material_LeBail:
         kmax = self.ik
         lmin = -1
         lmax = self.il
-        hkllist = np.array([[ih, ik, il] for ih in np.arange(hmax,hmin,-1) \
-                  for ik in np.arange(kmax,kmin,-1) \
-                  for il in np.arange(lmax,lmin,-1)])
+        hkllist = np.array([[ih, ik, il] for ih in np.arange(hmax, hmin, -1)
+                            for ik in np.arange(kmax, kmin, -1)
+                            for il in np.arange(lmax, lmin, -1)])
         hkl_allowed = self.Allowed_HKLs(hkllist)
         hkl = []
         dsp = []
@@ -1114,7 +1149,7 @@ class Material_LeBail:
         for g in hkl_allowed:
             # ignore [0 0 0] as it is the direct beam
             if(np.sum(np.abs(g)) != 0):
-                dspace = 1./self.CalcLength(g,'r')
+                dspace = 1./self.CalcLength(g, 'r')
                 if(dspace >= dmin):
                     hkl_dsp.append(g)
         '''
@@ -1140,6 +1175,7 @@ class Material_LeBail:
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)
 
+
 class Phases_LeBail:
     ''' ========================================================================================================
         ========================================================================================================
@@ -1154,15 +1190,15 @@ class Phases_LeBail:
         ========================================================================================================
     '''
     def _kev(x):
-        return valWUnit('beamenergy','energy', x,'keV')
+        return valWUnit('beamenergy', 'energy', x, 'keV')
 
     def _nm(x):
         return valWUnit('lp', 'length', x, 'nm')
 
     def __init__(self, material_file=None,
                  material_keys=None,
-                 dmin = _nm(0.05),
-                 wavelength={'alpha1':_nm(0.15406),'alpha2':_nm(0.154443)}
+                 dmin=_nm(0.05),
+                 wavelength={'alpha1': _nm(0.15406), 'alpha2': _nm(0.154443)}
                  ):
 
         self.phase_dict = {}
@@ -1191,7 +1227,7 @@ class Phases_LeBail:
 
     def __str__(self):
         resstr = 'Phases in calculation:\n'
-        for i,k in enumerate(self.phase_dict.keys()):
+        for i, k in enumerate(self.phase_dict.keys()):
             resstr += '\t'+str(i+1)+'. '+k+'\n'
         return resstr
 
@@ -1223,17 +1259,19 @@ class Phases_LeBail:
             raise StopIteration
 
     def __len__(self):
-         return len(self.phase_dict)
+        return len(self.phase_dict)
 
     def add(self, material_file, material_key):
 
-        self[material_key] = Material_LeBail(fhdf=material_file, xtal=material_key, dmin=self.dmin)
+        self[material_key] = Material_LeBail(
+            fhdf=material_file, xtal=material_key, dmin=self.dmin)
 
     def add_many(self, material_file, material_keys):
 
         for k in material_keys:
 
-            self[k] = Material_LeBail(fhdf=material_file, xtal=k, dmin=self.dmin)
+            self[k] = Material_LeBail(
+                fhdf=material_file, xtal=k, dmin=self.dmin)
 
             self.num_phases += 1
 
@@ -1264,10 +1302,11 @@ class Phases_LeBail:
         '''
         dic = {}
         k = self.material_file
-        dic[k] =  [m for m in self]
+        dic[k] = [m for m in self]
 
         with open(fname, 'w') as f:
             data = yaml.dump(dic, f, sort_keys=False)
+
 
 class LeBail:
     ''' ========================================================================================================
@@ -1300,8 +1339,9 @@ class LeBail:
                  expt_spectrum=None,
                  params=None,
                  phases=None,
-                 wavelength={'kalpha1':_nm(0.15406),'kalpha2':_nm(0.154443)},
-                 bkgmethod={'spline':None}):
+                 wavelength={'kalpha1': _nm(
+                     0.15406), 'kalpha2': _nm(0.154443)},
+                 bkgmethod={'spline': None}):
 
         self.bkgmethod = bkgmethod
 
@@ -1323,7 +1363,7 @@ class LeBail:
         self._tstop = time.time()
         self.tinit = self._tstop - self._tstart
         self.niter = 0
-        self.Rwplist  = np.empty([0])
+        self.Rwplist = np.empty([0])
         self.gofFlist = np.empty([0])
 
     def __str__(self):
@@ -1360,17 +1400,17 @@ class LeBail:
                     '''
                     initialize class using dictionary read from the yaml file
                     '''
-                    for k,v in param_info.items():
-                        params.add(k, value=np.float(v[0]), 
-                            lb=np.float(v[1]), ub=np.float(v[2]), 
-                            vary=np.bool(v[3]))
+                    for k, v in param_info.items():
+                        params.add(k, value=np.float(v[0]),
+                                   lb=np.float(v[1]), ub=np.float(v[2]),
+                                   vary=np.bool(v[3]))
 
                 elif(isinstance(param_info, str)):
                     '''
                     load from a yaml file
                     '''
                     if(path.exists(param_info)):
-                       params.load(param_info)
+                        params.load(param_info)
                     else:
                         raise FileError('input spectrum file doesn\'t exist.')
 
@@ -1380,22 +1420,24 @@ class LeBail:
                 for p in self.phases:
 
                     mat = self.phases[p]
-                    lp       = np.array(mat.lparms)
-                    rid      = list(_rqpDict[mat.latticeType][0])
+                    lp = np.array(mat.lparms)
+                    rid = list(_rqpDict[mat.latticeType][0])
 
-                    lp       = lp[rid]
-                    name     = _lpname[rid]
+                    lp = lp[rid]
+                    name = _lpname[rid]
 
-                    for n,l in zip(name,lp):
+                    for n, l in zip(name, lp):
                         nn = p+'_'+n
                         '''
                         is l is small, it is one of the length units
                         else it is an angle
                         '''
                         if(l < 10.):
-                            params.add(nn,value=l,lb=l-0.05,ub=l+0.05,vary=True)
+                            params.add(nn, value=l, lb=l-0.05,
+                                       ub=l+0.05, vary=True)
                         else:
-                            params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=True)
+                            params.add(nn, value=l, lb=l-1.,
+                                       ub=l+1., vary=True)
 
                 self.params = params
         else:
@@ -1412,21 +1454,22 @@ class LeBail:
                 names.append(p+'_a')
                 values.append(self.phases[p].lparms[0])
 
-            valdict = { 'U':1e-2,'V':1e-2,'W':1e-2,
-                        'P':1e-2,'X':1e-2,'Y':1e-2,
-                        'eta1':1e-3,'eta2':1e-3,
-                        'eta3':1e-3,'zero_error':0.}
-            for k,v in valdict.items():
+            valdict = {'U': 1e-2, 'V': 1e-2, 'W': 1e-2,
+                       'P': 1e-2, 'X': 1e-2, 'Y': 1e-2,
+                       'eta1': 1e-3, 'eta2': 1e-3,
+                       'eta3': 1e-3, 'zero_error': 0.}
+            for k, v in valdict.items():
                 names.append(k)
                 values.append(v)
 
-            names  = tuple(names)
+            names = tuple(names)
             values = tuple(values)
-            lbs         = (-np.Inf,) * len(names)
-            ubs         = (np.Inf,)  * len(names)
-            varies      = (True,)   * len(names)
+            lbs = (-np.Inf,) * len(names)
+            ubs = (np.Inf,) * len(names)
+            varies = (True,) * len(names)
 
-            params.add_many(names,values=values,varies=varies,lbs=lbs,ubs=ubs)
+            params.add_many(names, values=values,
+                            varies=varies, lbs=lbs, ubs=ubs)
 
             self.params = params
 
@@ -1455,7 +1498,6 @@ class LeBail:
         for p in self.params:
             self.params[p].vary = True
 
-
     def initialize_expt_spectrum(self, expt_spectrum):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -1472,26 +1514,26 @@ class LeBail:
                 '''
                 self.spectrum_expt = expt_spectrum
 
-
             elif(isinstance(expt_spectrum, np.ndarray)):
                 '''
                 initialize class using a nx2 array
                 '''
-                max_ang = expt_spectrum[-1,0]
+                max_ang = expt_spectrum[-1, 0]
                 if(max_ang < np.pi):
                     warnings.warn('angles are small and appear to \
                         be in radians. please check')
 
-                self.spectrum_expt = Spectrum(x=expt_spectrum[:,0],
-                                    y=expt_spectrum[:,1],
-                                    name='expt_spectrum')
+                self.spectrum_expt = Spectrum(x=expt_spectrum[:, 0],
+                                              y=expt_spectrum[:, 1],
+                                              name='expt_spectrum')
 
             elif(isinstance(expt_spectrum, str)):
                 '''
                 load from a text file
                 '''
                 if(path.exists(expt_spectrum)):
-                    self.spectrum_expt = Spectrum.from_file(expt_spectrum,skip_rows=0)
+                    self.spectrum_expt = Spectrum.from_file(
+                        expt_spectrum, skip_rows=0)
                 else:
                     raise FileError('input spectrum file doesn\'t exist.')
 
@@ -1503,7 +1545,6 @@ class LeBail:
             self.initialize_bkg()
 
     def initialize_bkg(self):
-
         '''
             the cubic spline seems to be the ideal route in terms
             of determining the background intensity. this involves
@@ -1518,8 +1559,8 @@ class LeBail:
         '''
         if('spline' in self.bkgmethod.keys()):
             self.selectpoints()
-            x = self.points[:,0]
-            y = self.points[:,1]
+            x = self.points[:, 0]
+            y = self.points[:, 1]
             self.splinefit(x, y)
 
         elif('chebyshev' in self.bkgmethod.keys()):
@@ -1527,24 +1568,25 @@ class LeBail:
 
     def chebyshevfit(self):
         degree = self.bkgmethod['chebyshev']
-        p = np.polynomial.Chebyshev.fit(self.tth_list, self.spectrum_expt._y, degree, w=self.weights)
+        p = np.polynomial.Chebyshev.fit(
+            self.tth_list, self.spectrum_expt._y, degree, w=self.weights)
         self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
 
     def selectpoints(self):
 
-        title('Select points for background estimation; click middle mouse button when done.')
+        title(
+            'Select points for background estimation; click middle mouse button when done.')
 
         plot(self.tth_list, self.spectrum_expt._y, '-k')  # 5 points tolerance
 
-        self.points = np.asarray(ginput(0,timeout=-1))
+        self.points = np.asarray(ginput(0, timeout=-1))
         close()
 
     # cubic spline fit of background using custom points chosen from plot
     def splinefit(self, x, y):
-        cs = CubicSpline(x,y)
+        cs = CubicSpline(x, y)
         bkg = cs(self.tth_list)
         self.background = Spectrum(x=self.tth_list, y=bkg)
-
 
     def initialize_phases(self, phase_info):
         '''
@@ -1561,7 +1603,7 @@ class LeBail:
                 self.phases = phase_info
             else:
 
-                if(hasattr(self,'wavelength')):
+                if(hasattr(self, 'wavelength')):
                     if(self.wavelength is not None):
                         p = Phases_LeBail(wavelength=self.wavelength)
                 else:
@@ -1611,9 +1653,9 @@ class LeBail:
         self.tth = {}
         for p in self.phases:
             self.tth[p] = {}
-            for k,l in self.phases.wavelength.items():
+            for k, l in self.phases.wavelength.items():
                 t = self.phases[p].getTTh(l.value)
-                limit = np.logical_and(t >= self.tth_min,\
+                limit = np.logical_and(t >= self.tth_min,
                                        t <= self.tth_max)
                 self.tth[p][k] = t[limit]
 
@@ -1622,7 +1664,7 @@ class LeBail:
         self.Icalc = {}
         for p in self.phases:
             self.Icalc[p] = {}
-            for k,l in self.phases.wavelength.items():
+            for k, l in self.phases.wavelength.items():
 
                 self.Icalc[p][k] = 1000.0 * np.ones(self.tth[p][k].shape)
 
@@ -1632,12 +1674,12 @@ class LeBail:
         >> @DATE:       05/20/2020 SS 1.0 original
         >> @DETAILS:    calculates the cagiotti parameter for the peak width
         '''
-        th          = np.radians(0.5*tth)
-        tanth       = np.tan(th)
-        Hsq         = self.U * tanth**2 + self.V * tanth + self.W
+        th = np.radians(0.5*tth)
+        tanth = np.tan(th)
+        Hsq = self.U * tanth**2 + self.V * tanth + self.W
         if(Hsq < 0.):
             Hsq = 1.0e-12
-        self.Hcag   = np.sqrt(Hsq)
+        self.Hcag = np.sqrt(Hsq)
 
     def LorentzH(self, tth):
         '''
@@ -1646,8 +1688,8 @@ class LeBail:
         >> @DETAILS:    calculates the size and strain broadening for Lorentzian peak
         '''
         th = np.radians(0.5*tth)
-        tanth       = np.tan(th)
-        cth         = np.cos(th)
+        tanth = np.tan(th)
+        cth = np.cos(th)
         self.gamma = self.X/cth + self.Y * tanth
 
     def MixingFact(self, tth):
@@ -1671,9 +1713,10 @@ class LeBail:
         >> @DETAILS:    this routine computes the gaussian peak profile
         '''
 
-        H  = self.Hcag
+        H = self.Hcag
         cg = 4.*np.log(2.)
-        self.GaussianI = (np.sqrt(cg/np.pi)/H) * np.exp( -cg * ((self.tth_list - tth)/H)**2 )
+        self.GaussianI = (np.sqrt(cg/np.pi)/H) * \
+            np.exp(-cg * ((self.tth_list - tth)/H)**2)
 
     def Lorentzian(self, tth):
         '''
@@ -1684,7 +1727,7 @@ class LeBail:
 
         H = self.gamma
         cl = 4.
-        self.LorentzI = (2./np.pi/H) / ( 1. + cl*((self.tth_list - tth)/H)**2)
+        self.LorentzI = (2./np.pi/H) / (1. + cl*((self.tth_list - tth)/H)**2)
 
     def PseudoVoight(self, tth):
         '''
@@ -1700,7 +1743,7 @@ class LeBail:
         self.Lorentzian(tth)
         self.MixingFact(tth)
         self.PV = self.eta * self.GaussianI + \
-                  (1.0 - self.eta) * self.LorentzI
+            (1.0 - self.eta) * self.LorentzI
 
     def IntegratedIntensity(self):
         '''
@@ -1719,14 +1762,14 @@ class LeBail:
         x = self.tth_list
         y = np.zeros(x.shape)
 
-        for iph,p in enumerate(self.phases):
+        for iph, p in enumerate(self.phases):
 
-            for k,l in self.phases.wavelength.items():
+            for k, l in self.phases.wavelength.items():
 
                 Ic = self.Icalc[p][k]
 
                 tth = self.tth[p][k] + self.zero_error
-                n = np.min((tth.shape[0],Ic.shape[0]))
+                n = np.min((tth.shape[0], Ic.shape[0]))
 
                 for i in range(n):
 
@@ -1747,25 +1790,25 @@ class LeBail:
         '''
 
         self.Iobs = {}
-        for iph,p in enumerate(self.phases):
+        for iph, p in enumerate(self.phases):
 
             self.Iobs[p] = {}
 
-            for k,l in self.phases.wavelength.items():
+            for k, l in self.phases.wavelength.items():
                 Ic = self.Icalc[p][k]
 
                 tth = self.tth[p][k] + self.zero_error
 
                 Iobs = []
-                n = np.min((tth.shape[0],Ic.shape[0]))
+                n = np.min((tth.shape[0], Ic.shape[0]))
 
                 for i in range(n):
                     t = tth[i]
                     self.PseudoVoight(t)
 
-                    y   = self.PV * Ic[i]
-                    _,yo  = self.spectrum_expt.data
-                    _,yc  = self.spectrum_sim.data
+                    y = self.PV * Ic[i]
+                    _, yo = self.spectrum_expt.data
+                    _, yc = self.spectrum_sim.data
 
                     I = np.trapz(yo * y / yc, self.tth_list)
                     Iobs.append(I)
@@ -1839,7 +1882,8 @@ class LeBail:
         ''' weighted sum of square '''
         wss = np.trapz(self.weights * self.err._y**2, self.err._x)
 
-        den = np.trapz(self.weights * self.spectrum_sim._y**2, self.spectrum_sim._x)
+        den = np.trapz(self.weights * self.spectrum_sim._y **
+                       2, self.spectrum_sim._x)
 
         ''' standard Rwp i.e. weighted residual '''
         Rwp = np.sqrt(wss/den)
@@ -1864,7 +1908,7 @@ class LeBail:
         for p in self.params:
             par = self.params[p]
             if(par.vary):
-                params.add(p, value=par.value, min=par.lb, max = par.ub)
+                params.add(p, value=par.value, min=par.lb, max=par.ub)
 
         return params
 
@@ -1887,9 +1931,10 @@ class LeBail:
         self.res = self.Refine()
         self.update_parameters()
         self.niter += 1
-        self.Rwplist  = np.append(self.Rwplist, self.Rwp)
+        self.Rwplist = np.append(self.Rwplist, self.Rwp)
         self.gofFlist = np.append(self.gofFlist, self.gofF)
-        print('Finished iteration. Rwp: {:.3f} % goodness of fit: {:.3f}'.format(self.Rwp*100., self.gofF))
+        print('Finished iteration. Rwp: {:.3f} % goodness of fit: {:.3f}'.format(
+            self.Rwp*100., self.gofF))
 
     def Refine(self):
         '''
@@ -1901,8 +1946,8 @@ class LeBail:
 
         params = self.initialize_lmfit_parameters()
 
-        fdict = {'ftol':1e-4, 'xtol':1e-4, 'gtol':1e-4, \
-                 'verbose':0, 'max_nfev':8}
+        fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
+                 'verbose': 0, 'max_nfev': 8}
 
         fitter = lmfit.Minimizer(self.calcRwp, params)
 
@@ -2026,10 +2071,10 @@ class LeBail:
         # self.computespectrum()
         return
 
+
 class Material_Rietveld:
 
     def __init__(self, fhdf, xtal, dmin, kev):
-
         '''
         dmin in nm
         '''
@@ -2047,7 +2092,7 @@ class Material_Rietveld:
             self.calcBetaij()
 
         self.SYM_SG, self.SYM_PG_d, self.SYM_PG_d_laue, self.centrosymmetric, self.symmorphic = \
-        symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
+            symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
         self.latticeType = symmetry.latticeType(self.sgnum)
         self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum-1].strip()
         self.GenerateRecipPGSym()
@@ -2068,12 +2113,12 @@ class Material_Rietveld:
         # else:
         #   raise IOError('material file does not exist.')
 
-        gid         = fid.get(xtal)
+        gid = fid.get(xtal)
 
-        self.sgnum       = np.asscalar(np.array(gid.get('SpaceGroupNumber'), \
-                                     dtype = np.int32))
-        self.sgsetting = np.asscalar(np.array(gid.get('SpaceGroupSetting'), \
-                                        dtype = np.int32))
+        self.sgnum = np.asscalar(np.array(gid.get('SpaceGroupNumber'),
+                                          dtype=np.int32))
+        self.sgsetting = np.asscalar(np.array(gid.get('SpaceGroupSetting'),
+                                              dtype=np.int32))
         self.sgsetting -= 1
         """
             IMPORTANT NOTE:
@@ -2082,50 +2127,50 @@ class Material_Rietveld:
             need to be careful and convert it right here, so there is no
             confusion later on
         """
-        self.lparms      = list(gid.get('LatticeParameters'))
+        self.lparms = list(gid.get('LatticeParameters'))
 
         # the last field in this is already
-        self.atom_pos  = np.transpose(np.array(gid.get('AtomData'), dtype = np.float64))
+        self.atom_pos = np.transpose(
+            np.array(gid.get('AtomData'), dtype=np.float64))
 
         # the U factors are related to B by the relation B = 8pi^2 U
-        self.U         = np.transpose(np.array(gid.get('U'), dtype = np.float64))
+        self.U = np.transpose(np.array(gid.get('U'), dtype=np.float64))
 
         self.aniU = False
         if(self.U.ndim > 1):
             self.aniU = True
 
         # read atom types (by atomic number, Z)
-        self.atom_type = np.array(gid.get('Atomtypes'), dtype = np.int32)
+        self.atom_type = np.array(gid.get('Atomtypes'), dtype=np.int32)
         self.atom_ntype = self.atom_type.shape[0]
 
         fid.close()
 
     def calcBetaij(self):
 
-        self.betaij = np.zeros([self.atom_ntype,3,3])
+        self.betaij = np.zeros([self.atom_ntype, 3, 3])
         for i in range(self.U.shape[0]):
-            U = self.U[i,:]
-            self.betaij[i,:,:] = np.array([[U[0], U[3], U[4]],\
-                                         [U[3], U[1], U[5]],\
-                                         [U[4], U[5], U[2]]])
+            U = self.U[i, :]
+            self.betaij[i, :, :] = np.array([[U[0], U[3], U[4]],
+                                             [U[3], U[1], U[5]],
+                                             [U[4], U[5], U[2]]])
 
-            self.betaij[i,:,:] *= 2. * np.pi**2 * self.aij
-
+            self.betaij[i, :, :] *= 2. * np.pi**2 * self.aij
 
     def CalcWavelength(self):
         # wavelength in nm
-        self.wavelength =       constants.cPlanck * \
-                            constants.cLight /  \
-                            constants.cCharge / \
-                            self.voltage
+        self.wavelength = constants.cPlanck * \
+            constants.cLight /  \
+            constants.cCharge / \
+            self.voltage
         self.wavelength *= 1e9
         self.CalcAnomalous()
 
     def CalcKeV(self):
         self.kev = constants.cPlanck * \
-                   constants.cLight /  \
-                   constants.cCharge / \
-                   self.wavelength
+            constants.cLight /  \
+            constants.cCharge / \
+            self.wavelength
 
         self.kev *= 1e-3
 
@@ -2136,22 +2181,22 @@ class Material_Rietveld:
         c = self.lparms[2]
 
         alpha = np.radians(self.lparms[3])
-        beta  = np.radians(self.lparms[4])
+        beta = np.radians(self.lparms[4])
         gamma = np.radians(self.lparms[5])
 
-        ca = np.cos(alpha);
-        cb = np.cos(beta);
-        cg = np.cos(gamma);
-        sa = np.sin(alpha);
-        sb = np.sin(beta);
-        sg = np.sin(gamma);
-        tg = np.tan(gamma);
+        ca = np.cos(alpha)
+        cb = np.cos(beta)
+        cg = np.cos(gamma)
+        sa = np.sin(alpha)
+        sb = np.sin(beta)
+        sg = np.sin(gamma)
+        tg = np.tan(gamma)
 
         '''
             direct metric tensor
         '''
-        self.dmt = np.array([[a**2, a*b*cg, a*c*cb],\
-                             [a*b*cg, b**2, b*c*ca],\
+        self.dmt = np.array([[a**2, a*b*cg, a*c*cb],
+                             [a*b*cg, b**2, b*c*ca],
                              [a*c*cb, b*c*ca, c**2]])
         self.vol = np.sqrt(np.linalg.det(self.dmt))
 
@@ -2163,25 +2208,26 @@ class Material_Rietveld:
         '''
         self.rmt = np.linalg.inv(self.dmt)
 
-        ast = self.CalcLength([1,0,0],'r')
-        bst = self.CalcLength([0,1,0],'r')
-        cst = self.CalcLength([0,0,1],'r')
+        ast = self.CalcLength([1, 0, 0], 'r')
+        bst = self.CalcLength([0, 1, 0], 'r')
+        cst = self.CalcLength([0, 0, 1], 'r')
 
-        self.aij = np.array([[ast**2, ast*bst, ast*cst],\
-                              [bst*ast, bst**2, bst*cst],\
-                              [cst*ast, cst*bst, cst**2]])
+        self.aij = np.array([[ast**2, ast*bst, ast*cst],
+                             [bst*ast, bst**2, bst*cst],
+                             [cst*ast, cst*bst, cst**2]])
 
     def _calchkls(self):
         self.hkls, self.multiplicity = self.getHKLs(self.dmin)
 
     ''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
+
     def CalcLength(self, u, space):
 
-        if(space =='d'):
+        if(space == 'd'):
             vlen = np.sqrt(np.dot(u, np.dot(self.dmt, u)))
-        elif(space =='r'):
+        elif(space == 'r'):
             vlen = np.sqrt(np.dot(u, np.dot(self.rmt, u)))
-        elif(spec =='c'):
+        elif(spec == 'c'):
             vlen = np.linalg.norm(u)
         else:
             raise ValueError('incorrect space argument')
@@ -2193,7 +2239,7 @@ class Material_Rietveld:
         tth = []
         tth_mask = []
         for g in self.hkls:
-            glen = self.CalcLength(g,'r')
+            glen = self.CalcLength(g, 'r')
             sth = glen*wavelength/2.
             if(np.abs(sth) <= 1.0):
                 t = 2. * np.degrees(np.arcsin(sth))
@@ -2204,26 +2250,26 @@ class Material_Rietveld:
 
         tth = np.array(tth)
         tth_mask = np.array(tth_mask)
-        return (tth,tth_mask)
+        return (tth, tth_mask)
 
     def GenerateRecipPGSym(self):
 
-        self.SYM_PG_r = self.SYM_PG_d[0,:,:]
-        self.SYM_PG_r = np.broadcast_to(self.SYM_PG_r,[1,3,3])
-        self.SYM_PG_r_laue = self.SYM_PG_d[0,:,:]
-        self.SYM_PG_r_laue = np.broadcast_to(self.SYM_PG_r_laue,[1,3,3])
+        self.SYM_PG_r = self.SYM_PG_d[0, :, :]
+        self.SYM_PG_r = np.broadcast_to(self.SYM_PG_r, [1, 3, 3])
+        self.SYM_PG_r_laue = self.SYM_PG_d[0, :, :]
+        self.SYM_PG_r_laue = np.broadcast_to(self.SYM_PG_r_laue, [1, 3, 3])
 
-        for i in range(1,self.SYM_PG_d.shape[0]):
-            g = self.SYM_PG_d[i,:,:]
+        for i in range(1, self.SYM_PG_d.shape[0]):
+            g = self.SYM_PG_d[i, :, :]
             g = np.dot(self.dmt, np.dot(g, self.rmt))
-            g = np.round(np.broadcast_to(g,[1,3,3]))
-            self.SYM_PG_r = np.concatenate((self.SYM_PG_r,g))
+            g = np.round(np.broadcast_to(g, [1, 3, 3]))
+            self.SYM_PG_r = np.concatenate((self.SYM_PG_r, g))
 
-        for i in range(1,self.SYM_PG_d_laue.shape[0]):
-            g = self.SYM_PG_d_laue[i,:,:]
+        for i in range(1, self.SYM_PG_d_laue.shape[0]):
+            g = self.SYM_PG_d_laue[i, :, :]
             g = np.dot(self.dmt, np.dot(g, self.rmt))
-            g = np.round(np.broadcast_to(g,[1,3,3]))
-            self.SYM_PG_r_laue = np.concatenate((self.SYM_PG_r_laue,g))
+            g = np.round(np.broadcast_to(g, [1, 3, 3]))
+            self.SYM_PG_r_laue = np.concatenate((self.SYM_PG_r_laue, g))
 
         self.SYM_PG_r = self.SYM_PG_r.astype(np.int32)
         self.SYM_PG_r_laue = self.SYM_PG_r_laue.astype(np.int32)
@@ -2236,10 +2282,10 @@ class Material_Rietveld:
         while (1.0 / self.CalcLength(np.array([0, self.ik, 0], dtype=np.float64), 'r') > self.dmin):
             self.ik = self.ik + 1
         self.il = 1
-        while (1.0 / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64),'r') > self.dmin):
+        while (1.0 / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64), 'r') > self.dmin):
             self.il = self.il + 1
 
-    def CalcStar(self,v,space,applyLaue=False):
+    def CalcStar(self, v, space, applyLaue=False):
         '''
         this function calculates the symmetrically equivalent hkls (or uvws)
         for the reciprocal (or direct) point group symmetry.
@@ -2258,7 +2304,7 @@ class Material_Rietveld:
             raise ValueError('CalcStar: unrecognized space.')
         vsym = np.atleast_2d(v)
         for s in sym:
-            vp = np.dot(s,v)
+            vp = np.dot(s, v)
             # check if this is new
             isnew = True
             for vec in vsym:
@@ -2278,35 +2324,36 @@ class Material_Rietveld:
         centering = self.sg_hmsymbol[0]
         if(centering == 'P'):
             # all reflections are allowed
-            mask = np.ones([hkllist.shape[0],],dtype=np.bool)
+            mask = np.ones([hkllist.shape[0], ], dtype=np.bool)
         elif(centering == 'F'):
             # same parity
-            seo = np.sum(np.mod(hkllist+100,2),axis=1)
-            mask = np.logical_not(np.logical_or(seo==1, seo==2))
+            seo = np.sum(np.mod(hkllist+100, 2), axis=1)
+            mask = np.logical_not(np.logical_or(seo == 1, seo == 2))
         elif(centering == 'I'):
             # sum is even
-            seo = np.mod(np.sum(hkllist,axis=1)+100,2)
+            seo = np.mod(np.sum(hkllist, axis=1)+100, 2)
             mask = (seo == 0)
 
         elif(centering == 'A'):
             # k+l is even
-            seo = np.mod(np.sum(hkllist[:,1:3],axis=1)+100,2)
+            seo = np.mod(np.sum(hkllist[:, 1:3], axis=1)+100, 2)
             mask = seo == 0
         elif(centering == 'B'):
             # h+l is even
-            seo = np.mod(hkllist[:,0]+hkllist[:,2]+100,2)
+            seo = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2)
             mask = seo == 0
         elif(centering == 'C'):
             # h+k is even
-            seo = np.mod(hkllist[:,0]+hkllist[:,1]+100,2)
+            seo = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2)
             mask = seo == 0
         elif(centering == 'R'):
             # -h+k+l is divisible by 3
-            seo = np.mod(-hkllist[:,0]+hkllist[:,1]+hkllist[:,2]+90,3)
+            seo = np.mod(-hkllist[:, 0]+hkllist[:, 1]+hkllist[:, 2]+90, 3)
             mask = seo == 0
         else:
-            raise RuntimeError('IsGAllowed: unknown lattice centering encountered.')
-        hkls = hkllist[mask,:]
+            raise RuntimeError(
+                'IsGAllowed: unknown lattice centering encountered.')
+        hkls = hkllist[mask, :]
 
         if(not self.symmorphic):
             hkls = self.NonSymmorphicAbsences(hkls)
@@ -2332,9 +2379,10 @@ class Material_Rietveld:
             pass
         elif(self.latticeType == 'monoclinic'):
 
-            if(ax !='2_1'):
+            if(ax != '2_1'):
 
-                raise RuntimeError('omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis')
+                raise RuntimeError(
+                    'omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis')
             '''
                 only unique b-axis will be encoded
                 it is the users responsibility to input
@@ -2342,92 +2390,96 @@ class Material_Rietveld:
                 with b-axis having the 2-fold symmetry
             '''
             if(iax == 1):
-                mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,2] == 0)
-                mask2 = np.mod(hkllist[:,1]+100,2) != 0
-                mask  = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
+                mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             else:
-                raise RuntimeError('omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
+                raise RuntimeError(
+                    'omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
         elif(self.latticeType == 'orthorhombic'):
             if(ax != '2_1'):
-                raise RuntimeError('omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis')
+                raise RuntimeError(
+                    'omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis')
             '''
             2_1 screw on primary axis
             h00 ; h = 2n
             '''
             if(iax == 0):
-                mask1 = np.logical_and(hkllist[:,1] == 0,hkllist[:,2] == 0)
-                mask2 = np.mod(hkllist[:,0]+100,2) != 0
-                mask  = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask1 = np.logical_and(hkllist[:, 1] == 0, hkllist[:, 2] == 0)
+                mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             elif(iax == 1):
-                mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,2] == 0)
-                mask2 = np.mod(hkllist[:,1]+100,2) != 0
-                mask  = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
+                mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             elif(iax == 2):
-                mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
-                mask2 = np.mod(hkllist[:,2]+100,2) != 0
-                mask  = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
+                mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
         elif(self.latticeType == 'tetragonal'):
             if(iax == 0):
-                mask1 = np.logical_and(hkllist[:,0] == 0, hkllist[:,1] == 0)
+                mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
                 if(ax == '4_2'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
-                elif(ax in ['4_1','4_3']):
-                    mask2 = np.mod(hkllist[:,2]+100,4) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
+                elif(ax in ['4_1', '4_3']):
+                    mask2 = np.mod(hkllist[:, 2]+100, 4) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             elif(iax == 1):
-                mask1 = np.logical_and(hkllist[:,1] == 0, hkllist[:,2] == 0)
-                mask2 = np.logical_and(hkllist[:,0] == 0, hkllist[:,2] == 0)
+                mask1 = np.logical_and(hkllist[:, 1] == 0, hkllist[:, 2] == 0)
+                mask2 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
                 if(ax == '2_1'):
-                    mask3 = np.mod(hkllist[:,0]+100,2) != 0
-                    mask4 = np.mod(hkllist[:,1]+100,2) != 0
-                mask1 = np.logical_not(np.logical_and(mask1,mask3))
-                mask2 = np.logical_not(np.logical_and(mask2,mask4))
-                mask = ~np.logical_or(~mask1,~mask2)
-                hkllist = hkllist[mask,:]
+                    mask3 = np.mod(hkllist[:, 0]+100, 2) != 0
+                    mask4 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask1 = np.logical_not(np.logical_and(mask1, mask3))
+                mask2 = np.logical_not(np.logical_and(mask2, mask4))
+                mask = ~np.logical_or(~mask1, ~mask2)
+                hkllist = hkllist[mask, :]
         elif(self.latticeType == 'trigonal'):
-            mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
+            mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
             if(iax == 0):
                 if(ax in ['3_1', '3_2']):
-                    mask2 = np.mod(hkllist[:,2]+90,3) != 0
+                    mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
             else:
-                raise RuntimeError('omitscrewaxisabsences: trigonal systems can only have screw axis')
-            mask  = np.logical_not(np.logical_and(mask1,mask2))
-            hkllist = hkllist[mask,:]
+                raise RuntimeError(
+                    'omitscrewaxisabsences: trigonal systems can only have screw axis')
+            mask = np.logical_not(np.logical_and(mask1, mask2))
+            hkllist = hkllist[mask, :]
         elif(self.latticeType == 'hexagonal'):
-            mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
+            mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
             if(iax == 0):
                 if(ax == '6_3'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
-                elif(ax in['3_1','3_2','6_2','6_4']):
-                    mask2 = np.mod(hkllist[:,2]+90,3) != 0
-                elif(ax in ['6_1','6_5']):
-                    mask2 = np.mod(hkllist[:,2]+120,6) != 0
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
+                elif(ax in['3_1', '3_2', '6_2', '6_4']):
+                    mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
+                elif(ax in ['6_1', '6_5']):
+                    mask2 = np.mod(hkllist[:, 2]+120, 6) != 0
             else:
-                raise RuntimeError('omitscrewaxisabsences: hexagonal systems can only have screw axis')
-            mask  = np.logical_not(np.logical_and(mask1,mask2))
-            hkllist = hkllist[mask,:]
+                raise RuntimeError(
+                    'omitscrewaxisabsences: hexagonal systems can only have screw axis')
+            mask = np.logical_not(np.logical_and(mask1, mask2))
+            hkllist = hkllist[mask, :]
         elif(self.latticeType == 'cubic'):
-            mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
-            mask2 = np.logical_and(hkllist[:,0] == 0,hkllist[:,2] == 0)
-            mask3 = np.logical_and(hkllist[:,1] == 0,hkllist[:,2] == 0)
-            if(ax in ['2_1','4_2']):
-                mask4 = np.mod(hkllist[:,2]+100,2) != 0
-                mask5 = np.mod(hkllist[:,1]+100,2) != 0
-                mask6 = np.mod(hkllist[:,0]+100,2) != 0
-            elif(ax in ['4_1','4_3']):
-                mask4 = np.mod(hkllist[:,2]+100,4) != 0
-                mask5 = np.mod(hkllist[:,1]+100,4) != 0
-                mask6 = np.mod(hkllist[:,0]+100,4) != 0
-            mask1 = np.logical_not(np.logical_and(mask1,mask4))
-            mask2 = np.logical_not(np.logical_and(mask2,mask5))
-            mask3 = np.logical_not(np.logical_and(mask3,mask6))
-            mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
-            hkllist = hkllist[mask,:]
+            mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
+            mask2 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
+            mask3 = np.logical_and(hkllist[:, 1] == 0, hkllist[:, 2] == 0)
+            if(ax in ['2_1', '4_2']):
+                mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+                mask5 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask6 = np.mod(hkllist[:, 0]+100, 2) != 0
+            elif(ax in ['4_1', '4_3']):
+                mask4 = np.mod(hkllist[:, 2]+100, 4) != 0
+                mask5 = np.mod(hkllist[:, 1]+100, 4) != 0
+                mask6 = np.mod(hkllist[:, 0]+100, 4) != 0
+            mask1 = np.logical_not(np.logical_and(mask1, mask4))
+            mask2 = np.logical_not(np.logical_and(mask2, mask5))
+            mask3 = np.logical_not(np.logical_and(mask3, mask6))
+            mask = ~np.logical_or(~mask1, np.logical_or(~mask2, ~mask3))
+            hkllist = hkllist[mask, :]
         return hkllist.astype(np.int32)
 
     def omitglideplaneabsences(self, hkllist, plane, ip):
@@ -2447,199 +2499,213 @@ class Material_Rietveld:
             pass
         elif(self.latticeType == 'monoclinic'):
             if(ip == 1):
-                mask1 = hkllist[:,1] == 0
+                mask1 = hkllist[:, 1] == 0
                 if(plane == 'c'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'a'):
-                    mask2 = np.mod(hkllist[:,0]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
         elif(self.latticeType == 'orthorhombic'):
             if(ip == 0):
-                mask1 = hkllist[:,0] == 0
+                mask1 = hkllist[:, 0] == 0
                 if(plane == 'b'):
-                    mask2 = np.mod(hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'c'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,1]+hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask2 = np.mod(hkllist[:,1]+hkllist[:,2]+100,4) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 4) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             elif(ip == 1):
-                mask1 = hkllist[:,1] == 0
+                mask1 = hkllist[:, 1] == 0
                 if(plane == 'c'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'a'):
-                    mask2 = np.mod(hkllist[:,0]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,2]+100,4) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             elif(ip == 2):
-                mask1 = hkllist[:,2] == 0
+                mask1 = hkllist[:, 2] == 0
                 if(plane == 'a'):
-                    mask2 = np.mod(hkllist[:,0]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
                 elif(plane == 'b'):
-                    mask2 = np.mod(hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,4) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
         elif(self.latticeType == 'tetragonal'):
             if(ip == 0):
-                mask1 = hkllist[:,2] == 0
+                mask1 = hkllist[:, 2] == 0
                 if(plane == 'a'):
-                    mask2 = np.mod(hkllist[:,0]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
                 elif(plane == 'b'):
-                    mask2 = np.mod(hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,4) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             elif(ip == 1):
-                mask1 = hkllist[:,0] == 0
-                mask2 = hkllist[:,1] == 0
-                if(plane in ['a','b']):
-                    mask3 = np.mod(hkllist[:,1]+100,2) != 0
-                    mask4 = np.mod(hkllist[:,0]+100,2) != 0
+                mask1 = hkllist[:, 0] == 0
+                mask2 = hkllist[:, 1] == 0
+                if(plane in ['a', 'b']):
+                    mask3 = np.mod(hkllist[:, 1]+100, 2) != 0
+                    mask4 = np.mod(hkllist[:, 0]+100, 2) != 0
                 elif(plane == 'c'):
-                    mask3 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask3 = np.mod(hkllist[:, 2]+100, 2) != 0
                     mask4 = mask3
                 elif(plane == 'n'):
-                    mask3 = np.mod(hkllist[:,1]+hkllist[:,2]+100,2) != 0
-                    mask4 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
+                    mask3 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 2) != 0
+                    mask4 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask3 = np.mod(hkllist[:,1]+hkllist[:,2]+100,4) != 0
-                    mask4 = np.mod(hkllist[:,0]+hkllist[:,2]+100,4) != 0
-                mask1 = np.logical_not(np.logical_and(mask1,mask3))
-                mask2 = np.logical_not(np.logical_and(mask2,mask4))
-                mask = ~np.logical_or(~mask1,~mask2)
-                hkllist = hkllist[mask,:]
+                    mask3 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 4) != 0
+                    mask4 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+                mask1 = np.logical_not(np.logical_and(mask1, mask3))
+                mask2 = np.logical_not(np.logical_and(mask2, mask4))
+                mask = ~np.logical_or(~mask1, ~mask2)
+                hkllist = hkllist[mask, :]
             elif(ip == 2):
-                mask1 = np.abs(hkllist[:,0]) == np.abs(hkllist[:,1])
-                if(plane in ['c','n']):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
+                mask1 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 1])
+                if(plane in ['c', 'n']):
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask2 = np.mod(2*hkllist[:,0]+hkllist[:,2]+100,4) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(2*hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
         elif(self.latticeType == 'trigonal'):
             if(plane != 'c'):
-                raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems')
+                raise RuntimeError(
+                    'omitglideplaneabsences: only c-glide allowed for trigonal systems')
 
             if(ip == 1):
-                mask1 = hkllist[:,0] == 0
-                mask2 = hkllist[:,1] == 0
-                mask3 = hkllist[:,0] == -hkllist[:,1]
+                mask1 = hkllist[:, 0] == 0
+                mask2 = hkllist[:, 1] == 0
+                mask3 = hkllist[:, 0] == -hkllist[:, 1]
                 if(plane == 'c'):
-                    mask4 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
-                    raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems')
+                    raise RuntimeError(
+                        'omitglideplaneabsences: only c-glide allowed for trigonal systems')
             elif(ip == 2):
-                mask1 = hkllist[:,1] == hkllist[:,0]
-                mask2 = hkllist[:,0] == -2*hkllist[:,1]
-                mask3 = -2*hkllist[:,0] == hkllist[:,1]
+                mask1 = hkllist[:, 1] == hkllist[:, 0]
+                mask2 = hkllist[:, 0] == -2*hkllist[:, 1]
+                mask3 = -2*hkllist[:, 0] == hkllist[:, 1]
                 if(plane == 'c'):
-                    mask4 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
-                    raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems')
-            mask1 = np.logical_and(mask1,mask4)
-            mask2 = np.logical_and(mask2,mask4)
-            mask3 = np.logical_and(mask3,mask4)
-            mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
-            hkllist = hkllist[mask,:]
+                    raise RuntimeError(
+                        'omitglideplaneabsences: only c-glide allowed for trigonal systems')
+            mask1 = np.logical_and(mask1, mask4)
+            mask2 = np.logical_and(mask2, mask4)
+            mask3 = np.logical_and(mask3, mask4)
+            mask = np.logical_not(np.logical_or(
+                mask1, np.logical_or(mask2, mask3)))
+            hkllist = hkllist[mask, :]
         elif(self.latticeType == 'hexagonal'):
             if(plane != 'c'):
-                raise RuntimeError('omitglideplaneabsences: only c-glide allowed for hexagonal systems')
+                raise RuntimeError(
+                    'omitglideplaneabsences: only c-glide allowed for hexagonal systems')
             if(ip == 2):
-                mask1 = hkllist[:,0] == hkllist[:,1]
-                mask2 = hkllist[:,0] == -2*hkllist[:,1]
-                mask3 = -2*hkllist[:,0] == hkllist[:,1]
-                mask4 = np.mod(hkllist[:,2]+100,2) != 0
-                mask1 = np.logical_and(mask1,mask4)
-                mask2 = np.logical_and(mask2,mask4)
-                mask3 = np.logical_and(mask3,mask4)
-                mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
+                mask1 = hkllist[:, 0] == hkllist[:, 1]
+                mask2 = hkllist[:, 0] == -2*hkllist[:, 1]
+                mask3 = -2*hkllist[:, 0] == hkllist[:, 1]
+                mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+                mask1 = np.logical_and(mask1, mask4)
+                mask2 = np.logical_and(mask2, mask4)
+                mask3 = np.logical_and(mask3, mask4)
+                mask = np.logical_not(np.logical_or(
+                    mask1, np.logical_or(mask2, mask3)))
             elif(ip == 1):
-                mask1 = hkllist[:,1] == 0
-                mask2 = hkllist[:,0] == 0
-                mask3 = hkllist[:,1] == -hkllist[:,0]
-                mask4 = np.mod(hkllist[:,2]+100,2) != 0
-            mask1 = np.logical_and(mask1,mask4)
-            mask2 = np.logical_and(mask2,mask4)
-            mask3 = np.logical_and(mask3,mask4)
-            mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
-            hkllist = hkllist[mask,:]
+                mask1 = hkllist[:, 1] == 0
+                mask2 = hkllist[:, 0] == 0
+                mask3 = hkllist[:, 1] == -hkllist[:, 0]
+                mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+            mask1 = np.logical_and(mask1, mask4)
+            mask2 = np.logical_and(mask2, mask4)
+            mask3 = np.logical_and(mask3, mask4)
+            mask = np.logical_not(np.logical_or(
+                mask1, np.logical_or(mask2, mask3)))
+            hkllist = hkllist[mask, :]
         elif(self.latticeType == 'cubic'):
             if(ip == 0):
-                mask1 = hkllist[:,0] == 0
-                mask2 = hkllist[:,1] == 0
-                mask3 = hkllist[:,2] == 0
-                mask4 = np.mod(hkllist[:,0]+100,2) != 0
-                mask5 = np.mod(hkllist[:,1]+100,2) != 0
-                mask6 = np.mod(hkllist[:,2]+100,2) != 0
-                if(plane  == 'a'):
-                    mask1 = np.logical_or(np.logical_and(mask1,mask5),np.logical_and(mask1,mask6))
-                    mask2 = np.logical_or(np.logical_and(mask2,mask4),np.logical_and(mask2,mask6))
-                    mask3 = np.logical_and(mask3,mask4)
+                mask1 = hkllist[:, 0] == 0
+                mask2 = hkllist[:, 1] == 0
+                mask3 = hkllist[:, 2] == 0
+                mask4 = np.mod(hkllist[:, 0]+100, 2) != 0
+                mask5 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask6 = np.mod(hkllist[:, 2]+100, 2) != 0
+                if(plane == 'a'):
+                    mask1 = np.logical_or(np.logical_and(
+                        mask1, mask5), np.logical_and(mask1, mask6))
+                    mask2 = np.logical_or(np.logical_and(
+                        mask2, mask4), np.logical_and(mask2, mask6))
+                    mask3 = np.logical_and(mask3, mask4)
 
-                    mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
+                    mask = np.logical_not(np.logical_or(
+                        mask1, np.logical_or(mask2, mask3)))
                 elif(plane == 'b'):
-                    mask1 = np.logical_and(mask1,mask5)
-                    mask3 = np.logical_and(mask3,mask5)
-                    mask = np.logical_not(np.logical_or(mask1,mask3))
+                    mask1 = np.logical_and(mask1, mask5)
+                    mask3 = np.logical_and(mask3, mask5)
+                    mask = np.logical_not(np.logical_or(mask1, mask3))
                 elif(plane == 'c'):
-                    mask1 = np.logical_and(mask1,mask6)
-                    mask2 = np.logical_and(mask2,mask6)
-                    mask = np.logical_not(np.logical_or(mask1,mask2))
+                    mask1 = np.logical_and(mask1, mask6)
+                    mask2 = np.logical_and(mask2, mask6)
+                    mask = np.logical_not(np.logical_or(mask1, mask2))
                 elif(plane == 'n'):
-                    mask4 = np.mod(hkllist[:,1]+hkllist[:,2]+100,2) != 0
-                    mask5 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
-                    mask6 = np.mod(hkllist[:,0]+hkllist[:,1]+100,2) != 0
-                    mask1 = np.logical_not(np.logical_and(mask1,mask4))
-                    mask2 = np.logical_not(np.logical_and(mask2,mask5))
-                    mask3 = np.logical_not(np.logical_and(mask3,mask6))
-                    mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
+                    mask4 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 2) != 0
+                    mask5 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
+                    mask6 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2) != 0
+                    mask1 = np.logical_not(np.logical_and(mask1, mask4))
+                    mask2 = np.logical_not(np.logical_and(mask2, mask5))
+                    mask3 = np.logical_not(np.logical_and(mask3, mask6))
+                    mask = ~np.logical_or(
+                        ~mask1, np.logical_or(~mask2, ~mask3))
                 elif(plane == 'd'):
-                    mask4 = np.mod(hkllist[:,1]+hkllist[:,2]+100,4) != 0
-                    mask5 = np.mod(hkllist[:,0]+hkllist[:,2]+100,4) != 0
-                    mask6 = np.mod(hkllist[:,0]+hkllist[:,1]+100,4) != 0
-                    mask1 = np.logical_not(np.logical_and(mask1,mask4))
-                    mask2 = np.logical_not(np.logical_and(mask2,mask5))
-                    mask3 = np.logical_not(np.logical_and(mask3,mask6))
-                    mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
+                    mask4 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 4) != 0
+                    mask5 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+                    mask6 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
+                    mask1 = np.logical_not(np.logical_and(mask1, mask4))
+                    mask2 = np.logical_not(np.logical_and(mask2, mask5))
+                    mask3 = np.logical_not(np.logical_and(mask3, mask6))
+                    mask = ~np.logical_or(
+                        ~mask1, np.logical_or(~mask2, ~mask3))
                 else:
-                    raise RuntimeError('omitglideplaneabsences: unknown glide plane encountered.')
-                hkllist = hkllist[mask,:]
+                    raise RuntimeError(
+                        'omitglideplaneabsences: unknown glide plane encountered.')
+                hkllist = hkllist[mask, :]
             if(ip == 2):
-                mask1 = np.abs(hkllist[:,0]) == np.abs(hkllist[:,1])
-                mask2 = np.abs(hkllist[:,1]) == np.abs(hkllist[:,2])
-                mask3 = np.abs(hkllist[:,0]) == np.abs(hkllist[:,2])
-                if(plane in ['a','b','c','n']):
-                    mask4 = np.mod(hkllist[:,2]+100,2) != 0
-                    mask5 = np.mod(hkllist[:,0]+100,2) != 0
-                    mask6 = np.mod(hkllist[:,1]+100,2) != 0
+                mask1 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 1])
+                mask2 = np.abs(hkllist[:, 1]) == np.abs(hkllist[:, 2])
+                mask3 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 2])
+                if(plane in ['a', 'b', 'c', 'n']):
+                    mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+                    mask5 = np.mod(hkllist[:, 0]+100, 2) != 0
+                    mask6 = np.mod(hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask4 = np.mod(2*hkllist[:,0]+hkllist[:,2]+100,4) != 0
-                    mask5 = np.mod(hkllist[:,0]+2*hkllist[:,1]+100,4) != 0
-                    mask6 = np.mod(2*hkllist[:,0]+hkllist[:,1]+100,4) != 0
+                    mask4 = np.mod(2*hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+                    mask5 = np.mod(hkllist[:, 0]+2*hkllist[:, 1]+100, 4) != 0
+                    mask6 = np.mod(2*hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
                 else:
-                    raise RuntimeError('omitglideplaneabsences: unknown glide plane encountered.')
-                mask1 = np.logical_not(np.logical_and(mask1,mask4))
-                mask2 = np.logical_not(np.logical_and(mask2,mask5))
-                mask3 = np.logical_not(np.logical_and(mask3,mask6))
-                mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
-                hkllist = hkllist[mask,:]
+                    raise RuntimeError(
+                        'omitglideplaneabsences: unknown glide plane encountered.')
+                mask1 = np.logical_not(np.logical_and(mask1, mask4))
+                mask2 = np.logical_not(np.logical_and(mask2, mask5))
+                mask3 = np.logical_not(np.logical_and(mask3, mask6))
+                mask = ~np.logical_or(~mask1, np.logical_or(~mask2, ~mask3))
+                hkllist = hkllist[mask, :]
         return hkllist
 
     def NonSymmorphicAbsences(self, hkllist):
@@ -2648,13 +2714,13 @@ class Material_Rietveld:
         plane absences
         '''
         planes = constants.SYS_AB[self.sgnum][0]
-        for ip,p in enumerate(planes):
+        for ip, p in enumerate(planes):
 
             if(p != ''):
                 hkllist = self.omitglideplaneabsences(hkllist, p, ip)
         axes = constants.SYS_AB[self.sgnum][1]
-        for iax,ax in enumerate(axes):
-            if(ax !=''):
+        for iax, ax in enumerate(axes):
+            if(ax != ''):
 
                 hkllist = self.omitscrewaxisabsences(hkllist, ax, iax)
         return hkllist
@@ -2666,20 +2732,20 @@ class Material_Rietveld:
         of the symmetrically equivalent one. The convention
         is to choose the hkl with the most positive components.
         '''
-        mask = np.ones(hkllist.shape[0],dtype=np.bool)
+        mask = np.ones(hkllist.shape[0], dtype=np.bool)
         laue = InversionSymmetry
-        for i,g in enumerate(hkllist):
+        for i, g in enumerate(hkllist):
             if(mask[i]):
-                geqv = self.CalcStar(g,'r',applyLaue=laue)
-                for r in geqv[1:,]:
-                    rid = np.where(np.all(r==hkllist,axis=1))
+                geqv = self.CalcStar(g, 'r', applyLaue=laue)
+                for r in geqv[1:, ]:
+                    rid = np.where(np.all(r == hkllist, axis=1))
                     mask[rid] = False
-        hkl = hkllist[mask,:].astype(np.int32)
+        hkl = hkllist[mask, :].astype(np.int32)
         hkl_max = []
         for g in hkl:
-            geqv = self.CalcStar(g,'r',applyLaue=laue)
-            loc = np.argmax(np.sum(geqv,axis=1))
-            gmax = geqv[loc,:]
+            geqv = self.CalcStar(g, 'r', applyLaue=laue)
+            loc = np.argmax(np.sum(geqv, axis=1))
+            gmax = geqv[loc, :]
             hkl_max.append(gmax)
         return np.array(hkl_max).astype(np.int32)
 
@@ -2692,16 +2758,17 @@ class Material_Rietveld:
         '''
         glen = []
         for g in hkllist:
-            glen.append(np.round(self.CalcLength(g,'r'),8))
+            glen.append(np.round(self.CalcLength(g, 'r'), 8))
         # glen = np.atleast_2d(np.array(glen,dtype=np.float)).T
-        dtype = [('glen', float), ('max', int), ('sum', int), ('h', int), ('k', int), ('l', int)]
+        dtype = [('glen', float), ('max', int), ('sum', int),
+                 ('h', int), ('k', int), ('l', int)]
         a = []
-        for i,gl in enumerate(glen):
-            g = hkllist[i,:]
+        for i, gl in enumerate(glen):
+            g = hkllist[i, :]
             a.append((gl, np.max(g), np.sum(g), g[0], g[1], g[2]))
         a = np.array(a, dtype=dtype)
-        isort = np.argsort(a, order=['glen','max','sum','l','k','h'])
-        return hkllist[isort,:]
+        isort = np.argsort(a, order=['glen', 'max', 'sum', 'l', 'k', 'h'])
+        return hkllist[isort, :]
 
     def getHKLs(self, dmin):
         '''
@@ -2721,9 +2788,9 @@ class Material_Rietveld:
         kmax = self.ik
         lmin = -1
         lmax = self.il
-        hkllist = np.array([[ih, ik, il] for ih in np.arange(hmax,hmin,-1) \
-                  for ik in np.arange(kmax,kmin,-1) \
-                  for il in np.arange(lmax,lmin,-1)])
+        hkllist = np.array([[ih, ik, il] for ih in np.arange(hmax, hmin, -1)
+                            for ik in np.arange(kmax, kmin, -1)
+                            for il in np.arange(lmax, lmin, -1)])
         hkl_allowed = self.Allowed_HKLs(hkllist)
         hkl = []
         dsp = []
@@ -2731,7 +2798,7 @@ class Material_Rietveld:
         for g in hkl_allowed:
             # ignore [0 0 0] as it is the direct beam
             if(np.sum(np.abs(g)) != 0):
-                dspace = 1./self.CalcLength(g,'r')
+                dspace = 1./self.CalcLength(g, 'r')
                 if(dspace >= dmin):
                     hkl_dsp.append(g)
         '''
@@ -2755,7 +2822,7 @@ class Material_Rietveld:
 
         multiplicity = []
         for g in hkls:
-            multiplicity.append(self.CalcStar(g,'r').shape[0])
+            multiplicity.append(self.CalcStar(g, 'r').shape[0])
 
         multiplicity = np.array(multiplicity)
         return hkls, multiplicity
@@ -2772,10 +2839,10 @@ class Material_Rietveld:
         for i in range(self.atom_ntype):
 
             n = 1
-            r = self.atom_pos[i,0:3]
+            r = self.atom_pos[i, 0:3]
             r = np.hstack((r, 1.))
 
-            asym_pos.append(np.broadcast_to(r[0:3],[1,3]))
+            asym_pos.append(np.broadcast_to(r[0:3], [1, 3]))
 
             for symmat in self.SYM_SG:
                 # get new position
@@ -2791,13 +2858,13 @@ class Material_Rietveld:
                 # check if this is new
                 isnew = True
                 for j in range(n):
-                    if(np.sum(np.abs(rr - asym_pos[i][j,:])) < 1E-4):
+                    if(np.sum(np.abs(rr - asym_pos[i][j, :])) < 1E-4):
                         isnew = False
                         break
 
                 # if its new add this to the list
                 if(isnew):
-                    asym_pos[i] = np.vstack((asym_pos[i],rr))
+                    asym_pos[i] = np.vstack((asym_pos[i], rr))
                     n += 1
 
             numat.append(n)
@@ -2813,15 +2880,15 @@ class Material_Rietveld:
 
         data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
         with h5py.File(data, 'r') as fid:
-            for i in range(0,self.atom_ntype):
+            for i in range(0, self.atom_ntype):
 
-                Z    = self.atom_type[i]
+                Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
                 gid = fid.get('/'+elem)
                 data = gid.get('data')
 
-                self.f1[elem] = interp1d(data[:,7], data[:,1])
-                self.f2[elem] = interp1d(data[:,7], data[:,2])
+                self.f1[elem] = interp1d(data[:, 7], data[:, 1])
+                self.f2[elem] = interp1d(data[:, 7], data[:, 2])
 
     def CalcAnomalous(self):
 
@@ -2836,7 +2903,6 @@ class Material_Rietveld:
             self.f_anam[elem] = np.complex(f1+frel-Z, f2)
 
     def CalcXRFormFactor(self, Z, s):
-
         '''
         we are using the following form factors for x-aray scattering:
         1. coherent x-ray scattering, f0 tabulated in Acta Cryst. (1995). A51,416-431
@@ -2865,34 +2931,34 @@ class Material_Rietveld:
         return (fe+fNT+f_anomalous)
 
     def CalcXRSF(self, hkl):
-
         '''
         the 1E-2 is to convert to A^-2
         since the fitting is done in those units
         '''
-        s =  0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2
-        sf = np.complex(0.,0.)
+        s = 0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2
+        sf = np.complex(0., 0.)
 
-        for i in range(0,self.atom_ntype):
+        for i in range(0, self.atom_ntype):
 
-            Z   = self.atom_type[i]
-            ff  = self.CalcXRFormFactor(Z,s)
+            Z = self.atom_type[i]
+            ff = self.CalcXRFormFactor(Z, s)
 
             if(self.aniU):
-                T = np.exp(-np.dot(hkl,np.dot(self.betaij[i,:,:], hkl)))
+                T = np.exp(-np.dot(hkl, np.dot(self.betaij[i, :, :], hkl)))
             else:
                 T = np.exp(-8.0*np.pi**2 * self.U[i]*s)
 
-            ff *= self.atom_pos[i,3] * T
+            ff *= self.atom_pos[i, 3] * T
 
             for j in range(self.asym_pos[i].shape[0]):
-                arg =  2.0 * np.pi * np.sum( hkl * self.asym_pos[i][j,:] )
-                sf  = sf + ff * np.complex(np.cos(arg),-np.sin(arg))
+                arg = 2.0 * np.pi * np.sum(hkl * self.asym_pos[i][j, :])
+                sf = sf + ff * np.complex(np.cos(arg), -np.sin(arg))
 
         return np.abs(sf)**2
 
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)
+
 
 class Phases_Rietveld:
     ''' ========================================================================================================
@@ -2908,15 +2974,16 @@ class Phases_Rietveld:
         ========================================================================================================
     '''
     def _kev(x):
-        return valWUnit('beamenergy','energy', x,'keV')
+        return valWUnit('beamenergy', 'energy', x, 'keV')
 
     def _nm(x):
         return valWUnit('lp', 'length', x, 'nm')
 
     def __init__(self, material_file=None,
                  material_keys=None,
-                 dmin = _nm(0.05),
-                 wavelength={'alpha1':[_nm(0.15406),1.],'alpha2':[_nm(0.154443),0.52]}
+                 dmin=_nm(0.05),
+                 wavelength={'alpha1': [_nm(0.15406), 1.], 'alpha2': [
+                     _nm(0.154443), 0.52]}
                  ):
 
         self.phase_dict = {}
@@ -2927,7 +2994,7 @@ class Phases_Rietveld:
         convert to nm since the rest of the code assumes those units
         '''
         wavelength_nm = {}
-        for k,v in wavelength.items():
+        for k, v in wavelength.items():
             if(v.unit == 'angstrom'):
                 wavelength_nm[k] = valWUnit('lp', 'length', v.value*10., 'nm')
             else:
@@ -2945,7 +3012,7 @@ class Phases_Rietveld:
 
     def __str__(self):
         resstr = 'Phases in calculation:\n'
-        for i,k in enumerate(self.phase_dict.keys()):
+        for i, k in enumerate(self.phase_dict.keys()):
             resstr += '\t'+str(i+1)+'. '+k+'\n'
         return resstr
 
@@ -2962,7 +3029,7 @@ class Phases_Rietveld:
         # if(isinstance(mat_cls, Material_Rietveld)):
         self.phase_dict[key] = mat_cls
         # else:
-            # raise ValueError('input not a material class')
+        # raise ValueError('input not a material class')
 
     def __iter__(self):
         self.n = 0
@@ -2977,7 +3044,7 @@ class Phases_Rietveld:
             raise StopIteration
 
     def __len__(self):
-         return len(self.phase_dict)
+        return len(self.phase_dict)
 
     def add(self, material_file, material_key):
         self[material_key] = {}
@@ -2985,8 +3052,9 @@ class Phases_Rietveld:
             lam = self.wavelength[l][0].value * 1e-9
             E = constants.cPlanck * constants.cLight / constants.cCharge / lam
             E *= 1e-3
-            kev = valWUnit('beamenergy','energy', E,'keV')
-            self[material_key][l] = Material_Rietveld(material_file, material_key, dmin=self.dmin, kev=kev)
+            kev = valWUnit('beamenergy', 'energy', E, 'keV')
+            self[material_key][l] = Material_Rietveld(
+                material_file, material_key, dmin=self.dmin, kev=kev)
 
     def add_many(self, material_file, material_keys):
 
@@ -2997,9 +3065,9 @@ class Phases_Rietveld:
                 lam = self.wavelength[l][0].value * 1e-9
                 E = constants.cPlanck * constants.cLight / constants.cCharge / lam
                 E *= 1e-3
-                kev = valWUnit('beamenergy','energy', E,'keV')
-                self[k][l] = Material_Rietveld(material_file, k, dmin=self.dmin, kev=kev)
-
+                kev = valWUnit('beamenergy', 'energy', E, 'keV')
+                self[k][l] = Material_Rietveld(
+                    material_file, k, dmin=self.dmin, kev=kev)
 
         for k in self:
             for l in self.wavelength:
@@ -3029,10 +3097,11 @@ class Phases_Rietveld:
         '''
         dic = {}
         k = self.material_file
-        dic[k] =  [m for m in self]
+        dic[k] = [m for m in self]
 
         with open(fname, 'w') as f:
             data = yaml.dump(dic, f, sort_keys=False)
+
 
 class Rietveld:
     ''' ========================================================================================================
@@ -3051,8 +3120,8 @@ class Rietveld:
         ========================================================================================================
         ========================================================================================================
     '''
-    def __init__(self,expt_file=None,param_file=None,phase_file=None,wavelength=None):
 
+    def __init__(self, expt_file=None, param_file=None, phase_file=None, wavelength=None):
 
         self.initialize_expt_spectrum(expt_file)
         self._tstart = time.time()
@@ -3068,7 +3137,7 @@ class Rietveld:
         self.tinit = self._tstop - self._tstart
 
         self.niter = 0
-        self.Rwplist  = np.empty([0])
+        self.Rwplist = np.empty([0])
         self.gofFlist = np.empty([0])
 
     def __str__(self):
@@ -3098,26 +3167,28 @@ class Rietveld:
                     l = list(self.phases[p].keys())[0]
 
                     mat = self.phases[p][l]
-                    lp       = np.array(mat.lparms)
-                    rid      = list(_rqpDict[mat.latticeType][0])
+                    lp = np.array(mat.lparms)
+                    rid = list(_rqpDict[mat.latticeType][0])
 
-                    lp       = lp[rid]
-                    name     = _lpname[rid]
+                    lp = lp[rid]
+                    name = _lpname[rid]
 
-                    for n,l in zip(name,lp):
+                    for n, l in zip(name, lp):
                         nn = p+'_'+n
                         '''
                         is l is small, it is one of the length units
                         else it is an angle
                         '''
                         if(l < 10.):
-                            params.add(nn,value=l,lb=l-0.05,ub=l+0.05,vary=False)
+                            params.add(nn, value=l, lb=l-0.05,
+                                       ub=l+0.05, vary=False)
                         else:
-                            params.add(nn,value=l,lb=l-1.,ub=l+1.,vary=False)
+                            params.add(nn, value=l, lb=l-1.,
+                                       ub=l+1., vary=False)
 
-                    atom_pos   = mat.atom_pos[:,0:3]
-                    occ        = mat.atom_pos[:,3]
-                    atom_type  = mat.atom_type
+                    atom_pos = mat.atom_pos[:, 0:3]
+                    occ = mat.atom_pos[:, 3]
+                    atom_type = mat.atom_type
 
                     atom_label = _getnumber(atom_type)
                     self.atom_label = atom_label
@@ -3128,26 +3199,33 @@ class Rietveld:
                         elem = constants.ptableinverse[Z]
 
                         nn = p+'_'+elem+str(atom_label[i])+'_x'
-                        params.add(nn,value=atom_pos[i,0],lb=0.0,ub=1.0,vary=False)
+                        params.add(
+                            nn, value=atom_pos[i, 0], lb=0.0, ub=1.0, vary=False)
 
                         nn = p+'_'+elem+str(atom_label[i])+'_y'
-                        params.add(nn,value=atom_pos[i,1],lb=0.0,ub=1.0,vary=False)
+                        params.add(
+                            nn, value=atom_pos[i, 1], lb=0.0, ub=1.0, vary=False)
 
                         nn = p+'_'+elem+str(atom_label[i])+'_z'
-                        params.add(nn,value=atom_pos[i,2],lb=0.0,ub=1.0,vary=False)
+                        params.add(
+                            nn, value=atom_pos[i, 2], lb=0.0, ub=1.0, vary=False)
 
                         nn = p+'_'+elem+str(atom_label[i])+'_occ'
-                        params.add(nn,value=occ[i],lb=0.0,ub=1.0,vary=False)
+                        params.add(nn, value=occ[i],
+                                   lb=0.0, ub=1.0, vary=False)
 
                         if(mat.aniU):
                             U = mat.U
                             for j in range(6):
-                                nn = p+'_'+elem+str(atom_label[i])+'_'+_nameU[j]
-                                params.add(nn,value=U[i,j],lb=-1e-3,ub=np.inf,vary=False)
+                                nn = p+'_'+elem + \
+                                    str(atom_label[i])+'_'+_nameU[j]
+                                params.add(
+                                    nn, value=U[i, j], lb=-1e-3, ub=np.inf, vary=False)
                         else:
 
                             nn = p+'_'+elem+str(atom_label[i])+'_dw'
-                            params.add(nn,value=mat.U[i],lb=0.0,ub=np.inf,vary=False)
+                            params.add(
+                                nn, value=mat.U[i], lb=0.0, ub=np.inf, vary=False)
 
             else:
                 raise FileError('parameter file doesn\'t exist.')
@@ -3158,18 +3236,19 @@ class Rietveld:
                 next are the three gauss+lorentz mixing paramters
                 final is the zero instrumental peak position error
             '''
-            names   = ('a','b','c','alpha','beta','gamma',\
-                      'U','V','W','eta1','eta2','eta3','tth_zero',\
-                      'scale')
-            values  = (5.415, 5.415, 5.415, 90., 90., 90., \
-                        0.5, 0.5, 0.5, 1e-3, 1e-3, 1e-3, 0., \
-                        1.0)
+            names = ('a', 'b', 'c', 'alpha', 'beta', 'gamma',
+                     'U', 'V', 'W', 'eta1', 'eta2', 'eta3', 'tth_zero',
+                     'scale')
+            values = (5.415, 5.415, 5.415, 90., 90., 90.,
+                      0.5, 0.5, 0.5, 1e-3, 1e-3, 1e-3, 0.,
+                      1.0)
 
-            lbs         = (-np.Inf,) * len(names)
-            ubs         = (np.Inf,)  * len(names)
-            varies  = (False,)   * len(names)
+            lbs = (-np.Inf,) * len(names)
+            ubs = (np.Inf,) * len(names)
+            varies = (False,) * len(names)
 
-            params.add_many(names,values=values,varies=varies,lbs=lbs,ubs=ubs)
+            params.add_many(names, values=values,
+                            varies=varies, lbs=lbs, ubs=ubs)
 
         self.params = params
 
@@ -3185,6 +3264,7 @@ class Rietveld:
     '''
         no params are varied
     '''
+
     def params_vary_off(self):
 
         for p in self.params:
@@ -3193,6 +3273,7 @@ class Rietveld:
     '''
             all params are varied
     '''
+
     def params_vary_on(self):
 
         for p in self.params:
@@ -3201,6 +3282,7 @@ class Rietveld:
     '''
         turn all cagliotti parameters on
     '''
+
     def params_cagliotti_vary_on(self):
         self.params['U'].vary = True
         self.params['V'].vary = True
@@ -3209,6 +3291,7 @@ class Rietveld:
     '''
         turn all cagliotti parameters off
     '''
+
     def params_cagliotti_vary_off(self):
         self.params['U'].vary = False
         self.params['V'].vary = False
@@ -3217,6 +3300,7 @@ class Rietveld:
     '''
         turn all mixing parameters on
     '''
+
     def params_eta_vary_on(self):
         self.params['eta1'].vary = True
         self.params['eta2'].vary = True
@@ -3225,6 +3309,7 @@ class Rietveld:
     '''
         turn all mixing parameters off
     '''
+
     def params_eta_vary_on(self):
         self.params['eta1'].vary = False
         self.params['eta2'].vary = False
@@ -3233,14 +3318,15 @@ class Rietveld:
     '''
         turn all lattice paramater on
     '''
+
     def params_lp_vary_all_on(self):
 
         for p in self.phases:
 
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            rid      = list(_rqpDict[mat.latticeType][0])
-            name     = _lpname[rid]
+            rid = list(_rqpDict[mat.latticeType][0])
+            name = _lpname[rid]
             for n in name:
                 nn = p+'_'+n
                 self.params[nn].vary = True
@@ -3248,14 +3334,15 @@ class Rietveld:
     '''
         turn all lattice paramater off
     '''
+
     def params_lp_vary_all_off(self):
 
         for p in self.phases:
 
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            rid      = list(_rqpDict[mat.latticeType][0])
-            name     = _lpname[rid]
+            rid = list(_rqpDict[mat.latticeType][0])
+            name = _lpname[rid]
             for n in name:
                 nn = p+'_'+n
                 self.params[nn].vary = False
@@ -3263,12 +3350,13 @@ class Rietveld:
     '''
         turn lattice paramater for a phase on
     '''
+
     def params_lp_vary_phase_on(self, phase_name):
 
         l = list(self.phases[phase_name].keys())[0]
         mat = self.phases[phase_name][l]
-        rid      = list(_rqpDict[mat.latticeType][0])
-        name     = _lpname[rid]
+        rid = list(_rqpDict[mat.latticeType][0])
+        name = _lpname[rid]
         for n in name:
             nn = phase_name+'_'+n
             self.params[nn].vary = True
@@ -3276,12 +3364,13 @@ class Rietveld:
     '''
         turn lattice paramater for a phase off
     '''
+
     def params_lp_vary_phase_off(self, phase_name):
 
         l = list(self.phases[phase_name].keys())[0]
         mat = self.phases[phase_name][l]
-        rid      = list(_rqpDict[mat.latticeType][0])
-        name     = _lpname[rid]
+        rid = list(_rqpDict[mat.latticeType][0])
+        name = _lpname[rid]
         for n in name:
             nn = phase_name+'_'+n
             self.params[nn].vary = False
@@ -3289,12 +3378,13 @@ class Rietveld:
     '''
         turn all the debye waller factors on
     '''
+
     def params_U_vary_all_on(self):
 
         for p in self.phases:
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            atom_type  = mat.atom_type
+            atom_type = mat.atom_type
             for i in range(atom_type.shape[0]):
                 Z = atom_type[i]
                 elem = constants.ptableinverse[Z]
@@ -3312,12 +3402,13 @@ class Rietveld:
     '''
         turn all the debye waller factors on
     '''
+
     def params_U_vary_all_off(self):
 
         for p in self.phases:
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            atom_type  = mat.atom_type
+            atom_type = mat.atom_type
             for i in range(atom_type.shape[0]):
                 Z = atom_type[i]
                 elem = constants.ptableinverse[Z]
@@ -3336,12 +3427,13 @@ class Rietveld:
         turn all the debye waller factors
         for an atom label off
     '''
+
     def params_U_vary_label_off(self, label):
 
         for p in self.phases:
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            atom_type  = mat.atom_type
+            atom_type = mat.atom_type
 
             elem_all = []
             for i in range(atom_type.shape[0]):
@@ -3365,12 +3457,13 @@ class Rietveld:
         turn all the debye waller factors
         for an atom label on
     '''
+
     def params_U_vary_label_on(self, label):
 
         for p in self.phases:
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            atom_type  = mat.atom_type
+            atom_type = mat.atom_type
 
             elem_all = []
             for i in range(atom_type.shape[0]):
@@ -3393,12 +3486,13 @@ class Rietveld:
     '''
         turn all the occupation factors on
     '''
+
     def params_occ_vary_all_on(self):
 
         for p in self.phases:
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            atom_type  = mat.atom_type
+            atom_type = mat.atom_type
             for i in range(atom_type.shape[0]):
                 Z = atom_type[i]
                 elem = constants.ptableinverse[Z]
@@ -3409,12 +3503,13 @@ class Rietveld:
     '''
         turn all the occupation factors on
     '''
+
     def params_occ_vary_all_off(self):
 
         for p in self.phases:
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            atom_type  = mat.atom_type
+            atom_type = mat.atom_type
             for i in range(atom_type.shape[0]):
                 Z = atom_type[i]
                 elem = constants.ptableinverse[Z]
@@ -3426,12 +3521,13 @@ class Rietveld:
         turn all the occupation factors
         for an atom label off
     '''
+
     def params_occ_vary_label_off(self, label):
 
         for p in self.phases:
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            atom_type  = mat.atom_type
+            atom_type = mat.atom_type
 
             elem_all = []
             for i in range(atom_type.shape[0]):
@@ -3449,12 +3545,13 @@ class Rietveld:
         turn all the occupation factors
         for an atom label on
     '''
+
     def params_occ_vary_label_on(self, label):
 
         for p in self.phases:
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            atom_type  = mat.atom_type
+            atom_type = mat.atom_type
 
             elem_all = []
             for i in range(atom_type.shape[0]):
@@ -3471,12 +3568,13 @@ class Rietveld:
     '''
         turn all the atom positions factors on
     '''
+
     def params_xyz_vary_all_on(self):
 
         for p in self.phases:
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            atom_type  = mat.atom_type
+            atom_type = mat.atom_type
             for i in range(atom_type.shape[0]):
                 Z = atom_type[i]
                 elem = constants.ptableinverse[Z]
@@ -3491,12 +3589,13 @@ class Rietveld:
     '''
         turn all the atom positions factors on
     '''
+
     def params_xyz_vary_all_off(self):
 
         for p in self.phases:
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            atom_type  = mat.atom_type
+            atom_type = mat.atom_type
             for i in range(atom_type.shape[0]):
                 Z = atom_type[i]
                 elem = constants.ptableinverse[Z]
@@ -3512,12 +3611,13 @@ class Rietveld:
         turn all the atom positions
         for an atom label off
     '''
+
     def params_xyz_vary_label_off(self, label):
 
         for p in self.phases:
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            atom_type  = mat.atom_type
+            atom_type = mat.atom_type
 
             elem_all = []
             for i in range(atom_type.shape[0]):
@@ -3539,12 +3639,13 @@ class Rietveld:
         turn all the atom positions
         for an atom label on
     '''
+
     def params_xyz_vary_label_on(self, label):
 
         for p in self.phases:
             l = list(self.phases[p].keys())[0]
             mat = self.phases[p][l]
-            atom_type  = mat.atom_type
+            atom_type = mat.atom_type
 
             elem_all = []
             for i in range(atom_type.shape[0]):
@@ -3571,7 +3672,7 @@ class Rietveld:
         # self.spectrum_expt = Spectrum.from_file()
         if(expt_file is not None):
             if(path.exists(expt_file)):
-                self.spectrum_expt = Spectrum.from_file(expt_file,skip_rows=0)
+                self.spectrum_expt = Spectrum.from_file(expt_file, skip_rows=0)
                 self.tth_max = np.amax(self.spectrum_expt._x)
                 self.tth_min = np.amin(self.spectrum_expt._x)
 
@@ -3582,7 +3683,6 @@ class Rietveld:
                 raise FileError('input spectrum file doesn\'t exist.')
 
     def initialize_bkg(self):
-
         '''
             the cubic spline seems to be the ideal route in terms
             of determining the background intensity. this involves
@@ -3592,24 +3692,24 @@ class Rietveld:
             scipy provides some useful routines for this
         '''
         self.selectpoints()
-        x = self.points[:,0]
-        y = self.points[:,1]
+        x = self.points[:, 0]
+        y = self.points[:, 1]
         self.splinefit(x, y)
 
-        plot(self.tth_list, self.spectrum_expt._y, '-k',lw=1.5)
-        plot(self.tth_list, self.background._y, '--r',lw=1.5)
+        plot(self.tth_list, self.spectrum_expt._y, '-k', lw=1.5)
+        plot(self.tth_list, self.background._y, '--r', lw=1.5)
         show()
 
     def selectpoints(self):
 
-        plot(self.tth_list, self.spectrum_expt._y, '-k',lw=1.5)
+        plot(self.tth_list, self.spectrum_expt._y, '-k', lw=1.5)
         title('Select points for background estimation. Middle click once done')
         self.points = np.array(ginput(0))
         close()
 
     # cubic spline fit of background using custom points chosen from plot
     def splinefit(self, x, y):
-        cs = CubicSpline(x,y)
+        cs = CubicSpline(x, y)
         bkg = cs(self.tth_list)
         self.background = Spectrum(x=self.tth_list, y=bkg)
 
@@ -3634,9 +3734,9 @@ class Rietveld:
         self.tth = {}
         for p in self.phases:
             self.tth[p] = {}
-            for k,l in self.phases.wavelength.items():
-                t,_ = self.phases[p][k].getTTh(l[0].value)
-                limit = np.logical_and(t >= self.tth_min,\
+            for k, l in self.phases.wavelength.items():
+                t, _ = self.phases[p][k].getTTh(l[0].value)
+                limit = np.logical_and(t >= self.tth_min,
                                        t <= self.tth_max)
                 self.tth[p][k] = t[limit]
 
@@ -3644,15 +3744,15 @@ class Rietveld:
         self.sf = {}
         for p in self.phases:
             self.sf[p] = {}
-            for k,l in self.phases.wavelength.items():
+            for k, l in self.phases.wavelength.items():
                 w_int = l[1]
-                t,tmask = self.phases[p][k].getTTh(l[0].value)
-                limit = np.logical_and(t >= self.tth_min,\
+                t, tmask = self.phases[p][k].getTTh(l[0].value)
+                limit = np.logical_and(t >= self.tth_min,
                                        t <= self.tth_max)
                 hkl = self.phases[p][k].hkls[tmask][limit]
                 multiplicity = self.phases[p][k].multiplicity[tmask][limit]
                 sf = []
-                for m,g in zip(multiplicity,hkl):
+                for m, g in zip(multiplicity, hkl):
                     sf.append(w_int * m * self.phases[p][k].CalcXRSF(g))
                 self.sf[p][k] = np.array(sf)
 
@@ -3662,12 +3762,12 @@ class Rietveld:
         >> @DATE:       05/20/2020 SS 1.0 original
         >> @DETAILS:    calculates the cagiotti parameter for the peak width
         '''
-        th          = np.radians(0.5*tth)
-        tanth       = np.tan(th)
-        Hsq         = self.U * tanth**2 + self.V * tanth + self.W
+        th = np.radians(0.5*tth)
+        tanth = np.tan(th)
+        Hsq = self.U * tanth**2 + self.V * tanth + self.W
         if(Hsq < 0.):
             Hsq = 1.0e-12
-        self.Hcag   = np.sqrt(Hsq)
+        self.Hcag = np.sqrt(Hsq)
 
     def MixingFact(self, tth):
         '''
@@ -3690,9 +3790,10 @@ class Rietveld:
         >> @DETAILS:    this routine computes the gaussian peak profile
         '''
 
-        H  = self.Hcag
+        H = self.Hcag
         cg = 4.*np.log(2.)
-        self.GaussianI = (np.sqrt(cg/np.pi)/H) * np.exp( -cg * ((self.tth_list - tth)/H)**2 )
+        self.GaussianI = (np.sqrt(cg/np.pi)/H) * \
+            np.exp(-cg * ((self.tth_list - tth)/H)**2)
 
     def Lorentzian(self, tth):
         '''
@@ -3703,7 +3804,7 @@ class Rietveld:
 
         H = self.Hcag
         cl = 4.
-        self.LorentzI = (2./np.pi/H) / ( 1. + cl*((self.tth_list - tth)/H)**2)
+        self.LorentzI = (2./np.pi/H) / (1. + cl*((self.tth_list - tth)/H)**2)
 
     def PseudoVoight(self, tth):
         '''
@@ -3719,13 +3820,13 @@ class Rietveld:
         self.MixingFact(tth)
 
         self.PV = self.eta * self.GaussianI + \
-                  (1.0 - self.eta) * self.LorentzI
+            (1.0 - self.eta) * self.LorentzI
 
     def PolarizationFactor(self):
 
         tth = np.radians(self.tth_list)
-        self.LP = (1 + np.cos(tth)**2)/ \
-        np.cos(0.5*tth)/np.sin(0.5*tth)**2
+        self.LP = (1 + np.cos(tth)**2) / \
+            np.cos(0.5*tth)/np.sin(0.5*tth)**2
 
     def computespectrum(self):
 
@@ -3734,10 +3835,10 @@ class Rietveld:
             for l in self.tth[p]:
 
                 tth = self.tth[p][l]
-                sf  = self.sf[p][l]
+                sf = self.sf[p][l]
                 pf = self.phases[p][l].pf / self.phases[p][l].vol**2
 
-                for t,fsq in zip(tth,sf):
+                for t, fsq in zip(tth, sf):
                     self.PseudoVoight(t+self.zero_error)
                     I += self.scale * pf * self.PV * fsq * self.LP
 
@@ -3815,7 +3916,8 @@ class Rietveld:
                     if(mat.aniU):
                         Un = []
                         for j in range(6):
-                            Un.append(p+'_'+elem+str(self.atom_label[i])+'_'+_nameU[j])
+                            Un.append(
+                                p+'_'+elem+str(self.atom_label[i])+'_'+_nameU[j])
                     else:
                         dw = p+'_'+elem+str(self.atom_label[i])+'_dw'
 
@@ -3852,7 +3954,7 @@ class Rietveld:
                             else:
                                 U.append(self.params[Un[j]].value)
                         U = np.array(U)
-                        mat.U[i,:] = U
+                        mat.U[i, :] = U
                     else:
                         if(dw in params):
                             dw = params[dw].value
@@ -3861,7 +3963,7 @@ class Rietveld:
                             dw = self.params[dw].value
                         mat.U[i] = dw
 
-                    mat.atom_pos[i,:] = np.array([x,y,z,oc])
+                    mat.atom_pos[i, :] = np.array([x, y, z, oc])
 
                 if(mat.aniU):
                     mat.calcBetaij()
@@ -3882,7 +3984,8 @@ class Rietveld:
         ''' weighted sum of square '''
         wss = np.trapz(self.weights * self.err._y**2, self.err._x)
 
-        den = np.trapz(self.weights * self.spectrum_sim._y**2, self.spectrum_sim._x)
+        den = np.trapz(self.weights * self.spectrum_sim._y **
+                       2, self.spectrum_sim._x)
 
         ''' standard Rwp i.e. weighted residual '''
         Rwp = np.sqrt(wss/den)
@@ -3907,7 +4010,7 @@ class Rietveld:
         for p in self.params:
             par = self.params[p]
             if(par.vary):
-                params.add(p, value=par.value, min=par.lb, max = par.ub)
+                params.add(p, value=par.value, min=par.lb, max=par.ub)
 
         return params
 
@@ -3927,8 +4030,8 @@ class Rietveld:
 
         params = self.initialize_lmfit_parameters()
 
-        fdict = {'ftol':1e-4, 'xtol':1e-4, 'gtol':1e-4, \
-                 'verbose':0, 'max_nfev':8}
+        fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
+                 'verbose': 0, 'max_nfev': 8}
 
         fitter = lmfit.Minimizer(self.calcRwp, params)
 
@@ -3937,10 +4040,11 @@ class Rietveld:
         self.update_parameters()
 
         self.niter += 1
-        self.Rwplist  = np.append(self.Rwplist, self.Rwp)
+        self.Rwplist = np.append(self.Rwplist, self.Rwp)
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-        print('Finished iteration. Rwp: {:.3f} % goodness of fit: {:.3f}'.format(self.Rwp*100., self.gofF))
+        print('Finished iteration. Rwp: {:.3f} % goodness of fit: {:.3f}'.format(
+            self.Rwp*100., self.gofF))
 
     @property
     def U(self):
@@ -4021,24 +4125,26 @@ class Rietveld:
     def scale(self):
         return self._scale
 
-
     @scale.setter
     def scale(self, value):
         self._scale = value
         return
 
+
 _rqpDict = {
     'triclinic': (tuple(range(6)), lambda p: p),  # all 6
-    'monoclinic': ((0,1,2,4), lambda p: (p[0], p[1], p[2], 90, p[3], 90)), # note beta
-    'orthorhombic': ((0,1,2),   lambda p: (p[0], p[1], p[2], 90, 90,   90)),
-    'tetragonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,   90)),
-    'trigonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
-    'hexagonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
-    'cubic': ((0,),      lambda p: (p[0], p[0], p[0], 90, 90,   90)),
-    }
+    # note beta
+    'monoclinic': ((0, 1, 2, 4), lambda p: (p[0], p[1], p[2], 90, p[3], 90)),
+    'orthorhombic': ((0, 1, 2), lambda p: (p[0], p[1], p[2], 90, 90,   90)),
+    'tetragonal': ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90,   90)),
+    'trigonal': ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90,  120)),
+    'hexagonal': ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90,  120)),
+    'cubic': ((0,), lambda p: (p[0], p[0], p[0], 90, 90,   90)),
+}
 
-_lpname = np.array(['a','b','c','alpha','beta','gamma'])
-_nameU  = np.array(['U11','U22','U33','U12','U13','U23'])
+_lpname = np.array(['a', 'b', 'c', 'alpha', 'beta', 'gamma'])
+_nameU = np.array(['U11', 'U22', 'U33', 'U12', 'U13', 'U23'])
+
 
 def _getnumber(arr):
 
