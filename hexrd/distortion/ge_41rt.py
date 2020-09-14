@@ -188,7 +188,7 @@ class GE_41RT(DistortionABC, metaclass=_RegisterDistortionClass):
     maptype = "GE_41RT"
 
     def __init__(self, params, **kwargs):
-        self._params = params
+        self._params = np.asarray(params, dtype=float).flatten()
 
     @property
     def params(self):
@@ -197,7 +197,7 @@ class GE_41RT(DistortionABC, metaclass=_RegisterDistortionClass):
     @params.setter
     def params(self, x):
         assert len(x) == 6, "parameter list must have len of 6"
-        self._params = np.asarray(x).flatten()
+        self._params = np.asarray(x, dtype=float).flatten()
 
     @property
     def is_trivial(self):
