@@ -206,7 +206,7 @@ class Parameter:
 
 class Spectrum:
     ''' ========================================================================================================
-    ========================================================================================================
+        ========================================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/18/2020 SS 1.0 original
@@ -437,20 +437,38 @@ class Spectrum:
         return False
 
 class Material_LeBail:
+    ''' ========================================================================================================
+        ========================================================================================================
 
-    def __init__(self, fhdf, xtal, dmin):
+    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+    >> @DATE:       05/18/2020 SS 1.0 original
+                    09/14/2020 SS 1.1 class can now be initialized using a material.Material class instance
+    >> @DETAILS:    Material_LeBail class is a stripped down version of the materials.Material class. 
+                    this is done to keep the class lightweight and make sure only the information
+                    necessary for the lebail fit is kept
 
-        self.dmin = dmin.value
-        self._readHDF(fhdf, xtal)
-        self._calcrmt()
+        ========================================================================================================
+        ========================================================================================================
+    '''
+    def __init__(self, fhdf=None, xtal=None, dmin=None, material_obj=None):
 
-        _, self.SYM_PG_d, self.SYM_PG_d_laue, self.centrosymmetric, self.symmorphic = \
-        symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
-        self.latticeType = symmetry.latticeType(self.sgnum)
-        self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum-1].strip()
-        self.GenerateRecipPGSym()
-        self.CalcMaxGIndex()
-        self._calchkls()
+        if(material_obj is None):
+            self.dmin = dmin.value
+            self._readHDF(fhdf, xtal)
+            self._calcrmt()
+
+            _, self.SYM_PG_d, self.SYM_PG_d_laue, self.centrosymmetric, self.symmorphic = \
+            symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
+            self.latticeType = symmetry.latticeType(self.sgnum)
+            self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum-1].strip()
+            self.GenerateRecipPGSym()
+            self.CalcMaxGIndex()
+            self._calchkls()
+        else:
+            if(isinstance(material_obj, Material)):
+                self._init_from_materials(material_obj)
+            else:
+                raise ValueError("Invalid material_obj argument. only Material class can be passed here.")
 
     def _readHDF(self, fhdf, xtal):
 
@@ -469,16 +487,47 @@ class Material_LeBail:
                                      dtype = np.int32))
         self.sgsetting = np.asscalar(np.array(gid.get('SpaceGroupSetting'), \
                                         dtype = np.int32))
-        self.sgsetting -= 1
         """
             IMPORTANT NOTE:
-            note that the latice parameters in EMsoft is nm by default
+            note that the latice parameters is nm by default
             hexrd on the other hand uses A as the default units, so we
             need to be careful and convert it right here, so there is no
             confusion later on
         """
         self.lparms      = list(gid.get('LatticeParameters'))
         fid.close()
+
+    def _init_from_materials(self, material_obj):
+        '''
+        this function is used to initialize the materials_lebail class
+        from an instance of the material.Material class. this option is
+        provided for easy integration of the hexrdgui with WPPF.
+        '''
+        self.dmin  = material_obj.dmin.value
+        self.sgnum = material_obj.unitcell.sgnum
+        self.sgsetting = material_obj.sgsetting
+        self.lparms = [x.value for x in material_obj.latticeParameters]
+
+        self.dmt = material_obj.unitcell.dmt
+        self.rmt = material_obj.unitcell.rmt
+        self.vol = material_obj.unitcell.vol
+
+        self.centrosymmetric = material_obj.unitcell.centrosymmetric
+        self.symmorphic = material_obj.unitcell.symmorphic
+
+        self.latticeType = material_obj.unitcell.latticeType
+        self.sg_hmsymbol = material_obj.unitcell.sg_hmsymbol
+
+        self.ih = material_obj.unitcell.ih
+        self.ik = material_obj.unitcell.ik
+        self.il = material_obj.unitcell.il
+
+        self.SYM_PG_d       = material_obj.unitcell.SYM_PG_d
+        self.SYM_PG_d_laue  = material_obj.unitcell.SYM_PG_d_laue 
+        self.SYM_PG_r       = material_obj.unitcell.SYM_PG_r
+        self.SYM_PG_r_laue  = material_obj.unitcell.SYM_PG_r_laue
+
+        self.hkls = material_obj.unitcell.hkls
 
     def _calcrmt(self):
 
@@ -1178,13 +1227,13 @@ class Phases_LeBail:
 
     def add(self, material_file, material_key):
 
-        self[material_key] = Material_LeBail(material_file, material_key, dmin=self.dmin)
+        self[material_key] = Material_LeBail(fhdf=material_file, xtal=material_key, dmin=self.dmin)
 
     def add_many(self, material_file, material_keys):
 
         for k in material_keys:
 
-            self[k] = Material_LeBail(material_file, k, dmin=self.dmin)
+            self[k] = Material_LeBail(fhdf=material_file, xtal=k, dmin=self.dmin)
 
             self.num_phases += 1
 
@@ -1511,6 +1560,7 @@ class LeBail:
                 '''
                 self.phases = phase_info
             else:
+
                 if(hasattr(self,'wavelength')):
                     if(self.wavelength is not None):
                         p = Phases_LeBail(wavelength=self.wavelength)
@@ -1537,6 +1587,22 @@ class LeBail:
                     else:
                         raise FileError('phase file doesn\'t exist.')
 
+                elif(isinstance(phase_info, Material)):
+                    p[phase_info.name] = Material_LeBail(fhdf=None,
+                                                         xtal=None,
+                                                         dmin=None,
+                                                         material_obj=phase_info)
+
+                elif(isinstance(phase_info, list)):
+                    for mat in phase_info:
+                        p[mat.name] = Material_LeBail(fhdf=None,
+                                                      xtal=None,
+                                                      dmin=None,
+                                                      material_obj=mat)
+                        p.num_phases += 1
+
+                    for mat in p:
+                        p[mat].pf = 1.0/p.num_phases
                 self.phases = p
 
         self.calctth()
