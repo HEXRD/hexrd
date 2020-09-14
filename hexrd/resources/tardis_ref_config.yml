@@ -1,8 +1,8 @@
 beam:
   energy: 10.2505
   vector:
-    azimuth: 60.6212291803227
-    polar_angle: 90.21969555888647
+    azimuth: 119.0
+    polar_angle: 90.0
 detectors:
   IMAGE-PLATE-2:
     pixels:
@@ -16,9 +16,9 @@ detectors:
     - 0.2
     transform:
       tilt:
+      - -1.57079633e+00
       - 0.0
-      - -2.22144147e+00
-      - 2.22144147e+00
+      - 0.0
       translation:
       - 0.0
       - -11.935
@@ -35,9 +35,9 @@ detectors:
     - 0.2
     transform:
       tilt:
-      - -1.57079633e+00
       - 0.0
-      - 0.0
+      - -2.22144147e+00
+      - 2.22144147e+00
       translation:
       - 0.0
       - 11.935
