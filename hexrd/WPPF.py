@@ -519,7 +519,10 @@ class Material_LeBail:
         self.dmin = material_obj.dmin.value
         self.sgnum = material_obj.unitcell.sgnum
         self.sgsetting = material_obj.sgsetting
-        self.lparms = [x.value for x in material_obj.latticeParameters]
+        if(material_obj.latticeParameters[0].unit == 'nm'):
+            self.lparms = [x.value for x in material_obj.latticeParameters]
+        elif(material_obj.latticeParameters[0].unit == 'angstrom'):
+            self.lparms = [x.value/10.0 for x in material_obj.latticeParameters]
 
         self.dmt = material_obj.unitcell.dmt
         self.rmt = material_obj.unitcell.rmt
@@ -1569,7 +1572,7 @@ class LeBail:
     def chebyshevfit(self):
         degree = self.bkgmethod['chebyshev']
         p = np.polynomial.Chebyshev.fit(
-            self.tth_list, self.spectrum_expt._y, degree, w=self.weights)
+            self.tth_list, self.spectrum_expt._y, degree, w=self.weights**4)
         self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
 
     def selectpoints(self):
@@ -1592,6 +1595,8 @@ class LeBail:
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       06/08/2020 SS 1.0 original
+                        09/11/2020 SS 1.1 multiple different ways to initialize phases
+                        09/14/2020 SS 1.2 added phase initialization from material.Material class
         >> @DETAILS:    load the phases for the LeBail fits
         '''
 
