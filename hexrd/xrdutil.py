@@ -115,6 +115,76 @@ def _zproject(x, y):
     return np.cos(x) * np.sin(y) - np.sin(x) * np.cos(y)
 
 
+def _convert_angles(tth_eta, detector,
+                    rmat_s, tvec_c,
+                    beam_vector=constants.beam_vec,
+                    eta_vector=constants.eta_vec):
+    """
+    Coverts frame-local angles to effective angles in the LAB reference frame.
+
+    Operates on a detector instance in lieu of instrument.
+
+    Parameters
+    ----------
+    tth_eta : TYPE
+        DESCRIPTION.
+    detector : TYPE
+        DESCRIPTION.
+    rmat_s : TYPE
+        DESCRIPTION.
+    tvec_c : TYPE
+        DESCRIPTION.
+    beam_vector : TYPE, optional
+        DESCRIPTION. The default is constants.beam_vec.
+    eta_vector : TYPE, optional
+        DESCRIPTION. The default is constants.eta_vec.
+
+    Returns
+    -------
+    tth_eta_ref : TYPE
+        DESCRIPTION.
+
+    Notes
+    -----
+    FIXME: This API won't work for rotation series data
+    """
+
+    tth_eta = np.atleast_2d(tth_eta)
+
+    chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
+    ome = np.arctan2(rmat_s[0, 2], rmat_s[0, 0])
+
+    # !!! reform rmat_s to be consistent with def in geometric model
+    rmat_s = xfcapi.makeOscillRotMat(np.r_[chi, ome])
+    rmat_c = constants.identity_3x3
+    tvec_s = constants.zeros_3
+    tvec_c_ref = constants.zeros_3
+
+    # FIXME: doesn't work for rotation series with different ome yet.
+    full_angs = np.hstack([tth_eta, ome*np.ones((len(tth_eta), 1))])
+
+    # convert to gvectors using trivial crystal frame
+    gvec_s = xfcapi.anglesToGVec(
+        full_angs, bHat_l=beam_vector, eHat_l=eta_vector, chi=chi
+    )
+
+    # convert to detector points
+    det_xys = xfcapi.gvecToDetectorXY(
+        gvec_s,
+        detector.rmat, rmat_s, rmat_c,
+        detector.tvec, tvec_s, tvec_c,
+        beamVec=beam_vector
+    )
+
+    # convery to angles in LAB ref
+    tth_eta_ref, _ = xfcapi.detectorXYToGvec(
+        det_xys, detector.rmat, rmat_s, detector.tvec, tvec_s, tvec_c_ref,
+        beamVec=beam_vector, etaVec=eta_vector
+    )
+
+    return np.vstack(tth_eta_ref).T
+
+
 def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
     """
     Indetify angles that fall within specified ranges.
