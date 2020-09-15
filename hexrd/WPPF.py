@@ -1213,10 +1213,8 @@ class Phases_LeBail:
         '''
         wavelength_nm = {}
         for k, v in wavelength.items():
-            if(v.unit == 'angstrom'):
-                wavelength_nm[k] = valWUnit('lp', 'length', v.value/10.0, 'nm')
-            else:
-                wavelength_nm[k] = v
+            wavelength_nm[k] = valWUnit('lp', 'length', v.getVal('nm'), 'nm')
+
         self.wavelength = wavelength_nm
 
         self.dmin = dmin
@@ -1572,7 +1570,7 @@ class LeBail:
     def chebyshevfit(self):
         degree = self.bkgmethod['chebyshev']
         p = np.polynomial.Chebyshev.fit(
-            self.tth_list, self.spectrum_expt._y, degree, w=self.weights**4)
+            self.tth_list, self.spectrum_expt._y, degree, w=self.weights**2)
         self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
 
     def selectpoints(self):
