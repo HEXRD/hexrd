@@ -516,9 +516,10 @@ class Material_LeBail:
         from an instance of the material.Material class. this option is
         provided for easy integration of the hexrdgui with WPPF.
         '''
-        self.dmin = material_obj.dmin.value
+        self.dmin = material_obj.dmin.getVal('nm')
         self.sgnum = material_obj.unitcell.sgnum
         self.sgsetting = material_obj.sgsetting
+
         if(material_obj.latticeParameters[0].unit == 'nm'):
             self.lparms = [x.value for x in material_obj.latticeParameters]
         elif(material_obj.latticeParameters[0].unit == 'angstrom'):
