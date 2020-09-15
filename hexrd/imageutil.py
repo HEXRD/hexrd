@@ -16,7 +16,7 @@ def fast_snip1d(y, w=4, numiter=2):
                 kernel = np.zeros(p*2 + 1)
                 kernel[0] = 0.5
                 kernel[-1] = 0.5
-                b = np.minimum(b, signal.fft    (z, kernel, mode='same'))
+                b = np.minimum(b, signal.fftconvolve(z, kernel, mode='same'))
             z = b
         bkg[k, :] = (np.exp(np.exp(b) - 1.) - 1.)**2 - 1.
     return bkg
