@@ -1214,7 +1214,7 @@ class Phases_LeBail:
         wavelength_nm = {}
         for k, v in wavelength.items():
             if(v.unit == 'angstrom'):
-                wavelength_nm[k] = valWUnit('lp', 'length', v.value*10., 'nm')
+                wavelength_nm[k] = valWUnit('lp', 'length', v.value/10.0, 'nm')
             else:
                 wavelength_nm[k] = v
         self.wavelength = wavelength_nm
