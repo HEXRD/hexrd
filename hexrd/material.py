@@ -264,9 +264,11 @@ class Material(object):
             sgnum = int(cifdata[sgkey[0]])
         elif (skey is sgkey[1]):
             HM = cifdata[sgkey[1]]
+            HM = HM.replace(" ","")
             sgnum = HM_to_sgnum[HM]
         elif (skey is sgkey[2]):
             hall = cifdata[sgkey[2]]
+            hall = hall.replace(" ","")
             sgnum = Hall_to_sgnum[HM]
 
         # lattice parameters
