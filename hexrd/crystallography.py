@@ -790,7 +790,7 @@ class PlaneData(object):
     def set_structFact(self, structFact):
         self.__structFact = structFact
 
-    structFact = property(get_wavelength, set_wavelength, None)
+    structFact = property(get_structFact, set_structFact, None)
 
     @staticmethod
     def makePlaneData(hkls, lparms, qsym, symmGroup, strainMag, wavelength):

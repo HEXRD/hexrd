@@ -627,6 +627,9 @@ The values have units attached, i.e. they are valWunit instances.
         # Update the unit cell
         self.unitcell.dmin = v.getVal('nm')
 
+        self._newPdata()
+        self.update_structure_factor()
+
     # property: "atominfo"
     def _get_atominfo(self):
         """Set method for name"""
