@@ -57,6 +57,8 @@ jobs:
       run: |
           conda activate hexrd
           mkdir output
+          ls C:/Users/runneradmin/conda_pkgs_dir/
+          rm C:/Users/runneradmin/conda_pkgs_dir/vs2015_runtime-14.16.27012-hf0eaf9b_3.tar.bz2
           conda build -c anaconda -c conda-forge --output-folder output/ conda.recipe/
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
