@@ -9,4 +9,4 @@ ${HOME}/miniconda3/bin/activate hexrd
 ${HOME}/miniconda3/bin/conda activate hexrd
 ${HOME}/miniconda3/bin/conda install conda-build
 mkdir output
-${HOME}/miniconda3/bin/conda build --output-folder output/ conda.recipe/
+${HOME}/miniconda3/bin/conda build -c anaconda -c conda-forge --output-folder output/ conda.recipe/
