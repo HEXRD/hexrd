@@ -13,6 +13,7 @@ install_reqs = [
     'psutil',
     'scipy',
     'pycifrw',
+    'lmfit==1.0.0',
     'numba',
     'psutil',
     'pyyaml',
