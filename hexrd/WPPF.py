@@ -1571,7 +1571,7 @@ class LeBail:
     def chebyshevfit(self):
         degree = self.bkgmethod['chebyshev']
         p = np.polynomial.Chebyshev.fit(
-            self.tth_list, self.spectrum_expt._y, degree, w=self.weights**2)
+            self.tth_list, self.spectrum_expt._y, degree, w=self.weights**4)
         self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
 
     def selectpoints(self):
@@ -1951,7 +1951,7 @@ class LeBail:
         params = self.initialize_lmfit_parameters()
 
         fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
-                 'verbose': 0, 'max_nfev': 8}
+                 'verbose': 0, 'max_nfev': 100}
 
         fitter = lmfit.Minimizer(self.calcRwp, params)
 
