@@ -33,6 +33,7 @@ requirements:
     - scikit-image
     - scikit-learn
     - fast-histogram
+    - fabio
 
 test:
   imports:
