@@ -34,6 +34,7 @@ requirements:
     - scikit-learn
     - fast-histogram
     - fabio
+    - pycifrw
 
 test:
   imports:
