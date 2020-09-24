@@ -251,8 +251,10 @@ class Material(object):
 
         # make sure the space group is present in the cif file, either as
         # international table number, hermann-maguain or hall symbol
-        sgkey = ['_space_group_IT_number', '_symmetry_space_group_name_h-m', \
-                 '_symmetry_space_group_name_hall', '_symmetry_Int_Tables_number']
+        sgkey = ['_space_group_IT_number', 
+                 '_symmetry_space_group_name_h-m', 
+                 '_symmetry_space_group_name_hall',
+                 '_symmetry_Int_Tables_number']
 
         sgdata = False
         for key in sgkey:
