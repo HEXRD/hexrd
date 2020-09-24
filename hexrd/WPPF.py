@@ -26,7 +26,8 @@ class Parameters:
     ''' ========================================================================================================
     ========================================================================================================
 
-    >> @AUTHOR:     Saransh Singh, Lanwrence Livermore National Lab, saransh1@llnl.gov
+    >> @AUTHOR:     Saransh Singh, Lanwrence Livermore National Lab, 
+                    saransh1@llnl.gov
     >> @DATE:       05/18/2020 SS 1.0 original
     >> @DETAILS:    this is the parameter class which handles all refinement parameters
         for both the Rietveld and the LeBail refimentment problems
@@ -392,11 +393,11 @@ class Spectrum:
             plt.show()
 
     def nan_to_zero(self):
-        '''
+        """
         set the nan in spectrum to zero
         sometimes integrated spectrum in data can 
         have some nans, so need to catch those
-        '''
+        """
         self._y = np.nan_to_num(self._y, copy=False, nan=0.0)
 
     # Operators:
@@ -1552,7 +1553,7 @@ class LeBail:
             self.tth_max = self.spectrum_expt._x[-1]
             self.tth_min = self.spectrum_expt._x[0]
 
-            '''
+            """
             @date 09/24/2020 SS
             catching the cases when intensity is zero.
             for these points the weights will become 
@@ -1561,7 +1562,7 @@ class LeBail:
             In addition, if any points have negative
             intensity, they will also be assigned a zero
             weight
-            '''
+            """
             mask = self.spectrum_expt._y <= 0.0
 
             self.weights = np.zeros(self.spectrum_expt.y.shape)
