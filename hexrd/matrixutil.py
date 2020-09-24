@@ -868,7 +868,7 @@ if USE_NUMBA:
 else:    # not USE_NUMBA
     def extract_ijv(in_array, threshold, out_i, out_j, out_v):
         mask = in_array > threshold
-        n = sum(mask)
+        n = np.sum(mask)
         tmp_i, tmp_j = mask.nonzero()
         out_i[:n] = tmp_i
         out_j[:n] = tmp_j
