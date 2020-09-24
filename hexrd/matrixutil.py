@@ -158,7 +158,7 @@ def blockSparseOfMatArray(matArray):
     sij = matArray.transpose(0, 2, 1).reshape(1, ntot).squeeze()
     j = np.reshape(np.tile(rjmax, (m, 1)).T, (1, ntot))
     i = np.reshape(np.tile(rm, (1, jmax)), (1, ntot)) + \
-            np.reshape(np.tile(m*rl, (mn, 1)).T, (1, ntot))
+        np.reshape(np.tile(m*rl, (mn, 1)).T, (1, ntot))
 
     ij = np.concatenate((i, j), axis=0)
 
