@@ -38,7 +38,7 @@ try:
 except(ImportError):
     raise RuntimeError("scipy must be recent enough to have constants module")
 
-from hexrd.matrixutil import unitVector, sum
+from hexrd.matrixutil import unitVector
 from hexrd.rotations import \
     rotMatOfExpMap, mapAngle, applySym, \
     ltypeOfLaueGroup, quatOfLaueGroup
@@ -241,31 +241,33 @@ def latticePlanes(hkls, lparms,
         aconv = r2d
 
     # two thetas
-    sth  = wlen / 2. / d
+    sth = wlen / 2. / d
     mask = (np.abs(sth) < 1.)
     tth = np.zeros(sth.shape)
 
     tth[~mask] = np.nan
-    tth[mask]  = aconv * 2. * np.arcsin(sth[mask])
-
+    tth[mask] = aconv * 2. * np.arcsin(sth[mask])
 
     p = dict(normals=unitVector(G),
              dspacings=d,
              tThetas=tth)
 
     if strainMag is not None:
+        p['tThetasLo'] = np.zeros(sth.shape)
+        p['tThetasHi'] = np.zeros(sth.shape)
 
-      p['tThetasLo'] = np.zeros(sth.shape)
-      p['tThetasHi'] = np.zeros(sth.shape)
+        mask = (
+            (np.abs(wlen / 2. / (d * (1. + strainMag))) < 1.) &
+            (np.abs(wlen / 2. / (d * (1. - strainMag))) < 1.)
+        )
 
-      mask = ( ( np.abs(wlen / 2. / (d * (1. + strainMag))) < 1.) & 
-               ( np.abs(wlen / 2. / (d * (1. - strainMag))) < 1.0 ) )
+        p['tThetasLo'][~mask] = np.nan
+        p['tThetasHi'][~mask] = np.nan
 
-      p['tThetasLo'][~mask] = np.nan
-      p['tThetasHi'][~mask] = np.nan
-
-      p['tThetasLo'][mask] = aconv * 2 * np.arcsin(wlen/2./(d[mask]*(1. + strainMag)))
-      p['tThetasHi'][mask] = aconv * 2 * np.arcsin(wlen/2./(d[mask]*(1. - strainMag)))
+        p['tThetasLo'][mask] = \
+            aconv * 2 * np.arcsin(wlen/2./(d[mask]*(1. + strainMag)))
+        p['tThetasHi'][mask] = \
+            aconv * 2 * np.arcsin(wlen/2./(d[mask]*(1. - strainMag)))
 
     return p
 
@@ -438,9 +440,9 @@ def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
                            -cosalfar*np.sin(beta),
                            sinalfar*np.sin(beta)]
 
-    ad = np.sqrt(sum(a**2))
-    bd = np.sqrt(sum(b**2))
-    cd = np.sqrt(sum(c**2))
+    ad = np.sqrt(np.sum(a**2))
+    bd = np.sqrt(np.sum(b**2))
+    cd = np.sqrt(np.sum(c**2))
 
     # Cell volume
     V = np.dot(a, np.cross(b, c))
@@ -454,9 +456,9 @@ def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
     cstar = np.cross(a, b)/V
 
     # and parameters
-    ar = np.sqrt(sum(astar**2))
-    br = np.sqrt(sum(bstar**2))
-    cr = np.sqrt(sum(cstar**2))
+    ar = np.sqrt(np.sum(astar**2))
+    br = np.sqrt(np.sum(bstar**2))
+    cr = np.sqrt(np.sum(cstar**2))
 
     alfar = np.arccos(np.dot(bstar, cstar)/br/cr)
     betar = np.arccos(np.dot(cstar, astar)/cr/ar)
@@ -1514,7 +1516,7 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     # mark feasible reflections
     goodOnes = -np.isnan(ome_min)
 
-    numGood = sum(goodOnes)
+    numGood = np.sum(goodOnes)
     tmp_eta = np.empty(numGood)
     tmp_gvec = gHat0_l[:, goodOnes]
     for i in range(numGood):
