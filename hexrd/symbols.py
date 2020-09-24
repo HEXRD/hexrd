@@ -1255,6 +1255,7 @@ def _buildDict(hstr):
             nstr, hstr = li.split(None, 1)
             nstr = nstr.split(':', 1)[0]
             n = int(nstr)
+            hstr = hstr.split(':',1)[0]
             hstr = hstr.replace(" ", "")
             if n not in d:
                 d[n] = hstr
