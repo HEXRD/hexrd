@@ -207,6 +207,7 @@ class Material(object):
         dflt_excl = numpy.ones(tth.shape,dtype=numpy.bool)
         dflt_excl[~numpy.isnan(tth)] = ~( (tth[~numpy.isnan(tth)] >= 0.0) & \
                                      (tth[~numpy.isnan(tth)] <= numpy.pi/2.0) )
+        dflt_excl[0] = False
         self._pData.exclusions = dflt_excl
 
         return
