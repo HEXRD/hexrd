@@ -26,7 +26,7 @@ class Parameters:
     ''' ========================================================================================================
     ========================================================================================================
 
-    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+    >> @AUTHOR:     Saransh Singh, Lanwrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/18/2020 SS 1.0 original
     >> @DETAILS:    this is the parameter class which handles all refinement parameters
         for both the Rietveld and the LeBail refimentment problems
@@ -390,6 +390,14 @@ class Spectrum:
         plt.plot(self.x, self.y, *args, **kwargs)
         if show:
             plt.show()
+
+    def nan_to_zero(self):
+        '''
+        set the nan in spectrum to zero
+        sometimes integrated spectrum in data can 
+        have some nans, so need to catch those
+        '''
+        self._y = np.nan_to_num(self._y, copy=False, nan=0.0)
 
     # Operators:
     def __sub__(self, other):
@@ -1515,7 +1523,7 @@ class LeBail:
                 directly passing the spectrum class
                 '''
                 self.spectrum_expt = expt_spectrum
-
+                self.spectrum_expt.nan_to_zero()
             elif(isinstance(expt_spectrum, np.ndarray)):
                 '''
                 initialize class using a nx2 array
@@ -1528,6 +1536,7 @@ class LeBail:
                 self.spectrum_expt = Spectrum(x=expt_spectrum[:, 0],
                                               y=expt_spectrum[:, 1],
                                               name='expt_spectrum')
+                self.spectrum_expt.nan_to_zero()
 
             elif(isinstance(expt_spectrum, str)):
                 '''
@@ -1536,14 +1545,28 @@ class LeBail:
                 if(path.exists(expt_spectrum)):
                     self.spectrum_expt = Spectrum.from_file(
                         expt_spectrum, skip_rows=0)
+                    self.spectrum_expt.nan_to_zero()
                 else:
                     raise FileError('input spectrum file doesn\'t exist.')
 
             self.tth_max = self.spectrum_expt._x[-1]
             self.tth_min = self.spectrum_expt._x[0]
 
+            '''
+            @date 09/24/2020 SS
+            catching the cases when intensity is zero.
+            for these points the weights will become 
+            infinite. therefore, these points will be
+            masked out and assigned a weight of zero.
+            In addition, if any points have negative
+            intensity, they will also be assigned a zero
+            weight
+            '''
+            mask = self.spectrum_expt._y <= 0.0
+
+            self.weights = np.zeros(self.spectrum_expt.y.shape)
             ''' also initialize statistical weights for the error calculation'''
-            self.weights = 1.0 / np.sqrt(self.spectrum_expt.y)
+            self.weights[~mask] = 1.0 / np.sqrt(self.spectrum_expt.y[~mask])
             self.initialize_bkg()
 
     def initialize_bkg(self):
