@@ -1796,6 +1796,10 @@ class PlanarDetector(object):
         return np.r_[0.5 * self.col_dim,  0.5 * self.row_dim]
 
     @property
+    def shape(self):
+        return (self.rows, self.cols)
+    
+    @property
     def tvec(self):
         return self._tvec
 
