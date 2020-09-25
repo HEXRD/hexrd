@@ -1690,11 +1690,13 @@ class LeBail:
     def initialize_Icalc(self):
 
         self.Icalc = {}
+        n10 = np.floor(np.log10(self.spectrum_expt._y.max())) - 2
+
         for p in self.phases:
             self.Icalc[p] = {}
             for k, l in self.phases.wavelength.items():
 
-                self.Icalc[p][k] = 1000.0 * np.ones(self.tth[p][k].shape)
+                self.Icalc[p][k] = (10**n10)* np.ones(self.tth[p][k].shape)
 
     def CagliottiH(self, tth):
         '''
