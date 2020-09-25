@@ -116,7 +116,7 @@ def _zproject(x, y):
 
 
 def _convert_angles(tth_eta, detector,
-                    rmat_s, tvec_c,
+                    rmat_s, tvec_s, tvec_c,
                     beam_vector=constants.beam_vec,
                     eta_vector=constants.eta_vec):
     """
@@ -157,7 +157,7 @@ def _convert_angles(tth_eta, detector,
     # !!! reform rmat_s to be consistent with def in geometric model
     rmat_s = xfcapi.makeOscillRotMat(np.r_[chi, ome])
     rmat_c = constants.identity_3x3
-    tvec_s = constants.zeros_3
+    # tvec_s = constants.zeros_3
     tvec_c_ref = constants.zeros_3
 
     # FIXME: doesn't work for rotation series with different ome yet.
@@ -176,7 +176,7 @@ def _convert_angles(tth_eta, detector,
         beamVec=beam_vector
     )
 
-    # convery to angles in LAB ref
+    # convert to angles in LAB ref
     tth_eta_ref, _ = xfcapi.detectorXYToGvec(
         det_xys, detector.rmat, rmat_s, detector.tvec, tvec_s, tvec_c_ref,
         beamVec=beam_vector, etaVec=eta_vector

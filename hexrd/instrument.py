@@ -1027,7 +1027,8 @@ class HEDMInstrument(object):
             # pbar.finish()
         return panel_data
 
-    def simulate_powder_pattern(self, plane_data_list, fwhm=2., noise=None):
+    def simulate_powder_pattern(self, plane_data_list,
+                                fwhm=2., origin=None, noise=None):
         """
         Generates simple powder diffraction images.
 
@@ -1047,9 +1048,15 @@ class HEDMInstrument(object):
             Dictionary of simulated images for each detector.
 
         """
+        if origin is None:
+            origin = self.tvec
+        origin = np.asarray(origin).squeeze()
+        assert len(origin) == 3, \
+            "origin must be a 3-element sequence"
+
         img_dict = dict.fromkeys(self.detectors)
         for det_key, panel in self.detectors.items():
-            ptth, peta = panel.pixel_angles(origin=self.tvec)
+            ptth, peta = panel.pixel_angles(origin=origin)
             gint = np.zeros_like(ptth)
             sigm = np.radians(_fwhm_to_sigma(fwhm))
             for plane_data in plane_data_list:
@@ -2132,13 +2139,15 @@ class PlanarDetector(object):
                 on_panel = np.logical_and(on_panel_x, on_panel_y)
         return xy[on_panel, :], on_panel
 
-    def cart_to_angles(self, xy_data):
+    def cart_to_angles(self, xy_data, rmat_s=None, tvec_c=None):
         """
         TODO: distortion
         """
-        rmat_s = ct.identity_3x3
+        if rmat_s is None:
+            rmat_s = ct.identity_3x3
         tvec_s = ct.zeros_3
-        tvec_c = ct.zeros_3
+        if tvec_c is None:
+            tvec_c = ct.zeros_3
         angs, g_vec = detectorXYToGvec(
             xy_data, self.rmat, rmat_s,
             self.tvec, tvec_s, tvec_c,
