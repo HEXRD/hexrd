@@ -26,7 +26,7 @@ class Parameters:
     ''' ========================================================================================================
     ========================================================================================================
 
-    >> @AUTHOR:     Saransh Singh, Lanwrence Livermore National Lab, 
+    >> @AUTHOR:     Saransh Singh, Lanwrence Livermore National Lab,
                     saransh1@llnl.gov
     >> @DATE:       05/18/2020 SS 1.0 original
     >> @DETAILS:    this is the parameter class which handles all refinement parameters
@@ -395,7 +395,7 @@ class Spectrum:
     def nan_to_zero(self):
         """
         set the nan in spectrum to zero
-        sometimes integrated spectrum in data can 
+        sometimes integrated spectrum in data can
         have some nans, so need to catch those
         """
         self._y = np.nan_to_num(self._y, copy=False, nan=0.0)
@@ -463,7 +463,7 @@ class Material_LeBail:
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/18/2020 SS 1.0 original
                     09/14/2020 SS 1.1 class can now be initialized using a material.Material class instance
-    >> @DETAILS:    Material_LeBail class is a stripped down version of the materials.Material class. 
+    >> @DETAILS:    Material_LeBail class is a stripped down version of the materials.Material class.
                     this is done to keep the class lightweight and make sure only the information
                     necessary for the lebail fit is kept
 
@@ -532,7 +532,10 @@ class Material_LeBail:
         if(material_obj.latticeParameters[0].unit == 'nm'):
             self.lparms = [x.value for x in material_obj.latticeParameters]
         elif(material_obj.latticeParameters[0].unit == 'angstrom'):
-            self.lparms = [x.value/10.0 for x in material_obj.latticeParameters]
+            lparms = [x.value for x in material_obj.latticeParameters]
+            for i in range(3):
+                lparms[i] /= 10.0
+            self.lparms = lparms
 
         self.dmt = material_obj.unitcell.dmt
         self.rmt = material_obj.unitcell.rmt
@@ -1514,7 +1517,7 @@ class LeBail:
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/19/2020 SS 1.0 original
                         09/11/2020 SS 1.1 multiple data types accepted as input
-                        09/14/2020 SS 1.2 background method chebyshev now has user specified 
+                        09/14/2020 SS 1.2 background method chebyshev now has user specified
                         polynomial degree
         >> @DETAILS:    load the experimental spectum of 2theta-intensity
         '''
@@ -1556,7 +1559,7 @@ class LeBail:
             """
             @date 09/24/2020 SS
             catching the cases when intensity is zero.
-            for these points the weights will become 
+            for these points the weights will become
             infinite. therefore, these points will be
             masked out and assigned a weight of zero.
             In addition, if any points have negative
@@ -1579,7 +1582,7 @@ class LeBail:
             is performed on this subset to estimate the overall background.
             scipy provides some useful routines for this
 
-            the other option implemented is the chebyshev polynomials. this 
+            the other option implemented is the chebyshev polynomials. this
             basically automates the background determination and removes the
             user from the loop which is required for the spline type background.
         '''
@@ -1639,7 +1642,7 @@ class LeBail:
 
                 if(isinstance(phase_info, dict)):
                     '''
-                    initialize class using a dictionary with key as 
+                    initialize class using a dictionary with key as
                     material file and values as the name of each phase
                     '''
                     for material_file in phase_info:
