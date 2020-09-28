@@ -532,7 +532,10 @@ class Material_LeBail:
         if(material_obj.latticeParameters[0].unit == 'nm'):
             self.lparms = [x.value for x in material_obj.latticeParameters]
         elif(material_obj.latticeParameters[0].unit == 'angstrom'):
-            self.lparms = [x.value/10.0 for x in material_obj.latticeParameters]
+            lparms = [x.value for x in material_obj.latticeParameters]
+            for i in range(3):
+                lparms[i] /= 10.0
+            self.lparms = lparms
 
         self.dmt = material_obj.unitcell.dmt
         self.rmt = material_obj.unitcell.rmt
