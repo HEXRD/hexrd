@@ -580,21 +580,22 @@ class Material(object):
 
     def _set_latticeParameters(self, v):
         """Set method for latticeParameters"""
-        v2 = unitcell._rqpDict[self.unitcell.latticeType][1](v)
-        lp = [_angstroms(v2[i]) for i in range(3)]
+        if(len(v) != 6):
+            v = unitcell._rqpDict[self.unitcell.latticeType][1](v)
+        lp = [_angstroms(v[i]) for i in range(3)]
         for i in range(3,6):
-            lp.append(_degrees(v2[i]))
+            lp.append(_degrees(v[i]))
         self._lparms = lp
 
-        # rq_lp = unitcell._rqpDict[self.unitcell.latticeType][0]
+        rq_lp = unitcell._rqpDict[self.unitcell.latticeType][0]
         for i,vv in enumerate(lp):
             if(vv.isLength()):
                 val = vv.value / 10.0
             else:
                 val = vv.value
             setattr(self.unitcell, unitcell._lpname[i], val)
-
-        self.planeData.lparms = v
+        v2 = [lp[x].value for x in rq_lp]
+        self.planeData.lparms = v2
 
         return
 
