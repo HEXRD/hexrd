@@ -580,7 +580,8 @@ class Material(object):
 
     def _set_latticeParameters(self, v):
         """Set method for latticeParameters"""
-        # v2 = unitcell._rqpDict[self.unitcell.latticeType][1](v)
+        if(len(v) != 6):
+            v = unitcell._rqpDict[self.unitcell.latticeType][1](v)
         lp = [_angstroms(v[i]) for i in range(3)]
         for i in range(3,6):
             lp.append(_degrees(v[i]))
