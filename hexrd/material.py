@@ -41,6 +41,7 @@ from hexrd.constants import ptable
 import copy
 
 from os import path
+from pathlib import Path
 from CifFile import ReadCif
 import  h5py
 from warnings import warn
@@ -142,8 +143,7 @@ class Material(object):
             # >> @ date 08/20/2020 SS removing dependence on hklmax
             #self._hklMax = Material.DFLT_SSMAX
             # self._beamEnergy = Material.DFLT_KEV
-            n = material_file.find('.')
-            form = material_file[n+1:]
+            form = Path(material_file).suffix[1:]
 
             if(form == 'cif'):
                 self._readCif(material_file)
