@@ -30,12 +30,13 @@
 # Module containing functions relevant to symmetries
 
 from numpy import array, sqrt, pi, \
-     vstack, c_, dot, \
+     vstack, hstack, c_, ix_, tile, dot, \
      argmax
 
 # from hexrd.rotations import quatOfAngleAxis, quatProductMatrix, fixQuat
 from hexrd import rotations as rot
 from hexrd import constants
+from hexrd.matrixutil import multMatArray, findDuplicateVectors
 import numpy as np
 
 # =============================================================================
@@ -373,7 +374,7 @@ def MakeGenerators(genstr, setting):
         mat = SYM_fillgen(t)
         genmat = np.concatenate((genmat, mat))
         centrosymmetric = True
-        
+
     n = int(genstr[1])
     if(n > 0):
         for i in range(n):
@@ -475,15 +476,15 @@ def GenerateSGSym(sgnum, setting=0):
     for s in SYM_PG_d:
         if(np.allclose(-np.eye(3),s)):
             centrosymmetric = True
-        
+
 
     return SYM_SG, SYM_PG_d, SYM_PG_d_laue, centrosymmetric, symmorphic
 
 def GeneratePGSym(SYM_SG):
     '''
-    calculate the direct space point group symmetries 
-    from the space group symmetry. the direct point 
-    group symmetries are merely the space group 
+    calculate the direct space point group symmetries
+    from the space group symmetry. the direct point
+    group symmetries are merely the space group
     symmetries with zero translation part. The reciprocal
     ones are calculated from the direct symmetries by
     using the metric tensors, but that is done in the unitcell
@@ -507,10 +508,10 @@ def GeneratePGSym(SYM_SG):
 
 def GeneratePGSym_Laue(SYM_PG_d):
     '''
-    generate the laue group symmetry for the given set of 
+    generate the laue group symmetry for the given set of
     point group symmetry matrices. this function just adds
     the inversion symmetry and goes through the group action
-    to generate the entire laue group for the direct point 
+    to generate the entire laue group for the direct point
     point group matrices
     '''
 
@@ -583,3 +584,23 @@ def latticeType(sgnum):
         return 'cubic'
     else:
         raise RuntimeError('symmetry.latticeType: unknown space group number')
+
+def applySym(vec, qsym, csFlag=False, cullPM=False, tol=1e-8):
+    """
+    apply symmetry group to a single 3-vector (columnar) argument
+
+    csFlag : centrosymmetry flag
+    cullPM : cull +/- flag
+    REL: copied from v0.6
+    """
+    nsym  = qsym.shape[1]
+    Rsym  = rot.rotMatOfQuat(qsym)
+    if nsym == 1:
+        Rsym = array([Rsym,])
+    allhkl = multMatArray(Rsym, tile(vec, (nsym, 1, 1))).swapaxes(1, 2).reshape(nsym, 3).T
+
+    if csFlag:
+        allhkl = hstack([allhkl, -1*allhkl])
+    eqv, uid = findDuplicateVectors(allhkl, tol=tol, equivPM=cullPM)
+
+    return allhkl[ix_(range(3), uid)]
