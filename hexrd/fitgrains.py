@@ -228,6 +228,10 @@ def fit_grain_FF_reduced(grain_id):
         for det_key in culled_results_r:
             presults = culled_results[det_key]
 
+            if not presults:
+                culled_results_r[det_key] = []
+                continue
+
             ims = imgser_dict[det_key]
             ome_step = sum(np.r_[-1, 1]*ims.metadata['omega'][0, :])
 
