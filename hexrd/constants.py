@@ -71,6 +71,35 @@ zeros_6x1 = np.zeros((6, 1))
 beam_vec = -lab_z
 eta_vec = lab_x
 
+'''
+    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+    >> @DATE:       10/28/2020 SS 1.0 original
+    >> @DETAILS:    constants for sphere sectors used for IPF coloring
+
+    '''
+# radius of homochoric sphere
+hoR   = (np.pi * 3. / 4.)**(1./3.)
+
+# radius of homochoric sphere squared
+hoR2  = (np.pi * 3. / 4.)**(2./3.)
+
+# edge of cubochoric cube
+cuA   = np.pi**(2./3.)
+
+# semi-edge of cubochoric cube
+cuA_2 = 0.5 * np.pi**(2./3.)
+
+# this is a constant which defines the sign of the 
+# cross-product in the quaternion multiplication rule
+# we will set it to 1 for the standard rule always
+pjik  = 1
+
+# sqrt 2 - 1
+tp_8  = 0.41421356237309504880168872420969807856967187537694807317667973799073248
+
+# 2 - sqrt(3)
+tp_12 = 0.26794919243112270647255365849412763305719474618961937194419302054806698
+
 # for energy/wavelength conversions
 def keVToAngstrom(x):
     return (1e7*sc.c*sc.h/sc.e) / np.array(x, dtype=float)

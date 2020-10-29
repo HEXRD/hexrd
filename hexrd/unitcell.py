@@ -1235,6 +1235,46 @@ class unitcell:
         self.stifness    = C
         self.compliance  = np.linalg.inv(C)
 
+    '''
+        @AUTHOR Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+
+        @date 10/28/2020 SS 1.0 original
+
+        @params dir3 : n x 3 array of directions to reduce
+
+        @detail this subroutine takes a direction vector and uses the point group
+        symmetry of the unitcell to reduce it to the fundamental stereographic 
+        triangle for that point group. this function is used in generating the IPF
+        color legend for orientations. for now we are assuming dir3 is a nx3 array
+        of directions.
+    '''
+    def reduce_dirvector(self, dir3):
+        '''
+        check if the dimensions of the dir3 array is to spec
+        '''
+        dir3 = np.ascontiguousarray( np.atleast_2d(dir3) )
+        if(dir3.ndim != 2):
+            raise RuntimeError("reduce_dirvector: invalid shape of dir3 array")
+
+        '''
+        check if the direction vector is a unit vector or not.
+        if it is not normalize it to get a unit vector. the dir vector
+        is in the sample frame, so by default it is assumed to be in a
+        orthonormal cartesian frame. this defines the normalization as 
+        just division by the L2 norm
+        '''
+        eps = constants.sqrt_epsf
+
+        if( np.all(np.abs(np.linalg.norm(dir3,axis=1) - 1.0) < eps) ):
+            dir3n = dir3
+        else:
+            if(np.all(np.linalg.norm(dir3) > eps) ):
+                dir3n = dir3/np.tile(np.linalg.norm(dir3,axis=1),[3,1]).T
+            else:
+                raise RuntimeError("atleast one of the input direction seems to be a null vector")
+
+        
+
     # lattice constants as properties
     @property
     def a(self):
