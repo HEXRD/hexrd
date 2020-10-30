@@ -1213,26 +1213,26 @@ class unitcell:
         return _rqpDict[self.latticeType][1](p)
 
     def Required_C(self,C):
-        return np.array([C[x] for x in _StifnessDict[self._laueGroup][0]])
+        return np.array([C[x] for x in _StiffnessDict[self._laueGroup][0]])
 
-    def MakeStifnessMatrix(self, inp_Cvals):
-        if(len(inp_Cvals) != len(_StifnessDict[self._laueGroup][0])):
-            raise IOError('number of constants entered is not correct. need a total of ',len(_StifnessDict[self._laueGroup][0]),'independent constants')
+    def MakeStiffnessMatrix(self, inp_Cvals):
+        if(len(inp_Cvals) != len(_StiffnessDict[self._laueGroup][0])):
+            raise IOError('number of constants entered is not correct. need a total of ',len(_StiffnessDict[self._laueGroup][0]),'independent constants')
 
         # initialize all zeros and fill the supplied values
         C = np.zeros([6,6])
-        for i,x in enumerate(_StifnessDict[self._laueGroup][0]):
+        for i,x in enumerate(_StiffnessDict[self._laueGroup][0]):
             C[x] = inp_Cvals[i]
 
         # enforce the equality constraints
-        C = _StifnessDict[self._laueGroup][1](C)
+        C = _StiffnessDict[self._laueGroup][1](C)
 
         # finally fill the lower triangular matrix
         for i in range(6):
             for j in range(i):
                 C[i,j] = C[j,i]
 
-        self.stifness    = C
+        self.stiffness    = C
         self.compliance  = np.linalg.inv(C)
 
     # lattice constants as properties
@@ -1622,7 +1622,7 @@ def C_cubic_eq(x):
     x[4,4] = x[3,3]
     return x
 
-_StifnessDict = {
+_StiffnessDict = {
     laue_1: [type1,identity], # triclinic, all 21 components in upper triangular matrix needed
     laue_2: [type2,identity], # monoclinic, 13 components needed
     laue_3: [type3,identity], # orthorhombic, 9 components needed
