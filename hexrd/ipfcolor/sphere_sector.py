@@ -188,6 +188,29 @@ class sector
                  that the boundary is 90 degrees from barycenter.
 
         '''
+        self.check_norm(dir3)
+        pol = np.arccos(np.dot(self.barycenter, dir3.T))
+
+    def ditance_boundary(self, rho):
+        '''
+        @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        @DATE    10/29/2020 SS 1.0 original
+        @PARAM   dir3 direction in fundamental sector. behavior is undefined if
+                 direction is outside the fundamental sector
+        @DETAIL  this function is used to calculate the distance from the boundary
+                 point specified by the azimuthal angle rho and the barycenter
+
+        '''
+        pass
+
+    def hue_speed(self, rho):
+        v = 0.5 + np.exp(-(4./7.)*rho**2/) + \
+            np.exp(-(4./7.)*(rho - 2.*np.pi/3.)**2/) + \
+            np.exp(-(4./7.)*(rho + 2.*np.pi/3.)**2/)
+
+        return v
+
+    def hue_speed_normalization_factor(self):
         pass
 
     def calc_hue(self, rho):
