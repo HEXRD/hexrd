@@ -1233,7 +1233,17 @@ class unitcell:
                 C[i,j] = C[j,i]
 
         self.stiffness    = C
-        self.compliance  = np.linalg.inv(C)
+
+    @property
+    def compliance(self):
+        if not hasattr(self, 'stiffness'):
+            raise AttributeError('Stiffness not set on unit cell')
+
+        return np.linalg.inv(self.stiffness)
+
+    @compliance.setter
+    def compliance(self, v):
+        self.stiffness = np.linalg.inv(v)
 
     # lattice constants as properties
     @property
