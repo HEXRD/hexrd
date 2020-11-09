@@ -27,6 +27,8 @@
 # =============================================================================
 
 from hexrd import constants
+import numpy as np
+import warnings
 
 eps = constants.sqrt_epsf
 
@@ -44,7 +46,11 @@ def hsl2rgb(hsl):
     it is assumed that the hsl array has values in [0,1] for the 
     different components
     '''
-    hsl = np.contiguousarray(np.atleast_2d(hsl))
+    hsl = np.atleast_2d(hsl)
+
+    if( (hsl.min() < 0.) or (hsl.max() > 1.)):
+        raise RuntimeError("value of not in range [0,1]. normalizing before conversion")
+
     if(hsl.ndim != 2):
         raise RuntimeError("hsl_rgb: shape of hsl array is invalid.")
     rgb = np.zeros(hsl.shape)
@@ -71,27 +77,29 @@ def hsl2rgb(hsl):
     Xp = np.atleast_2d(X+m).T
     Zp = np.atleast_2d(m).T
 
-    if(case == 0):
-        mask = case == 0
-        rgb[mask, :] = np.hstack((Cp[mask, :], Xp[mask, :], Zp[mask, :]))
-    elif(case == 1):
-        mask = case == 1
-        rgb[mask, :] = np.hstack((Xp[mask, :], Cp[mask, :], Zp[mask, :]))
-    elif(Case == 2):
-        mask = case == 2
-        rgb[mask, :] = np.hstack((Zp[mask, :], Cp[mask, :], Xp[mask, :]))
-    elif(case == 3):
-        mask = case == 3
-        rgb[mask, :] = np.hstack((Zp[mask, :], Xp[mask, :], Cp[mask, :]))
-    elif(case == 4):
-        mask = case == 4
-        rgb[mask, :] = np.hstack((Xp[mask, :], Zp[mask, :], Cp[mask, :]))
-    elif(case == 5):
-        mask = case == 5
-        rgb[mask, :] = np.hstack((Cp[mask, :], Zp[mask, :], Xp[mask, :]))
-    else:
-        raise RuntimeError("value of Hue is not in range [0,1]")
+    mask = np.logical_or((case == 0), (case == 6))
+    rgb[mask, :] = np.hstack((Cp[mask, :], Xp[mask, :], Zp[mask, :]))
 
+    mask = case == 1
+    rgb[mask, :] = np.hstack((Xp[mask, :], Cp[mask, :], Zp[mask, :]))
+
+    mask = case == 2
+    rgb[mask, :] = np.hstack((Zp[mask, :], Cp[mask, :], Xp[mask, :]))
+
+    mask = case == 3
+    rgb[mask, :] = np.hstack((Zp[mask, :], Xp[mask, :], Cp[mask, :]))
+
+    mask = case == 4
+    rgb[mask, :] = np.hstack((Xp[mask, :], Zp[mask, :], Cp[mask, :]))
+
+    mask = case == 5
+    rgb[mask, :] = np.hstack((Cp[mask, :], Zp[mask, :], Xp[mask, :]))
+
+    '''
+        catch all cases where rgb values are out of [0,1] bounds
+    '''
+    rgb[rgb < 0.] = 0.
+    rgb[rgb > 1.] = 1.
     return rgb
 
 
@@ -107,7 +115,7 @@ def rgb2hsl(rgb):
     it is assumed that the hsl array has values in [0,1] for the 
     different components
     '''
-    rgb = np.contiguousarray(np.atleast_2d(rgb))
+    rgb = np.atleast_2d(rgb)
     if(rgb.ndim != 2):
         raise RuntimeError("hsl_rgb: shape of hsl array is invalid.")
     hsl = np.zeros(rgb.shape)
@@ -123,7 +131,7 @@ def rgb2hsl(rgb):
 
     # catching cases where delta is close to zero
     zmask = np.abs(delta) < eps
-    hsl[zmask, 2] = L[zmask]
+    hsl[zmask, 1] = 0.0
 
     # depending on whether r,g or b is maximum, the hue is
     # assigned different values, we will deal with those cases here
@@ -146,4 +154,11 @@ def rgb2hsl(rgb):
     hsl[np.logical_not(zmask), 1] = delta[np.logical_not(
         zmask)] / (1. - np.abs(2 * L[np.logical_not(zmask)] - 1.))
 
+    hsl[:,2] = L
+
+    '''
+        catch cases where hsl is out of [0,1] bounds
+    '''
+    hsl[hsl < 0.] = 0.
+    hsl[hsl > 1.] = 1.
     return hsl

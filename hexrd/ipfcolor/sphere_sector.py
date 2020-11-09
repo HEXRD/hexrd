@@ -35,41 +35,41 @@ for each of the point group. this will be in the form of a dictionary
 conforming to the symbols in unitcell.py
 '''
 pg2vertex = {
-    'c1' : []
-    'ci' : []
-    'c2' : []
-    'cs' : []
-    'c2h' : []
-    'd2' : []
-    'c2v' : []
-    'd2h' : []
-    'c4' : []
-    's4' : []
-    'c4h' : []
-    'd4' : []
-    'c4v' : []
-    'd2d' : []
-    'd4h' : []
-    'c3' : []
-    's6' : []
-    'd3' : []
-    'c3v' : []
-    'd3d' : []
-    'c6' : []
-    'c3h' : []
-    'c6h' : []
-    'd6' : []
-    'c6v' : []
-    'd3h' : []
-    'd6h' : []
-    't' : []
-    'th' : []
-    'o' : []
-    'td' : []
+    'c1' : [],
+    'ci' : [],
+    'c2' : [],
+    'cs' : [],
+    'c2h' : [],
+    'd2' : [],
+    'c2v' : [],
+    'd2h' : [],
+    'c4' : [],
+    's4' : [],
+    'c4h' : [],
+    'd4' : [],
+    'c4v' : [],
+    'd2d' : [],
+    'd4h' : [],
+    'c3' : [],
+    's6' : [],
+    'd3' : [],
+    'c3v' : [],
+    'd3d' : [],
+    'c6' : [],
+    'c3h' : [],
+    'c6h' : [],
+    'd6' : [],
+    'c6v' : [],
+    'd3h' : [],
+    'd6h' : [],
+    't' : [],
+    'th' : [],
+    'o' : [],
+    'td' : [],
     'oh' : []
 }
 
-class sector
+class sector:
     '''
     @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     @DATE    10/28/2020 SS 1.0 original
@@ -190,8 +190,9 @@ class sector
         '''
         self.check_norm(dir3)
         pol = np.arccos(np.dot(self.barycenter, dir3.T))
+        return pol
 
-    def ditance_boundary(self, rho):
+    def distance_boundary(self, rho):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/29/2020 SS 1.0 original
@@ -204,9 +205,9 @@ class sector
         pass
 
     def hue_speed(self, rho):
-        v = 0.5 + np.exp(-(4./7.)*rho**2/) + \
-            np.exp(-(4./7.)*(rho - 2.*np.pi/3.)**2/) + \
-            np.exp(-(4./7.)*(rho + 2.*np.pi/3.)**2/)
+        v = 0.5 + np.exp(-(4./7.)*rho**2) + \
+            np.exp(-(4./7.)*(rho - 2.*np.pi/3.)**2) + \
+            np.exp(-(4./7.)*(rho + 2.*np.pi/3.)**2)
 
         return v
 
