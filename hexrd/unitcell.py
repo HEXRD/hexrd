@@ -245,7 +245,7 @@ class unitcell:
             vlen = np.sqrt(np.dot(u, np.dot(self.dmt, u)))
         elif(space =='r'):
             vlen = np.sqrt(np.dot(u, np.dot(self.rmt, u)))
-        elif(spec =='c'):
+        elif(space =='c'):
             vlen = np.linalg.norm(u)
         else:
             raise ValueError('incorrect space argument')
