@@ -1338,7 +1338,19 @@ class unitcell:
             else:
                 raise RuntimeError("atleast one of the input direction seems to be a null vector")
 
-        
+        '''
+        we need both the symmetry reductions for the point group and laue group
+        this will be used later on in the coloring routines to determine if the
+        points needs to be moved to the southern hemisphere or not
+        '''
+        if(self._pointGroup == self._laueGroup):
+            '''
+            nothing to be done in this case
+            '''
+        else:
+            '''
+            compute reductions for both the cases
+            '''
 
     # lattice constants as properties
     @property
