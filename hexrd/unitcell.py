@@ -2,12 +2,15 @@ import importlib.resources
 import numpy as np
 from hexrd import constants
 from hexrd import symmetry, symbols
+from hexrd.ipfcolor import sphere_sector
 import hexrd.resources
 import warnings
 import h5py
 from pathlib import Path
 from scipy.interpolate import interp1d
 import time
+
+eps = constants.sqrt_epsf
 
 class unitcell:
 
@@ -99,6 +102,7 @@ class unitcell:
         '''
         self.sgsetting = sgsetting
         self.sgnum = sgnum
+        self.sphere_triangle = sphere_sector.pg2vertex[self._pointGroup]
 
         self._tstop = time.time()
         self.tinit = self._tstop - self._tstart
@@ -365,6 +369,29 @@ class unitcell:
 
         self.SYM_PG_r = self.SYM_PG_r.astype(np.int32)
         self.SYM_PG_r_laue = self.SYM_PG_r_laue.astype(np.int32)
+
+    def GenerateCartesianPGSym(self):
+        '''
+        use the direct point group symmetries to generate the 
+        symmetry operations in the cartesian frame. this is used
+        to reduce directions to the standard stereographi tringle
+        '''
+        self.SYM_PG_c = []
+        self.SYM_PG_c_laue = []
+
+        for sop in self.SYM_PG_d:
+            self.SYM_PG_c.append(np.dot(self.dsm,np.dot(sop,self.rsm.T)))
+
+        self.SYM_PG_c = np.array(self.SYM_PG_c)
+        self.SYM_PG_c[np.abs(self.SYM_PG_c) < eps] = 0.
+
+        if(self._pointGroup == self._laueGroup):
+            self.SYM_PG_c_laue = self.SYM_PG_c
+        else:
+            for sop in self.SYM_PG_d_laue:
+                self.SYM_PG_c_laue.append(np.dot(self.dsm,np.dot(sop,self.rsm.T)))
+            self.SYM_PG_c_laue = np.array(self.SYM_PG_c_laue)
+            self.SYM_PG_c_laue[np.abs(self.SYM_PG_c_laue) < eps] = 0.
 
     def CalcOrbit(self):
         '''
@@ -1235,6 +1262,44 @@ class unitcell:
         self.stifness    = C
         self.compliance  = np.linalg.inv(C)
 
+    def inside_spheretriangle(self, dir3):
+        
+        '''
+        check if direction is inside a spherical triangle
+        the logic used as follows:
+        if determinant of [A B x], [A x C] and [x B C] are 
+        all same sign, then the sphere is inside the traingle
+        formed by A, B and C
+
+        returns a mask with inside as True and outside as False
+        '''
+        A = np.atleast_2d(self.sphere_triangle[0,:]).T
+        B = np.atleast_2d(self.sphere_triangle[1,:]).T
+        C = np.atleast_2d(self.sphere_triangle[2,:]).T
+
+        mask = []
+        for x in dir3:
+
+            x2 = np.atleast_2d(x).T
+            d1 = np.linalg.det(np.hstack((A,B,x2)))
+            d2 = np.linalg.det(np.hstack((A,x2,C)))
+            d3 = np.linalg.det(np.hstack((x2,B,C)))
+
+            ss = np.unique(np.sign([d1,d2,d3]))
+            if(len(ss)==1):
+                mask.append(True)
+
+            elif(len(ss)==2):
+                if(0 in ss):
+                    mask.append(True)
+                else:
+                    mask.append(False)
+            elif(len(ss)==3):
+                mask.append(False)
+
+        mask = np.array(mask)
+        return mask
+
     '''
         @AUTHOR Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
 
@@ -1428,6 +1493,11 @@ class unitcell:
         '''
         self.CalcPositions()
         self.GetPgLg()
+        '''
+        SS 11/10/2020 added cartesian PG sym for reducing directions
+        to standard stereographic triangle
+        '''
+        self.GenerateCartesianPGSym()
 
     @property
     def atom_pos(self):

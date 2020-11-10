@@ -26,6 +26,8 @@
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # =============================================================================
 from hexrd import constants
+import numpy as np
+from hexrd.ipfcolor import colorspace
 
 eps = constants.sqrt_epsf
 
@@ -66,7 +68,10 @@ pg2vertex = {
     'th' : [],
     'o' : [],
     'td' : [],
-    'oh' : []
+    'oh' : np.array([[0.,0.,1.],
+                    [1./np.sqrt(2.),0., 1./np.sqrt(2.)
+                    ],
+                    [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)]]).T
 }
 
 class sector:
@@ -148,13 +153,13 @@ class sector:
     def check_hemisphere(self):
 
         zcoord = np.array([self.vx[2], self.vy[2], self.vz[2]])
-        if(np.logical_or( np.all(zcoord > 0.),  np.all(zcoord < 0.) ) ):
+        if(np.logical_or( np.all(zcoord >= 0.),  np.all(zcoord <= 0.) ) ):
             pass
         else:
             raise RuntimeError("sphere_sector: the vertices of the stereographic \
                 triangle are not in the same hemisphere")
 
-    def calc_azi_rho(self, di3):
+    def calc_azi_rho(self, dir3):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
@@ -172,11 +177,14 @@ class sector:
         the directions with zero norms are ignored
         '''
         self.check_norm(dir3)
-        c = np.dot(self.rx, dia3.T)
+        c = np.dot(self.rx, dir3.T)
         s = np.cross(np.tile(self.rx,[dir3.shape[0],1]), dir3)
-        rho = np.arctan2(s, c)
+        s = np.arcsin(np.linalg.norm(s,axis=1))
+        rho = np.arctan2(s, c) + np.pi
 
-    def calc_pol_theta(dir3):
+        return rho
+
+    def calc_pol_theta(self, dir3):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
@@ -214,7 +222,7 @@ class sector:
     def hue_speed_normalization_factor(self):
         pass
 
-    def calc_hue(self, rho):
+    def calc_hue(self, dir3):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
@@ -224,11 +232,29 @@ class sector:
                  of direction within the spherical patch. the velocity
 
         '''
+        rho = self.calc_azi_rho(dir3)
+        H = rho/2./np.pi
+        return H
 
-        pass
+    def calc_saturation(self, dir3):
+        S = np.ones([dir3.shape[0],])
+        return S
 
-    def calc_saturation(self):
-        pass
+    def calc_lightness(self, dir3):
+        theta = self.calc_pol_theta(dir3)
+        theta /= np.pi*theta.max()
+        theta = np.pi - theta
+        L = theta/np.pi
+        return L
 
-    def calc_lightness(self, theta):
-        pass
+    def get_color(self, dir3):
+
+        hsl = np.zeros(dir3.shape)
+
+        hsl[:,0] = self.calc_hue(dir3)
+        hsl[:,1] = self.calc_saturation(dir3)
+        hsl[:,2] = self.calc_lightness(dir3)
+
+        rgb = colorspace.hsl2rgb(hsl)
+
+        return rgb

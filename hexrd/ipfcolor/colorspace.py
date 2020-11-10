@@ -28,7 +28,6 @@
 
 from hexrd import constants
 import numpy as np
-import warnings
 
 eps = constants.sqrt_epsf
 
