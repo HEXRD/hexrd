@@ -89,7 +89,7 @@ pg2vertex = {
                     [1., 0., 0.],
                     [0., 1., 0.]]).T,
             np.array([0, 1, 2]),
-            'upper'],
+            'both'],
 
     'd2h' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
@@ -101,7 +101,7 @@ pg2vertex = {
                     [1., 0., 0.],
                     [0., 1., 0.]]).T,
             np.array([0, 1, 2]),
-            'upper'],
+            'both'],
 
     's4' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
@@ -125,7 +125,7 @@ pg2vertex = {
                     [1., 0., 0.],
                     [1./np.sqrt(2.), 1./np.sqrt(2.), 0.]]).T,
             np.array([0, 1, 2]),
-            'upper'],
+            'both'],
 
     'd2d' : [1, np.array([[0.,0.,1.],
                       [1., 0., 0.],
@@ -143,7 +143,7 @@ pg2vertex = {
                     [1., 0., 0.],
                     [-0.5, np.sqrt(3.)/2., 0.]]).T,
             np.array([0, 1, 2]),
-            'upper'],
+            'both'],
 
     's6' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
@@ -161,7 +161,7 @@ pg2vertex = {
                     [1., 0., 0.],
                     [0.5, np.sqrt(3.)/2., 0.]]).T,
             np.array([0, 1, 2]),
-            'upper'],
+            'both'],
 
     'd3d' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
@@ -197,7 +197,7 @@ pg2vertex = {
                     [1., 0., 0.],
                     [np.sqrt(3.)/2., 0.5, 0.]]).T,
             np.array([0, 1, 2]),
-            'upper'],
+            'both'],
 
     'd3h' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
@@ -215,7 +215,7 @@ pg2vertex = {
     't' : [2, np.array([[0.,0.,1.],
                     [1./np.sqrt(3.), -1./np.sqrt(3.), 1./np.sqrt(3.)],
                     [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)],
-                    [1. 0., 0.]]).T,
+                    [1., 0., 0.]]).T,
             np.array([[0, 1, 2],[1, 3, 2]]).T,
            'upper'],
 
@@ -265,51 +265,63 @@ class sector:
     '''
     def __init__(self, pgsym):
         '''
-        initialize the class with a vertex and the barycenter
-        the vertes are organized as columns
-        '''
-        vertex = pg2vertex[pgsym]
+        AUTHOR: Saransh Singh, Lawrence Livermore national Lab, saransh1@llnl.gov
+        DATE:   11/11/2020 SS 1.0 original
 
-        self.vx = vertex[:,0]
-        self.vy = vertex[:,1]
-        self.vz = vertex[:,2]
+        @detail: this routine initializes the data needed for reducing a 
+        direction to the stereographic fundamental zone (standard
+        stereographic triangle) for the pointgroup/lauegroup symmetry
+        of the crystal.
+        '''
+        data = pg2vertex[pgsym]
+        
+        self.ntriangle = data[0]
+        self.sphere_triangle = data[1]
+        self.connectivity = data[2]
+        self.hemisphere = data[3]
+
+        # vertex = pg2vertex[pgsym]
+
+        # self.vx = vertex[:,0]
+        # self.vy = vertex[:,1]
+        # self.vz = vertex[:,2]
 
         '''
         make sure there are unit norm
         '''
-        nvx = np.linalg.norm(self.vx)
-        nvy = np.linalg.norm(self.vy)
-        nvz = np.linalg.norm(self.vz)
+        # nvx = np.linalg.norm(self.vx)
+        # nvy = np.linalg.norm(self.vy)
+        # nvz = np.linalg.norm(self.vz)
         
-        if(np.abs(nvx) > eps):
-            self.vx /= nvx
-        else:
-            raise RuntimeError("one of the spherical vertex is null.")
+        # if(np.abs(nvx) > eps):
+        #     self.vx /= nvx
+        # else:
+        #     raise RuntimeError("one of the spherical vertex is null.")
 
-        if(np.abs(nvy) > eps):
-            self.vy /= nvy
-        else:
-            raise RuntimeError("one of the spherical vertex is null.")
+        # if(np.abs(nvy) > eps):
+        #     self.vy /= nvy
+        # else:
+        #     raise RuntimeError("one of the spherical vertex is null.")
 
-        if(np.abs(nvz) > eps):
-            self.vz /= nvz
-        else:
-            raise RuntimeError("one of the spherical vertex is null.")
+        # if(np.abs(nvz) > eps):
+        #     self.vz /= nvz
+        # else:
+        #     raise RuntimeError("one of the spherical vertex is null.")
 
-        '''
-        check if all the vertices are in the same hemisphere
-        get the z-components of the vertices
-        '''
-        self.check_hemisphere()
+        # '''
+        # check if all the vertices are in the same hemisphere
+        # get the z-components of the vertices
+        # '''
+        # self.check_hemisphere()
 
-        # compute the barycenter or the centroid
-        self.barycenter = (self.vx + self.vy + self.vz) / 3.
-        self.barycenter /= np.linalg.norm(self.barycenter)
+        # # compute the barycenter or the centroid
+        # self.barycenter = (self.vx + self.vy + self.vz) / 3.
+        # self.barycenter /= np.linalg.norm(self.barycenter)
 
-        # this is the vector about which the azimuthal angle is 
-        # computed (vx - barycenter)
-        self.rx = self.vx - self.barycenter
-        self.rx /= np.linalg.norm(self.rx)
+        # # this is the vector about which the azimuthal angle is 
+        # # computed (vx - barycenter)
+        # self.rx = self.vx - self.barycenter
+        # self.rx /= np.linalg.norm(self.rx)
 
     def check_norm(self, dir3):
         '''

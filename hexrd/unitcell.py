@@ -107,8 +107,6 @@ class unitcell:
         self.sgsetting = sgsetting
         self.sgnum = sgnum
 
-        self.InitializeStereographicFZ()
-
         self._tstop = time.time()
         self.tinit = self._tstop - self._tstart
 
@@ -537,23 +535,6 @@ class unitcell:
         while (1.0 / self.CalcLength(np.array([0, 0, self.il], 
                dtype=np.float64), 'r') > self.dmin):
                self.il = self.il + 1
-
-    def InitializeStereoGraphicFZ(self):
-        '''
-        AUTHOR: Saransh Singh, Lawrence Livermore national Lab, saransh1@llnl.gov
-        DATE:   11/11/2020 SS 1.0 original
-
-        @detail: this routine initializes the data needed for reducing a 
-        direction to the stereographic fundamental zone (standard
-        stereographic triangle) for the pointgroup/lauegroup symmetry
-        of the crystal.
-        '''
-        data = sphere_sector.pg2vertex[self._pointGroup]
-        self.ntriangle = data[0]
-        self.sphere_triangle = data[1]
-        self.connectivity = data[2]
-        self.hemisphere = data[3]
-
 
     def InitializeInterpTable(self):
 
@@ -1365,7 +1346,7 @@ class unitcell:
         of directions.
     '''
 
-    def reduce_dirvector(self, dir3, laueswitch=True):
+    def reduce_dirvector(self, dir3, laueswitch=False):
         '''
         check if the dimensions of the dir3 array is to spec
         '''
@@ -1593,6 +1574,11 @@ class unitcell:
         to standard stereographic triangle
         '''
         self.GenerateCartesianPGSym()
+
+        '''
+        SS 11/11/2020 adding the sphere_sector class initialization here
+        '''
+        self.sphere_sector = sphere_sector.sector(self._pointGroup)
 
     @property
     def atom_pos(self):
