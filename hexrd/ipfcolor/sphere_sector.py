@@ -35,45 +35,217 @@ eps = constants.sqrt_epsf
 In this section we will list the vertices of the spherical triangles
 for each of the point group. this will be in the form of a dictionary
 conforming to the symbols in unitcell.py
+
+the entries are organized as follows:
+
+key : point group symmetry
+
+entry 0 in list: number of SST triangles needed to specify the 
+fundamental region. this could have values 0, 1 or 2. If it is 0,
+then the whole sphere is valid (either upper or ower or both depending
+on symmetry). If this is 1, then only 1 triangle is needed. If two, then
+two triangles are needed i.e. 4 coordinates
+
+entry 1 in list: specify coordinates of the triangle(s). this will be 
+empty array if size is 0 in previous entry. If size in previous entry is 1,
+then this will 3x3. Finally if size in previous entry is 2, this will be 3x4.
+
+entry 2 in list is the connectivity of the triangles. This is only useful for
+the cases of T, Th, O and symmetry groups.
+
+entry 3 in list: if both upper anf lower hemispheres are to be considered. For
+the case of x-rays only upper hemisphere is considered because of Friedel's law,
+which imposes and artificial inversion symmetry such that hkl and -hkl can't be
+distinguished. However, for the formulation is general and can handle all symmetry
+groups. This will say 'upper' or 'both' depending on what hemisphere is considered.
+
 '''
 pg2vertex = {
-    'c1' : [],
-    'ci' : [],
-    'c2' : [],
-    'cs' : [],
-    'c2h' : [],
-    'd2' : [],
-    'c2v' : [],
-    'd2h' : [],
-    'c4' : [],
-    's4' : [],
-    'c4h' : [],
-    'd4' : [],
-    'c4v' : [],
-    'd2d' : [],
-    'd4h' : [],
-    'c3' : [],
-    's6' : [],
-    'd3' : [],
-    'c3v' : [],
-    'd3d' : [],
-    'c6' : [],
-    'c3h' : [],
-    'c6h' : [],
-    'd6' : [],
-    'c6v' : [],
-    'd3h' : [],
-    'd6h' : np.array([[0.,0.,1.],
-                    [1.,0., 0.],
-                    [np.sqrt(3.)/2.0, 0.5, 0.0]]).T,
-    't' : [],
-    'th' : [],
-    'o' : [],
-    'td' : [],
-    'oh' : np.array([[0.,0.,1.],
-                    [1./np.sqrt(2.),0., 1./np.sqrt(2.)
-                    ],
-                    [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)]]).T
+    'c1' : [0, [], [], 'both'],
+
+    'ci' : [0, [], [], 'upper'],
+
+    'c2' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [-1., 0., 0.]]).T,
+            np.array([0, 1, 2]),
+            'both'],
+
+    'cs' : [0, [], [], 'upper'],
+
+    'c2h' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [-1., 0., 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'd2' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [-1., 0., 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'c2v' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [0., 1., 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'd2h' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [0., 1., 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'c4' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [0., 1., 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    's4' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [-1., 0., 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'c4h' : [1, np.array([[0.,0.,1.],
+                      [1., 0., 0.],
+                      [0., 1., 0.0]]),
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'd4' : [1, np.array([[0.,0.,1.],
+                      [1., 0., 0.],
+                      [0., 1., 0.0]]),
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'c4v' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [1./np.sqrt(2.), 1./np.sqrt(2.), 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'd2d' : [1, np.array([[0.,0.,1.],
+                      [1., 0., 0.],
+                      [0., 1., 0.]]),
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'd4h' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [1./np.sqrt(2.), 1./np.sqrt(2.), 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'c3' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [-0.5, np.sqrt(3.)/2., 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    's6' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [-0.5, np.sqrt(3.)/2., 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'd3' : [1, np.array([[0., 0., 1.],
+                    [np.sqrt(3.)/2., -0.5, 0.],
+                    [0., 1., 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'c3v' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [0.5, np.sqrt(3.)/2., 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'd3d' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [0.5, np.sqrt(3.)/2., 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'c6' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [0.5, np.sqrt(3.)/2., 0.]]).T,
+            np.array([0, 1, 2]),
+            'both'],
+
+    'c3h' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [-0.5, np.sqrt(3.)/2., 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'c6h' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [0.5, np.sqrt(3.)/2., 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'd6' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [0.5, np.sqrt(3.)/2., 0.]]).T,
+            np.array([0, 1, 2]),
+            'both'],
+
+    'c6v' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [np.sqrt(3.)/2., 0.5, 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'd3h' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [np.sqrt(3.)/2., 0.5, 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'd6h' : [1, np.array([[0.,0.,1.],
+                    [np.sqrt(3.)/2., -0.5, 0.],
+                    [np.sqrt(3.)/2., 0.5, 0.]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    # Special case with 2 triangles
+    't' : [2, np.array([[0.,0.,1.],
+                    [1./np.sqrt(3.), -1./np.sqrt(3.), 1./np.sqrt(3.)],
+                    [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)],
+                    [1. 0., 0.]]).T,
+            np.array([[0, 1, 2],[1, 3, 2]]).T,
+           'upper'],
+
+    # Special case with two triangles
+    'th' : [2, np.array([[0.,0.,1.],
+                    [1./np.sqrt(2.), 0., 1./np.sqrt(2.)],
+                    [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)],
+                    [0., 1./np.sqrt(2.), 1./np.sqrt(2.)]]).T,
+          np.array([[0, 1, 2],[0, 2, 3]]).T,
+          'upper'],
+
+    # Special case with two triangles, same as Th
+    'o' : [2, np.array([[0.,0.,1.],
+                    [1./np.sqrt(2.), 0., 1./np.sqrt(2.)],
+                    [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)],
+                    [0., 1./np.sqrt(2.), 1./np.sqrt(2.)]]).T,
+          np.array([[0, 1, 2],[0, 2, 3]]).T,
+          'upper'],
+
+    'td' : [1, np.array([[0.,0.,1.],
+                    [1./np.sqrt(3.), -1./np.sqrt(3.), 1./np.sqrt(3.)],
+                    [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)]]).T,
+            np.array([0, 1, 2]),
+            'upper'],
+
+    'oh' : [1, np.array([[0.,0.,1.],
+                    [1./np.sqrt(2.),0., 1./np.sqrt(2.)],
+                    [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)]]).T,
+            np.array([0, 1, 2]),
+            'upper']
 }
 
 class sector:

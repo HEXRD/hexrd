@@ -106,7 +106,8 @@ class unitcell:
         '''
         self.sgsetting = sgsetting
         self.sgnum = sgnum
-        self.sphere_triangle = sphere_sector.pg2vertex[self._pointGroup]
+
+        self.InitializeStereographicFZ()
 
         self._tstop = time.time()
         self.tinit = self._tstop - self._tstart
@@ -513,15 +514,15 @@ class unitcell:
             numat = self.numat[i]
             occ = self.atom_pos[i, 3]
             # -1 due to 0 indexing in python
-            avA += numat * constants.atom_weights[atype-1] * occ
-            avZ += numat * atype
+            self.avA += numat * constants.atom_weights[atype-1] * occ
+            self.avZ += numat * atype
 
         self.density = avA / (self.vol * 1.0E-21 * constants.cAvogadro)
 
         av_natom = np.dot(self.numat, self.atom_pos[:, 3])
 
-        self.avA = avA / av_natom
-        self.avZ = avZ / np.sum(self.numat)
+        self.avA /= av_natom
+        self.avZ /= np.sum(self.numat)
 
     ''' calculate the maximum index of diffraction vector along each of the three reciprocal
      basis vectors '''
@@ -536,6 +537,23 @@ class unitcell:
         while (1.0 / self.CalcLength(np.array([0, 0, self.il], 
                dtype=np.float64), 'r') > self.dmin):
                self.il = self.il + 1
+
+    def InitializeStereoGraphicFZ(self):
+        '''
+        AUTHOR: Saransh Singh, Lawrence Livermore national Lab, saransh1@llnl.gov
+        DATE:   11/11/2020 SS 1.0 original
+
+        @detail: this routine initializes the data needed for reducing a 
+        direction to the stereographic fundamental zone (standard
+        stereographic triangle) for the pointgroup/lauegroup symmetry
+        of the crystal.
+        '''
+        data = sphere_sector.pg2vertex[self._pointGroup]
+        self.ntriangle = data[0]
+        self.sphere_triangle = data[1]
+        self.connectivity = data[2]
+        self.hemisphere = data[3]
+
 
     def InitializeInterpTable(self):
 
@@ -1302,7 +1320,7 @@ class unitcell:
         self.stifness = C
         self.compliance = np.linalg.inv(C)
 
-    def inside_spheretriangle(self, dir3):
+    def inside_spheretriangle(self, conn, dir3):
         '''
         check if direction is inside a spherical triangle
         the logic used as follows:
@@ -1312,9 +1330,9 @@ class unitcell:
 
         returns a mask with inside as True and outside as False
         '''
-        A = np.atleast_2d(self.sphere_triangle[:, 0]).T
-        B = np.atleast_2d(self.sphere_triangle[:, 1]).T
-        C = np.atleast_2d(self.sphere_triangle[:, 2]).T
+        A = np.atleast_2d(vertex[:, conn[0]]).T
+        B = np.atleast_2d(vertex[:, conn[1]]).T
+        C = np.atleast_2d(vertex[:, conn[2]]).T
 
         mask = []
         for x in dir3:
@@ -1347,7 +1365,7 @@ class unitcell:
         of directions.
     '''
 
-    def reduce_dirvector(self, dir3, laueswitch=False):
+    def reduce_dirvector(self, dir3, laueswitch=True):
         '''
         check if the dimensions of the dir3 array is to spec
         '''
@@ -1387,15 +1405,16 @@ class unitcell:
             for sop in self.SYM_PG_c:
 
                 dir3_sym = np.dot(sop, dir3_copy.T).T
-                mask = self.inside_spheretriangle(dir3_sym)
+                if(self.ntriangle == 1):
+                    mask = self.inside_spheretriangle()
 
-                if(np.sum(mask) > 0):
-                    if(dir3_reduced.size > 0):
-                        dir3_reduced = np.vstack(
-                            (dir3_reduced, dir3_sym[mask, :]))
-                    else:
-                        dir3_reduced = np.copy(dir3_sym[mask, :])
-                dir3_copy = dir3_copy[np.logical_not(mask),:]
+                    if(np.sum(mask) > 0):
+                        if(dir3_reduced.size > 0):
+                            dir3_reduced = np.vstack(
+                                (dir3_reduced, dir3_sym[mask, :]))
+                        else:
+                            dir3_reduced = np.copy(dir3_sym[mask, :])
+                    dir3_copy = dir3_copy[np.logical_not(mask),:]
 
         elif(laueswitch is True):
             '''
