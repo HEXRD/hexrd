@@ -12,6 +12,7 @@ import time
 
 eps = constants.sqrt_epsf
 
+
 class unitcell:
 
     '''
@@ -24,17 +25,20 @@ class unitcell:
 
     # initialize the unitcell class
     # need lattice parameters and space group data from HDF5 file
-    def __init__(self, lp, sgnum, atomtypes, atominfo, U, dmin, beamenergy, sgsetting=0):
+    def __init__(self, lp, sgnum, 
+                 atomtypes, atominfo, 
+                 U, dmin, beamenergy, 
+                 sgsetting=0):
 
         self._tstart = time.time()
-        self.pref  = 0.4178214
+        self.pref = 0.4178214
 
         self.atom_ntype = atomtypes.shape[0]
-        self.atom_type  = atomtypes
-        self.atom_pos   = atominfo
-        self.U          = U
+        self.atom_type = atomtypes
+        self.atom_pos = atominfo
+        self.U = U
 
-        self._dmin      = dmin
+        self._dmin = dmin
 
         # set some default values for
         # a,b,c,alpha,beta,gamma
@@ -81,7 +85,7 @@ class unitcell:
         elif(lp[5].unit == 'radians'):
             self.gamma = np.degrees(lp[5].value)
 
-        self.aniU       = False
+        self.aniU = False
         if(self.U.ndim > 1):
             self.aniU = True
             self.calcBetaij()
@@ -121,24 +125,23 @@ class unitcell:
 
     def CalcWavelength(self):
         # wavelength in nm
-        self.wavelength =       constants.cPlanck * \
-                            constants.cLight /  \
-                            constants.cCharge / \
-                            self.voltage
+        self.wavelength = constants.cPlanck * \
+            constants.cLight /  \
+            constants.cCharge / \
+            self.voltage
         self.wavelength *= 1e9
         self.CalcAnomalous()
 
-
     def calcBetaij(self):
 
-        self.betaij = np.zeros([self.atom_ntype,3,3])
+        self.betaij = np.zeros([self.atom_ntype, 3, 3])
         for i in range(self.U.shape[0]):
-            U = self.U[i,:]
-            self.betaij[i,:,:] = np.array([[U[0], U[3], U[4]],\
-                                         [U[3], U[1], U[5]],\
-                                         [U[4], U[5], U[2]]])
+            U = self.U[i, :]
+            self.betaij[i, :, :] = np.array([[U[0], U[3], U[4]],
+                                             [U[3], U[1], U[5]],
+                                             [U[4], U[5], U[2]]])
 
-            self.betaij[i,:,:] *= 2. * np.pi**2 * self._aij
+            self.betaij[i, :, :] *= 2. * np.pi**2 * self._aij
 
     def calcmatrices(self):
 
@@ -147,23 +150,23 @@ class unitcell:
         c = self.c
 
         alpha = np.radians(self.alpha)
-        beta  = np.radians(self.beta)
+        beta = np.radians(self.beta)
         gamma = np.radians(self.gamma)
 
-        ca = np.cos(alpha);
-        cb = np.cos(beta);
-        cg = np.cos(gamma);
-        sa = np.sin(alpha);
-        sb = np.sin(beta);
-        sg = np.sin(gamma);
-        tg = np.tan(gamma);
+        ca = np.cos(alpha)
+        cb = np.cos(beta)
+        cg = np.cos(gamma)
+        sa = np.sin(alpha)
+        sb = np.sin(beta)
+        sg = np.sin(gamma)
+        tg = np.tan(gamma)
 
         '''
             direct metric tensor
         '''
-        self._dmt = np.array([[a**2, a*b*cg, a*c*cb],\
-                             [a*b*cg, b**2, b*c*ca],\
-                             [a*c*cb, b*c*ca, c**2]])
+        self._dmt = np.array([[a**2, a*b*cg, a*c*cb],
+                              [a*b*cg, b**2, b*c*ca],
+                              [a*c*cb, b*c*ca, c**2]])
         self._vol = np.sqrt(np.linalg.det(self.dmt))
 
         if(self.vol < 1e-5):
@@ -177,27 +180,30 @@ class unitcell:
         '''
             direct structure matrix
         '''
-        self._dsm = np.array([[a, b*cg, c*cb],\
-                             [0., b*sg, -c*(cb*cg - ca)/sg],
-                             [0., 0., self.vol/(a*b*sg)]])
+        self._dsm = np.array([[a, b*cg, c*cb],
+                              [0., b*sg, -c*(cb*cg - ca)/sg],
+                              [0., 0., self.vol/(a*b*sg)]])
 
         '''
             reciprocal structure matrix
         '''
-        self._rsm = np.array([[1./a, 0., 0.],\
-                             [-1./(a*tg), 1./(b*sg), 0.],
-                             [b*c*(cg*ca - cb)/(self.vol*sg), a*c*(cb*cg - ca)/(self.vol*sg), a*b*sg/self.vol]])
+        self._rsm = np.array([[1./a, 0., 0.],
+                              [-1./(a*tg), 1./(b*sg), 0.],
+                              [b*c*(cg*ca - cb)/(self.vol*sg), 
+                              a*c*(cb*cg - ca)/(self.vol*sg), 
+                              a*b*sg/self.vol]])
 
-        ast = self.CalcLength([1,0,0],'r')
-        bst = self.CalcLength([0,1,0],'r')
-        cst = self.CalcLength([0,0,1],'r')
+        ast = self.CalcLength([1, 0, 0], 'r')
+        bst = self.CalcLength([0, 1, 0], 'r')
+        cst = self.CalcLength([0, 0, 1], 'r')
 
-        self._aij = np.array([[ast**2, ast*bst, ast*cst],\
-                              [bst*ast, bst**2, bst*cst],\
+        self._aij = np.array([[ast**2, ast*bst, ast*cst],
+                              [bst*ast, bst**2, bst*cst],
                               [cst*ast, cst*bst, cst**2]])
 
     ''' transform between any crystal space to any other space.
         choices are 'd' (direct), 'r' (reciprocal) and 'c' (cartesian)'''
+
     def TransSpace(self, v_in, inspace, outspace):
         if(inspace == 'd'):
             if(outspace == 'r'):
@@ -205,7 +211,8 @@ class unitcell:
             elif(outspace == 'c'):
                 v_out = np.dot(self.dsm, v_in)
             else:
-                raise ValueError('inspace in ''d'' but outspace can''t be identified')
+                raise ValueError(
+                    'inspace in ''d'' but outspace can''t be identified')
 
         elif(inspace == 'r'):
             if(outspace == 'd'):
@@ -213,7 +220,8 @@ class unitcell:
             elif(outspace == 'c'):
                 v_out = np.dot(self.rsm, v_in)
             else:
-                raise ValueError('inspace in ''r'' but outspace can''t be identified')
+                raise ValueError(
+                    'inspace in ''r'' but outspace can''t be identified')
 
         elif(inspace == 'c'):
             if(outspace == 'r'):
@@ -221,7 +229,8 @@ class unitcell:
             elif(outspace == 'd'):
                 v_out = np.dot(v_in, self.dsm)
             else:
-                raise ValueError('inspace in ''c'' but outspace can''t be identified')
+                raise ValueError(
+                    'inspace in ''c'' but outspace can''t be identified')
 
         else:
             raise ValueError('incorrect inspace argument')
@@ -229,27 +238,29 @@ class unitcell:
         return v_out
 
     ''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
+
     def CalcDot(self, u, v, space):
 
         if(space == 'd'):
-            dot = np.dot(u,np.dot(self.dmt,v))
+            dot = np.dot(u, np.dot(self.dmt, v))
         elif(space == 'r'):
-            dot = np.dot(u,np.dot(self.rmt,v))
+            dot = np.dot(u, np.dot(self.rmt, v))
         elif(space == 'c'):
-            dot = np.dot(u,v)
+            dot = np.dot(u, v)
         else:
             raise ValueError('space is unidentified')
 
         return dot
 
     ''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
+
     def CalcLength(self, u, space):
 
-        if(space =='d'):
+        if(space == 'd'):
             vlen = np.sqrt(np.dot(u, np.dot(self.dmt, u)))
-        elif(space =='r'):
+        elif(space == 'r'):
             vlen = np.sqrt(np.dot(u, np.dot(self.rmt, u)))
-        elif(space =='c'):
+        elif(space == 'c'):
             vlen = np.linalg.norm(u)
         else:
             raise ValueError('incorrect space argument')
@@ -257,17 +268,19 @@ class unitcell:
         return vlen
 
     ''' normalize vector in any space 'd' 'r' or 'c' '''
+
     def NormVec(self, u, space):
         ulen = self.CalcLength(u, space)
         return u/ulen
 
     ''' calculate angle between two vectors in any space'''
+
     def CalcAngle(self, u, v, space):
 
         ulen = self.CalcLength(u, space)
         vlen = self.CalcLength(v, space)
 
-        dot  = self.CalcDot(u, v, space)/ulen/vlen
+        dot = self.CalcDot(u, v, space)/ulen/vlen
         angle = np.arccos(dot)
 
         return angle
@@ -284,6 +297,7 @@ class unitcell:
 
      @NOTE: iv is the switch (0/1) which will either turn division
      by volume of the unit cell on or off.'''
+
     def CalcCross(self, p, q, inspace, outspace, vol_divide=False):
         iv = 0
         if(vol_divide):
@@ -291,8 +305,8 @@ class unitcell:
         else:
             vol = 1.0
 
-        pxq = np.array([p[1]*q[2]-p[2]*q[1],\
-                        p[2]*q[0]-p[0]*q[2],\
+        pxq = np.array([p[1]*q[2]-p[2]*q[1],
+                        p[2]*q[0]-p[0]*q[2],
                         p[0]*q[1]-p[1]*q[0]])
 
         if(inspace == 'd'):
@@ -309,7 +323,8 @@ class unitcell:
             elif(outspace == 'c'):
                 pxq = self.TransSpace(pxq, 'r', 'c')
             else:
-                raise ValueError('inspace is ''d'' but outspace is unidentified')
+                raise ValueError(
+                    'inspace is ''d'' but outspace is unidentified')
 
         elif(inspace == 'r'):
             '''
@@ -324,7 +339,8 @@ class unitcell:
             elif(outspace == 'c'):
                 pxq = self.TransSpace(pxq, 'd', 'c')
             else:
-                raise ValueError('inspace is ''r'' but outspace is unidentified')
+                raise ValueError(
+                    'inspace is ''r'' but outspace is unidentified')
 
         elif(inspace == 'c'):
             '''
@@ -339,7 +355,8 @@ class unitcell:
             elif(outspace == 'c'):
                 pass
             else:
-                raise ValueError('inspace is ''c'' but outspace is unidentified')
+                raise ValueError(
+                    'inspace is ''c'' but outspace is unidentified')
 
         else:
             raise ValueError('inspace is unidentified')
@@ -348,24 +365,23 @@ class unitcell:
 
     def GenerateRecipPGSym(self):
 
+        self.SYM_PG_r = self.SYM_PG_d[0, :, :]
+        self.SYM_PG_r = np.broadcast_to(self.SYM_PG_r, [1, 3, 3])
 
-        self.SYM_PG_r = self.SYM_PG_d[0,:,:]
-        self.SYM_PG_r = np.broadcast_to(self.SYM_PG_r,[1,3,3])
+        self.SYM_PG_r_laue = self.SYM_PG_d[0, :, :]
+        self.SYM_PG_r_laue = np.broadcast_to(self.SYM_PG_r_laue, [1, 3, 3])
 
-        self.SYM_PG_r_laue = self.SYM_PG_d[0,:,:]
-        self.SYM_PG_r_laue = np.broadcast_to(self.SYM_PG_r_laue,[1,3,3])
-
-        for i in range(1,self.npgsym):
-            g = self.SYM_PG_d[i,:,:]
+        for i in range(1, self.npgsym):
+            g = self.SYM_PG_d[i, :, :]
             g = np.dot(self.dmt, np.dot(g, self.rmt))
-            g = np.round(np.broadcast_to(g,[1,3,3]))
-            self.SYM_PG_r = np.concatenate((self.SYM_PG_r,g))
+            g = np.round(np.broadcast_to(g, [1, 3, 3]))
+            self.SYM_PG_r = np.concatenate((self.SYM_PG_r, g))
 
-        for i in range(1,self.SYM_PG_d_laue.shape[0]):
-            g = self.SYM_PG_d_laue[i,:,:]
+        for i in range(1, self.SYM_PG_d_laue.shape[0]):
+            g = self.SYM_PG_d_laue[i, :, :]
             g = np.dot(self.dmt, np.dot(g, self.rmt))
-            g = np.round(np.broadcast_to(g,[1,3,3]))
-            self.SYM_PG_r_laue = np.concatenate((self.SYM_PG_r_laue,g))
+            g = np.round(np.broadcast_to(g, [1, 3, 3]))
+            self.SYM_PG_r_laue = np.concatenate((self.SYM_PG_r_laue, g))
 
         self.SYM_PG_r = self.SYM_PG_r.astype(np.int32)
         self.SYM_PG_r_laue = self.SYM_PG_r_laue.astype(np.int32)
@@ -380,7 +396,7 @@ class unitcell:
         self.SYM_PG_c_laue = []
 
         for sop in self.SYM_PG_d:
-            self.SYM_PG_c.append(np.dot(self.dsm,np.dot(sop,self.rsm.T)))
+            self.SYM_PG_c.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
 
         self.SYM_PG_c = np.array(self.SYM_PG_c)
         self.SYM_PG_c[np.abs(self.SYM_PG_c) < eps] = 0.
@@ -389,7 +405,8 @@ class unitcell:
             self.SYM_PG_c_laue = self.SYM_PG_c
         else:
             for sop in self.SYM_PG_d_laue:
-                self.SYM_PG_c_laue.append(np.dot(self.dsm,np.dot(sop,self.rsm.T)))
+                self.SYM_PG_c_laue.append(
+                    np.dot(self.dsm, np.dot(sop, self.rsm.T)))
             self.SYM_PG_c_laue = np.array(self.SYM_PG_c_laue)
             self.SYM_PG_c_laue[np.abs(self.SYM_PG_c_laue) < eps] = 0.
 
@@ -400,7 +417,7 @@ class unitcell:
         '''
         pass
 
-    def CalcStar(self,v,space,applyLaue=False):
+    def CalcStar(self, v, space, applyLaue=False):
         '''
         this function calculates the symmetrically equivalent hkls (or uvws)
         for the reciprocal (or direct) point group symmetry.
@@ -420,7 +437,7 @@ class unitcell:
 
         vsym = np.atleast_2d(v)
         for s in sym:
-            vp = np.dot(s,v)
+            vp = np.dot(s, v)
             # check if this is new
             isnew = True
             for vec in vsym:
@@ -445,10 +462,10 @@ class unitcell:
         for i in range(self.atom_ntype):
 
             n = 1
-            r = self.atom_pos[i,0:3]
+            r = self.atom_pos[i, 0:3]
             r = np.hstack((r, 1.))
 
-            asym_pos.append(np.broadcast_to(r[0:3],[1,3]))
+            asym_pos.append(np.broadcast_to(r[0:3], [1, 3]))
 
             for symmat in self.SYM_SG:
                 # get new position
@@ -464,13 +481,13 @@ class unitcell:
                 # check if this is new
                 isnew = True
                 for j in range(n):
-                    if(np.sum(np.abs(rr - asym_pos[i][j,:])) < 1E-4):
+                    if(np.sum(np.abs(rr - asym_pos[i][j, :])) < 1E-4):
                         isnew = False
                         break
 
                 # if its new add this to the list
                 if(isnew):
-                    asym_pos[i] = np.vstack((asym_pos[i],rr))
+                    asym_pos[i] = np.vstack((asym_pos[i], rr))
                     n += 1
 
             numat.append(n)
@@ -494,27 +511,31 @@ class unitcell:
             '''
             atype = self.atom_type[i]
             numat = self.numat[i]
-            occ   = self.atom_pos[i,3]
-            avA  += numat * constants.atom_weights[atype-1] * occ # -1 due to 0 indexing in python
-            avZ  += numat * atype
-
+            occ = self.atom_pos[i, 3]
+            # -1 due to 0 indexing in python
+            avA += numat * constants.atom_weights[atype-1] * occ
+            avZ += numat * atype
 
         self.density = avA / (self.vol * 1.0E-21 * constants.cAvogadro)
 
-        av_natom = np.dot(self.numat, self.atom_pos[:,3])
+        av_natom = np.dot(self.numat, self.atom_pos[:, 3])
 
         self.avA = avA / av_natom
         self.avZ = avZ / np.sum(self.numat)
 
     ''' calculate the maximum index of diffraction vector along each of the three reciprocal
      basis vectors '''
+
     def CalcMaxGIndex(self):
-        while (1.0 / self.CalcLength(np.array([self.ih, 0, 0], dtype=np.float64), 'r') > self.dmin):
-            self.ih = self.ih + 1
-        while (1.0 / self.CalcLength(np.array([0, self.ik, 0], dtype=np.float64), 'r') > self.dmin):
-            self.ik = self.ik + 1
-        while (1.0 / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64),'r') > self.dmin):
-            self.il = self.il + 1
+        while (1.0 / self.CalcLength(np.array([self.ih, 0, 0], 
+               dtype=np.float64), 'r') > self.dmin):
+               self.ih = self.ih + 1
+        while (1.0 / self.CalcLength(np.array([0, self.ik, 0], 
+               dtype=np.float64), 'r') > self.dmin):
+               self.ik = self.ik + 1
+        while (1.0 / self.CalcLength(np.array([0, 0, self.il], 
+               dtype=np.float64), 'r') > self.dmin):
+               self.il = self.il + 1
 
     def InitializeInterpTable(self):
 
@@ -524,15 +545,15 @@ class unitcell:
 
         data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
         with h5py.File(data, 'r') as fid:
-            for i in range(0,self.atom_ntype):
+            for i in range(0, self.atom_ntype):
 
-                Z    = self.atom_type[i]
+                Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
                 gid = fid.get('/'+elem)
                 data = gid.get('data')
 
-                self.f1[elem] = interp1d(data[:,7], data[:,1])
-                self.f2[elem] = interp1d(data[:,7], data[:,2])
+                self.f1[elem] = interp1d(data[:, 7], data[:, 1])
+                self.f2[elem] = interp1d(data[:, 7], data[:, 2])
 
     def CalcAnomalous(self):
 
@@ -547,7 +568,6 @@ class unitcell:
             self.f_anam[elem] = np.complex(f1+frel-Z, f2)
 
     def CalcXRFormFactor(self, Z, s):
-
         '''
         we are using the following form factors for x-aray scattering:
         1. coherent x-ray scattering, f0 tabulated in Acta Cryst. (1995). A51,416-431
@@ -576,37 +596,37 @@ class unitcell:
         return (fe+fNT+f_anomalous)
 
     def CalcXRSF(self, hkl):
-
         '''
         the 1E-2 is to convert to A^-2
         since the fitting is done in those units
         '''
-        s =  0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2
-        sf = np.complex(0.,0.)
-        for i in range(0,self.atom_ntype):
+        s = 0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2
+        sf = np.complex(0., 0.)
+        for i in range(0, self.atom_ntype):
 
-            Z   = self.atom_type[i]
-            ff  = self.CalcXRFormFactor(Z,s)
+            Z = self.atom_type[i]
+            ff = self.CalcXRFormFactor(Z, s)
 
             if(self.aniU):
-                T = np.exp(-np.dot(hkl,np.dot(self.betaij[i,:,:],hkl)))
+                T = np.exp(-np.dot(hkl, np.dot(self.betaij[i, :, :], hkl)))
             else:
                 T = np.exp(-8.0*np.pi**2 * self.U[i]*s)
 
-            ff *= self.atom_pos[i,3] * T
+            ff *= self.atom_pos[i, 3] * T
 
             for j in range(self.asym_pos[i].shape[0]):
-                arg =  2.0 * np.pi * np.sum( hkl * self.asym_pos[i][j,:] )
-                sf  = sf + ff * np.complex(np.cos(arg),-np.sin(arg))
+                arg = 2.0 * np.pi * np.sum(hkl * self.asym_pos[i][j, :])
+                sf = sf + ff * np.complex(np.cos(arg), -np.sin(arg))
 
         return np.abs(sf)**2
 
     ''' calculate bragg angle for a reflection. returns Nan if
         the reflections is not possible for the voltage/wavelength
     '''
+
     def CalcBraggAngle(self, hkl):
         glen = self.CalcLength(hkl, 'r')
-        sth  = self.wavelength * glen * 0.5
+        sth = self.wavelength * glen * 0.5
         return np.arcsin(sth)
 
     def Allowed_HKLs(self, hkllist):
@@ -620,42 +640,43 @@ class unitcell:
 
         if(centering == 'P'):
             # all reflections are allowed
-            mask = np.ones([hkllist.shape[0],],dtype=np.bool)
+            mask = np.ones([hkllist.shape[0], ], dtype=np.bool)
 
         elif(centering == 'F'):
             # same parity
 
-            seo = np.sum(np.mod(hkllist+100,2),axis=1)
-            mask = np.logical_not(np.logical_or(seo==1, seo==2))
+            seo = np.sum(np.mod(hkllist+100, 2), axis=1)
+            mask = np.logical_not(np.logical_or(seo == 1, seo == 2))
 
         elif(centering == 'I'):
             # sum is even
-            seo = np.mod(np.sum(hkllist,axis=1)+100,2)
+            seo = np.mod(np.sum(hkllist, axis=1)+100, 2)
             mask = (seo == 0)
 
         elif(centering == 'A'):
             # k+l is even
-            seo = np.mod(np.sum(hkllist[:,1:3],axis=1)+100,2)
+            seo = np.mod(np.sum(hkllist[:, 1:3], axis=1)+100, 2)
             mask = seo == 0
 
         elif(centering == 'B'):
             # h+l is even
-            seo = np.mod(hkllist[:,0]+hkllist[:,2]+100,2)
+            seo = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2)
             mask = seo == 0
 
         elif(centering == 'C'):
             # h+k is even
-            seo = np.mod(hkllist[:,0]+hkllist[:,1]+100,2)
+            seo = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2)
             mask = seo == 0
 
         elif(centering == 'R'):
             # -h+k+l is divisible by 3
-            seo = np.mod(-hkllist[:,0]+hkllist[:,1]+hkllist[:,2]+90,3)
+            seo = np.mod(-hkllist[:, 0]+hkllist[:, 1]+hkllist[:, 2]+90, 3)
             mask = seo == 0
         else:
-            raise RuntimeError('IsGAllowed: unknown lattice centering encountered.')
+            raise RuntimeError(
+                'IsGAllowed: unknown lattice centering encountered.')
 
-        hkls = hkllist[mask,:]
+        hkls = hkllist[mask, :]
 
         if(not self.symmorphic):
             hkls = self.NonSymmorphicAbsences(hkls)
@@ -663,7 +684,6 @@ class unitcell:
         return hkls.astype(np.int32)
 
     def omitscrewaxisabsences(self, hkllist, ax, iax):
-
         '''
         this function encodes the table on pg 48 of
         international table of crystallography vol A
@@ -686,7 +706,8 @@ class unitcell:
         elif(self.latticeType == 'monoclinic'):
 
             if(ax != '2_1'):
-                raise RuntimeError('omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis.')
+                raise RuntimeError(
+            'omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis.')
             '''
                 only unique b-axis will be encoded
                 it is the users responsibility to input
@@ -694,116 +715,120 @@ class unitcell:
                 with b-axis having the 2-fold symmetry
             '''
             if(iax == 1):
-                mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,2] == 0)
-                mask2 = np.mod(hkllist[:,1]+100,2) != 0
-                mask  = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
+                mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
             else:
-                raise RuntimeError('omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
+                raise RuntimeError(
+            'omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
 
         elif(self.latticeType == 'orthorhombic'):
 
             if(ax != '2_1'):
-                raise RuntimeError('omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis.')
+                raise RuntimeError(
+            'omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis.')
             '''
             2_1 screw on primary axis
             h00 ; h = 2n
             '''
             if(iax == 0):
-                mask1 = np.logical_and(hkllist[:,1] == 0,hkllist[:,2] == 0)
-                mask2 = np.mod(hkllist[:,0]+100,2) != 0
-                mask  = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask1 = np.logical_and(hkllist[:, 1] == 0, hkllist[:, 2] == 0)
+                mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
 
             elif(iax == 1):
-                mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,2] == 0)
-                mask2 = np.mod(hkllist[:,1]+100,2) != 0
-                mask  = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
+                mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
 
             elif(iax == 2):
-                mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
-                mask2 = np.mod(hkllist[:,2]+100,2) != 0
-                mask  = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
+                mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
 
         elif(self.latticeType == 'tetragonal'):
 
             if(iax == 0):
-                mask1 = np.logical_and(hkllist[:,0] == 0, hkllist[:,1] == 0)
+                mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
                 if(ax == '4_2'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
-                elif(ax in ['4_1','4_3']):
-                    mask2 = np.mod(hkllist[:,2]+100,4) != 0
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
+                elif(ax in ['4_1', '4_3']):
+                    mask2 = np.mod(hkllist[:, 2]+100, 4) != 0
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
 
             elif(iax == 1):
-                mask1 = np.logical_and(hkllist[:,1] == 0, hkllist[:,2] == 0)
-                mask2 = np.logical_and(hkllist[:,0] == 0, hkllist[:,2] == 0)
+                mask1 = np.logical_and(hkllist[:, 1] == 0, hkllist[:, 2] == 0)
+                mask2 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
                 if(ax == '2_1'):
-                    mask3 = np.mod(hkllist[:,0]+100,2) != 0
-                    mask4 = np.mod(hkllist[:,1]+100,2) != 0
+                    mask3 = np.mod(hkllist[:, 0]+100, 2) != 0
+                    mask4 = np.mod(hkllist[:, 1]+100, 2) != 0
 
-                mask1 = np.logical_not(np.logical_and(mask1,mask3))
-                mask2 = np.logical_not(np.logical_and(mask2,mask4))
+                mask1 = np.logical_not(np.logical_and(mask1, mask3))
+                mask2 = np.logical_not(np.logical_and(mask2, mask4))
 
-                mask = ~np.logical_or(~mask1,~mask2)
-                hkllist = hkllist[mask,:]
+                mask = ~np.logical_or(~mask1, ~mask2)
+                hkllist = hkllist[mask, :]
 
         elif(self.latticeType == 'trigonal'):
-            mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
+            mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
 
             if(iax == 0):
                 if(ax in ['3_1', '3_2']):
-                    mask2 = np.mod(hkllist[:,2]+90,3) != 0
+                    mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
             else:
-                raise RuntimeError('omitscrewaxisabsences: trigonal systems can only have screw axis on primary axis ')
+                raise RuntimeError(
+            'omitscrewaxisabsences: trigonal systems can only have screw axis on primary axis ')
 
-            mask  = np.logical_not(np.logical_and(mask1,mask2))
-            hkllist = hkllist[mask,:]
+            mask = np.logical_not(np.logical_and(mask1, mask2))
+            hkllist = hkllist[mask, :]
 
         elif(self.latticeType == 'hexagonal'):
 
-            mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
+            mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
 
             if(iax == 0):
                 if(ax == '6_3'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
 
-                elif(ax in['3_1','3_2','6_2','6_4']):
-                    mask2 = np.mod(hkllist[:,2]+90,3) != 0
+                elif(ax in['3_1', '3_2', '6_2', '6_4']):
+                    mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
 
-                elif(ax in ['6_1','6_5']):
-                    mask2 = np.mod(hkllist[:,2]+120,6) != 0
+                elif(ax in ['6_1', '6_5']):
+                    mask2 = np.mod(hkllist[:, 2]+120, 6) != 0
             else:
-                raise RuntimeError('omitscrewaxisabsences: hexagonal systems can only have screw axis on primary axis ')
+                raise RuntimeError(
+            'omitscrewaxisabsences: hexagonal systems can only have screw axis on primary axis ')
 
-            mask  = np.logical_not(np.logical_and(mask1,mask2))
-            hkllist = hkllist[mask,:]
+            mask = np.logical_not(np.logical_and(mask1, mask2))
+            hkllist = hkllist[mask, :]
 
         elif(self.latticeType == 'cubic'):
-            mask1 = np.logical_and(hkllist[:,0] == 0,hkllist[:,1] == 0)
-            mask2 = np.logical_and(hkllist[:,0] == 0,hkllist[:,2] == 0)
-            mask3 = np.logical_and(hkllist[:,1] == 0,hkllist[:,2] == 0)
+            mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
+            mask2 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
+            mask3 = np.logical_and(hkllist[:, 1] == 0, hkllist[:, 2] == 0)
 
-            if(ax in ['2_1','4_2']):
-                mask4 = np.mod(hkllist[:,2]+100,2) != 0
-                mask5 = np.mod(hkllist[:,1]+100,2) != 0
-                mask6 = np.mod(hkllist[:,0]+100,2) != 0
+            if(ax in ['2_1', '4_2']):
+                mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+                mask5 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask6 = np.mod(hkllist[:, 0]+100, 2) != 0
 
-            elif(ax in ['4_1','4_3']):
-                mask4 = np.mod(hkllist[:,2]+100,4) != 0
-                mask5 = np.mod(hkllist[:,1]+100,4) != 0
-                mask6 = np.mod(hkllist[:,0]+100,4) != 0
+            elif(ax in ['4_1', '4_3']):
+                mask4 = np.mod(hkllist[:, 2]+100, 4) != 0
+                mask5 = np.mod(hkllist[:, 1]+100, 4) != 0
+                mask6 = np.mod(hkllist[:, 0]+100, 4) != 0
 
-            mask1 = np.logical_not(np.logical_and(mask1,mask4))
-            mask2 = np.logical_not(np.logical_and(mask2,mask5))
-            mask3 = np.logical_not(np.logical_and(mask3,mask6))
+            mask1 = np.logical_not(np.logical_and(mask1, mask4))
+            mask2 = np.logical_not(np.logical_and(mask2, mask5))
+            mask3 = np.logical_not(np.logical_and(mask3, mask6))
 
-            mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
+            mask = ~np.logical_or(~mask1, np.logical_or(~mask2, ~mask3))
 
-            hkllist = hkllist[mask,:]
+            hkllist = hkllist[mask, :]
 
         return hkllist.astype(np.int32)
 
@@ -827,271 +852,284 @@ class unitcell:
 
         elif(self.latticeType == 'monoclinic'):
             if(ip == 1):
-                mask1 = hkllist[:,1] == 0
+                mask1 = hkllist[:, 1] == 0
 
                 if(plane == 'c'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'a'):
-                    mask2 = np.mod(hkllist[:,0]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
 
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
 
         elif(self.latticeType == 'orthorhombic'):
 
             if(ip == 0):
-                mask1 = hkllist[:,0] == 0
+                mask1 = hkllist[:, 0] == 0
 
                 if(plane == 'b'):
-                    mask2 = np.mod(hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'c'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,1]+hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask2 = np.mod(hkllist[:,1]+hkllist[:,2]+100,4) != 0
+                    mask2 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 4) != 0
 
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
 
             elif(ip == 1):
-                mask1 = hkllist[:,1] == 0
+                mask1 = hkllist[:, 1] == 0
 
                 if(plane == 'c'):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'a'):
-                    mask2 = np.mod(hkllist[:,0]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,2]+100,4) != 0
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
 
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
 
             elif(ip == 2):
-                mask1 = hkllist[:,2] == 0
+                mask1 = hkllist[:, 2] == 0
 
                 if(plane == 'a'):
-                    mask2 = np.mod(hkllist[:,0]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
                 elif(plane == 'b'):
-                    mask2 = np.mod(hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2) != 0
                 elif(plane == 'd'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,4) != 0
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
 
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
 
         elif(self.latticeType == 'tetragonal'):
 
             if(ip == 0):
 
-                mask1 = hkllist[:,2] == 0
+                mask1 = hkllist[:, 2] == 0
 
                 if(plane == 'a'):
-                    mask2 = np.mod(hkllist[:,0]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
 
                 elif(plane == 'b'):
-                    mask2 = np.mod(hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
 
                 elif(plane == 'n'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,2) != 0
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2) != 0
 
                 elif(plane == 'd'):
-                    mask2 = np.mod(hkllist[:,0]+hkllist[:,1]+100,4) != 0
+                    mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
 
-                mask = np.logical_not(np.logical_and(mask1,mask2))
-                hkllist = hkllist[mask,:]
+                mask = np.logical_not(np.logical_and(mask1, mask2))
+                hkllist = hkllist[mask, :]
 
             elif(ip == 1):
 
-                mask1 = hkllist[:,0] == 0
-                mask2 = hkllist[:,1] == 0
+                mask1 = hkllist[:, 0] == 0
+                mask2 = hkllist[:, 1] == 0
 
-                if(plane in ['a','b']):
-                    mask3 = np.mod(hkllist[:,1]+100,2) != 0
-                    mask4 = np.mod(hkllist[:,0]+100,2) != 0
+                if(plane in ['a', 'b']):
+                    mask3 = np.mod(hkllist[:, 1]+100, 2) != 0
+                    mask4 = np.mod(hkllist[:, 0]+100, 2) != 0
 
                 elif(plane == 'c'):
-                    mask3 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask3 = np.mod(hkllist[:, 2]+100, 2) != 0
                     mask4 = mask3
 
                 elif(plane == 'n'):
-                    mask3 = np.mod(hkllist[:,1]+hkllist[:,2]+100,2) != 0
-                    mask4 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
+                    mask3 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 2) != 0
+                    mask4 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
 
                 elif(plane == 'd'):
-                    mask3 = np.mod(hkllist[:,1]+hkllist[:,2]+100,4) != 0
-                    mask4 = np.mod(hkllist[:,0]+hkllist[:,2]+100,4) != 0
+                    mask3 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 4) != 0
+                    mask4 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
 
-                mask1 = np.logical_not(np.logical_and(mask1,mask3))
-                mask2 = np.logical_not(np.logical_and(mask2,mask4))
+                mask1 = np.logical_not(np.logical_and(mask1, mask3))
+                mask2 = np.logical_not(np.logical_and(mask2, mask4))
 
-                mask = ~np.logical_or(~mask1,~mask2)
-                hkllist = hkllist[mask,:]
+                mask = ~np.logical_or(~mask1, ~mask2)
+                hkllist = hkllist[mask, :]
 
             elif(ip == 2):
 
-                mask1 = np.abs(hkllist[:,0]) == np.abs(hkllist[:,1])
+                mask1 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 1])
 
-                if(plane in ['c','n']):
-                    mask2 = np.mod(hkllist[:,2]+100,2) != 0
+                if(plane in ['c', 'n']):
+                    mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
 
                 elif(plane == 'd'):
-                    mask2 = np.mod(2*hkllist[:,0]+hkllist[:,2]+100,4) != 0
+                    mask2 = np.mod(2*hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
 
-                mask = np.logical_not(np.logical_and(mask1,mask2))
+                mask = np.logical_not(np.logical_and(mask1, mask2))
 
-                hkllist = hkllist[mask,:]
-
+                hkllist = hkllist[mask, :]
 
         elif(self.latticeType == 'trigonal'):
 
             if(plane != 'c'):
-                raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems.')
+                raise RuntimeError(
+            'omitglideplaneabsences: only c-glide allowed for trigonal systems.')
 
             if(ip == 1):
 
-                mask1 = hkllist[:,0] == 0
-                mask2 = hkllist[:,1] == 0
-                mask3 = hkllist[:,0] == -hkllist[:,1]
+                mask1 = hkllist[:, 0] == 0
+                mask2 = hkllist[:, 1] == 0
+                mask3 = hkllist[:, 0] == -hkllist[:, 1]
                 if(plane == 'c'):
-                    mask4 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
-                    raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems.')
+                    raise RuntimeError(
+                'omitglideplaneabsences: only c-glide allowed for trigonal systems.')
 
             elif(ip == 2):
-                mask1 = hkllist[:,1] == hkllist[:,0]
-                mask2 = hkllist[:,0] == -2*hkllist[:,1]
-                mask3 = -2*hkllist[:,0] == hkllist[:,1]
+                mask1 = hkllist[:, 1] == hkllist[:, 0]
+                mask2 = hkllist[:, 0] == -2*hkllist[:, 1]
+                mask3 = -2*hkllist[:, 0] == hkllist[:, 1]
                 if(plane == 'c'):
-                    mask4 = np.mod(hkllist[:,2]+100,2) != 0
+                    mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
-                    raise RuntimeError('omitglideplaneabsences: only c-glide allowed for trigonal systems.')
+                    raise RuntimeError(
+                'omitglideplaneabsences: only c-glide allowed for trigonal systems.')
 
-            mask1 = np.logical_and(mask1,mask4)
-            mask2 = np.logical_and(mask2,mask4)
-            mask3 = np.logical_and(mask3,mask4)
+            mask1 = np.logical_and(mask1, mask4)
+            mask2 = np.logical_and(mask2, mask4)
+            mask3 = np.logical_and(mask3, mask4)
 
-            mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
-            hkllist = hkllist[mask,:]
+            mask = np.logical_not(np.logical_or(
+                mask1, np.logical_or(mask2, mask3)))
+            hkllist = hkllist[mask, :]
 
         elif(self.latticeType == 'hexagonal'):
 
             if(plane != 'c'):
-                raise RuntimeError('omitglideplaneabsences: only c-glide allowed for hexagonal systems.')
+                raise RuntimeError(
+            'omitglideplaneabsences: only c-glide allowed for hexagonal systems.')
 
             if(ip == 2):
-                mask1 = hkllist[:,0] == hkllist[:,1]
-                mask2 = hkllist[:,0] == -2*hkllist[:,1]
-                mask3 = -2*hkllist[:,0] == hkllist[:,1]
+                mask1 = hkllist[:, 0] == hkllist[:, 1]
+                mask2 = hkllist[:, 0] == -2*hkllist[:, 1]
+                mask3 = -2*hkllist[:, 0] == hkllist[:, 1]
 
-                mask4 = np.mod(hkllist[:,2]+100,2) != 0
+                mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
 
-                mask1 = np.logical_and(mask1,mask4)
-                mask2 = np.logical_and(mask2,mask4)
-                mask3 = np.logical_and(mask3,mask4)
+                mask1 = np.logical_and(mask1, mask4)
+                mask2 = np.logical_and(mask2, mask4)
+                mask3 = np.logical_and(mask3, mask4)
 
-                mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
+                mask = np.logical_not(np.logical_or(
+                    mask1, np.logical_or(mask2, mask3)))
 
             elif(ip == 1):
-                mask1 = hkllist[:,1] == 0
-                mask2 = hkllist[:,0] == 0
-                mask3 = hkllist[:,1] == -hkllist[:,0]
+                mask1 = hkllist[:, 1] == 0
+                mask2 = hkllist[:, 0] == 0
+                mask3 = hkllist[:, 1] == -hkllist[:, 0]
 
-                mask4 = np.mod(hkllist[:,2]+100,2) != 0
+                mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
 
-            mask1 = np.logical_and(mask1,mask4)
-            mask2 = np.logical_and(mask2,mask4)
-            mask3 = np.logical_and(mask3,mask4)
+            mask1 = np.logical_and(mask1, mask4)
+            mask2 = np.logical_and(mask2, mask4)
+            mask3 = np.logical_and(mask3, mask4)
 
-            mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
-            hkllist = hkllist[mask,:]
+            mask = np.logical_not(np.logical_or(
+                mask1, np.logical_or(mask2, mask3)))
+            hkllist = hkllist[mask, :]
 
         elif(self.latticeType == 'cubic'):
 
             if(ip == 0):
-                mask1 = hkllist[:,0] == 0
-                mask2 = hkllist[:,1] == 0
-                mask3 = hkllist[:,2] == 0
+                mask1 = hkllist[:, 0] == 0
+                mask2 = hkllist[:, 1] == 0
+                mask3 = hkllist[:, 2] == 0
 
-                mask4 = np.mod(hkllist[:,0]+100,2) != 0
-                mask5 = np.mod(hkllist[:,1]+100,2) != 0
-                mask6 = np.mod(hkllist[:,2]+100,2) != 0
+                mask4 = np.mod(hkllist[:, 0]+100, 2) != 0
+                mask5 = np.mod(hkllist[:, 1]+100, 2) != 0
+                mask6 = np.mod(hkllist[:, 2]+100, 2) != 0
 
-                if(plane  == 'a'):
-                    mask1 = np.logical_or(np.logical_and(mask1,mask5),np.logical_and(mask1,mask6))
-                    mask2 = np.logical_or(np.logical_and(mask2,mask4),np.logical_and(mask2,mask6))
-                    mask3 = np.logical_and(mask3,mask4)
+                if(plane == 'a'):
+                    mask1 = np.logical_or(np.logical_and(
+                        mask1, mask5), np.logical_and(mask1, mask6))
+                    mask2 = np.logical_or(np.logical_and(
+                        mask2, mask4), np.logical_and(mask2, mask6))
+                    mask3 = np.logical_and(mask3, mask4)
 
-                    mask = np.logical_not(np.logical_or(mask1,np.logical_or(mask2,mask3)))
+                    mask = np.logical_not(np.logical_or(
+                        mask1, np.logical_or(mask2, mask3)))
 
                 elif(plane == 'b'):
-                    mask1 = np.logical_and(mask1,mask5)
-                    mask3 = np.logical_and(mask3,mask5)
-                    mask = np.logical_not(np.logical_or(mask1,mask3))
+                    mask1 = np.logical_and(mask1, mask5)
+                    mask3 = np.logical_and(mask3, mask5)
+                    mask = np.logical_not(np.logical_or(mask1, mask3))
 
                 elif(plane == 'c'):
-                    mask1 = np.logical_and(mask1,mask6)
-                    mask2 = np.logical_and(mask2,mask6)
-                    mask = np.logical_not(np.logical_or(mask1,mask2))
+                    mask1 = np.logical_and(mask1, mask6)
+                    mask2 = np.logical_and(mask2, mask6)
+                    mask = np.logical_not(np.logical_or(mask1, mask2))
 
                 elif(plane == 'n'):
-                    mask4 = np.mod(hkllist[:,1]+hkllist[:,2]+100,2) != 0
-                    mask5 = np.mod(hkllist[:,0]+hkllist[:,2]+100,2) != 0
-                    mask6 = np.mod(hkllist[:,0]+hkllist[:,1]+100,2) != 0
+                    mask4 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 2) != 0
+                    mask5 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
+                    mask6 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2) != 0
 
-                    mask1 = np.logical_not(np.logical_and(mask1,mask4))
-                    mask2 = np.logical_not(np.logical_and(mask2,mask5))
-                    mask3 = np.logical_not(np.logical_and(mask3,mask6))
+                    mask1 = np.logical_not(np.logical_and(mask1, mask4))
+                    mask2 = np.logical_not(np.logical_and(mask2, mask5))
+                    mask3 = np.logical_not(np.logical_and(mask3, mask6))
 
-                    mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
+                    mask = ~np.logical_or(
+                        ~mask1, np.logical_or(~mask2, ~mask3))
 
                 elif(plane == 'd'):
-                    mask4 = np.mod(hkllist[:,1]+hkllist[:,2]+100,4) != 0
-                    mask5 = np.mod(hkllist[:,0]+hkllist[:,2]+100,4) != 0
-                    mask6 = np.mod(hkllist[:,0]+hkllist[:,1]+100,4) != 0
+                    mask4 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 4) != 0
+                    mask5 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+                    mask6 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
 
-                    mask1 = np.logical_not(np.logical_and(mask1,mask4))
-                    mask2 = np.logical_not(np.logical_and(mask2,mask5))
-                    mask3 = np.logical_not(np.logical_and(mask3,mask6))
+                    mask1 = np.logical_not(np.logical_and(mask1, mask4))
+                    mask2 = np.logical_not(np.logical_and(mask2, mask5))
+                    mask3 = np.logical_not(np.logical_and(mask3, mask6))
 
-                    mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
+                    mask = ~np.logical_or(
+                        ~mask1, np.logical_or(~mask2, ~mask3))
                 else:
-                    raise RuntimeError('omitglideplaneabsences: unknown glide plane encountered.')
+                    raise RuntimeError(
+                'omitglideplaneabsences: unknown glide plane encountered.')
 
-                hkllist = hkllist[mask,:]
+                hkllist = hkllist[mask, :]
 
             if(ip == 2):
 
-                mask1 = np.abs(hkllist[:,0]) == np.abs(hkllist[:,1])
-                mask2 = np.abs(hkllist[:,1]) == np.abs(hkllist[:,2])
-                mask3 = np.abs(hkllist[:,0]) == np.abs(hkllist[:,2])
+                mask1 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 1])
+                mask2 = np.abs(hkllist[:, 1]) == np.abs(hkllist[:, 2])
+                mask3 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 2])
 
-                if(plane in ['a','b','c','n']):
-                    mask4 = np.mod(hkllist[:,2]+100,2) != 0
-                    mask5 = np.mod(hkllist[:,0]+100,2) != 0
-                    mask6 = np.mod(hkllist[:,1]+100,2) != 0
+                if(plane in ['a', 'b', 'c', 'n']):
+                    mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+                    mask5 = np.mod(hkllist[:, 0]+100, 2) != 0
+                    mask6 = np.mod(hkllist[:, 1]+100, 2) != 0
 
                 elif(plane == 'd'):
-                    mask4 = np.mod(2*hkllist[:,0]+hkllist[:,2]+100,4) != 0
-                    mask5 = np.mod(hkllist[:,0]+2*hkllist[:,1]+100,4) != 0
-                    mask6 = np.mod(2*hkllist[:,0]+hkllist[:,1]+100,4) != 0
+                    mask4 = np.mod(2*hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+                    mask5 = np.mod(hkllist[:, 0]+2*hkllist[:, 1]+100, 4) != 0
+                    mask6 = np.mod(2*hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
 
                 else:
-                    raise RuntimeError('omitglideplaneabsences: unknown glide plane encountered.')
+                    raise RuntimeError(
+                'omitglideplaneabsences: unknown glide plane encountered.')
 
-                mask1 = np.logical_not(np.logical_and(mask1,mask4))
-                mask2 = np.logical_not(np.logical_and(mask2,mask5))
-                mask3 = np.logical_not(np.logical_and(mask3,mask6))
+                mask1 = np.logical_not(np.logical_and(mask1, mask4))
+                mask2 = np.logical_not(np.logical_and(mask2, mask5))
+                mask3 = np.logical_not(np.logical_and(mask3, mask6))
 
-                mask = ~np.logical_or(~mask1,np.logical_or(~mask2,~mask3))
+                mask = ~np.logical_or(~mask1, np.logical_or(~mask2, ~mask3))
 
-                hkllist = hkllist[mask,:]
+                hkllist = hkllist[mask, :]
 
         return hkllist
 
@@ -1102,12 +1140,12 @@ class unitcell:
         '''
         planes = constants.SYS_AB[self.sgnum][0]
 
-        for ip,p in enumerate(planes):
+        for ip, p in enumerate(planes):
             if(p != ''):
                 hkllist = self.omitglideplaneabsences(hkllist, p, ip)
 
         axes = constants.SYS_AB[self.sgnum][1]
-        for iax,ax in enumerate(axes):
+        for iax, ax in enumerate(axes):
             if(ax != ''):
                 hkllist = self.omitscrewaxisabsences(hkllist, ax, iax)
 
@@ -1120,26 +1158,26 @@ class unitcell:
         of the symmetrically equivalent one. The convention
         is to choose the hkl with the most positive components.
         '''
-        mask = np.ones(hkllist.shape[0],dtype=np.bool)
+        mask = np.ones(hkllist.shape[0], dtype=np.bool)
         laue = InversionSymmetry
 
-        for i,g in enumerate(hkllist):
+        for i, g in enumerate(hkllist):
             if(mask[i]):
 
-                geqv = self.CalcStar(g,'r',applyLaue=laue)
+                geqv = self.CalcStar(g, 'r', applyLaue=laue)
 
-                for r in geqv[1:,]:
-                    rid = np.where(np.all(r==hkllist,axis=1))
+                for r in geqv[1:, ]:
+                    rid = np.where(np.all(r == hkllist, axis=1))
                     mask[rid] = False
 
-        hkl = hkllist[mask,:].astype(np.int32)
+        hkl = hkllist[mask, :].astype(np.int32)
 
         hkl_max = []
 
         for g in hkl:
-            geqv = self.CalcStar(g,'r',applyLaue=laue)
-            loc = np.argmax(np.sum(geqv,axis=1))
-            gmax = geqv[loc,:]
+            geqv = self.CalcStar(g, 'r', applyLaue=laue)
+            loc = np.argmax(np.sum(geqv, axis=1))
+            gmax = geqv[loc, :]
             hkl_max.append(gmax)
 
         return np.array(hkl_max).astype(np.int32)
@@ -1153,19 +1191,20 @@ class unitcell:
         '''
         glen = []
         for g in hkllist:
-            glen.append(np.round(self.CalcLength(g,'r'),8))
+            glen.append(np.round(self.CalcLength(g, 'r'), 8))
 
         # glen = np.atleast_2d(np.array(glen,dtype=np.float)).T
-        dtype = [('glen', float), ('max', int), ('sum', int), ('h', int), ('k', int), ('l', int)]
+        dtype = [('glen', float), ('max', int), ('sum', int),
+                 ('h', int), ('k', int), ('l', int)]
 
         a = []
-        for i,gl in enumerate(glen):
-            g = hkllist[i,:]
+        for i, gl in enumerate(glen):
+            g = hkllist[i, :]
             a.append((gl, np.max(g), np.sum(g), g[0], g[1], g[2]))
         a = np.array(a, dtype=dtype)
 
-        isort = np.argsort(a, order=['glen','max','sum','l','k','h'])
-        return hkllist[isort,:]
+        isort = np.argsort(a, order=['glen', 'max', 'sum', 'l', 'k', 'h'])
+        return hkllist[isort, :]
 
     def getHKLs(self, dmin):
         '''
@@ -1187,9 +1226,9 @@ class unitcell:
         lmin = -1
         lmax = self.il
 
-        hkllist = np.array([[ih, ik, il] for ih in np.arange(hmax,hmin,-1) \
-                  for ik in np.arange(kmax,kmin,-1) \
-                  for il in np.arange(lmax,lmin,-1)])
+        hkllist = np.array([[ih, ik, il] for ih in np.arange(hmax, hmin, -1)
+                            for ik in np.arange(kmax, kmin, -1)
+                            for il in np.arange(lmax, lmin, -1)])
 
         hkl_allowed = self.Allowed_HKLs(hkllist)
 
@@ -1203,7 +1242,7 @@ class unitcell:
             # ignore [0 0 0] as it is the direct beam
             if(np.sum(np.abs(g)) != 0):
 
-                dspace = 1./self.CalcLength(g,'r')
+                dspace = 1./self.CalcLength(g, 'r')
 
                 if(dspace >= dmin):
                     hkl_dsp.append(g)
@@ -1239,16 +1278,17 @@ class unitcell:
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)
 
-    def Required_C(self,C):
+    def Required_C(self, C):
         return np.array([C[x] for x in _StifnessDict[self._laueGroup][0]])
 
     def MakeStifnessMatrix(self, inp_Cvals):
         if(len(inp_Cvals) != len(_StifnessDict[self._laueGroup][0])):
-            raise IOError('number of constants entered is not correct. need a total of ',len(_StifnessDict[self._laueGroup][0]),'independent constants')
+            raise IOError('number of constants entered is not correct. need a total of ', len(
+                _StifnessDict[self._laueGroup][0]), 'independent constants')
 
         # initialize all zeros and fill the supplied values
-        C = np.zeros([6,6])
-        for i,x in enumerate(_StifnessDict[self._laueGroup][0]):
+        C = np.zeros([6, 6])
+        for i, x in enumerate(_StifnessDict[self._laueGroup][0]):
             C[x] = inp_Cvals[i]
 
         # enforce the equality constraints
@@ -1257,13 +1297,12 @@ class unitcell:
         # finally fill the lower triangular matrix
         for i in range(6):
             for j in range(i):
-                C[i,j] = C[j,i]
+                C[i, j] = C[j, i]
 
-        self.stifness    = C
-        self.compliance  = np.linalg.inv(C)
+        self.stifness = C
+        self.compliance = np.linalg.inv(C)
 
     def inside_spheretriangle(self, dir3):
-        
         '''
         check if direction is inside a spherical triangle
         the logic used as follows:
@@ -1273,29 +1312,23 @@ class unitcell:
 
         returns a mask with inside as True and outside as False
         '''
-        A = np.atleast_2d(self.sphere_triangle[0,:]).T
-        B = np.atleast_2d(self.sphere_triangle[1,:]).T
-        C = np.atleast_2d(self.sphere_triangle[2,:]).T
+        A = np.atleast_2d(self.sphere_triangle[:, 0]).T
+        B = np.atleast_2d(self.sphere_triangle[:, 1]).T
+        C = np.atleast_2d(self.sphere_triangle[:, 2]).T
 
         mask = []
         for x in dir3:
 
             x2 = np.atleast_2d(x).T
-            d1 = np.linalg.det(np.hstack((A,B,x2)))
-            d2 = np.linalg.det(np.hstack((A,x2,C)))
-            d3 = np.linalg.det(np.hstack((x2,B,C)))
+            d1 = np.linalg.det(np.hstack((A, B, x2)))
+            d2 = np.linalg.det(np.hstack((A, x2, C)))
+            d3 = np.linalg.det(np.hstack((x2, B, C)))
 
-            ss = np.unique(np.sign([d1,d2,d3]))
-            if(len(ss)==1):
-                mask.append(True)
-
-            elif(len(ss)==2):
-                if(0 in ss):
-                    mask.append(True)
-                else:
-                    mask.append(False)
-            elif(len(ss)==3):
+            ss = np.unique(np.sign([d1, d2, d3]))
+            if(-1. in ss):
                 mask.append(False)
+            else:
+                mask.append(True)
 
         mask = np.array(mask)
         return mask
@@ -1313,11 +1346,12 @@ class unitcell:
         color legend for orientations. for now we are assuming dir3 is a nx3 array
         of directions.
     '''
-    def reduce_dirvector(self, dir3):
+
+    def reduce_dirvector(self, dir3, laueswitch=False):
         '''
         check if the dimensions of the dir3 array is to spec
         '''
-        dir3 = np.ascontiguousarray( np.atleast_2d(dir3) )
+        dir3 = np.ascontiguousarray(np.atleast_2d(dir3))
         if(dir3.ndim != 2):
             raise RuntimeError("reduce_dirvector: invalid shape of dir3 array")
 
@@ -1330,27 +1364,57 @@ class unitcell:
         '''
         eps = constants.sqrt_epsf
 
-        if( np.all(np.abs(np.linalg.norm(dir3,axis=1) - 1.0) < eps) ):
+        if(np.all(np.abs(np.linalg.norm(dir3, axis=1) - 1.0) < eps)):
             dir3n = dir3
         else:
-            if(np.all(np.linalg.norm(dir3) > eps) ):
-                dir3n = dir3/np.tile(np.linalg.norm(dir3,axis=1),[3,1]).T
+            if(np.all(np.linalg.norm(dir3) > eps)):
+                dir3n = dir3/np.tile(np.linalg.norm(dir3, axis=1), [3, 1]).T
             else:
-                raise RuntimeError("atleast one of the input direction seems to be a null vector")
+                raise RuntimeError(
+                    "atleast one of the input direction seems to be a null vector")
 
         '''
         we need both the symmetry reductions for the point group and laue group
         this will be used later on in the coloring routines to determine if the
         points needs to be moved to the southern hemisphere or not
         '''
-        if(self._pointGroup == self._laueGroup):
+        dir3_copy = np.copy(dir3n)
+        dir3_reduced = np.array([])
+        if(laueswitch is False):
             '''
-            nothing to be done in this case
+            if laue switch is off
             '''
-        else:
+            for sop in self.SYM_PG_c:
+
+                dir3_sym = np.dot(sop, dir3_copy.T).T
+                mask = self.inside_spheretriangle(dir3_sym)
+
+                if(np.sum(mask) > 0):
+                    if(dir3_reduced.size > 0):
+                        dir3_reduced = np.vstack(
+                            (dir3_reduced, dir3_sym[mask, :]))
+                    else:
+                        dir3_reduced = np.copy(dir3_sym[mask, :])
+                dir3_copy = dir3_copy[np.logical_not(mask),:]
+
+        elif(laueswitch is True):
             '''
-            compute reductions for both the cases
+            compute reductions for case with laue symmetry
             '''
+            for sop in self.SYM_PG_c_laue:
+
+                dir3_sym = np.dot(sop, dir3_copy.T).T
+                mask = self.inside_spheretriangle(dir3_sym)
+
+                if(np.sum(mask) > 0):
+                    if(dir3_reduced.size > 0):
+                        dir3_reduced = np.vstack(
+                            (dir3_reduced, dir3_sym[mask, :]))
+                    else:
+                        dir3_reduced = np.copy(dir3_sym[mask, :])
+                dir3_copy = dir3_copy[np.logical_not(mask),:]
+
+        return dir3_reduced
 
     # lattice constants as properties
     @property
@@ -1453,7 +1517,7 @@ class unitcell:
         return self._U
 
     @U.setter
-    def U(self,Uarr):
+    def U(self, Uarr):
         self._U = Uarr
 
     @property
@@ -1461,7 +1525,7 @@ class unitcell:
         return self._voltage
 
     @voltage.setter
-    def voltage(self,v):
+    def voltage(self, v):
         self._voltage = v
         self.CalcWavelength()
 
@@ -1470,7 +1534,7 @@ class unitcell:
         return self._mlambda
 
     @wavelength.setter
-    def wavelength(self,mlambda):
+    def wavelength(self, mlambda):
         self._mlambda = mlambda
 
     # space group number
@@ -1482,15 +1546,15 @@ class unitcell:
     def sgnum(self, val):
         if(not(isinstance(val, int))):
             raise ValueError('space group should be integer')
-        if(not( (val >= 1) and (val <= 230) ) ):
+        if(not((val >= 1) and (val <= 230))):
             raise ValueError('space group number should be between 1 and 230.')
 
         self._sym_sgnum = val
         self.sg_hmsymbol = symbols.pstr_spacegroup[val-1].strip()
 
         self.SYM_SG, self.SYM_PG_d, self.SYM_PG_d_laue, \
-        self.centrosymmetric, self.symmorphic = \
-        symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
+            self.centrosymmetric, self.symmorphic = \
+            symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
 
         self.latticeType = symmetry.latticeType(self.sgnum)
 
@@ -1521,13 +1585,13 @@ class unitcell:
 
     @property
     def B_factor(self):
-        return self._atom_pos[:,4]
+        return self._atom_pos[:, 4]
 
     @B_factor.setter
     def B_factor(self, val):
         if (val.shape[0] != self.atom_ntype):
             raise ValueError('Incorrect shape for B factor')
-        self._atom_pos[:,4] = val
+        self._atom_pos[:, 4] = val
 
     # asymmetric positions in unit cell
     @property
@@ -1545,7 +1609,8 @@ class unitcell:
 
     @numat.setter
     def numat(self, val):
-        assert(val.shape[0] == self.atom_ntype),'shape of numat is not consistent'
+        assert(val.shape[0] ==
+               self.atom_ntype), 'shape of numat is not consistent'
         self._numat = val
 
     # different atom types; read only
@@ -1578,17 +1643,19 @@ class unitcell:
     def vol(self):
         return self._vol
 
+
 _rqpDict = {
     'triclinic': (tuple(range(6)), lambda p: p),  # all 6
-    'monoclinic': ((0,1,2,4), lambda p: (p[0], p[1], p[2], 90, p[3], 90)), # note beta
-    'orthorhombic': ((0,1,2),   lambda p: (p[0], p[1], p[2], 90, 90,   90)),
-    'tetragonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,   90)),
-    'trigonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
-    'hexagonal': ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
-    'cubic': ((0,),      lambda p: (p[0], p[0], p[0], 90, 90,   90)),
-    }
+    # note beta
+    'monoclinic': ((0, 1, 2, 4), lambda p: (p[0], p[1], p[2], 90, p[3], 90)),
+    'orthorhombic': ((0, 1, 2), lambda p: (p[0], p[1], p[2], 90, 90,   90)),
+    'tetragonal': ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90,   90)),
+    'trigonal': ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90,  120)),
+    'hexagonal': ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90,  120)),
+    'cubic': ((0,), lambda p: (p[0], p[0], p[0], 90, 90,   90)),
+}
 
-_lpname = np.array(['a','b','c','alpha','beta','gamma'])
+_lpname = np.array(['a', 'b', 'c', 'alpha', 'beta', 'gamma'])
 
 laue_1 = 'ci'
 laue_2 = 'c2h'
@@ -1602,41 +1669,44 @@ laue_9 = 'd6h'
 laue_10 = 'th'
 laue_11 = 'oh'
 
-_sgrange = lambda min, max: tuple(range(min, max + 1)) # inclusive range
+
+def _sgrange(min, max): return tuple(range(min, max + 1))  # inclusive range
+
+
 _pgDict = {
-    _sgrange(  1,   1): ('c1', laue_1),  # Triclinic
-    _sgrange(  2,   2): ('ci', laue_1),  #                    laue 1
-    _sgrange(  3,   5): ('c2', laue_2),  # Monoclinic
-    _sgrange(  6,   9): ('cs', laue_2),
-    _sgrange( 10,  15): ('c2h',laue_2),  #                    laue 2
-    _sgrange( 16,  24): ('d2', laue_3),  # Orthorhombic
-    _sgrange( 25,  46): ('c2v',laue_3),
-    _sgrange( 47,  74): ('d2h',laue_3),  #                    laue 3
-    _sgrange( 75,  80): ('c4', laue_4),  # Tetragonal
-    _sgrange( 81,  82): ('s4', laue_4),
-    _sgrange( 83,  88): ('c4h',laue_4),  #                    laue 4
-    _sgrange( 89,  98): ('d4', laue_5),
-    _sgrange( 99, 110): ('c4v',laue_5),
-    _sgrange(111, 122): ('d2d',laue_5),
-    _sgrange(123, 142): ('d4h',laue_5),  #                    laue 5
+    _sgrange(1,   1): ('c1', laue_1),  # Triclinic
+    _sgrange(2,   2): ('ci', laue_1),  # laue 1
+    _sgrange(3,   5): ('c2', laue_2),  # Monoclinic
+    _sgrange(6,   9): ('cs', laue_2),
+    _sgrange(10,  15): ('c2h', laue_2),  # laue 2
+    _sgrange(16,  24): ('d2', laue_3),  # Orthorhombic
+    _sgrange(25,  46): ('c2v', laue_3),
+    _sgrange(47,  74): ('d2h', laue_3),  # laue 3
+    _sgrange(75,  80): ('c4', laue_4),  # Tetragonal
+    _sgrange(81,  82): ('s4', laue_4),
+    _sgrange(83,  88): ('c4h', laue_4),  # laue 4
+    _sgrange(89,  98): ('d4', laue_5),
+    _sgrange(99, 110): ('c4v', laue_5),
+    _sgrange(111, 122): ('d2d', laue_5),
+    _sgrange(123, 142): ('d4h', laue_5),  # laue 5
     _sgrange(143, 146): ('c3', laue_6),  # Trigonal
-    _sgrange(147, 148): ('s6', laue_6),  #                    laue 6 [also c3i]
+    _sgrange(147, 148): ('s6', laue_6),  # laue 6 [also c3i]
     _sgrange(149, 155): ('d3', laue_7),
-    _sgrange(156, 161): ('c3v',laue_7),
-    _sgrange(162, 167): ('d3d',laue_7),  #                    laue 7
+    _sgrange(156, 161): ('c3v', laue_7),
+    _sgrange(162, 167): ('d3d', laue_7),  # laue 7
     _sgrange(168, 173): ('c6', laue_8),  # Hexagonal
-    _sgrange(174, 174): ('c3h',laue_8),
-    _sgrange(175, 176): ('c6h',laue_8),  #                    laue 8
+    _sgrange(174, 174): ('c3h', laue_8),
+    _sgrange(175, 176): ('c6h', laue_8),  # laue 8
     _sgrange(177, 182): ('d6', laue_9),
-    _sgrange(183, 186): ('c6v',laue_9),
-    _sgrange(187, 190): ('d3h',laue_9),
-    _sgrange(191, 194): ('d6h',laue_9),   #                    laue 9
+    _sgrange(183, 186): ('c6v', laue_9),
+    _sgrange(187, 190): ('d3h', laue_9),
+    _sgrange(191, 194): ('d6h', laue_9),  # laue 9
     _sgrange(195, 199): ('t',  laue_10),  # Cubic
-    _sgrange(200, 206): ('th', laue_10),  #                    laue 10
+    _sgrange(200, 206): ('th', laue_10),  # laue 10
     _sgrange(207, 214): ('o',  laue_11),
     _sgrange(215, 220): ('td', laue_11),
-    _sgrange(221, 230): ('oh', laue_11),  #                    laue 11
-    }
+    _sgrange(221, 230): ('oh', laue_11),  # laue 11
+}
 
 '''
 this dictionary has the mapping from laue group to number of elastic
@@ -1649,63 +1719,87 @@ Edited by C. J. Gilmore, J. A. Kaduk and H. Schenk
 # independent components for the triclinic laue group
 type1 = []
 for i in range(6):
-    for j in range(i,6):
-        type1.append((i,j))
+    for j in range(i, 6):
+        type1.append((i, j))
 type1 = tuple(type1)
 
 # independent components for the monoclinic laue group
 # C14 = C15 = C24 = C25 = C34 = C35 = C46 = C56 = 0
 type2 = list(type1)
-type2.remove((0,3)); type2.remove((0,4)); type2.remove((1,3)); type2.remove((1,4))
-type2.remove((2,3)); type2.remove((2,4)); type2.remove((3,5)); type2.remove((4,5))
+type2.remove((0, 3))
+type2.remove((0, 4))
+type2.remove((1, 3))
+type2.remove((1, 4))
+type2.remove((2, 3))
+type2.remove((2, 4))
+type2.remove((3, 5))
+type2.remove((4, 5))
 type2 = tuple(type2)
 
 # independent components for the orthorhombic laue group
 # Above, plus C16 = C26 = C36 = C45 = 0
 type3 = list(type2)
-type3.remove((0,5));type3.remove((1,5));type3.remove((2,5));type3.remove((3,4))
+type3.remove((0, 5))
+type3.remove((1, 5))
+type3.remove((2, 5))
+type3.remove((3, 4))
 type3 = tuple(type3)
 
 # independent components for the cyclic tetragonal laue group
 # monoclinic, plus C36 = C45 = 0, C22 = C11, C23 = C13, C26 = −C16, C55 = C44
 type4 = list(type2)
-type4.remove((2,5));type4.remove((3,4));type4.remove((1,1))
-type4.remove((1,2));type4.remove((1,5));type4.remove((4,4))
+type4.remove((2, 5))
+type4.remove((3, 4))
+type4.remove((1, 1))
+type4.remove((1, 2))
+type4.remove((1, 5))
+type4.remove((4, 4))
 type4 = tuple(type4)
 
 # independent components for the dihedral tetragonal laue group
 # Above,  plus C16 = 0
 type5 = list(type4)
-type5.remove((0,5))
+type5.remove((0, 5))
 type5 = tuple(type5)
 
 # independent components for the trigonal laue group
 # C16 = C26 = C34 = C35 = C36 = C45 = 0, C22 = C11, C23 = C13, C24 = −C14,
 # C25 = −C15, C46 = −C15, C55 = C44, C56 = C14, C66 = (C11 − C12)/2
 type6 = list(type1)
-type6.remove((0,5));type6.remove((1,5));type6.remove((2,3))
-type6.remove((2,4));type6.remove((2,5));type6.remove((3,4))
-type6.remove((1,1));type6.remove((1,2));type6.remove((1,3))
-type6.remove((1,4));type6.remove((3,5));type6.remove((4,4))
-type6.remove((4,5));type6.remove((5,5))
+type6.remove((0, 5))
+type6.remove((1, 5))
+type6.remove((2, 3))
+type6.remove((2, 4))
+type6.remove((2, 5))
+type6.remove((3, 4))
+type6.remove((1, 1))
+type6.remove((1, 2))
+type6.remove((1, 3))
+type6.remove((1, 4))
+type6.remove((3, 5))
+type6.remove((4, 4))
+type6.remove((4, 5))
+type6.remove((5, 5))
 type6 = tuple(type6)
 
 # independent components for the rhombohedral laue group
 # Above, plus C15 = 0
 type7 = list(type6)
-type7.remove((0,4))
+type7.remove((0, 4))
 type7 = tuple(type7)
 
 # independent components for the hexagonal laue group
 # Above, plus C14 = 0
 type8 = list(type7)
-type8.remove((0,3))
+type8.remove((0, 3))
 type8 = tuple(type8)
 
 # independent components for the cubic laue group
 # As for dihedral tetragonal, plus C13 = C12, C33 = C11, C66 = C44
 type9 = list(type5)
-type9.remove((0,2));type9.remove((2,2));type9.remove((5,5));
+type9.remove((0, 2))
+type9.remove((2, 2))
+type9.remove((5, 5))
 
 '''
 these lambda functions take care of the equality constrains in the
@@ -1714,46 +1808,54 @@ function is used
 C22 = C11, C23 = C13, C24 = −C14,
 # C25 = −C15, C46 = −C15, C55 = C44, C56 = C14, C66 = (C11 − C12)/2
 '''
-identity = lambda x: x
+
+
+def identity(x): return x
+
 
 def C_cyclictet_eq(x):
-    x[1,1] = x[0,0]
-    x[1,2] = x[0,2]
-    x[1,5] = -x[0,5]
-    x[4,4] = x[3,3]
+    x[1, 1] = x[0, 0]
+    x[1, 2] = x[0, 2]
+    x[1, 5] = -x[0, 5]
+    x[4, 4] = x[3, 3]
     return x
+
 
 def C_trigonal_eq(x):
-    x[1,1]=x[0,0]
-    x[1,2]=x[0,2]
-    x[1,3]=-x[0,3]
-    x[1,4]=-x[0,4]
-    x[3,5]=-x[0,4]
-    x[4,4]=x[3,3]
-    x[4,5]=x[0,3]
-    x[5,5]=0.5*(x[0,0]-x[0,1])
+    x[1, 1] = x[0, 0]
+    x[1, 2] = x[0, 2]
+    x[1, 3] = -x[0, 3]
+    x[1, 4] = -x[0, 4]
+    x[3, 5] = -x[0, 4]
+    x[4, 4] = x[3, 3]
+    x[4, 5] = x[0, 3]
+    x[5, 5] = 0.5*(x[0, 0]-x[0, 1])
     return x
+
 
 def C_cubic_eq(x):
-    x[0,2] = x[0,1]
-    x[2,2] = x[0,0]
-    x[5,5] = x[3,3]
-    x[1,1] = x[0,0]
-    x[1,2] = x[0,2]
-    x[1,5] = -x[0,5]
-    x[4,4] = x[3,3]
+    x[0, 2] = x[0, 1]
+    x[2, 2] = x[0, 0]
+    x[5, 5] = x[3, 3]
+    x[1, 1] = x[0, 0]
+    x[1, 2] = x[0, 2]
+    x[1, 5] = -x[0, 5]
+    x[4, 4] = x[3, 3]
     return x
 
+
 _StifnessDict = {
-    laue_1: [type1,identity], # triclinic, all 21 components in upper triangular matrix needed
-    laue_2: [type2,identity], # monoclinic, 13 components needed
-    laue_3: [type3,identity], # orthorhombic, 9 components needed
-    laue_4: [type4,C_cyclictet_eq], # cyclic tetragonal, 7 components needed
-    laue_5: [type5,C_cyclictet_eq], # dihedral tetragonal, 6 components needed
-    laue_6: [type6,C_trigonal_eq], # trigonal I, 7 components
-    laue_7: [type7,C_trigonal_eq], # rhombohedral, 6 components
-    laue_8: [type8,C_trigonal_eq], # cyclic hexagonal, 5 components needed
-    laue_9: [type8,C_trigonal_eq], # dihedral hexagonal, 5 components
-    laue_10:[type9,C_cubic_eq],# cubic, 3 components
-    laue_11:[type9,C_cubic_eq] # cubic, 3 components
+    # triclinic, all 21 components in upper triangular matrix needed
+    laue_1: [type1, identity],
+    laue_2: [type2, identity],  # monoclinic, 13 components needed
+    laue_3: [type3, identity],  # orthorhombic, 9 components needed
+    laue_4: [type4, C_cyclictet_eq],  # cyclic tetragonal, 7 components needed
+    # dihedral tetragonal, 6 components needed
+    laue_5: [type5, C_cyclictet_eq],
+    laue_6: [type6, C_trigonal_eq],  # trigonal I, 7 components
+    laue_7: [type7, C_trigonal_eq],  # rhombohedral, 6 components
+    laue_8: [type8, C_trigonal_eq],  # cyclic hexagonal, 5 components needed
+    laue_9: [type8, C_trigonal_eq],  # dihedral hexagonal, 5 components
+    laue_10: [type9, C_cubic_eq],  # cubic, 3 components
+    laue_11: [type9, C_cubic_eq]  # cubic, 3 components
 }
