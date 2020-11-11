@@ -468,16 +468,16 @@ class unitcell:
             atype = self.atom_type[i]
             numat = self.numat[i]
             occ   = self.atom_pos[i,3]
-            avA  += numat * constants.atom_weights[atype-1] * occ # -1 due to 0 indexing in python
-            avZ  += numat * atype
+            self.avA  += numat * constants.atom_weights[atype-1] * occ # -1 due to 0 indexing in python
+            self.avZ  += numat * atype
 
 
-        self.density = avA / (self.vol * 1.0E-21 * constants.cAvogadro)
+        self.density = self.avA / (self.vol * 1.0E-21 * constants.cAvogadro)
 
         av_natom = np.dot(self.numat, self.atom_pos[:,3])
 
-        self.avA = avA / av_natom
-        self.avZ = avZ / np.sum(self.numat)
+        self.avA /= av_natom
+        self.avZ /= np.sum(self.numat)
 
     ''' calculate the maximum index of diffraction vector along each of the three reciprocal
      basis vectors '''
@@ -1258,6 +1258,9 @@ class unitcell:
         self.ik = 1
         self.il = 1
         self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
+        
 
     @property
     def b(self):
@@ -1271,6 +1274,8 @@ class unitcell:
         self.ik = 1
         self.il = 1
         self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
 
     @property
     def c(self):
@@ -1284,6 +1289,8 @@ class unitcell:
         self.ik = 1
         self.il = 1
         self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
 
     @property
     def alpha(self):
@@ -1297,6 +1304,8 @@ class unitcell:
         self.ik = 1
         self.il = 1
         self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
 
     @property
     def beta(self):
@@ -1310,6 +1319,8 @@ class unitcell:
         self.ik = 1
         self.il = 1
         self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
 
     @property
     def gamma(self):
@@ -1323,6 +1334,8 @@ class unitcell:
         self.ik = 1
         self.il = 1
         self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
 
     @property
     def dmin(self):
@@ -1398,6 +1411,7 @@ class unitcell:
         '''
         self.CalcPositions()
         self.GetPgLg()
+        self.CalcDensity()
 
     @property
     def atom_pos(self):
