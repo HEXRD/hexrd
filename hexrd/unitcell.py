@@ -517,7 +517,7 @@ class unitcell:
             self.avA += numat * constants.atom_weights[atype-1] * occ
             self.avZ += numat * atype
 
-        self.density = avA / (self.vol * 1.0E-21 * constants.cAvogadro)
+        self.density = self.avA / (self.vol * 1.0E-21 * constants.cAvogadro)
 
         av_natom = np.dot(self.numat, self.atom_pos[:, 3])
 
