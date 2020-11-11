@@ -1301,7 +1301,7 @@ class unitcell:
         self.stifness = C
         self.compliance = np.linalg.inv(C)
 
-    def inside_spheretriangle(self, conn, dir3):
+    def inside_spheretriangle(self, conn, dir3, hemisphere):
         '''
         check if direction is inside a spherical triangle
         the logic used as follows:
@@ -1311,6 +1311,7 @@ class unitcell:
 
         returns a mask with inside as True and outside as False
         '''
+        vertex = self.sphere_sector.vertices
         A = np.atleast_2d(vertex[:, conn[0]]).T
         B = np.atleast_2d(vertex[:, conn[1]]).T
         C = np.atleast_2d(vertex[:, conn[2]]).T
@@ -1324,10 +1325,22 @@ class unitcell:
             d3 = np.linalg.det(np.hstack((x2, B, C)))
 
             ss = np.unique(np.sign([d1, d2, d3]))
-            if(-1. in ss):
-                mask.append(False)
-            else:
-                mask.append(True)
+            if(hemisphere == 'upper'):
+                if(-1. in ss):
+                    mask.append(False)
+                else:
+                    mask.append(True)
+
+            elif(hemisphere == 'both'):
+                if(len(ss) == 1):
+                    mask.append(True)
+                elif(len(ss) == 2):
+                    if(0 in ss):
+                        mask.append(True)
+                    else:
+                        mask.append(False)
+                elif(len(ss) == 3):
+                    mask.append(False)
 
         mask = np.array(mask)
         return mask
@@ -1379,40 +1392,52 @@ class unitcell:
         '''
         dir3_copy = np.copy(dir3n)
         dir3_reduced = np.array([])
-        if(laueswitch is False):
-            '''
-            if laue switch is off
-            '''
-            for sop in self.SYM_PG_c:
+
+        '''
+        laue switch is used to determine which set of symmetry operations to 
+        loop over
+        '''
+        if(laueswitch == False):
+            sym = self.SYM_PG_c
+            hemisphere = self.sphere_sector.hemisphere
+        elif(laueswitch == True):
+            sym = self.SYM_PG_c_laue
+            hemisphere = 'upper'
+
+        for sop in sym:
+
+            if(dir3_copy.size != 0):
 
                 dir3_sym = np.dot(sop, dir3_copy.T).T
-                if(self.ntriangle == 1):
-                    mask = self.inside_spheretriangle()
 
-                    if(np.sum(mask) > 0):
-                        if(dir3_reduced.size > 0):
-                            dir3_reduced = np.vstack(
-                                (dir3_reduced, dir3_sym[mask, :]))
-                        else:
-                            dir3_reduced = np.copy(dir3_sym[mask, :])
-                    dir3_copy = dir3_copy[np.logical_not(mask),:]
+                if(self.sphere_sector.ntriangle == 1):
+                    mask = self.inside_spheretriangle(
+                           self.sphere_sector.connectivity, 
+                           dir3_sym, hemisphere)
+                    print(np.sum(mask))
+                elif(self.sphere_sector.ntriangle == 2):
+                    '''
+                    for this case we have to check if point
+                    is inside either of the triangles
+                    '''
+                    mask1 = self.inside_spheretriangle(
+                            self.sphere_sector.connectivity[:,0], 
+                            dir3_sym, hemisphere)
 
-        elif(laueswitch is True):
-            '''
-            compute reductions for case with laue symmetry
-            '''
-            for sop in self.SYM_PG_c_laue:
+                    mask2 = self.inside_spheretriangle(
+                            self.sphere_sector.connectivity[:,1],
+                            dir3_sym, hemisphere)
 
-                dir3_sym = np.dot(sop, dir3_copy.T).T
-                mask = self.inside_spheretriangle(dir3_sym)
+                    mask = np.logical_or(mask1, mask2)
 
                 if(np.sum(mask) > 0):
-                    if(dir3_reduced.size > 0):
+                    if(dir3_reduced.size != 0):
                         dir3_reduced = np.vstack(
                             (dir3_reduced, dir3_sym[mask, :]))
                     else:
                         dir3_reduced = np.copy(dir3_sym[mask, :])
-                dir3_copy = dir3_copy[np.logical_not(mask),:]
+
+            dir3_copy = dir3_copy[np.logical_not(mask),:]
 
         return dir3_reduced
 

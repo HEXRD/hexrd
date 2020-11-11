@@ -206,7 +206,7 @@ pg2vertex = {
             'upper'],
 
     'd6h' : [1, np.array([[0.,0.,1.],
-                    [np.sqrt(3.)/2., -0.5, 0.],
+                    [1., 0., 0.],
                     [np.sqrt(3.)/2., 0.5, 0.]]).T,
             np.array([0, 1, 2]),
             'upper'],
@@ -276,7 +276,7 @@ class sector:
         data = pg2vertex[pgsym]
         
         self.ntriangle = data[0]
-        self.sphere_triangle = data[1]
+        self.vertices = data[1]
         self.connectivity = data[2]
         self.hemisphere = data[3]
 
