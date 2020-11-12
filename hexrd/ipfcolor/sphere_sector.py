@@ -263,10 +263,11 @@ class sector:
     Orientations – perfectly colored, G. Nolze and R. Hielscher, J. Appl. Cryst. (2016). 49, 1786–1802
 
     '''
-    def __init__(self, pgsym):
+    def __init__(self, pgsym, lauesym):
         '''
         AUTHOR: Saransh Singh, Lawrence Livermore national Lab, saransh1@llnl.gov
         DATE:   11/11/2020 SS 1.0 original
+                11/12/2020 SS 1.1 added lauesym as additional input parameter
 
         @detail: this routine initializes the data needed for reducing a 
         direction to the stereographic fundamental zone (standard
@@ -274,20 +275,24 @@ class sector:
         of the crystal.
         '''
         data = pg2vertex[pgsym]
-        
         self.ntriangle = data[0]
         self.vertices = data[1]
         self.connectivity = data[2]
         self.hemisphere = data[3]
 
-        # compute the barycenter or the centroid
-        self.barycenter = np.mean(self.vertices,axis=1)
+        data = pg2vertex[lauesym]
+        self.ntriangle_laue = data[0]
+        self.vertices_laue = data[1]
+        self.connectivity_laue = data[2]
+        self.hemisphere_laue = data[3]
+
+        # compute the barycenter or the centroid of point group
+        self.barycenter = np.mean(self.vertices, axis=1)
         self.barycenter /= np.linalg.norm(self.barycenter)
 
-        # # this is the vector about which the azimuthal angle is 
-        # # computed (vx - barycenter)
-        # self.rx = self.vx - self.barycenter
-        # self.rx /= np.linalg.norm(self.rx)
+        # compute the barycenter or the centroid of the laue group triangle
+        self.barycenter_laue = np.mean(self.vertices_laue, axis=1)
+        self.barycenter_laue /= np.linalg.norm(self.barycenter_laue)
 
     def check_norm(self, dir3):
         '''
@@ -311,7 +316,7 @@ class sector:
             raise RuntimeError("sphere_sector: the vertices of the stereographic \
                 triangle are not in the same hemisphere")
 
-    def calc_azi_rho(self, dir3):
+    def calc_azi_rho(self, dir3, laueswitch):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
@@ -329,8 +334,12 @@ class sector:
         the directions with zero norms are ignored
         '''
         self.check_norm(dir3)
-        rx = self.vertices[:,0]
-        b = self.barycenter
+        if(laueswitch == False):
+            rx = self.vertices[:,0]
+            b = self.barycenter
+        else:
+            rx = self.vertices_laue[:,0]
+            b = self.barycenter_laue
 
         n1 = np.cross(b, rx)
         n1 = n1/np.linalg.norm(n1)
@@ -345,7 +354,7 @@ class sector:
 
         return rho
 
-    def calc_pol_theta(self, dir3):
+    def calc_pol_theta(self, dir3, laueswitch):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
@@ -358,7 +367,10 @@ class sector:
 
         '''
         self.check_norm(dir3)
-        pol = np.arccos(np.dot(self.barycenter, dir3.T))
+        if(laueswitch == False):
+            pol = np.arccos(np.dot(self.barycenter, dir3.T))
+        else:
+            pol = np.arccos(np.dot(self.barycenter_laue, dir3.T))
         return pol
 
     def distance_boundary(self, rho):
@@ -383,37 +395,66 @@ class sector:
     def hue_speed_normalization_factor(self):
         pass
 
-    def calc_hue(self, dir3):
+    def calc_hue(self, dir3, laueswitch):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
         @PARAM   dir3 direction in fundamental sector. behavior is undefined if
                  direction is outside the fundamental sector
-        @DETAIL  this function is used to calculate the hue based on angular coordinates
-                 of direction within the spherical patch. the velocity
+        @DETAIL  calculate hue. this is aggigned based on the azimuthal angle in the
+        stereographic triangle. the laueswitch controls which fundamental sector to use.
 
         '''
-        rho = self.calc_azi_rho(dir3)
+        rho = self.calc_azi_rho(dir3, laueswitch)
         H = rho/2./np.pi
         return H
 
-    def calc_saturation(self, dir3):
+    def calc_saturation(self, dir3, laueswitch):
+        '''
+        @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        @DATE    10/28/2020 SS 1.0 original
+                 11/12/2020 SS 1.1 added laueswitch as argument
+        @PARAM   dir3 direction in fundamental sector. behavior is undefined if
+                 laueswitch get colors in laue group or pg
+        @DETAIL  calculate saturation. this is always set to 1.
+
+        '''
         S = np.ones([dir3.shape[0],])
         return S
 
-    def calc_lightness(self, dir3):
-        theta = self.calc_pol_theta(dir3)
+    def calc_lightness(self, dir3, laueswitch):
+        '''
+        @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        @DATE    10/28/2020 SS 1.0 original
+                 11/12/2020 SS 1.1 added laueswitch as argument
+        @PARAM   dir3 direction in fundamental sector. behavior is undefined if
+                 laueswitch get colors in laue group or pg
+        @DETAIL  this function is used to calculate the hsl color for direction vectors
+                in dir3. if laueswitch is True, then color is assigned based on laue group
+
+        '''
+        theta = self.calc_pol_theta(dir3, laueswitch)
         theta /= theta.max()
         theta = 1. - theta
         L = theta
+
         return L
 
-    def get_color(self, dir3):
+    def get_color(self, dir3, laueswitch):
+        '''
+        @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        @DATE    10/28/2020 SS 1.0 original
+                 11/12/2020 SS 1.1 added laueswitch as argument
+        @PARAM   dir3 direction in fundamental sector. behavior is undefined if
+                 laueswitch get colors in laue group or pg
+        @DETAIL  this function is used to calculate the hsl color for direction vectors
+                in dir3. if laueswitch is True, then color is assigned based on laue group
 
+        '''
         hsl = np.zeros(dir3.shape)
 
-        hsl[:,0] = self.calc_hue(dir3)
-        hsl[:,1] = self.calc_saturation(dir3)
-        hsl[:,2] = self.calc_lightness(dir3)
+        hsl[:,0] = self.calc_hue(dir3, laueswitch)
+        hsl[:,1] = self.calc_saturation(dir3, laueswitch)
+        hsl[:,2] = self.calc_lightness(dir3, laueswitch)
 
         return hsl

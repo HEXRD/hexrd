@@ -1301,7 +1301,7 @@ class unitcell:
         self.stifness = C
         self.compliance = np.linalg.inv(C)
 
-    def inside_spheretriangle(self, conn, dir3, hemisphere):
+    def inside_spheretriangle(self, conn, dir3, hemisphere, laueswitch):
         '''
         check if direction is inside a spherical triangle
         the logic used as follows:
@@ -1311,10 +1311,21 @@ class unitcell:
 
         returns a mask with inside as True and outside as False
         '''
-        vertex = self.sphere_sector.vertices
-        A = np.atleast_2d(vertex[:, conn[0]]).T
-        B = np.atleast_2d(vertex[:, conn[1]]).T
-        C = np.atleast_2d(vertex[:, conn[2]]).T
+
+        '''
+        first get vertices of the triangles in the 
+        '''
+        if(laueswitch == False):
+            vertex = self.sphere_sector.vertices
+            A = np.atleast_2d(vertex[:, conn[0]]).T
+            B = np.atleast_2d(vertex[:, conn[1]]).T
+            C = np.atleast_2d(vertex[:, conn[2]]).T
+
+        elif(laueswitch == True):
+            vertex = self.sphere_sector.vertices_laue
+            A = np.atleast_2d(vertex[:, conn[0]]).T
+            B = np.atleast_2d(vertex[:, conn[1]]).T
+            C = np.atleast_2d(vertex[:, conn[2]]).T
 
         mask = []
         for x in dir3:
@@ -1326,10 +1337,10 @@ class unitcell:
 
             ss = np.unique(np.sign([d1, d2, d3]))
             if(hemisphere == 'upper'):
-                if(-1. in ss):
-                    mask.append(False)
-                else:
+                if(np.all(ss >= 0)):
                     mask.append(True)
+                else:
+                    mask.append(False)
 
             elif(hemisphere == 'both'):
                 if(len(ss) == 1):
@@ -1400,9 +1411,14 @@ class unitcell:
         if(laueswitch == False):
             sym = self.SYM_PG_c
             hemisphere = self.sphere_sector.hemisphere
+            ntriangle = self.sphere_sector.ntriangle
+            connectivity = self.sphere_sector.connectivity
+
         elif(laueswitch == True):
             sym = self.SYM_PG_c_laue
             hemisphere = 'upper'
+            ntriangle = self.sphere_sector.ntriangle_laue
+            connectivity = self.sphere_sector.connectivity_laue
 
         for sop in sym:
 
@@ -1410,23 +1426,23 @@ class unitcell:
 
                 dir3_sym = np.dot(sop, dir3_copy.T).T
 
-                if(self.sphere_sector.ntriangle == 1):
+                if(ntriangle == 1):
                     mask = self.inside_spheretriangle(
-                           self.sphere_sector.connectivity, 
-                           dir3_sym, hemisphere)
+                           connectivity, dir3_sym, 
+                           hemisphere, laueswitch)
 
-                elif(self.sphere_sector.ntriangle == 2):
+                elif(ntriangle == 2):
                     '''
                     for this case we have to check if point
                     is inside either of the triangles
                     '''
                     mask1 = self.inside_spheretriangle(
-                            self.sphere_sector.connectivity[:,0], 
-                            dir3_sym, hemisphere)
+                            connectivity[:,0], dir3_sym,
+                            hemisphere, laueswitch)
 
                     mask2 = self.inside_spheretriangle(
-                            self.sphere_sector.connectivity[:,1],
-                            dir3_sym, hemisphere)
+                            connectivity[:,1], dir3_sym,
+                            hemisphere, laueswitch)
 
                     mask = np.logical_or(mask1, mask2)
 
@@ -1438,6 +1454,9 @@ class unitcell:
                         dir3_reduced = np.copy(dir3_sym[mask, :])
 
                 dir3_copy = dir3_copy[np.logical_not(mask),:]
+
+            else: 
+                break
 
         return dir3_reduced
 
@@ -1466,19 +1485,28 @@ class unitcell:
             introduces inversion symmetry. For other probes, this is not the case.
             '''
             dir3_red_lg = self.reduce_dirvector(dir3, laueswitch=True)
-            hsl = self.sphere_sector.get_color(dir3_red_lg)
+            hsl = self.sphere_sector.get_color(dir3_red_lg, laueswitch)
 
         elif(laueswitch == False):
             '''
             follow the logic in the function description
             '''
-            dir3_red_pg = self.reduce_dirvector(dir3, laueswitch=False)
-            dir3_red_lg = self.reduce_dirvector(dir3, laueswitch=True)
+            if(self._pointGroup == self._laueGroup):
+                '''
+                catch cases which are already laue groups but user specified
+                laueswitch as off
+                '''
+                dir3_red_lg = self.reduce_dirvector(dir3, laueswitch=True)
+                hsl = self.sphere_sector.get_color(dir3_red_lg, True)
 
-            mask = np.linalg.norm(dir3_red_pg - dir3_red_lg, axis=1) < eps
+            else:
+                dir3_red_pg = self.reduce_dirvector(dir3, laueswitch=False)
+                dir3_red_lg = self.reduce_dirvector(dir3, laueswitch=True)
 
-            hsl = self.sphere_sector.get_color(dir3_red_lg)
-            hsl[mask,2] = 1. - hsl[mask,2]
+                mask = np.linalg.norm(dir3_red_pg - dir3_red_lg, axis=1) < eps
+
+                hsl = self.sphere_sector.get_color(dir3_red_lg, laueswitch)
+                hsl[mask,2] = 1. - hsl[mask,2]
 
         rgb = colorspace.hsl2rgb(hsl)
         return rgb
@@ -1686,7 +1714,8 @@ class unitcell:
         '''
         SS 11/11/2020 adding the sphere_sector class initialization here
         '''
-        self.sphere_sector = sphere_sector.sector(self._pointGroup)
+        self.sphere_sector = sphere_sector.sector(self._pointGroup, 
+                                                  self._laueGroup)
 
     @property
     def atom_pos(self):
