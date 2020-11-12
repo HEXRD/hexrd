@@ -2,7 +2,7 @@ import importlib.resources
 import numpy as np
 from hexrd import constants
 from hexrd import symmetry, symbols
-from hexrd.ipfcolor import sphere_sector
+from hexrd.ipfcolor import sphere_sector, colorspace
 import hexrd.resources
 import warnings
 import h5py
@@ -1440,6 +1440,89 @@ class unitcell:
             dir3_copy = dir3_copy[np.logical_not(mask),:]
 
         return dir3_reduced
+
+    def color_directions(self, dir3, laueswitch):
+        '''
+        @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        @DATE    11/12/2020 SS 1.0 original
+        @PARAM   dir3 is crystal direction obtained by multiplying inverse of 
+        crystal orientation with reference direction
+                 laueswitch perform reducion based on lauegroup or the point group
+
+        @DETAIL  this is the routine which makes the calls to sphere_sector
+        class which correctly color the orientations for this crystal class. the 
+        logic is as follows:
+
+        1. reduce direction to fundamental zone of point group
+        2. reduce to fundamental zone of laue group
+        3. If both are same, then color (hsl) assigned by polar and azimuth
+        4. If different, then barycenter lightness is replaced by 1-L (equivalent to 
+           replaceing barycenter to pi-theta)
+        '''
+        if(laueswitch == True):
+            ''' 
+            this is the case where we color orientations based on the laue group
+            of the crystal. this is always going to be the case with x-ray which
+            introduces inversion symmetry. For other probes, this is not the case.
+            '''
+            dir3_red_lg = self.reduce_dirvector(dir3, laueswitch=True)
+            hsl = self.sphere_sector.get_color(dir3_red_lg)
+
+        elif(laueswitch == False):
+            '''
+            follow the logic in the function description
+            '''
+            dir3_red_pg = self.reduce_dirvector(dir3, laueswitch=False)
+            dir3_red_lg = self.reduce_dirvector(dir3, laueswitch=True)
+
+            mask = np.linalg.norm(dir3_red_pg - dir3_red_lg, axis=1) < eps
+
+            hsl = self.sphere_sector.get_color(dir3_red_lg)
+            hsl[mask,2] = 1. - hsl[mask,2]
+
+        rgb = colorspace.hsl2rgb(hsl)
+        return rgb
+
+    def color_orientations(self, rmats, ref_dir, laueswitch=True):
+        '''
+        @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        @DATE    11/12/2020 SS 1.0 original
+        @PARAM   rmats rotation matrices of size nx3x3
+                 ref_dir reference direction of the sample frame along which all crystal
+                 directions are colored
+                 laueswitch should we use laue group for coloring or not
+        @DETAIL  this is a simple routine which takes orientations as rotations matrices
+        and a reference sample direction ([0 0 1] by default) and returns the directions in 
+        the crystal reference frame. Note that the crystal orientations is defined as the the
+        orientation which takes the """SAMPLE""" reference frame TO the """CRYSTAL""" frame. 
+        Since we are computing the conversion from crystal to sample, we will need to INVERT
+        these matrices. Thanksfully, this is just a transpose
+
+        '''
+
+        '''
+        first make sure that the rotation matric is size nx3x3
+        '''
+        if(rmats.ndim == 2):
+            rmats = np.atleast_3d(rmats).T
+        else:
+            assert rmats.ndim == 3, "rotations matrices need to \
+                                    be nx3x3. Please check size."
+
+        '''
+        obtain the direction vectors by simple matrix multiplication of transpose
+        of rotation matrix with the reference direction
+        '''
+        dir3 = []
+        for r in rmats:
+            dir3.append(r.T, ref_dir)
+
+        dir3 = np.array(dir3)
+        '''
+        finally get the rgb colors
+        '''
+        rgb = self.color_directions(dir3, laueswitch)
+        return rgb
 
     # lattice constants as properties
     @property

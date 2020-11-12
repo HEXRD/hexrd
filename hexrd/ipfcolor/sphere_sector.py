@@ -330,10 +330,18 @@ class sector:
         '''
         self.check_norm(dir3)
         rx = self.vertices[:,0]
-        ry = self.vertices[:,1]
-        c = np.dot(rx, dir3.T)
-        s = np.dot(ry, dir3.T)
-        rho = np.arctan2(c, s) + np.pi
+        b = self.barycenter
+
+        n1 = np.cross(b, rx)
+        n1 = n1/np.linalg.norm(n1)
+
+        n2 = np.cross(np.tile(b,[dir3.shape[0],1]), dir3)
+        n2 = n2/np.tile(np.linalg.norm(n2,axis=1),[n2.shape[1],1]).T
+
+        dp = np.dot(n1, n2.T)
+        mask = dp < 0.
+        rho = np.arccos(dp)
+        rho[mask] += np.pi
 
         return rho
 
@@ -351,7 +359,6 @@ class sector:
         '''
         self.check_norm(dir3)
         pol = np.arccos(np.dot(self.barycenter, dir3.T))
-        pol /= pol.max()
         return pol
 
     def distance_boundary(self, rho):
@@ -396,9 +403,9 @@ class sector:
 
     def calc_lightness(self, dir3):
         theta = self.calc_pol_theta(dir3)
-        theta /= np.pi*theta.max()
-        theta = np.pi - theta
-        L = theta/np.pi
+        theta /= theta.max()
+        theta = 1. - theta
+        L = theta
         return L
 
     def get_color(self, dir3):
@@ -409,6 +416,4 @@ class sector:
         hsl[:,1] = self.calc_saturation(dir3)
         hsl[:,2] = self.calc_lightness(dir3)
 
-        rgb = colorspace.hsl2rgb(hsl)
-
-        return rgb
+        return hsl
