@@ -152,8 +152,8 @@ pg2vertex = {
             'upper'],
 
     'd3' : [1, np.array([[0., 0., 1.],
-                    [np.sqrt(3.)/2., -0.5, 0.],
-                    [0., 1., 0.]]).T,
+                    [1., 0., 0.],
+                    [-0.5, np.sqrt(3.)/2., 0.]]).T,
             np.array([0, 1, 2]),
             'upper'],
 
@@ -280,43 +280,9 @@ class sector:
         self.connectivity = data[2]
         self.hemisphere = data[3]
 
-        # vertex = pg2vertex[pgsym]
-
-        # self.vx = vertex[:,0]
-        # self.vy = vertex[:,1]
-        # self.vz = vertex[:,2]
-
-        '''
-        make sure there are unit norm
-        '''
-        # nvx = np.linalg.norm(self.vx)
-        # nvy = np.linalg.norm(self.vy)
-        # nvz = np.linalg.norm(self.vz)
-        
-        # if(np.abs(nvx) > eps):
-        #     self.vx /= nvx
-        # else:
-        #     raise RuntimeError("one of the spherical vertex is null.")
-
-        # if(np.abs(nvy) > eps):
-        #     self.vy /= nvy
-        # else:
-        #     raise RuntimeError("one of the spherical vertex is null.")
-
-        # if(np.abs(nvz) > eps):
-        #     self.vz /= nvz
-        # else:
-        #     raise RuntimeError("one of the spherical vertex is null.")
-
-        # '''
-        # check if all the vertices are in the same hemisphere
-        # get the z-components of the vertices
-        # '''
-        # self.check_hemisphere()
-
-        # # compute the barycenter or the centroid
-        # self.barycenter = (self.vx + self.vy + self.vz) / 3.
-        # self.barycenter /= np.linalg.norm(self.barycenter)
+        # compute the barycenter or the centroid
+        self.barycenter = np.mean(self.vertices,axis=1)
+        self.barycenter /= np.linalg.norm(self.barycenter)
 
         # # this is the vector about which the azimuthal angle is 
         # # computed (vx - barycenter)
@@ -363,10 +329,11 @@ class sector:
         the directions with zero norms are ignored
         '''
         self.check_norm(dir3)
-        c = np.dot(self.rx, dir3.T)
-        s = np.cross(np.tile(self.rx,[dir3.shape[0],1]), dir3)
-        s = np.arcsin(np.linalg.norm(s,axis=1))
-        rho = np.arctan2(s, c) + np.pi
+        rx = self.vertices[:,0]
+        ry = self.vertices[:,1]
+        c = np.dot(rx, dir3.T)
+        s = np.dot(ry, dir3.T)
+        rho = np.arctan2(c, s) + np.pi
 
         return rho
 
@@ -384,6 +351,7 @@ class sector:
         '''
         self.check_norm(dir3)
         pol = np.arccos(np.dot(self.barycenter, dir3.T))
+        pol /= pol.max()
         return pol
 
     def distance_boundary(self, rho):

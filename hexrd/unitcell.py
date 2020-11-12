@@ -1414,7 +1414,7 @@ class unitcell:
                     mask = self.inside_spheretriangle(
                            self.sphere_sector.connectivity, 
                            dir3_sym, hemisphere)
-                    print(np.sum(mask))
+
                 elif(self.sphere_sector.ntriangle == 2):
                     '''
                     for this case we have to check if point
