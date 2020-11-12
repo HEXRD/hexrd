@@ -59,19 +59,25 @@ which imposes and artificial inversion symmetry such that hkl and -hkl can't be
 distinguished. However, for the formulation is general and can handle all symmetry
 groups. This will say 'upper' or 'both' depending on what hemisphere is considered.
 
+there are no triangles for the triclininc cases and needs to be handles differently
+
 '''
 pg2vertex = {
     'c1' : [0, [], [], 'both'],
 
     'ci' : [0, [], [], 'upper'],
 
-    'c2' : [1, np.array([[0., 0., 1.],
+    'c2' : [2, np.array([[0., 0., 1.],
                     [1., 0., 0.],
+                    [0., 1., 0.],
                     [-1., 0., 0.]]).T,
-            np.array([0, 1, 2]),
+            np.array([[0, 1, 2],[0, 2, 3]]).T,
             'both'],
 
-    'cs' : [0, [], [], 'upper'],
+    'cs' : [1, np.array([[0., 0., 1.],
+                    [1., 0., 0.],
+                    [-1., 0., 0.]]).T, 
+            np.array([0, 1, 2]), 'upper'],
 
     'c2h' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
@@ -287,6 +293,7 @@ class sector:
         self.hemisphere_laue = data[3]
 
         # compute the barycenter or the centroid of point group
+
         self.barycenter = np.mean(self.vertices, axis=1)
         self.barycenter /= np.linalg.norm(self.barycenter)
 
@@ -371,6 +378,7 @@ class sector:
             pol = np.arccos(np.dot(self.barycenter, dir3.T))
         else:
             pol = np.arccos(np.dot(self.barycenter_laue, dir3.T))
+        pol = pol*np.pi/pol.max()
         return pol
 
     def distance_boundary(self, rho):
@@ -433,8 +441,7 @@ class sector:
                 in dir3. if laueswitch is True, then color is assigned based on laue group
 
         '''
-        theta = self.calc_pol_theta(dir3, laueswitch)
-        theta /= theta.max()
+        theta = self.calc_pol_theta(dir3, laueswitch)/np.pi
         theta = 1. - theta
         L = theta
 
