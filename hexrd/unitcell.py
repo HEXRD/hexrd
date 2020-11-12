@@ -10,7 +10,7 @@ from pathlib import Path
 from scipy.interpolate import interp1d
 import time
 
-eps = constants.sqrt_epsf
+eps = constants.epsf
 
 
 class unitcell:
@@ -1334,10 +1334,21 @@ class unitcell:
             d1 = np.linalg.det(np.hstack((A, B, x2)))
             d2 = np.linalg.det(np.hstack((A, x2, C)))
             d3 = np.linalg.det(np.hstack((x2, B, C)))
+            '''
+            catching cases very close to FZ boundary when the
+            determinant can be very small positive or negative
+            number
+            '''
+            if(np.abs(d1) < eps):
+                d1 = 0.
+            if(np.abs(d2) < eps):
+                d2 = 0.
+            if(np.abs(d3) < eps):
+                d3 = 0.
 
             ss = np.unique(np.sign([d1, d2, d3]))
             if(hemisphere == 'upper'):
-                if(np.all(ss >= 0)):
+                if(np.all(ss >= 0.)):
                     mask.append(True)
                 else:
                     mask.append(False)
@@ -1454,7 +1465,6 @@ class unitcell:
                         dir3_reduced = np.copy(dir3_sym[mask, :])
 
                 dir3_copy = dir3_copy[np.logical_not(mask),:]
-
             else: 
                 break
 
