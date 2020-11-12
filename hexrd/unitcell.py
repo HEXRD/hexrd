@@ -1437,7 +1437,7 @@ class unitcell:
                     else:
                         dir3_reduced = np.copy(dir3_sym[mask, :])
 
-            dir3_copy = dir3_copy[np.logical_not(mask),:]
+                dir3_copy = dir3_copy[np.logical_not(mask),:]
 
         return dir3_reduced
 
