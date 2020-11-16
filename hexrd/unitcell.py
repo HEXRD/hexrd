@@ -1385,6 +1385,7 @@ class unitcell:
         '''
         check if the dimensions of the dir3 array is to spec
         '''
+        idx = np.arange(dir3.shape[0],dtype=np.int32)
         dir3 = np.ascontiguousarray(np.atleast_2d(dir3))
         if(dir3.ndim != 2):
             raise RuntimeError("reduce_dirvector: invalid shape of dir3 array")
@@ -1414,7 +1415,8 @@ class unitcell:
         '''
         dir3_copy = np.copy(dir3n)
         dir3_reduced = np.array([])
-
+        idx_copy = np.copy(idx)
+        idx_red = np.array([], dtype=np.int32)
         '''
         laue switch is used to determine which set of symmetry operations to 
         loop over
@@ -1461,14 +1463,19 @@ class unitcell:
                     if(dir3_reduced.size != 0):
                         dir3_reduced = np.vstack(
                             (dir3_reduced, dir3_sym[mask, :]))
+                        idx_red = np.hstack((idx_red, idx[mask]))
                     else:
                         dir3_reduced = np.copy(dir3_sym[mask, :])
+                        idx_red = np.copy(idx[mask])
 
                 dir3_copy = dir3_copy[np.logical_not(mask),:]
+                idx = idx[np.logical_not(mask)]
             else: 
                 break
+        dir3_r = np.zeros(dir3_reduced.shape)
+        dir3_r[idx_red,:] = dir3_reduced
 
-        return dir3_reduced
+        return dir3_r
 
     def color_directions(self, dir3, laueswitch):
         '''
