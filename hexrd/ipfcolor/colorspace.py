@@ -46,6 +46,8 @@ def hsl2rgb(hsl):
     different components
     '''
     hsl = np.atleast_2d(hsl)
+    hsl[np.abs(hsl) < eps] = 0.
+    hsl[np.abs(hsl - np.ones(hsl.shape)) < eps] = 1.
 
     if( (hsl.min() < 0.) or (hsl.max() > 1.)):
         raise RuntimeError("value of not in range [0,1]. normalizing before conversion")

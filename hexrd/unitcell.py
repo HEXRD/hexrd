@@ -1439,6 +1439,9 @@ class unitcell:
 
                 dir3_sym = np.dot(sop, dir3_copy.T).T
 
+                if(ntriangle == 0):
+                    mask = np.ones(dir3_copy.shape[0], dtype=np.bool)
+
                 if(ntriangle == 1):
                     mask = self.inside_spheretriangle(
                            connectivity, dir3_sym, 

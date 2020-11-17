@@ -297,14 +297,21 @@ class sector:
         self.connectivity_laue = data[2]
         self.hemisphere_laue = data[3]
 
-        # compute the barycenter or the centroid of point group
+        if(self.ntriangle!= 0):
+            # compute the barycenter or the centroid of point group
+            self.barycenter = np.mean(self.vertices, axis=1)
+            self.barycenter /= np.linalg.norm(self.barycenter)
 
-        self.barycenter = np.mean(self.vertices, axis=1)
-        self.barycenter /= np.linalg.norm(self.barycenter)
+            # compute the barycenter or the centroid of the laue group triangle
+            self.barycenter_laue = np.mean(self.vertices_laue, axis=1)
+            self.barycenter_laue /= np.linalg.norm(self.barycenter_laue)
 
-        # compute the barycenter or the centroid of the laue group triangle
-        self.barycenter_laue = np.mean(self.vertices_laue, axis=1)
-        self.barycenter_laue /= np.linalg.norm(self.barycenter_laue)
+        else:
+            self.barycenter = np.array([0., 0., 1.])
+            self.barycenter_laue = np.array([0., 0., 1.])
+
+
+
 
     def check_norm(self, dir3):
         '''
@@ -347,22 +354,42 @@ class sector:
         '''
         self.check_norm(dir3)
         if(laueswitch == False):
-            rx = self.vertices[:,0]
+            if(self.ntriangle != 0):
+                rx = self.vertices[:,0]
+            else:
+                rx = np.array([1., 0., 0.])
             b = self.barycenter
         else:
-            rx = self.vertices_laue[:,0]
+            if(self.ntriangle != 0):
+                rx = self.vertices_laue[:,0]
+            else:
+                rx = np.array([1., 0., 0.])
             b = self.barycenter_laue
 
-        n1 = np.cross(b, rx)
-        n1 = n1/np.linalg.norm(n1)
+        '''
+        we are splitting the handling of triclinic and other symmetries
+        here. this is probably not the most efficient way to do things, but 
+        easiest to implement for now. improvements will be made later
+        '''
+        if(self.ntriangle != 0):
+            n1 = np.cross(b, rx)
+            n1 = n1/np.linalg.norm(n1)
 
-        n2 = np.cross(np.tile(b,[dir3.shape[0],1]), dir3)
-        n2 = n2/np.tile(np.linalg.norm(n2,axis=1),[n2.shape[1],1]).T
+            n2 = np.cross(np.tile(b,[dir3.shape[0],1]), dir3)
+            mask = np.linalg.norm(n2,axis=1) > eps
+            n2[mask,:] = n2[mask,:]/np.tile(np.linalg.norm(n2[mask,:],axis=1),[n2[mask,:].shape[1],1]).T
 
-        dp = np.dot(n1, n2.T)
-        mask = dp < 0.
-        rho = np.arccos(dp)
-        rho[mask] += np.pi
+            dp = np.zeros([dir3.shape[0],])
+            dp[mask] = np.dot(n1, n2[mask,:].T)
+            dp[~mask] = 0.
+            mask = dp < 0.
+            rho = np.arccos(dp)
+            rho[mask] += np.pi
+
+        else:
+            y = dir3[:,1]
+            x = dir3[:,0]
+            rho = np.arctan2(y, x) + np.pi
 
         return rho
 
@@ -422,17 +449,19 @@ class sector:
         H = rho/2./np.pi
         return H
 
-    def calc_saturation(self, dir3, laueswitch):
+    def calc_saturation(self, L, laueswitch):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
                  11/12/2020 SS 1.1 added laueswitch as argument
-        @PARAM   dir3 direction in fundamental sector. behavior is undefined if
-                 laueswitch get colors in laue group or pg
+                 11/16/2020 SS 2.0 more balanced saturation from JAC papaer
+                 the factor lambda_s is hard coded to 1/4. Since lighness is needed,
+                 the function now uses L as an input instead of dir3 to avoid recomputing L
+        @PARAM   L lightness values
         @DETAIL  calculate saturation. this is always set to 1.
 
         '''
-        S = np.ones([dir3.shape[0],])
+        S = 1. - 2.*0.25*np.abs(L - 0.5)
         return S
 
     def calc_lightness(self, dir3, laueswitch):
@@ -440,15 +469,19 @@ class sector:
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
                  11/12/2020 SS 1.1 added laueswitch as argument
+                 11/16/2020 SS 1.2 more balanced lightness key from the JAC paper
+                 the factor lambda is hard coded to 1/4
         @PARAM   dir3 direction in fundamental sector. behavior is undefined if
                  laueswitch get colors in laue group or pg
         @DETAIL  this function is used to calculate the hsl color for direction vectors
                 in dir3. if laueswitch is True, then color is assigned based on laue group
 
         '''
-        theta = self.calc_pol_theta(dir3, laueswitch)/np.pi
-        theta = 1. - theta
-        L = theta
+        theta = self.calc_pol_theta(dir3, laueswitch)
+        f1 = theta/np.pi
+        f2 = np.sin(theta/2.)**2
+        L = 0.25*f1 + 0.75*f2
+        L = 1. - L
 
         return L
 
@@ -466,7 +499,6 @@ class sector:
         hsl = np.zeros(dir3.shape)
 
         hsl[:,0] = self.calc_hue(dir3, laueswitch)
-        hsl[:,1] = self.calc_saturation(dir3, laueswitch)
         hsl[:,2] = self.calc_lightness(dir3, laueswitch)
-
+        hsl[:,1] = self.calc_saturation(hsl[:,2], laueswitch)
         return hsl
