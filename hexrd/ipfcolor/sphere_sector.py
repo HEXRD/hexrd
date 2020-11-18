@@ -383,6 +383,8 @@ class sector:
             dp[mask] = np.dot(n1, n2[mask,:].T)
             dp[~mask] = 0.
             mask = dp < 0.
+            dp[dp > 1.] = 1.
+            dp[dp < -1.] = -1.
             rho = np.arccos(dp)
             rho[mask] += np.pi
 
@@ -426,6 +428,7 @@ class sector:
         pass
 
     def hue_speed(self, rho):
+        rho = rho - np.pi
         v = 0.5 + np.exp(-(4./7.)*rho**2) + \
             np.exp(-(4./7.)*(rho - 2.*np.pi/3.)**2) + \
             np.exp(-(4./7.)*(rho + 2.*np.pi/3.)**2)
@@ -445,7 +448,24 @@ class sector:
         stereographic triangle. the laueswitch controls which fundamental sector to use.
 
         '''
+        H = np.zeros(dir3.shape[0])
         rho = self.calc_azi_rho(dir3, laueswitch)
+        # vel = self.hue_speed(rho)
+        # den = np.trapz(vel, np.linspace(0., np.pi*2., dir3.shape[0]))
+
+        # for i,r in enumerate(rho):
+        #     npts = int(np.floor(dir3.shape[0]*r/2./np.pi))
+        #     ang = np.linspace(0., r, npts)
+        #     v = self.hue_speed(ang)
+        #     num = np.trapz(v, ang)
+
+        #     H[i] = num/den
+
+        # '''
+        # catching some edge cases
+        # '''
+        # H[H > 1.] = 1.
+        # H[H < 0.] = 0.
         H = rho/2./np.pi
         return H
 
