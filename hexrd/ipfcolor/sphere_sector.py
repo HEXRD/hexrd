@@ -310,9 +310,6 @@ class sector:
             self.barycenter = np.array([0., 0., 1.])
             self.barycenter_laue = np.array([0., 0., 1.])
 
-
-
-
     def check_norm(self, dir3):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
