@@ -65,6 +65,7 @@ there are no triangles for the triclininc cases and needs to be handles differen
 pg2vertex = {
     'c1' : [0, [], [], 'both'],
 
+    # supergroup 00 in our convention
     'ci' : [0, [], [], 'upper'],
 
     'c2' : [2, np.array([[0., 0., 1.],
@@ -74,6 +75,7 @@ pg2vertex = {
             np.array([[0, 1, 2],[0, 2, 3]]).T,
             'both'],
 
+    # supergroup 1 in our convention
     'cs' : [2, np.array([[0., 0., 1.],
                     [1., 0., 0.],
                     [0., 1., 0.],
@@ -95,12 +97,14 @@ pg2vertex = {
            np.array([[0, 1, 2],[0, 2, 3]]).T,
             'upper'],
 
+    # supergroup 2 in our convention
     'c2v' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
                     [0., 1., 0.]]).T,
             np.array([0, 1, 2]),
             'both'],
 
+    # supergroup 3 in our convention
     'd2h' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
                     [0., 1., 0.]]).T,
@@ -113,6 +117,7 @@ pg2vertex = {
             np.array([0, 1, 2]),
             'both'],
 
+    # supergroup 01 in our convention
     's4' : [2, np.array([[0., 0., 1.],
                     [1., 0., 0.],
                     [0., 1., 0.],
@@ -132,6 +137,7 @@ pg2vertex = {
             np.array([0, 1, 2]),
             'upper'],
 
+    # supergroup 4 in our convention
     'c4v' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
                     [1./np.sqrt(2.), 1./np.sqrt(2.), 0.]]).T,
@@ -144,6 +150,7 @@ pg2vertex = {
             np.array([0, 1, 2]),
             'upper'],
 
+    # supergroup 5 in our convention
     'd4h' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
                     [1./np.sqrt(2.), 1./np.sqrt(2.), 0.]]).T,
@@ -156,6 +163,7 @@ pg2vertex = {
             np.array([0, 1, 2]),
             'both'],
 
+    # supergroup 02 in our convention
     's6' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
                     [-0.5, np.sqrt(3.)/2., 0.]]).T,
@@ -168,6 +176,7 @@ pg2vertex = {
             np.array([0, 1, 2]),
             'upper'],
 
+    # supergroup 6 in our convention
     'c3v' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
                     [0.5, np.sqrt(3.)/2., 0.]]).T,
@@ -204,18 +213,21 @@ pg2vertex = {
             np.array([0, 1, 2]),
             'both'],
 
+    # supergroup 7 in our convention
     'c6v' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
                     [np.sqrt(3.)/2., 0.5, 0.]]).T,
             np.array([0, 1, 2]),
             'both'],
 
+    # supergroup 8 in our convention
     'd3h' : [1, np.array([[0., 0., 1.],
                     [1., 0., 0.],
                     [np.sqrt(3.)/2., 0.5, 0.]]).T,
             np.array([0, 1, 2]),
             'upper'],
 
+    # supergroup 9 in our convention
     'd6h' : [1, np.array([[0.,0.,1.],
                     [1., 0., 0.],
                     [np.sqrt(3.)/2., 0.5, 0.]]).T,
@@ -246,12 +258,14 @@ pg2vertex = {
           np.array([[0, 1, 2],[0, 2, 3]]).T,
           'upper'],
 
+    # supergroup 10 in our convention
     'td' : [1, np.array([[0.,0.,1.],
                     [1./np.sqrt(3.), -1./np.sqrt(3.), 1./np.sqrt(3.)],
                     [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)]]).T,
             np.array([0, 1, 2]),
             'upper'],
 
+    # supergroup 11 in our convention
     'oh' : [1, np.array([[0.,0.,1.],
                     [1./np.sqrt(2.),0., 1./np.sqrt(2.)],
                     [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)]]).T,
