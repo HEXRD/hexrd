@@ -583,3 +583,62 @@ def latticeType(sgnum):
         return 'cubic'
     else:
         raise RuntimeError('symmetry.latticeType: unknown space group number')
+
+
+def MakeGenerators_PGSYM(pggenstr):
+    '''
+    @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+    @DATE    11/23/2020 SS 1.0 original
+    @DETAIL. these are the supporting routine to generate the ppint group symmetry
+             for any point group. this is needed for the coloring routines
+    '''
+    ngen = int(pggenstr[0])
+    SYM_GEN_PG = np.zeros([ngen,3,3])
+
+    for i in range(ngen):
+        s = pggenstr[i+1]
+        SYM_GEN_PG[i,:,:] = constants.SYM_GENERATORS[s]
+
+    return SYM_GEN_PG
+
+def GeneratePGSYM(pgsym):
+    '''
+    @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+    @DATE    11/23/2020 SS 1.0 original
+    @DETAIL. generate the point group symmetry given the point group symbol
+    '''
+    pggenstr = constants.SYM_GL_PG[pgsym]
+
+    SYM_GEN_PG = MakeGenerators_PGSYM(pggenstr)
+
+    '''
+    generate the powers of the group
+    '''
+    
+
+    '''
+    now go through the group actions and see if its a new matrix
+    if it is then add it to the group
+    '''
+    nsym = SYM_GEN_PG.shape[0]
+    k1 = 0
+    while k1 < nsym:
+        g1 = np.squeeze(SYM_GEN_PG[k1,:,:])
+        k2 = k1
+        while k2 < nsym:
+            g2 = np.squeeze(SYM_GEN_PG[k2,:,:])
+            gnew = np.dot(g1, g2)
+
+            if(isnew(gnew, SYM_GEN_PG)):
+                gnew = np.broadcast_to(gnew, [1,3,3])
+                SYM_GEN_PG = np.concatenate((SYM_GEN_PG, gnew))
+                nsym += 1
+
+                if (nsym >= 48):
+                    k2 = nsym
+                    k1 = nsym
+
+            k2 += 1
+        k1 += 1
+
+    return SYM_GEN_PG

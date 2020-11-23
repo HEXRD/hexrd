@@ -122,6 +122,7 @@ class unitcell:
                 self._pointGroup = pglg[0]
                 self._laueGroup = pglg[1]
                 self._supergroup = pglg[2]
+                self._supergroup_laue = pglg[3]
 
     def CalcWavelength(self):
         # wavelength in nm
@@ -394,6 +395,8 @@ class unitcell:
         '''
         self.SYM_PG_c = []
         self.SYM_PG_c_laue = []
+        self.SYM_PG_supergroup = []
+        self.SYM_PG_supergroup_laue = []
 
         for sop in self.SYM_PG_d:
             self.SYM_PG_c.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
@@ -409,6 +412,31 @@ class unitcell:
                     np.dot(self.dsm, np.dot(sop, self.rsm.T)))
             self.SYM_PG_c_laue = np.array(self.SYM_PG_c_laue)
             self.SYM_PG_c_laue[np.abs(self.SYM_PG_c_laue) < eps] = 0.
+
+        '''
+        use the point group symmetry of the supergroup
+        to generate the equivalent operations in the 
+        cartesian reference frame
+
+        SS 11/23/2020 added supergroup symmetry operations
+        '''
+        supergroup = self._supergroup
+        sym_supergroup = symmetry.GeneratePGSYM(supergroup)
+
+        for sop in sym_supergroup:
+            self.SYM_PG_supergroup.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
+
+        self.SYM_PG_supergroup = np.array(self.SYM_PG_supergroup)
+        self.SYM_PG_supergroup[np.abs(self.SYM_PG_supergroup) < eps] = 0.
+
+        supergroup_laue = self._supergroup_laue
+        sym_supergroup_laue = symmetry.GeneratePGSYM(supergroup_laue)
+
+        for sop in sym_supergroup_laue:
+            self.SYM_PG_supergroup_laue.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
+
+        self.SYM_PG_supergroup_laue = np.array(self.SYM_PG_supergroup_laue)
+        self.SYM_PG_supergroup_laue[np.abs(self.SYM_PG_supergroup_laue) < eps] = 0.
 
     def CalcOrbit(self):
         '''
@@ -1302,7 +1330,7 @@ class unitcell:
         self.stifness = C
         self.compliance = np.linalg.inv(C)
 
-    def inside_spheretriangle(self, conn, dir3, hemisphere, laueswitch):
+    def inside_spheretriangle(self, conn, dir3, hemisphere, switch):
         '''
         check if direction is inside a spherical triangle
         the logic used as follows:
@@ -1311,22 +1339,29 @@ class unitcell:
         formed by A, B and C
 
         returns a mask with inside as True and outside as False
+
+        11/23/2020 SS switch is now a string specifying which 
+        symmetry group to use for reducing directions
         '''
 
         '''
         first get vertices of the triangles in the 
         '''
-        if(laueswitch == False):
+        if(switch == 'pg'):
             vertex = self.sphere_sector.vertices
-            A = np.atleast_2d(vertex[:, conn[0]]).T
-            B = np.atleast_2d(vertex[:, conn[1]]).T
-            C = np.atleast_2d(vertex[:, conn[2]]).T
 
-        elif(laueswitch == True):
+        elif(switch == 'laue'):
             vertex = self.sphere_sector.vertices_laue
-            A = np.atleast_2d(vertex[:, conn[0]]).T
-            B = np.atleast_2d(vertex[:, conn[1]]).T
-            C = np.atleast_2d(vertex[:, conn[2]]).T
+
+        elif(switch == 'super'):
+            vertex = self.sphere_sector.vertices_supergroup
+
+        elif(switch == 'superlaue'):
+            vertex = self.sphere_sector.vertices_supergroup_laue
+
+        A = np.atleast_2d(vertex[:, conn[0]]).T
+        B = np.atleast_2d(vertex[:, conn[1]]).T
+        C = np.atleast_2d(vertex[:, conn[2]]).T
 
         mask = []
         for x in dir3:
@@ -1372,8 +1407,14 @@ class unitcell:
         @AUTHOR Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
 
         @date 10/28/2020 SS 1.0 original
-
+              11/23/2020 SS 1.1 the laueswitch has been changed from a boolean
+              variable to a string input with threee possible values
         @params dir3 : n x 3 array of directions to reduce
+                switch switch to decide which symmetry group to use. one of four:
+                (a) 'pg' use the cartesian point group symmetry
+                (b) 'laue' use the laue symmetry
+                (c) 'super' use the supergroup symmetry used in coloring
+                (d) 'superlaue' use the supergroup of the laue group
 
         @detail this subroutine takes a direction vector and uses the point group
         symmetry of the unitcell to reduce it to the fundamental stereographic 
@@ -1382,7 +1423,7 @@ class unitcell:
         of directions.
     '''
 
-    def reduce_dirvector(self, dir3, laueswitch=False):
+    def reduce_dirvector(self, dir3, switch='pg'):
         '''
         check if the dimensions of the dir3 array is to spec
         '''
@@ -1422,17 +1463,29 @@ class unitcell:
         laue switch is used to determine which set of symmetry operations to 
         loop over
         '''
-        if(laueswitch == False):
+        if(switch == 'pg'):
             sym = self.SYM_PG_c
             hemisphere = self.sphere_sector.hemisphere
             ntriangle = self.sphere_sector.ntriangle
             connectivity = self.sphere_sector.connectivity
 
-        elif(laueswitch == True):
+        elif(switch == 'super'):
+            sym = self.SYM_PG_supergroup
+            hemisphere = self.sphere_sector.hemisphere_supergroup
+            ntriangle = self.sphere_sector.ntriangle_supergroup
+            connectivity = self.sphere_sector.connectivity_supergroup
+
+        elif(switch == 'laue'):
             sym = self.SYM_PG_c_laue
-            hemisphere = 'upper'
+            hemisphere = self.sphere_sector.hemisphere_laue
             ntriangle = self.sphere_sector.ntriangle_laue
             connectivity = self.sphere_sector.connectivity_laue
+
+        elif(switch == 'superlaue'):
+            sym = self.SYM_PG_supergroup_laue
+            hemisphere = self.sphere_sector.hemisphere_supergroup_laue
+            ntriangle = self.sphere_sector.ntriangle_supergroup_laue
+            connectivity = self.sphere_sector.connectivity_supergroup_laue
 
         for sop in sym:
 
@@ -1446,7 +1499,7 @@ class unitcell:
                 if(ntriangle == 1):
                     mask = self.inside_spheretriangle(
                            connectivity, dir3_sym, 
-                           hemisphere, laueswitch)
+                           hemisphere, switch)
 
                 elif(ntriangle == 2):
                     '''
@@ -1455,13 +1508,36 @@ class unitcell:
                     '''
                     mask1 = self.inside_spheretriangle(
                             connectivity[:,0], dir3_sym,
-                            hemisphere, laueswitch)
+                            hemisphere, switch)
 
                     mask2 = self.inside_spheretriangle(
                             connectivity[:,1], dir3_sym,
-                            hemisphere, laueswitch)
+                            hemisphere, switch)
 
                     mask = np.logical_or(mask1, mask2)
+
+                elif(ntriangle == 4):
+                    '''
+                    for point group symmetry cs since mirror in 
+                    normal to y-axis
+                    '''
+                    mask1 = self.inside_spheretriangle(
+                            connectivity[:,0], dir3_sym,
+                            hemisphere, switch)
+
+                    mask2 = self.inside_spheretriangle(
+                            connectivity[:,1], dir3_sym,
+                            hemisphere, switch)
+
+                    mask3 = self.inside_spheretriangle(
+                            connectivity[:,2], dir3_sym,
+                            hemisphere, switch)
+
+                    mask4 = self.inside_spheretriangle(
+                            connectivity[:,3], dir3_sym,
+                            hemisphere, switch)
+
+                    mask = np.logical_or(np.logical_or(mask1, mask2), np.logical_or(mask3, mask4))
 
                 if(np.sum(mask) > 0):
                     if(dir3_reduced.size != 0):
@@ -1494,40 +1570,32 @@ class unitcell:
         logic is as follows:
 
         1. reduce direction to fundamental zone of point group
-        2. reduce to fundamental zone of laue group
+        2. reduce to fundamental zone of super group
         3. If both are same, then color (hsl) assigned by polar and azimuth
         4. If different, then barycenter lightness is replaced by 1-L (equivalent to 
            replaceing barycenter to pi-theta)
         '''
+        
+
         if(laueswitch == True):
             ''' 
             this is the case where we color orientations based on the laue group
             of the crystal. this is always going to be the case with x-ray which
             introduces inversion symmetry. For other probes, this is not the case.
             '''
-            dir3_red_lg = self.reduce_dirvector(dir3, laueswitch=True)
-            hsl = self.sphere_sector.get_color(dir3_red_lg, laueswitch)
+            dir3_red = self.reduce_dirvector(dir3, switch='laue')
+            dir3_red_supergroup = self.reduce_dirvector(dir3, switch='superlaue')
 
         elif(laueswitch == False):
             '''
             follow the logic in the function description
             '''
-            if(self._pointGroup == self._laueGroup):
-                '''
-                catch cases which are already laue groups but user specified
-                laueswitch as off
-                '''
-                dir3_red_lg = self.reduce_dirvector(dir3, laueswitch=True)
-                hsl = self.sphere_sector.get_color(dir3_red_lg, True)
+            dir3_red = self.reduce_dirvector(dir3, switch='pg')
+            dir3_red_supergroup = self.reduce_dirvector(dir3, switch='super')
 
-            else:
-                dir3_red_pg = self.reduce_dirvector(dir3, laueswitch=False)
-                dir3_red_lg = self.reduce_dirvector(dir3, laueswitch=True)
-
-                mask = np.linalg.norm(dir3_red_pg - dir3_red_lg, axis=1) < eps
-
-                hsl = self.sphere_sector.get_color(dir3_red_lg, laueswitch)
-                hsl[mask,2] = 1. - hsl[mask,2]
+        mask = np.linalg.norm(dir3_red - dir3_red_supergroup, axis=1) < eps
+        hsl = self.sphere_sector.get_color(dir3_red, laueswitch)
+        hsl[mask,2] = 1. - hsl[mask,2]
 
         rgb = colorspace.hsl2rgb(hsl)
         return rgb
@@ -1736,7 +1804,9 @@ class unitcell:
         SS 11/11/2020 adding the sphere_sector class initialization here
         '''
         self.sphere_sector = sphere_sector.sector(self._pointGroup, 
-                                                  self._laueGroup)
+                                                  self._laueGroup, 
+                                                  self._supergroup,
+                                                  self._supergroup_laue)
 
     @property
     def atom_pos(self):
@@ -1861,38 +1931,38 @@ def _sgrange(min, max): return tuple(range(min, max + 1))  # inclusive range
 for coloring the fundamental zone IPF
 '''
 _pgDict = {
-    _sgrange(1,   1): ('c1', laue_1, supergroup_1),  # Triclinic
-    _sgrange(2,   2): ('ci', laue_1, supergroup_00),  # laue 1
-    _sgrange(3,   5): ('c2', laue_2, supergroup_2),  # Monoclinic
-    _sgrange(6,   9): ('cs', laue_2, supergroup_1),
-    _sgrange(10,  15): ('c2h', laue_2, supergroup_3),  # laue 2
-    _sgrange(16,  24): ('d2', laue_3, supergroup_3),  # Orthorhombic
-    _sgrange(25,  46): ('c2v', laue_3, supergroup_2),
-    _sgrange(47,  74): ('d2h', laue_3, supergroup_3),  # laue 3
-    _sgrange(75,  80): ('c4', laue_4, supergroup_4),  # Tetragonal
-    _sgrange(81,  82): ('s4', laue_4, supergroup_01),
-    _sgrange(83,  88): ('c4h', laue_4, supergroup_5),  # laue 4
-    _sgrange(89,  98): ('d4', laue_5, supergroup_5),
-    _sgrange(99, 110): ('c4v', laue_5, supergroup_4),
-    _sgrange(111, 122): ('d2d', laue_5, supergroup_5),
-    _sgrange(123, 142): ('d4h', laue_5, supergroup_5),  # laue 5
-    _sgrange(143, 146): ('c3', laue_6, supergroup_6),  # Trigonal
-    _sgrange(147, 148): ('s6', laue_6, supergroup_02),  # laue 6 [also c3i]
-    _sgrange(149, 155): ('d3', laue_7, supergroup_7),
-    _sgrange(156, 161): ('c3v', laue_7, supergroup_6),
-    _sgrange(162, 167): ('d3d', laue_7, supergroup_9),  # laue 7
-    _sgrange(168, 173): ('c6', laue_8, supergroup_7),  # Hexagonal
-    _sgrange(174, 174): ('c3h', laue_8, supergroup_7),
-    _sgrange(175, 176): ('c6h', laue_8, supergroup_9),  # laue 8
-    _sgrange(177, 182): ('d6', laue_9, supergroup_9),
-    _sgrange(183, 186): ('c6v', laue_9, supergroup_7),
-    _sgrange(187, 190): ('d3h', laue_9, supergroup_9),
-    _sgrange(191, 194): ('d6h', laue_9, supergroup_9),  # laue 9
-    _sgrange(195, 199): ('t',  laue_10, supergroup_10),  # Cubic
-    _sgrange(200, 206): ('th', laue_10, supergroup_11),  # laue 10
-    _sgrange(207, 214): ('o',  laue_11, supergroup_11),
-    _sgrange(215, 220): ('td', laue_11, supergroup_10),
-    _sgrange(221, 230): ('oh', laue_11, supergroup_11),  # laue 11
+    _sgrange(1,   1): ('c1', laue_1, supergroup_1, supergroup_00),  # Triclinic
+    _sgrange(2,   2): ('ci', laue_1, supergroup_00, supergroup_00),  # laue 1
+    _sgrange(3,   5): ('c2', laue_2, supergroup_2, supergroup_3),  # Monoclinic
+    _sgrange(6,   9): ('cs', laue_2, supergroup_1, supergroup_3),
+    _sgrange(10,  15): ('c2h', laue_2, supergroup_3, supergroup_3),  # laue 2
+    _sgrange(16,  24): ('d2', laue_3, supergroup_3, supergroup_3),  # Orthorhombic
+    _sgrange(25,  46): ('c2v', laue_3, supergroup_2, supergroup_3),
+    _sgrange(47,  74): ('d2h', laue_3, supergroup_3, supergroup_3),  # laue 3
+    _sgrange(75,  80): ('c4', laue_4, supergroup_4, supergroup_5),  # Tetragonal
+    _sgrange(81,  82): ('s4', laue_4, supergroup_01, supergroup_5),
+    _sgrange(83,  88): ('c4h', laue_4, supergroup_5, supergroup_5),  # laue 4
+    _sgrange(89,  98): ('d4', laue_5, supergroup_5, supergroup_5),
+    _sgrange(99, 110): ('c4v', laue_5, supergroup_4, supergroup_5),
+    _sgrange(111, 122): ('d2d', laue_5, supergroup_5, supergroup_5),
+    _sgrange(123, 142): ('d4h', laue_5, supergroup_5, supergroup_5),  # laue 5
+    _sgrange(143, 146): ('c3', laue_6, supergroup_6, supergroup_02),  # Trigonal
+    _sgrange(147, 148): ('s6', laue_6, supergroup_02, supergroup_02),  # laue 6 [also c3i]
+    _sgrange(149, 155): ('d3', laue_7, supergroup_7, supergroup_9),
+    _sgrange(156, 161): ('c3v', laue_7, supergroup_6, supergroup_9),
+    _sgrange(162, 167): ('d3d', laue_7, supergroup_9, supergroup_9),  # laue 7
+    _sgrange(168, 173): ('c6', laue_8, supergroup_7, supergroup_9),  # Hexagonal
+    _sgrange(174, 174): ('c3h', laue_8, supergroup_7, supergroup_9),
+    _sgrange(175, 176): ('c6h', laue_8, supergroup_9, supergroup_9),  # laue 8
+    _sgrange(177, 182): ('d6', laue_9, supergroup_9, supergroup_9),
+    _sgrange(183, 186): ('c6v', laue_9, supergroup_7, supergroup_9),
+    _sgrange(187, 190): ('d3h', laue_9, supergroup_9, supergroup_9),
+    _sgrange(191, 194): ('d6h', laue_9, supergroup_9, supergroup_9),  # laue 9
+    _sgrange(195, 199): ('t',  laue_10, supergroup_10, supergroup_11),  # Cubic
+    _sgrange(200, 206): ('th', laue_10, supergroup_11, supergroup_11),  # laue 10
+    _sgrange(207, 214): ('o',  laue_11, supergroup_11, supergroup_11),
+    _sgrange(215, 220): ('td', laue_11, supergroup_10, supergroup_11),
+    _sgrange(221, 230): ('oh', laue_11, supergroup_11, supergroup_11),  # laue 11
 }
 
 '''

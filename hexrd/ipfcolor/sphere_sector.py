@@ -76,12 +76,13 @@ pg2vertex = {
             'both'],
 
     # supergroup 1 in our convention
-    'cs' : [2, np.array([[0., 0., 1.],
+    'cs' : [4, np.array([[0., 0., 1.],
                     [1., 0., 0.],
                     [0., 1., 0.],
-                    [-1., 0., 0.]]).T, 
-            np.array([[0, 1, 2],[0, 2, 3]]).T,
-            'upper'],
+                    [-1., 0., 0.],
+                    [0., 0., -1.]]).T, 
+            np.array([[0, 1, 2],[0, 2, 3],[4, 1, 2],[4, 2, 3]]).T,
+            'both'],
 
     'c2h' : [2, np.array([[0., 0., 1.],
                     [1., 0., 0.],
@@ -288,11 +289,12 @@ class sector:
     Orientations – perfectly colored, G. Nolze and R. Hielscher, J. Appl. Cryst. (2016). 49, 1786–1802
 
     '''
-    def __init__(self, pgsym, lauesym):
+    def __init__(self, pgsym, lauesym, supergroupsym, supergrouplauesym):
         '''
         AUTHOR: Saransh Singh, Lawrence Livermore national Lab, saransh1@llnl.gov
         DATE:   11/11/2020 SS 1.0 original
                 11/12/2020 SS 1.1 added lauesym as additional input parameter
+                11/23/2020 SS 1.2 added supergroupsym as additional parameter
 
         @detail: this routine initializes the data needed for reducing a 
         direction to the stereographic fundamental zone (standard
@@ -311,6 +313,18 @@ class sector:
         self.connectivity_laue = data[2]
         self.hemisphere_laue = data[3]
 
+        data = pg2vertex[supergroupsym]
+        self.ntriangle_supergroup = data[0]
+        self.vertices_supergroup = data[1]
+        self.connectivity_supergroup = data[2]
+        self.hemisphere_supergroup = data[3]
+
+        data = pg2vertex[supergrouplauesym]
+        self.ntriangle_supergroup_laue = data[0]
+        self.vertices_supergroup_laue = data[1]
+        self.connectivity_supergroup_laue = data[2]
+        self.hemisphere_supergroup_laue = data[3]
+
         if(self.ntriangle!= 0):
             # compute the barycenter or the centroid of point group
             self.barycenter = np.mean(self.vertices, axis=1)
@@ -320,9 +334,18 @@ class sector:
             self.barycenter_laue = np.mean(self.vertices_laue, axis=1)
             self.barycenter_laue /= np.linalg.norm(self.barycenter_laue)
 
+            # compute the barycenter or the centroid of the supergroup group triangle
+            self.barycenter_supergroup = np.mean(self.vertices_supergroup, axis=1)
+            self.barycenter_supergroup /= np.linalg.norm(self.barycenter_supergroup)
+
+            # compute the barycenter or the centroid of the supergroup group triangle
+            self.barycenter_supergroup_laue = np.mean(self.vertices_supergroup_laue, axis=1)
+            self.barycenter_supergroup_laue /= np.linalg.norm(self.barycenter_supergroup_laue)
+
         else:
             self.barycenter = np.array([0., 0., 1.])
             self.barycenter_laue = np.array([0., 0., 1.])
+            self.barycenter_supergroup = np.array([0., 0., 1.])
 
     def check_norm(self, dir3):
         '''
@@ -369,7 +392,7 @@ class sector:
                 rx = self.vertices[:,0]
             else:
                 rx = np.array([1., 0., 0.])
-            b = self.barycenter
+            b = self.barycenter_supergroup
         else:
             if(self.ntriangle != 0):
                 rx = self.vertices_laue[:,0]
@@ -420,7 +443,7 @@ class sector:
         '''
         self.check_norm(dir3)
         if(laueswitch == False):
-            pol = np.arccos(np.dot(self.barycenter, dir3.T))
+            pol = np.arccos(np.dot(self.barycenter_supergroup, dir3.T))
         else:
             pol = np.arccos(np.dot(self.barycenter_laue, dir3.T))
         pol = pol*np.pi/pol.max()
