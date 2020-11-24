@@ -346,6 +346,7 @@ class sector:
             self.barycenter = np.array([0., 0., 1.])
             self.barycenter_laue = np.array([0., 0., 1.])
             self.barycenter_supergroup = np.array([0., 0., 1.])
+            self.barycenter_supergroup_laue = np.array([0., 0., 1.])
 
     def check_norm(self, dir3):
         '''
@@ -369,10 +370,15 @@ class sector:
             raise RuntimeError("sphere_sector: the vertices of the stereographic \
                 triangle are not in the same hemisphere")
 
-    def calc_azi_rho(self, dir3, laueswitch):
+    def calc_azi_rho(self, dir3, mask, laueswitch):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
+                 11/23/2020 SS 1.2 added mask argument which tell the directions
+                 for which the supergroup reductions dont match the point or laue
+                 group reductions. mask has size dir3.shape[0]. True means its the
+                 same, otherwise different
+
         @PARAM   dir3 direction in fundamental sector. behavior is undefined if
                  direction is outside the fundamental sector. size is nx3
         @DETAIL  this function is used to calculate the azimuthal angle of the
@@ -387,6 +393,9 @@ class sector:
         the directions with zero norms are ignored
         '''
         self.check_norm(dir3)
+        rho = np.zeros(dir3.shape[0])
+
+        d1 = dir3[mask,:]
         if(laueswitch == False):
             if(self.ntriangle != 0):
                 rx = self.vertices[:,0]
@@ -398,7 +407,7 @@ class sector:
                 rx = self.vertices_laue[:,0]
             else:
                 rx = np.array([1., 0., 0.])
-            b = self.barycenter_laue
+            b = self.barycenter_supergroup_laue
 
         '''
         we are splitting the handling of triclinic and other symmetries
@@ -409,32 +418,66 @@ class sector:
             n1 = np.cross(b, rx)
             n1 = n1/np.linalg.norm(n1)
 
-            n2 = np.cross(np.tile(b,[dir3.shape[0],1]), dir3)
-            mask = np.linalg.norm(n2,axis=1) > eps
-            n2[mask,:] = n2[mask,:]/np.tile(np.linalg.norm(n2[mask,:],axis=1),[n2[mask,:].shape[1],1]).T
+            n2 = np.cross(np.tile(b,[d1.shape[0],1]), d1)
+            zmask = np.linalg.norm(n2, axis=1) > eps
+            n2[zmask,:] = n2[zmask,:]/np.tile(np.linalg.norm(n2[zmask,:],axis=1),[n2[zmask,:].shape[1],1]).T
 
-            dp = np.zeros([dir3.shape[0],])
-            dp[mask] = np.dot(n1, n2[mask,:].T)
-            dp[~mask] = 0.
-            mask = dp < 0.
+            dp = np.zeros([d1.shape[0],])
+            dp[zmask] = np.dot(n1, n2[zmask,:].T)
+            dp[~zmask] = 0.
+            nmask = dp < 0.
             dp[dp > 1.] = 1.
             dp[dp < -1.] = -1.
-            rho = np.arccos(dp)
-            rho[mask] += np.pi
-
+            r = np.arccos(dp)
+            r[nmask] += np.pi
         else:
             y = dir3[:,1]
             x = dir3[:,0]
-            rho = np.arctan2(y, x) + np.pi
+            r = np.arctan2(y, x) + np.pi
+
+        rho[mask] = r
+
+        if(np.any(mask == False)):
+
+            d2 = dir3[~mask,:]
+            b[2] = -b[2]
+
+            if(self.ntriangle != 0):
+
+                n1 = np.cross(b, rx)
+                n1 = n1/np.linalg.norm(n1)
+                n2 = np.cross(np.tile(b,[d2.shape[0],1]), d2)
+                zmask = np.linalg.norm(n2, axis=1) > eps
+                n2[zmask,:] = n2[zmask,:]/np.tile(np.linalg.norm(n2[zmask,:],axis=1),[n2[zmask,:].shape[1],1]).T
+                dp = np.zeros([d2.shape[0],])
+                dp[zmask] = np.dot(n1, n2[zmask,:].T)
+                dp[~zmask] = 0.
+                nmask = dp < 0.
+                dp[dp > 1.] = 1.
+                dp[dp < -1.] = -1.
+                r = np.arccos(dp)
+                r[nmask] += np.pi
+
+            else:
+                y = dir3[:,1]
+                x = dir3[:,0]
+                r = np.arctan2(y, x) + np.pi
+
+            rho[~mask] = r
 
         return rho
 
-    def calc_pol_theta(self, dir3, laueswitch):
+    def calc_pol_theta(self, dir3, mask, laueswitch):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
+                 11/23/2020 SS 1.2 added mask argument which tell the directions
+                 for which the supergroup reductions dont match the point or laue
+                 group reductions. mask has size dir3.shape[0]
+
         @PARAM   dir3 direction in fundamental sector. behavior is undefined if
                  direction is outside the fundamental sector
+
         @DETAIL  this function is used to calculate the polar angle of the
                  direction inside a spherical patch. this is computed as the scaled
                  angular distance between direction and barycenter. the scaling is such
@@ -442,10 +485,20 @@ class sector:
 
         '''
         self.check_norm(dir3)
+        pol = np.zeros(dir3.shape[0])
+        d1 = dir3[mask,:]
         if(laueswitch == False):
-            pol = np.arccos(np.dot(self.barycenter_supergroup, dir3.T))
+            b = self.barycenter_supergroup
         else:
-            pol = np.arccos(np.dot(self.barycenter_laue, dir3.T))
+            b = self.barycenter_supergroup_laue
+
+        pol[mask] = np.arccos(np.dot(b, d1.T))
+        
+        if(np.any(mask == False)):
+            d2 = dir3[~mask,:]
+            b[2] = -b[2]
+            pol[~mask] = np.arccos(np.dot(b, d2.T))
+
         pol = pol*np.pi/pol.max()
         return pol
 
@@ -472,10 +525,14 @@ class sector:
     def hue_speed_normalization_factor(self):
         pass
 
-    def calc_hue(self, dir3, laueswitch):
+    def calc_hue(self, dir3, mask, laueswitch):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
+                 11/23/2020 SS 1.2 added mask argument which tell the directions
+                 for which the supergroup reductions dont match the point or laue
+                 group reductions. mask has size dir3.shape[0]
+
         @PARAM   dir3 direction in fundamental sector. behavior is undefined if
                  direction is outside the fundamental sector
         @DETAIL  calculate hue. this is aggigned based on the azimuthal angle in the
@@ -483,7 +540,7 @@ class sector:
 
         '''
         H = np.zeros(dir3.shape[0])
-        rho = self.calc_azi_rho(dir3, laueswitch)
+        rho = self.calc_azi_rho(dir3, mask, laueswitch)
         # vel = self.hue_speed(rho)
         # den = np.trapz(vel, np.linspace(0., np.pi*2., dir3.shape[0]))
 
@@ -495,15 +552,15 @@ class sector:
 
         #     H[i] = num/den
 
-        # '''
-        # catching some edge cases
-        # '''
+        '''
+        catching some edge cases
+        '''
         # H[H > 1.] = 1.
         # H[H < 0.] = 0.
         H = rho/2./np.pi
         return H
 
-    def calc_saturation(self, L, laueswitch):
+    def calc_saturation(self, L, mask, laueswitch):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
@@ -511,6 +568,10 @@ class sector:
                  11/16/2020 SS 2.0 more balanced saturation from JAC papaer
                  the factor lambda_s is hard coded to 1/4. Since lighness is needed,
                  the function now uses L as an input instead of dir3 to avoid recomputing L
+                 11/23/2020 SS 1.2 added mask argument which tell the directions
+                 for which the supergroup reductions dont match the point or laue
+                 group reductions. mask has size dir3.shape[0]
+
         @PARAM   L lightness values
         @DETAIL  calculate saturation. this is always set to 1.
 
@@ -518,32 +579,38 @@ class sector:
         S = 1. - 2.*0.25*np.abs(L - 0.5)
         return S
 
-    def calc_lightness(self, dir3, laueswitch):
+    def calc_lightness(self, dir3, mask, laueswitch):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
                  11/12/2020 SS 1.1 added laueswitch as argument
                  11/16/2020 SS 1.2 more balanced lightness key from the JAC paper
                  the factor lambda is hard coded to 1/4
+                 11/23/2020 SS 1.2 added mask argument which tell the directions
+                 for which the supergroup reductions dont match the point or laue
+                 group reductions. mask has size dir3.shape[0]
+
         @PARAM   dir3 direction in fundamental sector. behavior is undefined if
                  laueswitch get colors in laue group or pg
         @DETAIL  this function is used to calculate the hsl color for direction vectors
                 in dir3. if laueswitch is True, then color is assigned based on laue group
 
         '''
-        theta = self.calc_pol_theta(dir3, laueswitch)
+        theta = self.calc_pol_theta(dir3, mask, laueswitch)
         f1 = theta/np.pi
         f2 = np.sin(theta/2.)**2
         L = 0.25*f1 + 0.75*f2
-        L = 1. - L
+        return 1. - L
 
-        return L
-
-    def get_color(self, dir3, laueswitch):
+    def get_color(self, dir3, mask, laueswitch):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
                  11/12/2020 SS 1.1 added laueswitch as argument
+                 11/23/2020 SS 1.2 added mask argument which tell the directions
+                 for which the supergroup reductions dont match the point or laue
+                 group reductions. mask has size dir3.shape[0]
+
         @PARAM   dir3 direction in fundamental sector. behavior is undefined if
                  laueswitch get colors in laue group or pg
         @DETAIL  this function is used to calculate the hsl color for direction vectors
@@ -552,7 +619,7 @@ class sector:
         '''
         hsl = np.zeros(dir3.shape)
 
-        hsl[:,0] = self.calc_hue(dir3, laueswitch)
-        hsl[:,2] = self.calc_lightness(dir3, laueswitch)
-        hsl[:,1] = self.calc_saturation(hsl[:,2], laueswitch)
+        hsl[:,0] = self.calc_hue(dir3, mask, laueswitch)
+        hsl[:,2] = self.calc_lightness(dir3, mask, laueswitch)
+        hsl[:,1] = self.calc_saturation(hsl[:,2], mask, laueswitch)
         return hsl

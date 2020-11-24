@@ -1342,6 +1342,7 @@ class unitcell:
 
         11/23/2020 SS switch is now a string specifying which 
         symmetry group to use for reducing directions
+        11/23/2020 SS catching cases when vertices are empty
         '''
 
         '''
@@ -1358,6 +1359,7 @@ class unitcell:
 
         elif(switch == 'superlaue'):
             vertex = self.sphere_sector.vertices_supergroup_laue
+
 
         A = np.atleast_2d(vertex[:, conn[0]]).T
         B = np.atleast_2d(vertex[:, conn[1]]).T
@@ -1494,7 +1496,10 @@ class unitcell:
                 dir3_sym = np.dot(sop, dir3_copy.T).T
 
                 if(ntriangle == 0):
-                    mask = np.ones(dir3_copy.shape[0], dtype=np.bool)
+                    if(hemisphere == 'both'):
+                        mask = np.ones(dir3_sym.shape[0], dtype=np.bool)
+                    elif(hemisphere == 'upper'):
+                        mask = dir3_sym[:,2] >= 0.
 
                 if(ntriangle == 1):
                     mask = self.inside_spheretriangle(
@@ -1594,8 +1599,7 @@ class unitcell:
             dir3_red_supergroup = self.reduce_dirvector(dir3, switch='super')
 
         mask = np.linalg.norm(dir3_red - dir3_red_supergroup, axis=1) < eps
-        hsl = self.sphere_sector.get_color(dir3_red, laueswitch)
-        hsl[mask,2] = 1. - hsl[mask,2]
+        hsl = self.sphere_sector.get_color(dir3_red, mask, laueswitch)
 
         rgb = colorspace.hsl2rgb(hsl)
         return rgb
