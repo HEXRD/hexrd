@@ -76,20 +76,21 @@ pg2vertex = {
             'both'],
 
     # supergroup 1 in our convention
-    'cs' : [4, np.array([[0., 0., 1.],
+    'cs' : [4, np.array([[0., 1., 0.],
+                    [0., 0., 1.],
                     [1., 0., 0.],
-                    [0., 1., 0.],
-                    [-1., 0., 0.],
-                    [0., 0., -1.]]).T, 
+                    [0., 0., -1.],
+                    [-1., 0., 0.]]).T,
             np.array([[0, 1, 2],[0, 2, 3],[4, 1, 2],[4, 2, 3]]).T,
             'both'],
 
-    'c2h' : [2, np.array([[0., 0., 1.],
+    'c2h' : [4, np.array([[0., 1., 0.],
+                    [0., 0., 1.],
                     [1., 0., 0.],
-                    [0., 1., 0.],
+                    [0., 0., -1.],
                     [-1., 0., 0.]]).T,
-            np.array([[0, 1, 2],[0, 2, 3]]).T,
-            'upper'],
+            np.array([[0, 1, 2],[0, 2, 3],[4, 1, 2],[4, 2, 3]]).T,
+            'both'],
 
     'd2' : [2, np.array([[0., 0., 1.],
                     [1., 0., 0.],
@@ -128,7 +129,7 @@ pg2vertex = {
 
     'c4h' : [1, np.array([[0.,0.,1.],
                       [1., 0., 0.],
-                      [0., 1., 0.0]]),
+                      [0., 1., 0.]]),
             np.array([0, 1, 2]),
             'upper'],
 
@@ -185,8 +186,8 @@ pg2vertex = {
             'both'],
 
     'd3d' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [0.5, np.sqrt(3.)/2., 0.]]).T,
+                    [np.sqrt(3.)/2., 0.5, 0.],
+                    [np.sqrt(3.)/2., -0.5, 0.]]).T,
             np.array([0, 1, 2]),
             'upper'],
 
@@ -414,34 +415,33 @@ class sector:
         here. this is probably not the most efficient way to do things, but 
         easiest to implement for now. improvements will be made later
         '''
-        if(self.ntriangle != 0):
-            n1 = np.cross(b, rx)
-            n1 = n1/np.linalg.norm(n1)
+        if(np.any(mask == True)):
+            if(self.ntriangle != 0):
+                n1 = np.cross(b, rx)
+                n1 = n1/np.linalg.norm(n1)
 
-            n2 = np.cross(np.tile(b,[d1.shape[0],1]), d1)
-            zmask = np.linalg.norm(n2, axis=1) > eps
-            n2[zmask,:] = n2[zmask,:]/np.tile(np.linalg.norm(n2[zmask,:],axis=1),[n2[zmask,:].shape[1],1]).T
+                n2 = np.cross(np.tile(b,[d1.shape[0],1]), d1)
+                zmask = np.linalg.norm(n2, axis=1) > eps
+                n2[zmask,:] = n2[zmask,:]/np.tile(np.linalg.norm(n2[zmask,:],axis=1),[n2[zmask,:].shape[1],1]).T
 
-            dp = np.zeros([d1.shape[0],])
-            dp[zmask] = np.dot(n1, n2[zmask,:].T)
-            dp[~zmask] = 0.
-            nmask = dp < 0.
-            dp[dp > 1.] = 1.
-            dp[dp < -1.] = -1.
-            r = np.arccos(dp)
-            r[nmask] += np.pi
-        else:
-            y = dir3[:,1]
-            x = dir3[:,0]
-            r = np.arctan2(y, x) + np.pi
+                dp = np.zeros([d1.shape[0],])
+                dp[zmask] = np.dot(n1, n2[zmask,:].T)
+                dp[~zmask] = 0.
+                nmask = dp < 0.
+                dp[dp > 1.] = 1.
+                dp[dp < -1.] = -1.
+                r = np.arccos(dp)
+                r[nmask] += np.pi
+            else:
+                y = dir3[:,1]
+                x = dir3[:,0]
+                r = np.arctan2(y, x) + np.pi
 
-        rho[mask] = r
+            rho[mask] = r
 
         if(np.any(mask == False)):
-
             d2 = dir3[~mask,:]
             b[2] = -b[2]
-
             if(self.ntriangle != 0):
 
                 n1 = np.cross(b, rx)
@@ -600,7 +600,7 @@ class sector:
         f1 = theta/np.pi
         f2 = np.sin(theta/2.)**2
         L = 0.25*f1 + 0.75*f2
-        return 1. - L
+        return L
 
     def get_color(self, dir3, mask, laueswitch):
         '''

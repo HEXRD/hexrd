@@ -10,7 +10,7 @@ from pathlib import Path
 from scipy.interpolate import interp1d
 import time
 
-eps = constants.epsf
+eps = constants.sqrt_epsf
 
 
 class unitcell:
@@ -184,6 +184,7 @@ class unitcell:
         self._dsm = np.array([[a, b*cg, c*cb],
                               [0., b*sg, -c*(cb*cg - ca)/sg],
                               [0., 0., self.vol/(a*b*sg)]])
+        self.dsm[np.abs(self.dsm) < eps] = 0.
 
         '''
             reciprocal structure matrix
@@ -193,6 +194,7 @@ class unitcell:
                               [b*c*(cg*ca - cb)/(self.vol*sg), 
                               a*c*(cb*cg - ca)/(self.vol*sg), 
                               a*b*sg/self.vol]])
+        self.rsm[np.abs(self.rsm) < eps] = 0.
 
         ast = self.CalcLength([1, 0, 0], 'r')
         bst = self.CalcLength([0, 1, 0], 'r')
@@ -395,8 +397,6 @@ class unitcell:
         '''
         self.SYM_PG_c = []
         self.SYM_PG_c_laue = []
-        self.SYM_PG_supergroup = []
-        self.SYM_PG_supergroup_laue = []
 
         for sop in self.SYM_PG_d:
             self.SYM_PG_c.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
@@ -419,21 +419,38 @@ class unitcell:
         cartesian reference frame
 
         SS 11/23/2020 added supergroup symmetry operations
+        SS 11/24/2020 fix monoclinic groups separately since
+        the supergroup for monoclinic is orthorhombic
         '''
         supergroup = self._supergroup
         sym_supergroup = symmetry.GeneratePGSYM(supergroup)
 
-        for sop in sym_supergroup:
-            self.SYM_PG_supergroup.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
-
-        self.SYM_PG_supergroup = np.array(self.SYM_PG_supergroup)
-        self.SYM_PG_supergroup[np.abs(self.SYM_PG_supergroup) < eps] = 0.
-
         supergroup_laue = self._supergroup_laue
         sym_supergroup_laue = symmetry.GeneratePGSYM(supergroup_laue)
 
-        for sop in sym_supergroup_laue:
-            self.SYM_PG_supergroup_laue.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
+        if(self.latticeType == 'monoclinic'\
+           and self._supergroup != 'cs'):
+            '''
+            for monoclinic groups c2 and c2h, the supergroups are 
+            orthorhombic, so no need to convert from direct to 
+            cartesian as they are identical
+            '''
+            self.SYM_PG_supergroup = sym_supergroup
+            self.SYM_PG_supergroup_laue = sym_supergroup_laue
+
+        else:
+
+            self.SYM_PG_supergroup = []
+            self.SYM_PG_supergroup_laue = []
+
+            for sop in sym_supergroup:
+                self.SYM_PG_supergroup.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
+
+            self.SYM_PG_supergroup = np.array(self.SYM_PG_supergroup)
+            self.SYM_PG_supergroup[np.abs(self.SYM_PG_supergroup) < eps] = 0.
+
+            for sop in sym_supergroup_laue:
+                self.SYM_PG_supergroup_laue.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
 
         self.SYM_PG_supergroup_laue = np.array(self.SYM_PG_supergroup_laue)
         self.SYM_PG_supergroup_laue[np.abs(self.SYM_PG_supergroup_laue) < eps] = 0.

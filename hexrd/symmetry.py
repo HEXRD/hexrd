@@ -42,7 +42,7 @@ import numpy as np
 # Module vars
 # =============================================================================
 
-
+eps = constants.sqrt_epsf
 sq3by2 = sqrt(3.)/2.
 piby2 = pi/2.
 piby3 = pi/3.
@@ -393,12 +393,12 @@ def MakeGenerators(genstr, setting):
     if(genstr[istop] != '0'):
         if(setting != 0):
             t = genstr[istop+1:istop+4]
-            trans = np.array([constants.SYM_GENERATORS[t[1]],\
-                              constants.SYM_GENERATORS[t[2]],\
-                              constants.SYM_GENERATORS[t[3]]
+            trans = np.array([constants.SYM_GENERATORS[t[0]],\
+                              constants.SYM_GENERATORS[t[1]],\
+                              constants.SYM_GENERATORS[t[2]]
                               ])
-            for i in genmat.shape[0]:
-                genmat[0:3,3] -= trans
+            for i in range(genmat.shape[0]):
+                genmat[i,0:3,3] -= trans
 
     return genmat, centrosymmetric
 
@@ -640,5 +640,7 @@ def GeneratePGSYM(pgsym):
 
             k2 += 1
         k1 += 1
+
+    SYM_GEN_PG[np.abs(SYM_GEN_PG) < eps] = 0.
 
     return SYM_GEN_PG
