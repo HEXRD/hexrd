@@ -1987,6 +1987,67 @@ class LeBail:
         res = fitter.least_squares(**fdict)
         return res
 
+    def updatespectrum(self):
+        '''
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       11/23/2020 SS 1.0 original
+        >> @DETAILS:    this routine computes the spectrum for an updated list of parameters
+                        intended to be used for sensitivity and identifiability analysis
+        '''
+
+        '''
+        the err variable is the difference between simulated and experimental spectra
+        '''
+        params = self.initialize_lmfit_parameters()
+
+        for p in params:
+            if(hasattr(self, p)):
+                setattr(self, p, params[p].value)
+
+        self.updated_lp = False
+        for p in self.phases:
+
+            mat = self.phases[p]
+
+            '''
+            PART 1: update the lattice parameters
+            '''
+            lp = []
+
+            pre = p + '_'
+
+            if(pre+'a' in params):
+                if(params[pre+'a'].vary):
+                    lp.append(params[pre+'a'].value)
+            if(pre+'b' in params):
+                if(params[pre+'b'].vary):
+                    lp.append(params[pre+'b'].value)
+            if(pre+'c' in params):
+                if(params[pre+'c'].vary):
+                    lp.append(params[pre+'c'].value)
+            if(pre+'alpha' in params):
+                if(params[pre+'alpha'].vary):
+                    lp.append(params[pre+'alpha'].value)
+            if(pre+'beta' in params):
+                if(params[pre+'beta'].vary):
+                    lp.append(params[pre+'beta'].value)
+            if(pre+'gamma' in params):
+                if(params[pre+'gamma'].vary):
+                    lp.append(params[pre+'gamma'].value)
+
+            if(not lp):
+                pass
+            else:
+                lp = self.phases[p].Required_lp(lp)
+                mat.lparms = np.array(lp)
+                mat._calcrmt()
+                self.updated_lp = True
+
+        if(self.updated_lp):
+            self.calctth()
+
+        self.computespectrum()
+
     @property
     def U(self):
         return self._U
