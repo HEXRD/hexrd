@@ -76,21 +76,20 @@ pg2vertex = {
             'both'],
 
     # supergroup 1 in our convention
-    'cs' : [4, np.array([[0., 1., 0.],
-                    [0., 0., 1.],
+    'cs' : [4, np.array([[0., 0., 1.],
                     [1., 0., 0.],
-                    [0., 0., -1.],
-                    [-1., 0., 0.]]).T,
-            np.array([[0, 1, 2],[0, 2, 3],[4, 1, 2],[4, 2, 3]]).T,
-            'both'],
+                    [0., 1., 0.],
+                    [-1., 0., 0.],
+                    [0., -1., 0.]]).T,
+            np.array([[0, 1, 2],[0, 2, 3],[0, 3, 4],[0, 4, 1]]).T,
+            'upper'],
 
-    'c2h' : [4, np.array([[0., 1., 0.],
-                    [0., 0., 1.],
+    'c2h' : [2, np.array([[0., 0., 1.],
                     [1., 0., 0.],
-                    [0., 0., -1.],
+                    [0., 1., 0.],
                     [-1., 0., 0.]]).T,
-            np.array([[0, 1, 2],[0, 2, 3],[4, 1, 2],[4, 2, 3]]).T,
-            'both'],
+            np.array([[0, 1, 2],[0, 2, 3]]).T,
+            'upper'],
 
     'd2' : [2, np.array([[0., 0., 1.],
                     [1., 0., 0.],
@@ -100,10 +99,11 @@ pg2vertex = {
             'upper'],
 
     # supergroup 2 in our convention
-    'c2v' : [1, np.array([[0., 0., 1.],
+    'c2v' : [2, np.array([[0., 0., 1.],
                     [1., 0., 0.],
-                    [0., 1., 0.]]).T,
-            np.array([0, 1, 2]),
+                    [0., 1., 0.],
+                    [0.,0.,-1.]]).T,
+            np.array([[0, 1, 2], [1, 3, 2]]).T,
             'both'],
 
     # supergroup 3 in our convention
@@ -441,7 +441,7 @@ class sector:
 
         if(np.any(mask == False)):
             d2 = dir3[~mask,:]
-            b[2] = -b[2]
+            # b[2] = -b[2]
             if(self.ntriangle != 0):
 
                 n1 = np.cross(b, rx)
@@ -492,14 +492,24 @@ class sector:
         else:
             b = self.barycenter_supergroup_laue
 
-        pol[mask] = np.arccos(np.dot(b, d1.T))
-        
-        if(np.any(mask == False)):
-            d2 = dir3[~mask,:]
-            b[2] = -b[2]
-            pol[~mask] = np.arccos(np.dot(b, d2.T))
+        #pol[mask] = np.arccos(np.dot(b, d1.T))
+        pol = np.arccos(np.dot(b, dir3.T))
+        # if(np.any(mask == False)):
+        #     pol[~mask] = pol[~mask]
 
-        pol = pol*np.pi/pol.max()
+        # if(np.any(mask == False)):
+        #     d2 = dir3[~mask,:]
+        #     b[2] = -b[2]
+        #     pol[~mask] = np.arccos(np.dot(b, d2.T))
+        #pol = pol*np.pi/pol.max()
+        m = (pol <= np.pi/2.)
+        if(np.sum(m) > 0):
+            if(pol[m].max() > pol[m].min()):
+                pol[m] = (np.pi/2.) * (pol[m] - pol[m].min())/(pol[m].max() - pol[m].min())
+        if(np.sum(~m) > 0):
+            if(pol[~m].max() > pol[~m].min()):
+                pol[~m] = (np.pi/2.) * (pol[~m] - pol[~m].min())/(pol[~m].max() - pol[~m].min()) + np.pi/2.
+
         return pol
 
     def distance_boundary(self, rho):
@@ -600,7 +610,7 @@ class sector:
         f1 = theta/np.pi
         f2 = np.sin(theta/2.)**2
         L = 0.25*f1 + 0.75*f2
-        return L
+        return 1. - L
 
     def get_color(self, dir3, mask, laueswitch):
         '''

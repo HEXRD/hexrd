@@ -428,8 +428,8 @@ class unitcell:
         supergroup_laue = self._supergroup_laue
         sym_supergroup_laue = symmetry.GeneratePGSYM(supergroup_laue)
 
-        if(self.latticeType == 'monoclinic'\
-           and self._supergroup != 'cs'):
+        if( (self.latticeType == 'monoclinic' or \
+           self.latticeType == 'triclinic') ):
             '''
             for monoclinic groups c2 and c2h, the supergroups are 
             orthorhombic, so no need to convert from direct to 
@@ -454,6 +454,32 @@ class unitcell:
 
         self.SYM_PG_supergroup_laue = np.array(self.SYM_PG_supergroup_laue)
         self.SYM_PG_supergroup_laue[np.abs(self.SYM_PG_supergroup_laue) < eps] = 0.
+
+        '''
+        the standard setting for the monoclinic system has the b-axis aligned
+        with the 2-fold axis. this needs to be accounted for when reduction to
+        the standard stereographic triangle is performed. the siplest way is to
+        rotate all non-identity symmetry elements by 90 about the x-axis
+        '''
+        if(self.latticeType == 'monoclinic' or self.latticeType == 'triclinic'):
+
+            om = np.array([[1.,0.,0.],[0.,0.,1.],[0.,-1.,0.]])
+
+            for i, s in enumerate(self.SYM_PG_c):
+                ss = np.dot(om, np.dot(s, om.T))
+                self.SYM_PG_c[i,:,:] = ss
+
+            for i, s in enumerate(self.SYM_PG_c_laue):
+                ss = np.dot(om, np.dot(s, om.T))
+                self.SYM_PG_c_laue[i,:,:] = ss
+
+            for i, s in enumerate(self.SYM_PG_supergroup):
+                ss = np.dot(om, np.dot(s, om.T))
+                self.SYM_PG_supergroup[i,:,:] = ss
+
+            for i, s in enumerate(self.SYM_PG_supergroup_laue):
+                ss = np.dot(om, np.dot(s, om.T))
+                self.SYM_PG_supergroup_laue[i,:,:] = ss
 
     def CalcOrbit(self):
         '''
