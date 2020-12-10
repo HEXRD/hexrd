@@ -1621,7 +1621,7 @@ class unitcell:
         rgb = colorspace.hsl2rgb(hsl)
         return rgb
 
-    def color_orientations(self, rmats, ref_dir, laueswitch=True):
+    def color_orientations(self, rmats, ref_dir=np.array([0., 0., 1.]), laueswitch=True):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    11/12/2020 SS 1.0 original
@@ -1653,7 +1653,7 @@ class unitcell:
         '''
         dir3 = []
         for r in rmats:
-            dir3.append(r.T, ref_dir)
+            dir3.append(np.dot(r.T, ref_dir))
 
         dir3 = np.array(dir3)
         '''
