@@ -63,10 +63,18 @@ there are no triangles for the triclininc cases and needs to be handles differen
 
 '''
 pg2vertex = {
-    'c1': [0, [], [], 'both'],
+    'c1': [3, np.array([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [-0.5, np.sqrt(3.)/2., 0.],
+                        [-0.5, -np.sqrt(3.)/2., 0.]]).T,
+          np.array([[0, 1, 2], [0, 2, 3], [0, 3, 1]]).T, 'both'],
 
     # supergroup 00 in our convention
-    'ci': [0, [], [], 'upper'],
+    'ci': [3, np.array([[0., 0., 1.],
+                        [1.0, 0., 0.],
+                        [-0.5, np.sqrt(3.)/2., 0.],
+                        [-0.5, -np.sqrt(3.)/2., 0.]]).T,
+          np.array([[0, 1, 2], [0, 2, 3], [0, 3, 1]]).T, 'upper'],
 
     'c2': [2, np.array([[0., 0., 1.],
                         [1., 0., 0.],
@@ -76,12 +84,11 @@ pg2vertex = {
            'both'],
 
     # supergroup 1 in our convention
-    'cs': [4, np.array([[0., 0., 1.],
+    'cs': [3, np.array([[0., 0., 1.],
                         [1., 0., 0.],
-                        [0., 1., 0.],
-                        [-1., 0., 0.],
-                        [0., -1., 0.]]).T,
-           np.array([[0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 1]]).T,
+                        [-0.5, np.sqrt(3.)/2., 0.],
+                        [-0.5, -np.sqrt(3.)/2., 0.]]).T,
+          np.array([[0, 1, 2], [0, 2, 3], [0, 3, 1]]).T,
            'upper'],
 
     'c2h': [2, np.array([[0., 0., 1.],
@@ -116,7 +123,7 @@ pg2vertex = {
     'c4': [1, np.array([[0., 0., 1.],
                         [1., 0., 0.],
                         [0., 1., 0.]]).T,
-           np.array([0, 1, 2]),
+           np.atleast_2d(np.array([0, 1, 2])).T,
            'both'],
 
     # supergroup 01 in our convention
@@ -130,110 +137,110 @@ pg2vertex = {
     'c4h': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
                          [0., 1., 0.]]),
-            np.array([0, 1, 2]),
+            np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
     'd4': [1, np.array([[0., 0., 1.],
                         [1., 0., 0.],
                         [0., 1., 0.0]]),
-           np.array([0, 1, 2]),
+           np.atleast_2d(np.array([0, 1, 2])).T,
            'upper'],
 
     # supergroup 4 in our convention
     'c4v': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
                          [1./np.sqrt(2.), 1./np.sqrt(2.), 0.]]).T,
-            np.array([0, 1, 2]),
+            np.atleast_2d(np.array([0, 1, 2])).T,
             'both'],
 
     'd2d': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
                          [0., 1., 0.]]),
-            np.array([0, 1, 2]),
+            np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
     # supergroup 5 in our convention
     'd4h': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
                          [1./np.sqrt(2.), 1./np.sqrt(2.), 0.]]).T,
-            np.array([0, 1, 2]),
+            np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
     'c3': [1, np.array([[0., 0., 1.],
                         [1., 0., 0.],
                         [-0.5, np.sqrt(3.)/2., 0.]]).T,
-           np.array([0, 1, 2]),
+           np.atleast_2d(np.array([0, 1, 2])).T,
            'both'],
 
     # supergroup 02 in our convention
     's6': [1, np.array([[0., 0., 1.],
                         [1., 0., 0.],
                         [-0.5, np.sqrt(3.)/2., 0.]]).T,
-           np.array([0, 1, 2]),
+           np.atleast_2d(np.array([0, 1, 2])).T,
            'upper'],
 
     'd3': [1, np.array([[0., 0., 1.],
                         [1., 0., 0.],
                         [-0.5, np.sqrt(3.)/2., 0.]]).T,
-           np.array([0, 1, 2]),
+           np.atleast_2d(np.array([0, 1, 2])).T,
            'upper'],
 
     # supergroup 6 in our convention
     'c3v': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
                          [0.5, np.sqrt(3.)/2., 0.]]).T,
-            np.array([0, 1, 2]),
+            np.atleast_2d(np.array([0, 1, 2])).T,
             'both'],
 
     'd3d': [1, np.array([[0., 0., 1.],
                          [np.sqrt(3.)/2., 0.5, 0.],
                          [np.sqrt(3.)/2., -0.5, 0.]]).T,
-            np.array([0, 1, 2]),
+            np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
     'c6': [1, np.array([[0., 0., 1.],
                         [1., 0., 0.],
                         [0.5, np.sqrt(3.)/2., 0.]]).T,
-           np.array([0, 1, 2]),
+           np.atleast_2d(np.array([0, 1, 2])).T,
            'both'],
 
     'c3h': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
                          [-0.5, np.sqrt(3.)/2., 0.]]).T,
-            np.array([0, 1, 2]),
+            np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
     'c6h': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
                          [0.5, np.sqrt(3.)/2., 0.]]).T,
-            np.array([0, 1, 2]),
+            np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
     'd6': [1, np.array([[0., 0., 1.],
                         [1., 0., 0.],
                         [0.5, np.sqrt(3.)/2., 0.]]).T,
-           np.array([0, 1, 2]),
+           np.atleast_2d(np.array([0, 1, 2])).T,
            'both'],
 
     # supergroup 7 in our convention
     'c6v': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
                          [np.sqrt(3.)/2., 0.5, 0.]]).T,
-            np.array([0, 1, 2]),
+            np.atleast_2d(np.array([0, 1, 2])).T,
             'both'],
 
     # supergroup 8 in our convention
     'd3h': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
                          [np.sqrt(3.)/2., 0.5, 0.]]).T,
-            np.array([0, 1, 2]),
+            np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
     # supergroup 9 in our convention
     'd6h': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
                          [np.sqrt(3.)/2., 0.5, 0.]]).T,
-            np.array([0, 1, 2]),
+            np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
     # Special case with 2 triangles
@@ -264,14 +271,14 @@ pg2vertex = {
     'td': [1, np.array([[0., 0., 1.],
                         [1./np.sqrt(3.), -1./np.sqrt(3.), 1./np.sqrt(3.)],
                         [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)]]).T,
-           np.array([0, 1, 2]),
+           np.atleast_2d(np.array([0, 1, 2])).T,
            'upper'],
 
     # supergroup 11 in our convention
     'oh': [1, np.array([[0., 0., 1.],
                         [1./np.sqrt(2.), 0., 1./np.sqrt(2.)],
                         [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)]]).T,
-           np.array([0, 1, 2]),
+           np.atleast_2d(np.array([0, 1, 2])).T,
            'upper']
 }
 
@@ -338,7 +345,7 @@ class sector:
             # compute the barycenter or the centroid of point group
             b = np.mean(self.vertices['pg'], axis=1)
             b = b/np.linalg.norm(b)
-            self.barycenter['pg'] = np.mean(self.vertices['pg'], axis=1)
+            self.barycenter['pg'] = b
         else:
             self.barycenter['pg'] = np.array([0., 0., 1.])
 
@@ -455,10 +462,14 @@ class sector:
         first make the vertices of the three fillets
         '''
 
-        vertex = self.vertices[switch]
+        vertex = np.copy(self.vertices[switch])
         fregion = -np.ones([dir3.shape[0], ]).astype(np.int32)
 
         bar_cen = self.barycenter[switch]
+
+        # if barycenter matches one of the vertices, then remove that vertex
+        mask = np.all(bar_cen == vertex.T,axis=1)
+        vertex = vertex[:,~mask]
 
         nn = vertex.shape[1]
         f = np.zeros([nn, 3, 3])
@@ -507,7 +518,11 @@ class sector:
             deldir = lam*nhat
 
             dp = d - deldir
-            dp = dp/np.linalg.norm(dp)
+            ndp = np.linalg.norm(dp)
+            if(ndp > 0.):
+                dp = dp/ndp
+            else:
+                dp = d
 
             dir3_b[i, :] = dp
 
@@ -524,34 +539,41 @@ class sector:
                  are indide the SST
         '''
         vertex = self.vertices[switch]
-        dir3_b, fregion = self.point_on_boundary(dir3, switch)
+        bar_cen = self.barycenter[switch]
         rho = np.zeros([dir3.shape[0], ])
-        nn = vertex.shape[1]
 
-        for i in range(fregion.shape[0]):
-            f = fregion[i]
-            d = dir3_b[i, :]
+        # handle triclinic and monoclinic cases a little differently
+        if(np.all(bar_cen == np.array([0., 0., 1.]))):
+            rho = np.arctan2(dir3[:,1], dir3[:,0]) + np.pi
 
-            A = vertex[:, np.mod(f, nn)]
-            B = vertex[:, np.mod(f+1, nn)]
+        else:
+            dir3_b, fregion = self.point_on_boundary(dir3, switch)
+            nn = vertex.shape[1]
 
-            # angle between A and B
-            omega = np.dot(A, B)
-            if(np.abs(omega) > 1.):
-                omega = np.sign(omega)
+            for i in range(fregion.shape[0]):
+                f = fregion[i]
+                d = dir3_b[i, :]
 
-            # angle between point and A
-            omegap = np.dot(A, d)
-            if(np.abs(omegap) > 1.):
-                omegap = np.sign(omega)
+                A = vertex[:, np.mod(f, nn)]
+                B = vertex[:, np.mod(f+1, nn)]
 
-            omega = np.arccos(omega)
-            omegap = np.arccos(omegap)
+                # angle between A and B
+                omega = np.dot(A, B)
+                if(np.abs(omega) > 1.):
+                    omega = np.sign(omega)
 
-            if(omegap != 0.):
-                rho[i] = 2*np.pi*omegap/omega/nn + f*2.*np.pi/nn
-            else:
-                rho[i] = f*2.*np.pi/nn
+                # angle between point and A
+                omegap = np.dot(A, d)
+                if(np.abs(omegap) > 1.):
+                    omegap = np.sign(omega)
+
+                omega = np.arccos(omega)
+                omegap = np.arccos(omegap)
+
+                if(omegap != 0.):
+                    rho[i] = 2*np.pi*omegap/omega/nn + f*2.*np.pi/nn
+                else:
+                    rho[i] = f*2.*np.pi/nn
 
         return rho
 
@@ -571,23 +593,32 @@ class sector:
 
         bar_cen = self.barycenter[switch]
 
+        # handle triclinic and monoclinic cases a little differently
+        if(np.all(bar_cen == np.array([0., 0., 1.]))):
+            dp = np.dot(np.array([0., 0., 1.]), dir3.T)
+            # catch some cases where dot product is 1+/-epsilon
+            mask = np.abs(dp) > 1.
+            dp[mask] = np.sign(dp[mask])
+            theta = np.arccos(dp)
+
+        else:
         # first calculate the angle the point makes with the barycenter
-        omega = np.dot(bar_cen, dir3.T)
-        mask = np.abs(omega) > 1.0
-        omega[mask] = np.sign(omega[mask])
+            omega = np.dot(bar_cen, dir3.T)
+            mask = np.abs(omega) > 1.0
+            omega[mask] = np.sign(omega[mask])
 
-        # calculate the angle the boundary point makes with the barycenter
-        omegap = np.dot(bar_cen, dir3_b.T)
-        mask = np.abs(omegap) > 1.0
-        omegap[mask] = np.sign(omegap[mask])
+            # calculate the angle the boundary point makes with the barycenter
+            omegap = np.dot(bar_cen, dir3_b.T)
+            mask = np.abs(omegap) > 1.0
+            omegap[mask] = np.sign(omegap[mask])
 
-        omega = np.arccos(omega)
-        omegap = np.arccos(omegap)
+            omega = np.arccos(omega)
+            omegap = np.arccos(omegap)
 
-        zmask = omegap == 0.
+            zmask = omegap == 0.
 
-        theta[~zmask] = np.pi*omega[~zmask]/omegap[~zmask]/2.0
-        theta[zmask] = 0.0
+            theta[~zmask] = np.pi*omega[~zmask]/omegap[~zmask]/2.0
+            theta[zmask] = 0.0
         return theta
 
     def hue_speed(self, rho):

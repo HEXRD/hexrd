@@ -462,9 +462,13 @@ class unitcell:
         the standard setting for the monoclinic system has the b-axis aligned
         with the 2-fold axis. this needs to be accounted for when reduction to
         the standard stereographic triangle is performed. the siplest way is to
-        rotate all non-identity symmetry elements by 90 about the x-axis
+        rotate all symmetry elements by 90 about the x-axis
+
+        the supergroups for the monoclinic groups are orthorhombic so they need
+        not be rotated as they have the c* axis already aligned with the z-axis
+        SS 12/10/2020
         '''
-        if(self.latticeType == 'monoclinic' or self.latticeType == 'triclinic'):
+        if(self.latticeType == 'monoclinic'): 
 
             om = np.array([[1., 0., 0.], [0., 0., 1.], [0., -1., 0.]])
 
@@ -475,6 +479,14 @@ class unitcell:
             for i, s in enumerate(self.SYM_PG_c_laue):
                 ss = np.dot(om, np.dot(s, om.T))
                 self.SYM_PG_c_laue[i, :, :] = ss
+        '''
+        for the triclinic group c1, the supergroups are the monoclinic group m
+        therefore we need to rotate the mirror to be perpendicular to the z-axis
+        same shouldn't be done for the group ci, since the supergroup is just the
+        triclinic group c1!!
+        SS 12/10/2020 
+        '''
+        if(self._pointGroup == 'c1'):
 
             for i, s in enumerate(self.SYM_PG_supergroup):
                 ss = np.dot(om, np.dot(s, om.T))
@@ -1533,55 +1545,69 @@ class unitcell:
 
                 dir3_sym = np.dot(sop, dir3_copy.T).T
 
+                mask = np.zeros(dir3_sym.shape[0]).astype(np.bool)
+
                 if(ntriangle == 0):
                     if(hemisphere == 'both'):
                         mask = np.ones(dir3_sym.shape[0], dtype=np.bool)
                     elif(hemisphere == 'upper'):
                         mask = dir3_sym[:, 2] >= 0.
+                else:
+                    for ii in range(ntriangle):
+                        tmpmask = self.inside_spheretriangle(
+                            connectivity[:, ii], dir3_sym,
+                            hemisphere, switch)
+                        mask = np.logical_or(mask, tmpmask)
 
-                if(ntriangle == 1):
-                    mask = self.inside_spheretriangle(
-                        connectivity, dir3_sym,
-                        hemisphere, switch)
+                # if(ntriangle == 1):
+                #     mask = self.inside_spheretriangle(
+                #         connectivity, dir3_sym,
+                #         hemisphere, switch)
 
-                elif(ntriangle == 2):
-                    '''
-                    for this case we have to check if point
-                    is inside either of the triangles
-                    '''
-                    mask1 = self.inside_spheretriangle(
-                        connectivity[:, 0], dir3_sym,
-                        hemisphere, switch)
+                # elif(ntriangle == 2):
+                #     '''
+                #     for this case we have to check if point
+                #     is inside either of the triangles
+                #     '''
+                #     mask1 = self.inside_spheretriangle(
+                #         connectivity[:, 0], dir3_sym,
+                #         hemisphere, switch)
 
-                    mask2 = self.inside_spheretriangle(
-                        connectivity[:, 1], dir3_sym,
-                        hemisphere, switch)
+                #     mask2 = self.inside_spheretriangle(
+                #         connectivity[:, 1], dir3_sym,
+                #         hemisphere, switch)
 
-                    mask = np.logical_or(mask1, mask2)
+                #     mask = np.logical_or(mask1, mask2)
 
-                elif(ntriangle == 4):
-                    '''
-                    for point group symmetry cs since mirror in 
-                    normal to y-axis
-                    '''
-                    mask1 = self.inside_spheretriangle(
-                        connectivity[:, 0], dir3_sym,
-                        hemisphere, switch)
+                # elif(ntriangle == 3):
+                #     '''
+                #     point groups 1 and -1
+                #     '''
 
-                    mask2 = self.inside_spheretriangle(
-                        connectivity[:, 1], dir3_sym,
-                        hemisphere, switch)
 
-                    mask3 = self.inside_spheretriangle(
-                        connectivity[:, 2], dir3_sym,
-                        hemisphere, switch)
+                # elif(ntriangle == 4):
+                #     '''
+                #     for point group symmetry cs since mirror in 
+                #     normal to y-axis
+                #     '''
+                #     mask1 = self.inside_spheretriangle(
+                #         connectivity[:, 0], dir3_sym,
+                #         hemisphere, switch)
 
-                    mask4 = self.inside_spheretriangle(
-                        connectivity[:, 3], dir3_sym,
-                        hemisphere, switch)
+                #     mask2 = self.inside_spheretriangle(
+                #         connectivity[:, 1], dir3_sym,
+                #         hemisphere, switch)
 
-                    mask = np.logical_or(np.logical_or(
-                        mask1, mask2), np.logical_or(mask3, mask4))
+                #     mask3 = self.inside_spheretriangle(
+                #         connectivity[:, 2], dir3_sym,
+                #         hemisphere, switch)
+
+                #     mask4 = self.inside_spheretriangle(
+                #         connectivity[:, 3], dir3_sym,
+                #         hemisphere, switch)
+
+                #     mask = np.logical_or(np.logical_or(
+                #         mask1, mask2), np.logical_or(mask3, mask4))
 
                 if(np.sum(mask) > 0):
                     if(dir3_reduced.size != 0):
