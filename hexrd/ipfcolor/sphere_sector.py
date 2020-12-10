@@ -480,8 +480,12 @@ class sector:
 
     def point_on_boundary(self, dir3, switch):
         '''
-        this function figures out the equivalent point on the boundary 
-        given that the point is indise the spherical triangle
+            @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+            @DATE    12/09/2020 SS 1.0 original
+            @PARAM   dir3 direction in fundamental sector. size is nx3
+                     switch color using pg or laue group
+            @DETAIL  this function figures out the equivalent point on the boundary 
+            given that the point is inside the spherical triangle
         '''
         vertex = self.vertices[switch]
         fregion = self.fillet_region(dir3, switch)
@@ -511,9 +515,13 @@ class sector:
 
     def calculate_rho(self, dir3, switch):
         '''
-        this function is used to calculate the azimuthal angle
-        of a bunch of directions. it is assumed all directions 
-        are indide the SST
+        @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        @DATE    12/09/2020 SS 1.0 original
+        @PARAM   dir3 direction in fundamental sector. size is nx3
+                 switch color using pg or laue group
+        @DETAIL  this function is used to calculate the azimuthal angle
+                 of a bunch of directions. it is assumed all directions 
+                 are indide the SST
         '''
         vertex = self.vertices[switch]
         dir3_b, fregion = self.point_on_boundary(dir3, switch)
@@ -549,7 +557,11 @@ class sector:
 
     def calculate_theta(self, dir3, switch):
         '''
-        this function is used to calculate the polar angle 
+        @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        @DATE    12/09/2020 SS 1.0 original
+        @PARAM   dir3 direction in fundamental sector. size is nx3
+                 switch color using pg or laue group
+        @DETAIL  this function is used to calculate the polar angle 
         of direction vectors. it is assumed that the direction vector
         lies inside the SST
         '''
@@ -579,6 +591,14 @@ class sector:
         return theta
 
     def hue_speed(self, rho):
+        '''
+            @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+            @DATE    12/09/2020 SS 1.0 original
+            @PARAM   rho azimuthal angle
+            @DETAIL  calculate the hue speed for a vector of azimuthal angles
+                    this is utilized in increasing the area of the red, blue and 
+                    green regions
+        '''
         rho = rho - np.pi
         v = 0.5 + np.exp(-(4./7.)*rho**2) + \
             np.exp(-(4./7.)*(rho - 2.*np.pi/3.)**2) + \
@@ -678,8 +698,10 @@ class sector:
                  11/23/2020 SS 1.2 added mask argument which tell the directions
                  for which the supergroup reductions dont match the point or laue
                  group reductions. mask has size dir3.shape[0]
-
+                
         @PARAM   dir3 direction in fundamental sector. behavior is undefined if
+                 mask True if symmetry reduction of dir3 using point group does not
+                 match the super group and False otherwise
                  switch get colors in laue group or pg
         @DETAIL  this function is used to calculate the hsl color for direction vectors
                 in dir3. if laueswitch is True, then color is assigned based on laue group
