@@ -1559,56 +1559,6 @@ class unitcell:
                             hemisphere, switch)
                         mask = np.logical_or(mask, tmpmask)
 
-                # if(ntriangle == 1):
-                #     mask = self.inside_spheretriangle(
-                #         connectivity, dir3_sym,
-                #         hemisphere, switch)
-
-                # elif(ntriangle == 2):
-                #     '''
-                #     for this case we have to check if point
-                #     is inside either of the triangles
-                #     '''
-                #     mask1 = self.inside_spheretriangle(
-                #         connectivity[:, 0], dir3_sym,
-                #         hemisphere, switch)
-
-                #     mask2 = self.inside_spheretriangle(
-                #         connectivity[:, 1], dir3_sym,
-                #         hemisphere, switch)
-
-                #     mask = np.logical_or(mask1, mask2)
-
-                # elif(ntriangle == 3):
-                #     '''
-                #     point groups 1 and -1
-                #     '''
-
-
-                # elif(ntriangle == 4):
-                #     '''
-                #     for point group symmetry cs since mirror in 
-                #     normal to y-axis
-                #     '''
-                #     mask1 = self.inside_spheretriangle(
-                #         connectivity[:, 0], dir3_sym,
-                #         hemisphere, switch)
-
-                #     mask2 = self.inside_spheretriangle(
-                #         connectivity[:, 1], dir3_sym,
-                #         hemisphere, switch)
-
-                #     mask3 = self.inside_spheretriangle(
-                #         connectivity[:, 2], dir3_sym,
-                #         hemisphere, switch)
-
-                #     mask4 = self.inside_spheretriangle(
-                #         connectivity[:, 3], dir3_sym,
-                #         hemisphere, switch)
-
-                #     mask = np.logical_or(np.logical_or(
-                #         mask1, mask2), np.logical_or(mask3, mask4))
-
                 if(np.sum(mask) > 0):
                     if(dir3_reduced.size != 0):
                         dir3_reduced = np.vstack(

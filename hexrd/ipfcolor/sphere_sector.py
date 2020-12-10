@@ -110,7 +110,7 @@ pg2vertex = {
                          [1., 0., 0.],
                          [0., 1., 0.],
                          [0., 0., -1.]]).T,
-            np.array([[0, 1, 2], [1, 3, 2]]).T,
+            np.array([[0, 1, 2], [3, 1, 2]]).T,
             'both'],
 
     # supergroup 3 in our convention
@@ -395,7 +395,7 @@ class sector:
             raise RuntimeError("sphere_sector: the vertices of the stereographic \
                 triangle are not in the same hemisphere")
 
-    def inside_sphericalpatch(self, vertex, dir3, switch):
+    def inside_sphericalpatch(self, vertex, dir3):
         '''
             @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
             @DATE    12/09/2020 SS 1.0 original
@@ -405,7 +405,7 @@ class sector:
                      and 'supergroup_laue'
             @DETAIL  check if direction is inside a spherical patch
                      the logic used as follows:
-                     if determinant of [A B x], [A x C] and [x B C] are 
+                     if determinant of [x A B], [x B C] and [x C A] are 
                      all same sign, then the sphere is inside the traingle
                      formed by A, B and C
                      returns a mask with inside as True and outside as False
@@ -483,7 +483,7 @@ class sector:
 
         for i in range(nn):
             inside = np.logical_and(self.inside_sphericalpatch(
-                                    np.squeeze(f[i, :, :]), dir3, switch),
+                                    np.squeeze(f[i, :, :]), dir3),
                                     fregion == -1)
             fregion[inside] = i
 
