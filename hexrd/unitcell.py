@@ -1391,17 +1391,18 @@ class unitcell:
         '''
         first get vertices of the triangles in the 
         '''
-        if(switch == 'pg'):
-            vertex = self.sphere_sector.vertices
+        vertex = self.sphere_sector.vertices[switch]
+        # if(switch == 'pg'):
+        #     vertex = self.sphere_sector.vertices
 
-        elif(switch == 'laue'):
-            vertex = self.sphere_sector.vertices_laue
+        # elif(switch == 'laue'):
+        #     vertex = self.sphere_sector.vertices_laue
 
-        elif(switch == 'super'):
-            vertex = self.sphere_sector.vertices_supergroup
+        # elif(switch == 'super'):
+        #     vertex = self.sphere_sector.vertices_supergroup
 
-        elif(switch == 'superlaue'):
-            vertex = self.sphere_sector.vertices_supergroup_laue
+        # elif(switch == 'superlaue'):
+        #     vertex = self.sphere_sector.vertices_supergroup_laue
 
 
         A = np.atleast_2d(vertex[:, conn[0]]).T
@@ -1508,29 +1509,21 @@ class unitcell:
         laue switch is used to determine which set of symmetry operations to 
         loop over
         '''
+        hemisphere = self.sphere_sector.hemisphere[switch]
+        ntriangle = self.sphere_sector.ntriangle[switch]
+        connectivity = self.sphere_sector.connectivity[switch]
+
         if(switch == 'pg'):
             sym = self.SYM_PG_c
-            hemisphere = self.sphere_sector.hemisphere
-            ntriangle = self.sphere_sector.ntriangle
-            connectivity = self.sphere_sector.connectivity
 
         elif(switch == 'super'):
             sym = self.SYM_PG_supergroup
-            hemisphere = self.sphere_sector.hemisphere_supergroup
-            ntriangle = self.sphere_sector.ntriangle_supergroup
-            connectivity = self.sphere_sector.connectivity_supergroup
 
         elif(switch == 'laue'):
             sym = self.SYM_PG_c_laue
-            hemisphere = self.sphere_sector.hemisphere_laue
-            ntriangle = self.sphere_sector.ntriangle_laue
-            connectivity = self.sphere_sector.connectivity_laue
 
         elif(switch == 'superlaue'):
             sym = self.SYM_PG_supergroup_laue
-            hemisphere = self.sphere_sector.hemisphere_supergroup_laue
-            ntriangle = self.sphere_sector.ntriangle_supergroup_laue
-            connectivity = self.sphere_sector.connectivity_supergroup_laue
 
         for sop in sym:
 
@@ -1633,6 +1626,7 @@ class unitcell:
             '''
             dir3_red = self.reduce_dirvector(dir3, switch='laue')
             dir3_red_supergroup = self.reduce_dirvector(dir3, switch='superlaue')
+            switch = 'superlaue'
 
         elif(laueswitch == False):
             '''
@@ -1640,9 +1634,10 @@ class unitcell:
             '''
             dir3_red = self.reduce_dirvector(dir3, switch='pg')
             dir3_red_supergroup = self.reduce_dirvector(dir3, switch='super')
+            switch = 'super'
 
         mask = np.linalg.norm(dir3_red - dir3_red_supergroup, axis=1) < eps
-        hsl = self.sphere_sector.get_color(dir3_red, mask, laueswitch)
+        hsl = self.sphere_sector.get_color(dir3_red_supergroup, mask, switch)
 
         rgb = colorspace.hsl2rgb(hsl)
         return rgb
