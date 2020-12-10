@@ -63,217 +63,218 @@ there are no triangles for the triclininc cases and needs to be handles differen
 
 '''
 pg2vertex = {
-    'c1' : [0, [], [], 'both'],
+    'c1': [0, [], [], 'both'],
 
     # supergroup 00 in our convention
-    'ci' : [0, [], [], 'upper'],
+    'ci': [0, [], [], 'upper'],
 
-    'c2' : [2, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [0., 1., 0.],
-                    [-1., 0., 0.]]).T,
-            np.array([[0, 1, 2],[0, 2, 3]]).T,
-            'both'],
+    'c2': [2, np.array([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [0., 1., 0.],
+                        [-1., 0., 0.]]).T,
+           np.array([[0, 1, 2], [0, 2, 3]]).T,
+           'both'],
 
     # supergroup 1 in our convention
-    'cs' : [4, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [0., 1., 0.],
-                    [-1., 0., 0.],
-                    [0., -1., 0.]]).T,
-            np.array([[0, 1, 2],[0, 2, 3],[0, 3, 4],[0, 4, 1]]).T,
+    'cs': [4, np.array([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [0., 1., 0.],
+                        [-1., 0., 0.],
+                        [0., -1., 0.]]).T,
+           np.array([[0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 1]]).T,
+           'upper'],
+
+    'c2h': [2, np.array([[0., 0., 1.],
+                         [1., 0., 0.],
+                         [0., 1., 0.],
+                         [-1., 0., 0.]]).T,
+            np.array([[0, 1, 2], [0, 2, 3]]).T,
             'upper'],
 
-    'c2h' : [2, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [0., 1., 0.],
-                    [-1., 0., 0.]]).T,
-            np.array([[0, 1, 2],[0, 2, 3]]).T,
-            'upper'],
-
-    'd2' : [2, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [0., 1., 0.],
-                    [-1., 0., 0.]]).T, 
-           np.array([[0, 1, 2],[0, 2, 3]]).T,
-            'upper'],
+    'd2': [2, np.array([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [0., 1., 0.],
+                        [-1., 0., 0.]]).T,
+           np.array([[0, 1, 2], [0, 2, 3]]).T,
+           'upper'],
 
     # supergroup 2 in our convention
-    'c2v' : [2, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [0., 1., 0.],
-                    [0.,0.,-1.]]).T,
+    'c2v': [2, np.array([[0., 0., 1.],
+                         [1., 0., 0.],
+                         [0., 1., 0.],
+                         [0., 0., -1.]]).T,
             np.array([[0, 1, 2], [1, 3, 2]]).T,
             'both'],
 
     # supergroup 3 in our convention
-    'd2h' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [0., 1., 0.]]).T,
+    'd2h': [1, np.array([[0., 0., 1.],
+                         [1., 0., 0.],
+                         [0., 1., 0.]]).T,
             np.array([0, 1, 2]),
             'upper'],
 
-    'c4' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [0., 1., 0.]]).T,
-            np.array([0, 1, 2]),
-            'both'],
+    'c4': [1, np.array([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [0., 1., 0.]]).T,
+           np.array([0, 1, 2]),
+           'both'],
 
     # supergroup 01 in our convention
-    's4' : [2, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [0., 1., 0.],
-                    [-1., 0., 0.]]).T, 
-            np.array([[0, 1, 2],[0, 2, 3]]).T,
-            'upper'],
+    's4': [2, np.array([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [0., 1., 0.],
+                        [-1., 0., 0.]]).T,
+           np.array([[0, 1, 2], [0, 2, 3]]).T,
+           'upper'],
 
-    'c4h' : [1, np.array([[0.,0.,1.],
-                      [1., 0., 0.],
-                      [0., 1., 0.]]),
+    'c4h': [1, np.array([[0., 0., 1.],
+                         [1., 0., 0.],
+                         [0., 1., 0.]]),
             np.array([0, 1, 2]),
             'upper'],
 
-    'd4' : [1, np.array([[0.,0.,1.],
-                      [1., 0., 0.],
-                      [0., 1., 0.0]]),
-            np.array([0, 1, 2]),
-            'upper'],
+    'd4': [1, np.array([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [0., 1., 0.0]]),
+           np.array([0, 1, 2]),
+           'upper'],
 
     # supergroup 4 in our convention
-    'c4v' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [1./np.sqrt(2.), 1./np.sqrt(2.), 0.]]).T,
+    'c4v': [1, np.array([[0., 0., 1.],
+                         [1., 0., 0.],
+                         [1./np.sqrt(2.), 1./np.sqrt(2.), 0.]]).T,
             np.array([0, 1, 2]),
             'both'],
 
-    'd2d' : [1, np.array([[0.,0.,1.],
-                      [1., 0., 0.],
-                      [0., 1., 0.]]),
+    'd2d': [1, np.array([[0., 0., 1.],
+                         [1., 0., 0.],
+                         [0., 1., 0.]]),
             np.array([0, 1, 2]),
             'upper'],
 
     # supergroup 5 in our convention
-    'd4h' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [1./np.sqrt(2.), 1./np.sqrt(2.), 0.]]).T,
+    'd4h': [1, np.array([[0., 0., 1.],
+                         [1., 0., 0.],
+                         [1./np.sqrt(2.), 1./np.sqrt(2.), 0.]]).T,
             np.array([0, 1, 2]),
             'upper'],
 
-    'c3' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [-0.5, np.sqrt(3.)/2., 0.]]).T,
-            np.array([0, 1, 2]),
-            'both'],
+    'c3': [1, np.array([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [-0.5, np.sqrt(3.)/2., 0.]]).T,
+           np.array([0, 1, 2]),
+           'both'],
 
     # supergroup 02 in our convention
-    's6' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [-0.5, np.sqrt(3.)/2., 0.]]).T,
-            np.array([0, 1, 2]),
-            'upper'],
+    's6': [1, np.array([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [-0.5, np.sqrt(3.)/2., 0.]]).T,
+           np.array([0, 1, 2]),
+           'upper'],
 
-    'd3' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [-0.5, np.sqrt(3.)/2., 0.]]).T,
-            np.array([0, 1, 2]),
-            'upper'],
+    'd3': [1, np.array([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [-0.5, np.sqrt(3.)/2., 0.]]).T,
+           np.array([0, 1, 2]),
+           'upper'],
 
     # supergroup 6 in our convention
-    'c3v' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [0.5, np.sqrt(3.)/2., 0.]]).T,
+    'c3v': [1, np.array([[0., 0., 1.],
+                         [1., 0., 0.],
+                         [0.5, np.sqrt(3.)/2., 0.]]).T,
             np.array([0, 1, 2]),
             'both'],
 
-    'd3d' : [1, np.array([[0., 0., 1.],
-                    [np.sqrt(3.)/2., 0.5, 0.],
-                    [np.sqrt(3.)/2., -0.5, 0.]]).T,
+    'd3d': [1, np.array([[0., 0., 1.],
+                         [np.sqrt(3.)/2., 0.5, 0.],
+                         [np.sqrt(3.)/2., -0.5, 0.]]).T,
             np.array([0, 1, 2]),
             'upper'],
 
-    'c6' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [0.5, np.sqrt(3.)/2., 0.]]).T,
-            np.array([0, 1, 2]),
-            'both'],
+    'c6': [1, np.array([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [0.5, np.sqrt(3.)/2., 0.]]).T,
+           np.array([0, 1, 2]),
+           'both'],
 
-    'c3h' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [-0.5, np.sqrt(3.)/2., 0.]]).T,
+    'c3h': [1, np.array([[0., 0., 1.],
+                         [1., 0., 0.],
+                         [-0.5, np.sqrt(3.)/2., 0.]]).T,
             np.array([0, 1, 2]),
             'upper'],
 
-    'c6h' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [0.5, np.sqrt(3.)/2., 0.]]).T,
+    'c6h': [1, np.array([[0., 0., 1.],
+                         [1., 0., 0.],
+                         [0.5, np.sqrt(3.)/2., 0.]]).T,
             np.array([0, 1, 2]),
             'upper'],
 
-    'd6' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [0.5, np.sqrt(3.)/2., 0.]]).T,
-            np.array([0, 1, 2]),
-            'both'],
+    'd6': [1, np.array([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [0.5, np.sqrt(3.)/2., 0.]]).T,
+           np.array([0, 1, 2]),
+           'both'],
 
     # supergroup 7 in our convention
-    'c6v' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [np.sqrt(3.)/2., 0.5, 0.]]).T,
+    'c6v': [1, np.array([[0., 0., 1.],
+                         [1., 0., 0.],
+                         [np.sqrt(3.)/2., 0.5, 0.]]).T,
             np.array([0, 1, 2]),
             'both'],
 
     # supergroup 8 in our convention
-    'd3h' : [1, np.array([[0., 0., 1.],
-                    [1., 0., 0.],
-                    [np.sqrt(3.)/2., 0.5, 0.]]).T,
+    'd3h': [1, np.array([[0., 0., 1.],
+                         [1., 0., 0.],
+                         [np.sqrt(3.)/2., 0.5, 0.]]).T,
             np.array([0, 1, 2]),
             'upper'],
 
     # supergroup 9 in our convention
-    'd6h' : [1, np.array([[0.,0.,1.],
-                    [1., 0., 0.],
-                    [np.sqrt(3.)/2., 0.5, 0.]]).T,
+    'd6h': [1, np.array([[0., 0., 1.],
+                         [1., 0., 0.],
+                         [np.sqrt(3.)/2., 0.5, 0.]]).T,
             np.array([0, 1, 2]),
             'upper'],
 
     # Special case with 2 triangles
-    't' : [2, np.array([[0.,0.,1.],
-                    [1./np.sqrt(3.), -1./np.sqrt(3.), 1./np.sqrt(3.)],
-                    [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)],
-                    [1., 0., 0.]]).T,
-            np.array([[0, 1, 2],[1, 3, 2]]).T,
-           'upper'],
-
-    # Special case with two triangles
-    'th' : [2, np.array([[0.,0.,1.],
-                    [1./np.sqrt(2.), 0., 1./np.sqrt(2.)],
-                    [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)],
-                    [0., 1./np.sqrt(2.), 1./np.sqrt(2.)]]).T,
-          np.array([[0, 1, 2],[0, 2, 3]]).T,
+    't': [2, np.array([[0., 0., 1.],
+                       [1./np.sqrt(3.), -1./np.sqrt(3.), 1./np.sqrt(3.)],
+                       [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)],
+                       [1., 0., 0.]]).T,
+          np.array([[0, 1, 2], [1, 3, 2]]).T,
           'upper'],
 
+    # Special case with two triangles
+    'th': [2, np.array([[0., 0., 1.],
+                        [1./np.sqrt(2.), 0., 1./np.sqrt(2.)],
+                        [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)],
+                        [0., 1./np.sqrt(2.), 1./np.sqrt(2.)]]).T,
+           np.array([[0, 1, 2], [0, 2, 3]]).T,
+           'upper'],
+
     # Special case with two triangles, same as Th
-    'o' : [2, np.array([[0.,0.,1.],
-                    [1./np.sqrt(2.), 0., 1./np.sqrt(2.)],
-                    [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)],
-                    [0., 1./np.sqrt(2.), 1./np.sqrt(2.)]]).T,
-          np.array([[0, 1, 2],[0, 2, 3]]).T,
+    'o': [2, np.array([[0., 0., 1.],
+                       [1./np.sqrt(2.), 0., 1./np.sqrt(2.)],
+                       [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)],
+                       [0., 1./np.sqrt(2.), 1./np.sqrt(2.)]]).T,
+          np.array([[0, 1, 2], [0, 2, 3]]).T,
           'upper'],
 
     # supergroup 10 in our convention
-    'td' : [1, np.array([[0.,0.,1.],
-                    [1./np.sqrt(3.), -1./np.sqrt(3.), 1./np.sqrt(3.)],
-                    [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)]]).T,
-            np.array([0, 1, 2]),
-            'upper'],
+    'td': [1, np.array([[0., 0., 1.],
+                        [1./np.sqrt(3.), -1./np.sqrt(3.), 1./np.sqrt(3.)],
+                        [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)]]).T,
+           np.array([0, 1, 2]),
+           'upper'],
 
     # supergroup 11 in our convention
-    'oh' : [1, np.array([[0.,0.,1.],
-                    [1./np.sqrt(2.),0., 1./np.sqrt(2.)],
-                    [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)]]).T,
-            np.array([0, 1, 2]),
-            'upper']
+    'oh': [1, np.array([[0., 0., 1.],
+                        [1./np.sqrt(2.), 0., 1./np.sqrt(2.)],
+                        [1./np.sqrt(3.), 1./np.sqrt(3.), 1./np.sqrt(3.)]]).T,
+           np.array([0, 1, 2]),
+           'upper']
 }
+
 
 class sector:
     '''
@@ -290,6 +291,7 @@ class sector:
     Orientations – perfectly colored, G. Nolze and R. Hielscher, J. Appl. Cryst. (2016). 49, 1786–1802
 
     '''
+
     def __init__(self, pgsym, lauesym, supergroupsym, supergrouplauesym):
         '''
         AUTHOR: Saransh Singh, Lawrence Livermore national Lab, saransh1@llnl.gov
@@ -308,7 +310,6 @@ class sector:
         self.connectivity = {}
         self.hemisphere = {}
 
-
         data = pg2vertex[pgsym]
         self.ntriangle['pg'] = data[0]
         self.vertices['pg'] = data[1]
@@ -322,10 +323,10 @@ class sector:
         self.hemisphere['laue'] = data[3]
 
         data = pg2vertex[supergroupsym]
-        self.ntriangle['super']  = data[0]
+        self.ntriangle['super'] = data[0]
         self.vertices['super'] = data[1]
-        self.connectivity['super']  = data[2]
-        self.hemisphere['super']  = data[3]
+        self.connectivity['super'] = data[2]
+        self.hemisphere['super'] = data[3]
 
         data = pg2vertex[supergrouplauesym]
         self.ntriangle['superlaue'] = data[0]
@@ -376,12 +377,12 @@ class sector:
         n = np.linalg.norm(dir3, axis=1)
         mask = n > eps
         n = n[mask]
-        dir3[mask,:] = dir3[mask,:]/np.tile(n,[3,1]).T
+        dir3[mask, :] = dir3[mask, :]/np.tile(n, [3, 1]).T
 
     def check_hemisphere(self):
 
         zcoord = np.array([self.vx[2], self.vy[2], self.vz[2]])
-        if(np.logical_or( np.all(zcoord >= 0.),  np.all(zcoord <= 0.) ) ):
+        if(np.logical_or(np.all(zcoord >= 0.),  np.all(zcoord <= 0.))):
             pass
         else:
             raise RuntimeError("sphere_sector: the vertices of the stereographic \
@@ -405,14 +406,14 @@ class sector:
         nn = vertex.shape[1]
 
         mask = []
-        d = np.zeros([nn,])
+        d = np.zeros([nn, ])
 
         for x in dir3:
             x2 = np.atleast_2d(x).T
 
             for ii in range(nn):
-                A = np.atleast_2d(vertex[:,np.mod(ii,nn)]).T
-                B = np.atleast_2d(vertex[:,np.mod(ii+1,nn)]).T
+                A = np.atleast_2d(vertex[:, np.mod(ii, nn)]).T
+                B = np.atleast_2d(vertex[:, np.mod(ii+1, nn)]).T
                 d[ii] = np.linalg.det(np.hstack((x2, A, B)))
 
                 '''
@@ -428,7 +429,7 @@ class sector:
                 mask.append(True)
             else:
                 mask.append(False)
-            
+
         mask = np.array(mask)
         return mask
 
@@ -455,23 +456,23 @@ class sector:
         '''
 
         vertex = self.vertices[switch]
-        fregion = -np.ones([dir3.shape[0],]).astype(np.int32)
+        fregion = -np.ones([dir3.shape[0], ]).astype(np.int32)
 
         bar_cen = self.barycenter[switch]
 
         nn = vertex.shape[1]
-        f = np.zeros([nn,3,3])
+        f = np.zeros([nn, 3, 3])
 
         for i in range(nn):
-            idx1 = np.mod(i,nn)
-            idx2 = np.mod(i+1,nn)
+            idx1 = np.mod(i, nn)
+            idx2 = np.mod(i+1, nn)
             A = np.atleast_2d(vertex[:, idx1]).T
             B = np.atleast_2d(vertex[:, idx2]).T
-            f[i,:,:] = np.hstack((np.atleast_2d(bar_cen).T, A, B))
+            f[i, :, :] = np.hstack((np.atleast_2d(bar_cen).T, A, B))
 
         for i in range(nn):
-            inside = np.logical_and(self.inside_sphericalpatch(\
-                                    np.squeeze(f[i,:,:]), dir3, switch),\
+            inside = np.logical_and(self.inside_sphericalpatch(
+                                    np.squeeze(f[i, :, :]), dir3, switch),
                                     fregion == -1)
             fregion[inside] = i
 
@@ -490,10 +491,10 @@ class sector:
         for i in range(fregion.shape[0]):
 
             f = fregion[i]
-            d = dir3[i,:]
+            d = dir3[i, :]
 
-            A = vertex[:,np.mod(f,nn)]
-            B = vertex[:,np.mod(f+1,nn)]
+            A = vertex[:, np.mod(f, nn)]
+            B = vertex[:, np.mod(f+1, nn)]
 
             nhat = np.cross(B, A)
             nhat = nhat/np.linalg.norm(nhat)
@@ -504,7 +505,7 @@ class sector:
             dp = d - deldir
             dp = dp/np.linalg.norm(dp)
 
-            dir3_b[i,:] = dp
+            dir3_b[i, :] = dp
 
         return dir3_b, fregion
 
@@ -516,23 +517,23 @@ class sector:
         '''
         vertex = self.vertices[switch]
         dir3_b, fregion = self.point_on_boundary(dir3, switch)
-        rho = np.zeros([dir3.shape[0],])
+        rho = np.zeros([dir3.shape[0], ])
         nn = vertex.shape[1]
 
         for i in range(fregion.shape[0]):
             f = fregion[i]
-            d = dir3_b[i,:]
+            d = dir3_b[i, :]
 
-            A = vertex[:,np.mod(f,nn)]
-            B = vertex[:,np.mod(f+1,nn)]
+            A = vertex[:, np.mod(f, nn)]
+            B = vertex[:, np.mod(f+1, nn)]
 
             # angle between A and B
-            omega = np.dot(A,B)
+            omega = np.dot(A, B)
             if(np.abs(omega) > 1.):
                 omega = np.sign(omega)
 
             # angle between point and A
-            omegap = np.dot(A,d)
+            omegap = np.dot(A, d)
             if(np.abs(omegap) > 1.):
                 omegap = np.sign(omega)
 
@@ -554,7 +555,7 @@ class sector:
         '''
         vertex = self.vertices[switch]
         dir3_b, fregion = self.point_on_boundary(dir3, switch)
-        theta = np.zeros([dir3.shape[0],])
+        theta = np.zeros([dir3.shape[0], ])
 
         bar_cen = self.barycenter[switch]
 
@@ -608,16 +609,16 @@ class sector:
 
         '''
         rho = self.calculate_rho(dir3, switch)
-        r = np.linspace(0.,2*np.pi,1000)
+        r = np.linspace(0., 2*np.pi, 1000)
         v = self.hue_speed(r)
         cons = np.trapz(v, r)
 
         h = np.zeros(rho.shape)
 
         for i in range(rho.shape[0]):
-            r = np.linspace(0.,rho[i],1000)
+            r = np.linspace(0., rho[i], 1000)
             v = self.hue_speed(r)
-            h[i] = np.trapz(v,r)/cons
+            h[i] = np.trapz(v, r)/cons
 
         return h
 
@@ -686,8 +687,8 @@ class sector:
         '''
         hsl = np.zeros(dir3.shape)
 
-        hsl[:,0] = self.calc_hue(dir3, switch)
-        hsl[:,2] = self.calc_lightness(dir3, mask, switch)
-        hsl[:,1] = self.calc_saturation(hsl[:,2])
+        hsl[:, 0] = self.calc_hue(dir3, switch)
+        hsl[:, 2] = self.calc_lightness(dir3, mask, switch)
+        hsl[:, 1] = self.calc_saturation(hsl[:, 2])
 
         return hsl

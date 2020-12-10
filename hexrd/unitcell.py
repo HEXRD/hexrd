@@ -25,9 +25,9 @@ class unitcell:
 
     # initialize the unitcell class
     # need lattice parameters and space group data from HDF5 file
-    def __init__(self, lp, sgnum, 
-                 atomtypes, atominfo, 
-                 U, dmin, beamenergy, 
+    def __init__(self, lp, sgnum,
+                 atomtypes, atominfo,
+                 U, dmin, beamenergy,
                  sgsetting=0):
 
         self._tstart = time.time()
@@ -191,9 +191,9 @@ class unitcell:
         '''
         self._rsm = np.array([[1./a, 0., 0.],
                               [-1./(a*tg), 1./(b*sg), 0.],
-                              [b*c*(cg*ca - cb)/(self.vol*sg), 
-                              a*c*(cb*cg - ca)/(self.vol*sg), 
-                              a*b*sg/self.vol]])
+                              [b*c*(cg*ca - cb)/(self.vol*sg),
+                               a*c*(cb*cg - ca)/(self.vol*sg),
+                               a*b*sg/self.vol]])
         self.rsm[np.abs(self.rsm) < eps] = 0.
 
         ast = self.CalcLength([1, 0, 0], 'r')
@@ -428,8 +428,8 @@ class unitcell:
         supergroup_laue = self._supergroup_laue
         sym_supergroup_laue = symmetry.GeneratePGSYM(supergroup_laue)
 
-        if( (self.latticeType == 'monoclinic' or \
-           self.latticeType == 'triclinic') ):
+        if((self.latticeType == 'monoclinic' or
+                self.latticeType == 'triclinic')):
             '''
             for monoclinic groups c2 and c2h, the supergroups are 
             orthorhombic, so no need to convert from direct to 
@@ -444,16 +444,19 @@ class unitcell:
             self.SYM_PG_supergroup_laue = []
 
             for sop in sym_supergroup:
-                self.SYM_PG_supergroup.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
+                self.SYM_PG_supergroup.append(
+                    np.dot(self.dsm, np.dot(sop, self.rsm.T)))
 
             self.SYM_PG_supergroup = np.array(self.SYM_PG_supergroup)
             self.SYM_PG_supergroup[np.abs(self.SYM_PG_supergroup) < eps] = 0.
 
             for sop in sym_supergroup_laue:
-                self.SYM_PG_supergroup_laue.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
+                self.SYM_PG_supergroup_laue.append(
+                    np.dot(self.dsm, np.dot(sop, self.rsm.T)))
 
         self.SYM_PG_supergroup_laue = np.array(self.SYM_PG_supergroup_laue)
-        self.SYM_PG_supergroup_laue[np.abs(self.SYM_PG_supergroup_laue) < eps] = 0.
+        self.SYM_PG_supergroup_laue[np.abs(
+            self.SYM_PG_supergroup_laue) < eps] = 0.
 
         '''
         the standard setting for the monoclinic system has the b-axis aligned
@@ -463,23 +466,23 @@ class unitcell:
         '''
         if(self.latticeType == 'monoclinic' or self.latticeType == 'triclinic'):
 
-            om = np.array([[1.,0.,0.],[0.,0.,1.],[0.,-1.,0.]])
+            om = np.array([[1., 0., 0.], [0., 0., 1.], [0., -1., 0.]])
 
             for i, s in enumerate(self.SYM_PG_c):
                 ss = np.dot(om, np.dot(s, om.T))
-                self.SYM_PG_c[i,:,:] = ss
+                self.SYM_PG_c[i, :, :] = ss
 
             for i, s in enumerate(self.SYM_PG_c_laue):
                 ss = np.dot(om, np.dot(s, om.T))
-                self.SYM_PG_c_laue[i,:,:] = ss
+                self.SYM_PG_c_laue[i, :, :] = ss
 
             for i, s in enumerate(self.SYM_PG_supergroup):
                 ss = np.dot(om, np.dot(s, om.T))
-                self.SYM_PG_supergroup[i,:,:] = ss
+                self.SYM_PG_supergroup[i, :, :] = ss
 
             for i, s in enumerate(self.SYM_PG_supergroup_laue):
                 ss = np.dot(om, np.dot(s, om.T))
-                self.SYM_PG_supergroup_laue[i,:,:] = ss
+                self.SYM_PG_supergroup_laue[i, :, :] = ss
 
     def CalcOrbit(self):
         '''
@@ -598,15 +601,15 @@ class unitcell:
      basis vectors '''
 
     def CalcMaxGIndex(self):
-        while (1.0 / self.CalcLength(np.array([self.ih, 0, 0], 
-               dtype=np.float64), 'r') > self.dmin):
-               self.ih = self.ih + 1
-        while (1.0 / self.CalcLength(np.array([0, self.ik, 0], 
-               dtype=np.float64), 'r') > self.dmin):
-               self.ik = self.ik + 1
-        while (1.0 / self.CalcLength(np.array([0, 0, self.il], 
-               dtype=np.float64), 'r') > self.dmin):
-               self.il = self.il + 1
+        while (1.0 / self.CalcLength(np.array([self.ih, 0, 0],
+                                              dtype=np.float64), 'r') > self.dmin):
+            self.ih = self.ih + 1
+        while (1.0 / self.CalcLength(np.array([0, self.ik, 0],
+                                              dtype=np.float64), 'r') > self.dmin):
+            self.ik = self.ik + 1
+        while (1.0 / self.CalcLength(np.array([0, 0, self.il],
+                                              dtype=np.float64), 'r') > self.dmin):
+            self.il = self.il + 1
 
     def InitializeInterpTable(self):
 
@@ -778,7 +781,7 @@ class unitcell:
 
             if(ax != '2_1'):
                 raise RuntimeError(
-            'omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis.')
+                    'omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis.')
             '''
                 only unique b-axis will be encoded
                 it is the users responsibility to input
@@ -792,13 +795,13 @@ class unitcell:
                 hkllist = hkllist[mask, :]
             else:
                 raise RuntimeError(
-            'omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
+                    'omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
 
         elif(self.latticeType == 'orthorhombic'):
 
             if(ax != '2_1'):
                 raise RuntimeError(
-            'omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis.')
+                    'omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis.')
             '''
             2_1 screw on primary axis
             h00 ; h = 2n
@@ -853,7 +856,7 @@ class unitcell:
                     mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
             else:
                 raise RuntimeError(
-            'omitscrewaxisabsences: trigonal systems can only have screw axis on primary axis ')
+                    'omitscrewaxisabsences: trigonal systems can only have screw axis on primary axis ')
 
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
@@ -873,7 +876,7 @@ class unitcell:
                     mask2 = np.mod(hkllist[:, 2]+120, 6) != 0
             else:
                 raise RuntimeError(
-            'omitscrewaxisabsences: hexagonal systems can only have screw axis on primary axis ')
+                    'omitscrewaxisabsences: hexagonal systems can only have screw axis on primary axis ')
 
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
@@ -1048,7 +1051,7 @@ class unitcell:
 
             if(plane != 'c'):
                 raise RuntimeError(
-            'omitglideplaneabsences: only c-glide allowed for trigonal systems.')
+                    'omitglideplaneabsences: only c-glide allowed for trigonal systems.')
 
             if(ip == 1):
 
@@ -1059,7 +1062,7 @@ class unitcell:
                     mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
                     raise RuntimeError(
-                'omitglideplaneabsences: only c-glide allowed for trigonal systems.')
+                        'omitglideplaneabsences: only c-glide allowed for trigonal systems.')
 
             elif(ip == 2):
                 mask1 = hkllist[:, 1] == hkllist[:, 0]
@@ -1069,7 +1072,7 @@ class unitcell:
                     mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
                     raise RuntimeError(
-                'omitglideplaneabsences: only c-glide allowed for trigonal systems.')
+                        'omitglideplaneabsences: only c-glide allowed for trigonal systems.')
 
             mask1 = np.logical_and(mask1, mask4)
             mask2 = np.logical_and(mask2, mask4)
@@ -1083,7 +1086,7 @@ class unitcell:
 
             if(plane != 'c'):
                 raise RuntimeError(
-            'omitglideplaneabsences: only c-glide allowed for hexagonal systems.')
+                    'omitglideplaneabsences: only c-glide allowed for hexagonal systems.')
 
             if(ip == 2):
                 mask1 = hkllist[:, 0] == hkllist[:, 1]
@@ -1170,7 +1173,7 @@ class unitcell:
                         ~mask1, np.logical_or(~mask2, ~mask3))
                 else:
                     raise RuntimeError(
-                'omitglideplaneabsences: unknown glide plane encountered.')
+                        'omitglideplaneabsences: unknown glide plane encountered.')
 
                 hkllist = hkllist[mask, :]
 
@@ -1192,7 +1195,7 @@ class unitcell:
 
                 else:
                     raise RuntimeError(
-                'omitglideplaneabsences: unknown glide plane encountered.')
+                        'omitglideplaneabsences: unknown glide plane encountered.')
 
                 mask1 = np.logical_not(np.logical_and(mask1, mask4))
                 mask2 = np.logical_not(np.logical_and(mask2, mask5))
@@ -1404,7 +1407,6 @@ class unitcell:
         # elif(switch == 'superlaue'):
         #     vertex = self.sphere_sector.vertices_supergroup_laue
 
-
         A = np.atleast_2d(vertex[:, conn[0]]).T
         B = np.atleast_2d(vertex[:, conn[1]]).T
         C = np.atleast_2d(vertex[:, conn[2]]).T
@@ -1473,7 +1475,7 @@ class unitcell:
         '''
         check if the dimensions of the dir3 array is to spec
         '''
-        idx = np.arange(dir3.shape[0],dtype=np.int32)
+        idx = np.arange(dir3.shape[0], dtype=np.int32)
         dir3 = np.ascontiguousarray(np.atleast_2d(dir3))
         if(dir3.ndim != 2):
             raise RuntimeError("reduce_dirvector: invalid shape of dir3 array")
@@ -1535,12 +1537,12 @@ class unitcell:
                     if(hemisphere == 'both'):
                         mask = np.ones(dir3_sym.shape[0], dtype=np.bool)
                     elif(hemisphere == 'upper'):
-                        mask = dir3_sym[:,2] >= 0.
+                        mask = dir3_sym[:, 2] >= 0.
 
                 if(ntriangle == 1):
                     mask = self.inside_spheretriangle(
-                           connectivity, dir3_sym, 
-                           hemisphere, switch)
+                        connectivity, dir3_sym,
+                        hemisphere, switch)
 
                 elif(ntriangle == 2):
                     '''
@@ -1548,12 +1550,12 @@ class unitcell:
                     is inside either of the triangles
                     '''
                     mask1 = self.inside_spheretriangle(
-                            connectivity[:,0], dir3_sym,
-                            hemisphere, switch)
+                        connectivity[:, 0], dir3_sym,
+                        hemisphere, switch)
 
                     mask2 = self.inside_spheretriangle(
-                            connectivity[:,1], dir3_sym,
-                            hemisphere, switch)
+                        connectivity[:, 1], dir3_sym,
+                        hemisphere, switch)
 
                     mask = np.logical_or(mask1, mask2)
 
@@ -1563,22 +1565,23 @@ class unitcell:
                     normal to y-axis
                     '''
                     mask1 = self.inside_spheretriangle(
-                            connectivity[:,0], dir3_sym,
-                            hemisphere, switch)
+                        connectivity[:, 0], dir3_sym,
+                        hemisphere, switch)
 
                     mask2 = self.inside_spheretriangle(
-                            connectivity[:,1], dir3_sym,
-                            hemisphere, switch)
+                        connectivity[:, 1], dir3_sym,
+                        hemisphere, switch)
 
                     mask3 = self.inside_spheretriangle(
-                            connectivity[:,2], dir3_sym,
-                            hemisphere, switch)
+                        connectivity[:, 2], dir3_sym,
+                        hemisphere, switch)
 
                     mask4 = self.inside_spheretriangle(
-                            connectivity[:,3], dir3_sym,
-                            hemisphere, switch)
+                        connectivity[:, 3], dir3_sym,
+                        hemisphere, switch)
 
-                    mask = np.logical_or(np.logical_or(mask1, mask2), np.logical_or(mask3, mask4))
+                    mask = np.logical_or(np.logical_or(
+                        mask1, mask2), np.logical_or(mask3, mask4))
 
                 if(np.sum(mask) > 0):
                     if(dir3_reduced.size != 0):
@@ -1589,12 +1592,12 @@ class unitcell:
                         dir3_reduced = np.copy(dir3_sym[mask, :])
                         idx_red = np.copy(idx[mask])
 
-                dir3_copy = dir3_copy[np.logical_not(mask),:]
+                dir3_copy = dir3_copy[np.logical_not(mask), :]
                 idx = idx[np.logical_not(mask)]
-            else: 
+            else:
                 break
         dir3_r = np.zeros(dir3_reduced.shape)
-        dir3_r[idx_red,:] = dir3_reduced
+        dir3_r[idx_red, :] = dir3_reduced
 
         return dir3_r
 
@@ -1616,7 +1619,6 @@ class unitcell:
         4. If different, then barycenter lightness is replaced by 1-L (equivalent to 
            replaceing barycenter to pi-theta)
         '''
-        
 
         if(laueswitch == True):
             ''' 
@@ -1625,7 +1627,8 @@ class unitcell:
             introduces inversion symmetry. For other probes, this is not the case.
             '''
             dir3_red = self.reduce_dirvector(dir3, switch='laue')
-            dir3_red_supergroup = self.reduce_dirvector(dir3, switch='superlaue')
+            dir3_red_supergroup = self.reduce_dirvector(
+                dir3, switch='superlaue')
             switch = 'superlaue'
 
         elif(laueswitch == False):
@@ -1845,8 +1848,8 @@ class unitcell:
         '''
         SS 11/11/2020 adding the sphere_sector class initialization here
         '''
-        self.sphere_sector = sphere_sector.sector(self._pointGroup, 
-                                                  self._laueGroup, 
+        self.sphere_sector = sphere_sector.sector(self._pointGroup,
+                                                  self._laueGroup,
                                                   self._supergroup,
                                                   self._supergroup_laue)
 
@@ -1989,7 +1992,8 @@ _pgDict = {
     _sgrange(111, 122): ('d2d', laue_5, supergroup_5, supergroup_5),
     _sgrange(123, 142): ('d4h', laue_5, supergroup_5, supergroup_5),  # laue 5
     _sgrange(143, 146): ('c3', laue_6, supergroup_6, supergroup_02),  # Trigonal
-    _sgrange(147, 148): ('s6', laue_6, supergroup_02, supergroup_02),  # laue 6 [also c3i]
+    # laue 6 [also c3i]
+    _sgrange(147, 148): ('s6', laue_6, supergroup_02, supergroup_02),
     _sgrange(149, 155): ('d3', laue_7, supergroup_7, supergroup_9),
     _sgrange(156, 161): ('c3v', laue_7, supergroup_6, supergroup_9),
     _sgrange(162, 167): ('d3d', laue_7, supergroup_9, supergroup_9),  # laue 7
@@ -2004,7 +2008,7 @@ _pgDict = {
     _sgrange(200, 206): ('th', laue_10, supergroup_11, supergroup_11),  # laue 10
     _sgrange(207, 214): ('o',  laue_11, supergroup_11, supergroup_11),
     _sgrange(215, 220): ('td', laue_11, supergroup_10, supergroup_11),
-    _sgrange(221, 230): ('oh', laue_11, supergroup_11, supergroup_11),  # laue 11
+    _sgrange(221, 230): ('oh', laue_11, supergroup_11, supergroup_11)   # laue 11
 }
 
 '''
