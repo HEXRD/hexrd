@@ -117,7 +117,7 @@ pg2vertex = {
     'd2h': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
                          [0., 1., 0.]]).T,
-            np.array([0, 1, 2]),
+            np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
     'c4': [1, np.array([[0., 0., 1.],
