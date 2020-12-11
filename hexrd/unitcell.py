@@ -12,7 +12,6 @@ import time
 
 eps = constants.sqrt_epsf
 
-
 class unitcell:
 
     '''
@@ -184,7 +183,8 @@ class unitcell:
         self._dsm = np.array([[a, b*cg, c*cb],
                               [0., b*sg, -c*(cb*cg - ca)/sg],
                               [0., 0., self.vol/(a*b*sg)]])
-        self.dsm[np.abs(self.dsm) < eps] = 0.
+        
+        self._dsm[np.abs(self._dsm) < eps] = 0.
 
         '''
             reciprocal structure matrix
@@ -194,7 +194,8 @@ class unitcell:
                               [b*c*(cg*ca - cb)/(self.vol*sg),
                                a*c*(cb*cg - ca)/(self.vol*sg),
                                a*b*sg/self.vol]])
-        self.rsm[np.abs(self.rsm) < eps] = 0.
+
+        self._rsm[np.abs(self._rsm) < eps] = 0.
 
         ast = self.CalcLength([1, 0, 0], 'r')
         bst = self.CalcLength([0, 1, 0], 'r')
@@ -598,8 +599,10 @@ class unitcell:
             atype = self.atom_type[i]
             numat = self.numat[i]
             occ = self.atom_pos[i, 3]
+
             # -1 due to 0 indexing in python
             self.avA += numat * constants.atom_weights[atype-1] * occ
+
             self.avZ += numat * atype
 
         self.density = self.avA / (self.vol * 1.0E-21 * constants.cAvogadro)
@@ -609,18 +612,24 @@ class unitcell:
         self.avA /= av_natom
         self.avZ /= np.sum(self.numat)
 
-    ''' calculate the maximum index of diffraction vector along each of the three reciprocal
-     basis vectors '''
+    ''' calculate the maximum index of diffraction vector along 
+        each of the three reciprocal
+        basis vectors '''
 
     def CalcMaxGIndex(self):
-        while (1.0 / self.CalcLength(np.array([self.ih, 0, 0],
-                                              dtype=np.float64), 'r') > self.dmin):
+        while (1.0 / self.CalcLength(
+            np.array([self.ih, 0, 0],
+                     dtype=np.float64), 'r') > self.dmin):
             self.ih = self.ih + 1
-        while (1.0 / self.CalcLength(np.array([0, self.ik, 0],
-                                              dtype=np.float64), 'r') > self.dmin):
+            
+        while (1.0 / self.CalcLength(
+            np.array([0, self.ik, 0],
+                     dtype=np.float64), 'r') > self.dmin):
             self.ik = self.ik + 1
-        while (1.0 / self.CalcLength(np.array([0, 0, self.il],
-                                              dtype=np.float64), 'r') > self.dmin):
+            
+        while (1.0 / self.CalcLength(
+            np.array([0, 0, self.il],
+                     dtype=np.float64), 'r') > self.dmin):
             self.il = self.il + 1
 
     def InitializeInterpTable(self):
@@ -793,7 +802,10 @@ class unitcell:
 
             if(ax != '2_1'):
                 raise RuntimeError(
-                    'omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis.')
+
+                    'omitscrewaxisabsences: monoclinic\
+                     systems can only have 2_1 screw axis.')
+                
             '''
                 only unique b-axis will be encoded
                 it is the users responsibility to input
@@ -807,13 +819,16 @@ class unitcell:
                 hkllist = hkllist[mask, :]
             else:
                 raise RuntimeError(
-                    'omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
+                    'omitscrewaxisabsences: only\
+                     b-axis can have 2_1 screw axis')
 
         elif(self.latticeType == 'orthorhombic'):
 
             if(ax != '2_1'):
                 raise RuntimeError(
-                    'omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis.')
+                    'omitscrewaxisabsences: orthorhombic\
+                     systems can only have 2_1 screw axis.')
+
             '''
             2_1 screw on primary axis
             h00 ; h = 2n
@@ -868,7 +883,9 @@ class unitcell:
                     mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
             else:
                 raise RuntimeError(
-                    'omitscrewaxisabsences: trigonal systems can only have screw axis on primary axis ')
+                    'omitscrewaxisabsences: trigonal\
+                     systems can only have screw axis on primary axis ')
+
 
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
@@ -888,7 +905,9 @@ class unitcell:
                     mask2 = np.mod(hkllist[:, 2]+120, 6) != 0
             else:
                 raise RuntimeError(
-                    'omitscrewaxisabsences: hexagonal systems can only have screw axis on primary axis ')
+                    'omitscrewaxisabsences: hexagonal\
+                     systems can only have screw axis on primary axis ')
+
 
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
@@ -1063,7 +1082,8 @@ class unitcell:
 
             if(plane != 'c'):
                 raise RuntimeError(
-                    'omitglideplaneabsences: only c-glide allowed for trigonal systems.')
+                    'omitglideplaneabsences: only\
+                     c-glide allowed for trigonal systems.')
 
             if(ip == 1):
 
@@ -1074,7 +1094,8 @@ class unitcell:
                     mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
                     raise RuntimeError(
-                        'omitglideplaneabsences: only c-glide allowed for trigonal systems.')
+                        'omitglideplaneabsences: only\
+                         c-glide allowed for trigonal systems.')
 
             elif(ip == 2):
                 mask1 = hkllist[:, 1] == hkllist[:, 0]
@@ -1084,7 +1105,8 @@ class unitcell:
                     mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
                     raise RuntimeError(
-                        'omitglideplaneabsences: only c-glide allowed for trigonal systems.')
+                        'omitglideplaneabsences: only\
+                         c-glide allowed for trigonal systems.')
 
             mask1 = np.logical_and(mask1, mask4)
             mask2 = np.logical_and(mask2, mask4)
@@ -1098,7 +1120,8 @@ class unitcell:
 
             if(plane != 'c'):
                 raise RuntimeError(
-                    'omitglideplaneabsences: only c-glide allowed for hexagonal systems.')
+                    'omitglideplaneabsences: only\
+                     c-glide allowed for hexagonal systems.')
 
             if(ip == 2):
                 mask1 = hkllist[:, 0] == hkllist[:, 1]
@@ -1185,7 +1208,8 @@ class unitcell:
                         ~mask1, np.logical_or(~mask2, ~mask3))
                 else:
                     raise RuntimeError(
-                        'omitglideplaneabsences: unknown glide plane encountered.')
+                        'omitglideplaneabsences: unknown\
+                         glide plane encountered.')
 
                 hkllist = hkllist[mask, :]
 
@@ -1207,7 +1231,8 @@ class unitcell:
 
                 else:
                     raise RuntimeError(
-                        'omitglideplaneabsences: unknown glide plane encountered.')
+                        'omitglideplaneabsences: unknown\
+                         glide plane encountered.')
 
                 mask1 = np.logical_not(np.logical_and(mask1, mask4))
                 mask2 = np.logical_not(np.logical_and(mask2, mask5))
@@ -1365,20 +1390,22 @@ class unitcell:
         return _rqpDict[self.latticeType][1](p)
 
     def Required_C(self, C):
-        return np.array([C[x] for x in _StifnessDict[self._laueGroup][0]])
+        return np.array([C[x] for x in _StiffnessDict[self._laueGroup][0]])
 
-    def MakeStifnessMatrix(self, inp_Cvals):
-        if(len(inp_Cvals) != len(_StifnessDict[self._laueGroup][0])):
-            raise IOError('number of constants entered is not correct. need a total of ', len(
-                _StifnessDict[self._laueGroup][0]), 'independent constants')
+    def MakeStiffnessMatrix(self, inp_Cvals):
+        if(len(inp_Cvals) != len(_StiffnessDict[self._laueGroup][0])):
+            raise IOError('number of constants entered is not correct.\
+            need a total of ', len(_StiffnessDict[self._laueGroup][0]),
+                          'independent constants')
 
         # initialize all zeros and fill the supplied values
         C = np.zeros([6, 6])
-        for i, x in enumerate(_StifnessDict[self._laueGroup][0]):
+        for i, x in enumerate(_StiffnessDict[self._laueGroup][0]):
+
             C[x] = inp_Cvals[i]
 
         # enforce the equality constraints
-        C = _StifnessDict[self._laueGroup][1](C)
+        C = _StiffnessDict[self._laueGroup][1](C)
 
         # finally fill the lower triangular matrix
         for i in range(6):
@@ -1662,6 +1689,20 @@ class unitcell:
         rgb = self.color_directions(dir3, laueswitch)
         return rgb
 
+        self.stiffness = C
+
+    @property
+    def compliance(self):
+        if not hasattr(self, 'stiffness'):
+            raise AttributeError('Stiffness not set on unit cell')
+
+        return np.linalg.inv(self.stiffness)
+
+    @compliance.setter
+    def compliance(self, v):
+        self.stiffness = np.linalg.inv(v)
+
+
     # lattice constants as properties
     @property
     def a(self):
@@ -1675,6 +1716,8 @@ class unitcell:
         self.ik = 1
         self.il = 1
         self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
 
     @property
     def b(self):
@@ -1688,6 +1731,8 @@ class unitcell:
         self.ik = 1
         self.il = 1
         self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
 
     @property
     def c(self):
@@ -1701,6 +1746,8 @@ class unitcell:
         self.ik = 1
         self.il = 1
         self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
 
     @property
     def alpha(self):
@@ -1714,6 +1761,8 @@ class unitcell:
         self.ik = 1
         self.il = 1
         self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
 
     @property
     def beta(self):
@@ -1727,6 +1776,8 @@ class unitcell:
         self.ik = 1
         self.il = 1
         self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
 
     @property
     def gamma(self):
@@ -1740,6 +1791,8 @@ class unitcell:
         self.ik = 1
         self.il = 1
         self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
 
     @property
     def dmin(self):
@@ -1815,6 +1868,7 @@ class unitcell:
         '''
         self.CalcPositions()
         self.GetPgLg()
+
         '''
         SS 11/10/2020 added cartesian PG sym for reducing directions
         to standard stereographic triangle
@@ -1828,6 +1882,7 @@ class unitcell:
                                                   self._laueGroup,
                                                   self._supergroup,
                                                   self._supergroup_laue)
+        self.CalcDensity()
 
     @property
     def atom_pos(self):
@@ -1854,7 +1909,8 @@ class unitcell:
 
     @asym_pos.setter
     def asym_pos(self, val):
-        assert(type(val) == list), 'input type to asymmetric positions should be list'
+        assert(type(val) == list),\
+            'input type to asymmetric positions should be list'
         self._asym_pos = val
 
     @property
@@ -1923,6 +1979,7 @@ laue_9 = 'd6h'
 laue_10 = 'th'
 laue_11 = 'oh'
 
+
 '''
 these supergroups are the three exceptions to the coloring scheme
 the point groups are not topological and can't have no discontinuities
@@ -1985,6 +2042,44 @@ _pgDict = {
     _sgrange(207, 214): ('o',  laue_11, supergroup_11, supergroup_11),
     _sgrange(215, 220): ('td', laue_11, supergroup_10, supergroup_11),
     _sgrange(221, 230): ('oh', laue_11, supergroup_11, supergroup_11)   # laue 11
+=======
+
+def _sgrange(min, max): return tuple(range(min, max + 1))  # inclusive range
+
+
+_pgDict = {
+    _sgrange(1,   1): ('c1', laue_1),  # Triclinic
+    _sgrange(2,   2): ('ci', laue_1),  # laue 1
+    _sgrange(3,   5): ('c2', laue_2),  # Monoclinic
+    _sgrange(6,   9): ('cs', laue_2),
+    _sgrange(10,  15): ('c2h', laue_2),  # laue 2
+    _sgrange(16,  24): ('d2', laue_3),  # Orthorhombic
+    _sgrange(25,  46): ('c2v', laue_3),
+    _sgrange(47,  74): ('d2h', laue_3),  # laue 3
+    _sgrange(75,  80): ('c4', laue_4),  # Tetragonal
+    _sgrange(81,  82): ('s4', laue_4),
+    _sgrange(83,  88): ('c4h', laue_4),  # laue 4
+    _sgrange(89,  98): ('d4', laue_5),
+    _sgrange(99, 110): ('c4v', laue_5),
+    _sgrange(111, 122): ('d2d', laue_5),
+    _sgrange(123, 142): ('d4h', laue_5),  # laue 5
+    _sgrange(143, 146): ('c3', laue_6),  # Trigonal
+    _sgrange(147, 148): ('s6', laue_6),  # laue 6 [also c3i]
+    _sgrange(149, 155): ('d3', laue_7),
+    _sgrange(156, 161): ('c3v', laue_7),
+    _sgrange(162, 167): ('d3d', laue_7),  # laue 7
+    _sgrange(168, 173): ('c6', laue_8),  # Hexagonal
+    _sgrange(174, 174): ('c3h', laue_8),
+    _sgrange(175, 176): ('c6h', laue_8),  # laue 8
+    _sgrange(177, 182): ('d6', laue_9),
+    _sgrange(183, 186): ('c6v', laue_9),
+    _sgrange(187, 190): ('d3h', laue_9),
+    _sgrange(191, 194): ('d6h', laue_9),  # laue 9
+    _sgrange(195, 199): ('t',  laue_10),  # Cubic
+    _sgrange(200, 206): ('th', laue_10),  # laue 10
+    _sgrange(207, 214): ('o',  laue_11),
+    _sgrange(215, 220): ('td', laue_11),
+    _sgrange(221, 230): ('oh', laue_11),  # laue 11
 }
 
 '''
@@ -2122,8 +2217,7 @@ def C_cubic_eq(x):
     x[4, 4] = x[3, 3]
     return x
 
-
-_StifnessDict = {
+_StiffnessDict = {
     # triclinic, all 21 components in upper triangular matrix needed
     laue_1: [type1, identity],
     laue_2: [type2, identity],  # monoclinic, 13 components needed

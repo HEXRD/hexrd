@@ -31,6 +31,12 @@ jobs:
       run:
         shell: bash
     steps:
+    - name: Use XCode 11.7 so pycifrw will build
+      if: ${{ matrix.config.name == 'MacOSX' }}
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '11.7'
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
@@ -48,7 +54,7 @@ jobs:
         path: examples
 
     - name: Set environment variable to work around setuptools/numpy issue
-      run: echo '::set-env name=SETUPTOOLS_USE_DISTUTILS::stdlib'
+      run: echo 'SETUPTOOLS_USE_DISTUTILS=stdlib' >> $GITHUB_ENV
       if: ${{ matrix.config.os == 'windows-latest'}}
 
     - name: Install HEXRD
