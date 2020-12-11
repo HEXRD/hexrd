@@ -2042,7 +2042,6 @@ _pgDict = {
     _sgrange(207, 214): ('o',  laue_11, supergroup_11, supergroup_11),
     _sgrange(215, 220): ('td', laue_11, supergroup_10, supergroup_11),
     _sgrange(221, 230): ('oh', laue_11, supergroup_11, supergroup_11)   # laue 11
-=======
 
 def _sgrange(min, max): return tuple(range(min, max + 1))  # inclusive range
 
