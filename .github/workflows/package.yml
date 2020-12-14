@@ -64,7 +64,7 @@ jobs:
 
     - name: Build the package (container)
       if: ${{ matrix.config.name == 'Linux' }}
-      uses: docker://centos:6.10
+      uses: docker://centos:7
       with:
         entrypoint: /github/workspace/.github/workflows/container_build.sh
 
