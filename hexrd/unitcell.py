@@ -496,7 +496,7 @@ class unitcell:
         self.avA /= av_natom
         self.avZ /= np.sum(self.numat)
 
-    ''' calculate the maximum index of diffraction vector along 
+    ''' calculate the maximum index of diffraction vector along
         each of the three reciprocal
         basis vectors '''
 
@@ -1292,14 +1292,16 @@ class unitcell:
 
     @property
     def compliance(self):
+        # Compliance in TPa⁻¹. Stiffness is in GPa.
         if not hasattr(self, 'stiffness'):
             raise AttributeError('Stiffness not set on unit cell')
 
-        return np.linalg.inv(self.stiffness)
+        return np.linalg.inv(self.stiffness / 1.e3)
 
     @compliance.setter
     def compliance(self, v):
-        self.stiffness = np.linalg.inv(v)
+        # Compliance in TPa⁻¹. Stiffness is in GPa.
+        self.stiffness = np.linalg.inv(v) * 1.e3
 
     # lattice constants as properties
     @property
