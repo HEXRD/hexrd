@@ -167,8 +167,8 @@ pg2vertex = {
             'upper'],
 
     'c3': [1, np.array([[0., 0., 1.],
-                        [1., 0., 0.],
-                        [-0.5, np.sqrt(3.)/2., 0.]]).T,
+                        [np.sqrt(3.)/2., -0.5, 0.],
+                        [0., 1., 0.]]).T,
            np.atleast_2d(np.array([0, 1, 2])).T,
            'both'],
 
@@ -187,14 +187,14 @@ pg2vertex = {
 
     # supergroup 6 in our convention
     'c3v': [1, np.array([[0., 0., 1.],
-                         [1., 0., 0.],
-                         [0.5, np.sqrt(3.)/2., 0.]]).T,
+                         [np.sqrt(3.)/2., -0.5, 0.],
+                         [np.sqrt(3.)/2., 0.5, 0.]]).T,
             np.atleast_2d(np.array([0, 1, 2])).T,
             'both'],
 
     'd3d': [1, np.array([[0., 0., 1.],
-                         [np.sqrt(3.)/2., 0.5, 0.],
-                         [np.sqrt(3.)/2., -0.5, 0.]]).T,
+                         [np.sqrt(3.)/2., -0.5, 0.],
+                         [np.sqrt(3.)/2., 0.5, 0.]]).T,
             np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
