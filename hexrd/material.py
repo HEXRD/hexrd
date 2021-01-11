@@ -542,7 +542,11 @@ class Material(object):
           float arguments.  Also can take a valWUnit
           instance
         """
-        self._beamEnergy = keV
+        if(isinstance(keV, valWUnit)):
+            self._beamEnergy = keV
+        else:
+            self._beamEnergy = valWUnit('kev','energy',keV,'keV')
+
         self.planeData.wavelength = keV
 
         return
