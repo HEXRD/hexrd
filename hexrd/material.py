@@ -545,7 +545,7 @@ class Material(object):
         if(isinstance(keV, valWUnit)):
             self._beamEnergy = keV
         else:
-            self._beamEnergy = valWUnit('kev','energy',keV,'keV')
+            self._beamEnergy = valWUnit('kev', 'energy', keV, 'keV')
 
         self.planeData.wavelength = keV
 
