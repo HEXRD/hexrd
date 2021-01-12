@@ -1,11 +1,15 @@
 import os
 
-try:
-    import dill as cpl
-except(ImportError):
-    import pickle as cpl
+import numpy as np
+
+from hexrd import material
+from hexrd.constants import keVToAngstrom
+from hexrd.valunits import valWUnit
 
 from .config import Config
+
+DMIN_DFLT = 0.5    # angstrom
+TTHW_DFLT = 0.25   # degrees
 
 
 class MaterialConfig(Config):
@@ -29,21 +33,44 @@ class MaterialConfig(Config):
         return self._cfg.get('material:active')
 
     @property
-    def plane_data(self):
-        """Return the active material PlaneData class."""
-        return self.materials[self.active].planeData
-
-    @property
     def materials(self):
         """Return a dict of materials."""
         if not hasattr(self, '_materials'):
-            with open(self.definitions, "rb") as matf:
-                mat_list = cpl.load(matf)
-            self._materials = dict(
-                zip([i.name for i in mat_list], mat_list)
+            self._materials = material.load_materials_hdf5(
+                f=self.definitions,
+                dmin=valWUnit("dmin", "length", self.dmin, "angstrom")
             )
         return self._materials
 
     @materials.setter
     def materials(self, mats):
+        assert isinstance(mats, dict), "input must be a dict"
         self._materials = mats
+
+    @property
+    def dmin(self):
+        """Return the specified minimum d-spacing for hkl generation."""
+        return self._cfg.get('material:dmin', DMIN_DFLT)
+
+    @property
+    def tthw(self):
+        """Return the specified tth tolerance."""
+        return self._cfg.get('material:tth_width', TTHW_DFLT)
+
+    @property
+    def plane_data(self):
+        """Return the active material PlaneData class."""
+        pd = self.materials[self.active].planeData
+        pd.tThWidth = np.radians(self.tthw)
+        return pd
+
+    @property
+    def beam_energy(self):
+        return keVToAngstrom(self.plane_data.wavelength)
+
+    @beam_energy.setter
+    def beam_energy(self, x):
+        if not isinstance(x, valWUnit):
+            x = valWUnit("beam energy", "energy", x, "keV")
+        for matl in self.materials.values():
+            matl.beamEnergy = x

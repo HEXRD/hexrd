@@ -33,11 +33,7 @@ import numpy as np
 import csv
 import os
 
-try:
-    from scipy import constants as C
-except(ImportError):
-    raise RuntimeError("scipy must be recent enough to have constants module")
-
+from hexrd import constants
 from hexrd.matrixutil import unitVector
 from hexrd.rotations import \
     rotMatOfExpMap, mapAngle, applySym, \
@@ -97,18 +93,17 @@ def processWavelength(arg):
         if arg.isLength():
             retval = arg.getVal(dUnit)
         elif arg.isEnergy():
-            speed = C.c
-            planck = C.h
-            e = arg.getVal('J')
+            e = arg.getVal('keV')
             retval = valunits.valWUnit(
-                'wavelength', 'length', planck*speed/e, 'm').getVal(dUnit)
+                'wavelength', 'length', constants.keVToAngstrom(e), 'angstrom'
+            ).getVal(dUnit)
         else:
             raise RuntimeError('do not know what to do with '+str(arg))
     else:
-        keV2J = 1.e3*C.e
-        e = keV2J * arg
+        # !!! assuming arg is in keV
         retval = valunits.valWUnit(
-            'wavelength', 'length', C.h*C.c/e, 'm').getVal(dUnit)
+            'wavelength', 'length', constants.keVToAngstrom(arg), 'angstrom'
+        ).getVal(dUnit)
 
     return retval
 
