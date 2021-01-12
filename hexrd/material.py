@@ -547,9 +547,10 @@ class Material(object):
         else:
             self._beamEnergy = valWUnit('kev', 'energy', keV, 'keV')
 
-        ''' acceleration potential is set in volts therefore the factor of 1e3
-            @TODO make voltage valWUnit instance so this that we dont have to 
-            track this manually inn the future
+        ''' 
+        acceleration potential is set in volts therefore the factor of 1e3
+        @TODO make voltage valWUnit instance so this that we dont have to 
+        track this manually inn the future
         '''
         self.unitcell.voltage = self.beamEnergy.value*1e3
         self.planeData.wavelength = keV
