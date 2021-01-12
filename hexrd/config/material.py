@@ -58,10 +58,20 @@ class MaterialConfig(Config):
         return self._cfg.get('material:tth_width', TTHW_DFLT)
 
     @property
+    def fminr(self):
+        """Return the specified tth tolerance."""
+        return self._cfg.get('material:min_sfac_ratio', None)
+
+    @property
     def plane_data(self):
         """Return the active material PlaneData class."""
         pd = self.materials[self.active].planeData
         pd.tThWidth = np.radians(self.tthw)
+        if self.fminr is not None:
+            # !!! exclusions are all False upon generation; setting
+            #     the tThMax attribute later won't affect these.
+            mod_f_sq = pd.structFact
+            pd.exclusions = mod_f_sq/np.max(mod_f_sq) < self.fminr
         return pd
 
     @property
