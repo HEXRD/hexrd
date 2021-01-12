@@ -567,6 +567,7 @@ class Material(object):
         '''
         self.unitcell.voltage = self.beamEnergy.value*1e3
         self.planeData.wavelength = keV
+        self.update_structure_factor()
 
         return
 
