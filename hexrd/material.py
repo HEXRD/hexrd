@@ -555,7 +555,17 @@ class Material(object):
           float arguments.  Also can take a valWUnit
           instance
         """
-        self._beamEnergy = keV
+        if(isinstance(keV, valWUnit)):
+            self._beamEnergy = keV
+        else:
+            self._beamEnergy = valWUnit('kev', 'energy', keV, 'keV')
+
+        ''' 
+        acceleration potential is set in volts therefore the factor of 1e3
+        @TODO make voltage valWUnit instance so this that we dont have to 
+        track this manually inn the future
+        '''
+        self.unitcell.voltage = self.beamEnergy.value*1e3
         self.planeData.wavelength = keV
 
         return
