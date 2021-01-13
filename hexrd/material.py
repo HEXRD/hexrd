@@ -525,6 +525,9 @@ class Material(object):
         # Update the unit cell if there is one
         if hasattr(self, 'unitcell'):
             self.unitcell.sgnum = v
+            self.unitcell.getHKLs(self.dmin.getVal('nm'))
+            self._newPdata()
+            self.update_structure_factor()
 
     sgnum = property(_get_sgnum, _set_sgnum, None,
                      "Space group number")
