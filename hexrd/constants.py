@@ -71,6 +71,35 @@ zeros_6x1 = np.zeros((6, 1))
 beam_vec = -lab_z
 eta_vec = lab_x
 
+'''
+    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+    >> @DATE:       10/28/2020 SS 1.0 original
+    >> @DETAILS:    constants for sphere sectors used for IPF coloring
+
+    '''
+# radius of homochoric sphere
+hoR   = (np.pi * 3. / 4.)**(1./3.)
+
+# radius of homochoric sphere squared
+hoR2  = (np.pi * 3. / 4.)**(2./3.)
+
+# edge of cubochoric cube
+cuA   = np.pi**(2./3.)
+
+# semi-edge of cubochoric cube
+cuA_2 = 0.5 * np.pi**(2./3.)
+
+# this is a constant which defines the sign of the 
+# cross-product in the quaternion multiplication rule
+# we will set it to 1 for the standard rule always
+pjik  = 1
+
+# sqrt 2 - 1
+tp_8  = np.sqrt(2.) - 1.
+
+# 2 - sqrt(3)
+tp_12 = 2. - np.sqrt(3.)
+
 # for energy/wavelength conversions
 def keVToAngstrom(x):
     return (1e7*sc.c*sc.h/sc.e) / np.array(x, dtype=float)
@@ -806,3 +835,50 @@ SYM_GENERATORS['O'] = 0.
 SYM_GENERATORS['X'] = -3./8.
 SYM_GENERATORS['Y'] = -1./4.
 SYM_GENERATORS['Z'] = -1./8.
+
+
+'''
+    @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+    @DATE    11/23/2020 SS 1.0 original
+    @DETAIL. this list of symbols will help us to genrate the point group symmetries
+             in the cartesian space for any point group. this is needed for the 
+             supergroup symmetry usd in the coloring scheme used in the package. this
+             needs to be a separate set of routines because the supergroup can be a 
+             point group which is not the laue group of the crystal (e.g. m-3 --> m-3m)
+             the notation used will be the same as the one used for the space group 
+             without any translations.
+'''
+SYM_GL_PG = {
+'c1' : '1a' , # only identity rotation
+'ci' : '1h' , # only inversion operation
+'c2' : '1c' , # 2-fold rotation about z
+'cs' : '1j' , # 
+'c2h' : '2ch' ,
+'d2' : '2bc' ,
+'c2v' : '2bj' ,
+'d2h' : '3bch' ,
+'c4' : '1g' ,
+'s4' : '1m' ,
+'c4h' : '2gh' ,
+'d4' : '2cg' ,
+'c4v' : '2gj' ,
+'d2d': '2cm' ,
+'d4h' : '3cgh' ,
+'c3' : '1n' ,
+'s6' : '2hn' ,
+'d3' : '2en' ,
+'c3v' : '2kn ' ,
+'d3d' : '3fhn' ,
+'c6' : '2bn' ,
+'c3h' : '2in' ,
+'c6h' : '3bhn' ,
+'d6' : '3ben' ,
+'c6v' : '3bkn' ,
+'d3h' : '3ikn' ,
+'d6h': '4benh' ,
+'t': '2cd' ,
+'th': '3cdh' ,
+'o': '2dg' ,
+'td': '2dm' ,
+'oh': '3dgh'
+}

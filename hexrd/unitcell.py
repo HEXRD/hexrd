@@ -2,6 +2,7 @@ import importlib.resources
 import numpy as np
 from hexrd import constants
 from hexrd import symmetry, symbols
+from hexrd.ipfcolor import sphere_sector, colorspace
 import hexrd.resources
 import warnings
 import h5py
@@ -9,6 +10,7 @@ from pathlib import Path
 from scipy.interpolate import interp1d
 import time
 
+eps = constants.sqrt_epsf
 
 class unitcell:
 
@@ -22,10 +24,9 @@ class unitcell:
 
     # initialize the unitcell class
     # need lattice parameters and space group data from HDF5 file
-    def __init__(self, lp,
-                 sgnum, atomtypes,
-                 atominfo, U,
-                 dmin, beamenergy,
+    def __init__(self, lp, sgnum,
+                 atomtypes, atominfo,
+                 U, dmin, beamenergy,
                  sgsetting=0):
 
         self._tstart = time.time()
@@ -119,6 +120,8 @@ class unitcell:
                 pglg = _pgDict[k]
                 self._pointGroup = pglg[0]
                 self._laueGroup = pglg[1]
+                self._supergroup = pglg[2]
+                self._supergroup_laue = pglg[3]
 
     def CalcWavelength(self):
         # wavelength in nm
@@ -180,6 +183,8 @@ class unitcell:
         self._dsm = np.array([[a, b*cg, c*cb],
                               [0., b*sg, -c*(cb*cg - ca)/sg],
                               [0., 0., self.vol/(a*b*sg)]])
+        
+        self._dsm[np.abs(self._dsm) < eps] = 0.
 
         '''
             reciprocal structure matrix
@@ -189,6 +194,8 @@ class unitcell:
                               [b*c*(cg*ca - cb)/(self.vol*sg),
                                a*c*(cb*cg - ca)/(self.vol*sg),
                                a*b*sg/self.vol]])
+
+        self._rsm[np.abs(self._rsm) < eps] = 0.
 
         ast = self.CalcLength([1, 0, 0], 'r')
         bst = self.CalcLength([0, 1, 0], 'r')
@@ -383,6 +390,113 @@ class unitcell:
         self.SYM_PG_r = self.SYM_PG_r.astype(np.int32)
         self.SYM_PG_r_laue = self.SYM_PG_r_laue.astype(np.int32)
 
+    def GenerateCartesianPGSym(self):
+        '''
+        use the direct point group symmetries to generate the 
+        symmetry operations in the cartesian frame. this is used
+        to reduce directions to the standard stereographi tringle
+        '''
+        self.SYM_PG_c = []
+        self.SYM_PG_c_laue = []
+
+        for sop in self.SYM_PG_d:
+            self.SYM_PG_c.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
+
+        self.SYM_PG_c = np.array(self.SYM_PG_c)
+        self.SYM_PG_c[np.abs(self.SYM_PG_c) < eps] = 0.
+
+        if(self._pointGroup == self._laueGroup):
+            self.SYM_PG_c_laue = self.SYM_PG_c
+        else:
+            for sop in self.SYM_PG_d_laue:
+                self.SYM_PG_c_laue.append(
+                    np.dot(self.dsm, np.dot(sop, self.rsm.T)))
+            self.SYM_PG_c_laue = np.array(self.SYM_PG_c_laue)
+            self.SYM_PG_c_laue[np.abs(self.SYM_PG_c_laue) < eps] = 0.
+
+        '''
+        use the point group symmetry of the supergroup
+        to generate the equivalent operations in the 
+        cartesian reference frame
+
+        SS 11/23/2020 added supergroup symmetry operations
+        SS 11/24/2020 fix monoclinic groups separately since
+        the supergroup for monoclinic is orthorhombic
+        '''
+        supergroup = self._supergroup
+        sym_supergroup = symmetry.GeneratePGSYM(supergroup)
+
+        supergroup_laue = self._supergroup_laue
+        sym_supergroup_laue = symmetry.GeneratePGSYM(supergroup_laue)
+
+        if((self.latticeType == 'monoclinic' or
+                self.latticeType == 'triclinic')):
+            '''
+            for monoclinic groups c2 and c2h, the supergroups are 
+            orthorhombic, so no need to convert from direct to 
+            cartesian as they are identical
+            '''
+            self.SYM_PG_supergroup = sym_supergroup
+            self.SYM_PG_supergroup_laue = sym_supergroup_laue
+
+        else:
+
+            self.SYM_PG_supergroup = []
+            self.SYM_PG_supergroup_laue = []
+
+            for sop in sym_supergroup:
+                self.SYM_PG_supergroup.append(
+                    np.dot(self.dsm, np.dot(sop, self.rsm.T)))
+
+            self.SYM_PG_supergroup = np.array(self.SYM_PG_supergroup)
+            self.SYM_PG_supergroup[np.abs(self.SYM_PG_supergroup) < eps] = 0.
+
+            for sop in sym_supergroup_laue:
+                self.SYM_PG_supergroup_laue.append(
+                    np.dot(self.dsm, np.dot(sop, self.rsm.T)))
+
+        self.SYM_PG_supergroup_laue = np.array(self.SYM_PG_supergroup_laue)
+        self.SYM_PG_supergroup_laue[np.abs(
+            self.SYM_PG_supergroup_laue) < eps] = 0.
+
+        '''
+        the standard setting for the monoclinic system has the b-axis aligned
+        with the 2-fold axis. this needs to be accounted for when reduction to
+        the standard stereographic triangle is performed. the siplest way is to
+        rotate all symmetry elements by 90 about the x-axis
+
+        the supergroups for the monoclinic groups are orthorhombic so they need
+        not be rotated as they have the c* axis already aligned with the z-axis
+        SS 12/10/2020
+        '''
+        if(self.latticeType == 'monoclinic'): 
+
+            om = np.array([[1., 0., 0.], [0., 0., 1.], [0., -1., 0.]])
+
+            for i, s in enumerate(self.SYM_PG_c):
+                ss = np.dot(om, np.dot(s, om.T))
+                self.SYM_PG_c[i, :, :] = ss
+
+            for i, s in enumerate(self.SYM_PG_c_laue):
+                ss = np.dot(om, np.dot(s, om.T))
+                self.SYM_PG_c_laue[i, :, :] = ss
+        '''
+        for the triclinic group c1, the supergroups are the monoclinic group m
+        therefore we need to rotate the mirror to be perpendicular to the z-axis
+        same shouldn't be done for the group ci, since the supergroup is just the
+        triclinic group c1!!
+        SS 12/10/2020 
+        '''
+        if(self._pointGroup == 'c1'):
+
+            for i, s in enumerate(self.SYM_PG_supergroup):
+                ss = np.dot(om, np.dot(s, om.T))
+                self.SYM_PG_supergroup[i, :, :] = ss
+
+            for i, s in enumerate(self.SYM_PG_supergroup_laue):
+                ss = np.dot(om, np.dot(s, om.T))
+                self.SYM_PG_supergroup_laue[i, :, :] = ss
+
     def CalcOrbit(self):
         '''
         calculate the equivalent position for the space group
@@ -485,8 +599,10 @@ class unitcell:
             atype = self.atom_type[i]
             numat = self.numat[i]
             occ = self.atom_pos[i, 3]
-            self.avA += numat * constants.atom_weights[atype-1] * occ
+
             # -1 due to 0 indexing in python
+            self.avA += numat * constants.atom_weights[atype-1] * occ
+
             self.avZ += numat * atype
 
         self.density = self.avA / (self.vol * 1.0E-21 * constants.cAvogadro)
@@ -505,10 +621,12 @@ class unitcell:
             np.array([self.ih, 0, 0],
                      dtype=np.float64), 'r') > self.dmin):
             self.ih = self.ih + 1
+            
         while (1.0 / self.CalcLength(
             np.array([0, self.ik, 0],
                      dtype=np.float64), 'r') > self.dmin):
             self.ik = self.ik + 1
+            
         while (1.0 / self.CalcLength(
             np.array([0, 0, self.il],
                      dtype=np.float64), 'r') > self.dmin):
@@ -684,8 +802,10 @@ class unitcell:
 
             if(ax != '2_1'):
                 raise RuntimeError(
+
                     'omitscrewaxisabsences: monoclinic\
                      systems can only have 2_1 screw axis.')
+                
             '''
                 only unique b-axis will be encoded
                 it is the users responsibility to input
@@ -708,6 +828,7 @@ class unitcell:
                 raise RuntimeError(
                     'omitscrewaxisabsences: orthorhombic\
                      systems can only have 2_1 screw axis.')
+
             '''
             2_1 screw on primary axis
             h00 ; h = 2n
@@ -765,6 +886,7 @@ class unitcell:
                     'omitscrewaxisabsences: trigonal\
                      systems can only have screw axis on primary axis ')
 
+
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
 
@@ -785,6 +907,7 @@ class unitcell:
                 raise RuntimeError(
                     'omitscrewaxisabsences: hexagonal\
                      systems can only have screw axis on primary axis ')
+
 
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
@@ -1278,6 +1401,7 @@ class unitcell:
         # initialize all zeros and fill the supplied values
         C = np.zeros([6, 6])
         for i, x in enumerate(_StiffnessDict[self._laueGroup][0]):
+
             C[x] = inp_Cvals[i]
 
         # enforce the equality constraints
@@ -1287,6 +1411,283 @@ class unitcell:
         for i in range(6):
             for j in range(i):
                 C[i, j] = C[j, i]
+
+        self.stifness = C
+        self.compliance = np.linalg.inv(C)
+
+    def inside_spheretriangle(self, conn, dir3, hemisphere, switch):
+        '''
+        check if direction is inside a spherical triangle
+        the logic used as follows:
+        if determinant of [A B x], [A x C] and [x B C] are 
+        all same sign, then the sphere is inside the traingle
+        formed by A, B and C
+
+        returns a mask with inside as True and outside as False
+
+        11/23/2020 SS switch is now a string specifying which 
+        symmetry group to use for reducing directions
+        11/23/2020 SS catching cases when vertices are empty
+        '''
+
+        '''
+        first get vertices of the triangles in the 
+        '''
+        vertex = self.sphere_sector.vertices[switch]
+        # if(switch == 'pg'):
+        #     vertex = self.sphere_sector.vertices
+
+        # elif(switch == 'laue'):
+        #     vertex = self.sphere_sector.vertices_laue
+
+        # elif(switch == 'super'):
+        #     vertex = self.sphere_sector.vertices_supergroup
+
+        # elif(switch == 'superlaue'):
+        #     vertex = self.sphere_sector.vertices_supergroup_laue
+
+        A = np.atleast_2d(vertex[:, conn[0]]).T
+        B = np.atleast_2d(vertex[:, conn[1]]).T
+        C = np.atleast_2d(vertex[:, conn[2]]).T
+
+        mask = []
+        for x in dir3:
+
+            x2 = np.atleast_2d(x).T
+            d1 = np.linalg.det(np.hstack((A, B, x2)))
+            d2 = np.linalg.det(np.hstack((A, x2, C)))
+            d3 = np.linalg.det(np.hstack((x2, B, C)))
+            '''
+            catching cases very close to FZ boundary when the
+            determinant can be very small positive or negative
+            number
+            '''
+            if(np.abs(d1) < eps):
+                d1 = 0.
+            if(np.abs(d2) < eps):
+                d2 = 0.
+            if(np.abs(d3) < eps):
+                d3 = 0.
+
+            ss = np.unique(np.sign([d1, d2, d3]))
+            if(hemisphere == 'upper'):
+                if(np.all(ss >= 0.)):
+                    mask.append(True)
+                else:
+                    mask.append(False)
+
+            elif(hemisphere == 'both'):
+                if(len(ss) == 1):
+                    mask.append(True)
+                elif(len(ss) == 2):
+                    if(0 in ss):
+                        mask.append(True)
+                    else:
+                        mask.append(False)
+                elif(len(ss) == 3):
+                    mask.append(False)
+
+        mask = np.array(mask)
+        return mask
+
+    '''
+        @AUTHOR Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+
+        @date 10/28/2020 SS 1.0 original
+              11/23/2020 SS 1.1 the laueswitch has been changed from a boolean
+              variable to a string input with threee possible values
+        @params dir3 : n x 3 array of directions to reduce
+                switch switch to decide which symmetry group to use. one of four:
+                (a) 'pg' use the cartesian point group symmetry
+                (b) 'laue' use the laue symmetry
+                (c) 'super' use the supergroup symmetry used in coloring
+                (d) 'superlaue' use the supergroup of the laue group
+
+        @detail this subroutine takes a direction vector and uses the point group
+        symmetry of the unitcell to reduce it to the fundamental stereographic 
+        triangle for that point group. this function is used in generating the IPF
+        color legend for orientations. for now we are assuming dir3 is a nx3 array
+        of directions.
+    '''
+
+    def reduce_dirvector(self, dir3, switch='pg'):
+        '''
+        check if the dimensions of the dir3 array is to spec
+        '''
+        idx = np.arange(dir3.shape[0], dtype=np.int32)
+        dir3 = np.ascontiguousarray(np.atleast_2d(dir3))
+        if(dir3.ndim != 2):
+            raise RuntimeError("reduce_dirvector: invalid shape of dir3 array")
+
+        '''
+        check if the direction vector is a unit vector or not.
+        if it is not normalize it to get a unit vector. the dir vector
+        is in the sample frame, so by default it is assumed to be in a
+        orthonormal cartesian frame. this defines the normalization as 
+        just division by the L2 norm
+        '''
+        eps = constants.sqrt_epsf
+
+        if(np.all(np.abs(np.linalg.norm(dir3, axis=1) - 1.0) < eps)):
+            dir3n = dir3
+        else:
+            if(np.all(np.linalg.norm(dir3) > eps)):
+                dir3n = dir3/np.tile(np.linalg.norm(dir3, axis=1), [3, 1]).T
+            else:
+                raise RuntimeError(
+                    "atleast one of the input direction seems to be a null vector")
+
+        '''
+        we need both the symmetry reductions for the point group and laue group
+        this will be used later on in the coloring routines to determine if the
+        points needs to be moved to the southern hemisphere or not
+        '''
+        dir3_copy = np.copy(dir3n)
+        dir3_reduced = np.array([])
+        idx_copy = np.copy(idx)
+        idx_red = np.array([], dtype=np.int32)
+        '''
+        laue switch is used to determine which set of symmetry operations to 
+        loop over
+        '''
+        hemisphere = self.sphere_sector.hemisphere[switch]
+        ntriangle = self.sphere_sector.ntriangle[switch]
+        connectivity = self.sphere_sector.connectivity[switch]
+
+        if(switch == 'pg'):
+            sym = self.SYM_PG_c
+
+        elif(switch == 'super'):
+            sym = self.SYM_PG_supergroup
+
+        elif(switch == 'laue'):
+            sym = self.SYM_PG_c_laue
+
+        elif(switch == 'superlaue'):
+            sym = self.SYM_PG_supergroup_laue
+
+        for sop in sym:
+
+            if(dir3_copy.size != 0):
+
+                dir3_sym = np.dot(sop, dir3_copy.T).T
+
+                mask = np.zeros(dir3_sym.shape[0]).astype(np.bool)
+
+                if(ntriangle == 0):
+                    if(hemisphere == 'both'):
+                        mask = np.ones(dir3_sym.shape[0], dtype=np.bool)
+                    elif(hemisphere == 'upper'):
+                        mask = dir3_sym[:, 2] >= 0.
+                else:
+                    for ii in range(ntriangle):
+                        tmpmask = self.inside_spheretriangle(
+                            connectivity[:, ii], dir3_sym,
+                            hemisphere, switch)
+                        mask = np.logical_or(mask, tmpmask)
+
+                if(np.sum(mask) > 0):
+                    if(dir3_reduced.size != 0):
+                        dir3_reduced = np.vstack(
+                            (dir3_reduced, dir3_sym[mask, :]))
+                        idx_red = np.hstack((idx_red, idx[mask]))
+                    else:
+                        dir3_reduced = np.copy(dir3_sym[mask, :])
+                        idx_red = np.copy(idx[mask])
+
+                dir3_copy = dir3_copy[np.logical_not(mask), :]
+                idx = idx[np.logical_not(mask)]
+            else:
+                break
+        dir3_r = np.zeros(dir3_reduced.shape)
+        dir3_r[idx_red, :] = dir3_reduced
+
+        return dir3_r
+
+    def color_directions(self, dir3, laueswitch):
+        '''
+        @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        @DATE    11/12/2020 SS 1.0 original
+        @PARAM   dir3 is crystal direction obtained by multiplying inverse of 
+        crystal orientation with reference direction
+                 laueswitch perform reducion based on lauegroup or the point group
+
+        @DETAIL  this is the routine which makes the calls to sphere_sector
+        class which correctly color the orientations for this crystal class. the 
+        logic is as follows:
+
+        1. reduce direction to fundamental zone of point group
+        2. reduce to fundamental zone of super group
+        3. If both are same, then color (hsl) assigned by polar and azimuth
+        4. If different, then barycenter lightness is replaced by 1-L (equivalent to 
+           replaceing barycenter to pi-theta)
+        '''
+
+        if(laueswitch == True):
+            ''' 
+            this is the case where we color orientations based on the laue group
+            of the crystal. this is always going to be the case with x-ray which
+            introduces inversion symmetry. For other probes, this is not the case.
+            '''
+            dir3_red = self.reduce_dirvector(dir3, switch='laue')
+            dir3_red_supergroup = self.reduce_dirvector(
+                dir3, switch='superlaue')
+            switch = 'superlaue'
+
+        elif(laueswitch == False):
+            '''
+            follow the logic in the function description
+            '''
+            dir3_red = self.reduce_dirvector(dir3, switch='pg')
+            dir3_red_supergroup = self.reduce_dirvector(dir3, switch='super')
+            switch = 'super'
+
+        mask = np.linalg.norm(dir3_red - dir3_red_supergroup, axis=1) < eps
+        hsl = self.sphere_sector.get_color(dir3_red_supergroup, mask, switch)
+
+        rgb = colorspace.hsl2rgb(hsl)
+        return rgb
+
+    def color_orientations(self, rmats, ref_dir=np.array([0., 0., 1.]), laueswitch=True):
+        '''
+        @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        @DATE    11/12/2020 SS 1.0 original
+        @PARAM   rmats rotation matrices of size nx3x3
+                 ref_dir reference direction of the sample frame along which all crystal
+                 directions are colored
+                 laueswitch should we use laue group for coloring or not
+        @DETAIL  this is a simple routine which takes orientations as rotations matrices
+        and a reference sample direction ([0 0 1] by default) and returns the directions in 
+        the crystal reference frame. Note that the crystal orientations is defined as the the
+        orientation which takes the """SAMPLE""" reference frame TO the """CRYSTAL""" frame. 
+        Since we are computing the conversion from crystal to sample, we will need to INVERT
+        these matrices. Thanksfully, this is just a transpose
+
+        '''
+
+        '''
+        first make sure that the rotation matric is size nx3x3
+        '''
+        if(rmats.ndim == 2):
+            rmats = np.atleast_3d(rmats).T
+        else:
+            assert rmats.ndim == 3, "rotations matrices need to \
+                                    be nx3x3. Please check size."
+
+        '''
+        obtain the direction vectors by simple matrix multiplication of transpose
+        of rotation matrix with the reference direction
+        '''
+        dir3 = []
+        for r in rmats:
+            dir3.append(np.dot(r.T, ref_dir))
+
+        dir3 = np.array(dir3)
+        '''
+        finally get the rgb colors
+        '''
+        rgb = self.color_directions(dir3, laueswitch)
+        return rgb
 
         self.stiffness = C
 
@@ -1302,6 +1703,7 @@ class unitcell:
     def compliance(self, v):
         # Compliance in TPa⁻¹. Stiffness is in GPa.
         self.stiffness = np.linalg.inv(v) * 1.e3
+
 
     # lattice constants as properties
     @property
@@ -1468,6 +1870,20 @@ class unitcell:
         '''
         self.CalcPositions()
         self.GetPgLg()
+
+        '''
+        SS 11/10/2020 added cartesian PG sym for reducing directions
+        to standard stereographic triangle
+        '''
+        self.GenerateCartesianPGSym()
+
+        '''
+        SS 11/11/2020 adding the sphere_sector class initialization here
+        '''
+        self.sphere_sector = sphere_sector.sector(self._pointGroup,
+                                                  self._laueGroup,
+                                                  self._supergroup,
+                                                  self._supergroup_laue)
         self.CalcDensity()
 
     @property
@@ -1566,42 +1982,67 @@ laue_10 = 'th'
 laue_11 = 'oh'
 
 
+'''
+these supergroups are the three exceptions to the coloring scheme
+the point groups are not topological and can't have no discontinuities
+in the IPF coloring scheme. they are -1, -3 and -4 point groups.
+'''
+supergroup_00 = 'c1'
+supergroup_01 = 'c4'
+supergroup_02 = 'c3'
+
+supergroup_1 = 'cs'
+supergroup_2 = 'c2v'
+supergroup_3 = 'd2h'
+supergroup_4 = 'c4v'
+supergroup_5 = 'd4h'
+supergroup_6 = 'c3v'
+supergroup_7 = 'c6v'
+supergroup_8 = 'd3h'
+supergroup_9 = 'd6h'
+supergroup_10 = 'td'
+supergroup_11 = 'oh'
+
+
 def _sgrange(min, max): return tuple(range(min, max + 1))  # inclusive range
 
-
+'''
+11/20/2020 SS added supergroup to the list which is used
+for coloring the fundamental zone IPF
+'''
 _pgDict = {
-    _sgrange(1,   1): ('c1', laue_1),  # Triclinic
-    _sgrange(2,   2): ('ci', laue_1),  # laue 1
-    _sgrange(3,   5): ('c2', laue_2),  # Monoclinic
-    _sgrange(6,   9): ('cs', laue_2),
-    _sgrange(10,  15): ('c2h', laue_2),  # laue 2
-    _sgrange(16,  24): ('d2', laue_3),  # Orthorhombic
-    _sgrange(25,  46): ('c2v', laue_3),
-    _sgrange(47,  74): ('d2h', laue_3),  # laue 3
-    _sgrange(75,  80): ('c4', laue_4),  # Tetragonal
-    _sgrange(81,  82): ('s4', laue_4),
-    _sgrange(83,  88): ('c4h', laue_4),  # laue 4
-    _sgrange(89,  98): ('d4', laue_5),
-    _sgrange(99, 110): ('c4v', laue_5),
-    _sgrange(111, 122): ('d2d', laue_5),
-    _sgrange(123, 142): ('d4h', laue_5),  # laue 5
-    _sgrange(143, 146): ('c3', laue_6),  # Trigonal
-    _sgrange(147, 148): ('s6', laue_6),  # laue 6 [also c3i]
-    _sgrange(149, 155): ('d3', laue_7),
-    _sgrange(156, 161): ('c3v', laue_7),
-    _sgrange(162, 167): ('d3d', laue_7),  # laue 7
-    _sgrange(168, 173): ('c6', laue_8),  # Hexagonal
-    _sgrange(174, 174): ('c3h', laue_8),
-    _sgrange(175, 176): ('c6h', laue_8),  # laue 8
-    _sgrange(177, 182): ('d6', laue_9),
-    _sgrange(183, 186): ('c6v', laue_9),
-    _sgrange(187, 190): ('d3h', laue_9),
-    _sgrange(191, 194): ('d6h', laue_9),  # laue 9
-    _sgrange(195, 199): ('t',  laue_10),  # Cubic
-    _sgrange(200, 206): ('th', laue_10),  # laue 10
-    _sgrange(207, 214): ('o',  laue_11),
-    _sgrange(215, 220): ('td', laue_11),
-    _sgrange(221, 230): ('oh', laue_11),  # laue 11
+    _sgrange(1,   1): ('c1', laue_1, supergroup_1, supergroup_00),  # Triclinic
+    _sgrange(2,   2): ('ci', laue_1, supergroup_00, supergroup_00),  # laue 1
+    _sgrange(3,   5): ('c2', laue_2, supergroup_2, supergroup_3),  # Monoclinic
+    _sgrange(6,   9): ('cs', laue_2, supergroup_1, supergroup_3),
+    _sgrange(10,  15): ('c2h', laue_2, supergroup_3, supergroup_3),  # laue 2
+    _sgrange(16,  24): ('d2', laue_3, supergroup_3, supergroup_3),  # Orthorhombic
+    _sgrange(25,  46): ('c2v', laue_3, supergroup_2, supergroup_3),
+    _sgrange(47,  74): ('d2h', laue_3, supergroup_3, supergroup_3),  # laue 3
+    _sgrange(75,  80): ('c4', laue_4, supergroup_4, supergroup_5),  # Tetragonal
+    _sgrange(81,  82): ('s4', laue_4, supergroup_01, supergroup_5),
+    _sgrange(83,  88): ('c4h', laue_4, supergroup_5, supergroup_5),  # laue 4
+    _sgrange(89,  98): ('d4', laue_5, supergroup_5, supergroup_5),
+    _sgrange(99, 110): ('c4v', laue_5, supergroup_4, supergroup_5),
+    _sgrange(111, 122): ('d2d', laue_5, supergroup_5, supergroup_5),
+    _sgrange(123, 142): ('d4h', laue_5, supergroup_5, supergroup_5),  # laue 5
+    _sgrange(143, 146): ('c3', laue_6, supergroup_6, supergroup_02),  # Trigonal # laue 6 [also c3i]
+    _sgrange(147, 148): ('s6', laue_6, supergroup_02, supergroup_02),
+    _sgrange(149, 155): ('d3', laue_7, supergroup_7, supergroup_9),
+    _sgrange(156, 161): ('c3v', laue_7, supergroup_6, supergroup_9),
+    _sgrange(162, 167): ('d3d', laue_7, supergroup_9, supergroup_9),  # laue 7
+    _sgrange(168, 173): ('c6', laue_8, supergroup_7, supergroup_9),  # Hexagonal
+    _sgrange(174, 174): ('c3h', laue_8, supergroup_7, supergroup_9),
+    _sgrange(175, 176): ('c6h', laue_8, supergroup_9, supergroup_9),  # laue 8
+    _sgrange(177, 182): ('d6', laue_9, supergroup_9, supergroup_9),
+    _sgrange(183, 186): ('c6v', laue_9, supergroup_7, supergroup_9),
+    _sgrange(187, 190): ('d3h', laue_9, supergroup_9, supergroup_9),
+    _sgrange(191, 194): ('d6h', laue_9, supergroup_9, supergroup_9),  # laue 9
+    _sgrange(195, 199): ('t',  laue_10, supergroup_10, supergroup_11),  # Cubic
+    _sgrange(200, 206): ('th', laue_10, supergroup_11, supergroup_11),  # laue 10
+    _sgrange(207, 214): ('o',  laue_11, supergroup_11, supergroup_11),
+    _sgrange(215, 220): ('td', laue_11, supergroup_10, supergroup_11),
+    _sgrange(221, 230): ('oh', laue_11, supergroup_11, supergroup_11)   # laue 11
 }
 
 '''
@@ -1738,7 +2179,6 @@ def C_cubic_eq(x):
     x[1, 5] = -x[0, 5]
     x[4, 4] = x[3, 3]
     return x
-
 
 _StiffnessDict = {
     # triclinic, all 21 components in upper triangular matrix needed

@@ -260,7 +260,7 @@ class Spectrum:
         self.bkg_spectrum = Spectrum
 
     def reset_background(self):
-        self.bkg_Spectrum = None
+        self.bkg_spectrum = None
 
     def set_smoothing(self, amount):
         self.smoothing = amount

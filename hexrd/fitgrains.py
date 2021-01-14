@@ -321,7 +321,6 @@ def fit_grains(cfg,
             logger.info("\tnot adjusting exclusions in planeData")
     else:
         # a value for tth max has been specified
-        plane_data.exclusions = None
         plane_data.tThMax = np.radians(tth_max)
         logger.info("\tsetting the maximum 2theta to %.2f degrees",
                     tth_max)
