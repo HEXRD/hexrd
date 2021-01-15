@@ -171,6 +171,8 @@ class Material(object):
             self._dmin.getVal('nm'), self._beamEnergy.value,
             self._sgsetting)
 
+        self.unitcell.stiffness = self.stiffness
+
         self._newPdata()
         self.update_structure_factor()
 
@@ -412,6 +414,8 @@ class Material(object):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       10/17/2019 SS 1.0 original
+                        01/07/2021 SS 1.1 check for optional stiffness in material file.
+                        read and initialize unitcell stiffness field if present
         >> @DETAILS:    hexrd3 will have real structure factors and will require the overhaul
                         of the crystallography. In this effort, we will have a HDF file reader.
                         the file will be the same as the EMsoft xtal file. h5py will be used for
@@ -462,6 +466,15 @@ class Material(object):
         self._sgsetting = numpy.asscalar(numpy.array(gid.get('SpaceGroupSetting'), \
                                         dtype = numpy.int32))
 
+        if('stiffness' in gid):
+            # we're assuming the stiffness is in units of GPa
+            self.stiffness = numpy.array(gid.get('stiffness'))
+        elif('compliance' in gid):
+            # we're assuming the compliance is in units of TPa^-1
+            self.stiffness = numpy.linalg.inv(numpy.array(gid.get('compliance'))) * 1.e3
+        else:
+            self.stiffness = numpy.zeros([6, 6])
+
         fid.close()
 
     def dump_material(self, filename):
@@ -478,7 +491,7 @@ class Material(object):
         AtomInfo['SGsetting'] = self.unitcell.sgsetting
         AtomInfo['APOS'] = self.unitcell.atom_pos
         AtomInfo['U'] = self.unitcell.U
-
+        AtomInfo['stiffness'] = self.unitcell.stiffness
         '''
         lattice parameters
         '''
@@ -542,8 +555,19 @@ class Material(object):
           float arguments.  Also can take a valWUnit
           instance
         """
-        self._beamEnergy = keV
+        if(isinstance(keV, valWUnit)):
+            self._beamEnergy = keV
+        else:
+            self._beamEnergy = valWUnit('kev', 'energy', keV, 'keV')
+
+        ''' 
+        acceleration potential is set in volts therefore the factor of 1e3
+        @TODO make voltage valWUnit instance so this that we dont have to 
+        track this manually inn the future
+        '''
+        self.unitcell.voltage = self.beamEnergy.value*1e3
         self.planeData.wavelength = keV
+        self.update_structure_factor()
 
         return
 

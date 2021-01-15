@@ -46,7 +46,7 @@ jobs:
     - name: Install build requirements
       run: |
           conda activate hexrd
-          conda install anaconda conda-build
+          conda install anaconda conda-build=3.21.1
 
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.

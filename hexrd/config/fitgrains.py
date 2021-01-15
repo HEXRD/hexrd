@@ -9,7 +9,6 @@ logger = logging.getLogger('hexrd.config')
 
 class ToleranceConfig(Config):
 
-
     @property
     def eta(self):
         temp = self._cfg.get('fit_grains:tolerance:eta')
@@ -17,14 +16,12 @@ class ToleranceConfig(Config):
             temp = [temp, temp]
         return temp
 
-
     @property
     def omega(self):
         temp = self._cfg.get('fit_grains:tolerance:omega')
         if isinstance(temp, (int, float)):
             temp = [temp, temp]
         return temp
-
 
     @property
     def tth(self):
@@ -34,14 +31,11 @@ class ToleranceConfig(Config):
         return temp
 
 
-
 class FitGrainsConfig(Config):
-
 
     @property
     def do_fit(self):
         return self._cfg.get('fit_grains:do_fit', True)
-
 
     @property
     def estimate(self):
@@ -55,22 +49,18 @@ class FitGrainsConfig(Config):
             return temp
         logger.warning('"%s": "%s" does not exist', key, temp)
 
-
     @property
     def npdiv(self):
         return self._cfg.get('fit_grains:npdiv', 2)
-
 
     @property
     def threshold(self):
         return self._cfg.get('fit_grains:threshold')
 
-
     @property
     def tolerance(self):
         return ToleranceConfig(self._cfg)
 
-    
     @property
     def refit(self):
         key = 'fit_grains:refit'
@@ -87,7 +77,6 @@ class FitGrainsConfig(Config):
                 temp = [temp, temp]
             return temp
 
-
     """
     TODO: evaluate the need for this
     """
@@ -101,7 +90,6 @@ class FitGrainsConfig(Config):
             '"%s" must be true or false, got "%s"' % (key, temp)
             )
 
-
     @property
     def fit_only(self):
         key = 'fit_grains:fit_only'
@@ -112,7 +100,6 @@ class FitGrainsConfig(Config):
             '"%s" must be true or false, got "%s"' % (key, temp)
             )
 
-    
     @property
     def tth_max(self):
         key = 'fit_grains:tth_max'
