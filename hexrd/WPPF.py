@@ -350,9 +350,10 @@ class Spectrum:
         else:
             raise RuntimeError('Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
 
-        if(name in fid):
-            del(fid[name])
-        gid = fid.create_group(name)
+        name_spectrum = 'Spectrum/'+name
+        if(name_spectrum in fid):
+            del(fid[name_spectrum])
+        gid = fid.create_group(name_spectrum)
 
         tth, I = self.data
 
@@ -1645,6 +1646,33 @@ class LeBail:
         '''
         for p in self.params:
             self.params[p].vary = True
+
+    def dump_hdf5(self, file):
+        '''
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       01/19/2021 SS 1.0 original
+        >> @DETAILS:    write out the hdf5 file with all the spectrum, parameters
+                        and phases pecified by filename or h5py.File object
+        '''
+        if(isinstance(file, str)):
+            fexist = path.isfile(file)
+            if(fexist):
+                fid = h5py.File(file, 'r+')
+            else:
+                fid = h5py.File(file, 'x')
+
+        elif(isinstance(file, h5py.File)):
+            fid = file
+
+        else:
+            raise RuntimeError('Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
+
+        self.phases.dump_hdf5(fid)
+        self.params.dump_hdf5(fid)
+        self.spectrum_expt.dump_hdf5(fid, 'experimental')
+        self.spectrum_sim.dump_hdf5(fid, 'simulated')
+        self.background.dump_hdf5(fid, 'background')
+
 
     def initialize_expt_spectrum(self, expt_spectrum):
         '''
