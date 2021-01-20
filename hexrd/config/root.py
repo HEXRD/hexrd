@@ -52,6 +52,9 @@ class RootConfig(Config):
     def material(self):
         if not hasattr(self, '_material_config'):
             self._material_config = MaterialConfig(self)
+        # !!! must make matl beam energy consistent with the instrument
+        beam_energy = self.instrument.hedm.beam_energy
+        self._material_config.beam_energy = beam_energy
         return self._material_config
 
     @material.setter

@@ -92,7 +92,7 @@ class Material(object):
     DFLT_KEV = valWUnit('wavelength', 'energy', 80.725e0, 'keV')
     DFLT_STR = 0.0025
     DFLT_TTH = numpy.radians(0.25)
-    DFLT_TTHMAX = numpy.radians(160.0)
+    DFLT_TTHMAX = None
     """
     ATOMINFO    Fractional Atom Position of an atom in the unit cell followed by the
     site occupany and debye waller (U) factor in A^(-2)
