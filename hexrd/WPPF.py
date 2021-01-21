@@ -93,6 +93,51 @@ class Parameters:
         with open(fname, 'w') as f:
             data = yaml.dump(dic, f, sort_keys=False)
 
+    def dump_hdf5(self, file):
+        '''
+            >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+            >> @DATE:       01/15/2021 SS 1.0 original
+            >> @DETAILS:    dump the class to a hdf5 file. the file argument could either be a 
+                            string or a h5.File instance. If it is a filename, then HDF5 file
+                            is created, a parameter group is created and data is written out
+                            with data names being the parameter name. Else data written to Parameter
+                            group in existing file object
+        '''
+        if(isinstance(file, str)):
+            fexist = path.isfile(file)
+            if(fexist):
+                fid = h5py.File(file, 'r+')
+            else:
+                fid = h5py.File(file, 'x')
+
+        elif(isinstance(file, h5py.File)):
+            fid = file
+
+        else:
+            raise RuntimeError('Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
+
+        if("/Parameters" in fid):
+            del(fid["Parameters"])
+        gid_top = fid.create_group("Parameters")
+
+        for p in self:
+            param = self[p]
+            gid = gid_top.create_group(p)
+
+            # write the value, lower and upper bounds and vary status
+            did = gid.create_dataset("value",(1, ), dtype = np.float64)
+            did.write_direct(np.array(param.value, dtype = np.float64))
+
+            did = gid.create_dataset("lb",(1, ), dtype = np.float64)
+            did.write_direct(np.array(param.lb, dtype = np.float64))
+
+            did = gid.create_dataset("ub",(1, ), dtype = np.float64)
+            did.write_direct(np.array(param.ub, dtype = np.float64))
+
+            did = gid.create_dataset("vary",(1, ), dtype = np.bool)
+            did.write_direct(np.array(param.vary, dtype = np.bool))
+
+
     # def pretty_print(self):
     #   '''
     #       >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -279,6 +324,47 @@ class Spectrum:
                  [0] / np.histogram(x, bins)[0])
 
         return Spectrum(new_x, new_y)
+
+    def dump_hdf5(self, file, name):
+        '''
+            >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+            >> @DATE:       01/15/2021 SS 1.0 original
+            >> @DETAILS:    dump the class to a hdf5 file. the file argument could either be a 
+                            string or a h5.File instance. If it is a filename, then HDF5 file
+                            is created, a Spectrum group is created and data is written out.
+                            Else data written to Spectrum group in existing file object
+            >> @PARAMS file file name string or h5py.File object
+                       name name ID of the spectrum e.g. experimental or simulated or background
+        '''
+
+        if(isinstance(file, str)):
+            fexist = path.isfile(file)
+            if(fexist):
+                fid = h5py.File(file, 'r+')
+            else:
+                fid = h5py.File(file, 'x')
+
+        elif(isinstance(file, h5py.File)):
+            fid = file
+
+        else:
+            raise RuntimeError('Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
+
+        name_spectrum = 'Spectrum/'+name
+        if(name_spectrum in fid):
+            del(fid[name_spectrum])
+        gid = fid.create_group(name_spectrum)
+
+        tth, I = self.data
+
+        # make sure these arrays are not zero sized
+        if(tth.shape[0] > 0):
+            did = gid.create_dataset("tth", tth.shape, dtype = np.float64)
+            did.write_direct(tth.astype(np.float64))
+
+        if(I.shape[0] > 0):
+            did = gid.create_dataset("intensity", I.shape, dtype = np.float64)
+            did.write_direct(I.astype(np.float64))
 
     @property
     def data(self):
@@ -1322,6 +1408,55 @@ class Phases_LeBail:
             data = yaml.dump(dic, f, sort_keys=False)
 
 
+    def dump_hdf5(self, file):
+        '''
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       01/15/2021 SS 1.0 original
+        >> @ DETAILS    dumps the information from each material in the phase class
+                        to a hdf5 file specified by filename or h5py.File object
+        '''
+        if(isinstance(file, str)):
+            fexist = path.isfile(file)
+            if(fexist):
+                fid = h5py.File(file, 'r+')
+            else:
+                fid = h5py.File(file, 'x')
+
+        elif(isinstance(file, h5py.File)):
+            fid = file
+
+        else:
+            raise RuntimeError('Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
+
+        if("/Phases" in fid):
+            del(fid["Phases"])
+        gid_top = fid.create_group("Phases")
+
+        for p in self:
+            mat = self[p]
+
+            sgnum       = mat.sgnum
+            sgsetting   = mat.sgsetting
+            lparms      = mat.lparms
+            dmin        = mat.dmin
+            hkls        = mat.hkls
+
+            gid = gid_top.create_group(p)
+
+            did = gid.create_dataset("SpaceGroupNumber", (1, ), dtype = np.int32)
+            did.write_direct(np.array(sgnum, dtype=np.int32))
+
+            did = gid.create_dataset("SpaceGroupSetting", (1, ), dtype = np.int32)
+            did.write_direct(np.array(sgsetting, dtype=np.int32))
+
+            did = gid.create_dataset("LatticeParameters", (6, ), dtype = np.float64)
+            did.write_direct(np.array(lparms, dtype=np.float64))
+
+            did = gid.create_dataset("dmin", (1, ), dtype = np.float64)
+            did.attrs["units"] = "nm"
+            did.write_direct(np.array(dmin, dtype=np.float64))
+
+
 class LeBail:
     ''' ========================================================================================================
         ========================================================================================================
@@ -1511,6 +1646,33 @@ class LeBail:
         '''
         for p in self.params:
             self.params[p].vary = True
+
+    def dump_hdf5(self, file):
+        '''
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       01/19/2021 SS 1.0 original
+        >> @DETAILS:    write out the hdf5 file with all the spectrum, parameters
+                        and phases pecified by filename or h5py.File object
+        '''
+        if(isinstance(file, str)):
+            fexist = path.isfile(file)
+            if(fexist):
+                fid = h5py.File(file, 'r+')
+            else:
+                fid = h5py.File(file, 'x')
+
+        elif(isinstance(file, h5py.File)):
+            fid = file
+
+        else:
+            raise RuntimeError('Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
+
+        self.phases.dump_hdf5(fid)
+        self.params.dump_hdf5(fid)
+        self.spectrum_expt.dump_hdf5(fid, 'experimental')
+        self.spectrum_sim.dump_hdf5(fid, 'simulated')
+        self.background.dump_hdf5(fid, 'background')
+
 
     def initialize_expt_spectrum(self, expt_spectrum):
         '''
