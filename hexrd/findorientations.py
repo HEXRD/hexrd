@@ -726,6 +726,7 @@ def find_orientations(cfg,
         )
         completeness = pool.map(indexer.test_orientation_FF_reduced, qfib.T)
         pool.close()
+        pool.join()
     else:
         logger.info("\tusing map search with paintGrid on %d processes", ncpus)
 
