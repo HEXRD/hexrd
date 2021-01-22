@@ -1027,15 +1027,24 @@ class HEDMInstrument(object):
             # pbar.finish()
         return panel_data
 
-    def simulate_powder_pattern(self, plane_data_list,
-                                fwhm=2., origin=None, noise=None):
+    def simulate_powder_pattern(self, 
+                                plane_data_list,
+                                fwhm=2., 
+                                origin=None, 
+                                noise=None):
         """
         Generates simple powder diffraction images.
 
         FIXME: noise isn't connected
         TODO: add hooks to the Rietveld model
 
-        Parameters
+        >> @AUTHOR:     Saransh Singh, Lanwrence Livermore National Lab,
+                        saransh1@llnl.gov
+        >> @DATE:       01/22/2021 SS 1.0 original
+        >> @DETAILS:    adding hook to WPPF class. this changes the input list
+                        significantly
+        >> @PARAMETERS  list of material objects
+                        dictionary of lebail parameter values
         ----------
         plane_data_list : list, (n,)
             List of n hexrd.crystallography.PlaneData objects.
@@ -1054,22 +1063,24 @@ class HEDMInstrument(object):
         assert len(origin) == 3, \
             "origin must be a 3-element sequence"
 
-        img_dict = dict.fromkeys(self.detectors)
-        for det_key, panel in self.detectors.items():
-            ptth, peta = panel.pixel_angles(origin=origin)
-            gint = np.zeros_like(ptth)
-            sigm = np.radians(_fwhm_to_sigma(fwhm))
-            for plane_data in plane_data_list:
-                if isinstance(plane_data, PlaneData):
-                    tths = plane_data.getTTh()
-                    weights = np.ones_like(tths)
-                else:
-                    tths = [i[0] for i in plane_data]
-                    weights = [i[1] for i in plane_data]
-                for pk in zip(tths, weights):
-                    gint += pk[1]*_gaussian_dist(ptth, pk[0], sigm)
-            img_dict[det_key] = gint
-        return img_dict
+        WPPFclass = 
+
+        # img_dict = dict.fromkeys(self.detectors)
+        # for det_key, panel in self.detectors.items():
+        #     ptth, peta = panel.pixel_angles(origin=origin)
+        #     gint = np.zeros_like(ptth)
+        #     sigm = np.radians(_fwhm_to_sigma(fwhm))
+        #     for plane_data in plane_data_list:
+        #         if isinstance(plane_data, PlaneData):
+        #             tths = plane_data.getTTh()
+        #             weights = np.ones_like(tths)
+        #         else:
+        #             tths = [i[0] for i in plane_data]
+        #             weights = [i[1] for i in plane_data]
+        #         for pk in zip(tths, weights):
+        #             gint += pk[1]*_gaussian_dist(ptth, pk[0], sigm)
+        #     img_dict[det_key] = gint
+        # return img_dict
 
 
     def simulate_laue_pattern(self, crystal_data,
