@@ -1768,7 +1768,10 @@ class LeBail:
             basically automates the background determination and removes the
             user from the loop which is required for the spline type background.
         '''
-        if('spline' in self.bkgmethod.keys()):
+        if(self.bkgmethod is None):
+            self.background = Spectrum(x=self.tth_list, y=np.zeros(self.tth_list.shape))
+
+        elif('spline' in self.bkgmethod.keys()):
             self.selectpoints()
             x = self.points[:, 0]
             y = self.points[:, 1]
@@ -1795,9 +1798,6 @@ class LeBail:
             yy = cs(self.tth_list)
             
             self.background = Spectrum(x=self.tth_list, y=yy)
-
-        elif(self.bkgmethod is None):
-            self.background = Spectrum(x=self.tth_list, y=np.ones(self.tth_list.shape))
 
     def chebyshevfit(self):
         degree = self.bkgmethod['chebyshev']
@@ -1922,6 +1922,7 @@ class LeBail:
                     raise RuntimeError("LeBail: Intensity was initialized using custom values. \
                         However, initial values for one or more phases seem to be missing from \
                         the dictionary.")
+                self.Icalc[p] = {} 
 
                 '''
                 now check that the size of the initial intensities provided is consistent
@@ -1937,8 +1938,8 @@ class LeBail:
                         However, initial values for one or more wavelengths in spectrum seem to be \
                         missing from the dictionary.")
 
-                    if(self.tth[p][k].shape[0] <= self.intensity_init[p][l].shape[0]):
-                        self.Icalc[p][l] = self.intensity_init[p][l][0:self.tth[p][k].shape[0]]
+                    if(self.tth[p][l].shape[0] <= self.intensity_init[p][l].shape[0]):
+                        self.Icalc[p][l] = self.intensity_init[p][l][0:self.tth[p][l].shape[0]]
 
         else:
             raise RuntimeError("LeBail: Intensity_init must be either None or a dictionary")
