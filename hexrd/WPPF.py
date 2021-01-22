@@ -114,7 +114,8 @@ class Parameters:
             fid = file
 
         else:
-            raise RuntimeError('Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
+            raise RuntimeError(
+                'Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
 
         if("/Parameters" in fid):
             del(fid["Parameters"])
@@ -125,18 +126,17 @@ class Parameters:
             gid = gid_top.create_group(p)
 
             # write the value, lower and upper bounds and vary status
-            did = gid.create_dataset("value",(1, ), dtype = np.float64)
-            did.write_direct(np.array(param.value, dtype = np.float64))
+            did = gid.create_dataset("value", (1, ), dtype=np.float64)
+            did.write_direct(np.array(param.value, dtype=np.float64))
 
-            did = gid.create_dataset("lb",(1, ), dtype = np.float64)
-            did.write_direct(np.array(param.lb, dtype = np.float64))
+            did = gid.create_dataset("lb", (1, ), dtype=np.float64)
+            did.write_direct(np.array(param.lb, dtype=np.float64))
 
-            did = gid.create_dataset("ub",(1, ), dtype = np.float64)
-            did.write_direct(np.array(param.ub, dtype = np.float64))
+            did = gid.create_dataset("ub", (1, ), dtype=np.float64)
+            did.write_direct(np.array(param.ub, dtype=np.float64))
 
-            did = gid.create_dataset("vary",(1, ), dtype = np.bool)
-            did.write_direct(np.array(param.vary, dtype = np.bool))
-
+            did = gid.create_dataset("vary", (1, ), dtype=np.bool)
+            did.write_direct(np.array(param.vary, dtype=np.bool))
 
     # def pretty_print(self):
     #   '''
@@ -348,7 +348,8 @@ class Spectrum:
             fid = file
 
         else:
-            raise RuntimeError('Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
+            raise RuntimeError(
+                'Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
 
         name_spectrum = 'Spectrum/'+name
         if(name_spectrum in fid):
@@ -359,11 +360,11 @@ class Spectrum:
 
         # make sure these arrays are not zero sized
         if(tth.shape[0] > 0):
-            did = gid.create_dataset("tth", tth.shape, dtype = np.float64)
+            did = gid.create_dataset("tth", tth.shape, dtype=np.float64)
             did.write_direct(tth.astype(np.float64))
 
         if(I.shape[0] > 0):
-            did = gid.create_dataset("intensity", I.shape, dtype = np.float64)
+            did = gid.create_dataset("intensity", I.shape, dtype=np.float64)
             did.write_direct(I.astype(np.float64))
 
     @property
@@ -557,11 +558,11 @@ class Material_LeBail:
         ========================================================================================================
     '''
 
-    def __init__(self, 
-                fhdf=None, 
-                xtal=None, 
-                dmin=None, 
-                material_obj=None):
+    def __init__(self,
+                 fhdf=None,
+                 xtal=None,
+                 dmin=None,
+                 material_obj=None):
 
         if(material_obj is None):
             self.dmin = dmin.value
@@ -1411,7 +1412,6 @@ class Phases_LeBail:
         with open(fname, 'w') as f:
             data = yaml.dump(dic, f, sort_keys=False)
 
-
     def dump_hdf5(self, file):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -1430,7 +1430,8 @@ class Phases_LeBail:
             fid = file
 
         else:
-            raise RuntimeError('Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
+            raise RuntimeError(
+                'Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
 
         if("/Phases" in fid):
             del(fid["Phases"])
@@ -1439,24 +1440,26 @@ class Phases_LeBail:
         for p in self:
             mat = self[p]
 
-            sgnum       = mat.sgnum
-            sgsetting   = mat.sgsetting
-            lparms      = mat.lparms
-            dmin        = mat.dmin
-            hkls        = mat.hkls
+            sgnum = mat.sgnum
+            sgsetting = mat.sgsetting
+            lparms = mat.lparms
+            dmin = mat.dmin
+            hkls = mat.hkls
 
             gid = gid_top.create_group(p)
 
-            did = gid.create_dataset("SpaceGroupNumber", (1, ), dtype = np.int32)
+            did = gid.create_dataset("SpaceGroupNumber", (1, ), dtype=np.int32)
             did.write_direct(np.array(sgnum, dtype=np.int32))
 
-            did = gid.create_dataset("SpaceGroupSetting", (1, ), dtype = np.int32)
+            did = gid.create_dataset(
+                "SpaceGroupSetting", (1, ), dtype=np.int32)
             did.write_direct(np.array(sgsetting, dtype=np.int32))
 
-            did = gid.create_dataset("LatticeParameters", (6, ), dtype = np.float64)
+            did = gid.create_dataset(
+                "LatticeParameters", (6, ), dtype=np.float64)
             did.write_direct(np.array(lparms, dtype=np.float64))
 
-            did = gid.create_dataset("dmin", (1, ), dtype = np.float64)
+            did = gid.create_dataset("dmin", (1, ), dtype=np.float64)
             did.attrs["units"] = "nm"
             did.write_direct(np.array(dmin, dtype=np.float64))
 
@@ -1503,13 +1506,13 @@ class LeBail:
         return valWUnit('lp', 'length', x, 'nm')
 
     def __init__(self,
-                 expt_spectrum = None,
-                 params = None,
-                 phases = None,
-                 wavelength = {'kalpha1': _nm(
+                 expt_spectrum=None,
+                 params=None,
+                 phases=None,
+                 wavelength={'kalpha1': _nm(
                      0.15406), 'kalpha2': _nm(0.154443)},
-                 bkgmethod = {'spline': None},
-                 intensity_init = None):
+                 bkgmethod={'spline': None},
+                 intensity_init=None):
 
         self.bkgmethod = bkgmethod
         self.intensity_init = intensity_init
@@ -1685,14 +1688,14 @@ class LeBail:
             fid = file
 
         else:
-            raise RuntimeError('Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
+            raise RuntimeError(
+                'Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
 
         self.phases.dump_hdf5(fid)
         self.params.dump_hdf5(fid)
         self.spectrum_expt.dump_hdf5(fid, 'experimental')
         self.spectrum_sim.dump_hdf5(fid, 'simulated')
         self.background.dump_hdf5(fid, 'background')
-
 
     def initialize_expt_spectrum(self, expt_spectrum):
         '''
@@ -1769,7 +1772,8 @@ class LeBail:
             user from the loop which is required for the spline type background.
         '''
         if(self.bkgmethod is None):
-            self.background = Spectrum(x=self.tth_list, y=np.zeros(self.tth_list.shape))
+            self.background = Spectrum(
+                x=self.tth_list, y=np.zeros(self.tth_list.shape))
 
         elif('spline' in self.bkgmethod.keys()):
             self.selectpoints()
@@ -1791,12 +1795,12 @@ class LeBail:
             self.background = Spectrum(x=self.tth_list, y=yy)
 
         elif('array' in self.bkgmethod.keys()):
-            x = self.bkgmethod['array'][:,0]
-            y = self.bkgmethod['array'][:,1]
+            x = self.bkgmethod['array'][:, 0]
+            y = self.bkgmethod['array'][:, 1]
             cs = CubicSpline(x, y)
 
             yy = cs(self.tth_list)
-            
+
             self.background = Spectrum(x=self.tth_list, y=yy)
 
     def chebyshevfit(self):
@@ -1895,7 +1899,6 @@ class LeBail:
                 self.tth[p][k] = t[limit]
 
     def initialize_Icalc(self):
-
         '''
         @DATE 01/22/2021 SS modified the function so Icalc can be initialized with
         a dictionary of structure factors
@@ -1910,7 +1913,8 @@ class LeBail:
                 self.Icalc[p] = {}
                 for k, l in self.phases.wavelength.items():
 
-                    self.Icalc[p][k] = (10**n10) * np.ones(self.tth[p][k].shape)
+                    self.Icalc[p][k] = (10**n10) * \
+                        np.ones(self.tth[p][k].shape)
 
         elif(isinstance(self.intensity_init, dict)):
             '''
@@ -1922,7 +1926,7 @@ class LeBail:
                     raise RuntimeError("LeBail: Intensity was initialized using custom values. \
                         However, initial values for one or more phases seem to be missing from \
                         the dictionary.")
-                self.Icalc[p] = {} 
+                self.Icalc[p] = {}
 
                 '''
                 now check that the size of the initial intensities provided is consistent
@@ -1942,7 +1946,8 @@ class LeBail:
                         self.Icalc[p][l] = self.intensity_init[p][l][0:self.tth[p][l].shape[0]]
 
         else:
-            raise RuntimeError("LeBail: Intensity_init must be either None or a dictionary")
+            raise RuntimeError(
+                "LeBail: Intensity_init must be either None or a dictionary")
 
     def CagliottiH(self, tth):
         '''

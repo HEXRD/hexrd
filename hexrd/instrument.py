@@ -1030,12 +1030,12 @@ class HEDMInstrument(object):
             # pbar.finish()
         return panel_data
 
-    def simulate_powder_pattern(self, 
+    def simulate_powder_pattern(self,
                                 mat_list,
-                                params = None, 
-                                bkgmethod = None,
-                                origin = None, 
-                                noise = None):
+                                params=None,
+                                bkgmethod=None,
+                                origin=None,
+                                noise=None):
         """
         Generates simple powder diffraction images.
 
@@ -1065,16 +1065,16 @@ class HEDMInstrument(object):
             "origin must be a 3-element sequence"
 
         '''
-        if params is none, fill in some sane default values
-        only the first value is used. the rest of the values are
-        the upper, lower bounds and vary flag for refinement which
-        are not used but required for interfacing with WPPF
+            if params is none, fill in some sane default values
+            only the first value is used. the rest of the values are
+            the upper, lower bounds and vary flag for refinement which
+            are not used but required for interfacing with WPPF
 
-        zero_error : zero shift error
-        U, V, W : Cagliotti parameters
-        P, X, Y : Lorentzian parameters
-        eta1, eta2, eta3 : Mixing parameters
-        '''
+            zero_error : zero shift error
+            U, V, W : Cagliotti parameters
+            P, X, Y : Lorentzian parameters
+            eta1, eta2, eta3 : Mixing parameters
+            '''
         if(params is None):
             params = {'zero_error': [0.0, -1., 1., True],
                       'U': [2e-1, -1., 1., True],
@@ -1088,17 +1088,16 @@ class HEDMInstrument(object):
                       'eta3': [1e-2, -1., 1., True]
                       }
 
+        '''
+            use the material list to obtain the dictionary of initial intensities
+            we need to make sure that the intensities are properly scaled by the 
+            lorentz polarization factor. since the calculation is done in the Lebail
+            class, all that means is the initial intensity needs that factor in there
+            '''
 
         '''
-        use the material list to obtain the dictionary of initial intensities
-        we need to make sure that the intensities are properly scaled by the 
-        lorentz polarization factor. since the calculation is done in the Lebail
-        class, all that means is the initial intensity needs that factor in there
-        '''
-
-        '''
-        go through the panels and figure out the min and max in the 2theta direction
-        '''
+            go through the panels and figure out the min and max in the 2theta direction
+            '''
         img_dict = dict.fromkeys(self.detectors)
         tth_mi = 0.
         tth_ma = 0.
@@ -1107,35 +1106,37 @@ class HEDMInstrument(object):
             tth_ma = np.amax([tth_ma, ptth.max()])
 
         ''' now make a list of two theta and dummy ones for the experimental spectrum
-            this is never really used so any values should be okay. We could also pass 
-            the integrated detector image if we would like to simulate some realistic
-            background. But thats for another day.
-        '''
+                this is never really used so any values should be okay. We could also pass 
+                the integrated detector image if we would like to simulate some realistic
+                background. But thats for another day.
+            '''
         # convert angles to degrees because thats what the WPPF expects
         tth_mi = np.degrees(tth_mi)
         tth_ma = np.degrees(tth_ma)
 
-        tth = np.linspace(tth_mi, tth_ma, 1000) # 1000 is arbitrary; shouldn't really matter
+        # 1000 is arbitrary; shouldn't really matter
+        tth = np.linspace(tth_mi, tth_ma, 1000)
 
         expt = np.ones([tth.shape[0], 2])
-        expt[:,0] = tth
+        expt[:, 0] = tth
 
-        wavelength = valWUnit('lp', 'length',  self.beam_wavelength, 'angstrom')
+        wavelength = valWUnit('lp', 'length',
+                              self.beam_wavelength, 'angstrom')
 
         '''
-        now go through the material list and get the intensity dictionary
-        '''
+            now go through the material list and get the intensity dictionary
+            '''
         intensity = {}
         for mat in mat_list:
 
             tth = mat.planeData.getTTh()
 
             LP = (1 + np.cos(tth)**2) / \
-            np.cos(0.5*tth)/np.sin(0.5*tth)**2
+                np.cos(0.5*tth)/np.sin(0.5*tth)**2
 
             intensity[mat.name] = {}
-            intensity[mat.name]['synchrotron'] = mat.planeData.get_structFact() * LP
-
+            intensity[mat.name]['synchrotron'] = \
+                mat.planeData.get_structFact() * LP
 
         kwargs = {
             'expt_spectrum': expt,
@@ -1154,16 +1155,16 @@ class HEDMInstrument(object):
         self.background = self.WPPFclass.background
 
         '''
-        now that we have the simulated intensities, its time to get the
-        two theta for the detector pixels and interpolate what the intensity 
-        for each pixel should be
-        '''
+            now that we have the simulated intensities, its time to get the
+            two theta for the detector pixels and interpolate what the intensity 
+            for each pixel should be
+            '''
 
         img_dict = dict.fromkeys(self.detectors)
         for det_key, panel in self.detectors.items():
             ptth, peta = panel.pixel_angles(origin=origin)
-            
-            img = np.interp(np.degrees(ptth), 
+
+            img = np.interp(np.degrees(ptth),
                             self.simulated_spectrum.x,
                             self.simulated_spectrum.y + self.background.y)
 
@@ -1179,8 +1180,8 @@ class HEDMInstrument(object):
 
             else:
                 if(noise.lower() == 'poisson'):
-                    im_noise = random_noise(img, 
-                                            mode='poisson', 
+                    im_noise = random_noise(img,
+                                            mode='poisson',
                                             clip=True)
                     mi = im_noise.min()
                     ma = im_noise.max()
@@ -1190,8 +1191,8 @@ class HEDMInstrument(object):
                     img_dict[det_key] = im_noise
 
                 elif(noise.lower() == 'gaussian'):
-                    img_dict[det_key] = random_noise(img, 
-                                                     mode='gaussian', 
+                    img_dict[det_key] = random_noise(img,
+                                                     mode='gaussian',
                                                      clip=True)
 
                 elif(noise.lower() == 'salt'):
@@ -1204,13 +1205,13 @@ class HEDMInstrument(object):
                     img_dict[det_key] = random_noise(img, mode='s&p')
 
                 elif(noise.lower() == 'speckle'):
-                    img_dict[det_key] = random_noise(img, 
-                                                     mode='speckle', 
+                    img_dict[det_key] = random_noise(img,
+                                                     mode='speckle',
                                                      clip=True)
 
-
-
         return img_dict
+
+
 
 
     def simulate_laue_pattern(self, crystal_data,
