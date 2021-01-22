@@ -56,33 +56,6 @@ class Dexela_2923(DistortionABC, metaclass=_RegisterDistortionClass):
             return xy_out
 
 
-def _dexela_2923_distortion(out, in_, params):
-    # find quadrant
-    ql = _find_quadrant(in_)
-    ql1 = ql == 1
-    ql2 = ql == 2
-    ql3 = ql == 3
-    ql4 = ql == 4
-    out[ql1, :] = in_[ql1] + np.tile(params[0:2], (sum(ql1), 1))
-    out[ql2, :] = in_[ql2] + np.tile(params[2:4], (sum(ql2), 1))
-    out[ql3, :] = in_[ql3] + np.tile(params[4:6], (sum(ql3), 1))
-    out[ql4, :] = in_[ql4] + np.tile(params[6:8], (sum(ql4), 1))
-    return
-
-
-def _dexela_2923_inverse_distortion(out, in_, params):
-    ql = _find_quadrant(in_)
-    ql1 = ql == 1
-    ql2 = ql == 2
-    ql3 = ql == 3
-    ql4 = ql == 4
-    out[ql1, :] = in_[ql1] - np.tile(params[0:2], (sum(ql1), 1))
-    out[ql2, :] = in_[ql2] - np.tile(params[2:4], (sum(ql2), 1))
-    out[ql3, :] = in_[ql3] - np.tile(params[4:6], (sum(ql3), 1))
-    out[ql4, :] = in_[ql4] - np.tile(params[6:8], (sum(ql4), 1))
-    return
-
-
 def _find_quadrant(xy_in):
     quad_label = np.zeros(len(xy_in), dtype=int)
     in_2_or_3 = xy_in[:, 0] < 0.
@@ -94,6 +67,72 @@ def _find_quadrant(xy_in):
     quad_label[np.logical_and(in_2_or_3, in_3_or_4)] = 3
     quad_label[np.logical_and(in_1_or_4, in_3_or_4)] = 4
     return quad_label
+
+
+if USE_NUMBA:
+    @numba.njit
+    def _dexela_2923_distortion(out_, in_, params):
+        for el in range(len(in_)):
+            xi, yi = in_[el, :]
+            if xi < 0.:
+                if yi < 0.:
+                    # 3rd quadrant
+                    out_[el, :] = in_[el, :] + params[4:6]
+                else:
+                    # 2nd quadrant
+                    out_[el, :] = in_[el, :] + params[2:4]
+            else:
+                if yi < 0.:
+                    # 4th quadrant
+                    out_[el, :] = in_[el, :] + params[6:8]
+                else:
+                    # 1st quadrant
+                    out_[el, :] = in_[el, :] + params[0:2]
+
+    @numba.njit
+    def _dexela_2923_inverse_distortion(out_, in_, params):
+        for el in range(len(in_)):
+            xi, yi = in_[el, :]
+            if xi < 0.:
+                if yi < 0.:
+                    # 3rd quadrant
+                    out_[el, :] = in_[el, :] - params[4:6]
+                else:
+                    # 2nd quadrant
+                    out_[el, :] = in_[el, :] - params[2:4]
+            else:
+                if yi < 0.:
+                    # 4th quadrant
+                    out_[el, :] = in_[el, :] - params[6:8]
+                else:
+                    # 1st quadrant
+                    out_[el, :] = in_[el, :] - params[0:2]
+else:
+    def _dexela_2923_distortion(out_, in_, params):
+        # find quadrant
+        ql = _find_quadrant(in_)
+        ql1 = ql == 1
+        ql2 = ql == 2
+        ql3 = ql == 3
+        ql4 = ql == 4
+        out_[ql1, :] = in_[ql1] + np.tile(params[0:2], (sum(ql1), 1))
+        out_[ql2, :] = in_[ql2] + np.tile(params[2:4], (sum(ql2), 1))
+        out_[ql3, :] = in_[ql3] + np.tile(params[4:6], (sum(ql3), 1))
+        out_[ql4, :] = in_[ql4] + np.tile(params[6:8], (sum(ql4), 1))
+        return
+
+    def _dexela_2923_inverse_distortion(out_, in_, params):
+        ql = _find_quadrant(in_)
+        ql1 = ql == 1
+        ql2 = ql == 2
+        ql3 = ql == 3
+        ql4 = ql == 4
+        out_[ql1, :] = in_[ql1] - np.tile(params[0:2], (sum(ql1), 1))
+        out_[ql2, :] = in_[ql2] - np.tile(params[2:4], (sum(ql2), 1))
+        out_[ql3, :] = in_[ql3] - np.tile(params[4:6], (sum(ql3), 1))
+        out_[ql4, :] = in_[ql4] - np.tile(params[6:8], (sum(ql4), 1))
+        return
+
 
 
 def test_disortion():
