@@ -8,6 +8,7 @@ from .registry import Registry
 from . import identity
 from . import nyi
 from . import ge_41rt
+from . import dexela_2923
 
 __all__ = ['maptypes', 'get_mapping']
 
