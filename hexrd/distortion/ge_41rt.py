@@ -1,4 +1,4 @@
-"""GE4RT Detector Distortion"""
+"""GE41RT Detector Distortion"""
 import numpy as np
 
 from hexrd import constants as cnst
