@@ -64,8 +64,11 @@ from hexrd import constants as ct
 from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
 from hexrd.config.dumper import NumPyIncludeDumper
 from hexrd import distortion as distortion_pkg
+from hexrd.valunits import valWUnit
+from hexrd.WPPF import LeBail
 
 from skimage.draw import polygon
+from skimage.util import random_noise
 
 try:
     from fast_histogram import histogram1d
@@ -1027,15 +1030,22 @@ class HEDMInstrument(object):
             # pbar.finish()
         return panel_data
 
-    def simulate_powder_pattern(self, plane_data_list,
-                                fwhm=2., origin=None, noise=None):
+    def simulate_powder_pattern(self,
+                                mat_list,
+                                params=None,
+                                bkgmethod=None,
+                                origin=None,
+                                noise=None):
         """
         Generates simple powder diffraction images.
 
-        FIXME: noise isn't connected
-        TODO: add hooks to the Rietveld model
-
-        Parameters
+        >> @AUTHOR:     Saransh Singh, Lanwrence Livermore National Lab,
+                        saransh1@llnl.gov
+        >> @DATE:       01/22/2021 SS 1.0 original
+        >> @DETAILS:    adding hook to WPPF class. this changes the input list
+                        significantly
+        >> @PARAMETERS  list of material objects
+                        dictionary or Parameter class of lebail parameter values
         ----------
         plane_data_list : list, (n,)
             List of n hexrd.crystallography.PlaneData objects.
@@ -1054,22 +1064,154 @@ class HEDMInstrument(object):
         assert len(origin) == 3, \
             "origin must be a 3-element sequence"
 
+        '''
+            if params is none, fill in some sane default values
+            only the first value is used. the rest of the values are
+            the upper, lower bounds and vary flag for refinement which
+            are not used but required for interfacing with WPPF
+
+            zero_error : zero shift error
+            U, V, W : Cagliotti parameters
+            P, X, Y : Lorentzian parameters
+            eta1, eta2, eta3 : Mixing parameters
+            '''
+        if(params is None):
+            params = {'zero_error': [0.0, -1., 1., True],
+                      'U': [2e-1, -1., 1., True],
+                      'V': [2e-2, -1., 1., True],
+                      'W': [2e-2, -1., 1., True],
+                      'P': [0., -1., 1., True],
+                      'X': [2e-1, -1., 1., True],
+                      'Y': [2e-1, -1., 1., True],
+                      'eta1': [1e-2, -1., 1., True],
+                      'eta2': [1e-2, -1., 1., True],
+                      'eta3': [1e-2, -1., 1., True]
+                      }
+
+        '''
+            use the material list to obtain the dictionary of initial intensities
+            we need to make sure that the intensities are properly scaled by the 
+            lorentz polarization factor. since the calculation is done in the Lebail
+            class, all that means is the initial intensity needs that factor in there
+            '''
+
+        '''
+            go through the panels and figure out the min and max in the 2theta direction
+            '''
+        img_dict = dict.fromkeys(self.detectors)
+        tth_mi = 0.
+        tth_ma = 0.
+        for det_key, panel in self.detectors.items():
+            ptth, peta = panel.pixel_angles(origin=origin)
+            tth_ma = np.amax([tth_ma, ptth.max()])
+
+        ''' now make a list of two theta and dummy ones for the experimental spectrum
+                this is never really used so any values should be okay. We could also pass 
+                the integrated detector image if we would like to simulate some realistic
+                background. But thats for another day.
+            '''
+        # convert angles to degrees because thats what the WPPF expects
+        tth_mi = np.degrees(tth_mi)
+        tth_ma = np.degrees(tth_ma)
+
+        # 1000 is arbitrary; shouldn't really matter
+        tth = np.linspace(tth_mi, tth_ma, 1000)
+
+        expt = np.ones([tth.shape[0], 2])
+        expt[:, 0] = tth
+
+        wavelength = valWUnit('lp', 'length',
+                              self.beam_wavelength, 'angstrom')
+
+        '''
+            now go through the material list and get the intensity dictionary
+            '''
+        intensity = {}
+        for mat in mat_list:
+
+            tth = mat.planeData.getTTh()
+
+            LP = (1 + np.cos(tth)**2) / \
+                np.cos(0.5*tth)/np.sin(0.5*tth)**2
+
+            intensity[mat.name] = {}
+            intensity[mat.name]['synchrotron'] = \
+                mat.planeData.get_structFact() * LP
+
+        kwargs = {
+            'expt_spectrum': expt,
+            'params': params,
+            'phases': mat_list,
+            'wavelength': {
+                'synchrotron': wavelength
+            },
+            'bkgmethod': bkgmethod,
+            'intensity_init': intensity
+        }
+
+        self.WPPFclass = LeBail(**kwargs)
+
+        self.simulated_spectrum = self.WPPFclass.spectrum_sim
+        self.background = self.WPPFclass.background
+
+        '''
+            now that we have the simulated intensities, its time to get the
+            two theta for the detector pixels and interpolate what the intensity 
+            for each pixel should be
+            '''
+
         img_dict = dict.fromkeys(self.detectors)
         for det_key, panel in self.detectors.items():
             ptth, peta = panel.pixel_angles(origin=origin)
-            gint = np.zeros_like(ptth)
-            sigm = np.radians(_fwhm_to_sigma(fwhm))
-            for plane_data in plane_data_list:
-                if isinstance(plane_data, PlaneData):
-                    tths = plane_data.getTTh()
-                    weights = np.ones_like(tths)
-                else:
-                    tths = [i[0] for i in plane_data]
-                    weights = [i[1] for i in plane_data]
-                for pk in zip(tths, weights):
-                    gint += pk[1]*_gaussian_dist(ptth, pk[0], sigm)
-            img_dict[det_key] = gint
+
+            img = np.interp(np.degrees(ptth),
+                            self.simulated_spectrum.x,
+                            self.simulated_spectrum.y + self.background.y)
+
+            # normalize everything to 0-1
+            mi = img.min()
+            ma = img.max()
+
+            if(ma > mi):
+                img = (img - mi) / (ma - mi)
+
+            if(noise is None):
+                img_dict[det_key] = img
+
+            else:
+                if(noise.lower() == 'poisson'):
+                    im_noise = random_noise(img,
+                                            mode='poisson',
+                                            clip=True)
+                    mi = im_noise.min()
+                    ma = im_noise.max()
+                    if(ma > mi):
+                        im_noise = (im_noise - mi)/(ma - mi)
+
+                    img_dict[det_key] = im_noise
+
+                elif(noise.lower() == 'gaussian'):
+                    img_dict[det_key] = random_noise(img,
+                                                     mode='gaussian',
+                                                     clip=True)
+
+                elif(noise.lower() == 'salt'):
+                    img_dict[det_key] = random_noise(img, mode='salt')
+
+                elif(noise.lower() == 'pepper'):
+                    img_dict[det_key] = random_noise(img, mode='pepper')
+
+                elif(noise.lower() == 's&p'):
+                    img_dict[det_key] = random_noise(img, mode='s&p')
+
+                elif(noise.lower() == 'speckle'):
+                    img_dict[det_key] = random_noise(img,
+                                                     mode='speckle',
+                                                     clip=True)
+
         return img_dict
+
+
 
 
     def simulate_laue_pattern(self, crystal_data,
