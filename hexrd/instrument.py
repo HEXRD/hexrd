@@ -242,6 +242,37 @@ def max_tth(instr):
     return tth_max
 
 
+def max_resolution(instr):
+    """
+    Return the maximum angular resolutin of the instrument.
+
+    Parameters
+    ----------
+    instr : HEDMInstrument instance
+        An instrument.
+
+    Returns
+    -------
+    max_tth : float
+        Maximum tth resolution in radians.
+    max_eta : TYPE
+        maximum eta resultion in radians.
+
+    """
+    max_tth = np.inf
+    max_eta = np.inf
+    for panel in instr.detectors.values():
+        angps = panel.angularPixelSize(
+            np.stack(
+                panel.pixel_coords,
+                axis=0
+            ).reshape(2, np.cumprod(panel.shape)[-1]).T
+        )
+        max_tth = min(max_tth, np.min(angps[:, 0]))
+        max_eta = min(max_eta, np.min(angps[:, 1]))
+    return max_tth, max_eta
+
+
 def _gaussian_dist(x, cen, fwhm):
     sigm = fwhm/(2*np.sqrt(2*np.log(2)))
     return np.exp(-0.5*(x - cen)**2/sigm**2)
@@ -1090,7 +1121,7 @@ class HEDMInstrument(object):
 
         '''
             use the material list to obtain the dictionary of initial intensities
-            we need to make sure that the intensities are properly scaled by the 
+            we need to make sure that the intensities are properly scaled by the
             lorentz polarization factor. since the calculation is done in the Lebail
             class, all that means is the initial intensity needs that factor in there
             '''
@@ -1106,7 +1137,7 @@ class HEDMInstrument(object):
             tth_ma = np.amax([tth_ma, ptth.max()])
 
         ''' now make a list of two theta and dummy ones for the experimental spectrum
-                this is never really used so any values should be okay. We could also pass 
+                this is never really used so any values should be okay. We could also pass
                 the integrated detector image if we would like to simulate some realistic
                 background. But thats for another day.
             '''
@@ -1156,7 +1187,7 @@ class HEDMInstrument(object):
 
         '''
             now that we have the simulated intensities, its time to get the
-            two theta for the detector pixels and interpolate what the intensity 
+            two theta for the detector pixels and interpolate what the intensity
             for each pixel should be
             '''
 
@@ -1940,7 +1971,7 @@ class PlanarDetector(object):
     @property
     def shape(self):
         return (self.rows, self.cols)
-    
+
     @property
     def tvec(self):
         return self._tvec
