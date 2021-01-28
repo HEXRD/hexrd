@@ -2599,8 +2599,8 @@ def single_azimuthal_extraction(expt_spectrum,
 
     for i in range(40):
         L.RefineCycle(print_to_screen=False)
-    print(L.Rwp)
-    return L.Iobs, L.spectrum_sim._y, L.Rwp
+
+    return L
 
 class Material_Rietveld:
 
