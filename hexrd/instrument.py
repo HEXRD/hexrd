@@ -1068,26 +1068,39 @@ class HEDMInstrument(object):
                                 origin=None,
                                 noise=None):
         """
-        Generates simple powder diffraction images.
+        Generate powder diffraction iamges from specified materials.
 
+        Parameters
+        ----------
+        mat_list : array_like (n, )
+            List of Material classes.
+        params : dict, optional
+            Dictionary of LeBail parameters (see Notes). The default is None.
+        bkgmethod : dict, optional
+            Background function specification. The default is None.
+        origin : array_like (3,), optional
+            Vector describing the origin of the diffrction volume.
+            The default is None, wiich is equivalent to [0, 0, 0].
+        noise : str, optional
+            Flag describing type of noise to be applied. The default is None.
+
+        Returns
+        -------
+        img_dict : dict
+            Dictionary of diffraciton images over the detectors.
+
+        Notes
+        -----
+        TODO: add more controls for noise function.
+        TODO: modify hooks to LeBail parameters.
+        TODO: add optional volume fraction weights for phases in mat_list
+        """
+        """
         >> @AUTHOR:     Saransh Singh, Lanwrence Livermore National Lab,
                         saransh1@llnl.gov
         >> @DATE:       01/22/2021 SS 1.0 original
         >> @DETAILS:    adding hook to WPPF class. this changes the input list
                         significantly
-        >> @PARAMETERS  list of material objects
-                        dictionary or Parameter class of lebail parameter values
-        ----------
-        plane_data_list : list, (n,)
-            List of n hexrd.crystallography.PlaneData objects.
-        fwhm : scalar, optional
-            The FWHM of the gaussian profile in degrees. The default is 2.0.
-
-        Returns
-        -------
-        img_dict : dict
-            Dictionary of simulated images for each detector.
-
         """
         if origin is None:
             origin = self.tvec
@@ -1096,16 +1109,16 @@ class HEDMInstrument(object):
             "origin must be a 3-element sequence"
 
         '''
-            if params is none, fill in some sane default values
-            only the first value is used. the rest of the values are
-            the upper, lower bounds and vary flag for refinement which
-            are not used but required for interfacing with WPPF
+        if params is none, fill in some sane default values
+        only the first value is used. the rest of the values are
+        the upper, lower bounds and vary flag for refinement which
+        are not used but required for interfacing with WPPF
 
-            zero_error : zero shift error
-            U, V, W : Cagliotti parameters
-            P, X, Y : Lorentzian parameters
-            eta1, eta2, eta3 : Mixing parameters
-            '''
+        zero_error : zero shift error
+        U, V, W : Cagliotti parameters
+        P, X, Y : Lorentzian parameters
+        eta1, eta2, eta3 : Mixing parameters
+        '''
         if(params is None):
             params = {'zero_error': [0.0, -1., 1., True],
                       'U': [2e-1, -1., 1., True],
@@ -1120,43 +1133,51 @@ class HEDMInstrument(object):
                       }
 
         '''
-            use the material list to obtain the dictionary of initial intensities
-            we need to make sure that the intensities are properly scaled by the
-            lorentz polarization factor. since the calculation is done in the Lebail
-            class, all that means is the initial intensity needs that factor in there
-            '''
-
+        use the material list to obtain the dictionary of initial intensities
+        we need to make sure that the intensities are properly scaled by the
+        lorentz polarization factor. since the calculation is done in the
+        LeBail class, all that means is the initial intensity needs that factor
+        in there
         '''
-            go through the panels and figure out the min and max in the 2theta direction
-            '''
         img_dict = dict.fromkeys(self.detectors)
-        tth_mi = 0.
+
+        # find min and max tth over all panels
+        tth_mi = np.inf
         tth_ma = 0.
+        ptth_dict = dict.fromkeys(self.detectors)
         for det_key, panel in self.detectors.items():
             ptth, peta = panel.pixel_angles(origin=origin)
-            tth_ma = np.amax([tth_ma, ptth.max()])
+            tth_mi = min(tth_mi, ptth.min())
+            tth_ma = max(tth_ma, ptth.max())
+            ptth_dict[det_key] = ptth
 
-        ''' now make a list of two theta and dummy ones for the experimental spectrum
-                this is never really used so any values should be okay. We could also pass
-                the integrated detector image if we would like to simulate some realistic
-                background. But thats for another day.
-            '''
+        '''
+        now make a list of two theta and dummy ones for the experimental
+        spectrum this is never really used so any values should be okay. We
+        could also pas the integrated detector image if we would like to
+        simulate some realistic background. But thats for another day.
+        '''
         # convert angles to degrees because thats what the WPPF expects
         tth_mi = np.degrees(tth_mi)
         tth_ma = np.degrees(tth_ma)
 
-        # 1000 is arbitrary; shouldn't really matter
-        tth = np.linspace(tth_mi, tth_ma, 1000)
+        # get tth angular resolution for instrument
+        ang_res = max_resolution(self)
 
-        expt = np.ones([tth.shape[0], 2])
-        expt[:, 0] = tth
+        # !!! calc nsteps by oversampling
+        nsteps = int(np.ceil(2*(tth_ma - tth_mi)/np.degrees(ang_res[0])))
+        print(nsteps)
+        # evaulation vector for LeBail
+        tth = np.linspace(tth_mi, tth_ma, nsteps)
+
+        expt = np.vstack([tth, np.ones_like(tth)]).T
 
         wavelength = valWUnit('lp', 'length',
                               self.beam_wavelength, 'angstrom')
 
         '''
-            now go through the material list and get the intensity dictionary
-            '''
+        now go through the material list and get the intensity dictionary
+        '''
         intensity = {}
         for mat in mat_list:
 
@@ -1186,14 +1207,14 @@ class HEDMInstrument(object):
         self.background = self.WPPFclass.background
 
         '''
-            now that we have the simulated intensities, its time to get the
-            two theta for the detector pixels and interpolate what the intensity
-            for each pixel should be
-            '''
+        now that we have the simulated intensities, its time to get the
+        two theta for the detector pixels and interpolate what the intensity
+        for each pixel should be
+        '''
 
         img_dict = dict.fromkeys(self.detectors)
         for det_key, panel in self.detectors.items():
-            ptth, peta = panel.pixel_angles(origin=origin)
+            ptth = ptth_dict[det_key]
 
             img = np.interp(np.degrees(ptth),
                             self.simulated_spectrum.x,
@@ -1241,9 +1262,6 @@ class HEDMInstrument(object):
                                                      clip=True)
 
         return img_dict
-
-
-
 
     def simulate_laue_pattern(self, crystal_data,
                               minEnergy=5., maxEnergy=35.,
