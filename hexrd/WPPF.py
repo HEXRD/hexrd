@@ -20,7 +20,7 @@ import time
 import h5py
 from pathlib import Path
 from pylab import plot, ginput, show, axis, close, title
-
+from multiprocessing import Queue, Process, cpu_count
 
 class Parameters:
     ''' ========================================================================================================
@@ -2199,10 +2199,11 @@ class LeBail:
             par = self.res.params[p]
             self.params[p].value = par.value
 
-    def RefineCycle(self):
+    def RefineCycle(self, print_to_screen=True):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       06/08/2020 SS 1.0 original
+                        01/28/2021 SS 1.1 added optional print_to_screen argument
         >> @DETAILS:    this is one refinement cycle for the least squares, typically few
                         10s to 100s of cycles may be required for convergence
         '''
@@ -2214,8 +2215,10 @@ class LeBail:
         self.niter += 1
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
         self.gofFlist = np.append(self.gofFlist, self.gofF)
-        print('Finished iteration. Rwp: {:.3f} % goodness of fit: {:.3f}'.format(
-            self.Rwp*100., self.gofF))
+
+        if print_to_screen:
+            print('Finished iteration. Rwp: {:.3f} % goodness of fit: {:.3f}'.format(
+                self.Rwp*100., self.gofF))
 
     def Refine(self):
         '''
@@ -2413,6 +2416,191 @@ class LeBail:
         # self.computespectrum()
         return
 
+def _nm(x):
+    return valWUnit('lp', 'length', x, 'nm')
+
+def extract_intensities(polar_view,
+                        tth_array,
+                        detector_mask,
+                        params=None,
+                        phases=None,
+                        wavelength={'kalpha1': _nm(
+                        0.15406), 'kalpha2': _nm(0.154443)},
+                        bkgmethod={'chebyshev': 10},
+                        intensity_init=None):
+    ''' 
+    ========================================================================================================
+    ========================================================================================================
+
+    >> @AUTHOR:     Saransh Singh, Lanwrence Livermore National Lab,
+                    saransh1@llnl.gov
+    >> @DATE:       01/28/2021 SS 1.0 original
+    >> @DETAILS:    this function is used for extracting the experimental pole figure intensities from the 
+                    polar 2theta-eta map. The workflow is to simply run the LeBail class, in parallel, over
+                    the different azimuthal profiles and return the Icalc values for the different
+                    wavelengths in the calculation. For now, the multiprocessing is done using the 
+                    multiprocessing module which comes natively with python. Extension to MPI will be done
+                    later if necessary.
+    >> @PARAMS      polar_view: mxn array with the polar view. the parallelization is done over "m" i.e. the
+                    eta dimension
+                    tth_array: nx1 array with two theta values at each sampling point
+                    params: parameter values for the LeBail class. Could be in the form of yaml file, dictionary
+                    or Parameter class
+                    phases: materials to use in intensity extraction. could be a list of material objects, or
+                    file or dictionary
+                    wavelength: dictionary of wavelengths to be used in the computation
+                    bkgmethod: "spline" or "chebyshev" or "snip" default is chebyshev
+                    intensity_init: initial intensities for each reflection. If none, then it is specified to 
+                    some power of 10 depending on maximum intensity in spectrum (only used for powder simulator)
+    ========================================================================================================
+    ========================================================================================================
+    '''
+    # get the maximum number of processes that will be started
+    nprocs = cpu_count()
+    print("# of cpu = ", nprocs, "running on all of them.")
+
+    # prepare the data file to distribute suing multiprocessing
+    data_inp_list = []
+
+    # check if the dimensions all match
+    if polar_view.shape[1] != tth_array.shape[0]:
+        raise RuntimeError("WPPF : extract_intensities : inconsistent dimensions \
+                            of polar_view and tth_array variables.")
+
+    for i in range(polar_view.shape[0]):
+        mask = detector_mask[i,:]
+        data = np.array([tth_array[mask], polar_view[i,:][mask]]).T
+        data_inp_list.append(data)
+
+    kwargs = {
+    'params': params,
+    'phases': phases,
+    'wavelength': wavelength,
+    'bkgmethod': bkgmethod
+    }
+
+    P = UptownFunc()
+    results = P.parallelise_function(data_inp_list, single_azimuthal_extraction, **kwargs)
+    return results
+
+        # # loop over different inputs and pass to single_azimuthal_extraction
+        # processes = []
+        # q_in = Queue(1)
+        # q_out = Queue()
+
+        # for i in range(nprocs):
+        #     pass_args = [func, q_in, q_out]
+        #     # pass_args.extend(args)
+
+        #     p = Process(target=self._func_queue,\
+        #                 args=tuple(pass_args),\
+        #                 kwargs=kwargs)
+
+        #     processes.append(p)
+
+        # for p in processes:
+        #     p.daemon = True
+        #     p.start()
+
+        # sent = [q_in.put((i, data_inp_list[i])) for i in range(len(data_inp_list))]
+        # [q_in.put((None, None)) for _ in range(nprocs)]
+
+        # results = [[] for i in range(n)]
+        # for i in range(len(sent)):
+        #     index, res = q_out.get()
+        #     results[index] = res
+
+        # # wait until each processor has finished
+        # [p.join() for p in processes]
+
+        # # reorder results
+        # return results
+
+        # for i in range(polar_view.size[0]):
+        #     args = (data_inp_list[i],)
+
+        #     P = Process(target=single_azimuthal_extraction,
+        #                 args=args,
+        #                 kwargs=kwargs)
+        #     result = 
+
+class UptownFunc:
+    def __init__(self):
+        pass
+
+    def _func_queue(self, func, q_in, q_out, *args, **kwargs):
+        """ Retrive processes from the queue """
+        while True:
+            pos, var = q_in.get()
+            if pos is None:
+                break
+
+            res = func(var, *args, **kwargs)
+            q_out.put((pos, res))
+        return
+
+    def parallelise_function(self, var, func, *args, **kwargs):
+        """ Split evaluations of func across processors """
+        n = len(var)
+
+        processes = []
+        q_in = Queue(1)
+        q_out = Queue()
+
+        nprocs = cpu_count()
+
+        for i in range(nprocs):
+            pass_args = [func, q_in, q_out]
+            # pass_args.extend(args)
+
+            p = Process(target=self._func_queue,\
+                        args=tuple(pass_args),\
+                        kwargs=kwargs)
+
+            processes.append(p)
+
+        for p in processes:
+            p.daemon = True
+            p.start()
+
+        # put items in the queue
+        sent = [q_in.put((i, var[i])) for i in range(n)]
+        [q_in.put((None, None)) for _ in range(nprocs)]
+
+        # get the results
+        results = [[] for i in range(n)]
+        for i in range(len(sent)):
+            index, res = q_out.get()
+            results[index] = res
+
+        # wait until each processor has finished
+        [p.join() for p in processes]
+
+        # reorder results
+        return results
+
+def single_azimuthal_extraction(expt_spectrum,
+                        params=None,
+                        phases=None,
+                        wavelength={'kalpha1': _nm(
+                        0.15406), 'kalpha2': _nm(0.154443)},
+                        bkgmethod={'chebyshev': 10},
+                        intensity_init=None):
+
+    kwargs = {
+    'expt_spectrum': expt_spectrum,
+    'params': params,
+    'phases': phases,
+    'wavelength': wavelength,
+    'bkgmethod': bkgmethod
+    }
+
+    L = LeBail(**kwargs)
+
+    for i in range(40):
+        L.RefineCycle(print_to_screen=False)
+    print(L.Rwp)
+    return L.Iobs, L.spectrum_sim._y, L.Rwp
 
 class Material_Rietveld:
 
