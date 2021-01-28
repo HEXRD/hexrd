@@ -1139,17 +1139,17 @@ class HEDMInstrument(object):
         LeBail class, all that means is the initial intensity needs that factor
         in there
         '''
-
-        '''
-        go through the panels and figure out the min and max in the 2theta
-        direction
-        '''
         img_dict = dict.fromkeys(self.detectors)
-        tth_mi = 0.
+
+        # find min and max tth over all panels
+        tth_mi = np.inf
         tth_ma = 0.
+        ptth_dict = dict.fromkeys(self.detectors)
         for det_key, panel in self.detectors.items():
             ptth, peta = panel.pixel_angles(origin=origin)
-            tth_ma = np.amax([tth_ma, ptth.max()])
+            tth_mi = min(tth_mi, ptth.min())
+            tth_ma = max(tth_ma, ptth.max())
+            ptth_dict[det_key] = ptth
 
         '''
         now make a list of two theta and dummy ones for the experimental
@@ -1161,13 +1161,16 @@ class HEDMInstrument(object):
         tth_mi = np.degrees(tth_mi)
         tth_ma = np.degrees(tth_ma)
 
+        # get tth angular resolution for instrument
         ang_res = max_resolution(self)
-        nsteps = int(np.floor(0.5*(tth_ma - tth_mi)/np.degrees(ang_res[0])))
 
+        # !!! calc nsteps by oversampling
+        nsteps = int(np.ceil(2*(tth_ma - tth_mi)/np.degrees(ang_res[0])))
+        print(nsteps)
+        # evaulation vector for LeBail
         tth = np.linspace(tth_mi, tth_ma, nsteps)
 
-        expt = np.ones([tth.shape[0], 2])
-        expt[:, 0] = tth
+        expt = np.vstack([tth, np.ones_like(tth)]).T
 
         wavelength = valWUnit('lp', 'length',
                               self.beam_wavelength, 'angstrom')
@@ -1211,7 +1214,7 @@ class HEDMInstrument(object):
 
         img_dict = dict.fromkeys(self.detectors)
         for det_key, panel in self.detectors.items():
-            ptth, peta = panel.pixel_angles(origin=origin)
+            ptth = ptth_dict[det_key]
 
             img = np.interp(np.degrees(ptth),
                             self.simulated_spectrum.x,
