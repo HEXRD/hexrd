@@ -1628,9 +1628,8 @@ class LeBail:
                 values.append(self.phases[p].lparms[0])
 
             valdict = {'U': 1e-2, 'V': 1e-2, 'W': 1e-2,
-                       'P': 1e-2, 'X': 1e-2, 'Y': 1e-2,
-                       'eta1': 1e-3, 'eta2': 1e-3,
-                       'eta3': 1e-3, 'zero_error': 0.}
+                       'X': 1e-2, 'Y': 1e-2, 'zero_error': 0.}
+
             for k, v in valdict.items():
                 names.append(k)
                 values.append(v)
@@ -1649,12 +1648,8 @@ class LeBail:
         self._U = self.params['U'].value
         self._V = self.params['V'].value
         self._W = self.params['W'].value
-        self._P = self.params['P'].value
         self._X = self.params['X'].value
         self._Y = self.params['Y'].value
-        self._eta1 = self.params['eta1'].value
-        self._eta2 = self.params['eta2'].value
-        self._eta3 = self.params['eta3'].value
         self._zero_error = self.params['zero_error'].value
 
     def params_vary_off(self):
@@ -1958,7 +1953,8 @@ class LeBail:
         '''
         th = np.radians(0.5*tth)
         tanth = np.tan(th)
-        Hsq = self.U * tanth**2 + self.V * tanth + self.W
+        Hsq = self.U * tanth**2 + self.V * tanth + \
+              self.W
         if(Hsq < 0.):
             Hsq = 1.0e-12
         self.Hcag = np.sqrt(Hsq)
@@ -1978,15 +1974,28 @@ class LeBail:
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/20/2020 SS 1.0 original
+                        01/29/2021 SS 1.1 updated to depend only on fwhm of profile
         >> @DETAILS:    calculates the mixing factor eta
         '''
-        self.eta = self.eta1 + self.eta2 * tth + self.eta3 * (tth)**2
+        fwhm_g = self.Hcag
+        fwhm_l = self.gamma
 
-        if(self.eta > 1.0):
-            self.eta = 1.0
+        fwhm = fwhm_g**5 + 2.69269 * fwhm_g**4 * fwhm_l + \
+                2.42843 * fwhm_g**3 * fwhm_l**2 + \
+                4.47163 * fwhm_g**2 * fwhm_l**3 +\
+                0.07842 * fwhm_g * fwhm_l**4 +\
+                fwhm_l**5
 
-        elif(self.eta < 0.0):
-            self.eta = 0.0
+        fwhm = fwhm**0.20
+
+        self.eta = 1.36603 * (fwhm_l/fwhm) - \
+                   0.47719 * (fwhm_l/fwhm)**2 + \
+                   0.11116 * (fwhm_l/fwhm)**3
+
+        if self.eta < 0.:
+            self.eta = 0.
+        elif self.eta > 1.:
+            self.eta = 1.
 
     def Gaussian(self, tth):
         '''
@@ -2024,8 +2033,8 @@ class LeBail:
         self.LorentzH(tth)
         self.Lorentzian(tth)
         self.MixingFact(tth)
-        self.PV = self.eta * self.GaussianI + \
-            (1.0 - self.eta) * self.LorentzI
+        self.PV = (1.0 - self.eta) * self.GaussianI + \
+            self.eta * self.LorentzI
 
     def IntegratedIntensity(self):
         '''
@@ -2175,11 +2184,17 @@ class LeBail:
 
         ''' number of independent parameters in fitting '''
         P = len(params)
-        Rexp = np.sqrt((N-P)/den)
+        if den > 0.:
+            Rexp = np.sqrt((N-P)/den)
+        else:
+            Rexp = np.inf
 
         # Rwp and goodness of fit parameters
         self.Rwp = Rwp
-        self.gofF = (Rwp / Rexp)**2
+        if Rexp > 0.:
+            self.gofF = (Rwp / Rexp)**2
+        else:
+            self.gofF = np.inf
 
         return errvec
 
@@ -2332,15 +2347,6 @@ class LeBail:
         return
 
     @property
-    def P(self):
-        return self._P
-
-    @P.setter
-    def P(self, Pinp):
-        self._P = Pinp
-        return
-
-    @property
     def X(self):
         return self._X
 
@@ -2373,36 +2379,6 @@ class LeBail:
     @Hcag.setter
     def Hcag(self, val):
         self._Hcag = val
-
-    @property
-    def eta1(self):
-        return self._eta1
-
-    @eta1.setter
-    def eta1(self, val):
-        self._eta1 = val
-        # self.computespectrum()
-        return
-
-    @property
-    def eta2(self):
-        return self._eta2
-
-    @eta2.setter
-    def eta2(self, val):
-        self._eta2 = val
-        # self.computespectrum()
-        return
-
-    @property
-    def eta3(self):
-        return self._eta3
-
-    @eta3.setter
-    def eta3(self, val):
-        self._eta3 = val
-        # self.computespectrum()
-        return
 
     @property
     def tth_list(self):
