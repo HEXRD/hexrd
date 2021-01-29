@@ -9,6 +9,8 @@ which has to be run over multiple inputs and parallelizes it ove all available c
 This is an example script from the Github repo https://github.com/brmather/pycurious
 
 """
+
+
 class GenericMultiprocessing:
 
     def __init__(self):
@@ -25,7 +27,8 @@ class GenericMultiprocessing:
 
             res = func(var, *args, **kwargs)
             q_out.put((pos, res))
-            print("finished azimuthal position #", pos, "with rwp = ", res[2]*100., "%")
+            print("finished azimuthal position #",
+                  pos, "with rwp = ", res[2]*100., "%")
         return
 
     def parallelise_function(self, var, func, *args, **kwargs):
@@ -45,8 +48,8 @@ class GenericMultiprocessing:
         for i in range(nprocs):
             pass_args = [func, q_in, q_out]
 
-            p = Process(target=self._func_queue,\
-                        args=tuple(pass_args),\
+            p = Process(target=self._func_queue,
+                        args=tuple(pass_args),
                         kwargs=kwargs)
 
             processes.append(p)
