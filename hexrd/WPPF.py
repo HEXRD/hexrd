@@ -2427,7 +2427,9 @@ def extract_intensities(polar_view,
                         wavelength={'kalpha1': _nm(
                         0.15406), 'kalpha2': _nm(0.154443)},
                         bkgmethod={'chebyshev': 10},
-                        intensity_init=None):
+                        intensity_init=None,
+                        termination_condition={'rwp_perct_change':0.05,
+                        'max_iter': 100}):
     ''' 
     ========================================================================================================
     ========================================================================================================
@@ -2464,21 +2466,49 @@ def extract_intensities(polar_view,
         raise RuntimeError("WPPF : extract_intensities : inconsistent dimensions \
                             of polar_view and tth_array variables.")
 
+    non_zeros_index = []
     for i in range(polar_view.shape[0]):
         mask = detector_mask[i,:]
-        data = np.array([tth_array[mask], polar_view[i,:][mask]]).T
-        data_inp_list.append(data)
+        # make sure that there is atleast one nonzero pixel
+
+        if np.sum(mask) > 1 :
+            data = np.array([tth_array[mask], polar_view[i,:][mask]]).T
+            data_inp_list.append(data)
+            non_zeros_index.append(i)
 
     kwargs = {
     'params': params,
     'phases': phases,
     'wavelength': wavelength,
-    'bkgmethod': bkgmethod
+    'bkgmethod': bkgmethod,
+    'termination_condition': termination_condition
     }
 
     P = GenericMultiprocessing()
     results = P.parallelise_function(data_inp_list, single_azimuthal_extraction, **kwargs)
-    return results
+
+    """
+    process the outputs from the multiprocessing to make the simulated polar views,
+    tables of hkl <--> intensity etc. at each azimuthal location
+    in this section, all the rows which had no pixels falling on detector will be handles
+    separately
+    """
+    pv_simulated = np.zeros(polar_view.shape)
+    extracted_intensities = []
+
+    for i in range(len(non_zeros_index)):
+        idx = non_zeros_index[i]
+        xp, yp, rwp, Icalc = results[i]
+
+        # xp = L.spectrum_sim._x
+        # yp = L.spectrum_sim._y
+        intp_int = np.interp(tth_array, xp, yp, left=0., right=0.)
+
+        pv_simulated[idx,:] = intp_int
+
+        extracted_intensities.append(Icalc)
+
+    return extracted_intensities, non_zeros_index, pv_simulated
 
 def single_azimuthal_extraction(expt_spectrum,
                         params=None,
@@ -2486,7 +2516,8 @@ def single_azimuthal_extraction(expt_spectrum,
                         wavelength={'kalpha1': _nm(
                         0.15406), 'kalpha2': _nm(0.154443)},
                         bkgmethod={'chebyshev': 10},
-                        intensity_init=None):
+                        intensity_init=None,
+                        termination_condition=None):
 
     kwargs = {
     'expt_spectrum': expt_spectrum,
@@ -2496,12 +2527,26 @@ def single_azimuthal_extraction(expt_spectrum,
     'bkgmethod': bkgmethod
     }
 
+
+    # get termination conditions for the LeBail refinement
+    del_rwp = termination_condition['rwp_perct_change']
+    max_iter = termination_condition['max_iter']
+
     L = LeBail(**kwargs)
 
-    for i in range(40):
-        L.RefineCycle(print_to_screen=False)
+    rel_error = 1.
+    init_error = 1.
+    niter = 0
 
-    return L
+    # when change in Rwp < 0.05% or reached maximum iteration
+    while rel_error > del_rwp and niter < max_iter:
+        L.RefineCycle(print_to_screen=False)
+        rel_error = 100.*np.abs((L.Rwp - init_error))
+        init_error = L.Rwp 
+        niter += 1
+
+    res = (L.spectrum_sim._x, L.spectrum_sim._y, L.Rwp, L.Icalc)
+    return res
 
 class Material_Rietveld:
 

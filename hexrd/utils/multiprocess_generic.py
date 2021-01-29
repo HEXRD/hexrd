@@ -25,7 +25,7 @@ class GenericMultiprocessing:
 
             res = func(var, *args, **kwargs)
             q_out.put((pos, res))
-            print("finished azimuthal position #", pos, "with rwp = ", res.Rwp*100., "%")
+            print("finished azimuthal position #", pos, "with rwp = ", res[2]*100., "%")
         return
 
     def parallelise_function(self, var, func, *args, **kwargs):
