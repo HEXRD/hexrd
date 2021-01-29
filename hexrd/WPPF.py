@@ -5,6 +5,7 @@ from hexrd.imageutil import snip1d
 from hexrd.crystallography import PlaneData
 from hexrd.material import Material
 from hexrd.valunits import valWUnit
+from hexrd.utils.multiprocess_generic import GenericMultiprocessing
 from hexrd import spacegroup as SG
 from hexrd import symmetry, symbols, constants
 import hexrd.resources
@@ -2199,10 +2200,11 @@ class LeBail:
             par = self.res.params[p]
             self.params[p].value = par.value
 
-    def RefineCycle(self):
+    def RefineCycle(self, print_to_screen=True):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       06/08/2020 SS 1.0 original
+                        01/28/2021 SS 1.1 added optional print_to_screen argument
         >> @DETAILS:    this is one refinement cycle for the least squares, typically few
                         10s to 100s of cycles may be required for convergence
         '''
@@ -2214,8 +2216,11 @@ class LeBail:
         self.niter += 1
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
         self.gofFlist = np.append(self.gofFlist, self.gofF)
-        print('Finished iteration. Rwp: {:.3f} % goodness of fit: {:.3f}'.format(
-            self.Rwp*100., self.gofF))
+
+        if print_to_screen:
+            print('Finished iteration. Rwp: \
+                {:.3f} % goodness of fit: {:.3f}'.format(
+                self.Rwp*100., self.gofF))
 
     def Refine(self):
         '''
@@ -2414,6 +2419,144 @@ class LeBail:
         return
 
 
+def _nm(x):
+    return valWUnit('lp', 'length', x, 'nm')
+
+
+def extract_intensities(polar_view,
+                        tth_array,
+                        detector_mask,
+                        params=None,
+                        phases=None,
+                        wavelength={'kalpha1': _nm(
+                            0.15406), 'kalpha2': _nm(0.154443)},
+                        bkgmethod={'chebyshev': 10},
+                        intensity_init=None,
+                        termination_condition={'rwp_perct_change': 0.05,
+                                               'max_iter': 100}):
+    ''' 
+    ==============================================================================================
+    ==============================================================================================
+
+    >> @AUTHOR:     Saransh Singh, Lanwrence Livermore National Lab,
+                    saransh1@llnl.gov
+    >> @DATE:       01/28/2021 SS 1.0 original
+    >> @DETAILS:    this function is used for extracting the experimental pole figure 
+                    intensities from the polar 2theta-eta map. The workflow is to simply 
+                    run the LeBail class, in parallel, over the different azimuthal profiles
+                    and return the Icalc values for the different wavelengths in the 
+                    calculation. For now, the multiprocessing is done using the multiprocessing
+                    module which comes natively with python. Extension to MPI will be done
+                    later if necessary.
+    >> @PARAMS      polar_view: mxn array with the polar view. the parallelization is done 
+                    over "m" i.e. the eta dimension
+                    tth_array: nx1 array with two theta values at each sampling point
+                    params: parameter values for the LeBail class. Could be in the form of
+                    yaml file, dictionary or Parameter class
+                    phases: materials to use in intensity extraction. could be a list of 
+                    material objects, or file or dictionary
+                    wavelength: dictionary of wavelengths to be used in the computation
+                    bkgmethod: "spline" or "chebyshev" or "snip" default is chebyshev
+                    intensity_init: initial intensities for each reflection. If none, then 
+                    it is specified to some power of 10 depending on maximum intensity in 
+                    spectrum (only used for powder simulator)
+    ==============================================================================================
+    ==============================================================================================
+    '''
+
+    # prepare the data file to distribute suing multiprocessing
+    data_inp_list = []
+
+    # check if the dimensions all match
+    if polar_view.shape[1] != tth_array.shape[0]:
+        raise RuntimeError("WPPF : extract_intensities : \
+                            inconsistent dimensions \
+                            of polar_view and tth_array variables.")
+
+    non_zeros_index = []
+    for i in range(polar_view.shape[0]):
+        mask = detector_mask[i, :]
+        # make sure that there is atleast one nonzero pixel
+
+        if np.sum(mask) > 1:
+            data = np.array([tth_array[mask], polar_view[i, :][mask]]).T
+            data_inp_list.append(data)
+            non_zeros_index.append(i)
+
+    kwargs = {
+        'params': params,
+        'phases': phases,
+        'wavelength': wavelength,
+        'bkgmethod': bkgmethod,
+        'termination_condition': termination_condition
+    }
+
+    P = GenericMultiprocessing()
+    results = P.parallelise_function(
+        data_inp_list, single_azimuthal_extraction, **kwargs)
+
+    """
+    process the outputs from the multiprocessing to make the 
+    simulated polar views, tables of hkl <--> intensity etc. at 
+    each azimuthal location
+    in this section, all the rows which had no pixels 
+    falling on detector will be handles
+    separately
+    """
+    pv_simulated = np.zeros(polar_view.shape)
+    extracted_intensities = []
+
+    for i in range(len(non_zeros_index)):
+        idx = non_zeros_index[i]
+        xp, yp, rwp, Icalc = results[i]
+
+        intp_int = np.interp(tth_array, xp, yp, left=0., right=0.)
+
+        pv_simulated[idx, :] = intp_int
+
+        extracted_intensities.append(Icalc)
+
+    return extracted_intensities, non_zeros_index, pv_simulated
+
+
+def single_azimuthal_extraction(expt_spectrum,
+                                params=None,
+                                phases=None,
+                                wavelength={'kalpha1': _nm(
+                                    0.15406), 'kalpha2': _nm(0.154443)},
+                                bkgmethod={'chebyshev': 10},
+                                intensity_init=None,
+                                termination_condition=None):
+
+    kwargs = {
+        'expt_spectrum': expt_spectrum,
+        'params': params,
+        'phases': phases,
+        'wavelength': wavelength,
+        'bkgmethod': bkgmethod
+    }
+
+    # get termination conditions for the LeBail refinement
+    del_rwp = termination_condition['rwp_perct_change']
+    max_iter = termination_condition['max_iter']
+
+    L = LeBail(**kwargs)
+
+    rel_error = 1.
+    init_error = 1.
+    niter = 0
+
+    # when change in Rwp < 0.05% or reached maximum iteration
+    while rel_error > del_rwp and niter < max_iter:
+        L.RefineCycle(print_to_screen=False)
+        rel_error = 100.*np.abs((L.Rwp - init_error))
+        init_error = L.Rwp
+        niter += 1
+
+    res = (L.spectrum_sim._x, L.spectrum_sim._y, L.Rwp, L.Icalc)
+    return res
+
+
 class Material_Rietveld:
 
     def __init__(self, fhdf, xtal, dmin, kev):
@@ -2433,7 +2576,8 @@ class Material_Rietveld:
         if(self.aniU):
             self.calcBetaij()
 
-        self.SYM_SG, self.SYM_PG_d, self.SYM_PG_d_laue, self.centrosymmetric, self.symmorphic = \
+        self.SYM_SG, self.SYM_PG_d, self.SYM_PG_d_laue, \
+            self.centrosymmetric, self.symmorphic = \
             symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
         self.latticeType = symmetry.latticeType(self.sgnum)
         self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum-1].strip()
@@ -2618,13 +2762,19 @@ class Material_Rietveld:
 
     def CalcMaxGIndex(self):
         self.ih = 1
-        while (1.0 / self.CalcLength(np.array([self.ih, 0, 0], dtype=np.float64), 'r') > self.dmin):
+        while (1.0 / self.CalcLength(
+                np.array([self.ih, 0, 0], dtype=np.float64), 'r')
+                > self.dmin):
             self.ih = self.ih + 1
         self.ik = 1
-        while (1.0 / self.CalcLength(np.array([0, self.ik, 0], dtype=np.float64), 'r') > self.dmin):
+        while (1.0 / self.CalcLength(
+                np.array([0, self.ik, 0], dtype=np.float64), 'r') >
+                self.dmin):
             self.ik = self.ik + 1
         self.il = 1
-        while (1.0 / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64), 'r') > self.dmin):
+        while (1.0 / self.CalcLength(
+                np.array([0, 0, self.il], dtype=np.float64), 'r') >
+                self.dmin):
             self.il = self.il + 1
 
     def CalcStar(self, v, space, applyLaue=False):
