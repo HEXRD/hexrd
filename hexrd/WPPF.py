@@ -1974,7 +1974,9 @@ class LeBail:
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/20/2020 SS 1.0 original
-                        01/29/2021 SS 1.1 updated to depend only on fwhm of profile
+                        01/29/2021 SS 2.0 updated to depend only on fwhm of profile
+                        P. Thompson, D.E. Cox & J.B. Hastings, J. Appl. Cryst.,20,79-83, 
+                        1987
         >> @DETAILS:    calculates the mixing factor eta
         '''
         fwhm_g = self.Hcag
@@ -2101,6 +2103,9 @@ class LeBail:
                     _, yo = self.spectrum_expt.data
                     _, yc = self.spectrum_sim.data
 
+                    """ @TODO if yc has zeros in it, then this
+                    the next line will not like it. need to 
+                    address that """
                     I = np.trapz(yo * y / yc, self.tth_list)
                     Iobs.append(I)
 
