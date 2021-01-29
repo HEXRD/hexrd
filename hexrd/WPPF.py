@@ -2218,7 +2218,8 @@ class LeBail:
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
         if print_to_screen:
-            print('Finished iteration. Rwp: {:.3f} % goodness of fit: {:.3f}'.format(
+            print('Finished iteration. Rwp: \
+                {:.3f} % goodness of fit: {:.3f}'.format(
                 self.Rwp*100., self.gofF))
 
     def Refine(self):
@@ -2434,31 +2435,33 @@ def extract_intensities(polar_view,
                         termination_condition={'rwp_perct_change': 0.05,
                                                'max_iter': 100}):
     ''' 
-    ========================================================================================================
-    ========================================================================================================
+    ==============================================================================================
+    ==============================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lanwrence Livermore National Lab,
                     saransh1@llnl.gov
     >> @DATE:       01/28/2021 SS 1.0 original
-    >> @DETAILS:    this function is used for extracting the experimental pole figure intensities from the 
-                    polar 2theta-eta map. The workflow is to simply run the LeBail class, in parallel, over
-                    the different azimuthal profiles and return the Icalc values for the different
-                    wavelengths in the calculation. For now, the multiprocessing is done using the 
-                    multiprocessing module which comes natively with python. Extension to MPI will be done
+    >> @DETAILS:    this function is used for extracting the experimental pole figure 
+                    intensities from the polar 2theta-eta map. The workflow is to simply 
+                    run the LeBail class, in parallel, over the different azimuthal profiles
+                    and return the Icalc values for the different wavelengths in the 
+                    calculation. For now, the multiprocessing is done using the multiprocessing
+                    module which comes natively with python. Extension to MPI will be done
                     later if necessary.
-    >> @PARAMS      polar_view: mxn array with the polar view. the parallelization is done over "m" i.e. the
-                    eta dimension
+    >> @PARAMS      polar_view: mxn array with the polar view. the parallelization is done 
+                    over "m" i.e. the eta dimension
                     tth_array: nx1 array with two theta values at each sampling point
-                    params: parameter values for the LeBail class. Could be in the form of yaml file, dictionary
-                    or Parameter class
-                    phases: materials to use in intensity extraction. could be a list of material objects, or
-                    file or dictionary
+                    params: parameter values for the LeBail class. Could be in the form of
+                    yaml file, dictionary or Parameter class
+                    phases: materials to use in intensity extraction. could be a list of 
+                    material objects, or file or dictionary
                     wavelength: dictionary of wavelengths to be used in the computation
                     bkgmethod: "spline" or "chebyshev" or "snip" default is chebyshev
-                    intensity_init: initial intensities for each reflection. If none, then it is specified to 
-                    some power of 10 depending on maximum intensity in spectrum (only used for powder simulator)
-    ========================================================================================================
-    ========================================================================================================
+                    intensity_init: initial intensities for each reflection. If none, then 
+                    it is specified to some power of 10 depending on maximum intensity in 
+                    spectrum (only used for powder simulator)
+    ==============================================================================================
+    ==============================================================================================
     '''
 
     # prepare the data file to distribute suing multiprocessing
@@ -2493,9 +2496,11 @@ def extract_intensities(polar_view,
         data_inp_list, single_azimuthal_extraction, **kwargs)
 
     """
-    process the outputs from the multiprocessing to make the simulated polar views,
-    tables of hkl <--> intensity etc. at each azimuthal location
-    in this section, all the rows which had no pixels falling on detector will be handles
+    process the outputs from the multiprocessing to make the 
+    simulated polar views, tables of hkl <--> intensity etc. at 
+    each azimuthal location
+    in this section, all the rows which had no pixels 
+    falling on detector will be handles
     separately
     """
     pv_simulated = np.zeros(polar_view.shape)
