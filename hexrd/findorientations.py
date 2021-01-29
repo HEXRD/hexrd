@@ -56,6 +56,54 @@ def _process_omegas(omegaimageseries_dict):
     return ome_period, ome_ranges
 
 
+def label_spots(this_map, method, method_kwargs):
+    if method == 'label':
+        # labeling mask
+        structureNDI_label = ndimage.generate_binary_structure(2, 1)
+
+        # First apply filter
+        filt_stdev = fwhm_to_stdev * method_kwargs['filter_radius']
+        this_map_f = -ndimage.filters.gaussian_laplace(
+            this_map, filt_stdev)
+
+        labels_t, numSpots_t = ndimage.label(
+            this_map_f > method_kwargs['threshold'],
+            structureNDI_label
+            )
+        coms_t = np.atleast_2d(
+            ndimage.center_of_mass(
+                this_map_f,
+                labels=labels_t,
+                index=np.arange(1, np.amax(labels_t) + 1)
+                )
+            )
+    elif method in ['blob_log', 'blob_dog']:
+        # must scale map
+        # TODO: we should so a parameter study here
+        this_map[np.isnan(this_map)] = 0.
+        this_map -= np.min(this_map)
+        scl_map = 2*this_map/np.max(this_map) - 1.
+
+        # TODO: Currently the method kwargs must be explicitly specified
+        #       in the config, and there are no checks
+        # for 'blob_log': min_sigma=0.5, max_sigma=5,
+        #                 num_sigma=10, threshold=0.01, overlap=0.1
+        # for 'blob_dog': min_sigma=0.5, max_sigma=5,
+        #                 sigma_ratio=1.6, threshold=0.01, overlap=0.1
+        if method == 'blob_log':
+            blobs = np.atleast_2d(
+                blob_log(scl_map, **method_kwargs)
+            )
+        else:  # blob_dog
+            blobs = np.atleast_2d(
+                blob_dog(scl_map, **method_kwargs)
+            )
+        numSpots_t = len(blobs)
+        coms_t = blobs[:, :2]
+
+    return numSpots_t, coms_t
+
+
 def generate_orientation_fibers(cfg, eta_ome):
     """
     From ome-eta maps and hklid spec, generate list of
@@ -84,9 +132,6 @@ def generate_orientation_fibers(cfg, eta_ome):
     del_ome = eta_ome.omegas[1] - eta_ome.omegas[0]
     del_eta = eta_ome.etas[1] - eta_ome.etas[0]
 
-    # labeling mask
-    structureNDI_label = ndimage.generate_binary_structure(2, 1)
-
     # crystallography data from the pd object
     pd = eta_ome.planeData
     hkls = pd.hkls
@@ -104,56 +149,15 @@ def generate_orientation_fibers(cfg, eta_ome):
     # Labeling of spots from seed hkls
     # =========================================================================
 
-    qfib = []
-    input_p = []
     numSpots = []
     coms = []
     for i in seed_hkl_ids:
-        if method == 'label':
-            # First apply filter
-            filt_stdev = fwhm_to_stdev * method_kwargs['filter_radius']
-            this_map_f = -ndimage.filters.gaussian_laplace(
-                eta_ome.dataStore[i], filt_stdev)
-
-            labels_t, numSpots_t = ndimage.label(
-                this_map_f > method_kwargs['threshold'],
-                structureNDI_label
-                )
-            coms_t = np.atleast_2d(
-                ndimage.center_of_mass(
-                    this_map_f,
-                    labels=labels_t,
-                    index=np.arange(1, np.amax(labels_t) + 1)
-                    )
-                )
-        elif method in ['blob_log', 'blob_dog']:
-            # must scale map
-            # TODO: we should so a parameter study here
-            this_map = eta_ome.dataStore[i]
-            this_map[np.isnan(this_map)] = 0.
-            this_map -= np.min(this_map)
-            scl_map = 2*this_map/np.max(this_map) - 1.
-
-            # TODO: Currently the method kwargs must be explicitly specified
-            #       in the config, and there are no checks
-            # for 'blob_log': min_sigma=0.5, max_sigma=5,
-            #                 num_sigma=10, threshold=0.01, overlap=0.1
-            # for 'blob_dog': min_sigma=0.5, max_sigma=5,
-            #                 sigma_ratio=1.6, threshold=0.01, overlap=0.1
-            if method == 'blob_log':
-                blobs = np.atleast_2d(
-                    blob_log(scl_map, **method_kwargs)
-                )
-            else:  # blob_dog
-                blobs = np.atleast_2d(
-                    blob_dog(scl_map, **method_kwargs)
-                )
-            numSpots_t = len(blobs)
-            coms_t = blobs[:, :2]
+        this_map = eta_ome.dataStore[i]
+        numSpots_t, coms_t = label_spots(this_map, method, method_kwargs)
         numSpots.append(numSpots_t)
         coms.append(coms_t)
-        pass
 
+    input_p = []
     for i in range(len(pd_hkl_ids)):
         for ispot in range(numSpots[i]):
             if not np.isnan(coms[i][ispot][0]):
