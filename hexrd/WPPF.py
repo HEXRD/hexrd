@@ -1953,8 +1953,7 @@ class LeBail:
         '''
         th = np.radians(0.5*tth)
         tanth = np.tan(th)
-        Hsq = self.U * tanth**2 + self.V * tanth + \
-              self.W
+        Hsq = self.U * tanth**2 + self.V * tanth + self.W
         if(Hsq < 0.):
             Hsq = 1.0e-12
         self.Hcag = np.sqrt(Hsq)
@@ -1972,21 +1971,21 @@ class LeBail:
 
     def MixingFact(self, tth):
         '''
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/20/2020 SS 1.0 original
-                        01/29/2021 SS 2.0 updated to depend only on fwhm of profile
-                        P. Thompson, D.E. Cox & J.B. Hastings, J. Appl. Cryst.,20,79-83, 
-                        1987
-        >> @DETAILS:    calculates the mixing factor eta
+        >> @AUTHOR:  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:    05/20/2020 SS 1.0 original
+                     01/29/2021 SS 2.0 updated to depend only on fwhm of profile
+                     P. Thompson, D.E. Cox & J.B. Hastings, J. Appl. Cryst.,20,79-83, 
+                     1987
+        >> @DETAILS: calculates the mixing factor eta
         '''
         fwhm_g = self.Hcag
         fwhm_l = self.gamma
 
         fwhm = fwhm_g**5 + 2.69269 * fwhm_g**4 * fwhm_l + \
-                2.42843 * fwhm_g**3 * fwhm_l**2 + \
-                4.47163 * fwhm_g**2 * fwhm_l**3 +\
-                0.07842 * fwhm_g * fwhm_l**4 +\
-                fwhm_l**5
+               2.42843 * fwhm_g**3 * fwhm_l**2 + \
+               4.47163 * fwhm_g**2 * fwhm_l**3 +\
+               0.07842 * fwhm_g * fwhm_l**4 +\
+               fwhm_l**5
 
         fwhm = fwhm**0.20
 
@@ -2103,9 +2102,11 @@ class LeBail:
                     _, yo = self.spectrum_expt.data
                     _, yc = self.spectrum_sim.data
 
-                    """ @TODO if yc has zeros in it, then this
+                    """ 
+                    @TODO if yc has zeros in it, then this
                     the next line will not like it. need to 
-                    address that """
+                    address that 
+                    """
                     I = np.trapz(yo * y / yc, self.tth_list)
                     Iobs.append(I)
 
