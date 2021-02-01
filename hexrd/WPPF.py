@@ -24,8 +24,9 @@ from pylab import plot, ginput, show, axis, close, title
 
 
 class Parameters:
-    ''' ========================================================================================================
-    ========================================================================================================
+    """
+    ==================================================================================
+    ==================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lanwrence Livermore National Lab,
                     saransh1@llnl.gov
@@ -33,18 +34,32 @@ class Parameters:
     >> @DETAILS:    this is the parameter class which handles all refinement parameters
         for both the Rietveld and the LeBail refimentment problems
 
-        ========================================================================================================
-        ========================================================================================================
-    '''
+        ===============================================================================
+        ===============================================================================
+    """
 
-    def __init__(self, name=None, vary=False, value=0.0, lb=-np.Inf, ub=np.Inf):
+    def __init__(self,
+                 name=None,
+                 vary=False,
+                 value=0.0,
+                 lb=-np.Inf,
+                 ub=np.Inf):
 
         self.param_dict = {}
 
         if(name is not None):
-            self.add(name=name, vary=vary, value=value, lb=min, ub=max)
+            self.add(name=name,
+                     vary=vary,
+                     value=value,
+                     lb=min,
+                     ub=max)
 
-    def add(self, name, vary=False, value=0.0, lb=-np.Inf, ub=np.Inf):
+    def add(self,
+            name,
+            vary=False,
+            value=0.0,
+            lb=-np.Inf,
+            ub=np.Inf):
         '''
             >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
             >> @DATE:       05/18/2020 SS 1.0 original
@@ -52,7 +67,12 @@ class Parameters:
         '''
         self[name] = Parameter(name=name, vary=vary, value=value, lb=lb, ub=ub)
 
-    def add_many(self, names, varies, values, lbs, ubs):
+    def add_many(self,
+                 names,
+                 varies,
+                 values,
+                 lbs,
+                 ubs):
         '''
             >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
             >> @DATE:       05/18/2020 SS 1.0 original
@@ -116,7 +136,8 @@ class Parameters:
 
         else:
             raise RuntimeError(
-                'Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
+                'Parameters: dump_hdf5 Pass in a \
+                 filename string or h5py.File object')
 
         if("/Parameters" in fid):
             del(fid["Parameters"])
@@ -138,14 +159,6 @@ class Parameters:
 
             did = gid.create_dataset("vary", (1, ), dtype=np.bool)
             did.write_direct(np.array(param.vary, dtype=np.bool))
-
-    # def pretty_print(self):
-    #   '''
-    #       >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-    #       >> @DATE:       05/18/2020 SS 1.0 original
-    #       >> @DETAILS:    print to the Parameter class to the terminal
-    #   '''
-    #   pass
 
     def __getitem__(self, key):
         if(key in self.param_dict.keys()):
@@ -185,19 +198,25 @@ class Parameters:
 
 
 class Parameter:
-    ''' ========================================================================================================
-    ========================================================================================================
+    """
+    ===================================================================================
+    ===================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/18/2020 SS 1.0 original
     >> @DETAILS:    the parameters class (previous one) is a collection of this
                     parameter class indexed by the name of each variable
 
-        ========================================================================================================
-        ========================================================================================================
-    '''
+    ================================================================================
+    =================================================================================
+    """
 
-    def __init__(self, name=None, vary=False, value=0.0, lb=-np.Inf, ub=np.Inf):
+    def __init__(self,
+                 name=None,
+                 vary=False,
+                 value=0.0,
+                 lb=-np.Inf,
+                 ub=np.Inf):
 
         self.name = name
         self.vary = vary
@@ -256,17 +275,18 @@ class Parameter:
 
 
 class Spectrum:
-    ''' ========================================================================================================
-        ========================================================================================================
+    """
+    ==================================================================================
+    ==================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/18/2020 SS 1.0 original
     >> @DETAILS:    spectrum class holds the a pair of x,y data, in this case, would be
                     2theta-intensity values
 
-        ========================================================================================================
-        ========================================================================================================
-    '''
+    ==================================================================================
+    ==================================================================================
+    """
 
     def __init__(self, x=None, y=None, name=''):
         if x is None:
@@ -350,7 +370,8 @@ class Spectrum:
 
         else:
             raise RuntimeError(
-                'Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
+                'Parameters: dump_hdf5 Pass in a filename \
+                 string or h5py.File object')
 
         name_spectrum = 'Spectrum/'+name
         if(name_spectrum in fid):
@@ -385,13 +406,16 @@ class Spectrum:
                 y = self._y[ind]
 
                 if len(x) == 0:
-                    # if there is no overlapping between background and Spectrum, raise an error
+                    """ if there is no overlapping between background
+                     and Spectrum, raise an error """
                     raise BkgNotInRangeError(self.name)
 
                 y = y * self._scaling + self.offset - f_bkg(x)
             else:
-                # if Spectrum and bkg have the same x basis we just delete y-y_bkg
-                x, y = self._x, self._y * self._scaling + self.offset - y_bkg
+                """ if Spectrum and bkg have the same
+                 x basis we just delete y-y_bkg"""
+                x, y = self._x, self._y * \
+                    self._scaling + self.offset - y_bkg
         else:
             x, y = self.original_data
 
@@ -409,7 +433,8 @@ class Spectrum:
 
     @property
     def original_data(self):
-        return self._x, self._y * self._scaling + self.offset
+        return self._x, self._y * self._scaling +\
+            self.offset
 
     @property
     def x(self):
@@ -445,10 +470,11 @@ class Spectrum:
 
     def extend_to(self, x_value, y_value):
         """
-        Extends the current Spectrum to a specific x_value by filling it with the y_value. Does not modify inplace but
-        returns a new filled Spectrum
-        :param x_value: Point to which extend the Spectrum should be smaller than the lowest x-value in the Spectrum or
-                        vice versa
+        Extends the current Spectrum to a specific x_value by filling it 
+        with the y_value. Does not modify inplace but returns a new filled 
+        Spectrum
+        :param x_value: Point to which extend the Spectrum should be smaller
+        than the lowest x-value in the Spectrum or vice versa
         :param y_value: number to fill the Spectrum with
         :return: extended Spectrum
         """
@@ -494,7 +520,8 @@ class Spectrum:
         other_x, other_y = other.data
 
         if orig_x.shape != other_x.shape:
-            # todo different shape subtraction of spectra seems the fail somehow...
+            # todo different shape subtraction of spectra
+            # seems the fail somehow...
             # the background will be interpolated
             other_fcn = interp1d(other_x, other_x, kind='linear')
 
@@ -505,7 +532,8 @@ class Spectrum:
             y = orig_y[ind]
 
             if len(x) == 0:
-                # if there is no overlapping between background and Spectrum, raise an error
+                # if there is no overlapping between
+                # background and Spectrum, raise an error
                 raise BkgNotInRangeError(self.name)
             return Spectrum(x, y - other_fcn(x))
         else:
@@ -526,7 +554,8 @@ class Spectrum:
             y = orig_y[ind]
 
             if len(x) == 0:
-                # if there is no overlapping between background and Spectrum, raise an error
+                # if there is no overlapping between
+                # background and Spectrum, raise an error
                 raise BkgNotInRangeError(self.name)
             return Spectrum(x, y + other_fcn(x))
         else:
@@ -545,18 +574,20 @@ class Spectrum:
 
 
 class Material_LeBail:
-    ''' ========================================================================================================
-        ========================================================================================================
+    ''' 
+    ========================================================================================
+    ========================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/18/2020 SS 1.0 original
-                    09/14/2020 SS 1.1 class can now be initialized using a material.Material class instance
-    >> @DETAILS:    Material_LeBail class is a stripped down version of the materials.Material class.
-                    this is done to keep the class lightweight and make sure only the information
-                    necessary for the lebail fit is kept
+                    09/14/2020 SS 1.1 class can now be initialized using
+                    a material.Material class instance
+    >> @DETAILS:    Material_LeBail class is a stripped down version of the 
+                    materials.Material class.this is done to keep the class lightweight 
+                    and make sure only the information necessary for the lebail fit is kept
 
-        ========================================================================================================
-        ========================================================================================================
+    =========================================================================================
+    =========================================================================================
     '''
 
     def __init__(self,
@@ -570,7 +601,8 @@ class Material_LeBail:
             self._readHDF(fhdf, xtal)
             self._calcrmt()
 
-            _, self.SYM_PG_d, self.SYM_PG_d_laue, self.centrosymmetric, self.symmorphic = \
+            _, self.SYM_PG_d, self.SYM_PG_d_laue, \
+                self.centrosymmetric, self.symmorphic = \
                 symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
             self.latticeType = symmetry.latticeType(self.sgnum)
             self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum-1].strip()
@@ -582,7 +614,8 @@ class Material_LeBail:
                 self._init_from_materials(material_obj)
             else:
                 raise ValueError(
-                    "Invalid material_obj argument. only Material class can be passed here.")
+                    "Invalid material_obj argument. \
+                    only Material class can be passed here.")
 
     def _readHDF(self, fhdf, xtal):
 
@@ -739,13 +772,19 @@ class Material_LeBail:
 
     def CalcMaxGIndex(self):
         self.ih = 1
-        while (1.0 / self.CalcLength(np.array([self.ih, 0, 0], dtype=np.float64), 'r') > self.dmin):
+        while (1.0 / self.CalcLength(
+                np.array([self.ih, 0, 0], dtype=np.float64), 'r')
+                > self.dmin):
             self.ih = self.ih + 1
         self.ik = 1
-        while (1.0 / self.CalcLength(np.array([0, self.ik, 0], dtype=np.float64), 'r') > self.dmin):
+        while (1.0 / self.CalcLength(
+                np.array([0, self.ik, 0], dtype=np.float64), 'r')
+                > self.dmin):
             self.ik = self.ik + 1
         self.il = 1
-        while (1.0 / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64), 'r') > self.dmin):
+        while (1.0 / self.CalcLength(
+                np.array([0, 0, self.il], dtype=np.float64), 'r')
+                > self.dmin):
             self.il = self.il + 1
 
     def CalcStar(self, v, space, applyLaue=False):
@@ -843,7 +882,8 @@ class Material_LeBail:
         elif(self.latticeType == 'monoclinic'):
             if(ax != '2_1'):
                 raise RuntimeError(
-                    'omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis')
+                    'omitscrewaxisabsences: monoclinic systems\
+                     can only have 2_1 screw axis')
             '''
                 only unique b-axis will be encoded
                 it is the users responsibility to input
@@ -857,11 +897,13 @@ class Material_LeBail:
                 hkllist = hkllist[mask, :]
             else:
                 raise RuntimeError(
-                    'omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
+                    'omitscrewaxisabsences: only b-axis\
+                     can have 2_1 screw axis')
         elif(self.latticeType == 'orthorhombic'):
             if(ax != '2_1'):
                 raise RuntimeError(
-                    'omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis')
+                    'omitscrewaxisabsences: orthorhombic systems\
+                     can only have 2_1 screw axis')
             '''
             2_1 screw on primary axis
             h00 ; h = 2n
@@ -907,7 +949,8 @@ class Material_LeBail:
                     mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
             else:
                 raise RuntimeError(
-                    'omitscrewaxisabsences: trigonal systems can only have screw axis')
+                    'omitscrewaxisabsences: trigonal \
+                    systems can only have screw axis')
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
         elif(self.latticeType == 'hexagonal'):
@@ -921,7 +964,8 @@ class Material_LeBail:
                     mask2 = np.mod(hkllist[:, 2]+120, 6) != 0
             else:
                 raise RuntimeError(
-                    'omitscrewaxisabsences: hexagonal systems can only have screw axis')
+                    'omitscrewaxisabsences: hexagonal \
+                    systems can only have screw axis')
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
         elif(self.latticeType == 'cubic'):
@@ -1049,7 +1093,8 @@ class Material_LeBail:
         elif(self.latticeType == 'trigonal'):
             if(plane != 'c'):
                 raise RuntimeError(
-                    'omitglideplaneabsences: only c-glide allowed for trigonal systems')
+                    'omitglideplaneabsences: only c-glide \
+                    allowed for trigonal systems')
 
             if(ip == 1):
                 mask1 = hkllist[:, 0] == 0
@@ -1059,7 +1104,8 @@ class Material_LeBail:
                     mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
                     raise RuntimeError(
-                        'omitglideplaneabsences: only c-glide allowed for trigonal systems')
+                        'omitglideplaneabsences: only c-glide \
+                        allowed for trigonal systems')
             elif(ip == 2):
                 mask1 = hkllist[:, 1] == hkllist[:, 0]
                 mask2 = hkllist[:, 0] == -2*hkllist[:, 1]
@@ -1068,7 +1114,8 @@ class Material_LeBail:
                     mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
                     raise RuntimeError(
-                        'omitglideplaneabsences: only c-glide allowed for trigonal systems')
+                        'omitglideplaneabsences: only c-glide \
+                        allowed for trigonal systems')
             mask1 = np.logical_and(mask1, mask4)
             mask2 = np.logical_and(mask2, mask4)
             mask3 = np.logical_and(mask3, mask4)
@@ -1078,7 +1125,8 @@ class Material_LeBail:
         elif(self.latticeType == 'hexagonal'):
             if(plane != 'c'):
                 raise RuntimeError(
-                    'omitglideplaneabsences: only c-glide allowed for hexagonal systems')
+                    'omitglideplaneabsences: only c-glide \
+                    allowed for hexagonal systems')
             if(ip == 2):
                 mask1 = hkllist[:, 0] == hkllist[:, 1]
                 mask2 = hkllist[:, 0] == -2*hkllist[:, 1]
@@ -1145,7 +1193,8 @@ class Material_LeBail:
                         ~mask1, np.logical_or(~mask2, ~mask3))
                 else:
                     raise RuntimeError(
-                        'omitglideplaneabsences: unknown glide plane encountered.')
+                        'omitglideplaneabsences: unknown glide \
+                        plane encountered.')
                 hkllist = hkllist[mask, :]
             if(ip == 2):
                 mask1 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 1])
@@ -1161,7 +1210,8 @@ class Material_LeBail:
                     mask6 = np.mod(2*hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
                 else:
                     raise RuntimeError(
-                        'omitglideplaneabsences: unknown glide plane encountered.')
+                        'omitglideplaneabsences: unknown glide \
+                        plane encountered.')
                 mask1 = np.logical_not(np.logical_and(mask1, mask4))
                 mask2 = np.logical_not(np.logical_and(mask2, mask5))
                 mask3 = np.logical_not(np.logical_and(mask3, mask6))
@@ -1285,18 +1335,19 @@ class Material_LeBail:
 
 
 class Phases_LeBail:
-    ''' ========================================================================================================
-        ========================================================================================================
-
+    """
+    ========================================================================================
+    ========================================================================================
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/20/2020 SS 1.0 original
     >> @DETAILS:    class to handle different phases in the LeBail fit. this is a stripped down
-                    version of main Phase class for efficiency. only the components necessary for
-                    calculating peak positions are retained. further this will have a slight
-                    modification to account for different wavelengths in the same phase name
-        ========================================================================================================
-        ========================================================================================================
-    '''
+                    version of main Phase class for efficiency. only the 
+                    components necessary for calculating peak positions are retained. further 
+                    this will have a slight modification to account for different wavelengths 
+                    in the same phase name
+    =========================================================================================
+    =========================================================================================
+    """
     def _kev(x):
         return valWUnit('beamenergy', 'energy', x, 'keV')
 
@@ -1346,7 +1397,8 @@ class Phases_LeBail:
     def __setitem__(self, key, mat_cls):
 
         if(key in self.phase_dict.keys()):
-            warnings.warn('phase already in parameter list. overwriting ...')
+            warnings.warn('phase already in parameter \
+                list. overwriting ...')
         if(isinstance(mat_cls, Material_LeBail)):
             self.phase_dict[key] = mat_cls
         else:
@@ -1432,7 +1484,8 @@ class Phases_LeBail:
 
         else:
             raise RuntimeError(
-                'Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
+                'Parameters: dump_hdf5 Pass in a filename \
+                string or h5py.File object')
 
         if("/Phases" in fid):
             del(fid["Phases"])
@@ -1466,8 +1519,9 @@ class Phases_LeBail:
 
 
 class LeBail:
-    ''' ========================================================================================================
-        ========================================================================================================
+    """
+    ========================================================================================================
+    ========================================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/19/2020 SS 1.0 original
@@ -1500,9 +1554,9 @@ class LeBail:
                     Intensity_init: if set to none, then some power of 10 is used. User has option
                     to pass in dictionary of structure factors. must ensure that the size of structure
                     factor matches the possible reflections (added 01/22/2021 SS)
-        ========================================================================================================
-        ========================================================================================================
-    '''
+    ========================================================================================================
+    ========================================================================================================
+    """
     def _nm(x):
         return valWUnit('lp', 'length', x, 'nm')
 
@@ -1540,7 +1594,8 @@ class LeBail:
         self.gofFlist = np.empty([0])
 
     def __str__(self):
-        resstr = '<LeBail Fit class>\nParameters of the model are as follows:\n'
+        resstr = '<LeBail Fit class>\nParameters of \
+        the model are as follows:\n'
         resstr += self.params.__str__()
         return resstr
 
@@ -1685,7 +1740,8 @@ class LeBail:
 
         else:
             raise RuntimeError(
-                'Parameters: dump_hdf5 Pass in a filename string or h5py.File object')
+                'Parameters: dump_hdf5 Pass in a filename \
+                string or h5py.File object')
 
         self.phases.dump_hdf5(fid)
         self.params.dump_hdf5(fid)
@@ -1750,8 +1806,10 @@ class LeBail:
             mask = self.spectrum_expt._y <= 0.0
 
             self.weights = np.zeros(self.spectrum_expt.y.shape)
-            ''' also initialize statistical weights for the error calculation'''
-            self.weights[~mask] = 1.0 / np.sqrt(self.spectrum_expt.y[~mask])
+            """also initialize statistical weights 
+            for the error calculation"""
+            self.weights[~mask] = 1.0 / \
+                np.sqrt(self.spectrum_expt.y[~mask])
             self.initialize_bkg()
 
     def initialize_bkg(self):
@@ -1808,7 +1866,8 @@ class LeBail:
     def selectpoints(self):
 
         title(
-            'Select points for background estimation; click middle mouse button when done.')
+            'Select points for background estimation; \
+            click middle mouse button when done.')
 
         plot(self.tth_list, self.spectrum_expt._y, '-k')  # 5 points tolerance
 
@@ -1865,17 +1924,20 @@ class LeBail:
                         raise FileError('phase file doesn\'t exist.')
 
                 elif(isinstance(phase_info, Material)):
-                    p[phase_info.name] = Material_LeBail(fhdf=None,
-                                                         xtal=None,
-                                                         dmin=None,
-                                                         material_obj=phase_info)
+                    p[phase_info.name] = Material_LeBail(
+                        fhdf=None,
+                        xtal=None,
+                        dmin=None,
+                        material_obj=phase_info)
 
                 elif(isinstance(phase_info, list)):
                     for mat in phase_info:
-                        p[mat.name] = Material_LeBail(fhdf=None,
-                                                      xtal=None,
-                                                      dmin=None,
-                                                      material_obj=mat)
+                        p[mat.name] = Material_LeBail(
+                            fhdf=None,
+                            xtal=None,
+                            dmin=None,
+                            material_obj=mat)
+
                         p.num_phases += 1
 
                     for mat in p:
@@ -1919,9 +1981,9 @@ class LeBail:
             '''
             for p in self.phases:
                 if p not in self.intensity_init:
-                    raise RuntimeError("LeBail: Intensity was initialized using custom values. \
-                        However, initial values for one or more phases seem to be missing from \
-                        the dictionary.")
+                    raise RuntimeError("LeBail: Intensity was initialized\
+                     using custom values. However, initial values for one \
+                     or more phases seem to be missing from the dictionary.")
                 self.Icalc[p] = {}
 
                 '''
@@ -1934,16 +1996,21 @@ class LeBail:
                 '''
                 for l in self.phases.wavelength:
                     if l not in self.intensity_init[p]:
-                        raise RuntimeError("LeBail: Intensity was initialized using custom values. \
-                        However, initial values for one or more wavelengths in spectrum seem to be \
-                        missing from the dictionary.")
+                        raise RuntimeError("LeBail: Intensity was initialized\
+                         using custom values. However, initial values for one \
+                         or more wavelengths in spectrum seem to be missing \
+                         from the dictionary.")
 
-                    if(self.tth[p][l].shape[0] <= self.intensity_init[p][l].shape[0]):
-                        self.Icalc[p][l] = self.intensity_init[p][l][0:self.tth[p][l].shape[0]]
+                    if(self.tth[p][l].shape[0] <=
+                       self.intensity_init[p][l].shape[0]):
+                        self.Icalc[p][l] = \
+                            self.intensity_init[p][l][0:self.tth[p]
+                                                      [l].shape[0]]
 
         else:
             raise RuntimeError(
-                "LeBail: Intensity_init must be either None or a dictionary")
+                "LeBail: Intensity_init must be either\
+                 None or a dictionary")
 
     def CagliottiH(self, tth):
         '''
@@ -3477,8 +3544,9 @@ class Material_Rietveld:
 
 
 class Phases_Rietveld:
-    ''' ========================================================================================================
-        ========================================================================================================
+    """
+    ==============================================================================================
+    ==============================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/20/2020 SS 1.0 original
@@ -3486,9 +3554,9 @@ class Phases_Rietveld:
                     version of main Phase class for efficiency. only the components necessary for
                     calculating peak positions are retained. further this will have a slight
                     modification to account for different wavelengths in the same phase name
-        ========================================================================================================
-        ========================================================================================================
-    '''
+    ==============================================================================================
+     =============================================================================================
+    """
     def _kev(x):
         return valWUnit('beamenergy', 'energy', x, 'keV')
 
@@ -3580,7 +3648,8 @@ class Phases_Rietveld:
             self.num_phases += 1
             for l in self.wavelength:
                 lam = self.wavelength[l][0].value * 1e-9
-                E = constants.cPlanck * constants.cLight / constants.cCharge / lam
+                E = constants.cPlanck * constants.cLight / \
+                constants.cCharge / lam
                 E *= 1e-3
                 kev = valWUnit('beamenergy', 'energy', E, 'keV')
                 self[k][l] = Material_Rietveld(
@@ -3621,8 +3690,9 @@ class Phases_Rietveld:
 
 
 class Rietveld:
-    ''' ========================================================================================================
-    ========================================================================================================
+    """
+    ===================================================================================================
+    ===================================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       01/08/2020 SS 1.0 original
@@ -3636,9 +3706,9 @@ class Rietveld:
                     1. Spectrum         contains the experimental spectrum
                     2. Background       contains the background extracted from spectrum
                     3. Refine           contains all the machinery for refinement
-        ========================================================================================================
-        ========================================================================================================
-    '''
+    ===================================================================================================
+    ===================================================================================================
+    """
 
     def __init__(self,
                  expt_spectrum=None,
@@ -3672,7 +3742,8 @@ class Rietveld:
         self.gofFlist = np.empty([0])
 
     def __str__(self):
-        resstr = '<Rietveld Fit class>\nParameters of the model are as follows:\n'
+        resstr = '<Rietveld Fit class>\nParameters of \
+        the model are as follows:\n'
         resstr += self.params.__str__()
         return resstr
 
@@ -3757,19 +3828,26 @@ class Rietveld:
 
                             nn = p+'_'+elem+str(atom_label[i])+'_x'
                             params.add(
-                                nn, value=atom_pos[i, 0], lb=0.0, ub=1.0, vary=False)
+                                nn, value=atom_pos[i, 0], 
+                                lb=0.0, ub=1.0, 
+                                vary=False)
 
                             nn = p+'_'+elem+str(atom_label[i])+'_y'
                             params.add(
-                                nn, value=atom_pos[i, 1], lb=0.0, ub=1.0, vary=False)
+                                nn, value=atom_pos[i, 1], 
+                                lb=0.0, ub=1.0, 
+                                vary=False)
 
                             nn = p+'_'+elem+str(atom_label[i])+'_z'
                             params.add(
-                                nn, value=atom_pos[i, 2], lb=0.0, ub=1.0, vary=False)
+                                nn, value=atom_pos[i, 2], 
+                                lb=0.0, ub=1.0, 
+                                vary=False)
 
                             nn = p+'_'+elem+str(atom_label[i])+'_occ'
                             params.add(nn, value=occ[i],
-                                       lb=0.0, ub=1.0, vary=False)
+                                       lb=0.0, ub=1.0, 
+                                       vary=False)
 
                             if(mat.aniU):
                                 U = mat.U
@@ -3777,12 +3855,17 @@ class Rietveld:
                                     nn = p+'_'+elem + \
                                         str(atom_label[i])+'_'+_nameU[j]
                                     params.add(
-                                        nn, value=U[i, j], lb=-1e-3, ub=np.inf, vary=False)
+                                        nn, value=U[i, j], 
+                                        lb=-1e-3, 
+                                        ub=np.inf, 
+                                        vary=False)
                             else:
 
                                 nn = p+'_'+elem+str(atom_label[i])+'_dw'
                                 params.add(
-                                    nn, value=mat.U[i], lb=0.0, ub=np.inf, vary=False)
+                                    nn, value=mat.U[i], 
+                                    lb=0.0, ub=np.inf, 
+                                    vary=False)
 
         else:
             '''
@@ -3993,19 +4076,21 @@ class Rietveld:
                         raise FileError('phase file doesn\'t exist.')
 
                 elif(isinstance(phase_info, Material)):
-                    p[phase_info.name] = Material_Rietveld(fhdf=None,
-                                         xtal=None,
-                                         dmin=None,
-                                         material_obj=phase_info)
+                    p[phase_info.name] = Material_Rietveld(
+                        fhdf=None,
+                        xtal=None,
+                        dmin=None,
+                        material_obj=phase_info)
                     p.num_phases = 1
                     p[phase_info.name].pf = 1.0
 
                 elif(isinstance(phase_info, list)):
                     for mat in phase_info:
-                        p[mat.name] = Material_Rietveld(fhdf=None,
-                                                        xtal=None,
-                                                        dmin=None,
-                                                        material_obj=mat)
+                        p[mat.name] = Material_Rietveld(
+                            fhdf=None,
+                            xtal=None,
+                            dmin=None,
+                            material_obj=mat)
                         p.num_phases += 1
 
                     for mat in p:
@@ -4232,8 +4317,8 @@ class Rietveld:
                         Un = []
                         for j in range(6):
                             Un.append(
-                                p+'_'+elem+\
-                                str(self.atom_label[i])+\
+                                p+'_'+elem +
+                                str(self.atom_label[i]) +
                                 '_'+_nameU[j])
                     else:
                         dw = p+'_'+elem+str(self.atom_label[i])+'_dw'
