@@ -1982,16 +1982,16 @@ class LeBail:
         fwhm_l = self.gamma
 
         fwhm = fwhm_g**5 + 2.69269 * fwhm_g**4 * fwhm_l + \
-               2.42843 * fwhm_g**3 * fwhm_l**2 + \
-               4.47163 * fwhm_g**2 * fwhm_l**3 +\
-               0.07842 * fwhm_g * fwhm_l**4 +\
-               fwhm_l**5
+            2.42843 * fwhm_g**3 * fwhm_l**2 + \
+            4.47163 * fwhm_g**2 * fwhm_l**3 +\
+            0.07842 * fwhm_g * fwhm_l**4 +\
+            fwhm_l**5
 
         fwhm = fwhm**0.20
 
         self.eta = 1.36603 * (fwhm_l/fwhm) - \
-                   0.47719 * (fwhm_l/fwhm)**2 + \
-                   0.11116 * (fwhm_l/fwhm)**3
+            0.47719 * (fwhm_l/fwhm)**2 + \
+            0.11116 * (fwhm_l/fwhm)**3
 
         if self.eta < 0.:
             self.eta = 0.
@@ -2555,12 +2555,12 @@ class Material_Rietveld:
      ==========================================================================================
     """
 
-    def __init__(self, 
-                fhdf=None, 
-                xtal=None, 
-                dmin=None, 
-                kev=None,
-                Material_obj=None):
+    def __init__(self,
+                 fhdf=None,
+                 xtal=None,
+                 dmin=None,
+                 kev=None,
+                 Material_obj=None):
         if(Material_obj is None):
             '''
             dmin in nm
@@ -2595,7 +2595,8 @@ class Material_Rietveld:
                 self._init_from_materials(material_obj)
             else:
                 raise ValueError(
-                    "Invalid material_obj argument. only Material class can be passed here.")
+                    "Invalid material_obj argument. \
+                    only Material class can be passed here.")
 
     def _init_from_materials(self, material_obj):
         pass
@@ -2886,7 +2887,8 @@ class Material_Rietveld:
             if(ax != '2_1'):
 
                 raise RuntimeError(
-                    'omitscrewaxisabsences: monoclinic systems can only have 2_1 screw axis')
+                    'omitscrewaxisabsences: monoclinic \
+                     systems can only have 2_1 screw axis')
             '''
                 only unique b-axis will be encoded
                 it is the users responsibility to input
@@ -2900,11 +2902,13 @@ class Material_Rietveld:
                 hkllist = hkllist[mask, :]
             else:
                 raise RuntimeError(
-                    'omitscrewaxisabsences: only b-axis can have 2_1 screw axis')
+                    'omitscrewaxisabsences: only b-axis \
+                     can have 2_1 screw axis')
         elif(self.latticeType == 'orthorhombic'):
             if(ax != '2_1'):
                 raise RuntimeError(
-                    'omitscrewaxisabsences: orthorhombic systems can only have 2_1 screw axis')
+                    'omitscrewaxisabsences: orthorhombic \
+                     systems can only have 2_1 screw axis')
             '''
             2_1 screw on primary axis
             h00 ; h = 2n
@@ -2950,7 +2954,8 @@ class Material_Rietveld:
                     mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
             else:
                 raise RuntimeError(
-                    'omitscrewaxisabsences: trigonal systems can only have screw axis')
+                    'omitscrewaxisabsences: trigonal \
+                     systems can only have screw axis')
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
         elif(self.latticeType == 'hexagonal'):
@@ -2964,7 +2969,8 @@ class Material_Rietveld:
                     mask2 = np.mod(hkllist[:, 2]+120, 6) != 0
             else:
                 raise RuntimeError(
-                    'omitscrewaxisabsences: hexagonal systems can only have screw axis')
+                    'omitscrewaxisabsences: hexagonal \
+                     systems can only have screw axis')
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
         elif(self.latticeType == 'cubic'):
@@ -3092,7 +3098,8 @@ class Material_Rietveld:
         elif(self.latticeType == 'trigonal'):
             if(plane != 'c'):
                 raise RuntimeError(
-                    'omitglideplaneabsences: only c-glide allowed for trigonal systems')
+                    'omitglideplaneabsences: only c-glide\
+                     allowed for trigonal systems')
 
             if(ip == 1):
                 mask1 = hkllist[:, 0] == 0
@@ -3102,7 +3109,8 @@ class Material_Rietveld:
                     mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
                     raise RuntimeError(
-                        'omitglideplaneabsences: only c-glide allowed for trigonal systems')
+                        'omitglideplaneabsences: only c-glide \
+                         allowed for trigonal systems')
             elif(ip == 2):
                 mask1 = hkllist[:, 1] == hkllist[:, 0]
                 mask2 = hkllist[:, 0] == -2*hkllist[:, 1]
@@ -3111,7 +3119,8 @@ class Material_Rietveld:
                     mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
                 else:
                     raise RuntimeError(
-                        'omitglideplaneabsences: only c-glide allowed for trigonal systems')
+                        'omitglideplaneabsences: only c-glide \
+                         allowed for trigonal systems')
             mask1 = np.logical_and(mask1, mask4)
             mask2 = np.logical_and(mask2, mask4)
             mask3 = np.logical_and(mask3, mask4)
@@ -3121,7 +3130,8 @@ class Material_Rietveld:
         elif(self.latticeType == 'hexagonal'):
             if(plane != 'c'):
                 raise RuntimeError(
-                    'omitglideplaneabsences: only c-glide allowed for hexagonal systems')
+                    'omitglideplaneabsences: only c-glide \
+                     allowed for hexagonal systems')
             if(ip == 2):
                 mask1 = hkllist[:, 0] == hkllist[:, 1]
                 mask2 = hkllist[:, 0] == -2*hkllist[:, 1]
@@ -3188,7 +3198,8 @@ class Material_Rietveld:
                         ~mask1, np.logical_or(~mask2, ~mask3))
                 else:
                     raise RuntimeError(
-                        'omitglideplaneabsences: unknown glide plane encountered.')
+                        'omitglideplaneabsences: unknown \
+                         glide plane encountered.')
                 hkllist = hkllist[mask, :]
             if(ip == 2):
                 mask1 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 1])
@@ -3204,7 +3215,8 @@ class Material_Rietveld:
                     mask6 = np.mod(2*hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
                 else:
                     raise RuntimeError(
-                        'omitglideplaneabsences: unknown glide plane encountered.')
+                        'omitglideplaneabsences: unknown glide \
+                         plane encountered.')
                 mask1 = np.logical_not(np.logical_and(mask1, mask4))
                 mask2 = np.logical_not(np.logical_and(mask2, mask5))
                 mask3 = np.logical_not(np.logical_and(mask3, mask6))
@@ -3628,10 +3640,10 @@ class Rietveld:
         ========================================================================================================
     '''
 
-    def __init__(self, 
-                 expt_spectrum=None, 
-                 params=None, 
-                 phases=None, 
+    def __init__(self,
+                 expt_spectrum=None,
+                 params=None,
+                 phases=None,
                  wavelength={'kalpha1': _nm(
                      0.15406), 'kalpha2': _nm(0.154443)},
                  bkgmethod={'spline': None}):
@@ -3639,14 +3651,14 @@ class Rietveld:
         self.bkgmethod = bkgmethod
 
         self.initialize_expt_spectrum(expt_spectrum)
-        
+
         self._tstart = time.time()
 
         if(wavelength is not None):
             self.wavelength = wavelength
-        
+
         self.initialize_phases(phases)
-        
+
         self.initialize_parameters(params)
 
         self.PolarizationFactor()
@@ -3864,7 +3876,8 @@ class Rietveld:
             mask = self.spectrum_expt._y <= 0.0
 
             self.weights = np.zeros(self.spectrum_expt.y.shape)
-            ''' also initialize statistical weights for the error calculation'''
+            ''' also initialize statistical weights for
+             the error calculation'''
             self.weights[~mask] = 1.0 / np.sqrt(self.spectrum_expt.y[~mask])
             self.initialize_bkg()
 
@@ -3922,7 +3935,8 @@ class Rietveld:
     def selectpoints(self):
 
         title(
-            'Select points for background estimation; click middle mouse button when done.')
+            'Select points for background estimation;\
+             click middle mouse button when done.')
 
         plot(self.tth_list, self.spectrum_expt._y, '-k')  # 5 points tolerance
 
@@ -3980,18 +3994,18 @@ class Rietveld:
 
                 elif(isinstance(phase_info, Material)):
                     p[phase_info.name] = Material_Rietveld(fhdf=None,
-                                                         xtal=None,
-                                                         dmin=None,
-                                                         material_obj=phase_info)
+                                         xtal=None,
+                                         dmin=None,
+                                         material_obj=phase_info)
                     p.num_phases = 1
                     p[phase_info.name].pf = 1.0
 
                 elif(isinstance(phase_info, list)):
                     for mat in phase_info:
                         p[mat.name] = Material_Rietveld(fhdf=None,
-                                                      xtal=None,
-                                                      dmin=None,
-                                                      material_obj=mat)
+                                                        xtal=None,
+                                                        dmin=None,
+                                                        material_obj=mat)
                         p.num_phases += 1
 
                     for mat in p:
@@ -4061,16 +4075,16 @@ class Rietveld:
         fwhm_l = self.gamma
 
         fwhm = fwhm_g**5 + 2.69269 * fwhm_g**4 * fwhm_l + \
-               2.42843 * fwhm_g**3 * fwhm_l**2 + \
-               4.47163 * fwhm_g**2 * fwhm_l**3 +\
-               0.07842 * fwhm_g * fwhm_l**4 +\
-               fwhm_l**5
+            2.42843 * fwhm_g**3 * fwhm_l**2 + \
+            4.47163 * fwhm_g**2 * fwhm_l**3 +\
+            0.07842 * fwhm_g * fwhm_l**4 +\
+            fwhm_l**5
 
         fwhm = fwhm**0.20
 
         self.eta = 1.36603 * (fwhm_l/fwhm) - \
-                   0.47719 * (fwhm_l/fwhm)**2 + \
-                   0.11116 * (fwhm_l/fwhm)**3
+            0.47719 * (fwhm_l/fwhm)**2 + \
+            0.11116 * (fwhm_l/fwhm)**3
 
         if self.eta < 0.:
             self.eta = 0.
@@ -4115,7 +4129,7 @@ class Rietveld:
         self.MixingFact(tth)
 
         self.PV = (1. - self.eta) * self.GaussianI + \
-                   self.eta * self.LorentzI
+            self.eta * self.LorentzI
 
     def PolarizationFactor(self):
 
@@ -4126,7 +4140,7 @@ class Rietveld:
             for k, l in self.phases.wavelength.items():
                 t = np.radians(self.tth[p][k])
                 self.LP[p][k] = (1 + np.cos(tth)**2) / \
-                np.cos(0.5*tth)/np.sin(0.5*tth)**2
+                    np.cos(0.5*tth)/np.sin(0.5*tth)**2
 
     def computespectrum(self):
 
@@ -4218,7 +4232,9 @@ class Rietveld:
                         Un = []
                         for j in range(6):
                             Un.append(
-                                p+'_'+elem+str(self.atom_label[i])+'_'+_nameU[j])
+                                p+'_'+elem+\
+                                str(self.atom_label[i])+\
+                                '_'+_nameU[j])
                     else:
                         dw = p+'_'+elem+str(self.atom_label[i])+'_dw'
 
@@ -4355,8 +4371,8 @@ class Rietveld:
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-        print('Finished iteration. Rwp: {:.3f} % goodness of fit: {:.3f}'.format(
-            self.Rwp*100., self.gofF))
+        print('Finished iteration. Rwp: {:.3f} % goodness of \
+              fit: {:.3f}'.format(self.Rwp*100., self.gofF))
 
     @property
     def U(self):
