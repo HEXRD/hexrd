@@ -2666,7 +2666,86 @@ class Material_Rietveld:
                     only Material class can be passed here.")
 
     def _init_from_materials(self, material_obj):
-        pass
+        """
+
+        """
+
+        # min d-spacing for sampling hkl
+        self.dmin = material_obj.dmin
+
+        # acceleration voltage and wavelength
+        self.voltage = material_obj.unitcell.voltage
+        self.wavelength = material_obj.unitcell.wavelength
+
+        # space group number
+        self.sgnum = material_obj.sgnum
+
+        # space group setting
+        self.sgsetting = material_obj.sgsetting
+
+        # lattice type from sgnum
+        self.latticeType = material_obj.unitcell.latticeType
+
+        # Herman-Maugauin symbol
+        self.sg_hmsymbol = material_obj.unitcell.sg_hmsymbol
+
+        # lattice parameters
+        self.lparms = np.array([material_obj.unitcell.a,
+                                material_obj.unitcell.b,
+                                material_obj.unitcell.c,
+                                material_obj.unitcell.alpha,
+                                material_obj.unitcell.beta,
+                                material_obj.unitcell.gamma])
+
+        # asymmetric atomic positions
+        self.atom_pos = material_obj.unitcell.atom_pos
+
+        # Debye-Waller factors including anisotropic ones
+        self.U = material_obj.unitcell.U
+        self.aniU = False
+        if(self.U.ndim > 1):
+            self.aniU = True
+
+        # atom types i.e. Z and number of different atom types
+        self.atom_type = np.array(gid.get('Atomtypes'), dtype=np.int32)
+        self.atom_ntype = self.atom_ntype
+
+        self._calcrmt()
+
+        """ get all space and point group symmetry operators
+         in direct space, including the laue group. reciprocal
+         space point group symmetries also included """
+        self.SYM_SG = material_obj.unitcell.SYM_SG
+        self.SYM_PG_d = material_obj.unitcell.SYM_PG_d
+        self.SYM_PG_d_laue = material_obj.unitcell.SYM_PG_d_laue
+        self.centrosymmetric = material_obj.unitcell.centrosymmetric
+        self.symmorphic = material_obj.unitcell.symmorphic
+        self.SYM_PG_r = material_obj.unitcell.SYM_PG_r
+        self.SYM_PG_r_laue = material_obj.unitcell.SYM_PG_r_laue
+
+        # get maximum indices for sampling hkl
+        self.ih = material_obj.unitcell.ih
+        self.ik = material_obj.unitcell.ik
+        self.il = material_obj.unitcell.il
+
+        # copy over the hkl but calculate the multiplicities
+        self.hkls = material_obj.unitcell.hkls
+        multiplicity = []
+        for g in self.hkls:
+            multiplicity.append(self.CalcStar(g, 'r').shape[0])
+
+        multiplicity = np.array(multiplicity)
+        self.multiplicity = multiplicity
+
+        # interpolation tables and anomalous form factors
+        self.f1 = material_obj.unitcell.f1
+        self.f2 = material_obj.unitcell.f2
+        self.f_anam = material_obj.unitcell.f_anam
+
+        # final step is to calculate the asymmetric positions in
+        # the unit cell
+        self.numat = material_obj.unitcell.numat
+        self.asym_pos = material_obj.unitcell.asym_pos
 
     def _readHDF(self, fhdf, xtal):
 
@@ -2685,7 +2764,6 @@ class Material_Rietveld:
                                           dtype=np.int32))
         self.sgsetting = np.asscalar(np.array(gid.get('SpaceGroupSetting'),
                                               dtype=np.int32))
-        self.sgsetting -= 1
         """
             IMPORTANT NOTE:
             note that the latice parameters in EMsoft is nm by default
@@ -2705,6 +2783,7 @@ class Material_Rietveld:
         self.aniU = False
         if(self.U.ndim > 1):
             self.aniU = True
+            self.betaij = material_obj.unitcell.betaij
 
         # read atom types (by atomic number, Z)
         self.atom_type = np.array(gid.get('Atomtypes'), dtype=np.int32)
@@ -3649,7 +3728,7 @@ class Phases_Rietveld:
             for l in self.wavelength:
                 lam = self.wavelength[l][0].value * 1e-9
                 E = constants.cPlanck * constants.cLight / \
-                constants.cCharge / lam
+                    constants.cCharge / lam
                 E *= 1e-3
                 kev = valWUnit('beamenergy', 'energy', E, 'keV')
                 self[k][l] = Material_Rietveld(
@@ -3828,25 +3907,25 @@ class Rietveld:
 
                             nn = p+'_'+elem+str(atom_label[i])+'_x'
                             params.add(
-                                nn, value=atom_pos[i, 0], 
-                                lb=0.0, ub=1.0, 
+                                nn, value=atom_pos[i, 0],
+                                lb=0.0, ub=1.0,
                                 vary=False)
 
                             nn = p+'_'+elem+str(atom_label[i])+'_y'
                             params.add(
-                                nn, value=atom_pos[i, 1], 
-                                lb=0.0, ub=1.0, 
+                                nn, value=atom_pos[i, 1],
+                                lb=0.0, ub=1.0,
                                 vary=False)
 
                             nn = p+'_'+elem+str(atom_label[i])+'_z'
                             params.add(
-                                nn, value=atom_pos[i, 2], 
-                                lb=0.0, ub=1.0, 
+                                nn, value=atom_pos[i, 2],
+                                lb=0.0, ub=1.0,
                                 vary=False)
 
                             nn = p+'_'+elem+str(atom_label[i])+'_occ'
                             params.add(nn, value=occ[i],
-                                       lb=0.0, ub=1.0, 
+                                       lb=0.0, ub=1.0,
                                        vary=False)
 
                             if(mat.aniU):
@@ -3855,16 +3934,16 @@ class Rietveld:
                                     nn = p+'_'+elem + \
                                         str(atom_label[i])+'_'+_nameU[j]
                                     params.add(
-                                        nn, value=U[i, j], 
-                                        lb=-1e-3, 
-                                        ub=np.inf, 
+                                        nn, value=U[i, j],
+                                        lb=-1e-3,
+                                        ub=np.inf,
                                         vary=False)
                             else:
 
                                 nn = p+'_'+elem+str(atom_label[i])+'_dw'
                                 params.add(
-                                    nn, value=mat.U[i], 
-                                    lb=0.0, ub=np.inf, 
+                                    nn, value=mat.U[i],
+                                    lb=0.0, ub=np.inf,
                                     vary=False)
 
         else:
