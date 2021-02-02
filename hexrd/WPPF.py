@@ -2627,8 +2627,8 @@ class Material_Rietveld:
                  xtal=None,
                  dmin=None,
                  kev=None,
-                 Material_obj=None):
-        if(Material_obj is None):
+                 material_obj=None):
+        if(material_obj is None):
             '''
             dmin in nm
             '''
@@ -2707,8 +2707,8 @@ class Material_Rietveld:
             self.aniU = True
 
         # atom types i.e. Z and number of different atom types
-        self.atom_type = np.array(gid.get('Atomtypes'), dtype=np.int32)
-        self.atom_ntype = self.atom_ntype
+        self.atom_type = material_obj.unitcell.atom_type
+        self.atom_ntype = material_obj.unitcell.atom_ntype
 
         self._calcrmt()
 
@@ -3658,8 +3658,9 @@ class Phases_Rietveld:
         '''
         wavelength_nm = {}
         for k, v in wavelength.items():
-            if(v.unit == 'angstrom'):
-                wavelength_nm[k] = valWUnit('lp', 'length', v.value*10., 'nm')
+            if(v[0].unit == 'angstrom'):
+                wavelength_nm[k] = [
+                    valWUnit('lp', 'length', v[0].value*10., 'nm'), v[1]]
             else:
                 wavelength_nm[k] = v
         self.wavelength = wavelength_nm
@@ -3793,8 +3794,9 @@ class Rietveld:
                  expt_spectrum=None,
                  params=None,
                  phases=None,
-                 wavelength={'kalpha1': _nm(
-                     0.15406), 'kalpha2': _nm(0.154443)},
+                 wavelength={'kalpha1': [_nm(
+                     0.15406), 1.0],
+                     'kalpha2': [_nm(0.154443), 0.52]},
                  bkgmethod={'spline': None}):
 
         self.bkgmethod = bkgmethod
@@ -3805,6 +3807,9 @@ class Rietveld:
 
         if(wavelength is not None):
             self.wavelength = wavelength
+            for k, v in self.wavelength.items():
+                v[0] = valWUnit('lp', 'length',
+                                v[0].getVal('nm'), 'nm')
 
         self.initialize_phases(phases)
 
@@ -3981,7 +3986,7 @@ class Rietveld:
         self._Y = self.params['Y'].value
         self._zero_error = self.params['zero_error'].value
 
-    def initialize_expt_spectrum(self, expt_file):
+    def initialize_expt_spectrum(self, expt_spectrum):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/19/2020 SS 1.0 original
@@ -4015,7 +4020,7 @@ class Rietveld:
                 '''
                 load from a text file
                 '''
-                if(path.exists(expt_file)):
+                if(path.exists(expt_spectrum)):
                     self.spectrum_expt = Spectrum.from_file(
                         expt_spectrum, skip_rows=0)
                     self.spectrum_expt.nan_to_zero()
@@ -4155,25 +4160,46 @@ class Rietveld:
                         raise FileError('phase file doesn\'t exist.')
 
                 elif(isinstance(phase_info, Material)):
-                    p[phase_info.name] = Material_Rietveld(
-                        fhdf=None,
-                        xtal=None,
-                        dmin=None,
-                        material_obj=phase_info)
-                    p.num_phases = 1
-                    p[phase_info.name].pf = 1.0
+                    if not p.phase_dict:
+                        p[phase_info.name] = {}
 
-                elif(isinstance(phase_info, list)):
-                    for mat in phase_info:
-                        p[mat.name] = Material_Rietveld(
+                    for k, v in self.wavelength.items():
+                        E = 1.e6 * constants.cPlanck * \
+                            constants.cLight /  \
+                            constants.cCharge / \
+                            v[0].value
+                        phase_info.beamEnergy = valWUnit(
+                            "kev", "ENERGY", E, "keV")
+                        p[phase_info.name][k] = Material_Rietveld(
                             fhdf=None,
                             xtal=None,
                             dmin=None,
-                            material_obj=mat)
+                            material_obj=phase_info)
+                        p[phase_info.name][k].pf = 1.0
+                    p.num_phases = 1
+
+                elif(isinstance(phase_info, list)):
+                    for mat in phase_info:
+                        if not p.phase_dict:
+                            p[mat.name] = {}
+
+                        for k, v in self.wavelength.items():
+                            E = 1.e6 * constants.cPlanck * \
+                                constants.cLight /  \
+                                constants.cCharge / \
+                                v[0].value
+                            mat.beamEnergy = valWUnit(
+                                "kev", "ENERGY", E, "keV")
+                            p[mat.name][k] = Material_Rietveld(
+                                fhdf=None,
+                                xtal=None,
+                                dmin=None,
+                                material_obj=mat)
                         p.num_phases += 1
 
                     for mat in p:
-                        p[mat].pf = 1.0/p.num_phases
+                        for k, v in self.wavelength.items():
+                            p[mat][k].pf = 1.0/p.num_phases
                 self.phases = p
 
         self.calctth()
@@ -4303,8 +4329,8 @@ class Rietveld:
             self.LP[p] = {}
             for k, l in self.phases.wavelength.items():
                 t = np.radians(self.tth[p][k])
-                self.LP[p][k] = (1 + np.cos(tth)**2) / \
-                    np.cos(0.5*tth)/np.sin(0.5*tth)**2
+                self.LP[p][k] = (1 + np.cos(t)**2) / \
+                    np.cos(0.5*t)/np.sin(0.5*t)**2
 
     def computespectrum(self):
 
@@ -4564,6 +4590,32 @@ class Rietveld:
     def W(self, Winp):
         self._W = Winp
         return
+
+    @property
+    def X(self):
+        return self._X
+
+    @X.setter
+    def X(self, Xinp):
+        self._X = Xinp
+        return
+
+    @property
+    def Y(self):
+        return self._Y
+
+    @Y.setter
+    def Y(self, Yinp):
+        self._Y = Yinp
+        return
+
+    @property
+    def gamma(self):
+        return self._gamma
+
+    @gamma.setter
+    def gamma(self, val):
+        self._gamma = val
 
     @property
     def Hcag(self):
