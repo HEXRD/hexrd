@@ -1357,7 +1357,8 @@ class Phases_LeBail:
     def __init__(self, material_file=None,
                  material_keys=None,
                  dmin=_nm(0.05),
-                 wavelength={'alpha1': _nm(0.15406), 'alpha2': _nm(0.154443)}
+                 wavelength={'alpha1': [_nm(0.15406), 1.0],
+                 'alpha2': [_nm(0.154443), 0.52]}
                  ):
 
         self.phase_dict = {}
@@ -1369,7 +1370,8 @@ class Phases_LeBail:
         '''
         wavelength_nm = {}
         for k, v in wavelength.items():
-            wavelength_nm[k] = valWUnit('lp', 'length', v.getVal('nm'), 'nm')
+            wavelength_nm[k] = [valWUnit('lp', 'length', \
+                v[0].getVal('nm'), 'nm'), v[1]]
 
         self.wavelength = wavelength_nm
 
@@ -1564,8 +1566,8 @@ class LeBail:
                  expt_spectrum=None,
                  params=None,
                  phases=None,
-                 wavelength={'kalpha1': _nm(
-                     0.15406), 'kalpha2': _nm(0.154443)},
+                 wavelength={'kalpha1': [_nm(0.15406), 1.0],
+                 'kalpha2': [_nm(0.154443), 1.0]},
                  bkgmethod={'spline': None},
                  intensity_init=None):
 
@@ -1951,7 +1953,7 @@ class LeBail:
         for p in self.phases:
             self.tth[p] = {}
             for k, l in self.phases.wavelength.items():
-                t = self.phases[p].getTTh(l.value)
+                t = self.phases[p].getTTh(l[0].value)
                 limit = np.logical_and(t >= self.tth_min,
                                        t <= self.tth_max)
                 self.tth[p][k] = t[limit]
@@ -3951,6 +3953,8 @@ class Rietveld:
                                     lb=0.0, ub=np.inf,
                                     vary=False)
 
+                self.params = params
+
         else:
             '''
                 first 6 are the lattice paramaters
@@ -3975,8 +3979,6 @@ class Rietveld:
 
             # params.add_many(names, values=values,
             #                 varies=varies, lbs=lbs, ubs=ubs)
-
-        self.params = params
 
         self._scale = self.params['scale'].value
         self._U = self.params['U'].value
