@@ -57,6 +57,9 @@ def _process_omegas(omegaimageseries_dict):
 
 
 def label_spots(this_map, method, method_kwargs):
+    # !!! need to remove NaNs from map in case of eta gaps?
+    this_map[np.isnan(this_map)] = 0.
+    this_map -= np.min(this_map)
     if method == 'label':
         # labeling mask
         structureNDI_label = ndimage.generate_binary_structure(2, 1)

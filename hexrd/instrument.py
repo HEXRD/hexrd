@@ -3232,7 +3232,11 @@ def unwrap_dict_to_h5(grp, d, asattr=True):
             if asattr:
                 grp.attrs.create(key, item)
             else:
-                grp.create_dataset(key, data=np.atleast_1d(item))
+                try:
+                    grp.create_dataset(key, data=np.atleast_1d(item))
+                except(TypeError):
+                    # probably a string badness
+                    grp.create_dataset(key, data=item)
 
 
 class GenerateEtaOmeMaps(object):
