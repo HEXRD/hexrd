@@ -3905,7 +3905,6 @@ class Rietveld:
                         atom_type = mat.atom_type
 
                         atom_label = _getnumber(atom_type)
-                        self.atom_label = atom_label
 
                         for i in range(atom_type.shape[0]):
 
@@ -4182,9 +4181,7 @@ class Rietveld:
 
                 elif(isinstance(phase_info, list)):
                     for mat in phase_info:
-                        if not p.phase_dict:
-                            p[mat.name] = {}
-
+                        p[mat.name] = {}
                         for k, v in self.wavelength.items():
                             E = 1.e6 * constants.cPlanck * \
                                 constants.cLight /  \
@@ -4410,25 +4407,26 @@ class Rietveld:
                 '''
 
                 atom_type = mat.atom_type
+                atom_label = _getnumber(atom_type)
 
                 for i in range(atom_type.shape[0]):
 
                     Z = atom_type[i]
                     elem = constants.ptableinverse[Z]
-                    nx = p+'_'+elem+str(self.atom_label[i])+'_x'
-                    ny = p+'_'+elem+str(self.atom_label[i])+'_y'
-                    nz = p+'_'+elem+str(self.atom_label[i])+'_z'
-                    oc = p+'_'+elem+str(self.atom_label[i])+'_occ'
+                    nx = p+'_'+elem+str(atom_label[i])+'_x'
+                    ny = p+'_'+elem+str(atom_label[i])+'_y'
+                    nz = p+'_'+elem+str(atom_label[i])+'_z'
+                    oc = p+'_'+elem+str(atom_label[i])+'_occ'
 
                     if(mat.aniU):
                         Un = []
                         for j in range(6):
                             Un.append(
                                 p+'_'+elem +
-                                str(self.atom_label[i]) +
+                                str(atom_label[i]) +
                                 '_'+_nameU[j])
                     else:
-                        dw = p+'_'+elem+str(self.atom_label[i])+'_dw'
+                        dw = p+'_'+elem+str(atom_label[i])+'_dw'
 
                     if(nx in params):
                         x = params[nx].value
