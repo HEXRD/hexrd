@@ -738,13 +738,16 @@ class Material_LeBail:
     def getTTh(self, wavelength):
 
         tth = []
+        self.wavelength_allowed_hkls = []
         for g in self.hkls:
             glen = self.CalcLength(g, 'r')
             sth = glen*wavelength/2.
             if(np.abs(sth) <= 1.0):
                 t = 2. * np.degrees(np.arcsin(sth))
                 tth.append(t)
-
+                self.wavelength_allowed_hkls.append(True)
+            else:
+                self.wavelength_allowed_hkls.append(False)
         tth = np.array(tth)
         return tth
 
@@ -1950,13 +1953,18 @@ class LeBail:
 
     def calctth(self):
         self.tth = {}
+        self.hkls = {}
         for p in self.phases:
             self.tth[p] = {}
+            self.hkls[p] = {}
             for k, l in self.phases.wavelength.items():
                 t = self.phases[p].getTTh(l[0].value)
+                allowed = self.phases[p].wavelength_allowed_hkls
+                hkl = self.phases[p].hkls[allowed,:]
                 limit = np.logical_and(t >= self.tth_min,
                                        t <= self.tth_max)
                 self.tth[p][k] = t[limit]
+                self.hkls[p][k] = hkl[limit,:]
 
     def initialize_Icalc(self):
         '''
@@ -2556,18 +2564,23 @@ def extract_intensities(polar_view,
     """
     pv_simulated = np.zeros(polar_view.shape)
     extracted_intensities = []
-
+    hkls = []
     for i in range(len(non_zeros_index)):
         idx = non_zeros_index[i]
-        xp, yp, rwp, Icalc = results[i]
+        xp, yp, rwp, \
+        Icalc, hkl = results[i]
 
         intp_int = np.interp(tth_array, xp, yp, left=0., right=0.)
 
         pv_simulated[idx, :] = intp_int
 
         extracted_intensities.append(Icalc)
+        hkls.append(hkl)
 
-    return extracted_intensities, non_zeros_index, pv_simulated
+    return extracted_intensities, \
+           hkls, \
+           non_zeros_index, \
+           pv_simulated
 
 
 def single_azimuthal_extraction(expt_spectrum,
@@ -2604,7 +2617,8 @@ def single_azimuthal_extraction(expt_spectrum,
         init_error = L.Rwp
         niter += 1
 
-    res = (L.spectrum_sim._x, L.spectrum_sim._y, L.Rwp, L.Icalc)
+    res = (L.spectrum_sim._x, L.spectrum_sim._y, \
+           L.Rwp, L.Icalc, L.hkls, L.tth)
     return res
 
 
@@ -4671,3 +4685,15 @@ def _getnumber(arr):
     res = res.astype(np.int32)
 
     return res
+
+
+def generate_pole_figures(hkls, tth, Icalc):
+    """
+    >> @AUTHOR  Saransh Singh Lawrence Livermore national Lab
+    >> @DATE    02/05/2021 SS 1.0 original
+    >> @DETAILS this is the section where we'll do the texture 
+    computations for now. the idea is to get the A(h,y) function 
+    for the determination of the ODF. Using spherical harmonics 
+    for now nut will switch to discrete harmonics in the future
+    """
+
