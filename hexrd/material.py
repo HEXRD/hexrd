@@ -43,7 +43,7 @@ import copy
 from os import path
 from pathlib import Path
 from CifFile import ReadCif
-import  h5py
+import h5py
 from warnings import warn
 from hexrd.mksupport import Write2H5File
 from hexrd.symbols import xtal_sys_dict
@@ -120,7 +120,11 @@ class Material(object):
     '''
     DFLT_SGSETTING = 0
 
-    def __init__(self, name=None, material_file=None, dmin=DFLT_DMIN, kev=DFLT_KEV, sgsetting=DFLT_SGSETTING):
+    def __init__(self, name=None,
+                 material_file=None,
+                 dmin=DFLT_DMIN,
+                 kev=DFLT_KEV,
+                 sgsetting=DFLT_SGSETTING):
         """Constructor for Material
 
         name -- (str) name of crystal
@@ -197,7 +201,8 @@ class Material(object):
         from hdf5 file using a hkl list
         '''
         hkls = self.unitcell.getHKLs(self._dmin.getVal('nm')).T
-        lprm = [self._lparms[i] for i in unitcell._rqpDict[self.unitcell.latticeType][0]]
+        lprm = [self._lparms[i]
+                for i in unitcell._rqpDict[self.unitcell.latticeType][0]]
         laue = self.unitcell._laueGroup
         self._pData = PData(hkls, lprm, laue,
                             self._beamEnergy, Material.DFLT_STR,
@@ -207,9 +212,10 @@ class Material(object):
           Set default exclusions
           all reflections with two-theta smaller than 90 degrees
         '''
-        tth = numpy.array([hkldata['tTheta'] for hkldata in self._pData.hklDataList])
-        dflt_excl = numpy.ones(tth.shape,dtype=numpy.bool)
-        dflt_excl2 = numpy.ones(tth.shape,dtype=numpy.bool)
+        tth = numpy.array([hkldata['tTheta']
+                           for hkldata in self._pData.hklDataList])
+        dflt_excl = numpy.ones(tth.shape, dtype=numpy.bool)
+        dflt_excl2 = numpy.ones(tth.shape, dtype=numpy.bool)
 
         if(hasattr(self, 'hkl_from_file')):
             """
@@ -220,14 +226,16 @@ class Material(object):
                 if(g['hkl'].tolist() in self.hkl_from_file.tolist()):
                     dflt_excl[i] = False
 
-            dflt_excl2[~numpy.isnan(tth)] = ~( (tth[~numpy.isnan(tth)] >= 0.0) & \
-                                 (tth[~numpy.isnan(tth)] <= numpy.pi/2.0) )
+            dflt_excl2[~numpy.isnan(tth)] = \
+                ~((tth[~numpy.isnan(tth)] >= 0.0) &
+                  (tth[~numpy.isnan(tth)] <= numpy.pi/2.0))
 
             dflt_excl = numpy.logical_or(dflt_excl, dflt_excl2)
 
         else:
-            dflt_excl[~numpy.isnan(tth)] = ~( (tth[~numpy.isnan(tth)] >= 0.0) & \
-                                 (tth[~numpy.isnan(tth)] <= numpy.pi/2.0) )
+            dflt_excl[~numpy.isnan(tth)] = \
+                ~((tth[~numpy.isnan(tth)] >= 0.0) &
+                  (tth[~numpy.isnan(tth)] <= numpy.pi/2.0))
             dflt_excl[0] = False
 
         self._pData.exclusions = dflt_excl
@@ -236,8 +244,8 @@ class Material(object):
 
     def update_structure_factor(self):
         hkls = self.planeData.getHKLs(allHKLs=True)
-        sf = numpy.zeros([hkls.shape[0],])
-        for i,g in enumerate(hkls):
+        sf = numpy.zeros([hkls.shape[0], ])
+        for i, g in enumerate(hkls):
             sf[i] = self.unitcell.CalcXRSF(g)
 
         self.planeData.set_structFact(sf[~self.planeData.exclusions])
@@ -257,7 +265,9 @@ class Material(object):
             try:
                 cif = ReadCif(fcif)
             except(OSError):
-                raise RuntimeError('OS Error: No file name supplied and default file name not found.')
+                raise RuntimeError(
+                    'OS Error: No file name supplied \
+                    and default file name not found.')
         else:
             try:
                 cif = ReadCif(fcif)
@@ -274,8 +284,8 @@ class Material(object):
 
         # make sure the space group is present in the cif file, either as
         # international table number, hermann-maguain or hall symbol
-        sgkey = ['_space_group_IT_number', 
-                 '_symmetry_space_group_name_h-m', 
+        sgkey = ['_space_group_IT_number',
+                 '_symmetry_space_group_name_h-m',
                  '_symmetry_space_group_name_hall',
                  '_symmetry_Int_Tables_number']
 
@@ -305,8 +315,8 @@ class Material(object):
 
         # lattice parameters
         lparms = []
-        lpkey = ['_cell_length_a', '_cell_length_b', \
-                 '_cell_length_c', '_cell_angle_alpha', \
+        lpkey = ['_cell_length_a', '_cell_length_b',
+                 '_cell_length_c', '_cell_angle_alpha',
                  '_cell_angle_beta', '_cell_angle_gamma']
 
         for key in lpkey:
@@ -317,27 +327,29 @@ class Material(object):
                 lparms.append(float(cifdata[key]))
 
         for i in range(6):
-                if(i < 3):
-                    lparms[i] = _angstroms(lparms[i])
-                else:
-                    lparms[i] = _degrees(lparms[i])
+            if(i < 3):
+                lparms[i] = _angstroms(lparms[i])
+            else:
+                lparms[i] = _degrees(lparms[i])
 
         self._lparms = lparms
-        self.sgnum   = sgnum
+        self.sgnum = sgnum
 
         # fractional atomic site, occ and vibration amplitude
-        fracsitekey = ['_atom_site_fract_x', '_atom_site_fract_y',\
-                        '_atom_site_fract_z',]
+        fracsitekey = ['_atom_site_fract_x', '_atom_site_fract_y',
+                       '_atom_site_fract_z', ]
 
-        occ_U       = ['_atom_site_occupancy',\
-                        '_atom_site_u_iso_or_equiv','_atom_site_U_iso_or_equiv']
+        occ_U = ['_atom_site_occupancy',
+                 '_atom_site_u_iso_or_equiv', '_atom_site_U_iso_or_equiv']
 
         sitedata = True
         for key in fracsitekey:
             sitedata = sitedata and (key in cifdata)
 
         if(not(sitedata)):
-            raise RuntimeError(' fractional site position is not present or incomplete in the CIF file! ')
+            raise RuntimeError(
+                ' fractional site position is not present \
+                or incomplete in the CIF file! ')
 
         atompos = []
         for key in fracsitekey:
@@ -357,7 +369,7 @@ class Material(object):
             bring them back to fractional coordinates between 0-1
             '''
             pos = numpy.asarray(pos).astype(numpy.float64)
-            pos,_ = numpy.modf(pos+100.0)
+            pos, _ = numpy.modf(pos+100.0)
             atompos.append(pos)
 
         """note that the vibration amplitude, U is just the amplitude (in A)
@@ -368,7 +380,7 @@ class Material(object):
         """
 
         pocc = (occ_U[0] in cifdata.keys())
-        pU   = (occ_U[1] in cifdata.keys()) or (occ_U[2] in cifdata.keys())
+        pU = (occ_U[1] in cifdata.keys()) or (occ_U[2] in cifdata.keys())
 
         if(not pocc):
             warn('occupation fraction not present. setting it to 1')
@@ -388,7 +400,8 @@ class Material(object):
             atompos.append(numpy.asarray(occ).astype(numpy.float64))
 
         if(not pU):
-            warn('Debye-Waller factors not present. setting to same values for all atoms.')
+            warn('Debye-Waller factors not present. \
+                setting to same values for all atoms.')
             U = 1.0/numpy.pi/2./numpy.sqrt(2.) * numpy.ones(atompos[0].shape)
             self._U = U
         else:
@@ -427,7 +440,7 @@ class Material(object):
         for s in satype:
             atomtype.append(ptable[s])
 
-        self._atomtype  = numpy.asarray(atomtype).astype(numpy.int32)
+        self._atomtype = numpy.asarray(atomtype).astype(numpy.int32)
         self._sgsetting = 0
 
     def _readHDFxtal(self, fhdf=DFLT_NAME, xtal=DFLT_NAME):
@@ -451,10 +464,10 @@ class Material(object):
         else:
             raise IOError('material file does not exist.')
 
-        gid         = fid.get(xtal)
+        gid = fid.get(xtal)
 
-        sgnum       = numpy.asscalar(numpy.array(gid.get('SpaceGroupNumber'), \
-                                    dtype = numpy.int32))
+        sgnum = numpy.asscalar(numpy.array(gid.get('SpaceGroupNumber'),
+                                           dtype=numpy.int32))
         """
             IMPORTANT NOTE:
             note that the latice parameters is nm by default
@@ -462,7 +475,7 @@ class Material(object):
             need to be careful and convert it right here, so there is no
             confusion later on
         """
-        lparms      = list(gid.get('LatticeParameters'))
+        lparms = list(gid.get('LatticeParameters'))
 
         for i in range(6):
             if(i < 3):
@@ -470,40 +483,43 @@ class Material(object):
             else:
                 lparms[i] = _degrees(lparms[i])
 
-        self._lparms    = lparms
+        self._lparms = lparms
         #self._lparms    = self._toSixLP(sgnum, lparms)
         # fill space group and lattice parameters
-        self.sgnum      = sgnum
+        self.sgnum = sgnum
 
         # the U factors are related to B by the relation B = 8pi^2 U
-        self._atominfo  = numpy.transpose(numpy.array(gid.get('AtomData'), dtype = numpy.float64))
-        self._U         = numpy.transpose(numpy.array(gid.get('U'), dtype = numpy.float64))
+        self._atominfo = numpy.transpose(numpy.array(
+            gid.get('AtomData'), dtype=numpy.float64))
+        self._U = numpy.transpose(numpy.array(
+            gid.get('U'), dtype=numpy.float64))
 
         # read atom types (by atomic number, Z)
-        self._atomtype = numpy.array(gid.get('Atomtypes'), dtype = numpy.int32)
+        self._atomtype = numpy.array(gid.get('Atomtypes'), dtype=numpy.int32)
         self._atom_ntype = self._atomtype.shape[0]
 
-        self._sgsetting = numpy.asscalar(numpy.array(gid.get('SpaceGroupSetting'), \
-                                        dtype = numpy.int32))
+        self._sgsetting = numpy.asscalar(numpy.array(\
+            gid.get('SpaceGroupSetting'), dtype=numpy.int32))
 
         if('stiffness' in gid):
             # we're assuming the stiffness is in units of GPa
             self.stiffness = numpy.array(gid.get('stiffness'))
         elif('compliance' in gid):
             # we're assuming the compliance is in units of TPa^-1
-            self.stiffness = numpy.linalg.inv(numpy.array(gid.get('compliance'))) * 1.e3
+            self.stiffness = numpy.linalg.inv(
+                numpy.array(gid.get('compliance'))) * 1.e3
         else:
             self.stiffness = numpy.zeros([6, 6])
 
         if('dmin' in gid):
             # if dmin is present in the HDF5 file, then use that
-            dmin = numpy.asscalar(numpy.array(gid.get('dmin'), \
-                                    dtype = numpy.float64))
+            dmin = numpy.asscalar(numpy.array(gid.get('dmin'),
+                                              dtype=numpy.float64))
             self._dmin = _angstroms(dmin*10.)
 
         if('hkls' in gid):
-            self.hkl_from_file = numpy.array(gid.get('hkls'), \
-                                 dtype = numpy.int32)
+            self.hkl_from_file = numpy.array(gid.get('hkls'),
+                                             dtype=numpy.int32)
 
         fid.close()
 
@@ -551,7 +567,6 @@ class Material(object):
     @property
     def vol(self):
         return self.unitcell.vol
-
 
     # property:  sgnum
 
@@ -608,7 +623,7 @@ class Material(object):
     beamEnergy = property(_get_beamEnergy, _set_beamEnergy, None,
                           "Beam energy in keV")
 
-    #>> @date 08/20/2020 removing dependence on hklmax
+    # >> @date 08/20/2020 removing dependence on hklmax
     # property:  hklMax
 
     # def _get_hklMax(self):
@@ -641,12 +656,12 @@ class Material(object):
         if(len(v) != 6):
             v = unitcell._rqpDict[self.unitcell.latticeType][1](v)
         lp = [_angstroms(v[i]) for i in range(3)]
-        for i in range(3,6):
+        for i in range(3, 6):
             lp.append(_degrees(v[i]))
         self._lparms = lp
 
         rq_lp = unitcell._rqpDict[self.unitcell.latticeType][0]
-        for i,vv in enumerate(lp):
+        for i, vv in enumerate(lp):
             if(vv.isLength()):
                 val = vv.value / 10.0
             else:
@@ -666,8 +681,8 @@ On input, either all six or a minimal set is accepted.
 The values have units attached, i.e. they are valWunit instances.
 """
     latticeParameters = property(
-            _get_latticeParameters, _set_latticeParameters,
-            None, lpdoc)
+        _get_latticeParameters, _set_latticeParameters,
+        None, lpdoc)
 
     # property:  "name"
 
