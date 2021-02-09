@@ -108,7 +108,7 @@ class Material(object):
     the dmin parameter is used to figure out the maximum sampling for g-vectors
     this parameter is in angstroms
     '''
-    DFLT_DMIN = _angstroms(1.0)
+    DFLT_DMIN = _angstroms(0.5)
 
     '''
     some materials have more than one space group setting. for ex
@@ -192,6 +192,9 @@ class Material(object):
         >> @date 08/20/2020 SS removing dependence of planeData
         initialization on the spaceGroup module. everything is
         initialized using the unitcell module now
+
+        >> @DATE 02/09/2021 SS adding initialization of exclusion
+        from hdf5 file using a hkl list
         '''
         hkls = self.unitcell.getHKLs(self._dmin.getVal('nm')).T
         lprm = [self._lparms[i] for i in unitcell._rqpDict[self.unitcell.latticeType][0]]
@@ -205,11 +208,28 @@ class Material(object):
           all reflections with two-theta smaller than 90 degrees
         '''
         tth = numpy.array([hkldata['tTheta'] for hkldata in self._pData.hklDataList])
-
         dflt_excl = numpy.ones(tth.shape,dtype=numpy.bool)
-        dflt_excl[~numpy.isnan(tth)] = ~( (tth[~numpy.isnan(tth)] >= 0.0) & \
-                                     (tth[~numpy.isnan(tth)] <= numpy.pi/2.0) )
-        dflt_excl[0] = False
+        dflt_excl2 = numpy.ones(tth.shape,dtype=numpy.bool)
+
+        if(hasattr(self, 'hkl_from_file')):
+            """
+            hkls were read from the file so the exclusions will be set
+            based on what hkls are present
+            """
+            for i, g in enumerate(self._pData.hklDataList):
+                if(g['hkl'].tolist() in self.hkl_from_file.tolist()):
+                    dflt_excl[i] = False
+
+            dflt_excl2[~numpy.isnan(tth)] = ~( (tth[~numpy.isnan(tth)] >= 0.0) & \
+                                 (tth[~numpy.isnan(tth)] <= numpy.pi/2.0) )
+
+            dflt_excl = numpy.logical_or(dflt_excl, dflt_excl2)
+
+        else:
+            dflt_excl[~numpy.isnan(tth)] = ~( (tth[~numpy.isnan(tth)] >= 0.0) & \
+                                 (tth[~numpy.isnan(tth)] <= numpy.pi/2.0) )
+            dflt_excl[0] = False
+
         self._pData.exclusions = dflt_excl
 
         return
@@ -475,6 +495,16 @@ class Material(object):
         else:
             self.stiffness = numpy.zeros([6, 6])
 
+        if('dmin' in gid):
+            # if dmin is present in the HDF5 file, then use that
+            dmin = numpy.asscalar(numpy.array(gid.get('dmin'), \
+                                    dtype = numpy.float64))
+            self._dmin = _angstroms(dmin*10.)
+
+        if('hkls' in gid):
+            self.hkl_from_file = numpy.array(gid.get('hkls'), \
+                                 dtype = numpy.int32)
+
         fid.close()
 
     def dump_material(self, filename):
@@ -492,6 +522,8 @@ class Material(object):
         AtomInfo['APOS'] = self.unitcell.atom_pos
         AtomInfo['U'] = self.unitcell.U
         AtomInfo['stiffness'] = self.unitcell.stiffness
+        AtomInfo['hkls'] = self.planeData.getHKLs()
+        AtomInfo['dmin'] = self.unitcell.dmin
         '''
         lattice parameters
         '''

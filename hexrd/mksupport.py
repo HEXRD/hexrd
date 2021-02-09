@@ -409,7 +409,10 @@ def Write2H5File(AtomInfo, lat_param):
 
 
 def WriteH5Data(fid, AtomInfo, lat_param):
-
+    """
+    @DATE 02/09/2021 SS added hkls, exclusions and dmin to 
+    material.h5 file output
+    """
     node = "/"+AtomInfo['xtalname']
     if node in fid:
         print("crystal already exists. overwriting...\n")
@@ -437,6 +440,12 @@ def WriteH5Data(fid, AtomInfo, lat_param):
 
     did = gid.create_dataset("stiffness", (6,6), dtype = np.float64)
     did.write_direct(np.array(AtomInfo['stiffness'], dtype = np.float64))
+
+    did = gid.create_dataset("hkls", AtomInfo['hkls'].shape, dtype = np.int32)
+    did.write_direct(AtomInfo['hkls'])
+
+    did = gid.create_dataset("dmin", (1,), dtype = np.float64)
+    did.write_direct(np.array(AtomInfo['dmin'], dtype = np.float64))
 
     did = gid.create_dataset("AtomData", (4, len(AtomInfo['Z'])), dtype = np.float64)
     # this is done for contiguous c-allocation
