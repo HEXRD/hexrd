@@ -25,6 +25,8 @@
 # the Free Software Foundation, Inc., 59 Temple Place, Suite 330,
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # =============================================================================
+import os
+
 import numpy as np
 from scipy import constants as sc
 
@@ -107,11 +109,8 @@ def keVToAngstrom(x):
 
 def _readenv(name, ctor, default):
     try:
-        import os
         res = os.environ[name]
-        del os
     except KeyError:
-        del os
         return default
     else:
         try:
@@ -135,6 +134,60 @@ if USE_NUMBA:
         USE_NUMBA = False
 
 del _readenv
+
+
+def set_numba_cache():
+    """Set the numba cache only if the following are true:
+
+    1. We are using numba
+    2. We are on Windows
+    3. We don't have write access to this file
+    4. The NUMBA_CACHE_DIR environment variable is not defined
+
+    If all of these are true, then numba will try to write to a
+    directory where it doesn't have permission, and cause the application to
+    freeze. Avoid that by setting the cache dir ourselves.
+    """
+    if not USE_NUMBA:
+        return
+
+    if os.name != 'nt':
+        return
+
+    def is_writable_file(path):
+        # Unfortunately, os.access(__file__, os.W_OK) doesn't work on Windows.
+        # It always returns True.
+        if not os.path.exists(path):
+            return False
+
+        try:
+            with open(path, 'w'):
+                return True
+        except Exception:
+            return False
+
+    try:
+        if is_writable_file(__file__):
+            return
+    except NameError:
+        # Assume it's not writable
+        pass
+
+    key = 'NUMBA_CACHE_DIR'
+    if key in os.environ:
+        return
+
+    import appdirs
+    value = appdirs.user_data_dir('HEXRD')
+    os.environ[key] = value
+
+    # Must reload numba config
+    from numba.core.config import reload_config
+    reload_config()
+
+
+set_numba_cache()
+del set_numba_cache
 
 
 # some physical constants

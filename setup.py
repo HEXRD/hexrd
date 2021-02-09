@@ -17,7 +17,8 @@ install_reqs = [
     'numba',
     'psutil',
     'pyyaml',
-    'scikit-learn'
+    'scikit-learn',
+    'appdirs',
 ]
 
 # This a hack to get around the fact that scikit-image on conda-forge doesn't install
