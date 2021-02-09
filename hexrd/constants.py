@@ -25,6 +25,8 @@
 # the Free Software Foundation, Inc., 59 Temple Place, Suite 330,
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # =============================================================================
+import os
+
 import numpy as np
 from scipy import constants as sc
 
@@ -89,7 +91,7 @@ cuA   = np.pi**(2./3.)
 # semi-edge of cubochoric cube
 cuA_2 = 0.5 * np.pi**(2./3.)
 
-# this is a constant which defines the sign of the 
+# this is a constant which defines the sign of the
 # cross-product in the quaternion multiplication rule
 # we will set it to 1 for the standard rule always
 pjik  = 1
@@ -107,11 +109,8 @@ def keVToAngstrom(x):
 
 def _readenv(name, ctor, default):
     try:
-        import os
         res = os.environ[name]
-        del os
     except KeyError:
-        del os
         return default
     else:
         try:
@@ -137,6 +136,60 @@ if USE_NUMBA:
 del _readenv
 
 
+def set_numba_cache():
+    """Set the numba cache only if the following are true:
+
+    1. We are using numba
+    2. We are on Windows
+    3. We don't have write access to this file
+    4. The NUMBA_CACHE_DIR environment variable is not defined
+
+    If all of these are true, then numba will try to write to a
+    directory where it doesn't have permission, and cause the application to
+    freeze. Avoid that by setting the cache dir ourselves.
+    """
+    if not USE_NUMBA:
+        return
+
+    if os.name != 'nt':
+        return
+
+    def is_writable_file(path):
+        # Unfortunately, os.access(__file__, os.W_OK) doesn't work on Windows.
+        # It always returns True.
+        if not os.path.exists(path):
+            return False
+
+        try:
+            with open(path, 'w'):
+                return True
+        except Exception:
+            return False
+
+    try:
+        if is_writable_file(__file__):
+            return
+    except NameError:
+        # Assume it's not writable
+        pass
+
+    key = 'NUMBA_CACHE_DIR'
+    if key in os.environ:
+        return
+
+    import appdirs
+    value = appdirs.user_data_dir('HEXRD')
+    os.environ[key] = value
+
+    # Must reload numba config
+    from numba.core.config import reload_config
+    reload_config()
+
+
+set_numba_cache()
+del set_numba_cache
+
+
 # some physical constants
 cAvogadro      = 6.02214076E23
 cBoltzmann     = 1.380649E-23
@@ -157,7 +210,7 @@ New Analytical coherent Scattering-Factor Functions for Free Atoms and Ions
 BY D. WAASMAIER AND A. KIRFEL
 Acta Cryst. (1995). A51,416-431
 '''
-scatfac = { 
+scatfac = {
 'H':[0.413048,0.294953,0.187491,0.080701,0.023736,4.9e-05,15.569946,32.398468,5.711404,61.889874,1.334118],
 'H1-':[0.70226,0.763666,0.248678,0.261323,0.023017,0.000425,23.945604,74.897919,6.773289,233.58345,1.337531],
 'He':[0.732354,0.753896,0.283819,0.190003,0.039139,0.000487,11.553918,4.595831,1.546299,26.463964,0.377523],
@@ -407,8 +460,8 @@ frel = {
 'Ac':-1.3722,'Th':-1.4118,'Pa':-1.4526,'U':-1.494}
 
 '''
-this dictionary tabulates the terms, f1 and f2 for anomalous 
-x-ray scatteringas a function of incident x-ray energy. they 
+this dictionary tabulates the terms, f1 and f2 for anomalous
+x-ray scatteringas a function of incident x-ray energy. they
 are calculated as :
 
 (real part)      f' = f1 + frel - Z
@@ -430,7 +483,7 @@ are calculated as :
 # }
 
 '''
-atomic weights for things like density computations 
+atomic weights for things like density computations
 (from NIST elemental data base)
 '''
 atom_weights = np.array([1.00794, 4.002602, 6.941, 9.012182, 10.811,
@@ -459,7 +512,7 @@ dictionary of atomic numbers with element symbol as keys
 used in I/O from cif file
 '''
 ptable = {'H':1, 'He':2,
-'Li':3,  'Be':4, 'B':5,  'C':6,  'N':7,  'O':8,  'F':9, 'Ne':10 , 
+'Li':3,  'Be':4, 'B':5,  'C':6,  'N':7,  'O':8,  'F':9, 'Ne':10 ,
 'Na':11, 'Mg':12, 'Al':13, 'Si':14, 'P' :15 , 'S':16, 'Cl':17, 'Ar':18 ,
 'K':19 , 'Ca':20, 'Sc':21, 'Ti':22, 'V' :23, 'Cr':25, 'Mn':25, 'Fe':26 ,
 'Co':27, 'Ni':28, 'Cu':29, 'Zn':30, 'Ga':31, 'Ge':33, 'As':33, 'Se':34 ,
@@ -473,7 +526,7 @@ ptable = {'H':1, 'He':2,
 'Pa':91, 'U' :92, 'Np':93, 'Pu':94, 'Am':95, 'Cm':96, 'Bk':97, 'Cf':98}
 
 ptableinverse = {1:'H', 2:'He',
-3:'Li' ,  4:'Be',   5:'B',   6:'C',  7:'N',  8: 'O',  9:'F', 10:'Ne' , 
+3:'Li' ,  4:'Be',   5:'B',   6:'C',  7:'N',  8: 'O',  9:'F', 10:'Ne' ,
 11:'Na', 12:'Mg', 13:'Al', 14:'Si', 15: 'P', 16: 'S',17:'Cl', 18:'Ar',
 19:'K' , 20:'Ca', 21:'Sc', 22:'Ti', 23:'V' , 24:'Cr', 25:'Mn', 26:'Fe' ,
 27:'Co', 28:'Ni', 29:'Cu', 30:'Zn', 31:'Ga', 32:'Ge', 33:'As', 34:'Se' ,
@@ -484,7 +537,7 @@ ptableinverse = {1:'H', 2:'He',
 67:'Ho', 68:'Er', 69:'Tm', 70:'Yb', 71:'Lu', 72:'Hf', 73:'Ta', 74:'W ' ,
 75:'Re', 76:'Os', 77:'Ir', 78:'Pt', 79:'Au', 80:'Hg', 81:'Tl', 82:'Pb' ,
 83:'Bi', 84:'Po', 85:'At', 86:'Rn', 87:'Fr', 88:'Ra', 89:'Ac', 90:'Th' ,
-91:'Pa', 92:'U' , 93:'Np', 94:'Pu', 95:'Am', 96:'Cm', 97:'Bk', 98:'Cf' 
+91:'Pa', 92:'U' , 93:'Np', 94:'Pu', 95:'Am', 96:'Cm', 97:'Bk', 98:'Cf'
 }
 
 '''
@@ -498,7 +551,7 @@ sgnum_symmorphic = np.array([1,2,3,5,6,8,10,12,16,21,22,23,25,35,38,42,44,47, \
 217,221,225,229])
 
 ''' this variable encodes all the generators (including translations) for all 230 space groups
-    will be used to compute the full space group symmetry operators 
+    will be used to compute the full space group symmetry operators
 '''
 SYM_GL= [
 "000                                     ","100                                     ","01cOOO0                                 ",\
@@ -582,12 +635,12 @@ SYM_GL= [
 "02dOOOlDDD0                             ","12dOOOfOOO0                             ","12dOOOfDDD0                             "]
 
 '''
-this table contains the screw axis and glide planes 
+this table contains the screw axis and glide planes
 which is used in calculating the systemtaic absences.
 organized as follows:
 
 --> the key will be the space group number
---> first list has the glide plane in the 
+--> first list has the glide plane in the
     primary, secondary and tertiary direction
 --> second list has screw axis in primary,secondary
 and tertiary directions
@@ -766,7 +819,7 @@ the full symmetry is generated by the repeated action of the generator matrix
 SYM_GENERATORS = {}
 
 # now start to fill them in
-# identity 
+# identity
 SYM_GENERATORS['a'] = np.zeros([3,3])
 SYM_GENERATORS['a'] = np.eye(3)
 
@@ -779,11 +832,11 @@ SYM_GENERATORS['c'] = np.zeros([3,3])
 SYM_GENERATORS['c'][0,0] = -1.; SYM_GENERATORS['c'][1,1] = 1.; SYM_GENERATORS['c'][2,2] = -1.
 
 # 120@[111]
-SYM_GENERATORS['d'] = np.zeros([3,3]) 
+SYM_GENERATORS['d'] = np.zeros([3,3])
 SYM_GENERATORS['d'][0,2] = 1.; SYM_GENERATORS['d'][1,0] = 1.; SYM_GENERATORS['d'][2,1] = 1.
 
 #180@[110]
-SYM_GENERATORS['e'] = np.zeros([3,3]) 
+SYM_GENERATORS['e'] = np.zeros([3,3])
 SYM_GENERATORS['e'][0,1] = 1.; SYM_GENERATORS['e'][1,0] = 1.; SYM_GENERATORS['e'][2,2] = -1.
 
 #
@@ -816,7 +869,7 @@ SYM_GENERATORS['l'][0,1] = 1.; SYM_GENERATORS['l'][1,0] = 1.; SYM_GENERATORS['l'
 
 #
 SYM_GENERATORS['m'] = np.zeros([3,3])
-SYM_GENERATORS['m'][0,1] = 1.; SYM_GENERATORS['m'][1,0] = -1.; SYM_GENERATORS['m'][2,2] = -1. 
+SYM_GENERATORS['m'][0,1] = 1.; SYM_GENERATORS['m'][1,0] = -1.; SYM_GENERATORS['m'][2,2] = -1.
 
 #
 SYM_GENERATORS['n'] = np.zeros([3,3])
@@ -841,18 +894,18 @@ SYM_GENERATORS['Z'] = -1./8.
     @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     @DATE    11/23/2020 SS 1.0 original
     @DETAIL. this list of symbols will help us to genrate the point group symmetries
-             in the cartesian space for any point group. this is needed for the 
+             in the cartesian space for any point group. this is needed for the
              supergroup symmetry usd in the coloring scheme used in the package. this
-             needs to be a separate set of routines because the supergroup can be a 
+             needs to be a separate set of routines because the supergroup can be a
              point group which is not the laue group of the crystal (e.g. m-3 --> m-3m)
-             the notation used will be the same as the one used for the space group 
+             the notation used will be the same as the one used for the space group
              without any translations.
 '''
 SYM_GL_PG = {
 'c1' : '1a' , # only identity rotation
 'ci' : '1h' , # only inversion operation
 'c2' : '1c' , # 2-fold rotation about z
-'cs' : '1j' , # 
+'cs' : '1j' , #
 'c2h' : '2ch' ,
 'd2' : '2bc' ,
 'c2v' : '2bj' ,
