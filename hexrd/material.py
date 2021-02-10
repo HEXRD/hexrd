@@ -108,7 +108,7 @@ class Material(object):
     the dmin parameter is used to figure out the maximum sampling for g-vectors
     this parameter is in angstroms
     '''
-    DFLT_DMIN = _angstroms(0.5)
+    DFLT_DMIN = _angstroms(0.75)
 
     '''
     some materials have more than one space group setting. for ex
@@ -466,8 +466,8 @@ class Material(object):
 
         gid = fid.get(xtal)
 
-        sgnum = numpy.asscalar(numpy.array(gid.get('SpaceGroupNumber'),
-                                           dtype=numpy.int32))
+        sgnum = numpy.array(gid.get('SpaceGroupNumber'),
+                dtype=numpy.int32).item()
         """
             IMPORTANT NOTE:
             note that the latice parameters is nm by default
@@ -498,8 +498,8 @@ class Material(object):
         self._atomtype = numpy.array(gid.get('Atomtypes'), dtype=numpy.int32)
         self._atom_ntype = self._atomtype.shape[0]
 
-        self._sgsetting = numpy.asscalar(numpy.array(\
-            gid.get('SpaceGroupSetting'), dtype=numpy.int32))
+        self._sgsetting = numpy.array(gid.get('SpaceGroupSetting'), \
+                          dtype=numpy.int32).item()
 
         if('stiffness' in gid):
             # we're assuming the stiffness is in units of GPa
@@ -513,8 +513,8 @@ class Material(object):
 
         if('dmin' in gid):
             # if dmin is present in the HDF5 file, then use that
-            dmin = numpy.asscalar(numpy.array(gid.get('dmin'),
-                                              dtype=numpy.float64))
+            dmin = numpy.array(gid.get('dmin'),
+                   dtype=numpy.float64).item()
             self._dmin = _angstroms(dmin*10.)
 
         if('hkls' in gid):
