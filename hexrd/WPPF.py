@@ -681,7 +681,7 @@ class Material_LeBail:
         self.SYM_PG_r = material_obj.unitcell.SYM_PG_r
         self.SYM_PG_r_laue = material_obj.unitcell.SYM_PG_r_laue
 
-        self.hkls = material_obj.unitcell.hkls
+        self.hkls = material_obj.planeData.getHKLs()
 
     def _calcrmt(self):
 
