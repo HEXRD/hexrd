@@ -2748,7 +2748,7 @@ class Material_Rietveld:
         self.il = material_obj.unitcell.il
 
         # copy over the hkl but calculate the multiplicities
-        self.hkls = material_obj.unitcell.hkls
+        self.hkls = material_obj.planeData.hkls
         multiplicity = []
         for g in self.hkls:
             multiplicity.append(self.CalcStar(g, 'r').shape[0])
