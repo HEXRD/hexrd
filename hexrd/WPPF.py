@@ -2565,10 +2565,11 @@ def extract_intensities(polar_view,
     pv_simulated = np.zeros(polar_view.shape)
     extracted_intensities = []
     hkls = []
+    tths = []
     for i in range(len(non_zeros_index)):
         idx = non_zeros_index[i]
         xp, yp, rwp, \
-        Icalc, hkl = results[i]
+        Icalc, hkl, tth = results[i]
 
         intp_int = np.interp(tth_array, xp, yp, left=0., right=0.)
 
@@ -2576,9 +2577,11 @@ def extract_intensities(polar_view,
 
         extracted_intensities.append(Icalc)
         hkls.append(hkl)
+        tths.append(tth)
 
     return extracted_intensities, \
            hkls, \
+           tths, \
            non_zeros_index, \
            pv_simulated
 
