@@ -21,15 +21,25 @@ def fast_snip1d(y, w=4, numiter=2):
         bkg[k, :] = (np.exp(np.exp(b) - 1.) - 1.)**2 - 1.
     return bkg
 
-def snip1d(y, w=4, numiter=2, threshold=0):
+
+def snip1d(y, w=4, numiter=2, threshold=None):
     """
     Return SNIP-estimated baseline-background for given spectrum y.
 
     !!!: threshold values get marked as NaN in convolution
+    !!!: mask in astropy's convolve is True for masked; set to NaN
     """
-    mask = y <= threshold
+    # scal input
     zfull = np.log(np.log(np.sqrt(y + 1) + 1) + 1)
     bkg = np.zeros_like(zfull)
+
+    # handle mask
+    if threshold is not None:
+        mask = y <= threshold
+    else:
+        mask = np.zeros_like(y, dtype=bool)
+
+    # step through rows
     for k, z in enumerate(zfull):
         if np.all(mask[k]):
             bkg[k, :] = np.nan
@@ -42,7 +52,8 @@ def snip1d(y, w=4, numiter=2, threshold=0):
                     b = np.minimum(
                         b,
                         convolution.convolve(
-                            z, kernel, boundary='extend', mask=mask[k]
+                            z, kernel, boundary='extend', mask=mask[k],
+                            nan_treatment='interpolate', preserve_nan=True
                         )
                     )
                 z = b
@@ -50,6 +61,7 @@ def snip1d(y, w=4, numiter=2, threshold=0):
     nan_idx = np.isnan(bkg)
     bkg[nan_idx] = threshold
     return bkg
+
 
 def snip1d_quad(y, w=4, numiter=2):
     """Return SNIP-estimated baseline-background for given spectrum y.
@@ -78,6 +90,7 @@ def snip1d_quad(y, w=4, numiter=2):
         z = b
 
     return np.exp(np.exp(b) - 1) - 1
+
 
 def snip2d(y, w=4, numiter=2, order=1):
     """
