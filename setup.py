@@ -15,6 +15,7 @@ install_reqs = [
     'pycifrw',
     'lmfit',
     'numba',
+    'numpy',
     'psutil',
     'pyyaml',
     'scikit-learn',
@@ -82,7 +83,6 @@ entry_points = {
 
 setup(
     name='hexrd',
-    setup_requires=['setuptools-scm'],
     use_scm_version=True,
     description = 'hexrd X-ray diffraction data analysis tool',
     long_description = open('README.md').read(),
