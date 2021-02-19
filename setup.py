@@ -7,18 +7,17 @@ import numpy
 np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 
 install_reqs = [
+    'appdirs',
     'fabio',
     'fast-histogram',
     'h5py',
-    'psutil',
-    'scipy',
-    'pycifrw',
     'lmfit',
     'numba',
     'psutil',
+    'pycifrw',
     'pyyaml',
     'scikit-learn',
-    'appdirs',
+    'scipy',
 ]
 
 # This a hack to get around the fact that scikit-image on conda-forge doesn't install
