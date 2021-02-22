@@ -157,11 +157,8 @@ def set_numba_cache():
     def is_writable_file(path):
         # Unfortunately, os.access(__file__, os.W_OK) doesn't work on Windows.
         # It always returns True.
-        if not os.path.exists(path):
-            return False
-
         try:
-            with open(path, 'w'):
+            with open(path, 'r+'):
                 return True
         except Exception:
             return False
