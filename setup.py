@@ -7,7 +7,6 @@ import numpy
 np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 
 install_reqs = [
-    'appdirs',
     'fabio',
     'fast-histogram',
     'h5py',
@@ -25,8 +24,10 @@ install_reqs = [
 # dist info so setuptools can't find it, even though its there, which results in
 # pkg_resources.DistributionNotFound, even though the package is available. So we
 # only added it if we aren't building with conda.
+# appdirs has the same issue.
 if os.environ.get('CONDA_BUILD') != '1':
     install_reqs.append('scikit-image')
+    install_reqs.append('appdirs')
 
 
 # extension for convolution from astropy
