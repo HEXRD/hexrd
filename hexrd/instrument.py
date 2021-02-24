@@ -1124,12 +1124,8 @@ class HEDMInstrument(object):
                       'U': [2e-1, -1., 1., True],
                       'V': [2e-2, -1., 1., True],
                       'W': [2e-2, -1., 1., True],
-                      'P': [0., -1., 1., True],
                       'X': [2e-1, -1., 1., True],
-                      'Y': [2e-1, -1., 1., True],
-                      'eta1': [1e-2, -1., 1., True],
-                      'eta2': [1e-2, -1., 1., True],
-                      'eta3': [1e-2, -1., 1., True]
+                      'Y': [2e-1, -1., 1., True]
                       }
 
         '''
@@ -1166,14 +1162,14 @@ class HEDMInstrument(object):
 
         # !!! calc nsteps by oversampling
         nsteps = int(np.ceil(2*(tth_ma - tth_mi)/np.degrees(ang_res[0])))
-        print(nsteps)
+
         # evaulation vector for LeBail
         tth = np.linspace(tth_mi, tth_ma, nsteps)
 
         expt = np.vstack([tth, np.ones_like(tth)]).T
 
-        wavelength = valWUnit('lp', 'length',
-                              self.beam_wavelength, 'angstrom')
+        wavelength = [valWUnit('lp', 'length',
+                              self.beam_wavelength, 'angstrom'), 1.0]
 
         '''
         now go through the material list and get the intensity dictionary
