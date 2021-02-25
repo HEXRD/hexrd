@@ -111,6 +111,11 @@ class Material(object):
     DFLT_DMIN = _angstroms(0.75)
 
     '''
+    default stiffness tensor in voight notation
+    '''
+    DFLT_STIFFNESS = numpy.zeros([6,6])
+
+    '''
     some materials have more than one space group setting. for ex
     the diamond cubic system has two settings with the origin either
     at (0,0,0) or at (1/4,1/4,1/4) etc. this handle takes care of these
@@ -175,7 +180,10 @@ class Material(object):
             self._dmin.getVal('nm'), self._beamEnergy.value,
             self._sgsetting)
 
-        self.unitcell.stiffness = self.stiffness
+        if hasattr(self, 'stifness'):
+            self.unitcell.stiffness = self.stiffness
+        else:
+            self.unitcell.stiffness = Material.DFLT_STIFFNESS
 
         self._newPdata()
         self.update_structure_factor()
