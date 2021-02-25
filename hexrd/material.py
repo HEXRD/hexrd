@@ -113,7 +113,7 @@ class Material(object):
     '''
     default stiffness tensor in voight notation
     '''
-    DFLT_STIFFNESS = numpy.zeros([6,6])
+    DFLT_STIFFNESS = numpy.eye(6)
 
     '''
     some materials have more than one space group setting. for ex
