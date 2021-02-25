@@ -180,7 +180,7 @@ class Material(object):
             self._dmin.getVal('nm'), self._beamEnergy.value,
             self._sgsetting)
 
-        if hasattr(self, 'stifness'):
+        if hasattr(self, 'stiffness'):
             self.unitcell.stiffness = self.stiffness
         else:
             self.unitcell.stiffness = Material.DFLT_STIFFNESS
