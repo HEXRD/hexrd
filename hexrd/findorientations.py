@@ -487,10 +487,10 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
                         "filtering eta/ome maps incl LoG with %.2f std dev",
                         filter_maps
                     )
-                    res = _filter_eta_ome_maps(res, filter_stdev=filter_maps)
+                    _filter_eta_ome_maps(res, filter_stdev=filter_maps)
                 else:
                     logger.info("filtering eta/ome maps", filter_maps)
-                    res = _filter_eta_ome_maps(res)
+                    _filter_eta_ome_maps(res)
             hkls = [str(i) for i in available_hkls[res.iHKLList]]
             logger.info(
                 'hkls used to generate orientation maps: %s',
@@ -562,11 +562,11 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
         if not isinstance(filter_maps, bool):
             logger.info("filtering eta/ome maps incl LoG with %.2f std dev",
                         filter_maps)
-            eta_ome = _filter_eta_ome_maps(eta_ome, filter_stdev=filter_maps)
+            _filter_eta_ome_maps(eta_ome, filter_stdev=filter_maps)
         else:
             logger.info("filtering eta/ome maps",
                         filter_maps)
-            eta_ome = _filter_eta_ome_maps(eta_ome)
+            _filter_eta_ome_maps(eta_ome)
 
     logger.info("\t\t...took %f seconds", timeit.default_timer() - start)
 
@@ -625,11 +625,7 @@ def _filter_eta_ome_maps(eta_ome, filter_stdev=False):
         if filter_stdev:
             if isinstance(filter_stdev, bool):
                 filter_stdev = filter_stdev_DFLT
-            pf = -gl_filter(pf, filter_stdev)
-
-            # assign, since pf is a copy of the ref obj
-            eta_ome.dataStore[i] = pf
-    return eta_ome
+            pf[:] = -gl_filter(pf, filter_stdev)
 
 
 def create_clustering_parameters(cfg, eta_ome):
