@@ -112,7 +112,7 @@ class OmegaConfig(Config):
 
     @property
     def period(self):
-        # ??? maybe should get from image_series like before in v0.3.x
+        # FIXME: this is deprecated and now set from the imageseries
         key = 'find_orientations:omega:period'
         temp = self._cfg.get(key, [-180., 180])
         range = np.abs(temp[1]-temp[0])
@@ -235,3 +235,10 @@ class OrientationMapsConfig(Config):
     @property
     def threshold(self):
         return self._cfg.get('find_orientations:orientation_maps:threshold')
+
+    @property
+    def filter_maps(self):
+        return self._cfg.get('find_orientations:orientation_maps:filter_maps',
+                             default=False)
+
+
