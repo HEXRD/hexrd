@@ -827,7 +827,8 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
                        chi=0.,
                        etaTol=None, omeTol=None,
                        etaRanges=None, omeRanges=None,
-                       bVec=xf.bVec_ref, eVec=xf.eta_ref, vInv=xf.vInv_ref):
+                       bVec=constants.beam_vec, eVec=constants.eta_vec,
+                       vInv=constants.identity_6x1):
     """
     Simulate spherical maps.
 
@@ -852,11 +853,11 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
     omeRanges : TYPE, optional
         DESCRIPTION. The default is None.
     bVec : TYPE, optional
-        DESCRIPTION. The default is xf.bVec_ref.
+        DESCRIPTION. The default is [0, 0, -1].
     eVec : TYPE, optional
-        DESCRIPTION. The default is xf.eta_ref.
+        DESCRIPTION. The default is [1, 0, 0].
     vInv : TYPE, optional
-        DESCRIPTION. The default is xf.vInv_ref.
+        DESCRIPTION. The default is [1, 1, 1, 0, 0, 0].
 
     Returns
     -------
@@ -940,10 +941,10 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
                 )
             if not np.all(np.isnan(angList)):
                 #
-                angList[:, 1] = xf.mapAngle(
+                angList[:, 1] = xfcapi.mapAngle(
                         angList[:, 1],
                         [etaEdges[0], etaEdges[0]+2*np.pi])
-                angList[:, 2] = xf.mapAngle(
+                angList[:, 2] = xfcapi.mapAngle(
                         angList[:, 2],
                         [omeEdges[0], omeEdges[0]+2*np.pi])
                 #
@@ -1182,7 +1183,7 @@ def simulateGVecs(pd, detector_params, grain_params,
         op_idx = np.where(on_panel)[0]
         #
         valid_ang = allAngs[op_idx, :]
-        valid_ang[:, 2] = xf.mapAngle(valid_ang[:, 2], ome_period)
+        valid_ang[:, 2] = xfcapi.mapAngle(valid_ang[:, 2], ome_period)
         valid_ids = allHKLs[op_idx, 0]
         valid_hkl = allHKLs[op_idx, 1:]
         valid_xy = det_xy[op_idx, :]
@@ -1440,7 +1441,7 @@ else:
                 delta_tth[j] = abs(
                     tth_eta[0][diffs[0, j]] - tth_eta[0][diffs[1, j]]
                 )
-                delta_eta[j] = xf.angularDifference(
+                delta_eta[j] = xfcapi.angularDifference(
                     tth_eta[1][diffs[0, j]], tth_eta[1][diffs[1, j]]
                 )
 
