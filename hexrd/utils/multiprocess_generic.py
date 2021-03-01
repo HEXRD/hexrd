@@ -70,6 +70,6 @@ class GenericMultiprocessing:
 
         # wait until each processor has finished
         [p.join() for p in processes]
-
+        p.terminate()
         # reorder results
         return results
