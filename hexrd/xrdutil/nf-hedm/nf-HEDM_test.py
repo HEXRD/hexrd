@@ -979,6 +979,9 @@ def grand_loop_pool(ncpus, state):
     #           coords,
     #           experiment )
     global _multiprocessing_start_method
+
+    multiprocessing.set_start_method(_multiprocessing_start_method)
+    
     if _multiprocessing_start_method == 'fork':
         # Use FORK multiprocessing.
 
