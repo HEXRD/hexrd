@@ -475,22 +475,6 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
             pd = res.planeData
             available_hkls = pd.hkls.T
             logger.info('loaded eta/ome orientation maps from %s', fn)
-            # filter if requested
-            filter_maps = cfg.find_orientations.orientation_maps.filter_maps
-            # !!! current logic:
-            #  if False/None don't do anything
-            #  if True, only do median subtraction
-            #  if scalar, do median + LoG filter with that many pixels std dev
-            if filter_maps:
-                if not isinstance(filter_maps, bool):
-                    logger.info(
-                        "filtering eta/ome maps incl LoG with %.2f std dev",
-                        filter_maps
-                    )
-                    _filter_eta_ome_maps(res, filter_stdev=filter_maps)
-                else:
-                    logger.info("filtering eta/ome maps", filter_maps)
-                    _filter_eta_ome_maps(res)
             hkls = [str(i) for i in available_hkls[res.iHKLList]]
             logger.info(
                 'hkls used to generate orientation maps: %s',
@@ -507,6 +491,23 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
         logger.info('clean option specified; '
                     + 'recomputing eta/ome orientation maps')
         return generate_eta_ome_maps(cfg, hkls=hkls)
+
+
+def filter_maps_if_requested(eta_ome, cfg):
+    # filter if requested
+    filter_maps = cfg.find_orientations.orientation_maps.filter_maps
+    # !!! current logic:
+    #  if False/None don't do anything
+    #  if True, only do median subtraction
+    #  if scalar, do median + LoG filter with that many pixels std dev
+    if filter_maps:
+        if not isinstance(filter_maps, bool):
+            logger.info("filtering eta/ome maps incl LoG with %.2f std dev",
+                        filter_maps)
+            _filter_eta_ome_maps(eta_ome, filter_stdev=filter_maps)
+        else:
+            logger.info("filtering eta/ome maps", filter_maps)
+            _filter_eta_ome_maps(eta_ome)
 
 
 def generate_eta_ome_maps(cfg, hkls=None, save=True):
@@ -551,22 +552,6 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
         active_hkls=active_hkls,
         threshold=cfg.find_orientations.orientation_maps.threshold,
         ome_period=ome_period)
-
-    # filter if requested
-    filter_maps = cfg.find_orientations.orientation_maps.filter_maps
-    # !!! current logic:
-    #  if False/None don't do anything
-    #  if True, only do median subtraction
-    #  if scalar, do median + LoG filter with that many pixels std dev
-    if filter_maps:
-        if not isinstance(filter_maps, bool):
-            logger.info("filtering eta/ome maps incl LoG with %.2f std dev",
-                        filter_maps)
-            _filter_eta_ome_maps(eta_ome, filter_stdev=filter_maps)
-        else:
-            logger.info("filtering eta/ome maps",
-                        filter_maps)
-            _filter_eta_ome_maps(eta_ome)
 
     logger.info("\t\t...took %f seconds", timeit.default_timer() - start)
 
@@ -785,6 +770,7 @@ def find_orientations(cfg,
             # need maps
             eta_ome = load_eta_ome_maps(cfg, plane_data, imsd,
                                         hkls=hkls, clean=clean)
+            filter_maps_if_requested(eta_ome, cfg)
 
             # generate trial orientations
             qfib = generate_orientation_fibers(cfg, eta_ome)
@@ -818,6 +804,7 @@ def find_orientations(cfg,
         # handle eta-ome maps
         eta_ome = load_eta_ome_maps(cfg, plane_data, imsd,
                                     hkls=hkls, clean=clean)
+        filter_maps_if_requested(eta_ome, cfg)
 
         # handle search space
         if cfg.find_orientations.use_quaternion_grid is None:
