@@ -475,7 +475,6 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
             pd = res.planeData
             available_hkls = pd.hkls.T
             logger.info('loaded eta/ome orientation maps from %s', fn)
-            filter_maps_if_requested(res, cfg)
             hkls = [str(i) for i in available_hkls[res.iHKLList]]
             logger.info(
                 'hkls used to generate orientation maps: %s',
@@ -554,7 +553,6 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
         threshold=cfg.find_orientations.orientation_maps.threshold,
         ome_period=ome_period)
 
-    filter_maps_if_requested(eta_ome, cfg)
     logger.info("\t\t...took %f seconds", timeit.default_timer() - start)
 
     if save:
@@ -772,6 +770,7 @@ def find_orientations(cfg,
             # need maps
             eta_ome = load_eta_ome_maps(cfg, plane_data, imsd,
                                         hkls=hkls, clean=clean)
+            filter_maps_if_requested(eta_ome, cfg)
 
             # generate trial orientations
             qfib = generate_orientation_fibers(cfg, eta_ome)
@@ -805,6 +804,7 @@ def find_orientations(cfg,
         # handle eta-ome maps
         eta_ome = load_eta_ome_maps(cfg, plane_data, imsd,
                                     hkls=hkls, clean=clean)
+        filter_maps_if_requested(eta_ome, cfg)
 
         # handle search space
         if cfg.find_orientations.use_quaternion_grid is None:
