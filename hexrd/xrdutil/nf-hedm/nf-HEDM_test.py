@@ -31,6 +31,19 @@ from skimage.morphology import dilation as ski_dilation
 
 from progressbar import ProgressBar, Percentage, Bar
 
+USE_MPI = False
+rank = 0
+try:
+    from mpi4py import MPI
+    from mpi4py.futures import MPIPoolExecutor
+    comm = MPI.COMM_WORLD
+    world_size = comm.Get_size()
+    rank = comm.Get_rank()
+    USE_MPI = world_size > 1
+except ImportError:
+    pass
+
+
 beam = constants.beam_vec
 Z_l = constants.lab_z
 vInv_ref = constants.identity_6x1
@@ -677,6 +690,34 @@ def _write_pixels(coords, angles, image, base, inv_deltas, clip_vals):
         x_off = 7 - (x % 8)
         image[z, y, x_byte] |= (1 << x_off)
 
+def get_offset_size(n_coords):
+    offset = 0
+    size = n_coords
+    if USE_MPI:
+        coords_per_rank = n_coords // world_size
+        offset = rank * coords_per_rank
+
+        size = coords_per_rank
+        if rank == size -1:
+            size = n_coords - offset
+
+    return (offset, size)
+
+def gather_confidence(controller, confidence, n_grains, n_coords):
+    if rank == 0:
+        global_confidence = np.empty((n_grains, n_coords), dtype=np.float64)
+    else:
+        global_confidence = None
+
+    # Calculate the send buffer sizes
+    coords_per_rank = n_coords // world_size
+    send_counts = np.full(world_size, coords_per_rank * n_grains)
+    send_counts[-1] = (n_coords - (coords_per_rank * (world_size-1))) * n_grains
+
+    comm.Gatherv(sendbuf=confidence, recvbuf=(global_confidence, send_counts), root=0)
+    confidence = global_confidence
+    if rank == 0:
+        controller.handle_result("confidence", confidence)
 
 # ==============================================================================
 # %% ORIENTATION TESTING
@@ -745,10 +786,14 @@ def test_orientations(image_stack, experiment, controller):
         precomp.append((gvec_cs, rmat_ss))
     controller.finish(subprocess)
 
+    # Divide coords by ranks
+    (offset, size) = get_offset_size(n_coords)
+
     # grand loop ==============================================================
     # The near field simulation 'grand loop'. Where the bulk of computing is
     # performed. We are looking for a confidence matrix that has a n_grains
-    chunks = range(0, n_coords, chunk_size)
+    chunks = range(offset, offset+size, chunk_size)
+
     subprocess = 'grand_loop'
     controller.start(subprocess, n_coords)
     finished = 0
@@ -756,7 +801,7 @@ def test_orientations(image_stack, experiment, controller):
 
     logging.info('Checking confidence for %d coords, %d grains.',
                  n_coords, n_grains)
-    confidence = np.empty((n_grains, n_coords))
+    confidence = np.empty((n_grains, size))
     if ncpus > 1:
         global _multiprocessing_start_method
         logging.info('Running multiprocess %d processes (%s)',
@@ -769,6 +814,8 @@ def test_orientations(image_stack, experiment, controller):
             for rslice, rvalues in pool.imap_unordered(multiproc_inner_loop,
                                                        chunks):
                 count = rvalues.shape[1]
+                # We need to adjust this slice for the offset
+                rslice = slice(rslice.start-offset, rslice.stop-offset)
                 confidence[:, rslice] = rvalues
                 finished += count
                 controller.update(finished)
@@ -788,7 +835,12 @@ def test_orientations(image_stack, experiment, controller):
             controller.update(finished)
 
     controller.finish(subprocess)
-    controller.handle_result("confidence", confidence)
+
+    # Now gather result to rank 0
+    if USE_MPI:
+        gather_confidence(controller, confidence, n_grains, n_coords)
+    else:
+        controller.handle_result("confidence", confidence)
 
 
 def evaluate_diffraction_angles(experiment, controller=None):
@@ -948,7 +1000,10 @@ def multiproc_inner_loop(chunk):
 
     chunk_size = _mp_state[0]
     n_coords = len(_mp_state[4])
-    chunk_stop = min(n_coords, chunk+chunk_size)
+
+    (offset, size) = get_offset_size(n_coords)
+
+    chunk_stop = min(offset+size, chunk+chunk_size)
     return _grand_loop_inner(*_mp_state[1:], start=chunk, stop=chunk_stop)
 
 
