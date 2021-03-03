@@ -31,6 +31,17 @@ from skimage.morphology import dilation as ski_dilation
 
 from progressbar import ProgressBar, Percentage, Bar
 
+USE_MPI = False
+try:
+    from mpi4py import MPI
+    from mpi4py.futures import MPIPoolExecutor
+    comm = MPI.COMM_WORLD
+    world_size = comm.Get_size()
+    USE_MPI = world_size > 1
+except ImportError:
+    pass
+
+
 beam = constants.beam_vec
 Z_l = constants.lab_z
 vInv_ref = constants.identity_6x1
@@ -761,13 +772,23 @@ def test_orientations(image_stack, experiment, controller):
         global _multiprocessing_start_method
         logging.info('Running multiprocess %d processes (%s)',
                      ncpus, _multiprocessing_start_method)
+
+        def _multiprocess_map_func(p, func, chunks):
+            return p.imap_unordered(func, chunks)
+
+        def _mpi_map_func(p, func, chunks):
+            return p.map(func, chunks)
+
+        map_func = _multiprocess_map_func
+        if USE_MPI:
+            map_func = _mpi_map_func
+
         with grand_loop_pool(ncpus=ncpus,
                              state=(chunk_size,
                                     image_stack_dilated,
                                     all_angles, precomp,
                                     test_crds, experiment)) as pool:
-            for rslice, rvalues in pool.imap_unordered(multiproc_inner_loop,
-                                                       chunks):
+            for rslice, rvalues in map_func(pool, multiproc_inner_loop, chunks):
                 count = rvalues.shape[1]
                 confidence[:, rslice] = rvalues
                 finished += count
@@ -980,7 +1001,8 @@ def grand_loop_pool(ncpus, state):
     #           experiment )
     global _multiprocessing_start_method
 
-    multiprocessing.set_start_method(_multiprocessing_start_method)
+    if not USE_MPI:
+        multiprocessing.set_start_method(_multiprocessing_start_method)
 
     if _multiprocessing_start_method == 'fork':
         # Use FORK multiprocessing.
@@ -993,6 +1015,9 @@ def grand_loop_pool(ncpus, state):
         pool = multiprocessing.Pool(ncpus)
         yield pool
         del (_mp_state)
+    elif _multiprocessing_start_method == 'mpi':
+        pool = MPIPoolExecutor(globals={"_mp_state": state})
+        yield pool
     else:
         # Use SPAWN multiprocessing.
 
@@ -1110,6 +1135,8 @@ def build_controller(args):
 # note that on python > 3.4 we could use multiprocessing get_start_method and
 # set_start_method for a cleaner implementation of this functionality.
 _multiprocessing_start_method = 'fork' if hasattr(os, 'fork') else 'spawn'
+if USE_MPI:
+    _multiprocessing_start_method = 'mpi'
 
 if __name__ == '__main__':
     FORMAT="%(relativeCreated)12d [%(process)6d/%(thread)6d] %(levelname)8s: %(message)s"
