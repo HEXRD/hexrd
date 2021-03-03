@@ -2024,7 +2024,6 @@ class LeBail:
                         self.Icalc[p][l] = \
                             self.intensity_init[p][l][0:self.tth[p]
                                                       [l].shape[0]]
-
         else:
             raise RuntimeError(
                 "LeBail: Intensity_init must be either\
@@ -2167,19 +2166,17 @@ class LeBail:
         '''
 
         self.Iobs = {}
-        self.Iobs_b = {}
         for iph, p in enumerate(self.phases):
 
             self.Iobs[p] = {}
-            self.Iobs_b[p] = {}
 
             for k, l in self.phases.wavelength.items():
                 Ic = self.Icalc[p][k]
+                Icb = self.Icalc_b[p][k]
 
                 tth = self.tth[p][k] + self.zero_error
 
                 Iobs = []
-                Iobs_b = []
                 n = np.min((tth.shape[0], Ic.shape[0]))
 
                 for i in range(n):
@@ -2188,22 +2185,18 @@ class LeBail:
 
                     y = self.PV * Ic[i]
                     _, yo = self.spectrum_expt.data
-                    # _, yb = self.background.data
-                    # yo = yo - yb
                     _, yc = self.spectrum_sim.data
-                    _, yb = self.background.data
+                    mask = yc != 0.
                     """ 
                     @TODO if yc has zeros in it, then this
                     the next line will not like it. need to 
                     address that 
+                    @ SS 03/02/2021 the mask shold fix it
                     """
-                    Ib = np.trapz(yb * y / yc, self.tth_list)
-                    I = np.trapz(yo * y / yc, self.tth_list)
+                    I = np.trapz(yo[mask] * y[mask] / yc[mask], self.tth_list[mask])
                     Iobs.append(I)
-                    Iobs_b.append(Ib)
 
                 self.Iobs[p][k] = np.array(Iobs)
-                self.Iobs_b[p][k] = np.array(Iobs_b)
 
     def calcRwp(self, params):
         '''
