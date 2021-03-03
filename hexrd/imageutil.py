@@ -66,12 +66,12 @@ def snip1d_quad(y, w=4, numiter=2):
         # quadratic kernel
         kern2 = np.zeros(N)
         kern2[0] = kern2[-1] = -1./6.
-        kern2[p/2] = kern2[3*p/2] = 4./6.
+        kern2[int(p/2)] = kern2[int(3*p/2)] = 4./6.
         kernels.append([kern1, kern2])
 
     z = b = np.log(np.log(y + 1) + 1)
     for i in range(numiter):
-        for (kern1, kern2) in zip(kernels):
+        for (kern1, kern2) in kernels:
             c = np.maximum(convolve1d(z, kern1, mode='nearest'),
                            convolve1d(z, kern2, mode='nearest'))
             b = np.minimum(b, c)

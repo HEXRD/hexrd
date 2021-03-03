@@ -1,7 +1,7 @@
 import importlib.resources
 import numpy as np
 import warnings
-from hexrd.imageutil import snip1d
+from hexrd.imageutil import snip1d, snip1d_quad
 from hexrd.crystallography import PlaneData
 from hexrd.material import Material
 from hexrd.valunits import valWUnit
@@ -1797,7 +1797,8 @@ class LeBail:
 
             self.tth_max = self.spectrum_expt._x[-1]
             self.tth_min = self.spectrum_expt._x[0]
-
+            self.tth_step = (self.tth_max - self.tth_min)\
+            /self.spectrum_expt._x.shape[0]
             """
             @date 09/24/2020 SS
             catching the cases when intensity is zero.
@@ -1862,10 +1863,17 @@ class LeBail:
 
             self.background = Spectrum(x=self.tth_list, y=yy)
 
+        elif('snip1d' in self.bkgmethod.keys()):
+            ww = np.rint(self.bkgmethod['snip1d'][0]/self.tth_step).astype(np.int32)
+            numiter = self.bkgmethod['snip1d'][1]
+            yy = np.squeeze(snip1d_quad(np.atleast_2d(self.spectrum_expt._y),\
+                w=ww, numiter=numiter))
+            self.background = Spectrum(x=self.tth_list, y=yy)
+
     def chebyshevfit(self):
         degree = self.bkgmethod['chebyshev']
         p = np.polynomial.Chebyshev.fit(
-            self.tth_list, self.spectrum_expt._y, degree, w=self.weights**4)
+            self.tth_list, self.spectrum_expt._y, degree, w=self.weights)
         self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
 
     def selectpoints(self):
@@ -2159,9 +2167,11 @@ class LeBail:
         '''
 
         self.Iobs = {}
+        self.Iobs_b = {}
         for iph, p in enumerate(self.phases):
 
             self.Iobs[p] = {}
+            self.Iobs_b[p] = {}
 
             for k, l in self.phases.wavelength.items():
                 Ic = self.Icalc[p][k]
@@ -2169,6 +2179,7 @@ class LeBail:
                 tth = self.tth[p][k] + self.zero_error
 
                 Iobs = []
+                Iobs_b = []
                 n = np.min((tth.shape[0], Ic.shape[0]))
 
                 for i in range(n):
@@ -2177,17 +2188,22 @@ class LeBail:
 
                     y = self.PV * Ic[i]
                     _, yo = self.spectrum_expt.data
+                    # _, yb = self.background.data
+                    # yo = yo - yb
                     _, yc = self.spectrum_sim.data
-
+                    _, yb = self.background.data
                     """ 
                     @TODO if yc has zeros in it, then this
                     the next line will not like it. need to 
                     address that 
                     """
+                    Ib = np.trapz(yb * y / yc, self.tth_list)
                     I = np.trapz(yo * y / yc, self.tth_list)
                     Iobs.append(I)
+                    Iobs_b.append(Ib)
 
                 self.Iobs[p][k] = np.array(Iobs)
+                self.Iobs_b[p][k] = np.array(Iobs_b)
 
     def calcRwp(self, params):
         '''
@@ -2268,7 +2284,10 @@ class LeBail:
         ''' number of independent parameters in fitting '''
         P = len(params)
         if den > 0.:
-            Rexp = np.sqrt((N-P)/den)
+            if (N-P)/den > 0:
+                Rexp = np.sqrt((N-P)/den)
+            else:
+                Rexp = 0.0
         else:
             Rexp = np.inf
 
@@ -2539,8 +2558,10 @@ def extract_intensities(polar_view,
 
         if np.sum(mask) > 1:
             data = np.array([tth_array[mask], polar_view[i, :][mask]]).T
-            data_inp_list.append(data)
-            non_zeros_index.append(i)
+            # make sure its not all constant value
+            if(np.any(data) > 0):
+                data_inp_list.append(data)
+                non_zeros_index.append(i)
 
     kwargs = {
         'params': params,
@@ -2564,22 +2585,26 @@ def extract_intensities(polar_view,
     """
     pv_simulated = np.zeros(polar_view.shape)
     extracted_intensities = []
+    extracted_background = []
     hkls = []
     tths = []
     for i in range(len(non_zeros_index)):
         idx = non_zeros_index[i]
         xp, yp, rwp, \
-        Icalc, hkl, tth = results[i]
+        Icalc, Icalc_b, \
+        hkl, tth = results[i]
 
         intp_int = np.interp(tth_array, xp, yp, left=0., right=0.)
 
         pv_simulated[idx, :] = intp_int
 
         extracted_intensities.append(Icalc)
+        extracted_background.append(Icalc_b)
         hkls.append(hkl)
         tths.append(tth)
 
     return extracted_intensities, \
+           extracted_background, \
            hkls, \
            tths, \
            non_zeros_index, \
@@ -2621,7 +2646,7 @@ def single_azimuthal_extraction(expt_spectrum,
         niter += 1
 
     res = (L.spectrum_sim._x, L.spectrum_sim._y, \
-           L.Rwp, L.Icalc, L.hkls, L.tth)
+           L.Rwp, L.Iobs, L.Iobs_b, L.hkls, L.tth)
     return res
 
 
