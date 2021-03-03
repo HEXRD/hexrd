@@ -1755,68 +1755,62 @@ class LeBail:
         self.background.dump_hdf5(fid, 'background')
 
     def initialize_expt_spectrum(self, expt_spectrum):
-        '''
+        """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/19/2020 SS 1.0 original
                         09/11/2020 SS 1.1 multiple data types accepted as input
                         09/14/2020 SS 1.2 background method chebyshev now has user specified
                         polynomial degree
+                        03/03/2021 SS 1.3 moved the initialization to the property definition of
+                        self.spectrum_expt
         >> @DETAILS:    load the experimental spectum of 2theta-intensity
-        '''
-        if(expt_spectrum is not None):
-            if(isinstance(expt_spectrum, Spectrum)):
-                '''
-                directly passing the spectrum class
-                '''
-                self.spectrum_expt = expt_spectrum
-                self.spectrum_expt.nan_to_zero()
-            elif(isinstance(expt_spectrum, np.ndarray)):
-                '''
-                initialize class using a nx2 array
-                '''
-                max_ang = expt_spectrum[-1, 0]
-                if(max_ang < np.pi):
-                    warnings.warn('angles are small and appear to \
-                        be in radians. please check')
+        """
 
-                self.spectrum_expt = Spectrum(x=expt_spectrum[:, 0],
-                                              y=expt_spectrum[:, 1],
-                                              name='expt_spectrum')
-                self.spectrum_expt.nan_to_zero()
+        self.spectrum_expt = expt_spectrum
+        self.offset = False
 
-            elif(isinstance(expt_spectrum, str)):
-                '''
-                load from a text file
-                '''
-                if(path.exists(expt_spectrum)):
-                    self.spectrum_expt = Spectrum.from_file(
-                        expt_spectrum, skip_rows=0)
-                    self.spectrum_expt.nan_to_zero()
-                else:
-                    raise FileError('input spectrum file doesn\'t exist.')
+        self.tth_max = self.spectrum_expt._x[-1]
+        self.tth_min = self.spectrum_expt._x[0]
 
-            self.tth_max = self.spectrum_expt._x[-1]
-            self.tth_min = self.spectrum_expt._x[0]
-            self.tth_step = (self.tth_max - self.tth_min)\
-            /self.spectrum_expt._x.shape[0]
-            """
-            @date 09/24/2020 SS
-            catching the cases when intensity is zero.
-            for these points the weights will become
-            infinite. therefore, these points will be
-            masked out and assigned a weight of zero.
-            In addition, if any points have negative
-            intensity, they will also be assigned a zero
-            weight
-            """
-            mask = self.spectrum_expt._y <= 0.0
+        """
+        03/02/2021 SS added tth_step for some computations
+        related to snip background estimation
+        """
+        self.tth_step = (self.tth_max - self.tth_min)\
+        /self.spectrum_expt._x.shape[0]
 
-            self.weights = np.zeros(self.spectrum_expt.y.shape)
-            """also initialize statistical weights 
-            for the error calculation"""
-            self.weights[~mask] = 1.0 / \
-                np.sqrt(self.spectrum_expt.y[~mask])
-            self.initialize_bkg()
+        """
+        @date 03/03/2021 SS
+        there are cases when the intensity in the spectrum is 
+        negative. our approach will be to offset the spectrum to make all
+        the values positive for the computation and then finally offset it 
+        when the computation has finished.
+        """
+        if np.any(self.spectrum_expt._y) < 0.:
+            self.offset = True
+            self.offset_val = self.spectrum_expt._y.min()
+            self.spectrum_expt._y = self.spectrum_expt._y - self.offset_val
+
+        """
+        @date 09/24/2020 SS
+        catching the cases when intensity is zero.
+        for these points the weights will become
+        infinite. therefore, these points will be
+        masked out and assigned a weight of zero.
+        In addition, if any points have negative
+        intensity, they will also be assigned a zero
+        weight
+        """
+        mask = self.spectrum_expt._y <= 0.
+
+
+        self.weights = np.zeros(self.spectrum_expt.y.shape)
+        """also initialize statistical weights 
+        for the error calculation"""
+        self.weights[~mask] = 1.0 / \
+            np.sqrt(self.spectrum_expt.y[~mask])
+
+        self.initialize_bkg()
 
     def initialize_bkg(self):
         '''
@@ -2489,6 +2483,50 @@ class LeBail:
         # self.computespectrum()
         return
 
+    @property
+    def spectrum_expt(self):
+        if self.offset:
+            s = self._spectrum_expt
+            s._y = s._y + self.offset_val
+            return s
+        else:
+            return self._spectrum_expt
+
+    @spectrum_expt.setter
+    def spectrum_expt(self, expt_spectrum):
+
+        if(expt_spectrum is not None):
+            if(isinstance(expt_spectrum, Spectrum)):
+                '''
+                directly passing the spectrum class
+                '''
+                self._spectrum_expt = expt_spectrum
+                self._spectrum_expt.nan_to_zero()
+
+            elif(isinstance(expt_spectrum, np.ndarray)):
+                '''
+                initialize class using a nx2 array
+                '''
+                max_ang = expt_spectrum[-1, 0]
+                if(max_ang < np.pi):
+                    warnings.warn('angles are small and appear to \
+                        be in radians. please check')
+
+                self._spectrum_expt = Spectrum(x=expt_spectrum[:, 0],
+                                              y=expt_spectrum[:, 1],
+                                              name='expt_spectrum')
+                self._spectrum_expt.nan_to_zero()
+
+            elif(isinstance(expt_spectrum, str)):
+                '''
+                load from a text file
+                '''
+                if(path.exists(expt_spectrum)):
+                    self._spectrum_expt = Spectrum.from_file(
+                        expt_spectrum, skip_rows=0)
+                    self._spectrum_expt.nan_to_zero()
+                else:
+                    raise FileError('input spectrum file doesn\'t exist.')
 
 def _nm(x):
     return valWUnit('lp', 'length', x, 'nm')
