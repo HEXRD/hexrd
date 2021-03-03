@@ -18,6 +18,7 @@ install_reqs = [
     'pyyaml',
     'scikit-learn',
     'scipy',
+    'progressbar'
 ]
 
 # This a hack to get around the fact that scikit-image on conda-forge doesn't install
