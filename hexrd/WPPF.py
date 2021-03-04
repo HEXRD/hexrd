@@ -21,7 +21,7 @@ import time
 import h5py
 from pathlib import Path
 from pylab import plot, ginput, show, axis, close, title
-
+import copy
 
 class Parameters:
     """
@@ -1786,10 +1786,10 @@ class LeBail:
         the values positive for the computation and then finally offset it 
         when the computation has finished.
         """
-        if np.any(self.spectrum_expt._y) < 0.:
+        if np.any(self.spectrum_expt._y < 0.):
             self.offset = True
-            self.offset_val = self.spectrum_expt._y.min()
-            self.spectrum_expt._y = self.spectrum_expt._y - self.offset_val
+            self.offset_val = self._spectrum_expt._y.min()
+            self._spectrum_expt._y = self._spectrum_expt._y - self.offset_val
 
         """
         @date 09/24/2020 SS
@@ -1977,7 +1977,10 @@ class LeBail:
         self.Icalc = {}
 
         if(self.intensity_init is None):
-            n10 = np.floor(np.log10(self.spectrum_expt._y.max())) - 2
+            if self.spectrum_expt._y.max() > 0:
+                n10 = np.floor(np.log10(self.spectrum_expt._y.max())) - 2
+            else:
+                n10 = 0
 
             for p in self.phases:
                 self.Icalc[p] = {}
@@ -2166,7 +2169,6 @@ class LeBail:
 
             for k, l in self.phases.wavelength.items():
                 Ic = self.Icalc[p][k]
-                Icb = self.Icalc_b[p][k]
 
                 tth = self.tth[p][k] + self.zero_error
 
@@ -2485,12 +2487,12 @@ class LeBail:
 
     @property
     def spectrum_expt(self):
-        if self.offset:
-            s = self._spectrum_expt
-            s._y = s._y + self.offset_val
-            return s
-        else:
-            return self._spectrum_expt
+        # if self.offset:
+        #     s = copy.deepcopy(self._spectrum_expt)
+        #     s._y = s._y + self.offset_val
+        #     return s
+        # else:
+        return self._spectrum_expt
 
     @spectrum_expt.setter
     def spectrum_expt(self, expt_spectrum):
@@ -2534,7 +2536,6 @@ def _nm(x):
 
 def extract_intensities(polar_view,
                         tth_array,
-                        detector_mask,
                         params=None,
                         phases=None,
                         wavelength={'kalpha1': _nm(
@@ -2544,12 +2545,14 @@ def extract_intensities(polar_view,
                         termination_condition={'rwp_perct_change': 0.05,
                                                'max_iter': 100}):
     ''' 
-    ==============================================================================================
+    =========================================================================================
     ==============================================================================================
 
     >> @AUTHOR:     Saransh Singh, Lanwrence Livermore National Lab,
                     saransh1@llnl.gov
     >> @DATE:       01/28/2021 SS 1.0 original
+                    03/03/2021 SS 1.1 removed detector_mask since polar_view is now
+                    a masked array
     >> @DETAILS:    this function is used for extracting the experimental pole figure 
                     intensities from the polar 2theta-eta map. The workflow is to simply 
                     run the LeBail class, in parallel, over the different azimuthal profiles
@@ -2558,6 +2561,7 @@ def extract_intensities(polar_view,
                     module which comes natively with python. Extension to MPI will be done
                     later if necessary.
     >> @PARAMS      polar_view: mxn array with the polar view. the parallelization is done 
+                    !!! this is now a masked numpy array !!!
                     over "m" i.e. the eta dimension
                     tth_array: nx1 array with two theta values at each sampling point
                     params: parameter values for the LeBail class. Could be in the form of
@@ -2584,15 +2588,13 @@ def extract_intensities(polar_view,
 
     non_zeros_index = []
     for i in range(polar_view.shape[0]):
-        mask = detector_mask[i, :]
+        mask = ~polar_view.mask[i,:]
         # make sure that there is atleast one nonzero pixel
 
         if np.sum(mask) > 1:
-            data = np.array([tth_array[mask], polar_view[i, :][mask]]).T
-            # make sure its not all constant value
-            if(np.any(data) > 0):
-                data_inp_list.append(data)
-                non_zeros_index.append(i)
+            data = np.array([tth_array[mask], polar_view[i, :][mask].data]).T
+            data_inp_list.append(data)
+            non_zeros_index.append(i)
 
     kwargs = {
         'params': params,
@@ -2616,13 +2618,12 @@ def extract_intensities(polar_view,
     """
     pv_simulated = np.zeros(polar_view.shape)
     extracted_intensities = []
-    extracted_background = []
     hkls = []
     tths = []
     for i in range(len(non_zeros_index)):
         idx = non_zeros_index[i]
         xp, yp, rwp, \
-        Icalc, Icalc_b, \
+        Icalc, \
         hkl, tth = results[i]
 
         intp_int = np.interp(tth_array, xp, yp, left=0., right=0.)
@@ -2630,12 +2631,15 @@ def extract_intensities(polar_view,
         pv_simulated[idx, :] = intp_int
 
         extracted_intensities.append(Icalc)
-        extracted_background.append(Icalc_b)
         hkls.append(hkl)
         tths.append(tth)
 
+    """
+    make the values outside detector NaNs
+    """
+    pv_simulated[polar_view.mask] = np.nan
+
     return extracted_intensities, \
-           extracted_background, \
            hkls, \
            tths, \
            non_zeros_index, \
@@ -2677,7 +2681,7 @@ def single_azimuthal_extraction(expt_spectrum,
         niter += 1
 
     res = (L.spectrum_sim._x, L.spectrum_sim._y, \
-           L.Rwp, L.Iobs, L.Iobs_b, L.hkls, L.tth)
+           L.Rwp, L.Iobs, L.hkls, L.tth)
     return res
 
 
