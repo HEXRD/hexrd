@@ -782,7 +782,7 @@ class PlaneData(object):
     wavelength = property(get_wavelength, set_wavelength, None)
 
     def get_structFact(self):
-        return self.__structFact
+        return self.__structFact[~self.exclusions]
 
     def set_structFact(self, structFact):
         self.__structFact = structFact

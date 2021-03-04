@@ -256,7 +256,7 @@ class Material(object):
         for i, g in enumerate(hkls):
             sf[i] = self.unitcell.CalcXRSF(g)
 
-        self.planeData.set_structFact(sf[~self.planeData.exclusions])
+        self.planeData.set_structFact(sf)
 
     def _readCif(self, fcif=DFLT_NAME+'.cif'):
         """
