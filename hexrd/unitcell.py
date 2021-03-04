@@ -1735,9 +1735,9 @@ class unitcell:
         rgb = colorspace.hsl2rgb(hsl)
         return rgb
 
-    def color_orientations(self, 
-                           rmats, 
-                           ref_dir=np.array([0., 0., 1.]), 
+    def color_orientations(self,
+                           rmats,
+                           ref_dir=np.array([0., 0., 1.]),
                            laueswitch=True):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -2095,6 +2095,7 @@ supergroup_11 = 'oh'
 
 
 def _sgrange(min, max): return tuple(range(min, max + 1))  # inclusive range
+
 
 '''
 11/20/2020 SS added supergroup to the list which is used
