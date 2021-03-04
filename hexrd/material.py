@@ -186,7 +186,6 @@ class Material(object):
             self.unitcell.stiffness = Material.DFLT_STIFFNESS
 
         self._newPdata()
-        self.update_structure_factor()
 
     def __str__(self):
         """String representation"""
@@ -247,6 +246,8 @@ class Material(object):
             dflt_excl[0] = False
 
         self._pData.exclusions = dflt_excl
+
+        self.update_structure_factor()
 
         return
 
@@ -594,7 +595,6 @@ class Material(object):
         if hasattr(self, 'unitcell'):
             self.unitcell.sgnum = v
             self._newPdata()
-            self.update_structure_factor()
 
     sgnum = property(_get_sgnum, _set_sgnum, None,
                      "Space group number")
@@ -617,9 +617,9 @@ class Material(object):
         else:
             self._beamEnergy = valWUnit('kev', 'energy', keV, 'keV')
 
-        ''' 
+        '''
         acceleration potential is set in volts therefore the factor of 1e3
-        @TODO make voltage valWUnit instance so this that we dont have to 
+        @TODO make voltage valWUnit instance so this that we dont have to
         track this manually inn the future
         '''
         self.unitcell.voltage = self.beamEnergy.value*1e3
@@ -722,7 +722,6 @@ The values have units attached, i.e. they are valWunit instances.
         self.unitcell.dmin = v.getVal('nm')
 
         self._newPdata()
-        self.update_structure_factor()
 
     # property: "atominfo"
     def _get_atominfo(self):
