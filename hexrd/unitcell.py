@@ -497,12 +497,58 @@ class unitcell:
                 ss = np.dot(om, np.dot(s, om.T))
                 self.SYM_PG_supergroup_laue[i, :, :] = ss
 
-    def CalcOrbit(self):
+    def CalcOrbit(self, v, reduceToUC=True):
         '''
-        calculate the equivalent position for the space group
-        symmetry
+        @date 03/04/2021 SS 1.0 original 
+        
+        @details calculate the equivalent position for the 
+        space group symmetry. this function will replace the
+        code in the CalcPositions subroutine.
+
+        @params v is the factional coordinates in direct space
+                reduceToUC reduces the position to the
+                fundamental fractional unit cell (0-1)
         '''
-        pass
+
+        asym_pos = []
+        n = 1
+        if v.shape[0] != 3:
+            raise RuntimeError("fractional coordinate in not 3-d")
+        r = v
+        # using wigner-sietz notation
+        r = np.hstack((r, 1.))
+        
+        asym_pos = np.broadcast_to(r[0:3], [1, 3])
+
+        for symmat in self.SYM_SG:
+            # get new position
+            rnew = np.dot(symmat, r)
+            rr = rnew[0:3]
+
+            if reduceToUC:
+                # reduce to fundamental unitcell with fractional
+                # coordinates between 0-1
+                rr = np.modf(rr)[0]
+                rr[rr < 0.] += 1.
+                rr[np.abs(rr) < 1.0E-6] = 0.
+
+            # check if this is new
+            isnew = True
+            for j in range(n):
+                v = rr - asym_pos[j]
+                dist = self.CalcLength(v, 'd')
+                if dist < 1E-3:
+                    isnew = False
+                    break
+
+            # if its new add this to the list
+            if(isnew):
+                asym_pos = np.vstack((asym_pos, rr))
+                n += 1
+
+        numat = n
+
+        return asym_pos, numat
 
     def CalcStar(self, v, space, applyLaue=False):
         '''
@@ -528,8 +574,9 @@ class unitcell:
             # check if this is new
             isnew = True
             for vec in vsym:
-
-                if(np.sum(np.abs(vp - vec)) < 1E-4):
+                v = vp - vec
+                dist = self.CalcLength(v, space)
+                if dist < 1E-3:
                     isnew = False
                     break
             if(isnew):
@@ -545,42 +592,82 @@ class unitcell:
         numat = []
         asym_pos = []
 
-        # using the wigner-seitz notation
         for i in range(self.atom_ntype):
 
-            n = 1
-            r = self.atom_pos[i, 0:3]
-            r = np.hstack((r, 1.))
+            v = self.atom_pos[i, 0:3]
+            apos, n = self.CalcOrbit(v)
 
-            asym_pos.append(np.broadcast_to(r[0:3], [1, 3]))
-
-            for symmat in self.SYM_SG:
-                # get new position
-                rnew = np.dot(symmat, r)
-
-                # reduce to fundamental unitcell with fractional
-                # coordinates between 0-1
-                rr = rnew[0:3]
-                rr = np.modf(rr)[0]
-                rr[rr < 0.] += 1.
-                rr[np.abs(rr) < 1.0E-6] = 0.
-
-                # check if this is new
-                isnew = True
-                for j in range(n):
-                    if(np.sum(np.abs(rr - asym_pos[i][j, :])) < 1E-4):
-                        isnew = False
-                        break
-
-                # if its new add this to the list
-                if(isnew):
-                    asym_pos[i] = np.vstack((asym_pos[i], rr))
-                    n += 1
-
+            asym_pos.append(apos)
             numat.append(n)
 
         self.numat = np.array(numat)
         self.asym_pos = asym_pos
+
+    def remove_duplicate_atoms(self, 
+                               atom_pos=None, 
+                               tol=1e-3):
+        """
+        @date 03/04/2021 SS 1.0 original
+        
+        @details it was requested that a functionality be 
+        added which can remove duplicate atoms from the 
+        atom_pos field such that no two atoms are closer that
+        the distance specified by "tol" (lets assume its in A)
+        steps involved are as follows:
+        1. get the star (or orbit) oe each point in atom_pos
+        2. if any points in the orbits are within tol, then
+        remove the second point (the first point will be 
+        preserved by convention)
+        3. update the densities, interptables for structure factors 
+        etc.
+
+        @params tol tolerance of distance between points specified
+        in A
+        """
+
+        if atom_pos is None:
+            atom_pos = self.atom_pos
+
+        atom_pos_fixed = []
+
+        """
+        go through the atom_pos and remove the atoms that are duplicate
+        """
+        for i in range(atom_pos.shape[0]):
+            pos = atom_pos[i,0:3]
+            occ = atom_pos[i,3]
+
+            v1, n1 = self.CalcOrbit(pos)
+
+            for j in range(i+1, atom_pos.shape[0]):
+                isclose = False
+                atom_pos_fixed.append(np.hstack([pos, occ]))
+                pos = atom_pos[j,0:3]
+                occ = atom_pos[j,3]
+                v2, n2 = self.CalcOrbit(pos)
+
+                for v in v2:
+                    vv = np.tile(v, [v1.shape[0], 1])
+                    vv = vv - v1
+
+                    for vvv in vv:
+
+                        # check if distance less than tol
+                        # the factor of 10 is for A --> nm
+                        if self.CalcLength(vvv, 'd') < tol*10.:
+                            # if true then its a repeated atom
+                            isclose = True
+                            break
+
+                    if isclose:
+                        break
+
+                if isclose:
+                    break
+                else:
+                    atom_pos_fixed.append(np.hstack([pos, occ]))
+
+        return np.array(atom_pos_fixed)
 
     def CalcDensity(self):
         '''
