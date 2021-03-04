@@ -575,8 +575,8 @@ class unitcell:
             # check if this is new
             isnew = True
             for vec in vsym:
-                v = vp - vec
-                dist = self.CalcLength(v, space)
+                vv = vp - vec
+                dist = self.CalcLength(vv, space)
                 if dist < 1E-3:
                     isnew = False
                     break
@@ -655,7 +655,7 @@ class unitcell:
 
                         # check if distance less than tol
                         # the factor of 10 is for A --> nm
-                        if self.CalcLength(vvv, 'd') < tol*10.:
+                        if self.CalcLength(vvv, 'd') < tol/10.:
                             # if true then its a repeated atom
                             isclose = True
                             break
