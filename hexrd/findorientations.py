@@ -58,7 +58,7 @@ def _process_omegas(omegaimageseries_dict):
     return ome_period, ome_ranges
 
 
-def label_spots(this_map, method, method_kwargs):
+def clean_map(this_map):
     # !!! need to remove NaNs from map in case of eta gaps
     # !!! doing offset and truncation by median value now
     nan_mask = np.isnan(this_map)
@@ -66,6 +66,9 @@ def label_spots(this_map, method, method_kwargs):
     this_map[nan_mask] = med_val
     this_map[this_map <= med_val] = med_val
     this_map -= np.min(this_map)
+
+
+def label_spots(this_map, method, method_kwargs):
     if method == 'label':
         # labeling mask
         structureNDI_label = ndimage.generate_binary_structure(2, 1)
@@ -163,6 +166,7 @@ def generate_orientation_fibers(cfg, eta_ome):
     coms = []
     for i in seed_hkl_ids:
         this_map = eta_ome.dataStore[i]
+        clean_map(this_map)
         numSpots_t, coms_t = label_spots(this_map, method, method_kwargs)
         numSpots.append(numSpots_t)
         coms.append(coms_t)
