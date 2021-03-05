@@ -1577,16 +1577,18 @@ class LeBail:
         self.bkgmethod = bkgmethod
         self.intensity_init = intensity_init
 
-        self.initialize_expt_spectrum(expt_spectrum)
+        # self.initialize_expt_spectrum(expt_spectrum)
+        self.spectrum_expt = expt_spectrum
 
         if(wavelength is not None):
             self.wavelength = wavelength
 
         self._tstart = time.time()
 
-        self.initialize_phases(phases)
+        self.phases = phases
+        # self.initialize_phases(phases)
 
-        self.initialize_parameters(params)
+        self.params = params
 
         self.initialize_Icalc()
 
@@ -1609,108 +1611,6 @@ class LeBail:
         if(np.abs(ang) > 180.):
             warnings.warn(name + " : the absolute value of angles \
                                 seems to be large > 180 degrees")
-
-    def initialize_parameters(self, param_info):
-        '''
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/19/2020 SS 1.0 original
-                        09/11/2020 SS 1.1 modified to accept multiple input types
-        >> @DETAILS:    initialize parameter list from file. if no file given, then initialize
-                        to some default values (lattice constants are for CeO2)
-
-        '''
-        if(param_info is not None):
-            if(isinstance(param_info, Parameters)):
-                '''
-                directly passing the parameter class
-                '''
-                self.params = param_info
-
-            else:
-                params = Parameters()
-
-                if(isinstance(param_info, dict)):
-                    '''
-                    initialize class using dictionary read from the yaml file
-                    '''
-                    for k, v in param_info.items():
-                        params.add(k, value=np.float(v[0]),
-                                   lb=np.float(v[1]), ub=np.float(v[2]),
-                                   vary=np.bool(v[3]))
-
-                elif(isinstance(param_info, str)):
-                    '''
-                    load from a yaml file
-                    '''
-                    if(path.exists(param_info)):
-                        params.load(param_info)
-                    else:
-                        raise FileError('input spectrum file doesn\'t exist.')
-
-                '''
-                this part initializes the lattice parameters in the
-                '''
-                for p in self.phases:
-
-                    mat = self.phases[p]
-                    lp = np.array(mat.lparms)
-                    rid = list(_rqpDict[mat.latticeType][0])
-
-                    lp = lp[rid]
-                    name = _lpname[rid]
-
-                    for n, l in zip(name, lp):
-                        nn = p+'_'+n
-                        '''
-                        is l is small, it is one of the length units
-                        else it is an angle
-                        '''
-                        if(l < 10.):
-                            params.add(nn, value=l, lb=l-0.05,
-                                       ub=l+0.05, vary=True)
-                        else:
-                            params.add(nn, value=l, lb=l-1.,
-                                       ub=l+1., vary=True)
-
-                self.params = params
-        else:
-            '''
-                first entry is the lattice paramaters
-                next three are cagliotti parameters
-                next are the three gauss+lorentz mixing paramters
-                final is the zero instrumental peak position error
-            '''
-            params = Parameters()
-            names = []
-            values = []
-            for p in self.phases:
-                names.append(p+'_a')
-                values.append(self.phases[p].lparms[0])
-
-            valdict = {'U': 1e-2, 'V': 1e-2, 'W': 1e-2,
-                       'X': 1e-2, 'Y': 1e-2, 'zero_error': 0.}
-
-            for k, v in valdict.items():
-                names.append(k)
-                values.append(v)
-
-            names = tuple(names)
-            values = tuple(values)
-            lbs = (-np.Inf,) * len(names)
-            ubs = (np.Inf,) * len(names)
-            varies = (True,) * len(names)
-
-            params.add_many(names, values=values,
-                            varies=varies, lbs=lbs, ubs=ubs)
-
-            self.params = params
-
-        self._U = self.params['U'].value
-        self._V = self.params['V'].value
-        self._W = self.params['W'].value
-        self._X = self.params['X'].value
-        self._Y = self.params['Y'].value
-        self._zero_error = self.params['zero_error'].value
 
     def params_vary_off(self):
         '''
@@ -1753,64 +1653,6 @@ class LeBail:
         self.spectrum_expt.dump_hdf5(fid, 'experimental')
         self.spectrum_sim.dump_hdf5(fid, 'simulated')
         self.background.dump_hdf5(fid, 'background')
-
-    def initialize_expt_spectrum(self, expt_spectrum):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/19/2020 SS 1.0 original
-                        09/11/2020 SS 1.1 multiple data types accepted as input
-                        09/14/2020 SS 1.2 background method chebyshev now has user specified
-                        polynomial degree
-                        03/03/2021 SS 1.3 moved the initialization to the property definition of
-                        self.spectrum_expt
-        >> @DETAILS:    load the experimental spectum of 2theta-intensity
-        """
-
-        self.spectrum_expt = expt_spectrum
-        self.offset = False
-
-        self.tth_max = self.spectrum_expt._x[-1]
-        self.tth_min = self.spectrum_expt._x[0]
-
-        """
-        03/02/2021 SS added tth_step for some computations
-        related to snip background estimation
-        """
-        self.tth_step = (self.tth_max - self.tth_min)\
-        /self.spectrum_expt._x.shape[0]
-
-        """
-        @date 03/03/2021 SS
-        there are cases when the intensity in the spectrum is 
-        negative. our approach will be to offset the spectrum to make all
-        the values positive for the computation and then finally offset it 
-        when the computation has finished.
-        """
-        if np.any(self.spectrum_expt._y < 0.):
-            self.offset = True
-            self.offset_val = self._spectrum_expt._y.min()
-            self._spectrum_expt._y = self._spectrum_expt._y - self.offset_val
-
-        """
-        @date 09/24/2020 SS
-        catching the cases when intensity is zero.
-        for these points the weights will become
-        infinite. therefore, these points will be
-        masked out and assigned a weight of zero.
-        In addition, if any points have negative
-        intensity, they will also be assigned a zero
-        weight
-        """
-        mask = self.spectrum_expt._y <= 0.
-
-
-        self.weights = np.zeros(self.spectrum_expt.y.shape)
-        """also initialize statistical weights 
-        for the error calculation"""
-        self.weights[~mask] = 1.0 / \
-            np.sqrt(self.spectrum_expt.y[~mask])
-
-        self.initialize_bkg()
 
     def initialize_bkg(self):
         '''
@@ -1886,72 +1728,6 @@ class LeBail:
         cs = CubicSpline(x, y)
         bkg = cs(self.tth_list)
         self.background = Spectrum(x=self.tth_list, y=bkg)
-
-    def initialize_phases(self, phase_info):
-        '''
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       06/08/2020 SS 1.0 original
-                        09/11/2020 SS 1.1 multiple different ways to initialize phases
-                        09/14/2020 SS 1.2 added phase initialization from material.Material class
-        >> @DETAILS:    load the phases for the LeBail fits
-        '''
-
-        if(phase_info is not None):
-            if(isinstance(phase_info, Phases_LeBail)):
-                '''
-                directly passing the phase class
-                '''
-                self.phases = phase_info
-            else:
-
-                if(hasattr(self, 'wavelength')):
-                    if(self.wavelength is not None):
-                        p = Phases_LeBail(wavelength=self.wavelength)
-                else:
-                    p = Phases_LeBail()
-
-                if(isinstance(phase_info, dict)):
-                    '''
-                    initialize class using a dictionary with key as
-                    material file and values as the name of each phase
-                    '''
-                    for material_file in phase_info:
-                        material_names = phase_info[material_file]
-                        if(not isinstance(material_names, list)):
-                            material_names = [material_names]
-                        p.add_many(material_file, material_names)
-
-                elif(isinstance(phase_info, str)):
-                    '''
-                    load from a yaml file
-                    '''
-                    if(path.exists(phase_info)):
-                        p.load(phase_info)
-                    else:
-                        raise FileError('phase file doesn\'t exist.')
-
-                elif(isinstance(phase_info, Material)):
-                    p[phase_info.name] = Material_LeBail(
-                        fhdf=None,
-                        xtal=None,
-                        dmin=None,
-                        material_obj=phase_info)
-
-                elif(isinstance(phase_info, list)):
-                    for mat in phase_info:
-                        p[mat.name] = Material_LeBail(
-                            fhdf=None,
-                            xtal=None,
-                            dmin=None,
-                            material_obj=mat)
-
-                        p.num_phases += 1
-
-                    for mat in p:
-                        p[mat].pf = 1.0/p.num_phases
-                self.phases = p
-
-        self.calctth()
 
     def calctth(self):
         self.tth = {}
@@ -2154,6 +1930,8 @@ class LeBail:
         self.spectrum_sim = Spectrum(x=x, y=y)
         self.spectrum_sim = self.spectrum_sim + self.background
 
+        errvec = self.calc_rwp()
+
     def CalcIobs(self):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -2194,13 +1972,61 @@ class LeBail:
 
                 self.Iobs[p][k] = np.array(Iobs)
 
+    def calc_rwp(self):
+        """
+        > @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        > @DATE:       03/05/2021 SS 1.0 original
+        > @DETAILS:    this routine computes the weighted error between calculated and
+                       experimental spectra. goodness of fit is also calculated. the
+                       weights are the inverse squareroot of the experimental intensities
+        """
+
+        self.err = (self.spectrum_sim - self.spectrum_expt)
+
+        errvec = np.sqrt(self.weights * self.err._y**2)
+
+        ''' weighted sum of square '''
+        wss = np.trapz(self.weights * self.err._y**2, self.err._x)
+        den = np.trapz(self.weights * self.spectrum_sim._y **
+                       2, self.spectrum_sim._x)
+
+        ''' standard Rwp i.e. weighted residual '''
+        Rwp = np.sqrt(wss/den)
+
+        ''' number of observations to fit i.e. number of data points '''
+        N = self.spectrum_sim._y.shape[0]
+
+        ''' number of independent parameters in fitting '''
+        P = 0
+        for p in self.params:
+            if self.params[p].vary:
+                P += 1
+        #P = len(params)
+
+        if den > 0.:
+            if (N-P)/den > 0:
+                Rexp = np.sqrt((N-P)/den)
+            else:
+                Rexp = 0.0
+        else:
+            Rexp = np.inf
+
+        # Rwp and goodness of fit parameters
+        self.Rwp = Rwp
+        if Rexp > 0.:
+            self.gofF = (Rwp / Rexp)**2
+        else:
+            self.gofF = np.inf
+
+        return errvec
+
+
     def calcRwp(self, params):
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/19/2020 SS 1.0 original
-        >> @DETAILS:    this routine computes the weighted error between calculated and
-                        experimental spectra. goodness of fit is also calculated. the
-                        weights are the inverse squareroot of the experimental intensities
+        >> @DETAILS:    this routine computes the rwp for a set of parameters. the parameters
+                        are used to set the values in the LeBail class too
         '''
 
         '''
@@ -2254,38 +2080,7 @@ class LeBail:
 
         self.computespectrum()
 
-        self.err = (self.spectrum_sim - self.spectrum_expt)
-
-        errvec = np.sqrt(self.weights * self.err._y**2)
-
-        ''' weighted sum of square '''
-        wss = np.trapz(self.weights * self.err._y**2, self.err._x)
-
-        den = np.trapz(self.weights * self.spectrum_sim._y **
-                       2, self.spectrum_sim._x)
-
-        ''' standard Rwp i.e. weighted residual '''
-        Rwp = np.sqrt(wss/den)
-
-        ''' number of observations to fit i.e. number of data points '''
-        N = self.spectrum_sim._y.shape[0]
-
-        ''' number of independent parameters in fitting '''
-        P = len(params)
-        if den > 0.:
-            if (N-P)/den > 0:
-                Rexp = np.sqrt((N-P)/den)
-            else:
-                Rexp = 0.0
-        else:
-            Rexp = np.inf
-
-        # Rwp and goodness of fit parameters
-        self.Rwp = Rwp
-        if Rexp > 0.:
-            self.gofF = (Rwp / Rexp)**2
-        else:
-            self.gofF = np.inf
+        errvec = self.calc_rwp()
 
         return errvec
 
@@ -2350,6 +2145,7 @@ class LeBail:
         '''
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       11/23/2020 SS 1.0 original
+                        03/05/2021 SS 1.1 added computation and update of Rwp
         >> @DETAILS:    this routine computes the spectrum for an updated list of parameters
                         intended to be used for sensitivity and identifiability analysis
         '''
@@ -2381,6 +2177,7 @@ class LeBail:
             if(pre+'b' in params):
                 if(params[pre+'b'].vary):
                     lp.append(params[pre+'b'].value)
+
             if(pre+'c' in params):
                 if(params[pre+'c'].vary):
                     lp.append(params[pre+'c'].value)
@@ -2406,6 +2203,8 @@ class LeBail:
             self.calctth()
 
         self.computespectrum()
+
+        errvec = self.calc_rwp()
 
     @property
     def U(self):
@@ -2487,15 +2286,22 @@ class LeBail:
 
     @property
     def spectrum_expt(self):
-        # if self.offset:
-        #     s = copy.deepcopy(self._spectrum_expt)
-        #     s._y = s._y + self.offset_val
-        #     return s
-        # else:
         return self._spectrum_expt
 
     @spectrum_expt.setter
     def spectrum_expt(self, expt_spectrum):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       05/19/2020 SS 1.0 original
+                        09/11/2020 SS 1.1 multiple data types accepted as input
+                        09/14/2020 SS 1.2 background method chebyshev now has user specified
+                        polynomial degree
+                        03/03/2021 SS 1.3 moved the initialization to the property definition of
+                        self.spectrum_expt
+                        05/03/2021 SS 2.0 moved weight calculation and background initialization 
+                        to the property definition
+        >> @DETAILS:    load the experimental spectum of 2theta-intensity
+        """
 
         if(expt_spectrum is not None):
             if(isinstance(expt_spectrum, Spectrum)):
@@ -2529,6 +2335,234 @@ class LeBail:
                     self._spectrum_expt.nan_to_zero()
                 else:
                     raise FileError('input spectrum file doesn\'t exist.')
+
+            self.offset = False
+
+            self.tth_max = self.spectrum_expt._x[-1]
+            self.tth_min = self.spectrum_expt._x[0]
+
+            """
+            03/02/2021 SS added tth_step for some computations
+            related to snip background estimation
+            """
+            self.tth_step = (self.tth_max - self.tth_min)\
+            /self.spectrum_expt._x.shape[0]
+
+            """
+            @date 03/03/2021 SS
+            there are cases when the intensity in the spectrum is 
+            negative. our approach will be to offset the spectrum to make all
+            the values positive for the computation and then finally offset it 
+            when the computation has finished.
+            """
+            if np.any(self.spectrum_expt._y < 0.):
+                self.offset = True
+                self.offset_val = self._spectrum_expt._y.min()
+                self._spectrum_expt._y = self._spectrum_expt._y - self.offset_val
+
+            """
+            @date 09/24/2020 SS
+            catching the cases when intensity is zero.
+            for these points the weights will become
+            infinite. therefore, these points will be
+            masked out and assigned a weight of zero.
+            In addition, if any points have negative
+            intensity, they will also be assigned a zero
+            weight
+            """
+            mask = self.spectrum_expt._y <= 0.
+
+
+            self.weights = np.zeros(self.spectrum_expt.y.shape)
+            """also initialize statistical weights 
+            for the error calculation"""
+            self.weights[~mask] = 1.0 / \
+                np.sqrt(self.spectrum_expt.y[~mask])
+
+            self.initialize_bkg()
+        else:
+            raise RuntimeError("expt_spectrum setter: spectrum is None")
+
+    @property
+    def params(self):
+        return self._params
+    
+    @params.setter
+    def params(self, param_info):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       05/19/2020 SS 1.0 original
+                        09/11/2020 SS 1.1 modified to accept multiple input types
+                        03/05/2021 SS 2.0 moved everything to the property setter
+        >> @DETAILS:    initialize parameter list from file. if no file given, then initialize
+                        to some default values (lattice constants are for CeO2)
+        """
+
+        if(param_info is not None):
+            if(isinstance(param_info, Parameters)):
+                '''
+                directly passing the parameter class
+                '''
+                self._params = param_info
+
+            else:
+                params = Parameters()
+
+                if(isinstance(param_info, dict)):
+                    '''
+                    initialize class using dictionary read from the yaml file
+                    '''
+                    for k, v in param_info.items():
+                        params.add(k, value=np.float(v[0]),
+                                   lb=np.float(v[1]), ub=np.float(v[2]),
+                                   vary=np.bool(v[3]))
+
+                elif(isinstance(param_info, str)):
+                    '''
+                    load from a yaml file
+                    '''
+                    if(path.exists(param_info)):
+                        params.load(param_info)
+                    else:
+                        raise FileError('input spectrum file doesn\'t exist.')
+
+                '''
+                this part initializes the lattice parameters in the
+                '''
+                for p in self.phases:
+
+                    mat = self.phases[p]
+                    lp = np.array(mat.lparms)
+                    rid = list(_rqpDict[mat.latticeType][0])
+
+                    lp = lp[rid]
+                    name = _lpname[rid]
+
+                    for n, l in zip(name, lp):
+                        nn = p+'_'+n
+                        '''
+                        is l is small, it is one of the length units
+                        else it is an angle
+                        '''
+                        if(l < 10.):
+                            params.add(nn, value=l, lb=l-0.05,
+                                       ub=l+0.05, vary=True)
+                        else:
+                            params.add(nn, value=l, lb=l-1.,
+                                       ub=l+1., vary=True)
+
+                self._params = params
+        else:
+            '''
+                first entry is the lattice paramaters
+                next three are cagliotti parameters
+                next are the three gauss+lorentz mixing paramters
+                final is the zero instrumental peak position error
+            '''
+            params = Parameters()
+            names = []
+            values = []
+            for p in self.phases:
+                names.append(p+'_a')
+                values.append(self.phases[p].lparms[0])
+
+            valdict = {'U': 1e-2, 'V': 1e-2, 'W': 1e-2,
+                       'X': 1e-2, 'Y': 1e-2, 'zero_error': 0.}
+
+            for k, v in valdict.items():
+                names.append(k)
+                values.append(v)
+
+            names = tuple(names)
+            values = tuple(values)
+            lbs = (-np.Inf,) * len(names)
+            ubs = (np.Inf,) * len(names)
+            varies = (True,) * len(names)
+
+            params.add_many(names, values=values,
+                            varies=varies, lbs=lbs, ubs=ubs)
+
+            self._params = params
+
+        self._U = self.params['U'].value
+        self._V = self.params['V'].value
+        self._W = self.params['W'].value
+        self._X = self.params['X'].value
+        self._Y = self.params['Y'].value
+        self._zero_error = self.params['zero_error'].value
+
+    @property
+    def phases(self):
+        return self._phases
+    
+    @phases.setter
+    def phases(self, phase_info):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       06/08/2020 SS 1.0 original
+                        09/11/2020 SS 1.1 multiple different ways to initialize phases
+                        09/14/2020 SS 1.2 added phase initialization from material.Material class
+                        03/05/2021 SS 2.0 moved everything to property setter
+        >> @DETAILS:    load the phases for the LeBail fits
+        """
+
+        if(phase_info is not None):
+            if(isinstance(phase_info, Phases_LeBail)):
+                '''
+                directly passing the phase class
+                '''
+                self._phases = phase_info
+            else:
+
+                if(hasattr(self, 'wavelength')):
+                    if(self.wavelength is not None):
+                        p = Phases_LeBail(wavelength=self.wavelength)
+                else:
+                    p = Phases_LeBail()
+
+                if(isinstance(phase_info, dict)):
+                    '''
+                    initialize class using a dictionary with key as
+                    material file and values as the name of each phase
+                    '''
+                    for material_file in phase_info:
+                        material_names = phase_info[material_file]
+                        if(not isinstance(material_names, list)):
+                            material_names = [material_names]
+                        p.add_many(material_file, material_names)
+
+                elif(isinstance(phase_info, str)):
+                    '''
+                    load from a yaml file
+                    '''
+                    if(path.exists(phase_info)):
+                        p.load(phase_info)
+                    else:
+                        raise FileError('phase file doesn\'t exist.')
+
+                elif(isinstance(phase_info, Material)):
+                    p[phase_info.name] = Material_LeBail(
+                        fhdf=None,
+                        xtal=None,
+                        dmin=None,
+                        material_obj=phase_info)
+
+                elif(isinstance(phase_info, list)):
+                    for mat in phase_info:
+                        p[mat.name] = Material_LeBail(
+                            fhdf=None,
+                            xtal=None,
+                            dmin=None,
+                            material_obj=mat)
+
+                        p.num_phases += 1
+
+                    for mat in p:
+                        p[mat].pf = 1.0/p.num_phases
+
+                self._phases = p
+
+        self.calctth()
 
 def _nm(x):
     return valWUnit('lp', 'length', x, 'nm')
@@ -2592,7 +2626,9 @@ def extract_intensities(polar_view,
         # make sure that there is atleast one nonzero pixel
 
         if np.sum(mask) > 1:
-            data = np.array([tth_array[mask], polar_view[i, :][mask].data]).T
+            d = polar_view[i, :][mask].data
+            d = d - d.min()
+            data = np.array([tth_array[mask], d]).T
             data_inp_list.append(data)
             non_zeros_index.append(i)
 
