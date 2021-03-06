@@ -1177,6 +1177,8 @@ class HEDMInstrument(object):
         intensity = {}
         for mat in mat_list:
 
+            multiplicity = mat.planeData.getMultiplicity()
+
             tth = mat.planeData.getTTh()
 
             LP = (1 + np.cos(tth)**2) / \
@@ -1184,7 +1186,7 @@ class HEDMInstrument(object):
 
             intensity[mat.name] = {}
             intensity[mat.name]['synchrotron'] = \
-                mat.planeData.get_structFact() * LP
+                mat.planeData.get_structFact() * LP * multiplicity
 
         kwargs = {
             'expt_spectrum': expt,
