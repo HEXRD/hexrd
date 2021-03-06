@@ -2001,7 +2001,6 @@ class LeBail:
         for p in self.params:
             if self.params[p].vary:
                 P += 1
-        #P = len(params)
 
         if den > 0.:
             if (N-P)/den > 0:
@@ -2360,6 +2359,7 @@ class LeBail:
             """
             03/02/2021 SS added tth_step for some computations
             related to snip background estimation
+            @TODO this will not work for masked spectrum
             """
             self.tth_step = (self.tth_max - self.tth_min)\
             /self.spectrum_expt._x.shape[0]
