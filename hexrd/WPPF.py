@@ -2300,21 +2300,22 @@ class LeBail:
                         self.spectrum_expt
                         05/03/2021 SS 2.0 moved weight calculation and background initialization 
                         to the property definition
+                        03/05/2021 SS 2.1 adding support for masked array np.ma.MaskedArray
         >> @DETAILS:    load the experimental spectum of 2theta-intensity
         """
 
         if(expt_spectrum is not None):
             if(isinstance(expt_spectrum, Spectrum)):
-                '''
+                """
                 directly passing the spectrum class
-                '''
+                """
                 self._spectrum_expt = expt_spectrum
                 self._spectrum_expt.nan_to_zero()
 
             elif(isinstance(expt_spectrum, np.ndarray)):
-                '''
+                """
                 initialize class using a nx2 array
-                '''
+                """
                 max_ang = expt_spectrum[-1, 0]
                 if(max_ang < np.pi):
                     warnings.warn('angles are small and appear to \
@@ -2324,6 +2325,21 @@ class LeBail:
                                               y=expt_spectrum[:, 1],
                                               name='expt_spectrum')
                 self._spectrum_expt.nan_to_zero()
+
+            elif(isinstance(expt_spectrum, np.ma.MaskedArray)):
+                """
+                @date 03/05/2021 SS 1.0 original
+                this is an instance of masked array where there are 
+                nans in the spectrum. this will have to be handled with
+                a lot of care. steps are as follows:
+                1. if array is masked array, then check if any values are
+                masked or not.
+                2. if they are then the spectrum_expt is a list of individial
+                islands of the spectrum, each with its own background
+                3. Every place where spectrum_expt is used, we will do a 
+                type test to figure out the logic of the operations
+                """
+                pass
 
             elif(isinstance(expt_spectrum, str)):
                 '''
@@ -4760,6 +4776,18 @@ class Rietveld:
         self._scale = value
         return
 
+def separate_regions(array, mask):
+    """
+    utility function for separating array into separate
+    islands as dictated by mask. this function was taken from 
+    stackoverflow
+    https://stackoverflow.com/questions/43385877/
+    efficient-numpy-subarrays-extraction-from-a-mask
+    """
+    m0 = np.concatenate(( [False], mask, [False] ))
+    idx = np.flatnonzero(m0[1:] != m0[:-1])
+    return [array[idx[i]:idx[i+1]] for i in range(0,len(idx),2)]
+
 
 _rqpDict = {
     'triclinic': (tuple(range(6)), lambda p: p),  # all 6
@@ -4795,4 +4823,5 @@ def generate_pole_figures(hkls, tth, Icalc):
     for the determination of the ODF. Using spherical harmonics 
     for now nut will switch to discrete harmonics in the future
     """
+    pass
 
