@@ -159,6 +159,8 @@ class Material(object):
             elif(form in ['h5', 'hdf5', 'xtal']):
                 self._readHDFxtal(fhdf=material_file, xtal=name)
         else:
+            # default name
+            self.name = Material.DFLT_XTAL
             # Use default values
             self._lparms = Material.DFLT_LPARMS
             # self._hklMax = Material.DFLT_SSMAX
