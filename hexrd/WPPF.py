@@ -20,7 +20,8 @@ import pickle
 import time
 import h5py
 from pathlib import Path
-from pylab import plot, ginput, show, axis, close, title
+from pylab import plot, ginput, show, \
+axis, close, title, xlabel, ylabel
 import copy
 
 class Parameters:
@@ -1583,22 +1584,22 @@ class LeBail:
         if(wavelength is not None):
             self.wavelength = wavelength
 
-        self._tstart = time.time()
+        # self._tstart = time.time()
 
-        self.phases = phases
-        # self.initialize_phases(phases)
+        # self.phases = phases
+        # # self.initialize_phases(phases)
 
-        self.params = params
+        # self.params = params
 
-        self.initialize_Icalc()
+        # self.initialize_Icalc()
 
-        self.computespectrum()
+        # self.computespectrum()
 
-        self._tstop = time.time()
-        self.tinit = self._tstop - self._tstart
-        self.niter = 0
-        self.Rwplist = np.empty([0])
-        self.gofFlist = np.empty([0])
+        # self._tstop = time.time()
+        # self.tinit = self._tstop - self._tstart
+        # self.niter = 0
+        # self.Rwplist = np.empty([0])
+        # self.gofFlist = np.empty([0])
 
     def __str__(self):
         resstr = '<LeBail Fit class>\nParameters of \
@@ -1668,27 +1669,36 @@ class LeBail:
             user from the loop which is required for the spline type background.
         '''
         if(self.bkgmethod is None):
-            self.background = Spectrum(
-                x=self.tth_list, y=np.zeros(self.tth_list.shape))
+            self.background = []
+            for tth in self.tth_list:
+                self.background.append(Spectrum( \
+                    x=tth, y=np.zeros(tth.shape)))
 
         elif('spline' in self.bkgmethod.keys()):
+            self.background = []
             self.selectpoints()
-            x = self.points[:, 0]
-            y = self.points[:, 1]
-            self.splinefit(x, y)
+            for i, pts in enumerate(self.points):
+                tth = self.tth_list[i]
+                x = pts[:, 0]
+                y = pts[:, 1]
+                self.background.append(self.splinefit(x, y, tth))
 
         elif('chebyshev' in self.bkgmethod.keys()):
             self.chebyshevfit()
 
         elif('file' in self.bkgmethod.keys()):
-            bkg = Spectrum.from_file(self.bkgmethod['file'])
-            x = bkg.x
-            y = bkg.y
-            cs = CubicSpline(x, y)
+            if len(self.spectrum_expt) > 1:
+                raise RuntimeError("initialize_bkg: file input not allowed for \
+                    masked spectra.")
+            else:
+                bkg = Spectrum.from_file(self.bkgmethod['file'])
+                x = bkg.x
+                y = bkg.y
+                cs = CubicSpline(x, y)
 
-            yy = cs(self.tth_list)
+                yy = cs(self.tth_list)
 
-            self.background = Spectrum(x=self.tth_list, y=yy)
+                self.background = [Spectrum(x=self.tth_list[0], y=yy)]
 
         elif('array' in self.bkgmethod.keys()):
             x = self.bkgmethod['array'][:, 0]
@@ -1700,34 +1710,57 @@ class LeBail:
             self.background = Spectrum(x=self.tth_list, y=yy)
 
         elif('snip1d' in self.bkgmethod.keys()):
-            ww = np.rint(self.bkgmethod['snip1d'][0]/self.tth_step).astype(np.int32)
-            numiter = self.bkgmethod['snip1d'][1]
-            yy = np.squeeze(snip1d_quad(np.atleast_2d(self.spectrum_expt._y),\
-                w=ww, numiter=numiter))
-            self.background = Spectrum(x=self.tth_list, y=yy)
+            self.background = []
+            for i, s in enumerate(self.spectrum_expt):
+                ww = np.rint(self.bkgmethod['snip1d'][0]/\
+                    self.tth_step[i]).astype(np.int32)
+                numiter = self.bkgmethod['snip1d'][1]
+
+                yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),\
+                    w=ww, numiter=numiter))
+                self.background.append(Spectrum(x=self.tth_list[i], y=yy))
 
     def chebyshevfit(self):
+        """
+        03/08/2021 SS spectrum_expt is a list now. accounting
+        for that change
+        """
+        self.background = []
         degree = self.bkgmethod['chebyshev']
-        p = np.polynomial.Chebyshev.fit(
-            self.tth_list, self.spectrum_expt._y, degree, w=self.weights)
-        self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
+        for i,s in enumerate(self.spectrum_expt):
+            tth = self.tth_list[i]
+            p = np.polynomial.Chebyshev.fit(
+                tth, s.y, degree, w=self.weights[i]**2)
+            self.background.append(Spectrum(x=tth, y=p(tth)))
 
     def selectpoints(self):
+        """
+        03/08/2021 SS spectrum_expt is a list now. accounting
+        for that change
+        """
+        self.points = []
+        for i,s in enumerate(self.spectrum_expt):
+            txt = f'Select points for background estimation; \
+                click middle mouse button when done. segment # {i}'
+            title(txt)
 
-        title(
-            'Select points for background estimation; \
-            click middle mouse button when done.')
+            plot(s.x, s.y, '-k')
+            xlabel("2$\theta$")
+            ylabel("intensity (a.u.)")
 
-        plot(self.tth_list, self.spectrum_expt._y, '-k')  # 5 points tolerance
+            self.points.append(np.asarray(ginput(0, timeout=-1)))
 
-        self.points = np.asarray(ginput(0, timeout=-1))
-        close()
+            close()
 
     # cubic spline fit of background using custom points chosen from plot
-    def splinefit(self, x, y):
+    def splinefit(self, x, y, tth):
+        """
+        03/08/2021 SS adding tth as input. this is the
+        list of points for which background is estimated
+        """
         cs = CubicSpline(x, y)
-        bkg = cs(self.tth_list)
-        self.background = Spectrum(x=self.tth_list, y=bkg)
+        bkg = cs(tth)
+        return Spectrum(x=tth, y=bkg)
 
     def calctth(self):
         self.tth = {}
@@ -2271,7 +2304,7 @@ class LeBail:
 
     @property
     def tth_list(self):
-        return self.spectrum_expt._x
+        return [s._x for s in self.spectrum_expt]
 
     @property
     def zero_error(self):
@@ -2300,69 +2333,88 @@ class LeBail:
                         05/03/2021 SS 2.0 moved weight calculation and background initialization 
                         to the property definition
                         03/05/2021 SS 2.1 adding support for masked array np.ma.MaskedArray
+                        03/08/2021 SS 3.0 spectrum_expt is now a list to deal with the masked 
+                        arrays
         >> @DETAILS:    load the experimental spectum of 2theta-intensity
         """
-
         if(expt_spectrum is not None):
-            if(isinstance(expt_spectrum, Spectrum)):
+            if isinstance(expt_spectrum, Spectrum):
                 """
                 directly passing the spectrum class
                 """
                 self._spectrum_expt = expt_spectrum
                 self._spectrum_expt.nan_to_zero()
 
-            elif(isinstance(expt_spectrum, np.ndarray)):
+            elif isinstance(expt_spectrum, np.ndarray):
                 """
                 initialize class using a nx2 array
                 """
-                max_ang = expt_spectrum[-1, 0]
-                if(max_ang < np.pi):
-                    warnings.warn('angles are small and appear to \
-                        be in radians. please check')
+                if np.ma.is_masked(expt_spectrum):
+                    """
+                    @date 03/05/2021 SS 1.0 original
+                    this is an instance of masked array where there are 
+                    nans in the spectrum. this will have to be handled with
+                    a lot of care. steps are as follows:
+                    1. if array is masked array, then check if any values are
+                    masked or not.
+                    2. if they are then the spectrum_expt is a list of individial
+                    islands of the spectrum, each with its own background
+                    3. Every place where spectrum_expt is used, we will do a 
+                    type test to figure out the logic of the operations
+                    """
+                    expt_spec_list = separate_regions(expt_spectrum)
+                    self._spectrum_expt = []
+                    for s in expt_spec_list:
+                        self._spectrum_expt.append(Spectrum(x=s[:, 0],
+                                                  y=s[:, 1],
+                                                  name='expt_spectrum'))
 
-                self._spectrum_expt = Spectrum(x=expt_spectrum[:, 0],
-                                              y=expt_spectrum[:, 1],
-                                              name='expt_spectrum')
-                self._spectrum_expt.nan_to_zero()
+                else:
+                    max_ang = expt_spectrum[-1, 0]
+                    if(max_ang < np.pi):
+                        warnings.warn('angles are small and appear to \
+                            be in radians. please check')
 
-            elif(isinstance(expt_spectrum, np.ma.MaskedArray)):
-                """
-                @date 03/05/2021 SS 1.0 original
-                this is an instance of masked array where there are 
-                nans in the spectrum. this will have to be handled with
-                a lot of care. steps are as follows:
-                1. if array is masked array, then check if any values are
-                masked or not.
-                2. if they are then the spectrum_expt is a list of individial
-                islands of the spectrum, each with its own background
-                3. Every place where spectrum_expt is used, we will do a 
-                type test to figure out the logic of the operations
-                """
-                pass
+                    self._spectrum_expt = [Spectrum(x=expt_spectrum[:, 0],
+                                                  y=expt_spectrum[:, 1],
+                                                  name='expt_spectrum')]
 
-            elif(isinstance(expt_spectrum, str)):
+            elif isinstance(expt_spectrum, str):
                 '''
                 load from a text file
+                undefined behavior if text file has nans
                 '''
                 if(path.exists(expt_spectrum)):
-                    self._spectrum_expt = Spectrum.from_file(
-                        expt_spectrum, skip_rows=0)
-                    self._spectrum_expt.nan_to_zero()
+                    self._spectrum_expt = [Spectrum.from_file(
+                        expt_spectrum, skip_rows=0)]
+                    #self._spectrum_expt.nan_to_zero()
                 else:
                     raise FileError('input spectrum file doesn\'t exist.')
 
             self.offset = False
 
-            self.tth_max = self.spectrum_expt._x[-1]
-            self.tth_min = self.spectrum_expt._x[0]
+            """
+            03/08/2021 SS tth_min and max are now lists
+            """
+            self.tth_max = []
+            self.tth_min = []
+            self.ntth = []
+            for s in self._spectrum_expt:
+                self.tth_max.append(s.x[-1])
+                self.tth_min.append(s.x[0])
+                self.ntth.append(s.x.shape[0])
 
             """
             03/02/2021 SS added tth_step for some computations
             related to snip background estimation
             @TODO this will not work for masked spectrum
+            03/08/2021 tth_step is a list now
             """
-            self.tth_step = (self.tth_max - self.tth_min)\
-            /self.spectrum_expt._x.shape[0]
+            self.tth_step = []
+            for tmi, tma, nth in zip(self.tth_min, \
+                                    self.tth_max, \
+                                    self.ntth):
+                self.tth_step.append((tma - tmi)/nth)
 
             """
             @date 03/03/2021 SS
@@ -2370,11 +2422,15 @@ class LeBail:
             negative. our approach will be to offset the spectrum to make all
             the values positive for the computation and then finally offset it 
             when the computation has finished.
+            03/08/2021 all quantities are lists now
             """
-            if np.any(self.spectrum_expt._y < 0.):
-                self.offset = True
-                self.offset_val = self._spectrum_expt._y.min()
-                self._spectrum_expt._y = self._spectrum_expt._y - self.offset_val
+            for s in self._spectrum_expt:
+                self.offset = []
+                self.offset_val = []
+                if np.any(s.y < 0.):
+                    self.offset.append(True)
+                    self.offset_val.append(s.y.min())
+                    s.y = s.y - s.y.min()
 
             """
             @date 09/24/2020 SS
@@ -2385,15 +2441,17 @@ class LeBail:
             In addition, if any points have negative
             intensity, they will also be assigned a zero
             weight
+            03/08/2021 SS everything is a list now
             """
-            mask = self.spectrum_expt._y <= 0.
-
-
-            self.weights = np.zeros(self.spectrum_expt.y.shape)
-            """also initialize statistical weights 
-            for the error calculation"""
-            self.weights[~mask] = 1.0 / \
-                np.sqrt(self.spectrum_expt.y[~mask])
+            self.weights = []
+            for s in self._spectrum_expt:
+                mask = s.y <= 0.
+                ww = np.zeros(s.y.shape)
+                """also initialize statistical weights 
+                for the error calculation"""
+                ww[~mask] = 1.0 / \
+                    np.sqrt(s.y[~mask])
+                self.weights.append(ww)
 
             self.initialize_bkg()
         else:
@@ -4776,7 +4834,7 @@ class Rietveld:
         self._scale = value
         return
 
-def separate_regions(array, mask):
+def separate_regions(masked_spec_array):
     """
     utility function for separating array into separate
     islands as dictated by mask. this function was taken from 
@@ -4784,9 +4842,11 @@ def separate_regions(array, mask):
     https://stackoverflow.com/questions/43385877/
     efficient-numpy-subarrays-extraction-from-a-mask
     """
+    array = masked_spec_array.data
+    mask = ~masked_spec_array.mask[:,1]
     m0 = np.concatenate(( [False], mask, [False] ))
     idx = np.flatnonzero(m0[1:] != m0[:-1])
-    return [array[idx[i]:idx[i+1]] for i in range(0,len(idx),2)]
+    return [array[idx[i]:idx[i+1],:] for i in range(0,len(idx),2)]
 
 
 _rqpDict = {
