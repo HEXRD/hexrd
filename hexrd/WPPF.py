@@ -1669,19 +1669,19 @@ class LeBail:
             user from the loop which is required for the spline type background.
         '''
         if(self.bkgmethod is None):
-            self.background = []
+            self._background = []
             for tth in self.tth_list:
-                self.background.append(Spectrum( \
+                self._background.append(Spectrum( \
                     x=tth, y=np.zeros(tth.shape)))
 
         elif('spline' in self.bkgmethod.keys()):
-            self.background = []
+            self._background = []
             self.selectpoints()
             for i, pts in enumerate(self.points):
                 tth = self.tth_list[i]
                 x = pts[:, 0]
                 y = pts[:, 1]
-                self.background.append(self.splinefit(x, y, tth))
+                self._background.append(self.splinefit(x, y, tth))
 
         elif('chebyshev' in self.bkgmethod.keys()):
             self.chebyshevfit()
@@ -1698,19 +1698,23 @@ class LeBail:
 
                 yy = cs(self.tth_list)
 
-                self.background = [Spectrum(x=self.tth_list[0], y=yy)]
+                self._background = [Spectrum(x=self.tth_list[0], y=yy)]
 
         elif('array' in self.bkgmethod.keys()):
-            x = self.bkgmethod['array'][:, 0]
-            y = self.bkgmethod['array'][:, 1]
-            cs = CubicSpline(x, y)
+            if len(self.spectrum_expt) > 1:
+                raise RuntimeError("initialize_bkg: file input not allowed for \
+                    masked spectra.")
+            else:
+                x = self.bkgmethod['array'][:, 0]
+                y = self.bkgmethod['array'][:, 1]
+                cs = CubicSpline(x, y)
 
-            yy = cs(self.tth_list)
+                yy = cs(self.tth_list)
 
-            self.background = Spectrum(x=self.tth_list, y=yy)
+                self._background = [Spectrum(x=self.tth_list, y=yy)]
 
         elif('snip1d' in self.bkgmethod.keys()):
-            self.background = []
+            self._background = []
             for i, s in enumerate(self.spectrum_expt):
                 ww = np.rint(self.bkgmethod['snip1d'][0]/\
                     self.tth_step[i]).astype(np.int32)
@@ -1718,20 +1722,20 @@ class LeBail:
 
                 yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),\
                     w=ww, numiter=numiter))
-                self.background.append(Spectrum(x=self.tth_list[i], y=yy))
+                self._background.append(Spectrum(x=self.tth_list[i], y=yy))
 
     def chebyshevfit(self):
         """
         03/08/2021 SS spectrum_expt is a list now. accounting
         for that change
         """
-        self.background = []
+        self._background = []
         degree = self.bkgmethod['chebyshev']
         for i,s in enumerate(self.spectrum_expt):
             tth = self.tth_list[i]
             p = np.polynomial.Chebyshev.fit(
                 tth, s.y, degree, w=self.weights[i]**2)
-            self.background.append(Spectrum(x=tth, y=p(tth)))
+            self._background.append(Spectrum(x=tth, y=p(tth)))
 
     def selectpoints(self):
         """
@@ -2342,8 +2346,9 @@ class LeBail:
                 """
                 directly passing the spectrum class
                 """
-                self._spectrum_expt = expt_spectrum
-                self._spectrum_expt.nan_to_zero()
+                self._spectrum_expt = [expt_spectrum]
+                #self._spectrum_expt.nan_to_zero()
+                self.global_index = [(0, expt_spectrum.x.shape[0])]
 
             elif isinstance(expt_spectrum, np.ndarray):
                 """
@@ -2362,7 +2367,8 @@ class LeBail:
                     3. Every place where spectrum_expt is used, we will do a 
                     type test to figure out the logic of the operations
                     """
-                    expt_spec_list = separate_regions(expt_spectrum)
+                    expt_spec_list, gidx = separate_regions(expt_spectrum)
+                    self.global_index = gidx
                     self._spectrum_expt = []
                     for s in expt_spec_list:
                         self._spectrum_expt.append(Spectrum(x=s[:, 0],
@@ -2379,6 +2385,8 @@ class LeBail:
                                                   y=expt_spectrum[:, 1],
                                                   name='expt_spectrum')]
 
+                    self.global_index = [(0, self._spectrum_expt[0].x.shape[0])]
+
             elif isinstance(expt_spectrum, str):
                 '''
                 load from a text file
@@ -2388,6 +2396,7 @@ class LeBail:
                     self._spectrum_expt = [Spectrum.from_file(
                         expt_spectrum, skip_rows=0)]
                     #self._spectrum_expt.nan_to_zero()
+                    self.global_index = [(0, self._spectrum_expt[0].x.shape[0])]
                 else:
                     raise FileError('input spectrum file doesn\'t exist.')
 
@@ -2456,6 +2465,10 @@ class LeBail:
             self.initialize_bkg()
         else:
             raise RuntimeError("expt_spectrum setter: spectrum is None")
+
+    @property
+    def background(self):
+        return self._background
 
     @property
     def params(self):
@@ -4846,7 +4859,16 @@ def separate_regions(masked_spec_array):
     mask = ~masked_spec_array.mask[:,1]
     m0 = np.concatenate(( [False], mask, [False] ))
     idx = np.flatnonzero(m0[1:] != m0[:-1])
-    return [array[idx[i]:idx[i+1],:] for i in range(0,len(idx),2)]
+    gidx = [(idx[i], idx[i+1]) for i in range(0,len(idx),2)]
+    return [array[idx[i]:idx[i+1],:] for i in range(0,len(idx),2)], gidx
+
+def join_regions(array_list, global_mask):
+    """
+    @author Saransh Singh Lawrence Livermore National Lab
+    @date 03/08/2021 SS 1.0 original
+    @details utility function for joining different pieces of masked array
+    into one masked array
+    """
 
 
 _rqpDict = {
