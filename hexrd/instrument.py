@@ -2635,13 +2635,10 @@ class PlanarDetector(object):
             patch_is_on = np.all(on_panel.reshape(neta, npp), axis=1)
             patch_xys = all_xy.reshape(neta, 5, 2)[patch_is_on]
 
-            # the surving indices
-            idx = np.where(patch_is_on)[0]
-
             # form output arrays
             valid_ang.append(these_angs[patch_is_on, :2])
             valid_xy.append(patch_xys[:, -1, :].squeeze())
-            map_indices.append(idx)
+            map_indices.append(patch_is_on)
             pass
         # ??? is this option necessary?
         if full_output:
