@@ -21,8 +21,9 @@ import time
 import h5py
 from pathlib import Path
 from pylab import plot, ginput, show, \
-axis, close, title, xlabel, ylabel
+    axis, close, title, xlabel, ylabel
 import copy
+
 
 class Parameters:
     """
@@ -962,7 +963,7 @@ class Material_LeBail:
             if(iax == 0):
                 if(ax == '6_3'):
                     mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
-                elif(ax in['3_1', '3_2', '6_2', '6_4']):
+                elif(ax in ['3_1', '3_2', '6_2', '6_4']):
                     mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
                 elif(ax in ['6_1', '6_5']):
                     mask2 = np.mod(hkllist[:, 2]+120, 6) != 0
@@ -1362,7 +1363,7 @@ class Phases_LeBail:
                  material_keys=None,
                  dmin=_nm(0.05),
                  wavelength={'alpha1': [_nm(0.15406), 1.0],
-                 'alpha2': [_nm(0.154443), 0.52]}
+                             'alpha2': [_nm(0.154443), 0.52]}
                  ):
 
         self.phase_dict = {}
@@ -1374,8 +1375,8 @@ class Phases_LeBail:
         '''
         wavelength_nm = {}
         for k, v in wavelength.items():
-            wavelength_nm[k] = [valWUnit('lp', 'length', \
-                v[0].getVal('nm'), 'nm'), v[1]]
+            wavelength_nm[k] = [valWUnit('lp', 'length',
+                                         v[0].getVal('nm'), 'nm'), v[1]]
 
         self.wavelength = wavelength_nm
 
@@ -1571,7 +1572,7 @@ class LeBail:
                  params=None,
                  phases=None,
                  wavelength={'kalpha1': [_nm(0.15406), 1.0],
-                 'kalpha2': [_nm(0.154443), 1.0]},
+                             'kalpha2': [_nm(0.154443), 1.0]},
                  bkgmethod={'spline': None},
                  intensity_init=None):
 
@@ -1671,7 +1672,7 @@ class LeBail:
         if(self.bkgmethod is None):
             self._background = []
             for tth in self.tth_list:
-                self._background.append(Spectrum( \
+                self._background.append(Spectrum(
                     x=tth, y=np.zeros(tth.shape)))
 
         elif('spline' in self.bkgmethod.keys()):
@@ -1688,7 +1689,8 @@ class LeBail:
 
         elif('file' in self.bkgmethod.keys()):
             if len(self._spectrum_expt) > 1:
-                raise RuntimeError("initialize_bkg: file input not allowed for \
+                raise RuntimeError("initialize_bkg: \
+                    file input not allowed for \
                     masked spectra.")
             else:
                 bkg = Spectrum.from_file(self.bkgmethod['file'])
@@ -1702,7 +1704,8 @@ class LeBail:
 
         elif('array' in self.bkgmethod.keys()):
             if len(self._spectrum_expt) > 1:
-                raise RuntimeError("initialize_bkg: file input not allowed for \
+                raise RuntimeError("initialize_bkg: \
+                    file input not allowed for \
                     masked spectra.")
             else:
                 x = self.bkgmethod['array'][:, 0]
@@ -1716,12 +1719,12 @@ class LeBail:
         elif('snip1d' in self.bkgmethod.keys()):
             self._background = []
             for i, s in enumerate(self._spectrum_expt):
-                ww = np.rint(self.bkgmethod['snip1d'][0]/\
-                    self.tth_step[i]).astype(np.int32)
+                ww = np.rint(self.bkgmethod['snip1d'][0] /
+                             self.tth_step[i]).astype(np.int32)
                 numiter = self.bkgmethod['snip1d'][1]
 
-                yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),\
-                    w=ww, numiter=numiter))
+                yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),
+                                            w=ww, numiter=numiter))
                 self._background.append(Spectrum(x=self._tth_list[i], y=yy))
 
     def chebyshevfit(self):
@@ -1731,7 +1734,7 @@ class LeBail:
         """
         self._background = []
         degree = self.bkgmethod['chebyshev']
-        for i,s in enumerate(self._spectrum_expt):
+        for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
             p = np.polynomial.Chebyshev.fit(
                 tth, s.y, degree, w=self.weights[i]**2)
@@ -1743,7 +1746,7 @@ class LeBail:
         for that change
         """
         self.points = []
-        for i,s in enumerate(self._spectrum_expt):
+        for i, s in enumerate(self._spectrum_expt):
             txt = f'Select points for background estimation; \
                 click middle mouse button when done. segment # {i}'
             title(txt)
@@ -1775,13 +1778,13 @@ class LeBail:
             for k, l in self.phases.wavelength.items():
                 t = self.phases[p].getTTh(l[0].value)
                 allowed = self.phases[p].wavelength_allowed_hkls
-                hkl = self.phases[p].hkls[allowed,:]
+                hkl = self.phases[p].hkls[allowed, :]
                 tth_min = min(self.tth_min)
                 tth_max = max(self.tth_max)
                 limit = np.logical_and(t >= tth_min,
                                        t <= tth_max)
                 self.tth[p][k] = t[limit]
-                self.hkls[p][k] = hkl[limit,:]
+                self.hkls[p][k] = hkl[limit, :]
 
     def initialize_Icalc(self):
         '''
@@ -2006,7 +2009,8 @@ class LeBail:
                     address that 
                     @ SS 03/02/2021 the mask shold fix it
                     """
-                    I = np.trapz(yo[mask] * y[mask] / yc[mask], self.tth_list[mask])
+                    I = np.trapz(yo[mask] * y[mask] /
+                                 yc[mask], self.tth_list[mask])
                     Iobs.append(I)
 
                 self.Iobs[p][k] = np.array(Iobs)
@@ -2057,7 +2061,6 @@ class LeBail:
             self.gofF = np.inf
 
         return errvec[~np.isnan(errvec)]
-
 
     def calcRwp(self, params):
         '''
@@ -2324,13 +2327,13 @@ class LeBail:
 
     @property
     def spectrum_expt(self):
-        vector_list = [s.y for s in \
-        self._spectrum_expt]
+        vector_list = [s.y for s in
+                       self._spectrum_expt]
 
-        spec_masked = join_regions(vector_list, \
-                                   self.global_index, \
+        spec_masked = join_regions(vector_list,
+                                   self.global_index,
                                    self.global_shape)
-        return Spectrum(x=self._tth_list_global, \
+        return Spectrum(x=self._tth_list_global,
                         y=spec_masked)
         # return self._spectrum_expt
 
@@ -2357,10 +2360,10 @@ class LeBail:
                 directly passing the spectrum class
                 """
                 self._spectrum_expt = [expt_spectrum]
-                #self._spectrum_expt.nan_to_zero()
+                # self._spectrum_expt.nan_to_zero()
                 self.global_index = [(0, expt_spectrum.shape[0])]
-                self.global_mask = np.zeros([expt_spectrum.shape[0],], \
-                    dtype=np.bool)
+                self.global_mask = np.zeros([expt_spectrum.shape[0], ],
+                                            dtype=np.bool)
             elif isinstance(expt_spectrum, np.ndarray):
                 """
                 initialize class using a nx2 array
@@ -2381,12 +2384,13 @@ class LeBail:
                     expt_spec_list, gidx = separate_regions(expt_spectrum)
                     self.global_index = gidx
                     self.global_shape = expt_spectrum.shape[0]
-                    self.global_mask = expt_spectrum.mask[:,1]
+                    self.global_mask = expt_spectrum.mask[:, 1]
                     self._spectrum_expt = []
                     for s in expt_spec_list:
-                        self._spectrum_expt.append(Spectrum(x=s[:, 0],
-                                                  y=s[:, 1],
-                                                  name='expt_spectrum'))
+                        self._spectrum_expt.append(
+                            Spectrum(x=s[:, 0],
+                                     y=s[:, 1],
+                                     name='expt_spectrum'))
 
                 else:
                     max_ang = expt_spectrum[-1, 0]
@@ -2394,14 +2398,16 @@ class LeBail:
                         warnings.warn('angles are small and appear to \
                             be in radians. please check')
 
-                    self._spectrum_expt = [Spectrum(x=expt_spectrum[:, 0],
-                                                  y=expt_spectrum[:, 1],
-                                                  name='expt_spectrum')]
+                    self._spectrum_expt = [Spectrum(
+                        x=expt_spectrum[:, 0],
+                        y=expt_spectrum[:, 1],
+                        name='expt_spectrum')]
 
-                    self.global_index = [(0, self._spectrum_expt[0].x.shape[0])]
+                    self.global_index = [
+                        (0, self._spectrum_expt[0].x.shape[0])]
                     self.global_shape = expt_spectrum.shape[0]
-                    self.global_mask = np.zeros([expt_spectrum.shape[0],], \
-                    dtype=np.bool)
+                    self.global_mask = np.zeros([expt_spectrum.shape[0], ],
+                                                dtype=np.bool)
 
             elif isinstance(expt_spectrum, str):
                 '''
@@ -2411,16 +2417,17 @@ class LeBail:
                 if(path.exists(expt_spectrum)):
                     self._spectrum_expt = [Spectrum.from_file(
                         expt_spectrum, skip_rows=0)]
-                    #self._spectrum_expt.nan_to_zero()
-                    self.global_index = [(0, self._spectrum_expt[0].x.shape[0])]
+                    # self._spectrum_expt.nan_to_zero()
+                    self.global_index = [
+                        (0, self._spectrum_expt[0].x.shape[0])]
                     self.global_shape = expt_spectrum.shape[0]
-                    self.global_mask = np.zeros([expt_spectrum.shape[0],], \
-                    dtype=np.bool)
+                    self.global_mask = np.zeros([expt_spectrum.shape[0], ],
+                                                dtype=np.bool)
                 else:
                     raise FileError('input spectrum file doesn\'t exist.')
 
             self._tth_list = [s._x for s in self._spectrum_expt]
-            self._tth_list_global = expt_spectrum[:,0]
+            self._tth_list_global = expt_spectrum[:, 0]
             self.offset = False
 
             """
@@ -2441,9 +2448,9 @@ class LeBail:
             03/08/2021 tth_step is a list now
             """
             self.tth_step = []
-            for tmi, tma, nth in zip(self.tth_min, \
-                                    self.tth_max, \
-                                    self.ntth):
+            for tmi, tma, nth in zip(self.tth_min,
+                                     self.tth_max,
+                                     self.ntth):
                 self.tth_step.append((tma - tmi)/nth)
 
             """
@@ -2497,27 +2504,26 @@ class LeBail:
 
     @property
     def background(self):
-        vector_list = [s.y for s in \
-        self._background]
+        vector_list = [s.y for s in
+                       self._background]
 
-        bkg_masked = join_regions(vector_list, \
-                                   self.global_index, \
-                                   self.global_shape)
-        return Spectrum(x=self.tth_list, \
+        bkg_masked = join_regions(vector_list,
+                                  self.global_index,
+                                  self.global_shape)
+        return Spectrum(x=self.tth_list,
                         y=bkg_masked)
 
     @property
     def weights(self):
-        weights_masked = join_regions(self._weights, \
-                                   self.global_index, \
-                                   self.global_shape)
+        weights_masked = join_regions(self._weights,
+                                      self.global_index,
+                                      self.global_shape)
         return weights_masked
-    
 
     @property
     def params(self):
         return self._params
-    
+
     @params.setter
     def params(self, param_info):
         """
@@ -2625,7 +2631,7 @@ class LeBail:
     @property
     def phases(self):
         return self._phases
-    
+
     @phases.setter
     def phases(self, phase_info):
         """
@@ -2695,6 +2701,7 @@ class LeBail:
 
         self.calctth()
 
+
 def _nm(x):
     return valWUnit('lp', 'length', x, 'nm')
 
@@ -2753,7 +2760,7 @@ def extract_intensities(polar_view,
 
     non_zeros_index = []
     for i in range(polar_view.shape[0]):
-        mask = ~polar_view.mask[i,:]
+        mask = ~polar_view.mask[i, :]
         # make sure that there is atleast one nonzero pixel
 
         if np.sum(mask) > 1:
@@ -2790,8 +2797,8 @@ def extract_intensities(polar_view,
     for i in range(len(non_zeros_index)):
         idx = non_zeros_index[i]
         xp, yp, rwp, \
-        Icalc, \
-        hkl, tth = results[i]
+            Icalc, \
+            hkl, tth = results[i]
 
         intp_int = np.interp(tth_array, xp, yp, left=0., right=0.)
 
@@ -2807,10 +2814,10 @@ def extract_intensities(polar_view,
     pv_simulated[polar_view.mask] = np.nan
 
     return extracted_intensities, \
-           hkls, \
-           tths, \
-           non_zeros_index, \
-           pv_simulated
+        hkls, \
+        tths, \
+        non_zeros_index, \
+        pv_simulated
 
 
 def single_azimuthal_extraction(expt_spectrum,
@@ -2847,7 +2854,7 @@ def single_azimuthal_extraction(expt_spectrum,
         init_error = L.Rwp
         niter += 1
 
-    res = (L.spectrum_sim._x, L.spectrum_sim._y, \
+    res = (L.spectrum_sim._x, L.spectrum_sim._y,
            L.Rwp, L.Iobs, L.hkls, L.tth)
     return res
 
@@ -3355,7 +3362,7 @@ class Material_Rietveld:
             if(iax == 0):
                 if(ax == '6_3'):
                     mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
-                elif(ax in['3_1', '3_2', '6_2', '6_4']):
+                elif(ax in ['3_1', '3_2', '6_2', '6_4']):
                     mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
                 elif(ax in ['6_1', '6_5']):
                     mask2 = np.mod(hkllist[:, 2]+120, 6) != 0
@@ -4590,7 +4597,7 @@ class Rietveld:
                     self.PseudoVoight(t+self.zero_error)
                     I += self.scale * pf * self.PV * fsq * lp[i]
 
-        self._spectrum_sim = Spectrum(self.tth_list, I) #+ self.background
+        self._spectrum_sim = Spectrum(self.tth_list, I)  # + self.background
 
     def calcRwp(self, params):
         '''
@@ -4891,6 +4898,7 @@ class Rietveld:
         self._scale = value
         return
 
+
 def separate_regions(masked_spec_array):
     """
     utility function for separating array into separate
@@ -4900,11 +4908,12 @@ def separate_regions(masked_spec_array):
     efficient-numpy-subarrays-extraction-from-a-mask
     """
     array = masked_spec_array.data
-    mask = ~masked_spec_array.mask[:,1]
-    m0 = np.concatenate(( [False], mask, [False] ))
+    mask = ~masked_spec_array.mask[:, 1]
+    m0 = np.concatenate(([False], mask, [False]))
     idx = np.flatnonzero(m0[1:] != m0[:-1])
-    gidx = [(idx[i], idx[i+1]) for i in range(0,len(idx),2)]
-    return [array[idx[i]:idx[i+1],:] for i in range(0,len(idx),2)], gidx
+    gidx = [(idx[i], idx[i+1]) for i in range(0, len(idx), 2)]
+    return [array[idx[i]:idx[i+1], :] for i in range(0, len(idx), 2)], gidx
+
 
 def join_regions(vector_list, global_index, global_shape):
     """
@@ -4913,13 +4922,14 @@ def join_regions(vector_list, global_index, global_shape):
     @details utility function for joining different pieces of masked array
     into one masked array
     """
-    out_vector = np.empty([global_shape,])
+    out_vector = np.empty([global_shape, ])
     out_vector[:] = np.nan
     for s, ids in zip(vector_list, global_index):
         out_vector[ids[0]:ids[1]] = s
 
     # out_array = np.ma.masked_array(out_array, mask = np.isnan(out_array))
     return out_vector
+
 
 _rqpDict = {
     'triclinic': (tuple(range(6)), lambda p: p),  # all 6
@@ -4956,4 +4966,3 @@ def generate_pole_figures(hkls, tth, Icalc):
     for now nut will switch to discrete harmonics in the future
     """
     pass
-
