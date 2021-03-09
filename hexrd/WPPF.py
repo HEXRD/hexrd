@@ -1584,22 +1584,22 @@ class LeBail:
         if(wavelength is not None):
             self.wavelength = wavelength
 
-        # self._tstart = time.time()
+        self._tstart = time.time()
 
-        # self.phases = phases
+        self.phases = phases
         # # self.initialize_phases(phases)
 
-        # self.params = params
+        self.params = params
 
-        # self.initialize_Icalc()
+        self.initialize_Icalc()
 
-        # self.computespectrum()
+        self.computespectrum()
 
-        # self._tstop = time.time()
-        # self.tinit = self._tstop - self._tstart
-        # self.niter = 0
-        # self.Rwplist = np.empty([0])
-        # self.gofFlist = np.empty([0])
+        self._tstop = time.time()
+        self.tinit = self._tstop - self._tstart
+        self.niter = 0
+        self.Rwplist = np.empty([0])
+        self.gofFlist = np.empty([0])
 
     def __str__(self):
         resstr = '<LeBail Fit class>\nParameters of \
@@ -1687,7 +1687,7 @@ class LeBail:
             self.chebyshevfit()
 
         elif('file' in self.bkgmethod.keys()):
-            if len(self.spectrum_expt) > 1:
+            if len(self._spectrum_expt) > 1:
                 raise RuntimeError("initialize_bkg: file input not allowed for \
                     masked spectra.")
             else:
@@ -1701,7 +1701,7 @@ class LeBail:
                 self._background = [Spectrum(x=self.tth_list[0], y=yy)]
 
         elif('array' in self.bkgmethod.keys()):
-            if len(self.spectrum_expt) > 1:
+            if len(self._spectrum_expt) > 1:
                 raise RuntimeError("initialize_bkg: file input not allowed for \
                     masked spectra.")
             else:
@@ -1709,20 +1709,20 @@ class LeBail:
                 y = self.bkgmethod['array'][:, 1]
                 cs = CubicSpline(x, y)
 
-                yy = cs(self.tth_list)
+                yy = cs(self._tth_list)
 
                 self._background = [Spectrum(x=self.tth_list, y=yy)]
 
         elif('snip1d' in self.bkgmethod.keys()):
             self._background = []
-            for i, s in enumerate(self.spectrum_expt):
+            for i, s in enumerate(self._spectrum_expt):
                 ww = np.rint(self.bkgmethod['snip1d'][0]/\
                     self.tth_step[i]).astype(np.int32)
                 numiter = self.bkgmethod['snip1d'][1]
 
                 yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),\
                     w=ww, numiter=numiter))
-                self._background.append(Spectrum(x=self.tth_list[i], y=yy))
+                self._background.append(Spectrum(x=self._tth_list[i], y=yy))
 
     def chebyshevfit(self):
         """
@@ -1731,8 +1731,8 @@ class LeBail:
         """
         self._background = []
         degree = self.bkgmethod['chebyshev']
-        for i,s in enumerate(self.spectrum_expt):
-            tth = self.tth_list[i]
+        for i,s in enumerate(self._spectrum_expt):
+            tth = self._tth_list[i]
             p = np.polynomial.Chebyshev.fit(
                 tth, s.y, degree, w=self.weights[i]**2)
             self._background.append(Spectrum(x=tth, y=p(tth)))
@@ -1743,7 +1743,7 @@ class LeBail:
         for that change
         """
         self.points = []
-        for i,s in enumerate(self.spectrum_expt):
+        for i,s in enumerate(self._spectrum_expt):
             txt = f'Select points for background estimation; \
                 click middle mouse button when done. segment # {i}'
             title(txt)
@@ -1776,8 +1776,10 @@ class LeBail:
                 t = self.phases[p].getTTh(l[0].value)
                 allowed = self.phases[p].wavelength_allowed_hkls
                 hkl = self.phases[p].hkls[allowed,:]
-                limit = np.logical_and(t >= self.tth_min,
-                                       t <= self.tth_max)
+                tth_min = min(self.tth_min)
+                tth_max = max(self.tth_max)
+                limit = np.logical_and(t >= tth_min,
+                                       t <= tth_max)
                 self.tth[p][k] = t[limit]
                 self.hkls[p][k] = hkl[limit,:]
 
@@ -1964,8 +1966,8 @@ class LeBail:
 
                     y += Ic[i] * self.PV
 
-        self.spectrum_sim = Spectrum(x=x, y=y)
-        self.spectrum_sim = self.spectrum_sim + self.background
+        self._spectrum_sim = Spectrum(x=x, y=y)
+        #self._spectrum_sim = self.spectrum_sim + self.background
 
         errvec = self.calc_rwp()
 
@@ -2054,7 +2056,7 @@ class LeBail:
         else:
             self.gofF = np.inf
 
-        return errvec
+        return errvec[~np.isnan(errvec)]
 
 
     def calcRwp(self, params):
@@ -2308,7 +2310,7 @@ class LeBail:
 
     @property
     def tth_list(self):
-        return [s._x for s in self.spectrum_expt]
+        return self.spectrum_expt._x
 
     @property
     def zero_error(self):
@@ -2322,7 +2324,15 @@ class LeBail:
 
     @property
     def spectrum_expt(self):
-        return self._spectrum_expt
+        vector_list = [s.y for s in \
+        self._spectrum_expt]
+
+        spec_masked = join_regions(vector_list, \
+                                   self.global_index, \
+                                   self.global_shape)
+        return Spectrum(x=self._tth_list_global, \
+                        y=spec_masked)
+        # return self._spectrum_expt
 
     @spectrum_expt.setter
     def spectrum_expt(self, expt_spectrum):
@@ -2348,8 +2358,9 @@ class LeBail:
                 """
                 self._spectrum_expt = [expt_spectrum]
                 #self._spectrum_expt.nan_to_zero()
-                self.global_index = [(0, expt_spectrum.x.shape[0])]
-
+                self.global_index = [(0, expt_spectrum.shape[0])]
+                self.global_mask = np.zeros([expt_spectrum.shape[0],], \
+                    dtype=np.bool)
             elif isinstance(expt_spectrum, np.ndarray):
                 """
                 initialize class using a nx2 array
@@ -2369,6 +2380,8 @@ class LeBail:
                     """
                     expt_spec_list, gidx = separate_regions(expt_spectrum)
                     self.global_index = gidx
+                    self.global_shape = expt_spectrum.shape[0]
+                    self.global_mask = expt_spectrum.mask[:,1]
                     self._spectrum_expt = []
                     for s in expt_spec_list:
                         self._spectrum_expt.append(Spectrum(x=s[:, 0],
@@ -2386,6 +2399,9 @@ class LeBail:
                                                   name='expt_spectrum')]
 
                     self.global_index = [(0, self._spectrum_expt[0].x.shape[0])]
+                    self.global_shape = expt_spectrum.shape[0]
+                    self.global_mask = np.zeros([expt_spectrum.shape[0],], \
+                    dtype=np.bool)
 
             elif isinstance(expt_spectrum, str):
                 '''
@@ -2397,9 +2413,14 @@ class LeBail:
                         expt_spectrum, skip_rows=0)]
                     #self._spectrum_expt.nan_to_zero()
                     self.global_index = [(0, self._spectrum_expt[0].x.shape[0])]
+                    self.global_shape = expt_spectrum.shape[0]
+                    self.global_mask = np.zeros([expt_spectrum.shape[0],], \
+                    dtype=np.bool)
                 else:
                     raise FileError('input spectrum file doesn\'t exist.')
 
+            self._tth_list = [s._x for s in self._spectrum_expt]
+            self._tth_list_global = expt_spectrum[:,0]
             self.offset = False
 
             """
@@ -2452,7 +2473,7 @@ class LeBail:
             weight
             03/08/2021 SS everything is a list now
             """
-            self.weights = []
+            self._weights = []
             for s in self._spectrum_expt:
                 mask = s.y <= 0.
                 ww = np.zeros(s.y.shape)
@@ -2460,15 +2481,38 @@ class LeBail:
                 for the error calculation"""
                 ww[~mask] = 1.0 / \
                     np.sqrt(s.y[~mask])
-                self.weights.append(ww)
+                self._weights.append(ww)
 
             self.initialize_bkg()
         else:
             raise RuntimeError("expt_spectrum setter: spectrum is None")
 
     @property
+    def spectrum_sim(self):
+        tth, I = self._spectrum_sim.data
+        I[self.global_mask] = np.nan
+        I += self.background.y
+
+        return Spectrum(x=tth, y=I)
+
+    @property
     def background(self):
-        return self._background
+        vector_list = [s.y for s in \
+        self._background]
+
+        bkg_masked = join_regions(vector_list, \
+                                   self.global_index, \
+                                   self.global_shape)
+        return Spectrum(x=self.tth_list, \
+                        y=bkg_masked)
+
+    @property
+    def weights(self):
+        weights_masked = join_regions(self._weights, \
+                                   self.global_index, \
+                                   self.global_shape)
+        return weights_masked
+    
 
     @property
     def params(self):
@@ -4546,7 +4590,7 @@ class Rietveld:
                     self.PseudoVoight(t+self.zero_error)
                     I += self.scale * pf * self.PV * fsq * lp[i]
 
-        self.spectrum_sim = Spectrum(self.tth_list, I) + self.background
+        self._spectrum_sim = Spectrum(self.tth_list, I) #+ self.background
 
     def calcRwp(self, params):
         '''
@@ -4862,14 +4906,20 @@ def separate_regions(masked_spec_array):
     gidx = [(idx[i], idx[i+1]) for i in range(0,len(idx),2)]
     return [array[idx[i]:idx[i+1],:] for i in range(0,len(idx),2)], gidx
 
-def join_regions(array_list, global_mask):
+def join_regions(vector_list, global_index, global_shape):
     """
     @author Saransh Singh Lawrence Livermore National Lab
     @date 03/08/2021 SS 1.0 original
     @details utility function for joining different pieces of masked array
     into one masked array
     """
+    out_vector = np.empty([global_shape,])
+    out_vector[:] = np.nan
+    for s, ids in zip(vector_list, global_index):
+        out_vector[ids[0]:ids[1]] = s
 
+    # out_array = np.ma.masked_array(out_array, mask = np.isnan(out_array))
+    return out_vector
 
 _rqpDict = {
     'triclinic': (tuple(range(6)), lambda p: p),  # all 6
