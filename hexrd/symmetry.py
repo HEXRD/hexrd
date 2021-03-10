@@ -29,6 +29,7 @@
 #
 # Module containing functions relevant to symmetries
 
+import numpy as np
 from numpy import array, sqrt, pi, \
      vstack, c_, dot, \
      argmax
@@ -36,7 +37,8 @@ from numpy import array, sqrt, pi, \
 # from hexrd.rotations import quatOfAngleAxis, quatProductMatrix, fixQuat
 from hexrd import rotations as rot
 from hexrd import constants
-import numpy as np
+from hexrd.utils.decorators import numba_njit_if_available
+
 
 # =============================================================================
 # Module vars
@@ -556,14 +558,14 @@ def GeneratePGSym_Laue(SYM_PG_d):
 
     return SYM_PG_d_laue
 
+
+@numba_njit_if_available(cache=True, nogil=True)
 def isnew(mat, sym_mats):
-    isnew = True
     for g in sym_mats:
-        diff = np.sum(np.abs(mat-g))
-        if(diff < 1E-5):
-            isnew = False
-            break
-    return isnew
+        diff = np.sum(np.abs(mat - g))
+        if diff < 1e-5:
+            return False
+    return True
 
 def latticeType(sgnum):
 
