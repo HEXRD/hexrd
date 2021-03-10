@@ -194,7 +194,7 @@ class Material(object):
         """
         @author Saransh Singh, Lawrence Livermore National Lab
         @date 03/11/2021 SS 1.0 original
-        @details correctly initialize lattice parameters based 
+        @details correctly initialize lattice parameters based
         on the space group number
         """
         lparms = [x.value for x in self._lparms]
@@ -226,6 +226,10 @@ class Material(object):
             self._unitcell.stiffness = self.stiffness
         else:
             self._unitcell.stiffness = Material.DFLT_STIFFNESS
+
+    def _hkls_changed(self):
+        # Call this when something happens that changes the hkls...
+        self._newPdata()
 
     def _newPdata(self):
         """Create a new plane data instance if the hkls have changed"""
@@ -637,7 +641,7 @@ class Material(object):
         # Update the unit cell if there is one
         if hasattr(self, 'unitcell'):
             self._newUnitcell()
-            self._newPdata()
+            self._hkls_changed()
 
     sgnum = property(_get_sgnum, _set_sgnum, None,
                      "Space group number")
@@ -673,23 +677,6 @@ class Material(object):
 
     beamEnergy = property(_get_beamEnergy, _set_beamEnergy, None,
                           "Beam energy in keV")
-
-    # >> @date 08/20/2020 removing dependence on hklmax
-    # property:  hklMax
-
-    # def _get_hklMax(self):
-    #     """Get method for hklMax"""
-    #     return self._hklMax
-
-    # def _set_hklMax(self, v):
-    #     """Set method for hklMax"""
-    #     self._hklMax = v
-    #     self._newPdata()  # update planeData
-    #     return
-
-    # hklMax = property(_get_hklMax, _set_hklMax, None,
-    #                   "Max sum of squares for HKLs")
-    # property:  planeData
 
     """
     03/11/2021 SS 1.0 original
@@ -771,7 +758,7 @@ The values have units attached, i.e. they are valWunit instances.
         # Update the unit cell
         self.unitcell.dmin = v.getVal('nm')
 
-        self._newPdata()
+        self._hkls_changed()
 
     # property: "atominfo"
     def _get_atominfo(self):
