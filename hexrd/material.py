@@ -276,6 +276,8 @@ class Material(object):
 
             self.set_default_exclusions()
 
+        self.update_structure_factor()
+
     def set_default_exclusions(self):
         '''
           Set default exclusions
@@ -308,8 +310,6 @@ class Material(object):
             dflt_excl[0] = False
 
         self._pData.exclusions = dflt_excl
-
-        self.update_structure_factor()
 
     def update_structure_factor(self):
         hkls = self.planeData.getHKLs(allHKLs=True)
