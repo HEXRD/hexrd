@@ -252,12 +252,29 @@ class Material(object):
                 # There's no need to generate a new plane data object...
                 return
 
-        self._pData = PData(hkls, lprm, laue,
-                            self._beamEnergy, Material.DFLT_STR,
-                            tThWidth=Material.DFLT_TTH,
-                            tThMax=Material.DFLT_TTHMAX)
+            # Copy over attributes from the previous PlaneData object
+            self._pData = PData(hkls, old_pdata, exclusions=None)
 
-        self.set_default_exclusions()
+            # Get a mapping to new hkl indices
+            old_indices, new_indices = map_hkls_to_new(old_pdata, self._pData)
+
+            # Map the new exclusions to the old ones. New ones default to True.
+            exclusions = numpy.ones(hkls.shape[1], dtype=bool)
+            exclusions[new_indices] = old_pdata.exclusions[old_indices]
+
+            if numpy.all(exclusions):
+                # If they are all excluded, just set the default exclusions
+                self.set_default_exclusions()
+            else:
+                self._pData.exclusions = exclusions
+        else:
+            # Make the PlaneData object from scratch...
+            self._pData = PData(hkls, lprm, laue,
+                                self._beamEnergy, Material.DFLT_STR,
+                                tThWidth=Material.DFLT_TTH,
+                                tThMax=Material.DFLT_TTHMAX)
+
+            self.set_default_exclusions()
 
     def set_default_exclusions(self):
         '''
@@ -836,6 +853,20 @@ def hkls_match(a, b):
     def sorted_hkls(x):
         return x[numpy.lexsort((x[:, 2], x[:, 1], x[:, 0]))]
     return numpy.array_equal(sorted_hkls(a), sorted_hkls(b))
+
+
+def map_hkls_to_new(old_pdata, new_pdata):
+    # Creates a mapping of old hkl indices to new ones.
+    # Expects inputs to be PlaneData objects.
+    def get_hkl_strings(pdata):
+        return pdata.getHKLs(allHKLs=True, asStr=True)
+
+    kwargs = {
+        'ar1': get_hkl_strings(old_pdata),
+        'ar2': get_hkl_strings(new_pdata),
+        'return_indices': True,
+    }
+    return numpy.intersect1d(**kwargs)[1:]
 
 #
 #  ============================== Executable section for testing
