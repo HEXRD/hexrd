@@ -228,7 +228,7 @@ class Material(object):
             self._unitcell.stiffness = Material.DFLT_STIFFNESS
 
     def _newPdata(self):
-        """Create a new plane data instance"""
+        """Create a new plane data instance if the hkls have changed"""
         # spaceGroup module calulates forbidden reflections
         '''
         >> @date 08/20/2020 SS removing dependence of planeData
@@ -242,10 +242,20 @@ class Material(object):
         lprm = [self._lparms[i]
                 for i in unitcell._rqpDict[self.unitcell.latticeType][0]]
         laue = self.unitcell._laueGroup
+
+        if old_pdata := getattr(self, '_pData', None):
+            if hkls_match(hkls.T, old_pdata.getHKLs(allHKLs=True)):
+                # There's no need to generate a new plane data object...
+                return
+
         self._pData = PData(hkls, lprm, laue,
                             self._beamEnergy, Material.DFLT_STR,
                             tThWidth=Material.DFLT_TTH,
                             tThMax=Material.DFLT_TTHMAX)
+
+        self.set_default_exclusions()
+
+    def set_default_exclusions(self):
         '''
           Set default exclusions
           all reflections with two-theta smaller than 90 degrees
@@ -279,8 +289,6 @@ class Material(object):
         self._pData.exclusions = dflt_excl
 
         self.update_structure_factor()
-
-        return
 
     def update_structure_factor(self):
         hkls = self.planeData.getHKLs(allHKLs=True)
@@ -834,6 +842,13 @@ def save_materials_hdf5(f, materials):
     """Save a dict of materials into an HDF5 file"""
     for material in materials.values():
         material.dump_material(f)
+
+
+def hkls_match(a, b):
+    # Check if hkls match. Expects inputs to have shape (x, 3).
+    def sorted_hkls(x):
+        return x[numpy.lexsort((x[:, 2], x[:, 1], x[:, 0]))]
+    return numpy.array_equal(sorted_hkls(a), sorted_hkls(b))
 
 #
 #  ============================== Executable section for testing
