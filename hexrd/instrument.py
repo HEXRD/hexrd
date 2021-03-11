@@ -361,6 +361,7 @@ class HEDMInstrument(object):
                         if isinstance(det_buffer, np.ndarray):
                             assert det_buffer.shape == shape, \
                                 "buffer shape must match detector"
+                            panel_buffer = det_buffer
                         elif isinstance(det_buffer, list):
                             panel_buffer = np.asarray(det_buffer)
                         elif np.isscalar(det_buffer):
