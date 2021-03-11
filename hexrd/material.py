@@ -38,6 +38,7 @@ from hexrd.crystallography import PlaneData as PData
 from hexrd.valunits import valWUnit
 from hexrd import unitcell
 from hexrd.constants import ptable
+from hexrd import symmetry
 import copy
 
 from os import path
@@ -177,16 +178,7 @@ class Material(object):
             self._atomtype = Material.DFLT_ATOMTYPE
             #
 
-        self.unitcell = unitcell.unitcell(
-            self._lparms, self.sgnum, self._atomtype, self._atominfo, self._U,
-            self._dmin.getVal('nm'), self._beamEnergy.value,
-            self._sgsetting)
-
-        if hasattr(self, 'stiffness'):
-            self.unitcell.stiffness = self.stiffness
-        else:
-            self.unitcell.stiffness = Material.DFLT_STIFFNESS
-
+        self._newUnitcell()
         self._newPdata()
 
     def __str__(self):
@@ -197,6 +189,43 @@ class Material(object):
             pass
         s += '   plane Data:  %s' % str(self.planeData)
         return s
+
+    def _reset_lparms(self):
+        """
+        @author Saransh Singh, Lawrence Livermore National Lab
+        @date 03/11/2021 SS 1.0 original
+        @details correctly initialize lattice parameters based 
+        on the space group number
+        """
+        lparms = [x.value for x in self._lparms]
+        ltype = symmetry.latticeType(self.sgnum)
+        lparms = unitcell._rqpDict[ltype][1](lparms)
+        lparms_vu = []
+        for i in range(6):
+            if(i < 3):
+                lparms_vu.append(_angstroms(lparms[i]))
+            else:
+                lparms_vu.append(_degrees(lparms[i]))
+
+        self._lparms = lparms_vu
+
+    def _newUnitcell(self):
+        """
+        @author Saransh Singh, Lawrence Livermore National Lab
+        @date 03/11/2021 SS 1.0 original
+        @details create a new unitcell class with everything initialized
+        correctly
+        """
+        self._reset_lparms()
+        self._unitcell = unitcell.unitcell(
+            self._lparms, self.sgnum, self._atomtype, self._atominfo, self._U,
+            self._dmin.getVal('nm'), self._beamEnergy.value,
+            self._sgsetting)
+
+        if hasattr(self, 'stiffness'):
+            self._unitcell.stiffness = self.stiffness
+        else:
+            self._unitcell.stiffness = Material.DFLT_STIFFNESS
 
     def _newPdata(self):
         """Create a new plane data instance"""
@@ -478,7 +507,7 @@ class Material(object):
         gid = fid.get(xtal)
 
         sgnum = numpy.array(gid.get('SpaceGroupNumber'),
-                dtype=numpy.int32).item()
+                            dtype=numpy.int32).item()
         """
             IMPORTANT NOTE:
             note that the latice parameters is nm by default
@@ -509,8 +538,8 @@ class Material(object):
         self._atomtype = numpy.array(gid.get('Atomtypes'), dtype=numpy.int32)
         self._atom_ntype = self._atomtype.shape[0]
 
-        self._sgsetting = numpy.array(gid.get('SpaceGroupSetting'), \
-                          dtype=numpy.int32).item()
+        self._sgsetting = numpy.array(gid.get('SpaceGroupSetting'),
+                                      dtype=numpy.int32).item()
 
         if('stiffness' in gid):
             # we're assuming the stiffness is in units of GPa
@@ -525,7 +554,7 @@ class Material(object):
         if('dmin' in gid):
             # if dmin is present in the HDF5 file, then use that
             dmin = numpy.array(gid.get('dmin'),
-                   dtype=numpy.float64).item()
+                               dtype=numpy.float64).item()
             self._dmin = _angstroms(dmin*10.)
 
         if('hkls' in gid):
@@ -577,7 +606,11 @@ class Material(object):
 
     @property
     def vol(self):
-        return self.unitcell.vol
+        return self.unitcell.vol*1e3
+
+    @property
+    def vol_per_atom(self):
+        return self.unitcell.vol_per_atom
 
     # property:  sgnum
 
@@ -595,7 +628,7 @@ class Material(object):
 
         # Update the unit cell if there is one
         if hasattr(self, 'unitcell'):
-            self.unitcell.sgnum = v
+            self._newUnitcell()
             self._newPdata()
 
     sgnum = property(_get_sgnum, _set_sgnum, None,
@@ -649,6 +682,13 @@ class Material(object):
     # hklMax = property(_get_hklMax, _set_hklMax, None,
     #                   "Max sum of squares for HKLs")
     # property:  planeData
+
+    """
+    03/11/2021 SS 1.0 original
+    """
+    @property
+    def unitcell(self):
+        return self._unitcell
 
     @property
     def planeData(self):

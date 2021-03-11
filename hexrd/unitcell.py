@@ -2042,9 +2042,17 @@ class unitcell:
         return self._rsm
 
     @property
+    def num_atom(self):
+        return np.sum(self.numat)
+
+    @property
     def vol(self):
         return self._vol
 
+    @property
+    def vol_per_atom(self):
+        # vol per atom in A^3
+        return 1e3*self.vol/self.num_atom
 
 _rqpDict = {
     'triclinic': (tuple(range(6)), lambda p: p),  # all 6
