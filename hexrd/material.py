@@ -688,6 +688,7 @@ class Material(object):
         '''
         self.unitcell.voltage = self.beamEnergy.value*1e3
         self.planeData.wavelength = keV
+        self._hkls_changed()
         self.update_structure_factor()
 
         return
@@ -731,6 +732,7 @@ class Material(object):
             setattr(self.unitcell, unitcell._lpname[i], val)
         v2 = [lp[x].value for x in rq_lp]
         self.planeData.lparms = v2
+        self._hkls_changed()
 
         return
 
