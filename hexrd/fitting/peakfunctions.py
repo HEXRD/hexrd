@@ -10,9 +10,9 @@
 #
 # Please also see the file LICENSE.
 #
-# This program is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free Software
-# Foundation) version 2.1 dated February 1999.
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU Lesser General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
 #
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the IMPLIED WARRANTY OF MERCHANTABILITY
@@ -26,14 +26,28 @@
 # ============================================================
 
 import numpy as np
-#import code
 import copy
+from hexrd import constants
 
-gauss_width_fact=2.*np.sqrt(2.*np.log(2.))
-lorentz_width_fact=2.
 
-#### 1-D Gaussian Functions
-def _unit_gaussian(p,x):#Split the unit gaussian so this can be called for 2d and 3d functions
+gauss_width_fact = constants.sigma_to_fwhm
+lorentz_width_fact = 2.
+
+# FIXME: we need this for the time being to be able to parse multipeak fitting
+# results; need to wrap all this up in a class in the future!
+mpeak_nparams_dict = {
+    'gaussian': 3,
+    'lorentzian': 3,
+    'pvoigt': 4,
+    'split_pvoigt': 6
+}
+
+
+# =============================================================================
+# 1-D Gaussian Functions
+# =============================================================================
+# Split the unit gaussian so this can be called for 2d and 3d functions
+def _unit_gaussian(p, x):
     """
     Required Arguments:
     p -- (m) [x0,FWHM]
@@ -43,16 +57,15 @@ def _unit_gaussian(p,x):#Split the unit gaussian so this can be called for 2d an
     f -- (n) ndarray of function values at positions x
     """
 
+    x0 = p[0]
+    FWHM = p[1]
+    sigma = FWHM/gauss_width_fact
 
-
-    x0=p[0]
-    FWHM=p[1]
-    sigma=FWHM/gauss_width_fact
-
-    f=np.exp(-(x-x0)**2/(2.*sigma**2.))
+    f = np.exp(-(x-x0)**2/(2.*sigma**2.))
     return f
 
-def _gaussian1d_no_bg(p,x):
+
+def _gaussian1d_no_bg(p, x):
     """
     Required Arguments:
     p -- (m) [A,x0,FWHM]
@@ -62,12 +75,12 @@ def _gaussian1d_no_bg(p,x):
     f -- (n) ndarray of function values at positions x
     """
 
-    A=p[0]
-    f=A*_unit_gaussian(p[[1,2]],x)
+    A = p[0]
+    f = A*_unit_gaussian(p[[1, 2]], x)
     return f
 
 
-def gaussian1d(p,x):
+def gaussian1d(p, x):
     """
     Required Arguments:
     p -- (m) [A,x0,FWHM,c0,c1]
@@ -77,15 +90,15 @@ def gaussian1d(p,x):
     f -- (n) ndarray of function values at positions x
     """
 
-    bg0=p[3]
-    bg1=p[4]
+    bg0 = p[3]
+    bg1 = p[4]
 
-    f=_gaussian1d_no_bg(p[:3],x)+bg0+bg1*x
+    f = _gaussian1d_no_bg(p[:3], x)+bg0+bg1*x
 
     return f
 
 
-def _gaussian1d_no_bg_deriv(p,x):
+def _gaussian1d_no_bg_deriv(p, x):
     """
     Required Arguments:
     p -- (m) [A,x0,FWHM]
@@ -95,25 +108,25 @@ def _gaussian1d_no_bg_deriv(p,x):
     d_mat -- (3 x n) ndarray of derivative values at positions x
     """
 
+    x0 = p[1]
+    FWHM = p[2]
 
-    x0=p[1]
-    FWHM=p[2]
+    sigma = FWHM/gauss_width_fact
 
-    sigma=FWHM/gauss_width_fact
+    dydx0 = _gaussian1d_no_bg(p, x)*((x-x0)/(sigma**2.))
+    dydA = _unit_gaussian(p[[1, 2]], x)
+    dydFWHM = _gaussian1d_no_bg(p, x)*((x-x0)**2./(sigma**3.))/gauss_width_fact
 
-    dydx0=_gaussian1d_no_bg(p,x)*((x-x0)/(sigma**2.))
-    dydA=_unit_gaussian(p[[1,2]],x)
-    dydFWHM=_gaussian1d_no_bg(p,x)*((x-x0)**2./(sigma**3.))/gauss_width_fact
+    d_mat = np.zeros((len(p), len(x)))
 
-    d_mat=np.zeros((len(p),len(x)))
-
-    d_mat[0,:]=dydA
-    d_mat[1,:]=dydx0
-    d_mat[2,:]=dydFWHM
+    d_mat[0, :] = dydA
+    d_mat[1, :] = dydx0
+    d_mat[2, :] = dydFWHM
 
     return d_mat
 
-def gaussian1d_deriv(p,x):
+
+def gaussian1d_deriv(p, x):
     """
     Required Arguments:
     p -- (m) [A,x0,FWHM,c0,c1]
@@ -123,18 +136,19 @@ def gaussian1d_deriv(p,x):
     d_mat -- (5 x n) ndarray of derivative values at positions x
     """
 
-
-    d_mat=np.zeros((len(p),len(x)))
-    d_mat[0:3,:]=_gaussian1d_no_bg_deriv(p[0:3],x)
-    d_mat[3,:]=1.
-    d_mat[4,:]=x
+    d_mat = np.zeros((len(p), len(x)))
+    d_mat[0:3, :] = _gaussian1d_no_bg_deriv(p[0:3], x)
+    d_mat[3, :] = 1.
+    d_mat[4, :] = x
 
     return d_mat
 
 
-#### 1-D Lorentzian Functions
-
-def _unit_lorentzian(p,x):#Split the unit function so this can be called for 2d and 3d functions
+# =============================================================================
+# 1-D Lorentzian Functions
+# =============================================================================
+# Split the unit function so this can be called for 2d and 3d functions
+def _unit_lorentzian(p, x):
     """
     Required Arguments:
     p -- (m) [x0,FWHM]
@@ -144,14 +158,15 @@ def _unit_lorentzian(p,x):#Split the unit function so this can be called for 2d 
     f -- (n) ndarray of function values at positions x
     """
 
-    x0=p[0]
-    FWHM=p[1]
-    gamma=FWHM/lorentz_width_fact
+    x0 = p[0]
+    FWHM = p[1]
+    gamma = FWHM/lorentz_width_fact
 
-    f= gamma**2 / ((x-x0)**2 + gamma**2)
+    f = gamma**2 / ((x-x0)**2 + gamma**2)
     return f
 
-def _lorentzian1d_no_bg(p,x):
+
+def _lorentzian1d_no_bg(p, x):
     """
     Required Arguments:
     p -- (m) [A,x0,FWHM]
@@ -161,12 +176,13 @@ def _lorentzian1d_no_bg(p,x):
     f -- (n) ndarray of function values at positions x
     """
 
-    A=p[0]
-    f= A*_unit_lorentzian(p[[1,2]],x)
+    A = p[0]
+    f = A*_unit_lorentzian(p[[1, 2]], x)
 
     return f
 
-def lorentzian1d(p,x):
+
+def lorentzian1d(p, x):
     """
     Required Arguments:
     p -- (m) [x0,FWHM,c0,c1]
@@ -176,15 +192,15 @@ def lorentzian1d(p,x):
     f -- (n) ndarray of function values at positions x
     """
 
-    bg0=p[3]
-    bg1=p[4]
+    bg0 = p[3]
+    bg1 = p[4]
 
-    f=_lorentzian1d_no_bg(p[:3],x)+bg0+bg1*x
+    f = _lorentzian1d_no_bg(p[:3], x)+bg0+bg1*x
 
     return f
 
 
-def _lorentzian1d_no_bg_deriv(p,x):
+def _lorentzian1d_no_bg_deriv(p, x):
     """
     Required Arguments:
     p -- (m) [A,x0,FWHM]
@@ -194,23 +210,25 @@ def _lorentzian1d_no_bg_deriv(p,x):
     d_mat -- (3 x n) ndarray of derivative values at positions x
     """
 
-    x0=p[1]
-    FWHM=p[2]
+    x0 = p[1]
+    FWHM = p[2]
 
-    gamma=FWHM/lorentz_width_fact
+    gamma = FWHM/lorentz_width_fact
 
-    dydx0=_lorentzian1d_no_bg(p,x)*((2.*(x-x0))/((x-x0)**2 + gamma**2))
-    dydA=_unit_lorentzian(p[[1,2]],x)
-    dydFWHM=_lorentzian1d_no_bg(p,x)*((2.*(x-x0)**2.)/(gamma*((x-x0)**2 + gamma**2)))/lorentz_width_fact
+    dydx0 = _lorentzian1d_no_bg(p, x)*((2.*(x-x0))/((x-x0)**2 + gamma**2))
+    dydA = _unit_lorentzian(p[[1, 2]], x)
+    dydFWHM = _lorentzian1d_no_bg(p, x) \
+        * ((2.*(x-x0)**2.)/(gamma*((x-x0)**2 + gamma**2)))/lorentz_width_fact
 
-    d_mat=np.zeros((len(p),len(x)))
-    d_mat[0,:]=dydA
-    d_mat[1,:]=dydx0
-    d_mat[2,:]=dydFWHM
+    d_mat = np.zeros((len(p), len(x)))
+    d_mat[0, :] = dydA
+    d_mat[1, :] = dydx0
+    d_mat[2, :] = dydFWHM
 
     return d_mat
 
-def lorentzian1d_deriv(p,x):
+
+def lorentzian1d_deriv(p, x):
     """
     Required Arguments:
     p -- (m) [A,x0,FWHM,c0,c1]
@@ -220,10 +238,10 @@ def lorentzian1d_deriv(p,x):
     d_mat -- (5 x n) ndarray of derivative values at positions x
     """
 
-    d_mat=np.zeros((len(p),len(x)))
-    d_mat[0:3,:]=_lorentzian1d_no_bg_deriv(p[0:3],x)
-    d_mat[3,:]=1.
-    d_mat[4,:]=x
+    d_mat = np.zeros((len(p), len(x)))
+    d_mat[0:3, :] = _lorentzian1d_no_bg_deriv(p[0:3], x)
+    d_mat[3, :] = 1.
+    d_mat[4, :] = x
 
     return d_mat
 
@@ -595,7 +613,7 @@ def _mpeak_1d_no_bg(p,x,pktype,num_pks):
     elif pktype == 'pvoigt':
         p_fit=np.reshape(p[:4*num_pks],[num_pks,4])
     elif pktype == 'split_pvoigt':
-        p_fit=np.reshape(p[:6*num_pks],[num_pks,6])   
+        p_fit=np.reshape(p[:6*num_pks],[num_pks,6])
 
     for ii in np.arange(num_pks):
         if pktype == 'gaussian':
