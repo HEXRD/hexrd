@@ -210,7 +210,6 @@ class Material(object):
 
         self._lparms = lparms_vu
 
-
     def _newUnitcell(self):
         """
         @author Saransh Singh, Lawrence Livermore National Lab
@@ -507,7 +506,7 @@ class Material(object):
         gid = fid.get(xtal)
 
         sgnum = numpy.array(gid.get('SpaceGroupNumber'),
-                dtype=numpy.int32).item()
+                            dtype=numpy.int32).item()
         """
             IMPORTANT NOTE:
             note that the latice parameters is nm by default
@@ -538,8 +537,8 @@ class Material(object):
         self._atomtype = numpy.array(gid.get('Atomtypes'), dtype=numpy.int32)
         self._atom_ntype = self._atomtype.shape[0]
 
-        self._sgsetting = numpy.array(gid.get('SpaceGroupSetting'), \
-                          dtype=numpy.int32).item()
+        self._sgsetting = numpy.array(gid.get('SpaceGroupSetting'),
+                                      dtype=numpy.int32).item()
 
         if('stiffness' in gid):
             # we're assuming the stiffness is in units of GPa
@@ -554,7 +553,7 @@ class Material(object):
         if('dmin' in gid):
             # if dmin is present in the HDF5 file, then use that
             dmin = numpy.array(gid.get('dmin'),
-                   dtype=numpy.float64).item()
+                               dtype=numpy.float64).item()
             self._dmin = _angstroms(dmin*10.)
 
         if('hkls' in gid):
