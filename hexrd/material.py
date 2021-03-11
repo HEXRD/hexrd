@@ -765,7 +765,7 @@ The values have units attached, i.e. they are valWunit instances.
 
     @dmin.setter
     def dmin(self, v):
-        if self._dmin == v:
+        if self._dmin.getVal('angstrom') == v.getVal('angstrom'):
             return
 
         self._dmin = v
