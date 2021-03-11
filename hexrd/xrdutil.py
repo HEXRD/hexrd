@@ -235,7 +235,8 @@ class PolarView(object):
     # =========================================================================
     #                         ####### METHODS #######
     # =========================================================================
-    def warp_image(self, image_dict):
+    def warp_image(self, image_dict, pad_with_nans=False,
+                   do_interpolation=True):
         """
         Performs the polar mapping of the input images.
 
@@ -261,6 +262,7 @@ class PolarView(object):
 
         # lcount = 0
         wimg = np.zeros(self.shape)
+        img_dict = dict.fromkeys(self.detectors)
         for detector_id in self.detectors:
             panel = self.detectors[detector_id]
             img = image_dict[detector_id]
@@ -278,10 +280,20 @@ class PolarView(object):
             if panel.distortion is not None:
                 xypts = panel.distortion.apply(xypts)
 
-            wimg += panel.interpolate_bilinear(
-                xypts, img,
-                pad_with_nans=False).reshape(self.shape)
-        return wimg
+            if do_interpolation:
+                this_img = panel.interpolate_bilinear(
+                    xypts, img,
+                    pad_with_nans=pad_with_nans).reshape(self.shape)
+            else:
+                this_img = panel.interpolate_nearest(
+                    xypts, img,
+                    pad_with_nans=pad_with_nans).reshape(self.shape)
+            nan_mask = np.isnan(this_img)
+            img_dict[detector_id] = np.ma.masked_array(
+                data=this_img, mask=nan_mask, fill_value=0.
+            )
+        maimg = np.ma.sum(np.ma.stack(img_dict.values()), axis=0)
+        return maimg
 
     def tth_to_pixel(self, tth):
         """

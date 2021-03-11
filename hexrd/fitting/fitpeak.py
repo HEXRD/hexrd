@@ -32,6 +32,7 @@ from scipy import ndimage as imgproc
 from scipy import optimize
 
 from hexrd import constants
+from hexrd.imageutil import snip1d
 from hexrd.fitting import peakfunctions as pkfuncs
 
 import matplotlib.pyplot as plt
@@ -46,25 +47,6 @@ xtol = constants.sqrt_epsf
 
 inf = np.inf
 minf = -inf
-
-
-def snip1d(y, w=4, numiter=2):
-    """Return SNIP-estimated baseline-background for given spectrum y."""
-    z = np.log(np.log(np.sqrt(y + 1) + 1) + 1)
-    b = z
-    for i in range(numiter):
-        for p in range(w, 0, -1):
-            kernel = np.zeros(p*2 + 1)
-            kernel[0] = kernel[-1] = 1./2.
-            b = np.minimum(
-                b,
-                imgproc.convolve1d(z, kernel, mode='nearest')
-            )
-        z = b
-    # bfull = np.zeros_like(y)
-    # bfull[~zeros_idx] = b
-    bkg = (np.exp(np.exp(b) - 1) - 1)**2 - 1
-    return bkg
 
 
 def lin_fit_obj(x, m, b):
@@ -102,7 +84,7 @@ def estimate_pk_parms_1d(x, f, pktype='pvoigt'):
 
     # handle background
     # ??? make kernel width a kwarg?
-    bkg = snip1d(f, w=int(2*npts/3.))
+    bkg = snip1d(np.atleast_2d(f), w=int(2*npts/3.)).flatten()
 
     # fit linear bg and grab params
     bp, _ = optimize.curve_fit(lin_fit_obj, x, bkg, jac=lin_fit_jac)
@@ -307,8 +289,20 @@ def estimate_mpk_parms_1d(
         DESCRIPTION.
 
     """
+    npts = len(x)
+    assert len(f) == npts, "ordinate and data must be same length!"
+
     num_pks = len(pk_pos_0)
     min_val = np.min(f)
+
+    # estimate background with SNIP1d
+    bkg = snip1d(np.atleast_2d(f),
+                 w=int(np.floor(0.25*len(f)))).flatten()
+
+    # fit linear bg and grab params
+    bp, _ = optimize.curve_fit(lin_fit_obj, x, bkg, jac=lin_fit_jac)
+    bg0 = bp[-1]
+    bg1 = bp[0]
 
     if pktype == 'gaussian' or pktype == 'lorentzian':
         p0tmp = np.zeros([num_pks, 3])
@@ -404,7 +398,8 @@ def estimate_mpk_parms_1d(
         lb[:num_pk_parms] = p0tmp_lb.ravel()
         ub[:num_pk_parms] = p0tmp_ub.ravel()
 
-        p0[-2] = min_val
+        p0[-2] = bg0
+        p0[-1] = bg1
 
         lb[-2] = minf
         lb[-1] = minf
@@ -421,7 +416,7 @@ def estimate_mpk_parms_1d(
         lb[:num_pk_parms] = p0tmp_lb.ravel()
         ub[:num_pk_parms] = p0tmp_ub.ravel()
 
-        p0[-1] = min_val
+        p0[-1] = np.average(bkg)
         lb[-1] = minf
         ub[-1] = inf
 
@@ -434,7 +429,8 @@ def estimate_mpk_parms_1d(
         lb[:num_pk_parms] = p0tmp_lb.ravel()
         ub[:num_pk_parms] = p0tmp_ub.ravel()
 
-        p0[-3] = min_val
+        p0[-3] = bg0
+        p0[-2] = bg1
         lb[-3] = minf
         lb[-2] = minf
         lb[-1] = minf
