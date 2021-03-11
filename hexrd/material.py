@@ -605,7 +605,11 @@ class Material(object):
 
     @property
     def vol(self):
-        return self.unitcell.vol
+        return self.unitcell.vol*1e3
+
+    @property
+    def vol_per_atom(self):
+        return self.unitcell.vol_per_atom
 
     # property:  sgnum
 
