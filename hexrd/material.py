@@ -659,6 +659,7 @@ class Material(object):
         if hasattr(self, 'unitcell'):
             self._newUnitcell()
             self._hkls_changed()
+            self.update_structure_factor()
 
     sgnum = property(_get_sgnum, _set_sgnum, None,
                      "Space group number")
@@ -733,6 +734,7 @@ class Material(object):
         v2 = [lp[x].value for x in rq_lp]
         self.planeData.lparms = v2
         self._hkls_changed()
+        self.update_structure_factor()
 
         return
 
@@ -789,9 +791,9 @@ The values have units attached, i.e. they are valWunit instances.
         if v.shape[1] == 4:
             self._atominfo = v
         else:
-            print("Improper syntax, array must be n x 4")
+            raise ValueError("Improper syntax, array must be n x 4")
 
-        return
+        self.update_structure_factor()
 
     atominfo = property(
         _get_atominfo, _set_atominfo, None,
