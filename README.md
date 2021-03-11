@@ -1,6 +1,6 @@
 ![conda-package](https://github.com/HEXRD/hexrd/workflows/conda-package/badge.svg)  ![test](https://github.com/HEXRD/hexrd/workflows/test/badge.svg)
 # HEXRD
-The canonical repository for the HEXRD package from January 2020 onwards.
+The HEXRD project is developing a cross-platform, open-source library for the general analysis of X-ray diffraction data.  This includes powder diffraction, Laue diffraction, and High Energy Diffraction Microscopy (_a.k.a._ 3DXRD, multi-grain rotation method) modalities.  At its core, HEXRD provides an abstraction of a generic diffraction instrument with support for multiple detectors.  This includes optimized transforms from the direct and reciprocal crystal lattices to the local detector coordinates, harnesses for interpolating image data into scattering angle coordinates, and sophisticated calibration routines.  
 
 # Installing
 
