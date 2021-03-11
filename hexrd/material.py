@@ -191,12 +191,12 @@ class Material(object):
         s += '   plane Data:  %s' % str(self.planeData)
         return s
 
-    def _newUnitcell(self):
+    def _reset_lparms(self):
         """
         @author Saransh Singh, Lawrence Livermore National Lab
         @date 03/11/2021 SS 1.0 original
-        @details create a new unitcell class with everything initialized
-        correctly
+        @details correctly initialize lattice parameters based 
+        on the space group number
         """
         lparms = [x.value for x in self._lparms]
         ltype = symmetry.latticeType(self.sgnum)
@@ -209,8 +209,18 @@ class Material(object):
                 lparms_vu.append(_degrees(lparms[i]))
 
         self._lparms = lparms_vu
+
+
+    def _newUnitcell(self):
+        """
+        @author Saransh Singh, Lawrence Livermore National Lab
+        @date 03/11/2021 SS 1.0 original
+        @details create a new unitcell class with everything initialized
+        correctly
+        """
+        self._reset_lparms()
         self._unitcell = unitcell.unitcell(
-            lparms_vu, self.sgnum, self._atomtype, self._atominfo, self._U,
+            self._lparms, self.sgnum, self._atomtype, self._atominfo, self._U,
             self._dmin.getVal('nm'), self._beamEnergy.value,
             self._sgsetting)
 
