@@ -230,6 +230,7 @@ class Material(object):
     def _hkls_changed(self):
         # Call this when something happens that changes the hkls...
         self._newPdata()
+        self.update_structure_factor()
 
     def _newPdata(self):
         """Create a new plane data instance if the hkls have changed"""
@@ -659,7 +660,6 @@ class Material(object):
         if hasattr(self, 'unitcell'):
             self._newUnitcell()
             self._hkls_changed()
-            self.update_structure_factor()
 
     sgnum = property(_get_sgnum, _set_sgnum, None,
                      "Space group number")
@@ -690,9 +690,6 @@ class Material(object):
         self.unitcell.voltage = self.beamEnergy.value*1e3
         self.planeData.wavelength = keV
         self._hkls_changed()
-        self.update_structure_factor()
-
-        return
 
     beamEnergy = property(_get_beamEnergy, _set_beamEnergy, None,
                           "Beam energy in keV")
@@ -734,9 +731,6 @@ class Material(object):
         v2 = [lp[x].value for x in rq_lp]
         self.planeData.lparms = v2
         self._hkls_changed()
-        self.update_structure_factor()
-
-        return
 
     lpdoc = r"""Lattice parameters
 
