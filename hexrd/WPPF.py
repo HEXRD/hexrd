@@ -4955,6 +4955,7 @@ def _getnumber(arr):
 
     return res
 
+
 background_methods = {
     'spline': None,
 
@@ -4964,27 +4965,28 @@ background_methods = {
             'type': int,
             'min': 0,
             'max': 99,
-            'tooltip': 'The polynomial degree used'\
-             'for polynomial fit.',
+            'tooltip': 'The polynomial degree used '
+            'for polynomial fit.',
         }
     ],
-   'snip': [
+    'snip': [
         {
             'label': 'Snip Width',
             'type': float,
-            'min' : 0.,
-            'tooltip': 'Maximum width of peak to retain for'\
-             'background estimation (in degrees).'
+            'min': 0.,
+            'tooltip': 'Maximum width of peak to retain for '
+            'background estimation (in degrees).'
         },
         {
             'label': 'Snip Num Iterations',
             'type': int,
-            'min' : 1,
-            'max' : 99,
+            'min': 1,
+            'max': 99,
             'tooltip': 'number of snip iterations.'
-        }  
+        }
     ],
 }
+
 
 def generate_pole_figures(hkls, tth, Icalc):
     """
