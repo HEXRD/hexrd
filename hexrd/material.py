@@ -780,11 +780,33 @@ The values have units attached, i.e. they are valWunit instances.
         else:
             print("Improper syntax, array must be n x 4")
 
+        self.update_structure_factor()
         return
 
     atominfo = property(
         _get_atominfo, _set_atominfo, None,
         "Information about atomic positions and electron number")
+
+    # # property: "atominfo"
+    # def _get_atomtype(self):
+    #     """Set method for name"""
+    #     return self._atomtype
+
+    # def _set_atomtype(self, v):
+    #     """Set method for atomtype"""
+    #     if v.shape[1] == 4:
+    #         self._atominfo = v
+    #         if hasattr(self, 'unitcell'):
+    #             self.unitcell.atom_pos = v
+    #     else:
+    #         print("Improper syntax, array must be n x 4")
+
+    #     self.update_structure_factor()
+    #     return
+
+    # atominfo = property(
+    #     _get_atomtype, _set_atomtype, None,
+    #     "Information about atomic positions and electron number")
 
     #
     #  ========== Methods

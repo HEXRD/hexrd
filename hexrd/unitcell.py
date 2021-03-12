@@ -33,7 +33,6 @@ class unitcell:
         self._tstart = time.time()
         self.pref = 0.4178214
 
-        self.atom_ntype = atomtypes.shape[0]
         self.atom_type = atomtypes
         self.atom_pos = atominfo
         self.U = U
@@ -1480,9 +1479,10 @@ class unitcell:
 
     def MakeStiffnessMatrix(self, inp_Cvals):
         if(len(inp_Cvals) != len(_StiffnessDict[self._laueGroup][0])):
-            raise IOError('number of constants entered is not correct.\
-            need a total of ', len(_StiffnessDict[self._laueGroup][0]),
-                          'independent constants')
+            x = len(_StiffnessDict[self._laueGroup][0])
+            msg = f"number of constants entered is not correct."
+            "need a total of {x} independent constants"
+            raise IOError(msg)
 
         # initialize all zeros and fill the supplied values
         C = np.zeros([6, 6])
@@ -1988,6 +1988,12 @@ class unitcell:
         updating atominfo
         fixing 
         """
+        if hasattr(self, 'atom_type'):
+            if self.atom_ntype != val.shape[0]:
+                raise ValueError(f"incorrect number of atom positions."
+                "number of atom type = {self.atom_ntype} and number of"
+                "atom positions = {val.shape[0]}.")
+
         self._atom_pos = val
         """
         update only if its not the first time
@@ -1998,16 +2004,19 @@ class unitcell:
         if hasattr(self, 'density'):
             self.CalcDensity()
 
-
     @property
-    def B_factor(self):
-        return self._atom_pos[:, 4]
+    def atom_ntype(self):
+        return self.atom_type.shape[0]
 
-    @B_factor.setter
-    def B_factor(self, val):
-        if (val.shape[0] != self.atom_ntype):
-            raise ValueError('Incorrect shape for B factor')
-        self._atom_pos[:, 4] = val
+    # @property
+    # def B_factor(self):
+    #     return self._atom_pos[:, 4]
+
+    # @B_factor.setter
+    # def B_factor(self, val):
+    #     if (val.shape[0] != self.atom_ntype):
+    #         raise ValueError('Incorrect shape for B factor')
+    #     self._atom_pos[:, 4] = val
 
     # asymmetric positions in unit cell
     @property
