@@ -775,6 +775,8 @@ The values have units attached, i.e. they are valWunit instances.
         """Set method for name"""
         if v.shape[1] == 4:
             self._atominfo = v
+            if hasattr(self, 'unitcell'):
+                self.unitcell.atom_pos = v
         else:
             print("Improper syntax, array must be n x 4")
 

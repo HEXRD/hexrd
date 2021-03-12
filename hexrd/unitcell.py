@@ -1982,7 +1982,22 @@ class unitcell:
 
     @atom_pos.setter
     def atom_pos(self, val):
+        """
+        SS 03/08/2021 fixing some issues with
+        updating asymmetric positions after 
+        updating atominfo
+        fixing 
+        """
         self._atom_pos = val
+        """
+        update only if its not the first time
+        """
+        if hasattr(self, 'asym_pos'):
+            self.CalcPositions()
+
+        if hasattr(self, 'density'):
+            self.CalcDensity()
+
 
     @property
     def B_factor(self):
