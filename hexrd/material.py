@@ -180,6 +180,7 @@ class Material(object):
 
         self._newUnitcell()
         self._newPdata()
+        self.update_structure_factor()
 
     def __str__(self):
         """String representation"""
@@ -276,8 +277,6 @@ class Material(object):
                                 tThMax=Material.DFLT_TTHMAX)
 
             self.set_default_exclusions()
-
-        self.update_structure_factor()
 
     def set_default_exclusions(self):
         '''
