@@ -520,6 +520,14 @@ class Material(object):
     def vol(self):
         return self.unitcell.vol
 
+    @property
+    def lparms(self):
+        return numpy.array([x.getVal("nm") if x.isLength() else \
+        x.getVal("degrees") for x in self._lparms])
+
+    @property
+    def latticeType(self):
+        return self.unitcell.latticeType
 
     # property:  sgnum
 

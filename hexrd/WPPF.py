@@ -2629,7 +2629,7 @@ def _generate_default_parameters_LeBail(mat):
     lbs = 5*[0.]
     lbs.append(-1.)
     ubs = 6*[1.]
-    varies = 6*[False]
+    varies = 6*[True]
 
     params.add_many(names, values=values,
                         varies=varies, lbs=lbs, ubs=ubs)
@@ -2654,7 +2654,7 @@ def _generate_default_parameters_LeBail(mat):
         a list of materials class
         """
         for m in mat:
-            _add_lp_to_params(params, mat)
+            _add_lp_to_params(params, m)
 
     elif isinstance(mat, dict):
         """
@@ -4891,6 +4891,86 @@ class Rietveld:
         self._scale = value
         return
 
+def _generate_default_parameters_Rietveld(mat):
+    """
+    @author:  Saransh Singh, Lawrence Livermore National Lab
+    @date:    03/12/2021 SS 1.0 original
+    @details: generate a default parameter class given a list/dict/
+    single instance of material class
+    """
+    params = Parameters()
+    names = ["U", "V", "W", \
+             "X", "Y", "zero_error"]
+    values = 5*[1e-3]
+    values.append(0.)
+    lbs = 5*[0.]
+    lbs.append(-1.)
+    ubs = 6*[1.]
+    varies = 6*[False]
+
+    params.add_many(names, values=values,
+                        varies=varies, lbs=lbs, ubs=ubs)
+
+    if isinstance(mat, Phases_LeBail):
+        """
+        phase file
+        """
+        for p in mat:
+            m = mat[p]
+            _add_atominfo_to_params(params, m)
+
+    elif isinstance(mat, Material):
+        """
+        just an instance of Materials class
+        this part initializes the lattice parameters in the
+        """
+        _add_atominfo_to_params(params, mat)
+
+    elif isinstance(mat, list):
+        """
+        a list of materials class
+        """
+        for m in mat:
+            _add_atominfo_to_params(params, mat)
+
+    elif isinstance(mat, dict):
+        """
+        dictionary of materials class
+        """
+        for k, m in mat.items():
+            _add_atominfo_to_params(params, m)
+
+    else:
+        msg = f"_generate_default_parameters: "
+        "incorrect argument. only list, dict or "
+        "Material is accpeted."
+        raise ValueError(msg)
+
+    return params
+
+def _add_atominfo_to_params(params, mat):
+    """
+    03/12/2021 SS 1.0 original
+    given a material, add the required
+    lattice parameters
+    """
+    lp = np.array(mat.lparms)
+    rid = list(_rqpDict[mat.latticeType][0])
+    lp = lp[rid]
+    name = _lpname[rid]
+    phase_name = mat.name
+    for n, l in zip(name, lp):
+        nn = phase_name+'_'+n
+        """
+        is n is a,b,c, it is one of the length units
+        else it is an angle
+        """
+        if(n in ['a','b','c']):
+            params.add(nn, value=l, lb=l-0.05,
+                       ub=l+0.05, vary=True)
+        else:
+            params.add(nn, value=l, lb=l-1.,
+                       ub=l+1., vary=True)
 
 def separate_regions(masked_spec_array):
     """
