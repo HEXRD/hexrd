@@ -2557,10 +2557,10 @@ class LeBail:
 
         self.calctth()
 
-    def _set_params_vals_to_class(self, 
-        params, 
-        init=False, 
-        skip_phases=False):
+    def _set_params_vals_to_class(self,
+                                  params,
+                                  init=False,
+                                  skip_phases=False):
         """
         @date 03/12/2021 SS 1.0 original
         take values in parameters and set the
@@ -4148,7 +4148,6 @@ class Rietveld:
 
         self._set_params_vals_to_class(params, init=True, skip_phases=True)
 
-
     def initialize_expt_spectrum(self, expt_spectrum):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -4192,6 +4191,8 @@ class Rietveld:
 
             self.tth_max = self.spectrum_expt._x[-1]
             self.tth_min = self.spectrum_expt._x[0]
+            self.tth_step = (self.tth_max - self.tth_min) /\
+                self.spectrum_expt._x.shape[0]
 
             """
             @date 09/24/2020 SS
@@ -4256,11 +4257,30 @@ class Rietveld:
 
             self.background = Spectrum(x=self.tth_list, y=yy)
 
-    def chebyshevfit(self):
-        degree = self.bkgmethod['chebyshev']
-        p = np.polynomial.Chebyshev.fit(
-            self.tth_list, self.spectrum_expt._y, degree, w=self.weights**4)
-        self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
+        elif('snip1d' in self.bkgmethod.keys()):
+            s = self.spectrum_expt
+            ww = np.rint(self.bkgmethod['snip1d'][0] /
+                         self.tth_step).astype(np.int32)
+            numiter = self.bkgmethod['snip1d'][1]
+            yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),
+                                        w=ww, numiter=numiter))
+            self.background = Spectrum(x=self.tth_list, y=yy)
+
+            # self._background = []
+            # for i, s in enumerate(self._spectrum_expt):
+            #     ww = np.rint(self.bkgmethod['snip1d'][0] /
+            #                  self.tth_step[i]).astype(np.int32)
+            #     numiter = self.bkgmethod['snip1d'][1]
+            #     yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),
+            #                                 w=ww, numiter=numiter))
+            #     self._background.append(Spectrum(x=self._tth_list[i], y=yy))
+
+            def chebyshevfit(self):
+                degree = self.bkgmethod['chebyshev']
+                p = np.polynomial.Chebyshev.fit(
+                    self.tth_list, self.spectrum_expt._y,
+                    degree, w=self.weights**2)
+                self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
 
     def selectpoints(self):
 
@@ -4508,7 +4528,7 @@ class Rietveld:
                     self.PseudoVoight(t+self.zero_error)
                     I += self.scale * pf * self.PV * fsq * lp[i]
 
-        self._spectrum_sim = Spectrum(self.tth_list, I)  # + self.background
+        self.spectrum_sim = Spectrum(self.tth_list, I) + self.background
 
     def calc_rwp(self):
         """
@@ -4533,8 +4553,12 @@ class Rietveld:
         N = self.spectrum_sim._y.shape[0]
 
         """ number of independent parameters in fitting """
-        P = len(params)
-        if den > 0. and (N-P) >= 0 :
+        P = 0
+        for p in self.params:
+            if self.params[p].vary:
+                P += 1
+
+        if den > 0. and (N-P) >= 0:
             Rexp = np.sqrt((N-P)/den)
         else:
             Rexp = np.inf
@@ -4549,6 +4573,8 @@ class Rietveld:
         # Rwp and goodness of fit parameters
         self.Rwp = Rwp
         self.gofF = (Rwp / Rexp)**2
+
+        return errvec[~np.isnan(errvec)]
 
     def calcRwp(self, params):
         """
@@ -4611,10 +4637,10 @@ class Rietveld:
         print('Finished iteration. Rwp: {:.3f} % goodness of \
               fit: {:.3f}'.format(self.Rwp*100., self.gofF))
 
-    def _set_params_vals_to_class(self, 
-        params, 
-        init=False, 
-        skip_phases=False):
+    def _set_params_vals_to_class(self,
+                                  params,
+                                  init=False,
+                                  skip_phases=False):
         """
         @date: 03/12/2021 SS 1.0 original
         @details: set the values from parameters to the Rietveld class
@@ -4668,28 +4694,26 @@ class Rietveld:
                     """
                     PART 2: update the atom info
                     """
-
                     atom_type = mat.atom_type
                     atom_label = _getnumber(atom_type)
 
                     for i in range(atom_type.shape[0]):
-
                         Z = atom_type[i]
                         elem = constants.ptableinverse[Z]
-                        nx = p+'_'+elem+str(atom_label[i])+'_x'
-                        ny = p+'_'+elem+str(atom_label[i])+'_y'
-                        nz = p+'_'+elem+str(atom_label[i])+'_z'
-                        oc = p+'_'+elem+str(atom_label[i])+'_occ'
+                        nx = f"{p}_{elem}{atom_label[i]}_x"
+                        ny = f"{p}_{elem}{atom_label[i]}_y"
+                        nz = f"{p}_{elem}{atom_label[i]}_z"
+                        oc = f"{p}_{elem}{atom_label[i]}_occ"
 
-                        if(mat.aniU):
+                        if mat.aniU:
                             Un = []
                             for j in range(6):
                                 Un.append(
-                                    p+'_'+elem +
-                                    str(atom_label[i]) +
-                                    '_'+_nameU[j])
+                                    f"{p}_{elem}"
+                                    "{atom_label[i]}"
+                                    "_{_nameU[j]}")
                         else:
-                            dw = p+'_'+elem+str(atom_label[i])+'_dw'
+                            dw = f"{p}_{elem}{atom_label[i]}_dw"
 
                         if(nx in params):
                             x = params[nx].value
@@ -4715,7 +4739,7 @@ class Rietveld:
                         else:
                             oc = self.params[oc].value
 
-                        if(mat.aniU):
+                        if mat.aniU:
                             U = []
                             for j in range(6):
                                 if(Un[j] in params):
@@ -4743,7 +4767,7 @@ class Rietveld:
                 if updated_lp:
                     self.calctth()
 
-                if updated_lp or self.updated_atominfo:
+                if updated_lp or updated_atominfo:
                     self.calcsf()
 
     @property
@@ -4839,7 +4863,7 @@ def _generate_default_parameters_Rietveld(mat):
     """
     params = Parameters()
     names = ["U", "V", "W", "X",
-    "Y", "scale", "zero_error"]
+             "Y", "scale", "zero_error"]
     values = 5*[1e-3]
     values.append(0.)
     values.append(1.)
