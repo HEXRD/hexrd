@@ -2557,7 +2557,10 @@ class LeBail:
 
         self.calctth()
 
-    def _set_params_vals_to_class(self, params, init=False, skip_phases=False):
+    def _set_params_vals_to_class(self, 
+        params, 
+        init=False, 
+        skip_phases=False):
         """
         @date 03/12/2021 SS 1.0 original
         take values in parameters and set the
@@ -2614,6 +2617,7 @@ class LeBail:
             if updated_lp:
                 self.calctth()
 
+
 def _generate_default_parameters_LeBail(mat):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
@@ -2622,7 +2626,7 @@ def _generate_default_parameters_LeBail(mat):
     single instance of material class
     """
     params = Parameters()
-    names = ["U", "V", "W", \
+    names = ["U", "V", "W",
              "X", "Y", "zero_error"]
     values = 5*[1e-3]
     values.append(0.)
@@ -2632,7 +2636,7 @@ def _generate_default_parameters_LeBail(mat):
     varies = 6*[True]
 
     params.add_many(names, values=values,
-                        varies=varies, lbs=lbs, ubs=ubs)
+                    varies=varies, lbs=lbs, ubs=ubs)
 
     if isinstance(mat, Phases_LeBail):
         """
@@ -2671,6 +2675,7 @@ def _generate_default_parameters_LeBail(mat):
 
     return params
 
+
 def _add_lp_to_params(params, mat):
     """
     03/12/2021 SS 1.0 original
@@ -2688,12 +2693,13 @@ def _add_lp_to_params(params, mat):
         is n is a,b,c, it is one of the length units
         else it is an angle
         """
-        if(n in ['a','b','c']):
+        if(n in ['a', 'b', 'c']):
             params.add(nn, value=l, lb=l-0.05,
                        ub=l+0.05, vary=True)
         else:
             params.add(nn, value=l, lb=l-1.,
                        ub=l+1., vary=True)
+
 
 def _nm(x):
     return valWUnit('lp', 'length', x, 'nm')
@@ -2915,6 +2921,8 @@ class Material_Rietveld:
         """
 
         """
+        # name
+        self.name = material_obj.name
 
         # min d-spacing for sampling hkl
         self.dmin = material_obj.dmin
@@ -3034,6 +3042,7 @@ class Material_Rietveld:
         # read atom types (by atomic number, Z)
         self.atom_type = np.array(gid.get('Atomtypes'), dtype=np.int32)
         self.atom_ntype = self.atom_type.shape[0]
+        self.name = xtal
 
         fid.close()
 
@@ -4122,114 +4131,23 @@ class Rietveld:
                     factors will be added in the future
                     """
                     for p in self.phases:
-                        l = list(self.phases[p].keys())[0]
-
-                        mat = self.phases[p][l]
-                        lp = np.array(mat.lparms)
-                        rid = list(_rqpDict[mat.latticeType][0])
-
-                        lp = lp[rid]
-                        name = _lpname[rid]
-
-                        for n, l in zip(name, lp):
-                            nn = p+'_'+n
-                            """
-                            is l is small, it is one of the length units
-                            else it is an angle
-                            """
-                            if(l < 10.):
-                                params.add(nn, value=l, lb=l-0.05,
-                                           ub=l+0.05, vary=False)
-                            else:
-                                params.add(nn, value=l, lb=l-1.,
-                                           ub=l+1., vary=False)
-
-                        atom_pos = mat.atom_pos[:, 0:3]
-                        occ = mat.atom_pos[:, 3]
-                        atom_type = mat.atom_type
-
-                        atom_label = _getnumber(atom_type)
-
-                        for i in range(atom_type.shape[0]):
-
-                            Z = atom_type[i]
-                            elem = constants.ptableinverse[Z]
-
-                            nn = p+'_'+elem+str(atom_label[i])+'_x'
-                            params.add(
-                                nn, value=atom_pos[i, 0],
-                                lb=0.0, ub=1.0,
-                                vary=False)
-
-                            nn = p+'_'+elem+str(atom_label[i])+'_y'
-                            params.add(
-                                nn, value=atom_pos[i, 1],
-                                lb=0.0, ub=1.0,
-                                vary=False)
-
-                            nn = p+'_'+elem+str(atom_label[i])+'_z'
-                            params.add(
-                                nn, value=atom_pos[i, 2],
-                                lb=0.0, ub=1.0,
-                                vary=False)
-
-                            nn = p+'_'+elem+str(atom_label[i])+'_occ'
-                            params.add(nn, value=occ[i],
-                                       lb=0.0, ub=1.0,
-                                       vary=False)
-
-                            if(mat.aniU):
-                                U = mat.U
-                                for j in range(6):
-                                    nn = p+'_'+elem + \
-                                        str(atom_label[i])+'_'+_nameU[j]
-                                    params.add(
-                                        nn, value=U[i, j],
-                                        lb=-1e-3,
-                                        ub=np.inf,
-                                        vary=False)
-                            else:
-
-                                nn = p+'_'+elem+str(atom_label[i])+'_dw'
-                                params.add(
-                                    nn, value=mat.U[i],
-                                    lb=0.0, ub=np.inf,
-                                    vary=False)
+                        for l in self.phases[p]:
+                            _add_atominfo_to_params(params, self.phases[p][l])
 
                 self.params = params
 
         else:
             """
-                first 6 are the lattice paramaters
-                next three are cagliotti parameters
-                next are the three gauss+lorentz mixing paramters
-                final is the zero instrumental peak position error
+            first three are cagliotti parameters
+            next are the lorentz paramters
+            a scale parameter and
+            final is the zero instrumental peak position error
             """
-            raise RuntimeError("Please pass information for parameter \
-                class in the form of Parameter object, dictionary or \
-                yaml file. Default values are only initialized for the \
-                LeBail class, not the Rietveld class.")
-            # names = ('a', 'b', 'c', 'alpha', 'beta', 'gamma',
-            #          'U', 'V', 'W', 'X', 'Y', 'tth_zero',
-            #          'scale')
-            # values = (5.415, 5.415, 5.415, 90., 90., 90.,
-            #           0.5, 0.5, 0.5, 1e-3, 1e-3, 1e-3, 0.,
-            #           1.0)
+            params = self._generate_default_parameters_Rietveld(self.phases)
+            self.params = params
 
-            # lbs = (-np.Inf,) * len(names)
-            # ubs = (np.Inf,) * len(names)
-            # varies = (False,) * len(names)
+        self._set_params_vals_to_class(params, init=True, skip_phases=True)
 
-            # params.add_many(names, values=values,
-            #                 varies=varies, lbs=lbs, ubs=ubs)
-
-        self._scale = self.params['scale'].value
-        self._U = self.params['U'].value
-        self._V = self.params['V'].value
-        self._W = self.params['W'].value
-        self._X = self.params['X'].value
-        self._Y = self.params['Y'].value
-        self._zero_error = self.params['zero_error'].value
 
     def initialize_expt_spectrum(self, expt_spectrum):
         """
@@ -4592,142 +4510,12 @@ class Rietveld:
 
         self._spectrum_sim = Spectrum(self.tth_list, I)  # + self.background
 
-    def calcRwp(self, params):
+    def calc_rwp(self):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/19/2020 SS 1.0 original
-        >> @DETAILS:    this routine computes the weighted error between calculated and
-                        experimental spectra. goodness of fit is also calculated. the
-                        weights are the inverse squareroot of the experimental intensities
+        >> @DETAILS:    actual computation of the weighted error
         """
-
-        """
-        the err variable is the difference between simulated and experimental spectra
-        """
-        for p in params:
-            if(hasattr(self, p)):
-                setattr(self, p, params[p].value)
-
-        self.updated_lp = False
-        self.updated_atominfo = False
-        for p in self.phases:
-            for l in self.phases[p]:
-
-                mat = self.phases[p][l]
-
-                """
-                PART 1: update the lattice parameters
-                """
-                lp = []
-
-                pre = p + '_'
-                if(pre+'a' in params):
-                    if(params[pre+'a'].vary):
-                        lp.append(params[pre+'a'].value)
-                if(pre+'b' in params):
-                    if(params[pre+'b'].vary):
-                        lp.append(params[pre+'b'].value)
-                if(pre+'c' in params):
-                    if(params[pre+'c'].vary):
-                        lp.append(params[pre+'c'].value)
-                if(pre+'alpha' in params):
-                    if(params[pre+'alpha'].vary):
-                        lp.append(params[pre+'alpha'].value)
-                if(pre+'beta' in params):
-                    if(params[pre+'beta'].vary):
-                        lp.append(params[pre+'beta'].value)
-                if(pre+'gamma' in params):
-                    if(params[pre+'gamma'].vary):
-                        lp.append(params[pre+'gamma'].value)
-
-                if(not lp):
-                    pass
-                else:
-                    lp = self.phases[p][l].Required_lp(lp)
-                    self.phases[p][l].lparms = np.array(lp)
-                    self.updated_lp = True
-                """
-                PART 2: update the atom info
-                """
-
-                atom_type = mat.atom_type
-                atom_label = _getnumber(atom_type)
-
-                for i in range(atom_type.shape[0]):
-
-                    Z = atom_type[i]
-                    elem = constants.ptableinverse[Z]
-                    nx = p+'_'+elem+str(atom_label[i])+'_x'
-                    ny = p+'_'+elem+str(atom_label[i])+'_y'
-                    nz = p+'_'+elem+str(atom_label[i])+'_z'
-                    oc = p+'_'+elem+str(atom_label[i])+'_occ'
-
-                    if(mat.aniU):
-                        Un = []
-                        for j in range(6):
-                            Un.append(
-                                p+'_'+elem +
-                                str(atom_label[i]) +
-                                '_'+_nameU[j])
-                    else:
-                        dw = p+'_'+elem+str(atom_label[i])+'_dw'
-
-                    if(nx in params):
-                        x = params[nx].value
-                        self.updated_atominfo = True
-                    else:
-                        x = self.params[nx].value
-
-                    if(ny in params):
-                        y = params[ny].value
-                        self.updated_atominfo = True
-                    else:
-                        y = self.params[ny].value
-
-                    if(nz in params):
-                        z = params[nz].value
-                        self.updated_atominfo = True
-                    else:
-                        z = self.params[nz].value
-
-                    if(oc in params):
-                        oc = params[oc].value
-                        self.updated_atominfo = True
-                    else:
-                        oc = self.params[oc].value
-
-                    if(mat.aniU):
-                        U = []
-                        for j in range(6):
-                            if(Un[j] in params):
-                                self.updated_atominfo = True
-                                U.append(params[Un[j]].value)
-                            else:
-                                U.append(self.params[Un[j]].value)
-                        U = np.array(U)
-                        mat.U[i, :] = U
-                    else:
-                        if(dw in params):
-                            dw = params[dw].value
-                            self.updated_atominfo = True
-                        else:
-                            dw = self.params[dw].value
-                        mat.U[i] = dw
-
-                    mat.atom_pos[i, :] = np.array([x, y, z, oc])
-
-                if(mat.aniU):
-                    mat.calcBetaij()
-                if(self.updated_lp):
-                    mat._calcrmt()
-
-        if(self.updated_lp):
-            self.calctth()
-        if(self.updated_lp or self.updated_atominfo):
-            self.calcsf()
-
-        self.computespectrum()
-
         self.err = (self.spectrum_sim - self.spectrum_expt)
 
         errvec = np.sqrt(self.weights * self.err._y**2)
@@ -4746,7 +4534,7 @@ class Rietveld:
 
         """ number of independent parameters in fitting """
         P = len(params)
-        if den > 0.:
+        if den > 0. and (N-P) >= 0 :
             Rexp = np.sqrt((N-P)/den)
         else:
             Rexp = np.inf
@@ -4757,11 +4545,26 @@ class Rietveld:
             self.gofF = (Rwp / Rexp)**2
         else:
             self.gofF = np.inf
-        Rexp = np.sqrt((N-P)/den)
 
         # Rwp and goodness of fit parameters
         self.Rwp = Rwp
         self.gofF = (Rwp / Rexp)**2
+
+    def calcRwp(self, params):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       05/19/2020 SS 1.0 original
+        >> @DETAILS:    this routine computes the weighted error between calculated and
+                        experimental spectra. goodness of fit is also calculated. the
+                        weights are the inverse squareroot of the experimental intensities
+        """
+
+        """
+        the err variable is the difference between simulated and experimental spectra
+        """
+        self._set_params_vals_to_class(params, init=False, skip_phases=False)
+        self.computespectrum()
+        errvec = self.calc_rwp()
 
         return errvec
 
@@ -4807,6 +4610,141 @@ class Rietveld:
 
         print('Finished iteration. Rwp: {:.3f} % goodness of \
               fit: {:.3f}'.format(self.Rwp*100., self.gofF))
+
+    def _set_params_vals_to_class(self, 
+        params, 
+        init=False, 
+        skip_phases=False):
+        """
+        @date: 03/12/2021 SS 1.0 original
+        @details: set the values from parameters to the Rietveld class
+        """
+        for p in params:
+            if init:
+                setattr(self, p, params[p].value)
+            else:
+                if(hasattr(self, p)):
+                    setattr(self, p, params[p].value)
+
+        if not skip_phases:
+            updated_lp = False
+            updated_atominfo = False
+            for p in self.phases:
+                for l in self.phases[p]:
+
+                    mat = self.phases[p][l]
+
+                    """
+                    PART 1: update the lattice parameters
+                    """
+                    lp = []
+
+                    pre = f"{p}_"
+                    if(f"{pre}a" in params):
+                        if(params[f"{pre}a"].vary):
+                            lp.append(params[f"{pre}a"].value)
+                    if(f"{pre}b" in params):
+                        if(params[f"{pre}b"].vary):
+                            lp.append(params[f"{pre}b"].value)
+                    if(f"{pre}c" in params):
+                        if(params[f"{pre}c"].vary):
+                            lp.append(params[f"{pre}c"].value)
+                    if(f"{pre}alpha" in params):
+                        if(params[f"{pre}alpha"].vary):
+                            lp.append(params[f"{pre}alpha"].value)
+                    if(f"{pre}beta" in params):
+                        if(params[f"{pre}beta"].vary):
+                            lp.append(params[f"{pre}beta"].value)
+                    if(f"{pre}gamma" in params):
+                        if(params[f"{pre}gamma"].vary):
+                            lp.append(params[f"{pre}gamma"].value)
+
+                    if(not lp):
+                        pass
+                    else:
+                        lp = self.phases[p][l].Required_lp(lp)
+                        self.phases[p][l].lparms = np.array(lp)
+                        updated_lp = True
+                    """
+                    PART 2: update the atom info
+                    """
+
+                    atom_type = mat.atom_type
+                    atom_label = _getnumber(atom_type)
+
+                    for i in range(atom_type.shape[0]):
+
+                        Z = atom_type[i]
+                        elem = constants.ptableinverse[Z]
+                        nx = p+'_'+elem+str(atom_label[i])+'_x'
+                        ny = p+'_'+elem+str(atom_label[i])+'_y'
+                        nz = p+'_'+elem+str(atom_label[i])+'_z'
+                        oc = p+'_'+elem+str(atom_label[i])+'_occ'
+
+                        if(mat.aniU):
+                            Un = []
+                            for j in range(6):
+                                Un.append(
+                                    p+'_'+elem +
+                                    str(atom_label[i]) +
+                                    '_'+_nameU[j])
+                        else:
+                            dw = p+'_'+elem+str(atom_label[i])+'_dw'
+
+                        if(nx in params):
+                            x = params[nx].value
+                            updated_atominfo = True
+                        else:
+                            x = self.params[nx].value
+
+                        if(ny in params):
+                            y = params[ny].value
+                            updated_atominfo = True
+                        else:
+                            y = self.params[ny].value
+
+                        if(nz in params):
+                            z = params[nz].value
+                            updated_atominfo = True
+                        else:
+                            z = self.params[nz].value
+
+                        if(oc in params):
+                            oc = params[oc].value
+                            updated_atominfo = True
+                        else:
+                            oc = self.params[oc].value
+
+                        if(mat.aniU):
+                            U = []
+                            for j in range(6):
+                                if(Un[j] in params):
+                                    updated_atominfo = True
+                                    U.append(params[Un[j]].value)
+                                else:
+                                    U.append(self.params[Un[j]].value)
+                            U = np.array(U)
+                            mat.U[i, :] = U
+                        else:
+                            if(dw in params):
+                                dw = params[dw].value
+                                updated_atominfo = True
+                            else:
+                                dw = self.params[dw].value
+                            mat.U[i] = dw
+
+                        mat.atom_pos[i, :] = np.array([x, y, z, oc])
+
+                    if mat.aniU:
+                        mat.calcBetaij()
+                    if updated_lp:
+                        mat._calcrmt()
+
+                if updated_lp:
+                    self.calctth()
+
+                if updated_lp or self.updated_atominfo:
+                    self.calcsf()
 
     @property
     def U(self):
@@ -4891,6 +4829,7 @@ class Rietveld:
         self._scale = value
         return
 
+
 def _generate_default_parameters_Rietveld(mat):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
@@ -4899,19 +4838,22 @@ def _generate_default_parameters_Rietveld(mat):
     single instance of material class
     """
     params = Parameters()
-    names = ["U", "V", "W", \
-             "X", "Y", "zero_error"]
+    names = ["U", "V", "W", "X",
+    "Y", "scale", "zero_error"]
     values = 5*[1e-3]
     values.append(0.)
-    lbs = 5*[0.]
+    values.append(1.)
+    lbs = 6*[0.]
     lbs.append(-1.)
-    ubs = 6*[1.]
-    varies = 6*[False]
+    ubs = 5*[1.]
+    ubs.append(1e3)
+    ubs.append(1.)
+    varies = 7*[False]
 
     params.add_many(names, values=values,
-                        varies=varies, lbs=lbs, ubs=ubs)
+                    varies=varies, lbs=lbs, ubs=ubs)
 
-    if isinstance(mat, Phases_LeBail):
+    if isinstance(mat, Phases_Rietveld):
         """
         phase file
         """
@@ -4931,7 +4873,7 @@ def _generate_default_parameters_Rietveld(mat):
         a list of materials class
         """
         for m in mat:
-            _add_atominfo_to_params(params, mat)
+            _add_atominfo_to_params(params, m)
 
     elif isinstance(mat, dict):
         """
@@ -4948,29 +4890,87 @@ def _generate_default_parameters_Rietveld(mat):
 
     return params
 
+
 def _add_atominfo_to_params(params, mat):
     """
     03/12/2021 SS 1.0 original
     given a material, add the required
-    lattice parameters
+    lattice parameters, atom positions,
+    occupancy, DW factors etc.
     """
+
     lp = np.array(mat.lparms)
     rid = list(_rqpDict[mat.latticeType][0])
+
     lp = lp[rid]
     name = _lpname[rid]
+
     phase_name = mat.name
+
     for n, l in zip(name, lp):
-        nn = phase_name+'_'+n
+        nn = f"{phase_name}_{n}"
         """
-        is n is a,b,c, it is one of the length units
+        is l is small, it is one of the length units
         else it is an angle
         """
-        if(n in ['a','b','c']):
+        if(n in ['a', 'b', 'c']):
             params.add(nn, value=l, lb=l-0.05,
-                       ub=l+0.05, vary=True)
+                       ub=l+0.05, vary=False)
         else:
             params.add(nn, value=l, lb=l-1.,
-                       ub=l+1., vary=True)
+                       ub=l+1., vary=False)
+
+    atom_pos = mat.atom_pos[:, 0:3]
+    occ = mat.atom_pos[:, 3]
+    atom_type = mat.atom_type
+
+    atom_label = _getnumber(atom_type)
+
+    for i in range(atom_type.shape[0]):
+
+        Z = atom_type[i]
+        elem = constants.ptableinverse[Z]
+
+        nn = f"{phase_name}_{elem}{atom_label[i]}_x"
+        params.add(
+            nn, value=atom_pos[i, 0],
+            lb=0.0, ub=1.0,
+            vary=False)
+
+        nn = f"{phase_name}_{elem}{atom_label[i]}_y"
+        params.add(
+            nn, value=atom_pos[i, 1],
+            lb=0.0, ub=1.0,
+            vary=False)
+
+        nn = f"{phase_name}_{elem}{atom_label[i]}_z"
+        params.add(
+            nn, value=atom_pos[i, 2],
+            lb=0.0, ub=1.0,
+            vary=False)
+
+        nn = f"{phase_name}_{elem}{atom_label[i]}_occ"
+        params.add(nn, value=occ[i],
+                   lb=0.0, ub=1.0,
+                   vary=False)
+
+        if(mat.aniU):
+            U = mat.U
+            for j in range(6):
+                nn = f"{phase_name}_{elem}{atom_label[i]}"
+                "_{nameU[j]}"
+                params.add(
+                    nn, value=U[i, j],
+                    lb=-1e-3,
+                    ub=np.inf,
+                    vary=False)
+        else:
+            nn = f"{phase_name}_{elem}{atom_label[i]}_dw"
+            params.add(
+                nn, value=mat.U[i],
+                lb=0.0, ub=np.inf,
+                vary=False)
+
 
 def separate_regions(masked_spec_array):
     """

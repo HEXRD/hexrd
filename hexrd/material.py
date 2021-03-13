@@ -529,6 +529,22 @@ class Material(object):
     def latticeType(self):
         return self.unitcell.latticeType
 
+    @property
+    def atom_pos(self):
+        return self.unitcell.atom_pos
+    
+    @property
+    def atom_type(self):
+        return self.unitcell.atom_type
+
+    @property
+    def aniU(self):
+        return self.unitcell.aniU
+
+    @property
+    def U(self):
+        return self.unitcell.U
+    
     # property:  sgnum
 
     def _get_sgnum(self):
