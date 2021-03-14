@@ -295,7 +295,7 @@ if ct.USE_NUMBA:
     def _solid_angle_of_triangle(vtx_list):
         norms = np.sqrt(np.sum(vtx_list*vtx_list, axis=1))
         norms_prod = norms[0] * norms[1] * norms[2]
-        scalar_triple_procuct = np.dot(vtx_list[0],
+        scalar_triple_product = np.dot(vtx_list[0],
                                        np.cross(vtx_list[2], vtx_list[1]))
         denominator = norms_prod \
             + norms[0]*np.dot(vtx_list[1], vtx_list[2]) \
@@ -307,7 +307,7 @@ else:
     def _solid_angle_of_triangle(vtx_list):
         norms = rowNorm(vtx_list)
         norms_prod = np.cumprod(norms)[-1]
-        scalar_triple_procuct = np.dot(vtx_list[0],
+        scalar_triple_product = np.dot(vtx_list[0],
                                        np.cross(vtx_list[2], vtx_list[1]))
         denominator = norms_prod \
             + norms[0]*np.dot(vtx_list[1], vtx_list[2]) \
