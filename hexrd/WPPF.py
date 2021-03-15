@@ -4265,7 +4265,6 @@ class Rietveld:
             yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),
                                         w=ww, numiter=numiter))
             self.background = Spectrum(x=self.tth_list, y=yy)
-
             # self._background = []
             # for i, s in enumerate(self._spectrum_expt):
             #     ww = np.rint(self.bkgmethod['snip1d'][0] /
