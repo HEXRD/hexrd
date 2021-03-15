@@ -2760,13 +2760,12 @@ def extract_intensities(polar_view,
 
     non_zeros_index = []
     for i in range(polar_view.shape[0]):
-        mask = ~polar_view.mask[i, :]
+        d = polar_view[i, :]
         # make sure that there is atleast one nonzero pixel
 
-        if np.sum(mask) > 1:
-            d = polar_view[i, :][mask].data
+        if np.sum(~d.mask) > 1:
             d = d - d.min()
-            data = np.array([tth_array[mask], d]).T
+            data = np.ma.stack((tth_array,d)).T
             data_inp_list.append(data)
             non_zeros_index.append(i)
 
