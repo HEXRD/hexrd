@@ -2356,7 +2356,7 @@ class LeBail:
             for tmi, tma, nth in zip(self.tth_min,
                                      self.tth_max,
                                      self.ntth):
-                if(ntth > 1):
+                if(nth > 1):
                     self.tth_step.append((tma - tmi)/nth)
                 else:
                     self.tth_step.append([0.])
@@ -2770,7 +2770,7 @@ def extract_intensities(polar_view,
         # make sure that there is atleast one nonzero pixel
 
         if np.sum(~d.mask) > 1:
-            d = d - d.min()
+            # d = d - d.min()
             data = np.ma.stack((tth_array,d)).T
             data_inp_list.append(data)
             non_zeros_index.append(i)
