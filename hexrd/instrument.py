@@ -45,7 +45,7 @@ from io import IOBase
 from scipy import ndimage
 from scipy.linalg.matfuncs import logm
 
-from hexrd.gridutil import cellIndices, make_tolerance_grid
+from hexrd.gridutil import cellConnectivity, cellIndices, make_tolerance_grid
 from hexrd import matrixutil as mutil
 from hexrd.transforms.xfcapi import \
     anglesToGVec, \
@@ -76,6 +76,9 @@ try:
 except(ImportError):
     from numpy import histogram as histogram1d
     fast_histogram = False
+
+if ct.USE_NUMBA:
+    import numba
 
 # =============================================================================
 # PARAMETERS
@@ -285,6 +288,33 @@ def _sigma_to_fwhm(sigm):
 def _fwhm_to_sigma(fwhm):
     return fwhm/ct.sigma_to_fwhm
 
+
+# FIXME find a better place for this, and maybe include loop over pixels
+if ct.USE_NUMBA:
+    @numba.njit
+    def _solid_angle_of_triangle(vtx_list):
+        norms = np.sqrt(np.sum(vtx_list*vtx_list, axis=1))
+        norms_prod = norms[0] * norms[1] * norms[2]
+        scalar_triple_product = np.dot(vtx_list[0],
+                                       np.cross(vtx_list[2], vtx_list[1]))
+        denominator = norms_prod \
+            + norms[0]*np.dot(vtx_list[1], vtx_list[2]) \
+            + norms[1]*np.dot(vtx_list[2], vtx_list[0]) \
+            + norms[2]*np.dot(vtx_list[0], vtx_list[1])
+
+        return 2.*np.arctan2(scalar_triple_procuct, denominator)
+else:
+    def _solid_angle_of_triangle(vtx_list):
+        norms = rowNorm(vtx_list)
+        norms_prod = np.cumprod(norms)[-1]
+        scalar_triple_product = np.dot(vtx_list[0],
+                                       np.cross(vtx_list[2], vtx_list[1]))
+        denominator = norms_prod \
+            + norms[0]*np.dot(vtx_list[1], vtx_list[2]) \
+            + norms[1]*np.dot(vtx_list[2], vtx_list[0]) \
+            + norms[2]*np.dot(vtx_list[0], vtx_list[1])
+
+        return 2.*np.arctan2(scalar_triple_procuct, denominator)
 
 # =============================================================================
 # CLASSES
@@ -1169,8 +1199,10 @@ class HEDMInstrument(object):
 
         expt = np.vstack([tth, np.ones_like(tth)]).T
 
-        wavelength = [valWUnit('lp', 'length',
-                              self.beam_wavelength, 'angstrom'), 1.0]
+        wavelength = [
+            valWUnit('lp', 'length', self.beam_wavelength, 'angstrom'),
+            1.
+        ]
 
         '''
         now go through the material list and get the intensity dictionary
@@ -2074,6 +2106,31 @@ class PlanarDetector(object):
             self.row_pixel_vec, self.col_pixel_vec,
             indexing='ij')
         return pix_i, pix_j
+
+    @property
+    def pixel_solid_angles(self):
+        nvtx = len(self.row_edge_vec) * len(self.col_edge_vec)
+        # pixel vertex coords
+        pvy, pvx = np.meshgrid(self.row_edge_vec, self.col_edge_vec,
+                               indexing='ij')
+        # add Z_d coord and transform to lab frame
+        pcrd_array_full = np.dot(
+            np.vstack([pvx.flatten(), pvy.flatten(), np.zeros(nvtx)]).T,
+            self.rmat.T
+        ) + self.tvec
+
+        # connectivity array for pixels
+        conn = cellConnectivity(self.rows, self.cols)
+
+        # loop
+        solid_angs = np.empty(len(conn), dtype=float)
+        for ipix, pix_conn in enumerate(conn):
+            # [0, 1, 2], [2, 3, 0]
+            vtx_list = pcrd_array_full[pix_conn, :]
+            solid_angs[ipix] = \
+                _solid_angle_of_triangle(vtx_list[[0, 1, 2], :]) \
+                + _solid_angle_of_triangle(vtx_list[[2, 3, 0], :])
+        return solid_angs.reshape(self.rows, self.cols)
 
     @property
     def calibration_parameters(self):
