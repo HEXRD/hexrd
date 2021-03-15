@@ -63,7 +63,19 @@ class ProcessedImageSeries(ImageSeries):
     def _subtract_dark(self, img, dark):
         # need to check for values below zero
         # !!! careful, truncation going on here;necessary to promote dtype?
-        return np.where(img > dark, img - dark, 0)
+
+        # This has been performance tested with the following:
+        # 1. return np.where(img > dark, img - dark, 0)
+        # 2. return np.clip(img - dark, a_min=0, a_max=None)
+        # 3. return (img - dark).clip(min=0)
+        # 4. ret = img - dark
+        #    ret[ret < 0] = 0
+        #    return ret
+        # Method 1 was the slowest, and method 4 was the fastest, perhaps
+        # because it creates fewer copies of the data.
+        ret = img - dark
+        ret[ret < 0] = 0
+        return ret
 
     def _rectangle(self, img, r):
         # restrict to rectangle

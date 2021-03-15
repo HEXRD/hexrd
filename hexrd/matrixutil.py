@@ -852,7 +852,7 @@ def symmToVecds(A):
 
 
 if USE_NUMBA:
-    @numba.njit
+    @numba.njit(cache=True, nogil=True)
     def extract_ijv(in_array, threshold, out_i, out_j, out_v):
         n = 0
         w, h = in_array.shape

@@ -12,6 +12,7 @@ import scipy.cluster as cluster
 from scipy import ndimage
 
 from skimage.feature import blob_dog, blob_log
+from skimage.exposure import rescale_intensity
 
 from hexrd import constants as const
 from hexrd import matrixutil as mutil
@@ -36,6 +37,7 @@ except ImportError:
 
 save_as_ascii = False  # FIXME LATER...
 fwhm_to_stdev = 1./np.sqrt(8*np.log(2))
+filter_stdev_DFLT = 1.0
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +56,65 @@ def _process_omegas(omegaimageseries_dict):
         for i in oims.omegawedges.wedges
     ]
     return ome_period, ome_ranges
+
+
+def clean_map(this_map):
+    # !!! need to remove NaNs from map in case of eta gaps
+    # !!! doing offset and truncation by median value now
+    nan_mask = np.isnan(this_map)
+    med_val = np.median(this_map[~nan_mask])
+    this_map[nan_mask] = med_val
+    this_map[this_map <= med_val] = med_val
+    this_map -= np.min(this_map)
+
+
+def label_spots(this_map, method, method_kwargs):
+    if method == 'label':
+        # labeling mask
+        structureNDI_label = ndimage.generate_binary_structure(2, 1)
+
+        # First apply filter if specified
+        filter_fwhm = method_kwargs['filter_radius']
+        if filter_fwhm:
+            filt_stdev = fwhm_to_stdev * filter_fwhm
+            this_map = -ndimage.filters.gaussian_laplace(
+                this_map, filt_stdev
+            )
+
+        labels_t, numSpots_t = ndimage.label(
+            this_map > method_kwargs['threshold'],
+            structureNDI_label
+            )
+        coms_t = np.atleast_2d(
+            ndimage.center_of_mass(
+                this_map,
+                labels=labels_t,
+                index=np.arange(1, np.amax(labels_t) + 1)
+                )
+            )
+    elif method in ['blob_log', 'blob_dog']:
+        # must scale map
+        # TODO: we should so a parameter study here
+        scl_map = rescale_intensity(this_map, out_range=(-1, 1))
+
+        # TODO: Currently the method kwargs must be explicitly specified
+        #       in the config, and there are no checks
+        # for 'blob_log': min_sigma=0.5, max_sigma=5,
+        #                 num_sigma=10, threshold=0.01, overlap=0.1
+        # for 'blob_dog': min_sigma=0.5, max_sigma=5,
+        #                 sigma_ratio=1.6, threshold=0.01, overlap=0.1
+        if method == 'blob_log':
+            blobs = np.atleast_2d(
+                blob_log(scl_map, **method_kwargs)
+            )
+        else:  # blob_dog
+            blobs = np.atleast_2d(
+                blob_dog(scl_map, **method_kwargs)
+            )
+        numSpots_t = len(blobs)
+        coms_t = blobs[:, :2]
+
+    return numSpots_t, coms_t
 
 
 def generate_orientation_fibers(cfg, eta_ome):
@@ -84,9 +145,6 @@ def generate_orientation_fibers(cfg, eta_ome):
     del_ome = eta_ome.omegas[1] - eta_ome.omegas[0]
     del_eta = eta_ome.etas[1] - eta_ome.etas[0]
 
-    # labeling mask
-    structureNDI_label = ndimage.generate_binary_structure(2, 1)
-
     # crystallography data from the pd object
     pd = eta_ome.planeData
     hkls = pd.hkls
@@ -104,56 +162,16 @@ def generate_orientation_fibers(cfg, eta_ome):
     # Labeling of spots from seed hkls
     # =========================================================================
 
-    qfib = []
-    input_p = []
     numSpots = []
     coms = []
     for i in seed_hkl_ids:
-        if method == 'label':
-            # First apply filter
-            filt_stdev = fwhm_to_stdev * method_kwargs['filter_radius']
-            this_map_f = -ndimage.filters.gaussian_laplace(
-                eta_ome.dataStore[i], filt_stdev)
-
-            labels_t, numSpots_t = ndimage.label(
-                this_map_f > method_kwargs['threshold'],
-                structureNDI_label
-                )
-            coms_t = np.atleast_2d(
-                ndimage.center_of_mass(
-                    this_map_f,
-                    labels=labels_t,
-                    index=np.arange(1, np.amax(labels_t) + 1)
-                    )
-                )
-        elif method in ['blob_log', 'blob_dog']:
-            # must scale map
-            # TODO: we should so a parameter study here
-            this_map = eta_ome.dataStore[i]
-            this_map[np.isnan(this_map)] = 0.
-            this_map -= np.min(this_map)
-            scl_map = 2*this_map/np.max(this_map) - 1.
-
-            # TODO: Currently the method kwargs must be explicitly specified
-            #       in the config, and there are no checks
-            # for 'blob_log': min_sigma=0.5, max_sigma=5,
-            #                 num_sigma=10, threshold=0.01, overlap=0.1
-            # for 'blob_dog': min_sigma=0.5, max_sigma=5,
-            #                 sigma_ratio=1.6, threshold=0.01, overlap=0.1
-            if method == 'blob_log':
-                blobs = np.atleast_2d(
-                    blob_log(scl_map, **method_kwargs)
-                )
-            else:  # blob_dog
-                blobs = np.atleast_2d(
-                    blob_dog(scl_map, **method_kwargs)
-                )
-            numSpots_t = len(blobs)
-            coms_t = blobs[:, :2]
+        this_map = eta_ome.dataStore[i]
+        clean_map(this_map)
+        numSpots_t, coms_t = label_spots(this_map, method, method_kwargs)
         numSpots.append(numSpots_t)
         coms.append(coms_t)
-        pass
 
+    input_p = []
     for i in range(len(pd_hkl_ids)):
         for ispot in range(numSpots[i]):
             if not np.isnan(coms[i][ispot][0]):
@@ -479,6 +497,23 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
         return generate_eta_ome_maps(cfg, hkls=hkls)
 
 
+def filter_maps_if_requested(eta_ome, cfg):
+    # filter if requested
+    filter_maps = cfg.find_orientations.orientation_maps.filter_maps
+    # !!! current logic:
+    #  if False/None don't do anything
+    #  if True, only do median subtraction
+    #  if scalar, do median + LoG filter with that many pixels std dev
+    if filter_maps:
+        if not isinstance(filter_maps, bool):
+            logger.info("filtering eta/ome maps incl LoG with %.2f std dev",
+                        filter_maps)
+            _filter_eta_ome_maps(eta_ome, filter_stdev=filter_maps)
+        else:
+            logger.info("filtering eta/ome maps", filter_maps)
+            _filter_eta_ome_maps(eta_ome)
+
+
 def generate_eta_ome_maps(cfg, hkls=None, save=True):
     """
     Generates the eta-omega maps specified in the input config.
@@ -543,6 +578,43 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
         logger.info('saved eta/ome orientation maps to "%s"', fn)
 
     return eta_ome
+
+
+def _filter_eta_ome_maps(eta_ome, filter_stdev=False):
+    """
+    Apply median and gauss-laplace filtering to remove streak artifacts.
+
+    Parameters
+    ----------
+    eta_ome : TYPE
+        DESCRIPTION.
+    filter_stdev : TYPE, optional
+        DESCRIPTION. The default is 1.
+
+    Returns
+    -------
+    eta_ome : TYPE
+        DESCRIPTION.
+
+    """
+    gl_filter = ndimage.filters.gaussian_laplace
+    for i, pf in enumerate(eta_ome.dataStore):
+        # first compoute row-wise median over omega channel
+        ome_median = np.tile(np.median(pf, axis=0), (len(pf), 1))
+
+        # subtract
+        # !!! this changes the reference obj, but fitlering does not
+        pf -= ome_median
+
+        # filter
+        # !!! False/None: only row median subtraction
+        #     True: use default
+        #     scalar: stdev for filter in pixels
+        # ??? simplify this behavior
+        if filter_stdev:
+            if isinstance(filter_stdev, bool):
+                filter_stdev = filter_stdev_DFLT
+            pf[:] = -gl_filter(pf, filter_stdev)
 
 
 def create_clustering_parameters(cfg, eta_ome):
@@ -702,6 +774,7 @@ def find_orientations(cfg,
             # need maps
             eta_ome = load_eta_ome_maps(cfg, plane_data, imsd,
                                         hkls=hkls, clean=clean)
+            filter_maps_if_requested(eta_ome, cfg)
 
             # generate trial orientations
             qfib = generate_orientation_fibers(cfg, eta_ome)
@@ -735,6 +808,7 @@ def find_orientations(cfg,
         # handle eta-ome maps
         eta_ome = load_eta_ome_maps(cfg, plane_data, imsd,
                                     hkls=hkls, clean=clean)
+        filter_maps_if_requested(eta_ome, cfg)
 
         # handle search space
         if cfg.find_orientations.use_quaternion_grid is None:

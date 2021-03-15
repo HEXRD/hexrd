@@ -10,22 +10,24 @@ install_reqs = [
     'fabio',
     'fast-histogram',
     'h5py',
-    'psutil',
-    'scipy',
-    'pycifrw',
     'lmfit',
     'numba',
+    'numpy',
     'psutil',
+    'pycifrw',
     'pyyaml',
-    'scikit-learn'
+    'scikit-learn',
+    'scipy',
 ]
 
 # This a hack to get around the fact that scikit-image on conda-forge doesn't install
 # dist info so setuptools can't find it, even though its there, which results in
 # pkg_resources.DistributionNotFound, even though the package is available. So we
 # only added it if we aren't building with conda.
+# appdirs has the same issue.
 if os.environ.get('CONDA_BUILD') != '1':
     install_reqs.append('scikit-image')
+    install_reqs.append('appdirs')
 
 
 # extension for convolution from astropy
@@ -81,7 +83,6 @@ entry_points = {
 
 setup(
     name='hexrd',
-    setup_requires=['setuptools-scm'],
     use_scm_version=True,
     description = 'hexrd X-ray diffraction data analysis tool',
     long_description = open('README.md').read(),

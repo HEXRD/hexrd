@@ -1,7 +1,10 @@
 """Write imageseries to various formats"""
 
 import abc
+from concurrent.futures import ThreadPoolExecutor
+import multiprocessing
 import os
+import threading
 import warnings
 
 import numpy as np
@@ -167,6 +170,7 @@ class WriteFrameCache(Writer):
             cdir = os.path.dirname(fname)
             self._cache = os.path.join(cdir, cf)
         self._cachename = cf
+        self.max_workers = kwargs.get('max_workers', None)
 
     def _process_meta(self, save_omegas=False):
         d = {}
@@ -199,12 +203,28 @@ class WriteFrameCache(Writer):
     def _write_frames(self):
         """also save shape array as originally done (before yaml)"""
         buff_size = self._ims.shape[0]*self._ims.shape[1]
-        rows = np.empty(buff_size, dtype=np.uint16)
-        cols = np.empty(buff_size, dtype=np.uint16)
-        vals = np.empty(buff_size, dtype=self._ims.dtype)
-        arrd = dict()
-        for i in range(len(self._ims)):
-            # ???: make it so we can use emumerate on self._ims?
+        arrd = {}
+
+        ncpus = multiprocessing.cpu_count()
+        max_workers = ncpus if self.max_workers is None else self.max_workers
+        num_workers = min(max_workers, len(self._ims))
+
+        row_buffers = np.empty((num_workers, buff_size), dtype=np.uint16)
+        col_buffers = np.empty((num_workers, buff_size), dtype=np.uint16)
+        val_buffers = np.empty((num_workers, buff_size), dtype=self._ims.dtype)
+        buffer_ids = {}
+        assign_buffer_lock = threading.Lock()
+
+        def assign_buffer_id():
+            with assign_buffer_lock:
+                buffer_ids[threading.get_ident()] = len(buffer_ids)
+
+        def extract_data(i):
+            buffer_id = buffer_ids[threading.get_ident()]
+            rows = row_buffers[buffer_id]
+            cols = col_buffers[buffer_id]
+            vals = val_buffers[buffer_id]
+
             # FIXME: in __init__() of ProcessedImageSeries:
             # 'ProcessedImageSeries' object has no attribute '_adapter'
 
@@ -223,10 +243,18 @@ class WriteFrameCache(Writer):
                 msg = "frame %d is %4.2f%% sparse (cutoff is 95%%)" \
                     % (i, sparseness)
                 warnings.warn(msg)
-            arrd['%d_row' % i] = rows[:count].copy()
-            arrd['%d_col' % i] = cols[:count].copy()
-            arrd['%d_data' % i] = vals[:count].copy()
-            pass
+
+            arrd[f'{i}_row'] = rows[:count].copy()
+            arrd[f'{i}_col'] = cols[:count].copy()
+            arrd[f'{i}_data'] = vals[:count].copy()
+
+        kwargs = {
+            'max_workers': num_workers,
+            'initializer': assign_buffer_id,
+        }
+        with ThreadPoolExecutor(**kwargs) as executor:
+            executor.map(extract_data, range(len(self._ims)))
+
         arrd['shape'] = self._ims.shape
         arrd['nframes'] = len(self._ims)
         arrd['dtype'] = str(self._ims.dtype).encode()

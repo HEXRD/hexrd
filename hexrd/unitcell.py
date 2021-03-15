@@ -12,6 +12,7 @@ import time
 
 eps = constants.sqrt_epsf
 
+
 class unitcell:
 
     '''
@@ -32,7 +33,6 @@ class unitcell:
         self._tstart = time.time()
         self.pref = 0.4178214
 
-        self.atom_ntype = atomtypes.shape[0]
         self.atom_type = atomtypes
         self.atom_pos = atominfo
         self.U = U
@@ -183,7 +183,7 @@ class unitcell:
         self._dsm = np.array([[a, b*cg, c*cb],
                               [0., b*sg, -c*(cb*cg - ca)/sg],
                               [0., 0., self.vol/(a*b*sg)]])
-        
+
         self._dsm[np.abs(self._dsm) < eps] = 0.
 
         '''
@@ -469,7 +469,7 @@ class unitcell:
         not be rotated as they have the c* axis already aligned with the z-axis
         SS 12/10/2020
         '''
-        if(self.latticeType == 'monoclinic'): 
+        if(self.latticeType == 'monoclinic'):
 
             om = np.array([[1., 0., 0.], [0., 0., 1.], [0., -1., 0.]])
 
@@ -497,12 +497,58 @@ class unitcell:
                 ss = np.dot(om, np.dot(s, om.T))
                 self.SYM_PG_supergroup_laue[i, :, :] = ss
 
-    def CalcOrbit(self):
-        '''
-        calculate the equivalent position for the space group
-        symmetry
-        '''
-        pass
+    def CalcOrbit(self, v, reduceToUC=True):
+        """
+        @date 03/04/2021 SS 1.0 original 
+
+        @details calculate the equivalent position for the 
+        space group symmetry. this function will replace the
+        code in the CalcPositions subroutine.
+
+        @params v is the factional coordinates in direct space
+                reduceToUC reduces the position to the
+                fundamental fractional unit cell (0-1)
+        """
+
+        asym_pos = []
+        n = 1
+        if v.shape[0] != 3:
+            raise RuntimeError("fractional coordinate in not 3-d")
+        r = v
+        # using wigner-sietz notation
+        r = np.hstack((r, 1.))
+
+        asym_pos = np.broadcast_to(r[0:3], [1, 3])
+
+        for symmat in self.SYM_SG:
+            # get new position
+            rnew = np.dot(symmat, r)
+            rr = rnew[0:3]
+
+            if reduceToUC:
+                # reduce to fundamental unitcell with fractional
+                # coordinates between 0-1
+                rr = np.modf(rr)[0]
+                rr[rr < 0.] += 1.
+                rr[np.abs(rr) < 1.0E-6] = 0.
+
+            # check if this is new
+            isnew = True
+            for j in range(n):
+                v = rr - asym_pos[j]
+                dist = self.CalcLength(v, 'd')
+                if dist < 1E-3:
+                    isnew = False
+                    break
+
+            # if its new add this to the list
+            if(isnew):
+                asym_pos = np.vstack((asym_pos, rr))
+                n += 1
+
+        numat = n
+
+        return asym_pos, numat
 
     def CalcStar(self, v, space, applyLaue=False):
         '''
@@ -528,8 +574,9 @@ class unitcell:
             # check if this is new
             isnew = True
             for vec in vsym:
-
-                if(np.sum(np.abs(vp - vec)) < 1E-4):
+                vv = vp - vec
+                dist = self.CalcLength(vv, space)
+                if dist < 1E-3:
                     isnew = False
                     break
             if(isnew):
@@ -545,42 +592,82 @@ class unitcell:
         numat = []
         asym_pos = []
 
-        # using the wigner-seitz notation
         for i in range(self.atom_ntype):
 
-            n = 1
-            r = self.atom_pos[i, 0:3]
-            r = np.hstack((r, 1.))
+            v = self.atom_pos[i, 0:3]
+            apos, n = self.CalcOrbit(v)
 
-            asym_pos.append(np.broadcast_to(r[0:3], [1, 3]))
-
-            for symmat in self.SYM_SG:
-                # get new position
-                rnew = np.dot(symmat, r)
-
-                # reduce to fundamental unitcell with fractional
-                # coordinates between 0-1
-                rr = rnew[0:3]
-                rr = np.modf(rr)[0]
-                rr[rr < 0.] += 1.
-                rr[np.abs(rr) < 1.0E-6] = 0.
-
-                # check if this is new
-                isnew = True
-                for j in range(n):
-                    if(np.sum(np.abs(rr - asym_pos[i][j, :])) < 1E-4):
-                        isnew = False
-                        break
-
-                # if its new add this to the list
-                if(isnew):
-                    asym_pos[i] = np.vstack((asym_pos[i], rr))
-                    n += 1
-
+            asym_pos.append(apos)
             numat.append(n)
 
         self.numat = np.array(numat)
         self.asym_pos = asym_pos
+
+    def remove_duplicate_atoms(self,
+                               atom_pos=None,
+                               tol=1e-3):
+        """
+        @date 03/04/2021 SS 1.0 original
+
+        @details it was requested that a functionality be 
+        added which can remove duplicate atoms from the 
+        atom_pos field such that no two atoms are closer that
+        the distance specified by "tol" (lets assume its in A)
+        steps involved are as follows:
+        1. get the star (or orbit) oe each point in atom_pos
+        2. if any points in the orbits are within tol, then
+        remove the second point (the first point will be 
+        preserved by convention)
+        3. update the densities, interptables for structure factors 
+        etc.
+
+        @params tol tolerance of distance between points specified
+        in A
+        """
+
+        if atom_pos is None:
+            atom_pos = self.atom_pos
+
+        atom_pos_fixed = []
+
+        """
+        go through the atom_pos and remove the atoms that are duplicate
+        """
+        for i in range(atom_pos.shape[0]):
+            pos = atom_pos[i, 0:3]
+            occ = atom_pos[i, 3]
+
+            v1, n1 = self.CalcOrbit(pos)
+
+            for j in range(i+1, atom_pos.shape[0]):
+                isclose = False
+                atom_pos_fixed.append(np.hstack([pos, occ]))
+                pos = atom_pos[j, 0:3]
+                occ = atom_pos[j, 3]
+                v2, n2 = self.CalcOrbit(pos)
+
+                for v in v2:
+                    vv = np.tile(v, [v1.shape[0], 1])
+                    vv = vv - v1
+
+                    for vvv in vv:
+
+                        # check if distance less than tol
+                        # the factor of 10 is for A --> nm
+                        if self.CalcLength(vvv, 'd') < tol/10.:
+                            # if true then its a repeated atom
+                            isclose = True
+                            break
+
+                    if isclose:
+                        break
+
+                if isclose:
+                    break
+                else:
+                    atom_pos_fixed.append(np.hstack([pos, occ]))
+
+        return np.array(atom_pos_fixed)
 
     def CalcDensity(self):
         '''
@@ -621,12 +708,12 @@ class unitcell:
             np.array([self.ih, 0, 0],
                      dtype=np.float64), 'r') > self.dmin):
             self.ih = self.ih + 1
-            
+
         while (1.0 / self.CalcLength(
             np.array([0, self.ik, 0],
                      dtype=np.float64), 'r') > self.dmin):
             self.ik = self.ik + 1
-            
+
         while (1.0 / self.CalcLength(
             np.array([0, 0, self.il],
                      dtype=np.float64), 'r') > self.dmin):
@@ -805,7 +892,7 @@ class unitcell:
 
                     'omitscrewaxisabsences: monoclinic\
                      systems can only have 2_1 screw axis.')
-                
+
             '''
                 only unique b-axis will be encoded
                 it is the users responsibility to input
@@ -886,7 +973,6 @@ class unitcell:
                     'omitscrewaxisabsences: trigonal\
                      systems can only have screw axis on primary axis ')
 
-
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
 
@@ -898,7 +984,7 @@ class unitcell:
                 if(ax == '6_3'):
                     mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
 
-                elif(ax in['3_1', '3_2', '6_2', '6_4']):
+                elif(ax in ['3_1', '3_2', '6_2', '6_4']):
                     mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
 
                 elif(ax in ['6_1', '6_5']):
@@ -907,7 +993,6 @@ class unitcell:
                 raise RuntimeError(
                     'omitscrewaxisabsences: hexagonal\
                      systems can only have screw axis on primary axis ')
-
 
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
@@ -1394,9 +1479,10 @@ class unitcell:
 
     def MakeStiffnessMatrix(self, inp_Cvals):
         if(len(inp_Cvals) != len(_StiffnessDict[self._laueGroup][0])):
-            raise IOError('number of constants entered is not correct.\
-            need a total of ', len(_StiffnessDict[self._laueGroup][0]),
-                          'independent constants')
+            x = len(_StiffnessDict[self._laueGroup][0])
+            msg = (f"number of constants entered is not correct."
+                   f" need a total of {x} independent constants.")
+            raise IOError(msg)
 
         # initialize all zeros and fill the supplied values
         C = np.zeros([6, 6])
@@ -1535,7 +1621,8 @@ class unitcell:
                 dir3n = dir3/np.tile(np.linalg.norm(dir3, axis=1), [3, 1]).T
             else:
                 raise RuntimeError(
-                    "atleast one of the input direction seems to be a null vector")
+                    "atleast one of the input direction seems \
+                    to be a null vector")
 
         '''
         we need both the symmetry reductions for the point group and laue group
@@ -1648,7 +1735,10 @@ class unitcell:
         rgb = colorspace.hsl2rgb(hsl)
         return rgb
 
-    def color_orientations(self, rmats, ref_dir=np.array([0., 0., 1.]), laueswitch=True):
+    def color_orientations(self,
+                           rmats,
+                           ref_dir=np.array([0., 0., 1.]),
+                           laueswitch=True):
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    11/12/2020 SS 1.0 original
@@ -1704,8 +1794,8 @@ class unitcell:
         # Compliance in TPa⁻¹. Stiffness is in GPa.
         self.stiffness = np.linalg.inv(v) * 1.e3
 
-
     # lattice constants as properties
+
     @property
     def a(self):
         return self._a
@@ -1892,17 +1982,43 @@ class unitcell:
 
     @atom_pos.setter
     def atom_pos(self, val):
+        """
+        SS 03/08/2021 fixing some issues with
+        updating asymmetric positions after 
+        updating atominfo
+        fixing 
+        """
+        if hasattr(self, 'atom_type'):
+            if self.atom_ntype != val.shape[0]:
+                msg = (f"incorrect number of atom positions."
+                       f" number of atom type = {self.atom_ntype} "
+                       f" and number of"
+                       f" atom positions = {val.shape[0]}.")
+                raise ValueError(msg)
+
         self._atom_pos = val
+        """
+        update only if its not the first time
+        """
+        if hasattr(self, 'asym_pos'):
+            self.CalcPositions()
+
+        if hasattr(self, 'density'):
+            self.CalcDensity()
 
     @property
-    def B_factor(self):
-        return self._atom_pos[:, 4]
+    def atom_ntype(self):
+        return self.atom_type.shape[0]
 
-    @B_factor.setter
-    def B_factor(self, val):
-        if (val.shape[0] != self.atom_ntype):
-            raise ValueError('Incorrect shape for B factor')
-        self._atom_pos[:, 4] = val
+    # @property
+    # def B_factor(self):
+    #     return self._atom_pos[:, 4]
+
+    # @B_factor.setter
+    # def B_factor(self, val):
+    #     if (val.shape[0] != self.atom_ntype):
+    #         raise ValueError('Incorrect shape for B factor')
+    #     self._atom_pos[:, 4] = val
 
     # asymmetric positions in unit cell
     @property
@@ -1952,8 +2068,17 @@ class unitcell:
         return self._rsm
 
     @property
+    def num_atom(self):
+        return np.sum(self.numat)
+
+    @property
     def vol(self):
         return self._vol
+
+    @property
+    def vol_per_atom(self):
+        # vol per atom in A^3
+        return 1e3*self.vol/self.num_atom
 
 
 _rqpDict = {
@@ -2006,43 +2131,77 @@ supergroup_11 = 'oh'
 
 def _sgrange(min, max): return tuple(range(min, max + 1))  # inclusive range
 
+
 '''
 11/20/2020 SS added supergroup to the list which is used
 for coloring the fundamental zone IPF
 '''
 _pgDict = {
-    _sgrange(1,   1): ('c1', laue_1, supergroup_1, supergroup_00),  # Triclinic
-    _sgrange(2,   2): ('ci', laue_1, supergroup_00, supergroup_00),  # laue 1
-    _sgrange(3,   5): ('c2', laue_2, supergroup_2, supergroup_3),  # Monoclinic
-    _sgrange(6,   9): ('cs', laue_2, supergroup_1, supergroup_3),
-    _sgrange(10,  15): ('c2h', laue_2, supergroup_3, supergroup_3),  # laue 2
-    _sgrange(16,  24): ('d2', laue_3, supergroup_3, supergroup_3),  # Orthorhombic
-    _sgrange(25,  46): ('c2v', laue_3, supergroup_2, supergroup_3),
-    _sgrange(47,  74): ('d2h', laue_3, supergroup_3, supergroup_3),  # laue 3
-    _sgrange(75,  80): ('c4', laue_4, supergroup_4, supergroup_5),  # Tetragonal
-    _sgrange(81,  82): ('s4', laue_4, supergroup_01, supergroup_5),
-    _sgrange(83,  88): ('c4h', laue_4, supergroup_5, supergroup_5),  # laue 4
-    _sgrange(89,  98): ('d4', laue_5, supergroup_5, supergroup_5),
-    _sgrange(99, 110): ('c4v', laue_5, supergroup_4, supergroup_5),
-    _sgrange(111, 122): ('d2d', laue_5, supergroup_5, supergroup_5),
-    _sgrange(123, 142): ('d4h', laue_5, supergroup_5, supergroup_5),  # laue 5
-    _sgrange(143, 146): ('c3', laue_6, supergroup_6, supergroup_02),  # Trigonal # laue 6 [also c3i]
-    _sgrange(147, 148): ('s6', laue_6, supergroup_02, supergroup_02),
-    _sgrange(149, 155): ('d3', laue_7, supergroup_7, supergroup_9),
-    _sgrange(156, 161): ('c3v', laue_7, supergroup_6, supergroup_9),
-    _sgrange(162, 167): ('d3d', laue_7, supergroup_9, supergroup_9),  # laue 7
-    _sgrange(168, 173): ('c6', laue_8, supergroup_7, supergroup_9),  # Hexagonal
-    _sgrange(174, 174): ('c3h', laue_8, supergroup_7, supergroup_9),
-    _sgrange(175, 176): ('c6h', laue_8, supergroup_9, supergroup_9),  # laue 8
-    _sgrange(177, 182): ('d6', laue_9, supergroup_9, supergroup_9),
-    _sgrange(183, 186): ('c6v', laue_9, supergroup_7, supergroup_9),
-    _sgrange(187, 190): ('d3h', laue_9, supergroup_9, supergroup_9),
-    _sgrange(191, 194): ('d6h', laue_9, supergroup_9, supergroup_9),  # laue 9
-    _sgrange(195, 199): ('t',  laue_10, supergroup_10, supergroup_11),  # Cubic
-    _sgrange(200, 206): ('th', laue_10, supergroup_11, supergroup_11),  # laue 10
-    _sgrange(207, 214): ('o',  laue_11, supergroup_11, supergroup_11),
-    _sgrange(215, 220): ('td', laue_11, supergroup_10, supergroup_11),
-    _sgrange(221, 230): ('oh', laue_11, supergroup_11, supergroup_11)   # laue 11
+    _sgrange(1,   1): ('c1', laue_1,
+                       supergroup_1, supergroup_00),  # Triclinic
+    _sgrange(2,   2): ('ci', laue_1, \
+                       supergroup_00, supergroup_00),  # laue 1
+    _sgrange(3,   5): ('c2', laue_2, \
+                       supergroup_2, supergroup_3),  # Monoclinic
+    _sgrange(6,   9): ('cs', laue_2, \
+                       supergroup_1, supergroup_3),
+    _sgrange(10,  15): ('c2h', laue_2, \
+                        supergroup_3, supergroup_3),  # laue 2
+    _sgrange(16,  24): ('d2', laue_3, \
+                        supergroup_3, supergroup_3),  # Orthorhombic
+    _sgrange(25,  46): ('c2v', laue_3, \
+                        supergroup_2, supergroup_3),
+    _sgrange(47,  74): ('d2h', laue_3, \
+                        supergroup_3, supergroup_3),  # laue 3
+    _sgrange(75,  80): ('c4', laue_4, \
+                        supergroup_4, supergroup_5),  # Tetragonal
+    _sgrange(81,  82): ('s4', laue_4, \
+                        supergroup_01, supergroup_5),
+    _sgrange(83,  88): ('c4h', laue_4, \
+                        supergroup_5, supergroup_5),  # laue 4
+    _sgrange(89,  98): ('d4', laue_5, \
+                        supergroup_5, supergroup_5),
+    _sgrange(99, 110): ('c4v', laue_5, \
+                        supergroup_4, supergroup_5),
+    _sgrange(111, 122): ('d2d', laue_5, \
+                         supergroup_5, supergroup_5),
+    _sgrange(123, 142): ('d4h', laue_5, \
+                         supergroup_5, supergroup_5),  # laue 5
+    # Trigonal # laue 6 [also c3i]
+    _sgrange(143, 146): ('c3', laue_6, \
+                         supergroup_6, supergroup_02),
+    _sgrange(147, 148): ('s6', laue_6, \
+                         supergroup_02, supergroup_02),
+    _sgrange(149, 155): ('d3', laue_7, \
+                         supergroup_7, supergroup_9),
+    _sgrange(156, 161): ('c3v', laue_7, \
+                         supergroup_6, supergroup_9),
+    _sgrange(162, 167): ('d3d', laue_7, \
+                         supergroup_9, supergroup_9),  # laue 7
+    _sgrange(168, 173): ('c6', laue_8, \
+                         supergroup_7, supergroup_9),  # Hexagonal
+    _sgrange(174, 174): ('c3h', laue_8, \
+                         supergroup_7, supergroup_9),
+    _sgrange(175, 176): ('c6h', laue_8, \
+                         supergroup_9, supergroup_9),  # laue 8
+    _sgrange(177, 182): ('d6', laue_9, \
+                         supergroup_9, supergroup_9),
+    _sgrange(183, 186): ('c6v', laue_9, \
+                         supergroup_7, supergroup_9),
+    _sgrange(187, 190): ('d3h', laue_9, \
+                         supergroup_9, supergroup_9),
+    _sgrange(191, 194): ('d6h', laue_9, \
+                         supergroup_9, supergroup_9),  # laue 9
+    _sgrange(195, 199): ('t',  laue_10, \
+                         supergroup_10, supergroup_11),  # Cubic
+    _sgrange(200, 206): ('th', laue_10, \
+                         supergroup_11, supergroup_11),  # laue 10
+    _sgrange(207, 214): ('o',  laue_11, \
+                         supergroup_11, supergroup_11),
+    _sgrange(215, 220): ('td', laue_11, \
+                         supergroup_10, supergroup_11),
+    _sgrange(221, 230): ('oh', laue_11, \
+                         supergroup_11, supergroup_11)   # laue 11
 }
 
 '''
@@ -2179,6 +2338,7 @@ def C_cubic_eq(x):
     x[1, 5] = -x[0, 5]
     x[4, 4] = x[3, 3]
     return x
+
 
 _StiffnessDict = {
     # triclinic, all 21 components in upper triangular matrix needed
