@@ -2443,6 +2443,7 @@ class LeBail:
                 directly passing the parameter class
                 """
                 self._params = param_info
+                params = param_info
 
             else:
                 params = Parameters()
