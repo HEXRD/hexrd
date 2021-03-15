@@ -1721,8 +1721,11 @@ class LeBail:
         elif('snip1d' in self.bkgmethod.keys()):
             self._background = []
             for i, s in enumerate(self._spectrum_expt):
-                ww = np.rint(self.bkgmethod['snip1d'][0] /
-                             self.tth_step[i]).astype(np.int32)
+                if(self.tth_step[i] > 0.):
+                    ww = np.rint(self.bkgmethod['snip1d'][0] /
+                                 self.tth_step[i]).astype(np.int32)
+                else:
+                    ww = 3
                 numiter = self.bkgmethod['snip1d'][1]
 
                 yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),
@@ -1749,8 +1752,8 @@ class LeBail:
         """
         self.points = []
         for i, s in enumerate(self._spectrum_expt):
-            txt = f'Select points for background estimation; \
-                click middle mouse button when done. segment # {i}'
+            txt = (f"Select points for background estimation;"
+                "click middle mouse button when done. segment # {i}")
             title(txt)
 
             plot(s.x, s.y, '-k')
@@ -2339,8 +2342,8 @@ class LeBail:
             self.tth_min = []
             self.ntth = []
             for s in self._spectrum_expt:
-                self.tth_max.append(s.x[-1])
-                self.tth_min.append(s.x[0])
+                self.tth_max.append(s.x.max())
+                self.tth_min.append(s.x.min())
                 self.ntth.append(s.x.shape[0])
 
             """
@@ -2353,7 +2356,10 @@ class LeBail:
             for tmi, tma, nth in zip(self.tth_min,
                                      self.tth_max,
                                      self.ntth):
-                self.tth_step.append((tma - tmi)/nth)
+                if(ntth > 1):
+                    self.tth_step.append((tma - tmi)/nth)
+                else:
+                    self.tth_step.append([0.])
 
             """
             @date 03/03/2021 SS
