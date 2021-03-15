@@ -199,6 +199,7 @@ class Material(object):
         """
         lparms = [x.value for x in self._lparms]
         ltype = symmetry.latticeType(self.sgnum)
+        lparms = [lparms[i] for i in unitcell._rqpDict[ltype][0]]
         lparms = unitcell._rqpDict[ltype][1](lparms)
         lparms_vu = []
         for i in range(6):
@@ -239,8 +240,9 @@ class Material(object):
         from hdf5 file using a hkl list
         '''
         hkls = self.unitcell.getHKLs(self._dmin.getVal('nm')).T
+        ltype = self.unitcell.latticeType
         lprm = [self._lparms[i]
-                for i in unitcell._rqpDict[self.unitcell.latticeType][0]]
+                for i in unitcell._rqpDict[ltype][0]]
         laue = self.unitcell._laueGroup
         self._pData = PData(hkls, lprm, laue,
                             self._beamEnergy, Material.DFLT_STR,
@@ -774,14 +776,38 @@ The values have units attached, i.e. they are valWunit instances.
         """Set method for name"""
         if v.shape[1] == 4:
             self._atominfo = v
+            if hasattr(self, 'unitcell'):
+                self.unitcell.atom_pos = v
         else:
             print("Improper syntax, array must be n x 4")
 
+        self.update_structure_factor()
         return
 
     atominfo = property(
         _get_atominfo, _set_atominfo, None,
         "Information about atomic positions and electron number")
+
+    # # property: "atominfo"
+    # def _get_atomtype(self):
+    #     """Set method for name"""
+    #     return self._atomtype
+
+    # def _set_atomtype(self, v):
+    #     """Set method for atomtype"""
+    #     if v.shape[1] == 4:
+    #         self._atominfo = v
+    #         if hasattr(self, 'unitcell'):
+    #             self.unitcell.atom_pos = v
+    #     else:
+    #         print("Improper syntax, array must be n x 4")
+
+    #     self.update_structure_factor()
+    #     return
+
+    # atominfo = property(
+    #     _get_atomtype, _set_atomtype, None,
+    #     "Information about atomic positions and electron number")
 
     #
     #  ========== Methods
