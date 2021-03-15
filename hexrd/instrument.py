@@ -302,7 +302,7 @@ if ct.USE_NUMBA:
             + norms[1]*np.dot(vtx_list[2], vtx_list[0]) \
             + norms[2]*np.dot(vtx_list[0], vtx_list[1])
 
-        return 2.*np.arctan2(scalar_triple_procuct, denominator)
+        return 2.*np.arctan2(scalar_triple_product, denominator)
 else:
     def _solid_angle_of_triangle(vtx_list):
         norms = rowNorm(vtx_list)
@@ -314,7 +314,7 @@ else:
             + norms[1]*np.dot(vtx_list[2], vtx_list[0]) \
             + norms[2]*np.dot(vtx_list[0], vtx_list[1])
 
-        return 2.*np.arctan2(scalar_triple_procuct, denominator)
+        return 2.*np.arctan2(scalar_triple_product, denominator)
 
 # =============================================================================
 # CLASSES
