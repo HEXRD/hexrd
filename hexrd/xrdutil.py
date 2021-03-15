@@ -45,11 +45,17 @@ from hexrd.constants import USE_NUMBA
 if USE_NUMBA:
     import numba
 
+from skimage.transform import PiecewiseAffineTransform, warp
+
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
 
 distortion_key = 'distortion'
 
-d2r = piby180 = np.pi/180.
-r2d = 1.0/d2r
+d2r = piby180 = constants.d2r
+r2d = constants.r2d
 
 epsf = constants.epsf            # ~2.2e-16
 ten_epsf = 10 * epsf             # ~2.2e-15
@@ -58,7 +64,411 @@ sqrt_epsf = constants.sqrt_epsf  # ~1.5e-8
 bHat_l_DFLT = constants.beam_vec.flatten()
 eHat_l_DFLT = constants.eta_vec.flatten()
 
+nans_1x2 = np.nan*np.ones((1, 2))
+
 _memo_hkls = {}
+
+
+# =============================================================================
+# CLASSES
+# =============================================================================
+
+
+class PolarView(object):
+    """
+    Create (two-theta, eta) plot of detector images.
+    """
+
+    def __init__(self, plane_data, instrument,
+                 eta_min=0., eta_max=360.,
+                 pixel_size=(0.1, 0.25)):
+        """
+        Instantiates a PolarView class.
+
+        Parameters
+        ----------
+        plane_data : PlaneData object or array_like
+            Specification for the 2theta ranges.  If a PlaneData instance, the
+            min/max is set to the lowermost/uppermost values from the tThTanges
+            as defined but the active hkls and the tThWidth (or strainMag).
+            If array_like, the input must be (2, ) specifying the [min, maz]
+            2theta values explicitly in degrees.
+        instrument : hexrd.instrument.HEDMInstrument
+            The instruemnt object.
+        eta_min : scalar, optional
+            The minimum azimuthal extent in degrees. The default is 0.
+        eta_max : scalar, optional
+            The minimum azimuthal extent in degrees. The default is 360.
+        pixel_size : array_like, optional
+            The angular pixels sizes (2theta, eta) in degrees.
+            The default is (0.1, 0.25).
+
+        Returns
+        -------
+        None.
+
+        Notes
+        -----
+        Currently there is no check on the eta range, which should be strictly
+        less than 360 degrees.
+
+        """
+        # tth stuff
+        if isinstance(plane_data, PlaneData):
+            tth_ranges = plane_data.getTThRanges()
+            self._tth_min = np.min(tth_ranges)
+            self._tth_max = np.max(tth_ranges)
+        else:
+            self._tth_min = np.radians(plane_data[0])
+            self._tth_max = np.radians(plane_data[1])
+
+        # etas
+        self._eta_min = np.radians(eta_min)
+        self._eta_max = np.radians(eta_max)
+
+        self._tth_pixel_size = pixel_size[0]
+        self._eta_pixel_size = pixel_size[1]
+
+        self._detectors = instrument.detectors
+        self._tvec_s = instrument.tvec
+
+    @property
+    def detectors(self):
+        return self._detectors
+
+    @property
+    def tvec_s(self):
+        return self._tvec_s
+
+    @property
+    def tth_min(self):
+        return self._tth_min
+
+    @tth_min.setter
+    def tth_min(self, x):
+        assert x < self.tth_max,\
+          'tth_min must be < tth_max (%f)' % (self._tth_max)
+        self._tth_min = x
+
+    @property
+    def tth_max(self):
+        return self._tth_max
+
+    @tth_max.setter
+    def tth_max(self, x):
+        assert x > self.tth_min,\
+          'tth_max must be < tth_min (%f)' % (self._tth_min)
+        self._tth_max = x
+
+    @property
+    def tth_range(self):
+        return self.tth_max - self.tth_min
+
+    @property
+    def tth_pixel_size(self):
+        return self._tth_pixel_size
+
+    @tth_pixel_size.setter
+    def tth_pixel_size(self, x):
+        self._tth_pixel_size = float(x)
+
+    @property
+    def eta_min(self):
+        return self._eta_min
+
+    @eta_min.setter
+    def eta_min(self, x):
+        assert x < self.eta_max,\
+          'eta_min must be < eta_max (%f)' % (self.eta_max)
+        self._eta_min = x
+
+    @property
+    def eta_max(self):
+        return self._eta_max
+
+    @eta_max.setter
+    def eta_max(self, x):
+        assert x > self.eta_min,\
+          'eta_max must be > eta_min (%f)' % (self.eta_min)
+        self._eta_max = x
+
+    @property
+    def eta_range(self):
+        return self.eta_max - self.eta_min
+
+    @property
+    def eta_pixel_size(self):
+        return self._eta_pixel_size
+
+    @eta_pixel_size.setter
+    def eta_pixel_size(self, x):
+        self._eta_pixel_size = float(x)
+
+    @property
+    def ntth(self):
+        return int(np.ceil(np.degrees(self.tth_range)/self.tth_pixel_size))
+
+    @property
+    def neta(self):
+        return int(np.ceil(np.degrees(self.eta_range)/self.eta_pixel_size))
+
+    @property
+    def shape(self):
+        return (self.neta, self.ntth)
+
+    @property
+    def angular_grid(self):
+        tth_vec = np.radians(self.tth_pixel_size*(np.arange(self.ntth)))\
+            + self.tth_min + 0.5*np.radians(self.tth_pixel_size)
+        eta_vec = np.radians(self.eta_pixel_size*(np.arange(self.neta)))\
+            + self.eta_min + 0.5*np.radians(self.eta_pixel_size)
+        return np.meshgrid(eta_vec, tth_vec, indexing='ij')
+
+    @property
+    def extent(self):
+        ev, tv = self.angular_grid
+        heps = np.radians(0.5*self.eta_pixel_size)
+        htps = np.radians(0.5*self.tth_pixel_size)
+        return [np.min(tv) - htps, np.max(tv) + htps,
+                np.max(ev) + heps, np.min(ev) - heps]
+
+    # =========================================================================
+    #                         ####### METHODS #######
+    # =========================================================================
+    def warp_image(self, image_dict, pad_with_nans=False,
+                   do_interpolation=True):
+        """
+        Performs the polar mapping of the input images.
+
+        Parameters
+        ----------
+        image_dict : dict
+            DIctionary of image arrays, 1 per detector.
+
+        Returns
+        -------
+        wimg : numpy.ndarray
+            The composite polar mapping of the detector images.  Dimensions are
+            self.shape
+
+        Notes
+        -----
+        Tested ouput using Maud.
+
+        """
+
+        angpts = self.angular_grid
+        dummy_ome = np.zeros((self.ntth*self.neta))
+
+        # lcount = 0
+        wimg = np.zeros(self.shape)
+        img_dict = dict.fromkeys(self.detectors)
+        for detector_id in self.detectors:
+            panel = self.detectors[detector_id]
+            img = image_dict[detector_id]
+            gpts = xfcapi.anglesToGVec(
+                np.vstack([
+                    angpts[1].flatten(),
+                    angpts[0].flatten(),
+                    dummy_ome,
+                    ]).T, bHat_l=panel.bvec)
+            xypts = xfcapi.gvecToDetectorXY(
+                gpts,
+                panel.rmat, np.eye(3), np.eye(3),
+                panel.tvec, self.tvec_s, constants.zeros_3,
+                beamVec=panel.bvec)
+            if panel.distortion is not None:
+                xypts = panel.distortion.apply(xypts)
+
+            if do_interpolation:
+                this_img = panel.interpolate_bilinear(
+                    xypts, img,
+                    pad_with_nans=pad_with_nans).reshape(self.shape)
+            else:
+                this_img = panel.interpolate_nearest(
+                    xypts, img,
+                    pad_with_nans=pad_with_nans).reshape(self.shape)
+            nan_mask = np.isnan(this_img)
+            img_dict[detector_id] = np.ma.masked_array(
+                data=this_img, mask=nan_mask, fill_value=0.
+            )
+        maimg = np.ma.sum(np.ma.stack(img_dict.values()), axis=0)
+        return maimg
+
+    def tth_to_pixel(self, tth):
+        """
+        convert two-theta value to pixel value (float) along two-theta axis
+        """
+        return np.degrees(tth - self.tth_min)/self.tth_pixel_size
+
+
+class SphericalView(object):
+    """
+    Creates a spherical mapping of detector images.
+    """
+    MAPPING_TYPES = ('stereographic', 'equal-area')
+    VECTOR_TYPES = ('d', 'q')
+    PROJ_IMG_DIM = 3.  # 2*np.sqrt(2) rounded up
+
+    def __init__(self, mapping='stereographic', vector_type='d',
+                 output_dim=512, rmat=constants.identity_3x3):
+        self._mapping = mapping
+        self._vector_type = vector_type
+
+        # ??? maybe promote invert_z to a prop for protection?
+        if self._vector_type == 'd':
+            self.invert_z = False
+        elif self._vector_type == 'q':
+            self.invert_z = True
+        pass
+
+        self._output_dim = output_dim
+        self._rmat = rmat
+
+    @property
+    def mapping(self):
+        return self._mapping
+
+    @mapping.setter
+    def mapping(self, s):
+        if s not in self.MAPPING_TYPES:
+            raise RuntimeError("mapping specification '%s' is invalid" % s)
+
+    @property
+    def vector_type(self):
+        return self._vector_type
+
+    @vector_type.setter
+    def vector_type(self, s):
+        if s not in self.VECTOR_TYPES:
+            raise RuntimeError("vector type specification '%s' is invalid" % s)
+
+    @property
+    def output_dim(self):
+        return self._output_dim
+
+    @output_dim.setter
+    def output_dim(self, x):
+        self._output_dim = int(x)
+
+    @property
+    def rmat(self):
+        return self._rmat
+
+    @rmat.setter
+    def rmat(self, x):
+        x = np.atleast_2d(x)
+        assert x.shape == (3, 3), "rmat must be (3, 3)"
+        assert np.linalg.norm(np.dot(x.T, x) - constants.identity_3x3) \
+            < constants.ten_epsf, "input matrix is not orthogonal"
+        self._rmat = x
+
+    def warp_eta_ome_map(self, eta_ome, map_ids=None, skip=10):
+        paxf = PiecewiseAffineTransform()
+
+        nrows_in = len(eta_ome.etas)
+        ncols_in = len(eta_ome.omegas)
+
+        # grab tth values
+        tths = eta_ome.planeData.getTTh()
+
+        # grab (undersampled) points
+        omes = eta_ome.omegas[::skip]
+        etas = eta_ome.etas[::skip]
+
+        # make grid of angular values
+        op, ep = np.meshgrid(omes,
+                             etas,
+                             indexing='ij')
+
+        # make grid of output pixel values
+        oc, ec = np.meshgrid(np.arange(nrows_in)[::skip],
+                             np.arange(ncols_in)[::skip],
+                             indexing='ij')
+
+        ps = self.PROJ_IMG_DIM / self.output_dim  # output pixel size
+
+        if map_ids is None:
+            map_ids = list(range(len(eta_ome.dataStore)))
+
+        wimgs = []
+        for map_id in map_ids:
+            img = eta_ome.dataStore[map_id]
+
+            # ??? do we need to use iHKLlist?
+            angs = np.vstack([
+                tths[map_id]*np.ones_like(ep.flatten()),
+                ep.flatten(),
+                op.flatten()
+            ]).T
+
+            ppts, nmask = zproject_sph_angles(
+                angs, method=self.mapping, source=self.vector_type,
+                invert_z=self.invert_z, use_mask=True
+            )
+
+            # pixel coords in output image
+            rp = 0.5*self.output_dim - ppts[:, 1]/ps
+            cp = ppts[:, 0]/ps + 0.5*self.output_dim
+
+            # compute piecewise affine transform
+            src = np.vstack([ec.flatten(), oc.flatten(), ]).T
+            dst = np.vstack([cp.flatten(), rp.flatten(), ]).T
+            paxf.estimate(src, dst)
+
+            wimg = warp(
+                img,
+                inverse_map=paxf.inverse,
+                output_shape=(self.output_dim, self.output_dim)
+            )
+            if len(map_ids) == 1:
+                return wimg
+            else:
+                wimgs.append[wimg]
+        return wimgs
+
+    def warp_polar_image(self, pimg, skip=10):
+        paxf = PiecewiseAffineTransform()
+
+        img = np.array(pimg['intensities'])
+        nrows_in, ncols_in = img.shape
+
+        tth_cen = np.array(pimg['tth_coordinates'])[0, :]
+        eta_cen = np.array(pimg['eta_coordinates'])[:, 0]
+
+        tp, ep = np.meshgrid(tth_cen[::skip],
+                             eta_cen[::skip])
+        tc, ec = np.meshgrid(np.arange(ncols_in)[::skip],
+                             np.arange(nrows_in)[::skip])
+        op = np.zeros_like(tp.flatten())
+        angs = np.vstack(
+            [tp.flatten(),
+             ep.flatten(),
+             op.flatten()]
+        ).T
+
+        ppts = zproject_sph_angles(
+            angs, method='stereographic', source='d', invert_z=self.invert_z
+        )
+
+        # output pixel size
+        ps = self.PROJ_IMG_DIM / self.output_dim
+
+        # pixel coords in output image
+        rp = 0.5*self.output_dim - ppts[:, 1]/ps
+        cp = ppts[:, 0]/ps + 0.5*self.output_dim
+
+        src = np.vstack([tc.flatten(), ec.flatten(), ]).T
+        dst = np.vstack([cp.flatten(), rp.flatten(), ]).T
+        paxf.estimate(src, dst)
+
+        wimg = warp(
+            img,
+            inverse_map=paxf.inverse,
+            output_shape=(self.output_dim, self.output_dim)
+        )
+
+        return wimg
 
 
 class EtaOmeMaps(object):
@@ -109,6 +519,11 @@ class EtaOmeMaps(object):
                      'planeData_hkls': hkls}
         np.savez_compressed(filename, **save_dict)
     pass  # end of class: EtaOmeMaps
+
+
+# =============================================================================
+# FUNCTIONS
+# =============================================================================
 
 
 def _zproject(x, y):
@@ -183,6 +598,141 @@ def _convert_angles(tth_eta, detector,
     )
 
     return np.vstack(tth_eta_ref).T
+
+
+def zproject_sph_angles(ang_list, chi=0.,
+                        method='stereographic',
+                        source='d',
+                        use_mask=False,
+                        invert_z=False,
+                        rmat=None):
+    """
+    Projects spherical angles to 2-d mapping.
+
+    Parameters
+    ----------
+    ang_list : TYPE
+        DESCRIPTION.
+    chi : scalar, optional
+        The inclination angle of the sample frame. The default is 0..
+    method : str, optional
+        Mapping type spec, either 'stereographic' or 'equal-area'.
+        The default is 'stereographic'.
+    source : str, optional
+        The type specifier of the input vectors, either 'd' or 'q'. The former
+        signifies unit diffraction vectors, the latter specifies unit
+        scattering vectors.  The default is 'd'.
+    use_mask : bool, optional
+        If True, trim points not on the +z hemishpere (polar angles > 90).
+        The default is False.
+    invert_z : bool, optional
+        If True, invert the Z-coordinates of the unit vectors calculated from
+        the input angles. The default is False.
+    rmat : numpy.ndarry, shape=(3, 3), optional
+        Array representing a change of basis (rotation) to appy to the
+        calculated unit vectors. The default is None.
+
+    Raises
+    ------
+    RuntimeError
+        If method not in ('stereographic', 'equal-area').
+
+    Returns
+    -------
+    numpy.ndarray or tuple
+        If use_mask = False, then the array of n mapped input points with shape
+        (n, 2).  If use_mask = True, then the first element is the ndarray of
+        mapped points with shape (<=n, 2), and the second is a bool array with
+        shape (n,) marking the point that fell on the upper hemishpere.
+        .
+
+    Notes
+    -----
+    CAVEAT: +Z axis projections only!!!
+    TODO: check mask application.
+    """
+    if source == 'd':
+        spts_s = xfcapi.anglesToDVec(ang_list, chi=chi)
+    elif source == 'q':
+        spts_s = xfcapi.anglesToGVec(ang_list, chi=chi)
+
+    if rmat is not None:
+        spts_s = np.dot(spts_s, rmat.T)
+
+    if invert_z:
+        spts_s[:, 2] = -spts_s[:, 2]
+
+    # filter based on hemisphere
+    if use_mask:
+        pzi = spts_s[:, 2] <= 0
+        spts_s = spts_s[pzi, :]
+    npts_s = len(spts_s)
+
+    if method.lower() == 'stereographic':
+        ppts = np.vstack([
+            spts_s[:, 0]/(1. - spts_s[:, 2]),
+            spts_s[:, 1]/(1. - spts_s[:, 2])
+        ]).T
+    elif method.lower() == 'equal-area':
+        chords = spts_s + np.tile([0, 0, 1], (npts_s, 1))
+        scl = np.tile(xfcapi.rowNorm(chords), (2, 1)).T
+        ucrd = mutil.unitVector(
+                np.hstack([
+                        chords[:, :2],
+                        np.zeros((len(spts_s), 1))
+                ]).T
+        )
+
+        ppts = ucrd[:2, :].T * scl
+    else:
+        raise RuntimeError("method '%s' not recognized" % method)
+
+    if use_mask:
+        return ppts, pzi
+    else:
+        return ppts
+
+
+def make_polar_net(ndiv=24, projection='stereographic', max_angle=120.):
+    """
+    TODO: options for generating net boundaries; fixed to Z proj.
+    """
+    ndiv_tth = int(np.floor(0.5*ndiv)) + 1
+    wtths = np.radians(
+        np.linspace(0, 1, num=ndiv_tth, endpoint=True)*max_angle
+    )
+    wetas = np.radians(
+        np.linspace(-1, 1, num=ndiv+1, endpoint=True)*180.
+    )
+    weta_gen = np.radians(
+        np.linspace(-1, 1, num=181, endpoint=True)*180.
+    )
+    pts = []
+    for eta in wetas:
+        net_angs = np.vstack([[wtths[0], wtths[-1]],
+                              np.tile(eta, 2),
+                              np.zeros(2)]).T
+        projp = zproject_sph_angles(net_angs, method=projection, source='d')
+        pts.append(projp)
+        pts.append(np.nan*np.ones((1, 2)))
+    for tth in wtths[1:]:
+        net_angs = np.vstack([tth*np.ones_like(weta_gen),
+                              weta_gen,
+                              np.zeros_like(weta_gen)]).T
+        projp = zproject_sph_angles(net_angs, method=projection, source='d')
+        pts.append(projp)
+        pts.append(nans_1x2)
+    '''
+    # old method
+    for tth in wtths:
+        net_angs = np.vstack([tth*np.ones_like(wetas),
+                              wetas,
+                              piby2*np.ones_like(wetas)]).T
+        projp = zproject_sph_angles(net_angs, method=projection)
+        pts.append(projp)
+    '''
+    pts = np.vstack(pts)
+    return pts
 
 
 def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
@@ -289,7 +839,8 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
                        chi=0.,
                        etaTol=None, omeTol=None,
                        etaRanges=None, omeRanges=None,
-                       bVec=xf.bVec_ref, eVec=xf.eta_ref, vInv=xf.vInv_ref):
+                       bVec=constants.beam_vec, eVec=constants.eta_vec,
+                       vInv=constants.identity_6x1):
     """
     Simulate spherical maps.
 
@@ -314,11 +865,11 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
     omeRanges : TYPE, optional
         DESCRIPTION. The default is None.
     bVec : TYPE, optional
-        DESCRIPTION. The default is xf.bVec_ref.
+        DESCRIPTION. The default is [0, 0, -1].
     eVec : TYPE, optional
-        DESCRIPTION. The default is xf.eta_ref.
+        DESCRIPTION. The default is [1, 0, 0].
     vInv : TYPE, optional
-        DESCRIPTION. The default is xf.vInv_ref.
+        DESCRIPTION. The default is [1, 1, 1, 0, 0, 0].
 
     Returns
     -------
@@ -402,10 +953,10 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
                 )
             if not np.all(np.isnan(angList)):
                 #
-                angList[:, 1] = xf.mapAngle(
+                angList[:, 1] = xfcapi.mapAngle(
                         angList[:, 1],
                         [etaEdges[0], etaEdges[0]+2*np.pi])
-                angList[:, 2] = xf.mapAngle(
+                angList[:, 2] = xfcapi.mapAngle(
                         angList[:, 2],
                         [omeEdges[0], omeEdges[0]+2*np.pi])
                 #
@@ -644,7 +1195,7 @@ def simulateGVecs(pd, detector_params, grain_params,
         op_idx = np.where(on_panel)[0]
         #
         valid_ang = allAngs[op_idx, :]
-        valid_ang[:, 2] = xf.mapAngle(valid_ang[:, 2], ome_period)
+        valid_ang[:, 2] = xfcapi.mapAngle(valid_ang[:, 2], ome_period)
         valid_ids = allHKLs[op_idx, 0]
         valid_hkl = allHKLs[op_idx, 1:]
         valid_xy = det_xy[op_idx, :]
@@ -902,7 +1453,7 @@ else:
                 delta_tth[j] = abs(
                     tth_eta[0][diffs[0, j]] - tth_eta[0][diffs[1, j]]
                 )
-                delta_eta[j] = xf.angularDifference(
+                delta_eta[j] = xfcapi.angularDifference(
                     tth_eta[1][diffs[0, j]], tth_eta[1][diffs[1, j]]
                 )
 
@@ -1070,12 +1621,9 @@ def make_reflection_patches(instr_cfg,
         # !!! will CHEAT and ignore the small perturbation the different
         #     omega angle values causes and simply use the central value
         gVec_angs_vtx = np.tile(angs, (npts_patch, 1)) \
-            + np.radians(
-                np.vstack([m_tth.flatten(),
-                            m_eta.flatten(),
-                            np.zeros(npts_patch)
-                ]).T
-            )
+            + np.radians(np.vstack([m_tth.flatten(),
+                                    m_eta.flatten(),
+                                    np.zeros(npts_patch)]).T)
 
         xy_eval_vtx, rmats_s, on_plane = _project_on_detector_plane(
                 gVec_angs_vtx,

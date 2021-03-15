@@ -38,6 +38,7 @@ from hexrd.crystallography import PlaneData as PData
 from hexrd.valunits import valWUnit
 from hexrd import unitcell
 from hexrd.constants import ptable
+from hexrd import symmetry
 import copy
 
 from os import path
@@ -108,7 +109,12 @@ class Material(object):
     the dmin parameter is used to figure out the maximum sampling for g-vectors
     this parameter is in angstroms
     '''
-    DFLT_DMIN = _angstroms(1.0)
+    DFLT_DMIN = _angstroms(0.75)
+
+    '''
+    default stiffness tensor in voight notation
+    '''
+    DFLT_STIFFNESS = numpy.eye(6)
 
     '''
     some materials have more than one space group setting. for ex
@@ -120,8 +126,7 @@ class Material(object):
     '''
     DFLT_SGSETTING = 0
 
-    def __init__(self,
-                 name=None,
+    def __init__(self, name=None,
                  material_file=None,
                  dmin=DFLT_DMIN,
                  kev=DFLT_KEV,
@@ -155,6 +160,8 @@ class Material(object):
             elif(form in ['h5', 'hdf5', 'xtal']):
                 self._readHDFxtal(fhdf=material_file, xtal=name)
         else:
+            # default name
+            self.name = Material.DFLT_XTAL
             # Use default values
             self._lparms = Material.DFLT_LPARMS
             # self._hklMax = Material.DFLT_SSMAX
@@ -171,15 +178,8 @@ class Material(object):
             self._atomtype = Material.DFLT_ATOMTYPE
             #
 
-        self.unitcell = unitcell.unitcell(
-            self._lparms, self.sgnum, self._atomtype, self._atominfo, self._U,
-            self._dmin.getVal('nm'), self._beamEnergy.value,
-            self._sgsetting)
-
-        self.unitcell.stiffness = self.stiffness
-
+        self._newUnitcell()
         self._newPdata()
-        self.update_structure_factor()
 
     def __str__(self):
         """String representation"""
@@ -190,6 +190,44 @@ class Material(object):
         s += '   plane Data:  %s' % str(self.planeData)
         return s
 
+    def _reset_lparms(self):
+        """
+        @author Saransh Singh, Lawrence Livermore National Lab
+        @date 03/11/2021 SS 1.0 original
+        @details correctly initialize lattice parameters based 
+        on the space group number
+        """
+        lparms = [x.value for x in self._lparms]
+        ltype = symmetry.latticeType(self.sgnum)
+        lparms = [lparms[i] for i in unitcell._rqpDict[ltype][0]]
+        lparms = unitcell._rqpDict[ltype][1](lparms)
+        lparms_vu = []
+        for i in range(6):
+            if(i < 3):
+                lparms_vu.append(_angstroms(lparms[i]))
+            else:
+                lparms_vu.append(_degrees(lparms[i]))
+
+        self._lparms = lparms_vu
+
+    def _newUnitcell(self):
+        """
+        @author Saransh Singh, Lawrence Livermore National Lab
+        @date 03/11/2021 SS 1.0 original
+        @details create a new unitcell class with everything initialized
+        correctly
+        """
+        self._reset_lparms()
+        self._unitcell = unitcell.unitcell(
+            self._lparms, self.sgnum, self._atomtype, self._atominfo, self._U,
+            self._dmin.getVal('nm'), self._beamEnergy.value,
+            self._sgsetting)
+
+        if hasattr(self, 'stiffness'):
+            self._unitcell.stiffness = self.stiffness
+        else:
+            self._unitcell.stiffness = Material.DFLT_STIFFNESS
+
     def _newPdata(self):
         """Create a new plane data instance"""
         # spaceGroup module calulates forbidden reflections
@@ -197,10 +235,14 @@ class Material(object):
         >> @date 08/20/2020 SS removing dependence of planeData
         initialization on the spaceGroup module. everything is
         initialized using the unitcell module now
+
+        >> @DATE 02/09/2021 SS adding initialization of exclusion
+        from hdf5 file using a hkl list
         '''
         hkls = self.unitcell.getHKLs(self._dmin.getVal('nm')).T
+        ltype = self.unitcell.latticeType
         lprm = [self._lparms[i]
-                for i in unitcell._rqpDict[self.unitcell.latticeType][0]]
+                for i in unitcell._rqpDict[ltype][0]]
         laue = self.unitcell._laueGroup
         self._pData = PData(hkls, lprm, laue,
                             self._beamEnergy, Material.DFLT_STR,
@@ -212,15 +254,33 @@ class Material(object):
         '''
         tth = numpy.array([hkldata['tTheta']
                            for hkldata in self._pData.hklDataList])
-
         dflt_excl = numpy.ones(tth.shape, dtype=numpy.bool)
+        dflt_excl2 = numpy.ones(tth.shape, dtype=numpy.bool)
 
-        dflt_excl[~numpy.isnan(tth)] = 
-        ~((tth[~numpy.isnan(tth)] >= 0.0) &
-        (tth[~numpy.isnan(tth)] <= numpy.pi/2.0))
+        if(hasattr(self, 'hkl_from_file')):
+            """
+            hkls were read from the file so the exclusions will be set
+            based on what hkls are present
+            """
+            for i, g in enumerate(self._pData.hklDataList):
+                if(g['hkl'].tolist() in self.hkl_from_file.tolist()):
+                    dflt_excl[i] = False
 
-        dflt_excl[0] = False
+            dflt_excl2[~numpy.isnan(tth)] = \
+                ~((tth[~numpy.isnan(tth)] >= 0.0) &
+                  (tth[~numpy.isnan(tth)] <= numpy.pi/2.0))
+
+            dflt_excl = numpy.logical_or(dflt_excl, dflt_excl2)
+
+        else:
+            dflt_excl[~numpy.isnan(tth)] = \
+                ~((tth[~numpy.isnan(tth)] >= 0.0) &
+                  (tth[~numpy.isnan(tth)] <= numpy.pi/2.0))
+            dflt_excl[0] = False
+
         self._pData.exclusions = dflt_excl
+
+        self.update_structure_factor()
 
         return
 
@@ -230,7 +290,7 @@ class Material(object):
         for i, g in enumerate(hkls):
             sf[i] = self.unitcell.CalcXRSF(g)
 
-        self.planeData.set_structFact(sf[~self.planeData.exclusions])
+        self.planeData.set_structFact(sf)
 
     def _readCif(self, fcif=DFLT_NAME+'.cif'):
         """
@@ -247,9 +307,9 @@ class Material(object):
             try:
                 cif = ReadCif(fcif)
             except(OSError):
-                msg = (f"OS Error: No file name supplied and"
-                       f" default file name not found.")
-                raise RuntimeError(msg)
+                raise RuntimeError(
+                    'OS Error: No file name supplied \
+                    and default file name not found.')
         else:
             try:
                 cif = ReadCif(fcif)
@@ -329,9 +389,9 @@ class Material(object):
             sitedata = sitedata and (key in cifdata)
 
         if(not(sitedata)):
-            msg = (f"fractional site position is not present"
-                   f" or incomplete in the CIF file!")
-            raise RuntimeError(msg)
+            raise RuntimeError(
+                ' fractional site position is not present \
+                or incomplete in the CIF file! ')
 
         atompos = []
         for key in fracsitekey:
@@ -382,9 +442,8 @@ class Material(object):
             atompos.append(numpy.asarray(occ).astype(numpy.float64))
 
         if(not pU):
-            msg = (f"Debye-Waller factors not present."
-                   f" setting to same values for all atoms.")
-            warn(msg)
+            warn('Debye-Waller factors not present. \
+                setting to same values for all atoms.')
             U = 1.0/numpy.pi/2./numpy.sqrt(2.) * numpy.ones(atompos[0].shape)
             self._U = U
         else:
@@ -449,8 +508,8 @@ class Material(object):
 
         gid = fid.get(xtal)
 
-        sgnum = numpy.asscalar(numpy.array(gid.get('SpaceGroupNumber'),
-                                           dtype=numpy.int32))
+        sgnum = numpy.array(gid.get('SpaceGroupNumber'),
+                            dtype=numpy.int32).item()
         """
             IMPORTANT NOTE:
             note that the latice parameters is nm by default
@@ -481,9 +540,8 @@ class Material(object):
         self._atomtype = numpy.array(gid.get('Atomtypes'), dtype=numpy.int32)
         self._atom_ntype = self._atomtype.shape[0]
 
-        self._sgsetting = numpy.asscalar(numpy.array(
-            gid.get('SpaceGroupSetting'),
-            dtype=numpy.int32))
+        self._sgsetting = numpy.array(gid.get('SpaceGroupSetting'),
+                                      dtype=numpy.int32).item()
 
         if('stiffness' in gid):
             # we're assuming the stiffness is in units of GPa
@@ -494,6 +552,16 @@ class Material(object):
                 numpy.array(gid.get('compliance'))) * 1.e3
         else:
             self.stiffness = numpy.zeros([6, 6])
+
+        if('dmin' in gid):
+            # if dmin is present in the HDF5 file, then use that
+            dmin = numpy.array(gid.get('dmin'),
+                               dtype=numpy.float64).item()
+            self._dmin = _angstroms(dmin*10.)
+
+        if('hkls' in gid):
+            self.hkl_from_file = numpy.array(gid.get('hkls'),
+                                             dtype=numpy.int32)
 
         fid.close()
 
@@ -512,6 +580,8 @@ class Material(object):
         AtomInfo['APOS'] = self.unitcell.atom_pos
         AtomInfo['U'] = self.unitcell.U
         AtomInfo['stiffness'] = self.unitcell.stiffness
+        AtomInfo['hkls'] = self.planeData.getHKLs()
+        AtomInfo['dmin'] = self.unitcell.dmin
         '''
         lattice parameters
         '''
@@ -538,7 +608,7 @@ class Material(object):
 
     @property
     def vol(self):
-        return self.unitcell.vol
+        return self.unitcell.vol*1e3
 
     @property
     def lparms(self):
@@ -548,6 +618,9 @@ class Material(object):
     @property
     def latticeType(self):
         return self.unitcell.latticeType
+
+    def vol_per_atom(self):
+        return self.unitcell.vol_per_atom
 
     @property
     def atom_pos(self):
@@ -581,9 +654,8 @@ class Material(object):
 
         # Update the unit cell if there is one
         if hasattr(self, 'unitcell'):
-            self.unitcell.sgnum = v
+            self._newUnitcell()
             self._newPdata()
-            self.update_structure_factor()
 
     sgnum = property(_get_sgnum, _set_sgnum, None,
                      "Space group number")
@@ -606,9 +678,9 @@ class Material(object):
         else:
             self._beamEnergy = valWUnit('kev', 'energy', keV, 'keV')
 
-        ''' 
+        '''
         acceleration potential is set in volts therefore the factor of 1e3
-        @TODO make voltage valWUnit instance so this that we dont have to 
+        @TODO make voltage valWUnit instance so this that we dont have to
         track this manually inn the future
         '''
         self.unitcell.voltage = self.beamEnergy.value*1e3
@@ -636,6 +708,13 @@ class Material(object):
     # hklMax = property(_get_hklMax, _set_hklMax, None,
     #                   "Max sum of squares for HKLs")
     # property:  planeData
+
+    """
+    03/11/2021 SS 1.0 original
+    """
+    @property
+    def unitcell(self):
+        return self._unitcell
 
     @property
     def planeData(self):
@@ -711,7 +790,6 @@ The values have units attached, i.e. they are valWunit instances.
         self.unitcell.dmin = v.getVal('nm')
 
         self._newPdata()
-        self.update_structure_factor()
 
     # property: "atominfo"
     def _get_atominfo(self):
@@ -722,14 +800,38 @@ The values have units attached, i.e. they are valWunit instances.
         """Set method for name"""
         if v.shape[1] == 4:
             self._atominfo = v
+            if hasattr(self, 'unitcell'):
+                self.unitcell.atom_pos = v
         else:
             print("Improper syntax, array must be n x 4")
 
+        self.update_structure_factor()
         return
 
     atominfo = property(
         _get_atominfo, _set_atominfo, None,
         "Information about atomic positions and electron number")
+
+    # # property: "atominfo"
+    # def _get_atomtype(self):
+    #     """Set method for name"""
+    #     return self._atomtype
+
+    # def _set_atomtype(self, v):
+    #     """Set method for atomtype"""
+    #     if v.shape[1] == 4:
+    #         self._atominfo = v
+    #         if hasattr(self, 'unitcell'):
+    #             self.unitcell.atom_pos = v
+    #     else:
+    #         print("Improper syntax, array must be n x 4")
+
+    #     self.update_structure_factor()
+    #     return
+
+    # atominfo = property(
+    #     _get_atomtype, _set_atomtype, None,
+    #     "Information about atomic positions and electron number")
 
     #
     #  ========== Methods

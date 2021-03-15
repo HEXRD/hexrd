@@ -1,0 +1,6 @@
+# reference boundary for bbxrd IMAGE-PLATE-RIGHT (RIG)
+-6.7        23.175
+-26.2875    -23.175
+26.2875     -23.175
+6.7         23.175
+-6.7        23.175

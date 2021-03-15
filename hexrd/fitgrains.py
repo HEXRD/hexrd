@@ -188,7 +188,13 @@ def fit_grain_FF_reduced(grain_id):
 
         # CAVEAT: completeness from pullspots only; incl saturated and overlaps
         # <JVB 2015-12-15>
-        completeness = num_refl_valid / float(num_refl_tot)
+        try:
+            completeness = num_refl_valid / float(num_refl_tot)
+        except(ZeroDivisionError):
+            raise RuntimeError(
+                "simulated number of relfections is 0; "
+                + "check instrument config or grain parameters"
+            )
 
         # ======= DO LEASTSQ FIT =======
 
