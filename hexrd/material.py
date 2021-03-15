@@ -200,6 +200,7 @@ class Material(object):
         """
         lparms = [x.value for x in self._lparms]
         ltype = symmetry.latticeType(self.sgnum)
+        lparms = [lparms[i] for i in unitcell._rqpDict[ltype][0]]
         lparms = unitcell._rqpDict[ltype][1](lparms)
         lparms_vu = []
         for i in range(6):
@@ -240,8 +241,9 @@ class Material(object):
         from hdf5 file using a hkl list
         '''
         hkls = self.unitcell.getHKLs(self._dmin.getVal('nm')).T
+        ltype = self.unitcell.latticeType
         lprm = [self._lparms[i]
-                for i in unitcell._rqpDict[self.unitcell.latticeType][0]]
+                for i in unitcell._rqpDict[ltype][0]]
         laue = self.unitcell._laueGroup
         self._pData = PData(hkls, lprm, laue,
                             self._beamEnergy, Material.DFLT_STR,
