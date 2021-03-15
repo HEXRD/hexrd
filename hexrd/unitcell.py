@@ -1481,7 +1481,7 @@ class unitcell:
         if(len(inp_Cvals) != len(_StiffnessDict[self._laueGroup][0])):
             x = len(_StiffnessDict[self._laueGroup][0])
             msg = (f"number of constants entered is not correct."
-                   f"need a total of {x} independent constants")
+                   f" need a total of {x} independent constants.")
             raise IOError(msg)
 
         # initialize all zeros and fill the supplied values
@@ -1991,9 +1991,9 @@ class unitcell:
         if hasattr(self, 'atom_type'):
             if self.atom_ntype != val.shape[0]:
                 msg = (f"incorrect number of atom positions."
-                       f"number of atom type = {self.atom_ntype} "
-                       f"and number of"
-                       f"atom positions = {val.shape[0]}.")
+                       f" number of atom type = {self.atom_ntype} "
+                       f" and number of"
+                       f" atom positions = {val.shape[0]}.")
                 raise ValueError(msg)
 
         self._atom_pos = val
