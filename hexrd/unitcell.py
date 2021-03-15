@@ -1991,8 +1991,9 @@ class unitcell:
         if hasattr(self, 'atom_type'):
             if self.atom_ntype != val.shape[0]:
                 raise ValueError(f"incorrect number of atom positions."
-                "number of atom type = {self.atom_ntype} and number of"
-                "atom positions = {val.shape[0]}.")
+                                 "number of atom type = {self.atom_ntype} "
+                                 "and number of"
+                                 "atom positions = {val.shape[0]}.")
 
         self._atom_pos = val
         """
@@ -2078,6 +2079,7 @@ class unitcell:
         # vol per atom in A^3
         return 1e3*self.vol/self.num_atom
 
+
 _rqpDict = {
     'triclinic': (tuple(range(6)), lambda p: p),  # all 6
     # note beta
@@ -2127,7 +2129,6 @@ supergroup_11 = 'oh'
 
 
 def _sgrange(min, max): return tuple(range(min, max + 1))  # inclusive range
-
 
 '''
 11/20/2020 SS added supergroup to the list which is used
