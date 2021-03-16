@@ -760,6 +760,11 @@ The values have units attached, i.e. they are valWunit instances.
         self._newPdata()
         self.update_structure_factor()
 
+    @property
+    def natoms(self):
+        return self.atominfo.shape[0]
+    
+
     # property: "atominfo"
     def _get_atominfo(self):
         """Set method for name"""
@@ -781,26 +786,33 @@ The values have units attached, i.e. they are valWunit instances.
         _get_atominfo, _set_atominfo, None,
         "Information about atomic positions and electron number")
 
-    # # property: "atominfo"
-    # def _get_atomtype(self):
-    #     """Set method for name"""
-    #     return self._atomtype
+    # property: "atominfo"
+    def _get_atomtype(self):
+        """Set method for name"""
+        return self._atomtype
 
-    # def _set_atomtype(self, v):
-    #     """Set method for atomtype"""
-    #     if v.shape[1] == 4:
-    #         self._atominfo = v
-    #         if hasattr(self, 'unitcell'):
-    #             self.unitcell.atom_pos = v
-    #     else:
-    #         print("Improper syntax, array must be n x 4")
+    def _set_atomtype(self, v):
+        """Set method for atomtype"""
+        """
+        check to make sure number of atoms here is same as 
+        the atominfo
+        """
+        if isinstance(v, list):
+            if len(v) != self.natoms:
+                raise ValueError("incorrect number of atoms")
+        elif isinstance(v, numpy.ndarray):
+            if v.ndim != 1:
+                if v.shape[0] != self.natoms:
+                    raise ValueError("incorrect number of atoms")
 
-    #     self.update_structure_factor()
-    #     return
+        self._atomtype = numpy.array(v)
+        self._newUnitcell()
 
-    # atominfo = property(
-    #     _get_atomtype, _set_atomtype, None,
-    #     "Information about atomic positions and electron number")
+        self.update_structure_factor()
+
+    atomtype = property(
+        _get_atomtype, _set_atomtype, None,
+        "Information about atomic types")
 
     #
     #  ========== Methods
