@@ -180,6 +180,7 @@ class Material(object):
 
         self._newUnitcell()
         self._newPdata()
+        self.update_structure_factor()
 
     def __str__(self):
         """String representation"""
@@ -194,7 +195,7 @@ class Material(object):
         """
         @author Saransh Singh, Lawrence Livermore National Lab
         @date 03/11/2021 SS 1.0 original
-        @details correctly initialize lattice parameters based 
+        @details correctly initialize lattice parameters based
         on the space group number
         """
         lparms = [x.value for x in self._lparms]
@@ -228,8 +229,13 @@ class Material(object):
         else:
             self._unitcell.stiffness = Material.DFLT_STIFFNESS
 
+    def _hkls_changed(self):
+        # Call this when something happens that changes the hkls...
+        self._newPdata()
+        self.update_structure_factor()
+
     def _newPdata(self):
-        """Create a new plane data instance"""
+        """Create a new plane data instance if the hkls have changed"""
         # spaceGroup module calulates forbidden reflections
         '''
         >> @date 08/20/2020 SS removing dependence of planeData
@@ -244,10 +250,37 @@ class Material(object):
         lprm = [self._lparms[i]
                 for i in unitcell._rqpDict[ltype][0]]
         laue = self.unitcell._laueGroup
-        self._pData = PData(hkls, lprm, laue,
-                            self._beamEnergy, Material.DFLT_STR,
-                            tThWidth=Material.DFLT_TTH,
-                            tThMax=Material.DFLT_TTHMAX)
+
+        if old_pdata := getattr(self, '_pData', None):
+            if hkls_match(hkls.T, old_pdata.getHKLs(allHKLs=True)):
+                # There's no need to generate a new plane data object...
+                return
+
+            # Copy over attributes from the previous PlaneData object
+            self._pData = PData(hkls, old_pdata, exclusions=None)
+
+            # Get a mapping to new hkl indices
+            old_indices, new_indices = map_hkls_to_new(old_pdata, self._pData)
+
+            # Map the new exclusions to the old ones. New ones default to True.
+            exclusions = numpy.ones(hkls.shape[1], dtype=bool)
+            exclusions[new_indices] = old_pdata.exclusions[old_indices]
+
+            if numpy.all(exclusions):
+                # If they are all excluded, just set the default exclusions
+                self.set_default_exclusions()
+            else:
+                self._pData.exclusions = exclusions
+        else:
+            # Make the PlaneData object from scratch...
+            self._pData = PData(hkls, lprm, laue,
+                                self._beamEnergy, Material.DFLT_STR,
+                                tThWidth=Material.DFLT_TTH,
+                                tThMax=Material.DFLT_TTHMAX)
+
+            self.set_default_exclusions()
+
+    def set_default_exclusions(self):
         '''
           Set default exclusions
           all reflections with two-theta smaller than 90 degrees
@@ -279,10 +312,6 @@ class Material(object):
             dflt_excl[0] = False
 
         self._pData.exclusions = dflt_excl
-
-        self.update_structure_factor()
-
-        return
 
     def update_structure_factor(self):
         hkls = self.planeData.getHKLs(allHKLs=True)
@@ -655,7 +684,7 @@ class Material(object):
         # Update the unit cell if there is one
         if hasattr(self, 'unitcell'):
             self._newUnitcell()
-            self._newPdata()
+            self._hkls_changed()
 
     sgnum = property(_get_sgnum, _set_sgnum, None,
                      "Space group number")
@@ -685,29 +714,10 @@ class Material(object):
         '''
         self.unitcell.voltage = self.beamEnergy.value*1e3
         self.planeData.wavelength = keV
-        self.update_structure_factor()
-
-        return
+        self._hkls_changed()
 
     beamEnergy = property(_get_beamEnergy, _set_beamEnergy, None,
                           "Beam energy in keV")
-
-    # >> @date 08/20/2020 removing dependence on hklmax
-    # property:  hklMax
-
-    # def _get_hklMax(self):
-    #     """Get method for hklMax"""
-    #     return self._hklMax
-
-    # def _set_hklMax(self, v):
-    #     """Set method for hklMax"""
-    #     self._hklMax = v
-    #     self._newPdata()  # update planeData
-    #     return
-
-    # hklMax = property(_get_hklMax, _set_hklMax, None,
-    #                   "Max sum of squares for HKLs")
-    # property:  planeData
 
     """
     03/11/2021 SS 1.0 original
@@ -737,7 +747,6 @@ class Material(object):
         self._lparms = lp
         self._newUnitcell()
         self._newPdata()
-
         return
 
     lpdoc = r"""Lattice parameters
@@ -773,7 +782,7 @@ The values have units attached, i.e. they are valWunit instances.
 
     @dmin.setter
     def dmin(self, v):
-        if self._dmin == v:
+        if self._dmin.getVal('angstrom') == v.getVal('angstrom'):
             return
 
         self._dmin = v
@@ -781,7 +790,7 @@ The values have units attached, i.e. they are valWunit instances.
         # Update the unit cell
         self.unitcell.dmin = v.getVal('nm')
 
-        self._newPdata()
+        self._hkls_changed()
 
     @property
     def natoms(self):
@@ -810,7 +819,7 @@ The values have units attached, i.e. they are valWunit instances.
         _get_atominfo, _set_atominfo, None,
         "Information about atomic positions and electron number")
 
-    # property: "atominfo"
+    # property: "atomtype"
     def _get_atomtype(self):
         """Set method for name"""
         return self._atomtype
@@ -889,6 +898,27 @@ def save_materials_hdf5(f, materials):
     """Save a dict of materials into an HDF5 file"""
     for material in materials.values():
         material.dump_material(f)
+
+
+def hkls_match(a, b):
+    # Check if hkls match. Expects inputs to have shape (x, 3).
+    def sorted_hkls(x):
+        return x[numpy.lexsort((x[:, 2], x[:, 1], x[:, 0]))]
+    return numpy.array_equal(sorted_hkls(a), sorted_hkls(b))
+
+
+def map_hkls_to_new(old_pdata, new_pdata):
+    # Creates a mapping of old hkl indices to new ones.
+    # Expects inputs to be PlaneData objects.
+    def get_hkl_strings(pdata):
+        return pdata.getHKLs(allHKLs=True, asStr=True)
+
+    kwargs = {
+        'ar1': get_hkl_strings(old_pdata),
+        'ar2': get_hkl_strings(new_pdata),
+        'return_indices': True,
+    }
+    return numpy.intersect1d(**kwargs)[1:]
 
 #
 #  ============================== Executable section for testing
