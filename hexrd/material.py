@@ -246,11 +246,6 @@ class Material(object):
         from hdf5 file using a hkl list
         '''
         hkls = self.unitcell.getHKLs(self._dmin.getVal('nm')).T
-        ltype = self.unitcell.latticeType
-        lprm = [self._lparms[i]
-                for i in unitcell._rqpDict[ltype][0]]
-        laue = self.unitcell._laueGroup
-
         if old_pdata := getattr(self, '_pData', None):
             if hkls_match(hkls.T, old_pdata.getHKLs(allHKLs=True)):
                 # There's no need to generate a new plane data object...
@@ -273,6 +268,8 @@ class Material(object):
                 self._pData.exclusions = exclusions
         else:
             # Make the PlaneData object from scratch...
+            lprm = self.reduced_lattice_parameters
+            laue = self.unitcell._laueGroup
             self._pData = PData(hkls, lprm, laue,
                                 self._beamEnergy, Material.DFLT_STR,
                                 tThWidth=Material.DFLT_TTH,
@@ -746,22 +743,13 @@ class Material(object):
             lp.append(_degrees(v[i]))
         self._lparms = lp
         self._newUnitcell()
+        self.planeData.lparms = self.reduced_lattice_parameters
         self._hkls_changed()
-        return
 
-    lpdoc = r"""Lattice parameters
-
-On output, all six paramters are returned.
-
-On input, either all six or a minimal set is accepted.
-
-The values have units attached, i.e. they are valWunit instances.
-"""
-    # latticeParameters = property(
-    #     _get_latticeParameters, _set_latticeParameters,
-    #     None, lpdoc)
-
-    # property:  "name"
+    @property
+    def reduced_lattice_parameters(self):
+        ltype = self.unitcell.latticeType
+        return [self._lparms[i] for i in unitcell._rqpDict[ltype][0]]
 
     def _get_name(self):
         """Set method for name"""
@@ -827,7 +815,7 @@ The values have units attached, i.e. they are valWunit instances.
     def _set_atomtype(self, v):
         """Set method for atomtype"""
         """
-        check to make sure number of atoms here is same as 
+        check to make sure number of atoms here is same as
         the atominfo
         """
         if isinstance(v, list):
