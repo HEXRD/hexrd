@@ -11,8 +11,9 @@
 #
 # Please also see the file LICENSE.
 #
-# This program is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free Software
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License (as published
+# by the Free Software
 # Foundation) version 2.1 dated February 1999.
 #
 # This program is distributed in the hope that it will be useful, but
@@ -88,6 +89,7 @@ __all__ = ['SpaceGroup']
 class SpaceGroup(object):
     """Wrapper on sglite
     """
+
     def __init__(self, sgnum):
         """Constructor for SpaceGroup
 
@@ -95,7 +97,7 @@ class SpaceGroup(object):
         INPUTS
         sgnum -- (int) space group number (between 1 and 230)
         """
-        self.sgnum  = sgnum  # call before sglite (sets Hall symbol)
+        self.sgnum = sgnum  # call before sglite (sets Hall symbol)
         #
         # Do not include SgOps type as target, as that will make
         # this class unpicklable.
@@ -107,7 +109,7 @@ class SpaceGroup(object):
     def __str__(self):
         """Print information about the space group"""
         ind = 5*' '
-        s  = 'space group number:  %d\n' % self.sgnum
+        s = 'space group number:  %d\n' % self.sgnum
         s += '       Hall Symbol:  %s\n' % self.HallSymbol
         s += '   Hermann-Mauguin:  %s\n' % self.hermannMauguin
         s += '       Point Group:  %s\n' % self.pointGroup
@@ -1340,6 +1342,7 @@ _hmStr = r"""
    230        I a -3 d
 """
 
+
 def _buildDict(hstr):
     """build the dictionaries from the notation string
 
@@ -1350,7 +1353,7 @@ def _buildDict(hstr):
     for the rhombohedral lattices so that they use the hexagonal
     convention.
     """
-    d  = dict()
+    d = dict()
     di = dict()
     hs = hstr.split('\n')
     for l in hs:
@@ -1370,7 +1373,7 @@ def _buildDict(hstr):
 
 
 lookupHall, Hall_to_sgnum = _buildDict(_hallStr)
-lookupHM,   HM_to_sgnum   = _buildDict(_hmStr)
+lookupHM,   HM_to_sgnum = _buildDict(_hmStr)
 
 
 def _map_sg_info(hstr):
@@ -1412,41 +1415,44 @@ laue_9 = 'd6h'
 laue_10 = 'th'
 laue_11 = 'oh'
 
-_sgrange = lambda min, max: tuple(range(min, max + 1)) # inclusive range
+
+def _sgrange(min, max): return tuple(range(min, max + 1))  # inclusive range
+
+
 _pgDict = {
-    _sgrange(  1,   1): ('c1', laue_1),  # Triclinic
-    _sgrange(  2,   2): ('ci', laue_1),  #                    laue 1
-    _sgrange(  3,   5): ('c2', laue_2),  # Monoclinic
-    _sgrange(  6,   9): ('cs', laue_2),
-    _sgrange( 10,  15): ('c2h',laue_2),  #                    laue 2
-    _sgrange( 16,  24): ('d2', laue_3),  # Orthorhombic
-    _sgrange( 25,  46): ('c2v',laue_3),
-    _sgrange( 47,  74): ('d2h',laue_3),  #                    laue 3
-    _sgrange( 75,  80): ('c4', laue_4),  # Tetragonal
-    _sgrange( 81,  82): ('s4', laue_4),
-    _sgrange( 83,  88): ('c4h',laue_4),  #                    laue 4
-    _sgrange( 89,  98): ('d4', laue_5),
-    _sgrange( 99, 110): ('c4v',laue_5),
-    _sgrange(111, 122): ('d2d',laue_5),
-    _sgrange(123, 142): ('d4h',laue_5),  #                    laue 5
+    _sgrange(1,   1): ('c1', laue_1),  # Triclinic
+    _sgrange(2,   2): ('ci', laue_1),  # laue 1
+    _sgrange(3,   5): ('c2', laue_2),  # Monoclinic
+    _sgrange(6,   9): ('cs', laue_2),
+    _sgrange(10,  15): ('c2h', laue_2),  # laue 2
+    _sgrange(16,  24): ('d2', laue_3),  # Orthorhombic
+    _sgrange(25,  46): ('c2v', laue_3),
+    _sgrange(47,  74): ('d2h', laue_3),  # laue 3
+    _sgrange(75,  80): ('c4', laue_4),  # Tetragonal
+    _sgrange(81,  82): ('s4', laue_4),
+    _sgrange(83,  88): ('c4h', laue_4),  # laue 4
+    _sgrange(89,  98): ('d4', laue_5),
+    _sgrange(99, 110): ('c4v', laue_5),
+    _sgrange(111, 122): ('d2d', laue_5),
+    _sgrange(123, 142): ('d4h', laue_5),  # laue 5
     _sgrange(143, 146): ('c3', laue_6),  # Trigonal
-    _sgrange(147, 148): ('s6', laue_6),  #                    laue 6 [also c3i]
+    _sgrange(147, 148): ('s6', laue_6),  # laue 6 [also c3i]
     _sgrange(149, 155): ('d3', laue_7),
-    _sgrange(156, 161): ('c3v',laue_7),
-    _sgrange(162, 167): ('d3d',laue_7),  #                    laue 7
+    _sgrange(156, 161): ('c3v', laue_7),
+    _sgrange(162, 167): ('d3d', laue_7),  # laue 7
     _sgrange(168, 173): ('c6', laue_8),  # Hexagonal
-    _sgrange(174, 174): ('c3h',laue_8),
-    _sgrange(175, 176): ('c6h',laue_8),  #                    laue 8
+    _sgrange(174, 174): ('c3h', laue_8),
+    _sgrange(175, 176): ('c6h', laue_8),  # laue 8
     _sgrange(177, 182): ('d6', laue_9),
-    _sgrange(183, 186): ('c6v',laue_9),
-    _sgrange(187, 190): ('d3h',laue_9),
-    _sgrange(191, 194): ('d6h',laue_9),   #                    laue 9
+    _sgrange(183, 186): ('c6v', laue_9),
+    _sgrange(187, 190): ('d3h', laue_9),
+    _sgrange(191, 194): ('d6h', laue_9),  # laue 9
     _sgrange(195, 199): ('t',  laue_10),  # Cubic
-    _sgrange(200, 206): ('th', laue_10),  #                    laue 10
+    _sgrange(200, 206): ('th', laue_10),  # laue 10
     _sgrange(207, 214): ('o',  laue_11),
     _sgrange(215, 220): ('td', laue_11),
-    _sgrange(221, 230): ('oh', laue_11),  #                    laue 11
-    }
+    _sgrange(221, 230): ('oh', laue_11),  # laue 11
+}
 
 #
 # Lattice type dictionary on Laue Group
@@ -1473,7 +1479,7 @@ _ltDict = {
     laue_9: ltype_6,
     laue_10: ltype_7,
     laue_11: ltype_7
-    }
+}
 
 
 # Required parameters by lattice type
@@ -1484,13 +1490,15 @@ _ltDict = {
 #
 _rqpDict = {
     ltype_1: (tuple(range(6)), lambda p: p),  # all 6
-    ltype_2: ((0,1,2,4), lambda p: (p[0], p[1], p[2], 90, p[3], 90)), # note beta
-    ltype_3: ((0,1,2),   lambda p: (p[0], p[1], p[2], 90, 90,   90)),
-    ltype_4: ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,   90)),
-    ltype_5: ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
-    ltype_6: ((0,2),     lambda p: (p[0], p[0], p[1], 90, 90,  120)),
-    ltype_7: ((0,),      lambda p: (p[0], p[0], p[0], 90, 90,   90)),
-    }
+    # note beta
+    ltype_2: ((0, 1, 2, 4), lambda p: (p[0], p[1], p[2], 90, p[3], 90)),
+    ltype_3: ((0, 1, 2), lambda p: (p[0], p[1], p[2], 90, 90,   90)),
+    ltype_4: ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90,   90)),
+    ltype_5: ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90,  120)),
+    ltype_6: ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90,  120)),
+    ltype_7: ((0,), lambda p: (p[0], p[0], p[0], 90, 90,   90)),
+}
+
 
 def Allowed_HKLs(sgnum, hkllist):
     """
@@ -1540,6 +1548,7 @@ def Allowed_HKLs(sgnum, hkllist):
     if(not symmorphic):
         hkls = NonSymmorphicAbsences(hkls)
     return hkls.astype(np.int32)
+
 
 def omitscrewaxisabsences(sgnum, hkllist, ax, iax):
     """
@@ -1674,6 +1683,7 @@ def omitscrewaxisabsences(sgnum, hkllist, ax, iax):
         mask = ~np.logical_or(~mask1, np.logical_or(~mask2, ~mask3))
         hkllist = hkllist[mask, :]
     return hkllist.astype(np.int32)
+
 
 def omitglideplaneabsences(self, hkllist, plane, ip):
     """
@@ -1921,6 +1931,7 @@ def omitglideplaneabsences(self, hkllist, plane, ip):
 
     return hkllist
 
+
 def NonSymmorphicAbsences(sgnum, hkllist):
     """
     this function prunes hkl list for the screw axis and glide
@@ -1953,8 +1964,8 @@ def _getHKLsBySS(ss):
     #         and sign changes.  Could possibly save up to
     #         a factor of 48.
     #
-    pmrange = lambda n: list(range(n, -(n+1), -1)) # plus/minus range
-    iroot   = lambda n: int(floor(sqrt(n)))  # integer square root
+    def pmrange(n): return list(range(n, -(n+1), -1))  # plus/minus range
+    def iroot(n): return int(floor(sqrt(n)))  # integer square root
 
     hkls = []
     hmax = iroot(ss)
@@ -1962,7 +1973,7 @@ def _getHKLsBySS(ss):
         ss2 = ss - h*h
         kmax = iroot(ss2)
         for k in pmrange(kmax):
-            rem   = ss2 - k*k
+            rem = ss2 - k*k
             if rem == 0:
                 hkls.append((h, k, 0))
             else:
