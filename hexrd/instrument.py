@@ -1991,7 +1991,7 @@ class PlanarDetector(object):
 
     @property
     def row_edge_vec(self):
-        return self.pixel_size_row*(0.5*self.rows-np.arange(self.rows+1))
+        return _row_edge_vec(self.rows, self.pixel_size_row)
 
     @property
     def col_pixel_vec(self):
@@ -1999,7 +1999,7 @@ class PlanarDetector(object):
 
     @property
     def col_edge_vec(self):
-        return self.pixel_size_col*(np.arange(self.cols+1)-0.5*self.cols)
+        return _col_edge_vec(self.cols, self.pixel_size_col)
 
     @property
     def corner_ul(self):
