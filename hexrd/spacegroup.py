@@ -1546,7 +1546,7 @@ def Allowed_HKLs(sgnum, hkllist):
 
     hkls = hkllist[mask, :]
     if(not symmorphic):
-        hkls = NonSymmorphicAbsences(hkls)
+        hkls = NonSymmorphicAbsences(sgnum, hkls)
     return hkls.astype(np.int32)
 
 
@@ -1685,7 +1685,7 @@ def omitscrewaxisabsences(sgnum, hkllist, ax, iax):
     return hkllist.astype(np.int32)
 
 
-def omitglideplaneabsences(self, hkllist, plane, ip):
+def omitglideplaneabsences(sgnum, hkllist, plane, ip):
     """
     this function encodes the table on pg 47 of
     international table of crystallography vol A
