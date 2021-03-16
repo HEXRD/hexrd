@@ -245,9 +245,49 @@ def max_tth(instr):
     return tth_max
 
 
+def pixel_resolution(instr):
+    """
+    Return the minimum, median, and maximum angular
+    resolution of the instrument.
+
+    Parameters
+    ----------
+    instr : HEDMInstrument instance
+        An instrument.
+
+    Returns
+    -------
+    tth_stats : float
+        min/median/max tth resolution in radians.
+    eta_stats : TYPE
+        min/median/max eta resolution in radians.
+
+    """
+    max_tth = np.inf
+    max_eta = np.inf
+    min_tth = -np.inf
+    min_eta = -np.inf
+    ang_ps_full = []
+    for panel in instr.detectors.values():
+        angps = panel.angularPixelSize(
+            np.stack(
+                panel.pixel_coords,
+                axis=0
+            ).reshape(2, np.cumprod(panel.shape)[-1]).T
+        )
+        ang_ps_full.append(angps)
+        max_tth = min(max_tth, np.min(angps[:, 0]))
+        max_eta = min(max_eta, np.min(angps[:, 1]))
+        min_tth = max(min_tth, np.max(angps[:, 0]))
+        min_eta = max(min_eta, np.max(angps[:, 1]))
+        pass
+    med_tth, med_eta = np.median(np.vstack(ang_ps_full), axis=0).flatten()
+    return (min_tth, med_tth, max_tth), (min_eta, med_eta, max_eta)
+
+
 def max_resolution(instr):
     """
-    Return the maximum angular resolutin of the instrument.
+    Return the maximum angular resolution of the instrument.
 
     Parameters
     ----------
@@ -259,7 +299,7 @@ def max_resolution(instr):
     max_tth : float
         Maximum tth resolution in radians.
     max_eta : TYPE
-        maximum eta resultion in radians.
+        maximum eta resolution in radians.
 
     """
     max_tth = np.inf

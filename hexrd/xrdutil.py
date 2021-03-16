@@ -261,7 +261,6 @@ class PolarView(object):
         dummy_ome = np.zeros((self.ntth*self.neta))
 
         # lcount = 0
-        wimg = np.zeros(self.shape)
         img_dict = dict.fromkeys(self.detectors)
         for detector_id in self.detectors:
             panel = self.detectors[detector_id]
