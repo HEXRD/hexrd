@@ -712,7 +712,7 @@ class Material(object):
         @TODO make voltage valWUnit instance so this that we dont have to
         track this manually inn the future
         '''
-        self.unitcell.voltage = self.beamEnergy.value*1e3
+        self._unitcell.voltage = self.beamEnergy.value*1e3
         self.planeData.wavelength = keV
         self._hkls_changed()
 
@@ -788,7 +788,7 @@ The values have units attached, i.e. they are valWunit instances.
         self._dmin = v
 
         # Update the unit cell
-        self.unitcell.dmin = v.getVal('nm')
+        self._unitcell.dmin = v.getVal('nm')
 
         self._hkls_changed()
 
