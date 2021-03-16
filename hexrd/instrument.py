@@ -2116,11 +2116,12 @@ class PlanarDetector(object):
         solid_angs = np.empty(len(conn), dtype=float)
 
         # Assign ranges for each process
-        num_per_process = len(conn) // os.cpu_count()
-        remainder = len(conn) % os.cpu_count()
+        num_workers = os.cpu_count()
+        num_per_process = len(conn) // num_workers
+        remainder = len(conn) % num_workers
 
         ranges = []
-        for i in range(os.cpu_count()):
+        for i in range(num_workers):
             start = ranges[-1][1] if i != 0 else 0
 
             stop = start + num_per_process
@@ -2140,7 +2141,7 @@ class PlanarDetector(object):
             'tvec': self.tvec,
         }
         func = functools.partial(_generate_pixel_solid_angles, **kwargs)
-        with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
             results = executor.map(func, ranges)
 
         # Concatenate all the results together
