@@ -772,13 +772,14 @@ The values have units attached, i.e. they are valWunit instances.
 
     def _set_atominfo(self, v):
         """Set method for name"""
-        if v.shape[1] == 4:
-            self._atominfo = v
-            if hasattr(self, 'unitcell'):
-                self.unitcell.atom_pos = v
-        else:
-            print("Improper syntax, array must be n x 4")
+        if v.ndim !=2:
+            raise ValueError("input must be 2-d.")
+        if v.shape[1] != 4:
+            raise ValueError("enter x, y, z, occ as nx4 array")
 
+        self._atominfo = v
+        self._newUnitcell()
+            
         self.update_structure_factor()
         return
 
