@@ -200,6 +200,7 @@ class Material(object):
         """
         lparms = [x.value for x in self._lparms]
         ltype = symmetry.latticeType(self.sgnum)
+        lparms = [lparms[i] for i in unitcell._rqpDict[ltype][0]]
         lparms = unitcell._rqpDict[ltype][1](lparms)
         lparms_vu = []
         for i in range(6):
@@ -245,8 +246,9 @@ class Material(object):
         from hdf5 file using a hkl list
         '''
         hkls = self.unitcell.getHKLs(self._dmin.getVal('nm')).T
+        ltype = self.unitcell.latticeType
         lprm = [self._lparms[i]
-                for i in unitcell._rqpDict[self.unitcell.latticeType][0]]
+                for i in unitcell._rqpDict[ltype][0]]
         laue = self.unitcell._laueGroup
 
         if old_pdata := getattr(self, '_pData', None):
@@ -638,8 +640,32 @@ class Material(object):
         return self.unitcell.vol*1e3
 
     @property
+    def lparms(self):
+        return numpy.array([x.getVal("nm") if x.isLength() else
+                            x.getVal("degrees") for x in self._lparms])
+
+    @property
+    def latticeType(self):
+        return self.unitcell.latticeType
+
     def vol_per_atom(self):
         return self.unitcell.vol_per_atom
+
+    @property
+    def atom_pos(self):
+        return self.unitcell.atom_pos
+
+    @property
+    def atom_type(self):
+        return self.unitcell.atom_type
+
+    @property
+    def aniU(self):
+        return self.unitcell.aniU
+
+    @property
+    def U(self):
+        return self.unitcell.U
 
     # property:  sgnum
 
@@ -706,12 +732,12 @@ class Material(object):
         return self._pData
 
     # property:  latticeParameters
-
-    def _get_latticeParameters(self):
-        """Get method for latticeParameters"""
+    @property
+    def latticeParameters(self):
         return self._lparms
 
-    def _set_latticeParameters(self, v):
+    @latticeParameters.setter
+    def latticeParameters(self, v):
         """Set method for latticeParameters"""
         if(len(v) != 6):
             v = unitcell._rqpDict[self.unitcell.latticeType][1](v)
@@ -719,17 +745,9 @@ class Material(object):
         for i in range(3, 6):
             lp.append(_degrees(v[i]))
         self._lparms = lp
-
-        rq_lp = unitcell._rqpDict[self.unitcell.latticeType][0]
-        for i, vv in enumerate(lp):
-            if(vv.isLength()):
-                val = vv.value / 10.0
-            else:
-                val = vv.value
-            setattr(self.unitcell, unitcell._lpname[i], val)
-        v2 = [lp[x].value for x in rq_lp]
-        self.planeData.lparms = v2
-        self._hkls_changed()
+        self._newUnitcell()
+        self._newPdata()
+        return
 
     lpdoc = r"""Lattice parameters
 
@@ -739,9 +757,9 @@ On input, either all six or a minimal set is accepted.
 
 The values have units attached, i.e. they are valWunit instances.
 """
-    latticeParameters = property(
-        _get_latticeParameters, _set_latticeParameters,
-        None, lpdoc)
+    # latticeParameters = property(
+    #     _get_latticeParameters, _set_latticeParameters,
+    #     None, lpdoc)
 
     # property:  "name"
 
@@ -774,23 +792,60 @@ The values have units attached, i.e. they are valWunit instances.
 
         self._hkls_changed()
 
+    @property
+    def natoms(self):
+        return self.atominfo.shape[0]
+
     # property: "atominfo"
+
     def _get_atominfo(self):
         """Set method for name"""
         return self._atominfo
 
     def _set_atominfo(self, v):
         """Set method for name"""
-        if v.shape[1] == 4:
-            self._atominfo = v
-        else:
-            raise ValueError("Improper syntax, array must be n x 4")
+        if v.ndim != 2:
+            raise ValueError("input must be 2-d.")
+        if v.shape[1] != 4:
+            raise ValueError("enter x, y, z, occ as nx4 array")
+
+        self._atominfo = v
+        self._newUnitcell()
 
         self.update_structure_factor()
+        return
 
     atominfo = property(
         _get_atominfo, _set_atominfo, None,
         "Information about atomic positions and electron number")
+
+    # property: "atomtype"
+    def _get_atomtype(self):
+        """Set method for name"""
+        return self._atomtype
+
+    def _set_atomtype(self, v):
+        """Set method for atomtype"""
+        """
+        check to make sure number of atoms here is same as 
+        the atominfo
+        """
+        if isinstance(v, list):
+            if len(v) != self.natoms:
+                raise ValueError("incorrect number of atoms")
+        elif isinstance(v, numpy.ndarray):
+            if v.ndim != 1:
+                if v.shape[0] != self.natoms:
+                    raise ValueError("incorrect number of atoms")
+
+        self._atomtype = numpy.array(v)
+        self._newUnitcell()
+
+        self.update_structure_factor()
+
+    atomtype = property(
+        _get_atomtype, _set_atomtype, None,
+        "Information about atomic types")
 
     #
     #  ========== Methods
