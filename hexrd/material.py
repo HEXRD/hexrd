@@ -698,12 +698,12 @@ class Material(object):
         return self._pData
 
     # property:  latticeParameters
-
-    def _get_latticeParameters(self):
-        """Get method for latticeParameters"""
+    @property
+    def latticeParameters(self):
         return self._lparms
 
-    def _set_latticeParameters(self, v):
+    @latticeParameters.setter
+    def latticeParameters(self, v):
         """Set method for latticeParameters"""
         if(len(v) != 6):
             v = unitcell._rqpDict[self.unitcell.latticeType][1](v)
@@ -715,7 +715,7 @@ class Material(object):
         rq_lp = unitcell._rqpDict[self.unitcell.latticeType][0]
         for i, vv in enumerate(lp):
             if(vv.isLength()):
-                val = vv.value / 10.0
+                val = vv.getVal("nm")
             else:
                 val = vv.value
             setattr(self.unitcell, unitcell._lpname[i], val)
@@ -732,9 +732,9 @@ On input, either all six or a minimal set is accepted.
 
 The values have units attached, i.e. they are valWunit instances.
 """
-    latticeParameters = property(
-        _get_latticeParameters, _set_latticeParameters,
-        None, lpdoc)
+    # latticeParameters = property(
+    #     _get_latticeParameters, _set_latticeParameters,
+    #     None, lpdoc)
 
     # property:  "name"
 
