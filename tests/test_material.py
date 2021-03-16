@@ -1,6 +1,7 @@
+import h5py
 import pytest
 
-from hexrd.material import Material
+from hexrd.material import Material, load_materials_hdf5
 
 # Tolerance for comparing floats
 FLOAT_TOL = 1.e-8
@@ -13,6 +14,11 @@ DEFAULT_ANGLE_UNIT = 'degrees'
 @pytest.fixture
 def default_material():
     return Material()
+
+
+@pytest.fixture
+def test_materials_file(example_repo_path):
+    return example_repo_path / 'NIST_ruby/single_GE/include/materials.h5'
 
 
 def normalize_unit(v):
@@ -55,3 +61,23 @@ def test_sgnum_setter(default_material):
     assert lparms_are_close(lparms, [3, 4])
     assert are_close(lparms[3], 90)
     assert are_close(lparms[5], 120)
+
+
+def test_load_materials(test_materials_file):
+    materials = load_materials_hdf5(test_materials_file)
+
+    with h5py.File(test_materials_file, 'r') as f:
+        # Check that it loaded all of the materials
+        mat_names = list(f.keys())
+        assert all(x in materials for x in mat_names)
+
+        # Check that the values for ruby match
+        ruby = materials['ruby']
+        params = f['ruby']['LatticeParameters'][()]
+
+        # Convert to angstroms...
+        for i in range(3):
+            params[i] *= 10
+
+        for i in range(6):
+            assert are_close(params[i], ruby.latticeParameters[i])
