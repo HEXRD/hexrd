@@ -611,8 +611,32 @@ class Material(object):
         return self.unitcell.vol*1e3
 
     @property
+    def lparms(self):
+        return numpy.array([x.getVal("nm") if x.isLength() else
+                            x.getVal("degrees") for x in self._lparms])
+
+    @property
+    def latticeType(self):
+        return self.unitcell.latticeType
+
     def vol_per_atom(self):
         return self.unitcell.vol_per_atom
+
+    @property
+    def atom_pos(self):
+        return self.unitcell.atom_pos
+
+    @property
+    def atom_type(self):
+        return self.unitcell.atom_type
+
+    @property
+    def aniU(self):
+        return self.unitcell.aniU
+
+    @property
+    def U(self):
+        return self.unitcell.U
 
     # property:  sgnum
 
