@@ -1753,7 +1753,7 @@ class LeBail:
         self.points = []
         for i, s in enumerate(self._spectrum_expt):
             txt = (f"Select points for background estimation;"
-                "click middle mouse button when done. segment # {i}")
+                f"click middle mouse button when done. segment # {i}")
             title(txt)
 
             plot(s.x, s.y, '-k')
@@ -2675,9 +2675,9 @@ def _generate_default_parameters_LeBail(mat):
             _add_lp_to_params(params, m)
 
     else:
-        msg = f"_generate_default_parameters: "
-        "incorrect argument. only list, dict or "
-        "Material is accpeted."
+        msg = (f"_generate_default_parameters: "
+        f"incorrect argument. only list, dict or "
+        f"Material is accpeted.")
         raise ValueError(msg)
 
     return params
@@ -4280,12 +4280,12 @@ class Rietveld:
             #                                 w=ww, numiter=numiter))
             #     self._background.append(Spectrum(x=self._tth_list[i], y=yy))
 
-            def chebyshevfit(self):
-                degree = self.bkgmethod['chebyshev']
-                p = np.polynomial.Chebyshev.fit(
-                    self.tth_list, self.spectrum_expt._y,
-                    degree, w=self.weights**2)
-                self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
+    def chebyshevfit(self):
+        degree = self.bkgmethod['chebyshev']
+        p = np.polynomial.Chebyshev.fit(
+            self.tth_list, self.spectrum_expt._y,
+            degree, w=self.weights**2)
+        self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
 
     def selectpoints(self):
 
@@ -4912,9 +4912,9 @@ def _generate_default_parameters_Rietveld(mat):
             _add_atominfo_to_params(params, m)
 
     else:
-        msg = f"_generate_default_parameters: "
-        "incorrect argument. only list, dict or "
-        "Material is accpeted."
+        msg = (f"_generate_default_parameters: "
+        f"incorrect argument. only list, dict or "
+        f"Material is accpeted.")
         raise ValueError(msg)
 
     return params
@@ -4986,8 +4986,8 @@ def _add_atominfo_to_params(params, mat):
         if(mat.aniU):
             U = mat.U
             for j in range(6):
-                nn = f"{phase_name}_{elem}{atom_label[i]}"
-                "_{nameU[j]}"
+                nn = f("{phase_name}_{elem}{atom_label[i]}"
+                f"_{nameU[j]}")
                 params.add(
                     nn, value=U[i, j],
                     lb=-1e-3,
