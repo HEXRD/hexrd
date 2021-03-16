@@ -711,16 +711,8 @@ class Material(object):
         for i in range(3, 6):
             lp.append(_degrees(v[i]))
         self._lparms = lp
-
-        rq_lp = unitcell._rqpDict[self.unitcell.latticeType][0]
-        for i, vv in enumerate(lp):
-            if(vv.isLength()):
-                val = vv.getVal("nm")
-            else:
-                val = vv.value
-            setattr(self.unitcell, unitcell._lpname[i], val)
-        v2 = [lp[x].value for x in rq_lp]
-        self.planeData.lparms = v2
+        self._newUnitcell()
+        self._newPdata()
 
         return
 
