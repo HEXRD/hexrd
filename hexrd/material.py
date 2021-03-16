@@ -746,7 +746,7 @@ class Material(object):
             lp.append(_degrees(v[i]))
         self._lparms = lp
         self._newUnitcell()
-        self._newPdata()
+        self._hkls_changed()
         return
 
     lpdoc = r"""Lattice parameters
