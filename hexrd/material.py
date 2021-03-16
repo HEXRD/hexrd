@@ -763,23 +763,23 @@ The values have units attached, i.e. they are valWunit instances.
     @property
     def natoms(self):
         return self.atominfo.shape[0]
-    
 
     # property: "atominfo"
+
     def _get_atominfo(self):
         """Set method for name"""
         return self._atominfo
 
     def _set_atominfo(self, v):
         """Set method for name"""
-        if v.ndim !=2:
+        if v.ndim != 2:
             raise ValueError("input must be 2-d.")
         if v.shape[1] != 4:
             raise ValueError("enter x, y, z, occ as nx4 array")
 
         self._atominfo = v
         self._newUnitcell()
-            
+
         self.update_structure_factor()
         return
 
