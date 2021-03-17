@@ -1217,13 +1217,11 @@ class unitcell:
         is editable. this depends on the space group number or the
         lattice class
         """
-        res = False
+
         _lpnamelist = list(_lpname)
         index = _lpnamelist.index(lp_name)
         editable_fields = _rqpDict[self.latticeType][0]
-        if(index in editable_fields):
-            res = True
-        return res
+        return index in editable_fields
 
     def convert_lp_to_valunits(self, lp):
         """
@@ -1312,7 +1310,7 @@ class unitcell:
         else:
             msg = (f"not an editable field"
                    f" for this space group")
-            print(msg)
+            raise RuntimeError(msg)
 
     @property
     def b(self):
@@ -1328,7 +1326,7 @@ class unitcell:
         else:
             msg = (f"not an editable field"
                    f" for this space group")
-            print(msg)
+            raise RuntimeError(msg)
 
     @property
     def c(self):
@@ -1344,7 +1342,7 @@ class unitcell:
         else:
             msg = (f"not an editable field"
                    f" for this space group")
-            print(msg)
+            raise RuntimeError(msg)
 
     @property
     def alpha(self):
@@ -1360,7 +1358,7 @@ class unitcell:
         else:
             msg = (f"not an editable field"
                    f" for this space group")
-            print(msg)
+            raise RuntimeError(msg)
 
     @property
     def beta(self):
@@ -1376,7 +1374,7 @@ class unitcell:
         else:
             msg = (f"not an editable field"
                    f" for this space group")
-            print(msg)
+            raise RuntimeError(msg)
 
     @property
     def gamma(self):
@@ -1392,7 +1390,7 @@ class unitcell:
         else:
             msg = (f"not an editable field"
                    f" for this space group")
-            print(msg)
+            raise RuntimeError(msg)
 
     @property
     def dmin(self):
