@@ -645,6 +645,7 @@ class Material(object):
     def latticeType(self):
         return self.unitcell.latticeType
 
+    @property
     def vol_per_atom(self):
         return self.unitcell.vol_per_atom
 
