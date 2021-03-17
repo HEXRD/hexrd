@@ -4,6 +4,7 @@ from hexrd import constants
 from hexrd import symmetry, symbols
 from hexrd.spacegroup import Allowed_HKLs
 from hexrd.ipfcolor import sphere_sector, colorspace
+from hexrd.valunits import valWUnit
 import hexrd.resources
 import warnings
 import h5py
@@ -1224,6 +1225,34 @@ class unitcell:
             res = True
         return res
 
+    def convert_lp_to_valunits(self, lp):
+        """
+        added 03/17/2021 SS
+        """
+        lp_valunit = []
+        for i in range(6):
+            if(i < 3):
+                lp_valunit.append(
+            valWUnit('lp', 'length',  lp[i], 'nm'))
+
+            else:
+                lp_valunit.append(
+            valWUnit('lp', 'angle',  lp[i], 'degrees'))
+
+        return lp_valunit
+
+    def fill_correct_lp_vals(self, lp, val, lp_name):
+        """
+        added 03/17/2021 SS
+        """
+        index = list(_lpname).index(lp_name)
+        lp[index] = val
+        lp_red = [lp[i] for i in 
+        _rqpDict[self.latticeType][0]]
+        lp = _rqpDict[self.latticeType][1](lp_red)
+        lp_valunit = self.convert_lp_to_valunits(lp)
+        return lp_valunit
+
     @property
     def compliance(self):
         # Compliance in TPa⁻¹. Stiffness is in GPa.
@@ -1263,19 +1292,27 @@ class unitcell:
             self.CalcDensity()
 
     @property
+    def lparms_reduced(self):
+        lp = self.lparms
+        lp_red = [lp[i] for i in 
+        _rqpDict[self.latticeType][0]]
+        return lp_red
+    
+
+    @property
     def a(self):
         return self._a
 
     @a.setter
     def a(self, val):
         if self.is_editable("a"):
-            self._a = val
-            self.calcmatrices()
-            self.CalcMaxGIndex()
-            if(hasattr(self, 'numat')):
-                self.CalcDensity()
+            lp = self.lparms
+            lp_valunit = self.fill_correct_lp_vals(
+                lp, val, "a")
+            self.lparms = lp_valunit
         else:
-            msg = f"not an editable field"
+            msg = (f"not an editable field"
+                f" for this space group")
             print(msg)
 
     @property
@@ -1285,13 +1322,13 @@ class unitcell:
     @b.setter
     def b(self, val):
         if self.is_editable("b"):
-            self._b = val
-            self.calcmatrices()
-            self.CalcMaxGIndex()
-            if(hasattr(self, 'numat')):
-                self.CalcDensity()
+            lp = self.lparms
+            lp_valunit = self.fill_correct_lp_vals(
+                lp, val, "b")
+            self.lparms = lp_valunit
         else:
-            msg = f"not an editable field"
+            msg = (f"not an editable field"
+                f" for this space group")
             print(msg)
 
     @property
@@ -1301,13 +1338,13 @@ class unitcell:
     @c.setter
     def c(self, val):
         if self.is_editable("c"):
-            self._c = val
-            self.calcmatrices()
-            self.CalcMaxGIndex()
-            if(hasattr(self, 'numat')):
-                self.CalcDensity()
+            lp = self.lparms
+            lp_valunit = self.fill_correct_lp_vals(
+                lp, val, "c")
+            self.lparms = lp_valunit
         else:
-            msg = f"not an editable field"
+            msg = (f"not an editable field"
+                f" for this space group")
             print(msg)
 
     @property
@@ -1317,13 +1354,13 @@ class unitcell:
     @alpha.setter
     def alpha(self, val):
         if self.is_editable("alpha"):
-            self._alpha = val
-            self.calcmatrices()
-            self.CalcMaxGIndex()
-            if(hasattr(self, 'numat')):
-                self.CalcDensity()
+            lp = self.lparms
+            lp_valunit = self.fill_correct_lp_vals(
+                lp, val, "alpha")
+            self.lparms = lp_valunit
         else:
-            msg = f"not an editable field"
+            msg = (f"not an editable field"
+                f" for this space group")
             print(msg)
 
     @property
@@ -1333,13 +1370,13 @@ class unitcell:
     @beta.setter
     def beta(self, val):
         if self.is_editable("beta"):
-            self._beta = val
-            self.calcmatrices()
-            self.CalcMaxGIndex()
-            if(hasattr(self, 'numat')):
-                self.CalcDensity()
+            lp = self.lparms
+            lp_valunit = self.fill_correct_lp_vals(
+                lp, val, "beta")
+            self.lparms = lp_valunit
         else:
-            msg = f"not an editable field"
+            msg = (f"not an editable field"
+                f" for this space group")
             print(msg)
 
     @property
@@ -1349,13 +1386,13 @@ class unitcell:
     @gamma.setter
     def gamma(self, val):
         if self.is_editable("gamma"):
-            self._gamma = val
-            self.calcmatrices()
-            self.CalcMaxGIndex()
-            if(hasattr(self, 'numat')):
-                self.CalcDensity()
+            lp = self.lparms
+            lp_valunit = self.fill_correct_lp_vals(
+                lp, val, "gamma")
+            self.lparms = lp_valunit
         else:
-            msg = f"not an editable field"
+            msg = (f"not an editable field"
+                f" for this space group")
             print(msg)
 
     @property
