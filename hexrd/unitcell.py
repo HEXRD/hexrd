@@ -1233,11 +1233,11 @@ class unitcell:
         for i in range(6):
             if(i < 3):
                 lp_valunit.append(
-            valWUnit('lp', 'length',  lp[i], 'nm'))
+                    valWUnit('lp', 'length',  lp[i], 'nm'))
 
             else:
                 lp_valunit.append(
-            valWUnit('lp', 'angle',  lp[i], 'degrees'))
+                    valWUnit('lp', 'angle',  lp[i], 'degrees'))
 
         return lp_valunit
 
@@ -1247,8 +1247,8 @@ class unitcell:
         """
         index = list(_lpname).index(lp_name)
         lp[index] = val
-        lp_red = [lp[i] for i in 
-        _rqpDict[self.latticeType][0]]
+        lp_red = [lp[i] for i in
+                  _rqpDict[self.latticeType][0]]
         lp = _rqpDict[self.latticeType][1](lp_red)
         lp_valunit = self.convert_lp_to_valunits(lp)
         return lp_valunit
@@ -1270,9 +1270,9 @@ class unitcell:
 
     @property
     def lparms(self):
-        return [self.a, self.b, \
-        self.c, self.alpha, self.beta, \
-        self.gamma]
+        return [self.a, self.b,
+                self.c, self.alpha, self.beta,
+                self.gamma]
 
     @lparms.setter
     def lparms(self, lp):
@@ -1283,7 +1283,7 @@ class unitcell:
         self._b = lp[1].getVal("nm")
         self._c = lp[2].getVal("nm")
         self._alpha = lp[3].getVal("degrees")
-        self._beta  = lp[4].getVal("degrees")
+        self._beta = lp[4].getVal("degrees")
         self._gamma = lp[5].getVal("degrees")
         self.calcmatrices()
         self.init_max_g_index()
@@ -1294,10 +1294,9 @@ class unitcell:
     @property
     def lparms_reduced(self):
         lp = self.lparms
-        lp_red = [lp[i] for i in 
-        _rqpDict[self.latticeType][0]]
+        lp_red = [lp[i] for i in
+                  _rqpDict[self.latticeType][0]]
         return lp_red
-    
 
     @property
     def a(self):
@@ -1312,7 +1311,7 @@ class unitcell:
             self.lparms = lp_valunit
         else:
             msg = (f"not an editable field"
-                f" for this space group")
+                   f" for this space group")
             print(msg)
 
     @property
@@ -1328,7 +1327,7 @@ class unitcell:
             self.lparms = lp_valunit
         else:
             msg = (f"not an editable field"
-                f" for this space group")
+                   f" for this space group")
             print(msg)
 
     @property
@@ -1344,7 +1343,7 @@ class unitcell:
             self.lparms = lp_valunit
         else:
             msg = (f"not an editable field"
-                f" for this space group")
+                   f" for this space group")
             print(msg)
 
     @property
@@ -1360,7 +1359,7 @@ class unitcell:
             self.lparms = lp_valunit
         else:
             msg = (f"not an editable field"
-                f" for this space group")
+                   f" for this space group")
             print(msg)
 
     @property
@@ -1376,7 +1375,7 @@ class unitcell:
             self.lparms = lp_valunit
         else:
             msg = (f"not an editable field"
-                f" for this space group")
+                   f" for this space group")
             print(msg)
 
     @property
@@ -1392,7 +1391,7 @@ class unitcell:
             self.lparms = lp_valunit
         else:
             msg = (f"not an editable field"
-                f" for this space group")
+                   f" for this space group")
             print(msg)
 
     @property
