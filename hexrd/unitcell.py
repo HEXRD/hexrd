@@ -36,60 +36,12 @@ class unitcell:
 
         self.atom_type = atomtypes
         self.atom_pos = atominfo
-        self.U = U
 
         self._dmin = dmin
 
-        # set some default values for
-        # a,b,c,alpha,beta,gamma
-        self._a = 1.
-        self._b = 1.
-        self._c = 1.
-        self._alpha = 90.
-        self._beta = 90.
-        self._gamma = 90.
+        self.lparms = lp
 
-        if(lp[0].unit == 'angstrom'):
-            self.a = lp[0].value * 0.1
-        elif(lp[0].unit == 'nm'):
-            self.a = lp[0].value
-        else:
-            raise ValueError('unknown unit in lattice parameter')
-
-        if(lp[1].unit == 'angstrom'):
-            self.b = lp[1].value * 0.1
-        elif(lp[1].unit == 'nm'):
-            self.b = lp[1].value
-        else:
-            raise ValueError('unknown unit in lattice parameter')
-
-        if(lp[2].unit == 'angstrom'):
-            self.c = lp[2].value * 0.1
-        elif(lp[2].unit == 'nm'):
-            self.c = lp[2].value
-        else:
-            raise ValueError('unknown unit in lattice parameter')
-
-        if(lp[3].unit == 'degrees'):
-            self.alpha = lp[3].value
-        elif(lp[3].unit == 'radians'):
-            self.alpha = np.degrees(lp[3].value)
-
-        if(lp[4].unit == 'degrees'):
-            self.beta = lp[4].value
-        elif(lp[4].unit == 'radians'):
-            self.beta = np.degrees(lp[4].value)
-
-        if(lp[5].unit == 'degrees'):
-            self.gamma = lp[5].value
-        elif(lp[5].unit == 'radians'):
-            self.gamma = np.degrees(lp[5].value)
-
-        self.aniU = False
-        if(self.U.ndim > 1):
-            self.aniU = True
-            self.calcBetaij()
-
+        self.U = U
         '''
         initialize interpolation from table for anomalous scattering
         '''
@@ -704,7 +656,17 @@ class unitcell:
         each of the three reciprocal
         basis vectors '''
 
+    def init_max_g_index(self):
+        """
+        added 03/17/2021 SS
+        """
+        self.ih = 1
+        self.ik = 1
+        self.il = 1
+
     def CalcMaxGIndex(self):
+        self.init_max_g_index()
+
         while (1.0 / self.CalcLength(
             np.array([self.ih, 0, 0],
                      dtype=np.float64), 'r') > self.dmin):
@@ -1246,6 +1208,22 @@ class unitcell:
 
         self.stiffness = C
 
+    def is_editable(self, lp_name):
+        """
+        @author Saransh Singh, Lawrence Livermore National Lab
+        @date 03/17/2021 SS 1.0 original
+        @details check if a certain field in the lattice parameter 
+        is editable. this depends on the space group number or the
+        lattice class
+        """
+        res = False
+        _lpnamelist = list(_lpname)
+        index = _lpnamelist.index(lp_name)
+        editable_fields = _rqpDict[self.latticeType][0]
+        if(index in editable_fields):
+            res = True
+        return res
+
     @property
     def compliance(self):
         # Compliance in TPa⁻¹. Stiffness is in GPa.
@@ -1262,19 +1240,43 @@ class unitcell:
     # lattice constants as properties
 
     @property
+    def lparms(self):
+        return [self.a, self.b, \
+        self.c, self.alpha, self.beta, \
+        self.gamma]
+
+    @lparms.setter
+    def lparms(self, lp):
+        """
+        set the lattice parameters here
+        """
+        self._a = lp[0].getVal("nm")
+        self._b = lp[1].getVal("nm")
+        self._c = lp[2].getVal("nm")
+        self._alpha = lp[3].getVal("degrees")
+        self._beta  = lp[4].getVal("degrees")
+        self._gamma = lp[5].getVal("degrees")
+        self.calcmatrices()
+        self.init_max_g_index()
+        self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
+
+    @property
     def a(self):
         return self._a
 
     @a.setter
     def a(self, val):
-        self._a = val
-        self.calcmatrices()
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
-        self.CalcMaxGIndex()
-        if(hasattr(self, 'numat')):
-            self.CalcDensity()
+        if self.is_editable("a"):
+            self._a = val
+            self.calcmatrices()
+            self.CalcMaxGIndex()
+            if(hasattr(self, 'numat')):
+                self.CalcDensity()
+        else:
+            msg = f"not an editable field"
+            print(msg)
 
     @property
     def b(self):
@@ -1282,14 +1284,15 @@ class unitcell:
 
     @b.setter
     def b(self, val):
-        self._b = val
-        self.calcmatrices()
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
-        self.CalcMaxGIndex()
-        if(hasattr(self, 'numat')):
-            self.CalcDensity()
+        if self.is_editable("b"):
+            self._b = val
+            self.calcmatrices()
+            self.CalcMaxGIndex()
+            if(hasattr(self, 'numat')):
+                self.CalcDensity()
+        else:
+            msg = f"not an editable field"
+            print(msg)
 
     @property
     def c(self):
@@ -1297,14 +1300,15 @@ class unitcell:
 
     @c.setter
     def c(self, val):
-        self._c = val
-        self.calcmatrices()
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
-        self.CalcMaxGIndex()
-        if(hasattr(self, 'numat')):
-            self.CalcDensity()
+        if self.is_editable("c"):
+            self._c = val
+            self.calcmatrices()
+            self.CalcMaxGIndex()
+            if(hasattr(self, 'numat')):
+                self.CalcDensity()
+        else:
+            msg = f"not an editable field"
+            print(msg)
 
     @property
     def alpha(self):
@@ -1312,14 +1316,15 @@ class unitcell:
 
     @alpha.setter
     def alpha(self, val):
-        self._alpha = val
-        self.calcmatrices()
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
-        self.CalcMaxGIndex()
-        if(hasattr(self, 'numat')):
-            self.CalcDensity()
+        if self.is_editable("alpha"):
+            self._alpha = val
+            self.calcmatrices()
+            self.CalcMaxGIndex()
+            if(hasattr(self, 'numat')):
+                self.CalcDensity()
+        else:
+            msg = f"not an editable field"
+            print(msg)
 
     @property
     def beta(self):
@@ -1327,14 +1332,15 @@ class unitcell:
 
     @beta.setter
     def beta(self, val):
-        self._beta = val
-        self.calcmatrices()
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
-        self.CalcMaxGIndex()
-        if(hasattr(self, 'numat')):
-            self.CalcDensity()
+        if self.is_editable("beta"):
+            self._beta = val
+            self.calcmatrices()
+            self.CalcMaxGIndex()
+            if(hasattr(self, 'numat')):
+                self.CalcDensity()
+        else:
+            msg = f"not an editable field"
+            print(msg)
 
     @property
     def gamma(self):
@@ -1342,14 +1348,15 @@ class unitcell:
 
     @gamma.setter
     def gamma(self, val):
-        self._gamma = val
-        self.calcmatrices()
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
-        self.CalcMaxGIndex()
-        if(hasattr(self, 'numat')):
-            self.CalcDensity()
+        if self.is_editable("gamma"):
+            self._gamma = val
+            self.calcmatrices()
+            self.CalcMaxGIndex()
+            if(hasattr(self, 'numat')):
+                self.CalcDensity()
+        else:
+            msg = f"not an editable field"
+            print(msg)
 
     @property
     def dmin(self):
@@ -1359,13 +1366,8 @@ class unitcell:
     def dmin(self, v):
         if self._dmin == v:
             return
-
         self._dmin = v
-
         # Update the Max G Index
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
         self.CalcMaxGIndex()
 
     @property
@@ -1375,6 +1377,10 @@ class unitcell:
     @U.setter
     def U(self, Uarr):
         self._U = Uarr
+        self.aniU = False
+        if(Uarr.ndim > 1):
+            self.aniU = True
+            self.calcBetaij()
 
     @property
     def voltage(self):
@@ -1474,16 +1480,6 @@ class unitcell:
     @property
     def atom_ntype(self):
         return self.atom_type.shape[0]
-
-    # @property
-    # def B_factor(self):
-    #     return self._atom_pos[:, 4]
-
-    # @B_factor.setter
-    # def B_factor(self, val):
-    #     if (val.shape[0] != self.atom_ntype):
-    #         raise ValueError('Incorrect shape for B factor')
-    #     self._atom_pos[:, 4] = val
 
     # asymmetric positions in unit cell
     @property
