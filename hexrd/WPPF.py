@@ -1306,11 +1306,15 @@ class LeBail:
         elif('snip1d' in self.bkgmethod.keys()):
             self._background = []
             for i, s in enumerate(self._spectrum_expt):
-                if(self.tth_step[i] > 0.):
-                    ww = np.rint(self.bkgmethod['snip1d'][0] /
-                                 self.tth_step[i]).astype(np.int32)
-                else:
+                if not self.tth_step:
                     ww = 3
+                else:
+                    if(self.tth_step[i] > 0.):
+                        ww = np.rint(self.bkgmethod['snip1d'][0] /
+                                     self.tth_step[i]).astype(np.int32)
+                    else:
+                        ww = 3
+                    
                 numiter = self.bkgmethod['snip1d'][1]
 
                 yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),
@@ -1944,7 +1948,7 @@ class LeBail:
                 if(nth > 1):
                     self.tth_step.append((tma - tmi)/nth)
                 else:
-                    self.tth_step.append([0.])
+                    self.tth_step.append(0.)
 
             """
             @date 03/03/2021 SS
@@ -2355,7 +2359,6 @@ def extract_intensities(polar_view,
         # make sure that there is atleast one nonzero pixel
 
         if np.sum(~d.mask) > 1:
-            # d = d - d.min()
             data = np.ma.stack((tth_array,d)).T
             data_inp_list.append(data)
             non_zeros_index.append(i)
@@ -2402,6 +2405,8 @@ def extract_intensities(polar_view,
     make the values outside detector NaNs
     """
     pv_simulated[polar_view.mask] = np.nan
+    pv_simulated = np.ma.masked_array(pv_simulated, 
+        mask=np.isnan(pv_simulated))
 
     return extracted_intensities, \
         hkls, \
