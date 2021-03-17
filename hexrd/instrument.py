@@ -806,6 +806,7 @@ class HEDMInstrument(object):
 
         TODO: streamline projection code
         TODO: normalization
+        !!!: images must be non-negative!
         """
         if tth_tol is not None:
             plane_data.tThWidth = np.radians(tth_tol)
@@ -935,8 +936,15 @@ class HEDMInstrument(object):
                             )
                             pass
                         pass
+
+                    # handle threshold if specified
+                    this_det_image = np.array(imgser_dict[det_key])
+                    if threshold is not None:
+                        # !!! NaNs get preserved
+                        this_det_image[this_det_image < threshold] = 0.
+
                     # histogram intensities over eta ranges
-                    for i_row, image in enumerate(imgser_dict[det_key]):
+                    for i_row, image in enumerate(this_det_image):
                         if fast_histogram:
                             def _on_done(map, row, reta, future):
                                 map[row, reta] = future.result()
