@@ -1342,7 +1342,7 @@ class LeBail:
         self.points = []
         for i, s in enumerate(self._spectrum_expt):
             txt = (f"Select points for background estimation;"
-                f"click middle mouse button when done. segment # {i}")
+                   f"click middle mouse button when done. segment # {i}")
             title(txt)
 
             plot(s.x, s.y, '-k')
@@ -2265,8 +2265,8 @@ def _generate_default_parameters_LeBail(mat):
 
     else:
         msg = (f"_generate_default_parameters: "
-        f"incorrect argument. only list, dict or "
-        f"Material is accpeted.")
+               f"incorrect argument. only list, dict or "
+               f"Material is accpeted.")
         raise ValueError(msg)
 
     return params
@@ -2405,8 +2405,8 @@ def extract_intensities(polar_view,
     make the values outside detector NaNs
     """
     pv_simulated[polar_view.mask] = np.nan
-    pv_simulated = np.ma.masked_array(pv_simulated, 
-        mask=np.isnan(pv_simulated))
+    pv_simulated = np.ma.masked_array(pv_simulated,
+                                      mask=np.isnan(pv_simulated))
 
     return extracted_intensities, \
         hkls, \
@@ -4083,8 +4083,8 @@ def _generate_default_parameters_Rietveld(mat):
 
     else:
         msg = (f"_generate_default_parameters: "
-        f"incorrect argument. only list, dict or "
-        f"Material is accpeted.")
+               f"incorrect argument. only list, dict or "
+               f"Material is accpeted.")
         raise ValueError(msg)
 
     return params
@@ -4157,7 +4157,7 @@ def _add_atominfo_to_params(params, mat):
             U = mat.U
             for j in range(6):
                 nn = f("{phase_name}_{elem}{atom_label[i]}"
-                f"_{nameU[j]}")
+                       f"_{nameU[j]}")
                 params.add(
                     nn, value=U[i, j],
                     lb=-1e-3,
