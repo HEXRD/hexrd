@@ -866,6 +866,12 @@ class PlaneData(object):
         """This is the Schoenflies tag"""
         return self.__laueGroup
 
+    def setLaueGroup(self, laueGroup):
+        self.__laueGroup = laueGroup
+        self.__calc()
+
+    laueGroup = property(getLaueGroup, setLaueGroup, None)
+
     def getQSym(self):
         return self.__qsym  # rotations.quatOfLaueGroup(self.__laueGroup)
 
