@@ -4,6 +4,7 @@ from hexrd import constants
 from hexrd import symmetry, symbols
 from hexrd.spacegroup import Allowed_HKLs
 from hexrd.ipfcolor import sphere_sector, colorspace
+from hexrd.valunits import valWUnit
 import hexrd.resources
 import warnings
 import h5py
@@ -36,60 +37,12 @@ class unitcell:
 
         self.atom_type = atomtypes
         self.atom_pos = atominfo
-        self.U = U
 
         self._dmin = dmin
 
-        # set some default values for
-        # a,b,c,alpha,beta,gamma
-        self._a = 1.
-        self._b = 1.
-        self._c = 1.
-        self._alpha = 90.
-        self._beta = 90.
-        self._gamma = 90.
+        self.lparms = lp
 
-        if(lp[0].unit == 'angstrom'):
-            self.a = lp[0].value * 0.1
-        elif(lp[0].unit == 'nm'):
-            self.a = lp[0].value
-        else:
-            raise ValueError('unknown unit in lattice parameter')
-
-        if(lp[1].unit == 'angstrom'):
-            self.b = lp[1].value * 0.1
-        elif(lp[1].unit == 'nm'):
-            self.b = lp[1].value
-        else:
-            raise ValueError('unknown unit in lattice parameter')
-
-        if(lp[2].unit == 'angstrom'):
-            self.c = lp[2].value * 0.1
-        elif(lp[2].unit == 'nm'):
-            self.c = lp[2].value
-        else:
-            raise ValueError('unknown unit in lattice parameter')
-
-        if(lp[3].unit == 'degrees'):
-            self.alpha = lp[3].value
-        elif(lp[3].unit == 'radians'):
-            self.alpha = np.degrees(lp[3].value)
-
-        if(lp[4].unit == 'degrees'):
-            self.beta = lp[4].value
-        elif(lp[4].unit == 'radians'):
-            self.beta = np.degrees(lp[4].value)
-
-        if(lp[5].unit == 'degrees'):
-            self.gamma = lp[5].value
-        elif(lp[5].unit == 'radians'):
-            self.gamma = np.degrees(lp[5].value)
-
-        self.aniU = False
-        if(self.U.ndim > 1):
-            self.aniU = True
-            self.calcBetaij()
-
+        self.U = U
         '''
         initialize interpolation from table for anomalous scattering
         '''
@@ -704,7 +657,17 @@ class unitcell:
         each of the three reciprocal
         basis vectors '''
 
+    def init_max_g_index(self):
+        """
+        added 03/17/2021 SS
+        """
+        self.ih = 1
+        self.ik = 1
+        self.il = 1
+
     def CalcMaxGIndex(self):
+        self.init_max_g_index()
+
         while (1.0 / self.CalcLength(
             np.array([self.ih, 0, 0],
                      dtype=np.float64), 'r') > self.dmin):
@@ -1246,6 +1209,48 @@ class unitcell:
 
         self.stiffness = C
 
+    def is_editable(self, lp_name):
+        """
+        @author Saransh Singh, Lawrence Livermore National Lab
+        @date 03/17/2021 SS 1.0 original
+        @details check if a certain field in the lattice parameter 
+        is editable. this depends on the space group number or the
+        lattice class
+        """
+
+        _lpnamelist = list(_lpname)
+        index = _lpnamelist.index(lp_name)
+        editable_fields = _rqpDict[self.latticeType][0]
+        return index in editable_fields
+
+    def convert_lp_to_valunits(self, lp):
+        """
+        added 03/17/2021 SS
+        """
+        lp_valunit = []
+        for i in range(6):
+            if(i < 3):
+                lp_valunit.append(
+                    valWUnit('lp', 'length',  lp[i], 'nm'))
+
+            else:
+                lp_valunit.append(
+                    valWUnit('lp', 'angle',  lp[i], 'degrees'))
+
+        return lp_valunit
+
+    def fill_correct_lp_vals(self, lp, val, lp_name):
+        """
+        added 03/17/2021 SS
+        """
+        index = list(_lpname).index(lp_name)
+        lp[index] = val
+        lp_red = [lp[i] for i in
+                  _rqpDict[self.latticeType][0]]
+        lp = _rqpDict[self.latticeType][1](lp_red)
+        lp_valunit = self.convert_lp_to_valunits(lp)
+        return lp_valunit
+
     @property
     def compliance(self):
         # Compliance in TPa⁻¹. Stiffness is in GPa.
@@ -1262,19 +1267,50 @@ class unitcell:
     # lattice constants as properties
 
     @property
+    def lparms(self):
+        return [self.a, self.b,
+                self.c, self.alpha, self.beta,
+                self.gamma]
+
+    @lparms.setter
+    def lparms(self, lp):
+        """
+        set the lattice parameters here
+        """
+        self._a = lp[0].getVal("nm")
+        self._b = lp[1].getVal("nm")
+        self._c = lp[2].getVal("nm")
+        self._alpha = lp[3].getVal("degrees")
+        self._beta = lp[4].getVal("degrees")
+        self._gamma = lp[5].getVal("degrees")
+        self.calcmatrices()
+        self.init_max_g_index()
+        self.CalcMaxGIndex()
+        if(hasattr(self, 'numat')):
+            self.CalcDensity()
+
+    @property
+    def lparms_reduced(self):
+        lp = self.lparms
+        lp_red = [lp[i] for i in
+                  _rqpDict[self.latticeType][0]]
+        return lp_red
+
+    @property
     def a(self):
         return self._a
 
     @a.setter
     def a(self, val):
-        self._a = val
-        self.calcmatrices()
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
-        self.CalcMaxGIndex()
-        if(hasattr(self, 'numat')):
-            self.CalcDensity()
+        if self.is_editable("a"):
+            lp = self.lparms
+            lp_valunit = self.fill_correct_lp_vals(
+                lp, val, "a")
+            self.lparms = lp_valunit
+        else:
+            msg = (f"not an editable field"
+                   f" for this space group")
+            raise RuntimeError(msg)
 
     @property
     def b(self):
@@ -1282,14 +1318,15 @@ class unitcell:
 
     @b.setter
     def b(self, val):
-        self._b = val
-        self.calcmatrices()
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
-        self.CalcMaxGIndex()
-        if(hasattr(self, 'numat')):
-            self.CalcDensity()
+        if self.is_editable("b"):
+            lp = self.lparms
+            lp_valunit = self.fill_correct_lp_vals(
+                lp, val, "b")
+            self.lparms = lp_valunit
+        else:
+            msg = (f"not an editable field"
+                   f" for this space group")
+            raise RuntimeError(msg)
 
     @property
     def c(self):
@@ -1297,14 +1334,15 @@ class unitcell:
 
     @c.setter
     def c(self, val):
-        self._c = val
-        self.calcmatrices()
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
-        self.CalcMaxGIndex()
-        if(hasattr(self, 'numat')):
-            self.CalcDensity()
+        if self.is_editable("c"):
+            lp = self.lparms
+            lp_valunit = self.fill_correct_lp_vals(
+                lp, val, "c")
+            self.lparms = lp_valunit
+        else:
+            msg = (f"not an editable field"
+                   f" for this space group")
+            raise RuntimeError(msg)
 
     @property
     def alpha(self):
@@ -1312,14 +1350,15 @@ class unitcell:
 
     @alpha.setter
     def alpha(self, val):
-        self._alpha = val
-        self.calcmatrices()
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
-        self.CalcMaxGIndex()
-        if(hasattr(self, 'numat')):
-            self.CalcDensity()
+        if self.is_editable("alpha"):
+            lp = self.lparms
+            lp_valunit = self.fill_correct_lp_vals(
+                lp, val, "alpha")
+            self.lparms = lp_valunit
+        else:
+            msg = (f"not an editable field"
+                   f" for this space group")
+            raise RuntimeError(msg)
 
     @property
     def beta(self):
@@ -1327,14 +1366,15 @@ class unitcell:
 
     @beta.setter
     def beta(self, val):
-        self._beta = val
-        self.calcmatrices()
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
-        self.CalcMaxGIndex()
-        if(hasattr(self, 'numat')):
-            self.CalcDensity()
+        if self.is_editable("beta"):
+            lp = self.lparms
+            lp_valunit = self.fill_correct_lp_vals(
+                lp, val, "beta")
+            self.lparms = lp_valunit
+        else:
+            msg = (f"not an editable field"
+                   f" for this space group")
+            raise RuntimeError(msg)
 
     @property
     def gamma(self):
@@ -1342,14 +1382,15 @@ class unitcell:
 
     @gamma.setter
     def gamma(self, val):
-        self._gamma = val
-        self.calcmatrices()
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
-        self.CalcMaxGIndex()
-        if(hasattr(self, 'numat')):
-            self.CalcDensity()
+        if self.is_editable("gamma"):
+            lp = self.lparms
+            lp_valunit = self.fill_correct_lp_vals(
+                lp, val, "gamma")
+            self.lparms = lp_valunit
+        else:
+            msg = (f"not an editable field"
+                   f" for this space group")
+            raise RuntimeError(msg)
 
     @property
     def dmin(self):
@@ -1359,13 +1400,8 @@ class unitcell:
     def dmin(self, v):
         if self._dmin == v:
             return
-
         self._dmin = v
-
         # Update the Max G Index
-        self.ih = 1
-        self.ik = 1
-        self.il = 1
         self.CalcMaxGIndex()
 
     @property
@@ -1375,6 +1411,10 @@ class unitcell:
     @U.setter
     def U(self, Uarr):
         self._U = Uarr
+        self.aniU = False
+        if(Uarr.ndim > 1):
+            self.aniU = True
+            self.calcBetaij()
 
     @property
     def voltage(self):
@@ -1474,16 +1514,6 @@ class unitcell:
     @property
     def atom_ntype(self):
         return self.atom_type.shape[0]
-
-    # @property
-    # def B_factor(self):
-    #     return self._atom_pos[:, 4]
-
-    # @B_factor.setter
-    # def B_factor(self, val):
-    #     if (val.shape[0] != self.atom_ntype):
-    #         raise ValueError('Incorrect shape for B factor')
-    #     self._atom_pos[:, 4] = val
 
     # asymmetric positions in unit cell
     @property

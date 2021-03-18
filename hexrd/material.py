@@ -672,6 +672,11 @@ class Material(object):
     def U(self):
         return self.unitcell.U
 
+    @U.setter
+    def U(self, Uarr):
+        self.unitcell.U = Uarr
+        self.update_structure_factor()
+
     # property:  sgnum
 
     def _get_sgnum(self):
