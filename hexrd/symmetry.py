@@ -29,6 +29,7 @@
 #
 # Module containing functions relevant to symmetries
 
+import numpy as np
 from numpy import array, sqrt, pi, \
      vstack, c_, dot, \
      argmax
@@ -36,7 +37,8 @@ from numpy import array, sqrt, pi, \
 # from hexrd.rotations import quatOfAngleAxis, quatProductMatrix, fixQuat
 from hexrd import rotations as rot
 from hexrd import constants
-import numpy as np
+from hexrd.utils.decorators import numba_njit_if_available
+
 
 # =============================================================================
 # Module vars
@@ -373,7 +375,7 @@ def MakeGenerators(genstr, setting):
         mat = SYM_fillgen(t)
         genmat = np.concatenate((genmat, mat))
         centrosymmetric = True
-        
+
     n = int(genstr[1])
     if(n > 0):
         for i in range(n):
@@ -475,15 +477,15 @@ def GenerateSGSym(sgnum, setting=0):
     for s in SYM_PG_d:
         if(np.allclose(-np.eye(3),s)):
             centrosymmetric = True
-        
+
 
     return SYM_SG, SYM_PG_d, SYM_PG_d_laue, centrosymmetric, symmorphic
 
 def GeneratePGSym(SYM_SG):
     '''
-    calculate the direct space point group symmetries 
-    from the space group symmetry. the direct point 
-    group symmetries are merely the space group 
+    calculate the direct space point group symmetries
+    from the space group symmetry. the direct point
+    group symmetries are merely the space group
     symmetries with zero translation part. The reciprocal
     ones are calculated from the direct symmetries by
     using the metric tensors, but that is done in the unitcell
@@ -507,10 +509,10 @@ def GeneratePGSym(SYM_SG):
 
 def GeneratePGSym_Laue(SYM_PG_d):
     '''
-    generate the laue group symmetry for the given set of 
+    generate the laue group symmetry for the given set of
     point group symmetry matrices. this function just adds
     the inversion symmetry and goes through the group action
-    to generate the entire laue group for the direct point 
+    to generate the entire laue group for the direct point
     point group matrices
     '''
 
@@ -556,14 +558,14 @@ def GeneratePGSym_Laue(SYM_PG_d):
 
     return SYM_PG_d_laue
 
+
+@numba_njit_if_available(cache=True, nogil=True)
 def isnew(mat, sym_mats):
-    isnew = True
     for g in sym_mats:
-        diff = np.sum(np.abs(mat-g))
-        if(diff < 1E-5):
-            isnew = False
-            break
-    return isnew
+        diff = np.sum(np.abs(mat - g))
+        if diff < 1e-5:
+            return False
+    return True
 
 def latticeType(sgnum):
 
@@ -614,7 +616,7 @@ def GeneratePGSYM(pgsym):
     '''
     generate the powers of the group
     '''
-    
+
 
     '''
     now go through the group actions and see if its a new matrix
