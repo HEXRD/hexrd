@@ -1331,7 +1331,7 @@ class LeBail:
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
             p = np.polynomial.Chebyshev.fit(
-                tth, s.y, degree, w=self.weights[i]**2)
+                tth, s.y, degree, w=self._weights[i]**2)
             self._background.append(Spectrum(x=tth, y=p(tth)))
 
     def selectpoints(self):
