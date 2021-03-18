@@ -180,6 +180,7 @@ class Material(object):
 
         self._newUnitcell()
         self._newPdata()
+        self.update_structure_factor()
 
     def __str__(self):
         """String representation"""
@@ -194,7 +195,7 @@ class Material(object):
         """
         @author Saransh Singh, Lawrence Livermore National Lab
         @date 03/11/2021 SS 1.0 original
-        @details correctly initialize lattice parameters based 
+        @details correctly initialize lattice parameters based
         on the space group number
         """
         lparms = [x.value for x in self._lparms]
@@ -228,8 +229,19 @@ class Material(object):
         else:
             self._unitcell.stiffness = Material.DFLT_STIFFNESS
 
+        if pdata := getattr(self, '_pData', None):
+            laue = self.unitcell._laueGroup
+            reduced_lparms = self.reduced_lattice_parameters
+            if pdata.laueGroup != laue or pdata.lparms != reduced_lparms:
+                pdata.set_laue_and_lparms(laue, reduced_lparms)
+
+    def _hkls_changed(self):
+        # Call this when something happens that changes the hkls...
+        self._newPdata()
+        self.update_structure_factor()
+
     def _newPdata(self):
-        """Create a new plane data instance"""
+        """Create a new plane data instance if the hkls have changed"""
         # spaceGroup module calulates forbidden reflections
         '''
         >> @date 08/20/2020 SS removing dependence of planeData
@@ -240,14 +252,38 @@ class Material(object):
         from hdf5 file using a hkl list
         '''
         hkls = self.unitcell.getHKLs(self._dmin.getVal('nm')).T
-        ltype = self.unitcell.latticeType
-        lprm = [self._lparms[i]
-                for i in unitcell._rqpDict[ltype][0]]
-        laue = self.unitcell._laueGroup
-        self._pData = PData(hkls, lprm, laue,
-                            self._beamEnergy, Material.DFLT_STR,
-                            tThWidth=Material.DFLT_TTH,
-                            tThMax=Material.DFLT_TTHMAX)
+        if old_pdata := getattr(self, '_pData', None):
+            if hkls_match(hkls.T, old_pdata.getHKLs(allHKLs=True)):
+                # There's no need to generate a new plane data object...
+                return
+
+            # Copy over attributes from the previous PlaneData object
+            self._pData = PData(hkls, old_pdata, exclusions=None)
+
+            # Get a mapping to new hkl indices
+            old_indices, new_indices = map_hkls_to_new(old_pdata, self._pData)
+
+            # Map the new exclusions to the old ones. New ones default to True.
+            exclusions = numpy.ones(hkls.shape[1], dtype=bool)
+            exclusions[new_indices] = old_pdata.exclusions[old_indices]
+
+            if numpy.all(exclusions):
+                # If they are all excluded, just set the default exclusions
+                self.set_default_exclusions()
+            else:
+                self._pData.exclusions = exclusions
+        else:
+            # Make the PlaneData object from scratch...
+            lprm = self.reduced_lattice_parameters
+            laue = self.unitcell._laueGroup
+            self._pData = PData(hkls, lprm, laue,
+                                self._beamEnergy, Material.DFLT_STR,
+                                tThWidth=Material.DFLT_TTH,
+                                tThMax=Material.DFLT_TTHMAX)
+
+            self.set_default_exclusions()
+
+    def set_default_exclusions(self):
         '''
           Set default exclusions
           all reflections with two-theta smaller than 90 degrees
@@ -279,10 +315,6 @@ class Material(object):
             dflt_excl[0] = False
 
         self._pData.exclusions = dflt_excl
-
-        self.update_structure_factor()
-
-        return
 
     def update_structure_factor(self):
         hkls = self.planeData.getHKLs(allHKLs=True)
@@ -619,6 +651,7 @@ class Material(object):
     def latticeType(self):
         return self.unitcell.latticeType
 
+    @property
     def vol_per_atom(self):
         return self.unitcell.vol_per_atom
 
@@ -638,6 +671,11 @@ class Material(object):
     def U(self):
         return self.unitcell.U
 
+    @U.setter
+    def U(self, Uarr):
+        self.unitcell.U = Uarr
+        self.update_structure_factor()
+
     # property:  sgnum
 
     def _get_sgnum(self):
@@ -655,7 +693,7 @@ class Material(object):
         # Update the unit cell if there is one
         if hasattr(self, 'unitcell'):
             self._newUnitcell()
-            self._newPdata()
+            self._hkls_changed()
 
     sgnum = property(_get_sgnum, _set_sgnum, None,
                      "Space group number")
@@ -685,29 +723,10 @@ class Material(object):
         '''
         self.unitcell.voltage = self.beamEnergy.value*1e3
         self.planeData.wavelength = keV
-        self.update_structure_factor()
-
-        return
+        self._hkls_changed()
 
     beamEnergy = property(_get_beamEnergy, _set_beamEnergy, None,
                           "Beam energy in keV")
-
-    # >> @date 08/20/2020 removing dependence on hklmax
-    # property:  hklMax
-
-    # def _get_hklMax(self):
-    #     """Get method for hklMax"""
-    #     return self._hklMax
-
-    # def _set_hklMax(self, v):
-    #     """Set method for hklMax"""
-    #     self._hklMax = v
-    #     self._newPdata()  # update planeData
-    #     return
-
-    # hklMax = property(_get_hklMax, _set_hklMax, None,
-    #                   "Max sum of squares for HKLs")
-    # property:  planeData
 
     """
     03/11/2021 SS 1.0 original
@@ -722,12 +741,12 @@ class Material(object):
         return self._pData
 
     # property:  latticeParameters
-
-    def _get_latticeParameters(self):
-        """Get method for latticeParameters"""
+    @property
+    def latticeParameters(self):
         return self._lparms
 
-    def _set_latticeParameters(self, v):
+    @latticeParameters.setter
+    def latticeParameters(self, v):
         """Set method for latticeParameters"""
         if(len(v) != 6):
             v = unitcell._rqpDict[self.unitcell.latticeType][1](v)
@@ -735,32 +754,13 @@ class Material(object):
         for i in range(3, 6):
             lp.append(_degrees(v[i]))
         self._lparms = lp
+        self._newUnitcell()
+        self._hkls_changed()
 
-        rq_lp = unitcell._rqpDict[self.unitcell.latticeType][0]
-        for i, vv in enumerate(lp):
-            if(vv.isLength()):
-                val = vv.value / 10.0
-            else:
-                val = vv.value
-            setattr(self.unitcell, unitcell._lpname[i], val)
-        v2 = [lp[x].value for x in rq_lp]
-        self.planeData.lparms = v2
-
-        return
-
-    lpdoc = r"""Lattice parameters
-
-On output, all six paramters are returned.
-
-On input, either all six or a minimal set is accepted.
-
-The values have units attached, i.e. they are valWunit instances.
-"""
-    latticeParameters = property(
-        _get_latticeParameters, _set_latticeParameters,
-        None, lpdoc)
-
-    # property:  "name"
+    @property
+    def reduced_lattice_parameters(self):
+        ltype = self.unitcell.latticeType
+        return [self._lparms[i] for i in unitcell._rqpDict[ltype][0]]
 
     def _get_name(self):
         """Set method for name"""
@@ -781,7 +781,7 @@ The values have units attached, i.e. they are valWunit instances.
 
     @dmin.setter
     def dmin(self, v):
-        if self._dmin == v:
+        if self._dmin.getVal('angstrom') == v.getVal('angstrom'):
             return
 
         self._dmin = v
@@ -789,21 +789,27 @@ The values have units attached, i.e. they are valWunit instances.
         # Update the unit cell
         self.unitcell.dmin = v.getVal('nm')
 
-        self._newPdata()
+        self._hkls_changed()
+
+    @property
+    def natoms(self):
+        return self.atominfo.shape[0]
 
     # property: "atominfo"
+
     def _get_atominfo(self):
         """Set method for name"""
         return self._atominfo
 
     def _set_atominfo(self, v):
         """Set method for name"""
-        if v.shape[1] == 4:
-            self._atominfo = v
-            if hasattr(self, 'unitcell'):
-                self.unitcell.atom_pos = v
-        else:
-            print("Improper syntax, array must be n x 4")
+        if v.ndim != 2:
+            raise ValueError("input must be 2-d.")
+        if v.shape[1] != 4:
+            raise ValueError("enter x, y, z, occ as nx4 array")
+
+        self._atominfo = v
+        self._newUnitcell()
 
         self.update_structure_factor()
         return
@@ -812,26 +818,33 @@ The values have units attached, i.e. they are valWunit instances.
         _get_atominfo, _set_atominfo, None,
         "Information about atomic positions and electron number")
 
-    # # property: "atominfo"
-    # def _get_atomtype(self):
-    #     """Set method for name"""
-    #     return self._atomtype
+    # property: "atomtype"
+    def _get_atomtype(self):
+        """Set method for name"""
+        return self._atomtype
 
-    # def _set_atomtype(self, v):
-    #     """Set method for atomtype"""
-    #     if v.shape[1] == 4:
-    #         self._atominfo = v
-    #         if hasattr(self, 'unitcell'):
-    #             self.unitcell.atom_pos = v
-    #     else:
-    #         print("Improper syntax, array must be n x 4")
+    def _set_atomtype(self, v):
+        """Set method for atomtype"""
+        """
+        check to make sure number of atoms here is same as
+        the atominfo
+        """
+        if isinstance(v, list):
+            if len(v) != self.natoms:
+                raise ValueError("incorrect number of atoms")
+        elif isinstance(v, numpy.ndarray):
+            if v.ndim != 1:
+                if v.shape[0] != self.natoms:
+                    raise ValueError("incorrect number of atoms")
 
-    #     self.update_structure_factor()
-    #     return
+        self._atomtype = numpy.array(v)
+        self._newUnitcell()
 
-    # atominfo = property(
-    #     _get_atomtype, _set_atomtype, None,
-    #     "Information about atomic positions and electron number")
+        self.update_structure_factor()
+
+    atomtype = property(
+        _get_atomtype, _set_atomtype, None,
+        "Information about atomic types")
 
     #
     #  ========== Methods
@@ -884,6 +897,27 @@ def save_materials_hdf5(f, materials):
     """Save a dict of materials into an HDF5 file"""
     for material in materials.values():
         material.dump_material(f)
+
+
+def hkls_match(a, b):
+    # Check if hkls match. Expects inputs to have shape (x, 3).
+    def sorted_hkls(x):
+        return x[numpy.lexsort((x[:, 2], x[:, 1], x[:, 0]))]
+    return numpy.array_equal(sorted_hkls(a), sorted_hkls(b))
+
+
+def map_hkls_to_new(old_pdata, new_pdata):
+    # Creates a mapping of old hkl indices to new ones.
+    # Expects inputs to be PlaneData objects.
+    def get_hkl_strings(pdata):
+        return pdata.getHKLs(allHKLs=True, asStr=True)
+
+    kwargs = {
+        'ar1': get_hkl_strings(old_pdata),
+        'ar2': get_hkl_strings(new_pdata),
+        'return_indices': True,
+    }
+    return numpy.intersect1d(**kwargs)[1:]
 
 #
 #  ============================== Executable section for testing

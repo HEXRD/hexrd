@@ -46,10 +46,7 @@ class ProcessedImageSeries(ImageSeries):
         return len(self._frames) if self._hasframelist else len(self._imser)
 
     def __iter__(self):
-        if self._hasframelist:
-            return (self._imser[i] for i in self._frames)
-
-        return self._imser.__iter__()
+        return (self[i] for i in range(len(self)))
 
     def _process_frame(self, key):
         # note: key refers to original imageseries

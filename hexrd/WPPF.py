@@ -2359,7 +2359,7 @@ def extract_intensities(polar_view,
         # make sure that there is atleast one nonzero pixel
 
         if np.sum(~d.mask) > 1:
-            data = np.ma.stack((tth_array,d)).T
+            data = np.ma.stack((tth_array, d)).T
             data_inp_list.append(data)
             non_zeros_index.append(i)
 
@@ -2402,11 +2402,12 @@ def extract_intensities(polar_view,
         tths.append(tth)
 
     """
-    make the values outside detector NaNs
+    make the values outside detector NaNs and convert to masked array
     """
     pv_simulated[polar_view.mask] = np.nan
     pv_simulated = np.ma.masked_array(pv_simulated,
                                       mask=np.isnan(pv_simulated))
+
 
     return extracted_intensities, \
         hkls, \
