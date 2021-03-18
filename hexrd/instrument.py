@@ -31,7 +31,7 @@ Created on Fri Dec  9 13:05:27 2016
 @author: bernier2
 """
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import functools
 
 import yaml
@@ -2038,7 +2038,7 @@ class PlanarDetector(object):
 
     @property
     def row_edge_vec(self):
-        return self.pixel_size_row*(0.5*self.rows-np.arange(self.rows+1))
+        return _row_edge_vec(self.rows, self.pixel_size_row)
 
     @property
     def col_pixel_vec(self):
@@ -2046,7 +2046,7 @@ class PlanarDetector(object):
 
     @property
     def col_edge_vec(self):
-        return self.pixel_size_col*(np.arange(self.cols+1)-0.5*self.cols)
+        return _col_edge_vec(self.cols, self.pixel_size_col)
 
     @property
     def corner_ul(self):
@@ -2156,27 +2156,44 @@ class PlanarDetector(object):
 
     @property
     def pixel_solid_angles(self):
-        nvtx = len(self.row_edge_vec) * len(self.col_edge_vec)
-        # pixel vertex coords
-        pvy, pvx = np.meshgrid(self.row_edge_vec, self.col_edge_vec,
-                               indexing='ij')
-        # add Z_d coord and transform to lab frame
-        pcrd_array_full = np.dot(
-            np.vstack([pvx.flatten(), pvy.flatten(), np.zeros(nvtx)]).T,
-            self.rmat.T
-        ) + self.tvec
-
         # connectivity array for pixels
         conn = cellConnectivity(self.rows, self.cols)
 
-        # loop
+        # result
         solid_angs = np.empty(len(conn), dtype=float)
-        for ipix, pix_conn in enumerate(conn):
-            # [0, 1, 2], [2, 3, 0]
-            vtx_list = pcrd_array_full[pix_conn, :]
-            solid_angs[ipix] = \
-                _solid_angle_of_triangle(vtx_list[[0, 1, 2], :]) \
-                + _solid_angle_of_triangle(vtx_list[[2, 3, 0], :])
+
+        # Assign ranges for each process
+        num_workers = os.cpu_count()
+        num_per_process = len(conn) // num_workers
+        remainder = len(conn) % num_workers
+
+        ranges = []
+        for i in range(num_workers):
+            start = ranges[-1][1] if i != 0 else 0
+
+            stop = start + num_per_process
+            if remainder > 0:
+                # Give this processor an extra one
+                stop += 1
+                remainder -= 1
+
+            ranges.append([start, stop])
+
+        kwargs = {
+            'rows': self.rows,
+            'cols': self.cols,
+            'pixel_size_row': self.pixel_size_row,
+            'pixel_size_col': self.pixel_size_col,
+            'rmat': self.rmat,
+            'tvec': self.tvec,
+        }
+        func = functools.partial(_generate_pixel_solid_angles, **kwargs)
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            results = executor.map(func, ranges)
+
+        # Concatenate all the results together
+        solid_angs[:] = np.concatenate(list(results))
+
         return solid_angs.reshape(self.rows, self.cols)
 
     @property
@@ -3459,3 +3476,40 @@ class GenerateEtaOmeMaps(object):
     def save(self, filename):
         xrdutil.EtaOmeMaps.save_eta_ome_maps(self, filename)
     pass  # end of class: GenerateEtaOmeMaps
+
+
+def _row_edge_vec(rows, pixel_size_row):
+    return pixel_size_row*(0.5*rows-np.arange(rows+1))
+
+
+def _col_edge_vec(cols, pixel_size_col):
+    return pixel_size_col*(np.arange(cols+1)-0.5*cols)
+
+
+def _generate_pixel_solid_angles(start_stop, rows, cols, pixel_size_row,
+                                 pixel_size_col, rmat, tvec):
+    start, stop = start_stop
+    row_edge_vec = _row_edge_vec(rows, pixel_size_row)
+    col_edge_vec = _col_edge_vec(cols, pixel_size_col)
+
+    nvtx = len(row_edge_vec) * len(col_edge_vec)
+    # pixel vertex coords
+    pvy, pvx = np.meshgrid(row_edge_vec, col_edge_vec, indexing='ij')
+
+    # add Z_d coord and transform to lab frame
+    pcrd_array_full = np.dot(
+        np.vstack([pvx.flatten(), pvy.flatten(), np.zeros(nvtx)]).T,
+        rmat.T
+    ) + tvec
+
+    conn = cellConnectivity(rows, cols)
+
+    ret = np.empty(len(range(start, stop)), dtype=float)
+
+    for i, ipix in enumerate(range(start, stop)):
+        pix_conn = conn[ipix]
+        vtx_list = pcrd_array_full[pix_conn, :]
+        ret[i] = (_solid_angle_of_triangle(vtx_list[[0, 1, 2], :]) +
+                  _solid_angle_of_triangle(vtx_list[[2, 3, 0], :]))
+
+    return ret
