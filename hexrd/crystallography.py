@@ -872,6 +872,18 @@ class PlaneData(object):
 
     laueGroup = property(getLaueGroup, setLaueGroup, None)
 
+    def set_laue_and_lparms(self, laueGroup, lparms):
+        """Set the Laue group and lattice parameters simultaneously
+
+        When the Laue group changes, the lattice parameters may be
+        incompatible, and cause an error in self.__calc(). This function
+        allows us to update both the Laue group and lattice parameters
+        simultaneously to avoid this issue.
+        """
+        self.__laueGroup = laueGroup
+        self.__lparms = self.__parseLParms(lparms)
+        self.__calc()
+
     def getQSym(self):
         return self.__qsym  # rotations.quatOfLaueGroup(self.__laueGroup)
 

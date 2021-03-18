@@ -229,12 +229,11 @@ class Material(object):
         else:
             self._unitcell.stiffness = Material.DFLT_STIFFNESS
 
-        if hasattr(self, '_pData'):
-            if self.planeData.lparms != self.reduced_lattice_parameters:
-                self.planeData.lparms = self.reduced_lattice_parameters
-
-            if self.planeData.laueGroup != self.unitcell._laueGroup:
-                self.planeData.laueGroup = self.unitcell._laueGroup
+        if pdata := getattr(self, '_pData', None):
+            laue = self.unitcell._laueGroup
+            reduced_lparms = self.reduced_lattice_parameters
+            if pdata.laueGroup != laue or pdata.lparms != reduced_lparms:
+                pdata.set_laue_and_lparms(laue, reduced_lparms)
 
     def _hkls_changed(self):
         # Call this when something happens that changes the hkls...
