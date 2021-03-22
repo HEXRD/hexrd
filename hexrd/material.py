@@ -675,7 +675,7 @@ class Material(object):
     def U(self, Uarr):
         Uarr = np.array(Uarr)
         if self.unitcell.U.shape == Uarr.shape:
-            if not np.allclose(self.unitcell.U, Uarr)
+            if not np.allclose(self.unitcell.U, Uarr):
                 self.unitcell.U = Uarr
                 self.update_structure_factor()
             else:
