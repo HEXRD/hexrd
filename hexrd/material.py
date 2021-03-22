@@ -673,9 +673,9 @@ class Material(object):
 
     @U.setter
     def U(self, Uarr):
-        Uarr = np.array(Uarr)
+        Uarr = numpy.array(Uarr)
         if self.unitcell.U.shape == Uarr.shape:
-            if not np.allclose(self.unitcell.U, Uarr):
+            if not numpy.allclose(self.unitcell.U, Uarr):
                 self.unitcell.U = Uarr
                 self.update_structure_factor()
             else:
@@ -816,7 +816,7 @@ class Material(object):
             raise ValueError("enter x, y, z, occ as nx4 array")
 
         if self._atominfo.shape == v.shape:
-            if not np.allclose(self._atominfo, v):
+            if not numpy.allclose(self._atominfo, v):
                 self._atominfo = v
                 self.unitcell.atom_pos = v
                 self.update_structure_factor()
@@ -851,9 +851,9 @@ class Material(object):
                 if v.shape[0] != self.natoms:
                     raise ValueError("incorrect number of atoms")
 
-        v = np.array(v)
+        v = numpy.array(v)
         if self._atomtype.shape == v.shape:
-            if not np.allclose(self._atomtype, v):
+            if not numpy.allclose(self._atomtype, v):
                 self._atomtype = numpy.array(v)
                 self._newUnitcell()
                 self.update_structure_factor()
