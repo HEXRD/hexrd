@@ -673,11 +673,18 @@ class Material(object):
 
     @U.setter
     def U(self, Uarr):
-        self.unitcell.U = Uarr
-        self.update_structure_factor()
-
+        Uarr = np.array(Uarr)
+        if self.unitcell.U.shape == Uarr.shape:
+            if not np.allclose(self.unitcell.U, Uarr)
+                self.unitcell.U = Uarr
+                self.update_structure_factor()
+            else:
+                return
+        else:
+            self.unitcell.U = Uarr
+            self.update_structure_factor()
+    
     # property:  sgnum
-
     def _get_sgnum(self):
         """Get method for sgnum"""
         return self._sgnum
@@ -808,11 +815,18 @@ class Material(object):
         if v.shape[1] != 4:
             raise ValueError("enter x, y, z, occ as nx4 array")
 
-        self._atominfo = v
-        self._newUnitcell()
+        if self._atominfo.shape == v.shape:
+            if not np.allclose(self._atominfo, v):
+                self._atominfo = v
+                self.unitcell.atom_pos = v
+                self.update_structure_factor()
 
-        self.update_structure_factor()
-        return
+            else:
+                return
+        else:
+            self._atominfo = v
+            self.unitcell.atom_pos = v
+            self.update_structure_factor()
 
     atominfo = property(
         _get_atominfo, _set_atominfo, None,
@@ -837,10 +851,19 @@ class Material(object):
                 if v.shape[0] != self.natoms:
                     raise ValueError("incorrect number of atoms")
 
-        self._atomtype = numpy.array(v)
-        self._newUnitcell()
+        v = np.array(v)
+        if self._atomtype.shape == v.shape:
+            if not np.allclose(self._atomtype, v):
+                self._atomtype = numpy.array(v)
+                self._newUnitcell()
+                self.update_structure_factor()
 
-        self.update_structure_factor()
+            else:
+                return
+        else:
+            self._atomtype = numpy.array(v)
+            self._newUnitcell()
+            self.update_structure_factor()
 
     atomtype = property(
         _get_atomtype, _set_atomtype, None,
