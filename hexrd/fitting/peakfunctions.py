@@ -28,7 +28,7 @@
 import numpy as np
 import copy
 from hexrd import constants
-
+from scipy.special import exp1, expi, erfc
 
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.
@@ -689,3 +689,52 @@ def mpeak_1d(p, x, pktype, num_pks, bgtype=None):
         f = f+p[-3]+p[-2]*x+p[-1]*x**2  # c0=p[-3], c1=p[-2], c2=p[-1],
 
     return f
+
+def _gaussian_pink_beam(alpha, 
+                        beta, 
+                        Hcag, 
+                        tth, 
+                        tth_list):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/22/2021 SS 1.0 original
+    @details the gaussian component of the pink beam peak profile
+    obtained by convolution of gaussian with normalized back to back
+    exponentials. more details can be found in 
+    Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
+    """
+    del_tth = tth_list - tth
+    sigsqr = Hcag*Hcag
+    f1 = alpha*sigsqr + 2.0*del_tth
+    f2 = beta*sigsqr - 2.0*del_tth
+    f3 = np.sqrt(2.0)*Hcag
+    u = 0.5*alpha*f1
+    v = 0.5*beta*f2
+    y = (f1-del_tth)/f3
+    z = f2/f3
+
+    return (0.5*(alpha*beta)/(alpha + beta)) \
+    * (np.exp(u)*erfc(y) + np.exp(v)*erfc(z))
+
+def _lorentzian_pink_beam(alpha, 
+                          beta, 
+                          gamma, 
+                          tth, 
+                          tth_list):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/22/2021 SS 1.0 original
+    @details the lorentzian component of the pink beam peak profile
+    obtained by convolution of gaussian with normalized back to back
+    exponentials. more details can be found in 
+    Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
+    """
+    del_tth = tth_list - tth
+    p = -alpha*del_tth + 1j * 0.5*alpha*gamma
+    q = -beta*del_tth + 1j * 0.5*beta*gamma
+
+    f1 = np.imag(np.exp(p)*exp1(p))
+    f2 = np.imag(np.exp(q)*exp1(q))
+
+    return -(alpha*beta)/(np.pi*(alpha + beta)) * (f1 + f2)
+
