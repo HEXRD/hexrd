@@ -648,6 +648,14 @@ class Material(object):
     # property:  spaceGroup
 
     @property
+    def name(self):
+        return self._name
+    
+    @property.setter
+    def name(self, mat_name):
+        self._name = mat_name
+
+    @property
     def spaceGroup(self):
         """(read only) Space group"""
         return self._spaceGroup
