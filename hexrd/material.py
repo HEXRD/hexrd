@@ -140,6 +140,9 @@ class Material(object):
         """
         if name is None:
             self._name = Material.DFLT_XTAL
+        else:
+            assert isinstance(name, str), "name must be a str"
+            self._name = name
 
         self.description = ''
 
