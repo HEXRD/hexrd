@@ -28,7 +28,7 @@
 import numpy as np
 import copy
 from hexrd import constants
-from scipy.special import exp1, expi, erfc
+from scipy.special import exp1, erfc
 
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.
@@ -690,9 +690,56 @@ def mpeak_1d(p, x, pktype, num_pks, bgtype=None):
 
     return f
 
+def _mixing_factor_pv(fwhm_g, fwhm_l):
+    """
+    @AUTHOR:  Saransh Singh, Lawrence Livermore National Lab, 
+    saransh1@llnl.gov
+    @DATE: 05/20/2020 SS 1.0 original
+           01/29/2021 SS 2.0 updated to depend only on fwhm of profile
+           P. Thompson, D.E. Cox & J.B. Hastings, J. Appl. Cryst.,20,79-83, 
+           1987
+    @DETAILS: calculates the mixing factor eta to best approximate voight
+    peak shapes
+    """
+    fwhm = fwhm_g**5 + 2.69269 * fwhm_g**4 * fwhm_l + \
+    2.42843 * fwhm_g**3 * fwhm_l**2 + \
+    4.47163 * fwhm_g**2 * fwhm_l**3 +\
+    0.07842 * fwhm_g * fwhm_l**4 +\
+    fwhm_l**5
+
+    fwhm = fwhm**0.20
+    eta = 1.36603 * (fwhm_l/fwhm) - \
+        0.47719 * (fwhm_l/fwhm)**2 + \
+        0.11116 * (fwhm_l/fwhm)**3
+    if eta < 0.:
+        eta = 0.
+    elif eta > 1.:
+        eta = 1.
+
+    return eta
+
+def pvoight_wppf(fwhm_g, 
+                  fwhm_l,
+                  tth, 
+                  tth_list):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/22/2021 SS 1.0 original
+    @details pseudo voight peak profile for WPPF
+    """
+    n = _mixing_factor_pv(fwhm_g, fwhm_l)
+
+    Ag = 0.9394372787/fwhm_g # normalization factor for unit area
+    Al = 2.0*np.pi/fwhm_l    # normalization factor for unit area
+
+    g = _gaussian1d_no_bg(np.array([Ag, tth, fwhm_g]), tth_list)
+    l = _lorentzian1d_no_bg(np.array([Al, tth, fwhm_l]), tth_list)
+
+    return n*l + (1.0-n)*g
+
 def _gaussian_pink_beam(alpha, 
                         beta, 
-                        Hcag, 
+                        fwhm_g, 
                         tth, 
                         tth_list):
     """
@@ -704,7 +751,7 @@ def _gaussian_pink_beam(alpha,
     Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
     """
     del_tth = tth_list - tth
-    sigsqr = Hcag*Hcag
+    sigsqr = fwhm_g**2
     f1 = alpha*sigsqr + 2.0*del_tth
     f2 = beta*sigsqr - 2.0*del_tth
     f3 = np.sqrt(2.0)*Hcag
@@ -718,7 +765,7 @@ def _gaussian_pink_beam(alpha,
 
 def _lorentzian_pink_beam(alpha, 
                           beta, 
-                          gamma, 
+                          fwhm_l, 
                           tth, 
                           tth_list):
     """
@@ -730,11 +777,29 @@ def _lorentzian_pink_beam(alpha,
     Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
     """
     del_tth = tth_list - tth
-    p = -alpha*del_tth + 1j * 0.5*alpha*gamma
-    q = -beta*del_tth + 1j * 0.5*beta*gamma
+    p = -alpha*del_tth + 1j * 0.5*alpha*fwhm_l
+    q = -beta*del_tth + 1j * 0.5*beta*fwhm_l
 
     f1 = np.imag(np.exp(p)*exp1(p))
     f2 = np.imag(np.exp(q)*exp1(q))
 
     return -(alpha*beta)/(np.pi*(alpha + beta)) * (f1 + f2)
 
+def pvoight_pink_beam(alpha, 
+                  beta, 
+                  fwhm_g, 
+                  fwhm_l, 
+                  tth, 
+                  tth_list):
+
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/22/2021 SS 1.0 original
+    @details compute the pseudo voight peak shape for the pink
+    beam using von dreele's function
+    """
+    n = _mixing_factor_pv(fwhm_g, fwhm_l)
+    g = _gaussian_pink_beam(alpha, beta, fwhm_g, tth, tth_list)
+    l = _lorentzian_pink_beam(alpha, beta, fwhm_l, tth, tth_list)
+
+    return n*l + (1.0-n)*g

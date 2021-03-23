@@ -1,6 +1,7 @@
 import importlib.resources
 import numpy as np
 import warnings
+from hexrd.fitting.peakfunctions import pvoight_wppf, pvoight_pink_beam
 from hexrd.imageutil import snip1d, snip1d_quad
 from hexrd.crystallography import PlaneData
 from hexrd.material import Material
@@ -1462,58 +1463,6 @@ class LeBail:
         cth = np.cos(th)
         self.gamma = self.X/cth + self.Y * tanth
 
-    def MixingFact(self, tth):
-        """
-        >> @AUTHOR:  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:    05/20/2020 SS 1.0 original
-                     01/29/2021 SS 2.0 updated to depend only on fwhm of profile
-                     P. Thompson, D.E. Cox & J.B. Hastings, J. Appl. Cryst.,20,79-83, 
-                     1987
-        >> @DETAILS: calculates the mixing factor eta
-        """
-        fwhm_g = self.Hcag
-        fwhm_l = self.gamma
-
-        fwhm = fwhm_g**5 + 2.69269 * fwhm_g**4 * fwhm_l + \
-            2.42843 * fwhm_g**3 * fwhm_l**2 + \
-            4.47163 * fwhm_g**2 * fwhm_l**3 +\
-            0.07842 * fwhm_g * fwhm_l**4 +\
-            fwhm_l**5
-
-        fwhm = fwhm**0.20
-
-        self.eta = 1.36603 * (fwhm_l/fwhm) - \
-            0.47719 * (fwhm_l/fwhm)**2 + \
-            0.11116 * (fwhm_l/fwhm)**3
-
-        if self.eta < 0.:
-            self.eta = 0.
-        elif self.eta > 1.:
-            self.eta = 1.
-
-    def Gaussian(self, tth):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/20/2020 SS 1.0 original
-        >> @DETAILS:    this routine computes the gaussian peak profile
-        """
-
-        H = self.Hcag
-        cg = 4.*np.log(2.)
-        self.GaussianI = (np.sqrt(cg/np.pi)/H) * \
-            np.exp(-cg * ((self.tth_list - tth)/H)**2)
-
-    def Lorentzian(self, tth):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/20/2020 SS 1.0 original
-        >> @DETAILS:    this routine computes the lorentzian peak profile
-        """
-
-        H = self.gamma
-        cl = 4.
-        self.LorentzI = (2./np.pi/H) / (1. + cl*((self.tth_list - tth)/H)**2)
-
     def PseudoVoight(self, tth):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -1521,22 +1470,9 @@ class LeBail:
         >> @DETAILS:    this routine computes the pseudo-voight function as weighted
                         average of gaussian and lorentzian
         """
-
         self.CagliottiH(tth)
-        self.Gaussian(tth)
         self.LorentzH(tth)
-        self.Lorentzian(tth)
-        self.MixingFact(tth)
-        self.PV = (1.0 - self.eta) * self.GaussianI + \
-            self.eta * self.LorentzI
-
-    def IntegratedIntensity(self):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       06/08/2020 SS 1.0 original
-        >> @DETAILS:    Integrated intensity of the pseudo-voight peak
-        """
-        return np.trapz(self.PV, self.tth_list)
+        self.PV = pvoight_wppf(self.Hcag, self.gamma, tth, self.tth_list)
 
     def computespectrum(self):
         """
@@ -3612,55 +3548,6 @@ class Rietveld:
         cth = np.cos(th)
         self.gamma = self.X/cth + self.Y * tanth
 
-    def MixingFact(self, tth):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/20/2020 SS 1.0 original
-        >> @DETAILS:    calculates the mixing factor eta
-        """
-        fwhm_g = self.Hcag
-        fwhm_l = self.gamma
-
-        fwhm = fwhm_g**5 + 2.69269 * fwhm_g**4 * fwhm_l + \
-            2.42843 * fwhm_g**3 * fwhm_l**2 + \
-            4.47163 * fwhm_g**2 * fwhm_l**3 +\
-            0.07842 * fwhm_g * fwhm_l**4 +\
-            fwhm_l**5
-
-        fwhm = fwhm**0.20
-
-        self.eta = 1.36603 * (fwhm_l/fwhm) - \
-            0.47719 * (fwhm_l/fwhm)**2 + \
-            0.11116 * (fwhm_l/fwhm)**3
-
-        if self.eta < 0.:
-            self.eta = 0.
-        elif self.eta > 1.:
-            self.eta = 1.
-
-    def Gaussian(self, tth):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/20/2020 SS 1.0 original
-        >> @DETAILS:    this routine computes the gaussian peak profile
-        """
-
-        H = self.Hcag
-        cg = 4.*np.log(2.)
-        self.GaussianI = (np.sqrt(cg/np.pi)/H) * \
-            np.exp(-cg * ((self.tth_list - tth)/H)**2)
-
-    def Lorentzian(self, tth):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/20/2020 SS 1.0 original
-        >> @DETAILS:    this routine computes the lorentzian peak profile
-        """
-
-        H = self.gamma
-        cl = 4.
-        self.LorentzI = (2./np.pi/H) / (1. + cl*((self.tth_list - tth)/H)**2)
-
     def PseudoVoight(self, tth):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -3668,15 +3555,9 @@ class Rietveld:
         >> @DETAILS:    this routine computes the pseudo-voight function as weighted
                         average of gaussian and lorentzian
         """
-
         self.CagliottiH(tth)
-        self.Gaussian(tth)
         self.LorentzH(tth)
-        self.Lorentzian(tth)
-        self.MixingFact(tth)
-
-        self.PV = (1. - self.eta) * self.GaussianI + \
-            self.eta * self.LorentzI
+        self.PV = pvoight_wppf(self.Hcag, self.gamma, tth, self.tth_list)
 
     def PolarizationFactor(self):
 
