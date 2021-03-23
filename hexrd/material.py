@@ -128,7 +128,7 @@ class Material(object):
 
     def __init__(self, name=None,
                  material_file=None,
-                 dmin=DFLT_DMIN,
+                 dmin=None,
                  kev=DFLT_KEV,
                  sgsetting=DFLT_SGSETTING):
         """Constructor for Material
@@ -138,10 +138,23 @@ class Material(object):
         which contains the crystal. this could be either cif
         or hdf5
         """
-        self.name = name
+        if name is None:
+            self.name = Material.DFLT_XTAL
+
         self.description = ''
 
-        self._dmin = dmin
+        """
+        set dmin to default value if its None
+        if h5 file has a value, it will be substituted
+        if not none, then set it to the value
+        supplied and ignore the value in the h5 file
+        """
+        self.read_dmin_file = True
+        if dmin is None:
+            self._dmin = Material.DFLT_DMIN
+        else:
+            self._dmin = dmin
+            self.read_dmin_file = False
 
         self._beamEnergy = kev
 
@@ -585,11 +598,12 @@ class Material(object):
         else:
             self.stiffness = numpy.zeros([6, 6])
 
-        if('dmin' in gid):
-            # if dmin is present in the HDF5 file, then use that
-            dmin = numpy.array(gid.get('dmin'),
-                               dtype=numpy.float64).item()
-            self._dmin = _angstroms(dmin*10.)
+        if self.read_dmin_file:
+            if('dmin' in gid):
+                # if dmin is present in the HDF5 file, then use that
+                dmin = numpy.array(gid.get('dmin'),
+                                   dtype=numpy.float64).item()
+                self._dmin = _angstroms(dmin*10.)
 
         if('hkls' in gid):
             self.hkl_from_file = numpy.array(gid.get('hkls'),
