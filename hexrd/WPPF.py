@@ -1315,7 +1315,7 @@ class LeBail:
                                      self.tth_step[i]).astype(np.int32)
                     else:
                         ww = 3
-                    
+
                 numiter = self.bkgmethod['snip1d'][1]
 
                 yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),
@@ -1447,8 +1447,8 @@ class LeBail:
         >> @DETAILS:    this routine computes the pseudo-voight function as weighted
                         average of gaussian and lorentzian
         """
-        self.PV = pvoight_wppf(np.array([self.U, self.V, self.W]), 
-            np.array([self.X, self.Y]), tth, self.tth_list)
+        self.PV = pvoight_wppf(np.array([self.U, self.V, self.W]),
+                               np.array([self.X, self.Y]), tth, self.tth_list)
 
     def computespectrum(self):
         """
@@ -2319,7 +2319,6 @@ def extract_intensities(polar_view,
     pv_simulated[polar_view.mask] = np.nan
     pv_simulated = np.ma.masked_array(pv_simulated,
                                       mask=np.isnan(pv_simulated))
-
 
     return extracted_intensities, \
         hkls, \
@@ -3508,8 +3507,8 @@ class Rietveld:
         >> @DETAILS:    this routine computes the pseudo-voight function as weighted
                         average of gaussian and lorentzian
         """
-        self.PV = pvoight_wppf(np.array([self.U, self.V, self.W]), 
-            np.array([self.X, self.Y]), tth, self.tth_list)
+        self.PV = pvoight_wppf(np.array([self.U, self.V, self.W]),
+                               np.array([self.X, self.Y]), tth, self.tth_list)
 
     def PolarizationFactor(self):
 
