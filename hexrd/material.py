@@ -651,7 +651,7 @@ class Material(object):
     def name(self):
         return self._name
     
-    @property.setter
+    @name.setter
     def name(self, mat_name):
         assert isinstance(mat_name, str), "must set name to a str"
         self._name = mat_name
