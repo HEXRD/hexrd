@@ -1439,30 +1439,6 @@ class LeBail:
                 "LeBail: Intensity_init must be either\
                  None or a dictionary")
 
-    def CagliottiH(self, tth):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/20/2020 SS 1.0 original
-        >> @DETAILS:    calculates the cagiotti parameter for the peak width
-        """
-        th = np.radians(0.5*tth)
-        tanth = np.tan(th)
-        Hsq = self.U * tanth**2 + self.V * tanth + self.W
-        if(Hsq < 0.):
-            Hsq = 1.0e-12
-        self.Hcag = np.sqrt(Hsq)
-
-    def LorentzH(self, tth):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       07/20/2020 SS 1.0 original
-        >> @DETAILS:    calculates the size and strain broadening for Lorentzian peak
-        """
-        th = np.radians(0.5*tth)
-        tanth = np.tan(th)
-        cth = np.cos(th)
-        self.gamma = self.X/cth + self.Y * tanth
-
     def PseudoVoight(self, tth):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -1471,8 +1447,8 @@ class LeBail:
         >> @DETAILS:    this routine computes the pseudo-voight function as weighted
                         average of gaussian and lorentzian
         """
-        self.PV = pvoight_wppf([self.U, self.V, self.W], 
-            [self.X, self.Y], tth, self.tth_list)
+        self.PV = pvoight_wppf(np.array([self.U, self.V, self.W]), 
+            np.array([self.X, self.Y]), tth, self.tth_list)
 
     def computespectrum(self):
         """
@@ -3524,40 +3500,16 @@ class Rietveld:
                     sf.append(w_int * m * self.phases[p][k].CalcXRSF(g))
                 self.sf[p][k] = np.array(sf)
 
-    def CagliottiH(self, tth):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/20/2020 SS 1.0 original
-        >> @DETAILS:    calculates the cagiotti parameter for the peak width
-        """
-        th = np.radians(0.5*tth)
-        tanth = np.tan(th)
-        Hsq = self.U * tanth**2 + self.V * tanth + self.W
-        if(Hsq < 0.):
-            Hsq = 1.0e-12
-        self.Hcag = np.sqrt(Hsq)
-
-    def LorentzH(self, tth):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       07/20/2020 SS 1.0 original
-        >> @DETAILS:    calculates the size and strain broadening for Lorentzian peak
-        """
-        th = np.radians(0.5*tth)
-        tanth = np.tan(th)
-        cth = np.cos(th)
-        self.gamma = self.X/cth + self.Y * tanth
-
     def PseudoVoight(self, tth):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/20/2020 SS 1.0 original
+                        03/23/2021 SS moved main functions to peakfunctions module
         >> @DETAILS:    this routine computes the pseudo-voight function as weighted
                         average of gaussian and lorentzian
         """
-        self.CagliottiH(tth)
-        self.LorentzH(tth)
-        self.PV = pvoight_wppf(self.Hcag, self.gamma, tth, self.tth_list)
+        self.PV = pvoight_wppf(np.array([self.U, self.V, self.W]), 
+            np.array([self.X, self.Y]), tth, self.tth_list)
 
     def PolarizationFactor(self):
 

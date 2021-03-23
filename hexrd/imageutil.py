@@ -117,7 +117,7 @@ def snip1d_quad(y, w=4, numiter=2):
         # quadratic kernel
         kern2 = np.zeros(N)
         kern2[0] = kern2[-1] = -1./6.
-        kern2[int(p/2)] = kern2[int(3*p/2)] = 4./6.
+        kern2[int(p/2.)] = kern2[int(3.*p/2.)] = 4./6.
         kernels.append([kern1, kern2])
 
     z = b = _scale_image_snip(y, min_val, invert=False)
