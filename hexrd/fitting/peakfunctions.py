@@ -29,6 +29,7 @@ import numpy as np
 import copy
 from hexrd import constants
 from scipy.special import exp1, erfc
+from hexrd.utils.decorators import numba_njit_if_available
 
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.
@@ -42,11 +43,45 @@ mpeak_nparams_dict = {
     'split_pvoigt': 6
 }
 
+"""
+Calgliotti and Lorentzian FWHM functions
+"""
+@numba_njit_if_available(cache=True, nogil=True)
+def gaussian_fwhm(uvw, tth):
+    """
+    @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+    @DATE:       05/20/2020 SS 1.0 original
+    @DETAILS:    calculates the cagiotti parameter for the peak width
+    """
+    U,V,W = uvw
+    th = np.radians(0.5*tth)
+    tanth = np.tan(th)
+
+    sigsqr = U * tanth**2 + V * tanth + W
+    if(sigsqr <= 0.):
+        sigsqr = 1.0e-12
+
+    return np.sqrt(sigsqr)
+
+@numba_njit_if_available(cache=True, nogil=True)
+def lorentzian_fwhm(xy, tth):
+    """
+    @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+    @DATE:       07/20/2020 SS 1.0 original
+    @DETAILS:    calculates the size and strain broadening for Lorentzian peak
+    """
+    X,Y = xy
+    th = np.radians(0.5*tth)
+    tanth = np.tan(th)
+    cth = np.cos(th)
+    gamma = X/cth + Y*tanth
+    return gamma
 
 # =============================================================================
 # 1-D Gaussian Functions
 # =============================================================================
 # Split the unit gaussian so this can be called for 2d and 3d functions
+@numba_njit_if_available(cache=True, nogil=True)
 def _unit_gaussian(p, x):
     """
     Required Arguments:
@@ -148,6 +183,7 @@ def gaussian1d_deriv(p, x):
 # 1-D Lorentzian Functions
 # =============================================================================
 # Split the unit function so this can be called for 2d and 3d functions
+@numba_njit_if_available(cache=True, nogil=True)
 def _unit_lorentzian(p, x):
     """
     Required Arguments:
@@ -164,7 +200,6 @@ def _unit_lorentzian(p, x):
 
     f = gamma**2 / ((x-x0)**2 + gamma**2)
     return f
-
 
 def _lorentzian1d_no_bg(p, x):
     """
@@ -690,6 +725,7 @@ def mpeak_1d(p, x, pktype, num_pks, bgtype=None):
 
     return f
 
+@numba_njit_if_available(cache=True, nogil=True)
 def _mixing_factor_pv(fwhm_g, fwhm_l):
     """
     @AUTHOR:  Saransh Singh, Lawrence Livermore National Lab, 
@@ -718,15 +754,17 @@ def _mixing_factor_pv(fwhm_g, fwhm_l):
 
     return eta
 
-def pvoight_wppf(fwhm_g, 
-                  fwhm_l,
-                  tth, 
-                  tth_list):
+def pvoight_wppf(uvw, 
+                 xy,
+                 tth, 
+                 tth_list):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/22/2021 SS 1.0 original
     @details pseudo voight peak profile for WPPF
     """
+    fwhm_g = _gaussian_fwhm(uvw, tth)
+    fwhm_l = _lorentzian_fwhm(xy, tth)
     n = _mixing_factor_pv(fwhm_g, fwhm_l)
 
     Ag = 0.9394372787/fwhm_g # normalization factor for unit area
@@ -737,6 +775,7 @@ def pvoight_wppf(fwhm_g,
 
     return n*l + (1.0-n)*g
 
+@numba_njit_if_available(cache=True, nogil=True)
 def _gaussian_pink_beam(alpha, 
                         beta, 
                         fwhm_g, 
@@ -763,6 +802,7 @@ def _gaussian_pink_beam(alpha,
     return (0.5*(alpha*beta)/(alpha + beta)) \
     * (np.exp(u)*erfc(y) + np.exp(v)*erfc(z))
 
+@numba_njit_if_available(cache=True, nogil=True)
 def _lorentzian_pink_beam(alpha, 
                           beta, 
                           fwhm_l, 
@@ -787,8 +827,8 @@ def _lorentzian_pink_beam(alpha,
 
 def pvoight_pink_beam(alpha, 
                   beta, 
-                  fwhm_g, 
-                  fwhm_l, 
+                  uvw, 
+                  xy, 
                   tth, 
                   tth_list):
 
@@ -798,6 +838,8 @@ def pvoight_pink_beam(alpha,
     @details compute the pseudo voight peak shape for the pink
     beam using von dreele's function
     """
+    fwhm_g = _gaussian_fwhm(uvw, tth)
+    fwhm_l = _lorentzian_fwhm(xy, tth)
     n = _mixing_factor_pv(fwhm_g, fwhm_l)
     g = _gaussian_pink_beam(alpha, beta, fwhm_g, tth, tth_list)
     l = _lorentzian_pink_beam(alpha, beta, fwhm_l, tth, tth_list)
