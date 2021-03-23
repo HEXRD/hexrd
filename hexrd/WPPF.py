@@ -1467,12 +1467,12 @@ class LeBail:
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/20/2020 SS 1.0 original
+                        03/23/2021 SS moved main functions to peakfunctions module
         >> @DETAILS:    this routine computes the pseudo-voight function as weighted
                         average of gaussian and lorentzian
         """
-        self.CagliottiH(tth)
-        self.LorentzH(tth)
-        self.PV = pvoight_wppf(self.Hcag, self.gamma, tth, self.tth_list)
+        self.PV = pvoight_wppf([self.U, self.V, self.W], 
+            [self.X, self.Y], tth, self.tth_list)
 
     def computespectrum(self):
         """
