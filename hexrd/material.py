@@ -139,7 +139,7 @@ class Material(object):
         or hdf5
         """
         if name is None:
-            self.name = Material.DFLT_XTAL
+            self._name = Material.DFLT_XTAL
 
         self.description = ''
 
@@ -174,7 +174,7 @@ class Material(object):
                 self._readHDFxtal(fhdf=material_file, xtal=name)
         else:
             # default name
-            self.name = Material.DFLT_XTAL
+            self._name = Material.DFLT_XTAL
             # Use default values
             self._lparms = Material.DFLT_LPARMS
             # self._hklMax = Material.DFLT_SSMAX
@@ -653,6 +653,7 @@ class Material(object):
     
     @property.setter
     def name(self, mat_name):
+        assert isinstance(mat_name, str), "must set name to a str"
         self._name = mat_name
 
     @property
