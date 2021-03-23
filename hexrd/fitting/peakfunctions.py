@@ -776,6 +776,16 @@ def pvoight_wppf(uvw,
     return n*l + (1.0-n)*g
 
 @numba_njit_if_available(cache=True, nogil=True)
+def calc_alpha(alpha, tth):
+    a0, a1 = alpha
+    return a0 + a1*np.tan(np.radians(0.5*tth))
+
+@numba_njit_if_available(cache=True, nogil=True)
+def calc_beta(beta, tth):
+    b0, b1 = beta
+    return b0 + b1*np.tan(np.radians(0.5*tth))
+
+@numba_njit_if_available(cache=True, nogil=True)
 def _gaussian_pink_beam(alpha, 
                         beta, 
                         fwhm_g, 
@@ -838,6 +848,8 @@ def pvoight_pink_beam(alpha,
     @details compute the pseudo voight peak shape for the pink
     beam using von dreele's function
     """
+    alpha_exp = calc_alpha(alpha, tth)
+    beta_exp = calc_beta(beta, tth)
     fwhm_g = _gaussian_fwhm(uvw, tth)
     fwhm_l = _lorentzian_fwhm(xy, tth)
     n = _mixing_factor_pv(fwhm_g, fwhm_l)
