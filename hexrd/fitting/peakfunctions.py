@@ -865,7 +865,9 @@ def pvoight_pink_beam(alpha,
     fwhm_g = _gaussian_fwhm(uvw, tth)
     fwhm_l = _lorentzian_fwhm(xy, tth)
     n = _mixing_factor_pv(fwhm_g, fwhm_l)
-    g = _gaussian_pink_beam(alpha, beta, fwhm_g, tth, tth_list)
-    l = _lorentzian_pink_beam(alpha, beta, fwhm_l, tth, tth_list)
+    g = _gaussian_pink_beam(alpha, beta,
+                            fwhm_g, tth, tth_list)
+    l = _lorentzian_pink_beam(alpha, beta,
+                              fwhm_l, tth, tth_list)
 
     return n*l + (1.0-n)*g

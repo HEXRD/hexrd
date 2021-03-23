@@ -1448,7 +1448,8 @@ class LeBail:
                         average of gaussian and lorentzian
         """
         self.PV = pvoight_wppf(np.array([self.U, self.V, self.W]),
-                               np.array([self.X, self.Y]), tth, self.tth_list)
+                               np.array([self.X, self.Y]), 
+                               tth, self.tth_list)
 
     def computespectrum(self):
         """
@@ -3508,7 +3509,8 @@ class Rietveld:
                         average of gaussian and lorentzian
         """
         self.PV = pvoight_wppf(np.array([self.U, self.V, self.W]),
-                               np.array([self.X, self.Y]), tth, self.tth_list)
+                               np.array([self.X, self.Y]), 
+                               tth, self.tth_list)
 
     def PolarizationFactor(self):
 
