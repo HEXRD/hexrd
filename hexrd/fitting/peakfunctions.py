@@ -47,7 +47,7 @@ mpeak_nparams_dict = {
 Calgliotti and Lorentzian FWHM functions
 """
 @numba_njit_if_available(cache=True, nogil=True)
-def gaussian_fwhm(uvw, tth):
+def _gaussian_fwhm(uvw, tth):
     """
     @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     @DATE:       05/20/2020 SS 1.0 original
@@ -64,7 +64,7 @@ def gaussian_fwhm(uvw, tth):
     return np.sqrt(sigsqr)
 
 @numba_njit_if_available(cache=True, nogil=True)
-def lorentzian_fwhm(xy, tth):
+def _lorentzian_fwhm(xy, tth):
     """
     @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     @DATE:       07/20/2020 SS 1.0 original
