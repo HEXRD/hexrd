@@ -49,17 +49,29 @@ Calgliotti and Lorentzian FWHM functions
 
 
 @numba_njit_if_available(cache=True, nogil=True)
-def _gaussian_fwhm(uvw, tth):
+def _gaussian_fwhm(uvw, 
+                   P, 
+                   gamma_ani_sqr, 
+                   eta_mixing, 
+                   tth, 
+                   dsp):
     """
     @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     @DATE:       05/20/2020 SS 1.0 original
-    @DETAILS:    calculates the cagiotti parameter for the peak width
+    @DETAILS:    calculates the fwhm of gaussian component
+                 uvw cagliotti parameters
+                 P Scherrer broadening (generally not refined)
+                 gamma_ani_sqr anisotropic broadening term
+                 eta_mixing mixing factor
+                 tth two theta in degrees
+                 dsp d-spacing
     """
     U, V, W = uvw
     th = np.radians(0.5*tth)
     tanth = np.tan(th)
-
-    sigsqr = U * tanth**2 + V * tanth + W
+    cth2 = np.cos(th)**2.0
+    sig2_ani = gamma_ani_sqr*(1.-eta_mixing)**2*dsp**4
+    sigsqr = (U+sig2_ani) * tanth**2 + V * tanth + W + P/cth2
     if(sigsqr <= 0.):
         sigsqr = 1.0e-12
 
@@ -67,18 +79,80 @@ def _gaussian_fwhm(uvw, tth):
 
 
 @numba_njit_if_available(cache=True, nogil=True)
-def _lorentzian_fwhm(xy, tth):
+def _lorentzian_fwhm(xy, 
+                     xy_sf, 
+                     gamma_ani_sqr, 
+                     eta_mixing, 
+                     tth, 
+                     dsp,
+                     is_in_sublattice):
     """
     @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     @DATE:       07/20/2020 SS 1.0 original
     @DETAILS:    calculates the size and strain broadening for Lorentzian peak
+                xy [X, Y] lorentzian broadening
+                xy_sf stacking fault dependent peak broadening
+                gamma_ani_sqr anisotropic broadening term
+                eta_mixing mixing factor
+                tth two theta in degrees
+                dsp d-spacing
+                is_in_sublattice if hkl in sublattice, then extra broadening
+                else regular broadening
     """
     X, Y = xy
+    Xe, Ye, Xs = xy_sf
     th = np.radians(0.5*tth)
     tanth = np.tan(th)
     cth = np.cos(th)
-    gamma = X/cth + Y*tanth
+    sig_ani = np.sqrt(gamma_ani_sqr)*eta_mixing*dsp**2
+    if is_in_sublattice:
+        xx = Xe
+    else:
+        xx = Xs
+    gamma = (X+xx)/cth + (Y+Ye+sig_ani)*tanth
     return gamma
+
+@numba_njit_if_available(cache=True, nogil=True)
+def _anisotropic_peak_broadening(shkl, hkl):
+    """
+    this function generates the broadening as
+    a result of anisotropic broadening. details in 
+    P.Stephens, J. Appl. Cryst. (1999). 32, 281-289
+    a total of 15 terms, some of them zero. in this 
+    function, we will just use all the terms. it is 
+    assumed that the user passes on the correct values
+    for shkl with appropriate zero values
+    """
+    h,k,l = hkl
+    gamma_sqr = (shkl["s400"]*h**4 + 
+                shkl["s040"]*k**4 + 
+                shkl["s004"]*l**4 + 
+                3.0*(shkl["s220"]*(h*k)**2 + 
+                     shkl["s202"]*(h*l)**2 + 
+                     shkl["s022"]*(k*l)**2)+
+                2.0*(shkl["s310"]*k*h**3 + 
+                     shkl["s103"]*h*l**3 + 
+                     shkl["s031"]*l*k**3 + 
+                     shkl["s130"]*h*k**3 + 
+                     shkl["s301"]*l*h**3 + 
+                     shkl["s013"]*k*l**3) + 
+                4.0*(shkl["s211"]*k*l*h**2 + 
+                     shkl["s121"]*h*l*k**2 + 
+                     shkl["s112"]*h*k*l**2))
+
+    return gamma_sqr
+
+def _anisotropic_gaussian_component(gamma_sqr, eta_mixing):
+    """
+    gaussian component in anisotropic broadening
+    """
+    return gamma_sqr*(1. - eta_mixing)**2
+
+def _anisotropic_lorentzian_component(gamma_sqr, eta_mixing):
+    """
+    lorentzian component in anisotropic broadening
+    """
+    return np.sqrt(gamma_sqr)*eta_mixing
 
 # =============================================================================
 # 1-D Gaussian Functions

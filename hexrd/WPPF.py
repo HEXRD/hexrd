@@ -3863,68 +3863,6 @@ class Rietveld:
         self._scale = value
         return
 
-
-def _generate_default_parameters_Rietveld(mat):
-    """
-    @author:  Saransh Singh, Lawrence Livermore National Lab
-    @date:    03/12/2021 SS 1.0 original
-    @details: generate a default parameter class given a list/dict/
-    single instance of material class
-    """
-    params = Parameters()
-    names = ["U", "V", "W", "X",
-             "Y", "scale", "zero_error"]
-    values = 5*[1e-3]
-    values.append(0.)
-    values.append(1.)
-    lbs = 6*[0.]
-    lbs.append(-1.)
-    ubs = 5*[1.]
-    ubs.append(1e3)
-    ubs.append(1.)
-    varies = 7*[False]
-
-    params.add_many(names, values=values,
-                    varies=varies, lbs=lbs, ubs=ubs)
-
-    if isinstance(mat, Phases_Rietveld):
-        """
-        phase file
-        """
-        for p in mat:
-            m = mat[p]
-            _add_atominfo_to_params(params, m)
-
-    elif isinstance(mat, Material):
-        """
-        just an instance of Materials class
-        this part initializes the lattice parameters in the
-        """
-        _add_atominfo_to_params(params, mat)
-
-    elif isinstance(mat, list):
-        """
-        a list of materials class
-        """
-        for m in mat:
-            _add_atominfo_to_params(params, m)
-
-    elif isinstance(mat, dict):
-        """
-        dictionary of materials class
-        """
-        for k, m in mat.items():
-            _add_atominfo_to_params(params, m)
-
-    else:
-        msg = (f"_generate_default_parameters: "
-               f"incorrect argument. only list, dict or "
-               f"Material is accpeted.")
-        raise ValueError(msg)
-
-    return params
-
-
 def _add_atominfo_to_params(params, mat):
     """
     03/12/2021 SS 1.0 original
