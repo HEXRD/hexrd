@@ -85,6 +85,7 @@ def _lorentzian_fwhm(xy,
                      eta_mixing, 
                      tth, 
                      dsp,
+                     strain_direction_dot_product,
                      is_in_sublattice):
     """
     @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -106,9 +107,9 @@ def _lorentzian_fwhm(xy,
     cth = np.cos(th)
     sig_ani = np.sqrt(gamma_ani_sqr)*eta_mixing*dsp**2
     if is_in_sublattice:
-        xx = Xe
+        xx = Xe*strain_direction_dot_product
     else:
-        xx = Xs
+        xx = Xs*strain_direction_dot_product
     gamma = (X+xx)/cth + (Y+Ye+sig_ani)*tanth
     return gamma
 
