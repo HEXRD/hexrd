@@ -81,7 +81,8 @@ def _add_Shkl_terms(params,
     name = mat.name
 
     if latticetype == "cubic":
-        
+        valid_shkl = 
+        params.add
     elif latticetype == "hexagonal":
         pass
     elif latticetype == "trigonal":
@@ -206,3 +207,54 @@ def _generate_default_parameters_Rietveld(mat):
         raise ValueError(msg)
 
     return params
+
+_shkl_name = ["s400", "s040", "s004", "s220", "s202", "s022",
+              "s310", "s103", "s031", "s130", "s301", "s013",
+              "s211", "s121", "s112"]
+
+"""
+function to take care of equality constraints
+"""
+def _fill_shkl(x, eq_const):
+    """
+    fill all values of shkl when only reduced set
+    is passed
+    """
+    x_ret = {}
+    for n in _shkl_name:
+        if n in x:
+            x_ret[n] = x[n]
+        else:
+            x_ret[n] = 0.0
+    if not eq_const:
+        pass
+
+    else:
+        for c in eq_const:
+            n = _shkl_name[c[0]]
+            neq = _shkl_name[c[1]]
+            x_ret[neq] = c[2]*x_ret[n]
+
+    return x_ret
+"""
+this dictionary structure holds information for the shkl
+coefficeints needed for anisotropic broadening of peaks
+first component of list are the required shkl components
+second component of ist are the equality constraints with
+a weight factor (sometimes theres a factor of 2 or 3.)
+"""
+_rqd_shkl = {
+"cubic": [(0, 3),
+          ((0,1,1.),(0,2,1.),(3,4,1.),(3,5,1.))],
+"hexagonal": [(0, 2, 4),
+((0,1,1.),(0,6,2.),(0,9,2.),(0,3,3.),
+(4,5,1.),(4,14,1.))],
+"trigonal": [(0, 2, 4, 10), 
+((0,1,1.),(0,6,2.),(0,9,2.),(0,3,3.),
+(4,5,1.),(4,14,1.),
+(10,8,-1.),(10,12,1.5),(10,13,-1.5))],
+"tetragonal": [(0, 2, 3, 4),((0,1,1.),(4,5,1.))],
+"orthorhombic": [tuple(np.arange(6)),()],
+"monoclinic": [tuple(np.arange(6))+(7, 10, 13),()],
+"triclinic": [tuple(np.arange(15)),()]
+}
