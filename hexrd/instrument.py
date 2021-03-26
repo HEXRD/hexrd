@@ -2375,13 +2375,18 @@ class PlanarDetector(object):
         # =====================================================================
         # BEAM PARAMETERS
         # =====================================================================
-        azim, pola = calc_angles_from_beam_vec(beam_vector)
+        # !!! make_reflection_patches is still using the vector
+        # azim, pola = calc_angles_from_beam_vec(beam_vector)
+        # beam_dict = dict(
+        #     energy=beam_energy,
+        #     vector=dict(
+        #         azimuth=azim,
+        #         polar_angle=pola
+        #     )
+        # )
         beam_dict = dict(
             energy=beam_energy,
-            vector=dict(
-                azimuth=azim,
-                polar_angle=pola
-            )
+            vector=beam_vector
         )
 
         config_dict['detector'] = det_dict
