@@ -52,7 +52,8 @@ def _generate_default_parameters_pseudovoight(params):
     symmetry
     1 --> width_mixing of anisotropic broadening
     """
-    p = {"U": [1e-2, 0., 1., True],
+    p = {"zero_error":[0., -1., 1., False],
+         "U": [1e-2, 0., 1., True],
          "V": [1e-2, 0., 1., True],
          "W": [1e-2, 0., 1., True],
          "P": [0., 0., 1., False],

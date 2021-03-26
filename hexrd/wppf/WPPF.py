@@ -10,6 +10,8 @@ from hexrd.utils.multiprocess_generic import GenericMultiprocessing
 from hexrd import symmetry, symbols, constants
 from hexrd.wppf.spectrum import Spectrum
 from hexrd.wppf.parameters import Parameters
+from hexrd.wppf.phase import Phases_LeBail, Phases_Rietveld, \
+Material_LeBail, Material_Rietveld
 import hexrd.resources
 import lmfit
 from scipy.interpolate import CubicSpline, interp1d
@@ -681,6 +683,10 @@ class LeBail:
                 self.global_index = [(0, expt_spectrum.shape[0])]
                 self.global_mask = np.zeros([expt_spectrum.shape[0], ],
                                             dtype=np.bool)
+                self._tth_list = [s._x for s in self._spectrum_expt]
+                self._tth_list_global = expt_spectrum._x
+                self.offset = False
+
             elif isinstance(expt_spectrum, np.ndarray):
                 """
                 initialize class using a nx2 array
@@ -726,6 +732,10 @@ class LeBail:
                     self.global_mask = np.zeros([expt_spectrum.shape[0], ],
                                                 dtype=np.bool)
 
+                    self._tth_list = [s._x for s in self._spectrum_expt]
+                    self._tth_list_global = expt_spectrum[:, 0]
+                    self.offset = False
+
             elif isinstance(expt_spectrum, str):
                 """
                 load from a text file
@@ -737,15 +747,15 @@ class LeBail:
                     # self._spectrum_expt.nan_to_zero()
                     self.global_index = [
                         (0, self._spectrum_expt[0].x.shape[0])]
-                    self.global_shape = expt_spectrum.shape[0]
-                    self.global_mask = np.zeros([expt_spectrum.shape[0], ],
+                    self.global_shape = self._spectrum_expt[0].x.shape[0]
+                    self.global_mask = np.zeros([self.global_shape, ],
                                                 dtype=np.bool)
                 else:
                     raise FileError('input spectrum file doesn\'t exist.')
 
-            self._tth_list = [s._x for s in self._spectrum_expt]
-            self._tth_list_global = expt_spectrum[:, 0]
-            self.offset = False
+                self._tth_list = [self._spectrum_expt[0]._x]
+                self._tth_list_global = self._spectrum_expt[0]._x
+                self.offset = False
 
             """
             03/08/2021 SS tth_min and max are now lists
@@ -888,7 +898,8 @@ class LeBail:
                 this part initializes the lattice parameters in the
                 """
                 for p in self.phases:
-                    _add_lp_to_params(params, self.phases[p])
+                    wppfsupport._add_lp_to_params(
+                        params, self.phases[p])
 
                 self._params = params
         else:
@@ -898,7 +909,8 @@ class LeBail:
                 final is the zero instrumental peak position error
                 mixing factor calculated by Thomax, Cox, Hastings formula
             """
-            params = wppfsupport._generate_default_parameters_LeBail(self.phases)
+            params = wppfsupport._generate_default_parameters_LeBail(
+                self.phases)
             self._params = params
 
         self._set_params_vals_to_class(params, init=True, skip_phases=True)
@@ -1271,7 +1283,7 @@ class Rietveld:
                 directly passing the parameter class
                 """
                 self.params = param_info
-
+                params = param_info
             else:
                 params = Parameters()
 
@@ -1300,7 +1312,8 @@ class Rietveld:
                     """
                     for p in self.phases:
                         for l in self.phases[p]:
-                            _add_atominfo_to_params(params, self.phases[p][l])
+                            wppfsupport._add_atominfo_to_params(
+                                params, self.phases[p][l])
 
                 self.params = params
 
@@ -1311,7 +1324,8 @@ class Rietveld:
             a scale parameter and
             final is the zero instrumental peak position error
             """
-            params = wppfsupport._generate_default_parameters_Rietveld(self.phases)
+            params = wppfsupport._generate_default_parameters_Rietveld(
+                self.phases)
             self.params = params
 
         self._set_params_vals_to_class(params, init=True, skip_phases=True)
@@ -1784,7 +1798,7 @@ class Rietveld:
                     PART 2: update the atom info
                     """
                     atom_type = mat.atom_type
-                    atom_label = _getnumber(atom_type)
+                    atom_label = wppfsupport._getnumber(atom_type)
 
                     for i in range(atom_type.shape[0]):
                         Z = atom_type[i]
