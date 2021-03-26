@@ -63,7 +63,6 @@ from hexrd import xrdutil
 from hexrd.crystallography import PlaneData
 from hexrd import constants as ct
 from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
-from hexrd.config.dumper import NumPyIncludeDumper
 from hexrd import distortion as distortion_pkg
 from hexrd.valunits import valWUnit
 from hexrd.WPPF import LeBail
