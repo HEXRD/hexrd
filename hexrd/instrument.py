@@ -401,6 +401,17 @@ class HEDMInstrument(object):
             self._tvec = t_vec_s_DFLT
             self._chi = chi_DFLT
         else:
+            if isinstance(instrument_config, h5py.File):
+                tmp = {}
+                unwrap_h5_to_dict(instrument_config, tmp)
+                instrument_config.close()
+                instrument_config = tmp['instrument']
+            elif not isinstance(instrument_config, dict):
+                raise RuntimeError(
+                    "instrument_config must be either an HDF5 file object"
+                    + "or a dictionary.  You gave a %s"
+                    % type(instrument_config)
+                )
             if instrument_name is None:
                 if 'id' in instrument_config:
                     self._id = instrument_config['id']
@@ -2337,9 +2348,7 @@ class PlanarDetector(object):
                 if style.lower() == 'yaml':
                     # !!! can't practically write array-like buffers to YAML
                     #     so forced to clobber
-                    raise RuntimeWarning(
-                        "clobbering panel buffer array in yaml-ready output"
-                    )
+                    print("clobbering panel buffer array in yaml-ready output")
                     panel_buffer = [0., 0.]
             else:
                 raise RuntimeError(
@@ -3396,12 +3405,30 @@ class GrainDataWriter_h5(object):
         return
 
 
-def unwrap_dict_to_h5(grp, d, asattr=True):
+def unwrap_dict_to_h5(grp, d, asattr=False):
+    """
+    Unwraps a dictionary to an HDF5 file of the same structure.
+
+    Parameters
+    ----------
+    grp : HDF5 group object
+        The HDF5 group to recursively unwrap the dict into.
+    d : dict
+        Input dict (of dicts).
+    asattr : bool, optional
+        Flag to write end member in dictionary tree to an attribute. If False,
+        if writes the object to a dataset using numpy.  The default is False.
+
+    Returns
+    -------
+    None.
+
+    """
     while len(d) > 0:
         key, item = d.popitem()
         if isinstance(item, dict):
             subgrp = grp.create_group(key)
-            unwrap_dict_to_h5(subgrp, item)
+            unwrap_dict_to_h5(subgrp, item, asattr=asattr)
         else:
             if asattr:
                 grp.attrs.create(key, item)
@@ -3411,6 +3438,43 @@ def unwrap_dict_to_h5(grp, d, asattr=True):
                 except(TypeError):
                     # probably a string badness
                     grp.create_dataset(key, data=item)
+
+
+def unwrap_h5_to_dict(f, d):
+    """
+    Unwraps a simple HDF5 file to a dictionary of the same structure.
+
+    Parameters
+    ----------
+    f : HDF5 file (mode r)
+        The input HDF5 file object.
+    d : dict
+        dictionary object to update.
+
+    Returns
+    -------
+    None.
+
+    Notes
+    -----
+    As written, ignores attributes and uses numpy to cast HDF5 datasets to
+    dict entries.  Checks for 'O' type arrays and casts to strings; also
+    converts single-element arrays to scalars.
+    """
+    for key, val in f.items():
+        try:
+            d[key] = {}
+            unwrap_h5_to_dict(val, d[key])
+        except(AttributeError):
+            # reached a dataset
+            if np.dtype(val) == 'O':
+                d[key] = str(np.array(val))
+            else:
+                tmp = np.array(val)
+                if tmp.ndim == 1 and len(tmp) == 1:
+                    d[key] = tmp[0]
+                else:
+                    d[key] = tmp
 
 
 class GenerateEtaOmeMaps(object):
