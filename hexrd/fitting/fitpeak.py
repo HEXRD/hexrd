@@ -33,7 +33,7 @@ from scipy import optimize
 
 from hexrd import constants
 from hexrd.imageutil import snip1d
-from hexrd.fitting import peakfunctions as pkfuncs
+from hexrd.wppf import peakfunctions as pkfuncs
 
 import matplotlib.pyplot as plt
 
