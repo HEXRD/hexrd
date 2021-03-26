@@ -2,6 +2,8 @@ import numpy as np
 from hexrd.valunits import valWUnit
 from hexrd.spacegroup import Allowed_HKLs
 from hexrd import symmetry, symbols, constants
+from hexrd.material import Material
+from hexrd.unitcell import _rqpDict
 import h5py
 
 class Material_LeBail:

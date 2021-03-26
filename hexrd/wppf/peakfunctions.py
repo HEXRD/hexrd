@@ -846,8 +846,8 @@ def pvoight_wppf(uvw,
     @date 03/22/2021 SS 1.0 original
     @details pseudo voight peak profile for WPPF
     """
-    fwhm_g = _gaussian_fwhm(uvw, tth)
-    fwhm_l = _lorentzian_fwhm(xy, tth)
+    fwhm_g = _gaussian_fwhm(uvw, 0, 0, 0, tth, 0)
+    fwhm_l = _lorentzian_fwhm(xy, np.array([0,0,0]), 0, 0, tth, 0, 0 , False)
     n = _mixing_factor_pv(fwhm_g, fwhm_l)
 
     Ag = 0.9394372787/fwhm_g  # normalization factor for unit area
