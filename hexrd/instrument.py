@@ -749,7 +749,10 @@ class HEDMInstrument(object):
             # grab panel config
             # !!! don't need beam or tvec
             # !!! have vetted style
-            pdict = detector.config_dict(self.chi, self.tvec, style=style)
+            pdict = detector.config_dict(chi=self.chi, tvec=self.tvec,
+                                         beam_energy=self.beam_energy,
+                                         beam_vector=self.beam_vector,
+                                         style=style)
             det_dict[det_name] = pdict['detector']
         par_dict['detectors'] = det_dict
 
@@ -2300,7 +2303,7 @@ class PlanarDetector(object):
         translation = self.tvec
         if style.lower() == 'yaml':
             tilt = tilt.tolist()
-            translation = tvec.tolist()
+            translation = translation.tolist()
             tvec = tvec.tolist()
 
         det_dict = dict(
