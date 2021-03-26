@@ -32,7 +32,13 @@ the functions which are common to both the Rietveld and LeBail
 classes are put here to minimize code duplication. Some examples
 include initialize background, generate_default_parameter list etc.
 """
-
+from hexrd.symbols import pstr_spacegroup
+from hexrd.WPPF import Parameters, \
+Phases_LeBail, Phases_Rietveld
+from hexrd.material import Material
+from hexrd.unitcell import _rqpDict
+import numpy as np
+from hexrd import constants
 
 def _generate_default_parameters_pseudovoight(params):
     """
@@ -63,7 +69,7 @@ def _generate_default_parameters_pseudovoight(params):
                    value=v[0],
                    lb=v[1],
                    ub=v[2],
-                   varies=v[3])
+                   vary=v[3])
 
 def _add_Shkl_terms(params,
                     mat):
@@ -78,23 +84,110 @@ def _add_Shkl_terms(params,
     """
     latticetype = mat.latticeType
     sgnum = mat.sgnum
-    name = mat.name
+    mname = mat.name
+    hmsym = pstr_spacegroup[sgnum-1].strip()
 
-    if latticetype == "cubic":
-        valid_shkl = 
-        params.add
-    elif latticetype == "hexagonal":
-        pass
-    elif latticetype == "trigonal":
-        pass
-    elif latticetype == "tetragonal":
-        pass
-    elif latticetype == "orthorhombic":
-        pass
-    elif latticetype == "monoclinic":
-        pass
-    elif latticetype == "triclinic":
-        pass
+    if latticetype == "trigonal" and hmsym[0] == "P":
+        """
+        this is a trigonal group so the hexagonal
+        constants are valid
+        """
+        latticetype = "haxagonal"
+
+
+    rqd_index = _rqd_shkl[latticetype][0]
+    valid_shkl = [_shkl_name[i] for i in rqd_index]
+    for s in valid_shkl:
+        n = f"{mname}_{s}"
+        params.add(name=n,
+                   value = 0.0,
+                   lb = -1.0,
+                   ub=1.0,
+                   vary=False)
+
+def _add_lp_to_params(params, 
+                      mat):
+    """
+    03/12/2021 SS 1.0 original
+    given a material, add the required
+    lattice parameters
+    """
+    lp = mat.lparms
+    rid = _rqpDict[mat.latticeType][0]
+    lp = [lp[i] for i in rid]
+    name = [_lpname[i] for i in rid]
+    phase_name = mat.name
+    for n, l in zip(name, lp):
+        nn = phase_name+'_'+n
+        """
+        is n is a,b,c, it is one of the length units
+        else it is an angle
+        """
+        if(n in ['a', 'b', 'c']):
+            params.add(nn, value=l, lb=l-0.05,
+                       ub=l+0.05, vary=True)
+        else:
+            params.add(nn, value=l, lb=l-1.,
+                       ub=l+1., vary=True)
+
+def _add_atominfo_to_params(params, mat):
+    """
+    03/12/2021 SS 1.0 original
+    given a material, add the required
+    lattice parameters, atom positions,
+    occupancy, DW factors etc.
+    """
+    phase_name = mat.name
+    atom_pos = mat.atom_pos[:, 0:3]
+    occ = mat.atom_pos[:, 3]
+    atom_type = mat.atom_type
+
+    atom_label = _getnumber(atom_type)
+
+    for i in range(atom_type.shape[0]):
+
+        Z = atom_type[i]
+        elem = constants.ptableinverse[Z]
+
+        nn = f"{phase_name}_{elem}{atom_label[i]}_x"
+        params.add(
+            nn, value=atom_pos[i, 0],
+            lb=0.0, ub=1.0,
+            vary=False)
+
+        nn = f"{phase_name}_{elem}{atom_label[i]}_y"
+        params.add(
+            nn, value=atom_pos[i, 1],
+            lb=0.0, ub=1.0,
+            vary=False)
+
+        nn = f"{phase_name}_{elem}{atom_label[i]}_z"
+        params.add(
+            nn, value=atom_pos[i, 2],
+            lb=0.0, ub=1.0,
+            vary=False)
+
+        nn = f"{phase_name}_{elem}{atom_label[i]}_occ"
+        params.add(nn, value=occ[i],
+                   lb=0.0, ub=1.0,
+                   vary=False)
+
+        if(mat.aniU):
+            U = mat.U
+            for j in range(6):
+                nn = f("{phase_name}_{elem}{atom_label[i]}"
+                       f"_{nameU[j]}")
+                params.add(
+                    nn, value=U[i, j],
+                    lb=-1e-3,
+                    ub=np.inf,
+                    vary=False)
+        else:
+            nn = f"{phase_name}_{elem}{atom_label[i]}_dw"
+            params.add(
+                nn, value=mat.U[i],
+                lb=0.0, ub=np.inf,
+                vary=False)
 
 def _generate_default_parameters_LeBail(mat):
     """
@@ -120,7 +213,7 @@ def _generate_default_parameters_LeBail(mat):
         just an instance of Materials class
         this part initializes the lattice parameters in the
         """
-        _add_Shkl_terms(params, m)
+        _add_Shkl_terms(params, mat)
         _add_lp_to_params(params, mat)
 
     elif isinstance(mat, list):
@@ -155,21 +248,12 @@ def _generate_default_parameters_Rietveld(mat):
     @details: generate a default parameter class given a list/dict/
     single instance of material class
     """
-    params = Parameters()
-    names = ["U", "V", "W", "X",
-             "Y", "scale", "zero_error"]
-    values = 5*[1e-3]
-    values.append(0.)
-    values.append(1.)
-    lbs = 6*[0.]
-    lbs.append(-1.)
-    ubs = 5*[1.]
-    ubs.append(1e3)
-    ubs.append(1.)
-    varies = 7*[False]
-
-    params.add_many(names, values=values,
-                    varies=varies, lbs=lbs, ubs=ubs)
+    params = _generate_default_parameters_LeBail(mat)
+    params.add(name="scale",
+        value=1.0,
+        lb=0.0,
+        ub=1e9,
+        vary=True)
 
     if isinstance(mat, Phases_Rietveld):
         """
@@ -211,6 +295,8 @@ def _generate_default_parameters_Rietveld(mat):
 _shkl_name = ["s400", "s040", "s004", "s220", "s202", "s022",
               "s310", "s103", "s031", "s130", "s301", "s013",
               "s211", "s121", "s112"]
+_lpname = ['a', 'b', 'c', 'alpha', 'beta', 'gamma']
+_nameU = ['U11', 'U22', 'U33', 'U12', 'U13', 'U23']
 
 """
 function to take care of equality constraints
@@ -254,7 +340,16 @@ _rqd_shkl = {
 (4,5,1.),(4,14,1.),
 (10,8,-1.),(10,12,1.5),(10,13,-1.5))],
 "tetragonal": [(0, 2, 3, 4),((0,1,1.),(4,5,1.))],
-"orthorhombic": [tuple(np.arange(6)),()],
-"monoclinic": [tuple(np.arange(6))+(7, 10, 13),()],
-"triclinic": [tuple(np.arange(15)),()]
+"orthorhombic": [tuple(range(6)),()],
+"monoclinic": [tuple(range(6))+(7, 10, 13),()],
+"triclinic": [tuple(range(15)),()]
 }
+
+def _getnumber(arr):
+
+    res = np.ones(arr.shape)
+    for i in range(arr.shape[0]):
+        res[i] = np.sum(arr[0:i+1] == arr[i])
+    res = res.astype(np.int32)
+
+    return res
