@@ -33,8 +33,8 @@ classes are put here to minimize code duplication. Some examples
 include initialize background, generate_default_parameter list etc.
 """
 from hexrd.symbols import pstr_spacegroup
-from hexrd.WPPF import Parameters, \
-Phases_LeBail, Phases_Rietveld
+from hexrd.wppf.parameters import Parameters
+from hexrd.wppf.phase import Phases_LeBail, Phases_Rietveld
 from hexrd.material import Material
 from hexrd.unitcell import _rqpDict
 import numpy as np
@@ -93,7 +93,6 @@ def _add_Shkl_terms(params,
         constants are valid
         """
         latticetype = "haxagonal"
-
 
     rqd_index = _rqd_shkl[latticetype][0]
     valid_shkl = [_shkl_name[i] for i in rqd_index]
@@ -353,3 +352,34 @@ def _getnumber(arr):
     res = res.astype(np.int32)
 
     return res
+
+background_methods = {
+    'spline': None,
+
+    'chebyshev': [
+        {
+            'label': 'Chebyshev Polynomial Degree',
+            'type': int,
+            'min': 0,
+            'max': 99,
+            'tooltip': 'The polynomial degree used '
+            'for polynomial fit.',
+        }
+    ],
+    'snip': [
+        {
+            'label': 'Snip Width',
+            'type': float,
+            'min': 0.,
+            'tooltip': 'Maximum width of peak to retain for '
+            'background estimation (in degrees).'
+        },
+        {
+            'label': 'Snip Num Iterations',
+            'type': int,
+            'min': 1,
+            'max': 99,
+            'tooltip': 'number of snip iterations.'
+        }
+    ],
+}
