@@ -30,6 +30,7 @@ Created on Fri Dec  9 13:05:27 2016
 
 @author: bernier2
 """
+import copy
 import os
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import functools
@@ -62,7 +63,6 @@ from hexrd import xrdutil
 from hexrd.crystallography import PlaneData
 from hexrd import constants as ct
 from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
-from hexrd.config.dumper import NumPyIncludeDumper
 from hexrd import distortion as distortion_pkg
 from hexrd.valunits import valWUnit
 from hexrd.WPPF import LeBail
@@ -400,6 +400,17 @@ class HEDMInstrument(object):
             self._tvec = t_vec_s_DFLT
             self._chi = chi_DFLT
         else:
+            if isinstance(instrument_config, h5py.File):
+                tmp = {}
+                unwrap_h5_to_dict(instrument_config, tmp)
+                instrument_config.close()
+                instrument_config = tmp['instrument']
+            elif not isinstance(instrument_config, dict):
+                raise RuntimeError(
+                    "instrument_config must be either an HDF5 file object"
+                    + "or a dictionary.  You gave a %s"
+                    % type(instrument_config)
+                )
             if instrument_name is None:
                 if 'id' in instrument_config:
                     self._id = instrument_config['id']
@@ -704,9 +715,11 @@ class HEDMInstrument(object):
     # METHODS
     # =========================================================================
 
-    def write_config(self, filename=None, calibration_dict={}):
+    def write_config(self, filename=None, style='yaml', calibration_dict={}):
         """ WRITE OUT YAML FILE """
         # initialize output dictionary
+        assert style.lower() in ['yaml', 'hdf5'], \
+            "style must be either 'yaml', or 'hdf5'; you gave '%s'" % style
 
         par_dict = {}
 
@@ -732,13 +745,28 @@ class HEDMInstrument(object):
         par_dict['oscillation_stage'] = ostage
 
         det_dict = dict.fromkeys(self.detectors)
-        for det_name, panel in self.detectors.items():
-            pdict = panel.config_dict(self.chi, self.tvec)  # don't need beam
+        for det_name, detector in self.detectors.items():
+            # grab panel config
+            # !!! don't need beam or tvec
+            # !!! have vetted style
+            pdict = detector.config_dict(chi=self.chi, tvec=self.tvec,
+                                         beam_energy=self.beam_energy,
+                                         beam_vector=self.beam_vector,
+                                         style=style)
             det_dict[det_name] = pdict['detector']
         par_dict['detectors'] = det_dict
+
+        # handle output file if requested
         if filename is not None:
-            with open(filename, 'w') as f:
-                yaml.dump(par_dict, stream=f, Dumper=NumPyIncludeDumper)
+            if style.lower() == 'yaml':
+                with open(filename, 'w') as f:
+                    yaml.dump(par_dict, stream=f)
+            else:
+                # hdf5
+                with h5py.File(filename, 'w') as f:
+                    instr_grp = f.create_group('instrument')
+                    unwrap_dict_to_h5(instr_grp, par_dict, asattr=False)
+
         return par_dict
 
     def update_from_parameter_list(self, p):
@@ -2232,7 +2260,7 @@ class PlanarDetector(object):
 
     def config_dict(self, chi=0, tvec=ct.zeros_3,
                     beam_energy=beam_energy_DFLT, beam_vector=ct.beam_vec,
-                    sat_level=None, panel_buffer=None):
+                    sat_level=None, panel_buffer=None, style='yaml'):
         """
         Return a dictionary of detector parameters.
 
@@ -2260,57 +2288,102 @@ class PlanarDetector(object):
             DESCRIPTION.
 
         """
+        assert style.lower() in ['yaml', 'hdf5'], \
+            "style must be either 'yaml', or 'hdf5'; you gave '%s'" % style
+
         config_dict = {}
 
         # =====================================================================
         # DETECTOR PARAMETERS
         # =====================================================================
-        if sat_level is None:
-            sat_level = self.saturation_level
-
-        if panel_buffer is None:
-            # FIXME: won't work right if it is an array
-            panel_buffer = self.panel_buffer
-        if isinstance(panel_buffer, np.ndarray):
-            panel_buffer = panel_buffer.flatten().tolist()
+        # transform and pixels
+        #
+        # assign local vars; listify if necessary
+        tilt = self.tilt
+        translation = self.tvec
+        if style.lower() == 'yaml':
+            tilt = tilt.tolist()
+            translation = translation.tolist()
+            tvec = tvec.tolist()
 
         det_dict = dict(
-                transform=dict(
-                    tilt=self.tilt.tolist(),
-                    translation=self.tvec.tolist(),
-                ),
-                pixels=dict(
-                    rows=self.rows,
-                    columns=self.cols,
-                    size=[self.pixel_size_row, self.pixel_size_col],
-                )
+            transform=dict(
+                tilt=tilt,
+                translation=translation,
+            ),
+            pixels=dict(
+                rows=self.rows,
+                columns=self.cols,
+                size=[self.pixel_size_row, self.pixel_size_col],
             )
+        )
+
+        # distortion
+        if self.distortion is not None:
+            dparams = self.distortion.params
+            if style.lower() == 'yaml':
+                dparams.tolist()
+            dist_d = dict(
+                function_name=self.distortion.maptype,
+                parameters=dparams
+            )
+            det_dict['distortion'] = dist_d
 
         # saturation level
+        if sat_level is None:
+            sat_level = self.saturation_level
         det_dict['saturation_level'] = sat_level
 
         # panel buffer
-        # FIXME if it is an array, the write will be a mess
+        if panel_buffer is None:
+            # could be non, a 2-element list, or a 2-d array (rows, cols)
+            panel_buffer = copy.deepcopy(self.panel_buffer)
+        # !!! now we have to do some style-dependent munging of panel_buffer
+        if isinstance(panel_buffer, np.ndarray):
+            if panel_buffer.ndim == 1:
+                assert len(panel_buffer) == 2, \
+                    "length of 1-d buffer must be 2"
+                # if here is a 2-element array
+                if style.lower() == 'yaml':
+                    panel_buffer = panel_buffer.tolist()
+            elif panel_buffer.ndim == 2:
+                if style.lower() == 'yaml':
+                    # !!! can't practically write array-like buffers to YAML
+                    #     so forced to clobber
+                    print("clobbering panel buffer array in yaml-ready output")
+                    panel_buffer = [0., 0.]
+            else:
+                raise RuntimeError(
+                    "panel buffer ndim must be 1 or 2; you specified %d"
+                    % panel_buffer.ndmin
+                )
+        elif panel_buffer is None:
+            # still None on self
+            if style.lower() == 'hdf5':
+                # !!! can't write None to hdf5; substitute with zeros
+                panel_buffer = np.r_[0., 0.]
         det_dict['buffer'] = panel_buffer
-
-        if self.distortion is not None:
-            dist_d = dict(
-                function_name=self.distortion.maptype,
-                parameters=self.distortion.params.tolist()
-            )
-            det_dict['distortion'] = dist_d
 
         # =====================================================================
         # SAMPLE STAGE PARAMETERS
         # =====================================================================
         stage_dict = dict(
             chi=chi,
-            translation=tvec.tolist()
+            translation=tvec
         )
 
         # =====================================================================
         # BEAM PARAMETERS
         # =====================================================================
+        # !!! make_reflection_patches is still using the vector
+        # azim, pola = calc_angles_from_beam_vec(beam_vector)
+        # beam_dict = dict(
+        #     energy=beam_energy,
+        #     vector=dict(
+        #         azimuth=azim,
+        #         polar_angle=pola
+        #     )
+        # )
         beam_dict = dict(
             energy=beam_energy,
             vector=beam_vector
@@ -3339,12 +3412,30 @@ class GrainDataWriter_h5(object):
         return
 
 
-def unwrap_dict_to_h5(grp, d, asattr=True):
+def unwrap_dict_to_h5(grp, d, asattr=False):
+    """
+    Unwraps a dictionary to an HDF5 file of the same structure.
+
+    Parameters
+    ----------
+    grp : HDF5 group object
+        The HDF5 group to recursively unwrap the dict into.
+    d : dict
+        Input dict (of dicts).
+    asattr : bool, optional
+        Flag to write end member in dictionary tree to an attribute. If False,
+        if writes the object to a dataset using numpy.  The default is False.
+
+    Returns
+    -------
+    None.
+
+    """
     while len(d) > 0:
         key, item = d.popitem()
         if isinstance(item, dict):
             subgrp = grp.create_group(key)
-            unwrap_dict_to_h5(subgrp, item)
+            unwrap_dict_to_h5(subgrp, item, asattr=asattr)
         else:
             if asattr:
                 grp.attrs.create(key, item)
@@ -3354,6 +3445,43 @@ def unwrap_dict_to_h5(grp, d, asattr=True):
                 except(TypeError):
                     # probably a string badness
                     grp.create_dataset(key, data=item)
+
+
+def unwrap_h5_to_dict(f, d):
+    """
+    Unwraps a simple HDF5 file to a dictionary of the same structure.
+
+    Parameters
+    ----------
+    f : HDF5 file (mode r)
+        The input HDF5 file object.
+    d : dict
+        dictionary object to update.
+
+    Returns
+    -------
+    None.
+
+    Notes
+    -----
+    As written, ignores attributes and uses numpy to cast HDF5 datasets to
+    dict entries.  Checks for 'O' type arrays and casts to strings; also
+    converts single-element arrays to scalars.
+    """
+    for key, val in f.items():
+        try:
+            d[key] = {}
+            unwrap_h5_to_dict(val, d[key])
+        except(AttributeError):
+            # reached a dataset
+            if np.dtype(val) == 'O':
+                d[key] = str(np.array(val))
+            else:
+                tmp = np.array(val)
+                if tmp.ndim == 1 and len(tmp) == 1:
+                    d[key] = tmp[0]
+                else:
+                    d[key] = tmp
 
 
 class GenerateEtaOmeMaps(object):
