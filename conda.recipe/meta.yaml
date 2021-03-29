@@ -10,7 +10,7 @@ build:
   detect_binary_files_with_prefix: true
   osx_is_app: yes
   entry_points:
-    - hexrd = hexrd.cli:main
+    - hexrd = hexrd.cli.main:main
 
 requirements:
   build:
