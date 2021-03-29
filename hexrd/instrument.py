@@ -440,8 +440,11 @@ class HEDMInstrument(object):
                     det_buffer = det_info[buffer_key]
                     if det_buffer is not None:
                         if isinstance(det_buffer, np.ndarray):
-                            assert det_buffer.shape == shape, \
-                                "buffer shape must match detector"
+                            if det_buffer.ndim == 2:
+                                assert det_buffer.shape == shape, \
+                                    "buffer shape must match detector"
+                            else:
+                                assert len(det_buffer) == 2
                             panel_buffer = det_buffer
                         elif isinstance(det_buffer, list):
                             panel_buffer = np.asarray(det_buffer)
