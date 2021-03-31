@@ -46,8 +46,6 @@ mpeak_nparams_dict = {
 """
 Calgliotti and Lorentzian FWHM functions
 """
-
-
 @numba_njit_if_available(cache=True, nogil=True)
 def _gaussian_fwhm(uvw, 
                    P, 
@@ -992,7 +990,9 @@ def computespectrum(uvw,
     the final spectrum
     """
     spec = np.zeros(tth_list.shape)
-    nref = tth.shape[0]
+    nref = np.min(np.array([Iobs.shape[0],
+        tth.shape[0],
+        dsp.shape[0],hkl.shape[0]]))
     for ii in np.arange(nref):
         II = Iobs[ii]
         t = tth[ii]
@@ -1032,7 +1032,9 @@ def calc_Iobs(uvw,
     the final spectrum
     """
     Iobs = np.zeros(tth.shape)
-    nref = tth.shape[0]
+    nref = np.min(np.array([Icalc.shape[0],
+        tth.shape[0],
+        dsp.shape[0],hkl.shape[0]]))
     for ii in np.arange(nref):
         Ic = Icalc[ii]
         t = tth[ii]

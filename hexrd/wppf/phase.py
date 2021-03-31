@@ -205,6 +205,7 @@ class Material_LeBail:
                 tth.append(t)
                 self.wavelength_allowed_hkls.append(True)
             else:
+                tth.append(np.nan)
                 self.wavelength_allowed_hkls.append(False)
         tth = np.array(tth)
         return tth
@@ -673,6 +674,7 @@ class Material_Rietveld:
         self.aniU = False
         if(self.U.ndim > 1):
             self.aniU = True
+            self.betaij = material_obj.unitcell.betaij
 
         # atom types i.e. Z and number of different atom types
         self.atom_type = material_obj.unitcell.atom_type
@@ -748,11 +750,6 @@ class Material_Rietveld:
 
         # the U factors are related to B by the relation B = 8pi^2 U
         self.U = np.transpose(np.array(gid.get('U'), dtype=np.float64))
-
-        self.aniU = False
-        if(self.U.ndim > 1):
-            self.aniU = True
-            self.betaij = material_obj.unitcell.betaij
 
         # read atom types (by atomic number, Z)
         self.atom_type = np.array(gid.get('Atomtypes'), dtype=np.int32)
@@ -871,6 +868,7 @@ class Material_Rietveld:
                 tth.append(t)
                 self.wavelength_allowed_hkls.append(True)
             else:
+                tth.append(np.nan)
                 self.wavelength_allowed_hkls.append(False)
         tth = np.array(tth)
         return tth
