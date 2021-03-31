@@ -99,6 +99,9 @@ class ProcessedImageSeries(ImageSeries):
         return pimg
 
     def _add(self, img, addend):
+        # To avoid overflow/underflow, always convert to float
+        if not np.issubdtype(img.dtype, np.floating):
+            img = img.astype(np.float32)
         return img + addend
 
     #
