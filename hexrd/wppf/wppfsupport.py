@@ -198,8 +198,8 @@ def _add_atominfo_to_params(params, mat):
         if(mat.aniU):
             U = mat.U
             for j in range(6):
-                nn = f("{phase_name}_{elem}{atom_label[i]}"
-                       f"_{nameU[j]}")
+                nn = (f"{phase_name}_{elem}{atom_label[i]}"
+                       f"_{_nameU[j]}")
                 params.add(
                     nn, value=U[i, j],
                     lb=-1e-3,
@@ -230,6 +230,17 @@ def _generate_default_parameters_LeBail(mat):
             m = mat[p]
             _add_Shkl_terms(params, m)
             _add_lp_to_params(params, m)
+
+    elif isinstance(mat, Phases_Rietveld):
+        """
+        phase file
+        """
+        for p in mat:
+            m = mat[p]
+            k = list(m.keys())
+            mm = m[k[0]]
+            _add_Shkl_terms(params, mm)
+            _add_lp_to_params(params, mm)
 
     elif isinstance(mat, Material):
         """
@@ -284,7 +295,9 @@ def _generate_default_parameters_Rietveld(mat):
         """
         for p in mat:
             m = mat[p]
-            _add_atominfo_to_params(params, m)
+            k = list(m.keys())
+            mm = m[k[0]]
+            _add_atominfo_to_params(params, mm)
 
     elif isinstance(mat, Material):
         """

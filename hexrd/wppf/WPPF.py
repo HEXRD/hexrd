@@ -289,6 +289,7 @@ class LeBail:
             for k, l in self.phases.wavelength.items():
                 t = self.phases[p].getTTh(l[0].value)
                 allowed = self.phases[p].wavelength_allowed_hkls
+                t = t[allowed]
                 hkl = self.phases[p].hkls[allowed, :]
                 dsp = self.phases[p].dsp[allowed]
                 tth_min = min(self.tth_min)
@@ -357,33 +358,6 @@ class LeBail:
                 "LeBail: Intensity_init must be either\
                  None or a dictionary")
 
-    def PseudoVoight(self, 
-        tth, 
-        dsp,
-        hkl,
-        shkl, 
-        strain_direction_dot_product,
-        is_in_sublattice):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/20/2020 SS 1.0 original
-                        03/23/2021 SS moved main functions to peakfunctions module
-        >> @DETAILS:    this routine computes the pseudo-voight function as weighted
-                        average of gaussian and lorentzian
-        """
-        self.PV = pvoight_wppf(np.array([self.U, self.V, self.W]),
-                               self.P,
-                               np.array([self.X, self.Y]),
-                               np.array([self.Xe, self.Ye, self.Xs]),
-                               shkl,
-                               self.eta_fwhm, 
-                               tth, 
-                               dsp, 
-                               hkl,
-                               strain_direction_dot_product,
-                               is_in_sublattice,
-                               self.tth_list)
-
     def computespectrum(self):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -424,7 +398,7 @@ class LeBail:
         self._spectrum_sim = Spectrum(x=x, y=y)
         #self._spectrum_sim = self.spectrum_sim + self.background
 
-        P = self.calc_num_variables(self.params)
+        P = calc_num_variables(self.params)
 
         errvec, self.Rwp, self.gofF = calc_rwp(
             self.spectrum_sim.data_array,
@@ -541,7 +515,7 @@ class LeBail:
 
         params = self.initialize_lmfit_parameters()
 
-        fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
+        fdict = {'ftol': 1e-3, 'xtol': 1e-3, 'gtol': 1e-3,
                  'verbose': 0, 'max_nfev': 100, 'method':'trf'}
         fitter = lmfit.Minimizer(self.calcRwp, params)
 
@@ -562,13 +536,6 @@ class LeBail:
         """
         params = self.initialize_lmfit_parameters()
         errvec = self.calcRwp(params)
-
-    def calc_num_variables(self, params):
-        P = 0
-        for pp in params:
-            if params[pp].vary:
-                P += 1
-        return P
 
     @property
     def U(self):
@@ -1353,6 +1320,7 @@ class Rietveld:
                 """
                 self.spectrum_expt = expt_spectrum
                 self.spectrum_expt.nan_to_zero()
+
             elif(isinstance(expt_spectrum, np.ndarray)):
                 """
                 initialize class using a nx2 array
@@ -1583,12 +1551,13 @@ class Rietveld:
             self.hkls[p] = {}
             self.dsp[p] = {}
             for k, l in self.phases.wavelength.items():
-                t = self.phases[p].getTTh(l[0].value)
-                allowed = self.phases[p].wavelength_allowed_hkls
-                hkl = self.phases[p].hkls[allowed, :]
-                dsp = self.phases[p].dsp[allowed]
-                tth_min = min(self.tth_min)
-                tth_max = max(self.tth_max)
+                t = self.phases[p][k].getTTh(l[0].value)
+                allowed = self.phases[p][k].wavelength_allowed_hkls
+                t = t[allowed]
+                hkl = self.phases[p][k].hkls[allowed, :]
+                dsp = self.phases[p][k].dsp[allowed]
+                tth_min = self.tth_min
+                tth_max = self.tth_max
                 limit = np.logical_and(t >= tth_min,
                                        t <= tth_max)
                 self.tth[p][k] = t[limit]
@@ -1601,41 +1570,19 @@ class Rietveld:
             self.sf[p] = {}
             for k, l in self.phases.wavelength.items():
                 w_int = l[1]
-                t, tmask = self.phases[p][k].getTTh(l[0].value)
+                t = self.phases[p][k].getTTh(l[0].value)
+                allowed = self.phases[p][k].wavelength_allowed_hkls
+                t = t[allowed]
+                hkl = self.phases[p][k].hkls[allowed,:]
+                multiplicity = self.phases[p][k].multiplicity[allowed]
+                sf = []
                 limit = np.logical_and(t >= self.tth_min,
                                        t <= self.tth_max)
-                hkl = self.phases[p][k].hkls[tmask][limit]
-                multiplicity = self.phases[p][k].multiplicity[tmask][limit]
-                sf = []
+                hkl = hkl[limit,:]
+                multiplicity = multiplicity[limit]
                 for m, g in zip(multiplicity, hkl):
                     sf.append(w_int * m * self.phases[p][k].CalcXRSF(g))
                 self.sf[p][k] = np.array(sf)
-
-    def PseudoVoight(self, 
-        tth, 
-        dsp,
-        hkl, 
-        shkl,
-        is_in_sublattice):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/20/2020 SS 1.0 original
-                        03/23/2021 SS moved main functions to peakfunctions module
-        >> @DETAILS:    this routine computes the pseudo-voight function as weighted
-                        average of gaussian and lorentzian
-        """
-        self.PV = pvoight_wppf(np.array([self.U, self.V, self.W]),
-                               self.P,
-                               np.array([self.X, self.Y]),
-                               np.array([self.Xe, self.Ye, self.Xs]),
-                               shkl,
-                               self.eta_fwhm, 
-                               tth, 
-                               dsp, 
-                               hkl,
-                               strain_direction_dot_product,
-                               is_in_sublattice,
-                               self.tth_list)
 
     def PolarizationFactor(self):
 
@@ -1649,80 +1596,62 @@ class Rietveld:
                     np.cos(0.5*t)/np.sin(0.5*t)**2
 
     def computespectrum(self):
-
-        I = np.zeros(self.tth_list.shape)
-        for p in self.tth:
-            for l in self.tth[p]:
-
-                tth = self.tth[p][k] + self.zero_error
-                dsp = self.dsp[p][k]
-                hkls = self.hkls[p][k]
-                shkl = self.phases[p].shkl
-
-                sf = self.sf[p][l]
-                pf = self.phases[p][l].pf / self.phases[p][l].vol**2
-                lp = self.LP[p][l]
-
-                n = np.min((tth.shape[0], Ic.shape[0]))
-                strain_direction_dot_product = 0.
-                for i in range(n):
-                    t = tth[i]
-                    fsq = sf[i]
-                    d = dsp[i]
-                    g = hkls[i]
-                    self.PseudoVoight(t, 
-                        dsp, g, shkl, 
-                        strain_direction_dot_product,
-                        False)
-                    I += self.scale * pf * self.PV * fsq * lp[i]
-
-        self.spectrum_sim = Spectrum(self.tth_list, I) + self.background
-
-    def calc_rwp(self):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/19/2020 SS 1.0 original
-        >> @DETAILS:    actual computation of the weighted error
+        >> @DATE:       06/08/2020 SS 1.0 original
+        >> @DETAILS:    compute the simulated spectrum
         """
-        self.err = (self.spectrum_sim - self.spectrum_expt)
+        x = self.tth_list
+        y = np.zeros(x.shape)
 
-        errvec = np.sqrt(self.weights * self.err._y**2)
+        for iph, p in enumerate(self.phases):
 
-        """ weighted sum of square """
-        wss = np.trapz(self.weights * self.err._y**2, self.err._x)
+            for k, l in self.phases.wavelength.items():
+                tth = self.tth[p][k] + self.zero_error
+                pf = self.phases[p][k].pf / self.phases[p][k].vol**2
+                sf = self.sf[p][k]
+                lp = self.LP[p][k]
 
-        den = np.trapz(self.weights * self.spectrum_sim._y **
-                       2, self.spectrum_sim._x)
+                n = np.min((tth.shape[0], 
+                    sf.shape[0],
+                    lp.shape[0]))
+                tth = tth[:n]
+                sf = sf[:n]
+                lp = lp[:n]
 
-        """ standard Rwp i.e. weighted residual """
-        Rwp = np.sqrt(wss/den)
+                Ic = self.scale*pf*sf*lp
 
-        """ number of observations to fit i.e. number of data points """
-        N = self.spectrum_sim._y.shape[0]
+                dsp = self.dsp[p][k]
+                hkls = self.hkls[p][k]
 
-        """ number of independent parameters in fitting """
-        P = 0
-        for p in self.params:
-            if self.params[p].vary:
-                P += 1
+                shkl = np.zeros([15,])#self.phases[p].shkl
+                strain_direction_dot_product = 0.
+                is_in_sublattice = False
 
-        if den > 0. and (N-P) >= 0:
-            Rexp = np.sqrt((N-P)/den)
-        else:
-            Rexp = np.inf
+                y += computespectrum(np.array([self.U, self.V, self.W]),
+                               self.P,
+                               np.array([self.X, self.Y]),
+                               np.array([self.Xe, self.Ye, self.Xs]),
+                               shkl,
+                               self.eta_fwhm, 
+                               tth, 
+                               dsp, 
+                               hkls,
+                               strain_direction_dot_product,
+                               is_in_sublattice,
+                               self.tth_list,
+                               Ic)
 
-        # Rwp and goodness of fit parameters
-        self.Rwp = Rwp
-        if Rexp > 0.:
-            self.gofF = (Rwp / Rexp)**2
-        else:
-            self.gofF = np.inf
+        self.spectrum_sim = Spectrum(x=x, y=y) + self.background
 
-        # Rwp and goodness of fit parameters
-        self.Rwp = Rwp
-        self.gofF = (Rwp / Rexp)**2
+        P = calc_num_variables(self.params)
 
-        return errvec[~np.isnan(errvec)]
+        errvec, self.Rwp, self.gofF = calc_rwp(
+            self.spectrum_sim.data_array,
+            self.spectrum_expt.data_array,
+            self.weights,
+            P)
+        return errvec
 
     def calcRwp(self, params):
         """
@@ -1737,8 +1666,7 @@ class Rietveld:
         the err variable is the difference between simulated and experimental spectra
         """
         self._set_params_vals_to_class(params, init=False, skip_phases=False)
-        self.computespectrum()
-        errvec = self.calc_rwp()
+        errvec = self.computespectrum()
 
         return errvec
 
@@ -1769,12 +1697,12 @@ class Rietveld:
 
         params = self.initialize_lmfit_parameters()
 
-        # fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
-        #          'verbose': 0, 'max_nfev': 8, 'method':'trf'}
-        fdict = {}
+        fdict = {'ftol': 1e-3, 'xtol': 1e-3, 'gtol': 1e-3,
+                 'verbose': 0, 'max_nfev': 20, 'method':'trf'}
+        
         fitter = lmfit.Minimizer(self.calcRwp, params)
 
-        self.res = fitter.leastsq(**fdict)
+        self.res = fitter.least_squares(**fdict)
 
         self.update_parameters()
 
@@ -1799,7 +1727,6 @@ class Rietveld:
             else:
                 if(hasattr(self, p)):
                     setattr(self, p, params[p].value)
-
         if not skip_phases:
             updated_lp = False
             updated_atominfo = False
@@ -1857,9 +1784,9 @@ class Rietveld:
                             Un = []
                             for j in range(6):
                                 Un.append(
-                                    f"{p}_{elem}"
-                                    "{atom_label[i]}"
-                                    "_{_nameU[j]}")
+                                    (f"{p}_{elem}"
+                                    f"{atom_label[i]}"
+                                    f"_{wppfsupport._nameU[j]}"))
                         else:
                             dw = f"{p}_{elem}{atom_label[i]}_dw"
 
@@ -2044,6 +1971,13 @@ class Rietveld:
     @eta_fwhm.setter
     def eta_fwhm(self, val):
         self._eta_fwhm = val
+
+def calc_num_variables(params):
+    P = 0
+    for pp in params:
+        if params[pp].vary:
+            P += 1
+    return P
 
 def separate_regions(masked_spec_array):
     """
