@@ -1,7 +1,8 @@
 import importlib.resources
 import numpy as np
 import warnings
-from hexrd.wppf.peakfunctions import pvoight_wppf, pvoight_pink_beam
+from hexrd.wppf.peakfunctions import pvoight_wppf, \
+pvoight_pink_beam, calc_rwp, computespectrum, calc_Iobs
 from hexrd.wppf import wppfsupport
 from hexrd.imageutil import snip1d, snip1d_quad
 from hexrd.material import Material
@@ -24,6 +25,7 @@ from pathlib import Path
 from pylab import plot, ginput, show, \
     axis, close, title, xlabel, ylabel
 import copy
+from hexrd.utils.decorators import numba_njit_if_available
 
 class LeBail:
     """
@@ -279,19 +281,23 @@ class LeBail:
     def calctth(self):
         self.tth = {}
         self.hkls = {}
+        self.dsp = {}
         for p in self.phases:
             self.tth[p] = {}
             self.hkls[p] = {}
+            self.dsp[p] = {}
             for k, l in self.phases.wavelength.items():
                 t = self.phases[p].getTTh(l[0].value)
                 allowed = self.phases[p].wavelength_allowed_hkls
                 hkl = self.phases[p].hkls[allowed, :]
+                dsp = self.phases[p].dsp[allowed]
                 tth_min = min(self.tth_min)
                 tth_max = max(self.tth_max)
                 limit = np.logical_and(t >= tth_min,
                                        t <= tth_max)
                 self.tth[p][k] = t[limit]
                 self.hkls[p][k] = hkl[limit, :]
+                self.dsp[p][k] = dsp[limit]
 
     def initialize_Icalc(self):
         """
@@ -351,7 +357,13 @@ class LeBail:
                 "LeBail: Intensity_init must be either\
                  None or a dictionary")
 
-    def PseudoVoight(self, tth):
+    def PseudoVoight(self, 
+        tth, 
+        dsp,
+        hkl,
+        shkl, 
+        strain_direction_dot_product,
+        is_in_sublattice):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/20/2020 SS 1.0 original
@@ -360,8 +372,17 @@ class LeBail:
                         average of gaussian and lorentzian
         """
         self.PV = pvoight_wppf(np.array([self.U, self.V, self.W]),
-                               np.array([self.X, self.Y]), 
-                               tth, self.tth_list)
+                               self.P,
+                               np.array([self.X, self.Y]),
+                               np.array([self.Xe, self.Ye, self.Xs]),
+                               shkl,
+                               self.eta_fwhm, 
+                               tth, 
+                               dsp, 
+                               hkl,
+                               strain_direction_dot_product,
+                               is_in_sublattice,
+                               self.tth_list)
 
     def computespectrum(self):
         """
@@ -379,19 +400,50 @@ class LeBail:
                 Ic = self.Icalc[p][k]
 
                 tth = self.tth[p][k] + self.zero_error
+                dsp = self.dsp[p][k]
+                hkls = self.hkls[p][k]
                 n = np.min((tth.shape[0], Ic.shape[0]))
+                shkl = self.phases[p].shkl
+                strain_direction_dot_product = 0.
+                is_in_sublattice = False
 
-                for i in range(n):
+                y += computespectrum(np.array([self.U, self.V, self.W]),
+                               self.P,
+                               np.array([self.X, self.Y]),
+                               np.array([self.Xe, self.Ye, self.Xs]),
+                               shkl,
+                               self.eta_fwhm, 
+                               tth, 
+                               dsp, 
+                               hkls,
+                               strain_direction_dot_product,
+                               is_in_sublattice,
+                               self.tth_list,
+                               Ic)
+                # for i in range(n):
 
-                    t = tth[i]
-                    self.PseudoVoight(t)
+                #     t = tth[i]
+                #     d = dsp[i]
+                #     g = hkls[i]
 
-                    y += Ic[i] * self.PV
+                #     self.PseudoVoight(t, 
+                #         d, g, shkl, 
+                #         strain_direction_dot_product,
+                #         False)
+
+                #     y += Ic[i] * self.PV
 
         self._spectrum_sim = Spectrum(x=x, y=y)
         #self._spectrum_sim = self.spectrum_sim + self.background
 
-        errvec = self.calc_rwp()
+        P = self.calc_num_variables(self.params)
+
+        errvec, self.Rwp, self.gofF = calc_rwp(
+            self.spectrum_sim.data_array,
+            self.spectrum_expt.data_array,
+            self.weights,
+            P)
+        return errvec
 
     def CalcIobs(self):
         """
@@ -402,84 +454,62 @@ class LeBail:
         """
 
         self.Iobs = {}
+        spec_expt = self.spectrum_expt.data_array
+        spec_sim  = self.spectrum_sim.data_array
         for iph, p in enumerate(self.phases):
 
             self.Iobs[p] = {}
-
             for k, l in self.phases.wavelength.items():
+
                 Ic = self.Icalc[p][k]
 
                 tth = self.tth[p][k] + self.zero_error
-
-                Iobs = []
+                dsp = self.dsp[p][k]
+                hkls = self.hkls[p][k]
                 n = np.min((tth.shape[0], Ic.shape[0]))
+                shkl = self.phases[p].shkl
+                strain_direction_dot_product = 0.
+                is_in_sublattice = False
 
-                for i in range(n):
-                    t = tth[i]
-                    self.PseudoVoight(t)
+                self.Iobs[p][k] = calc_Iobs(np.array([self.U, self.V, self.W]),
+                               self.P,
+                               np.array([self.X, self.Y]),
+                               np.array([self.Xe, self.Ye, self.Xs]),
+                               shkl,
+                               self.eta_fwhm, 
+                               tth, 
+                               dsp, 
+                               hkls,
+                               strain_direction_dot_product,
+                               is_in_sublattice,
+                               self.tth_list,
+                               Ic,
+                               spec_expt, 
+                               spec_sim) 
+                # for i in range(n):
+                #     t = tth[i]
+                #     d = dsp[i]
+                #     g = hkls[i]
+                #     self.PseudoVoight(t, 
+                #         d, g, shkl, 
+                #         strain_direction_dot_product,
+                #         False)
 
-                    y = self.PV * Ic[i]
-                    _, yo = self.spectrum_expt.data
-                    _, yc = self.spectrum_sim.data
-                    mask = yc != 0.
-                    """ 
-                    @TODO if yc has zeros in it, then this
-                    the next line will not like it. need to 
-                    address that 
-                    @ SS 03/02/2021 the mask shold fix it
-                    """
-                    I = np.trapz(yo[mask] * y[mask] /
-                                 yc[mask], self.tth_list[mask])
-                    Iobs.append(I)
+                #     y = self.PV * Ic[i]
+                #     _, yo = self.spectrum_expt.data
+                #     _, yc = self.spectrum_sim.data
+                #     mask = yc != 0.
+                #     """ 
+                #     @TODO if yc has zeros in it, then this
+                #     the next line will not like it. need to 
+                #     address that 
+                #     @ SS 03/02/2021 the mask shold fix it
+                #     """
+                #     I = np.trapz(yo[mask] * y[mask] /
+                #                  yc[mask], self.tth_list[mask])
+                #     Iobs.append(I)
 
-                self.Iobs[p][k] = np.array(Iobs)
-
-    def calc_rwp(self):
-        """
-        > @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        > @DATE:       03/05/2021 SS 1.0 original
-        > @DETAILS:    this routine computes the weighted error between calculated and
-                       experimental spectra. goodness of fit is also calculated. the
-                       weights are the inverse squareroot of the experimental intensities
-        """
-
-        self.err = (self.spectrum_sim - self.spectrum_expt)
-
-        errvec = np.sqrt(self.weights * self.err._y**2)
-
-        """ weighted sum of square """
-        wss = np.trapz(self.weights * self.err._y**2, self.err._x)
-        den = np.trapz(self.weights * self.spectrum_sim._y **
-                       2, self.spectrum_sim._x)
-
-        """ standard Rwp i.e. weighted residual """
-        Rwp = np.sqrt(wss/den)
-
-        """ number of observations to fit i.e. number of data points """
-        N = self.spectrum_sim._y.shape[0]
-
-        """ number of independent parameters in fitting """
-        P = 0
-        for p in self.params:
-            if self.params[p].vary:
-                P += 1
-
-        if den > 0.:
-            if (N-P)/den > 0:
-                Rexp = np.sqrt((N-P)/den)
-            else:
-                Rexp = 0.0
-        else:
-            Rexp = np.inf
-
-        # Rwp and goodness of fit parameters
-        self.Rwp = Rwp
-        if Rexp > 0.:
-            self.gofF = (Rwp / Rexp)**2
-        else:
-            self.gofF = np.inf
-
-        return errvec[~np.isnan(errvec)]
+                # self.Iobs[p][k] = np.array(Iobs)
 
     def calcRwp(self, params):
         """
@@ -493,9 +523,8 @@ class LeBail:
         the errvec variable is the difference between simulated and experimental spectra
         """
         self._set_params_vals_to_class(params, init=False, skip_phases=False)
-        self.computespectrum()
 
-        errvec = self.calc_rwp()
+        errvec = self.computespectrum()
 
         return errvec
 
@@ -549,8 +578,7 @@ class LeBail:
         params = self.initialize_lmfit_parameters()
 
         fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
-                 'verbose': 0, 'max_nfev': 100}
-
+                 'verbose': 0, 'max_nfev': 100, 'method':'trf'}
         fitter = lmfit.Minimizer(self.calcRwp, params)
 
         res = fitter.least_squares(**fdict)
@@ -570,6 +598,13 @@ class LeBail:
         """
         params = self.initialize_lmfit_parameters()
         errvec = self.calcRwp(params)
+
+    def calc_num_variables(self, params):
+        P = 0
+        for pp in params:
+            if params[pp].vary:
+                P += 1
+        return P
 
     @property
     def U(self):
@@ -644,6 +679,14 @@ class LeBail:
     def zero_error(self, value):
         self._zero_error = value
         return
+
+    @property
+    def eta_fwhm(self):
+        return self._eta_fwhm
+
+    @eta_fwhm.setter
+    def eta_fwhm(self, val):
+        self._eta_fwhm = val
 
     @property
     def spectrum_expt(self):
@@ -1569,13 +1612,24 @@ class Rietveld:
 
     def calctth(self):
         self.tth = {}
+        self.hkls = {}
+        self.dsp = {}
         for p in self.phases:
             self.tth[p] = {}
+            self.hkls[p] = {}
+            self.dsp[p] = {}
             for k, l in self.phases.wavelength.items():
-                t, _ = self.phases[p][k].getTTh(l[0].value)
-                limit = np.logical_and(t >= self.tth_min,
-                                       t <= self.tth_max)
+                t = self.phases[p].getTTh(l[0].value)
+                allowed = self.phases[p].wavelength_allowed_hkls
+                hkl = self.phases[p].hkls[allowed, :]
+                dsp = self.phases[p].dsp[allowed]
+                tth_min = min(self.tth_min)
+                tth_max = max(self.tth_max)
+                limit = np.logical_and(t >= tth_min,
+                                       t <= tth_max)
                 self.tth[p][k] = t[limit]
+                self.hkls[p][k] = hkl[limit, :]
+                self.dsp[p][k] = dsp[limit]
 
     def calcsf(self):
         self.sf = {}
@@ -1593,7 +1647,12 @@ class Rietveld:
                     sf.append(w_int * m * self.phases[p][k].CalcXRSF(g))
                 self.sf[p][k] = np.array(sf)
 
-    def PseudoVoight(self, tth):
+    def PseudoVoight(self, 
+        tth, 
+        dsp,
+        hkl, 
+        shkl,
+        is_in_sublattice):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       05/20/2020 SS 1.0 original
@@ -1602,8 +1661,17 @@ class Rietveld:
                         average of gaussian and lorentzian
         """
         self.PV = pvoight_wppf(np.array([self.U, self.V, self.W]),
-                               np.array([self.X, self.Y]), 
-                               tth, self.tth_list)
+                               self.P,
+                               np.array([self.X, self.Y]),
+                               np.array([self.Xe, self.Ye, self.Xs]),
+                               shkl,
+                               self.eta_fwhm, 
+                               tth, 
+                               dsp, 
+                               hkl,
+                               strain_direction_dot_product,
+                               is_in_sublattice,
+                               self.tth_list)
 
     def PolarizationFactor(self):
 
@@ -1622,13 +1690,26 @@ class Rietveld:
         for p in self.tth:
             for l in self.tth[p]:
 
-                tth = self.tth[p][l]
+                tth = self.tth[p][k] + self.zero_error
+                dsp = self.dsp[p][k]
+                hkls = self.hkls[p][k]
+                shkl = self.phases[p].shkl
+
                 sf = self.sf[p][l]
                 pf = self.phases[p][l].pf / self.phases[p][l].vol**2
                 lp = self.LP[p][l]
 
-                for i, (t, fsq) in enumerate(zip(tth, sf)):
-                    self.PseudoVoight(t+self.zero_error)
+                n = np.min((tth.shape[0], Ic.shape[0]))
+                strain_direction_dot_product = 0.
+                for i in range(n):
+                    t = tth[i]
+                    fsq = sf[i]
+                    d = dsp[i]
+                    g = hkls[i]
+                    self.PseudoVoight(t, 
+                        dsp, g, shkl, 
+                        strain_direction_dot_product,
+                        False)
                     I += self.scale * pf * self.PV * fsq * lp[i]
 
         self.spectrum_sim = Spectrum(self.tth_list, I) + self.background
@@ -1724,12 +1805,12 @@ class Rietveld:
 
         params = self.initialize_lmfit_parameters()
 
-        fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
-                 'verbose': 0, 'max_nfev': 8}
-
+        # fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
+        #          'verbose': 0, 'max_nfev': 8, 'method':'trf'}
+        fdict = {}
         fitter = lmfit.Minimizer(self.calcRwp, params)
 
-        self.res = fitter.least_squares(**fdict)
+        self.res = fitter.leastsq(**fdict)
 
         self.update_parameters()
 
@@ -1901,6 +1982,15 @@ class Rietveld:
         return
 
     @property
+    def P(self):
+        return self._P
+
+    @P.setter
+    def P(self, Pinp):
+        self._P = Pinp
+        return
+
+    @property
     def X(self):
         return self._X
 
@@ -1910,12 +2000,39 @@ class Rietveld:
         return
 
     @property
+    def Xe(self):
+        return self._Xe
+
+    @Xe.setter
+    def Xe(self, Xeinp):
+        self._Xe = Xeinp
+        return
+
+    @property
+    def Xs(self):
+        return self._Xs
+
+    @Xs.setter
+    def Xs(self, Xsinp):
+        self._Xs = Xsinp
+        return
+
+    @property
     def Y(self):
         return self._Y
 
     @Y.setter
     def Y(self, Yinp):
         self._Y = Yinp
+        return
+
+    @property
+    def Ye(self):
+        return self._Ye
+
+    @Ye.setter
+    def Ye(self, Yeinp):
+        self._Ye = Yeinp
         return
 
     @property
@@ -1955,6 +2072,14 @@ class Rietveld:
     def scale(self, value):
         self._scale = value
         return
+
+    @property
+    def eta_fwhm(self):
+        return self._eta_fwhm
+
+    @eta_fwhm.setter
+    def eta_fwhm(self, val):
+        self._eta_fwhm = val
 
 def separate_regions(masked_spec_array):
     """

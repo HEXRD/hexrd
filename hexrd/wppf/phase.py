@@ -4,6 +4,7 @@ from hexrd.spacegroup import Allowed_HKLs
 from hexrd import symmetry, symbols, constants
 from hexrd.material import Material
 from hexrd.unitcell import _rqpDict
+from hexrd.wppf import wppfsupport
 import h5py
 
 class Material_LeBail:
@@ -171,12 +172,33 @@ class Material_LeBail:
 
         return vlen
 
+    def CalcDot(self, u, v, space):
+        if(space == 'd'):
+            dot = np.dot(u, np.dot(self.dmt, v))
+        elif(space == 'r'):
+            dot = np.dot(u, np.dot(self.rmt, v))
+        elif(space == 'c'):
+            dot = np.dot(u, v)
+        else:
+            raise ValueError('space is unidentified')
+        return dot
+
+    def calcdsp(self):
+        """
+        calculate d-spacing
+        """
+        dsp = []
+        for g in self.hkls:
+            dsp.append(1./self.CalcLength(g, 'r'))
+        self.dsp = np.array(dsp)
+
     def getTTh(self, wavelength):
 
         tth = []
+        self.calcdsp()
         self.wavelength_allowed_hkls = []
-        for g in self.hkls:
-            glen = self.CalcLength(g, 'r')
+        for d in self.dsp:
+            glen = 1./d
             sth = glen*wavelength/2.
             if(np.abs(sth) <= 1.0):
                 t = 2. * np.degrees(np.arcsin(sth))
@@ -355,6 +377,15 @@ class Material_LeBail:
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)
 
+
+    @property
+    def shkl(self):
+        shkl_dict, trig_ptype = wppfsupport._add_Shkl_terms([], 
+            self, return_dict=True)
+        eq_const = wppfsupport._rqd_shkl[self.latticeType][1]
+        if trig_ptype:
+            eq_const = wppfsupport._rqd_shkl["hexagonal"][1]
+        return wppfsupport._fill_shkl(shkl_dict, eq_const)
 
 class Phases_LeBail:
     """
@@ -818,23 +849,31 @@ class Material_Rietveld:
 
         return vlen
 
+    def calcdsp(self):
+        """
+        calculate d-spacing
+        """
+        dsp = []
+        for g in self.hkls:
+            dsp.append(1./self.CalcLength(g, 'r'))
+        self.dsp = np.array(dsp)
+
     def getTTh(self, wavelength):
 
         tth = []
-        tth_mask = []
-        for g in self.hkls:
-            glen = self.CalcLength(g, 'r')
+        self.calcdsp()
+        self.wavelength_allowed_hkls = []
+        for d in self.dsp:
+            glen = 1./d
             sth = glen*wavelength/2.
             if(np.abs(sth) <= 1.0):
                 t = 2. * np.degrees(np.arcsin(sth))
                 tth.append(t)
-                tth_mask.append(True)
+                self.wavelength_allowed_hkls.append(True)
             else:
-                tth_mask.append(False)
-
+                self.wavelength_allowed_hkls.append(False)
         tth = np.array(tth)
-        tth_mask = np.array(tth_mask)
-        return (tth, tth_mask)
+        return tth
 
     def GenerateRecipPGSym(self):
 
@@ -1139,6 +1178,14 @@ class Material_Rietveld:
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)
 
+    @property
+    def shkl(self):
+        shkl_dict, trig_ptype = wppfsupport._add_Shkl_terms([], 
+            self, return_dict=True)
+        eq_const = wppfsupport._rqd_shkl[self.latticeType][1]
+        if trig_ptype:
+            eq_const = wppfsupport._rqd_shkl["hexagonal"][1]
+        return wppfsupport._fill_shkl(shkl_dict, eq_const)
 
 class Phases_Rietveld:
     """
