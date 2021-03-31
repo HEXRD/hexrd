@@ -161,6 +161,10 @@ class Spectrum:
         self.offset = 0
 
     @property
+    def data_array(self):
+        return np.squeeze(np.array([self.data]).T)
+
+    @property
     def original_data(self):
         return self._x, self._y * self._scaling +\
             self.offset

@@ -123,23 +123,28 @@ def _anisotropic_peak_broadening(shkl, hkl):
     function, we will just use all the terms. it is 
     assumed that the user passes on the correct values
     for shkl with appropriate zero values
+    The order is the same as the wppfsupport._shkl_name
+    variable
+    ["s400", "s040", "s004", "s220", "s202", "s022",
+              "s310", "s103", "s031", "s130", "s301", "s013",
+              "s211", "s121", "s112"]
     """
     h,k,l = hkl
-    gamma_sqr = (shkl["s400"]*h**4 + 
-                shkl["s040"]*k**4 + 
-                shkl["s004"]*l**4 + 
-                3.0*(shkl["s220"]*(h*k)**2 + 
-                     shkl["s202"]*(h*l)**2 + 
-                     shkl["s022"]*(k*l)**2)+
-                2.0*(shkl["s310"]*k*h**3 + 
-                     shkl["s103"]*h*l**3 + 
-                     shkl["s031"]*l*k**3 + 
-                     shkl["s130"]*h*k**3 + 
-                     shkl["s301"]*l*h**3 + 
-                     shkl["s013"]*k*l**3) + 
-                4.0*(shkl["s211"]*k*l*h**2 + 
-                     shkl["s121"]*h*l*k**2 + 
-                     shkl["s112"]*h*k*l**2))
+    gamma_sqr = (shkl[0]*h**4 + 
+                shkl[1]*k**4 + 
+                shkl[2]*l**4 + 
+                3.0*(shkl[3]*(h*k)**2 + 
+                     shkl[4]*(h*l)**2 + 
+                     shkl[5]*(k*l)**2)+
+                2.0*(shkl[6]*k*h**3 + 
+                     shkl[7]*h*l**3 + 
+                     shkl[8]*l*k**3 + 
+                     shkl[9]*h*k**3 + 
+                     shkl[10]*l*h**3 + 
+                     shkl[11]*k*l**3) + 
+                4.0*(shkl[12]*k*l*h**2 + 
+                     shkl[13]*h*l*k**2 + 
+                     shkl[14]*h*k*l**2))
 
     return gamma_sqr
 
@@ -836,37 +841,54 @@ def _mixing_factor_pv(fwhm_g, fwhm_l):
 
     return eta
 
-
+@numba_njit_if_available(cache=True, nogil=True)
 def pvoight_wppf(uvw,
+                 p,
                  xy,
+                 xy_sf,
+                 shkl, 
+                 eta_mixing,
                  tth,
+                 dsp,
+                 hkl,
+                 strain_direction_dot_product,
+                 is_in_sublattice,
                  tth_list):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/22/2021 SS 1.0 original
     @details pseudo voight peak profile for WPPF
     """
-    fwhm_g = _gaussian_fwhm(uvw, 0, 0, 0, tth, 0)
-    fwhm_l = _lorentzian_fwhm(xy, np.array([0,0,0]), 0, 0, tth, 0, 0 , False)
+    gamma_ani_sqr = _anisotropic_peak_broadening(
+        shkl, hkl)
+    fwhm_g = _gaussian_fwhm(uvw, p, 
+        gamma_ani_sqr, 
+        eta_mixing, 
+        tth, dsp)
+    fwhm_l = _lorentzian_fwhm(xy, xy_sf, 
+        gamma_ani_sqr, eta_mixing, 
+        tth, dsp,
+        strain_direction_dot_product,
+        is_in_sublattice)
+
     n = _mixing_factor_pv(fwhm_g, fwhm_l)
 
     Ag = 0.9394372787/fwhm_g  # normalization factor for unit area
     Al = 2.0*np.pi/fwhm_l    # normalization factor for unit area
 
-    g = _gaussian1d_no_bg(np.array([Ag, tth, fwhm_g]), tth_list)
-    l = _lorentzian1d_no_bg(np.array([Al, tth, fwhm_l]), tth_list)
-
+    g = Ag*_unit_gaussian(np.array([tth, fwhm_g]), tth_list)
+    l = Al*_unit_lorentzian(np.array([tth, fwhm_l]), tth_list)
     return n*l + (1.0-n)*g
 
 
 @numba_njit_if_available(cache=True, nogil=True)
-def calc_alpha(alpha, tth):
+def _calc_alpha(alpha, tth):
     a0, a1 = alpha
     return a0 + a1*np.tan(np.radians(0.5*tth))
 
 
 @numba_njit_if_available(cache=True, nogil=True)
-def calc_beta(beta, tth):
+def _calc_beta(beta, tth):
     b0, b1 = beta
     return b0 + b1*np.tan(np.radians(0.5*tth))
 
@@ -922,7 +944,7 @@ def _lorentzian_pink_beam(alpha,
 
     return -(alpha*beta)/(np.pi*(alpha + beta)) * (f1 + f2)
 
-
+@numba_njit_if_available(cache=True, nogil=True)
 def pvoight_pink_beam(alpha,
                       beta,
                       uvw,
@@ -935,8 +957,8 @@ def pvoight_pink_beam(alpha,
     @details compute the pseudo voight peak shape for the pink
     beam using von dreele's function
     """
-    alpha_exp = calc_alpha(alpha, tth)
-    beta_exp = calc_beta(beta, tth)
+    alpha_exp = _calc_alpha(alpha, tth)
+    beta_exp = _calc_beta(beta, tth)
     fwhm_g = _gaussian_fwhm(uvw, tth)
     fwhm_l = _lorentzian_fwhm(xy, tth)
     n = _mixing_factor_pv(fwhm_g, fwhm_l)
@@ -946,3 +968,137 @@ def pvoight_pink_beam(alpha,
                               fwhm_l, tth, tth_list)
 
     return n*l + (1.0-n)*g
+
+@numba_njit_if_available(cache=True, nogil=True)
+def computespectrum(uvw,
+                 p,
+                 xy,
+                 xy_sf,
+                 shkl, 
+                 eta_mixing,
+                 tth,
+                 dsp,
+                 hkl,
+                 strain_direction_dot_product,
+                 is_in_sublattice,
+                 tth_list,
+                 Iobs):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/31/2021 SS 1.0 original
+    @details compute the spectrum given all the input parameters.
+    moved outside of the class to allow numba implementation
+    this is called for multiple wavelengths and phases to generate
+    the final spectrum
+    """
+    spec = np.zeros(tth_list.shape)
+    nref = tth.shape[0]
+    for ii in np.arange(nref):
+        II = Iobs[ii]
+        t = tth[ii]
+        d = dsp[ii]
+        g = hkl[ii]
+        pv = pvoight_wppf(uvw,p,xy,
+                 xy_sf,shkl,eta_mixing,
+                 t,d,g,
+                 strain_direction_dot_product,
+                 is_in_sublattice,
+                 tth_list)
+        spec += II * pv
+    return spec
+
+@numba_njit_if_available(cache=True, nogil=True)
+def calc_Iobs(uvw,
+            p,
+            xy,
+            xy_sf,
+            shkl, 
+            eta_mixing,
+            tth,
+            dsp,
+            hkl,
+            strain_direction_dot_product,
+            is_in_sublattice,
+            tth_list,
+            Icalc,
+            spectrum_expt,
+            spectrum_sim):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/31/2021 SS 1.0 original
+    @details compute Iobs for each reflection given all parameters.
+    moved outside of the class to allow numba implementation
+    this is called for multiple wavelengths and phases to generate
+    the final spectrum
+    """
+    Iobs = np.zeros(tth.shape)
+    nref = tth.shape[0]
+    for ii in np.arange(nref):
+        Ic = Icalc[ii]
+        t = tth[ii]
+        d = dsp[ii]
+        g = hkl[ii]
+        pv = pvoight_wppf(uvw,p,xy,
+                 xy_sf,shkl,eta_mixing,
+                 t,d,g,
+                 strain_direction_dot_product,
+                 is_in_sublattice,
+                 tth_list)
+
+        y = Ic * pv
+        yo = spectrum_expt[:,1]
+        yc = spectrum_sim[:,1]
+        mask = yc != 0.
+        """ 
+        @TODO if yc has zeros in it, then this
+        the next line will not like it. need to 
+        address that 
+        @ SS 03/02/2021 the mask shold fix it
+        """
+        Iobs[ii] = np.trapz(yo[mask] * y[mask] /
+                                 yc[mask], tth_list[mask])
+
+    return Iobs
+
+@numba_njit_if_available(cache=True, nogil=True)
+def calc_rwp(spectrum_sim,
+             spectrum_expt, 
+             weights,
+             P):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/31/2021 SS 1.0 original
+    @details calculate the rwp given all the input parameters.
+    moved outside of the class to allow numba implementation
+    P : number of independent parameters in fitting
+    """
+    err = spectrum_sim - spectrum_expt
+
+    errvec = np.sqrt(weights * err[:,1]**2)
+
+    """ weighted sum of square """
+    wss = np.trapz(weights * err[:,1]**2, spectrum_expt[:,0])
+    den = np.trapz(weights * spectrum_sim[:,1] **
+                   2, spectrum_expt[:,0])
+
+    """ standard Rwp i.e. weighted residual """
+    Rwp = np.sqrt(wss/den)
+
+    """ number of observations to fit i.e. number of data points """
+    N = spectrum_sim.shape[0]
+
+    if den > 0.:
+        if (N-P)/den > 0:
+            Rexp = np.sqrt((N-P)/den)
+        else:
+            Rexp = 0.0
+    else:
+        Rexp = np.inf
+
+    # Rwp and goodness of fit parameters
+    if Rexp > 0.:
+        gofF = (Rwp / Rexp)**2
+    else:
+        gofF = np.inf
+
+    return errvec[~np.isnan(errvec)], Rwp, gofF

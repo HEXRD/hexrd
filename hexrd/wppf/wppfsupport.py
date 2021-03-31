@@ -53,15 +53,15 @@ def _generate_default_parameters_pseudovoight(params):
     1 --> width_mixing of anisotropic broadening
     """
     p = {"zero_error":[0., -1., 1., False],
-         "U": [1e-2, 0., 1., True],
-         "V": [1e-2, 0., 1., True],
-         "W": [1e-2, 0., 1., True],
-         "P": [0., 0., 1., False],
-         "X": [1e-2, 0., 1., True],
-         "Y": [1e-2, 0., 1., True],
-         "Xe": [0., 0., 1., False],
-         "Ye": [0., 0., 1., False],
-         "Xs": [0., 0., 1., False],
+         "U": [1e-5, 0., 1e-2, True],
+         "V": [1e-5, 0., 1e-2, True],
+         "W": [1e-5, 0., 1e-2, True],
+         "P": [0., 0., 1e-2, False],
+         "X": [1e-5, 0., 1e-2, True],
+         "Y": [1e-5, 0., 1e-2, True],
+         "Xe": [0., 0., 1e-2, False],
+         "Ye": [0., 0., 1e-2, False],
+         "Xs": [0., 0., 1e-2, False],
          "eta_w": [0.5, 0., 1., False]
          }
 
@@ -72,8 +72,16 @@ def _generate_default_parameters_pseudovoight(params):
                    ub=v[2],
                    vary=v[3])
 
+# def _add_asymmetry_terms(params):
+#     """
+#     adds the terms in the asymmetry of
+#     2-theta shifts
+#     """
+#     p = {"trns":,[0.0, ]}
+
 def _add_Shkl_terms(params,
-                    mat):
+                    mat,
+                    return_dict=None):
     """
     add the SHKL terms in the anisotropic peak
     broadening contribution. this depends on the
@@ -87,6 +95,7 @@ def _add_Shkl_terms(params,
     sgnum = mat.sgnum
     mname = mat.name
     hmsym = pstr_spacegroup[sgnum-1].strip()
+    trig_ptype = False
 
     if latticetype == "trigonal" and hmsym[0] == "P":
         """
@@ -94,16 +103,30 @@ def _add_Shkl_terms(params,
         constants are valid
         """
         latticetype = "haxagonal"
+        trig_ptype = True
 
     rqd_index = _rqd_shkl[latticetype][0]
     valid_shkl = [_shkl_name[i] for i in rqd_index]
-    for s in valid_shkl:
-        n = f"{mname}_{s}"
-        params.add(name=n,
-                   value = 0.0,
-                   lb = -1.0,
-                   ub=1.0,
-                   vary=False)
+
+    if return_dict is None:
+
+        for s in valid_shkl:
+            n = f"{mname}_{s}"
+            params.add(name=n,
+                       value = 0.0,
+                       lb = -1.0,
+                       ub=1.0,
+                       vary=False)
+        params.add(name="eta_fwhm",
+               value = 1.0,
+               lb = 0.0,
+               ub=1.0,
+               vary=False)
+    else:
+        res = {}
+        for s in valid_shkl:
+            res[s] = 0.0
+        return res, trig_ptype
 
 def _add_lp_to_params(params, 
                       mat):
@@ -306,20 +329,19 @@ def _fill_shkl(x, eq_const):
     fill all values of shkl when only reduced set
     is passed
     """
-    x_ret = {}
-    for n in _shkl_name:
+    x_ret = np.zeros([15,])
+    for ii,n in enumerate(_shkl_name):
         if n in x:
-            x_ret[n] = x[n]
+            x_ret[ii] = x[n]
         else:
-            x_ret[n] = 0.0
+            x_ret[ii] = 0.0
     if not eq_const:
         pass
-
     else:
         for c in eq_const:
-            n = _shkl_name[c[0]]
-            neq = _shkl_name[c[1]]
-            x_ret[neq] = c[2]*x_ret[n]
+            # n = _shkl_name[c[0]]
+            # neq = _shkl_name[c[1]]
+            x_ret[c[1]] = c[2]*x_ret[c[0]]
 
     return x_ret
 """
