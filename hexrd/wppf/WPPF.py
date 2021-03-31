@@ -420,18 +420,6 @@ class LeBail:
                                is_in_sublattice,
                                self.tth_list,
                                Ic)
-                # for i in range(n):
-
-                #     t = tth[i]
-                #     d = dsp[i]
-                #     g = hkls[i]
-
-                #     self.PseudoVoight(t, 
-                #         d, g, shkl, 
-                #         strain_direction_dot_product,
-                #         False)
-
-                #     y += Ic[i] * self.PV
 
         self._spectrum_sim = Spectrum(x=x, y=y)
         #self._spectrum_sim = self.spectrum_sim + self.background
@@ -486,30 +474,6 @@ class LeBail:
                                Ic,
                                spec_expt, 
                                spec_sim) 
-                # for i in range(n):
-                #     t = tth[i]
-                #     d = dsp[i]
-                #     g = hkls[i]
-                #     self.PseudoVoight(t, 
-                #         d, g, shkl, 
-                #         strain_direction_dot_product,
-                #         False)
-
-                #     y = self.PV * Ic[i]
-                #     _, yo = self.spectrum_expt.data
-                #     _, yc = self.spectrum_sim.data
-                #     mask = yc != 0.
-                #     """ 
-                #     @TODO if yc has zeros in it, then this
-                #     the next line will not like it. need to 
-                #     address that 
-                #     @ SS 03/02/2021 the mask shold fix it
-                #     """
-                #     I = np.trapz(yo[mask] * y[mask] /
-                #                  yc[mask], self.tth_list[mask])
-                #     Iobs.append(I)
-
-                # self.Iobs[p][k] = np.array(Iobs)
 
     def calcRwp(self, params):
         """
