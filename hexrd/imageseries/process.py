@@ -11,6 +11,7 @@ class ProcessedImageSeries(ImageSeries):
     FLIP = 'flip'
     DARK = 'dark'
     RECT = 'rectangle'
+    ADD = 'add'
 
     _opdict = {}
 
@@ -35,6 +36,7 @@ class ProcessedImageSeries(ImageSeries):
         self.addop(self.DARK, self._subtract_dark)
         self.addop(self.FLIP, self._flip)
         self.addop(self.RECT, self._rectangle)
+        self.addop(self.ADD, self._add)
 
     def __getitem__(self, key):
         return self._process_frame(self._get_index(key))
@@ -95,6 +97,10 @@ class ProcessedImageSeries(ImageSeries):
             pimg = img
 
         return pimg
+
+    def _add(self, img, addend):
+        return img + addend
+
     #
     # ==================== API
     #
