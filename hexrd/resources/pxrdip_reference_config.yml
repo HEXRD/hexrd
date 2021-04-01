@@ -43,7 +43,7 @@ detectors:
       translation:
       - 0.0
       - -24.75
-      - -40.
+      - -37.5
   IMAGE-PLATE-R:
     buffer:
     - 0.1
@@ -63,7 +63,7 @@ detectors:
       translation:
       -  24.75
       -  0.0
-      - -40.
+      - -37.5
   IMAGE-PLATE-U:
     buffer:
     - 0.1
@@ -83,7 +83,7 @@ detectors:
       translation:
       -  0.0
       -  24.75
-      - -40.
+      - -37.5
   IMAGE-PLATE-B:
     buffer:
     - 0.1
