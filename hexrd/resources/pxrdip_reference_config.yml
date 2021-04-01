@@ -6,8 +6,8 @@ beam:
 detectors:
   IMAGE-PLATE-L:
     buffer:
-    - 1.0
-    - 1.0
+    - 0.1
+    - 0.1
     pixels:
       columns: 495
       rows: 745
@@ -23,11 +23,11 @@ detectors:
       translation:
       - -24.75
       -  0.0
-      - -40.
+      - -37.5
   IMAGE-PLATE-D:
     buffer:
-    - 1.0
-    - 1.0
+    - 0.1
+    - 0.1
     pixels:
       columns: 495
       rows: 745
@@ -46,8 +46,8 @@ detectors:
       - -40.
   IMAGE-PLATE-R:
     buffer:
-    - 1.0
-    - 1.0
+    - 0.1
+    - 0.1
     pixels:
       columns: 495
       rows: 745
@@ -66,8 +66,8 @@ detectors:
       - -40.
   IMAGE-PLATE-U:
     buffer:
-    - 1.0
-    - 1.0
+    - 0.1
+    - 0.1
     pixels:
       columns: 495
       rows: 745
@@ -86,8 +86,8 @@ detectors:
       - -40.
   IMAGE-PLATE-B:
     buffer:
-    - 1.0
-    - 1.0
+    - 0.1
+    - 0.1
     pixels:
       columns: 495
       rows: 495
@@ -103,7 +103,7 @@ detectors:
       translation:
       - 0.0
       - 0.0
-      - -77.5
+      - -77.
 id: reference pxrdip
 oscillation_stage:
   chi: 0.0
