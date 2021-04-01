@@ -30,7 +30,11 @@ import copy
 from hexrd import constants
 from scipy.special import exp1, erfc
 from hexrd.utils.decorators import numba_njit_if_available
-from numba import njit
+
+if constants.USE_NUMBA:
+    from numba import prange
+else:
+    prange = range
 
 # addr = get_cython_function_address("scipy.special.cython_special", "exp1")
 # functype = ctypes.CFUNCTYPE(ctypes.c_double, ctypes.c_double)
@@ -993,7 +997,7 @@ def pvoight_pink_beam(alpha,
                               fwhm_l, tth, tth_list)
     return n*l + (1.0-n)*g
 
-@numba_njit_if_available(cache=True, nogil=True)
+@numba_njit_if_available(cache=True, nogil=True, parallel=True)
 def computespectrum(uvw,
                  p,
                  xy,
@@ -1019,7 +1023,7 @@ def computespectrum(uvw,
     nref = np.min(np.array([Iobs.shape[0],
         tth.shape[0],
         dsp.shape[0],hkl.shape[0]]))
-    for ii in np.arange(nref):
+    for ii in prange(nref):
         II = Iobs[ii]
         t = tth[ii]
         d = dsp[ii]
