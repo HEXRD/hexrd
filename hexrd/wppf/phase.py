@@ -5,8 +5,10 @@ from hexrd import symmetry, symbols, constants
 from hexrd.material import Material
 from hexrd.unitcell import _rqpDict
 from hexrd.wppf import wppfsupport
-from hexrd.wppf.xtal import _calc_dspacing, _get_tth
+from hexrd.wppf.xtal import _calc_dspacing, _get_tth, _calcxrsf
 import h5py
+import importlib.resources
+import hexrd.resources
 
 class Material_LeBail:
     """ 
@@ -701,6 +703,7 @@ class Material_Rietveld:
         # the unit cell
         self.numat = material_obj.unitcell.numat
         self.asym_pos = material_obj.unitcell.asym_pos
+        self.InitializeInterpTable()
 
     def _readHDF(self, fhdf, xtal):
 
@@ -745,14 +748,14 @@ class Material_Rietveld:
 
     def calcBetaij(self):
 
-        self.betaij = np.zeros([self.atom_ntype, 3, 3])
+        self.betaij = np.zeros([3, 3, self.atom_ntype])
         for i in range(self.U.shape[0]):
             U = self.U[i, :]
-            self.betaij[i, :, :] = np.array([[U[0], U[3], U[4]],
+            self.betaij[:, :, i] = np.array([[U[0], U[3], U[4]],
                                              [U[3], U[1], U[5]],
                                              [U[4], U[5], U[2]]])
 
-            self.betaij[i, :, :] *= 2. * np.pi**2 * self.aij
+            self.betaij[:, :, i] *= 2. * np.pi**2 * self.aij
 
     def CalcWavelength(self):
         # wavelength in nm
@@ -1059,10 +1062,7 @@ class Material_Rietveld:
 
     def InitializeInterpTable(self):
 
-        self.f1 = {}
-        self.f2 = {}
-        self.f_anam = {}
-
+        f_anomalous_data = []
         data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
         with h5py.File(data, 'r') as fid:
             for i in range(0, self.atom_ntype):
@@ -1070,22 +1070,34 @@ class Material_Rietveld:
                 Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
                 gid = fid.get('/'+elem)
-                data = gid.get('data')
+                data = np.array(gid.get('data'))
+                data = data[:,[7,1,2]]
+                f_anomalous_data.append(data)
 
-                self.f1[elem] = interp1d(data[:, 7], data[:, 1])
-                self.f2[elem] = interp1d(data[:, 7], data[:, 2])
-
-    def CalcAnomalous(self):
+        n = max([x.shape[0] for x in f_anomalous_data])
+        self.f_anomalous_data = np.zeros([self.atom_ntype,n,3])
+        self.f_anomalous_data_sizes = np.zeros([self.atom_ntype,],
+            dtype=np.int32)
 
         for i in range(self.atom_ntype):
+            nd = f_anomalous_data[i].shape[0]
+            self.f_anomalous_data_sizes[i] = nd
+            self.f_anomalous_data[i,:nd,:] = f_anomalous_data[i]
+                # self.f1[elem] = interp1d(data[:, 7], data[:, 1])
+                # self.f2[elem] = interp1d(data[:, 7], data[:, 2])
+        #self.f_anomalous_data = np.array(self.f_anomalous_data)
 
-            Z = self.atom_type[i]
-            elem = constants.ptableinverse[Z]
-            f1 = self.f1[elem](self.wavelength)
-            f2 = self.f2[elem](self.wavelength)
-            frel = constants.frel[elem]
-            Z = constants.ptable[elem]
-            self.f_anam[elem] = np.complex(f1+frel-Z, f2)
+    # def CalcAnomalous(self):
+
+    #     for i in range(self.atom_ntype):
+
+    #         Z = self.atom_type[i]
+    #         elem = constants.ptableinverse[Z]
+    #         f1 = self.f1[elem](self.wavelength)
+    #         f2 = self.f2[elem](self.wavelength)
+    #         frel = constants.frel[elem]
+    #         Z = constants.ptable[elem]
+    #         self.f_anam[elem] = np.complex(f1+frel-Z, f2)
 
     def CalcXRFormFactor(self, Z, s):
         """
@@ -1115,31 +1127,81 @@ class Material_Rietveld:
 
         return (fe+fNT+f_anomalous)
 
-    def CalcXRSF(self, hkl):
+    def CalcXRSF(self, 
+        wavelength, 
+        w_int):
         """
         the 1E-2 is to convert to A^-2
         since the fitting is done in those units
         """
-        s = 0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2
-        sf = np.complex(0., 0.)
+        # s = 0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2
+        # sf = np.complex(0., 0.)
 
+        # for i in range(0, self.atom_ntype):
+
+        #     Z = self.atom_type[i]
+        #     ff = self.CalcXRFormFactor(Z, s)
+
+        #     if(self.aniU):
+        #         T = np.exp(-np.dot(hkl, np.dot(self.betaij[i, :, :], hkl)))
+        #     else:
+        #         T = np.exp(-8.0*np.pi**2 * self.U[i]*s)
+
+        #     ff *= self.atom_pos[i, 3] * T
+
+        #     for j in range(self.asym_pos[i].shape[0]):
+        #         arg = 2.0 * np.pi * np.sum(hkl * self.asym_pos[i][j, :])
+        #         sf = sf + ff * np.complex(np.cos(arg), -np.sin(arg))
+
+        # return np.abs(sf)**2
+        fNT = np.zeros([self.atom_ntype,])
+        frel = np.zeros([self.atom_ntype,])
+        scatfac = np.zeros([self.atom_ntype,11])
+        f_anomalous_data = self.f_anomalous_data
+
+        aniU = self.aniU
+        occ = self.atom_pos[:,3]
+        if aniU:
+            betaij = self.betaij
+        else:
+            betaij = self.U
+
+        self.numat = np.zeros(self.atom_ntype,dtype=np.int32)
         for i in range(0, self.atom_ntype):
-
+            self.numat[i] = self.asym_pos[i].shape[0]
             Z = self.atom_type[i]
-            ff = self.CalcXRFormFactor(Z, s)
+            elem = constants.ptableinverse[Z]
+            scatfac[i,:] = constants.scatfac[elem]
+            frel[i] = constants.frel[elem]
+            fNT[i] = constants.fNT[elem]
 
-            if(self.aniU):
-                T = np.exp(-np.dot(hkl, np.dot(self.betaij[i, :, :], hkl)))
-            else:
-                T = np.exp(-8.0*np.pi**2 * self.U[i]*s)
+        self.asym_pos_arr = np.zeros([self.numat.max(),self.atom_ntype, 3])
+        for i in range(0, self.atom_ntype):
+            nn = self.numat[i]
+            self.asym_pos_arr[:nn,i,:] = self.asym_pos[i]
 
-            ff *= self.atom_pos[i, 3] * T
+        nref = self.hkls.shape[0]
 
-            for j in range(self.asym_pos[i].shape[0]):
-                arg = 2.0 * np.pi * np.sum(hkl * self.asym_pos[i][j, :])
-                sf = sf + ff * np.complex(np.cos(arg), -np.sin(arg))
+        sf = _calcxrsf(self.hkls.astype(np.float64),
+              nref,
+              self.multiplicity,
+              w_int,
+              wavelength,
+              self.rmt.astype(np.float64),
+              self.atom_type,
+              self.atom_ntype,
+              betaij,
+              occ,
+              self.asym_pos_arr,
+              self.numat,
+              scatfac,
+              fNT,
+              frel,
+              f_anomalous_data,
+              self.f_anomalous_data_sizes)
 
-        return np.abs(sf)**2
+        return sf
+
 
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)

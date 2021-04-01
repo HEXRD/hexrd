@@ -90,14 +90,14 @@ class unitcell:
 
     def calcBetaij(self):
 
-        self.betaij = np.zeros([self.atom_ntype, 3, 3])
+        self.betaij = np.zeros([3, 3, self.atom_ntype])
         for i in range(self.U.shape[0]):
             U = self.U[i, :]
-            self.betaij[i, :, :] = np.array([[U[0], U[3], U[4]],
+            self.betaij[:, :, i] = np.array([[U[0], U[3], U[4]],
                                              [U[3], U[1], U[5]],
                                              [U[4], U[5], U[2]]])
 
-            self.betaij[i, :, :] *= 2. * np.pi**2 * self._aij
+            self.betaij[:, :, i] *= 2. * np.pi**2 * self._aij
 
     def calcmatrices(self):
 
@@ -760,7 +760,7 @@ class unitcell:
             ff = self.CalcXRFormFactor(Z, charge, s)
 
             if(self.aniU):
-                T = np.exp(-np.dot(hkl, np.dot(self.betaij[i, :, :], hkl)))
+                T = np.exp(-np.dot(hkl, np.dot(self.betaij[:, :, i], hkl)))
             else:
                 T = np.exp(-8.0*np.pi**2 * self.U[i]*s)
 
