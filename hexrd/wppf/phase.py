@@ -184,32 +184,32 @@ class Material_LeBail:
             raise ValueError('space is unidentified')
         return dot
 
-    # def calcdsp(self):
-    #     """
-    #     calculate d-spacing
-    #     """
-    #     dsp = []
-    #     for g in self.hkls:
-    #         dsp.append(1./self.CalcLength(g, 'r'))
-    #     self.dsp = np.array(dsp)
+    # def getTTh(self, wavelength):
 
+    #     tth = []
+    #     self.dsp = _calc_dspacing(self.rmt.astype(np.float64),
+    #         self.hkls.astype(np.float64))
+    #     self.wavelength_allowed_hkls = []
+    #     for d in self.dsp:
+    #         glen = 1./d
+    #         sth = glen*wavelength/2.
+    #         if(np.abs(sth) <= 1.0):
+    #             t = 2. * np.degrees(np.arcsin(sth))
+    #             tth.append(t)
+    #             self.wavelength_allowed_hkls.append(True)
+    #         else:
+    #             tth.append(np.nan)
+    #             self.wavelength_allowed_hkls.append(False)
+    #     tth = np.array(tth)
+    #     return tth
     def getTTh(self, wavelength):
 
         tth = []
         self.dsp = _calc_dspacing(self.rmt.astype(np.float64),
             self.hkls.astype(np.float64))
-        self.wavelength_allowed_hkls = []
-        for d in self.dsp:
-            glen = 1./d
-            sth = glen*wavelength/2.
-            if(np.abs(sth) <= 1.0):
-                t = 2. * np.degrees(np.arcsin(sth))
-                tth.append(t)
-                self.wavelength_allowed_hkls.append(True)
-            else:
-                tth.append(np.nan)
-                self.wavelength_allowed_hkls.append(False)
-        tth = np.array(tth)
+        tth, wavelength_allowed_hkls = \
+        _get_tth(self.dsp, wavelength)
+        self.wavelength_allowed_hkls = wavelength_allowed_hkls.astype(bool)
         return tth
 
     def GenerateRecipPGSym(self):
@@ -848,22 +848,14 @@ class Material_Rietveld:
 
         return vlen
 
-    # def calcdsp(self):
-    #     """
-    #     calculate d-spacing
-    #     """
-    #     dsp = []
-    #     for g in self.hkls:
-    #         dsp.append(1./self.CalcLength(g, 'r'))
-    #     self.dsp = np.array(dsp)
-
     def getTTh(self, wavelength):
 
         tth = []
-        self.dsp = _calc_dspacing(self.rmt,
-            self.hkls)
-        tth, self.wavelength_allowed_hkls = \
-        _get_tth(dsp, wavelength)
+        self.dsp = _calc_dspacing(self.rmt.astype(np.float64),
+            self.hkls.astype(np.float64))
+        tth, wavelength_allowed_hkls = \
+        _get_tth(self.dsp, wavelength)
+        self.wavelength_allowed_hkls = wavelength_allowed_hkls.astype(bool)
         return tth
 
     def GenerateRecipPGSym(self):
