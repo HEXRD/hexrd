@@ -515,8 +515,9 @@ class LeBail:
 
         params = self.initialize_lmfit_parameters()
 
-        fdict = {'ftol': 1e-3, 'xtol': 1e-3, 'gtol': 1e-3,
-                 'verbose': 0, 'max_nfev': 100, 'method':'trf'}
+        fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
+         'verbose': 0, 'max_nfev': 40, 'method':'trf',
+         'jac':'3-point','x_scale':'jac'}
         fitter = lmfit.Minimizer(self.calcRwp, params)
 
         res = fitter.least_squares(**fdict)
@@ -1579,10 +1580,6 @@ class Rietveld:
                 limit = self.limit[p][k]
                 self.sf[p][k] = self.phases[p][k].CalcXRSF(w, w_int)
 
-                # for m, g in zip(multiplicity, hkl):
-                #     sf.append(w_int * m * self.phases[p][k].CalcXRSF(g))
-
-
     def PolarizationFactor(self):
 
         tth = self.tth
@@ -1696,9 +1693,9 @@ class Rietveld:
 
         params = self.initialize_lmfit_parameters()
 
-        fdict = {'ftol': 1e-3, 'xtol': 1e-3, 'gtol': 1e-3,
-                 'verbose': 0, 'max_nfev': 20, 'method':'trf',
-                 'jac':'3-point'}
+        fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
+                 'verbose': 0, 'max_nfev': 40, 'method':'trf',
+                 'jac':'3-point','x_scale':'jac'}
         
         fitter = lmfit.Minimizer(self.calcRwp, params)
 
