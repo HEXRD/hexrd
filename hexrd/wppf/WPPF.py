@@ -1697,7 +1697,8 @@ class Rietveld:
         params = self.initialize_lmfit_parameters()
 
         fdict = {'ftol': 1e-3, 'xtol': 1e-3, 'gtol': 1e-3,
-                 'verbose': 0, 'max_nfev': 20, 'method':'trf'}
+                 'verbose': 0, 'max_nfev': 20, 'method':'trf',
+                 'jac':'3-point'}
         
         fitter = lmfit.Minimizer(self.calcRwp, params)
 
