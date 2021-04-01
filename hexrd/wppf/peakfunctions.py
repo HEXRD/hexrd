@@ -30,7 +30,11 @@ import copy
 from hexrd import constants
 from scipy.special import exp1, erfc
 from hexrd.utils.decorators import numba_njit_if_available
-from numba import njit
+
+if constants.USE_NUMBA:
+    from numba import prange
+else:
+    prange = range
 
 # addr = get_cython_function_address("scipy.special.cython_special", "exp1")
 # functype = ctypes.CFUNCTYPE(ctypes.c_double, ctypes.c_double)
@@ -52,11 +56,11 @@ mpeak_nparams_dict = {
 Calgliotti and Lorentzian FWHM functions
 """
 @numba_njit_if_available(cache=True, nogil=True)
-def _gaussian_fwhm(uvw, 
-                   P, 
-                   gamma_ani_sqr, 
-                   eta_mixing, 
-                   tth, 
+def _gaussian_fwhm(uvw,
+                   P,
+                   gamma_ani_sqr,
+                   eta_mixing,
+                   tth,
                    dsp):
     """
     @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -82,11 +86,11 @@ def _gaussian_fwhm(uvw,
 
 
 @numba_njit_if_available(cache=True, nogil=True)
-def _lorentzian_fwhm(xy, 
-                     xy_sf, 
-                     gamma_ani_sqr, 
-                     eta_mixing, 
-                     tth, 
+def _lorentzian_fwhm(xy,
+                     xy_sf,
+                     gamma_ani_sqr,
+                     eta_mixing,
+                     tth,
                      dsp,
                      strain_direction_dot_product,
                      is_in_sublattice):
@@ -120,10 +124,10 @@ def _lorentzian_fwhm(xy,
 def _anisotropic_peak_broadening(shkl, hkl):
     """
     this function generates the broadening as
-    a result of anisotropic broadening. details in 
+    a result of anisotropic broadening. details in
     P.Stephens, J. Appl. Cryst. (1999). 32, 281-289
-    a total of 15 terms, some of them zero. in this 
-    function, we will just use all the terms. it is 
+    a total of 15 terms, some of them zero. in this
+    function, we will just use all the terms. it is
     assumed that the user passes on the correct values
     for shkl with appropriate zero values
     The order is the same as the wppfsupport._shkl_name
@@ -133,20 +137,20 @@ def _anisotropic_peak_broadening(shkl, hkl):
               "s211", "s121", "s112"]
     """
     h,k,l = hkl
-    gamma_sqr = (shkl[0]*h**4 + 
-                shkl[1]*k**4 + 
-                shkl[2]*l**4 + 
-                3.0*(shkl[3]*(h*k)**2 + 
-                     shkl[4]*(h*l)**2 + 
+    gamma_sqr = (shkl[0]*h**4 +
+                shkl[1]*k**4 +
+                shkl[2]*l**4 +
+                3.0*(shkl[3]*(h*k)**2 +
+                     shkl[4]*(h*l)**2 +
                      shkl[5]*(k*l)**2)+
-                2.0*(shkl[6]*k*h**3 + 
-                     shkl[7]*h*l**3 + 
-                     shkl[8]*l*k**3 + 
-                     shkl[9]*h*k**3 + 
-                     shkl[10]*l*h**3 + 
-                     shkl[11]*k*l**3) + 
-                4.0*(shkl[12]*k*l*h**2 + 
-                     shkl[13]*h*l*k**2 + 
+                2.0*(shkl[6]*k*h**3 +
+                     shkl[7]*h*l**3 +
+                     shkl[8]*l*k**3 +
+                     shkl[9]*h*k**3 +
+                     shkl[10]*l*h**3 +
+                     shkl[11]*k*l**3) +
+                4.0*(shkl[12]*k*l*h**2 +
+                     shkl[13]*h*l*k**2 +
                      shkl[14]*h*k*l**2))
 
     return gamma_sqr
@@ -818,11 +822,11 @@ def mpeak_1d(p, x, pktype, num_pks, bgtype=None):
 @numba_njit_if_available(cache=True, nogil=True)
 def _mixing_factor_pv(fwhm_g, fwhm_l):
     """
-    @AUTHOR:  Saransh Singh, Lawrence Livermore National Lab, 
+    @AUTHOR:  Saransh Singh, Lawrence Livermore National Lab,
     saransh1@llnl.gov
     @DATE: 05/20/2020 SS 1.0 original
            01/29/2021 SS 2.0 updated to depend only on fwhm of profile
-           P. Thompson, D.E. Cox & J.B. Hastings, J. Appl. Cryst.,20,79-83, 
+           P. Thompson, D.E. Cox & J.B. Hastings, J. Appl. Cryst.,20,79-83,
            1987
     @DETAILS: calculates the mixing factor eta to best approximate voight
     peak shapes
@@ -849,7 +853,7 @@ def pvoight_wppf(uvw,
                  p,
                  xy,
                  xy_sf,
-                 shkl, 
+                 shkl,
                  eta_mixing,
                  tth,
                  dsp,
@@ -864,12 +868,12 @@ def pvoight_wppf(uvw,
     """
     gamma_ani_sqr = _anisotropic_peak_broadening(
         shkl, hkl)
-    fwhm_g = _gaussian_fwhm(uvw, p, 
-        gamma_ani_sqr, 
-        eta_mixing, 
+    fwhm_g = _gaussian_fwhm(uvw, p,
+        gamma_ani_sqr,
+        eta_mixing,
         tth, dsp)
-    fwhm_l = _lorentzian_fwhm(xy, xy_sf, 
-        gamma_ani_sqr, eta_mixing, 
+    fwhm_l = _lorentzian_fwhm(xy, xy_sf,
+        gamma_ani_sqr, eta_mixing,
         tth, dsp,
         strain_direction_dot_product,
         is_in_sublattice)
@@ -907,7 +911,7 @@ def _gaussian_pink_beam(alpha,
     @date 03/22/2021 SS 1.0 original
     @details the gaussian component of the pink beam peak profile
     obtained by convolution of gaussian with normalized back to back
-    exponentials. more details can be found in 
+    exponentials. more details can be found in
     Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
     """
     del_tth = tth_list - tth
@@ -936,7 +940,7 @@ def _lorentzian_pink_beam(alpha,
     @date 03/22/2021 SS 1.0 original
     @details the lorentzian component of the pink beam peak profile
     obtained by convolution of gaussian with normalized back to back
-    exponentials. more details can be found in 
+    exponentials. more details can be found in
     Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
     """
     del_tth = tth_list - tth
@@ -955,7 +959,7 @@ def pvoight_pink_beam(alpha,
                       p,
                       xy,
                       xy_sf,
-                      shkl, 
+                      shkl,
                       eta_mixing,
                       tth,
                       dsp,
@@ -975,12 +979,12 @@ def pvoight_pink_beam(alpha,
     gamma_ani_sqr = _anisotropic_peak_broadening(
         shkl, hkl)
 
-    fwhm_g = _gaussian_fwhm(uvw, p, 
-    gamma_ani_sqr, 
-    eta_mixing, 
+    fwhm_g = _gaussian_fwhm(uvw, p,
+    gamma_ani_sqr,
+    eta_mixing,
     tth, dsp)
-    fwhm_l = _lorentzian_fwhm(xy, xy_sf, 
-        gamma_ani_sqr, eta_mixing, 
+    fwhm_l = _lorentzian_fwhm(xy, xy_sf,
+        gamma_ani_sqr, eta_mixing,
         tth, dsp,
         strain_direction_dot_product,
         is_in_sublattice)
@@ -993,12 +997,12 @@ def pvoight_pink_beam(alpha,
                               fwhm_l, tth, tth_list)
     return n*l + (1.0-n)*g
 
-@numba_njit_if_available(cache=True, nogil=True)
+@numba_njit_if_available(cache=True, nogil=True, parallel=True)
 def computespectrum(uvw,
                  p,
                  xy,
                  xy_sf,
-                 shkl, 
+                 shkl,
                  eta_mixing,
                  tth,
                  dsp,
@@ -1019,7 +1023,7 @@ def computespectrum(uvw,
     nref = np.min(np.array([Iobs.shape[0],
         tth.shape[0],
         dsp.shape[0],hkl.shape[0]]))
-    for ii in np.arange(nref):
+    for ii in prange(nref):
         II = Iobs[ii]
         t = tth[ii]
         d = dsp[ii]
@@ -1038,7 +1042,7 @@ def calc_Iobs(uvw,
             p,
             xy,
             xy_sf,
-            shkl, 
+            shkl,
             eta_mixing,
             tth,
             dsp,
@@ -1077,10 +1081,10 @@ def calc_Iobs(uvw,
         yo = spectrum_expt[:,1]
         yc = spectrum_sim[:,1]
         mask = yc != 0.
-        """ 
+        """
         @TODO if yc has zeros in it, then this
-        the next line will not like it. need to 
-        address that 
+        the next line will not like it. need to
+        address that
         @ SS 03/02/2021 the mask shold fix it
         """
         Iobs[ii] = np.trapz(yo[mask] * y[mask] /
@@ -1090,7 +1094,7 @@ def calc_Iobs(uvw,
 
 @numba_njit_if_available(cache=True, nogil=True)
 def calc_rwp(spectrum_sim,
-             spectrum_expt, 
+             spectrum_expt,
              weights,
              P):
     """
