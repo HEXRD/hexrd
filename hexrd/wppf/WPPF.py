@@ -1546,10 +1546,13 @@ class Rietveld:
         self.tth = {}
         self.hkls = {}
         self.dsp = {}
+        self.limit = {}
         for p in self.phases:
             self.tth[p] = {}
             self.hkls[p] = {}
             self.dsp[p] = {}
+            self.limit[p] = {}
+
             for k, l in self.phases.wavelength.items():
                 t = self.phases[p][k].getTTh(l[0].value)
                 allowed = self.phases[p][k].wavelength_allowed_hkls
@@ -1560,6 +1563,7 @@ class Rietveld:
                 tth_max = self.tth_max
                 limit = np.logical_and(t >= tth_min,
                                        t <= tth_max)
+                self.limit[p][k] = limit
                 self.tth[p][k] = t[limit]
                 self.hkls[p][k] = hkl[limit, :]
                 self.dsp[p][k] = dsp[limit]
@@ -1570,19 +1574,18 @@ class Rietveld:
             self.sf[p] = {}
             for k, l in self.phases.wavelength.items():
                 w_int = l[1]
-                t = self.phases[p][k].getTTh(l[0].value)
+                t = self.tth[p][k]
                 allowed = self.phases[p][k].wavelength_allowed_hkls
                 t = t[allowed]
                 hkl = self.phases[p][k].hkls[allowed,:]
                 multiplicity = self.phases[p][k].multiplicity[allowed]
-                sf = []
-                limit = np.logical_and(t >= self.tth_min,
-                                       t <= self.tth_max)
+                limit = self.limit[p][k]
                 hkl = hkl[limit,:]
                 multiplicity = multiplicity[limit]
-                for m, g in zip(multiplicity, hkl):
-                    sf.append(w_int * m * self.phases[p][k].CalcXRSF(g))
-                self.sf[p][k] = np.array(sf)
+
+                # for m, g in zip(multiplicity, hkl):
+                #     sf.append(w_int * m * self.phases[p][k].CalcXRSF(g))
+                self.sf[p][k] = _calcxrsf(hkls, multiplicity, w_int)
 
     def PolarizationFactor(self):
 
