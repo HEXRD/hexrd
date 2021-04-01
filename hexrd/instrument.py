@@ -2417,6 +2417,37 @@ class PlanarDetector(object):
         eta = angs[1].reshape(self.rows, self.cols)
         return tth, eta
 
+    def pixel_tth_gradient(self, origin=ct.zeros_3):
+        assert len(origin) == 3, "origin must have 3 elemnts"
+        ptth, _ = self.pixel_angles(origin=origin)
+        return np.linalg.norm(np.stack(np.gradient(ptth)), axis=0)
+
+    def pixel_eta_gradient(self, origin=ct.zeros_3):
+        period = np.r_[0., 2*np.pi]
+        assert len(origin) == 3, "origin must have 3 elemnts"
+        _, peta = self.pixel_angles(origin=origin)
+
+        # !!! handle cyclic nature of eta
+        rowmap = np.empty_like(peta)
+        for i in range(rowmap.shape[0]):
+            rowmap[i, :] = mapAngle(
+                peta[i, :], peta[i, 0] + period
+            )
+
+        colmap = np.empty_like(peta)
+        for i in range(colmap.shape[1]):
+            colmap[:, i] = mapAngle(
+                peta[:, i], peta[0, i] + period
+            )
+
+        peta_grad_row = np.gradient(rowmap)
+        peta_grad_col = np.gradient(colmap)
+
+        return np.linalg.norm(
+            np.stack([peta_grad_col[0], peta_grad_row[1]]),
+            axis=0
+        )
+
     def cartToPixel(self, xy_det, pixels=False):
         """
         Convert vstacked array or list of [x,y] points in the center-based
