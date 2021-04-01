@@ -151,4 +151,7 @@ def _calcxrsf(hkls,
 
         struct_factors[ii] = w_int*mm*np.abs(sf)**2
 
+    ma = struct_factors.max()
+    struct_factors = 100.0*struct_factors/ma
+
     return struct_factors
