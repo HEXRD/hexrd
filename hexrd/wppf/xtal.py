@@ -30,3 +30,12 @@ def _get_tth(dsp, wavelength):
             wavelength_allowed_hkls[ii] = 0
 
     return tth, wavelength_allowed_hkls
+
+@numba_njit_if_available(cache=True, nogil=True)
+def _calcxrsf(hkls,
+              multiplicity,
+              w_int,
+              rmt, 
+              ):
+
+    

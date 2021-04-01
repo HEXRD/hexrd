@@ -1585,7 +1585,9 @@ class Rietveld:
 
                 # for m, g in zip(multiplicity, hkl):
                 #     sf.append(w_int * m * self.phases[p][k].CalcXRSF(g))
-                self.sf[p][k] = _calcxrsf(hkls, multiplicity, w_int)
+                self.sf[p][k] = _calcxrsf(hkls, 
+                    multiplicity, 
+                    w_int)
 
     def PolarizationFactor(self):
 
