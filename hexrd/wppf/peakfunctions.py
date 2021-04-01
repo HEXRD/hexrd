@@ -30,6 +30,11 @@ import copy
 from hexrd import constants
 from scipy.special import exp1, erfc
 from hexrd.utils.decorators import numba_njit_if_available
+from numba import njit
+
+# addr = get_cython_function_address("scipy.special.cython_special", "exp1")
+# functype = ctypes.CFUNCTYPE(ctypes.c_double, ctypes.c_double)
+# exp1_fn = functype(addr)
 
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.
@@ -891,7 +896,7 @@ def _calc_beta(beta, tth):
     return b0 + b1*np.tan(np.radians(0.5*tth))
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+#@numba_njit_if_available(cache=True, nogil=True)
 def _gaussian_pink_beam(alpha,
                         beta,
                         fwhm_g,
@@ -909,17 +914,18 @@ def _gaussian_pink_beam(alpha,
     sigsqr = fwhm_g**2
     f1 = alpha*sigsqr + 2.0*del_tth
     f2 = beta*sigsqr - 2.0*del_tth
-    f3 = np.sqrt(2.0)*Hcag
+    f3 = np.sqrt(2.0)*fwhm_g
     u = 0.5*alpha*f1
     v = 0.5*beta*f2
     y = (f1-del_tth)/f3
     z = f2/f3
 
     return (0.5*(alpha*beta)/(alpha + beta)) \
-        * (np.exp(u)*erfc(y) + np.exp(v)*erfc(z))
+        * (np.exp(u)*erfc(y) + \
+            np.exp(v)*erfc(z))
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+#@numba_njit_if_available(cache=True, nogil=True)
 def _lorentzian_pink_beam(alpha,
                           beta,
                           fwhm_l,
@@ -942,12 +948,20 @@ def _lorentzian_pink_beam(alpha,
 
     return -(alpha*beta)/(np.pi*(alpha + beta)) * (f1 + f2)
 
-@numba_njit_if_available(cache=True, nogil=True)
+#@numba_njit_if_available(cache=True, nogil=True)
 def pvoight_pink_beam(alpha,
                       beta,
                       uvw,
+                      p,
                       xy,
+                      xy_sf,
+                      shkl, 
+                      eta_mixing,
                       tth,
+                      dsp,
+                      hkl,
+                      strain_direction_dot_product,
+                      is_in_sublattice,
                       tth_list):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
@@ -957,14 +971,26 @@ def pvoight_pink_beam(alpha,
     """
     alpha_exp = _calc_alpha(alpha, tth)
     beta_exp = _calc_beta(beta, tth)
-    fwhm_g = _gaussian_fwhm(uvw, tth)
-    fwhm_l = _lorentzian_fwhm(xy, tth)
-    n = _mixing_factor_pv(fwhm_g, fwhm_l)
-    g = _gaussian_pink_beam(alpha, beta,
-                            fwhm_g, tth, tth_list)
-    l = _lorentzian_pink_beam(alpha, beta,
-                              fwhm_l, tth, tth_list)
 
+    gamma_ani_sqr = _anisotropic_peak_broadening(
+        shkl, hkl)
+
+    fwhm_g = _gaussian_fwhm(uvw, p, 
+    gamma_ani_sqr, 
+    eta_mixing, 
+    tth, dsp)
+    fwhm_l = _lorentzian_fwhm(xy, xy_sf, 
+        gamma_ani_sqr, eta_mixing, 
+        tth, dsp,
+        strain_direction_dot_product,
+        is_in_sublattice)
+
+    n = _mixing_factor_pv(fwhm_g, fwhm_l)
+
+    g = _gaussian_pink_beam(alpha_exp, beta_exp,
+                            fwhm_g, tth, tth_list)
+    l = _lorentzian_pink_beam(alpha_exp, beta_exp,
+                              fwhm_l, tth, tth_list)
     return n*l + (1.0-n)*g
 
 @numba_njit_if_available(cache=True, nogil=True)
