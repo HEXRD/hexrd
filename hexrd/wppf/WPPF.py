@@ -1573,21 +1573,15 @@ class Rietveld:
         for p in self.phases:
             self.sf[p] = {}
             for k, l in self.phases.wavelength.items():
+                w = l[0].getVal("nm")
                 w_int = l[1]
-                t = self.tth[p][k]
                 allowed = self.phases[p][k].wavelength_allowed_hkls
-                t = t[allowed]
-                hkl = self.phases[p][k].hkls[allowed,:]
-                multiplicity = self.phases[p][k].multiplicity[allowed]
                 limit = self.limit[p][k]
-                hkl = hkl[limit,:]
-                multiplicity = multiplicity[limit]
+                self.sf[p][k] = self.phases[p][k].CalcXRSF(w, w_int)
 
                 # for m, g in zip(multiplicity, hkl):
                 #     sf.append(w_int * m * self.phases[p][k].CalcXRSF(g))
-                self.sf[p][k] = _calcxrsf(hkls, 
-                    multiplicity, 
-                    w_int)
+
 
     def PolarizationFactor(self):
 
