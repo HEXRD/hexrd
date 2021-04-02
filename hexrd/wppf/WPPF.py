@@ -1727,9 +1727,11 @@ class Rietveld:
         if not skip_phases:
             updated_lp = False
             updated_atominfo = False
+            pf = []
             for p in self.phases:
+                name = f"{p}_phase_fractions"
+                pf.append(params[f].value)
                 for l in self.phases[p]:
-
                     mat = self.phases[p][l]
 
                     """
@@ -1841,6 +1843,8 @@ class Rietveld:
 
                 if updated_lp or updated_atominfo:
                     self.calcsf()
+
+            self.phases.phase_fraction = pf
 
     @property
     def U(self):

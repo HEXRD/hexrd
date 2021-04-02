@@ -61,8 +61,7 @@ def _generate_default_parameters_pseudovoight(params):
          "Y": [100., 0., 1, True],
          "Xe": [0., 0., 1, False],
          "Ye": [0., 0., 1, False],
-         "Xs": [0., 0., 1, False],
-         "eta_w": [0.5, 0., 1., False]
+         "Xs": [0., 0., 1, False]
          }
 
     for k, v in p.items():
@@ -274,6 +273,66 @@ def _generate_default_parameters_LeBail(mat):
 
     return params
 
+def _add_phase_fractions(mat, params):
+    """
+     @author:  Saransh Singh, Lawrence Livermore National Lab
+     @date:    04/01/2021 SS 1.0 original
+     @details: ass phase fraction to params class
+     given a list/dict/single instance of material class
+    """
+    if isinstance(mat, Phases_Rietveld):
+        """
+        phase file
+        """
+        pf = mat.phase_fraction
+        for ii,p in enumerate(mat):
+            name=f"{p}_phase_fractions"
+            params.add(
+                name=name, value=pf[ii],
+                lb=0.0, ub=1.0,
+                vary=False)
+
+    elif isinstance(mat, Material):
+        """
+        just an instance of Materials class
+        this part initializes the lattice parameters in the
+        """
+        p = mat.name
+        name=f"{p}_phase_fractions"
+        params.add(
+            name=name, value=1.0,
+            lb=0.0, ub=1.0,
+            vary=False)
+
+    elif isinstance(mat, list):
+        """
+        a list of materials class
+        """
+        pf = [1./len(mat)]*len(mat)
+        for ii,m in enumerate(mat):
+            name=f"{p}_phase_fractions"
+            params.add(
+                name=name, value=pf[ii],
+                lb=0.0, ub=1.0,
+                vary=False)
+
+    elif isinstance(mat, dict):
+        """
+        dictionary of materials class
+        """
+        pf = [1./len(mat)]*len(mat)
+        for ii,m in enumerate(mat):
+            name=f"{p}_phase_fractions"
+            params.add(
+                name=name, value=pf[ii],
+                lb=0.0, ub=1.0,
+                vary=False)
+
+    else:
+        msg = (f"_generate_default_parameters: "
+               f"incorrect argument. only list, dict or "
+               f"Material is accpeted.")
+        raise ValueError(msg)
 
 def _generate_default_parameters_Rietveld(mat):
     """
@@ -284,10 +343,12 @@ def _generate_default_parameters_Rietveld(mat):
     """
     params = _generate_default_parameters_LeBail(mat)
     params.add(name="scale",
-        value=1.0,
-        lb=0.0,
-        ub=1e9,
-        vary=True)
+               value=1.0,
+               lb=0.0,
+               ub=1e9,
+               vary=True)
+
+    _add_phase_fractions(mat, params)
 
     if isinstance(mat, Phases_Rietveld):
         """
