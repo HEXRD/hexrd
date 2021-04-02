@@ -1083,21 +1083,6 @@ class Material_Rietveld:
             nd = f_anomalous_data[i].shape[0]
             self.f_anomalous_data_sizes[i] = nd
             self.f_anomalous_data[i,:nd,:] = f_anomalous_data[i]
-                # self.f1[elem] = interp1d(data[:, 7], data[:, 1])
-                # self.f2[elem] = interp1d(data[:, 7], data[:, 2])
-        #self.f_anomalous_data = np.array(self.f_anomalous_data)
-
-    # def CalcAnomalous(self):
-
-    #     for i in range(self.atom_ntype):
-
-    #         Z = self.atom_type[i]
-    #         elem = constants.ptableinverse[Z]
-    #         f1 = self.f1[elem](self.wavelength)
-    #         f2 = self.f2[elem](self.wavelength)
-    #         frel = constants.frel[elem]
-    #         Z = constants.ptable[elem]
-    #         self.f_anam[elem] = np.complex(f1+frel-Z, f2)
 
     def CalcXRFormFactor(self, Z, s):
         """
@@ -1134,26 +1119,6 @@ class Material_Rietveld:
         the 1E-2 is to convert to A^-2
         since the fitting is done in those units
         """
-        # s = 0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2
-        # sf = np.complex(0., 0.)
-
-        # for i in range(0, self.atom_ntype):
-
-        #     Z = self.atom_type[i]
-        #     ff = self.CalcXRFormFactor(Z, s)
-
-        #     if(self.aniU):
-        #         T = np.exp(-np.dot(hkl, np.dot(self.betaij[i, :, :], hkl)))
-        #     else:
-        #         T = np.exp(-8.0*np.pi**2 * self.U[i]*s)
-
-        #     ff *= self.atom_pos[i, 3] * T
-
-        #     for j in range(self.asym_pos[i].shape[0]):
-        #         arg = 2.0 * np.pi * np.sum(hkl * self.asym_pos[i][j, :])
-        #         sf = sf + ff * np.complex(np.cos(arg), -np.sin(arg))
-
-        # return np.abs(sf)**2
         fNT = np.zeros([self.atom_ntype,])
         frel = np.zeros([self.atom_ntype,])
         scatfac = np.zeros([self.atom_ntype,11])
@@ -1253,7 +1218,7 @@ class Phases_Rietveld:
         for k, v in wavelength.items():
             if(v[0].unit == 'angstrom'):
                 wavelength_nm[k] = [
-                    valWUnit('lp', 'length', v[0].value*10., 'nm'), v[1]]
+                    valWUnit('lp', 'length', v[0].getVal("nm"), 'nm'), v[1]]
             else:
                 wavelength_nm[k] = v
         self.wavelength = wavelength_nm
