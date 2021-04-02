@@ -1084,34 +1084,6 @@ class Material_Rietveld:
             self.f_anomalous_data_sizes[i] = nd
             self.f_anomalous_data[i,:nd,:] = f_anomalous_data[i]
 
-    def CalcXRFormFactor(self, Z, s):
-        """
-        we are using the following form factors for x-aray scattering:
-        1. coherent x-ray scattering, f0 tabulated in Acta Cryst. (1995). A51,416-431
-        2. Anomalous x-ray scattering (complex (f'+if")) tabulated in J. Phys. Chem. Ref. Data, 24, 71 (1995)
-        and J. Phys. Chem. Ref. Data, 29, 597 (2000).
-        3. Thompson nuclear scattering, fNT tabulated in Phys. Lett. B, 69, 281 (1977).
-
-        the anomalous scattering is a complex number (f' + if"), where the two terms are given by
-        f' = f1 + frel - Z
-        f" = f2
-
-        f1 and f2 have been tabulated as a function of energy in Anomalous.h5 in hexrd folder
-
-        overall f = (f0 + f' + if" +fNT)
-        """
-        elem = constants.ptableinverse[Z]
-        sfact = constants.scatfac[elem]
-        fe = sfact[5]
-        fNT = constants.fNT[elem]
-        frel = constants.frel[elem]
-        f_anomalous = self.f_anam[elem]
-
-        for i in range(5):
-            fe += sfact[i] * np.exp(-sfact[i+6]*s)
-
-        return (fe+fNT+f_anomalous)
-
     def CalcXRSF(self, 
         wavelength, 
         w_int):
@@ -1279,6 +1251,10 @@ class Phases_Rietveld:
             self[material_key][l] = Material_Rietveld(
                 material_file, material_key, dmin=self.dmin, kev=kev)
 
+        for k in self:
+            for l in self.wavelength:
+                self[k][l].pf = 1.0/self.num_phases
+
     def add_many(self, material_file, material_keys):
 
         for k in material_keys:
@@ -1325,3 +1301,28 @@ class Phases_Rietveld:
 
         with open(fname, 'w') as f:
             data = yaml.dump(dic, f, sort_keys=False)
+
+    @property
+    def phase_fraction(self):
+        pf = []
+        for k in self:
+            l = list(self.wavelength.keys())[0]
+            pf.append(self[k][l].pf)
+        return np.array(pf)
+    
+    @phase_fraction.setter
+    def phase_fraction(self, val):
+        msg = (f"phase_fraction setter: "
+               f"number of phases does not match"
+               f"size of input")
+
+        if isinstance(val, list):
+            if len(val) != len(self):
+                raise ValueError(msg)
+        elif isinstance(val, np.ndarray):
+            if val.shape[0] != len(self):
+                raise ValueError(msg)
+
+        for ii,k in enumerate(self):
+            for l in self.wavelength:
+                self[k][l].pf = val[ii]
