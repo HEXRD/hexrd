@@ -1695,7 +1695,7 @@ class Rietveld:
 
         fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
                  'verbose': 0, 'max_nfev': 40, 'method':'trf',
-                 'jac':'3-point','x_scale':'jac'}
+                 'jac':'2-point','x_scale':'jac'}
         
         fitter = lmfit.Minimizer(self.calcRwp, params)
 

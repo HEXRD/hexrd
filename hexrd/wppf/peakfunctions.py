@@ -80,9 +80,9 @@ def _gaussian_fwhm(uvw,
     sig2_ani = gamma_ani_sqr*(1.-eta_mixing)**2*dsp**4
     sigsqr = (U+sig2_ani) * tanth**2 + V * tanth + W + P/cth2
     if(sigsqr <= 0.):
-        sigsqr = 1.0e-12
+        sigsqr = 1.0e-6
 
-    return np.sqrt(sigsqr)
+    return np.sqrt(sigsqr)*1e-2
 
 
 @numba_njit_if_available(cache=True, nogil=True)
@@ -118,7 +118,7 @@ def _lorentzian_fwhm(xy,
     else:
         xx = Xs*strain_direction_dot_product
     gamma = (X+xx)/cth + (Y+Ye+sig_ani)*tanth
-    return gamma
+    return gamma*1e-2
 
 @numba_njit_if_available(cache=True, nogil=True)
 def _anisotropic_peak_broadening(shkl, hkl):
