@@ -64,6 +64,7 @@ from hexrd.crystallography import PlaneData
 from hexrd import constants as ct
 from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
 from hexrd import distortion as distortion_pkg
+from hexrd.utils.decorators import memoize
 from hexrd.valunits import valWUnit
 from hexrd.WPPF import LeBail
 
@@ -2399,23 +2400,9 @@ class PlanarDetector(object):
         return config_dict
 
     def pixel_angles(self, origin=ct.zeros_3):
-        assert len(origin) == 3, "origin must have 3 elemnts"
-        pix_i, pix_j = self.pixel_coords
-        xy = np.ascontiguousarray(
-            np.vstack([
-                pix_j.flatten(), pix_i.flatten()
-                ]).T
-            )
-        if self.distortion is not None:
-            xy = self.distortion.apply(xy)
-        angs, g_vec = detectorXYToGvec(
-            xy, self.rmat, ct.identity_3x3,
-            self.tvec, ct.zeros_3, origin,
-            beamVec=self.bvec, etaVec=self.evec)
-        del(g_vec)
-        tth = angs[0].reshape(self.rows, self.cols)
-        eta = angs[1].reshape(self.rows, self.cols)
-        return tth, eta
+        return _pixel_angles(origin, self.pixel_coords, self.distortion,
+                             self.rmat, self.tvec, self.bvec, self.evec,
+                             self.rows, self.cols)
 
     def pixel_tth_gradient(self, origin=ct.zeros_3):
         assert len(origin) == 3, "origin must have 3 elemnts"
@@ -3675,3 +3662,28 @@ def _generate_pixel_solid_angles(start_stop, rows, cols, pixel_size_row,
                   _solid_angle_of_triangle(vtx_list[[2, 3, 0], :]))
 
     return ret
+
+
+@memoize
+def _pixel_angles(origin, pixel_coords, distortion, rmat, tvec, bvec, evec,
+                  rows, cols):
+    assert len(origin) == 3, "origin must have 3 elements"
+
+    pix_i, pix_j = pixel_coords
+    xy = np.ascontiguousarray(
+        np.vstack([
+            pix_j.flatten(), pix_i.flatten()
+            ]).T
+        )
+
+    if distortion is not None:
+        xy = distortion.apply(xy)
+
+    angs, g_vec = detectorXYToGvec(
+        xy, rmat, ct.identity_3x3,
+        tvec, ct.zeros_3, origin,
+        beamVec=bvec, etaVec=evec)
+
+    tth = angs[0].reshape(rows, cols)
+    eta = angs[1].reshape(rows, cols)
+    return tth, eta
