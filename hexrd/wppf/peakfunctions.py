@@ -887,6 +887,87 @@ def pvoight_wppf(uvw,
     l = Al*_unit_lorentzian(np.array([tth, fwhm_l]), tth_list)
     return n*l + (1.0-n)*g
 
+@numba_njit_if_available(cache=True, nogil=True)
+def func_h(tau, tth):
+    cph =  np.cos(np.radians(tth - tau))
+    ctth = np.cos(np.radians(tth))
+    return np.sqrt( (cph/ctth)**2 - 1.)
+
+@numba_njit_if_available(cache=True, nogil=True)
+def func_W(HoL, SoL, tau, tau_min, tau_infl, tth):
+
+    if tau >= 0. and tau <= tau_infl:
+        return 2.0*min(HoL,SoL)
+    elif tau > tau_infl and tau <= tau_min:
+        return HoL+SoL+func_h(tau,tth)
+    else:
+        return 0.0
+
+@numba_njit_if_available(cache=True, nogil=True)
+def pvfcj(uvw,
+          p,
+          xy,
+          xy_sf,
+          shkl,
+          eta_mixing,
+          tth,
+          dsp,
+          hkl,
+          strain_direction_dot_product,
+          is_in_sublattice,
+          tth_list,
+          HoL,
+          SoL,
+          xn,
+          wn):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 04/02/2021 SS 1.0 original
+    @details pseudo voight convolved with the slit functions
+    xn, wn are the Gauss-Legendre weights and abscissae
+    supplied using the scipy routine
+    """
+
+    # angle of minimum
+    ctth = np.cos(np.radians(tth))
+    arg = np.sqrt(ctth*((HoL+SoL)**2+1.))
+    cinv = np.arccos(arg)
+    tau_min = tth - np.degrees(cinv)
+
+    # two theta of inflection point
+    arg = np.sqrt(ctth*((HoL-SoL)**2+1.))
+    cinv = np.arccos(arg)
+    tau_infl = tth - np.degrees(cinv)
+
+    tau = tth*0.5+tau_min + (tth*0.5-tau_min)*xn
+
+    cx = np.cos(np.radians(tau))
+    res = np.zeros(tth_list.shape)
+    den = 0.0
+    for i in prange(tau.shape[0]):
+        x = tth-tau[i]
+        xx = tau[i]
+
+        W = func_W(HoL,SoL,xx,tau_min,tau_infl,tth)
+        h = func_h(xx, tth)
+        fact = wn[i]*(W/h/cx[i])
+        den += fact
+
+        pv = pvoight_wppf(uvw,
+             p,
+             xy,
+             xy_sf,
+             shkl,
+             eta_mixing,
+             x,
+             dsp,
+             hkl,
+             strain_direction_dot_product,
+             is_in_sublattice,
+             tth_list)
+        res += pv*fact
+
+    return np.sin(np.radians(tth))*res/den/4./HoL/SoL
 
 @numba_njit_if_available(cache=True, nogil=True)
 def _calc_alpha(alpha, tth):
