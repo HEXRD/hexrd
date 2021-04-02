@@ -286,7 +286,7 @@ def _add_phase_fractions(mat, params):
         """
         pf = mat.phase_fraction
         for ii,p in enumerate(mat):
-            name=f"{p}_phase_fractions"
+            name=f"{p}_phase_fraction"
             params.add(
                 name=name, value=pf[ii],
                 lb=0.0, ub=1.0,
@@ -298,7 +298,7 @@ def _add_phase_fractions(mat, params):
         this part initializes the lattice parameters in the
         """
         p = mat.name
-        name=f"{p}_phase_fractions"
+        name=f"{p}_phase_fraction"
         params.add(
             name=name, value=1.0,
             lb=0.0, ub=1.0,
@@ -310,7 +310,7 @@ def _add_phase_fractions(mat, params):
         """
         pf = [1./len(mat)]*len(mat)
         for ii,m in enumerate(mat):
-            name=f"{p}_phase_fractions"
+            name=f"{p}_phase_fraction"
             params.add(
                 name=name, value=pf[ii],
                 lb=0.0, ub=1.0,
@@ -322,7 +322,7 @@ def _add_phase_fractions(mat, params):
         """
         pf = [1./len(mat)]*len(mat)
         for ii,m in enumerate(mat):
-            name=f"{p}_phase_fractions"
+            name=f"{p}_phase_fraction"
             params.add(
                 name=name, value=pf[ii],
                 lb=0.0, ub=1.0,
