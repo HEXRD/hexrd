@@ -510,7 +510,7 @@ if USE_NUMBA:
                                       etaOmeMaps, etaIndices, omeIndices,
                                       dpix_eta, dpix_ome, threshold)
 
-    @numba.jit
+    @numba.njit(nogil=True, cache=True)
     def _find_in_range(value, spans):
         """
         Find the index in spans where value >= spans[i] and value < spans[i].
@@ -541,7 +541,7 @@ if USE_NUMBA:
 
         return li
 
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _angle_is_hit(ang, eta_offset, ome_offset, hkl, valid_eta_spans,
                       valid_ome_spans, etaEdges, omeEdges, etaOmeMaps,
                       etaIndices, omeIndices, dpix_eta, dpix_ome, threshold):
@@ -601,7 +601,7 @@ if USE_NUMBA:
         else:
             return isHit, 1
 
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _filter_and_count_hits(angs_0, angs_1, symHKLs_ix, etaEdges,
                                valid_eta_spans, valid_ome_spans, omeEdges,
                                omePeriod, etaOmeMaps, etaIndices, omeIndices,
@@ -655,13 +655,13 @@ if USE_NUMBA:
 
         return float(hits)/float(total) if total != 0 else 0.0
 
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _map_angle(angle, offset):
         """Numba-firendly equivalent to xf.mapAngle."""
         return np.mod(angle-offset, 2*np.pi)+offset
 
     # use a jitted version of _check_dilated
-    _check_dilated = numba.njit(_check_dilated)
+    _check_dilated = numba.njit(nogil=True, cache=True)(_check_dilated)
 else:
     def paintGridThis(quat):
         """

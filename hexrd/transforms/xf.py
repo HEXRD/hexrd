@@ -95,7 +95,7 @@ def makeGVector(hkl, bMat):
 
 
 if USE_NUMBA:
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _anglesToGVecHelper(angs, out):
         # gVec_e = np.vstack([[np.cos(0.5*angs[:, 0]) * np.cos(angs[:, 1])],
         #                     [np.cos(0.5*angs[:, 0]) * np.sin(angs[:, 1])],
@@ -898,7 +898,7 @@ def rowNorm(a):
 
 
 if USE_NUMBA:
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _unitVectorSingle(a, b):
         n = a.shape[0]
         nrm = 0.0
@@ -913,7 +913,7 @@ if USE_NUMBA:
             for i in range(n):
                 b[i] = a[i]
 
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _unitVectorMulti(a, b):
         n = a.shape[0]
         m = a.shape[1]
@@ -1067,7 +1067,7 @@ def makeBinaryRotMat(axis):
 
 
 if USE_NUMBA:
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _makeEtaFrameRotMat(bHat_l, eHat_l, out):
         # bHat_l and eHat_l CANNOT have 0 magnitude!
         # must catch this case as well as colinear bHat_l/eHat_l elsewhere...
