@@ -1728,9 +1728,13 @@ class Rietveld:
             updated_lp = False
             updated_atominfo = False
             pf = []
-            for p in self.phases:
-                name = f"{p}_phase_fractions"
-                pf.append(params[f].value)
+            for ii,p in enumerate(self.phases):
+                name = f"{p}_phase_fraction"
+                if(name in params):
+                    pf.append(params[name].value)
+                else:
+                    pf.append(self.phases.phase_fraction[ii])
+
                 for l in self.phases[p]:
                     mat = self.phases[p][l]
 
