@@ -6,7 +6,9 @@ in :mod:`hexrd.utils`. Before putting something here please see if it should
 go into another topical module in :mod:`hexrd.utils`.
 """
 
-import collections
+import hashlib
+
+import numpy as np
 
 from hexrd.constants import USE_NUMBA
 
@@ -19,7 +21,7 @@ def undoc(func):
     return func
 
 
-class memoized:
+class memoize:
     """Decorator. Caches a function's return value each time it is called.
     If called later with the same arguments, the cached value is returned
     (not reevaluated).
@@ -28,18 +30,31 @@ class memoized:
         self.func = func
         self.cache = {}
 
-    def __call__(self, *args, **kw):
-        if not isinstance(args, collections.Hashable):
-            # uncacheable. a list, for instance.
-            # better to not cache than blow up.
-            return self.func(*args, **kw)
-        key = (args, frozenset(kw.items()))
-        if key in self.cache:
-            return self.cache[key]
-        else:
-            value = self.func(*args, **kw)
-            self.cache[key] = value
-            return value
+    def __call__(self, *args, **kwargs):
+        all_args = list(args) + sorted(kwargs.items())
+        key = self.make_hashable(all_args)
+        if key not in self.cache:
+            self.cache[key] = self.func(*args, **kwargs)
+
+        return self.cache[key]
+
+    @staticmethod
+    def make_hashable(items):
+
+        def convert(x):
+            # Perform any conversions here to make a variable hashable
+            if isinstance(x, np.ndarray):
+                # Create an sha1 of the data, and throw in a string
+                # and the shape.
+                return ('__type_np.ndarray', x.shape,
+                        hashlib.sha1(x).hexdigest())
+            elif isinstance(x, (list, tuple)):
+                return memoize.make_hashable(x)
+            elif isinstance(x, dict):
+                return memoize.make_hashable(sorted(x.items()))
+            return x
+
+        return tuple(map(convert, items))
 
 
 def numba_njit_if_available(func=None, *args, **kwargs):
