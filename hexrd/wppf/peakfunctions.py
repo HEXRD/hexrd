@@ -888,20 +888,21 @@ def pvoight_wppf(uvw,
     return n*l + (1.0-n)*g
 
 @numba_njit_if_available(cache=True, nogil=True)
-def func_h(tau, tth):
+def _func_h(tau, tth):
     cph =  np.cos(np.radians(tth - tau))
     ctth = np.cos(np.radians(tth))
     return np.sqrt( (cph/ctth)**2 - 1.)
 
 @numba_njit_if_available(cache=True, nogil=True)
-def func_W(HoL, SoL, tau, tau_min, tau_infl, tth):
+def _func_W(HoL, SoL, tau, tau_min, tau_infl, tth):
 
     if tau >= 0. and tau <= tau_infl:
-        return 2.0*min(HoL,SoL)
+        res = 2.0*min(HoL,SoL)
     elif tau > tau_infl and tau <= tau_min:
-        return HoL+SoL+func_h(tau,tth)
+        res = HoL+SoL+_func_h(tau,tth)
     else:
-        return 0.0
+        res = 0.0
+    return res
 
 @numba_njit_if_available(cache=True, nogil=True)
 def pvfcj(uvw,
@@ -930,26 +931,28 @@ def pvfcj(uvw,
 
     # angle of minimum
     ctth = np.cos(np.radians(tth))
-    arg = np.sqrt(ctth*((HoL+SoL)**2+1.))
+    arg = ctth*np.sqrt(((HoL+SoL)**2+1.))
     cinv = np.arccos(arg)
     tau_min = tth - np.degrees(cinv)
 
     # two theta of inflection point
-    arg = np.sqrt(ctth*((HoL-SoL)**2+1.))
+    arg = ctth*np.sqrt(((HoL-SoL)**2+1.))
     cinv = np.arccos(arg)
     tau_infl = tth - np.degrees(cinv)
+    if np.abs(tau_infl) < 1e-6:
+        tau_infl = 0.
 
-    tau = tth*0.5+tau_min + (tth*0.5-tau_min)*xn
+    tau = tau_min*xn
 
-    cx = np.cos(np.radians(tau))
+    cx = np.cos(np.radians(tth-tau))
     res = np.zeros(tth_list.shape)
     den = 0.0
-    for i in prange(tau.shape[0]):
+    for i in range(tau.shape[0]):
         x = tth-tau[i]
         xx = tau[i]
 
-        W = func_W(HoL,SoL,xx,tau_min,tau_infl,tth)
-        h = func_h(xx, tth)
+        W = _func_W(HoL,SoL,xx,tau_min,tau_infl,tth)
+        h = _func_h(xx, tth)
         fact = wn[i]*(W/h/cx[i])
         den += fact
 
