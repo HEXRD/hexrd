@@ -1645,12 +1645,14 @@ class Rietveld:
 
         tth = self.tth
         self.LP = {}
+        Ph = self.Ph
         for p in self.phases:
             self.LP[p] = {}
             for k, l in self.phases.wavelength.items():
                 t = np.radians(self.tth[p][k])
-                self.LP[p][k] = (1 + np.cos(t)**2) / \
-                    np.cos(0.5*t)/np.sin(0.5*t)**2
+                self.LP[p][k] = (1 + Ph*np.cos(t)**2) / \
+                    np.cos(0.5*t)/np.sin(0.5*t)**2/ \
+                    (2.0*(1 + Ph))
 
     def computespectrum(self):
         """
@@ -2043,6 +2045,14 @@ class Rietveld:
     def scale(self, value):
         self._scale = value
         return
+
+    @property
+    def Ph(self):
+        return self._Ph
+    
+    @Ph.setter
+    def Ph(self, val):
+        self._Ph = val
 
     @property
     def eta_fwhm(self):

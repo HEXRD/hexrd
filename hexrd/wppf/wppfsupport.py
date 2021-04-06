@@ -351,6 +351,11 @@ def _generate_default_parameters_Rietveld(mat):
                lb=0.0,
                ub=1e9,
                vary=True)
+    params.add(name="Ph",
+               value=1.0,
+               lb=0.0,
+               ub=1.0,
+               vary=True)
 
     _add_phase_fractions(mat, params)
 
