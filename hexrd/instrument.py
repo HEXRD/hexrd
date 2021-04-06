@@ -332,7 +332,7 @@ def _fwhm_to_sigma(fwhm):
 
 # FIXME find a better place for this, and maybe include loop over pixels
 if ct.USE_NUMBA:
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _solid_angle_of_triangle(vtx_list):
         norms = np.sqrt(np.sum(vtx_list*vtx_list, axis=1))
         norms_prod = norms[0] * norms[1] * norms[2]

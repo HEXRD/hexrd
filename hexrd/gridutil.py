@@ -104,7 +104,7 @@ def _fill_connectivity(out, m, n, p):
 
 
 if USE_NUMBA:
-    _fill_connectivity = numba.njit(_fill_connectivity)
+    _fill_connectivity = numba.njit(nogil=True, cache=True)(_fill_connectivity)
 
 
 def cellConnectivity(m, n, p=1, origin='ul'):
@@ -134,7 +134,7 @@ def cellConnectivity(m, n, p=1, origin='ul'):
 
 
 if USE_NUMBA:
-    @numba.jit  # relies on loop extraction
+    @numba.njit(nogil=True, cache=True)  # relies on loop extraction
     def cellCentroids(crd, con):
         nele, conn_count = con.shape
         dim = crd.shape[1]
@@ -148,7 +148,7 @@ if USE_NUMBA:
                 out[i, j] = acc * inv_conn
         return out
 
-    @numba.jit
+    @numba.njit(nogil=True, cache=True)
     def compute_areas(xy_eval_vtx, conn):
         areas = np.empty(len(conn))
         for i in range(len(conn)):

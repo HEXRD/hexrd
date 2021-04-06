@@ -1339,7 +1339,7 @@ def simulateLauePattern(hkls, bMat,
 
 
 if USE_NUMBA:
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _expand_pixels(original, w, h, result):
         hw = 0.5 * w
         hh = 0.5 * h
@@ -1356,7 +1356,7 @@ if USE_NUMBA:
 
         return result
 
-    @numba.jit
+    @numba.njit(nogil=True, cache=True)
     def _compute_max(tth, eta, result):
         period = 2.0 * np.pi
         hperiod = np.pi
@@ -1462,7 +1462,7 @@ else:
 
 
 if USE_NUMBA:
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _coo_build_window_jit(frame_row, frame_col, frame_data,
                               min_row, max_row, min_col, max_col,
                               result):

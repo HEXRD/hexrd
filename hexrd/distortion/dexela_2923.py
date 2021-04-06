@@ -70,7 +70,7 @@ def _find_quadrant(xy_in):
 
 
 if USE_NUMBA:
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _dexela_2923_distortion(out_, in_, params):
         for el in range(len(in_)):
             xi, yi = in_[el, :]
@@ -89,7 +89,7 @@ if USE_NUMBA:
                     # 1st quadrant
                     out_[el, :] = in_[el, :] + params[0:2]
 
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _dexela_2923_inverse_distortion(out_, in_, params):
         for el in range(len(in_)):
             xi, yi = in_[el, :]

@@ -13,7 +13,7 @@ from .utils import newton
 RHO_MAX = 204.8  # max radius in mm for ge detector
 
 if USE_NUMBA:
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _ge_41rt_inverse_distortion(out, in_, rhoMax, params):
         maxiter = 100
         prec = cnst.epsf
@@ -56,7 +56,7 @@ if USE_NUMBA:
 
         return out
 
-    @numba.njit
+    @numba.njit(nogil=True, cache=True)
     def _ge_41rt_distortion(out, in_, rhoMax, params):
         p0, p1, p2, p3, p4, p5 = params[0:6]
         rxi = 1.0/rhoMax
