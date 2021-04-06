@@ -958,7 +958,7 @@ def pvfcj(uvw,
     den = 0.0
 
     for i in np.arange(tau.shape[0]):
-        x = tth_r+tau[i]
+        x = tth_r-tau[i]
         xx = tau[i]
 
         W = _func_W(HoL,SoL,xx,tau_min,tau_infl,tth_r)
