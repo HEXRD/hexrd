@@ -79,6 +79,11 @@ class LeBail:
                  bkgmethod={'spline': None},
                  intensity_init=None):
 
+        from scipy.special import roots_legendre
+        xn, wn = roots_legendre(16)
+        self.xn = xn[8:]
+        self.wn = wn[8:]
+
         self.bkgmethod = bkgmethod
         self.intensity_init = intensity_init
 
@@ -366,6 +371,7 @@ class LeBail:
         """
         x = self.tth_list
         y = np.zeros(x.shape)
+        tth_list = np.ascontiguousarray(self.tth_list)
 
         for iph, p in enumerate(self.phases):
 
@@ -380,23 +386,27 @@ class LeBail:
                 shkl = self.phases[p].shkl
                 strain_direction_dot_product = 0.
                 is_in_sublattice = False
+                
+                HL = self.HL
+                SL = self.SL
 
                 y += computespectrum(np.array([self.U, self.V, self.W]),
                                self.P,
                                np.array([self.X, self.Y]),
                                np.array([self.Xe, self.Ye, self.Xs]),
                                shkl,
-                               self.eta_fwhm, 
+                               self.eta_fwhm,
+                               HL,
+                               SL,
                                tth, 
                                dsp, 
                                hkls,
                                strain_direction_dot_product,
                                is_in_sublattice,
-                               self.tth_list,
-                               Ic)
+                               tth_list,
+                               Ic, self.xn, self.wn)
 
         self._spectrum_sim = Spectrum(x=x, y=y)
-        #self._spectrum_sim = self.spectrum_sim + self.background
 
         P = calc_num_variables(self.params)
 
@@ -418,6 +428,7 @@ class LeBail:
         self.Iobs = {}
         spec_expt = self.spectrum_expt.data_array
         spec_sim  = self.spectrum_sim.data_array
+        tth_list = np.ascontiguousarray(self.tth_list)
         for iph, p in enumerate(self.phases):
 
             self.Iobs[p] = {}
@@ -438,13 +449,15 @@ class LeBail:
                                np.array([self.X, self.Y]),
                                np.array([self.Xe, self.Ye, self.Xs]),
                                shkl,
-                               self.eta_fwhm, 
+                               self.eta_fwhm,
+                               self.HL, self.SL,
+                               self.xn, self.wn, 
                                tth, 
                                dsp, 
                                hkls,
                                strain_direction_dot_product,
                                is_in_sublattice,
-                               self.tth_list,
+                               tth_list,
                                Ic,
                                spec_expt, 
                                spec_sim) 
@@ -598,6 +611,22 @@ class LeBail:
     @Hcag.setter
     def Hcag(self, val):
         self._Hcag = val
+
+    @property
+    def HL(self):
+        return self._HL
+    
+    @HL.setter
+    def HL(self, val):
+        self._HL = val
+
+    @property
+    def SL(self):
+        return self._SL
+    
+    @SL.setter
+    def SL(self, val):
+        self._SL = val
 
     @property
     def tth_list(self):
@@ -1252,6 +1281,10 @@ class Rietveld:
         >> @DETAILS:    initialize parameter list from file. if no file given, then initialize
                         to some default values (lattice constants are for CeO2)
         """
+        from scipy.special import roots_legendre
+        xn, wn = roots_legendre(16)
+        self.xn = xn[8:]
+        self.wn = wn[8:]
         if(param_info is not None):
             if(isinstance(param_info, Parameters)):
                 """
@@ -1599,6 +1632,7 @@ class Rietveld:
         """
         x = self.tth_list
         y = np.zeros(x.shape)
+        tth_list = np.ascontiguousarray(self.tth_list)
 
         for iph, p in enumerate(self.phases):
 
@@ -1624,19 +1658,24 @@ class Rietveld:
                 strain_direction_dot_product = 0.
                 is_in_sublattice = False
 
+                HL = self.HL
+                SL = self.SL
+
                 y += computespectrum(np.array([self.U, self.V, self.W]),
                                self.P,
                                np.array([self.X, self.Y]),
                                np.array([self.Xe, self.Ye, self.Xs]),
                                shkl,
                                self.eta_fwhm, 
+                               HL,
+                               SL,
                                tth, 
                                dsp, 
                                hkls,
                                strain_direction_dot_product,
                                is_in_sublattice,
-                               self.tth_list,
-                               Ic)
+                               tth_list,
+                               Ic, self.xn, self.wn)
 
         self.spectrum_sim = Spectrum(x=x, y=y) + self.background
 
