@@ -1085,12 +1085,12 @@ def pvoight_pink_beam(alpha,
         strain_direction_dot_product,
         is_in_sublattice)
 
-    n = _mixing_factor_pv(fwhm_g, fwhm_l)
+    n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
     g = _gaussian_pink_beam(alpha_exp, beta_exp,
-                            fwhm_g, tth, tth_list)
+                            fwhm, tth, tth_list)
     l = _lorentzian_pink_beam(alpha_exp, beta_exp,
-                              fwhm_l, tth, tth_list)
+                              fwhm, tth, tth_list)
     return n*l + (1.0-n)*g
 
 @numba_njit_if_available(cache=True, nogil=True, parallel=True)
