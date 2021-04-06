@@ -57,11 +57,13 @@ def _generate_default_parameters_pseudovoight(params):
          "V": [100., 0., 5000, True],
          "W": [100., 0., 5000, True],
          "P": [0., 0., 5000, False],
-         "X": [0., 0., 1, False],
-         "Y": [100., 0., 1, True],
+         "X": [0., 0., 100., False],
+         "Y": [10., 0., 100., True],
          "Xe": [0., 0., 1, False],
          "Ye": [0., 0., 1, False],
-         "Xs": [0., 0., 1, False]
+         "Xs": [0., 0., 1, False],
+         "HL":[2e-2,0.,1e-1,True],
+         "SL":[3e-2,0.,1e-1,True]
          }
 
     for k, v in p.items():

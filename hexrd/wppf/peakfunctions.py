@@ -290,7 +290,7 @@ def _unit_lorentzian(p, x):
     FWHM = p[1]
     gamma = FWHM/lorentz_width_fact
 
-    f = gamma**2 / ((x-x0)**2 + gamma**2)
+    f = gamma / ((x-x0)**2 + gamma**2)
     return f
 
 
@@ -846,7 +846,7 @@ def _mixing_factor_pv(fwhm_g, fwhm_l):
     elif eta > 1.:
         eta = 1.
 
-    return eta
+    return eta, fwhm
 
 @numba_njit_if_available(cache=True, nogil=True)
 def pvoight_wppf(uvw,
@@ -878,30 +878,39 @@ def pvoight_wppf(uvw,
         strain_direction_dot_product,
         is_in_sublattice)
 
-    n = _mixing_factor_pv(fwhm_g, fwhm_l)
+    n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
-    Ag = 0.9394372787/fwhm_g  # normalization factor for unit area
-    Al = 2.0*np.pi/fwhm_l    # normalization factor for unit area
+    Ag = 0.9394372787/fwhm  # normalization factor for unit area
+    Al = 1.0/np.pi          # normalization factor for unit area
 
-    g = Ag*_unit_gaussian(np.array([tth, fwhm_g]), tth_list)
-    l = Al*_unit_lorentzian(np.array([tth, fwhm_l]), tth_list)
+    g = Ag*_unit_gaussian(np.array([tth, fwhm]), tth_list)
+    l = Al*_unit_lorentzian(np.array([tth, fwhm]), tth_list)
+    
     return n*l + (1.0-n)*g
 
 @numba_njit_if_available(cache=True, nogil=True)
-def _func_h(tau, tth):
-    cph =  np.cos(np.radians(tth - tau))
-    ctth = np.cos(np.radians(tth))
+def _func_h(tau, tth_r):
+    cph =  np.cos(tth_r - tau)
+    ctth = np.cos(tth_r)
     return np.sqrt( (cph/ctth)**2 - 1.)
 
 @numba_njit_if_available(cache=True, nogil=True)
 def _func_W(HoL, SoL, tau, tau_min, tau_infl, tth):
 
-    if tau >= 0. and tau <= tau_infl:
-        res = 2.0*min(HoL,SoL)
-    elif tau > tau_infl and tau <= tau_min:
-        res = HoL+SoL+_func_h(tau,tth)
+    if(tth < np.pi/2.):
+        if tau >= 0. and tau <= tau_infl:
+            res = 2.0*min(HoL,SoL)
+        elif tau > tau_infl and tau <= tau_min:
+            res = HoL+SoL+_func_h(tau,tth)
+        else:
+            res = 0.0
     else:
-        res = 0.0
+        if tau <= 0. and tau >= tau_infl:
+            res = 2.0*min(HoL,SoL)
+        elif tau < tau_infl and tau >= tau_min:
+            res = HoL+SoL+_func_h(tau,tth)
+        else:
+            res = 0.0
     return res
 
 @numba_njit_if_available(cache=True, nogil=True)
@@ -930,29 +939,30 @@ def pvfcj(uvw,
     """
 
     # angle of minimum
-    ctth = np.cos(np.radians(tth))
+    tth_r = np.radians(tth)
+    ctth = np.cos(tth_r)
+
     arg = ctth*np.sqrt(((HoL+SoL)**2+1.))
     cinv = np.arccos(arg)
-    tau_min = tth - np.degrees(cinv)
+    tau_min = tth_r - cinv
 
     # two theta of inflection point
     arg = ctth*np.sqrt(((HoL-SoL)**2+1.))
     cinv = np.arccos(arg)
-    tau_infl = tth - np.degrees(cinv)
-    if np.abs(tau_infl) < 1e-6:
-        tau_infl = 0.
+    tau_infl = tth_r - cinv
 
     tau = tau_min*xn
 
-    cx = np.cos(np.radians(tth-tau))
+    cx = np.cos(tth_r-tau)
     res = np.zeros(tth_list.shape)
     den = 0.0
-    for i in range(tau.shape[0]):
-        x = tth-tau[i]
+
+    for i in np.arange(tau.shape[0]):
+        x = tth_r+tau[i]
         xx = tau[i]
 
-        W = _func_W(HoL,SoL,xx,tau_min,tau_infl,tth)
-        h = _func_h(xx, tth)
+        W = _func_W(HoL,SoL,xx,tau_min,tau_infl,tth_r)
+        h = _func_h(xx, tth_r)
         fact = wn[i]*(W/h/cx[i])
         den += fact
 
@@ -962,7 +972,7 @@ def pvfcj(uvw,
              xy_sf,
              shkl,
              eta_mixing,
-             x,
+             np.degrees(x),
              dsp,
              hkl,
              strain_direction_dot_product,
@@ -970,7 +980,9 @@ def pvfcj(uvw,
              tth_list)
         res += pv*fact
 
-    return np.sin(np.radians(tth))*res/den/4./HoL/SoL
+    res = np.sin(tth_r)*res/den/4./HoL/SoL
+    a = np.trapz(res, tth_list)
+    return res/a
 
 @numba_njit_if_available(cache=True, nogil=True)
 def _calc_alpha(alpha, tth):
@@ -1088,13 +1100,17 @@ def computespectrum(uvw,
                  xy_sf,
                  shkl,
                  eta_mixing,
+                 HL,
+                 SL,
                  tth,
                  dsp,
                  hkl,
                  strain_direction_dot_product,
                  is_in_sublattice,
                  tth_list,
-                 Iobs):
+                 Iobs, 
+                 xn, 
+                 wn):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/31/2021 SS 1.0 original
@@ -1112,12 +1128,19 @@ def computespectrum(uvw,
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
-        pv = pvoight_wppf(uvw,p,xy,
-                 xy_sf,shkl,eta_mixing,
-                 t,d,g,
-                 strain_direction_dot_product,
-                 is_in_sublattice,
-                 tth_list)
+        # pv = pvoight_wppf(uvw,p,xy,
+        #          xy_sf,shkl,eta_mixing,
+        #          t,d,g,
+        #          strain_direction_dot_product,
+        #          is_in_sublattice,
+        #          tth_list)
+        pv = pvfcj(uvw,p,xy,xy_sf,
+                   shkl,eta_mixing,
+                   t,d,g,
+                   strain_direction_dot_product,
+                   is_in_sublattice,
+                   tth_list,
+                   HL,SL,xn,wn)
         spec += II * pv
     return spec
 
@@ -1128,6 +1151,10 @@ def calc_Iobs(uvw,
             xy_sf,
             shkl,
             eta_mixing,
+            HL,
+            SL,
+            xn,
+            wn,
             tth,
             dsp,
             hkl,
@@ -1154,12 +1181,19 @@ def calc_Iobs(uvw,
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
-        pv = pvoight_wppf(uvw,p,xy,
-                 xy_sf,shkl,eta_mixing,
-                 t,d,g,
-                 strain_direction_dot_product,
-                 is_in_sublattice,
-                 tth_list)
+        # pv = pvoight_wppf(uvw,p,xy,
+        #          xy_sf,shkl,eta_mixing,
+        #          t,d,g,
+        #          strain_direction_dot_product,
+        #          is_in_sublattice,
+        #          tth_list)
+        pv = pvfcj(uvw,p,xy,xy_sf,
+                   shkl,eta_mixing,
+                   t,d,g,
+                   strain_direction_dot_product,
+                   is_in_sublattice,
+                   tth_list,
+                   HL,SL,xn,wn)
 
         y = Ic * pv
         yo = spectrum_expt[:,1]
