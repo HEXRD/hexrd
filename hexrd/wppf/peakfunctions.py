@@ -953,7 +953,7 @@ def pvfcj(uvw,
 
     tau = tau_min*xn
 
-    cx = np.cos(tth_r-tau)
+    cx = np.cos(tau)
     res = np.zeros(tth_list.shape)
     den = 0.0
 
