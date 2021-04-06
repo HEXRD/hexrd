@@ -379,7 +379,13 @@ class LeBail:
 
                 Ic = self.Icalc[p][k]
 
-                tth = self.tth[p][k] + self.zero_error
+                shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.shft
+                trns_c = np.sin(np.radians(self.tth[p][k]))*self.trns
+                tth = self.tth[p][k] + \
+                      self.zero_error + \
+                      shft_c + \
+                      trns_c
+
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
                 n = np.min((tth.shape[0], Ic.shape[0]))
@@ -436,7 +442,13 @@ class LeBail:
 
                 Ic = self.Icalc[p][k]
 
-                tth = self.tth[p][k] + self.zero_error
+                shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.shft
+                trns_c = np.sin(np.radians(self.tth[p][k]))*self.trns
+                tth = self.tth[p][k] + \
+                      self.zero_error + \
+                      shft_c + \
+                      trns_c
+
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
                 n = np.min((tth.shape[0], Ic.shape[0]))
@@ -648,6 +660,22 @@ class LeBail:
     @eta_fwhm.setter
     def eta_fwhm(self, val):
         self._eta_fwhm = val
+
+    @property
+    def shft(self):
+        return self._shft
+    
+    @shft.setter
+    def shft(self, val):
+        self._shft = val
+
+    @property
+    def trns(self):
+        return self._trns
+    
+    @trns.setter
+    def trns(self, val):
+        self._trns = val
 
     @property
     def spectrum_expt(self):
@@ -1637,7 +1665,14 @@ class Rietveld:
         for iph, p in enumerate(self.phases):
 
             for k, l in self.phases.wavelength.items():
-                tth = self.tth[p][k] + self.zero_error
+
+                shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.shft
+                trns_c = np.sin(np.radians(self.tth[p][k]))*self.trns
+                tth = self.tth[p][k] + \
+                      self.zero_error + \
+                      shft_c + \
+                      trns_c
+
                 pf = self.phases[p][k].pf / self.phases[p][k].vol**2
                 sf = self.sf[p][k]
                 lp = self.LP[p][k]
@@ -1645,6 +1680,7 @@ class Rietveld:
                 n = np.min((tth.shape[0], 
                     sf.shape[0],
                     lp.shape[0]))
+
                 tth = tth[:n]
                 sf = sf[:n]
                 lp = lp[:n]
