@@ -346,11 +346,13 @@ def _generate_default_parameters_Rietveld(mat):
     single instance of material class
     """
     params = _generate_default_parameters_LeBail(mat)
+
     params.add(name="scale",
                value=1.0,
                lb=0.0,
                ub=1e9,
                vary=False)
+
     params.add(name="Ph",
                value=1.0,
                lb=0.0,

@@ -389,7 +389,7 @@ class LeBail:
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
                 n = np.min((tth.shape[0], Ic.shape[0]))
-                shkl = self.phases[p].shkl
+                shkl = self.phases[p].shkl(self.params)
                 strain_direction_dot_product = 0.
                 is_in_sublattice = False
                 
@@ -452,7 +452,7 @@ class LeBail:
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
                 n = np.min((tth.shape[0], Ic.shape[0]))
-                shkl = self.phases[p].shkl
+                shkl = self.phases[p].shkl(self.params)
                 strain_direction_dot_product = 0.
                 is_in_sublattice = False
 
@@ -1692,7 +1692,7 @@ class Rietveld:
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
 
-                shkl = np.zeros([15,])#self.phases[p].shkl
+                shkl = self.phases[p][k].shkl(self.params)
                 strain_direction_dot_product = 0.
                 is_in_sublattice = False
 
