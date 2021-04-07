@@ -540,9 +540,9 @@ class LeBail:
 
         params = self.initialize_lmfit_parameters()
 
-        fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
-         'verbose': 0, 'max_nfev': 40, 'method':'trf',
-         'jac':'3-point'}
+        fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
+         'verbose': 0, 'max_nfev': 1000, 'method':'trf',
+         'jac':'2-point'}
         fitter = lmfit.Minimizer(self.calcRwp, params)
 
         res = fitter.least_squares(**fdict)
