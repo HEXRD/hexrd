@@ -28,7 +28,8 @@ class unitcell:
     # initialize the unitcell class
     # need lattice parameters and space group data from HDF5 file
     def __init__(self, lp, sgnum,
-                 atomtypes, atominfo,
+                 atomtypes, charge,
+                 atominfo,
                  U, dmin, beamenergy,
                  sgsetting=0):
 
@@ -36,6 +37,7 @@ class unitcell:
         self.pref = 0.4178214
 
         self.atom_type = atomtypes
+        self.chargestates = charge
         self.atom_pos = atominfo
 
         self._dmin = dmin
@@ -713,7 +715,7 @@ class unitcell:
             Z = constants.ptable[elem]
             self.f_anam[elem] = np.complex(f1+frel-Z, f2)
 
-    def CalcXRFormFactor(self, Z, s):
+    def CalcXRFormFactor(self, Z, charge, s):
         '''
         we are using the following form factors for x-aray scattering:
         1. coherent x-ray scattering, f0 tabulated in Acta Cryst. (1995). A51,416-431
@@ -730,7 +732,10 @@ class unitcell:
         overall f = (f0 + f' + if" +fNT)
         '''
         elem = constants.ptableinverse[Z]
-        sfact = constants.scatfac[elem]
+        if charge == '0':
+            sfact = constants.scatfac[elem]
+        else:
+            sfact = constants.scatfac[f"{elem}{charge}"]
         fe = sfact[5]
         fNT = constants.fNT[elem]
         frel = constants.frel[elem]
@@ -751,7 +756,8 @@ class unitcell:
         for i in range(0, self.atom_ntype):
 
             Z = self.atom_type[i]
-            ff = self.CalcXRFormFactor(Z, s)
+            charge = self.chargestates[i]
+            ff = self.CalcXRFormFactor(Z, charge, s)
 
             if(self.aniU):
                 T = np.exp(-np.dot(hkl, np.dot(self.betaij[i, :, :], hkl)))

@@ -37,7 +37,7 @@ import numpy
 from hexrd.crystallography import PlaneData as PData
 from hexrd.valunits import valWUnit
 from hexrd import unitcell
-from hexrd.constants import ptable
+from hexrd.constants import ptable, ptableinverse, chargestate
 from hexrd import symmetry
 import copy
 
@@ -104,6 +104,7 @@ class Material(object):
     DFLT_ATOMINFO = numpy.array([[0., 0., 0., 1.]])
     DFLT_U = numpy.array([4.18e-7])
     DFLT_ATOMTYPE = numpy.array([28])
+    DFLT_CHARGE = numpy.array(["0"])
 
     '''
     the dmin parameter is used to figure out the maximum sampling for g-vectors
@@ -192,6 +193,7 @@ class Material(object):
             self._U = Material.DFLT_U
             #
             self._atomtype = Material.DFLT_ATOMTYPE
+            self._charge = Material.DFLT_CHARGE
             #
 
         self._newUnitcell()
@@ -236,7 +238,8 @@ class Material(object):
         """
         self._reset_lparms()
         self._unitcell = unitcell.unitcell(
-            self._lparms, self.sgnum, self._atomtype, self._atominfo, self._U,
+            self._lparms, self.sgnum, self._atomtype, self._charge,
+            self._atominfo, self._U,
             self._dmin.getVal('nm'), self._beamEnergy.value,
             self._sgsetting)
 
@@ -585,6 +588,10 @@ class Material(object):
 
         # read atom types (by atomic number, Z)
         self._atomtype = numpy.array(gid.get('Atomtypes'), dtype=numpy.int32)
+        if 'ChargeStates' in gid:
+            self._charge = numpy.array(gid.get('ChargeStates'))
+        else:
+            self._charge = ['0']*self._atomtype.shape[0]
         self._atom_ntype = self._atomtype.shape[0]
 
         self._sgsetting = numpy.array(gid.get('SpaceGroupSetting'),
@@ -623,6 +630,7 @@ class Material(object):
         AtomInfo['xtalname'] = self.name
         AtomInfo['xtal_sys'] = xtal_sys_dict[self.unitcell.latticeType.lower()]
         AtomInfo['Z'] = self.unitcell.atom_type
+        AtomInfo['charge'] = self.unitcell.chargestates
         AtomInfo['SG'] = self.unitcell.sgnum
         AtomInfo['SGsetting'] = self.unitcell.sgsetting
         AtomInfo['APOS'] = self.unitcell.atom_pos
@@ -822,6 +830,35 @@ class Material(object):
         self.unitcell.dmin = v.getVal('nm')
 
         self._hkls_changed()
+
+    @property
+    def charge(self):
+        return self._charge
+
+    @charge.setter
+    def charge(self, vals):
+        """
+        first make sure the lengths are correct
+        """
+        if len(vals) != len(self.atomtype):
+            msg = (f"incorrect size of charge. "
+                f"must be same size as number of aom types.")
+            raise ValueError(msg)
+        """
+        now check if charge states are actually allowed
+        """
+        for ii,z in enumerate(self.atomtype):
+            elem = ptableinverse[z]
+            cs = chargestate[elem]
+            if not vals[ii] in cs:
+                msg = (f"one or more elements "
+                    f"do not allow the charge state" 
+                    f"passed to the routine")
+                raise ValueError(msg)
+
+        self._charge = vals
+        self._newUnitcell()
+        self.update_structure_factor()
 
     @property
     def natoms(self):
