@@ -54,17 +54,17 @@ def _generate_default_parameters_pseudovoight(params):
     """
     p = {"zero_error":[0., -1., 1., False],
          "trns":[0.0, -1.0, 1.0, False],
-         "shft":[0.0,-1.0,1.0,True],
-         "U": [100., 0., 5000, True],
-         "V": [100., 0., 5000, True],
-         "W": [100., 0., 5000, True],
+         "shft":[0.0,-1.0,1.0,False],
+         "U": [100., 0., 5000, False],
+         "V": [100., 0., 5000, False],
+         "W": [100., 0., 5000, False],
          "P": [0., 0., 5000, False],
          "X": [0., 0., 100., False],
-         "Y": [10., 0., 100., True],
+         "Y": [10., 0., 100., False],
          "Xe": [0., 0., 1, False],
          "Ye": [0., 0., 1, False],
          "Xs": [0., 0., 1, False],
-         "HL":[1.60e-2,0.,1e-1,True],
+         "HL":[1.60e-2,0.,1e-1,False],
          "SL":[2.28e-2,0.,1e-1,False]
          }
 
@@ -151,10 +151,10 @@ def _add_lp_to_params(params,
         """
         if(n in ['a', 'b', 'c']):
             params.add(nn, value=l, lb=l-0.05,
-                       ub=l+0.05, vary=True)
+                       ub=l+0.05, vary=False)
         else:
             params.add(nn, value=l, lb=l-1.,
-                       ub=l+1., vary=True)
+                       ub=l+1., vary=False)
 
 def _add_atominfo_to_params(params, mat):
     """
@@ -350,12 +350,12 @@ def _generate_default_parameters_Rietveld(mat):
                value=1.0,
                lb=0.0,
                ub=1e9,
-               vary=True)
+               vary=False)
     params.add(name="Ph",
                value=1.0,
                lb=0.0,
                ub=1.0,
-               vary=True)
+               vary=False)
 
     _add_phase_fractions(mat, params)
 
