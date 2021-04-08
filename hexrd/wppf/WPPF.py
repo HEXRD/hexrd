@@ -389,7 +389,10 @@ class LeBail:
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
                 n = np.min((tth.shape[0], Ic.shape[0]))
-                shkl = self.phases[p].shkl(self.params)
+                shkl = self.phases[p].shkl
+                name = self.phases[p].name
+                eta_n = f"self.{name}_eta_fwhm"
+                eta_fwhm = eval(eta_n)
                 strain_direction_dot_product = 0.
                 is_in_sublattice = False
                 
@@ -401,7 +404,7 @@ class LeBail:
                                np.array([self.X, self.Y]),
                                np.array([self.Xe, self.Ye, self.Xs]),
                                shkl,
-                               self.eta_fwhm,
+                               eta_fwhm,
                                HL,
                                SL,
                                tth, 
@@ -452,7 +455,10 @@ class LeBail:
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
                 n = np.min((tth.shape[0], Ic.shape[0]))
-                shkl = self.phases[p].shkl(self.params)
+                shkl = self.phases[p].shkl
+                name = self.phases[p].name
+                eta_n = f"self.{name}_eta_fwhm"
+                eta_fwhm = eval(eta_n)
                 strain_direction_dot_product = 0.
                 is_in_sublattice = False
 
@@ -461,7 +467,7 @@ class LeBail:
                                np.array([self.X, self.Y]),
                                np.array([self.Xe, self.Ye, self.Xs]),
                                shkl,
-                               self.eta_fwhm,
+                               eta_fwhm,
                                self.HL, self.SL,
                                self.xn, self.wn, 
                                tth, 
@@ -486,6 +492,7 @@ class LeBail:
         the errvec variable is the difference between simulated and experimental spectra
         """
         self._set_params_vals_to_class(params, init=False, skip_phases=False)
+        self._update_shkl(params)
 
         errvec = self.computespectrum()
 
@@ -562,6 +569,28 @@ class LeBail:
         """
         params = self.initialize_lmfit_parameters()
         errvec = self.calcRwp(params)
+
+    def _update_shkl(self, params):
+        """
+        if certain shkls are refined, then update
+        them using the params arg. else use values from 
+        the parameter class
+        """
+        shkl_dict = {}
+        for p in self.phases:
+            shkl_name = self.phases[p].valid_shkl
+            eq_const = self.phases[p].eq_constraints
+            mname = self.phases[p].name
+            key = [f"{mname}_{s}" for s in shkl_name]
+            for s,k in zip(shkl_name,key):
+                if k in params:
+                    shkl_dict[s] = params[k].value
+                else:
+                    shkl_dict[s] = self.params[k].value
+
+            self.phases[p].shkl = wppfsupport._fill_shkl(\
+                shkl_dict, eq_const)
+
 
     @property
     def U(self):
@@ -1019,6 +1048,12 @@ class LeBail:
                 self._phases = p
 
         self.calctth()
+        for p in self.phases:
+            self.phases[p].valid_shkl, \
+            self.phases[p].eq_constraints, \
+            self.phases[p].rqd_index, \
+            self.phases[p].trig_ptype = \
+            wppfsupport._required_shkl_names(self.phases[p])
 
     def _set_params_vals_to_class(self,
                                   params,
@@ -1604,6 +1639,14 @@ class Rietveld:
         self.calctth()
         self.calcsf()
 
+        for p in self.phases:
+            for k in self.phases[p]:
+                self.phases[p][k].valid_shkl, \
+                self.phases[p][k].eq_constraints, \
+                self.phases[p][k].rqd_index, \
+                self.phases[p][k].trig_ptype = \
+                wppfsupport._required_shkl_names(self.phases[p][k])
+
     def calctth(self):
         self.tth = {}
         self.hkls = {}
@@ -1692,7 +1735,10 @@ class Rietveld:
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
 
-                shkl = self.phases[p][k].shkl(self.params)
+                shkl = self.phases[p][k].shkl
+                name = self.phases[p][k].name
+                eta_n = f"self.{name}_eta_fwhm"
+                eta_fwhm = eval(eta_n)
                 strain_direction_dot_product = 0.
                 is_in_sublattice = False
 
@@ -1704,7 +1750,7 @@ class Rietveld:
                                np.array([self.X, self.Y]),
                                np.array([self.Xe, self.Ye, self.Xs]),
                                shkl,
-                               self.eta_fwhm, 
+                               eta_fwhm, 
                                HL,
                                SL,
                                tth, 
@@ -1739,6 +1785,7 @@ class Rietveld:
         the err variable is the difference between simulated and experimental spectra
         """
         self._set_params_vals_to_class(params, init=False, skip_phases=False)
+        self._update_shkl(params)
         errvec = self.computespectrum()
 
         return errvec
@@ -1926,6 +1973,28 @@ class Rietveld:
                     self.calcsf()
 
             self.phases.phase_fraction = pf
+
+    def _update_shkl(self, params):
+        """
+        if certain shkls are refined, then update
+        them using the params arg. else use values from 
+        the parameter class
+        """
+        shkl_dict = {}
+        for p in self.phases:
+            for k in self.phases[p]:
+                shkl_name = self.phases[p][k].valid_shkl
+                eq_const = self.phases[p][k].eq_constraints
+                mname = self.phases[p][k].name
+                key = [f"{mname}_{s}" for s in shkl_name]
+                for s,kk in zip(shkl_name,key):
+                    if kk in params:
+                        shkl_dict[s] = params[kk].value
+                    else:
+                        shkl_dict[s] = self.params[kk].value
+
+                self.phases[p][k].shkl = wppfsupport._fill_shkl(\
+                    shkl_dict, eq_const)
 
     @property
     def U(self):

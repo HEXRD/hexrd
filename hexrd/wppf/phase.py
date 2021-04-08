@@ -53,6 +53,7 @@ class Material_LeBail:
                 raise ValueError(
                     "Invalid material_obj argument. \
                     only Material class can be passed here.")
+        self._shkl = np.zeros((15,))
 
     def _readHDF(self, fhdf, xtal):
 
@@ -365,17 +366,32 @@ class Material_LeBail:
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)
 
-    def shkl(self, params):
-        shkl_dict, trig_ptype = wppfsupport._add_Shkl_terms([], 
-            self, return_dict=True)
-        eq_const = wppfsupport._rqd_shkl[self.latticeType][1]
-        for p in shkl_dict:
-            key = f"{self.name}_{p}"
-            shkl_dict[p] = params[key].value
-        if trig_ptype:
-            eq_const = wppfsupport._rqd_shkl["hexagonal"][1]
-        return wppfsupport._fill_shkl(shkl_dict, eq_const)
+    # def shkl(self, params):
+    #     shkl_dict, trig_ptype = wppfsupport._add_Shkl_terms([], 
+    #         self, return_dict=True)
+    #     eq_const = wppfsupport._rqd_shkl[self.latticeType][1]
+    #     for p in shkl_dict:
+    #         key = f"{self.name}_{p}"
+    #         shkl_dict[p] = params[key].value
+    #     if trig_ptype:
+    #         eq_const = wppfsupport._rqd_shkl["hexagonal"][1]
+    #     return wppfsupport._fill_shkl(shkl_dict, eq_const)
 
+    @property
+    def shkl(self):
+        return self._shkl
+    
+    @shkl.setter
+    def shkl(self, val):
+        """
+        set the shkl as array
+        """
+        if(len(val) != 15):
+            msg = (f"incorrect shape for shkl. "
+                f"shape should be (15, ).")
+            raise ValueError(msg)
+
+        self._shkl = val
 
 class Phases_LeBail:
     """
@@ -584,12 +600,13 @@ class Material_Rietveld:
                  dmin=None,
                  kev=None,
                  material_obj=None):
+
+        self._shkl = np.zeros((15,))
         if(material_obj is None):
             """
             dmin in nm
             """
             self.dmin = dmin.value
-
             """
             voltage in ev
             """
@@ -1145,16 +1162,32 @@ class Material_Rietveld:
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)
 
-    def shkl(self, params):
-        shkl_dict, trig_ptype = wppfsupport._add_Shkl_terms([], 
-            self, return_dict=True)
-        eq_const = wppfsupport._rqd_shkl[self.latticeType][1]
-        for p in shkl_dict:
-            key = f"{self.name}_{p}"
-            shkl_dict[p] = params[key].value
-        if trig_ptype:
-            eq_const = wppfsupport._rqd_shkl["hexagonal"][1]
-        return wppfsupport._fill_shkl(shkl_dict, eq_const)
+    # def shkl(self, params):
+    #     shkl_dict, trig_ptype = wppfsupport._add_Shkl_terms([], 
+    #         self, return_dict=True)
+    #     eq_const = wppfsupport._rqd_shkl[self.latticeType][1]
+    #     for p in shkl_dict:
+    #         key = f"{self.name}_{p}"
+    #         shkl_dict[p] = params[key].value
+    #     if trig_ptype:
+    #         eq_const = wppfsupport._rqd_shkl["hexagonal"][1]
+    #     return wppfsupport._fill_shkl(shkl_dict, eq_const)
+
+    @property
+    def shkl(self):
+        return self._shkl
+    
+    @shkl.setter
+    def shkl(self, val):
+        """
+        set the shkl as array
+        """
+        if(len(val) != 15):
+            msg = (f"incorrect shape for shkl. "
+                f"shape should be (15, ).")
+            raise ValueError(msg)
+
+        self._shkl = val
 
 class Phases_Rietveld:
     """

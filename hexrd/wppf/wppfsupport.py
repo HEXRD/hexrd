@@ -94,34 +94,25 @@ def _add_Shkl_terms(params,
     @NOTE: the rhombohedral lattices are assumed to be in
     the hexagonal setting
     """
-    latticetype = mat.latticeType
-    sgnum = mat.sgnum
     mname = mat.name
-    hmsym = pstr_spacegroup[sgnum-1].strip()
-    trig_ptype = False
-
-    if latticetype == "trigonal" and hmsym[0] == "P":
-        """
-        this is a trigonal group so the hexagonal
-        constants are valid
-        """
-        latticetype = "haxagonal"
-        trig_ptype = True
-
-    rqd_index = _rqd_shkl[latticetype][0]
-    valid_shkl = [_shkl_name[i] for i in rqd_index]
+    valid_shkl,\
+    eq_const,\
+    rqd_index, \
+    trig_ptype = \
+    _required_shkl_names(mat)
 
     if return_dict is None:
 
         for s in valid_shkl:
             n = f"{mname}_{s}"
+            ne = f"{mname}_eta_fwhm"
             params.add(name=n,
                        value = 0.0,
-                       lb = -1.0,
-                       ub=1.0,
+                       lb = 0.0,
+                       ub=np.inf,
                        vary=False)
-        params.add(name="eta_fwhm",
-               value = 1.0,
+        params.add(name=ne,
+               value = 0.5,
                lb = 0.0,
                ub=1.0,
                vary=False)
@@ -424,11 +415,31 @@ def _fill_shkl(x, eq_const):
         pass
     else:
         for c in eq_const:
-            # n = _shkl_name[c[0]]
-            # neq = _shkl_name[c[1]]
             x_ret[c[1]] = c[2]*x_ret[c[0]]
 
     return x_ret
+
+def _required_shkl_names(mat):
+    latticetype = mat.latticeType
+    sgnum = mat.sgnum
+    mname = mat.name
+    hmsym = pstr_spacegroup[sgnum-1].strip()
+    trig_ptype = False
+
+    if latticetype == "trigonal" and hmsym[0] == "P":
+        """
+        this is a trigonal group so the hexagonal
+        constants are valid
+        """
+        latticetype = "haxagonal"
+        trig_ptype = True
+
+    rqd_index = _rqd_shkl[latticetype][0]
+    eq_constraints = _rqd_shkl[latticetype][1]
+    valid_shkl = [_shkl_name[i] for i in rqd_index]
+
+    return valid_shkl, eq_constraints, rqd_index, trig_ptype
+
 """
 this dictionary structure holds information for the shkl
 coefficeints needed for anisotropic broadening of peaks
