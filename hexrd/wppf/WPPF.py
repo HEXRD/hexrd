@@ -793,9 +793,9 @@ class LeBail:
                     self.global_mask = np.zeros([expt_spectrum.shape[0], ],
                                                 dtype=np.bool)
 
-                    self._tth_list = [s._x for s in self._spectrum_expt]
-                    self._tth_list_global = expt_spectrum[:, 0]
-                    self.offset = False
+                self._tth_list = [s._x for s in self._spectrum_expt]
+                self._tth_list_global = expt_spectrum[:, 0]
+                self.offset = False
 
             elif isinstance(expt_spectrum, str):
                 """
