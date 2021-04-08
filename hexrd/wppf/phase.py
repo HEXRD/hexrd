@@ -366,17 +366,6 @@ class Material_LeBail:
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)
 
-    # def shkl(self, params):
-    #     shkl_dict, trig_ptype = wppfsupport._add_Shkl_terms([], 
-    #         self, return_dict=True)
-    #     eq_const = wppfsupport._rqd_shkl[self.latticeType][1]
-    #     for p in shkl_dict:
-    #         key = f"{self.name}_{p}"
-    #         shkl_dict[p] = params[key].value
-    #     if trig_ptype:
-    #         eq_const = wppfsupport._rqd_shkl["hexagonal"][1]
-    #     return wppfsupport._fill_shkl(shkl_dict, eq_const)
-
     @property
     def shkl(self):
         return self._shkl
@@ -1161,17 +1150,6 @@ class Material_Rietveld:
 
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)
-
-    # def shkl(self, params):
-    #     shkl_dict, trig_ptype = wppfsupport._add_Shkl_terms([], 
-    #         self, return_dict=True)
-    #     eq_const = wppfsupport._rqd_shkl[self.latticeType][1]
-    #     for p in shkl_dict:
-    #         key = f"{self.name}_{p}"
-    #         shkl_dict[p] = params[key].value
-    #     if trig_ptype:
-    #         eq_const = wppfsupport._rqd_shkl["hexagonal"][1]
-    #     return wppfsupport._fill_shkl(shkl_dict, eq_const)
 
     @property
     def shkl(self):
