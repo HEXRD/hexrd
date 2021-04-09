@@ -1128,14 +1128,19 @@ def computespectrum(uvw,
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
-
-        pv = pvfcj(uvw,p,xy,xy_sf,
-                   shkl,eta_mixing,
-                   t,d,g,
-                   strain_direction_dot_product,
-                   is_in_sublattice,
-                   tth_list,
-                   HL,SL,xn,wn)
+        pv = pvoight_wppf(uvw,p,xy,
+                 xy_sf,shkl,eta_mixing,
+                 t,d,g,
+                 strain_direction_dot_product,
+                 is_in_sublattice,
+                 tth_list)
+        # pv = pvfcj(uvw,p,xy,xy_sf,
+        #            shkl,eta_mixing,
+        #            t,d,g,
+        #            strain_direction_dot_product,
+        #            is_in_sublattice,
+        #            tth_list,
+        #            HL,SL,xn,wn)
         spec += II * pv
     return spec
 
@@ -1164,44 +1169,51 @@ def calc_Iobs(uvw,
     @date 03/31/2021 SS 1.0 original
     @details compute Iobs for each reflection given all parameters.
     moved outside of the class to allow numba implementation
-    this is called for multiple wavelengths and phases to generate
-    the final spectrum
+    this is called for multiple wavelengths and phases to compute
+    the final intensities
     """
     Iobs = np.zeros(tth.shape)
     nref = np.min(np.array([Icalc.shape[0],
         tth.shape[0],
         dsp.shape[0],hkl.shape[0]]))
+
+    yo = spectrum_expt[:,1]
+    yc = spectrum_sim[:,1]
+    mask = yc != 0.
+    yo = yo[mask]
+    yc = yc[mask]
+    tth_list_mask = spectrum_expt[:,0]
+    # tth_list_mask = tth_list[mask]
+
     for ii in np.arange(nref):
         Ic = Icalc[ii]
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
-        # pv = pvoight_wppf(uvw,p,xy,
-        #          xy_sf,shkl,eta_mixing,
-        #          t,d,g,
-        #          strain_direction_dot_product,
-        #          is_in_sublattice,
-        #          tth_list)
-        pv = pvfcj(uvw,p,xy,xy_sf,
-                   shkl,eta_mixing,
-                   t,d,g,
-                   strain_direction_dot_product,
-                   is_in_sublattice,
-                   tth_list,
-                   HL,SL,xn,wn)
+        pv = pvoight_wppf(uvw,p,xy,
+                 xy_sf,shkl,eta_mixing,
+                 t,d,g,
+                 strain_direction_dot_product,
+                 is_in_sublattice,
+                 tth_list_mask)
+        # pv = pvfcj(uvw,p,xy,xy_sf,
+        #            shkl,eta_mixing,
+        #            t,d,g,
+        #            strain_direction_dot_product,
+        #            is_in_sublattice,
+        #            tth_list,
+        #            HL,SL,xn,wn)
 
         y = Ic * pv
-        yo = spectrum_expt[:,1]
-        yc = spectrum_sim[:,1]
-        mask = yc != 0.
+        y = y[mask]
+
         """
         @TODO if yc has zeros in it, then this
         the next line will not like it. need to
         address that
         @ SS 03/02/2021 the mask shold fix it
         """
-        Iobs[ii] = np.trapz(yo[mask] * y[mask] /
-                                 yc[mask], tth_list[mask])
+        Iobs[ii] = np.trapz(yo*y/yc, tth_list_mask)
 
     return Iobs
 
@@ -1217,14 +1229,17 @@ def calc_rwp(spectrum_sim,
     moved outside of the class to allow numba implementation
     P : number of independent parameters in fitting
     """
-    err = spectrum_sim - spectrum_expt
+    err = weights[:,1]* \
+    (spectrum_sim[:,1] - \
+    spectrum_expt[:,1])**2
 
-    errvec = np.sqrt(weights * err[:,1]**2)
+    weighted_expt = weights[:,1] * spectrum_sim[:,1] **2
+
+    errvec = np.sqrt(err)
 
     """ weighted sum of square """
-    wss = np.trapz(weights * err[:,1]**2, spectrum_expt[:,0])
-    den = np.trapz(weights * spectrum_sim[:,1] **
-                   2, spectrum_expt[:,0])
+    wss = np.trapz(err, spectrum_expt[:,0])
+    den = np.trapz(weighted_expt, spectrum_expt[:,0])
 
     """ standard Rwp i.e. weighted residual """
     Rwp = np.sqrt(wss/den)
@@ -1246,4 +1261,4 @@ def calc_rwp(spectrum_sim,
     else:
         gofF = np.inf
 
-    return errvec[~np.isnan(errvec)], Rwp, gofF
+    return errvec, Rwp, gofF

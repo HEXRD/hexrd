@@ -422,7 +422,7 @@ class LeBail:
         errvec, self.Rwp, self.gofF = calc_rwp(
             self.spectrum_sim.data_array,
             self.spectrum_expt.data_array,
-            self.weights,
+            self.weights.data_array,
             P)
         return errvec
 
@@ -468,8 +468,10 @@ class LeBail:
                                np.array([self.Xe, self.Ye, self.Xs]),
                                shkl,
                                eta_fwhm,
-                               self.HL, self.SL,
-                               self.xn, self.wn, 
+                               self.HL, 
+                               self.SL,
+                               self.xn, 
+                               self.wn, 
                                tth, 
                                dsp, 
                                hkls,
@@ -488,9 +490,6 @@ class LeBail:
                         are used to set the values in the LeBail class too
         """
 
-        """
-        the errvec variable is the difference between simulated and experimental spectra
-        """
         self._set_params_vals_to_class(params, init=False, skip_phases=False)
         self._update_shkl(params)
 
@@ -671,7 +670,11 @@ class LeBail:
 
     @property
     def tth_list(self):
-        return self.spectrum_expt._x
+        if isinstance(self.spectrum_expt._x, \
+            np.ma.MaskedArray):
+            return self.spectrum_expt._x.filled()
+        else:
+            return self.spectrum_expt._x
 
     @property
     def zero_error(self):
@@ -909,7 +912,8 @@ class LeBail:
         weights_masked = join_regions(self._weights,
                                       self.global_index,
                                       self.global_shape)
-        return weights_masked[~np.isnan(weights_masked)]
+        return Spectrum(x=self.tth_list,
+                        y=weights_masked)
 
     @property
     def params(self):
