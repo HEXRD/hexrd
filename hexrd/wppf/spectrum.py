@@ -162,7 +162,13 @@ class Spectrum:
 
     @property
     def data_array(self):
-        return np.squeeze(np.array([self.data]).T)
+        x, y = self.data
+        mask = np.isnan(y)
+        arr = np.vstack((x[~mask], y[~mask])).T
+        if isinstance(arr, np.ma.MaskedArray):
+            return arr.filled()
+        else:
+            return arr
 
     @property
     def original_data(self):
