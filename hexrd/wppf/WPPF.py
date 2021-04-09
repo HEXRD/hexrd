@@ -909,7 +909,7 @@ class LeBail:
         weights_masked = join_regions(self._weights,
                                       self.global_index,
                                       self.global_shape)
-        return weights_masked
+        return weights_masked[~np.isnan(weights_masked)]
 
     @property
     def params(self):
