@@ -77,13 +77,14 @@ class LeBail:
                  wavelength={'kalpha1': [_nm(0.15406), 1.0],
                              'kalpha2': [_nm(0.154443), 1.0]},
                  bkgmethod={'spline': None},
-                 intensity_init=None):
+                 intensity_init=None,
+                 peakshape="pvoight_fcj"):
 
         from scipy.special import roots_legendre
         xn, wn = roots_legendre(16)
         self.xn = xn[8:]
         self.wn = wn[8:]
-
+        self.peakshape = peakshape
         self.bkgmethod = bkgmethod
         self.intensity_init = intensity_init
 
@@ -413,7 +414,8 @@ class LeBail:
                                strain_direction_dot_product,
                                is_in_sublattice,
                                tth_list,
-                               Ic, self.xn, self.wn)
+                               Ic, self.xn, self.wn,
+                               self.peakshape)
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
@@ -480,7 +482,8 @@ class LeBail:
                                tth_list,
                                Ic,
                                spec_expt, 
-                               spec_sim) 
+                               spec_sim,
+                               self.peakshape) 
 
     def calcRwp(self, params):
         """
@@ -708,6 +711,37 @@ class LeBail:
     @trns.setter
     def trns(self, val):
         self._trns = val
+
+    @property
+    def peakshape(self):
+        return self._peakshape
+    
+    @peakshape.setter
+    def peakshape(self, val):
+        if isinstance(val, str):
+            if val == "pvoight_fcj":
+                self._peakshape = 0
+            elif val == "pvoight":
+                self._peakshape = 1
+            elif val == "pvoight_pinkbeam":
+                self._peakshape = 2
+            else:
+                msg = (f"invalid peak shape string. "
+                    f"must be: \n"
+                    f"1. pvoight_fcj: pseudo voight (Finger, Cox, Jephcoat)\n"
+                    f"2. pvoight: pseudo voight (Thompson, Cox, Hastings)\n"
+                    f"3. pvoight_pinkbeam: Pink beam (Von Dreele)")
+                raise ValueError(msg)
+        elif isinstance(val, int):
+            if val >=0 and val <=2:
+                self._peakshape = val
+            else:
+                msg = (f"invalid peak shape int. "
+                    f"must be: \n"
+                    f"1. 0: pseudo voight (Finger, Cox, Jephcoat)\n"
+                    f"2. 1: pseudo voight (Thompson, Cox, Hastings)\n"
+                    f"3. 2: Pink beam (Von Dreele)")
+                raise ValueError(msg)
 
     @property
     def spectrum_expt(self):
