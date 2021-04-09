@@ -1,8 +1,13 @@
 import importlib.resources
 import numpy as np
 import warnings
-from hexrd.wppf.peakfunctions import pvoight_wppf, \
-pvoight_pink_beam, calc_rwp, computespectrum, calc_Iobs
+from hexrd.wppf.peakfunctions import \
+calc_rwp, computespectrum_pvfcj, \
+computespectrum_pvtch,\
+computespectrum_pvpink,\
+calc_Iobs_pvfcj,\
+calc_Iobs_pvtch,\
+calc_Iobs_pvpink
 from hexrd.wppf import wppfsupport
 from hexrd.imageutil import snip1d, snip1d_quad
 from hexrd.material import Material
@@ -718,6 +723,10 @@ class LeBail:
     
     @peakshape.setter
     def peakshape(self, val):
+        """
+        @TODO make sure the parameter list
+        is updated when the peakshape changes
+        """
         if isinstance(val, str):
             if val == "pvfcj":
                 self._peakshape = 0
@@ -742,6 +751,24 @@ class LeBail:
                     f"2. 1: pseudo voight (Thompson, Cox, Hastings)\n"
                     f"3. 2: Pink beam (Von Dreele)")
                 raise ValueError(msg)
+
+    @property
+    def computespectrum_fcn(self):
+        if peakshape == 0:
+            return computespectrum_pvfcj
+        elif peakshape == 1:
+            return computespectrum_pvtch
+        elif peakshape == 2:
+            return computespectrum_pvpink
+
+    @property
+    def calcIobs_fcn(self):
+        if peakshape == 0:
+            return calc_Iobs_pvfcj
+        elif peakshape == 1:
+            return calc_Iobs_pvtch
+        elif peakshape == 2:
+            return calc_Iobs_pvpink
 
     @property
     def spectrum_expt(self):
