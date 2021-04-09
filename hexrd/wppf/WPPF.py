@@ -719,11 +719,11 @@ class LeBail:
     @peakshape.setter
     def peakshape(self, val):
         if isinstance(val, str):
-            if val == "pvoight_fcj":
+            if val == "pvfcj":
                 self._peakshape = 0
-            elif val == "pvoight":
+            elif val == "pvtch":
                 self._peakshape = 1
-            elif val == "pvoight_pinkbeam":
+            elif val == "pv_pinkbeam":
                 self._peakshape = 2
             else:
                 msg = (f"invalid peak shape string. "
