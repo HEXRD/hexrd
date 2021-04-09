@@ -1094,7 +1094,7 @@ def pvoight_pink_beam(alpha,
     return n*l + (1.0-n)*g
 
 @numba_njit_if_available(cache=True, nogil=True, parallel=True)
-def computespectrum(uvw,
+def computespectrum_pvfcj(uvw,
                  p,
                  xy,
                  xy_sf,
@@ -1110,8 +1110,7 @@ def computespectrum(uvw,
                  tth_list,
                  Iobs, 
                  xn, 
-                 wn,
-                 peakshape):
+                 wn):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/31/2021 SS 1.0 original
@@ -1120,58 +1119,122 @@ def computespectrum(uvw,
     this is called for multiple wavelengths and phases to generate
     the final spectrum
     """
-    if peakshape == 0:
-        peak = pvoight_wppf
-    elif peakshape == 1:
-        peak = pvfcj
-    # elif peakshape == 3:
-    #     peak = pvoight_pink_beam
 
     spec = np.zeros(tth_list.shape)
     nref = np.min(np.array([Iobs.shape[0],
         tth.shape[0],
         dsp.shape[0],hkl.shape[0]]))
     for ii in prange(nref):
+
         II = Iobs[ii]
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
-        # pv = peak(uvw,p,xy,
-        #          xy_sf,shkl,eta_mixing,
-        #          t,d,g,
-        #          strain_direction_dot_product,
-        #          is_in_sublattice,
-        #          tth_list)
-        if peakshape == 0:
-            pv = peak(uvw,p,xy,
+
+        pv = pvfcj(uvw,p,xy,xy_sf,
+               shkl,eta_mixing,
+               t,d,g,
+               strain_direction_dot_product,
+               is_in_sublattice,
+               tth_list,
+               HL,SL,xn,wn)
+
+        spec += II * pv
+    return spec
+
+@numba_njit_if_available(cache=True, nogil=True, parallel=True)
+def computespectrum_pvtch(uvw,
+                 p,
+                 xy,
+                 xy_sf,
+                 shkl,
+                 eta_mixing,
+                 tth,
+                 dsp,
+                 hkl,
+                 strain_direction_dot_product,
+                 is_in_sublattice,
+                 tth_list,
+                 Iobs):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/31/2021 SS 1.0 original
+    @details compute the spectrum given all the input parameters.
+    moved outside of the class to allow numba implementation
+    this is called for multiple wavelengths and phases to generate
+    the final spectrum
+    """
+
+    spec = np.zeros(tth_list.shape)
+    nref = np.min(np.array([Iobs.shape[0],
+        tth.shape[0],
+        dsp.shape[0],hkl.shape[0]]))
+    for ii in prange(nref):
+
+        II = Iobs[ii]
+        t = tth[ii]
+        d = dsp[ii]
+        g = hkl[ii]
+
+        pv = pvoight_wppf(uvw,p,xy,
                  xy_sf,shkl,eta_mixing,
                  t,d,g,
                  strain_direction_dot_product,
                  is_in_sublattice,
                  tth_list)
-        elif peakshape == 1:
-             pv = pvfcj(uvw,p,xy,xy_sf,
-                   shkl,eta_mixing,
-                   t,d,g,
-                   strain_direction_dot_product,
-                   is_in_sublattice,
-                   tth_list,
-                   HL,SL,xn,wn)
-        elif peakshape == 3:
-            #peak = pvoight_pink_beam
-            pv = np.ones(tth_list.shape)
-        # pv = pvfcj(uvw,p,xy,xy_sf,
-        #            shkl,eta_mixing,
-        #            t,d,g,
-        #            strain_direction_dot_product,
-        #            is_in_sublattice,
-        #            tth_list,
-        #            HL,SL,xn,wn)
+
+        spec += II * pv
+    return spec
+
+#@numba_njit_if_available(cache=True, nogil=True, parallel=True)
+def computespectrum_pvpink(alpha,
+                 beta,
+                 uvw,
+                 p,
+                 xy,
+                 xy_sf,
+                 shkl,
+                 eta_mixing,
+                 tth,
+                 dsp,
+                 hkl,
+                 strain_direction_dot_product,
+                 is_in_sublattice,
+                 tth_list,
+                 Iobs):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/31/2021 SS 1.0 original
+    @details compute the spectrum given all the input parameters.
+    moved outside of the class to allow numba implementation
+    this is called for multiple wavelengths and phases to generate
+    the final spectrum
+    """
+
+    spec = np.zeros(tth_list.shape)
+    nref = np.min(np.array([Iobs.shape[0],
+        tth.shape[0],
+        dsp.shape[0],hkl.shape[0]]))
+    for ii in prange(nref):
+
+        II = Iobs[ii]
+        t = tth[ii]
+        d = dsp[ii]
+        g = hkl[ii]
+
+        pv = pvoight_pink_beam(alpha,beta,
+                 uvw,p,xy,
+                 xy_sf,shkl,eta_mixing,
+                 t,d,g,
+                 strain_direction_dot_product,
+                 is_in_sublattice,
+                 tth_list)
+
         spec += II * pv
     return spec
 
 @numba_njit_if_available(cache=True, nogil=True)
-def calc_Iobs(uvw,
+def calc_Iobs_pvfcj(uvw,
             p,
             xy,
             xy_sf,
@@ -1189,8 +1252,7 @@ def calc_Iobs(uvw,
             tth_list,
             Icalc,
             spectrum_expt,
-            spectrum_sim,
-            peakshape):
+            spectrum_sim):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/31/2021 SS 1.0 original
@@ -1218,34 +1280,134 @@ def calc_Iobs(uvw,
         d = dsp[ii]
         g = hkl[ii]
 
-        if peakshape == 0:
-            pv = peak(uvw,p,xy,
-                     xy_sf,shkl,eta_mixing,
-                     t,d,g,
-                     strain_direction_dot_product,
-                     is_in_sublattice,
-                     tth_list_mask)
-        elif peakshape == 1:
-             pv = pvfcj(uvw,p,xy,xy_sf,
+        pv = pvfcj(uvw,p,xy,xy_sf,
                    shkl,eta_mixing,
                    t,d,g,
                    strain_direction_dot_product,
                    is_in_sublattice,
                    tth_list,
                    HL,SL,xn,wn)
-        elif peakshape == 3:
-            #peak = pvoight_pink_beam
-            pv = np.ones(tth_list_mask.shape)
 
         y = Ic * pv
         y = y[mask]
 
-        """
-        @TODO if yc has zeros in it, then this
-        the next line will not like it. need to
-        address that
-        @ SS 03/02/2021 the mask shold fix it
-        """
+        Iobs[ii] = np.trapz(yo*y/yc, tth_list_mask)
+
+    return Iobs
+
+@numba_njit_if_available(cache=True, nogil=True)
+def calc_Iobs_pvtch(uvw,
+            p,
+            xy,
+            xy_sf,
+            shkl,
+            eta_mixing,
+            tth,
+            dsp,
+            hkl,
+            strain_direction_dot_product,
+            is_in_sublattice,
+            tth_list,
+            Icalc,
+            spectrum_expt,
+            spectrum_sim):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/31/2021 SS 1.0 original
+    @details compute Iobs for each reflection given all parameters.
+    moved outside of the class to allow numba implementation
+    this is called for multiple wavelengths and phases to compute
+    the final intensities
+    """
+    Iobs = np.zeros(tth.shape)
+    nref = np.min(np.array([Icalc.shape[0],
+        tth.shape[0],
+        dsp.shape[0],hkl.shape[0]]))
+
+    yo = spectrum_expt[:,1]
+    yc = spectrum_sim[:,1]
+    mask = yc != 0.
+    yo = yo[mask]
+    yc = yc[mask]
+    tth_list_mask = spectrum_expt[:,0]
+    tth_list_mask = tth_list_mask[mask]
+
+    for ii in np.arange(nref):
+        Ic = Icalc[ii]
+        t = tth[ii]
+        d = dsp[ii]
+        g = hkl[ii]
+
+        pv = pvoight_wppf(uvw,p,xy,xy_sf,
+                   shkl,eta_mixing,
+                   t,d,g,
+                   strain_direction_dot_product,
+                   is_in_sublattice,
+                   tth_list)
+
+        y = Ic * pv
+        y = y[mask]
+
+        Iobs[ii] = np.trapz(yo*y/yc, tth_list_mask)
+
+    return Iobs
+
+#@numba_njit_if_available(cache=True, nogil=True)
+def calc_Iobs_pvpink(alpha,
+            beta,
+            uvw,
+            p,
+            xy,
+            xy_sf,
+            shkl,
+            eta_mixing,
+            tth,
+            dsp,
+            hkl,
+            strain_direction_dot_product,
+            is_in_sublattice,
+            tth_list,
+            Icalc,
+            spectrum_expt,
+            spectrum_sim):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/31/2021 SS 1.0 original
+    @details compute Iobs for each reflection given all parameters.
+    moved outside of the class to allow numba implementation
+    this is called for multiple wavelengths and phases to compute
+    the final intensities
+    """
+    Iobs = np.zeros(tth.shape)
+    nref = np.min(np.array([Icalc.shape[0],
+        tth.shape[0],
+        dsp.shape[0],hkl.shape[0]]))
+
+    yo = spectrum_expt[:,1]
+    yc = spectrum_sim[:,1]
+    mask = yc != 0.
+    yo = yo[mask]
+    yc = yc[mask]
+    tth_list_mask = spectrum_expt[:,0]
+    tth_list_mask = tth_list_mask[mask]
+
+    for ii in np.arange(nref):
+        Ic = Icalc[ii]
+        t = tth[ii]
+        d = dsp[ii]
+        g = hkl[ii]
+
+        pv = pvoight_pink_beam(alpha, beta,
+                   uvw,p,xy,xy_sf,
+                   shkl,eta_mixing,
+                   t,d,g,
+                   strain_direction_dot_product,
+                   is_in_sublattice,
+                   tth_list)
+
+        y = Ic * pv
+        y = y[mask]
+
         Iobs[ii] = np.trapz(yo*y/yc, tth_list_mask)
 
     return Iobs
