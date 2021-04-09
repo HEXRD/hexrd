@@ -2548,13 +2548,14 @@ class PlanarDetector(object):
                 on_panel = np.logical_and(on_panel_x, on_panel_y)
         return xy[on_panel, :], on_panel
 
-    def cart_to_angles(self, xy_data, rmat_s=None, tvec_c=None):
+    def cart_to_angles(self, xy_data, rmat_s=None, tvec_s=None, tvec_c=None):
         """
         TODO: distortion
         """
         if rmat_s is None:
             rmat_s = ct.identity_3x3
-        tvec_s = ct.zeros_3
+        if tvec_s is None:
+            tvec_s = ct.zeros_3
         if tvec_c is None:
             tvec_c = ct.zeros_3
         angs, g_vec = detectorXYToGvec(
@@ -2564,22 +2565,27 @@ class PlanarDetector(object):
         tth_eta = np.vstack([angs[0], angs[1]]).T
         return tth_eta, g_vec
 
-    def angles_to_cart(self, tth_eta, rmat_c=None, tvec_c=None):
+    def angles_to_cart(self, tth_eta,
+                       rmat_s=None, tvec_s=None,
+                       rmat_c=None, tvec_c=None):
         """
         TODO: distortion
         """
+        if rmat_s is None:
+            rmat_s = ct.identity_3x3
+        if tvec_s is None:
+            tvec_s = ct.zeros_3
         if rmat_c is None:
             rmat_c = ct.identity_3x3
         if tvec_c is None:
             tvec_c = ct.zeros_3
+        # !!! warning, this assumes an rmat_s made from chi, ome pair
+        chi = np.arccos(rmat_s[1, 1])
+        ome = np.arccos(rmat_s[0, 0])
 
-        rmat_s = ct.identity_3x3
-        tvec_s = ct.zeros_3
-
-        angs = np.hstack([tth_eta, np.zeros((len(tth_eta), 1))])
-
+        angs = np.hstack([tth_eta, np.tile(ome, (len(tth_eta), 1))])
         xy_det = gvecToDetectorXY(
-            anglesToGVec(angs, bHat_l=self.bvec, eHat_l=self.evec),
+            anglesToGVec(angs, bHat_l=self.bvec, eHat_l=self.evec, chi=chi),
             self.rmat, rmat_s, rmat_c,
             self.tvec, tvec_s, tvec_c,
             beamVec=self.bvec)
