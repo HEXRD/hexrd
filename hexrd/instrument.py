@@ -2326,7 +2326,7 @@ class PlanarDetector(object):
         if self.distortion is not None:
             dparams = self.distortion.params
             if style.lower() == 'yaml':
-                dparams.tolist()
+                dparams = dparams.tolist()
             dist_d = dict(
                 function_name=self.distortion.maptype,
                 parameters=dparams
