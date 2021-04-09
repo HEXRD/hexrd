@@ -1110,7 +1110,8 @@ def computespectrum(uvw,
                  tth_list,
                  Iobs, 
                  xn, 
-                 wn):
+                 wn,
+                 peakshape):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/31/2021 SS 1.0 original
@@ -1119,6 +1120,13 @@ def computespectrum(uvw,
     this is called for multiple wavelengths and phases to generate
     the final spectrum
     """
+    if peakshape == 0:
+        peak = pvoight_wppf
+    elif peakshape == 1:
+        peak = pvfcj
+    # elif peakshape == 3:
+    #     peak = pvoight_pink_beam
+
     spec = np.zeros(tth_list.shape)
     nref = np.min(np.array([Iobs.shape[0],
         tth.shape[0],
@@ -1128,12 +1136,30 @@ def computespectrum(uvw,
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
-        pv = pvoight_wppf(uvw,p,xy,
+        # pv = peak(uvw,p,xy,
+        #          xy_sf,shkl,eta_mixing,
+        #          t,d,g,
+        #          strain_direction_dot_product,
+        #          is_in_sublattice,
+        #          tth_list)
+        if peakshape == 0:
+            pv = peak(uvw,p,xy,
                  xy_sf,shkl,eta_mixing,
                  t,d,g,
                  strain_direction_dot_product,
                  is_in_sublattice,
                  tth_list)
+        elif peakshape == 1:
+             pv = pvfcj(uvw,p,xy,xy_sf,
+                   shkl,eta_mixing,
+                   t,d,g,
+                   strain_direction_dot_product,
+                   is_in_sublattice,
+                   tth_list,
+                   HL,SL,xn,wn)
+        elif peakshape == 3:
+            #peak = pvoight_pink_beam
+            pv = np.ones(tth_list.shape)
         # pv = pvfcj(uvw,p,xy,xy_sf,
         #            shkl,eta_mixing,
         #            t,d,g,
@@ -1163,7 +1189,8 @@ def calc_Iobs(uvw,
             tth_list,
             Icalc,
             spectrum_expt,
-            spectrum_sim):
+            spectrum_sim,
+            peakshape):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/31/2021 SS 1.0 original
@@ -1183,26 +1210,32 @@ def calc_Iobs(uvw,
     yo = yo[mask]
     yc = yc[mask]
     tth_list_mask = spectrum_expt[:,0]
-    # tth_list_mask = tth_list[mask]
+    tth_list_mask = tth_list_mask[mask]
 
     for ii in np.arange(nref):
         Ic = Icalc[ii]
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
-        pv = pvoight_wppf(uvw,p,xy,
-                 xy_sf,shkl,eta_mixing,
-                 t,d,g,
-                 strain_direction_dot_product,
-                 is_in_sublattice,
-                 tth_list_mask)
-        # pv = pvfcj(uvw,p,xy,xy_sf,
-        #            shkl,eta_mixing,
-        #            t,d,g,
-        #            strain_direction_dot_product,
-        #            is_in_sublattice,
-        #            tth_list,
-        #            HL,SL,xn,wn)
+
+        if peakshape == 0:
+            pv = peak(uvw,p,xy,
+                     xy_sf,shkl,eta_mixing,
+                     t,d,g,
+                     strain_direction_dot_product,
+                     is_in_sublattice,
+                     tth_list_mask)
+        elif peakshape == 1:
+             pv = pvfcj(uvw,p,xy,xy_sf,
+                   shkl,eta_mixing,
+                   t,d,g,
+                   strain_direction_dot_product,
+                   is_in_sublattice,
+                   tth_list,
+                   HL,SL,xn,wn)
+        elif peakshape == 3:
+            #peak = pvoight_pink_beam
+            pv = np.ones(tth_list_mask.shape)
 
         y = Ic * pv
         y = y[mask]
