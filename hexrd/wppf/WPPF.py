@@ -83,7 +83,7 @@ class LeBail:
                              'kalpha2': [_nm(0.154443), 1.0]},
                  bkgmethod={'spline': None},
                  intensity_init=None,
-                 peakshape="pvoight_fcj"):
+                 peakshape="pvfcj"):
 
         from scipy.special import roots_legendre
         xn, wn = roots_legendre(16)
@@ -833,14 +833,14 @@ class LeBail:
                 self._peakshape = 0
             elif val == "pvtch":
                 self._peakshape = 1
-            elif val == "pv_pinkbeam":
+            elif val == "pvpink":
                 self._peakshape = 2
             else:
                 msg = (f"invalid peak shape string. "
                     f"must be: \n"
-                    f"1. pvoight_fcj: pseudo voight (Finger, Cox, Jephcoat)\n"
-                    f"2. pvoight: pseudo voight (Thompson, Cox, Hastings)\n"
-                    f"3. pvoight_pinkbeam: Pink beam (Von Dreele)")
+                    f"1. pvfcj: pseudo voight (Finger, Cox, Jephcoat)\n"
+                    f"2. pvtch: pseudo voight (Thompson, Cox, Hastings)\n"
+                    f"3. pvpink: Pink beam (Von Dreele)")
                 raise ValueError(msg)
         elif isinstance(val, int):
             if val >=0 and val <=2:
