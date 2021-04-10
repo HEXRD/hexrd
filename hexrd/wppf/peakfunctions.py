@@ -1285,7 +1285,7 @@ def calc_Iobs_pvfcj(uvw,
                    t,d,g,
                    strain_direction_dot_product,
                    is_in_sublattice,
-                   tth_list,
+                   tth_list_mask,
                    HL,SL,xn,wn)
 
         y = Ic * pv
@@ -1338,12 +1338,12 @@ def calc_Iobs_pvtch(uvw,
         d = dsp[ii]
         g = hkl[ii]
 
-        pv = pvoight_wppf(uvw,p,xy,xy_sf,
-                   shkl,eta_mixing,
-                   t,d,g,
-                   strain_direction_dot_product,
-                   is_in_sublattice,
-                   tth_list)
+        pv = pvoight_wppf(uvw,p,xy,
+                 xy_sf,shkl,eta_mixing,
+                 t,d,g,
+                 strain_direction_dot_product,
+                 is_in_sublattice,
+                 tth_list_mask)
 
         y = Ic * pv
         y = y[mask]
@@ -1403,7 +1403,7 @@ def calc_Iobs_pvpink(alpha,
                    t,d,g,
                    strain_direction_dot_product,
                    is_in_sublattice,
-                   tth_list)
+                   tth_list_mask)
 
         y = Ic * pv
         y = y[mask]
