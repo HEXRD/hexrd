@@ -401,26 +401,57 @@ class LeBail:
                 eta_fwhm = eval(eta_n)
                 strain_direction_dot_product = 0.
                 is_in_sublattice = False
-                
-                HL = self.HL
-                SL = self.SL
 
-                y += computespectrum(np.array([self.U, self.V, self.W]),
-                               self.P,
-                               np.array([self.X, self.Y]),
-                               np.array([self.Xe, self.Ye, self.Xs]),
-                               shkl,
-                               eta_fwhm,
-                               HL,
-                               SL,
-                               tth, 
-                               dsp, 
-                               hkls,
-                               strain_direction_dot_product,
-                               is_in_sublattice,
-                               tth_list,
-                               Ic, self.xn, self.wn,
-                               self.peakshape)
+                if self.peakshape == 0:
+                    args = (np.array([self.U, self.V, self.W]),
+                            self.P,
+                            np.array([self.X, self.Y]),
+                            np.array([self.Xe, self.Ye, self.Xs]),
+                            shkl,
+                            eta_fwhm,
+                            self.HL,
+                            self.SL,
+                            tth, 
+                            dsp, 
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic, self.xn, self.wn)
+
+                elif self.peakshape == 1:
+                    args = (np.array([self.U, self.V, self.W]),
+                            self.P,
+                            np.array([self.X, self.Y]),
+                            np.array([self.Xe, self.Ye, self.Xs]),
+                            shkl,
+                            eta_fwhm,
+                            tth, 
+                            dsp, 
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic)
+
+                elif self.peakshape == 2:
+                    args = (np.array([self.alpha0, self.alpha1]),
+                            np.array([self.beta0, self.beta1]),
+                            np.array([self.U, self.V, self.W]),
+                            self.P,
+                            np.array([self.X, self.Y]),
+                            np.array([self.Xe, self.Ye, self.Xs]),
+                            shkl,
+                            eta_fwhm,
+                            tth, 
+                            dsp, 
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic)
+
+                y += self.computespectrum_fcn(*args)
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
@@ -469,26 +500,64 @@ class LeBail:
                 strain_direction_dot_product = 0.
                 is_in_sublattice = False
 
-                self.Iobs[p][k] = calc_Iobs(np.array([self.U, self.V, self.W]),
-                               self.P,
-                               np.array([self.X, self.Y]),
-                               np.array([self.Xe, self.Ye, self.Xs]),
-                               shkl,
-                               eta_fwhm,
-                               self.HL, 
-                               self.SL,
-                               self.xn, 
-                               self.wn, 
-                               tth, 
-                               dsp, 
-                               hkls,
-                               strain_direction_dot_product,
-                               is_in_sublattice,
-                               tth_list,
-                               Ic,
-                               spec_expt, 
-                               spec_sim,
-                               self.peakshape) 
+                if self.peakshape == 0:
+                    args = (np.array([self.U, self.V, self.W]),
+                            self.P,
+                            np.array([self.X, self.Y]),
+                            np.array([self.Xe, self.Ye, self.Xs]),
+                            shkl,
+                            eta_fwhm,
+                            self.HL, 
+                            self.SL,
+                            self.xn, 
+                            self.wn, 
+                            tth, 
+                            dsp, 
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic,
+                            spec_expt, 
+                            spec_sim)
+
+                elif self.peakshape == 1:
+                    args = (np.array([self.U, self.V, self.W]),
+                            self.P,
+                            np.array([self.X, self.Y]),
+                            np.array([self.Xe, self.Ye, self.Xs]),
+                            shkl,
+                            eta_fwhm,
+                            tth, 
+                            dsp, 
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic,
+                            spec_expt, 
+                            spec_sim)
+
+                elif self.peakshape == 2:
+                    args = (np.array([self.alpha0, self.alpha1]),
+                            np.array([self.beta0, self.beta1]),
+                            np.array([self.U, self.V, self.W]),
+                            self.P,
+                            np.array([self.X, self.Y]),
+                            np.array([self.Xe, self.Ye, self.Xs]),
+                            shkl,
+                            eta_fwhm,
+                            tth, 
+                            dsp, 
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic,
+                            spec_expt, 
+                            spec_sim)
+
+                self.Iobs[p][k] = self.calc_Iobs_fcn(*args) 
 
     def calcRwp(self, params):
         """
@@ -754,20 +823,20 @@ class LeBail:
 
     @property
     def computespectrum_fcn(self):
-        if peakshape == 0:
+        if self.peakshape == 0:
             return computespectrum_pvfcj
-        elif peakshape == 1:
+        elif self.peakshape == 1:
             return computespectrum_pvtch
-        elif peakshape == 2:
+        elif self.peakshape == 2:
             return computespectrum_pvpink
 
     @property
-    def calcIobs_fcn(self):
-        if peakshape == 0:
+    def calc_Iobs_fcn(self):
+        if self.peakshape == 0:
             return calc_Iobs_pvfcj
-        elif peakshape == 1:
+        elif self.peakshape == 1:
             return calc_Iobs_pvtch
-        elif peakshape == 2:
+        elif self.peakshape == 2:
             return calc_Iobs_pvpink
 
     @property
