@@ -63,9 +63,7 @@ def _generate_default_parameters_pseudovoight(params):
          "Y": [10., 0., 100., False],
          "Xe": [0., 0., 1, False],
          "Ye": [0., 0., 1, False],
-         "Xs": [0., 0., 1, False],
-         "HL":[1.60e-2,0.,1e-1,False],
-         "SL":[2.28e-2,0.,1e-1,False]
+         "Xs": [0., 0., 1, False]
          }
 
     for k, v in p.items():
@@ -75,12 +73,29 @@ def _generate_default_parameters_pseudovoight(params):
                    ub=v[2],
                    vary=v[3])
 
-# def _add_asymmetry_terms(params):
-#     """
-#     adds the terms in the asymmetry of
-#     2-theta shifts
-#     """
-#     p = {"trns":,[0.0, ]}
+def _add_pvfcj_parameters(params):
+    p = {"HL":[1.60e-2,0.,1e-1,False],
+         "SL":[2.28e-2,0.,1e-1,False]
+         }
+    for k, v in p.items():
+        params.add(name=k,
+                   value=v[0],
+                   lb=v[1],
+                   ub=v[2],
+                   vary=v[3])
+
+def _add_pvpink_parameters(params):
+    p = {"alpha0":[14.4, -100., 100., False],
+         "alpha1":[0., -100., 100., False],
+         "beta0":[3.0, -100., 100., False],
+         "beta1":[-8.0, -100., 100., False]
+         }
+    for k, v in p.items():
+        params.add(name=k,
+                   value=v[0],
+                   lb=v[1],
+                   ub=v[2],
+                   vary=v[3])
 
 def _add_Shkl_terms(params,
                     mat,
@@ -206,7 +221,7 @@ def _add_atominfo_to_params(params, mat):
                 lb=0.0, ub=np.inf,
                 vary=False)
 
-def _generate_default_parameters_LeBail(mat):
+def _generate_default_parameters_LeBail(mat, peakshape):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
     @date:    03/12/2021 SS 1.0 original
@@ -215,6 +230,17 @@ def _generate_default_parameters_LeBail(mat):
     """
     params = Parameters()
     _generate_default_parameters_pseudovoight(params)
+    
+    if peakshape == 0:
+        _add_pvfcj_parameters(params)
+    elif peakshape == 1:
+        pass
+    elif peakshape == 2:
+        _add_pvpink_parameters(params)
+    else:
+        msg = (f"_generate_default_parameters_LeBail: "
+            f"unknown peak shape.")
+        raise ValueError(msg)
 
     if isinstance(mat, Phases_LeBail):
         """

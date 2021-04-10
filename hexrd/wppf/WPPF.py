@@ -746,6 +746,38 @@ class LeBail:
         self._SL = val
 
     @property
+    def alpha0(self):
+        return self._alpha0
+
+    @alpha0.setter
+    def alpha0(self, val):
+        self._alpha0 = val
+
+    @property
+    def alpha1(self):
+        return self._alpha1
+
+    @alpha1.setter
+    def alpha1(self, val):
+        self._alpha1 = val
+
+    @property
+    def beta0(self):
+        return self._beta0
+
+    @beta0.setter
+    def beta0(self, val):
+        self._beta0 = val
+
+    @property
+    def beta1(self):
+        return self._beta1
+
+    @beta1.setter
+    def beta1(self, val):
+        self._beta1 = val
+
+    @property
     def tth_list(self):
         if isinstance(self.spectrum_expt._x, \
             np.ma.MaskedArray):
@@ -820,6 +852,18 @@ class LeBail:
                     f"2. 1: pseudo voight (Thompson, Cox, Hastings)\n"
                     f"3. 2: Pink beam (Von Dreele)")
                 raise ValueError(msg)
+
+        """
+        update parameters
+        """
+        if hasattr(self, 'params'):
+            params = wppfsupport._generate_default_parameters_LeBail(
+                    self.phases, self.peakshape)
+            for p in params:
+                if p in self.params:
+                    params[p] = self.params[p]
+            self._params = params
+            self._set_params_vals_to_class(params, init=True, skip_phases=True)
 
     @property
     def computespectrum_fcn(self):
@@ -1105,7 +1149,7 @@ class LeBail:
                 mixing factor calculated by Thomax, Cox, Hastings formula
             """
             params = wppfsupport._generate_default_parameters_LeBail(
-                self.phases)
+                self.phases, self.peakshape)
             self._params = params
 
         self._set_params_vals_to_class(params, init=True, skip_phases=True)

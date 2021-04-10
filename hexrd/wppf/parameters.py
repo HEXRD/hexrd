@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 import yaml
+import warnings
 
 class Parameters:
     """
@@ -147,9 +148,6 @@ class Parameters:
 
     def __setitem__(self, key, parm_cls):
 
-        if(key in self.param_dict.keys()):
-            warnings.warn(
-                'variable already in parameter list. overwriting ...')
         if(isinstance(parm_cls, Parameter)):
             self.param_dict[key] = parm_cls
         else:
