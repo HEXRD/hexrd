@@ -355,14 +355,14 @@ def _add_phase_fractions(mat, params):
                f"Material is accpeted.")
         raise ValueError(msg)
 
-def _generate_default_parameters_Rietveld(mat):
+def _generate_default_parameters_Rietveld(mat, peakshape):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
     @date:    03/12/2021 SS 1.0 original
     @details: generate a default parameter class given a list/dict/
     single instance of material class
     """
-    params = _generate_default_parameters_LeBail(mat)
+    params = _generate_default_parameters_LeBail(mat, peakshape)
 
     params.add(name="scale",
                value=1.0,

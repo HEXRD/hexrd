@@ -85,10 +85,6 @@ class LeBail:
                  intensity_init=None,
                  peakshape="pvfcj"):
 
-        from scipy.special import roots_legendre
-        xn, wn = roots_legendre(16)
-        self.xn = xn[8:]
-        self.wn = wn[8:]
         self.peakshape = peakshape
         self.bkgmethod = bkgmethod
         self.intensity_init = intensity_init
@@ -1103,6 +1099,10 @@ class LeBail:
         >> @DETAILS:    initialize parameter list from file. if no file given, then initialize
                         to some default values (lattice constants are for CeO2)
         """
+        from scipy.special import roots_legendre
+        xn, wn = roots_legendre(16)
+        self.xn = xn[8:]
+        self.wn = wn[8:]
 
         if(param_info is not None):
             if(isinstance(param_info, Parameters)):
@@ -1477,11 +1477,12 @@ class Rietveld:
                  wavelength={'kalpha1': [_nm(
                      0.15406), 1.0],
                      'kalpha2': [_nm(0.154443), 0.52]},
-                 bkgmethod={'spline': None}):
+                 bkgmethod={'spline': None},
+                 peakshape='pvfcj'):
 
         self.bkgmethod = bkgmethod
-
-        self.initialize_expt_spectrum(expt_spectrum)
+        self.peakshape = peakshape
+        self.spectrum_expt = expt_spectrum
 
         self._tstart = time.time()
 
@@ -1491,9 +1492,9 @@ class Rietveld:
                 v[0] = valWUnit('lp', 'length',
                                 v[0].getVal('nm'), 'nm')
 
-        self.initialize_phases(phases)
+        self.phases = phases
 
-        self.initialize_parameters(params)
+        self.params = params
 
         self.PolarizationFactor()
         self.computespectrum()
@@ -1511,139 +1512,6 @@ class Rietveld:
         resstr += self.params.__str__()
         return resstr
 
-    def initialize_parameters(self, param_info):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/19/2020 SS 1.0 original
-        >>              07/15/2020 SS 1.1 modified to add lattice parameters, atom positions
-                        and isotropic DW factors
-                        02/01/2021 SS 2.0 modified to follow same input style as LeBail class
-                        with inputs of Parameter class, dict or filename valid
-        >> @DETAILS:    initialize parameter list from file. if no file given, then initialize
-                        to some default values (lattice constants are for CeO2)
-        """
-        from scipy.special import roots_legendre
-        xn, wn = roots_legendre(16)
-        self.xn = xn[8:]
-        self.wn = wn[8:]
-        if(param_info is not None):
-            if(isinstance(param_info, Parameters)):
-                """
-                directly passing the parameter class
-                """
-                self.params = param_info
-                params = param_info
-            else:
-                params = Parameters()
-
-                if(isinstance(param_info, dict)):
-                    """
-                    initialize class using dictionary read from the yaml file
-                    """
-                    for k, v in param_info.items():
-                        params.add(k, value=np.float(v[0]),
-                                   lb=np.float(v[1]), ub=np.float(v[2]),
-                                   vary=np.bool(v[3]))
-
-                elif(isinstance(param_info, str)):
-                    """
-                    load from a yaml file
-                    """
-                    if(path.exists(param_info)):
-                        params.load(param_info)
-                    else:
-                        raise FileError('input spectrum file doesn\'t exist.')
-
-                    """
-                    this part initializes the lattice parameters, atom positions in asymmetric
-                    unit, occupation and the isotropic debye waller factor. the anisotropic DW
-                    factors will be added in the future
-                    """
-                    for p in self.phases:
-                        for l in self.phases[p]:
-                            wppfsupport._add_atominfo_to_params(
-                                params, self.phases[p][l])
-
-                self.params = params
-
-        else:
-            """
-            first three are cagliotti parameters
-            next are the lorentz paramters
-            a scale parameter and
-            final is the zero instrumental peak position error
-            """
-            params = wppfsupport._generate_default_parameters_Rietveld(
-                self.phases)
-            self.params = params
-
-        self._set_params_vals_to_class(params, init=True, skip_phases=True)
-
-    def initialize_expt_spectrum(self, expt_spectrum):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       05/19/2020 SS 1.0 original
-                        02/01/2021 SS 2.0 modified to follow same input style as LeBail class
-                        with inputs of Spectrum class, array or filename valid
-        >> @DETAILS:    load the experimental spectum of 2theta-intensity
-        """
-        # self.spectrum_expt = Spectrum.from_file()
-        if(expt_spectrum is not None):
-            if(isinstance(expt_spectrum, Spectrum)):
-                """
-                directly passing the spectrum class
-                """
-                self.spectrum_expt = expt_spectrum
-                self.spectrum_expt.nan_to_zero()
-
-            elif(isinstance(expt_spectrum, np.ndarray)):
-                """
-                initialize class using a nx2 array
-                """
-                max_ang = expt_spectrum[-1, 0]
-                if(max_ang < np.pi):
-                    warnings.warn('angles are small and appear to \
-                        be in radians. please check')
-
-                self.spectrum_expt = Spectrum(x=expt_spectrum[:, 0],
-                                              y=expt_spectrum[:, 1],
-                                              name='expt_spectrum')
-                self.spectrum_expt.nan_to_zero()
-
-            elif(isinstance(expt_spectrum, str)):
-                """
-                load from a text file
-                """
-                if(path.exists(expt_spectrum)):
-                    self.spectrum_expt = Spectrum.from_file(
-                        expt_spectrum, skip_rows=0)
-                    self.spectrum_expt.nan_to_zero()
-                else:
-                    raise FileError('input spectrum file doesn\'t exist.')
-
-            self.tth_max = self.spectrum_expt._x[-1]
-            self.tth_min = self.spectrum_expt._x[0]
-            self.tth_step = (self.tth_max - self.tth_min) /\
-                self.spectrum_expt._x.shape[0]
-
-            """
-            @date 09/24/2020 SS
-            catching the cases when intensity is zero.
-            for these points the weights will become
-            infinite. therefore, these points will be
-            masked out and assigned a weight of zero.
-            In addition, if any points have negative
-            intensity, they will also be assigned a zero
-            weight
-            """
-            mask = self.spectrum_expt._y <= 0.0
-
-            self.weights = np.zeros(self.spectrum_expt.y.shape)
-            """ also initialize statistical weights for
-             the error calculation"""
-            self.weights[~mask] = 1.0 / np.sqrt(self.spectrum_expt.y[~mask])
-            self.initialize_bkg()
-
     def initialize_bkg(self):
         """
             the cubic spline seems to be the ideal route in terms
@@ -1658,172 +1526,111 @@ class Rietveld:
             user from the loop which is required for the spline type background.
         """
         if(self.bkgmethod is None):
-            self.background = Spectrum(
-                x=self.tth_list, y=np.zeros(self.tth_list.shape))
+            self._background = []
+            for tth in self.tth_list:
+                self._background.append(Spectrum(
+                    x=tth, y=np.zeros(tth.shape)))
 
         elif('spline' in self.bkgmethod.keys()):
+            self._background = []
             self.selectpoints()
-            x = self.points[:, 0]
-            y = self.points[:, 1]
-            self.splinefit(x, y)
+            for i, pts in enumerate(self.points):
+                tth = self.tth_list[i]
+                x = pts[:, 0]
+                y = pts[:, 1]
+                self._background.append(self.splinefit(x, y, tth))
 
         elif('chebyshev' in self.bkgmethod.keys()):
             self.chebyshevfit()
 
         elif('file' in self.bkgmethod.keys()):
-            bkg = Spectrum.from_file(self.bkgmethod['file'])
-            x = bkg.x
-            y = bkg.y
-            cs = CubicSpline(x, y)
+            if len(self._spectrum_expt) > 1:
+                raise RuntimeError("initialize_bkg: \
+                    file input not allowed for \
+                    masked spectra.")
+            else:
+                bkg = Spectrum.from_file(self.bkgmethod['file'])
+                x = bkg.x
+                y = bkg.y
+                cs = CubicSpline(x, y)
 
-            yy = cs(self.tth_list)
+                yy = cs(self.tth_list)
 
-            self.background = Spectrum(x=self.tth_list, y=yy)
+                self._background = [Spectrum(x=self.tth_list[0], y=yy)]
 
         elif('array' in self.bkgmethod.keys()):
-            x = self.bkgmethod['array'][:, 0]
-            y = self.bkgmethod['array'][:, 1]
-            cs = CubicSpline(x, y)
+            if len(self._spectrum_expt) > 1:
+                raise RuntimeError("initialize_bkg: \
+                    file input not allowed for \
+                    masked spectra.")
+            else:
+                x = self.bkgmethod['array'][:, 0]
+                y = self.bkgmethod['array'][:, 1]
+                cs = CubicSpline(x, y)
 
-            yy = cs(self.tth_list)
+                yy = cs(self._tth_list)
 
-            self.background = Spectrum(x=self.tth_list, y=yy)
+                self._background = [Spectrum(x=self.tth_list, y=yy)]
 
         elif('snip1d' in self.bkgmethod.keys()):
-            s = self.spectrum_expt
-            ww = np.rint(self.bkgmethod['snip1d'][0] /
-                         self.tth_step).astype(np.int32)
-            numiter = self.bkgmethod['snip1d'][1]
-            yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),
-                                        w=ww, numiter=numiter))
-            self.background = Spectrum(x=self.tth_list, y=yy)
-            # self._background = []
-            # for i, s in enumerate(self._spectrum_expt):
-            #     ww = np.rint(self.bkgmethod['snip1d'][0] /
-            #                  self.tth_step[i]).astype(np.int32)
-            #     numiter = self.bkgmethod['snip1d'][1]
-            #     yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),
-            #                                 w=ww, numiter=numiter))
-            #     self._background.append(Spectrum(x=self._tth_list[i], y=yy))
+            self._background = []
+            for i, s in enumerate(self._spectrum_expt):
+                if not self.tth_step:
+                    ww = 3
+                else:
+                    if(self.tth_step[i] > 0.):
+                        ww = np.rint(self.bkgmethod['snip1d'][0] /
+                                     self.tth_step[i]).astype(np.int32)
+                    else:
+                        ww = 3
+
+                numiter = self.bkgmethod['snip1d'][1]
+
+                yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y),
+                                            w=ww, numiter=numiter))
+                self._background.append(Spectrum(x=self._tth_list[i], y=yy))
 
     def chebyshevfit(self):
+        """
+        03/08/2021 SS spectrum_expt is a list now. accounting
+        for that change
+        """
+        self._background = []
         degree = self.bkgmethod['chebyshev']
-        p = np.polynomial.Chebyshev.fit(
-            self.tth_list, self.spectrum_expt._y,
-            degree, w=self.weights**2)
-        self.background = Spectrum(x=self.tth_list, y=p(self.tth_list))
+        for i, s in enumerate(self._spectrum_expt):
+            tth = self._tth_list[i]
+            p = np.polynomial.Chebyshev.fit(
+                tth, s.y, degree, w=self._weights[i]**2)
+            self._background.append(Spectrum(x=tth, y=p(tth)))
 
     def selectpoints(self):
+        """
+        03/08/2021 SS spectrum_expt is a list now. accounting
+        for that change
+        """
+        self.points = []
+        for i, s in enumerate(self._spectrum_expt):
+            txt = (f"Select points for background estimation;"
+                   f"click middle mouse button when done. segment # {i}")
+            title(txt)
 
-        title(
-            'Select points for background estimation;\
-             click middle mouse button when done.')
+            plot(s.x, s.y, '-k')
+            xlabel("2$\theta$")
+            ylabel("intensity (a.u.)")
 
-        plot(self.tth_list, self.spectrum_expt._y, '-k')  # 5 points tolerance
+            self.points.append(np.asarray(ginput(0, timeout=-1)))
 
-        self.points = np.asarray(ginput(0, timeout=-1))
-        close()
+            close()
 
     # cubic spline fit of background using custom points chosen from plot
-    def splinefit(self, x, y):
+    def splinefit(self, x, y, tth):
+        """
+        03/08/2021 SS adding tth as input. this is the
+        list of points for which background is estimated
+        """
         cs = CubicSpline(x, y)
-        bkg = cs(self.tth_list)
-        self.background = Spectrum(x=self.tth_list, y=bkg)
-
-    def initialize_phases(self, phase_info):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       06/08/2020 SS 1.0 original
-                        02/01/2021 SS 2.0 modified to follow same input style as LeBail class
-                        with inputs of Material class, dict, list or filename valid
-        >> @DETAILS:    load the phases for the LeBail fits
-        """
-
-        if(phase_info is not None):
-            if(isinstance(phase_info, Phases_Rietveld)):
-                """
-                directly passing the phase class
-                """
-                self.phases = phase_info
-            else:
-
-                if(hasattr(self, 'wavelength')):
-                    if(self.wavelength is not None):
-                        p = Phases_Rietveld(wavelength=self.wavelength)
-                else:
-                    p = Phases_Rietveld()
-
-                if(isinstance(phase_info, dict)):
-                    """
-                    initialize class using a dictionary with key as
-                    material file and values as the name of each phase
-                    """
-                    for material_file in phase_info:
-                        material_names = phase_info[material_file]
-                        if(not isinstance(material_names, list)):
-                            material_names = [material_names]
-                        p.add_many(material_file, material_names)
-
-                elif(isinstance(phase_info, str)):
-                    """
-                    load from a yaml file
-                    """
-                    if(path.exists(phase_info)):
-                        p.load(phase_info)
-                    else:
-                        raise FileError('phase file doesn\'t exist.')
-
-                elif(isinstance(phase_info, Material)):
-                    if not p.phase_dict:
-                        p[phase_info.name] = {}
-
-                    for k, v in self.wavelength.items():
-                        E = 1.e6 * constants.cPlanck * \
-                            constants.cLight /  \
-                            constants.cCharge / \
-                            v[0].value
-                        phase_info.beamEnergy = valWUnit(
-                            "kev", "ENERGY", E, "keV")
-                        p[phase_info.name][k] = Material_Rietveld(
-                            fhdf=None,
-                            xtal=None,
-                            dmin=None,
-                            material_obj=phase_info)
-                        p[phase_info.name][k].pf = 1.0
-                    p.num_phases = 1
-
-                elif(isinstance(phase_info, list)):
-                    for mat in phase_info:
-                        p[mat.name] = {}
-                        for k, v in self.wavelength.items():
-                            E = 1.e6 * constants.cPlanck * \
-                                constants.cLight /  \
-                                constants.cCharge / \
-                                v[0].value
-                            mat.beamEnergy = valWUnit(
-                                "kev", "ENERGY", E, "keV")
-                            p[mat.name][k] = Material_Rietveld(
-                                fhdf=None,
-                                xtal=None,
-                                dmin=None,
-                                material_obj=mat)
-                        p.num_phases += 1
-
-                    for mat in p:
-                        for k, v in self.wavelength.items():
-                            p[mat][k].pf = 1.0/p.num_phases
-                self.phases = p
-
-        self.calctth()
-        self.calcsf()
-
-        for p in self.phases:
-            for k in self.phases[p]:
-                self.phases[p][k].valid_shkl, \
-                self.phases[p][k].eq_constraints, \
-                self.phases[p][k].rqd_index, \
-                self.phases[p][k].trig_ptype = \
-                wppfsupport._required_shkl_names(self.phases[p][k])
+        bkg = cs(tth)
+        return Spectrum(x=tth, y=bkg)
 
     def calctth(self):
         self.tth = {}
@@ -1842,8 +1649,8 @@ class Rietveld:
                 t = t[allowed]
                 hkl = self.phases[p][k].hkls[allowed, :]
                 dsp = self.phases[p][k].dsp[allowed]
-                tth_min = self.tth_min
-                tth_max = self.tth_max
+                tth_min = min(self.tth_min)
+                tth_max = max(self.tth_max)
                 limit = np.logical_and(t >= tth_min,
                                        t <= tth_max)
                 self.limit[p][k] = limit
@@ -1920,33 +1727,65 @@ class Rietveld:
                 strain_direction_dot_product = 0.
                 is_in_sublattice = False
 
-                HL = self.HL
-                SL = self.SL
+                if self.peakshape == 0:
+                    args = (np.array([self.U, self.V, self.W]),
+                            self.P,
+                            np.array([self.X, self.Y]),
+                            np.array([self.Xe, self.Ye, self.Xs]),
+                            shkl,
+                            eta_fwhm,
+                            self.HL,
+                            self.SL,
+                            tth, 
+                            dsp, 
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic, self.xn, self.wn)
 
-                y += computespectrum(np.array([self.U, self.V, self.W]),
-                               self.P,
-                               np.array([self.X, self.Y]),
-                               np.array([self.Xe, self.Ye, self.Xs]),
-                               shkl,
-                               eta_fwhm, 
-                               HL,
-                               SL,
-                               tth, 
-                               dsp, 
-                               hkls,
-                               strain_direction_dot_product,
-                               is_in_sublattice,
-                               tth_list,
-                               Ic, self.xn, self.wn)
+                elif self.peakshape == 1:
+                    args = (np.array([self.U, self.V, self.W]),
+                            self.P,
+                            np.array([self.X, self.Y]),
+                            np.array([self.Xe, self.Ye, self.Xs]),
+                            shkl,
+                            eta_fwhm,
+                            tth, 
+                            dsp, 
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic)
 
-        self.spectrum_sim = Spectrum(x=x, y=y) + self.background
+                elif self.peakshape == 2:
+                    args = (np.array([self.alpha0, self.alpha1]),
+                            np.array([self.beta0, self.beta1]),
+                            np.array([self.U, self.V, self.W]),
+                            self.P,
+                            np.array([self.X, self.Y]),
+                            np.array([self.Xe, self.Ye, self.Xs]),
+                            shkl,
+                            eta_fwhm,
+                            tth, 
+                            dsp, 
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic)
+
+                y += self.computespectrum_fcn(*args)
+
+        self._spectrum_sim = Spectrum(x=x, y=y)
 
         P = calc_num_variables(self.params)
 
         errvec, self.Rwp, self.gofF = calc_rwp(
             self.spectrum_sim.data_array,
             self.spectrum_expt.data_array,
-            self.weights,
+            self.weights.data_array,
             P)
         return errvec
 
@@ -2175,6 +2014,450 @@ class Rietveld:
                     shkl_dict, eq_const)
 
     @property
+    def params(self):
+        return self._params
+    
+    @params.setter
+    def params(self, param_info):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       05/19/2020 SS 1.0 original
+        >>              07/15/2020 SS 1.1 modified to add lattice parameters, atom positions
+                        and isotropic DW factors
+                        02/01/2021 SS 2.0 modified to follow same input style as LeBail class
+                        with inputs of Parameter class, dict or filename valid
+        >> @DETAILS:    initialize parameter list from file. if no file given, then initialize
+                        to some default values (lattice constants are for CeO2)
+        """
+        from scipy.special import roots_legendre
+        xn, wn = roots_legendre(16)
+        self.xn = xn[8:]
+        self.wn = wn[8:]
+        if(param_info is not None):
+            if(isinstance(param_info, Parameters)):
+                """
+                directly passing the parameter class
+                """
+                self._params = param_info
+                params = param_info
+            else:
+                params = Parameters()
+
+                if(isinstance(param_info, dict)):
+                    """
+                    initialize class using dictionary read from the yaml file
+                    """
+                    for k, v in param_info.items():
+                        params.add(k, value=np.float(v[0]),
+                                   lb=np.float(v[1]), ub=np.float(v[2]),
+                                   vary=np.bool(v[3]))
+
+                elif(isinstance(param_info, str)):
+                    """
+                    load from a yaml file
+                    """
+                    if(path.exists(param_info)):
+                        params.load(param_info)
+                    else:
+                        raise FileError('input spectrum file doesn\'t exist.')
+
+                    """
+                    this part initializes the lattice parameters, atom positions in asymmetric
+                    unit, occupation and the isotropic debye waller factor. the anisotropic DW
+                    factors will be added in the future
+                    """
+                    for p in self.phases:
+                        for l in self.phases[p]:
+                            wppfsupport._add_atominfo_to_params(
+                                params, self.phases[p][l])
+
+                self._params = params
+
+        else:
+            """
+            first three are cagliotti parameters
+            next are the lorentz paramters
+            a scale parameter and
+            final is the zero instrumental peak position error
+            """
+            params = wppfsupport._generate_default_parameters_Rietveld(
+                self.phases, self.peakshape)
+            self._params = params
+
+        self._set_params_vals_to_class(params, init=True, skip_phases=True)
+
+    @property
+    def spectrum_expt(self):
+        vector_list = [s.y for s in
+                       self._spectrum_expt]
+
+        spec_masked = join_regions(vector_list,
+                                   self.global_index,
+                                   self.global_shape)
+        return Spectrum(x=self._tth_list_global,
+                        y=spec_masked)
+    
+    @spectrum_expt.setter
+    def spectrum_expt(self, expt_spectrum):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       05/19/2020 SS 1.0 original
+                        09/11/2020 SS 1.1 multiple data types accepted as input
+                        09/14/2020 SS 1.2 background method chebyshev now has user specified
+                        polynomial degree
+                        03/03/2021 SS 1.3 moved the initialization to the property definition of
+                        self.spectrum_expt
+                        05/03/2021 SS 2.0 moved weight calculation and background initialization 
+                        to the property definition
+                        03/05/2021 SS 2.1 adding support for masked array np.ma.MaskedArray
+                        03/08/2021 SS 3.0 spectrum_expt is now a list to deal with the masked 
+                        arrays
+        >> @DETAILS:    load the experimental spectum of 2theta-intensity
+        """
+        if(expt_spectrum is not None):
+            if isinstance(expt_spectrum, Spectrum):
+                """
+                directly passing the spectrum class
+                """
+                self._spectrum_expt = [expt_spectrum]
+                # self._spectrum_expt.nan_to_zero()
+                self.global_index = [(0, expt_spectrum.shape[0])]
+                self.global_mask = np.zeros([expt_spectrum.shape[0], ],
+                                            dtype=np.bool)
+                self._tth_list = [s._x for s in self._spectrum_expt]
+                self._tth_list_global = expt_spectrum._x
+                self.offset = False
+
+            elif isinstance(expt_spectrum, np.ndarray):
+                """
+                initialize class using a nx2 array
+                """
+                if np.ma.is_masked(expt_spectrum):
+                    """
+                    @date 03/05/2021 SS 1.0 original
+                    this is an instance of masked array where there are 
+                    nans in the spectrum. this will have to be handled with
+                    a lot of care. steps are as follows:
+                    1. if array is masked array, then check if any values are
+                    masked or not.
+                    2. if they are then the spectrum_expt is a list of individial
+                    islands of the spectrum, each with its own background
+                    3. Every place where spectrum_expt is used, we will do a 
+                    type test to figure out the logic of the operations
+                    """
+                    expt_spec_list, gidx = separate_regions(expt_spectrum)
+                    self.global_index = gidx
+                    self.global_shape = expt_spectrum.shape[0]
+                    self.global_mask = expt_spectrum.mask[:, 1]
+                    self._spectrum_expt = []
+                    for s in expt_spec_list:
+                        self._spectrum_expt.append(
+                            Spectrum(x=s[:, 0],
+                                     y=s[:, 1],
+                                     name='expt_spectrum'))
+
+                else:
+                    max_ang = expt_spectrum[-1, 0]
+                    if(max_ang < np.pi):
+                        warnings.warn('angles are small and appear to \
+                            be in radians. please check')
+
+                    self._spectrum_expt = [Spectrum(
+                        x=expt_spectrum[:, 0],
+                        y=expt_spectrum[:, 1],
+                        name='expt_spectrum')]
+
+                    self.global_index = [
+                        (0, self._spectrum_expt[0].x.shape[0])]
+                    self.global_shape = expt_spectrum.shape[0]
+                    self.global_mask = np.zeros([expt_spectrum.shape[0], ],
+                                                dtype=np.bool)
+
+                self._tth_list = [s._x for s in self._spectrum_expt]
+                self._tth_list_global = expt_spectrum[:, 0]
+                self.offset = False
+
+            elif isinstance(expt_spectrum, str):
+                """
+                load from a text file
+                undefined behavior if text file has nans
+                """
+                if(path.exists(expt_spectrum)):
+                    self._spectrum_expt = [Spectrum.from_file(
+                        expt_spectrum, skip_rows=0)]
+                    # self._spectrum_expt.nan_to_zero()
+                    self.global_index = [
+                        (0, self._spectrum_expt[0].x.shape[0])]
+                    self.global_shape = self._spectrum_expt[0].x.shape[0]
+                    self.global_mask = np.zeros([self.global_shape, ],
+                                                dtype=np.bool)
+                else:
+                    raise FileError('input spectrum file doesn\'t exist.')
+
+                self._tth_list = [self._spectrum_expt[0]._x]
+                self._tth_list_global = self._spectrum_expt[0]._x
+                self.offset = False
+
+            """
+            03/08/2021 SS tth_min and max are now lists
+            """
+            self.tth_max = []
+            self.tth_min = []
+            self.ntth = []
+            for s in self._spectrum_expt:
+                self.tth_max.append(s.x.max())
+                self.tth_min.append(s.x.min())
+                self.ntth.append(s.x.shape[0])
+
+            """
+            03/02/2021 SS added tth_step for some computations
+            related to snip background estimation
+            @TODO this will not work for masked spectrum
+            03/08/2021 tth_step is a list now
+            """
+            self.tth_step = []
+            for tmi, tma, nth in zip(self.tth_min,
+                                     self.tth_max,
+                                     self.ntth):
+                if(nth > 1):
+                    self.tth_step.append((tma - tmi)/nth)
+                else:
+                    self.tth_step.append(0.)
+
+            """
+            @date 03/03/2021 SS
+            there are cases when the intensity in the spectrum is 
+            negative. our approach will be to offset the spectrum to make all
+            the values positive for the computation and then finally offset it 
+            when the computation has finished.
+            03/08/2021 all quantities are lists now
+            """
+            for s in self._spectrum_expt:
+                self.offset = []
+                self.offset_val = []
+                if np.any(s.y < 0.):
+                    self.offset.append(True)
+                    self.offset_val.append(s.y.min())
+                    s.y = s.y - s.y.min()
+
+            """
+            @date 09/24/2020 SS
+            catching the cases when intensity is zero.
+            for these points the weights will become
+            infinite. therefore, these points will be
+            masked out and assigned a weight of zero.
+            In addition, if any points have negative
+            intensity, they will also be assigned a zero
+            weight
+            03/08/2021 SS everything is a list now
+            """
+            self._weights = []
+            for s in self._spectrum_expt:
+                mask = s.y <= 0.
+                ww = np.zeros(s.y.shape)
+                """also initialize statistical weights 
+                for the error calculation"""
+                ww[~mask] = 1.0 / \
+                    np.sqrt(s.y[~mask])
+                self._weights.append(ww)
+
+            self.initialize_bkg()
+        else:
+            raise RuntimeError("expt_spectrum setter: spectrum is None")
+
+    @property
+    def spectrum_sim(self):
+        tth, I = self._spectrum_sim.data
+        I[self.global_mask] = np.nan
+        I += self.background.y
+
+        return Spectrum(x=tth, y=I)
+
+    @property
+    def background(self):
+        vector_list = [s.y for s in
+                       self._background]
+
+        bkg_masked = join_regions(vector_list,
+                                  self.global_index,
+                                  self.global_shape)
+        return Spectrum(x=self.tth_list,
+                        y=bkg_masked)
+
+    @property
+    def weights(self):
+        weights_masked = join_regions(self._weights,
+                                      self.global_index,
+                                      self.global_shape)
+        return Spectrum(x=self.tth_list,
+                        y=weights_masked)
+
+    @property
+    def phases(self):
+        return self._phases
+
+    @phases.setter
+    def phases(self, phase_info):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       06/08/2020 SS 1.0 original
+                        02/01/2021 SS 2.0 modified to follow same input style as LeBail class
+                        with inputs of Material class, dict, list or filename valid
+        >> @DETAILS:    load the phases for the LeBail fits
+        """
+
+        if(phase_info is not None):
+            if(isinstance(phase_info, Phases_Rietveld)):
+                """
+                directly passing the phase class
+                """
+                self._phases = phase_info
+            else:
+
+                if(hasattr(self, 'wavelength')):
+                    if(self.wavelength is not None):
+                        p = Phases_Rietveld(wavelength=self.wavelength)
+                else:
+                    p = Phases_Rietveld()
+
+                if(isinstance(phase_info, dict)):
+                    """
+                    initialize class using a dictionary with key as
+                    material file and values as the name of each phase
+                    """
+                    for material_file in phase_info:
+                        material_names = phase_info[material_file]
+                        if(not isinstance(material_names, list)):
+                            material_names = [material_names]
+                        p.add_many(material_file, material_names)
+
+                elif(isinstance(phase_info, str)):
+                    """
+                    load from a yaml file
+                    """
+                    if(path.exists(phase_info)):
+                        p.load(phase_info)
+                    else:
+                        raise FileError('phase file doesn\'t exist.')
+
+                elif(isinstance(phase_info, Material)):
+                    if not p.phase_dict:
+                        p[phase_info.name] = {}
+
+                    for k, v in self.wavelength.items():
+                        E = 1.e6 * constants.cPlanck * \
+                            constants.cLight /  \
+                            constants.cCharge / \
+                            v[0].value
+                        phase_info.beamEnergy = valWUnit(
+                            "kev", "ENERGY", E, "keV")
+                        p[phase_info.name][k] = Material_Rietveld(
+                            fhdf=None,
+                            xtal=None,
+                            dmin=None,
+                            material_obj=phase_info)
+                        p[phase_info.name][k].pf = 1.0
+                    p.num_phases = 1
+
+                elif(isinstance(phase_info, list)):
+                    for mat in phase_info:
+                        p[mat.name] = {}
+                        for k, v in self.wavelength.items():
+                            E = 1.e6 * constants.cPlanck * \
+                                constants.cLight /  \
+                                constants.cCharge / \
+                                v[0].value
+                            mat.beamEnergy = valWUnit(
+                                "kev", "ENERGY", E, "keV")
+                            p[mat.name][k] = Material_Rietveld(
+                                fhdf=None,
+                                xtal=None,
+                                dmin=None,
+                                material_obj=mat)
+                        p.num_phases += 1
+
+                    for mat in p:
+                        for k, v in self.wavelength.items():
+                            p[mat][k].pf = 1.0/p.num_phases
+                self._phases = p
+
+        self.calctth()
+        self.calcsf()
+
+        for p in self.phases:
+            for k in self.phases[p]:
+                self._phases[p][k].valid_shkl, \
+                self._phases[p][k].eq_constraints, \
+                self._phases[p][k].rqd_index, \
+                self._phases[p][k].trig_ptype = \
+                wppfsupport._required_shkl_names(self._phases[p][k])
+
+    @property
+    def peakshape(self):
+        return self._peakshape
+    
+    @peakshape.setter
+    def peakshape(self, val):
+        """
+        @TODO make sure the parameter list
+        is updated when the peakshape changes
+        """
+        if isinstance(val, str):
+            if val == "pvfcj":
+                self._peakshape = 0
+            elif val == "pvtch":
+                self._peakshape = 1
+            elif val == "pvpink":
+                self._peakshape = 2
+            else:
+                msg = (f"invalid peak shape string. "
+                    f"must be: \n"
+                    f"1. pvfcj: pseudo voight (Finger, Cox, Jephcoat)\n"
+                    f"2. pvtch: pseudo voight (Thompson, Cox, Hastings)\n"
+                    f"3. pvpink: Pink beam (Von Dreele)")
+                raise ValueError(msg)
+        elif isinstance(val, int):
+            if val >=0 and val <=2:
+                self._peakshape = val
+            else:
+                msg = (f"invalid peak shape int. "
+                    f"must be: \n"
+                    f"1. 0: pseudo voight (Finger, Cox, Jephcoat)\n"
+                    f"2. 1: pseudo voight (Thompson, Cox, Hastings)\n"
+                    f"3. 2: Pink beam (Von Dreele)")
+                raise ValueError(msg)
+
+        """
+        update parameters
+        """
+        if hasattr(self, 'params'):
+            params = wppfsupport._generate_default_parameters_LeBail(
+                    self.phases, self.peakshape)
+            for p in params:
+                if p in self.params:
+                    params[p] = self.params[p]
+            self._params = params
+            self._set_params_vals_to_class(params, init=True, skip_phases=True)
+
+    @property
+    def computespectrum_fcn(self):
+        if self.peakshape == 0:
+            return computespectrum_pvfcj
+        elif self.peakshape == 1:
+            return computespectrum_pvtch
+        elif self.peakshape == 2:
+            return computespectrum_pvpink
+
+    @property
+    def calc_Iobs_fcn(self):
+        if self.peakshape == 0:
+            return calc_Iobs_pvfcj
+        elif self.peakshape == 1:
+            return calc_Iobs_pvtch
+        elif self.peakshape == 2:
+            return calc_Iobs_pvpink
+
+    @property
     def U(self):
         return self._U
 
@@ -2273,7 +2556,11 @@ class Rietveld:
 
     @property
     def tth_list(self):
-        return self.spectrum_expt._x
+        if isinstance(self.spectrum_expt._x, \
+            np.ma.MaskedArray):
+            return self.spectrum_expt._x.filled()
+        else:
+            return self.spectrum_expt._x
 
     @property
     def zero_error(self):
