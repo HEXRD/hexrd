@@ -1024,17 +1024,16 @@ def _gaussian_pink_beam(alpha,
     f1 = alpha*sigsqr + 2.0*del_tth
     f2 = beta*sigsqr - 2.0*del_tth
     f3 = np.sqrt(2.0)*fwhm_g
-    u = -np.abs(0.5*alpha*f1)
-    v = -np.abs(0.5*beta*f2)
+    u = 0.5*alpha*f1
+    v = 0.5*beta*f2
     y = (f1-del_tth)/f3
-    z = f2/f3
+    z = (f2+del_tth)/f3
 
-    y = (0.5*(alpha*beta)/(alpha + beta)) \
-        *np.exp(u)*erfc(y) + \
-            np.exp(v)*erfc(z)
-    y[np.isnan(y)] = 0.
-    a = np.trapz(y, tth_list)
-    return y/a
+    g = (0.5*(alpha*beta)/(alpha + beta)) \
+        * (np.exp(u)*erfc(y) + \
+            np.exp(v)*erfc(z))
+    g = np.nan_to_num(g)
+    return g
 
 
 #@numba_njit_if_available(cache=True, nogil=True)
@@ -1055,13 +1054,23 @@ def _lorentzian_pink_beam(alpha,
     p = -alpha*del_tth + 1j * 0.5*alpha*fwhm_l
     q = -beta*del_tth + 1j * 0.5*beta*fwhm_l
 
-    f1 = np.imag(np.exp(p)*exp1(p))
-    f2 = np.imag(np.exp(q)*exp1(q))
+    y = np.zeros(tth_list.shape)
 
-    y = (alpha*beta)/(np.pi*(alpha + beta)) * (f1 + f2)
-    y[np.isnan(y)] = 0.
-    a = np.trapz(y, tth_list)
-    return y/a
+    mask = np.logical_or(np.abs(np.real(p)) > 5e2,
+     np.abs(np.imag(p)) > 5e2)
+    f1 = np.zeros(tth_list.shape)
+    f1[mask] = np.imag(np.exp(p[mask])*exp1(p[mask]))
+
+    mask = np.logical_or(np.abs(np.real(q)) > 5e2,
+     np.abs(np.imag(q)) > 5e2)
+    f2 = np.zeros(tth_list.shape)
+    f2[mask] = np.imag(np.exp(q[mask])*exp1(q[mask]))
+
+    y = -(alpha*beta)/(np.pi*(alpha + beta)) *\
+    (f1 + f2)
+    
+    y = np.nan_to_num(y)
+    return y
 
 #@numba_njit_if_available(cache=True, nogil=True)
 def pvoight_pink_beam(alpha,
@@ -1106,7 +1115,14 @@ def pvoight_pink_beam(alpha,
                             fwhm_g, tth, tth_list)
     l = _lorentzian_pink_beam(alpha_exp, beta_exp,
                               fwhm_l, tth, tth_list)
-    return n*l + (1.0-n)*g
+    ag = np.trapz(g,tth_list)
+    al = np.trapz(l,tth_list)
+    if np.abs(ag) < 1e-6:
+        ag = 1.0
+    if np.abs(al) < 1e-6:
+        al = 1.0
+
+    return n*l/al + (1.0-n)*g/ag
 
 @numba_njit_if_available(cache=True, nogil=True, parallel=True)
 def computespectrum_pvfcj(uvw,

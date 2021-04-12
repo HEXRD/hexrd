@@ -55,9 +55,9 @@ def _generate_default_parameters_pseudovoight(params):
     p = {"zero_error":[0., -1., 1., False],
          "trns":[0.0, -1.0, 1.0, False],
          "shft":[0.0,-1.0,1.0,False],
-         "U": [100., 0., 5000, False],
-         "V": [100., 0., 5000, False],
-         "W": [100., 0., 5000, False],
+         "U": [0., 0., 5000, False],
+         "V": [1000., 0., 5000, False],
+         "W": [50., 0., 5000, False],
          "P": [0., 0., 5000, False],
          "X": [0., 0., 100., False],
          "Y": [10., 0., 100., False],
@@ -87,8 +87,8 @@ def _add_pvfcj_parameters(params):
 def _add_pvpink_parameters(params):
     p = {"alpha0":[14.4, -100., 100., False],
          "alpha1":[0., -100., 100., False],
-         "beta0":[3.0, -100., 100., False],
-         "beta1":[-8.0, -100., 100., False]
+         "beta0":[3.016, -100., 100., False],
+         "beta1":[-2.0, -100., 100., False]
          }
     for k, v in p.items():
         params.add(name=k,
