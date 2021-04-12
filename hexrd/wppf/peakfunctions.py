@@ -30,6 +30,7 @@ import copy
 from hexrd import constants
 from scipy.special import exp1, erfc
 from hexrd.utils.decorators import numba_njit_if_available
+from numba import vectorize, float64
 
 if constants.USE_NUMBA:
     from numba import prange
@@ -987,7 +988,7 @@ def pvfcj(uvw,
 @numba_njit_if_available(cache=True, nogil=True)
 def _calc_alpha(alpha, tth):
     a0, a1 = alpha
-    return a0 + a1*np.tan(np.radians(0.5*tth))
+    return (a0 + a1*np.tan(np.radians(0.5*tth)))
 
 
 @numba_njit_if_available(cache=True, nogil=True)
@@ -995,6 +996,14 @@ def _calc_beta(beta, tth):
     b0, b1 = beta
     return b0 + b1*np.tan(np.radians(0.5*tth))
 
+# @numba_njit_if_available(cache=True, nogil=True)
+# def erfc_numba(x):
+#     return erfc(x)
+
+
+# @vectorize([float64(float64)])
+# def erfc_vec(x):
+#     return erfc_numba(x)
 
 #@numba_njit_if_available(cache=True, nogil=True)
 def _gaussian_pink_beam(alpha,
@@ -1015,14 +1024,17 @@ def _gaussian_pink_beam(alpha,
     f1 = alpha*sigsqr + 2.0*del_tth
     f2 = beta*sigsqr - 2.0*del_tth
     f3 = np.sqrt(2.0)*fwhm_g
-    u = 0.5*alpha*f1
-    v = 0.5*beta*f2
+    u = -np.abs(0.5*alpha*f1)
+    v = -np.abs(0.5*beta*f2)
     y = (f1-del_tth)/f3
     z = f2/f3
 
-    return (0.5*(alpha*beta)/(alpha + beta)) \
-        * (np.exp(u)*erfc(y) + \
-            np.exp(v)*erfc(z))
+    y = (0.5*(alpha*beta)/(alpha + beta)) \
+        *np.exp(u)*erfc(y) + \
+            np.exp(v)*erfc(z)
+    y[np.isnan(y)] = 0.
+    a = np.trapz(y, tth_list)
+    return y/a
 
 
 #@numba_njit_if_available(cache=True, nogil=True)
@@ -1046,7 +1058,10 @@ def _lorentzian_pink_beam(alpha,
     f1 = np.imag(np.exp(p)*exp1(p))
     f2 = np.imag(np.exp(q)*exp1(q))
 
-    return -(alpha*beta)/(np.pi*(alpha + beta)) * (f1 + f2)
+    y = (alpha*beta)/(np.pi*(alpha + beta)) * (f1 + f2)
+    y[np.isnan(y)] = 0.
+    a = np.trapz(y, tth_list)
+    return y/a
 
 #@numba_njit_if_available(cache=True, nogil=True)
 def pvoight_pink_beam(alpha,
@@ -1088,9 +1103,9 @@ def pvoight_pink_beam(alpha,
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
     g = _gaussian_pink_beam(alpha_exp, beta_exp,
-                            fwhm, tth, tth_list)
+                            fwhm_g, tth, tth_list)
     l = _lorentzian_pink_beam(alpha_exp, beta_exp,
-                              fwhm, tth, tth_list)
+                              fwhm_l, tth, tth_list)
     return n*l + (1.0-n)*g
 
 @numba_njit_if_available(cache=True, nogil=True, parallel=True)
