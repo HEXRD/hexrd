@@ -60,7 +60,7 @@ def _generate_default_parameters_pseudovoight(params):
          "W": [50., 0., 5000, False],
          "P": [0., 0., 5000, False],
          "X": [0., 0., 100., False],
-         "Y": [10., 0., 100., False],
+         "Y": [50., 0., 100., False],
          "Xe": [0., 0., 1, False],
          "Ye": [0., 0., 1, False],
          "Xs": [0., 0., 1, False]
