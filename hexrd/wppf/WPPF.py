@@ -1306,7 +1306,8 @@ def extract_intensities(polar_view,
                         bkgmethod={'chebyshev': 10},
                         intensity_init=None,
                         termination_condition={'rwp_perct_change': 0.05,
-                                               'max_iter': 100}):
+                                               'max_iter': 100},
+                        peakshape='pvtch'):
     """ 
     =========================================================================================
     ==============================================================================================
@@ -1364,7 +1365,8 @@ def extract_intensities(polar_view,
         'phases': phases,
         'wavelength': wavelength,
         'bkgmethod': bkgmethod,
-        'termination_condition': termination_condition
+        'termination_condition': termination_condition,
+        'peakshape':peakshape
     }
 
     P = GenericMultiprocessing()
@@ -1418,14 +1420,16 @@ def single_azimuthal_extraction(expt_spectrum,
                                     0.15406), 'kalpha2': _nm(0.154443)},
                                 bkgmethod={'chebyshev': 10},
                                 intensity_init=None,
-                                termination_condition=None):
+                                termination_condition=None,
+                                peakshape='pvtch'):
 
     kwargs = {
         'expt_spectrum': expt_spectrum,
         'params': params,
         'phases': phases,
         'wavelength': wavelength,
-        'bkgmethod': bkgmethod
+        'bkgmethod': bkgmethod,
+        'peakshape': peakshape
     }
 
     # get termination conditions for the LeBail refinement
@@ -1433,6 +1437,15 @@ def single_azimuthal_extraction(expt_spectrum,
     max_iter = termination_condition['max_iter']
 
     L = LeBail(**kwargs)
+    L.params["V"].value = 0.0
+    L.params["V"].vary = False
+    L.params["W"].ub = 1e5
+    L.params["W"].vary = True
+    L.params["Y"].ub = 1e3
+    L.params["Y"].vary = True
+    L.params["omega_Zr_a"].vary = True
+    L.params["omega_Zr_c"].vary = True
+
 
     rel_error = 1.
     init_error = 1.
@@ -2645,3 +2658,9 @@ def generate_pole_figures(hkls, tth, Icalc):
     for now nut will switch to discrete harmonics in the future
     """
     pass
+
+peakshape_dict = {
+    'pvfcj':"pseudo-voight (finger, cox, jephcoat)",
+    'pvtch':"pseudo-voight (thompson, cox, hastings)",
+    'pvpink':"pseudo-voight (von dreele)"
+}
