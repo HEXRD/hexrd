@@ -187,7 +187,7 @@ def _calc_laue_factor(x,tth):
             (15./1024.)*x**3)
     return El*ctth
 
-@numba_njit_if_available(cache=True, nogil=True)
+@numba_njit_if_available(cache=True, nogil=True, parallel=True)
 def _calc_extinction_factor(hkls,
                             tth,
                             v_unitcell,
@@ -199,6 +199,7 @@ def _calc_extinction_factor(hkls,
            tth.shape[0]]))
 
     extinction = np.zeros(nref)
+
     for ii in prange(nref):
       fs = f_sqr[ii]
       t = tth[ii]
@@ -210,6 +211,33 @@ def _calc_extinction_factor(hkls,
 
     return extinction
 
+@numba_njit_if_available(cache=True, nogil=True, parallel=True)
+def _calc_absorption_factor(abs_fact,
+                            tth,
+                            phi,
+                            wavelength):
+    nref = tth.shape[0]
+    absorption = np.zeros(nref)
+    phir = np.radians(phi)
 
+    abl = -abs_fact*wavelength
+    for ii in prange(nref):
+      t = np.radians(tth[ii])*0.5
 
+      if(np.abs(phir)  > 1e-3):
+        c1 = np.cos(t+phir)
+        c2 = np.cos(t-phir)
+
+        f1 = np.exp(abl/c1)
+        f2 = np.exp(abl/c2)
+        if np.abs(c2) > 1e-3:
+          f3 = abl*(1. - c1/c2)
+        else:
+          f3 = np.inf
+
+        absorption[ii] = (f1-f2)/f3
+      else:
+        c = np.cos(t)
+        absorption[ii] = np.exp(abl/c)
+    return absorption
     

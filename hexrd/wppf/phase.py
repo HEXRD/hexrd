@@ -6,7 +6,7 @@ from hexrd.material import Material
 from hexrd.unitcell import _rqpDict
 from hexrd.wppf import wppfsupport
 from hexrd.wppf.xtal import _calc_dspacing, _get_tth, _calcxrsf,\
-_calc_extinction_factor
+_calc_extinction_factor, _calc_absorption_factor
 import h5py
 import importlib.resources
 import hexrd.resources
@@ -592,6 +592,7 @@ class Material_Rietveld:
                  material_obj=None):
 
         self._shkl = np.zeros((15,))
+        self.abs_fact = 30.
         if(material_obj is None):
             """
             dmin in nm
@@ -1168,6 +1169,17 @@ class Material_Rietveld:
 
         return extinction
 
+    def calc_absorption(self,
+                        tth,
+                        phi,
+                        wavelength):
+        abs_fact = self.abs_fact
+        absorption = _calc_absorption_factor(abs_fact,
+                                             tth,
+                                             phi,
+                                             wavelength)
+
+        return absorption
 
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)

@@ -1486,11 +1486,13 @@ class Rietveld:
                  bkgmethod={'spline': None},
                  peakshape='pvfcj',
                  shape_factor=1.,
-                 particle_size=1.):
+                 particle_size=1.,
+                 phi=0.):
 
         self.bkgmethod = bkgmethod
         self.shape_factor = shape_factor
         self.particle_size = particle_size
+        self.phi = phi
         self.peakshape = peakshape
         self.spectrum_expt = expt_spectrum
 
@@ -1672,10 +1674,12 @@ class Rietveld:
         self.sf = {}
         self.sf_raw = {}
         self.extinction = {}
+        self.absorption = {}
         for p in self.phases:
             self.sf[p] = {}
             self.sf_raw[p] = {}
             self.extinction[p] = {}
+            self.absorption[p] = {}
             for k, l in self.phases.wavelength.items():
                 w = l[0].getVal("nm")
                 w_int = l[1]
@@ -1691,6 +1695,10 @@ class Rietveld:
                                                   self.sf_raw[p][k],
                                                   self.shape_factor,
                                                   self.particle_size)
+                self.absorption[p][k] = \
+                self.phases[p][k].calc_absorption(tth,
+                                                  self.phi,
+                                                  10.*w)
 
     def PolarizationFactor(self):
 
@@ -1730,6 +1738,7 @@ class Rietveld:
                 sf = self.sf[p][k]
                 lp = self.LP[p][k]
                 extinction = self.extinction[p][k]
+                absorption = self.absorption[p][k]
 
                 n = np.min((tth.shape[0], 
                     sf.shape[0],
@@ -1739,8 +1748,9 @@ class Rietveld:
                 sf = sf[:n]
                 lp = lp[:n]
                 extinction = extinction[:n]
+                absorption = absorption[:n]
 
-                Ic = self.scale*pf*sf*lp*extinction
+                Ic = self.scale*pf*sf*lp*extinction*absorption
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
