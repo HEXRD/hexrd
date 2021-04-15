@@ -111,6 +111,9 @@ def _calcxrsf(hkls,
     struct_factors = np.zeros(multiplicity.shape,
         dtype=np.float64)
 
+    struct_factors_raw = np.zeros(multiplicity.shape,
+        dtype=np.float64)
+
     for ii in prange(nref):
         g = hkls[ii,:]
         mm = multiplicity[ii]
@@ -150,8 +153,63 @@ def _calcxrsf(hkls,
                 sf = sf + ff*np.complex(np.cos(arg), -np.sin(arg))
 
         struct_factors[ii] = w_int*mm*np.abs(sf)**2
+        struct_factors_raw[ii] = np.abs(sf)**2
 
     ma = struct_factors.max()
     struct_factors = 100.0*struct_factors/ma
 
-    return struct_factors
+    # ma = struct_factors_raw.max()
+    # struct_factors_raw = 100.0*struct_factors_raw/ma
+
+    return struct_factors, struct_factors_raw
+
+@numba_njit_if_available(cache=True, nogil=True)
+def _calc_x_factor(K,
+                   v_unitcell,
+                   wavelength,
+                   f_sqr,
+                   D):
+    return f_sqr*(K*wavelength*D/v_unitcell)**2
+
+@numba_njit_if_available(cache=True, nogil=True)
+def _calc_bragg_factor(x,tth):
+    stth = np.sin(np.radians(tth*0.5))**2
+    return stth/np.sqrt(1.+x)
+
+
+@numba_njit_if_available(cache=True, nogil=True)
+def _calc_laue_factor(x,tth):
+    ctth = np.cos(np.radians(tth*0.5))**2
+    if x <= 1.:
+      El = (1.-0.5*x+0.25*x**2-(5./48.)*x**3+(7./192.)*x**4)
+    elif x > 1.:
+      El = (2./np.pi/x)**2 * (1.-0.125*x**2-(3./128.)*x**2-\
+            (15./1024.)*x**3)
+    return El*ctth
+
+@numba_njit_if_available(cache=True, nogil=True)
+def _calc_extinction_factor(hkls,
+                            tth,
+                            v_unitcell,
+                            wavelength,
+                            f_sqr,
+                            K,
+                            D):
+    nref = np.min(np.array([hkls.shape[0],\
+           tth.shape[0]]))
+
+    extinction = np.zeros(nref)
+    for ii in prange(nref):
+      fs = f_sqr[ii]
+      t = tth[ii]
+      x = _calc_x_factor(K,v_unitcell,
+                         wavelength,
+                         fs,D)
+      extinction[ii] = _calc_bragg_factor(x,t)+\
+                   _calc_laue_factor(x,t)
+
+    return extinction
+
+
+
+    

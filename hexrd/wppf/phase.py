@@ -5,7 +5,8 @@ from hexrd import symmetry, symbols, constants
 from hexrd.material import Material
 from hexrd.unitcell import _rqpDict
 from hexrd.wppf import wppfsupport
-from hexrd.wppf.xtal import _calc_dspacing, _get_tth, _calcxrsf
+from hexrd.wppf.xtal import _calc_dspacing, _get_tth, _calcxrsf,\
+_calc_extinction_factor
 import h5py
 import importlib.resources
 import hexrd.resources
@@ -1127,7 +1128,7 @@ class Material_Rietveld:
 
         nref = self.hkls.shape[0]
 
-        sf = _calcxrsf(self.hkls.astype(np.float64),
+        sf, sf_raw = _calcxrsf(self.hkls.astype(np.float64),
               nref,
               self.multiplicity,
               w_int,
@@ -1145,7 +1146,27 @@ class Material_Rietveld:
               f_anomalous_data,
               self.f_anomalous_data_sizes)
 
-        return sf
+        return sf, sf_raw
+
+    def calc_extinction(self,
+                        wavelength,
+                        tth,
+                        f_sqr,
+                        shape_factor_K,
+                        particle_size_D):
+
+        hkls = self.hkls
+        v_unitcell = self.vol
+
+        extinction = _calc_extinction_factor(hkls,
+                            tth,
+                            v_unitcell*1e3,
+                            wavelength,
+                            f_sqr,
+                            shape_factor_K,
+                            particle_size_D)
+
+        return extinction
 
 
     def Required_lp(self, p):

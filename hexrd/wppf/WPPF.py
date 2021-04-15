@@ -1484,9 +1484,13 @@ class Rietveld:
                      0.15406), 1.0],
                      'kalpha2': [_nm(0.154443), 0.52]},
                  bkgmethod={'spline': None},
-                 peakshape='pvfcj'):
+                 peakshape='pvfcj',
+                 shape_factor=1.,
+                 particle_size=1.):
 
         self.bkgmethod = bkgmethod
+        self.shape_factor = shape_factor
+        self.particle_size = particle_size
         self.peakshape = peakshape
         self.spectrum_expt = expt_spectrum
 
@@ -1666,14 +1670,27 @@ class Rietveld:
 
     def calcsf(self):
         self.sf = {}
+        self.sf_raw = {}
+        self.extinction = {}
         for p in self.phases:
             self.sf[p] = {}
+            self.sf_raw[p] = {}
+            self.extinction[p] = {}
             for k, l in self.phases.wavelength.items():
                 w = l[0].getVal("nm")
                 w_int = l[1]
+                tth = self.tth[p][k]
                 allowed = self.phases[p][k].wavelength_allowed_hkls
                 limit = self.limit[p][k]
-                self.sf[p][k] = self.phases[p][k].CalcXRSF(w, w_int)
+                self.sf[p][k], self.sf_raw[p][k] = \
+                self.phases[p][k].CalcXRSF(w, w_int)
+
+                self.extinction[p][k] = \
+                self.phases[p][k].calc_extinction(10.*w,
+                                                  tth,
+                                                  self.sf_raw[p][k],
+                                                  self.shape_factor,
+                                                  self.particle_size)
 
     def PolarizationFactor(self):
 
@@ -1712,6 +1729,7 @@ class Rietveld:
                 pf = self.phases[p][k].pf / self.phases[p][k].vol**2
                 sf = self.sf[p][k]
                 lp = self.LP[p][k]
+                extinction = self.extinction[p][k]
 
                 n = np.min((tth.shape[0], 
                     sf.shape[0],
@@ -1720,8 +1738,9 @@ class Rietveld:
                 tth = tth[:n]
                 sf = sf[:n]
                 lp = lp[:n]
+                extinction = extinction[:n]
 
-                Ic = self.scale*pf*sf*lp
+                Ic = self.scale*pf*sf*lp*extinction
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
