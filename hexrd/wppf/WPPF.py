@@ -1175,6 +1175,7 @@ class LeBail:
                 directly passing the phase class
                 """
                 self._phases = phase_info
+
             else:
 
                 if(hasattr(self, 'wavelength')):
@@ -1226,6 +1227,7 @@ class LeBail:
                 self._phases = p
 
         self.calctth()
+
         for p in self.phases:
             self.phases[p].valid_shkl, \
             self.phases[p].eq_constraints, \
@@ -1443,9 +1445,6 @@ def single_azimuthal_extraction(expt_spectrum,
     L.params["W"].vary = True
     L.params["Y"].ub = 1e3
     L.params["Y"].vary = True
-    L.params["omega_Zr_a"].vary = True
-    L.params["omega_Zr_c"].vary = True
-
 
     rel_error = 1.
     init_error = 1.
