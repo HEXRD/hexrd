@@ -81,7 +81,7 @@ def _gaussian_fwhm(uvw,
     sig2_ani = gamma_ani_sqr*(1.-eta_mixing)**2*dsp**4
     sigsqr = (U+sig2_ani) * tanth**2 + V * tanth + W + P/cth2
     if(sigsqr <= 0.):
-        sigsqr = 1.0e-6
+        sigsqr = 1.0e-12
 
     return np.sqrt(sigsqr)*1e-2
 

@@ -1439,12 +1439,6 @@ def single_azimuthal_extraction(expt_spectrum,
     max_iter = termination_condition['max_iter']
 
     L = LeBail(**kwargs)
-    L.params["V"].value = 0.0
-    L.params["V"].vary = False
-    L.params["W"].ub = 1e5
-    L.params["W"].vary = True
-    L.params["Y"].ub = 1e3
-    L.params["Y"].vary = True
 
     rel_error = 1.
     init_error = 1.
