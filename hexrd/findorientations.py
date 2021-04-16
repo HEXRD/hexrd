@@ -34,7 +34,6 @@ except ImportError:
 
 
 save_as_ascii = False  # FIXME LATER...
-fwhm_to_stdev = 1./np.sqrt(8*np.log(2))
 filter_stdev_DFLT = 1.0
 
 logger = logging.getLogger(__name__)
@@ -56,7 +55,7 @@ def _process_omegas(omegaimageseries_dict):
     return ome_period, ome_ranges
 
 
-def _clean_map(this_map):
+def clean_map(this_map):
     # !!! need to remove NaNs from map in case of eta gaps
     # !!! doing offset and truncation by median value now
     nan_mask = np.isnan(this_map)
@@ -115,7 +114,7 @@ def generate_orientation_fibers(cfg, eta_ome):
     coms = []
     for i in seed_hkl_ids:
         this_map = eta_ome.dataStore[i]
-        _clean_map(this_map)
+        clean_map(this_map)
         numSpots_t, coms_t = find_peaks_2d(this_map, method, method_kwargs)
         numSpots.append(numSpots_t)
         coms.append(coms_t)
