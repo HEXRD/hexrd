@@ -11,13 +11,11 @@ import numpy as np
 import scipy.cluster as cluster
 from scipy import ndimage
 
-from skimage.feature import blob_dog, blob_log
-from skimage.exposure import rescale_intensity
-
 from hexrd import constants as const
 from hexrd import matrixutil as mutil
 from hexrd import indexer
 from hexrd import instrument
+from hexrd.imageutil import find_peaks_2d
 from hexrd import rotations as rot
 from hexrd.transforms import xfcapi
 from hexrd.xrdutil import EtaOmeMaps
@@ -58,7 +56,7 @@ def _process_omegas(omegaimageseries_dict):
     return ome_period, ome_ranges
 
 
-def clean_map(this_map):
+def _clean_map(this_map):
     # !!! need to remove NaNs from map in case of eta gaps
     # !!! doing offset and truncation by median value now
     nan_mask = np.isnan(this_map)
@@ -66,55 +64,6 @@ def clean_map(this_map):
     this_map[nan_mask] = med_val
     this_map[this_map <= med_val] = med_val
     this_map -= np.min(this_map)
-
-
-def label_spots(this_map, method, method_kwargs):
-    if method == 'label':
-        # labeling mask
-        structureNDI_label = ndimage.generate_binary_structure(2, 1)
-
-        # First apply filter if specified
-        filter_fwhm = method_kwargs['filter_radius']
-        if filter_fwhm:
-            filt_stdev = fwhm_to_stdev * filter_fwhm
-            this_map = -ndimage.filters.gaussian_laplace(
-                this_map, filt_stdev
-            )
-
-        labels_t, numSpots_t = ndimage.label(
-            this_map > method_kwargs['threshold'],
-            structureNDI_label
-            )
-        coms_t = np.atleast_2d(
-            ndimage.center_of_mass(
-                this_map,
-                labels=labels_t,
-                index=np.arange(1, np.amax(labels_t) + 1)
-                )
-            )
-    elif method in ['blob_log', 'blob_dog']:
-        # must scale map
-        # TODO: we should so a parameter study here
-        scl_map = rescale_intensity(this_map, out_range=(-1, 1))
-
-        # TODO: Currently the method kwargs must be explicitly specified
-        #       in the config, and there are no checks
-        # for 'blob_log': min_sigma=0.5, max_sigma=5,
-        #                 num_sigma=10, threshold=0.01, overlap=0.1
-        # for 'blob_dog': min_sigma=0.5, max_sigma=5,
-        #                 sigma_ratio=1.6, threshold=0.01, overlap=0.1
-        if method == 'blob_log':
-            blobs = np.atleast_2d(
-                blob_log(scl_map, **method_kwargs)
-            )
-        else:  # blob_dog
-            blobs = np.atleast_2d(
-                blob_dog(scl_map, **method_kwargs)
-            )
-        numSpots_t = len(blobs)
-        coms_t = blobs[:, :2]
-
-    return numSpots_t, coms_t
 
 
 def generate_orientation_fibers(cfg, eta_ome):
@@ -166,8 +115,8 @@ def generate_orientation_fibers(cfg, eta_ome):
     coms = []
     for i in seed_hkl_ids:
         this_map = eta_ome.dataStore[i]
-        clean_map(this_map)
-        numSpots_t, coms_t = label_spots(this_map, method, method_kwargs)
+        _clean_map(this_map)
+        numSpots_t, coms_t = find_peaks_2d(this_map, method, method_kwargs)
         numSpots.append(numSpots_t)
         coms.append(coms_t)
 
