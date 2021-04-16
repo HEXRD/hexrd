@@ -45,7 +45,7 @@ def fast_snip1d(y, w=4, numiter=2):
     """
     """
     bkg = np.zeros_like(y)
-    min_val = np.min(y)
+    min_val = np.nanmin(y)
     zfull = _scale_image_snip(y, min_val, invert=False)
     for k, z in enumerate(zfull):
         b = z
@@ -69,7 +69,7 @@ def snip1d(y, w=4, numiter=2, threshold=None):
     """
     # scale input
     bkg = np.zeros_like(y)
-    min_val = np.min(y)
+    min_val = np.nanmin(y)
     zfull = _scale_image_snip(y, min_val, invert=False)
 
     # handle mask
@@ -106,7 +106,7 @@ def snip1d_quad(y, w=4, numiter=2):
     """Return SNIP-estimated baseline-background for given spectrum y.
 
     Adds a quadratic kernel convolution in parallel with the linear kernel."""
-    min_val = np.min(y)
+    min_val = np.nanmin(y)
     kernels = []
     for p in range(w, 1, -2):
         N = p * 2 + 1
@@ -161,7 +161,7 @@ def snip2d(y, w=4, numiter=2, order=1):
           (1997).
     """
     maximum, minimum = np.fmax, np.fmin
-    min_val = np.min(y)
+    min_val = np.nanmin(y)
 
     # create list of kernels
     kernels = []
