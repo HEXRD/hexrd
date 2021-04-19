@@ -283,11 +283,10 @@ class Material(object):
             exclusions = numpy.ones(hkls.shape[1], dtype=bool)
             exclusions[new_indices] = old_pdata.exclusions[old_indices]
 
-            if numpy.all(exclusions):
-                # If they are all excluded, just set the default exclusions
-                self.set_default_exclusions()
-            else:
-                self._pData.exclusions = exclusions
+            # always set it back to default values
+            # @SS 04/09/2021
+            self.set_default_exclusions()
+
         else:
             # Make the PlaneData object from scratch...
             lprm = self.reduced_lattice_parameters
