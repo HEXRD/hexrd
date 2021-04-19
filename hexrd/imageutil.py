@@ -1,14 +1,52 @@
 import numpy as np
 from scipy import signal, ndimage
 
+from skimage.feature import blob_dog, blob_log
+from skimage.exposure import rescale_intensity
+
 from hexrd import convolution
+from hexrd.constants import fwhm_to_sigma
+
+
+# =============================================================================
+# BACKGROUND REMOVAL
+# =============================================================================
+
+def _scale_image_snip(y, offset, invert=False):
+    """
+    Log-Log scale image for snip
+
+    Parameters
+    ----------
+    y : TYPE
+        DESCRIPTION.
+    offset : TYPE
+        DESCRIPTION.
+    invert : TYPE, optional
+        DESCRIPTION. The default is False.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    Notes
+    -----
+    offset should be <= min of the original image
+
+    """
+    if invert:
+        return (np.exp(np.exp(y) - 1.) - 1.)**2 + offset
+    else:
+        return np.log(np.log(np.sqrt(y - offset) + 1.) + 1.)
 
 
 def fast_snip1d(y, w=4, numiter=2):
     """
     """
     bkg = np.zeros_like(y)
-    zfull = np.log(np.log(np.sqrt(y + 1.) + 1.) + 1.)
+    min_val = np.nanmin(y)
+    zfull = _scale_image_snip(y, min_val, invert=False)
     for k, z in enumerate(zfull):
         b = z
         for i in range(numiter):
@@ -18,7 +56,7 @@ def fast_snip1d(y, w=4, numiter=2):
                 kernel[-1] = 0.5
                 b = np.minimum(b, signal.fftconvolve(z, kernel, mode='same'))
             z = b
-        bkg[k, :] = (np.exp(np.exp(b) - 1.) - 1.)**2 - 1.
+        bkg[k, :] = _scale_image_snip(b, min_val, invert=True)
     return bkg
 
 
@@ -29,9 +67,10 @@ def snip1d(y, w=4, numiter=2, threshold=None):
     !!!: threshold values get marked as NaN in convolution
     !!!: mask in astropy's convolve is True for masked; set to NaN
     """
-    # scal input
-    zfull = np.log(np.log(np.sqrt(y + 1) + 1) + 1)
-    bkg = np.zeros_like(zfull)
+    # scale input
+    bkg = np.zeros_like(y)
+    min_val = np.nanmin(y)
+    zfull = _scale_image_snip(y, min_val, invert=False)
 
     # handle mask
     if threshold is not None:
@@ -57,7 +96,7 @@ def snip1d(y, w=4, numiter=2, threshold=None):
                         )
                     )
                 z = b
-            bkg[k, :] = (np.exp(np.exp(b) - 1) - 1)**2 - 1
+            bkg[k, :] = _scale_image_snip(b, min_val, invert=True)
     nan_idx = np.isnan(bkg)
     bkg[nan_idx] = threshold
     return bkg
@@ -67,7 +106,7 @@ def snip1d_quad(y, w=4, numiter=2):
     """Return SNIP-estimated baseline-background for given spectrum y.
 
     Adds a quadratic kernel convolution in parallel with the linear kernel."""
-    convolve1d = ndimage.convolve1d
+    min_val = np.nanmin(y)
     kernels = []
     for p in range(w, 1, -2):
         N = p * 2 + 1
@@ -81,15 +120,15 @@ def snip1d_quad(y, w=4, numiter=2):
         kern2[int(p/2)] = kern2[int(3*p/2)] = 4./6.
         kernels.append([kern1, kern2])
 
-    z = b = np.log(np.log(y + 1) + 1)
+    z = b = _scale_image_snip(y, min_val, invert=False)
     for i in range(numiter):
         for (kern1, kern2) in kernels:
-            c = np.maximum(convolve1d(z, kern1, mode='nearest'),
-                           convolve1d(z, kern2, mode='nearest'))
+            c = np.maximum(ndimage.convolve1d(z, kern1, mode='nearest'),
+                           ndimage.convolve1d(z, kern2, mode='nearest'))
             b = np.minimum(b, c)
         z = b
 
-    return np.exp(np.exp(b) - 1) - 1
+    return _scale_image_snip(b, min_val, invert=True)
 
 
 def snip2d(y, w=4, numiter=2, order=1):
@@ -122,6 +161,7 @@ def snip2d(y, w=4, numiter=2, order=1):
           (1997).
     """
     maximum, minimum = np.fmax, np.fmin
+    min_val = np.nanmin(y)
 
     # create list of kernels
     kernels = []
@@ -147,8 +187,8 @@ def snip2d(y, w=4, numiter=2, order=1):
                 kern2[ij] = norm / ij.sum()
             kernels[-1].append(kern2)
 
-    # convolve kernels with input array
-    z = b = np.log(np.log(y + 1) + 1)  # perform convolutions in logspace
+    # convolve kernels with input array (in log space)
+    z = b = _scale_image_snip(y, min_val, invert=False)
     for i in range(numiter):
         for kk in kernels:
             if order > 1:
@@ -159,4 +199,58 @@ def snip2d(y, w=4, numiter=2, order=1):
             b = minimum(b, c)
         z = b
 
-    return np.exp(np.exp(b) - 1) - 1
+    return _scale_image_snip(b, min_val, invert=True)
+
+
+# =============================================================================
+# FEATURE DETECTION
+# =============================================================================
+
+
+def find_peaks_2d(img, method, method_kwargs):
+    if method == 'label':
+        # labeling mask
+        structureNDI_label = ndimage.generate_binary_structure(2, 1)
+
+        # First apply filter if specified
+        filter_fwhm = method_kwargs['filter_radius']
+        if filter_fwhm:
+            filt_stdev = fwhm_to_sigma * filter_fwhm
+            img = -ndimage.filters.gaussian_laplace(
+                img, filt_stdev
+            )
+
+        labels_t, numSpots_t = ndimage.label(
+            img > method_kwargs['threshold'],
+            structureNDI_label
+            )
+        coms_t = np.atleast_2d(
+            ndimage.center_of_mass(
+                img,
+                labels=labels_t,
+                index=np.arange(1, np.amax(labels_t) + 1)
+                )
+            )
+    elif method in ['blob_log', 'blob_dog']:
+        # must scale map
+        # TODO: we should so a parameter study here
+        scl_map = rescale_intensity(img, out_range=(-1, 1))
+
+        # TODO: Currently the method kwargs must be explicitly specified
+        #       in the config, and there are no checks
+        # for 'blob_log': min_sigma=0.5, max_sigma=5,
+        #                 num_sigma=10, threshold=0.01, overlap=0.1
+        # for 'blob_dog': min_sigma=0.5, max_sigma=5,
+        #                 sigma_ratio=1.6, threshold=0.01, overlap=0.1
+        if method == 'blob_log':
+            blobs = np.atleast_2d(
+                blob_log(scl_map, **method_kwargs)
+            )
+        else:  # blob_dog
+            blobs = np.atleast_2d(
+                blob_dog(scl_map, **method_kwargs)
+            )
+        numSpots_t = len(blobs)
+        coms_t = blobs[:, :2]
+
+    return numSpots_t, coms_t

@@ -44,6 +44,7 @@ sqrt3by2 = 0.5 * sqrt3
 
 # fwhm
 sigma_to_fwhm = 2.*np.sqrt(2.*np.log(2.))
+fwhm_to_sigma = 1. / sigma_to_fwhm
 
 # tolerancing
 epsf = np.finfo(float).eps      # ~2.2e-16
