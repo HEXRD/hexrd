@@ -355,6 +355,12 @@ def _add_phase_fractions(mat, params):
                f"Material is accpeted.")
         raise ValueError(msg)
 
+def _add_extinction_parameters():
+    pass
+
+def _add_absorption_parameters():
+    pass
+
 def _generate_default_parameters_Rietveld(mat, peakshape):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
@@ -377,6 +383,8 @@ def _generate_default_parameters_Rietveld(mat, peakshape):
                vary=False)
 
     _add_phase_fractions(mat, params)
+    _add_extinction_parameters(mat, params)
+    _add_absorption_parameters(mat, params)
 
     if isinstance(mat, Phases_Rietveld):
         """
