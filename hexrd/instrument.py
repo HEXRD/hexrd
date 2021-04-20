@@ -889,93 +889,44 @@ class HEDMInstrument(object):
                 # initialize maps and assing by row (omega/frame)
                 nrows_ome = len(omegas)
 
-                ring_maps = []
-                for i_r, tthr in enumerate(tth_ranges):
-                    print("working on ring %d..." % i_r)
+                # init map with NaNs
+                shape = (len(tth_ranges), nrows_ome, ncols_eta)
+                ring_maps = np.full(shape, np.nan)
 
-                    # init map with NaNs
-                    this_map = np.nan*np.ones((nrows_ome, ncols_eta))
+                # Generate ring parameters once, and re-use them for each image
+                ring_params = []
+                for tthr in tth_ranges:
+                    kwargs = {
+                        'tthr': tthr,
+                        'ptth': ptth,
+                        'peta': peta,
+                        'eta_edges': eta_edges,
+                        'delta_eta': delta_eta,
+                    }
+                    ring_params.append(_generate_ring_params(**kwargs))
 
-                    # mark pixels in the spec'd tth range
-                    pixels_in_tthr = np.logical_and(
-                        ptth >= tthr[0], ptth <= tthr[1]
-                    )
+                # histogram intensities over eta ranges
+                for i_row, image in enumerate(imgser_dict[det_key]):
+                    print(f'working on image {i_row}...')
+                    # handle threshold if specified
+                    if threshold is not None:
+                        # !!! NaNs get preserved
+                        image = np.array(image)
+                        image[image < threshold] = 0.
 
-                    # catch case where ring isn't on detector
-                    if not np.any(pixels_in_tthr):
-                        ring_maps.append(this_map)
-                        continue
+                    for i_r, tthr in enumerate(tth_ranges):
+                        this_map = ring_maps[i_r]
+                        params = ring_params[i_r]
+                        if not params:
+                            # We are supposed to skip this ring...
+                            continue
 
-                    # ???: faster to index with bool or use np.where,
-                    # or recode in numba?
-                    rtth_idx = np.where(pixels_in_tthr)
+                        # Unpack the params
+                        retas = params['retas']
+                        eta_bins = params['eta_bins']
+                        rtth_idx = params['rtth_idx']
+                        reta_idx = params['reta_idx']
 
-                    # grab relevant eta coords using histogram
-                    # !!!: This allows use to calculate arc length and
-                    #      detect a branch cut.  The histogram idx var
-                    #      is the left-hand edges...
-                    retas = peta[rtth_idx]
-                    if fast_histogram:
-                        reta_hist = histogram1d(
-                            retas,
-                            len(eta_edges) - 1,
-                            (eta_edges[0], eta_edges[-1])
-                        )
-                    else:
-                        reta_hist, _ = histogram1d(retas, bins=eta_edges)
-                    reta_idx = np.where(reta_hist)[0]
-                    reta_bin_idx = np.hstack(
-                        [reta_idx,
-                         reta_idx[-1] + 1]
-                    )
-
-                    # ring arc lenght on panel
-                    arc_length = angularDifference(
-                        eta_edges[reta_bin_idx[0]],
-                        eta_edges[reta_bin_idx[-1]]
-                    )
-
-                    # Munge eta bins
-                    # !!! need to work with the subset to preserve
-                    #     NaN values at panel extents!
-                    #
-                    # !!! MUST RE-MAP IF BRANCH CUT IS IN RANGE
-                    #
-                    # The logic below assumes that eta_edges span 2*pi to
-                    # single precision
-                    eta_bins = eta_edges[reta_bin_idx]
-                    if arc_length < 1e-4:
-                        # have branch cut in here
-                        ring_gap = np.where(
-                            reta_idx
-                            - np.arange(len(reta_idx))
-                        )[0]
-                        if len(ring_gap) > 0:
-                            # have incomplete ring
-                            eta_stop_idx = ring_gap[0]
-                            eta_stop = eta_edges[eta_stop_idx]
-                            new_period = np.cumsum([eta_stop, 2*np.pi])
-                            # remap
-                            retas = mapAngle(retas, new_period)
-                            tmp_bins = mapAngle(
-                                eta_edges[reta_idx], new_period
-                            )
-                            tmp_idx = np.argsort(tmp_bins)
-                            reta_idx = reta_idx[np.argsort(tmp_bins)]
-                            eta_bins = np.hstack(
-                                [tmp_bins[tmp_idx],
-                                 tmp_bins[tmp_idx][-1] + delta_eta]
-                            )
-                            pass
-                        pass
-
-                    # histogram intensities over eta ranges
-                    for i_row, image in enumerate(imgser_dict[det_key]):
-                        # handle threshold if specified
-                        if threshold is not None:
-                            # !!! NaNs get preserved
-                            image = np.array(image)
-                            image[image < threshold] = 0.
                         if fast_histogram:
                             def _on_done(map, row, reta, future):
                                 map[row, reta] = future.result()
@@ -1007,9 +958,6 @@ class HEDMInstrument(object):
                                     _on_done, this_map, i_row, reta_idx
                                 )
                             )
-                        pass    # end loop on rows
-                    ring_maps.append(this_map)
-                    pass    # end loop on rings
                 ring_maps_panel[det_key] = ring_maps
 
         return ring_maps_panel, eta_edges
@@ -3693,3 +3641,82 @@ def _pixel_angles(origin, pixel_coords, distortion, rmat, tvec, bvec, evec,
     tth = angs[0].reshape(rows, cols)
     eta = angs[1].reshape(rows, cols)
     return tth, eta
+
+
+def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
+    # mark pixels in the spec'd tth range
+    pixels_in_tthr = np.logical_and(
+        ptth >= tthr[0], ptth <= tthr[1]
+    )
+
+    # catch case where ring isn't on detector
+    if not np.any(pixels_in_tthr):
+        return None
+
+    # ???: faster to index with bool or use np.where,
+    # or recode in numba?
+    rtth_idx = np.where(pixels_in_tthr)
+
+    # grab relevant eta coords using histogram
+    # !!!: This allows use to calculate arc length and
+    #      detect a branch cut.  The histogram idx var
+    #      is the left-hand edges...
+    retas = peta[rtth_idx]
+    if fast_histogram:
+        reta_hist = histogram1d(
+            retas,
+            len(eta_edges) - 1,
+            (eta_edges[0], eta_edges[-1])
+        )
+    else:
+        reta_hist, _ = histogram1d(retas, bins=eta_edges)
+    reta_idx = np.where(reta_hist)[0]
+    reta_bin_idx = np.hstack(
+        [reta_idx,
+         reta_idx[-1] + 1]
+    )
+
+    # ring arc lenght on panel
+    arc_length = angularDifference(
+        eta_edges[reta_bin_idx[0]],
+        eta_edges[reta_bin_idx[-1]]
+    )
+
+    # Munge eta bins
+    # !!! need to work with the subset to preserve
+    #     NaN values at panel extents!
+    #
+    # !!! MUST RE-MAP IF BRANCH CUT IS IN RANGE
+    #
+    # The logic below assumes that eta_edges span 2*pi to
+    # single precision
+    eta_bins = eta_edges[reta_bin_idx]
+    if arc_length < 1e-4:
+        # have branch cut in here
+        ring_gap = np.where(
+            reta_idx
+            - np.arange(len(reta_idx))
+        )[0]
+        if len(ring_gap) > 0:
+            # have incomplete ring
+            eta_stop_idx = ring_gap[0]
+            eta_stop = eta_edges[eta_stop_idx]
+            new_period = np.cumsum([eta_stop, 2*np.pi])
+            # remap
+            retas = mapAngle(retas, new_period)
+            tmp_bins = mapAngle(
+                eta_edges[reta_idx], new_period
+            )
+            tmp_idx = np.argsort(tmp_bins)
+            reta_idx = reta_idx[np.argsort(tmp_bins)]
+            eta_bins = np.hstack(
+                [tmp_bins[tmp_idx],
+                 tmp_bins[tmp_idx][-1] + delta_eta]
+            )
+
+    return {
+        'retas': retas,
+        'eta_bins': eta_bins,
+        'rtth_idx': rtth_idx,
+        'reta_idx': reta_idx,
+    }
