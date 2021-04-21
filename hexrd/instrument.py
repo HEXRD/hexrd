@@ -33,7 +33,7 @@ Created on Fri Dec  9 13:05:27 2016
 import copy
 import os
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-import functools
+from functools import partial
 
 import yaml
 
@@ -64,6 +64,7 @@ from hexrd.crystallography import PlaneData
 from hexrd import constants as ct
 from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
 from hexrd import distortion as distortion_pkg
+from hexrd.utils.concurrent import distribute_tasks
 from hexrd.utils.decorators import memoize
 from hexrd.valunits import valWUnit
 from hexrd.WPPF import LeBail
@@ -867,98 +868,56 @@ class HEDMInstrument(object):
         delta_eta = eta_edges[1] - eta_edges[0]
         ncols_eta = len(eta_edges) - 1
 
+        max_workers = os.cpu_count()
+
         ring_maps_panel = dict.fromkeys(self.detectors)
-        with ThreadPoolExecutor(max_workers=os.cpu_count()) as tp:
-            for i_d, det_key in enumerate(self.detectors):
-                print("working on detector '%s'..." % det_key)
+        for i_d, det_key in enumerate(self.detectors):
+            print("working on detector '%s'..." % det_key)
 
-                # grab panel
-                panel = self.detectors[det_key]
-                # native_area = panel.pixel_area  # pixel ref area
+            # grab panel
+            panel = self.detectors[det_key]
+            # native_area = panel.pixel_area  # pixel ref area
 
-                # pixel angular coords for the detector panel
-                ptth, peta = panel.pixel_angles()
+            # pixel angular coords for the detector panel
+            ptth, peta = panel.pixel_angles()
 
-                # grab omegas from imageseries and squawk if missing
-                try:
-                    omegas = imgser_dict[det_key].metadata['omega']
-                except(KeyError):
-                    msg = "imageseries for '%s' has no omega info" % det_key
-                    raise RuntimeError(msg)
+            # grab omegas from imageseries and squawk if missing
+            try:
+                omegas = imgser_dict[det_key].metadata['omega']
+            except(KeyError):
+                msg = "imageseries for '%s' has no omega info" % det_key
+                raise RuntimeError(msg)
 
-                # initialize maps and assing by row (omega/frame)
-                nrows_ome = len(omegas)
+            # initialize maps and assing by row (omega/frame)
+            nrows_ome = len(omegas)
 
-                # init map with NaNs
-                shape = (len(tth_ranges), nrows_ome, ncols_eta)
-                ring_maps = np.full(shape, np.nan)
+            # init map with NaNs
+            shape = (len(tth_ranges), nrows_ome, ncols_eta)
+            ring_maps = np.full(shape, np.nan)
 
-                # Generate ring parameters once, and re-use them for each image
-                ring_params = []
-                for tthr in tth_ranges:
-                    kwargs = {
-                        'tthr': tthr,
-                        'ptth': ptth,
-                        'peta': peta,
-                        'eta_edges': eta_edges,
-                        'delta_eta': delta_eta,
-                    }
-                    ring_params.append(_generate_ring_params(**kwargs))
+            # Generate ring parameters once, and re-use them for each image
+            ring_params = []
+            for tthr in tth_ranges:
+                kwargs = {
+                    'tthr': tthr,
+                    'ptth': ptth,
+                    'peta': peta,
+                    'eta_edges': eta_edges,
+                    'delta_eta': delta_eta,
+                }
+                ring_params.append(_generate_ring_params(**kwargs))
 
-                # histogram intensities over eta ranges
-                for i_row, image in enumerate(imgser_dict[det_key]):
-                    print(f'working on image {i_row}...')
-                    # handle threshold if specified
-                    if threshold is not None:
-                        # !!! NaNs get preserved
-                        image = np.array(image)
-                        image[image < threshold] = 0.
+            # Divide up the images among processes
+            ims = imgser_dict[det_key]
+            tasks = distribute_tasks(len(ims), max_workers)
+            func = partial(_run_histograms, ims=ims, tth_ranges=tth_ranges,
+                           ring_maps=ring_maps, ring_params=ring_params,
+                           threshold=threshold)
 
-                    for i_r, tthr in enumerate(tth_ranges):
-                        this_map = ring_maps[i_r]
-                        params = ring_params[i_r]
-                        if not params:
-                            # We are supposed to skip this ring...
-                            continue
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                executor.map(func, tasks)
 
-                        # Unpack the params
-                        retas = params['retas']
-                        eta_bins = params['eta_bins']
-                        rtth_idx = params['rtth_idx']
-                        reta_idx = params['reta_idx']
-
-                        if fast_histogram:
-                            def _on_done(map, row, reta, future):
-                                map[row, reta] = future.result()
-
-                            f = tp.submit(
-                                histogram1d,
-                                retas,
-                                len(eta_bins) - 1,
-                                (eta_bins[0], eta_bins[-1]),
-                                weights=image[rtth_idx]
-                            )
-                            f.add_done_callback(
-                                functools.partial(
-                                    _on_done, this_map, i_row, reta_idx
-                                )
-                            )
-                        else:
-                            def _on_done(map, row, reta, future):
-                                map[row, reta], _ = future.result()
-
-                            f = tp.submit(
-                                histogram1d,
-                                retas,
-                                bins=eta_bins,
-                                weights=image[rtth_idx]
-                            )
-                            f.add_done_callback(
-                                functools.partial(
-                                    _on_done, this_map, i_row, reta_idx
-                                )
-                            )
-                ring_maps_panel[det_key] = ring_maps
+            ring_maps_panel[det_key] = ring_maps
 
         return ring_maps_panel, eta_edges
 
@@ -2167,7 +2126,7 @@ class PlanarDetector(object):
             'rmat': self.rmat,
             'tvec': self.tvec,
         }
-        func = functools.partial(_generate_pixel_solid_angles, **kwargs)
+        func = partial(_generate_pixel_solid_angles, **kwargs)
         with ProcessPoolExecutor(max_workers=num_workers) as executor:
             results = executor.map(func, ranges)
 
@@ -3714,9 +3673,35 @@ def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
                  tmp_bins[tmp_idx][-1] + delta_eta]
             )
 
-    return {
-        'retas': retas,
-        'eta_bins': eta_bins,
-        'rtth_idx': rtth_idx,
-        'reta_idx': reta_idx,
-    }
+    return retas, eta_bins, rtth_idx, reta_idx
+
+
+def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
+    for i_row in range(*rows):
+        image = ims[i_row]
+
+        # handle threshold if specified
+        if threshold is not None:
+            # !!! NaNs get preserved
+            image = np.array(image)
+            image[image < threshold] = 0.
+
+        for i_r, tthr in enumerate(tth_ranges):
+            this_map = ring_maps[i_r]
+            params = ring_params[i_r]
+            if not params:
+                # We are supposed to skip this ring...
+                continue
+
+            # Unpack the params
+            retas, eta_bins, rtth_idx, reta_idx = params
+
+            if fast_histogram:
+                result = histogram1d(retas, len(eta_bins) - 1,
+                                     (eta_bins[0], eta_bins[-1]),
+                                     weights=image[rtth_idx])
+            else:
+                result, _ = histogram1d(retas, bins=eta_bins,
+                                        weights=image[rtth_idx])
+
+            this_map[i_row, reta_idx] = result
