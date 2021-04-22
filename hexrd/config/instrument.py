@@ -9,8 +9,10 @@ from hexrd import instrument
 class Instrument(Config):
     """Handle HEDM instrument config."""
 
-    def __init__(self, instr_file=None):
+    def __init__(self, cfg, instr_file=None):
+        super().__init__(cfg)
         self._configuration = instr_file
+        self._max_workers = self._cfg.multiprocessing
 
     # Note: instrument is instantiated with a yaml dictionary; use self
     #       to instantiate classes based on this one
@@ -25,7 +27,12 @@ class Instrument(Config):
         if not hasattr(self, '_hedm'):
             with open(self.configuration, 'r') as f:
                 icfg = yaml.load(f, Loader=NumPyIncludeLoader)
-            self._hedm = instrument.HEDMInstrument(icfg)
+
+            kwargs = {
+                'instrument_config': icfg,
+                'max_workers': self._max_workers,
+            }
+            self._hedm = instrument.HEDMInstrument(**kwargs)
         return self._hedm
 
     @hedm.setter
@@ -33,7 +40,12 @@ class Instrument(Config):
         """Set the HEDMInstrument class."""
         with open(yml, 'r') as f:
             icfg = yaml.load(f, Loader=NumPyIncludeLoader)
-        self._hedm = instrument.HEDMInstrument(icfg)
+
+        kwargs = {
+            'instrument_config': icfg,
+            'max_workers': self._max_workers,
+        }
+        self._hedm = instrument.HEDMInstrument(**kwargs)
 
     @property
     def detector_dict(self):

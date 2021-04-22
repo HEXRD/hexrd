@@ -6,6 +6,7 @@ in :mod:`hexrd.utils`. Before putting something here please see if it should
 go into another topical module in :mod:`hexrd.utils`.
 """
 
+from functools import wraps
 import hashlib
 
 import numpy as np
@@ -21,40 +22,45 @@ def undoc(func):
     return func
 
 
-class memoize:
+def memoize(func):
     """Decorator. Caches a function's return value each time it is called.
     If called later with the same arguments, the cached value is returned
     (not reevaluated).
     """
-    def __init__(self, func):
-        self.func = func
-        self.cache = {}
+    cache = {}
 
-    def __call__(self, *args, **kwargs):
+    @wraps(func)
+    def wrapped(*args, **kwargs):
         all_args = list(args) + sorted(kwargs.items())
-        key = self.make_hashable(all_args)
-        if key not in self.cache:
-            self.cache[key] = self.func(*args, **kwargs)
+        key = _make_hashable(all_args)
+        if key not in cache:
+            cache[key] = func(*args, **kwargs)
 
-        return self.cache[key]
+        return cache[key]
 
-    @staticmethod
-    def make_hashable(items):
+    return wrapped
 
-        def convert(x):
-            # Perform any conversions here to make a variable hashable
-            if isinstance(x, np.ndarray):
-                # Create an sha1 of the data, and throw in a string
-                # and the shape.
-                return ('__type_np.ndarray', x.shape,
-                        hashlib.sha1(x).hexdigest())
-            elif isinstance(x, (list, tuple)):
-                return memoize.make_hashable(x)
-            elif isinstance(x, dict):
-                return memoize.make_hashable(sorted(x.items()))
-            return x
 
-        return tuple(map(convert, items))
+def _make_hashable(items):
+    """Convert a list of items into hashable forms
+
+    Note: they may not be able to be converted back.
+    """
+
+    def convert(x):
+        # Perform any conversions here to make a variable hashable
+        if isinstance(x, np.ndarray):
+            # Create an sha1 of the data, and throw in a string
+            # and the shape.
+            return ('__type_np.ndarray', x.shape,
+                    hashlib.sha1(x).hexdigest())
+        elif isinstance(x, (list, tuple)):
+            return _make_hashable(x)
+        elif isinstance(x, dict):
+            return _make_hashable(sorted(x.items()))
+        return x
+
+    return tuple(map(convert, items))
 
 
 def numba_njit_if_available(func=None, *args, **kwargs):
