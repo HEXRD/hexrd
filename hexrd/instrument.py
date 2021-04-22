@@ -104,6 +104,8 @@ t_vec_d_DFLT = np.r_[0., 0., -1000.]
 chi_DFLT = 0.
 t_vec_s_DFLT = np.zeros(3)
 
+max_workers_DFLT = max(1, os.cpu_count() - 1)
+
 """
 Calibration parameter flags
 
@@ -373,13 +375,16 @@ class HEDMInstrument(object):
 
     def __init__(self, instrument_config=None,
                  image_series=None, eta_vector=None,
-                 instrument_name=None, tilt_calibration_mapping=None):
+                 instrument_name=None, tilt_calibration_mapping=None,
+                 max_workers=max_workers_DFLT):
         self._id = instrument_name_DFLT
 
         if eta_vector is None:
             self._eta_vector = eta_vec_DFLT
         else:
             self._eta_vector = eta_vector
+
+        self.max_workers = max_workers
 
         if instrument_config is None:
             if instrument_name is not None:
@@ -396,7 +401,8 @@ class HEDMInstrument(object):
                     tilt=tilt_params_DFLT,
                     bvec=self._beam_vector,
                     evec=self._eta_vector,
-                    distortion=None),
+                    distortion=None,
+                    max_workers=self.max_workers),
                 )
 
             self._tvec = t_vec_s_DFLT
@@ -484,7 +490,8 @@ class HEDMInstrument(object):
                         tilt=affine_info['tilt'],
                         bvec=self._beam_vector,
                         evec=self._eta_vector,
-                        distortion=distortion)
+                        distortion=distortion,
+                        max_workers=self.max_workers)
 
             self._detectors = det_dict
 
@@ -868,8 +875,6 @@ class HEDMInstrument(object):
         delta_eta = eta_edges[1] - eta_edges[0]
         ncols_eta = len(eta_edges) - 1
 
-        max_workers = os.cpu_count()
-
         ring_maps_panel = dict.fromkeys(self.detectors)
         for i_d, det_key in enumerate(self.detectors):
             print("working on detector '%s'..." % det_key)
@@ -909,12 +914,12 @@ class HEDMInstrument(object):
 
             # Divide up the images among processes
             ims = imgser_dict[det_key]
-            tasks = distribute_tasks(len(ims), max_workers)
+            tasks = distribute_tasks(len(ims), self.max_workers)
             func = partial(_run_histograms, ims=ims, tth_ranges=tth_ranges,
                            ring_maps=ring_maps, ring_params=ring_params,
                            threshold=threshold)
 
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                 executor.map(func, tasks)
 
             ring_maps_panel[det_key] = ring_maps
@@ -1796,7 +1801,8 @@ class PlanarDetector(object):
                  saturation_level=None,
                  panel_buffer=None,
                  roi=None,
-                 distortion=None):
+                 distortion=None,
+                 max_workers=max_workers_DFLT):
         """
         Instantiate a PlanarDetector object.
 
@@ -1855,6 +1861,8 @@ class PlanarDetector(object):
         self._evec = np.array(evec).flatten()
 
         self._distortion = distortion
+
+        self.max_workers = max_workers
 
         #
         # set up calibration parameter list and refinement flags
@@ -2102,7 +2110,7 @@ class PlanarDetector(object):
         solid_angs = np.empty(len(conn), dtype=float)
 
         # Assign ranges for each process
-        num_workers = os.cpu_count()
+        num_workers = self.max_workers
         num_per_process = len(conn) // num_workers
         remainder = len(conn) % num_workers
 

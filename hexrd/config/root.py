@@ -41,7 +41,7 @@ class RootConfig(Config):
         if not hasattr(self, '_instr_config'):
             instr_file = self.get('instrument')
             instr_file = self.check_filename(instr_file, self.working_dir)
-            self._instr_config = Instrument(instr_file)
+            self._instr_config = Instrument(self, instr_file)
         return self._instr_config
 
     @instrument.setter
