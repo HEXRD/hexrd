@@ -1033,7 +1033,8 @@ def _gaussian_pink_beam(alpha,
         * (np.exp(u)*erfc(y) + \
             np.exp(v)*erfc(z))
     g = np.nan_to_num(g)
-    return g
+    a = np.trapz(g, tth_list)
+    return g/a
 
 
 #@numba_njit_if_available(cache=True, nogil=True)
@@ -1056,13 +1057,13 @@ def _lorentzian_pink_beam(alpha,
 
     y = np.zeros(tth_list.shape)
 
-    mask = np.logical_or(np.abs(np.real(p)) > 5e2,
-     np.abs(np.imag(p)) > 5e2)
+    mask = np.logical_or(np.abs(np.real(p)) > 1e2,
+     np.abs(np.imag(p)) > 1e2)
     f1 = np.zeros(tth_list.shape)
     f1[mask] = np.imag(np.exp(p[mask])*exp1(p[mask]))
 
-    mask = np.logical_or(np.abs(np.real(q)) > 5e2,
-     np.abs(np.imag(q)) > 5e2)
+    mask = np.logical_or(np.abs(np.real(q)) > 1e2,
+     np.abs(np.imag(q)) > 1e2)
     f2 = np.zeros(tth_list.shape)
     f2[mask] = np.imag(np.exp(q[mask])*exp1(q[mask]))
 
@@ -1070,7 +1071,11 @@ def _lorentzian_pink_beam(alpha,
     (f1 + f2)
     
     y = np.nan_to_num(y)
-    return y
+    a = np.trapz(y, tth_list)
+    if a > 0.:
+        return y/a
+    else:
+        return y
 
 #@numba_njit_if_available(cache=True, nogil=True)
 def pvoight_pink_beam(alpha,

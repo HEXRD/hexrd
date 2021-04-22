@@ -2,6 +2,7 @@ import h5py
 import numpy as np
 import yaml
 import warnings
+from os import path
 
 class Parameters:
     """
