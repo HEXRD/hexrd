@@ -1033,8 +1033,8 @@ def _gaussian_pink_beam(alpha,
         * (np.exp(u)*erfc(y) + \
             np.exp(v)*erfc(z))
     g = np.nan_to_num(g)
-    a = np.trapz(g, tth_list)
-    return g/a
+
+    return g
 
 
 #@numba_njit_if_available(cache=True, nogil=True)
@@ -1071,11 +1071,8 @@ def _lorentzian_pink_beam(alpha,
     (f1 + f2)
     
     y = np.nan_to_num(y)
-    a = np.trapz(y, tth_list)
-    if a > 0.:
-        return y/a
-    else:
-        return y
+
+    return y
 
 #@numba_njit_if_available(cache=True, nogil=True)
 def pvoight_pink_beam(alpha,
