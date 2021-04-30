@@ -517,6 +517,7 @@ background_methods = {
             'type': int,
             'min': 0,
             'max': 99,
+            'value': 3,
             'tooltip': 'The polynomial degree used '
             'for polynomial fit.',
         }
@@ -526,6 +527,7 @@ background_methods = {
             'label': 'Snip Width',
             'type': float,
             'min': 0.,
+            'value': 1.0,
             'tooltip': 'Maximum width of peak to retain for '
             'background estimation (in degrees).'
         },
@@ -534,6 +536,7 @@ background_methods = {
             'type': int,
             'min': 1,
             'max': 99,
+            'value':2,
             'tooltip': 'number of snip iterations.'
         }
     ],
