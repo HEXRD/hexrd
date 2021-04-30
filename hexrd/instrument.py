@@ -67,7 +67,7 @@ from hexrd import distortion as distortion_pkg
 from hexrd.utils.concurrent import distribute_tasks
 from hexrd.utils.decorators import memoize
 from hexrd.valunits import valWUnit
-from hexrd.WPPF import LeBail
+from hexrd.wppf import LeBail
 
 from skimage.draw import polygon
 from skimage.util import random_noise
