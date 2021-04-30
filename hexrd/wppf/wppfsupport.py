@@ -331,6 +331,7 @@ def _add_phase_fractions(mat, params):
         """
         pf = [1./len(mat)]*len(mat)
         for ii,m in enumerate(mat):
+            p = m.name
             name=f"{p}_phase_fraction"
             params.add(
                 name=name, value=pf[ii],
@@ -342,7 +343,8 @@ def _add_phase_fractions(mat, params):
         dictionary of materials class
         """
         pf = [1./len(mat)]*len(mat)
-        for ii,m in enumerate(mat):
+        for ii, (k,m) in enumerate(mat.items()):
+            p = m.name 
             name=f"{p}_phase_fraction"
             params.add(
                 name=name, value=pf[ii],
