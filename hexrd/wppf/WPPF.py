@@ -860,6 +860,7 @@ class LeBail:
                     params[p] = self.params[p]
             self._params = params
             self._set_params_vals_to_class(params, init=True, skip_phases=True)
+            self.computespectrum()
 
     @property
     def computespectrum_fcn(self):
@@ -2473,6 +2474,7 @@ class Rietveld:
                     params[p] = self.params[p]
             self._params = params
             self._set_params_vals_to_class(params, init=True, skip_phases=True)
+            self.computespectrum()
 
     @property
     def computespectrum_fcn(self):
