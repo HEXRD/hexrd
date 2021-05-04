@@ -2103,14 +2103,6 @@ class PlanarDetector(object):
 
     @property
     def pixel_solid_angles(self):
-        # connectivity array for pixels
-        conn = cellConnectivity(self.rows, self.cols)
-
-        # result
-        solid_angs = np.empty(len(conn), dtype=float)
-
-        # Distribute tasks to each process
-        tasks = distribute_tasks(len(conn), self.max_workers)
         kwargs = {
             'rows': self.rows,
             'cols': self.cols,
@@ -2118,15 +2110,9 @@ class PlanarDetector(object):
             'pixel_size_col': self.pixel_size_col,
             'rmat': self.rmat,
             'tvec': self.tvec,
+            'max_workers': self.max_workers,
         }
-        func = partial(_generate_pixel_solid_angles, **kwargs)
-        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
-            results = executor.map(func, tasks)
-
-        # Concatenate all the results together
-        solid_angs[:] = np.concatenate(list(results))
-
-        return solid_angs.reshape(self.rows, self.cols)
+        return _pixel_solid_angles(**kwargs)
 
     @property
     def calibration_parameters(self):
@@ -3593,6 +3579,35 @@ def _pixel_angles(origin, pixel_coords, distortion, rmat, tvec, bvec, evec,
     tth = angs[0].reshape(rows, cols)
     eta = angs[1].reshape(rows, cols)
     return tth, eta
+
+
+@memoize
+def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
+                        rmat, tvec, max_workers):
+    # connectivity array for pixels
+    conn = cellConnectivity(rows, cols)
+
+    # result
+    solid_angs = np.empty(len(conn), dtype=float)
+
+    # Distribute tasks to each process
+    tasks = distribute_tasks(len(conn), max_workers)
+    kwargs = {
+        'rows': rows,
+        'cols': cols,
+        'pixel_size_row': pixel_size_row,
+        'pixel_size_col': pixel_size_col,
+        'rmat': rmat,
+        'tvec': tvec,
+    }
+    func = partial(_generate_pixel_solid_angles, **kwargs)
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        results = executor.map(func, tasks)
+
+    # Concatenate all the results together
+    solid_angs[:] = np.concatenate(list(results))
+
+    return solid_angs.reshape(rows, cols)
 
 
 def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
