@@ -506,6 +506,11 @@ def WriteH5Data(fid, AtomInfo, lat_param):
     arr2 = arr.copy()
     did.write_direct(arr2)
 
+    data = np.array(AtomInfo['charge'], dtype=object)
+    dt = h5py.special_dtype(vlen=str)
+    did = gid.create_dataset("ChargeStates", (len(AtomInfo['Z']),), dtype=dt)
+    did.write_direct(data)
+
     '''
         handling of isotropic vs
         anisotropic debye waller factors
