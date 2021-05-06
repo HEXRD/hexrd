@@ -1470,7 +1470,13 @@ def calc_rwp(spectrum_sim,
     den = np.trapz(weighted_expt, spectrum_expt[:,0])
 
     """ standard Rwp i.e. weighted residual """
-    Rwp = np.sqrt(wss/den)
+    if(den > 0.):
+        if(wss/den > 0.):
+            Rwp = np.sqrt(wss/den)
+        else:
+            Rwp = np.inf
+    else:
+        Rwp = np.inf
 
     """ number of observations to fit i.e. number of data points """
     N = spectrum_sim.shape[0]
