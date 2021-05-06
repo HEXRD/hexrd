@@ -47,22 +47,25 @@ class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
     def __getitem__(self, key):
         if self.singleframes:
             imgf = self._files[key]
-            img = fabio.open(imgf)
+            with fabio.open(imgf) as img:
+                data = img.data
         else:
             (fnum, frame) = self._file_and_frame(key)
-            fimg = self.infolist[fnum].fabioimage
-            img = fimg.getframe(frame)
+            filename = self.infolist[fnum].filename
+            with fabio.open(filename) as fimg:
+                img = fimg.getframe(frame)
+                data = img.data
         if self._dtype is not None:
             # !!! handled in self._process_files
             try:
                 dinfo = np.iinfo(self._dtype)
             except(ValueError):
                 dinfo = np.finfo(self._dtype)
-            if np.max(img.data) > dinfo.max:
+            if np.max(data) > dinfo.max:
                 raise RuntimeError("specified dtype will truncate image")
-            return np.array(img.data, dtype=self._dtype)
+            return np.array(data, dtype=self._dtype)
         else:
-            return img.data
+            return data
 
     def __iter__(self):
         return ImageSeriesIterator(self)
@@ -116,7 +119,7 @@ number of files: %s
                                    "inconsistent image shapes")
             if self._dtype is not None:
                 dtp = self._dtype
-                
+
             else:
                 dtp = self._checkvalue(
                     dtp, info.dtype,
@@ -207,11 +210,10 @@ class FileInfo(object):
     """class for managing individual file information"""
     def __init__(self, filename, **kwargs):
         self.filename = filename
-        img = fabio.open(filename)
-        self._fabioclass = img.classname
-        self._imgframes = img.nframes
-        self.dat = img.data
-        self.fabioimage = img
+        with fabio.open(filename) as img:
+            self._fabioclass = img.classname
+            self._imgframes = img.nframes
+            self.dat = img.data
 
         d = kwargs.copy()
         self._empty = d.pop('empty', 0)
