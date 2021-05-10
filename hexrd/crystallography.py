@@ -776,9 +776,14 @@ class PlaneData(object):
         return self.__wavelength
 
     def set_wavelength(self, wavelength):
-        self.__wavelength = processWavelength(wavelength)
+        wavelength = processWavelength(wavelength)
+        if np.isclose(self.__wavelength, wavelength):
+            # Do not re-compute if it is almost the same
+            return
+
+        self.__wavelength = wavelength
         self.__calc()
-        return
+
     wavelength = property(get_wavelength, set_wavelength, None)
 
     def get_structFact(self):
