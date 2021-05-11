@@ -330,7 +330,7 @@ def mockup_experiment():
                              "angstrom")
 
     gold = material.Material()
-    gold._set_latticeParameters(np.r_[4.0782])
+    gold.latticeParameters = [4.0782]
     gold.dmin = dmin
     gold.beamEnergy = beam_energy
     gold.planeData.exclusions = None
