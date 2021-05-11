@@ -722,7 +722,7 @@ def test_orientations(image_stack, experiment, controller):
     image_stack_dilated = np.empty_like(image_stack)
     dilated = np.empty(
         (image_stack.shape[-2], image_stack.shape[-1] << 3),
-        dtype=np.bool
+        dtype=bool
     )
     n_images = len(image_stack)
     controller.start(subprocess, n_images)
