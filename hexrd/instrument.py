@@ -2659,7 +2659,7 @@ class PlanarDetector(object):
 
             # do merging if asked
             if merge_hkls:
-                _, tth_ranges = pd.getMergedRanges()
+                _, tth_ranges = pd.getMergedRanges(cullDupl=True)
                 tth = np.array([0.5*sum(i) for i in tth_ranges])
             else:
                 tth_ranges = pd.getTThRanges()
