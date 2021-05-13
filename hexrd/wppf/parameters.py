@@ -145,7 +145,7 @@ class Parameters:
         if(key in self.param_dict.keys()):
             return self.param_dict[key]
         else:
-            raise ValueError('variable with name not found')
+            raise ValueError(f'variable with name {key} not found')
 
     def __setitem__(self, key, parm_cls):
 
