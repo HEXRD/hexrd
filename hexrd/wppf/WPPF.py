@@ -44,10 +44,10 @@ class LeBail:
                     09/14/2020 SS 1.2 bkgmethod is now a dictionary. if method is 'chebyshev'
                     the the value specifies the degree of the polynomial to use for background
                     estimation
-                    01/22/2021 SS 1.3 added intensity_init option to initialize intensity with 
+                    01/22/2021 SS 1.3 added intensity_init option to initialize intensity with
                     structure factors if the user so chooses
                     01/22/2021 SS 1.4 added option to specify background via a filename or numpy array
-                    03/12/2021 SS 1.5 added _generate_default_parameter function 
+                    03/12/2021 SS 1.5 added _generate_default_parameter function
 
     >> @DETAILS:    this is the main LeBail class and contains all the refinable parameters
                     for the analysis. Since the LeBail method has no structural information
@@ -330,7 +330,7 @@ class LeBail:
 
         elif(isinstance(self.intensity_init, dict)):
             """
-                first check if intensities for all phases are present in the 
+                first check if intensities for all phases are present in the
                 passed dictionary
             """
             for p in self.phases:
@@ -407,8 +407,8 @@ class LeBail:
                             eta_fwhm,
                             self.HL,
                             self.SL,
-                            tth, 
-                            dsp, 
+                            tth,
+                            dsp,
                             hkls,
                             strain_direction_dot_product,
                             is_in_sublattice,
@@ -422,8 +422,8 @@ class LeBail:
                             np.array([self.Xe, self.Ye, self.Xs]),
                             shkl,
                             eta_fwhm,
-                            tth, 
-                            dsp, 
+                            tth,
+                            dsp,
                             hkls,
                             strain_direction_dot_product,
                             is_in_sublattice,
@@ -439,8 +439,8 @@ class LeBail:
                             np.array([self.Xe, self.Ye, self.Xs]),
                             shkl,
                             eta_fwhm,
-                            tth, 
-                            dsp, 
+                            tth,
+                            dsp,
                             hkls,
                             strain_direction_dot_product,
                             is_in_sublattice,
@@ -503,18 +503,18 @@ class LeBail:
                             np.array([self.Xe, self.Ye, self.Xs]),
                             shkl,
                             eta_fwhm,
-                            self.HL, 
+                            self.HL,
                             self.SL,
-                            self.xn, 
-                            self.wn, 
-                            tth, 
-                            dsp, 
+                            self.xn,
+                            self.wn,
+                            tth,
+                            dsp,
                             hkls,
                             strain_direction_dot_product,
                             is_in_sublattice,
                             tth_list,
                             Ic,
-                            spec_expt, 
+                            spec_expt,
                             spec_sim)
 
                 elif self.peakshape == 1:
@@ -524,14 +524,14 @@ class LeBail:
                             np.array([self.Xe, self.Ye, self.Xs]),
                             shkl,
                             eta_fwhm,
-                            tth, 
-                            dsp, 
+                            tth,
+                            dsp,
                             hkls,
                             strain_direction_dot_product,
                             is_in_sublattice,
                             tth_list,
                             Ic,
-                            spec_expt, 
+                            spec_expt,
                             spec_sim)
 
                 elif self.peakshape == 2:
@@ -543,17 +543,17 @@ class LeBail:
                             np.array([self.Xe, self.Ye, self.Xs]),
                             shkl,
                             eta_fwhm,
-                            tth, 
-                            dsp, 
+                            tth,
+                            dsp,
                             hkls,
                             strain_direction_dot_product,
                             is_in_sublattice,
                             tth_list,
                             Ic,
-                            spec_expt, 
+                            spec_expt,
                             spec_sim)
 
-                self.Iobs[p][k] = self.calc_Iobs_fcn(*args) 
+                self.Iobs[p][k] = self.calc_Iobs_fcn(*args)
 
     def calcRwp(self, params):
         """
@@ -645,7 +645,7 @@ class LeBail:
     def _update_shkl(self, params):
         """
         if certain shkls are refined, then update
-        them using the params arg. else use values from 
+        them using the params arg. else use values from
         the parameter class
         """
         shkl_dict = {}
@@ -728,7 +728,7 @@ class LeBail:
     @property
     def HL(self):
         return self._HL
-    
+
     @HL.setter
     def HL(self, val):
         self._HL = val
@@ -736,7 +736,7 @@ class LeBail:
     @property
     def SL(self):
         return self._SL
-    
+
     @SL.setter
     def SL(self, val):
         self._SL = val
@@ -801,7 +801,7 @@ class LeBail:
     @property
     def shft(self):
         return self._shft
-    
+
     @shft.setter
     def shft(self, val):
         self._shft = val
@@ -809,7 +809,7 @@ class LeBail:
     @property
     def trns(self):
         return self._trns
-    
+
     @trns.setter
     def trns(self, val):
         self._trns = val
@@ -817,7 +817,7 @@ class LeBail:
     @property
     def peakshape(self):
         return self._peakshape
-    
+
     @peakshape.setter
     def peakshape(self, val):
         """
@@ -901,10 +901,10 @@ class LeBail:
                         polynomial degree
                         03/03/2021 SS 1.3 moved the initialization to the property definition of
                         self.spectrum_expt
-                        05/03/2021 SS 2.0 moved weight calculation and background initialization 
+                        05/03/2021 SS 2.0 moved weight calculation and background initialization
                         to the property definition
                         03/05/2021 SS 2.1 adding support for masked array np.ma.MaskedArray
-                        03/08/2021 SS 3.0 spectrum_expt is now a list to deal with the masked 
+                        03/08/2021 SS 3.0 spectrum_expt is now a list to deal with the masked
                         arrays
         >> @DETAILS:    load the experimental spectum of 2theta-intensity
         """
@@ -929,14 +929,14 @@ class LeBail:
                 if np.ma.is_masked(expt_spectrum):
                     """
                     @date 03/05/2021 SS 1.0 original
-                    this is an instance of masked array where there are 
+                    this is an instance of masked array where there are
                     nans in the spectrum. this will have to be handled with
                     a lot of care. steps are as follows:
                     1. if array is masked array, then check if any values are
                     masked or not.
                     2. if they are then the spectrum_expt is a list of individial
                     islands of the spectrum, each with its own background
-                    3. Every place where spectrum_expt is used, we will do a 
+                    3. Every place where spectrum_expt is used, we will do a
                     type test to figure out the logic of the operations
                     """
                     expt_spec_list, gidx = separate_regions(expt_spectrum)
@@ -1020,9 +1020,9 @@ class LeBail:
 
             """
             @date 03/03/2021 SS
-            there are cases when the intensity in the spectrum is 
+            there are cases when the intensity in the spectrum is
             negative. our approach will be to offset the spectrum to make all
-            the values positive for the computation and then finally offset it 
+            the values positive for the computation and then finally offset it
             when the computation has finished.
             03/08/2021 all quantities are lists now
             """
@@ -1049,7 +1049,7 @@ class LeBail:
             for s in self._spectrum_expt:
                 mask = s.y <= 0.
                 ww = np.zeros(s.y.shape)
-                """also initialize statistical weights 
+                """also initialize statistical weights
                 for the error calculation"""
                 ww[~mask] = 1.0 / \
                     np.sqrt(s.y[~mask])
@@ -1311,7 +1311,7 @@ def extract_intensities(polar_view,
                         termination_condition={'rwp_perct_change': 0.05,
                                                'max_iter': 100},
                         peakshape='pvtch'):
-    """ 
+    """
     =========================================================================================
     ==============================================================================================
 
@@ -1320,25 +1320,25 @@ def extract_intensities(polar_view,
     >> @DATE:       01/28/2021 SS 1.0 original
                     03/03/2021 SS 1.1 removed detector_mask since polar_view is now
                     a masked array
-    >> @DETAILS:    this function is used for extracting the experimental pole figure 
-                    intensities from the polar 2theta-eta map. The workflow is to simply 
+    >> @DETAILS:    this function is used for extracting the experimental pole figure
+                    intensities from the polar 2theta-eta map. The workflow is to simply
                     run the LeBail class, in parallel, over the different azimuthal profiles
-                    and return the Icalc values for the different wavelengths in the 
+                    and return the Icalc values for the different wavelengths in the
                     calculation. For now, the multiprocessing is done using the multiprocessing
                     module which comes natively with python. Extension to MPI will be done
                     later if necessary.
-    >> @PARAMS      polar_view: mxn array with the polar view. the parallelization is done 
+    >> @PARAMS      polar_view: mxn array with the polar view. the parallelization is done
                     !!! this is now a masked numpy array !!!
                     over "m" i.e. the eta dimension
                     tth_array: nx1 array with two theta values at each sampling point
                     params: parameter values for the LeBail class. Could be in the form of
                     yaml file, dictionary or Parameter class
-                    phases: materials to use in intensity extraction. could be a list of 
+                    phases: materials to use in intensity extraction. could be a list of
                     material objects, or file or dictionary
                     wavelength: dictionary of wavelengths to be used in the computation
                     bkgmethod: "spline" or "chebyshev" or "snip" default is chebyshev
-                    intensity_init: initial intensities for each reflection. If none, then 
-                    it is specified to some power of 10 depending on maximum intensity in 
+                    intensity_init: initial intensities for each reflection. If none, then
+                    it is specified to some power of 10 depending on maximum intensity in
                     spectrum (only used for powder simulator)
     ==============================================================================================
     ==============================================================================================
@@ -1377,10 +1377,10 @@ def extract_intensities(polar_view,
         data_inp_list, single_azimuthal_extraction, **kwargs)
 
     """
-    process the outputs from the multiprocessing to make the 
-    simulated polar views, tables of hkl <--> intensity etc. at 
+    process the outputs from the multiprocessing to make the
+    simulated polar views, tables of hkl <--> intensity etc. at
     each azimuthal location
-    in this section, all the rows which had no pixels 
+    in this section, all the rows which had no pixels
     falling on detector will be handles
     separately
     """
@@ -1741,7 +1741,7 @@ class Rietveld:
                 extinction = self.extinction[p][k]
                 absorption = self.absorption[p][k]
 
-                n = np.min((tth.shape[0], 
+                n = np.min((tth.shape[0],
                     sf.shape[0],
                     lp.shape[0]))
 
@@ -1772,8 +1772,8 @@ class Rietveld:
                             eta_fwhm,
                             self.HL,
                             self.SL,
-                            tth, 
-                            dsp, 
+                            tth,
+                            dsp,
                             hkls,
                             strain_direction_dot_product,
                             is_in_sublattice,
@@ -1787,8 +1787,8 @@ class Rietveld:
                             np.array([self.Xe, self.Ye, self.Xs]),
                             shkl,
                             eta_fwhm,
-                            tth, 
-                            dsp, 
+                            tth,
+                            dsp,
                             hkls,
                             strain_direction_dot_product,
                             is_in_sublattice,
@@ -1804,8 +1804,8 @@ class Rietveld:
                             np.array([self.Xe, self.Ye, self.Xs]),
                             shkl,
                             eta_fwhm,
-                            tth, 
-                            dsp, 
+                            tth,
+                            dsp,
                             hkls,
                             strain_direction_dot_product,
                             is_in_sublattice,
@@ -1873,7 +1873,7 @@ class Rietveld:
         fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
                  'verbose': 0, 'max_nfev': 1000, 'method':'trf',
                  'jac':'2-point'}
-        
+
         fitter = lmfit.Minimizer(self.calcRwp, params)
 
         self.res = fitter.least_squares(**fdict)
@@ -2030,7 +2030,7 @@ class Rietveld:
     def _update_shkl(self, params):
         """
         if certain shkls are refined, then update
-        them using the params arg. else use values from 
+        them using the params arg. else use values from
         the parameter class
         """
         shkl_dict = {}
@@ -2052,7 +2052,7 @@ class Rietveld:
     @property
     def params(self):
         return self._params
-    
+
     @params.setter
     def params(self, param_info):
         """
@@ -2132,7 +2132,7 @@ class Rietveld:
                                    self.global_shape)
         return Spectrum(x=self._tth_list_global,
                         y=spec_masked)
-    
+
     @spectrum_expt.setter
     def spectrum_expt(self, expt_spectrum):
         """
@@ -2143,10 +2143,10 @@ class Rietveld:
                         polynomial degree
                         03/03/2021 SS 1.3 moved the initialization to the property definition of
                         self.spectrum_expt
-                        05/03/2021 SS 2.0 moved weight calculation and background initialization 
+                        05/03/2021 SS 2.0 moved weight calculation and background initialization
                         to the property definition
                         03/05/2021 SS 2.1 adding support for masked array np.ma.MaskedArray
-                        03/08/2021 SS 3.0 spectrum_expt is now a list to deal with the masked 
+                        03/08/2021 SS 3.0 spectrum_expt is now a list to deal with the masked
                         arrays
         >> @DETAILS:    load the experimental spectum of 2theta-intensity
         """
@@ -2171,14 +2171,14 @@ class Rietveld:
                 if np.ma.is_masked(expt_spectrum):
                     """
                     @date 03/05/2021 SS 1.0 original
-                    this is an instance of masked array where there are 
+                    this is an instance of masked array where there are
                     nans in the spectrum. this will have to be handled with
                     a lot of care. steps are as follows:
                     1. if array is masked array, then check if any values are
                     masked or not.
                     2. if they are then the spectrum_expt is a list of individial
                     islands of the spectrum, each with its own background
-                    3. Every place where spectrum_expt is used, we will do a 
+                    3. Every place where spectrum_expt is used, we will do a
                     type test to figure out the logic of the operations
                     """
                     expt_spec_list, gidx = separate_regions(expt_spectrum)
@@ -2262,9 +2262,9 @@ class Rietveld:
 
             """
             @date 03/03/2021 SS
-            there are cases when the intensity in the spectrum is 
+            there are cases when the intensity in the spectrum is
             negative. our approach will be to offset the spectrum to make all
-            the values positive for the computation and then finally offset it 
+            the values positive for the computation and then finally offset it
             when the computation has finished.
             03/08/2021 all quantities are lists now
             """
@@ -2291,7 +2291,7 @@ class Rietveld:
             for s in self._spectrum_expt:
                 mask = s.y <= 0.
                 ww = np.zeros(s.y.shape)
-                """also initialize statistical weights 
+                """also initialize statistical weights
                 for the error calculation"""
                 ww[~mask] = 1.0 / \
                     np.sqrt(s.y[~mask])
@@ -2431,7 +2431,7 @@ class Rietveld:
     @property
     def peakshape(self):
         return self._peakshape
-    
+
     @peakshape.setter
     def peakshape(self, val):
         """
@@ -2620,7 +2620,7 @@ class Rietveld:
     @property
     def Ph(self):
         return self._Ph
-    
+
     @Ph.setter
     def Ph(self, val):
         self._Ph = val
@@ -2643,7 +2643,7 @@ def calc_num_variables(params):
 def separate_regions(masked_spec_array):
     """
     utility function for separating array into separate
-    islands as dictated by mask. this function was taken from 
+    islands as dictated by mask. this function was taken from
     stackoverflow
     https://stackoverflow.com/questions/43385877/
     efficient-numpy-subarrays-extraction-from-a-mask
@@ -2676,9 +2676,9 @@ def generate_pole_figures(hkls, tth, Icalc):
     """
     >> @AUTHOR  Saransh Singh Lawrence Livermore national Lab
     >> @DATE    02/05/2021 SS 1.0 original
-    >> @DETAILS this is the section where we'll do the texture 
-    computations for now. the idea is to get the A(h,y) function 
-    for the determination of the ODF. Using spherical harmonics 
+    >> @DETAILS this is the section where we'll do the texture
+    computations for now. the idea is to get the A(h,y) function
+    for the determination of the ODF. Using spherical harmonics
     for now nut will switch to discrete harmonics in the future
     """
     pass
