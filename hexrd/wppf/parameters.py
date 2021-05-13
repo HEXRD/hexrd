@@ -99,7 +99,7 @@ class Parameters:
         """
             >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
             >> @DATE:       01/15/2021 SS 1.0 original
-            >> @DETAILS:    dump the class to a hdf5 file. the file argument could either be a 
+            >> @DETAILS:    dump the class to a hdf5 file. the file argument could either be a
                             string or a h5.File instance. If it is a filename, then HDF5 file
                             is created, a parameter group is created and data is written out
                             with data names being the parameter name. Else data written to Parameter
