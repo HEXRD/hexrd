@@ -2684,7 +2684,7 @@ def generate_pole_figures(hkls, tth, Icalc):
     pass
 
 peakshape_dict = {
-    'pvfcj':"pseudo-voight (finger, cox, jephcoat)",
     'pvtch':"pseudo-voight (thompson, cox, hastings)",
+    'pvfcj':"pseudo-voight (finger, cox, jephcoat)",
     'pvpink':"pseudo-voight (von dreele)"
 }
