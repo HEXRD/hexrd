@@ -103,7 +103,7 @@ def _add_Shkl_terms(params,
     """
     add the SHKL terms in the anisotropic peak
     broadening contribution. this depends on the
-    lattice type. details can be found in 
+    lattice type. details can be found in
     P. Stephens, J. Appl. Cryst. (1999). 32, 281-289
 
     @NOTE: the rhombohedral lattices are assumed to be in
@@ -137,7 +137,7 @@ def _add_Shkl_terms(params,
             res[s] = 0.0
         return res, trig_ptype
 
-def _add_lp_to_params(params, 
+def _add_lp_to_params(params,
                       mat):
     """
     03/12/2021 SS 1.0 original
@@ -230,7 +230,7 @@ def _generate_default_parameters_LeBail(mat, peakshape):
     """
     params = Parameters()
     _generate_default_parameters_pseudovoight(params)
-    
+
     if peakshape == 0:
         _add_pvfcj_parameters(params)
     elif peakshape == 1:
@@ -344,7 +344,7 @@ def _add_phase_fractions(mat, params):
         """
         pf = [1./len(mat)]*len(mat)
         for ii, (k,m) in enumerate(mat.items()):
-            p = m.name 
+            p = m.name
             name=f"{p}_phase_fraction"
             params.add(
                 name=name, value=pf[ii],
@@ -489,7 +489,7 @@ _rqd_shkl = {
 "hexagonal": [(0, 2, 4),
 ((0,1,1.),(0,6,2.),(0,9,2.),(0,3,3.),
 (4,5,1.),(4,14,1.))],
-"trigonal": [(0, 2, 4, 10), 
+"trigonal": [(0, 2, 4, 10),
 ((0,1,1.),(0,6,2.),(0,9,2.),(0,3,3.),
 (4,5,1.),(4,14,1.),
 (10,8,-1.),(10,12,1.5),(10,13,-1.5))],
