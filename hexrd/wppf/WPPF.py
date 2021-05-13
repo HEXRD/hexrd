@@ -1263,29 +1263,20 @@ class LeBail:
                 PART 1: update the lattice parameters
                 """
                 lp = []
-
+                lpvary = False
                 pre = p + '_'
 
-                if(pre+'a' in params):
-                    if(params[pre+'a'].vary):
-                        lp.append(params[pre+'a'].value)
-                if(pre+'b' in params):
-                    if(params[pre+'b'].vary):
-                        lp.append(params[pre+'b'].value)
-                if(pre+'c' in params):
-                    if(params[pre+'c'].vary):
-                        lp.append(params[pre+'c'].value)
-                if(pre+'alpha' in params):
-                    if(params[pre+'alpha'].vary):
-                        lp.append(params[pre+'alpha'].value)
-                if(pre+'beta' in params):
-                    if(params[pre+'beta'].vary):
-                        lp.append(params[pre+'beta'].value)
-                if(pre+'gamma' in params):
-                    if(params[pre+'gamma'].vary):
-                        lp.append(params[pre+'gamma'].value)
+                name = [f"{pre}{x}" for x in wppfsupport._lpname]
 
-                if(not lp):
+                for nn in name:
+                    if nn in params:
+                        if params[nn].vary:
+                            lpvary = True
+                        lp.append(params[nn].value)
+                    elif nn in self.params:
+                        lp.append(self.params[nn].value)
+
+                if(not lpvary):
                     pass
                 else:
                     lp = self.phases[p].Required_lp(lp)
@@ -1919,28 +1910,18 @@ class Rietveld:
                     PART 1: update the lattice parameters
                     """
                     lp = []
-
+                    lpvary = False
                     pre = f"{p}_"
-                    if(f"{pre}a" in params):
-                        if(params[f"{pre}a"].vary):
-                            lp.append(params[f"{pre}a"].value)
-                    if(f"{pre}b" in params):
-                        if(params[f"{pre}b"].vary):
-                            lp.append(params[f"{pre}b"].value)
-                    if(f"{pre}c" in params):
-                        if(params[f"{pre}c"].vary):
-                            lp.append(params[f"{pre}c"].value)
-                    if(f"{pre}alpha" in params):
-                        if(params[f"{pre}alpha"].vary):
-                            lp.append(params[f"{pre}alpha"].value)
-                    if(f"{pre}beta" in params):
-                        if(params[f"{pre}beta"].vary):
-                            lp.append(params[f"{pre}beta"].value)
-                    if(f"{pre}gamma" in params):
-                        if(params[f"{pre}gamma"].vary):
-                            lp.append(params[f"{pre}gamma"].value)
+                    name = [f"{pre}{x}" for x in wppfsupport._lpname]
+                    for nn in name:
+                        if nn in params:
+                            if params[nn].vary:
+                                lpvary = True
+                            lp.append(params[nn].value)
+                        elif nn in self.params:
+                            lp.append(self.params[nn].value)
 
-                    if(not lp):
+                    if(not lpvary):
                         pass
                     else:
                         lp = self.phases[p][l].Required_lp(lp)
