@@ -522,7 +522,7 @@ background_methods = {
             'for polynomial fit.',
         }
     ],
-    'snip': [
+    'snip1d': [
         {
             'label': 'Snip Width',
             'type': float,
