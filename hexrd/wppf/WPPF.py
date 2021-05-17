@@ -2448,7 +2448,7 @@ class Rietveld:
         update parameters
         """
         if hasattr(self, 'params'):
-            params = wppfsupport._generate_default_parameters_LeBail(
+            params = wppfsupport._generate_default_parameters_Rietveld(
                     self.phases, self.peakshape)
             for p in params:
                 if p in self.params:

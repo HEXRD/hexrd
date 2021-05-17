@@ -592,7 +592,7 @@ class Material_Rietveld:
                  material_obj=None):
 
         self._shkl = np.zeros((15,))
-        self.abs_fact = 30.
+        self.abs_fact = 1e4
         if(material_obj is None):
             """
             dmin in nm
