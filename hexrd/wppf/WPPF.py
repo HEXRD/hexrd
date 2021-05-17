@@ -1742,7 +1742,7 @@ class Rietveld:
                 extinction = extinction[:n]
                 absorption = absorption[:n]
 
-                Ic = self.scale*pf*sf*lp*extinction*absorption
+                Ic = self.scale*pf*sf*lp#*extinction*absorption
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
