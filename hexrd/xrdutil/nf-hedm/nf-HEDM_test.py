@@ -16,6 +16,7 @@ import contextlib
 import multiprocessing
 import tempfile
 import shutil
+import socket
 
 # import of hexrd modules
 import hexrd
@@ -29,18 +30,19 @@ from hexrd import xrdutil
 
 from skimage.morphology import dilation as ski_dilation
 
-from progressbar import ProgressBar, Percentage, Bar
+hostname = socket.gethostname()
 
 USE_MPI = False
 rank = 0
 try:
     from mpi4py import MPI
-    from mpi4py.futures import MPIPoolExecutor
     comm = MPI.COMM_WORLD
     world_size = comm.Get_size()
     rank = comm.Get_rank()
     USE_MPI = world_size > 1
+    logging.info(f'{rank=} {world_size=} {hostname=}')
 except ImportError:
+    logging.warning(f'mpi4py failed to load on {hostname=}. MPI is disabled.')
     pass
 
 
@@ -137,6 +139,8 @@ def progressbar_progress_observer():
 
     class ProgressBarProgressObserver:
         def start(self, name, count):
+            from progressbar import ProgressBar, Percentage, Bar
+
             self.pbar = ProgressBar(widgets=[name, Percentage(), Bar()],
                                     maxval=count)
             self.pbar.start()
@@ -714,10 +718,15 @@ def gather_confidence(controller, confidence, n_grains, n_coords):
     send_counts = np.full(world_size, coords_per_rank * n_grains)
     send_counts[-1] = (n_coords - (coords_per_rank * (world_size-1))) * n_grains
 
+    if rank == 0:
+        # Time how long it takes to perform the MPI gather
+        controller.start('gather_confidence', 1)
+
     # Transpose so the data will be more easily re-shaped into its final shape
     # Must be flattened as well so the underlying data is modified...
     comm.Gatherv(confidence.T.flatten(), (global_confidence, send_counts), root=0)
     if rank == 0:
+        controller.finish('gather_confidence')
         confidence = global_confidence.reshape(n_coords, n_grains).T
         controller.handle_result("confidence", confidence)
 
@@ -800,6 +809,8 @@ def test_orientations(image_stack, experiment, controller):
     controller.start(subprocess, n_coords)
     finished = 0
     ncpus = min(ncpus, len(chunks))
+
+    logging.info(f'For {rank=}, {offset=}, {size=}, {chunks=}, {len(chunks)=}, {ncpus=}')
 
     logging.info('Checking confidence for %d coords, %d grains.',
                  n_coords, n_grains)
@@ -1138,7 +1149,11 @@ def build_controller(args):
     # builds the controller to use based on the args
 
     # result handle
-    progress_handler = progressbar_progress_observer()
+    try:
+        import progressbar
+        progress_handler = progressbar_progress_observer()
+    except ImportError:
+        progress_handler = null_progress_observer()
 
     if args.check is not None:
         if args.generate is not None:
