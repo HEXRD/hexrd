@@ -54,7 +54,7 @@ vInv_ref = constants.identity_6x1
 # ==============================================================================
 
 
-class ProcessController(object):
+class ProcessController:
     """This is a 'controller' that provides the necessary hooks to
     track the results of the process as well as to provide clues of
     the progress of the process"""
@@ -120,7 +120,7 @@ class ProcessController(object):
 
 
 def null_progress_observer():
-    class NullProgressObserver(object):
+    class NullProgressObserver:
         def start(self, name, count):
             pass
 
@@ -135,7 +135,7 @@ def null_progress_observer():
 
 def progressbar_progress_observer():
 
-    class ProgressBarProgressObserver(object):
+    class ProgressBarProgressObserver:
         def start(self, name, count):
             self.pbar = ProgressBar(widgets=[name, Percentage(), Bar()],
                                     maxval=count)
@@ -151,7 +151,7 @@ def progressbar_progress_observer():
 
 
 def forgetful_result_handler():
-    class ForgetfulResultHandler(object):
+    class ForgetfulResultHandler:
         def handle_result(self, key, value):
             pass  # do nothing
 
@@ -161,7 +161,7 @@ def forgetful_result_handler():
 def saving_result_handler(filename):
     """returns a result handler that saves the resulting arrays into a file
     with name filename"""
-    class SavingResultHandler(object):
+    class SavingResultHandler:
         def __init__(self, file_name):
             self.filename = file_name
             self.arrays = {}
@@ -190,7 +190,7 @@ def checking_result_handler(filename):
     match. A FULL PASS will happen when all existing results match
 
     """
-    class CheckingResultHandler(object):
+    class CheckingResultHandler:
         def __init__(self, reference_file):
             """Checks the result against those save in 'reference_file'"""
             logging.info("Loading reference results from '%s'", reference_file)
