@@ -698,7 +698,7 @@ def get_offset_size(n_coords):
         offset = rank * coords_per_rank
 
         size = coords_per_rank
-        if rank == size -1:
+        if rank == world_size - 1:
             size = n_coords - offset
 
     return (offset, size)
@@ -715,9 +715,20 @@ def gather_confidence(controller, confidence, n_grains, n_coords):
     send_counts[-1] = (n_coords - (coords_per_rank * (world_size-1))) * n_grains
 
     comm.Gatherv(sendbuf=confidence, recvbuf=(global_confidence, send_counts), root=0)
-    confidence = global_confidence
     if rank == 0:
-        controller.handle_result("confidence", confidence)
+        confidence = global_confidence
+
+        # Need to re-slice and re-stack the confidence so that they are grouped
+        # together properly. They were essentially flattened and concatenated
+        # to arrive here.
+        stacks = []
+        for i, count in enumerate(send_counts):
+            start = i * coords_per_rank * n_grains
+            stop = start + send_counts[i]
+            shape = (n_grains, send_counts[i] // n_grains)
+            stacks.append(confidence.ravel()[start:stop].reshape(shape))
+
+        controller.handle_result("confidence", np.hstack(stacks))
 
 # ==============================================================================
 # %% ORIENTATION TESTING
@@ -815,7 +826,7 @@ def test_orientations(image_stack, experiment, controller):
                                                        chunks):
                 count = rvalues.shape[1]
                 # We need to adjust this slice for the offset
-                rslice = slice(rslice.start-offset, rslice.stop-offset)
+                rslice = slice(rslice.start - offset, rslice.stop - offset)
                 confidence[:, rslice] = rvalues
                 finished += count
                 controller.update(finished)
@@ -830,6 +841,8 @@ def test_orientations(image_stack, experiment, controller):
                 stop=chunk_stop
             )
             count = rvalues.shape[1]
+            # We need to adjust this slice for the offset
+            rslice = slice(rslice.start - offset, rslice.stop - offset)
             confidence[:, rslice] = rvalues
             finished += count
             controller.update(finished)
