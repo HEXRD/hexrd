@@ -387,12 +387,12 @@ def mockup_experiment():
 # =============================================================================
 
 # Some basic 3d algebra =======================================================
-@numba.njit
+@numba.njit(nogil=True, cache=True)
 def _v3_dot(a, b):
     return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
 
 
-@numba.njit
+@numba.njit(nogil=True, cache=True)
 def _m33_v3_multiply(m, v, dst):
     v0 = v[0]
     v1 = v[1]
@@ -404,7 +404,7 @@ def _m33_v3_multiply(m, v, dst):
     return dst
 
 
-@numba.njit
+@numba.njit(nogil=True, cache=True)
 def _v3_normalized(src, dst):
     v0 = src[0]
     v1 = src[1]
@@ -419,7 +419,7 @@ def _v3_normalized(src, dst):
     return dst
 
 
-@numba.njit
+@numba.njit(nogil=True, cache=True)
 def _make_binary_rot_mat(src, dst):
     v0 = src[0]
     v1 = src[1]
@@ -442,7 +442,7 @@ def _make_binary_rot_mat(src, dst):
 
 # This is equivalent to the transform module anglesToGVec, but written in
 # numba. This should end in a module to share with other scripts
-@numba.njit
+@numba.njit(nogil=True, cache=True)
 def _anglesToGVec(angs, rMat_ss, rMat_c):
     """From a set of angles return them in crystal space"""
     result = np.empty_like(angs)
@@ -484,7 +484,7 @@ def _anglesToGVec(angs, rMat_ss, rMat_c):
 # gvec_cs, rSm varies per grain
 #
 # gvec_cs
-@numba.jit()
+@numba.njit(nogil=True, cache=True)
 def _gvec_to_detector_array(vG_sn, rD, rSn, rC, tD, tS, tC):
     """ beamVec is the beam vector: (0, 0, -1) in this case """
     ztol = xrdutil.epsf
@@ -536,7 +536,7 @@ def _gvec_to_detector_array(vG_sn, rD, rSn, rC, tD, tS, tC):
     return result
 
 
-@numba.njit
+@numba.njit(nogil=True, cache=True)
 def _quant_and_clip_confidence(coords, angles, image,
                                base, inv_deltas, clip_vals):
     """quantize and clip the parametric coordinates in coords + angles
@@ -670,7 +670,7 @@ def simulate_diffractions(grain_params, experiment, controller):
 #       booleans, an array of uint8 could be used so the image is stored
 #       with a bit per pixel.
 
-@numba.njit
+@numba.njit(nogil=True, cache=True)
 def _write_pixels(coords, angles, image, base, inv_deltas, clip_vals):
     count = len(coords)
     for i in range(count):
