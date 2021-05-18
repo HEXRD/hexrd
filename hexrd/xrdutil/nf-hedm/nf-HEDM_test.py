@@ -705,7 +705,7 @@ def get_offset_size(n_coords):
 
 def gather_confidence(controller, confidence, n_grains, n_coords):
     if rank == 0:
-        global_confidence = np.empty((n_grains, n_coords), dtype=np.float64)
+        global_confidence = np.empty(n_grains * n_coords, dtype=np.float64)
     else:
         global_confidence = None
 
@@ -714,21 +714,12 @@ def gather_confidence(controller, confidence, n_grains, n_coords):
     send_counts = np.full(world_size, coords_per_rank * n_grains)
     send_counts[-1] = (n_coords - (coords_per_rank * (world_size-1))) * n_grains
 
-    comm.Gatherv(sendbuf=confidence, recvbuf=(global_confidence, send_counts), root=0)
+    # Transpose so the data will be more easily re-shaped into its final shape
+    # Must be flattened as well so the underlying data is modified...
+    comm.Gatherv(confidence.T.flatten(), (global_confidence, send_counts), root=0)
     if rank == 0:
-        confidence = global_confidence
-
-        # Need to re-slice and re-stack the confidence so that they are grouped
-        # together properly. They were essentially flattened and concatenated
-        # to arrive here.
-        stacks = []
-        for i, count in enumerate(send_counts):
-            start = i * coords_per_rank * n_grains
-            stop = start + send_counts[i]
-            shape = (n_grains, send_counts[i] // n_grains)
-            stacks.append(confidence.ravel()[start:stop].reshape(shape))
-
-        controller.handle_result("confidence", np.hstack(stacks))
+        confidence = global_confidence.reshape(n_coords, n_grains).T
+        controller.handle_result("confidence", confidence)
 
 # ==============================================================================
 # %% ORIENTATION TESTING
