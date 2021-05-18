@@ -71,6 +71,7 @@ from hexrd.wppf import LeBail
 
 from skimage.draw import polygon
 from skimage.util import random_noise
+from hexrd.wppf import wppfsupport
 
 try:
     from fast_histogram import histogram1d
@@ -1142,14 +1143,16 @@ class HEDMInstrument(object):
         eta1, eta2, eta3 : Mixing parameters
         '''
         if(params is None):
-            params = {'zero_error': [0.0, -1., 1., True],
-                      'U': [2e-1, -1., 1., True],
-                      'V': [2e-2, -1., 1., True],
-                      'W': [2e-2, -1., 1., True],
-                      'X': [2e-1, -1., 1., True],
-                      'Y': [2e-1, -1., 1., True]
-                      }
-
+            # params = {'zero_error': [0.0, -1., 1., True],
+            #           'U': [2e-1, -1., 1., True],
+            #           'V': [2e-2, -1., 1., True],
+            #           'W': [2e-2, -1., 1., True],
+            #           'X': [2e-1, -1., 1., True],
+            #           'Y': [2e-1, -1., 1., True]
+            #           }
+            params = wppfsupport._generate_default_parameters_LeBail(
+                mat_list, 
+                1)
         '''
         use the material list to obtain the dictionary of initial intensities
         we need to make sure that the intensities are properly scaled by the
@@ -1220,7 +1223,8 @@ class HEDMInstrument(object):
                 'synchrotron': wavelength
             },
             'bkgmethod': bkgmethod,
-            'intensity_init': intensity
+            'intensity_init': intensity,
+            'peakshape': 'pvtch'
         }
 
         self.WPPFclass = LeBail(**kwargs)
