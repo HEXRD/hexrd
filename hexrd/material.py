@@ -674,15 +674,17 @@ class Material(object):
     @U.setter
     def U(self, Uarr):
         Uarr = numpy.array(Uarr)
-        if self.unitcell.U.shape == Uarr.shape:
-            if not numpy.allclose(self.unitcell.U, Uarr):
-                self.unitcell.U = Uarr
-                self.update_structure_factor()
-            else:
-                return
-        else:
-            self.unitcell.U = Uarr
-            self.update_structure_factor()
+        self._U = Uarr
+        # self.unitcell.U = Uarr
+        # if self.unitcell.U.shape == Uarr.shape:
+        #     if not numpy.allclose(self.unitcell.U, Uarr):
+        #         self.unitcell.U = Uarr
+        #         self.update_structure_factor()
+        #     else:
+        #         return
+        # else:
+        #     self.unitcell.U = Uarr
+        #     self.update_structure_factor()
     
     # property:  sgnum
     def _get_sgnum(self):
@@ -799,6 +801,38 @@ class Material(object):
         self._hkls_changed()
 
     @property
+<<<<<<< Updated upstream
+=======
+    def charge(self):
+        return self._charge
+
+    @charge.setter
+    def charge(self, vals):
+        """
+        first make sure the lengths are correct
+        """
+        if len(vals) != len(self.atomtype):
+            msg = (f"incorrect size of charge. "
+                f"must be same size as number of aom types.")
+            raise ValueError(msg)
+        """
+        now check if charge states are actually allowed
+        """
+        for ii,z in enumerate(self.atomtype):
+            elem = ptableinverse[z]
+            cs = chargestate[elem]
+            if not vals[ii] in cs:
+                msg = (f"element {elem} does not allow "
+                       f"charge state of {vals[ii]}. "
+                       f"allowed charge states are {cs}.")
+                raise ValueError(msg)
+
+        self._charge = vals
+        # self._newUnitcell()
+        # self.update_structure_factor()
+
+    @property
+>>>>>>> Stashed changes
     def natoms(self):
         return self.atominfo.shape[0]
 
@@ -815,18 +849,20 @@ class Material(object):
         if v.shape[1] != 4:
             raise ValueError("enter x, y, z, occ as nx4 array")
 
-        if self._atominfo.shape == v.shape:
-            if not numpy.allclose(self._atominfo, v):
-                self._atominfo = v
-                self.unitcell.atom_pos = v
-                self.update_structure_factor()
+        self._atominfo = v
 
-            else:
-                return
-        else:
-            self._atominfo = v
-            self.unitcell.atom_pos = v
-            self.update_structure_factor()
+        # if self._atominfo.shape == v.shape:
+        #     if not numpy.allclose(self._atominfo, v):
+        #         self._atominfo = v
+        #         #self.unitcell.atom_pos = v
+        #         #self.update_structure_factor()
+
+        #     else:
+        #         return
+        # else:
+        #     self._atominfo = v
+            #self.unitcell.atom_pos = v
+            #self.update_structure_factor()
 
     atominfo = property(
         _get_atominfo, _set_atominfo, None,
@@ -843,32 +879,86 @@ class Material(object):
         check to make sure number of atoms here is same as
         the atominfo
         """
-        if isinstance(v, list):
-            if len(v) != self.natoms:
-                raise ValueError("incorrect number of atoms")
-        elif isinstance(v, numpy.ndarray):
-            if v.ndim != 1:
-                if v.shape[0] != self.natoms:
-                    raise ValueError("incorrect number of atoms")
+        # if isinstance(v, list):
+        #     if len(v) != self.natoms:
+        #         raise ValueError("incorrect number of atoms")
+        # elif isinstance(v, numpy.ndarray):
+        #     if v.ndim != 1:
+        #         if v.shape[0] != self.natoms:
+        #             raise ValueError("incorrect number of atoms")
 
-        v = numpy.array(v)
-        if self._atomtype.shape == v.shape:
-            if not numpy.allclose(self._atomtype, v):
-                self._atomtype = numpy.array(v)
-                self._newUnitcell()
-                self.update_structure_factor()
+        # v = numpy.array(v)
+        # if self._atomtype.shape == v.shape:
+        #     if not numpy.allclose(self._atomtype, v):
+        #         self._atomtype = numpy.array(v)
+        #         s#elf._newUnitcell()
+        #         #self.update_structure_factor()
 
-            else:
-                return
-        else:
-            self._atomtype = numpy.array(v)
-            self._newUnitcell()
-            self.update_structure_factor()
+        #     else:
+        #         return
+        # else:
+        #     self._atomtype = numpy.array(v)
+            #self._newUnitcell()
+            #self.update_structure_factor()
+        self._atomtype = v
 
     atomtype = property(
         _get_atomtype, _set_atomtype, None,
         "Information about atomic types")
 
+    def _set_atomdata(self, atomdata):
+        """
+        sometimes the number of atom types and their
+        positions are changed when creating a material.
+        this was leading to error in updating the material
+        since the atominfo anf atomtype were separately updated
+        with the unitcell updated for each of those calls.
+        the error resulted when there was a size mismatch.
+        this routine allows for simulataneous update of the two
+        so there is no discrepancy and any discrepancy detected 
+        here is real
+
+        atomdata is a list with len==3. the first entry is the
+        atomtype array and the second is the atominfo array and
+        the final is the U data.
+        @todo pass charge state as the fourth input to the array
+        for now all charge set to zero
+        """
+        if len(atomdata) != 3:
+            msg = f"length of atomdata should be 3."
+            raise ValueError(msg)
+
+        atomtype, atominfo, U = atomdata
+        # check for consistency of sizes here
+        atomtype = numpy.array(atomtype)
+        atominfo = numpy.array(atominfo)
+        U = numpy.array(U)
+
+        if atomtype.shape[0] != atominfo.shape[0]:
+            msg = (f"inconsistent shapes: number of atoms "
+                   f"types passed = {atomtype.shape[0]} \n"
+                   f" number of atom positions passed = {atominfo.shape[0]}" )
+            raise ValueError(msg)
+        
+        if atomtype.shape[0] != U.shape[0]:
+            msg = (f"inconsistent shapes: number of atoms "
+                   f"types passed = {atomtype.shape[0]} \n"
+                   f" U passed for {U.shape[0]} atoms." )
+            raise ValueError(msg)
+
+        if atominfo.shape[0] != U.shape[0]:
+            msg = (f"inconsistent shapes: number of atom "
+                   f"positions passed = {atominfo.shape[0]} \n"
+                   f"U passed for {U.shape[0]} atoms." )
+            raise ValueError(msg)
+        
+        self.atomtype = atomtype
+        self.atominfo = atominfo
+        self.U = U
+        self.charge = ['0']*atomtype.shape[0]
+
+        self._newUnitcell()
+        self.update_structure_factor()
     #
     #  ========== Methods
     #
