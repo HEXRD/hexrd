@@ -1186,9 +1186,15 @@ def build_controller(args):
 _multiprocessing_start_method = 'fork' if hasattr(os, 'fork') else 'spawn'
 
 if __name__ == '__main__':
+    LOG_LEVEL = logging.INFO
     FORMAT="%(relativeCreated)12d [%(process)6d/%(thread)6d] %(levelname)8s: %(message)s"
-    logging.basicConfig(level=logging.INFO,
-                        format=FORMAT)
+
+    logging.basicConfig(level=LOG_LEVEL, format=FORMAT)
+
+    # Setting the root log level via logging.basicConfig() doesn't always work.
+    # The next line ensures that it will get set.
+    logging.getLogger().setLevel(LOG_LEVEL)
+
     args = parse_args()
 
     if len(args.inst_profile) > 0:
