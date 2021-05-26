@@ -492,7 +492,7 @@ def fit_pk_obj_1d_bnded(p, x, f0, pktype, weight, lb, ub):
 
 
 def fit_mpk_obj_1d(p, x, f0, pktype, num_pks, bgtype):
-    f = pkfuncs.mpeak_1d(p, x, pktype, num_pks, bgtype='linear')
+    f = pkfuncs.mpeak_1d(p, x, pktype, num_pks, bgtype=bgtype)
     resd = f - f0
     return resd
 
