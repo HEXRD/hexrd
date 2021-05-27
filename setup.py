@@ -7,7 +7,7 @@ import numpy
 np_include_dir = os.path.join(numpy.get_include(), 'numpy')
 
 install_reqs = [
-    'fabio',
+    'fabio>=0.11',
     'fast-histogram',
     'h5py',
     'lmfit',
