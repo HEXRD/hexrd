@@ -3152,7 +3152,7 @@ class GrainDataWriter(object):
             'inv(V_s)[0,0]', 'inv(V_s)[1,1]', 'inv(V_s)[2,2]',
             'inv(V_s)[1,2]*sqrt(2)',
             'inv(V_s)[0,2]*sqrt(2)',
-            'inv(V_s)[0,2]*sqrt(2)',
+            'inv(V_s)[0,1]*sqrt(2)',
             'ln(V_s)[0,0]', 'ln(V_s)[1,1]', 'ln(V_s)[2,2]',
             'ln(V_s)[1,2]', 'ln(V_s)[0,2]', 'ln(V_s)[0,1]'
         )
