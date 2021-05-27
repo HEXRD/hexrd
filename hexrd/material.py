@@ -936,7 +936,7 @@ class Material(object):
         _get_atomtype, _set_atomtype, None,
         "Information about atomic types")
 
-    def _set_atomdata(self, atomdata):
+    def _set_atomdata(self, atomtype, atominfo, U):
         """
         sometimes the number of atom types and their
         positions are changed when creating a material.
@@ -948,17 +948,12 @@ class Material(object):
         so there is no discrepancy and any discrepancy detected 
         here is real
 
-        atomdata is a list with len==3. the first entry is the
-        atomtype array and the second is the atominfo array and
-        the final is the U data.
-        @todo pass charge state as the fourth input to the array
+        the first entry is the atomtype array and the second is 
+        the atominfo array and the final is the U data.
+        @todo pass charge state as the fourth input
         for now all charge set to zero
         """
-        if len(atomdata) != 3:
-            msg = f"length of atomdata should be 3."
-            raise ValueError(msg)
 
-        atomtype, atominfo, U = atomdata
         # check for consistency of sizes here
         atomtype = numpy.array(atomtype)
         atominfo = numpy.array(atominfo)
