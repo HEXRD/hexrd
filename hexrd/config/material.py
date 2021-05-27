@@ -70,12 +70,11 @@ class MaterialConfig(Config):
         if self.fminr is not None:
             # !!! exclusions are all False upon generation; setting
             #     the tThMax attribute later won't affect these.
+            excl_full = np.array(pd.exclusions, dtype=bool)
+            pd.exclusions = None
             mod_f_sq = pd.structFact
             excl_these = mod_f_sq/np.max(mod_f_sq) < self.fminr
-            excl_full = pd.exclusions
-            active_refls_idx = np.where(~pd.exclusions)[0]
-            excl_full[active_refls_idx[excl_these]] = True
-            pd.exclusions = excl_full
+            pd.exclusions = np.logical_or(excl_full, excl_these)
         return pd
 
     @property

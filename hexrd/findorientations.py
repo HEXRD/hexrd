@@ -1,3 +1,4 @@
+import copy
 import logging
 import multiprocessing as mp
 import os
@@ -113,8 +114,8 @@ def generate_orientation_fibers(cfg, eta_ome):
     numSpots = []
     coms = []
     for i in seed_hkl_ids:
-        this_map = eta_ome.dataStore[i]
-        clean_map(this_map)
+        this_map = copy.copy(eta_ome.dataStore[i])
+        clean_map(this_map)  # !!! need to get rid of NaNs for blob detection
         numSpots_t, coms_t = find_peaks_2d(this_map, method, method_kwargs)
         numSpots.append(numSpots_t)
         coms.append(coms_t)
@@ -432,17 +433,18 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
                 'hkls used to generate orientation maps: %s',
                 hkls
             )
-            return res
         except (AttributeError, IOError):
             logger.info("specified maps file '%s' not found "
                         + "and clean option specified; "
                         + "recomputing eta/ome orientation maps",
                         fn)
-            return generate_eta_ome_maps(cfg, hkls=hkls)
+            res = generate_eta_ome_maps(cfg, hkls=hkls)
     else:
         logger.info('clean option specified; '
                     + 'recomputing eta/ome orientation maps')
-        return generate_eta_ome_maps(cfg, hkls=hkls)
+        res = generate_eta_ome_maps(cfg, hkls=hkls)
+    filter_maps_if_requested(res, cfg)
+    return res
 
 
 def filter_maps_if_requested(eta_ome, cfg):
@@ -454,9 +456,13 @@ def filter_maps_if_requested(eta_ome, cfg):
     #  if scalar, do median + LoG filter with that many pixels std dev
     if filter_maps:
         if not isinstance(filter_maps, bool):
+            sigm = const.fwhm_to_sigma * filter_maps
             logger.info("filtering eta/ome maps incl LoG with %.2f std dev",
-                        filter_maps)
-            _filter_eta_ome_maps(eta_ome, filter_stdev=filter_maps)
+                        sigm)
+            _filter_eta_ome_maps(
+                eta_ome,
+                filter_stdev=sigm
+            )
         else:
             logger.info("filtering eta/ome maps", filter_maps)
             _filter_eta_ome_maps(eta_ome)
@@ -722,7 +728,6 @@ def find_orientations(cfg,
             # need maps
             eta_ome = load_eta_ome_maps(cfg, plane_data, imsd,
                                         hkls=hkls, clean=clean)
-            filter_maps_if_requested(eta_ome, cfg)
 
             # generate trial orientations
             qfib = generate_orientation_fibers(cfg, eta_ome)
@@ -756,7 +761,6 @@ def find_orientations(cfg,
         # handle eta-ome maps
         eta_ome = load_eta_ome_maps(cfg, plane_data, imsd,
                                     hkls=hkls, clean=clean)
-        filter_maps_if_requested(eta_ome, cfg)
 
         # handle search space
         if cfg.find_orientations.use_quaternion_grid is None:
