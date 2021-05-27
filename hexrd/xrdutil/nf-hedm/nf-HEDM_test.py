@@ -681,8 +681,6 @@ def get_dilated_image_stack(image_stack, experiment, controller,
                                                  controller)
         np.save(cache_file, dilated_image_stack)
 
-    controller.handle_result('dilated_image_stack', dilated_image_stack)
-
     return dilated_image_stack
 
 
