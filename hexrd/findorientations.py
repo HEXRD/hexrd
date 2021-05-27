@@ -114,7 +114,7 @@ def generate_orientation_fibers(cfg, eta_ome):
     numSpots = []
     coms = []
     for i in seed_hkl_ids:
-        this_map = copy.copy(eta_ome.dataStore[i])
+        this_map = copy.deepcopy(eta_ome.dataStore[i])
         clean_map(this_map)  # !!! need to get rid of NaNs for blob detection
         numSpots_t, coms_t = find_peaks_2d(this_map, method, method_kwargs)
         numSpots.append(numSpots_t)
