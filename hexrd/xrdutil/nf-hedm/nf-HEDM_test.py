@@ -665,6 +665,52 @@ def simulate_diffractions(grain_params, experiment, controller):
     return image_stack
 
 
+# ==============================================================================
+# %% IMAGE DILATION
+# ==============================================================================
+
+
+def get_dilated_image_stack(image_stack, experiment, controller,
+                            cache_file='gold_cubes_dilated.npy'):
+
+    try:
+        dilated_image_stack = np.load(cache_file, mmap_mode='r',
+                                      allow_pickle=False)
+    except Exception:
+        dilated_image_stack = dilate_image_stack(image_stack, experiment,
+                                                 controller)
+        np.save(cache_file, dilated_image_stack)
+
+    controller.handle_result('dilated_image_stack', dilated_image_stack)
+
+    return dilated_image_stack
+
+
+def dilate_image_stack(image_stack, experiment, controller):
+    # first, perform image dilation ===========================================
+    # perform image dilation (using scikit_image dilation)
+    subprocess = 'dilate image_stack'
+    dilation_shape = np.ones((2*experiment.row_dilation + 1,
+                              2*experiment.col_dilation + 1),
+                             dtype=np.uint8)
+    image_stack_dilated = np.empty_like(image_stack)
+    dilated = np.empty(
+        (image_stack.shape[-2], image_stack.shape[-1] << 3),
+        dtype=bool
+    )
+    n_images = len(image_stack)
+    controller.start(subprocess, n_images)
+    for i_image in range(n_images):
+        to_dilate = np.unpackbits(image_stack[i_image], axis=-1)
+        ski_dilation(to_dilate, dilation_shape,
+                     out=dilated)
+        image_stack_dilated[i_image] = np.packbits(dilated, axis=-1)
+        controller.update(i_image + 1)
+    controller.finish(subprocess)
+
+    return image_stack_dilated
+
+
 # This part is critical for the performance of simulate diffractions. It
 # basically "renders" the "pixels". It takes the coordinates, quantizes to an
 # image coordinate and writes to the appropriate image in the stack. Note
@@ -736,7 +782,7 @@ def gather_confidence(controller, confidence, n_grains, n_coords):
 def test_orientations(image_stack, experiment, controller):
     """grand loop precomputing the grown image stack
 
-    image-stack -- is the image stack to be tested against.
+    image-stack -- is the dilated image stack to be tested against.
 
     experiment  -- A bunch of experiment related parameters.
 
@@ -764,27 +810,6 @@ def test_orientations(image_stack, experiment, controller):
     # The grid of coords to use to test
     test_crds = generate_test_grid(-0.25, 0.25, 101)
     n_coords = controller.limit('coords', len(test_crds))
-
-    # first, perform image dilation ===========================================
-    # perform image dilation (using scikit_image dilation)
-    subprocess = 'dilate image_stack'
-    dilation_shape = np.ones((2*experiment.row_dilation + 1,
-                              2*experiment.col_dilation + 1),
-                             dtype=np.uint8)
-    image_stack_dilated = np.empty_like(image_stack)
-    dilated = np.empty(
-        (image_stack.shape[-2], image_stack.shape[-1] << 3),
-        dtype=bool
-    )
-    n_images = len(image_stack)
-    controller.start(subprocess, n_images)
-    for i_image in range(n_images):
-        to_dilate = np.unpackbits(image_stack[i_image], axis=-1)
-        ski_dilation(to_dilate, dilation_shape,
-                     out=dilated)
-        image_stack_dilated[i_image] = np.packbits(dilated, axis=-1)
-        controller.update(i_image + 1)
-    controller.finish(subprocess)
 
     # precompute per-grain stuff ==============================================
     # gVec_cs and rmat_ss can be precomputed, do so.
@@ -821,7 +846,7 @@ def test_orientations(image_stack, experiment, controller):
                      ncpus, _multiprocessing_start_method)
         with grand_loop_pool(ncpus=ncpus,
                              state=(chunk_size,
-                                    image_stack_dilated,
+                                    image_stack,
                                     all_angles, precomp,
                                     test_crds, experiment)) as pool:
             for rslice, rvalues in pool.imap_unordered(multiproc_inner_loop,
@@ -837,7 +862,7 @@ def test_orientations(image_stack, experiment, controller):
         for chunk_start in chunks:
             chunk_stop = min(n_coords, chunk_start+chunk_size)
             rslice, rvalues = _grand_loop_inner(
-                image_stack_dilated, all_angles,
+                image_stack, all_angles,
                 precomp, test_crds, experiment,
                 start=chunk_start,
                 stop=chunk_stop
@@ -1102,6 +1127,8 @@ def main(args, controller):
     controller.handle_result('grain_params', grain_params)
     image_stack = get_simulate_diffractions(grain_params, experiment,
                                             controller=controller)
+    image_stack = get_dilated_image_stack(image_stack, experiment,
+                                          controller)
 
     test_orientations(image_stack, experiment,
                       controller=controller)
