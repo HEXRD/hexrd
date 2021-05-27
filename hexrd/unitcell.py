@@ -444,6 +444,7 @@ class unitcell:
         SS 12/10/2020 
         '''
         if(self._pointGroup == 'c1'):
+            om = np.array([[1., 0., 0.], [0., 0., 1.], [0., -1., 0.]])
 
             for i, s in enumerate(self.SYM_PG_supergroup):
                 ss = np.dot(om, np.dot(s, om.T))
