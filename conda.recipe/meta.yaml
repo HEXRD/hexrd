@@ -34,7 +34,6 @@ requirements:
     - scikit-image
     - scikit-learn 0.24.1
     - scipy
-    - progressbar
 
 test:
   imports:
