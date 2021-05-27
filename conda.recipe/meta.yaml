@@ -21,7 +21,7 @@ requirements:
 
   run:
     - appdirs
-    - fabio
+    - fabio >=0.11
     - fast-histogram
     - h5py
     - lmfit
