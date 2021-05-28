@@ -42,6 +42,7 @@ mpeak_nparams_dict = {
     'split_pvoigt': 6
 }
 
+
 # =============================================================================
 # 1-D Gaussian Functions
 # =============================================================================
@@ -162,7 +163,7 @@ def _unit_lorentzian(p, x):
     FWHM = p[1]
     gamma = FWHM/lorentz_width_fact
 
-    f = gamma / ((x-x0)**2 + gamma**2)
+    f = gamma**2 / ((x-x0)**2 + gamma**2)
     return f
 
 
