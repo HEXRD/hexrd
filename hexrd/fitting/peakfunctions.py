@@ -30,10 +30,6 @@ import copy
 from hexrd import constants
 from hexrd.utils.decorators import numba_njit_if_available
 
-# addr = get_cython_function_address("scipy.special.cython_special", "exp1")
-# functype = ctypes.CFUNCTYPE(ctypes.c_double, ctypes.c_double)
-# exp1_fn = functype(addr)
-
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.
 
