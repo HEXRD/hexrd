@@ -46,7 +46,8 @@ jobs:
     - name: Install build requirements
       run: |
           conda activate hexrd
-          conda install anaconda conda-build scikit-learn==0.24.1
+          conda install anaconda conda-build
+          conda install -c conda-forge scikit-learn
 
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
