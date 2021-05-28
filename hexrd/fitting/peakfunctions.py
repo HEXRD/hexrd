@@ -47,7 +47,6 @@ mpeak_nparams_dict = {
 # 1-D Gaussian Functions
 # =============================================================================
 # Split the unit gaussian so this can be called for 2d and 3d functions
-
 def _unit_gaussian(p, x):
     """
     Required Arguments:
