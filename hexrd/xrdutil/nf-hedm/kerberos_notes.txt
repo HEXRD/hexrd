@@ -1,0 +1,36 @@
+For Farm users, we have recommended that a Kerberos key-tab file be used instead of ssh keys, so that you don't need to manage a known_hosts file entry for every host you need to access in the Farm.
+
+
+To make a Kerberos keytab file, using ktutil, please do the following (enter your password, when prompted):
+
+```
+mkdir /home/$USER/etc
+ktutil
+addent -password -p $USER@CLASSE.CORNELL.EDU -k KVNO -e aes256-cts-hmac-sha1-96
+wkt /home/$USER/etc/$USER-keytab
+quit
+```
+
+After creating the $USER-keytab file you can see what's in the file by typing:
+
+```
+klist -t -e -k ~/etc/$USER-keytab
+```
+
+The output should be something like:
+
+```
+[amd275@lnx7179 ~]$ klist -t -e -k ~/etc/amd275-keytab
+
+Keytab name: FILE:etc/amd275-keytab
+KVNO Timestamp           Principal
+---- ------------------- ------------------------------------------------------
+   0 07/11/2019 13:37:04 amd275@CLASSE.CORNELL.EDU (aes256-cts-hmac-sha1-96)
+```
+
+So then just add the following to your job script (after all the SGE "#$" directive statements)
+
+```
+# Enable Kerberos ticket:
+/usr/bin/kinit -k -t /home/$USER/etc/$USER-keytab $USER
+```
