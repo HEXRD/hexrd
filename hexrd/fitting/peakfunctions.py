@@ -28,7 +28,7 @@
 import numpy as np
 import copy
 from hexrd import constants
-from hexrd.utils.decorators import numba_njit_if_available
+
 
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.
