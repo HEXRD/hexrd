@@ -693,9 +693,9 @@ class Material(object):
     def atom_pos(self):
         return self.unitcell.atom_pos
 
-    # @property
-    # def atom_type(self):
-    #     return self.unitcell.atom_type
+    @property
+    def atom_type(self):
+        return self.unitcell.atom_type
 
     @property
     def aniU(self):
