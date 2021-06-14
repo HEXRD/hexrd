@@ -221,7 +221,16 @@ def _add_atominfo_to_params(params, mat):
                 lb=0.0, ub=np.inf,
                 vary=False)
 
-def _generate_default_parameters_LeBail(mat, peakshape):
+def _add_background_parameters(params, bkgmethod):
+    n = bkgmethod["chebyshev"]
+    for i in range(n+1):
+        nn = f"bkg_c{i}"
+        params.add(
+            nn, value=0.0,
+            lb=-np.inf, ub=np.inf,
+            vary=False)
+
+def _generate_default_parameters_LeBail(mat, peakshape, bkgmethod):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
     @date:    03/12/2021 SS 1.0 original
@@ -230,6 +239,9 @@ def _generate_default_parameters_LeBail(mat, peakshape):
     """
     params = Parameters()
     _generate_default_parameters_pseudovoight(params)
+
+    if "chebyshev" in bkgmethod.keys():
+        _add_background_parameters(params, bkgmethod)
 
     if peakshape == 0:
         _add_pvfcj_parameters(params)

@@ -194,7 +194,17 @@ class LeBail:
                 self._background.append(self.splinefit(x, y, tth))
 
         elif('chebyshev' in self.bkgmethod.keys()):
+            """
+            @06/11/2021 SS modyfying to initialize background to zero
+            the subsequent refinement together with other parameters 
+            will give the right background.
+            """
             self.chebyshevfit()
+            # self._background = []
+            # for i, s in enumerate(self._spectrum_expt):
+            #     tth = self._tth_list[i]
+            #     self._background.append(Spectrum(x=tth, 
+            #         y=np.zeros(tth.shape)))
 
         elif('file' in self.bkgmethod.keys()):
             if len(self._spectrum_expt) > 1:
@@ -255,9 +265,11 @@ class LeBail:
             tth = self._tth_list[i]
             if s.y.shape[0] <= degree:
                 self._background.append(Spectrum(x=tth, y=np.zeros(tth.shape)))
+                bkg_set = f"self.bkg_c{i} = "
+                exec()
             else:
                 p = np.polynomial.Chebyshev.fit(
-                    tth, s.y, degree, w=self._weights[i]**4)
+                    tth, s.y, degree, w=self._weights[i]**2)
                 self._background.append(Spectrum(x=tth, y=p(tth)))
 
     def selectpoints(self):
@@ -1073,7 +1085,25 @@ class LeBail:
 
     @property
     def background(self):
-        vector_list = [s.y for s in
+        """
+        06/11/2021 SS if bkgmethod is chebyshev, then the 
+        bkg is computed on the fly
+        """
+        if "chebyshev" in self.bkgmethod.keys():
+            n = self.bkgmethod["chebyshev"]
+            coeff = []
+            for i in range(n+1):
+                nn = f"bkg_c{i}"
+                coeff.append(self.params[nn].value)
+
+            p = np.polynomial.chebyshev.Chebyshev(coeff, 
+                domain=[self.tth_list[0],self.tth_list[-1]])
+            vector_list = [p(s.x) for s in 
+            self._background]
+            self._background = [Spectrum(x=s.x,
+            y=v) for s,v in zip(self._background,vector_list)]
+        else:
+            vector_list = [s.y for s in
                        self._background]
 
         bkg_masked = join_regions(vector_list,
@@ -1154,7 +1184,7 @@ class LeBail:
                 mixing factor calculated by Thomax, Cox, Hastings formula
             """
             params = wppfsupport._generate_default_parameters_LeBail(
-                self.phases, self.peakshape)
+                self.phases, self.peakshape, self.bkgmethod)
             self._params = params
 
         self._set_params_vals_to_class(params, init=True, skip_phases=True)
