@@ -8,6 +8,7 @@ from warnings import warn
 from hexrd.transforms.xfcapi import anglesToGVec
 from hexrd.wppf import phase
 from lmfit import Parameters, Minimizer
+
 """
 ========================================================================================================
 ========================================================================================================
