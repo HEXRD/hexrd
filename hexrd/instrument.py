@@ -2160,6 +2160,12 @@ class PlanarDetector(object):
         f_vert is the fraction of vertical polarization, which is
         ~0 for XFELs
         """
+        s = f_hor+f_vert
+        if np.abs(s-1) > 1e-6:
+            msg = (f"sum of fraction of "
+                f"horizontal and vertical polarizations "
+                f"must be equal to 1.")
+            raise RuntimeError(msg)
 
         tth, eta = self.pixel_angles()
         args = (tth, eta, f_hor, f_vert)
