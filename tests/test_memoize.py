@@ -9,6 +9,7 @@ def test_memoize():
 
     # This will only be set to true if memoization did not happen
     modified = False
+    maxsize = 6
 
     def was_memoized():
         # Get the state, and reset it
@@ -17,7 +18,7 @@ def test_memoize():
         modified = False
         return ret
 
-    @memoize
+    @memoize(maxsize=maxsize)
     def run(*args, **kwargs):
         nonlocal modified
         modified = True
@@ -132,3 +133,47 @@ def test_memoize():
     dict2['key2'] = 3
     run(list1, list2, dict1, dict2, kwarg=dict2)
     assert was_memoized()
+
+    #### Test lru #### noqa
+    run(list1, list2, dict1, dict2, kwarg=dict2)
+
+    # It should not be removed if less than the max size is used.
+    for i in range(maxsize - 1):
+        run(i)
+
+    modified = False
+    run(list1, list2, dict1, dict2, kwarg=dict2)
+    assert was_memoized()
+
+    # It should have been moved to least recently used. Run again.
+    for i in range(maxsize - 1):
+        run(i)
+
+    modified = False
+    run(list1, list2, dict1, dict2, kwarg=dict2)
+    assert was_memoized()
+
+    # Now remove it from the cache
+    for i in range(maxsize):
+        run(i)
+
+    modified = False
+    run(list1, list2, dict1, dict2, kwarg=dict2)
+    assert not was_memoized()
+
+    # Exceed the cache by a lot...
+    for i in range(maxsize * 2):
+        run(i)
+
+    modified = False
+    run(list1, list2, dict1, dict2, kwarg=dict2)
+    assert not was_memoized()
+
+    # The last item should be memoized
+    run(maxsize * 2 - 1)
+    assert was_memoized()
+
+    # None up to maxsize should be memoized
+    for i in range(maxsize):
+        run(i)
+        assert not was_memoized()

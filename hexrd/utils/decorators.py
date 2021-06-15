@@ -6,6 +6,7 @@ in :mod:`hexrd.utils`. Before putting something here please see if it should
 go into another topical module in :mod:`hexrd.utils`.
 """
 
+from collections import OrderedDict
 from functools import wraps
 import hashlib
 
@@ -22,23 +23,66 @@ def undoc(func):
     return func
 
 
-def memoize(func):
+def memoize(func=None, maxsize=5):
     """Decorator. Caches a function's return value each time it is called.
     If called later with the same arguments, the cached value is returned
     (not reevaluated).
+
+    This uses an LRU cache, where, before the maxsize is exceeded, the
+    least recently used item will be removed.
+
+    Numpy array arguments will be hashed for use in the cache.
+
+    We are not using `functools.lru_cache()` only because it requires
+    hashed arguments. Here, we can create hashes for the arguments on
+    our own, and still pass the unhashed arguments to the function.
     """
-    cache = {}
 
-    @wraps(func)
-    def wrapped(*args, **kwargs):
-        all_args = list(args) + sorted(kwargs.items())
-        key = _make_hashable(all_args)
-        if key not in cache:
-            cache[key] = func(*args, **kwargs)
+    def decorator(func):
 
-        return cache[key]
+        cache = OrderedDict()
+        hits = 0
+        misses = 0
 
-    return wrapped
+        def cache_info():
+            return {
+                'hits': hits,
+                'misses': misses,
+                'maxsize': maxsize,
+                'currsize': len(cache),
+            }
+
+        setattr(func, 'cache_info', cache_info)
+
+        @wraps(func)
+        def wrapped(*args, **kwargs):
+            nonlocal misses
+            nonlocal hits
+
+            all_args = list(args) + sorted(kwargs.items())
+            key = _make_hashable(all_args)
+            if key not in cache:
+                # Make sure the current size is less than the max size
+                while len(cache) >= maxsize:
+                    # Remove the left item (least recently used)
+                    cache.popitem(last=False)
+
+                # This inserts the item on the right (most recently used)
+                cache[key] = func(*args, **kwargs)
+                misses += 1
+            else:
+                # Move the item to the right (most recently used)
+                cache.move_to_end(key)
+                hits += 1
+
+            return cache[key]
+
+        return wrapped
+
+    if func is None:
+        return decorator
+    else:
+        return decorator(func)
 
 
 def _make_hashable(items):
