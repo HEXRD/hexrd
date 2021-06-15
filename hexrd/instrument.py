@@ -2119,21 +2119,6 @@ class PlanarDetector(object):
         return _pixel_solid_angles(**kwargs)
 
     @property
-    def lorentz_polarization_factor(self, f_hor, f_vert):
-
-        """
-        f_hor is the fraction of horizontal polarization. for XFELs
-        this is close to 1
-        f_vert is the fraction of vertical polarization, which is
-        ~0 for XFELs
-        """
-
-        tth, eta = self.pixel_angles()
-        args = (tth, eta, f_hor, f_vert)
-
-        return _lorentz_polarization_factor(*args)
-
-    @property
     def calibration_parameters(self):
         #
         # set up calibration parameter list and refinement flags
@@ -2166,6 +2151,20 @@ class PlanarDetector(object):
     # =========================================================================
     # METHODS
     # =========================================================================
+
+    def lorentz_polarization_factor(self, f_hor, f_vert):
+
+        """
+        f_hor is the fraction of horizontal polarization. for XFELs
+        this is close to 1
+        f_vert is the fraction of vertical polarization, which is
+        ~0 for XFELs
+        """
+
+        tth, eta = self.pixel_angles()
+        args = (tth, eta, f_hor, f_vert)
+
+        return _lorentz_polarization_factor(*args)
 
     def config_dict(self, chi=0, tvec=ct.zeros_3,
                     beam_energy=beam_energy_DFLT, beam_vector=ct.beam_vec,
@@ -3654,7 +3653,7 @@ def _lorentz_polarization_factor(tth, eta, f_hor, f_vert):
     ceta2 = np.cos(eta)**2
 
     L = 1./(cth*sth2)
-    P = f_hor*(seta2+ceta2*ctth2) + 
+    P = f_hor*(seta2+ceta2*ctth2) + \
     f_vert*(ceta2+seta2*ctth2)
 
     return L*P
