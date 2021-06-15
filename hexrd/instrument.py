@@ -2167,6 +2167,11 @@ class PlanarDetector(object):
                 f"must be equal to 1.")
             raise RuntimeError(msg)
 
+        if f_hor < 0 or f_vert < 0:
+            msg = (f"fraction of polarization in horizontal "
+                f"or vertical directions can't be negative.")
+            raise RuntimeError(msg)
+
         tth, eta = self.pixel_angles()
         args = (tth, eta, f_hor, f_vert)
 
