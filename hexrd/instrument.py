@@ -2152,6 +2152,31 @@ class PlanarDetector(object):
     # METHODS
     # =========================================================================
 
+    def lorentz_polarization_factor(self, f_hor, f_vert):
+
+        """
+        f_hor is the fraction of horizontal polarization. for XFELs
+        this is close to 1
+        f_vert is the fraction of vertical polarization, which is
+        ~0 for XFELs
+        """
+        s = f_hor+f_vert
+        if np.abs(s-1) > 1e-6:
+            msg = (f"sum of fraction of "
+                f"horizontal and vertical polarizations "
+                f"must be equal to 1.")
+            raise RuntimeError(msg)
+
+        if f_hor < 0 or f_vert < 0:
+            msg = (f"fraction of polarization in horizontal "
+                f"or vertical directions can't be negative.")
+            raise RuntimeError(msg)
+
+        tth, eta = self.pixel_angles()
+        args = (tth, eta, f_hor, f_vert)
+
+        return _lorentz_polarization_factor(*args)
+
     def config_dict(self, chi=0, tvec=ct.zeros_3,
                     beam_energy=beam_energy_DFLT, beam_vector=ct.beam_vec,
                     sat_level=None, panel_buffer=None, style='yaml'):
@@ -3613,6 +3638,36 @@ def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
 
     return solid_angs.reshape(rows, cols)
 
+@memoize
+def _lorentz_polarization_factor(tth, eta, f_hor, f_vert):
+    """
+    06/14/2021 SS adding lorentz polarization factor computation
+    to the detector so that it can be compenstated for in the 
+    intensity correction
+
+    parameters: tth two theta of every pixel in radians
+                eta azimuthal angle of every pixel
+                f_hor fraction of horizontal polarization 
+                (~1 for XFELs)
+                f_vert fraction of vertical polarization
+                (~0 for XFELs)
+    notice f_hor + f_vert = 1
+    """
+
+    theta = 0.5*tth
+    
+    cth = np.cos(theta)
+    sth2 = np.sin(theta)**2
+
+    ctth2 = np.cos(tth)**2
+    seta2 = np.sin(eta)**2
+    ceta2 = np.cos(eta)**2
+
+    L = 1./(cth*sth2)
+    P = f_hor*(seta2+ceta2*ctth2) + \
+    f_vert*(ceta2+seta2*ctth2)
+
+    return L*P
 
 def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
     # mark pixels in the spec'd tth range
