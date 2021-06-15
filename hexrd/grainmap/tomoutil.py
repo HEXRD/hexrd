@@ -1,14 +1,13 @@
 #%%
 
 import numpy as np
-import scipy as sp
+#import scipy as sp
 
 import scipy.ndimage as img
 try:
     import imageio as imgio
 except(ImportError):
     from skimage import io as imgio
-
 
 
 import skimage.transform as xformimg
@@ -110,12 +109,13 @@ def tomo_reconstruct_layer(rad_stack,cross_sectional_dim,layer_row=1024,start_to
     return reconstruction_fbp
     
 
-def threshold_and_clean_tomo_layer(reconstruction_fbp,recon_thresh, noise_obj_size,min_hole_size,edge_cleaning_iter=None):
+def threshold_and_clean_tomo_layer(reconstruction_fbp,recon_thresh, noise_obj_size,min_hole_size,edge_cleaning_iter=None,erosion_iter=1,dilation_iter=4):
     binary_recon=reconstruction_fbp>recon_thresh
 
-    #hard codeed cleaning, grinding sausage...
-    binary_recon=img.morphology.binary_erosion(binary_recon,iterations=1)
-    binary_recon=img.morphology.binary_dilation(binary_recon,iterations=4)
+    #hard coded cleaning, grinding sausage...
+    binary_recon=img.morphology.binary_dilation(binary_recon,iterations=dilation_iter)
+    binary_recon=img.morphology.binary_erosion(binary_recon,iterations=erosion_iter)
+    
 
     
     labeled_img,num_labels=img.label(binary_recon)

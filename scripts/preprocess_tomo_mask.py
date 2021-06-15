@@ -1,13 +1,20 @@
 #%% Necessary Dependencies
 
 import numpy as np
+import logging
 
 import yaml
 
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+    matplot=True
+except(ImportError):
+    logging.warning(f'no matplotlib, debug plotting disabled')
+    matplot=False
 
-import nfutil
-import tomoutil
+from hexrd.grainmap import nfutil
+from hexrd.grainmap import tomoutil
+
 
 from hexrd import instrument
 
@@ -27,7 +34,7 @@ def load_instrument(yml):
 
 main_dir = '/INSERT/WORK/DIR/'
 
-det_file = main_dir + 'retiga.yml'
+det_file = main_dir + 'tomo_det.yml'
 
 #==============================================================================
 # %% OUTPUT INFO -CAN BE EDITED
@@ -40,6 +47,7 @@ output_stem='tomo_out'
 # %% TOMOGRAPHY DATA FILES -CAN BE EDITED
 #==============================================================================
 
+stem='nf_'
 
 #Locations of tomography dark field images
 tdf_data_folder='/LOC/nf/'
@@ -73,6 +81,8 @@ recon_thresh=0.0002#usually varies between 0.0001 and 0.0005
 #and remove noise
 noise_obj_size=500
 min_hole_size=500
+erosion_iter=1
+dilation_iter=1
 project_single_layer=False #projects the center layers through the volume, faster but not recommended, included for completion / historical purposes
 
 
@@ -94,12 +104,12 @@ panel = next(iter(instr.detectors.values()))
 
 
 nrows=panel.rows
-ncols=panel.rows
+ncols=panel.cols
 pixel_size=panel.pixel_size_row
 
 
 rot_axis_pos=panel.tvec[0] #should match t_vec_d[0] from nf_detector_parameter_file
-vert_beam_center=-panel.tvec[1] #this - sign should be checked
+vert_beam_center=panel.tvec[1] 
 
 
 # need to do a few calculations because not every row will be reconstructed
@@ -115,52 +125,55 @@ center_layer_row=int(center_layer_row)
 #==============================================================================
 # %% TOMO PROCESSING - GENERATE DARK AND BRIGHT FIELD
 #==============================================================================
-tdf=tomoutil.gen_median_image(tdf_data_folder,tdf_img_start,tdf_num_imgs,nrows,ncols,num_digits=6)
-tbf=tomoutil.gen_median_image(tbf_data_folder,tbf_img_start,tbf_num_imgs,nrows,ncols,num_digits=6)
+tdf=tomoutil.gen_median_image(tdf_data_folder,tdf_img_start,tdf_num_imgs,nrows,ncols,stem=stem,num_digits=6)
+tbf=tomoutil.gen_median_image(tbf_data_folder,tbf_img_start,tbf_num_imgs,nrows,ncols,stem=stem,num_digits=6)
 
 #==============================================================================
 # %% TOMO PROCESSING - BUILD RADIOGRAPHS
 #==============================================================================
 
-rad_stack=tomoutil.gen_attenuation_rads(tomo_data_folder,tbf,tomo_img_start,tomo_num_imgs,nrows,ncols,num_digits=6,tdf=tdf)
+rad_stack=tomoutil.gen_attenuation_rads(tomo_data_folder,tbf,tomo_img_start,tomo_num_imgs,nrows,ncols,stem=stem,num_digits=6,tdf=tdf)
     
-#%%
 
 
 #==============================================================================
 # %% TOMO PROCESSING - INVERT SINOGRAM
 #==============================================================================
-#center = 22.*0.00148
-#center = -0.018
+# center = 0.0
 
 test_fbp=tomoutil.tomo_reconstruct_layer(rad_stack,cross_sectional_dim,layer_row=center_layer_row,\
                                                    start_tomo_ang=ome_range_deg[0][0],end_tomo_ang=ome_range_deg[0][1],\
-                                                   tomo_num_imgs=tomo_num_imgs, center=rot_axis_pos)
+                                                   tomo_num_imgs=tomo_num_imgs, center=rot_axis_pos,pixel_size=pixel_size)
 
-test_binary_recon=tomoutil.threshold_and_clean_tomo_layer(test_fbp,recon_thresh, noise_obj_size,min_hole_size)
+test_binary_recon=tomoutil.threshold_and_clean_tomo_layer(test_fbp,recon_thresh, \
+                                                          noise_obj_size,min_hole_size, erosion_iter=erosion_iter, \
+                                                          dilation_iter=dilation_iter)
 
 tomo_mask_center=tomoutil.crop_and_rebin_tomo_layer(test_binary_recon,recon_thresh,voxel_spacing,pixel_size,cross_sectional_dim)
 
-full_mask=np.zeros([len(rows_to_recon),tomo_mask_center.shape[0],tomo_mask_center.shape[1]])
 
 #==============================================================================
 # %% TOMO PROCESSING - VIEW RAW FILTERED BACK PROJECTION
 #==============================================================================
 
-plt.figure(1)
-plt.imshow(test_fbp,vmin=recon_thresh,vmax=recon_thresh*2)
-plt.title('Check Thresholding')
-#Use this image to view the raw reconstruction, estimate threshold levels. and
-#figure out if the rotation axis position needs to be corrected
-
-
-plt.figure(2)
-plt.imshow(tomo_mask_center,interpolation='none')
-plt.title('Check Center Mask')
+if matplot:
+    plt.figure(1)
+    plt.imshow(test_fbp,vmin=recon_thresh,vmax=recon_thresh*2)
+    plt.title('Check Thresholding')
+    #Use this image to view the raw reconstruction, estimate threshold levels. and
+    #figure out if the rotation axis position needs to be corrected
+    
+    
+    plt.figure(2)
+    plt.imshow(tomo_mask_center,interpolation='none')
+    plt.title('Check Center Mask')
 
 #==============================================================================
 # %% PROCESS REMAINING LAYERS
 #==============================================================================
+
+full_mask=np.zeros([len(rows_to_recon),tomo_mask_center.shape[0],tomo_mask_center.shape[1]])
+
 
 for ii in np.arange(len(rows_to_recon)):
     print('Layer: ' + str(ii) + ' of ' + str(len(rows_to_recon)))
@@ -171,20 +184,24 @@ for ii in np.arange(len(rows_to_recon)):
     else:
         reconstruction_fbp=tomoutil.tomo_reconstruct_layer(rad_stack,cross_sectional_dim,layer_row=rows_to_recon[ii],\
                                                        start_tomo_ang=ome_range_deg[0][0],end_tomo_ang=ome_range_deg[0][1],\
-                                                       tomo_num_imgs=tomo_num_imgs, center=rot_axis_pos)
-        binary_recon=tomoutil.threshold_and_clean_tomo_layer(reconstruction_fbp,recon_thresh, noise_obj_size,min_hole_size)
+                                                       tomo_num_imgs=tomo_num_imgs, center=rot_axis_pos,pixel_size=pixel_size)
+        
+        binary_recon=tomoutil.threshold_and_clean_tomo_layer(reconstruction_fbp,recon_thresh, \
+                                                             noise_obj_size,min_hole_size,erosion_iter=erosion_iter, \
+                                                             dilation_iter=dilation_iter)
     
         tomo_mask=tomoutil.crop_and_rebin_tomo_layer(binary_recon,recon_thresh,voxel_spacing,pixel_size,cross_sectional_dim)
         
         full_mask[ii]=tomo_mask
 
 #==============================================================================
-# %%  TOMO PROCESSING - VIEW TOMO_MASK FOR SAMPLE BOUNDS
+# %%  TOMO PROCESSING - VIEW LAST TOMO_MASK FOR SAMPLE BOUNDS
 #==============================================================================
 
-plt.figure(3)
-plt.imshow(tomo_mask,interpolation='none')
-plt.title('Check Center Mask')
+if matplot:
+    plt.figure(3)
+    plt.imshow(tomo_mask,interpolation='none')
+    plt.title('Check Center Mask')
 
 #==============================================================================
 # %%  TOMO PROCESSING - CONSTRUCT DATA GRID

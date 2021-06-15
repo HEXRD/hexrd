@@ -15,8 +15,20 @@ import numpy as np
 import multiprocessing as mp
 
 import os
+import logging
 
-import nfutil
+
+#from hexrd.grainmap import nfutil
+from hexrd.grainmap import nfutil
+
+try:
+    import matplotlib.pyplot as plt
+    matplot=True
+except(ImportError):
+    logging.warning(f'no matplotlib, debug plotting disabled')
+    matplot=False
+
+
 
 #==============================================================================
 # %% FILES TO LOAD -CAN BE EDITED
@@ -48,6 +60,8 @@ grain_out_file = '/LOC/grains.out'
 
 #%%
 
+stem='nf_'
+
 #Locations of near field images
 data_folder='/INSERT/nf/' 
 
@@ -75,8 +89,8 @@ misorientation_spacing=0.25 #degrees
 num_for_dark=250#num images to use for median data
 
 process_type='gaussian'
-sigma=4.5
-size=5
+sigma=2.0
+size=3.0
 process_args=np.array([sigma,size])
 
 # process_type='dilations_only'
@@ -121,15 +135,19 @@ ncpus=mp.cpu_count()
 chunk_size=500#chunksize for multiprocessing, don't mess with unless you know what you're doing
 
 
-
+#### debug plotting
+output_plot_check=True
 
 
 #==============================================================================
 # %% LOAD GRAIN AND EXPERIMENT DATA
 #==============================================================================
 
-experiment, nf_to_ff_id_map  = nfutil.gen_trial_exp_data(grain_out_file,det_file,mat_file, mat_name, max_tth, comp_thresh, chi2_thresh, misorientation_bnd, \
-                       misorientation_spacing,ome_range_deg, nframes, beam_stop_parms)
+experiment, nf_to_ff_id_map  = nfutil.gen_trial_exp_data(grain_out_file,det_file,\
+                                                         mat_file, mat_name, max_tth, \
+                                                         comp_thresh, chi2_thresh, misorientation_bnd, \
+                                                         misorientation_spacing,ome_range_deg, \
+                                                         nframes, beam_stop_parms)
     
     
 #==============================================================================
@@ -149,8 +167,8 @@ if use_mask:
     voxel_spacing=mask_data['voxel_spacing']
     
     
-    tomo_layer_centers=np.squeeze(Ys_mask[:,0,0])
-    above=np.where(tomo_layer_centers>v_bnds[0])
+    tomo_layer_centers=np.squeeze(Ys_mask[:,0,0]) #need to think about how to handle a single layer in this context
+    above=np.where(tomo_layer_centers>=v_bnds[0])
     below=np.where(tomo_layer_centers<v_bnds[1])
     
     
@@ -171,7 +189,6 @@ else:
     test_crds_full, n_crds, Xs, Ys, Zs = nfutil.gen_nf_test_grid(cross_sectional_dim, v_bnds, voxel_spacing)
     to_use=np.arange(len(test_crds_full))
 
-
 test_crds=test_crds_full[to_use,:]
 
 
@@ -180,14 +197,14 @@ test_crds=test_crds_full[to_use,:]
 # %% NEAR FIELD - MAKE MEDIAN DARK
 #==============================================================================
 
-dark=nfutil.gen_nf_dark(data_folder,img_nums,num_for_dark,experiment.nrows,experiment.ncols,dark_type='median',num_digits=6)
+dark=nfutil.gen_nf_dark(data_folder,img_nums,num_for_dark,experiment.nrows,experiment.ncols,dark_type='median',num_digits=6,stem=stem)
 
 #==============================================================================
 # %% NEAR FIELD - LOAD IMAGE DATA AND PROCESS
 #==============================================================================
 
 image_stack=nfutil.gen_nf_cleaned_image_stack(data_folder,img_nums,dark,experiment.nrows,experiment.ncols,process_type=process_type,\
-                                              process_args=process_args,ome_dilation_iter=ome_dilation_iter,num_digits=6)
+                                              process_args=process_args,threshold=img_threshold,ome_dilation_iter=ome_dilation_iter,num_digits=6,stem=stem)
 
     
     
@@ -212,6 +229,7 @@ controller=nfutil.build_controller(ncpus=ncpus,chunk_size=chunk_size,check=check
 ## Would be nice to pack the images, quant_and_clip will need to be edited if this is added, dcp 6.2.2021
 #packed_image_stack = nfutil.dilate_image_stack(image_stack, experiment,controller)
 
+print('Testing Orientations...')
 raw_confidence=nfutil.test_orientations(image_stack, experiment,test_crds,controller,multiprocessing_start_method)    
  
 
@@ -244,23 +262,32 @@ grain_map, confidence_map = nfutil.process_raw_confidence(raw_confidence_full,Xs
 
 nfutil.save_nf_data(output_dir,output_stem,grain_map,confidence_map,Xs,Ys,Zs,experiment.exp_maps,id_remap=nf_to_ff_id_map)
 
-# #==============================================================================
-# # %% CHECKING OUTPUT
-# #==============================================================================
+#==============================================================================
+# %% CHECKING OUTPUT
+#==============================================================================
 
-# import matplotlib.pyplot as plt
-
-# plt.figure(1)
-# plt.imshow(confidence_map[0])
-
-# plt.figure(2)
-# plt.imshow(confidence_map[-1])
-
-# plt.figure(3)
-# plt.imshow(grain_map[0])
-
-# plt.figure(4)
-# plt.imshow(grain_map[-1])
-
+if matplot:
+    if output_plot_check:
+    
+    
+        plt.figure(1)
+        plt.imshow(confidence_map[0])
+        plt.title('Bottom Layer Confidence')
+        
+        plt.figure(2)
+        plt.imshow(confidence_map[-1])
+        plt.title('Bottom Layer Confidence')
+        
+        plt.figure(3)
+        nfutil.plot_ori_map(grain_map, confidence_map, experiment.exp_maps, 0,id_remap=nf_to_ff_id_map)
+        plt.title('Top Layer Grain Map')
+        
+        plt.figure(4)
+        nfutil.plot_ori_map(grain_map, confidence_map, experiment.exp_maps, -1,id_remap=nf_to_ff_id_map)
+        plt.title('Top Layer Grain Map')
+    
+        plt.show()
+    
+ 
 
 

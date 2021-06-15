@@ -20,7 +20,7 @@ import socket
 import copy
 
 # import of hexrd modules
-import hexrd
+# import hexrd
 from hexrd import constants
 from hexrd import instrument
 from hexrd import material
@@ -30,6 +30,8 @@ from hexrd import valunits
 from hexrd import xrdutil
 
 from skimage.morphology import dilation as ski_dilation
+
+import matplotlib.pyplot as plt
 
 hostname = socket.gethostname()
 
@@ -1018,8 +1020,8 @@ def grand_loop_pool(ncpus, state):
 
 def gen_nf_test_grid(cross_sectional_dim, v_bnds, voxel_spacing):
 
-    Zs_list=np.arange(-cross_sectional_dim/2.+voxel_spacing/2.,cross_sectional_dim/2.,voxel_spacing/2.)
-    Xs_list=np.arange(-cross_sectional_dim/2.+voxel_spacing/2.,cross_sectional_dim/2.,voxel_spacing/2.)
+    Zs_list=np.arange(-cross_sectional_dim/2.+voxel_spacing/2.,cross_sectional_dim/2.,voxel_spacing)
+    Xs_list=np.arange(-cross_sectional_dim/2.+voxel_spacing/2.,cross_sectional_dim/2.,voxel_spacing)
     
     
     if v_bnds[0]==v_bnds[1]:
@@ -1084,7 +1086,10 @@ def gen_nf_dark(data_folder,img_nums,num_for_dark,nrows,ncols,dark_type='median'
 #%%
 
 
-def gen_nf_cleaned_image_stack(data_folder,img_nums,dark,nrows,ncols,process_type='gaussian',process_args=[4.5,5],threshold=1.5,ome_dilation_iter=1,stem='nf_',num_digits=5,ext='.tif'):
+def gen_nf_cleaned_image_stack(data_folder,img_nums,dark,nrows,ncols, \
+                               process_type='gaussian',process_args=[4.5,5], \
+                               threshold=1.5,ome_dilation_iter=1,stem='nf_', \
+                               num_digits=5,ext='.tif'):
     
     image_stack=np.zeros([img_nums.shape[0],nrows,ncols],dtype=bool)
 
@@ -1342,6 +1347,140 @@ def process_raw_confidence(raw_confidence,vol_shape,id_remap=None,min_thresh=0.0
 
     return grain_map.astype(int), confidence_map
 
+
+#%%
+def save_raw_confidence(save_dir,save_stem,raw_confidence,id_remap=None):
+    print('Saving raw confidence, might take a while...')
+    if id_remap is not None:
+        np.savez(save_dir+save_stem+'_raw_confidence.npz',raw_confidence=raw_confidence,id_remap=id_remap)
+    else:
+        np.savez(save_dir+save_stem+'_raw_confidence.npz',raw_confidence=raw_confidence)
+#%%
+
+def save_nf_data(save_dir,save_stem,grain_map,confidence_map,Xs,Ys,Zs,ori_list,id_remap=None):
+    print('Saving grain map data...')
+    if id_remap is not None:
+        np.savez(save_dir+save_stem+'_grain_map_data.npz',grain_map=grain_map,confidence_map=confidence_map,Xs=Xs,Ys=Ys,Zs=Zs,ori_list=ori_list,id_remap=id_remap)
+    else:
+        np.savez(save_dir+save_stem+'_grain_map_data.npz',grain_map=grain_map,confidence_map=confidence_map,Xs=Xs,Ys=Ys,Zs=Zs,ori_list=ori_list)
+        
+        
+        
+#%%
+
+def scan_detector_parm(image_stack, experiment,test_crds,controller,parm_to_opt,parm_range,slice_shape,ang='deg'):
+    #0-distance
+    #1-x center
+    #2-y center
+    #3-xtilt
+    #4-ytilt
+    #5-ztilt
+    
+    parm_vector=np.arange(parm_range[0],parm_range[1]+1e-6,(parm_range[1]-parm_range[0])/parm_range[2])
+    
+    
+    if parm_to_opt>2 and ang=='deg':
+        parm_vector=parm_vector*np.pi/180.
+
+    multiprocessing_start_method = 'fork' if hasattr(os, 'fork') else 'spawn'
+
+    #current detector parameters, note the value for the actively optimized parameters will be ignored
+    distance=experiment.detector_params[5]#mm
+    x_cen=experiment.detector_params[3]#mm
+    y_cen=experiment.detector_params[4]#mm
+    xtilt=experiment.detector_params[0]
+    ytilt=experiment.detector_params[1]
+    ztilt=experiment.detector_params[2]
+    ome_range=copy.copy(experiment.ome_range)
+    ome_period=copy.copy(experiment.ome_period)
+    ome_edges=copy.copy(experiment.ome_edges)
+
+    num_parm_pts=len(parm_vector)
+
+    trial_data=np.zeros([num_parm_pts,slice_shape[0],slice_shape[1]])
+
+    tmp_td=copy.copy(experiment.tVec_d)
+    for jj in np.arange(num_parm_pts):
+        print('cycle %d of %d'%(jj+1,num_parm_pts))
+
+
+        #overwrite translation vector components
+        if parm_to_opt==0:
+            tmp_td[2]=parm_vector[jj]
+
+        if parm_to_opt==1:
+            tmp_td[0]=parm_vector[jj]
+            
+        if parm_to_opt==2:
+            tmp_td[1]=parm_vector[jj]
+   
+            
+            
+
+        if  parm_to_opt==3:
+            rMat_d_tmp=xfcapi.makeDetectorRotMat([parm_vector[jj],ytilt,ztilt])
+        elif parm_to_opt==4:
+            rMat_d_tmp=xfcapi.makeDetectorRotMat([xtilt,parm_vector[jj],ztilt])
+        elif parm_to_opt==5:
+            rMat_d_tmp=xfcapi.makeDetectorRotMat([xtilt,ytilt,parm_vector[jj]])
+        else:
+            rMat_d_tmp=xfcapi.makeDetectorRotMat([xtilt,ytilt,ztilt])
+
+        experiment.rMat_d = rMat_d_tmp
+        experiment.tVec_d = tmp_td
+
+        if parm_to_opt==6: 
+ 
+            
+            
+            experiment.ome_range=[(ome_range[0][0]-parm_vector[jj],ome_range[0][1]-parm_vector[jj])]
+            experiment.ome_period=(ome_period[0]-parm_vector[jj],ome_period[1]-parm_vector[jj])
+            experiment.ome_edges=np.array(ome_edges-parm_vector[jj])
+            experiment.base[2]=experiment.ome_edges[0]
+            
+            # print(experiment.ome_range)
+            # print(experiment.ome_period)
+            # print(experiment.ome_edges)
+            # print(experiment.base)
+
+        conf=test_orientations(image_stack, experiment,test_crds,controller, \
+                               multiprocessing_start_method)
+
+
+        trial_data[jj]=np.max(conf,axis=0).reshape(slice_shape)
+
+    return trial_data, parm_vector
+
+#%%
+
+def plot_ori_map(grain_map, confidence_map, exp_maps, layer_no,id_remap=None):
+
+    grains_plot=np.squeeze(grain_map[layer_no,:,:])
+    conf_plot=np.squeeze(confidence_map[layer_no,:,:])
+    n_grains=len(exp_maps)
+
+    rgb_image=np.zeros([grains_plot.shape[0],grains_plot.shape[1],4], dtype='float32')
+    rgb_image[:,:,3]=1.
+
+    for ii in np.arange(n_grains):
+        if id_remap is not None:
+            this_grain=np.where(np.squeeze(grains_plot)==id_remap[ii])
+        else:
+            this_grain=np.where(np.squeeze(grains_plot)==ii)
+        if np.sum(this_grain[0])>0:
+
+            ori=exp_maps[ii,:]
+
+            #cubic mapping
+            rgb_image[this_grain[0],this_grain[1],0]=(ori[0]+(np.pi/4.))/(np.pi/2.)
+            rgb_image[this_grain[0],this_grain[1],1]=(ori[1]+(np.pi/4.))/(np.pi/2.)
+            rgb_image[this_grain[0],this_grain[1],2]=(ori[2]+(np.pi/4.))/(np.pi/2.)
+
+
+
+    plt.imshow(rgb_image,interpolation='none')
+    #plt.hold(True)
+    plt.imshow(conf_plot,vmin=0.0,vmax=1.,interpolation='none',cmap=plt.cm.gray,alpha=0.5)
 
 # ==============================================================================
 # %% SCRIPT ENTRY AND PARAMETER HANDLING
