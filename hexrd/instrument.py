@@ -2119,6 +2119,21 @@ class PlanarDetector(object):
         return _pixel_solid_angles(**kwargs)
 
     @property
+    def lorentz_polarization_factor(self, f_hor, f_vert):
+
+        """
+        f_hor is the fraction of horizontal polarization. for XFELs
+        this is close to 1
+        f_vert is the fraction of vertical polarization, which is
+        ~0 for XFELs
+        """
+
+        tth, eta = self.pixel_angles()
+        args = (tth, eta, f_hor, f_vert)
+
+        return _lorentz_polarization_factor(*args)
+
+    @property
     def calibration_parameters(self):
         #
         # set up calibration parameter list and refinement flags
@@ -3613,6 +3628,36 @@ def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
 
     return solid_angs.reshape(rows, cols)
 
+@memoize
+def _lorentz_polarization_factor(tth, eta, f_hor, f_vert):
+    """
+    06/14/2021 SS adding lorentz polarization factor computation
+    to the detector so that it can be compenstated for in the 
+    intensity correction
+
+    parameters: tth two theta of every pixel in radians
+                eta azimuthal angle of every pixel
+                f_hor fraction of horizontal polarization 
+                (~1 for XFELs)
+                f_vert fraction of vertical polarization
+                (~0 for XFELs)
+    notice f_hor + f_vert = 1
+    """
+
+    theta = 0.5*tth
+    
+    cth = np.cos(theta)
+    sth2 = np.sin(theta)**2
+
+    ctth2 = np.cos(tth)**2
+    seta2 = np.sin(eta)**2
+    ceta2 = np.cos(eta)**2
+
+    L = 1./(cth*sth2)
+    P = f_hor*(seta2+ceta2*ctth2) + 
+    f_vert*(ceta2+seta2*ctth2)
+
+    return L*P
 
 def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
     # mark pixels in the spec'd tth range
