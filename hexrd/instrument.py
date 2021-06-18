@@ -1202,6 +1202,7 @@ class HEDMInstrument(object):
         now go through the material list and get the intensity dictionary
         '''
         intensity = {}
+        wavelength_inp = {}
         for mat in mat_list:
 
             multiplicity = mat.planeData.getMultiplicity()
@@ -1212,16 +1213,16 @@ class HEDMInstrument(object):
                 np.cos(0.5*tth)/np.sin(0.5*tth)**2
 
             intensity[mat.name] = {}
-            intensity[mat.name]['synchrotron'] = \
+            intensity[mat.name][mat.name] = \
                 mat.planeData.get_structFact() * LP * multiplicity
+
+            wavelength_inp[mat.name] = wavelength
 
         kwargs = {
             'expt_spectrum': expt,
             'params': params,
             'phases': mat_list,
-            'wavelength': {
-                'synchrotron': wavelength
-            },
+            'wavelength': wavelength_inp,
             'bkgmethod': bkgmethod,
             'intensity_init': intensity,
             'peakshape': 'pvtch'

@@ -298,18 +298,19 @@ class LeBail:
             self.hkls[p] = {}
             self.dsp[p] = {}
             for k, l in self.phases.wavelength.items():
-                t = self.phases[p].getTTh(l[0].value)
-                allowed = self.phases[p].wavelength_allowed_hkls
-                t = t[allowed]
-                hkl = self.phases[p].hkls[allowed, :]
-                dsp = self.phases[p].dsp[allowed]
-                tth_min = min(self.tth_min)
-                tth_max = max(self.tth_max)
-                limit = np.logical_and(t >= tth_min,
-                                       t <= tth_max)
-                self.tth[p][k] = t[limit]
-                self.hkls[p][k] = hkl[limit, :]
-                self.dsp[p][k] = dsp[limit]
+                if k == p:
+                    t = self.phases[p].getTTh(l[0].value)
+                    allowed = self.phases[p].wavelength_allowed_hkls
+                    t = t[allowed]
+                    hkl = self.phases[p].hkls[allowed, :]
+                    dsp = self.phases[p].dsp[allowed]
+                    tth_min = min(self.tth_min)
+                    tth_max = max(self.tth_max)
+                    limit = np.logical_and(t >= tth_min,
+                                           t <= tth_max)
+                    self.tth[p][k] = t[limit]
+                    self.hkls[p][k] = hkl[limit, :]
+                    self.dsp[p][k] = dsp[limit]
 
     def initialize_Icalc(self):
         """
@@ -328,9 +329,9 @@ class LeBail:
             for p in self.phases:
                 self.Icalc[p] = {}
                 for k, l in self.phases.wavelength.items():
-
-                    self.Icalc[p][k] = (10**n10) * \
-                        np.ones(self.tth[p][k].shape)
+                    if k == p:
+                        self.Icalc[p][k] = (10**n10) * \
+                            np.ones(self.tth[p][k].shape)
 
         elif(isinstance(self.intensity_init, dict)):
             """
@@ -352,18 +353,20 @@ class LeBail:
                 for this we need to step through the different wavelengths in the spectrum and check
                 each of them
                 """
-                for l in self.phases.wavelength:
-                    if l not in self.intensity_init[p]:
-                        raise RuntimeError("LeBail: Intensity was initialized\
-                         using custom values. However, initial values for one \
-                         or more wavelengths in spectrum seem to be missing \
-                         from the dictionary.")
 
-                    if(self.tth[p][l].shape[0] <=
-                       self.intensity_init[p][l].shape[0]):
-                        self.Icalc[p][l] = \
-                            self.intensity_init[p][l][0:self.tth[p]
-                                                      [l].shape[0]]
+                for l in self.phases.wavelength:
+                    if l == p:
+                        if l not in self.intensity_init[p]:
+                            raise RuntimeError("LeBail: Intensity was initialized\
+                             using custom values. However, initial values for one \
+                             or more wavelengths in spectrum seem to be missing \
+                             from the dictionary.")
+
+                        if(self.tth[p][l].shape[0] <=
+                           self.intensity_init[p][l].shape[0]):
+                            self.Icalc[p][l] = \
+                                self.intensity_init[p][l][0:self.tth[p]
+                                                          [l].shape[0]]
         else:
             raise RuntimeError(
                 "LeBail: Intensity_init must be either\
@@ -383,75 +386,76 @@ class LeBail:
 
             for k, l in self.phases.wavelength.items():
 
-                Ic = self.Icalc[p][k]
+                if k == p:
+                    Ic = self.Icalc[p][k]
 
-                shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.shft
-                trns_c = np.sin(np.radians(self.tth[p][k]))*self.trns
-                tth = self.tth[p][k] + \
-                      self.zero_error + \
-                      shft_c + \
-                      trns_c
+                    shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.shft
+                    trns_c = np.sin(np.radians(self.tth[p][k]))*self.trns
+                    tth = self.tth[p][k] + \
+                          self.zero_error + \
+                          shft_c + \
+                          trns_c
 
-                dsp = self.dsp[p][k]
-                hkls = self.hkls[p][k]
-                n = np.min((tth.shape[0], Ic.shape[0]))
-                shkl = self.phases[p].shkl
-                name = self.phases[p].name
-                eta_n = f"self.{name}_eta_fwhm"
-                eta_fwhm = eval(eta_n)
-                strain_direction_dot_product = 0.
-                is_in_sublattice = False
+                    dsp = self.dsp[p][k]
+                    hkls = self.hkls[p][k]
+                    n = np.min((tth.shape[0], Ic.shape[0]))
+                    shkl = self.phases[p].shkl
+                    name = self.phases[p].name
+                    eta_n = f"self.{name}_eta_fwhm"
+                    eta_fwhm = eval(eta_n)
+                    strain_direction_dot_product = 0.
+                    is_in_sublattice = False
 
-                if self.peakshape == 0:
-                    args = (np.array([self.U, self.V, self.W]),
-                            self.P,
-                            np.array([self.X, self.Y]),
-                            np.array([self.Xe, self.Ye, self.Xs]),
-                            shkl,
-                            eta_fwhm,
-                            self.HL,
-                            self.SL,
-                            tth,
-                            dsp,
-                            hkls,
-                            strain_direction_dot_product,
-                            is_in_sublattice,
-                            tth_list,
-                            Ic, self.xn, self.wn)
+                    if self.peakshape == 0:
+                        args = (np.array([self.U, self.V, self.W]),
+                                self.P,
+                                np.array([self.X, self.Y]),
+                                np.array([self.Xe, self.Ye, self.Xs]),
+                                shkl,
+                                eta_fwhm,
+                                self.HL,
+                                self.SL,
+                                tth,
+                                dsp,
+                                hkls,
+                                strain_direction_dot_product,
+                                is_in_sublattice,
+                                tth_list,
+                                Ic, self.xn, self.wn)
 
-                elif self.peakshape == 1:
-                    args = (np.array([self.U, self.V, self.W]),
-                            self.P,
-                            np.array([self.X, self.Y]),
-                            np.array([self.Xe, self.Ye, self.Xs]),
-                            shkl,
-                            eta_fwhm,
-                            tth,
-                            dsp,
-                            hkls,
-                            strain_direction_dot_product,
-                            is_in_sublattice,
-                            tth_list,
-                            Ic)
+                    elif self.peakshape == 1:
+                        args = (np.array([self.U, self.V, self.W]),
+                                self.P,
+                                np.array([self.X, self.Y]),
+                                np.array([self.Xe, self.Ye, self.Xs]),
+                                shkl,
+                                eta_fwhm,
+                                tth,
+                                dsp,
+                                hkls,
+                                strain_direction_dot_product,
+                                is_in_sublattice,
+                                tth_list,
+                                Ic)
 
-                elif self.peakshape == 2:
-                    args = (np.array([self.alpha0, self.alpha1]),
-                            np.array([self.beta0, self.beta1]),
-                            np.array([self.U, self.V, self.W]),
-                            self.P,
-                            np.array([self.X, self.Y]),
-                            np.array([self.Xe, self.Ye, self.Xs]),
-                            shkl,
-                            eta_fwhm,
-                            tth,
-                            dsp,
-                            hkls,
-                            strain_direction_dot_product,
-                            is_in_sublattice,
-                            tth_list,
-                            Ic)
+                    elif self.peakshape == 2:
+                        args = (np.array([self.alpha0, self.alpha1]),
+                                np.array([self.beta0, self.beta1]),
+                                np.array([self.U, self.V, self.W]),
+                                self.P,
+                                np.array([self.X, self.Y]),
+                                np.array([self.Xe, self.Ye, self.Xs]),
+                                shkl,
+                                eta_fwhm,
+                                tth,
+                                dsp,
+                                hkls,
+                                strain_direction_dot_product,
+                                is_in_sublattice,
+                                tth_list,
+                                Ic)
 
-                y += self.computespectrum_fcn(*args)
+                    y += self.computespectrum_fcn(*args)
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
@@ -481,83 +485,84 @@ class LeBail:
             self.Iobs[p] = {}
             for k, l in self.phases.wavelength.items():
 
-                Ic = self.Icalc[p][k]
+                if k == p:
+                    Ic = self.Icalc[p][k]
 
-                shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.shft
-                trns_c = np.sin(np.radians(self.tth[p][k]))*self.trns
-                tth = self.tth[p][k] + \
-                      self.zero_error + \
-                      shft_c + \
-                      trns_c
+                    shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.shft
+                    trns_c = np.sin(np.radians(self.tth[p][k]))*self.trns
+                    tth = self.tth[p][k] + \
+                          self.zero_error + \
+                          shft_c + \
+                          trns_c
 
-                dsp = self.dsp[p][k]
-                hkls = self.hkls[p][k]
-                n = np.min((tth.shape[0], Ic.shape[0]))
-                shkl = self.phases[p].shkl
-                name = self.phases[p].name
-                eta_n = f"self.{name}_eta_fwhm"
-                eta_fwhm = eval(eta_n)
-                strain_direction_dot_product = 0.
-                is_in_sublattice = False
+                    dsp = self.dsp[p][k]
+                    hkls = self.hkls[p][k]
+                    n = np.min((tth.shape[0], Ic.shape[0]))
+                    shkl = self.phases[p].shkl
+                    name = self.phases[p].name
+                    eta_n = f"self.{name}_eta_fwhm"
+                    eta_fwhm = eval(eta_n)
+                    strain_direction_dot_product = 0.
+                    is_in_sublattice = False
 
-                if self.peakshape == 0:
-                    args = (np.array([self.U, self.V, self.W]),
-                            self.P,
-                            np.array([self.X, self.Y]),
-                            np.array([self.Xe, self.Ye, self.Xs]),
-                            shkl,
-                            eta_fwhm,
-                            self.HL,
-                            self.SL,
-                            self.xn,
-                            self.wn,
-                            tth,
-                            dsp,
-                            hkls,
-                            strain_direction_dot_product,
-                            is_in_sublattice,
-                            tth_list,
-                            Ic,
-                            spec_expt,
-                            spec_sim)
+                    if self.peakshape == 0:
+                        args = (np.array([self.U, self.V, self.W]),
+                                self.P,
+                                np.array([self.X, self.Y]),
+                                np.array([self.Xe, self.Ye, self.Xs]),
+                                shkl,
+                                eta_fwhm,
+                                self.HL,
+                                self.SL,
+                                self.xn,
+                                self.wn,
+                                tth,
+                                dsp,
+                                hkls,
+                                strain_direction_dot_product,
+                                is_in_sublattice,
+                                tth_list,
+                                Ic,
+                                spec_expt,
+                                spec_sim)
 
-                elif self.peakshape == 1:
-                    args = (np.array([self.U, self.V, self.W]),
-                            self.P,
-                            np.array([self.X, self.Y]),
-                            np.array([self.Xe, self.Ye, self.Xs]),
-                            shkl,
-                            eta_fwhm,
-                            tth,
-                            dsp,
-                            hkls,
-                            strain_direction_dot_product,
-                            is_in_sublattice,
-                            tth_list,
-                            Ic,
-                            spec_expt,
-                            spec_sim)
+                    elif self.peakshape == 1:
+                        args = (np.array([self.U, self.V, self.W]),
+                                self.P,
+                                np.array([self.X, self.Y]),
+                                np.array([self.Xe, self.Ye, self.Xs]),
+                                shkl,
+                                eta_fwhm,
+                                tth,
+                                dsp,
+                                hkls,
+                                strain_direction_dot_product,
+                                is_in_sublattice,
+                                tth_list,
+                                Ic,
+                                spec_expt,
+                                spec_sim)
 
-                elif self.peakshape == 2:
-                    args = (np.array([self.alpha0, self.alpha1]),
-                            np.array([self.beta0, self.beta1]),
-                            np.array([self.U, self.V, self.W]),
-                            self.P,
-                            np.array([self.X, self.Y]),
-                            np.array([self.Xe, self.Ye, self.Xs]),
-                            shkl,
-                            eta_fwhm,
-                            tth,
-                            dsp,
-                            hkls,
-                            strain_direction_dot_product,
-                            is_in_sublattice,
-                            tth_list,
-                            Ic,
-                            spec_expt,
-                            spec_sim)
+                    elif self.peakshape == 2:
+                        args = (np.array([self.alpha0, self.alpha1]),
+                                np.array([self.beta0, self.beta1]),
+                                np.array([self.U, self.V, self.W]),
+                                self.P,
+                                np.array([self.X, self.Y]),
+                                np.array([self.Xe, self.Ye, self.Xs]),
+                                shkl,
+                                eta_fwhm,
+                                tth,
+                                dsp,
+                                hkls,
+                                strain_direction_dot_product,
+                                is_in_sublattice,
+                                tth_list,
+                                Ic,
+                                spec_expt,
+                                spec_sim)
 
-                self.Iobs[p][k] = self.calc_Iobs_fcn(*args)
+                    self.Iobs[p][k] = self.calc_Iobs_fcn(*args)
 
     def calcRwp(self, params):
         """
