@@ -50,9 +50,7 @@ if None, defaults to list specified in the yml file"""
     p.set_defaults(func=execute)
 
 
-def write_results(results, cfg):
-    # Write out the data
-
+def write_scored_orientations(results, cfg):
     # grab working directory from config
     wdir = cfg.working_dir
 
@@ -63,6 +61,14 @@ def write_results(results, cfg):
         scored_quats_filename,
         **results['scored_orientations']
     )
+
+
+def write_results(results, cfg):
+    # Write out the data
+    write_scored_orientations(results, cfg)
+
+    # grab working directory from config
+    wdir = cfg.working_dir
 
     if not os.path.exists(cfg.analysis_dir):
         os.makedirs(cfg.analysis_dir)
