@@ -46,6 +46,7 @@ from io import IOBase
 from scipy import ndimage
 from scipy.linalg.matfuncs import logm
 
+from hexrd import constants
 from hexrd.gridutil import cellConnectivity, cellIndices, make_tolerance_grid
 from hexrd import matrixutil as mutil
 from hexrd.transforms.xfcapi import \
@@ -929,31 +930,44 @@ class HEDMInstrument(object):
 
     def extract_line_positions(self, plane_data, imgser_dict,
                                tth_tol=None, eta_tol=1., npdiv=2,
+                               eta_centers=None,
                                collapse_eta=True, collapse_tth=False,
                                do_interpolation=True):
         """
-        Extract the line positions from powder diffraction images.
+        Perform annular interpolation on diffraction images.
 
-        Generates and processes 'caked' sector data over an instrument.
+        Provides data for extracting the line positions from powder diffraction
+        images, pole figure patches from imageseries, or Bragg peaks from
+        Laue diffraction images.
 
         Parameters
         ----------
-        plane_data : TYPE
-            DESCRIPTION.
-        imgser_dict : TYPE
-            DESCRIPTION.
-        tth_tol : TYPE, optional
-            DESCRIPTION. The default is None.
-        eta_tol : TYPE, optional
-            DESCRIPTION. The default is 1..
-        npdiv : TYPE, optional
-            DESCRIPTION. The default is 2.
-        collapse_eta : TYPE, optional
-            DESCRIPTION. The default is True.
-        collapse_tth : TYPE, optional
-            DESCRIPTION. The default is False.
-        do_interpolation : TYPE, optional
-            DESCRIPTION. The default is True.
+        plane_data : hexrd.crystallography.PlaneData object or array_like
+            Object determining the 2theta positions for the integration
+            sectors.  If PlaneData, this will be all non-excluded reflections,
+            subject to merging within PlaneData.tThWidth.  If array_like,
+            interpreted as a list of 2theta angles IN RADIAN (this may change).
+        imgser_dict : dict
+            Dictionary of powder diffraction images, one for each detector.
+        tth_tol : scalar, optional
+            The radial (i.e. 2theta) width of the integration sectors
+            IN DEGREES.  This arg is required if plane_data is array_like.
+            The default is None.
+        eta_tol : scalar, optional
+            The azimuthal (i.e. eta) width of the integration sectors
+            IN DEGREES. The default is 1.
+        npdiv : int, optional
+            The number of oversampling pixel subdivision (see notes).
+            The default is 2.
+        eta_centers : array_like, optional
+            The desired azimuthal sector centers.  The default is None.  If
+            None, then bins are distrubted sequentially from (-180, 180).
+        collapse_eta : bool, optional
+            Flag for summing sectors in eta. The default is True.
+        collapse_tth : bool, optional
+            Flag for summing sectors in 2theta. The default is False.
+        do_interpolation : bool, optional
+            If True, perform bilinear interpolation. The default is True.
 
         Raises
         ------
@@ -962,15 +976,25 @@ class HEDMInstrument(object):
 
         Returns
         -------
-        panel_data : TYPE
-            DESCRIPTION.
+        panel_data : dict
+            Dictionary over the detctors with the following structure:
+                [list over (merged) 2theta ranges]
+                  [list over valid eta sectors]
+                    [angle data <input dependent>,
+                     bin intensities <input dependent>]
+
+        Notes
+        -----
+        TODO: May change the array_like input units to degrees.
+        TODO: rename function.
+
         """
         if not hasattr(plane_data, '__len__'):
             plane_data = plane_data.makeNew()  # make local copy to munge
             if tth_tol is not None:
                 plane_data.tThWidth = np.radians(tth_tol)
             tth_ranges = np.degrees(plane_data.getMergedRanges()[1])
-            tth_tols = np.vstack([i[1] - i[0] for i in tth_ranges])
+            tth_tols = np.hstack([i[1] - i[0] for i in tth_ranges])
         else:
             tth_tols = np.ones(len(plane_data))*tth_tol
 
@@ -1001,7 +1025,8 @@ class HEDMInstrument(object):
             # make rings
             pow_angs, pow_xys = panel.make_powder_rings(
                 plane_data, merge_hkls=True,
-                delta_tth=tth_tol, delta_eta=eta_tol)
+                delta_tth=tth_tol, delta_eta=eta_tol,
+                eta_list=eta_centers)
 
             # =================================================================
             # LOOP OVER RING SETS
@@ -1043,9 +1068,11 @@ class HEDMInstrument(object):
                     if collapse_tth:
                         ang_data = (vtx_angs[0][0, [0, -1]],
                                     vtx_angs[1][[0, -1], 0])
-                    else:
+                    elif collapse_eta:
                         ang_data = (vtx_angs[0][0, :],
                                     angs[i_p][-1])
+                    else:
+                        ang_data = vtx_angs
 
                     prows, pcols = areas.shape
                     area_fac = areas/float(native_area)
@@ -1151,7 +1178,7 @@ class HEDMInstrument(object):
             #           'Y': [2e-1, -1., 1., True]
             #           }
             params = wppfsupport._generate_default_parameters_LeBail(
-                mat_list, 
+                mat_list,
                 1)
         '''
         use the material list to obtain the dictionary of initial intensities
@@ -2153,23 +2180,38 @@ class PlanarDetector(object):
     # =========================================================================
 
     def lorentz_polarization_factor(self, f_hor, f_vert):
+        """
+        Calculated the lorentz polarization factor for every pixel.
+
+        Parameters
+        ----------
+        f_hor : float
+             the fraction of horizontal polarization. for XFELs
+             this is close to 1.
+        f_vert : TYPE
+            the fraction of vertical polarization, which is ~0 for XFELs.
+
+        Raises
+        ------
+        RuntimeError
+            DESCRIPTION.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
 
         """
-        f_hor is the fraction of horizontal polarization. for XFELs
-        this is close to 1
-        f_vert is the fraction of vertical polarization, which is
-        ~0 for XFELs
-        """
-        s = f_hor+f_vert
-        if np.abs(s-1) > 1e-6:
-            msg = (f"sum of fraction of "
-                f"horizontal and vertical polarizations "
-                f"must be equal to 1.")
+        s = f_hor + f_vert
+        if np.abs(s - 1) > constants.sqrt_epsf:
+            msg = ("sum of fraction of "
+                   "horizontal and vertical polarizations "
+                   "must be equal to 1.")
             raise RuntimeError(msg)
 
         if f_hor < 0 or f_vert < 0:
-            msg = (f"fraction of polarization in horizontal "
-                f"or vertical directions can't be negative.")
+            msg = ("fraction of polarization in horizontal "
+                   "or vertical directions can't be negative.")
             raise RuntimeError(msg)
 
         tth, eta = self.pixel_angles()
@@ -2612,7 +2654,7 @@ class PlanarDetector(object):
 
     def make_powder_rings(
             self, pd, merge_hkls=False, delta_tth=None,
-            delta_eta=10., eta_period=None,
+            delta_eta=10., eta_period=None, eta_list=None,
             rmat_s=ct.identity_3x3,  tvec_s=ct.zeros_3,
             tvec_c=ct.zeros_3, full_output=False):
         """
@@ -2632,6 +2674,8 @@ class PlanarDetector(object):
         delta_eta : TYPE, optional
             DESCRIPTION. The default is 10..
         eta_period : TYPE, optional
+            DESCRIPTION. The default is None.
+        eta_list : TYPE, optional
             DESCRIPTION. The default is None.
         rmat_s : TYPE, optional
             DESCRIPTION. The default is ct.identity_3x3.
@@ -2705,25 +2749,33 @@ class PlanarDetector(object):
         # for generating rings, make eta vector in correct period
         if eta_period is None:
             eta_period = (-np.pi, np.pi)
-        neta = int(360./float(delta_eta))
 
-        # this is the vector of ETA EDGES
-        eta_edges = mapAngle(
-            np.radians(
-                delta_eta*np.linspace(0., neta, num=neta + 1)
-            ) + eta_period[0],
-            eta_period
-        )
+        if eta_list is None:
+            neta = int(360./float(delta_eta))
+            # this is the vector of ETA EDGES
+            eta_edges = mapAngle(
+                np.radians(
+                    delta_eta*np.linspace(0., neta, num=neta + 1)
+                ) + eta_period[0],
+                eta_period
+            )
 
-        # get eta bin centers from edges
-        """
-        # !!! this way is probably overkill, since we have delta eta
-        eta_centers = np.average(
-            np.vstack([eta[:-1], eta[1:]),
-            axis=0)
-        """
-        # !!! should be safe as eta_edges are monotonic
-        eta_centers = eta_edges[:-1] + 0.5*del_eta
+            # get eta bin centers from edges
+            """
+            # !!! this way is probably overkill, since we have delta eta
+            eta_centers = np.average(
+                np.vstack([eta[:-1], eta[1:]),
+                axis=0)
+            """
+            # !!! should be safe as eta_edges are monotonic
+            eta_centers = eta_edges[:-1] + 0.5*del_eta
+        else:
+            eta_centers = np.radians(eta_list).flatten()
+            neta = len(eta_centers)
+            eta_edges = (
+                np.tile(eta_centers, (2, 1)) +
+                np.tile(0.5*del_eta*np.r_[-1, 1], (neta, 1)).T
+            ).T.flatten()
 
         # get chi and ome from rmat_s
         # ??? not needed chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
@@ -3638,16 +3690,17 @@ def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
 
     return solid_angs.reshape(rows, cols)
 
+
 @memoize
 def _lorentz_polarization_factor(tth, eta, f_hor, f_vert):
     """
     06/14/2021 SS adding lorentz polarization factor computation
-    to the detector so that it can be compenstated for in the 
+    to the detector so that it can be compenstated for in the
     intensity correction
 
     parameters: tth two theta of every pixel in radians
                 eta azimuthal angle of every pixel
-                f_hor fraction of horizontal polarization 
+                f_hor fraction of horizontal polarization
                 (~1 for XFELs)
                 f_vert fraction of vertical polarization
                 (~0 for XFELs)
@@ -3655,7 +3708,7 @@ def _lorentz_polarization_factor(tth, eta, f_hor, f_vert):
     """
 
     theta = 0.5*tth
-    
+
     cth = np.cos(theta)
     sth2 = np.sin(theta)**2
 
@@ -3664,10 +3717,10 @@ def _lorentz_polarization_factor(tth, eta, f_hor, f_vert):
     ceta2 = np.cos(eta)**2
 
     L = 1./(cth*sth2)
-    P = f_hor*(seta2+ceta2*ctth2) + \
-    f_vert*(ceta2+seta2*ctth2)
+    P = f_hor*(seta2 + ceta2*ctth2) + f_vert*(ceta2 + seta2*ctth2)
 
     return L*P
+
 
 def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
     # mark pixels in the spec'd tth range
