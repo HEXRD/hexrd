@@ -304,12 +304,26 @@ class Material(object):
             self.set_default_exclusions()
 
     def set_default_exclusions(self):
-        # Enable only the first 5 by default
-        self.enable_hkls_below_index(5)
+        if hasattr(self, 'hkl_from_file'):
+            # If we loaded hkls from the file, use those
+            self.enable_hkls_from_file()
+        else:
+            # Otherwise, enable only the first 5 by default
+            self.enable_hkls_below_index(5)
+
+    def enable_hkls_from_file(self):
+        # Enable hkls from the file
+        # 'hkl_from_file' must be an attribute on `self`
+        exclusions = numpy.ones_like(self._pData.exclusions, dtype=bool)
+        for i, g in enumerate(self._pData.hklDataList):
+            if g['hkl'].tolist() in self.hkl_from_file.tolist():
+                exclusions[i] = False
+
+        self._pData.exclusions = exclusions
 
     def enable_hkls_below_index(self, index=5):
         # Enable hkls with indices less than @index
-        exclusions = np.ones_like(self._pData.exclusions, dtype=bool)
+        exclusions = numpy.ones_like(self._pData.exclusions, dtype=bool)
         exclusions[:index] = False
         self._pData.exclusions = exclusions
 
