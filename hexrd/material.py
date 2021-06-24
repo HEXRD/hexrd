@@ -304,10 +304,23 @@ class Material(object):
             self.set_default_exclusions()
 
     def set_default_exclusions(self):
+        # Enable only the first 5 by default
+        self.enable_hkls_below_index(5)
+
+    def enable_hkls_below_index(self, index=5):
+        # Enable hkls with indices less than @index
+        exclusions = self._pData.exclusions
+        for i in range(len(exclusions)):
+            exclusions[i] = i >= index
+
+        self._pData.exclusions = exclusions
+
+    def enable_hkls_below_tth(self, tth_threshold=90.0):
         '''
-          Set default exclusions
-          all reflections with two-theta smaller than 90 degrees
+          enable reflections with two-theta less than @tth_threshold degrees
         '''
+        tth_threshold = numpy.radians(tth_threshold)
+
         tth = numpy.array([hkldata['tTheta']
                            for hkldata in self._pData.hklDataList])
         dflt_excl = numpy.ones(tth.shape, dtype=numpy.bool)
@@ -324,14 +337,14 @@ class Material(object):
 
             dflt_excl2[~numpy.isnan(tth)] = \
                 ~((tth[~numpy.isnan(tth)] >= 0.0) &
-                  (tth[~numpy.isnan(tth)] <= numpy.pi/2.0))
+                  (tth[~numpy.isnan(tth)] <= tth_threshold))
 
             dflt_excl = numpy.logical_or(dflt_excl, dflt_excl2)
 
         else:
             dflt_excl[~numpy.isnan(tth)] = \
                 ~((tth[~numpy.isnan(tth)] >= 0.0) &
-                  (tth[~numpy.isnan(tth)] <= numpy.pi/2.0))
+                  (tth[~numpy.isnan(tth)] <= tth_threshold))
             dflt_excl[0] = False
 
         self._pData.exclusions = dflt_excl
