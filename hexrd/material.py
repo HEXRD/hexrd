@@ -309,10 +309,8 @@ class Material(object):
 
     def enable_hkls_below_index(self, index=5):
         # Enable hkls with indices less than @index
-        exclusions = self._pData.exclusions
-        for i in range(len(exclusions)):
-            exclusions[i] = i >= index
-
+        exclusions = np.ones_like(self._pData.exclusions, dtype=bool)
+        exclusions[:index] = False
         self._pData.exclusions = exclusions
 
     def enable_hkls_below_tth(self, tth_threshold=90.0):
