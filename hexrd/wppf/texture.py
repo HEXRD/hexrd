@@ -45,12 +45,13 @@ class mesh_s2:
     is the main class used for computing the general axis distribution 
     function.
     """
+
     def __init__(self,
                  symmetry):
 
         data = importlib.resources.open_binary(hexrd.resources, "surface_harmonics.h5")
         with h5py.File(data, 'r') as fid:
-            
+
             gname = f"{symmetry}"
             self.symmetry = symmetry
             self.ncrd = fid[gname].attrs["ncrd"]
