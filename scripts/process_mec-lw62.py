@@ -80,7 +80,11 @@ def GetImage(det, exp, run, event=-1):
         events = list(ds.events())
         nevents = len(events)
         print("There are %d events in run %d" % (nevents, run))
-        if max(event) >= nevents:
+
+        if event == -1:
+            event = max(events)
+
+        if event >= nevents:
             raise IndexError(
                 "Run %d only has %d events; you requested event %d"
                 % (run, nevents, event)
@@ -269,7 +273,7 @@ if __name__ == '__main__':
         help='the event number(s) to process',
         type=int,
         nargs='+',
-        default=1
+        default=-1
     )
 
     parser.add_argument(
