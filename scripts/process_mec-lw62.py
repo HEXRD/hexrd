@@ -193,7 +193,7 @@ def append_text(run,
     if os.path.exists(fname):
         fid = open(fname,"a")
     else:
-        fid = open(fid,"w")
+        fid = open(fname,"w")
         header = (f"#RUN\t"
             f"MATERIAL\t"
             f"LATTICE CONSTANT\t"
