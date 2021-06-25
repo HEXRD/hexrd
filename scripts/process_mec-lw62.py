@@ -20,6 +20,7 @@ from hexrd.material import Material
 from hexrd.valunits import valWUnit
 from hexrd.wppf import wppfsupport, LeBail
 from hexrd.xrdutil import PolarView
+from scipy.interpolate import interp1d
 
 
 # =============================================================================
