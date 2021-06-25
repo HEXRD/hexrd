@@ -337,7 +337,7 @@ if __name__ == '__main__':
         dmin=dmin_DFLT, kev=kev_DFLT
     )
     mat_lt.name = f"{mat}_lt"
-    
+
     mat_ht = copy.deepcopy(mat_lt)
     mat_ht.name = f"{mat}_ht"
 
@@ -350,7 +350,7 @@ if __name__ == '__main__':
     # caking class
     pv = PolarView(
         (tth_min, tth_max), instr,
-        eta_min=-40, eta_max=200,
+        eta_min=-90, eta_max=270,
         pixel_size=(tth_pixel_size, eta_pixel_size)
     )
     tth_bin_centers = np.degrees(pv.angular_grid[1][0, :])
@@ -368,10 +368,8 @@ if __name__ == '__main__':
             min_intensity = np.inf
             for det_key, panel in instr.detectors.items():
                 img = GetImage(det_key, exp_name, rn, event=en)
-                img[~panel.panel_buffer] = np.nan
-                img = img - np.nanmin(img)
-                img[~panel.panel_buffer] = 0.
                 img_dict[det_key] = np.fliplr(img)
+
         except(RuntimeError, IndexError):
             print("waiting for run # %d..." % rn)
             time.sleep(3)
