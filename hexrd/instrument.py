@@ -274,12 +274,10 @@ def pixel_resolution(instr):
     min_eta = -np.inf
     ang_ps_full = []
     for panel in instr.detectors.values():
-        angps = panel.angularPixelSize(
-            np.stack(
-                panel.pixel_coords,
-                axis=0
-            ).reshape(2, np.cumprod(panel.shape)[-1]).T
-        )
+        angps = np.stack(
+            [panel.pixel_tth_gradient(),
+             panel.pixel_eta_gradient()]
+        ).reshape(2, np.cumprod(panel.shape)[-1]).T
         ang_ps_full.append(angps)
         max_tth = min(max_tth, np.min(angps[:, 0]))
         max_eta = min(max_eta, np.min(angps[:, 1]))
@@ -1151,7 +1149,7 @@ class HEDMInstrument(object):
             #           'Y': [2e-1, -1., 1., True]
             #           }
             params = wppfsupport._generate_default_parameters_LeBail(
-                mat_list, 
+                mat_list,
                 1)
         '''
         use the material list to obtain the dictionary of initial intensities
@@ -3643,12 +3641,12 @@ def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
 def _lorentz_polarization_factor(tth, eta, f_hor, f_vert):
     """
     06/14/2021 SS adding lorentz polarization factor computation
-    to the detector so that it can be compenstated for in the 
+    to the detector so that it can be compenstated for in the
     intensity correction
 
     parameters: tth two theta of every pixel in radians
                 eta azimuthal angle of every pixel
-                f_hor fraction of horizontal polarization 
+                f_hor fraction of horizontal polarization
                 (~1 for XFELs)
                 f_vert fraction of vertical polarization
                 (~0 for XFELs)
@@ -3656,7 +3654,7 @@ def _lorentz_polarization_factor(tth, eta, f_hor, f_vert):
     """
 
     theta = 0.5*tth
-    
+
     cth = np.cos(theta)
     sth2 = np.sin(theta)**2
 
