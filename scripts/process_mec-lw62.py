@@ -421,15 +421,15 @@ if __name__ == '__main__':
         density = mat_ht.unitcell.density
         lp = mat_ht.unitcell.a*10.0
         extent = np.degrees(pv.extent)
-        LeBail_fit = np.array(L.spectrum_sim.data).T
+        LeBail_fit = np.array(lebail_fitter.spectrum_sim.data).T
         difference_curve = np.copy(LeBail_fit)
         difference_curve[:,1] = azimuthal_integration[:,1] - LeBail_fit[:,1]
 
         """
         CALCULATE THE UNCERTAINTIES IN DENSITY AND TEMPERATURE
         """
-        del_a = L.res.params[mat_lp].stderr
-        a = L.res.params[mat_lp].value
+        del_a = lebail_fitter.res.params[mat_lp].stderr
+        a = lebail_fitter.res.params[mat_lp].value
         perct_err_a = del_a/a
         perct_err_D = 3*perct_err_a
         delD = perct_err_D*density
