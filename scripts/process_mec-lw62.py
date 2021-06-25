@@ -82,7 +82,7 @@ def GetImage(det, exp, run, event=-1):
         print("There are %d events in run %d" % (nevents, run))
 
         if event == -1:
-            event = max(events)
+            event = nevents-1
 
         if event >= nevents:
             raise IndexError(
