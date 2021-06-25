@@ -4,6 +4,7 @@ Created on Thu Jun 24 11:31:46 2021
 
 @author: berni
 """
+import os
 import copy
 import time
 import argparse
@@ -171,7 +172,9 @@ def write_hdf(run,
     fid.close()
 
 def append_text(run,
+                mat,
                 lp,
+                amb_density
                 density,
                 temperature,
                 delD,
@@ -185,12 +188,26 @@ def append_text(run,
     of appending, overwrite that particular line
     """
 
-    fid = open("h5data/Results.txt","a")
+    fname = "h5data/Results.txt"
 
-    line = (f"{run}\t"
-        f"{lp}\t"
-        f"{density} +/- {delD}\t"
-        f"{temperature} +/- {delT}\t"
+    if os.path.exists(fname):
+        fid = open(fname,"a")
+    else:
+        fid = open(fid,"w")
+        header = (f"#RUN\t"
+            f"MATERIAL\t"
+            f"LATTICE CONSTANT\t"
+            f"DENSITY +/- UNCERTAINITY\t"
+            f"TEMPERATURE +/- UNCERTAINITY\t"
+            f"WEIGHTED RESIDUAL"
+            )
+        fid.write(header)
+
+    line = (f"{run}\t,"
+        f"{mat}\t,"
+        f"{lp}\t,"
+        f"{density} +/- {delD}\t,"
+        f"{temperature} +/- {delT}\t,"
         f"{Rwp}\n")
 
     fid.write(line)
@@ -464,6 +481,7 @@ if __name__ == '__main__':
         append_text(rn,
                     mat,
                     lp,
+                    amb_density,
                     density,
                     temperature,
                     delD,
