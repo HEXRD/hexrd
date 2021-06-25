@@ -732,6 +732,10 @@ class unitcell:
 
         overall f = (f0 + f' + if" +fNT)
         '''
+        
+        if isinstance(charge, (bytes, bytearray)):
+            charge = charge.decode()
+
         elem = constants.ptableinverse[Z]
         if charge == '0':
             sfact = constants.scatfac[elem]
