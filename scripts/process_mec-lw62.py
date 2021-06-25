@@ -88,8 +88,151 @@ def GetImage(det, exp, run, event=-1):
             return detector.image(events[event])
 
 
+def write_hdf(run,
+             mat,
+             polar_view,
+             extent,
+             azimuthal_integration,
+             LeBail_fit,
+             difference_curve,
+             lp,
+             amb_density,
+             density,
+             temperature,
+             delD,
+             delT,
+             Rwp):
+    """
+    @AUTHOR Saransh Singh, Lawrence Livermore National Lab
+    @DATE 06/24/2021 1.0 original
+    @DETAILS this function writes out the HDF5 file given a run number
+    and data. the organiation of the file is as follows:
+
+    Group: run number
+    attributes: lattice parameter
+                density
+                temperature
+                uncertainty in density
+                uncertainty in temperature
+    datasets: polar view
+              extent of polar view (IN DEGREES)
+              azimuthal integration
+              LeBail fit
+              difference curve
+
+    """
+    fname = f"h5data/run_{run}.h5"
+    
+    if os.path.exists(fname):
+        os.remove(fname)
+        msg = f"file already exists. overwriting..."
+        print(msg)
+    
+    fid = h5py.File(fname,"w")
+    
+    msg = f"filename: {fname}"
+    print(msg)
+    
+    gname = f"{run}"
+    gid = fid.create_group(gname)
+    
+    gid.attrs["temperature"] = temperature
+    gid.attrs["ambient_density"] = amb_density
+    gid.attrs["density"] = density
+    gid.attrs["uncertainty_temperature"] = delT
+    gid.attrs["uncertainty_density"] = delD
+    gid.attrs["lattice_parameter"] = lp
+    gid.attrs["percent Rwp"] = Rwp
+    gid.attrs["material"] = mat
+
+    msg = f"groupname: {gname}"
+    print(msg)
+    
+    dname = f"azimuthal_integration"
+    dset = gid.create_dataset(dname, data=azimuthal_integration)
+    
+    dname = f"LeBail_fit"
+    dset = gid.create_dataset(dname, data=LeBail_fit)
+    
+    dname = f"difference_curve"
+    dset = gid.create_dataset(dname, data=difference_curve)
+    
+    dname = f"polarview"
+    dset = gid.create_dataset(dname, data=polar_view)
+
+    dname = f"extent"
+    dset = gid.create_dataset(dname, data=extent)
+    
+    fid.close()
+
+def append_text(run,
+                lp,
+                density,
+                temperature,
+                delD,
+                delT,
+                Rwp):
+    """
+    this function appends to a simple text file the 
+    results of the run
+
+    @TODO if the run number is already present, instead
+    of appending, overwrite that particular line
+    """
+
+    fid = open("h5data/Results.txt","a")
+
+    line = (f"{run}\t"
+        f"{lp}\t"
+        f"{density} +/- {delD}\t"
+        f"{temperature} +/- {delT}\t"
+        f"{Rwp}\n")
+
+    fid.write(line)
+
+    fid.close()
+
+def _prepare_interp_table():
+    """
+    the experiment relies on the change in the lattice parameter to
+    determine the approximate temperature of the sample. this function
+    prepares the interpolation function as a dictionary for all the
+    elements in the experiment. 
+    """
+    func_dict = {}
+    elem = ["Au", "Ag", "Cu", "Ta", "Fe"]
+    for e in elem:
+        data = []
+        fname = f"rho_v_T_data/{e}.txt"
+        fid = open(fname,"r")
+        
+        for line in fid:
+            data.append([float(x) for x in line.split()])
+        data = np.array(data)
+        fid.close()
+        
+        func_dict[e] = interp1d(data[:,1],data[:,0],
+            kind="cubic",
+            bounds_error=False)
+        
+    return func_dict
+
+def _get_temperature(func_dict, measured_density, mat):
+    """
+    get the temperature of the material given a density
+    and the interpolation function dictionary derived from
+    the last routine
+    """
+    if mat in func_dict:
+        f = func_dict[mat]
+        return f(measured_density)
+        
+    else:
+        msg = f"material not one of the ones calculated"
+        raise RunTimeError(msg)
+
 # params
-niter_lebail = 10
+niter_lebail = 20
 dmin_DFLT = _angstroms(0.75)
 kev_DFLT = _kev(10.0)
 
@@ -128,12 +271,22 @@ if __name__ == '__main__':
         default=1
     )
 
+    parser.add_argument(
+        '-m', '--material-name',
+        help='name of material',
+        type=str
+    )
+
     args = parser.parse_args()
 
     exp_name = args.exp_name
     instr_name = args.instr_name
     rn = args.start_run
     en = args.event_numbers
+    mat = args.material_name
+
+    if mat not in ["Ag", "Au", "Cu", "Fe", "Ta"]:
+        raise ValueError("this material is not part of this MEC run")
 
     # MEC wavelengths
     # !!! second might be coming from spectrometer fit for each run
@@ -156,14 +309,15 @@ if __name__ == '__main__':
     img_dict = dict.fromkeys(det_keys)
 
     # Materials
-    Ta_lt = Material(
-        name='Ta_ambient', material_file='material.h5',
+    mname = f"{mat}_ambient"
+    mat_lt = Material(
+        name=mname, material_file='material.h5',
         dmin=dmin_DFLT, kev=kev_DFLT
     )
-    Ta_lt.name = 'Ta_lt'
-    Ta_ht = copy.deepcopy(Ta_lt)
-    Ta_ht.latticeParameters = [3.32]
-    Ta_ht.name = 'Ta_ht'
+    mat_lt.name = f"{mat}_lt"
+    mat_ht = copy.deepcopy(mat_lt)
+    mat_ht.latticeParameters = [3.32]
+    mat_ht.name = f"{mat}_ht"
 
     # caking (i.e., "dewarping")
     tth_pixel_size = 0.025  # close to median resolution
@@ -178,6 +332,9 @@ if __name__ == '__main__':
         pixel_size=(tth_pixel_size, eta_pixel_size)
     )
     tth_bin_centers = np.degrees(pv.angular_grid[1][0, :])
+
+    # PREPARE THE INTERPOLATION FUNCTION FOR TEMPERATURE
+    func_dict = _prepare_interp_table()
 
     # =========================================================================
     # SERIAL LOOP
@@ -214,10 +371,10 @@ if __name__ == '__main__':
         # setup
         kwargs = {
             'expt_spectrum': spec_expt,
-            'phases': [Ta_lt, Ta_ht],
+            'phases': [mat_lt, mat_ht],
             'wavelength': {
-                'Ta_lt': [_angstroms(lam1), 1],
-                'Ta_ht': [_angstroms(lam2), 1]
+                mat_lt.name: [_angstroms(lam1), 1],
+                mat_ht.name: [_angstroms(lam2), 1]
             },
             'bkgmethod': {'chebyshev': 2},
             'peakshape': 'pvtch'
@@ -229,22 +386,84 @@ if __name__ == '__main__':
         lebail_fitter.params["W"].vary = True
         lebail_fitter.params["X"].vary = True
         lebail_fitter.params["Y"].vary = True
-        lebail_fitter.params["Ta_ht_a"].vary = True
+        mat_lp = f"{mat}_ht_a"
+        lebail_fitter.params[mat_lp].vary = True
 
         # fit
         for i in range(niter_lebail):
             lebail_fitter.RefineCycle()
         Ta_ht.latticeParameters = [
-            lebail_fitter.params["Ta_ht_a"].value*10.0,
+            lebail_fitter.params[mat_lp].value*10.0,
         ]
         print(
+            f"Material: {mat}"
+            )
+        print(
             "Fit densities:\n\tLT: %1.3e, HT: %1.3e"
-            % (Ta_lt.unitcell.density, Ta_ht.unitcell.density)
+            % (mat_lt.unitcell.density, mat_ht.unitcell.density)
         )
 
         # =====================================================================
         # OUTPUT
         # =====================================================================
+
+        """
+        PREPARE THE DATA FOR I/O
+        """
+        polar_view = masked
+        azimuthal_integration = spec_expt
+        amb_density = mat_lt.unitcell.density
+        density = mat_ht.unitcell.density
+        lp = mat_ht.unitcell.a*10.0
+        extent = np.degrees(pv.extent)
+        LeBail_fit = np.array(L.spectrum_sim.data).T
+        difference_curve = np.copy(LeBail_fit)
+        difference_curve[:,1] = azimuthal_integration[:,1] - LeBail_fit[:,1]
+
+        """
+        CALCULATE THE UNCERTAINTIES IN DENSITY AND TEMPERATURE
+        """
+        del_a = L.res.params[mat_lp].stderr
+        a = L.res.params[mat_lp].value
+        perct_err_a = del_a/a
+        perct_err_D = 3*perct_err_a
+        delD = perct_err_D*density
+
+        temperature = _get_temperature(func_dict, density, mat)
+        temp_lb = _get_temperature(func_dict, density+delD, mat)
+        temp_ub = _get_temperature(func_dict, density-delD, mat)
+        delT = 0.5*(np.abs(temperature-temp_lb) + np.abs(temperature-temp_ub))
+        Rwp = L.Rwp*100
+
+        """
+        WRITE OUT THE DATA
+        """
+        # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        write_hdf(rn,
+                mat,
+                polar_view,
+                extent,
+                azimuthal_integration,
+                LeBail_fit,
+                difference_curve,
+                lp,
+                amb_density,
+                density,
+                temperature,
+                delD,
+                delT,
+                Rwp)
+        # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+        # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        append_text(rn,
+                    mat,
+                    lp,
+                    density,
+                    temperature,
+                    delD,
+                    delT,
+                    Rwp)
 
         # incr run number
         rn += 1
