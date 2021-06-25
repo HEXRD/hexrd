@@ -199,7 +199,7 @@ def append_text(run,
             f"LATTICE CONSTANT\t"
             f"DENSITY +/- UNCERTAINITY\t"
             f"TEMPERATURE +/- UNCERTAINITY\t"
-            f"WEIGHTED RESIDUAL"
+            f"WEIGHTED RESIDUAL\n"
             )
         fid.write(header)
 
