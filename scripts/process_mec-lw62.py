@@ -80,7 +80,7 @@ def GetImage(det, exp, run, event=-1):
         events = list(ds.events())
         nevents = len(events)
         print("There are %d events in run %d" % (nevents, run))
-        if event >= nevents:
+        if max(event) >= nevents:
             raise IndexError(
                 "Run %d only has %d events; you requested event %d"
                 % (run, nevents, event)
