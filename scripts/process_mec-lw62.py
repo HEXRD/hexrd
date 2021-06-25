@@ -19,6 +19,7 @@ import os
 import copy
 import time
 import argparse
+import datetime
 
 import numpy as np
 
@@ -95,9 +96,6 @@ def get_event_image(det, exp, run, event=-1):
         events = list(ds.events())
         nevents = len(events)
         print("There are %d events in run %d" % (nevents, run))
-
-        if event == -1:
-            event = nevents-1
 
         if event >= nevents:
             raise IndexError(
@@ -318,6 +316,9 @@ eta_max = 200.
 lam1 = cnst.keVToAngstrom(10.0)
 lam2 = cnst.keVToAngstrom(10.08)
 
+# time
+stop_by = datetime.datetime(2021, 6, 28, 9, 0)
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -415,8 +416,9 @@ if __name__ == '__main__':
     # SERIAL LOOP
     # =========================================================================
 
-    while True:
+    while datetime.datetime.today() < stop_by:
         # run PSANA shit here
+        # TODO: dark subtraction?
         try:
             min_intensity = np.inf
             for det_key, panel in instr.detectors.items():
@@ -429,7 +431,11 @@ if __name__ == '__main__':
 
                 # ??? truncate negative vals
                 img[img < 0.] = 0.
-                img_dict[det_key] = np.fliplr(img)
+
+                # apply scaling corrections
+                # ??? add lorentz?
+                img_dict[det_key] = \
+                    np.fliplr(img) * correction_array_dict[det_key]
 
         except(RuntimeError, IndexError):
             print("waiting for run # %d..." % rn)
