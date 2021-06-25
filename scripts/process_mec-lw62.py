@@ -415,7 +415,7 @@ if __name__ == '__main__':
         """
         PREPARE THE DATA FOR I/O
         """
-        polar_view = masked
+        polar_view = polar_img
         azimuthal_integration = spec_expt
         amb_density = mat_lt.unitcell.density
         density = mat_ht.unitcell.density
