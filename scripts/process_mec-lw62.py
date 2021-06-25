@@ -438,7 +438,7 @@ if __name__ == '__main__':
         temp_lb = _get_temperature(func_dict, density+delD, mat)
         temp_ub = _get_temperature(func_dict, density-delD, mat)
         delT = 0.5*(np.abs(temperature-temp_lb) + np.abs(temperature-temp_ub))
-        Rwp = L.Rwp*100
+        Rwp = lebail_fitter.Rwp*100
 
         """
         WRITE OUT THE DATA
