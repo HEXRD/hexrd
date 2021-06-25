@@ -5,6 +5,7 @@ import importlib.resources
 import h5py
 from numpy.polynomial.polynomial import Polynomial
 from warnings import warn
+
 """
 ========================================================================================================
 ========================================================================================================
@@ -24,6 +25,7 @@ from warnings import warn
 ========================================================================================================
 ========================================================================================================   
 """
+
 class mesh_s2:
     """
     this class deals with the basic functions of the s2 mesh. the 
@@ -33,6 +35,7 @@ class mesh_s2:
     is the main class used for computing the general axis distribution 
     function.
     """
+
     def __init__(self,
                  symmetry):
 
@@ -53,12 +56,6 @@ class mesh_s2:
 
             points_st = self.points[:,:2]/np.tile(
                 (1.+self.points[:,2]),[2,1]).T
-
-            dname = f"/{symmetry}/harmonics"
-            self.harmonics = np.array(fid[dname])
-
-            dname = f"/{symmetry}/eqv"
-            self.eqv = np.array(fid[dname]).astype(np.int32)
 
             self.mesh = Delaunay(points_st, qhull_options="QJ")
 
