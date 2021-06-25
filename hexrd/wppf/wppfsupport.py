@@ -476,6 +476,68 @@ def _required_shkl_names(mat):
 
     return valid_shkl, eq_constraints, rqd_index, trig_ptype
 
+def _add_texture_coefficients(crystal_sym, sample_sym, name, degree):
+    """
+    add the texture coefficients for a particular phase
+    given its laue group. the crystal sym decides what the
+    symmetry of the crystal is and what coefficients to add. the
+    sample symmetry decides what the sample symmtry is. allowed ones 
+    are 
+    triclinic : -1
+    monoclinic: 2/m
+    orthorhombic: mmm
+    cylindrical: inf/mmm
+
+    if cylindrical symmetry is used, then the total coefficients used
+    are drastically reduced
+    """
+
+def _add_texture_parameters(mat, degree):
+    """
+    @SS 06/22/2021 1.0 original
+    this routine adds the texture coefficients to the wppf 
+    parameter list based on the material list and the 
+    degree of harmonic coefficients passed. Also required is the
+    assumed sample symmetry. The same sample symmetry will be used
+    for each of the phases. 
+    """
+    if isinstance(mat, Phases_Rietveld):
+        """
+        phase file
+        """
+        for p in mat:
+            m = mat[p]
+            k = list(m.keys())
+            mm = m[k[0]]
+            _add_atominfo_to_params(params, mm)
+
+    elif isinstance(mat, Material):
+        """
+        just an instance of Materials class
+        this part initializes the lattice parameters in the
+        """
+        _add_atominfo_to_params(params, mat)
+
+    elif isinstance(mat, list):
+        """
+        a list of materials class
+        """
+        for m in mat:
+            _add_atominfo_to_params(params, m)
+
+    elif isinstance(mat, dict):
+        """
+        dictionary of materials class
+        """
+        for k, m in mat.items():
+            _add_atominfo_to_params(params, m)
+
+    else:
+        msg = (f"_generate_default_parameters: "
+               f"incorrect argument. only list, dict or "
+               f"Material is accpeted.")
+        raise ValueError(msg)
+
 """
 this dictionary structure holds information for the shkl
 coefficeints needed for anisotropic broadening of peaks
