@@ -337,8 +337,8 @@ if __name__ == '__main__':
         dmin=dmin_DFLT, kev=kev_DFLT
     )
     mat_lt.name = f"{mat}_lt"
+    
     mat_ht = copy.deepcopy(mat_lt)
-    mat_ht.latticeParameters = [3.32]
     mat_ht.name = f"{mat}_ht"
 
     # caking (i.e., "dewarping")
