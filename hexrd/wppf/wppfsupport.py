@@ -595,8 +595,8 @@ def _add_texture_coefficients(crystal_sym, sample_sym, name, degree):
     add the texture coefficients for a particular phase
     given its laue group. the crystal sym decides what the
     symmetry of the crystal is and what coefficients to add. the
-    sample symmetry decides what the sample symmtry is. allowed ones 
-    are 
+    sample symmetry decides what the sample symmtry is. allowed ones
+    are
     triclinic : -1
     monoclinic: 2/m
     orthorhombic: mmm
@@ -610,12 +610,13 @@ def _add_texture_coefficients(crystal_sym, sample_sym, name, degree):
 def _add_texture_parameters(mat, degree):
     """
     @SS 06/22/2021 1.0 original
-    this routine adds the texture coefficients to the wppf 
-    parameter list based on the material list and the 
+    this routine adds the texture coefficients to the wppf
+    parameter list based on the material list and the
     degree of harmonic coefficients passed. Also required is the
     assumed sample symmetry. The same sample symmetry will be used
-    for each of the phases. 
+    for each of the phases.
     """
+    # FIXME: your variable `params` is undefined in this method @saransh13
     if isinstance(mat, Phases_Rietveld):
         """
         phase file
@@ -687,9 +688,9 @@ def _getnumber(arr):
 
 def _add_detector_geometry(params, instr):
     """
-    this function adds the geometry of the 
+    this function adds the geometry of the
     detector as a parameter to the LeBail class
-    such that those can be refined as well 
+    such that those can be refined as well
     """
     if isinstance(instr, hexrd.instrument.HEDMInstrument):
         for key,det in instr.detectors.items():
@@ -727,7 +728,7 @@ def _add_intensity_parameters(params,hkls,Icalc,prefix):
     for p in Icalc:
         for k in Icalc[p]:
             shape = Icalc[p][k].shape[0]
-            
+
             pname = [f"{prefix}_{p}_{k}_I{striphkl(g)}"
             for i,g in zip(range(shape),hkls[p][k])]
             if isinstance(params, Parameters):
