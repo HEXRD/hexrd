@@ -174,7 +174,7 @@ def write_hdf(run,
 def append_text(run,
                 mat,
                 lp,
-                amb_density
+                amb_density,
                 density,
                 temperature,
                 delD,
