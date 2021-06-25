@@ -397,7 +397,7 @@ if __name__ == '__main__':
         # fit
         for i in range(niter_lebail):
             lebail_fitter.RefineCycle()
-        Ta_ht.latticeParameters = [
+        mat_ht.latticeParameters = [
             lebail_fitter.params[mat_lp].value*10.0,
         ]
         print(
