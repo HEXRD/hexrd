@@ -427,7 +427,7 @@ if __name__ == '__main__':
                 img = get_event_image(det_key, exp_name, rn, event=en)
                 # output to quickview folder
                 imgpath = os.path.join(
-                    output_dir, "run%d_%s.tif" % (rn, det_key)
+                    output_dir,"Images", "run%d_%s.tif" % (rn, det_key)
                 )
 
                 # ??? truncate negative vals
