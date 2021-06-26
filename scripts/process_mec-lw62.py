@@ -126,7 +126,8 @@ def fit_spectrometer(spectrum, calibration_curve):
     return energy[0]
 
 
-def write_hdf(run,
+def write_hdf(output_dir,
+              run,
               mat,
               polar_img,
               extent,
@@ -159,7 +160,7 @@ def write_hdf(run,
               difference curve
 
     """
-    fname = f"h5data/run_{run}.h5"
+    fname = f"{output_dir}/h5data/run_{run}.h5"
 
     if os.path.exists(fname):
         os.remove(fname)
@@ -204,7 +205,8 @@ def write_hdf(run,
     fid.close()
 
 
-def append_text(run,
+def append_text(output_dir,
+                run,
                 mat,
                 lp,
                 amb_density,
@@ -221,7 +223,7 @@ def append_text(run,
     of appending, overwrite that particular line
     """
 
-    fname = "h5data/Results.txt"
+    fname = f"{output_dir}/h5data/Results_Summary.txt"
 
     if os.path.exists(fname):
         fid = open(fname, "a")
@@ -300,7 +302,7 @@ def _get_temperature(func_dict, measured_density, mat):
 niter_lebail = 20
 dmin_DFLT = _angstroms(0.75)
 kev_DFLT = _kev(10.0)
-output_dir = './'
+output_dir = '/reg/data/ana16/mec/meclw6219/scratch/HEXRD_RESULTS'
 det_keys_ref = ['Epix10kaQuad%d' % i for i in range(4)]
 
 # caking (i.e., "dewarping")
@@ -527,7 +529,8 @@ if __name__ == '__main__':
         WRITE OUT THE DATA
         """
         # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        write_hdf(rn,
+        write_hdf(output_dir,
+                  rn,
                   mat,
                   polar_img,
                   extent,
@@ -544,7 +547,8 @@ if __name__ == '__main__':
         # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
         # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        append_text(rn,
+        append_text(output_dir,
+                    rn,
                     mat,
                     lp,
                     amb_density,
