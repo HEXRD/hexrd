@@ -352,7 +352,6 @@ if __name__ == '__main__':
         '-e', '--event-numbers',
         help='the event number(s) to process',
         type=int,
-        nargs='+',
         default=-1
     )
 
