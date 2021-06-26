@@ -108,6 +108,7 @@ def get_event_image(det, exp, run, event=-1):
 
 def spectrometer_interpolation_func():
     fid = open("spectrometer_data/spectrometer_calibration.txt","r")
+    data = []
     for line in fid:
         data.append([float(x) for x in line.split()])
 
