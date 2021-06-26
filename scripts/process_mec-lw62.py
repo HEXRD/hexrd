@@ -85,6 +85,8 @@ def get_event_image(det, exp, run, event=-1):
     """
     # instantiate psana.DataSource object
     # !!! raises RuntimeError if exp or run don't exist
+    print(det, exp, run, event)
+    
     ds = DataSource(
         f"exp={exp}:run={run:d}:smd".format(exp=exp, run=run)
     )
