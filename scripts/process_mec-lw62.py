@@ -106,6 +106,16 @@ def get_event_image(det, exp, run, event=-1):
             return detector.image(events[event])
 
 
+def spectrometer_interpolation_func():
+    fid = open("spectrometer_data/spectrometer_calibration.txt","r")
+    for line in fid:
+        data.append([float(x) for x in line.split()])
+
+    data = np.array(data)
+    interp_func = interp1d(data[:,0],data[:,1])
+
+    return interp_func
+
 def fit_spectrometer(spectrum, calibration_curve):
 
     p0 = estimate_pk_parms_1d(
@@ -320,8 +330,10 @@ eta_max = 270.
 
 # MEC wavelengths
 # !!! second might be coming from spectrometer fit for each run
-lam1 = cnst.keVToAngstrom(10.0)
-lam2 = cnst.keVToAngstrom(10.08)
+spec_interp_func = spectrometer_interpolation_func()
+
+lam1 = cnst.keVToAngstrom(10.07)
+lam2 = cnst.keVToAngstrom(10.15)
 
 # time
 stop_by = datetime.datetime(2021, 6, 28, 9, 0)
