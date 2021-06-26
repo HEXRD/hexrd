@@ -61,8 +61,8 @@ class texture:
             
             dname = f"/{symmetry}/crd"
             pts = np.array(fid[dname])
-            n = np.linalg.norm(pts,axis=1)
-            self.points = pts/np.tile(n,[3,1]).T
+            n = np.linalg.norm(pts, axis=1)
+            self.points = pts/np.tile(n, [3,1]).T
 
             dname = f"/{symmetry}/harmonics"
             self.harmonics = np.array(fid[dname])
@@ -76,4 +76,16 @@ class texture:
         get the barycentric coordinates of points
         this is used for linear interpolation of
         the harmonic function on the mesh
+        
+        points is nx3 shaped
+
+        first make sure that the points are all normalized
+        to unit length
         """
+        n = np.linalg.norm(points, axis=1)
+        points = points/np.tile(n, [3,1]).T
+
+        """
+        next get the simplices. a value of -1 is returned
+        when the point can not be found inside any simplex.
+        those points will be handled separately
