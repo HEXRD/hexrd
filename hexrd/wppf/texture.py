@@ -103,9 +103,7 @@ class mesh_s2:
         points is nx3 shaped
 
         first make sure that the points are all normalized
-        to unit length
-
-        then take the stereographic projection
+        to unit length then take the stereographic projection
         """
         n = np.linalg.norm(points, axis=1)
         points = points/np.tile(n, [3,1]).T
