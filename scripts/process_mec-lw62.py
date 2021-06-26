@@ -106,10 +106,13 @@ def get_event_image(det, exp, run, event=-1):
             )
         else:
             # !!! hack
+            ev_count = 0
             for ev in events:
                 img = detector.image(ev)
                 if img is not None:
-                    return img
+                    ev_count += 1
+                    if ev_count == 2:
+                        return img
             # return detector.image(events[event])
 
 
