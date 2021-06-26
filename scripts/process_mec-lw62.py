@@ -308,8 +308,8 @@ tth_pixel_size = 0.025  # close to median resolution
 eta_pixel_size = 0.5    # ~10x median resolution
 tth_min = 14.75  # from inspection in the GUI
 tth_max = 72.75  # rounded from: np.degrees(instrument.max_tth(instr))
-eta_min = -40.
-eta_max = 200.
+eta_min = -90.
+eta_max = 270.
 
 # MEC wavelengths
 # !!! second might be coming from spectrometer fit for each run
@@ -427,7 +427,6 @@ if __name__ == '__main__':
                 imgpath = os.path.join(
                     output_dir, "run%d_%s.tif" % (rn, det_key)
                 )
-                io.imsave(imgpath, img_dict[det_key])
 
                 # ??? truncate negative vals
                 img[img < 0.] = 0.
@@ -436,6 +435,8 @@ if __name__ == '__main__':
                 # ??? add lorentz?
                 img_dict[det_key] = \
                     np.fliplr(img) * correction_array_dict[det_key]
+
+                io.imsave(imgpath, img_dict[det_key])
 
         except(RuntimeError, IndexError):
             print("waiting for run # %d..." % rn)
