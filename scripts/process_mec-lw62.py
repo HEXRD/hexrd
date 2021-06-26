@@ -204,6 +204,11 @@ def write_hdf(output_dir,
 
     fid.close()
 
+    """
+    also writing out textfile for martins use
+    """
+    fname = f"{output_dir}/text_lineouts/run{run}.txt"
+    np.savetxt(fname, azimuthal_integration)
 
 def append_text(output_dir,
                 run,
