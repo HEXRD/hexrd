@@ -343,8 +343,8 @@ eta_max = 270.
 # !!! second might be coming from spectrometer fit for each run
 spec_interp_func = spectrometer_interpolation_func()
 
-lam1 = cnst.keVToAngstrom(10.07)
-lam2 = cnst.keVToAngstrom(10.15)
+lam1 = cnst.keVToAngstrom(10.0)
+lam2 = cnst.keVToAngstrom(10.08)
 
 # time
 stop_by = datetime.datetime(2021, 6, 28, 9, 0)
