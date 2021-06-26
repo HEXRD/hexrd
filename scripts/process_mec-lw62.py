@@ -442,7 +442,7 @@ if __name__ == '__main__':
 
         except(RuntimeError, IndexError):
             print("waiting for run # %d..." % rn)
-            time.sleep(3)
+            time.sleep(10)
             continue
 
         # Do dewarping to polar
