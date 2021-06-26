@@ -469,7 +469,7 @@ if __name__ == '__main__':
 
                 io.imsave(imgpath, img_dict[det_key])
 
-        except(RuntimeError, IndexError):
+        except:
             print("waiting for run # %d..." % rn)
             time.sleep(10)
             continue
