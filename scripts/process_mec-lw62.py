@@ -86,7 +86,7 @@ def get_event_image(det, exp, run, event=-1):
     # instantiate psana.DataSource object
     # !!! raises RuntimeError if exp or run don't exist
     print(det, exp, run, event)
-    
+
     ds = DataSource(
         f"exp={exp}:run={run:d}:smd".format(exp=exp, run=run)
     )
@@ -105,7 +105,12 @@ def get_event_image(det, exp, run, event=-1):
                 % (run, nevents, event)
             )
         else:
-            return detector.image(events[event])
+            # !!! hack
+            for ev in events:
+                img = detector.image(ev)
+                if img is not None:
+                    return img
+            # return detector.image(events[event])
 
 
 def spectrometer_interpolation_func():
@@ -443,10 +448,12 @@ if __name__ == '__main__':
         try:
             min_intensity = np.inf
             for det_key, panel in instr.detectors.items():
+                # !!! there is an issue with the event list, causing too many
+                #     to be reported
                 img = get_event_image(det_key, exp_name, rn, event=en)
                 # output to quickview folder
                 imgpath = os.path.join(
-                    output_dir,"Images", "run%d_%s.tif" % (rn, det_key)
+                    output_dir, "Images", "run%d_%s.tif" % (rn, det_key)
                 )
 
                 # ??? truncate negative vals
