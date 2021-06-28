@@ -57,7 +57,7 @@ def _kev(x):
 
 def get_event_image(det, exp, run, event=-1):
     """
-    Yields the requested detector image.
+    Yield the requested detector image.
 
     Parameters
     ----------
@@ -107,25 +107,29 @@ def get_event_image(det, exp, run, event=-1):
         else:
             # !!! hack
             ev_count = 0
-            for ev in events:
+            valid_evt_idx = []
+            for iev, ev in enumerate(events):
                 img = detector.image(ev)
                 if img is not None:
                     ev_count += 1
-                    if ev_count == 2:
-                        return img
+                    valid_evt_idx.append(iev)
+                    # if ev_count == 2:
+                    #    return img
             # return detector.image(events[event])
-
+            # !!! HARD CODING RETURN OF LAST VALID EVENT <JVB 06272021>
+            return detector.image(events[iev[-1]])
 
 def spectrometer_interpolation_func():
-    fid = open("spectrometer_data/spectrometer_calibration.txt","r")
+    fid = open("spectrometer_data/spectrometer_calibration.txt", "r")
     data = []
     for line in fid:
         data.append([float(x) for x in line.split()])
 
     data = np.array(data)
-    interp_func = interp1d(data[:,0],data[:,1])
+    interp_func = interp1d(data[:, 0], data[:, 1])
 
     return interp_func
+
 
 def fit_spectrometer(spectrum, calibration_curve):
 
