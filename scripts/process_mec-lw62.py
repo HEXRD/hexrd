@@ -117,7 +117,7 @@ def get_event_image(det, exp, run, event=-1):
                     #    return img
             # return detector.image(events[event])
             # !!! HARD CODING RETURN OF LAST VALID EVENT <JVB 06272021>
-            return detector.image(events[iev[-1]])
+            return detector.image(events[valid_evt_idx[-1]])
 
 def spectrometer_interpolation_func():
     fid = open("spectrometer_data/spectrometer_calibration.txt", "r")
