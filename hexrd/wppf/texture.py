@@ -50,7 +50,6 @@ Zl = np.ascontiguousarray(I3[:, 2].reshape(3, 1))     # Z in the lab frame
 bVec_ref = -Zl
 eta_ref = Xl
 
-
 class mesh_s2:
     """
     this class deals with the basic functions of the s2 mesh. the
