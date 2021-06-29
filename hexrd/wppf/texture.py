@@ -28,7 +28,9 @@ from lmfit import Parameters, Minimizer
 ========================================================================================================
 ========================================================================================================   
 """
+
 I3 = np.eye(3)
+
 
 Xl = np.ascontiguousarray(I3[:, 0].reshape(3, 1))     # X in the lab frame
 Zl = np.ascontiguousarray(I3[:, 2].reshape(3, 1))     # Z in the lab frame
@@ -67,6 +69,12 @@ class mesh_s2:
             points_st = self.points[:,:2]/np.tile(
                 (1.+np.abs(self.points[:,2])),[2,1]).T
 
+            dname = f"/{symmetry}/harmonics"
+            self.harmonics = np.array(fid[dname])
+
+            dname = f"/{symmetry}/eqv"
+            self.eqv = np.array(fid[dname]).astype(np.int32)
+
             self.mesh = Delaunay(points_st, qhull_options="QJ")
 
     def _get_simplices(self,
@@ -96,7 +104,7 @@ class mesh_s2:
         simplices[mask] = self.mesh.find_simplex(points_st[mask,:]*0.995)
 
         if -1 in simplices:
-            msg = (f"some points seem to not be in the "
+            msg = (f"some points seem to not be in the"
             f"mesh. please check input")
             raise RuntimeError(msg)
 
