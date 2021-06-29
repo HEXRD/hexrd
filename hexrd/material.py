@@ -286,10 +286,11 @@ class Material(object):
             exclusions = numpy.ones(hkls.shape[1], dtype=bool)
             exclusions[new_indices] = old_pdata.exclusions[old_indices]
 
-            # always set it back to default values
-            # @SS 04/09/2021
-            self.set_default_exclusions()
-
+            if numpy.all(exclusions):
+                # If they are all excluded, just set the default exclusions
+                self.set_default_exclusions()
+            else:
+                self._pData.exclusions = exclusions
         else:
             # Make the PlaneData object from scratch...
             lprm = self.reduced_lattice_parameters
@@ -661,7 +662,7 @@ class Material(object):
     @property
     def name(self):
         return self._name
-    
+
     @name.setter
     def name(self, mat_name):
         assert isinstance(mat_name, str), "must set name to a str"
@@ -719,7 +720,7 @@ class Material(object):
         # else:
         #     self.unitcell.U = Uarr
         #     self.update_structure_factor()
-    
+
     # property:  sgnum
     def _get_sgnum(self):
         """Get method for sgnum"""
@@ -946,10 +947,10 @@ class Material(object):
         with the unitcell updated for each of those calls.
         the error resulted when there was a size mismatch.
         this routine allows for simulataneous update of the two
-        so there is no discrepancy and any discrepancy detected 
+        so there is no discrepancy and any discrepancy detected
         here is real
 
-        the first entry is the atomtype array and the second is 
+        the first entry is the atomtype array and the second is
         the atominfo array and the final is the U data.
         @todo pass charge state as the fourth input
         for now all charge set to zero
@@ -965,7 +966,7 @@ class Material(object):
                    f"types passed = {atomtype.shape[0]} \n"
                    f" number of atom positions passed = {atominfo.shape[0]}" )
             raise ValueError(msg)
-        
+
         if atomtype.shape[0] != U.shape[0]:
             msg = (f"inconsistent shapes: number of atoms "
                    f"types passed = {atomtype.shape[0]} \n"
@@ -977,7 +978,7 @@ class Material(object):
                    f"positions passed = {atominfo.shape[0]} \n"
                    f"U passed for {U.shape[0]} atoms." )
             raise ValueError(msg)
-        
+
         self.atomtype = atomtype
         self.atominfo = atominfo
         self.U = U
