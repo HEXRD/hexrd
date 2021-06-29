@@ -49,6 +49,7 @@ from warnings import warn
 from hexrd.mksupport import Write2H5File
 from hexrd.symbols import xtal_sys_dict
 from hexrd.symbols import Hall_to_sgnum, HM_to_sgnum
+from hexrd.utils.compatibility import h5py_read_string
 
 __all__ = ['Material', 'loadMaterialList']
 
@@ -591,7 +592,7 @@ class Material(object):
         # read atom types (by atomic number, Z)
         self._atomtype = numpy.array(gid.get('Atomtypes'), dtype=numpy.int32)
         if 'ChargeStates' in gid:
-            self._charge = numpy.array(gid.get('ChargeStates'))
+            self._charge = h5py_read_string(gid['ChargeStates'])
         else:
             self._charge = ['0']*self._atomtype.shape[0]
         self._atom_ntype = self._atomtype.shape[0]
