@@ -229,7 +229,10 @@ class mesh_s2:
 
         return fval_points
 
-    """
+    def num_invariant_harmonic(self, 
+                           max_degree):
+
+        """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         >> @DATE:       06/29/2021 SS 1.0 original
 
@@ -241,9 +244,8 @@ class mesh_s2:
                         "ON THE SYMMETRIES OF SPHERICAL HARMONICS", Burnett Meyer
 
         >> @PARAMETERS:  symmetry, degree   
-    """
-    def num_invariant_harmonic(self, 
-                           max_degree):
+        """
+
         """
         first get the polynomials in the 
         denominator
