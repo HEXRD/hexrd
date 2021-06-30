@@ -1070,7 +1070,12 @@ class HEDMInstrument(object):
                         ang_data = (vtx_angs[0][0, [0, -1]],
                                     vtx_angs[1][[0, -1], 0])
                     elif collapse_eta:
-                        ang_data = (vtx_angs[0][0, :],
+                        # !!! yield the tth bin centers
+                        tth_centers = np.average(
+                            np.vstack([vtx_angs[0][0, :-1], vtx_angs[0][0, 1:]]),
+                            axis=0
+                        )
+                        ang_data = (tth_centers,
                                     angs[i_p][-1])
                     else:
                         ang_data = vtx_angs
@@ -1094,11 +1099,11 @@ class HEDMInstrument(object):
 
                         # catch collapsing options
                         if collapse_tth:
-                            patch_data[i_p, j_p] = np.sum(tmp)
+                            patch_data[i_p, j_p] = np.average(tmp)
                             # ims_data.append(np.sum(tmp))
                         else:
                             if collapse_eta:
-                                ims_data.append(np.sum(tmp, axis=0))
+                                ims_data.append(np.average(tmp, axis=0))
                             else:
                                 ims_data.append(tmp)
                         pass  # close image loop
