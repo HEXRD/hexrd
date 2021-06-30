@@ -3,7 +3,7 @@ from scipy.spatial import Delaunay
 import hexrd.resources
 import importlib.resources
 import h5py
-
+from numpy.polynomial.polynomial import Polynomial
 """
 ========================================================================================================
 ========================================================================================================
@@ -228,6 +228,40 @@ class mesh_s2:
             fval[i,:,:],axis=0) for i in range(points.shape[0])])
 
         return fval_points
+
+"""
+    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+    >> @DATE:       06/29/2021 SS 1.0 original
+
+    >> @DETAILS:    this function computes the number of symmetrized harmonic coefficients 
+                    for a given degree. this is essential for computing the number of
+                    terms that is in the summation of the general axis distribution function.
+
+    >> @PARAMETERS:  symmetry, degree   
+"""
+def invariant_harmonic():
+    pass
+
+def denominator(m, max_degree):
+    """
+    this function computes the Maclaurin expansion
+    of the function 1/(1-t^m)
+    this is just the binomial expansion with negative
+    exponent
+
+    1/(1-x^m) = 1 + x^m + x^2m + x^3m ...
+    """
+    coeff = np.zeros([max_degree+1, ])
+    ideg = 1+int(max_degree/m)
+    for i in np.arange(ideg):
+        idx = i*m
+        coeff[idx] = 1.0
+
+    return Polynomial(coeff)
+
+
+
+
 
 
 
