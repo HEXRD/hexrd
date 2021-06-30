@@ -229,35 +229,110 @@ class mesh_s2:
 
         return fval_points
 
-"""
-    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-    >> @DATE:       06/29/2021 SS 1.0 original
-
-    >> @DETAILS:    this function computes the number of symmetrized harmonic coefficients 
-                    for a given degree. this is essential for computing the number of
-                    terms that is in the summation of the general axis distribution function.
-
-    >> @PARAMETERS:  symmetry, degree   
-"""
-def invariant_harmonic():
-    pass
-
-def denominator(m, max_degree):
     """
-    this function computes the Maclaurin expansion
-    of the function 1/(1-t^m)
-    this is just the binomial expansion with negative
-    exponent
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       06/29/2021 SS 1.0 original
 
-    1/(1-x^m) = 1 + x^m + x^2m + x^3m ...
+        >> @DETAILS:    this function computes the number of symmetrized harmonic coefficients 
+                        for a given degree. this is essential for computing the number of
+                        terms that is in the summation of the general axis distribution function.
+                        the generating function of the dimension of the invariant subspace is
+                        given by Meyer and Polya and enumerated in  
+                        "ON THE SYMMETRIES OF SPHERICAL HARMONICS", Burnett Meyer
+
+        >> @PARAMETERS:  symmetry, degree   
     """
-    coeff = np.zeros([max_degree+1, ])
-    ideg = 1+int(max_degree/m)
-    for i in np.arange(ideg):
-        idx = i*m
-        coeff[idx] = 1.0
+    def num_invariant_harmonic(self, 
+                           max_degree):
+        """
+        first get the polynomials in the 
+        denominator
+        """
+        powers = Polya[self.symmetry]
+        den = powers["denominator"]
 
-    return Polynomial(coeff)
+        polyd = []
+        if not den:
+            pass
+        else:
+            for m in den:
+                polyd.append(self.denominator(m, max_degree))
+
+        num = powers["numerator"]
+        polyn = []
+        if not num:
+            pass
+        else:
+            nn = [x[0] for x in num]
+            mmax = max(nn)
+            coef = np.zeros([mmax+1,])
+            coef[0] = 1.
+            for m in num:
+                coef[m[0]] = m[1]
+                polyn.append(Polynomial(coef))
+
+        """
+        multiply all of the polynomials in the denominator
+        with the ones in the numerator
+        """
+        poly = Polynomial([1.])
+        for pd in polyd:
+            if not pd:
+                break
+            else:
+                poly = poly*pd
+
+        for pn in polyn:
+            if not pn:
+                break
+            else:
+                poly = poly*pn
+
+        poly = poly.truncate(max_degree)
+        idx = np.nonzero(poly.coef)
+        v = poly.coef[idx]
+
+        return np.vstack((idx,v)).T
+
+    def denominator(self, 
+                    m, 
+                    max_degree):
+        """
+        this function computes the Maclaurin expansion
+        of the function 1/(1-t^m)
+        this is just the binomial expansion with negative
+        exponent
+
+        1/(1-x^m) = 1 + x^m + x^2m + x^3m ...
+        """
+        coeff = np.zeros([max_degree+1, ])
+        ideg = 1+int(max_degree/m)
+        for i in np.arange(ideg):
+            idx = i*m
+            coeff[idx] = 1.0
+
+        return Polynomial(coeff)
+
+
+Polya = {
+        "m3m":
+        {"numerator":[],
+        "denominator":[4, 6]},
+
+        "432":
+        {"numerator":[[9,1.]],
+        "denominator":[4, 6]},
+
+        "1":
+        {"numerator":[[1,1.]],
+        "denominator":[1, 1]},
+
+        "-1":
+        {"numerator":[[2,3.]],
+        "denominator":[2, 2]}
+
+        }
+
 
 
 
