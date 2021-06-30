@@ -20,7 +20,6 @@ import hexrd.resources
 # from hexrd.transforms.xfcapi import anglesToGVec
 # from hexrd.wppf import phase
 
-
 """
 ===============================================================================
 
