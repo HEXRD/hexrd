@@ -813,7 +813,6 @@ class pole_figures:
             v = v/np.linalg.norm(v)
             self.hkls_c[ii,:] = v
 
-
     def convert_angs_to_gvecs(self):
         """
         this routine converts angular coordinates in (tth, eta, omega)
