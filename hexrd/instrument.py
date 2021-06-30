@@ -65,6 +65,7 @@ from hexrd.crystallography import PlaneData
 from hexrd import constants as ct
 from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
 from hexrd import distortion as distortion_pkg
+from hexrd.utils.compatibility import h5py_read_string
 from hexrd.utils.concurrent import distribute_tasks
 from hexrd.utils.decorators import memoize
 from hexrd.valunits import valWUnit
@@ -3469,7 +3470,7 @@ def unwrap_h5_to_dict(f, d):
         except(AttributeError):
             # reached a dataset
             if np.dtype(val) == 'O':
-                d[key] = str(np.array(val))
+                d[key] = h5py_read_string(val)
             else:
                 tmp = np.array(val)
                 if tmp.ndim == 1 and len(tmp) == 1:
