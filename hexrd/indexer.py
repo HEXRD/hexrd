@@ -256,7 +256,7 @@ def paintGrid(quats, etaOmeMaps,
         'etaEdges': etaOmeMaps.etaEdges,
         'etaOmeMaps': np.stack(etaOmeMaps.dataStore),
         'bMat': bMat,
-        'threshold': threshold
+        'threshold': np.asarray(threshold)
         }
 
     # do the mapping
