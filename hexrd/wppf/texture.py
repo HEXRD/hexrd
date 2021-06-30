@@ -205,6 +205,7 @@ class mesh_s2:
 
         return np.atleast_2d(fval_points)
 
+
     def num_invariant_harmonic(self, 
                            max_degree):
 
@@ -218,7 +219,6 @@ class mesh_s2:
                         the generating function of the dimension of the invariant subspace is
                         given by Meyer and Polya and enumerated in  
                         "ON THE SYMMETRIES OF SPHERICAL HARMONICS", Burnett Meyer
-
         >> @PARAMETERS:  symmetry, degree   
         """
 
