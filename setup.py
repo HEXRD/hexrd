@@ -49,20 +49,6 @@ def get_convolution_extensions():
     return [_convolve_ext]
 
 def get_extension_modules():
-    # for SgLite
-    srclist = [
-        'sgglobal.c', 'sgcb.c', 'sgcharmx.c', 'sgfile.c', 'sggen.c', 'sghall.c',
-        'sghkl.c', 'sgltr.c', 'sgmath.c', 'sgmetric.c', 'sgnorm.c', 'sgprop.c',
-        'sgss.c', 'sgstr.c', 'sgsymbols.c', 'sgtidy.c', 'sgtype.c', 'sgutil.c',
-        'runtests.c', 'sglitemodule.c'
-        ]
-    srclist = [os.path.join('hexrd/sglite', f) for f in srclist]
-    sglite_mod = Extension(
-        'hexrd.extensions.sglite',
-        sources=srclist,
-        define_macros=[('PythonTypes', 1)]
-        )
-
     # for transforms
     srclist = ['transforms_CAPI.c', 'transforms_CFUNC.c']
     srclist = [os.path.join('hexrd/transforms', f) for f in srclist]
@@ -72,7 +58,7 @@ def get_extension_modules():
         include_dirs=[np_include_dir]
         )
 
-    return [sglite_mod, transforms_mod] + get_convolution_extensions()
+    return [transforms_mod] + get_convolution_extensions()
 
 ext_modules = get_extension_modules()
 

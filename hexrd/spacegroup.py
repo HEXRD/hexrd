@@ -27,9 +27,7 @@
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # ============================================================
 #
-"""Interface with sglite for hkl generation and Laue group determination
-
-This module contains mappings from space group number to either
+"""This module contains mappings from space group number to either
 Hall or Hermann-Mauguin notation, as well as the inverse notations.
 
 Space groups can be mapped to crystal class (one of 32 point groups)
@@ -74,7 +72,6 @@ the HKL evaluation.
 from collections import OrderedDict
 from math import sqrt, floor
 
-from hexrd.extensions import sglite
 from hexrd import symbols, constants, symmetry
 import numpy as np
 #
@@ -86,9 +83,7 @@ __all__ = ['SpaceGroup']
 #
 
 
-class SpaceGroup(object):
-    """Wrapper on sglite
-    """
+class SpaceGroup:
 
     def __init__(self, sgnum):
         """Constructor for SpaceGroup
@@ -97,18 +92,10 @@ class SpaceGroup(object):
         INPUTS
         sgnum -- (int) space group number (between 1 and 230)
         """
-        self.sgnum = sgnum  # call before sglite (sets Hall symbol)
-        #
-        # Do not include SgOps type as target, as that will make
-        # this class unpicklable.
-        #
-        # self._verifySGNum() # test passed on all symmetry groups
-        #
-        return
+        self.sgnum = sgnum
 
     def __str__(self):
         """Print information about the space group"""
-        ind = 5*' '
         s = 'space group number:  %d\n' % self.sgnum
         s += '       Hall Symbol:  %s\n' % self.HallSymbol
         s += '   Hermann-Mauguin:  %s\n' % self.hermannMauguin
@@ -118,14 +105,6 @@ class SpaceGroup(object):
 
         return s
 
-    def _verifySGNum(self):
-        """verify that sglite agrees with space group number"""
-        sgops = self.SgOps
-        d = sgops.getSpaceGroupType()
-        if not d['SgNumber'] == self.sgnum:
-            raise ValueError('space group number failed consistency check')
-
-        return
     #
     # ============================== API
     #
@@ -197,15 +176,6 @@ class SpaceGroup(object):
         """(read only) Hall symbol"""
         return self._Hall
 
-    # property:  SgOps
-
-    @property
-    def SgOps(self):
-        """(read only) An sglite.SgOps instance"""
-        tmpSG = sglite.SgOps()
-        tmpSG.__init__(HallSymbol=self._Hall)
-        return tmpSG
-
     #                     ========== Public Methods
     #
     def sixLatticeParams(self, lparams):
@@ -225,47 +195,6 @@ class SpaceGroup(object):
         * Output angles are in degrees
         """
         return _rqpDict[self.latticeType][1](lparams)
-
-    def getHKLs(self, ssmax):
-        """Return a list of HKLs with a cutoff sum of square
-
-        INPUTS
-        ssmax -- cutoff sum of squares
-
-        OUTPUTS
-        hkls -- a list of all HKLs with sum of squares less than
-                or equal to the cutoff, excluding systematic
-                absences and symmetrically equivalent hkls
-
-        DESCRIPTION
-        """
-        #
-        # Not sure what the cut parameters are, but they seem
-        # to involve octants to look for equivalent HKLs.
-        # For sg(1), they are (-1, -1, -1) and for sg(230)
-        # they are (0, 0, 0).  The argument to getCutParameters()
-        # is 'FriedelSymmetry'---guessing this is an on/off switch.
-        #
-        sgops = self.SgOps
-        cutp = sgops.getCutParameters(0)
-        myHKLs = []
-        for ssm in range(1, ssmax + 1):
-            #
-            #  Find all HKLs of a given magnitude (ssm)
-            #
-            for hkl in _getHKLsBySS(ssm):
-                if sgops.isSysAbsMIx(hkl):
-                    continue
-                master, mate = sgops.get_MasterMIx_and_MateID(cutp, hkl)
-                if master == hkl:
-                    myHKLs.append(hkl)
-                    pass
-                pass
-            pass  # ssm loop
-
-        return myHKLs
-    #
-    pass  # end class
 
 
 #
