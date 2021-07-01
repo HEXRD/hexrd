@@ -85,8 +85,7 @@ class mesh_s2:
         simplices[mask] = self.mesh.find_simplex(points_st[mask,:]*0.995)
 
         if -1 in simplices:
-
-            msg = (f"some points seem to not be in the"
+            msg = (f"some points seem to not be in the "
             f"mesh. please check input")
             raise RuntimeError(msg)
 
@@ -204,7 +203,6 @@ class mesh_s2:
 
         return np.atleast_2d(fval_points)
 
-
     def num_invariant_harmonic(self, 
                            max_degree):
 
@@ -307,75 +305,23 @@ class harmonic_model:
         self.mesh_crystal = mesh_s2(self.crystal_symmetry)
         self.mesh_sample = mesh_s2(self.sample_symmetry)
 
-
-    def _compute_harmonic_values_grid(self,
-                                      hkl,
-                                      sample_dir):
-        """
-        compute the dictionary of invariant harmonic values for 
-        a given set of sample directions and hkls
-        """
-        ninv_c = self.mesh_crystal.num_invariant_harmonic(
-        self.max_degree)
-
-        ninv_s = self.mesh_sample.num_invariant_harmonic(
-                 self.max_degree)
-
-        V_c = self.mesh_crystal._get_harmonic_values(hkl)
-        V_s = self.mesh_sample._get_harmonic_values(sample_dir)
-
-        """
-        some degrees for which the crystal symmetry has
-        fewer terms than sample symmetry or vice versa 
-        needs to be weeded out
-        """
-        allowed_degrees = []
-        V_c_allowed = {}
-        V_s_allowed = {}
-        for i in np.arange(0,self.max_degree+1,2):
-            if i in ninv_c[:,0] and i in ninv_s[:,0]:
-                idc = int(np.where(ninv_c[:,0] == i)[0])
-                ids = int(np.where(ninv_s[:,0] == i)[0])
-                
-                ist, ien = self._index_of_harmonics(i, "crystal")
-                V_c_allowed[i] = V_c[:,ist:ien]
-
-                ist, ien = self._index_of_harmonics(i, "sample")
-                V_s_allowed[i] = V_s[:,ist:ien]
-
-        return V_c_allowed, V_s_allowed
-
-    def init_pole_figures(self,
-                          sample_dir):
-        """
-        once the harmonic model is initialized, initialize
-        the values of the harmonic functions for different
-        values of hkl and sample directions. the hkl are the
-        keys and the sample_dir are the values of the sample_dir
-        dictionary.
-        """
-
-        self.hkl = np.atleast_2d(hkl)
-        self.sample_dir = np.atleast_2d(sample_dir)
-        self.V_c_allowed, self.V_s_allowed = \
-        self._compute_harmonic_values_grid(hkl,
-                                           sample_dir)
-        self.allowed_degrees = self._allowed_degrees()
-
-
     def compute_texture_factor(self,
-                               coef):
+                               coef,
+                               hkl,
+                               sample_dir):
         """
         first check if the size of the coef vector is
         consistent with the max degree argumeents for
         crystal and sample.
-
         """
+        hkl = np.atleast_2d(hkl)
+        sample_dir = np.atleast_2d(sample_dir)
 
-        nsamp = self.sample_dir.shape[0]
+        nsamp = sample_dir.shape[0]
         ncoef = coef.shape[0]
         
         ncoef_inv = self._num_coefficients()
+
         if ncoef < ncoef_inv:
             msg = (f"inconsistent number of entries in "
                    f"coefficients based on the degree of "
@@ -395,36 +341,22 @@ class harmonic_model:
         get total number of invariant functions and
         also number of invariant functions for each degree
         """
-        # ninv_c = self.mesh_crystal.num_invariant_harmonic(
-        #          self.max_degree)
-        # ninv_c_tot = np.sum(ninv_c[:,1])
+        ninv_c = self.mesh_crystal.num_invariant_harmonic(
+                 self.max_degree)
+        ninv_c_tot = np.sum(ninv_c[:,1])
 
-        # ninv_s = self.mesh_sample.num_invariant_harmonic(
-        #          self.max_degree)
-        # ninv_s_tot = np.sum(ninv_s[:,1])
+        ninv_s = self.mesh_sample.num_invariant_harmonic(
+                 self.max_degree)
+        ninv_s_tot = np.sum(ninv_s[:,1])
+
+        V_c = self.mesh_crystal._get_harmonic_values(hkl)
+        V_s = self.mesh_sample._get_harmonic_values(sample_dir)  
 
         """
         some degrees for which the crystal symmetry has
         fewer terms than sample symmetry or vice versa 
         needs to be weeded out
         """
-        # allowed_degrees = []
-        # V_c_allowed = {}
-        # V_s_allowed = {}
-        # for i in np.arange(0,self.max_degree+1,2):
-        #     if i in ninv_c[:,0] and i in ninv_s[:,0]:
-        #         idc = int(np.where(ninv_c[:,0] == i)[0])
-        #         ids = int(np.where(ninv_s[:,0] == i)[0])
-                
-        #         allowed_degrees.append([i, ninv_c[idc,1], ninv_s[ids,1]])
-
-        #         ist, ien = self._index_of_harmonics(i, "crystal")
-        #         V_c_allowed[i] = V_c[:,ist:ien]
-
-        #         ist, ien = self._index_of_harmonics(i, "sample")
-        #         V_s_allowed[i] = V_s[:,ist:ien]
-
-        # allowed_degrees = np.array(allowed_degrees).astype(np.int32)
  
         tex_fact = np.zeros([self.sample_dir.shape[0], 
                              self.hkl.shape[0]])
@@ -464,7 +396,6 @@ class harmonic_model:
         else:
             msg = f"unknown input to c_or_s"
             raise ValueError(msg)
-
 
     def _compute_sum(self,
                     gpos,
@@ -549,31 +480,30 @@ class harmonic_model:
 
         return allowed_degrees
 
-    def calc_pole_figures(self, 
-                          hkls, 
-                          coef,
-                          max_degree_crystal,
-                          max_degree_sample):
-        """
-        given a set of hkl, coefficients and maximum degree of
-        harmonic function to use for both crystal and sample 
-        symmetries, compute the pole figures for full coverage.
-        the default grid is the equiangular grid, but other
-        options include computing it on the s2 mesh or modified
-        lambert grid or custom (theta, phi) coordinates.
+def calc_pole_figures(self, 
+                      hkls, 
+                      coef,
+                      max_degree):
+    """
+    given a set of hkl, coefficients and maximum degree of
+    harmonic function to use for both crystal and sample 
+    symmetries, compute the pole figures for full coverage.
+    the default grid is the equiangular grid, but other
+    options include computing it on the s2 mesh or modified
+    lambert grid or custom (theta, phi) coordinates.
 
-        this uses the general axis distributiin function. other 
-        formalisms such as direct pole figure inversion is also 
-        possible using quadratic programming, but for that explicit
-        pole figure operators are needed. the axis distributuion
-        function is easy to integrate with the rietveld method.
-        """
+    this uses the general axis distributiin function. other 
+    formalisms such as direct pole figure inversion is also 
+    possible using quadratic programming, but for that explicit
+    pole figure operators are needed. the axis distributuion
+    function is easy to integrate with the rietveld method.
+    """
 
-        """
-        first check if the dimensions of coef is consistent with
-        the maximum degrees of the harmonics 
-        """
-        pass
+    """
+    first check if the dimensions of coef is consistent with
+    the maximum degrees of the harmonics 
+    """
+    pass
 
 Polya = {
         "m35":
