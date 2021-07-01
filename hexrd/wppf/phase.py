@@ -1,4 +1,4 @@
-import numpy as np
+0import numpy as np
 from hexrd.valunits import valWUnit
 from hexrd.spacegroup import Allowed_HKLs, SpaceGroup
 from hexrd import symmetry, symbols, constants
