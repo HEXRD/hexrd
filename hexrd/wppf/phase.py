@@ -1,4 +1,4 @@
-import numpy as np
+0import numpy as np
 from hexrd.valunits import valWUnit
 from hexrd.spacegroup import Allowed_HKLs
 from hexrd import symmetry, symbols, constants
@@ -90,6 +90,9 @@ class Material_LeBail:
         this function is used to initialize the materials_lebail class
         from an instance of the material.Material class. this option is
         provided for easy integration of the hexrdgui with WPPF.
+
+        O7/01/2021 SS ADDED DIRECT AND RECIPROCAL STRUCTURE MATRIX AS
+        FIELDS IN THE CLASS
         """
         self.name = material_obj.name
         self.dmin = material_obj.dmin.getVal('nm')
@@ -106,6 +109,8 @@ class Material_LeBail:
 
         self.dmt = material_obj.unitcell.dmt
         self.rmt = material_obj.unitcell.rmt
+        self.dsm = material_obj.unitcell.dsm
+        self.rsm = material_obj.unitcell.rsm
         self.vol = material_obj.unitcell.vol
 
         self.centrosymmetric = material_obj.unitcell.centrosymmetric
@@ -127,6 +132,10 @@ class Material_LeBail:
 
     def _calcrmt(self):
 
+        """
+        O7/01/2021 SS ADDED DIRECT AND RECIPROCAL STRUCTURE MATRIX AS
+        FIELDS IN THE CLASS
+        """
         a = self.lparms[0]
         b = self.lparms[1]
         c = self.lparms[2]
@@ -158,6 +167,22 @@ class Material_LeBail:
             reciprocal metric tensor
         """
         self.rmt = np.linalg.inv(self.dmt)
+
+        """
+            direct structure matrix
+        """
+        self.dsm = np.array([[a, b*cg, c*cb],
+                              [0., b*sg, -c*(cb*cg - ca)/sg],
+                              [0., 0., self.vol/(a*b*sg)]])
+
+        """
+            reciprocal structure matrix
+        """
+        self.rsm = np.array([[1./a, 0., 0.],
+                              [-1./(a*tg), 1./(b*sg), 0.],
+                              [b*c*(cg*ca - cb)/(self.vol*sg),
+                               a*c*(cb*cg - ca)/(self.vol*sg),
+                               a*b*sg/self.vol]])
 
     def _calchkls(self):
         self.hkls = self.getHKLs(self.dmin)
@@ -785,7 +810,10 @@ class Material_Rietveld:
         self.kev *= 1e-3
 
     def _calcrmt(self):
-
+        """
+        O7/01/2021 SS ADDED DIRECT AND RECIPROCAL STRUCTURE MATRIX AS
+        FIELDS IN THE CLASS
+        """
         a = self.lparms[0]
         b = self.lparms[1]
         c = self.lparms[2]
@@ -817,6 +845,21 @@ class Material_Rietveld:
             reciprocal metric tensor
         """
         self.rmt = np.linalg.inv(self.dmt)
+
+        """
+            direct structure matrix
+        """
+        self.dsm = np.array([[a, b*cg, c*cb],
+                              [0., b*sg, -c*(cb*cg - ca)/sg],
+                              [0., 0., self.vol/(a*b*sg)]])
+        """
+            reciprocal structure matrix
+        """
+        self.rsm = np.array([[1./a, 0., 0.],
+                              [-1./(a*tg), 1./(b*sg), 0.],
+                              [b*c*(cg*ca - cb)/(self.vol*sg),
+                               a*c*(cb*cg - ca)/(self.vol*sg),
+                               a*b*sg/self.vol]])
 
         ast = self.CalcLength([1, 0, 0], 'r')
         bst = self.CalcLength([0, 1, 0], 'r')
