@@ -8,6 +8,7 @@ from warnings import warn
 from hexrd.transforms.xfcapi import anglesToGVec
 from hexrd.wppf import phase
 from lmfit import Parameters, Minimizer
+
 """
 ========================================================================================================
 ========================================================================================================
@@ -102,7 +103,7 @@ class mesh_s2:
         simplices[mask] = self.mesh.find_simplex(points_st[mask,:]*0.995)
 
         if -1 in simplices:
-            msg = (f"some points seem to not be in the"
+            msg = (f"some points seem to not be in the "
             f"mesh. please check input")
             raise RuntimeError(msg)
 
@@ -371,11 +372,172 @@ class harmonic_model:
                     break
         angs = np.array(angs)
 
+    def compute_texture_factor(self,
+                               coef,
+                               hkl,
+                               sample_dir):
+        """
+        first check if the size of the coef vector is
+        consistent with the max degree argumeents for
+        crystal and sample.
+
+        """
+        hkl = np.atleast_2d(hkl)
+        sample_dir = np.atleast_2d(sample_dir)
+
+        nsamp = sample_dir.shape[0]
+        ncoef = coef.shape[0]
+        
+        ncoef_inv = self._num_coefficients()
+        if ncoef < ncoef_inv:
+            msg = (f"inconsistent number of entries in "
+                   f"coefficients based on the degree of "
+                   f"crystal and sample harmonic degrees. "
+                   f"needed {ncoef_inv}, found {ncoef}")
+            raise ValueError(msg) 
+        elif ncoef > ncoef_inv:
+            msg = (f"more coefficients passed than required "
+                   f"based on the degree of crystal and "
+                   f"sample harmonic degrees. "
+                   f"needed {ncoef_inv}, found {ncoef}. "
+                   f"ignoring extra terms.")
+            warn(msg)
+            coef = coef[:ncoef_inv]
+
+        """
+        get total number of invariant functions and
+        also number of invariant functions for each degree
+        """
+        ninv_c = self.mesh_crystal.num_invariant_harmonic(
+                 self.max_degree)
+        ninv_c_tot = np.sum(ninv_c[:,1])
+
+        ninv_s = self.mesh_sample.num_invariant_harmonic(
+                 self.max_degree)
+        ninv_s_tot = np.sum(ninv_s[:,1])
+
+        V_c = self.mesh_crystal._get_harmonic_values(hkl)
+        V_s = self.mesh_sample._get_harmonic_values(sample_dir)  
+
+        """
+        some degrees for which the crystal symmetry has
+        fewer terms than sample symmetry or vice versa 
+        needs to be weeded out
+        """
+        allowed_degrees = []
+        V_c_allowed = {}
+        V_s_allowed = {}
+        for i in np.arange(0,self.max_degree+1,2):
+            if i in ninv_c[:,0] and i in ninv_s[:,0]:
+                idc = int(np.where(ninv_c[:,0] == i)[0])
+                ids = int(np.where(ninv_s[:,0] == i)[0])
+                
+                allowed_degrees.append([i, ninv_c[idc,1], ninv_s[ids,1]])
+
+                ist, ien = self._index_of_harmonics(i, "crystal")
+                V_c_allowed[i] = V_c[:,ist:ien]
+
+                ist, ien = self._index_of_harmonics(i, "sample")
+                V_s_allowed[i] = V_s[:,ist:ien]
+
+        allowed_degrees = np.array(allowed_degrees).astype(np.int32)
+ 
+        tex_fact = np.zeros([sample_dir.shape[0], hkl.shape[0]])
+
+        for i in range(hkl.shape[0]):
+            tex_fact[:,i] = self._compute_sum(i,
+                                              nsamp,
+                                              coef,
+                                              allowed_degrees,
+                                              V_c_allowed,
+                                              V_s_allowed)
+        return tex_fact
+
+    def _index_of_harmonics(self,
+                            deg,
+                            c_or_s):
+        """
+        calculate the start and end index of harmonics
+        of a given degree and crystal or sample symmetry
+        returns the start and end index
+        """
+        ninv_c = self.mesh_crystal.num_invariant_harmonic(
+                 self.max_degree)
+
+        ninv_s = self.mesh_sample.num_invariant_harmonic(
+                 self.max_degree)
+
+        ninv_c_csum = np.r_[0,np.cumsum(ninv_c[:,1])]
+        ninv_s_csum = np.r_[0,np.cumsum(ninv_s[:,1])]
+
+        if c_or_s.lower() == "crystal":
+            idx = np.where(ninv_c[:,0] == deg)[0]
+            return int(ninv_c_csum[idx]), int(ninv_c_csum[idx+1])
+        elif c_or_s.lower() == "sample":
+            idx = np.where(ninv_s[:,0] == deg)[0]
+            return int(ninv_s_csum[idx]), int(ninv_s_csum[idx+1])
+        else:
+            msg = f"unknown input to c_or_s"
+            raise ValueError(msg)
+
+    def _compute_sum(self,
+                    gpos,
+                    nsamp,
+                    coef,
+                    allowed_degrees,
+                    V_c_allowed,
+                    V_s_allowed):
+        """
+        compute the degree by degree sum in the
+        generalized axis distribution function
+        """
+
+        ncoef_csum = np.r_[0,np.cumsum(allowed_degrees[:,1]*
+            allowed_degrees[:,2])]
+        val = np.zeros([nsamp,])
+        for i in np.arange(allowed_degrees.shape[0]):
+            deg = allowed_degrees[i,0]
+
+            kc = V_c_allowed[deg][gpos,:]
+
+            ks = V_s_allowed[deg].T
+
+            mu = kc.shape[0]
+            nu = ks.shape[0]
+
+            ist = ncoef_csum[i]
+            ien = ncoef_csum[i+1]
+            C = np.reshape(coef[ist:ien],[mu, nu])
+
+            val = val + np.dot(kc,np.dot(C,ks))
+
+        return val
+
+    def _num_coefficients(self):
+        """
+        utility function to compute the number of
+        independent coefficients required for the 
+        given maximum degree of harmonics
+        """
+        ninv_c = self.mesh_crystal.num_invariant_harmonic(
+         self.max_degree)
+
+        ninv_s = self.mesh_sample.num_invariant_harmonic(
+                 self.max_degree)
+        ncoef_inv = 0
+        
+        for i in np.arange(0,self.max_degree+1,2):
+            if i in ninv_c[:,0] and i in ninv_s[:,0]:
+                idc = int(np.where(ninv_c[:,0] == i)[0])
+                ids = int(np.where(ninv_s[:,0] == i)[0])
+                
+                ncoef_inv += ninv_c[idc,1]*ninv_s[ids,1]
+        return ncoef_inv
+
     def calc_pole_figures(self, 
                           hkls, 
                           coef,
-                          max_degree_crystal,
-                          max_degree_sample):
+                          max_degree):
         """
         given a set of hkl, coefficients and maximum degree of
         harmonic function to use for both crystal and sample 
