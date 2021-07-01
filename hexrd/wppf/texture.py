@@ -35,7 +35,6 @@ class mesh_s2:
     is the main class used for computing the general axis distribution 
     function.
     """
-
     def __init__(self,
                  symmetry):
 
@@ -305,9 +304,9 @@ class harmonic_model:
         self.crystal_symmetry = crystal_symmetry
         self.sample_symmetry = sample_symmetry
         self.max_degree = max_degree
-
         self.mesh_crystal = mesh_s2(self.crystal_symmetry)
         self.mesh_sample = mesh_s2(self.sample_symmetry)
+
 
     def _compute_harmonic_values_grid(self,
                                       hkl,
@@ -550,30 +549,31 @@ class harmonic_model:
 
         return allowed_degrees
 
-def calc_pole_figures(self, 
-                      hkls, 
-                      coef,
-                      max_degree):
-    """
-    given a set of hkl, coefficients and maximum degree of
-    harmonic function to use for both crystal and sample 
-    symmetries, compute the pole figures for full coverage.
-    the default grid is the equiangular grid, but other
-    options include computing it on the s2 mesh or modified
-    lambert grid or custom (theta, phi) coordinates.
+    def calc_pole_figures(self, 
+                          hkls, 
+                          coef,
+                          max_degree_crystal,
+                          max_degree_sample):
+        """
+        given a set of hkl, coefficients and maximum degree of
+        harmonic function to use for both crystal and sample 
+        symmetries, compute the pole figures for full coverage.
+        the default grid is the equiangular grid, but other
+        options include computing it on the s2 mesh or modified
+        lambert grid or custom (theta, phi) coordinates.
 
-    this uses the general axis distributiin function. other 
-    formalisms such as direct pole figure inversion is also 
-    possible using quadratic programming, but for that explicit
-    pole figure operators are needed. the axis distributuion
-    function is easy to integrate with the rietveld method.
-    """
+        this uses the general axis distributiin function. other 
+        formalisms such as direct pole figure inversion is also 
+        possible using quadratic programming, but for that explicit
+        pole figure operators are needed. the axis distributuion
+        function is easy to integrate with the rietveld method.
+        """
 
-    """
-    first check if the dimensions of coef is consistent with
-    the maximum degrees of the harmonics 
-    """
-    pass
+        """
+        first check if the dimensions of coef is consistent with
+        the maximum degrees of the harmonics 
+        """
+        pass
 
 Polya = {
         "m35":
