@@ -19,40 +19,19 @@ from numpy.polynomial.polynomial import Polynomial
     class to precompute the values of k_l^m(y) and we already know what the reflections are
     so k_l^m(h) can also be pre-computed.
 
-    >> @PARAMETERS:     
+    >> @PARAMETERS:  symmetry symmetry of the mesh
+========================================================================================================
+========================================================================================================   
 """
 class mesh_s2:
     """
-    ========================================================================================================
-    ========================================================================================================
-
-    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-    >> @DATE:       06/23/2021 SS 1.0 original
-
-    >> @DETAILS:    this is the main LeBail class and contains all the refinable parameters
-                    for the analysis. Since the LeBail method has no structural information
-                    during refinement, the refinable parameters for this model will be:
-
-                    1. a, b, c, alpha, beta, gamma : unit cell parameters
-                    2. U, V, W : cagliotti paramaters
-                    3. 2theta_0 : Instrumental zero shift error
-                    4. eta1, eta2, eta3 : weight factor for gaussian vs lorentzian
-
-                    @NOTE: All angles are always going to be in degrees
-
-    >> @PARAMETERS  expt_spectrum: name of file or numpy array or Spectrum class of experimental intensity
-                    params: yaml file or dictionary or Parameter class
-                    phases: yaml file or dictionary or Phases_Lebail class
-                    wavelength: dictionary of wavelengths
-                    bkgmethod: method to estimate background. either spline or chebyshev fit
-                    or filename or numpy array (last two options added 01/22/2021 SS)
-                    Intensity_init: if set to none, then some power of 10 is used. User has option
-                    to pass in dictionary of structure factors. must ensure that the size of structure
-                    factor matches the possible reflections (added 01/22/2021 SS)
-    ========================================================================================================
-    ========================================================================================================
+    this class deals with the basic functions of the s2 mesh. the 
+    class is initialized just based on the symmetry. the main functions
+    are the interpolation of harmonic values for a given set of points
+    and the number of invariant harmonics up to a maximum degree. this
+    is the main class used for computing the general axis distribution 
+    function.
     """
-
     def __init__(self,
                  symmetry):
 
@@ -316,7 +295,63 @@ class mesh_s2:
         return Polynomial(coeff)
 
 
+class harmonic_model:
+    """
+    this class brings all the elements together to compute the
+    texture model given the sample and crystal symmetry.
+    """
+    def __init__(self,
+                crystal_symmetry,
+                sample_symmetry,
+                max_degree_crystal,
+                max_degree_sample):
+
+        self.crystal_symmetry = crystal_symmetry
+        self.sample_symmetry = sample_symmetry
+        self.max_degree_sample = max_degree_sample
+        self.max_degree_crystal = max_degree_crystal
+
+        self.mesh_crystal = mesh_s2(self.crystal_symmetry)
+        self.mesh_sample = mesh_s2(self.sample_symmetry)
+
+
+
+
+    def calc_pole_figures(self, 
+                          hkls, 
+                          coef,
+                          max_degree_crystal,
+                          max_degree_sample):
+        """
+        given a set of hkl, coefficients and maximum degree of
+        harmonic function to use for both crystal and sample 
+        symmetries, compute the pole figures for full coverage.
+        the default grid is the equiangular grid, but other
+        options include computing it on the s2 mesh or modified
+        lambert grid or custom (theta, phi) coordinates.
+
+        this uses the general axis distributiin function. other 
+        formalisms such as direct pole figure inversion is also 
+        possible using quadratic programming, but for that explicit
+        pole figure operators are needed. the axis distributuion
+        function is easy to integrate with the rietveld method.
+        """
+
+        """
+        first check if the dimensions of coef is consistent with
+        the maximum degrees of the harmonics 
+        """
+        pass
+
 Polya = {
+        "m35":
+        {"numerator":[],
+        "denominator":[6, 10]},
+
+        "532":
+        {"numerator":[[15,1.]],
+        "denominator":[6, 10]},
+
         "m3m":
         {"numerator":[],
         "denominator":[4, 6]},
