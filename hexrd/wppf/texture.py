@@ -408,39 +408,36 @@ class harmonic_model:
         get total number of invariant functions and
         also number of invariant functions for each degree
         """
-        ninv_c = self.mesh_crystal.num_invariant_harmonic(
-                 self.max_degree)
-        ninv_c_tot = np.sum(ninv_c[:,1])
+        # ninv_c = self.mesh_crystal.num_invariant_harmonic(
+        #          self.max_degree)
+        # ninv_c_tot = np.sum(ninv_c[:,1])
 
-        ninv_s = self.mesh_sample.num_invariant_harmonic(
-                 self.max_degree)
-        ninv_s_tot = np.sum(ninv_s[:,1])
-
-        V_c = self.mesh_crystal._get_harmonic_values(hkl)
-        V_s = self.mesh_sample._get_harmonic_values(sample_dir)  
+        # ninv_s = self.mesh_sample.num_invariant_harmonic(
+        #          self.max_degree)
+        # ninv_s_tot = np.sum(ninv_s[:,1])
 
         """
         some degrees for which the crystal symmetry has
         fewer terms than sample symmetry or vice versa 
         needs to be weeded out
         """
-        allowed_degrees = []
-        V_c_allowed = {}
-        V_s_allowed = {}
-        for i in np.arange(0,self.max_degree+1,2):
-            if i in ninv_c[:,0] and i in ninv_s[:,0]:
-                idc = int(np.where(ninv_c[:,0] == i)[0])
-                ids = int(np.where(ninv_s[:,0] == i)[0])
+        # allowed_degrees = []
+        # V_c_allowed = {}
+        # V_s_allowed = {}
+        # for i in np.arange(0,self.max_degree+1,2):
+        #     if i in ninv_c[:,0] and i in ninv_s[:,0]:
+        #         idc = int(np.where(ninv_c[:,0] == i)[0])
+        #         ids = int(np.where(ninv_s[:,0] == i)[0])
                 
-                allowed_degrees.append([i, ninv_c[idc,1], ninv_s[ids,1]])
+        #         allowed_degrees.append([i, ninv_c[idc,1], ninv_s[ids,1]])
 
-                ist, ien = self._index_of_harmonics(i, "crystal")
-                V_c_allowed[i] = V_c[:,ist:ien]
+        #         ist, ien = self._index_of_harmonics(i, "crystal")
+        #         V_c_allowed[i] = V_c[:,ist:ien]
 
-                ist, ien = self._index_of_harmonics(i, "sample")
-                V_s_allowed[i] = V_s[:,ist:ien]
+        #         ist, ien = self._index_of_harmonics(i, "sample")
+        #         V_s_allowed[i] = V_s[:,ist:ien]
 
-        allowed_degrees = np.array(allowed_degrees).astype(np.int32)
+        # allowed_degrees = np.array(allowed_degrees).astype(np.int32)
  
         tex_fact = np.zeros([sample_dir.shape[0], hkl.shape[0]])
 
@@ -491,12 +488,13 @@ class harmonic_model:
         compute the degree by degree sum in the
         generalized axis distribution function
         """
+        nn = np.cumsum(np.array([allowed_degrees[k][0]*allowed_degrees[k][1] 
+            for k in allowed_degrees]))
+        ncoef_csum = np.r_[0,nn]
 
-        ncoef_csum = np.r_[0,np.cumsum(allowed_degrees[:,1]*
-            allowed_degrees[:,2])]
         val = np.zeros([nsamp,])
-        for i in np.arange(allowed_degrees.shape[0]):
-            deg = allowed_degrees[i,0]
+        for i,(k,v) in enumerate(allowed_degrees.items()):
+            deg = k
 
             kc = V_c_allowed[deg][gpos,:]
 
