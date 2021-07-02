@@ -157,6 +157,7 @@ class mesh_s2:
         in the surface harmonic file and all 0 based in 
         the scipy Delaunay function
         """
+        node_id = node_id
         mask = node_id+1 > self.nindp
         eqv_node_id = np.zeros(node_id.shape).astype(np.int32)
 
@@ -170,7 +171,7 @@ class mesh_s2:
         using the eqv array
         """
         if not np.all(mask == False):
-            eqv_id = np.array([np.where(self.eqv[:,0] == i) 
+            eqv_id = np.array([np.where(self.eqv[:,0] == i+1) 
                 for i in node_id[mask]]).astype(np.int32)
             eqv_id = np.squeeze(eqv_id)
             eqv_node_id[mask] = self.eqv[eqv_id,1]-1
@@ -270,7 +271,7 @@ class mesh_s2:
             else:
                 poly = poly*pn
 
-        poly = poly.truncate(max_degree)
+        poly = poly.truncate(max_degree+1)
         idx = np.nonzero(poly.coef)
         v = poly.coef[idx]
 
@@ -475,6 +476,34 @@ class harmonic_model:
                 
                 ncoef_inv += ninv_c[idc,1]*ninv_s[ids,1]
         return ncoef_inv
+
+    def _allowed_degrees(self):
+        """
+        utility function to get the allowed degrees
+        and the corresponding number of harmonics for
+        crystal and sample symmetry
+        """
+        ninv_c = self.mesh_crystal.num_invariant_harmonic(
+         self.max_degree)
+
+        ninv_s = self.mesh_sample.num_invariant_harmonic(
+                 self.max_degree)
+
+        """
+        some degrees for which the crystal symmetry has
+        fewer terms than sample symmetry or vice versa 
+        needs to be weeded out
+        """
+        allowed_degrees = {}
+
+        for i in np.arange(0,self.max_degree+1,2):
+            if i in ninv_c[:,0] and i in ninv_s[:,0]:
+                idc = int(np.where(ninv_c[:,0] == i)[0])
+                ids = int(np.where(ninv_s[:,0] == i)[0])
+                
+                allowed_degrees[i] = [ninv_c[idc,1], ninv_s[ids,1]]
+
+        return allowed_degrees
 
 def calc_pole_figures(self, 
                       hkls, 
