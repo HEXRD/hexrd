@@ -151,6 +151,7 @@ class mesh_s2:
         in the surface harmonic file and all 0 based in 
         the scipy Delaunay function
         """
+        node_id = node_id
         mask = node_id+1 > self.nindp
         eqv_node_id = np.zeros(node_id.shape).astype(np.int32)
 
