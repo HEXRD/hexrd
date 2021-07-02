@@ -784,34 +784,6 @@ class harmonic_model:
                 ncoef_inv += ninv_c[idc,1]*ninv_s[ids,1]
         return ncoef_inv
 
-    def _allowed_degrees(self):
-        """
-        utility function to get the allowed degrees
-        and the corresponding number of harmonics for
-        crystal and sample symmetry
-        """
-        ninv_c = self.mesh_crystal.num_invariant_harmonic(
-         self.max_degree)
-
-        ninv_s = self.mesh_sample.num_invariant_harmonic(
-                 self.max_degree)
-
-        """
-        some degrees for which the crystal symmetry has
-        fewer terms than sample symmetry or vice versa 
-        needs to be weeded out
-        """
-        allowed_degrees = {}
-
-        for i in np.arange(0,self.max_degree+1,2):
-            if i in ninv_c[:,0] and i in ninv_s[:,0]:
-                idc = int(np.where(ninv_c[:,0] == i)[0])
-                ids = int(np.where(ninv_s[:,0] == i)[0])
-                
-                allowed_degrees[i] = [ninv_c[idc,1], ninv_s[ids,1]]
-
-        return allowed_degrees
-
     def refine(self):
         """
         this is the function which updates the harmonic coefficients
