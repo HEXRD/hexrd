@@ -343,7 +343,18 @@ class harmonic_model:
 
         return V_c_allowed, V_s_allowed
 
-    def init_harmonic values():
+    def init_pole_figures(self,
+                          sample_dir):
+        """
+        once the harmonic model is initialized, initialize
+        the values of the harmonic functions for different
+        values of hkl and sample directions. the hkl are the
+        keys and the sample_dir are the values of the sample_dir
+        dictionary.
+        """
+
+        self.hkl = np.atleast_2d(hkl)
+        self.sample_dir = np.atleast_2d(sample_dir)
         self.V_c_allowed, self.V_s_allowed = \
         self._compute_harmonic_values_grid(hkl,
                                            sample_dir)
@@ -351,18 +362,14 @@ class harmonic_model:
 
 
     def compute_texture_factor(self,
-                               coef,
-                               hkl,
-                               sample_dir):
+                               coef):
         """
         first check if the size of the coef vector is
         consistent with the max degree argumeents for
         crystal and sample.
         """
-        hkl = np.atleast_2d(hkl)
-        sample_dir = np.atleast_2d(sample_dir)
 
-        nsamp = sample_dir.shape[0]
+        nsamp = self.sample_dir.shape[0]
         ncoef = coef.shape[0]
         
         ncoef_inv = self._num_coefficients()
