@@ -373,19 +373,15 @@ class harmonic_model:
         angs = np.array(angs)
 
     def compute_texture_factor(self,
-                               coef,
-                               hkl,
-                               sample_dir):
+                               coef):
         """
         first check if the size of the coef vector is
         consistent with the max degree argumeents for
         crystal and sample.
 
         """
-        hkl = np.atleast_2d(hkl)
-        sample_dir = np.atleast_2d(sample_dir)
 
-        nsamp = sample_dir.shape[0]
+        nsamp = self.sample_dir.shape[0]
         ncoef = coef.shape[0]
         
         ncoef_inv = self._num_coefficients()
@@ -439,15 +435,16 @@ class harmonic_model:
 
         # allowed_degrees = np.array(allowed_degrees).astype(np.int32)
  
-        tex_fact = np.zeros([sample_dir.shape[0], hkl.shape[0]])
+        tex_fact = np.zeros([self.sample_dir.shape[0], 
+                             self.hkl.shape[0]])
 
         for i in range(hkl.shape[0]):
             tex_fact[:,i] = self._compute_sum(i,
                                               nsamp,
                                               coef,
-                                              allowed_degrees,
-                                              V_c_allowed,
-                                              V_s_allowed)
+                                              self.allowed_degrees,
+                                              self.V_c_allowed,
+                                              self.V_s_allowed)
         return tex_fact
 
     def _index_of_harmonics(self,
