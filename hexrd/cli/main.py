@@ -63,7 +63,6 @@ def main():
     args = p.parse_args()
 
     log_level = logging.DEBUG if args.debug else logging.INFO
-    logger = logging.getLogger('hexrd')
     ch = logging.StreamHandler()
     ch.setLevel(log_level)
 
