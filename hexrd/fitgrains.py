@@ -107,7 +107,7 @@ def fit_grain_FF_reduced(grain_id):
             eta_ranges=eta_ranges,
             ome_period=ome_period,
             dirname=analysis_dirname, filename=spots_filename,
-            save_spot_list=False,
+            return_spot_list=False,
             quiet=True, check_only=False, interp='nearest')
 
         # ======= DETERMINE VALID REFLECTIONS =======
