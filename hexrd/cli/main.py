@@ -4,6 +4,7 @@ import argparse
 import logging
 import sys
 import multiprocessing
+from importlib.metadata import version, PackageNotFoundError
 
 # These can't be relative imports on Windows because of the hack
 # in main() for multiprocessing.freeze_support()
@@ -15,6 +16,12 @@ from hexrd.utils import profiler
 from hexrd.cli import find_orientations
 from hexrd.cli import fit_grains
 from hexrd.cli import pickle23
+
+
+try:
+    _version = version("hexrd")
+except PackageNotFoundError:
+    _version = None
 
 
 def main():
@@ -41,6 +48,12 @@ def main():
         action="append",
         help='use the following files as source for functions to instrument',
     )
+    p.add_argument(
+        "--version",
+        action="version",
+        version=f'%(prog)s {_version}',
+    )
+
     sub_parsers = p.add_subparsers(
         metavar='command',
         dest='cmd',
@@ -63,7 +76,6 @@ def main():
     args = p.parse_args()
 
     log_level = logging.DEBUG if args.debug else logging.INFO
-    logger = logging.getLogger('hexrd')
     ch = logging.StreamHandler()
     ch.setLevel(log_level)
 
