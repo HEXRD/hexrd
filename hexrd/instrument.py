@@ -1406,7 +1406,7 @@ class HEDMInstrument(object):
                    eta_ranges=[(-np.pi, np.pi), ],
                    ome_period=(-np.pi, np.pi),
                    dirname='results', filename=None, output_format='text',
-                   save_spot_list=False,
+                   return_spot_list=False,
                    quiet=True, check_only=False,
                    interp='nearest'):
         """
@@ -1442,7 +1442,7 @@ class HEDMInstrument(object):
             DESCRIPTION. The default is None.
         output_format : TYPE, optional
             DESCRIPTION. The default is 'text'.
-        save_spot_list : TYPE, optional
+        return_spot_list : TYPE, optional
             DESCRIPTION. The default is False.
         quiet : TYPE, optional
             DESCRIPTION. The default is True.
@@ -1802,10 +1802,26 @@ class HEDMInstrument(object):
                                     meas_angs, meas_xy)
                             pass  # end conditional on write output
                         pass  # end conditional on check only
-                        patch_output.append([
+
+                        if return_spot_list:
+                            # Full output
+                            xyc_arr = xy_eval.reshape(
+                                prows, pcols, 2
+                            ).transpose(2, 0, 1)
+                            _patch_output = [
+                                detector_id, iRefl, peak_id, hkl_id, hkl,
+                                tth_edges, eta_edges, np.radians(ome_eval),
+                                xyc_arr, ijs, frame_indices, patch_data,
+                                ang_centers[i_pt], xy_centers[i_pt],
+                                meas_angs, meas_xy
+                            ]
+                        else:
+                            # Trimmed output
+                            _patch_output = [
                                 peak_id, hkl_id, hkl, sum_int, max_int,
-                                ang_centers[i_pt], meas_angs, meas_xy,
-                                ])
+                                ang_centers[i_pt], meas_angs, meas_xy
+                            ]
+                        patch_output.append(_patch_output)
                         iRefl += 1
                     pass  # end patch conditional
                 pass  # end patch loop
