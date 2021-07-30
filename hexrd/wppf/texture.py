@@ -586,7 +586,7 @@ Polya = {
         "denominator":[6, 10]},
 
         "532":
-        {"numerator":[[15,1.]],
+        {"numerator":[[15, 1.]],
         "denominator":[6, 10]},
 
         "m3m":
@@ -594,15 +594,15 @@ Polya = {
         "denominator":[4, 6]},
 
         "432":
-        {"numerator":[[9,1.]],
+        {"numerator":[[9, 1.]],
         "denominator":[4, 6]},
 
         "1":
-        {"numerator":[[1,1.]],
+        {"numerator":[[1, 1.]],
         "denominator":[1, 1]},
 
         "-1":
-        {"numerator":[[2,3.]],
+        {"numerator":[[2, 3.]],
         "denominator":[2, 2]}
 
         }

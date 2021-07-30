@@ -897,6 +897,37 @@ class Material_Rietveld:
         self.wavelength_allowed_hkls = wavelength_allowed_hkls.astype(bool)
         return tth
 
+    ''' transform between any crystal space to any other space.
+        choices are 'd' (direct), 'r' (reciprocal) and 'c' (cartesian)'''
+    def TransSpace(self, v_in, inspace, outspace):
+        if(inspace == 'd'):
+            if(outspace == 'r'):
+                v_out = np.dot(v_in, self.dmt)
+            elif(outspace == 'c'):
+                v_out = np.dot(self.dsm, v_in)
+            else:
+                raise ValueError(
+                    'inspace in ''d'' but outspace can''t be identified')
+        elif(inspace == 'r'):
+            if(outspace == 'd'):
+                v_out = np.dot(v_in, self.rmt)
+            elif(outspace == 'c'):
+                v_out = np.dot(self.rsm, v_in)
+            else:
+                raise ValueError(
+                    'inspace in ''r'' but outspace can''t be identified')
+        elif(inspace == 'c'):
+            if(outspace == 'r'):
+                v_out = np.dot(v_in, self.rsm)
+            elif(outspace == 'd'):
+                v_out = np.dot(v_in, self.dsm)
+            else:
+                raise ValueError(
+                    'inspace in ''c'' but outspace can''t be identified')
+        else:
+            raise ValueError('incorrect inspace argument')
+        return v_out
+
     def GenerateRecipPGSym(self):
 
         self.SYM_PG_r = self.SYM_PG_d[0, :, :]
