@@ -964,7 +964,7 @@ class Material(object):
         _get_atomtype, _set_atomtype, None,
         "Information about atomic types")
 
-    def _set_atomdata(self, atomtype, atominfo, U):
+    def _set_atomdata(self, atomtype, atominfo, U, charge):
         """
         sometimes the number of atom types and their
         positions are changed when creating a material.
@@ -1005,10 +1005,16 @@ class Material(object):
                    f"U passed for {U.shape[0]} atoms." )
             raise ValueError(msg)
 
+        if len(charge) != atomtype.shape[0]:
+            msg = (f"inconsistent shapes: number of atoms "
+                   f"types passed = {atomtype.shape[0]} \n"
+                   f"charge value passed for {len(charge)} atoms." )
+            raise ValueError(msg)
+
         self.atomtype = atomtype
         self.atominfo = atominfo
         self.U = U
-        self.charge = ['0']*atomtype.shape[0]
+        self.charge = charge
 
         self._newUnitcell()
         self.update_structure_factor()
