@@ -722,7 +722,7 @@ def angleAxisOfRotMat(R):
     #  *   near pi   -- binary rotation; need to find axis
     #  *   neither   -- general case; can use skew part
     #
-    tol = 1.0e-4
+    tol = cnst.sqrt_epsf
 
     anear0 = angle < tol
 
