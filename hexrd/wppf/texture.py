@@ -344,7 +344,7 @@ class harmonic_model:
         return V_c_allowed, V_s_allowed
 
     def init_pole_figures(self,
-                          sample_dir):
+                          pole_figures):
         """
         once the harmonic model is initialized, initialize
         the values of the harmonic functions for different
@@ -528,6 +528,16 @@ class harmonic_model:
                 allowed_degrees[i] = [ninv_c[idc,1], ninv_s[ids,1]]
 
         return allowed_degrees
+
+class pole_figures:
+    """
+    this class deals with everything related to pole figures. 
+    pole figures can be initializedin a number of ways. the most
+    basic being the (tth, eta, intensities) array. There are other
+    formats which will be slowly added to this class. a list of 
+    hkl and a phase class is also supplied along with the angle, 
+    intensity info to get a class holding all the information. 
+    """
 
 def calc_pole_figures(self, 
                       hkls, 
