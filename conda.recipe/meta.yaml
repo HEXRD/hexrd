@@ -15,7 +15,7 @@ build:
 requirements:
   build:
     - numpy
-    - python {{PY_VER}}
+    - python=3.8
     - setuptools
     - setuptools_scm
 
@@ -29,7 +29,7 @@ requirements:
     - numpy
     - psutil
     - pycifrw
-    - python {{PY_VER}}
+    - python=3.8
     - pyyaml
     - scikit-image
     - scikit-learn 0.24.1
