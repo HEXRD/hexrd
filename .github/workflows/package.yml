@@ -46,7 +46,7 @@ jobs:
     - name: Install build requirements
       run: |
           conda activate hexrd
-          conda install anaconda conda-build scikit-learn==0.24.1
+          conda install --override-channels -c conda-forge anaconda-client conda-build
 
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
@@ -57,7 +57,7 @@ jobs:
       run: |
           conda activate hexrd
           mkdir output
-          conda build -c defaults -c conda-forge --output-folder output/ conda.recipe/
+          conda build --override-channels -c conda-forge --output-folder output/ conda.recipe/
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
       shell: bash -l {0}

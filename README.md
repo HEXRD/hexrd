@@ -1,6 +1,6 @@
 ![conda-package](https://github.com/HEXRD/hexrd/workflows/conda-package/badge.svg)  ![test](https://github.com/HEXRD/hexrd/workflows/test/badge.svg)
 # HEXRD
-The HEXRD project is developing a cross-platform, open-source library for the general analysis of X-ray diffraction data.  This includes powder diffraction, Laue diffraction, and High Energy Diffraction Microscopy (_a.k.a._ 3DXRD, multi-grain rotation method) modalities.  At its core, HEXRD provides an abstraction of a generic diffraction instrument with support for multiple detectors.  This includes optimized transforms from the direct and reciprocal crystal lattices to the local detector coordinates, harnesses for interpolating image data into scattering angle coordinates, and sophisticated calibration routines.  
+The HEXRD project is developing a cross-platform, open-source library for the general analysis of X-ray diffraction data.  This includes powder diffraction, Laue diffraction, and High Energy Diffraction Microscopy (_a.k.a._ 3DXRD, multi-grain rotation method) modalities.  At its core, HEXRD provides an abstraction of a generic diffraction instrument with support for multiple detectors.  This includes optimized transforms from the direct and reciprocal crystal lattices to the local detector coordinates, harnesses for interpolating image data into scattering angle coordinates, and sophisticated calibration routines.
 
 # Installing
 
@@ -22,7 +22,7 @@ OS X 11 does not work with the Python from conda-forge. Please install a the ver
 from the HEXRD channel
 
 ```bash
-conda install -c HEXRD python=3.8.4
+conda install -c hexrd python=3.8.4
 ```
 
 ## conda (release)
@@ -30,14 +30,14 @@ conda install -c HEXRD python=3.8.4
 To install the latest stable release
 
 ```bash
-conda install -c hexrd -c anaconda -c conda-forge hexrd
+conda install -c hexrd -c conda-forge hexrd
 ```
 
 ## conda (prerelease)
 To install the latest changes on master, do the following.  Note that this release may be unstable.
 
 ```bash
-conda install -c hexrd/label/hexrd-prerelease -c hexrd -c anaconda -c conda-forge hexrd
+conda install -c hexrd/label/hexrd-prerelease -c hexrd -c conda-forge hexrd
 ```
 
 # Run
@@ -75,9 +75,9 @@ conda activate hexrd
 ```bash
 # First, make sure python3.8+ is installed in your target env.
 # If it is not, run the following command:
-conda install -c anaconda python=3.8
+conda install -c conda-forge python=3.8
 # Install deps using conda package
-conda install -c hexrd -c anaconda -c conda-forge hexrd
+conda install -c hexrd -c conda-forge hexrd
 # Now using pip to link repo's into environment for development
 CONDA_BUILD=1 pip install --no-build-isolation --no-deps -U -e hexrd
 ```
@@ -89,7 +89,7 @@ CONDA_BUILD=1 pip install --no-build-isolation --no-deps -U -e hexrd
 # See the following issue for more details: https://github.com/HEXRD/hexrdgui/issues/505
 conda install -c conda-forge python=3.8
 # Install deps using conda package
-conda install -c hexrd -c anaconda -c conda-forge hexrd
+conda install -c hexrd -c conda-forge hexrd
 # Now using pip to link repo's into environment for development
 CONDA_BUILD=1 pip install --no-build-isolation --no-deps -U -e hexrd
 ```
@@ -98,9 +98,9 @@ CONDA_BUILD=1 pip install --no-build-isolation --no-deps -U -e hexrd
 ```bash
 # First, make sure python3.8+ is installed in your target env.
 # If it is not, run the following command:
-conda install -c anaconda python=3.8
+conda install -c conda-forge python=3.8
 # Install deps using conda package
-conda install -c hexrd -c anaconda -c conda-forge hexrd
+conda install -c hexrd -c conda-forge hexrd
 # Now using pip to link repo's into environment for development
 set CONDA_BUILD=1
 pip install --no-build-isolation --no-deps -U -e hexrd

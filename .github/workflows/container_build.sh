@@ -7,6 +7,6 @@ chmod a+x Miniconda3-latest-Linux-x86_64.sh
 ${HOME}/miniconda3/bin/conda create -y -n hexrd python=3.8
 ${HOME}/miniconda3/bin/activate hexrd
 ${HOME}/miniconda3/bin/conda activate hexrd
-${HOME}/miniconda3/bin/conda install conda-build -y
+${HOME}/miniconda3/bin/conda install --override-channels -c conda-forge conda-build -y
 mkdir output
-${HOME}/miniconda3/bin/conda build -c defaults -c conda-forge --output-folder output/ conda.recipe/
+${HOME}/miniconda3/bin/conda build --override-channels -c conda-forge --output-folder output/ conda.recipe/
