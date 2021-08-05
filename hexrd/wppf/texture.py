@@ -5,6 +5,7 @@ import importlib.resources
 import h5py
 from numpy.polynomial.polynomial import Polynomial
 from warnings import warn
+from hexrd.transforms.xfcapi import anglesToGVec
 
 """
 ========================================================================================================
@@ -25,6 +26,13 @@ from warnings import warn
 ========================================================================================================
 ========================================================================================================   
 """
+I3 = np.eye(3)
+
+Xl = np.ascontiguousarray(I3[:, 0].reshape(3, 1))     # X in the lab frame
+Zl = np.ascontiguousarray(I3[:, 2].reshape(3, 1))     # Z in the lab frame
+
+bVec_ref = -Zl
+eHat_l = Xl
 
 class mesh_s2:
     """
@@ -532,13 +540,83 @@ class harmonic_model:
 class pole_figures:
     """
     this class deals with everything related to pole figures. 
-    pole figures can be initializedin a number of ways. the most
-    basic being the (tth, eta, intensities) array. There are other
-    formats which will be slowly added to this class. a list of 
-    hkl and a phase class is also supplied along with the angle, 
-    intensity info to get a class holding all the information. 
+    pole figures can be initialized in a number of ways. the most
+    basic being the (tth, eta, omega, intensities) array. There are
+    other formats which will be slowly added to this class. a list of 
+    hkl and a material/material_rietveld class is also supplied along 
+    with the (angle, intensity) info to get a class holding all the 
+    information. 
     """
+    def __init__(self,
+                 material,
+                 hkls,
+                 pfdata,
+                 bHat_l=bVec_ref,
+                 eHat_l=eta_ref, 
+                 chi=0.):
+        """
+        material Either a Material object of Material_Rietveld object
+        hkl      reciprocal lattice vectors for which pole figures are 
+                 available (size nx3)
+        pfdata   dictionary containing (tth, eta, omega, intensities)
+                 array for each hkl specified as last input. key is hkl
+                 and value are the arrays with size m x 4. m for each hkl
+                 can be different. A length check is performed during init
+        bHat_l   unit vector of xray beam in the lab frame. default value 
+                 is -Z direction
+        eHat_l   direction which defines zero azimuth. default value is 
+                 x direction
+        chi      inclination of sample frame about x direction. default
+                 value is 0, corresponding to no tilt.
+        """
+        self.hkls = hkls
+        self.material = material
+        self.convert_hkls_to_cartesian()
 
+        self.bHat_l = bHat_l
+        self.eHat_l = eHat_l
+        self.chi = chi
+
+        if hkls.shape[0] != len(pfdata):
+            msg = (f"pole figure initialization.\n" 
+                f"# reciprocal reflections = {hkls.shape[0]}.\n"
+                f"# of entries in pfdata = {len(pfdata)}.")
+            raise RuntimeError(msg)
+
+        self.pfdata = pfdata
+        self.convert_angs_to_gvecs()
+
+        def convert_hkls_to_cartesian(self):
+            """
+            this routine converts hkls in the crystallographic frame to
+            the cartesian frame and normalizes them
+            """
+            self.hkls_c = np.zeros(self.hkls.shape)
+            
+            for ii, g in enumerate(self.hkls):
+                v = self.material.TransSpace(g, "r", "c")
+                v = v/np.linalg.norm(v)
+                self.hkls_c[ii,:] = v
+
+
+        def convert_angs_to_gvecs(self):
+            """
+            this routine converts angular coordinates in (tth, eta, omega)
+            to g-vectors in the lab frame
+            """
+            self.gvecs = {}
+            for k,v in self.pfdata.items():
+                angs = v[0:3]
+                if np.abs(angs).max() > 2.0*np.pi:
+                    msg = f"angles seem to be large. converting to radians."
+                    print(msg)
+                    angs = np.radians(angs)
+
+                self.gvecs[k] = anglesToGVec(angs, 
+                                             bHat_l=self.bHat_l,
+                                             eHat_l=self.eHat_l,
+                                             chi=self.chi)
+                
 def calc_pole_figures(self, 
                       hkls, 
                       coef,
