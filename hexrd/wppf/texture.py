@@ -362,8 +362,10 @@ class harmonic_model:
         """
         angs = []
         for tth in np.arange(0,91,5):
-            for eta in np.arange(0, 361, 5):
+            for eta in np.arange(0, 360, 5):
                 angs.append([np.radians(tth), np.radians(eta), 0.])
+                if tth == 0:
+                    break
         angs = np.array(angs)
 
         return angs
@@ -565,7 +567,6 @@ class harmonic_model:
 
     def calc_pole_figures(self, 
                       hkls,
-                      max_degree,
                       grid="equiangular"):
         """
         given a set of hkl, coefficients and maximum degree of
@@ -597,6 +598,7 @@ class harmonic_model:
             if self.pf_equiangular.hkls.shape == hkls.shape:
                 if np.sum(np.abs(hkls - self.pf_equiangular.hkls)) < 1e-6:
                     init = False
+
         if init:
             angs = self.init_equiangular_grid()
             mat  = self.pole_figures.material
