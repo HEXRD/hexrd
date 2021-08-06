@@ -326,6 +326,7 @@ class harmonic_model:
         self.mesh_sample = mesh_s2(self.sample_symmetry)
 
         self.init_harmonic_values()
+
         self.phon = 0.0
         self.itercounter = 0
 
@@ -865,6 +866,43 @@ class harmonic_model:
             fname = f"pf_{k}.txt"
             np.savetxt(fname, v, fmt="%10.4f", delimiter="\t")
 
+
+    def recalculate_pole_figures(self):
+        """
+        this function calculates the pole figures for
+        the sample directions in the pole figure used
+        to initialize the model. this can be used to 
+        test how well the harmonic model fit the data.
+        """
+        return self.compute_texture_factor(self.coeff)
+
+
+    def calc_pole_figures(self, 
+                      hkls,
+                      max_degree,
+                      grid="equiangular"):
+        """
+        given a set of hkl, coefficients and maximum degree of
+        harmonic function to use for both crystal and sample 
+        symmetries, compute the pole figures for full coverage.
+        the default grid is the equiangular grid, but other
+        options include computing it on the s2 mesh or modified
+        lambert grid or custom (theta, phi) coordinates.
+
+        this uses the general axis distributiin function. other 
+        formalisms such as direct pole figure inversion is also 
+        possible using quadratic programming, but for that explicit
+        pole figure operators are needed. the axis distributuion
+        function is easy to integrate with the rietveld method.
+        """
+
+        """
+        first check if the dimensions of coef is consistent with
+        the maximum degrees of the harmonics 
+        """
+        for ii in np.arange(hkls.shape[0]):
+            pass
+        
 
 class pole_figures:
     """
