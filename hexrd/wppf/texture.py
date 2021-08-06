@@ -317,6 +317,7 @@ class harmonic_model:
         self.mesh_sample = mesh_s2(self.sample_symmetry)
 
         self.init_harmonic_values()
+
         ncoeff = self._num_coefficients()
         self.coeff = np.zeros([ncoeff,])
 
@@ -342,6 +343,21 @@ class harmonic_model:
             self._compute_harmonic_values_grid(hkl,
                                                sample_dir)
         self.allowed_degrees = self._allowed_degrees()
+
+    def init_equiangular_grid(self):
+        """
+        this function initializes sample directions
+        for an 5x5 equiangular grid of points. the harmonic
+        functions will be calculated using the 
+        calc_pole_figures function instead of here.
+        """
+        angs = []
+        for tth in np.arange(0,91,5):
+            for eta in np.arange(0, 361, 5):
+                angs.append([np.radians(tth), np.radians(eta), 0.])
+        angs = np.array(angs)
+
+        return angs
 
     def _compute_harmonic_values_grid(self,
                                       hkl,
@@ -560,9 +576,41 @@ class harmonic_model:
         first check if the dimensions of coef is consistent with
         the maximum degrees of the harmonics 
         """
-        for ii in np.arange(hkls.shape[0]):
-            pass
-        
+
+        """
+        check if class already exists with the same
+        hkl values. if it does, then do nothing. 
+        otherwise initialize a new instance
+        """
+        init = True
+        if hasattr(self, "pf_equiangular"):
+            if self.pf_equiangular.hkls.shape == hkls.shape:
+                if np.sum(np.abs(hkls - self.pf_equiangular.hkls)) < 1e-6:
+                    init = False
+        if init:
+            angs = self.init_equiangular_grid()
+            mat  = self.pole_figures.material
+            bHat_l = self.pole_figures.bHat_l
+            eHat_l = self.pole_figures.eHat_l
+            chi = self.pole_figures.chi
+            pfdata = {}
+            for g in hkls:
+                key = str(g)[1:-1].replace(" ","")
+                pfdata[key] = angs
+
+            args   = (mat, hkls, pfdata)
+            kwargs = {"bHat_l":bHat_l,
+                      "eHat_l":eHat_l,
+                      "chi":chi}
+            self.pf_equiangular = pole_figures(*args, **kwargs)
+
+        model = harmonic_model(self.pf_equiangular,
+                               self.sample_symmetry,
+                               self.max_degree)
+
+        model.coeff = self.coeff
+
+        return model.recalculate_pole_figures()
 
 class pole_figures:
     """
