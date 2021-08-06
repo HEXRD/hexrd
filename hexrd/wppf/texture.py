@@ -879,7 +879,6 @@ class harmonic_model:
 
     def calc_pole_figures(self, 
                       hkls,
-                      max_degree,
                       grid="equiangular"):
         """
         given a set of hkl, coefficients and maximum degree of
@@ -911,6 +910,7 @@ class harmonic_model:
             if self.pf_equiangular.hkls.shape == hkls.shape:
                 if np.sum(np.abs(hkls - self.pf_equiangular.hkls)) < 1e-6:
                     init = False
+
         if init:
             angs = self.init_equiangular_grid()
             mat  = self.pole_figures.material
