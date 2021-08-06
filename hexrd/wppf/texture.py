@@ -309,6 +309,7 @@ class harmonic_model:
                 sample_symmetry,
                 max_degree):
 
+        self.pole_figures = pole_figures
         self.crystal_symmetry = pole_figures.material.sg.laueGroup_international
         self.sample_symmetry = sample_symmetry
         self.max_degree = max_degree
@@ -317,8 +318,7 @@ class harmonic_model:
 
         self.init_harmonic_values(pole_figures)
 
-    def init_harmonic_values(self,
-                             pole_figures):
+    def init_harmonic_values(self):
         """
         once the harmonic model is initialized, initialize
         the values of the harmonic functions for different
@@ -329,6 +329,8 @@ class harmonic_model:
         self.V_c_allowed = {}
         self.V_s_allowed = {}
         self.allowed_degrees = {}
+
+        pole_figures = self.pole_figures
         for ii in np.arange(pole_figures.num_pfs):
             key = str(pole_figures.hkls[ii,:])[1:-1].replace(" ", "")
             hkl = np.atleast_2d(pole_figures.hkls_c[ii,:])
@@ -383,8 +385,6 @@ class harmonic_model:
         consistent with the max degree argumeents for
         crystal and sample.
         """
-
-        nsamp = self.sample_dir.shape[0]
         ncoef = coef.shape[0]
         
         ncoef_inv = self._num_coefficients()
@@ -404,16 +404,16 @@ class harmonic_model:
             warn(msg)
             coef = coef[:ncoef_inv]
  
-        tex_fact = np.zeros([self.sample_dir.shape[0], 
-                             self.hkl.shape[0]])
+        tex_fact = {}
+        for g in self.pole_figures.hkls:
+            key = str(g)[1:-1].replace(" ","")
+            tex_fact[key] = np.zeros([self.pole_figures.gvecs.shape[0],])
 
-        for i in range(hkl.shape[0]):
-            tex_fact[:,i] = self._compute_sum(i,
-                                              nsamp,
+            tex_fact[key] = self._compute_sum(nsamp,
                                               coef,
                                               self.allowed_degrees,
-                                              self.V_c_allowed,
-                                              self.V_s_allowed)
+                                              self.V_c_allowed[key],
+                                              self.V_s_allowed[key])
         return tex_fact
 
     def _index_of_harmonics(self,
