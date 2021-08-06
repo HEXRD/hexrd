@@ -591,6 +591,8 @@ class harmonic_model:
 
         if init:
             angs = self.init_equiangular_grid()
+            zc = np.atleast_2d(np.zeros([angs.shape[0],])).T
+            angs = np.append(angs,zc,axis=1)
             mat  = self.pole_figures.material
             bHat_l = self.pole_figures.bHat_l
             eHat_l = self.pole_figures.eHat_l
@@ -612,7 +614,12 @@ class harmonic_model:
 
         model.coeff = self.coeff
 
-        return model.recalculate_pole_figures()
+        pf = model.recalculate_pole_figures()
+        pfdata = {}
+        for k,v in self.pf_equiangular.pfdata.items():
+            pfdata[k] = np.hstack((np.degrees(v[:,0:2]), np.atleast_2d(pf[k]).T ))
+
+        return pfdata
 
 class pole_figures:
     """
@@ -688,6 +695,7 @@ class pole_figures:
                 msg = f"angles seem to be large. converting to radians."
                 print(msg)
                 angs = np.atleast_2d(np.radians(angs))
+                self.pfdata[k][:,0:3] = angs
 
             self.gvecs[k] = anglesToGVec(angs, 
                                          bHat_l=self.bHat_l,
