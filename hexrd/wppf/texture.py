@@ -304,15 +304,39 @@ class harmonic_model:
     texture model given the sample and crystal symmetry.
     """
     def __init__(self,
-                crystal_symmetry,
+                pole_figures,
                 sample_symmetry,
                 max_degree):
 
-        self.crystal_symmetry = crystal_symmetry
+        self.crystal_symmetry = pole_figures.material.self.SYM_PG_d_laue
         self.sample_symmetry = sample_symmetry
         self.max_degree = max_degree
         self.mesh_crystal = mesh_s2(self.crystal_symmetry)
         self.mesh_sample = mesh_s2(self.sample_symmetry)
+
+        self.init_harmonic_values(pole_figures)
+
+    def init_harmonic_values(self,
+                             pole_figures):
+        """
+        once the harmonic model is initialized, initialize
+        the values of the harmonic functions for different
+        values of hkl and sample directions. the hkl are the
+        keys and the sample_dir are the values of the sample_dir
+        dictionary.
+        """
+        self.V_c_allowed = {}
+        self.V_s_allowed = {}
+        self.allowed_degrees = {}
+        for ii in np.arange(pole_figures.num_pfs):
+            key = pole_figures.hkls[ii,:]
+            hkl = pole_figures.hkls_c[ii,:]
+            sample_dir = pole_figures.gvecs[key]
+
+            self.V_c_allowed[key], self.V_s_allowed[key] = \
+            self._compute_harmonic_values_grid(hkl,
+                                               sample_dir)
+            self.allowed_degrees[key] = self._allowed_degrees()
 
     def _compute_harmonic_values_grid(self,
                                       hkl,
@@ -350,24 +374,6 @@ class harmonic_model:
                 V_s_allowed[i] = V_s[:,ist:ien]
 
         return V_c_allowed, V_s_allowed
-
-    def init_pole_figures(self,
-                          pole_figures):
-        """
-        once the harmonic model is initialized, initialize
-        the values of the harmonic functions for different
-        values of hkl and sample directions. the hkl are the
-        keys and the sample_dir are the values of the sample_dir
-        dictionary.
-        """
-
-        self.hkl = np.atleast_2d(hkl)
-        self.sample_dir = np.atleast_2d(sample_dir)
-        self.V_c_allowed, self.V_s_allowed = \
-        self._compute_harmonic_values_grid(hkl,
-                                           sample_dir)
-        self.allowed_degrees = self._allowed_degrees()
-
 
     def compute_texture_factor(self,
                                coef):
@@ -586,37 +592,43 @@ class pole_figures:
         self.pfdata = pfdata
         self.convert_angs_to_gvecs()
 
-        def convert_hkls_to_cartesian(self):
-            """
-            this routine converts hkls in the crystallographic frame to
-            the cartesian frame and normalizes them
-            """
-            self.hkls_c = np.zeros(self.hkls.shape)
-            
-            for ii, g in enumerate(self.hkls):
-                v = self.material.TransSpace(g, "r", "c")
-                v = v/np.linalg.norm(v)
-                self.hkls_c[ii,:] = v
+    def convert_hkls_to_cartesian(self):
+        """
+        this routine converts hkls in the crystallographic frame to
+        the cartesian frame and normalizes them
+        """
+        self.hkls_c = np.atleast_2d(np.zeros(self.hkls.shape))
+        
+        for ii, g in enumerate(self.hkls):
+            v = self.material.TransSpace(g, "r", "c")
+            v = v/np.linalg.norm(v)
+            self.hkls_c[ii,:] = v
 
 
-        def convert_angs_to_gvecs(self):
-            """
-            this routine converts angular coordinates in (tth, eta, omega)
-            to g-vectors in the lab frame
-            """
-            self.gvecs = {}
-            for k,v in self.pfdata.items():
-                angs = v[0:3]
-                if np.abs(angs).max() > 2.0*np.pi:
-                    msg = f"angles seem to be large. converting to radians."
-                    print(msg)
-                    angs = np.radians(angs)
+    def convert_angs_to_gvecs(self):
+        """
+        this routine converts angular coordinates in (tth, eta, omega)
+        to g-vectors in the lab frame
+        """
+        self.gvecs = {}
+        for k,v in self.pfdata.items():
+            angs = v[0:3]
+            if np.abs(angs).max() > 2.0*np.pi:
+                msg = f"angles seem to be large. converting to radians."
+                print(msg)
+                angs = np.atleast_2d(np.radians(angs))
 
-                self.gvecs[k] = anglesToGVec(angs, 
-                                             bHat_l=self.bHat_l,
-                                             eHat_l=self.eHat_l,
-                                             chi=self.chi)
-                
+            self.gvecs[k] = anglesToGVec(angs, 
+                                         bHat_l=self.bHat_l,
+                                         eHat_l=self.eHat_l,
+                                         chi=self.chi)
+
+    @property
+    def num_pfs(self):
+        return len(pfdata)
+
+    # no setter for num_pfs
+
 def calc_pole_figures(self, 
                       hkls, 
                       coef,
