@@ -398,41 +398,6 @@ class harmonic_model:
                    f"ignoring extra terms.")
             warn(msg)
             coef = coef[:ncoef_inv]
-
-        """
-        get total number of invariant functions and
-        also number of invariant functions for each degree
-        """
-        # ninv_c = self.mesh_crystal.num_invariant_harmonic(
-        #          self.max_degree)
-        # ninv_c_tot = np.sum(ninv_c[:,1])
-
-        # ninv_s = self.mesh_sample.num_invariant_harmonic(
-        #          self.max_degree)
-        # ninv_s_tot = np.sum(ninv_s[:,1])
-
-        """
-        some degrees for which the crystal symmetry has
-        fewer terms than sample symmetry or vice versa 
-        needs to be weeded out
-        """
-        # allowed_degrees = []
-        # V_c_allowed = {}
-        # V_s_allowed = {}
-        # for i in np.arange(0,self.max_degree+1,2):
-        #     if i in ninv_c[:,0] and i in ninv_s[:,0]:
-        #         idc = int(np.where(ninv_c[:,0] == i)[0])
-        #         ids = int(np.where(ninv_s[:,0] == i)[0])
-                
-        #         allowed_degrees.append([i, ninv_c[idc,1], ninv_s[ids,1]])
-
-        #         ist, ien = self._index_of_harmonics(i, "crystal")
-        #         V_c_allowed[i] = V_c[:,ist:ien]
-
-        #         ist, ien = self._index_of_harmonics(i, "sample")
-        #         V_s_allowed[i] = V_s[:,ist:ien]
-
-        # allowed_degrees = np.array(allowed_degrees).astype(np.int32)
  
         tex_fact = np.zeros([self.sample_dir.shape[0], 
                              self.hkl.shape[0]])
