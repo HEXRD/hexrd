@@ -6,12 +6,9 @@ import h5py
 from numpy.polynomial.polynomial import Polynomial
 from warnings import warn
 from hexrd.transforms.xfcapi import anglesToGVec
-<<<<<<< HEAD
 from hexrd.wppf import phase
 from lmfit import Parameters, Minimizer
 
-=======
->>>>>>> d2b18de (pole figure class handle pole figure data from hedm experiment.)
 """
 ========================================================================================================
 ========================================================================================================
@@ -31,24 +28,14 @@ from lmfit import Parameters, Minimizer
 ========================================================================================================
 ========================================================================================================   
 """
-<<<<<<< HEAD
 
 I3 = np.eye(3)
 
-
-=======
-I3 = np.eye(3)
-
->>>>>>> d2b18de (pole figure class handle pole figure data from hedm experiment.)
 Xl = np.ascontiguousarray(I3[:, 0].reshape(3, 1))     # X in the lab frame
 Zl = np.ascontiguousarray(I3[:, 2].reshape(3, 1))     # Z in the lab frame
 
 bVec_ref = -Zl
-<<<<<<< HEAD
 eta_ref = Xl
-=======
-eHat_l = Xl
->>>>>>> d2b18de (pole figure class handle pole figure data from hedm experiment.)
 
 class mesh_s2:
     """
@@ -977,24 +964,14 @@ class pole_figures:
             v = v/np.linalg.norm(v)
             self.hkls_c[ii,:] = v
 
-    def convert_angs_to_gvecs(self):
-        """
-        this routine converts angular coordinates in (tth, eta, omega)
-        to g-vectors in the lab frame
-        """
-        self.gvecs = {}
-        for k,v in self.pfdata.items():
             angs = v[:,0:3]
+
             if np.abs(angs).max() > 2.0*np.pi:
                 msg = f"angles seem to be large. converting to radians."
                 print(msg)
                 angs = np.atleast_2d(np.radians(angs))
-                self.pfdata[k][:,0:3] = angs
 
-            self.gvecs[k] = anglesToGVec(angs, 
-                                         bHat_l=self.bHat_l,
-                                         eHat_l=self.eHat_l,
-                                         chi=self.chi)
+                self.pfdata[k][:,0:3] = angs
 
     @property
     def num_pfs(self):
