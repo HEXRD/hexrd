@@ -1,6 +1,6 @@
 import numpy as np
 from hexrd.valunits import valWUnit
-from hexrd.spacegroup import Allowed_HKLs
+from hexrd.spacegroup import Allowed_HKLs, SpaceGroup
 from hexrd import symmetry, symbols, constants
 from hexrd.material import Material
 from hexrd.unitcell import _rqpDict
@@ -47,6 +47,8 @@ class Material_LeBail:
             self.GenerateRecipPGSym()
             self.CalcMaxGIndex()
             self._calchkls()
+            self.sg = SpaceGroup(self.sgnum)
+
         else:
             if(isinstance(material_obj, Material)):
                 self._init_from_materials(material_obj)
@@ -98,6 +100,7 @@ class Material_LeBail:
         self.dmin = material_obj.dmin.getVal('nm')
         self.sgnum = material_obj.unitcell.sgnum
         self.sgsetting = material_obj.sgsetting
+        self.sg = SpaceGroup(self.sgnum)
 
         if(material_obj.latticeParameters[0].unit == 'nm'):
             self.lparms = [x.value for x in material_obj.latticeParameters]
@@ -645,6 +648,7 @@ class Material_Rietveld:
             self.InitializeInterpTable()
             self.CalcWavelength()
             self.CalcPositions()
+            self.sg = SpaceGroup(self.sgnum)
 
         else:
             if(isinstance(material_obj, Material)):
@@ -670,7 +674,8 @@ class Material_Rietveld:
 
         # space group number
         self.sgnum = material_obj.sgnum
-
+        self.sg = SpaceGroup(self.sgnum)
+        
         # space group setting
         self.sgsetting = material_obj.sgsetting
 
