@@ -146,6 +146,7 @@ class SpaceGroup:
 
     @property
     def laueGroup_international(self):
+        """Internationl symbol for Laue group (read only)"""
         return _laue_international[self._laueGroup]
 
     @property

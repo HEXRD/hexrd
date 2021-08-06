@@ -325,7 +325,7 @@ class harmonic_model:
         self.mesh_crystal = mesh_s2(self.crystal_symmetry)
         self.mesh_sample = mesh_s2(self.sample_symmetry)
 
-        self.init_harmonic_values(pole_figures)
+        self.init_harmonic_values()
 
     def init_harmonic_values(self):
         """
@@ -348,7 +348,7 @@ class harmonic_model:
             self.V_c_allowed[key], self.V_s_allowed[key] = \
             self._compute_harmonic_values_grid(hkl,
                                                sample_dir)
-            self.allowed_degrees[key] = self._allowed_degrees()
+        self.allowed_degrees = self._allowed_degrees()
 
     def _compute_harmonic_values_grid(self,
                                       hkl,
@@ -371,7 +371,6 @@ class harmonic_model:
         fewer terms than sample symmetry or vice versa 
         needs to be weeded out
         """
-        allowed_degrees = []
         V_c_allowed = {}
         V_s_allowed = {}
         for i in np.arange(0,self.max_degree+1,2):
@@ -416,7 +415,8 @@ class harmonic_model:
         tex_fact = {}
         for g in self.pole_figures.hkls:
             key = str(g)[1:-1].replace(" ","")
-            tex_fact[key] = np.zeros([self.pole_figures.gvecs.shape[0],])
+            nsamp = self.pole_figures.gvecs[key].shape[0]
+            tex_fact[key] = np.zeros([nsamp,])
 
             tex_fact[key] = self._compute_sum(nsamp,
                                               coef,
@@ -454,7 +454,6 @@ class harmonic_model:
 
 
     def _compute_sum(self,
-                    gpos,
                     nsamp,
                     coef,
                     allowed_degrees,
@@ -472,7 +471,7 @@ class harmonic_model:
         for i,(k,v) in enumerate(allowed_degrees.items()):
             deg = k
 
-            kc = V_c_allowed[deg][gpos,:]
+            kc = V_c_allowed[deg]
 
             ks = V_s_allowed[deg].T
 
