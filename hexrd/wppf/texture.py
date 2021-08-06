@@ -400,7 +400,8 @@ class harmonic_model:
         tex_fact = {}
         for g in self.pole_figures.hkls:
             key = str(g)[1:-1].replace(" ","")
-            tex_fact[key] = np.zeros([self.pole_figures.gvecs.shape[0],])
+            nsamp = self.pole_figures.gvecs[key].shape[0]
+            tex_fact[key] = np.zeros([nsamp,])
 
             tex_fact[key] = self._compute_sum(nsamp,
                                               coef,
@@ -437,7 +438,6 @@ class harmonic_model:
             raise ValueError(msg)
 
     def _compute_sum(self,
-                    gpos,
                     nsamp,
                     coef,
                     allowed_degrees,
@@ -455,7 +455,7 @@ class harmonic_model:
         for i,(k,v) in enumerate(allowed_degrees.items()):
             deg = k
 
-            kc = V_c_allowed[deg][gpos,:]
+            kc = V_c_allowed[deg]
 
             ks = V_s_allowed[deg].T
 
