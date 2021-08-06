@@ -60,7 +60,7 @@ __all__ = ['Material', 'loadMaterialList']
 
 
 def _angstroms(x):
-    return valWUnit('xrayenergy', 'energy',  x, 'keV')
+    return valWUnit('lp', 'length',  x, 'angstrom')
 
 
 def _degrees(x):
@@ -68,7 +68,7 @@ def _degrees(x):
 
 
 def _kev(x):
-    return valWUnit('lp', 'length',  x, 'angstrom')
+    return valWUnit('xrayenergy', 'energy',  x, 'keV')
 
 def _key(x):
     return x.name
@@ -1065,9 +1065,9 @@ def load_materials_hdf5(f, dmin=Material.DFLT_DMIN, kev=Material.DFLT_KEV,
     if isinstance(dmin, float):
         dmin = _angstroms(dmin)
 
-    if instance(kev, float):
+    if isinstance(kev, float):
         kev = _kev(kev)
-        
+
     return {
         name: Material(name, f, dmin=dmin, kev=kev, sgsetting=sgsetting)
         for name in names
