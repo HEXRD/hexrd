@@ -900,9 +900,41 @@ class harmonic_model:
         first check if the dimensions of coef is consistent with
         the maximum degrees of the harmonics 
         """
-        for ii in np.arange(hkls.shape[0]):
-            pass
-        
+
+        """
+        check if class already exists with the same
+        hkl values. if it does, then do nothing. 
+        otherwise initialize a new instance
+        """
+        init = True
+        if hasattr(self, "pf_equiangular"):
+            if self.pf_equiangular.hkls.shape == hkls.shape:
+                if np.sum(np.abs(hkls - self.pf_equiangular.hkls)) < 1e-6:
+                    init = False
+        if init:
+            angs = self.init_equiangular_grid()
+            mat  = self.pole_figures.material
+            bHat_l = self.pole_figures.bHat_l
+            eHat_l = self.pole_figures.eHat_l
+            chi = self.pole_figures.chi
+            pfdata = {}
+            for g in hkls:
+                key = str(g)[1:-1].replace(" ","")
+                pfdata[key] = angs
+
+            args   = (mat, hkls, pfdata)
+            kwargs = {"bHat_l":bHat_l,
+                      "eHat_l":eHat_l,
+                      "chi":chi}
+            self.pf_equiangular = pole_figures(*args, **kwargs)
+
+        model = harmonic_model(self.pf_equiangular,
+                               self.sample_symmetry,
+                               self.max_degree)
+
+        model.coeff = self.coeff
+
+        return model.recalculate_pole_figures()
 
 class pole_figures:
     """
