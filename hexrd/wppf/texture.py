@@ -6,6 +6,7 @@ import h5py
 from numpy.polynomial.polynomial import Polynomial
 from warnings import warn
 from hexrd.transforms.xfcapi import anglesToGVec
+from hexrd.wppf import phase
 
 """
 ========================================================================================================
@@ -32,7 +33,7 @@ Xl = np.ascontiguousarray(I3[:, 0].reshape(3, 1))     # X in the lab frame
 Zl = np.ascontiguousarray(I3[:, 2].reshape(3, 1))     # Z in the lab frame
 
 bVec_ref = -Zl
-eHat_l = Xl
+eta_ref = Xl
 
 class mesh_s2:
     """
@@ -308,7 +309,7 @@ class harmonic_model:
                 sample_symmetry,
                 max_degree):
 
-        self.crystal_symmetry = pole_figures.material.self.SYM_PG_d_laue
+        self.crystal_symmetry = pole_figures.material.sg.laueGroup_international
         self.sample_symmetry = sample_symmetry
         self.max_degree = max_degree
         self.mesh_crystal = mesh_s2(self.crystal_symmetry)
@@ -329,8 +330,8 @@ class harmonic_model:
         self.V_s_allowed = {}
         self.allowed_degrees = {}
         for ii in np.arange(pole_figures.num_pfs):
-            key = pole_figures.hkls[ii,:]
-            hkl = pole_figures.hkls_c[ii,:]
+            key = str(pole_figures.hkls[ii,:])[1:-1].replace(" ", "")
+            hkl = np.atleast_2d(pole_figures.hkls_c[ii,:])
             sample_dir = pole_figures.gvecs[key]
 
             self.V_c_allowed[key], self.V_s_allowed[key] = \
@@ -402,24 +403,6 @@ class harmonic_model:
                    f"ignoring extra terms.")
             warn(msg)
             coef = coef[:ncoef_inv]
-
-        """
-        get total number of invariant functions and
-        also number of invariant functions for each degree
-        """
-        # ninv_c = self.mesh_crystal.num_invariant_harmonic(
-        #          self.max_degree)
-        # ninv_c_tot = np.sum(ninv_c[:,1])
-
-        # ninv_s = self.mesh_sample.num_invariant_harmonic(
-        #          self.max_degree)
-        # ninv_s_tot = np.sum(ninv_s[:,1])
-
-        """
-        some degrees for which the crystal symmetry has
-        fewer terms than sample symmetry or vice versa 
-        needs to be weeded out
-        """
  
         tex_fact = np.zeros([self.sample_dir.shape[0], 
                              self.hkl.shape[0]])
@@ -625,7 +608,7 @@ class pole_figures:
 
     @property
     def num_pfs(self):
-        return len(pfdata)
+        return len(self.pfdata)
 
     # no setter for num_pfs
 
