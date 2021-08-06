@@ -604,7 +604,7 @@ class pole_figures:
         """
         self.gvecs = {}
         for k,v in self.pfdata.items():
-            angs = v[0:3]
+            angs = v[:,0:3]
             if np.abs(angs).max() > 2.0*np.pi:
                 msg = f"angles seem to be large. converting to radians."
                 print(msg)
