@@ -588,6 +588,54 @@ class harmonic_model:
                 vals = np.hstack((vals,inp_intensity))
         return residual
 
+    def init_coeff_params(self):
+        """
+        this function initializes a lmfit 
+        parameter class with all the coefficients.
+        this will be passed to the minimize
+        routine
+        """
+        params = Parameters()
+        for ii,(k,v) in enumerate(self.allowed_degrees.items()):
+          for icry in np.arange(v[0]):
+              for isamp in np.arange(v[1]):
+                  vname = f"c_{k}_{icry}{isamp}"
+                  params.add(vname,value=self.coeff[ii],vary=True)
+        return params
+
+    def set_coeff_from_param(self, params):
+        """
+        this function takes the the values in the 
+        parameters and sets the values of the coefficients
+        """
+        for ii,k in enumerate(params):
+            self.coeff[ii] = params[k].value
+
+    def residual_function(self, params):
+        """
+        calculate the residual between input pole figure
+        data and generalized axis distribution function
+        """
+        self.set_coeff_from_param(params)
+        pf_recalc = self.recalculate_pole_figures()
+
+        for ii,(k,v) in enumerate(self.pole_figures.pfdata.items()):
+            inp_intensity = np.squeeze(v[:,3])
+            calc_intensity = np.squeeze(pf_recalc[k])
+            diff = inp_intensity-calc_intensity
+            if ii == 0:
+                residual = diff
+                vals = inp_intensity
+            else:
+                residual = np.hstack((residual,diff))
+                vals = np.hstack((vals,inp_intensity))
+
+        Rp = np.linalg.norm(residual)/np.linalg.norm(vals)
+        msg = f"Rp error = {Rp*100} %"
+        print(msg)
+        return residual
+
+
     def _compute_harmonic_values_grid(self,
                                       hkl,
                                       sample_dir):
@@ -867,6 +915,21 @@ class harmonic_model:
             np.savetxt(fname, v, fmt="%10.4f", delimiter="\t")
 
 
+    def refine(self):
+        """
+        this is the function which updates the harmonic coefficients
+        to fit better to the input pole figure data. 
+        """
+        params = self.init_coeff_params()
+        fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
+         'verbose': 0, 'max_nfev': 1000, 'method':'trf',
+         'jac':'2-point'}
+        fitter = Minimizer(self.residual_function, params)
+
+        res = fitter.least_squares(**fdict)
+        params_res = res.params
+        self.set_coeff_from_param(params_res)
+
     def recalculate_pole_figures(self):
         """
         this function calculates the pole figures for
@@ -942,6 +1005,16 @@ class harmonic_model:
             pfdata[k] = np.hstack((np.degrees(v[:,0:2]), np.atleast_2d(pf[k]).T ))
 
         return pfdata
+
+    def write_pole_figures(self, pfdata):
+        """
+        take output of the calc_pole_figures routine and write
+        it out as text files
+        """
+        for k,v in pfdata.items():
+            fname = f"pf_{k}.txt"
+            np.savetxt(fname, v, fmt="%10.4f", delimiter="\t")
+
 
 class pole_figures:
     """
