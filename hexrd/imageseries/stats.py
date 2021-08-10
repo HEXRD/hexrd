@@ -213,7 +213,6 @@ def _toarray(ims, nframes, rows=None, buffer=None):
         nbf = len(buffer)
         if r0 == 0:
             # copy as many frames as possible into buffer
-            print("copying images to buffer")
             for i in range(nbf):
                 buffer[i] = ims[i]
 
@@ -228,7 +227,6 @@ def _toarray(ims, nframes, rows=None, buffer=None):
 
 def _alloc_buffer(ims, nf):
     """Allocate buffer to save as many full frames as possible"""
-    print("allocating buffer")
     shp, dt = ims.shape, ims.dtype
     framesize = shp[0]*shp[1]*dt.itemsize
     nf = np.minimum(nf, np.floor(STATS_BUFFER/framesize).astype(int))
