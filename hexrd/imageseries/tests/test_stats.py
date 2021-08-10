@@ -2,25 +2,25 @@ import numpy as np
 
 from hexrd import imageseries
 from hexrd.imageseries import stats
-
 from .common import ImageSeriesTest, make_array, make_array_ims
+from .common import random_array
 
 
 class TestImageSeriesStats(ImageSeriesTest):
 
 
     def test_stats_average(self):
-        """Processed imageseries: median"""
-        a = make_array()
+        """imageseries.stats: average"""
+        a = random_array
         is_a = imageseries.open(None, 'array', data=a)
         is_avg = stats.average(is_a)
-        np_avg = np.average(a, axis=0)
+        np_avg = np.average(a, axis=0).astype(np.float32)
         err = np.linalg.norm(np_avg - is_avg)
-        self.assertAlmostEqual(err, 0., msg="stats.median failed")
+        self.assertAlmostEqual(err, 0., msg="stats.average failed")
         self.assertEqual(is_avg.dtype, np.float32)
 
     def test_stats_median(self):
-        """Processed imageseries: median"""
+        """imageseries.stats: median"""
         a = make_array()
         is_a = imageseries.open(None, 'array', data=a)
         ismed = stats.median(is_a)
@@ -30,7 +30,7 @@ class TestImageSeriesStats(ImageSeriesTest):
         self.assertEqual(ismed.dtype, np.float32)
 
     def test_stats_max(self):
-        """Processed imageseries: median"""
+        """imageseries.stats: max"""
         a = make_array()
         is_a = imageseries.open(None, 'array', data=a)
         ismax = stats.max(is_a)
@@ -41,7 +41,7 @@ class TestImageSeriesStats(ImageSeriesTest):
 
 
     def test_stats_min(self):
-        """Processed imageseries: median"""
+        """imageseries.stats: min"""
         a = make_array()
         is_a = imageseries.open(None, 'array', data=a)
         ismin = stats.min(is_a)
@@ -52,31 +52,32 @@ class TestImageSeriesStats(ImageSeriesTest):
 
 
     def test_stats_percentile(self):
-        """Processed imageseries: median"""
+        """imageseries.stats: percentile"""
         a = make_array()
         is_a = imageseries.open(None, 'array', data=a)
         isp90 = stats.percentile(is_a, 90)
-        ap90 = np.percentile(a, 90, axis=0)
+        ap90 = np.percentile(a, 90, axis=0).astype(np.float32)
         err = np.linalg.norm(ap90 - isp90)
-        self.assertAlmostEqual(err, 0., msg="stats.min failed")
+        self.assertAlmostEqual(err, 0., msg="stats.percentile failed")
         self.assertEqual(isp90.dtype, np.float32)
 
 
     def test_stats_chunk(self):
-        """Processed imageseries: median"""
-        a = make_array()
+        """imageseries.stats: chunked average"""
+        a = random_array
         is_a = imageseries.open(None, 'array', data=a)
-        amed = np.median(a, axis=0)
+        amed = np.average(a, axis=0)
+        amed = stats.average(a)
 
         # Run with 1 chunk
         img = np.zeros(is_a.shape)
         for ismed1 in stats.average_iter(is_a, 1):
             pass
         err = np.linalg.norm(amed - ismed1)
-        self.assertAlmostEqual(err, 0., msg="stats.median failed")
+        self.assertAlmostEqual(err, 0., msg="stats.average failed")
 
         # Run with 2 chunks
         for ismed2 in stats.average_iter(is_a, 2):
             pass
         err = np.linalg.norm(amed - ismed2)
-        self.assertAlmostEqual(err, 0., msg="stats.median failed")
+        self.assertAlmostEqual(err, 0., msg="stats.average failed")

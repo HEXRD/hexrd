@@ -15,12 +15,16 @@ img = stats.average(ims)
 for img in stats.average_iter(ims, 10):
     # update progress bar
     pass
+
+NOTE:
+* Perhaps we should rename min -> minimum and max -> maximum to avoid
+  conflicting with the python built-ins
 """
 import numpy as np
 
 from psutil import virtual_memory
 
-# Default Buffer: half of available memory
+# Default Buffer Size: half of available memory
 vmem = virtual_memory()
 STATS_BUFFER = int(0.5*vmem.available)
 del vmem
@@ -118,22 +122,31 @@ def average_iter(ims, nchunk, nframes=0):
 
 
 def percentile(ims, pctl, nframes=0):
-    """percentile function over frames"""
+    """percentile function over frames
+
+    ims - the imageseries
+    pctl - the percentile
+    nframes - the number of frames to use (default/0 = all)
+    """
     nf = _nframes(ims, nframes)
     return np.percentile(_toarray(ims, nf), pctl, axis=0).astype(np.float32)
 
 
-def percentile_iter(ims, pctl, nchunks,  nframes=0):
+def percentile_iter(ims, pctl, nchunks,  nframes=0, use_buffer=True):
     """iterator for percentile function"""
     nf = _nframes(ims, nframes)
     nr, nc = ims.shape
     stops = _chunk_stops(nr, nchunks)
     r0 = 0
     img = np.zeros(ims.shape)
+    buffer = _alloc_buffer(ims, nf) if use_buffer else None
     for s in stops:
         r1 = s + 1
-        img[r0:r1] = np.percentile(_toarray(ims, nf, (r0, r1)), pctl, axis=0)
-        r0 = s
+        img[r0:r1] = np.percentile(
+            _toarray(ims, nf, rows=(r0, r1), buffer=buffer),
+            pctl, axis=0
+        )
+        r0 = r1
         yield img.astype(np.float32)
 
 
@@ -141,8 +154,10 @@ def median(ims, nframes=0):
     return percentile(ims, 50, nframes=nframes)
 
 
-def median_iter(ims, nchunks, nframes=0):
-    return percentile_iter(ims, 50, nchunks, nframes=nframes)
+def median_iter(ims, nchunks, nframes=0, use_buffer=True):
+    return percentile_iter(
+        ims, 50, nchunks, nframes=nframes, use_buffer=use_buffer
+    )
 
 
 # ==================== Utilities
@@ -170,16 +185,53 @@ def _chunk_stops(n, nchunks):
     return np.cumsum(pieces)
 
 
-def _toarray(ims, nframes, rows=None):
+def _toarray(ims, nframes, rows=None, buffer=None):
+    """generate array for either whole imageseries or subset of rows
+
+    ims - imageseries
+    nframes - number of frames to use
+
+    OPTIONAL
+    rows - if None, use all rows, otherwise a 2-tuple of row indices
+    buffer - if None, get images directly from ims, otherwise
+             use buffer to store frames of the imageseries to
+             prevent repeated frame accesses; buffer only applies
+             if rows is not None
+    """
     nr, nc = ims.shape
+    use_buffer = buffer is not None
     if rows is None: # use all
+        use_buffer, nbf = False, 0
         r0, r1 = 0, nr
         ashp = (nframes, nr, nc)
     else:
         r0, r1 = rows
         ashp = (nframes, r1 - r0, nc)
+
+    nbf = 0
+    if use_buffer:
+        nbf = len(buffer)
+        if r0 == 0:
+            # copy as many frames as possible into buffer
+            print("copying images to buffer")
+            for i in range(nbf):
+                buffer[i] = ims[i]
+
     a = np.empty(ashp, dtype=ims.dtype)
-    for i in range(nframes):
+    if use_buffer:
+        a[:nbf] = buffer[:nbf, r0:r1, :]
+    for i in range(nbf, nframes):
         a[i] = ims[i][r0:r1]
 
     return a
+
+
+def _alloc_buffer(ims, nf):
+    """Allocate buffer to save as many full frames as possible"""
+    print("allocating buffer")
+    shp, dt = ims.shape, ims.dtype
+    framesize = shp[0]*shp[1]*dt.itemsize
+    nf = np.minimum(nf, np.floor(STATS_BUFFER/framesize).astype(int))
+    bshp = (nf,) +  shp
+
+    return np.empty(bshp, dt)
