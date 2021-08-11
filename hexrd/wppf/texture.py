@@ -207,7 +207,12 @@ class mesh_s2:
         the value of harmonics upto the nodal degree of
         freedom is return. the user can then select how many
         to use and where to truncate
+
+        Note that if z component is negative, an inversion 
+        symmetry is automatically applied to the point
         """
+        mask = points[:,-1] < 0.
+        points[mask,:] = -points[mask,:]
         bary_center, simplex_id = self._get_barycentric_coordinates(points)
         node_id = self.mesh.simplices[simplex_id]
 
@@ -326,6 +331,8 @@ class harmonic_model:
         self.mesh_sample = mesh_s2(self.sample_symmetry)
 
         self.init_harmonic_values()
+        self.phon = 0.0
+        self.itercounter = 0
 
         self.phon = 0.0
         self.itercounter = 0
@@ -596,10 +603,14 @@ class harmonic_model:
         routine
         """
         params = Parameters()
+        self.coeff_loc = {}
+        ctr = 0
         for ii,(k,v) in enumerate(self.allowed_degrees.items()):
           for icry in np.arange(v[0]):
               for isamp in np.arange(v[1]):
-                  vname = f"c_{k}_{icry}{isamp}"
+                  vname = f"c_{k}_{icry}_{isamp}"
+                  self.coeff_loc[vname] = ctr
+                  ctr += 1
                   params.add(vname,value=self.coeff[ii],vary=True)
         return params
 
@@ -609,7 +620,8 @@ class harmonic_model:
         parameters and sets the values of the coefficients
         """
         for ii,k in enumerate(params):
-            self.coeff[ii] = params[k].value
+            loc = self.coeff_loc[k]
+            self.coeff[loc] = params[k].value
 
     def residual_function(self, params):
         """
@@ -622,7 +634,7 @@ class harmonic_model:
         for ii,(k,v) in enumerate(self.pole_figures.pfdata.items()):
             inp_intensity = np.squeeze(v[:,3])
             calc_intensity = np.squeeze(pf_recalc[k])
-            diff = inp_intensity-calc_intensity
+            diff = (inp_intensity-calc_intensity-self.phon)
             if ii == 0:
                 residual = diff
                 vals = inp_intensity
@@ -631,10 +643,28 @@ class harmonic_model:
                 vals = np.hstack((vals,inp_intensity))
 
         Rp = np.linalg.norm(residual)/np.linalg.norm(vals)
-        msg = f"Rp error = {Rp*100} %"
-        print(msg)
+        if np.mod(self.itercounter,100) == 0:
+            msg = f"iteration# {self.itercounter}, Rp error = {Rp*100} %"
+            print(msg)
+        self.itercounter += 1
         return residual
 
+    def phon_residual_function(self, params):
+        """
+        calculate the residual in estimating the uniform
+        portion of the odf to make it into a sharp odf.
+        same method as mtex
+        """
+        for ii,(k,v) in enumerate(self.pole_figures.pfdata.items()):
+            inp_intensity = np.squeeze(v[:,3])
+            diff = (inp_intensity - params["phon"].value)
+            if ii == 0:
+                residual = diff
+                vals = inp_intensity
+            else:
+                residual = np.hstack((residual,diff))
+                vals = np.hstack((vals,inp_intensity))
+        return residual
 
     def _compute_harmonic_values_grid(self,
                                       hkl,
@@ -920,13 +950,34 @@ class harmonic_model:
         this is the function which updates the harmonic coefficients
         to fit better to the input pole figure data. 
         """
+        """
+        first determine the phon
+        """
+        # params = Parameters()
+        # params.add("phon",value=0.0)
+        # fdict = {'ftol': 1e-4, 'xtol': 1e-4, 
+        #  'gtol': 1e-4,'max_nfev': 100}
+        # # fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
+        # #  'verbose': 0, 'max_nfev': 100, 'method':'trf',
+        # #  'jac':'2-point'}
+        # fitter = Minimizer(self.phon_residual_function, params)
+        # res = fitter.leastsq(**fdict)
+        # params_phon_res = res.params
+        # self.phon = params_phon_res["phon"].value
+
+        # msg = f"setting uniform portion to {self.phon}"
+        # print(msg)
+
         params = self.init_coeff_params()
-        fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
-         'verbose': 0, 'max_nfev': 1000, 'method':'trf',
+        fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
+         'verbose': 0, 'max_nfev': 10000, 'method':'trf',
          'jac':'2-point'}
+        # fdict = {'ftol': 1e-4, 'xtol': 1e-4, 
+        #  'gtol': 1e-4,'max_nfev': 10000}
         fitter = Minimizer(self.residual_function, params)
 
         res = fitter.least_squares(**fdict)
+        # res = fitter.leastsq(**fdict)
         params_res = res.params
         self.set_coeff_from_param(params_res)
 
@@ -938,6 +989,7 @@ class harmonic_model:
         test how well the harmonic model fit the data.
         """
         return self.compute_texture_factor(self.coeff)
+
 
 
     def calc_pole_figures(self, 
@@ -998,11 +1050,13 @@ class harmonic_model:
                                self.max_degree)
 
         model.coeff = self.coeff
+        model.phon = self.phon
 
         pf = model.recalculate_pole_figures()
         pfdata = {}
         for k,v in self.pf_equiangular.pfdata.items():
-            pfdata[k] = np.hstack((np.degrees(v[:,0:2]), np.atleast_2d(pf[k]).T ))
+            pfdata[k] = np.hstack((np.degrees(v[:,0:2]), 
+                self.phon+np.atleast_2d(pf[k]).T ))
 
         return pfdata
 
