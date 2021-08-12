@@ -32,17 +32,11 @@ random_array = np.array(
       [ 6,  4, 16,  2, 16,  9, 18]]]
 )
 
-def make_array():
-    #a = np.zeros(_NFXY)
-    #ind = np.array([0,1,2])
-    #a[ind, 1,2] = 1 + ind
-    return random_array
-
-
 def make_array_ims():
-    is_a = imageseries.open(None, 'array', data=make_array(),
-                            meta=make_meta())
-    return is_a
+    is_a = imageseries.open(
+        None, 'array', data=random_array, meta=make_meta()
+    )
+    return random_array, is_a
 
 
 def compare(ims1, ims2):
