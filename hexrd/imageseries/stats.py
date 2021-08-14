@@ -200,7 +200,7 @@ def _toarray(ims, nframes, rows=None, buffer=None):
     """
     nr, nc = ims.shape
     use_buffer = buffer is not None
-    if rows is None: # use all
+    if rows is None:  # use all
         use_buffer, nbf = False, 0
         r0, r1 = 0, nr
         ashp = (nframes, nr, nc)
@@ -230,6 +230,6 @@ def _alloc_buffer(ims, nf):
     shp, dt = ims.shape, ims.dtype
     framesize = shp[0]*shp[1]*dt.itemsize
     nf = np.minimum(nf, np.floor(STATS_BUFFER/framesize).astype(int))
-    bshp = (nf,) +  shp
+    bshp = (nf,) + shp
 
     return np.empty(bshp, dt)
