@@ -201,7 +201,7 @@ def _toarray(ims, nframes, rows=None, buffer=None):
     nr, nc = ims.shape
     use_buffer = buffer is not None
     if rows is None:  # use all
-        use_buffer, nbf = False, 0
+        use_buffer = False
         r0, r1 = 0, nr
         ashp = (nframes, nr, nc)
     else:
