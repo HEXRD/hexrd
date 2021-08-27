@@ -732,7 +732,7 @@ class HEDMInstrument(object):
     # METHODS
     # =========================================================================
 
-    def write_config(self, filename=None, style='yaml', calibration_dict={}):
+    def write_config(self, file=None, style='yaml', calibration_dict={}):
         """ WRITE OUT YAML FILE """
         # initialize output dictionary
         assert style.lower() in ['yaml', 'hdf5'], \
@@ -774,15 +774,24 @@ class HEDMInstrument(object):
         par_dict['detectors'] = det_dict
 
         # handle output file if requested
-        if filename is not None:
+        if file is not None:
             if style.lower() == 'yaml':
-                with open(filename, 'w') as f:
+                with open(file, 'w') as f:
                     yaml.dump(par_dict, stream=f)
             else:
-                # hdf5
-                with h5py.File(filename, 'w') as f:
-                    instr_grp = f.create_group('instrument')
+                def _write_group(file):
+                    instr_grp = file.create_group('instrument')
                     unwrap_dict_to_h5(instr_grp, par_dict, asattr=False)
+
+                # hdf5
+                if isinstance(file, str):
+                    with h5py.File(file, 'w') as f:
+                        _write_group(f)
+                elif isinstance(file, h5py.File):
+                    _write_group(file)
+                else:
+                    raise TypeError("Unexpected file type.")
+
 
         return par_dict
 
