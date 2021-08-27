@@ -673,13 +673,13 @@ class Material(object):
 
         fid.close()
 
-    def dump_material(self, filename):
+    def dump_material(self, file, path=None):
         '''
         get the atominfo dictionaary aand the lattice parameters
         '''
         AtomInfo = {}
 
-        AtomInfo['file'] = filename
+        AtomInfo['file'] = file
         AtomInfo['xtalname'] = self.name
         AtomInfo['xtal_sys'] = xtal_sys_dict[self.unitcell.latticeType.lower()]
         AtomInfo['Z'] = self.unitcell.atom_type
@@ -701,7 +701,7 @@ class Material(object):
                      'beta': self.unitcell.beta,
                      'gamma': self.unitcell.gamma}
 
-        Write2H5File(AtomInfo, lat_param)
+        Write2H5File(AtomInfo, lat_param, path)
 
     # ============================== API
     #
@@ -1096,11 +1096,10 @@ def load_materials_hdf5(f, dmin=Material.DFLT_DMIN, kev=Material.DFLT_KEV,
     }
 
 
-def save_materials_hdf5(f, materials):
+def save_materials_hdf5(f, materials, path=None):
     """Save a dict of materials into an HDF5 file"""
     for material in materials.values():
-        material.dump_material(f)
-
+        material.dump_material(f, path)
 
 def hkls_match(a, b):
     # Check if hkls match. Expects inputs to have shape (x, 3).

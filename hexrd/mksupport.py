@@ -62,8 +62,8 @@ def GetXtalSystem():
 
         if(hexset == 1):
             bhexset = True
-            xtal_sys = 4  
-            # only temporarily set to 4 so that the correct 
+            xtal_sys = 4
+            # only temporarily set to 4 so that the correct
             # lattice parameter can be queried next
 
         elif(hexset == 2):
@@ -445,31 +445,51 @@ def GetOccDW(aniU=0):
 # write to H5 file
 
 
-def Write2H5File(AtomInfo, lat_param):
-    # first check if file exists
+def Write2H5File(AtomInfo, lat_param, path=None):
+    # Should we close the file? Only do so if we opened it
+    close = False
 
-    fexist = os.path.isfile(AtomInfo['file'])
+    if isinstance(AtomInfo['file'], str):
+        # first check if file exists
+        fexist = os.path.isfile(AtomInfo['file'])
 
-    if(fexist):
-        fid = h5py.File(AtomInfo['file'], 'r+')
+        if(fexist):
+            fid = h5py.File(AtomInfo['file'], 'r+')
+        else:
+            Warning('File doesn''t exist. creating it')
+            fid = h5py.File(AtomInfo['file'], 'x')
+
+        close = True
+    # Have we been past a h5py.File?
+    elif isinstance(AtomInfo['file'], h5py.File):
+        fid = AtomInfo['file']
     else:
-        Warning('File doesn''t exist. creating it')
-        fid = h5py.File(AtomInfo['file'], 'x')
+        raise TypeError('Unexpected file type.')
 
-    WriteH5Data(fid, AtomInfo, lat_param)
+    WriteH5Data(fid, AtomInfo, lat_param, path)
+
+    if close:
+        fid.close()
 
 
-def WriteH5Data(fid, AtomInfo, lat_param):
+def WriteH5Data(fid, AtomInfo, lat_param, path=None):
     """
-    @DATE 02/09/2021 SS added hkls, exclusions and dmin to 
+    @DATE 02/09/2021 SS added hkls, exclusions and dmin to
     material.h5 file output
     """
-    node = "/"+AtomInfo['xtalname']
+
+    # Add the path prefix if we have been given one
+    if path is not None:
+        path = f"{path}/{AtomInfo['xtalname']}"
+    else:
+        path = AtomInfo['xtalname']
+
+    node = f'/{path}'
     if node in fid:
         print("crystal already exists. overwriting...\n")
         del fid[node]
 
-    gid = fid.create_group(AtomInfo['xtalname'])
+    gid = fid.create_group(path)
 
     did = gid.create_dataset(
         "Atomtypes", (len(AtomInfo['Z']), ), dtype=np.int32)
@@ -540,5 +560,3 @@ def WriteH5Data(fid, AtomInfo, lat_param):
 
     pname = "ProgramName"
     did = gid.create_dataset(pname, data="heXRD", dtype=dt)
-
-    fid.close()
