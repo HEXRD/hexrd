@@ -616,7 +616,6 @@ def _add_texture_parameters(mat, degree):
     assumed sample symmetry. The same sample symmetry will be used
     for each of the phases.
     """
-    # FIXME: your variable `params` is undefined in this method @saransh13
     if isinstance(mat, Phases_Rietveld):
         """
         phase file
