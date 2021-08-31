@@ -63,7 +63,7 @@ class mesh_s2:
             self.points = pts/np.tile(n, [3,1]).T
 
             points_st = self.points[:,:2]/np.tile(
-                (1.+self.points[:,2]),[2,1]).T
+                (1.+np.abs(self.points[:,2])),[2,1]).T
 
             self.mesh = Delaunay(points_st, qhull_options="QJ")
 
@@ -80,7 +80,7 @@ class mesh_s2:
         points = points/np.tile(n, [3,1]).T
 
         points_st = points[:,:2]/np.tile(
-                (1.+points[:,2]),[2,1]).T
+                (1.+np.abs(points[:,2])),[2,1]).T
 
         simplices = self.mesh.find_simplex(points_st)
 
@@ -198,12 +198,7 @@ class mesh_s2:
         the value of harmonics upto the nodal degree of
         freedom is return. the user can then select how many
         to use and where to truncate
-
-        Note that if z component is negative, an inversion 
-        symmetry is automatically applied to the point
         """
-        mask = points[:,-1] < 0.
-        points[mask,:] = -points[mask,:]
         bary_center, simplex_id = self._get_barycentric_coordinates(points)
         node_id = self.mesh.simplices[simplex_id]
 
@@ -832,6 +827,27 @@ class pole_figures:
     def num_pfs(self):
         """ number of pole figures (read only) """
         return len(self.pfdata)
+
+    """
+    the pfdata property returns the pole figure data
+    in the form of a dictionary with keys as the hkl
+    values and the value as the (tth, eta, omega) array.
+    """
+    @property
+    def pfdata(self):
+        return self._pfdata
+    
+
+    """
+    the pfdata variable can be set in a couple of ways. 
+    the most frequently used case in HEDM dataset would
+    be to use the (tth, eta, omega) arrays, but option to
+    initialize directly using the g-vectors in the lab 
+    frame is also be provided in a future implementation.
+    """
+    @pfdata.setter
+    def pfdata(self, data):
+        self._pfdata = data
 
 Polya = {
         "m35":
