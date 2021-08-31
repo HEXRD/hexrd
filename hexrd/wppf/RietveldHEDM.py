@@ -23,15 +23,15 @@ class RietveldHEDM:
     ======================================================================
     ======================================================================
 
-    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, 
+    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab,
                     saransh1@llnl.gov
     >> @DATE:       08/24/2021 SS 1.0 original
 
-    >> @DETAILS:    new rietveld class which is specifically designed to 
+    >> @DETAILS:    new rietveld class which is specifically designed to
     handle the HEDM style datasets. the input to this class will be
     the imageseries and the instrument class, along with the usual material,
-    peakshape, background method etc. this class will also provide the 
-    flexibility to add the instrument parameters as refinable parameters 
+    peakshape, background method etc. this class will also provide the
+    flexibility to add the instrument parameters as refinable parameters
     and allow full 2-d fitting using the rietveld forward model. however,
     the most important test case is going to the texture inversion using the
     generalized axis distribution function for powder like HEDM datasets.
@@ -69,7 +69,7 @@ class RietveldHEDM:
         # self.computespectrum()
 
         self._tstop = time.time()
-        
+
         self.niter = 0
         self.Rwplist = np.empty([0])
         self.gofFlist = np.empty([0])
@@ -89,7 +89,7 @@ class RietveldHEDM:
     def add_texture_parameters(self):
         if self.texture_model_name == "harmonic":
             names = list(self.texture_model.coeff_loc.keys())
-            if not "phon" in self.params 
+            if not "phon" in self.params
                 self.params.add("phon", value=0.0, min=0.0)
             else:
                 self.params[n].value = 0.0
@@ -113,23 +113,23 @@ class RietveldHEDM:
                      ):
     """
     this function initializes the texture model for the Rietveld
-    class. the user needs to specify the start and stop ranges 
-    as well as the step sizes for eta and omega angles for the 
+    class. the user needs to specify the start and stop ranges
+    as well as the step sizes for eta and omega angles for the
     HEDM datasets. The range for tth is already a part of the class.
     this is likely going to be a fairly complicated function with
-    a lot of moving parts. one texture model will be initialized for 
-    each member of the phase class. the coefficients of the texture 
-    model will not be a part of the main parameter class, since there 
+    a lot of moving parts. one texture model will be initialized for
+    each member of the phase class. the coefficients of the texture
+    model will not be a part of the main parameter class, since there
     are a lot of these coefficients. instead we will use the parameter
     class initialized inside the texture model.
     """
 
     pass
     # self.texturemodel = {}
-    # eta = np.arange(eta_data[0], 
+    # eta = np.arange(eta_data[0],
     #                 eta_data[1]+1.,
     #                 eta_data[2])
-    # omega = np.arange(omega_data[0], 
+    # omega = np.arange(omega_data[0],
     #                 omega_data[1]+1.,
     #                 omega_data[2])
 
@@ -156,8 +156,8 @@ class RietveldHEDM:
     #                     data = np.vstack((data,tmp))
     #             pfdata[key] = data
 
-    #         pf = pole_figures(mat, 
-    #                           hkls, 
+    #         pf = pole_figures(mat,
+    #                           hkls,
     #                           pfdata)
     #         self.texturemodel[p] = harmonic_model(pf,
     #                                 sample_symmetry,
@@ -166,7 +166,7 @@ class RietveldHEDM:
     @property
     def instrument(self):
         return self._instrument
-    
+
     @instrument.setter
     def instrument(self, ins):
         if isinstance(ins, instrument):
@@ -180,7 +180,7 @@ class RietveldHEDM:
     @property
     def omegaimageseries(self):
         return self._omegaims
-    
+
     @omegaimageseries.setter
     def omegaimageseries(self, oims):
         if isinstance(oims, omega.OmegaImageSeries):
@@ -204,9 +204,9 @@ class RietveldHEDM:
         if hasattr(self, "instrument"):
             if hasattr(self, "extent"):
                 self.pv = PolarView(self.extent[0:2],
-                            ins, 
-                            eta_min=self.extent[2], 
-                            eta_max=self.extent[3], 
+                            ins,
+                            eta_min=self.extent[2],
+                            eta_max=self.extent[3],
                             pixel_size=px_sz)
                 self.prepare_polarview()
 
@@ -221,9 +221,9 @@ class RietveldHEDM:
         if hasattr(self, "instrument"):
             if hasattr(self, "pixel_size"):
                 self.pv = PolarView(ext[0:2],
-                                self.instrument, 
-                                eta_min=ext[2], 
-                                eta_max=ext[3], 
+                                self.instrument,
+                                eta_min=ext[2],
+                                eta_max=ext[3],
                                 pixel_size=self.pixel_size)
                 self.prepare_polarview()
 
@@ -244,7 +244,7 @@ class RietveldHEDM:
     @property
     def azimuthal_step(self):
         return self._azimuthal_step
-    
+
     @azimuthal_step.setter
     def azimuthal_step(self, val):
         self._azimuthal_step = val
@@ -253,11 +253,11 @@ class RietveldHEDM:
     @property
     def tth_min(self):
         return self.extent[0]
-    
+
     @property
     def tth_max(self):
         return self.extent[1]
-    
+
     @property
     def peakshape(self):
         return self._peakshape
@@ -457,7 +457,7 @@ class RietveldHEDM:
     @property
     def wavelength(self):
         lam = keVToAngstrom(self.instrument.beam_energy)
-        return {"lam1": 
+        return {"lam1":
                 [valWUnit('lp', 'length', lam, 'angstrom'),1.0]}
 
     @property
@@ -465,7 +465,7 @@ class RietveldHEDM:
         extent = self.extent
         shp = self.masked.shape[1]
         tthlim = extent[0:2]
-        return np.linspace(self.tth_min, 
+        return np.linspace(self.tth_min,
                            self.tth_max,
                            shp)
 
@@ -505,7 +505,7 @@ class RietveldHEDM:
     @property
     def refine_background(self):
         return self._refine_background
-    
+
     @refine_background.setter
     def refine_background(self, val):
         if isinstance(val, bool):

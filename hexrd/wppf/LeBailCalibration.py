@@ -31,19 +31,19 @@ class LeBailCalibrator:
     ======================================================================
     ======================================================================
 
-    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, 
+    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab,
                     saransh1@llnl.gov
     >> @DATE:       08/24/2021 SS 1.0 original
 
-    >> @DETAILS:    new lebail class which is specifically designed for 
+    >> @DETAILS:    new lebail class which is specifically designed for
     instrument calibration using the LeBail method. in this partcular
     implementation, instead of using the iterative method for computing the
     peak intensities, we will use them as parameters in the optimization
-    problem. the inputs include the instrument, the imageseries, material, 
+    problem. the inputs include the instrument, the imageseries, material,
     peakshapes etc.
 
     >> @PARAMETERS  instrument the instrument class in hexrd
-                    img_dict dictionary of images with same keys as 
+                    img_dict dictionary of images with same keys as
                     detectors in the instrument class
 
     ======================================================================
@@ -90,8 +90,8 @@ class LeBailCalibrator:
         self.calc_simulated()
 
         self._tstop = time.time()
-        
-        self.niter = 0
+
+        self.nfev = 0
         self.Rwplist = np.empty([0])
         self.gofFlist = np.empty([0])
 
@@ -153,7 +153,6 @@ class LeBailCalibrator:
         self.refine_background = False
         self.refine_instrument = False
 
-
     def prepare_polarview(self):
         self.masked = self.pv.warp_image(self.img_dict, \
                                         pad_with_nans=True, \
@@ -181,13 +180,14 @@ class LeBailCalibrator:
                         instr_updated,
                         lp_updated):
         """
-        this function calls the computespectrum function in the 
-        lebaillight class for all the azimuthal positions and 
+        this function calls the computespectrum function in the
+        lebaillight class for all the azimuthal positions and
         accumulates the error vector from each of those lineouts.
         this is more or less a book keeping function rather
         """
         errvec = np.empty([0,])
         rwp = []
+
         for k,v in self.lineouts_sim.items():
             v.params = self.params
             if instr_updated:
@@ -197,9 +197,9 @@ class LeBailCalibrator:
                 v.hkls = self.hkls
                 v.dsp = self.dsp
             v.shkl = self.shkl
-            
-
+            v.CalcIobs()
             v.computespectrum()
+
             ww = v.weights
             evec = ww*(v.spectrum_expt._y -
                    v.spectrum_sim._y)**2
@@ -222,23 +222,26 @@ class LeBailCalibrator:
         this is one of the main functions which differs fundamentally
         to the regular Lebail class. this function computes the residual
         as a colletion of residuals at different eta, omega values.
-        for the most traditional HED case, we will have only a single value 
+        for the most traditional HED case, we will have only a single value
         of omega. However, there will be support for the more complicated
         HEDM case in the future.
         """
+
         lp_updated = self.update_param_vals(params)
         self.update_shkl(params)
         instr_updated = self.update_instrument(params)
         errvec, rwp = self.computespectrum(instr_updated,
                                       lp_updated)
-        R = np.mean(rwp)
+        self.Rwp = np.mean(rwp)
         self.nfev += 1
-        if np.mod(self.nfev, 1) == 0:
-            msg = f"completed {self.nfev} evaluations. mean rwp = {R} %." 
+        self.Rwplist = np.append(self.Rwplist, self.Rwp)
+
+        if np.mod(self.nfev, 10) == 0:
+            msg = (f"refinement ongoing... \n weighted residual at "
+            f"iteration # {self.nfev} = {self.Rwp}\n")
             print(msg)
 
         return errvec
-
 
     def initialize_lmfit_parameters(self):
 
@@ -261,23 +264,22 @@ class LeBailCalibrator:
 
         params = self.initialize_lmfit_parameters()
 
-        fdict = {'ftol': 1e-5, 'xtol': 1e-5, 'gtol': 1e-5,
-         'verbose': 0, 'max_nfev': 1500, 'method':'trf',
-         'jac':'2-point'}
-        # fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
-        # 'max_nfev': 1000}
+        # fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6, 'factor':1000}
         fitter = lmfit.Minimizer(self.calcrwp, params)
-        self.nfev = 0
 
+        fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6}
         res = fitter.least_squares(**fdict)
         # res = fitter.leastsq(**fdict)
         self.res = res
-        # if self.res.success:
-        #     msg = f"optimization successful: {self.res.message}"
-        # else:
-        #     msg = f"optimization unsuccessful: {self.res.message}"
 
-        # print(msg)
+        if self.res.success:
+            msg = (f"\n \n optimization successful: {self.res.message}. \n"
+                f"weighted residual error = {self.Rwp}")
+        else:
+            msg = (f"\n \n optimization unsuccessful: {self.res.message}. \n"
+                f"weighted residual error = {self.Rwp}")
+
+        print(msg)
 
     def update_param_vals(self,
                           params):
@@ -371,7 +373,7 @@ class LeBailCalibrator:
     def bkgdegree(self):
         if "chebyshev" in self.bkgmethod.keys():
             return self.bkgmethod["chebyshev"]
-    
+
 
     @property
     def instrument(self):
@@ -382,9 +384,9 @@ class LeBailCalibrator:
         if isinstance(ins, instrument.HEDMInstrument):
             self._instrument = ins
             self.pv = PolarView(self.extent[0:2],
-                                ins, 
-                                eta_min=self.extent[2], 
-                                eta_max=self.extent[3], 
+                                ins,
+                                eta_min=self.extent[2],
+                                eta_max=self.extent[3],
                                 pixel_size=self.pixel_size)
 
             self.prepare_polarview()
@@ -395,7 +397,7 @@ class LeBailCalibrator:
     # @property
     # def omegaimageseries(self):
     #     return self._omegaims
-    
+
     # @omegaimageseries.setter
     # def omegaimageseries(self, oims):
     #     if isinstance(oims, omega.OmegaImageSeries):
@@ -419,9 +421,9 @@ class LeBailCalibrator:
         if hasattr(self, "instrument"):
             if hasattr(self, "pixel_size"):
                 self.pv = PolarView(ext[0:2],
-                                self.instrument, 
-                                eta_min=ext[2], 
-                                eta_max=ext[3], 
+                                self.instrument,
+                                eta_min=ext[2],
+                                eta_max=ext[3],
                                 pixel_size=self.pixel_size)
                 self.prepare_polarview()
 
@@ -446,16 +448,16 @@ class LeBailCalibrator:
     @property
     def wavelength(self):
         lam = keVToAngstrom(self.instrument.beam_energy)
-        return {"lam1": 
+        return {"lam1":
                 [valWUnit('lp', 'length', lam, 'angstrom'),1.0]}
 
     def striphkl(self, g):
-        return str(g)[1:-1].replace(" ","") 
+        return str(g)[1:-1].replace(" ","")
 
     @property
     def refine_background(self):
         return self._refine_background
-    
+
     @refine_background.setter
     def refine_background(self, val):
         if "chebyshev" in self.bkgmethod.keys():
@@ -476,7 +478,7 @@ class LeBailCalibrator:
     @property
     def refine_instrument(self):
         return self._refine_instrument
-    
+
     @refine_instrument.setter
     def refine_instrument(self, val):
         if isinstance(val, bool):
@@ -534,9 +536,9 @@ class LeBailCalibrator:
         if hasattr(self, "instrument"):
             if hasattr(self, "extent"):
                 self.pv = PolarView(self.extent[0:2],
-                            ins, 
-                            eta_min=self.extent[2], 
-                            eta_max=self.extent[3], 
+                            ins,
+                            eta_min=self.extent[2],
+                            eta_max=self.extent[3],
                             pixel_size=px_sz)
                 self.prepare_polarview()
 
@@ -586,7 +588,7 @@ class LeBailCalibrator:
                 imd[dname] = imd[dname] / lp
 
         return imd
-    
+
     @img_dict.setter
     def img_dict(self, imd):
         self._img_dict = imd
@@ -607,7 +609,7 @@ class LeBailCalibrator:
     @property
     def azimuthal_step(self):
         return self._azimuthal_step
-    
+
     @azimuthal_step.setter
     def azimuthal_step(self, val):
         self._azimuthal_step = val
@@ -616,11 +618,11 @@ class LeBailCalibrator:
     @property
     def tth_min(self):
         return self.extent[0]+self.pixel_size[0]*0.5
-    
+
     @property
     def tth_max(self):
         return self.extent[1]-+self.pixel_size[0]*0.5
-    
+
     @property
     def peakshape(self):
         return self._peakshape
@@ -824,7 +826,7 @@ class LeBailCalibrator:
         for p in self.phases:
             shkl[p] = self.phases[p].shkl
         return shkl
-    
+
 
     def calc_simulated(self):
         self.lineouts_sim = {}
@@ -844,7 +846,7 @@ class LeBailCalibrator:
 class LeBaillight:
     """
     just a lightweight LeBail class which does only the
-    simple computation of diffraction spectrum given the 
+    simple computation of diffraction spectrum given the
     parameters and intensity values
     """
     def __init__(self,
@@ -872,11 +874,11 @@ class LeBaillight:
         self.dsp = dsp
         self.bkgmethod = bkgmethod
         self.computespectrum()
-        self.CalcIobs()
-        self.computespectrum()
+        # self.CalcIobs()
+        # self.computespectrum()
 
     def computespectrum(self):
-        
+
         x = self.tth_list
         y = np.zeros(x.shape)
         tth_list = np.ascontiguousarray(self.tth_list)
@@ -929,8 +931,8 @@ class LeBaillight:
                             strain_direction_dot_product,
                             is_in_sublattice,
                             tth_list,
-                            Ic, 
-                            self.xn, 
+                            Ic,
+                            self.xn,
                             self.wn)
 
                 elif self.peakshape == 1:
@@ -1030,7 +1032,7 @@ class LeBaillight:
                             eta_fwhm,
                             HL,
                             SL,
-                            self.xn, 
+                            self.xn,
                             self.wn,
                             tth,
                             dsp,
@@ -1038,7 +1040,7 @@ class LeBaillight:
                             strain_direction_dot_product,
                             is_in_sublattice,
                             tth_list,
-                            Ic, 
+                            Ic,
                             spec_expt,
                             spec_sim)
 
@@ -1088,11 +1090,11 @@ class LeBaillight:
     @property
     def weights(self):
         lo = self.lineout
-        weights = 1./np.sqrt(lo.data[:,1])
-        weights = np.nan_to_num(weights)
+        weights = np.divide(1., np.sqrt(lo.data[:,1]))
+        weights[np.isinf(weights)] = 0.0
 
         return weights
-    
+
 
     @property
     def bkgdegree(self):
@@ -1109,7 +1111,7 @@ class LeBaillight:
         mask = self.mask[:,1]
 
         if "chebyshev" in self.bkgmethod.keys():
-            pname = [f"{self.name}_bkg_C{ii}" 
+            pname = [f"{self.name}_bkg_C{ii}"
             for ii in range(self.bkgdegree)]
 
             coef = [self.params[p].value for p in pname]
@@ -1132,26 +1134,26 @@ class LeBaillight:
     def spectrum_sim(self):
         tth, I = self._spectrum_sim.data
         mask = self.mask[:,1]
-        I[mask] = np.nan
+        # I[mask] = np.nan
         I += self.background
 
         return Spectrum(x=tth, y=I)
-    
+
     @property
     def spectrum_expt(self):
         d = self.lineout.data
         mask = self.mask[:,1]
-        d[mask,1] = np.nan
+        # d[mask,1] = np.nan
         return Spectrum(x=d[:,0], y=d[:,1])
 
     @property
     def params(self):
         return self._params
-    
+
     @params.setter
     def params(self, params):
         """
-        set the local value of the parameters to the 
+        set the local value of the parameters to the
         global values from the calibrator class
         """
         if isinstance(params, Parameters_lmfit):
@@ -1187,7 +1189,7 @@ class LeBaillight:
     @property
     def lineout(self):
         return self._lineout
-    
+
     @lineout.setter
     def lineout(self,lo):
         if isinstance(lo,np.ma.MaskedArray):
@@ -1211,7 +1213,7 @@ class LeBaillight:
     @property
     def tth(self):
         return self._tth
-    
+
 
     @tth.setter
     def tth(self, val):
@@ -1243,7 +1245,7 @@ class LeBaillight:
     @property
     def dsp(self):
         return self._dsp
-    
+
     @dsp.setter
     def dsp(self, val):
         if isinstance(val, dict):
