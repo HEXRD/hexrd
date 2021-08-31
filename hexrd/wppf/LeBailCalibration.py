@@ -13,6 +13,7 @@ from hexrd.wppf.phase import Phases_LeBail, Material_LeBail
 from hexrd.imageutil import snip1d, snip1d_quad
 from hexrd.material import Material
 from hexrd.valunits import valWUnit
+from hexrd.constants import keVToAngstrom
 
 from hexrd import instrument
 from hexrd import imageseries
@@ -79,7 +80,7 @@ class LeBailCalibrator:
 
         self.intensity_init = intensity_init
 
-        # self.initialize_Icalc()
+        self.initialize_Icalc()
 
         # self.computespectrum()
 
@@ -123,57 +124,22 @@ class LeBailCalibrator:
         a dictionary of structure factors
         """
 
-        self.Icalc = {}
+        self.Icalc = []
 
-        if(self.intensity_init is None):
-            if self.spectrum_expt._y.max() > 0:
-                n10 = np.floor(np.log10(self.spectrum_expt._y.max())) - 1
-            else:
-                n10 = 0
+        for ii in range(len(self.lineouts)):
+
+            Icalc = {}
 
             for p in self.phases:
-                self.Icalc[p] = {}
+                Icalc[p] = {}
                 for k, l in self.phases.wavelength.items():
+                    Icalc[p][k] = np.zeros(self.tth[p][k].shape)
 
-                    self.Icalc[p][k] = (10**n10) * \
-                        np.ones(self.tth[p][k].shape)
+            self.Icalc.append(Icalc)
+            prefix = f"azpos{ii}"
+            wppfsupport._add_intensity_parameters(self.params,Icalc,prefix)
 
-        elif(isinstance(self.intensity_init, dict)):
-            """
-                first check if intensities for all phases are present in the
-                passed dictionary
-            """
-            for p in self.phases:
-                if p not in self.intensity_init:
-                    raise RuntimeError("LeBail: Intensity was initialized\
-                     using custom values. However, initial values for one \
-                     or more phases seem to be missing from the dictionary.")
-                self.Icalc[p] = {}
-
-                """
-                now check that the size of the initial intensities provided is consistent
-                with the number of reflections (size of initial intensity > size of hkl is allowed.
-                the unused values are ignored.)
-
-                for this we need to step through the different wavelengths in the spectrum and check
-                each of them
-                """
-                for l in self.phases.wavelength:
-                    if l not in self.intensity_init[p]:
-                        raise RuntimeError("LeBail: Intensity was initialized\
-                         using custom values. However, initial values for one \
-                         or more wavelengths in spectrum seem to be missing \
-                         from the dictionary.")
-
-                    if(self.tth[p][l].shape[0] <=
-                       self.intensity_init[p][l].shape[0]):
-                        self.Icalc[p][l] = \
-                            self.intensity_init[p][l][0:self.tth[p]
-                                                      [l].shape[0]]
-        else:
-            raise RuntimeError(
-                "LeBail: Intensity_init must be either\
-                 None or a dictionary")
+        self.refine_intensities = False
 
     def computespectrum(self):
         """
@@ -380,6 +346,35 @@ class LeBailCalibrator:
         shp = self.masked.shape[1]
         tthlim = extent[0:2]
         return np.linspace(tthlim[0],tthlim[1],shp)
+    
+
+    @property
+    def wavelength(self):
+        lam = keVToAngstrom(self.instrument.beam_energy)
+        return {"lam1": 
+                [valWUnit('lp', 'length', lam, 'angstrom'),1.0]}
+    
+
+    @property
+    def refine_intensities(self):
+        return self._refine_intensities
+
+    @refine_intensities.setter
+    def refine_intensities(self, val):
+        if isinstance(val, bool):
+            self._refine_intensities = val
+            prefix = "azpos"
+            for ii,Icalc in enumerate(self.Icalc):
+                for p in Icalc:
+                    for k in Icalc[p]:
+                        shape = Icalc[p][k].shape[0]
+                        pname = [f"{prefix}{ii}_{p}_{k}_I{jj}" 
+                        for jj in range(shape)]
+                        for jj in range(shape):
+                            self.params[pname[jj]].vary = val
+        else:
+            msg = "only boolean values accepted"
+            raise ValueError(msg)
     
 
     @property
