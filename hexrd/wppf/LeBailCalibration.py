@@ -9,6 +9,7 @@ calc_Iobs_pvfcj,\
 calc_Iobs_pvtch,\
 calc_Iobs_pvpink
 from hexrd.wppf import wppfsupport
+from hexrd.wppf.phase import Phases_LeBail, Material_LeBail
 from hexrd.imageutil import snip1d, snip1d_quad
 from hexrd.material import Material
 from hexrd.valunits import valWUnit
@@ -108,8 +109,8 @@ class LeBailCalibrator:
                 t = t[allowed]
                 hkl = self.phases[p].hkls[allowed, :]
                 dsp = self.phases[p].dsp[allowed]
-                tth_min = min(self.tth_min)
-                tth_max = max(self.tth_max)
+                tth_min = self.tth_min
+                tth_max = self.tth_max
                 limit = np.logical_and(t >= tth_min,
                                        t <= tth_max)
                 self.tth[p][k] = t[limit]
@@ -470,3 +471,210 @@ class LeBailCalibrator:
     def azimuthal_step(self, val):
         self._azimuthal_step = val
         self.prepare_lineouts()
+
+    @property
+    def tth_min(self):
+        return self.extent[0]
+    
+    @property
+    def tth_max(self):
+        return self.extent[1]
+    
+    @property
+    def peakshape(self):
+        return self._peakshape
+
+    @peakshape.setter
+    def peakshape(self, val):
+        """
+        @TODO make sure the parameter list
+        is updated when the peakshape changes
+        """
+        if isinstance(val, str):
+            if val == "pvfcj":
+                self._peakshape = 0
+            elif val == "pvtch":
+                self._peakshape = 1
+            elif val == "pvpink":
+                self._peakshape = 2
+            else:
+                msg = (f"invalid peak shape string. "
+                    f"must be: \n"
+                    f"1. pvfcj: pseudo voight (Finger, Cox, Jephcoat)\n"
+                    f"2. pvtch: pseudo voight (Thompson, Cox, Hastings)\n"
+                    f"3. pvpink: Pink beam (Von Dreele)")
+                raise ValueError(msg)
+        elif isinstance(val, int):
+            if val >=0 and val <=2:
+                self._peakshape = val
+            else:
+                msg = (f"invalid peak shape int. "
+                    f"must be: \n"
+                    f"1. 0: pseudo voight (Finger, Cox, Jephcoat)\n"
+                    f"2. 1: pseudo voight (Thompson, Cox, Hastings)\n"
+                    f"3. 2: Pink beam (Von Dreele)")
+                raise ValueError(msg)
+
+        """
+        update parameters
+        """
+        if hasattr(self, 'params'):
+            params = wppfsupport._generate_default_parameters_Rietveld(
+                    self.phases, self.peakshape)
+            for p in params:
+                if p in self.params:
+                    params[p] = self.params[p]
+            self._params = params
+            # self._set_params_vals_to_class(params, init=True, skip_phases=True)
+            # self.computespectrum()
+
+    @property
+    def phases(self):
+        return self._phases
+
+    @phases.setter
+    def phases(self, phase_info):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       06/08/2020 SS 1.0 original
+                        09/11/2020 SS 1.1 multiple different ways to initialize phases
+                        09/14/2020 SS 1.2 added phase initialization from material.Material class
+                        03/05/2021 SS 2.0 moved everything to property setter
+        >> @DETAILS:    load the phases for the LeBail fits
+        """
+
+        if(phase_info is not None):
+            if(isinstance(phase_info, Phases_LeBail)):
+                """
+                directly passing the phase class
+                """
+                self._phases = phase_info
+
+            else:
+
+                if(hasattr(self, 'wavelength')):
+                    if(self.wavelength is not None):
+                        p = Phases_LeBail(wavelength=self.wavelength)
+                else:
+                    p = Phases_LeBail()
+
+                if(isinstance(phase_info, dict)):
+                    """
+                    initialize class using a dictionary with key as
+                    material file and values as the name of each phase
+                    """
+                    for material_file in phase_info:
+                        material_names = phase_info[material_file]
+                        if(not isinstance(material_names, list)):
+                            material_names = [material_names]
+                        p.add_many(material_file, material_names)
+
+                elif(isinstance(phase_info, str)):
+                    """
+                    load from a yaml file
+                    """
+                    if(path.exists(phase_info)):
+                        p.load(phase_info)
+                    else:
+                        raise FileError('phase file doesn\'t exist.')
+
+                elif(isinstance(phase_info, Material)):
+                    p[phase_info.name] = Material_LeBail(
+                        fhdf=None,
+                        xtal=None,
+                        dmin=None,
+                        material_obj=phase_info)
+
+                elif(isinstance(phase_info, list)):
+                    for mat in phase_info:
+                        p[mat.name] = Material_LeBail(
+                            fhdf=None,
+                            xtal=None,
+                            dmin=None,
+                            material_obj=mat)
+
+                        p.num_phases += 1
+
+                    for mat in p:
+                        p[mat].pf = 1.0/p.num_phases
+
+                self._phases = p
+
+        self.calctth()
+
+        for p in self.phases:
+            self.phases[p].valid_shkl, \
+            self.phases[p].eq_constraints, \
+            self.phases[p].rqd_index, \
+            self.phases[p].trig_ptype = \
+            wppfsupport._required_shkl_names(self.phases[p])
+
+    @property
+    def params(self):
+        return self._params
+
+    @params.setter
+    def params(self, param_info):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       05/19/2020 SS 1.0 original
+                        09/11/2020 SS 1.1 modified to accept multiple input types
+                        03/05/2021 SS 2.0 moved everything to the property setter
+        >> @DETAILS:    initialize parameter list from file. if no file given, then initialize
+                        to some default values (lattice constants are for CeO2)
+        """
+        from scipy.special import roots_legendre
+        xn, wn = roots_legendre(16)
+        self.xn = xn[8:]
+        self.wn = wn[8:]
+
+        if(param_info is not None):
+            if(isinstance(param_info, Parameters)):
+                """
+                directly passing the parameter class
+                """
+                self._params = param_info
+                params = param_info
+
+            else:
+                params = Parameters()
+
+                if(isinstance(param_info, dict)):
+                    """
+                    initialize class using dictionary read from the yaml file
+                    """
+                    for k, v in param_info.items():
+                        params.add(k, value=np.float(v[0]),
+                                   lb=np.float(v[1]), ub=np.float(v[2]),
+                                   vary=np.bool(v[3]))
+
+                elif(isinstance(param_info, str)):
+                    """
+                    load from a yaml file
+                    """
+                    if(path.exists(param_info)):
+                        params.load(param_info)
+                    else:
+                        raise FileError('input spectrum file doesn\'t exist.')
+
+                """
+                this part initializes the lattice parameters in the
+                """
+                for p in self.phases:
+                    wppfsupport._add_lp_to_params(
+                        params, self.phases[p])
+
+                self._params = params
+        else:
+            """
+                first three are cagliotti parameters
+                next two are the lorentz paramters
+                final is the zero instrumental peak position error
+                mixing factor calculated by Thomax, Cox, Hastings formula
+            """
+            params = wppfsupport._generate_default_parameters_LeBail(
+                self.phases, self.peakshape)
+            wppfsupport._add_detector_geometry(params, self.instrument)
+            self._params = params
+
+        # self._set_params_vals_to_class(params, init=True, skip_phases=True)

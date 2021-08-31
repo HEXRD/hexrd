@@ -37,6 +37,7 @@ from hexrd.wppf.parameters import Parameters
 from hexrd.wppf.phase import Phases_LeBail, Phases_Rietveld
 from hexrd.material import Material
 from hexrd.unitcell import _rqpDict
+from hexrd import instrument
 import numpy as np
 from hexrd import constants
 
@@ -569,6 +570,25 @@ def _getnumber(arr):
     res = res.astype(np.int32)
 
     return res
+
+def _add_detector_geometry(params, instr):
+    """
+    this function adds the geometry of the 
+    detector as a parameter to the LeBail class
+    such that those can be refined as well 
+    """
+    if isinstance(instr, instrument.HEDMInstrument):
+        for key,det in instr.detectors.items():
+            tvec = det.tvec
+            tilt = det.tilt
+            pnametvec = [f"{key}_tvec{i}" for i in range(3)]
+            pnametilt = [f"{key}_tilt{i}" for i in range(3)]
+            [params.add(name=pnametvec[i],value=tvec[i]) for i in range(3)]
+            [params.add(name=pnametilt[i],value=tilt[i]) for i in range(3)]
+    else:
+        msg = "input is not an HEDMInstrument class"
+        raise ValueError(msg)
+
 
 background_methods = {
     'spline': None,
