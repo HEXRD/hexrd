@@ -13,8 +13,6 @@ class ProcessedImageSeries(ImageSeries):
     RECT = 'rectangle'
     ADD = 'add'
 
-    _opdict = {}
-
     def __init__(self, imser, oplist, **kwargs):
         """imsageseries based on existing one with image processing options
 
@@ -32,6 +30,7 @@ class ProcessedImageSeries(ImageSeries):
         self._oplist = oplist
         self._frames = kwargs.pop('frame_list', None)
         self._hasframelist = (self._frames is not None)
+        self._opdict = {}
 
         self.addop(self.DARK, self._subtract_dark)
         self.addop(self.FLIP, self._flip)
@@ -121,14 +120,13 @@ class ProcessedImageSeries(ImageSeries):
         # this is a modifiable copy of metadata of the original imageseries
         return self._meta
 
-    @classmethod
-    def addop(cls, key, func):
+    def addop(self, key, func):
         """Add operation to processing options
 
         *key* - string to use to specify this op
         *func* - function to call for this op: f(data)
         """
-        cls._opdict[key] = func
+        self._opdict[key] = func
 
     @property
     def oplist(self):
