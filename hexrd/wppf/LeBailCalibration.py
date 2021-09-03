@@ -8,7 +8,7 @@ computespectrum_pvpink,\
 calc_Iobs_pvfcj,\
 calc_Iobs_pvtch,\
 calc_Iobs_pvpink
-from hexrd.wppf import wppfsupport
+from hexrd.wppf import wppfsupport, LeBail, parameters
 from hexrd.wppf.phase import Phases_LeBail, Material_LeBail
 from hexrd.imageutil import snip1d, snip1d_quad
 from hexrd.material import Material
@@ -82,8 +82,6 @@ class LeBailCalibrator:
 
         self.initialize_Icalc()
 
-        # self.computespectrum()
-
         self._tstop = time.time()
         
         self.niter = 0
@@ -141,100 +139,6 @@ class LeBailCalibrator:
 
         self.refine_intensities = False
 
-    def computespectrum(self):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       06/08/2020 SS 1.0 original
-        >> @DETAILS:    compute the simulated spectrum
-        """
-        x = self.tth_list
-        y = np.zeros(x.shape)
-        tth_list = np.ascontiguousarray(self.tth_list)
-
-        for iph, p in enumerate(self.phases):
-
-            for k, l in self.phases.wavelength.items():
-
-                Ic = self.Icalc[p][k]
-
-                shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.shft
-                trns_c = np.sin(np.radians(self.tth[p][k]))*self.trns
-                tth = self.tth[p][k] + \
-                      self.zero_error + \
-                      shft_c + \
-                      trns_c
-
-                dsp = self.dsp[p][k]
-                hkls = self.hkls[p][k]
-                n = np.min((tth.shape[0], Ic.shape[0]))
-                shkl = self.phases[p].shkl
-                name = self.phases[p].name
-                eta_n = f"self.{name}_eta_fwhm"
-                eta_fwhm = eval(eta_n)
-                strain_direction_dot_product = 0.
-                is_in_sublattice = False
-
-                if self.peakshape == 0:
-                    args = (np.array([self.U, self.V, self.W]),
-                            self.P,
-                            np.array([self.X, self.Y]),
-                            np.array([self.Xe, self.Ye, self.Xs]),
-                            shkl,
-                            eta_fwhm,
-                            self.HL,
-                            self.SL,
-                            tth,
-                            dsp,
-                            hkls,
-                            strain_direction_dot_product,
-                            is_in_sublattice,
-                            tth_list,
-                            Ic, self.xn, self.wn)
-
-                elif self.peakshape == 1:
-                    args = (np.array([self.U, self.V, self.W]),
-                            self.P,
-                            np.array([self.X, self.Y]),
-                            np.array([self.Xe, self.Ye, self.Xs]),
-                            shkl,
-                            eta_fwhm,
-                            tth,
-                            dsp,
-                            hkls,
-                            strain_direction_dot_product,
-                            is_in_sublattice,
-                            tth_list,
-                            Ic)
-
-                elif self.peakshape == 2:
-                    args = (np.array([self.alpha0, self.alpha1]),
-                            np.array([self.beta0, self.beta1]),
-                            np.array([self.U, self.V, self.W]),
-                            self.P,
-                            np.array([self.X, self.Y]),
-                            np.array([self.Xe, self.Ye, self.Xs]),
-                            shkl,
-                            eta_fwhm,
-                            tth,
-                            dsp,
-                            hkls,
-                            strain_direction_dot_product,
-                            is_in_sublattice,
-                            tth_list,
-                            Ic)
-
-                y += self.computespectrum_fcn(*args)
-
-        self._spectrum_sim = Spectrum(x=x, y=y)
-
-        P = calc_num_variables(self.params)
-
-        errvec, self.Rwp, self.gofF = calc_rwp(
-            self.spectrum_sim.data_array,
-            self.spectrum_expt.data_array,
-            self.weights.data_array,
-            P)
-        return errvec
 
     def prepare_polarview(self):
         self.masked = self.pv.warp_image(self.img_dict, \
@@ -269,8 +173,7 @@ class LeBailCalibrator:
         """
         self.set_params_vals_to_class(params)
 
-        errvec = self.computespectrum()
-        return errvec
+        # return errvec
 
     @property
     def instrument(self):
@@ -288,7 +191,6 @@ class LeBailCalibrator:
                                 pixel_size=self.pixel_size)
 
             self.prepare_polarview()
-            # self.computespectrum()
         else:
             msg = "input is not an instrument class."
             raise RuntimeError(msg)
@@ -354,7 +256,6 @@ class LeBailCalibrator:
         return {"lam1": 
                 [valWUnit('lp', 'length', lam, 'angstrom'),1.0]}
     
-
     @property
     def refine_intensities(self):
         return self._refine_intensities
@@ -520,8 +421,7 @@ class LeBailCalibrator:
                 if p in self.params:
                     params[p] = self.params[p]
             self._params = params
-            # self._set_params_vals_to_class(params, init=True, skip_phases=True)
-            # self.computespectrum()
+
 
     @property
     def phases(self):
@@ -661,15 +561,69 @@ class LeBailCalibrator:
 
                 self._params = params
         else:
-            """
-                first three are cagliotti parameters
-                next two are the lorentz paramters
-                final is the zero instrumental peak position error
-                mixing factor calculated by Thomax, Cox, Hastings formula
-            """
+
             params = wppfsupport._generate_default_parameters_LeBail(
                 self.phases, self.peakshape)
+            self.lebail_param_list = [p for p in params]
             wppfsupport._add_detector_geometry(params, self.instrument)
             self._params = params
 
-        # self._set_params_vals_to_class(params, init=True, skip_phases=True)
+class LeBaillight:
+    """
+    just a lightweight LeBail class which does only the
+    simple computation of diffraction spectrum given the 
+    parameters and intensity values
+    """
+    def __init__(self,
+                name,
+                lebail_param_list,
+                params):
+
+        self.name = name
+        self.lebail_param_list = lebail_param_list
+        self.params = params
+
+    def computespectrum(self):
+        pass
+
+    @property
+    def params(self):
+        return self._params
+    
+    @params.setter
+    def params(self, params):
+        """
+        set the local value of the parameters to the 
+        global values from the calibrator class
+        """
+        if isinstance(params, parameters.Parameters):
+            if hasattr(self, 'params'):
+                for p in params:
+                    if (p in self.lebail_param_list) or (self.name in p):
+                        self._params[p].value = params[p].value
+                        self._params[p].ub = params[p].ub
+                        self._params[p].lb = params[p].lb
+                        self._params[p].vary = params[p].vary
+            else:
+                self._params = parameters.Parameters()
+                for p in params:
+                    if (p in self.lebail_param_list) or (self.name in p):
+                        self._params.add(name=p,
+                                            value=params[p].value,
+                                            ub=params[p].ub,
+                                            lb=params[p].lb,
+                                            vary=params[p].vary)
+
+            self.computespectrum()
+        else:
+            msg = "only Parameters class permitted"
+            raise ValueError(msg)
+
+    @property
+    def Icalc(self):
+        Ic = []
+        for p in self.params:
+            if self.name in p:
+                Ic.append(self.params[p].value)
+        return np.array(Ic)
+    
