@@ -736,7 +736,11 @@ class unitcell:
         if charge == '0':
             sfact = constants.scatfac[elem]
         else:
-            sfact = constants.scatfac[f"{elem}{charge}"]
+            cs = f"{elem}{charge}"
+            if cs in constants.scatfac:
+                sfact = constants.scatfac[f"{elem}{charge}"]
+            else:
+                sfact = constants.scatfac[elem]
         fe = sfact[5]
         fNT = constants.fNT[elem]
         frel = constants.frel[elem]

@@ -558,12 +558,24 @@ class Material(object):
 
         satype = cifdata[atype]
         atomtype = []
-
+        charge = []
         for s in satype:
+            if "+" in s:
+                ss = s.split("+")
+                c  = f"{ss[1]}+"
+                s  = ss[0]
+            if "-" in s:
+                ss = s.split("-")
+                c  = f"{ss[1]}-"
+                s  = ss[0]
+            else:
+                c = "0"
+
             atomtype.append(ptable[s])
+            charge.append(c)
 
         self._atomtype = numpy.asarray(atomtype).astype(numpy.int32)
-        self._charge = ['0']*self._atomtype.shape[0]
+        self._charge = charge
         self._sgsetting = 0
 
     def _readHDFxtal(self, fhdf=DFLT_NAME, xtal=DFLT_NAME):
