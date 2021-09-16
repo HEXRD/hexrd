@@ -92,10 +92,10 @@ def min_iter(ims, nchunk, nframes=0):
 def average(ims, nframes=0):
     """average over frames"""
     nf = _nframes(ims, nframes)
-    img = ims[0]
+    img = ims[0].astype(np.float32)
     for i in range(1, nf):
         img += ims[i]
-    return (img/nf).astype(np.float32)
+    return img / nf
 
 
 def average_iter(ims, nchunk, nframes=0):
@@ -106,7 +106,7 @@ def average_iter(ims, nchunk, nframes=0):
     nf = _nframes(ims, nframes)
     stops = _chunk_stops(nf, nchunk)
     s0, stop = 0, stops[0]
-    img = ims[0]
+    img = ims[0].astype(np.float32)
     if stop == 0:
         if nf > 1:
             s0, stop = 1, stops[1]
@@ -118,7 +118,7 @@ def average_iter(ims, nchunk, nframes=0):
             if (i + 1) < nf:
                 s0 += 1
                 stop = stops[s0]
-            yield (img/(i+1)).astype(np.float32)
+            yield img / (i + 1)
 
 
 def percentile(ims, pctl, nframes=0):
