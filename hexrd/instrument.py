@@ -2527,9 +2527,38 @@ class PlanarDetector(object):
                 on_panel = np.logical_and(on_panel_x, on_panel_y)
         return xy[on_panel, :], on_panel
 
-    def cart_to_angles(self, xy_data, rmat_s=None, tvec_s=None, tvec_c=None):
+    def cart_to_angles(self, xy_data,
+                       rmat_s=None,
+                       tvec_s=None, tvec_c=None,
+                       apply_distortion=False):
         """
-        TODO: distortion
+        Transform cartesian coordinates to angular.
+
+        Parameters
+        ----------
+        xy_data : TYPE
+            The (n, 2) array of n (x, y) coordinates to be transformed in
+            either the raw or ideal cartesian plane (see `apply_distortion`
+            kwarg below).
+        rmat_s : array_like, optional
+            The (3, 3) COB matrix for the sample frame. The default is None.
+        tvec_s : array_like, optional
+            The (3, ) translation vector for the sample frame.
+            The default is None.
+        tvec_c : array_like, optional
+            The (3, ) translation vector for the crystal frame.
+            The default is None.
+        apply_distortion : bool, optional
+            If True, apply distortion to the inpout cartesian coordinates.
+            The default is False.
+
+        Returns
+        -------
+        tth_eta : TYPE
+            DESCRIPTION.
+        g_vec : TYPE
+            DESCRIPTION.
+
         """
         if rmat_s is None:
             rmat_s = ct.identity_3x3
@@ -2537,6 +2566,8 @@ class PlanarDetector(object):
             tvec_s = ct.zeros_3
         if tvec_c is None:
             tvec_c = ct.zeros_3
+        if apply_distortion and self.distortion is not None:
+            xy_data = self.distortion.apply(xy_data)
         angs, g_vec = detectorXYToGvec(
             xy_data, self.rmat, rmat_s,
             self.tvec, tvec_s, tvec_c,
@@ -2546,9 +2577,35 @@ class PlanarDetector(object):
 
     def angles_to_cart(self, tth_eta,
                        rmat_s=None, tvec_s=None,
-                       rmat_c=None, tvec_c=None):
+                       rmat_c=None, tvec_c=None,
+                       apply_distortion=False):
         """
-        TODO: distortion
+        Transform angular coordinates to cartesian.
+
+        Parameters
+        ----------
+        tth_eta : array_like
+            The (n, 2) array of n (tth, eta) coordinates to be transformed.
+        rmat_s : array_like, optional
+            The (3, 3) COB matrix for the sample frame. The default is None.
+        tvec_s : array_like, optional
+            The (3, ) translation vector for the sample frame.
+            The default is None.
+        rmat_c : array_like, optional
+            (3, 3) COB matrix for the crystal frame.
+            The default is None.
+        tvec_c : array_like, optional
+            The (3, ) translation vector for the crystal frame.
+            The default is None.
+        apply_distortion : bool, optional
+            If True, apply distortion to take cartesian coordinates to the
+            "warped" configuration. The default is False.
+
+        Returns
+        -------
+        xy_det : array_like
+            The (n, 2) array on the n input coordinates in the .
+
         """
         if rmat_s is None:
             rmat_s = ct.identity_3x3
@@ -2568,6 +2625,8 @@ class PlanarDetector(object):
             self.rmat, rmat_s, rmat_c,
             self.tvec, tvec_s, tvec_c,
             beamVec=self.bvec)
+        if apply_distortion and self.distortion is not None:
+            xy_det = self.distortion.apply_inverse(xy_det)
         return xy_det
 
     def interpolate_nearest(self, xy, img, pad_with_nans=True):
