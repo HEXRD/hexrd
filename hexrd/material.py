@@ -519,7 +519,11 @@ class Material(object):
                 else:
                     occ.append(p)
 
-            atompos.append(numpy.asarray(occ).astype(numpy.float64))
+            chkstr = np.asarray([isinstance(x,str) for x in occ])
+            occstr = n.array(occ)
+            occstr[chkstr] = 1.0
+
+            atompos.append(numpy.asarray(occstr).astype(numpy.float64))
 
         if(not pU):
             warn('Debye-Waller factors not present. \
