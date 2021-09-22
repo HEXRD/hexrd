@@ -122,20 +122,20 @@ class LeBailCalibrator:
         a dictionary of structure factors
         """
 
-        self.Icalc = []
+        self.Icalc = {}
 
         for ii in range(len(self.lineouts)):
 
             Icalc = {}
-
+            g = {}
             for p in self.phases:
                 Icalc[p] = {}
                 for k, l in self.phases.wavelength.items():
                     Icalc[p][k] = np.zeros(self.tth[p][k].shape)
 
-            self.Icalc.append(Icalc)
             prefix = f"azpos{ii}"
-            wppfsupport._add_intensity_parameters(self.params,Icalc,prefix)
+            self.Icalc[prefix] = Icalc
+            wppfsupport._add_intensity_parameters(self.params,self.hkls,Icalc,prefix)
 
         self.refine_intensities = False
 
@@ -265,19 +265,18 @@ class LeBailCalibrator:
         if isinstance(val, bool):
             self._refine_intensities = val
             prefix = "azpos"
-            for ii,Icalc in enumerate(self.Icalc):
+            for ii,(azpos,Icalc) in enumerate(self.Icalc.items()):
                 for p in Icalc:
                     for k in Icalc[p]:
                         shape = Icalc[p][k].shape[0]
-                        pname = [f"{prefix}{ii}_{p}_{k}_I{jj}" 
-                        for jj in range(shape)]
+                        pname = [f"{prefix}{ii}_{p}_{k}_I{g}" 
+                        for jj,g in zip(range(shape),self.hkls[p][k])]
                         for jj in range(shape):
                             self.params[pname[jj]].vary = val
         else:
             msg = "only boolean values accepted"
             raise ValueError(msg)
     
-
     @property
     def pixel_size(self):
         return self._pixel_size

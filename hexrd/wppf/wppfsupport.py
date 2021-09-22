@@ -589,7 +589,7 @@ def _add_detector_geometry(params, instr):
         msg = "input is not an HEDMInstrument class"
         raise ValueError(msg)
 
-def _add_intensity_parameters(params,Icalc,prefix):
+def _add_intensity_parameters(params,hkls,Icalc,prefix):
     """
     this routine adds the Icalc values as refinable
     parameters in the params parameter class
@@ -597,7 +597,8 @@ def _add_intensity_parameters(params,Icalc,prefix):
     for p in Icalc:
         for k in Icalc[p]:
             shape = Icalc[p][k].shape[0]
-            pname = [f"{prefix}_{p}_{k}_I{i}" for i in range(shape)]
+            
+            pname = [f"{prefix}_{p}_{k}_I{g}" for i,g in zip(range(shape),hkls[p][k])]
             [params.add(name=pname[i],value=Icalc[p][k][i]) for i in range(shape)]
 
 background_methods = {
