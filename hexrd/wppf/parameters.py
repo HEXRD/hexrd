@@ -248,5 +248,5 @@ class Parameter:
 
     @vary.setter
     def vary(self, vary):
-         if(isinstance(vary, (bool, np.bool_))):
+        if(isinstance(vary, (bool, np.bool_))):
             self._vary = vary
