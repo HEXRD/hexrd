@@ -109,6 +109,8 @@ t_vec_s_DFLT = np.zeros(3)
 
 max_workers_DFLT = max(1, os.cpu_count() - 1)
 
+distortion_registry = distortion_pkg.Registry()
+
 """
 Calibration parameter flags
 
@@ -2115,9 +2117,11 @@ class PlanarDetector(object):
 
     @distortion.setter
     def distortion(self, x):
-        # FIXME: ne to reconcile check with new class type!
-        assert len(x) == 2 and hasattr(x[0], '__call__'), \
-            'distortion must be a tuple: (<func>, params)'
+        check_arg = np.zeros(len(distortion_registry), dtype=bool)
+        for i, dcls in enumerate(distortion_registry.values()):
+            check_arg[i] = isinstance(x, dcls)
+        assert np.any(check_arg), \
+            'input distortion is not in registry!'
         self._distortion = x
 
     @property
