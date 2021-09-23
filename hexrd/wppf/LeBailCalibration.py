@@ -714,6 +714,15 @@ class LeBaillight:
             raise ValueError(msg)
 
     @property
+    def mask(self):
+        return self.lineout.mask
+
+    @property
+    def tth_list(self):
+        return self.lineout[:,0].data
+    
+
+    @property
     def Icalc(self):
         Ic = []
         for p in self.params:
