@@ -149,7 +149,7 @@ class LeBailCalibrator:
         self.prepare_lineouts()
 
     def prepare_lineouts(self):
-        self.lineouts = []
+        self.lineouts = {}
         if hasattr(self, 'masked'):
            azch = self.azimuthal_chunks
            tth = self.tth_list
@@ -159,7 +159,8 @@ class LeBailCalibrator:
                 lo = self.masked[istr:istp,:].sum(axis=0) / \
                 np.sum(~self.masked[istr:istp,:].mask, axis=0)
                 data = np.ma.vstack((tth,lo)).T
-                self.lineouts.append(data)
+                key = f"azpos_{ii}"
+                self.lineouts[key] = data
 
 
     def calcrwp(self, params):
@@ -575,15 +576,97 @@ class LeBaillight:
     """
     def __init__(self,
                 name,
+                lineout,
                 lebail_param_list,
                 params):
 
         self.name = name
         self.lebail_param_list = lebail_param_list
         self.params = params
+        self.lineout = lineout
 
     def computespectrum(self):
         pass
+        # x = self.tth_list
+        # y = np.zeros(x.shape)
+        # tth_list = np.ascontiguousarray(self.tth_list)
+
+        # for iph, p in enumerate(self.phases):
+
+        #     for k, l in self.phases.wavelength.items():
+
+        #         Ic = self.Icalc[p][k]
+
+        #         shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.shft
+        #         trns_c = np.sin(np.radians(self.tth[p][k]))*self.trns
+        #         tth = self.tth[p][k] + \
+        #               self.zero_error + \
+        #               shft_c + \
+        #               trns_c
+
+        #         dsp = self.dsp[p][k]
+        #         hkls = self.hkls[p][k]
+        #         n = np.min((tth.shape[0], Ic.shape[0]))
+        #         shkl = self.phases[p].shkl
+        #         name = self.phases[p].name
+        #         eta_n = f"self.{name}_eta_fwhm"
+        #         eta_fwhm = eval(eta_n)
+        #         strain_direction_dot_product = 0.
+        #         is_in_sublattice = False
+
+        #         if self.peakshape == 0:
+        #             args = (np.array([self.U, self.V, self.W]),
+        #                     self.P,
+        #                     np.array([self.X, self.Y]),
+        #                     np.array([self.Xe, self.Ye, self.Xs]),
+        #                     shkl,
+        #                     eta_fwhm,
+        #                     self.HL,
+        #                     self.SL,
+        #                     tth,
+        #                     dsp,
+        #                     hkls,
+        #                     strain_direction_dot_product,
+        #                     is_in_sublattice,
+        #                     tth_list,
+        #                     Ic, self.xn, self.wn)
+
+        #         elif self.peakshape == 1:
+        #             args = (np.array([self.U, self.V, self.W]),
+        #                     self.P,
+        #                     np.array([self.X, self.Y]),
+        #                     np.array([self.Xe, self.Ye, self.Xs]),
+        #                     shkl,
+        #                     eta_fwhm,
+        #                     tth,
+        #                     dsp,
+        #                     hkls,
+        #                     strain_direction_dot_product,
+        #                     is_in_sublattice,
+        #                     tth_list,
+        #                     Ic)
+
+        #         elif self.peakshape == 2:
+        #             args = (np.array([self.alpha0, self.alpha1]),
+        #                     np.array([self.beta0, self.beta1]),
+        #                     np.array([self.U, self.V, self.W]),
+        #                     self.P,
+        #                     np.array([self.X, self.Y]),
+        #                     np.array([self.Xe, self.Ye, self.Xs]),
+        #                     shkl,
+        #                     eta_fwhm,
+        #                     tth,
+        #                     dsp,
+        #                     hkls,
+        #                     strain_direction_dot_product,
+        #                     is_in_sublattice,
+        #                     tth_list,
+        #                     Ic)
+
+        #         y += self.computespectrum_fcn(*args)
+
+        # self._spectrum_sim = Spectrum(x=x, y=y)
+
 
     @property
     def params(self):
@@ -616,6 +699,18 @@ class LeBaillight:
             self.computespectrum()
         else:
             msg = "only Parameters class permitted"
+            raise ValueError(msg)
+
+    @property
+    def lineout(self):
+        return self._lineout
+    
+    @lineout.setter
+    def lineout(self,lo):
+        if isinstance(lo,np.ma.MaskedArray):
+            self._lineout = lo
+        else:
+            msg = f"only masked arrays input is allowed."
             raise ValueError(msg)
 
     @property
