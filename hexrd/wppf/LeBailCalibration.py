@@ -8,6 +8,7 @@ computespectrum_pvpink,\
 calc_Iobs_pvfcj,\
 calc_Iobs_pvtch,\
 calc_Iobs_pvpink
+from hexrd.wppf.spectrum import Spectrum
 from hexrd.wppf import wppfsupport, LeBail, parameters
 from hexrd.wppf.phase import Phases_LeBail, Material_LeBail
 from hexrd.imageutil import snip1d, snip1d_quad
@@ -159,7 +160,7 @@ class LeBailCalibrator:
                 lo = self.masked[istr:istp,:].sum(axis=0) / \
                 np.sum(~self.masked[istr:istp,:].mask, axis=0)
                 data = np.ma.vstack((tth,lo)).T
-                key = f"azpos_{ii}"
+                key = f"azpos{ii}"
                 self.lineouts[key] = data
 
 
@@ -578,98 +579,131 @@ class LeBaillight:
                 name,
                 lineout,
                 tth,
-                dsp
+                hkls,
+                dsp,
+                shkl,
                 lebail_param_list,
-                params):
+                params,
+                peakshape):
 
         self.name = name
         self.lebail_param_list = lebail_param_list
+        self.peakshape = peakshape
         self.params = params
-        self.lineout = lineout
+        self.lineout = lineout[name]
+        self.shkl = shkl
         self.tth = tth
+        self.hkls = hkls
         self.dsp = dsp
 
     def computespectrum(self):
-        pass
+        
         x = self.tth_list
         y = np.zeros(x.shape)
         tth_list = np.ascontiguousarray(self.tth_list)
 
-        for p,tth in self.tth.items():
-            for k,l in self.tth[p].items():
+        for p in self.tth:
+            for k in self.tth[p]:
 
                 Ic = self.Icalc[p][k]
 
-                shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.shft
-                trns_c = np.sin(np.radians(self.tth[p][k]))*self.trns
+                shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.params["shft"].value
+                trns_c = np.sin(np.radians(self.tth[p][k]))*self.params["trns"].value
                 tth = self.tth[p][k] + \
-                      self.zero_error + \
+                      self.params["zero_error"].value + \
                       shft_c + \
                       trns_c
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
                 n = np.min((tth.shape[0], Ic.shape[0]))
-                # shkl = self.phases[p].shkl
-                # name = self.phases[p].name
-                eta_n = f"self.{name}_eta_fwhm"
-                eta_fwhm = eval(eta_n)
+                shkl = self.shkl[p]
+                name = p
+                eta_n = f"{name}_eta_fwhm"
+                eta_fwhm = self.params[eta_n].value
                 strain_direction_dot_product = 0.
                 is_in_sublattice = False
 
-        #         if self.peakshape == 0:
-        #             args = (np.array([self.U, self.V, self.W]),
-        #                     self.P,
-        #                     np.array([self.X, self.Y]),
-        #                     np.array([self.Xe, self.Ye, self.Xs]),
-        #                     shkl,
-        #                     eta_fwhm,
-        #                     self.HL,
-        #                     self.SL,
-        #                     tth,
-        #                     dsp,
-        #                     hkls,
-        #                     strain_direction_dot_product,
-        #                     is_in_sublattice,
-        #                     tth_list,
-        #                     Ic, self.xn, self.wn)
+                cag = np.array([self.params["U"].value,
+                                self.params["V"].value,
+                                self.params["W"].value])
+                gaussschrerr = self.params["P"].value
+                lorbroad = np.array([self.params["X"].value,
+                                     self.params["Y"].value])
+                anisbroad = np.array([self.params["Xe"].value,
+                                      self.params["Ye"].value,
+                                      self.params["Xs"].value])
+                if self.peakshape == 0:
+                    HL = self.params["HL"].value
+                    SL = self.params["SL"].value
+                    args = (cag,
+                            gaussschrerr,
+                            lorbroad,
+                            anisbroad,
+                            shkl,
+                            eta_fwhm,
+                            HL,
+                            SL,
+                            tth,
+                            dsp,
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic, 
+                            self.xn, 
+                            self.wn)
 
-        #         elif self.peakshape == 1:
-        #             args = (np.array([self.U, self.V, self.W]),
-        #                     self.P,
-        #                     np.array([self.X, self.Y]),
-        #                     np.array([self.Xe, self.Ye, self.Xs]),
-        #                     shkl,
-        #                     eta_fwhm,
-        #                     tth,
-        #                     dsp,
-        #                     hkls,
-        #                     strain_direction_dot_product,
-        #                     is_in_sublattice,
-        #                     tth_list,
-        #                     Ic)
+                elif self.peakshape == 1:
+                    args = (cag,
+                            gaussschrerr,
+                            lorbroad,
+                            anisbroad,
+                            shkl,
+                            eta_fwhm,
+                            tth,
+                            dsp,
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic)
 
-        #         elif self.peakshape == 2:
-        #             args = (np.array([self.alpha0, self.alpha1]),
-        #                     np.array([self.beta0, self.beta1]),
-        #                     np.array([self.U, self.V, self.W]),
-        #                     self.P,
-        #                     np.array([self.X, self.Y]),
-        #                     np.array([self.Xe, self.Ye, self.Xs]),
-        #                     shkl,
-        #                     eta_fwhm,
-        #                     tth,
-        #                     dsp,
-        #                     hkls,
-        #                     strain_direction_dot_product,
-        #                     is_in_sublattice,
-        #                     tth_list,
-        #                     Ic)
+                elif self.peakshape == 2:
+                    alpha = np.array([self.params["alpha0"].value,
+                                      self.params["alpha1"].value])
+                    beta = np.array([self.params["beta0"].value,
+                                     self.params["beta1"].value])
+                    args = (alpha,
+                            beta,
+                            cag,
+                            gaussschrerr,
+                            lorbroad,
+                            anisbroad,
+                            shkl,
+                            eta_fwhm,
+                            tth,
+                            dsp,
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic)
 
-        #         y += self.computespectrum_fcn(*args)
+                y += self.computespectrum_fcn(*args)
 
-        # self._spectrum_sim = Spectrum(x=x, y=y)
+        self._spectrum_sim = Spectrum(x=x, y=y)
 
+
+    @property
+    def spectrum_sim(self):
+        tth, I = self._spectrum_sim.data
+        mask = self.mask[:,1]
+        I[mask] = np.nan
+        # I += self.background.y
+
+        return Spectrum(x=tth, y=I)
+    
 
     @property
     def params(self):
@@ -681,6 +715,10 @@ class LeBaillight:
         set the local value of the parameters to the 
         global values from the calibrator class
         """
+        from scipy.special import roots_legendre
+        xn, wn = roots_legendre(16)
+        self.xn = xn[8:]
+        self.wn = wn[8:]
         if isinstance(params, parameters.Parameters):
             if hasattr(self, 'params'):
                 for p in params:
@@ -699,7 +737,10 @@ class LeBaillight:
                                             lb=params[p].lb,
                                             vary=params[p].vary)
 
-            self.computespectrum()
+            if hasattr(self, "tth") and \
+            hasattr(self, "dsp") and \
+            hasattr(self, "lineout"):
+                self.computespectrum()
         else:
             msg = "only Parameters class permitted"
             raise ValueError(msg)
@@ -736,8 +777,24 @@ class LeBaillight:
     @tth.setter
     def tth(self, val):
         if isinstance(val, dict):
-            self._tth = tth
+            self._tth = val
             if hasattr(self,"dsp"):
+                self.computespectrum()
+        else:
+            msg = (f"two theta vallues need "
+                   f"to be in a dictionary")
+            raise ValueError(msg)
+
+    @property
+    def hkls(self):
+        return self._hkls
+    @hkls.setter
+    def hkls(self, val):
+        if isinstance(val, dict):
+            self._hkls = val
+            if hasattr(self,"tth") and\
+            hasattr(self,"dsp") and\
+            hasattr(self,"lineout"):
                 self.computespectrum()
         else:
             msg = (f"two theta vallues need "
@@ -752,7 +809,7 @@ class LeBaillight:
     @dsp.setter
     def dsp(self, val):
         if isinstance(val, dict):
-            self._dsp = dsp
+            self._dsp = val
             self.computespectrum()
         else:
             msg = (f"two theta vallues need "
@@ -761,9 +818,24 @@ class LeBaillight:
             
     @property
     def Icalc(self):
-        Ic = []
-        for p in self.params:
-            if self.name in p:
-                Ic.append(self.params[p].value)
-        return np.array(Ic)
+        Ic = {}
+        for p in self.tth:
+            Ic[p] = {}
+            for k in self.tth[p]:
+                vname = f"{self.name}_{p}_{k}_I"
+                I = []
+                for param in self.params:
+                    if vname in param:
+                        I.append(self.params[param].value)
+                Ic[p][k] = np.array(I)
     
+        return Ic
+
+    @property
+    def computespectrum_fcn(self):
+        if self.peakshape == 0:
+            return computespectrum_pvfcj
+        elif self.peakshape == 1:
+            return computespectrum_pvtch
+        elif self.peakshape == 2:
+            return computespectrum_pvpink
