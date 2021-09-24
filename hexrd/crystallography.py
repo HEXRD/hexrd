@@ -793,8 +793,7 @@ class PlaneData(object):
         self.__structFact = structFact
         multiplicity = self.getMultiplicity(allHKLs=True)
         tth = self.getTTh(allHKLs=True)
-        lp = (1 + np.cos(tth)**2) / \
-        np.cos(0.5*tth)/np.sin(0.5*tth)**2/2.0
+        lp = (1 + np.cos(tth)**2)/np.cos(0.5*tth)/np.sin(0.5*tth)**2/2.0
 
         powderI = structFact*multiplicity*lp
         powderI = 100.0*powderI/powderI.max()
@@ -1080,7 +1079,7 @@ class PlaneData(object):
 
         return ddtTh
 
-    def getMultiplicity(self, allHKLs=False):   
+    def getMultiplicity(self, allHKLs=False):
         # ... JVB: is this incorrect?
         multip = []
         for iHKLr, hklData in enumerate(self.hklDataList):
