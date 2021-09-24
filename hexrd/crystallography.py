@@ -1080,8 +1080,8 @@ class PlaneData(object):
 
         return ddtTh
 
-    def getMultiplicity(self, allHKLs=False):          
-    # ... JVB: is this incorrect?
+    def getMultiplicity(self, allHKLs=False):   
+        # ... JVB: is this incorrect?
         multip = []
         for iHKLr, hklData in enumerate(self.hklDataList):
             if not allHKLs:
