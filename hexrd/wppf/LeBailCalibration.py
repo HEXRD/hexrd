@@ -577,6 +577,8 @@ class LeBaillight:
     def __init__(self,
                 name,
                 lineout,
+                tth,
+                dsp
                 lebail_param_list,
                 params):
 
@@ -584,35 +586,36 @@ class LeBaillight:
         self.lebail_param_list = lebail_param_list
         self.params = params
         self.lineout = lineout
+        self.tth = tth
+        self.dsp = dsp
 
     def computespectrum(self):
         pass
-        # x = self.tth_list
-        # y = np.zeros(x.shape)
-        # tth_list = np.ascontiguousarray(self.tth_list)
+        x = self.tth_list
+        y = np.zeros(x.shape)
+        tth_list = np.ascontiguousarray(self.tth_list)
 
-        # for iph, p in enumerate(self.phases):
+        for p,tth in self.tth.items():
+            for k,l in self.tth[p].items():
 
-        #     for k, l in self.phases.wavelength.items():
+                Ic = self.Icalc[p][k]
 
-        #         Ic = self.Icalc[p][k]
+                shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.shft
+                trns_c = np.sin(np.radians(self.tth[p][k]))*self.trns
+                tth = self.tth[p][k] + \
+                      self.zero_error + \
+                      shft_c + \
+                      trns_c
 
-        #         shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.shft
-        #         trns_c = np.sin(np.radians(self.tth[p][k]))*self.trns
-        #         tth = self.tth[p][k] + \
-        #               self.zero_error + \
-        #               shft_c + \
-        #               trns_c
-
-        #         dsp = self.dsp[p][k]
-        #         hkls = self.hkls[p][k]
-        #         n = np.min((tth.shape[0], Ic.shape[0]))
-        #         shkl = self.phases[p].shkl
-        #         name = self.phases[p].name
-        #         eta_n = f"self.{name}_eta_fwhm"
-        #         eta_fwhm = eval(eta_n)
-        #         strain_direction_dot_product = 0.
-        #         is_in_sublattice = False
+                dsp = self.dsp[p][k]
+                hkls = self.hkls[p][k]
+                n = np.min((tth.shape[0], Ic.shape[0]))
+                # shkl = self.phases[p].shkl
+                # name = self.phases[p].name
+                eta_n = f"self.{name}_eta_fwhm"
+                eta_fwhm = eval(eta_n)
+                strain_direction_dot_product = 0.
+                is_in_sublattice = False
 
         #         if self.peakshape == 0:
         #             args = (np.array([self.U, self.V, self.W]),
@@ -713,6 +716,9 @@ class LeBaillight:
             msg = f"only masked arrays input is allowed."
             raise ValueError(msg)
 
+        if hasattr(self, "tth"):
+            self.computespectrum()
+
     @property
     def mask(self):
         return self.lineout.mask
@@ -720,8 +726,39 @@ class LeBaillight:
     @property
     def tth_list(self):
         return self.lineout[:,0].data
+
+
+    @property
+    def tth(self):
+        return self._tth
     
 
+    @tth.setter
+    def tth(self, val):
+        if isinstance(val, dict):
+            self._tth = tth
+            if hasattr(self,"dsp"):
+                self.computespectrum()
+        else:
+            msg = (f"two theta vallues need "
+                   f"to be in a dictionary")
+            raise ValueError(msg)
+
+    @property
+    def dsp(self):
+        return self._dsp
+    
+
+    @dsp.setter
+    def dsp(self, val):
+        if isinstance(val, dict):
+            self._dsp = dsp
+            self.computespectrum()
+        else:
+            msg = (f"two theta vallues need "
+                   f"to be in a dictionary")
+            raise ValueError(msg)
+            
     @property
     def Icalc(self):
         Ic = []
