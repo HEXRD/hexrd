@@ -794,9 +794,9 @@ class PlaneData(object):
         multiplicity = self.getMultiplicity(allHKLs=True)
         tth = self.getTTh(allHKLs=True)
         lp = (1 + np.cos(tth)**2) / \
-              np.cos(0.5*tth)/np.sin(0.5*tth)**2/2.0
+        np.cos(0.5*tth)/np.sin(0.5*tth)**2/2.0
 
-        powderI = structFact*multiplicity*lp 
+        powderI = structFact*multiplicity*lp
         powderI = 100.0*powderI/powderI.max()
 
         self._powder_intensity = powderI
@@ -806,7 +806,7 @@ class PlaneData(object):
     @property
     def powder_intensity(self):
         return self._powder_intensity[~self.exclusions]
-    
+
     @staticmethod
     def makePlaneData(hkls, lparms, qsym, symmGroup, strainMag, wavelength):
         """
@@ -1080,7 +1080,8 @@ class PlaneData(object):
 
         return ddtTh
 
-    def getMultiplicity(self,allHKLs=False):          # ... JVB: is this incorrect?
+    def getMultiplicity(self, allHKLs=False):          
+    # ... JVB: is this incorrect?
         multip = []
         for iHKLr, hklData in enumerate(self.hklDataList):
             if not allHKLs:
