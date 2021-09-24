@@ -519,7 +519,11 @@ class Material(object):
                 else:
                     occ.append(p)
 
-            atompos.append(numpy.asarray(occ).astype(numpy.float64))
+            chkstr = numpy.asarray([isinstance(x,str) for x in occ])
+            occstr = numpy.array(occ)
+            occstr[chkstr] = 1.0
+
+            atompos.append(numpy.asarray(occstr).astype(numpy.float64))
 
         if(not pU):
             warn('Debye-Waller factors not present. \
@@ -542,7 +546,13 @@ class Material(object):
                 else:
                     U.append(p)
 
-            self._U = numpy.asarray(U).astype(numpy.float64)
+            chkstr = numpy.asarray([isinstance(x,str) for x in U])
+            
+            for ii,x in enumerate(chkstr):
+                if x:
+                    U[ii] = 1.0/numpy.pi/2./numpy.sqrt(2.)
+    
+            self._U = numpy.asarray(U)
         '''
         format everything in the right shape etc.
         '''
