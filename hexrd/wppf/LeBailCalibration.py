@@ -181,6 +181,8 @@ class LeBailCalibrator:
         this is more or less a book keeping function rather
         """
         errvec = np.empty([0,])
+        wss = 0.0
+        den = 0.0
         for k,v in self.lineouts_sim.items():
             if instr_updated:
                 v.lineout = self.lineouts[k]
@@ -193,12 +195,20 @@ class LeBailCalibrator:
 
             v.computespectrum()
             ww = v.weights
+            mask = v.mask
             evec = ww*(v.spectrum_expt.data_array[:,1] -
                    v.spectrum_sim.data_array[:,1])**2
             evec = np.sqrt(evec)
             errvec = np.concatenate((errvec,evec))
 
-        return errvec
+            weighted_expt = ww*v.spectrum_expt.data_array[:,1]**2
+
+            wss += np.trapz(evec, v.tth_list[~mask[:,1]])
+            den += np.trapz(weighted_expt, v.tth_list[~mask[:,1]])
+
+        rwp = np.sqrt(wss/den)
+
+        return errvec, rwp
 
     def calcrwp(self, params):
         """
@@ -212,10 +222,10 @@ class LeBailCalibrator:
         lp_updated = self.update_param_vals(params)
         self.update_shkl(params)
         instr_updated = self.update_instrument(params)
-        errvec = self.computespectrum(instr_updated,
+        errvec, rwp = self.computespectrum(instr_updated,
                                       lp_updated)
 
-        print(np.sum(errvec))
+        print(rwp*100.)
 
         return errvec
 
@@ -931,8 +941,9 @@ class LeBaillight:
         lo = self.lineout
         mask = self.mask[:,1]
         weights = 1./np.sqrt(lo.data[:,1])
-        weights[mask] = np.nan
-        return self._weights
+        weights = weights[~mask]
+
+        return weights
     
 
     @property
