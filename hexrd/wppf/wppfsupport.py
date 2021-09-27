@@ -589,6 +589,15 @@ def _add_detector_geometry(params, instr):
         msg = "input is not an HEDMInstrument class"
         raise ValueError(msg)
 
+def _add_background(params,lineouts,bkgdegree):
+    for k in lineouts:
+        pname = [f"{k}_bkg_C{ii}" for ii in range(bkgdegree)]
+        shape = len(pname)
+        [params.add(name=pname[i],value=0.0) for i in range(shape)]
+
+def striphkl(g):
+    return str(g)[1:-1].replace(" ","")
+
 def _add_intensity_parameters(params,hkls,Icalc,prefix):
     """
     this routine adds the Icalc values as refinable
@@ -598,8 +607,11 @@ def _add_intensity_parameters(params,hkls,Icalc,prefix):
         for k in Icalc[p]:
             shape = Icalc[p][k].shape[0]
             
-            pname = [f"{prefix}_{p}_{k}_I{g}" for i,g in zip(range(shape),hkls[p][k])]
-            [params.add(name=pname[i],value=Icalc[p][k][i]) for i in range(shape)]
+            pname = [f"{prefix}_{p}_{k}_I{striphkl(g)}"
+            for i,g in zip(range(shape),hkls[p][k])]
+            [params.add(name=pname[i],
+                value=Icalc[p][k][i],
+                lb=0.0) for i in range(shape)]
 
 background_methods = {
     'spline': None,
