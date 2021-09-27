@@ -547,11 +547,11 @@ class Material(object):
                     U.append(p)
 
             chkstr = numpy.asarray([isinstance(x,str) for x in U])
-            
+
             for ii,x in enumerate(chkstr):
                 if x:
                     U[ii] = 1.0/numpy.pi/2./numpy.sqrt(2.)
-    
+
             self._U = numpy.asarray(U)
         '''
         format everything in the right shape etc.
