@@ -416,7 +416,6 @@ class HEDMInstrument(object):
             if isinstance(instrument_config, h5py.File):
                 tmp = {}
                 unwrap_h5_to_dict(instrument_config, tmp)
-                instrument_config.close()
                 instrument_config = tmp['instrument']
             elif not isinstance(instrument_config, dict):
                 raise RuntimeError(
