@@ -13,6 +13,7 @@ calc_Iobs_pvpink
 from hexrd.wppf.spectrum import Spectrum
 from hexrd.wppf import wppfsupport, LeBail
 from hexrd.wppf.parameters import Parameters
+from lmfit import Parameters as Parameters_lmfit
 from hexrd.wppf.phase import Phases_LeBail, Material_LeBail
 from hexrd.imageutil import snip1d, snip1d_quad
 from hexrd.material import Material
@@ -181,8 +182,7 @@ class LeBailCalibrator:
         this is more or less a book keeping function rather
         """
         errvec = np.empty([0,])
-        wss = 0.0
-        den = 0.0
+        rwp = []
         for k,v in self.lineouts_sim.items():
             if instr_updated:
                 v.lineout = self.lineouts[k]
@@ -203,10 +203,9 @@ class LeBailCalibrator:
 
             weighted_expt = ww*v.spectrum_expt.data_array[:,1]**2
 
-            wss += np.trapz(evec, v.tth_list[~mask[:,1]])
-            den += np.trapz(weighted_expt, v.tth_list[~mask[:,1]])
-
-        rwp = np.sqrt(wss/den)
+            wss = np.trapz(evec, v.tth_list[~mask[:,1]])
+            den = np.trapz(weighted_expt, v.tth_list[~mask[:,1]])
+            rwp.append(np.sqrt(wss/den)*100.)
 
         return errvec, rwp
 
@@ -225,19 +224,20 @@ class LeBailCalibrator:
         errvec, rwp = self.computespectrum(instr_updated,
                                       lp_updated)
 
-        print(rwp*100.)
+        print(np.mean(rwp))
 
         return errvec
 
 
     def initialize_lmfit_parameters(self):
 
+        params = self.params
         params = lmfit.Parameters()
 
         for p in self.params:
             par = self.params[p]
             if(par.vary):
-                params.add(p, value=par.value, min=par.lb, max=par.ub)
+                params.add(p, value=par.value, min=par.min, max=par.max, vary=True)
 
         return params
 
@@ -257,6 +257,7 @@ class LeBailCalibrator:
         fitter = lmfit.Minimizer(self.calcrwp, params)
 
         res = fitter.least_squares(**fdict)
+        self.res = res
         return res
 
     def update_param_vals(self,
@@ -271,8 +272,8 @@ class LeBailCalibrator:
             if params[p].vary:
                 if p in self.params:
                     self.params[p].value = params[p].value
-                    self.params[p].lb = params[p].min
-                    self.params[p].ub = params[p].max
+                    self.params[p].min = params[p].min
+                    self.params[p].max = params[p].max
 
 
         updated_lp = False
@@ -749,7 +750,7 @@ class LeBailCalibrator:
                 params = param_info
 
             else:
-                params = Parameters()
+                params = Parameters_lmfit()
 
                 if(isinstance(param_info, dict)):
                     """
@@ -757,7 +758,7 @@ class LeBailCalibrator:
                     """
                     for k, v in param_info.items():
                         params.add(k, value=np.float(v[0]),
-                                   lb=np.float(v[1]), ub=np.float(v[2]),
+                                   min=np.float(v[1]), max=np.float(v[2]),
                                    vary=np.bool(v[3]))
 
                 elif(isinstance(param_info, str)):
@@ -780,7 +781,7 @@ class LeBailCalibrator:
         else:
 
             params = wppfsupport._generate_default_parameters_LeBail(
-                self.phases, self.peakshape)
+                self.phases, self.peakshape, ptype="lmfit")
             self.lebail_param_list = [p for p in params]
             wppfsupport._add_detector_geometry(params, self.instrument)
             wppfsupport._add_background(params, self.lineouts, self.bkgdegree)
@@ -995,22 +996,22 @@ class LeBaillight:
         xn, wn = roots_legendre(16)
         self.xn = xn[8:]
         self.wn = wn[8:]
-        if isinstance(params, Parameters):
+        if isinstance(params, Parameters_lmfit):
             if hasattr(self, 'params'):
                 for p in params:
                     if (p in self.lebail_param_list) or (self.name in p):
                         self._params[p].value = params[p].value
-                        self._params[p].ub = params[p].ub
-                        self._params[p].lb = params[p].lb
+                        self._params[p].max = params[p].max
+                        self._params[p].min = params[p].min
                         self._params[p].vary = params[p].vary
             else:
-                self._params = Parameters()
+                self._params = Parameters_lmfit()
                 for p in params:
                     if (p in self.lebail_param_list) or (self.name in p):
                         self._params.add(name=p,
                                             value=params[p].value,
-                                            ub=params[p].ub,
-                                            lb=params[p].lb,
+                                            max=params[p].max,
+                                            min=params[p].min,
                                             vary=params[p].vary)
 
             # if hasattr(self, "tth") and \
@@ -1018,7 +1019,7 @@ class LeBaillight:
             # hasattr(self, "lineout"):
             #     self.computespectrum()
         else:
-            msg = "only Parameters class permitted"
+            msg = "only lmfit Parameters class permitted"
             raise ValueError(msg)
 
     @property
