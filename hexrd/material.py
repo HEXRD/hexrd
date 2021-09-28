@@ -174,7 +174,7 @@ class Material(object):
             # >> @ date 08/20/2020 SS removing dependence on hklmax
             #self._hklMax = Material.DFLT_SSMAX
             # self._beamEnergy = Material.DFLT_KEV
-            if isinstance(material_file, str):
+            if isinstance(material_file, (Path, str)):
                 form = Path(material_file).suffix[1:]
             else:
                 form = None
@@ -605,7 +605,7 @@ class Material(object):
                         i/o
         """
 
-        if isinstance(fhdf, str):
+        if isinstance(fhdf, (Path, str)):
             if not path.exists(fhdf):
                 raise IOError('material file does not exist.')
 
@@ -681,7 +681,7 @@ class Material(object):
             self.hkl_from_file = numpy.array(gid.get('hkls'),
                                              dtype=numpy.int32)
 
-        if isinstance(fhdf, str):
+        if isinstance(fhdf, (Path, str)):
             # Close the file...
             root_gid.close()
 
@@ -1093,7 +1093,7 @@ def load_materials_hdf5(f, dmin=Material.DFLT_DMIN, kev=Material.DFLT_KEV,
 
     The file uses the HDF5 file format.
     """
-    if isinstance(f, str):
+    if isinstance(f, (Path, str)):
         with h5py.File(f, 'r') as rf:
             names = list(rf)
     elif isinstance(f, h5py.Group):
