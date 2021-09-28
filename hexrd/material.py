@@ -174,11 +174,16 @@ class Material(object):
             # >> @ date 08/20/2020 SS removing dependence on hklmax
             #self._hklMax = Material.DFLT_SSMAX
             # self._beamEnergy = Material.DFLT_KEV
-            form = Path(material_file).suffix[1:]
+            if isinstance(material_file, str):
+                form = Path(material_file).suffix[1:]
+            else:
+                form = None
 
-            if(form == 'cif'):
+            h5_suffixes = ('h5', 'hdf5', 'xtal')
+
+            if form == 'cif':
                 self._readCif(material_file)
-            elif(form in ['h5', 'hdf5', 'xtal']):
+            elif isinstance(material_file, h5py.Group) or form in h5_suffixes:
                 self._readHDFxtal(fhdf=material_file, xtal=name)
         else:
             # default name
@@ -600,16 +605,21 @@ class Material(object):
                         i/o
         """
 
-        fexist = path.exists(fhdf)
-        if(fexist):
-            fid = h5py.File(fhdf, 'r')
-            xtal = "/"+xtal
-            if xtal not in fid:
-                raise IOError('crystal doesn''t exist in material file.')
-        else:
-            raise IOError('material file does not exist.')
+        if isinstance(fhdf, str):
+            if not path.exists(fhdf):
+                raise IOError('material file does not exist.')
 
-        gid = fid.get(xtal)
+            root_gid = h5py.File(fhdf, 'r')
+            xtal = f'/{xtal}'
+        elif isinstance(fhdf, h5py.Group):
+            root_gid = fhdf
+        else:
+            raise Exception(f'Unknown type for fhdf: {fhdf}')
+
+        if xtal not in root_gid:
+            raise IOError('crystal doesn''t exist in material file.')
+
+        gid = root_gid.get(xtal)
 
         sgnum = numpy.array(gid.get('SpaceGroupNumber'),
                             dtype=numpy.int32).item()
@@ -671,7 +681,9 @@ class Material(object):
             self.hkl_from_file = numpy.array(gid.get('hkls'),
                                              dtype=numpy.int32)
 
-        fid.close()
+        if isinstance(fhdf, str):
+            # Close the file...
+            root_gid.close()
 
     def dump_material(self, file, path=None):
         '''
@@ -1081,8 +1093,13 @@ def load_materials_hdf5(f, dmin=Material.DFLT_DMIN, kev=Material.DFLT_KEV,
 
     The file uses the HDF5 file format.
     """
-    with h5py.File(f, 'r') as rf:
-        names = list(rf)
+    if isinstance(f, str):
+        with h5py.File(f, 'r') as rf:
+            names = list(rf)
+    elif isinstance(f, h5py.Group):
+        names = list(f)
+    else:
+        raise Exception(f'Unknown type for materials file: {f}')
 
     if isinstance(dmin, float):
         dmin = _angstroms(dmin)
@@ -1090,8 +1107,14 @@ def load_materials_hdf5(f, dmin=Material.DFLT_DMIN, kev=Material.DFLT_KEV,
     if isinstance(kev, float):
         kev = _kev(kev)
 
+    kwargs = {
+        'material_file': f,
+        'dmin': dmin,
+        'kev': kev,
+        'sgsetting': sgsetting,
+    }
     return {
-        name: Material(name, f, dmin=dmin, kev=kev, sgsetting=sgsetting)
+        name: Material(name, **kwargs)
         for name in names
     }
 
