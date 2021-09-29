@@ -174,11 +174,16 @@ class Material(object):
             # >> @ date 08/20/2020 SS removing dependence on hklmax
             #self._hklMax = Material.DFLT_SSMAX
             # self._beamEnergy = Material.DFLT_KEV
-            form = Path(material_file).suffix[1:]
+            if isinstance(material_file, (Path, str)):
+                form = Path(material_file).suffix[1:]
+            else:
+                form = None
 
-            if(form == 'cif'):
+            h5_suffixes = ('h5', 'hdf5', 'xtal')
+
+            if form == 'cif':
                 self._readCif(material_file)
-            elif(form in ['h5', 'hdf5', 'xtal']):
+            elif isinstance(material_file, h5py.Group) or form in h5_suffixes:
                 self._readHDFxtal(fhdf=material_file, xtal=name)
         else:
             # default name
@@ -547,11 +552,11 @@ class Material(object):
                     U.append(p)
 
             chkstr = numpy.asarray([isinstance(x,str) for x in U])
-            
+
             for ii,x in enumerate(chkstr):
                 if x:
                     U[ii] = 1.0/numpy.pi/2./numpy.sqrt(2.)
-    
+
             self._U = numpy.asarray(U)
         '''
         format everything in the right shape etc.
@@ -600,16 +605,21 @@ class Material(object):
                         i/o
         """
 
-        fexist = path.exists(fhdf)
-        if(fexist):
-            fid = h5py.File(fhdf, 'r')
-            xtal = "/"+xtal
-            if xtal not in fid:
-                raise IOError('crystal doesn''t exist in material file.')
-        else:
-            raise IOError('material file does not exist.')
+        if isinstance(fhdf, (Path, str)):
+            if not path.exists(fhdf):
+                raise IOError('material file does not exist.')
 
-        gid = fid.get(xtal)
+            root_gid = h5py.File(fhdf, 'r')
+            xtal = f'/{xtal}'
+        elif isinstance(fhdf, h5py.Group):
+            root_gid = fhdf
+        else:
+            raise Exception(f'Unknown type for fhdf: {fhdf}')
+
+        if xtal not in root_gid:
+            raise IOError('crystal doesn''t exist in material file.')
+
+        gid = root_gid.get(xtal)
 
         sgnum = numpy.array(gid.get('SpaceGroupNumber'),
                             dtype=numpy.int32).item()
@@ -671,15 +681,17 @@ class Material(object):
             self.hkl_from_file = numpy.array(gid.get('hkls'),
                                              dtype=numpy.int32)
 
-        fid.close()
+        if isinstance(fhdf, (Path, str)):
+            # Close the file...
+            root_gid.close()
 
-    def dump_material(self, filename):
+    def dump_material(self, file, path=None):
         '''
         get the atominfo dictionaary aand the lattice parameters
         '''
         AtomInfo = {}
 
-        AtomInfo['file'] = filename
+        AtomInfo['file'] = file
         AtomInfo['xtalname'] = self.name
         AtomInfo['xtal_sys'] = xtal_sys_dict[self.unitcell.latticeType.lower()]
         AtomInfo['Z'] = self.unitcell.atom_type
@@ -701,7 +713,7 @@ class Material(object):
                      'beta': self.unitcell.beta,
                      'gamma': self.unitcell.gamma}
 
-        Write2H5File(AtomInfo, lat_param)
+        Write2H5File(AtomInfo, lat_param, path)
 
     # ============================== API
     #
@@ -1081,8 +1093,13 @@ def load_materials_hdf5(f, dmin=Material.DFLT_DMIN, kev=Material.DFLT_KEV,
 
     The file uses the HDF5 file format.
     """
-    with h5py.File(f, 'r') as rf:
-        names = list(rf)
+    if isinstance(f, (Path, str)):
+        with h5py.File(f, 'r') as rf:
+            names = list(rf)
+    elif isinstance(f, h5py.Group):
+        names = list(f)
+    else:
+        raise Exception(f'Unknown type for materials file: {f}')
 
     if isinstance(dmin, float):
         dmin = _angstroms(dmin)
@@ -1090,17 +1107,22 @@ def load_materials_hdf5(f, dmin=Material.DFLT_DMIN, kev=Material.DFLT_KEV,
     if isinstance(kev, float):
         kev = _kev(kev)
 
+    kwargs = {
+        'material_file': f,
+        'dmin': dmin,
+        'kev': kev,
+        'sgsetting': sgsetting,
+    }
     return {
-        name: Material(name, f, dmin=dmin, kev=kev, sgsetting=sgsetting)
+        name: Material(name, **kwargs)
         for name in names
     }
 
 
-def save_materials_hdf5(f, materials):
+def save_materials_hdf5(f, materials, path=None):
     """Save a dict of materials into an HDF5 file"""
     for material in materials.values():
-        material.dump_material(f)
-
+        material.dump_material(f, path)
 
 def hkls_match(a, b):
     # Check if hkls match. Expects inputs to have shape (x, 3).

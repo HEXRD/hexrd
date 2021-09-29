@@ -25,7 +25,7 @@ def write(ims, fname, fmt, **kwargs):
     """write imageseries to file with options
 
     *ims* - an imageseries
-    *fname* - name of file
+    *fname* - name of file or an h5py file for writing HDF5
     *fmt* - a format string
     *kwargs* - options specific to format
     """
@@ -73,8 +73,13 @@ class Writer(object, metaclass=_RegisterWriter):
         self._fname = fname
         self._opts = kwargs
 
+        if isinstance(fname, h5py.File):
+            filename = fname.filename
+        else:
+            filename = fname
+
         # split filename into components
-        tmp = os.path.split(fname)
+        tmp = os.path.split(filename)
         self._fname_dir = tmp[0]
         tmp = os.path.splitext(tmp[1])
         self._fname_base = tmp[0]
@@ -107,7 +112,11 @@ class WriteH5(Writer):
     #
     def write(self):
         """Write imageseries to HDF5 file"""
-        f = h5py.File(self._fname, "w")
+        if isinstance(self._fname, h5py.File):
+            f = self._fname
+        else:
+            f = h5py.File(self._fname, "w")
+
         g = f.create_group(self._path)
         s0, s1 = self._shape
 
