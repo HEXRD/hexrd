@@ -184,6 +184,7 @@ class LeBailCalibrator:
         errvec = np.empty([0,])
         rwp = []
         for k,v in self.lineouts_sim.items():
+            v.params = self.params
             if instr_updated:
                 v.lineout = self.lineouts[k]
             if lp_updated:
@@ -191,7 +192,7 @@ class LeBailCalibrator:
                 v.hkls = self.hkls
                 v.dsp = self.dsp
             v.shkl = self.shkl
-            v.params = self.params
+            
 
             v.computespectrum()
             ww = v.weights
@@ -205,7 +206,9 @@ class LeBailCalibrator:
 
             wss = np.trapz(evec, v.tth_list[~mask[:,1]])
             den = np.trapz(weighted_expt, v.tth_list[~mask[:,1]])
-            rwp.append(np.sqrt(wss/den)*100.)
+            r = np.sqrt(wss/den)*100.
+            if ~np.isnan(r):
+                rwp.append(r)
 
         return errvec, rwp
 
@@ -254,9 +257,12 @@ class LeBailCalibrator:
         fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
          'verbose': 0, 'max_nfev': 1000, 'method':'trf',
          'jac':'2-point'}
+        # fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
+        # 'max_nfev': 1000}
         fitter = lmfit.Minimizer(self.calcrwp, params)
 
         res = fitter.least_squares(**fdict)
+        # res = fitter.leastsq(**fdict)
         self.res = res
         return res
 
@@ -269,12 +275,9 @@ class LeBailCalibrator:
         name
         """
         for p in params:
-            if params[p].vary:
-                if p in self.params:
-                    self.params[p].value = params[p].value
-                    self.params[p].min = params[p].min
-                    self.params[p].max = params[p].max
-
+            self._params[p].value = params[p].value
+            self._params[p].min = params[p].min
+            self._params[p].max = params[p].max
 
         updated_lp = False
 
@@ -742,13 +745,15 @@ class LeBailCalibrator:
         self.wn = wn[8:]
 
         if(param_info is not None):
-            if(isinstance(param_info, Parameters)):
+            pl = wppfsupport._generate_default_parameters_LeBail(
+                self.phases, self.peakshape, ptype="lmfit")
+            self.lebail_param_list = [p for p in pl]
+            if(isinstance(param_info, Parameters_lmfit)):
                 """
                 directly passing the parameter class
                 """
                 self._params = param_info
                 params = param_info
-
             else:
                 params = Parameters_lmfit()
 
@@ -756,7 +761,8 @@ class LeBailCalibrator:
                     """
                     initialize class using dictionary read from the yaml file
                     """
-                    for k, v in param_info.items():
+                    for k in param_info:
+                        v = param_info[k]
                         params.add(k, value=np.float(v[0]),
                                    min=np.float(v[1]), max=np.float(v[2]),
                                    vary=np.bool(v[3]))
@@ -992,12 +998,8 @@ class LeBaillight:
         set the local value of the parameters to the 
         global values from the calibrator class
         """
-        from scipy.special import roots_legendre
-        xn, wn = roots_legendre(16)
-        self.xn = xn[8:]
-        self.wn = wn[8:]
         if isinstance(params, Parameters_lmfit):
-            if hasattr(self, 'params'):
+            if hasattr(self, '_params'):
                 for p in params:
                     if (p in self.lebail_param_list) or (self.name in p):
                         self._params[p].value = params[p].value
@@ -1005,14 +1007,18 @@ class LeBaillight:
                         self._params[p].min = params[p].min
                         self._params[p].vary = params[p].vary
             else:
+                from scipy.special import roots_legendre
+                xn, wn = roots_legendre(16)
+                self.xn = xn[8:]
+                self.wn = wn[8:]
                 self._params = Parameters_lmfit()
                 for p in params:
                     if (p in self.lebail_param_list) or (self.name in p):
                         self._params.add(name=p,
-                                            value=params[p].value,
-                                            max=params[p].max,
-                                            min=params[p].min,
-                                            vary=params[p].vary)
+                                         value=params[p].value,
+                                         max=params[p].max,
+                                         min=params[p].min,
+                                         vary=params[p].vary)
 
             # if hasattr(self, "tth") and \
             # hasattr(self, "dsp") and \
