@@ -2214,7 +2214,7 @@ class PlanarDetector(object):
     # METHODS
     # =========================================================================
 
-    def lorentz_polarization_factor(self, f_hor, f_vert):
+    def lorentz_polarization_factor(self, f_hor, f_vert, unpolarized=False):
         """
         Calculated the lorentz polarization factor for every pixel.
 
@@ -2250,7 +2250,7 @@ class PlanarDetector(object):
             raise RuntimeError(msg)
 
         tth, eta = self.pixel_angles()
-        args = (tth, eta, f_hor, f_vert)
+        args = (tth, eta, f_hor, f_vert, unpolarized)
 
         return _lorentz_polarization_factor(*args)
 
@@ -3790,7 +3790,7 @@ def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
 
 
 @memoize
-def _lorentz_polarization_factor(tth, eta, f_hor, f_vert):
+def _lorentz_polarization_factor(tth, eta, f_hor, f_vert, unpolarized):
     """
     06/14/2021 SS adding lorentz polarization factor computation
     to the detector so that it can be compenstated for in the
@@ -3814,8 +3814,11 @@ def _lorentz_polarization_factor(tth, eta, f_hor, f_vert):
     seta2 = np.sin(eta)**2
     ceta2 = np.cos(eta)**2
 
-    L = 1./(cth*sth2)
-    P = f_hor*(seta2 + ceta2*ctth2) + f_vert*(ceta2 + seta2*ctth2)
+    L = 1./(4.0*cth*sth2)
+    if unpolarized:
+        P = (1. + ctth2)/2.
+    else:    
+        P = f_hor*(seta2 + ceta2*ctth2) + f_vert*(ceta2 + seta2*ctth2)
 
     return L*P
 
