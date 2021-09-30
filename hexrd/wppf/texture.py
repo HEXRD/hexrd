@@ -198,7 +198,12 @@ class mesh_s2:
         the value of harmonics upto the nodal degree of
         freedom is return. the user can then select how many
         to use and where to truncate
+
+        Note that if z component is negative, an inversion 
+        symmetry is automatically applied to the point
         """
+        mask = points[:,-1] < 0.
+        points[mask,:] = -points[mask,:]
         bary_center, simplex_id = self._get_barycentric_coordinates(points)
         node_id = self.mesh.simplices[simplex_id]
 
@@ -836,18 +841,6 @@ class pole_figures:
     @property
     def pfdata(self):
         return self._pfdata
-    
-
-    """
-    the pfdata variable can be set in a couple of ways. 
-    the most frequently used case in HEDM dataset would
-    be to use the (tth, eta, omega) arrays, but option to
-    initialize directly using the g-vectors in the lab 
-    frame is also be provided in a future implementation.
-    """
-    @pfdata.setter
-    def pfdata(self, data):
-        self._pfdata = data
 
 Polya = {
         "m35":
