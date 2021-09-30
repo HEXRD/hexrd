@@ -38,7 +38,7 @@ from lmfit import Parameters as Parameters_lmfit
 from hexrd.wppf.phase import Phases_LeBail, Phases_Rietveld
 from hexrd.material import Material
 from hexrd.unitcell import _rqpDict
-from hexrd import instrument
+import hexrd
 import numpy as np
 from hexrd import constants
 
@@ -691,7 +691,7 @@ def _add_detector_geometry(params, instr):
     detector as a parameter to the LeBail class
     such that those can be refined as well 
     """
-    if isinstance(instr, instrument.HEDMInstrument):
+    if isinstance(instr, hexrd.instrument.HEDMInstrument):
         for key,det in instr.detectors.items():
             tvec = det.tvec
             tilt = det.tilt

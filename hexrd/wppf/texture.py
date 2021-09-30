@@ -1167,6 +1167,10 @@ class pole_figures:
     def pfdata(self, data):
         self._pfdata = data
 
+    @pfdata.setter
+    def pfdata(self, val):
+        self._pfdata = val
+
 Polya = {
         "m35":
         {"numerator":[],
