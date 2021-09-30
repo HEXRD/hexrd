@@ -2478,8 +2478,8 @@ class PlanarDetector(object):
         xy = np.atleast_2d(xy)
 
         # get pixel indices
-        i_crds = cellIndices(self.row_edge_vec, xy[:, 0])
-        j_crds = cellIndices(self.col_edge_vec, xy[:, 1])
+        i_crds = cellIndices(self.row_edge_vec, xy[:, 1])
+        j_crds = cellIndices(self.col_edge_vec, xy[:, 0])
 
         ptth_grad = self.pixel_tth_gradient(origin=origin)[i_crds, j_crds]
         peta_grad = self.pixel_eta_gradient(origin=origin)[i_crds, j_crds]
