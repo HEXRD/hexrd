@@ -2467,7 +2467,9 @@ class PlanarDetector(object):
 
     def angularPixelSize(self, xy, rMat_s=None, tVec_s=None, tVec_c=None):
         """
-        Wraps xrdutil.angularPixelSize
+        Notes
+        -----
+        !!! assumes xy are in raw (distorted) frame, if applicable
         """
         # munge kwargs
         if rMat_s is None:
@@ -2476,7 +2478,19 @@ class PlanarDetector(object):
             tVec_s = ct.zeros_3x1
         if tVec_c is None:
             tVec_c = ct.zeros_3x1
+        origin = np.dot(rMat_s, tVec_c).flatten() + tVec_s.flatten()
 
+        # FIXME: perhaps not necessary, but safe...
+        xy = np.atleast_2d(xy)
+
+        # get pixel indices
+        i_crds = cellIndices(self.row_edge_vec, xy[:, 0])
+        j_crds = cellIndices(self.col_edge_vec, xy[:, 1])
+
+        ptth_grad = self.pixel_tth_gradient(origin=origin)[i_crds, j_crds]
+        peta_grad = self.pixel_eta_gradient(origin=origin)[i_crds, j_crds]
+
+        '''
         # call function
         ang_ps = xrdutil.angularPixelSize(
             xy, (self.pixel_size_row, self.pixel_size_col),
@@ -2485,6 +2499,8 @@ class PlanarDetector(object):
             distortion=self.distortion,
             beamVec=self.bvec, etaVec=self.evec)
         return ang_ps
+        '''
+        return np.vstack([ptth_grad, peta_grad]).T
 
     def clip_to_panel(self, xy, buffer_edges=True):
         """
@@ -3817,7 +3833,7 @@ def _lorentz_polarization_factor(tth, eta, f_hor, f_vert, unpolarized):
     L = 1./(4.0*cth*sth2)
     if unpolarized:
         P = (1. + ctth2)/2.
-    else:    
+    else:
         P = f_hor*(seta2 + ceta2*ctth2) + f_vert*(ceta2 + seta2*ctth2)
 
     return L*P
