@@ -58,6 +58,12 @@ class mesh_s2:
             self.neqv = fid[gname].attrs["neqv"]
             self.nindp = fid[gname].attrs["nindp"]
 
+            dname = f"/{symmetry}/harmonics"
+            self.harmonics = np.array(fid[dname])
+
+            dname = f"/{symmetry}/eqv"
+            self.eqv = np.array(fid[dname]).astype(np.int32)
+
             dname = f"/{symmetry}/crd"
 
             pts = np.array(fid[dname])
