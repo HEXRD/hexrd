@@ -365,6 +365,13 @@ else:
 
         return 2.*np.arctan2(scalar_triple_product, denominator)
 
+
+def _fix_branch_cut_in_gradients(pgarray):
+    return np.min(
+        np.abs(np.stack([pgarray - np.pi, pgarray, pgarray + np.pi])),
+        axis=0
+    )
+
 # =============================================================================
 # CLASSES
 # =============================================================================
@@ -2402,30 +2409,17 @@ class PlanarDetector(object):
         return np.linalg.norm(np.stack(np.gradient(ptth)), axis=0)
 
     def pixel_eta_gradient(self, origin=ct.zeros_3):
-        period = np.r_[0., 2*np.pi]
         assert len(origin) == 3, "origin must have 3 elemnts"
         _, peta = self.pixel_angles(origin=origin)
 
-        # !!! handle cyclic nature of eta
-        rowmap = np.empty_like(peta)
-        for i in range(rowmap.shape[0]):
-            rowmap[i, :] = mapAngle(
-                peta[i, :], peta[i, 0] + period
-            )
+        peta_grad_row = np.gradient(peta, axis=0)
+        peta_grad_col = np.gradient(peta, axis=1)
 
-        colmap = np.empty_like(peta)
-        for i in range(colmap.shape[1]):
-            colmap[:, i] = mapAngle(
-                peta[:, i], peta[0, i] + period
-            )
+        # !!!: fix branch cut
+        peta_grad_row = _fix_branch_cut_in_gradients(peta_grad_row)
+        peta_grad_col = _fix_branch_cut_in_gradients(peta_grad_col)
 
-        peta_grad_row = np.gradient(rowmap)
-        peta_grad_col = np.gradient(colmap)
-
-        return np.linalg.norm(
-            np.stack([peta_grad_col[0], peta_grad_row[1]]),
-            axis=0
-        )
+        return np.linalg.norm(np.stack([peta_grad_col, peta_grad_row]), axis=0)
 
     def cartToPixel(self, xy_det, pixels=False):
         """
