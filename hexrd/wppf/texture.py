@@ -30,10 +30,11 @@ from lmfit import Parameters, Minimizer
 I3 = np.eye(3)
 
 Xl = np.ascontiguousarray(I3[:, 0].reshape(3, 1))     # X in the lab frame
+Yl = np.ascontiguousarray(I3[:, 1].reshape(3, 1))     # Z in the lab frame
 Zl = np.ascontiguousarray(I3[:, 2].reshape(3, 1))     # Z in the lab frame
 
 bVec_ref = -Zl
-eta_ref = Xl
+eta_ref = Yl
 
 class mesh_s2:
     """
@@ -328,7 +329,6 @@ class harmonic_model:
         self.mesh_sample = mesh_s2(self.sample_symmetry)
 
         self.init_harmonic_values()
-        self.phon = 0.0
         self.itercounter = 0
 
         ncoeff = self._num_coefficients()
@@ -391,7 +391,11 @@ class harmonic_model:
                   vname = f"c_{k}_{icry}_{isamp}"
                   self.coeff_loc[vname] = ctr
                   ctr += 1
-                  params.add(vname,value=self.coeff[ii],vary=True)
+                  params.add(vname,value=self.coeff[ii],
+                    vary=True,min=-10.0,max=10.0)
+
+        params.add("phon",value=0.0,vary=True,min=0.0)
+
         return params
 
     def set_coeff_from_param(self, params):
@@ -400,8 +404,11 @@ class harmonic_model:
         parameters and sets the values of the coefficients
         """
         for ii,k in enumerate(params):
-            loc = self.coeff_loc[k]
-            self.coeff[loc] = params[k].value
+            if k.lower() != "phon":
+                loc = self.coeff_loc[k]
+                self.coeff[loc] = params[k].value
+
+        self.phon = params["phon"].value
 
     def residual_function(self, params):
         """
@@ -414,37 +421,29 @@ class harmonic_model:
         for ii,(k,v) in enumerate(self.pole_figures.pfdata.items()):
             inp_intensity = np.squeeze(v[:,3])
             calc_intensity = np.squeeze(pf_recalc[k])
-            diff = (inp_intensity-calc_intensity-self.phon)
+            diff = (inp_intensity-calc_intensity)
             if ii == 0:
                 residual = diff
                 vals = inp_intensity
+                weights = 1./np.sqrt(inp_intensity)
+                weights[np.isnan(weights)] = 0.0
             else:
                 residual = np.hstack((residual,diff))
                 vals = np.hstack((vals,inp_intensity))
+                ww = 1./np.sqrt(inp_intensity)
+                ww[np.isnan(ww)] = 0.0
+                weights = np.hstack((weights,ww))
 
-        Rp = np.linalg.norm(residual)/np.linalg.norm(vals)
+        err = (weights*residual)**2
+        wss = np.sum(err)
+        den = np.sum((weights*vals)**2)
+
+        Rwp = np.sqrt(wss/den)
         if np.mod(self.itercounter,100) == 0:
-            msg = f"iteration# {self.itercounter}, Rp error = {Rp*100} %"
+            msg = f"iteration# {self.itercounter}, Rwp error = {Rwp*100} %"
             print(msg)
         self.itercounter += 1
-        return residual
-
-    def phon_residual_function(self, params):
-        """
-        calculate the residual in estimating the uniform
-        portion of the odf to make it into a sharp odf.
-        same method as mtex
-        """
-        for ii,(k,v) in enumerate(self.pole_figures.pfdata.items()):
-            inp_intensity = np.squeeze(v[:,3])
-            diff = (inp_intensity - params["phon"].value)
-            if ii == 0:
-                residual = diff
-                vals = inp_intensity
-            else:
-                residual = np.hstack((residual,diff))
-                vals = np.hstack((vals,inp_intensity))
-        return residual
+        return err
 
     def _compute_harmonic_values_grid(self,
                                       hkl,
@@ -576,7 +575,7 @@ class harmonic_model:
 
             val = val + np.dot(kc,np.dot(C,ks))
 
-        val = val
+        val += self.phon
         return val
 
     def _num_coefficients(self):
@@ -629,38 +628,15 @@ class harmonic_model:
         return allowed_degrees
 
     def refine(self):
-        """
-        this is the function which updates the harmonic coefficients
-        to fit better to the input pole figure data. 
-        """
-        """
-        first determine the phon
-        """
-        # params = Parameters()
-        # params.add("phon",value=0.0)
-        # fdict = {'ftol': 1e-4, 'xtol': 1e-4, 
-        #  'gtol': 1e-4,'max_nfev': 100}
-        # # fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
-        # #  'verbose': 0, 'max_nfev': 100, 'method':'trf',
-        # #  'jac':'2-point'}
-        # fitter = Minimizer(self.phon_residual_function, params)
-        # res = fitter.leastsq(**fdict)
-        # params_phon_res = res.params
-        # self.phon = params_phon_res["phon"].value
-
-        # msg = f"setting uniform portion to {self.phon}"
-        # print(msg)
 
         params = self.init_coeff_params()
-        fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
+        fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
          'verbose': 0, 'max_nfev': 10000, 'method':'trf',
-         'jac':'2-point'}
-        # fdict = {'ftol': 1e-4, 'xtol': 1e-4, 
-        #  'gtol': 1e-4,'max_nfev': 10000}
+         'jac':'3-point'}
+
         fitter = Minimizer(self.residual_function, params)
 
         res = fitter.least_squares(**fdict)
-        # res = fitter.leastsq(**fdict)
         params_res = res.params
         self.set_coeff_from_param(params_res)
 
@@ -739,7 +715,7 @@ class harmonic_model:
         pfdata = {}
         for k,v in self.pf_equiangular.pfdata.items():
             pfdata[k] = np.hstack((np.degrees(v[:,0:2]), 
-                self.phon+np.atleast_2d(pf[k]).T ))
+                                   np.atleast_2d(pf[k]).T ))
 
         return pfdata
 
@@ -752,6 +728,15 @@ class harmonic_model:
             fname = f"pf_{k}.txt"
             np.savetxt(fname, v, fmt="%10.4f", delimiter="\t")
 
+
+    @property
+    def phon(self):
+        return self._phon
+
+    @phon.setter
+    def phon(self, val):
+        self._phon = val
+    
 
 class pole_figures:
     """
@@ -833,6 +818,17 @@ class pole_figures:
                                          bHat_l=self.bHat_l,
                                          eHat_l=self.eHat_l,
                                          chi=self.chi)
+    def write_data(self, prefix):
+        """
+        write out the data in text format
+        the prefix goes in front of the names
+        name will be "<prefix>_hkl.txt"
+        """
+        for k,v in self.pfdata.items():
+            fname = f"{prefix}_{k}.txt"
+            data = v[:,[0,1,3]]
+            data[:,[0,1]] = np.degrees(data[:,[0,1]])
+            np.savetxt(fname, data, delimiter="\t")
 
     @property
     def num_pfs(self):
