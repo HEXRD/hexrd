@@ -36,7 +36,7 @@ Yl = np.ascontiguousarray(I3[:, 1].reshape(3, 1))     # Z in the lab frame
 Zl = np.ascontiguousarray(I3[:, 2].reshape(3, 1))     # Z in the lab frame
 
 bVec_ref = -Zl
-eta_ref = Yl
+eta_ref = Xl
 
 class mesh_s2:
     """
