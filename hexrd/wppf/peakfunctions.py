@@ -855,7 +855,7 @@ def calc_rwp(spectrum_sim,
     (spectrum_sim[:,1] - \
     spectrum_expt[:,1])**2
 
-    weighted_expt = weights[:,1] * spectrum_sim[:,1] **2
+    weighted_expt = weights[:,1] * spectrum_expt[:,1] **2
 
     errvec = np.sqrt(err)
 
