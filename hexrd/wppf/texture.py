@@ -8,6 +8,7 @@ from warnings import warn
 from hexrd.transforms.xfcapi import anglesToGVec
 from hexrd.wppf import phase
 from lmfit import Parameters, Minimizer
+import copy
 
 """
 ========================================================================================================
@@ -199,7 +200,7 @@ class mesh_s2:
 
 
     def _get_harmonic_values(self,
-                            points):
+                            points_inp):
         """
         this is the main function which compute the
         value of the harmonic function at a given set 
@@ -218,8 +219,9 @@ class mesh_s2:
         Note that if z component is negative, an inversion 
         symmetry is automatically applied to the point
         """
-        mask = points[:,-1] < 0.
-        points[mask,:] = -points[mask,:]
+        points = copy.deepcopy(points_inp)
+        # mask = points[:,-1] < 0.
+        # points[mask,:] = -points[mask,:]
         bary_center, simplex_id = self._get_barycentric_coordinates(points)
         node_id = self.mesh.simplices[simplex_id]
 
@@ -254,51 +256,58 @@ class mesh_s2:
         first get the polynomials in the 
         denominator
         """
-        powers = Polya[self.symmetry]
-        den = powers["denominator"]
-
-        polyd = []
-        if not den:
-            pass
+        if self.symmetry == "cylindrical":
+            v = []
+            for i in range(0,max_degree+1,2):
+                v.append([i,1])
+            v = np.array(v).astype(np.int32)
+            return v
         else:
-            for m in den:
-                polyd.append(self.denominator(m, max_degree))
+            powers = Polya[self.symmetry]
+            den = powers["denominator"]
 
-        num = powers["numerator"]
-        polyn = []
-        if not num:
-            pass
-        else:
-            nn = [x[0] for x in num]
-            mmax = max(nn)
-            coef = np.zeros([mmax+1,])
-            coef[0] = 1.
-            for m in num:
-                coef[m[0]] = m[1]
-                polyn.append(Polynomial(coef))
-
-        """
-        multiply all of the polynomials in the denominator
-        with the ones in the numerator
-        """
-        poly = Polynomial([1.])
-        for pd in polyd:
-            if not pd:
-                break
+            polyd = []
+            if not den:
+                pass
             else:
-                poly = poly*pd
+                for m in den:
+                    polyd.append(self.denominator(m, max_degree))
 
-        for pn in polyn:
-            if not pn:
-                break
+            num = powers["numerator"]
+            polyn = []
+            if not num:
+                pass
             else:
-                poly = poly*pn
+                nn = [x[0] for x in num]
+                mmax = max(nn)
+                coef = np.zeros([mmax+1,])
+                coef[0] = 1.
+                for m in num:
+                    coef[m[0]] = m[1]
+                    polyn.append(Polynomial(coef))
 
-        poly = poly.truncate(max_degree+1)
-        idx = np.nonzero(poly.coef)
-        v = poly.coef[idx]
+            """
+            multiply all of the polynomials in the denominator
+            with the ones in the numerator
+            """
+            poly = Polynomial([1.])
+            for pd in polyd:
+                if not pd:
+                    break
+                else:
+                    poly = poly*pd
 
-        return np.vstack((idx,v)).T.astype(np.int32)
+            for pn in polyn:
+                if not pn:
+                    break
+                else:
+                    poly = poly*pn
+
+            poly = poly.truncate(max_degree+1)
+            idx = np.nonzero(poly.coef)
+            v = poly.coef[idx]
+
+            return np.vstack((idx,v)).T.astype(np.int32)
 
     def denominator(self, 
                     m, 
@@ -612,15 +621,22 @@ class harmonic_model:
         self.coeff_loc = {}
         ctr = 0
         for ii,(k,v) in enumerate(self.allowed_degrees.items()):
-          for icry in np.arange(v[0]):
-              for isamp in np.arange(v[1]):
-                  vname = f"c_{k}_{icry}_{isamp}"
-                  self.coeff_loc[vname] = ctr
-                  ctr += 1
-                  params.add(vname,value=self.coeff[ii],
-                    vary=True,min=-10.0,max=10.0)
+            if k > 0:
+                for icry in np.arange(v[0]):
+                    for isamp in np.arange(v[1]):
+                        vname = f"c_{k}_{icry}_{isamp}"
+                        self.coeff_loc[vname] = ctr
+                        idx = self.coeff_loc[vname]
+                        ctr += 1
+                        params.add(vname,value=self.coeff[idx],
+                        vary=True,min=-np.inf,max=np.inf)
 
-        params.add("phon",value=0.0,vary=True,min=0.0)
+        if hasattr(self, 'phon'):
+            val = self.phon
+        else:
+            val = 0.0
+
+        params.add("phon",value=val,vary=True,min=0.0)
 
         return params
 
@@ -629,6 +645,7 @@ class harmonic_model:
         this function takes the the values in the 
         parameters and sets the values of the coefficients
         """
+        self.coeff = np.zeros([len(self.coeff_loc),])
         for ii,k in enumerate(params):
             if k.lower() != "phon":
                 loc = self.coeff_loc[k]
@@ -712,7 +729,7 @@ class harmonic_model:
         consistent with the max degree argumeents for
         crystal and sample.
         """
-        ncoeff = coeff.shape[0]
+        ncoeff = coeff.shape[0]+1
         
         ncoeff_inv = self._num_coefficients()
         if ncoeff < ncoeff_inv:
@@ -780,14 +797,15 @@ class harmonic_model:
         compute the degree by degree sum in the
         generalized axis distribution function
         """
-        nn = np.cumsum(np.array([allowed_degrees[k][0]*allowed_degrees[k][1] 
-            for k in allowed_degrees]))
+        tmp = copy.deepcopy(allowed_degrees)
+        del tmp[0]
+        nn = np.cumsum(np.array([tmp[k][0]*tmp[k][1] 
+            for k in tmp]))
         ncoeff_csum = np.r_[0,nn]
 
-        val = np.zeros([nsamp,])
-        for i,(k,v) in enumerate(allowed_degrees.items()):
+        val = np.ones([nsamp,])+self.phon
+        for i,(k,v) in enumerate(tmp.items()):
             deg = k
-
             kc = V_c_allowed[deg]
 
             ks = V_s_allowed[deg].T
@@ -799,9 +817,8 @@ class harmonic_model:
             ien = ncoeff_csum[i+1]
             C = np.reshape(coeff[ist:ien],[mu, nu])
 
-            val = val + np.dot(kc,np.dot(C,ks))
+            val = val + np.dot(kc,np.dot(C,ks))*np.pi*4.0/(2*k+1)
 
-        val += self.phon
         return val
 
     def _num_coefficients(self):
@@ -1122,6 +1139,14 @@ class pole_figures:
             v = v/np.linalg.norm(v)
             self.hkls_c[ii,:] = v
 
+
+    def convert_angs_to_gvecs(self):
+        """
+        this routine converts angular coordinates in (tth, eta, omega)
+        to g-vectors in the lab frame
+        """
+        self.gvecs = {}
+        for k,v in self.pfdata.items():
             angs = v[:,0:3]
 
             if np.abs(angs).max() > 2.0*np.pi:
@@ -1199,6 +1224,6 @@ Polya = {
 
         "-1":
         {"numerator":[[2, 3.]],
-        "denominator":[2, 2]}
+        "denominator":[2, 2]},
 
         }
