@@ -619,6 +619,7 @@ class harmonic_model:
         """
         params = Parameters()
         self.coeff_loc = {}
+        self.coeff_loc_inv = {}
         ctr = 0
         for ii,(k,v) in enumerate(self.allowed_degrees.items()):
             if k > 0:
@@ -626,6 +627,7 @@ class harmonic_model:
                     for isamp in np.arange(v[1]):
                         vname = f"c_{k}_{icry}_{isamp}"
                         self.coeff_loc[vname] = ctr
+                        self.coeff_loc_inv[ctr] = vname
                         idx = self.coeff_loc[vname]
                         ctr += 1
                         params.add(vname,value=self.coeff[idx],
@@ -745,7 +747,7 @@ class harmonic_model:
                    f"needed {ncoeff_inv}, found {ncoeff}. "
                    f"ignoring extra terms.")
             warn(msg)
-            coeff = coef[:ncoeff_inv]
+            coeff = coeff[:ncoeff_inv]
  
         tex_fact = {}
         for g in self.pole_figures.hkls:
@@ -815,9 +817,10 @@ class harmonic_model:
 
             ist = ncoeff_csum[i]
             ien = ncoeff_csum[i+1]
+
             C = np.reshape(coeff[ist:ien],[mu, nu])
 
-            val = val + np.dot(kc,np.dot(C,ks))*np.pi*4.0/(2*k+1)
+            val = val + np.dot(kc,np.dot(C,ks))*4*np.pi/(2*k+1)
 
         return val
 
@@ -971,7 +974,7 @@ class harmonic_model:
 
         params = self.init_coeff_params()
         fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
-         'verbose': 0, 'max_nfev': 10000, 'method':'trf',
+         'verbose': 0, 'max_nfev': 20000, 'method':'trf',
          'jac':'3-point'}
 
         fitter = Minimizer(self.residual_function, params)
@@ -1026,17 +1029,25 @@ class harmonic_model:
                     init = False
 
         if init:
+            
             angs = self.init_equiangular_grid()
-            zc = np.atleast_2d(np.zeros([angs.shape[0],])).T
-            angs = np.append(angs,zc,axis=1)
-            mat  = self.pole_figures.material
+            mat = self.pole_figures.material
             bHat_l = self.pole_figures.bHat_l
             eHat_l = self.pole_figures.eHat_l
             chi = self.pole_figures.chi
+
+            t = angs[:,0]
+            r = angs[:,1]
+            st = np.sin(t)
+            ct = np.cos(t)
+            sr = np.sin(r)
+            cr = np.cos(r)
             pfdata = {}
             for g in hkls:
                 key = str(g)[1:-1].replace(" ","")
-                pfdata[key] = angs
+                xyz = np.vstack((st*cr,st*sr,ct)).T
+                v = angs[:,2]
+                pfdata[key] = np.vstack((xyz.T,v)).T 
 
             args   = (mat, hkls, pfdata)
             kwargs = {"bHat_l":bHat_l,
@@ -1054,8 +1065,9 @@ class harmonic_model:
         pf = model.recalculate_pole_figures()
         pfdata = {}
         for k,v in self.pf_equiangular.pfdata.items():
-            pfdata[k] = np.hstack((np.degrees(v[:,0:2]), 
-                                   np.atleast_2d(pf[k]).T ))
+            pfdata[k] = np.hstack((
+                        np.degrees(model.pole_figures.angs[k]), 
+                        np.atleast_2d(pf[k]).T ))
 
         return pfdata
 
@@ -1078,15 +1090,33 @@ class harmonic_model:
         self._phon = val
     
 
+    @property
+    def J(self):
+        tmp = copy.deepcopy(self.allowed_degrees)
+        del tmp[0]
+        nn = np.cumsum(np.array([tmp[k][0]*tmp[k][1] 
+            for k in tmp]))
+        ncoeff_csum = np.r_[0,nn]
+        J = 1.0
+        for ii,k in enumerate(tmp):
+            ist = ncoeff_csum[ii]
+            ien = ncoeff_csum[ii+1]
+            J += np.sum(self.coeff[ist:ien]**2)/(2*k+1)
+
+        return J
+    
+
 class pole_figures:
     """
     this class deals with everything related to pole figures. 
     pole figures can be initialized in a number of ways. the most
-    basic being the (tth, eta, omega, intensities) array. There are
+    basic being the (x,y,z, intensities) array. There are
     other formats which will be slowly added to this class. a list of 
     hkl and a material/material_rietveld class is also supplied along 
     with the (angle, intensity) info to get a class holding all the 
     information. 
+    @DATE 10/06/2021 SS changes input from angles to unit vectors
+                        and added routines to compute the angles
     """
     def __init__(self,
                  material,
@@ -1125,7 +1155,6 @@ class pole_figures:
             raise RuntimeError(msg)
 
         self.pfdata = pfdata
-        self.convert_angs_to_gvecs()
 
     def convert_hkls_to_cartesian(self):
         """
@@ -1138,7 +1167,6 @@ class pole_figures:
             v = self.material.TransSpace(g, "r", "c")
             v = v/np.linalg.norm(v)
             self.hkls_c[ii,:] = v
-
 
     def convert_angs_to_gvecs(self):
         """
@@ -1159,16 +1187,18 @@ class pole_figures:
                                          bHat_l=self.bHat_l,
                                          eHat_l=self.eHat_l,
                                          chi=self.chi)
+
     def write_data(self, prefix):
         """
         write out the data in text format
         the prefix goes in front of the names
         name will be "<prefix>_hkl.txt"
         """
-        for k,v in self.pfdata.items():
+        for k in self.pfdata:
             fname = f"{prefix}_{k}.txt"
-            data = v[:,[0,1,3]]
-            data[:,[0,1]] = np.degrees(data[:,[0,1]])
+            angs = np.degrees(self.angs[k])
+            intensities = np.atleast_2d(self.intensities[k]).T
+            data = np.hstack((angs,intensities))
             np.savetxt(fname, data, delimiter="\t")
 
     @property
@@ -1199,8 +1229,34 @@ class pole_figures:
 
     @pfdata.setter
     def pfdata(self, val):
-        self._pfdata = val
+        self._pfdata = {}
+        self._intensities = {}
+        self._gvecs = {}
+        self._angs = {}
+        for k,v in val.items():
+            norm = np.linalg.norm(v[:,0:3],axis=1)
+            v[:,0:3] = v[:,0:3]/np.tile(norm, [3,1]).T
+            t = np.arccos(v[:,2])
+            rho = np.arctan2(v[:,1],v[:,0])
 
+            self._gvecs[k] = v[:,0:3]
+            self._pfdata[k] = v
+            self._intensities[k] = v[:,3]
+            self._angs[k] = np.vstack((t,rho)).T
+
+    @property
+    def gvecs(self):
+        return self._gvecs
+
+    @property
+    def angs(self):      
+        return self._angs
+    
+    @property
+    def intensities(self):
+        return self._intensities
+    
+    
 Polya = {
         "m35":
         {"numerator":[],
