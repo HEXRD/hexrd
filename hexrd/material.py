@@ -379,7 +379,7 @@ class Material(object):
         self.planeData.set_structFact(sf)
 
     def compute_powder_overlay(self,
-                               ttharray=numpy.linspace(0,80,2000),
+                               ttharray=numpy.linspace(0, 80, 2000),
                                fwhm=0.25,
                                scale=1.0):
         """
@@ -394,9 +394,9 @@ class Material(object):
         tth = numpy.degrees(self.planeData.getTTh()) # convert to degrees
         Ip  = self.planeData.powder_intensity
         self.powder_overlay = numpy.zeros_like(ttharray)
-        for t,I in zip(tth,Ip):
-            p = [t,fwhm]
-            self.powder_overlay += scale*I*_unit_gaussian(p,ttharray)
+        for t,I in zip(tth, Ip):
+            p = [t, fwhm]
+            self.powder_overlay += scale*I*_unit_gaussian(p, ttharray)
 
     def _readCif(self, fcif=DFLT_NAME+'.cif'):
         """
