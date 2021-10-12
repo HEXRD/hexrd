@@ -2404,22 +2404,14 @@ class PlanarDetector(object):
                              self.rows, self.cols)
 
     def pixel_tth_gradient(self, origin=ct.zeros_3):
-        assert len(origin) == 3, "origin must have 3 elemnts"
-        ptth, _ = self.pixel_angles(origin=origin)
-        return np.linalg.norm(np.stack(np.gradient(ptth)), axis=0)
+        return _pixel_tth_gradient(origin, self.pixel_coords, self.distortion,
+                                   self.rmat, self.tvec, self.bvec, self.evec,
+                                   self.rows, self.cols)
 
     def pixel_eta_gradient(self, origin=ct.zeros_3):
-        assert len(origin) == 3, "origin must have 3 elemnts"
-        _, peta = self.pixel_angles(origin=origin)
-
-        peta_grad_row = np.gradient(peta, axis=0)
-        peta_grad_col = np.gradient(peta, axis=1)
-
-        # !!!: fix branch cut
-        peta_grad_row = _fix_branch_cut_in_gradients(peta_grad_row)
-        peta_grad_col = _fix_branch_cut_in_gradients(peta_grad_col)
-
-        return np.linalg.norm(np.stack([peta_grad_col, peta_grad_row]), axis=0)
+        return _pixel_eta_gradient(origin, self.pixel_coords, self.distortion,
+                                   self.rmat, self.tvec, self.bvec, self.evec,
+                                   self.rows, self.cols)
 
     def cartToPixel(self, xy_det, pixels=False):
         """
@@ -3764,6 +3756,32 @@ def _pixel_angles(origin, pixel_coords, distortion, rmat, tvec, bvec, evec,
     tth = angs[0].reshape(rows, cols)
     eta = angs[1].reshape(rows, cols)
     return tth, eta
+
+
+@memoize
+def _pixel_tth_gradient(origin, pixel_coords, distortion, rmat, tvec, bvec,
+                        evec, rows, cols):
+    assert len(origin) == 3, "origin must have 3 elements"
+    ptth, _ = _pixel_angles(origin, pixel_coords, distortion, rmat, tvec,
+                            bvec, evec, rows, cols)
+    return np.linalg.norm(np.stack(np.gradient(ptth)), axis=0)
+
+
+@memoize
+def _pixel_eta_gradient(origin, pixel_coords, distortion, rmat, tvec, bvec,
+                        evec, rows, cols):
+    assert len(origin) == 3, "origin must have 3 elemnts"
+    _, peta = _pixel_angles(origin, pixel_coords, distortion, rmat, tvec,
+                            bvec, evec, rows, cols)
+
+    peta_grad_row = np.gradient(peta, axis=0)
+    peta_grad_col = np.gradient(peta, axis=1)
+
+    # !!!: fix branch cut
+    peta_grad_row = _fix_branch_cut_in_gradients(peta_grad_row)
+    peta_grad_col = _fix_branch_cut_in_gradients(peta_grad_col)
+
+    return np.linalg.norm(np.stack([peta_grad_col, peta_grad_row]), axis=0)
 
 
 @memoize
