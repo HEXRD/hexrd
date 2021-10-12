@@ -819,7 +819,7 @@ class harmonic_model:
 
             C = np.reshape(coeff[ist:ien],[mu, nu])
 
-            val = val + np.dot(kc,np.dot(C,ks))*4*np.pi/(2*k+1)
+            val = val + np.squeeze(np.dot(kc,np.dot(C,ks))*4*np.pi/(2*k+1))
 
         return val
 
@@ -1094,10 +1094,12 @@ class harmonic_model:
         ipf = inverse_pole_figures(sample_dir,
                                    sampling=grid,
                                    resolution=resolution)
-        vc, vs = self.compute_ipdf(ipf)
-        return vc, vs
+        vc, vs = self._compute_ipdf_mesh_vals(ipf)
+        ipdf = self._compute_ipdf(ipf,vc,vs)
 
-    def compute_ipdf(self,
+        return ipdf
+
+    def _compute_ipdf_mesh_vals(self,
                     ipf):
         """
         compute the inverse pole density function.
@@ -1129,6 +1131,43 @@ class harmonic_model:
 
         return V_c_allowed,V_s_allowed
 
+
+    def _compute_ipdf(self,
+                      ipf,
+                      vc,
+                      vs):
+        """
+        compute the generalized axis distribution
+        function sum for the coefficients
+        """
+        allowed_degrees = self.allowed_degrees
+        tmp = copy.deepcopy(allowed_degrees)
+        del tmp[0]
+        nn = np.cumsum(np.array([tmp[k][0]*tmp[k][1] 
+            for k in tmp]))
+        ncoeff_csum = np.r_[0,nn]
+        nsamp = ipf.sample_dir.shape[0]
+        ncryst = ipf.crystal_dir.shape[0]
+        coeff = self.coeff
+
+        val = np.ones([ncryst,])+self.phon
+        for i,(k,v) in enumerate(tmp.items()):
+            deg = k
+            kc = vc[deg]
+
+            ks = vs[deg].T
+
+            mu = kc.shape[1]
+            nu = ks.shape[0]
+
+            ist = ncoeff_csum[i]
+            ien = ncoeff_csum[i+1]
+
+            C = np.reshape(coeff[ist:ien],[mu, nu])
+
+            val = val + np.squeeze(np.dot(kc,np.dot(C,ks))*4*np.pi/(2*k+1))
+
+        return val
 
     def write_pole_figures(self, pfdata):
         """
