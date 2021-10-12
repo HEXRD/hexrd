@@ -772,7 +772,41 @@ class harmonic_model:
         ipf = inverse_pole_figures(sample_dir,
                                    sampling=grid,
                                    resolution=resolution)
+        vc, vs = self.compute_ipdf(ipf)
+        return vc, vs
         
+    def compute_ipdf(self,
+                    ipf):
+        """
+        compute the inverse pole density function.
+        """
+        ninv_c = self.mesh_crystal.num_invariant_harmonic(
+        self.max_degree)
+
+        ninv_s = self.mesh_sample.num_invariant_harmonic(
+                 self.max_degree)
+
+        V_c = self.mesh_crystal._get_harmonic_values(ipf.crystal_dir)
+        V_s = self.mesh_sample._get_harmonic_values(ipf.sample_dir)
+
+        """
+        some degrees for which the crystal symmetry has
+        fewer terms than sample symmetry or vice versa 
+        needs to be weeded out
+        """
+        V_c_allowed = {}
+        V_s_allowed = {}
+        for i in np.arange(0,self.max_degree+1,2):
+            if i in ninv_c[:,0] and i in ninv_s[:,0]:
+                
+                istc, ienc = self._index_of_harmonics(i, "crystal")
+                V_c_allowed[i] = V_c[:,istc:ienc]
+
+                ists, iens = self._index_of_harmonics(i, "sample")
+                V_s_allowed[i] = V_s[:,ists:iens]
+
+        return V_c_allowed,V_s_allowed
+
 
     def write_pole_figures(self, pfdata):
         """
