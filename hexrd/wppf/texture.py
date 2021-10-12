@@ -773,8 +773,8 @@ class harmonic_model:
                                    resolution=resolution)
         vc, vs = self._compute_ipdf_mesh_vals(ipf)
         ipdf = self._compute_ipdf(ipf,vc,vs)
-
-        return ipdf
+        angs = ipf.angs
+        return np.hstack((angs,np.atleast_2d(ipdf).T))
 
     def _compute_ipdf_mesh_vals(self,
                     ipf):
@@ -1108,6 +1108,12 @@ class inverse_pole_figures:
         elif val.lower() == "fem":
             self.initialize_crystal_dir("FEM")
 
+    @property
+    def angs(self):
+        polar = np.arccos(self.crystal_dir[:,2])
+        az = np.arctan2(self.crystal_dir[:,1],self.crystal_dir[:,0])
+        return np.degrees(np.vstack((polar,az)).T)
+    
 Polya = {
         "m35":
         {"numerator":[],
