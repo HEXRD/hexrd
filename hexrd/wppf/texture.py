@@ -1073,7 +1073,8 @@ class harmonic_model:
 
     def calc_inverse_pole_figures(self,
                                   sample_dir="ND",
-                                  grid="equiangular"):
+                                  grid="equiangular",
+                                  resolution = 5.0):
         """
         given a sample direction such as TD, RD and ND,
         calculate the distribution of crystallographic
@@ -1084,14 +1085,17 @@ class harmonic_model:
         flow as the pole figure calculation.
         sample_dir can have "RD", "TD" and "ND" as string
         arguments or can also have a nx3 array
-        """
-        pass
+        grid can be "equiangular" or "FEM"
+        resolution in degrees. only used for equiangular grid
 
-        """
         instead of sampling asymmetric unit of stereogram,
         we will sample the entire northern hemisphere. the
         resulting IPDF will have symmetry of crystal
         """
+        ipf = inverse_pole_figures(sample_dir,
+                                   sampling=grid,
+                                   resolution=resolution)
+        
 
     def write_pole_figures(self, pfdata):
         """
@@ -1284,7 +1288,6 @@ class inverse_pole_figures:
     
     """
     def __init__(self,
-                 laue_sym,
                  sample_dir,
                  sampling="equiangular",
                  resolution=5.0):
@@ -1298,20 +1301,39 @@ class inverse_pole_figures:
            equiangular sampling type
         """
         self.sample_dir = sample_dir
-        self.laue_sym = laue_sym
+        # self.laue_sym = laue_sym
+        if sampling == "equiangular":
+            self.resolution = resolution
+        self.sampling = sampling
 
-    def write_data(self, prefix):
+    def initialize_crystal_dir(self,
+                               samplingtype,
+                               resolution=5.0):
         """
-        write out the data in text format
-        the prefix goes in front of the names
-        name will be "<prefix>_hkl.txt"
+        this function prepares the unit vectors
+        of the stereogram
         """
-        for k in self.pfdata:
-            fname = f"{prefix}_{k}.txt"
-            angs = np.degrees(self.angs[k])
-            intensities = np.atleast_2d(self.intensities[k]).T
-            data = np.hstack((angs,intensities))
-            np.savetxt(fname, data, delimiter="\t")
+        if samplingtype.lower() == "equiangular":
+            angs = []
+            for tth in np.arange(0,91,resolution):
+                for eta in np.arange(0, 360, resolution):
+                    angs.append([np.radians(tth), np.radians(eta)])
+                    if tth == 0:
+                        break
+            angs = np.array(angs)
+            self.crystal_dir = np.zeros([angs.shape[0],3])
+            for i,a in enumerate(angs):
+                t, r = a
+                st = np.sin(t)
+                ct = np.cos(t)
+                sr = np.sin(r)
+                cr = np.cos(r)
+                self.crystal_dir[i,:] = np.array([st*cr,st*sr,ct])
+
+        if samplingtype.lower() == "fem":
+            msg = "sampling type FEM not implemented yet."
+            raise ValueError(msg)
+            pass
 
     @property
     def sample_dir(self):
@@ -1338,11 +1360,37 @@ class inverse_pole_figures:
         elif isinstance(val, np.array):
             v = np.atleast_2d(val)
             if v.shape[1] != 3:
-                msg = (f"incorrect shape for sample_dir input"
+                msg = (f"incorrect shape for sample_dir input.\n"
                        f"expected nx3, got {val.shape[0]}x{val.shape[1]}")
                 raise ValueError(msg)
             self._sample_dir = v
             self._sample_dir_name = "array"
+
+    @property
+    def resolution(self):
+        return self._resolution
+
+    @resolution.setter
+    def resolution(self, val):
+        if val < 1.0:
+            msg = (f"the resolution appears to be very fine.\n"
+                f"Are you sure the value is in degrees?")
+            warn(msg)
+        self._resolution = val
+    
+    @property
+    def sampling(self):
+        return self._sampling
+    
+    @sampling.setter
+    def sampling(self, val):
+        if val.lower() == "equiangular":
+            self.initialize_crystal_dir("equiangular",
+                                     resolution=self.resolution)
+
+        elif val.lower() == "fem":
+            self.initialize_crystal_dir("FEM")
+
 Polya = {
         "m35":
         {"numerator":[],
