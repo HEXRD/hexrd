@@ -748,6 +748,28 @@ class harmonic_model:
 
         return pfdata
 
+    def calc_inverse_pole_figures(self,
+                                  sample_dir="ND",
+                                  grid="equiangular"):
+        """
+        given a sample direction such as TD, RD and ND,
+        calculate the distribution of crystallographic
+        axes aligned with that direction. this is sometimes
+        more useful than the regular pole figures especially
+        for cylindrical sample symmetry where the PFs are
+        usually "Bulls Eye" type. this follows the same
+        flow as the pole figure calculation.
+        sample_dir can have "RD", "TD" and "ND" as string
+        arguments or can also have a nx3 array
+        """
+        pass
+
+        """
+        instead of sampling asymmetric unit of stereogram,
+        we will sample the entire northern hemisphere. the
+        resulting IPDF will have symmetry of crystal
+        """
+
     def write_pole_figures(self, pfdata):
         """
         take output of the calc_pole_figures routine and write
@@ -900,8 +922,72 @@ class pole_figures:
     @property
     def intensities(self):
         return self._intensities
+
+class inverse_pole_figures:
+    """
+    this class deals with everything related to inverse pole figures. 
     
-    
+    """
+    def __init__(self,
+                 laue_sym,
+                 sample_dir,
+                 sampling="equiangular",
+                 resolution=5.0):
+        """
+        this is the initialization of the class. the inputs are
+        1. laue_sym for laue symmetry
+        2. sample_dir the sample direction for pole figure
+        3. sampling sampling strategy for the IPF stereogram.
+           optios are "equiangular" and "FEM"
+        4. resolution grid resolution in degrees. only valid for
+           equiangular sampling type
+        """
+        self.sample_dir = sample_dir
+        self.laue_sym = laue_sym
+
+    def write_data(self, prefix):
+        """
+        write out the data in text format
+        the prefix goes in front of the names
+        name will be "<prefix>_hkl.txt"
+        """
+        for k in self.pfdata:
+            fname = f"{prefix}_{k}.txt"
+            angs = np.degrees(self.angs[k])
+            intensities = np.atleast_2d(self.intensities[k]).T
+            data = np.hstack((angs,intensities))
+            np.savetxt(fname, data, delimiter="\t")
+
+    @property
+    def sample_dir(self):
+        """ sample direction for IPF """
+        return self._sample_dir
+
+    @sample_dir.setter
+    def sample_dir(self, val):
+        # interpret sample_dir input
+        # sample_dir size = nx3 
+        if isinstance(val, str):
+            if val.upper() == "RD":
+                self._sample_dir = np.atleast_2d([1.,0.,0.])
+                self._sample_dir_name = "RD"
+            elif val.upper() == "TD":
+                self._sample_dir = np.atleast_2d([0.,1.,0.])
+                self._sample_dir_name = "TD"
+            elif val.upper() == "ND":
+                self._sample_dir = np.atleast_2d([0.,0.,1.])
+                self._sample_dir_name = "ND"
+            else:
+                msg = f"unknown direction."
+                raise ValueError(msg)
+        elif isinstance(val, np.array):
+            v = np.atleast_2d(val)
+            if v.shape[1] != 3:
+                msg = (f"incorrect shape for sample_dir input"
+                       f"expected nx3, got {val.shape[0]}x{val.shape[1]}")
+                raise ValueError(msg)
+            self._sample_dir = v
+            self._sample_dir_name = "array"
 Polya = {
         "m35":
         {"numerator":[],
