@@ -342,7 +342,6 @@ class harmonic_model:
 
         ncoeff = self._num_coefficients()
         self.coeff = np.zeros([ncoeff,])
-        self.coeff[0] = 1.0
 
     def init_harmonic_values(self):
         """
@@ -774,7 +773,7 @@ class harmonic_model:
                                    resolution=resolution)
         vc, vs = self.compute_ipdf(ipf)
         return vc, vs
-        
+
     def compute_ipdf(self,
                     ipf):
         """
