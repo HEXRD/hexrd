@@ -29,6 +29,7 @@ requirements:
     - psutil
     - pycifrw
     - python=3.8
+    - python-xxhash
     - pyyaml
     - scikit-image
     - scikit-learn
