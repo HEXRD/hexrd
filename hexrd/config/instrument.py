@@ -1,3 +1,4 @@
+import h5py
 import yaml
 
 from .config import Config
@@ -25,8 +26,11 @@ class Instrument(Config):
     def hedm(self):
         """Return the HEDMInstrument class."""
         if not hasattr(self, '_hedm'):
-            with open(self.configuration, 'r') as f:
-                icfg = yaml.load(f, Loader=NumPyIncludeLoader)
+            try:
+                icfg = h5py.File(self.configuration, 'r')
+            except(OSError):
+                with open(self.configuration, 'r') as f:
+                    icfg = yaml.load(f, Loader=NumPyIncludeLoader)
 
             kwargs = {
                 'instrument_config': icfg,
@@ -36,10 +40,13 @@ class Instrument(Config):
         return self._hedm
 
     @hedm.setter
-    def hedm(self, yml):
+    def hedm(self, icfg_fname):
         """Set the HEDMInstrument class."""
-        with open(yml, 'r') as f:
-            icfg = yaml.load(f, Loader=NumPyIncludeLoader)
+        try:
+            icfg = h5py.File(icfg_fname, 'r')
+        except(OSError):
+            with open(icfg_fname, 'r') as f:
+                icfg = yaml.load(f, Loader=NumPyIncludeLoader)
 
         kwargs = {
             'instrument_config': icfg,
