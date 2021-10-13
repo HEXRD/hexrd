@@ -24,12 +24,9 @@ from hexrd.xrdutil import EtaOmeMaps
 # just require scikit-learn?
 have_sklearn = False
 try:
-    import sklearn
-    vstring = sklearn.__version__.split('.')
-    if vstring[0] == '0' and int(vstring[1]) >= 14:
-        from sklearn.cluster import dbscan
-        from sklearn.metrics.pairwise import pairwise_distances
-        have_sklearn = True
+    from sklearn.cluster import dbscan
+    from sklearn.metrics.pairwise import pairwise_distances
+    have_sklearn = True
 except ImportError:
     pass
 
