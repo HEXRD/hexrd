@@ -27,9 +27,9 @@ class Instrument(Config):
         """Return the HEDMInstrument class."""
         if not hasattr(self, '_hedm'):
             try:
-                icfg = h5py.File(icfg_fname, 'r')
+                icfg = h5py.File(self.configuration, 'r')
             except(OSError):
-                with open(icfg_fname, 'r') as f:
+                with open(self.configuration, 'r') as f:
                     icfg = yaml.load(f, Loader=NumPyIncludeLoader)
 
             kwargs = {
