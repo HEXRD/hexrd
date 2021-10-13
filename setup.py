@@ -70,6 +70,7 @@ entry_points = {
 setup(
     name='hexrd',
     use_scm_version=True,
+    setup_requires=['setuptools-scm'],
     description = 'hexrd X-ray diffraction data analysis tool',
     long_description = open('README.md').read(),
     author='The hexrd Development Team',

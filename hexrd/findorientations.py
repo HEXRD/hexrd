@@ -464,7 +464,7 @@ def filter_maps_if_requested(eta_ome, cfg):
                 filter_stdev=sigm
             )
         else:
-            logger.info("filtering eta/ome maps", filter_maps)
+            logger.info("filtering eta/ome maps")
             _filter_eta_ome_maps(eta_ome)
 
 

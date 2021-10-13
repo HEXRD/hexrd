@@ -14,15 +14,21 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
     def __init__(self, fname, **kwargs):
         """Constructor for H5FrameSeries
 
-        *fname* - filename of the HDF5 file
+        *fname* - filename of the HDF5 file, or an open h5py file
+                  (this class will close the h5py file when finished)
         *kwargs* - keyword arguments, choices are:
            path - (required) path of dataset in HDF5 file
         """
-        self.__h5name = fname
+        if isinstance(fname, h5py.File):
+            self.__h5name = fname.filename
+            self.__h5file = fname
+        else:
+            self.__h5name = fname
+            self.__h5file = h5py.File(self.__h5name, 'r')
+
         self.__path = kwargs['path']
         self.__dataname = kwargs.pop('dataname', 'images')
         self.__images = '/'.join([self.__path, self.__dataname])
-        self.__h5file = h5py.File(self.__h5name, 'r')
         self.__image_dataset = self.__h5file[self.__images]
         self.__data_group = self.__h5file[self.__path]
         self._meta = self._getmeta()

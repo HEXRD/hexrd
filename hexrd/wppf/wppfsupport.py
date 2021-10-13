@@ -83,8 +83,8 @@ def _generate_default_parameters_pseudovoight(params):
                        vary=v[3])
 
 def _add_pvfcj_parameters(params):
-    p = {"HL":[1.60e-2,0.,1e-1,False],
-         "SL":[2.28e-2,0.,1e-1,False]
+    p = {"HL":[1e-3,1e-7,1e-1,False],
+         "SL":[1e-3,1e-7,1e-1,False]
          }
     for k, v in p.items():
         if isinstance(params, Parameters):

@@ -791,8 +791,20 @@ class PlaneData(object):
 
     def set_structFact(self, structFact):
         self.__structFact = structFact
+        multiplicity = self.getMultiplicity(allHKLs=True)
+        tth = self.getTTh(allHKLs=True)
+        lp = (1 + np.cos(tth)**2)/np.cos(0.5*tth)/np.sin(0.5*tth)**2/2.0
+
+        powderI = structFact*multiplicity*lp
+        powderI = 100.0*powderI/powderI.max()
+
+        self._powder_intensity = powderI
 
     structFact = property(get_structFact, set_structFact, None)
+
+    @property
+    def powder_intensity(self):
+        return self._powder_intensity[~self.exclusions]
 
     @staticmethod
     def makePlaneData(hkls, lparms, qsym, symmGroup, strainMag, wavelength):
@@ -1019,13 +1031,16 @@ class PlaneData(object):
         new = self.__class__(None, self)
         return new
 
-    def getTTh(self, lparms=None):
+    def getTTh(self, lparms=None, allHKLs=False):
         if lparms is None:
             tTh = []
             for iHKLr, hklData in enumerate(self.hklDataList):
-                if not self.__thisHKL(iHKLr):
-                    continue
-                tTh.append(hklData['tTheta'])
+                if not allHKLs:
+                    if not self.__thisHKL(iHKLr):
+                        continue
+                    tTh.append(hklData['tTheta'])
+                else:
+                    tTh.append(hklData['tTheta'])
         else:
             new = self.makeNew()
             new.lparms = lparms
@@ -1064,12 +1079,16 @@ class PlaneData(object):
 
         return ddtTh
 
-    def getMultiplicity(self):          # ... JVB: is this incorrect?
+    def getMultiplicity(self, allHKLs=False):
+        # ... JVB: is this incorrect?
         multip = []
         for iHKLr, hklData in enumerate(self.hklDataList):
-            if not self.__thisHKL(iHKLr):
-                continue
-            multip.append(hklData['symHKLs'].shape[1])
+            if not allHKLs:
+                if not self.__thisHKL(iHKLr):
+                    continue
+                multip.append(hklData['symHKLs'].shape[1])
+            else:
+                multip.append(hklData['symHKLs'].shape[1])
         return np.array(multip)
 
     def getHKLID(self, hkl):

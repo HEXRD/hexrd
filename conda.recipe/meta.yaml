@@ -8,14 +8,13 @@ source:
 build:
   number: {{ environ.get('GIT_DESCRIBE_NUMBER', 0) }}
   detect_binary_files_with_prefix: true
-  osx_is_app: yes
   entry_points:
     - hexrd = hexrd.cli.main:main
 
 requirements:
   build:
     - numpy
-    - python {{PY_VER}}
+    - python=3.8
     - setuptools
     - setuptools_scm
 
@@ -29,10 +28,10 @@ requirements:
     - numpy
     - psutil
     - pycifrw
-    - python {{PY_VER}}
+    - python=3.8
     - pyyaml
     - scikit-image
-    - scikit-learn 0.24.1
+    - scikit-learn
     - scipy
 
 test:

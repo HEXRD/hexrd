@@ -440,6 +440,7 @@ class SphericalView(object):
         tc, ec = np.meshgrid(np.arange(ncols_in)[::skip],
                              np.arange(nrows_in)[::skip])
         op = np.zeros_like(tp.flatten())
+
         angs = np.vstack(
             [tp.flatten(),
              ep.flatten(),
@@ -447,7 +448,8 @@ class SphericalView(object):
         ).T
 
         ppts = zproject_sph_angles(
-            angs, method='stereographic', source='d', invert_z=self.invert_z
+            angs, method='stereographic', source='d', invert_z=self.invert_z,
+            rmat=self.rmat
         )
 
         # output pixel size

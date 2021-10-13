@@ -109,6 +109,8 @@ t_vec_s_DFLT = np.zeros(3)
 
 max_workers_DFLT = max(1, os.cpu_count() - 1)
 
+distortion_registry = distortion_pkg.Registry()
+
 """
 Calibration parameter flags
 
@@ -363,6 +365,13 @@ else:
 
         return 2.*np.arctan2(scalar_triple_product, denominator)
 
+
+def _fix_branch_cut_in_gradients(pgarray):
+    return np.min(
+        np.abs(np.stack([pgarray - np.pi, pgarray, pgarray + np.pi])),
+        axis=0
+    )
+
 # =============================================================================
 # CLASSES
 # =============================================================================
@@ -414,7 +423,6 @@ class HEDMInstrument(object):
             if isinstance(instrument_config, h5py.File):
                 tmp = {}
                 unwrap_h5_to_dict(instrument_config, tmp)
-                instrument_config.close()
                 instrument_config = tmp['instrument']
             elif not isinstance(instrument_config, dict):
                 raise RuntimeError(
@@ -730,7 +738,7 @@ class HEDMInstrument(object):
     # METHODS
     # =========================================================================
 
-    def write_config(self, filename=None, style='yaml', calibration_dict={}):
+    def write_config(self, file=None, style='yaml', calibration_dict={}):
         """ WRITE OUT YAML FILE """
         # initialize output dictionary
         assert style.lower() in ['yaml', 'hdf5'], \
@@ -772,15 +780,24 @@ class HEDMInstrument(object):
         par_dict['detectors'] = det_dict
 
         # handle output file if requested
-        if filename is not None:
+        if file is not None:
             if style.lower() == 'yaml':
-                with open(filename, 'w') as f:
+                with open(file, 'w') as f:
                     yaml.dump(par_dict, stream=f)
             else:
-                # hdf5
-                with h5py.File(filename, 'w') as f:
-                    instr_grp = f.create_group('instrument')
+                def _write_group(file):
+                    instr_grp = file.create_group('instrument')
                     unwrap_dict_to_h5(instr_grp, par_dict, asattr=False)
+
+                # hdf5
+                if isinstance(file, str):
+                    with h5py.File(file, 'w') as f:
+                        _write_group(f)
+                elif isinstance(file, h5py.File):
+                    _write_group(file)
+                else:
+                    raise TypeError("Unexpected file type.")
+
 
         return par_dict
 
@@ -2115,9 +2132,12 @@ class PlanarDetector(object):
 
     @distortion.setter
     def distortion(self, x):
-        # FIXME: ne to reconcile check with new class type!
-        assert len(x) == 2 and hasattr(x[0], '__call__'), \
-            'distortion must be a tuple: (<func>, params)'
+        if x is not None:
+            check_arg = np.zeros(len(distortion_registry), dtype=bool)
+            for i, dcls in enumerate(distortion_registry.values()):
+                check_arg[i] = isinstance(x, dcls)
+            assert np.any(check_arg), \
+                'input distortion is not in registry!'
         self._distortion = x
 
     @property
@@ -2201,7 +2221,7 @@ class PlanarDetector(object):
     # METHODS
     # =========================================================================
 
-    def lorentz_polarization_factor(self, f_hor, f_vert):
+    def lorentz_polarization_factor(self, f_hor, f_vert, unpolarized=False):
         """
         Calculated the lorentz polarization factor for every pixel.
 
@@ -2237,7 +2257,7 @@ class PlanarDetector(object):
             raise RuntimeError(msg)
 
         tth, eta = self.pixel_angles()
-        args = (tth, eta, f_hor, f_vert)
+        args = (tth, eta, f_hor, f_vert, unpolarized)
 
         return _lorentz_polarization_factor(*args)
 
@@ -2389,30 +2409,17 @@ class PlanarDetector(object):
         return np.linalg.norm(np.stack(np.gradient(ptth)), axis=0)
 
     def pixel_eta_gradient(self, origin=ct.zeros_3):
-        period = np.r_[0., 2*np.pi]
         assert len(origin) == 3, "origin must have 3 elemnts"
         _, peta = self.pixel_angles(origin=origin)
 
-        # !!! handle cyclic nature of eta
-        rowmap = np.empty_like(peta)
-        for i in range(rowmap.shape[0]):
-            rowmap[i, :] = mapAngle(
-                peta[i, :], peta[i, 0] + period
-            )
+        peta_grad_row = np.gradient(peta, axis=0)
+        peta_grad_col = np.gradient(peta, axis=1)
 
-        colmap = np.empty_like(peta)
-        for i in range(colmap.shape[1]):
-            colmap[:, i] = mapAngle(
-                peta[:, i], peta[0, i] + period
-            )
+        # !!!: fix branch cut
+        peta_grad_row = _fix_branch_cut_in_gradients(peta_grad_row)
+        peta_grad_col = _fix_branch_cut_in_gradients(peta_grad_col)
 
-        peta_grad_row = np.gradient(rowmap)
-        peta_grad_col = np.gradient(colmap)
-
-        return np.linalg.norm(
-            np.stack([peta_grad_col[0], peta_grad_row[1]]),
-            axis=0
-        )
+        return np.linalg.norm(np.stack([peta_grad_col, peta_grad_row]), axis=0)
 
     def cartToPixel(self, xy_det, pixels=False):
         """
@@ -2454,7 +2461,9 @@ class PlanarDetector(object):
 
     def angularPixelSize(self, xy, rMat_s=None, tVec_s=None, tVec_c=None):
         """
-        Wraps xrdutil.angularPixelSize
+        Notes
+        -----
+        !!! assumes xy are in raw (distorted) frame, if applicable
         """
         # munge kwargs
         if rMat_s is None:
@@ -2464,7 +2473,26 @@ class PlanarDetector(object):
         if tVec_c is None:
             tVec_c = ct.zeros_3x1
 
-        # call function
+        # FIXME: perhaps not necessary, but safe...
+        xy = np.atleast_2d(xy)
+
+        '''
+        # ---------------------------------------------------------------------
+        # TODO: needs testing and memoized gradient arrays!
+        # ---------------------------------------------------------------------
+        # need origin arg
+        origin = np.dot(rMat_s, tVec_c).flatten() + tVec_s.flatten()
+
+        # get pixel indices
+        i_crds = cellIndices(self.row_edge_vec, xy[:, 1])
+        j_crds = cellIndices(self.col_edge_vec, xy[:, 0])
+
+        ptth_grad = self.pixel_tth_gradient(origin=origin)[i_crds, j_crds]
+        peta_grad = self.pixel_eta_gradient(origin=origin)[i_crds, j_crds]
+
+        return np.vstack([ptth_grad, peta_grad]).T
+        '''
+        # call xrdutil function
         ang_ps = xrdutil.angularPixelSize(
             xy, (self.pixel_size_row, self.pixel_size_col),
             self.rmat, rMat_s,
@@ -2527,9 +2555,38 @@ class PlanarDetector(object):
                 on_panel = np.logical_and(on_panel_x, on_panel_y)
         return xy[on_panel, :], on_panel
 
-    def cart_to_angles(self, xy_data, rmat_s=None, tvec_s=None, tvec_c=None):
+    def cart_to_angles(self, xy_data,
+                       rmat_s=None,
+                       tvec_s=None, tvec_c=None,
+                       apply_distortion=False):
         """
-        TODO: distortion
+        Transform cartesian coordinates to angular.
+
+        Parameters
+        ----------
+        xy_data : TYPE
+            The (n, 2) array of n (x, y) coordinates to be transformed in
+            either the raw or ideal cartesian plane (see `apply_distortion`
+            kwarg below).
+        rmat_s : array_like, optional
+            The (3, 3) COB matrix for the sample frame. The default is None.
+        tvec_s : array_like, optional
+            The (3, ) translation vector for the sample frame.
+            The default is None.
+        tvec_c : array_like, optional
+            The (3, ) translation vector for the crystal frame.
+            The default is None.
+        apply_distortion : bool, optional
+            If True, apply distortion to the inpout cartesian coordinates.
+            The default is False.
+
+        Returns
+        -------
+        tth_eta : TYPE
+            DESCRIPTION.
+        g_vec : TYPE
+            DESCRIPTION.
+
         """
         if rmat_s is None:
             rmat_s = ct.identity_3x3
@@ -2537,6 +2594,8 @@ class PlanarDetector(object):
             tvec_s = ct.zeros_3
         if tvec_c is None:
             tvec_c = ct.zeros_3
+        if apply_distortion and self.distortion is not None:
+            xy_data = self.distortion.apply(xy_data)
         angs, g_vec = detectorXYToGvec(
             xy_data, self.rmat, rmat_s,
             self.tvec, tvec_s, tvec_c,
@@ -2546,9 +2605,35 @@ class PlanarDetector(object):
 
     def angles_to_cart(self, tth_eta,
                        rmat_s=None, tvec_s=None,
-                       rmat_c=None, tvec_c=None):
+                       rmat_c=None, tvec_c=None,
+                       apply_distortion=False):
         """
-        TODO: distortion
+        Transform angular coordinates to cartesian.
+
+        Parameters
+        ----------
+        tth_eta : array_like
+            The (n, 2) array of n (tth, eta) coordinates to be transformed.
+        rmat_s : array_like, optional
+            The (3, 3) COB matrix for the sample frame. The default is None.
+        tvec_s : array_like, optional
+            The (3, ) translation vector for the sample frame.
+            The default is None.
+        rmat_c : array_like, optional
+            (3, 3) COB matrix for the crystal frame.
+            The default is None.
+        tvec_c : array_like, optional
+            The (3, ) translation vector for the crystal frame.
+            The default is None.
+        apply_distortion : bool, optional
+            If True, apply distortion to take cartesian coordinates to the
+            "warped" configuration. The default is False.
+
+        Returns
+        -------
+        xy_det : array_like
+            The (n, 2) array on the n input coordinates in the .
+
         """
         if rmat_s is None:
             rmat_s = ct.identity_3x3
@@ -2568,6 +2653,8 @@ class PlanarDetector(object):
             self.rmat, rmat_s, rmat_c,
             self.tvec, tvec_s, tvec_c,
             beamVec=self.bvec)
+        if apply_distortion and self.distortion is not None:
+            xy_det = self.distortion.apply_inverse(xy_det)
         return xy_det
 
     def interpolate_nearest(self, xy, img, pad_with_nans=True):
@@ -3718,7 +3805,7 @@ def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
 
 
 @memoize
-def _lorentz_polarization_factor(tth, eta, f_hor, f_vert):
+def _lorentz_polarization_factor(tth, eta, f_hor, f_vert, unpolarized):
     """
     06/14/2021 SS adding lorentz polarization factor computation
     to the detector so that it can be compenstated for in the
@@ -3742,8 +3829,11 @@ def _lorentz_polarization_factor(tth, eta, f_hor, f_vert):
     seta2 = np.sin(eta)**2
     ceta2 = np.cos(eta)**2
 
-    L = 1./(cth*sth2)
-    P = f_hor*(seta2 + ceta2*ctth2) + f_vert*(ceta2 + seta2*ctth2)
+    L = 1./(4.0*cth*sth2)
+    if unpolarized:
+        P = (1. + ctth2)/2.
+    else:
+        P = f_hor*(seta2 + ceta2*ctth2) + f_vert*(ceta2 + seta2*ctth2)
 
     return L*P
 
