@@ -515,8 +515,8 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
     did.write_direct(np.array(AtomInfo['stiffness'], dtype=np.float64))
 
     if 'hkls' in AtomInfo:
-        did = gid.create_dataset("hkls", 
-                                 AtomInfo['hkls'].shape, 
+        did = gid.create_dataset("hkls",
+                                 AtomInfo['hkls'].shape,
                                  dtype=np.int32)
         did.write_direct(AtomInfo['hkls'])
 
@@ -534,8 +534,8 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
     if 'charge' in AtomInfo:
         data = np.array(AtomInfo['charge'], dtype=object)
         dt = h5py.special_dtype(vlen=str)
-        did = gid.create_dataset("ChargeStates", 
-                                (len(AtomInfo['Z']),), 
+        did = gid.create_dataset("ChargeStates",
+                                 (len(AtomInfo['Z']),),
                                  dtype=dt)
         did.write_direct(data)
 
