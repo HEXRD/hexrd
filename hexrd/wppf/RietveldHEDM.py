@@ -211,6 +211,37 @@ class RietveldHEDM:
                 self.prepare_polarview()
 
     @property
+    def extent(self):
+        return self._extent
+
+    @extent.setter
+    def extent(self, ext):
+        self._extent = ext
+
+        if hasattr(self, "instrument"):
+            if hasattr(self, "pixel_size"):
+                self.pv = PolarView(ext[0:2],
+                                self.instrument, 
+                                eta_min=ext[2], 
+                                eta_max=ext[3], 
+                                pixel_size=self.pixel_size)
+                self.prepare_polarview()
+
+    """
+    this property returns a azimuthal range over which
+    the summation is performed to get the lineouts
+    """
+    @property
+    def azimuthal_chunks(self):
+        extent = self.extent
+        step = self.azimuthal_step
+        azlim = extent[2:]
+        pxsz = self.pixel_size[1]
+        shp = self.masked.shape[0]
+        npix = int(np.round(step/pxsz))
+        return np.r_[np.arange(0,shp,npix),shp]
+
+    @property
     def azimuthal_step(self):
         return self._azimuthal_step
     
@@ -424,6 +455,21 @@ class RietveldHEDM:
             self._params = params
 
     @property
+    def wavelength(self):
+        lam = keVToAngstrom(self.instrument.beam_energy)
+        return {"lam1": 
+                [valWUnit('lp', 'length', lam, 'angstrom'),1.0]}
+
+    @property
+    def tth_list(self):
+        extent = self.extent
+        shp = self.masked.shape[1]
+        tthlim = extent[0:2]
+        return np.linspace(self.tth_min, 
+                           self.tth_max,
+                           shp)
+
+    @property
     def shkl(self):
         shkl = {}
         for p in self.phases:
@@ -450,3 +496,25 @@ class RietveldHEDM:
             """
             self._texture_model = None
             self.remove_texture_parameters()
+
+    @property
+    def bkgdegree(self):
+        if "chebyshev" in self.bkgmethod.keys():
+            return self.bkgmethod["chebyshev"]
+
+    @property
+    def refine_background(self):
+        return self._refine_background
+    
+    @refine_background.setter
+    def refine_background(self, val):
+        if isinstance(val, bool):
+            self._refine_background = val
+            prefix = "azpos"
+            for ii in range(len(self.lineouts)):
+                pname = [f"{prefix}{ii}_bkg_C{jj}" for jj in range(self.bkgdegree)]
+                for p in pname:
+                    self.params[p].vary = val
+        else:
+            msg = "only boolean values accepted"
+            raise ValueError(msg)
