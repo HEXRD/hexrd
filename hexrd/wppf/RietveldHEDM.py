@@ -43,7 +43,7 @@ class RietveldHEDM:
                  omegaimageseries,
                  params=None,
                  phases=None,
-                 bkgmethod={'spline': None},
+                 bkgmethod={'chebyshev': 3},
                  peakshape='pvfcj',
                  shape_factor=1.,
                  particle_size=1.,
