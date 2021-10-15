@@ -6,7 +6,7 @@ import os
 import numpy as np
 import datetime
 import getpass
-
+from hexrd.unitcell import _StiffnessDict, _pgDict
 
 def mk(filename, xtalname):
 
@@ -303,6 +303,7 @@ def GetAtomInfo():
     APOS = []
     DW = []
     ani = 0
+    stiffness = np.zeros([6, 6])
 
     ques = 'y'
     while(ques.strip().lower() == 'y' or ques.strip().lower() == 'yes'):
@@ -314,15 +315,15 @@ def GetAtomInfo():
             tmp = int(tmp)
 
         Z.append(tmp)
-        asym, U, ani = GetAsymmetricPositions(aniU=ani)
+        asym, U, ani = GetAsymmetricPositions(ani)
         APOS.append(asym)
         DW.append(U)
         ques = input("Another atom? (y/n) : ")
 
-    return {'Z': Z, 'APOS': APOS, 'U': DW}
+    return {'Z': Z, 'APOS': APOS, 'U': DW, 'stiffness': stiffness}
 
 
-def GetAsymmetricPositions(aniU=0):
+def GetAsymmetricPositions(aniU):
 
     asym = input(
         "Enter asymmetric position of atom in unit cell \
@@ -354,7 +355,7 @@ def GetAsymmetricPositions(aniU=0):
                     range [0,1) i.e. 1 excluded")
 
     occ, dw = GetOccDW(aniU=aniU)
-    if isinstance(dw, np.floating):
+    if isinstance(dw, float):
         aniU = 1
     else:
         aniU = 2
@@ -513,11 +514,15 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
     did = gid.create_dataset("stiffness", (6, 6), dtype=np.float64)
     did.write_direct(np.array(AtomInfo['stiffness'], dtype=np.float64))
 
-    did = gid.create_dataset("hkls", AtomInfo['hkls'].shape, dtype=np.int32)
-    did.write_direct(AtomInfo['hkls'])
+    if 'hkls' in AtomInfo:
+        did = gid.create_dataset("hkls",
+                                 AtomInfo['hkls'].shape,
+                                 dtype=np.int32)
+        did.write_direct(AtomInfo['hkls'])
 
-    did = gid.create_dataset("dmin", (1,), dtype=np.float64)
-    did.write_direct(np.array(AtomInfo['dmin'], dtype=np.float64))
+    if 'dmin' in AtomInfo:
+        did = gid.create_dataset("dmin", (1,), dtype=np.float64)
+        did.write_direct(np.array(AtomInfo['dmin'], dtype=np.float64))
 
     did = gid.create_dataset(
         "AtomData", (4, len(AtomInfo['Z'])), dtype=np.float64)
@@ -526,10 +531,13 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
     arr2 = arr.copy()
     did.write_direct(arr2)
 
-    data = np.array(AtomInfo['charge'], dtype=object)
-    dt = h5py.special_dtype(vlen=str)
-    did = gid.create_dataset("ChargeStates", (len(AtomInfo['Z']),), dtype=dt)
-    did.write_direct(data)
+    if 'charge' in AtomInfo:
+        data = np.array(AtomInfo['charge'], dtype=object)
+        dt = h5py.special_dtype(vlen=str)
+        did = gid.create_dataset("ChargeStates",
+                                 (len(AtomInfo['Z']),),
+                                 dtype=dt)
+        did.write_direct(data)
 
     '''
         handling of isotropic vs
