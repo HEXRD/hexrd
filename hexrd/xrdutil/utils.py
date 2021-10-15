@@ -66,7 +66,6 @@ eHat_l_DFLT = constants.eta_vec.flatten()
 
 nans_1x2 = np.nan*np.ones((1, 2))
 
-
 # =============================================================================
 # CLASSES
 # =============================================================================
@@ -147,10 +146,6 @@ class PolarView(object):
     def chi(self):
         return self._instrument.chi
 
-    @property
-    def chi(self):
-        return self._chi
-    
     @property
     def tth_min(self):
         return self._tth_min
