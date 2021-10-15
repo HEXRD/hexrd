@@ -68,7 +68,6 @@ nans_1x2 = np.nan*np.ones((1, 2))
 
 _memo_hkls = {}
 
-tvec_c = constants.zeros_3
 
 # =============================================================================
 # CLASSES
@@ -127,25 +126,29 @@ class PolarView(object):
         self._eta_min = np.radians(eta_min)
         self._eta_max = np.radians(eta_max)
 
+        assert np.all(np.asarray(pixel_size) > 0), \
+            'pixel sizes must be non-negative'
         self._tth_pixel_size = pixel_size[0]
         self._eta_pixel_size = pixel_size[1]
 
-        self._detectors = instrument.detectors
-        self._tvec_s = instrument.tvec
-        self._chi = instrument.chi
+        self._instrument = instrument
+
+    @property
+    def instrument(self):
+        return self._instrument
 
     @property
     def detectors(self):
-        return self._detectors
+        return self._instrument.detectors
 
     @property
-    def tvec_s(self):
-        return self._tvec_s
+    def tvec(self):
+        return self._instrument.tvec
 
     @property
     def chi(self):
-        return self._chi
-    
+        return self._instrument.chi
+
     @property
     def tth_min(self):
         return self._tth_min
@@ -176,6 +179,7 @@ class PolarView(object):
 
     @tth_pixel_size.setter
     def tth_pixel_size(self, x):
+        assert(x > 0), "pixel size must be non-negative"
         self._tth_pixel_size = float(x)
 
     @property
@@ -208,14 +212,16 @@ class PolarView(object):
 
     @eta_pixel_size.setter
     def eta_pixel_size(self, x):
+        assert(x > 0), "pixel size must be non-negative"
         self._eta_pixel_size = float(x)
 
     @property
     def ntth(self):
+        # return int(np.ceil(np.degrees(self.tth_range)/self.tth_pixel_size))
         return int(np.degrees(self.tth_range)/self.tth_pixel_size)
-
     @property
     def neta(self):
+        # return int(np.ceil(np.degrees(self.eta_range)/self.eta_pixel_size))
         return int(np.degrees(self.eta_range)/self.eta_pixel_size)
 
     @property
@@ -268,23 +274,21 @@ class PolarView(object):
 
         # lcount = 0
         img_dict = dict.fromkeys(self.detectors)
-        for detector_id in self.detectors:
-            panel = self.detectors[detector_id]
+        for detector_id, panel in self.detectors.items():
             img = image_dict[detector_id]
 
             gvec_angs = np.vstack([
-                angpts[1].flatten(),
-                angpts[0].flatten(),
-                dummy_ome]).T
+                    angpts[1].flatten(),
+                    angpts[0].flatten(),
+                    dummy_ome]).T
 
             xypts = np.nan*np.ones((len(gvec_angs), 2))
             valid_xys, rmats_s, on_plane = _project_on_detector_plane(
-                gvec_angs,
-                panel.rmat, np.eye(3),
-                self.chi,
-                panel.tvec, tvec_c, self.tvec_s,
-                panel.distortion,
-                beamVec=panel.bvec)
+                    gvec_angs,
+                    panel.rmat, constants.identity_3x3, self.chi,
+                    panel.tvec, constants.zeros_3, self.tvec,
+                    panel.distortion,
+                    beamVec=panel.bvec)
             xypts[on_plane] = valid_xys
 
             if do_interpolation:
