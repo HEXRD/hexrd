@@ -153,8 +153,8 @@ class LeBailCalibrator:
         self.masked = self.pv.warp_image(self.img_dict, \
                                         pad_with_nans=True, \
                                         do_interpolation=True)
-
-        self.fulllineout = self.masked.sum(axis=0) / np.sum(~self.masked.mask, axis=0)
+        lo = self.masked.sum(axis=0) / np.sum(~self.masked.mask, axis=0)
+        self.fulllineout = np.vstack((self.tth_list,lo)).T
         self.prepare_lineouts()
 
     def prepare_lineouts(self):
@@ -429,11 +429,7 @@ class LeBailCalibrator:
 
     @property
     def tth_list(self):
-        extent = self.extent
-        shp = self.masked.shape[1]
-        tthlim = extent[0:2]
-        return np.linspace(tthlim[0],tthlim[1],shp)
-    
+        return np.squeeze(np.degrees(self.pv.angular_grid[1][0,:]))
 
     @property
     def wavelength(self):
@@ -591,11 +587,11 @@ class LeBailCalibrator:
 
     @property
     def tth_min(self):
-        return self.extent[0]
+        return self.extent[0]+self.pixel_size[0]*0.5
     
     @property
     def tth_max(self):
-        return self.extent[1]
+        return self.extent[1]-+self.pixel_size[0]*0.5
     
     @property
     def peakshape(self):

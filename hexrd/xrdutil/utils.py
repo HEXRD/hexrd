@@ -148,6 +148,10 @@ class PolarView(object):
         return self._instrument.chi
 
     @property
+    def chi(self):
+        return self._chi
+    
+    @property
     def tth_min(self):
         return self._tth_min
 
