@@ -68,6 +68,7 @@ nans_1x2 = np.nan*np.ones((1, 2))
 
 _memo_hkls = {}
 
+tvec_c = constants.zeros_3
 
 # =============================================================================
 # CLASSES
@@ -131,6 +132,7 @@ class PolarView(object):
 
         self._detectors = instrument.detectors
         self._tvec_s = instrument.tvec
+        self._chi = instrument.chi
 
     @property
     def detectors(self):
@@ -140,6 +142,10 @@ class PolarView(object):
     def tvec_s(self):
         return self._tvec_s
 
+    @property
+    def chi(self):
+        return self._chi
+    
     @property
     def tth_min(self):
         return self._tth_min
@@ -206,11 +212,11 @@ class PolarView(object):
 
     @property
     def ntth(self):
-        return int(np.ceil(np.degrees(self.tth_range)/self.tth_pixel_size))
+        return int(np.degrees(self.tth_range)/self.tth_pixel_size)
 
     @property
     def neta(self):
-        return int(np.ceil(np.degrees(self.eta_range)/self.eta_pixel_size))
+        return int(np.degrees(self.eta_range)/self.eta_pixel_size)
 
     @property
     def shape(self):
@@ -265,19 +271,21 @@ class PolarView(object):
         for detector_id in self.detectors:
             panel = self.detectors[detector_id]
             img = image_dict[detector_id]
-            gpts = xfcapi.anglesToGVec(
-                np.vstack([
-                    angpts[1].flatten(),
-                    angpts[0].flatten(),
-                    dummy_ome,
-                    ]).T, bHat_l=panel.bvec)
-            xypts = xfcapi.gvecToDetectorXY(
-                gpts,
-                panel.rmat, np.eye(3), np.eye(3),
-                panel.tvec, self.tvec_s, constants.zeros_3,
+
+            gvec_angs = np.vstack([
+                angpts[1].flatten(),
+                angpts[0].flatten(),
+                dummy_ome]).T
+
+            xypts = np.nan*np.ones((len(gvec_angs), 2))
+            valid_xys, rmats_s, on_plane = _project_on_detector_plane(
+                gvec_angs,
+                panel.rmat, np.eye(3),
+                self.chi,
+                panel.tvec, tvec_c, self.tvec_s,
+                panel.distortion,
                 beamVec=panel.bvec)
-            if panel.distortion is not None:
-                xypts = panel.distortion.apply(xypts)
+            xypts[on_plane] = valid_xys
 
             if do_interpolation:
                 this_img = panel.interpolate_bilinear(
