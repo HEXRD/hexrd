@@ -503,7 +503,7 @@ def pink_beam_dcs(p, x):
     p_g = p[0:7]
     p_l = p[0:6]
     if isinstance(p, np.ndarray):
-        p_l[6] = p[7]
+        p_l = np.r_[p_l, p[7]]
     elif isinstance(p, list) or isinstance(p, tuple):
         p_l.append(p[7])
 
