@@ -197,8 +197,12 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
             ftol=ftol, xtol=xtol)
 
     elif pktype == 'dcs_pinkbeam':
-        lb = np.array([0.0, 0.0, -100., -100., -100., -100., 0., 0.])
-        ub = np.array([np.inf, 90., 100., 100., 100., 100., 10., 10.])
+        lb = np.array([0.0, x.min(), -100., -100.,
+        -100., -100., 0., 0.,
+        -np.inf, -np.inf, -np.inf])
+        ub = np.array([np.inf, x.max(), 100., 100.,
+        100., 100., 10., 10.,
+        np.inf, np.inf, np.inf])
         res = optimize.least_squares(
             fit_pk_obj_1d, p0,
             jac='2-point',
@@ -465,6 +469,8 @@ def eval_pk_deriv_1d(p, x, y0, pktype):
 
 
 def fit_pk_obj_1d(p, x, f0, pktype):
+
+    ww = np.ones(f0.shape)
     if pktype == 'gaussian':
         f = pkfuncs.gaussian1d(p, x)
     elif pktype == 'lorentzian':
@@ -477,8 +483,10 @@ def fit_pk_obj_1d(p, x, f0, pktype):
         f = pkfuncs.tanh_stepdown_nobg(p, x)
     elif pktype == 'dcs_pinkbeam':
         f = pkfuncs.pink_beam_dcs(p, x)
+        ww = 1./np.sqrt(f0)
+        ww[np.isnan(ww)] = 0.0
 
-    resd = f-f0
+    resd = (f-f0)*ww
     return resd
 
 

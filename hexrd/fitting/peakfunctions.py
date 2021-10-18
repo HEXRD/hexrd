@@ -29,6 +29,7 @@ import numpy as np
 import copy
 from hexrd import constants
 from scipy.special import exp1, erfc
+from numpy.polynomial.chebyshev import chebval
 
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.
@@ -498,7 +499,7 @@ def pink_beam_dcs(p, x):
     Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
 
     p has the following parameters
-    p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_g,fwhm_l]
+    p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_g,fwhm_l,bkg_c0,bkg_c1,bkg_c2]
     """
     p_g = p[0:7]
     p_l = p[0:6]
@@ -507,12 +508,15 @@ def pink_beam_dcs(p, x):
     elif isinstance(p, list) or isinstance(p, tuple):
         p_l.append(p[7])
 
+    bkg_c = p[8:11]
+    bkg = chebval(x, bkg_c)
+
     eta, fwhm = _mixing_factor_pv(p[6], p[7])
 
     G = _gaussian_pink_beam(p_g, x)
     L = _lorentzian_pink_beam(p_l, x)
 
-    return eta*L + (1.-eta)*G
+    return eta*L + (1.-eta)*G + bkg
 
 """
 ================================================================
