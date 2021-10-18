@@ -195,6 +195,19 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
             fit_pk_obj_1d, p0,
             args=fitArgs,
             ftol=ftol, xtol=xtol)
+
+    elif pktype == 'dcs_pinkbeam':
+        lb = np.array([0.0, 0.0, -100., -100., -100., -100., 0., 0.])
+        ub = np.array([np.inf, 90., 100., 100., 100., 100., 10., 10.])
+        res = optimize.least_squares(
+            fit_pk_obj_1d, p0,
+            jac='2-point',
+            bounds=(lb, ub),
+            args=fitArgs,
+            ftol=ftol, 
+            xtol=xtol)
+        p = res['x']
+        outflag = res['success']
     else:
         p = p0
         print('non-valid option, returning guess')
@@ -462,6 +475,8 @@ def fit_pk_obj_1d(p, x, f0, pktype):
         f = pkfuncs.split_pvoigt1d(p, x)
     elif pktype == 'tanh_stepdown':
         f = pkfuncs.tanh_stepdown_nobg(p, x)
+    elif pktype == 'dcs_pinkbeam':
+        f = pkfuncs.pink_beam_dcs(p, x)
 
     resd = f-f0
     return resd
