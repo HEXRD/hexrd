@@ -28,7 +28,7 @@
 import numpy as np
 import copy
 from hexrd import constants
-
+from scipy.special import exp1, erfc
 
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.
@@ -351,6 +351,174 @@ def split_pvoigt1d(p, x):
 
     return f
 
+"""
+================================================================
+================================================================
+@AUTHOR:    Saransh Singh, Lawrence Livermore National Lab,
+            saransh1@llnl.gov
+@DATE:      10/18/2021 SS 1.0 original
+        
+@DETAILS:   the following functions will be used for single 
+            peak fits for the DCS pink beam profile function.
+            the collection includes the profile function for
+            calculating the peak shape as well as derivatives
+            w.r.t. the parameters
+================================================================
+================================================================
+"""
+# @numba_njit_if_available(cache=True, nogil=True)
+def _calc_alpha(alpha, x):
+    a0, a1 = alpha
+    return (a0 + a1*np.tan(np.radians(0.5*x)))
+
+
+# @numba_njit_if_available(cache=True, nogil=True)
+def _calc_beta(beta, x):
+    b0, b1 = beta
+    return b0 + b1*np.tan(np.radians(0.5*x))
+
+def _mixing_factor_pv(fwhm_g, fwhm_l):
+    """
+    @AUTHOR:  Saransh Singh, Lawrence Livermore National Lab,
+    saransh1@llnl.gov
+    @DATE: 05/20/2020 SS 1.0 original
+           01/29/2021 SS 2.0 updated to depend only on fwhm of profile
+           P. Thompson, D.E. Cox & J.B. Hastings, J. Appl. Cryst.,20,79-83,
+           1987
+    @DETAILS: calculates the mixing factor eta to best approximate voight
+    peak shapes
+    """
+    fwhm = fwhm_g**5 + 2.69269 * fwhm_g**4 * fwhm_l + \
+        2.42843 * fwhm_g**3 * fwhm_l**2 + \
+        4.47163 * fwhm_g**2 * fwhm_l**3 +\
+        0.07842 * fwhm_g * fwhm_l**4 +\
+        fwhm_l**5
+
+    fwhm = fwhm**0.20
+    eta = 1.36603 * (fwhm_l/fwhm) - \
+        0.47719 * (fwhm_l/fwhm)**2 + \
+        0.11116 * (fwhm_l/fwhm)**3
+    if eta < 0.:
+        eta = 0.
+    elif eta > 1.:
+        eta = 1.
+
+    return eta, fwhm
+
+#@numba_njit_if_available(cache=True, nogil=True)
+def _gaussian_pink_beam(p, x):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/22/2021 SS 1.0 original
+    @details the gaussian component of the pink beam peak profile
+    obtained by convolution of gaussian with normalized back to back
+    exponentials. more details can be found in
+    Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
+
+    p has the following parameters
+    p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_g]
+    """
+    
+    A,x0,a0,a1,b0,b1,fwhm_g = p
+
+    alpha = _calc_alpha((a0,a1), x)
+    beta  = _calc_beta((b0,b1), x)
+
+    del_tth = x - x0
+    sigsqr = fwhm_g**2
+
+    f1 = alpha*sigsqr + 2.0*del_tth
+    f2 = beta*sigsqr - 2.0*del_tth
+    f3 = np.sqrt(2.0)*fwhm_g
+    
+    u = 0.5*alpha*f1
+    v = 0.5*beta*f2
+    
+    y = (f1-del_tth)/f3
+    z = (f2+del_tth)/f3
+
+    g = (0.5*(alpha*beta)/(alpha + beta)) \
+        * (np.exp(u)*erfc(y) + \
+            np.exp(v)*erfc(z))
+
+    g = np.nan_to_num(g)*A
+
+    return g
+
+
+#@numba_njit_if_available(cache=True, nogil=True)
+def _lorentzian_pink_beam(p, x):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/22/2021 SS 1.0 original
+    @details the lorentzian component of the pink beam peak profile
+    obtained by convolution of gaussian with normalized back to back
+    exponentials. more details can be found in
+    Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
+
+    p has the following parameters
+    p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_l]
+    """
+
+    A,x0,a0,a1,b0,b1,fwhm_l = p
+
+    alpha = _calc_alpha((a0,a1), x)
+    beta  = _calc_beta((b0,b1), x)
+
+    del_tth = x - x0
+
+    p = -alpha*del_tth + 1j * 0.5*alpha*fwhm_l
+    q = -beta*del_tth + 1j * 0.5*beta*fwhm_l
+
+    y = np.zeros(x.shape)
+
+    mask = np.logical_or(np.abs(np.real(p)) > 1e2,
+     np.abs(np.imag(p)) > 1e2)
+    f1 = np.zeros(x.shape)
+    f1[mask] = np.imag(np.exp(p[mask])*exp1(p[mask]))
+
+    mask = np.logical_or(np.abs(np.real(q)) > 1e2,
+     np.abs(np.imag(q)) > 1e2)
+    f2 = np.zeros(x.shape)
+    f2[mask] = np.imag(np.exp(q[mask])*exp1(q[mask]))
+
+    y = -(alpha*beta)/(np.pi*(alpha + beta)) *\
+    (f1 + f2)
+    
+    y = np.nan_to_num(y)*A
+
+    return y
+
+def pink_beam_dcs(p, x):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 10/18/2021 SS 1.0 original
+    @details pink beam profile for DCS data for calibration.
+    more details can be found in
+    Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
+
+    p has the following parameters
+    p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_g,fwhm_l]
+    """
+    p_g = p[0:7]
+    p_l = p[0:6]
+    if isinstance(p, np.ndarray):
+        p_l[6] = p[7]
+    elif isinstance(p, list) or isinstance(p, tuple):
+        p_l.append(p[7])
+
+    eta, fwhm = _mixing_factor_pv(p[6], p[7])
+
+    G = _gaussian_pink_beam(p_g, x)
+    L = _lorentzian_pink_beam(p_l, x)
+
+    return eta*L + (1.-eta)*G
+
+"""
+================================================================
+======================FINISHED==================================
+================================================================
+"""
 
 # =============================================================================
 # Tanh Step Down
