@@ -207,6 +207,7 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
             fit_pk_obj_1d, p0,
             jac='2-point',
             bounds=(lb, ub),
+            method='trf',
             args=fitArgs,
             ftol=ftol, 
             xtol=xtol)
