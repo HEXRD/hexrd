@@ -417,7 +417,7 @@ def _gaussian_pink_beam(p, x):
     Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
 
     p has the following parameters
-    p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_g]
+    p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_g,bkg_c0,bkg_c1,bkg_c2]
     """
     
     A,x0,a0,a1,b0,b1,fwhm_g = p
