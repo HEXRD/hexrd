@@ -547,30 +547,14 @@ def _lorentzian_pink_beam(p, x):
     q = -beta*del_tth + 1j*0.5*beta*fwhm_l
 
     y = np.zeros(x.shape)
-
-    # mask = np.logical_or(np.abs(np.real(p)) > 1e2,
-    #  np.abs(np.imag(p)) > 1e2)
-    
-    # t1 = np.exp(p)
-    # t2 = exp1(p)
-    # t = t1*t2
-    # f1 = t.imag
     f1 = exp1exp(p)
-    # mask = np.logical_or(np.abs(np.real(q)) > 1e2,
-    #  np.abs(np.imag(q)) > 1e2)
-
-    # t1 = np.exp(q)
-    # t2 = exp1(q)
-    # t = t1*t2
-    # f2 = t.imag
     f2 = exp1exp(q)
 
     y = -(alpha*beta)/(np.pi*(alpha+beta))*(f1+f2).imag
     
     mask = np.isnan(y)
     y[mask] = 0.
-    y *= A 
-    # y = np.nan_to_num(y)*A
+    y *= A
 
     return y
 
