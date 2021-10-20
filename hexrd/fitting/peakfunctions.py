@@ -28,9 +28,9 @@
 import numpy as np
 import copy
 from hexrd import constants
-from scipy.special import exp1, erfc
-from numpy.polynomial.chebyshev import chebval
-
+from hexrd.utils.decorators import numba_njit_if_available
+from hexrd.constants import c_erf, \
+cnum_exp1exp, cden_exp1exp, c_coeff_exp1exp
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.
 
@@ -43,6 +43,78 @@ mpeak_nparams_dict = {
     'split_pvoigt': 6
 }
 
+"""
+cutom function to compute the complementary error function
+based on rational approximation of the convergent Taylor
+series. coefficients found in 
+Formula 7.1.26
+Handbook of Mathematical Functions,
+Abramowitz and Stegun
+Error is < 1.5e-7 for all x
+"""
+@numba_njit_if_available(cache=True, nogil=True)
+def erfc(x):
+    # save the sign of x
+    sign = np.sign(x)
+    x = np.abs(x)
+
+    # constants
+    a1,a2,a3,a4,a5,p = c_erf
+
+    # A&S formula 7.1.26
+    t = 1.0/(1.0 + p*x)
+    y = 1. - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*np.exp(-x*x)
+    erf = sign*y # erf(-x) = -erf(x)
+    return 1. - erf 
+
+"""
+cutom function to compute the exponential integral
+based on Padé approximation of exponential integral 
+function. coefficients found in pg. 231 Abramowitz
+and Stegun, eq. 5.1.53
+"""
+@numba_njit_if_available(cache=True, nogil=True)
+def exp1exp_under1(x):
+    f = np.zeros(x.shape).astype(np.complex128)
+    for i in range(6):
+        xx = x**(i+1)
+        f += c_coeff_exp1exp[i]*xx
+
+    return (f - np.log(x) - np.euler_gamma)*np.exp(x)
+
+"""
+cutom function to compute the exponential integral
+based on Padé approximation of exponential integral 
+function. coefficients found in pg. 415 Y. Luke, The
+special functions and their approximations, vol 2 
+(1969) Elsevier
+"""
+@numba_njit_if_available(cache=True, nogil=True)
+def exp1exp_over1(x):
+    num = np.zeros(x.shape).astype(np.complex128)
+    den = np.zeros(x.shape).astype(np.complex128)
+
+    for i in range(11):
+        p = 10-i
+        if p != 0:
+            xx = x**p
+            num += cnum_exp1exp[i]*xx
+            den += cden_exp1exp[i]*xx
+        else:
+            num += cnum_exp1exp[i]
+            den += cden_exp1exp[i]
+
+    return (num/den)*(1./x)
+
+@numba_njit_if_available(cache=True, nogil=True)
+def exp1exp(x):
+    mask = np.sign(x.real)*np.abs(x) > 1.
+
+    f = np.zeros(x.shape).astype(np.complex128)
+    f[mask]  = exp1exp_over1(x[mask])
+    f[~mask] = exp1exp_under1(x[~mask])
+
+    return f
 
 # =============================================================================
 # 1-D Gaussian Functions
@@ -367,17 +439,18 @@ def split_pvoigt1d(p, x):
 ================================================================
 ================================================================
 """
-# @numba_njit_if_available(cache=True, nogil=True)
-def _calc_alpha(alpha, x):
+@numba_njit_if_available(cache=True, nogil=True)
+def _calc_alpha(alpha, x0):
     a0, a1 = alpha
-    return (a0 + a1*np.tan(np.radians(0.5*x)))
+    return (a0 + a1*np.tan(np.radians(0.5*x0)))
 
 
-# @numba_njit_if_available(cache=True, nogil=True)
-def _calc_beta(beta, x):
+@numba_njit_if_available(cache=True, nogil=True)
+def _calc_beta(beta, x0):
     b0, b1 = beta
-    return b0 + b1*np.tan(np.radians(0.5*x))
+    return b0 + b1*np.tan(np.radians(0.5*x0))
 
+@numba_njit_if_available(cache=True, nogil=True)
 def _mixing_factor_pv(fwhm_g, fwhm_l):
     """
     @AUTHOR:  Saransh Singh, Lawrence Livermore National Lab,
@@ -406,7 +479,7 @@ def _mixing_factor_pv(fwhm_g, fwhm_l):
 
     return eta, fwhm
 
-#@numba_njit_if_available(cache=True, nogil=True)
+@numba_njit_if_available(nogil=True)
 def _gaussian_pink_beam(p, x):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
@@ -420,10 +493,7 @@ def _gaussian_pink_beam(p, x):
     p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_g,bkg_c0,bkg_c1,bkg_c2]
     """
     
-    A,x0,a0,a1,b0,b1,fwhm_g = p
-
-    alpha = _calc_alpha((a0,a1), x)
-    beta  = _calc_beta((b0,b1), x)
+    A,x0,alpha,beta,fwhm_g = p
 
     del_tth = x - x0
     sigsqr = fwhm_g**2
@@ -438,16 +508,24 @@ def _gaussian_pink_beam(p, x):
     y = (f1-del_tth)/f3
     z = (f2+del_tth)/f3
 
-    g = (0.5*(alpha*beta)/(alpha + beta)) \
-        * (np.exp(u)*erfc(y) + \
-            np.exp(v)*erfc(z))
+    t1 = erfc(y)
+    t2 = erfc(z)
 
-    g = np.nan_to_num(g)*A
+    g = np.zeros(x.shape)
+    zmask = np.abs(del_tth) > 5.0 
+
+    g[~zmask] = (0.5*(alpha*beta)/(alpha + beta)) \
+        * np.exp(u[~zmask])*t1[~zmask] + \
+            np.exp(v[~zmask])*t2[~zmask]
+
+    mask = np.isnan(g)
+    g[mask] = 0.
+    g *= A 
 
     return g
 
 
-#@numba_njit_if_available(cache=True, nogil=True)
+@numba_njit_if_available(nogil=True)
 def _lorentzian_pink_beam(p, x):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
@@ -461,35 +539,42 @@ def _lorentzian_pink_beam(p, x):
     p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_l]
     """
 
-    A,x0,a0,a1,b0,b1,fwhm_l = p
-
-    alpha = _calc_alpha((a0,a1), x)
-    beta  = _calc_beta((b0,b1), x)
+    A,x0,alpha,beta,fwhm_l = p
 
     del_tth = x - x0
 
-    p = -alpha*del_tth + 1j * 0.5*alpha*fwhm_l
-    q = -beta*del_tth + 1j * 0.5*beta*fwhm_l
+    p = -alpha*del_tth + 1j*0.5*alpha*fwhm_l
+    q = -beta*del_tth + 1j*0.5*beta*fwhm_l
 
     y = np.zeros(x.shape)
 
-    mask = np.logical_or(np.abs(np.real(p)) > 1e2,
-     np.abs(np.imag(p)) > 1e2)
-    f1 = np.zeros(x.shape)
-    f1[mask] = np.imag(np.exp(p[mask])*exp1(p[mask]))
-
-    mask = np.logical_or(np.abs(np.real(q)) > 1e2,
-     np.abs(np.imag(q)) > 1e2)
-    f2 = np.zeros(x.shape)
-    f2[mask] = np.imag(np.exp(q[mask])*exp1(q[mask]))
-
-    y = -(alpha*beta)/(np.pi*(alpha + beta)) *\
-    (f1 + f2)
+    # mask = np.logical_or(np.abs(np.real(p)) > 1e2,
+    #  np.abs(np.imag(p)) > 1e2)
     
-    y = np.nan_to_num(y)*A
+    # t1 = np.exp(p)
+    # t2 = exp1(p)
+    # t = t1*t2
+    # f1 = t.imag
+    f1 = exp1exp(p)
+    # mask = np.logical_or(np.abs(np.real(q)) > 1e2,
+    #  np.abs(np.imag(q)) > 1e2)
+
+    # t1 = np.exp(q)
+    # t2 = exp1(q)
+    # t = t1*t2
+    # f2 = t.imag
+    f2 = exp1exp(q)
+
+    y = -(alpha*beta)/(np.pi*(alpha+beta))*(f1+f2).imag
+    
+    mask = np.isnan(y)
+    y[mask] = 0.
+    y *= A 
+    # y = np.nan_to_num(y)*A
 
     return y
 
+@numba_njit_if_available(nogil=True)
 def pink_beam_dcs(p, x):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
@@ -501,15 +586,17 @@ def pink_beam_dcs(p, x):
     p has the following parameters
     p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_g,fwhm_l,bkg_c0,bkg_c1,bkg_c2]
     """
-    p_g = p[0:7]
-    p_l = p[0:6]
-    if isinstance(p, np.ndarray):
-        p_l = np.r_[p_l, p[7]]
-    elif isinstance(p, list) or isinstance(p, tuple):
-        p_l.append(p[7])
+    alpha = _calc_alpha((p[2], p[3]), p[1])
+    beta  = _calc_beta((p[4], p[5]), p[1])
+
+    arg1 = np.array([alpha,beta,p[6]]).astype(np.float64)
+    arg2 = np.array([alpha,beta,p[7]]).astype(np.float64)
+
+    p_g = np.hstack((p[0:2],arg1))
+    p_l = np.hstack((p[0:2],arg2))
 
     bkg_c = p[8:11]
-    bkg = chebval(x, bkg_c)
+    bkg = p[8] + p[9]*x + p[10]*(2.*x**2 - 1.)
 
     eta, fwhm = _mixing_factor_pv(p[6], p[7])
 
