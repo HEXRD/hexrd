@@ -28,9 +28,9 @@
 import numpy as np
 import copy
 from hexrd import constants
-from scipy.special import exp1, erfc
 from hexrd.utils.decorators import numba_njit_if_available
 from numba import vectorize, float64
+from hexrd.fitting.peakfunctions import erfc, exp1exp
 
 if constants.USE_NUMBA:
     from numba import prange
@@ -390,16 +390,7 @@ def _calc_beta(beta, tth):
     b0, b1 = beta
     return b0 + b1*np.tan(np.radians(0.5*tth))
 
-# @numba_njit_if_available(cache=True, nogil=True)
-# def erfc_numba(x):
-#     return erfc(x)
-
-
-# @vectorize([float64(float64)])
-# def erfc_vec(x):
-#     return erfc_numba(x)
-
-#@numba_njit_if_available(cache=True, nogil=True)
+@numba_njit_if_available(cache=True, nogil=True)
 def _gaussian_pink_beam(alpha,
                         beta,
                         fwhm_g,
@@ -422,16 +413,20 @@ def _gaussian_pink_beam(alpha,
     v = 0.5*beta*f2
     y = (f1-del_tth)/f3
     z = (f2+del_tth)/f3
-
-    g = (0.5*(alpha*beta)/(alpha + beta)) \
-        * (np.exp(u)*erfc(y) + \
-            np.exp(v)*erfc(z))
-    g = np.nan_to_num(g)
+    t1 = erfc(y)
+    t2 = erfc(z)
+    g = np.zeros(tth_list.shape)
+    zmask = np.abs(del_tth) > 5.0 
+    g[~zmask] = (0.5*(alpha*beta)/(alpha + beta)) \
+        * np.exp(u[~zmask])*t1[~zmask] + \
+            np.exp(v[~zmask])*t2[~zmask]
+    mask = np.isnan(g)
+    g[mask] = 0.
 
     return g
 
 
-#@numba_njit_if_available(cache=True, nogil=True)
+@numba_njit_if_available(cache=True, nogil=True)
 def _lorentzian_pink_beam(alpha,
                           beta,
                           fwhm_l,
@@ -451,24 +446,17 @@ def _lorentzian_pink_beam(alpha,
 
     y = np.zeros(tth_list.shape)
 
-    mask = np.logical_or(np.abs(np.real(p)) > 1e2,
-     np.abs(np.imag(p)) > 1e2)
-    f1 = np.zeros(tth_list.shape)
-    f1[mask] = np.imag(np.exp(p[mask])*exp1(p[mask]))
+    f1 = exp1exp(p)
+    f2 = exp1exp(q)
 
-    mask = np.logical_or(np.abs(np.real(q)) > 1e2,
-     np.abs(np.imag(q)) > 1e2)
-    f2 = np.zeros(tth_list.shape)
-    f2[mask] = np.imag(np.exp(q[mask])*exp1(q[mask]))
-
-    y = -(alpha*beta)/(np.pi*(alpha + beta)) *\
-    (f1 + f2)
+    y = -(alpha*beta)/(np.pi*(alpha+beta))*(f1+f2).imag
     
-    y = np.nan_to_num(y)
+    mask = np.isnan(y)
+    y[mask] = 0.
 
     return y
 
-#@numba_njit_if_available(cache=True, nogil=True)
+@numba_njit_if_available(cache=True, nogil=True)
 def pvoight_pink_beam(alpha,
                       beta,
                       uvw,
@@ -613,7 +601,7 @@ def computespectrum_pvtch(uvw,
         spec += II * pv
     return spec
 
-#@numba_njit_if_available(cache=True, nogil=True, parallel=True)
+@numba_njit_if_available(cache=True, nogil=True, parallel=True)
 def computespectrum_pvpink(alpha,
                  beta,
                  uvw,
@@ -779,7 +767,7 @@ def calc_Iobs_pvtch(uvw,
 
     return Iobs
 
-#@numba_njit_if_available(cache=True, nogil=True)
+@numba_njit_if_available(cache=True, nogil=True)
 def calc_Iobs_pvpink(alpha,
             beta,
             uvw,
@@ -818,7 +806,7 @@ def calc_Iobs_pvpink(alpha,
     tth_list_mask = spectrum_expt[:,0]
     tth_list_mask = tth_list_mask[mask]
 
-    for ii in np.arange(nref):
+    for ii in prange(nref):
         Ic = Icalc[ii]
         t = tth[ii]
         d = dsp[ii]
