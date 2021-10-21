@@ -2317,7 +2317,8 @@ class PlanarDetector(object):
             pixels=dict(
                 rows=self.rows,
                 columns=self.cols,
-                size=[self.pixel_size_row, self.pixel_size_col],
+                size=[float(self.pixel_size_row),
+                      float(self.pixel_size_col)],
             )
         )
 
@@ -2335,7 +2336,7 @@ class PlanarDetector(object):
         # saturation level
         if sat_level is None:
             sat_level = self.saturation_level
-        det_dict['saturation_level'] = sat_level
+        det_dict['saturation_level'] = float(sat_level)
 
         # panel buffer
         if panel_buffer is None:
