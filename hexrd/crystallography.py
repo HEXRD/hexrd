@@ -796,7 +796,7 @@ class PlaneData(object):
         lp = (1 + np.cos(tth)**2)/np.cos(0.5*tth)/np.sin(0.5*tth)**2/2.0
 
         powderI = structFact*multiplicity*lp
-        powderI = 100.0*powderI/powderI.max()
+        powderI = 100.0*powderI/np.nanmax(powderI)
 
         self._powder_intensity = powderI
 
