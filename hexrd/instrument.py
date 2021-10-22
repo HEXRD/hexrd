@@ -584,7 +584,8 @@ class HEDMInstrument(object):
             pdict[key] = panel.config_dict(
                 self.chi, self.tvec,
                 beam_energy=self.beam_energy,
-                beam_vector=self.beam_vector
+                beam_vector=self.beam_vector,
+                style='hdf5'
             )
         return pdict
 
@@ -1028,7 +1029,8 @@ class HEDMInstrument(object):
             instr_cfg = panel.config_dict(
                 chi=self.chi, tvec=self.tvec,
                 beam_energy=self.beam_energy,
-                beam_vector=self.beam_vector
+                beam_vector=self.beam_vector,
+                style='hdf5'
             )
             native_area = panel.pixel_area  # pixel ref area
             images = imgser_dict[detector_id]
@@ -1548,7 +1550,8 @@ class HEDMInstrument(object):
             instr_cfg = panel.config_dict(
                 self.chi, self.tvec,
                 beam_energy=self.beam_energy,
-                beam_vector=self.beam_vector
+                beam_vector=self.beam_vector,
+                style='hdf5'
             )
             native_area = panel.pixel_area  # pixel ref area
 
