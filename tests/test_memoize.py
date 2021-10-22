@@ -177,3 +177,44 @@ def test_memoize():
     for i in range(maxsize):
         run(i)
         assert not was_memoized()
+
+    # Increase the maxsize, and show that it was increased successfully
+    new_maxsize = maxsize + 2
+    # Should not work currently
+    for i in range(new_maxsize):
+        run(i)
+        if i < maxsize:
+            assert was_memoized()
+        else:
+            assert not was_memoized()
+
+    # Re-generate cache
+    for i in range(maxsize):
+        run(i)
+
+    modified = False
+
+    run.set_cache_maxsize(new_maxsize)
+    assert run.cache_info()['maxsize'] == new_maxsize
+    assert run.cache_info()['currsize'] == maxsize
+
+    for i in range(new_maxsize):
+        run(i)
+        if i < maxsize:
+            assert was_memoized()
+        else:
+            assert not was_memoized()
+
+    # Now they should all be in the cache
+    for i in range(new_maxsize):
+        run(i)
+        assert was_memoized()
+
+    # Reduce the cache size down to 1
+    run.set_cache_maxsize(1)
+    assert run.cache_info()['maxsize'] == 1
+    assert run.cache_info()['currsize'] == 1
+
+    for i in range(maxsize):
+        run(i)
+        assert not was_memoized()
