@@ -562,7 +562,8 @@ class HEDMInstrument(object):
             [self._calibration_flags,
              det_flags]
         )
-        return
+
+        self.update_memoization_sizes()
 
     # properties for physical size of rectangular detector
     @property
@@ -1852,6 +1853,23 @@ class HEDMInstrument(object):
         if filename is not None and output_format.lower() == 'hdf5':
             writer.close()
         return compl, output
+
+    def update_memoization_sizes(self):
+        # Resize all known memoization functions to have a cache at least
+        # the size of the number of detectors.
+        resize_functions = [
+            _pixel_angles,
+            _pixel_tth_gradient,
+            _pixel_eta_gradient,
+            _pixel_solid_angles,
+            _lorentz_polarization_factor,
+        ]
+
+        min_size = len(self.detectors)
+        for f in resize_functions:
+            cache_info = f.cache_info()
+            if cache_info['maxsize'] < min_size:
+                f.set_cache_maxsize(min_size)
 
     """def fit_grain(self, grain_params, data_dir='results'):"""
 
