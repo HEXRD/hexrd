@@ -23,7 +23,7 @@ def undoc(func):
     return func
 
 
-def memoize(func=None, maxsize=5):
+def memoize(func=None, maxsize=2):
     """Decorator. Caches a function's return value each time it is called.
     If called later with the same arguments, the cached value is returned
     (not reevaluated).
@@ -52,7 +52,16 @@ def memoize(func=None, maxsize=5):
                 'currsize': len(cache),
             }
 
+        def set_cache_maxsize(x):
+            nonlocal maxsize
+            maxsize = x
+
+            while len(cache) > maxsize:
+                # Remove the left item (least recently used)
+                cache.popitem(last=False)
+
         setattr(func, 'cache_info', cache_info)
+        setattr(func, 'set_cache_maxsize', set_cache_maxsize)
 
         @wraps(func)
         def wrapped(*args, **kwargs):
