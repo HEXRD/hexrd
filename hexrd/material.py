@@ -531,8 +531,9 @@ class Material(object):
             atompos.append(numpy.asarray(occstr).astype(numpy.float64))
 
         if(not pU):
-            warn('Debye-Waller factors not present. \
-                setting to same values for all atoms.')
+            msg = (f"'Debye-Waller factors not present. "
+                   f"setting to same values for all atoms.'")
+            warn(msg)
             U = 1.0/numpy.pi/2./numpy.sqrt(2.) * numpy.ones(atompos[0].shape)
             self._U = U
         else:
@@ -576,17 +577,19 @@ class Material(object):
         charge = []
         for s in satype:
             if "+" in s:
-                ss = s.split("+")
-                c  = f"{ss[1]}+"
-                s  = ss[0]
+                ss = s[:-2]
+                c = s[-2:]
+                if c[0] == '+':
+                    c = c[::-1]
             if "-" in s:
-                ss = s.split("-")
-                c  = f"{ss[1]}-"
-                s  = ss[0]
+                ss = s[:-2]
+                c = s[-2:]
+                if c[0] == '-':
+                    c = c[::-1]
             else:
                 c = "0"
 
-            atomtype.append(ptable[s])
+            atomtype.append(ptable[ss])
             charge.append(c)
 
         self._atomtype = numpy.asarray(atomtype).astype(numpy.int32)
