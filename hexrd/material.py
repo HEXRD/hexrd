@@ -387,19 +387,10 @@ class Material(object):
                         pycifrw for i/o
         """
 
-        # make sure file exists etc.
-        if(fcif == Material.DFLT_NAME+'.cif'):
-            try:
-                cif = ReadCif(fcif)
-            except(OSError):
-                raise RuntimeError(
-                    'OS Error: No file name supplied \
-                    and default file name not found.')
-        else:
-            try:
-                cif = ReadCif(fcif)
-            except(OSError):
-                raise RuntimeError('OS Error: File not found')
+        try:
+            cif = ReadCif(fcif)
+        except RuntimeError:
+            print("file not found")
 
         # read the file
         for k in cif.keys():
