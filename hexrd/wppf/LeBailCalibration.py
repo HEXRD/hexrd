@@ -135,16 +135,21 @@ class LeBailCalibrator:
 
             Icalc = {}
             g = {}
+            prefix = f"azpos{ii}"
+            lo = self.lineouts[prefix].data[:,1]
+            if(self.intensity_init is None):
+                if np.nanmax(lo) > 0:
+                    n10 = np.floor(np.log10(np.nanmax(lo))) - 2
+                else:
+                    n10 = 0
+
             for p in self.phases:
                 Icalc[p] = {}
                 for k, l in self.phases.wavelength.items():
-                    Icalc[p][k] = 100.0*np.ones(self.tth[p][k].shape)
+                    Icalc[p][k] = (10**n10)*np.ones(self.tth[p][k].shape)
 
-            prefix = f"azpos{ii}"
             self.Icalc[prefix] = Icalc
-            wppfsupport._add_intensity_parameters(self.params,self.hkls,Icalc,prefix)
 
-        self.refine_intensities = False
         self.refine_background = False
         self.refine_instrument = False
 
@@ -196,16 +201,16 @@ class LeBailCalibrator:
 
             v.computespectrum()
             ww = v.weights
-            mask = v.mask
-            evec = ww*(v.spectrum_expt.data_array[:,1] -
-                   v.spectrum_sim.data_array[:,1])**2
+            evec = ww*(v.spectrum_expt._y -
+                   v.spectrum_sim._y)**2
             evec = np.sqrt(evec)
+            evec = np.nan_to_num(evec)
             errvec = np.concatenate((errvec,evec))
 
-            weighted_expt = ww*v.spectrum_expt.data_array[:,1]**2
+            weighted_expt = ww*v.spectrum_expt._y**2
 
-            wss = np.trapz(evec, v.tth_list[~mask[:,1]])
-            den = np.trapz(weighted_expt, v.tth_list[~mask[:,1]])
+            wss = np.trapz(evec, v.tth_list)
+            den = np.trapz(weighted_expt, v.tth_list)
             r = np.sqrt(wss/den)*100.
             if ~np.isnan(r):
                 rwp.append(r)
@@ -447,27 +452,6 @@ class LeBailCalibrator:
 
     def striphkl(self, g):
         return str(g)[1:-1].replace(" ","") 
-    
-    @property
-    def refine_intensities(self):
-        return self._refine_intensities
-
-    @refine_intensities.setter
-    def refine_intensities(self, val):
-        if isinstance(val, bool):
-            self._refine_intensities = val
-            prefix = "azpos"
-            for ii,(azpos,Icalc) in enumerate(self.Icalc.items()):
-                for p in Icalc:
-                    for k in Icalc[p]:
-                        shape = Icalc[p][k].shape[0]
-                        pname = [f"{prefix}{ii}_{p}_{k}_I{self.striphkl(g)}" 
-                        for jj,g in zip(range(shape),self.hkls[p][k])]
-                        for jj in range(shape):
-                            self.params[pname[jj]].vary = val
-        else:
-            msg = "only boolean values accepted"
-            raise ValueError(msg)
 
     @property
     def refine_background(self):
@@ -503,6 +487,39 @@ class LeBailCalibrator:
         else:
             msg = "only boolean values accepted"
             raise ValueError(msg)
+
+    @property
+    def refine_translation(self):
+        return self._refine_tilt
+
+    @refine_translation.setter
+    def refine_translation(self, val):
+        if isinstance(val, bool):
+            self._refine_translation = val
+            for key in self.instrument.detectors:
+                pnametvec = [f"{key}_tvec{i}" for i in range(3)]
+                for ptv in pnametvec:
+                    self.params[ptv].vary = val
+        else:
+            msg = "only boolean values accepted"
+            raise ValueError(msg)
+
+    @property
+    def refine_tilt(self):
+        return self._refine_tilt
+
+    @refine_tilt.setter
+    def refine_tilt(self, val):
+        if isinstance(val, bool):
+            self._refine_tilt = val
+            for key in self.instrument.detectors:
+                pnametilt = [f"{key}_tilt{i}" for i in range(3)]
+                for pti in pnametilt:
+                    self.params[pti].vary = val
+        else:
+            msg = "only boolean values accepted"
+            raise ValueError(msg)
+
     @property
     def pixel_size(self):
         return self._pixel_size
@@ -810,6 +827,7 @@ class LeBailCalibrator:
         for key, lo in self.lineouts.items():
             self.lineouts_sim[key] = LeBaillight(key,
                                                  lo,
+                                                 self.Icalc[key],
                                                  self.tth,
                                                  self.hkls,
                                                  self.dsp,
@@ -828,6 +846,7 @@ class LeBaillight:
     def __init__(self,
                 name,
                 lineout,
+                Icalc,
                 tth,
                 hkls,
                 dsp,
@@ -842,11 +861,14 @@ class LeBaillight:
         self.peakshape = peakshape
         self.params = params
         self.lineout = lineout
+        self.Icalc = Icalc
         self.shkl = shkl
         self.tth = tth
         self.hkls = hkls
         self.dsp = dsp
         self.bkgmethod = bkgmethod
+        self.computespectrum()
+        self.CalcIobs()
         self.computespectrum()
 
     def computespectrum(self):
@@ -947,12 +969,123 @@ class LeBaillight:
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
+    def CalcIobs(self):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       06/08/2020 SS 1.0 original
+        >> @DETAILS:    this is one of the main functions to partition the expt intensities
+                        to overlapping peaks in the calculated pattern
+        """
+
+        self.Iobs = {}
+        spec_expt = self.spectrum_expt.data_array
+        spec_sim  = self.spectrum_sim.data_array
+        tth_list = np.ascontiguousarray(self.tth_list)
+        for p in self.tth:
+
+            self.Iobs[p] = {}
+            for k in self.tth[p]:
+
+                Ic = self.Icalc[p][k]
+
+                shft_c = np.cos(0.5*np.radians(self.tth[p][k]))*self.params["shft"].value
+                trns_c = np.sin(np.radians(self.tth[p][k]))*self.params["trns"].value
+                tth = self.tth[p][k] + \
+                      self.params["zero_error"].value + \
+                      shft_c + \
+                      trns_c
+
+                dsp = self.dsp[p][k]
+                hkls = self.hkls[p][k]
+                n = np.min((tth.shape[0], Ic.shape[0]))
+                shkl = self.shkl[p]
+                name = p
+                eta_n = f"{name}_eta_fwhm"
+                eta_fwhm = self.params[eta_n].value
+                strain_direction_dot_product = 0.
+                is_in_sublattice = False
+
+                cag = np.array([self.params["U"].value,
+                                self.params["V"].value,
+                                self.params["W"].value])
+                gaussschrerr = self.params["P"].value
+                lorbroad = np.array([self.params["X"].value,
+                                     self.params["Y"].value])
+                anisbroad = np.array([self.params["Xe"].value,
+                                      self.params["Ye"].value,
+                                      self.params["Xs"].value])
+
+                if self.peakshape == 0:
+                    HL = self.params["HL"].value
+                    SL = self.params["SL"].value
+                    args = (cag,
+                            gaussschrerr,
+                            lorbroad,
+                            anisbroad,
+                            shkl,
+                            eta_fwhm,
+                            HL,
+                            SL,
+                            self.xn, 
+                            self.wn,
+                            tth,
+                            dsp,
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic, 
+                            spec_expt,
+                            spec_sim)
+
+                elif self.peakshape == 1:
+                    args = (cag,
+                            gaussschrerr,
+                            lorbroad,
+                            anisbroad,
+                            shkl,
+                            eta_fwhm,
+                            tth,
+                            dsp,
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic,
+                            spec_expt,
+                            spec_sim)
+
+                elif self.peakshape == 2:
+                    alpha = np.array([self.params["alpha0"].value,
+                                      self.params["alpha1"].value])
+                    beta = np.array([self.params["beta0"].value,
+                                     self.params["beta1"].value])
+                    args = (alpha,
+                            beta,
+                            cag,
+                            gaussschrerr,
+                            lorbroad,
+                            anisbroad,
+                            shkl,
+                            eta_fwhm,
+                            tth,
+                            dsp,
+                            hkls,
+                            strain_direction_dot_product,
+                            is_in_sublattice,
+                            tth_list,
+                            Ic,
+                            spec_expt,
+                            spec_sim)
+
+                self.Iobs[p][k] = self.calc_Iobs_fcn(*args)
+        self.Icalc = self.Iobs
+
     @property
     def weights(self):
         lo = self.lineout
-        mask = self.mask[:,1]
         weights = 1./np.sqrt(lo.data[:,1])
-        weights = weights[~mask]
+        weights = np.nan_to_num(weights)
 
         return weights
     
@@ -1101,21 +1234,14 @@ class LeBaillight:
             msg = (f"two theta vallues need "
                    f"to be in a dictionary")
             raise ValueError(msg)
-            
+
     @property
     def Icalc(self):
-        Ic = {}
-        for p in self.tth:
-            Ic[p] = {}
-            for k in self.tth[p]:
-                vname = f"{self.name}_{p}_{k}_I"
-                I = []
-                for param in self.params:
-                    if vname in param:
-                        I.append(self.params[param].value)
-                Ic[p][k] = np.array(I)
-    
-        return Ic
+        return self._Icalc
+
+    @Icalc.setter
+    def Icalc(self, I):
+        self._Icalc = I
 
     @property
     def computespectrum_fcn(self):
@@ -1125,3 +1251,12 @@ class LeBaillight:
             return computespectrum_pvtch
         elif self.peakshape == 2:
             return computespectrum_pvpink
+
+    @property
+    def calc_Iobs_fcn(self):
+        if self.peakshape == 0:
+            return calc_Iobs_pvfcj
+        elif self.peakshape == 1:
+            return calc_Iobs_pvtch
+        elif self.peakshape == 2:
+            return calc_Iobs_pvpink
