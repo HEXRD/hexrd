@@ -66,8 +66,6 @@ eHat_l_DFLT = constants.eta_vec.flatten()
 
 nans_1x2 = np.nan*np.ones((1, 2))
 
-_memo_hkls = {}
-
 
 # =============================================================================
 # CLASSES
@@ -1046,11 +1044,7 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
 
 
 def _fetch_hkls_from_planedata(pd):
-    if pd not in _memo_hkls:
-        _memo_hkls[pd] = np.ascontiguousarray(
-            np.hstack(pd.getSymHKLs(withID=True)).T,
-            dtype=float)
-    return _memo_hkls[pd]
+    return np.hstack(pd.getSymHKLs(withID=True)).T
 
 
 def _filter_hkls_eta_ome(hkls, angles, eta_range, ome_range):
