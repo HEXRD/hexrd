@@ -226,8 +226,11 @@ class LeBailCalibrator:
         instr_updated = self.update_instrument(params)
         errvec, rwp = self.computespectrum(instr_updated,
                                       lp_updated)
-
-        print(np.mean(rwp))
+        R = np.mean(rwp)
+        self.nfev += 1
+        if np.mod(self.nfev, 25) == 0:
+            msg = f"completed {self.nfev} evaluations. mean rwp = {R} %." 
+            print(msg)
 
         return errvec
 
@@ -241,7 +244,6 @@ class LeBailCalibrator:
             par = self.params[p]
             if(par.vary):
                 params.add(p, value=par.value, min=par.min, max=par.max, vary=True)
-
         return params
 
     def Refine(self):
@@ -255,16 +257,22 @@ class LeBailCalibrator:
         params = self.initialize_lmfit_parameters()
 
         fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
-         'verbose': 0, 'max_nfev': 1000, 'method':'trf',
+         'verbose': 0, 'max_nfev': 5000, 'method':'trf',
          'jac':'2-point'}
         # fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
         # 'max_nfev': 1000}
         fitter = lmfit.Minimizer(self.calcrwp, params)
+        self.nfev = 0
 
         res = fitter.least_squares(**fdict)
         # res = fitter.leastsq(**fdict)
         self.res = res
-        return res
+        if self.res.success:
+            msg = f"optimization successful: {self.res.message}"
+        else:
+            msg = f"optimization unsuccessful: {self.res.message}"
+
+        print(msg)
 
     def update_param_vals(self,
                           params):
