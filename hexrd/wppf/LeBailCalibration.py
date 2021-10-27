@@ -262,7 +262,7 @@ class LeBailCalibrator:
         params = self.initialize_lmfit_parameters()
 
         fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
-         'verbose': 0, 'max_nfev': 5000, 'method':'trf',
+         'verbose': 0, 'max_nfev': 1500, 'method':'trf',
          'jac':'2-point'}
         # fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
         # 'max_nfev': 1000}
