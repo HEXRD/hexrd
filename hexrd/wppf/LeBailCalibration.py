@@ -207,7 +207,7 @@ class LeBailCalibrator:
             evec = np.nan_to_num(evec)
             errvec = np.concatenate((errvec,evec))
 
-            weighted_expt = ww*v.spectrum_expt._y**2
+            weighted_expt = np.nan_to_num(ww*v.spectrum_expt._y**2)
 
             wss = np.trapz(evec, v.tth_list)
             den = np.trapz(weighted_expt, v.tth_list)
@@ -376,7 +376,6 @@ class LeBailCalibrator:
     @property
     def instrument(self):
         return self._instrument
-    
 
     @instrument.setter
     def instrument(self, ins):
@@ -459,16 +458,20 @@ class LeBailCalibrator:
     
     @refine_background.setter
     def refine_background(self, val):
-        if isinstance(val, bool):
-            self._refine_background = val
-            prefix = "azpos"
-            for ii in range(len(self.lineouts)):
-                pname = [f"{prefix}{ii}_bkg_C{jj}" for jj in range(self.bkgdegree)]
-                for p in pname:
-                    self.params[p].vary = val
+        if "chebyshev" in self.bkgmethod.keys():
+            if isinstance(val, bool):
+                self._refine_background = val
+                prefix = "azpos"
+                for ii in range(len(self.lineouts)):
+                    pname = [f"{prefix}{ii}_bkg_C{jj}" for jj in range(self.bkgdegree)]
+                    for p in pname:
+                        self.params[p].vary = val
+            else:
+                msg = "only boolean values accepted"
+                raise ValueError(msg)
         else:
-            msg = "only boolean values accepted"
-            raise ValueError(msg)
+            msg = f"background method doesn't support refinement."
+            print(msg)
 
     @property
     def refine_instrument(self):
@@ -811,7 +814,8 @@ class LeBailCalibrator:
                 self.phases, self.peakshape, ptype="lmfit")
             self.lebail_param_list = [p for p in params]
             wppfsupport._add_detector_geometry(params, self.instrument)
-            wppfsupport._add_background(params, self.lineouts, self.bkgdegree)
+            if "chebyshev" in self.bkgmethod.keys():
+                wppfsupport._add_background(params, self.lineouts, self.bkgdegree)
             self._params = params
 
     @property
@@ -1096,17 +1100,32 @@ class LeBaillight:
             return self.bkgmethod["chebyshev"]
 
     @property
-    def background(self):
-        tth, I = self._spectrum_sim.data
-        mask = self.mask[:,1]
-    
-        pname = [f"{self.name}_bkg_C{ii}" 
-        for ii in range(self.bkgdegree)]
+    def tth_step(self):
+        return (self.lineout.data[1,0]-self.lineout.data[0,0])
 
-        coef = [self.params[p].value for p in pname]
-        c = Chebyshev(coef,domain=[tth[0],tth[-1]])
-        bkg = c(tth)
-        bkg[mask] = np.nan
+    @property
+    def background(self):
+        tth, I = self.spectrum_expt.data
+        mask = self.mask[:,1]
+
+        if "chebyshev" in self.bkgmethod.keys():
+            pname = [f"{self.name}_bkg_C{ii}" 
+            for ii in range(self.bkgdegree)]
+
+            coef = [self.params[p].value for p in pname]
+            c = Chebyshev(coef,domain=[tth[0],tth[-1]])
+            bkg = c(tth)
+            bkg[mask] = np.nan
+
+        elif 'snip1d' in self.bkgmethod.keys():
+            ww = np.rint(self.bkgmethod["snip1d"][0] /
+            self.tth_step).astype(np.int32)
+
+            numiter = self.bkgmethod["snip1d"][1]
+
+            bkg = np.squeeze(snip1d_quad(np.atleast_2d(I),
+                                        w=ww, numiter=numiter))
+            bkg[mask] = np.nan
         return bkg
 
     @property
@@ -1123,7 +1142,7 @@ class LeBaillight:
         d = self.lineout.data
         mask = self.mask[:,1]
         d[mask,1] = np.nan
-        return Spectrum(x=d[:,0], y=d[:,1])    
+        return Spectrum(x=d[:,0], y=d[:,1])
 
     @property
     def params(self):
