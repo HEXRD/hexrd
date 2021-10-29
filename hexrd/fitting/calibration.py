@@ -15,7 +15,7 @@ from . import grains as grainutil
 # %% PARAMETERS
 # =============================================================================
 
-#instrument
+# instrument
 instr_flags_DFLT = np.ones(7, dtype=bool)
 
 # panel
@@ -400,5 +400,3 @@ def parse_reflection_tables(cfg, instr, grain_ids, refit_idx=None):
             meas_omes = gtable[idx, 12].reshape(sum(idx), 1)
             xyo_det[det_key].append(np.hstack([gtable[idx, -2:], meas_omes]))
     return hkls, xyo_det, idx_0
-
-
