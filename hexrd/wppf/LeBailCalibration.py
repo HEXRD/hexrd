@@ -233,7 +233,7 @@ class LeBailCalibrator:
                                       lp_updated)
         R = np.mean(rwp)
         self.nfev += 1
-        if np.mod(self.nfev, 25) == 0:
+        if np.mod(self.nfev, 1) == 0:
             msg = f"completed {self.nfev} evaluations. mean rwp = {R} %." 
             print(msg)
 
@@ -272,12 +272,12 @@ class LeBailCalibrator:
         res = fitter.least_squares(**fdict)
         # res = fitter.leastsq(**fdict)
         self.res = res
-        if self.res.success:
-            msg = f"optimization successful: {self.res.message}"
-        else:
-            msg = f"optimization unsuccessful: {self.res.message}"
+        # if self.res.success:
+        #     msg = f"optimization successful: {self.res.message}"
+        # else:
+        #     msg = f"optimization unsuccessful: {self.res.message}"
 
-        print(msg)
+        # print(msg)
 
     def update_param_vals(self,
                           params):
