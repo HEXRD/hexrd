@@ -264,14 +264,15 @@ class LeBailCalibrator:
 
         params = self.initialize_lmfit_parameters()
 
-        fdict = {'ftol': 1e-5, 'xtol': 1e-5, 'gtol': 1e-5,
-         'verbose': 0, 'max_nfev': 1500, 'method':'trf',
-         'jac':'2-point'}
-        # fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
-        # 'max_nfev': 1000}
+        # fdict = {'ftol': 1e-5, 'xtol': 1e-5, 'gtol': 1e-5,
+        #  'verbose': 0, 'max_nfev': 1500, 'method':'trf',
+        #  'jac':'2-point', 'x_scale':'jac'}
+        fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
+        'max_nfev': 1500}
         fitter = lmfit.Minimizer(self.calcrwp, params)
 
-        res = fitter.least_squares(**fdict)
+        # res = fitter.least_squares(**fdict)
+        res = fitter.leastsq(**fdict)
         self.res = res
 
         if self.res.success:
@@ -1092,8 +1093,8 @@ class LeBaillight:
     @property
     def weights(self):
         lo = self.lineout
-        weights = 1./np.sqrt(lo.data[:,1])
-        weights = np.nan_to_num(weights)
+        weights = np.divide(1., np.sqrt(lo.data[:,1]))
+        weights[np.isinf(weights)] = 0.0
 
         return weights
     
@@ -1136,7 +1137,7 @@ class LeBaillight:
     def spectrum_sim(self):
         tth, I = self._spectrum_sim.data
         mask = self.mask[:,1]
-        I[mask] = np.nan
+        # I[mask] = np.nan
         I += self.background
 
         return Spectrum(x=tth, y=I)
@@ -1145,7 +1146,7 @@ class LeBaillight:
     def spectrum_expt(self):
         d = self.lineout.data
         mask = self.mask[:,1]
-        d[mask,1] = np.nan
+        # d[mask,1] = np.nan
         return Spectrum(x=d[:,0], y=d[:,1])
 
     @property
