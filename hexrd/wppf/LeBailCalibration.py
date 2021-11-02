@@ -91,7 +91,7 @@ class LeBailCalibrator:
 
         self._tstop = time.time()
         
-        self.niter = 0
+        self.nfev = 0
         self.Rwplist = np.empty([0])
         self.gofFlist = np.empty([0])
 
@@ -153,7 +153,6 @@ class LeBailCalibrator:
         self.refine_background = False
         self.refine_instrument = False
 
-
     def prepare_polarview(self):
         self.masked = self.pv.warp_image(self.img_dict, \
                                         pad_with_nans=True, \
@@ -188,6 +187,7 @@ class LeBailCalibrator:
         """
         errvec = np.empty([0,])
         rwp = []
+
         for k,v in self.lineouts_sim.items():
             v.params = self.params
             if instr_updated:
@@ -197,9 +197,9 @@ class LeBailCalibrator:
                 v.hkls = self.hkls
                 v.dsp = self.dsp
             v.shkl = self.shkl
-            
-
+            v.CalcIobs()
             v.computespectrum()
+
             ww = v.weights
             evec = ww*(v.spectrum_expt._y -
                    v.spectrum_sim._y)**2
@@ -226,19 +226,22 @@ class LeBailCalibrator:
         of omega. However, there will be support for the more complicated
         HEDM case in the future.
         """
+
         lp_updated = self.update_param_vals(params)
         self.update_shkl(params)
         instr_updated = self.update_instrument(params)
         errvec, rwp = self.computespectrum(instr_updated,
                                       lp_updated)
-        R = np.mean(rwp)
+        self.Rwp = np.mean(rwp)
         self.nfev += 1
-        if np.mod(self.nfev, 1) == 0:
-            msg = f"completed {self.nfev} evaluations. mean rwp = {R} %." 
+        self.Rwplist = np.append(self.Rwplist, self.Rwp)
+
+        if np.mod(self.nfev, 10) == 0:
+            msg = (f"refinement ongoing... \n weighted residual at "
+            f"iteration # {self.nfev} = {self.Rwp}\n")
             print(msg)
 
         return errvec
-
 
     def initialize_lmfit_parameters(self):
 
@@ -267,17 +270,18 @@ class LeBailCalibrator:
         # fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
         # 'max_nfev': 1000}
         fitter = lmfit.Minimizer(self.calcrwp, params)
-        self.nfev = 0
 
         res = fitter.least_squares(**fdict)
-        # res = fitter.leastsq(**fdict)
         self.res = res
-        # if self.res.success:
-        #     msg = f"optimization successful: {self.res.message}"
-        # else:
-        #     msg = f"optimization unsuccessful: {self.res.message}"
 
-        # print(msg)
+        if self.res.success:
+            msg = (f"\n \n optimization successful: {self.res.message}. \n"
+                f"weighted residual error = {self.Rwp}")
+        else:
+            msg = (f"\n \n optimization unsuccessful: {self.res.message}. \n"
+                f"weighted residual error = {self.Rwp}")
+
+        print(msg)
 
     def update_param_vals(self,
                           params):
@@ -872,8 +876,8 @@ class LeBaillight:
         self.dsp = dsp
         self.bkgmethod = bkgmethod
         self.computespectrum()
-        self.CalcIobs()
-        self.computespectrum()
+        # self.CalcIobs()
+        # self.computespectrum()
 
     def computespectrum(self):
         
