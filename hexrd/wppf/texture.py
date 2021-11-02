@@ -75,12 +75,6 @@ class mesh_s2:
             points_st = self.points[:,:2]/np.tile(
                 (1.+np.abs(self.points[:,2])),[2,1]).T
 
-            dname = f"/{symmetry}/harmonics"
-            self.harmonics = np.array(fid[dname])
-
-            dname = f"/{symmetry}/eqv"
-            self.eqv = np.array(fid[dname]).astype(np.int32)
-
             self.mesh = Delaunay(points_st, qhull_options="QJ")
 
     def _get_simplices(self,
@@ -128,7 +122,6 @@ class mesh_s2:
 
         first make sure that the points are all normalized
         to unit length then take the stereographic projection
-
         """
         n = np.linalg.norm(points, axis=1)
         points = points/np.tile(n, [3,1]).T
@@ -349,9 +342,6 @@ class harmonic_model:
         self.init_harmonic_values()
         self.itercounter = 0
 
-        self.phon = 0.0
-        self.itercounter = 0
-
         ncoeff = self._num_coefficients()
         self.coeff = np.zeros([ncoeff,])
 
@@ -393,221 +383,7 @@ class harmonic_model:
                     break
         angs = np.array(angs)
 
-    def compute_texture_factor(self,
-                               coef):
-        """
-        first check if the size of the coef vector is
-        consistent with the max degree argumeents for
-        crystal and sample.
-
-        """
-        ncoef = coef.shape[0]
-        
-        ncoef_inv = self._num_coefficients()
-        if ncoef < ncoef_inv:
-            msg = (f"inconsistent number of entries in "
-                   f"coefficients based on the degree of "
-                   f"crystal and sample harmonic degrees. "
-                   f"needed {ncoef_inv}, found {ncoef}")
-            raise ValueError(msg) 
-        elif ncoef > ncoef_inv:
-            msg = (f"more coefficients passed than required "
-                   f"based on the degree of crystal and "
-                   f"sample harmonic degrees. "
-                   f"needed {ncoef_inv}, found {ncoef}. "
-                   f"ignoring extra terms.")
-            warn(msg)
-            coef = coef[:ncoef_inv]
- 
-        tex_fact = {}
-        for g in self.pole_figures.hkls:
-            key = str(g)[1:-1].replace(" ","")
-            nsamp = self.pole_figures.gvecs[key].shape[0]
-            tex_fact[key] = np.zeros([nsamp,])
-
-            tex_fact[key] = self._compute_sum(nsamp,
-                                              coef,
-                                              self.allowed_degrees,
-                                              self.V_c_allowed[key],
-                                              self.V_s_allowed[key])
-        return tex_fact
-
-    def _index_of_harmonics(self,
-                            deg,
-                            c_or_s):
-        """
-        calculate the start and end index of harmonics
-        of a given degree and crystal or sample symmetry
-        returns the start and end index
-        """
-        ninv_c = self.mesh_crystal.num_invariant_harmonic(
-                 self.max_degree)
-
-        ninv_s = self.mesh_sample.num_invariant_harmonic(
-                 self.max_degree)
-
-        ninv_c_csum = np.r_[0,np.cumsum(ninv_c[:,1])]
-        ninv_s_csum = np.r_[0,np.cumsum(ninv_s[:,1])]
-
-        if c_or_s.lower() == "crystal":
-            idx = np.where(ninv_c[:,0] == deg)[0]
-            return int(ninv_c_csum[idx]), int(ninv_c_csum[idx+1])
-        elif c_or_s.lower() == "sample":
-            idx = np.where(ninv_s[:,0] == deg)[0]
-            return int(ninv_s_csum[idx]), int(ninv_s_csum[idx+1])
-        else:
-            msg = f"unknown input to c_or_s"
-            raise ValueError(msg)
-
-    def _compute_sum(self,
-                    nsamp,
-                    coef,
-                    allowed_degrees,
-                    V_c_allowed,
-                    V_s_allowed):
-        """
-        compute the degree by degree sum in the
-        generalized axis distribution function
-        """
-        nn = np.cumsum(np.array([allowed_degrees[k][0]*allowed_degrees[k][1] 
-            for k in allowed_degrees]))
-        ncoef_csum = np.r_[0,nn]
-
-        val = np.zeros([nsamp,])
-        for i,(k,v) in enumerate(allowed_degrees.items()):
-            deg = k
-
-            kc = V_c_allowed[deg]
-
-            ks = V_s_allowed[deg].T
-
-            mu = kc.shape[0]
-            nu = ks.shape[0]
-
-            ist = ncoef_csum[i]
-            ien = ncoef_csum[i+1]
-            C = np.reshape(coef[ist:ien],[mu, nu])
-
-            val = val + np.dot(kc,np.dot(C,ks))
-
-        return val
-
-    def _num_coefficients(self):
-        """
-        utility function to compute the number of
-        independent coefficients required for the 
-        given maximum degree of harmonics
-        """
-        ninv_c = self.mesh_crystal.num_invariant_harmonic(
-         self.max_degree)
-
-        ninv_s = self.mesh_sample.num_invariant_harmonic(
-                 self.max_degree)
-        ncoef_inv = 0
-        
-        for i in np.arange(0,self.max_degree+1,2):
-            if i in ninv_c[:,0] and i in ninv_s[:,0]:
-                idc = int(np.where(ninv_c[:,0] == i)[0])
-                ids = int(np.where(ninv_s[:,0] == i)[0])
-                
-                ncoef_inv += ninv_c[idc,1]*ninv_s[ids,1]
-        return ncoef_inv
-
-    def calc_pole_figures(self, 
-                          hkls, 
-                          coef,
-                          max_degree):
-        """
-        given a set of hkl, coefficients and maximum degree of
-        harmonic function to use for both crystal and sample 
-        symmetries, compute the pole figures for full coverage.
-        the default grid is the equiangular grid, but other
-        options include computing it on the s2 mesh or modified
-        lambert grid or custom (theta, phi) coordinates.
-
-        this uses the general axis distributiin function. other 
-        formalisms such as direct pole figure inversion is also 
-        possible using quadratic programming, but for that explicit
-        pole figure operators are needed. the axis distributuion
-        function is easy to integrate with the rietveld method.
-        """
-
-        """
-        first check if the dimensions of coef is consistent with
-        the maximum degrees of the harmonics 
-        """
-        pass
-
-    def init_coeff_params(self):
-        """
-        this function initializes a lmfit 
-        parameter class with all the coefficients.
-        this will be passed to the minimize
-        routine
-        """
-        params = Parameters()
-        self.coeff_loc = {}
-        ctr = 0
-        for ii,(k,v) in enumerate(self.allowed_degrees.items()):
-          for icry in np.arange(v[0]):
-              for isamp in np.arange(v[1]):
-                  vname = f"c_{k}_{icry}_{isamp}"
-                  self.coeff_loc[vname] = ctr
-                  ctr += 1
-                  params.add(vname,value=self.coeff[ii],vary=True)
-        return params
-
-    def set_coeff_from_param(self, params):
-        """
-        this function takes the the values in the 
-        parameters and sets the values of the coefficients
-        """
-        for ii,k in enumerate(params):
-            loc = self.coeff_loc[k]
-            self.coeff[loc] = params[k].value
-
-    def residual_function(self, params):
-        """
-        calculate the residual between input pole figure
-        data and generalized axis distribution function
-        """
-        self.set_coeff_from_param(params)
-        pf_recalc = self.recalculate_pole_figures()
-
-        for ii,(k,v) in enumerate(self.pole_figures.pfdata.items()):
-            inp_intensity = np.squeeze(v[:,3])
-            calc_intensity = np.squeeze(pf_recalc[k])
-            diff = (inp_intensity-calc_intensity-self.phon)
-            if ii == 0:
-                residual = diff
-                vals = inp_intensity
-            else:
-                residual = np.hstack((residual,diff))
-                vals = np.hstack((vals,inp_intensity))
-
-        Rp = np.linalg.norm(residual)/np.linalg.norm(vals)
-        if np.mod(self.itercounter,100) == 0:
-            msg = f"iteration# {self.itercounter}, Rp error = {Rp*100} %"
-            print(msg)
-        self.itercounter += 1
-        return residual
-
-    def phon_residual_function(self, params):
-        """
-        calculate the residual in estimating the uniform
-        portion of the odf to make it into a sharp odf.
-        same method as mtex
-        """
-        for ii,(k,v) in enumerate(self.pole_figures.pfdata.items()):
-            inp_intensity = np.squeeze(v[:,3])
-            diff = (inp_intensity - params["phon"].value)
-            if ii == 0:
-                residual = diff
-                vals = inp_intensity
-            else:
-                residual = np.hstack((residual,diff))
-                vals = np.hstack((vals,inp_intensity))
-        return residual
+        return angs
 
     def init_coeff_params(self):
         """
@@ -844,130 +620,33 @@ class harmonic_model:
                 ncoef_inv += ninv_c[idc,1]*ninv_s[ids,1]
         return ncoef_inv
 
-    def refine(self):
+    def _allowed_degrees(self):
         """
-        this is the function which updates the harmonic coefficients
-        to fit better to the input pole figure data. 
+        utility function to get the allowed degrees
+        and the corresponding number of harmonics for
+        crystal and sample symmetry
         """
-        """
-        first determine the phon
-        """
-        # params = Parameters()
-        # params.add("phon",value=0.0)
-        # fdict = {'ftol': 1e-4, 'xtol': 1e-4, 
-        #  'gtol': 1e-4,'max_nfev': 100}
-        # # fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
-        # #  'verbose': 0, 'max_nfev': 100, 'method':'trf',
-        # #  'jac':'2-point'}
-        # fitter = Minimizer(self.phon_residual_function, params)
-        # res = fitter.leastsq(**fdict)
-        # params_phon_res = res.params
-        # self.phon = params_phon_res["phon"].value
+        ninv_c = self.mesh_crystal.num_invariant_harmonic(
+         self.max_degree)
 
-        # msg = f"setting uniform portion to {self.phon}"
-        # print(msg)
-
-        params = self.init_coeff_params()
-        fdict = {'ftol': 1e-4, 'xtol': 1e-4, 'gtol': 1e-4,
-         'verbose': 0, 'max_nfev': 10000, 'method':'trf',
-         'jac':'2-point'}
-        # fdict = {'ftol': 1e-4, 'xtol': 1e-4, 
-        #  'gtol': 1e-4,'max_nfev': 10000}
-        fitter = Minimizer(self.residual_function, params)
-
-        res = fitter.least_squares(**fdict)
-        # res = fitter.leastsq(**fdict)
-        params_res = res.params
-        self.set_coeff_from_param(params_res)
-
-    def recalculate_pole_figures(self):
-        """
-        this function calculates the pole figures for
-        the sample directions in the pole figure used
-        to initialize the model. this can be used to 
-        test how well the harmonic model fit the data.
-        """
-        return self.compute_texture_factor(self.coeff)
-
-
-
-    def calc_pole_figures(self, 
-                      hkls,
-                      grid="equiangular"):
-        """
-        given a set of hkl, coefficients and maximum degree of
-        harmonic function to use for both crystal and sample 
-        symmetries, compute the pole figures for full coverage.
-        the default grid is the equiangular grid, but other
-        options include computing it on the s2 mesh or modified
-        lambert grid or custom (theta, phi) coordinates.
-
-        this uses the general axis distributiin function. other 
-        formalisms such as direct pole figure inversion is also 
-        possible using quadratic programming, but for that explicit
-        pole figure operators are needed. the axis distributuion
-        function is easy to integrate with the rietveld method.
-        """
+        ninv_s = self.mesh_sample.num_invariant_harmonic(
+                 self.max_degree)
 
         """
-        first check if the dimensions of coef is consistent with
-        the maximum degrees of the harmonics 
+        some degrees for which the crystal symmetry has
+        fewer terms than sample symmetry or vice versa 
+        needs to be weeded out
         """
+        allowed_degrees = {}
 
-        """
-        check if class already exists with the same
-        hkl values. if it does, then do nothing. 
-        otherwise initialize a new instance
-        """
-        init = True
-        if hasattr(self, "pf_equiangular"):
-            if self.pf_equiangular.hkls.shape == hkls.shape:
-                if np.sum(np.abs(hkls - self.pf_equiangular.hkls)) < 1e-6:
-                    init = False
+        for i in np.arange(0,self.max_degree+1,2):
+            if i in ninv_c[:,0] and i in ninv_s[:,0]:
+                idc = int(np.where(ninv_c[:,0] == i)[0])
+                ids = int(np.where(ninv_s[:,0] == i)[0])
+                
+                allowed_degrees[i] = [ninv_c[idc,1], ninv_s[ids,1]]
 
-        if init:
-            angs = self.init_equiangular_grid()
-            zc = np.atleast_2d(np.zeros([angs.shape[0],])).T
-            angs = np.append(angs,zc,axis=1)
-            mat  = self.pole_figures.material
-            bHat_l = self.pole_figures.bHat_l
-            eHat_l = self.pole_figures.eHat_l
-            chi = self.pole_figures.chi
-            pfdata = {}
-            for g in hkls:
-                key = str(g)[1:-1].replace(" ","")
-                pfdata[key] = angs
-
-            args   = (mat, hkls, pfdata)
-            kwargs = {"bHat_l":bHat_l,
-                      "eHat_l":eHat_l,
-                      "chi":chi}
-            self.pf_equiangular = pole_figures(*args, **kwargs)
-
-        model = harmonic_model(self.pf_equiangular,
-                               self.sample_symmetry,
-                               self.max_degree)
-
-        model.coeff = self.coeff
-        model.phon = self.phon
-
-        pf = model.recalculate_pole_figures()
-        pfdata = {}
-        for k,v in self.pf_equiangular.pfdata.items():
-            pfdata[k] = np.hstack((np.degrees(v[:,0:2]), 
-                self.phon+np.atleast_2d(pf[k]).T ))
-
-        return pfdata
-
-    def write_pole_figures(self, pfdata):
-        """
-        take output of the calc_pole_figures routine and write
-        it out as text files
-        """
-        for k,v in pfdata.items():
-            fname = f"pf_{k}.txt"
-            np.savetxt(fname, v, fmt="%10.4f", delimiter="\t")
-
+        return allowed_degrees
 
     def refine(self):
 
@@ -1266,26 +945,6 @@ class pole_figures:
             v = v/np.linalg.norm(v)
             self.hkls_c[ii,:] = v
 
-    def convert_angs_to_gvecs(self):
-        """
-        this routine converts angular coordinates in (tth, eta, omega)
-        to g-vectors in the lab frame
-        """
-        self.gvecs = {}
-        for k,v in self.pfdata.items():
-            angs = v[:,0:3]
-
-            if np.abs(angs).max() > 2.0*np.pi:
-                msg = f"angles seem to be large. converting to radians."
-                print(msg)
-                angs = np.atleast_2d(np.radians(angs))
-                self.pfdata[k][:,0:3] = angs
-
-            self.gvecs[k] = anglesToGVec(angs, 
-                                         bHat_l=self.bHat_l,
-                                         eHat_l=self.eHat_l,
-                                         chi=self.chi)
-
     def write_data(self, prefix):
         """
         write out the data in text format
@@ -1312,18 +971,6 @@ class pole_figures:
     @property
     def pfdata(self):
         return self._pfdata
-    
-
-    """
-    the pfdata variable can be set in a couple of ways. 
-    the most frequently used case in HEDM dataset would
-    be to use the (tth, eta, omega) arrays, but option to
-    initialize directly using the g-vectors in the lab 
-    frame is also be provided in a future implementation.
-    """
-    @pfdata.setter
-    def pfdata(self, data):
-        self._pfdata = data
 
     @pfdata.setter
     def pfdata(self, val):
