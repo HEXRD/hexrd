@@ -578,6 +578,7 @@ class Material(object):
                 if c[0] == '-':
                     c = c[::-1]
             else:
+                ss = s
                 c = "0"
 
             atomtype.append(ptable[ss])
