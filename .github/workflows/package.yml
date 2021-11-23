@@ -43,10 +43,12 @@ jobs:
         activate-environment: hexrd
         auto-activate-base: false
 
+    # Note: That we are current fix conda version to 4.10.3 to work around a regression
+    # with 4.11.
     - name: Install build requirements
       run: |
           conda activate hexrd
-          conda install --override-channels -c conda-forge anaconda-client conda-build
+          conda install --override-channels -c conda-forge anaconda-client conda-build conda=4.10.3
 
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
