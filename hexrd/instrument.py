@@ -1366,6 +1366,8 @@ class HEDMInstrument(object):
         results : TYPE
             DESCRIPTION.
 
+        xy_det, hkls_in, angles, dspacing, energy
+
         TODO: revisit output; dict, or concatenated list?
         """
         results = dict.fromkeys(self.detectors)
@@ -3107,18 +3109,19 @@ class PlanarDetector(object):
 
             # filter angs and hkls that are on the detector plane
             # !!! check this -- seems unnecessary but the results of
-            #     _project_on_detector_plane() can have len < the input.
+            #     _project_on_detector_plane() can have len < the input?
             #     the output of _project_on_detector_plane has been modified to
             #     hand back the index array to remedy this JVB 2020-05-27
-            filtered_angs = np.atleast_2d(allAngs[on_plane, :])
-            filtered_hkls = np.atleast_2d(allHKLs[on_plane, :])
+            if np.any(~on_plane):
+                allAngs = np.atleast_2d(allAngs[on_plane, :])
+                allHKLs = np.atleast_2d(allHKLs[on_plane, :])
 
             # grab hkls and gvec ids for this panel
-            valid_hkls.append(filtered_hkls[on_panel, 1:])
-            valid_ids.append(filtered_hkls[on_panel, 0])
+            valid_hkls.append(allHKLs[on_panel, 1:])
+            valid_ids.append(allHKLs[on_panel, 0])
 
             # reflection angles (voxel centers) and pixel size in (tth, eta)
-            valid_angs.append(filtered_angs[on_panel, :])
+            valid_angs.append(allAngs[on_panel, :])
             ang_pixel_size.append(self.angularPixelSize(xys_p))
         return valid_ids, valid_hkls, valid_angs, valid_xys, ang_pixel_size
 
