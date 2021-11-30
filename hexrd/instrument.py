@@ -800,7 +800,6 @@ class HEDMInstrument(object):
                 else:
                     raise TypeError("Unexpected file type.")
 
-
         return par_dict
 
     def update_from_parameter_list(self, p):
