@@ -264,10 +264,12 @@ class LeBailCalibrator:
 
         params = self.initialize_lmfit_parameters()
 
-        fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6}
+        # fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6, 'factor':1000}
         fitter = lmfit.Minimizer(self.calcrwp, params)
 
-        res = fitter.leastsq(**fdict)
+        fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6}
+        res = fitter.least_squares(**fdict)
+        # res = fitter.leastsq(**fdict)
         self.res = res
 
         if self.res.success:
