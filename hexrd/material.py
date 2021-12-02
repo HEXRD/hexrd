@@ -423,6 +423,7 @@ class Material(object):
         elif (skey is sgkey[1]):
             HM = cifdata[sgkey[1]]
             HM = HM.replace(" ", "")
+            HM = HM.replace("_","")
             sgnum = HM_to_sgnum[HM]
         elif (skey is sgkey[2]):
             hall = cifdata[sgkey[2]]
