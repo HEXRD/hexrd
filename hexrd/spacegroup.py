@@ -145,6 +145,11 @@ class SpaceGroup:
         return self._laueGroup
 
     @property
+    def laueGroup_international(self):
+        """Internationl symbol for Laue group (read only)"""
+        return _laue_international[self._laueGroup]
+
+    @property
     def pointGroup(self):
         """Schonflies symbol for point group (read only)"""
         return self._pointGroup
@@ -1344,6 +1349,17 @@ laue_9 = 'd6h'
 laue_10 = 'th'
 laue_11 = 'oh'
 
+_laue_international = {laue_1:"-1",
+laue_2:"2/m",
+laue_3:"mmm",
+laue_4:"4/m",
+laue_5:"4/mmm",
+laue_6:"-3",
+laue_7:"-3m",
+laue_8:"6/m",
+laue_9:"6/mmm",
+laue_10:"m3",
+laue_11:"m3m"}
 
 def _sgrange(min, max): return tuple(range(min, max + 1))  # inclusive range
 
