@@ -1298,13 +1298,6 @@ class HEDMInstrument(object):
                             self.simulated_spectrum.x,
                             self.simulated_spectrum.y + self.background.y)
 
-            # normalize everything to 0-1
-            mi = img.min()
-            ma = img.max()
-
-            if(ma > mi):
-                img = (img - mi) / (ma - mi)
-
             if(noise is None):
                 img_dict[det_key] = img
 
