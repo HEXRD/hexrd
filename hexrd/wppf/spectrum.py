@@ -1,6 +1,6 @@
 import numpy as np
 import h5py
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from os import path
 
 class Spectrum:
@@ -240,10 +240,12 @@ class Spectrum:
 
         return Spectrum(new_x, new_y)
 
+    '''
     def plot(self, show=False, *args, **kwargs):
         plt.plot(self.x, self.y, *args, **kwargs)
         if show:
             plt.show()
+    '''
 
     def nan_to_zero(self):
         """
