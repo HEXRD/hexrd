@@ -13,8 +13,6 @@ import lmfit
 
 import numpy as np
 
-from pylab import plot, ginput, close, title, xlabel, ylabel
-
 from scipy.interpolate import CubicSpline
 
 # hexrd imports
@@ -299,6 +297,7 @@ class LeBail:
         for that change
         """
         # Keep matplotlib as an optional dependency
+        # FIXME: move this function to where it is needed
         from pylab import plot, ginput, close, title, xlabel, ylabel
 
         self.points = []
