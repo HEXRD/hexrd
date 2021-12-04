@@ -28,8 +28,6 @@ from os import path
 import time
 import h5py
 from pathlib import Path
-from pylab import plot, ginput, show, \
-    axis, close, title, xlabel, ylabel
 import copy
 from hexrd.utils.decorators import numba_njit_if_available
 
@@ -266,6 +264,9 @@ class LeBail:
         03/08/2021 SS spectrum_expt is a list now. accounting
         for that change
         """
+        # Keep matplotlib as an optional dependency
+        from pylab import plot, ginput, close, title, xlabel, ylabel
+
         self.points = []
         for i, s in enumerate(self._spectrum_expt):
             txt = (f"Select points for background estimation;"
@@ -1617,6 +1618,10 @@ class Rietveld:
         03/08/2021 SS spectrum_expt is a list now. accounting
         for that change
         """
+
+        # Keep matplotlib as an optional dependency
+        from pylab import plot, ginput, close, title, xlabel, ylabel
+
         self.points = []
         for i, s in enumerate(self._spectrum_expt):
             txt = (f"Select points for background estimation;"
