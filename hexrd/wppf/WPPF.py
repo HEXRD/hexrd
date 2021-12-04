@@ -298,6 +298,9 @@ class LeBail:
         03/08/2021 SS spectrum_expt is a list now. accounting
         for that change
         """
+        # Keep matplotlib as an optional dependency
+        from pylab import plot, ginput, close, title, xlabel, ylabel
+
         self.points = []
         for i, s in enumerate(self._spectrum_expt):
             txt = (
@@ -1724,6 +1727,10 @@ class Rietveld:
         03/08/2021 SS spectrum_expt is a list now. accounting
         for that change
         """
+
+        # Keep matplotlib as an optional dependency
+        from pylab import plot, ginput, close, title, xlabel, ylabel
+
         self.points = []
         for i, s in enumerate(self._spectrum_expt):
             txt = (
@@ -2837,19 +2844,6 @@ def join_regions(vector_list, global_index, global_shape):
 
     # out_array = np.ma.masked_array(out_array, mask = np.isnan(out_array))
     return out_vector
-
-
-def generate_pole_figures(hkls, tth, Icalc):
-    """
-    >> @AUTHOR  Saransh Singh Lawrence Livermore national Lab
-    >> @DATE    02/05/2021 SS 1.0 original
-    >> @DETAILS this is the section where we'll do the texture
-    computations for now. the idea is to get the A(h,y) function
-    for the determination of the ODF. Using spherical harmonics
-    for now nut will switch to discrete harmonics in the future
-    """
-    pass
-
 
 peakshape_dict = {
     "pvfcj": "pseudo-voight (finger, cox, jephcoat)",

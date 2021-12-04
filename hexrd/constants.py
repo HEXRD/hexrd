@@ -75,11 +75,11 @@ beam_vec = -lab_z
 eta_vec = lab_x
 
 """
->> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, 
+>> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab,
                 saransh1@llnl.gov
 >> @DATE:       10/19/2021 SS 1.0 original
 >> @DETAILS:    some constants for calculation of complementary error
-                and exponential integral functions. everything based 
+                and exponential integral functions. everything based
                 on rational approximants of the integral
 
 coefficients from pg. 415 Y. Luke, The special functions and their
@@ -229,11 +229,10 @@ cden_exp1exp = np.array([1.,
 # 3.99653257887490811e13]).astype(np.complex128)
 
 '''
-    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-    >> @DATE:       10/28/2020 SS 1.0 original
-    >> @DETAILS:    constants for sphere sectors used for IPF coloring
-
-    '''
+>> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+>> @DATE:       10/28/2020 SS 1.0 original
+>> @DETAILS:    constants for sphere sectors used for IPF coloring
+'''
 # radius of homochoric sphere
 hoR = (np.pi * 3. / 4.)**(1./3.)
 
@@ -743,44 +742,40 @@ atom_weights = np.array([1.00794, 4.002602, 6.941, 9.012182, 10.811,
 dictionary of atomic numbers with element symbol as keys
 used in I/O from cif file
 '''
-ptable = {'H':1, 'He':2,
-'Li':3,  'Be':4,  'B':5,   'C':6,   'N':7,   'O':8,   'F':9,   'Ne':10 ,
-'Na':11, 'Mg':12, 'Al':13, 'Si':14, 'P' :15 ,'S':16,  'Cl':17, 'Ar':18 ,
-'K':19 , 'Ca':20, 'Sc':21, 'Ti':22, 'V' :23, 'Cr':24, 'Mn':25, 'Fe':26 ,
-'Co':27, 'Ni':28, 'Cu':29, 'Zn':30, 'Ga':31, 'Ge':32, 'As':33, 'Se':34 ,
-'Br':35, 'Kr':36, 'Rb':37, 'Sr':38, 'Y':39,  'Zr':40, 'Nb':41, 'Mo':42 ,
-'Tc':43, 'Ru':44, 'Rh':45, 'Pd':46, 'Ag':47, 'Cd':48, 'In':49, 'Sn':50 ,
-'Sb':51, 'Te':52, 'I':53,  'Xe':54, 'Cs':55, 'Ba':56, 'La':57, 'Ce':58 ,
-'Pr':59, 'Nd':60, 'Pm':61, 'Sm':62, 'Eu':63, 'Gd':64, 'Tb':65, 'Dy':66 ,
-'Ho':67, 'Er':68, 'Tm':69, 'Yb':70, 'Lu':71, 'Hf':72, 'Ta':73, 'W':74 ,
-'Re':75, 'Os':76, 'Ir':77, 'Pt':78, 'Au':79, 'Hg':80, 'Tl':81, 'Pb':82 ,
-'Bi':83, 'Po':84, 'At':85, 'Rn':86, 'Fr':87, 'Ra':88, 'Ac':89, 'Th':90 ,
-'Pa':91, 'U' :92, 'Np':93, 'Pu':94, 'Am':95, 'Cm':96, 'Bk':97, 'Cf':98}
-
-ptableinverse = {1:'H', 2:'He',
-3:'Li' ,  4:'Be',   5:'B',   6:'C',  7:'N',  8: 'O',  9:'F', 10:'Ne' ,
-11:'Na', 12:'Mg', 13:'Al', 14:'Si', 15: 'P', 16: 'S',17:'Cl', 18:'Ar',
-19:'K' , 20:'Ca', 21:'Sc', 22:'Ti', 23:'V' , 24:'Cr', 25:'Mn', 26:'Fe' ,
-27:'Co', 28:'Ni', 29:'Cu', 30:'Zn', 31:'Ga', 32:'Ge', 33:'As', 34:'Se' ,
-35:'Br', 36:'Kr', 37:'Rb', 38:'Sr', 39:'Y', 40:'Zr', 41:'Nb', 42:'Mo' ,
-43:'Tc', 44:'Ru', 45:'Rh', 46:'Pd', 47:'Ag', 48:'Cd', 49:'In', 50:'Sn' ,
-51:'Sb', 52:'Te', 53:'I', 54:'Xe', 55:'Cs', 56:'Ba', 57:'La', 58:'Ce' ,
-59:'Pr', 60:'Nd', 61:'Pm', 62:'Sm', 63:'Eu', 64:'Gd', 65:'Tb', 66:'Dy' ,
-67:'Ho', 68:'Er', 69:'Tm', 70:'Yb', 71:'Lu', 72:'Hf', 73:'Ta', 74:'W' ,
-75:'Re', 76:'Os', 77:'Ir', 78:'Pt', 79:'Au', 80:'Hg', 81:'Tl', 82:'Pb' ,
-83:'Bi', 84:'Po', 85:'At', 86:'Rn', 87:'Fr', 88:'Ra', 89:'Ac', 90:'Th' ,
-91:'Pa', 92:'U' , 93:'Np', 94:'Pu', 95:'Am', 96:'Cm', 97:'Bk', 98:'Cf'
+ptable = {
+    'H': 1, 'He': 2, 'Li': 3, 'Be': 4, 'B': 5, 'C': 6, 'N': 7, 'O': 8,
+    'F': 9, 'Ne': 10, 'Na': 11, 'Mg': 12, 'Al': 13, 'Si': 14, 'P': 15,
+    'S': 16, 'Cl': 17, 'Ar': 18, 'K': 19, 'Ca': 20, 'Sc': 21, 'Ti': 22,
+    'V': 23, 'Cr': 24, 'Mn': 25, 'Fe': 26, 'Co': 27, 'Ni': 28, 'Cu': 29,
+    'Zn': 30, 'Ga': 31, 'Ge': 32, 'As': 33, 'Se': 34, 'Br': 35, 'Kr': 36,
+    'Rb': 37, 'Sr': 38, 'Y': 39, 'Zr': 40, 'Nb': 41, 'Mo': 42, 'Tc': 43,
+    'Ru': 44, 'Rh': 45, 'Pd': 46, 'Ag': 47, 'Cd': 48, 'In': 49, 'Sn': 50,
+    'Sb': 51, 'Te': 52, 'I': 53, 'Xe': 54, 'Cs': 55, 'Ba': 56, 'La': 57,
+    'Ce': 58, 'Pr': 59, 'Nd': 60, 'Pm': 61, 'Sm': 62, 'Eu': 63, 'Gd': 64,
+    'Tb': 65, 'Dy': 66, 'Ho': 67, 'Er': 68, 'Tm': 69, 'Yb': 70, 'Lu': 71,
+    'Hf': 72, 'Ta': 73, 'W': 74, 'Re': 75, 'Os': 76, 'Ir': 77, 'Pt': 78,
+    'Au': 79, 'Hg': 80, 'Tl': 81, 'Pb': 82, 'Bi': 83, 'Po': 84, 'At': 85,
+    'Rn': 86, 'Fr': 87, 'Ra': 88, 'Ac': 89, 'Th': 90, 'Pa': 91, 'U': 92,
+    'Np': 93, 'Pu': 94, 'Am': 95, 'Cm': 96, 'Bk': 97, 'Cf': 98, 'Es': 99,
+    'Fm': 100, 'Md': 101, 'No': 102, 'Lr': 103, 'Rf': 104, 'Db': 105,
+    'Sg': 106, 'Bh': 107, 'Hs': 108, 'Mt': 109
 }
+
+ptableinverse = dict.fromkeys(ptable.values())
+for k, v in ptable.items():
+    ptableinverse[v] = k
 
 '''
 listing the symmorphic space groups
 '''
-sgnum_symmorphic = np.array([1, 2, 3, 5, 6, 8, 10, 12, 16, 21, 22, 23, 25, 35, 38, 42, 44, 47,
-                             65, 69, 71, 75, 79, 81, 82, 83, 87, 89, 97, 99, 107, 111, 115,
-                             119, 121, 123, 139, 143, 146, 147, 148, 149, 150, 155, 156,
-                             157, 160, 162, 164, 166, 168, 174, 175, 177, 183, 187, 189,
-                             191, 195, 196, 197, 200, 202, 204, 207, 209, 211, 215, 216,
-                             217, 221, 225, 229])
+sgnum_symmorphic = np.array([
+    1, 2, 3, 5, 6, 8, 10, 12, 16, 21, 22, 23, 25, 35, 38, 42, 44, 47,
+    65, 69, 71, 75, 79, 81, 82, 83, 87, 89, 97, 99, 107, 111, 115,
+    119, 121, 123, 139, 143, 146, 147, 148, 149, 150, 155, 156, 157,
+    160, 162, 164, 166, 168, 174, 175, 177, 183, 187, 189, 191, 195,
+    196, 197, 200, 202, 204, 207, 209, 211, 215, 216, 217, 221, 225,
+    229
+])
 
 ''' this variable encodes all the generators (including translations) for all 230 space groups
     will be used to compute the full space group symmetry operators

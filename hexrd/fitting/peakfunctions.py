@@ -29,8 +29,9 @@ import numpy as np
 import copy
 from hexrd import constants
 from hexrd.utils.decorators import numba_njit_if_available
-from hexrd.constants import c_erf, \
-cnum_exp1exp, cden_exp1exp, c_coeff_exp1exp
+from hexrd.constants import \
+    c_erf, cnum_exp1exp, cden_exp1exp, c_coeff_exp1exp
+
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.
 
@@ -46,7 +47,7 @@ mpeak_nparams_dict = {
 """
 cutom function to compute the complementary error function
 based on rational approximation of the convergent Taylor
-series. coefficients found in 
+series. coefficients found in
 Formula 7.1.26
 Handbook of Mathematical Functions,
 Abramowitz and Stegun
@@ -65,11 +66,11 @@ def erfc(x):
     t = 1.0/(1.0 + p*x)
     y = 1. - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*np.exp(-x*x)
     erf = sign*y # erf(-x) = -erf(x)
-    return 1. - erf 
+    return 1. - erf
 
 """
 cutom function to compute the exponential integral
-based on Padé approximation of exponential integral 
+based on Padé approximation of exponential integral
 function. coefficients found in pg. 231 Abramowitz
 and Stegun, eq. 5.1.53
 """
@@ -84,9 +85,9 @@ def exp1exp_under1(x):
 
 """
 cutom function to compute the exponential integral
-based on Padé approximation of exponential integral 
+based on Padé approximation of exponential integral
 function. coefficients found in pg. 415 Y. Luke, The
-special functions and their approximations, vol 2 
+special functions and their approximations, vol 2
 (1969) Elsevier
 """
 @numba_njit_if_available(cache=True, nogil=True)
@@ -430,8 +431,8 @@ def split_pvoigt1d(p, x):
 @AUTHOR:    Saransh Singh, Lawrence Livermore National Lab,
             saransh1@llnl.gov
 @DATE:      10/18/2021 SS 1.0 original
-        
-@DETAILS:   the following functions will be used for single 
+
+@DETAILS:   the following functions will be used for single
             peak fits for the DCS pink beam profile function.
             the collection includes the profile function for
             calculating the peak shape as well as derivatives
@@ -492,7 +493,7 @@ def _gaussian_pink_beam(p, x):
     p has the following parameters
     p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_g,bkg_c0,bkg_c1,bkg_c2]
     """
-    
+
     A,x0,alpha,beta,fwhm_g = p
 
     del_tth = x - x0
@@ -501,10 +502,10 @@ def _gaussian_pink_beam(p, x):
     f1 = alpha*sigsqr + 2.0*del_tth
     f2 = beta*sigsqr - 2.0*del_tth
     f3 = np.sqrt(2.0)*fwhm_g
-    
+
     u = 0.5*alpha*f1
     v = 0.5*beta*f2
-    
+
     y = (f1-del_tth)/f3
     z = (f2+del_tth)/f3
 
@@ -512,7 +513,7 @@ def _gaussian_pink_beam(p, x):
     t2 = erfc(z)
 
     g = np.zeros(x.shape)
-    zmask = np.abs(del_tth) > 5.0 
+    zmask = np.abs(del_tth) > 5.0
 
     g[~zmask] = (0.5*(alpha*beta)/(alpha + beta)) \
         * np.exp(u[~zmask])*t1[~zmask] + \
@@ -520,7 +521,7 @@ def _gaussian_pink_beam(p, x):
 
     mask = np.isnan(g)
     g[mask] = 0.
-    g *= A 
+    g *= A
 
     return g
 
@@ -551,7 +552,7 @@ def _lorentzian_pink_beam(p, x):
     f2 = exp1exp(q)
 
     y = -(alpha*beta)/(np.pi*(alpha+beta))*(f1+f2).imag
-    
+
     mask = np.isnan(y)
     y[mask] = 0.
     y *= A
