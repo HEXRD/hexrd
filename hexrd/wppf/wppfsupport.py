@@ -34,9 +34,11 @@ include initialize background, generate_default_parameter list etc.
 """
 from hexrd.symbols import pstr_spacegroup
 from hexrd.wppf.parameters import Parameters
+from lmfit import Parameters as Parameters_lmfit
 from hexrd.wppf.phase import Phases_LeBail, Phases_Rietveld
 from hexrd.material import Material
 from hexrd.unitcell import _rqpDict
+import hexrd
 import numpy as np
 from hexrd import constants
 
@@ -55,34 +57,48 @@ def _generate_default_parameters_pseudovoight(params):
     p = {"zero_error":[0., -1., 1., False],
          "trns":[0.0, -1.0, 1.0, False],
          "shft":[0.0,-1.0,1.0,False],
-         "U": [0., 0., 5000, False],
-         "V": [1000., 0., 5000, False],
-         "W": [50., 0., 5000, False],
+         "U": [81.5, 0., 5000, False],
+         "V": [1.0337, 0., 5000, False],
+         "W": [5.18275, 0., 5000, False],
          "P": [0., 0., 5000, False],
-         "X": [0., 0., 100., False],
-         "Y": [50., 0., 100., False],
+         "X": [0.5665, 0., 100., False],
+         "Y": [1.90994, 0., 100., False],
          "Xe": [0., 0., 1, False],
          "Ye": [0., 0., 1, False],
          "Xs": [0., 0., 1, False]
          }
 
     for k, v in p.items():
-        params.add(name=k,
-                   value=v[0],
-                   lb=v[1],
-                   ub=v[2],
-                   vary=v[3])
+        if isinstance(params, Parameters):
+            params.add(name=k,
+                       value=v[0],
+                       lb=v[1],
+                       ub=v[2],
+                       vary=v[3])
+        elif isinstance(params, Parameters_lmfit):
+            params.add(name=k,
+                       value=v[0],
+                       min=v[1],
+                       max=v[2],
+                       vary=v[3])
 
 def _add_pvfcj_parameters(params):
     p = {"HL":[1e-3,1e-7,1e-1,False],
          "SL":[1e-3,1e-7,1e-1,False]
          }
     for k, v in p.items():
-        params.add(name=k,
-                   value=v[0],
-                   lb=v[1],
-                   ub=v[2],
-                   vary=v[3])
+        if isinstance(params, Parameters):
+            params.add(name=k,
+                       value=v[0],
+                       lb=v[1],
+                       ub=v[2],
+                       vary=v[3])
+        elif isinstance(params, Parameters_lmfit):
+            params.add(name=k,
+                       value=v[0],
+                       min=v[1],
+                       max=v[2],
+                       vary=v[3])
 
 def _add_pvpink_parameters(params):
     p = {"alpha0":[14.4, -100., 100., False],
@@ -91,11 +107,18 @@ def _add_pvpink_parameters(params):
          "beta1":[-2.0, -100., 100., False]
          }
     for k, v in p.items():
-        params.add(name=k,
-                   value=v[0],
-                   lb=v[1],
-                   ub=v[2],
-                   vary=v[3])
+        if isinstance(params, Parameters):
+            params.add(name=k,
+                       value=v[0],
+                       lb=v[1],
+                       ub=v[2],
+                       vary=v[3])
+        elif isinstance(params, Parameters_lmfit):
+            params.add(name=k,
+                       value=v[0],
+                       min=v[1],
+                       max=v[2],
+                       vary=v[3])
 
 def _add_Shkl_terms(params,
                     mat,
@@ -121,16 +144,31 @@ def _add_Shkl_terms(params,
         for s in valid_shkl:
             n = f"{mname}_{s}"
             ne = f"{mname}_eta_fwhm"
-            params.add(name=n,
-                       value = 0.0,
-                       lb = 0.0,
+
+            if isinstance(params, Parameters):
+                params.add(name=n,
+                       value=0.0,
+                       lb=0.0,
                        ub=np.inf,
                        vary=False)
-        params.add(name=ne,
-               value = 0.5,
-               lb = 0.0,
-               ub=1.0,
-               vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(name=n,
+                       value=0.0,
+                       min=0.0,
+                       max=np.inf,
+                       vary=False)
+        if isinstance(params, Parameters):
+            params.add(name=ne,
+                   value=0.5,
+                   lb=0.0,
+                   ub=1.0,
+                   vary=False)
+        elif isinstance(params, Parameters_lmfit):
+            params.add(name=ne,
+                   value=0.5,
+                   min=0.0,
+                   max=1.0,
+                   vary=False)
     else:
         res = {}
         for s in valid_shkl:
@@ -156,11 +194,19 @@ def _add_lp_to_params(params,
         else it is an angle
         """
         if(n in ['a', 'b', 'c']):
-            params.add(nn, value=l, lb=l-0.05,
-                       ub=l+0.05, vary=False)
+            if isinstance(params, Parameters):
+                params.add(nn, value=l, lb=l-0.05,
+                           ub=l+0.05, vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(nn, value=l, min=l-0.05,
+                           max=l+0.05, vary=False)
         else:
-            params.add(nn, value=l, lb=l-1.,
-                       ub=l+1., vary=False)
+            if isinstance(params, Parameters):
+                params.add(nn, value=l, lb=l-1.,
+                           ub=l+1., vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(nn, value=l, min=l-1.,
+                           max=l+1., vary=False)
 
 def _add_atominfo_to_params(params, mat):
     """
@@ -182,53 +228,87 @@ def _add_atominfo_to_params(params, mat):
         elem = constants.ptableinverse[Z]
 
         nn = f"{phase_name}_{elem}{atom_label[i]}_x"
-        params.add(
-            nn, value=atom_pos[i, 0],
-            lb=0.0, ub=1.0,
-            vary=False)
-
+        if isinstance(params, Parameters):
+            params.add(
+                nn, value=atom_pos[i, 0],
+                lb=0.0, ub=1.0,
+                vary=False)
+        elif isinstance(params, Parameters_lmfit):
+            params.add(
+                nn, value=atom_pos[i, 0],
+                min=0.0, max=1.0,
+                vary=False)
         nn = f"{phase_name}_{elem}{atom_label[i]}_y"
-        params.add(
-            nn, value=atom_pos[i, 1],
-            lb=0.0, ub=1.0,
-            vary=False)
-
+        if isinstance(params, Parameters):
+            params.add(
+                nn, value=atom_pos[i, 1],
+                lb=0.0, ub=1.0,
+                vary=False)
+        elif isinstance(params, Parameters_lmfit):
+            params.add(
+                nn, value=atom_pos[i, 1],
+                min=0.0, max=1.0,
+                vary=False)
         nn = f"{phase_name}_{elem}{atom_label[i]}_z"
-        params.add(
-            nn, value=atom_pos[i, 2],
-            lb=0.0, ub=1.0,
-            vary=False)
-
+        if isinstance(params, Parameters):
+            params.add(
+                nn, value=atom_pos[i, 2],
+                lb=0.0, ub=1.0,
+                vary=False)
+        elif isinstance(params, Parameters_lmfit):
+            params.add(
+                nn, value=atom_pos[i, 2],
+                min=0.0, max=1.0,
+                vary=False)
         nn = f"{phase_name}_{elem}{atom_label[i]}_occ"
-        params.add(nn, value=occ[i],
-                   lb=0.0, ub=1.0,
-                   vary=False)
-
+        if isinstance(params, Parameters):
+            params.add(nn, value=occ[i],
+                       lb=0.0, ub=1.0,
+                       vary=False)
+        elif isinstance(params, Parameters_lmfit):
+            params.add(nn, value=occ[i],
+                       min=0.0, max=1.0,
+                       vary=False)
         if(mat.aniU):
             U = mat.U
             for j in range(6):
                 nn = (f"{phase_name}_{elem}{atom_label[i]}"
                        f"_{_nameU[j]}")
-                params.add(
-                    nn, value=U[i, j],
-                    lb=-1e-3,
-                    ub=np.inf,
-                    vary=False)
+                if isinstance(params, Parameters):
+                    params.add(
+                        nn, value=U[i, j],
+                        lb=-1e-3,
+                        ub=np.inf,
+                        vary=False)
+                elif isinstance(params, Parameters_lmfit):
+                    params.add(
+                        nn, value=U[i, j],
+                        min=-1e-3,
+                        max=np.inf,
+                        vary=False)
         else:
             nn = f"{phase_name}_{elem}{atom_label[i]}_dw"
-            params.add(
-                nn, value=mat.U[i],
-                lb=0.0, ub=np.inf,
-                vary=False)
-
-def _generate_default_parameters_LeBail(mat, peakshape):
+            if isinstance(params, Parameters):
+                params.add(
+                    nn, value=mat.U[i],
+                    lb=0.0, ub=np.inf,
+                    vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(
+                    nn, value=mat.U[i],
+                    min=0.0, max=np.inf,
+                    vary=False)
+def _generate_default_parameters_LeBail(mat, peakshape, ptype="wppf"):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
     @date:    03/12/2021 SS 1.0 original
     @details: generate a default parameter class given a list/dict/
     single instance of material class
     """
-    params = Parameters()
+    if ptype == "wppf":
+        params = Parameters()
+    elif ptype == "lmfit":
+        params = Parameters_lmfit()
     _generate_default_parameters_pseudovoight(params)
 
     if peakshape == 0:
@@ -308,11 +388,16 @@ def _add_phase_fractions(mat, params):
         pf = mat.phase_fraction
         for ii,p in enumerate(mat):
             name=f"{p}_phase_fraction"
-            params.add(
-                name=name, value=pf[ii],
-                lb=0.0, ub=1.0,
-                vary=False)
-
+            if isinstance(params, Parameters):
+                params.add(
+                    name=name, value=pf[ii],
+                    lb=0.0, ub=1.0,
+                    vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(
+                    name=name, value=pf[ii],
+                    min=0.0, max=1.0,
+                    vary=False)
     elif isinstance(mat, Material):
         """
         just an instance of Materials class
@@ -320,11 +405,16 @@ def _add_phase_fractions(mat, params):
         """
         p = mat.name
         name=f"{p}_phase_fraction"
-        params.add(
-            name=name, value=1.0,
-            lb=0.0, ub=1.0,
-            vary=False)
-
+        if isinstance(params, Parameters):
+            params.add(
+                name=name, value=1.0,
+                lb=0.0, ub=1.0,
+                vary=False)
+        elif isinstance(params, Parameters_lmfit):
+            params.add(
+                name=name, value=1.0,
+                min=0.0, max=1.0,
+                vary=False)
     elif isinstance(mat, list):
         """
         a list of materials class
@@ -333,11 +423,16 @@ def _add_phase_fractions(mat, params):
         for ii,m in enumerate(mat):
             p = m.name
             name=f"{p}_phase_fraction"
-            params.add(
-                name=name, value=pf[ii],
-                lb=0.0, ub=1.0,
-                vary=False)
-
+            if isinstance(params, Parameters):
+                params.add(
+                    name=name, value=pf[ii],
+                    lb=0.0, ub=1.0,
+                    vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(
+                    name=name, value=pf[ii],
+                    min=0.0, max=1.0,
+                    vary=False)
     elif isinstance(mat, dict):
         """
         dictionary of materials class
@@ -346,11 +441,16 @@ def _add_phase_fractions(mat, params):
         for ii, (k,m) in enumerate(mat.items()):
             p = m.name
             name=f"{p}_phase_fraction"
-            params.add(
-                name=name, value=pf[ii],
-                lb=0.0, ub=1.0,
-                vary=False)
-
+            if isinstance(params, Parameters):
+                params.add(
+                    name=name, value=pf[ii],
+                    lb=0.0, ub=1.0,
+                    vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(
+                    name=name, value=pf[ii],
+                    min=0.0, max=1.0,
+                    vary=False)
     else:
         msg = (f"_generate_default_parameters: "
                f"incorrect argument. only list, dict or "
@@ -363,26 +463,40 @@ def _add_extinction_parameters(mat, params):
 def _add_absorption_parameters(mat, params):
     return params
 
-def _generate_default_parameters_Rietveld(mat, peakshape):
+def _generate_default_parameters_Rietveld(mat, peakshape, ptype="wppf"):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
     @date:    03/12/2021 SS 1.0 original
     @details: generate a default parameter class given a list/dict/
     single instance of material class
     """
-    params = _generate_default_parameters_LeBail(mat, peakshape)
+    params = _generate_default_parameters_LeBail(mat, peakshape, ptype=ptype)
 
-    params.add(name="scale",
-               value=1.0,
-               lb=0.0,
-               ub=1e9,
-               vary=False)
+    if ptype == "wppf":
+        params.add(name="scale",
+                   value=1.0,
+                   lb=0.0,
+                   ub=np.inf,
+                   vary=False)
 
-    params.add(name="Ph",
-               value=1.0,
-               lb=0.0,
-               ub=1.0,
-               vary=False)
+        params.add(name="Ph",
+                   value=1.0,
+                   lb=0.0,
+                   ub=1.0,
+                   vary=False)
+
+    elif ptype == "lmfit":
+        params.add(name="scale",
+                   value=1.0,
+                   min=0.0,
+                   max=np.inf,
+                   vary=False)
+
+        params.add(name="Ph",
+                   value=1.0,
+                   min=0.0,
+                   max=1.0,
+                   vary=False)
 
     _add_phase_fractions(mat, params)
     _add_extinction_parameters(mat, params)
@@ -476,6 +590,69 @@ def _required_shkl_names(mat):
 
     return valid_shkl, eq_constraints, rqd_index, trig_ptype
 
+def _add_texture_coefficients(crystal_sym, sample_sym, name, degree):
+    """
+    add the texture coefficients for a particular phase
+    given its laue group. the crystal sym decides what the
+    symmetry of the crystal is and what coefficients to add. the
+    sample symmetry decides what the sample symmtry is. allowed ones
+    are
+    triclinic : -1
+    monoclinic: 2/m
+    orthorhombic: mmm
+    cylindrical: inf/mmm
+
+    if cylindrical symmetry is used, then the total coefficients used
+    are drastically reduced
+    """
+    pass
+
+def _add_texture_parameters(mat, degree):
+    """
+    @SS 06/22/2021 1.0 original
+    this routine adds the texture coefficients to the wppf
+    parameter list based on the material list and the
+    degree of harmonic coefficients passed. Also required is the
+    assumed sample symmetry. The same sample symmetry will be used
+    for each of the phases.
+    """
+    if isinstance(mat, Phases_Rietveld):
+        """
+        phase file
+        """
+        for p in mat:
+            m = mat[p]
+            k = list(m.keys())
+            mm = m[k[0]]
+            _add_atominfo_to_params(params, mm)
+
+    elif isinstance(mat, Material):
+        """
+        just an instance of Materials class
+        this part initializes the lattice parameters in the
+        """
+        _add_atominfo_to_params(params, mat)
+
+    elif isinstance(mat, list):
+        """
+        a list of materials class
+        """
+        for m in mat:
+            _add_atominfo_to_params(params, m)
+
+    elif isinstance(mat, dict):
+        """
+        dictionary of materials class
+        """
+        for k, m in mat.items():
+            _add_atominfo_to_params(params, m)
+
+    else:
+        msg = (f"_generate_default_parameters: "
+               f"incorrect argument. only list, dict or "
+               f"Material is accpeted.")
+        raise ValueError(msg)
+
 """
 this dictionary structure holds information for the shkl
 coefficeints needed for anisotropic broadening of peaks
@@ -508,6 +685,59 @@ def _getnumber(arr):
 
     return res
 
+def _add_detector_geometry(params, instr):
+    """
+    this function adds the geometry of the
+    detector as a parameter to the LeBail class
+    such that those can be refined as well
+    """
+    if isinstance(instr, hexrd.instrument.HEDMInstrument):
+        for key,det in instr.detectors.items():
+            tvec = det.tvec
+            tilt = det.tilt
+            pnametvec = [f"{key}_tvec{i}" for i in range(3)]
+            pnametilt = [f"{key}_tilt{i}" for i in range(3)]
+            if isinstance(params, Parameters):
+                [params.add(name=pnametvec[i],value=tvec[i]) for i in range(3)]
+                [params.add(name=pnametilt[i],value=tilt[i]) for i in range(3)]
+            elif isinstance(params, Parameters_lmfit):
+                [params.add(name=pnametvec[i],value=tvec[i]) for i in range(3)]
+                [params.add(name=pnametilt[i],value=tilt[i]) for i in range(3)]
+    else:
+        msg = "input is not an HEDMInstrument class"
+        raise ValueError(msg)
+
+def _add_background(params,lineouts,bkgdegree):
+    for k in lineouts:
+        pname = [f"{k}_bkg_C{ii}" for ii in range(bkgdegree)]
+        shape = len(pname)
+        if isinstance(params, Parameters):
+            [params.add(name=pname[i],value=0.0) for i in range(shape)]
+        elif isinstance(params, Parameters_lmfit):
+            [params.add(name=pname[i],value=0.0) for i in range(shape)]
+
+def striphkl(g):
+    return str(g)[1:-1].replace(" ","")
+
+def _add_intensity_parameters(params,hkls,Icalc,prefix):
+    """
+    this routine adds the Icalc values as refinable
+    parameters in the params parameter class
+    """
+    for p in Icalc:
+        for k in Icalc[p]:
+            shape = Icalc[p][k].shape[0]
+
+            pname = [f"{prefix}_{p}_{k}_I{striphkl(g)}"
+            for i,g in zip(range(shape),hkls[p][k])]
+            if isinstance(params, Parameters):
+                [params.add(name=pname[i],
+                    value=Icalc[p][k][i],
+                    lb=0.0) for i in range(shape)]
+            elif isinstance(params, Parameters_lmfit):
+                [params.add(name=pname[i],
+                    value=Icalc[p][k][i],
+                    min=0.0) for i in range(shape)]
 background_methods = {
     'spline': None,
 

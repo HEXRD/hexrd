@@ -16,6 +16,7 @@ from hexrd.utils.multiprocess_generic import GenericMultiprocessing
 from hexrd import symmetry, symbols, constants
 from hexrd.wppf.spectrum import Spectrum
 from hexrd.wppf.parameters import Parameters
+from hexrd.wppf.texture import harmonic_model, pole_figures
 from hexrd.wppf.phase import Phases_LeBail, Phases_Rietveld, \
 Material_LeBail, Material_Rietveld
 import hexrd.resources
@@ -27,8 +28,6 @@ from os import path
 import time
 import h5py
 from pathlib import Path
-from pylab import plot, ginput, show, \
-    axis, close, title, xlabel, ylabel
 import copy
 from hexrd.utils.decorators import numba_njit_if_available
 
@@ -265,6 +264,9 @@ class LeBail:
         03/08/2021 SS spectrum_expt is a list now. accounting
         for that change
         """
+        # Keep matplotlib as an optional dependency
+        from pylab import plot, ginput, close, title, xlabel, ylabel
+
         self.points = []
         for i, s in enumerate(self._spectrum_expt):
             txt = (f"Select points for background estimation;"
@@ -1616,6 +1618,10 @@ class Rietveld:
         03/08/2021 SS spectrum_expt is a list now. accounting
         for that change
         """
+
+        # Keep matplotlib as an optional dependency
+        from pylab import plot, ginput, close, title, xlabel, ylabel
+
         self.points = []
         for i, s in enumerate(self._spectrum_expt):
             txt = (f"Select points for background estimation;"
@@ -1707,7 +1713,7 @@ class Rietveld:
                 t = np.radians(self.tth[p][k])
                 self.LP[p][k] = (1 + Ph*np.cos(t)**2) / \
                     np.cos(0.5*t)/np.sin(0.5*t)**2/ \
-                    (2.0*(1 + Ph))
+                    (2.0*(1 + Ph)) 
 
     def computespectrum(self):
         """
@@ -2656,17 +2662,6 @@ def join_regions(vector_list, global_index, global_shape):
     # out_array = np.ma.masked_array(out_array, mask = np.isnan(out_array))
     return out_vector
 
-
-def generate_pole_figures(hkls, tth, Icalc):
-    """
-    >> @AUTHOR  Saransh Singh Lawrence Livermore national Lab
-    >> @DATE    02/05/2021 SS 1.0 original
-    >> @DETAILS this is the section where we'll do the texture
-    computations for now. the idea is to get the A(h,y) function
-    for the determination of the ODF. Using spherical harmonics
-    for now nut will switch to discrete harmonics in the future
-    """
-    pass
 
 peakshape_dict = {
     'pvfcj':"pseudo-voight (finger, cox, jephcoat)",

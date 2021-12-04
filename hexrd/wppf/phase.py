@@ -1,6 +1,6 @@
 import numpy as np
 from hexrd.valunits import valWUnit
-from hexrd.spacegroup import Allowed_HKLs
+from hexrd.spacegroup import Allowed_HKLs, SpaceGroup
 from hexrd import symmetry, symbols, constants
 from hexrd.material import Material
 from hexrd.unitcell import _rqpDict
@@ -47,6 +47,8 @@ class Material_LeBail:
             self.GenerateRecipPGSym()
             self.CalcMaxGIndex()
             self._calchkls()
+            self.sg = SpaceGroup(self.sgnum)
+
         else:
             if(isinstance(material_obj, Material)):
                 self._init_from_materials(material_obj)
@@ -90,11 +92,15 @@ class Material_LeBail:
         this function is used to initialize the materials_lebail class
         from an instance of the material.Material class. this option is
         provided for easy integration of the hexrdgui with WPPF.
+
+        O7/01/2021 SS ADDED DIRECT AND RECIPROCAL STRUCTURE MATRIX AS
+        FIELDS IN THE CLASS
         """
         self.name = material_obj.name
         self.dmin = material_obj.dmin.getVal('nm')
         self.sgnum = material_obj.unitcell.sgnum
         self.sgsetting = material_obj.sgsetting
+        self.sg = SpaceGroup(self.sgnum)
 
         if(material_obj.latticeParameters[0].unit == 'nm'):
             self.lparms = [x.value for x in material_obj.latticeParameters]
@@ -106,6 +112,8 @@ class Material_LeBail:
 
         self.dmt = material_obj.unitcell.dmt
         self.rmt = material_obj.unitcell.rmt
+        self.dsm = material_obj.unitcell.dsm
+        self.rsm = material_obj.unitcell.rsm
         self.vol = material_obj.unitcell.vol
 
         self.centrosymmetric = material_obj.unitcell.centrosymmetric
@@ -127,6 +135,10 @@ class Material_LeBail:
 
     def _calcrmt(self):
 
+        """
+        O7/01/2021 SS ADDED DIRECT AND RECIPROCAL STRUCTURE MATRIX AS
+        FIELDS IN THE CLASS
+        """
         a = self.lparms[0]
         b = self.lparms[1]
         c = self.lparms[2]
@@ -158,6 +170,22 @@ class Material_LeBail:
             reciprocal metric tensor
         """
         self.rmt = np.linalg.inv(self.dmt)
+
+        """
+            direct structure matrix
+        """
+        self.dsm = np.array([[a, b*cg, c*cb],
+                              [0., b*sg, -c*(cb*cg - ca)/sg],
+                              [0., 0., self.vol/(a*b*sg)]])
+
+        """
+            reciprocal structure matrix
+        """
+        self.rsm = np.array([[1./a, 0., 0.],
+                              [-1./(a*tg), 1./(b*sg), 0.],
+                              [b*c*(cg*ca - cb)/(self.vol*sg),
+                               a*c*(cb*cg - ca)/(self.vol*sg),
+                               a*b*sg/self.vol]])
 
     def _calchkls(self):
         self.hkls = self.getHKLs(self.dmin)
@@ -620,6 +648,7 @@ class Material_Rietveld:
             self.InitializeInterpTable()
             self.CalcWavelength()
             self.CalcPositions()
+            self.sg = SpaceGroup(self.sgnum)
 
         else:
             if(isinstance(material_obj, Material)):
@@ -645,7 +674,8 @@ class Material_Rietveld:
 
         # space group number
         self.sgnum = material_obj.sgnum
-
+        self.sg = SpaceGroup(self.sgnum)
+        
         # space group setting
         self.sgsetting = material_obj.sgsetting
 
@@ -785,7 +815,10 @@ class Material_Rietveld:
         self.kev *= 1e-3
 
     def _calcrmt(self):
-
+        """
+        O7/01/2021 SS ADDED DIRECT AND RECIPROCAL STRUCTURE MATRIX AS
+        FIELDS IN THE CLASS
+        """
         a = self.lparms[0]
         b = self.lparms[1]
         c = self.lparms[2]
@@ -817,6 +850,21 @@ class Material_Rietveld:
             reciprocal metric tensor
         """
         self.rmt = np.linalg.inv(self.dmt)
+
+        """
+            direct structure matrix
+        """
+        self.dsm = np.array([[a, b*cg, c*cb],
+                              [0., b*sg, -c*(cb*cg - ca)/sg],
+                              [0., 0., self.vol/(a*b*sg)]])
+        """
+            reciprocal structure matrix
+        """
+        self.rsm = np.array([[1./a, 0., 0.],
+                              [-1./(a*tg), 1./(b*sg), 0.],
+                              [b*c*(cg*ca - cb)/(self.vol*sg),
+                               a*c*(cb*cg - ca)/(self.vol*sg),
+                               a*b*sg/self.vol]])
 
         ast = self.CalcLength([1, 0, 0], 'r')
         bst = self.CalcLength([0, 1, 0], 'r')
@@ -853,6 +901,37 @@ class Material_Rietveld:
         _get_tth(self.dsp, wavelength)
         self.wavelength_allowed_hkls = wavelength_allowed_hkls.astype(bool)
         return tth
+
+    ''' transform between any crystal space to any other space.
+        choices are 'd' (direct), 'r' (reciprocal) and 'c' (cartesian)'''
+    def TransSpace(self, v_in, inspace, outspace):
+        if(inspace == 'd'):
+            if(outspace == 'r'):
+                v_out = np.dot(v_in, self.dmt)
+            elif(outspace == 'c'):
+                v_out = np.dot(self.dsm, v_in)
+            else:
+                raise ValueError(
+                    'inspace in ''d'' but outspace can''t be identified')
+        elif(inspace == 'r'):
+            if(outspace == 'd'):
+                v_out = np.dot(v_in, self.rmt)
+            elif(outspace == 'c'):
+                v_out = np.dot(self.rsm, v_in)
+            else:
+                raise ValueError(
+                    'inspace in ''r'' but outspace can''t be identified')
+        elif(inspace == 'c'):
+            if(outspace == 'r'):
+                v_out = np.dot(v_in, self.rsm)
+            elif(outspace == 'd'):
+                v_out = np.dot(v_in, self.dsm)
+            else:
+                raise ValueError(
+                    'inspace in ''c'' but outspace can''t be identified')
+        else:
+            raise ValueError('incorrect inspace argument')
+        return v_out
 
     def GenerateRecipPGSym(self):
 
