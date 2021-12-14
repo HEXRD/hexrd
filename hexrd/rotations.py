@@ -201,8 +201,8 @@ def misorientation(q1, q2, *args):
     q2 = dot(rsym, q2).transpose(2, 0, 1).reshape(m*n, 4).T
 
     # Do Gs * (R * Gc), store as
-    # [Gs[:, 0:p] * q[:,   0] * Gc[:, 0], ... , Gs[:, 0:p] * q[:,   0] * Gc[:, m-1], ...
-    #  Gs[:, 0:p] * q[:, n-1] * Gc[:, 0], ... , Gs[:, 0:p] * q[:, n-1] * Gc[:, m-1]]
+    # [Gs[:, 0:p]*q[:,   0]*Gc[:, 0], ..., Gs[:, 0:p]*q[:,   0]*Gc[:, m-1], ...
+    #  Gs[:, 0:p]*q[:, n-1]*Gc[:, 0], ..., Gs[:, 0:p]*q[:, n-1]*Gc[:, m-1]]
     q2 = dot(lsym, q2).transpose(2, 0, 1).reshape(p*m*n, 4).T
 
     # Calculate the class misorientations for full symmetrically equivalent
@@ -785,23 +785,30 @@ def make_rmat_euler(tilt_angles, axes_order, extrinsic=True):
     """
     Generate rotation matrix from Euler angles.
 
-    extrinsic (PASSIVE) or intrinsic (ACTIVE) by kw
-    tilt_angles are in RADIANS
-
     Parameters
     ----------
-    tilt_angles : TYPE
-        DESCRIPTION.
-    axes_order : TYPE
-        DESCRIPTION.
-    extrinsic : TYPE, optional
-        DESCRIPTION. The default is True.
+    tilt_angles : array_like
+        The (3, ) list of Euler angles in RADIANS.
+    axes_order : str
+        The axes order specification (case-insensitive).  This must be one
+        of the following: 'xyz', 'zyx'
+                          'zxy', 'yxz'
+                          'yzx', 'xzy'
+                          'xyx', 'xzx'
+                          'yxy', 'yzy'
+                          'zxz', 'zyz'
+    extrinsic : bool, optional
+        Flag denoting the convention.  If True, the convention is
+        extrinsic (passive); if False, the convention is
+        instrinsic (active). The default is True.
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    numpy.ndarray
+        The (3, 3) rotation matrix corresponding to the input specification.
 
+    TODO: add kwarg for unit selection for `tilt_angles`
+    TODO: input checks
     """
     axes = np.eye(3)
     axes_dict = dict(x=0, y=1, z=2)
@@ -906,8 +913,35 @@ def angles_from_rmat_zxz(rmat):
 class RotMatEuler(object):
     def __init__(self, angles, axes_order, extrinsic=True):
         """
-        ??? add check that angle input is array-like, len() = 3?
-        ??? add check on extrinsic as bool
+        Abstraction of a rotation matrix defined by Euler angles.
+
+        Parameters
+        ----------
+        angles : array_like
+            The (3, ) list of Euler angles in RADIANS.
+        axes_order : str
+            The axes order specification (case-insensitive).  This must be one
+            of the following:
+
+                'xyz', 'zyx'
+                'zxy', 'yxz'
+                'yzx', 'xzy'
+                'xyx', 'xzx'
+                'yxy', 'yzy'
+                'zxz', 'zyz'
+
+        extrinsic : bool, optional
+            Flag denoting the convention.  If True, the convention is
+            extrinsic (passive); if False, the convention is
+            instrinsic (active). The default is True.
+
+        Returns
+        -------
+        None.
+
+        TODO: add check that angle input is array-like, len() = 3?
+        TODO: add check on extrinsic as bool
+        TODO: add kwarg for units selection (for angles)
         """
         self._axes = np.eye(3)
         self._axes_dict = dict(x=0, y=1, z=2)
@@ -951,12 +985,52 @@ class RotMatEuler(object):
 
     @property
     def rmat(self):
+        """
+        Return the rotation matrix.
+
+        As calculated from angles, axes_order, and convention.
+
+        Returns
+        -------
+        numpy.ndarray
+            The (3, 3) proper orthogonal matrix according to the specification.
+
+        """
         self._rmat = make_rmat_euler(
             self.angles, self.axes_order, self.extrinsic)
         return self._rmat
 
     @rmat.setter
     def rmat(self, x):
+        """
+        Update class via input rotation matrix.
+
+        Parameters
+        ----------
+        x : array_like
+            A (3, 3) array to be interpreted as a rotation matrix.
+
+        Raises
+        ------
+        NotImplementedError
+            Currently only works for the cases:
+                axes_order     extrinsic
+                ----------     ---------
+                  'xyz'          True
+                  'zxz'          False
+
+        Returns
+        -------
+        None.
+
+        Notes
+        -----
+        1) This requires case-by-case implementations for all 24 possible
+           combinations of axes order and convention.
+        2) May be able to use SciPy to fill in some additional conventions.  As
+           for now, the api for a function that yields angles from simply takes
+           in a rotation matrix and yields the angles in radians.
+        """
         rmat = _check_is_rmat(x)
         self._rmat = rmat
         if self.axes_order == 'xyz':
@@ -1378,8 +1452,9 @@ def toFundamentalRegion(q, crysSym='Oh', sampSym=None):
         p = qsym_s.shape[0]         # number of sample symmetry operations
 
         # Do Gs * (R * Gc), store as
-        # [Gs[:, 0:p] * q[:,   0] * Gc[:, 0], ... , Gs[:, 0:p] * q[:,   0] * Gc[:, m-1], ...
-        #  Gs[:, 0:p] * q[:, n-1] * Gc[:, 0], ... , Gs[:, 0:p] * q[:, n-1] * Gc[:, m-1]]
+        # [Gs[:, 0:p]*q[:,   0]*Gc[:, 0], ..., Gs[:, 0:p]*q[:,   0]*Gc[:, m-1],
+        #  ...,
+        #  Gs[:, 0:p]*q[:, n-1]*Gc[:, 0], ..., Gs[:, 0:p]*q[:, n-1]*Gc[:, m-1]]
         qeqv = fixQuat(
             dot(qsym_s, qeqv).transpose(2, 0, 1).reshape(p*m*n, 4).T
         )
