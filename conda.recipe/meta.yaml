@@ -14,7 +14,7 @@ build:
 requirements:
   build:
     - numpy>=1.20
-    - python=3.9
+    - python {{ python }}
     - setuptools
     - setuptools_scm
 
@@ -28,7 +28,7 @@ requirements:
     - numpy>=1.20
     - psutil
     - pycifrw
-    - python=3.9
+    - python
     - python-xxhash
     - pyyaml
     - scikit-image
