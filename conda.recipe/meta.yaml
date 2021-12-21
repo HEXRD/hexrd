@@ -13,8 +13,8 @@ build:
 
 requirements:
   build:
-    - numpy
-    - python=3.8
+    - numpy>=1.20
+    - python {{ python }}
     - setuptools
     - setuptools_scm
 
@@ -25,10 +25,10 @@ requirements:
     - h5py
     - lmfit
     - numba
-    - numpy
+    - numpy>=1.20
     - psutil
     - pycifrw
-    - python=3.8
+    - python
     - python-xxhash
     - pyyaml
     - scikit-image
