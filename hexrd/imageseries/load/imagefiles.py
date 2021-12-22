@@ -2,9 +2,9 @@
 """
 
 
-import sys
+# import sys
 import os
-import logging
+# import logging
 import glob
 
 # # Put this before fabio import and reset level if you
@@ -37,7 +37,7 @@ class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
         self._load_yml()
         self._process_files()
 
-    #@memoize
+    # @memoize
     def __len__(self):
         if self._maxframes_tot > 0:
             return min(self._nframes, self._maxframes_tot)
@@ -95,14 +95,19 @@ number of files: %s
         self._files = []
         for g in fglob.split():
             self._files += glob.glob(os.path.join(dname, g))
-
+        # !!! must sort due to the non-determinate nature of glob on various
+        #     filesystems.  See https://github.com/HEXRD/hexrd/issues/263
+        self._files = self._files.sort()
         self.optsd = d['options'] if 'options' else None
         self._empty = self.optsd[EMPTY] if EMPTY in self.optsd else 0
-        self._maxframes_tot = self.optsd[MAXTOTF] if MAXTOTF in self.optsd else 0
-        self._maxframes_file = self.optsd[MAXFILF] if MAXFILF in self.optsd else 0
-        self._dtype = np.dtype(self.optsd[DTYPE]) if DTYPE in self.optsd else None
+        self._maxframes_tot = self.optsd[MAXTOTF] \
+            if MAXTOTF in self.optsd else 0
+        self._maxframes_file = self.optsd[MAXFILF] \
+            if MAXFILF in self.optsd else 0
+        self._dtype = np.dtype(self.optsd[DTYPE]) \
+            if DTYPE in self.optsd else None
 
-        self._meta = yamlmeta(d['meta']) #, path=imgsd)
+        self._meta = yamlmeta(d['meta'])  # , path=imgsd)
 
     def _process_files(self):
         kw = {'empty': self._empty, 'max_frames': self._maxframes_file}
@@ -129,7 +134,6 @@ number of files: %s
             nf += info.nframes
             if info.nframes > 1:
                 self._singleframes = False
-
 
         self._nframes = nf
         self._shape = shp
@@ -208,6 +212,7 @@ number of files: %s
 
 class FileInfo(object):
     """class for managing individual file information"""
+
     def __init__(self, filename, **kwargs):
         self.filename = filename
         with fabio.open(filename) as img:
