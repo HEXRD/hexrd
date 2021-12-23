@@ -394,7 +394,7 @@ class PowderCalibrator(object):
                 # push measured (x, y) ring points through current mapping
                 # to (tth, eta)
                 meas_xy = pdata[:, :2]
-                updates_angles, _ = panel.cart_to_angles(
+                updated_angles, _ = panel.cart_to_angles(
                     meas_xy,
                     tvec_s=self.instr.tvec,
                     apply_distortion=True
@@ -408,7 +408,7 @@ class PowderCalibrator(object):
 
                 # !!! get eta from mapped markers rather than ref
                 # eta0 = pdata[:, -1]
-                eta0 = updates_angles[:, 1]
+                eta0 = updated_angles[:, 1]
 
                 # map updated (tth0, eta0) back to cartesian coordinates
                 tth_eta = np.vstack([tth0, eta0]).T
@@ -420,8 +420,11 @@ class PowderCalibrator(object):
 
                 # output
                 if output == 'residual':
+                    # retval.append(
+                    #     (meas_xy.flatten() - calc_xy.flatten())
+                    # )
                     retval.append(
-                        (pdata[:, :2].flatten() - calc_xy.flatten())
+                        updated_angles[:, 0].flatten() -  tth0.flatten()
                     )
                 elif output == 'model':
                     retval.append(
