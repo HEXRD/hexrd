@@ -197,22 +197,30 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
             ftol=ftol, xtol=xtol)
 
     elif pktype == 'dcs_pinkbeam':
-        lb = np.array([0.0, x.min(), -100., -100.,
-        -100., -100., 0., 0.,
-        -np.inf, -np.inf, -np.inf])
-        ub = np.array([np.inf, x.max(), 100., 100.,
-        100., 100., 10., 10.,
-        np.inf, np.inf, np.inf])
+        lb = np.array(
+            [0.0, x.min(),
+             -100., -100.,
+             -100., -100.,
+             0., 0.,
+             -np.inf, -np.inf, -np.inf]
+        )
+        ub = np.array(
+            [np.inf, x.max(),
+             100., 100.,
+             100., 100.,
+             10., 10.,
+             np.inf, np.inf, np.inf]
+        )
         res = optimize.least_squares(
             fit_pk_obj_1d, p0,
             jac='2-point',
             bounds=(lb, ub),
             method='trf',
             args=fitArgs,
-            ftol=ftol, 
+            ftol=ftol,
             xtol=xtol)
         p = res['x']
-        outflag = res['success']
+        #  outflag = res['success']
     else:
         p = p0
         print('non-valid option, returning guess')
