@@ -97,7 +97,7 @@ number of files: %s
             self._files += glob.glob(os.path.join(dname, g))
         # !!! must sort due to the non-determinate nature of glob on various
         #     filesystems.  See https://github.com/HEXRD/hexrd/issues/263
-        self._files = self._files.sort()
+        self._files.sort()
         self.optsd = d['options'] if 'options' else None
         self._empty = self.optsd[EMPTY] if EMPTY in self.optsd else 0
         self._maxframes_tot = self.optsd[MAXTOTF] \
