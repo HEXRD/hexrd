@@ -1,2 +1,2 @@
 [build-system]
-requires = ["setuptools", "wheel", "numpy==1.20", "setuptools_scm[toml]"]
+requires = ["setuptools", "wheel", "numpy<1.21", "setuptools_scm[toml]"]
