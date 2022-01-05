@@ -198,21 +198,21 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
 
     elif pktype == 'dcs_pinkbeam':
         lb = np.array([0.0, x.min(), -100., -100.,
-        -100., -100., 0., 0.,
-        -np.inf, -np.inf, -np.inf])
+                       -100., -100., 0., 0.,
+                       -np.inf, -np.inf, -np.inf])
         ub = np.array([np.inf, x.max(), 100., 100.,
-        100., 100., 10., 10.,
-        np.inf, np.inf, np.inf])
+                       100., 100., 10., 10.,
+                       np.inf, np.inf, np.inf])
         res = optimize.least_squares(
             fit_pk_obj_1d, p0,
             jac='2-point',
             bounds=(lb, ub),
             method='trf',
             args=fitArgs,
-            ftol=ftol, 
+            ftol=ftol,
             xtol=xtol)
         p = res['x']
-        outflag = res['success']
+        # outflag = res['success']
     else:
         p = p0
         print('non-valid option, returning guess')
@@ -278,7 +278,7 @@ def estimate_mpk_parms_1d(
         pk_pos_0, x, f,
         pktype='pvoigt', bgtype='linear',
         fwhm_guess=0.07, center_bnd=0.02,
-        amp_lim_mult=[0.1,10.],fwhm_lim_mult=[0.5,2.]
+        amp_lim_mult=[0.1, 10.], fwhm_lim_mult=[0.5, 2.]
         ):
     """
     Generate function-specific estimate for multi-peak parameters.
@@ -300,9 +300,11 @@ def estimate_mpk_parms_1d(
     center_bnd : TYPE, optional
         DESCRIPTION. The default is 0.02.
     amp_lim_mult : TYPE, optional
-        Multiplier for bounds for AMP fitting [LB,UB]. The default is [0.1,10.0].
+        Multiplier for bounds for AMP fitting [LB, UB].
+        The default is [0.1, 10.0].
     fwhm_lim_mult : TYPE, optional
-        Multiplier for bounds for FWHM fitting [LB,UB]. The default is [0.5,2.0].
+        Multiplier for bounds for FWHM fitting [LB, UB].
+        The default is [0.5, 2.0].
 
     Returns
     -------
@@ -314,21 +316,17 @@ def estimate_mpk_parms_1d(
     """
     npts = len(x)
     assert len(f) == npts, "ordinate and data must be same length!"
-    
-    
 
     num_pks = len(pk_pos_0)
-    
-    center_bnd=np.atleast_1d(center_bnd)
-    if(len(center_bnd)<2):
-        center_bnd=center_bnd*np.ones(num_pks)
-    
-    
-    fwhm_guess=np.atleast_1d(fwhm_guess)
-    if(len(fwhm_guess)<2):
-        fwhm_guess=fwhm_guess*np.ones(num_pks)    
-    
-    
+
+    center_bnd = np.atleast_1d(center_bnd)
+    if(len(center_bnd) < 2):
+        center_bnd = center_bnd*np.ones(num_pks)
+
+    fwhm_guess = np.atleast_1d(fwhm_guess)
+    if(len(fwhm_guess) < 2):
+        fwhm_guess = fwhm_guess*np.ones(num_pks)
+
     min_val = np.min(f)
 
     # estimate background with SNIP1d
@@ -475,7 +473,6 @@ def estimate_mpk_parms_1d(
         ub[-1] = inf
 
     return p0, (lb, ub)
-
 
 
 def eval_pk_deriv_1d(p, x, y0, pktype):
