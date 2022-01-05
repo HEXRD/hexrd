@@ -45,6 +45,7 @@ from io import IOBase
 
 from scipy import ndimage
 from scipy.linalg.matfuncs import logm
+from skimage.measure import regionprops
 
 from hexrd import constants
 from hexrd.gridutil import cellConnectivity, cellIndices, make_tolerance_grid
@@ -1724,13 +1725,9 @@ class HEDMInstrument(object):
 
                             if num_peaks > 0:
                                 peak_id = iRefl
-                                coms = np.array(
-                                    ndimage.center_of_mass(
-                                        patch_data,
-                                        labels=labels,
-                                        index=slabels
-                                    )
-                                )
+                                props = regionprops(labels, patch_data)
+                                coms = np.vstack(
+                                    [x.weighted_centroid for x in props])
                                 if num_peaks > 1:
                                     center = np.r_[patch_data.shape]*0.5
                                     center_t = np.tile(center, (num_peaks, 1))
