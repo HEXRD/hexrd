@@ -53,6 +53,8 @@ Handbook of Mathematical Functions,
 Abramowitz and Stegun
 Error is < 1.5e-7 for all x
 """
+
+
 @numba_njit_if_available(cache=True, nogil=True)
 def erfc(x):
     # save the sign of x
@@ -60,13 +62,14 @@ def erfc(x):
     x = np.abs(x)
 
     # constants
-    a1,a2,a3,a4,a5,p = c_erf
+    a1, a2, a3, a4, a5, p = c_erf
 
     # A&S formula 7.1.26
     t = 1.0/(1.0 + p*x)
     y = 1. - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*np.exp(-x*x)
-    erf = sign*y # erf(-x) = -erf(x)
+    erf = sign*y  # erf(-x) = -erf(x)
     return 1. - erf
+
 
 """
 cutom function to compute the exponential integral
@@ -74,6 +77,8 @@ based on Padé approximation of exponential integral
 function. coefficients found in pg. 231 Abramowitz
 and Stegun, eq. 5.1.53
 """
+
+
 @numba_njit_if_available(cache=True, nogil=True)
 def exp1exp_under1(x):
     f = np.zeros(x.shape).astype(np.complex128)
@@ -83,6 +88,7 @@ def exp1exp_under1(x):
 
     return (f - np.log(x) - np.euler_gamma)*np.exp(x)
 
+
 """
 cutom function to compute the exponential integral
 based on Padé approximation of exponential integral
@@ -90,6 +96,8 @@ function. coefficients found in pg. 415 Y. Luke, The
 special functions and their approximations, vol 2
 (1969) Elsevier
 """
+
+
 @numba_njit_if_available(cache=True, nogil=True)
 def exp1exp_over1(x):
     num = np.zeros(x.shape).astype(np.complex128)
@@ -107,15 +115,17 @@ def exp1exp_over1(x):
 
     return (num/den)*(1./x)
 
+
 @numba_njit_if_available(cache=True, nogil=True)
 def exp1exp(x):
     mask = np.sign(x.real)*np.abs(x) > 1.
 
     f = np.zeros(x.shape).astype(np.complex128)
-    f[mask]  = exp1exp_over1(x[mask])
+    f[mask] = exp1exp_over1(x[mask])
     f[~mask] = exp1exp_under1(x[~mask])
 
     return f
+
 
 # =============================================================================
 # 1-D Gaussian Functions
@@ -425,6 +435,7 @@ def split_pvoigt1d(p, x):
 
     return f
 
+
 """
 ================================================================
 ================================================================
@@ -440,6 +451,8 @@ def split_pvoigt1d(p, x):
 ================================================================
 ================================================================
 """
+
+
 @numba_njit_if_available(cache=True, nogil=True)
 def _calc_alpha(alpha, x0):
     a0, a1 = alpha
@@ -450,6 +463,7 @@ def _calc_alpha(alpha, x0):
 def _calc_beta(beta, x0):
     b0, b1 = beta
     return b0 + b1*np.tan(np.radians(0.5*x0))
+
 
 @numba_njit_if_available(cache=True, nogil=True)
 def _mixing_factor_pv(fwhm_g, fwhm_l):
@@ -480,6 +494,7 @@ def _mixing_factor_pv(fwhm_g, fwhm_l):
 
     return eta, fwhm
 
+
 @numba_njit_if_available(nogil=True)
 def _gaussian_pink_beam(p, x):
     """
@@ -494,7 +509,7 @@ def _gaussian_pink_beam(p, x):
     p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_g,bkg_c0,bkg_c1,bkg_c2]
     """
 
-    A,x0,alpha,beta,fwhm_g = p
+    A, x0, alpha, beta, fwhm_g = p
 
     del_tth = x - x0
     sigsqr = fwhm_g**2
@@ -516,8 +531,8 @@ def _gaussian_pink_beam(p, x):
     zmask = np.abs(del_tth) > 5.0
 
     g[~zmask] = (0.5*(alpha*beta)/(alpha + beta)) \
-        * np.exp(u[~zmask])*t1[~zmask] + \
-            np.exp(v[~zmask])*t2[~zmask]
+        * np.exp(u[~zmask])*t1[~zmask] \
+        + np.exp(v[~zmask])*t2[~zmask]
 
     mask = np.isnan(g)
     g[mask] = 0.
@@ -540,7 +555,7 @@ def _lorentzian_pink_beam(p, x):
     p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_l]
     """
 
-    A,x0,alpha,beta,fwhm_l = p
+    A, x0, alpha, beta, fwhm_l = p
 
     del_tth = x - x0
 
@@ -559,6 +574,7 @@ def _lorentzian_pink_beam(p, x):
 
     return y
 
+
 @numba_njit_if_available(nogil=True)
 def pink_beam_dcs(p, x):
     """
@@ -572,15 +588,16 @@ def pink_beam_dcs(p, x):
     p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_g,fwhm_l,bkg_c0,bkg_c1,bkg_c2]
     """
     alpha = _calc_alpha((p[2], p[3]), p[1])
-    beta  = _calc_beta((p[4], p[5]), p[1])
+    beta = _calc_beta((p[4], p[5]), p[1])
 
-    arg1 = np.array([alpha,beta,p[6]]).astype(np.float64)
-    arg2 = np.array([alpha,beta,p[7]]).astype(np.float64)
+    arg1 = np.array([alpha, beta, p[6]]).astype(np.float64)
+    arg2 = np.array([alpha, beta, p[7]]).astype(np.float64)
 
-    p_g = np.hstack((p[0:2],arg1))
-    p_l = np.hstack((p[0:2],arg2))
+    p_g = np.hstack((p[0:2], arg1))
+    p_l = np.hstack((p[0:2], arg2))
 
-    bkg_c = p[8:11]
+    # FIXME: remove unused var
+    # bkg_c = p[8:11]
     bkg = p[8] + p[9]*x + p[10]*(2.*x**2 - 1.)
 
     eta, fwhm = _mixing_factor_pv(p[6], p[7])
@@ -588,7 +605,8 @@ def pink_beam_dcs(p, x):
     G = _gaussian_pink_beam(p_g, x)
     L = _lorentzian_pink_beam(p_l, x)
 
-    return eta*L + (1.-eta)*G + bkg
+    return eta*L + (1. - eta)*G + bkg
+
 
 """
 ================================================================
@@ -596,9 +614,11 @@ def pink_beam_dcs(p, x):
 ================================================================
 """
 
+
 # =============================================================================
 # Tanh Step Down
 # =============================================================================
+
 
 def tanh_stepdown_nobg(p, x):
     """
