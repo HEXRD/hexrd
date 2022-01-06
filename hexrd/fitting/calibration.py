@@ -424,7 +424,7 @@ class PowderCalibrator(object):
                     #     (meas_xy.flatten() - calc_xy.flatten())
                     # )
                     retval.append(
-                        updated_angles[:, 0].flatten() -  tth0.flatten()
+                        updated_angles[:, 0].flatten() - tth0.flatten()
                     )
                 elif output == 'model':
                     retval.append(
