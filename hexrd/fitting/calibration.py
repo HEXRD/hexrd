@@ -375,13 +375,14 @@ class PowderCalibrator(object):
         wlen = self.instr.beam_wavelength
 
         # build residual
-        retval = []
+        retval = np.array([], dtype=float)
         for det_key, panel in self.instr.detectors.items():
             if len(data_dict[det_key]) == 0:
                 continue
+            else:
+                # recast as array
+                pdata = np.vstack(data_dict[det_key])
 
-            pdata = np.vstack(data_dict[det_key])
-            if len(pdata) > 0:
                 """
                 Here is the strategy:
                     1. remap the feature points from raw cartesian to
@@ -420,22 +421,24 @@ class PowderCalibrator(object):
 
                 # output
                 if output == 'residual':
-                    # retval.append(
-                    #     (meas_xy.flatten() - calc_xy.flatten())
+                    # retval = np.append(
+                    #     retval,
+                    #     meas_xy.flatten() - calc_xy.flatten()
                     # )
-                    retval.append(
+                    retval = np.append(
+                        retval,
                         updated_angles[:, 0].flatten() - tth0.flatten()
                     )
                 elif output == 'model':
-                    retval.append(
+                    retval = np.append(
+                        retval,
                         calc_xy.flatten()
                     )
                 else:
                     raise RuntimeError("unrecognized output flag '%s'"
                                        % output)
-            else:
-                continue
-        return np.hstack(retval)
+
+        return retval
 
     def residual(self, reduced_params, data_dict):
         return self._evaluate(reduced_params, data_dict)
@@ -450,6 +453,12 @@ class InstrumentCalibrator(object):
             "must have at least one calibrator"
         self._calibrators = args
         self._instr = self._calibrators[0].instr
+        self.npi = len(self._instr.calibration_parameters)
+        self._full_params = self._instr.calibration_parameters
+        for calib in self._calibrators:
+            assert calib.instr is self._instr, \
+                "all calibrators must refer to the same instrument"
+            self._full_params = np.hstack([self._full_params, calib.params])
 
     @property
     def instr(self):
@@ -458,6 +467,17 @@ class InstrumentCalibrator(object):
     @property
     def calibrators(self):
         return self._calibrators
+
+    @property
+    def full_params(self):
+        return self._full_params
+
+    @full_params.setter
+    def full_params(self, x):
+        assert len(x) == len(self._full_params), \
+            "input must have length %d; you gave %d" \
+            % (len(self._full_params), len(x))
+        self._full_params = x
 
     # =========================================================================
     # METHODS
@@ -518,6 +538,17 @@ class InstrumentCalibrator(object):
                 print('no improvement in residual!!!')
                 step_successful = False
             iters += 1
+
+        # handle exit condition in case step failed
+        if not step_successful:
+            x1 = x0
+            _ = obj_func(x1, data_dict)
+
+        # update the full_params
+        # FIXME: this class is still hard-coded for one calibrator
+        fp = np.array(self.full_params, dtype=float)
+        fp[self.flags] = x1
+        self.full_params = fp
         return x1
 
 
