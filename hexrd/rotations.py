@@ -366,14 +366,41 @@ def quatOfAngleAxis(angle, rotaxis):
     return fixQuat(quat)
 
 
-def quatOfExpMap(expMap):
+def quatOfExpMap(expMaps):
     """
+    Returns the unit quaternions associated with exponential map parameters.
+
+    Parameters
+    ----------
+    expMaps : array_like
+        The (3,) or (3, n) list of hstacked exponential map parameters to
+        convert.
+
+    Returns
+    -------
+    quats : array_like
+        The (4,) or (4, n) array of unit quaternions.
+
+    Notes
+    -----
+    1) be aware that the output will always have non-negative q0; recall the
+       antipodal symmetry of unit quaternions
+
     """
-    angles = columnNorm(expMap)
-    axes = unitVector(expMap)
+    cdim = 3  # critical dimension of input
+    expMaps = np.atleast_2d(expMaps)
+    if len(expMaps) == 1:
+        assert expMaps.shape[1] == cdim, \
+            "your input quaternion must have %d elements" % cdim
+        expMaps = np.reshape(expMaps, (cdim, 1))
+    else:
+        assert len(expMaps) == cdim, \
+            "your input quaternions must have shape (%d, n) for n > 1" % cdim
+    angles = columnNorm(expMaps)
+    axes = unitVector(expMaps)
 
     quats = quatOfAngleAxis(angles, axes)
-    return quats
+    return quats.squeeze()
 
 
 def quatOfRotMat(R):
@@ -494,24 +521,25 @@ def expMapOfQuat(quats):
         with the input quaternions.
 
     """
+    cdim = 4  # critical dimension of input
     quats = np.atleast_2d(quats)
     if len(quats) == 1:
-        assert quats.shape[1] == 4, \
-            "your input quaternion must have 4 elements"
-        quats = np.reshape(quats, (4, 1))
+        assert quats.shape[1] == cdim, \
+            "your input quaternion must have %d elements" % cdim
+        quats = np.reshape(quats, (cdim, 1))
     else:
-        assert len(quats) == 4, \
-            "your input quaternions must have shape (4, n) for n > 1"
+        assert len(quats) == cdim, \
+            "your input quaternions must have shape (%d, n) for n > 1" % cdim
 
     # ok, we have hstacked quats; get angle
-    phis = 2.*np.arccosSafe(quats[:, 0])
+    phis = 2.*arccosSafe(quats[0, :])
 
     # now axis
-    ns = unitVector(quats[:, 1:])
+    ns = unitVector(quats[1:, :])
 
     # reassemble
     expmaps = phis*ns
-    return expmaps
+    return expmaps.squeeze()
 
 
 def rotMatOfExpMap_opt(expMap):
@@ -1742,6 +1770,7 @@ def quatOfLaueGroup(tag):
     qsym = array(quatOfAngleAxis(angle, axis).T, order='C').T
 
     return qsym
+
 
 # =============================================================================
 # Tests
