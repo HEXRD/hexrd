@@ -74,6 +74,29 @@ zeros_6x1 = np.zeros((6, 1))
 beam_vec = -lab_z
 eta_vec = lab_x
 
+# change of basis matrix for the Fable-style sample frame to hexrd's
+# !!! the fable sample frame has
+#         +x along the beam (hexrd -z), and
+#         +z up (hexrd +y)
+#
+# !!! both rot mat and qpm ((4, 4) for quat matrix mult) act on the left
+#
+# !!!: if using Midas/Fable orientations, be aware that the crystal frame
+#      is different as well!  See hexrd.crystallography.latticeVectors.
+fable_to_hexrd_cob_rmat = np.array(
+    [[ 0., -1.,  0.],
+     [ 0.,  0.,  1.],
+     [-1.,  0.,  0.]]
+)
+
+fable_to_hexrd_cob_qpm = np.array(
+    [[ 0.5,  0.5, -0.5, -0.5],
+     [-0.5,  0.5, -0.5,  0.5],
+     [ 0.5,  0.5,  0.5,  0.5],
+     [ 0.5, -0.5, -0.5,  0.5]]
+)
+
+
 """
 >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab,
                 saransh1@llnl.gov
