@@ -477,6 +477,43 @@ def quatAverage_obj(xi_in, quats, qsym):
     return resd
 
 
+def expMapOfQuat(quats):
+    """
+    Return the exponential map parameters for an array of unit quaternions
+
+    Parameters
+    ----------
+    quats : array_like
+        The (4, ) or (4, n) array of hstacked unit quaternions.  The convention
+        is [q0, q] where q0 is the scalar part and q is the vector part.
+
+    Returns
+    -------
+    expmaps : array_like
+        The (3, ) or (3, n) array of exponential map parameters associated
+        with the input quaternions.
+
+    """
+    quats = np.atleast_2d(quats)
+    if len(quats) == 1:
+        assert quats.shape[1] == 4, \
+            "your input quaternion must have 4 elements"
+        quats = np.reshape(quats, (4, 1))
+    else:
+        assert len(quats) == 4, \
+            "your input quaternions must have shape (4, n) for n > 1"
+
+    # ok, we have hstacked quats; get angle
+    phis = 2.*np.arccosSafe(quats[:, 0])
+
+    # now axis
+    ns = unitVector(quats[:, 1:])
+
+    # reassemble
+    expmaps = phis*ns
+    return expmaps
+
+
 def rotMatOfExpMap_opt(expMap):
     """Optimized version of rotMatOfExpMap
     """
