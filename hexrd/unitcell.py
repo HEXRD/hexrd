@@ -777,10 +777,73 @@ class unitcell:
 
         return np.abs(sf)**2
 
-    ''' calculate bragg angle for a reflection. returns Nan if
-        the reflections is not possible for the voltage/wavelength
-    '''
+    """
+    molecular mass calculates the molar weight of the unit cell
+    since the unitcell can have multiple formular units, this 
+    might be greater than the molecular weight
+    """
+    def calc_unitcell_mass(self):
+        a_mass = constants.atom_weights[self.atom_type-1]
+        return np.sum(a_mass*self.numat)
 
+    """
+    calculate the number density in 1/micron^3
+    number density = density * Avogadro / unitcell mass
+    the 1e-12 factor converts from 1/cm^3 to 1/micron^3
+    """
+    def calc_number_density(self):
+        M = self.calc_unitcell_mass()
+        Na = constants.cAvogadro
+
+        return 1e-12 * self.density * Na / M
+
+    def calc_total_f2(self):
+
+        fpp_total = 0.
+        for i in range(self.atom_ntype):
+            Z = self.atom_type[i]
+            elem = constants.ptableinverse[Z]
+            fpp_total += self.f2[elem](self.wavelength)*self.numat[i]
+        return fpp_total
+
+    """
+    calculate the absorption coefficient which is 
+    calculated using the imaginary part of the
+    anomalous scattering factors. the imaginary part
+    of the refractive index, beta is related to f" by
+    the following relation:
+
+    beta = (re/2pi) * N * lambda^2 * f"_total
+
+    re = classical electron radius
+    N  = number density (number of atoms per unit volume)
+    lambda = wavelength of incident xrays
+    f"_total = imaginary part of total anomalous scattering factor
+
+    to calculate N, we shouldn't need the chemical formula, since
+    they should calcel out in N and f"_total
+
+    beta can then be related to the attenuation length 
+    (or attenuation coefficient = 1/attenuation length)
+    by the following reltionship
+    
+    lp = lambda/(4*pi*beta) = 1/(2*re*N*lambda*f"_total)
+
+    NOTE: units will be microns!!
+
+    """
+    def calc_absorption_length(self):
+        re = 2.8179403e-9 # in microns
+        N  = self.calc_number_density()
+        f2_t = self.calc_total_f2()
+
+        # the 1e-3 factor converts wavelength from nm -> micron
+        self.absorption_length = 1./(2*re*N*self.wavelength*1e-3*f2_t)
+
+    """
+    calculate bragg angle for a reflection. returns Nan if
+    the reflections is not possible for the voltage/wavelength
+    """
     def CalcBraggAngle(self, hkl):
         glen = self.CalcLength(hkl, 'r')
         sth = self.wavelength * glen * 0.5
@@ -1491,6 +1554,7 @@ class unitcell:
                                                   self._supergroup,
                                                   self._supergroup_laue)
         self.CalcDensity()
+        self.calc_absorption_length()
 
     @property
     def atom_pos(self):

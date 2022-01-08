@@ -924,6 +924,10 @@ class Material(object):
         # self.update_structure_factor()
 
     @property
+    def absorption_length(self):
+        return self.unitcell.absorption_length
+
+    @property
     def natoms(self):
         return self.atominfo.shape[0]
 
