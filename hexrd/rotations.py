@@ -429,9 +429,10 @@ def quatAverageCluster(q_in, qsym):
         else:
             ma, mq = misorientation(q_in[:, 0].reshape(4, 1),
                                     q_in[:, 1].reshape(4, 1), (qsym,))
+
             q_bar = quatProduct(
                 q_in[:, 0].reshape(4, 1),
-                quatOfExpMap(0.5*ma*unitVector(mq[1:].reshape(3, 1)))
+                quatOfExpMap(0.5*ma*unitVector(mq[1:])).reshape(4, 1)
             )
     else:
         # first drag to origin using first quat (arb!)

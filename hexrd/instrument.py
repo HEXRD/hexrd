@@ -1882,6 +1882,7 @@ class PlanarDetector(object):
                  evec=ct.eta_vec,
                  saturation_level=None,
                  panel_buffer=None,
+                 tth_distortion=None,
                  roi=None,
                  distortion=None,
                  max_workers=max_workers_DFLT):
@@ -1933,6 +1934,8 @@ class PlanarDetector(object):
         self._saturation_level = saturation_level
 
         self._panel_buffer = panel_buffer
+
+        self._tth_distortion = tth_distortion
 
         self._roi = roi
 
@@ -2033,6 +2036,17 @@ class PlanarDetector(object):
         if x is not None:
             assert len(x) == 2 or x.ndim == 2
         self._panel_buffer = x
+
+    @property
+    def tth_distortion(self):
+        return self._tth_distortion
+
+    @tth_distortion.setter
+    def tth_distortion(self, x):
+        """if not None, a buffer in mm (x, y)"""
+        if x is not None:
+            assert x.ndim == 2 and x.shape == self.shape
+        self._tth_distortion = x
 
     @property
     def roi(self):
@@ -2426,18 +2440,33 @@ class PlanarDetector(object):
                                    self.rmat, self.tvec, self.bvec, self.evec,
                                    self.rows, self.cols)
 
-    def cartToPixel(self, xy_det, pixels=False):
+    def cartToPixel(self, xy_det, pixels=False, apply_distortion=False):
         """
-        Convert vstacked array or list of [x,y] points in the center-based
-        cartesian frame {Xd, Yd, Zd} to (i, j) edge-based indices
+        Coverts cartesian coordinates to pixel coordinates
 
-        i is the row index, measured from the upper-left corner
-        j is the col index, measured from the upper-left corner
+        Parameters
+        ----------
+        xy_det : array_like
+            The (n, 2) vstacked array of (x, y) pairs in the reference
+            cartesian frame (possibly subject to distortion).
+        pixels : bool, optional
+            If True, return discrete pixel indices; otherwise fractional pixel
+            coordinates are returned. The default is False.
+        apply_distortion : bool, optional
+            If True, apply self.distortion to the input (if applicable).
+            The default is False.
 
-        if pixels=True, then (i,j) are integer pixel indices.
-        else (i,j) are continuous coords
+        Returns
+        -------
+        ij_det : array_like
+            The (n, 2) array of vstacked (i, j) coordinates in the pixel
+            reference frame where i is the (slow) row dimension and j is the
+            (fast) column dimension.
+
         """
         xy_det = np.atleast_2d(xy_det)
+        if apply_distortion and self.distortion is not None:
+            xy_det = self.distortion.apply(xy_det)
 
         npts = len(xy_det)
 

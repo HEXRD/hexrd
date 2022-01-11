@@ -343,7 +343,7 @@ def run_cluster(compl, qfib, qsym, cfg,
         for i in range(nblobs):
             npts = sum(cl == i + 1)
             qbar[:, i] = rot.quatAverageCluster(
-                qfib_r[:, cl == i + 1].reshape(4, npts), qsym
+                qfib_r[:, cl == i + 1], qsym
             ).flatten()
             pass
         pass
