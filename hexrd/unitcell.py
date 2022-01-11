@@ -691,6 +691,7 @@ class unitcell:
         self.f1 = {}
         self.f2 = {}
         self.f_anam = {}
+        self.pe_cs = {}
 
         data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
         with h5py.File(data, 'r') as fid:
@@ -703,6 +704,7 @@ class unitcell:
 
                 self.f1[elem] = interp1d(data[:, 7], data[:, 1])
                 self.f2[elem] = interp1d(data[:, 7], data[:, 2])
+                self.pe_cs[elem] = interp1d(data[:,7], data[:,3]+data[:,4])
 
     def CalcAnomalous(self):
 
@@ -797,48 +799,37 @@ class unitcell:
 
         return 1e-12 * self.density * Na / M
 
-    def calc_total_f2(self):
+    def calc_absorption_cross_sec(self):
 
-        fpp_total = 0.
+        abs_cs_total = 0.
         for i in range(self.atom_ntype):
             Z = self.atom_type[i]
             elem = constants.ptableinverse[Z]
-            fpp_total += self.f2[elem](self.wavelength)*self.numat[i]
-        return fpp_total
+            abs_cs_total += self.pe_cs[elem](self.wavelength)*\
+            self.numat[i]/np.sum(self.numat)
+        return abs_cs_total
 
     """
     calculate the absorption coefficient which is 
-    calculated using the imaginary part of the
-    anomalous scattering factors. the imaginary part
-    of the refractive index, beta is related to f" by
-    the following relation:
+    calculated using the sum of photoeffect, compton and 
+    rayleigh cross ections. the pair and triplet production
+    cross sections etc are not applicable in the energy range
+    of interest and therefore neglected. 
 
-    beta = (re/2pi) * N * lambda^2 * f"_total
+    attenuation coeff = sigma_total * density
 
-    re = classical electron radius
-    N  = number density (number of atoms per unit volume)
-    lambda = wavelength of incident xrays
-    f"_total = imaginary part of total anomalous scattering factor
-
-    to calculate N, we shouldn't need the chemical formula, since
-    they should calcel out in N and f"_total
-
-    beta can then be related to the attenuation length 
-    (or attenuation coefficient = 1/attenuation length)
-    by the following reltionship
-    
-    lp = lambda/(4*pi*beta) = 1/(2*re*N*lambda*f"_total)
+    attenuation_length = 1/attenuation_coeff
 
     NOTE: units will be microns!!
 
     """
     def calc_absorption_length(self):
-        re = 2.8179403e-9 # in microns
-        N  = self.calc_number_density()
-        f2_t = self.calc_total_f2()
+        # re = 2.8179403e-9 # in microns
+        # N  = self.calc_number_density()
+        abs_cs_total = self.calc_absorption_cross_sec()
 
-        # the 1e-3 factor converts wavelength from nm -> micron
-        self.absorption_length = 1./(2*re*N*self.wavelength*1e-3*f2_t)
+        # the 1e4 factor converts wavelength from cm -> micron
+        self.absorption_length = 1e4/(abs_cs_total*self.density)
 
     """
     calculate bragg angle for a reflection. returns Nan if
