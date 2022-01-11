@@ -212,7 +212,7 @@ class LeBail:
             self._background = []
             self.selectpoints()
             for i, pts in enumerate(self.points):
-                tth = self.tth_list[i]
+                tth = self._spectrum_expt[i]._x
                 x = pts[:, 0]
                 y = pts[:, 1]
                 self._background.append(self.splinefit(x, y, tth))
@@ -303,7 +303,7 @@ class LeBail:
         self.points = []
         for i, s in enumerate(self._spectrum_expt):
             txt = (
-                f"Select points for background estimation;"
+                f"Select points for background estimation;\n"
                 f"click middle mouse button when done. segment # {i}"
             )
             title(txt)
@@ -1646,7 +1646,7 @@ class Rietveld:
             self._background = []
             self.selectpoints()
             for i, pts in enumerate(self.points):
-                tth = self.tth_list[i]
+                tth = self._spectrum_expt[i]._x
                 x = pts[:, 0]
                 y = pts[:, 1]
                 self._background.append(self.splinefit(x, y, tth))
@@ -1733,7 +1733,7 @@ class Rietveld:
         self.points = []
         for i, s in enumerate(self._spectrum_expt):
             txt = (
-                f"Select points for background estimation;"
+                f"Select points for background estimation;\n"
                 f"click middle mouse button when done. segment # {i}"
             )
             title(txt)
