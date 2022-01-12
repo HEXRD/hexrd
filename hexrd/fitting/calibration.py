@@ -718,8 +718,8 @@ def generate_parameter_names(instr, grain_params):
     for ig, grain in enumerate(grain_params):
         pnames += [
             '{:>24s}'.format('grain %d expmap_c[0]' % ig),
-            '{:>24s}'.format('grain %d expmap_c[0]' % ig),
-            '{:>24s}'.format('grain %d expmap_c[0]' % ig),
+            '{:>24s}'.format('grain %d expmap_c[1]' % ig),
+            '{:>24s}'.format('grain %d expmap_c[2]' % ig),
             '{:>24s}'.format('grain %d tvec_c[0]' % ig),
             '{:>24s}'.format('grain %d tvec_c[1]' % ig),
             '{:>24s}'.format('grain %d tvec_c[2]' % ig),
