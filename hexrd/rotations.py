@@ -1423,7 +1423,7 @@ def angularDifference_opt(angList0, angList1, units=angularUnits):
 angularDifference = angularDifference_opt
 
 
-def applySym(vec, qsym, csFlag=False, cullPM=False, tol=1e-8):
+def applySym(vec, qsym, csFlag=False, cullPM=False, tol=cnst.sqrt_epsf):
     """
     Apply symmetry group to a single 3-vector (columnar) argument.
 
