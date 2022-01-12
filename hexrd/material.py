@@ -50,6 +50,7 @@ from hexrd.mksupport import Write2H5File
 from hexrd.symbols import xtal_sys_dict
 from hexrd.symbols import Hall_to_sgnum, HM_to_sgnum
 from hexrd.utils.compatibility import h5py_read_string
+from hexrd.fitting.peakfunctions import _unit_gaussian
 
 __all__ = ['Material', 'loadMaterialList']
 
@@ -376,6 +377,26 @@ class Material(object):
             sf[i] = self.unitcell.CalcXRSF(g)
 
         self.planeData.set_structFact(sf)
+
+    def compute_powder_overlay(self,
+                               ttharray=numpy.linspace(0, 80, 2000),
+                               fwhm=0.25,
+                               scale=1.0):
+        """
+        this function computes a simulated spectra
+        for using in place of lines for the powder 
+        overlay. inputs are simplified as compared 
+        to the typical LeBail/Rietveld computation.
+        only a fwhm (in degrees) and scale are passed
+
+        requested feature from Amy Jenei
+        """
+        tth = numpy.degrees(self.planeData.getTTh()) # convert to degrees
+        Ip  = self.planeData.powder_intensity
+        self.powder_overlay = numpy.zeros_like(ttharray)
+        for t,I in zip(tth, Ip):
+            p = [t, fwhm]
+            self.powder_overlay += scale*I*_unit_gaussian(p, ttharray)
 
     def _readCif(self, fcif=DFLT_NAME+'.cif'):
         """
