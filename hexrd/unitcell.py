@@ -691,6 +691,7 @@ class unitcell:
         self.f1 = {}
         self.f2 = {}
         self.f_anam = {}
+        self.pe_cs = {}
 
         data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
         with h5py.File(data, 'r') as fid:
@@ -703,6 +704,7 @@ class unitcell:
 
                 self.f1[elem] = interp1d(data[:, 7], data[:, 1])
                 self.f2[elem] = interp1d(data[:, 7], data[:, 2])
+                self.pe_cs[elem] = interp1d(data[:,7], data[:,3]+data[:,4])
 
     def CalcAnomalous(self):
 
@@ -777,10 +779,62 @@ class unitcell:
 
         return np.abs(sf)**2
 
-    ''' calculate bragg angle for a reflection. returns Nan if
-        the reflections is not possible for the voltage/wavelength
-    '''
+    """
+    molecular mass calculates the molar weight of the unit cell
+    since the unitcell can have multiple formular units, this 
+    might be greater than the molecular weight
+    """
+    def calc_unitcell_mass(self):
+        a_mass = constants.atom_weights[self.atom_type-1]
+        return np.sum(a_mass*self.numat)
 
+    """
+    calculate the number density in 1/micron^3
+    number density = density * Avogadro / unitcell mass
+    the 1e-12 factor converts from 1/cm^3 to 1/micron^3
+    """
+    def calc_number_density(self):
+        M = self.calc_unitcell_mass()
+        Na = constants.cAvogadro
+
+        return 1e-12 * self.density * Na / M
+
+    def calc_absorption_cross_sec(self):
+
+        abs_cs_total = 0.
+        for i in range(self.atom_ntype):
+            Z = self.atom_type[i]
+            elem = constants.ptableinverse[Z]
+            abs_cs_total += self.pe_cs[elem](self.wavelength)*\
+            self.numat[i]/np.sum(self.numat)
+        return abs_cs_total
+
+    """
+    calculate the absorption coefficient which is 
+    calculated using the sum of photoeffect, compton and 
+    rayleigh cross ections. the pair and triplet production
+    cross sections etc are not applicable in the energy range
+    of interest and therefore neglected. 
+
+    attenuation coeff = sigma_total * density
+
+    attenuation_length = 1/attenuation_coeff
+
+    NOTE: units will be microns!!
+
+    """
+    def calc_absorption_length(self):
+        # re = 2.8179403e-9 # in microns
+        # N  = self.calc_number_density()
+        abs_cs_total = self.calc_absorption_cross_sec()
+
+        # the 1e4 factor converts wavelength from cm -> micron
+        self.absorption_length = 1e4/(abs_cs_total*self.density)
+
+    """
+    calculate bragg angle for a reflection. returns Nan if
+    the reflections is not possible for the voltage/wavelength
+    """
     def CalcBraggAngle(self, hkl):
         glen = self.CalcLength(hkl, 'r')
         sth = self.wavelength * glen * 0.5
@@ -1491,6 +1545,7 @@ class unitcell:
                                                   self._supergroup,
                                                   self._supergroup_laue)
         self.CalcDensity()
+        self.calc_absorption_length()
 
     @property
     def atom_pos(self):
