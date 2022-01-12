@@ -578,50 +578,9 @@ def calibrate_instrument_from_sx(
     arguments xyo_det, hkls_idx are DICTs over panels
 
     """
-
-    pnames = [
-        '{:>24s}'.format('beam energy'),
-        '{:>24s}'.format('beam azimuth'),
-        '{:>24s}'.format('beam polar'),
-        '{:>24s}'.format('chi'),
-        '{:>24s}'.format('tvec_s[0]'),
-        '{:>24s}'.format('tvec_s[1]'),
-        '{:>24s}'.format('tvec_s[2]'),
-    ]
-
-    for det_key, panel in instr.detectors.items():
-        pnames += [
-            '{:>24s}'.format('%s tilt[0]' % det_key),
-            '{:>24s}'.format('%s tilt[1]' % det_key),
-            '{:>24s}'.format('%s tilt[2]' % det_key),
-            '{:>24s}'.format('%s tvec[0]' % det_key),
-            '{:>24s}'.format('%s tvec[1]' % det_key),
-            '{:>24s}'.format('%s tvec[2]' % det_key),
-        ]
-        # now add distortion if there
-        if panel.distortion is not None:
-            for j in range(len(panel.distortion.params)):
-                pnames.append(
-                    '{:>24s}'.format('%s dparam[%d]' % (det_key, j))
-                )
-
     grain_params = np.atleast_2d(grain_params)
     ngrains = len(grain_params)
-    for ig, grain in enumerate(grain_params):
-        pnames += [
-            '{:>24s}'.format('grain %d expmap_c[0]' % ig),
-            '{:>24s}'.format('grain %d expmap_c[0]' % ig),
-            '{:>24s}'.format('grain %d expmap_c[0]' % ig),
-            '{:>24s}'.format('grain %d tvec_c[0]' % ig),
-            '{:>24s}'.format('grain %d tvec_c[1]' % ig),
-            '{:>24s}'.format('grain %d tvec_c[2]' % ig),
-            '{:>24s}'.format('grain %d vinv_s[0]' % ig),
-            '{:>24s}'.format('grain %d vinv_s[1]' % ig),
-            '{:>24s}'.format('grain %d vinv_s[2]' % ig),
-            '{:>24s}'.format('grain %d vinv_s[3]' % ig),
-            '{:>24s}'.format('grain %d vinv_s[4]' % ig),
-            '{:>24s}'.format('grain %d vinv_s[5]' % ig)
-        ]
+    pnames = generate_parameter_names(instr, grain_params)
 
     # reset parameter flags for instrument as specified
     if param_flags is None:
@@ -715,6 +674,53 @@ def calibrate_instrument_from_sx(
         instr.update_from_parameter_list(fit_params)
 
         return fit_params, resd, sim_final
+
+
+def generate_parameter_names(instr, grain_params):
+    pnames = [
+        '{:>24s}'.format('beam energy'),
+        '{:>24s}'.format('beam azimuth'),
+        '{:>24s}'.format('beam polar'),
+        '{:>24s}'.format('chi'),
+        '{:>24s}'.format('tvec_s[0]'),
+        '{:>24s}'.format('tvec_s[1]'),
+        '{:>24s}'.format('tvec_s[2]'),
+    ]
+
+    for det_key, panel in instr.detectors.items():
+        pnames += [
+            '{:>24s}'.format('%s tilt[0]' % det_key),
+            '{:>24s}'.format('%s tilt[1]' % det_key),
+            '{:>24s}'.format('%s tilt[2]' % det_key),
+            '{:>24s}'.format('%s tvec[0]' % det_key),
+            '{:>24s}'.format('%s tvec[1]' % det_key),
+            '{:>24s}'.format('%s tvec[2]' % det_key),
+        ]
+        # now add distortion if there
+        if panel.distortion is not None:
+            for j in range(len(panel.distortion.params)):
+                pnames.append(
+                    '{:>24s}'.format('%s dparam[%d]' % (det_key, j))
+                )
+
+    grain_params = np.atleast_2d(grain_params)
+    for ig, grain in enumerate(grain_params):
+        pnames += [
+            '{:>24s}'.format('grain %d expmap_c[0]' % ig),
+            '{:>24s}'.format('grain %d expmap_c[0]' % ig),
+            '{:>24s}'.format('grain %d expmap_c[0]' % ig),
+            '{:>24s}'.format('grain %d tvec_c[0]' % ig),
+            '{:>24s}'.format('grain %d tvec_c[1]' % ig),
+            '{:>24s}'.format('grain %d tvec_c[2]' % ig),
+            '{:>24s}'.format('grain %d vinv_s[0]' % ig),
+            '{:>24s}'.format('grain %d vinv_s[1]' % ig),
+            '{:>24s}'.format('grain %d vinv_s[2]' % ig),
+            '{:>24s}'.format('grain %d vinv_s[3]' % ig),
+            '{:>24s}'.format('grain %d vinv_s[4]' % ig),
+            '{:>24s}'.format('grain %d vinv_s[5]' % ig)
+        ]
+
+    return pnames
 
 
 def sxcal_obj_func(plist_fit, plist_full,
