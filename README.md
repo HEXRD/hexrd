@@ -8,7 +8,7 @@ Requires Python 3.8+ (Python 3.9 recommended).  It is generally recommended for 
 
 ## conda (main releases)
 
-To install the latest stable release
+To install the latest stable release, do:
 
 ```bash
 conda install -c hexrd -c conda-forge hexrd
@@ -23,7 +23,7 @@ conda install -c hexrd/label/hexrd-prerelease -c hexrd -c conda-forge hexrd
 
 # Run
 
-There is currently a CLI for far-field HEDM analysis (a.k.a. 3DXRD)
+There is currently a CLI for far-field HEDM analysis (a.k.a. 3DXRD).  Other CLI's for high-level functions are under development.
 
 ```bash
 > hexrd --help
