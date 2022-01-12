@@ -447,7 +447,7 @@ class LeBail:
 
                 shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
                 trns_c = np.sin(np.radians(self.tth[p][k])) * self.trns
-                sf_shift = sf_alpha*np.tan(np.radians(self.tth[p][k]))*\
+                sf_shift = self.sf_alpha*np.tan(np.radians(self.tth[p][k]))*\
                            self.sf_hkl_factors[p][k]
                 # stth = np.sin(np.radians(self.tth[p][k]))
                 # smtth = stth * (1. + self.sf_alpha * self.sf_hkl_factors[p][k])
