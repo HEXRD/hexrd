@@ -611,7 +611,7 @@ def _convert_angles(tth_eta, detector,
     return np.vstack(tth_eta_ref).T
 
 
-def zproject_sph_angles(ang_list, chi=0.,
+def zproject_sph_angles(invecs, chi=0.,
                         method='stereographic',
                         source='d',
                         use_mask=False,
@@ -622,17 +622,19 @@ def zproject_sph_angles(ang_list, chi=0.,
 
     Parameters
     ----------
-    ang_list : TYPE
-        DESCRIPTION.
+    invec : array_like
+        The (n, 3) array of input points, interpreted via the 'source' kwarg.
     chi : scalar, optional
         The inclination angle of the sample frame. The default is 0..
     method : str, optional
         Mapping type spec, either 'stereographic' or 'equal-area'.
         The default is 'stereographic'.
     source : str, optional
-        The type specifier of the input vectors, either 'd' or 'q'. The former
-        signifies unit diffraction vectors, the latter specifies unit
-        scattering vectors.  The default is 'd'.
+        The type specifier of the input vectors, either 'd', 'q', or 'g'.
+            'd' signifies unit diffraction vectors as (2theta, eta, omega),
+            'q' specifies unit scattering vectors as (2theta, eta, omega),
+            'g' specifies unit vectors in the sample frame as (x, y, z).
+        The default is 'd'.
     use_mask : bool, optional
         If True, trim points not on the +z hemishpere (polar angles > 90).
         The default is False.
@@ -662,10 +664,15 @@ def zproject_sph_angles(ang_list, chi=0.,
     CAVEAT: +Z axis projections only!!!
     TODO: check mask application.
     """
-    if source == 'd':
-        spts_s = xfcapi.anglesToDVec(ang_list, chi=chi)
-    elif source == 'q':
-        spts_s = xfcapi.anglesToGVec(ang_list, chi=chi)
+    assert isinstance(source, str), "source kwarg must be a string"
+
+    invecs = np.atleast_2d(invecs)
+    if source.lower() == 'd':
+        spts_s = xfcapi.anglesToDVec(invecs, chi=chi)
+    elif source.lower() == 'q':
+        spts_s = xfcapi.anglesToGVec(invecs, chi=chi)
+    elif source.lower() == 'g':
+        spts_s = invecs
 
     if rmat is not None:
         spts_s = np.dot(spts_s, rmat.T)
