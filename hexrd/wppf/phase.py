@@ -229,6 +229,34 @@ class Material_LeBail:
         wavelength_allowed_hkls.astype(bool)
         return tth
 
+    def get_sf_hkl_factors(self):
+        """
+        this function calculates the prefactor for
+        each hkl used to calculate the 2theta shifts
+        due to stacking faults. for details see EQ. 10
+        Velterop et. al., Stacking and twin faults
+        J. Appl. Cryst. (2000). 33, 296-306
+        """
+        hkls = self.hkls.astype(np.float64)
+        sf_f = np.zeros([hkls.shape[0],])
+        H2 = np.sum(hkls**2,axis=1)
+
+        multiplicity = []
+        Lfact = []
+        for g in hkls:
+            gsym = self.CalcStar(g, 'r')
+            L0 = np.sum(gsym,axis=1)
+            sign = np.mod(np.abs(L0),3)
+            sign[sign == 2] = -1
+            multiplicity.append(gsym.shape[0])
+            Lfact.append(np.sum(L0*sign))
+
+        Lfact = np.array(Lfact)
+        multiplicity = np.array(multiplicity)
+
+
+        return (90.*np.sqrt(3)/np.pi**2)*Lfact/(H2*multiplicity)
+
     def GenerateRecipPGSym(self):
 
         self.SYM_PG_r = self.SYM_PG_d[0, :, :]

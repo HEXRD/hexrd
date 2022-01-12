@@ -30,7 +30,8 @@ import copy
 from hexrd import constants
 from hexrd.utils.decorators import numba_njit_if_available
 from numba import vectorize, float64
-from hexrd.fitting.peakfunctions import erfc, exp1exp
+# from hexrd.fitting.peakfunctions import erfc, exp1exp
+from scipy.special import erfc, exp1
 
 if constants.USE_NUMBA:
     from numba import prange
@@ -390,7 +391,7 @@ def _calc_beta(beta, tth):
     b0, b1 = beta
     return b0 + b1*np.tan(np.radians(0.5*tth))
 
-@numba_njit_if_available(cache=True, nogil=True)
+# @numba_njit_if_available(cache=True, nogil=True)
 def _gaussian_pink_beam(alpha,
                         beta,
                         fwhm_g,
@@ -426,7 +427,7 @@ def _gaussian_pink_beam(alpha,
     return g
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+# @numba_njit_if_available(cache=True, nogil=True)
 def _lorentzian_pink_beam(alpha,
                           beta,
                           fwhm_l,
@@ -446,8 +447,10 @@ def _lorentzian_pink_beam(alpha,
 
     y = np.zeros(tth_list.shape)
 
-    f1 = exp1exp(p)
-    f2 = exp1exp(q)
+    # f1 = exp1exp(p)
+    # f2 = exp1exp(q)
+    f1 = exp1(p)
+    f2 = exp1(q)
 
     y = -(alpha*beta)/(np.pi*(alpha+beta))*(f1+f2).imag
     
@@ -456,7 +459,7 @@ def _lorentzian_pink_beam(alpha,
 
     return y
 
-@numba_njit_if_available(cache=True, nogil=True)
+# @numba_njit_if_available(cache=True, nogil=True)
 def pvoight_pink_beam(alpha,
                       beta,
                       uvw,
@@ -601,7 +604,7 @@ def computespectrum_pvtch(uvw,
         spec += II * pv
     return spec
 
-@numba_njit_if_available(cache=True, nogil=True, parallel=True)
+# @numba_njit_if_available(cache=True, nogil=True, parallel=True)
 def computespectrum_pvpink(alpha,
                  beta,
                  uvw,
@@ -767,7 +770,7 @@ def calc_Iobs_pvtch(uvw,
 
     return Iobs
 
-@numba_njit_if_available(cache=True, nogil=True)
+# @numba_njit_if_available(cache=True, nogil=True)
 def calc_Iobs_pvpink(alpha,
             beta,
             uvw,

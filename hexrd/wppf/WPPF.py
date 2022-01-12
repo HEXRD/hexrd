@@ -340,22 +340,27 @@ class LeBail:
         self.tth = {}
         self.hkls = {}
         self.dsp = {}
+        self.sf_hkl_factors = {}
         for p in self.phases:
             self.tth[p] = {}
             self.hkls[p] = {}
             self.dsp[p] = {}
+            self.sf_hkl_factors[p] = {}
             for k, l in self.phases.wavelength.items():
                 t = self.phases[p].getTTh(l[0].getVal('nm'))
+                sf_f = self.phases[p].get_sf_hkl_factors()
                 allowed = self.phases[p].wavelength_allowed_hkls
                 t = t[allowed]
                 hkl = self.phases[p].hkls[allowed, :]
                 dsp = self.phases[p].dsp[allowed]
+                sf_f = sf_f[allowed]
                 tth_min = min(self.tth_min)
                 tth_max = max(self.tth_max)
                 limit = np.logical_and(t >= tth_min, t <= tth_max)
                 self.tth[p][k] = t[limit]
                 self.hkls[p][k] = hkl[limit, :]
                 self.dsp[p][k] = dsp[limit]
+                self.sf_hkl_factors[p][k] = sf_f[limit]
 
     def initialize_Icalc(self):
         """
@@ -438,7 +443,13 @@ class LeBail:
 
                 shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
                 trns_c = np.sin(np.radians(self.tth[p][k])) * self.trns
-                tth = self.tth[p][k] + self.zero_error + shft_c + trns_c
+                sf_shift = self.sf_alpha*np.tan(np.radians(self.tth[p][k]))*\
+                           self.sf_hkl_factors[p][k]
+                # stth = np.sin(np.radians(self.tth[p][k]))
+                # smtth = stth * (1. + self.sf_alpha * self.sf_hkl_factors[p][k])
+                # smtth[np.abs(smtth) > 1.] = 1. # dealing with some edge cases
+                # tth = np.degrees(np.arcsin(smtth)) + self.zero_error + shft_c + trns_c
+                tth = self.tth[p][k] + self.zero_error + shft_c + trns_c + sf_shift
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
@@ -543,7 +554,14 @@ class LeBail:
 
                 shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
                 trns_c = np.sin(np.radians(self.tth[p][k])) * self.trns
-                tth = self.tth[p][k] + self.zero_error + shft_c + trns_c
+                sf_shift = self.sf_alpha*np.tan(np.radians(self.tth[p][k]))*\
+                           self.sf_hkl_factors[p][k]
+                # stth = np.sin(np.radians(self.tth[p][k]))
+                # smtth = stth * (1. + self.sf_alpha * self.sf_hkl_factors[p][k])
+                # smtth[np.abs(smtth) > 1.] = 1. # dealing with some edge cases
+                # tth = np.degrees(np.arcsin(smtth)) + self.zero_error + shft_c + trns_c
+
+                tth = self.tth[p][k] + self.zero_error + shft_c + trns_c + sf_shift
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
@@ -913,6 +931,14 @@ class LeBail:
     @trns.setter
     def trns(self, val):
         self._trns = val
+
+    @property
+    def sf_alpha(self):
+        return self._sf_alpha
+    
+    @sf_alpha.setter
+    def sf_alpha(self, val):
+        self._sf_alpha = val
 
     @property
     def peakshape(self):
