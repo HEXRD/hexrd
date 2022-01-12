@@ -4,28 +4,9 @@ The HEXRD project is developing a cross-platform, open-source library for the ge
 
 # Installing
 
-Requires Python 3.8+
+Requires Python 3.8+ (Python 3.9 recommended).  It is generally recommended for interactive use to install `hexrd` into a fresh environment with Spyder and Jupyter as well.  The GUI is in a separate package [here](https://github.com/hexrd/hexrdgui).
 
-### OSX
-
-On OSX `hexrd` requires Python from conda-forge, to ensure it is built with the
-latest SDK. See the following issue for more details: https://github.com/HEXRD/hexrdgui/issues/505.
-This can be installed using the following command:
-
-```bash
-conda install -c conda-forge python=3.8
-```
-
-#### Big Sur (OS X 11)
-
-OS X 11 does not work with the Python from conda-forge. Please install a the version
-from the HEXRD channel
-
-```bash
-conda install -c hexrd python=3.8.4
-```
-
-## conda (release)
+## conda (main releases)
 
 To install the latest stable release
 
@@ -34,7 +15,7 @@ conda install -c hexrd -c conda-forge hexrd
 ```
 
 ## conda (prerelease)
-To install the latest changes on master, do the following.  Note that this release may be unstable.
+To install the latest changes on master, do the following (Note that this release may be unstable!):
 
 ```bash
 conda install -c hexrd/label/hexrd-prerelease -c hexrd -c conda-forge hexrd
@@ -45,15 +26,37 @@ conda install -c hexrd/label/hexrd-prerelease -c hexrd -c conda-forge hexrd
 There is currently a CLI for far-field HEDM analysis (a.k.a. 3DXRD)
 
 ```bash
-hexrd
+> hexrd --help
+
+usage: hexrd [-h] [--debug] [--inst-profile INST_PROFILE] [--version] command ...
+
+High energy diffraction data analysis
+
+positional arguments:
+  command
+    help                Displays a list of available conda commands and their help strings.
+    test                runs the hexrd test suite
+    documentation       Launches the hexrd documentation (work in progress) in a web browser
+    find-orientations   Process rotation image series to find grain orientations
+    fit-grains          Extracts G vectors, grain position and strain
+    pickle23            modify old material files (pickles) to be compatible with hexrd3; it makes a backup and overwrites the
+                        original file
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --debug               verbose reporting
+  --inst-profile INST_PROFILE
+                        use the following files as source for functions to instrument
+  --version             show program's version number and exit
+
 ```
 
 # Development
 
-Requires Python 3.8+ and a C compiler (_e.g._, `gcc`).  First clone the Git repository
+Requires Python 3.8+ and a C compiler (_e.g._, `gcc` or VisualStudio).  First clone the Git repository:
 
 ```bash
-git clone https://github.com/HEXRD/hexrd.git
+git clone https://github.com/hexrd/hexrd.git
 ```
 
 ## pip
@@ -67,29 +70,19 @@ pip install -e hexrd
 It is highly recommended to install hexrd in its own virtual env
 
 ```bash
-conda create --name hexrd
-conda activate hexrd
+conda create --hexrd-dev python=3.9 hexrd
+conda activate hexrd-dev
 ```
 
-### Linux
+### Linux and Mac OS
 ```bash
 # First, make sure python3.8+ is installed in your target env.
 # If it is not, run the following command:
-conda install -c conda-forge python=3.8
-# Install deps using conda package
-conda install -c hexrd -c conda-forge hexrd
-# Now using pip to link repo's into environment for development
-CONDA_BUILD=1 pip install --no-build-isolation --no-deps -U -e hexrd
-```
+conda install -c conda-forge python=3.9
 
-### Mac OS
-```bash
-# First, make sure python3.8+ is installed in your target env.
-# On OSX you will need to use the Python package from conda-forge
-# See the following issue for more details: https://github.com/HEXRD/hexrdgui/issues/505
-conda install -c conda-forge python=3.8
 # Install deps using conda package
-conda install -c hexrd -c conda-forge hexrd
+conda install -c hexrd/label/hexrd-prerelease -c hexrd -c conda-forge hexrd
+
 # Now using pip to link repo's into environment for development
 CONDA_BUILD=1 pip install --no-build-isolation --no-deps -U -e hexrd
 ```
@@ -98,10 +91,14 @@ CONDA_BUILD=1 pip install --no-build-isolation --no-deps -U -e hexrd
 ```bash
 # First, make sure python3.8+ is installed in your target env.
 # If it is not, run the following command:
-conda install -c conda-forge python=3.8
+conda install -c conda-forge python=3.9
+
 # Install deps using conda package
-conda install -c hexrd -c conda-forge hexrd
+conda install -c hexrd/label/hexrd-prerelease -c hexrd -c conda-forge hexrd
+
 # Now using pip to link repo's into environment for development
 set CONDA_BUILD=1
 pip install --no-build-isolation --no-deps -U -e hexrd
 ```
+
+Have fun!
