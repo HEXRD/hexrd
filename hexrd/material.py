@@ -204,6 +204,7 @@ class Material(object):
             #
             self._atomtype = Material.DFLT_ATOMTYPE
             self._charge = Material.DFLT_CHARGE
+            self._tThWidth = Material.DFLT_TTH
             #
 
         self._newUnitcell()
@@ -307,7 +308,7 @@ class Material(object):
             laue = self.unitcell._laueGroup
             self._pData = PData(hkls, lprm, laue,
                                 self._beamEnergy, Material.DFLT_STR,
-                                tThWidth=Material.DFLT_TTH,
+                                tThWidth=self._tThWidth,
                                 tThMax=Material.DFLT_TTHMAX)
 
             self.set_default_exclusions()
@@ -610,6 +611,8 @@ class Material(object):
         self._charge = charge
         self._sgsetting = 0
 
+        self._tThWidth = Material.DFLT_TTH
+
     def _readHDFxtal(self, fhdf=DFLT_NAME, xtal=DFLT_NAME):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -694,6 +697,14 @@ class Material(object):
                                    dtype=numpy.float64).item()
                 self._dmin = _angstroms(dmin*10.)
 
+        if 'tThWidth' in gid:
+            tThWidth = numpy.array(gid.get('tThWidth'),
+                   dtype=numpy.float64).item()
+        else:
+            tThWidth = Material.DFLT_TTH
+
+        self._tThWidth = numpy.radians(tThWidth)
+
         if('hkls' in gid):
             self.hkl_from_file = numpy.array(gid.get('hkls'),
                                              dtype=numpy.int32)
@@ -720,6 +731,7 @@ class Material(object):
         AtomInfo['stiffness'] = self.unitcell.stiffness
         AtomInfo['hkls'] = self.planeData.getHKLs()
         AtomInfo['dmin'] = self.unitcell.dmin
+        AtomInfo['tThWidth'] = numpy.degrees(self.planeData.tThWidth)
         '''
         lattice parameters
         '''
