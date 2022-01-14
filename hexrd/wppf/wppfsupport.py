@@ -66,8 +66,7 @@ def _generate_default_parameters_pseudovoight(params):
          "Y": [1.90994, 0., 100., False],
          "Xe": [0., 0., 1, False],
          "Ye": [0., 0., 1, False],
-         "Xs": [0., 0., 1, False],
-         "sf_alpha": [0., 0., 1., False]
+         "Xs": [0., 0., 1, False]
          }
 
     for k, v in p.items():

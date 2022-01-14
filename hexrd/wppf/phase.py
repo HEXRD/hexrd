@@ -246,8 +246,7 @@ class Material_LeBail:
         for g in hkls:
             gsym = self.CalcStar(g, 'r')
             L0 = np.sum(gsym,axis=1)
-            sign = np.mod(np.abs(L0),3)
-            sign[sign == 2] = -1
+            sign = -np.mod(L0,3)
             multiplicity.append(gsym.shape[0])
             Lfact.append(np.sum(L0*sign))
 
