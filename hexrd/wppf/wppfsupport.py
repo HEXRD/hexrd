@@ -66,8 +66,7 @@ def _generate_default_parameters_pseudovoight(params):
          "Y": [1.90994, 0., 100., False],
          "Xe": [0., 0., 1, False],
          "Ye": [0., 0., 1, False],
-         "Xs": [0., 0., 1, False],
-         "sf_alpha": [0., 0., 1., False]
+         "Xs": [0., 0., 1, False]
          }
 
     for k, v in p.items():
@@ -145,6 +144,22 @@ def _add_chebyshev_background(params,
                    min=-np.inf,
                    max=np.inf,
                    vary=False)
+
+def _add_stacking_fault_parameters(params,
+                                   mat):
+    """
+    add stacking fault parameters for cubic systems only
+    """
+    phase_name = mat.name
+    if mat.sgnum >= 195 and mat.sgnum <= 230:
+        sf_alpha_name = f"{phase_name}_sf_alpha" 
+        if isinstance(params, Parameters):
+            params.add(sf_alpha_name, value=0., lb=0.,
+                       ub=1., vary=False)
+        elif isinstance(params, Parameters_lmfit):
+            params.add(sf_alpha_name, value=0., min=0.,
+                       max=1., vary=False)
+>>>>>>> d9cb9bb (stacking fault parameter alpha added for cubic systems.)
 
 def _add_Shkl_terms(params,
                     mat,
@@ -376,6 +391,7 @@ def _generate_default_parameters_LeBail(mat,
             m = mat[p]
             _add_Shkl_terms(params, m)
             _add_lp_to_params(params, m)
+            _add_stacking_fault_parameters(params, m)
 
     elif isinstance(mat, Phases_Rietveld):
         """
@@ -387,6 +403,7 @@ def _generate_default_parameters_LeBail(mat,
             mm = m[k[0]]
             _add_Shkl_terms(params, mm)
             _add_lp_to_params(params, mm)
+            _add_stacking_fault_parameters(params, mm)
 
     elif isinstance(mat, Material):
         """
@@ -395,6 +412,7 @@ def _generate_default_parameters_LeBail(mat,
         """
         _add_Shkl_terms(params, mat)
         _add_lp_to_params(params, mat)
+        _add_stacking_fault_parameters(params, mat)
 
     elif isinstance(mat, list):
         """
@@ -403,7 +421,8 @@ def _generate_default_parameters_LeBail(mat,
         for m in mat:
             _add_Shkl_terms(params, m)
             _add_lp_to_params(params, m)
-
+            _add_stacking_fault_parameters(params, m)
+            
     elif isinstance(mat, dict):
         """
         dictionary of materials class
@@ -411,7 +430,7 @@ def _generate_default_parameters_LeBail(mat,
         for k, m in mat.items():
             _add_Shkl_terms(params, m)
             _add_lp_to_params(params, m)
-
+            _add_stacking_fault_parameters(params, m)
     else:
         msg = (f"_generate_default_parameters: "
                f"incorrect argument. only list, dict or "

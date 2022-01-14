@@ -30,8 +30,8 @@ import copy
 from hexrd import constants
 from hexrd.utils.decorators import numba_njit_if_available
 from numba import vectorize, float64
-# from hexrd.fitting.peakfunctions import erfc, exp1exp
-from scipy.special import erfc, exp1
+from hexrd.fitting.peakfunctions import erfc, exp1exp
+# from scipy.special import erfc, exp1
 
 if constants.USE_NUMBA:
     from numba import prange
@@ -417,7 +417,7 @@ def _gaussian_pink_beam(alpha,
     t1 = erfc(y)
     t2 = erfc(z)
     g = np.zeros(tth_list.shape)
-    # zmask = np.abs(del_tth) > 20.0 
+    zmask = np.abs(del_tth) > 5.0 
     g = (0.5*(alpha*beta)/(alpha + beta)) \
         * np.exp(u)*t1 + \
             np.exp(v)*t2
@@ -447,10 +447,10 @@ def _lorentzian_pink_beam(alpha,
 
     y = np.zeros(tth_list.shape)
 
-    # f1 = exp1exp(p)
-    # f2 = exp1exp(q)
-    f1 = exp1(p)
-    f2 = exp1(q)
+    f1 = exp1exp(p)
+    f2 = exp1exp(q)
+    # f1 = exp1(p)
+    # f2 = exp1(q)
 
     y = -(alpha*beta)/(np.pi*(alpha+beta))*(f1+f2).imag
     

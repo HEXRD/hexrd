@@ -372,7 +372,7 @@ class LeBail:
 
         if self.intensity_init is None:
             if self.spectrum_expt._y.max() > 0:
-                n10 = np.floor(np.log10(self.spectrum_expt._y.max())) - 2
+                n10 = np.floor(np.log10(self.spectrum_expt._y.max())) - 1
             else:
                 n10 = 0
 
@@ -439,11 +439,15 @@ class LeBail:
 
             for k, l in self.phases.wavelength.items():
 
+                name = self.phases[p].name
+                sf_alpha_n = f"self.{name}_sf_alpha"
+                sf_alpha = eval(sf_alpha_n)
+
                 Ic = self.Icalc[p][k]
 
                 shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
                 trns_c = np.sin(np.radians(self.tth[p][k])) * self.trns
-                sf_shift = self.sf_alpha*np.tan(np.radians(self.tth[p][k]))*\
+                sf_shift = sf_alpha*np.tan(np.radians(self.tth[p][k]))*\
                            self.sf_hkl_factors[p][k]
                 # stth = np.sin(np.radians(self.tth[p][k]))
                 # smtth = stth * (1. + self.sf_alpha * self.sf_hkl_factors[p][k])
@@ -455,7 +459,6 @@ class LeBail:
                 hkls = self.hkls[p][k]
                 # n = np.min((tth.shape[0], Ic.shape[0]))
                 shkl = self.phases[p].shkl
-                name = self.phases[p].name
                 eta_n = f"self.{name}_eta_fwhm"
                 eta_fwhm = eval(eta_n)
                 strain_direction_dot_product = 0.0
@@ -550,11 +553,15 @@ class LeBail:
             self.Iobs[p] = {}
             for k, l in self.phases.wavelength.items():
 
+                name = self.phases[p].name
+                sf_alpha_n = f"self.{name}_sf_alpha"
+                sf_alpha = eval(sf_alpha_n)
+
                 Ic = self.Icalc[p][k]
 
                 shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
                 trns_c = np.sin(np.radians(self.tth[p][k])) * self.trns
-                sf_shift = self.sf_alpha*np.tan(np.radians(self.tth[p][k]))*\
+                sf_shift = sf_alpha*np.tan(np.radians(self.tth[p][k]))*\
                            self.sf_hkl_factors[p][k]
                 # stth = np.sin(np.radians(self.tth[p][k]))
                 # smtth = stth * (1. + self.sf_alpha * self.sf_hkl_factors[p][k])
