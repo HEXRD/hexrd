@@ -477,6 +477,7 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
     """
     @DATE 02/09/2021 SS added hkls, exclusions and dmin to
     material.h5 file output
+    @Date 01/14/2022 SS added tThWidth to materials file
     """
 
     # Add the path prefix if we have been given one
@@ -513,6 +514,11 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
 
     did = gid.create_dataset("stiffness", (6, 6), dtype=np.float64)
     did.write_direct(np.array(AtomInfo['stiffness'], dtype=np.float64))
+
+
+    if "tThWidth" in AtomInfo: 
+        did = gid.create_dataset("tThWidth", (1,), dtype=np.float64)
+        did.write_direct(np.array([AtomInfo['tThWidth']], dtype=np.float64))
 
     if 'hkls' in AtomInfo:
         did = gid.create_dataset("hkls",
