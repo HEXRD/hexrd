@@ -18,7 +18,7 @@ class ImageSeriesAdapter(ImageSeriesABC, metaclass=_RegisterAdapterClass):
 
 # import all adapter modules
 
-from . import array, framecache, hdf5, imagefiles, metadata, trivial
+from . import array, framecache, hdf5, imagefiles, rawimage, metadata, trivial
 
 #for loader, name, ispkg in pkgutil.iter_modules(__path__):
 #    if name is not 'registry':
