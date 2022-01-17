@@ -126,13 +126,6 @@ class RawImageSeriesAdapter(ImageSeriesAdapter):
         """shape of individual image frame"""
         return self._shape
 
-    def dark(self, nframes):
-        """create background image from the first n frames
-
-        nframes - number of frames to use
-        """
-        return stats.median(self, nframes)
-
     @property
     def metadata(self):
         """imageseries metadata"""
