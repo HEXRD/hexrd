@@ -48,6 +48,18 @@ xtol = constants.sqrt_epsf
 inf = np.inf
 minf = -inf
 
+# dcs param values
+# !!! converted from deg^-1 in Von Dreele's paper
+alpha0, alpha1, beta0, beta1 = np.r_[14.4, 0., 3.016, -7.94]
+
+
+def cnst_fit_obj(x, b):
+    return np.ones_like(x)*b
+
+
+def cnst_fit_jac(x, b):
+    return np.vstack([np.ones_like(x)]).T
+
 
 def lin_fit_obj(x, m, b):
     return m*np.asarray(x) + b
@@ -56,6 +68,16 @@ def lin_fit_obj(x, m, b):
 def lin_fit_jac(x, m, b):
     return np.vstack([x, np.ones_like(x)]).T
 
+
+def quad_fit_obj(x, a, b, c):
+    x = np.asarray(x)
+    return a*x**2 + b*x + c
+
+
+def quad_fit_jac(x, a, b, c):
+    x = np.asarray(x)
+    return a*x**2 + b*x + c
+    return np.vstack([x**2, x, np.ones_like(x)]).T
 
 # =============================================================================
 # 1-D Peak Fitting
@@ -78,6 +100,11 @@ def estimate_pk_parms_1d(x, f, pktype='pvoigt'):
     p -- (m) ndarray containing initial guesses for parameters for the input
     peaktype
     (see peak function help for what each parameters corresponds to)
+
+    Notes
+    -----
+    !!! LINEAR BACKGROUND ONLY
+    !!! ASSUMES ANGULAR SPECTRA IN RADIANS (DCS PARAMS)
     """
     npts = len(x)
     assert len(f) == npts, "ordinate and data must be same length!"
@@ -88,7 +115,7 @@ def estimate_pk_parms_1d(x, f, pktype='pvoigt'):
 
     # fit linear bg and grab params
     bp, _ = optimize.curve_fit(lin_fit_obj, x, bkg, jac=lin_fit_jac)
-    bg0 = bp[-1]
+    bg0 = bp[1]
     bg1 = bp[0]
 
     # set remaining params
@@ -124,6 +151,9 @@ def estimate_pk_parms_1d(x, f, pktype='pvoigt'):
         p = [A, x0, FWHM, 0.5, bg0, bg1]
     elif pktype == 'split_pvoigt':
         p = [A, x0, FWHM, FWHM, 0.5, 0.5, bg0, bg1]
+    elif pktype == 'pink_beam_dcs':
+        # A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l
+        p = [A, x0, alpha0, alpha1, beta0, beta1, FWHM, FWHM, bg0, bg1]
     else:
         raise RuntimeError("pktype '%s' not understood" % pktype)
 
@@ -197,6 +227,8 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
             ftol=ftol, xtol=xtol)
 
     elif pktype == 'dcs_pinkbeam':
+        # !!!: for some reason the 'trf' method was not behaving well,
+        #      so switched to 'lm'
         lb = np.array([0.0, x.min(), -100., -100.,
                        -100., -100., 0., 0.,
                        -np.inf, -np.inf, -np.inf])
@@ -206,8 +238,8 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
         res = optimize.least_squares(
             fit_pk_obj_1d, p0,
             jac='2-point',
-            bounds=(lb, ub),
-            method='trf',
+            # bounds=(),  # (lb, ub),
+            method='lm',
             args=fitArgs,
             ftol=ftol,
             xtol=xtol)
@@ -277,7 +309,7 @@ def fit_mpk_parms_1d(
 def estimate_mpk_parms_1d(
         pk_pos_0, x, f,
         pktype='pvoigt', bgtype='linear',
-        fwhm_guess=0.07, center_bnd=0.02,
+        fwhm_guess=None, center_bnd=0.02,
         amp_lim_mult=[0.1, 10.], fwhm_lim_mult=[0.5, 2.]
         ):
     """
@@ -323,6 +355,8 @@ def estimate_mpk_parms_1d(
     if(len(center_bnd) < 2):
         center_bnd = center_bnd*np.ones(num_pks)
 
+    if fwhm_guess is None:
+        fwhm_guess = (np.max(x) - np.min(x))/(20.*num_pks)
     fwhm_guess = np.atleast_1d(fwhm_guess)
     if(len(fwhm_guess) < 2):
         fwhm_guess = fwhm_guess*np.ones(num_pks)
@@ -335,50 +369,54 @@ def estimate_mpk_parms_1d(
 
     # fit linear bg and grab params
     bp, _ = optimize.curve_fit(lin_fit_obj, x, bkg, jac=lin_fit_jac)
-    bg0 = bp[-1]
+    bg0 = bp[1]
     bg1 = bp[0]
 
-    if pktype == 'gaussian' or pktype == 'lorentzian':
-        p0tmp = np.zeros([num_pks, 3])
-        p0tmp_lb = np.zeros([num_pks, 3])
-        p0tmp_ub = np.zeros([num_pks, 3])
+    # make lin bkg subtracted spectrum
+    fsubtr = f - lin_fit_obj(x, *bp)
 
+    # number of parmaters from reference dict
+    npp = pkfuncs.mpeak_nparams_dict[pktype]
+
+    p0tmp = np.zeros([num_pks, npp])
+    p0tmp_lb = np.zeros([num_pks, npp])
+    p0tmp_ub = np.zeros([num_pks, npp])
+
+    # case processing
+    # !!! used to use (f[pt] - min_val) for ampl
+    if pktype == 'gaussian' or pktype == 'lorentzian':
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
             pt = np.argmin(np.abs(x - pk_pos_0[ii]))
             p0tmp[ii, :] = [
-                (f[pt] - min_val),
+                fsubtr[pt],
                 pk_pos_0[ii],
                 fwhm_guess[ii]
             ]
             p0tmp_lb[ii, :] = [
-                (f[pt] - min_val)*amp_lim_mult[0],
+                fsubtr[pt]*amp_lim_mult[0],
                 pk_pos_0[ii] - center_bnd[ii],
                 fwhm_guess[ii]*fwhm_lim_mult[0]
             ]
             p0tmp_ub[ii, :] = [
-                (f[pt] - min_val)*amp_lim_mult[1],
+                fsubtr[pt]*amp_lim_mult[1],
                 pk_pos_0[ii] + center_bnd[ii],
                 fwhm_guess[ii]*fwhm_lim_mult[1]
             ]
     elif pktype == 'pvoigt':
-        p0tmp = np.zeros([num_pks, 4])
-        p0tmp_lb = np.zeros([num_pks, 4])
-        p0tmp_ub = np.zeros([num_pks, 4])
-
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
             pt = np.argmin(np.abs(x - pk_pos_0[ii]))
             p0tmp[ii, :] = [
-                (f[pt] - min_val),
+                fsubtr[pt],
                 pk_pos_0[ii],
                 fwhm_guess[ii],
                 0.5
             ]
             p0tmp_lb[ii, :] = [
-                (f[pt] - min_val)*amp_lim_mult[0],
+                fsubtr[pt]*amp_lim_mult[0],
                 pk_pos_0[ii] - center_bnd[ii],
                 fwhm_guess[ii]*fwhm_lim_mult[0],
                 0.0
@@ -390,16 +428,12 @@ def estimate_mpk_parms_1d(
                 1.0
             ]
     elif pktype == 'split_pvoigt':
-        p0tmp = np.zeros([num_pks, 6])
-        p0tmp_lb = np.zeros([num_pks, 6])
-        p0tmp_ub = np.zeros([num_pks, 6])
-
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
             pt = np.argmin(np.abs(x - pk_pos_0[ii]))
             p0tmp[ii, :] = [
-                (f[pt] - min_val),
+                fsubtr[pt],
                 pk_pos_0[ii],
                 fwhm_guess[ii],
                 fwhm_guess[ii],
@@ -407,7 +441,7 @@ def estimate_mpk_parms_1d(
                 0.5
             ]
             p0tmp_lb[ii, :] = [
-                (f[pt] - min_val)*amp_lim_mult[0],
+                fsubtr[pt]*amp_lim_mult[0],
                 pk_pos_0[ii] - center_bnd[ii],
                 fwhm_guess[ii]*fwhm_lim_mult[0],
                 fwhm_guess[ii]*fwhm_lim_mult[0],
@@ -415,34 +449,51 @@ def estimate_mpk_parms_1d(
                 0.0
             ]
             p0tmp_ub[ii, :] = [
-                (f[pt] - min_val)*amp_lim_mult[1],
+                fsubtr[pt]*amp_lim_mult[1],
                 pk_pos_0[ii] + center_bnd[ii],
                 fwhm_guess[ii]*fwhm_lim_mult[1],
                 fwhm_guess[ii]*fwhm_lim_mult[1],
                 1.0,
                 1.0
             ]
+    elif pktype == 'pink_beam_dcs':
+        # x is just 2theta values
+        # make guess for the initital parameters
+        for ii in np.arange(num_pks):
+            pt = np.argmin(np.abs(x - pk_pos_0[ii]))
+            p0tmp[ii, :] = [
+                fsubtr[pt],
+                pk_pos_0[ii],
+                alpha0,
+                alpha1,
+                beta0,
+                beta1,
+                fwhm_guess[ii],
+                fwhm_guess[ii],
+            ]
+            p0tmp_lb[ii, :] = [
+                fsubtr[pt]*amp_lim_mult[0],
+                pk_pos_0[ii] - center_bnd[ii],
+                -1e5,
+                -1e5,
+                -1e5,
+                -1e5,
+                fwhm_guess[ii]*fwhm_lim_mult[0],
+                fwhm_guess[ii]*fwhm_lim_mult[0],
+            ]
+            p0tmp_ub[ii, :] = [
+                fsubtr[pt]*amp_lim_mult[1],
+                pk_pos_0[ii] + center_bnd[ii],
+                1e5,
+                1e5,
+                1e5,
+                1e5,
+                fwhm_guess[ii]*fwhm_lim_mult[1],
+                fwhm_guess[ii]*fwhm_lim_mult[1],
+            ]
 
-    if bgtype == 'linear':
-        num_pk_parms = len(p0tmp.ravel())
-        p0 = np.zeros(num_pk_parms+2)
-        lb = np.zeros(num_pk_parms+2)
-        ub = np.zeros(num_pk_parms+2)
-        p0[:num_pk_parms] = p0tmp.ravel()
-        lb[:num_pk_parms] = p0tmp_lb.ravel()
-        ub[:num_pk_parms] = p0tmp_ub.ravel()
-
-        p0[-2] = bg0
-        p0[-1] = bg1
-
-        lb[-2] = minf
-        lb[-1] = minf
-
-        ub[-2] = inf
-        ub[-1] = inf
-
-    elif bgtype == 'constant':
-        num_pk_parms = len(p0tmp.ravel())
+    num_pk_parms = len(p0tmp.ravel())
+    if bgtype == 'constant':
         p0 = np.zeros(num_pk_parms+1)
         lb = np.zeros(num_pk_parms+1)
         ub = np.zeros(num_pk_parms+1)
@@ -454,8 +505,20 @@ def estimate_mpk_parms_1d(
         lb[-1] = minf
         ub[-1] = inf
 
+    elif bgtype == 'linear':
+        p0 = np.zeros(num_pk_parms+2)
+        lb = np.zeros(num_pk_parms+2)
+        ub = np.zeros(num_pk_parms+2)
+        p0[:num_pk_parms] = p0tmp.ravel()
+        lb[:num_pk_parms] = p0tmp_lb.ravel()
+        ub[:num_pk_parms] = p0tmp_ub.ravel()
+
+        p0[-2] = bg0
+        p0[-1] = bg1
+        lb[-2:] = minf
+        ub[-2:] = inf
+
     elif bgtype == 'quadratic':
-        num_pk_parms = len(p0tmp.ravel())
         p0 = np.zeros(num_pk_parms+3)
         lb = np.zeros(num_pk_parms+3)
         ub = np.zeros(num_pk_parms+3)
@@ -465,12 +528,21 @@ def estimate_mpk_parms_1d(
 
         p0[-3] = bg0
         p0[-2] = bg1
-        lb[-3] = minf
-        lb[-2] = minf
-        lb[-1] = minf
-        ub[-3] = inf
-        ub[-2] = inf
-        ub[-1] = inf
+        lb[-3:] = minf
+        ub[-3:] = inf
+
+    elif bgtype == 'cubic':
+        p0 = np.zeros(num_pk_parms+4)
+        lb = np.zeros(num_pk_parms+4)
+        ub = np.zeros(num_pk_parms+4)
+        p0[:num_pk_parms] = p0tmp.ravel()
+        lb[:num_pk_parms] = p0tmp_lb.ravel()
+        ub[:num_pk_parms] = p0tmp_ub.ravel()
+
+        p0[-4] = bg0
+        p0[-3] = bg1
+        lb[-4:] = minf
+        ub[-4:] = inf
 
     return p0, (lb, ub)
 
@@ -486,6 +558,30 @@ def eval_pk_deriv_1d(p, x, y0, pktype):
 
 
 def fit_pk_obj_1d(p, x, f0, pktype):
+    """
+    Return residual between specified peak function and data.
+
+    Parameters
+    ----------
+    p : TYPE
+        DESCRIPTION.
+    x : TYPE
+        DESCRIPTION.
+    f0 : TYPE
+        DESCRIPTION.
+    pktype : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    resd : TYPE
+        DESCRIPTION.
+
+    Notes
+    -----
+    !!! These objective functions all have a linear background added in their
+        definition in peakfuncs
+    """
 
     ww = np.ones(f0.shape)
     if pktype == 'gaussian':
@@ -503,7 +599,7 @@ def fit_pk_obj_1d(p, x, f0, pktype):
         ww = 1./np.sqrt(f0)
         ww[np.isnan(ww)] = 0.0
 
-    resd = (f-f0)*ww
+    resd = (f - f0)*ww
     return resd
 
 
@@ -516,6 +612,10 @@ def fit_pk_obj_1d_bnded(p, x, f0, pktype, weight, lb, ub):
         f = pkfuncs.pvoigt1d(p, x)
     elif pktype == 'split_pvoigt':
         f = pkfuncs.split_pvoigt1d(p, x)
+    elif pktype == 'dcs_pinkbeam':
+        f = pkfuncs.pink_beam_dcs(p, x)
+        ww = 1./np.sqrt(f0)
+        ww[np.isnan(ww)] = 0.0
 
     num_data = len(f)
     num_parm = len(p)
