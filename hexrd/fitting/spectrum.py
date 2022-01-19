@@ -16,6 +16,13 @@ from utils import (_calc_alpha, _calc_beta,
                    _set_equality_constraints,
                    _set_peak_center_bounds)
 
+# !!! FOR TESTING ONLY
+import h5py
+from hexrd.fitting import fitpeak
+from hexrd import material
+from hexrd import valunits
+from matplotlib import pyplot as plt
+
 # =============================================================================
 # PARAMETERS
 # =============================================================================
@@ -141,14 +148,11 @@ def _build_composite_model(npeaks=1, pktype='gaussian', bgtype='linear'):
 
     return spectrum_model
 
+
 # =============================================================================
 # %% TESTING
 # =============================================================================
-import h5py
-from hexrd.fitting import fitpeak
-from hexrd import material
-from hexrd import valunits
-from matplotlib import pyplot as plt
+
 
 # fit real snippet
 # pv = h5py.File('./test/DCS_Ceria_pv.h5', 'r')
@@ -307,6 +311,7 @@ ax.set_xlabel(r'$2\theta$ [degrees]')
 ax.set_ylabel(r'Intensity [arb.]')
 ax.legend(loc='upper right')
 fig.suptitle(r'multi-peak fitting for %s + %s background' % (pktype, bgtype))
+
 
 # %%
 class SpectrumModel(object):
