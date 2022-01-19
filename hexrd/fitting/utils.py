@@ -65,7 +65,7 @@ def _set_width_mixing_bounds(params, min_w=0.01, max_w=np.inf):
 def _set_peak_center_bounds(params, window_range, min_sep=0.01):
     target_pnames = _extract_parameters_by_name(params, 'cen')
     npks = len(target_pnames)
-    if npks > 0:
+    if npks > 1:
         center_values = []
         for pname in target_pnames:
             # will need these to sort the peaks with increasing centers
@@ -106,7 +106,9 @@ def _set_peak_center_bounds(params, window_range, min_sep=0.01):
             curr_peak.expr = '+'.join([prev_peak.name, new_pname])
             prev_peak = curr_peak
     else:
-        raise RuntimeWarning("Found <=1 peak; exiting")
+        msg = "Found no peaks; setting no bounds"
+        print(msg)
+        # raise RuntimeWarning(msg)
 
 
 # =============================================================================
@@ -316,3 +318,7 @@ def _lorentzian_pink_beam(p, x):
     y *= A
 
     return y
+
+# =============================================================================
+# pseudo-Voigt
+# =============================================================================

@@ -79,6 +79,13 @@ def quad_fit_jac(x, a, b, c):
     return a*x**2 + b*x + c
     return np.vstack([x**2, x, np.ones_like(x)]).T
 
+
+def _amplitude_guess(x, x0, y, fwhm):
+    pt_l = np.argmin(np.abs(x - (x0 - 0.5*fwhm)))
+    pt_h = np.argmin(np.abs(x - (x0 + 0.5*fwhm)))
+    return np.max(y[pt_l:pt_h + 1])
+
+
 # =============================================================================
 # 1-D Peak Fitting
 # =============================================================================
@@ -388,19 +395,19 @@ def estimate_mpk_parms_1d(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            pt = np.argmin(np.abs(x - pk_pos_0[ii]))
+            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess)
             p0tmp[ii, :] = [
-                fsubtr[pt],
+                amp_guess,
                 pk_pos_0[ii],
                 fwhm_guess[ii]
             ]
             p0tmp_lb[ii, :] = [
-                fsubtr[pt]*amp_lim_mult[0],
+                amp_guess*amp_lim_mult[0],
                 pk_pos_0[ii] - center_bnd[ii],
                 fwhm_guess[ii]*fwhm_lim_mult[0]
             ]
             p0tmp_ub[ii, :] = [
-                fsubtr[pt]*amp_lim_mult[1],
+                amp_guess*amp_lim_mult[1],
                 pk_pos_0[ii] + center_bnd[ii],
                 fwhm_guess[ii]*fwhm_lim_mult[1]
             ]
@@ -408,21 +415,21 @@ def estimate_mpk_parms_1d(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            pt = np.argmin(np.abs(x - pk_pos_0[ii]))
+            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess)
             p0tmp[ii, :] = [
-                fsubtr[pt],
+                amp_guess,
                 pk_pos_0[ii],
                 fwhm_guess[ii],
                 0.5
             ]
             p0tmp_lb[ii, :] = [
-                fsubtr[pt]*amp_lim_mult[0],
+                amp_guess*amp_lim_mult[0],
                 pk_pos_0[ii] - center_bnd[ii],
                 fwhm_guess[ii]*fwhm_lim_mult[0],
                 0.0
             ]
             p0tmp_ub[ii, :] = [
-                (f[pt] - min_val+1.)*amp_lim_mult[1],
+                (amp_guess - min_val + 1.)*amp_lim_mult[1],
                 pk_pos_0[ii] + center_bnd[ii],
                 fwhm_guess[ii]*fwhm_lim_mult[1],
                 1.0
@@ -431,9 +438,9 @@ def estimate_mpk_parms_1d(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            pt = np.argmin(np.abs(x - pk_pos_0[ii]))
+            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess)
             p0tmp[ii, :] = [
-                fsubtr[pt],
+                amp_guess,
                 pk_pos_0[ii],
                 fwhm_guess[ii],
                 fwhm_guess[ii],
@@ -441,7 +448,7 @@ def estimate_mpk_parms_1d(
                 0.5
             ]
             p0tmp_lb[ii, :] = [
-                fsubtr[pt]*amp_lim_mult[0],
+                amp_guess*amp_lim_mult[0],
                 pk_pos_0[ii] - center_bnd[ii],
                 fwhm_guess[ii]*fwhm_lim_mult[0],
                 fwhm_guess[ii]*fwhm_lim_mult[0],
@@ -449,7 +456,7 @@ def estimate_mpk_parms_1d(
                 0.0
             ]
             p0tmp_ub[ii, :] = [
-                fsubtr[pt]*amp_lim_mult[1],
+                amp_guess*amp_lim_mult[1],
                 pk_pos_0[ii] + center_bnd[ii],
                 fwhm_guess[ii]*fwhm_lim_mult[1],
                 fwhm_guess[ii]*fwhm_lim_mult[1],
@@ -460,9 +467,9 @@ def estimate_mpk_parms_1d(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            pt = np.argmin(np.abs(x - pk_pos_0[ii]))
+            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess)
             p0tmp[ii, :] = [
-                fsubtr[pt],
+                amp_guess,
                 pk_pos_0[ii],
                 alpha0,
                 alpha1,
@@ -472,7 +479,7 @@ def estimate_mpk_parms_1d(
                 fwhm_guess[ii],
             ]
             p0tmp_lb[ii, :] = [
-                fsubtr[pt]*amp_lim_mult[0],
+                amp_guess*amp_lim_mult[0],
                 pk_pos_0[ii] - center_bnd[ii],
                 -1e5,
                 -1e5,
@@ -482,7 +489,7 @@ def estimate_mpk_parms_1d(
                 fwhm_guess[ii]*fwhm_lim_mult[0],
             ]
             p0tmp_ub[ii, :] = [
-                fsubtr[pt]*amp_lim_mult[1],
+                amp_guess*amp_lim_mult[1],
                 pk_pos_0[ii] + center_bnd[ii],
                 1e5,
                 1e5,
@@ -494,9 +501,9 @@ def estimate_mpk_parms_1d(
 
     num_pk_parms = len(p0tmp.ravel())
     if bgtype == 'constant':
-        p0 = np.zeros(num_pk_parms+1)
-        lb = np.zeros(num_pk_parms+1)
-        ub = np.zeros(num_pk_parms+1)
+        p0 = np.zeros(num_pk_parms + 1)
+        lb = np.zeros(num_pk_parms + 1)
+        ub = np.zeros(num_pk_parms + 1)
         p0[:num_pk_parms] = p0tmp.ravel()
         lb[:num_pk_parms] = p0tmp_lb.ravel()
         ub[:num_pk_parms] = p0tmp_ub.ravel()
@@ -506,9 +513,9 @@ def estimate_mpk_parms_1d(
         ub[-1] = inf
 
     elif bgtype == 'linear':
-        p0 = np.zeros(num_pk_parms+2)
-        lb = np.zeros(num_pk_parms+2)
-        ub = np.zeros(num_pk_parms+2)
+        p0 = np.zeros(num_pk_parms + 2)
+        lb = np.zeros(num_pk_parms + 2)
+        ub = np.zeros(num_pk_parms + 2)
         p0[:num_pk_parms] = p0tmp.ravel()
         lb[:num_pk_parms] = p0tmp_lb.ravel()
         ub[:num_pk_parms] = p0tmp_ub.ravel()
@@ -519,9 +526,9 @@ def estimate_mpk_parms_1d(
         ub[-2:] = inf
 
     elif bgtype == 'quadratic':
-        p0 = np.zeros(num_pk_parms+3)
-        lb = np.zeros(num_pk_parms+3)
-        ub = np.zeros(num_pk_parms+3)
+        p0 = np.zeros(num_pk_parms + 3)
+        lb = np.zeros(num_pk_parms + 3)
+        ub = np.zeros(num_pk_parms + 3)
         p0[:num_pk_parms] = p0tmp.ravel()
         lb[:num_pk_parms] = p0tmp_lb.ravel()
         ub[:num_pk_parms] = p0tmp_ub.ravel()
@@ -532,9 +539,9 @@ def estimate_mpk_parms_1d(
         ub[-3:] = inf
 
     elif bgtype == 'cubic':
-        p0 = np.zeros(num_pk_parms+4)
-        lb = np.zeros(num_pk_parms+4)
-        ub = np.zeros(num_pk_parms+4)
+        p0 = np.zeros(num_pk_parms + 4)
+        lb = np.zeros(num_pk_parms + 4)
+        ub = np.zeros(num_pk_parms + 4)
         p0[:num_pk_parms] = p0tmp.ravel()
         lb[:num_pk_parms] = p0tmp_lb.ravel()
         ub[:num_pk_parms] = p0tmp_ub.ravel()

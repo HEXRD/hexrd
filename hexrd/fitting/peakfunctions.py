@@ -435,7 +435,7 @@ def split_pvoigt1d(p, x):
     bg0 = p[6]
     bg1 = p[7]
 
-    f = _split_pvoigt1d_no_bg(p[:6], x)+bg0+bg1*x
+    f = _split_pvoigt1d_no_bg(p[:6], x) + bg0 + bg1*x
 
     return f
 
