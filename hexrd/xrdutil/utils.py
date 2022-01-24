@@ -1054,7 +1054,8 @@ def _fetch_hkls_from_planedata(pd):
     return np.hstack(pd.getSymHKLs(withID=True)).T
 
 
-def _filter_hkls_eta_ome(hkls, angles, eta_range, ome_range, return_mask=False):
+def _filter_hkls_eta_ome(hkls, angles, eta_range, ome_range,
+                         return_mask=False):
     """
     given a set of hkls and angles, filter them by the
     eta and omega ranges
