@@ -57,6 +57,8 @@ from hexrd import symmetry
 
 angularUnits = 'radians'  # module-level angle units
 periodDict = {'degrees': 360.0, 'radians': 2*np.pi}
+conversion_to_dict = {'degrees': cnst.r2d, 'radians': cnst.d2r}
+
 I3 = cnst.identity_3x3    # (3, 3) identity matrix
 
 # axes orders, all permutations
@@ -977,7 +979,7 @@ def angles_from_rmat_zxz(rmat):
 
 
 class RotMatEuler(object):
-    def __init__(self, angles, axes_order, extrinsic=True):
+    def __init__(self, angles, axes_order, extrinsic=True, units=angularUnits):
         """
         Abstraction of a rotation matrix defined by Euler angles.
 
@@ -1007,7 +1009,6 @@ class RotMatEuler(object):
 
         TODO: add check that angle input is array-like, len() = 3?
         TODO: add check on extrinsic as bool
-        TODO: add kwarg for units selection (for angles)
         """
         self._axes = np.eye(3)
         self._axes_dict = dict(x=0, y=1, z=2)
@@ -1016,6 +1017,9 @@ class RotMatEuler(object):
         self._angles = angles
         self._axes_order = _check_axes_order(axes_order)
         self._extrinsic = extrinsic
+        if units.lower() not in periodDict.keys():
+            raise RuntimeError("angular units '%s' not understood" % units)
+        self._units = units
 
     @property
     def angles(self):
@@ -1050,6 +1054,20 @@ class RotMatEuler(object):
             raise RuntimeError("input must be a bool")
 
     @property
+    def units(self):
+        return self._units
+
+    @units.setter
+    def units(self, x):
+        if isinstance(x, str) and x in periodDict.keys():
+            if self._units != x:
+                # !!! we are changing units; update self.angles
+                self.angles = conversion_to_dict[x]*np.asarray(self.angles)
+            self._units = x
+        else:
+            raise RuntimeError("input must be 'degrees' or 'radians'")
+
+    @property
     def rmat(self):
         """
         Return the rotation matrix.
@@ -1062,8 +1080,11 @@ class RotMatEuler(object):
             The (3, 3) proper orthogonal matrix according to the specification.
 
         """
+        angs_in = self.angles
+        if self.units == 'degrees':
+            angs_in = conversion_to_dict['radians']*angs_in
         self._rmat = make_rmat_euler(
-            self.angles, self.axes_order, self.extrinsic)
+            angs_in, self.axes_order, self.extrinsic)
         return self._rmat
 
     @rmat.setter
@@ -1111,7 +1132,52 @@ class RotMatEuler(object):
                 angles = angles_from_rmat_zxz(rmat)
         else:
             raise NotImplementedError
-        self._angles = angles
+
+        # set self.angles according to self.units
+        # !!! at this point angles are in radians
+        if self.units == 'degrees':
+            self._angles = conversion_to_dict['degrees']*np.asarray(angles)
+        else:
+            self._angles = angles
+
+    @property
+    def exponential_map(self):
+        """
+        The matrix invariants of self.rmat as exponential map parameters
+
+        Returns
+        -------
+        np.ndarray
+            The (3, ) array representing the exponential map parameters of
+            the encoded rotation (self.rmat).
+
+        """
+        phi, n = angleAxisOfRotMat(self.rmat)
+        return phi*n.flatten()
+
+    @exponential_map.setter
+    def exponential_map(self, x):
+        """
+        Updates encoded rotation via exponential map parameters
+
+        Parameters
+        ----------
+        x : array_like
+            The (3, ) vector representing exponential map parameters of a
+            rotation.
+
+        Returns
+        -------
+        None.
+
+        Notes
+        -----
+        Updates the encoded rotation from expoential map parameters via
+        self.rmat property
+        """
+        x = np.atleast_1d(x).flatten()
+        assert len(x) == 3, "input must have exactly 3 elements"
+        self.rmat = rotMatOfExpMap(x.reshape(3, 1))  # use local func
 
 
 #
