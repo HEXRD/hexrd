@@ -593,36 +593,39 @@ class unitcell:
         for i in range(atom_pos.shape[0]):
             pos = atom_pos[i, 0:3]
             occ = atom_pos[i, 3]
-
-            v1, n1 = self.CalcOrbit(pos)
-
-            for j in range(i+1, atom_pos.shape[0]):
-                isclose = False
+            if i == 0:
                 atom_pos_fixed.append(np.hstack([pos, occ]))
-                pos = atom_pos[j, 0:3]
-                occ = atom_pos[j, 3]
-                v2, n2 = self.CalcOrbit(pos)
 
-                for v in v2:
-                    vv = np.tile(v, [v1.shape[0], 1])
-                    vv = vv - v1
+            else:
+                v1, n1 = self.CalcOrbit(pos)
 
-                    for vvv in vv:
+                for j in range(i+1, atom_pos.shape[0]):
+                    isclose = False
+                    atom_pos_fixed.append(np.hstack([pos, occ]))
+                    pos = atom_pos[j, 0:3]
+                    occ = atom_pos[j, 3]
+                    v2, n2 = self.CalcOrbit(pos)
 
-                        # check if distance less than tol
-                        # the factor of 10 is for A --> nm
-                        if self.CalcLength(vvv, 'd') < tol/10.:
-                            # if true then its a repeated atom
-                            isclose = True
+                    for v in v2:
+                        vv = np.tile(v, [v1.shape[0], 1])
+                        vv = vv - v1
+
+                        for vvv in vv:
+
+                            # check if distance less than tol
+                            # the factor of 10 is for A --> nm
+                            if self.CalcLength(vvv, 'd') < tol/10.:
+                                # if true then its a repeated atom
+                                isclose = True
+                                break
+
+                        if isclose:
                             break
 
                     if isclose:
                         break
-
-                if isclose:
-                    break
-                else:
-                    atom_pos_fixed.append(np.hstack([pos, occ]))
+                    else:
+                        atom_pos_fixed.append(np.hstack([pos, occ]))
 
         return np.array(atom_pos_fixed)
 
