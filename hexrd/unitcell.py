@@ -586,7 +586,7 @@ class unitcell:
             atom_pos = self.atom_pos
 
         atom_pos_fixed = []
-
+        idx = []
         """
         go through the atom_pos and remove the atoms that are duplicate
         """
@@ -595,13 +595,12 @@ class unitcell:
             occ = atom_pos[i, 3]
             if i == 0:
                 atom_pos_fixed.append(np.hstack([pos, occ]))
-
-            else:
+                idx.append(i)
                 v1, n1 = self.CalcOrbit(pos)
 
                 for j in range(i+1, atom_pos.shape[0]):
                     isclose = False
-                    atom_pos_fixed.append(np.hstack([pos, occ]))
+                    # atom_pos_fixed.append(np.hstack([pos, occ]))
                     pos = atom_pos[j, 0:3]
                     occ = atom_pos[j, 3]
                     v2, n2 = self.CalcOrbit(pos)
@@ -626,8 +625,32 @@ class unitcell:
                         break
                     else:
                         atom_pos_fixed.append(np.hstack([pos, occ]))
+                        idx.append(i)
 
-        return np.array(atom_pos_fixed)
+        idx = np.array(idx)
+        atom_pos_fixed = np.array(atom_pos_fixed)
+        atom_type = self.atom_type[idx]
+        chargestates = [self.chargestates[i] for i in idx]
+
+        if self.aniU:
+            U = self.U[idx,:]
+        else:
+            U = self.U[idx]
+
+        self.atom_type = atom_type
+        self.chargestates = chargestates
+        self.atom_pos = atom_pos_fixed
+
+        self.U = U
+        '''
+        initialize interpolation from table for anomalous scattering
+        '''
+        self.InitializeInterpTable()
+
+        self.CalcPositions()
+        self.CalcDensity()
+        self.calc_absorption_length()
+
 
     def CalcDensity(self):
         '''
@@ -1579,6 +1602,7 @@ class unitcell:
 
         if hasattr(self, 'density'):
             self.CalcDensity()
+            self.calc_absorption_length()
 
     @property
     def atom_ntype(self):
