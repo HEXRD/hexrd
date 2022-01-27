@@ -646,7 +646,7 @@ class unitcell:
         initialize interpolation from table for anomalous scattering
         '''
         self.InitializeInterpTable()
-
+        self.CalcAnomalous()
         self.CalcPositions()
         self.CalcDensity()
         self.calc_absorption_length()
@@ -716,7 +716,6 @@ class unitcell:
 
         self.f1 = {}
         self.f2 = {}
-        self.f_anam = {}
         self.pe_cs = {}
 
         data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
@@ -727,13 +726,13 @@ class unitcell:
                 elem = constants.ptableinverse[Z]
                 gid = fid.get('/'+elem)
                 data = gid.get('data')
-
                 self.f1[elem] = interp1d(data[:, 7], data[:, 1])
                 self.f2[elem] = interp1d(data[:, 7], data[:, 2])
                 self.pe_cs[elem] = interp1d(data[:,7], data[:,3]+data[:,4])
 
     def CalcAnomalous(self):
 
+        self.f_anam = {}
         for i in range(self.atom_ntype):
 
             Z = self.atom_type[i]
