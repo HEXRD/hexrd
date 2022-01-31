@@ -700,10 +700,11 @@ class Material(object):
         if 'tThWidth' in gid:
             tThWidth = numpy.array(gid.get('tThWidth'),
                    dtype=numpy.float64).item()
+            tThWidth = numpy.radians(tThWidth)
         else:
             tThWidth = Material.DFLT_TTH
 
-        self._tThWidth = numpy.radians(tThWidth)
+        self._tThWidth = tThWidth
 
         if('hkls' in gid):
             self.hkl_from_file = numpy.array(gid.get('hkls'),
