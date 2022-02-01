@@ -385,8 +385,8 @@ class Material(object):
                                scale=1.0):
         """
         this function computes a simulated spectra
-        for using in place of lines for the powder 
-        overlay. inputs are simplified as compared 
+        for using in place of lines for the powder
+        overlay. inputs are simplified as compared
         to the typical LeBail/Rietveld computation.
         only a fwhm (in degrees) and scale are passed
 
