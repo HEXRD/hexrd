@@ -732,7 +732,7 @@ class Material(object):
         AtomInfo['hkls'] = self.planeData.getHKLs()
         AtomInfo['dmin'] = self.unitcell.dmin
         if self.planeData.tThWidth is None:
-            AtomInfo['tThWidth'] = Material.DFLT_TTH
+            AtomInfo['tThWidth'] = numpy.degrees(Material.DFLT_TTH)
         else:
             AtomInfo['tThWidth'] = numpy.degrees(self.planeData.tThWidth)
         '''
