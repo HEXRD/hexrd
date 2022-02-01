@@ -741,7 +741,10 @@ class Material(object):
         AtomInfo['stiffness'] = self.unitcell.stiffness
         AtomInfo['hkls'] = self.planeData.getHKLs()
         AtomInfo['dmin'] = self.unitcell.dmin
-        AtomInfo['tThWidth'] = numpy.degrees(self.planeData.tThWidth)
+        if self.planeData.tThWidth is None:
+            AtomInfo['tThWidth'] = numpy.degrees(Material.DFLT_TTH)
+        else:
+            AtomInfo['tThWidth'] = numpy.degrees(self.planeData.tThWidth)
         '''
         lattice parameters
         '''
