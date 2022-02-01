@@ -586,45 +586,71 @@ class unitcell:
             atom_pos = self.atom_pos
 
         atom_pos_fixed = []
-
+        idx = []
         """
         go through the atom_pos and remove the atoms that are duplicate
         """
         for i in range(atom_pos.shape[0]):
             pos = atom_pos[i, 0:3]
             occ = atom_pos[i, 3]
-
-            v1, n1 = self.CalcOrbit(pos)
-
-            for j in range(i+1, atom_pos.shape[0]):
-                isclose = False
+            if i == 0:
                 atom_pos_fixed.append(np.hstack([pos, occ]))
-                pos = atom_pos[j, 0:3]
-                occ = atom_pos[j, 3]
-                v2, n2 = self.CalcOrbit(pos)
+                idx.append(i)
+                v1, n1 = self.CalcOrbit(pos)
 
-                for v in v2:
-                    vv = np.tile(v, [v1.shape[0], 1])
-                    vv = vv - v1
+                for j in range(i+1, atom_pos.shape[0]):
+                    isclose = False
+                    # atom_pos_fixed.append(np.hstack([pos, occ]))
+                    pos = atom_pos[j, 0:3]
+                    occ = atom_pos[j, 3]
+                    v2, n2 = self.CalcOrbit(pos)
 
-                    for vvv in vv:
+                    for v in v2:
+                        vv = np.tile(v, [v1.shape[0], 1])
+                        vv = vv - v1
 
-                        # check if distance less than tol
-                        # the factor of 10 is for A --> nm
-                        if self.CalcLength(vvv, 'd') < tol/10.:
-                            # if true then its a repeated atom
-                            isclose = True
+                        for vvv in vv:
+
+                            # check if distance less than tol
+                            # the factor of 10 is for A --> nm
+                            if self.CalcLength(vvv, 'd') < tol/10.:
+                                # if true then its a repeated atom
+                                isclose = True
+                                break
+
+                        if isclose:
                             break
 
                     if isclose:
                         break
+                    else:
+                        atom_pos_fixed.append(np.hstack([pos, occ]))
+                        idx.append(i)
 
-                if isclose:
-                    break
-                else:
-                    atom_pos_fixed.append(np.hstack([pos, occ]))
+        idx = np.array(idx)
+        atom_pos_fixed = np.array(atom_pos_fixed)
+        atom_type = self.atom_type[idx]
+        chargestates = [self.chargestates[i] for i in idx]
 
-        return np.array(atom_pos_fixed)
+        if self.aniU:
+            U = self.U[idx,:]
+        else:
+            U = self.U[idx]
+
+        self.atom_type = atom_type
+        self.chargestates = chargestates
+        self.atom_pos = atom_pos_fixed
+
+        self.U = U
+        '''
+        initialize interpolation from table for anomalous scattering
+        '''
+        self.InitializeInterpTable()
+        self.CalcAnomalous()
+        self.CalcPositions()
+        self.CalcDensity()
+        self.calc_absorption_length()
+
 
     def CalcDensity(self):
         '''
@@ -690,7 +716,6 @@ class unitcell:
 
         self.f1 = {}
         self.f2 = {}
-        self.f_anam = {}
         self.pe_cs = {}
 
         data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
@@ -701,13 +726,13 @@ class unitcell:
                 elem = constants.ptableinverse[Z]
                 gid = fid.get('/'+elem)
                 data = gid.get('data')
-
                 self.f1[elem] = interp1d(data[:, 7], data[:, 1])
                 self.f2[elem] = interp1d(data[:, 7], data[:, 2])
                 self.pe_cs[elem] = interp1d(data[:,7], data[:,3]+data[:,4])
 
     def CalcAnomalous(self):
 
+        self.f_anam = {}
         for i in range(self.atom_ntype):
 
             Z = self.atom_type[i]
@@ -1576,6 +1601,7 @@ class unitcell:
 
         if hasattr(self, 'density'):
             self.CalcDensity()
+            self.calc_absorption_length()
 
     @property
     def atom_ntype(self):

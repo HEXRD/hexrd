@@ -399,6 +399,15 @@ class Material(object):
             p = [t, fwhm]
             self.powder_overlay += scale*I*_unit_gaussian(p, ttharray)
 
+    def remove_duplicate_atoms(self):
+        """
+        this function calls the same function in the
+        unitcell class and updates planedata structure
+        factors etc.
+        """
+        self.unitcell.remove_duplicate_atoms()
+        self._hkls_changed()
+
     def _readCif(self, fcif=DFLT_NAME+'.cif'):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
