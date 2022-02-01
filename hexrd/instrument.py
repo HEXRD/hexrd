@@ -94,6 +94,7 @@ instrument_name_DFLT = 'instrument'
 
 beam_energy_DFLT = 65.351
 beam_vec_DFLT = ct.beam_vec
+source_distance_DFLT = None
 
 eta_vec_DFLT = ct.eta_vec
 
@@ -373,6 +374,76 @@ def _fix_branch_cut_in_gradients(pgarray):
         axis=0
     )
 
+
+def bragg_angle_pinhole_correction(instrument,
+                                   layer_standoff, layer_thickness,
+                                   pinhole_thickness):
+    """
+    Computes the Bragg angle distortion field associated with pinhole cameras.
+
+    Parameters
+    ----------
+    instrument : hexrd.instrument.HEDMInstrument
+        The pionhole camera instrument object.
+    layer_standoff : scalar
+        The sample layer standoff from the upstream face of the pinhole
+        in microns.
+    layer_thickness : scalar
+        The thickness of the sample layer in microns.
+    pinhole_thickness : scalar
+        The thickenss (height) of the pinhole (cylinder) in microns
+    source_distance : scalar
+        he distance from the pinhole center to the X-ray source in microns.
+
+    Returns
+    -------
+    tth_corr : dict
+        The Bragg angle correction fields for each detector in `instrument`
+        as :math:`2\theta_s - 2\theta_n` in radians.
+
+    Notes
+    -----
+    *) This is Ryan Rygg's derivation, which appears in [1]_ as Equation 8.
+        Verified by JVB using discretized approach.  Specifically:
+
+            .. math:: \tan{(2\theta_s - 2\theta_n)} = \frac{\sin{(2\theta_n)}}
+                      {\frac{\rho}{h}\cos{\beta} - \cos{(2\theta_n)}}.
+
+    *) Note that this assumes that the origin of the sample frame, which
+        defines 2θ_nominal, is the center of the pinhole.
+
+    .. [1] J. R. Rygg, R. F. Smith, A. E. Lazicki, D. G. Braun,
+        D. E. Fratanduono, R. G. Kraus, J. M. McNaney, D. C. Swift,
+        C. E. Wehrenberg, F. Coppari, M. F. Ahmed, M. A. Barrios,
+        K. J. M. Blobaum, G. W. Collins, A. L. Cook, P. Di Nicola,
+        E. G. Dzenitis, S. Gonzales, B. F. Heidl, M. Hohenberger, A. House,
+        N. Izumi, D. H. Kalantar, S. F. Khan, T. R. Kohut, C. Kumar,
+        N. D. Masters, D. N. Polsin, S. P. Regan, C. A. Smith, R. M. Vignes,
+        M. A. Wall, J. Ward, J. S. Wark, T. L. Zobrist, A. Arsenlis, and
+        J. H. Eggert, "X-ray diffraction at the National Ignition Facility",
+        Review of Scientific Instruments 91, 043902 (2020)
+        https://doi.org/10.1063/1.5129698
+    ----------
+
+    """
+    zs = layer_standoff + 0.5*layer_thickness + 0.5*pinhole_thickness
+    tth_corr = dict.fromkeys(instrument.detectors)
+    for det_key, det in instrument.detectors.items():
+        py, px = det.pixel_coords
+        ptth, _ = det.pixel_angles()
+        crds = np.vstack([px.flatten(), py.flatten(), np.zeros(px.size)])
+        dhats = unitRowVector(
+            (np.dot(det.rmat, crds) + det.tvec.reshape(3, 1)).T
+        )
+        cos_beta = -dhats[:, 2]
+        cos_tthn = np.cos(ptth.flatten())
+        sin_tthn = np.sin(ptth.flatten())
+        tth_corr[det_key] = np.arctan(
+            sin_tthn/(instrument.source_distance*cos_beta/zs - cos_tthn)
+        ).reshape(det.shape)
+    return tth_corr
+
+
 # =============================================================================
 # CLASSES
 # =============================================================================
@@ -405,6 +476,7 @@ class HEDMInstrument(object):
             self._num_panels = 1
             self._beam_energy = beam_energy_DFLT
             self._beam_vector = beam_vec_DFLT
+            self._source_distance = source_distance_DFLT
 
             self._detectors = dict(
                 panel_id_DFLT=PlanarDetector(
@@ -437,11 +509,18 @@ class HEDMInstrument(object):
             else:
                 self._id = instrument_name
             self._num_panels = len(instrument_config['detectors'])
-            self._beam_energy = instrument_config['beam']['energy']  # keV
+
+            # handle X-ray source parameters
+            beam_config = instrument_config['beam']
+            self._beam_energy = beam_config['energy']  # keV
             self._beam_vector = calc_beam_vec(
-                instrument_config['beam']['vector']['azimuth'],
-                instrument_config['beam']['vector']['polar_angle'],
+                beam_config['vector']['azimuth'],
+                beam_config['vector']['polar_angle'],
                 )
+            try:
+                self._source_distance = beam_config['source_distance']
+            except(KeyError):
+                self._source_distance = source_distance_DFLT
 
             # now build detector dict
             detectors_config = instrument_config['detectors']
@@ -642,6 +721,14 @@ class HEDMInstrument(object):
             panel.bvec = self._beam_vector
 
     @property
+    def source_distance(self):
+        return self._source_distance
+
+    @source_distance.setter
+    def source_distance(self, x):
+        self._source_distance = float(x)
+
+    @property
     def eta_vector(self):
         return self._eta_vector
 
@@ -757,7 +844,8 @@ class HEDMInstrument(object):
             vector=dict(
                 azimuth=azim,
                 polar_angle=pola,
-            )
+            ),
+            source_distance=self.source_distance
         )
         par_dict['beam'] = beam
 
