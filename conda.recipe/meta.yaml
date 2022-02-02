@@ -13,7 +13,9 @@ build:
 
 requirements:
   build:
-    - numpy=1.20
+    # Numba is only here to ensure the numpy version is compatible
+    - numba
+    - numpy
     - python {{ python }}
     - setuptools
     - setuptools_scm
@@ -25,7 +27,7 @@ requirements:
     - h5py
     - lmfit
     - numba
-    - numpy=1.20
+    - numpy
     - psutil
     - pycifrw
     - python
