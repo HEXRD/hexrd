@@ -3852,7 +3852,8 @@ def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
         'tvec': tvec,
     }
     func = partial(_generate_pixel_solid_angles, **kwargs)
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    with ProcessPoolExecutor(mp_context=constants.mp_context,
+                             max_workers=max_workers) as executor:
         results = executor.map(func, tasks)
 
     # Concatenate all the results together
