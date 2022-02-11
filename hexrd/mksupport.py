@@ -521,10 +521,11 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
         did.write_direct(np.array([AtomInfo['tThWidth']], dtype=np.float64))
 
     if 'hkls' in AtomInfo:
-        did = gid.create_dataset("hkls",
-                                 AtomInfo['hkls'].shape,
-                                 dtype=np.int32)
-        did.write_direct(AtomInfo['hkls'])
+        if AtomInfo['hkls'].shape != (0,):
+            did = gid.create_dataset("hkls",
+                                     AtomInfo['hkls'].shape,
+                                     dtype=np.int32)
+            did.write_direct(AtomInfo['hkls'])
 
     if 'dmin' in AtomInfo:
         did = gid.create_dataset("dmin", (1,), dtype=np.float64)
