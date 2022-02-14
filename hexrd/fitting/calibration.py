@@ -586,7 +586,6 @@ class InstrumentCalibrator(object):
                 fit_tth_tol=fit_tth_tol,
                 int_cutoff=int_cutoff
             )
-
             # grab reduced params for optimizer
             x0 = np.array(self.reduced_params)  # !!! copy
             resd0 = self.residual(x0, master_data_dict_list)
@@ -604,6 +603,15 @@ class InstrumentCalibrator(object):
                     x0, args=(master_data_dict_list, ),
                     full_output=True
                 )
+            # FIXME: WHY IS THIS UPDATE NECESSARY?
+            #        Thought the cal to self.residual below did this, but
+            #        appeasr not to.
+            new_params = np.array(self.full_params)
+            new_params[self.flags] = x1
+            self.full_params = new_params
+
+            # eval new residual
+            # !!! I thought this should update the underlying class params?
             resd1 = self.residual(x1, master_data_dict_list)
 
             delta_r = sum(resd0**2)/float(len(resd0)) - \
@@ -612,7 +620,7 @@ class InstrumentCalibrator(object):
             nrm_ssr_0 = sum(resd0**2)/float(len(resd0))
             nrm_ssr_1 = sum(resd1**2)/float(len(resd1))
 
-            delta_r = nrm_ssr_0 - nrm_ssr_1
+            delta_r = 1. - nrm_ssr_1/nrm_ssr_0
 
             if delta_r > 0:
                 print('OPTIMIZATION SUCCESSFUL')
