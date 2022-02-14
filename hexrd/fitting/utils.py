@@ -106,8 +106,8 @@ def _set_peak_center_bounds(params, window_range, min_sep=0.01):
             curr_peak.expr = '+'.join([prev_peak.name, new_pname])
             prev_peak = curr_peak
     else:
-        msg = "Found no peaks; setting no bounds"
-        print(msg)
+        msg = "Found only 1 peak; setting no bounds"
+        # print(msg)
         # raise RuntimeWarning(msg)
 
 

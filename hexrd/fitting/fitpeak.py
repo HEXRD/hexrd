@@ -26,6 +26,7 @@
 # ============================================================
 
 import numpy as np
+# from numpy.polynomial import chebyshev
 
 from scipy import integrate
 from scipy import ndimage as imgproc
@@ -379,8 +380,20 @@ def estimate_mpk_parms_1d(
     bg0 = bp[1]
     bg1 = bp[0]
 
+    '''
+    # TODO: In case we want to switch to chebyshev
+    bkg_mod = chebyshev.Chebyshev(
+        [0., 0.], domain=(min(x), max(x))
+    )
+    fit_bkg = bkg_mod.fit(x, bkg, 1)
+    coeff = fit_bkg.coef
+    bg0, bg1 = coeff
+    '''
+
     # make lin bkg subtracted spectrum
     fsubtr = f - lin_fit_obj(x, *bp)
+    # !!! for chebyshev
+    # fsubtr = f - fit_bkg(x)
 
     # number of parmaters from reference dict
     npp = pkfuncs.mpeak_nparams_dict[pktype]
@@ -395,7 +408,9 @@ def estimate_mpk_parms_1d(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess)
+            amp_guess = _amplitude_guess(
+                x, pk_pos_0[ii], fsubtr, fwhm_guess[ii]
+            )
             p0tmp[ii, :] = [
                 amp_guess,
                 pk_pos_0[ii],
@@ -415,7 +430,9 @@ def estimate_mpk_parms_1d(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess)
+            amp_guess = _amplitude_guess(
+                x, pk_pos_0[ii], fsubtr, fwhm_guess[ii]
+            )
             p0tmp[ii, :] = [
                 amp_guess,
                 pk_pos_0[ii],
@@ -438,7 +455,9 @@ def estimate_mpk_parms_1d(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess)
+            amp_guess = _amplitude_guess(
+                x, pk_pos_0[ii], fsubtr, fwhm_guess[ii]
+            )
             p0tmp[ii, :] = [
                 amp_guess,
                 pk_pos_0[ii],
@@ -467,7 +486,9 @@ def estimate_mpk_parms_1d(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess)
+            amp_guess = _amplitude_guess(
+                x, pk_pos_0[ii], fsubtr, fwhm_guess[ii]
+            )
             p0tmp[ii, :] = [
                 amp_guess,
                 pk_pos_0[ii],

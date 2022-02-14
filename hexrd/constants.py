@@ -26,9 +26,18 @@
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # =============================================================================
 import os
+import platform
+import multiprocessing as mp
 
 import numpy as np
+
 from scipy import constants as sc
+
+# !!! for stetting mp start method
+if 'Windows' in platform.system():
+    mp_context = mp.get_context("spawn")
+else:
+    mp_context = mp.get_context("fork")
 
 # pi related
 pi = np.pi
