@@ -40,12 +40,13 @@ nfields_powder_data = 8
 
 class PowderCalibrator(object):
     def __init__(self, instr, plane_data, img_dict, flags,
-                 tth_tol=None, eta_tol=0.25,
+                 tth_tol=None, eta_tol=0.25, fwhm_estimate=None,
                  pktype='pvoigt', bgtype='linear'):
         assert list(instr.detectors.keys()) == list(img_dict.keys()), \
             "instrument and image dict must have the same keys"
         self._instr = instr
         self._plane_data = plane_data
+        self._fwhm_estimate = fwhm_estimate
         self._plane_data.wavelength = self._instr.beam_energy  # force
         self._img_dict = img_dict
         self._params = np.asarray(plane_data.lparms, dtype=float)
@@ -109,6 +110,16 @@ class PowderCalibrator(object):
     def eta_tol(self, x):
         assert np.isscalar(x), "eta_tol must be a scalar value"
         self._eta_tol = x
+
+    @property
+    def fwhm_estimate(self):
+        return self._fwhm_estimate
+
+    @fwhm_estimate.setter
+    def fwhm_estimate(self, x):
+        if x is not None:
+            assert np.isscalar(x), "fwhm_estimate must be a scalar value"
+        self._fwhm_estimate = x
 
     @property
     def params(self):
@@ -264,7 +275,7 @@ class PowderCalibrator(object):
                         sm = spectrum.SpectrumModel(
                             spec_data, tth_pred,
                             pktype=self.pktype, bgtype=self.bgtype,
-                            fwhm_init=None
+                            fwhm_init=self.fwhm_estimate
                         )
                         fit_results = sm.fit()
                         if not fit_results.success:
