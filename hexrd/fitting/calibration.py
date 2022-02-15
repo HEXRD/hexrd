@@ -1,3 +1,4 @@
+import logging
 import os
 
 import numpy as np
@@ -12,6 +13,8 @@ from hexrd.transforms import xfcapi
 
 from . import grains as grainutil
 from . import spectrum
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # %% PARAMETERS
@@ -609,7 +612,7 @@ class InstrumentCalibrator(object):
             resd0 = self.residual(x0, master_data_dict_list)
             nrm_ssr_0 = _normalized_ssqr(resd0)
             if nrm_ssr_0 > nrm_ssr_prev:
-                print('No residual imporvement; exiting')
+                logger.warning('No residual imporvement; exiting')
                 self.full_params = rparams_prev
                 break
 
@@ -636,10 +639,10 @@ class InstrumentCalibrator(object):
             delta_r = 1. - nrm_ssr_1/nrm_ssr_0
 
             if delta_r > 0:
-                print('OPTIMIZATION SUCCESSFUL')
-                print('normalized initial ssr: %.4e' % nrm_ssr_0)
-                print('normalized final ssr: %.4e' % nrm_ssr_1)
-                print('change in resdiual: %.4e' % delta_r)
+                logger.info('OPTIMIZATION SUCCESSFUL')
+                logger.info('normalized initial ssr: %.4e' % nrm_ssr_0)
+                logger.info('normalized final ssr: %.4e' % nrm_ssr_1)
+                logger.info('change in resdiual: %.4e' % delta_r)
                 # FIXME: WHY IS THIS UPDATE NECESSARY?
                 #        Thought the cal to self.residual below did this, but
                 #        appeasr not to.
@@ -651,7 +654,7 @@ class InstrumentCalibrator(object):
                 rparams_prev = np.array(self.full_params)  # !!! careful
                 rparams_prev[self.flags] = x0
             else:
-                print('no improvement in residual!!!')
+                logger.warning('no improvement in residual!!!')
                 step_successful = False
                 break
 
@@ -745,9 +748,9 @@ def calibrate_instrument_from_sx(
             bmat, ome_period,
             sim_only=True)
     else:
-        print("Set up to refine:")
+        logger.info("Set up to refine:")
         for i in np.where(refine_flags)[0]:
-            print("\t%s = %1.7e" % (pnames[i], plist_full[i]))
+            logger.info("\t%s = %1.7e" % (pnames[i], plist_full[i]))
 
         # run optimization
         if use_robust_lsq:
@@ -769,11 +772,10 @@ def calibrate_instrument_from_sx(
             )
             resd = infodict['fvec']
         if ierr not in [1, 2, 3, 4]:
-            raise RuntimeError("solution not found: ierr = %d" % ierr)
+            raise RuntimeError(f"solution not found: {ierr=}")
         else:
-            print("INFO: optimization fininshed successfully with ierr=%d"
-                  % ierr)
-            print("INFO: %s" % mesg)
+            logger.info(f"optimization fininshed successfully with {ierr=}")
+            logger.info(mesg)
 
         # ??? output message handling?
         fit_params = plist_full
@@ -936,8 +938,8 @@ def sxcal_obj_func(plist_fit, plist_full,
                     tvec_d, tvec_s, tvec_c
             )
             if np.any(np.isnan(calc_xy_tmp)):
-                print("infeasible parameters: "
-                      + "may want to scale back finite difference step size")
+                logger.warning("infeasible parameters: may want to scale back "
+                               "finite difference step size")
 
             calc_omes[det_key].append(calc_omes_tmp)
             calc_xy[det_key].append(calc_xy_tmp)
@@ -1017,15 +1019,12 @@ def parse_reflection_tables(cfg, instr, grain_ids, refit_idx=None):
             # apply conditions for accepting valid data
             valid_reflections = gtable[:, 0] >= 0  # is indexed
             not_saturated = gtable[:, 6] < panel.saturation_level
-            print("INFO: panel '%s', grain %d" % (det_key, grain_id))
-            print("INFO: %d of %d reflections are indexed"
-                  % (sum(valid_reflections), len(gtable))
-                  )
-            print("INFO: %d of %d"
-                  % (sum(not_saturated), sum(valid_reflections)) +
-                  " valid reflections be are below" +
-                  " saturation threshold of %d" % (panel.saturation_level)
-                  )
+            logger.info(f"panel '{det_key}', grain {grain_id}")
+            logger.info(f"{sum(valid_reflections)} of {len(gtable)} "
+                        "reflections are indexed")
+            logger.info(f"{sum(not_saturated)} of {sum(valid_reflections)}"
+                        " valid reflections be are below" +
+                        f" saturation threshold of {panel.saturation_level}")
 
             # valid reflections index
             if refit_idx is None:
@@ -1034,10 +1033,8 @@ def parse_reflection_tables(cfg, instr, grain_ids, refit_idx=None):
             else:
                 idx = refit_idx[det_key][ig]
                 idx_0[det_key].append(idx)
-                print("INFO: input reflection specify " +
-                      "%d of %d total valid reflections"
-                      % (sum(idx), len(gtable))
-                      )
+                logger.info(f"input reflection specify {sum(idx)} of "
+                            f"{len(gtable)} total valid reflections")
 
             hkls[det_key].append(gtable[idx, 2:5])
             meas_omes = gtable[idx, 12].reshape(sum(idx), 1)
