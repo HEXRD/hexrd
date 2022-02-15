@@ -41,7 +41,8 @@ mpeak_nparams_dict = {
     'gaussian': 3,
     'lorentzian': 3,
     'pvoigt': 4,
-    'split_pvoigt': 6
+    'split_pvoigt': 6,
+    'pink_beam_dcs': 8
 }
 
 """
@@ -53,6 +54,8 @@ Handbook of Mathematical Functions,
 Abramowitz and Stegun
 Error is < 1.5e-7 for all x
 """
+
+
 @numba_njit_if_available(cache=True, nogil=True)
 def erfc(x):
     # save the sign of x
@@ -60,13 +63,14 @@ def erfc(x):
     x = np.abs(x)
 
     # constants
-    a1,a2,a3,a4,a5,p = c_erf
+    a1, a2, a3, a4, a5, p = c_erf
 
     # A&S formula 7.1.26
     t = 1.0/(1.0 + p*x)
     y = 1. - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*np.exp(-x*x)
-    erf = sign*y # erf(-x) = -erf(x)
+    erf = sign*y  # erf(-x) = -erf(x)
     return 1. - erf
+
 
 """
 cutom function to compute the exponential integral
@@ -74,6 +78,8 @@ based on Padé approximation of exponential integral
 function. coefficients found in pg. 231 Abramowitz
 and Stegun, eq. 5.1.53
 """
+
+
 @numba_njit_if_available(cache=True, nogil=True)
 def exp1exp_under1(x):
     f = np.zeros(x.shape).astype(np.complex128)
@@ -83,6 +89,7 @@ def exp1exp_under1(x):
 
     return (f - np.log(x) - np.euler_gamma)*np.exp(x)
 
+
 """
 cutom function to compute the exponential integral
 based on Padé approximation of exponential integral
@@ -90,6 +97,8 @@ function. coefficients found in pg. 415 Y. Luke, The
 special functions and their approximations, vol 2
 (1969) Elsevier
 """
+
+
 @numba_njit_if_available(cache=True, nogil=True)
 def exp1exp_over1(x):
     num = np.zeros(x.shape).astype(np.complex128)
@@ -107,12 +116,13 @@ def exp1exp_over1(x):
 
     return (num/den)*(1./x)
 
+
 @numba_njit_if_available(cache=True, nogil=True)
 def exp1exp(x):
     mask = np.sign(x.real)*np.abs(x) > 1.
 
     f = np.zeros(x.shape).astype(np.complex128)
-    f[mask]  = exp1exp_over1(x[mask])
+    f[mask] = exp1exp_over1(x[mask])
     f[~mask] = exp1exp_under1(x[~mask])
 
     return f
@@ -121,6 +131,8 @@ def exp1exp(x):
 # 1-D Gaussian Functions
 # =============================================================================
 # Split the unit gaussian so this can be called for 2d and 3d functions
+
+
 def _unit_gaussian(p, x):
     """
     Required Arguments:
@@ -135,7 +147,7 @@ def _unit_gaussian(p, x):
     FWHM = p[1]
     sigma = FWHM/gauss_width_fact
 
-    f = np.exp(-(x-x0)**2/(2.*sigma**2.))
+    f = np.exp(-(x - x0)**2/(2.*sigma**2.))
     return f
 
 
@@ -167,7 +179,7 @@ def gaussian1d(p, x):
     bg0 = p[3]
     bg1 = p[4]
 
-    f = _gaussian1d_no_bg(p[:3], x)+bg0+bg1*x
+    f = _gaussian1d_no_bg(p[:3], x) + bg0 + bg1*x
 
     return f
 
@@ -187,9 +199,10 @@ def _gaussian1d_no_bg_deriv(p, x):
 
     sigma = FWHM/gauss_width_fact
 
-    dydx0 = _gaussian1d_no_bg(p, x)*((x-x0)/(sigma**2.))
+    dydx0 = _gaussian1d_no_bg(p, x)*((x - x0)/(sigma**2.))
     dydA = _unit_gaussian(p[[1, 2]], x)
-    dydFWHM = _gaussian1d_no_bg(p, x)*((x-x0)**2./(sigma**3.))/gauss_width_fact
+    dydFWHM = _gaussian1d_no_bg(p, x) \
+        * ((x - x0)**2./(sigma**3.))/gauss_width_fact
 
     d_mat = np.zeros((len(p), len(x)))
 
@@ -323,6 +336,7 @@ def lorentzian1d_deriv(p, x):
 # =============================================================================
 # 1-D Psuedo Voigt Functions
 # =============================================================================
+
 # Split the unit function so this can be called for 2d and 3d functions
 def _unit_pvoigt1d(p, x):
     """
@@ -368,7 +382,7 @@ def pvoigt1d(p, x):
     bg0 = p[4]
     bg1 = p[5]
 
-    f = _pvoigt1d_no_bg(p[:4], x)+bg0+bg1*x
+    f = _pvoigt1d_no_bg(p[:4], x) + bg0 + bg1*x
 
     return f
 
@@ -421,9 +435,10 @@ def split_pvoigt1d(p, x):
     bg0 = p[6]
     bg1 = p[7]
 
-    f = _split_pvoigt1d_no_bg(p[:6], x)+bg0+bg1*x
+    f = _split_pvoigt1d_no_bg(p[:6], x) + bg0 + bg1*x
 
     return f
+
 
 """
 ================================================================
@@ -440,6 +455,8 @@ def split_pvoigt1d(p, x):
 ================================================================
 ================================================================
 """
+
+
 @numba_njit_if_available(cache=True, nogil=True)
 def _calc_alpha(alpha, x0):
     a0, a1 = alpha
@@ -450,6 +467,7 @@ def _calc_alpha(alpha, x0):
 def _calc_beta(beta, x0):
     b0, b1 = beta
     return b0 + b1*np.tan(np.radians(0.5*x0))
+
 
 @numba_njit_if_available(cache=True, nogil=True)
 def _mixing_factor_pv(fwhm_g, fwhm_l):
@@ -480,6 +498,7 @@ def _mixing_factor_pv(fwhm_g, fwhm_l):
 
     return eta, fwhm
 
+
 @numba_njit_if_available(nogil=True)
 def _gaussian_pink_beam(p, x):
     """
@@ -494,7 +513,7 @@ def _gaussian_pink_beam(p, x):
     p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_g,bkg_c0,bkg_c1,bkg_c2]
     """
 
-    A,x0,alpha,beta,fwhm_g = p
+    A, x0, alpha, beta, fwhm_g = p
 
     del_tth = x - x0
     sigsqr = fwhm_g**2
@@ -515,9 +534,9 @@ def _gaussian_pink_beam(p, x):
     g = np.zeros(x.shape)
     zmask = np.abs(del_tth) > 5.0
 
-    g[~zmask] = (0.5*(alpha*beta)/(alpha + beta)) \
-        * np.exp(u[~zmask])*t1[~zmask] + \
-            np.exp(v[~zmask])*t2[~zmask]
+    g[~zmask] = \
+        (0.5*(alpha*beta)/(alpha + beta)) * np.exp(u[~zmask])*t1[~zmask] \
+        + np.exp(v[~zmask])*t2[~zmask]
 
     mask = np.isnan(g)
     g[mask] = 0.
@@ -540,7 +559,7 @@ def _lorentzian_pink_beam(p, x):
     p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_l]
     """
 
-    A,x0,alpha,beta,fwhm_l = p
+    A, x0, alpha, beta, fwhm_l = p
 
     del_tth = x - x0
 
@@ -551,7 +570,7 @@ def _lorentzian_pink_beam(p, x):
     f1 = exp1exp(p)
     f2 = exp1exp(q)
 
-    y = -(alpha*beta)/(np.pi*(alpha+beta))*(f1+f2).imag
+    y = -(alpha*beta)/(np.pi*(alpha + beta))*(f1 + f2).imag
 
     mask = np.isnan(y)
     y[mask] = 0.
@@ -559,7 +578,39 @@ def _lorentzian_pink_beam(p, x):
 
     return y
 
+
 @numba_njit_if_available(nogil=True)
+def _pink_beam_dcs_no_bg(p, x):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 10/18/2021 SS 1.0 original
+    @details pink beam profile for DCS data for calibration.
+    more details can be found in
+    Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
+
+    p has the following 10 parameters
+    p = [A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l]
+    """
+    alpha = _calc_alpha((p[2], p[3]), p[1])
+    beta = _calc_beta((p[4], p[5]), p[1])
+
+    arg1 = np.array([alpha, beta, p[6]]).astype(np.float64)
+    arg2 = np.array([alpha, beta, p[7]]).astype(np.float64)
+
+    p_g = np.hstack((p[0:2], arg1))
+    p_l = np.hstack((p[0:2], arg2))
+
+    # bkg = p[8] + p[9]*x + p[10]*(2.*x**2 - 1.)
+    # bkg = p[8] + p[9]*x  # !!! make like the other peak funcs here
+
+    eta, fwhm = _mixing_factor_pv(p[6], p[7])
+
+    G = _gaussian_pink_beam(p_g, x)
+    L = _lorentzian_pink_beam(p_l, x)
+
+    return eta*L + (1. - eta)*G
+
+
 def pink_beam_dcs(p, x):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
@@ -568,27 +619,37 @@ def pink_beam_dcs(p, x):
     more details can be found in
     Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
 
-    p has the following parameters
-    p = [A,x0,alpha0,alpha1,beta0,beta1,fwhm_g,fwhm_l,bkg_c0,bkg_c1,bkg_c2]
+    p has the following 10 parameters
+    p = [A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l, bkg_c0, bkg_c1]
     """
-    alpha = _calc_alpha((p[2], p[3]), p[1])
-    beta  = _calc_beta((p[4], p[5]), p[1])
+    return _pink_beam_dcs_no_bg(p[:-2], x) + p[-2] + p[-1]*x
 
-    arg1 = np.array([alpha,beta,p[6]]).astype(np.float64)
-    arg2 = np.array([alpha,beta,p[7]]).astype(np.float64)
 
-    p_g = np.hstack((p[0:2],arg1))
-    p_l = np.hstack((p[0:2],arg2))
+def pink_beam_dcs_lmfit(
+        x, A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 10/18/2021 SS 1.0 original
+    @details pink beam profile for DCS data for calibration.
+    more details can be found in
+    Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
+    """
+    alpha = _calc_alpha((alpha0, alpha1), x0)
+    beta = _calc_beta((beta0, beta1), x0)
 
-    bkg_c = p[8:11]
-    bkg = p[8] + p[9]*x + p[10]*(2.*x**2 - 1.)
+    arg1 = np.array([alpha, beta, fwhm_g], dtype=np.float64)
+    arg2 = np.array([alpha, beta, fwhm_l], dtype=np.float64)
 
-    eta, fwhm = _mixing_factor_pv(p[6], p[7])
+    p_g = np.hstack([[A, x0], arg1]).astype(np.float64, order='C')
+    p_l = np.hstack([[A, x0], arg2]).astype(np.float64, order='C')
+
+    eta, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
     G = _gaussian_pink_beam(p_g, x)
     L = _lorentzian_pink_beam(p_l, x)
 
-    return eta*L + (1.-eta)*G + bkg
+    return eta*L + (1. - eta)*G
+
 
 """
 ================================================================
@@ -599,6 +660,7 @@ def pink_beam_dcs(p, x):
 # =============================================================================
 # Tanh Step Down
 # =============================================================================
+
 
 def tanh_stepdown_nobg(p, x):
     """
@@ -884,22 +946,21 @@ def _mpeak_1d_no_bg(p, x, pktype, num_pks):
 
     f = np.zeros(len(x))
 
-    if pktype == 'gaussian' or pktype == 'lorentzian':
-        p_fit = np.reshape(p[:3*num_pks], [num_pks, 3])
-    elif pktype == 'pvoigt':
-        p_fit = np.reshape(p[:4*num_pks], [num_pks, 4])
-    elif pktype == 'split_pvoigt':
-        p_fit = np.reshape(p[:6*num_pks], [num_pks, 6])
+    npp = mpeak_nparams_dict[pktype]
+
+    p_fit = np.reshape(p[:npp*num_pks], [num_pks, npp])
 
     for ii in np.arange(num_pks):
         if pktype == 'gaussian':
-            f = f+_gaussian1d_no_bg(p_fit[ii], x)
+            f += _gaussian1d_no_bg(p_fit[ii], x)
         elif pktype == 'lorentzian':
-            f = f+_lorentzian1d_no_bg(p_fit[ii], x)
+            f += _lorentzian1d_no_bg(p_fit[ii], x)
         elif pktype == 'pvoigt':
-            f = f+_pvoigt1d_no_bg(p_fit[ii], x)
+            f += _pvoigt1d_no_bg(p_fit[ii], x)
         elif pktype == 'split_pvoigt':
-            f = f+_split_pvoigt1d_no_bg(p_fit[ii], x)
+            f += _split_pvoigt1d_no_bg(p_fit[ii], x)
+        elif pktype == 'pink_beam_dcs':
+            f += _pink_beam_dcs_no_bg(p_fit[ii], x)
 
     return f
 

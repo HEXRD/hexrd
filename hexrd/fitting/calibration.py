@@ -4,14 +4,14 @@ import numpy as np
 
 from scipy.optimize import leastsq, least_squares
 
+from tqdm import tqdm
+
 from hexrd import constants as cnst
-from hexrd.fitting import fitpeak
-from hexrd.fitting.peakfunctions import mpeak_nparams_dict
 from hexrd import matrixutil as mutil
 from hexrd.transforms import xfcapi
 
 from . import grains as grainutil
-
+from . import spectrum
 
 # =============================================================================
 # %% PARAMETERS
@@ -31,21 +31,27 @@ grain_flags_DFLT = np.array(
     dtype=bool
 )
 
+nfields_powder_data = 8
+
+
 # =============================================================================
 # %% POWDER CALIBRATION
 # =============================================================================
 
-nfields_powder_data = 8
+
+def _normalized_ssqr(resd):
+    return np.sum(resd*resd)/len(resd)
 
 
 class PowderCalibrator(object):
     def __init__(self, instr, plane_data, img_dict, flags,
-                 tth_tol=None, eta_tol=0.25,
-                 pktype='pvoigt'):
+                 tth_tol=None, eta_tol=0.25, fwhm_estimate=None,
+                 pktype='pvoigt', bgtype='linear'):
         assert list(instr.detectors.keys()) == list(img_dict.keys()), \
             "instrument and image dict must have the same keys"
         self._instr = instr
         self._plane_data = plane_data
+        self._fwhm_estimate = fwhm_estimate
         self._plane_data.wavelength = self._instr.beam_energy  # force
         self._img_dict = img_dict
         self._params = np.asarray(plane_data.lparms, dtype=float)
@@ -72,6 +78,7 @@ class PowderCalibrator(object):
         # for peak fitting
         # ??? fitting only, or do alternative peak detection?
         self._pktype = pktype
+        self._bgtype = bgtype
 
     @property
     def npi(self):
@@ -108,6 +115,16 @@ class PowderCalibrator(object):
     def eta_tol(self, x):
         assert np.isscalar(x), "eta_tol must be a scalar value"
         self._eta_tol = x
+
+    @property
+    def fwhm_estimate(self):
+        return self._fwhm_estimate
+
+    @fwhm_estimate.setter
+    def fwhm_estimate(self, x):
+        if x is not None:
+            assert np.isscalar(x), "fwhm_estimate must be a scalar value"
+        self._fwhm_estimate = x
 
     @property
     def params(self):
@@ -157,13 +174,25 @@ class PowderCalibrator(object):
             'pvoigt', 'split_pvoigt',
             or 'pink_beam_dcs'
         """
-        assert x in ['gaussian',
-                     'lorentzian',
-                     'pvoigt',
-                     'split_pvoigt',
-                     'pink_beam_dcs'], \
+        assert x in spectrum._function_dict_1d, \
             "pktype '%s' not understood"
         self._pktype = x
+
+    @property
+    def bgtype(self):
+        return self._bgtype
+
+    @bgtype.setter
+    def bgtype(self, x):
+        """
+        currently only
+            'gaussian', 'lorentzian,
+            'pvoigt', 'split_pvoigt',
+            or 'pink_beam_dcs'
+        """
+        assert x in spectrum._function_dict_1d, \
+            "pktype '%s' not understood"
+        self._bgtype = x
 
     def _interpolate_images(self):
         """
@@ -191,7 +220,7 @@ class PowderCalibrator(object):
         """
         if fit_tth_tol is None:
             fit_tth_tol = self.tth_tol/4.
-        fit_tth_tol = np.radians(fit_tth_tol)
+
         # ideal tth
         wlen = self.instr.beam_wavelength
         dsp_ideal = np.atleast_1d(self.plane_data.getPlaneSpacings())
@@ -219,7 +248,7 @@ class PowderCalibrator(object):
         rhs = dict.fromkeys(self.instr.detectors)
         for det_key, panel in self.instr.detectors.items():
             rhs[det_key] = []
-            for i_ring, ringset in enumerate(powder_lines[det_key]):
+            for i_ring, ringset in enumerate(tqdm(powder_lines[det_key])):
                 tmp = []
                 if len(ringset) == 0:
                     continue
@@ -233,102 +262,66 @@ class PowderCalibrator(object):
                         #     np.array(intensities).squeeze(),
                         #     axis=0
                         # )
-                        tth_centers = angs[0]
-                        eta_ref = angs[1]
-                        int1d = intensities[0]
+                        spec_data = np.vstack(
+                            [np.degrees(angs[0]),
+                             intensities[0]]
+                        ).T
 
                         # peak profile fitting
-                        if len(dsp0[i_ring]) == 1:
-                            p0 = fitpeak.estimate_pk_parms_1d(
-                                    tth_centers, int1d, self.pktype
-                                 )
+                        tth_pred = np.degrees(
+                            2.*np.arcsin(0.5*wlen/dsp0[i_ring])
+                        )
+                        npeaks = len(tth_pred)
 
-                            p = fitpeak.fit_pk_parms_1d(
-                                    p0, tth_centers, int1d, self.pktype
-                                )
+                        # reference eta
+                        eta_ref_tile = np.tile(angs[1], npeaks)
 
-                            # !!! this is where we can kick out bunk fits
-                            tth_meas = p[1]
-                            tth_pred = 2.*np.arcsin(0.5*wlen/dsp0[i_ring])
-                            center_err = abs(tth_meas - tth_pred)
-                            if p[0] < int_cutoff or center_err > fit_tth_tol:
-                                tmp.append(np.empty((0, nfields_powder_data)))
-                                continue
+                        # spectrum fitting
+                        sm = spectrum.SpectrumModel(
+                            spec_data, tth_pred,
+                            pktype=self.pktype, bgtype=self.bgtype,
+                            fwhm_init=self.fwhm_estimate
+                        )
+                        fit_results = sm.fit()
+                        if not fit_results.success:
+                            tmp.append(np.empty((0, nfields_powder_data)))
+                            continue
 
-                            # push back through mapping to cartesian (x, y)
-                            xy_meas = panel.angles_to_cart(
-                                [[tth_meas, eta_ref], ],
-                                tvec_s=self.instr.tvec,
-                                apply_distortion=True
+                        fit_params = np.vstack([
+                            (fit_results.best_values['pk%d_amp' % i],
+                             fit_results.best_values['pk%d_cen' % i])
+                            for i in range(npeaks)
+                        ]).T
+                        pk_amp, tth_meas = fit_params
+
+                        # !!! this is where we can kick out bunk fits
+                        center_err = abs(tth_meas - tth_pred)
+                        failed_fit_heuristic = np.logical_or(
+                            pk_amp < int_cutoff,
+                            center_err > fit_tth_tol
+                        )
+                        if np.any(failed_fit_heuristic):
+                            tmp.append(np.empty((0, nfields_powder_data)))
+                            continue
+
+                        # push back through mapping to cartesian (x, y)
+                        tth_meas = np.radians(tth_meas)
+                        xy_meas = panel.angles_to_cart(
+                            np.vstack([tth_meas, eta_ref_tile]).T,
+                            tvec_s=self.instr.tvec,
+                            apply_distortion=True
+                        )
+
+                        # cat results
+                        tmp.append(
+                            np.hstack(
+                                [xy_meas,
+                                 tth_meas.reshape(npeaks, 1),
+                                 hkls[i_ring],
+                                 dsp0[i_ring].reshape(npeaks, 1),
+                                 eta_ref_tile.reshape(npeaks, 1)]
                             )
-
-                            # cat results
-                            tmp.append(
-                                np.hstack(
-                                    [xy_meas.squeeze(),
-                                     tth_meas,
-                                     hkls[i_ring].squeeze(),
-                                     dsp0[i_ring],
-                                     eta_ref]
-                                )
-                            )
-                        else:
-                            # multiple peaks
-                            tth_pred = 2.*np.arcsin(0.5*wlen/dsp0[i_ring])
-                            npeaks = len(tth_pred)
-                            eta_ref_tile = np.tile(eta_ref, npeaks)
-
-                            # !!! these hueristics merit checking
-                            fwhm_guess = self.plane_data.tThWidth/4.
-                            center_bnd = self.plane_data.tThWidth/2./npeaks
-
-                            p0, bnds = fitpeak.estimate_mpk_parms_1d(
-                                    tth_pred, tth_centers, int1d,
-                                    pktype=self.pktype, bgtype='linear',
-                                    fwhm_guess=fwhm_guess,
-                                    center_bnd=center_bnd
-                                 )
-
-                            p = fitpeak.fit_mpk_parms_1d(
-                                    p0, tth_centers, int1d, self.pktype,
-                                    npeaks, bgtype='linear', bnds=bnds
-                                )
-
-                            nparams_per_peak = mpeak_nparams_dict[self.pktype]
-                            just_the_peaks = \
-                                p[:npeaks*nparams_per_peak].reshape(
-                                    npeaks, nparams_per_peak
-                                )
-
-                            # !!! this is where we can kick out bunk fits
-                            tth_meas = just_the_peaks[:, 1]
-                            center_err = abs(tth_meas - tth_pred)
-                            if np.any(
-                                    np.logical_or(
-                                        just_the_peaks[:, 0] < int_cutoff,
-                                        center_err > fit_tth_tol
-                                    )
-                            ):
-                                tmp.append(np.empty((0, nfields_powder_data)))
-                                continue
-
-                            # push back through mapping to cartesian (x, y)
-                            xy_meas = panel.angles_to_cart(
-                                np.vstack([tth_meas, eta_ref_tile]).T,
-                                tvec_s=self.instr.tvec,
-                                apply_distortion=True
-                            )
-
-                            # cat results
-                            tmp.append(
-                                np.hstack(
-                                    [xy_meas,
-                                     tth_meas.reshape(npeaks, 1),
-                                     hkls[i_ring],
-                                     dsp0[i_ring].reshape(npeaks, 1),
-                                     eta_ref_tile.reshape(npeaks, 1)]
-                                )
-                            )
+                        )
                 if len(tmp) == 0:
                     rhs[det_key].append(np.empty((0, nfields_powder_data)))
                 else:
@@ -401,6 +394,7 @@ class PowderCalibrator(object):
                     apply_distortion=True
                 )
 
+                '''
                 # !!! apply tth distortion
                 if panel.tth_distortion is not None:
                     eval_pts = panel.cartToPixel(
@@ -411,6 +405,7 @@ class PowderCalibrator(object):
                     updated_angles[:, 0] = \
                         updated_angles[:, 0] \
                         + panel.tth_distortion[eval_pts[:, 0], eval_pts[:, 1]]
+                '''
 
                 # derive ideal tth positions from additional ring point info
                 hkls = pdata[:, 3:6]
@@ -460,6 +455,22 @@ class PowderCalibrator(object):
 
 class InstrumentCalibrator(object):
     def __init__(self, *args):
+        """
+        Model for instrument calibration class as a function of
+
+        Parameters
+        ----------
+        *args : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        Notes
+        -----
+        Flags are set on calibrators
+        """
         assert len(args) > 0, \
             "must have at least one calibrator"
         self._calibrators = args
@@ -480,6 +491,14 @@ class InstrumentCalibrator(object):
         return self._calibrators
 
     @property
+    def flags(self):
+        # additional params come next
+        flags = [self.instr.calibration_flags, ]
+        for calib_class in self.calibrators:
+            flags.append(calib_class.flags[calib_class.npi:])
+        return np.hstack(flags)
+
+    @property
     def full_params(self):
         return self._full_params
 
@@ -490,78 +509,165 @@ class InstrumentCalibrator(object):
             % (len(self._full_params), len(x))
         self._full_params = x
 
+    @property
+    def reduced_params(self):
+        return self.full_params[self.flags]
+
     # =========================================================================
     # METHODS
     # =========================================================================
 
+    def _reduced_params_flag(self, cidx):
+        assert cidx >= 0 and cidx < len(self.calibrators), \
+            "index must be in %s" % str(np.arange(len(self.calibrators)))
+
+        calib_class = self.calibrators[cidx]
+
+        # instrument params come first
+        npi = calib_class.npi
+
+        # additional params come next
+        cparams_flags = [calib_class.flags[:npi], ]
+        for i, calib_class in enumerate(self.calibrators):
+            if i == cidx:
+                cparams_flags.append(calib_class.flags[npi:])
+            else:
+                cparams_flags.append(np.zeros(calib_class.npe, dtype=bool))
+        return np.hstack(cparams_flags)
+
+    def extract_points(self, fit_tth_tol, int_cutoff=1e-4):
+        # !!! list in the same order as dict looping
+        master_data_dict_list = []
+        for calib_class in self.calibrators:
+            master_data_dict_list.append(
+                calib_class._extract_powder_lines(
+                    fit_tth_tol=fit_tth_tol, int_cutoff=int_cutoff
+                )
+            )
+        return master_data_dict_list
+
+    def residual(self, x0, master_data_dict_list):
+        # !!! list in the same order as dict looping
+        resd = []
+        for i, calib_class in enumerate(self.calibrators):
+            # !!! need to grab the param set
+            #     specific to this calibrator class
+            fp = np.array(self.full_params)  # copy full_params
+            fp[self.flags] = x0  # assign new global values
+            this_x0 = fp[self._reduced_params_flag(i)]  # select these
+            resd.append(
+                calib_class.residual(
+                    this_x0,
+                    master_data_dict_list[i]
+                )
+            )
+        return np.hstack(resd)
+
     def run_calibration(self,
-                        conv_tol=1e-4, max_iter=3, fit_tth_tol=None,
+                        fit_tth_tol=None, int_cutoff=1e-4,
+                        conv_tol=1e-4, max_iter=5,
                         use_robust_optimization=False):
         """
-        FIXME: only coding serial powder case to get things going.  Will
-        eventually figure out how to loop over multiple calibrator classes.
-        All will have a reference the same instrument, but some -- like single
-        crystal -- will have to add parameters as well as contribute to the RHS
-        """
-        calib_class = self.calibrators[0]
 
-        obj_func = calib_class.residual
+
+        Parameters
+        ----------
+        fit_tth_tol : TYPE, optional
+            DESCRIPTION. The default is None.
+        int_cutoff : TYPE, optional
+            DESCRIPTION. The default is 1e-4.
+        conv_tol : TYPE, optional
+            DESCRIPTION. The default is 1e-4.
+        max_iter : TYPE, optional
+            DESCRIPTION. The default is 5.
+        use_robust_optimization : TYPE, optional
+            DESCRIPTION. The default is False.
+
+        Returns
+        -------
+        x1 : TYPE
+            DESCRIPTION.
+
+        """
 
         delta_r = np.inf
         step_successful = True
-        iters = 0
-        while (delta_r > conv_tol and step_successful) and iters < max_iter:
-            data_dict = calib_class._extract_powder_lines(
-                fit_tth_tol=fit_tth_tol)
+        iter_count = 0
+        nrm_ssr_prev = np.inf
+        rparams_prev = np.array(self.reduced_params)
+        while delta_r > conv_tol \
+            and step_successful \
+                and iter_count < max_iter:
 
-            # grab reduced optimizaion parameter set
-            x0 = self._instr.calibration_parameters[
-                    self._instr.calibration_flags
-                ]
-
-            resd0 = obj_func(x0, data_dict)
+            # extract data
+            master_data_dict_list = self.extract_points(
+                fit_tth_tol=fit_tth_tol,
+                int_cutoff=int_cutoff
+            )
+            # grab reduced params for optimizer
+            x0 = np.array(self.reduced_params)  # !!! copy
+            resd0 = self.residual(x0, master_data_dict_list)
+            nrm_ssr_0 = _normalized_ssqr(resd0)
+            if nrm_ssr_0 > nrm_ssr_prev:
+                print('No residual imporvement; exiting')
+                self.full_params = rparams_prev
+                break
 
             if use_robust_optimization:
                 oresult = least_squares(
-                    obj_func, x0, args=(data_dict, ),
+                    self.residual,
+                    x0, args=(master_data_dict_list, ),
                     method='trf', loss='soft_l1'
                 )
                 x1 = oresult['x']
             else:
                 x1, cox_x, infodict, mesg, ierr = leastsq(
-                    obj_func, x0, args=(data_dict, ),
+                    self.residual,
+                    x0, args=(master_data_dict_list, ),
                     full_output=True
                 )
-            resd1 = obj_func(x1, data_dict)
 
-            nrm_ssr_0 = sum(resd0**2)/float(len(resd0))
-            nrm_ssr_1 = sum(resd1**2)/float(len(resd1))
+            # eval new residual
+            # !!! I thought this should update the underlying class params?
+            resd1 = self.residual(x1, master_data_dict_list)
 
-            delta_r = nrm_ssr_0 - nrm_ssr_1
+            nrm_ssr_1 = _normalized_ssqr(resd1)
+
+            delta_r = 1. - nrm_ssr_1/nrm_ssr_0
 
             if delta_r > 0:
                 print('OPTIMIZATION SUCCESSFUL')
-                print('normalized initial ssr: %f\nnormalized final ssr: %f'
-                      % (nrm_ssr_0, nrm_ssr_1))
-                print(('change in resdiual: %f' % delta_r))
+                print('normalized initial ssr: %.4e' % nrm_ssr_0)
+                print('normalized final ssr: %.4e' % nrm_ssr_1)
+                print('change in resdiual: %.4e' % delta_r)
+                # FIXME: WHY IS THIS UPDATE NECESSARY?
+                #        Thought the cal to self.residual below did this, but
+                #        appeasr not to.
+                new_params = np.array(self.full_params)
+                new_params[self.flags] = x1
+                self.full_params = new_params
 
+                nrm_ssr_prev = nrm_ssr_0
+                rparams_prev = np.array(self.full_params)  # !!! careful
+                rparams_prev[self.flags] = x0
             else:
                 print('no improvement in residual!!!')
                 step_successful = False
                 break
 
-            iters += 1
+            iter_count += 1
 
         # handle exit condition in case step failed
         if not step_successful:
             x1 = x0
-            _ = obj_func(x1, data_dict)
+            _ = self.residual(x1, master_data_dict_list)
 
         # update the full_params
         # FIXME: this class is still hard-coded for one calibrator
         fp = np.array(self.full_params, dtype=float)
         fp[self.flags] = x1
         self.full_params = fp
+
         return x1
 
 
