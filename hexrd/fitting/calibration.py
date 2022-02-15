@@ -31,11 +31,16 @@ grain_flags_DFLT = np.array(
     dtype=bool
 )
 
+nfields_powder_data = 8
+
+
 # =============================================================================
 # %% POWDER CALIBRATION
 # =============================================================================
 
-nfields_powder_data = 8
+
+def _normalized_ssqr(resd):
+    return np.sum(resd*resd)/len(resd)
 
 
 class PowderCalibrator(object):
@@ -588,6 +593,8 @@ class InstrumentCalibrator(object):
         delta_r = np.inf
         step_successful = True
         iter_count = 0
+        nrm_ssr_prev = np.inf
+        rparams_prev = np.array(self.reduced_params)
         while delta_r > conv_tol \
             and step_successful \
                 and iter_count < max_iter:
@@ -600,6 +607,11 @@ class InstrumentCalibrator(object):
             # grab reduced params for optimizer
             x0 = np.array(self.reduced_params)  # !!! copy
             resd0 = self.residual(x0, master_data_dict_list)
+            nrm_ssr_0 = _normalized_ssqr(resd0)
+            if nrm_ssr_0 > nrm_ssr_prev:
+                print('No residual imporvement; exiting')
+                self.full_params = rparams_prev
+                break
 
             if use_robust_optimization:
                 oresult = least_squares(
@@ -614,31 +626,30 @@ class InstrumentCalibrator(object):
                     x0, args=(master_data_dict_list, ),
                     full_output=True
                 )
-            # FIXME: WHY IS THIS UPDATE NECESSARY?
-            #        Thought the cal to self.residual below did this, but
-            #        appeasr not to.
-            new_params = np.array(self.full_params)
-            new_params[self.flags] = x1
-            self.full_params = new_params
 
             # eval new residual
             # !!! I thought this should update the underlying class params?
             resd1 = self.residual(x1, master_data_dict_list)
 
-            delta_r = sum(resd0**2)/float(len(resd0)) - \
-                sum(resd1**2)/float(len(resd1))
-
-            nrm_ssr_0 = sum(resd0**2)/float(len(resd0))
-            nrm_ssr_1 = sum(resd1**2)/float(len(resd1))
+            nrm_ssr_1 = _normalized_ssqr(resd1)
 
             delta_r = 1. - nrm_ssr_1/nrm_ssr_0
 
             if delta_r > 0:
                 print('OPTIMIZATION SUCCESSFUL')
-                print('normalized initial ssr: %.2e' % nrm_ssr_0)
-                print('normalized final ssr: %.2e' % nrm_ssr_1)
-                print('change in resdiual: %.2e' % delta_r)
+                print('normalized initial ssr: %.4e' % nrm_ssr_0)
+                print('normalized final ssr: %.4e' % nrm_ssr_1)
+                print('change in resdiual: %.4e' % delta_r)
+                # FIXME: WHY IS THIS UPDATE NECESSARY?
+                #        Thought the cal to self.residual below did this, but
+                #        appeasr not to.
+                new_params = np.array(self.full_params)
+                new_params[self.flags] = x1
+                self.full_params = new_params
 
+                nrm_ssr_prev = nrm_ssr_0
+                rparams_prev = np.array(self.full_params)  # !!! careful
+                rparams_prev[self.flags] = x0
             else:
                 print('no improvement in residual!!!')
                 step_successful = False
