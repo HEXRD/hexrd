@@ -259,9 +259,11 @@ class PowderCalibrator(object):
         # GRAND LOOP OVER PATCHES
         logger.info("Fitting ring data")
         rhs = dict.fromkeys(self.instr.detectors)
-        pbar_dets = tqdm(
-            total=self.instr.num_panels, desc="Detector", position=0
-        )
+        pbar_dets = None
+        if self.instr.num_panels > 1:
+            pbar_dets = tqdm(
+                total=self.instr.num_panels, desc="Detector", position=0
+            )
         for det_key, panel in self.instr.detectors.items():
             rhs[det_key] = []
             pbar_rings = tqdm(
@@ -349,10 +351,12 @@ class PowderCalibrator(object):
                 else:
                     rhs[det_key].append(np.vstack(tmp))
                 pass  # close loop over ringsets
-            pbar_dets.update()
+            if pbar_dets is not None:
+                pbar_dets.update()
             pbar_rings.close()
             pass
-        pbar_dets.close()
+        if pbar_dets is not None:
+            pbar_dets.close()
 
         # assign attribute
         self._calibration_data = rhs

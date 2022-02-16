@@ -1239,7 +1239,13 @@ class HEDMInstrument(object):
         # =====================================================================
         logger.info("Interpolating ring data")
         panel_data = dict.fromkeys(self.detectors)
-        pbar_dets = tqdm(total=self.num_panels, desc="Detector", position=0)
+        pbar_dets = None
+        pbp = 0
+        if self.num_panels > 1:
+            pbar_dets = tqdm(
+                total=self.num_panels, desc="Detector", position=pbp
+            )
+            pbp += 1
         for i_det, detector_id in enumerate(self.detectors):
             # logger.info("working on detector '%s'..." % detector_id)
             # pbar.update(i_det + 1)
@@ -1278,7 +1284,9 @@ class HEDMInstrument(object):
             # LOOP OVER RING SETS
             # =================================================================
             ring_data = []
-            pbar_rings = tqdm(total=len(pow_angs), desc="Ringset", position=1)
+            pbar_rings = tqdm(
+                total=len(pow_angs), desc="Ringset", position=pbp
+            )
             for i_ring, these_data in enumerate(zip(pow_angs, pow_xys)):
                 # points are already checked to fall on detector
                 angs = these_data[0]
@@ -1368,10 +1376,12 @@ class HEDMInstrument(object):
                 pbar_rings.update()
                 pass  # close ring loop
             pbar_rings.close()
-            pbar_dets.update()
+            if pbar_dets is not None:
+                pbar_dets.update()
             panel_data[detector_id] = ring_data
             pass  # close panel loop
-        pbar_dets.close()
+        if pbar_dets is not None:
+            pbar_dets.close()
         return panel_data
 
     def simulate_powder_pattern(self,
