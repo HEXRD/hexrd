@@ -14,7 +14,9 @@ from hexrd.transforms import xfcapi
 from . import grains as grainutil
 from . import spectrum
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
+logger.setLevel('INFO')
+
 
 # =============================================================================
 # %% PARAMETERS
@@ -83,6 +85,9 @@ class PowderCalibrator(object):
         self._pktype = pktype
         self._bgtype = bgtype
 
+        # container for calibration data
+        self._calibration_data = None
+
     @property
     def npi(self):
         return len(self._instr.calibration_parameters)
@@ -128,6 +133,10 @@ class PowderCalibrator(object):
         if x is not None:
             assert np.isscalar(x), "fwhm_estimate must be a scalar value"
         self._fwhm_estimate = x
+
+    @property
+    def calibration_data(self):
+        return self._calibration_data
 
     @property
     def params(self):
@@ -248,10 +257,17 @@ class PowderCalibrator(object):
         powder_lines = self._interpolate_images()
 
         # GRAND LOOP OVER PATCHES
+        logger.info("Fitting ring data")
         rhs = dict.fromkeys(self.instr.detectors)
+        pbar_dets = tqdm(
+            total=self.instr.num_panels, desc="Detector", position=0
+        )
         for det_key, panel in self.instr.detectors.items():
             rhs[det_key] = []
-            for i_ring, ringset in enumerate(tqdm(powder_lines[det_key])):
+            pbar_rings = tqdm(
+                total=len(powder_lines[det_key]), desc="Ringset", position=1
+            )
+            for i_ring, ringset in enumerate(powder_lines[det_key]):
                 tmp = []
                 if len(ringset) == 0:
                     continue
@@ -327,15 +343,22 @@ class PowderCalibrator(object):
                                  eta_ref_tile.reshape(npeaks, 1)]
                             )
                         )
+                pbar_rings.update()
                 if len(tmp) == 0:
                     rhs[det_key].append(np.empty((0, nfields_powder_data)))
                 else:
                     rhs[det_key].append(np.vstack(tmp))
-                pass
+                pass  # close loop over ringsets
+            pbar_dets.update()
+            pbar_rings.close()
             pass
-        return rhs
+        pbar_dets.close()
 
-    def _evaluate(self, reduced_params, data_dict, output='residual'):
+        # assign attribute
+        self._calibration_data = rhs
+
+    def _evaluate(self, reduced_params,
+                  calibration_data=None, output='residual'):
         """
         Evaluate the powder diffraction model.
 
@@ -343,7 +366,7 @@ class PowderCalibrator(object):
         ----------
         reduced_params : TYPE
             DESCRIPTION.
-        data_dict : TYPE
+        calibration_data : TYPE
             DESCRIPTION.
         output : TYPE, optional
             DESCRIPTION. The default is 'residual'.
@@ -372,14 +395,24 @@ class PowderCalibrator(object):
         bmat = self.plane_data.latVecOps['B']
         wlen = self.instr.beam_wavelength
 
+        # calibration data
+        if calibration_data is None:
+            if self.calibration_data is None:
+                raise RuntimeError(
+                    "calibration data has not been provided; " +
+                    "run extraction method or assign table from picks."
+                )
+        else:
+            self._calibration_data = calibration_data
+
         # build residual
         retval = np.array([], dtype=float)
         for det_key, panel in self.instr.detectors.items():
-            if len(data_dict[det_key]) == 0:
+            if len(self.calibration_data[det_key]) == 0:
                 continue
             else:
                 # recast as array
-                pdata = np.vstack(data_dict[det_key])
+                pdata = np.vstack(self.calibration_data[det_key])
 
                 """
                 Here is the strategy:
@@ -446,16 +479,22 @@ class PowderCalibrator(object):
                         calc_xy.flatten()
                     )
                 else:
-                    raise RuntimeError("unrecognized output flag '%s'"
-                                       % output)
+                    raise RuntimeError(
+                        "unrecognized output flag '%s'"
+                        % output
+                    )
 
         return retval
 
-    def residual(self, reduced_params, data_dict):
-        return self._evaluate(reduced_params, data_dict)
+    def residual(self, reduced_params, calibration_data=None):
+        return self._evaluate(reduced_params,
+                              calibration_data=calibration_data,
+                              output='residual')
 
-    def model(self, reduced_params, data_dict):
-        return self._evaluate(reduced_params, data_dict, output='model')
+    def model(self, reduced_params, calibration_data=None):
+        return self._evaluate(reduced_params,
+                              calibration_data=calibration_data,
+                              output='model')
 
 
 class InstrumentCalibrator(object):
@@ -482,10 +521,13 @@ class InstrumentCalibrator(object):
         self._instr = self._calibrators[0].instr
         self.npi = len(self._instr.calibration_parameters)
         self._full_params = self._instr.calibration_parameters
+        calib_data = []
         for calib in self._calibrators:
             assert calib.instr is self._instr, \
                 "all calibrators must refer to the same instrument"
             self._full_params = np.hstack([self._full_params, calib.params])
+            calib_data.append(calib.calibration_data)
+        self._calibration_data = calib_data
 
     @property
     def instr(self):
@@ -494,6 +536,10 @@ class InstrumentCalibrator(object):
     @property
     def calibrators(self):
         return self._calibrators
+
+    @property
+    def calibration_data(self):
+        return self._calibration_data
 
     @property
     def flags(self):
@@ -542,16 +588,15 @@ class InstrumentCalibrator(object):
 
     def extract_points(self, fit_tth_tol, int_cutoff=1e-4):
         # !!! list in the same order as dict looping
-        master_data_dict_list = []
+        calib_data_list = []
         for calib_class in self.calibrators:
-            master_data_dict_list.append(
-                calib_class._extract_powder_lines(
-                    fit_tth_tol=fit_tth_tol, int_cutoff=int_cutoff
-                )
+            calib_class._extract_powder_lines(
+                fit_tth_tol=fit_tth_tol, int_cutoff=int_cutoff
             )
-        return master_data_dict_list
+            calib_data_list.append(calib_class.calibration_data)
+        self._calibration_data = calib_data_list
 
-    def residual(self, x0, master_data_dict_list):
+    def residual(self, x0):
         # !!! list in the same order as dict looping
         resd = []
         for i, calib_class in enumerate(self.calibrators):
@@ -560,12 +605,7 @@ class InstrumentCalibrator(object):
             fp = np.array(self.full_params)  # copy full_params
             fp[self.flags] = x0  # assign new global values
             this_x0 = fp[self._reduced_params_flag(i)]  # select these
-            resd.append(
-                calib_class.residual(
-                    this_x0,
-                    master_data_dict_list[i]
-                )
-            )
+            resd.append(calib_class.residual(this_x0))
         return np.hstack(resd)
 
     def run_calibration(self,
@@ -605,36 +645,37 @@ class InstrumentCalibrator(object):
                 and iter_count < max_iter:
 
             # extract data
-            master_data_dict_list = self.extract_points(
-                fit_tth_tol=fit_tth_tol,
-                int_cutoff=int_cutoff
-            )
+            check_cal = [i is None for i in self.calibration_data]
+            if np.any(check_cal) or iter_count > 0:
+                self.extract_points(
+                    fit_tth_tol=fit_tth_tol,
+                    int_cutoff=int_cutoff
+                )
+
             # grab reduced params for optimizer
             x0 = np.array(self.reduced_params)  # !!! copy
-            resd0 = self.residual(x0, master_data_dict_list)
+            resd0 = self.residual(x0)
             nrm_ssr_0 = _normalized_ssqr(resd0)
             if nrm_ssr_0 > nrm_ssr_prev:
-                logger.warning('No residual imporvement; exiting')
+                logger.warning('No residual improvement; exiting')
                 self.full_params = rparams_prev
                 break
 
             if use_robust_optimization:
                 oresult = least_squares(
-                    self.residual,
-                    x0, args=(master_data_dict_list, ),
+                    self.residual, x0,
                     method='trf', loss='soft_l1'
                 )
                 x1 = oresult['x']
             else:
                 x1, cox_x, infodict, mesg, ierr = leastsq(
-                    self.residual,
-                    x0, args=(master_data_dict_list, ),
+                    self.residual, x0,
                     full_output=True
                 )
 
             # eval new residual
             # !!! I thought this should update the underlying class params?
-            resd1 = self.residual(x1, master_data_dict_list)
+            resd1 = self.residual(x1)
 
             nrm_ssr_1 = _normalized_ssqr(resd1)
 
@@ -656,7 +697,7 @@ class InstrumentCalibrator(object):
                 rparams_prev = np.array(self.full_params)  # !!! careful
                 rparams_prev[self.flags] = x0
             else:
-                logger.warning('no improvement in residual!!!')
+                logger.warning('no improvement in residual; exiting')
                 step_successful = False
                 break
 
@@ -665,7 +706,7 @@ class InstrumentCalibrator(object):
         # handle exit condition in case step failed
         if not step_successful:
             x1 = x0
-            _ = self.residual(x1, master_data_dict_list)
+            _ = self.residual(x1)
 
         # update the full_params
         # FIXME: this class is still hard-coded for one calibrator

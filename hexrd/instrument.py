@@ -31,9 +31,12 @@ Created on Fri Dec  9 13:05:27 2016
 @author: bernier2
 """
 import copy
+import logging
 import os
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
+
+from tqdm import tqdm
 
 import yaml
 
@@ -88,6 +91,9 @@ except(ImportError):
 
 if ct.USE_NUMBA:
     import numba
+
+logger = logging.getLogger()
+logger.setLevel('INFO')
 
 # =============================================================================
 # PARAMETERS
@@ -1231,9 +1237,11 @@ class HEDMInstrument(object):
         # =====================================================================
         # LOOP OVER DETECTORS
         # =====================================================================
+        logger.info("Interpolating ring data")
         panel_data = dict.fromkeys(self.detectors)
+        pbar_dets = tqdm(total=self.num_panels, desc="Detector", position=0)
         for i_det, detector_id in enumerate(self.detectors):
-            print("working on detector '%s'..." % detector_id)
+            # logger.info("working on detector '%s'..." % detector_id)
             # pbar.update(i_det + 1)
             # grab panel
             panel = self.detectors[detector_id]
@@ -1270,9 +1278,8 @@ class HEDMInstrument(object):
             # LOOP OVER RING SETS
             # =================================================================
             ring_data = []
+            pbar_rings = tqdm(total=len(pow_angs), desc="Ringset", position=1)
             for i_ring, these_data in enumerate(zip(pow_angs, pow_xys)):
-                print("interpolating 2theta bin %d..." % i_ring)
-
                 # points are already checked to fall on detector
                 angs = these_data[0]
                 xys = these_data[1]
@@ -1358,10 +1365,13 @@ class HEDMInstrument(object):
                         patch_data.append((ang_data, ims_data))
                     pass  # close patch loop
                 ring_data.append(patch_data)
+                pbar_rings.update()
                 pass  # close ring loop
+            pbar_rings.close()
+            pbar_dets.update()
             panel_data[detector_id] = ring_data
             pass  # close panel loop
-            # pbar.finish()
+        pbar_dets.close()
         return panel_data
 
     def simulate_powder_pattern(self,
