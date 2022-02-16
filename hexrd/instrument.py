@@ -3585,6 +3585,8 @@ def unwrap_dict_to_h5(grp, d, asattr=False):
                 except(TypeError):
                     if item is None:
                         continue
+                    else:
+                        raise
             else:
                 try:
                     grp.create_dataset(key, data=np.atleast_1d(item))
