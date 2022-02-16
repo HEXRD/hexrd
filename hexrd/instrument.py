@@ -3581,8 +3581,11 @@ def unwrap_dict_to_h5(grp, d, asattr=False):
                 try:
                     grp.create_dataset(key, data=np.atleast_1d(item))
                 except(TypeError):
-                    # probably a string badness
-                    grp.create_dataset(key, data=item)
+                    if item is None:
+                        continue
+                    else:
+                        # probably a string badness
+                        grp.create_dataset(key, data=item)
 
 
 def unwrap_h5_to_dict(f, d):
