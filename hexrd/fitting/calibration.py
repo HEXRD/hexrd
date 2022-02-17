@@ -260,18 +260,22 @@ class PowderCalibrator(object):
         logger.info("Fitting ring data")
         rhs = dict.fromkeys(self.instr.detectors)
         pbar_dets = None
+        pbp = 0
         if self.instr.num_panels > 1:
             pbar_dets = tqdm(
-                total=self.instr.num_panels, desc="Detector", position=0
+                total=self.instr.num_panels, desc="Detector", position=pbp
             )
+            pbp += 1
         for det_key, panel in self.instr.detectors.items():
             rhs[det_key] = []
             pbar_rings = tqdm(
-                total=len(powder_lines[det_key]), desc="Ringset", position=1
+                total=len(powder_lines[det_key]), desc="Ringset", position=pbp
             )
+            # TODO: could use concurrency here
             for i_ring, ringset in enumerate(powder_lines[det_key]):
                 tmp = []
                 if len(ringset) == 0:
+                    pbar_rings.update()
                     continue
                 else:
                     for angs, intensities in ringset:
@@ -285,6 +289,7 @@ class PowderCalibrator(object):
                         # )
                         if len(intensities) == 0:
                             continue
+
                         spec_data = np.vstack(
                             [np.degrees(angs[0]),
                              intensities[0]]
