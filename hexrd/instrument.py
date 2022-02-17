@@ -2366,7 +2366,7 @@ class PlanarDetector(object):
 
         # panel buffer
         if panel_buffer is None:
-            # could be non, a 2-element list, or a 2-d array (rows, cols)
+            # could be none, a 2-element list, or a 2-d array (rows, cols)
             panel_buffer = copy.deepcopy(self.panel_buffer)
         # !!! now we have to do some style-dependent munging of panel_buffer
         if isinstance(panel_buffer, np.ndarray):
@@ -2389,9 +2389,13 @@ class PlanarDetector(object):
                 )
         elif panel_buffer is None:
             # still None on self
+            # !!! this gets handled by unwrap_dict_to_h5 now
+            '''
             if style.lower() == 'hdf5':
                 # !!! can't write None to hdf5; substitute with zeros
                 panel_buffer = np.r_[0., 0.]
+            '''
+            pass
         det_dict['buffer'] = panel_buffer
 
         # =====================================================================
@@ -3576,13 +3580,22 @@ def unwrap_dict_to_h5(grp, d, asattr=False):
             unwrap_dict_to_h5(subgrp, item, asattr=asattr)
         else:
             if asattr:
-                grp.attrs.create(key, item)
+                try:
+                    grp.attrs.create(key, item)
+                except(TypeError):
+                    if item is None:
+                        continue
+                    else:
+                        raise
             else:
                 try:
                     grp.create_dataset(key, data=np.atleast_1d(item))
                 except(TypeError):
-                    # probably a string badness
-                    grp.create_dataset(key, data=item)
+                    if item is None:
+                        continue
+                    else:
+                        # probably a string badness
+                        grp.create_dataset(key, data=item)
 
 
 def unwrap_h5_to_dict(f, d):
