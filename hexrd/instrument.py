@@ -1112,6 +1112,14 @@ class HEDMInstrument(object):
                         else:
                             tmp = image[ijs[0], ijs[1]]*area_fac
 
+                        # catch flat spectrum data, which will cause
+                        # fitting to fail.
+                        # ???: best here, or make fitting handle it?
+                        mxval = np.max(tmp)
+                        mnval = np.min(tmp)
+                        if mxval == 0 or (1. - mnval/mxval) < 0.01:
+                            continue
+
                         # catch collapsing options
                         if collapse_tth:
                             patch_data[i_p, j_p] = np.average(tmp)

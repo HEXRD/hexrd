@@ -265,6 +265,8 @@ class PowderCalibrator(object):
                         #     np.array(intensities).squeeze(),
                         #     axis=0
                         # )
+                        if len(intensities) == 0:
+                            continue
                         spec_data = np.vstack(
                             [np.degrees(angs[0]),
                              intensities[0]]
