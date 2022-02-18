@@ -333,7 +333,7 @@ def _build_composite_model(npeaks=1, pktype='gaussian', bgtype='linear'):
 class SpectrumModel(object):
     def __init__(self, data, peak_centers,
                  pktype='pvoigt', bgtype='linear',
-                 fwhm_init=None):
+                 fwhm_init=None, min_ampl=0., min_pk_sep=pk_sep_min):
         """
         Instantiates spectrum model.
 
@@ -366,6 +366,8 @@ class SpectrumModel(object):
         self._pktype = pktype
         self._bgtype = bgtype
 
+        if fwhm_init is None:
+            fwhm_init = np.diff(window_range)/(20.*num_peaks)
         self._tth0 = peak_centers
         num_peaks = len(peak_centers)
 
@@ -393,7 +395,7 @@ class SpectrumModel(object):
         p0 = _initial_guess(
             self._tth0, xdata, ydata,
             pktype=self._pktype, bgtype=self._bgtype,
-            fwhm_guess=np.diff(window_range)/(20.*num_peaks)
+            fwhm_guess=fwhm_init
         )
         psplit = num_func_params[bgtype]
         p0_pks = np.reshape(p0[:-psplit], (num_peaks, num_func_params[pktype]))
@@ -414,10 +416,10 @@ class SpectrumModel(object):
             initial_params_pks, min_w=fwhm_min, max_w=np.inf
         )
         _set_bound_constraints(
-            initial_params_pks, 'amp', min_val=0., max_val=ymax
+            initial_params_pks, 'amp', min_val=min_ampl, max_val=ymax
         )
         _set_peak_center_bounds(
-            initial_params_pks, window_range, min_sep=pk_sep_min
+            initial_params_pks, window_range, min_sep=min_pk_sep
         )
         if pktype == 'pink_beam_dcs':
             # set bounds on fwhm params and mixing (where applicable)
@@ -519,7 +521,7 @@ class SpectrumModel(object):
                 zip(_extract_parameters_by_name(new_p, 'fwhm_g'),
                     _extract_parameters_by_name(new_p, 'fwhm_l'))
             )
-            _set_peak_center_bounds(new_p, window_range, min_sep=pk_sep_min)
+            _set_peak_center_bounds(new_p, window_range, min_sep=min_pk_sep)
 
             # refit
             res1 = self.model.fit(ydata, params=new_p, x=xdata)
