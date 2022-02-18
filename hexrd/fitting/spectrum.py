@@ -387,6 +387,8 @@ class SpectrumModel(object):
         if fwhm_init is None:
             fwhm_init = np.diff(window_range)/(20.*num_peaks)
 
+        self._min_pk_sep = min_pk_sep
+
         # model
         spectrum_model = _build_composite_model(
             num_peaks, pktype=pktype, bgtype=bgtype
@@ -469,6 +471,10 @@ class SpectrumModel(object):
         return self._bgtype
 
     @property
+    def min_pk_sep(self):
+        return self._min_pk_sep
+
+    @property
     def data(self):
         return self._data
 
@@ -522,7 +528,8 @@ class SpectrumModel(object):
                 zip(_extract_parameters_by_name(new_p, 'fwhm_g'),
                     _extract_parameters_by_name(new_p, 'fwhm_l'))
             )
-            _set_peak_center_bounds(new_p, window_range, min_sep=min_pk_sep)
+            _set_peak_center_bounds(new_p, window_range,
+                                    min_sep=self.min_pk_sep)
 
             # refit
             res1 = self.model.fit(ydata, params=new_p, x=xdata)
