@@ -520,6 +520,12 @@ class SpectrumModel(object):
             _set_equality_constraints(new_p, 'beta0')
             _set_refinement_by_name(new_p, 'alpha1', vary=False)
             _set_refinement_by_name(new_p, 'beta1', vary=False)
+            _set_bound_constraints(
+                new_p, 'alpha', min_val=-50, max_val=50
+            )
+            _set_bound_constraints(
+                new_p, 'beta', min_val=-50, max_val=50
+            )
             _set_width_mixing_bounds(new_p, min_w=fwhm_min, max_w=np.inf)
             # !!! not sure on this, but it seems to give more stable results
             #     with many peaks
