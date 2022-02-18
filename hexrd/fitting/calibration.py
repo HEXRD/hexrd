@@ -50,13 +50,16 @@ def _normalized_ssqr(resd):
 
 class PowderCalibrator(object):
     def __init__(self, instr, plane_data, img_dict, flags,
-                 tth_tol=None, eta_tol=0.25, fwhm_estimate=None,
+                 tth_tol=None, eta_tol=0.25,
+                 fwhm_estimate=None, min_pk_sep=1e-3, min_ampl=0.,
                  pktype='pvoigt', bgtype='linear'):
         assert list(instr.detectors.keys()) == list(img_dict.keys()), \
             "instrument and image dict must have the same keys"
         self._instr = instr
         self._plane_data = plane_data
         self._fwhm_estimate = fwhm_estimate
+        self._min_pk_sep = min_pk_sep
+        self._min_ampl = min_ampl
         self._plane_data.wavelength = self._instr.beam_energy  # force
         self._img_dict = img_dict
         self._params = np.asarray(plane_data.lparms, dtype=float)
@@ -133,6 +136,34 @@ class PowderCalibrator(object):
         if x is not None:
             assert np.isscalar(x), "fwhm_estimate must be a scalar value"
         self._fwhm_estimate = x
+
+    @property
+    def min_pk_sep(self):
+        return self._min_pk_sep
+
+    @min_pk_sep.setter
+    def min_pk_sep(self, x):
+        if x is not None:
+            assert x > 0., "min_pk_sep must be greater than zero"
+        self._min_pk_sep = x
+
+    @property
+    def min_ampl(self):
+        return self._min_ampl
+
+    @min_ampl.setter
+    def min_ampl(self, x):
+        if x is not None:
+            assert x > 0., "min_ampl must be greater than zero"
+        self._min_ampl = x
+
+    @property
+    def spectrum_kwargs(self):
+        return dict(pktype=self.pktype,
+                    bgtype=self.bgtype,
+                    fwhm_init=self.fwhm_estimate,
+                    min_ampl=self.min_ampl,
+                    min_pk_sep=self.min_pk_sep)
 
     @property
     def calibration_data(self):
@@ -307,8 +338,7 @@ class PowderCalibrator(object):
                         # spectrum fitting
                         sm = spectrum.SpectrumModel(
                             spec_data, tth_pred,
-                            pktype=self.pktype, bgtype=self.bgtype,
-                            fwhm_init=self.fwhm_estimate
+                            **self.spectrum_kwargs
                         )
                         fit_results = sm.fit()
                         if not fit_results.success:
@@ -323,7 +353,9 @@ class PowderCalibrator(object):
                         pk_amp, tth_meas = fit_params
 
                         # !!! this is where we can kick out bunk fits
-                        center_err = abs(tth_meas - tth_pred)
+                        center_err = 100*abs(tth_meas/tth_pred - 1.)
+                        #if i_ring == 0:
+                        #    breakpoint()
                         failed_fit_heuristic = np.logical_or(
                             pk_amp < int_cutoff,
                             center_err > fit_tth_tol

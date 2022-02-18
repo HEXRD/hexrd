@@ -167,7 +167,7 @@ def _amplitude_guess(x, x0, y, fwhm):
 
 def _initial_guess(peak_positions, x, f,
                    pktype='pvoigt', bgtype='linear',
-                   fwhm_guess=None):
+                   fwhm_guess=None, min_ampl=0.):
     """
     Generate function-specific estimate for multi-peak parameters.
 
@@ -232,7 +232,7 @@ def _initial_guess(peak_positions, x, f,
                 x, peak_positions[ii], fsubtr, fwhm_guess[ii]
             )
             pkparams[ii, :] = [
-                amp_guess,
+                max(amp_guess, min_ampl),
                 peak_positions[ii],
                 fwhm_guess[ii]
             ]
@@ -244,7 +244,7 @@ def _initial_guess(peak_positions, x, f,
                 x, peak_positions[ii], fsubtr, fwhm_guess[ii]
             )
             pkparams[ii, :] = [
-                amp_guess,
+                max(amp_guess, min_ampl),
                 peak_positions[ii],
                 fwhm_guess[ii],
                 0.5
@@ -257,7 +257,7 @@ def _initial_guess(peak_positions, x, f,
                 x, peak_positions[ii], fsubtr, fwhm_guess[ii]
             )
             pkparams[ii, :] = [
-                amp_guess,
+                max(amp_guess, min_ampl),
                 peak_positions[ii],
                 fwhm_guess[ii],
                 fwhm_guess[ii],
@@ -272,7 +272,7 @@ def _initial_guess(peak_positions, x, f,
                 x, peak_positions[ii], fsubtr, fwhm_guess[ii]
             )
             pkparams[ii, :] = [
-                amp_guess,
+                max(amp_guess, min_ampl),
                 peak_positions[ii],
                 alpha0_DFLT,
                 alpha1_DFLT,
@@ -333,7 +333,7 @@ def _build_composite_model(npeaks=1, pktype='gaussian', bgtype='linear'):
 class SpectrumModel(object):
     def __init__(self, data, peak_centers,
                  pktype='pvoigt', bgtype='linear',
-                 fwhm_init=None, min_ampl=0., min_pk_sep=pk_sep_min):
+                 fwhm_init=None, min_ampl=1e-4, min_pk_sep=pk_sep_min):
         """
         Instantiates spectrum model.
 
@@ -366,11 +366,6 @@ class SpectrumModel(object):
         self._pktype = pktype
         self._bgtype = bgtype
 
-        if fwhm_init is None:
-            fwhm_init = np.diff(window_range)/(20.*num_peaks)
-        self._tth0 = peak_centers
-        num_peaks = len(peak_centers)
-
         master_keys_pks = _function_dict_1d[pktype]
         master_keys_bkg = _function_dict_1d[bgtype]
 
@@ -386,6 +381,12 @@ class SpectrumModel(object):
         window_range = (np.min(xdata), np.max(xdata))
         ymax = np.max(ydata)
 
+        self._tth0 = peak_centers
+        num_peaks = len(peak_centers)
+
+        if fwhm_init is None:
+            fwhm_init = np.diff(window_range)/(20.*num_peaks)
+
         # model
         spectrum_model = _build_composite_model(
             num_peaks, pktype=pktype, bgtype=bgtype
@@ -395,7 +396,7 @@ class SpectrumModel(object):
         p0 = _initial_guess(
             self._tth0, xdata, ydata,
             pktype=self._pktype, bgtype=self._bgtype,
-            fwhm_guess=fwhm_init
+            fwhm_guess=fwhm_init, min_ampl=min_ampl
         )
         psplit = num_func_params[bgtype]
         p0_pks = np.reshape(p0[:-psplit], (num_peaks, num_func_params[pktype]))
