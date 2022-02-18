@@ -44,7 +44,7 @@ import numpy as np
 from io import IOBase
 
 from scipy import ndimage
-from scipy.linalg.matfuncs import logm
+from scipy.linalg import logm
 from skimage.measure import regionprops
 
 from hexrd import constants
@@ -875,25 +875,24 @@ class HEDMInstrument(object):
         else:
             tth_tol = np.degrees(plane_data.tThWidth)
 
-        tth_ranges = plane_data.getTThRanges()
+        # make rings clipped to panel
+        # !!! eta_idx has the same length as plane_data.exclusions
+        #     each entry are the integer indices into the bins
+        # !!! eta_edges is the list of eta bin EDGES; same for all
+        #     detectors, so calculate it once
+        # !!! grab first panel
+        panel = next(iter(self.detectors.values()))
+        pow_angs, pow_xys, tth_ranges, eta_idx, eta_edges = \
+            panel.make_powder_rings(
+                plane_data, merge_hkls=False,
+                delta_eta=eta_tol, full_output=True
+            )
+
         if active_hkls is not None:
             assert hasattr(active_hkls, '__len__'), \
                 "active_hkls must be an iterable with __len__"
             tth_ranges = tth_ranges[active_hkls]
 
-        # # need this for making eta ranges
-        # eta_tol_vec = 0.5*np.radians([-eta_tol, eta_tol])
-
-        # make rings clipped to panel
-        # !!! eta_idx has the same length as plane_data.exclusions
-        #       each entry are the integer indices into the bins
-        # !!! eta_edges is the list of eta bin EDGES
-        # We can use the same eta_edge for all detectors, so calculate it once
-        pow_angs, pow_xys, eta_idx, eta_edges = list(
-                self.detectors.values()
-            )[0].make_powder_rings(plane_data,
-                                   merge_hkls=False, delta_eta=eta_tol,
-                                   full_output=True)
         delta_eta = eta_edges[1] - eta_edges[0]
         ncols_eta = len(eta_edges) - 1
 
@@ -966,7 +965,7 @@ class HEDMInstrument(object):
             Object determining the 2theta positions for the integration
             sectors.  If PlaneData, this will be all non-excluded reflections,
             subject to merging within PlaneData.tThWidth.  If array_like,
-            interpreted as a list of 2theta angles IN RADIAN (this may change).
+            interpreted as a list of 2theta angles IN DEGREES.
         imgser_dict : dict
             Dictionary of powder diffraction images, one for each detector.
         tth_tol : scalar, optional
@@ -1009,14 +1008,6 @@ class HEDMInstrument(object):
         TODO: rename function.
 
         """
-        if not hasattr(plane_data, '__len__'):
-            plane_data = plane_data.makeNew()  # make local copy to munge
-            if tth_tol is not None:
-                plane_data.tThWidth = np.radians(tth_tol)
-            tth_ranges = np.degrees(plane_data.getMergedRanges()[1])
-            tth_tols = np.hstack([i[1] - i[0] for i in tth_ranges])
-        else:
-            tth_tols = np.ones(len(plane_data))*tth_tol
 
         # =====================================================================
         # LOOP OVER DETECTORS
@@ -1044,10 +1035,12 @@ class HEDMInstrument(object):
                 raise RuntimeError("images must be 2- or 3-d")
 
             # make rings
-            pow_angs, pow_xys = panel.make_powder_rings(
+            pow_angs, pow_xys, tth_ranges = panel.make_powder_rings(
                 plane_data, merge_hkls=True,
                 delta_tth=tth_tol, delta_eta=eta_tol,
                 eta_list=eta_centers)
+
+            tth_tols = np.degrees(np.hstack([i[1] - i[0] for i in tth_ranges]))
 
             # =================================================================
             # LOOP OVER RING SETS
@@ -1092,7 +1085,9 @@ class HEDMInstrument(object):
                     elif collapse_eta:
                         # !!! yield the tth bin centers
                         tth_centers = np.average(
-                            np.vstack([vtx_angs[0][0, :-1], vtx_angs[0][0, 1:]]),
+                            np.vstack(
+                                [vtx_angs[0][0, :-1], vtx_angs[0][0, 1:]]
+                            ),
                             axis=0
                         )
                         ang_data = (tth_centers,
@@ -1528,7 +1523,7 @@ class HEDMInstrument(object):
         iRefl = 0
         compl = []
         output = dict.fromkeys(self.detectors)
-        for detector_id in self.detectors:
+        for detector_id, panel in self.detectors.items():
             # initialize text-based output writer
             if filename is not None and output_format.lower() == 'text':
                 output_dir = os.path.join(
@@ -1542,7 +1537,6 @@ class HEDMInstrument(object):
                 writer = PatchDataWriter(this_filename)
 
             # grab panel
-            panel = self.detectors[detector_id]
             instr_cfg = panel.config_dict(
                 self.chi, self.tvec,
                 beam_energy=self.beam_energy,
@@ -1771,6 +1765,7 @@ class HEDMInstrument(object):
                                 # not raw; likely ok in most cases.
 
                                 # need MEASURED xy coords
+                                # FIXME: overload angles_to_cart?
                                 gvec_c = anglesToGVec(
                                     meas_angs,
                                     chi=self.chi,
@@ -1788,7 +1783,6 @@ class HEDMInstrument(object):
                                     meas_xy = panel.distortion.apply_inverse(
                                         np.atleast_2d(meas_xy)
                                     ).flatten()
-                                    pass
                                 # FIXME: why is this suddenly necessary???
                                 meas_xy = meas_xy.squeeze()
                                 pass  # end num_peaks > 0
@@ -2681,7 +2675,11 @@ class PlanarDetector(object):
             rmat_c = ct.identity_3x3
         if tvec_c is None:
             tvec_c = ct.zeros_3
-        # !!! warning, this assumes an rmat_s made from chi, ome pair
+
+        # get chi and ome from rmat_s
+        # !!! WARNING: API ambiguity
+        # !!! this assumes rmat_s was made from the composition
+        # !!! rmat_s = R(Xl, chi) * R(Yl, ome)
         chi = np.arccos(rmat_s[1, 1])
         ome = np.arccos(rmat_s[0, 0])
 
@@ -2851,6 +2849,8 @@ class PlanarDetector(object):
                 raise RuntimeError(
                     "If supplying a 2theta list as first arg, "
                     + "must supply a delta_tth")
+            tth_pm = 0.5*delta_tth*np.r_[-1., 1.]
+            tth_ranges = [i + tth_pm for i in tth]
             sector_vertices = np.tile(
                 0.5*np.radians([-delta_tth, -delta_eta,
                                 -delta_tth, delta_eta,
@@ -2863,11 +2863,11 @@ class PlanarDetector(object):
         else:
             # Okay, we have a PlaneData object
             try:
-                pd = PlaneData.makeNew(pd)    # make a copy to munge
+                pd = pd.makeNew()  # make a copy to munge
             except(TypeError):
-                # !!! have some other object here, likely a dummy plane data
-                # object of some sort...
-                pass
+                # !!! have some other object here,
+                #     likely a dummy plane data object of sorts
+                raise
 
             if delta_tth is not None:
                 pd.tThWidth = np.radians(delta_tth)
@@ -2880,7 +2880,7 @@ class PlanarDetector(object):
             # do merging if asked
             if merge_hkls:
                 _, tth_ranges = pd.getMergedRanges(cullDupl=True)
-                tth = np.array([0.5*sum(i) for i in tth_ranges])
+                tth = np.average(tth_ranges, axis=1)
             else:
                 tth_ranges = pd.getTThRanges()
                 tth = pd.getTTh()
@@ -2925,15 +2925,14 @@ class PlanarDetector(object):
             ).T.flatten()
 
         # get chi and ome from rmat_s
-        # ??? not needed chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
+        # !!! API ambiguity
+        # !!! this assumes rmat_s was made from the composition
+        # !!! rmat_s = R(Xl, chi) * R(Yl, ome)
         ome = np.arctan2(rmat_s[0, 2], rmat_s[0, 0])
 
         # make list of angle tuples
-        angs = [
-            np.vstack(
-                [i*np.ones(neta), eta_centers, ome*np.ones(neta)]
-            ) for i in tth
-        ]
+        angs = [np.vstack([i*np.ones(neta), eta_centers, ome*np.ones(neta)])
+                for i in tth]
 
         # need xy coords and pixel sizes
         valid_ang = []
@@ -2948,26 +2947,18 @@ class PlanarDetector(object):
                 + np.tile(sector_vertices[i_ring], (neta, 1))
             ).reshape(npp*neta, 2)
 
-            # duplicate ome array
-            ome_dupl = np.tile(
-                these_angs[:, 2], (npp, 1)
-            ).T.reshape(npp*neta, 1)
-
             # find vertices that all fall on the panel
-            gVec_ring_l = anglesToGVec(
-                np.hstack([patch_vertices, ome_dupl]),
-                bHat_l=self.bvec)
-            all_xy = gvecToDetectorXY(
-                gVec_ring_l,
-                self.rmat, rmat_s, ct.identity_3x3,
-                self.tvec, tvec_s, tvec_c,
-                beamVec=self.bvec)
-            if self.distortion is not None:
-                all_xy = self.distortion.apply_inverse(all_xy)
+            # !!! not API ambiguity regarding rmat_s above
+            all_xy = self.angles_to_cart(
+                patch_vertices,
+                rmat_s=rmat_s, tvec_s=tvec_s,
+                rmat_c=None, tvec_c=tvec_c,
+                apply_distortion=True)
 
             _, on_panel = self.clip_to_panel(all_xy)
 
             # all vertices must be on...
+
             patch_is_on = np.all(on_panel.reshape(neta, npp), axis=1)
             patch_xys = all_xy.reshape(neta, 5, 2)[patch_is_on]
 
@@ -2978,9 +2969,9 @@ class PlanarDetector(object):
             pass
         # ??? is this option necessary?
         if full_output:
-            return valid_ang, valid_xy, map_indices, eta_edges
+            return valid_ang, valid_xy, tth_ranges, map_indices, eta_edges
         else:
-            return valid_ang, valid_xy
+            return valid_ang, valid_xy, tth_ranges
 
     def map_to_plane(self, pts, rmat, tvec):
         """

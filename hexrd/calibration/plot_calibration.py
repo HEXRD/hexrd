@@ -29,8 +29,9 @@ for det_key, panel in instr.detectors.items():
         vmax=np.percentile(img_dict[det_key], 90),
         cmap=plt.cm.bone_r
     )
-    ideal_angs, ideal_xys = panel.make_powder_rings(plane_data,
-                                                    delta_eta=eta_tol)
+    ideal_angs, ideal_xys, tth_ranges = panel.make_powder_rings(
+        plane_data, delta_eta=eta_tol
+    )
     rijs = panel.cartToPixel(np.vstack(ideal_xys))
     ax[fig_row[ifig], fig_col[ifig]].plot(rijs[:, 1], rijs[:, 0], 'cx')
     ax[fig_row[ifig], fig_col[ifig]].set_title(det_key)
