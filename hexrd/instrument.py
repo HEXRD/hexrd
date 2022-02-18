@@ -2867,7 +2867,7 @@ class PlanarDetector(object):
             except(TypeError):
                 # !!! have some other object here, likely a dummy plane data
                 # object of some sort...
-                pass
+                raise
 
             if delta_tth is not None:
                 pd.tThWidth = np.radians(delta_tth)
@@ -2925,15 +2925,15 @@ class PlanarDetector(object):
             ).T.flatten()
 
         # get chi and ome from rmat_s
-        # ??? not needed chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
+        # !!! API ambiguity
+        # !!! this assumes rmat_s was made from the composition
+        # !!! rmat_s = R(Xl, chi) * R(Yl, ome)
+        chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
         ome = np.arctan2(rmat_s[0, 2], rmat_s[0, 0])
 
         # make list of angle tuples
-        angs = [
-            np.vstack(
-                [i*np.ones(neta), eta_centers, ome*np.ones(neta)]
-            ) for i in tth
-        ]
+        angs = [np.vstack([i*np.ones(neta), eta_centers, ome*np.ones(neta)])
+                for i in tth]
 
         # need xy coords and pixel sizes
         valid_ang = []
@@ -2954,9 +2954,10 @@ class PlanarDetector(object):
             ).T.reshape(npp*neta, 1)
 
             # find vertices that all fall on the panel
+            # !!! not API ambiguity regarding rmat_s above
             gVec_ring_l = anglesToGVec(
                 np.hstack([patch_vertices, ome_dupl]),
-                bHat_l=self.bvec)
+                bHat_l=self.bvec, chi=chi)
             all_xy = gvecToDetectorXY(
                 gVec_ring_l,
                 self.rmat, rmat_s, ct.identity_3x3,
