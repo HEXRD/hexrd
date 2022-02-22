@@ -77,7 +77,7 @@ def _set_peak_center_bounds(params, window_range, min_sep=0.01):
 
         # make sure peak list does not include any peaks closer than min_sep
         uvec = uniqueVectors(
-            np.atleast_2d(center_values), tol=min_sep + sqrt_epsf
+            np.atleast_2d(center_values), tol=min_sep
         ).squeeze()
         if len(uvec) < npks:
             raise RuntimeError(
