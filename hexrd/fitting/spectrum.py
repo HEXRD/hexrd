@@ -113,7 +113,7 @@ def chebyshev_bkg(x, *args):
 
 
 def gaussian_1d(x, amp, cen, fwhm):
-    return amp * np.exp(-(x - cen)**2 / (2*fwhm_to_sigma*fwhm)**2)
+    return amp * np.exp(-(x - cen)**2 / (2*(fwhm_to_sigma*fwhm)**2))
 
 
 def lorentzian_1d(x, amp, cen, fwhm):
