@@ -1,3 +1,4 @@
+from functools import partial
 import logging
 import os
 
@@ -13,6 +14,7 @@ from hexrd.transforms import xfcapi
 
 from . import grains as grainutil
 from . import spectrum
+from .utils import fit_ringset
 
 logger = logging.getLogger()
 logger.setLevel('INFO')
@@ -35,8 +37,6 @@ grain_flags_DFLT = np.array(
      0, 0, 0, 0, 0, 0],
     dtype=bool
 )
-
-nfields_powder_data = 8
 
 
 # =============================================================================
@@ -265,7 +265,6 @@ class PowderCalibrator(object):
             fit_tth_tol = self.tth_tol/4.
 
         # ideal tth
-        wlen = self.instr.beam_wavelength
         dsp_ideal = np.atleast_1d(self.plane_data.getPlaneSpacings())
         hkls_ref = self.plane_data.hkls.T
         dsp0 = []
@@ -297,6 +296,17 @@ class PowderCalibrator(object):
                 total=self.instr.num_panels, desc="Detector", position=pbp
             )
             pbp += 1
+
+        kwargs = {
+            'spectrum_model': spectrum.SpectrumModel,
+            'spectrum_kwargs': self.spectrum_kwargs,
+            'wlen': self.instr.beam_wavelength,
+            'tvec_s': self.instr.tvec,
+            'int_cutoff': int_cutoff,
+            'fit_tth_tol': fit_tth_tol,
+        }
+        fit_ringset_func = partial(fit_ringset, **kwargs)
+
         for det_key, panel in self.instr.detectors.items():
             rhs[det_key] = []
             pbar_rings = tqdm(
@@ -304,90 +314,16 @@ class PowderCalibrator(object):
             )
             # TODO: could use concurrency here
             for i_ring, ringset in enumerate(powder_lines[det_key]):
-                tmp = []
-                if len(ringset) == 0:
-                    pbar_rings.update()
-                    continue
-                else:
-                    for angs, intensities in ringset:
-                        # tth_centers = np.average(
-                        #     np.vstack([angs[0][:-1], angs[0][1:]]),
-                        #     axis=0)
-                        # eta_ref = angs[1]
-                        # int1d = np.sum(
-                        #     np.array(intensities).squeeze(),
-                        #     axis=0
-                        # )
-                        if len(intensities) == 0:
-                            continue
-
-                        spec_data = np.vstack(
-                            [np.degrees(angs[0]),
-                             intensities[0]]
-                        ).T
-
-                        # peak profile fitting
-                        tth_pred = np.degrees(
-                            2.*np.arcsin(0.5*wlen/dsp0[i_ring])
-                        )
-                        npeaks = len(tth_pred)
-
-                        # reference eta
-                        eta_ref_tile = np.tile(angs[1], npeaks)
-
-                        # spectrum fitting
-                        sm = spectrum.SpectrumModel(
-                            spec_data, tth_pred,
-                            **self.spectrum_kwargs
-                        )
-                        fit_results = sm.fit()
-                        if not fit_results.success:
-                            tmp.append(np.empty((0, nfields_powder_data)))
-                            continue
-
-                        fit_params = np.vstack([
-                            (fit_results.best_values['pk%d_amp' % i],
-                             fit_results.best_values['pk%d_cen' % i])
-                            for i in range(npeaks)
-                        ]).T
-                        pk_amp, tth_meas = fit_params
-
-                        # !!! this is where we can kick out bunk fits
-                        center_err = 100*abs(tth_meas/tth_pred - 1.)
-                        #if i_ring == 0:
-                        #    breakpoint()
-                        failed_fit_heuristic = np.logical_or(
-                            pk_amp < int_cutoff,
-                            center_err > fit_tth_tol
-                        )
-                        if np.any(failed_fit_heuristic):
-                            tmp.append(np.empty((0, nfields_powder_data)))
-                            continue
-
-                        # push back through mapping to cartesian (x, y)
-                        tth_meas = np.radians(tth_meas)
-                        xy_meas = panel.angles_to_cart(
-                            np.vstack([tth_meas, eta_ref_tile]).T,
-                            tvec_s=self.instr.tvec,
-                            apply_distortion=True
-                        )
-
-                        # cat results
-                        tmp.append(
-                            np.hstack(
-                                [xy_meas,
-                                 tth_meas.reshape(npeaks, 1),
-                                 hkls[i_ring],
-                                 dsp0[i_ring].reshape(npeaks, 1),
-                                 eta_ref_tile.reshape(npeaks, 1)]
-                            )
-                        )
+                kwargs = {
+                    'ringset': ringset,
+                    'dsp0': dsp0[i_ring],
+                    'hkl': hkls[i_ring],
+                    'panel': panel,
+                }
+                ret = fit_ringset_func(**kwargs)
+                rhs[det_key].append(ret)
                 pbar_rings.update()
-                if len(tmp) == 0:
-                    rhs[det_key].append(np.empty((0, nfields_powder_data)))
-                else:
-                    rhs[det_key].append(np.vstack(tmp))
-                pass  # close loop over ringsets
+
             if pbar_dets is not None:
                 pbar_dets.update()
             pbar_rings.close()

@@ -7,6 +7,9 @@ from hexrd.matrixutil import uniqueVectors
 from hexrd.utils.decorators import numba_njit_if_available
 
 
+nfields_powder_data = 8
+
+
 # =============================================================================
 # LMFIT Parameter munging utilities
 # =============================================================================
@@ -331,3 +334,76 @@ def _lorentzian_pink_beam(p, x):
 # =============================================================================
 # pseudo-Voigt
 # =============================================================================
+
+
+def fit_ringset(ringset, dsp0, hkl, panel, spectrum_model, spectrum_kwargs,
+                wlen, tvec_s, int_cutoff, fit_tth_tol):
+    ret = []
+    for angs, intensities in ringset:
+        if len(intensities) == 0:
+            continue
+
+        spec_data = np.vstack(
+            [np.degrees(angs[0]),
+             intensities[0]]
+        ).T
+
+        # peak profile fitting
+        tth_pred = np.degrees(
+            2.*np.arcsin(0.5*wlen/dsp0)
+        )
+        npeaks = len(tth_pred)
+
+        # reference eta
+        eta_ref_tile = np.tile(angs[1], npeaks)
+
+        # spectrum fitting
+        sm = spectrum_model(
+            spec_data, tth_pred,
+            **spectrum_kwargs
+        )
+        fit_results = sm.fit()
+        if not fit_results.success:
+            ret.append(np.empty((0, nfields_powder_data)))
+            continue
+
+        fit_params = np.vstack([
+            (fit_results.best_values['pk%d_amp' % i],
+             fit_results.best_values['pk%d_cen' % i])
+            for i in range(npeaks)
+        ]).T
+        pk_amp, tth_meas = fit_params
+
+        # !!! this is where we can kick out bunk fits
+        center_err = 100*abs(tth_meas/tth_pred - 1.)
+        failed_fit_heuristic = np.logical_or(
+            pk_amp < int_cutoff,
+            center_err > fit_tth_tol
+        )
+        if np.any(failed_fit_heuristic):
+            ret.append(np.empty((0, nfields_powder_data)))
+            continue
+
+        # push back through mapping to cartesian (x, y)
+        tth_meas = np.radians(tth_meas)
+        xy_meas = panel.angles_to_cart(
+            np.vstack([tth_meas, eta_ref_tile]).T,
+            tvec_s=tvec_s,
+            apply_distortion=True
+        )
+
+        # cat results
+        ret.append(
+            np.hstack(
+                [xy_meas,
+                 tth_meas.reshape(npeaks, 1),
+                 hkl,
+                 dsp0.reshape(npeaks, 1),
+                 eta_ref_tile.reshape(npeaks, 1)]
+            )
+        )
+
+    if len(ret) == 0:
+        return np.empty((0, nfields_powder_data))
+
+    return np.vstack(ret)
