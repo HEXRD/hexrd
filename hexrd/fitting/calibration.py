@@ -636,6 +636,7 @@ class InstrumentCalibrator(object):
             )
             calib_data_list.append(calib_class.calibration_data)
         self._calibration_data = calib_data_list
+        return calib_data_list
 
     def residual(self, x0):
         # !!! list in the same order as dict looping
