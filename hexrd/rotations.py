@@ -790,20 +790,20 @@ def angleAxisOfRotMat(R):
     #  *   near pi   -- binary rotation; need to find axis
     #  *   neither   -- general case; can use skew part
     #
-    tol = cnst.sqrt_epsf
+    tol = cnst.epsf
 
     anear0 = angle < tol
 
-    angle[anear0] = 0
+    angle[anear0] = 0.
 
     raxis = vstack(
         [R[:, 2, 1] - R[:, 1, 2],
          R[:, 0, 2] - R[:, 2, 0],
          R[:, 1, 0] - R[:, 0, 1]]
     )
-    raxis[:, anear0] = 1
+    raxis[:, anear0] = 1.
 
-    special = angle > pi - tol
+    special = angle > pi - tol or angle < pi + tol
     nspec = special.sum()
     if nspec > 0:
         tmp = R[special, :, :] + tile(I3, (nspec, 1, 1))
