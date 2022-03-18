@@ -51,6 +51,7 @@ from scipy.linalg import logm
 from skimage.measure import regionprops
 
 from hexrd import constants
+from hexrd.fitting.utils import fit_ring
 from hexrd.gridutil import cellConnectivity, cellIndices, make_tolerance_grid
 from hexrd import matrixutil as mutil
 from hexrd.transforms.xfcapi import \
@@ -957,7 +958,8 @@ class HEDMInstrument(object):
                                tth_tol=None, eta_tol=1., npdiv=2,
                                eta_centers=None,
                                collapse_eta=True, collapse_tth=False,
-                               do_interpolation=True):
+                               do_interpolation=True, do_fitting=False,
+                               fitting_kwargs=None):
         """
         Perform annular interpolation on diffraction images.
 
@@ -993,6 +995,12 @@ class HEDMInstrument(object):
             Flag for summing sectors in 2theta. The default is False.
         do_interpolation : bool, optional
             If True, perform bilinear interpolation. The default is True.
+        do_fitting : bool, optional
+            If True, then perform spectrum fitting, and append the results
+            to the returned data. collapse_eta must also be True for this
+            to have any effect. The default is False.
+        fitting_kwargs : dict, optional
+            kwargs passed to hexrd.fitting.utils.fit_ring if do_fitting is True
 
         Raises
         ------
@@ -1006,7 +1014,8 @@ class HEDMInstrument(object):
                 [list over (merged) 2theta ranges]
                   [list over valid eta sectors]
                     [angle data <input dependent>,
-                     bin intensities <input dependent>]
+                     bin intensities <input dependent>,
+                     fitting results <input dependent>]
 
         Notes
         -----
@@ -1014,6 +1023,9 @@ class HEDMInstrument(object):
         TODO: rename function.
 
         """
+
+        if fitting_kwargs is None:
+            fitting_kwargs = {}
 
         # =====================================================================
         # LOOP OVER DETECTORS
@@ -1055,6 +1067,11 @@ class HEDMInstrument(object):
                 eta_list=eta_centers)
 
             tth_tols = np.degrees(np.hstack([i[1] - i[0] for i in tth_ranges]))
+
+            if do_fitting:
+                tth_idx, tth_ranges = plane_data.getMergedRanges(cullDupl=True)
+                tth_ref = plane_data.getTTh()
+                tth0 = np.degrees([tth_ref[i] for i in tth_idx])
 
             # =================================================================
             # LOOP OVER RING SETS
@@ -1107,6 +1124,8 @@ class HEDMInstrument(object):
                         )
                         ang_data = (tth_centers,
                                     angs[i_p][-1])
+                        if do_fitting:
+                            fit_data = []
                     else:
                         ang_data = vtx_angs
 
@@ -1141,12 +1160,25 @@ class HEDMInstrument(object):
                             # ims_data.append(np.sum(tmp))
                         else:
                             if collapse_eta:
-                                ims_data.append(np.average(tmp, axis=0))
+                                lineout = np.average(tmp, axis=0)
+                                ims_data.append(lineout)
+                                if do_fitting:
+                                    kwargs = {
+                                        'tth_centers': np.degrees(tth_centers),
+                                        'lineout': lineout,
+                                        'tth_pred': tth0[i_ring],
+                                        **fitting_kwargs,
+                                    }
+                                    result = fit_ring(**kwargs)
+                                    fit_data.append(result)
                             else:
                                 ims_data.append(tmp)
                         pass  # close image loop
                     if not collapse_tth:
-                        patch_data.append((ang_data, ims_data))
+                        output = [ang_data, ims_data]
+                        if do_fitting:
+                            output.append(fit_data)
+                        patch_data.append(output)
                     pass  # close patch loop
                 ring_data.append(patch_data)
                 pbar_rings.update()
