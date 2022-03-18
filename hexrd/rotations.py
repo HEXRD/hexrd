@@ -742,6 +742,31 @@ def rotMatOfQuat(quat):
     return rmat
 
 
+def angleAxisOfRotMat(R):
+    """
+    Extracts angle and axis invariants from rotation matrices.
+
+    Parameters
+    ----------
+    R : numpy.ndarray
+        The (3, 3) or (n, 3, 3) array of rotation matrices.
+        Note that these are assumed to be proper orthogonal.
+
+    Raises
+    ------
+    RuntimeError
+        If `R` is not an shape is not (3, 3) or (n, 3, 3).
+
+    Returns
+    -------
+    phi : numpy.ndarray
+        The (n, ) array of rotation angles for the n input
+        rotation matrices.
+    n : numpy.ndarray
+        The (3, n) array of unit rotation axes for the n
+        input rotation matrices.
+
+    """
     if not isinstance(R, ndarray):
         raise RuntimeError('Input must be a 2 or 3-d ndarray')
     else:
