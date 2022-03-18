@@ -742,26 +742,6 @@ def rotMatOfQuat(quat):
     return rmat
 
 
-def angleAxisOfRotMat(R):
-    """
-    Extract angle and axis invariants from a rotation matrix.
-
-    Parameters
-    ----------
-    R : TYPE
-        DESCRIPTION.
-
-    Raises
-    ------
-    RuntimeError
-        DESCRIPTION.
-
-    Returns
-    -------
-    TYPE
-        DESCRIPTION.
-
-    """
     if not isinstance(R, ndarray):
         raise RuntimeError('Input must be a 2 or 3-d ndarray')
     else:
@@ -781,7 +761,7 @@ def angleAxisOfRotMat(R):
     #
     ca = 0.5*(R[:, 0, 0] + R[:, 1, 1] + R[:, 2, 2] - 1)
 
-    angle = arccosSafe(ca)
+    angle = arccosSafe(ca)  # !!! result in (0, pi)
 
     #
     #  Three cases for the angle:
@@ -794,7 +774,7 @@ def angleAxisOfRotMat(R):
 
     anear0 = angle < tol
 
-    angle[anear0] = 0.
+    angle[anear0] = 0
 
     raxis = vstack(
         [R[:, 2, 1] - R[:, 1, 2],
@@ -803,9 +783,10 @@ def angleAxisOfRotMat(R):
     )
     raxis[:, anear0] = 1.
 
-    special = angle > pi - tol or angle < pi + tol
+    special = angle > pi - tol  # !!! see above
     nspec = special.sum()
     if nspec > 0:
+
         tmp = R[special, :, :] + tile(I3, (nspec, 1, 1))
         tmpr = tmp.transpose(0, 2, 1).reshape(nspec*3, 3).T
 
