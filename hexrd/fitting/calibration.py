@@ -1,4 +1,3 @@
-from functools import partial
 import logging
 import os
 
@@ -6,15 +5,12 @@ import numpy as np
 
 from scipy.optimize import leastsq, least_squares
 
-from tqdm import tqdm
-
 from hexrd import constants as cnst
 from hexrd import matrixutil as mutil
 from hexrd.transforms import xfcapi
 
 from . import grains as grainutil
 from . import spectrum
-from .utils import fit_ringset
 
 logger = logging.getLogger()
 logger.setLevel('INFO')
@@ -37,6 +33,8 @@ grain_flags_DFLT = np.array(
      0, 0, 0, 0, 0, 0],
     dtype=bool
 )
+
+nfields_powder_data = 8
 
 
 # =============================================================================
@@ -237,18 +235,6 @@ class PowderCalibrator(object):
             "pktype '%s' not understood"
         self._bgtype = x
 
-    def _interpolate_images(self):
-        """
-        returns the iterpolated powder line data from the images in img_dict
-
-        ??? interpolation necessary?
-        """
-        return self.instr.extract_line_positions(
-                self.plane_data, self.img_dict,
-                tth_tol=self.tth_tol, eta_tol=self.eta_tol,
-                npdiv=2, collapse_eta=True, collapse_tth=False,
-                do_interpolation=True)
-
     def _extract_powder_lines(self, fit_tth_tol=None, int_cutoff=1e-4):
         """
         return the RHS for the instrument DOF and image dict
@@ -283,53 +269,73 @@ class PowderCalibrator(object):
                 uidx = np.asarray(idx)
             dsp0.append(dsp_ideal[uidx])
             hkls.append(hkls_ref[uidx])
-            pass
-        powder_lines = self._interpolate_images()
 
-        # GRAND LOOP OVER PATCHES
-        logger.info("Fitting ring data")
-        rhs = dict.fromkeys(self.instr.detectors)
-        pbar_dets = None
-        pbp = 0
-        if self.instr.num_panels > 1:
-            pbar_dets = tqdm(
-                total=self.instr.num_panels, desc="Detector", position=pbp
-            )
-            pbp += 1
-
-        kwargs = {
-            'spectrum_model': spectrum.SpectrumModel,
-            'spectrum_kwargs': self.spectrum_kwargs,
-            'wlen': self.instr.beam_wavelength,
-            'tvec_s': self.instr.tvec,
+        # Perform interpolation and fitting
+        fitting_kwargs = {
             'int_cutoff': int_cutoff,
             'fit_tth_tol': fit_tth_tol,
+            'spectrum_kwargs': self.spectrum_kwargs,
         }
-        fit_ringset_func = partial(fit_ringset, **kwargs)
+        kwargs = {
+            'plane_data': self.plane_data,
+            'imgser_dict': self.img_dict,
+            'tth_tol': self.tth_tol,
+            'eta_tol': self.eta_tol,
+            'npdiv': 2,
+            'collapse_eta': True,
+            'collapse_tth': False,
+            'do_interpolation': True,
+            'do_fitting': True,
+            'fitting_kwargs': fitting_kwargs,
+        }
+        powder_lines = self.instr.extract_line_positions(**kwargs)
 
+        # Now loop over the ringsets and convert to the calibration format
+        rhs = {}
         for det_key, panel in self.instr.detectors.items():
             rhs[det_key] = []
-            pbar_rings = tqdm(
-                total=len(powder_lines[det_key]), desc="Ringset", position=pbp
-            )
-            # TODO: could use concurrency here
             for i_ring, ringset in enumerate(powder_lines[det_key]):
-                kwargs = {
-                    'ringset': ringset,
-                    'dsp0': dsp0[i_ring],
-                    'hkl': hkls[i_ring],
-                    'panel': panel,
-                }
-                ret = fit_ringset_func(**kwargs)
-                rhs[det_key].append(ret)
-                pbar_rings.update()
+                this_dsp0 = dsp0[i_ring]
+                this_hkl = hkls[i_ring]
+                npeaks = len(this_dsp0)
 
-            if pbar_dets is not None:
-                pbar_dets.update()
-            pbar_rings.close()
-            pass
-        if pbar_dets is not None:
-            pbar_dets.close()
+                ret = []
+                for angs, intensities, tth_meas in ringset:
+                    if len(intensities) == 0:
+                        continue
+
+                    # We only run this on one image. Grab that one.
+                    tth_meas = tth_meas[0]
+                    if tth_meas is None:
+                        continue
+
+                    # Convert to radians
+                    tth_meas = np.radians(tth_meas)
+
+                    # reference eta
+                    eta_ref_tile = np.tile(angs[1], npeaks)
+
+                    # push back through mapping to cartesian (x, y)
+                    xy_meas = panel.angles_to_cart(
+                        np.vstack([tth_meas, eta_ref_tile]).T,
+                        tvec_s=self.instr.tvec,
+                        apply_distortion=True,
+                    )
+
+                    # cat results
+                    output = np.hstack([
+                                xy_meas,
+                                tth_meas.reshape(npeaks, 1),
+                                this_hkl,
+                                this_dsp0.reshape(npeaks, 1),
+                                eta_ref_tile.reshape(npeaks, 1),
+                             ])
+                    ret.append(output)
+
+                if not ret:
+                    ret.append(np.empty((0, nfields_powder_data)))
+
+                rhs[det_key].append(np.vstack(ret))
 
         # assign attribute
         self._calibration_data = rhs
