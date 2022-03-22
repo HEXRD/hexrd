@@ -1039,6 +1039,8 @@ class HEDMInstrument(object):
                 total=self.num_panels, desc="Detector", position=pbp
             )
             pbp += 1
+
+        max_workers = self.max_workers
         for i_det, detector_id in enumerate(self.detectors):
             # logger.info("working on detector '%s'..." % detector_id)
             # pbar.update(i_det + 1)
@@ -1050,14 +1052,10 @@ class HEDMInstrument(object):
                 beam_vector=self.beam_vector,
                 style='hdf5'
             )
-            native_area = panel.pixel_area  # pixel ref area
             images = imgser_dict[detector_id]
             if images.ndim == 2:
-                n_images = 1
                 images = np.tile(images, (1, 1, 1))
-            elif images.ndim == 3:
-                n_images = len(images)
-            else:
+            elif images.ndim != 3:
                 raise RuntimeError("images must be 2- or 3-d")
 
             # make rings
@@ -1077,113 +1075,28 @@ class HEDMInstrument(object):
             # LOOP OVER RING SETS
             # =================================================================
             ring_data = []
-            pbar_rings = tqdm(
-                total=len(pow_angs), desc="Ringset", position=pbp
-            )
-            for i_ring, these_data in enumerate(zip(pow_angs, pow_xys)):
-                # points are already checked to fall on detector
-                angs = these_data[0]
-                xys = these_data[1]
+            pbar_rings = partial(tqdm, total=len(pow_angs), desc="Ringset",
+                                 position=pbp)
 
-                # make the tth,eta patches for interpolation
-                patches = xrdutil.make_reflection_patches(
-                    instr_cfg, angs, panel.angularPixelSize(xys),
-                    tth_tol=tth_tols[i_ring], eta_tol=eta_tol,
-                    npdiv=npdiv, quiet=True)
+            kwargs = {
+                'instr_cfg': instr_cfg,
+                'panel': panel,
+                'eta_tol': eta_tol,
+                'npdiv': npdiv,
+                'collapse_tth': collapse_tth,
+                'collapse_eta': collapse_eta,
+                'images': images,
+                'do_interpolation': do_interpolation,
+                'do_fitting': do_fitting,
+                'fitting_kwargs': fitting_kwargs,
+            }
+            func = partial(_extract_ring_line_positions, **kwargs)
+            iter_arg = zip(pow_angs, pow_xys, tth_tols, tth0)
 
-                # loop over patches
-                # FIXME: fix initialization
-                if collapse_tth:
-                    patch_data = np.zeros((len(angs), n_images))
-                else:
-                    patch_data = []
-                for i_p, patch in enumerate(patches):
-                    # strip relevant objects out of current patch
-                    vtx_angs, vtx_xys, conn, areas, xys_eval, ijs = patch
+            with ProcessPoolExecutor(mp_context=constants.mp_context,
+                                     max_workers=max_workers) as executor:
+                ring_data = list(pbar_rings(executor.map(func, iter_arg)))
 
-                    # need to reshape eval pts for interpolation
-                    xy_eval = np.vstack([
-                        xys_eval[0].flatten(),
-                        xys_eval[1].flatten()]).T
-
-                    _, on_panel = panel.clip_to_panel(xy_eval)
-
-                    if np.any(~on_panel):
-                        continue
-
-                    if collapse_tth:
-                        ang_data = (vtx_angs[0][0, [0, -1]],
-                                    vtx_angs[1][[0, -1], 0])
-                    elif collapse_eta:
-                        # !!! yield the tth bin centers
-                        tth_centers = np.average(
-                            np.vstack(
-                                [vtx_angs[0][0, :-1], vtx_angs[0][0, 1:]]
-                            ),
-                            axis=0
-                        )
-                        ang_data = (tth_centers,
-                                    angs[i_p][-1])
-                        if do_fitting:
-                            fit_data = []
-                    else:
-                        ang_data = vtx_angs
-
-                    prows, pcols = areas.shape
-                    area_fac = areas/float(native_area)
-
-                    # interpolate
-                    if not collapse_tth:
-                        ims_data = []
-                    for j_p in np.arange(len(images)):
-                        # catch interpolation type
-                        image = images[j_p]
-                        if do_interpolation:
-                            tmp = panel.interpolate_bilinear(
-                                    xy_eval,
-                                    image,
-                                ).reshape(prows, pcols)*area_fac
-                        else:
-                            tmp = image[ijs[0], ijs[1]]*area_fac
-
-                        # catch flat spectrum data, which will cause
-                        # fitting to fail.
-                        # ???: best here, or make fitting handle it?
-                        mxval = np.max(tmp)
-                        mnval = np.min(tmp)
-                        if mxval == 0 or (1. - mnval/mxval) < 0.01:
-                            continue
-
-                        # catch collapsing options
-                        if collapse_tth:
-                            patch_data[i_p, j_p] = np.average(tmp)
-                            # ims_data.append(np.sum(tmp))
-                        else:
-                            if collapse_eta:
-                                lineout = np.average(tmp, axis=0)
-                                ims_data.append(lineout)
-                                if do_fitting:
-                                    kwargs = {
-                                        'tth_centers': np.degrees(tth_centers),
-                                        'lineout': lineout,
-                                        'tth_pred': tth0[i_ring],
-                                        **fitting_kwargs,
-                                    }
-                                    result = fit_ring(**kwargs)
-                                    fit_data.append(result)
-                            else:
-                                ims_data.append(tmp)
-                        pass  # close image loop
-                    if not collapse_tth:
-                        output = [ang_data, ims_data]
-                        if do_fitting:
-                            output.append(fit_data)
-                        patch_data.append(output)
-                    pass  # close patch loop
-                ring_data.append(patch_data)
-                pbar_rings.update()
-                pass  # close ring loop
-            pbar_rings.close()
             if pbar_dets is not None:
                 pbar_dets.update()
             panel_data[detector_id] = ring_data
@@ -4067,3 +3980,109 @@ def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
                                         weights=image[rtth_idx])
 
             this_map[i_row, reta_idx] = result
+
+
+def _extract_ring_line_positions(iter_args, instr_cfg, panel, eta_tol, npdiv,
+                                 collapse_tth, collapse_eta, images,
+                                 do_interpolation, do_fitting, fitting_kwargs):
+    # points are already checked to fall on detector
+    angs, xys, tth_tol, this_tth0 = iter_args
+
+    n_images = len(images)
+    native_area = panel.pixel_area
+
+    # make the tth,eta patches for interpolation
+    patches = xrdutil.make_reflection_patches(
+        instr_cfg, angs, panel.angularPixelSize(xys),
+        tth_tol=tth_tol, eta_tol=eta_tol, npdiv=npdiv, quiet=True)
+
+    # loop over patches
+    # FIXME: fix initialization
+    if collapse_tth:
+        patch_data = np.zeros((len(angs), n_images))
+    else:
+        patch_data = []
+    for i_p, patch in enumerate(patches):
+        # strip relevant objects out of current patch
+        vtx_angs, vtx_xys, conn, areas, xys_eval, ijs = patch
+
+        # need to reshape eval pts for interpolation
+        xy_eval = np.vstack([
+            xys_eval[0].flatten(),
+            xys_eval[1].flatten()]).T
+
+        _, on_panel = panel.clip_to_panel(xy_eval)
+
+        if np.any(~on_panel):
+            continue
+
+        if collapse_tth:
+            ang_data = (vtx_angs[0][0, [0, -1]],
+                        vtx_angs[1][[0, -1], 0])
+        elif collapse_eta:
+            # !!! yield the tth bin centers
+            tth_centers = np.average(
+                np.vstack(
+                    [vtx_angs[0][0, :-1], vtx_angs[0][0, 1:]]
+                ),
+                axis=0
+            )
+            ang_data = (tth_centers,
+                        angs[i_p][-1])
+            if do_fitting:
+                fit_data = []
+        else:
+            ang_data = vtx_angs
+
+        prows, pcols = areas.shape
+        area_fac = areas/float(native_area)
+
+        # interpolate
+        if not collapse_tth:
+            ims_data = []
+        for j_p in np.arange(len(images)):
+            # catch interpolation type
+            image = images[j_p]
+            if do_interpolation:
+                tmp = panel.interpolate_bilinear(
+                        xy_eval,
+                        image,
+                    ).reshape(prows, pcols)*area_fac
+            else:
+                tmp = image[ijs[0], ijs[1]]*area_fac
+
+            # catch flat spectrum data, which will cause
+            # fitting to fail.
+            # ???: best here, or make fitting handle it?
+            mxval = np.max(tmp)
+            mnval = np.min(tmp)
+            if mxval == 0 or (1. - mnval/mxval) < 0.01:
+                continue
+
+            # catch collapsing options
+            if collapse_tth:
+                patch_data[i_p, j_p] = np.average(tmp)
+                # ims_data.append(np.sum(tmp))
+            else:
+                if collapse_eta:
+                    lineout = np.average(tmp, axis=0)
+                    ims_data.append(lineout)
+                    if do_fitting:
+                        kwargs = {
+                            'tth_centers': np.degrees(tth_centers),
+                            'lineout': lineout,
+                            'tth_pred': this_tth0,
+                            **fitting_kwargs,
+                        }
+                        result = fit_ring(**kwargs)
+                        fit_data.append(result)
+                else:
+                    ims_data.append(tmp)
+            pass  # close image loop
+        if not collapse_tth:
+            output = [ang_data, ims_data]
+            if do_fitting:
+                output.append(fit_data)
+            patch_data.append(output)
+
+    return patch_data
