@@ -29,8 +29,7 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
         self.__path = kwargs['path']
         self.__dataname = kwargs.pop('dataname', 'images')
         self.__images = '/'.join([self.__path, self.__dataname])
-        self.__image_dataset = self.__h5file[self.__images]
-        self.__data_group = self.__h5file[self.__path]
+        self._load_data()
         self._meta = self._getmeta()
 
 
@@ -64,6 +63,39 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
 
     def __len__(self):
         return len(self.__image_dataset)
+
+
+    def __getstate__(self):
+        # Remove any non-pickleable attributes
+        to_remove = [
+            '__h5file',
+            '__image_dataset',
+            '__data_group',
+        ]
+
+        # Prefix them with the private prefix
+        prefix = f'_{self.__class__.__name__}'
+        to_remove = [f'{prefix}{x}' for x in to_remove]
+
+        # Make a copy of the dict to modify
+        state = self.__dict__.copy()
+
+        # Remove them
+        for attr in to_remove:
+            state.pop(attr)
+
+        return state
+
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.__h5file = h5py.File(self.__h5name, 'r')
+        self._load_data()
+
+
+    def _load_data(self):
+        self.__image_dataset = self.__h5file[self.__images]
+        self.__data_group = self.__h5file[self.__path]
 
 
     def _getmeta(self):
