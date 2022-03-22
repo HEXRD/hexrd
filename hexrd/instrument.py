@@ -1031,78 +1031,49 @@ class HEDMInstrument(object):
         # LOOP OVER DETECTORS
         # =====================================================================
         logger.info("Interpolating ring data")
-        panel_data = dict.fromkeys(self.detectors)
-        pbar_dets = None
-        pbp = 0
-        if self.num_panels > 1:
-            pbar_dets = tqdm(
-                total=self.num_panels, desc="Detector", position=pbp
-            )
-            pbp += 1
+        pbar_dets = partial(tqdm, total=self.num_panels, desc="Detector",
+                            position=self.num_panels)
 
-        max_workers = self.max_workers
-        for i_det, detector_id in enumerate(self.detectors):
-            # logger.info("working on detector '%s'..." % detector_id)
-            # pbar.update(i_det + 1)
-            # grab panel
-            panel = self.detectors[detector_id]
-            instr_cfg = panel.config_dict(
+        # Split up the workers among the detectors
+        max_workers_per_detector = self.max_workers // self.num_panels
+
+        kwargs = {
+            'plane_data': plane_data,
+            'tth_tol': tth_tol,
+            'eta_tol': eta_tol,
+            'eta_centers': eta_centers,
+            'npdiv': npdiv,
+            'collapse_tth': collapse_tth,
+            'collapse_eta': collapse_eta,
+            'do_interpolation': do_interpolation,
+            'do_fitting': do_fitting,
+            'fitting_kwargs': fitting_kwargs,
+            'max_workers': max_workers_per_detector,
+        }
+        func = partial(_extract_detector_line_positions, **kwargs)
+
+        def make_instr_cfg(panel):
+            return panel.config_dict(
                 chi=self.chi, tvec=self.tvec,
                 beam_energy=self.beam_energy,
                 beam_vector=self.beam_vector,
                 style='hdf5'
             )
-            images = imgser_dict[detector_id]
-            if images.ndim == 2:
-                images = np.tile(images, (1, 1, 1))
-            elif images.ndim != 3:
-                raise RuntimeError("images must be 2- or 3-d")
 
-            # make rings
-            pow_angs, pow_xys, tth_ranges = panel.make_powder_rings(
-                plane_data, merge_hkls=True,
-                delta_tth=tth_tol, delta_eta=eta_tol,
-                eta_list=eta_centers)
+        panels = [self.detectors[k] for k in self.detectors]
+        instr_cfgs = [make_instr_cfg(x) for x in panels]
+        images = [imgser_dict[k] for k in self.detectors]
+        pbp_array = np.arange(self.num_panels)
 
-            tth_tols = np.degrees(np.hstack([i[1] - i[0] for i in tth_ranges]))
+        iter_args = zip(panels, instr_cfgs, images, pbp_array)
+        with ProcessPoolExecutor(mp_context=constants.mp_context,
+                                 max_workers=self.num_panels) as executor:
+            results = list(pbar_dets(executor.map(func, iter_args)))
 
-            if do_fitting:
-                tth_idx, tth_ranges = plane_data.getMergedRanges(cullDupl=True)
-                tth_ref = plane_data.getTTh()
-                tth0 = np.degrees([tth_ref[i] for i in tth_idx])
+        panel_data = {}
+        for det, res in zip(self.detectors, results):
+            panel_data[det] = res
 
-            # =================================================================
-            # LOOP OVER RING SETS
-            # =================================================================
-            ring_data = []
-            pbar_rings = partial(tqdm, total=len(pow_angs), desc="Ringset",
-                                 position=pbp)
-
-            kwargs = {
-                'instr_cfg': instr_cfg,
-                'panel': panel,
-                'eta_tol': eta_tol,
-                'npdiv': npdiv,
-                'collapse_tth': collapse_tth,
-                'collapse_eta': collapse_eta,
-                'images': images,
-                'do_interpolation': do_interpolation,
-                'do_fitting': do_fitting,
-                'fitting_kwargs': fitting_kwargs,
-            }
-            func = partial(_extract_ring_line_positions, **kwargs)
-            iter_arg = zip(pow_angs, pow_xys, tth_tols, tth0)
-
-            with ProcessPoolExecutor(mp_context=constants.mp_context,
-                                     max_workers=max_workers) as executor:
-                ring_data = list(pbar_rings(executor.map(func, iter_arg)))
-
-            if pbar_dets is not None:
-                pbar_dets.update()
-            panel_data[detector_id] = ring_data
-            pass  # close panel loop
-        if pbar_dets is not None:
-            pbar_dets.close()
         return panel_data
 
     def simulate_powder_pattern(self,
@@ -3980,6 +3951,56 @@ def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
                                         weights=image[rtth_idx])
 
             this_map[i_row, reta_idx] = result
+
+
+def _extract_detector_line_positions(iter_args, plane_data, tth_tol,
+                                     eta_tol, eta_centers, npdiv,
+                                     collapse_tth, collapse_eta,
+                                     do_interpolation, do_fitting,
+                                     fitting_kwargs, max_workers):
+    panel, instr_cfg, images, pbp = iter_args
+
+    if images.ndim == 2:
+        images = np.tile(images, (1, 1, 1))
+    elif images.ndim != 3:
+        raise RuntimeError("images must be 2- or 3-d")
+
+    # make rings
+    pow_angs, pow_xys, tth_ranges = panel.make_powder_rings(
+        plane_data, merge_hkls=True,
+        delta_tth=tth_tol, delta_eta=eta_tol,
+        eta_list=eta_centers)
+
+    tth_tols = np.degrees(np.hstack([i[1] - i[0] for i in tth_ranges]))
+
+    tth_idx, tth_ranges = plane_data.getMergedRanges(cullDupl=True)
+    tth_ref = plane_data.getTTh()
+    tth0 = np.degrees([tth_ref[i] for i in tth_idx])
+
+    # =================================================================
+    # LOOP OVER RING SETS
+    # =================================================================
+    pbar_rings = partial(tqdm, total=len(pow_angs), desc="Ringset",
+                         position=pbp)
+
+    kwargs = {
+        'instr_cfg': instr_cfg,
+        'panel': panel,
+        'eta_tol': eta_tol,
+        'npdiv': npdiv,
+        'collapse_tth': collapse_tth,
+        'collapse_eta': collapse_eta,
+        'images': images,
+        'do_interpolation': do_interpolation,
+        'do_fitting': do_fitting,
+        'fitting_kwargs': fitting_kwargs,
+    }
+    func = partial(_extract_ring_line_positions, **kwargs)
+    iter_arg = zip(pow_angs, pow_xys, tth_tols, tth0)
+
+    with ProcessPoolExecutor(mp_context=constants.mp_context,
+                             max_workers=max_workers) as executor:
+        return list(pbar_rings(executor.map(func, iter_arg)))
 
 
 def _extract_ring_line_positions(iter_args, instr_cfg, panel, eta_tol, npdiv,
