@@ -3706,8 +3706,12 @@ class GenerateEtaOmeMaps(object):
             # compute total nsteps
             # FIXME: need check for roundoff badness
             nsteps = int((ostop - ostart)/delta_omes)
-            ome_edges_full = np.linspace(ostart, ostop, num=nsteps, endpoint=True)
-            omegas_array = np.vstack([ome_edges_full[:-1], ome_edges_full[1:]]).T
+            ome_edges_full = np.linspace(
+                ostart, ostop, num=nsteps, endpoint=True
+            )
+            omegas_array = np.vstack(
+                [ome_edges_full[:-1], ome_edges_full[1:]]
+            ).T
             ome_centers = np.average(omegas_array, axis=1)
 
             # use OmegaImageSeries method to determine which bins have data
