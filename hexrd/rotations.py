@@ -744,22 +744,27 @@ def rotMatOfQuat(quat):
 
 def angleAxisOfRotMat(R):
     """
-    Extract angle and axis invariants from a rotation matrix.
+    Extracts angle and axis invariants from rotation matrices.
 
     Parameters
     ----------
-    R : TYPE
-        DESCRIPTION.
+    R : numpy.ndarray
+        The (3, 3) or (n, 3, 3) array of rotation matrices.
+        Note that these are assumed to be proper orthogonal.
 
     Raises
     ------
     RuntimeError
-        DESCRIPTION.
+        If `R` is not an shape is not (3, 3) or (n, 3, 3).
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    phi : numpy.ndarray
+        The (n, ) array of rotation angles for the n input
+        rotation matrices.
+    n : numpy.ndarray
+        The (3, n) array of unit rotation axes for the n
+        input rotation matrices.
 
     """
     if not isinstance(R, ndarray):
@@ -781,7 +786,7 @@ def angleAxisOfRotMat(R):
     #
     ca = 0.5*(R[:, 0, 0] + R[:, 1, 1] + R[:, 2, 2] - 1)
 
-    angle = arccosSafe(ca)
+    angle = arccosSafe(ca)  # !!! result in (0, pi)
 
     #
     #  Three cases for the angle:
@@ -790,7 +795,7 @@ def angleAxisOfRotMat(R):
     #  *   near pi   -- binary rotation; need to find axis
     #  *   neither   -- general case; can use skew part
     #
-    tol = cnst.sqrt_epsf
+    tol = cnst.epsf
 
     anear0 = angle < tol
 
@@ -801,11 +806,12 @@ def angleAxisOfRotMat(R):
          R[:, 0, 2] - R[:, 2, 0],
          R[:, 1, 0] - R[:, 0, 1]]
     )
-    raxis[:, anear0] = 1
+    raxis[:, anear0] = 1.
 
-    special = angle > pi - tol
+    special = angle > pi - tol  # !!! see above
     nspec = special.sum()
     if nspec > 0:
+
         tmp = R[special, :, :] + tile(I3, (nspec, 1, 1))
         tmpr = tmp.transpose(0, 2, 1).reshape(nspec*3, 3).T
 

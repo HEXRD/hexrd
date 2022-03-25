@@ -3659,6 +3659,8 @@ class GenerateEtaOmeMaps(object):
         image_series must be OmegaImageSeries class
         instrument_params must be a dict (loaded from yaml spec)
         active_hkls must be a list (required for now)
+
+        FIXME: get rid of omega period; should get it from imageseries
         """
 
         self._planeData = plane_data
@@ -3672,18 +3674,62 @@ class GenerateEtaOmeMaps(object):
             self._iHKLList = active_hkls
             n_rings = len(active_hkls)
 
+        # grab a det key and corresponding imageseries (first will do)
+        # !!! assuming that the imageseries for all panels
+        #     have the same length and omegas
+        det_key = list(eta_mapping.keys())[0]
+        this_det_ims = image_series_dict[det_key]
+
+        # handle omegas
+        # !!! for multi wedge, enforncing monotonicity
+        # !!! wedges also cannot overlap or span more than 360
+        omegas_array = this_det_ims.metadata['omega']  # !!! DEGREES
+        frame_mask = None
+        ome_period = omegas_array[0, 0] + 360.  # !!! be careful
+        if this_det_ims.omegawedges.nwedges > 1:
+            delta_omes = [(i['ostop'] - i['ostart'])/i['nsteps']
+                          for i in this_det_ims.omegawedges.wedges]
+            assert len(np.unique(delta_omes)), \
+                "all wedges must have the same delta omega"
+            # grab representative delta ome
+            # !!! assuming positive delta consistent with OmegaImageSeries
+            delta_ome = delta_omes[0]
+
+            # grab full-range start/stop
+            # !!! be sure to map to the same period to enable arithmatic
+            # ??? safer to do this way rather than just pulling from
+            #     the omegas attribute?
+            owedges = this_det_ims.omegawedges
+            ostart = owedges[0]['ostart']  # !!! DEGREES
+            ostop = mapAngle(owedges[-1]['ostop'], ome_period, units='degrees')
+
+            # compute total nsteps
+            # FIXME: need check for roundoff badness
+            nsteps = int((ostop - ostart)/delta_omes)
+            ome_edges_full = np.linspace(ostart, ostop, num=nsteps, endpoint=True)
+            omegas_array = np.vstack([ome_edges_full[:-1], ome_edges_full[1:]]).T
+            ome_centers = np.average(omegas_array, axis=1)
+
+            # use OmegaImageSeries method to determine which bins have data
+            # !!! this array has -1 outside a wedge
+            # !!! again assuming the valid frame order increases monotonically
+            frame_mask = np.array([
+                this_det_ims.omega_to_frame(ome)[0] != -1
+                for ome in ome_centers
+            ], dtype=bool)
+            pass  # end multi-wedge case
+
         # ???: need to pass a threshold?
         eta_mapping, etas = instrument.extract_polar_maps(
             plane_data, image_series_dict,
             active_hkls=active_hkls, threshold=threshold,
             tth_tol=None, eta_tol=eta_step)
 
-        # grab a det key
-        # WARNING: this process assumes that the imageseries for all panels
-        # have the same length and omegas
-        det_key = list(eta_mapping.keys())[0]
+        # pack all detectors with masking
+        # FIXME: add omega masking
         data_store = []
         for i_ring in range(n_rings):
+            # first handle etas
             full_map = np.zeros_like(eta_mapping[det_key][i_ring])
             nan_mask_full = np.zeros(
                 (len(eta_mapping), full_map.shape[0], full_map.shape[1])
@@ -3696,11 +3742,18 @@ class GenerateEtaOmeMaps(object):
                 i_p += 1
             re_nan_these = np.sum(nan_mask_full, axis=0) == 0
             full_map[re_nan_these] = np.nan
+
+            # now omegas
+            if frame_mask is not None:
+                # !!! must expand row dimension to include
+                #     skipped omegas
+                tmp = np.ones_like(full_map)*np.nan
+                tmp[frame_mask, :] = full_map[frame_mask, :]
+                full_map = tmp
             data_store.append(full_map)
         self._dataStore = data_store
 
-        # handle omegas
-        omegas_array = image_series_dict[det_key].metadata['omega']
+        # set required attributes
         self._omegas = mapAngle(
             np.radians(np.average(omegas_array, axis=1)),
             np.radians(ome_period)
@@ -3711,7 +3764,7 @@ class GenerateEtaOmeMaps(object):
         )
 
         # !!! must avoid the case where omeEdges[0] = omeEdges[-1] for the
-        # indexer to work properly
+        #     indexer to work properly
         if abs(self._omeEdges[0] - self._omeEdges[-1]) <= ct.sqrt_epsf:
             # !!! SIGNED delta ome
             del_ome = np.radians(omegas_array[0, 1] - omegas_array[0, 0])
