@@ -3677,19 +3677,19 @@ class GenerateEtaOmeMaps(object):
         # grab a det key and corresponding imageseries (first will do)
         # !!! assuming that the imageseries for all panels
         #     have the same length and omegas
-        det_key = list(eta_mapping.keys())[0]
-        this_det_ims = image_series_dict[det_key]
+        det_key, this_det_ims = next(iter(image_series_dict.items()))
 
         # handle omegas
         # !!! for multi wedge, enforncing monotonicity
         # !!! wedges also cannot overlap or span more than 360
         omegas_array = this_det_ims.metadata['omega']  # !!! DEGREES
+        delta_ome = omegas_array[0][-1] - omegas_array[0][0]
         frame_mask = None
-        ome_period = omegas_array[0, 0] + 360.  # !!! be careful
+        ome_period = omegas_array[0, 0] + np.r_[0., 360.]  # !!! be careful
         if this_det_ims.omegawedges.nwedges > 1:
             delta_omes = [(i['ostop'] - i['ostart'])/i['nsteps']
                           for i in this_det_ims.omegawedges.wedges]
-            assert len(np.unique(delta_omes)), \
+            assert len(np.unique(delta_omes)) == 1, \
                 "all wedges must have the same delta omega"
             # grab representative delta ome
             # !!! assuming positive delta consistent with OmegaImageSeries
@@ -3699,15 +3699,16 @@ class GenerateEtaOmeMaps(object):
             # !!! be sure to map to the same period to enable arithmatic
             # ??? safer to do this way rather than just pulling from
             #     the omegas attribute?
-            owedges = this_det_ims.omegawedges
+            owedges = this_det_ims.omegawedges.wedges
             ostart = owedges[0]['ostart']  # !!! DEGREES
-            ostop = mapAngle(owedges[-1]['ostop'], ome_period, units='degrees')
-
+            ostop = float(
+                mapAngle(owedges[-1]['ostop'], ome_period, units='degrees')
+            )
             # compute total nsteps
             # FIXME: need check for roundoff badness
-            nsteps = int((ostop - ostart)/delta_omes)
+            nsteps = int((ostop - ostart)/delta_ome)
             ome_edges_full = np.linspace(
-                ostart, ostop, num=nsteps, endpoint=True
+                ostart, ostop, num=nsteps+1, endpoint=True
             )
             omegas_array = np.vstack(
                 [ome_edges_full[:-1], ome_edges_full[1:]]
@@ -3717,10 +3718,10 @@ class GenerateEtaOmeMaps(object):
             # use OmegaImageSeries method to determine which bins have data
             # !!! this array has -1 outside a wedge
             # !!! again assuming the valid frame order increases monotonically
-            frame_mask = np.array([
-                this_det_ims.omega_to_frame(ome)[0] != -1
-                for ome in ome_centers
-            ], dtype=bool)
+            frame_mask = np.array(
+                [this_det_ims.omega_to_frame(ome)[0] != -1
+                 for ome in ome_centers]
+            )
             pass  # end multi-wedge case
 
         # ???: need to pass a threshold?
@@ -3728,15 +3729,18 @@ class GenerateEtaOmeMaps(object):
             plane_data, image_series_dict,
             active_hkls=active_hkls, threshold=threshold,
             tth_tol=None, eta_tol=eta_step)
-
+        
         # pack all detectors with masking
         # FIXME: add omega masking
         data_store = []
         for i_ring in range(n_rings):
+            # for convenience
+            map_shape = eta_mapping[det_key][i_ring].shape
+
             # first handle etas
-            full_map = np.zeros_like(eta_mapping[det_key][i_ring])
+            full_map = np.zeros(map_shape, dtype=float)
             nan_mask_full = np.zeros(
-                (len(eta_mapping), full_map.shape[0], full_map.shape[1])
+                (len(eta_mapping), map_shape[0], map_shape[1])
             )
             i_p = 0
             for det_key, eta_map in eta_mapping.items():
@@ -3751,8 +3755,8 @@ class GenerateEtaOmeMaps(object):
             if frame_mask is not None:
                 # !!! must expand row dimension to include
                 #     skipped omegas
-                tmp = np.ones_like(full_map)*np.nan
-                tmp[frame_mask, :] = full_map[frame_mask, :]
+                tmp = np.ones((len(frame_mask), map_shape[1]))*np.nan
+                tmp[frame_mask, :] = full_map
                 full_map = tmp
             data_store.append(full_map)
         self._dataStore = data_store
