@@ -1,10 +1,10 @@
 from .config import Config
 from hexrd import imageseries
 
+from hexrd.constants import shared_ims_key
+
 
 class ImageSeries(Config):
-    """
-    """
     BASEKEY = 'image_series'
 
     def __init__(self, cfg):
@@ -17,7 +17,7 @@ class ImageSeries(Config):
 
     @property
     def imageseries(self):
-        """Return the imageseries dictionar.y"""
+        """Return the imageseries dictionary"""
         if self._image_dict is None:
             self._image_dict = dict()
             fmt = self.format
@@ -26,7 +26,16 @@ class ImageSeries(Config):
                 args = ispec['args']
                 ims = imageseries.open(fname, fmt, **args)
                 oms = imageseries.omega.OmegaImageSeries(ims)
-                panel = oms.metadata['panel']
+                # handle special case for single IMS
+                # for use with ROI
+                try:
+                    panel = oms.metadata['panel']
+                    if isinstance(panel, (tuple, list)):
+                        panel = '_'.join(panel)
+                    elif panel is None:
+                        panel = shared_ims_key
+                except(KeyError):
+                    panel = shared_ims_key
                 self._image_dict[panel] = oms
 
         return self._image_dict

@@ -2,7 +2,7 @@ import os
 import logging
 import multiprocessing as mp
 
-# from hexrd.utils.decorators import memoized
+from hexrd.constants import shared_ims_key
 from hexrd import imageseries
 
 from .config import Config
@@ -160,8 +160,15 @@ class RootConfig(Config):
                 oms = imageseries.omega.OmegaImageSeries(ims)
                 try:
                     panel = ispec['panel']
+                    if isinstance(panel, (tuple, list)):
+                        panel = '_'.join(panel)
+                    elif panel is None:
+                        panel = shared_ims_key
                 except(KeyError):
-                    panel = oms.metadata['panel']
+                    try:
+                        panel = oms.metadata['panel']
+                    except(KeyError):
+                        panel = shared_ims_key
                 self._image_dict[panel] = oms
 
         return self._image_dict

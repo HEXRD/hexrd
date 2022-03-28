@@ -77,7 +77,7 @@ class ProcessedImageSeries(ImageSeries):
 
     def _rectangle(self, img, r):
         # restrict to rectangle
-        return img[r[0, 0]:r[0, 1], r[1, 0]:r[1, 1]]
+        return img[r[0][0]:r[0][1], r[1][0]:r[1][1]]
 
     def _flip(self, img, flip):
         if flip in ('y', 'v'):  # about y-axis (vertical)

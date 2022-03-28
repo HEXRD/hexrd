@@ -238,7 +238,7 @@ def fit_grain_FF_reduced(grain_id):
                 culled_results_r[det_key] = []
                 continue
 
-            ims = imgser_dict[det_key]
+            ims = next(iter(imgser_dict.values()))  # grab first for the omes
             ome_step = sum(np.r_[-1, 1]*ims.metadata['omega'][0, :])
 
             xyo_det = np.atleast_2d(

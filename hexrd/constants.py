@@ -105,6 +105,8 @@ fable_to_hexrd_cob_qpm = np.array(
      [ 0.5, -0.5, -0.5,  0.5]]
 )
 
+# shared key for imageseries shared by multiple detectors (ROI's)
+shared_ims_key = 'SHARED-IMAGES'
 
 """
 >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab,
