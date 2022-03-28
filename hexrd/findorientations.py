@@ -551,7 +551,7 @@ def _filter_eta_ome_maps(eta_ome, filter_stdev=False):
     gl_filter = ndimage.filters.gaussian_laplace
     for i, pf in enumerate(eta_ome.dataStore):
         # first compoute row-wise median over omega channel
-        ome_median = np.tile(np.median(pf, axis=0), (len(pf), 1))
+        ome_median = np.tile(np.nanmedian(pf, axis=0), (len(pf), 1))
 
         # subtract
         # !!! this changes the reference obj, but fitlering does not
