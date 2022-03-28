@@ -6,6 +6,7 @@ class ImageSeries(Config):
     """
     """
     BASEKEY = 'image_series'
+    share_ims_key = 'mulitple'
 
     def __init__(self, cfg):
         super(ImageSeries, self).__init__(cfg)
@@ -17,7 +18,7 @@ class ImageSeries(Config):
 
     @property
     def imageseries(self):
-        """Return the imageseries dictionar.y"""
+        """Return the imageseries dictionary"""
         if self._image_dict is None:
             self._image_dict = dict()
             fmt = self.format
@@ -26,7 +27,12 @@ class ImageSeries(Config):
                 args = ispec['args']
                 ims = imageseries.open(fname, fmt, **args)
                 oms = imageseries.omega.OmegaImageSeries(ims)
-                panel = oms.metadata['panel']
+                # handle special case for single IMS
+                # for use with ROI
+                try:
+                    panel = oms.metadata['panel']
+                except(KeyError):
+                    panel = 'share_ims_key'
                 self._image_dict[panel] = oms
 
         return self._image_dict

@@ -48,6 +48,9 @@ from scipy.linalg import logm
 from skimage.measure import regionprops
 
 from hexrd import constants
+from hexrd.imageseries import ImageSeries
+from hexrd.imageseries.process import ProcessedImageSeries
+from hexrd.imageseries.omega import OmegaImageSeries
 from hexrd.gridutil import cellConnectivity, cellIndices, make_tolerance_grid
 from hexrd import matrixutil as mutil
 from hexrd.transforms.xfcapi import \
@@ -112,6 +115,9 @@ max_workers_DFLT = max(1, os.cpu_count() - 1)
 
 distortion_registry = distortion_pkg.Registry()
 
+multi_ims_key = 'mulitple'
+ims_classes = (ImageSeries, ProcessedImageSeries, OmegaImageSeries)
+
 """
 Calibration parameter flags
 
@@ -163,6 +169,77 @@ def _fix_indices(idx, lo, hi):
     nidx[off_lo] = lo
     nidx[off_hi] = hi
     return nidx
+
+
+def _parse_imgser_dict(imgser_dict, det_key, roi=None):
+    """
+    Associates a dict of imageseries to the target panel(s).
+
+    Parameters
+    ----------
+    imgser_dict : dict
+        The input dict of imageseries.  Either `det_key` is in imgser_dict, or
+        the shared key is.  Entries can be an ImageSeries object or a 2- or 3-d
+        ndarray of images.
+    det_key : str
+        The target detector key.
+    roi : tuple or None, optional
+        The roi of the target images.  Format is
+            ((row_start, row_stop), (col_start, col_stop))
+        The stops are used in the normal sense of a slice. The default is None.
+
+    Raises
+    ------
+    RuntimeError
+        If niether `det_key` nor the shared key is in the input imgser_dict;
+        Also, if the shared key is specified but the roi is None.
+
+    Returns
+    -------
+    ims : hexrd.imageseries
+        The desired imageseries object.
+
+    """
+    # grab imageseries for this detector
+    try:
+        ims = imgser_dict[det_key]
+    except(KeyError):
+        if multi_ims_key in imgser_dict:
+            if roi is None:
+                raise RuntimeError(
+                    "roi must be specified to use shared imageseries"
+                )
+            images_in = imgser_dict[multi_ims_key]
+            if isinstance(images_in, ims_classes):
+                # input is an imageseries of some kind
+                ims = ProcessedImageSeries(images_in, [('rectangle', roi), ])
+                if isinstance(images_in, OmegaImageSeries):
+                    # if it was an OmegaImageSeries, must re-cast
+                    ims = OmegaImageSeries(ims)
+            elif isinstance(images_in, np.ndarray):
+                # 2- or 3-d array of images
+                ndim = images_in.ndim
+                if ndim == 2:
+                    ims = images_in[roi[0][0]:roi[0][1], roi[1][0]:roi[1][1]]
+                elif ndim == 3:
+                    nrows = roi[0][1] - roi[0][0]
+                    ncols = roi[1][1] - roi[1][0]
+                    n_images = len(images_in)
+                    ims = np.empty((n_images, nrows, ncols),
+                                   dtype=images_in.dtype)
+                    for i, image in images_in:
+                        ims[i, :, :] = \
+                            images_in[roi[0][0]:roi[0][1], roi[1][0]:roi[1][1]]
+                else:
+                    raise RuntimeError(
+                        f"image input dim must be 2 or 3; you gave {ndim}"
+                    )
+        else:
+            raise RuntimeError(
+                f"neither '{det_key}' nor '{multi_ims_key}' found"
+                + 'in imageseries input'
+                    )
+    return ims
 
 
 def calc_beam_vec(azim, pola):
@@ -400,12 +477,14 @@ class HEDMInstrument(object):
         self.max_workers = max_workers
 
         if instrument_config is None:
+            # Default instrument
             if instrument_name is not None:
                 self._id = instrument_name
             self._num_panels = 1
             self._beam_energy = beam_energy_DFLT
             self._beam_vector = beam_vec_DFLT
 
+            # FIXME: must add cylindrical
             self._detectors = dict(
                 panel_id_DFLT=PlanarDetector(
                     rows=nrows_DFLT, cols=ncols_DFLT,
@@ -415,6 +494,7 @@ class HEDMInstrument(object):
                     bvec=self._beam_vector,
                     evec=self._eta_vector,
                     distortion=None,
+                    roi=None,
                     max_workers=self.max_workers),
                 )
 
@@ -474,6 +554,8 @@ class HEDMInstrument(object):
                             raise RuntimeError(
                                 "panel buffer spec invalid for %s" % det_id
                             )
+                # optional roi
+                roi = None if 'roi' not in det_info else det_info['roi']
 
                 # handle distortion
                 distortion = None
@@ -503,6 +585,7 @@ class HEDMInstrument(object):
                         bvec=self._beam_vector,
                         evec=self._eta_vector,
                         distortion=distortion,
+                        roi=roi,
                         max_workers=self.max_workers)
 
             self._detectors = det_dict
@@ -907,12 +990,16 @@ class HEDMInstrument(object):
             # pixel angular coords for the detector panel
             ptth, peta = panel.pixel_angles()
 
+            # grab imageseries for this detector
+            ims = _parse_imgser_dict(imgser_dict, det_key, roi=panel.roi)
+
             # grab omegas from imageseries and squawk if missing
             try:
-                omegas = imgser_dict[det_key].metadata['omega']
+                omegas = ims.metadata['omega']
             except(KeyError):
-                msg = "imageseries for '%s' has no omega info" % det_key
-                raise RuntimeError(msg)
+                raise RuntimeError(
+                    f"imageseries for '{det_key}' has no omega info"
+                )
 
             # initialize maps and assing by row (omega/frame)
             nrows_ome = len(omegas)
@@ -934,7 +1021,6 @@ class HEDMInstrument(object):
                 ring_params.append(_generate_ring_params(**kwargs))
 
             # Divide up the images among processes
-            ims = imgser_dict[det_key]
             tasks = distribute_tasks(len(ims), self.max_workers)
             func = partial(_run_histograms, ims=ims, tth_ranges=tth_ranges,
                            ring_maps=ring_maps, ring_params=ring_params,
@@ -1025,7 +1111,12 @@ class HEDMInstrument(object):
                 style='hdf5'
             )
             native_area = panel.pixel_area  # pixel ref area
-            images = imgser_dict[detector_id]
+
+            # grab images
+            images = _parse_imgser_dict(imgser_dict,
+                                        detector_id,
+                                        roi=panel.roi)
+
             if images.ndim == 2:
                 n_images = 1
                 images = np.tile(images, (1, 1, 1))
@@ -1554,7 +1645,9 @@ class HEDMInstrument(object):
             native_area = panel.pixel_area  # pixel ref area
 
             # pull out the OmegaImageSeries for this panel from input dict
-            ome_imgser = imgser_dict[detector_id]
+            ome_imgser = _parse_imgser_dict(imgser_dict,
+                                            detector_id,
+                                            roi=panel.roi)
 
             # extract simulation results
             sim_results_p = sim_results[detector_id]
@@ -2057,17 +2150,13 @@ class PlanarDetector(object):
     @roi.setter
     def roi(self, vertex_array):
         """
-        vertex array must be
-
-        [[r0, c0], [r1, c1], ..., [rn, cn]]
-
-        and have len >= 3
-
-        does NOT need to repeat start vertex for closure
+        !!! vertex array must be (r0, c0)
         """
         if vertex_array is not None:
-            assert len(vertex_array) >= 3
-        self._roi = vertex_array
+            assert len(vertex_array) == 2, \
+                "roi is set via (start_row, start_col)"
+        self._roi = ((vertex_array[0], vertex_array[0] + self.rows),
+                     (vertex_array[1], vertex_array[1] + self.cols))
 
     @property
     def row_dim(self):
@@ -3729,7 +3818,7 @@ class GenerateEtaOmeMaps(object):
             plane_data, image_series_dict,
             active_hkls=active_hkls, threshold=threshold,
             tth_tol=None, eta_tol=eta_step)
-        
+
         # pack all detectors with masking
         # FIXME: add omega masking
         data_store = []
