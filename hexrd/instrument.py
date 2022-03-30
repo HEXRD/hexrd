@@ -330,8 +330,10 @@ def _parse_imgser_dict(imgser_dict, det_key, roi=None):
                 raise RuntimeError(
                     f"multiple entries found for '{det_key}'"
                 )
-            img_keys = list(imgser_dict.keys())  # same order
-            matched_det_key = img_keys[matched_det_keys]
+            # use boolean array to index the proper key
+            # !!! these should be in the same order
+            img_keys = img_keys = np.asarray(list(imgser_dict.keys()))
+            matched_det_key = img_keys[matched_det_keys][0]  # !!! only one
             images_in = imgser_dict[matched_det_key]
         else:
             raise RuntimeError(
@@ -2558,10 +2560,13 @@ class PlanarDetector(object):
         # assign local vars; listify if necessary
         tilt = self.tilt
         translation = self.tvec
+        roi = None if self.roi is None \
+            else np.array([self.roi[0][0], self.roi[1][0]]).flatten()
         if style.lower() == 'yaml':
             tilt = tilt.tolist()
             translation = translation.tolist()
             tvec = tvec.tolist()
+            roi = None if roi is None else roi.tolist()
 
         det_dict = dict(
             transform=dict(
@@ -2569,11 +2574,11 @@ class PlanarDetector(object):
                 translation=translation,
             ),
             pixels=dict(
-                rows=self.rows,
-                columns=self.cols,
+                rows=int(self.rows),
+                columns=int(self.cols),
                 size=[float(self.pixel_size_row),
                       float(self.pixel_size_col)],
-                roi=None if self.roi is None else [self.roi[0][0], self.roi[1][0]]
+                roi=roi
             )
         )
 
