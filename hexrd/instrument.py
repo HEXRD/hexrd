@@ -688,7 +688,7 @@ class HEDMInstrument(object):
                             )
 
                 # optional roi
-                roi = None if 'roi' not in pixel_info else pixel_info['roi']
+                roi = pixel_info.get('roi')
 
                 # handle distortion
                 distortion = None
