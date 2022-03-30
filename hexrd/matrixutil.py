@@ -846,6 +846,52 @@ def symmToVecds(A):
     return vecds
 
 
+def solve_wahba(v, w, weights=None):
+    """
+    take unique vectors 3-vectors v = [[v0], [v1], ..., [vn]] in frame 1 that
+    are aligned with vectors w = [[w0], [w1], ..., [wn]] in frame 2 and solve
+    for the rotation that takes components in frame 1 to frame 2
+
+    minimizes the cost function:
+
+      J(R) = 0.5 * sum_{k=1}^{N} a_k * || w_k - R*v_k ||^2
+
+    INPUTS:
+      v is list-like, where each entry is a length 3 vector
+      w is list-like, where each entry is a length 3 vector
+
+      len(v) == len(w)
+
+      weights are optional, and must have the same length as v, w
+
+    OUTPUT:
+      (3, 3) orthognal matrix that takes components in frame 1 to frame 2
+    """
+    n_vecs = len(v)
+
+    assert len(w) == n_vecs
+
+    if weights is not None:
+        assert len(weights) == n_vecs
+    else:
+        weights = np.ones(n_vecs)
+
+    # cast v, w, as arrays if not
+    v = np.atleast_2d(v)
+    w = np.atleast_2d(w)
+
+    # compute weighted outer product sum
+    B = np.zeros((3, 3))
+    for i in range(n_vecs):
+        B += weights[i]*np.dot(w[i].reshape(3, 1), v[i].reshape(1, 3))
+
+    # compute svd
+    Us, Ss, VsT = svd(B)
+
+    # form diagonal matrix for solution
+    M = np.diag([1., 1., np.linalg.det(Us)*np.linalg.det(VsT)])
+    return np.dot(Us, np.dot(M, VsT))
+
 # =============================================================================
 # Numba-fied frame cache writer
 # =============================================================================
