@@ -48,6 +48,9 @@ from scipy.linalg import logm
 from skimage.measure import regionprops
 
 from hexrd import constants
+from hexrd.imageseries import ImageSeries
+from hexrd.imageseries.process import ProcessedImageSeries
+from hexrd.imageseries.omega import OmegaImageSeries
 from hexrd.gridutil import cellConnectivity, cellIndices, make_tolerance_grid
 from hexrd import matrixutil as mutil
 from hexrd.transforms.xfcapi import \
@@ -112,6 +115,9 @@ max_workers_DFLT = max(1, os.cpu_count() - 1)
 
 distortion_registry = distortion_pkg.Registry()
 
+multi_ims_key = ct.shared_ims_key
+ims_classes = (ImageSeries, ProcessedImageSeries, OmegaImageSeries)
+
 """
 Calibration parameter flags
 
@@ -163,6 +169,209 @@ def _fix_indices(idx, lo, hi):
     nidx[off_lo] = lo
     nidx[off_hi] = hi
     return nidx
+
+
+def generate_chunks(nrows, ncols, base_nrows, base_ncols,
+                    row_gap=0, col_gap=0):
+    """
+    Generate chunking data for regularly tiled composite detectors.
+
+    Parameters
+    ----------
+    nrows : int
+        DESCRIPTION.
+    ncols : int
+        DESCRIPTION.
+    base_nrows : int
+        DESCRIPTION.
+    base_ncols : int
+        DESCRIPTION.
+    row_gap : int, optional
+        DESCRIPTION. The default is 0.
+    col_gap : int, optional
+        DESCRIPTION. The default is 0.
+
+    Returns
+    -------
+    rects : array_like
+        The (nrows*ncols, ) list of ROI specs (see Notes).
+    labels : array_like
+        The (nrows*ncols, ) list of ROI (i, j) matrix indexing labels 'i_j'.
+
+    Notes
+    -----
+    ProcessedImageSeries needs a (2, 2) array for the 'rect' kwarg:
+        [[row_start, row_stop],
+         [col_start, col_stop]]
+    """
+    row_starts = np.array([i*(base_nrows + row_gap) for i in range(nrows)])
+    col_starts = np.array([i*(base_ncols + col_gap) for i in range(ncols)])
+    rr = np.vstack([row_starts, row_starts + base_nrows])
+    cc = np.vstack([col_starts, col_starts + base_ncols])
+    rects = []
+    labels = []
+    for i in range(nrows):
+        for j in range(ncols):
+            this_rect = np.array(
+                [[rr[0, i], rr[1, i]],
+                 [cc[0, j], cc[1, j]]]
+            )
+            rects.append(this_rect)
+            labels.append('%d_%d' % (i, j))
+    return rects, labels
+
+
+def chunk_instrument(instr, rects, labels, use_roi=False):
+    """
+    Generate chunked config fro regularly tiled composite detectors.
+
+    Parameters
+    ----------
+    instr : TYPE
+        DESCRIPTION.
+    rects : TYPE
+        DESCRIPTION.
+    labels : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    new_icfg_dict : TYPE
+        DESCRIPTION.
+
+    """
+    icfg_dict = instr.write_config()
+    new_icfg_dict = dict(beam=icfg_dict['beam'],
+                         oscillation_stage=icfg_dict['oscillation_stage'],
+                         detectors={})
+    for panel_id, panel in instr.detectors.items():
+        pcfg_dict = panel.config_dict(instr.chi, instr.tvec)['detector']
+
+        for pnum, pdata in enumerate(zip(rects, labels)):
+            rect, label = pdata
+            panel_name = f'{panel_id}_{label}'
+
+            row_col_dim = np.diff(rect)  # (2, 1)
+            shape = tuple(row_col_dim.flatten())
+            center = (rect[:, 0].reshape(2, 1) + 0.5*row_col_dim)
+
+            sp_tvec = np.concatenate(
+                [panel.pixelToCart(center.T).flatten(), np.zeros(1)]
+            )
+
+            tvec = np.dot(panel.rmat, sp_tvec) + panel.tvec
+
+            # new config dict
+            tmp_cfg = copy.deepcopy(pcfg_dict)
+
+            # fix sizes
+            tmp_cfg['pixels']['rows'] = shape[0]
+            tmp_cfg['pixels']['columns'] = shape[1]
+            if use_roi:
+                tmp_cfg['pixels']['roi'] = (rect[0][0], rect[1][0])
+
+            # update tvec
+            tmp_cfg['transform']['translation'] = tvec.tolist()
+
+            new_icfg_dict['detectors'][panel_name] = copy.deepcopy(tmp_cfg)
+
+            if panel.panel_buffer.ndim == 2:  # have a mask array!
+                submask = panel.panel_buffer[
+                    rect[0, 0]:rect[0, 1], rect[1, 0]:rect[1, 1]
+                ]
+                '''
+                submask[:m, :] = False
+                submask[-m:, :] = False
+                submask[:, :m] = False
+                submask[:, -m:] = False
+                '''
+                new_icfg_dict['detectors'][panel_name]['buffer'] = submask
+    return new_icfg_dict
+
+
+def _parse_imgser_dict(imgser_dict, det_key, roi=None):
+    """
+    Associates a dict of imageseries to the target panel(s).
+
+    Parameters
+    ----------
+    imgser_dict : dict
+        The input dict of imageseries.  Either `det_key` is in imgser_dict, or
+        the shared key is.  Entries can be an ImageSeries object or a 2- or 3-d
+        ndarray of images.
+    det_key : str
+        The target detector key.
+    roi : tuple or None, optional
+        The roi of the target images.  Format is
+            ((row_start, row_stop), (col_start, col_stop))
+        The stops are used in the normal sense of a slice. The default is None.
+
+    Raises
+    ------
+    RuntimeError
+        If niether `det_key` nor the shared key is in the input imgser_dict;
+        Also, if the shared key is specified but the roi is None.
+
+    Returns
+    -------
+    ims : hexrd.imageseries
+        The desired imageseries object.
+
+    """
+    # grab imageseries for this detector
+    try:
+        ims = imgser_dict[det_key]
+    except(KeyError):
+        matched_det_keys = [det_key in k for k in imgser_dict]
+        if multi_ims_key in imgser_dict:
+            images_in = imgser_dict[multi_ims_key]
+        elif np.any(matched_det_keys):
+            if sum(matched_det_keys) != 1:
+                raise RuntimeError(
+                    f"multiple entries found for '{det_key}'"
+                )
+            # use boolean array to index the proper key
+            # !!! these should be in the same order
+            img_keys = img_keys = np.asarray(list(imgser_dict.keys()))
+            matched_det_key = img_keys[matched_det_keys][0]  # !!! only one
+            images_in = imgser_dict[matched_det_key]
+        else:
+            raise RuntimeError(
+                f"neither '{det_key}' nor '{multi_ims_key}' found"
+                + 'in imageseries input'
+            )
+
+        # have images now
+        if roi is None:
+            raise RuntimeError(
+                "roi must be specified to use shared imageseries"
+            )
+
+        if isinstance(images_in, ims_classes):
+            # input is an imageseries of some kind
+            ims = ProcessedImageSeries(images_in, [('rectangle', roi), ])
+            if isinstance(images_in, OmegaImageSeries):
+                # if it was an OmegaImageSeries, must re-cast
+                ims = OmegaImageSeries(ims)
+        elif isinstance(images_in, np.ndarray):
+            # 2- or 3-d array of images
+            ndim = images_in.ndim
+            if ndim == 2:
+                ims = images_in[roi[0][0]:roi[0][1], roi[1][0]:roi[1][1]]
+            elif ndim == 3:
+                nrows = roi[0][1] - roi[0][0]
+                ncols = roi[1][1] - roi[1][0]
+                n_images = len(images_in)
+                ims = np.empty((n_images, nrows, ncols),
+                               dtype=images_in.dtype)
+                for i, image in images_in:
+                    ims[i, :, :] = \
+                        images_in[roi[0][0]:roi[0][1], roi[1][0]:roi[1][1]]
+            else:
+                raise RuntimeError(
+                    f"image input dim must be 2 or 3; you gave {ndim}"
+                )
+    return ims
 
 
 def calc_beam_vec(azim, pola):
@@ -400,12 +609,14 @@ class HEDMInstrument(object):
         self.max_workers = max_workers
 
         if instrument_config is None:
+            # Default instrument
             if instrument_name is not None:
                 self._id = instrument_name
             self._num_panels = 1
             self._beam_energy = beam_energy_DFLT
             self._beam_vector = beam_vec_DFLT
 
+            # FIXME: must add cylindrical
             self._detectors = dict(
                 panel_id_DFLT=PlanarDetector(
                     rows=nrows_DFLT, cols=ncols_DFLT,
@@ -415,6 +626,7 @@ class HEDMInstrument(object):
                     bvec=self._beam_vector,
                     evec=self._eta_vector,
                     distortion=None,
+                    roi=None,
                     max_workers=self.max_workers),
                 )
 
@@ -475,6 +687,9 @@ class HEDMInstrument(object):
                                 "panel buffer spec invalid for %s" % det_id
                             )
 
+                # optional roi
+                roi = None if 'roi' not in pixel_info else pixel_info['roi']
+
                 # handle distortion
                 distortion = None
                 if distortion_key in det_info:
@@ -503,6 +718,7 @@ class HEDMInstrument(object):
                         bvec=self._beam_vector,
                         evec=self._eta_vector,
                         distortion=distortion,
+                        roi=roi,
                         max_workers=self.max_workers)
 
             self._detectors = det_dict
@@ -907,12 +1123,16 @@ class HEDMInstrument(object):
             # pixel angular coords for the detector panel
             ptth, peta = panel.pixel_angles()
 
+            # grab imageseries for this detector
+            ims = _parse_imgser_dict(imgser_dict, det_key, roi=panel.roi)
+
             # grab omegas from imageseries and squawk if missing
             try:
-                omegas = imgser_dict[det_key].metadata['omega']
+                omegas = ims.metadata['omega']
             except(KeyError):
-                msg = "imageseries for '%s' has no omega info" % det_key
-                raise RuntimeError(msg)
+                raise RuntimeError(
+                    f"imageseries for '{det_key}' has no omega info"
+                )
 
             # initialize maps and assing by row (omega/frame)
             nrows_ome = len(omegas)
@@ -934,7 +1154,6 @@ class HEDMInstrument(object):
                 ring_params.append(_generate_ring_params(**kwargs))
 
             # Divide up the images among processes
-            ims = imgser_dict[det_key]
             tasks = distribute_tasks(len(ims), self.max_workers)
             func = partial(_run_histograms, ims=ims, tth_ranges=tth_ranges,
                            ring_maps=ring_maps, ring_params=ring_params,
@@ -1025,7 +1244,12 @@ class HEDMInstrument(object):
                 style='hdf5'
             )
             native_area = panel.pixel_area  # pixel ref area
-            images = imgser_dict[detector_id]
+
+            # grab images
+            images = _parse_imgser_dict(imgser_dict,
+                                        detector_id,
+                                        roi=panel.roi)
+
             if images.ndim == 2:
                 n_images = 1
                 images = np.tile(images, (1, 1, 1))
@@ -1554,7 +1778,9 @@ class HEDMInstrument(object):
             native_area = panel.pixel_area  # pixel ref area
 
             # pull out the OmegaImageSeries for this panel from input dict
-            ome_imgser = imgser_dict[detector_id]
+            ome_imgser = _parse_imgser_dict(imgser_dict,
+                                            detector_id,
+                                            roi=panel.roi)
 
             # extract simulation results
             sim_results_p = sim_results[detector_id]
@@ -1939,7 +2165,13 @@ class PlanarDetector(object):
 
         self._tth_distortion = tth_distortion
 
-        self._roi = roi
+        if roi is None:
+            self._roi = roi
+        else:
+            assert len(roi) == 2, \
+                "roi is set via (start_row, start_col)"
+            self._roi = ((roi[0], roi[0] + self._rows),
+                         (roi[1], roi[1] + self._cols))
 
         self._tvec = np.array(tvec).flatten()
         self._tilt = np.array(tilt).flatten()
@@ -2057,17 +2289,13 @@ class PlanarDetector(object):
     @roi.setter
     def roi(self, vertex_array):
         """
-        vertex array must be
-
-        [[r0, c0], [r1, c1], ..., [rn, cn]]
-
-        and have len >= 3
-
-        does NOT need to repeat start vertex for closure
+        !!! vertex array must be (r0, c0)
         """
         if vertex_array is not None:
-            assert len(vertex_array) >= 3
-        self._roi = vertex_array
+            assert len(vertex_array) == 2, \
+                "roi is set via (start_row, start_col)"
+        self._roi = ((vertex_array[0], vertex_array[0] + self.rows),
+                     (vertex_array[1], vertex_array[1] + self.cols))
 
     @property
     def row_dim(self):
@@ -2332,10 +2560,13 @@ class PlanarDetector(object):
         # assign local vars; listify if necessary
         tilt = self.tilt
         translation = self.tvec
+        roi = None if self.roi is None \
+            else np.array([self.roi[0][0], self.roi[1][0]]).flatten()
         if style.lower() == 'yaml':
             tilt = tilt.tolist()
             translation = translation.tolist()
             tvec = tvec.tolist()
+            roi = None if roi is None else roi.tolist()
 
         det_dict = dict(
             transform=dict(
@@ -2343,10 +2574,11 @@ class PlanarDetector(object):
                 translation=translation,
             ),
             pixels=dict(
-                rows=self.rows,
-                columns=self.cols,
+                rows=int(self.rows),
+                columns=int(self.cols),
                 size=[float(self.pixel_size_row),
                       float(self.pixel_size_col)],
+                roi=roi
             )
         )
 
@@ -2552,6 +2784,8 @@ class PlanarDetector(object):
         """
         xy = np.atleast_2d(xy)
 
+        '''
+        # !!! THIS LOGIC IS OBSOLETE
         if self.roi is not None:
             ij_crds = self.cartToPixel(xy, pixels=True)
             ii, jj = polygon(self.roi[:, 0], self.roi[:, 1],
@@ -2560,32 +2794,25 @@ class PlanarDetector(object):
             on_panel_cols = [j in jj for j in ij_crds[:, 1]]
             on_panel = np.logical_and(on_panel_rows, on_panel_cols)
         else:
-            xlim = 0.5*self.col_dim
-            ylim = 0.5*self.row_dim
-            if buffer_edges and self.panel_buffer is not None:
-                if self.panel_buffer.ndim == 2:
-                    pix = self.cartToPixel(xy, pixels=True)
+        '''
+        xlim = 0.5*self.col_dim
+        ylim = 0.5*self.row_dim
+        if buffer_edges and self.panel_buffer is not None:
+            if self.panel_buffer.ndim == 2:
+                pix = self.cartToPixel(xy, pixels=True)
 
-                    roff = np.logical_or(pix[:, 0] < 0, pix[:, 0] >= self.rows)
-                    coff = np.logical_or(pix[:, 1] < 0, pix[:, 1] >= self.cols)
+                roff = np.logical_or(pix[:, 0] < 0, pix[:, 0] >= self.rows)
+                coff = np.logical_or(pix[:, 1] < 0, pix[:, 1] >= self.cols)
 
-                    idx = np.logical_or(roff, coff)
+                idx = np.logical_or(roff, coff)
 
-                    pix[idx, :] = 0
+                pix[idx, :] = 0
 
-                    on_panel = self.panel_buffer[pix[:, 0], pix[:, 1]]
-                    on_panel[idx] = False
-                else:
-                    xlim -= self.panel_buffer[0]
-                    ylim -= self.panel_buffer[1]
-                    on_panel_x = np.logical_and(
-                        xy[:, 0] >= -xlim, xy[:, 0] <= xlim
-                    )
-                    on_panel_y = np.logical_and(
-                        xy[:, 1] >= -ylim, xy[:, 1] <= ylim
-                    )
-                    on_panel = np.logical_and(on_panel_x, on_panel_y)
-            elif not buffer_edges or self.panel_buffer is None:
+                on_panel = self.panel_buffer[pix[:, 0], pix[:, 1]]
+                on_panel[idx] = False
+            else:
+                xlim -= self.panel_buffer[0]
+                ylim -= self.panel_buffer[1]
                 on_panel_x = np.logical_and(
                     xy[:, 0] >= -xlim, xy[:, 0] <= xlim
                 )
@@ -2593,6 +2820,14 @@ class PlanarDetector(object):
                     xy[:, 1] >= -ylim, xy[:, 1] <= ylim
                 )
                 on_panel = np.logical_and(on_panel_x, on_panel_y)
+        elif not buffer_edges or self.panel_buffer is None:
+            on_panel_x = np.logical_and(
+                xy[:, 0] >= -xlim, xy[:, 0] <= xlim
+            )
+            on_panel_y = np.logical_and(
+                xy[:, 1] >= -ylim, xy[:, 1] <= ylim
+            )
+            on_panel = np.logical_and(on_panel_x, on_panel_y)
         return xy[on_panel, :], on_panel
 
     def cart_to_angles(self, xy_data,
@@ -3729,13 +3964,13 @@ class GenerateEtaOmeMaps(object):
             plane_data, image_series_dict,
             active_hkls=active_hkls, threshold=threshold,
             tth_tol=None, eta_tol=eta_step)
-        
+
         # pack all detectors with masking
         # FIXME: add omega masking
         data_store = []
         for i_ring in range(n_rings):
-            # for convenience
-            map_shape = eta_mapping[det_key][i_ring].shape
+            # for convenience grab map shape from first
+            map_shape = next(iter(eta_mapping.values())).shape[1:]
 
             # first handle etas
             full_map = np.zeros(map_shape, dtype=float)
