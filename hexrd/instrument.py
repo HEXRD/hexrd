@@ -3965,13 +3965,13 @@ class GenerateEtaOmeMaps(object):
             active_hkls=active_hkls, threshold=threshold,
             tth_tol=None, eta_tol=eta_step)
 
+        # for convenience grab map shape from first
+        map_shape = next(iter(eta_mapping.values())).shape[1:]
+
         # pack all detectors with masking
         # FIXME: add omega masking
         data_store = []
         for i_ring in range(n_rings):
-            # for convenience grab map shape from first
-            map_shape = next(iter(eta_mapping.values())).shape[1:]
-
             # first handle etas
             full_map = np.zeros(map_shape, dtype=float)
             nan_mask_full = np.zeros(
