@@ -115,7 +115,7 @@ max_workers_DFLT = max(1, os.cpu_count() - 1)
 
 distortion_registry = distortion_pkg.Registry()
 
-multi_ims_key = 'mulitple'
+multi_ims_key = ct.shared_ims_key
 ims_classes = (ImageSeries, ProcessedImageSeries, OmegaImageSeries)
 
 """
@@ -171,6 +171,124 @@ def _fix_indices(idx, lo, hi):
     return nidx
 
 
+def generate_chunks(nrows, ncols, base_nrows, base_ncols,
+                    row_gap=0, col_gap=0):
+    """
+    Generate chunking data for regularly tiled composite detectors.
+
+    Parameters
+    ----------
+    nrows : int
+        DESCRIPTION.
+    ncols : int
+        DESCRIPTION.
+    base_nrows : int
+        DESCRIPTION.
+    base_ncols : int
+        DESCRIPTION.
+    row_gap : int, optional
+        DESCRIPTION. The default is 0.
+    col_gap : int, optional
+        DESCRIPTION. The default is 0.
+
+    Returns
+    -------
+    rects : array_like
+        The (nrows*ncols, ) list of ROI specs (see Notes).
+    labels : array_like
+        The (nrows*ncols, ) list of ROI (i, j) matrix indexing labels 'i_j'.
+
+    Notes
+    -----
+    ProcessedImageSeries needs a (2, 2) array for the 'rect' kwarg:
+        [[row_start, row_stop],
+         [col_start, col_stop]]
+    """
+    row_starts = np.array([i*(base_nrows + row_gap) for i in range(nrows)])
+    col_starts = np.array([i*(base_ncols + col_gap) for i in range(ncols)])
+    rr = np.vstack([row_starts, row_starts + base_nrows])
+    cc = np.vstack([col_starts, col_starts + base_ncols])
+    rects = []
+    labels = []
+    for i in range(nrows):
+        for j in range(ncols):
+            this_rect = np.array(
+                [[rr[0, i], rr[1, i]],
+                 [cc[0, j], cc[1, j]]]
+            )
+            rects.append(this_rect)
+            labels.append('%d_%d' % (i, j))
+    return rects, labels
+
+
+def chunk_instrument(instr, rects, labels, use_roi=False):
+    """
+    Generate chunked config fro regularly tiled composite detectors.
+
+    Parameters
+    ----------
+    instr : TYPE
+        DESCRIPTION.
+    rects : TYPE
+        DESCRIPTION.
+    labels : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    new_icfg_dict : TYPE
+        DESCRIPTION.
+
+    """
+    icfg_dict = instr.write_config()
+    new_icfg_dict = dict(beam=icfg_dict['beam'],
+                         oscillation_stage=icfg_dict['oscillation_stage'],
+                         detectors={})
+    for panel_id, panel in instr.detectors.items():
+        pcfg_dict = panel.config_dict(instr.chi, instr.tvec)['detector']
+
+        for pnum, pdata in enumerate(zip(rects, labels)):
+            rect, label = pdata
+            panel_name = f'{panel_id}_{label}'
+
+            row_col_dim = np.diff(rect)  # (2, 1)
+            shape = tuple(row_col_dim.flatten())
+            center = (rect[:, 0].reshape(2, 1) + 0.5*row_col_dim)
+
+            sp_tvec = np.concatenate(
+                [panel.pixelToCart(center.T).flatten(), np.zeros(1)]
+            )
+
+            tvec = np.dot(panel.rmat, sp_tvec) + panel.tvec
+
+            # new config dict
+            tmp_cfg = copy.deepcopy(pcfg_dict)
+
+            # fix sizes
+            tmp_cfg['pixels']['rows'] = shape[0]
+            tmp_cfg['pixels']['columns'] = shape[1]
+            if use_roi:
+                tmp_cfg['pixels']['roi'] = (rect[0][0], rect[1][0])
+
+            # update tvec
+            tmp_cfg['transform']['translation'] = tvec.tolist()
+
+            new_icfg_dict['detectors'][panel_name] = copy.deepcopy(tmp_cfg)
+
+            if panel.panel_buffer.ndim == 2:  # have a mask array!
+                submask = panel.panel_buffer[
+                    rect[0, 0]:rect[0, 1], rect[1, 0]:rect[1, 1]
+                ]
+                '''
+                submask[:m, :] = False
+                submask[-m:, :] = False
+                submask[:, :m] = False
+                submask[:, -m:] = False
+                '''
+                new_icfg_dict['detectors'][panel_name]['buffer'] = submask
+    return new_icfg_dict
+
+
 def _parse_imgser_dict(imgser_dict, det_key, roi=None):
     """
     Associates a dict of imageseries to the target panel(s).
@@ -204,41 +322,53 @@ def _parse_imgser_dict(imgser_dict, det_key, roi=None):
     try:
         ims = imgser_dict[det_key]
     except(KeyError):
+        matched_det_keys = [det_key in k for k in imgser_dict]
         if multi_ims_key in imgser_dict:
-            if roi is None:
-                raise RuntimeError(
-                    "roi must be specified to use shared imageseries"
-                )
             images_in = imgser_dict[multi_ims_key]
-            if isinstance(images_in, ims_classes):
-                # input is an imageseries of some kind
-                ims = ProcessedImageSeries(images_in, [('rectangle', roi), ])
-                if isinstance(images_in, OmegaImageSeries):
-                    # if it was an OmegaImageSeries, must re-cast
-                    ims = OmegaImageSeries(ims)
-            elif isinstance(images_in, np.ndarray):
-                # 2- or 3-d array of images
-                ndim = images_in.ndim
-                if ndim == 2:
-                    ims = images_in[roi[0][0]:roi[0][1], roi[1][0]:roi[1][1]]
-                elif ndim == 3:
-                    nrows = roi[0][1] - roi[0][0]
-                    ncols = roi[1][1] - roi[1][0]
-                    n_images = len(images_in)
-                    ims = np.empty((n_images, nrows, ncols),
-                                   dtype=images_in.dtype)
-                    for i, image in images_in:
-                        ims[i, :, :] = \
-                            images_in[roi[0][0]:roi[0][1], roi[1][0]:roi[1][1]]
-                else:
-                    raise RuntimeError(
-                        f"image input dim must be 2 or 3; you gave {ndim}"
-                    )
+        elif np.any(matched_det_keys):
+            if sum(matched_det_keys) != 1:
+                raise RuntimeError(
+                    f"multiple entries found for '{det_key}'"
+                )
+            img_keys = list(imgser_dict.keys())  # same order
+            matched_det_key = img_keys[matched_det_keys]
+            images_in = imgser_dict[matched_det_key]
         else:
             raise RuntimeError(
                 f"neither '{det_key}' nor '{multi_ims_key}' found"
                 + 'in imageseries input'
-                    )
+            )
+
+        # have images now
+        if roi is None:
+            raise RuntimeError(
+                "roi must be specified to use shared imageseries"
+            )
+
+        if isinstance(images_in, ims_classes):
+            # input is an imageseries of some kind
+            ims = ProcessedImageSeries(images_in, [('rectangle', roi), ])
+            if isinstance(images_in, OmegaImageSeries):
+                # if it was an OmegaImageSeries, must re-cast
+                ims = OmegaImageSeries(ims)
+        elif isinstance(images_in, np.ndarray):
+            # 2- or 3-d array of images
+            ndim = images_in.ndim
+            if ndim == 2:
+                ims = images_in[roi[0][0]:roi[0][1], roi[1][0]:roi[1][1]]
+            elif ndim == 3:
+                nrows = roi[0][1] - roi[0][0]
+                ncols = roi[1][1] - roi[1][0]
+                n_images = len(images_in)
+                ims = np.empty((n_images, nrows, ncols),
+                               dtype=images_in.dtype)
+                for i, image in images_in:
+                    ims[i, :, :] = \
+                        images_in[roi[0][0]:roi[0][1], roi[1][0]:roi[1][1]]
+            else:
+                raise RuntimeError(
+                    f"image input dim must be 2 or 3; you gave {ndim}"
+                )
     return ims
 
 
@@ -554,8 +684,9 @@ class HEDMInstrument(object):
                             raise RuntimeError(
                                 "panel buffer spec invalid for %s" % det_id
                             )
+
                 # optional roi
-                roi = None if 'roi' not in det_info else det_info['roi']
+                roi = None if 'roi' not in pixel_info else pixel_info['roi']
 
                 # handle distortion
                 distortion = None
@@ -2032,7 +2163,13 @@ class PlanarDetector(object):
 
         self._tth_distortion = tth_distortion
 
-        self._roi = roi
+        if roi is None:
+            self._roi = roi
+        else:
+            assert len(roi) == 2, \
+                "roi is set via (start_row, start_col)"
+            self._roi = ((roi[0], roi[0] + self._rows),
+                         (roi[1], roi[1] + self._cols))
 
         self._tvec = np.array(tvec).flatten()
         self._tilt = np.array(tilt).flatten()
@@ -2436,6 +2573,7 @@ class PlanarDetector(object):
                 columns=self.cols,
                 size=[float(self.pixel_size_row),
                       float(self.pixel_size_col)],
+                roi=None if self.roi is None else [self.roi[0][0], self.roi[1][0]]
             )
         )
 
@@ -2641,6 +2779,8 @@ class PlanarDetector(object):
         """
         xy = np.atleast_2d(xy)
 
+        '''
+        # !!! THIS LOGIC IS OBSOLETE
         if self.roi is not None:
             ij_crds = self.cartToPixel(xy, pixels=True)
             ii, jj = polygon(self.roi[:, 0], self.roi[:, 1],
@@ -2649,32 +2789,25 @@ class PlanarDetector(object):
             on_panel_cols = [j in jj for j in ij_crds[:, 1]]
             on_panel = np.logical_and(on_panel_rows, on_panel_cols)
         else:
-            xlim = 0.5*self.col_dim
-            ylim = 0.5*self.row_dim
-            if buffer_edges and self.panel_buffer is not None:
-                if self.panel_buffer.ndim == 2:
-                    pix = self.cartToPixel(xy, pixels=True)
+        '''
+        xlim = 0.5*self.col_dim
+        ylim = 0.5*self.row_dim
+        if buffer_edges and self.panel_buffer is not None:
+            if self.panel_buffer.ndim == 2:
+                pix = self.cartToPixel(xy, pixels=True)
 
-                    roff = np.logical_or(pix[:, 0] < 0, pix[:, 0] >= self.rows)
-                    coff = np.logical_or(pix[:, 1] < 0, pix[:, 1] >= self.cols)
+                roff = np.logical_or(pix[:, 0] < 0, pix[:, 0] >= self.rows)
+                coff = np.logical_or(pix[:, 1] < 0, pix[:, 1] >= self.cols)
 
-                    idx = np.logical_or(roff, coff)
+                idx = np.logical_or(roff, coff)
 
-                    pix[idx, :] = 0
+                pix[idx, :] = 0
 
-                    on_panel = self.panel_buffer[pix[:, 0], pix[:, 1]]
-                    on_panel[idx] = False
-                else:
-                    xlim -= self.panel_buffer[0]
-                    ylim -= self.panel_buffer[1]
-                    on_panel_x = np.logical_and(
-                        xy[:, 0] >= -xlim, xy[:, 0] <= xlim
-                    )
-                    on_panel_y = np.logical_and(
-                        xy[:, 1] >= -ylim, xy[:, 1] <= ylim
-                    )
-                    on_panel = np.logical_and(on_panel_x, on_panel_y)
-            elif not buffer_edges or self.panel_buffer is None:
+                on_panel = self.panel_buffer[pix[:, 0], pix[:, 1]]
+                on_panel[idx] = False
+            else:
+                xlim -= self.panel_buffer[0]
+                ylim -= self.panel_buffer[1]
                 on_panel_x = np.logical_and(
                     xy[:, 0] >= -xlim, xy[:, 0] <= xlim
                 )
@@ -2682,6 +2815,14 @@ class PlanarDetector(object):
                     xy[:, 1] >= -ylim, xy[:, 1] <= ylim
                 )
                 on_panel = np.logical_and(on_panel_x, on_panel_y)
+        elif not buffer_edges or self.panel_buffer is None:
+            on_panel_x = np.logical_and(
+                xy[:, 0] >= -xlim, xy[:, 0] <= xlim
+            )
+            on_panel_y = np.logical_and(
+                xy[:, 1] >= -ylim, xy[:, 1] <= ylim
+            )
+            on_panel = np.logical_and(on_panel_x, on_panel_y)
         return xy[on_panel, :], on_panel
 
     def cart_to_angles(self, xy_data,
@@ -3823,8 +3964,8 @@ class GenerateEtaOmeMaps(object):
         # FIXME: add omega masking
         data_store = []
         for i_ring in range(n_rings):
-            # for convenience
-            map_shape = eta_mapping[det_key][i_ring].shape
+            # for convenience grab map shape from first
+            map_shape = next(iter(eta_mapping.values())).shape[1:]
 
             # first handle etas
             full_map = np.zeros(map_shape, dtype=float)

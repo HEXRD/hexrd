@@ -1,12 +1,11 @@
 from .config import Config
 from hexrd import imageseries
 
+from hexrd.constants import shared_ims_key
+
 
 class ImageSeries(Config):
-    """
-    """
     BASEKEY = 'image_series'
-    share_ims_key = 'mulitple'
 
     def __init__(self, cfg):
         super(ImageSeries, self).__init__(cfg)
@@ -31,8 +30,12 @@ class ImageSeries(Config):
                 # for use with ROI
                 try:
                     panel = oms.metadata['panel']
+                    if isinstance(panel, (tuple, list)):
+                        panel = '_'.join(panel)
+                    elif panel is None:
+                        panel = shared_ims_key
                 except(KeyError):
-                    panel = 'share_ims_key'
+                    panel = shared_ims_key
                 self._image_dict[panel] = oms
 
         return self._image_dict
