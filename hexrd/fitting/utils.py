@@ -45,11 +45,20 @@ def _set_equality_constraints(params, pname_spec):
 
 
 def _set_bound_constraints(params, pname_spec,
-                           min_val=-np.inf, max_val=np.inf):
+                           min_val=-np.inf, max_val=np.inf,
+                           box=None, percentage=False):
     target_pnames = _extract_parameters_by_name(params, pname_spec)
     for pname in target_pnames:
-        params[pname].min = min_val
-        params[pname].max = max_val
+        if box is None:
+            params[pname].min = min_val
+            params[pname].max = max_val
+        else:
+            hval = 0.5*box
+            if percentage:
+                hval = 0.5*abs(params[pname].value*(box/100.))
+            params[pname].min = params[pname].value - hval
+            params[pname].max = params[pname].value + hval
+
 
 
 def _set_width_mixing_bounds(params, min_w=0.01, max_w=np.inf):
