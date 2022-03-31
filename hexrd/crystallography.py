@@ -41,7 +41,7 @@ from hexrd.rotations import \
 from hexrd.transforms import xfcapi
 from hexrd import valunits
 from hexrd.valunits import toFloat
-from hexrd.constants import d2r, r2d, sqrt3by2, sqrt_epsf
+from hexrd.constants import d2r, r2d, sqrt3by2, epsf, sqrt_epsf
 
 """module vars"""
 
@@ -529,26 +529,102 @@ def rhombohedralParametersFromHexagonal(a_h, c_h):
     return a_r, alfa_r
 
 
-def millerBravaisDirectionToVector(dir_ind, a=1., c=1.):
+def convert_Miller_direction_to_cartesian(uvw, a=1., c=1.):
     """
-    converts direction indices into a unit vector in the crystal frame
+    Converts 3-index hexagonal Miller direction indices to components in the
+    crystal reference frame.
 
-    INPUT [uv.w] the Miller-Bravais convention in the hexagonal basis
+    Parameters
+    ----------
+    uvw : array_like
+        The (n, 3) array of 3-index hexagonal indices to convert.
+    a : scalar, optional
+        The `a` lattice parameter.  The default value is 1.
+    c : scalar, optional
+        The `c` lattice parameter.  The default value is 1.
+
+    Returns
+    -------
+    numpy.ndarray
+        The (n, 3) array of cartesian components associated with the input
+        direction indices.
+
+    Notes
+    -----
+    The [uv.w] the Miller-Bravais convention is in the hexagonal basis
     {a1, a2, a3, c}.  The basis for the output, {o1, o2, o3}, is
     chosen such that
 
     o1 || a1
     o3 || c
     o2 = o3 ^ o1
+
     """
-    dir_ind = np.atleast_2d(dir_ind)
-    num_in = len(dir_ind)
-    u = dir_ind[:, 0]
-    v = dir_ind[:, 1]
-    w = dir_ind[:, 2]
-    return unitVector(
-        np.vstack([1.5*u*a, sqrt3by2*(2.*v + u)*a, w*c]).reshape(3, num_in)
-    )
+    u, v, w = np.atleast_2d(uvw).T
+    return np.vstack([1.5*u*a, sqrt3by2*a*(2*v + u), w*c])
+
+
+def convert_Miller_direction_to_MillerBravias(uvw, suppress_redundant=True):
+    """
+    Converts 3-index hexagonal Miller direction indices to 4-index
+    Miller-Bravais direction indices.
+
+    Parameters
+    ----------
+    uvw : array_like
+        The (n, 3) array of 3-index hexagonal Miller indices to convert.
+    suppress_redundant : bool, optional
+        Flag to suppress the redundant 3rd index.  The default is True.
+
+    Returns
+    -------
+    numpy.ndarray
+        The (n, 3) or (n, 4) array -- depending on kwarg -- of Miller-Bravis
+        components associated with the input Miller direction indices.
+
+    Notes
+    -----
+    * NOT for plane normals!!!
+
+    """
+    u, v, w = np.atleast_2d(uvw).T
+    retval = np.vstack([(2*u - v)/3, (2*v - u)/3, w]).T
+    rem = np.vstack([np.mod(np.tile(i[0], 2), i[1:]) for i in retval])
+    rem[abs(rem) < epsf] = np.nan
+    lcm = np.nanmin(rem, axis=1)
+    lcm[np.isnan(lcm)] = 1
+    retval = retval / np.tile(lcm, (3, 1)).T
+    if suppress_redundant:
+        return retval
+    else:
+        t = np.atleast_2d(1 - np.sum(retval[:2], axis=1)).T
+        return np.hstack([retval[:, :2], t, np.atleast_2d(retval[:, 2]).T])
+
+
+def convert_MillerBravias_direction_to_Miller(UVW):
+    """
+    Converts 4-index hexagonal Miller-Bravais direction indices to
+    3-index Miller direction indices.
+
+    Parameters
+    ----------
+    UVW : array_like
+        The (n, 3) array of **non-redundant** Miller-Bravais direction indices
+        to convert.
+
+    Returns
+    -------
+    numpy.ndarray
+        The (n, 3) array of Miller direction indices associated with the
+        input Miller-Bravais indices.
+
+    Notes
+    -----
+    * NOT for plane normals!!!
+
+    """
+    U, V, W = np.atleast_2d(UVW).T
+    return np.vstack([2*U + V, 2*V + U, W])
 
 
 class PlaneData(object):
