@@ -529,7 +529,7 @@ def rhombohedralParametersFromHexagonal(a_h, c_h):
     return a_r, alfa_r
 
 
-def convert_Miller_direction_to_cartesian(uvw, a=1., c=1.):
+def convert_Miller_direction_to_cartesian(uvw, a=1., c=1., normalize=False):
     """
     Converts 3-index hexagonal Miller direction indices to components in the
     crystal reference frame.
@@ -542,6 +542,8 @@ def convert_Miller_direction_to_cartesian(uvw, a=1., c=1.):
         The `a` lattice parameter.  The default value is 1.
     c : scalar, optional
         The `c` lattice parameter.  The default value is 1.
+    normalize : bool, optional
+        Flag for whether or not to normalize output vectors
 
     Returns
     -------
@@ -551,17 +553,21 @@ def convert_Miller_direction_to_cartesian(uvw, a=1., c=1.):
 
     Notes
     -----
-    The [uv.w] the Miller-Bravais convention is in the hexagonal basis
-    {a1, a2, a3, c}.  The basis for the output, {o1, o2, o3}, is
-    chosen such that
+    1) The [uv.w] the Miller-Bravais convention is in the hexagonal basis
+       {a1, a2, a3, c}.  The basis for the output, {o1, o2, o3}, is
+       chosen such that
 
-    o1 || a1
-    o3 || c
-    o2 = o3 ^ o1
+       o1 || a1
+       o3 || c
+       o2 = o3 ^ o1
 
     """
     u, v, w = np.atleast_2d(uvw).T
-    return np.vstack([1.5*u*a, sqrt3by2*a*(2*v + u), w*c])
+    retval = np.vstack([1.5*u*a, sqrt3by2*a*(2*v + u), w*c])
+    if normalize:
+        return unitVector(retval).T
+    else:
+        return retval.T
 
 
 def convert_Miller_direction_to_MillerBravias(uvw, suppress_redundant=True):
