@@ -55,7 +55,7 @@ def _set_bound_constraints(params, pname_spec,
         else:
             hval = 0.5*box
             if percentage:
-                hval = 0.5*params[pname].value*(box/100.)
+                hval = 0.5*abs(params[pname].value*(box/100.))
             params[pname].min = params[pname].value - hval
             params[pname].max = params[pname].value + hval
 
