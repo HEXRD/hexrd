@@ -1761,8 +1761,7 @@ class HEDMInstrument(object):
                 output_dir = os.path.join(
                     dirname, detector_id
                     )
-                if not os.path.exists(output_dir):
-                    os.makedirs(output_dir)
+                os.makedirs(output_dir, exist_ok=True)
                 this_filename = os.path.join(
                     output_dir, filename
                 )
