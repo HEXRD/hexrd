@@ -2,6 +2,7 @@
 import copy
 
 import numpy as np
+import scipy
 
 from .baseclass import ImageSeries
 
@@ -12,6 +13,7 @@ class ProcessedImageSeries(ImageSeries):
     DARK = 'dark'
     RECT = 'rectangle'
     ADD = 'add'
+    GAUSS_LAPLACE = 'gauss_laplace'
 
     def __init__(self, imser, oplist, **kwargs):
         """imsageseries based on existing one with image processing options
@@ -36,6 +38,7 @@ class ProcessedImageSeries(ImageSeries):
         self.addop(self.FLIP, self._flip)
         self.addop(self.RECT, self._rectangle)
         self.addop(self.ADD, self._add)
+        self.addop(self.GAUSS_LAPLACE, self._gauss_laplace)
 
     def __getitem__(self, key):
         return self._process_frame(self._get_index(key))
@@ -102,6 +105,9 @@ class ProcessedImageSeries(ImageSeries):
         if not np.issubdtype(img.dtype, np.floating):
             img = img.astype(np.float32)
         return img + addend
+
+    def _gauss_laplace(self, img, sigma):
+        return scipy.ndimage.gaussian_laplace(img, sigma)
 
     #
     # ==================== API
