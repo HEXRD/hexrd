@@ -804,7 +804,7 @@ class Material_Rietveld:
             constants.cCharge / \
             self.voltage
         self.wavelength *= 1e9
-        self.CalcAnomalous()
+        # self.CalcAnomalous()
 
     def CalcKeV(self):
         self.kev = constants.cPlanck * \

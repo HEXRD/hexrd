@@ -86,7 +86,7 @@ class unitcell:
             constants.cCharge / \
             self.voltage
         self.wavelength *= 1e9
-        self.CalcAnomalous()
+        # self.CalcAnomalous()
 
     def calcBetaij(self):
 
@@ -714,10 +714,7 @@ class unitcell:
 
     def InitializeInterpTable(self):
 
-        self.f1 = {}
-        self.f2 = {}
-        self.pe_cs = {}
-
+        f_anomalous_data = []
         data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
         with h5py.File(data, 'r') as fid:
             for i in range(0, self.atom_ntype):
@@ -725,10 +722,19 @@ class unitcell:
                 Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
                 gid = fid.get('/'+elem)
-                data = gid.get('data')
-                self.f1[elem] = interp1d(data[:, 7], data[:, 1])
-                self.f2[elem] = interp1d(data[:, 7], data[:, 2])
-                self.pe_cs[elem] = interp1d(data[:,7], data[:,3]+data[:,4])
+                data = np.array(gid.get('data'))
+                data = data[:,[7,1,2]]
+                f_anomalous_data.append(data)
+
+        n = max([x.shape[0] for x in f_anomalous_data])
+        self.f_anomalous_data = np.zeros([self.atom_ntype,n,3])
+        self.f_anomalous_data_sizes = np.zeros([self.atom_ntype,],
+            dtype=np.int32)
+
+        for i in range(self.atom_ntype):
+            nd = f_anomalous_data[i].shape[0]
+            self.f_anomalous_data_sizes[i] = nd
+            self.f_anomalous_data[i,:nd,:] = f_anomalous_data[i]
 
     def CalcAnomalous(self):
 
@@ -779,30 +785,76 @@ class unitcell:
         return (fe+fNT+f_anomalous)
 
     def CalcXRSF(self, hkl):
+        from hexrd.wppf.xtal import _calcxrsf
         '''
         the 1E-2 is to convert to A^-2
         since the fitting is done in those units
         '''
+        fNT = np.zeros([self.atom_ntype,])
+        frel = np.zeros([self.atom_ntype,])
+        scatfac = np.zeros([self.atom_ntype,11])
+        f_anomalous_data = self.f_anomalous_data
+
+        multiplicity = np.array([self.CalcStar(hkl,"r").shape[0]])
+
         s = 0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2
-        sf = np.complex(0., 0.)
+        occ = self.atom_pos[:,3]
+        aniU = self.aniU
+        if aniU:
+            betaij = self.betaij
+        else:
+            betaij = self.U
+
+        self.asym_pos_arr = np.zeros([self.numat.max(),self.atom_ntype, 3])
         for i in range(0, self.atom_ntype):
+            nn = self.numat[i]
+            self.asym_pos_arr[:nn,i,:] = self.asym_pos[i]
 
+        self.numat = np.zeros(self.atom_ntype,dtype=np.int32)
+        for i in range(0, self.atom_ntype):
+            self.numat[i] = self.asym_pos[i].shape[0]
             Z = self.atom_type[i]
-            charge = self.chargestates[i]
-            ff = self.CalcXRFormFactor(Z, charge, s)
+            elem = constants.ptableinverse[Z]
+            scatfac[i,:] = constants.scatfac[elem]
+            frel[i] = constants.frel[elem]
+            fNT[i] = constants.fNT[elem]
 
-            if(self.aniU):
-                T = np.exp(-np.dot(hkl, np.dot(self.betaij[:, :, i], hkl)))
-            else:
-                T = np.exp(-8.0*np.pi**2 * self.U[i]*s)
+        powder, sf_raw = _calcxrsf(np.atleast_2d(hkl).astype(np.float64),
+                               1,
+                               multiplicity,
+                               1.0,
+                               self.wavelength,
+                               self.rmt.astype(np.float64),
+                               self.atom_type,
+                               self.atom_ntype,
+                               betaij,
+                               occ,
+                               self.asym_pos_arr,
+                               self.numat,
+                               scatfac,
+                               fNT,
+                               frel,
+                               f_anomalous_data,
+                               self.f_anomalous_data_sizes)
+        # sf = np.complex(0., 0.)
+        # for i in range(0, self.atom_ntype):
 
-            ff *= self.atom_pos[i, 3] * T
+        #     Z = self.atom_type[i]
+        #     charge = self.chargestates[i]
+        #     ff = self.CalcXRFormFactor(Z, charge, s)
 
-            for j in range(self.asym_pos[i].shape[0]):
-                arg = 2.0 * np.pi * np.sum(hkl * self.asym_pos[i][j, :])
-                sf = sf + ff * np.complex(np.cos(arg), -np.sin(arg))
+        #     if(self.aniU):
+        #         T = np.exp(-np.dot(hkl, np.dot(self.betaij[:, :, i], hkl)))
+        #     else:
+        #         T = np.exp(-8.0*np.pi**2 * self.U[i]*s)
 
-        return np.abs(sf)**2
+        #     ff *= self.atom_pos[i, 3] * T
+
+        #     for j in range(self.asym_pos[i].shape[0]):
+        #         arg = 2.0 * np.pi * np.sum(hkl * self.asym_pos[i][j, :])
+        #         sf = sf + ff * np.complex(np.cos(arg), -np.sin(arg))
+
+        return sf_raw
 
     """
     molecular mass calculates the molar weight of the unit cell
@@ -1570,7 +1622,7 @@ class unitcell:
                                                   self._supergroup,
                                                   self._supergroup_laue)
         self.CalcDensity()
-        self.calc_absorption_length()
+        # self.calc_absorption_length()
 
     @property
     def atom_pos(self):
