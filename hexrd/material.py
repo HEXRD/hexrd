@@ -1133,7 +1133,7 @@ def loadMaterialList(cfgFile):
     return matList
 
 
-def load_materials_hdf5(f, dmin=Material.DFLT_DMIN, kev=Material.DFLT_KEV,
+def load_materials_hdf5(f, dmin=None, kev=Material.DFLT_KEV,
                         sgsetting=Material.DFLT_SGSETTING):
     """Load materials from an HDF5 file
 
