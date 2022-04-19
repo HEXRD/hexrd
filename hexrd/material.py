@@ -373,10 +373,7 @@ class Material(object):
 
     def update_structure_factor(self):
         hkls = self.planeData.getHKLs(allHKLs=True)
-        sf = numpy.zeros([hkls.shape[0], ])
-        for i, g in enumerate(hkls):
-            sf[i] = self.unitcell.CalcXRSF(g)
-
+        sf = self.unitcell.CalcXRSF(hkls)
         self.planeData.set_structFact(sf)
 
     def compute_powder_overlay(self,

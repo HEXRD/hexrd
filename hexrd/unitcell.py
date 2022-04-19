@@ -811,9 +811,12 @@ class unitcell:
         scatfac = np.zeros([self.atom_ntype,11])
         f_anomalous_data = self.f_anomalous_data
 
-        multiplicity = np.array([self.CalcStar(hkl,"r").shape[0]])
+        hkl2d = np.atleast_2d(hkl).astype(np.float64)
+        nref = hkl2d.shape[0]
 
-        s = 0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2
+        multiplicity = np.ones([nref,])
+        w_int = 1.0
+
         occ = self.atom_pos[:,3]
         aniU = self.aniU
         if aniU:
@@ -835,10 +838,10 @@ class unitcell:
             frel[i] = constants.frel[elem]
             fNT[i] = constants.fNT[elem]
 
-        sf, sf_raw = _calcxrsf(np.atleast_2d(hkl).astype(np.float64),
-                               1,
+        sf, sf_raw = _calcxrsf(hkl2d,
+                               nref,
                                multiplicity,
-                               1.0,
+                               w_int,
                                self.wavelength,
                                self.rmt.astype(np.float64),
                                self.atom_type,
@@ -852,25 +855,8 @@ class unitcell:
                                frel,
                                f_anomalous_data,
                                self.f_anomalous_data_sizes)
-        # sf = np.complex(0., 0.)
-        # for i in range(0, self.atom_ntype):
 
-        #     Z = self.atom_type[i]
-        #     charge = self.chargestates[i]
-        #     ff = self.CalcXRFormFactor(Z, charge, s)
-
-        #     if(self.aniU):
-        #         T = np.exp(-np.dot(hkl, np.dot(self.betaij[:, :, i], hkl)))
-        #     else:
-        #         T = np.exp(-8.0*np.pi**2 * self.U[i]*s)
-
-        #     ff *= self.atom_pos[i, 3] * T
-
-        #     for j in range(self.asym_pos[i].shape[0]):
-        #         arg = 2.0 * np.pi * np.sum(hkl * self.asym_pos[i][j, :])
-        #         sf = sf + ff * np.complex(np.cos(arg), -np.sin(arg))
-        ma = sf_raw.max()
-        return 100.0*sf_raw/ma
+        return sf_raw
 
     """
     molecular mass calculates the molar weight of the unit cell
