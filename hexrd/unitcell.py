@@ -12,8 +12,33 @@ from pathlib import Path
 from scipy.interpolate import interp1d
 import time
 
+from hexrd.utils.decorators import numba_njit_if_available
+
 eps = constants.sqrt_epsf
 
+''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
+@numba_njit_if_available(cache=True, nogil=True)
+def _calclength(u, mat):
+    return np.sqrt(np.dot(u, np.dot(mat, u)))
+
+@numba_njit_if_available(cache=True, nogil=True)
+def _calcstar(v, sym, mat):
+    vsym = np.atleast_2d(v)
+    for s in sym:
+        vp = np.dot(np.ascontiguousarray(s),v)
+        # check if this is new
+        isnew = True
+        for vec in vsym:
+            vv = vp - vec
+            dist = _calclength(vv, mat)
+            if dist < 1E-3:
+                isnew = False
+                break
+        if(isnew):
+            vp = np.atleast_2d(vp)
+            vsym = np.vstack((vsym, vp))
+
+    return vsym
 
 class unitcell:
 
@@ -212,20 +237,22 @@ class unitcell:
 
         return dot
 
-    ''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
-
     def CalcLength(self, u, space):
 
         if(space == 'd'):
-            vlen = np.sqrt(np.dot(u, np.dot(self.dmt, u)))
+            mat = self.dmt
+            # vlen = np.sqrt(np.dot(u, np.dot(self.dmt, u)))
         elif(space == 'r'):
-            vlen = np.sqrt(np.dot(u, np.dot(self.rmt, u)))
+            mat = self.rmt
+            # vlen = np.sqrt(np.dot(u, np.dot(self.rmt, u)))
         elif(space == 'c'):
-            vlen = np.linalg.norm(u)
+            mat = np.eye(3)
+            # vlen = np.linalg.norm(u)
         else:
             raise ValueError('incorrect space argument')
 
-        return vlen
+        uu = np.array(u).astype(np.float64)
+        return _calclength(uu, mat)
 
     ''' normalize vector in any space 'd' 'r' or 'c' '''
 
@@ -513,33 +540,22 @@ class unitcell:
         for the reciprocal (or direct) point group symmetry.
         '''
         if(space == 'd'):
+            mat = self.dmt.astype(np.float64)
             if(applyLaue):
-                sym = self.SYM_PG_d_laue
+                sym = self.SYM_PG_d_laue.astype(np.float64)
             else:
-                sym = self.SYM_PG_d
+                sym = self.SYM_PG_d.astype(np.float64)
         elif(space == 'r'):
+            mat = self.rmt.astype(np.float64)
             if(applyLaue):
-                sym = self.SYM_PG_r_laue
+                sym = self.SYM_PG_r_laue.astype(np.float64)
             else:
-                sym = self.SYM_PG_r
+                sym = self.SYM_PG_r.astype(np.float64)
         else:
             raise ValueError('CalcStar: unrecognized space.')
 
-        vsym = np.atleast_2d(v)
-        for s in sym:
-            vp = np.dot(s, v)
-            # check if this is new
-            isnew = True
-            for vec in vsym:
-                vv = vp - vec
-                dist = self.CalcLength(vv, space)
-                if dist < 1E-3:
-                    isnew = False
-                    break
-            if(isnew):
-                vsym = np.vstack((vsym, vp))
-
-        return vsym
+        vv = np.array(v).astype(np.float64)
+        return _calcstar(vv, sym, mat)
 
     def CalcPositions(self):
         '''
@@ -819,7 +835,7 @@ class unitcell:
             frel[i] = constants.frel[elem]
             fNT[i] = constants.fNT[elem]
 
-        powder, sf_raw = _calcxrsf(np.atleast_2d(hkl).astype(np.float64),
+        sf, sf_raw = _calcxrsf(np.atleast_2d(hkl).astype(np.float64),
                                1,
                                multiplicity,
                                1.0,
@@ -853,8 +869,8 @@ class unitcell:
         #     for j in range(self.asym_pos[i].shape[0]):
         #         arg = 2.0 * np.pi * np.sum(hkl * self.asym_pos[i][j, :])
         #         sf = sf + ff * np.complex(np.cos(arg), -np.sin(arg))
-
-        return sf_raw
+        ma = sf_raw.max()
+        return 100.0*sf_raw/ma
 
     """
     molecular mass calculates the molar weight of the unit cell
