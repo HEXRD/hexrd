@@ -662,6 +662,28 @@ def rotMatOfExpMap_orig(expMap):
 # Donald Boyce's
 rotMatOfExpMap = rotMatOfExpMap_opt
 
+from hexrd.utils.decorators import numba_njit_if_available
+@numba_njit_if_available(cache=True, nogil=True)
+def _rotmatofquat(quat):
+    n = quat.shape[1]
+    rmat = zeros((n, 3, 3), dtype='float64')
+
+    a = np.ascontiguousarray(quat[0, :]).reshape(n, 1)
+    b = np.ascontiguousarray(quat[1, :]).reshape(n, 1)
+    c = np.ascontiguousarray(quat[2, :]).reshape(n, 1)
+    d = np.ascontiguousarray(quat[3, :]).reshape(n, 1)
+
+    R = np.hstack((a**2 + b**2 - c**2 - d**2,
+           2*b*c - 2*a*d,
+           2*a*c + 2*b*d,
+           2*a*d + 2*b*c,
+           a**2 - b**2 + c**2 - d**2,
+           2*c*d - 2*a*b,
+           2*b*d - 2*a*c,
+           2*a*b + 2*c*d,
+           a**2 - b**2 - c**2 + d**2))
+
+    return R.reshape(n, 3, 3)
 
 def rotMatOfQuat(quat):
     """
@@ -699,47 +721,9 @@ def rotMatOfQuat(quat):
         if quat.shape[0] != 4:
             raise RuntimeError("input is the wrong shape")
 
-    n = quat.shape[1]
-    rmat = zeros((n, 3, 3), dtype='float64')
+    rmat = _rotmatofquat(quat)
 
-    a = quat[0, :].reshape(n, 1)
-    b = quat[1, :].reshape(n, 1)
-    c = quat[2, :].reshape(n, 1)
-    d = quat[3, :].reshape(n, 1)
-
-    R = c_[a**2 + b**2 - c**2 - d**2,
-           2*b*c - 2*a*d,
-           2*a*c + 2*b*d,
-           2*a*d + 2*b*c,
-           a**2 - b**2 + c**2 - d**2,
-           2*c*d - 2*a*b,
-           2*b*d - 2*a*c,
-           2*a*b + 2*c*d,
-           a**2 - b**2 - c**2 + d**2]
-
-    if n > 1:
-        rmat = R.reshape(n, 3, 3)
-    else:
-        rmat = R.reshape(3, 3)
-
-    # for i in range(n):
-    #     theta = 2. * arccosSafe(quat[0, i])
-    #
-    #     # find axial vector
-    #     if (theta > cnst.epsf):
-    #         a = sin(theta) / theta
-    #         b = (1. - cos(theta)) / theta**2
-    #         w = (theta / sin(0.5 * theta)) * quat[1:4, i]
-    #
-    #         wskew = array([[   0., -w[2],  w[1]],
-    #                        [ w[2],    0., -w[0]],
-    #                        [-w[1],  w[0],    0.]])
-    #
-    #         rmat[i, :, :] = I3 + a * wskew + b * dot(wskew, wskew)
-    #     else:
-    #         rmat[i, :, :] = I3
-
-    return rmat
+    return np.squeeze(rmat)
 
 
 def angleAxisOfRotMat(R):
