@@ -17,6 +17,7 @@ from hexrd.utils.decorators import numba_njit_if_available
 eps = constants.sqrt_epsf
 
 ''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
+
 @numba_njit_if_available(cache=True, nogil=True)
 def _calclength(u, mat):
     return np.sqrt(np.dot(u, np.dot(mat, u)))
@@ -25,7 +26,7 @@ def _calclength(u, mat):
 def _calcstar(v, sym, mat):
     vsym = np.atleast_2d(v)
     for s in sym:
-        vp = np.dot(np.ascontiguousarray(s),v)
+        vp = np.dot(np.ascontiguousarray(s), v)
         # check if this is new
         isnew = True
         for vec in vsym:
@@ -739,13 +740,13 @@ class unitcell:
                 elem = constants.ptableinverse[Z]
                 gid = fid.get('/'+elem)
                 data = np.array(gid.get('data'))
-                data = data[:,[7,1,2]]
+                data = data[:, [7,1,2]]
                 f_anomalous_data.append(data)
 
         n = max([x.shape[0] for x in f_anomalous_data])
-        self.f_anomalous_data = np.zeros([self.atom_ntype,n,3])
-        self.f_anomalous_data_sizes = np.zeros([self.atom_ntype,],
-            dtype=np.int32)
+        self.f_anomalous_data = np.zeros([self.atom_ntype, n, 3])
+        self.f_anomalous_data_sizes = np.zeros([self.atom_ntype, ],
+                                                dtype=np.int32)
 
         for i in range(self.atom_ntype):
             nd = f_anomalous_data[i].shape[0]
@@ -806,18 +807,18 @@ class unitcell:
         the 1E-2 is to convert to A^-2
         since the fitting is done in those units
         '''
-        fNT = np.zeros([self.atom_ntype,])
-        frel = np.zeros([self.atom_ntype,])
-        scatfac = np.zeros([self.atom_ntype,11])
+        fNT = np.zeros([self.atom_ntype, ])
+        frel = np.zeros([self.atom_ntype, ])
+        scatfac = np.zeros([self.atom_ntype, 11])
         f_anomalous_data = self.f_anomalous_data
 
         hkl2d = np.atleast_2d(hkl).astype(np.float64)
         nref = hkl2d.shape[0]
 
-        multiplicity = np.ones([nref,])
+        multiplicity = np.ones([nref, ])
         w_int = 1.0
 
-        occ = self.atom_pos[:,3]
+        occ = self.atom_pos[:, 3]
         aniU = self.aniU
         if aniU:
             betaij = self.betaij
@@ -827,14 +828,14 @@ class unitcell:
         self.asym_pos_arr = np.zeros([self.numat.max(),self.atom_ntype, 3])
         for i in range(0, self.atom_ntype):
             nn = self.numat[i]
-            self.asym_pos_arr[:nn,i,:] = self.asym_pos[i]
+            self.asym_pos_arr[:nn, i, :] = self.asym_pos[i]
 
-        self.numat = np.zeros(self.atom_ntype,dtype=np.int32)
+        self.numat = np.zeros(self.atom_ntype, dtype=np.int32)
         for i in range(0, self.atom_ntype):
             self.numat[i] = self.asym_pos[i].shape[0]
             Z = self.atom_type[i]
             elem = constants.ptableinverse[Z]
-            scatfac[i,:] = constants.scatfac[elem]
+            scatfac[i, :] = constants.scatfac[elem]
             frel[i] = constants.frel[elem]
             fNT[i] = constants.fNT[elem]
 

@@ -49,7 +49,7 @@ from hexrd.matrixutil import \
     skewMatrixOfVector, findDuplicateVectors, \
     multMatArray, nullSpace
 from hexrd import symmetry
-
+from hexrd.utils.decorators import numba_njit_if_available
 
 # =============================================================================
 # Module Data
@@ -662,7 +662,6 @@ def rotMatOfExpMap_orig(expMap):
 # Donald Boyce's
 rotMatOfExpMap = rotMatOfExpMap_opt
 
-from hexrd.utils.decorators import numba_njit_if_available
 @numba_njit_if_available(cache=True, nogil=True)
 def _rotmatofquat(quat):
     n = quat.shape[1]
@@ -674,14 +673,14 @@ def _rotmatofquat(quat):
     d = np.ascontiguousarray(quat[3, :]).reshape(n, 1)
 
     R = np.hstack((a**2 + b**2 - c**2 - d**2,
-           2*b*c - 2*a*d,
-           2*a*c + 2*b*d,
-           2*a*d + 2*b*c,
-           a**2 - b**2 + c**2 - d**2,
-           2*c*d - 2*a*b,
-           2*b*d - 2*a*c,
-           2*a*b + 2*c*d,
-           a**2 - b**2 - c**2 + d**2))
+                   2*b*c - 2*a*d,
+                   2*a*c + 2*b*d,
+                   2*a*d + 2*b*c,
+                   a**2 - b**2 + c**2 - d**2,
+                   2*c*d - 2*a*b,
+                   2*b*d - 2*a*c,
+                   2*a*b + 2*c*d,
+                   a**2 - b**2 - c**2 + d**2))
 
     return R.reshape(n, 3, 3)
 
