@@ -18,9 +18,11 @@ eps = constants.sqrt_epsf
 
 ''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
 
+
 @numba_njit_if_available(cache=True, nogil=True)
 def _calclength(u, mat):
     return np.sqrt(np.dot(u, np.dot(mat, u)))
+
 
 @numba_njit_if_available(cache=True, nogil=True)
 def _calcstar(v, sym, mat):
@@ -740,18 +742,18 @@ class unitcell:
                 elem = constants.ptableinverse[Z]
                 gid = fid.get('/'+elem)
                 data = np.array(gid.get('data'))
-                data = data[:, [7,1,2]]
+                data = data[:, [7, 1, 2]]
                 f_anomalous_data.append(data)
 
         n = max([x.shape[0] for x in f_anomalous_data])
         self.f_anomalous_data = np.zeros([self.atom_ntype, n, 3])
         self.f_anomalous_data_sizes = np.zeros([self.atom_ntype, ],
-                                                dtype=np.int32)
+                                      dtype=np.int32)
 
         for i in range(self.atom_ntype):
             nd = f_anomalous_data[i].shape[0]
             self.f_anomalous_data_sizes[i] = nd
-            self.f_anomalous_data[i,:nd,:] = f_anomalous_data[i]
+            self.f_anomalous_data[i, :nd, :] = f_anomalous_data[i]
 
     def CalcAnomalous(self):
 
@@ -825,7 +827,7 @@ class unitcell:
         else:
             betaij = self.U
 
-        self.asym_pos_arr = np.zeros([self.numat.max(),self.atom_ntype, 3])
+        self.asym_pos_arr = np.zeros([self.numat.max(), self.atom_ntype, 3])
         for i in range(0, self.atom_ntype):
             nn = self.numat[i]
             self.asym_pos_arr[:nn, i, :] = self.asym_pos[i]

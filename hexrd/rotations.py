@@ -662,6 +662,7 @@ def rotMatOfExpMap_orig(expMap):
 # Donald Boyce's
 rotMatOfExpMap = rotMatOfExpMap_opt
 
+
 @numba_njit_if_available(cache=True, nogil=True)
 def _rotmatofquat(quat):
     n = quat.shape[1]
