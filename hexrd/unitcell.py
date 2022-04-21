@@ -43,6 +43,7 @@ def _calcstar(v, sym, mat):
 
     return vsym
 
+
 class unitcell:
 
     '''
@@ -652,7 +653,7 @@ class unitcell:
         chargestates = [self.chargestates[i] for i in idx]
 
         if self.aniU:
-            U = self.U[idx,:]
+            U = self.U[idx, :]
         else:
             U = self.U[idx]
 
@@ -669,7 +670,6 @@ class unitcell:
         self.CalcPositions()
         self.CalcDensity()
         self.calc_absorption_length()
-
 
     def CalcDensity(self):
         '''
@@ -747,8 +747,8 @@ class unitcell:
 
         n = max([x.shape[0] for x in f_anomalous_data])
         self.f_anomalous_data = np.zeros([self.atom_ntype, n, 3])
-        self.f_anomalous_data_sizes = np.zeros([self.atom_ntype, ], \
-                                                dtype=np.int32)
+        self.f_anomalous_data_sizes = np.zeros(
+            [self.atom_ntype, ], dtype=np.int32)
 
         for i in range(self.atom_ntype):
             nd = f_anomalous_data[i].shape[0]
@@ -866,6 +866,7 @@ class unitcell:
     since the unitcell can have multiple formular units, this 
     might be greater than the molecular weight
     """
+
     def calc_unitcell_mass(self):
         a_mass = constants.atom_weights[self.atom_type-1]
         return np.sum(a_mass*self.numat)
@@ -875,6 +876,7 @@ class unitcell:
     number density = density * Avogadro / unitcell mass
     the 1e-12 factor converts from 1/cm^3 to 1/micron^3
     """
+
     def calc_number_density(self):
         M = self.calc_unitcell_mass()
         Na = constants.cAvogadro
@@ -887,8 +889,8 @@ class unitcell:
         for i in range(self.atom_ntype):
             Z = self.atom_type[i]
             elem = constants.ptableinverse[Z]
-            abs_cs_total += self.pe_cs[elem](self.wavelength)*\
-            self.numat[i]/np.sum(self.numat)
+            abs_cs_total += self.pe_cs[elem](self.wavelength) *\
+                self.numat[i]/np.sum(self.numat)
         return abs_cs_total
 
     """
@@ -905,6 +907,7 @@ class unitcell:
     NOTE: units will be microns!!
 
     """
+
     def calc_absorption_length(self):
         # re = 2.8179403e-9 # in microns
         # N  = self.calc_number_density()
@@ -917,6 +920,7 @@ class unitcell:
     calculate bragg angle for a reflection. returns Nan if
     the reflections is not possible for the voltage/wavelength
     """
+
     def CalcBraggAngle(self, hkl):
         glen = self.CalcLength(hkl, 'r')
         sth = self.wavelength * glen * 0.5
@@ -1774,7 +1778,6 @@ supergroup_11 = 'oh'
 
 
 def _sgrange(min, max): return tuple(range(min, max + 1))  # inclusive range
-
 
 '''
 11/20/2020 SS added supergroup to the list which is used
