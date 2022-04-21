@@ -747,8 +747,8 @@ class unitcell:
 
         n = max([x.shape[0] for x in f_anomalous_data])
         self.f_anomalous_data = np.zeros([self.atom_ntype, n, 3])
-        self.f_anomalous_data_sizes = np.zeros([self.atom_ntype, ],
-                                      dtype=np.int32)
+        self.f_anomalous_data_sizes = \
+        np.zeros([self.atom_ntype, ], dtype=np.int32)
 
         for i in range(self.atom_ntype):
             nd = f_anomalous_data[i].shape[0]
