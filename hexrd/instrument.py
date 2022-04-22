@@ -4269,7 +4269,7 @@ def _extract_detector_line_positions(iter_args, plane_data, tth_tol,
 
     tth_idx, tth_ranges = plane_data.getMergedRanges(cullDupl=True)
     tth_ref = plane_data.getTTh()
-    tth0 = np.degrees([tth_ref[i] for i in tth_idx])
+    tth0 = [np.degrees(tth_ref[i]) for i in tth_idx]
 
     # =================================================================
     # LOOP OVER RING SETS
