@@ -1278,21 +1278,14 @@ class HEDMInstrument(object):
                 beam_vector=self.beam_vector,
                 style='hdf5'
             )
-            native_area = panel.pixel_area  # pixel ref area
 
-            # grab images
-            images = _parse_imgser_dict(imgser_dict,
-                                        detector_id,
-                                        roi=panel.roi)
-
-            if images.ndim == 2:
-                images = np.tile(images, (1, 1, 1))
-            elif images.ndim != 3:
-                raise RuntimeError("images must be 2- or 3-d")
+        images = []
+        for detector_id, panel in self.detectors.items():
+            images.append(_parse_imgser_dict(imgser_dict, detector_id,
+                                             roi=panel.roi))
 
         panels = [self.detectors[k] for k in self.detectors]
         instr_cfgs = [make_instr_cfg(x) for x in panels]
-        images = [imgser_dict[k] for k in self.detectors]
         pbp_array = np.arange(self.num_panels)
 
         iter_args = zip(panels, instr_cfgs, images, pbp_array)
