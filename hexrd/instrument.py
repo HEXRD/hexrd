@@ -1254,7 +1254,7 @@ class HEDMInstrument(object):
                             position=self.num_panels)
 
         # Split up the workers among the detectors
-        max_workers_per_detector = self.max_workers // self.num_panels
+        max_workers_per_detector = max(1, self.max_workers // self.num_panels)
 
         kwargs = {
             'plane_data': plane_data,
