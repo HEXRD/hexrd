@@ -799,7 +799,7 @@ def angleAxisOfRotMat(R):
 
     anear0 = angle < tol
 
-    angle[anear0] = 0
+    angle[anear0] = 0.
 
     raxis = vstack(
         [R[:, 2, 1] - R[:, 1, 2],
