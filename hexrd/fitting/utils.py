@@ -86,7 +86,7 @@ def _set_peak_center_bounds(params, window_range, min_sep=0.01):
 
         # make sure peak list does not include any peaks closer than min_sep
         uvec = uniqueVectors(
-            np.atleast_2d(center_values), tol=min_sep + sqrt_epsf
+            np.atleast_2d(center_values), tol=min_sep
         ).squeeze()
         if len(uvec) < npks:
             raise RuntimeError(
@@ -331,3 +331,43 @@ def _lorentzian_pink_beam(p, x):
 # =============================================================================
 # pseudo-Voigt
 # =============================================================================
+
+
+def fit_ring(tth_centers, lineout, tth_pred, spectrum_kwargs,
+             int_cutoff, fit_tth_tol):
+    # tth_centers and tth_pred should be in degrees.
+    # The returned tth_meas is in degrees as well.
+
+    from .spectrum import SpectrumModel
+
+    spec_data = np.vstack((tth_centers, lineout)).T
+
+    # peak profile fitting
+    npeaks = len(tth_pred)
+
+    # spectrum fitting
+    sm = SpectrumModel(
+        spec_data, tth_pred,
+        **spectrum_kwargs
+    )
+    fit_results = sm.fit()
+    if not fit_results.success:
+        return
+
+    fit_params = np.vstack([
+        (fit_results.best_values['pk%d_amp' % i],
+         fit_results.best_values['pk%d_cen' % i])
+        for i in range(npeaks)
+    ]).T
+    pk_amp, tth_meas = fit_params
+
+    # !!! this is where we can kick out bunk fits
+    center_err = 100*abs(tth_meas/tth_pred - 1.)
+    failed_fit_heuristic = np.logical_or(
+        pk_amp < int_cutoff,
+        center_err > fit_tth_tol
+    )
+    if np.any(failed_fit_heuristic):
+        return
+
+    return tth_meas

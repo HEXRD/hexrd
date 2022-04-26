@@ -113,7 +113,7 @@ def chebyshev_bkg(x, *args):
 
 
 def gaussian_1d(x, amp, cen, fwhm):
-    return amp * np.exp(-(x - cen)**2 / (2*fwhm_to_sigma*fwhm)**2)
+    return amp * np.exp(-(x - cen)**2 / (2*(fwhm_to_sigma*fwhm)**2))
 
 
 def lorentzian_1d(x, amp, cen, fwhm):
@@ -167,7 +167,7 @@ def _amplitude_guess(x, x0, y, fwhm):
 
 def _initial_guess(peak_positions, x, f,
                    pktype='pvoigt', bgtype='linear',
-                   fwhm_guess=None):
+                   fwhm_guess=None, min_ampl=0.):
     """
     Generate function-specific estimate for multi-peak parameters.
 
@@ -232,7 +232,7 @@ def _initial_guess(peak_positions, x, f,
                 x, peak_positions[ii], fsubtr, fwhm_guess[ii]
             )
             pkparams[ii, :] = [
-                amp_guess,
+                max(amp_guess, min_ampl),
                 peak_positions[ii],
                 fwhm_guess[ii]
             ]
@@ -244,7 +244,7 @@ def _initial_guess(peak_positions, x, f,
                 x, peak_positions[ii], fsubtr, fwhm_guess[ii]
             )
             pkparams[ii, :] = [
-                amp_guess,
+                max(amp_guess, min_ampl),
                 peak_positions[ii],
                 fwhm_guess[ii],
                 0.5
@@ -257,7 +257,7 @@ def _initial_guess(peak_positions, x, f,
                 x, peak_positions[ii], fsubtr, fwhm_guess[ii]
             )
             pkparams[ii, :] = [
-                amp_guess,
+                max(amp_guess, min_ampl),
                 peak_positions[ii],
                 fwhm_guess[ii],
                 fwhm_guess[ii],
@@ -272,7 +272,7 @@ def _initial_guess(peak_positions, x, f,
                 x, peak_positions[ii], fsubtr, fwhm_guess[ii]
             )
             pkparams[ii, :] = [
-                amp_guess,
+                max(amp_guess, min_ampl),
                 peak_positions[ii],
                 alpha0_DFLT,
                 alpha1_DFLT,
@@ -333,7 +333,7 @@ def _build_composite_model(npeaks=1, pktype='gaussian', bgtype='linear'):
 class SpectrumModel(object):
     def __init__(self, data, peak_centers,
                  pktype='pvoigt', bgtype='linear',
-                 fwhm_init=None):
+                 fwhm_init=None, min_ampl=1e-4, min_pk_sep=pk_sep_min):
         """
         Instantiates spectrum model.
 
@@ -366,9 +366,6 @@ class SpectrumModel(object):
         self._pktype = pktype
         self._bgtype = bgtype
 
-        self._tth0 = peak_centers
-        num_peaks = len(peak_centers)
-
         master_keys_pks = _function_dict_1d[pktype]
         master_keys_bkg = _function_dict_1d[bgtype]
 
@@ -384,6 +381,14 @@ class SpectrumModel(object):
         window_range = (np.min(xdata), np.max(xdata))
         ymax = np.max(ydata)
 
+        self._tth0 = peak_centers
+        num_peaks = len(peak_centers)
+
+        if fwhm_init is None:
+            fwhm_init = np.diff(window_range)/(20.*num_peaks)
+
+        self._min_pk_sep = min_pk_sep
+
         # model
         spectrum_model = _build_composite_model(
             num_peaks, pktype=pktype, bgtype=bgtype
@@ -393,7 +398,7 @@ class SpectrumModel(object):
         p0 = _initial_guess(
             self._tth0, xdata, ydata,
             pktype=self._pktype, bgtype=self._bgtype,
-            fwhm_guess=np.diff(window_range)/(20.*num_peaks)
+            fwhm_guess=fwhm_init, min_ampl=min_ampl
         )
         psplit = num_func_params[bgtype]
         p0_pks = np.reshape(p0[:-psplit], (num_peaks, num_func_params[pktype]))
@@ -414,10 +419,10 @@ class SpectrumModel(object):
             initial_params_pks, min_w=fwhm_min, max_w=np.inf
         )
         _set_bound_constraints(
-            initial_params_pks, 'amp', min_val=0., max_val=ymax
+            initial_params_pks, 'amp', min_val=min_ampl, max_val=ymax
         )
         _set_peak_center_bounds(
-            initial_params_pks, window_range, min_sep=pk_sep_min
+            initial_params_pks, window_range, min_sep=min_pk_sep
         )
         if pktype == 'pink_beam_dcs':
             # set bounds on fwhm params and mixing (where applicable)
@@ -466,6 +471,10 @@ class SpectrumModel(object):
         return self._bgtype
 
     @property
+    def min_pk_sep(self):
+        return self._min_pk_sep
+
+    @property
     def data(self):
         return self._data
 
@@ -502,27 +511,38 @@ class SpectrumModel(object):
                     param.vary = False
 
             res0 = self.model.fit(ydata, params=self.params, x=xdata)
+            if res0.success:
+                new_p = Parameters()
+                new_p.add_many(
+                    *_parameter_arg_constructor(
+                        res0.best_values, param_hints_DFLT
+                    )
+                )
+                _set_equality_constraints(new_p, 'alpha0')
+                _set_equality_constraints(new_p, 'beta0')
+                _set_refinement_by_name(new_p, 'alpha1', vary=False)
+                _set_refinement_by_name(new_p, 'beta1', vary=False)
+                _set_bound_constraints(
+                    new_p, 'alpha', min_val=-50, max_val=50
+                )
+                _set_bound_constraints(
+                    new_p, 'beta', min_val=-50, max_val=50
+                )
+                _set_width_mixing_bounds(new_p, min_w=fwhm_min, max_w=np.inf)
+                # !!! not sure on this, but it seems to give more stable results
+                #     with many peaks
+                _set_equality_constraints(
+                    new_p,
+                    zip(_extract_parameters_by_name(new_p, 'fwhm_g'),
+                        _extract_parameters_by_name(new_p, 'fwhm_l'))
+                )
+                _set_peak_center_bounds(new_p, window_range,
+                                        min_sep=self.min_pk_sep)
 
-            new_p = Parameters()
-            new_p.add_many(
-                *_parameter_arg_constructor(res0.best_values, param_hints_DFLT)
-            )
-            _set_equality_constraints(new_p, 'alpha0')
-            _set_equality_constraints(new_p, 'beta0')
-            _set_refinement_by_name(new_p, 'alpha1', vary=False)
-            _set_refinement_by_name(new_p, 'beta1', vary=False)
-            _set_width_mixing_bounds(new_p, min_w=fwhm_min, max_w=np.inf)
-            # !!! not sure on this, but it seems to give more stable results
-            #     with many peaks
-            _set_equality_constraints(
-                new_p,
-                zip(_extract_parameters_by_name(new_p, 'fwhm_g'),
-                    _extract_parameters_by_name(new_p, 'fwhm_l'))
-            )
-            _set_peak_center_bounds(new_p, window_range, min_sep=pk_sep_min)
-
-            # refit
-            res1 = self.model.fit(ydata, params=new_p, x=xdata)
+                # refit
+                res1 = self.model.fit(ydata, params=new_p, x=xdata)
+            else:
+                return res0
         else:
             res1 = self.model.fit(ydata, params=self.params, x=xdata)
 

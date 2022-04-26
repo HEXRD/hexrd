@@ -36,6 +36,8 @@ from scipy import constants as sc
 # !!! for stetting mp start method
 if 'Windows' in platform.system():
     mp_context = mp.get_context("spawn")
+elif 'Darwin' in platform.system():
+    mp_context = mp.get_context("spawn")
 else:
     mp_context = mp.get_context("fork")
 
