@@ -456,7 +456,7 @@ def GenerateSGSym(sgnum, setting=0):
             frac = np.modf(gnew[0:3,3])[0]
             frac[frac < 0.] += 1.
             frac[np.abs(frac) < 1E-5] = 0.0
-
+            frac[np.abs(frac-1.0) < 1E-5] = 0.0
             gnew[0:3,3] = frac
 
             if(isnew(gnew, SYM_SG)):
