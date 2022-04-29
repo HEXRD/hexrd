@@ -52,7 +52,7 @@ outputDegrees_bak = outputDegrees
 
 
 def hklToStr(x):
-    return re.sub('\[|\]|\(|\)', '', str(x))
+    return re.sub(r'[\[\]\(\)\{\},]', '', str(x))
 
 
 def tempSetOutputDegrees(val):
