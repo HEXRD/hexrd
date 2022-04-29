@@ -1123,7 +1123,6 @@ SYM_GENERATORS['g'][1, 0] = 1.
 SYM_GENERATORS['g'][2, 2] = 1.
 
 # inversion
-SYM_GENERATORS['h'] = np.zeros([3, 3])
 SYM_GENERATORS['h'] = -np.eye(3)
 
 # c-mirror
