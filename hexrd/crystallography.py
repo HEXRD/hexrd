@@ -52,7 +52,7 @@ outputDegrees_bak = outputDegrees
 
 
 def hklToStr(x):
-    return re.sub('\[|\]|\(|\)', '', str(x))
+    return re.sub(r'[\[\]\(\)\{\},]', '', str(x))
 
 
 def tempSetOutputDegrees(val):
@@ -724,7 +724,7 @@ class PlaneData(object):
             self.tThSort = np.arange(len(hklDataList))
             self.tThSortInv = np.arange(len(hklDataList))
             self.hklDataList = hklDataList
-        self.__latVecOps = latVecOps
+        self._latVecOps = latVecOps
         self.nHKLs = len(self.getHKLs())
         return
 
@@ -1008,17 +1008,12 @@ class PlaneData(object):
             plnNrmls.append(hklData['latPlnNrmls'])
         return plnNrmls
 
-    def getLatticeOperators(self):
+    @property
+    def latVecOps(self):
         """
         gets lattice vector operators as a new (deepcopy)
         """
-        return copy.deepcopy(self.__latVecOps)
-
-    def setLatticeOperators(self, val):
-        raise RuntimeError(
-            'do not set latVecOps directly, change other things instead'
-        )
-    latVecOps = property(getLatticeOperators, setLatticeOperators, None)
+        return copy.deepcopy(self._latVecOps)
 
     def __thisHKL(self, iHKLr):
         retval = True
@@ -1192,11 +1187,11 @@ class PlaneData(object):
         if isinstance(hkl, int):
             retval = hkl
         else:
-            hklList = self.getHKLs().tolist()
-            dHKLInv = dict(
-                [[tuple(hklThis), iHKL]
-                 for iHKL, hklThis in enumerate(hklList)]
-            )
+            hklList = self.getSymHKLs()  # !!! list
+            dHKLInv = {}
+            for iHKL, symHKLs in enumerate(hklList):
+                for thisHKL in symHKLs.T:
+                    dHKLInv[tuple(thisHKL)] = iHKL
             retval = dHKLInv[tuple(hkl)]
         return retval
 
@@ -1265,7 +1260,7 @@ class PlaneData(object):
         iHKLList = np.atleast_1d(self.getHKLID(hklList))
         fHKLs = np.hstack(self.getSymHKLs(indices=iHKLList))
         if bMat is None:
-            bMat = self.__latVecOps['B']
+            bMat = self._latVecOps['B']
         if wavelength is None:
             wavelength = self.__wavelength
         retval = PlaneData.makeScatteringVectors(
@@ -1277,7 +1272,7 @@ class PlaneData(object):
                                  bMat=None, wavelength=None, chiTilt=None):
         fHKLs = np.hstack(self.getSymHKLs())
         if bMat is None:
-            bMat = self.__latVecOps['B']
+            bMat = self._latVecOps['B']
         if wavelength is None:
             wavelength = self.__wavelength
         retval = PlaneData.makeScatteringVectors(
@@ -1324,7 +1319,7 @@ class PlaneData(object):
         """
 
         if bMat is None:
-            bMat = self.__latVecOps['B']
+            bMat = self._latVecOps['B']
 
         Qs_vec = []
         Qs_ang0 = []
