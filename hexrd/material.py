@@ -167,6 +167,16 @@ class Material(object):
 
         self.sgsetting = sgsetting
 
+        if not dmin is None:
+            self._dmin = dmin
+        else:
+            self._dmin = Material.DFLT_DMIN
+
+        if not kev is None:
+            self._beamEnergy = kev
+        else:
+            self._beamEnergy = Material.DFLT_KEV
+
         if material_file:
             # Get values from configuration
             # self._readCfg(material_file)
@@ -185,10 +195,6 @@ class Material(object):
             elif isinstance(material_file, h5py.Group) or form in h5_suffixes:
                 self._readHDFxtal(fhdf=material_file, xtal=name)
 
-            if not dmin is None:
-                self._dmin = dmin
-            if not kev is None:
-                self._beamEnergy = kev
         else:
             # default name
             self._name = Material.DFLT_XTAL
