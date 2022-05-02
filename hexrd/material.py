@@ -154,30 +154,7 @@ class Material(object):
 
         self.description = ''
 
-        """
-        set dmin to default value if its None
-        if h5 file has a value, it will be substituted
-        if not none, then set it to the value
-        supplied and ignore the value in the h5 file
-        """
-        # self.read_dmin_file = True
-        # if dmin is None:
-        #     self._dmin = Material.DFLT_DMIN
-        # else:
-        #     self._dmin = dmin
-        #     self.read_dmin_file = False
-
         self.sgsetting = sgsetting
-
-        if dmin is not None:
-            self._dmin = dmin
-        else:
-            self._dmin = Material.DFLT_DMIN
-
-        if kev is not None:
-            self._beamEnergy = kev
-        else:
-            self._beamEnergy = Material.DFLT_KEV
 
         if material_file:
 
@@ -193,12 +170,6 @@ class Material(object):
                 self._readCif(material_file)
             elif isinstance(material_file, h5py.Group) or form in h5_suffixes:
                 self._readHDFxtal(fhdf=material_file, xtal=name)
-
-            if dmin is not None:
-                self._dmin = dmin
-
-            if kev is not None:
-                self._beamEnergy = kev
         else:
             # default name
             self._name = Material.DFLT_XTAL
@@ -219,6 +190,16 @@ class Material(object):
             self._charge = Material.DFLT_CHARGE
             self._tThWidth = Material.DFLT_TTH
             #
+            self._dmin = Material.DFLT_DMIN
+            self._beamEnergy = Material.DFLT_KEV
+
+        # If these were specified, they override any other method of
+        # obtaining them (including loading them from files).
+        if dmin is not None:
+            self._dmin = dmin
+
+        if kev is not None:
+            self._beamEnergy = kev
 
         self._newUnitcell()
         self._newPdata()
