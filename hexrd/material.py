@@ -195,6 +195,11 @@ class Material(object):
             elif isinstance(material_file, h5py.Group) or form in h5_suffixes:
                 self._readHDFxtal(fhdf=material_file, xtal=name)
 
+            if not dmin is None:
+                self._dmin = dmin
+
+            if not kev is None:
+                self._beamEnergy = kev
         else:
             # default name
             self._name = Material.DFLT_XTAL
