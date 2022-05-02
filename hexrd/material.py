@@ -71,6 +71,7 @@ def _degrees(x):
 def _kev(x):
     return valWUnit('xrayenergy', 'energy',  x, 'keV')
 
+
 def _key(x):
     return x.name
 
@@ -100,8 +101,9 @@ class Material(object):
     DFLT_TTH = numpy.radians(0.25)
     DFLT_TTHMAX = None
     """
-    ATOMINFO    Fractional Atom Position of an atom in the unit cell followed by the
-    site occupany and debye waller (U) factor in A^(-2)
+    ATOMINFO    Fractional Atom Position of an atom in the
+    unit cell followed by the site occupany and debye waller
+    (U) factor in A^(-2)
     B is related to U by B = 8 pi^2 U
 
     ATOMTYPE    atomic number of all the different species in the unitcell
@@ -135,7 +137,7 @@ class Material(object):
     def __init__(self, name=None,
                  material_file=None,
                  dmin=None,
-                 kev=DFLT_KEV,
+                 kev=None,
                  sgsetting=DFLT_SGSETTING):
         """Constructor for Material
 
@@ -152,29 +154,11 @@ class Material(object):
 
         self.description = ''
 
-        """
-        set dmin to default value if its None
-        if h5 file has a value, it will be substituted
-        if not none, then set it to the value
-        supplied and ignore the value in the h5 file
-        """
-        self.read_dmin_file = True
-        if dmin is None:
-            self._dmin = Material.DFLT_DMIN
-        else:
-            self._dmin = dmin
-            self.read_dmin_file = False
-
-        self._beamEnergy = kev
-
         self.sgsetting = sgsetting
 
         if material_file:
-            # Get values from configuration
-            # self._readCfg(material_file)
+
             # >> @ date 08/20/2020 SS removing dependence on hklmax
-            #self._hklMax = Material.DFLT_SSMAX
-            # self._beamEnergy = Material.DFLT_KEV
             if isinstance(material_file, (Path, str)):
                 form = Path(material_file).suffix[1:]
             else:
@@ -206,6 +190,16 @@ class Material(object):
             self._charge = Material.DFLT_CHARGE
             self._tThWidth = Material.DFLT_TTH
             #
+            self._dmin = Material.DFLT_DMIN
+            self._beamEnergy = Material.DFLT_KEV
+
+        # If these were specified, they override any other method of
+        # obtaining them (including loading them from files).
+        if dmin is not None:
+            self._dmin = dmin
+
+        if kev is not None:
+            self._beamEnergy = kev
 
         self._newUnitcell()
         self._newPdata()
@@ -392,10 +386,10 @@ class Material(object):
 
         requested feature from Amy Jenei
         """
-        tth = numpy.degrees(self.planeData.getTTh()) # convert to degrees
-        Ip  = self.planeData.powder_intensity
+        tth = numpy.degrees(self.planeData.getTTh())  # convert to degrees
+        Ip = self.planeData.powder_intensity
         self.powder_overlay = numpy.zeros_like(ttharray)
-        for t,I in zip(tth, Ip):
+        for t, I in zip(tth, Ip):
             p = [t, fwhm]
             self.powder_overlay += scale*I*_unit_gaussian(p, ttharray)
 
@@ -409,13 +403,16 @@ class Material(object):
         self._hkls_changed()
 
     def _readCif(self, fcif=DFLT_NAME+'.cif'):
+
         """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab,
+                        saransh1@llnl.gov
         >> @DATE:       10/16/2019 SS 1.0 original
-        >> @DETAILS:    hexrd3 will have real structure factors and will require the overhaul
-                        of the crystallography. In this effort, we will have a cif reader and
-                        also the HDF5 format reader in the material class. We will be using
-                        pycifrw for i/o
+        >> @DETAILS:    hexrd3 will have real structure factors and will
+                        require the overhaul of the crystallography.
+                        In this effort, we will have a cif reader and
+                        also the HDF5 format reader in the material
+                        class. We will be using pycifrw for i/o
         """
 
         try:
@@ -454,7 +451,7 @@ class Material(object):
         elif (skey is sgkey[1]):
             HM = cifdata[sgkey[1]]
             HM = HM.replace(" ", "")
-            HM = HM.replace("_","")
+            HM = HM.replace("_", "")
             sgnum = HM_to_sgnum[HM]
         elif (skey is sgkey[2]):
             hall = cifdata[sgkey[2]]
@@ -523,8 +520,8 @@ class Material(object):
             atompos.append(pos)
 
         """note that the vibration amplitude, U is just the amplitude (in A)
-            to convert to the typical B which occurs in the debye-waller factor,
-            we will use the following formula
+            to convert to the typical B which occurs in the debye-waller
+            factor, we will use the following formula
             B = 8 * pi ^2 * < U_av^2 >
             this will be done here so we dont have to worry about it later
         """
@@ -547,7 +544,7 @@ class Material(object):
                 else:
                     occ.append(p)
 
-            chkstr = numpy.asarray([isinstance(x,str) for x in occ])
+            chkstr = numpy.asarray([isinstance(x, str) for x in occ])
             occstr = numpy.array(occ)
             occstr[chkstr] = 1.0
 
@@ -575,9 +572,9 @@ class Material(object):
                 else:
                     U.append(p)
 
-            chkstr = numpy.asarray([isinstance(x,str) for x in U])
+            chkstr = numpy.asarray([isinstance(x, str) for x in U])
 
-            for ii,x in enumerate(chkstr):
+            for ii, x in enumerate(chkstr):
                 if x:
                     U[ii] = 1.0/numpy.pi/2./numpy.sqrt(2.)
 
@@ -620,18 +617,23 @@ class Material(object):
         self._charge = charge
         self._sgsetting = 0
 
+        self._dmin = Material.DFLT_DMIN
+        self._beamEnergy = Material.DFLT_KEV
         self._tThWidth = Material.DFLT_TTH
 
     def _readHDFxtal(self, fhdf=DFLT_NAME, xtal=DFLT_NAME):
         """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab,
+                        saransh1@llnl.gov
         >> @DATE:       10/17/2019 SS 1.0 original
-                        01/07/2021 SS 1.1 check for optional stiffness in material file.
+                        01/07/2021 SS 1.1 check for optional
+                        stiffness in material file.
                         read and initialize unitcell stiffness field if present
-        >> @DETAILS:    hexrd3 will have real structure factors and will require the overhaul
-                        of the crystallography. In this effort, we will have a HDF file reader.
-                        the file will be the same as the EMsoft xtal file. h5py will be used for
-                        i/o
+        >> @DETAILS:    hexrd3 will have real structure factors and will
+                        require the overhaul of the crystallography.
+                        In this effort, we will have a HDF file reader
+                        the file will be the same as the EMsoft xtal
+                        file. h5py will be used for i/o
         """
 
         if isinstance(fhdf, (Path, str)):
@@ -668,7 +670,7 @@ class Material(object):
                 lparms[i] = _degrees(lparms[i])
 
         self._lparms = lparms
-        #self._lparms    = self._toSixLP(sgnum, lparms)
+
         # fill space group and lattice parameters
         self.sgnum = sgnum
 
@@ -699,16 +701,26 @@ class Material(object):
         else:
             self.stiffness = numpy.zeros([6, 6])
 
-        if self.read_dmin_file:
-            if('dmin' in gid):
-                # if dmin is present in the HDF5 file, then use that
-                dmin = numpy.array(gid.get('dmin'),
-                                   dtype=numpy.float64).item()
-                self._dmin = _angstroms(dmin*10.)
+        # if dmin is present in file:
+        if('dmin' in gid):
+            # if dmin is present in the HDF5 file, then use that
+            dmin = numpy.array(gid.get('dmin'),
+                               dtype=numpy.float64).item()
+            self._dmin = _angstroms(dmin*10.)
+        else:
+            self._dmin = Material.DFLT_DMIN
+
+        # if kev is present in file
+        if('kev' in gid):
+            kev = numpy.array(gid.get('kev'),
+                              dtype=numpy.float64).item()
+            self._beamEnergy = _kev(kev)
+        else:
+            self._beamEnergy = Material.DFLT_KEV
 
         if 'tThWidth' in gid:
             tThWidth = numpy.array(gid.get('tThWidth'),
-                   dtype=numpy.float64).item()
+                                   dtype=numpy.float64).item()
             tThWidth = numpy.radians(tThWidth)
         else:
             tThWidth = Material.DFLT_TTH
@@ -741,6 +753,7 @@ class Material(object):
         AtomInfo['stiffness'] = self.unitcell.stiffness
         AtomInfo['hkls'] = self.planeData.getHKLs()
         AtomInfo['dmin'] = self.unitcell.dmin
+        AtomInfo['kev'] = self.beamEnergy.getVal("keV")
         if self.planeData.tThWidth is None:
             AtomInfo['tThWidth'] = numpy.degrees(Material.DFLT_TTH)
         else:
@@ -951,12 +964,12 @@ class Material(object):
         """
         if len(vals) != len(self.atomtype):
             msg = (f"incorrect size of charge. "
-                f"must be same size as number of aom types.")
+                   f"must be same size as number of aom types.")
             raise ValueError(msg)
         """
         now check if charge states are actually allowed
         """
-        for ii,z in enumerate(self.atomtype):
+        for ii, z in enumerate(self.atomtype):
             elem = ptableinverse[z]
             cs = chargestate[elem]
             if not vals[ii] in cs:
@@ -992,19 +1005,6 @@ class Material(object):
 
         self._atominfo = v
 
-        # if self._atominfo.shape == v.shape:
-        #     if not numpy.allclose(self._atominfo, v):
-        #         self._atominfo = v
-        #         #self.unitcell.atom_pos = v
-        #         #self.update_structure_factor()
-
-        #     else:
-        #         return
-        # else:
-        #     self._atominfo = v
-            #self.unitcell.atom_pos = v
-            #self.update_structure_factor()
-
     atominfo = property(
         _get_atominfo, _set_atominfo, None,
         "Information about atomic positions and electron number")
@@ -1039,8 +1039,8 @@ class Material(object):
         #         return
         # else:
         #     self._atomtype = numpy.array(v)
-            #self._newUnitcell()
-            #self.update_structure_factor()
+        # self._newUnitcell()
+        # self.update_structure_factor()
         self._atomtype = v
 
     atomtype = property(
@@ -1073,25 +1073,25 @@ class Material(object):
         if atomtype.shape[0] != atominfo.shape[0]:
             msg = (f"inconsistent shapes: number of atoms "
                    f"types passed = {atomtype.shape[0]} \n"
-                   f" number of atom positions passed = {atominfo.shape[0]}" )
+                   f" number of atom positions passed = {atominfo.shape[0]}")
             raise ValueError(msg)
 
         if atomtype.shape[0] != U.shape[0]:
             msg = (f"inconsistent shapes: number of atoms "
                    f"types passed = {atomtype.shape[0]} \n"
-                   f" U passed for {U.shape[0]} atoms." )
+                   f" U passed for {U.shape[0]} atoms.")
             raise ValueError(msg)
 
         if atominfo.shape[0] != U.shape[0]:
             msg = (f"inconsistent shapes: number of atom "
                    f"positions passed = {atominfo.shape[0]} \n"
-                   f"U passed for {U.shape[0]} atoms." )
+                   f"U passed for {U.shape[0]} atoms.")
             raise ValueError(msg)
 
         if len(charge) != atomtype.shape[0]:
             msg = (f"inconsistent shapes: number of atoms "
                    f"types passed = {atomtype.shape[0]} \n"
-                   f"charge value passed for {len(charge)} atoms." )
+                   f"charge value passed for {len(charge)} atoms.")
             raise ValueError(msg)
 
         self.atomtype = atomtype
@@ -1133,7 +1133,7 @@ def loadMaterialList(cfgFile):
     return matList
 
 
-def load_materials_hdf5(f, dmin=None, kev=Material.DFLT_KEV,
+def load_materials_hdf5(f, dmin=None, kev=None,
                         sgsetting=Material.DFLT_SGSETTING):
     """Load materials from an HDF5 file
 
@@ -1169,6 +1169,7 @@ def save_materials_hdf5(f, materials, path=None):
     """Save a dict of materials into an HDF5 file"""
     for material in materials.values():
         material.dump_material(f, path)
+
 
 def hkls_match(a, b):
     # Check if hkls match. Expects inputs to have shape (x, 3).
