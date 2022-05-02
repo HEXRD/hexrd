@@ -135,7 +135,7 @@ class Material(object):
     def __init__(self, name=None,
                  material_file=None,
                  dmin=None,
-                 kev=DFLT_KEV,
+                 kev=None,
                  sgsetting=DFLT_SGSETTING):
         """Constructor for Material
 
@@ -158,14 +158,12 @@ class Material(object):
         if not none, then set it to the value
         supplied and ignore the value in the h5 file
         """
-        self.read_dmin_file = True
-        if dmin is None:
-            self._dmin = Material.DFLT_DMIN
-        else:
-            self._dmin = dmin
-            self.read_dmin_file = False
-
-        self._beamEnergy = kev
+        # self.read_dmin_file = True
+        # if dmin is None:
+        #     self._dmin = Material.DFLT_DMIN
+        # else:
+        #     self._dmin = dmin
+        #     self.read_dmin_file = False
 
         self.sgsetting = sgsetting
 
@@ -186,6 +184,11 @@ class Material(object):
                 self._readCif(material_file)
             elif isinstance(material_file, h5py.Group) or form in h5_suffixes:
                 self._readHDFxtal(fhdf=material_file, xtal=name)
+
+            if not dmin is None:
+                self._dmin = dmin
+            if not kev is None:
+                self._beamEnergy = kev
         else:
             # default name
             self._name = Material.DFLT_XTAL
@@ -620,6 +623,8 @@ class Material(object):
         self._charge = charge
         self._sgsetting = 0
 
+        self._dmin = Material.DFLT_DMIN
+        self._beamEnergy = Material.DFLT_KEV
         self._tThWidth = Material.DFLT_TTH
 
     def _readHDFxtal(self, fhdf=DFLT_NAME, xtal=DFLT_NAME):
@@ -699,12 +704,22 @@ class Material(object):
         else:
             self.stiffness = numpy.zeros([6, 6])
 
-        if self.read_dmin_file:
-            if('dmin' in gid):
-                # if dmin is present in the HDF5 file, then use that
-                dmin = numpy.array(gid.get('dmin'),
-                                   dtype=numpy.float64).item()
-                self._dmin = _angstroms(dmin*10.)
+        # if dmin is present in file:
+        if('dmin' in gid):
+            # if dmin is present in the HDF5 file, then use that
+            dmin = numpy.array(gid.get('dmin'),
+                               dtype=numpy.float64).item()
+            self._dmin = _angstroms(dmin*10.)
+        else:
+            self._dmin = Material.DFLT_DMIN
+
+        # if kev is present in file
+        if('kev' in gid):
+            kev = numpy.array(gid.get('kev'),
+                               dtype=numpy.float64).item()
+            self._beamEnergy = _kev(kev)
+        else:
+            self._beamEnergy = Material.DFLT_KEV
 
         if 'tThWidth' in gid:
             tThWidth = numpy.array(gid.get('tThWidth'),
@@ -741,6 +756,7 @@ class Material(object):
         AtomInfo['stiffness'] = self.unitcell.stiffness
         AtomInfo['hkls'] = self.planeData.getHKLs()
         AtomInfo['dmin'] = self.unitcell.dmin
+        AtomInfo['kev'] = self.beamEnergy.getVal("keV")
         if self.planeData.tThWidth is None:
             AtomInfo['tThWidth'] = numpy.degrees(Material.DFLT_TTH)
         else:
@@ -1133,7 +1149,7 @@ def loadMaterialList(cfgFile):
     return matList
 
 
-def load_materials_hdf5(f, dmin=None, kev=Material.DFLT_KEV,
+def load_materials_hdf5(f, dmin=None, kev=None,
                         sgsetting=Material.DFLT_SGSETTING):
     """Load materials from an HDF5 file
 

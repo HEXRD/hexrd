@@ -531,6 +531,10 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
         did = gid.create_dataset("dmin", (1,), dtype=np.float64)
         did.write_direct(np.array(AtomInfo['dmin'], dtype=np.float64))
 
+    if 'kev' in AtomInfo:
+        did = gid.create_dataset("kev", (1,), dtype=np.float64)
+        did.write_direct(np.array(AtomInfo['kev'], dtype=np.float64))
+
     did = gid.create_dataset(
         "AtomData", (4, len(AtomInfo['Z'])), dtype=np.float64)
     # this is done for contiguous c-allocation
