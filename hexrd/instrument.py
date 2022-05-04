@@ -1581,7 +1581,7 @@ class HEDMInstrument(object):
                    tth_tol=0.25, eta_tol=1., ome_tol=1.,
                    npdiv=2, threshold=10,
                    eta_ranges=[(-np.pi, np.pi), ],
-                   ome_period=(-np.pi, np.pi),
+                   ome_period=None,
                    dirname='results', filename=None, output_format='text',
                    return_spot_list=False,
                    quiet=True, check_only=False,
@@ -1647,6 +1647,10 @@ class HEDMInstrument(object):
         oims0 = next(iter(imgser_dict.values()))
         ome_ranges = [np.radians([i['ostart'], i['ostop']])
                       for i in oims0.omegawedges.wedges]
+        if ome_period is None:
+            ims = next(iter(imgser_dict.values()))
+            ostart = ims.omega[0, 0]
+            ome_period = np.radians(ostart + np.r_[0., 360.])
 
         # delta omega in DEGREES grabbed from first imageseries in the dict
         delta_ome = oims0.omega[0, 1] - oims0.omega[0, 0]
@@ -1772,7 +1776,7 @@ class HEDMInstrument(object):
                     if -1 in frame_indices:
                         if not quiet:
                             msg = """
-                            window for (%d%d%d) falls outside omega range
+                            window for (%d  %d  %d) falls outside omega range
                             """ % tuple(hkls_p[i_pt, :])
                             print(msg)
                         continue
