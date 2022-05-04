@@ -759,6 +759,7 @@ def calibrate_instrument_from_sx(
     plist_full = np.concatenate(
         [plist_full, np.hstack(grain_params)]
     )
+    plf_copy = np.copy(plist_full)
 
     # concatenate refinement flags
     refine_flags = np.hstack([param_flags, grain_flags])
@@ -818,6 +819,12 @@ def calibrate_instrument_from_sx(
 
         # ??? reset instrument here?
         instr.update_from_parameter_list(fit_params)
+
+        # report final
+        logger.info("Optimization Reults:")
+        for i in np.where(refine_flags)[0]:
+            logger.info("\t%s = %1.7e --> %1.7e"
+                        % (pnames[i], plf_copy[i], fit_params[i]))
 
         return fit_params, resd, sim_final
 
