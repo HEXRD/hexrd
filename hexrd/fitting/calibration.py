@@ -235,7 +235,7 @@ class PowderCalibrator(object):
             "pktype '%s' not understood"
         self._bgtype = x
 
-    def _extract_powder_lines(self, fit_tth_tol=None, int_cutoff=1e-4):
+    def _extract_powder_lines(self, fit_tth_tol=5., int_cutoff=1e-4):
         """
         return the RHS for the instrument DOF and image dict
 
@@ -247,9 +247,6 @@ class PowderCalibrator(object):
 
         FIXME: can not yet handle tth ranges with multiple peaks!
         """
-        if fit_tth_tol is None:
-            fit_tth_tol = self.tth_tol/4.
-
         # ideal tth
         dsp_ideal = np.atleast_1d(self.plane_data.getPlaneSpacings())
         hkls_ref = self.plane_data.hkls.T
