@@ -37,6 +37,9 @@ the units to only those used by the heXRD package.
 import doctest
 import math
 
+from hexrd.constants import keVToAngstrom
+
+
 __all__ = ['valWUnit', 'toFloat', 'valWithDflt']
 
 # centralized unit types; chosen to have a match in the units command
@@ -101,6 +104,7 @@ cv_dict = {
 
 class valWUnit:
     "Value with units"""
+
     def __init__(self, name, unitType, value, unit):
         """Initialization
 
@@ -175,7 +179,35 @@ class valWUnit:
             raise RuntimeError("add with unsupported operand")
 
     def _convert(self, toUnit):
-        """Convert unit"""
+        """
+        Return the value of self in requested units.
+
+        Parameters
+        ----------
+        toUnit : str
+            The identifier for desired unit type.  Current choices are.
+                degrees = 'degrees'
+                radians = 'radians'
+
+                meters = 'm' | 'meter'
+                millimeters = 'mm'
+                nanometers = 'nm'
+                Ångstroms = 'angstrom'
+
+                kilo electron-Volt = 'keV'
+                Joule = 'J'
+
+        Raises
+        ------
+        RuntimeError
+            if `toUnit` is invalid.
+
+        Returns
+        -------
+        saclar
+            The converted unit value of self.
+
+        """
         if self.unit == toUnit:
             return self.value
         #
@@ -185,8 +217,11 @@ class valWUnit:
         try:
             return cv_dict[from_to]*self.value
         except(KeyError):
-            msg = "Unit conversion not recognized\n   from %s to %s" % from_to
-            raise RuntimeError(msg)
+            special_case = ('keV', 'angstrom')
+            if from_to == special_case or from_to == special_case[::-1]:
+                return keVToAngstrom(self.value)
+            raise RuntimeError(f"Unit conversion '{from_to[0]} --> "
+                               + f"{from_to[1]}' not recognized")
 
     def isLength(self):
         """Return true if quantity is a length"""
@@ -204,12 +239,25 @@ class valWUnit:
         return retval
 
     def getVal(self, toUnit):
-        """Return value in requested units
+        """
+        Returns object value in requested units.
 
-        INPUTS
+        Parameters
+        ----------
+        toUnit : str
+            The identifier for desired unit type.  Current choices are
+            .
 
-        toUnit
-           (str) requested unit for output
+        Raises
+        ------
+        RuntimeError
+            Where the requested units are invalid
+
+        Returns
+        -------
+        scalar
+            The value of the object in the requested units.
+
         """
         return self._convert(toUnit)
 

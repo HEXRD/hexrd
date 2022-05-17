@@ -1287,7 +1287,6 @@ class HEDMInstrument(object):
         panels = [self.detectors[k] for k in self.detectors]
         instr_cfgs = [make_instr_cfg(x) for x in panels]
         pbp_array = np.arange(self.num_panels)
-
         iter_args = zip(panels, instr_cfgs, images, pbp_array)
         with ProcessPoolExecutor(mp_context=constants.mp_context,
                                  max_workers=self.num_panels) as executor:
@@ -3024,24 +3023,7 @@ class PlanarDetector(object):
 
         """
         # in case you want to give it tth angles directly
-        if hasattr(pd, '__len__'):
-            tth = np.array(pd).flatten()
-            if delta_tth is None:
-                raise RuntimeError(
-                    "If supplying a 2theta list as first arg, "
-                    + "must supply a delta_tth")
-            tth_pm = 0.5*delta_tth*np.r_[-1., 1.]
-            tth_ranges = [i + tth_pm for i in tth]
-            sector_vertices = np.tile(
-                0.5*np.radians([-delta_tth, -delta_eta,
-                                -delta_tth, delta_eta,
-                                delta_tth, delta_eta,
-                                delta_tth, -delta_eta,
-                                0.0, 0.0]), (len(tth), 1)
-                )
-            # Convert to radians as is done below
-            del_eta = np.radians(delta_eta)
-        else:
+        if isinstance(pd, PlaneData):
             # Okay, we have a PlaneData object
             try:
                 pd = pd.makeNew()  # make a copy to munge
@@ -3055,7 +3037,7 @@ class PlanarDetector(object):
             else:
                 delta_tth = np.degrees(pd.tThWidth)
 
-            # conversions, meh...
+            # !!! conversions, meh...
             del_eta = np.radians(delta_eta)
 
             # do merging if asked
@@ -3073,6 +3055,25 @@ class PlanarDetector(object):
                   i[1], -del_eta,
                   0.0, 0.0]
                  for i in tth_pm])
+        else:
+            # Okay, we have a array-like tth specification
+            tth = np.array(pd).flatten()
+            if delta_tth is None:
+                raise RuntimeError(
+                    "If supplying a 2theta list as first arg, "
+                    + "must supply a delta_tth")
+            tth_pm = 0.5*delta_tth*np.r_[-1., 1.]
+            tth_ranges = np.radians([i + tth_pm for i in tth])  # !!! units
+            sector_vertices = np.tile(
+                0.5*np.radians([-delta_tth, -delta_eta,
+                                -delta_tth, delta_eta,
+                                delta_tth, delta_eta,
+                                delta_tth, -delta_eta,
+                                0.0, 0.0]), (len(tth), 1)
+                )
+            # !! conversions, meh...
+            tth = np.radians(tth)
+            del_eta = np.radians(delta_eta)
 
         # for generating rings, make eta vector in correct period
         if eta_period is None:
@@ -4271,9 +4272,13 @@ def _extract_detector_line_positions(iter_args, plane_data, tth_tol,
 
     tth_tols = np.degrees(np.hstack([i[1] - i[0] for i in tth_ranges]))
 
-    tth_idx, tth_ranges = plane_data.getMergedRanges(cullDupl=True)
-    tth_ref = plane_data.getTTh()
-    tth0 = [np.degrees(tth_ref[i]) for i in tth_idx]
+    # !!! this is only needed if doing fitting
+    if isinstance(plane_data, PlaneData):
+        tth_idx, tth_ranges = plane_data.getMergedRanges(cullDupl=True)
+        tth_ref = plane_data.getTTh()
+        tth0 = [np.degrees(tth_ref[i]) for i in tth_idx]
+    else:
+        tth0 = plane_data
 
     # =================================================================
     # LOOP OVER RING SETS
@@ -4295,7 +4300,6 @@ def _extract_detector_line_positions(iter_args, plane_data, tth_tol,
     }
     func = partial(_extract_ring_line_positions, **kwargs)
     iter_arg = zip(pow_angs, pow_xys, tth_tols, tth0)
-
     with ProcessPoolExecutor(mp_context=constants.mp_context,
                              max_workers=max_workers) as executor:
         return list(pbar_rings(executor.map(func, iter_arg)))
