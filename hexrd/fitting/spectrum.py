@@ -416,10 +416,12 @@ class SpectrumModel(object):
 
         # set some special constraints
         _set_width_mixing_bounds(
-            initial_params_pks, min_w=fwhm_min, max_w=np.inf
+            initial_params_pks,
+            min_w=fwhm_min,
+            max_w=0.9*float(np.diff(window_range))
         )
         _set_bound_constraints(
-            initial_params_pks, 'amp', min_val=min_ampl, max_val=ymax
+            initial_params_pks, 'amp', min_val=min_ampl, max_val=1.5*ymax
         )
         _set_peak_center_bounds(
             initial_params_pks, window_range, min_sep=min_pk_sep
@@ -512,32 +514,35 @@ class SpectrumModel(object):
 
             res0 = self.model.fit(ydata, params=self.params, x=xdata)
             if res0.success:
-                new_p = Parameters()
-                new_p.add_many(
-                    *_parameter_arg_constructor(
-                        res0.best_values, param_hints_DFLT
-                    )
-                )
-                _set_equality_constraints(new_p, 'alpha0')
-                _set_equality_constraints(new_p, 'beta0')
+                new_p = res0.params
+                _set_refinement_by_name(new_p, 'alpha0', vary=True)
                 _set_refinement_by_name(new_p, 'alpha1', vary=False)
-                _set_refinement_by_name(new_p, 'beta1', vary=False)
+                _set_refinement_by_name(new_p, 'beta', vary=True)
+                _set_equality_constraints(new_p, 'alpha')
+                _set_equality_constraints(new_p, 'beta')
                 _set_bound_constraints(
-                    new_p, 'alpha', min_val=-50, max_val=50
+                    new_p, 'alpha', min_val=-10, max_val=30
                 )
                 _set_bound_constraints(
-                    new_p, 'beta', min_val=-50, max_val=50
+                    new_p, 'beta', min_val=-10, max_val=30
                 )
-                _set_width_mixing_bounds(new_p, min_w=fwhm_min, max_w=np.inf)
-                # !!! not sure on this, but it seems to give more stable results
-                #     with many peaks
+                _set_width_mixing_bounds(
+                    new_p,
+                    min_w=fwhm_min,
+                    max_w=0.9*float(np.diff(window_range))
+                )
+                # !!! not sure on this, but it seems
+                #     to give more stable results with many peaks
                 _set_equality_constraints(
                     new_p,
                     zip(_extract_parameters_by_name(new_p, 'fwhm_g'),
                         _extract_parameters_by_name(new_p, 'fwhm_l'))
                 )
-                _set_peak_center_bounds(new_p, window_range,
-                                        min_sep=self.min_pk_sep)
+                try:
+                    _set_peak_center_bounds(new_p, window_range,
+                                            min_sep=self.min_pk_sep)
+                except(RuntimeError):
+                    return res0
 
                 # refit
                 res1 = self.model.fit(ydata, params=new_p, x=xdata)

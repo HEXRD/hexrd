@@ -1,7 +1,7 @@
 import numpy as np
 
 from hexrd.constants import (
-    c_erf, cnum_exp1exp, cden_exp1exp, c_coeff_exp1exp, sqrt_epsf
+    c_erf, cnum_exp1exp, cden_exp1exp, c_coeff_exp1exp
 )
 from hexrd.matrixutil import uniqueVectors
 from hexrd.utils.decorators import numba_njit_if_available
@@ -60,7 +60,6 @@ def _set_bound_constraints(params, pname_spec,
             params[pname].max = params[pname].value + hval
 
 
-
 def _set_width_mixing_bounds(params, min_w=0.01, max_w=np.inf):
     for pname, param in params.items():
         if 'fwhm' in pname:
@@ -91,7 +90,7 @@ def _set_peak_center_bounds(params, window_range, min_sep=0.01):
         if len(uvec) < npks:
             raise RuntimeError(
                 "Params contain peaks separated by <="
-                + " the specified min, %d" % min_sep
+                + " the specified min, %f" % min_sep
             )
 
         # get the sorted indices
@@ -115,9 +114,10 @@ def _set_peak_center_bounds(params, window_range, min_sep=0.01):
             curr_peak.expr = '+'.join([prev_peak.name, new_pname])
             prev_peak = curr_peak
     else:
-        msg = "Found only 1 peak; setting no bounds"
+        # msg = "Found only 1 peak; setting no bounds"
         # print(msg)
         # raise RuntimeWarning(msg)
+        pass
 
 
 # =============================================================================
