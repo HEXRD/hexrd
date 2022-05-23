@@ -12,7 +12,36 @@ from pathlib import Path
 from scipy.interpolate import interp1d
 import time
 
+from hexrd.utils.decorators import numba_njit_if_available
+
 eps = constants.sqrt_epsf
+
+''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
+
+
+@numba_njit_if_available(cache=True, nogil=True)
+def _calclength(u, mat):
+    return np.sqrt(np.dot(u, np.dot(mat, u)))
+
+
+@numba_njit_if_available(cache=True, nogil=True)
+def _calcstar(v, sym, mat):
+    vsym = np.atleast_2d(v)
+    for s in sym:
+        vp = np.dot(np.ascontiguousarray(s), v)
+        # check if this is new
+        isnew = True
+        for vec in vsym:
+            vv = vp - vec
+            dist = _calclength(vv, mat)
+            if dist < 1E-3:
+                isnew = False
+                break
+        if(isnew):
+            vp = np.atleast_2d(vp)
+            vsym = np.vstack((vsym, vp))
+
+    return vsym
 
 
 class unitcell:
@@ -86,7 +115,7 @@ class unitcell:
             constants.cCharge / \
             self.voltage
         self.wavelength *= 1e9
-        self.CalcAnomalous()
+        # self.CalcAnomalous()
 
     def calcBetaij(self):
 
@@ -212,20 +241,22 @@ class unitcell:
 
         return dot
 
-    ''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
-
     def CalcLength(self, u, space):
 
         if(space == 'd'):
-            vlen = np.sqrt(np.dot(u, np.dot(self.dmt, u)))
+            mat = self.dmt
+            # vlen = np.sqrt(np.dot(u, np.dot(self.dmt, u)))
         elif(space == 'r'):
-            vlen = np.sqrt(np.dot(u, np.dot(self.rmt, u)))
+            mat = self.rmt
+            # vlen = np.sqrt(np.dot(u, np.dot(self.rmt, u)))
         elif(space == 'c'):
-            vlen = np.linalg.norm(u)
+            mat = np.eye(3)
+            # vlen = np.linalg.norm(u)
         else:
             raise ValueError('incorrect space argument')
 
-        return vlen
+        uu = np.array(u).astype(np.float64)
+        return _calclength(uu, mat)
 
     ''' normalize vector in any space 'd' 'r' or 'c' '''
 
@@ -513,33 +544,22 @@ class unitcell:
         for the reciprocal (or direct) point group symmetry.
         '''
         if(space == 'd'):
+            mat = self.dmt.astype(np.float64)
             if(applyLaue):
-                sym = self.SYM_PG_d_laue
+                sym = self.SYM_PG_d_laue.astype(np.float64)
             else:
-                sym = self.SYM_PG_d
+                sym = self.SYM_PG_d.astype(np.float64)
         elif(space == 'r'):
+            mat = self.rmt.astype(np.float64)
             if(applyLaue):
-                sym = self.SYM_PG_r_laue
+                sym = self.SYM_PG_r_laue.astype(np.float64)
             else:
-                sym = self.SYM_PG_r
+                sym = self.SYM_PG_r.astype(np.float64)
         else:
             raise ValueError('CalcStar: unrecognized space.')
 
-        vsym = np.atleast_2d(v)
-        for s in sym:
-            vp = np.dot(s, v)
-            # check if this is new
-            isnew = True
-            for vec in vsym:
-                vv = vp - vec
-                dist = self.CalcLength(vv, space)
-                if dist < 1E-3:
-                    isnew = False
-                    break
-            if(isnew):
-                vsym = np.vstack((vsym, vp))
-
-        return vsym
+        vv = np.array(v).astype(np.float64)
+        return _calcstar(vv, sym, mat)
 
     def CalcPositions(self):
         '''
@@ -633,7 +653,7 @@ class unitcell:
         chargestates = [self.chargestates[i] for i in idx]
 
         if self.aniU:
-            U = self.U[idx,:]
+            U = self.U[idx, :]
         else:
             U = self.U[idx]
 
@@ -650,7 +670,6 @@ class unitcell:
         self.CalcPositions()
         self.CalcDensity()
         self.calc_absorption_length()
-
 
     def CalcDensity(self):
         '''
@@ -714,10 +733,7 @@ class unitcell:
 
     def InitializeInterpTable(self):
 
-        self.f1 = {}
-        self.f2 = {}
-        self.pe_cs = {}
-
+        f_anomalous_data = []
         data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
         with h5py.File(data, 'r') as fid:
             for i in range(0, self.atom_ntype):
@@ -725,10 +741,19 @@ class unitcell:
                 Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
                 gid = fid.get('/'+elem)
-                data = gid.get('data')
-                self.f1[elem] = interp1d(data[:, 7], data[:, 1])
-                self.f2[elem] = interp1d(data[:, 7], data[:, 2])
-                self.pe_cs[elem] = interp1d(data[:,7], data[:,3]+data[:,4])
+                data = np.array(gid.get('data'))
+                data = data[:, [7, 1, 2]]
+                f_anomalous_data.append(data)
+
+        n = max([x.shape[0] for x in f_anomalous_data])
+        self.f_anomalous_data = np.zeros([self.atom_ntype, n, 3])
+        self.f_anomalous_data_sizes = np.zeros(
+            [self.atom_ntype, ], dtype=np.int32)
+
+        for i in range(self.atom_ntype):
+            nd = f_anomalous_data[i].shape[0]
+            self.f_anomalous_data_sizes[i] = nd
+            self.f_anomalous_data[i, :nd, :] = f_anomalous_data[i]
 
     def CalcAnomalous(self):
 
@@ -779,36 +804,69 @@ class unitcell:
         return (fe+fNT+f_anomalous)
 
     def CalcXRSF(self, hkl):
+        from hexrd.wppf.xtal import _calcxrsf
         '''
         the 1E-2 is to convert to A^-2
         since the fitting is done in those units
         '''
-        s = 0.25 * self.CalcLength(hkl, 'r')**2 * 1E-2
-        sf = np.complex(0., 0.)
+        fNT = np.zeros([self.atom_ntype, ])
+        frel = np.zeros([self.atom_ntype, ])
+        scatfac = np.zeros([self.atom_ntype, 11])
+        f_anomalous_data = self.f_anomalous_data
+
+        hkl2d = np.atleast_2d(hkl).astype(np.float64)
+        nref = hkl2d.shape[0]
+
+        multiplicity = np.ones([nref, ])
+        w_int = 1.0
+
+        occ = self.atom_pos[:, 3]
+        aniU = self.aniU
+        if aniU:
+            betaij = self.betaij
+        else:
+            betaij = self.U
+
+        self.asym_pos_arr = np.zeros([self.numat.max(), self.atom_ntype, 3])
         for i in range(0, self.atom_ntype):
+            nn = self.numat[i]
+            self.asym_pos_arr[:nn, i, :] = self.asym_pos[i]
 
+        self.numat = np.zeros(self.atom_ntype, dtype=np.int32)
+        for i in range(0, self.atom_ntype):
+            self.numat[i] = self.asym_pos[i].shape[0]
             Z = self.atom_type[i]
-            charge = self.chargestates[i]
-            ff = self.CalcXRFormFactor(Z, charge, s)
+            elem = constants.ptableinverse[Z]
+            scatfac[i, :] = constants.scatfac[elem]
+            frel[i] = constants.frel[elem]
+            fNT[i] = constants.fNT[elem]
 
-            if(self.aniU):
-                T = np.exp(-np.dot(hkl, np.dot(self.betaij[:, :, i], hkl)))
-            else:
-                T = np.exp(-8.0*np.pi**2 * self.U[i]*s)
+        sf, sf_raw = _calcxrsf(hkl2d,
+                               nref,
+                               multiplicity,
+                               w_int,
+                               self.wavelength,
+                               self.rmt.astype(np.float64),
+                               self.atom_type,
+                               self.atom_ntype,
+                               betaij,
+                               occ,
+                               self.asym_pos_arr,
+                               self.numat,
+                               scatfac,
+                               fNT,
+                               frel,
+                               f_anomalous_data,
+                               self.f_anomalous_data_sizes)
 
-            ff *= self.atom_pos[i, 3] * T
-
-            for j in range(self.asym_pos[i].shape[0]):
-                arg = 2.0 * np.pi * np.sum(hkl * self.asym_pos[i][j, :])
-                sf = sf + ff * np.complex(np.cos(arg), -np.sin(arg))
-
-        return np.abs(sf)**2
+        return sf_raw
 
     """
     molecular mass calculates the molar weight of the unit cell
     since the unitcell can have multiple formular units, this 
     might be greater than the molecular weight
     """
+
     def calc_unitcell_mass(self):
         a_mass = constants.atom_weights[self.atom_type-1]
         return np.sum(a_mass*self.numat)
@@ -818,6 +876,7 @@ class unitcell:
     number density = density * Avogadro / unitcell mass
     the 1e-12 factor converts from 1/cm^3 to 1/micron^3
     """
+
     def calc_number_density(self):
         M = self.calc_unitcell_mass()
         Na = constants.cAvogadro
@@ -830,8 +889,8 @@ class unitcell:
         for i in range(self.atom_ntype):
             Z = self.atom_type[i]
             elem = constants.ptableinverse[Z]
-            abs_cs_total += self.pe_cs[elem](self.wavelength)*\
-            self.numat[i]/np.sum(self.numat)
+            abs_cs_total += self.pe_cs[elem](self.wavelength) *\
+                self.numat[i]/np.sum(self.numat)
         return abs_cs_total
 
     """
@@ -848,6 +907,7 @@ class unitcell:
     NOTE: units will be microns!!
 
     """
+
     def calc_absorption_length(self):
         # re = 2.8179403e-9 # in microns
         # N  = self.calc_number_density()
@@ -860,6 +920,7 @@ class unitcell:
     calculate bragg angle for a reflection. returns Nan if
     the reflections is not possible for the voltage/wavelength
     """
+
     def CalcBraggAngle(self, hkl):
         glen = self.CalcLength(hkl, 'r')
         sth = self.wavelength * glen * 0.5
@@ -1570,7 +1631,7 @@ class unitcell:
                                                   self._supergroup,
                                                   self._supergroup_laue)
         self.CalcDensity()
-        self.calc_absorption_length()
+        # self.calc_absorption_length()
 
     @property
     def atom_pos(self):
@@ -1717,7 +1778,6 @@ supergroup_11 = 'oh'
 
 
 def _sgrange(min, max): return tuple(range(min, max + 1))  # inclusive range
-
 
 '''
 11/20/2020 SS added supergroup to the list which is used

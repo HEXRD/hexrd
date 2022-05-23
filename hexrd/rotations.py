@@ -32,13 +32,14 @@ import sys
 import timeit
 
 import numpy as np
-from numpy import \
-     arange, arctan2, array, argmax, asarray, atleast_1d, average, \
-     ndarray, diag, zeros, \
-     cross, dot, pi, arccos, arcsin, cos, sin, sqrt, \
-     sort, tile, vstack, hstack, c_, ix_, \
-     abs, mod, sign, \
-     finfo, isscalar
+from numpy import (
+    arange, arctan2, array, argmax, asarray, atleast_1d, average,
+    ndarray, diag, zeros,
+    cross, dot, pi, arccos, arcsin, cos, sin, sqrt,
+    sort, tile, vstack, hstack, c_, ix_,
+    abs, mod, sign,
+    finfo, isscalar
+)
 from numpy import float_ as nFloat
 from numpy import int_ as nInt
 from scipy.optimize import leastsq
@@ -49,7 +50,7 @@ from hexrd.matrixutil import \
     skewMatrixOfVector, findDuplicateVectors, \
     multMatArray, nullSpace
 from hexrd import symmetry
-
+from hexrd.utils.decorators import numba_njit_if_available
 
 # =============================================================================
 # Module Data
@@ -176,7 +177,7 @@ def misorientation(q1, q2, *args):
                 sym += (c_[1., 0, 0, 0].T,)
         elif len(sym) == 2:
             if not isinstance(sym[0], ndarray) \
-              or not isinstance(sym[1], ndarray):
+                    or not isinstance(sym[1], ndarray):
                 raise RuntimeError(
                     "symmetry arguments are not an numpy arrays"
                 )
@@ -624,7 +625,7 @@ def rotMatOfExpMap_orig(expMap):
             )
         else:
             if not isscalar(expMap[0]) or not isscalar(expMap[1]) \
-              or not isscalar(expMap[2]):
+                    or not isscalar(expMap[2]):
                 raise RuntimeError(
                     "for list/tuple input only one exponential map "
                     + "vector is allowed"
@@ -663,6 +664,30 @@ def rotMatOfExpMap_orig(expMap):
 rotMatOfExpMap = rotMatOfExpMap_opt
 
 
+@numba_njit_if_available(cache=True, nogil=True)
+def _rotmatofquat(quat):
+    n = quat.shape[1]
+    # FIXME: maybe preallocate for speed?
+    # R = zeros(n*3*3, dtype='float64')
+
+    a = np.ascontiguousarray(quat[0, :]).reshape(n, 1)
+    b = np.ascontiguousarray(quat[1, :]).reshape(n, 1)
+    c = np.ascontiguousarray(quat[2, :]).reshape(n, 1)
+    d = np.ascontiguousarray(quat[3, :]).reshape(n, 1)
+
+    R = np.hstack((a**2 + b**2 - c**2 - d**2,
+                   2*b*c - 2*a*d,
+                   2*a*c + 2*b*d,
+                   2*a*d + 2*b*c,
+                   a**2 - b**2 + c**2 - d**2,
+                   2*c*d - 2*a*b,
+                   2*b*d - 2*a*c,
+                   2*a*b + 2*c*d,
+                   a**2 - b**2 - c**2 + d**2))
+
+    return R.reshape(n, 3, 3)
+
+
 def rotMatOfQuat(quat):
     """
     Convert quaternions to rotation matrices.
@@ -699,47 +724,9 @@ def rotMatOfQuat(quat):
         if quat.shape[0] != 4:
             raise RuntimeError("input is the wrong shape")
 
-    n = quat.shape[1]
-    rmat = zeros((n, 3, 3), dtype='float64')
+    rmat = _rotmatofquat(quat)
 
-    a = quat[0, :].reshape(n, 1)
-    b = quat[1, :].reshape(n, 1)
-    c = quat[2, :].reshape(n, 1)
-    d = quat[3, :].reshape(n, 1)
-
-    R = c_[a**2 + b**2 - c**2 - d**2,
-           2*b*c - 2*a*d,
-           2*a*c + 2*b*d,
-           2*a*d + 2*b*c,
-           a**2 - b**2 + c**2 - d**2,
-           2*c*d - 2*a*b,
-           2*b*d - 2*a*c,
-           2*a*b + 2*c*d,
-           a**2 - b**2 - c**2 + d**2]
-
-    if n > 1:
-        rmat = R.reshape(n, 3, 3)
-    else:
-        rmat = R.reshape(3, 3)
-
-    # for i in range(n):
-    #     theta = 2. * arccosSafe(quat[0, i])
-    #
-    #     # find axial vector
-    #     if (theta > cnst.epsf):
-    #         a = sin(theta) / theta
-    #         b = (1. - cos(theta)) / theta**2
-    #         w = (theta / sin(0.5 * theta)) * quat[1:4, i]
-    #
-    #         wskew = array([[   0., -w[2],  w[1]],
-    #                        [ w[2],    0., -w[0]],
-    #                        [-w[1],  w[0],    0.]])
-    #
-    #         rmat[i, :, :] = I3 + a * wskew + b * dot(wskew, wskew)
-    #     else:
-    #         rmat[i, :, :] = I3
-
-    return rmat
+    return np.squeeze(rmat)
 
 
 def angleAxisOfRotMat(R):
@@ -1306,8 +1293,8 @@ def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
     if hasattr(c, '__len__'):
         if hasattr(c, 'shape'):
             assert c.shape[0] == 3, \
-                   'scattering vector must be 3-d; yours is %d-d' \
-                   % (c.shape[0])
+                'scattering vector must be 3-d; yours is %d-d' \
+                % (c.shape[0])
             if len(c.shape) == 1:
                 c = c.reshape(3, 1)
             elif len(c.shape) > 2:
@@ -1328,8 +1315,8 @@ def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
     if hasattr(s, '__len__'):
         if hasattr(s, 'shape'):
             assert s.shape[0] == 3, \
-                   'scattering vector must be 3-d; yours is %d-d' \
-                   % (s.shape[0])
+                'scattering vector must be 3-d; yours is %d-d' \
+                % (s.shape[0])
             if len(s.shape) == 1:
                 s = s.reshape(3, 1)
             elif len(s.shape) > 2:
@@ -1712,7 +1699,7 @@ def quatOfLaueGroup(tag):
         angleAxis = c_[
             [0.,   1,   0,   0],  # identity
             [pi,   0,   1,   0],  # twofold about 010 (x2)
-            ]
+        ]
     elif tag.lower() == 'd2h' or tag.lower() == 'vh':
         # ORTHORHOMBIC
         angleAxis = c_[
@@ -1720,7 +1707,7 @@ def quatOfLaueGroup(tag):
             [pi,   1,   0,   0],  # twofold about 100
             [pi,   0,   1,   0],  # twofold about 010
             [pi,   0,   0,   1],  # twofold about 001
-            ]
+        ]
     elif tag.lower() == 'c4h':
         # TETRAGONAL (LOW)
         angleAxis = c_[
@@ -1728,7 +1715,7 @@ def quatOfLaueGroup(tag):
             [piby2,     0,    0,    1],  # fourfold about 001 (x3)
             [pi,        0,    0,    1],  #
             [piby2*3,   0,    0,    1],  #
-            ]
+        ]
     elif tag.lower() == 'd4h':
         # TETRAGONAL (HIGH)
         angleAxis = c_[
@@ -1740,14 +1727,14 @@ def quatOfLaueGroup(tag):
             [pi,        0,    1,    0],  # twofold about  0  1  0 (x2)
             [pi,        1,    1,    0],  # twofold about  1  1  0
             [pi,       -1,    1,    0],  # twofold about -1  1  0
-            ]
+        ]
     elif tag.lower() == 'c3i' or tag.lower() == 's6':
         # TRIGONAL (LOW)
         angleAxis = c_[
             [0.0,       1,    0,    0],  # identity
             [piby3*2,   0,    0,    1],  # threefold about 0001 (x3,c)
             [piby3*4,   0,    0,    1],  #
-            ]
+        ]
     elif tag.lower() == 'd3d':
         # TRIGONAL (HIGH)
         angleAxis = c_[
@@ -1757,7 +1744,7 @@ def quatOfLaueGroup(tag):
             [pi,        1,     0,    0],  # twofold about  2 -1 -1  0 (x1,a1)
             [pi,       -0.5,   sq3by2,  0],  # twofold about -1  2 -1  0 (a2)
             [pi,       -0.5,  -sq3by2,  0],  # twofold about -1 -1  2  0 (a3)
-            ]
+        ]
     elif tag.lower() == 'c6h':
         # HEXAGONAL (LOW)
         angleAxis = c_[
@@ -1767,7 +1754,7 @@ def quatOfLaueGroup(tag):
             [pi,        0,     0,    1],  #
             [piby3*4,   0,     0,    1],  #
             [piby3*5,   0,     0,    1],  #
-            ]
+        ]
     elif tag.lower() == 'd6h':
         # HEXAGONAL (HIGH)
         angleAxis = c_[
@@ -1783,7 +1770,7 @@ def quatOfLaueGroup(tag):
             [pi,        sq3by2,  0.5,     0],  # twofold about  1  0  0
             [pi,        0,       1,       0],  # twofold about -1  1  0 (x2)
             [pi,       -sq3by2,  0.5,     0],  # twofold about  0 -1  0
-            ]
+        ]
     elif tag.lower() == 'th':
         # CUBIC (LOW)
         angleAxis = c_[
@@ -1799,7 +1786,7 @@ def quatOfLaueGroup(tag):
             [piby3*4,  -1,   -1,    1],  #
             [piby3*2,   1,   -1,    1],  # threefold about  1 -1  1
             [piby3*4,   1,   -1,    1],  #
-            ]
+        ]
     elif tag.lower() == 'oh':
         # CUBIC (HIGH)
         angleAxis = c_[
@@ -1827,7 +1814,7 @@ def quatOfLaueGroup(tag):
             [pi,        0,    1,    1],  # twofold about    0  1  1
             [pi,       -1,    0,    1],  # twofold about   -1  0  1
             [pi,        0,   -1,    1],  # twofold about    0 -1  1
-            ]
+        ]
     else:
         raise RuntimeError(
             "unrecognized symmetry group.  "

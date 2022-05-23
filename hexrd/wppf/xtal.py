@@ -152,15 +152,13 @@ def _calcxrsf(hkls,
                 arg = 2.0 * np.pi * np.sum(g*r)
                 sf = sf + ff*np.complex(np.cos(arg), -np.sin(arg))
 
-        struct_factors[ii] = w_int*mm*np.abs(sf)**2
         struct_factors_raw[ii] = np.abs(sf)**2
+        struct_factors[ii] = w_int*mm*struct_factors_raw[ii]
 
     ma = struct_factors.max()
     struct_factors = 100.0*struct_factors/ma
-
     # ma = struct_factors_raw.max()
     # struct_factors_raw = 100.0*struct_factors_raw/ma
-
     return struct_factors, struct_factors_raw
 
 @numba_njit_if_available(cache=True, nogil=True)
