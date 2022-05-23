@@ -32,13 +32,14 @@ import sys
 import timeit
 
 import numpy as np
-from numpy import \
-    arange, arctan2, array, argmax, asarray, atleast_1d, average, \
-    ndarray, diag, zeros, \
-    cross, dot, pi, arccos, arcsin, cos, sin, sqrt, \
-    sort, tile, vstack, hstack, c_, ix_, \
-    abs, mod, sign, \
+from numpy import (
+    arange, arctan2, array, argmax, asarray, atleast_1d, average,
+    ndarray, diag, zeros,
+    cross, dot, pi, arccos, arcsin, cos, sin, sqrt,
+    sort, tile, vstack, hstack, c_, ix_,
+    abs, mod, sign,
     finfo, isscalar
+)
 from numpy import float_ as nFloat
 from numpy import int_ as nInt
 from scipy.optimize import leastsq
@@ -666,7 +667,8 @@ rotMatOfExpMap = rotMatOfExpMap_opt
 @numba_njit_if_available(cache=True, nogil=True)
 def _rotmatofquat(quat):
     n = quat.shape[1]
-    rmat = zeros((n, 3, 3), dtype='float64')
+    # FIXME: maybe preallocate for speed?
+    # R = zeros(n*3*3, dtype='float64')
 
     a = np.ascontiguousarray(quat[0, :]).reshape(n, 1)
     b = np.ascontiguousarray(quat[1, :]).reshape(n, 1)
