@@ -584,7 +584,8 @@ class LeBailCalibrator:
         if self.lpcorrection:
             hpol, vpol = self.polarization
             for dname, det in self.instrument.detectors.items():
-                lp = det.lorentz_polarization_factor(hpol, vpol)
+                lp = det.polarization_factor(hpol, vpol) *\
+                det.lorentz_factor()
                 imd[dname] = imd[dname] / lp
 
         return imd
