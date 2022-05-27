@@ -2018,7 +2018,8 @@ class HEDMInstrument(object):
             _pixel_tth_gradient,
             _pixel_eta_gradient,
             _pixel_solid_angles,
-            _lorentz_polarization_factor,
+            _polarization_factor,
+            _lorentz_factor,
         ]
 
         min_size = len(self.detectors)
@@ -2414,9 +2415,9 @@ class PlanarDetector(object):
     # METHODS
     # =========================================================================
 
-    def lorentz_polarization_factor(self, f_hor, f_vert, unpolarized=False):
+    def polarization_factor(self, f_hor, f_vert, unpolarized=False):
         """
-        Calculated the lorentz polarization factor for every pixel.
+        Calculated the polarization factor for every pixel.
 
         Parameters
         ----------
@@ -2452,7 +2453,31 @@ class PlanarDetector(object):
         tth, eta = self.pixel_angles()
         args = (tth, eta, f_hor, f_vert, unpolarized)
 
-        return _lorentz_polarization_factor(*args)
+        return _polarization_factor(*args)
+
+    def lorentz_factor(self):
+        """
+        calculate the lorentz factor for every pixel
+
+        Parameters
+        ----------
+        None
+
+        Raises
+        ------
+        None
+
+        Returns
+        -------
+        numpy.ndarray
+            returns an array the same size as the detector panel
+            with each element containg the lorentz factor of the
+            corresponding pixel
+        """
+        tth, eta = self.pixel_angles()
+        args = (tth,)
+
+        return _lorentz_factor(*args)
 
     def config_dict(self, chi=0, tvec=ct.zeros_3,
                     beam_energy=beam_energy_DFLT, beam_vector=ct.beam_vec,
@@ -4114,11 +4139,13 @@ def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
 
 
 @memoize
-def _lorentz_polarization_factor(tth, eta, f_hor, f_vert, unpolarized):
+def _polarization_factor(tth, eta, f_hor, f_vert, unpolarized):
     """
     06/14/2021 SS adding lorentz polarization factor computation
     to the detector so that it can be compenstated for in the
     intensity correction
+
+    05/26/2022 decoupling lorentz factor from polarization factor
 
     parameters: tth two theta of every pixel in radians
                 eta azimuthal angle of every pixel
@@ -4138,14 +4165,31 @@ def _lorentz_polarization_factor(tth, eta, f_hor, f_vert, unpolarized):
     seta2 = np.sin(eta)**2
     ceta2 = np.cos(eta)**2
 
-    L = 1./(4.0*cth*sth2)
     if unpolarized:
         P = (1. + ctth2)/2.
     else:
         P = f_hor*(seta2 + ceta2*ctth2) + f_vert*(ceta2 + seta2*ctth2)
 
-    return L*P
+    return P
 
+@memoize
+def _lorentz_factor(tth):
+    """
+    05/26/2022 SS adding lorentz factor computation
+    to the detector so that it can be compenstated for in the
+    intensity correction
+
+    parameters: tth two theta of every pixel in radians
+    """
+
+    theta = 0.5*tth
+
+    cth = np.cos(theta)
+    sth2 = np.sin(theta)**2
+
+    L = 1./(4.0*cth*sth2)
+
+    return L
 
 def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
     # mark pixels in the spec'd tth range
