@@ -412,18 +412,9 @@ class PowderCalibrator(object):
                     apply_distortion=True
                 )
 
-                '''
-                # !!! apply tth distortion
-                if panel.tth_distortion is not None:
-                    eval_pts = panel.cartToPixel(
-                        meas_xy,
-                        pixels=True,
-                        apply_distortion=True
-                    )
-                    updated_angles[:, 0] = \
-                        updated_angles[:, 0] \
-                        + panel.tth_distortion[eval_pts[:, 0], eval_pts[:, 1]]
-                '''
+                # apply tth distortion
+                if tth_distortion is not None:
+
 
                 # derive ideal tth positions from additional ring point info
                 hkls = pdata[:, 3:6]
