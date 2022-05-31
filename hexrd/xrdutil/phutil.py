@@ -128,7 +128,7 @@ def tth_corr_sample_layer(detector, xy_pts,
     if return_nominal:
         return np.vstack([ref_tth - tth_corr, ref_angs[:, 1]]).T
     else:
-        return np.vstack([tth_corr, ref_angs[:, 1]]).T
+        return np.vstack([-tth_corr, ref_angs[:, 1]]).T
 
 
 def tth_corr_map_pinhole_layer(instrument,
