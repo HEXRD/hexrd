@@ -735,9 +735,9 @@ class Material_Rietveld:
         self.multiplicity = multiplicity
 
         # interpolation tables and anomalous form factors
-        self.f1 = material_obj.unitcell.f1
-        self.f2 = material_obj.unitcell.f2
-        self.f_anam = material_obj.unitcell.f_anam
+        # self.f1 = material_obj.unitcell.f1
+        # self.f2 = material_obj.unitcell.f2
+        # self.f_anam = material_obj.unitcell.f_anam
 
         # final step is to calculate the asymmetric positions in
         # the unit cell
