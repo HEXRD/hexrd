@@ -666,7 +666,7 @@ class unitcell:
         initialize interpolation from table for anomalous scattering
         '''
         self.InitializeInterpTable()
-        self.CalcAnomalous()
+        # self.CalcAnomalous()
         self.CalcPositions()
         self.CalcDensity()
         self.calc_absorption_length()
@@ -734,6 +734,7 @@ class unitcell:
     def InitializeInterpTable(self):
 
         f_anomalous_data = []
+        self.pe_cs = {}
         data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
         with h5py.File(data, 'r') as fid:
             for i in range(0, self.atom_ntype):
@@ -742,6 +743,7 @@ class unitcell:
                 elem = constants.ptableinverse[Z]
                 gid = fid.get('/'+elem)
                 data = np.array(gid.get('data'))
+                self.pe_cs[elem] = interp1d(data[:, 7], data[:, 3])
                 data = data[:, [7, 1, 2]]
                 f_anomalous_data.append(data)
 
@@ -1631,7 +1633,7 @@ class unitcell:
                                                   self._supergroup,
                                                   self._supergroup_laue)
         self.CalcDensity()
-        # self.calc_absorption_length()
+        self.calc_absorption_length()
 
     @property
     def atom_pos(self):
