@@ -1,5 +1,6 @@
 """Abstract Base Class"""
-import collections
+import collections.abc
 
-class ImageSeriesABC(collections.Sequence):
+
+class ImageSeriesABC(collections.abc.Sequence):
     pass
