@@ -2,9 +2,10 @@
 
 For use by adapter classes.
 """
-import collections
+import collections.abc
 
-class ImageSeriesIterator(collections.Iterator):
+
+class ImageSeriesIterator(collections.abc.Iterator):
 
     def __init__(self, iterable):
         self._iterable = iterable
