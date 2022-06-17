@@ -399,6 +399,7 @@ class Material(object):
         self.unitcell.remove_duplicate_atoms()
         self.atominfo = self.unitcell.atom_pos
         self.atomtype = self.unitcell.atom_type
+        self.charge = self.unitcell.chargestates
         self._hkls_changed()
 
     def _readCif(self, fcif=DFLT_NAME+'.cif'):
@@ -827,16 +828,6 @@ class Material(object):
     def U(self, Uarr):
         Uarr = numpy.array(Uarr)
         self._U = Uarr
-        # self.unitcell.U = Uarr
-        # if self.unitcell.U.shape == Uarr.shape:
-        #     if not numpy.allclose(self.unitcell.U, Uarr):
-        #         self.unitcell.U = Uarr
-        #         self.update_structure_factor()
-        #     else:
-        #         return
-        # else:
-        #     self.unitcell.U = Uarr
-        #     self.update_structure_factor()
 
     # property:  sgnum
     def _get_sgnum(self):
