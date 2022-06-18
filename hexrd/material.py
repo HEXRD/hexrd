@@ -397,6 +397,9 @@ class Material(object):
         factors etc.
         """
         self.unitcell.remove_duplicate_atoms()
+        self.atominfo = self.unitcell.atom_pos
+        self.atomtype = self.unitcell.atom_type
+        self.charge = self.unitcell.chargestates
         self._hkls_changed()
 
     def _readCif(self, fcif=DFLT_NAME+'.cif'):
@@ -825,16 +828,6 @@ class Material(object):
     def U(self, Uarr):
         Uarr = numpy.array(Uarr)
         self._U = Uarr
-        # self.unitcell.U = Uarr
-        # if self.unitcell.U.shape == Uarr.shape:
-        #     if not numpy.allclose(self.unitcell.U, Uarr):
-        #         self.unitcell.U = Uarr
-        #         self.update_structure_factor()
-        #     else:
-        #         return
-        # else:
-        #     self.unitcell.U = Uarr
-        #     self.update_structure_factor()
 
     # property:  sgnum
     def _get_sgnum(self):
@@ -990,11 +983,11 @@ class Material(object):
     # property: "atominfo"
 
     def _get_atominfo(self):
-        """Set method for name"""
+        """get method for name"""
         return self._atominfo
 
     def _set_atominfo(self, v):
-        """Set method for name"""
+        """set method for name"""
         if v.ndim != 2:
             raise ValueError("input must be 2-d.")
         if v.shape[1] != 4:
@@ -1008,36 +1001,11 @@ class Material(object):
 
     # property: "atomtype"
     def _get_atomtype(self):
-        """Set method for name"""
+        """get method for name"""
         return self._atomtype
 
     def _set_atomtype(self, v):
-        """Set method for atomtype"""
-        """
-        check to make sure number of atoms here is same as
-        the atominfo
-        """
-        # if isinstance(v, list):
-        #     if len(v) != self.natoms:
-        #         raise ValueError("incorrect number of atoms")
-        # elif isinstance(v, numpy.ndarray):
-        #     if v.ndim != 1:
-        #         if v.shape[0] != self.natoms:
-        #             raise ValueError("incorrect number of atoms")
-
-        # v = numpy.array(v)
-        # if self._atomtype.shape == v.shape:
-        #     if not numpy.allclose(self._atomtype, v):
-        #         self._atomtype = numpy.array(v)
-        #         s#elf._newUnitcell()
-        #         #self.update_structure_factor()
-
-        #     else:
-        #         return
-        # else:
-        #     self._atomtype = numpy.array(v)
-        # self._newUnitcell()
-        # self.update_structure_factor()
+        """set method for atomtype"""
         self._atomtype = v
 
     atomtype = property(
