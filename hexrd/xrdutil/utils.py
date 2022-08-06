@@ -496,6 +496,7 @@ class EtaOmeMaps(object):
         planeData_args = ome_eta['planeData_args']
         planeData_hkls = ome_eta['planeData_hkls']
         self.planeData = PlaneData(planeData_hkls, *planeData_args)
+        self.planeData.exclusions = ome_eta['planeData_excl']
         self.dataStore = ome_eta['dataStore']
         self.iHKLList = ome_eta['iHKLList']
         self.etaEdges = ome_eta['etaEdges']
@@ -527,7 +528,8 @@ class EtaOmeMaps(object):
                      'omegas': eta_ome.omegas,
                      'omeEdges': eta_ome.omeEdges,
                      'planeData_args': args,
-                     'planeData_hkls': hkls}
+                     'planeData_hkls': hkls,
+                     'planeData_excl': eta_ome.planeData.exclusions}
         np.savez_compressed(filename, **save_dict)
     pass  # end of class: EtaOmeMaps
 

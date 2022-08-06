@@ -218,12 +218,6 @@ class OrientationMapsConfig(Config):
         return temp
 
     @property
-    def explicit_hkls(self):
-        return self._cfg.get(
-            'find_orientations:orientation_maps:explicit_hkls', default=1
-            )
-
-    @property
     def bin_frames(self):
         return self._cfg.get(
             'find_orientations:orientation_maps:bin_frames', default=1
