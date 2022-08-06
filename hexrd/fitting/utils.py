@@ -1,3 +1,5 @@
+import fnmatch
+
 import numpy as np
 
 from hexrd.constants import (
@@ -17,7 +19,8 @@ def _parameter_arg_constructor(pdict, pargs):
 
 
 def _extract_parameters_by_name(params, pname_root):
-    return [s for s in params.keys() if s.__contains__(pname_root)]
+    # return [s for s in params.keys() if s.__contains__(pname_root)]
+    return fnmatch.filter(list(params.keys()), pname_pattern)
 
 
 def _set_refinement_by_name(params, pname_root, vary=True):
