@@ -1092,6 +1092,7 @@ class HEDMInstrument(object):
         TODO: streamline projection code
         TODO: normalization
         !!!: images must be non-negative!
+        !!!: plane_data is NOT a copy!
         """
         if tth_tol is not None:
             plane_data.tThWidth = np.radians(tth_tol)
@@ -1114,7 +1115,24 @@ class HEDMInstrument(object):
         if active_hkls is not None:
             assert hasattr(active_hkls, '__len__'), \
                 "active_hkls must be an iterable with __len__"
-            tth_ranges = tth_ranges[active_hkls]
+
+            # need to re-cast for element-wise operations
+            active_hkls = np.array(active_hkls)
+
+            # these are all active reflection unique hklIDs
+            active_hklIDs = plane_data.getHKLID(
+                plane_data.hkls, master=True
+            )
+
+            # find indices
+            idx = np.zeros_like(active_hkls, dtype=int)
+            for i, input_hklID in enumerate(active_hkls):
+                try:
+                    idx[i] = np.where(active_hklIDs == input_hklID)[0]
+                except(ValueError):
+                    raise RuntimeError(f"hklID '{input_hklID}' is invalid")
+            tth_ranges = tth_ranges[idx]
+            pass  # end of active_hkls handling
 
         delta_eta = eta_edges[1] - eta_edges[0]
         ncols_eta = len(eta_edges) - 1
@@ -3867,9 +3885,13 @@ class GenerateEtaOmeMaps(object):
         # ???: change name of iHKLList?
         # ???: can we change the behavior of iHKLList?
         if active_hkls is None:
-            n_rings = len(plane_data.getTTh())
-            self._iHKLList = range(n_rings)
+            self._iHKLList = plane_data.getHKLID(
+                plane_data.hkls, master=True
+            )
+            n_rings = len(self._iHKLList)
         else:
+            assert hasattr(active_hkls, '__len__'), \
+                "active_hkls must be an iterable with __len__"
             self._iHKLList = active_hkls
             n_rings = len(active_hkls)
 
