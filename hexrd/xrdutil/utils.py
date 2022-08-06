@@ -519,7 +519,7 @@ class EtaOmeMaps(object):
         """
         args = np.array(eta_ome.planeData.getParams(), dtype=object)[:4]
         args[2] = valWUnit('wavelength', 'length', args[2], 'angstrom')
-        hkls = eta_ome.planeData.hkls
+        hkls = np.vstack([i['hkl'] for i in eta_ome.planeData.hklDataList]).T
         save_dict = {'dataStore': eta_ome.dataStore,
                      'etas': eta_ome.etas,
                      'etaEdges': eta_ome.etaEdges,
