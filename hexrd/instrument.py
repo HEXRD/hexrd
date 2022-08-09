@@ -3888,8 +3888,10 @@ class GenerateEtaOmeMaps(object):
         if this_det_ims.omegawedges.nwedges > 1:
             delta_omes = [(i['ostop'] - i['ostart'])/i['nsteps']
                           for i in this_det_ims.omegawedges.wedges]
-            assert len(np.unique(delta_omes)) == 1, \
-                "all wedges must have the same delta omega"
+            check_wedges = mutil.uniqueVectors(np.atleast_2d(delta_omes),
+                                               tol=1e-6).squeeze()
+            assert len(check_wedges) == 1, \
+                "all wedges must have the same delta omega to 1e-6"
             # grab representative delta ome
             # !!! assuming positive delta consistent with OmegaImageSeries
             delta_ome = delta_omes[0]
