@@ -12,7 +12,7 @@ install_reqs = [
     'h5py',
     'lmfit',
     'numba',
-    'numpy<1.22',
+    'numpy<1.23',
     'psutil',
     'pycifrw',
     'pyyaml',
