@@ -210,6 +210,7 @@ class GE_41RT(DistortionABC, metaclass=_RegisterDistortionClass):
         if self.is_trivial:
             return xy_in
         else:
+            xy_in = np.asarray(xy_in, dtype=float)
             xy_out = np.empty_like(xy_in)
             _ge_41rt_distortion(
                 xy_out, xy_in, float(RHO_MAX), np.asarray(self.params)
@@ -220,6 +221,7 @@ class GE_41RT(DistortionABC, metaclass=_RegisterDistortionClass):
         if self.is_trivial:
             return xy_in
         else:
+            xy_in = np.asarray(xy_in, dtype=float)
             xy_out = np.empty_like(xy_in)
             _ge_41rt_inverse_distortion(
                 xy_out, xy_in, float(RHO_MAX), np.asarray(self.params)
