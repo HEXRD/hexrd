@@ -126,7 +126,7 @@ class Comparison:
 
         def compare(self):
             """Compare whether maps are same or not"""
-            same = self.eta()[0] and self.hkl_indices()[0] and self.data()[0]
+            same = self.eta()[0] and self.omega()[0] and self.data()[0]
             return same
 
         def eta(self):
@@ -144,6 +144,24 @@ class Comparison:
                 return True, "eta: same"
             else:
                 msg = "eta: norm of difference: %s" % nrmdiff
+                logging.info(msg)
+                return False, msg
+
+        def omega(self):
+            """compare omegas"""
+            omega1 = self.e1.omega
+            omega2 = self.e2.omega
+            l1, l2 = len(omega1), len(omega2)
+            if l1 != l2:
+                msg = "omega: lengths differ: %d and %d" % (l1, l2)
+                logging.info(msg)
+                return False, msg
+
+            nrmdiff = np.linalg.norm(omega1 - omega2)
+            if nrmdiff < self.tol:
+                return True, "omega: same"
+            else:
+                msg = "omega: norm of difference: %s" % nrmdiff
                 logging.info(msg)
                 return False, msg
 
