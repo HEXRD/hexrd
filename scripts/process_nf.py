@@ -18,7 +18,6 @@ import os
 import logging
 
 
-#from hexrd.grainmap import nfutil
 from hexrd.grainmap import nfutil
 
 try:
@@ -127,6 +126,8 @@ beam_stop_width=0.6 #mm, width of the beam stop verticallu
 beam_stop_parms=np.array([beam_stop_y_cen,beam_stop_width])
 
 
+max_RAM = 256 #max amount of memory to available in GB
+
 ##### multiprocessing controller parameters
 check=None
 limit=None
@@ -207,7 +208,31 @@ image_stack=nfutil.gen_nf_cleaned_image_stack(data_folder,img_nums,dark,experime
                                               process_args=process_args,threshold=img_threshold,ome_dilation_iter=ome_dilation_iter,num_digits=6,stem=stem)
 
     
-    
+#==============================================================================
+# %% NEAR FIELD - splitting
+#==============================================================================
+
+max_RAM = 1  # in GB
+RAM = max_RAM * 1e9  # turn into number of bytes
+
+RAM_to_use = 0.75 * RAM
+
+n_oris = len(nf_to_ff_id_map)
+n_voxels = len(test_crds)
+
+bits_for_arrays = 64*n_oris*n_voxels + 192 * \
+    n_voxels  # bits raw conf + bits voxel positions
+bytes_for_array = bits_for_arrays/8.
+
+n_groups = np.floor(bytes_for_array/RAM_to_use)  # number of full groups
+leftover_voxels = np.mod(n_voxels, n_groups)
+
+print('Splitting data into %d groups with %d leftover voxels' %(int(n_groups),int(leftover_voxels))
+
+
+grouped_voxels = n_voxels - leftover_voxels
+
+voxels_per_group = grouped_voxels/n_groups 
     
 #==============================================================================
 # %% BUILD MP CONTROLLER
@@ -230,22 +255,69 @@ controller=nfutil.build_controller(ncpus=ncpus,chunk_size=chunk_size,check=check
 #packed_image_stack = nfutil.dilate_image_stack(image_stack, experiment,controller)
 
 print('Testing Orientations...')
-raw_confidence=nfutil.test_orientations(image_stack, experiment,test_crds,controller,multiprocessing_start_method)    
- 
+
+#%% Test orientations in groups
+
+
+if n_groups == 0:
+    raw_confidence = nfutil.test_orientations(
+        image_stack, experiment, test_crds, controller, multiprocessing_start_method)
+
+    del controller
+
+    raw_confidence_full = np.zeros(
+        [len(experiment.exp_maps), len(test_crds_full)])
+
+    for ii in np.arange(raw_confidence_full.shape[0]):
+        raw_confidence_full[ii, to_use] = raw_confidence[ii, :]
+
+
+else:
+
+    grain_map_list = np.zeros(n_voxels)
+    confidence_map_list = np.zeros(n_voxels)
+
+    # test voxels in groups
+    for abcd in range(int(n_groups)):
+        voxels_to_test = test_crds[int(
+            abcd) * int(voxels_per_group):int(abcd + 1) * int(voxels_per_group), :]
+        print('Calculating group %d' % abcd)
+        raw_confidence = nfutil.test_orientations(
+            image_stack, experiment, voxels_to_test, controller, multiprocessing_start_method)
+        print('Calculated raw confidence group %d' % abcd)
+        grain_map_group_list, confidence_map_group_list = nfutil.process_raw_confidence(
+            raw_confidence, id_remap=nf_to_ff_id_map, min_thresh=0.0)
+
+        grain_map_list[int(
+            abcd) * int(voxels_per_group):int(abcd + 1) * int(voxels_per_group)] = grain_map_group_list
+
+        confidence_map_list[int(
+            abcd) * int(voxels_per_group):int(abcd + 1) * int(voxels_per_group)] = confidence_map_group_list
+
+    #now for the leftover voxels
+    voxels_to_test = test_crds[int(
+        n_groups) * int(voxels_per_group):, :]
+    raw_confidence = nfutil.test_orientations(
+        image_stack, experiment, voxels_to_test, controller, multiprocessing_start_method)
+    grain_map_group_list, confidence_map_group_list = nfutil.process_raw_confidence(
+        raw_confidence, id_remap=nf_to_ff_id_map, min_thresh=0.0)
+
+    grain_map_list[int(
+        n_groups) * int(voxels_per_group):] = grain_map_group_list
+
+    confidence_map_list[int(
+        n_groups) * int(voxels_per_group):] = confidence_map_group_list
+    
+    #reshape them
+    grain_map = grain_map_list.reshape(Xs.shape)
+    confidence_map = confidence_map_list.reshape(Xs.shape)
+
+
 
 del controller 
   
 
 
-#==============================================================================
-# %% PUT IT ALL BACK TOGETHER
-#==============================================================================
-
-# note that all masking 
-raw_confidence_full=np.zeros([len(experiment.exp_maps),len(test_crds_full)])
-
-for ii in np.arange(raw_confidence_full.shape[0]):
-    raw_confidence_full[ii,to_use]=raw_confidence[ii,:]
 
     
 #==============================================================================
