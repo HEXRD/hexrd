@@ -57,6 +57,11 @@ jobs:
       run: echo 'SETUPTOOLS_USE_DISTUTILS=stdlib' >> $GITHUB_ENV
       if: ${{ matrix.config.os == 'windows-latest'}}
 
+    - name: Pin fabio to 0.12 on the Mac ( as binary wheel is available )
+      run: |
+          pip install fabio==0.12
+      if: ${{ matrix.config.os == 'macos-latest'}}
+
     - name: Install HEXRD
       run: |
           pip install .
