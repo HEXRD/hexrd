@@ -446,7 +446,7 @@ def angle_in_range(angle, ranges, ccw=True, units='degrees'):
 
 # ???: move to gridutil?
 def centers_of_edge_vec(edges):
-    assert np.r_[edges].ndim == 1, "edges must be 1-d"
+    assert np.asarray(edges).ndim == 1, "edges must be 1-d"
     return np.average(np.vstack([edges[:-1], edges[1:]]), axis=0)
 
 
@@ -608,6 +608,8 @@ class HEDMInstrument(object):
                  max_workers=max_workers_DFLT):
         self._id = instrument_name_DFLT
 
+        self._source_distance = None
+
         if eta_vector is None:
             self._eta_vector = eta_vec_DFLT
         else:
@@ -631,6 +633,7 @@ class HEDMInstrument(object):
                     tvec=t_vec_d_DFLT,
                     tilt=tilt_params_DFLT,
                     bvec=self._beam_vector,
+                    xrs_dist=self._source_distance,
                     evec=self._eta_vector,
                     distortion=None,
                     roi=None,
@@ -655,12 +658,21 @@ class HEDMInstrument(object):
                     self._id = instrument_config['id']
             else:
                 self._id = instrument_name
+
             self._num_panels = len(instrument_config['detectors'])
-            self._beam_energy = instrument_config['beam']['energy']  # keV
+
+            xrs_config = instrument_config['beam']
+            self._beam_energy = xrs_config['energy']  # keV
             self._beam_vector = calc_beam_vec(
-                instrument_config['beam']['vector']['azimuth'],
-                instrument_config['beam']['vector']['polar_angle'],
+                xrs_config['vector']['azimuth'],
+                xrs_config['vector']['polar_angle'],
                 )
+
+            if 'source_distance' in xrs_config:
+                xrsd = xrs_config['source_distance']
+                assert xrsd is None or np.isscalar(xrsd), \
+                    "'source_distance' must be None or a scalar"
+                self._source_distance = xrsd
 
             # now build detector dict
             detectors_config = instrument_config['detectors']
@@ -723,6 +735,7 @@ class HEDMInstrument(object):
                         tvec=affine_info['translation'],
                         tilt=affine_info['tilt'],
                         bvec=self._beam_vector,
+                        xrs_dist=self._source_distance,
                         evec=self._eta_vector,
                         distortion=distortion,
                         roi=roi,
@@ -859,10 +872,24 @@ class HEDMInstrument(object):
             self._beam_vector = calc_beam_vec(*x)
         else:
             raise RuntimeError("input must be a unit vector or angle pair")
-        # ...maybe change dictionary item behavior for 3.x compatibility?
-        for detector_id in self.detectors:
-            panel = self.detectors[detector_id]
+
+        # reset on all detectors
+        for panel in self.detectors.values():
             panel.bvec = self._beam_vector
+
+    @property
+    def source_distance(self):
+        return self._source_distance
+
+    @source_distance.setter
+    def source_distance(self, x):
+        assert x is None or np.isscalar(x), \
+            f"'source_distance' must be None or scalar; you input '{x}'"
+        self._source_distance = x
+
+        # reset on all detectors
+        for panel in self.detectors.values():
+            panel.xrs_dist = self._source_distance
 
     @property
     def eta_vector(self):
@@ -982,6 +1009,9 @@ class HEDMInstrument(object):
                 polar_angle=pola,
             )
         )
+        if self.source_distance is not None:
+            beam['source_distance'] = self.source_distance
+
         par_dict['beam'] = beam
 
         if calibration_dict:
@@ -2045,6 +2075,7 @@ class PlanarDetector(object):
                  tilt=ct.zeros_3,
                  name='default',
                  bvec=ct.beam_vec,
+                 xrs_dist=None,
                  evec=ct.eta_vec,
                  saturation_level=None,
                  panel_buffer=None,
@@ -2115,6 +2146,8 @@ class PlanarDetector(object):
         self._tilt = np.array(tilt).flatten()
 
         self._bvec = np.array(bvec).flatten()
+        self._xrs_dist = xrs_dist
+
         self._evec = np.array(evec).flatten()
 
         self._distortion = distortion
@@ -2308,6 +2341,16 @@ class PlanarDetector(object):
         assert len(x) == 3 and sum(x*x) > 1-ct.sqrt_epsf, \
             'input must have length = 3 and have unit magnitude'
         self._bvec = x
+
+    @property
+    def xrs_dist(self):
+        return self._xrs_dist
+
+    @xrs_dist.setter
+    def xrs_dist(self, x):
+        assert x is None or np.isscalar(x), \
+            f"'source_distance' must be None or scalar; you input '{x}'"
+        self._xrs_dist = x
 
     @property
     def evec(self):
@@ -4156,11 +4199,6 @@ def _polarization_factor(tth, eta, f_hor, f_vert, unpolarized):
     notice f_hor + f_vert = 1
     """
 
-    theta = 0.5*tth
-
-    cth = np.cos(theta)
-    sth2 = np.sin(theta)**2
-
     ctth2 = np.cos(tth)**2
     seta2 = np.sin(eta)**2
     ceta2 = np.cos(eta)**2
@@ -4171,6 +4209,7 @@ def _polarization_factor(tth, eta, f_hor, f_vert, unpolarized):
         P = f_hor*(seta2 + ceta2*ctth2) + f_vert*(ceta2 + seta2*ctth2)
 
     return P
+
 
 @memoize
 def _lorentz_factor(tth):
@@ -4190,6 +4229,7 @@ def _lorentz_factor(tth):
     L = 1./(4.0*cth*sth2)
 
     return L
+
 
 def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
     # mark pixels in the spec'd tth range

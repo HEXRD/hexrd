@@ -437,6 +437,7 @@ class PowderCalibrator(object):
 
                 # apply tth distortion
                 if self.tth_distortion is not None:
+                    # !!! sd has ref to detector so is updated
                     sd = self.tth_distortion[det_key]
                     tmp = sd.apply(meas_xy, return_nominal=False)
                     corr_angs = tmp + np.vstack([tth0, np.zeros_like(tth0)]).T
@@ -445,11 +446,6 @@ class PowderCalibrator(object):
 
                 # map updated (tth0, eta0) back to cartesian coordinates
                 tth_eta = np.vstack([tth0, eta0]).T
-                calc_xy = panel.angles_to_cart(
-                    tth_eta,
-                    tvec_s=self.instr.tvec,
-                    apply_distortion=True
-                )
 
                 # output
                 if output == 'residual':
@@ -462,6 +458,11 @@ class PowderCalibrator(object):
                         updated_angles[:, 0].flatten() - tth0.flatten()
                     )
                 elif output == 'model':
+                    calc_xy = panel.angles_to_cart(
+                        tth_eta,
+                        tvec_s=self.instr.tvec,
+                        apply_distortion=True
+                    )
                     retval = np.append(
                         retval,
                         calc_xy.flatten()
