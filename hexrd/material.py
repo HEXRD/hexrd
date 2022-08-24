@@ -601,7 +601,7 @@ class Material(object):
                 c = s[-2:]
                 if c[0] == '+':
                     c = c[::-1]
-            if "-" in s:
+            elif "-" in s:
                 ss = s[:-2]
                 c = s[-2:]
                 if c[0] == '-':
