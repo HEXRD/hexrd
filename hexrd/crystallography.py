@@ -1168,50 +1168,160 @@ class PlaneData(object):
                 multip.append(hklData['symHKLs'].shape[1])
         return np.array(multip)
 
-    def getHKLID(self, hkl):
-        'can call on a single hkl or list of hkls'
+    def getHKLID(self, hkl, master=False):
+        """
+        Return the unique ID of a list of hkls.
+
+        Parameters
+        ----------
+        hkl : int | tuple | list | numpy.ndarray
+            The input hkl.  If an int, or a list of ints, it just passes
+            through (FIXME).
+            If a tuple, treated as a single (h, k, l).
+            If a list of lists/tuples, each is treated as an (h, k, l).
+            If an numpy.ndarray, it is assumed to have shape (3, N) with the
+            N (h, k, l) vectors stacked column-wise
+
+        master : bool, optional
+            If True, return the master hklID, else return the index from the
+            external (sorted and reduced) list.
+
+        Returns
+        -------
+        retval : list
+            The list of requested hklID values associate with the input.
+
+        Notes
+        -----
+        TODO: revisit this weird API???
+
+        Changes:
+        -------
+        2020-05-21 (JVB) -- modified to handle all symmetric equavlent reprs.
+        """
         if hasattr(hkl, '__setitem__'):  # tuple does not have __setitem__
             if hasattr(hkl, 'shape'):
-                'if is ndarray, assume is 3xN'
-                retval = list(map(self.__getHKLID, hkl.T))
+                # if is ndarray, assume is 3xN
+                # retval = list(map(self.__getHKLID, hkl.T))
+                retval = [self.__getHKLID(x, master=master) for x in hkl.T]
             else:
-                retval = list(map(self.__getHKLID, hkl))
+                # retval = list(map(self.__getHKLID, hkl))
+                retval = [self.__getHKLID(x, master=master) for x in hkl]
         else:
-            retval = self.__getHKLID(hkl)
+            retval = self.__getHKLID(hkl, master=master)
         return retval
 
-    def __getHKLID(self, hkl):
+    def __getHKLID(self, hkl, master=False):
         """
         for hkl that is a tuple, return externally visible hkl index
         """
         if isinstance(hkl, int):
             retval = hkl
         else:
-            hklList = self.getSymHKLs()  # !!! list
+            hklList = self.getSymHKLs()  # !!! list, reduced by exclusions
+            intl_hklIDs = np.asarray([i['hklID'] for i in self.hklDataList])
+            intl_hklIDs_sorted = intl_hklIDs[~self.exclusions[self.tThSortInv]]
             dHKLInv = {}
             for iHKL, symHKLs in enumerate(hklList):
+                idx = intl_hklIDs_sorted[iHKL] if master else iHKL
                 for thisHKL in symHKLs.T:
-                    dHKLInv[tuple(thisHKL)] = iHKL
-            retval = dHKLInv[tuple(hkl)]
+                    dHKLInv[tuple(thisHKL)] = idx
+            try:
+                retval = dHKLInv[tuple(hkl)]
+            except(KeyError):
+                raise RuntimeError(
+                    f"hkl '{tuple(hkl)}' is not present in this material!"
+                )
         return retval
 
-    def getHKLs(self, asStr=False, thisTTh=None, allHKLs=False):
+    def getHKLs(self, *hkl_ids, **kwargs):
         """
-        if pass thisTTh, then only return hkls overlapping the specified
-        2-theta; if set allHKLs to true, the ignore exlcusions, tThMax, etc
+        Returns the powder HKLs subject to specified options.
+
+        Parameters
+        ----------
+        *hkl_ids : int
+            Optional list of specific master hklIDs.
+        **kwargs : dict
+            One or more of the following keyword arguments:
+                asStr : bool
+                    If True, return a list of strings.  The default is False.
+                thisTTh : scalar | None
+                    If not None, only return hkls overlapping the specified
+                    2-theta (in radians).  The default is None.
+                allHKLs : bool
+                    If True, then ignore exlcusions.  The default is False.
+
+        Raises
+        ------
+        TypeError
+            If an unknown kwarg is passed.
+        RuntimeError
+            If an invalid hklID is passed.
+
+        Returns
+        -------
+        retval : list | numpy.ndarray
+            Either a list of hkls as strings (if asStr=True) or a vstacked
+            array of hkls.
+
+        Notes
+        -----
+        !!! the shape of the return value when asStr=False is the _transpose_
+            of the typical return value for self.get_hkls() and self.hkls!
+            This _may_ change to avoid confusion, but going to leave it for
+            now so as not to break anything.
+
+        2022/08/05 JVB:
+            - Added functionality to handle optional hklID args
+            - Updated docstring
         """
+        # kwarg parsing
+        opts = dict(asStr=False, thisTTh=None, allHKLs=False)
+        if len(kwargs) > 0:
+            # check keys
+            for k, v in kwargs.items():
+                if k not in opts:
+                    raise TypeError(
+                        f"getHKLs() got an unexpected keyword argument '{k}'"
+                    )
+            opts.update(kwargs)
+
         hkls = []
-        for iHKLr, hklData in enumerate(self.hklDataList):
-            if not allHKLs:
-                if not self.__thisHKL(iHKLr):
-                    continue
-            if thisTTh is not None:
-                tThLo, tThHi = self.__getTThRange(iHKLr)
-                if thisTTh < tThHi and thisTTh > tThLo:
+        if len(hkl_ids) == 0:
+            for iHKLr, hklData in enumerate(self.hklDataList):
+                if not opts['allHKLs']:
+                    if not self.__thisHKL(iHKLr):
+                        continue
+                if opts['thisTTh'] is not None:
+                    tThLo, tThHi = self.__getTThRange(iHKLr)
+                    if opts['thisTTh'] < tThHi and opts['thisTTh'] > tThLo:
+                        hkls.append(hklData['hkl'])
+                else:
                     hkls.append(hklData['hkl'])
-            else:
-                hkls.append(hklData['hkl'])
-        if asStr:
+        else:
+            # !!! changing behavior here; if the hkl_id is invalid, raises
+            #     RuntimeError, and if allHKLs=True and the hkl_id is
+            #     excluded, it also raises a RuntimeError
+            all_hkl_ids = np.asarray([i['hklID'] for i in self.hklDataList])
+            sorted_excl = self.exclusions[self.tThSortInv]
+            idx = np.zeros(len(self.hklDataList), dtype=int)
+            for i, hkl_id in enumerate(hkl_ids):
+                # find ordinal index of current hklID
+                try:
+                    idx[i] = int(np.where(all_hkl_ids == hkl_id)[0])
+                except(TypeError):
+                    raise RuntimeError(
+                        f"Requested hklID '{hkl_id}'is invalid!"
+                    )
+                if sorted_excl[idx[i]] and not opts['allHKLs']:
+                    raise RuntimeError(
+                        f"Requested hklID '{hkl_id}' is excluded!"
+                    )
+                hkls.append(self.hklDataList[idx[i]]['hkl'])
+
+        # handle output kwarg
+        if opts['asStr']:
             retval = list(map(hklToStr, np.array(hkls)))
         else:
             retval = np.array(hkls)

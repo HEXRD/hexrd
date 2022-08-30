@@ -84,19 +84,26 @@ def generate_orientation_fibers(cfg, eta_ome):
     logger.info('\tusing "%s" method for fiber generation'
                 % method)
 
-    # seed_hkl_ids must be consistent with this...
+    # crystallography data from the pd object
+    pd = eta_ome.planeData
+    tTh = pd.getTTh()
+    bMat = pd.latVecOps['B']
+    csym = pd.getLaueGroup()
+
+    # !!! changed recently where iHKLList are now master hklIDs
     pd_hkl_ids = eta_ome.iHKLList[seed_hkl_ids]
+    pd_hkl_idx = pd.getHKLID(
+        pd.getHKLs(*eta_ome.iHKLList).T,
+        master=False
+    )
+    seed_hkls = pd.getHKLs(*pd_hkl_ids)
+    seed_tths = tTh[pd_hkl_idx][seed_hkl_ids]
+    logger.info('\tusing seed hkls: %s'
+                % [str(i) for i in seed_hkls])
 
     # grab angular grid infor from maps
     del_ome = eta_ome.omegas[1] - eta_ome.omegas[0]
     del_eta = eta_ome.etas[1] - eta_ome.etas[0]
-
-    # crystallography data from the pd object
-    pd = eta_ome.planeData
-    hkls = pd.hkls
-    tTh = pd.getTTh()
-    bMat = pd.latVecOps['B']
-    csym = pd.getLaueGroup()
 
     params = dict(
         bMat=bMat,
@@ -118,17 +125,12 @@ def generate_orientation_fibers(cfg, eta_ome):
         coms.append(coms_t)
 
     input_p = []
-    for i in range(len(pd_hkl_ids)):
+    for i, (this_hkl, this_tth) in enumerate(zip(seed_hkls, seed_tths)):
         for ispot in range(numSpots[i]):
             if not np.isnan(coms[i][ispot][0]):
                 ome_c = eta_ome.omeEdges[0] + (0.5 + coms[i][ispot][0])*del_ome
                 eta_c = eta_ome.etaEdges[0] + (0.5 + coms[i][ispot][1])*del_eta
-                input_p.append(
-                    np.hstack(
-                        [hkls[:, pd_hkl_ids[i]],
-                         tTh[pd_hkl_ids[i]], eta_c, ome_c]
-                    )
-                )
+                input_p.append(np.hstack([this_hkl, this_tth, eta_c, ome_c]))
                 pass
             pass
         pass
@@ -423,12 +425,11 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
         try:
             res = EtaOmeMaps(fn)
             pd = res.planeData
-            available_hkls = pd.hkls.T
             logger.info('loaded eta/ome orientation maps from %s', fn)
-            hkls = [str(i) for i in available_hkls[res.iHKLList]]
+            shkls = pd.getHKLs(*res.iHKLList, asStr=True)
             logger.info(
                 'hkls used to generate orientation maps: %s',
-                hkls
+                [f'[{i}]' for i in shkls]
             )
         except (AttributeError, IOError):
             logger.info("specified maps file '%s' not found "
@@ -468,29 +469,90 @@ def filter_maps_if_requested(eta_ome, cfg):
 def generate_eta_ome_maps(cfg, hkls=None, save=True):
     """
     Generates the eta-omega maps specified in the input config.
+
+    Parameters
+    ----------
+    cfg : hexrd.config.root.RootConfig
+        A hexrd far-field HEDM config instance.
+    hkls : array_like, optional
+        If not None, an override for the hkls used to generate maps. This can
+        be either a list of unique hklIDs, or a list of [h, k, l] vectors.
+        The default is None.
+    save : bool, optional
+        If True, write map archive to npz format according to path spec in cfg.
+        The default is True.
+
+    Raises
+    ------
+    RuntimeError
+        DESCRIPTION.
+
+    Returns
+    -------
+    eta_ome : TYPE
+        DESCRIPTION.
+
     """
     # extract PlaneData from config and set active hkls
     plane_data = cfg.material.plane_data
 
-    # handle logic for active hkl spec
-    # !!!: default to all hkls defined for material,
-    #      override with
-    #        1) hkls from config, if specified; or
-    #        2) hkls from kwarg, if specified
-    available_hkls = plane_data.hkls.T
-    active_hkls = range(len(available_hkls))
-    temp = cfg.find_orientations.orientation_maps.active_hkls
-    active_hkls = active_hkls if temp == 'all' else temp
-    active_hkls = hkls if hkls is not None else active_hkls
+    # all active hkl ids masked by exclusions
+    active_hklIDs = plane_data.getHKLID(plane_data.hkls, master=True)
+
+    # need the below
+    use_all = False
+
+    # handle optional override
+    if hkls:
+        # overriding hkls are specified
+        hkls = np.asarray(hkls)
+
+        # if input is 2-d list of hkls, convert to hklIDs
+        if hkls.ndim == 2:
+            hkls = plane_data.getHKLID(hkls.tolist(), master=True)
+    else:
+        # handle logic for active hkl spec in config
+        # !!!: default to all hkls defined for material,
+        #      override with hkls from config, if specified;
+        temp = np.asarray(cfg.find_orientations.orientation_maps.active_hkls)
+        if temp.ndim == 0:
+            # !!! this is only possible if active_hkls is None
+            use_all = True
+        elif temp.ndim == 1:
+            # we have hklIDs
+            hkls = temp
+        elif temp.ndim == 2:
+            # we have actual hkls
+            hkls = plane_data.getHKLID(temp.tolist(), master=True)
+        else:
+            raise RuntimeError('active_hkls spec must be 1-d or 2-d, not %d-d'
+                               % temp.ndim)
+
+    # apply some checks to active_hkls specificaton
+    if not use_all:
+        # !!! hkls --> list of hklIDs now
+        # catch duplicates
+        assert len(np.unique(hkls)) == len(hkls), "duplicate hkls specified!"
+
+        # catch excluded hkls
+        excluded = np.zeros_like(hkls, dtype=bool)
+        for i, hkl in enumerate(hkls):
+            if hkl not in active_hklIDs:
+                excluded[i] = True
+        if np.any(excluded):
+            raise RuntimeError(
+                "The following requested hkls are marked as excluded: "
+                + f"{hkls[excluded]}"
+            )
+
+        # ok, now re-assign active_hklIDs
+        active_hklIDs = hkls
 
     # logging output
-    hklseedstr = ', '.join(
-        [str(available_hkls[i]) for i in active_hkls]
-    )
-
+    shkls = plane_data.getHKLs(*active_hklIDs, asStr=True)
     logger.info(
         "building eta_ome maps using hkls: %s",
-        hklseedstr
+        [f'[{i}]' for i in shkls]
     )
 
     # grad imageseries dict from cfg
@@ -504,7 +566,7 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
     # make eta_ome maps
     eta_ome = instrument.GenerateEtaOmeMaps(
         imsd, cfg.instrument.hedm, plane_data,
-        active_hkls=active_hkls,
+        active_hkls=active_hklIDs,
         threshold=cfg.find_orientations.orientation_maps.threshold,
         ome_period=ome_period)
 
@@ -595,16 +657,15 @@ def create_clustering_parameters(cfg, eta_ome):
     # handle omega period
     ome_period, ome_ranges = _process_omegas(imsd)
 
-    active_hkls = cfg.find_orientations.orientation_maps.active_hkls \
-        or eta_ome.iHKLList
+    # grab the active hkl ids
+    # !!! these are master hklIDs
+    active_hkls = eta_ome.iHKLList
 
+    # !!! These are indices into the active hkls
     fiber_seeds = cfg.find_orientations.seed_search.hkl_seeds
 
     # Simulate N random grains to get neighborhood size
-    seed_hkl_ids = [
-        plane_data.hklDataList[active_hkls[i]]['hklID']
-        for i in fiber_seeds
-    ]
+    seed_hkl_ids = active_hkls[fiber_seeds]
 
     # !!! default to use 100 grains
     ngrains = 100

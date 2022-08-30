@@ -154,8 +154,13 @@ def paintGrid(quats, etaOmeMaps,
 
     planeData = etaOmeMaps.planeData
 
-    hklIDs = np.r_[etaOmeMaps.iHKLList]
-    hklList = np.atleast_2d(planeData.hkls[:, hklIDs].T).tolist()
+    # !!! these are master hklIDs
+    hklIDs = np.asarray(etaOmeMaps.iHKLList)
+    hklList = planeData.getHKLs(*hklIDs).tolist()
+    hkl_idx = planeData.getHKLID(
+        planeData.getHKLs(*hklIDs).T,
+        master=False
+    )
     nHKLS = len(hklIDs)
 
     numEtas = len(etaOmeMaps.etaEdges) - 1
@@ -165,11 +170,9 @@ def paintGrid(quats, etaOmeMaps,
         threshold = np.zeros(nHKLS)
         for i in range(nHKLS):
             threshold[i] = np.mean(
-                np.r_[
-                    np.mean(etaOmeMaps.dataStore[i]),
-                    np.median(etaOmeMaps.dataStore[i])
-                    ]
-                )
+                np.r_[np.mean(etaOmeMaps.dataStore[i]),
+                      np.median(etaOmeMaps.dataStore[i])]
+            )
     elif threshold is not None and not hasattr(threshold, '__len__'):
         threshold = threshold * np.ones(nHKLS)
     elif hasattr(threshold, '__len__'):
@@ -229,7 +232,7 @@ def paintGrid(quats, etaOmeMaps,
 
     # Get the symHKLs for the selected hklIDs
     symHKLs = planeData.getSymHKLs()
-    symHKLs = [symHKLs[id] for id in hklIDs]
+    symHKLs = [symHKLs[id] for id in hkl_idx]
     # Restructure symHKLs into a flat NumPy HKL array with
     # each HKL stored contiguously (C-order instead of F-order)
     # symHKLs_ix provides the start/end index for each subarray
