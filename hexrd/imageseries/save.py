@@ -128,6 +128,10 @@ class WriteH5(Writer):
 
         # add metadata
         for k, v in list(self._meta.items()):
+            if np.issubdtype(v.dtype, 'U'):
+                # HDF5 can't handle unicode strings. Turn it into a regular string.
+                v = v.astype('S')
+
             g.attrs[k] = v
 
     @property
