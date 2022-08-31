@@ -104,6 +104,7 @@ instrument_name_DFLT = 'instrument'
 
 beam_energy_DFLT = 65.351
 beam_vec_DFLT = ct.beam_vec
+source_distance_DFLT = np.inf
 
 eta_vec_DFLT = ct.eta_vec
 
@@ -608,7 +609,7 @@ class HEDMInstrument(object):
                  max_workers=max_workers_DFLT):
         self._id = instrument_name_DFLT
 
-        self._source_distance = None
+        self._source_distance = source_distance_DFLT
 
         if eta_vector is None:
             self._eta_vector = eta_vec_DFLT
@@ -670,8 +671,8 @@ class HEDMInstrument(object):
 
             if 'source_distance' in xrs_config:
                 xrsd = xrs_config['source_distance']
-                assert xrsd is None or np.isscalar(xrsd), \
-                    "'source_distance' must be None or a scalar"
+                assert np.isscalar(xrsd), \
+                    "'source_distance' must be a scalar"
                 self._source_distance = xrsd
 
             # now build detector dict
@@ -883,8 +884,8 @@ class HEDMInstrument(object):
 
     @source_distance.setter
     def source_distance(self, x):
-        assert x is None or np.isscalar(x), \
-            f"'source_distance' must be None or scalar; you input '{x}'"
+        assert np.isscalar(x), \
+            f"'source_distance' must be a scalar; you input '{x}'"
         self._source_distance = x
 
         # reset on all detectors
