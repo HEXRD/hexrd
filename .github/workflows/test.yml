@@ -52,8 +52,9 @@ jobs:
       with:
         repository: HEXRD/examples
         path: examples
-        # Note: to be removed once hexrd/hexrd#454 is merged
-        ref: be1efb5664058731368ab425ccab375fcb7bcd13
+        # post hexrd/hexrd#454 ref reverts to default branch
+        # !!! leaving this here in case we pin to a specific examples release
+        # ref: 
 
     - name: Set environment variable to work around setuptools/numpy issue
       run: echo 'SETUPTOOLS_USE_DISTUTILS=stdlib' >> $GITHUB_ENV
