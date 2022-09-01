@@ -225,14 +225,19 @@ bits_for_arrays = 64*n_oris*n_voxels + 192 * \
 bytes_for_array = bits_for_arrays/8.
 
 n_groups = np.floor(bytes_for_array/RAM_to_use)  # number of full groups
-leftover_voxels = np.mod(n_voxels, n_groups)
+
+voxels_per_group = np.floor(n_voxels/n_groups)
+leftover_voxels = n_voxels - (voxels_per_group * n_groups)
+
+
+
+
 
 print('Splitting data into %d groups with %d leftover voxels' %(int(n_groups),int(leftover_voxels))
 
-
-grouped_voxels = n_voxels - leftover_voxels
-
-voxels_per_group = grouped_voxels/n_groups 
+#leftover_voxels = np.mod(n_voxels, n_groups)
+#grouped_voxels = n_voxels - leftover_voxels
+#voxels_per_group = grouped_voxels/n_groups 
     
 #==============================================================================
 # %% BUILD MP CONTROLLER
@@ -278,44 +283,40 @@ else:
     confidence_map_list = np.zeros(n_voxels)
 
     # test voxels in groups
-    for abcd in range(int(n_groups)):
+    for group in range(int(n_groups)):
         voxels_to_test = test_crds[int(
-            abcd) * int(voxels_per_group):int(abcd + 1) * int(voxels_per_group), :]
-        print('Calculating group %d' % abcd)
+            group) * int(voxels_per_group):int(group + 1) * int(voxels_per_group), :]
+        print('Calculating group %d' % group)
         raw_confidence = nfutil.test_orientations(
             image_stack, experiment, voxels_to_test, controller, multiprocessing_start_method)
-        print('Calculated raw confidence group %d' % abcd)
+        print('Calculated raw confidence group %d' % group)
         grain_map_group_list, confidence_map_group_list = nfutil.process_raw_confidence(
             raw_confidence, id_remap=nf_to_ff_id_map, min_thresh=0.0)
 
         grain_map_list[int(
-            abcd) * int(voxels_per_group):int(abcd + 1) * int(voxels_per_group)] = grain_map_group_list
+            group) * int(voxels_per_group):int(group + 1) * int(voxels_per_group)] = grain_map_group_list
 
         confidence_map_list[int(
-            abcd) * int(voxels_per_group):int(abcd + 1) * int(voxels_per_group)] = confidence_map_group_list
+            group) * int(voxels_per_group):int(group + 1) * int(voxels_per_group)] = confidence_map_group_list
 
     #now for the leftover voxels
-    voxels_to_test = test_crds[int(
-        n_groups) * int(voxels_per_group):, :]
-    raw_confidence = nfutil.test_orientations(
-        image_stack, experiment, voxels_to_test, controller, multiprocessing_start_method)
-    grain_map_group_list, confidence_map_group_list = nfutil.process_raw_confidence(
-        raw_confidence, id_remap=nf_to_ff_id_map, min_thresh=0.0)
-
-    grain_map_list[int(
-        n_groups) * int(voxels_per_group):] = grain_map_group_list
-
-    confidence_map_list[int(
-        n_groups) * int(voxels_per_group):] = confidence_map_group_list
+    if leftover_voxels != 0:
+        voxels_to_test = test_crds[int(
+            n_groups) * int(voxels_per_group):, :]
+        raw_confidence = nfutil.test_orientations(
+            image_stack, experiment, voxels_to_test, controller, multiprocessing_start_method)
+        grain_map_group_list, confidence_map_group_list = nfutil.process_raw_confidence(
+            raw_confidence, id_remap=nf_to_ff_id_map, min_thresh=0.0)
+    
+        grain_map_list[int(
+            n_groups) * int(voxels_per_group):] = grain_map_group_list
+    
+        confidence_map_list[int(
+            n_groups) * int(voxels_per_group):] = confidence_map_group_list
     
     #reshape them
     grain_map = grain_map_list.reshape(Xs.shape)
-    confidence_map = confidence_map_list.reshape(Xs.shape)
-
-
-
-del controller 
-  
+    confidence_map = confidence_map_list.reshape(Xs.shape)  
 
 
 
