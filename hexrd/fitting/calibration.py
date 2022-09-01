@@ -50,11 +50,13 @@ class PowderCalibrator(object):
     def __init__(self, instr, plane_data, img_dict, flags,
                  tth_tol=None, eta_tol=0.25,
                  fwhm_estimate=None, min_pk_sep=1e-3, min_ampl=0.,
-                 pktype='pvoigt', bgtype='linear'):
+                 pktype='pvoigt', bgtype='linear',
+                 tth_distortion=None):
         assert list(instr.detectors.keys()) == list(img_dict.keys()), \
             "instrument and image dict must have the same keys"
         self._instr = instr
         self._plane_data = plane_data
+        self._tth_distortion = tth_distortion
         self._fwhm_estimate = fwhm_estimate
         self._min_pk_sep = min_pk_sep
         self._min_ampl = min_ampl
@@ -102,6 +104,15 @@ class PowderCalibrator(object):
         self._plane_data.wavelength = self._instr.beam_energy
         self._plane_data.tThWidth = np.radians(self.tth_tol)
         return self._plane_data
+
+    @property
+    def tth_distortion(self):
+        return self._tth_distortion
+
+    @tth_distortion.setter
+    def tth_distortion(self, x):
+        # FIXME: must check arg against registered classes
+        self._tth_distortion = x
 
     @property
     def img_dict(self):
@@ -412,36 +423,29 @@ class PowderCalibrator(object):
                     apply_distortion=True
                 )
 
-                '''
-                # !!! apply tth distortion
-                if panel.tth_distortion is not None:
-                    eval_pts = panel.cartToPixel(
-                        meas_xy,
-                        pixels=True,
-                        apply_distortion=True
-                    )
-                    updated_angles[:, 0] = \
-                        updated_angles[:, 0] \
-                        + panel.tth_distortion[eval_pts[:, 0], eval_pts[:, 1]]
-                '''
-
                 # derive ideal tth positions from additional ring point info
                 hkls = pdata[:, 3:6]
                 gvecs = np.dot(hkls, bmat.T)
                 dsp0 = 1./np.sqrt(np.sum(gvecs*gvecs, axis=1))
+
+                # updated reference Bragg angles
                 tth0 = 2.*np.arcsin(0.5*wlen/dsp0)
 
                 # !!! get eta from mapped markers rather than ref
                 # eta0 = pdata[:, -1]
                 eta0 = updated_angles[:, 1]
 
+                # apply tth distortion
+                if self.tth_distortion is not None:
+                    # !!! sd has ref to detector so is updated
+                    sd = self.tth_distortion[det_key]
+                    tmp = sd.apply(meas_xy, return_nominal=False)
+                    corr_angs = tmp + np.vstack([tth0, np.zeros_like(tth0)]).T
+                    tth0, eta0 = corr_angs.T
+                    pass
+
                 # map updated (tth0, eta0) back to cartesian coordinates
                 tth_eta = np.vstack([tth0, eta0]).T
-                calc_xy = panel.angles_to_cart(
-                    tth_eta,
-                    tvec_s=self.instr.tvec,
-                    apply_distortion=True
-                )
 
                 # output
                 if output == 'residual':
@@ -454,6 +458,11 @@ class PowderCalibrator(object):
                         updated_angles[:, 0].flatten() - tth0.flatten()
                     )
                 elif output == 'model':
+                    calc_xy = panel.angles_to_cart(
+                        tth_eta,
+                        tvec_s=self.instr.tvec,
+                        apply_distortion=True
+                    )
                     retval = np.append(
                         retval,
                         calc_xy.flatten()
