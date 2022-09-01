@@ -36,6 +36,7 @@ grain_flags_DFLT = np.array(
 
 nfields_powder_data = 8
 
+ext_eta_tol = np.radians(5.)  # for HEDM cal, may make this a user param
 
 # =============================================================================
 # %% POWDER CALIBRATION
@@ -108,11 +109,6 @@ class PowderCalibrator(object):
     @property
     def tth_distortion(self):
         return self._tth_distortion
-
-    @tth_distortion.setter
-    def tth_distortion(self, x):
-        # FIXME: must check arg against registered classes
-        self._tth_distortion = x
 
     @property
     def img_dict(self):
@@ -295,6 +291,7 @@ class PowderCalibrator(object):
             'do_interpolation': True,
             'do_fitting': True,
             'fitting_kwargs': fitting_kwargs,
+            'tth_distortion': self.tth_distortion,
         }
         powder_lines = self.instr.extract_line_positions(**kwargs)
 
@@ -1059,16 +1056,27 @@ def parse_reflection_tables(cfg, instr, grain_ids, refit_idx=None):
             # apply conditions for accepting valid data
             valid_reflections = gtable[:, 0] >= 0  # is indexed
             not_saturated = gtable[:, 6] < panel.saturation_level
+            # throw away extremem etas
+            p90 = xfcapi.angularDifference(gtable[:, 8], cnst.piby2)
+            m90 = xfcapi.angularDifference(gtable[:, 8], -cnst.piby2)
+            accept_etas = np.logical_or(p90 > ext_eta_tol,
+                                        m90 > ext_eta_tol)
             logger.info(f"panel '{det_key}', grain {grain_id}")
             logger.info(f"{sum(valid_reflections)} of {len(gtable)} "
                         "reflections are indexed")
             logger.info(f"{sum(not_saturated)} of {sum(valid_reflections)}"
                         " valid reflections be are below" +
                         f" saturation threshold of {panel.saturation_level}")
+            logger.info(f"{sum(accept_etas)} of {len(gtable)}"
+                        " reflections be are greater than " +
+                        f" {np.degrees(ext_eta_tol)} from the rotation axis")
 
             # valid reflections index
             if refit_idx is None:
-                idx = np.logical_and(valid_reflections, not_saturated)
+                idx = np.logical_and(
+                    valid_reflections,
+                    np.logical_and(not_saturated, accept_etas)
+                )
                 idx_0[det_key].append(idx)
             else:
                 idx = refit_idx[det_key][ig]

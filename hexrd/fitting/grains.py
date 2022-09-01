@@ -323,12 +323,13 @@ def matchOmegas(xyo_det, hkls_idx, chi, rMat_c, bMat, wavelength,
     if np.any(np.isnan(oangs0)):
         # debugging
         # TODO: remove this
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         nanIdx = np.where(np.isnan(oangs0[:, 0]))[0]
         errorString = "Infeasible parameters for hkls:\n"
         for i in range(len(nanIdx)):
             errorString += "%d  %d  %d\n" % tuple(hkls_idx[:, nanIdx[i]])
+        errorString += "you may need to deselect this hkl family."
         raise RuntimeError(errorString)
     else:
         # CAPI version gives vstacked angles... must be (2, nhkls)

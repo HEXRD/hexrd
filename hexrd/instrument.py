@@ -1209,7 +1209,7 @@ class HEDMInstrument(object):
                                eta_centers=None,
                                collapse_eta=True, collapse_tth=False,
                                do_interpolation=True, do_fitting=False,
-                               fitting_kwargs=None):
+                               tth_distortion=None, fitting_kwargs=None):
         """
         Perform annular interpolation on diffraction images.
 
@@ -1249,6 +1249,9 @@ class HEDMInstrument(object):
             If True, then perform spectrum fitting, and append the results
             to the returned data. collapse_eta must also be True for this
             to have any effect. The default is False.
+        tth_distortion : special class, optional
+            for special case of pinhole camera distortions.  See
+            hexrd.xrdutil.phutil.SampleLayerDistortion (only type supported)
         fitting_kwargs : dict, optional
             kwargs passed to hexrd.fitting.utils.fit_ring if do_fitting is True
 
@@ -1298,6 +1301,7 @@ class HEDMInstrument(object):
             'do_interpolation': do_interpolation,
             'do_fitting': do_fitting,
             'fitting_kwargs': fitting_kwargs,
+            'tth_distortion': tth_distortion,
             'max_workers': max_workers_per_detector,
         }
         func = partial(_extract_detector_line_positions, **kwargs)
@@ -3050,7 +3054,7 @@ class PlanarDetector(object):
             self, pd, merge_hkls=False, delta_tth=None,
             delta_eta=10., eta_period=None, eta_list=None,
             rmat_s=ct.identity_3x3,  tvec_s=ct.zeros_3,
-            tvec_c=ct.zeros_3, full_output=False):
+            tvec_c=ct.zeros_3, full_output=False, tth_distortion=None):
         """
         Generate points on Debye_Scherrer rings over the detector.
 
@@ -3079,6 +3083,8 @@ class PlanarDetector(object):
             DESCRIPTION. The default is ct.zeros_3.
         full_output : TYPE, optional
             DESCRIPTION. The default is False.
+        tth_distortion : special class, optional
+            Special distortion class.  The default is None.
 
         Raises
         ------
@@ -3091,6 +3097,11 @@ class PlanarDetector(object):
             DESCRIPTION.
 
         """
+        if tth_distortion is not None:
+            tnorms = rowNorm(np.vstack([tvec_s, tvec_c]))
+            assert np.all(tnorms) < constants.sqrt_epsf, \
+                "If using distrotion function, translations must be zero"
+
         # in case you want to give it tth angles directly
         if isinstance(pd, PlaneData):
             # Okay, we have a PlaneData object
@@ -3193,6 +3204,10 @@ class PlanarDetector(object):
         for i_ring in range(len(angs)):
             # expand angles to patch vertices
             these_angs = angs[i_ring].T
+
+            # push to vertices to see who falls off
+            # FIXME: clipping is not checking if masked regions are on the
+            #        patch interior
             patch_vertices = (
                 np.tile(these_angs[:, :2], (1, npp))
                 + np.tile(sector_vertices[i_ring], (neta, 1))
@@ -3213,9 +3228,23 @@ class PlanarDetector(object):
             patch_is_on = np.all(on_panel.reshape(neta, npp), axis=1)
             patch_xys = all_xy.reshape(neta, 5, 2)[patch_is_on]
 
+            # !!! Have to apply after clipping, distortion can get wonky near
+            #     the edeg of the panel, and it is assumed to be <~1 deg
+            # !!! The tth_ranges are NOT correct!
+            if tth_distortion is not None:
+                patch_valid_angs = tth_distortion.apply(
+                    self.angles_to_cart(these_angs[patch_is_on, :2]),
+                    return_nominal=True
+                )
+                patch_valid_xys = self.angles_to_cart(patch_valid_angs,
+                                                      apply_distortion=True)
+            else:
+                patch_valid_angs = these_angs[patch_is_on, :2]
+                patch_valid_xys = patch_xys[:, -1, :].squeeze()
+
             # form output arrays
-            valid_ang.append(these_angs[patch_is_on, :2])
-            valid_xy.append(patch_xys[:, -1, :].squeeze())
+            valid_ang.append(patch_valid_angs)
+            valid_xy.append(patch_valid_xys)
             map_indices.append(patch_is_on)
             pass
         # ??? is this option necessary?
@@ -4341,7 +4370,8 @@ def _extract_detector_line_positions(iter_args, plane_data, tth_tol,
                                      eta_tol, eta_centers, npdiv,
                                      collapse_tth, collapse_eta,
                                      do_interpolation, do_fitting,
-                                     fitting_kwargs, max_workers):
+                                     fitting_kwargs, tth_distortion,
+                                     max_workers):
     panel, instr_cfg, images, pbp = iter_args
 
     if images.ndim == 2:
@@ -4350,10 +4380,15 @@ def _extract_detector_line_positions(iter_args, plane_data, tth_tol,
         raise RuntimeError("images must be 2- or 3-d")
 
     # make rings
+    # !!! adding tth_distortion pass-through; comes in as dict over panels
+    tth_distr_cls = None
+    if tth_distortion is not None:
+        tth_distr_cls = tth_distortion[panel.name]
+
     pow_angs, pow_xys, tth_ranges = panel.make_powder_rings(
         plane_data, merge_hkls=True,
         delta_tth=tth_tol, delta_eta=eta_tol,
-        eta_list=eta_centers)
+        eta_list=eta_centers, tth_distortion=tth_distr_cls)
 
     tth_tols = np.degrees(np.hstack([i[1] - i[0] for i in tth_ranges]))
 
@@ -4382,6 +4417,7 @@ def _extract_detector_line_positions(iter_args, plane_data, tth_tol,
         'do_interpolation': do_interpolation,
         'do_fitting': do_fitting,
         'fitting_kwargs': fitting_kwargs,
+        'tth_distortion': tth_distr_cls,
     }
     func = partial(_extract_ring_line_positions, **kwargs)
     iter_arg = zip(pow_angs, pow_xys, tth_tols, tth0)
@@ -4392,7 +4428,47 @@ def _extract_detector_line_positions(iter_args, plane_data, tth_tol,
 
 def _extract_ring_line_positions(iter_args, instr_cfg, panel, eta_tol, npdiv,
                                  collapse_tth, collapse_eta, images,
-                                 do_interpolation, do_fitting, fitting_kwargs):
+                                 do_interpolation, do_fitting, fitting_kwargs,
+                                 tth_distortion):
+    """
+    Extracts data for a single Debye-Scherrer ring <private>.
+
+    Parameters
+    ----------
+    iter_args : tuple
+        (angs [radians],
+         xys [mm],
+         tth_tol [deg],
+         this_tth0 [deg])
+    instr_cfg : TYPE
+        DESCRIPTION.
+    panel : TYPE
+        DESCRIPTION.
+    eta_tol : TYPE
+        DESCRIPTION.
+    npdiv : TYPE
+        DESCRIPTION.
+    collapse_tth : TYPE
+        DESCRIPTION.
+    collapse_eta : TYPE
+        DESCRIPTION.
+    images : TYPE
+        DESCRIPTION.
+    do_interpolation : TYPE
+        DESCRIPTION.
+    do_fitting : TYPE
+        DESCRIPTION.
+    fitting_kwargs : TYPE
+        DESCRIPTION.
+    tth_distortion : TYPE
+        DESCRIPTION.
+
+    Yields
+    ------
+    patch_data : TYPE
+        DESCRIPTION.
+
+    """
     # points are already checked to fall on detector
     angs, xys, tth_tol, this_tth0 = iter_args
 
@@ -4452,40 +4528,55 @@ def _extract_ring_line_positions(iter_args, instr_cfg, panel, eta_tol, npdiv,
             # catch interpolation type
             image = images[j_p]
             if do_interpolation:
-                tmp = panel.interpolate_bilinear(
+                p_img = panel.interpolate_bilinear(
                         xy_eval,
                         image,
                     ).reshape(prows, pcols)*area_fac
             else:
-                tmp = image[ijs[0], ijs[1]]*area_fac
+                p_img = image[ijs[0], ijs[1]]*area_fac
 
             # catch flat spectrum data, which will cause
             # fitting to fail.
             # ???: best here, or make fitting handle it?
-            mxval = np.max(tmp)
-            mnval = np.min(tmp)
+            mxval = np.max(p_img)
+            mnval = np.min(p_img)
             if mxval == 0 or (1. - mnval/mxval) < 0.01:
                 continue
 
             # catch collapsing options
             if collapse_tth:
-                patch_data[i_p, j_p] = np.average(tmp)
-                # ims_data.append(np.sum(tmp))
+                patch_data[i_p, j_p] = np.average(p_img)
+                # ims_data.append(np.sum(p_img))
             else:
                 if collapse_eta:
-                    lineout = np.average(tmp, axis=0)
+                    lineout = np.average(p_img, axis=0)
                     ims_data.append(lineout)
                     if do_fitting:
+                        if tth_distortion is not None:
+                            # must correct tth0
+                            tmp = tth_distortion.apply(
+                                panel.angles_to_cart(
+                                    np.vstack(
+                                        [np.radians(this_tth0),
+                                         np.tile(ang_data[-1], len(this_tth0))]
+                                    ).T
+                                ),
+                                return_nominal=True)
+                            pk_centers = np.degrees(tmp[:, 0])
+                        else:
+                            pk_centers = this_tth0
                         kwargs = {
                             'tth_centers': np.degrees(tth_centers),
                             'lineout': lineout,
-                            'tth_pred': this_tth0,
+                            'tth_pred': pk_centers,
                             **fitting_kwargs,
                         }
                         result = fit_ring(**kwargs)
+                        if result is None:
+                            breakpoint()
                         fit_data.append(result)
                 else:
-                    ims_data.append(tmp)
+                    ims_data.append(p_img)
             pass  # close image loop
         if not collapse_tth:
             output = [ang_data, ims_data]

@@ -132,9 +132,9 @@ def tth_corr_sample_layer(detector, xy_pts,
         return np.vstack([-tth_corr, ref_angs[:, 1]]).T
 
 
-def tth_corr_map_pinhole_layer(instrument,
-                               layer_standoff, layer_thickness,
-                               pinhole_thickness, source_distance):
+def tth_corr_map_sample_layer(instrument,
+                              layer_standoff, layer_thickness,
+                              pinhole_thickness, source_distance):
     """
     Compute the Bragg angle distortion fields for an instrument associated
     with a specific sample layer in a pinhole camera.
