@@ -1325,11 +1325,15 @@ def gen_trial_exp_data(grain_out_file,det_file,mat_file, mat_name, max_tth, comp
 
     return experiment, nf_to_ff_id_map
 
-def process_raw_confidence(raw_confidence,vol_shape,id_remap=None,min_thresh=0.0):
+def process_raw_confidence(raw_confidence,vol_shape=None,id_remap=None,min_thresh=0.0):
 
     print('Compiling Confidence Map...')
-    confidence_map=np.max(raw_confidence,axis=0).reshape(vol_shape)
-    grain_map=np.argmax(raw_confidence,axis=0).reshape(vol_shape)
+    if vol_shape == None:
+        confidence_map=np.max(raw_confidence,axis=0)
+        grain_map=np.argmax(raw_confidence,axis=0)
+    else:
+        confidence_map=np.max(raw_confidence,axis=0).reshape(vol_shape)
+        grain_map=np.argmax(raw_confidence,axis=0).reshape(vol_shape)
 
 
     #fix grain indexing
