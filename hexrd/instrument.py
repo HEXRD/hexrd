@@ -4572,8 +4572,6 @@ def _extract_ring_line_positions(iter_args, instr_cfg, panel, eta_tol, npdiv,
                             **fitting_kwargs,
                         }
                         result = fit_ring(**kwargs)
-                        if result is None:
-                            breakpoint()
                         fit_data.append(result)
                 else:
                     ims_data.append(p_img)
