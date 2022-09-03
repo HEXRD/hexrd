@@ -134,7 +134,7 @@ def tth_corr_sample_layer(detector, xy_pts,
 
 def tth_corr_map_sample_layer(instrument,
                               layer_standoff, layer_thickness,
-                              pinhole_thickness, source_distance):
+                              pinhole_thickness):
     """
     Compute the Bragg angle distortion fields for an instrument associated
     with a specific sample layer in a pinhole camera.
@@ -150,14 +150,18 @@ def tth_corr_map_sample_layer(instrument,
         The thickness of the sample layer in microns.
     pinhole_thickness : scalar
         The thickenss (height) of the pinhole (cylinder) in microns
-    source_distance : scalar
-        he distance from the pinhole center to the X-ray source in microns.
 
     Returns
     -------
     tth_corr : dict
         The Bragg angle correction fields for each detector in `instrument`
         as 2θ_sam - 2θ_nom in radians.
+
+    Notes
+    -----
+    source_distance : The distance from the pinhole center to
+                      the X-ray source in microns.  Comes from the instr
+                      attribute of the same name.
 
     """
     zs = layer_standoff + 0.5*layer_thickness + 0.5*pinhole_thickness
@@ -173,6 +177,6 @@ def tth_corr_map_sample_layer(instrument,
         cos_tthn = np.cos(ref_ptth.flatten())
         sin_tthn = np.sin(ref_ptth.flatten())
         tth_corr[det_key] = np.arctan(
-            sin_tthn/(source_distance*cos_beta/zs - cos_tthn)
+            sin_tthn/(instrument.source_distance*cos_beta/zs - cos_tthn)
         ).reshape(det.shape)
     return tth_corr
