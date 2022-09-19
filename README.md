@@ -102,3 +102,28 @@ pip install --no-build-isolation --no-deps -U -e hexrd
 ```
 
 Have fun!
+
+# Authors
+
+Many thanks go to Hexrd's [contributors](https://github.com/HEXRD/hexrd/graphs/contributors).
+
+* Joel Bernier
+* Donald Boyce
+* Saransh Singh
+* Darren Pagan
+* Kelly Nygren
+* Rachel Lim
+* Patrick Avery
+* Chris Harris
+* Nathan Barton
+* and many more...
+
+# License
+
+Hexrd is distributed under the terms of the BSD 3-Clause license. All new contributions must be made under this license.
+
+See [LICENSE](https://github.com/hexrd/hexrd/blob/master/LICENSE) and [NOTICE](https://github.com/hexrd/hexrd/blob/master/NOTICE) for details.
+
+`SPDX-License-Identifier: BSD 3-Clause`
+
+``LLNL-CODE-819716``
