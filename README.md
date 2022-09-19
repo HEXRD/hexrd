@@ -118,6 +118,10 @@ Many thanks go to Hexrd's [contributors](https://github.com/HEXRD/hexrd/graphs/c
 * Nathan Barton
 * and many more...
 
+# Contributing
+
+Please submit any bugfixes or feature improvements as [pull requests](https://help.github.com/articles/using-pull-requests/).
+
 # License
 
 Hexrd is distributed under the terms of the BSD 3-Clause license. All new contributions must be made under this license.
