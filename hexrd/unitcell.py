@@ -555,6 +555,12 @@ class unitcell:
                 sym = self.SYM_PG_r_laue.astype(np.float64)
             else:
                 sym = self.SYM_PG_r.astype(np.float64)
+        elif(space == 'c'):
+            mat = np.eye(3)
+            if(applyLaue):
+                sym = self.SYM_PG_c_laue.astype(np.float64)
+            else:
+                sym = self.SYM_PG_c.astype(np.float64)
         else:
             raise ValueError('CalcStar: unrecognized space.')
 
