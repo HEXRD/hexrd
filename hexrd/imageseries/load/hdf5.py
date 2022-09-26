@@ -3,8 +3,11 @@
 import h5py
 import warnings
 
+import numpy as np
+
 from . import ImageSeriesAdapter
 from ..imageseriesiter import ImageSeriesIterator
+
 
 class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
     """collection of images in HDF5 format"""
@@ -32,38 +35,31 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
         self._load_data()
         self._meta = self._getmeta()
 
-
     def close(self):
         self.__image_dataset = None
         self.__data_group = None
         self.__h5file.close()
         self.__h5file = None
 
-
     def __del__(self):
-        # Note this is not ideal, as the use of __del__ is problematic. However,
-        # it is highly unlikely that the usage of a ImageSeries would pose
-        # a problem.
-        #
-        # A warning will (hopefully) be emitted if an issue arises at some point.
+        # !!! Note this is not ideal, as the use of __del__ is problematic.
+        #     However, it is highly unlikely that the usage of a ImageSeries
+        #     would pose a problem.  A warning will (hopefully) be emitted if
+        #     an issue arises at some point
         try:
             self.close()
-        except:
+        except(Exception):
             warnings.warn("HDF5ImageSeries could not close h5file")
             pass
-
 
     def __getitem__(self, key):
         return self.__image_dataset[key]
 
-
     def __iter__(self):
         return ImageSeriesIterator(self)
 
-
     def __len__(self):
         return len(self.__image_dataset)
-
 
     def __getstate__(self):
         # Remove any non-pickleable attributes
@@ -86,17 +82,22 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
 
         return state
 
-
     def __setstate__(self, state):
         self.__dict__.update(state)
         self.__h5file = h5py.File(self.__h5name, 'r')
         self._load_data()
 
-
     def _load_data(self):
-        self.__image_dataset = self.__h5file[self.__images]
+        data = np.asarray(self.__h5file[self.__images])
+        if data.ndim == 2:
+            self.__image_dataset = np.dstack(data)
+        elif data.ndim == 3:
+            self.__image_dataset = data
+        else:
+            raise RuntimeError(
+                f'Image data must be a 2-d or 3-d array; yours is {data.ndim}'
+            )
         self.__data_group = self.__h5file[self.__path]
-
 
     def _getmeta(self):
         mdict = {}
@@ -104,7 +105,6 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
             mdict[k] = v
 
         return mdict
-
 
     @property
     def metadata(self):
@@ -114,11 +114,9 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
         """
         return self._meta
 
-
     @property
     def dtype(self):
         return self.__image_dataset.dtype
-
 
     @property
     def shape(self):
