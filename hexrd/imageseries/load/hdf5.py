@@ -107,7 +107,7 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
     def _load_data(self):
         data = np.asarray(self.__h5file[self.__images])
         if data.ndim == 2:
-            self.__image_dataset = np.dstack(data)
+            self.__image_dataset = np.asarray([data, ])
         elif data.ndim == 3:
             self.__image_dataset = data
         else:
