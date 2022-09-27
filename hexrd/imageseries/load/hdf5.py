@@ -66,17 +66,29 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
         try:
             self.close()
         except(Exception):
-            warnings.warn("HDF5ImageSeries could not close h5file")
+            warnings.warn("HDF5ImageSeries could not close h5 file")
             pass
 
     def __getitem__(self, key):
-        return self.__image_dataset[key]
+        if self._ndim == 2:
+            if key != 0:
+                raise IndexError(
+                    f'key {key} is out of range for imageseris with length 1'
+                )
+            # !!! necessary when not returning a slice
+            return np.asarray(self.__image_dataset)
+        else:
+            return self.__image_dataset[key]
 
     def __iter__(self):
         return ImageSeriesIterator(self)
 
     def __len__(self):
-        return len(self.__image_dataset)
+        if self._ndim == 2:
+            return 1
+        else:
+            # !!! must be 3-d; exception handled in load_data()
+            return len(self.__image_dataset)
 
     def __getstate__(self):
         # Remove any non-pickleable attributes
@@ -105,14 +117,11 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
         self._load_data()
 
     def _load_data(self):
-        data = np.asarray(self.__h5file[self.__images])
-        if data.ndim == 2:
-            self.__image_dataset = np.asarray([data, ])
-        elif data.ndim == 3:
-            self.__image_dataset = data
-        else:
+        self.__image_dataset = self.__h5file[self.__images]
+        self._ndim = self.__image_dataset.ndim
+        if self._ndim not in [2, 3]:
             raise RuntimeError(
-                f'Image data must be a 2-d or 3-d array; yours is {data.ndim}'
+                f'Image data must be a 2-d or 3-d array; yours is {self._ndim}'
             )
         self.__data_group = self.__h5file[self.__path]
 
@@ -137,6 +146,9 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
 
     @property
     def shape(self):
-        return self.__image_dataset.shape[1:]
+        if self._ndim == 2:
+            return self.__image_dataset.shape
+        else:
+            return self.__image_dataset.shape[1:]
 
     pass  # end class
