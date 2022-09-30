@@ -155,8 +155,8 @@ def _calcxrsf(hkls,
         struct_factors_raw[ii] = np.abs(sf)**2
         struct_factors[ii] = w_int*mm*struct_factors_raw[ii]
 
-    ma = struct_factors.max()
-    struct_factors = 100.0*struct_factors/ma
+    # ma = struct_factors.max()
+    # struct_factors = 100.0*struct_factors/ma
     # ma = struct_factors_raw.max()
     # struct_factors_raw = 100.0*struct_factors_raw/ma
     return struct_factors, struct_factors_raw
@@ -181,8 +181,8 @@ def _calc_laue_factor(x,tth):
     if x <= 1.:
       El = (1.-0.5*x+0.25*x**2-(5./48.)*x**3+(7./192.)*x**4)
     elif x > 1.:
-      El = (2./np.pi/x)**2 * (1.-0.125*x**2-(3./128.)*x**2-\
-            (15./1024.)*x**3)
+      El = (2./np.pi/x)**2 * (1.-(1/8./x)-(3./128.)*(1./x)**2-\
+            (15./1024.)*(1/x)**3)
     return El*ctth
 
 @numba_njit_if_available(cache=True, nogil=True, parallel=True)

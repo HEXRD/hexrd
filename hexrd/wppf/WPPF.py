@@ -335,7 +335,7 @@ class LeBail:
             self.hkls[p] = {}
             self.dsp[p] = {}
             for k, l in self.phases.wavelength.items():
-                t = self.phases[p].getTTh(l[0].value)
+                t = self.phases[p].getTTh(l[0].getVal('nm'))
                 allowed = self.phases[p].wavelength_allowed_hkls
                 t = t[allowed]
                 hkl = self.phases[p].hkls[allowed, :]
@@ -1768,7 +1768,7 @@ class Rietveld:
             self.limit[p] = {}
 
             for k, l in self.phases.wavelength.items():
-                t = self.phases[p][k].getTTh(l[0].value)
+                t = self.phases[p][k].getTTh(l[0].getVal('nm'))
                 allowed = self.phases[p][k].wavelength_allowed_hkls
                 t = t[allowed]
                 hkl = self.phases[p][k].hkls[allowed, :]
@@ -1824,7 +1824,7 @@ class Rietveld:
                     (1 + Ph * np.cos(t) ** 2)
                     / np.cos(0.5 * t)
                     / np.sin(0.5 * t) ** 2
-                    / (2.0 * (1 + Ph))
+                    #/ (2.0 * (1 + Ph))
                 )
 
     def computespectrum(self):
@@ -2542,7 +2542,7 @@ class Rietveld:
                             * constants.cPlanck
                             * constants.cLight
                             / constants.cCharge
-                            / v[0].value
+                            / v[0].getVal('nm')
                         )
                         phase_info.beamEnergy = valWUnit(
                             "kev", "ENERGY", E, "keV"
@@ -2563,7 +2563,7 @@ class Rietveld:
                                 * constants.cPlanck
                                 * constants.cLight
                                 / constants.cCharge
-                                / v[0].value
+                                / v[0].getVal('nm')
                             )
                             mat.beamEnergy = valWUnit(
                                 "kev", "ENERGY", E, "keV"

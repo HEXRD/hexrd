@@ -665,6 +665,9 @@ class Material_Rietveld:
         # name
         self.name = material_obj.name
 
+        # inverse of absorption length
+        self.abs_fact = 1e-4 * (1./material_obj.absorption_length)
+
         # min d-spacing for sampling hkl
         self.dmin = material_obj.dmin
 
@@ -1371,7 +1374,7 @@ class Phases_Rietveld:
         self[material_key] = {}
         self.num_phases += 1
         for l in self.wavelength:
-            lam = self.wavelength[l][0].value * 1e-9
+            lam = self.wavelength[l][0].getVal('nm') * 1e-9
             E = constants.cPlanck * constants.cLight / constants.cCharge / lam
             E *= 1e-3
             kev = valWUnit('beamenergy', 'energy', E, 'keV')
@@ -1388,7 +1391,7 @@ class Phases_Rietveld:
             self[k] = {}
             self.num_phases += 1
             for l in self.wavelength:
-                lam = self.wavelength[l][0].value * 1e-9
+                lam = self.wavelength[l][0].getVal('nm') * 1e-9
                 E = constants.cPlanck * constants.cLight / \
                     constants.cCharge / lam
                 E *= 1e-3
