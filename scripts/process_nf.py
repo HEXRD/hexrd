@@ -231,30 +231,15 @@ bits_for_arrays = 64*n_oris*n_voxels + 192 * \
 bytes_for_array = bits_for_arrays/8.
 
 n_groups = np.floor(bytes_for_array/RAM_to_use)  # number of full groups
+leftover_voxels = np.mod(n_voxels, n_groups)
 
-<<<<<<< HEAD
 print('Splitting data into %d groups with %d leftover voxels' %
       (int(n_groups), int(leftover_voxels)))
-=======
-voxels_per_group = np.floor(n_voxels/n_groups)
-leftover_voxels = n_voxels - (voxels_per_group * n_groups)
 
 
->>>>>>> c3fce94954003781aba5993326e18ceca49ce2a4
+grouped_voxels = n_voxels - leftover_voxels
 
-
-
-<<<<<<< HEAD
 voxels_per_group = grouped_voxels/n_groups
-
-=======
-print('Splitting data into %d groups with %d leftover voxels' %(int(n_groups),int(leftover_voxels))
-
-#leftover_voxels = np.mod(n_voxels, n_groups)
-#grouped_voxels = n_voxels - leftover_voxels
-#voxels_per_group = grouped_voxels/n_groups 
-    
->>>>>>> c3fce94954003781aba5993326e18ceca49ce2a4
 #==============================================================================
 # %% BUILD MP CONTROLLER
 #==============================================================================
@@ -314,25 +299,17 @@ else:
             group) * int(voxels_per_group):int(group + 1) * int(voxels_per_group)] = grain_map_group_list
 
         confidence_map_list[int(
-<<<<<<< HEAD
             abcd) * int(voxels_per_group):int(abcd + 1) * int(voxels_per_group)] = confidence_map_group_list
         del raw_confidence
 
     if leftover_voxels > 0:
         #now for the leftover voxels
-=======
-            group) * int(voxels_per_group):int(group + 1) * int(voxels_per_group)] = confidence_map_group_list
-
-    #now for the leftover voxels
-    if leftover_voxels != 0:
->>>>>>> c3fce94954003781aba5993326e18ceca49ce2a4
         voxels_to_test = test_crds[int(
             n_groups) * int(voxels_per_group):, :]
         raw_confidence = nfutil.test_orientations(
             image_stack, experiment, voxels_to_test, controller, multiprocessing_start_method)
         grain_map_group_list, confidence_map_group_list = nfutil.process_raw_confidence(
             raw_confidence, id_remap=nf_to_ff_id_map, min_thresh=0.0)
-<<<<<<< HEAD
 
         grain_map_list[int(
             n_groups) * int(voxels_per_group):] = grain_map_group_list
@@ -346,20 +323,6 @@ else:
 
 
 del controller
-=======
-    
-        grain_map_list[int(
-            n_groups) * int(voxels_per_group):] = grain_map_group_list
-    
-        confidence_map_list[int(
-            n_groups) * int(voxels_per_group):] = confidence_map_group_list
-    
-    #reshape them
-    grain_map = grain_map_list.reshape(Xs.shape)
-    confidence_map = confidence_map_list.reshape(Xs.shape)  
-
->>>>>>> c3fce94954003781aba5993326e18ceca49ce2a4
-
 
 #==============================================================================
 # %% POST PROCESS W WHEN TOMOGRAPHY HAS BEEN USED
