@@ -16,7 +16,7 @@ import multiprocessing as mp
 
 import os
 import logging
-
+import psutil
 
 from hexrd.grainmap import nfutil
 
@@ -41,20 +41,20 @@ except(ImportError):
 main_dir = '/INSERT/WORKDIR/'
 
 det_file = main_dir + 'retiga.yml'
-mat_file= main_dir + 'materials.h5' 
+mat_file= main_dir + 'materials.h5'
 
 #==============================================================================
 # %% OUTPUT INFO -CAN BE EDITED
 #==============================================================================
 
-output_dir = main_dir 
+output_dir = main_dir
 
 
 #==============================================================================
 # %% NEAR FIELD DATA FILES -CAN BE EDITED - ZERO LOAD SCAN
 #==============================================================================
 #These are the near field data files used for the reconstruction, a grains.out file
-#from the far field analaysis is used as orientation guess for the grid that will 
+#from the far field analaysis is used as orientation guess for the grid that will
 grain_out_file = '/LOC/grains.out'
 
 #%%
@@ -62,9 +62,9 @@ grain_out_file = '/LOC/grains.out'
 stem='nf_'
 
 #Locations of near field images
-data_folder='/INSERT/nf/' 
+data_folder='/INSERT/nf/'
 
-img_start=6 #whatever you want the first frame to be 
+img_start=6 #whatever you want the first frame to be
 nframes=1440
 img_nums=np.arange(img_start,img_start+nframes,1)
 
@@ -80,7 +80,7 @@ max_tth=None #degrees, if None is input max tth will be set by the geometry
 
 #reconstruction with misorientation included, for many grains, this will quickly
 #make the reconstruction size unmanagable
-misorientation_bnd=0.0 #degrees 
+misorientation_bnd=0.0 #degrees
 misorientation_spacing=0.25 #degrees
 
 
@@ -106,7 +106,7 @@ chi2_thresh=1.0 #only use orientations from grains BELOW this chi^2
 
 
 ######reconstruction parameters
-ome_range_deg=[(0.,359.75)] #degrees 
+ome_range_deg=[(0.,359.75)] #degrees
 
 use_mask=True
 #Mask info, used if use_mask=True
@@ -125,9 +125,6 @@ beam_stop_y_cen=0.0 #mm, measured from the origin of the detector paramters
 beam_stop_width=0.6 #mm, width of the beam stop verticallu
 beam_stop_parms=np.array([beam_stop_y_cen,beam_stop_width])
 
-
-max_RAM = 256 #max amount of memory to available in GB
-
 ##### multiprocessing controller parameters
 check=None
 limit=None
@@ -135,6 +132,8 @@ generate=None
 ncpus=mp.cpu_count()
 chunk_size=500#chunksize for multiprocessing, don't mess with unless you know what you're doing
 
+RAM_set = False #if True, manually set max amount of ram
+max_RAM = 256 #only used if RAM_set is true. in GB
 
 #### debug plotting
 output_plot_check=True
@@ -149,8 +148,8 @@ experiment, nf_to_ff_id_map  = nfutil.gen_trial_exp_data(grain_out_file,det_file
                                                          comp_thresh, chi2_thresh, misorientation_bnd, \
                                                          misorientation_spacing,ome_range_deg, \
                                                          nframes, beam_stop_parms)
-    
-    
+
+
 #==============================================================================
 # %% LOAD / GENERATE TEST DATA
 #==============================================================================
@@ -159,32 +158,32 @@ experiment, nf_to_ff_id_map  = nfutil.gen_trial_exp_data(grain_out_file,det_file
 
 if use_mask:
     mask_data=np.load(mask_data_file)
-    
-    
+
+
     mask_full=mask_data['mask']
     Xs_mask=mask_data['Xs']
     Ys_mask=mask_data['Ys']-(mask_vert_offset)
     Zs_mask=mask_data['Zs']
     voxel_spacing=mask_data['voxel_spacing']
-    
-    
+
+
     tomo_layer_centers=np.squeeze(Ys_mask[:,0,0]) #need to think about how to handle a single layer in this context
     above=np.where(tomo_layer_centers>=v_bnds[0])
     below=np.where(tomo_layer_centers<v_bnds[1])
-    
-    
+
+
     in_bnds=np.intersect1d(above,below)
-    
+
     mask=mask_full[in_bnds]
     Xs=Xs_mask[in_bnds]
     Ys=Ys_mask[in_bnds]
     Zs=Zs_mask[in_bnds]
-    
+
     test_crds_full = np.vstack([Xs.flatten(), Ys.flatten(), Zs.flatten()]).T
     n_crds = len(test_crds_full)
-    
+
     to_use=np.where(mask.flatten())[0]
-    
+
 
 else:
     test_crds_full, n_crds, Xs, Ys, Zs = nfutil.gen_nf_test_grid(cross_sectional_dim, v_bnds, voxel_spacing)
@@ -207,13 +206,16 @@ dark=nfutil.gen_nf_dark(data_folder,img_nums,num_for_dark,experiment.nrows,exper
 image_stack=nfutil.gen_nf_cleaned_image_stack(data_folder,img_nums,dark,experiment.nrows,experiment.ncols,process_type=process_type,\
                                               process_args=process_args,threshold=img_threshold,ome_dilation_iter=ome_dilation_iter,num_digits=6,stem=stem)
 
-    
+
 #==============================================================================
 # %% NEAR FIELD - splitting
 #==============================================================================
 
-max_RAM = 1  # in GB
-RAM = max_RAM * 1e9  # turn into number of bytes
+if RAM_set = True:
+    RAM = max_RAM * 1e9
+else:
+    RAM = psutil.virtual_memory().available  # in GB
+#  # turn into number of bytes
 
 RAM_to_use = 0.75 * RAM
 
@@ -232,25 +234,25 @@ print('Splitting data into %d groups with %d leftover voxels' %(int(n_groups),in
 
 grouped_voxels = n_voxels - leftover_voxels
 
-voxels_per_group = grouped_voxels/n_groups 
-    
+voxels_per_group = grouped_voxels/n_groups
+
 #==============================================================================
 # %% BUILD MP CONTROLLER
-#============================================================================== 
+#==============================================================================
 
 # assume that if os has fork, it will be used by multiprocessing.
 # note that on python > 3.4 we could use multiprocessing get_start_method and
 # set_start_method for a cleaner implementation of this functionality.
-multiprocessing_start_method = 'fork' if hasattr(os, 'fork') else 'spawn'  
-    
+multiprocessing_start_method = 'fork' if hasattr(os, 'fork') else 'spawn'
 
-controller=nfutil.build_controller(ncpus=ncpus,chunk_size=chunk_size,check=check,generate=generate,limit=limit)   
- 
+
+controller=nfutil.build_controller(ncpus=ncpus,chunk_size=chunk_size,check=check,generate=generate,limit=limit)
+
 
 #==============================================================================
 # %% TEST ORIENTATIONS
-#============================================================================== 
-   
+#==============================================================================
+
 ## Would be nice to pack the images, quant_and_clip will need to be edited if this is added, dcp 6.2.2021
 #packed_image_stack = nfutil.dilate_image_stack(image_stack, experiment,controller)
 
@@ -307,19 +309,19 @@ else:
 
     confidence_map_list[int(
         n_groups) * int(voxels_per_group):] = confidence_map_group_list
-    
+
     #reshape them
     grain_map = grain_map_list.reshape(Xs.shape)
     confidence_map = confidence_map_list.reshape(Xs.shape)
 
 
 
-del controller 
-  
+del controller
 
 
 
-    
+
+
 #==============================================================================
 # %% POST PROCESS W WHEN TOMOGRAPHY HAS BEEN USED
 #==============================================================================
@@ -340,26 +342,22 @@ nfutil.save_nf_data(output_dir,output_stem,grain_map,confidence_map,Xs,Ys,Zs,exp
 
 if matplot:
     if output_plot_check:
-    
-    
+
+
         plt.figure(1)
         plt.imshow(confidence_map[0])
         plt.title('Bottom Layer Confidence')
-        
+
         plt.figure(2)
         plt.imshow(confidence_map[-1])
         plt.title('Bottom Layer Confidence')
-        
+
         plt.figure(3)
         nfutil.plot_ori_map(grain_map, confidence_map, experiment.exp_maps, 0,id_remap=nf_to_ff_id_map)
         plt.title('Top Layer Grain Map')
-        
+
         plt.figure(4)
         nfutil.plot_ori_map(grain_map, confidence_map, experiment.exp_maps, -1,id_remap=nf_to_ff_id_map)
         plt.title('Top Layer Grain Map')
-    
+
         plt.show()
-    
- 
-
-
