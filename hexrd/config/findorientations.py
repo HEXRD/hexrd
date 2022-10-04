@@ -240,5 +240,3 @@ class OrientationMapsConfig(Config):
     def filter_maps(self):
         return self._cfg.get('find_orientations:orientation_maps:filter_maps',
                              default=False)
-
-
