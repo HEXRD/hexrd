@@ -89,7 +89,7 @@ class RietveldHEDM:
     def add_texture_parameters(self):
         if self.texture_model_name == "harmonic":
             names = list(self.texture_model.coeff_loc.keys())
-            if not "phon" in self.params
+            if not "phon" in self.params:
                 self.params.add("phon", value=0.0, min=0.0)
             else:
                 self.params[n].value = 0.0
