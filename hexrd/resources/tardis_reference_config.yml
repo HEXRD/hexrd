@@ -1,3 +1,6 @@
+# for TARDIS-C2
+# from Jon Eggert:
+#   TBsep = 23.13, Rrad = 49.51, Rz = -0.19.
 beam:
   energy: 10.2505
   vector:
@@ -21,7 +24,7 @@ detectors:
       - 0.0
       translation:
       - 0.0
-      - -11.935
+      - -11.565
       - -25.08
   IMAGE-PLATE-4:
     pixels:
@@ -40,7 +43,7 @@ detectors:
       - 2.22144147e+00
       translation:
       - 0.0
-      - 11.935
+      - 11.565
       - -25.08
 id: NXXXXXX-XXX
 oscillation_stage:
