@@ -109,7 +109,7 @@ class Material(object):
     ATOMTYPE    atomic number of all the different species in the unitcell
     """
     DFLT_ATOMINFO = numpy.array([[0., 0., 0., 1.]])
-    DFLT_U = numpy.array([4.18e-7])
+    DFLT_U = numpy.array([6.33E-3])
     DFLT_ATOMTYPE = numpy.array([28])
     DFLT_CHARGE = numpy.array(["0"])
 
