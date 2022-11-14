@@ -440,6 +440,12 @@ class SphericalView(object):
         paxf = PiecewiseAffineTransform()
 
         img = np.array(pimg['intensities'])
+
+        # remove SNIP bg if there
+        if 'snip_background' in pimg:
+            # !!! these are float64 so we should be good
+            img -= np.array(pimg['snip_background'])
+
         nrows_in, ncols_in = img.shape
 
         tth_cen = np.array(pimg['tth_coordinates'])[0, :]
@@ -451,11 +457,11 @@ class SphericalView(object):
                              np.arange(nrows_in)[::skip])
         op = np.zeros_like(tp.flatten())
 
-        angs = np.vstack(
-            [tp.flatten(),
-             ep.flatten(),
-             op.flatten()]
-        ).T
+        angs = np.radians(
+            np.vstack([tp.flatten(),
+                       ep.flatten(),
+                       op.flatten()]).T
+        )
 
         ppts = zproject_sph_angles(
             angs, method='stereographic', source='d', invert_z=self.invert_z,
