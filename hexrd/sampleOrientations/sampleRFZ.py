@@ -1,4 +1,44 @@
 import numpy as np
+from hexrd.utils.decorators import numba_njit_if_available
+from hexrd.sampleOrientations.conversions import cu2ro, ro2qu
+from hexrd.sampleOrientations.rfz import insideFZ
+from hexrd import constants
+
+if constants.USE_NUMBA:
+    from numba import prange
+else:
+    prange = range
+
+@numba_njit_if_available(cache=True, nogil=True)
+def _sample(pgnum,
+            N,
+            delta,
+            shift,
+            ap_2):
+
+    N3 = (2*N+1)**3
+    res = np.zeros((N3, 3), dtype=np.float64)
+    ctr = 0
+
+    for ii in range(-N, N+1):
+        xx = (ii + shift) * delta
+        for jj in range(-N, N+1):
+            yy = (jj + shift) * delta
+            for kk in range(-N, N+1):
+                zz = (kk + shift) * delta
+                cu = np.array([xx, yy, zz])
+                ma = np.max(np.abs(cu))
+
+                if ma <= ap_2:
+                    ro = cu2ro(cu)
+
+                    if insideFZ(ro, pgnum):
+                        res[ctr] = ro2qu(ro)
+                        ctr += 1
+
+    res = res[0:ctr,:]
+
+    return res
 
 class sampleRFZ:
 
@@ -49,6 +89,7 @@ class sampleRFZ:
         self.sampling_type = sampling_type
         self.avg_ang_spacing = average_angular_spacing
 
+        self.sample()
 
     def sampling_N(self):
         """Get the number of sampling steps in the cubochoric
@@ -62,6 +103,63 @@ class sampleRFZ:
         elif self.sampling_type.lower() == 'special':
             return np.rint(125.70471 / (self.avg_ang_spacing - 0.07127)).astype(np.int32)
 
+    def sample(self):
+        self.samples = _sample(self.pgnum,
+                               self.cubN,
+                               self.delta,
+                               self.shift,
+                               self.ap_2)
+
+    @property
+    def pgnum(self):
+        return self._pgnum
+
+    @pgnum.setter
+    def pgnum(self, pgn):
+        self._pgnum = pgn
+        if hasattr(self, 'sampling_type'):
+            if hasattr(self, 'avg_ang_spacing'):
+                self.sample()
+
+
+    @property
+    def sampling_type(self):
+        return self._sampling_type
+
+    @sampling_type.setter
+    def sampling_type(self, stype):
+        self._sampling_type = stype
+        if hasattr(self, 'pgnum'):
+            if hasattr(self, 'avg_ang_spacing'):
+                self.sample()
+
+    @property
+    def avg_ang_spacing(self):
+        return self._avg_ang_spacing
+
+
+    @avg_ang_spacing.setter
+    def avg_ang_spacing(self, ang):
+        self._avg_ang_spacing = ang
+        if hasattr(self, 'pgnum'):
+            if hasattr(self, 'sampling_type'):
+                self.sample()
+
     @property
     def cubN(self):
         return self.sampling_N()
+
+    @property
+    def shift(self):
+        if self.sampling_type == 'default':
+            return 0.0
+        elif self.sampling_type == 'special':
+            return 0.5
+
+    @property
+    def delta(self):
+        self.ap_2 = constants.cuA_2
+        return constants.cuA_2 / self.cubN
+    
+
+
