@@ -17,7 +17,7 @@ def _sample(pgnum,
             ap_2):
 
     N3 = (2*N+1)**3
-    res = np.zeros((N3, 3), dtype=np.float64)
+    res = np.zeros((N3, 4), dtype=np.float64)
     ctr = 0
 
     for ii in prange(-N, N+1):
@@ -33,7 +33,7 @@ def _sample(pgnum,
                     ro = cu2ro(cu)
 
                     if insideFZ(ro, pgnum):
-                        res[ctr] = ro2qu(ro)
+                        res[ctr,:] = ro2qu(ro)
                         ctr += 1
 
     res = res[0:ctr,:]
@@ -85,11 +85,10 @@ class sampleRFZ:
 
         """
 
+        self.ap_2 = constants.cuA_2
         self.pgnum = pgnum
         self.sampling_type = sampling_type
         self.avg_ang_spacing = average_angular_spacing
-
-        self.sample()
 
     def sampling_N(self):
         """Get the number of sampling steps in the cubochoric
@@ -104,11 +103,11 @@ class sampleRFZ:
             return np.rint(125.70471 / (self.avg_ang_spacing - 0.07127)).astype(np.int32)
 
     def sample(self):
-        self.samples = _sample(self.pgnum,
-                               self.cubN,
-                               self.delta,
-                               self.shift,
-                               self.ap_2)
+        self.orientations = _sample(self.pgnum,
+                                    self.cubN,
+                                    self.delta,
+                                    self.shift,
+                                    self.ap_2)
 
     @property
     def pgnum(self):
@@ -158,8 +157,7 @@ class sampleRFZ:
 
     @property
     def delta(self):
-        self.ap_2 = constants.cuA_2
-        return constants.cuA_2 / self.cubN
+        return self.ap_2 / self.cubN
     
 
 

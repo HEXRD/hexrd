@@ -7,7 +7,7 @@ if constants.USE_NUMBA:
 else:
     prange = range
 
-ap = constants.cuA_2
+ap_2 = constants.cuA_2
 sc = constants.sc
 
 @numba_njit_if_available(cache=True, nogil=True)
@@ -42,7 +42,7 @@ def cu2ro(cu):
 @numba_njit_if_available(cache=True, nogil=True)
 def cu2ho(cu):
     ma = np.max(np.abs(cu))
-    assert ma < ap, "point outside cubochoric grid"
+    assert ma <= ap_2, "point outside cubochoric grid"
     p = getPyramid(cu)
 
     if p == 1 or p == 2:

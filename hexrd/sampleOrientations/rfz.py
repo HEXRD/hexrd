@@ -9,5 +9,5 @@ else:
     prange = range
 
 @numba_njit_if_available(cache=True, nogil=True)
-def insideFZ(rod, pgnum):
+def insideFZ(ro, pgnum):
     return True
