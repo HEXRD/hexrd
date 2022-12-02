@@ -20,11 +20,11 @@ def _sample(pgnum,
     res = np.zeros((N3, 3), dtype=np.float64)
     ctr = 0
 
-    for ii in range(-N, N+1):
+    for ii in prange(-N, N+1):
         xx = (ii + shift) * delta
-        for jj in range(-N, N+1):
+        for jj in prange(-N, N+1):
             yy = (jj + shift) * delta
-            for kk in range(-N, N+1):
+            for kk in prange(-N, N+1):
                 zz = (kk + shift) * delta
                 cu = np.array([xx, yy, zz])
                 ma = np.max(np.abs(cu))
