@@ -31,7 +31,7 @@ import multiprocessing as mp
 
 import numpy as np
 
-from scipy import constants as sc
+from scipy import constants as scipyc
 
 # !!! for stetting mp start method
 if 'Windows' in platform.system():
@@ -232,7 +232,7 @@ tp_12 = 2. - np.sqrt(3.)
 
 
 def keVToAngstrom(x):
-    return (1e7*sc.c*sc.h/sc.e) / np.array(x, dtype=float)
+    return (1e7*scipyc.c*scipyc.h/scipyc.e) / np.array(x, dtype=float)
 
 
 def _readenv(name, ctor, default):
