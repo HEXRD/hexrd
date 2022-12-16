@@ -2033,13 +2033,14 @@ class Rietveld:
         if not skip_phases:
             updated_lp = False
             updated_atominfo = False
-            pf = []
+            pf = np.zeros([self.phases.num_phases,])
+            pf_cur = self.phases.phase_fraction.copy()
             for ii, p in enumerate(self.phases):
                 name = f"{p}_phase_fraction"
                 if name in params:
-                    pf.append(params[name].value)
+                    pf[ii] = params[name].value
                 else:
-                    pf.append(self.phases.phase_fraction[ii])
+                    pf[ii] = pf_cur[ii]
 
                 for lpi in self.phases[p]:
                     mat = self.phases[p][lpi]
