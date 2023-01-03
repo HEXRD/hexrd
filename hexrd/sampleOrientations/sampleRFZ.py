@@ -17,7 +17,7 @@ def _sample(pgnum,
             ap_2):
 
     N3 = (2*N+1)**3
-    res = np.zeros((N3, 3), dtype=np.float64)
+    res = np.zeros((N3, 4), dtype=np.float64)
     ctr = 0
 
     for ii in prange(-N, N+1):
@@ -32,7 +32,7 @@ def _sample(pgnum,
                 if ma <= ap_2:
                     ro = cu2ro(cu)
                     if insideFZ(ro, pgnum):
-                        res[ctr,:] = cu[:]#ro2qu(ro)
+                        res[ctr,:] = ro2qu(ro)
                         ctr += 1
 
     res = res[0:ctr,:]
