@@ -39,7 +39,7 @@ def insideDihedralFZ(ro, FZorder):
     else:
         rod = ro[0:3] * ro[3]
 
-    c1 = (rod[2] <= constants.BP[FZorder-1])
+    c1 = (np.abs(rod[2]) <= constants.BP[FZorder-1])
 
     if c1:
         if   FZorder == 2:
