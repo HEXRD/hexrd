@@ -9,7 +9,7 @@ if constants.USE_NUMBA:
 else:
     prange = range
 
-@numba_njit_if_available(cache=True, nogil=True)
+@numba_njit_if_available(cache=True, nogil=True, parallel=True)
 def _sample(pgnum,
             N,
             delta,
