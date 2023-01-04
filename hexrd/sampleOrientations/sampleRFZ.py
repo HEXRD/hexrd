@@ -108,6 +108,13 @@ class sampleRFZ:
                                     self.shift,
                                     self.ap_2)
 
+    def sample_if_possible(self):
+        required_attributes = ('pgnum', 'avg_ang_spacing', 'sampling_type')
+        if not all(hasattr(self, x) for x in required_attributes):
+            return
+
+        self.sample()
+
     @property
     def pgnum(self):
         return self._pgnum
@@ -115,10 +122,7 @@ class sampleRFZ:
     @pgnum.setter
     def pgnum(self, pgn):
         self._pgnum = pgn
-        if hasattr(self, 'sampling_type'):
-            if hasattr(self, 'avg_ang_spacing'):
-                self.sample()
-
+        self.sample_if_possible()
 
     @property
     def sampling_type(self):
@@ -127,9 +131,7 @@ class sampleRFZ:
     @sampling_type.setter
     def sampling_type(self, stype):
         self._sampling_type = stype
-        if hasattr(self, 'pgnum'):
-            if hasattr(self, 'avg_ang_spacing'):
-                self.sample()
+        self.sample_if_possible()
 
     @property
     def avg_ang_spacing(self):
@@ -139,9 +141,7 @@ class sampleRFZ:
     @avg_ang_spacing.setter
     def avg_ang_spacing(self, ang):
         self._avg_ang_spacing = ang
-        if hasattr(self, 'pgnum'):
-            if hasattr(self, 'sampling_type'):
-                self.sample()
+        self.sample_if_possible()
 
     @property
     def cubN(self):
