@@ -112,7 +112,6 @@ def ho2ax(ho):
         return np.array([hn[0], hn[1], hn[2], np.pi])
     else:
         return np.array([hn[0], hn[1], hn[2], s])
-    return ax
 
 @numba_njit_if_available(cache=True, nogil=True)
 def ax2ro(ax):
