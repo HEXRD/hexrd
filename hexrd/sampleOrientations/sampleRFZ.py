@@ -31,7 +31,7 @@ def _sample(pgnum,
                 if ma <= ap_2:
                     ro = cu2ro(cu)
                     if insideFZ(ro, pgnum):
-                        idx = ii*(2*N+1)**2 + jj*(2*N+1) + kk
+                        idx = (ii+N)*(2*N+1)**2 + (jj+N)*(2*N+1) + (kk+N)
                         res[idx,:] = ro2qu(ro)
 
     return res
