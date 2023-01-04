@@ -17,8 +17,7 @@ def _sample(pgnum,
             ap_2):
 
     N3 = (2*N+1)**3
-    res = np.zeros((N3, 4), dtype=np.float64)
-    ctr = 0
+    res = np.full((N3, 4), np.nan, dtype=np.float64)
 
     for ii in prange(-N, N+1):
         xx = (ii + shift) * delta
@@ -32,10 +31,8 @@ def _sample(pgnum,
                 if ma <= ap_2:
                     ro = cu2ro(cu)
                     if insideFZ(ro, pgnum):
-                        res[ctr,:] = ro2qu(ro)
-                        ctr += 1
-
-    res = res[0:ctr,:]
+                        idx = ii*(2*N+1)**2 + jj*(2*N+1) + kk
+                        res[idx,:] = ro2qu(ro)
 
     return res
 
@@ -102,12 +99,14 @@ class sampleRFZ:
             return np.rint(125.70471 / (self.avg_ang_spacing - 0.07127)).astype(np.int32)
 
     def sample(self):
-        self.orientations = _sample(self.pgnum,
+        res = _sample(self.pgnum,
                                     self.cubN,
                                     self.delta,
                                     self.shift,
                                     self.ap_2)
-
+        mask = ~np.isnan(res[:,0])
+        res = res[mask,:]
+        self.orientations = res
     def sample_if_possible(self):
         required_attributes = ('pgnum', 'avg_ang_spacing', 'sampling_type')
         if not all(hasattr(self, x) for x in required_attributes):
