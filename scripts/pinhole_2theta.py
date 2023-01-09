@@ -134,12 +134,12 @@ def azimuth(vv, v0=None, v1=None, uom='radians'):
 
 def calc_twotheta_nominal(alpha, beta, phi_x=0, phi_d=0): # Eq. (5)
     """Nominal twotheta [radians] given alpha, beta, phi_x, phi_d.
-    
+
     optional: alpha, phi_x taken from first argument if is XraySource instance
     """
     if isinstance(alpha, XraySource):
         alpha, phi_x = alpha.alpha, alpha.phi
-    
+
     # Rygg2020, Eq. (5)
     cos_2qn = cos(alpha)*cos(beta) - sin(alpha)*sin(beta) * cos(phi_d - phi_x)
     return np.arccos(np.clip(cos_2qn, -1, 1))
@@ -147,7 +147,7 @@ def calc_twotheta_nominal(alpha, beta, phi_x=0, phi_d=0): # Eq. (5)
 
 def calc_twotheta_sample_minus_nominal(qq_n, beta, r_x, z_s): # Eq. (8)
     """Return (sample twotheta - nominal twotheta) [radians].
-    
+
     See Rygg2020, Eq. (8)
     """
     return np.arctan(sin(qq_n) / (r_x/z_s * cos(beta) - cos(qq_n)))
@@ -155,7 +155,7 @@ def calc_twotheta_sample_minus_nominal(qq_n, beta, r_x, z_s): # Eq. (8)
 
 def calc_twotheta_JHE(X, P, D):
     """J. Eggert approximation to pinhole twotheta.
-    
+
     Quote from J. Eggert describing approximation: "In my PXRDIP and TARDIS
       Igor analysis package, I approximated this correction by assuming that
       the pinhole diffraction arises from the center of the pinhole wall
@@ -164,18 +164,18 @@ def calc_twotheta_JHE(X, P, D):
     v_x = X.v_x  if isinstance(X, XraySource) else X
     d_p = P.diam if isinstance(P, Pinhole) else P
     v_d = D.v_d  if isinstance(D, Detector) else D
-    
+
     b = d_p / 2 # impact parameter
     dw = np.zeros_like(v_d) # offset vector of sample interaction region
     dw[...,0] = b * cos(D.phi + pi)
     dw[...,1] = b * sin(D.phi + pi)
-        
+
     return zenith(v_d - dw, v0=(v_x + dw))
 
 
 def calc_twotheta_pinhole(X, P, D, Np=120, showdetailview=False):
     """Return pinhole twotheta [rad] and effective scattering volume [mm3].
-    
+
     X: XraySource instance, or position tuple
     P: Pinhole instance, or (material, diameter, thickness) tuple
     D: Detector insteance, or tuple of (r_d, beta, phi_d)
@@ -217,7 +217,7 @@ def calc_twotheta_pinhole(X, P, D, Np=120, showdetailview=False):
     dA = dz * dl # [mm^2] area element
     dV_s = dA * mu_p**-1 # [mm^3] volume of surface element
     dV_e = dl * mu_p**-2 # [mm^3] volume of edge element
-    
+
     phi_vec = np.arange(dphi/2, 2*pi, dphi)
     z_vec = np.arange(-h_p/2 - dz/2, h_p/2 + dz/1.999, dz) # includes elements for X and D edges
     z_vec[0] = -h_p/2 # X-side edge (negative z)
@@ -225,7 +225,7 @@ def calc_twotheta_pinhole(X, P, D, Np=120, showdetailview=False):
     phi_i, z_i = np.meshgrid(phi_vec, z_vec) # [Nz x Np]
     phi_i = phi_i[:, :, None, None]    # [Nz x Np x 1 x 1]
     z_i   = z_i[:, :, None, None]      #   axes 0,1 => P; axes 2,3 => D
-    
+
     #------ calculate twotheta_i [a.k.a. qq_i], for each grid element ------
     bx, bd = (d_p / (2 * r_x),  d_p / (2 * r_d))
     sin_a,    cos_a,   tan_a  = sin(alpha), cos(alpha), tan(alpha)
@@ -242,7 +242,7 @@ def calc_twotheta_pinhole(X, P, D, Np=120, showdetailview=False):
 
     arg = cos(alpha_i) * cos(beta_i) - sin(alpha_i) * sin(beta_i) * cos(phi_di - phi_xi)
     qq_i = np.arccos(np.clip(arg, -1, 1)) # scattering angle for each P to each D
-    
+
     #------ calculate effective volumes: 1 (surface), 2 (Xedge), 3 (Dedge) -----
     sec_psi_x = 1 / (sin_a * cos_dphi_x)
     sec_psi_d = 1 / (sin_b * cos_dphi_d)
@@ -260,7 +260,7 @@ def calc_twotheta_pinhole(X, P, D, Np=120, showdetailview=False):
                              z_i < -h_p/2 + d_p/tan_a * cos_dphi_x)
     is_seen[0]  = np.where(h_p/d_p * tan_b < cos_dphi_d[0], 1, 0)  # X-side edge
     is_seen[-1] = np.where(h_p/d_p * tan_a < cos_dphi_x[-1], 1, 0) # D-side edge
-    
+
     #------ weighted sum over elements to obtain average ------
     V_i *= is_seen # zero weight to elements with no view of both X and D
     V_p = np.nansum(V_i, axis=(0,1)) # [Nu x Nv] <= detector
@@ -293,17 +293,17 @@ def calc_twotheta_pinhole(X, P, D, Np=120, showdetailview=False):
         print("signal volume (total) = {:.2g} um3".format(1e9*np.sum(V_i)))
         print("signal volume (total) = {:.1f}% of surface ref volume (pi d h / mu)".format(100*np.sum(V_i)/(pi*d_p*h_p/mu_p)))
         print("signal contribution from surface = {:.1f}%".format(100*np.sum(V_i[1:-1,:])/np.sum(V_i)))
-        
+
         extent = (0,360,-h_p/2,h_p/2)
         fig = plt.figure()
-        
+
         ax1 = plt.subplot(311)
         im = ax1.imshow(np.degrees(np.squeeze(qq_i[1:-1,:] - qq_n)), aspect='auto',
                        vmin=-0.6, vmax=0.6, cmap='coolwarm',extent=extent)
         plt.colorbar(im, label=r"$2\theta_p - 2\theta_n$ [deg]")
         ax1.plot(180/pi*(np.squeeze(phi_d)+pi), 0, 'wD')
 #            cb.set_label("2theta_p - 2theta_n [deg]")
-        
+
         ax2 = plt.subplot(312, sharex=ax1, sharey=ax1)
         im = ax2.imshow(1e9*np.squeeze(V_i), aspect='auto',extent=extent)
 #            im = ax.imshow(np.squeeze(V_i[1:-1,:]), aspect='auto',extent=extent)
@@ -319,7 +319,7 @@ def calc_twotheta_pinhole(X, P, D, Np=120, showdetailview=False):
         ax3.plot(180/pi*(np.squeeze(phi_d)+pi), 0, 'wD')
         ax3.axis(extent)
         fig.tight_layout()
-    
+
     print("=== /end detail view ===")
     return qq_p, V_p
 
@@ -353,7 +353,7 @@ class XraySource():
             self.alpha, self.phi = alpha, phi
             self.alpha_deg = np.degrees(alpha)
             self.phi_deg = np.degrees(phi)
-            
+
         sin_alpha, cos_alpha = sin(self.alpha), cos(self.alpha)
         sin_phi = np.around(sin(self.phi), 8) # np.around to handle rounding error
         cos_phi = np.around(cos(self.phi), 8)
@@ -381,11 +381,11 @@ class XraySource():
         phi = np.ravel(phi)
         cosq, sinq = np.cos(twotheta), np.sin(twotheta)
         cosp, sinp = np.cos(phi), np.sin(phi)
-        
+
         # xs direct image coords, and transformed to box coords
         v_1 = np.squeeze(np.transpose(np.dstack((sinq * cosp, sinq * sinp, cosq)))) # words for 1d array of vectors
         v_2 = np.transpose(np.dot(self.M, v_1))
-        
+
         beta = np.reshape(zenith(v_2), input_shape)
         phi_d = np.reshape(azimuth(v_2), input_shape)
 
@@ -394,10 +394,10 @@ class XraySource():
 
 class Pinhole():
     """Cylindrical aperture in an opaque material.
-    
+
     The diagnostic coordinate system (DCS) uses the pinhole center as the
       origin, and the pinhole axis as the z-axis
-    
+
     Parameters
     ----------
     mat    : pinhole substrate material (e.g. Ta, W, Pt)
@@ -405,7 +405,7 @@ class Pinhole():
     thick  : pinhole substrate thickness [mm]
     pos    : pinhole center position; optional, default (0,0,0)
     normal : pinhole normal unit vector; optional, default (0,0,1)
-    
+
     Attributes
     ----------
     all __init__ parameters are saved as attributes
@@ -428,7 +428,7 @@ class Pinhole():
 class Detector():
     """A detector single element or array of elements."""
     PXRDIP_LWH = (75, 50, 25) # [mm] length, width, and offset of pxrdip box
-    
+
     def __init__(self, v_d, id=None):
         """v_d contains the 3-vector(s) of the detector elements in xyz."""
         self.id = id
@@ -484,13 +484,13 @@ class Detector():
             qq = np.arange(10, xs.alpha_deg + 89, 1) # zenith every 1 degrees
             pp = np.arange(0, 180 + 1, 5) # azimuth every 5 degrees (calculate half since assuming symmetric so far)
             twotheta_n, phi = np.meshgrid(qq, pp)
-        
+
         twotheta_n = np.radians(twotheta_n)
         phi = np.radians(phi)
-        
+
         beta, phi_d = xs.transform_to_box_coords(twotheta_n, phi)
         sinb, cosb = sin(beta), cos(beta)
-        
+
         # deduce detector element distances, r_d
         rmax = np.sqrt(L**2 + 2 * H**2)
         back_betamax = np.arccos(L / rmax)
@@ -519,7 +519,7 @@ class Detector():
         phi_d = radians(phi_d)
         v_d = r_d * np.array((sin(beta)*cos(phi_d), sin(beta)*sin(phi_d), cos(beta)))
         return cls(v_d, id)
-    
+
     @property
     def shape(self):
         return self.beta.shape
@@ -561,12 +561,12 @@ class ReportFileWriter():
     def title(self):
         xs, ph = self.xs, self.ph
         return "{}{}_a{:.3g}_r{:.0f}_d{:.0f}_h{:.0f}".format(xs.mat, ph.mat, xs.alpha_deg, xs.r, 1000*ph.diam, 1000*ph.thick)
-    
+
     def run_calc(self):
         if True: # standard 2theta and phi sample spacing
             d2theta, dphi = 2, 5
         else: # extra fine 2theta and phi sample spacing
-            d2theta, dphi = 0.5, 1 
+            d2theta, dphi = 0.5, 1
 
         # create detector, and generate range for twotheta and phi
         xs, ph = self.xs, self.ph
@@ -574,7 +574,7 @@ class ReportFileWriter():
         pp = np.arange(0, 180 + 0.001, dphi)
         twotheta_n, phi = np.meshgrid(qq, pp)
         det = Detector.pxrdip_from_twothetaphi(xs, twotheta_n, phi, self.centered_ph)
-        
+
         self.qq, self.pp = qq, pp
         self.twotheta_n, self.phi = twotheta_n, phi
         self.det = det
@@ -582,7 +582,7 @@ class ReportFileWriter():
         qq_n = det.twotheta_n
         qq_p, V_p = calc_twotheta_pinhole(xs, ph, det, Np=self.Np)
         qq_JHE = calc_twotheta_JHE(xs, ph, det)
-    
+
         qq_p[det.beta < np.radians(self.beta_min)] = np.nan
         qq_p[det.beta > np.radians(self.beta_max)] = np.nan
         dq_pn = 180 / pi * (qq_p - qq_n) # convert to degrees
@@ -590,7 +590,7 @@ class ReportFileWriter():
 
         self.qq_n, self.qq_p = qq_n, qq_p
         self.dq_pn, self.dq_pj = dq_pn, dq_pj
-    
+
         if False: # switch on/off additional tables
             write_table(dq_pn.T, self.title + "_pn")
             write_table(dq_pj.T, self.title + "_pj")
@@ -623,7 +623,7 @@ class ReportFileWriter():
             with io.StringIO() as sio:
                 np.savetxt(sio, array, fmt=fmt)
                 ss.append(sio.getvalue())
-        
+
         with open(filename, "w") as f:
             f.write("\n".join(ss))
 
@@ -658,7 +658,7 @@ class ReportFileWriter():
         kws = dict(extent=extent, aspect='auto', cmap='coolwarm')
         kws2 = dict(extent=extent2, aspect='auto', cmap='coolwarm')
         kws_contour = dict(colors='k', linestyles='--')
-    
+
         def show_image(ax, value, label):
             vmax = max(np.nanmax(value), -np.nanmin(value))
             im = ax.imshow(value, vmin=-vmax, vmax=vmax, **kws2)
@@ -666,14 +666,14 @@ class ReportFileWriter():
             plt.colorbar(im, ax=ax, label=label)
             ax.contour(det.beta, [ph.critical_angle], extent=extent, **kws_contour)
             ax.contour(det.beta, [ph.critical_angle], extent=extent2, **kws_contour)
-    
+
         thetalabel, philabel = r'$2\theta_n$ [deg]', r'$\phi$ [deg]'
         fig = plt.figure(figsize=(5,6), dpi=DPI_SCREEN)
         ax1 = plt.subplot(211, xlabel=thetalabel, ylabel=philabel, title=" PXRDIP {}".format(self.title))
         ax2 = plt.subplot(212, sharex=ax1, sharey=ax1, xlabel=thetalabel, ylabel=philabel)
         show_image(ax1, dq_pn, r'$2\theta_p$ - $2\theta_n$ [deg]')
         show_image(ax2, dq_pj, r'$2\theta_p$ - $2\theta_{JHE}$ [deg]')
-    
+
         # formatting tweaks
         ax1.set_xticks(np.arange(0,151,15))
         ax1.set_xticks(np.arange(0,151,5), minor=True)
@@ -681,7 +681,7 @@ class ReportFileWriter():
         ax1.set_yticks(np.arange(-180,181,45), minor=True)
         ax1.axis((self.TWOTHETA_MIN, xs.alpha_deg + self.beta_max, -180, 180))
         plt.tight_layout()
-    
+
         if False: # optional: toggle printing additional info
             print("shape (Nphi, N2theta) and size of output array:", np.shape(dq_pj), np.size(dq_pj))
             print("max difference in twotheta direction: {:.4f} deg".format(np.nanmax(dq_pj[:,1:]-dq_pj[:,:-1])))
@@ -732,13 +732,13 @@ def sandbox1():
 
     xs = XraySource(p['mat_x'], p['r_x'], p['alpha'], p['phi_x'])
     ph = Pinhole(p['mat_p'], p['d_p'], p['h_p'])
-    
+
     # create detector, and generate range for twotheta and phi
     qq = np.arange(twothetamin, xs.alpha_deg + betamax, d2theta)
     pp = np.arange(0, 180 + 1, dphi)
     twotheta_n, phi = np.meshgrid(qq, pp)
     det = Detector.pxrdip_from_twothetaphi(xs, twotheta_n, phi, p['centered_ph'])
-    
+
     title = "{}{}_a{:.3g}_d{:.0f}".format(xs.mat, ph.mat, xs.alpha_deg, 1000*ph.diam)
 
     qq_n = det.twotheta_n
@@ -799,7 +799,7 @@ def sandbox1():
         plt.figure(figsize=(6,7), dpi=DPI_SCREEN)
         ax1 = plt.subplot(211, xlabel=r'$2\theta_n$', ylabel=r'$\phi$', title=title)
         ax2 = plt.subplot(212, sharex=ax1, sharey=ax1, xlabel=r'$2\theta_n$', ylabel=r'$\phi$')
-        
+
         im = ax1.imshow(b_center, vmin=0, **kws2)
         im = ax1.imshow(b_center, vmin=0, **kws)
         plt.colorbar(im, ax=ax1, label="b center [mm]")
@@ -816,7 +816,7 @@ def sandbox1():
         ax1.axis((twothetamin, xs.alpha_deg + betamax, -180, 180))
 
         plt.tight_layout()
-        
+
         if calc_type not in ("hires", 2):
             write_table(b_center.T, title + "_b-center")
         if calc_type not in ("hires", 2):
@@ -833,5 +833,5 @@ if __name__ == "__main__":
     rfw.save_image()
 
 #    sandbox1()
-    
+
     plt.show()
