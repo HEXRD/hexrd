@@ -3573,6 +3573,126 @@ class PlanarDetector(object):
             pass    # close loop on grains
         return xy_det, hkls_in, angles, dspacing, energy
 
+class CylindricalDetector(PlanarDetector):
+    """Base class for 2D cylindrical detector
+       
+       A cylindrical detector is a simple rectangular 
+       row-column detector which has been bent in the 
+       shape of a cylinder. Inherting the PlanarDetector 
+       class except for a few changes to account for the
+       cylindder ray intersection.
+    """
+    def __init__(self,
+                 rows=240, cols=1525,
+                 pixel_size=(0.1, 0.1),
+                 tvec=np.r_[0., 0., -49.5],
+                 tilt=ct.zeros_3,
+                 name='rind',
+                 bvec=ct.beam_vec,
+                 xrs_dist=None,
+                 evec=ct.eta_vec,
+                 saturation_level=None,
+                 panel_buffer=None,
+                 tth_distortion=None,
+                 roi=None,
+                 distortion=None,
+                 max_workers=max_workers_DFLT):
+
+        self._name = name
+
+        self._rows = rows
+        self._cols = cols
+
+        self._pixel_size_row = pixel_size[0]
+        self._pixel_size_col = pixel_size[1]
+
+        self._saturation_level = saturation_level
+
+        self._panel_buffer = panel_buffer
+
+        self._tth_distortion = tth_distortion
+
+        if roi is None:
+            self._roi = roi
+        else:
+            assert len(roi) == 2, \
+                "roi is set via (start_row, start_col)"
+            self._roi = ((roi[0], roi[0] + self._rows),
+                         (roi[1], roi[1] + self._cols))
+
+        self._tvec = np.array(tvec).flatten()
+        self._tilt = np.array(tilt).flatten()
+
+        self._bvec = np.array(bvec).flatten()
+        self._xrs_dist = xrs_dist
+
+        self._evec = np.array(evec).flatten()
+
+        self._distortion = distortion
+
+        self.max_workers = max_workers
+
+        #
+        # set up calibration parameter list and refinement flags
+        #
+        # order for a single detector will be
+        #
+        #     [tilt, translation, <distortion>]
+        dparams = []
+        if self._distortion is not None:
+            dparams = self._distortion.params
+        self._calibration_parameters = np.hstack(
+                [self._tilt, self._tvec, dparams]
+            )
+        self._calibration_flags = np.hstack(
+                [panel_calibration_flags_DFLT,
+                 np.zeros(len(dparams), dtype=bool)]
+            )
+        return
+
+    def _warp_to_cylinder(self, cart):
+        """
+        routine to convert cartesian coordinates
+        in detector frame to cylindrical coordinates
+        """
+        y = cart[:,1]
+
+
+    def _dewarp_from_cylinder(self, crds):
+        """
+        routine to convert cylindrical coordinates
+        to cartesian coordinates in detector frame
+        """
+        pass
+
+    @property
+    def RoC(self):
+        return np.linalg.norm(self.tvec)
+
+    @property
+    def kappa(self):
+        return 1.0/self.radius
+
+
+
+    # __pixelPitchUnit = 'mm'
+
+    # def __init__(self,
+    #              rows=500, cols=1750,
+    #              pixel_size=(0.1, 0.1),
+    #              tvec=np.r_[0., 0., -1000.],
+    #              tilt=ct.zeros_3,
+    #              name='rind',
+    #              bvec=ct.beam_vec,
+    #              xrs_dist=None,
+    #              evec=ct.eta_vec,
+    #              saturation_level=None,
+    #              panel_buffer=None,
+    #              tth_distortion=None,
+    #              roi=None,
+    #              distortion=None,
+    #              max_workers=max_workers_DFLT):
+    #     pass
 
 # =============================================================================
 # UTILITIES
