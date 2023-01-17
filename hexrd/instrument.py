@@ -3596,7 +3596,8 @@ class CylindricalDetector(PlanarDetector):
                  tth_distortion=None,
                  roi=None,
                  distortion=None,
-                 max_workers=max_workers_DFLT):
+                 max_workers=max_workers_DFLT,
+                 det_type='cylindrical'):
 
         self._name = name
 
@@ -3611,6 +3612,8 @@ class CylindricalDetector(PlanarDetector):
         self._panel_buffer = panel_buffer
 
         self._tth_distortion = tth_distortion
+
+        self._det_type = det_type
 
         if roi is None:
             self._roi = roi
@@ -3665,35 +3668,49 @@ class CylindricalDetector(PlanarDetector):
         """
         pass
 
+    def _valid_points(self, vecs):
+        """
+        this rotuine takes a list of vectors
+        and checks if it falls inside the 
+        cylindrical panel
+
+        returns the subset of vectors which fall
+        on the panel
+        """
+        pass
+
+    def _gvecToDetectorXY(self, gvecs):
+        """
+        routine to convert gvectors to
+        points on the detector
+        steps as follows:
+        1. gvec to point on cylinder
+        2. prune list to only valid points
+        3. dewarp to rectangle
+        """
+        pass
+
+    @property
+    def caxis(self):
+        # returns the cylinder axis
+        return np.dot(self.rmat, constants.lab_y)
+
     @property
     def RoC(self):
+        # units of mm
         return np.linalg.norm(self.tvec)
 
     @property
-    def kappa(self):
-        return 1.0/self.radius
+    def physical_size(self):
+        # return physical size of detector
+        # in mm after dewarped to rectangle
+        return np.array([self.rows*self.pixel_size_row,
+                         self.cols*self.pixel_size_col])
 
-
-
-    # __pixelPitchUnit = 'mm'
-
-    # def __init__(self,
-    #              rows=500, cols=1750,
-    #              pixel_size=(0.1, 0.1),
-    #              tvec=np.r_[0., 0., -1000.],
-    #              tilt=ct.zeros_3,
-    #              name='rind',
-    #              bvec=ct.beam_vec,
-    #              xrs_dist=None,
-    #              evec=ct.eta_vec,
-    #              saturation_level=None,
-    #              panel_buffer=None,
-    #              tth_distortion=None,
-    #              roi=None,
-    #              distortion=None,
-    #              max_workers=max_workers_DFLT):
-    #     pass
-
+    @property
+    def det_type(self):
+        return self._det_type
+    
 # =============================================================================
 # UTILITIES
 # =============================================================================
