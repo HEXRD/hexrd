@@ -3683,6 +3683,38 @@ class CylindricalDetector(PlanarDetector):
         """
         pass
 
+    def _unitvec_to_cylinder(self, uvw):
+        """
+        get point where unitvector uvw
+        intersect the cylindrical detector.
+        this will give points which are 
+        outside the actual panel. the points
+        will be clipped to the panle later
+
+        Parameters
+        ----------
+        uvw : numpy.ndarray
+        unit vectors stacked row wise (nx3) shape
+
+        Returns
+        -------
+        numpy.ndarray
+        (x,y,z) vectors point which intersect with 
+        the cylinder
+        """
+        num = uvw.shape[0]
+        cx = np.tile(self.caxis,[num, 1]).T
+        dp = np.diag(np.dot(uvw, cx))
+        beta = np.zeros([num, ])
+        den = np.sqrt(1 - dp**2)
+        mask = den < 1E-8
+        beta = np.zeros([num, ])
+        beta[~mask] = self.radius/den[~mask]
+        beta[mask] = np.nan
+
+        return np.tile(beta, [3, 1]).T * uvw
+
+
     def _gvecToDetectorXY(self, gvecs):
         """
         routine to convert gvectors to
@@ -3700,7 +3732,7 @@ class CylindricalDetector(PlanarDetector):
         return np.dot(self.rmat, constants.lab_y)
 
     @property
-    def RoC(self):
+    def radius(self):
         # units of mm
         return np.linalg.norm(self.tvec)
 
