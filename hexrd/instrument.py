@@ -681,6 +681,10 @@ class HEDMInstrument(object):
             for det_id, det_info in detectors_config.items():
                 pixel_info = det_info['pixels']
                 affine_info = det_info['transform']
+                if 'detector_type' in det_info:
+                    detector_type = det_info['detector_type']
+                else:
+                    detector_type = 'planar'
                 try:
                     saturation_level = det_info['saturation_level']
                 except(KeyError):
@@ -725,8 +729,11 @@ class HEDMInstrument(object):
                             raise RuntimeError(
                                 "problem with distortion specification"
                             )
+                DetectorClass = PlanarDetector
+                if detector_type.lower() == 'cylindrical':
+                     DetectorClass = CylindricalDetector
 
-                det_dict[det_id] = PlanarDetector(
+                det_dict[det_id] = DetectorClass(
                         name=det_id,
                         rows=pixel_info['rows'],
                         cols=pixel_info['columns'],
@@ -3596,8 +3603,7 @@ class CylindricalDetector(PlanarDetector):
                  tth_distortion=None,
                  roi=None,
                  distortion=None,
-                 max_workers=max_workers_DFLT,
-                 det_type='cylindrical'):
+                 max_workers=max_workers_DFLT):
 
         self._name = name
 
@@ -3612,8 +3618,6 @@ class CylindricalDetector(PlanarDetector):
         self._panel_buffer = panel_buffer
 
         self._tth_distortion = tth_distortion
-
-        self._det_type = det_type
 
         if roi is None:
             self._roi = roi
