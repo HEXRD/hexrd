@@ -3660,17 +3660,27 @@ class CylindricalDetector(PlanarDetector):
     def _warp_to_cylinder(self, cart):
         """
         routine to convert cartesian coordinates
-        in detector frame to cylindrical coordinates
-        """
-        y = cart[:,1]
-
-
-    def _dewarp_from_cylinder(self, crds):
-        """
-        routine to convert cylindrical coordinates
-        to cartesian coordinates in detector frame
+        in image frame to cylindrical coordinates
         """
         pass
+
+
+    def _dewarp_from_cylinder(self, uvw):
+        """
+        routine to convert cylindrical coordinates
+        to cartesian coordinates in image frame
+        """
+        tvec = np.atleast_2d(self.tvec).T
+        cx = np.atleast_2d(self.caxis).T
+        px = np.atleast_2d(self.paxis).T
+        num = uvw.shape[0]
+        vv = uvw - np.tile(self.tvec,[num, 1])
+        xcrd = np.squeeze(np.dot(vv, px))
+        ycrd = np.squeeze(np.dot(vv, cx))
+
+        ang = np.abs(np.arcsin(xcrd/self.radius))
+        xcrd *= ang
+        return (xcrd, ycrd)
 
     def _valid_points(self, vecs):
         """
@@ -3700,13 +3710,12 @@ class CylindricalDetector(PlanarDetector):
         -------
         numpy.ndarray
         (x,y,z) vectors point which intersect with 
-        the cylinder
+        the cylinder with (nx3) shape
         """
         num = uvw.shape[0]
-        cx = np.tile(self.caxis,[num, 1]).T
-        dp = np.diag(np.dot(uvw, cx))
-        beta = np.zeros([num, ])
-        den = np.sqrt(1 - dp**2)
+        cx = np.atleast_2d(self.caxis).T
+        dp = np.dot(uvw, cx)
+        den = np.squeeze(np.sqrt(1 - dp**2))
         mask = den < 1E-8
         beta = np.zeros([num, ])
         beta[~mask] = self.radius/den[~mask]
@@ -3714,6 +3723,49 @@ class CylindricalDetector(PlanarDetector):
 
         return np.tile(beta, [3, 1]).T * uvw
 
+    def _clip_to_cylindrical_detector(self, uvw):
+        """
+        takes in the intersection points uvw
+        with the cylindrical detector and 
+        prunes out points which don't actually
+        hit the actual panel
+
+        Parameters
+        ----------
+        uvw : numpy.ndarray
+        unit vectors stacked row wise (nx3) shape
+
+        Returns
+        -------
+        numpy.ndarray
+        (x,y,z) vectors point which fall on panel
+        with (mx3) shape
+        """
+        # first get rid of points which are above
+        # or below the detector
+        size = self.physical_size
+        tvec = np.atleast_2d(self.tvec).T
+        cx = np.atleast_2d(self.caxis).T
+        num = uvw.shape[0]
+        ycomp = uvw - np.tile(self.tvec,[num, 1])
+        ylen = np.squeeze(np.dot(ycomp, cx))
+        mask = np.abs(ylen) < size[0]*0.5
+        res = uvw[mask, :]
+
+        # next get rid of points that fall outside 
+        # the polar angle range
+        num = res.shape[0]
+        dp = np.squeeze(np.dot(res, cx))
+        v = np.tile(cx,[1, num])*np.tile(dp, [3,1])
+        v = v.T
+        xcomp = res - v
+        magxcomp = np.linalg.norm(xcomp,axis=1)
+        ang = np.squeeze(np.dot(xcomp, tvec))/self.radius/magxcomp
+        ang = np.arccos(ang)
+        mask = ang < self.angle_extent
+        res = res[mask,:]
+
+        return res
 
     def _gvecToDetectorXY(self, gvecs):
         """
@@ -3732,6 +3784,11 @@ class CylindricalDetector(PlanarDetector):
         return np.dot(self.rmat, constants.lab_y)
 
     @property
+    def paxis(self):
+        # returns the cylinder axis
+        return np.dot(self.rmat, constants.lab_x)
+
+    @property
     def radius(self):
         # units of mm
         return np.linalg.norm(self.tvec)
@@ -3744,8 +3801,23 @@ class CylindricalDetector(PlanarDetector):
                          self.cols*self.pixel_size_col])
 
     @property
-    def det_type(self):
-        return self._det_type
+    def beam_position(self):
+        """
+        returns the coordinates of the beam in the cartesian detector
+        frame {Xd, Yd, Zd}.  NaNs if no intersection.
+        """
+        output = np.nan * np.ones(2)
+        pt_on_cylinder = self._unitvec_to_cylinder(
+                         np.atleast_2d(bvec))
+        pt_on_cylinder = self._valid_points(pt_on_cylinder)
+        output = self._dewarp_from_cylinder(pt_on_cylinder)
+        return output
+    
+    @property
+    def angle_extent(self):
+        # extent is from -theta, theta
+        sz = self.physical_size[1]
+        return sz/self.radius/2.0
     
 # =============================================================================
 # UTILITIES
