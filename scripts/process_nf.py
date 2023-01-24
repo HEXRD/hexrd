@@ -316,10 +316,20 @@ else:
 
         confidence_map_list[int(
             n_groups) * int(voxels_per_group):] = confidence_map_group_list
-
+    
+    #fix so that chunking will work with tomography
+    grain_map_list_full=np.zeros(Xs.shape[0]*Xs.shape[1]*Xs.shape[2])
+    confidence_map_list_full=np.zeros(Xs.shape[0]*Xs.shape[1]*Xs.shape[2])
+    
+    for jj in np.arange(len(to_use)):
+        grain_map_list_full[to_use[jj]]=grain_map_list[jj]
+        confidence_map_list_full[to_use[jj]]=confidence_map_list[jj]
+    
+    
     #reshape them
-    grain_map = grain_map_list.reshape(Xs.shape)
-    confidence_map = confidence_map_list.reshape(Xs.shape)
+    grain_map = grain_map_list_full.reshape(Xs.shape)
+    confidence_map = confidence_map_list_full.reshape(Xs.shape)
+
 
 
 del controller
