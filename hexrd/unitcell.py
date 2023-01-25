@@ -747,11 +747,20 @@ class unitcell:
 
                 Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
-                gid = fid.get('/'+elem)
-                data = np.array(gid.get('data'))
-                self.pe_cs[elem] = interp1d(data[:, 7], data[:, 3])
-                data = data[:, [7, 1, 2]]
-                f_anomalous_data.append(data)
+
+                if Z <= 92:
+                    gid = fid.get('/'+elem)
+                    data = np.array(gid.get('data'))
+                    self.pe_cs[elem] = interp1d(data[:, 7], data[:, 3])
+                    data = data[:, [7, 1, 2]]
+                    f_anomalous_data.append(data)
+                else:
+                    wav = np.linspace(1.16E2, 2.86399992e-03, 189)
+                    zs = np.ones_like(wav)*Z
+                    zrs = np.zeros_like(wav)
+                    data_zs = np.vstack((wav, zs, zrs)).T
+                    self.pe_cs[elem] = interp1d(wav, zrs)
+                    f_anomalous_data.append(data_zs)
 
         n = max([x.shape[0] for x in f_anomalous_data])
         self.f_anomalous_data = np.zeros([self.atom_ntype, n, 3])
@@ -774,7 +783,7 @@ class unitcell:
             f2 = self.f2[elem](self.wavelength)
             frel = constants.frel[elem]
             Z = constants.ptable[elem]
-            self.f_anam[elem] = np.complex(f1+frel-Z, f2)
+            self.f_anam[elem] = complex(f1+frel-Z, f2)
 
     def CalcXRFormFactor(self, Z, charge, s):
         '''
@@ -846,8 +855,9 @@ class unitcell:
             Z = self.atom_type[i]
             elem = constants.ptableinverse[Z]
             scatfac[i, :] = constants.scatfac[elem]
-            frel[i] = constants.frel[elem]
-            fNT[i] = constants.fNT[elem]
+            if Z <= 92:
+                frel[i] = constants.frel[elem]
+                fNT[i] = constants.fNT[elem]
 
         sf, sf_raw = _calcxrsf(hkl2d,
                                nref,
