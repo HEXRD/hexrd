@@ -578,7 +578,7 @@ class Material(object):
                 if x:
                     try:
                         U[ii] = float(U[ii])
-                    except:
+                    except ValueError:
                         U[ii] = self.DFLT_U[0]
 
             self._U = numpy.asarray(U)
