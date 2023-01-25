@@ -748,10 +748,6 @@ class unitcell:
                 Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
 
-                wav = np.linspace(1.16E2, 2.86399992e-03, 189)
-                zs = np.ones_like(wav)*Z
-                zrs = np.zeros_like(wav)
-                data_zs = np.vstack((wav, zs, zrs)).T
                 if Z <= 92:
                     gid = fid.get('/'+elem)
                     data = np.array(gid.get('data'))
@@ -759,6 +755,10 @@ class unitcell:
                     data = data[:, [7, 1, 2]]
                     f_anomalous_data.append(data)
                 else:
+                    wav = np.linspace(1.16E2, 2.86399992e-03, 189)
+                    zs = np.ones_like(wav)*Z
+                    zrs = np.zeros_like(wav)
+                    data_zs = np.vstack((wav, zs, zrs)).T
                     self.pe_cs[elem] = interp1d(wav, zrs)
                     f_anomalous_data.append(data_zs)
 
