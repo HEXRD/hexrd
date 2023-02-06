@@ -1,0 +1,119 @@
+beam:
+  energy: 10.2505
+  source_distance: .inf
+  vector:
+    azimuth: 90.0
+    polar_angle: 67.0
+detectors:
+  IMAGE-PLATE-B:
+    buffer:
+    - 0.1
+    - 0.1
+    pixels:
+      columns: 2100
+      roi: null
+      rows: 2150
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 16535.0
+    transform:
+      tilt:
+      - 0.0
+      - 0.0
+      - 0.0
+      translation:
+      - 0.0
+      - 0.0
+      - -42.0
+  IMAGE-PLATE-D:
+    buffer:
+    - 0.1
+    - 0.1
+    pixels:
+      columns: 2160
+      roi: null
+      rows: 1809
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 16535.0
+    transform:
+      tilt:
+      - -2.0001473227855016
+      - 2.0110041935942081e-16
+      - 4.384698230782038e-17
+      translation:
+      - 0.0
+      - -16.31
+      - -21.0
+  IMAGE-PLATE-L:
+    buffer:
+    - 0.1
+    - 0.1
+    pixels:
+      columns: 2188
+      roi: null
+      rows: 1836
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 16535.0
+    transform:
+      tilt:
+      - -1.5180238097100214
+      - 1.518023809710021
+      - -0.9745539653748064
+      translation:
+      - -16.31
+      - 0.0
+      - -20.8
+  IMAGE-PLATE-R:
+    buffer:
+    - 0.1
+    - 0.1
+    pixels:
+      columns: 2168
+      roi: null
+      rows: 1824
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 16535.0
+    transform:
+      tilt:
+      - -1.5180238101387615
+      - -1.5180238090933242
+      - 0.9745539649788945
+      translation:
+      - 16.31
+      - 0.0
+      - -21.0
+  IMAGE-PLATE-U:
+    buffer:
+    - 0.1
+    - 0.1
+    pixels:
+      columns: 2142
+      roi: null
+      rows: 1803
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 16535.0
+    transform:
+      tilt:
+      - 2.0001473227855016
+      - 0.0
+      - 0.0
+      translation:
+      - 0.0
+      - 16.31
+      - -21.0
+id: reference bbxrd
+oscillation_stage:
+  chi: 0.0
+  translation:
+  - 0.0
+  - 0.0
+  - 0.0
