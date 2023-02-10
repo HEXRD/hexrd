@@ -658,7 +658,8 @@ class LeBail:
         self.Icalc = self.Iobs
 
         self.res = self.Refine()
-        self.update_parameters()
+        if self.res is not None:
+            self.update_parameters()
         self.niter += 1
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
         self.gofFlist = np.append(self.gofFlist, self.gofF)
@@ -682,19 +683,28 @@ class LeBail:
 
         params = self.initialize_lmfit_parameters()
 
-        fdict = {
-            "ftol": 1e-6,
-            "xtol": 1e-6,
-            "gtol": 1e-6,
-            "verbose": 0,
-            "max_nfev": 1000,
-            "method": "trf",
-            "jac": "2-point",
-        }
-        fitter = lmfit.Minimizer(self.calcRwp, params)
+        if len(params) > 0:
+            fdict = {
+                "ftol": 1e-6,
+                "xtol": 1e-6,
+                "gtol": 1e-6,
+                "verbose": 0,
+                "max_nfev": 1000,
+                "method": "trf",
+                "jac": "2-point",
+            }
+            fitter = lmfit.Minimizer(self.calcRwp, params)
 
-        res = fitter.least_squares(**fdict)
-        return res
+            res = fitter.least_squares(**fdict)
+            return res
+        else:
+            msg = "nothing to refine. updating intensities"
+            print(msg)
+            errvec = self.computespectrum()
+            if hasattr(self, 'res'):
+                return self.res
+            else:
+                return None
 
     def updatespectrum(self):
         """
@@ -1992,32 +2002,35 @@ class Rietveld:
 
         params = self.initialize_lmfit_parameters()
 
-        fdict = {
-            "ftol": 1e-6,
-            "xtol": 1e-6,
-            "gtol": 1e-6,
-            "verbose": 0,
-            "max_nfev": 1000,
-            "method": "trf",
-            "jac": "2-point",
-        }
+        if len(params) > 0:
+            fdict = {
+                "ftol": 1e-6,
+                "xtol": 1e-6,
+                "gtol": 1e-6,
+                "verbose": 0,
+                "max_nfev": 1000,
+                "method": "trf",
+                "jac": "2-point",
+            }
 
-        fitter = lmfit.Minimizer(self.calcRwp, params)
+            fitter = lmfit.Minimizer(self.calcRwp, params)
 
-        self.res = fitter.least_squares(**fdict)
+            self.res = fitter.least_squares(**fdict)
 
-        self.update_parameters()
+            self.update_parameters()
 
-        self.niter += 1
-        self.Rwplist = np.append(self.Rwplist, self.Rwp)
-        self.gofFlist = np.append(self.gofFlist, self.gofF)
+            self.niter += 1
+            self.Rwplist = np.append(self.Rwplist, self.Rwp)
+            self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-        print(
-            "Finished iteration. Rwp: {:.3f} % goodness of \
-              fit: {:.3f}".format(
-                self.Rwp * 100.0, self.gofF
+            print(
+                "Finished iteration. Rwp: {:.3f} % goodness of \
+                  fit: {:.3f}".format(
+                    self.Rwp * 100.0, self.gofF
+                )
             )
-        )
+        else:
+            print("Nothing to refine...")
 
     def _set_params_vals_to_class(self, params, init=False, skip_phases=False):
         """
