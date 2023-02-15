@@ -701,10 +701,7 @@ class LeBail:
             msg = "nothing to refine. updating intensities"
             print(msg)
             errvec = self.computespectrum()
-            if hasattr(self, 'res'):
-                return self.res
-            else:
-                return None
+            return getattr(self, 'res', None)
 
     def updatespectrum(self):
         """
