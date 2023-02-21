@@ -31,45 +31,6 @@ except(ImportError):
     matplot = False
 
 
-def plot_ori_map(grain_map, confidence_map, exp_maps, layer_no, id_remap=None):
-    #IPF colored orientation maps
-    grains_plot = np.squeeze(grain_map[layer_no, :, :])
-    conf_plot = np.squeeze(confidence_map[layer_no, :, :])
-    n_grains = len(exp_maps)
-
-    rgb_image = np.zeros(
-        [grains_plot.shape[0], grains_plot.shape[1], 4], dtype='float32')
-    rgb_image[:, :, 3] = 1.
-
-    for ii in np.arange(n_grains):
-        if id_remap is not None:
-            this_grain = np.where(np.squeeze(grains_plot) == id_remap[ii])
-        else:
-            this_grain = np.where(np.squeeze(grains_plot) == ii)
-        if np.sum(this_grain[0]) > 0:
-
-            ori = exp_maps[ii, :]
-
-            rmats = rot.rotMatOfExpMap(ori)
-            rgb = mat.unitcell.color_orientations(
-                rmats, ref_dir=np.array([0., 1., 0.]))
-
-            #color mapping
-            rgb_image[this_grain[0], this_grain[1], 0] = rgb[0][0]
-            rgb_image[this_grain[0], this_grain[1], 1] = rgb[0][1]
-            rgb_image[this_grain[0], this_grain[1], 2] = rgb[0][2]
-
-    fig1 = plt.figure()
-    plt.imshow(rgb_image, interpolation='none')
-    plt.title('Layer %d Grain Map' % layer_no)
-    plt.show()
-    #plt.hold(True)
-    fig2 = plt.figure()
-    plt.imshow(conf_plot, vmin=0.0, vmax=1.,
-               interpolation='none', cmap=plt.cm.gray, alpha=0.5)
-    plt.title('Layer %d Confidence Map' % layer_no)
-    plt.show()
-
 #==============================================================================
 # %% FILES TO LOAD -CAN BE EDITED
 #==============================================================================
@@ -399,5 +360,5 @@ mat = Material(name=mat_name, material_file=mat_file, dmin=valWUnit(
 
 if matplot:
     if output_plot_check:
-        plot_ori_map(grain_map, confidence_map,
-                     experiment.exp_maps, 0, id_remap=nf_to_ff_id_map)
+        nfutil.plot_ori_map(grain_map, confidence_map,
+                     experiment.exp_maps, 0, mat, id_remap=nf_to_ff_id_map)
