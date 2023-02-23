@@ -11,6 +11,7 @@ from .reconstruction import ReconstructionConfig
 from .images import ImagesConfig
 from .experiment import ExperimentConfig
 from .input_files import InputConfig
+from .tomography import TomographyConfig
 
 logger = logging.getLogger('hexrd.config')
 
@@ -27,7 +28,6 @@ class NFRootConfig(Config):
 
     @property
     def analysis_name(self):
-        print('test')
         return self._cfg.get('analysis_name', 'NF_')
 
     @property
@@ -37,6 +37,10 @@ class NFRootConfig(Config):
     @property
     def multiprocessing(self):
         return MultiprocessingConfig(self)
+
+    @property
+    def tomography(self):
+        return TomographyConfig(self)
 
     @property
     def reconstruction(self):

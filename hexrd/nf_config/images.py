@@ -33,7 +33,7 @@ class ImagesConfig(Config):
         return self._cfg.get('images:nframes', 1440)
 
     @property
-    def processing_parameters(self):
+    def processing(self):
         return ProcessingConfig(self._cfg)
 
 
@@ -41,19 +41,19 @@ class ProcessingConfig(Config):
 
     @property
     def num_for_dark(self):
-        return self._cfg.get('images:processing_parameters:num_for_dark', 200)
+        return self._cfg.get('images:processing:num_for_dark', 200)
 
     @property
     def img_threshold(self):
-        return self._cfg.get('images:processing_parameters:img_threshold', 0)
+        return self._cfg.get('images:processing:img_threshold', 0)
 
     @property
     def ome_dilation_iter(self):
-        return self._cfg.get('images:processing_parameters:ome_dilation_iter', 1)
+        return self._cfg.get('images:processing:ome_dilation_iter', 1)
 
     @property
     def method(self):
-        key = 'images:processing_parameters:method'
+        key = 'images:processing:method'
         try:
             temp = self._cfg.get(key)
             assert len(temp) == 1., \
