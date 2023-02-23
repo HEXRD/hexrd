@@ -28,15 +28,14 @@ class ExperimentConfig(Config):
     def max_tth(self):
         return self._cfg.get('experiment:max_tth', None)
 
-#I'm not sure what to do here
-
     @property
     def misorientation(self):
-        temp = self._cfg.get('experiment:misorientation:use_misorientation', False)
-
-        if temp is True:
-
-            key = 'experiment:misorientation:use_misorientation'
-            if key:
-                misorientation_bnd = self._cfg.get('experiment:bnd', 0.0)
-                misorientation_spacing = self._cfg.get('experiment:spacing', 0.25)
+        key = self._cfg.get('experiment:misorientation:use_misorientation')
+        if key is True:
+            parms = dict(misorientation_bnd='experiment:bnd',
+            misorientation_spacing='experiment:spacing')
+            return parms
+        else:
+            parms = dict(misorientation_bnd=0,
+            misorientation_spacing=0.1) #won't look at spacing if bnd is 0
+            return parms

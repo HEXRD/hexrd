@@ -21,6 +21,10 @@ class ImagesConfig(Config):
         return self._cfg.get('images:stem')
 
     @property
+    def num_digits(self):
+        return self._cfg.get('images:num_digits')
+
+    @property
     def img_start(self):
         return self._cfg.get('images:img_start')
 
