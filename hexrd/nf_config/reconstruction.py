@@ -12,13 +12,15 @@ class ReconstructionConfig(Config):
     @property
     def tomography(self):
         key = self._cfg.get('reconstruction:tomography:use_mask')
-        print(key)
         if key is True:
-            parms = dict(mask_data_file='reconstruction:tomography:mask_data_file',
+            parms = dict(use_mask = True,
+            mask_data_file='reconstruction:tomography:mask_data_file',
             mask_vert_offset='reconstruction:tomography:mask_vert_offset')
             return parms
         else:
-            print('Not using tomography mask')
+            parms = dict(use_mask = False,
+            mask_data_file=None,
+            mask_vert_offset=None)
             return
 
     @property
@@ -31,7 +33,7 @@ class ReconstructionConfig(Config):
 
     @property
     def v_bnds(self):
-        return self._cfg.get('reconstruction:v_bnds')
+        return self._cfg.get('reconstruction:v_bnds',[0.0,0.0])
 
     @property
     def beam_stop_y_cen(self):

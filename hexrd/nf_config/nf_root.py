@@ -23,7 +23,7 @@ class NFRootConfig(Config):
 
     @property
     def output_dir(self):
-        return self._cfg.get('output_dir', main_dir)
+        return self._cfg.get('output_dir', self.main_dir)
 
     @property
     def analysis_name(self):
@@ -32,7 +32,7 @@ class NFRootConfig(Config):
 
     @property
     def output_plot_check(self):
-        return self._cfg.get(output_plot_check)
+        return self._cfg.get('output_plot_check')
 
     @property
     def multiprocessing(self):

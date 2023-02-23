@@ -75,12 +75,9 @@ class MultiprocessingConfig(Config):
         return self._cfg.get('multiprocessing:chunk_size', 500)
 
     @property
-    def RAM_set(self):
+    def max_RAM(self):
         key = self._cfg.get('multiprocessing:RAM_set')
-
         if key is True:
-            temp = self._cfg.get('multiprocessing:max_RAM')
-            RAM = temp * 1e9
-            return RAM
+            return self._cfg.get('multiprocessing:max_RAM')
         else:
             return psutil.virtual_memory().available

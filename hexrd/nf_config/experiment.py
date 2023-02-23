@@ -1,5 +1,6 @@
 import logging
 import os
+import numpy as np
 
 from .config import Config
 
@@ -29,6 +30,29 @@ class ExperimentConfig(Config):
         return self._cfg.get('experiment:max_tth', None)
 
     @property
+    def comp_thresh(self):
+        key = 'experiment:comp_thresh'
+        temp = self._cfg.get(key, None)
+        if temp is None:
+            return temp
+        elif np.logical_and(temp <= 1.0, temp > 0.0):
+            return temp
+        else:
+            raise RuntimeError('comp_thresh must be None or a number between 0 and 1')
+            
+    @property
+    def chi2_thresh(self):
+        key = 'experiment:chi2_thresh'
+        temp = self._cfg.get(key, None)
+        if temp is None:
+            return temp
+        elif np.logical_and(temp <= 1.0, temp > 0.0):
+            return temp
+        else:
+            raise RuntimeError('chi2_thresh must be None or a number between 0 and 1')
+
+
+    @property
     def misorientation(self):
         key = self._cfg.get('experiment:misorientation:use_misorientation')
         if key is True:
@@ -36,6 +60,6 @@ class ExperimentConfig(Config):
             misorientation_spacing='experiment:spacing')
             return parms
         else:
-            parms = dict(misorientation_bnd=0,
-            misorientation_spacing=0.1) #won't look at spacing if bnd is 0
+            parms = dict(misorientation_bnd=None,
+            misorientation_spacing=None) #won't look at spacing if bnd is 0
             return parms
