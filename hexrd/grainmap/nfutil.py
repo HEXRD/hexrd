@@ -60,15 +60,15 @@ try:
 except(ImportError):
     from skimage import io as imgio
 
-    
 
 
-    
+
+
 def load_instrument(yml):
     with open(yml, 'r') as f:
         icfg = yaml.load(f, Loader=yaml.FullLoader)
     return instrument.HEDMInstrument(instrument_config=icfg)
-    
+
 #%%
 
 
@@ -477,7 +477,7 @@ def _quant_and_clip_confidence(coords, angles, image,
         # x_off = 7 - (x % 8)
         # if image[z, y, x_byte] & (1 << x_off):
         #     matches += 1
-            
+
         if image[z, y, x]:
             matches += 1
 
@@ -772,8 +772,8 @@ def test_orientations(image_stack, experiment, test_crds, controller, multiproce
         gather_confidence(controller, confidence, n_grains, n_coords)
     else:
         controller.handle_result("confidence", confidence)
-        
-        
+
+
     return confidence
 
 
@@ -1016,27 +1016,27 @@ def grand_loop_pool(ncpus, state):
             shutil.rmtree(tmp_dir)
 
 
-#%% Test Grid Generation 
+#%% Test Grid Generation
 
 
 def gen_nf_test_grid(cross_sectional_dim, v_bnds, voxel_spacing):
 
     Zs_list=np.arange(-cross_sectional_dim/2.+voxel_spacing/2.,cross_sectional_dim/2.,voxel_spacing)
     Xs_list=np.arange(-cross_sectional_dim/2.+voxel_spacing/2.,cross_sectional_dim/2.,voxel_spacing)
-    
-    
+
+
     if v_bnds[0]==v_bnds[1]:
         Xs,Ys,Zs=np.meshgrid(Xs_list,v_bnds[0],Zs_list)
     else:
         Xs,Ys,Zs=np.meshgrid(Xs_list,np.arange(v_bnds[0]+voxel_spacing/2.,v_bnds[1],voxel_spacing),Zs_list)
         #note numpy shaping of arrays is goofy, returns(length(y),length(x),length(z))
-    
-    
-    
+
+
+
     test_crds = np.vstack([Xs.flatten(), Ys.flatten(), Zs.flatten()]).T
     n_crds = len(test_crds)
-    
-    
+
+
     return test_crds, n_crds, Xs, Ys, Zs
 
 
@@ -1091,16 +1091,16 @@ def gen_nf_cleaned_image_stack(data_folder,img_nums,dark,nrows,ncols, \
                                process_type='gaussian',process_args=[4.5,5], \
                                threshold=1.5,ome_dilation_iter=1,stem='nf_', \
                                num_digits=5,ext='.tif'):
-    
+
     image_stack=np.zeros([img_nums.shape[0],nrows,ncols],dtype=bool)
 
     print('Loading and Cleaning Images...')
-    
-    
+
+
     if process_type=='gaussian':
         sigma=process_args[0]
         size=process_args[1].astype(int) #needs to be int
-    
+
         for ii in np.arange(img_nums.shape[0]):
             print('Image #: ' + str(ii))
             tmp_img=imgio.imread(data_folder+'%s'%(stem)+str(img_nums[ii]).zfill(num_digits)+ext)-dark
@@ -1111,8 +1111,8 @@ def gen_nf_cleaned_image_stack(data_folder,img_nums,dark,nrows,ncols, \
 
             binary_img = img.morphology.binary_fill_holes(tmp_img>threshold)
             image_stack[ii,:,:]=binary_img
-    
-    else:    
+
+    else:
 
         num_erosions=process_args[0]
         num_dilations=process_args[1]
@@ -1124,15 +1124,15 @@ def gen_nf_cleaned_image_stack(data_folder,img_nums,dark,nrows,ncols, \
             #image procesing
             image_stack[ii,:,:]=img.morphology.binary_erosion(tmp_img>threshold,iterations=num_erosions)
             image_stack[ii,:,:]=img.morphology.binary_dilation(image_stack[ii,:,:],iterations=num_dilations)
-    
-    
+
+
     #%A final dilation that includes omega
     print('Final Dilation Including Omega....')
     image_stack=img.morphology.binary_dilation(image_stack,iterations=ome_dilation_iter)
-    
-    
+
+
     return image_stack
-    
+
 
 
 
@@ -1142,7 +1142,7 @@ def gen_nf_cleaned_image_stack(data_folder,img_nums,dark,nrows,ncols, \
 def gen_trial_exp_data(grain_out_file,det_file,mat_file, mat_name, max_tth, comp_thresh, chi2_thresh, misorientation_bnd, \
                        misorientation_spacing,ome_range_deg, nframes, beam_stop_parms):
 
-    
+
     print('Loading Grain Data...')
     #gen_grain_data
     ff_data=np.loadtxt(grain_out_file)
@@ -1200,8 +1200,8 @@ def gen_trial_exp_data(grain_out_file,det_file,mat_file, mat_name, max_tth, comp
     n_grains=exp_maps.shape[0]
 
     rMat_c = rotations.rotMatOfExpMap(exp_maps.T)
-    
-    
+
+
     print('Loading Instrument Data...')
     ome_period_deg=(ome_range_deg[0][0], (ome_range_deg[0][0]+360.)) #degrees
     ome_step_deg=(ome_range_deg[0][1]-ome_range_deg[0][0])/nframes #degrees
@@ -1214,11 +1214,11 @@ def gen_trial_exp_data(grain_out_file,det_file,mat_file, mat_name, max_tth, comp
 
 
     ome_edges = np.arange(nframes+1)*ome_step+ome_range[0][0]#fixed 2/26/17
-    
-    
-    instr=load_instrument(det_file)    
+
+
+    instr=load_instrument(det_file)
     panel = next(iter(instr.detectors.values()))  # !!! there is only 1
-    
+
         # tranform paramters
     #   Sample
     chi = instr.chi
@@ -1273,7 +1273,7 @@ def gen_trial_exp_data(grain_out_file,det_file,mat_file, mat_name, max_tth, comp
     dmin = valunits.valWUnit("dmin", "length",
                              0.5*beam_wavelength/np.sin(0.5*max_pixel_tth),
                              "angstrom")
-    
+
     # material loading
     mats = material.load_materials_hdf5(mat_file, dmin=dmin,kev=beam_energy)
     pd = mats[mat_name].planeData
@@ -1282,10 +1282,10 @@ def gen_trial_exp_data(grain_out_file,det_file,mat_file, mat_name, max_tth, comp
          pd.tThMax = np.amax(np.radians(max_tth))
     else:
         pd.tThMax = np.amax(max_pixel_tth)
-        
-        
-        
-    print('Final Assembly...')    
+
+
+
+    print('Final Assembly...')
     experiment = argparse.Namespace()
     # grains related information
     experiment.n_grains = n_grains  # this can be derived from other values...
@@ -1368,9 +1368,9 @@ def save_nf_data(save_dir,save_stem,grain_map,confidence_map,Xs,Ys,Zs,ori_list,i
         np.savez(save_dir+save_stem+'_grain_map_data.npz',grain_map=grain_map,confidence_map=confidence_map,Xs=Xs,Ys=Ys,Zs=Zs,ori_list=ori_list,id_remap=id_remap)
     else:
         np.savez(save_dir+save_stem+'_grain_map_data.npz',grain_map=grain_map,confidence_map=confidence_map,Xs=Xs,Ys=Ys,Zs=Zs,ori_list=ori_list)
-        
-        
-        
+
+
+
 #%%
 
 def scan_detector_parm(image_stack, experiment,test_crds,controller,parm_to_opt,parm_range,slice_shape,ang='deg'):
@@ -1380,10 +1380,10 @@ def scan_detector_parm(image_stack, experiment,test_crds,controller,parm_to_opt,
     #3-xtilt
     #4-ytilt
     #5-ztilt
-    
+
     parm_vector=np.arange(parm_range[0],parm_range[1]+1e-6,(parm_range[1]-parm_range[0])/parm_range[2])
-    
-    
+
+
     if parm_to_opt>2 and ang=='deg':
         parm_vector=parm_vector*np.pi/180.
 
@@ -1415,12 +1415,12 @@ def scan_detector_parm(image_stack, experiment,test_crds,controller,parm_to_opt,
 
         if parm_to_opt==1:
             tmp_td[0]=parm_vector[jj]
-            
+
         if parm_to_opt==2:
             tmp_td[1]=parm_vector[jj]
-   
-            
-            
+
+
+
 
         if  parm_to_opt==3:
             rMat_d_tmp=xfcapi.makeDetectorRotMat([parm_vector[jj],ytilt,ztilt])
@@ -1434,15 +1434,15 @@ def scan_detector_parm(image_stack, experiment,test_crds,controller,parm_to_opt,
         experiment.rMat_d = rMat_d_tmp
         experiment.tVec_d = tmp_td
 
-        if parm_to_opt==6: 
- 
-            
-            
+        if parm_to_opt==6:
+
+
+
             experiment.ome_range=[(ome_range[0][0]-parm_vector[jj],ome_range[0][1]-parm_vector[jj])]
             experiment.ome_period=(ome_period[0]-parm_vector[jj],ome_period[1]-parm_vector[jj])
             experiment.ome_edges=np.array(ome_edges-parm_vector[jj])
             experiment.base[2]=experiment.ome_edges[0]
-            
+
             # print(experiment.ome_range)
             # print(experiment.ome_period)
             # print(experiment.ome_edges)
@@ -1458,35 +1458,46 @@ def scan_detector_parm(image_stack, experiment,test_crds,controller,parm_to_opt,
 
 #%%
 
-def plot_ori_map(grain_map, confidence_map, exp_maps, layer_no,id_remap=None):
+def plot_ori_map(grain_map, confidence_map, exp_maps, layer_no,mat,id_remap=None):
 
     grains_plot=np.squeeze(grain_map[layer_no,:,:])
     conf_plot=np.squeeze(confidence_map[layer_no,:,:])
     n_grains=len(exp_maps)
 
-    rgb_image=np.zeros([grains_plot.shape[0],grains_plot.shape[1],4], dtype='float32')
-    rgb_image[:,:,3]=1.
+    rgb_image = np.zeros(
+        [grains_plot.shape[0], grains_plot.shape[1], 4], dtype='float32')
+    rgb_image[:, :, 3] = 1.
 
     for ii in np.arange(n_grains):
         if id_remap is not None:
-            this_grain=np.where(np.squeeze(grains_plot)==id_remap[ii])
+            this_grain = np.where(np.squeeze(grains_plot) == id_remap[ii])
         else:
-            this_grain=np.where(np.squeeze(grains_plot)==ii)
-        if np.sum(this_grain[0])>0:
+            this_grain = np.where(np.squeeze(grains_plot) == ii)
+        if np.sum(this_grain[0]) > 0:
 
-            ori=exp_maps[ii,:]
+            ori = exp_maps[ii, :]
 
-            #cubic mapping
-            rgb_image[this_grain[0],this_grain[1],0]=(ori[0]+(np.pi/4.))/(np.pi/2.)
-            rgb_image[this_grain[0],this_grain[1],1]=(ori[1]+(np.pi/4.))/(np.pi/2.)
-            rgb_image[this_grain[0],this_grain[1],2]=(ori[2]+(np.pi/4.))/(np.pi/2.)
+            rmats = rot.rotMatOfExpMap(ori)
+            rgb = mat.unitcell.color_orientations(
+                rmats, ref_dir=np.array([0., 1., 0.]))
+
+            #color mapping
+            rgb_image[this_grain[0], this_grain[1], 0] = rgb[0][0]
+            rgb_image[this_grain[0], this_grain[1], 1] = rgb[0][1]
+            rgb_image[this_grain[0], this_grain[1], 2] = rgb[0][2]
 
 
 
-    plt.imshow(rgb_image,interpolation='none')
+    fig1 = plt.figure()
+    plt.imshow(rgb_image, interpolation='none')
+    plt.title('Layer %d Grain Map' % layer_no)
+    plt.show()
     #plt.hold(True)
-    plt.imshow(conf_plot,vmin=0.0,vmax=1.,interpolation='none',cmap=plt.cm.gray,alpha=0.5)
-
+    fig2 = plt.figure()
+    plt.imshow(conf_plot, vmin=0.0, vmax=1.,
+               interpolation='none', cmap=plt.cm.gray, alpha=0.5)
+    plt.title('Layer %d Confidence Map' % layer_no)
+    plt.show()
 # ==============================================================================
 # %% SCRIPT ENTRY AND PARAMETER HANDLING
 # ==============================================================================
@@ -1578,44 +1589,44 @@ def build_controller(check=None,generate=None,ncpus=2,chunk_size=10,limit=None):
 def output_grain_map(data_location,data_stems,output_stem,vol_spacing,top_down=True,save_type=['npz']):
 
     num_scans=len(data_stems)
-    
+
     confidence_maps=[None]*num_scans
     grain_maps=[None]*num_scans
     Xss=[None]*num_scans
     Yss=[None]*num_scans
     Zss=[None]*num_scans
-    
+
     if len(vol_spacing)==1:
         vol_shifts=np.arange(0,vol_spacing[0]*num_scans+1e-12,vol_spacing[0])
     else:
         vol_shifts=vol_spacing
-    
-    
+
+
     for ii in np.arange(num_scans):
         print('Loading Volume %d ....'%(ii))
         conf_data=np.load(os.path.join(data_location,data_stems[ii]+'_grain_map_data.npz'))
-        
+
         confidence_maps[ii]=conf_data['confidence_map']
         grain_maps[ii]=conf_data['grain_map']
         Xss[ii]=conf_data['Xs']
         Yss[ii]=conf_data['Ys']
         Zss[ii]=conf_data['Zs']
-         
+
     #assumes all volumes to be the same size
     num_layers=grain_maps[0].shape[0]
-    
+
     total_layers=num_layers*num_scans
-    
+
     num_rows=grain_maps[0].shape[1]
     num_cols=grain_maps[0].shape[2]
-    
+
     grain_map_stitched=np.zeros((total_layers,num_rows,num_cols))
     confidence_stitched=np.zeros((total_layers,num_rows,num_cols))
     Xs_stitched=np.zeros((total_layers,num_rows,num_cols))
     Ys_stitched=np.zeros((total_layers,num_rows,num_cols))
     Zs_stitched=np.zeros((total_layers,num_rows,num_cols))
-    
-    
+
+
     for ii in np.arange(num_scans):
         if top_down==True:
             grain_map_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=grain_maps[num_scans-1-ii]
@@ -1624,71 +1635,71 @@ def output_grain_map(data_location,data_stems,output_stem,vol_spacing,top_down=T
                 Xss[num_scans-1-ii]
             Zs_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=\
                 Zss[num_scans-1-ii]
-            Ys_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=Yss[num_scans-1-ii]+vol_shifts[ii]    
+            Ys_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=Yss[num_scans-1-ii]+vol_shifts[ii]
         else:
-            
+
             grain_map_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=grain_maps[ii]
             confidence_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=confidence_maps[ii]
             Xs_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=Xss[ii]
             Zs_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=Zss[ii]
             Ys_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=Yss[ii]+vol_shifts[ii]
-    
+
     for ii in np.arange(len(save_type)):
-    
+
         if save_type[ii] == 'hdf5':
-            
+
             print('Writing HDF5 data...')
-            
+
             hf = h5py.File(output_stem + '_assembled.h5', 'w')
             hf.create_dataset('grain_map', data=grain_map_stitched)
             hf.create_dataset('confidence', data=confidence_stitched)
             hf.create_dataset('Xs', data=Xs_stitched)
             hf.create_dataset('Ys', data=Ys_stitched)
             hf.create_dataset('Zs', data=Zs_stitched)
-    
+
         elif save_type[ii]=='npz':
-            
+
             print('Writing NPZ data...')
 
             np.savez(output_stem + '_assembled.npz',\
              grain_map=grain_map_stitched,confidence=confidence_stitched,
              Xs=Xs_stitched,Ys=Ys_stitched,Zs=Zs_stitched)
-            
+
         elif save_type[ii]=='vtk':
-            
-            
+
+
             print('Writing VTK data...')
-            # VTK Dump 
+            # VTK Dump
             Xslist=Xs_stitched[:,:,:].ravel()
             Yslist=Ys_stitched[:,:,:].ravel()
             Zslist=Zs_stitched[:,:,:].ravel()
-            
+
             grainlist=grain_map_stitched[:,:,:].ravel()
             conflist=confidence_stitched[:,:,:].ravel()
-            
+
             num_pts=Xslist.shape[0]
             num_cells=(total_layers-1)*(num_rows-1)*(num_cols-1)
-            
+
             f = open(os.path.join(output_stem +'_assembled.vtk'), 'w')
-            
-            
+
+
             f.write('# vtk DataFile Version 3.0\n')
             f.write('grainmap Data\n')
             f.write('ASCII\n')
             f.write('DATASET UNSTRUCTURED_GRID\n')
             f.write('POINTS %d double\n' % (num_pts))
-            
+
             for i in np.arange(num_pts):
                 f.write('%e %e %e \n' %(Xslist[i],Yslist[i],Zslist[i]))
-            
+
             scale2=num_cols*num_rows
-            scale1=num_cols    
-                
-            f.write('CELLS %d %d\n' % (num_cells, 9*num_cells))   
+            scale1=num_cols
+
+            f.write('CELLS %d %d\n' % (num_cells, 9*num_cells))
             for k in np.arange(Xs_stitched.shape[0]-1):
                 for j in np.arange(Xs_stitched.shape[1]-1):
                     for i in np.arange(Xs_stitched.shape[2]-1):
-                        base=scale2*k+scale1*j+i    
+                        base=scale2*k+scale1*j+i
                         p1=base
                         p2=base+1
                         p3=base+1+scale1
@@ -1697,32 +1708,32 @@ def output_grain_map(data_location,data_stems,output_stem,vol_spacing,top_down=T
                         p6=base+scale2+1
                         p7=base+scale2+scale1+1
                         p8=base+scale2+scale1
-                        
+
                         f.write('8 %d %d %d %d %d %d %d %d \n' \
-                                %(p1,p2,p3,p4,p5,p6,p7,p8))    
-                
-                
-            f.write('CELL_TYPES %d \n' % (num_cells))    
+                                %(p1,p2,p3,p4,p5,p6,p7,p8))
+
+
+            f.write('CELL_TYPES %d \n' % (num_cells))
             for i in np.arange(num_cells):
-                f.write('12 \n')    
-            
+                f.write('12 \n')
+
             f.write('POINT_DATA %d \n' % (num_pts))
-            f.write('SCALARS grain_id int \n')  
-            f.write('LOOKUP_TABLE default \n')      
+            f.write('SCALARS grain_id int \n')
+            f.write('LOOKUP_TABLE default \n')
             for i in np.arange(num_pts):
-                f.write('%d \n' %(grainlist[i]))    
-            
+                f.write('%d \n' %(grainlist[i]))
+
             f.write('FIELD FieldData 1 \n' )
-            f.write('confidence 1 %d float \n' % (num_pts))       
+            f.write('confidence 1 %d float \n' % (num_pts))
             for i in np.arange(num_pts):
-                f.write('%e \n' %(conflist[i]))  
-                
-            
+                f.write('%e \n' %(conflist[i]))
+
+
             f.close()
-            
+
         else:
             print('Not a valid save option, npz, vtk, or hdf5 allowed.')
-    
+
     return grain_map_stitched, confidence_stitched, Xs_stitched, Ys_stitched, \
             Zs_stitched
 
