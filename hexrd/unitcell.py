@@ -751,7 +751,7 @@ class unitcell:
                 if Z <= 92:
                     gid = fid.get('/'+elem)
                     data = np.array(gid.get('data'))
-                    self.pe_cs[elem] = interp1d(data[:, 7], data[:, 3])
+                    self.pe_cs[elem] = interp1d(data[:, 7], data[:, 3]+data[:,4])
                     data = data[:, [7, 1, 2]]
                     f_anomalous_data.append(data)
                 else:
