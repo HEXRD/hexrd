@@ -365,6 +365,15 @@ def tth_corr_map_pinhole(instrument, pinhole_thickness, pinhole_radius):
         tth_corr[det_key] = new_ptth.reshape(det.shape) - nom_ptth
     return tth_corr
 
+def calc_phi_x(panel):
+    """
+    returns phi_x in RADIANS
+    """
+    bv = panel.bvec.copy()
+    bv[2] = 0.
+    bv = bv/np.linalg.norm(bv)
+    return np.arccos(np.dot(bv, [0, -1, 0]))
+
 
 def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
                           pinhole_radius, num_phi_elements=240):
@@ -391,8 +400,7 @@ def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
 
     # azimuthal angle of the x-ray source around the pinhole axis
     # FIXME: hardcoded to 0 for now
-    phi_x = 0
-    # phi_x = np.radians(azim)
+    phi_x = calc_phi_x(panel)
 
     # pinhole substrate thickness [mm]
     h_p = pinhole_thickness
