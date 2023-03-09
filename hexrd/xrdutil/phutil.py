@@ -120,17 +120,19 @@ class PinholeDistortion:
 
 class RyggPinholeDistortion:
     def __init__(self, detector, material,
-                 pinhole_thickness, pinhole_radius, num_phi_elements=240):
+                 pinhole_thickness, pinhole_radius, num_phi_elements=120):
 
         self.detector = detector
         self.material = material
         self.ph_thickness = pinhole_thickness
         self.ph_radius = pinhole_radius
+        self.num_phi_elements = num_phi_elements
 
     def apply(self, xy_pts, return_nominal=True):
         return tth_corr_rygg_pinhole(self.detector, self.material, xy_pts,
                                      self.ph_thickness, self.ph_radius,
-                                     return_nominal=return_nominal)
+                                     return_nominal=return_nominal,
+                                     num_phi_elements=self.num_phi_elements)
 
 
 def tth_corr_sample_layer(detector, xy_pts,
@@ -365,6 +367,7 @@ def tth_corr_map_pinhole(instrument, pinhole_thickness, pinhole_radius):
         tth_corr[det_key] = new_ptth.reshape(det.shape) - nom_ptth
     return tth_corr
 
+
 def calc_phi_x(panel):
     """
     returns phi_x in RADIANS
@@ -376,7 +379,7 @@ def calc_phi_x(panel):
 
 
 def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
-                          pinhole_radius, num_phi_elements=240):
+                          pinhole_radius, num_phi_elements=120):
     """Return pinhole twotheta [rad] and effective scattering volume [mm3].
 
     num_phi_elements: number of pinhole phi elements for integration
@@ -523,7 +526,7 @@ def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
 
 def tth_corr_rygg_pinhole(panel, material, xy_pts,
                           pinhole_thickness, pinhole_radius,
-                          return_nominal=True, num_phi_elements=240):
+                          return_nominal=True, num_phi_elements=120):
     # FIXME: Joel did this for the other function. Do we need to?
     # cp_det = copy.deepcopy(panel)
     # cp_det.bvec = ct.beam_vec  # !!! [0, 0, -1]
@@ -546,16 +549,15 @@ def tth_corr_rygg_pinhole(panel, material, xy_pts,
         panel, material, nom_tth, nom_eta, pinhole_thickness,
         pinhole_radius, num_phi_elements)
 
-    tth_corr = qq_p - nom_tth
     if return_nominal:
-        return np.vstack([nom_tth - tth_corr, nom_angs[:, 1]]).T
+        return np.vstack([qq_p, nom_angs[:, 1]]).T
     else:
         # !!! NEED TO CHECK THIS
-        return np.vstack([-tth_corr, nom_angs[:, 1]]).T
+        return np.vstack([nom_tth - qq_p, nom_angs[:, 1]]).T
 
 
 def tth_corr_map_rygg_pinhole(instrument, material, pinhole_thickness,
-                              pinhole_radius, num_phi_elements=240):
+                              pinhole_radius, num_phi_elements=120):
     # FIXME: Joel did this for the other function. Do we need to?
     # cp_instr = copy.deepcopy(instrument)
     # cp_instr.beam_vector = ct.beam_vec  # !!! [0, 0, -1]
