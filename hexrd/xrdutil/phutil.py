@@ -527,16 +527,6 @@ def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
 def tth_corr_rygg_pinhole(panel, material, xy_pts,
                           pinhole_thickness, pinhole_radius,
                           return_nominal=True, num_phi_elements=120):
-    # FIXME: Joel did this for the other function. Do we need to?
-    # cp_det = copy.deepcopy(panel)
-    # cp_det.bvec = ct.beam_vec  # !!! [0, 0, -1]
-    # ref_angs, _ = cp_det.cart_to_angles(
-    #     xy_pts,
-    #     rmat_s=None, tvec_s=None,
-    #     tvec_c=None, apply_distortion=True
-    # )
-    # ref_eta = ref_angs[:, 1]
-
     # These are the nominal tth values
     nom_angs, _ = panel.cart_to_angles(
         xy_pts,
@@ -558,10 +548,6 @@ def tth_corr_rygg_pinhole(panel, material, xy_pts,
 
 def tth_corr_map_rygg_pinhole(instrument, material, pinhole_thickness,
                               pinhole_radius, num_phi_elements=120):
-    # FIXME: Joel did this for the other function. Do we need to?
-    # cp_instr = copy.deepcopy(instrument)
-    # cp_instr.beam_vector = ct.beam_vec  # !!! [0, 0, -1]
-
     tth_corr = {}
     for det_key, panel in instrument.detectors.items():
         nom_ptth, nom_peta = panel.pixel_angles()
