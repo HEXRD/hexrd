@@ -15,6 +15,13 @@ import time
 from hexrd.utils.decorators import numba_njit_if_available
 
 eps = constants.sqrt_epsf
+ENERGY_ID = 0
+REAL_F1_ID = 1
+IMAG_F2_ID = 2
+MU_ID = 3
+COH_INCOH_ID = 4
+MU_K_ID = 6
+WAV_ID = 7
 
 ''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
 
@@ -751,8 +758,9 @@ class unitcell:
                 if Z <= 92:
                     gid = fid.get('/'+elem)
                     data = np.array(gid.get('data'))
-                    self.pe_cs[elem] = interp1d(data[:, 7], data[:, 3])
-                    data = data[:, [7, 1, 2]]
+                    self.pe_cs[elem] = interp1d(data[:, WAV_ID],
+                        data[:, MU_ID]+data[:,COH_INCOH_ID])
+                    data = data[:, [WAV_ID, REAL_F1_ID, IMAG_F2_ID]]
                     f_anomalous_data.append(data)
                 else:
                     wav = np.linspace(1.16E2, 2.86399992e-03, 189)
