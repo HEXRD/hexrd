@@ -399,7 +399,6 @@ def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
     alpha = np.arccos(np.dot(panel.bvec, [0, 0, -1]))
 
     # azimuthal angle of the x-ray source around the pinhole axis
-    # FIXME: hardcoded to 0 for now
     phi_x = calc_phi_x(panel)
 
     # pinhole substrate thickness [mm]
