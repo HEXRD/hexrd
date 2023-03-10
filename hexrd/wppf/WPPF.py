@@ -1412,7 +1412,7 @@ def extract_intensities(
     intensity_init=None,
     termination_condition={"rwp_perct_change": 0.05, "max_iter": 100},
     peakshape="pvtch",
-):
+    nthreads=None):
     """
     ===========================================================================
 
@@ -1450,7 +1450,59 @@ def extract_intensities(
     ============================================================================
     """
 
-    # prepare the data file to distribute suing multiprocessing
+    from concurrent.futures import ThreadPoolExecutor
+    from functools import partial
+    from hexrd.utils.concurrent import distribute_tasks
+    import os
+    from tqdm import tqdm
+
+    def _run_on_rows(rows, data, **kwargs):
+
+        simulated = []
+        Rwp = []
+        Iobs = []
+        hkls = []
+        tth = []
+        row_indx = []
+        for i_row in range(*rows):
+            this_row = data[i_row]
+            # Run on this_row
+            res = single_azimuthal_extraction(this_row, **kwargs)
+            Rwp.append(res[2]*100)
+            row_indx.append(i_row)
+            simulated.append(np.vstack((res[0], res[1])).T)
+            Iobs.append(res[3])
+            hkls.append(res[4])
+            tth.append(res[5])
+        return simulated, Rwp, Iobs, hkls, tth, row_indx
+
+    def concatenate_results(results, max_workers):
+        rwp_conc = []
+        row_conc = []
+        Iobs_conc = []
+        hkls_conc = []
+        tth_conc = []
+        polar_view = []
+        for i_wkr in range(max_workers):
+            rwp_conc += results[i_wkr][1]
+            row_conc += results[i_wkr][5]
+            Iobs_conc += results[i_wkr][2]
+            hkls_conc += results[i_wkr][3]
+            tth_conc += results[i_wkr][4]
+            for jj in range(len(results[i_wkr][0])):
+                polar_view.append(results[i_wkr][0][jj][:,1])
+
+        row_conc = np.array(row_conc)
+        rwp_conc = np.array(rwp_conc)
+        idx = np.argsort(row_conc)
+        rwp_conc = rwp_conc[idx]
+
+        polar_view = np.array(polar_view)
+        polar_view = polar_view[idx, :]
+
+        return polar_view, rwp_conc, Iobs_conc, tth_conc, hkls_conc, row_conc
+
+    # prepare the data file to distribute using multiprocessing
     data_inp_list = []
 
     # check if the dimensions all match
@@ -1480,45 +1532,23 @@ def extract_intensities(
         "peakshape": peakshape,
     }
 
-    P = GenericMultiprocessing()
-    results = P.parallelise_function(
-        data_inp_list, single_azimuthal_extraction, **kwargs
-    )
+    # data is your array
+    num_rows = len(data_inp_list)
+    if nthreads is None:
+        max_workers = int(os.cpu_count()/2)
+    else:
+        max_workers = nthreads
 
-    """
-    process the outputs from the multiprocessing to make the
-    simulated polar views, tables of hkl <--> intensity etc. at
-    each azimuthal location
-    in this section, all the rows which had no pixels
-    falling on detector will be handles
-    separately
-    """
-    pv_simulated = np.zeros(polar_view.shape)
-    extracted_intensities = []
-    hkls = []
-    tths = []
-    for i in range(len(non_zeros_index)):
-        idx = non_zeros_index[i]
-        xp, yp, rwp, Icalc, hkl, tth = results[i]
+    tasks = distribute_tasks(len(data_inp_list), max_workers)
+    func = partial(_run_on_rows, data=data_inp_list, **kwargs)
 
-        intp_int = np.interp(tth_array, xp, yp, left=0.0, right=0.0)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(tqdm(executor.map(func, tasks),total=len(tasks)))
 
-        pv_simulated[idx, :] = intp_int
+    # Concatenate results together however you need to
+    concatenated = concatenate_results(results, max_workers)
 
-        extracted_intensities.append(Icalc)
-        hkls.append(hkl)
-        tths.append(tth)
-
-    """
-    make the values outside detector NaNs and convert to masked array
-    """
-    pv_simulated[polar_view.mask] = np.nan
-    pv_simulated = np.ma.masked_array(
-        pv_simulated, mask=np.isnan(pv_simulated)
-    )
-
-    return extracted_intensities, hkls, tths, non_zeros_index, pv_simulated
-
+    return concatenated
 
 def single_azimuthal_extraction(
     expt_spectrum,
@@ -1540,9 +1570,13 @@ def single_azimuthal_extraction(
         "peakshape": peakshape,
     }
 
-    # get termination conditions for the LeBail refinement
-    del_rwp = termination_condition["rwp_perct_change"]
-    max_iter = termination_condition["max_iter"]
+    if termination_condition is None:
+        del_rwp = 1E-2
+        max_iter = 100
+    else:
+        # get termination conditions for the LeBail refinement
+        del_rwp = termination_condition["rwp_perct_change"]
+        max_iter = termination_condition["max_iter"]
 
     L = LeBail(**kwargs)
 
