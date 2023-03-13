@@ -93,11 +93,6 @@ except(ImportError):
 if ct.USE_NUMBA:
     import numba
 
-DETECTOR_TYPES = {
-    'planar': PlanarDetector,
-    'cylindrical': CylindricalDetector,
-}
-
 logger = logging.getLogger()
 logger.setLevel('INFO')
 
@@ -4864,3 +4859,8 @@ def _extract_ring_line_positions(iter_args, instr_cfg, panel, eta_tol, npdiv,
             patch_data.append(output)
 
     return patch_data
+
+DETECTOR_TYPES = {
+    'planar': PlanarDetector,
+    'cylindrical': CylindricalDetector,
+}
