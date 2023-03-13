@@ -3817,7 +3817,7 @@ class CylindricalDetector(PlanarDetector):
         """
         output = np.nan * np.ones(2)
         pt_on_cylinder = self._unitvec_to_cylinder(
-                         np.atleast_2d(bvec))
+                             np.atleast_2d(bvec))
         pt_on_cylinder = self._valid_points(pt_on_cylinder)
         output = self._dewarp_from_cylinder(pt_on_cylinder)
         return output
