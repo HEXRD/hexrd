@@ -242,6 +242,16 @@ class PolarView(object):
         return [np.min(tv) - htps, np.max(tv) + htps,
                 np.max(ev) + heps, np.min(ev) - heps]
 
+    def _func_project_on_detector(detector):
+        '''
+        helper function to decide which function to 
+        use for mapping of g-vectors to detector
+        '''
+        if isinstance(detector, instrument.PlanarDetector):
+            return _project_on_detector_plane
+        elif isinstance(detector, instrument.CylindricalDetector):
+            return _project_on_detector_cylinder
+
     # =========================================================================
     #                         ####### METHODS #######
     # =========================================================================
@@ -273,6 +283,7 @@ class PolarView(object):
         # lcount = 0
         img_dict = dict.fromkeys(self.detectors)
         for detector_id, panel in self.detectors.items():
+            _project_on_detector = _func_project_on_detector(panel)
             img = image_dict[detector_id]
 
             gvec_angs = np.vstack([
@@ -281,7 +292,7 @@ class PolarView(object):
                     dummy_ome]).T
 
             xypts = np.nan*np.ones((len(gvec_angs), 2))
-            valid_xys, rmats_s, on_plane = _project_on_detector_plane(
+            valid_xys, rmats_s, on_plane = _project_on_detector(
                     gvec_angs,
                     panel.rmat, constants.identity_3x3, self.chi,
                     panel.tvec, constants.zeros_3, self.tvec,
@@ -1130,6 +1141,38 @@ def _project_on_detector_plane(allAngs,
 
     return det_xy, rMat_ss, valid_mask
 
+
+def _project_on_detector_cylinder(allAngs,
+                                  rMat_d, rMat_c, chi,
+                                  tVec_d, tVec_c, tVec_s,
+                                  distortion,
+                                  beamVec=constants.beam_vec):
+    """
+    utility routine for projecting a list of (tth, eta, ome) onto the
+    detector plane parameterized by the args. this function does the
+    computation for a cylindrical detector
+    """
+    gVec_cs = xfcapi.anglesToGVec(allAngs,
+                                  chi=chi,
+                                  rMat_c=rMat_c,
+                                  bHat_l=beamVec)
+
+    rMat_ss = xfcapi.makeOscillRotMatArray(chi, allAngs[:, 2])
+
+    tmp_xys = xfcapi.gvecToDetectorXYArray(
+        gVec_cs, rMat_d, rMat_ss, rMat_c,
+        tVec_d, tVec_s, tVec_c,
+        beamVec=beamVec)
+
+    valid_mask = ~(np.isnan(tmp_xys[:, 0]) | np.isnan(tmp_xys[:, 1]))
+
+    det_xy = np.atleast_2d(tmp_xys[valid_mask, :])
+
+    # apply distortion if specified
+    if distortion is not None:
+        det_xy = distortion.apply_inverse(det_xy)
+
+    return det_xy, rMat_ss, valid_mask
 
 def simulateGVecs(pd, detector_params, grain_params,
                   ome_range=[(-np.pi, np.pi), ],
