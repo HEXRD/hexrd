@@ -1543,7 +1543,9 @@ def extract_intensities(
     func = partial(_run_on_rows, data=data_inp_list, **kwargs)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        results = list(tqdm(executor.map(func, tasks),total=len(tasks)))
+        results = list(tqdm(executor.map(func, tasks),
+                            total=len(tasks)
+                            ))
 
     # Concatenate results together however you need to
     concatenated = concatenate_results(results, max_workers)
