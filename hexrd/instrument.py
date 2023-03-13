@@ -681,10 +681,7 @@ class HEDMInstrument(object):
             for det_id, det_info in detectors_config.items():
                 pixel_info = det_info['pixels']
                 affine_info = det_info['transform']
-                if 'detector_type' in det_info:
-                    detector_type = det_info['detector_type']
-                else:
-                    detector_type = 'planar'
+                detector_type = det_info.get('detector_type', 'planar')
                 try:
                     saturation_level = det_info['saturation_level']
                 except(KeyError):
