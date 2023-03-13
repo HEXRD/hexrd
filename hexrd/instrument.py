@@ -3589,6 +3589,7 @@ class CylindricalDetector(PlanarDetector):
        class except for a few changes to account for the
        cylindder ray intersection.
     """
+
     def __init__(self,
                  rows=240, cols=1525,
                  pixel_size=(0.1, 0.1),
@@ -3662,7 +3663,18 @@ class CylindricalDetector(PlanarDetector):
         routine to convert cartesian coordinates
         in image frame to cylindrical coordinates
         """
-        pass
+        tvec = np.atleast_2d(self.tvec).T
+        num = cart.shape[0]
+        xcrd = cart[:,0]; ycrd = cart[:,1]
+        ang = xcrd/self.radius
+
+        vec = np.vstack((self.radius*np.sin(ang),
+                         ycrd,
+                         -self.radius*(1-np.cos(ang))))
+
+        vec_rot = np.dot(self.rmat, vec)
+
+        return (vec_rot + np.tile(tvec,[1, num])).T
 
 
     def _dewarp_from_cylinder(self, uvw):
@@ -3699,7 +3711,7 @@ class CylindricalDetector(PlanarDetector):
         intersect the cylindrical detector.
         this will give points which are 
         outside the actual panel. the points
-        will be clipped to the panle later
+        will be clipped to the panel later
 
         Parameters
         ----------
@@ -3749,7 +3761,7 @@ class CylindricalDetector(PlanarDetector):
         num = uvw.shape[0]
         ycomp = uvw - np.tile(self.tvec,[num, 1])
         ylen = np.squeeze(np.dot(ycomp, cx))
-        mask = np.abs(ylen) < size[0]*0.5
+        mask = np.abs(ylen) <= size[0]*0.5
         res = uvw[mask, :]
 
         # next get rid of points that fall outside 
