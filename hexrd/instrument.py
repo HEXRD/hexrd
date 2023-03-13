@@ -93,6 +93,11 @@ except(ImportError):
 if ct.USE_NUMBA:
     import numba
 
+DETECTOR_TYPES = {
+    'planar': PlanarDetector,
+    'cylindrical': CylindricalDetector,
+}
+
 logger = logging.getLogger()
 logger.setLevel('INFO')
 
@@ -726,9 +731,10 @@ class HEDMInstrument(object):
                             raise RuntimeError(
                                 "problem with distortion specification"
                             )
-                DetectorClass = PlanarDetector
-                if detector_type.lower() == 'cylindrical':
-                     DetectorClass = CylindricalDetector
+                if detector_type.lower() not in DETECTOR_TYPES:
+                    raise NotImplementedError(f'Unknown detector type: {detector_type}')
+
+                DetectorClass = DETECTOR_TYPES[detector_type.lower()]
 
                 det_dict[det_id] = DetectorClass(
                         name=det_id,
