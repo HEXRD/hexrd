@@ -40,8 +40,8 @@ def configure_parser(sub_parsers):
     p.add_argument(
         '--hkls', metavar='HKLs', type=str, default=None,
         help="""\
-list hkl entries in the materials file to use for fitting
-if None, defaults to list specified in the yml file"""
+          list hkl entries in the materials file to use for fitting;
+          if None, defaults to list specified in the yml file"""
         )
     p.add_argument(
         '-p', '--profile', action='store_true',
