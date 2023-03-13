@@ -18,7 +18,10 @@ import os
 import logging
 import psutil
 
+from hexrd import rotations as rot
 from hexrd.grainmap import nfutil
+from hexrd.material import Material
+from hexrd.valunits import valWUnit
 
 try:
     import matplotlib.pyplot as plt
@@ -36,6 +39,7 @@ except(ImportError):
 
 #A materials file, is a cPickle file which contains material information like lattice
 #parameters necessary for the reconstruction
+
 
 main_dir = '/INSERT/WORKDIR/'
 
@@ -71,6 +75,9 @@ output_stem = 'NAME_VOL_X'
 #==============================================================================
 # %% USER OPTIONS -CAN BE EDITED
 #==============================================================================
+
+beam_energy = 71.667
+
 
 ### material for the reconstruction
 mat_name = 'INSERT'
@@ -239,7 +246,8 @@ print('Splitting data into %d groups with %d leftover voxels' %
 
 grouped_voxels = n_voxels - leftover_voxels
 
-voxels_per_group = grouped_voxels/n_groups
+if n_groups != 0:
+    voxels_per_group = grouped_voxels/n_groups
 #==============================================================================
 # %% BUILD MP CONTROLLER
 #==============================================================================
@@ -262,9 +270,7 @@ controller = nfutil.build_controller(
 #packed_image_stack = nfutil.dilate_image_stack(image_stack, experiment,controller)
 
 print('Testing Orientations...')
-
 #%% Test orientations in groups
-
 
 if n_groups == 0:
     raw_confidence = nfutil.test_orientations(
@@ -278,9 +284,7 @@ if n_groups == 0:
     for ii in np.arange(raw_confidence_full.shape[0]):
         raw_confidence_full[ii, to_use] = raw_confidence[ii, :]
 
-
 else:
-
     grain_map_list = np.zeros(n_voxels)
     confidence_map_list = np.zeros(n_voxels)
 
@@ -299,7 +303,7 @@ else:
             group) * int(voxels_per_group):int(group + 1) * int(voxels_per_group)] = grain_map_group_list
 
         confidence_map_list[int(
-            abcd) * int(voxels_per_group):int(abcd + 1) * int(voxels_per_group)] = confidence_map_group_list
+            group) * int(voxels_per_group):int(group + 1) * int(voxels_per_group)] = confidence_map_group_list
         del raw_confidence
 
     if leftover_voxels > 0:
@@ -317,17 +321,23 @@ else:
         confidence_map_list[int(
             n_groups) * int(voxels_per_group):] = confidence_map_group_list
 
-    #reshape them
-    grain_map = grain_map_list.reshape(Xs.shape)
-    confidence_map = confidence_map_list.reshape(Xs.shape)
+    #fix so that chunking will work with tomography
+    grain_map_list_full = np.zeros(Xs.shape[0]*Xs.shape[1]*Xs.shape[2])
+    confidence_map_list_full = np.zeros(Xs.shape[0]*Xs.shape[1]*Xs.shape[2])
 
+    for jj in np.arange(len(to_use)):
+        grain_map_list_full[to_use[jj]] = grain_map_list[jj]
+        confidence_map_list_full[to_use[jj]] = confidence_map_list[jj]
+
+    #reshape them
+    grain_map = grain_map_list_full.reshape(Xs.shape)
+    confidence_map = confidence_map_list_full.reshape(Xs.shape)
 
 del controller
 
 #==============================================================================
 # %% POST PROCESS W WHEN TOMOGRAPHY HAS BEEN USED
 #==============================================================================
-
 
 #note all masking is already handled by not evaluating specific points
 grain_map, confidence_map = nfutil.process_raw_confidence(
@@ -344,25 +354,11 @@ nfutil.save_nf_data(output_dir, output_stem, grain_map, confidence_map,
 # %% CHECKING OUTPUT
 #==============================================================================
 
+
+mat = Material(name=mat_name, material_file=mat_file, dmin=valWUnit(
+    'lp', 'length',  0.05, 'nm'), kev=valWUnit('kev', 'energy', beam_energy, 'keV'))
+
 if matplot:
     if output_plot_check:
-
-        plt.figure(1)
-        plt.imshow(confidence_map[0])
-        plt.title('Bottom Layer Confidence')
-
-        plt.figure(2)
-        plt.imshow(confidence_map[-1])
-        plt.title('Bottom Layer Confidence')
-
-        plt.figure(3)
         nfutil.plot_ori_map(grain_map, confidence_map,
-                            experiment.exp_maps, 0, id_remap=nf_to_ff_id_map)
-        plt.title('Top Layer Grain Map')
-
-        plt.figure(4)
-        nfutil.plot_ori_map(grain_map, confidence_map,
-                            experiment.exp_maps, -1, id_remap=nf_to_ff_id_map)
-        plt.title('Top Layer Grain Map')
-
-        plt.show()
+                     experiment.exp_maps, 0, mat, id_remap=nf_to_ff_id_map)

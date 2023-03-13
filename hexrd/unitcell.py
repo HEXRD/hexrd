@@ -15,6 +15,13 @@ import time
 from hexrd.utils.decorators import numba_njit_if_available
 
 eps = constants.sqrt_epsf
+ENERGY_ID = 0
+REAL_F1_ID = 1
+IMAG_F2_ID = 2
+MU_ID = 3
+COH_INCOH_ID = 4
+MU_K_ID = 6
+WAV_ID = 7
 
 ''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
 
@@ -747,11 +754,21 @@ class unitcell:
 
                 Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
-                gid = fid.get('/'+elem)
-                data = np.array(gid.get('data'))
-                self.pe_cs[elem] = interp1d(data[:, 7], data[:, 3])
-                data = data[:, [7, 1, 2]]
-                f_anomalous_data.append(data)
+
+                if Z <= 92:
+                    gid = fid.get('/'+elem)
+                    data = np.array(gid.get('data'))
+                    self.pe_cs[elem] = interp1d(data[:, WAV_ID],
+                        data[:, MU_ID]+data[:,COH_INCOH_ID])
+                    data = data[:, [WAV_ID, REAL_F1_ID, IMAG_F2_ID]]
+                    f_anomalous_data.append(data)
+                else:
+                    wav = np.linspace(1.16E2, 2.86399992e-03, 189)
+                    zs = np.ones_like(wav)*Z
+                    zrs = np.zeros_like(wav)
+                    data_zs = np.vstack((wav, zs, zrs)).T
+                    self.pe_cs[elem] = interp1d(wav, zrs)
+                    f_anomalous_data.append(data_zs)
 
         n = max([x.shape[0] for x in f_anomalous_data])
         self.f_anomalous_data = np.zeros([self.atom_ntype, n, 3])
@@ -774,7 +791,7 @@ class unitcell:
             f2 = self.f2[elem](self.wavelength)
             frel = constants.frel[elem]
             Z = constants.ptable[elem]
-            self.f_anam[elem] = np.complex(f1+frel-Z, f2)
+            self.f_anam[elem] = complex(f1+frel-Z, f2)
 
     def CalcXRFormFactor(self, Z, charge, s):
         '''
@@ -846,8 +863,9 @@ class unitcell:
             Z = self.atom_type[i]
             elem = constants.ptableinverse[Z]
             scatfac[i, :] = constants.scatfac[elem]
-            frel[i] = constants.frel[elem]
-            fNT[i] = constants.fNT[elem]
+            if Z <= 92:
+                frel[i] = constants.frel[elem]
+                fNT[i] = constants.fNT[elem]
 
         sf, sf_raw = _calcxrsf(hkl2d,
                                nref,

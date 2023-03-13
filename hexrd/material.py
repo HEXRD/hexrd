@@ -554,7 +554,7 @@ class Material(object):
             msg = (f"'Debye-Waller factors not present. "
                    f"setting to same values for all atoms.'")
             warn(msg)
-            U = 1.0/numpy.pi/2./numpy.sqrt(2.) * numpy.ones(atompos[0].shape)
+            U = self.DFLT_U[0] * numpy.ones(atompos[0].shape)
             self._U = U
         else:
             if(occ_U[1] in cifdata.keys()):
@@ -576,7 +576,10 @@ class Material(object):
 
             for ii, x in enumerate(chkstr):
                 if x:
-                    U[ii] = 1.0/numpy.pi/2./numpy.sqrt(2.)
+                    try:
+                        U[ii] = float(U[ii])
+                    except ValueError:
+                        U[ii] = self.DFLT_U[0]
 
             self._U = numpy.asarray(U)
         '''
