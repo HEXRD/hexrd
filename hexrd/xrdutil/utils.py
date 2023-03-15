@@ -1296,7 +1296,7 @@ def _clip_to_cylindrical_detector(uvw, tVec_d, caxis,
     num = uvw.shape[0]
     ycomp = uvw - np.tile(tVec_d,[num, 1])
     ylen = np.squeeze(np.dot(ycomp, cx))
-    mask1 = np.abs(ylen) <= size[0]*0.5
+    mask1 = np.abs(ylen) > size[0]*0.5
     res = uvw.copy()
     res[mask1,:] = np.nan
     # res = uvw[mask, :]
@@ -1311,7 +1311,7 @@ def _clip_to_cylindrical_detector(uvw, tVec_d, caxis,
     magxcomp = np.linalg.norm(xcomp,axis=1)
     ang = np.squeeze(np.dot(xcomp, tvec))/radius/magxcomp
     ang = np.arccos(ang)
-    mask2 = ang < angle_extent
+    mask2 = ang >= angle_extent
     mask = np.logical_or(mask1, mask2)
     res = uvw.copy()
     res[mask,:] = np.nan
