@@ -33,6 +33,7 @@ from hexrd import matrixutil as mutil
 from hexrd import gridutil as gutil
 
 from hexrd.crystallography import processWavelength, PlaneData
+from hexrd import instrument
 
 from hexrd.transforms import xf
 from hexrd.transforms import xfcapi
@@ -242,32 +243,31 @@ class PolarView(object):
         return [np.min(tv) - htps, np.max(tv) + htps,
                 np.max(ev) + heps, np.min(ev) - heps]
 
-    def _func_project_on_detector(detector):
+    def _func_project_on_detector(self, detector):
         '''
         helper function to decide which function to 
         use for mapping of g-vectors to detector
         '''
-        if isinstance(detector, instrument.PlanarDetector):
-            return _project_on_detector_plane
-        elif isinstance(detector, instrument.CylindricalDetector):
+        if isinstance(detector, instrument.CylindricalDetector):
             return _project_on_detector_cylinder
+        else:
+            return _project_on_detector_plane
 
-    def _args_project_on_detector(gvec_angs, detector):
-        if isinstance(detector, instrument.PlanarDetector):
-            kwargs = {'beamVec': detector.bvec}
-            arg = (gvec_angs,
-                   detector.rmat, 
-                   constants.identity_3x3, 
-                   self.chi,
-                   detector.tvec, 
-                   constants.zeros_3, 
-                   self.tvec,
-                   detector.distortion)
-        elif isinstance(detector, instrument.CylindricalDetector):
+    def _args_project_on_detector(self, gvec_angs, detector):
+        kwargs = {'beamVec': detector.bvec}
+        arg = (gvec_angs,
+               detector.rmat, 
+               constants.identity_3x3, 
+               self.chi,
+               detector.tvec, 
+               constants.zeros_3, 
+               self.tvec,
+               detector.distortion)
+        if isinstance(detector, instrument.CylindricalDetector):
             arg = (gvec_angs,
                    detector.rmat,
                    self.chi,
-                   detector.tVec_d,
+                   detector.tvec,
                    detector.caxis,
                    detector.paxis,
                    detector.radius,
@@ -309,7 +309,7 @@ class PolarView(object):
         # lcount = 0
         img_dict = dict.fromkeys(self.detectors)
         for detector_id, panel in self.detectors.items():
-            _project_on_detector = _func_project_on_detector(panel)
+            _project_on_detector = self._func_project_on_detector(panel)
             img = image_dict[detector_id]
 
             gvec_angs = np.vstack([
@@ -317,13 +317,13 @@ class PolarView(object):
                     angpts[0].flatten(),
                     dummy_ome]).T
 
-            args, kwargs = _args_project_on_detector(gvec_angs,
-                                                     detector)
+            args, kwargs = self._args_project_on_detector(gvec_angs,
+                                                          panel)
 
             xypts = np.nan*np.ones((len(gvec_angs), 2))
             valid_xys, rmats_s, on_plane = _project_on_detector(*args, 
                                                                 **kwargs)
-            xypts[on_plane] = valid_xys
+            xypts[on_plane,:] = valid_xys
 
             if do_interpolation:
                 this_img = panel.interpolate_bilinear(
@@ -1193,11 +1193,13 @@ def _project_on_detector_cylinder(allAngs,
     caxis = np.dot(rMat_d, [0., 1., 0.])
     paxis = np.dot(rMat_d, [1., 0., 0.])
 
-    tmp_xys = _dvecToDetectorXYcylinder(
-        dVec_cs, tVec_d, caxis, paxis,
-        beamVec=beamVec)
-
-    valid_mask = ~(np.isnan(tmp_xys[:, 0]) | np.isnan(tmp_xys[:, 1]))
+    tmp_xys, valid_mask = _dvecToDetectorXYcylinder(dVec_cs,
+                                                    tVec_d,
+                                                    caxis,
+                                                    paxis,
+                                                    radius,
+                                                    physical_size,
+                                                    angle_extent)
 
     det_xy = np.atleast_2d(tmp_xys[valid_mask, :])
 
@@ -1233,7 +1235,7 @@ def _dvecToDetectorXYcylinder(dVec_cs,
                                    paxis, 
                                    radius)
 
-    return xy_det, np.eye(3), valid_mask
+    return xy_det, valid_mask
 
 def _unitvec_to_cylinder(uvw, caxis,
                          radius):
@@ -1294,8 +1296,10 @@ def _clip_to_cylindrical_detector(uvw, tVec_d, caxis,
     num = uvw.shape[0]
     ycomp = uvw - np.tile(tVec_d,[num, 1])
     ylen = np.squeeze(np.dot(ycomp, cx))
-    mask = np.abs(ylen) <= size[0]*0.5
-    res = uvw[mask, :]
+    mask1 = np.abs(ylen) <= size[0]*0.5
+    res = uvw.copy()
+    res[mask1,:] = np.nan
+    # res = uvw[mask, :]
 
     # next get rid of points that fall outside 
     # the polar angle range
@@ -1307,10 +1311,13 @@ def _clip_to_cylindrical_detector(uvw, tVec_d, caxis,
     magxcomp = np.linalg.norm(xcomp,axis=1)
     ang = np.squeeze(np.dot(xcomp, tvec))/radius/magxcomp
     ang = np.arccos(ang)
-    mask = ang < angle_extent
-    res = res[mask,:]
+    mask2 = ang < angle_extent
+    mask = np.logical_or(mask1, mask2)
+    res = uvw.copy()
+    res[mask,:] = np.nan
+    # res = res[mask,:]
 
-    return res, mask
+    return res, ~mask
 
 def _dewarp_from_cylinder(uvw, tVec_d, caxis,
                           paxis, radius):
