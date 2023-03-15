@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from collections import namedtuple
 
 import numpy as np
 
@@ -16,6 +17,43 @@ example = """
 examples:
     hexrd fit-grains configuration.yml
 """
+
+_flds = [
+    "id", "completeness", "chisq", "expmap", "centroid", "inv_Vs", "ln_Vs"
+]
+_BaseGrainData = namedtuple("_BaseGrainData", _flds)
+del _flds
+
+
+class GrainData(_BaseGrainData):
+    """Simple class for storing grain output data
+
+    To read the grains file, use the `load` method, like this:
+    > from hexrd.fitgrains import GrainData
+    > gd = GrainData.load("grains.npz")
+    """
+
+    def save(self, fname):
+        """Save grain data to an np file"""
+        np.savez(fname, **self._asdict())
+
+    @classmethod
+    def load(cls, fname):
+        """Return GrainData instance from npz file"""
+        return cls(np.load(fname))
+
+    @classmethod
+    def from_array(cls, a):
+        """Return GrainData instance from numpy array"""
+        return cls(
+            id=a[:,0].astype(int),
+            completeness=a[:, 1],
+            chisq=a[:, 2],
+            expmap=a[:, 3:6],
+            centroid=a[:, 6:9],
+            inv_Vs=a[:, 9:15],
+            ln_Vs=a[:, 15:21],
+        )
 
 
 def configure_parser(sub_parsers):
@@ -47,8 +85,12 @@ def configure_parser(sub_parsers):
     p.set_defaults(func=execute)
 
 
-def write_results(fit_results, cfg, grains_filename='grains.out'):
+def write_results(
+        fit_results, cfg,
+        grains_filename='grains.out', grains_npz='grains.npz'
+):
     instr = cfg.instrument.hedm
+    nfit = len(fit_results)
 
     # make output directories
     if not os.path.exists(cfg.analysis_dir):
@@ -61,12 +103,20 @@ def write_results(fit_results, cfg, grains_filename='grains.out'):
             if not os.path.exists(os.path.join(cfg.analysis_dir, det_key)):
                 os.mkdir(os.path.join(cfg.analysis_dir, det_key))
 
+
     gw = instrument.GrainDataWriter(
         os.path.join(cfg.analysis_dir, grains_filename)
     )
+    gd_array = np.zeros((nfit, 21))
+    gwa = instrument.GrainDataWriter(array=gd_array)
     for fit_result in fit_results:
         gw.dump_grain(*fit_result)
+        gwa.dump_grain(*fit_result)
     gw.close()
+    gwa.close()
+
+    gdata = GrainData.from_array(gd_array)
+    gdata.save(os.path.join(cfg.analysis_dir, grains_npz))
 
 
 def execute(args, parser):
