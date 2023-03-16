@@ -25,7 +25,7 @@ detectors:
       - 0.0
       translation:
       - 0.0
-      - -12
+      - -11.565
       - -25.08
   IMAGE-PLATE-3:
     detector_type: 'cylindrical'
@@ -46,7 +46,7 @@ detectors:
       translation:
       - 0.0
       - 0.0
-      - -51.5
+      - -49.51
   IMAGE-PLATE-4:
     detector_type: 'planar'
     pixels:
@@ -65,7 +65,7 @@ detectors:
       - 2.22144147e+00
       translation:
       - 0.0
-      - 12.0
+      - 11.565
       - -25.08
 id: NXXXXXX-XXX
 oscillation_stage:
