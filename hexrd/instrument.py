@@ -2589,8 +2589,6 @@ class PlanarDetector(object):
 
         config_dict = {}
 
-        config_dict['detector_type'] = self.detector_type
-
         # =====================================================================
         # DETECTOR PARAMETERS
         # =====================================================================
@@ -2608,6 +2606,7 @@ class PlanarDetector(object):
             roi = None if roi is None else roi.tolist()
 
         det_dict = dict(
+            detector_type=self.detector_type,
             transform=dict(
                 tilt=tilt,
                 translation=translation,
