@@ -3690,16 +3690,16 @@ class CylindricalDetector(PlanarDetector):
         routine to convert cylindrical coordinates
         to cartesian coordinates in image frame
         """
-        tvec = np.atleast_2d(self.tvec).T
         cx = np.atleast_2d(self.caxis).T
         px = np.atleast_2d(self.paxis).T
         num = uvw.shape[0]
-        vv = uvw - np.tile(self.tvec,[num, 1])
-        xcrd = np.squeeze(np.dot(vv, px))
-        ycrd = np.squeeze(np.dot(vv, cx))
 
-        ang = np.abs(np.arcsin(xcrd/self.radius))
-        xcrd *= ang
+        vx = uvw - np.tile(np.dot(uvw, cx), [1, 3]) * np.tile(cx, [1, num]).T
+        vx = vx/np.tile(np.linalg.norm(vx, axis=1), [3,1]).T
+        sgn = np.sign(np.dot(self.paxis, vx.T)); sgn[sgn==0.] = 1.
+        ang = np.abs(np.arccos(np.dot(self.tvec, vx.T)/self.radius))
+        xcrd = self.radius*ang*sgn
+        ycrd = np.dot(self.caxis, uvw.T)
         return (xcrd, ycrd)
 
     def _valid_points(self, vecs):

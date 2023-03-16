@@ -1325,16 +1325,16 @@ def _dewarp_from_cylinder(uvw, tVec_d, caxis,
     routine to convert cylindrical coordinates
     to cartesian coordinates in image frame
     """
-    tvec = np.atleast_2d(tVec_d).T
     cx = np.atleast_2d(caxis).T
     px = np.atleast_2d(paxis).T
     num = uvw.shape[0]
-    vv = uvw - np.tile(tVec_d,[num, 1])
-    xcrd = np.squeeze(np.dot(vv, px))
-    ycrd = np.squeeze(np.dot(vv, cx))
 
-    ang = np.abs(np.arcsin(xcrd/radius))
-    xcrd *= ang
+    vx = uvw - np.tile(np.dot(uvw, cx), [1, 3]) * np.tile(cx, [1, num]).T
+    vx = vx/np.tile(np.linalg.norm(vx, axis=1), [3,1]).T
+    sgn = np.sign(np.dot(paxis, vx.T)); sgn[sgn==0.] = 1.
+    ang = np.abs(np.arccos(np.dot(tVec_d, vx.T)/radius))
+    xcrd = radius*ang*sgn
+    ycrd = np.dot(caxis, uvw.T)
     return np.vstack((xcrd, ycrd)).T
 
 def simulateGVecs(pd, detector_params, grain_params,
