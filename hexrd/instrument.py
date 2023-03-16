@@ -3700,7 +3700,7 @@ class CylindricalDetector(PlanarDetector):
         ang = np.abs(np.arccos(np.dot(self.tvec, vx.T)/self.radius))
         xcrd = self.radius*ang*sgn
         ycrd = np.dot(self.caxis, uvw.T)
-        return (xcrd, ycrd)
+        return np.vstack((xcrd, ycrd)).T
 
     def _valid_points(self, vecs):
         """
