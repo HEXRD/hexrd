@@ -2210,6 +2210,10 @@ class PlanarDetector(object):
         assert isinstance(s, str), "requires string input"
         self._name = s
 
+    @property
+    def detector_type(self):
+        return 'planar'
+
     # properties for physical size of rectangular detector
     @property
     def rows(self):
@@ -2584,6 +2588,8 @@ class PlanarDetector(object):
             "style must be either 'yaml', or 'hdf5'; you gave '%s'" % style
 
         config_dict = {}
+
+        config_dict['detector_type'] = self.detector_type
 
         # =====================================================================
         # DETECTOR PARAMETERS
@@ -3578,12 +3584,13 @@ class PlanarDetector(object):
             pass    # close loop on grains
         return xy_det, hkls_in, angles, dspacing, energy
 
+
 class CylindricalDetector(PlanarDetector):
     """Base class for 2D cylindrical detector
-       
-       A cylindrical detector is a simple rectangular 
-       row-column detector which has been bent in the 
-       shape of a cylinder. Inherting the PlanarDetector 
+
+       A cylindrical detector is a simple rectangular
+       row-column detector which has been bent in the
+       shape of a cylinder. Inherting the PlanarDetector
        class except for a few changes to account for the
        cylindder ray intersection.
     """
@@ -3656,6 +3663,10 @@ class CylindricalDetector(PlanarDetector):
             )
         return
 
+    @property
+    def detector_type(self):
+        return 'cylindrical'
+
     def _warp_to_cylinder(self, cart):
         """
         routine to convert cartesian coordinates
@@ -3695,7 +3706,7 @@ class CylindricalDetector(PlanarDetector):
     def _valid_points(self, vecs):
         """
         this rotuine takes a list of vectors
-        and checks if it falls inside the 
+        and checks if it falls inside the
         cylindrical panel
 
         returns the subset of vectors which fall
@@ -3707,7 +3718,7 @@ class CylindricalDetector(PlanarDetector):
         """
         get point where unitvector uvw
         intersect the cylindrical detector.
-        this will give points which are 
+        this will give points which are
         outside the actual panel. the points
         will be clipped to the panel later
 
@@ -3719,7 +3730,7 @@ class CylindricalDetector(PlanarDetector):
         Returns
         -------
         numpy.ndarray
-        (x,y,z) vectors point which intersect with 
+        (x,y,z) vectors point which intersect with
         the cylinder with (nx3) shape
         """
         num = uvw.shape[0]
@@ -3736,7 +3747,7 @@ class CylindricalDetector(PlanarDetector):
     def _clip_to_cylindrical_detector(self, uvw):
         """
         takes in the intersection points uvw
-        with the cylindrical detector and 
+        with the cylindrical detector and
         prunes out points which don't actually
         hit the actual panel
 
@@ -3764,7 +3775,7 @@ class CylindricalDetector(PlanarDetector):
             mask = np.array([mask])
         res = uvw[mask, :]
 
-        # next get rid of points that fall outside 
+        # next get rid of points that fall outside
         # the polar angle range
         num = res.shape[0]
         dp = np.squeeze(np.dot(res, cx))
@@ -3826,13 +3837,13 @@ class CylindricalDetector(PlanarDetector):
         pt_on_cylinder = self._clip_to_cylindrical_detector(pt_on_cylinder)
         output = self._dewarp_from_cylinder(pt_on_cylinder)
         return output
-    
+
     @property
     def angle_extent(self):
         # extent is from -theta, theta
         sz = self.physical_size[1]
         return sz/self.radius/2.0
-    
+
 # =============================================================================
 # UTILITIES
 # =============================================================================
