@@ -7,26 +7,26 @@ beam:
     azimuth: 119.0
     polar_angle: 90.0
 detectors:
-  IMAGE-PLATE-2:
-    detector_type: 'planar'
-    pixels:
-      columns: 901
-      rows: 421
-      size:
-      - 0.1
-      - 0.1
-    buffer:
-    - 0.2
-    - 0.2
-    transform:
-      tilt:
-      - -1.57079633e+00
-      - 0.0
-      - 0.0
-      translation:
-      - 0.0
-      - -12
-      - -25.08
+  # IMAGE-PLATE-2:
+  #   detector_type: 'planar'
+  #   pixels:
+  #     columns: 901
+  #     rows: 421
+  #     size:
+  #     - 0.1
+  #     - 0.1
+  #   buffer:
+  #   - 0.2
+  #   - 0.2
+  #   transform:
+  #     tilt:
+  #     - -1.57079633e+00
+  #     - 0.0
+  #     - 0.0
+  #     translation:
+  #     - 0.0
+  #     - -12
+  #     - -25.08
   IMAGE-PLATE-3:
     detector_type: 'cylindrical'
     pixels:
@@ -47,26 +47,26 @@ detectors:
       - 0.0
       - 0.0
       - -51.5
-  IMAGE-PLATE-4:
-    detector_type: 'planar'
-    pixels:
-      columns: 901
-      rows: 421
-      size:
-      - 0.1
-      - 0.1
-    buffer:
-    - 0.2
-    - 0.2
-    transform:
-      tilt:
-      - 0.0
-      - -2.22144147e+00
-      - 2.22144147e+00
-      translation:
-      - 0.0
-      - 12.0
-      - -25.08
+  # IMAGE-PLATE-4:
+  #   detector_type: 'planar'
+  #   pixels:
+  #     columns: 901
+  #     rows: 421
+  #     size:
+  #     - 0.1
+  #     - 0.1
+  #   buffer:
+  #   - 0.2
+  #   - 0.2
+  #   transform:
+  #     tilt:
+  #     - 0.0
+  #     - -2.22144147e+00
+  #     - 2.22144147e+00
+  #     translation:
+  #     - 0.0
+  #     - 12.0
+  #     - -25.08
 id: NXXXXXX-XXX
 oscillation_stage:
   chi: 0.0
