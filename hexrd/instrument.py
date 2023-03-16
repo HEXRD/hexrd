@@ -3760,6 +3760,8 @@ class CylindricalDetector(PlanarDetector):
         ycomp = uvw - np.tile(self.tvec,[num, 1])
         ylen = np.squeeze(np.dot(ycomp, cx))
         mask = np.abs(ylen) <= size[0]*0.5
+        if not isinstance(mask, np.ndarray):
+            mask = np.array([mask])
         res = uvw[mask, :]
 
         # next get rid of points that fall outside 
@@ -3773,6 +3775,8 @@ class CylindricalDetector(PlanarDetector):
         ang = np.squeeze(np.dot(xcomp, tvec))/self.radius/magxcomp
         ang = np.arccos(ang)
         mask = ang < self.angle_extent
+        if not isinstance(mask, np.ndarray):
+            mask = np.array([mask])
         res = res[mask,:]
 
         return res
