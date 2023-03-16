@@ -8,6 +8,7 @@ Created on Mon May 23 11:29:50 2022
 import copy
 
 import numpy as np
+import numpy.dual
 
 from hexrd import constants as ct
 from hexrd.instrument import calc_angles_from_beam_vec, PlanarDetector
@@ -368,14 +369,63 @@ def tth_corr_map_pinhole(instrument, pinhole_thickness, pinhole_radius):
     return tth_corr
 
 
-def calc_phi_x(panel):
+def calc_phi_x(bvec, eHat_l):
     """
     returns phi_x in RADIANS
     """
-    bv = panel.bvec.copy()
+    bv = np.array(bvec)
     bv[2] = 0.
     bv = bv/np.linalg.norm(bv)
-    return np.arccos(np.dot(bv, [0, -1, 0]))
+    return np.arccos(np.dot(bv, -eHat_l)).item()
+
+
+def azimuth(vv, v0, v1):
+    """Return azimuthal angle btwn vv and v0, with v1 defining phi=0.
+
+    Originally written by Ryan Rygg. This is a modified version.
+    """
+    with np.errstate(divide='ignore', invalid='ignore'):
+        n0 = np.cross(v0, v1)
+        n0 /= np.dual.norm(n0, axis=-1)[...,np.newaxis]
+        nn = np.cross(v0, vv)
+        nn /= np.dual.norm(nn, axis=-1)[...,np.newaxis]
+
+    azi = np.arccos(np.sum(nn * n0, -1))
+    if len(np.shape(azi)) > 0:
+        azi[np.dot(vv, n0) < 0] *= -1
+        azi[np.isnan(azi)] = 0 # arbitrary angle where vv is (anti)parallel to v0
+    elif np.isnan(azi):
+        return 0
+    elif np.dot(vv, v0) < 1 and azi > 0:
+        azi *= -1
+
+    return azi
+
+
+def _infer_eHat_l(panel):
+    tardis_names = [
+        'IMAGE-PLATE-1',
+        'IMAGE-PLATE-2',
+        'IMAGE-PLATE-3',
+        'IMAGE-PLATE-4',
+    ]
+
+    pxrdip_names = [
+        'IMAGE-PLATE-B',
+        'IMAGE-PLATE-D',
+        'IMAGE-PLATE-L',
+        'IMAGE-PLATE-R',
+        'IMAGE-PLATE-U',
+    ]
+
+    if panel.name in tardis_names:
+        # It is TARDIS
+        return -xfcapi.Xl
+    elif panel.name in pxrdip_names:
+        # It is PXRDIP
+        return xfcapi.Yl
+
+    raise NotImplementedError(f'Unknown detector name: {panel.name}')
 
 
 def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
@@ -389,20 +439,18 @@ def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
     tth = np.atleast_2d(tth)
     eta = np.atleast_2d(eta)
 
+    eHat_l = _infer_eHat_l(panel)
+
     # ------ Determine geometric parameters ------
 
     # distance of xray source from origin (i. e., center of pinhole) [mm]
     r_x = panel.xrs_dist
 
-    # Get our version of these beam angles
-    # !!! these are in degrees. Theirs are in radians.
-    azim, pola = calc_angles_from_beam_vec(panel.bvec)
-
     # zenith angle of the x-ray source from (negative) pinhole axis
     alpha = np.arccos(np.dot(panel.bvec, [0, 0, -1]))
 
     # azimuthal angle of the x-ray source around the pinhole axis
-    phi_x = calc_phi_x(panel)
+    phi_x = calc_phi_x(panel.bvec, eHat_l)
 
     # pinhole substrate thickness [mm]
     h_p = pinhole_thickness
@@ -418,10 +466,11 @@ def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
     # Convert tth and eta to phi_d, beta, and r_d
     dvec_arg = np.vstack((tth.flatten(), eta.flatten(),
                           np.zeros(np.prod(eta.shape))))
-    dvectors = xfcapi.anglesToDVec(dvec_arg.T, panel.bvec)
+    dvectors = xfcapi.anglesToDVec(dvec_arg.T, panel.bvec, eHat_l=eHat_l)
 
-    phi_d = np.mod(np.arctan2(dvectors[:, 1], dvectors[:, 0]) + 1.5 * np.pi,
-                   2 * np.pi).reshape(tth.shape)
+    v0 = np.array([0, 0, 1])
+    v1 = np.squeeze(eHat_l)
+    phi_d = azimuth(dvectors, v0, v1).reshape(tth.shape)
     beta = np.arccos(np.dot(dvectors, [0, 0, -1])).reshape(tth.shape)
 
     # Compute r_d
