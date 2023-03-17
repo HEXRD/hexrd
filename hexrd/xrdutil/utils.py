@@ -1310,6 +1310,7 @@ def _clip_to_cylindrical_detector(uvw, tVec_d, caxis,
     xcomp = res - v
     magxcomp = np.linalg.norm(xcomp,axis=1)
     ang = np.squeeze(np.dot(xcomp, tvec))/radius/magxcomp
+    ang[np.abs(ang)>1.] = np.sign(ang[np.abs(ang)>1.])
     ang = np.arccos(ang)
     mask2 = ang >= angle_extent
     mask = np.logical_or(mask1, mask2)
@@ -1336,6 +1337,54 @@ def _dewarp_from_cylinder(uvw, tVec_d, caxis,
     xcrd = radius*ang*sgn
     ycrd = np.dot(caxis, uvw.T)
     return np.vstack((xcrd, ycrd)).T
+
+def _warp_to_cylinder(cart, tVec_d,
+                      radius, rMat_d,
+                      normalize=True):
+    """
+    routine to convert cartesian coordinates
+    in image frame to cylindrical coordinates
+    """
+    tvec = np.atleast_2d(tVec_d).T
+    num = cart.shape[0]
+    xcrd = cart[:,0]; ycrd = cart[:,1]
+    ang = xcrd/radius
+
+    vec = np.vstack((radius*np.sin(ang),ycrd,
+                     -radius*(1-np.cos(ang))))
+
+    vec_rot = np.dot(rMat_d, vec)
+
+    res = (vec_rot + np.tile(tvec,[1, num])).T
+
+    if normalize:
+        return res/np.tile(np.linalg.norm(res, axis=1), [3, 1]).T
+    else:
+        return res
+
+def _dvec_to_angs(dvecs, bvec, evec):
+    """
+    convert diffraction vectors to (tth, eta) 
+    angles in the 'eta' frame
+    dvecs is assumed to have (nx3) shape
+    """
+    num = dvecs.shape[0]
+    bxe = np.cross(bvec, evec)
+    bxe = bxe/np.linalg.norm(bxe)
+
+    dp = np.dot(bvec, dvecs.T)
+    dp[np.abs(dp) > 1.] = np.sign(dp[np.abs(dp) > 1.])
+    tth = np.arccos(dp)
+
+    dvecs_p = np.tile(dp, [3, 1]).T * dvecs - np.tile(bvec, [num, 1])
+    dvecs_p = dvecs_p/np.tile(np.linalg.norm(dvecs_p, axis=1), [3, 1]).T
+
+    dpx = np.dot(evec, dvecs_p.T)
+    dpy = np.dot(bxe, dvecs_p.T)
+    eta = np.arctan2(dpy, dpx)
+
+    return (tth, eta)
+
 
 def simulateGVecs(pd, detector_params, grain_params,
                   ome_range=[(-np.pi, np.pi), ],
