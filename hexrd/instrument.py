@@ -2090,12 +2090,13 @@ class HEDMInstrument(object):
 
     pass  # end class: HEDMInstrument
 
-
-class PlanarDetector(object):
-    """Base class for 2D planar, rectangular row-column detector"""
-
+class DetectorBaseClass():
+    """
+    Base class for 2D detectors with functions and properties 
+    common to planar and cylindrical detectors. This class
+    will be inherited by both those classes.
+    """
     __pixelPitchUnit = 'mm'
-
     def __init__(self,
                  rows=2048, cols=2048,
                  pixel_size=(0.2, 0.2),
@@ -2701,11 +2702,6 @@ class PlanarDetector(object):
 
         return config_dict
 
-    def pixel_angles(self, origin=ct.zeros_3):
-        return _pixel_angles(origin, self.pixel_coords, self.distortion,
-                             self.rmat, self.tvec, self.bvec, self.evec,
-                             self.rows, self.cols)
-
     def pixel_tth_gradient(self, origin=ct.zeros_3):
         return _pixel_tth_gradient(origin, self.pixel_coords, self.distortion,
                                    self.rmat, self.tvec, self.bvec, self.evec,
@@ -2867,112 +2863,6 @@ class PlanarDetector(object):
             )
             on_panel = np.logical_and(on_panel_x, on_panel_y)
         return xy[on_panel, :], on_panel
-
-    def cart_to_angles(self, xy_data,
-                       rmat_s=None,
-                       tvec_s=None, tvec_c=None,
-                       apply_distortion=False):
-        """
-        Transform cartesian coordinates to angular.
-
-        Parameters
-        ----------
-        xy_data : TYPE
-            The (n, 2) array of n (x, y) coordinates to be transformed in
-            either the raw or ideal cartesian plane (see `apply_distortion`
-            kwarg below).
-        rmat_s : array_like, optional
-            The (3, 3) COB matrix for the sample frame. The default is None.
-        tvec_s : array_like, optional
-            The (3, ) translation vector for the sample frame.
-            The default is None.
-        tvec_c : array_like, optional
-            The (3, ) translation vector for the crystal frame.
-            The default is None.
-        apply_distortion : bool, optional
-            If True, apply distortion to the inpout cartesian coordinates.
-            The default is False.
-
-        Returns
-        -------
-        tth_eta : TYPE
-            DESCRIPTION.
-        g_vec : TYPE
-            DESCRIPTION.
-
-        """
-        if rmat_s is None:
-            rmat_s = ct.identity_3x3
-        if tvec_s is None:
-            tvec_s = ct.zeros_3
-        if tvec_c is None:
-            tvec_c = ct.zeros_3
-        if apply_distortion and self.distortion is not None:
-            xy_data = self.distortion.apply(xy_data)
-        angs, g_vec = detectorXYToGvec(
-            xy_data, self.rmat, rmat_s,
-            self.tvec, tvec_s, tvec_c,
-            beamVec=self.bvec, etaVec=self.evec)
-        tth_eta = np.vstack([angs[0], angs[1]]).T
-        return tth_eta, g_vec
-
-    def angles_to_cart(self, tth_eta,
-                       rmat_s=None, tvec_s=None,
-                       rmat_c=None, tvec_c=None,
-                       apply_distortion=False):
-        """
-        Transform angular coordinates to cartesian.
-
-        Parameters
-        ----------
-        tth_eta : array_like
-            The (n, 2) array of n (tth, eta) coordinates to be transformed.
-        rmat_s : array_like, optional
-            The (3, 3) COB matrix for the sample frame. The default is None.
-        tvec_s : array_like, optional
-            The (3, ) translation vector for the sample frame.
-            The default is None.
-        rmat_c : array_like, optional
-            (3, 3) COB matrix for the crystal frame.
-            The default is None.
-        tvec_c : array_like, optional
-            The (3, ) translation vector for the crystal frame.
-            The default is None.
-        apply_distortion : bool, optional
-            If True, apply distortion to take cartesian coordinates to the
-            "warped" configuration. The default is False.
-
-        Returns
-        -------
-        xy_det : array_like
-            The (n, 2) array on the n input coordinates in the .
-
-        """
-        if rmat_s is None:
-            rmat_s = ct.identity_3x3
-        if tvec_s is None:
-            tvec_s = ct.zeros_3
-        if rmat_c is None:
-            rmat_c = ct.identity_3x3
-        if tvec_c is None:
-            tvec_c = ct.zeros_3
-
-        # get chi and ome from rmat_s
-        # !!! WARNING: API ambiguity
-        # !!! this assumes rmat_s was made from the composition
-        # !!! rmat_s = R(Xl, chi) * R(Yl, ome)
-        chi = np.arccos(rmat_s[1, 1])
-        ome = np.arccos(rmat_s[0, 0])
-
-        angs = np.hstack([tth_eta, np.tile(ome, (len(tth_eta), 1))])
-        xy_det = gvecToDetectorXY(
-            anglesToGVec(angs, bHat_l=self.bvec, eHat_l=self.evec, chi=chi),
-            self.rmat, rmat_s, rmat_c,
-            self.tvec, tvec_s, tvec_c,
-            beamVec=self.bvec)
-        if apply_distortion and self.distortion is not None:
-            xy_det = self.distortion.apply_inverse(xy_det)
-        return xy_det
 
     def interpolate_nearest(self, xy, img, pad_with_nans=True):
         """
@@ -3583,8 +3473,123 @@ class PlanarDetector(object):
             pass    # close loop on grains
         return xy_det, hkls_in, angles, dspacing, energy
 
+class PlanarDetector(DetectorBaseClass):
+    """Base class for 2D planar, rectangular row-column detector"""
 
-class CylindricalDetector(PlanarDetector):
+    __pixelPitchUnit = 'mm'
+
+    def cart_to_angles(self, xy_data,
+                       rmat_s=None,
+                       tvec_s=None, tvec_c=None,
+                       apply_distortion=False):
+        """
+        Transform cartesian coordinates to angular.
+
+        Parameters
+        ----------
+        xy_data : TYPE
+            The (n, 2) array of n (x, y) coordinates to be transformed in
+            either the raw or ideal cartesian plane (see `apply_distortion`
+            kwarg below).
+        rmat_s : array_like, optional
+            The (3, 3) COB matrix for the sample frame. The default is None.
+        tvec_s : array_like, optional
+            The (3, ) translation vector for the sample frame.
+            The default is None.
+        tvec_c : array_like, optional
+            The (3, ) translation vector for the crystal frame.
+            The default is None.
+        apply_distortion : bool, optional
+            If True, apply distortion to the inpout cartesian coordinates.
+            The default is False.
+
+        Returns
+        -------
+        tth_eta : TYPE
+            DESCRIPTION.
+        g_vec : TYPE
+            DESCRIPTION.
+
+        """
+        if rmat_s is None:
+            rmat_s = ct.identity_3x3
+        if tvec_s is None:
+            tvec_s = ct.zeros_3
+        if tvec_c is None:
+            tvec_c = ct.zeros_3
+        if apply_distortion and self.distortion is not None:
+            xy_data = self.distortion.apply(xy_data)
+        angs, g_vec = detectorXYToGvec(
+            xy_data, self.rmat, rmat_s,
+            self.tvec, tvec_s, tvec_c,
+            beamVec=self.bvec, etaVec=self.evec)
+        tth_eta = np.vstack([angs[0], angs[1]]).T
+        return tth_eta, g_vec
+
+    def angles_to_cart(self, tth_eta,
+                       rmat_s=None, tvec_s=None,
+                       rmat_c=None, tvec_c=None,
+                       apply_distortion=False):
+        """
+        Transform angular coordinates to cartesian.
+
+        Parameters
+        ----------
+        tth_eta : array_like
+            The (n, 2) array of n (tth, eta) coordinates to be transformed.
+        rmat_s : array_like, optional
+            The (3, 3) COB matrix for the sample frame. The default is None.
+        tvec_s : array_like, optional
+            The (3, ) translation vector for the sample frame.
+            The default is None.
+        rmat_c : array_like, optional
+            (3, 3) COB matrix for the crystal frame.
+            The default is None.
+        tvec_c : array_like, optional
+            The (3, ) translation vector for the crystal frame.
+            The default is None.
+        apply_distortion : bool, optional
+            If True, apply distortion to take cartesian coordinates to the
+            "warped" configuration. The default is False.
+
+        Returns
+        -------
+        xy_det : array_like
+            The (n, 2) array on the n input coordinates in the .
+
+        """
+        if rmat_s is None:
+            rmat_s = ct.identity_3x3
+        if tvec_s is None:
+            tvec_s = ct.zeros_3
+        if rmat_c is None:
+            rmat_c = ct.identity_3x3
+        if tvec_c is None:
+            tvec_c = ct.zeros_3
+
+        # get chi and ome from rmat_s
+        # !!! WARNING: API ambiguity
+        # !!! this assumes rmat_s was made from the composition
+        # !!! rmat_s = R(Xl, chi) * R(Yl, ome)
+        chi = np.arccos(rmat_s[1, 1])
+        ome = np.arccos(rmat_s[0, 0])
+
+        angs = np.hstack([tth_eta, np.tile(ome, (len(tth_eta), 1))])
+        xy_det = gvecToDetectorXY(
+            anglesToGVec(angs, bHat_l=self.bvec, eHat_l=self.evec, chi=chi),
+            self.rmat, rmat_s, rmat_c,
+            self.tvec, tvec_s, tvec_c,
+            beamVec=self.bvec)
+        if apply_distortion and self.distortion is not None:
+            xy_det = self.distortion.apply_inverse(xy_det)
+        return xy_det
+
+    def pixel_angles(self, origin=ct.zeros_3):
+        return _pixel_angles(origin, self.pixel_coords, self.distortion,
+                             self.rmat, self.tvec, self.bvec, self.evec,
+                             self.rows, self.cols)
+
+class CylindricalDetector(DetectorBaseClass):
     """Base class for 2D cylindrical detector
 
        A cylindrical detector is a simple rectangular
@@ -3791,16 +3796,125 @@ class CylindricalDetector(PlanarDetector):
 
         return res
 
-    def _gvecToDetectorXY(self, gvecs):
+    def cart_to_angles(self, xy_data,
+                       rmat_s=None,
+                       tvec_s=None, tvec_c=None,
+                       apply_distortion=False):
         """
-        routine to convert gvectors to
-        points on the detector
-        steps as follows:
-        1. gvec to point on cylinder
-        2. prune list to only valid points
-        3. dewarp to rectangle
+        Transform cartesian coordinates to angular.
+
+        Parameters
+        ----------
+        xy_data : TYPE
+            The (n, 2) array of n (x, y) coordinates to be transformed in
+            either the raw or ideal cartesian plane (see `apply_distortion`
+            kwarg below).
+        rmat_s : array_like, optional
+            The (3, 3) COB matrix for the sample frame. The default is None.
+        tvec_s : array_like, optional
+            The (3, ) translation vector for the sample frame.
+            The default is None.
+        tvec_c : array_like, optional
+            The (3, ) translation vector for the crystal frame.
+            The default is None.
+        apply_distortion : bool, optional
+            If True, apply distortion to the inpout cartesian coordinates.
+            The default is False.
+
+        Returns
+        -------
+        tth_eta : TYPE
+            DESCRIPTION.
+        g_vec : TYPE
+            DESCRIPTION.
+
         """
-        pass
+        if rmat_s is None:
+            rmat_s = ct.identity_3x3
+        if tvec_s is None:
+            tvec_s = ct.zeros_3
+        if tvec_c is None:
+            tvec_c = ct.zeros_3
+        if apply_distortion and self.distortion is not None:
+            xy_data = self.distortion.apply(xy_data)
+
+        dvecs = xrdutil.utils._warp_to_cylinder(xy_data,
+                                                self.tvec,
+                                                self.radius,
+                                                self.rmat,
+                                                normalize=True)
+        tth, eta = xrdutil.utils._dvec_to_angs(dvecs, self.bvec, self.evec)
+        tth_eta = np.vstack((tth, eta)).T
+        return tth_eta, dvecs
+
+
+
+    def angles_to_cart(self, tth_eta,
+                       rmat_s=None, tvec_s=None,
+                       rmat_c=None, tvec_c=None,
+                       apply_distortion=False):
+        """
+        Transform angular coordinates to cartesian.
+
+        Parameters
+        ----------
+        tth_eta : array_like
+            The (n, 2) array of n (tth, eta) coordinates to be transformed.
+        rmat_s : array_like, optional
+            The (3, 3) COB matrix for the sample frame. The default is None.
+        tvec_s : array_like, optional
+            The (3, ) translation vector for the sample frame.
+            The default is None.
+        rmat_c : array_like, optional
+            (3, 3) COB matrix for the crystal frame.
+            The default is None.
+        tvec_c : array_like, optional
+            The (3, ) translation vector for the crystal frame.
+            The default is None.
+        apply_distortion : bool, optional
+            If True, apply distortion to take cartesian coordinates to the
+            "warped" configuration. The default is False.
+
+        Returns
+        -------
+        xy_det : array_like
+            The (n, 2) array on the n input coordinates in the .
+
+        """
+        if rmat_s is None:
+            rmat_s = ct.identity_3x3
+        if tvec_s is None:
+            tvec_s = ct.zeros_3
+        if rmat_c is None:
+            rmat_c = ct.identity_3x3
+        if tvec_c is None:
+            tvec_c = ct.zeros_3
+
+        # get chi and ome from rmat_s
+        # !!! WARNING: API ambiguity
+        # !!! this assumes rmat_s was made from the composition
+        # !!! rmat_s = R(Xl, chi) * R(Yl, ome)
+        chi = np.arccos(rmat_s[1, 1])
+        ome = np.arccos(rmat_s[0, 0])
+
+        angs = np.hstack([tth_eta, np.tile(ome, (len(tth_eta), 1))])
+        kwargs = {"beamVec" : self.bvec}
+        args = (angs, self.rmat, chi, self.tvec,
+                self.caxis, self.paxis, self.radius,
+                self.physical_size, self.angle_extent,
+                self.distortion)
+
+        valid_xy, rMat_ss, valid_mask = \
+        xrdutil.utils._project_on_detector_cylinder(*args, **kwargs)
+        xy_det = np.empty([angs.shape[0], 2]); xy_det.fill(np.nan)
+        xy_det[valid_mask, :] = valid_xy
+        return xy_det
+
+    def pixel_angles(self, origin=ct.zeros_3):
+        args = (origin, self.pixel_coords, self.distortion, self.rmat,
+                self.tvec, self.radius, self.bvec, self.evec, self.rows,
+                self.cols)
+        return _pixel_angles_cylinder(*args)
 
     @property
     def caxis(self):
@@ -4438,6 +4552,41 @@ def _pixel_angles(origin, pixel_coords, distortion, rmat, tvec, bvec, evec,
         xy, rmat, ct.identity_3x3,
         tvec, ct.zeros_3, origin,
         beamVec=bvec, etaVec=evec)
+
+    tth = angs[0].reshape(rows, cols)
+    eta = angs[1].reshape(rows, cols)
+    return tth, eta
+
+@memoize
+def _pixel_angles_cylinder(origin, 
+                           pixel_coords,
+                           distortion,
+                           rMat_d,
+                           tVec_d,
+                           radius,
+                           bvec,
+                           evec,
+                           rows,
+                           cols):
+    assert len(origin) == 3, "origin must have 3 elements"
+
+    pix_i, pix_j = pixel_coords
+    xy = np.ascontiguousarray(
+        np.vstack([
+            pix_j.flatten(), pix_i.flatten()
+            ]).T
+        )
+
+    if distortion is not None:
+        xy = distortion.apply(xy)
+
+    dvecs = xrdutil.utils._warp_to_cylinder(xy,
+                              tVec_d-origin,
+                              radius,
+                              rMat_d,
+                              normalize=True)
+
+    angs = xrdutil.utils._dvec_to_angs(dvecs, bvec, evec)
 
     tth = angs[0].reshape(rows, cols)
     eta = angs[1].reshape(rows, cols)
