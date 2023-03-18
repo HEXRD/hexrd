@@ -3841,8 +3841,7 @@ class CylindricalDetector(DetectorBaseClass):
         dvecs = xrdutil.utils._warp_to_cylinder(xy_data,
                                                 self.tvec,
                                                 self.radius,
-                                                self.caxis,
-                                                self.paxis,
+                                                self.rmat,
                                                 normalize=True)
         tth, eta = xrdutil.utils._dvec_to_angs(dvecs, self.bvec, self.evec)
         tth_eta = np.vstack((tth, eta)).T
