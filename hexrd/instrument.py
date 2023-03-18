@@ -3841,7 +3841,8 @@ class CylindricalDetector(DetectorBaseClass):
         dvecs = xrdutil.utils._warp_to_cylinder(xy_data,
                                                 self.tvec,
                                                 self.radius,
-                                                self.rmat,
+                                                self.caxis,
+                                                self.paxis,
                                                 normalize=True)
         tth, eta = xrdutil.utils._dvec_to_angs(dvecs, self.bvec, self.evec)
         tth_eta = np.vstack((tth, eta)).T
@@ -3911,9 +3912,9 @@ class CylindricalDetector(DetectorBaseClass):
         return xy_det
 
     def pixel_angles(self, origin=ct.zeros_3):
-        args = (origin, self.pixel_coords, self.distortion, self.rmat,
-                self.tvec, self.radius, self.bvec, self.evec, self.rows,
-                self.cols)
+        args = (origin, self.pixel_coords, self.distortion, self.tvec, 
+            self.radius, self.caxis, self.paxis, self.bvec, self.evec, 
+            self.rows, self.cols)
         return _pixel_angles_cylinder(*args)
 
     @property
@@ -4561,9 +4562,10 @@ def _pixel_angles(origin, pixel_coords, distortion, rmat, tvec, bvec, evec,
 def _pixel_angles_cylinder(origin, 
                            pixel_coords,
                            distortion,
-                           rMat_d,
                            tVec_d,
                            radius,
+                           caxis,
+                           paxis,
                            bvec,
                            evec,
                            rows,
@@ -4583,7 +4585,8 @@ def _pixel_angles_cylinder(origin,
     dvecs = xrdutil.utils._warp_to_cylinder(xy,
                               tVec_d-origin,
                               radius,
-                              rMat_d,
+                              caxis,
+                              paxis,
                               normalize=True)
 
     angs = xrdutil.utils._dvec_to_angs(dvecs, bvec, evec)
