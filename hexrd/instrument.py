@@ -3671,23 +3671,23 @@ class CylindricalDetector(DetectorBaseClass):
     def detector_type(self):
         return 'cylindrical'
 
-    def _warp_to_cylinder(self, cart):
+    def _warp_to_cylinder(self, cart, normalize=True):
         """
         routine to convert cartesian coordinates
         in image frame to cylindrical coordinates
         """
         tvec = np.atleast_2d(self.tvec).T
         num = cart.shape[0]
-        xcrd = cart[:,0]; ycrd = cart[:,1]
-        ang = xcrd/self.radius
+        zcrd = np.zeros([num, 1])
+        cart3d = np.hstack((cart, zcrd))
+        cart3d = np.dot(rMat_d, cart3d.T).T
 
-        vec = np.vstack((self.radius*np.sin(ang),
-                         ycrd,
-                         -self.radius*(1-np.cos(ang))))
+        res = cart3d + np.tile(tvec, [1, num]).T
 
-        vec_rot = np.dot(self.rmat, vec)
-
-        return (vec_rot + np.tile(tvec,[1, num])).T
+        if normalize:
+            return res/np.tile(np.linalg.norm(res, axis=1), [3, 1]).T
+        else:
+            return res
 
 
     def _dewarp_from_cylinder(self, uvw):
@@ -3913,8 +3913,8 @@ class CylindricalDetector(DetectorBaseClass):
 
     def pixel_angles(self, origin=ct.zeros_3):
         args = (origin, self.pixel_coords, self.distortion, self.tvec, 
-            self.radius, self.caxis, self.paxis, self.bvec, self.evec, 
-            self.rows, self.cols)
+                self.radius, self.rmat, self.bvec, self.evec, self.rows, 
+                self.cols)
         return _pixel_angles_cylinder(*args)
 
     @property
@@ -4564,8 +4564,7 @@ def _pixel_angles_cylinder(origin,
                            distortion,
                            tVec_d,
                            radius,
-                           caxis,
-                           paxis,
+                           rMat_d,
                            bvec,
                            evec,
                            rows,
@@ -4585,8 +4584,7 @@ def _pixel_angles_cylinder(origin,
     dvecs = xrdutil.utils._warp_to_cylinder(xy,
                               tVec_d-origin,
                               radius,
-                              caxis,
-                              paxis,
+                              rMat_d,
                               normalize=True)
 
     angs = xrdutil.utils._dvec_to_angs(dvecs, bvec, evec)
