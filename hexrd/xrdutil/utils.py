@@ -1339,8 +1339,8 @@ def _dewarp_from_cylinder(uvw, tVec_d, caxis,
     return np.vstack((xcrd, ycrd)).T
 
 def _warp_to_cylinder(cart, tVec_d,
-                      radius, rMat_d,
-                      normalize=True):
+                      radius, caxis,
+                      paxis, normalize=True):
     """
     routine to convert cartesian coordinates
     in image frame to cylindrical coordinates
@@ -1350,12 +1350,11 @@ def _warp_to_cylinder(cart, tVec_d,
     xcrd = cart[:,0]; ycrd = cart[:,1]
     ang = xcrd/radius
 
-    vec = np.vstack((radius*np.sin(ang),ycrd,
-                     -radius*(1-np.cos(ang))))
+    xvec = np.tile(paxis, [num, 1]) * np.tile(radius*np.sin(ang), [3,1]).T
+    yvec = np.tile(caxis, [num, 1]) * np.tile(ycrd, [3,1]).T
+    zvec = np.tile(tVec_d,[num, 1]) * (1 - np.tile(np.cos(ang), [3, 1]).T)
 
-    vec_rot = np.dot(rMat_d, vec)
-
-    res = (vec_rot + np.tile(tvec,[1, num])).T
+    res = xvec + yvec + zvec
 
     if normalize:
         return res/np.tile(np.linalg.norm(res, axis=1), [3, 1]).T
