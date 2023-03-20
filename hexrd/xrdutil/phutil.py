@@ -478,7 +478,16 @@ def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
     # extra Z dimension, apply the rotation matrix, add the tvec, and then
     # compute the distance.
     angles_full = np.stack((tth, eta)).reshape((2, np.prod(tth.shape))).T
-    cart = panel.angles_to_cart(angles_full)
+
+    try:
+        # Set the evec to eHat_l while converting to cartesian
+        # This is important so that the r_d values end up in the right spots
+        old_evec = panel.evec
+        panel.evec = eHat_l
+        cart = panel.angles_to_cart(angles_full)
+    finally:
+        panel.evec = old_evec
+
     _, on_panel = panel.clip_to_panel(cart)
     cart[~on_panel] = np.nan
     cart = cart.T.reshape((2, *tth.shape))
