@@ -402,7 +402,7 @@ def azimuth(vv, v0, v1):
     return azi
 
 
-def _infer_eHat_l(panel):
+def _infer_instrument_type(panel):
     tardis_names = [
         'IMAGE-PLATE-1',
         'IMAGE-PLATE-2',
@@ -419,17 +419,38 @@ def _infer_eHat_l(panel):
     ]
 
     if panel.name in tardis_names:
-        # It is TARDIS
-        return -xfcapi.Xl
+        return 'TARDIS'
     elif panel.name in pxrdip_names:
-        # It is PXRDIP
-        return xfcapi.Yl
+        return 'PXRDIP'
 
     raise NotImplementedError(f'Unknown detector name: {panel.name}')
 
 
-def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
-                          pinhole_radius, num_phi_elements=120):
+def _infer_eHat_l(panel):
+    instr_type = _infer_instrument_type(panel)
+
+    eHat_l_dict = {
+        'TARDIS': -xfcapi.Xl,
+        'PXRDIP': xfcapi.Yl,
+    }
+
+    return eHat_l_dict[instr_type]
+
+
+def _infer_eta_shift(panel):
+    instr_type = _infer_instrument_type(panel)
+
+    eta_shift_dict = {
+        'TARDIS': -np.radians(180),
+        'PXRDIP': -np.radians(90),
+    }
+
+    return eta_shift_dict[instr_type]
+
+
+def calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
+                          pinhole_radius, num_phi_elements=120,
+                          clip_to_panel=True):
     """Return pinhole twotheta [rad] and effective scattering volume [mm3].
 
     num_phi_elements: number of pinhole phi elements for integration
@@ -439,18 +460,28 @@ def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
     tth = np.atleast_2d(tth)
     eta = np.atleast_2d(eta)
 
-    eHat_l = _infer_eHat_l(panel)
+    if not isinstance(panels, (list, tuple)):
+        panels = [panels]
 
     # ------ Determine geometric parameters ------
 
+    # Grab info from the first panel that should be same across all panels
+    first_panel = panels[0]
+    bvec = first_panel.bvec
+    eHat_l = _infer_eHat_l(first_panel)
+
+    eta_shift = _infer_eta_shift(first_panel)
+    # This code expects eta to be shifted by a certain amount
+    eta += eta_shift
+
     # distance of xray source from origin (i. e., center of pinhole) [mm]
-    r_x = panel.xrs_dist
+    r_x = first_panel.xrs_dist
 
     # zenith angle of the x-ray source from (negative) pinhole axis
-    alpha = np.arccos(np.dot(panel.bvec, [0, 0, -1]))
+    alpha = np.arccos(np.dot(bvec, [0, 0, -1]))
 
     # azimuthal angle of the x-ray source around the pinhole axis
-    phi_x = calc_phi_x(panel.bvec, eHat_l)
+    phi_x = calc_phi_x(bvec, eHat_l)
 
     # pinhole substrate thickness [mm]
     h_p = pinhole_thickness
@@ -466,7 +497,7 @@ def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
     # Convert tth and eta to phi_d, beta, and r_d
     dvec_arg = np.vstack((tth.flatten(), eta.flatten(),
                           np.zeros(np.prod(eta.shape))))
-    dvectors = xfcapi.anglesToDVec(dvec_arg.T, panel.bvec, eHat_l=eHat_l)
+    dvectors = xfcapi.anglesToDVec(dvec_arg.T, bvec, eHat_l=eHat_l)
 
     v0 = np.array([0, 0, 1])
     v1 = np.squeeze(eHat_l)
@@ -479,23 +510,30 @@ def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
     # compute the distance.
     angles_full = np.stack((tth, eta)).reshape((2, np.prod(tth.shape))).T
 
-    try:
-        # Set the evec to eHat_l while converting to cartesian
-        # This is important so that the r_d values end up in the right spots
-        old_evec = panel.evec
-        panel.evec = eHat_l
-        cart = panel.angles_to_cart(angles_full)
-    finally:
-        panel.evec = old_evec
+    r_d = np.full(tth.shape, np.nan)
+    for panel in panels:
+        try:
+            # Set the evec to eHat_l while converting to cartesian
+            # This is important so that the r_d values end up in the right spots
+            old_evec = panel.evec
+            panel.evec = eHat_l
+            cart = panel.angles_to_cart(angles_full)
+        finally:
+            panel.evec = old_evec
 
-    _, on_panel = panel.clip_to_panel(cart)
-    cart[~on_panel] = np.nan
-    cart = cart.T.reshape((2, *tth.shape))
-    full_cart = np.stack((cart[0], cart[1], np.zeros(tth.shape)))
-    flat_coords = full_cart.reshape((3, np.prod(tth.shape)))
-    rotated = panel.rmat.dot(flat_coords).reshape(full_cart.shape).T
-    full_vector = panel.tvec + rotated
-    r_d = np.sqrt(np.sum((full_vector)**2, axis=2)).T
+        if clip_to_panel:
+            _, on_panel = panel.clip_to_panel(cart)
+            cart[~on_panel] = np.nan
+
+        cart = cart.T.reshape((2, *tth.shape))
+        full_cart = np.stack((cart[0], cart[1], np.zeros(tth.shape)))
+        flat_coords = full_cart.reshape((3, np.prod(tth.shape)))
+        rotated = panel.rmat.dot(flat_coords).reshape(full_cart.shape).T
+        full_vector = panel.tvec + rotated
+        panel_r_d = np.sqrt(np.sum((full_vector)**2, axis=2)).T
+
+        # Only overwrite positions that are still nan on r_d
+        r_d[np.isnan(r_d)] = panel_r_d[np.isnan(r_d)]
 
     # Store the nan values so we can use them again later
     is_nan = np.isnan(r_d)
@@ -585,6 +623,10 @@ def calc_tth_rygg_pinhole(panel, material, tth, eta, pinhole_thickness,
 def tth_corr_rygg_pinhole(panel, material, xy_pts,
                           pinhole_thickness, pinhole_radius,
                           return_nominal=True, num_phi_elements=120):
+    # Clip these to the panel now
+    _, on_panel = panel.clip_to_panel(xy_pts)
+    xy_pts[~on_panel] = np.nan
+
     # These are the nominal tth values
     nom_angs, _ = panel.cart_to_angles(
         xy_pts,
@@ -593,12 +635,16 @@ def tth_corr_rygg_pinhole(panel, material, xy_pts,
     )
     nom_tth, nom_eta = nom_angs[:, :2].T
 
+    # Don't clip these values to the panel because they will be shifted
     qq_p = calc_tth_rygg_pinhole(
         panel, material, nom_tth, nom_eta, pinhole_thickness,
-        pinhole_radius, num_phi_elements)
+        pinhole_radius, num_phi_elements, clip_to_panel=False)
+
+    # The output values will have shifted eta. We will shift them back.
+    eta_shift = _infer_eta_shift(panel)
 
     if return_nominal:
-        return np.vstack([qq_p, nom_angs[:, 1]]).T
+        return np.vstack([qq_p, nom_angs[:, 1] - eta_shift]).T
     else:
         # !!! NEED TO CHECK THIS
         return np.vstack([nom_tth - qq_p, nom_angs[:, 1]]).T
@@ -614,3 +660,11 @@ def tth_corr_map_rygg_pinhole(instrument, material, pinhole_thickness,
             pinhole_radius, num_phi_elements)
         tth_corr[det_key] = qq_p - nom_ptth
     return tth_corr
+
+
+def polar_tth_corr_map_rygg_pinhole(tth, eta, instrument, material, pinhole_thickness,
+                                    pinhole_radius, num_phi_elements=120):
+    """Generate a polar tth corr map directly for all panels"""
+    panels = list(instrument.detectors.values())
+    return calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
+                                 pinhole_radius, num_phi_elements) - tth
