@@ -472,7 +472,8 @@ def calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
 
     eta_shift = _infer_eta_shift(first_panel)
     # This code expects eta to be shifted by a certain amount
-    eta += eta_shift
+    # !! do not modify the original eta array
+    eta = eta + eta_shift
 
     # distance of xray source from origin (i. e., center of pinhole) [mm]
     r_x = first_panel.xrs_dist
@@ -612,7 +613,10 @@ def calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
     # ------ weighted sum over elements to obtain average ------
     V_i *= is_seen  # zero weight to elements with no view of both X and D
     V_p = np.nansum(V_i, axis=(0, 1))  # [Nu x Nv] <= detector
-    qq_p = np.nansum(V_i * qq_i, axis=(0, 1)) / V_p  # [Nu x Nv] <= detector
+
+    # This always has an invalid divide error. Ignore it.
+    with np.errstate(invalid='ignore'):
+        qq_p = np.nansum(V_i * qq_i, axis=(0, 1)) / V_p  # [Nu x Nv] <= detector
 
     # Set the nan values back to nan so it is clear they were not computed
     qq_p[is_nan] = np.nan
@@ -640,11 +644,8 @@ def tth_corr_rygg_pinhole(panel, material, xy_pts,
         panel, material, nom_tth, nom_eta, pinhole_thickness,
         pinhole_radius, num_phi_elements, clip_to_panel=False)
 
-    # The output values will have shifted eta. We will shift them back.
-    eta_shift = _infer_eta_shift(panel)
-
     if return_nominal:
-        return np.vstack([qq_p, nom_angs[:, 1] - eta_shift]).T
+        return np.vstack([qq_p, nom_angs[:, 1]]).T
     else:
         # !!! NEED TO CHECK THIS
         return np.vstack([nom_tth - qq_p, nom_angs[:, 1]]).T
@@ -666,5 +667,5 @@ def polar_tth_corr_map_rygg_pinhole(tth, eta, instrument, material, pinhole_thic
                                     pinhole_radius, num_phi_elements=120):
     """Generate a polar tth corr map directly for all panels"""
     panels = list(instrument.detectors.values())
-    return calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
-                                 pinhole_radius, num_phi_elements) - tth
+    return tth - calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
+                                       pinhole_radius, num_phi_elements)
