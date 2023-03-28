@@ -6,13 +6,17 @@ Created on Mon May 23 11:29:50 2022
 @author: jbernier
 """
 import copy
+from functools import partial
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import numpy.dual
 
 from hexrd import constants as ct
-from hexrd.instrument import calc_angles_from_beam_vec, PlanarDetector
+from hexrd.instrument import PlanarDetector
 from hexrd.transforms import xfcapi
+from hexrd.utils.concurrent import distribute_tasks
+from hexrd.utils.decorators import numba_njit_if_available
 
 detector_classes = (PlanarDetector, )
 
@@ -457,8 +461,12 @@ def calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
     """
     # Make sure these are at least 2D
     original_shape = tth.shape
-    tth = np.atleast_2d(tth)
-    eta = np.atleast_2d(eta)
+
+    if len(tth.shape) == 1:
+        # Do these instead of atleast_2d(), because we want the 1
+        # on the column, not on the row.
+        tth = tth.reshape(tth.shape[0], 1)
+        eta = eta.reshape(eta.shape[0], 1)
 
     if not isinstance(panels, (list, tuple)):
         panels = [panels]
@@ -469,6 +477,7 @@ def calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
     first_panel = panels[0]
     bvec = first_panel.bvec
     eHat_l = _infer_eHat_l(first_panel)
+    max_workers = first_panel.max_workers
 
     eta_shift = _infer_eta_shift(first_panel)
     # This code expects eta to be shifted by a certain amount
@@ -571,14 +580,118 @@ def calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
     sin_b, cos_b, tan_b = np.sin(beta),  np.cos(beta),  np.tan(beta)
     sin_phii, cos_phii = np.sin(phi_i), np.cos(phi_i)
     cos_dphi_x = np.cos(phi_i - phi_x + np.pi)  # [Nz x Np x Nu x Nv]
-    cos_dphi_d = np.cos(phi_i - phi_d + np.pi)
 
     alpha_i = np.arctan2(np.sqrt(sin_a**2 + 2*bx*sin_a*cos_dphi_x + bx**2),
                          cos_a + z_i/r_x)
-    beta_i = np.arctan2(np.sqrt(sin_b**2 + 2*bd*sin_b*cos_dphi_d + bd**2),
-                        cos_b - z_i/r_d)
     phi_xi = np.arctan2(sin_a * np.sin(phi_x) - bx*sin_phii,
                         sin_a * np.cos(phi_x) - bx * cos_phii)
+
+    # !!! This section used 4D arrays before, which was very time consuming
+    # for large grids. Instead, we now loop over the columns and do them
+    # one at a time. For large arrays, this saves a huge amount of time and
+    # memory.
+    tasks = distribute_tasks(phi_d.shape[3], max_workers)
+    func = partial(
+        _run_compute_qq_p,
+        # 4D variables (all have some axes == 1)
+        phi_d=phi_d,
+        sin_b=sin_b,
+        bd=bd,
+        cos_b=cos_b,
+        tan_b=tan_b,
+        r_d=r_d,
+        # The variables with less than 4 dimensions
+        sin_phii=sin_phii,
+        cos_phii=cos_phii,
+        alpha_i=alpha_i,
+        phi_xi=phi_xi,
+        sin_a=sin_a,
+        cos_dphi_x=cos_dphi_x,
+        cos_a=cos_a,
+        dV_s=dV_s,
+        dV_e=dV_e,
+        z_i=z_i,
+        h_p=h_p,
+        d_p=d_p,
+        tan_a=tan_a,
+        phi_i=phi_i,
+    )
+
+    if len(tasks) == 1:
+        # Don't use a thread pool if there is just one task
+        # Also don't use numba, it appears to be slower for the
+        # serial version.
+        results = []
+        for task in tasks:
+            results.append(func(task, use_numba=False))
+    else:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = executor.map(func, tasks)
+
+    i = 0
+    qq_p = np.full(tth.shape, np.nan)
+    for worker_output in results:
+        for output in worker_output:
+            qq_p[:, [i]] = output
+            i += 1
+
+    # Set the nan values back to nan so it is clear they were not computed
+    qq_p[is_nan] = np.nan
+
+    return qq_p.reshape(original_shape)
+
+
+def _run_compute_qq_p(indices, *args, **kwargs):
+    # We will reduce these to one column to avoid making the full 4D arrays
+    reduce_column_vars = [
+        'phi_d',
+        'sin_b',
+        'bd',
+        'cos_b',
+        'tan_b',
+        'r_d',
+    ]
+    original_kwargs = kwargs.copy()
+
+    output = []
+    for i in range(*indices):
+        for var_name in reduce_column_vars:
+            kwargs[var_name] = original_kwargs[var_name][:, :, :, [i]]
+
+        output.append(_compute_qq_p(*args, **kwargs))
+
+    return output
+
+
+def _compute_qq_p(use_numba=True, *args, **kwargs):
+    # This function is separate from the `_compute_vi_qq_i` one because
+    # this does the np.nansum(..., axis=(0, 1)), which numba cannot do.
+    if use_numba:
+        # The numbafied version is faster if we are computing a grid
+        f = _compute_vi_qq_i_numba
+    else:
+        # The non-numbafied version is faster if we don't have a grid.
+        f = _compute_vi_qq_i
+
+    V_i, qq_i = f(*args, **kwargs)
+    V_p = np.nansum(V_i, axis=(0, 1))  # [Nu x Nv] <= detector
+
+    with np.errstate(divide='ignore', invalid='ignore'):
+        # Ignore the errors this will inevitably produce
+        return np.nansum(V_i * qq_i, axis=(0, 1)) / V_p  # [Nu x Nv] <= detector
+
+
+def _compute_vi_qq_i(phi_d, sin_b, bd, sin_phii, cos_phii, alpha_i, phi_xi,
+                     sin_a, cos_dphi_x, cos_a, cos_b, dV_s, dV_e, z_i, h_p,
+                     d_p, tan_b, tan_a, phi_i, r_d):
+    # This function can be numbafied, and has a numbafied version below.
+
+    # Compute V_i and qq_i
+
+    cos_dphi_d = np.cos(phi_i - phi_d + np.pi)
+    beta_i = np.arctan2(np.sqrt(sin_b**2 + 2*bd*sin_b*cos_dphi_d + bd**2),
+                        cos_b - z_i/r_d)
+
     phi_di = np.arctan2(sin_b * np.sin(phi_d) - bd*sin_phii,
                         sin_b * np.cos(phi_d) - bd * cos_phii)
 
@@ -593,7 +706,7 @@ def calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
     sec_alpha = 1 / cos_a
     sec_beta = 1 / cos_b
     tan_eta_x = np.where(cos_dphi_x[0] <= 0, 0, cos_a * cos_dphi_x[0])
-    tan_eta_d = np.where(cos_dphi_d[-1] <= 0, 0, cos_b * cos_dphi_d[-1])
+    tan_eta_d = np.where(cos_dphi_d[-1] <= 0, 0, cos_b[0] * cos_dphi_d[-1])
 
     V_i = dV_s / (sec_psi_x + sec_psi_d)  # [mm^3]
     # X-side edge (z = -h_p / 2)
@@ -612,16 +725,11 @@ def calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
 
     # ------ weighted sum over elements to obtain average ------
     V_i *= is_seen  # zero weight to elements with no view of both X and D
-    V_p = np.nansum(V_i, axis=(0, 1))  # [Nu x Nv] <= detector
+    return V_i, qq_i
 
-    # This always has an invalid divide error. Ignore it.
-    with np.errstate(invalid='ignore'):
-        qq_p = np.nansum(V_i * qq_i, axis=(0, 1)) / V_p  # [Nu x Nv] <= detector
 
-    # Set the nan values back to nan so it is clear they were not computed
-    qq_p[is_nan] = np.nan
-
-    return qq_p.reshape(original_shape)
+# The numba version (works better in conjunction with multi-threading)
+_compute_vi_qq_i_numba = numba_njit_if_available(nogil=True, cache=True)(_compute_vi_qq_i)
 
 
 def tth_corr_rygg_pinhole(panel, material, xy_pts,
