@@ -125,7 +125,7 @@ class PinholeDistortion:
 
 class RyggPinholeDistortion:
     def __init__(self, detector, material,
-                 pinhole_thickness, pinhole_radius, num_phi_elements=120):
+                 pinhole_thickness, pinhole_radius, num_phi_elements=60):
 
         self.detector = detector
         self.material = material
@@ -453,7 +453,7 @@ def _infer_eta_shift(panel):
 
 
 def calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
-                          pinhole_radius, num_phi_elements=120,
+                          pinhole_radius, num_phi_elements=60,
                           clip_to_panel=True):
     """Return pinhole twotheta [rad] and effective scattering volume [mm3].
 
@@ -734,7 +734,7 @@ _compute_vi_qq_i_numba = numba_njit_if_available(nogil=True, cache=True)(_comput
 
 def tth_corr_rygg_pinhole(panel, material, xy_pts,
                           pinhole_thickness, pinhole_radius,
-                          return_nominal=True, num_phi_elements=120):
+                          return_nominal=True, num_phi_elements=60):
     # Clip these to the panel now
     _, on_panel = panel.clip_to_panel(xy_pts)
     xy_pts[~on_panel] = np.nan
@@ -760,7 +760,7 @@ def tth_corr_rygg_pinhole(panel, material, xy_pts,
 
 
 def tth_corr_map_rygg_pinhole(instrument, material, pinhole_thickness,
-                              pinhole_radius, num_phi_elements=120):
+                              pinhole_radius, num_phi_elements=60):
     tth_corr = {}
     for det_key, panel in instrument.detectors.items():
         nom_ptth, nom_peta = panel.pixel_angles()
@@ -772,7 +772,7 @@ def tth_corr_map_rygg_pinhole(instrument, material, pinhole_thickness,
 
 
 def polar_tth_corr_map_rygg_pinhole(tth, eta, instrument, material, pinhole_thickness,
-                                    pinhole_radius, num_phi_elements=120):
+                                    pinhole_radius, num_phi_elements=60):
     """Generate a polar tth corr map directly for all panels"""
     panels = list(instrument.detectors.values())
     return tth - calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
