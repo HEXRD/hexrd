@@ -735,10 +735,6 @@ _compute_vi_qq_i_numba = numba_njit_if_available(nogil=True, cache=True)(_comput
 def tth_corr_rygg_pinhole(panel, material, xy_pts,
                           pinhole_thickness, pinhole_radius,
                           return_nominal=True, num_phi_elements=60):
-    # Clip these to the panel now
-    _, on_panel = panel.clip_to_panel(xy_pts)
-    xy_pts[~on_panel] = np.nan
-
     # These are the nominal tth values
     nom_angs, _ = panel.cart_to_angles(
         xy_pts,
@@ -752,11 +748,18 @@ def tth_corr_rygg_pinhole(panel, material, xy_pts,
         panel, material, nom_tth, nom_eta, pinhole_thickness,
         pinhole_radius, num_phi_elements, clip_to_panel=False)
 
+    angs = np.vstack([qq_p, nom_eta]).T
+    new_xy_pts = panel.angles_to_cart(angs)
+    # Clip these to the panel now
+    _, on_panel = panel.clip_to_panel(new_xy_pts)
+    angs[~on_panel] = np.nan
+
     if return_nominal:
-        return np.vstack([qq_p, nom_angs[:, 1]]).T
+        return angs
     else:
         # !!! NEED TO CHECK THIS
-        return np.vstack([nom_tth - qq_p, nom_angs[:, 1]]).T
+        angs[:, 0] = nom_tth - angs[:, 0]
+        return angs
 
 
 def tth_corr_map_rygg_pinhole(instrument, material, pinhole_thickness,
