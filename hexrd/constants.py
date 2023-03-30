@@ -234,6 +234,8 @@ tp_12 = 2. - np.sqrt(3.)
 def keVToAngstrom(x):
     return (1e7*scipyc.c*scipyc.h/scipyc.e) / np.array(x, dtype=float)
 
+def AngstromTokeV(x):
+    return (1e7*scipyc.c*scipyc.h/scipyc.e) / np.array(x, dtype=float)
 
 def _readenv(name, ctor, default):
     try:
