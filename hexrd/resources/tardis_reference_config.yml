@@ -30,8 +30,8 @@ detectors:
   IMAGE-PLATE-3:
     detector_type: 'cylindrical'
     pixels:
-      columns: 1350
-      rows: 230
+      columns: 1330
+      rows: 238
       size:
       - 0.1
       - 0.1
