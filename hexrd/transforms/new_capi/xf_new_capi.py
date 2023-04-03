@@ -24,7 +24,7 @@ There are also some functions that maybe would be needed in the transforms modul
 """
 from . import constants as cnst
 from .transforms_definitions import xf_api
-from . import _new_transforms_capi as _impl
+from hexrd.transforms import _new_transforms_capi as _impl
 
 import numpy as np
 

@@ -4,7 +4,7 @@ import sys
 from setuptools import setup, find_packages, Extension
 from pathlib import Path
 import numpy
-np_include_dir = os.path.join(numpy.get_include(), 'numpy')
+np_include_dir = numpy.get_include()
 
 install_reqs = [
     'fabio>=0.11',
@@ -50,17 +50,38 @@ def get_convolution_extensions():
 
     return [_convolve_ext]
 
-def get_extension_modules():
+
+def get_old_xfcapi_extension_modules():
     # for transforms
     srclist = ['transforms_CAPI.c', 'transforms_CFUNC.c']
     srclist = [os.path.join('hexrd/transforms', f) for f in srclist]
     transforms_mod = Extension(
         'hexrd.extensions._transforms_CAPI',
         sources=srclist,
-        include_dirs=[np_include_dir]
-        )
+        include_dirs=[np_include_dir],
+    )
 
-    return [transforms_mod] + get_convolution_extensions()
+    return [transforms_mod]
+
+
+def get_new_xfcapi_extension_modules():
+    transforms_mod = Extension(
+        'hexrd.extensions._new_transforms_capi',
+        sources=['hexrd/transforms/new_capi/module.c'],
+        include_dirs=[np_include_dir],
+    )
+
+    return [transforms_mod]
+
+
+def get_extension_modules():
+    # Flatten the lists
+    return [item for sublist in (
+        get_old_xfcapi_extension_modules(),
+        get_new_xfcapi_extension_modules(),
+        get_convolution_extensions(),
+    ) for item in sublist]
+
 
 ext_modules = get_extension_modules()
 
