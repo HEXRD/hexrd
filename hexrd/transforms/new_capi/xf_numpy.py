@@ -27,8 +27,6 @@
 # =============================================================================
 
 # ??? do we want to set np.seterr(invalid='ignore') to avoid nan warnings?
-from __future__ import absolute_import, print_function, division
-
 import numpy as np
 from numpy import float_ as npfloat
 from numpy import int_ as npint

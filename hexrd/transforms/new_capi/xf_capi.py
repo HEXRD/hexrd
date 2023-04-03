@@ -22,8 +22,6 @@ There are also some functions that maybe would be needed in the transforms modul
  - makeRotMatOfQuat
  - homochoricOfQuat
 """
-from __future__ import absolute_import, print_function, division
-
 from . import constants as cnst
 from .transforms_definitions import xf_api
 from . import _transforms_CAPI as _impl
@@ -41,7 +39,7 @@ def angles_to_gvec(
     # so that behavior is preserved.
     if angs.shape[-1] == 2:
         angs = np.hstack((angs, np.zeros(angs.shape[:-1]+(1,))))
-        
+
     angs = np.ascontiguousarray( np.atleast_2d(angs) )
     beam_vec = beam_vec if beam_vec is not None else cnst.beam_vec
     beam_vec = np.ascontiguousarray( beam_vec.flatten() )
@@ -244,6 +242,6 @@ def rotate_vecs_about_axis(angle, axis, vecs):
 def quat_distance(q1, q2, qsym):
     q1 = np.ascontiguousarray(q1.flatten())
     q2 = np.ascontiguousarray(q2.flatten())
-    # C-module expects quaternions on rows... numpy based code in columns    
-    qsym = np.ascontiguousarray(qsym.T) 
+    # C-module expects quaternions on rows... numpy based code in columns
+    qsym = np.ascontiguousarray(qsym.T)
     return _impl.quat_distance(q1, q2, qsym)

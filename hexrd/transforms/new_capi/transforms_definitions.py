@@ -15,8 +15,6 @@ the signature method in inspect (Python 3.3+). If not available, it falls back
 to the backport in funcsigs. If unavailable, CHECK_API is disabled.
 
 """
-from __future__ import absolute_import, print_function
-
 import os
 import functools
 

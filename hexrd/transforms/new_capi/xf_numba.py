@@ -40,9 +40,6 @@ Currently, this implementation contains code for the following functions:
 - make_rmat_of_expmap
 - make_beam_rmat
 """
-
-from __future__ import absolute_import
-
 import numpy as np
 from numpy import float_ as npfloat
 from numpy import int_ as npint
@@ -222,7 +219,7 @@ def angles_to_gvec(angs,
 def angles_to_dvec(angs,
                    beam_vec=None, eta_vec=None,
                    chi=None, rmat_c=None):
-    """Note about this implementation: 
+    """Note about this implementation:
 
     This used to take rmat_b instead of the pair beam_vec, eta_vec. So it may
     require some checking.
@@ -294,7 +291,7 @@ def _unit_vector_multi(a, out=None):
     for i in range(n):
         #_unit_vector_single(a[i], out=out[i])
         sqr_norm = a[i, 0] * a[i, 0]
-        
+
         for j in range(1, dim):
             sqr_norm += a[i, j]*a[i, j]
 
@@ -415,7 +412,7 @@ def make_beam_rmat(bvec_l, evec_l):
     # assign Ze as -bhat_l
     Ze0 = -bvec_l[0] / bvec_mag
     Ze1 = -bvec_l[1] / bvec_mag
-    Ze2 = -bvec_l[2] / bvec_mag    
+    Ze2 = -bvec_l[2] / bvec_mag
 
     # find Ye as Ze ^ ehat_l
     Ye0 = Ze1*evec_l[2] - evec_l[1]*Ze2
