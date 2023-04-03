@@ -3,8 +3,7 @@
 # NOTE: we are only importing what is currently being used in hexrd
 # and hexrdgui. This is so that we can see clearly what is in use.
 from .old_xfcapi import (
-    # Transform functions
-    anglesToGVec,
+    # Old transform functions still in use
     anglesToDVec,
     detectorXYToGvec,
     gvecToDetectorXY,
@@ -27,4 +26,10 @@ from .old_xfcapi import (
     eta_ref,
     Xl,
     Yl,
+)
+
+
+from .new_capi.xf_new_capi import(
+    # New transform functions
+    angles_to_gvec,
 )

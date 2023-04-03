@@ -58,7 +58,7 @@ from hexrd.fitting.utils import fit_ring
 from hexrd.gridutil import make_tolerance_grid
 from hexrd import matrixutil as mutil
 from hexrd.transforms.xfcapi import (
-    anglesToGVec,
+    angles_to_gvec,
     angularDifference,
     gvecToDetectorXY,
     makeOscillRotMat,
@@ -1951,11 +1951,11 @@ class HEDMInstrument(object):
 
                                 # need MEASURED xy coords
                                 # FIXME: overload angles_to_cart?
-                                gvec_c = anglesToGVec(
+                                gvec_c = angles_to_gvec(
                                     meas_angs,
                                     chi=self.chi,
-                                    rMat_c=rMat_c,
-                                    bHat_l=self.beam_vector)
+                                    rmat_c=rMat_c,
+                                    beam_vec=self.beam_vector)
                                 rMat_s = makeOscillRotMat(
                                     [self.chi, meas_angs[2]]
                                 )

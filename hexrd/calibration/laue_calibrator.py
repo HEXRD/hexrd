@@ -316,11 +316,11 @@ for ip_key, ip in instr.detectors.items():
                 max_intensity = np.max(spot_data)
             # need xy coords
             cmv = np.atleast_2d(np.hstack([com_angs, omega]))
-            gvec_c = xfcapi.anglesToGVec(
+            gvec_c = xfcapi.angles_to_gvec(
                 cmv,
                 chi=instr.chi,
-                rMat_c=rmat_c,
-                bHat_l=instr.beam_vector)
+                rmat_c=rmat_c,
+                beam_vec=instr.beam_vector)
             new_xy = xfcapi.gvecToDetectorXY(
                 gvec_c,
                 ip.rmat, rmat_s, rmat_c,

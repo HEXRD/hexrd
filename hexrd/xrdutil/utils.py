@@ -634,8 +634,8 @@ def _convert_angles(tth_eta, detector,
     full_angs = np.hstack([tth_eta, ome*np.ones((len(tth_eta), 1))])
 
     # convert to gvectors using trivial crystal frame
-    gvec_s = xfcapi.anglesToGVec(
-        full_angs, bHat_l=beam_vector, eHat_l=eta_vector, chi=chi
+    gvec_s = xfcapi.angles_to_gvec(
+        full_angs, beam_vec=beam_vector, eta_vec=eta_vector, chi=chi
     )
 
     # convert to detector points
@@ -714,7 +714,7 @@ def zproject_sph_angles(invecs, chi=0.,
     if source.lower() == 'd':
         spts_s = xfcapi.anglesToDVec(invecs, chi=chi)
     elif source.lower() == 'q':
-        spts_s = xfcapi.anglesToGVec(invecs, chi=chi)
+        spts_s = xfcapi.angles_to_gvec(invecs, chi=chi)
     elif source.lower() == 'g':
         spts_s = invecs
 
@@ -1144,10 +1144,10 @@ def _project_on_detector_plane(allAngs,
     utility routine for projecting a list of (tth, eta, ome) onto the
     detector plane parameterized by the args
     """
-    gVec_cs = xfcapi.anglesToGVec(allAngs,
+    gVec_cs = xfcapi.angles_to_gvec(allAngs,
                                   chi=chi,
-                                  rMat_c=rMat_c,
-                                  bHat_l=beamVec)
+                                  rmat_c=rMat_c,
+                                  beam_vec=beamVec)
 
     rMat_ss = xfcapi.makeOscillRotMatArray(chi, allAngs[:, 2])
 

@@ -2,7 +2,7 @@ import numpy as np
 
 from hexrd import constants as ct
 from hexrd.transforms.xfcapi import (
-    anglesToGVec,
+    angles_to_gvec,
     detectorXYToGvec,
     gvecToDetectorXY,
 )
@@ -69,7 +69,7 @@ class PlanarDetector(Detector):
 
         angs = np.hstack([tth_eta, np.tile(ome, (len(tth_eta), 1))])
         xy_det = gvecToDetectorXY(
-            anglesToGVec(angs, bHat_l=self.bvec, eHat_l=self.evec, chi=chi),
+            angles_to_gvec(angs, bHat_l=self.bvec, eHat_l=self.evec, chi=chi),
             self.rmat, rmat_s, rmat_c,
             self.tvec, tvec_s, tvec_c,
             beamVec=self.bvec)
