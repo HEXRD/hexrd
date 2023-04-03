@@ -761,8 +761,7 @@ def tth_corr_rygg_pinhole(panel, material, xy_pts,
     if return_nominal:
         return angs
     else:
-        # !!! NEED TO CHECK THIS
-        angs[:, 0] = nom_tth - angs[:, 0]
+        angs[:, 0] -= nom_tth
         return angs
 
 
