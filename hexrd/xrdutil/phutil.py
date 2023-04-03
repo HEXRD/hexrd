@@ -748,6 +748,10 @@ def tth_corr_rygg_pinhole(panel, material, xy_pts,
         panel, material, nom_tth, nom_eta, pinhole_thickness,
         pinhole_radius, num_phi_elements, clip_to_panel=False)
 
+    # Make the distortion shift to the left instead of the right
+    # FIXME: why is qq_p shifting the data to the right instead of the left?
+    qq_p = nom_tth - (qq_p - nom_tth)
+
     angs = np.vstack([qq_p, nom_eta]).T
     new_xy_pts = panel.angles_to_cart(angs)
     # Clip these to the panel now
@@ -770,7 +774,7 @@ def tth_corr_map_rygg_pinhole(instrument, material, pinhole_thickness,
         qq_p = calc_tth_rygg_pinhole(
             panel, material, nom_ptth, nom_peta, pinhole_thickness,
             pinhole_radius, num_phi_elements)
-        tth_corr[det_key] = qq_p - nom_ptth
+        tth_corr[det_key] = nom_ptth - qq_p
     return tth_corr
 
 
@@ -778,5 +782,5 @@ def polar_tth_corr_map_rygg_pinhole(tth, eta, instrument, material, pinhole_thic
                                     pinhole_radius, num_phi_elements=60):
     """Generate a polar tth corr map directly for all panels"""
     panels = list(instrument.detectors.values())
-    return tth - calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
-                                       pinhole_radius, num_phi_elements)
+    return calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
+                                 pinhole_radius, num_phi_elements) - tth
