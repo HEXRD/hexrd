@@ -132,3 +132,10 @@ def numba_njit_if_available(func=None, *args, **kwargs):
         return decorator
     else:
         return decorator(func)
+
+
+# Also expose prange depending on whether we have numba or not
+if USE_NUMBA:
+    from numba import prange
+else:
+    prange = range
