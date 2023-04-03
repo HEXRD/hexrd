@@ -188,7 +188,7 @@ def makeDetectorRotMat(tiltAngles):
 #@xf_api
 def make_oscill_rot_mat(oscillAngles):
     chi, ome = oscillAngles
-    ome = np.atleast1d(ome)
+    ome = np.atleast_1d(ome)
     result = _impl.makeOscillRotMat(chi, ome)
     return result.reshape((3, 3))
 

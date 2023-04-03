@@ -1176,8 +1176,13 @@ class HEDMInstrument(object):
                            ring_maps=ring_maps, ring_params=ring_params,
                            threshold=threshold)
 
-            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                executor.map(func, tasks)
+            if self.max_workers == 1 or len(tasks) == 1:
+                # Just execute it serially.
+                for task in tasks:
+                    func(task)
+            else:
+                with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                    executor.map(func, tasks)
 
             ring_maps_panel[det_key] = ring_maps
 
