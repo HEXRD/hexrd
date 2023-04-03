@@ -60,8 +60,8 @@ from hexrd import matrixutil as mutil
 from hexrd.transforms.xfcapi import (
     angles_to_gvec,
     angularDifference,
-    gvecToDetectorXY,
-    makeOscillRotMat,
+    gvec_to_xy,
+    make_oscill_rot_mat,
     makeRotMatOfExpMap,
     mapAngle,
     unitRowVector,
@@ -1956,14 +1956,14 @@ class HEDMInstrument(object):
                                     chi=self.chi,
                                     rmat_c=rMat_c,
                                     beam_vec=self.beam_vector)
-                                rMat_s = makeOscillRotMat(
+                                rMat_s = make_oscill_rot_mat(
                                     [self.chi, meas_angs[2]]
                                 )
-                                meas_xy = gvecToDetectorXY(
+                                meas_xy = gvec_to_xy(
                                     gvec_c,
                                     panel.rmat, rMat_s, rMat_c,
                                     panel.tvec, self.tvec, tVec_c,
-                                    beamVec=self.beam_vector)
+                                    beam_vec=self.beam_vector)
                                 if panel.distortion is not None:
                                     meas_xy = panel.distortion.apply_inverse(
                                         np.atleast_2d(meas_xy)

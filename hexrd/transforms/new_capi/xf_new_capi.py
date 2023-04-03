@@ -186,7 +186,7 @@ def makeDetectorRotMat(tiltAngles):
 # and makeOscillRotMatArray...
 
 #@xf_api
-def makeOscillRotMat(oscillAngles):
+def make_oscill_rot_mat(oscillAngles):
     chi, ome = oscillAngles
     ome = np.atleast1d(ome)
     result = _impl.makeOscillRotMat(chi, ome)
@@ -194,7 +194,7 @@ def makeOscillRotMat(oscillAngles):
 
 
 #@xf_api
-def makeOscillRotMatArray(chi, omeArray):
+def make_oscill_rot_mat_array(chi, omeArray):
     arg = np.ascontiguousarray(omeArray)
     return _impl.makeOscillRotMat(chi, arg)
 

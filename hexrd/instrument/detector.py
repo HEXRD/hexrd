@@ -13,7 +13,7 @@ from hexrd.crystallography import PlaneData
 
 from hexrd.transforms.xfcapi import (
     detectorXYToGvec,
-    gvecToDetectorXY,
+    gvec_to_xy,
     makeRotMatOfExpMap,
     mapAngle,
     oscillAnglesOfHKLs,
@@ -1430,10 +1430,10 @@ class Detector:
             ghat_c_str = mutil.unitVector(np.dot(rmat_c.T, gvec_s_str))
 
             # project
-            dpts = gvecToDetectorXY(ghat_c_str.T,
-                                    self.rmat, rmat_s, rmat_c,
-                                    self.tvec, tvec_s, tvec_c,
-                                    beamVec=beam_vec)
+            dpts = gvec_to_xy(ghat_c_str.T,
+                              self.rmat, rmat_s, rmat_c,
+                              self.tvec, tvec_s, tvec_c,
+                              beamVec=beam_vec)
 
             # check intersections with detector plane
             canIntersect = ~np.isnan(dpts[:, 0])

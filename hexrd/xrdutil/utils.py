@@ -625,7 +625,7 @@ def _convert_angles(tth_eta, detector,
     ome = np.arctan2(rmat_s[0, 2], rmat_s[0, 0])
 
     # !!! reform rmat_s to be consistent with def in geometric model
-    rmat_s = xfcapi.makeOscillRotMat(np.r_[chi, ome])
+    rmat_s = xfcapi.make_oscill_rot_mat(np.r_[chi, ome])
     rmat_c = constants.identity_3x3
     # tvec_s = constants.zeros_3
     tvec_c_ref = constants.zeros_3
@@ -639,11 +639,11 @@ def _convert_angles(tth_eta, detector,
     )
 
     # convert to detector points
-    det_xys = xfcapi.gvecToDetectorXY(
+    det_xys = xfcapi.gvec_to_xy(
         gvec_s,
         detector.rmat, rmat_s, rmat_c,
         detector.tvec, tvec_s, tvec_c,
-        beamVec=beam_vector
+        beam_vec=beam_vector
     )
 
     # convert to angles in LAB ref
@@ -1149,12 +1149,12 @@ def _project_on_detector_plane(allAngs,
                                   rmat_c=rMat_c,
                                   beam_vec=beamVec)
 
-    rMat_ss = xfcapi.makeOscillRotMatArray(chi, allAngs[:, 2])
+    rMat_ss = xfcapi.make_oscill_rot_mat_array(chi, allAngs[:, 2])
 
-    tmp_xys = xfcapi.gvecToDetectorXYArray(
+    tmp_xys = xfcapi.gvec_to_xy(
         gVec_cs, rMat_d, rMat_ss, rMat_c,
         tVec_d, tVec_s, tVec_c,
-        beamVec=beamVec)
+        beam_vec=beamVec)
 
     valid_mask = ~(np.isnan(tmp_xys[:, 0]) | np.isnan(tmp_xys[:, 1]))
 
@@ -1658,10 +1658,10 @@ def simulateLauePattern(hkls, bMat,
         ghat_c_str = np.dot(rmat_c.T, ghat_s_str)
 
         # project
-        dpts = xfcapi.gvecToDetectorXY(ghat_c_str.T,
-                                       rmat_d, rmat_s, rmat_c,
-                                       tvec_d, tvec_s, tvec_c,
-                                       beamVec=beamVec).T
+        dpts = xfcapi.gvec_to_xy(ghat_c_str.T,
+                                 rmat_d, rmat_s, rmat_c,
+                                 tvec_d, tvec_s, tvec_c,
+                                 beam_vec=beamVec).T
 
         # check intersections with detector plane
         canIntersect = ~np.isnan(dpts[0, :])

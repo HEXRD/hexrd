@@ -321,11 +321,11 @@ for ip_key, ip in instr.detectors.items():
                 chi=instr.chi,
                 rmat_c=rmat_c,
                 beam_vec=instr.beam_vector)
-            new_xy = xfcapi.gvecToDetectorXY(
+            new_xy = xfcapi.gvec_to_xy(
                 gvec_c,
                 ip.rmat, rmat_s, rmat_c,
                 ip.tvec, instr.tvec, tvec_c,
-                beamVec=instr.beam_vector)
+                beam_vec=instr.beam_vector)
             meas_xy[iRefl, :] = new_xy
             meas_angs[iRefl, :] = com_angs
         else:

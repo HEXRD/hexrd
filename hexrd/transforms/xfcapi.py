@@ -5,17 +5,18 @@
 from .old_xfcapi import (
     # Old transform functions still in use
     anglesToDVec,
+    anglesToGVec,  # new version provided below
     detectorXYToGvec,
-    gvecToDetectorXY,
-    gvecToDetectorXYArray,
+    gvecToDetectorXY,  # new version provided below
+    gvecToDetectorXYArray,  # new version provided below
     oscillAnglesOfHKLs,
     # Utility functions
     angularDifference,
     quat_distance,
     makeDetectorRotMat,
     makeEtaFrameRotMat,
-    makeOscillRotMat,
-    makeOscillRotMatArray,
+    makeOscillRotMat,  # new version provided below
+    makeOscillRotMatArray,  # new version provided below
     makeRotMatOfExpMap,
     makeRotMatOfQuat,
     mapAngle,
@@ -32,4 +33,7 @@ from .old_xfcapi import (
 from .new_capi.xf_new_capi import(
     # New transform functions
     angles_to_gvec,
+    gvec_to_xy,  # this is both gvecToDetectorXY and gvecToDetectorXYArray
+    make_oscill_rot_mat,
+    make_oscill_rot_mat_array,
 )

@@ -4,7 +4,7 @@ from hexrd import constants as ct
 from hexrd.transforms.xfcapi import (
     angles_to_gvec,
     detectorXYToGvec,
-    gvecToDetectorXY,
+    gvec_to_xy,
 )
 from hexrd.utils.decorators import memoize
 
@@ -68,7 +68,7 @@ class PlanarDetector(Detector):
         ome = np.arccos(rmat_s[0, 0])
 
         angs = np.hstack([tth_eta, np.tile(ome, (len(tth_eta), 1))])
-        xy_det = gvecToDetectorXY(
+        xy_det = gvec_to_xy(
             angles_to_gvec(angs, bHat_l=self.bvec, eHat_l=self.evec, chi=chi),
             self.rmat, rmat_s, rmat_c,
             self.tvec, tvec_s, tvec_c,
