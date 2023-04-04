@@ -967,7 +967,7 @@ def sxcal_obj_func(plist_fit, plist_full,
                 beamVec=bvec,
                 omePeriod=ome_period)
 
-            rmat_s_arr = xfcapi.make_oscill_rot_mat_array(
+            rmat_s_arr = xfcapi.make_sample_rmat(
                 chi, np.ascontiguousarray(calc_omes_tmp)
             )
             calc_xy_tmp = xfcapi.gvec_to_xy(

@@ -625,7 +625,7 @@ def _convert_angles(tth_eta, detector,
     ome = np.arctan2(rmat_s[0, 2], rmat_s[0, 0])
 
     # !!! reform rmat_s to be consistent with def in geometric model
-    rmat_s = xfcapi.make_oscill_rot_mat(np.r_[chi, ome])
+    rmat_s = xfcapi.make_sample_rmat(chi, ome)
     rmat_c = constants.identity_3x3
     # tvec_s = constants.zeros_3
     tvec_c_ref = constants.zeros_3
@@ -1149,7 +1149,7 @@ def _project_on_detector_plane(allAngs,
                                   rmat_c=rMat_c,
                                   beam_vec=beamVec)
 
-    rMat_ss = xfcapi.make_oscill_rot_mat_array(chi, allAngs[:, 2])
+    rMat_ss = xfcapi.make_sample_rmat(chi, allAngs[:, 2])
 
     tmp_xys = xfcapi.gvec_to_xy(
         gVec_cs, rMat_d, rMat_ss, rMat_c,

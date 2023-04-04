@@ -707,7 +707,7 @@ def test_orientations(image_stack, experiment, test_crds, controller, multiproce
     controller.start(subprocess, len(all_angles))
     precomp = []
     for i, angs in enumerate(all_angles):
-        rmat_ss = xfcapi.make_oscill_rot_mat_array(experiment.chi, angs[:, 2])
+        rmat_ss = xfcapi.make_sample_rmat(experiment.chi, angs[:, 2])
         gvec_cs = _anglesToGVec(angs, rmat_ss, experiment.rMat_c[i])
         precomp.append((gvec_cs, rmat_ss))
     controller.finish(subprocess)

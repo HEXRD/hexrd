@@ -61,7 +61,7 @@ from hexrd.transforms.xfcapi import (
     angles_to_gvec,
     angularDifference,
     gvec_to_xy,
-    make_oscill_rot_mat,
+    make_sample_rmat,
     makeRotMatOfExpMap,
     mapAngle,
     unitRowVector,
@@ -1176,12 +1176,13 @@ class HEDMInstrument(object):
                            ring_maps=ring_maps, ring_params=ring_params,
                            threshold=threshold)
 
-            if self.max_workers == 1 or len(tasks) == 1:
+            max_workers = self.max_workers
+            if max_workers == 1 or len(tasks) == 1:
                 # Just execute it serially.
                 for task in tasks:
                     func(task)
             else:
-                with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     executor.map(func, tasks)
 
             ring_maps_panel[det_key] = ring_maps
@@ -1961,8 +1962,8 @@ class HEDMInstrument(object):
                                     chi=self.chi,
                                     rmat_c=rMat_c,
                                     beam_vec=self.beam_vector)
-                                rMat_s = make_oscill_rot_mat(
-                                    [self.chi, meas_angs[2]]
+                                rMat_s = make_sample_rmat(
+                                    self.chi, meas_angs[2]
                                 )
                                 meas_xy = gvec_to_xy(
                                     gvec_c,

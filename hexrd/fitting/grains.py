@@ -243,7 +243,7 @@ def objFuncFitGrain(gFit, gFull, gFlag,
         calc_omes_dict[det_key] = calc_omes
 
         # TODO: try Numba implementations
-        rMat_s = xfcapi.make_oscill_rot_mat_array(chi, calc_omes)
+        rMat_s = xfcapi.make_sample_rmat(chi, calc_omes)
         calc_xy = xfcapi.gvec_to_xy(gHat_c.T,
                                     rMat_d, rMat_s, rMat_c,
                                     tVec_d, tVec_s, tVec_c,
