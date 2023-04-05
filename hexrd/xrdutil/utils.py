@@ -1320,8 +1320,11 @@ def _clip_to_cylindrical_detector(uvw, tVec_d, caxis,
 
     return res, ~mask
 
-def _dewarp_from_cylinder(uvw, tVec_d, caxis,
-                          paxis, radius):
+def _dewarp_from_cylinder(uvw, 
+                          tVec_d,
+                          caxis,
+                          paxis,
+                          radius):
     """
     routine to convert cylindrical coordinates
     to cartesian coordinates in image frame
@@ -1338,8 +1341,11 @@ def _dewarp_from_cylinder(uvw, tVec_d, caxis,
     ycrd = np.dot(caxis, uvw.T)
     return np.vstack((xcrd, ycrd)).T
 
-def _warp_to_cylinder(cart, tVec_d,
-                      radius, rMat_d,
+def _warp_to_cylinder(cart,
+                      tVec_d,
+                      radius,
+                      caxis,
+                      paxis,
                       normalize=True):
     """
     routine to convert cartesian coordinates
@@ -1347,9 +1353,16 @@ def _warp_to_cylinder(cart, tVec_d,
     """
     tvec = np.atleast_2d(tVec_d).T
     num = cart.shape[0]
-    zcrd = np.zeros([num, 1])
-    cart3d = np.hstack((cart, zcrd))
-    cart3d = np.dot(rMat_d, cart3d.T).T
+    naxis = np.cross(paxis, caxis)
+    x = cart[:,0]; y = cart[:,1]
+    th = x/radius
+    xp = radius*np.sin(th)
+    xn = radius*(1-np.cos(th))
+
+    ccomp = np.tile(y, [3, 1]).T * np.tile(caxis, [num, 1])
+    pcomp = np.tile(xp, [3, 1]).T * np.tile(paxis, [num, 1])
+    ncomp = np.tile(xn, [3, 1]).T * np.tile(naxis, [num, 1])
+    cart3d = pcomp + ccomp + ncomp
 
     res = cart3d + np.tile(tvec, [1, num]).T
 

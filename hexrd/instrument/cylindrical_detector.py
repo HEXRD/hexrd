@@ -14,7 +14,7 @@ class CylindricalDetector(Detector):
        row-column detector which has been bent in the
        shape of a cylinder. Inherting the PlanarDetector
        class except for a few changes to account for the
-       cylindder ray intersection.
+       cylinder ray intersection.
     """
 
     def __init__(self, **detector_kwargs):
@@ -60,6 +60,8 @@ class CylindricalDetector(Detector):
         this will give points which are
         outside the actual panel. the points
         will be clipped to the panel later
+        NOTE: solves ray-cylinder intersection
+        problem.
 
         Parameters
         ----------
@@ -147,7 +149,8 @@ class CylindricalDetector(Detector):
         dvecs = xrdutil.utils._warp_to_cylinder(xy_data,
                                                 self.tvec,
                                                 self.radius,
-                                                self.rmat,
+                                                self.caxis,
+                                                self.paxis,
                                                 normalize=True)
         tth, eta = xrdutil.utils._dvec_to_angs(dvecs, self.bvec, self.evec)
         tth_eta = np.vstack((tth, eta)).T
@@ -189,8 +192,8 @@ class CylindricalDetector(Detector):
 
     def pixel_angles(self, origin=ct.zeros_3):
         args = (origin, self.pixel_coords, self.distortion, self.tvec,
-                self.radius, self.rmat, self.bvec, self.evec, self.rows,
-                self.cols)
+                self.radius, self.caxis, self.paxis, self.bvec, self.evec,
+                self.rows, self.cols)
         return _pixel_angles(*args)
 
     def pixel_tth_gradient(self, origin=ct.zeros_3):
@@ -263,7 +266,8 @@ def _pixel_angles(origin,
                   distortion,
                   tVec_d,
                   radius,
-                  rMat_d,
+                  caxis,
+                  paxis,
                   bvec,
                   evec,
                   rows,
@@ -283,7 +287,8 @@ def _pixel_angles(origin,
     dvecs = xrdutil.utils._warp_to_cylinder(xy,
                                             tVec_d-origin,
                                             radius,
-                                            rMat_d,
+                                            caxis,
+                                            paxis,
                                             normalize=True)
 
     angs = xrdutil.utils._dvec_to_angs(dvecs, bvec, evec)
@@ -294,12 +299,32 @@ def _pixel_angles(origin,
 
 
 @memoize
-def _pixel_tth_gradient(origin, pixel_coords, distortion, rmat, tvec, bvec,
+def _pixel_tth_gradient(origin, pixel_coords, distortion, caxis, paxis, tvec, bvec,
                         evec, rows, cols):
-    raise NotImplementedError("Not implemented yet!")
+    assert len(origin) == 3, "origin must have 3 elements"
+    ptth, _ = _pixel_angles(origin, pixel_coords, distortion, caxis, paxis, tvec,
+                            bvec, evec, rows, cols)
+    return np.linalg.norm(np.stack(np.gradient(ptth)), axis=0)
 
 
 @memoize
-def _pixel_eta_gradient(origin, pixel_coords, distortion, rmat, tvec, bvec,
+def _pixel_eta_gradient(origin, pixel_coords, distortion, caxis, paxis, tvec, bvec,
                         evec, rows, cols):
-    raise NotImplementedError("Not implemented yet!")
+    assert len(origin) == 3, "origin must have 3 elemnts"
+    _, peta = _pixel_angles(origin, pixel_coords, distortion, caxis, paxis, tvec,
+                            bvec, evec, rows, cols)
+
+    peta_grad_row = np.gradient(peta, axis=0)
+    peta_grad_col = np.gradient(peta, axis=1)
+
+    # !!!: fix branch cut
+    peta_grad_row = _fix_branch_cut_in_gradients(peta_grad_row)
+    peta_grad_col = _fix_branch_cut_in_gradients(peta_grad_col)
+
+    return np.linalg.norm(np.stack([peta_grad_col, peta_grad_row]), axis=0)
+
+def _fix_branch_cut_in_gradients(pgarray):
+    return np.min(
+        np.abs(np.stack([pgarray - np.pi, pgarray, pgarray + np.pi])),
+        axis=0
+    )
