@@ -169,6 +169,12 @@ class CylindricalDetector(Detector):
         ]
         Detector.increase_memoization_sizes(funcs, num_matches)
 
+    @property
+    def extra_config_kwargs(self):
+        return {
+            'radius': self.radius,
+        }
+
 
 @memoize
 def _pixel_angles(origin,

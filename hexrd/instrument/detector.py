@@ -143,6 +143,10 @@ class Detector:
         """
         pass
 
+    @property
+    def extra_config_kwargs(self):
+        return {}
+
     # End of abstract methods
 
     def __init__(self,
@@ -695,6 +699,8 @@ class Detector:
             '''
             pass
         det_dict['buffer'] = panel_buffer
+
+        det_dict.update(self.extra_config_kwargs)
 
         # =====================================================================
         # SAMPLE STAGE PARAMETERS
