@@ -1339,9 +1339,9 @@ def _clip_to_cylindrical_detector(uvw,
     # next get rid of points that fall outside 
     # the polar angle range
 
-    ang = np.squeeze(np.dot(uvwpxy, nx))/radius
+    ang = np.dot(uvwpxy, nx)/radius
     ang[np.abs(ang)>1.] = np.sign(ang[np.abs(ang)>1.])
-
+    
     ang = np.arccos(ang)
     mask2 = np.squeeze(ang >= angle_extent)
     mask = np.logical_or(mask1, mask2)
