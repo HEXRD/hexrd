@@ -631,7 +631,6 @@ class HEDMInstrument(object):
                 pixel_info = det_info['pixels']
                 affine_info = det_info['transform']
                 detector_type = det_info.get('detector_type', 'planar')
-                radius = det_info.get('radius', None)
                 try:
                     saturation_level = det_info['saturation_level']
                 except KeyError:
@@ -681,23 +680,28 @@ class HEDMInstrument(object):
                     raise NotImplementedError(msg)
 
                 DetectorClass = DETECTOR_TYPES[detector_type.lower()]
+                kwargs = dict(
+                    name=det_id,
+                    rows=pixel_info['rows'],
+                    cols=pixel_info['columns'],
+                    pixel_size=pixel_info['size'],
+                    panel_buffer=panel_buffer,
+                    saturation_level=saturation_level,
+                    tvec=affine_info['translation'],
+                    tilt=affine_info['tilt'],
+                    bvec=self._beam_vector,
+                    xrs_dist=self._source_distance,
+                    evec=self._eta_vector,
+                    distortion=distortion,
+                    roi=roi,
+                    max_workers=self.max_workers,
+                )
 
-                det_dict[det_id] = DetectorClass(
-                        name=det_id,
-                        rows=pixel_info['rows'],
-                        cols=pixel_info['columns'],
-                        pixel_size=pixel_info['size'],
-                        panel_buffer=panel_buffer,
-                        saturation_level=saturation_level,
-                        tvec=affine_info['translation'],
-                        tilt=affine_info['tilt'],
-                        bvec=self._beam_vector,
-                        xrs_dist=self._source_distance,
-                        evec=self._eta_vector,
-                        distortion=distortion,
-                        roi=roi,
-                        radius=radius,
-                        max_workers=self.max_workers)
+                if isinstance(DetectorClass, CylindricalDetector):
+                    # Add cylindrical detector kwargs
+                    kwargs['radius'] = det_info.get('radius', 49.5)
+
+                det_dict[det_id] = DetectorClass(**kwargs)
 
             self._detectors = det_dict
 

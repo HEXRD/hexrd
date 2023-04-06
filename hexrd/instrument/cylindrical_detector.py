@@ -17,8 +17,8 @@ class CylindricalDetector(Detector):
        cylinder ray intersection.
     """
 
-    def __init__(self, **detector_kwargs):
-        self._radius = detector_kwargs['radius']
+    def __init__(self, radius=49.5, **detector_kwargs):
+        self._radius = radius
         super().__init__(**detector_kwargs)
 
     @property
@@ -29,6 +29,7 @@ class CylindricalDetector(Detector):
                        rmat_s=None,
                        tvec_s=None, tvec_c=None,
                        apply_distortion=False):
+        xy_data = np.asarray(xy_data)
         if rmat_s is None:
             rmat_s = ct.identity_3x3
         if tvec_s is None:
@@ -137,7 +138,7 @@ class CylindricalDetector(Detector):
         frame {Xd, Yd, Zd}.  NaNs if no intersection.
         """
         output = np.nan * np.ones(2)
-        args = (np.atleast_2d(self.bvec), self.caxis, self.paxis, 
+        args = (np.atleast_2d(self.bvec), self.caxis, self.paxis,
                 self.radius, self.tvec)
         pt_on_cylinder = xrdutil.utils._unitvec_to_cylinder(*args)
 

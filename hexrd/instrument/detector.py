@@ -145,9 +145,6 @@ class Detector:
 
     # End of abstract methods
 
-    #FIXME Is passing radius as None the best code design?
-    # it is only needed for the cylindrical detector type
-    # and not for the planar detector type
     def __init__(self,
                  rows=2048, cols=2048,
                  pixel_size=(0.2, 0.2),
@@ -162,7 +159,6 @@ class Detector:
                  tth_distortion=None,
                  roi=None,
                  distortion=None,
-                 radius=None,
                  max_workers=max_workers_DFLT):
         """
         Instantiate a PlanarDetector object.
