@@ -24,115 +24,6 @@ class CylindricalDetector(Detector):
     def detector_type(self):
         return 'cylindrical'
 
-    def _dewarp_from_cylinder(self, uvw):
-        """
-        routine to convert cylindrical coordinates
-        to cartesian coordinates in image frame
-        """
-        cx = np.atleast_2d(self.caxis).T
-        # px = np.atleast_2d(self.paxis).T
-        num = uvw.shape[0]
-
-        vx = uvw - np.tile(np.dot(uvw, cx), [1, 3]) * np.tile(cx, [1, num]).T
-        vx = vx/np.tile(np.linalg.norm(vx, axis=1), [3, 1]).T
-        sgn = np.sign(np.dot(self.paxis, vx.T))
-        sgn[sgn == 0] = 1
-        ang = np.abs(np.arccos(np.dot(self.tvec, vx.T)/self.radius))
-        xcrd = self.radius*ang*sgn
-        ycrd = np.dot(self.caxis, uvw.T)
-        return np.vstack((xcrd, ycrd)).T
-
-    def _valid_points(self, vecs):
-        """
-        this rotuine takes a list of vectors
-        and checks if it falls inside the
-        cylindrical panel
-
-        returns the subset of vectors which fall
-        on the panel
-        """
-        pass
-
-    def _unitvec_to_cylinder(self, uvw):
-        """
-        get point where unitvector uvw
-        intersect the cylindrical detector.
-        this will give points which are
-        outside the actual panel. the points
-        will be clipped to the panel later
-        NOTE: solves ray-cylinder intersection
-        problem.
-
-        Parameters
-        ----------
-        uvw : numpy.ndarray
-        unit vectors stacked row wise (nx3) shape
-
-        Returns
-        -------
-        numpy.ndarray
-        (x,y,z) vectors point which intersect with
-        the cylinder with (nx3) shape
-        """
-        num = uvw.shape[0]
-        cx = np.atleast_2d(self.caxis).T
-        dp = np.dot(uvw, cx)
-        den = np.squeeze(np.sqrt(1 - dp**2))
-        mask = den < 1E-8
-        beta = np.zeros([num, ])
-        beta[~mask] = self.radius/den[~mask]
-        beta[mask] = np.nan
-
-        return np.tile(beta, [3, 1]).T * uvw
-
-    def _clip_to_cylindrical_detector(self, uvw):
-        """
-        takes in the intersection points uvw
-        with the cylindrical detector and
-        prunes out points which don't actually
-        hit the actual panel
-
-        Parameters
-        ----------
-        uvw : numpy.ndarray
-        unit vectors stacked row wise (nx3) shape
-
-        Returns
-        -------
-        numpy.ndarray
-        (x,y,z) vectors point which fall on panel
-        with (mx3) shape
-        """
-        # first get rid of points which are above
-        # or below the detector
-        size = self.physical_size
-        tvec = np.atleast_2d(self.tvec).T
-        cx = np.atleast_2d(self.caxis).T
-        num = uvw.shape[0]
-        ycomp = uvw - np.tile(self.tvec, [num, 1])
-        ylen = np.squeeze(np.dot(ycomp, cx))
-        mask = np.abs(ylen) <= size[0] * 0.5
-        if not isinstance(mask, np.ndarray):
-            mask = np.array([mask])
-        res = uvw[mask, :]
-
-        # next get rid of points that fall outside
-        # the polar angle range
-        num = res.shape[0]
-        dp = np.squeeze(np.dot(res, cx))
-        v = np.tile(cx, [1, num])*np.tile(dp, [3, 1])
-        v = v.T
-        xcomp = res - v
-        magxcomp = np.linalg.norm(xcomp, axis=1)
-        ang = np.squeeze(np.dot(xcomp, tvec)) / self.radius / magxcomp
-        ang = np.arccos(ang)
-        mask = ang < self.angle_extent
-        if not isinstance(mask, np.ndarray):
-            mask = np.array([mask])
-        res = res[mask, :]
-
-        return res
-
     def cart_to_angles(self, xy_data,
                        rmat_s=None,
                        tvec_s=None, tvec_c=None,
@@ -235,10 +126,16 @@ class CylindricalDetector(Detector):
         frame {Xd, Yd, Zd}.  NaNs if no intersection.
         """
         output = np.nan * np.ones(2)
-        pt_on_cylinder = self._unitvec_to_cylinder(
-                             np.atleast_2d(self.bvec))
-        pt_on_cylinder = self._clip_to_cylindrical_detector(pt_on_cylinder)
-        output = self._dewarp_from_cylinder(pt_on_cylinder)
+        args = (np.atleast_2d(self.bvec), self.caxis, self.radius)
+        pt_on_cylinder = xrdutil.utils._unitvec_to_cylinder(*args)
+
+        args = (pt_on_cylinder, self.tvec, self.caxis,
+                self.paxis, self.radius, self.physical_size,
+                self.angle_extent)
+        pt_on_cylinder,_ =  xrdutil.utils._clip_to_cylindrical_detector(*args)
+
+        args = (pt_on_cylinder, self.tvec, self.caxis, self.paxis, self.radius)
+        output = xrdutil.utils._dewarp_from_cylinder(*args)
         return output
 
     @property
