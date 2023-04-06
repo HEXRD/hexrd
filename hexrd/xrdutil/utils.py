@@ -1279,7 +1279,7 @@ def _unitvec_to_cylinder(uvw,
     B = t1 - t2*t3
     C = radius**2 - np.linalg.norm(delta)**2 + t3**2
 
-    mask = A < 1E-10
+    mask = np.abs(A) < 1E-10
     beta = np.zeros([num, ])
 
     beta[~mask] = (B[~mask] + 
@@ -1341,7 +1341,7 @@ def _clip_to_cylindrical_detector(uvw,
 
     ang = np.dot(uvwpxy, nx)/radius
     ang[np.abs(ang)>1.] = np.sign(ang[np.abs(ang)>1.])
-    
+
     ang = np.arccos(ang)
     mask2 = np.squeeze(ang >= angle_extent)
     mask = np.logical_or(mask1, mask2)
@@ -1375,10 +1375,11 @@ def _dewarp_from_cylinder(uvw,
     uvwpxy = uvwp - np.tile(np.dot(uvwp, cx), [1, 3]) * \
          np.tile(cx, [1, num]).T
 
-    sgn = np.sign(np.dot(paxis, uvwpxy.T)); sgn[sgn==0.] = 1.
-    ang = np.squeeze(np.dot(uvwpxy, nx))/radius
+    sgn = np.sign(np.dot(uvwpxy, px)); sgn[sgn==0.] = 1.
+    ang = np.dot(uvwpxy, nx)/radius
+    ang[np.abs(ang) > 1.] = np.sign(ang[np.abs(ang)>1.])
     ang = np.arccos(ang)
-    xcrd = radius*ang*sgn
+    xcrd = np.squeeze(radius*ang*sgn)
     ycrd = np.squeeze(np.dot(uvwp, cx))
     return np.vstack((xcrd, ycrd)).T
 
