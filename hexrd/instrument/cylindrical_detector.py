@@ -82,20 +82,30 @@ class CylindricalDetector(Detector):
         return xy_det
 
     def pixel_angles(self, origin=ct.zeros_3):
-        args = (origin, self.pixel_coords, self.distortion, self.tvec,
-                self.radius, self.caxis, self.paxis, self.bvec, self.evec,
-                self.rows, self.cols)
-        return _pixel_angles(*args)
+        return _pixel_angles(origin=origin, **self._pixel_angle_kwargs)
+
+    @property
+    def _pixel_angle_kwargs(self):
+        # kwargs used for pixel angles, pixel_tth_gradient,
+        # and pixel_eta_gradient
+        return {
+            'pixel_coords': self.pixel_coords,
+            'distortion': self.distortion,
+            'caxis': self.caxis,
+            'paxis': self.paxis,
+            'tvec_d': self.tvec,
+            'radius': self.radius,
+            'bvec': self.bvec,
+            'evec': self.evec,
+            'rows': self.rows,
+            'cols': self.cols,
+        }
 
     def pixel_tth_gradient(self, origin=ct.zeros_3):
-        return _pixel_tth_gradient(origin, self.pixel_coords, self.distortion,
-                                   self.rmat, self.tvec, self.bvec, self.evec,
-                                   self.rows, self.cols)
+        return _pixel_tth_gradient(origin=origin, **self._pixel_angle_kwargs)
 
     def pixel_eta_gradient(self, origin=ct.zeros_3):
-        return _pixel_eta_gradient(origin, self.pixel_coords, self.distortion,
-                                   self.rmat, self.tvec, self.bvec, self.evec,
-                                   self.rows, self.cols)
+        return _pixel_eta_gradient(origin=origin, **self._pixel_angle_kwargs)
 
     @property
     def caxis(self):
@@ -161,10 +171,10 @@ class CylindricalDetector(Detector):
 def _pixel_angles(origin,
                   pixel_coords,
                   distortion,
-                  tVec_d,
-                  radius,
                   caxis,
                   paxis,
+                  tvec_d,
+                  radius,
                   bvec,
                   evec,
                   rows,
@@ -182,7 +192,7 @@ def _pixel_angles(origin,
         xy = distortion.apply(xy)
 
     dvecs = xrdutil.utils._warp_to_cylinder(xy,
-                                            tVec_d-origin,
+                                            tvec_d-origin,
                                             radius,
                                             caxis,
                                             paxis,
@@ -196,20 +206,16 @@ def _pixel_angles(origin,
 
 
 @memoize
-def _pixel_tth_gradient(origin, pixel_coords, distortion, caxis, paxis, tvec, bvec,
-                        evec, rows, cols):
+def _pixel_tth_gradient(origin, **pixel_angle_kwargs):
     assert len(origin) == 3, "origin must have 3 elements"
-    ptth, _ = _pixel_angles(origin, pixel_coords, distortion, caxis, paxis, tvec,
-                            bvec, evec, rows, cols)
+    ptth, _ = _pixel_angles(origin=origin, **pixel_angle_kwargs)
     return np.linalg.norm(np.stack(np.gradient(ptth)), axis=0)
 
 
 @memoize
-def _pixel_eta_gradient(origin, pixel_coords, distortion, caxis, paxis, tvec, bvec,
-                        evec, rows, cols):
+def _pixel_eta_gradient(origin, **pixel_angle_kwargs):
     assert len(origin) == 3, "origin must have 3 elemnts"
-    _, peta = _pixel_angles(origin, pixel_coords, distortion, caxis, paxis, tvec,
-                            bvec, evec, rows, cols)
+    _, peta = _pixel_angles(origin=origin, **pixel_angle_kwargs)
 
     peta_grad_row = np.gradient(peta, axis=0)
     peta_grad_col = np.gradient(peta, axis=1)
