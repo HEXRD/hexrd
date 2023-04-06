@@ -970,7 +970,7 @@ def sxcal_obj_func(plist_fit, plist_full,
             rmat_s_arr = xfcapi.make_sample_rmat(
                 chi, np.ascontiguousarray(calc_omes_tmp)
             )
-            calc_xy_tmp = xfcapi.gvec_to_xy(
+            calc_xy_tmp = xfcapi.gvec_to_xy_array(
                     ghat_c.T, rmat_d, rmat_s_arr, rmat_c,
                     tvec_d, tvec_s, tvec_c
             )

@@ -244,10 +244,10 @@ def objFuncFitGrain(gFit, gFull, gFlag,
 
         # TODO: try Numba implementations
         rMat_s = xfcapi.make_sample_rmat(chi, calc_omes)
-        calc_xy = xfcapi.gvec_to_xy(gHat_c.T,
-                                    rMat_d, rMat_s, rMat_c,
-                                    tVec_d, tVec_s, tVec_c,
-                                    beam_vec=bVec)
+        calc_xy = xfcapi.gvec_to_xy_array(gHat_c.T,
+                                          rMat_d, rMat_s, rMat_c,
+                                          tVec_d, tVec_s, tVec_c,
+                                          beam_vec=bVec)
 
         # append to xy dict
         calc_xy_dict[det_key] = calc_xy

@@ -1151,7 +1151,7 @@ def _project_on_detector_plane(allAngs,
 
     rMat_ss = xfcapi.make_sample_rmat(chi, allAngs[:, 2])
 
-    tmp_xys = xfcapi.gvec_to_xy(
+    tmp_xys = xfcapi.gvec_to_xy_array(
         gVec_cs, rMat_d, rMat_ss, rMat_c,
         tVec_d, tVec_s, tVec_c,
         beam_vec=beamVec)
