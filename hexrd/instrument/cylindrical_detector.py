@@ -17,7 +17,7 @@ class CylindricalDetector(Detector):
        cylinder ray intersection.
     """
 
-    def __init__(self, radius=49.5, **detector_kwargs):
+    def __init__(self, radius=49.51, **detector_kwargs):
         self._radius = radius
         super().__init__(**detector_kwargs)
 

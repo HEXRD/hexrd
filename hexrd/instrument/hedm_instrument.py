@@ -699,7 +699,7 @@ class HEDMInstrument(object):
 
                 if isinstance(DetectorClass, CylindricalDetector):
                     # Add cylindrical detector kwargs
-                    kwargs['radius'] = det_info.get('radius', 49.5)
+                    kwargs['radius'] = det_info.get('radius', 49.51)
 
                 det_dict[det_id] = DetectorClass(**kwargs)
 
