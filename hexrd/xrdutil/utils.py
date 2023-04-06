@@ -1427,7 +1427,9 @@ def _dvec_to_angs(dvecs, bvec, evec):
     tth = np.arccos(dp)
 
     dvecs_p = np.tile(dp, [3, 1]).T * dvecs - np.tile(bvec, [num, 1])
-    dvecs_p = dvecs_p/np.tile(np.linalg.norm(dvecs_p, axis=1), [3, 1]).T
+    len_dvecs_p = np.linalg.norm(dvecs_p, axis=1)
+    mask = len_dvecs_p > 0.
+    dvecs_p[mask] = dvecs_p[mask]/np.tile(len_dvecs_p[mask], [3, 1]).T
 
     dpx = np.dot(evec, dvecs_p.T)
     dpy = np.dot(bxe, dvecs_p.T)
