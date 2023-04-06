@@ -1262,26 +1262,40 @@ def _unitvec_to_cylinder(uvw,
     (x,y,z) vectors point which intersect with 
     the cylinder with (nx3) shape
     """
-    naxis = np.cross(paxis, caxis)
-    delta = tvec + naxis*radius
-
+    naxis = np.cross(caxis, paxis)
+    naxis = naxis/np.linalg.norm(naxis)
+    delta = tvec - radius*naxis
     num = uvw.shape[0]
     cx = np.atleast_2d(caxis).T
-    dp = np.dot(uvw, cx)
-    den = np.squeeze(np.sqrt(1 - dp**2))
-    mask = den < 1E-8
+
+    delta_t = np.tile(delta,[num,1])
+
+    t1 = np.dot(uvw, delta.T)
+    t2 = np.squeeze(np.dot(uvw, cx))
+    t3 = np.squeeze(np.dot(delta, cx))
+    t4 = np.dot(uvw, cx)
+
+    A = np.squeeze(1 - t4**2)
+    B = t1 - t2*t3
+    C = radius**2 - np.linalg.norm(delta)**2 + t3**2
+
+    mask = A < 1E-10
     beta = np.zeros([num, ])
-    beta[~mask] = radius/den[~mask]
+
+    beta[~mask] = (B[~mask] + 
+                   np.sqrt(B[~mask]**2 +
+                   A[~mask]*C))/A[~mask]
+
     beta[mask] = np.nan
     return np.tile(beta, [3, 1]).T * uvw
-    # vec = np.tile(beta, [3, 1]).T * uvw
-    # return vec + np.tile(delta,[num,1])
 
-    
-
-def _clip_to_cylindrical_detector(uvw, tVec_d, caxis,
-                                  paxis, radius, 
-                                  physical_size, angle_extent):
+def _clip_to_cylindrical_detector(uvw,
+                                  tVec_d,
+                                  caxis,
+                                  paxis,
+                                  radius,
+                                  physical_size,
+                                  angle_extent):
     """
     takes in the intersection points uvw
     with the cylindrical detector and 
@@ -1301,33 +1315,38 @@ def _clip_to_cylindrical_detector(uvw, tVec_d, caxis,
     """
     # first get rid of points which are above
     # or below the detector
+    naxis = np.cross(paxis, caxis)
+    num = uvw.shape[0]
+
+    cx = np.atleast_2d(caxis).T
+    nx = np.atleast_2d(-naxis).T
+
+    delta = tVec_d + radius*naxis
+    delta_t = np.tile(delta,[num,1])
+
+    uvwp = uvw - delta_t
+    dp = np.dot(uvwp, cx)
+
+    uvwpxy = uvwp - np.tile(dp,[1,3])*np.tile(cx,[1,num]).T
+
     size = physical_size
     tvec = np.atleast_2d(tVec_d).T
-    cx = np.atleast_2d(caxis).T
-    num = uvw.shape[0]
-    ycomp = uvw - np.tile(tVec_d,[num, 1])
-    ylen = np.squeeze(np.dot(ycomp, cx))
-    mask1 = np.abs(ylen) > size[0]*0.5
-    res = uvw.copy()
-    res[mask1,:] = np.nan
-    # res = uvw[mask, :]
+
+    # ycomp = uvwp - np.tile(tVec_d,[num, 1])
+    mask1 = np.squeeze(np.abs(dp) > size[0]*0.5)
+    uvwp[mask1,:] = np.nan
 
     # next get rid of points that fall outside 
     # the polar angle range
-    num = res.shape[0]
-    dp = np.squeeze(np.dot(res, cx))
-    v = np.tile(cx,[1, num])*np.tile(dp, [3,1])
-    v = v.T
-    xcomp = res - v
-    magxcomp = np.linalg.norm(xcomp,axis=1)
-    ang = np.squeeze(np.dot(xcomp, tvec))/radius/magxcomp
+
+    ang = np.squeeze(np.dot(uvwpxy, nx))/radius
     ang[np.abs(ang)>1.] = np.sign(ang[np.abs(ang)>1.])
+
     ang = np.arccos(ang)
-    mask2 = ang >= angle_extent
+    mask2 = np.squeeze(ang >= angle_extent)
     mask = np.logical_or(mask1, mask2)
     res = uvw.copy()
     res[mask,:] = np.nan
-    # res = res[mask,:]
 
     return res, ~mask
 
@@ -1340,16 +1359,27 @@ def _dewarp_from_cylinder(uvw,
     routine to convert cylindrical coordinates
     to cartesian coordinates in image frame
     """
+    naxis = np.cross(paxis, caxis)
+    naxis = naxis/np.linalg.norm(naxis)
+
     cx = np.atleast_2d(caxis).T
     px = np.atleast_2d(paxis).T
+    nx = np.atleast_2d(-naxis).T
     num = uvw.shape[0]
 
-    vx = uvw - np.tile(np.dot(uvw, cx), [1, 3]) * np.tile(cx, [1, num]).T
-    vx = vx/np.tile(np.linalg.norm(vx, axis=1), [3,1]).T
-    sgn = np.sign(np.dot(paxis, vx.T)); sgn[sgn==0.] = 1.
-    ang = np.abs(np.arccos(np.dot(tVec_d, vx.T)/radius))
+    delta = tVec_d + radius*naxis
+    delta_t = np.tile(delta,[num,1])
+
+    uvwp = uvw - delta_t
+
+    uvwpxy = uvwp - np.tile(np.dot(uvwp, cx), [1, 3]) * \
+         np.tile(cx, [1, num]).T
+
+    sgn = np.sign(np.dot(paxis, uvwpxy.T)); sgn[sgn==0.] = 1.
+    ang = np.squeeze(np.dot(uvwpxy, nx))/radius
+    ang = np.arccos(ang)
     xcrd = radius*ang*sgn
-    ycrd = np.dot(caxis, uvw.T)
+    ycrd = np.squeeze(np.dot(uvwp, cx))
     return np.vstack((xcrd, ycrd)).T
 
 def _warp_to_cylinder(cart,
@@ -1375,7 +1405,7 @@ def _warp_to_cylinder(cart,
     ncomp = np.tile(xn, [3, 1]).T * np.tile(naxis, [num, 1])
     cart3d = pcomp + ccomp + ncomp
 
-    res = cart3d + np.tile(tvec, [1, num]).T
+    res = cart3d + np.tile(tvec, [1, num]).T 
 
     if normalize:
         return res/np.tile(np.linalg.norm(res, axis=1), [3, 1]).T
