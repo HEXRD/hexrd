@@ -631,6 +631,7 @@ class HEDMInstrument(object):
                 pixel_info = det_info['pixels']
                 affine_info = det_info['transform']
                 detector_type = det_info.get('detector_type', 'planar')
+                radius = det_info.get('radius', None)
                 try:
                     saturation_level = det_info['saturation_level']
                 except KeyError:
@@ -695,6 +696,7 @@ class HEDMInstrument(object):
                         evec=self._eta_vector,
                         distortion=distortion,
                         roi=roi,
+                        radius=radius,
                         max_workers=self.max_workers)
 
             self._detectors = det_dict

@@ -1218,8 +1218,10 @@ def _dvecToDetectorXYcylinder(dVec_cs,
                               angle_extent):
     
     cvec = _unitvec_to_cylinder(dVec_cs, 
-                                caxis, 
-                                radius)
+                                caxis,
+                                paxis, 
+                                radius,
+                                tVec_d)
 
     cvec_det, valid_mask = _clip_to_cylindrical_detector(cvec, 
                                              tVec_d, 
@@ -1237,8 +1239,11 @@ def _dvecToDetectorXYcylinder(dVec_cs,
 
     return xy_det, valid_mask
 
-def _unitvec_to_cylinder(uvw, caxis,
-                         radius):
+def _unitvec_to_cylinder(uvw, 
+                         caxis,
+                         paxis,
+                         radius,
+                         tvec):
     """
     get point where unitvector uvw
     intersect the cylindrical detector.
@@ -1257,6 +1262,9 @@ def _unitvec_to_cylinder(uvw, caxis,
     (x,y,z) vectors point which intersect with 
     the cylinder with (nx3) shape
     """
+    naxis = np.cross(paxis, caxis)
+    delta = tvec + naxis*radius
+
     num = uvw.shape[0]
     cx = np.atleast_2d(caxis).T
     dp = np.dot(uvw, cx)
@@ -1265,8 +1273,11 @@ def _unitvec_to_cylinder(uvw, caxis,
     beta = np.zeros([num, ])
     beta[~mask] = radius/den[~mask]
     beta[mask] = np.nan
-
     return np.tile(beta, [3, 1]).T * uvw
+    # vec = np.tile(beta, [3, 1]).T * uvw
+    # return vec + np.tile(delta,[num,1])
+
+    
 
 def _clip_to_cylindrical_detector(uvw, tVec_d, caxis,
                                   paxis, radius, 

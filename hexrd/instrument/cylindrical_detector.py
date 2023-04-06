@@ -18,6 +18,7 @@ class CylindricalDetector(Detector):
     """
 
     def __init__(self, **detector_kwargs):
+        self._radius = detector_kwargs['radius']
         super().__init__(**detector_kwargs)
 
     @property
@@ -120,7 +121,7 @@ class CylindricalDetector(Detector):
     @property
     def radius(self):
         # units of mm
-        return np.linalg.norm(self.tvec)
+        return self._radius
 
     @property
     def physical_size(self):
@@ -136,7 +137,8 @@ class CylindricalDetector(Detector):
         frame {Xd, Yd, Zd}.  NaNs if no intersection.
         """
         output = np.nan * np.ones(2)
-        args = (np.atleast_2d(self.bvec), self.caxis, self.radius)
+        args = (np.atleast_2d(self.bvec), self.caxis, self.paxis, 
+                self.radius, self.tvec)
         pt_on_cylinder = xrdutil.utils._unitvec_to_cylinder(*args)
 
         args = (pt_on_cylinder, self.tvec, self.caxis,
