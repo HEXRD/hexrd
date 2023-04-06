@@ -17,6 +17,7 @@ class PlanarDetector(Detector):
     def __init__(self, **detector_kwargs):
         super().__init__(**detector_kwargs)
 
+    @property
     def detector_type(self):
         return 'planar'
 
