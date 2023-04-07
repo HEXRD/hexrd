@@ -1,7 +1,5 @@
 from abc import abstractmethod
-from concurrent.futures import ProcessPoolExecutor
 import copy
-from functools import partial
 import os
 
 import numpy as np
@@ -12,7 +10,7 @@ from hexrd import matrixutil as mutil
 from hexrd import xrdutil
 
 from hexrd.crystallography import PlaneData
-from hexrd.gridutil import cellConnectivity, cellIndices
+
 from hexrd.transforms.xfcapi import (
     detectorXYToGvec,
     gvecToDetectorXY,
@@ -21,8 +19,9 @@ from hexrd.transforms.xfcapi import (
     oscillAnglesOfHKLs,
     rowNorm,
 )
-from hexrd.utils.concurrent import distribute_tasks
+
 from hexrd.utils.decorators import memoize
+from hexrd.gridutil import cellIndices
 
 if ct.USE_NUMBA:
     import numba
@@ -472,19 +471,6 @@ class Detector:
             self.row_pixel_vec, self.col_pixel_vec,
             indexing='ij')
         return pix_i, pix_j
-
-    @property
-    def pixel_solid_angles(self):
-        kwargs = {
-            'rows': self.rows,
-            'cols': self.cols,
-            'pixel_size_row': self.pixel_size_row,
-            'pixel_size_col': self.pixel_size_col,
-            'rmat': self.rmat,
-            'tvec': self.tvec,
-            'max_workers': self.max_workers,
-        }
-        return _pixel_solid_angles(**kwargs)
 
     @property
     def calibration_parameters(self):
@@ -1499,7 +1485,6 @@ class Detector:
     @staticmethod
     def update_memoization_sizes(all_panels):
         funcs = [
-            _pixel_solid_angles,
             _polarization_factor,
             _lorentz_factor,
         ]
@@ -1534,69 +1519,6 @@ def _row_edge_vec(rows, pixel_size_row):
 
 def _col_edge_vec(cols, pixel_size_col):
     return pixel_size_col*(np.arange(cols+1)-0.5*cols)
-
-
-def _generate_pixel_solid_angles(start_stop, rows, cols, pixel_size_row,
-                                 pixel_size_col, rmat, tvec):
-    start, stop = start_stop
-    row_edge_vec = _row_edge_vec(rows, pixel_size_row)
-    col_edge_vec = _col_edge_vec(cols, pixel_size_col)
-
-    nvtx = len(row_edge_vec) * len(col_edge_vec)
-    # pixel vertex coords
-    pvy, pvx = np.meshgrid(row_edge_vec, col_edge_vec, indexing='ij')
-
-    # add Z_d coord and transform to lab frame
-    pcrd_array_full = np.dot(
-        np.vstack([pvx.flatten(), pvy.flatten(), np.zeros(nvtx)]).T,
-        rmat.T
-    ) + tvec
-
-    conn = cellConnectivity(rows, cols)
-
-    ret = np.empty(len(range(start, stop)), dtype=float)
-
-    for i, ipix in enumerate(range(start, stop)):
-        pix_conn = conn[ipix]
-        vtx_list = pcrd_array_full[pix_conn, :]
-        ret[i] = (_solid_angle_of_triangle(vtx_list[[0, 1, 2], :]) +
-                  _solid_angle_of_triangle(vtx_list[[2, 3, 0], :]))
-
-    return ret
-
-
-@memoize
-def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
-                        rmat, tvec, max_workers):
-    # connectivity array for pixels
-    conn = cellConnectivity(rows, cols)
-
-    # result
-    solid_angs = np.empty(len(conn), dtype=float)
-
-    # Distribute tasks to each process
-    tasks = distribute_tasks(len(conn), max_workers)
-    kwargs = {
-        'rows': rows,
-        'cols': cols,
-        'pixel_size_row': pixel_size_row,
-        'pixel_size_col': pixel_size_col,
-        'rmat': rmat,
-        'tvec': tvec,
-    }
-    func = partial(_generate_pixel_solid_angles, **kwargs)
-    with ProcessPoolExecutor(mp_context=ct.mp_context,
-                             max_workers=max_workers) as executor:
-        results = executor.map(func, tasks)
-
-    # Concatenate all the results together
-    solid_angs[:] = np.concatenate(list(results))
-    solid_angs = solid_angs.reshape(rows, cols)
-    mi = solid_angs.min()
-    if mi > 0.:
-        solid_angs = solid_angs/mi
-
-    return solid_angs
 
 
 @memoize
