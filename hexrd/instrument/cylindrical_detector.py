@@ -4,13 +4,15 @@ from hexrd import constants as ct
 from hexrd import xrdutil
 from hexrd.utils.decorators import memoize
 
-from .detector import Detector, _solid_angle_of_triangle,\
-_row_edge_vec, _col_edge_vec
+from .detector import (
+    Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
+)
 
 from functools import partial
-from hexrd.gridutil import cellConnectivity, cellIndices
+from hexrd.gridutil import cellConnectivity
 from hexrd.utils.concurrent import distribute_tasks
 from concurrent.futures import ProcessPoolExecutor
+
 
 class CylindricalDetector(Detector):
     """Base class for 2D cylindrical detector
@@ -150,7 +152,7 @@ class CylindricalDetector(Detector):
         args = (pt_on_cylinder, self.tvec, self.caxis,
                 self.paxis, self.radius, self.physical_size,
                 self.angle_extent)
-        pt_on_cylinder,_ =  xrdutil.utils._clip_to_cylindrical_detector(*args)
+        pt_on_cylinder, _ = xrdutil.utils._clip_to_cylindrical_detector(*args)
 
         args = (pt_on_cylinder, self.tvec, self.caxis, self.paxis, self.radius)
         output = xrdutil.utils._dewarp_from_cylinder(*args)
@@ -170,8 +172,8 @@ class CylindricalDetector(Detector):
             'pixel_size_row': self.pixel_size_row,
             'pixel_size_col': self.pixel_size_col,
             'caxis': self.caxis,
-            'paxis':self.paxis,
-            'radius':self.radius,
+            'paxis': self.paxis,
+            'radius': self.radius,
             'tvec': self.tvec,
             'max_workers': self.max_workers,
         }
@@ -255,11 +257,13 @@ def _pixel_eta_gradient(origin, **pixel_angle_kwargs):
 
     return np.linalg.norm(np.stack([peta_grad_col, peta_grad_row]), axis=0)
 
+
 def _fix_branch_cut_in_gradients(pgarray):
     return np.min(
         np.abs(np.stack([pgarray - np.pi, pgarray, pgarray + np.pi])),
         axis=0
     )
+
 
 def _generate_pixel_solid_angles(start_stop, rows, cols, pixel_size_row,
                                  pixel_size_col, caxis, paxis, radius, tvec):
@@ -267,8 +271,6 @@ def _generate_pixel_solid_angles(start_stop, rows, cols, pixel_size_row,
     row_edge_vec = _row_edge_vec(rows, pixel_size_row)
     col_edge_vec = _col_edge_vec(cols, pixel_size_col)
 
-    nvtx = len(row_edge_vec) * len(col_edge_vec)
-    naxis = np.cross(paxis, caxis)
     # pixel vertex coords
     pvy, pvx = np.meshgrid(row_edge_vec, col_edge_vec, indexing='ij')
     xy_data = np.vstack((pvx.flatten(), pvy.flatten())).T
@@ -312,8 +314,8 @@ def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
         'pixel_size_row': pixel_size_row,
         'pixel_size_col': pixel_size_col,
         'caxis': caxis,
-        'paxis':paxis,
-        'radius':radius,
+        'paxis': paxis,
+        'radius': radius,
         'tvec': tvec,
     }
     func = partial(_generate_pixel_solid_angles, **kwargs)

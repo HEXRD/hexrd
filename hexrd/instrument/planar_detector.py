@@ -8,13 +8,15 @@ from hexrd.transforms.xfcapi import (
 )
 from hexrd.utils.decorators import memoize
 
-from .detector import Detector, _solid_angle_of_triangle,\
-_row_edge_vec, _col_edge_vec
+from .detector import (
+    Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
+)
 
 from functools import partial
-from hexrd.gridutil import cellConnectivity, cellIndices
+from hexrd.gridutil import cellConnectivity
 from hexrd.utils.concurrent import distribute_tasks
 from concurrent.futures import ProcessPoolExecutor
+
 
 class PlanarDetector(Detector):
     """Base class for 2D planar, rectangular row-column detector"""
@@ -186,6 +188,7 @@ def _fix_branch_cut_in_gradients(pgarray):
         np.abs(np.stack([pgarray - np.pi, pgarray, pgarray + np.pi])),
         axis=0
     )
+
 
 def _generate_pixel_solid_angles(start_stop, rows, cols, pixel_size_row,
                                  pixel_size_col, rmat, tvec):
