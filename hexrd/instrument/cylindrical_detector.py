@@ -35,7 +35,7 @@ class CylindricalDetector(Detector):
     def cart_to_angles(self, xy_data,
                        rmat_s=None,
                        tvec_s=None, tvec_c=None,
-                       apply_distortion=False):
+                       apply_distortion=False, normalize=True):
         xy_data = np.asarray(xy_data)
         if rmat_s is None:
             rmat_s = ct.identity_3x3
@@ -51,7 +51,7 @@ class CylindricalDetector(Detector):
                                                 self.radius,
                                                 self.caxis,
                                                 self.paxis,
-                                                normalize=True)
+                                                normalize=normalize)
         tth, eta = xrdutil.utils._dvec_to_angs(dvecs, self.bvec, self.evec)
         tth_eta = np.vstack((tth, eta)).T
         return tth_eta, dvecs
