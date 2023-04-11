@@ -103,9 +103,9 @@ class CylindricalDetector(Detector):
                                                self.radius,
                                                self.caxis,
                                                self.paxis,
-                                               tvec_s,
-                                               tvec_c,
-                                               rmat_s,
+                                               tVec_s=tvec_s,
+                                               tVec_c=tvec_c,
+                                               rmat_s=rmat_s,
                                                normalize=False)
 
     def pixel_angles(self, origin=ct.zeros_3):
