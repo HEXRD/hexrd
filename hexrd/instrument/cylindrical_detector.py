@@ -51,8 +51,8 @@ class CylindricalDetector(Detector):
                                                 self.radius,
                                                 self.caxis,
                                                 self.paxis,
-                                                tvec_s=tvec_s,
-                                                tvec_c=tvec_c,
+                                                tVec_s=tvec_s,
+                                                tVec_c=tvec_c,
                                                 rmat_s=rmat_s,
                                                 normalize=normalize)
         tth, eta = xrdutil.utils._dvec_to_angs(dvecs, self.bvec, self.evec)
