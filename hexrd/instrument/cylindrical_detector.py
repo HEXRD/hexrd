@@ -51,6 +51,9 @@ class CylindricalDetector(Detector):
                                                 self.radius,
                                                 self.caxis,
                                                 self.paxis,
+                                                tvec_s=tvec_s,
+                                                tvec_c=tvec_c,
+                                                rmat_s=rmat_s,
                                                 normalize=normalize)
         tth, eta = xrdutil.utils._dvec_to_angs(dvecs, self.bvec, self.evec)
         tth_eta = np.vstack((tth, eta)).T
@@ -90,12 +93,19 @@ class CylindricalDetector(Detector):
         xy_det[valid_mask, :] = valid_xy
         return xy_det
 
-    def cart_to_dvecs(self, xy_data):
+    def cart_to_dvecs(self, 
+                      xy_data,
+                      tvec_s=ct.zeros_3x1,
+                      tvec_c=ct.zeros_3x1,
+                      rmat_s=ct.identity_3x3):
         return xrdutil.utils._warp_to_cylinder(xy_data,
                                                self.tvec,
                                                self.radius,
                                                self.caxis,
                                                self.paxis,
+                                               tvec_s,
+                                               tvec_c,
+                                               rmat_s,
                                                normalize=False)
 
     def pixel_angles(self, origin=ct.zeros_3):

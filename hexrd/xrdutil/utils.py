@@ -1388,6 +1388,9 @@ def _warp_to_cylinder(cart,
                       radius,
                       caxis,
                       paxis,
+                      tVec_s=constants.zeros_3x1,
+                      tVec_c=constants.zeros_3x1,
+                      rmat_s=constants.identity_3x3,
                       normalize=True):
     """
     routine to convert cartesian coordinates
@@ -1406,7 +1409,8 @@ def _warp_to_cylinder(cart,
     ncomp = np.tile(xn, [3, 1]).T * np.tile(naxis, [num, 1])
     cart3d = pcomp + ccomp + ncomp
 
-    res = cart3d + np.tile(tvec, [1, num]).T 
+    tVec_c_l = np.dot(rmat_s, tVec_c)
+    res = cart3d + np.tile(tvec-tVec_s-tVec_c_l, [1, num]).T 
 
     if normalize:
         return res/np.tile(np.linalg.norm(res, axis=1), [3, 1]).T
