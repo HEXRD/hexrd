@@ -13,33 +13,30 @@ import numpy as np
 import numpy.dual
 
 from hexrd import constants as ct
-from hexrd.instrument import PlanarDetector
+from hexrd.instrument import Detector
 from hexrd.transforms import xfcapi
 from hexrd.utils.concurrent import distribute_tasks
 from hexrd.utils.decorators import numba_njit_if_available
-
-detector_classes = (PlanarDetector, )
 
 
 class SampleLayerDistortion:
     def __init__(self, detector,
                  layer_standoff, layer_thickness,
                  pinhole_thickness, source_distance):
-        self._detector = detector
+        self._panel = detector
         self._standoff = layer_standoff
         self._thickness = layer_thickness
         self._ph_thickness = pinhole_thickness
         self._source_dist = source_distance
 
     @property
-    def detector(self):
-        return self._detector
+    def panel(self):
+        return self._panel
 
-    @detector.setter
-    def detector(self, x):
-        assert isinstance(x, detector_classes), \
-            f"input must be one of {detector_classes}"
-        self._detector = x
+    @panel.setter
+    def panel(self, x):
+        assert isinstance(x, Detector), "input must be a detector"
+        self._panel = x
 
     @property
     def standoff(self):
@@ -76,7 +73,7 @@ class SampleLayerDistortion:
     def apply(self, xy_pts, return_nominal=True):
         """
         """
-        return tth_corr_sample_layer(self.detector, xy_pts,
+        return tth_corr_sample_layer(self.panel, xy_pts,
                                      self.standoff, self.thickness,
                                      self.ph_thickness, self.source_dist,
                                      return_nominal=return_nominal)
@@ -85,19 +82,18 @@ class SampleLayerDistortion:
 class PinholeDistortion:
     def __init__(self, detector,
                  pinhole_thickness, pinhole_radius):
-        self._detector = detector
+        self._panel = detector
         self._ph_thickness = pinhole_thickness
         self._ph_radius = pinhole_radius
 
     @property
-    def detector(self):
-        return self._detector
+    def panel(self):
+        return self._panel
 
-    @detector.setter
-    def detector(self, x):
-        assert isinstance(x, detector_classes), \
-            f"input must be one of {detector_classes}"
-        self._detector = x
+    @panel.setter
+    def panel(self, x):
+        assert isinstance(x, Detector), "input must be a detector"
+        self._panel = x
 
     @property
     def ph_thickness(self):
@@ -118,7 +114,7 @@ class PinholeDistortion:
     def apply(self, xy_pts, return_nominal=True):
         """
         """
-        return tth_corr_pinhole(self.detector, xy_pts,
+        return tth_corr_pinhole(self.panel, xy_pts,
                                 self.ph_thickness, self.ph_radius,
                                 return_nominal=return_nominal)
 
@@ -127,20 +123,20 @@ class RyggPinholeDistortion:
     def __init__(self, detector, material,
                  pinhole_thickness, pinhole_radius, num_phi_elements=60):
 
-        self.detector = detector
+        self.panel = detector
         self.material = material
         self.ph_thickness = pinhole_thickness
         self.ph_radius = pinhole_radius
         self.num_phi_elements = num_phi_elements
 
     def apply(self, xy_pts, return_nominal=True):
-        return tth_corr_rygg_pinhole(self.detector, self.material, xy_pts,
+        return tth_corr_rygg_pinhole(self.panel, self.material, xy_pts,
                                      self.ph_thickness, self.ph_radius,
                                      return_nominal=return_nominal,
                                      num_phi_elements=self.num_phi_elements)
 
 
-def tth_corr_sample_layer(detector, xy_pts,
+def tth_corr_sample_layer(panel, xy_pts,
                           layer_standoff, layer_thickness,
                           pinhole_thickness, source_distance,
                           return_nominal=True):
@@ -150,8 +146,8 @@ def tth_corr_sample_layer(detector, xy_pts,
 
     Parameters
     ----------
-    detector : hexrd.instrument.PlanarDetector
-        A detector instance.
+    panel : hexrd.instrument.Detector
+        A panel instance.
     xy_pts : array_like
         The (n, 2) array of n (x, y) coordinates to be transformed in the raw
         detector coordinates (cartesian plane, origin at center).
@@ -173,20 +169,16 @@ def tth_corr_sample_layer(detector, xy_pts,
     """
 
     xy_pts = np.atleast_2d(xy_pts)
-    npts = len(xy_pts)
 
     # !!! full z offset from center of pinhole to center of layer
     zs = layer_standoff + 0.5*layer_thickness + 0.5*pinhole_thickness
 
-    ref_angs, _ = detector.cart_to_angles(xy_pts,
-                                          rmat_s=None, tvec_s=None,
-                                          tvec_c=None, apply_distortion=True)
+    ref_angs, _ = panel.cart_to_angles(xy_pts,
+                                       rmat_s=None, tvec_s=None,
+                                       tvec_c=None, apply_distortion=True)
     ref_tth = ref_angs[:, 0]
 
-    crds = np.hstack([xy_pts, np.zeros((npts, 1))])
-    dhats = xfcapi.unitRowVector(
-        np.dot(crds, detector.rmat.T) + detector.tvec
-    )
+    dhats = xfcapi.unitRowVector(panel.cart_to_dvecs(xy_pts))
     cos_beta = -dhats[:, 2]
     cos_tthn = np.cos(ref_tth)
     sin_tthn = np.sin(ref_tth)
@@ -232,23 +224,21 @@ def tth_corr_map_sample_layer(instrument,
     """
     zs = layer_standoff + 0.5*layer_thickness + 0.5*pinhole_thickness
     tth_corr = dict.fromkeys(instrument.detectors)
-    for det_key, det in instrument.detectors.items():
-        ref_ptth, _ = det.pixel_angles()
-        py, px = det.pixel_coords
-        crds = np.vstack([px.flatten(), py.flatten(), np.zeros(px.size)])
-        dhats = xfcapi.unitRowVector(
-            (np.dot(det.rmat, crds) + det.tvec.reshape(3, 1)).T
-        )
+    for det_key, panel in instrument.detectors.items():
+        ref_ptth, _ = panel.pixel_angles()
+        py, px = panel.pixel_coords
+        xy_data = np.vstack((px.flatten(), py.flatten())).T
+        dhats = xfcapi.unitRowVector(panel.cart_to_dvecs(xy_data))
         cos_beta = -dhats[:, 2]
         cos_tthn = np.cos(ref_ptth.flatten())
         sin_tthn = np.sin(ref_ptth.flatten())
         tth_corr[det_key] = np.arctan(
             sin_tthn/(instrument.source_distance*cos_beta/zs - cos_tthn)
-        ).reshape(det.shape)
+        ).reshape(panel.shape)
     return tth_corr
 
 
-def tth_corr_pinhole(detector, xy_pts,
+def tth_corr_pinhole(panel, xy_pts,
                      pinhole_thickness, pinhole_radius,
                      return_nominal=True):
     """
@@ -256,7 +246,7 @@ def tth_corr_pinhole(detector, xy_pts,
 
     Parameters
     ----------
-    detector : hexrd.instrument.PlanarDetector
+    panel : hexrd.instrument.Detector
         A detector instance.
     xy_pts : array_like
         The (n, 2) array of n (x, y) coordinates to be transformed in the raw
@@ -281,7 +271,7 @@ def tth_corr_pinhole(detector, xy_pts,
     npts = len(xy_pts)
 
     # first we need the reference etas of the points wrt the pinhole axis
-    cp_det = copy.deepcopy(detector)
+    cp_det = copy.deepcopy(panel)
     cp_det.bvec = ct.beam_vec  # !!! [0, 0, -1]
     ref_angs, _ = cp_det.cart_to_angles(
         xy_pts,
@@ -291,7 +281,7 @@ def tth_corr_pinhole(detector, xy_pts,
     ref_eta = ref_angs[:, 1]
 
     # These are the nominal tth values
-    nom_angs, _ = detector.cart_to_angles(
+    nom_angs, _ = panel.cart_to_angles(
         xy_pts,
         rmat_s=None, tvec_s=None,
         tvec_c=None, apply_distortion=True
@@ -305,12 +295,8 @@ def tth_corr_pinhole(detector, xy_pts,
         origin = -pinhole_radius*np.array(
             [np.cos(reta), np.sin(reta), 0.5*pinhole_thickness]
         )
-        angs, _ = xfcapi.detectorXYToGvec(
-            np.atleast_2d(pxy), detector.rmat, ct.identity_3x3,
-            detector.tvec, ct.zeros_3, origin,
-            beamVec=detector.bvec,
-            etaVec=detector.evec)
-        pin_tth[i] = angs[0]
+        angs, _ = panel.cart_to_angles(np.atleast_2d(pxy), tvec_c=origin)
+        pin_tth[i] = angs[:, 0]
     tth_corr = pin_tth - nom_tth
     if return_nominal:
         return np.vstack([nom_tth - tth_corr, nom_angs[:, 1]]).T
@@ -346,11 +332,11 @@ def tth_corr_map_pinhole(instrument, pinhole_thickness, pinhole_radius):
     cp_instr.beam_vector = ct.beam_vec  # !!! [0, 0, -1]
 
     tth_corr = dict.fromkeys(instrument.detectors)
-    for det_key, det in instrument.detectors.items():
+    for det_key, panel in instrument.detectors.items():
         ref_ptth, ref_peta = cp_instr.detectors[det_key].pixel_angles()
-        nom_ptth, _ = det.pixel_angles()
+        nom_ptth, _ = panel.pixel_angles()
 
-        dpy, dpx = det.pixel_coords
+        dpy, dpx = panel.pixel_coords
         pcrds = np.ascontiguousarray(
             np.vstack([dpx.flatten(), dpy.flatten()]).T
         )
@@ -363,13 +349,9 @@ def tth_corr_map_pinhole(instrument, pinhole_thickness, pinhole_radius):
             origin = -pinhole_radius*np.array(
                 [np.cos(reta), np.sin(reta), 0.5*pinhole_thickness]
             )
-            angs, g_vec = xfcapi.detectorXYToGvec(
-                np.atleast_2d(pxy), det.rmat, ct.identity_3x3,
-                det.tvec, ct.zeros_3, origin,
-                beamVec=instrument.beam_vector,
-                etaVec=instrument.eta_vector)
-            new_ptth[i] = angs[0]
-        tth_corr[det_key] = new_ptth.reshape(det.shape) - nom_ptth
+            angs, _ = panel.cart_to_angles(np.atleast_2d(pxy), tvec_c=origin)
+            new_ptth[i] = angs[:, 0]
+        tth_corr[det_key] = new_ptth.reshape(panel.shape) - nom_ptth
     return tth_corr
 
 
@@ -390,14 +372,15 @@ def azimuth(vv, v0, v1):
     """
     with np.errstate(divide='ignore', invalid='ignore'):
         n0 = np.cross(v0, v1)
-        n0 /= np.dual.norm(n0, axis=-1)[...,np.newaxis]
+        n0 /= np.dual.norm(n0, axis=-1)[..., np.newaxis]
         nn = np.cross(v0, vv)
-        nn /= np.dual.norm(nn, axis=-1)[...,np.newaxis]
+        nn /= np.dual.norm(nn, axis=-1)[..., np.newaxis]
 
     azi = np.arccos(np.sum(nn * n0, -1))
     if len(np.shape(azi)) > 0:
         azi[np.dot(vv, n0) < 0] *= -1
-        azi[np.isnan(azi)] = 0 # arbitrary angle where vv is (anti)parallel to v0
+        # arbitrary angle where vv is (anti)parallel to v0
+        azi[np.isnan(azi)] = 0
     elif np.isnan(azi):
         return 0
     elif np.dot(vv, v0) < 1 and azi > 0:
@@ -524,7 +507,8 @@ def calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
     for panel in panels:
         try:
             # Set the evec to eHat_l while converting to cartesian
-            # This is important so that the r_d values end up in the right spots
+            # This is important so that the r_d values end up in the right
+            # spots
             old_evec = panel.evec
             panel.evec = eHat_l
             cart = panel.angles_to_cart(angles_full)
@@ -535,12 +519,9 @@ def calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
             _, on_panel = panel.clip_to_panel(cart)
             cart[~on_panel] = np.nan
 
-        cart = cart.T.reshape((2, *tth.shape))
-        full_cart = np.stack((cart[0], cart[1], np.zeros(tth.shape)))
-        flat_coords = full_cart.reshape((3, np.prod(tth.shape)))
-        rotated = panel.rmat.dot(flat_coords).reshape(full_cart.shape).T
-        full_vector = panel.tvec + rotated
-        panel_r_d = np.sqrt(np.sum((full_vector)**2, axis=2)).T
+        dvecs = panel.cart_to_dvecs(cart)
+        full_dvecs = dvecs.T.reshape(3, *tth.shape).T
+        panel_r_d = np.sqrt(np.sum((full_dvecs)**2, axis=2)).T
 
         # Only overwrite positions that are still nan on r_d
         r_d[np.isnan(r_d)] = panel_r_d[np.isnan(r_d)]
@@ -678,7 +659,8 @@ def _compute_qq_p(use_numba=True, *args, **kwargs):
 
     with np.errstate(divide='ignore', invalid='ignore'):
         # Ignore the errors this will inevitably produce
-        return np.nansum(V_i * qq_i, axis=(0, 1)) / V_p  # [Nu x Nv] <= detector
+        return np.nansum(V_i * qq_i,
+                         axis=(0, 1)) / V_p  # [Nu x Nv] <= detector
 
 
 def _compute_vi_qq_i(phi_d, sin_b, bd, sin_phii, cos_phii, alpha_i, phi_xi,
@@ -729,7 +711,8 @@ def _compute_vi_qq_i(phi_d, sin_b, bd, sin_phii, cos_phii, alpha_i, phi_xi,
 
 
 # The numba version (works better in conjunction with multi-threading)
-_compute_vi_qq_i_numba = numba_njit_if_available(nogil=True, cache=True)(_compute_vi_qq_i)
+_compute_vi_qq_i_numba = numba_njit_if_available(
+    nogil=True, cache=True)(_compute_vi_qq_i)
 
 
 def tth_corr_rygg_pinhole(panel, material, xy_pts,
@@ -777,8 +760,9 @@ def tth_corr_map_rygg_pinhole(instrument, material, pinhole_thickness,
     return tth_corr
 
 
-def polar_tth_corr_map_rygg_pinhole(tth, eta, instrument, material, pinhole_thickness,
-                                    pinhole_radius, num_phi_elements=60):
+def polar_tth_corr_map_rygg_pinhole(tth, eta, instrument, material,
+                                    pinhole_thickness, pinhole_radius,
+                                    num_phi_elements=60):
     """Generate a polar tth corr map directly for all panels"""
     panels = list(instrument.detectors.values())
     return calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
