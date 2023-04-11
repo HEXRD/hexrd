@@ -1397,6 +1397,10 @@ def _warp_to_cylinder(cart,
     in image frame to cylindrical coordinates
     """
     tvec = np.atleast_2d(tVec_d).T
+    if tVec_s.ndim == 1:
+        tVec_s = np.atleast_2d(tVec_s).T
+    if tVec_c.ndim == 1:
+        tVec_c = np.atleast_2d(tVec_c).T
     num = cart.shape[0]
     naxis = np.cross(paxis, caxis)
     x = cart[:,0]; y = cart[:,1]
