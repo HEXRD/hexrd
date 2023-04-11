@@ -77,6 +77,11 @@ class PlanarDetector(Detector):
             xy_det = self.distortion.apply_inverse(xy_det)
         return xy_det
 
+    def cart_to_dvecs(self, xy_data):
+        npts = len(xy_data)
+        crds = np.hstack([xy_data, np.zeros((npts, 1))])
+        return np.dot(crds, self.rmat.T) + self.tvec
+
     def pixel_angles(self, origin=ct.zeros_3):
         return _pixel_angles(origin, self.pixel_coords, self.distortion,
                              self.rmat, self.tvec, self.bvec, self.evec,

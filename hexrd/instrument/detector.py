@@ -122,6 +122,11 @@ class Detector:
         pass
 
     @abstractmethod
+    def cart_to_dvecs(self, xy_data):
+        """Convert cartesian coordinates to dvectors"""
+        pass
+
+    @abstractmethod
     def pixel_angles(self, origin=ct.zeros_3):
         pass
 

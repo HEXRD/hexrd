@@ -90,6 +90,14 @@ class CylindricalDetector(Detector):
         xy_det[valid_mask, :] = valid_xy
         return xy_det
 
+    def cart_to_dvecs(self, xy_data):
+        return xrdutil.utils._warp_to_cylinder(xy_data,
+                                               self.tvec,
+                                               self.radius,
+                                               self.caxis,
+                                               self.paxis,
+                                               normalize=False)
+
     def pixel_angles(self, origin=ct.zeros_3):
         return _pixel_angles(origin=origin, **self._pixel_angle_kwargs)
 
