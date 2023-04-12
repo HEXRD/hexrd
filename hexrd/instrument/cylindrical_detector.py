@@ -100,8 +100,7 @@ class CylindricalDetector(Detector):
                       xy_data,
                       tvec_s=ct.zeros_3x1,
                       rmat_s=ct.identity_3x3,
-                      tvec_c=ct.zeros_3x1,
-                      rmat_c=ct.identity_3x3):
+                      tvec_c=ct.zeros_3x1):
         return xrdutil.utils._warp_to_cylinder(xy_data,
                                                self.tvec,
                                                self.radius,
@@ -110,7 +109,6 @@ class CylindricalDetector(Detector):
                                                tVec_s=tvec_s,
                                                rmat_s=rmat_s,
                                                tVec_c=tvec_c,
-                                               rmat_c=rmat_c,
                                                normalize=False)
 
     def pixel_angles(self, origin=ct.zeros_3):
