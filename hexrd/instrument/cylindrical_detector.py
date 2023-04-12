@@ -83,8 +83,7 @@ class CylindricalDetector(Detector):
         kwargs = {'beamVec': self.bvec,
                   'tVec_s': tvec_s,
                   'rmat_s':rmat_s,
-                  'tVec_c': tvec_c,
-                  'rmat_s': rmat_s}
+                  'tVec_c': tvec_c}
         args = (angs, chi, self.tvec,
                 self.caxis, self.paxis,
                 self.radius, self.physical_size,
