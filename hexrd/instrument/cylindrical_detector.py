@@ -100,6 +100,7 @@ class CylindricalDetector(Detector):
     def cart_to_dvecs(self, 
                       xy_data,
                       tvec_s=ct.zeros_3x1,
+                      rmat_s=ct.identity_3x3,
                       tvec_c=ct.zeros_3x1,
                       rmat_s=ct.identity_3x3):
         return xrdutil.utils._warp_to_cylinder(xy_data,
