@@ -80,11 +80,15 @@ class CylindricalDetector(Detector):
         ome = np.arccos(rmat_s[0, 0])
 
         angs = np.hstack([tth_eta, np.tile(ome, (len(tth_eta), 1))])
-        kwargs = {"beamVec": self.bvec}
-        args = (angs, self.rmat, chi, self.tvec,
-                self.caxis, self.paxis, self.radius,
-                self.physical_size, self.angle_extent,
-                self.distortion)
+        kwargs = {'beamVec': self.bvec,
+                  'tVec_s': tvec_s,
+                  'rmat_s':rmat_s,
+                  'tVec_c': tvec_c,
+                  'rmat_s': rmat_s}
+        args = (angs, chi, self.tvec,
+                self.caxis, self.paxis,
+                self.radius, self.physical_size,
+                self.angle_extent, self.distortion)
 
         proj_func = xrdutil.utils._project_on_detector_cylinder
         valid_xy, rMat_ss, valid_mask = proj_func(*args, **kwargs)
@@ -104,8 +108,9 @@ class CylindricalDetector(Detector):
                                                self.caxis,
                                                self.paxis,
                                                tVec_s=tvec_s,
-                                               tVec_c=tvec_c,
                                                rmat_s=rmat_s,
+                                               tVec_c=tvec_c,
+                                               rmat_c=rmat_c,
                                                normalize=False)
 
     def pixel_angles(self, origin=ct.zeros_3):

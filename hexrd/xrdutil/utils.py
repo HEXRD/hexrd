@@ -1168,7 +1168,6 @@ def _project_on_detector_plane(allAngs,
 
 
 def _project_on_detector_cylinder(allAngs,
-                                  rMat_d,
                                   chi,
                                   tVec_d,
                                   caxis,
@@ -1177,7 +1176,11 @@ def _project_on_detector_cylinder(allAngs,
                                   physical_size,
                                   angle_extent,
                                   distortion,
-                                  beamVec=constants.beam_vec):
+                                  beamVec=constants.beam_vec,
+                                  tVec_s=constants.zeros_3x1,
+                                  rmat_s=constants.identity_3x3,
+                                  tVec_c=constants.zeros_3x1,
+                                  rmat_c=constants.identity_3x3):
     """
     utility routine for projecting a list of (tth, eta, ome) onto the
     detector plane parameterized by the args. this function does the
@@ -1188,10 +1191,7 @@ def _project_on_detector_cylinder(allAngs,
                                   rMat_c=np.eye(3),
                                   bHat_l=beamVec)
 
-    rMat_ss = np.tile(np.eye(3), [allAngs.shape[0], 1, 1])
-
-    caxis = np.dot(rMat_d, [0., 1., 0.])
-    paxis = np.dot(rMat_d, [1., 0., 0.])
+    rMat_ss = np.tile(rmat_s, [allAngs.shape[0], 1, 1])
 
     tmp_xys, valid_mask = _dvecToDetectorXYcylinder(dVec_cs,
                                                     tVec_d,
@@ -1199,7 +1199,11 @@ def _project_on_detector_cylinder(allAngs,
                                                     paxis,
                                                     radius,
                                                     physical_size,
-                                                    angle_extent)
+                                                    angle_extent,
+                                                    tVec_s=tVec_s,
+                                                    rmat_s=rmat_s,
+                                                    tVec_c=tVec_c,
+                                                    rmat_c=rmat_c)
 
     det_xy = np.atleast_2d(tmp_xys[valid_mask, :])
 
@@ -1215,13 +1219,21 @@ def _dvecToDetectorXYcylinder(dVec_cs,
                               paxis, 
                               radius,
                               physical_size,
-                              angle_extent):
+                              angle_extent,
+                              tVec_s=constants.zeros_3x1,
+                              rmat_s=constants.identity_3x3,
+                              tVec_c=constants.zeros_3x1,
+                              rmat_c=constants.identity_3x3):
     
     cvec = _unitvec_to_cylinder(dVec_cs, 
                                 caxis,
                                 paxis, 
                                 radius,
-                                tVec_d)
+                                tVec_d,
+                                tVec_s=tVec_s,
+                                rmat_s=rmat_s,
+                                tVec_c=tVec_c,
+                                rmat_c=rmat_c)
 
     cvec_det, valid_mask = _clip_to_cylindrical_detector(cvec, 
                                              tVec_d, 
@@ -1229,13 +1241,20 @@ def _dvecToDetectorXYcylinder(dVec_cs,
                                              paxis, 
                                              radius, 
                                              physical_size, 
-                                             angle_extent)
+                                             angle_extent,
+                                             tVec_s=tVec_s,
+                                             rmat_s=rmat_s,
+                                             tVec_c=tVec_c,
+                                             rmat_c=rmat_c)
 
     xy_det = _dewarp_from_cylinder(cvec_det, 
                                    tVec_d, 
                                    caxis,
                                    paxis, 
-                                   radius)
+                                   radius,
+                                   tVec_s=tVec_s,
+                                   tVec_c=tVec_c,
+                                   rmat_c=rmat_c)
 
     return xy_det, valid_mask
 
@@ -1243,7 +1262,11 @@ def _unitvec_to_cylinder(uvw,
                          caxis,
                          paxis,
                          radius,
-                         tvec):
+                         tvec,
+                         tVec_s=constants.zeros_3x1,
+                         tVec_c=constants.zeros_3x1,
+                         rmat_c=constants.identity_3x3,
+                         rmat_s=constants.identity_3x3):
     """
     get point where unitvector uvw
     intersect the cylindrical detector.
@@ -1295,7 +1318,11 @@ def _clip_to_cylindrical_detector(uvw,
                                   paxis,
                                   radius,
                                   physical_size,
-                                  angle_extent):
+                                  angle_extent,
+                                  tVec_s=constants.zeros_3x1,
+                                  tVec_c=constants.zeros_3x1,
+                                  rmat_c=constants.identity_3x3,
+                                  rmat_s=constants.identity_3x3):
     """
     takes in the intersection points uvw
     with the cylindrical detector and 
@@ -1354,7 +1381,11 @@ def _dewarp_from_cylinder(uvw,
                           tVec_d,
                           caxis,
                           paxis,
-                          radius):
+                          radius,
+                          tVec_s=constants.zeros_3x1,
+                          tVec_c=constants.zeros_3x1,
+                          rmat_c=constants.identity_3x3,
+                          rmat_s=constants.identity_3x3):
     """
     routine to convert cylindrical coordinates
     to cartesian coordinates in image frame
@@ -1389,8 +1420,9 @@ def _warp_to_cylinder(cart,
                       caxis,
                       paxis,
                       tVec_s=constants.zeros_3x1,
-                      tVec_c=constants.zeros_3x1,
                       rmat_s=constants.identity_3x3,
+                      tVec_c=constants.zeros_3x1,
+                      rmat_c=constants.identity_3x3,
                       normalize=True):
     """
     routine to convert cartesian coordinates
@@ -1413,8 +1445,9 @@ def _warp_to_cylinder(cart,
     ncomp = np.tile(xn, [3, 1]).T * np.tile(naxis, [num, 1])
     cart3d = pcomp + ccomp + ncomp
 
-    tVec_c_l = np.dot(rmat_s, tVec_c)
-    res = cart3d + np.tile(tvec-tVec_s-tVec_c_l, [1, num]).T 
+    tVec_s_l = np.dot(rmat_s, tVec_s)
+    tVec_c_l = np.dot(rmat_c, tVec_c)
+    res = cart3d + np.tile(tvec-tVec_s_l-tVec_c_l, [1, num]).T 
 
     if normalize:
         return res/np.tile(np.linalg.norm(res, axis=1), [3, 1]).T
