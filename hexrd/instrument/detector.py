@@ -1433,7 +1433,7 @@ class Detector:
             dpts = gvec_to_xy(ghat_c_str.T,
                               self.rmat, rmat_s, rmat_c,
                               self.tvec, tvec_s, tvec_c,
-                              beamVec=beam_vec)
+                              beam_vec=beam_vec)
 
             # check intersections with detector plane
             canIntersect = ~np.isnan(dpts[:, 0])

@@ -68,11 +68,13 @@ class PlanarDetector(Detector):
         ome = np.arccos(rmat_s[0, 0])
 
         angs = np.hstack([tth_eta, np.tile(ome, (len(tth_eta), 1))])
+        gvec = angles_to_gvec(angs, beam_vec=self.bvec, eta_vec=self.evec,
+                              chi=chi)
         xy_det = gvec_to_xy(
-            angles_to_gvec(angs, bHat_l=self.bvec, eHat_l=self.evec, chi=chi),
+            gvec,
             self.rmat, rmat_s, rmat_c,
             self.tvec, tvec_s, tvec_c,
-            beamVec=self.bvec)
+            beam_vec=self.bvec)
         if apply_distortion and self.distortion is not None:
             xy_det = self.distortion.apply_inverse(xy_det)
         return xy_det
