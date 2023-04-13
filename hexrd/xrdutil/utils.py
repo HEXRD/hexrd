@@ -1534,8 +1534,7 @@ def make_reflection_patches(instr_cfg,
                             rmat_c=np.eye(3), tvec_c=np.zeros((3, 1)),
                             npdiv=1, quiet=False,
                             compute_areas_func=gutil.compute_areas):
-    """
-    Make angular patches on a detector.
+    """Make angular patches on a detector.
 
     panel_dims are [(xmin, ymin), (xmax, ymax)] in mm
 
@@ -1684,8 +1683,7 @@ def make_reflection_patches(instr_cfg,
         row_indices = gutil.cellIndices(row_edges, xy_eval[:, 1])
         col_indices = gutil.cellIndices(col_edges, xy_eval[:, 0])
 
-        # append patch data to list
-        patches.append(
+        yield(
             ((gVec_angs_vtx[:, 0].reshape(m_tth.shape),
               gVec_angs_vtx[:, 1].reshape(m_tth.shape)),
              (xy_eval_vtx[:, 0].reshape(m_tth.shape),
@@ -1697,8 +1695,6 @@ def make_reflection_patches(instr_cfg,
              (row_indices.reshape(netas, ntths),
               col_indices.reshape(netas, ntths)))
         )
-        pass    # close loop over angles
-    return patches
 
 
 def extract_detector_transformation(detector_params):
