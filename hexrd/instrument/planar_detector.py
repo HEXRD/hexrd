@@ -251,8 +251,5 @@ def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
     # Concatenate all the results together
     solid_angs[:] = np.concatenate(list(results))
     solid_angs = solid_angs.reshape(rows, cols)
-    mi = solid_angs.min()
-    if mi > 0.:
-        solid_angs = solid_angs/mi
 
     return solid_angs
