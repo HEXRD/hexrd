@@ -33,6 +33,7 @@ from hexrd import matrixutil as mutil
 from hexrd import gridutil as gutil
 
 from hexrd.crystallography import processWavelength, PlaneData
+from hexrd import instrument
 
 from hexrd.transforms import xf
 from hexrd.transforms import xfcapi
@@ -242,6 +243,41 @@ class PolarView(object):
         return [np.min(tv) - htps, np.max(tv) + htps,
                 np.max(ev) + heps, np.min(ev) - heps]
 
+    def _func_project_on_detector(self, detector):
+        '''
+        helper function to decide which function to 
+        use for mapping of g-vectors to detector
+        '''
+        if isinstance(detector, instrument.CylindricalDetector):
+            return _project_on_detector_cylinder
+        else:
+            return _project_on_detector_plane
+
+    def _args_project_on_detector(self, gvec_angs, detector):
+        kwargs = {'beamVec': detector.bvec}
+        arg = (gvec_angs,
+               detector.rmat, 
+               constants.identity_3x3, 
+               self.chi,
+               detector.tvec, 
+               constants.zeros_3, 
+               self.tvec,
+               detector.distortion)
+        if isinstance(detector, instrument.CylindricalDetector):
+            arg = (gvec_angs,
+                   detector.rmat,
+                   self.chi,
+                   detector.tvec,
+                   detector.caxis,
+                   detector.paxis,
+                   detector.radius,
+                   detector.physical_size,
+                   detector.angle_extent,
+                   detector.distortion)
+
+        return arg, kwargs
+
+
     # =========================================================================
     #                         ####### METHODS #######
     # =========================================================================
@@ -273,6 +309,7 @@ class PolarView(object):
         # lcount = 0
         img_dict = dict.fromkeys(self.detectors)
         for detector_id, panel in self.detectors.items():
+            _project_on_detector = self._func_project_on_detector(panel)
             img = image_dict[detector_id]
 
             gvec_angs = np.vstack([
@@ -280,14 +317,13 @@ class PolarView(object):
                     angpts[0].flatten(),
                     dummy_ome]).T
 
+            args, kwargs = self._args_project_on_detector(gvec_angs,
+                                                          panel)
+
             xypts = np.nan*np.ones((len(gvec_angs), 2))
-            valid_xys, rmats_s, on_plane = _project_on_detector_plane(
-                    gvec_angs,
-                    panel.rmat, constants.identity_3x3, self.chi,
-                    panel.tvec, constants.zeros_3, self.tvec,
-                    panel.distortion,
-                    beamVec=panel.bvec)
-            xypts[on_plane] = valid_xys
+            valid_xys, rmats_s, on_plane = _project_on_detector(*args, 
+                                                                **kwargs)
+            xypts[on_plane,:] = valid_xys
 
             if do_interpolation:
                 this_img = panel.interpolate_bilinear(
@@ -1129,6 +1165,325 @@ def _project_on_detector_plane(allAngs,
         det_xy = distortion.apply_inverse(det_xy)
 
     return det_xy, rMat_ss, valid_mask
+
+
+def _project_on_detector_cylinder(allAngs,
+                                  chi,
+                                  tVec_d,
+                                  caxis,
+                                  paxis,
+                                  radius,
+                                  physical_size,
+                                  angle_extent,
+                                  distortion,
+                                  beamVec=constants.beam_vec,
+                                  tVec_s=constants.zeros_3x1,
+                                  rmat_s=constants.identity_3x3,
+                                  tVec_c=constants.zeros_3x1):
+    """
+    utility routine for projecting a list of (tth, eta, ome) onto the
+    detector plane parameterized by the args. this function does the
+    computation for a cylindrical detector
+    """
+    dVec_cs = xfcapi.anglesToDVec(allAngs,
+                                  chi=chi,
+                                  rMat_c=np.eye(3),
+                                  bHat_l=beamVec)
+
+    rMat_ss = np.tile(rmat_s, [allAngs.shape[0], 1, 1])
+
+    tmp_xys, valid_mask = _dvecToDetectorXYcylinder(dVec_cs,
+                                                    tVec_d,
+                                                    caxis,
+                                                    paxis,
+                                                    radius,
+                                                    physical_size,
+                                                    angle_extent,
+                                                    tVec_s=tVec_s,
+                                                    rmat_s=rmat_s,
+                                                    tVec_c=tVec_c)
+
+    det_xy = np.atleast_2d(tmp_xys[valid_mask, :])
+
+    # apply distortion if specified
+    if distortion is not None:
+        det_xy = distortion.apply_inverse(det_xy)
+
+    return det_xy, rMat_ss, valid_mask
+
+def _dvecToDetectorXYcylinder(dVec_cs,
+                              tVec_d, 
+                              caxis, 
+                              paxis, 
+                              radius,
+                              physical_size,
+                              angle_extent,
+                              tVec_s=constants.zeros_3x1,
+                              tVec_c=constants.zeros_3x1,
+                              rmat_s=constants.identity_3x3):
+
+    cvec = _unitvec_to_cylinder(dVec_cs, 
+                                caxis,
+                                paxis, 
+                                radius,
+                                tVec_d,
+                                tVec_s=tVec_s,
+                                tVec_c=tVec_c,
+                                rmat_s=rmat_s)
+
+    cvec_det, valid_mask = _clip_to_cylindrical_detector(cvec, 
+                                             tVec_d, 
+                                             caxis,
+                                             paxis, 
+                                             radius, 
+                                             physical_size, 
+                                             angle_extent,
+                                             tVec_s=tVec_s,
+                                             tVec_c=tVec_c,
+                                             rmat_s=rmat_s)
+
+    xy_det = _dewarp_from_cylinder(cvec_det, 
+                                   tVec_d, 
+                                   caxis,
+                                   paxis, 
+                                   radius,
+                                   tVec_s=tVec_s,
+                                   tVec_c=tVec_c,
+                                   rmat_s=rmat_s)
+
+    return xy_det, valid_mask
+
+def _unitvec_to_cylinder(uvw, 
+                         caxis,
+                         paxis,
+                         radius,
+                         tvec,
+                         tVec_s=constants.zeros_3x1,
+                         tVec_c=constants.zeros_3x1,
+                         rmat_s=constants.identity_3x3):
+    """
+    get point where unitvector uvw
+    intersect the cylindrical detector.
+    this will give points which are 
+    outside the actual panel. the points
+    will be clipped to the panel later
+
+    Parameters
+    ----------
+    uvw : numpy.ndarray
+    unit vectors stacked row wise (nx3) shape
+
+    Returns
+    -------
+    numpy.ndarray
+    (x,y,z) vectors point which intersect with 
+    the cylinder with (nx3) shape
+    """
+    naxis = np.cross(caxis, paxis)
+    naxis = naxis/np.linalg.norm(naxis)
+
+    tvec_c_l = np.dot(rmat_s, tVec_c)
+
+    delta = tvec - (radius*naxis +
+                    np.squeeze(tVec_s) +
+                    np.squeeze(tvec_c_l))
+    num = uvw.shape[0]
+    cx = np.atleast_2d(caxis).T
+
+    delta_t = np.tile(delta,[num,1])
+
+    t1 = np.dot(uvw, delta.T)
+    t2 = np.squeeze(np.dot(uvw, cx))
+    t3 = np.squeeze(np.dot(delta, cx))
+    t4 = np.dot(uvw, cx)
+
+    A = np.squeeze(1 - t4**2)
+    B = t1 - t2*t3
+    C = radius**2 - np.linalg.norm(delta)**2 + t3**2
+
+    mask = np.abs(A) < 1E-10
+    beta = np.zeros([num, ])
+
+    beta[~mask] = (B[~mask] + 
+                   np.sqrt(B[~mask]**2 +
+                   A[~mask]*C))/A[~mask]
+
+    beta[mask] = np.nan
+    return np.tile(beta, [3, 1]).T * uvw
+
+def _clip_to_cylindrical_detector(uvw,
+                                  tVec_d,
+                                  caxis,
+                                  paxis,
+                                  radius,
+                                  physical_size,
+                                  angle_extent,
+                                  tVec_s=constants.zeros_3x1,
+                                  tVec_c=constants.zeros_3x1,
+                                  rmat_s=constants.identity_3x3):
+    """
+    takes in the intersection points uvw
+    with the cylindrical detector and 
+    prunes out points which don't actually
+    hit the actual panel
+
+    Parameters
+    ----------
+    uvw : numpy.ndarray
+    unit vectors stacked row wise (nx3) shape
+
+    Returns
+    -------
+    numpy.ndarray
+    (x,y,z) vectors point which fall on panel
+    with (mx3) shape
+    """
+    # first get rid of points which are above
+    # or below the detector
+    naxis = np.cross(caxis, paxis)
+    num = uvw.shape[0]
+
+    cx = np.atleast_2d(caxis).T
+    nx = np.atleast_2d(naxis).T
+
+    tvec_c_l = np.dot(rmat_s, tVec_c)
+
+    delta = tVec_d - (radius*naxis +
+                      np.squeeze(tVec_s) +
+                      np.squeeze(tvec_c_l))
+
+    delta_t = np.tile(delta,[num,1])
+
+    uvwp = uvw - delta_t
+    dp = np.dot(uvwp, cx)
+
+    uvwpxy = uvwp - np.tile(dp,[1,3])*np.tile(cx,[1,num]).T
+
+    size = physical_size
+    tvec = np.atleast_2d(tVec_d).T
+
+    # ycomp = uvwp - np.tile(tVec_d,[num, 1])
+    mask1 = np.squeeze(np.abs(dp) > size[0]*0.5)
+    uvwp[mask1,:] = np.nan
+
+    # next get rid of points that fall outside 
+    # the polar angle range
+
+    ang = np.dot(uvwpxy, nx)/radius
+    ang[np.abs(ang)>1.] = np.sign(ang[np.abs(ang)>1.])
+
+    ang = np.arccos(ang)
+    mask2 = np.squeeze(ang >= angle_extent)
+    mask = np.logical_or(mask1, mask2)
+    res = uvw.copy()
+    res[mask,:] = np.nan
+
+    return res, ~mask
+
+def _dewarp_from_cylinder(uvw, 
+                          tVec_d,
+                          caxis,
+                          paxis,
+                          radius,
+                          tVec_s=constants.zeros_3x1,
+                          tVec_c=constants.zeros_3x1,
+                          rmat_s=constants.identity_3x3):
+    """
+    routine to convert cylindrical coordinates
+    to cartesian coordinates in image frame
+    """
+    naxis = np.cross(caxis, paxis)
+    naxis = naxis/np.linalg.norm(naxis)
+
+    cx = np.atleast_2d(caxis).T
+    px = np.atleast_2d(paxis).T
+    nx = np.atleast_2d(naxis).T
+    num = uvw.shape[0]
+
+    tvec_c_l = np.dot(rmat_s, tVec_c)
+
+    delta = tVec_d - (radius*naxis +
+                      np.squeeze(tVec_s) +
+                      np.squeeze(tvec_c_l))
+
+    delta_t = np.tile(delta,[num,1])
+
+    uvwp = uvw - delta_t
+
+    uvwpxy = uvwp - np.tile(np.dot(uvwp, cx), [1, 3]) * \
+         np.tile(cx, [1, num]).T
+
+    sgn = np.sign(np.dot(uvwpxy, px)); sgn[sgn==0.] = 1.
+    ang = np.dot(uvwpxy, nx)/radius
+    ang[np.abs(ang) > 1.] = np.sign(ang[np.abs(ang)>1.])
+    ang = np.arccos(ang)
+    xcrd = np.squeeze(radius*ang*sgn)
+    ycrd = np.squeeze(np.dot(uvwp, cx))
+    return np.vstack((xcrd, ycrd)).T
+
+def _warp_to_cylinder(cart,
+                      tVec_d,
+                      radius,
+                      caxis,
+                      paxis,
+                      tVec_s=constants.zeros_3x1,
+                      rmat_s=constants.identity_3x3,
+                      tVec_c=constants.zeros_3x1,
+                      normalize=True):
+    """
+    routine to convert cartesian coordinates
+    in image frame to cylindrical coordinates
+    """
+    tvec = np.atleast_2d(tVec_d).T
+    if tVec_s.ndim == 1:
+        tVec_s = np.atleast_2d(tVec_s).T
+    if tVec_c.ndim == 1:
+        tVec_c = np.atleast_2d(tVec_c).T
+    num = cart.shape[0]
+    naxis = np.cross(paxis, caxis)
+    x = cart[:,0]; y = cart[:,1]
+    th = x/radius
+    xp = radius*np.sin(th)
+    xn = radius*(1-np.cos(th))
+
+    ccomp = np.tile(y, [3, 1]).T * np.tile(caxis, [num, 1])
+    pcomp = np.tile(xp, [3, 1]).T * np.tile(paxis, [num, 1])
+    ncomp = np.tile(xn, [3, 1]).T * np.tile(naxis, [num, 1])
+    cart3d = pcomp + ccomp + ncomp
+
+    tVec_c_l = np.dot(rmat_s, tVec_c)
+
+    res = cart3d + np.tile(tvec-tVec_s-tVec_c_l, [1, num]).T 
+
+    if normalize:
+        return res/np.tile(np.linalg.norm(res, axis=1), [3, 1]).T
+    else:
+        return res
+
+def _dvec_to_angs(dvecs, bvec, evec):
+    """
+    convert diffraction vectors to (tth, eta) 
+    angles in the 'eta' frame
+    dvecs is assumed to have (nx3) shape
+    """
+    num = dvecs.shape[0]
+    bxe = np.cross(bvec, evec)
+    bxe = bxe/np.linalg.norm(bxe)
+
+    dp = np.dot(bvec, dvecs.T)
+    dp[np.abs(dp) > 1.] = np.sign(dp[np.abs(dp) > 1.])
+    tth = np.arccos(dp)
+
+    dvecs_p = np.tile(dp, [3, 1]).T * dvecs - np.tile(bvec, [num, 1])
+    len_dvecs_p = np.linalg.norm(dvecs_p, axis=1)
+    mask = len_dvecs_p > 0.
+    dvecs_p[mask] = dvecs_p[mask]/np.tile(len_dvecs_p[mask], [3, 1]).T
+
+    dpx = np.dot(evec, dvecs_p.T)
+    dpy = np.dot(bxe, dvecs_p.T)
+    eta = np.arctan2(dpy, dpx)
+
+    return (tth, eta)
 
 
 def simulateGVecs(pd, detector_params, grain_params,
