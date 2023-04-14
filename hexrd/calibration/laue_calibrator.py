@@ -152,7 +152,7 @@ class LaueCalibrator(object):
                 rmat_c=xfcapi.makeRotMatOfExpMap(expmap_c),
                 tth_tol=tth_tol, eta_tol=eta_tol,
                 npdiv=npdiv, quiet=True)
-            refl_patches[ip_key] = patches
+            refl_patches[ip_key] = list(patches)
 
 
 """for labeling"""

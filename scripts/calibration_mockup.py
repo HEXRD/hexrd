@@ -28,7 +28,6 @@ from hexrd.rotations import \
     angles_from_rmat_xyz, make_rmat_euler, \
     RotMatEuler
 from hexrd.transforms.xfcapi import mapAngle
-from hexrd.xrdutil import make_reflection_patches
 
 
 # plane data
