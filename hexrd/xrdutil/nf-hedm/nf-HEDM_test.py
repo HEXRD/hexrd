@@ -478,7 +478,7 @@ def _anglesToGVec(angs, rMat_ss, rMat_c):
     return result
 
 
-# This is equivalent to the transform's module gvecToDetectorXYArray,
+# This is equivalent to the transform's module gvec_to_xy,
 # but written in numba.
 # As of now, it is not a good replacement as efficient allocation of the
 # temporary arrays is not competitive with the stack allocation using in
@@ -815,7 +815,7 @@ def test_orientations(image_stack, experiment, controller):
     controller.start(subprocess, len(all_angles))
     precomp = []
     for i, angs in enumerate(all_angles):
-        rmat_ss = xfcapi.makeOscillRotMatArray(experiment.chi, angs[:, 2])
+        rmat_ss = xfcapi.make_sample_rmat(experiment.chi, angs[:, 2])
         gvec_cs = _anglesToGVec(angs, rmat_ss, experiment.rMat_c[i])
         precomp.append((gvec_cs, rmat_ss))
     controller.finish(subprocess)
@@ -950,7 +950,7 @@ def _grand_loop_inner(image_stack, angles, precomp,
     clip_vals = experiment.clip_vals
     distortion = experiment.distortion
 
-    _to_detector = xfcapi.gvecToDetectorXYArray
+    _to_detector = xfcapi.gvec_to_xy
     # _to_detector = _gvec_to_detector_array
     stop = min(stop, n_coords) if stop is not None else n_coords
 

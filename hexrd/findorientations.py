@@ -197,7 +197,7 @@ def discretefiber_reduced(params_in):
 
     hkl = params_in[:3].reshape(3, 1)
 
-    gVec_s = xfcapi.anglesToGVec(
+    gVec_s = xfcapi.angles_to_gvec(
         np.atleast_2d(params_in[3:]),
         chi=chi,
         ).T

@@ -1,7 +1,7 @@
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 
 #include <Python.h>
-#include <arrayobject.h>
+#include <numpy/arrayobject.h>
 
 /******************************************************************************/
 /** The functions declared in this header make use of Python's C API to      **/

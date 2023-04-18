@@ -17,7 +17,7 @@ from scipy.spatial import Delaunay
 # HEXRD imports
 import hexrd.resources
 # FIXME: unused imports @saransh13?
-# from hexrd.transforms.xfcapi import anglesToGVec
+# from hexrd.transforms.xfcapi import angles_to_gvec
 # from hexrd.wppf import phase
 
 """

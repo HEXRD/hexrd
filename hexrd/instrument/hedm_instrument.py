@@ -58,10 +58,10 @@ from hexrd.fitting.utils import fit_ring
 from hexrd.gridutil import make_tolerance_grid
 from hexrd import matrixutil as mutil
 from hexrd.transforms.xfcapi import (
-    anglesToGVec,
+    angles_to_gvec,
     angularDifference,
-    gvecToDetectorXY,
-    makeOscillRotMat,
+    gvec_to_xy,
+    make_sample_rmat,
     makeRotMatOfExpMap,
     mapAngle,
     unitRowVector,
@@ -1176,8 +1176,14 @@ class HEDMInstrument(object):
                            ring_maps=ring_maps, ring_params=ring_params,
                            threshold=threshold)
 
-            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                executor.map(func, tasks)
+            max_workers = self.max_workers
+            if max_workers == 1 or len(tasks) == 1:
+                # Just execute it serially.
+                for task in tasks:
+                    func(task)
+            else:
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    executor.map(func, tasks)
 
             ring_maps_panel[det_key] = ring_maps
 
@@ -1951,19 +1957,19 @@ class HEDMInstrument(object):
 
                                 # need MEASURED xy coords
                                 # FIXME: overload angles_to_cart?
-                                gvec_c = anglesToGVec(
+                                gvec_c = angles_to_gvec(
                                     meas_angs,
                                     chi=self.chi,
-                                    rMat_c=rMat_c,
-                                    bHat_l=self.beam_vector)
-                                rMat_s = makeOscillRotMat(
-                                    [self.chi, meas_angs[2]]
+                                    rmat_c=rMat_c,
+                                    beam_vec=self.beam_vector)
+                                rMat_s = make_sample_rmat(
+                                    self.chi, meas_angs[2]
                                 )
-                                meas_xy = gvecToDetectorXY(
+                                meas_xy = gvec_to_xy(
                                     gvec_c,
                                     panel.rmat, rMat_s, rMat_c,
                                     panel.tvec, self.tvec, tVec_c,
-                                    beamVec=self.beam_vector)
+                                    beam_vec=self.beam_vector)
                                 if panel.distortion is not None:
                                     meas_xy = panel.distortion.apply_inverse(
                                         np.atleast_2d(meas_xy)
