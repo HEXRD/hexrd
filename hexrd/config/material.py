@@ -64,6 +64,15 @@ class MaterialConfig(Config):
 
     @property
     def plane_data(self):
+        """crystallographic information"""
+        #
+        # Only generate this once, not on each call.
+        #
+        if not hasattr(self, "_plane_data"):
+            self._plane_data = self._make_plane_data()
+        return self._plane_data
+
+    def _make_plane_data(self):
         """Return the active material PlaneData class."""
         pd = self.materials[self.active].planeData
         pd.tThWidth = np.radians(self.tthw)

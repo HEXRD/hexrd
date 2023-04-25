@@ -3,7 +3,6 @@ import yaml
 from . import root
 from . import utils
 
-
 """
 Note that we need to use the open() builtin in what was formerly the "open()"
 function. So we define the _open(), and then redefine open() to the new
@@ -28,17 +27,18 @@ def open(file_name=None):
             try:
                 # take the previous config section and update with values
                 # from the current one
-                res.append(utils.merge_dicts(res[0], cfg))
+                res.append(utils.merge_dicts(res[-1], cfg))
             except IndexError:
                 # this is the first config section
                 res.append(cfg)
+
         return [root.RootConfig(i) for i in res]
 
 
 def save(config_list, file_name):
     res = [cfg._cfg for cfg in config_list]
 
-    with file(file_name, 'w') as f:
+    with open_file(file_name, 'w') as f:
         if len(res) > 1:
             yaml.dump_all(res, f)
         else:

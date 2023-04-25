@@ -313,26 +313,6 @@ def fit_grains(cfg,
     # grab instrument
     instr = cfg.instrument.hedm
 
-    # process plane data
-    plane_data = cfg.material.plane_data
-    tth_max = cfg.fit_grains.tth_max
-    if isinstance(tth_max, bool):
-        if tth_max:
-            max_tth = instrument.max_tth(instr)
-            plane_data.exclusions = None
-            plane_data.tThMax = max_tth
-            logger.info("\tsetting the maximum 2theta to instrument"
-                        + " maximum: %.2f degrees",
-                        np.degrees(max_tth))
-        else:
-            logger.info("\tnot adjusting exclusions in planeData")
-    else:
-        # a value for tth max has been specified
-        plane_data.exclusions = None
-        plane_data.tThMax = np.radians(tth_max)
-        logger.info("\tsetting the maximum 2theta to %.2f degrees",
-                    tth_max)
-
     # grab eta ranges and ome_period
     eta_ranges = np.radians(cfg.find_orientations.eta.range)
 
@@ -352,7 +332,7 @@ def fit_grains(cfg,
     spots_filename = "spots_%05d.out" if write_spots_files else None
     params = dict(
             grains_table=grains_table,
-            plane_data=plane_data,
+            plane_data=cfg.material.plane_data,
             instrument=instr,
             imgser_dict=imsd,
             tth_tol=cfg.fit_grains.tolerance.tth,

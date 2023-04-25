@@ -816,6 +816,73 @@ class PlaneData(object):
         return
     exclusions = property(get_exclusions, set_exclusions, None)
 
+    def exclude(
+            self, dmin=None, dmax=None, tthmin=None, tthmax=None,
+            sfacmin=None, sfacmax=None, pintmin=None, pintmax=None
+    ):
+        """Set exclusions according to various parameters
+
+        Any hkl with a value below any min or above any max will be excluded. So
+        to be included, an hkl needs to have values between the min and max
+        for all of the conditions given.
+
+        Note that method resets the tThMax attribute to None.
+
+        PARAMETERS
+        ----------
+        dmin: float > 0
+            minimum lattice spacing (angstroms)
+        dmax: float > 0
+            maximum lattice spacing (angstroms)
+        tthmin: float > 0
+            minimum two theta (radians)
+        tthmax: float > 0
+            maximum two theta (radians)
+        sfacmin: float > 0
+            minimum structure factor as a proportion of maximum
+        sfacmax: float > 0
+            maximum structure factor as a proportion of maximum
+        pintmin: float > 0
+            minimum powder intensity as a proportion of maximum
+        pintmax: float > 0
+            maximum powder intensity as a proportion of maximum
+        """
+        excl = np.zeros(self.getNhklRef(), dtype=bool)
+        self.exclusions = None
+        self.tThMax = None
+
+        if (dmin is not None) or (dmax is not None):
+            d = np.array(self.getPlaneSpacings())
+            if (dmin is not None):
+                excl[d < dmin] = True
+            if (dmax is not None):
+                excl[d > dmax] = True
+
+        if (tthmin is not None) or (tthmax is not None):
+            tth = self.getTTh()
+            if (tthmin is not None):
+                excl[tth < tthmin] = True
+            if (tthmax is not None):
+                excl[tth > tthmax] = True
+
+        if (sfacmin is not None) or (sfacmax is not None):
+            sfac = self.structFact
+            sfac = sfac/sfac.max()
+            if (sfacmin is not None):
+                excl[sfac < sfacmin] = True
+            if (sfacmax is not None):
+                excl[sfac > sfacmax] = True
+
+        if (pintmin is not None) or (pintmax is not None):
+            pint = self.powder_intensity
+            pint = pint/pint.max()
+            if (pintmin is not None):
+                excl[pint < pintmin] = True
+            if (pintmax is not None):
+                excl[pint > pintmax] = True
+
+        self.exclusions = excl
+
     def get_lparms(self):
         return self.__lparms
 

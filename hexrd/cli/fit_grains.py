@@ -188,6 +188,20 @@ def execute(args, parser):
                 )
             sys.exit()
 
+        # Set HKLs to use.
+        if cfg.fit_grains.tth_max is False:
+            cfg.material.plane_data.exclude(
+                sfacmin=cfg.material.fminr
+            )
+        else:
+            if cfg.fit_grains.tth_max is True:
+                max_tth = instrument.max_tth(cfg.instrument.hedm)
+            else:
+                max_tth = np.radians(cfg.fit_grains.tth_max)
+            cfg.material.plane_data.exclude(
+                sfacmin=cfg.material.fminr, tthmax=max_tth
+            )
+
         # make output directories
         instr = cfg.instrument.hedm
         if not os.path.exists(cfg.analysis_dir):
