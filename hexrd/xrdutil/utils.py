@@ -33,7 +33,6 @@ from hexrd import matrixutil as mutil
 from hexrd import gridutil as gutil
 
 from hexrd.crystallography import processWavelength, PlaneData
-from hexrd import instrument
 
 from hexrd.transforms import xf
 from hexrd.transforms import xfcapi
@@ -245,10 +244,10 @@ class PolarView(object):
 
     def _func_project_on_detector(self, detector):
         '''
-        helper function to decide which function to 
+        helper function to decide which function to
         use for mapping of g-vectors to detector
         '''
-        if isinstance(detector, instrument.CylindricalDetector):
+        if detector.detector_type == 'cylindrical':
             return _project_on_detector_cylinder
         else:
             return _project_on_detector_plane
@@ -256,14 +255,14 @@ class PolarView(object):
     def _args_project_on_detector(self, gvec_angs, detector):
         kwargs = {'beamVec': detector.bvec}
         arg = (gvec_angs,
-               detector.rmat, 
-               constants.identity_3x3, 
+               detector.rmat,
+               constants.identity_3x3,
                self.chi,
-               detector.tvec, 
-               constants.zeros_3, 
+               detector.tvec,
+               constants.zeros_3,
                self.tvec,
                detector.distortion)
-        if isinstance(detector, instrument.CylindricalDetector):
+        if detector.detector_type == 'cylindrical':
             arg = (gvec_angs,
                    detector.rmat,
                    self.chi,
@@ -321,7 +320,7 @@ class PolarView(object):
                                                           panel)
 
             xypts = np.nan*np.ones((len(gvec_angs), 2))
-            valid_xys, rmats_s, on_plane = _project_on_detector(*args, 
+            valid_xys, rmats_s, on_plane = _project_on_detector(*args,
                                                                 **kwargs)
             xypts[on_plane,:] = valid_xys
 
@@ -1212,9 +1211,9 @@ def _project_on_detector_cylinder(allAngs,
     return det_xy, rMat_ss, valid_mask
 
 def _dvecToDetectorXYcylinder(dVec_cs,
-                              tVec_d, 
-                              caxis, 
-                              paxis, 
+                              tVec_d,
+                              caxis,
+                              paxis,
                               radius,
                               physical_size,
                               angle_extent,
@@ -1222,30 +1221,30 @@ def _dvecToDetectorXYcylinder(dVec_cs,
                               tVec_c=constants.zeros_3x1,
                               rmat_s=constants.identity_3x3):
 
-    cvec = _unitvec_to_cylinder(dVec_cs, 
+    cvec = _unitvec_to_cylinder(dVec_cs,
                                 caxis,
-                                paxis, 
+                                paxis,
                                 radius,
                                 tVec_d,
                                 tVec_s=tVec_s,
                                 tVec_c=tVec_c,
                                 rmat_s=rmat_s)
 
-    cvec_det, valid_mask = _clip_to_cylindrical_detector(cvec, 
-                                             tVec_d, 
+    cvec_det, valid_mask = _clip_to_cylindrical_detector(cvec,
+                                             tVec_d,
                                              caxis,
-                                             paxis, 
-                                             radius, 
-                                             physical_size, 
+                                             paxis,
+                                             radius,
+                                             physical_size,
                                              angle_extent,
                                              tVec_s=tVec_s,
                                              tVec_c=tVec_c,
                                              rmat_s=rmat_s)
 
-    xy_det = _dewarp_from_cylinder(cvec_det, 
-                                   tVec_d, 
+    xy_det = _dewarp_from_cylinder(cvec_det,
+                                   tVec_d,
                                    caxis,
-                                   paxis, 
+                                   paxis,
                                    radius,
                                    tVec_s=tVec_s,
                                    tVec_c=tVec_c,
@@ -1253,7 +1252,7 @@ def _dvecToDetectorXYcylinder(dVec_cs,
 
     return xy_det, valid_mask
 
-def _unitvec_to_cylinder(uvw, 
+def _unitvec_to_cylinder(uvw,
                          caxis,
                          paxis,
                          radius,
@@ -1264,7 +1263,7 @@ def _unitvec_to_cylinder(uvw,
     """
     get point where unitvector uvw
     intersect the cylindrical detector.
-    this will give points which are 
+    this will give points which are
     outside the actual panel. the points
     will be clipped to the panel later
 
@@ -1276,7 +1275,7 @@ def _unitvec_to_cylinder(uvw,
     Returns
     -------
     numpy.ndarray
-    (x,y,z) vectors point which intersect with 
+    (x,y,z) vectors point which intersect with
     the cylinder with (nx3) shape
     """
     naxis = np.cross(caxis, paxis)
@@ -1304,7 +1303,7 @@ def _unitvec_to_cylinder(uvw,
     mask = np.abs(A) < 1E-10
     beta = np.zeros([num, ])
 
-    beta[~mask] = (B[~mask] + 
+    beta[~mask] = (B[~mask] +
                    np.sqrt(B[~mask]**2 +
                    A[~mask]*C))/A[~mask]
 
@@ -1323,7 +1322,7 @@ def _clip_to_cylindrical_detector(uvw,
                                   rmat_s=constants.identity_3x3):
     """
     takes in the intersection points uvw
-    with the cylindrical detector and 
+    with the cylindrical detector and
     prunes out points which don't actually
     hit the actual panel
 
@@ -1366,7 +1365,7 @@ def _clip_to_cylindrical_detector(uvw,
     mask1 = np.squeeze(np.abs(dp) > size[0]*0.5)
     uvwp[mask1,:] = np.nan
 
-    # next get rid of points that fall outside 
+    # next get rid of points that fall outside
     # the polar angle range
 
     ang = np.dot(uvwpxy, nx)/radius
@@ -1380,7 +1379,7 @@ def _clip_to_cylindrical_detector(uvw,
 
     return res, ~mask
 
-def _dewarp_from_cylinder(uvw, 
+def _dewarp_from_cylinder(uvw,
                           tVec_d,
                           caxis,
                           paxis,
@@ -1453,7 +1452,7 @@ def _warp_to_cylinder(cart,
 
     tVec_c_l = np.dot(rmat_s, tVec_c)
 
-    res = cart3d + np.tile(tvec-tVec_s-tVec_c_l, [1, num]).T 
+    res = cart3d + np.tile(tvec-tVec_s-tVec_c_l, [1, num]).T
 
     if normalize:
         return res/np.tile(np.linalg.norm(res, axis=1), [3, 1]).T
@@ -1462,7 +1461,7 @@ def _warp_to_cylinder(cart,
 
 def _dvec_to_angs(dvecs, bvec, evec):
     """
-    convert diffraction vectors to (tth, eta) 
+    convert diffraction vectors to (tth, eta)
     angles in the 'eta' frame
     dvecs is assumed to have (nx3) shape
     """
