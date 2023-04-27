@@ -643,8 +643,12 @@ class HEDMInstrument(object):
                     if det_buffer is not None:
                         if isinstance(det_buffer, np.ndarray):
                             if det_buffer.ndim == 2:
-                                assert det_buffer.shape == shape, \
-                                    "buffer shape must match detector"
+                                if det_buffer.shape != shape:
+                                    msg = (
+                                        f'Buffer shape for {det_id} ({det_buffer.shape}) '
+                                        f'does not match detector shape ({shape})'
+                                    )
+                                    raise BufferShapeMismatchError(msg)
                             else:
                                 assert len(det_buffer) == 2
                             panel_buffer = det_buffer
@@ -2905,3 +2909,8 @@ DETECTOR_TYPES = {
     'planar': PlanarDetector,
     'cylindrical': CylindricalDetector,
 }
+
+
+class BufferShapeMismatchError(RuntimeError):
+    # This is raised when the buffer shape does not match the detector shape
+    pass
