@@ -1367,7 +1367,7 @@ class Detector:
 
             # Filter out g-vectors going in the wrong direction. `gvec_to_xy()` used
             # to do this, but not anymore.
-            to_keep = gvec_c[2] * self.bvec[2] <= 0
+            to_keep = np.dot(gvec_c.T, self.bvec) <= 0
 
             hkls = hkls[:, to_keep]
             gvec_c = gvec_c[:, to_keep]
