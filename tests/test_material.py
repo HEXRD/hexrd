@@ -1,3 +1,4 @@
+import numpy as np
 import h5py
 import pytest
 
@@ -81,3 +82,13 @@ def test_load_materials(test_materials_file):
 
         for i in range(6):
             assert are_close(params[i], ruby.latticeParameters[i])
+
+
+class TestExclusions:
+
+    def test_d(self, default_material):
+        dmin, dmax = 1.0, 1.5
+        pd = default_material.planeData
+        pd.exclude(dmin=dmin, dmax=dmax)
+        d = np.array(pd.getPlaneSpacings())
+        assert (d.min() >= dmin) and (d.max() <= dmax)
