@@ -33,7 +33,6 @@ from hexrd import matrixutil as mutil
 from hexrd import gridutil as gutil
 
 from hexrd.crystallography import processWavelength, PlaneData
-from hexrd import instrument
 
 from hexrd.transforms import xf
 from hexrd.transforms import xfcapi
@@ -248,7 +247,7 @@ class PolarView(object):
         helper function to decide which function to
         use for mapping of g-vectors to detector
         '''
-        if isinstance(detector, instrument.CylindricalDetector):
+        if detector.detector_type == 'cylindrical':
             return _project_on_detector_cylinder
         else:
             return _project_on_detector_plane
@@ -263,7 +262,7 @@ class PolarView(object):
                constants.zeros_3,
                self.tvec,
                detector.distortion)
-        if isinstance(detector, instrument.CylindricalDetector):
+        if detector.detector_type == 'cylindrical':
             arg = (gvec_angs,
                    detector.rmat,
                    self.chi,
