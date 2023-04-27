@@ -87,8 +87,37 @@ def test_load_materials(test_materials_file):
 class TestExclusions:
 
     def test_d(self, default_material):
+        """exclude by d-spacing"""
         dmin, dmax = 1.0, 1.5
         pd = default_material.planeData
         pd.exclude(dmin=dmin, dmax=dmax)
         d = np.array(pd.getPlaneSpacings())
         assert (d.min() >= dmin) and (d.max() <= dmax)
+
+    def test_tth(self, default_material):
+        """exclude by two-theta"""
+        tthmin, tthmax = np.radians(3.0), np.radians(10)
+        pd = default_material.planeData
+        pd.exclude(tthmin=tthmin, tthmax=tthmax)
+        tth = pd.getTTh()
+        assert (tth.min() >= tthmin) and (tth.max() <= tthmax)
+
+    def test_sfac(self, default_material):
+        """exclude by structure factor"""
+        sfacmin, sfacmax = 0.1, 0.9
+        pd = default_material.planeData
+        pd.exclude()
+        sfacmax = pd.structFact.max()
+        pd.exclude(sfacmin=sfacmin, sfacmax=sfacmax)
+        sfac = pd.structFact/sfacmax
+        assert (sfac.min() >= sfacmin) and (sfac.max() <= sfacmax)
+
+    def test_pint(self, default_material):
+        """exclude by powder intensity"""
+        pintmin, pintmax = 0.1, 0.9
+        pd = default_material.planeData
+        pd.exclude()
+        pintmax = pd.powder_intensity.max()
+        pd.exclude(pintmin=pintmin, pintmax=pintmax)
+        pint = np.array(pd.powder_intensity)
+        assert (pint.min() >= pintmin) and (pint.max() <= pintmax)
