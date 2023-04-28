@@ -1364,6 +1364,13 @@ class Detector:
 
             # and the unit plane normals (G-vectors) in CRYSTAL FRAME
             gvec_c = np.dot(plane_data.latVecOps['B'], hkls)
+
+            # Filter out g-vectors going in the wrong direction. `gvec_to_xy()` used
+            # to do this, but not anymore.
+            to_keep = np.dot(gvec_c.T, self.bvec) <= 0
+
+            hkls = hkls[:, to_keep]
+            gvec_c = gvec_c[:, to_keep]
         elif len(crystal_data) == 2:
             # !!! should clean this up
             hkls = np.array(crystal_data[0])
