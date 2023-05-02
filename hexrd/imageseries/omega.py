@@ -182,7 +182,7 @@ class OmegaWedges(object):
     def wframes(self):
         """number of frames in wedges"""
         wf = [w['nsteps'] for w in self.wedges]
-        return np.int(np.sum(wf))
+        return int(np.sum(wf))
 
     def save_omegas(self, fname):
         """save omegas to text file"""

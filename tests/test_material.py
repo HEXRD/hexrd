@@ -1,3 +1,4 @@
+import numpy as np
 import h5py
 import pytest
 
@@ -81,3 +82,60 @@ def test_load_materials(test_materials_file):
 
         for i in range(6):
             assert are_close(params[i], ruby.latticeParameters[i])
+
+
+class TestExclusions:
+
+    def test_d(self, default_material):
+        """exclude by d-spacing"""
+        dmin, dmax = 1.0, 1.5
+
+        pd = default_material.planeData
+        pd.exclude()
+        d = np.array(pd.getPlaneSpacings())
+        assert (d.min() < dmin) and (d.max() > dmax)
+
+        pd.exclude(dmin=dmin, dmax=dmax)
+        d = np.array(pd.getPlaneSpacings())
+        assert (d.min() >= dmin) and (d.max() <= dmax)
+
+    def test_tth(self, default_material):
+        """exclude by two-theta"""
+        tthmin, tthmax = np.radians(5.0), np.radians(10.0)
+
+        pd = default_material.planeData
+        pd.exclude()
+        tth = pd.getTTh()
+        assert (tth.min() < tthmin) and (tth.max() > tthmax)
+
+        pd.exclude(tthmin=tthmin, tthmax=tthmax)
+        tth = pd.getTTh()
+        assert (tth.min() >= tthmin) and (tth.max() <= tthmax)
+
+    def test_sfac(self, default_material):
+        """exclude by structure factor"""
+        sfacmin, sfacmax = 0.2, 0.9
+
+        pd = default_material.planeData
+        pd.exclude()
+        sfacmax_pd = pd.structFact.max()
+        sfac = pd.structFact/sfacmax_pd
+        assert (sfac.min() < sfacmin) and (sfac.max() > sfacmax)
+
+        pd.exclude(sfacmin=sfacmin, sfacmax=sfacmax)
+        sfac = pd.structFact/sfacmax_pd
+        assert (sfac.min() >= sfacmin) and (sfac.max() <= sfacmax)
+
+    def test_pint(self, default_material):
+        """exclude by powder intensity"""
+        pintmin, pintmax = 0.1, 0.9
+
+        pd = default_material.planeData
+        pd.exclude()
+        pintmax_pd = pd.powder_intensity.max()
+        pint = np.array(pd.powder_intensity)/pintmax_pd
+        assert (pint.min() < pintmin) and (pint.max() > pintmax)
+
+        pd.exclude(pintmin=pintmin, pintmax=pintmax)
+        pint = np.array(pd.powder_intensity)/pintmax_pd
+        assert (pint.min() >= pintmin) and (pint.max() <= pintmax)

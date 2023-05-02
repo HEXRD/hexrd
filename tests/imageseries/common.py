@@ -34,6 +34,7 @@ random_array = np.array(
 
 
 def make_array_ims():
+    """returns both the array and the array imageseries"""
     is_a = imageseries.open(
         None, 'array', data=random_array, meta=make_meta()
     )
@@ -62,12 +63,14 @@ def compare(ims1, ims2):
 
 
 def make_meta():
-    return {'testing': '1,2,3'}
+    md = {'testing': '1,2,3'}
+    return {'testing': np.array([1, 2, 3])}
 
 
 def compare_meta(ims1, ims2):
     # check metadata (simple immutable cases only for now)
 
-    m1 = set(ims1.metadata.items())
-    m2 = set(ims2.metadata.items())
-    return m1.issubset(m2) and m2.issubset(m1)
+    t1 = ims1.metadata['testing']
+    t2 = ims2.metadata['testing']
+
+    return np.all(t1 == t2)
