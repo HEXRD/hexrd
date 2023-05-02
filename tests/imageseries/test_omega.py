@@ -27,7 +27,7 @@ class TestOmegaSeries(ImageSeriesTest):
     def test_negative_delta(self):
         om = np.zeros((3, 2))
         om[0,1] = -0.5
-        m = dict(omega=om, dtype=np.float)
+        m = dict(omega=om, dtype=float)
         ims = self.make_ims(3, m)
         with self.assertRaises(OmegaSeriesError):
             oms = OmegaImageSeries(ims)
@@ -38,7 +38,7 @@ class TestOmegaSeries(ImageSeriesTest):
         om = np.zeros((nf, 2))
         om[:,0] = a[:-1]
         om[:,1] = a[1:]
-        m = dict(omega=om, dtype=np.float)
+        m = dict(omega=om, dtype=float)
         ims = self.make_ims(nf, m)
         oms = OmegaImageSeries(ims)
         self.assertEqual(oms.nwedges, 1)
@@ -50,7 +50,7 @@ class TestOmegaSeries(ImageSeriesTest):
         om[:,0] = a[:-1]
         om[:,1] = a[1:]
         om[3:, :] += 0.1
-        m = dict(omega=om, dtype=np.float)
+        m = dict(omega=om, dtype=float)
         ims = self.make_ims(nf, m)
         oms = OmegaImageSeries(ims)
         self.assertEqual(oms.nwedges, 2)
@@ -62,7 +62,7 @@ class TestOmegaSeries(ImageSeriesTest):
         om[:,0] = a[:-1]
         om[:,1] = a[1:]
         om[3:, :] += 0.1
-        m = dict(omega=om, dtype=np.float)
+        m = dict(omega=om, dtype=float)
         ims = self.make_ims(nf, m)
         oms = OmegaImageSeries(ims)
         domega = om - oms.omegawedges.omegas
@@ -78,7 +78,7 @@ class TestOmegaSeries(ImageSeriesTest):
         om[:,0] = a[:-1]
         om[:,1] = a[1:]
         om[3:, :] += 0.1
-        m = dict(omega=om, dtype=np.float)
+        m = dict(omega=om, dtype=float)
         ims = self.make_ims(nf, m)
         oms = OmegaImageSeries(ims)
 

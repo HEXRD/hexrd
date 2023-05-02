@@ -1,6 +1,6 @@
 import numpy as np
 
-from .common import ImageSeriesTest, make_array, make_array_ims, compare
+from .common import ImageSeriesTest, make_array_ims, compare
 
 from hexrd import imageseries
 from hexrd.imageseries import process, ImageSeries
@@ -18,7 +18,7 @@ class TestImageSeriesProcess(ImageSeriesTest):
 
     def test_process(self):
         """Processed image series"""
-        is_a = make_array_ims()
+        _, is_a = make_array_ims()
         is_p = process.ProcessedImageSeries(is_a, [])
         diff = compare(is_a, is_p)
         msg = "processed image series failed to reproduce original"
@@ -27,48 +27,48 @@ class TestImageSeriesProcess(ImageSeriesTest):
     def test_process_flip_t(self):
         """Processed image series: flip transpose"""
         flip = 't'
-        a = make_array()
+        a, _ = make_array_ims()
         aflip = np.transpose(a, (0, 2, 1))
         self._runfliptest(a, flip, aflip)
 
     def test_process_flip_v(self):
         """Processed image series: flip vertical"""
         flip = 'v'
-        a = make_array()
+        a, _ = make_array_ims()
         aflip = a[:, :, ::-1]
         self._runfliptest(a, flip, aflip)
 
     def test_process_flip_h(self):
         """Processed image series: flip horizontal"""
         flip = 'h'
-        a = make_array()
+        a, _ = make_array_ims()
         aflip = a[:, ::-1, :]
         self._runfliptest(a, flip, aflip)
 
     def test_process_flip_vh(self):
         """Processed image series: flip vertical + horizontal"""
         flip = 'vh'
-        a = make_array()
+        a, _ = make_array_ims()
         aflip = a[:, ::-1, ::-1]
         self._runfliptest(a, flip, aflip)
 
     def test_process_flip_r90(self):
         """Processed image series: flip counterclockwise 90"""
         flip = 'ccw90'
-        a = make_array()
+        a, _ = make_array_ims()
         aflip = np.transpose(a, (0, 2, 1))[:, ::-1, :]
         self._runfliptest(a, flip, aflip)
 
     def test_process_flip_r270(self):
         """Processed image series: flip clockwise 90 """
         flip = 'cw90'
-        a = make_array()
+        a, _ = make_array_ims()
         aflip = np.transpose(a, (0, 2, 1))[:, :, ::-1]
         self._runfliptest(a, flip, aflip)
 
     def test_process_dark(self):
         """Processed image series: dark image"""
-        a = make_array()
+        a, _ = make_array_ims()
         dark = np.ones_like(a[0])
         is_a = imageseries.open(None, 'array', data=a)
         apos = np.where(a >= 1, a-1, 0)
@@ -79,7 +79,7 @@ class TestImageSeriesProcess(ImageSeriesTest):
         self.assertAlmostEqual(diff, 0., msg="dark image failed")
 
     def test_process_framelist(self):
-        a = make_array()
+        a, _ = make_array_ims()
         is_a = imageseries.open(None, 'array', data=a)
         ops = []
         frames = [0, 2]
@@ -89,7 +89,7 @@ class TestImageSeriesProcess(ImageSeriesTest):
         self.assertAlmostEqual(diff, 0., msg="frame list failed")
 
     def test_process_shape(self):
-        a = make_array()
+        a, _ = make_array_ims()
         is_a = imageseries.open(None, 'array', data=a)
         ops = []
         is_p = process.ProcessedImageSeries(is_a, ops)
@@ -99,7 +99,7 @@ class TestImageSeriesProcess(ImageSeriesTest):
             self.assertEqual(fshape[i], pshape[i])
 
     def test_process_dtype(self):
-        a = make_array()
+        a, _ = make_array_ims()
         is_a = imageseries.open(None, 'array', data=a)
         ops = []
         is_p = process.ProcessedImageSeries(is_a, ops)

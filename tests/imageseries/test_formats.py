@@ -26,11 +26,10 @@ class TestFormatH5(ImageSeriesFormatTest):
         self.h5file = os.path.join(self.tmpdir, 'test_ims.h5')
         self.h5path = 'array-data'
         self.fmt = 'hdf5'
-        self.is_a = make_array_ims()
+        _, self.is_a = make_array_ims()
 
     def tearDown(self):
         os.remove(self.h5file)
-
 
     def test_fmth5(self):
         """save/load HDF5 format"""
@@ -79,30 +78,29 @@ class TestFormatH5(ImageSeriesFormatTest):
         self.assertAlmostEqual(diff, 0., "h5 reconstruction failed")
         self.assertTrue(compare_meta(self.is_a, is_h))
 
+
 class TestFormatFrameCache(ImageSeriesFormatTest):
 
     def setUp(self):
-        self.fcfile = os.path.join(self.tmpdir,  'frame-cache.yml')
+        self.fcfile = os.path.join(self.tmpdir,  'frame-cache.npz')
         self.fmt = 'frame-cache'
         self.thresh = 0.5
         self.cache_file='frame-cache.npz'
-        self.is_a = make_array_ims()
+        _, self.is_a = make_array_ims()
 
     def tearDown(self):
-        os.remove(self.fcfile)
         os.remove(os.path.join(self.tmpdir, self.cache_file))
 
-    @unittest.skip("need to fix unit tests for framecache")
     def test_fmtfc(self):
         """save/load frame-cache format"""
         imageseries.write(self.is_a, self.fcfile, self.fmt,
             threshold=self.thresh, cache_file=self.cache_file)
-        is_fc = imageseries.open(self.fcfile, self.fmt, style='yml')
+        # is_fc = imageseries.open(self.fcfile, self.fmt, style='yml')
+        is_fc = imageseries.open(self.fcfile, self.fmt)
         diff = compare(self.is_a, is_fc)
         self.assertAlmostEqual(diff, 0., "frame-cache reconstruction failed")
         self.assertTrue(compare_meta(self.is_a, is_fc))
 
-    @unittest.skip("need to fix unit tests for framecache")
     def test_fmtfc_nparray(self):
         """frame-cache format with numpy array metadata"""
         key = 'np-array'
@@ -110,7 +108,8 @@ class TestFormatFrameCache(ImageSeriesFormatTest):
         self.is_a.metadata[key] = npa
 
         imageseries.write(self.is_a, self.fcfile, self.fmt,
-            threshold=self.thresh, cache_file=self.cache_file)
+            threshold=self.thresh, cache_file=self.cache_file
+        )
         is_fc = imageseries.open(self.fcfile, self.fmt)
         meta = is_fc.metadata
         diff = np.linalg.norm(meta[key] - npa)

@@ -1,9 +1,9 @@
-from .common import ImageSeriesTest, make_array, make_array_ims
+from .common import ImageSeriesTest, make_array_ims
+
 
 class TestProperties(ImageSeriesTest):
     def setUp(self):
-        self._a = make_array()
-        self._is_a = make_array_ims()
+        self._a, self._is_a = make_array_ims()
 
     def test_prop_nframes(self):
         self.assertEqual(self._a.shape[0], len(self._is_a))
