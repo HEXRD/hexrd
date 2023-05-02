@@ -2,9 +2,9 @@ import os
 import shutil
 import tempfile
 import logging
+import unittest
 
 from hexrd import config
-from hexrd import testing
 
 
 test_data = {
@@ -18,7 +18,7 @@ test_data = {
     }
 
 
-class TestConfig(testing.TestCase):
+class TestConfig(unittest.TestCase):
 
 
     file_name = None
