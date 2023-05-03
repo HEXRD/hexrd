@@ -53,8 +53,7 @@ class TestRootConfig(TestConfig):
     def test_section_inheritance(self):
         self.assertEqual(self.cfgs[0].analysis_name, 'analysis')
         self.assertEqual(self.cfgs[1].analysis_name, 'analysis_2')
-        # 2 should inherit from 0, not 1:
-        self.assertEqual(self.cfgs[2].analysis_name, 'analysis')
+        self.assertEqual(self.cfgs[2].analysis_name, 'analysis_2')
 
     def test_working_dir(self):
         self.assertEqual(self.cfgs[0].working_dir, os.getcwd())

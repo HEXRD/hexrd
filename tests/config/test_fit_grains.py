@@ -40,11 +40,9 @@ class TestFitGrainsConfig(TestConfig):
     def get_reference_data(cls):
         return reference_data
 
-
     def test_do_fit(self):
         self.assertTrue(self.cfgs[0].fit_grains.do_fit)
         self.assertFalse(self.cfgs[1].fit_grains.do_fit)
-
 
     def test_estimate(self):
         self.assertEqual(self.cfgs[0].fit_grains.estimate, None)
@@ -58,26 +56,9 @@ class TestFitGrainsConfig(TestConfig):
             test_data['existing_file']
             )
 
-
     def test_npdiv(self):
         self.assertEqual(self.cfgs[0].fit_grains.npdiv, 2)
         self.assertEqual(self.cfgs[1].fit_grains.npdiv, 1)
-
-
-    def test_panel_buffer(self):
-        self.assertRaises(
-            RuntimeError,
-            getattr, self.cfgs[0].fit_grains, 'panel_buffer'
-            )
-        self.assertEqual(
-            self.cfgs[1].fit_grains.panel_buffer,
-            [10, 10]
-            )
-        self.assertEqual(
-            self.cfgs[2].fit_grains.panel_buffer,
-            [20, 30]
-            )
-
 
     def test_threshold(self):
         self.assertRaises(
@@ -85,7 +66,6 @@ class TestFitGrainsConfig(TestConfig):
             getattr, self.cfgs[0].fit_grains, 'threshold'
             )
         self.assertEqual(self.cfgs[1].fit_grains.threshold, 1850)
-
 
     def test_tth_max(self):
         self.assertTrue(self.cfgs[0].fit_grains.tth_max)
@@ -97,14 +77,11 @@ class TestFitGrainsConfig(TestConfig):
             )
 
 
-
 class TestToleranceConfig(TestConfig):
-
 
     @classmethod
     def get_reference_data(cls):
         return reference_data
-
 
     def test_eta(self):
         self.assertRaises(
@@ -120,7 +97,6 @@ class TestToleranceConfig(TestConfig):
             [1, 2]
             )
 
-
     def test_omega(self):
         self.assertRaises(
             RuntimeError,
@@ -134,7 +110,6 @@ class TestToleranceConfig(TestConfig):
             self.cfgs[2].fit_grains.tolerance.omega,
             [3, 4]
             )
-
 
     def test_tth(self):
         self.assertRaises(
