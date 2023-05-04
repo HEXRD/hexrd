@@ -2,6 +2,7 @@ import logging
 import os
 
 from .config import Config
+from .utils import get_exclusion_parameters
 
 
 logger = logging.getLogger('hexrd.config')
@@ -32,6 +33,20 @@ class ToleranceConfig(Config):
 
 
 class FitGrainsConfig(Config):
+
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        re, ep = get_exclusion_parameters(self._cfg, 'material')
+        self._reset_exclusions, self._exclusion_parameters = re, ep
+
+    @property
+    def reset_exclusions(self):
+        """Flag to use hkls saved in the material"""
+        return self._reset_exclusions
+
+    @property
+    def exclusion_parameters(self):
+        return self._exclusion_parameters
 
     @property
     def do_fit(self):
