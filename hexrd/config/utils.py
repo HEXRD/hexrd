@@ -40,24 +40,26 @@ def _merge_dicts(a, b):
 def get_exclusion_parameters(cfg, prefix):
     """Return flag use saved parameters and exclusion parameters"""
     #
+    yaml_key = lambda s: ":".join((prefix, s))
+    #
     # Check for value from old spec for "sfacmin"; use that if it is given,
     # but if the new spec is also there, it will override. Likewise for
     # "tth_max", as used in fit_grains.
+    # -- Should add a deprecated warning if min_sfac_ratio is used
     #
-    sfmin_dflt = cfg.get(":".join(prefix, "min_sfac_ratio"), None)
-    # If this is not None, raise Warning
-    reset_exclusions= cfg.get(":".join(prefix, "reset_exclusions"), False)
+    sfmin_dflt = cfg.get(yaml_key("min_sfac_ratio"), None)
+    reset_exclusions= cfg.get(yaml_key("reset_exclusions"), False)
 
     return(
         reset_exclusions,
         ExclusionParameters(
-            dmin = cfg.get(":".join(prefix, "dmin"), None),
-            dmax = cfg.get(":".join(prefix, "dmax"), None),
-            tthmin = cfg.get(":".join(prefix, "tthmin"), None),
-            tthmax = cfg.get(":".join(prefix, "tthmax"), None),
-            sfacmin = cfg.get(":".join(prefix, "sfacmin"), sfmin_dflt),
-            sfacmax = cfg.get(":".join(prefix, "sfacmax"), None),
-            pintmin = cfg.get(":".join(prefix, "pintmin"), None),
-            pintmax = cfg.get(":".join(prefix, "pintmax"), None),
+            dmin = cfg.get(yaml_key("dmin"), None),
+            dmax = cfg.get(yaml_key("dmax"), None),
+            tthmin = cfg.get(yaml_key("tthmin"), None),
+            tthmax = cfg.get(yaml_key("tthmax"), None),
+            sfacmin = cfg.get(yaml_key("sfacmin"), sfmin_dflt),
+            sfacmax = cfg.get(yaml_key("sfacmax"), None),
+            pintmin = cfg.get(yaml_key("pintmin"), None),
+            pintmax = cfg.get(yaml_key("pintmax"), None),
         )
     )

@@ -47,8 +47,8 @@ class MaterialConfig(Config):
         # the file. This includes not using the dmin value, which may alter
         # the HKLs available.
         #
-        kwa = {f: self.definitions}
-        if reset_exclusions:
+        kwa = {"f": self.definitions}
+        if self.reset_exclusions:
             kwa["dmin"] = valWUnit("dmin", "length", self.dmin, "angstrom")
         if not hasattr(self, '_materials'):
             self._materials = material.load_materials_hdf5(**kwa)
