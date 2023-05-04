@@ -7,6 +7,8 @@ from hexrd.constants import keVToAngstrom
 from hexrd.valunits import valWUnit
 
 from .config import Config
+from .utils import get_exclusion_parameters
+
 
 DMIN_DFLT = 0.5    # angstrom
 TTHW_DFLT = 0.25   # degrees
@@ -14,6 +16,11 @@ TTHW_DFLT = 0.25   # degrees
 
 class MaterialConfig(Config):
     """Handle material configuration."""
+
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        re, ep = get_exclusion_parameters(self._cfg, 'material')
+        self._reset_exclusions, self._exclusion_parameters = re, ep
 
     @property
     def definitions(self):
@@ -35,11 +42,16 @@ class MaterialConfig(Config):
     @property
     def materials(self):
         """Return a dict of materials."""
+        #
+        # If reset_exclusions is False, we use the material as read from
+        # the file. This includes not using the dmin value, which may alter
+        # the HKLs available.
+        #
+        kwa = {f: self.definitions}
+        if reset_exclusions:
+            kwa["dmin"] = valWUnit("dmin", "length", self.dmin, "angstrom")
         if not hasattr(self, '_materials'):
-            self._materials = material.load_materials_hdf5(
-                f=self.definitions,
-                dmin=valWUnit("dmin", "length", self.dmin, "angstrom")
-            )
+            self._materials = material.load_materials_hdf5(**kwa)
         return self._materials
 
     @materials.setter
@@ -63,6 +75,15 @@ class MaterialConfig(Config):
         return self._cfg.get('material:min_sfac_ratio', None)
 
     @property
+    def reset_exclusions(self):
+        """Flag to use hkls saved in the material"""
+        return self._reset_exclusions
+
+    @property
+    def exclusion_parameters(self):
+        return self._exclusion_parameters
+
+    @property
     def plane_data(self):
         """crystallographic information"""
         #
@@ -76,14 +97,8 @@ class MaterialConfig(Config):
         """Return the active material PlaneData class."""
         pd = self.materials[self.active].planeData
         pd.tThWidth = np.radians(self.tthw)
-        if self.fminr is not None:
-            # !!! exclusions are all False upon generation; setting
-            #     the tThMax attribute later won't affect these.
-            excl_full = np.array(pd.exclusions, dtype=bool)
-            pd.exclusions = None
-            mod_f_sq = pd.structFact
-            excl_these = mod_f_sq/np.max(mod_f_sq) < self.fminr
-            pd.exclusions = np.logical_or(excl_full, excl_these)
+        if reset_exclusions:
+            pd.exlclude(**self.exclusion_parameters.asdict())
         return pd
 
     @property
