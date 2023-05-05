@@ -42,6 +42,8 @@ import yaml
 
 import h5py
 
+import lmfit
+
 import numpy as np
 
 from io import IOBase
@@ -1076,6 +1078,68 @@ class HEDMInstrument(object):
                 ii += dpnp
         return
 
+    def update_from_lmfit_parameter_list(self, params):
+        """
+        this function updates the instrument from the
+        lmfit parameter list. we don't have to keep track
+        of the position numbers as the variables are named
+        variables. this will become the standard in the
+        future since bound constraints can be very easily
+        implemented.
+        """
+        if not isinstance(params, lmfit.Parameters):
+            msg = ('only lmfit parameter class is ' 
+                    'an acceptabele input')
+            raise NotImplementedError(msg)
+
+        self.beam_energy = params['beam_energy'].value
+
+        azim = params['beam_azimuth'].value
+        pola = params['beam_polar'].value
+        self.beam_vector = calc_beam_vec(azim, pola)
+
+        chi = np.radians(params['instr_chi'].value)
+        self.chi = chi
+
+        instr_tvec = [params['instr_tvec_x'].value,
+                      params['instr_tvec_y'].value,
+                      params['instr_tvec_z'].value]
+        self.tvec = np.r_[instr_tvec]
+
+        for det, detector in self.detectors.items():
+            tilt = np.r_[params[f'{det}_tilt_x'].value,
+                         params[f'{det}_tilt_y'].value,
+                         params[f'{det}_tilt_z'].value]
+            if self.tilt_calibration_mapping is not None:
+                self.tilt_calibration_mapping.angles = np.radians(tilt)
+                rmat = self.tilt_calibration_mapping.rmat
+                phi, n = angleAxisOfRotMat(rmat)
+                tilt = phi*n.flatten()
+            detector.tilt = tilt
+
+            tvec = np.r_[params[f'{det}_tvec_x'].value,
+                         params[f'{det}_tvec_y'].value,
+                         params[f'{det}_tvec_z'].value]
+            detector.tvec = tvec
+
+            distortion_str = f'{det}_distortion_param'
+            if any([distortion_str in p for p in params]):
+                if detector.distortion is None:
+                        raise RuntimeError(
+                            "distortion discrepancy for '%s'!"
+                            % det_name
+                        )
+                else:
+                    names = np.sort([p for p in params if distortion_str in p])
+                    distortion = np.r_[[params[n].value for n in names]]
+                    try:
+                        detector.distortion.params = distortion
+                    except AssertionError:
+                        raise RuntimeError(
+                            "distortion for '%s' " % det_name
+                            + "expects %d params but got %d"
+                            % (len(detector.distortion.params), dpnp)
+                        )
     def extract_polar_maps(self, plane_data, imgser_dict,
                            active_hkls=None, threshold=None,
                            tth_tol=None, eta_tol=0.25):
