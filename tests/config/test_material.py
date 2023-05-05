@@ -7,7 +7,7 @@ reference_data = \
 material:
   definitions: %(existing_file)s
 #  active: # not set to test error
-# instrument: %(instrument-cfg)s
+#  instrument: %(instrument-cfg)s
 ---
 material:
   definitions: %(nonexistent_file)s
@@ -19,7 +19,30 @@ material:
   active: CeO2
 use_saved_hkls: true
 ---
-reset_exclusions: True
+# cfg: 3
+material:
+  reset_exclusions: true
+---
+# cfg 4
+material:
+  dmin: 1.0
+  dmax: 3.0
+---
+# cfg 5
+material:
+  tthmin: 1.5
+  tthmax: 5.0
+  min_sfac_ratio: 0.02
+---
+# cfg 6
+material:
+  sfacmin: 0.01
+  sfacmax: 0.99
+---
+# cfg 7
+material:
+  pintmin: 0.05
+  pintmax: 0.95
 """
 
 
@@ -59,3 +82,56 @@ class TestMaterialConfig(TestConfig):
         self.assertEqual(self.cfgs[0].material.reset_exclusions, False)
         self.assertEqual(self.cfgs[1].material.reset_exclusions, False)
         self.assertEqual(self.cfgs[2].material.reset_exclusions, False)
+        self.assertEqual(self.cfgs[3].material.reset_exclusions, True)
+        self.assertEqual(self.cfgs[4].material.reset_exclusions, True)
+
+    def test_exclusion_parameters_d(self):
+        self.assertEqual(self.cfgs[3].material.exclusion_parameters.dmin, None)
+        self.assertEqual(self.cfgs[3].material.exclusion_parameters.dmax, None)
+        self.assertEqual(self.cfgs[4].material.exclusion_parameters.dmin, 1.0)
+        self.assertEqual(self.cfgs[4].material.exclusion_parameters.dmax, 3.0)
+
+    def test_exclusion_parameters_tth(self):
+        self.assertEqual(
+            self.cfgs[4].material.exclusion_parameters.tthmin, None
+        )
+        self.assertEqual(
+            self.cfgs[4].material.exclusion_parameters.tthmax, None
+        )
+        self.assertEqual(
+            self.cfgs[5].material.exclusion_parameters.tthmin, 1.5
+        )
+        self.assertEqual(
+            self.cfgs[5].material.exclusion_parameters.tthmax, 5.0
+        )
+
+    def test_exclusion_parameters_sfac(self):
+        self.assertEqual(
+            self.cfgs[4].material.exclusion_parameters.sfacmin, None
+        )
+        self.assertEqual(
+            self.cfgs[5].material.exclusion_parameters.sfacmax, None
+        )
+        self.assertEqual(
+            self.cfgs[5].material.exclusion_parameters.sfacmin, 0.02
+        )
+        self.assertEqual(
+            self.cfgs[6].material.exclusion_parameters.sfacmin, 0.01
+        )
+        self.assertEqual(
+            self.cfgs[6].material.exclusion_parameters.sfacmax, 0.99
+        )
+
+    def test_exclusion_parameters_pint(self):
+        self.assertEqual(
+            self.cfgs[6].material.exclusion_parameters.pintmin, None
+        )
+        self.assertEqual(
+            self.cfgs[6].material.exclusion_parameters.pintmax, None
+        )
+        self.assertEqual(
+            self.cfgs[7].material.exclusion_parameters.pintmin, 0.05
+        )
+        self.assertEqual(
+            self.cfgs[7].material.exclusion_parameters.pintmax, 0.95
+        )
