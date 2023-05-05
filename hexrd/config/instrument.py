@@ -25,6 +25,9 @@ class Instrument(Config):
     @property
     def hedm(self):
         """Return the HEDMInstrument class."""
+        if self.configuration is None:
+            raise RuntimeError("No instrument file was given")
+
         if not hasattr(self, '_hedm'):
             try:
                 icfg = h5py.File(self.configuration, 'r')

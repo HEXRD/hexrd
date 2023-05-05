@@ -39,8 +39,9 @@ class RootConfig(Config):
     @property
     def instrument(self):
         if not hasattr(self, '_instr_config'):
-            instr_file = self.get('instrument')
-            instr_file = self.check_filename(instr_file, self.working_dir)
+            instr_file = self.get('instrument', None)
+            if instr_file is not None:
+                instr_file = self.check_filename(instr_file, self.working_dir)
             self._instr_config = Instrument(self, instr_file)
         return self._instr_config
 
@@ -52,9 +53,12 @@ class RootConfig(Config):
     def material(self):
         if not hasattr(self, '_material_config'):
             self._material_config = MaterialConfig(self)
-        # !!! must make matl beam energy consistent with the instrument
-        beam_energy = self.instrument.hedm.beam_energy
-        self._material_config.beam_energy = beam_energy
+
+        if self.instrument.configuration is not None:
+            # !!! must make matl beam energy consistent with the instrument
+            beam_energy = self.instrument.hedm.beam_energy
+            self._material_config.beam_energy = beam_energy
+
         return self._material_config
 
     @material.setter
