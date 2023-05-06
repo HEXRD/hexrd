@@ -12,6 +12,9 @@ from hexrd.transforms import xfcapi
 from . import grains as grainutil
 from . import spectrum
 
+import lmfit
+from hexrd.instrument import calc_angles_from_beam_vec
+
 logger = logging.getLogger()
 logger.setLevel('INFO')
 
@@ -706,7 +709,7 @@ class InstrumentCalibrator(object):
 # =============================================================================
 # %% STRUCTURE-LESS CALIBRATION
 # =============================================================================
-class StructureLessCalibrator():
+class StructureLessCalibrator(object):
     """
     this class implements the equivalent of the
     powder calibrator but without constraining
@@ -726,14 +729,16 @@ class StructureLessCalibrator():
 
         self._instr = instr
         self._data = data
+        self.make_lmfit_params()
+        self.set_minimizer()
 
     def make_lmfit_params(self):
         self.params = lmfit.Parameters()
         # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
         all_params = []
-        add_instr_params(all_params)
+        self.add_instr_params(all_params)
         nrng = len(self.data)
-        add_tth_parameters(nrng, self.data, all_params)
+        self.add_tth_parameters(all_params)
         all_params = tuple(all_params)
         self.params.add_many(*all_params)
 
@@ -768,25 +773,25 @@ class StructureLessCalibrator():
                     parms_list.append((f'{det}_distortion_param_{ii}',pp,
                                        False, -np.inf, np.inf))
 
-    def add_tth_parameters(parms_list):
+    def add_tth_parameters(self, parms_list):
         for ii in range(self.nrings):
-            val = np.mean(data[ii][:,2])
+            val = np.mean(self.data[ii][:,2])
             parms_list.append((f'DS_ring_{ii}', 
                                val, 
                                True, 
                                val-np.radians(3.),
                                val+np.radians(3.)))
 
-    def calc_residual(self):
-        self.instr.update_from_lmfit_parameter_list(self.params)
+    def calc_residual(self, params):
+        self.instr.update_from_lmfit_parameter_list(params)
         residual = np.empty([0,])
         for ii,rng in enumerate(self.data):
-            tth_rng = self.params[f'DSring_{ii}']
+            tth_rng = params[f'DS_ring_{ii}']
             meas_xy = rng[:, :2]
             for det, panel in self.instr.detectors.items():
                 updated_angles, _ = panel.cart_to_angles(
                                     meas_xy,
-                                    tvec_s=instr.tvec,
+                                    tvec_s=self.instr.tvec,
                                     apply_distortion=True)
                 tth_updated = updated_angles[:,0]
                 delta_tth = tth_updated - tth_rng
@@ -811,11 +816,12 @@ class StructureLessCalibrator():
                 "method": "trf",
                 "jac": "3-point",
                 }
-        for k, v in odict.items():
-            if k in fdict:
-                fdict[k] = v
-            else:
-                fdict.update({k, v})
+        if odict is not None:
+            for k, v in odict.items():
+                if k in fdict:
+                    fdict[k] = v
+                else:
+                    fdict.update({k, v})
         return self.fitter.least_squares(**fdict)
 
     @property
