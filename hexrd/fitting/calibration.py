@@ -703,6 +703,147 @@ class InstrumentCalibrator(object):
 
         return x1
 
+# =============================================================================
+# %% STRUCTURE-LESS CALIBRATION
+# =============================================================================
+class StructureLessCalibrator():
+    """
+    this class implements the equivalent of the
+    powder calibrator but without constraining
+    the optimization to a structure. in this 
+    implementation, the location of the constant
+    two theta line that a set of points lie on
+    is also an optimization parameter.
+
+    unlike the previous implementations, this routine
+    is based on the lmfit module to implement the 
+    more complicated constraints for the TARDIS box
+    """
+    def __init__(self, 
+                 instr,
+                 data,
+                 tth_distortion=None):
+
+        self._instr = instr
+        self._data = data
+
+    def make_lmfit_params(self):
+        self.params = lmfit.Parameters()
+        # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
+        all_params = []
+        add_instr_params(all_params)
+        nrng = len(self.data)
+        add_tth_parameters(nrng, self.data, all_params)
+        all_params = tuple(all_params)
+        self.params.add_many(*all_params)
+
+    def add_instr_params(self, parms_list):
+        # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
+        instr = self.instr
+        parms_list.append(('beam_energy',instr.beam_energy, 
+                            False, instr.beam_energy-0.2, 
+                            instr.beam_energy+0.2))
+        azim, pol = calc_angles_from_beam_vec(instr.beam_vector)
+        parms_list.append(('beam_polar', pol, False, pol-2, pol+2))
+        parms_list.append(('beam_azimuth', azim, False, azim-2, azim+2))
+        parms_list.append(('instr_chi', np.degrees(instr.chi), 
+                           False, instr.chi-1, 
+                           instr.chi+1))
+        parms_list.append(('instr_tvec_x', instr.tvec[0], False, -np.inf, np.inf))
+        parms_list.append(('instr_tvec_y', instr.tvec[1], False, -np.inf, np.inf))
+        parms_list.append(('instr_tvec_z', instr.tvec[2], False, -np.inf, np.inf))
+        for det, panel in instr.detectors.items():
+            parms_list.append((f'{det}_tilt_x', panel.tilt[0],
+                               False, panel.tilt[0]-0.1, panel.tilt[0]+0.1))
+            parms_list.append((f'{det}_tilt_y', panel.tilt[1],
+                               False, panel.tilt[1]-0.1, panel.tilt[0]+0.1))
+            parms_list.append((f'{det}_tilt_z', panel.tilt[2],
+                               False, panel.tilt[2]-0.1, panel.tilt[0]+0.1))
+            parms_list.append((f'{det}_tvec_x', panel.tvec[0], False, -np.inf, np.inf))
+            parms_list.append((f'{det}_tvec_y', panel.tvec[1], False, -np.inf, np.inf))
+            parms_list.append((f'{det}_tvec_z', panel.tvec[2], False, -np.inf, np.inf))
+            if instr.detectors['ge3'].distortion is not None:
+                p = instr.detectors['ge3'].distortion.params
+                for ii,pp in enumerate(p):
+                    parms_list.append((f'{det}_distortion_param_{ii}',pp,
+                                       False, -np.inf, np.inf))
+
+    def add_tth_parameters(parms_list):
+        for ii in range(self.nrings):
+            val = np.mean(data[ii][:,2])
+            parms_list.append((f'DS_ring_{ii}', 
+                               val, 
+                               True, 
+                               val-np.radians(3.),
+                               val+np.radians(3.)))
+
+    def calc_residual(self):
+        self.instr.update_from_lmfit_parameter_list(self.params)
+        residual = np.empty([0,])
+        for ii,rng in enumerate(self.data):
+            tth_rng = self.params[f'DSring_{ii}']
+            meas_xy = rng[:, :2]
+            for det, panel in self.instr.detectors.items():
+                updated_angles, _ = panel.cart_to_angles(
+                                    meas_xy,
+                                    tvec_s=instr.tvec,
+                                    apply_distortion=True)
+                tth_updated = updated_angles[:,0]
+                delta_tth = tth_updated - tth_rng
+                residual = np.concatenate((residual, delta_tth))
+        return residual
+
+    def set_minimizer(self):
+        self.fitter = lmfit.Minimizer(self.calc_residual, 
+                                      self.params)
+
+    def run_calibration(self, odict=None):
+        """
+        odict is the optionas dictionary
+        """
+        fdict = {
+                "ftol": 1e-8,
+                "xtol": 1e-8,
+                "gtol": 1e-8,
+                "verbose": 2,
+                "max_nfev": 1000,
+                "x_scale": "jac",
+                "method": "trf",
+                "jac": "3-point",
+                }
+        for k, v in odict.items():
+            if k in fdict:
+                fdict[k] = v
+            else:
+                fdict.update({k, v})
+        return self.fitter.least_squares(**fdict)
+
+    @property
+    def nrings(self):
+        return len(self.data)
+
+    @property
+    def instr(self):
+        return self._instr
+
+    @instr.setter
+    def instr(self, ins):
+        self._instr = ins
+        self.make_lmfit_params()
+
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, dat):
+        self._data = dat
+        self.make_lmfit_params()
+
+    @property
+    def residual(self):
+        return self.calc_residual()
+    
 
 # =============================================================================
 # %% LAUE CALIBRATION
