@@ -21,7 +21,7 @@ use_saved_hkls: true
 ---
 # cfg: 3
 material:
-  reset_exclusions: true
+  reset_exclusions: false
 ---
 # cfg 4
 material:
@@ -79,11 +79,11 @@ class TestMaterialConfig(TestConfig):
         self.assertEqual(self.cfgs[2].material.tthw, 0.2)
 
     def test_reset_exclusions(self):
-        self.assertEqual(self.cfgs[0].material.reset_exclusions, False)
-        self.assertEqual(self.cfgs[1].material.reset_exclusions, False)
-        self.assertEqual(self.cfgs[2].material.reset_exclusions, False)
-        self.assertEqual(self.cfgs[3].material.reset_exclusions, True)
-        self.assertEqual(self.cfgs[4].material.reset_exclusions, True)
+        self.assertEqual(self.cfgs[0].material.reset_exclusions, True)
+        self.assertEqual(self.cfgs[1].material.reset_exclusions, True)
+        self.assertEqual(self.cfgs[2].material.reset_exclusions, True)
+        self.assertEqual(self.cfgs[3].material.reset_exclusions, False)
+        self.assertEqual(self.cfgs[4].material.reset_exclusions, False)
 
     def test_exclusion_parameters_d(self):
         self.assertEqual(self.cfgs[3].material.exclusion_parameters.dmin, None)

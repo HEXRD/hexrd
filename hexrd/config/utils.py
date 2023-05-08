@@ -48,7 +48,9 @@ def get_exclusion_parameters(cfg, prefix):
     # -- Should add a deprecated warning if min_sfac_ratio is used
     #
     sfmin_dflt = cfg.get(yaml_key("min_sfac_ratio"), None)
-    reset_exclusions= cfg.get(yaml_key("reset_exclusions"), False)
+    # Default for reset_exclusions is True so that old config files will
+    # produce the same behavior.
+    reset_exclusions= cfg.get(yaml_key("reset_exclusions"), True)
 
     return(
         reset_exclusions,
