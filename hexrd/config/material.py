@@ -97,8 +97,8 @@ class MaterialConfig(Config):
         """Return the active material PlaneData class."""
         pd = self.materials[self.active].planeData
         pd.tThWidth = np.radians(self.tthw)
-        if reset_exclusions:
-            pd.exlclude(**self.exclusion_parameters.asdict())
+        if self.reset_exclusions:
+            pd.exclude(**self.exclusion_parameters._asdict())
         return pd
 
     @property

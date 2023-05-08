@@ -202,7 +202,7 @@ def execute(args, parser):
                 excl_p = excl_p._replace(maxtth=maxtth)
 
             cfg.material.plane_data.exclude(
-                **excl_p.asdict()
+                **excl_p._asdict()
             )
 
         # make output directories
