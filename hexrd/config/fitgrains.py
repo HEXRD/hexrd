@@ -36,7 +36,7 @@ class FitGrainsConfig(Config):
 
     def __init__(self, cfg):
         super().__init__(cfg)
-        re, ep = get_exclusion_parameters(self._cfg, 'material')
+        re, ep = get_exclusion_parameters(self._cfg, 'fit_grains')
         self._reset_exclusions, self._exclusion_parameters = re, ep
 
     @property

@@ -30,6 +30,24 @@ fit_grains:
 ---
 fit_grains:
   tth_max: -1
+---
+# cgf #4
+fit_grains:
+  reset_exclusions: false
+---
+# cfg #5
+fit_grains:
+  dmin: 0.1
+  tthmin: 0.2
+  sfacmin: 0.3
+  pintmin: 0.4
+---
+# cfg #6
+fit_grains:
+  dmax: 1.1
+  tthmax: 1.2
+  sfacmax: 1.3
+  pintmax: 1.4
 """ % test_data
 
 
@@ -124,3 +142,39 @@ class TestToleranceConfig(TestConfig):
             self.cfgs[2].fit_grains.tolerance.tth,
             [5, 6]
             )
+
+
+class TestExclusions(TestConfig):
+
+    @classmethod
+    def get_reference_data(cls):
+        return reference_data
+
+    def test_reset_exclusions(self):
+        for i in range(4):
+            self.assertTrue(self.cfgs[i].fit_grains.reset_exclusions)
+        for i in range(4, 7):
+            self.assertFalse(self.cfgs[i].fit_grains.reset_exclusions)
+
+    def test_exclusion_parameters(self):
+        ep = self.cfgs[5].fit_grains.exclusion_parameters
+        self.assertEqual(ep.dmin, 0.1)
+        self.assertEqual(ep.tthmin, 0.2)
+        self.assertEqual(ep.sfacmin, 0.3)
+        self.assertEqual(ep.pintmin, 0.4)
+
+        self.assertEqual(ep.dmax, None)
+        self.assertEqual(ep.tthmax, None)
+        self.assertEqual(ep.sfacmax, None)
+        self.assertEqual(ep.pintmax, None)
+
+        ep = self.cfgs[6].fit_grains.exclusion_parameters
+        self.assertEqual(ep.dmin, 0.1)
+        self.assertEqual(ep.tthmin, 0.2)
+        self.assertEqual(ep.sfacmin, 0.3)
+        self.assertEqual(ep.pintmin, 0.4)
+
+        self.assertEqual(ep.dmax, 1.1)
+        self.assertEqual(ep.tthmax, 1.2)
+        self.assertEqual(ep.sfacmax, 1.3)
+        self.assertEqual(ep.pintmax, 1.4)
