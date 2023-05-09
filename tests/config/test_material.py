@@ -1,5 +1,6 @@
 from .common import TestConfig, test_data
 from hexrd.config.material import TTHW_DFLT, DMIN_DFLT
+from hexrd.config.utils import get_exclusion_parameters
 
 
 reference_data = \
@@ -135,3 +136,11 @@ class TestMaterialConfig(TestConfig):
         self.assertEqual(
             self.cfgs[7].material.exclusion_parameters.pintmax, 0.95
         )
+
+    def test_sfacmin_warning(self):
+        with self.assertWarns(DeprecationWarning):
+            get_exclusion_parameters(self.cfgs[5], 'material')
+        with self.assertWarns(DeprecationWarning):
+            get_exclusion_parameters(self.cfgs[6], 'material')
+        with self.assertWarns(DeprecationWarning):
+            get_exclusion_parameters(self.cfgs[7], 'material')

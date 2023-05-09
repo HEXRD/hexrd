@@ -1,5 +1,6 @@
 from collections import namedtuple
 import copy
+import warnings
 
 
 ExclusionParameters = namedtuple(
@@ -48,6 +49,11 @@ def get_exclusion_parameters(cfg, prefix):
     # -- Should add a deprecated warning if min_sfac_ratio is used
     #
     sfmin_dflt = cfg.get(yaml_key("min_sfac_ratio"), None)
+    if sfmin_dflt is not None:
+        warnings.warn(
+            '"min_sfac_ratio" is deprecated, use "sfacmin" instead',
+            DeprecationWarning
+        )
     # Default for reset_exclusions is True so that old config files will
     # produce the same behavior.
     reset_exclusions= cfg.get(yaml_key("reset_exclusions"), True)
