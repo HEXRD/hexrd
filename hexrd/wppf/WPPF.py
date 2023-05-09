@@ -303,13 +303,13 @@ class LeBail:
         self.points = []
         for i, s in enumerate(self._spectrum_expt):
             txt = (
-                f"Select points for background estimation;\n"
+                f"Select points for background estimation\n"
                 f"click middle mouse button when done. segment # {i}"
             )
             title(txt)
 
             plot(s.x, s.y, "-k")
-            xlabel("2$\theta$")
+            xlabel(r"2$\theta$")
             ylabel("intensity (a.u.)")
 
             self.points.append(np.asarray(ginput(0, timeout=-1)))
@@ -1740,13 +1740,13 @@ class Rietveld:
         self.points = []
         for i, s in enumerate(self._spectrum_expt):
             txt = (
-                f"Select points for background estimation;\n"
+                f"Select points for background estimation\n"
                 f"click middle mouse button when done. segment # {i}"
             )
             title(txt)
 
             plot(s.x, s.y, "-k")
-            xlabel("2$\theta$")
+            xlabel(r"2$\theta$")
             ylabel("intensity (a.u.)")
 
             self.points.append(np.asarray(ginput(0, timeout=-1)))
