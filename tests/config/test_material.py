@@ -8,7 +8,6 @@ reference_data = \
 material:
   definitions: %(existing_file)s
 #  active: # not set to test error
-#  instrument: %(instrument-cfg)s
 ---
 material:
   definitions: %(nonexistent_file)s
