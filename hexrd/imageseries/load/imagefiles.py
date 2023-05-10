@@ -19,6 +19,8 @@ from . import ImageSeriesAdapter
 from .metadata import yamlmeta
 from ..imageseriesiter import ImageSeriesIterator
 
+SCALE_FACTOR = 2.9452155399372724e-07
+
 
 class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
     """collection of image files"""
@@ -45,9 +47,10 @@ class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
             return self._nframes
 
     def __getitem__(self, key):
+        filename = self._files[key]
+        file_extension = os.path.splitext(filename)[-1]
         if self.singleframes:
-            imgf = self._files[key]
-            with fabio.open(imgf) as img:
+            with fabio.open(filename) as img:
                 data = img.data
         else:
             (fnum, frame) = self._file_and_frame(key)
@@ -64,6 +67,8 @@ class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
             if np.max(data) > dinfo.max:
                 raise RuntimeError("specified dtype will truncate image")
             return np.array(data, dtype=self._dtype)
+        elif file_extension == '.gel':
+            return data.astype(np.float64)**2 * SCALE_FACTOR
         else:
             return data
 
@@ -219,6 +224,9 @@ class FileInfo(object):
             self._fabioclass = img.classname
             self._imgframes = img.nframes
             self.dat = img.data
+            if os.path.splitext(filename)[-1] == '.gel':
+                raw_img = np.invert(img.data)
+                self.dat = raw_img.astype(np.float64)**2 * SCALE_FACTOR
 
         d = kwargs.copy()
         self._empty = d.pop('empty', 0)
