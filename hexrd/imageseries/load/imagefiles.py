@@ -19,8 +19,6 @@ from . import ImageSeriesAdapter
 from .metadata import yamlmeta
 from ..imageseriesiter import ImageSeriesIterator
 
-GEL_SCALE_FACTOR = 2.9452155399372724e-07
-
 
 class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
     """collection of image files"""
@@ -47,17 +45,15 @@ class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
             return self._nframes
 
     def __getitem__(self, key):
-        filename = self._files[key]
-        file_extension = os.path.splitext(filename)[-1]
         if self.singleframes:
-            with fabio.open(filename) as img:
-                data = img.data
+            frame = None
+            filename = self._files[key]
         else:
             (fnum, frame) = self._file_and_frame(key)
             filename = self.infolist[fnum].filename
-            with fabio.open(filename) as fimg:
-                img = fimg.getframe(frame)
-                data = img.data
+
+        data = self._load_data(filename, frame)
+
         if self._dtype is not None:
             # !!! handled in self._process_files
             try:
@@ -67,8 +63,6 @@ class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
             if np.max(data) > dinfo.max:
                 raise RuntimeError("specified dtype will truncate image")
             return np.array(data, dtype=self._dtype)
-        elif file_extension == '.gel':
-            return data.astype(np.float64)**2 * GEL_SCALE_FACTOR
         else:
             return data
 
@@ -212,6 +206,16 @@ number of files: %s
         """indicates whether all files are single frames"""
         return self._singleframes
 
+    def _load_data(self, filename, frame=None):
+        """Load data from a file, including processing if needed"""
+        with fabio.open(filename) as img:
+            if frame is None:
+                data = img.data
+            else:
+                data = img.getframe(frame).data
+
+        return _process_data(filename, data)
+
     pass  # end class
 
 
@@ -223,10 +227,7 @@ class FileInfo(object):
         with fabio.open(filename) as img:
             self._fabioclass = img.classname
             self._imgframes = img.nframes
-            self.dat = img.data
-            if os.path.splitext(filename)[-1] == '.gel':
-                raw_img = np.invert(img.data)
-                self.dat = raw_img.astype(np.float64)**2 * GEL_SCALE_FACTOR
+            self.dat = _process_data(filename, img.data)
 
         d = kwargs.copy()
         self._empty = d.pop('empty', 0)
@@ -268,3 +269,27 @@ fabio class: %s
     @property
     def nframes(self):
         return min(self._maxframes, self._imgframes - self.empty)
+
+
+def _process_data(filename, data):
+    # Perform any necessary processing on the data before returning it
+    # For example, gel files need to be decompressed.
+    process_funcs = {
+        '.gel': _process_gel_data,
+    }
+
+    ext = os.path.splitext(filename)[-1]
+    if ext in process_funcs:
+        data = process_funcs[ext](data)
+
+    return data
+
+
+GEL_SCALE_FACTOR = 2.9452155399372724e-07
+
+
+def _process_gel_data(array):
+    """Convert a gel data array to regular image data"""
+    # An inversion seems to be necessary for our examples
+    array = np.invert(array)
+    return array.astype(np.float64)**2 * GEL_SCALE_FACTOR
