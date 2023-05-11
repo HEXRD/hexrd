@@ -247,25 +247,26 @@ class PolarView(object):
         helper function to decide which function to
         use for mapping of g-vectors to detector
         '''
-        if detector.detector_type == 'cylindrical':
+        if detector.detector_type.lower() == 'cylindrical':
             return _project_on_detector_cylinder
         else:
             return _project_on_detector_plane
 
-    def _args_project_on_detector(self, gvec_angs, detector):
+    def _args_project_on_detector(self, detector):
+        """
+        prepare the arguments to be passed for
+        mapping to plane or cylinder
+        """
         kwargs = {'beamVec': detector.bvec}
-        arg = (gvec_angs,
-               detector.rmat,
+        arg = (detector.rmat,
                constants.identity_3x3,
                self.chi,
                detector.tvec,
                constants.zeros_3,
                self.tvec,
                detector.distortion)
-        if detector.detector_type == 'cylindrical':
-            arg = (gvec_angs,
-                   detector.rmat,
-                   self.chi,
+        if detector.detector_type.lower() == 'cylindrical':
+            arg = (self.chi,
                    detector.tvec,
                    detector.caxis,
                    detector.paxis,
@@ -273,6 +274,10 @@ class PolarView(object):
                    detector.physical_size,
                    detector.angle_extent,
                    detector.distortion)
+            kwargs = {'beamVec': detector.bvec,
+                      'tVec_s': self.tvec,
+                      'tVec_c': constants.zeros_3,
+                      'rmat_s': constants.identity_3x3}
 
         return arg, kwargs
 
@@ -316,11 +321,11 @@ class PolarView(object):
                     angpts[0].flatten(),
                     dummy_ome]).T
 
-            args, kwargs = self._args_project_on_detector(gvec_angs,
-                                                          panel)
+            args, kwargs = self._args_project_on_detector(panel)
 
             xypts = np.nan*np.ones((len(gvec_angs), 2))
-            valid_xys, rmats_s, on_plane = _project_on_detector(*args,
+            valid_xys, rmats_s, on_plane = _project_on_detector(gvec_angs,
+                                                                *args,
                                                                 **kwargs)
             xypts[on_plane,:] = valid_xys
 
