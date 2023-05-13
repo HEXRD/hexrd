@@ -239,18 +239,12 @@ class TestEtaConfig(TestConfig):
 
 
     def test_range(self):
-        self.assertTrue(
-            np.all(
-                self.cfgs[0].find_orientations.eta.range -
-                np.array([[-85, 85], [95, 265]]) == 0
-            )
 
-        )
-        self.assertTrue(
-            np.all(self.cfgs[1].find_orientations.eta.range -
-            np.array([[-80, 80], [100, 260]]) == 0
-            )
-        )
+        eta = self.cfgs[0].find_orientations
+        self.assertTrue(np.array_equal(eta.range, [[-85, 85], [95, 265]]))
+
+        eta = self.cfgs[1].find_orientations
+        self.assertTrue(np.array_equal(eta.range, [[-80, 80], [100, 260]]))
 
 
 class TestSeedSearchConfig(TestConfig):

@@ -72,7 +72,7 @@ class TestRootConfig(TestConfig):
         self.assertEqual(self.cfgs[0].multiprocessing, ncpus - 1)
         self.assertEqual(self.cfgs[1].multiprocessing, ncpus - 1)
         self.assertEqual(self.cfgs[2].multiprocessing, ncpus)
-        self.assertEqual(self.cfgs[3].multiprocessing, ncpus/2)
+        self.assertEqual(self.cfgs[3].multiprocessing, ncpus//2)
         self.assertEqual(self.cfgs[4].multiprocessing, 2)
         self.assertEqual(self.cfgs[5].multiprocessing, ncpus)
         self.assertEqual(self.cfgs[6].multiprocessing, 1)
