@@ -240,10 +240,10 @@ class TestEtaConfig(TestConfig):
 
     def test_range(self):
 
-        eta = self.cfgs[0].find_orientations
+        eta = self.cfgs[0].find_orientations.eta
         self.assertTrue(np.array_equal(eta.range, [[-85, 85], [95, 265]]))
 
-        eta = self.cfgs[1].find_orientations
+        eta = self.cfgs[1].find_orientations.eta
         self.assertTrue(np.array_equal(eta.range, [[-80, 80], [100, 260]]))
 
 
