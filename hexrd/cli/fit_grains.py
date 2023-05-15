@@ -199,7 +199,7 @@ def execute(args, parser):
                     maxtth = instrument.max_tth(cfg.instrument.hedm)
                 else:
                     maxtth = np.radians(cfg.fit_grains.tth_max)
-                excl_p = excl_p._replace(maxtth=maxtth)
+                excl_p = excl_p._replace(tthmax=maxtth)
 
             cfg.material.plane_data.exclude(
                 **excl_p._asdict()
