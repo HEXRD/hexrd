@@ -34,7 +34,9 @@ class RootConfig(Config):
 
     @property
     def fit_grains(self):
-        return FitGrainsConfig(self)
+        if not hasattr(self, "_fitgrain_config"):
+            self._fitgrain_config = FitGrainsConfig(self)
+        return self._fitgrain_config
 
     @property
     def instrument(self):
