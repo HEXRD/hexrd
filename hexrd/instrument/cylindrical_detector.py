@@ -172,6 +172,13 @@ class CylindricalDetector(Detector):
         # units of mm
         return self._radius
 
+    @radius.setter
+    def radius(self, r):
+        if not isinstance(r, (float, int)):
+            msg = f"radius needs to be a number"
+            raise ValueError(msg)
+        self._radius = r
+
     @property
     def physical_size(self):
         # return physical size of detector
