@@ -10,6 +10,7 @@ import logging
 import multiprocessing
 import numpy as np
 import timeit
+import warnings
 
 from hexrd import instrument
 from hexrd.transforms import xfcapi
@@ -199,6 +200,11 @@ def fit_grain_FF_reduced(grain_id):
         # ======= DO LEASTSQ FIT =======
 
         if num_refl_valid <= 12:    # not enough reflections to fit... exit
+            warnings.warn(
+                f'Not enough valid reflections ({num_refl_valid}) to fit, '
+                f'exiting',
+                RuntimeWarning
+            )
             return grain_id, completeness, np.inf, grain_params
         else:
             grain_params = fitGrain(

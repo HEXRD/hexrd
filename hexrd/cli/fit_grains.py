@@ -204,6 +204,10 @@ def execute(args, parser):
             cfg.material.plane_data.exclude(
                 **excl_p._asdict()
             )
+        using_nhkls = np.count_nonzero(
+            np.logical_not(cfg.material.plane_data.exclusions)
+        )
+        logger.info(f'using {using_nhkls} HKLs')
 
         # make output directories
         instr = cfg.instrument.hedm
