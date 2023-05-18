@@ -1088,8 +1088,8 @@ class HEDMInstrument(object):
         implemented.
         """
         if not isinstance(params, lmfit.Parameters):
-            msg = ('only lmfit parameter class is ' 
-                    'an acceptabele input')
+            msg = ('Only lmfit.Parameters is acceptable input. '
+                   f'Received: {params}')
             raise NotImplementedError(msg)
 
         self.beam_energy = params['beam_energy'].value
@@ -1123,12 +1123,9 @@ class HEDMInstrument(object):
             detector.tvec = tvec
 
             distortion_str = f'{det}_distortion_param'
-            if any([distortion_str in p for p in params]):
+            if any(distortion_str in p for p in params):
                 if detector.distortion is None:
-                        raise RuntimeError(
-                            "distortion discrepancy for '%s'!"
-                            % det_name
-                        )
+                    raise RuntimeError(f"distortion discrepancy for '{det}'!")
                 else:
                     names = np.sort([p for p in params if distortion_str in p])
                     distortion = np.r_[[params[n].value for n in names]]
@@ -1136,10 +1133,11 @@ class HEDMInstrument(object):
                         detector.distortion.params = distortion
                     except AssertionError:
                         raise RuntimeError(
-                            "distortion for '%s' " % det_name
-                            + "expects %d params but got %d"
-                            % (len(detector.distortion.params), dpnp)
+                            f"distortion for '{det}' "
+                            f"expects {len(detector.distortion.params)} "
+                            f"params but got {len(distortion)}"
                         )
+
     def extract_polar_maps(self, plane_data, imgser_dict,
                            active_hkls=None, threshold=None,
                            tth_tol=None, eta_tol=0.25):
