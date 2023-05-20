@@ -754,7 +754,8 @@ class StructureLessCalibrator:
         parms_list.append(('instr_tvec_x', instr.tvec[0], False, -np.inf, np.inf))
         parms_list.append(('instr_tvec_y', instr.tvec[1], False, -np.inf, np.inf))
         parms_list.append(('instr_tvec_z', instr.tvec[2], False, -np.inf, np.inf))
-        for det, panel in instr.detectors.items():
+        for det_name, panel in instr.detectors.items():
+            det = det_name.replace('-', '_')
             parms_list.append((f'{det}_tilt_x', panel.tilt[0],
                                False, panel.tilt[0]-0.1, panel.tilt[0]+0.1))
             parms_list.append((f'{det}_tilt_y', panel.tilt[1],
@@ -788,22 +789,20 @@ class StructureLessCalibrator:
     def calc_residual(self, params):
         self.instr.update_from_lmfit_parameter_list(params)
         residual = np.empty([0,])
-        for ii,rng in enumerate(self.data):
+        for ii, rng in enumerate(self.meas_angles):
             tth_rng = params[f'DS_ring_{ii}']
-            meas_xy = rng[:, :2]
-            for det, panel in self.instr.detectors.items():
-                updated_angles, _ = panel.cart_to_angles(
-                                    meas_xy,
-                                    tvec_s=self.instr.tvec,
-                                    apply_distortion=True)
-                tth_updated = updated_angles[:,0]
-                delta_tth = tth_updated - tth_rng
-                residual = np.concatenate((residual, delta_tth))
+            for det_name, panel in self.instr.detectors.items():
+                if rng[det_name] is not None:
+                    tth_updated = rng[det_name][:,0]
+                    delta_tth = tth_updated - tth_rng
+                    residual = np.concatenate((residual, delta_tth))
+
         return residual
 
     def set_minimizer(self):
         self.fitter = lmfit.Minimizer(self.calc_residual,
-                                      self.params)
+                                      self.params,
+                                      nan_policy='omit')
 
     def run_calibration(self, odict=None):
         """
@@ -853,7 +852,7 @@ class StructureLessCalibrator:
 
     @property
     def residual(self):
-        return self.calc_residual()
+        return self.calc_residual(self.params)
 
     @property
     def meas_angles(self):

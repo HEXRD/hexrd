@@ -1106,7 +1106,8 @@ class HEDMInstrument(object):
                       params['instr_tvec_z'].value]
         self.tvec = np.r_[instr_tvec]
 
-        for det, detector in self.detectors.items():
+        for det_name, detector in self.detectors.items():
+            det = det_name.replace('-', '_')
             tilt = np.r_[params[f'{det}_tilt_x'].value,
                          params[f'{det}_tilt_y'].value,
                          params[f'{det}_tilt_z'].value]
