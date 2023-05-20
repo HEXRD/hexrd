@@ -770,7 +770,8 @@ class StructureLessCalibrator:
                 for ii,pp in enumerate(p):
                     parms_list.append((f'{det}_distortion_param_{ii}',pp,
                                        False, -np.inf, np.inf))
-
+            if panel.detector_type.lower() == 'cylindrical':
+                parms_list.append(('{det}_radius', panel.radius, False, -np.inf, np.inf))
     def add_tth_parameters(self, parms_list):
         angs = self.meas_angles
         for ii,tth in enumerate(angs):
@@ -822,7 +823,9 @@ class StructureLessCalibrator:
         if odict is not None:
             fdict.update(odict)
 
-        return self.fitter.least_squares(**fdict)
+        res = self.fitter.least_squares(**fdict)
+        self.params = res.params.copy()
+        return res
 
     @property
     def nrings(self):

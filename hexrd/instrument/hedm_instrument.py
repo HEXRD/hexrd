@@ -1122,6 +1122,9 @@ class HEDMInstrument(object):
                          params[f'{det}_tvec_y'].value,
                          params[f'{det}_tvec_z'].value]
             detector.tvec = tvec
+            if detector.detector_type.lower() == 'cylindrical':
+                rad = params[f'{det}_radius'].value
+                detector.radius = rad
 
             distortion_str = f'{det}_distortion_param'
             if any(distortion_str in p for p in params):
