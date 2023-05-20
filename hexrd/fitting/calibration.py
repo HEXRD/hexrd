@@ -771,13 +771,17 @@ class StructureLessCalibrator:
                                        False, -np.inf, np.inf))
 
     def add_tth_parameters(self, parms_list):
-        for ii in range(self.nrings):
-            val = np.mean(self.data[ii][:,2])
+        angs = self.meas_angles
+        for ii,tth in enumerate(angs):
+            ds_ang = np.empty([0,])
+            for k,v in tth.items():
+                ds_ang = np.concatenate((ds_ang, v[:,0]))
+            val = np.mean(ds_ang)
             parms_list.append((f'DS_ring_{ii}',
                                val,
                                True,
-                               val-np.radians(3.),
-                               val+np.radians(3.)))
+                               val-np.radians(5.),
+                               val+np.radians(5.)))
 
     def calc_residual(self, params):
         self.instr.update_from_lmfit_parameter_list(params)
@@ -821,7 +825,11 @@ class StructureLessCalibrator:
 
     @property
     def nrings(self):
-        return len(self.data)
+        """
+        return dictionary over panels with number
+        of DS rings on each panel
+        """
+        return len(data)
 
     @property
     def instr(self):
@@ -845,6 +853,27 @@ class StructureLessCalibrator:
     def residual(self):
         return self.calc_residual()
 
+    @property
+    def meas_angles(self):
+        """
+        this property will return a dictionary
+        of angles based on current instrument 
+        parameters.
+        """
+        ang_list = []
+        for rng in self.data:
+            for det_name, meas_xy in rng.items():
+                panel = self.instr.detectors[det_name]
+                ang_dict = dict.fromkeys(self.instr.detectors)
+                angles, _ = panel.cart_to_angles(
+                                            meas_xy,
+                                            tvec_s=self.instr.tvec,
+                                            apply_distortion=True)
+                ang_dict[det_name] = angles
+            ang_list.append(ang_dict)
+
+        return ang_list
+    
 
 # =============================================================================
 # %% LAUE CALIBRATION
