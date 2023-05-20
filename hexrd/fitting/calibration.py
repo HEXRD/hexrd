@@ -775,13 +775,15 @@ class StructureLessCalibrator:
         for ii,tth in enumerate(angs):
             ds_ang = np.empty([0,])
             for k,v in tth.items():
-                ds_ang = np.concatenate((ds_ang, v[:,0]))
-            val = np.mean(ds_ang)
-            parms_list.append((f'DS_ring_{ii}',
-                               val,
-                               True,
-                               val-np.radians(5.),
-                               val+np.radians(5.)))
+                if v is not None:
+                    ds_ang = np.concatenate((ds_ang, v[:,0]))
+            if np.any(ds_ang):
+                val = np.mean(ds_ang)
+                parms_list.append((f'DS_ring_{ii}',
+                                   val,
+                                   True,
+                                   val-np.radians(5.),
+                                   val+np.radians(5.)))
 
     def calc_residual(self, params):
         self.instr.update_from_lmfit_parameter_list(params)
@@ -862,9 +864,9 @@ class StructureLessCalibrator:
         """
         ang_list = []
         for rng in self.data:
+            ang_dict = dict.fromkeys(self.instr.detectors)
             for det_name, meas_xy in rng.items():
                 panel = self.instr.detectors[det_name]
-                ang_dict = dict.fromkeys(self.instr.detectors)
                 angles, _ = panel.cart_to_angles(
                                             meas_xy,
                                             tvec_s=self.instr.tvec,
