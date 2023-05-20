@@ -780,21 +780,21 @@ class StructureLessCalibrator:
                 if v is not None:
                     ds_ang = np.concatenate((ds_ang, v[:,0]))
             if np.any(ds_ang):
-                val = np.mean(ds_ang)
+                val = np.degrees(np.mean(ds_ang))
                 parms_list.append((f'DS_ring_{ii}',
                                    val,
                                    True,
-                                   val-np.radians(5.),
-                                   val+np.radians(5.)))
+                                   val-5.,
+                                   val+5.))
 
     def calc_residual(self, params):
         self.instr.update_from_lmfit_parameter_list(params)
         residual = np.empty([0,])
         for ii, rng in enumerate(self.meas_angles):
-            tth_rng = params[f'DS_ring_{ii}']
+            tth_rng = params[f'DS_ring_{ii}'].value
             for det_name, panel in self.instr.detectors.items():
                 if rng[det_name] is not None:
-                    tth_updated = rng[det_name][:,0]
+                    tth_updated = np.degrees(rng[det_name][:,0])
                     delta_tth = tth_updated - tth_rng
                     residual = np.concatenate((residual, delta_tth))
 
