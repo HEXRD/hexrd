@@ -779,7 +779,7 @@ class StructureLessCalibrator:
             for k,v in tth.items():
                 if v is not None:
                     ds_ang = np.concatenate((ds_ang, v[:,0]))
-            if np.any(ds_ang):
+            if ds_ang.size != 0:
                 val = np.degrees(np.mean(ds_ang))
                 parms_list.append((f'DS_ring_{ii}',
                                    val,
@@ -861,7 +861,7 @@ class StructureLessCalibrator:
     def meas_angles(self):
         """
         this property will return a dictionary
-        of angles based on current instrument 
+        of angles based on current instrument
         parameters.
         """
         ang_list = []
@@ -877,7 +877,7 @@ class StructureLessCalibrator:
             ang_list.append(ang_dict)
 
         return ang_list
-    
+
 
 # =============================================================================
 # %% LAUE CALIBRATION
