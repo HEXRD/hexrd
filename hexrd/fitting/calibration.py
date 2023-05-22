@@ -756,15 +756,36 @@ class StructureLessCalibrator:
         parms_list.append(('instr_tvec_z', instr.tvec[2], False, -np.inf, np.inf))
         for det_name, panel in instr.detectors.items():
             det = det_name.replace('-', '_')
-            parms_list.append((f'{det}_tilt_x', panel.tilt[0],
-                               False, panel.tilt[0]-0.1, panel.tilt[0]+0.1))
-            parms_list.append((f'{det}_tilt_y', panel.tilt[1],
-                               False, panel.tilt[1]-0.1, panel.tilt[1]+0.1))
-            parms_list.append((f'{det}_tilt_z', panel.tilt[2],
-                               False, panel.tilt[2]-0.1, panel.tilt[2]+0.1))
-            parms_list.append((f'{det}_tvec_x', panel.tvec[0], False, -np.inf, np.inf))
-            parms_list.append((f'{det}_tvec_y', panel.tvec[1], False, -np.inf, np.inf))
-            parms_list.append((f'{det}_tvec_z', panel.tvec[2], False, -np.inf, np.inf))
+            parms_list.append((f'{det}_tilt_x',
+                               panel.tilt[0],
+                               False,
+                               panel.tilt[0]-0.1,
+                               panel.tilt[0]+0.1))
+            parms_list.append((f'{det}_tilt_y',
+                               panel.tilt[1],
+                               False,
+                               panel.tilt[1]-0.1,
+                               panel.tilt[1]+0.1))
+            parms_list.append((f'{det}_tilt_z',
+                               panel.tilt[2],
+                               False,
+                               panel.tilt[2]-0.1,
+                               panel.tilt[2]+0.1))
+            parms_list.append((f'{det}_tvec_x', 
+                               panel.tvec[0],
+                               False,
+                               panel.tvec[0]-1,
+                               panel.tvec[0]+1))
+            parms_list.append((f'{det}_tvec_y',
+                               panel.tvec[1],
+                               False,
+                               panel.tvec[1]-0.5,
+                               panel.tvec[1]+0.5))
+            parms_list.append((f'{det}_tvec_z',
+                               panel.tvec[2],
+                               False,
+                               panel.tvec[2]-1,
+                               panel.tvec[2]+1))
             if panel.distortion is not None:
                 p = panel.distortion.params
                 for ii,pp in enumerate(p):
