@@ -793,7 +793,7 @@ class StructureLessCalibrator:
         residual = np.empty([0,])
         for ii, rng in enumerate(self.meas_angles):
             for det_name, panel in self.instr.detectors.items():
-                if np.any(rng[det_name]):
+                if rng[det_name].size != 0:
                     tth_rng = params[f'DS_ring_{ii}'].value
                     tth_updated = np.degrees(rng[det_name][:,0])
                     delta_tth = tth_updated - tth_rng
