@@ -772,6 +772,7 @@ class StructureLessCalibrator:
                                        False, -np.inf, np.inf))
             if panel.detector_type.lower() == 'cylindrical':
                 parms_list.append(('{det}_radius', panel.radius, False, -np.inf, np.inf))
+
     def add_tth_parameters(self, parms_list):
         angs = self.meas_angles
         for ii,tth in enumerate(angs):
@@ -791,9 +792,9 @@ class StructureLessCalibrator:
         self.instr.update_from_lmfit_parameter_list(params)
         residual = np.empty([0,])
         for ii, rng in enumerate(self.meas_angles):
-            tth_rng = params[f'DS_ring_{ii}'].value
             for det_name, panel in self.instr.detectors.items():
-                if rng[det_name] is not None:
+                if np.any(rng[det_name]):
+                    tth_rng = params[f'DS_ring_{ii}'].value
                     tth_updated = np.degrees(rng[det_name][:,0])
                     delta_tth = tth_updated - tth_rng
                     residual = np.concatenate((residual, delta_tth))
@@ -805,7 +806,9 @@ class StructureLessCalibrator:
                                       self.params,
                                       nan_policy='omit')
 
-    def run_calibration(self, odict=None):
+    def run_calibration(self,
+                        method='least_squares',
+                        odict=None):
         """
         odict is the options dictionary
         """
@@ -821,11 +824,21 @@ class StructureLessCalibrator:
         }
 
         if odict is not None:
-            fdict.update(odict)
+                fdict.update(odict)
 
-        res = self.fitter.least_squares(**fdict)
-        self.params = res.params.copy()
-        return res
+        if method == 'least_squares':
+            self.res = self.fitter.least_squares(self.params, 
+                                                 **fdict)
+        else:
+            fdict = odict
+            self.res = self.fitter.scalar_minimize(method=method,
+                                                   params=self.params,
+                                                   max_nfev=50000,
+                                                   **fdict)
+
+        self.params = self.res.params
+        # res = self.fitter.least_squares(**fdict)
+        return self.res
 
     @property
     def nrings(self):
