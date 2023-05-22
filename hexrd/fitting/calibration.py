@@ -720,14 +720,23 @@ class StructureLessCalibrator:
     unlike the previous implementations, this routine
     is based on the lmfit module to implement the
     more complicated constraints for the TARDIS box
+
+    if TARDIS_constraints are set to True, then the following
+    additional linear constraint is added to the calibration
+
+    22.13 mm <= |IMAGE-PLATE-2 tvec[1]| + |IMAGE-PLATE-2 tvec[1]| <= 24.13 mm
+
     """
     def __init__(self,
                  instr,
                  data,
-                 tth_distortion=None):
+                 tth_distortion=None,
+                 TARDIS_constraints=True):
 
         self._instr = instr
         self._data = data
+        self._tth_distortion = tth_distortion
+        self._tardis_constraints = TARDIS_constraints
         self.make_lmfit_params()
         self.set_minimizer()
 
@@ -738,7 +747,14 @@ class StructureLessCalibrator:
         self.add_instr_params(all_params)
         self.add_tth_parameters(all_params)
         self.params.add_many(*all_params)
-
+        if self.tardis_constraints:
+            self.params.add('distance_between_plates',
+                             value=23.13,
+                             min=22.13,
+                             max=24.13,
+                             vary=True)
+            expr = 'distance_between_plates - abs(IMAGE_PLATE_2_tvec_y)'
+            self.params['IMAGE_PLATE_4_tvec_y'].expr = expr
     def add_instr_params(self, parms_list):
         # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
         instr = self.instr
@@ -773,17 +789,17 @@ class StructureLessCalibrator:
                                panel.tilt[2]+0.1))
             parms_list.append((f'{det}_tvec_x', 
                                panel.tvec[0],
-                               False,
+                               True,
                                panel.tvec[0]-1,
                                panel.tvec[0]+1))
             parms_list.append((f'{det}_tvec_y',
                                panel.tvec[1],
-                               False,
+                               True,
                                panel.tvec[1]-0.5,
                                panel.tvec[1]+0.5))
             parms_list.append((f'{det}_tvec_z',
                                panel.tvec[2],
-                               False,
+                               True,
                                panel.tvec[2]-1,
                                panel.tvec[2]+1))
             if panel.distortion is not None:
@@ -812,12 +828,14 @@ class StructureLessCalibrator:
     def calc_residual(self, params):
         self.instr.update_from_lmfit_parameter_list(params)
         residual = np.empty([0,])
-        for ii, rng in enumerate(self.meas_angles):
+        for ii, (rng, corr_rng) in enumerate(zip(self.meas_angles, self.tth_correction)):
             for det_name, panel in self.instr.detectors.items():
                 if rng[det_name].size != 0:
                     tth_rng = params[f'DS_ring_{ii}'].value
                     tth_updated = np.degrees(rng[det_name][:,0])
                     delta_tth = tth_updated - tth_rng
+                    if corr_rng[det_name] is not None:
+                        delta_tth -= np.degrees(corr_rng[det_name])
                     residual = np.concatenate((residual, delta_tth))
 
         return residual
@@ -870,6 +888,14 @@ class StructureLessCalibrator:
         return len(data)
 
     @property
+    def tth_distortion(self):
+        return self._tth_distortion
+
+    @property
+    def tardis_constraints(self):
+        return self._tardis_constraints
+
+    @property
     def instr(self):
         return self._instr
 
@@ -902,6 +928,7 @@ class StructureLessCalibrator:
         for rng in self.data:
             ang_dict = dict.fromkeys(self.instr.detectors)
             for det_name, meas_xy in rng.items():
+
                 panel = self.instr.detectors[det_name]
                 angles, _ = panel.cart_to_angles(
                                             meas_xy,
@@ -912,7 +939,19 @@ class StructureLessCalibrator:
 
         return ang_list
 
-
+    @property
+    def tth_correction(self):
+        corr_list = []
+        for rng in self.data:
+            corr_dict = dict.fromkeys(self.instr.detectors)
+            if self.tth_distortion is not None:
+                for det_name, meas_xy in rng.items():
+                    # !!! sd has ref to detector so is updated
+                    sd = self.tth_distortion[det_name]
+                    tth_corr = sd.apply(meas_xy, return_nominal=False)[:,0]
+                    corr_dict[det_name] = tth_corr
+            corr_list.append(corr_dict)
+        return corr_list
 # =============================================================================
 # %% LAUE CALIBRATION
 # =============================================================================
