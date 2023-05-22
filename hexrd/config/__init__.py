@@ -1,3 +1,5 @@
+import os
+
 import yaml
 
 from . import root
@@ -20,6 +22,9 @@ def open(file_name=None):
     """
     if file_name is None:
         return [root.RootConfig({})]
+
+    if not os.path.isfile(file_name):
+        raise ValueError(f'Config file not found: "{file_name}"')
 
     with open_file(file_name) as f:
         res = []

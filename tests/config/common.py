@@ -2,9 +2,9 @@ import os
 import shutil
 import tempfile
 import logging
+import unittest
 
 from hexrd import config
-from hexrd import testing
 
 
 test_data = {
@@ -14,15 +14,13 @@ test_data = {
     'nonexistent_file': 'an_unlikely_name_for_a_file.dat',
     'file_stem': 'test_%%05d.dat',
     'tempdir': tempfile.gettempdir(),
-    'pathsep': os.path.sep
+    'pathsep': os.path.sep,
     }
 
 
-class TestConfig(testing.TestCase):
-
+class TestConfig(unittest.TestCase):
 
     file_name = None
-
 
     @classmethod
     def setUpClass(cls):
@@ -31,12 +29,10 @@ class TestConfig(testing.TestCase):
             cls.file_name = f.name
             f.file.write(cls.get_reference_data())
 
-
     @classmethod
     def tearDownClass(cls):
         if os.path.exists(cls.file_name):
             os.remove(cls.file_name)
-
 
     def setUp(self):
         self.cfgs = config.open(self.file_name)

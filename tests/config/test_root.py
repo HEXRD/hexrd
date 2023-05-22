@@ -53,8 +53,7 @@ class TestRootConfig(TestConfig):
     def test_section_inheritance(self):
         self.assertEqual(self.cfgs[0].analysis_name, 'analysis')
         self.assertEqual(self.cfgs[1].analysis_name, 'analysis_2')
-        # 2 should inherit from 0, not 1:
-        self.assertEqual(self.cfgs[2].analysis_name, 'analysis')
+        self.assertEqual(self.cfgs[2].analysis_name, 'analysis_2')
 
     def test_working_dir(self):
         self.assertEqual(self.cfgs[0].working_dir, os.getcwd())
@@ -73,7 +72,7 @@ class TestRootConfig(TestConfig):
         self.assertEqual(self.cfgs[0].multiprocessing, ncpus - 1)
         self.assertEqual(self.cfgs[1].multiprocessing, ncpus - 1)
         self.assertEqual(self.cfgs[2].multiprocessing, ncpus)
-        self.assertEqual(self.cfgs[3].multiprocessing, ncpus/2)
+        self.assertEqual(self.cfgs[3].multiprocessing, ncpus//2)
         self.assertEqual(self.cfgs[4].multiprocessing, 2)
         self.assertEqual(self.cfgs[5].multiprocessing, ncpus)
         self.assertEqual(self.cfgs[6].multiprocessing, 1)

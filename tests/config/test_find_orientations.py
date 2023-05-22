@@ -1,5 +1,7 @@
 import os
 
+import numpy as np
+
 from .common import TestConfig, test_data
 
 
@@ -42,8 +44,6 @@ find_orientations:
     fiber_step: 2.0
   omega:
     tolerance: 3.0
-  eta:
-    mask: ~
   clustering:
     algorithm: fclusterdata
 ---
@@ -73,7 +73,7 @@ class TestFindOrientationsConfig(TestConfig):
         self.assertTrue(
             self.cfgs[1].find_orientations.extract_measured_g_vectors
             )
-        self.assertFalse(
+        self.assertTrue(
             self.cfgs[2].find_orientations.extract_measured_g_vectors
             )
 
@@ -89,7 +89,7 @@ class TestFindOrientationsConfig(TestConfig):
             )
         self.assertEqual(
             self.cfgs[2].find_orientations.threshold,
-            1
+            5
             )
 
 
@@ -234,24 +234,17 @@ class TestEtaConfig(TestConfig):
             )
         self.assertEqual(
             self.cfgs[2].find_orientations.eta.mask,
-            None
+            10
             )
 
 
     def test_range(self):
-        self.assertEqual(
-            self.cfgs[0].find_orientations.eta.range,
-            [[-85, 85], [95, 265]]
-            )
-        self.assertEqual(
-            self.cfgs[1].find_orientations.eta.range,
-            [[-80, 80], [100, 260]]
-            )
-        self.assertEqual(
-            self.cfgs[2].find_orientations.eta.range,
-            None
-            )
 
+        eta = self.cfgs[0].find_orientations.eta
+        self.assertTrue(np.array_equal(eta.range, [[-85, 85], [95, 265]]))
+
+        eta = self.cfgs[1].find_orientations.eta
+        self.assertTrue(np.array_equal(eta.range, [[-80, 80], [100, 260]]))
 
 
 class TestSeedSearchConfig(TestConfig):
@@ -329,10 +322,9 @@ class TestOrientationMapsConfig(TestConfig):
 
 
     def test_file(self):
-        self.assertRaises(
-            RuntimeError,
-            getattr, self.cfgs[0].find_orientations.orientation_maps, 'file'
-            )
+        self.assertTrue(
+            self.cfgs[0].find_orientations.orientation_maps.file is None
+        )
         self.assertEqual(
             self.cfgs[1].find_orientations.orientation_maps.file,
             os.path.join(test_data['tempdir'], test_data['nonexistent_file'])

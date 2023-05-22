@@ -34,13 +34,16 @@ class RootConfig(Config):
 
     @property
     def fit_grains(self):
-        return FitGrainsConfig(self)
+        if not hasattr(self, "_fitgrain_config"):
+            self._fitgrain_config = FitGrainsConfig(self)
+        return self._fitgrain_config
 
     @property
     def instrument(self):
         if not hasattr(self, '_instr_config'):
-            instr_file = self.get('instrument')
-            instr_file = self.check_filename(instr_file, self.working_dir)
+            instr_file = self.get('instrument', None)
+            if instr_file is not None:
+                instr_file = self.check_filename(instr_file, self.working_dir)
             self._instr_config = Instrument(self, instr_file)
         return self._instr_config
 
@@ -52,9 +55,12 @@ class RootConfig(Config):
     def material(self):
         if not hasattr(self, '_material_config'):
             self._material_config = MaterialConfig(self)
-        # !!! must make matl beam energy consistent with the instrument
-        beam_energy = self.instrument.hedm.beam_energy
-        self._material_config.beam_energy = beam_energy
+
+        if self.instrument.configuration is not None:
+            # !!! must make matl beam energy consistent with the instrument
+            beam_energy = self.instrument.hedm.beam_energy
+            self._material_config.beam_energy = beam_energy
+
         return self._material_config
 
     @material.setter
@@ -109,9 +115,10 @@ class RootConfig(Config):
 
     @multiprocessing.setter
     def multiprocessing(self, val):
+        isint = isinstance(val, int)
         if val in ('half', 'all', -1):
             self.set('multiprocessing', val)
-        elif (val >= 0 and val <= mp.cpu_count):
+        elif (isint and val >= 0 and val <= mp.cpu_count()):
             self.set('multiprocessing', int(val))
         else:
             raise RuntimeError(

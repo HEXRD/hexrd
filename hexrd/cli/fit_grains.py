@@ -189,18 +189,25 @@ def execute(args, parser):
             sys.exit()
 
         # Set HKLs to use.
-        if cfg.fit_grains.tth_max is False:
+        if cfg.fit_grains.reset_exclusions:
+            excl_p = cfg.fit_grains.exclusion_parameters
+            #
+            # tth_max can be True, False or a value
+            #
+            if cfg.fit_grains.tth_max is not False:
+                if cfg.fit_grains.tth_max is True:
+                    maxtth = instrument.max_tth(cfg.instrument.hedm)
+                else:
+                    maxtth = np.radians(cfg.fit_grains.tth_max)
+                excl_p = excl_p._replace(tthmax=maxtth)
+
             cfg.material.plane_data.exclude(
-                sfacmin=cfg.material.fminr
+                **excl_p._asdict()
             )
-        else:
-            if cfg.fit_grains.tth_max is True:
-                max_tth = instrument.max_tth(cfg.instrument.hedm)
-            else:
-                max_tth = np.radians(cfg.fit_grains.tth_max)
-            cfg.material.plane_data.exclude(
-                sfacmin=cfg.material.fminr, tthmax=max_tth
-            )
+        using_nhkls = np.count_nonzero(
+            np.logical_not(cfg.material.plane_data.exclusions)
+        )
+        logger.info(f'using {using_nhkls} HKLs')
 
         # make output directories
         instr = cfg.instrument.hedm
