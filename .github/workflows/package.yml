@@ -46,7 +46,9 @@ jobs:
     - name: Install build requirements
       run: |
           conda activate hexrd
-          conda install --override-channels -c conda-forge anaconda-client conda-build conda
+          # FIXME: downgrade urllib3 until this issue is fixed:
+          # https://github.com/Anaconda-Platform/anaconda-client/issues/654
+          conda install --override-channels -c conda-forge anaconda-client conda-build conda 'urllib3<2.0.0'
 
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
