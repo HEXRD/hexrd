@@ -87,11 +87,10 @@ jobs:
       shell: bash -l {0}
 
     - name: Get version for the artifact names
-      id: describe
-      run: echo "::set-output name=version::$(git describe --tag)"
+      run: echo "HEXRD_GIT_DESCRIBE=$(git describe --tag)" >> $GITHUB_ENV
 
     - name: Upload the package to github
       uses: actions/upload-artifact@v2
       with:
-        name: HEXRD-${{ matrix.config.name }}-${{ steps.describe.outputs.version }}.tar.bz2
+        name: HEXRD-${{ matrix.config.name }}-${{ env.HEXRD_GIT_DESCRIBE }}.tar.bz2
         path: output/**/*.tar.bz2
