@@ -731,12 +731,12 @@ class StructureLessCalibrator:
                  instr,
                  data,
                  tth_distortion=None,
-                 TARDIS_constraints=True):
+                 add_tardis_constraints=True):
 
         self._instr = instr
         self._data = data
         self._tth_distortion = tth_distortion
-        self._tardis_constraints = TARDIS_constraints
+        self._add_tardis_constraints = add_tardis_constraints
         self.make_lmfit_params()
         self.set_minimizer()
 
@@ -747,14 +747,15 @@ class StructureLessCalibrator:
         self.add_instr_params(all_params)
         self.add_tth_parameters(all_params)
         self.params.add_many(*all_params)
-        if self.tardis_constraints:
-            self.params.add('distance_between_plates',
+        if self.add_tardis_constraints:
+            self.params.add('tardis_distance_between_plates',
                              value=23.13,
                              min=22.13,
                              max=24.13,
                              vary=True)
-            expr = 'distance_between_plates - abs(IMAGE_PLATE_2_tvec_y)'
+            expr = 'tardis_distance_between_plates - abs(IMAGE_PLATE_2_tvec_y)'
             self.params['IMAGE_PLATE_4_tvec_y'].expr = expr
+
     def add_instr_params(self, parms_list):
         # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
         instr = self.instr
@@ -787,7 +788,7 @@ class StructureLessCalibrator:
                                False,
                                panel.tilt[2]-0.1,
                                panel.tilt[2]+0.1))
-            parms_list.append((f'{det}_tvec_x', 
+            parms_list.append((f'{det}_tvec_x',
                                panel.tvec[0],
                                True,
                                panel.tvec[0]-1,
@@ -825,6 +826,13 @@ class StructureLessCalibrator:
                                    val-5.,
                                    val+5.))
 
+    @property
+    def engineering_params(self):
+        ret = []
+        if self.add_tardis_constraints:
+            ret.append('tardis_distance_between_plates')
+        return ret
+
     def calc_residual(self, params):
         self.instr.update_from_lmfit_parameter_list(params)
         residual = np.empty([0,])
@@ -851,22 +859,23 @@ class StructureLessCalibrator:
         """
         odict is the options dictionary
         """
-        fdict = {
-            "ftol": 1e-8,
-            "xtol": 1e-8,
-            "gtol": 1e-8,
-            "verbose": 2,
-            "max_nfev": 1000,
-            "x_scale": "jac",
-            "method": "trf",
-            "jac": "3-point",
-        }
-
-        if odict is not None:
-                fdict.update(odict)
+        if odict is None:
+            odict = {}
 
         if method == 'least_squares':
-            self.res = self.fitter.least_squares(self.params, 
+            fdict = {
+                "ftol": 1e-8,
+                "xtol": 1e-8,
+                "gtol": 1e-8,
+                "verbose": 2,
+                "max_nfev": 1000,
+                "x_scale": "jac",
+                "method": "trf",
+                "jac": "3-point",
+            }
+            fdict.update(odict)
+
+            self.res = self.fitter.least_squares(self.params,
                                                  **fdict)
         else:
             fdict = odict
@@ -892,8 +901,8 @@ class StructureLessCalibrator:
         return self._tth_distortion
 
     @property
-    def tardis_constraints(self):
-        return self._tardis_constraints
+    def add_tardis_constraints(self):
+        return self._add_tardis_constraints
 
     @property
     def instr(self):
