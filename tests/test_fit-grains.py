@@ -62,7 +62,7 @@ def grains_file_path(analysis_path):
 
 @pytest.fixture
 def grains_reference_file_path(single_ge_results_path):
-    return single_ge_results_path / 'RUBY_SWEEP_0' / 'grains.out'
+    return single_ge_results_path / 'ruby-b035e' / 'scan-0' / 'grains.out'
 
 
 @pytest.fixture
