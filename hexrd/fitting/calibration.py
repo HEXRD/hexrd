@@ -731,12 +731,12 @@ class StructureLessCalibrator:
                  instr,
                  data,
                  tth_distortion=None,
-                 add_tardis_constraints=True):
+                 engineering_constraints=None):
 
         self._instr = instr
         self._data = data
         self._tth_distortion = tth_distortion
-        self._add_tardis_constraints = add_tardis_constraints
+        self._engineering_constraints = engineering_constraints
         self.make_lmfit_params()
         self.set_minimizer()
 
@@ -747,7 +747,7 @@ class StructureLessCalibrator:
         self.add_instr_params(all_params)
         self.add_tth_parameters(all_params)
         self.params.add_many(*all_params)
-        if self.add_tardis_constraints:
+        if self.engineering_constraints == 'TARDIS':
             self.params.add('tardis_distance_between_plates',
                              value=23.13,
                              min=22.13,
@@ -829,7 +829,7 @@ class StructureLessCalibrator:
     @property
     def engineering_params(self):
         ret = []
-        if self.add_tardis_constraints:
+        if self.engineering_constraints == 'TARDIS':
             ret.append('tardis_distance_between_plates')
         return ret
 
@@ -901,8 +901,29 @@ class StructureLessCalibrator:
         return self._tth_distortion
 
     @property
-    def add_tardis_constraints(self):
-        return self._add_tardis_constraints
+    def engineering_constraints(self):
+        return self._engineering_constraints
+
+    @engineering_constraints.setter
+    def engineering_constraints(self, v):
+        if v == self._engineering_constraints:
+            return
+
+        valid_settings = [
+            None,
+            'None',
+            'TARDIS',
+        ]
+        if v not in valid_settings:
+            valid_str = ', '.join(map(valid_settings, str))
+            msg = (
+                f'Invalid engineering constraint "{v}". Valid constraints '
+                f'are: "{valid_str}"'
+            )
+            raise Exception(msg)
+
+        self._engineering_constraints = v
+        self.make_lmfit_params()
 
     @property
     def instr(self):
