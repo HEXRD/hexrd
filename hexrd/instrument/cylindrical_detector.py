@@ -172,6 +172,11 @@ class CylindricalDetector(Detector):
         # units of mm
         return self._radius
 
+    @radius.setter
+    def radius(self, r):
+        # units of mm
+        self._radius = r
+
     @property
     def physical_size(self):
         # return physical size of detector

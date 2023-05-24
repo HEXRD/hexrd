@@ -809,7 +809,7 @@ class StructureLessCalibrator:
                     parms_list.append((f'{det}_distortion_param_{ii}',pp,
                                        False, -np.inf, np.inf))
             if panel.detector_type.lower() == 'cylindrical':
-                parms_list.append(('{det}_radius', panel.radius, False, -np.inf, np.inf))
+                parms_list.append((f'{det}_radius', panel.radius, False, -np.inf, np.inf))
 
     def add_tth_parameters(self, parms_list):
         angs = self.meas_angles
@@ -838,13 +838,14 @@ class StructureLessCalibrator:
         residual = np.empty([0,])
         for ii, (rng, corr_rng) in enumerate(zip(self.meas_angles, self.tth_correction)):
             for det_name, panel in self.instr.detectors.items():
-                if rng[det_name].size != 0:
-                    tth_rng = params[f'DS_ring_{ii}'].value
-                    tth_updated = np.degrees(rng[det_name][:,0])
-                    delta_tth = tth_updated - tth_rng
-                    if corr_rng[det_name] is not None:
-                        delta_tth -= np.degrees(corr_rng[det_name])
-                    residual = np.concatenate((residual, delta_tth))
+                if rng[det_name] is not None:
+                    if rng[det_name].size != 0:
+                        tth_rng = params[f'DS_ring_{ii}'].value
+                        tth_updated = np.degrees(rng[det_name][:,0])
+                        delta_tth = tth_updated - tth_rng
+                        if corr_rng[det_name] is not None:
+                            delta_tth -= np.degrees(corr_rng[det_name])
+                        residual = np.concatenate((residual, delta_tth))
 
         return residual
 
