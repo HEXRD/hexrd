@@ -71,7 +71,13 @@ from hexrd.transforms.xfcapi import (
 from hexrd import xrdutil
 from hexrd.crystallography import PlaneData
 from hexrd import constants as ct
-from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
+from hexrd.rotations import (
+    angleAxisOfRotMat, 
+    RotMatEuler, 
+    make_rmat_euler,
+    expMapOfQuat,
+    quatOfRotMat
+    )
 from hexrd import distortion as distortion_pkg
 from hexrd.utils.compatibility import h5py_read_string
 from hexrd.utils.concurrent import distribute_tasks
@@ -1108,14 +1114,14 @@ class HEDMInstrument(object):
 
         for det_name, detector in self.detectors.items():
             det = det_name.replace('-', '_')
-            tilt = np.r_[params[f'{det}_tilt_x'].value,
-                         params[f'{det}_tilt_y'].value,
-                         params[f'{det}_tilt_z'].value]
-            if self.tilt_calibration_mapping is not None:
-                self.tilt_calibration_mapping.angles = np.radians(tilt)
-                rmat = self.tilt_calibration_mapping.rmat
-                phi, n = angleAxisOfRotMat(rmat)
-                tilt = phi*n.flatten()
+            euler = np.r_[params[f'{det}_euler_z'].value,
+                         params[f'{det}_euler_xp'].value,
+                         params[f'{det}_euler_zpp'].value]
+
+            rmat = make_rmat_euler(np.radians(euler),
+                                   'zxz', 
+                                   extrinsic=False)
+            tilt = expMapOfQuat(quatOfRotMat(rmat))
             detector.tilt = tilt
 
             tvec = np.r_[params[f'{det}_tvec_x'].value,

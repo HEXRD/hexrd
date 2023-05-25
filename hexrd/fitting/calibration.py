@@ -11,6 +11,8 @@ from hexrd import matrixutil as mutil
 from hexrd.instrument import calc_angles_from_beam_vec
 from hexrd.transforms import xfcapi
 
+from hexrd.rotations import RotMatEuler
+
 from . import grains as grainutil
 from . import spectrum
 
@@ -771,23 +773,32 @@ class StructureLessCalibrator:
         parms_list.append(('instr_tvec_x', instr.tvec[0], False, -np.inf, np.inf))
         parms_list.append(('instr_tvec_y', instr.tvec[1], False, -np.inf, np.inf))
         parms_list.append(('instr_tvec_z', instr.tvec[2], False, -np.inf, np.inf))
+        euler_convention = {'axes_order': 'zxz',
+                            'extrinsic': False}
         for det_name, panel in instr.detectors.items():
             det = det_name.replace('-', '_')
-            parms_list.append((f'{det}_tilt_x',
-                               panel.tilt[0],
+            rmat = panel.rmat
+            rme = RotMatEuler(np.zeros(3,), 
+                              **euler_convention)
+            rme.rmat = rmat
+            euler = np.degrees(rme.angles)
+        
+            parms_list.append((f'{det}_euler_z',
+                               euler[0],
                                False,
-                               panel.tilt[0]-0.1,
-                               panel.tilt[0]+0.1))
-            parms_list.append((f'{det}_tilt_y',
-                               panel.tilt[1],
+                               euler[0]-2,
+                               euler[0]+2))
+            parms_list.append((f'{det}_euler_xp',
+                               euler[1],
                                False,
-                               panel.tilt[1]-0.1,
-                               panel.tilt[1]+0.1))
-            parms_list.append((f'{det}_tilt_z',
-                               panel.tilt[2],
+                               euler[1]-2,
+                               euler[1]+2))
+            parms_list.append((f'{det}_euler_zpp',
+                               euler[2],
                                False,
-                               panel.tilt[2]-0.1,
-                               panel.tilt[2]+0.1))
+                               euler[2]-2,
+                               euler[2]+2))
+
             parms_list.append((f'{det}_tvec_x',
                                panel.tvec[0],
                                True,
