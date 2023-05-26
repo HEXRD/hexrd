@@ -79,7 +79,7 @@ class SampleLayerDistortion:
                                      return_nominal=return_nominal)
 
 
-class PinholeDistortion:
+class JHEPinholeDistortion:
     def __init__(self, detector,
                  pinhole_thickness, pinhole_radius):
         self._panel = detector
@@ -117,6 +117,10 @@ class PinholeDistortion:
         return tth_corr_pinhole(self.panel, xy_pts,
                                 self.ph_thickness, self.ph_radius,
                                 return_nominal=return_nominal)
+
+
+# Make an alias to the name for backward compatibility
+PinholeDistortion = JHEPinholeDistortion
 
 
 class RyggPinholeDistortion:
