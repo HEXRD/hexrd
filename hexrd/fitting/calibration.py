@@ -778,11 +778,11 @@ class StructureLessCalibrator:
         for det_name, panel in instr.detectors.items():
             det = det_name.replace('-', '_')
             rmat = panel.rmat
-            rme = RotMatEuler(np.zeros(3,), 
+            rme = RotMatEuler(np.zeros(3,),
                               **euler_convention)
             rme.rmat = rmat
             euler = np.degrees(rme.angles)
-        
+
             parms_list.append((f'{det}_euler_z',
                                euler[0],
                                False,
@@ -911,6 +911,11 @@ class StructureLessCalibrator:
     @property
     def tth_distortion(self):
         return self._tth_distortion
+
+    @tth_distortion.setter
+    def tth_distortion(self, v):
+        self._tth_distortion = v
+        # No need to update lmfit parameters
 
     @property
     def engineering_constraints(self):
