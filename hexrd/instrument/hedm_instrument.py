@@ -709,7 +709,7 @@ class HEDMInstrument(object):
                     max_workers=self.max_workers,
                 )
 
-                if isinstance(DetectorClass, CylindricalDetector):
+                if DetectorClass is CylindricalDetector:
                     # Add cylindrical detector kwargs
                     kwargs['radius'] = det_info.get('radius', 49.51)
 
