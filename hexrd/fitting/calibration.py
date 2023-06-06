@@ -750,10 +750,12 @@ class StructureLessCalibrator:
         self.add_tth_parameters(all_params)
         self.params.add_many(*all_params)
         if self.engineering_constraints == 'TARDIS':
+            dist_plates = (np.abs(self.params['IMAGE_PLATE_2_tvec_y'])+
+                           np.abs(self.params['IMAGE_PLATE_4_tvec_y']))
             self.params.add('tardis_distance_between_plates',
-                             value=23.13,
-                             min=22.13,
-                             max=24.13,
+                             value=dist_plates,
+                             min=dist_plates-0.5,
+                             max=dist_plates+0.5,
                              vary=True)
             expr = 'tardis_distance_between_plates - abs(IMAGE_PLATE_2_tvec_y)'
             self.params['IMAGE_PLATE_4_tvec_y'].expr = expr
