@@ -750,6 +750,8 @@ class StructureLessCalibrator:
         self.add_tth_parameters(all_params)
         self.params.add_many(*all_params)
         if self.engineering_constraints == 'TARDIS':
+            # Since these plates always have opposite signs in y, we can add
+            # their absolute values to get the difference.
             dist_plates = (np.abs(self.params['IMAGE_PLATE_2_tvec_y'])+
                            np.abs(self.params['IMAGE_PLATE_4_tvec_y']))
             self.params.add('tardis_distance_between_plates',
