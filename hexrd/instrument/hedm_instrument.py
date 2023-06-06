@@ -72,8 +72,8 @@ from hexrd import xrdutil
 from hexrd.crystallography import PlaneData
 from hexrd import constants as ct
 from hexrd.rotations import (
-    angleAxisOfRotMat, 
-    RotMatEuler, 
+    angleAxisOfRotMat,
+    RotMatEuler,
     make_rmat_euler,
     expMapOfQuat,
     quatOfRotMat
@@ -1119,7 +1119,7 @@ class HEDMInstrument(object):
                          params[f'{det}_euler_zpp'].value]
 
             rmat = make_rmat_euler(np.radians(euler),
-                                   'zxz', 
+                                   'zxz',
                                    extrinsic=False)
             tilt = expMapOfQuat(quatOfRotMat(rmat))
             detector.tilt = tilt
