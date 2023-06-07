@@ -101,6 +101,7 @@ class CylindricalDetector(Detector):
 
         angs = np.hstack([tth_eta, np.tile(ome, (len(tth_eta), 1))])
         kwargs = {'beamVec': self.bvec,
+                  'etaVec': self.evec,
                   'tVec_s': tvec_s,
                   'rmat_s': rmat_s,
                   'tVec_c': tvec_c}

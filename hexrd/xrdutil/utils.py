@@ -1176,6 +1176,7 @@ def _project_on_detector_cylinder(allAngs,
                                   angle_extent,
                                   distortion,
                                   beamVec=constants.beam_vec,
+                                  etaVec=constants.eta_vec,
                                   tVec_s=constants.zeros_3x1,
                                   rmat_s=constants.identity_3x3,
                                   tVec_c=constants.zeros_3x1):
@@ -1187,7 +1188,8 @@ def _project_on_detector_cylinder(allAngs,
     dVec_cs = xfcapi.anglesToDVec(allAngs,
                                   chi=chi,
                                   rMat_c=np.eye(3),
-                                  bHat_l=beamVec)
+                                  bHat_l=beamVec,
+                                  eHat_l=etaVec)
 
     rMat_ss = np.tile(rmat_s, [allAngs.shape[0], 1, 1])
 
