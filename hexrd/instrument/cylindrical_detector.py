@@ -19,16 +19,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.WARNING)
 
 
-# The cylindrical detector is still a work in progress.
-# Not everything is fully working. As such, let's print
-# out a warning if it gets initialized.
-INIT_WARNING_PRINTED = False
-INIT_WARNING_MESSAGE = """WARNING:
-the cylindrical detector is still a work in progress.
-Some features may not work correctly.
-""".replace('\n', ' ')
-
-
 class CylindricalDetector(Detector):
     """2D cylindrical detector
 
@@ -40,11 +30,6 @@ class CylindricalDetector(Detector):
     """
 
     def __init__(self, radius=49.51, **detector_kwargs):
-        global INIT_WARNING_PRINTED
-        if not INIT_WARNING_PRINTED:
-            logger.warning(INIT_WARNING_MESSAGE)
-            INIT_WARNING_PRINTED = True
-
         self._radius = radius
         super().__init__(**detector_kwargs)
 
