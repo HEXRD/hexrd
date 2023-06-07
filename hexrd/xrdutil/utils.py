@@ -1468,24 +1468,22 @@ def _dvec_to_angs(dvecs, bvec, evec):
     dvecs is assumed to have (nx3) shape
     """
     num = dvecs.shape[0]
-    bxe = np.cross(bvec, evec)
-    bxe = bxe/np.linalg.norm(bxe)
+    exb = np.cross(evec, bvec)
+    exb = exb/np.linalg.norm(exb)
+    bxexb = np.cross(bvec, exb)
+    bxexb = bxexb/np.linalg.norm(bxexb)
 
     dp = np.dot(bvec, dvecs.T)
     dp[np.abs(dp) > 1.] = np.sign(dp[np.abs(dp) > 1.])
     tth = np.arccos(dp)
 
     dvecs_p = dvecs - np.tile(dp, [3, 1]).T * np.tile(bvec, [num, 1])
-    # len_dvecs_p = np.linalg.norm(dvecs_p, axis=1)
-    # mask = len_dvecs_p > 0.
-    # dvecs_p[mask] = dvecs_p[mask]/np.tile(len_dvecs_p[mask], [3, 1]).T
 
-    dpx = np.dot(evec, dvecs_p.T)
-    dpy = np.dot(bxe, dvecs_p.T)
+    dpx = np.dot(bxexb, dvecs_p.T)
+    dpy = np.dot(exb, dvecs_p.T)
     eta = np.arctan2(dpy, dpx)
 
     return (tth, eta)
-
 
 def simulateGVecs(pd, detector_params, grain_params,
                   ome_range=[(-np.pi, np.pi), ],
