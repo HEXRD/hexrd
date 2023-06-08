@@ -386,7 +386,7 @@ class unitcell:
 
     def GenerateCartesianPGSym(self):
         '''
-        use the direct point group symmetries to generate the 
+        use the direct point group symmetries to generate the
         symmetry operations in the cartesian frame. this is used
         to reduce directions to the standard stereographi tringle
         '''
@@ -410,7 +410,7 @@ class unitcell:
 
         '''
         use the point group symmetry of the supergroup
-        to generate the equivalent operations in the 
+        to generate the equivalent operations in the
         cartesian reference frame
 
         SS 11/23/2020 added supergroup symmetry operations
@@ -426,8 +426,8 @@ class unitcell:
         if((self.latticeType == 'monoclinic' or
                 self.latticeType == 'triclinic')):
             '''
-            for monoclinic groups c2 and c2h, the supergroups are 
-            orthorhombic, so no need to convert from direct to 
+            for monoclinic groups c2 and c2h, the supergroups are
+            orthorhombic, so no need to convert from direct to
             cartesian as they are identical
             '''
             self.SYM_PG_supergroup = sym_supergroup
@@ -479,7 +479,7 @@ class unitcell:
         therefore we need to rotate the mirror to be perpendicular to the z-axis
         same shouldn't be done for the group ci, since the supergroup is just the
         triclinic group c1!!
-        SS 12/10/2020 
+        SS 12/10/2020
         '''
         if(self._pointGroup == 'c1'):
             om = np.array([[1., 0., 0.], [0., 0., 1.], [0., -1., 0.]])
@@ -494,9 +494,9 @@ class unitcell:
 
     def CalcOrbit(self, v, reduceToUC=True):
         """
-        @date 03/04/2021 SS 1.0 original 
+        @date 03/04/2021 SS 1.0 original
 
-        @details calculate the equivalent position for the 
+        @details calculate the equivalent position for the
         space group symmetry. this function will replace the
         code in the CalcPositions subroutine.
 
@@ -599,16 +599,16 @@ class unitcell:
         """
         @date 03/04/2021 SS 1.0 original
 
-        @details it was requested that a functionality be 
-        added which can remove duplicate atoms from the 
+        @details it was requested that a functionality be
+        added which can remove duplicate atoms from the
         atom_pos field such that no two atoms are closer that
         the distance specified by "tol" (lets assume its in A)
         steps involved are as follows:
         1. get the star (or orbit) oe each point in atom_pos
         2. if any points in the orbits are within tol, then
-        remove the second point (the first point will be 
+        remove the second point (the first point will be
         preserved by convention)
-        3. update the densities, interptables for structure factors 
+        3. update the densities, interptables for structure factors
         etc.
 
         @params tol tolerance of distance between points specified
@@ -889,7 +889,7 @@ class unitcell:
 
     """
     molecular mass calculates the molar weight of the unit cell
-    since the unitcell can have multiple formular units, this 
+    since the unitcell can have multiple formular units, this
     might be greater than the molecular weight
     """
 
@@ -920,11 +920,11 @@ class unitcell:
         return abs_cs_total
 
     """
-    calculate the absorption coefficient which is 
-    calculated using the sum of photoeffect, compton and 
+    calculate the absorption coefficient which is
+    calculated using the sum of photoeffect, compton and
     rayleigh cross ections. the pair and triplet production
     cross sections etc are not applicable in the energy range
-    of interest and therefore neglected. 
+    of interest and therefore neglected.
 
     attenuation coeff = sigma_total * density
 
@@ -959,7 +959,7 @@ class unitcell:
         of the symmetrically equivalent one. The convention
         is to choose the hkl with the most positive components.
         '''
-        mask = np.ones(hkllist.shape[0], dtype=np.bool)
+        mask = np.ones(hkllist.shape[0], dtype=bool)
         laue = InversionSymmetry
 
         for i, g in enumerate(hkllist):
@@ -1110,19 +1110,19 @@ class unitcell:
         '''
         check if direction is inside a spherical triangle
         the logic used as follows:
-        if determinant of [A B x], [A x C] and [x B C] are 
+        if determinant of [A B x], [A x C] and [x B C] are
         all same sign, then the sphere is inside the traingle
         formed by A, B and C
 
         returns a mask with inside as True and outside as False
 
-        11/23/2020 SS switch is now a string specifying which 
+        11/23/2020 SS switch is now a string specifying which
         symmetry group to use for reducing directions
         11/23/2020 SS catching cases when vertices are empty
         '''
 
         '''
-        first get vertices of the triangles in the 
+        first get vertices of the triangles in the
         '''
         vertex = self.sphere_sector.vertices[switch]
         # if(switch == 'pg'):
@@ -1195,7 +1195,7 @@ class unitcell:
                 (d) 'superlaue' use the supergroup of the laue group
 
         @detail this subroutine takes a direction vector and uses the point group
-        symmetry of the unitcell to reduce it to the fundamental stereographic 
+        symmetry of the unitcell to reduce it to the fundamental stereographic
         triangle for that point group. this function is used in generating the IPF
         color legend for orientations. for now we are assuming dir3 is a nx3 array
         of directions.
@@ -1214,7 +1214,7 @@ class unitcell:
         check if the direction vector is a unit vector or not.
         if it is not normalize it to get a unit vector. the dir vector
         is in the sample frame, so by default it is assumed to be in a
-        orthonormal cartesian frame. this defines the normalization as 
+        orthonormal cartesian frame. this defines the normalization as
         just division by the L2 norm
         '''
         eps = constants.sqrt_epsf
@@ -1239,7 +1239,7 @@ class unitcell:
         idx_copy = np.copy(idx)
         idx_red = np.array([], dtype=np.int32)
         '''
-        laue switch is used to determine which set of symmetry operations to 
+        laue switch is used to determine which set of symmetry operations to
         loop over
         '''
         hemisphere = self.sphere_sector.hemisphere[switch]
@@ -1264,11 +1264,11 @@ class unitcell:
 
                 dir3_sym = np.dot(sop, dir3_copy.T).T
 
-                mask = np.zeros(dir3_sym.shape[0]).astype(np.bool)
+                mask = np.zeros(dir3_sym.shape[0]).astype(bool)
 
                 if(ntriangle == 0):
                     if(hemisphere == 'both'):
-                        mask = np.ones(dir3_sym.shape[0], dtype=np.bool)
+                        mask = np.ones(dir3_sym.shape[0], dtype=bool)
                     elif(hemisphere == 'upper'):
                         mask = dir3_sym[:, 2] >= 0.
                 else:
@@ -1300,23 +1300,23 @@ class unitcell:
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    11/12/2020 SS 1.0 original
-        @PARAM   dir3 is crystal direction obtained by multiplying inverse of 
+        @PARAM   dir3 is crystal direction obtained by multiplying inverse of
         crystal orientation with reference direction
                  laueswitch perform reducion based on lauegroup or the point group
 
         @DETAIL  this is the routine which makes the calls to sphere_sector
-        class which correctly color the orientations for this crystal class. the 
+        class which correctly color the orientations for this crystal class. the
         logic is as follows:
 
         1. reduce direction to fundamental zone of point group
         2. reduce to fundamental zone of super group
         3. If both are same, then color (hsl) assigned by polar and azimuth
-        4. If different, then barycenter lightness is replaced by 1-L (equivalent to 
+        4. If different, then barycenter lightness is replaced by 1-L (equivalent to
            replaceing barycenter to pi-theta)
         '''
 
         if(laueswitch == True):
-            ''' 
+            '''
             this is the case where we color orientations based on the laue group
             of the crystal. this is always going to be the case with x-ray which
             introduces inversion symmetry. For other probes, this is not the case.
@@ -1352,9 +1352,9 @@ class unitcell:
                  directions are colored
                  laueswitch should we use laue group for coloring or not
         @DETAIL  this is a simple routine which takes orientations as rotations matrices
-        and a reference sample direction ([0 0 1] by default) and returns the directions in 
+        and a reference sample direction ([0 0 1] by default) and returns the directions in
         the crystal reference frame. Note that the crystal orientations is defined as the the
-        orientation which takes the """SAMPLE""" reference frame TO the """CRYSTAL""" frame. 
+        orientation which takes the """SAMPLE""" reference frame TO the """CRYSTAL""" frame.
         Since we are computing the conversion from crystal to sample, we will need to INVERT
         these matrices. Thanksfully, this is just a transpose
 
@@ -1390,7 +1390,7 @@ class unitcell:
         """
         @author Saransh Singh, Lawrence Livermore National Lab
         @date 03/17/2021 SS 1.0 original
-        @details check if a certain field in the lattice parameter 
+        @details check if a certain field in the lattice parameter
         is editable. this depends on the space group number or the
         lattice class
         """
@@ -1667,9 +1667,9 @@ class unitcell:
     def atom_pos(self, val):
         """
         SS 03/08/2021 fixing some issues with
-        updating asymmetric positions after 
+        updating asymmetric positions after
         updating atominfo
-        fixing 
+        fixing
         """
         if hasattr(self, 'atom_type'):
             if self.atom_ntype != val.shape[0]:

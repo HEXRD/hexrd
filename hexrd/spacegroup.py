@@ -1460,7 +1460,7 @@ def Allowed_HKLs(sgnum, hkllist):
     centering = sg_hmsymbol[0]
     if(centering == 'P'):
         # all reflections are allowed
-        mask = np.ones([hkllist.shape[0], ], dtype=np.bool)
+        mask = np.ones([hkllist.shape[0], ], dtype=bool)
     elif(centering == 'F'):
         # same parity
         seo = np.sum(np.mod(hkllist+100, 2), axis=1)
