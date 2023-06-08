@@ -1002,7 +1002,7 @@ class LeBail:
                     [
                         expt_spectrum.shape[0],
                     ],
-                    dtype=np.bool,
+                    dtype=bool,
                 )
                 self._tth_list = [s._x for s in self._spectrum_expt]
                 self._tth_list_global = expt_spectrum._x
@@ -1064,7 +1064,7 @@ class LeBail:
                         [
                             expt_spectrum.shape[0],
                         ],
-                        dtype=np.bool,
+                        dtype=bool,
                     )
 
                 self._tth_list = [s._x for s in self._spectrum_expt]
@@ -1089,7 +1089,7 @@ class LeBail:
                         [
                             self.global_shape,
                         ],
-                        dtype=np.bool,
+                        dtype=bool,
                     )
                 else:
                     raise FileNotFoundError(
@@ -1231,7 +1231,7 @@ class LeBail:
                             value=np.float(v[0]),
                             lb=np.float(v[1]),
                             ub=np.float(v[2]),
-                            vary=np.bool(v[3]),
+                            vary=bool(v[3]),
                         )
 
                 elif isinstance(param_info, str):
@@ -2227,7 +2227,7 @@ class Rietveld:
                             value=np.float(v[0]),
                             lb=np.float(v[1]),
                             ub=np.float(v[2]),
-                            vary=np.bool(v[3]),
+                            vary=bool(v[3]),
                         )
 
                 elif isinstance(param_info, str):
@@ -2309,7 +2309,7 @@ class Rietveld:
                     [
                         expt_spectrum.shape[0],
                     ],
-                    dtype=np.bool,
+                    dtype=bool,
                 )
                 self._tth_list = [s._x for s in self._spectrum_expt]
                 self._tth_list_global = expt_spectrum._x
@@ -2369,7 +2369,7 @@ class Rietveld:
                         [
                             expt_spectrum.shape[0],
                         ],
-                        dtype=np.bool,
+                        dtype=bool,
                     )
 
                 self._tth_list = [s._x for s in self._spectrum_expt]
@@ -2394,7 +2394,7 @@ class Rietveld:
                         [
                             self.global_shape,
                         ],
-                        dtype=np.bool,
+                        dtype=bool,
                     )
                 else:
                     raise FileNotFoundError(

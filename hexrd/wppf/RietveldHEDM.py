@@ -426,7 +426,7 @@ class RietveldHEDM:
                         v = param_info[k]
                         params.add(k, value=np.float(v[0]),
                                    min=np.float(v[1]), max=np.float(v[2]),
-                                   vary=np.bool(v[3]))
+                                   vary=bool(v[3]))
 
                 elif(isinstance(param_info, str)):
                     """

@@ -12,7 +12,7 @@ import importlib.resources
 import hexrd.resources
 
 class Material_LeBail:
-    """ 
+    """
     ========================================================================================
     ========================================================================================
 
@@ -20,8 +20,8 @@ class Material_LeBail:
     >> @DATE:       05/18/2020 SS 1.0 original
                     09/14/2020 SS 1.1 class can now be initialized using
                     a material.Material class instance
-    >> @DETAILS:    Material_LeBail class is a stripped down version of the 
-                    materials.Material class.this is done to keep the class lightweight 
+    >> @DETAILS:    Material_LeBail class is a stripped down version of the
+                    materials.Material class.this is done to keep the class lightweight
                     and make sure only the information necessary for the lebail fit is kept
 
     =========================================================================================
@@ -303,7 +303,7 @@ class Material_LeBail:
         of the symmetrically equivalent one. The convention
         is to choose the hkl with the most positive components.
         """
-        mask = np.ones(hkllist.shape[0], dtype=np.bool)
+        mask = np.ones(hkllist.shape[0], dtype=bool)
         laue = InversionSymmetry
         for i, g in enumerate(hkllist):
             if(mask[i]):
@@ -398,7 +398,7 @@ class Material_LeBail:
     @property
     def shkl(self):
         return self._shkl
-    
+
     @shkl.setter
     def shkl(self, val):
         """
@@ -418,9 +418,9 @@ class Phases_LeBail:
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/20/2020 SS 1.0 original
     >> @DETAILS:    class to handle different phases in the LeBail fit. this is a stripped down
-                    version of main Phase class for efficiency. only the 
-                    components necessary for calculating peak positions are retained. further 
-                    this will have a slight modification to account for different wavelengths 
+                    version of main Phase class for efficiency. only the
+                    components necessary for calculating peak positions are retained. further
+                    this will have a slight modification to account for different wavelengths
                     in the same phase name
     =========================================================================================
     =========================================================================================
@@ -603,10 +603,10 @@ class Material_Rietveld:
 
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/18/2020 SS 1.0 original
-                    02/01/2021 SS 1.1 class can now be initialized using a 
+                    02/01/2021 SS 1.1 class can now be initialized using a
                     material.Material class instance
     >> @DETAILS:    Material_LeBail class is a stripped down version of the materials.Material
-                    class.this is done to keep the class lightweight and make sure only the 
+                    class.this is done to keep the class lightweight and make sure only the
                     information necessary for the Rietveld fit is kept
     ===========================================================================================
      ==========================================================================================
@@ -678,7 +678,7 @@ class Material_Rietveld:
         # space group number
         self.sgnum = material_obj.sgnum
         self.sg = SpaceGroup(self.sgnum)
-        
+
         # space group setting
         self.sgsetting = material_obj.sgsetting
 
@@ -1012,7 +1012,7 @@ class Material_Rietveld:
         of the symmetrically equivalent one. The convention
         is to choose the hkl with the most positive components.
         """
-        mask = np.ones(hkllist.shape[0], dtype=np.bool)
+        mask = np.ones(hkllist.shape[0], dtype=bool)
         laue = InversionSymmetry
         for i, g in enumerate(hkllist):
             if(mask[i]):
@@ -1176,8 +1176,8 @@ class Material_Rietveld:
             self.f_anomalous_data_sizes[i] = nd
             self.f_anomalous_data[i,:nd,:] = f_anomalous_data[i]
 
-    def CalcXRSF(self, 
-        wavelength, 
+    def CalcXRSF(self,
+        wavelength,
         w_int):
         """
         the 1E-2 is to convert to A^-2
@@ -1269,7 +1269,7 @@ class Material_Rietveld:
     @property
     def shkl(self):
         return self._shkl
-    
+
     @shkl.setter
     def shkl(self, val):
         """
@@ -1439,7 +1439,7 @@ class Phases_Rietveld:
             l = list(self.wavelength.keys())[0]
             pf.append(self[k][l].pf)
         return np.array(pf)
-    
+
     @phase_fraction.setter
     def phase_fraction(self, val):
         msg = (f"phase_fraction setter: "

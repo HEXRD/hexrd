@@ -79,7 +79,7 @@ class Parameters:
         for k in dic.keys():
             v = dic[k]
             self.add(k, value=np.float(v[0]), lb=np.float(v[1]),
-                     ub=np.float(v[2]), vary=np.bool(v[3]))
+                     ub=np.float(v[2]), vary=bool(v[3]))
 
     def dump(self, fname):
         """
@@ -138,8 +138,8 @@ class Parameters:
             did = gid.create_dataset("ub", (1, ), dtype=np.float64)
             did.write_direct(np.array(param.ub, dtype=np.float64))
 
-            did = gid.create_dataset("vary", (1, ), dtype=np.bool)
-            did.write_direct(np.array(param.vary, dtype=np.bool))
+            did = gid.create_dataset("vary", (1, ), dtype=bool)
+            did.write_direct(np.array(param.vary, dtype=bool))
 
     def __getitem__(self, key):
         if(key in self.param_dict.keys()):
