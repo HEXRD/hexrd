@@ -20,14 +20,13 @@ from hexrd.utils.decorators import numba_njit_if_available
 
 
 class SampleLayerDistortion:
-    def __init__(self, detector,
+    def __init__(self, panel,
                  layer_standoff, layer_thickness,
-                 pinhole_thickness, source_distance):
-        self._panel = detector
-        self._standoff = layer_standoff
-        self._thickness = layer_thickness
-        self._ph_thickness = pinhole_thickness
-        self._source_dist = source_distance
+                 pinhole_thickness):
+        self._panel = panel
+        self._layer_standoff = layer_standoff
+        self._layer_thickness = layer_thickness
+        self._pinhole_thickness = pinhole_thickness
 
     @property
     def panel(self):
@@ -39,52 +38,44 @@ class SampleLayerDistortion:
         self._panel = x
 
     @property
-    def standoff(self):
-        return self._standoff
+    def layer_standoff(self):
+        return self._layer_standoff
 
-    @standoff.setter
-    def standoff(self, x):
-        self._standoff = float(x)
-
-    @property
-    def thickness(self):
-        return self._thickness
-
-    @thickness.setter
-    def thickness(self, x):
-        self._thickness = float(x)
+    @layer_standoff.setter
+    def layer_standoff(self, x):
+        self._layer_standoff = float(x)
 
     @property
-    def ph_thickness(self):
-        return self._ph_thickness
+    def layer_thickness(self):
+        return self._layer_thickness
 
-    @ph_thickness.setter
-    def ph_thickness(self, x):
-        self._ph_thickness = float(x)
+    @layer_thickness.setter
+    def layer_thickness(self, x):
+        self._layer_thickness = float(x)
 
     @property
-    def source_dist(self):
-        return self._source_dist
+    def pinhole_thickness(self):
+        return self._pinhole_thickness
 
-    @source_dist.setter
-    def source_dist(self, x):
-        self._source_dist = float(x)
+    @pinhole_thickness.setter
+    def pinhole_thickness(self, x):
+        self._pinhole_thickness = float(x)
 
     def apply(self, xy_pts, return_nominal=True):
         """
         """
         return tth_corr_sample_layer(self.panel, xy_pts,
-                                     self.standoff, self.thickness,
-                                     self.ph_thickness, self.source_dist,
+                                     self.layer_standoff, self.layer_thickness,
+                                     self.pinhole_thickness,
                                      return_nominal=return_nominal)
 
 
-class PinholeDistortion:
-    def __init__(self, detector,
+class JHEPinholeDistortion:
+    def __init__(self, panel,
                  pinhole_thickness, pinhole_radius):
-        self._panel = detector
-        self._ph_thickness = pinhole_thickness
-        self._ph_radius = pinhole_radius
+        self._panel = panel
+        self._pinhole_thickness = pinhole_thickness
+        self._pinhole_radius = pinhole_radius
 
     @property
     def panel(self):
@@ -96,50 +87,54 @@ class PinholeDistortion:
         self._panel = x
 
     @property
-    def ph_thickness(self):
-        return self._ph_thickness
+    def pinhole_thickness(self):
+        return self._pinhole_thickness
 
-    @ph_thickness.setter
-    def ph_thickness(self, x):
-        self._ph_thickness = float(x)
+    @pinhole_thickness.setter
+    def pinhole_thickness(self, x):
+        self._pinhole_thickness = float(x)
 
     @property
-    def ph_radius(self):
-        return self._ph_radius
+    def pinhole_radius(self):
+        return self._pinhole_radius
 
-    @ph_radius.setter
-    def ph_radius(self, x):
-        self._ph_radius = float(x)
+    @pinhole_radius.setter
+    def pinhole_radius(self, x):
+        self._pinhole_radius = float(x)
 
     def apply(self, xy_pts, return_nominal=True):
         """
         """
         return tth_corr_pinhole(self.panel, xy_pts,
-                                self.ph_thickness, self.ph_radius,
+                                self.pinhole_thickness, self.pinhole_radius,
                                 return_nominal=return_nominal)
 
 
+# Make an alias to the name for backward compatibility
+PinholeDistortion = JHEPinholeDistortion
+
+
 class RyggPinholeDistortion:
-    def __init__(self, detector, material,
+    def __init__(self, panel, absorption_length,
                  pinhole_thickness, pinhole_radius, num_phi_elements=60):
 
-        self.panel = detector
-        self.material = material
-        self.ph_thickness = pinhole_thickness
-        self.ph_radius = pinhole_radius
+        self.panel = panel
+        self.absorption_length = absorption_length
+        self.pinhole_thickness = pinhole_thickness
+        self.pinhole_radius = pinhole_radius
         self.num_phi_elements = num_phi_elements
 
     def apply(self, xy_pts, return_nominal=True):
-        return tth_corr_rygg_pinhole(self.panel, self.material, xy_pts,
-                                     self.ph_thickness, self.ph_radius,
+        return tth_corr_rygg_pinhole(self.panel, self.absorption_length,
+                                     xy_pts, self.pinhole_thickness,
+                                     self.pinhole_radius,
                                      return_nominal=return_nominal,
                                      num_phi_elements=self.num_phi_elements)
 
 
 def tth_corr_sample_layer(panel, xy_pts,
                           layer_standoff, layer_thickness,
-                          pinhole_thickness, source_distance,
-                          return_nominal=True):
+                          pinhole_thickness, return_nominal=True):
     """
     Compute the Bragg angle distortion associated with a specific sample
     layer in a pinhole camera.
@@ -158,8 +153,6 @@ def tth_corr_sample_layer(panel, xy_pts,
         The thickness of the sample layer in mm.
     pinhole_thickness : scalar
         The thickenss (height) of the pinhole (cylinder) in mm
-    source_distance : scalar
-        The distance from the pinhole center to the X-ray source in mm.
 
     Returns
     -------
@@ -167,6 +160,7 @@ def tth_corr_sample_layer(panel, xy_pts,
         DESCRIPTION.
 
     """
+    source_distance = panel.xrs_dist
 
     xy_pts = np.atleast_2d(xy_pts)
 
@@ -435,9 +429,9 @@ def _infer_eta_shift(panel):
     return eta_shift_dict[instr_type]
 
 
-def calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
-                          pinhole_radius, num_phi_elements=60,
-                          clip_to_panel=True):
+def calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
+                          pinhole_thickness, pinhole_radius,
+                          num_phi_elements=60, clip_to_panel=True):
     """Return pinhole twotheta [rad] and effective scattering volume [mm3].
 
     num_phi_elements: number of pinhole phi elements for integration
@@ -484,7 +478,7 @@ def calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
 
     # mu_p is the attenuation coefficent [um^-1]
     # This is the inverse of the absorption length, which is in [um]
-    mu_p = 1 / material.absorption_length
+    mu_p = 1 / absorption_length
     mu_p = 1000 * mu_p  # convert to [mm^-1]
 
     # Convert tth and eta to phi_d, beta, and r_d
@@ -715,7 +709,7 @@ _compute_vi_qq_i_numba = numba_njit_if_available(
     nogil=True, cache=True)(_compute_vi_qq_i)
 
 
-def tth_corr_rygg_pinhole(panel, material, xy_pts,
+def tth_corr_rygg_pinhole(panel, absorption_length, xy_pts,
                           pinhole_thickness, pinhole_radius,
                           return_nominal=True, num_phi_elements=60):
     # These are the nominal tth values
@@ -728,7 +722,7 @@ def tth_corr_rygg_pinhole(panel, material, xy_pts,
 
     # Don't clip these values to the panel because they will be shifted
     qq_p = calc_tth_rygg_pinhole(
-        panel, material, nom_tth, nom_eta, pinhole_thickness,
+        panel, absorption_length, nom_tth, nom_eta, pinhole_thickness,
         pinhole_radius, num_phi_elements, clip_to_panel=False)
 
     # Make the distortion shift to the left instead of the right
@@ -748,22 +742,23 @@ def tth_corr_rygg_pinhole(panel, material, xy_pts,
         return angs
 
 
-def tth_corr_map_rygg_pinhole(instrument, material, pinhole_thickness,
+def tth_corr_map_rygg_pinhole(instrument, absorption_length, pinhole_thickness,
                               pinhole_radius, num_phi_elements=60):
     tth_corr = {}
     for det_key, panel in instrument.detectors.items():
         nom_ptth, nom_peta = panel.pixel_angles()
         qq_p = calc_tth_rygg_pinhole(
-            panel, material, nom_ptth, nom_peta, pinhole_thickness,
+            panel, absorption_length, nom_ptth, nom_peta, pinhole_thickness,
             pinhole_radius, num_phi_elements)
         tth_corr[det_key] = nom_ptth - qq_p
     return tth_corr
 
 
-def polar_tth_corr_map_rygg_pinhole(tth, eta, instrument, material,
+def polar_tth_corr_map_rygg_pinhole(tth, eta, instrument, absorption_length,
                                     pinhole_thickness, pinhole_radius,
                                     num_phi_elements=60):
     """Generate a polar tth corr map directly for all panels"""
     panels = list(instrument.detectors.values())
-    return calc_tth_rygg_pinhole(panels, material, tth, eta, pinhole_thickness,
-                                 pinhole_radius, num_phi_elements) - tth
+    return calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
+                                 pinhole_thickness, pinhole_radius,
+                                 num_phi_elements) - tth

@@ -6,6 +6,7 @@ beam:
   vector:
     azimuth: 119.0
     polar_angle: 90.0
+  source_distance: 31.0
 detectors:
   IMAGE-PLATE-2:
     detector_type: 'planar'
