@@ -59,7 +59,7 @@ def _calcanomalousformfactor(atom_type,
         f1 = np.interp(wavelength,xp,yp)
         f2 = np.interp(wavelength,xp,ypp)
 
-        f_anam[i] = np.complex(f1+fr-Z,f2)
+        f_anam[i] = complex(f1+fr-Z,f2)
     return f_anam
 
 @numba_njit_if_available(cache=True, nogil=True)
@@ -119,7 +119,7 @@ def _calcxrsf(hkls,
         mm = multiplicity[ii]
         glen = np.dot(g,np.dot(rmt,g))
         s = 0.25 * glen * 1E-2
-        sf = np.complex(0., 0.)
+        sf = complex(0., 0.)
         formfact = _calcxrayformfactor(wavelength,
              s, 
              atom_type,
@@ -150,7 +150,7 @@ def _calcxrsf(hkls,
             for kk in range(natom):
                 r = apos[kk,:]
                 arg = 2.0 * np.pi * np.sum(g*r)
-                sf = sf + ff*np.complex(np.cos(arg), -np.sin(arg))
+                sf = sf + ff*complex(np.cos(arg), -np.sin(arg))
 
         struct_factors_raw[ii] = np.abs(sf)**2
         struct_factors[ii] = w_int*mm*struct_factors_raw[ii]
