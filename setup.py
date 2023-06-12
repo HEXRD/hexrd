@@ -12,7 +12,7 @@ install_reqs = [
     'h5py',
     'lmfit',
     'numba',
-    'numpy<1.24',  # NOTE: bump this to support the latest version numba supports
+    'numpy<1.25',  # NOTE: bump this to support the latest version numba supports
     'psutil',
     'pycifrw',
     'pyyaml',
