@@ -790,8 +790,8 @@ class LeBailCalibrator:
                     """
                     for k in param_info:
                         v = param_info[k]
-                        params.add(k, value=np.float(v[0]),
-                                   min=np.float(v[1]), max=np.float(v[2]),
+                        params.add(k, value=float(v[0]),
+                                   min=float(v[1]), max=float(v[2]),
                                    vary=bool(v[3]))
 
                 elif(isinstance(param_info, str)):

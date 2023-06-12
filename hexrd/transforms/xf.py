@@ -799,7 +799,7 @@ def mapAngle(ang, *args, **kwargs):
         angRange = np.asarray(args[0], dtype=float)
 
         # divide of multiples of period
-        ang = ang - np.int(ang / period) * period
+        ang = ang - int(ang / period) * period
 
         lb = angRange.min()
         ub = angRange.max()
