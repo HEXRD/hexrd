@@ -80,7 +80,7 @@ def reference_orientations(reference_orientations_path):
 
 
 def plane_data(plane_data):
-    args = np.array(plane_data.getParams())[:4]
+    args = plane_data.getParams()[:4]
     hkls = plane_data.hkls
 
     return PlaneData(hkls, *args)
