@@ -1422,7 +1422,7 @@ def mapAngle(ang, *args, **kwargs):
         angRange = atleast_1d(nFloat(args[0]))
 
         # divide of multiples of period
-        ang = ang - nInt(ang / period) * period
+        ang = ang - nInt(np.nan_to_num(ang) / period) * period
 
         lb = angRange.min()
         ub = angRange.max()
