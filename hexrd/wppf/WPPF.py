@@ -1228,9 +1228,9 @@ class LeBail:
                     for k, v in param_info.items():
                         params.add(
                             k,
-                            value=np.float(v[0]),
-                            lb=np.float(v[1]),
-                            ub=np.float(v[2]),
+                            value=float(v[0]),
+                            lb=float(v[1]),
+                            ub=float(v[2]),
                             vary=bool(v[3]),
                         )
 
@@ -2224,9 +2224,9 @@ class Rietveld:
                     for k, v in param_info.items():
                         params.add(
                             k,
-                            value=np.float(v[0]),
-                            lb=np.float(v[1]),
-                            ub=np.float(v[2]),
+                            value=float(v[0]),
+                            lb=float(v[1]),
+                            ub=float(v[2]),
                             vary=bool(v[3]),
                         )
 

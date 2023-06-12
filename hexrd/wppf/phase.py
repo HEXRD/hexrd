@@ -330,7 +330,7 @@ class Material_LeBail:
         glen = []
         for g in hkllist:
             glen.append(np.round(self.CalcLength(g, 'r'), 8))
-        # glen = np.atleast_2d(np.array(glen,dtype=np.float)).T
+        # glen = np.atleast_2d(np.array(glen,dtype=float)).T
         dtype = [('glen', float), ('max', int), ('sum', int),
                  ('h', int), ('k', int), ('l', int)]
         a = []
@@ -1039,7 +1039,7 @@ class Material_Rietveld:
         glen = []
         for g in hkllist:
             glen.append(np.round(self.CalcLength(g, 'r'), 8))
-        # glen = np.atleast_2d(np.array(glen,dtype=np.float)).T
+        # glen = np.atleast_2d(np.array(glen,dtype=float)).T
         dtype = [('glen', float), ('max', int), ('sum', int),
                  ('h', int), ('k', int), ('l', int)]
         a = []
