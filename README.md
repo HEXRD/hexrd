@@ -51,6 +51,12 @@ optional arguments:
 
 ```
 
+# Citing
+
+We are very glad you found our software helpful for your research! In order for us to keep track of the impact our software is having, can you please cite us in your papers?
+
+See [Citing HEXRD](https://hexrdgui.readthedocs.io/en/latest/citing/#hexrd) for more information.
+
 # Development
 
 Requires Python 3.8+ and a C compiler (_e.g._, `gcc` or VisualStudio).  First clone the Git repository:
