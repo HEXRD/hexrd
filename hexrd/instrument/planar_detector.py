@@ -130,11 +130,12 @@ class PlanarDetector(Detector):
     def update_memoization_sizes(all_panels):
         Detector.update_memoization_sizes(all_panels)
 
-        num_matches = sum(x is PlanarDetector for x in all_panels)
+        num_matches = sum(isinstance(x, PlanarDetector) for x in all_panels)
         funcs = [
             _pixel_angles,
             _pixel_tth_gradient,
             _pixel_eta_gradient,
+            _pixel_solid_angles,
         ]
         Detector.increase_memoization_sizes(funcs, num_matches)
 
