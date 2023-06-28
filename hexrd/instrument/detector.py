@@ -760,7 +760,11 @@ class Detector:
 
         ij_det = np.vstack([i_pix, j_pix]).T
         if pixels:
-            ij_det = np.array(np.round(ij_det), dtype=int)
+            # Hide any runtime warnings in this conversion. Their output values
+            # will certainly be off the detector, which is fine.
+            with np.errstate(invalid='ignore'):
+                ij_det = np.array(np.round(ij_det), dtype=int)
+
         return ij_det
 
     def pixelToCart(self, ij_det):
