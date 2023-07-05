@@ -2,7 +2,7 @@ beam:
   energy: 10.2505
   vector:
     azimuth: 90.
-    polar_angle: 70.
+    polar_angle: 67.5
 detectors:
   IMAGE-PLATE-L:
     buffer:
