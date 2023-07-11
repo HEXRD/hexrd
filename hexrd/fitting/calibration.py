@@ -726,7 +726,7 @@ class StructureLessCalibrator:
     if TARDIS_constraints are set to True, then the following
     additional linear constraint is added to the calibration
 
-    22.13 mm <= |IMAGE-PLATE-2 tvec[1]| + |IMAGE-PLATE-2 tvec[1]| <= 24.13 mm
+    22.83 mm <= |IMAGE-PLATE-2 tvec[1]| + |IMAGE-PLATE-2 tvec[1]| <= 23.43 mm
 
     """
     def __init__(self,
@@ -754,20 +754,23 @@ class StructureLessCalibrator:
             # their absolute values to get the difference.
             dist_plates = (np.abs(self.params['IMAGE_PLATE_2_tvec_y'])+
                            np.abs(self.params['IMAGE_PLATE_4_tvec_y']))
+
+            min_dist = 22.83
+            max_dist = 23.43
             # if distance between plates exceeds a certain value, then cap it
             # at the max/min value and adjust the value of tvec_ys
-            if dist_plates > 24.13:
-                delta = np.abs(dist_plates - 24.13)
-                dist_plates = 24.13
+            if dist_plates > max_dist:
+                delta = np.abs(dist_plates - max_dist)
+                dist_plates = max_dist
                 self.params['IMAGE_PLATE_2_tvec_y'].value = (
                     self.params['IMAGE_PLATE_2_tvec_y'].value +
                     0.5*delta)
                 self.params['IMAGE_PLATE_4_tvec_y'].value = (
                     self.params['IMAGE_PLATE_4_tvec_y'].value -
                     0.5*delta)
-            elif dist_plates < 22.13:
-                delta = np.abs(dist_plates - 22.13)
-                dist_plates = 22.13
+            elif dist_plates < min_dist:
+                delta = np.abs(dist_plates - min_dist)
+                dist_plates = min_dist
                 self.params['IMAGE_PLATE_2_tvec_y'].value = (
                     self.params['IMAGE_PLATE_2_tvec_y'].value -
                     0.5*delta)
@@ -776,8 +779,8 @@ class StructureLessCalibrator:
                     0.5*delta)
             self.params.add('tardis_distance_between_plates',
                              value=dist_plates,
-                             min=22.13,
-                             max=24.13,
+                             min=min_dist,
+                             max=max_dist,
                              vary=True)
             expr = 'tardis_distance_between_plates - abs(IMAGE_PLATE_2_tvec_y)'
             self.params['IMAGE_PLATE_4_tvec_y'].expr = expr
