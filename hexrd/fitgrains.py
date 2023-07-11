@@ -306,11 +306,23 @@ def fit_grains(cfg,
                grains_table,
                show_progress=False,
                ids_to_refine=None,
-               write_spots_files=True):
+               write_spots_files=True,
+               check_if_canceled_func=None):
     """
     Performs optimization of grain parameters.
 
     operates on a single HEDM config block
+
+    The `check_if_canceled_func` has the following signature:
+
+        check_if_canceled_func() -> bool
+
+    If it returns `True`, it indicates that fit_grains should be canceled.
+    This is done by terminating the multiprocessing processes.
+
+    If `check_if_canceled_func` is set, multiprocessing will be performed,
+    even if there is only one grain or one process, so that it will be
+    cancelable.
     """
 
     # grab imageseries dict
@@ -357,7 +369,7 @@ def fit_grains(cfg,
     # =====================================================================
 
     # DO FIT!
-    if len(grains_table) == 1 or ncpus == 1:
+    if (len(grains_table) == 1 or ncpus == 1) and not check_if_canceled_func:
         logger.info("\tstarting serial fit")
         start = timeit.default_timer()
         fit_grain_FF_init(params)
@@ -378,11 +390,22 @@ def fit_grains(cfg,
             fit_grain_FF_init,
             (params, )
         )
-        fit_results = pool.map(
+
+        async_result = pool.map_async(
             fit_grain_FF_reduced,
             np.array(grains_table[:, 0], dtype=int),
             chunksize=chunksize
         )
+        while not async_result.ready():
+            if check_if_canceled_func and check_if_canceled_func():
+                pool.terminate()
+                logger.info('Fit grains canceled.')
+                # Perform an early return if we need to cancel.
+                return None
+
+            async_result.wait(0.25)
+
+        fit_results = async_result.get()
         pool.close()
         pool.join()
         elapsed = timeit.default_timer() - start
