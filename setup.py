@@ -59,6 +59,7 @@ def get_old_xfcapi_extension_modules():
         'hexrd.extensions._transforms_CAPI',
         sources=srclist,
         include_dirs=[np_include_dir],
+        extra_compile_args=['-O3', '-ftree-vectorize'],
     )
 
     return [transforms_mod]
