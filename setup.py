@@ -70,6 +70,7 @@ def get_new_xfcapi_extension_modules():
         'hexrd.extensions._new_transforms_capi',
         sources=['hexrd/transforms/new_capi/module.c'],
         include_dirs=[np_include_dir],
+        extra_compile_args=['-O3', '-ftree-vectorize'],
     )
 
     return [transforms_mod]
