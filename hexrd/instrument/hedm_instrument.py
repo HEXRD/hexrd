@@ -274,17 +274,18 @@ def chunk_instrument(instr, rects, labels, use_roi=False):
 
             new_icfg_dict['detectors'][panel_name] = copy.deepcopy(tmp_cfg)
 
-            if panel.panel_buffer.ndim == 2:  # have a mask array!
-                submask = panel.panel_buffer[
-                    rect[0, 0]:rect[0, 1], rect[1, 0]:rect[1, 1]
-                ]
-                '''
-                submask[:m, :] = False
-                submask[-m:, :] = False
-                submask[:, :m] = False
-                submask[:, -m:] = False
-                '''
-                new_icfg_dict['detectors'][panel_name]['buffer'] = submask
+            if panel.panel_buffer is not None:
+                if panel.panel_buffer.ndim == 2:  # have a mask array!
+                    submask = panel.panel_buffer[
+                        rect[0, 0]:rect[0, 1], rect[1, 0]:rect[1, 1]
+                    ]
+                    '''
+                    submask[:m, :] = False
+                    submask[-m:, :] = False
+                    submask[:, :m] = False
+                    submask[:, -m:] = False
+                    '''
+                    new_icfg_dict['detectors'][panel_name]['buffer'] = submask
     return new_icfg_dict
 
 
