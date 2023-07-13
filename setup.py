@@ -28,7 +28,7 @@ compiler_type = distutils.ccompiler.get_default_compiler()
 if compiler_type in ("unix", "mingw32"):
     compiler_optimize_flags = ['-O3', '-ftree-vectorize']
 elif compiler_type == "msvc":
-    compiler_optimize_flags = ['/O2', '/Ob2', '/Oi', '/Ot', '/Oy', '/GL']
+    compiler_optimize_flags = ['/Ox', '/Ob2', '/Oi', '/Ot', '/Oy', '/GL']
 else:
     compiler_optimize_flags = []
 
