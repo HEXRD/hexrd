@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
+import distutils.ccompiler
 import os
-import sys
-from setuptools import setup, find_packages, Extension
 from pathlib import Path
+from setuptools import setup, find_packages, Extension
+import sys
+
 import numpy
 np_include_dir = numpy.get_include()
-import distutils.ccompiler
 
 install_reqs = [
     'fabio>=0.11',
@@ -28,7 +29,7 @@ compiler_type = distutils.ccompiler.get_default_compiler()
 if compiler_type in ("unix", "mingw32"):
     compiler_optimize_flags = ['-O3', '-ftree-vectorize']
 elif compiler_type == "msvc":
-    compiler_optimize_flags = ['/Ox', '/Ob2', '/Oi', '/Ot', '/Oy', '/GL']
+    compiler_optimize_flags = ['/Ox', '/GL']
 else:
     compiler_optimize_flags = []
 
