@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
+import distutils.ccompiler
 import os
-import sys
-from setuptools import setup, find_packages, Extension
 from pathlib import Path
+from setuptools import setup, find_packages, Extension
+import sys
+
 import numpy
 np_include_dir = numpy.get_include()
 
@@ -21,6 +23,15 @@ install_reqs = [
     'tqdm',
     'xxhash',
 ]
+
+# This will determine which compiler is being used to build the C modules
+compiler_type = distutils.ccompiler.get_default_compiler()
+if compiler_type in ("unix", "mingw32"):
+    compiler_optimize_flags = ['-O3', '-ftree-vectorize']
+elif compiler_type == "msvc":
+    compiler_optimize_flags = ['/Ox', '/GL']
+else:
+    compiler_optimize_flags = []
 
 # This a hack to get around the fact that scikit-image on conda-forge doesn't install
 # dist info so setuptools can't find it, even though its there, which results in
@@ -41,6 +52,7 @@ def get_convolution_extensions():
     extra_compile_args=['-UNDEBUG']
     if not sys.platform.startswith('win'):
         extra_compile_args.append('-fPIC')
+    extra_compile_args += compiler_optimize_flags
     # Add '-Rpass-missed=.*' to ``extra_compile_args`` when compiling with clang
     # to report missed optimizations
     _convolve_ext = Extension(name='hexrd.convolution._convolve', sources=src_files,
@@ -59,6 +71,7 @@ def get_old_xfcapi_extension_modules():
         'hexrd.extensions._transforms_CAPI',
         sources=srclist,
         include_dirs=[np_include_dir],
+        extra_compile_args=compiler_optimize_flags,
     )
 
     return [transforms_mod]
@@ -69,6 +82,7 @@ def get_new_xfcapi_extension_modules():
         'hexrd.extensions._new_transforms_capi',
         sources=['hexrd/transforms/new_capi/module.c'],
         include_dirs=[np_include_dir],
+        extra_compile_args=compiler_optimize_flags,
     )
 
     return [transforms_mod]
