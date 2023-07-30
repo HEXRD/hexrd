@@ -49,7 +49,6 @@ import numpy as np
 from io import IOBase
 
 from scipy import ndimage
-from scipy.linalg import logm
 from skimage.measure import regionprops
 
 from hexrd import constants
@@ -90,7 +89,9 @@ from .detector import (
     max_workers_DFLT,
 )
 from .planar_detector import PlanarDetector
+from .spots import Spot, SpotWriter
 
+from scipy.linalg import logm
 from skimage.draw import polygon
 from skimage.util import random_noise
 from hexrd.wppf import wppfsupport
@@ -1687,14 +1688,14 @@ class HEDMInstrument(object):
             DESCRIPTION.
         grain_params : TYPE
             DESCRIPTION.
-        imgser_dict : TYPE
-            DESCRIPTION.
-        tth_tol : TYPE, optional
-            DESCRIPTION. The default is 0.25.
-        eta_tol : TYPE, optional
-            DESCRIPTION. The default is 1..
-        ome_tol : TYPE, optional
-            DESCRIPTION. The default is 1..
+        imgser_dict : dictionary
+            mapping of detector to it's corresponding imageseries
+        tth_tol : float (optional, default is 0.25)
+            two theta ...
+        eta_tol : float (optional, default is 1.)
+            eta ...
+        ome_tol : float (optional, default is 1.)
+            omega ...
         npdiv : TYPE, optional
             DESCRIPTION. The default is 2.
         threshold : TYPE, optional
@@ -1771,12 +1772,6 @@ class HEDMInstrument(object):
              tth_tol,  eta_tol,
              tth_tol, -eta_tol])
 
-        # prepare output if requested
-        if filename is not None and output_format.lower() == 'hdf5':
-            this_filename = os.path.join(dirname, filename)
-            writer = GrainDataWriter_h5(
-                os.path.join(dirname, filename),
-                self.write_config(), grain_params)
 
         # =====================================================================
         # LOOP OVER PANELS
@@ -1785,16 +1780,15 @@ class HEDMInstrument(object):
         compl = []
         output = dict.fromkeys(self.detectors)
         for detector_id, panel in self.detectors.items():
-            # initialize text-based output writer
-            if filename is not None and output_format.lower() == 'text':
+
+            # Set up the spot writer.
+            if filename is not None:
                 output_dir = os.path.join(
                     dirname, detector_id
-                    )
-                os.makedirs(output_dir, exist_ok=True)
-                this_filename = os.path.join(
-                    output_dir, filename
                 )
-                writer = PatchDataWriter(this_filename)
+                spot_writer = SpotWriter(
+                    summary=filename, full=filename, output_dir=output_dir
+                )
 
             # grab panel
             instr_cfg = panel.config_dict(
@@ -2052,23 +2046,18 @@ class HEDMInstrument(object):
                             patch_data = patch_data_raw
                             pass  # end contains_signal
                         # write output
-                        if filename is not None:
-                            if output_format.lower() == 'text':
-                                writer.dump_patch(
-                                    peak_id, hkl_id, hkl, sum_int, max_int,
-                                    ang_centers[i_pt], meas_angs,
-                                    xy_centers[i_pt], meas_xy)
-                            elif output_format.lower() == 'hdf5':
-                                xyc_arr = xy_eval.reshape(
-                                    prows, pcols, 2
-                                ).transpose(2, 0, 1)
-                                writer.dump_patch(
-                                    detector_id, iRefl, peak_id, hkl_id, hkl,
-                                    tth_edges, eta_edges, np.radians(ome_eval),
-                                    xyc_arr, ijs, frame_indices, patch_data,
-                                    ang_centers[i_pt], xy_centers[i_pt],
-                                    meas_angs, meas_xy)
-                            pass  # end conditional on write output
+                        xyc_arr = xy_eval.reshape(
+                            prows, pcols, 2
+                        ).transpose(2, 0, 1)
+                        spot = Spot(
+                            detector_id, iRefl, peak_id, hkl_id, hkl,
+                            tth_edges, eta_edges, np.radians(ome_eval),
+                            xyc_arr, ijs, frame_indices, patch_data,
+                            ang_centers[i_pt], xy_centers[i_pt],
+                            meas_angs, meas_xy, sum_int, max_int
+                        )
+                        spot_writer.write_spot(spot)
+
                         pass  # end conditional on check only
 
                         if return_spot_list:
@@ -2094,9 +2083,10 @@ class HEDMInstrument(object):
                     pass  # end patch conditional
                 pass  # end patch loop
             output[detector_id] = patch_output
-            if filename is not None and output_format.lower() == 'text':
-                writer.close()
-            pass  # end detector loop
+            spot_writer.close()
+            ##if filename is not None and output_format.lower() == 'text':
+            ##    writer.close()
+            ##pass  # end detector loop
         if filename is not None and output_format.lower() == 'hdf5':
             writer.close()
         return compl, output
@@ -2112,6 +2102,96 @@ class HEDMInstrument(object):
 # =============================================================================
 # UTILITIES
 # =============================================================================
+
+
+class GrainDataWriter(object):
+    """Class for dumping grain data."""
+
+    def __init__(self, filename=None, array=None):
+        """Writes to either file or np array
+
+        Array must be initialized with number of rows to be written.
+        """
+        if filename is None and array is None:
+            raise RuntimeError(
+                'GrainDataWriter must be specified with filename or array')
+
+        self.array = None
+        self.fid = None
+
+        # array supersedes filename
+        if array is not None:
+            assert array.shape[1] == 21, \
+                f'grain data table must have 21 columns not {array.shape[21]}'
+            self.array = array
+            self._array_row = 0
+            return
+
+        self._delim = '  '
+        header_items = (
+            '# grain ID', 'completeness', 'chi^2',
+            'exp_map_c[0]', 'exp_map_c[1]', 'exp_map_c[2]',
+            't_vec_c[0]', 't_vec_c[1]', 't_vec_c[2]',
+            'inv(V_s)[0,0]', 'inv(V_s)[1,1]', 'inv(V_s)[2,2]',
+            'inv(V_s)[1,2]*sqrt(2)',
+            'inv(V_s)[0,2]*sqrt(2)',
+            'inv(V_s)[0,1]*sqrt(2)',
+            'ln(V_s)[0,0]', 'ln(V_s)[1,1]', 'ln(V_s)[2,2]',
+            'ln(V_s)[1,2]', 'ln(V_s)[0,2]', 'ln(V_s)[0,1]'
+        )
+        self._header = self._delim.join(
+            [self._delim.join(
+                np.tile('{:<12}', 3)
+                ).format(*header_items[:3]),
+             self._delim.join(
+                np.tile('{:<23}', len(header_items) - 3)
+                ).format(*header_items[3:])]
+        )
+        if isinstance(filename, IOBase):
+            self.fid = filename
+        else:
+            self.fid = open(filename, 'w')
+        print(self._header, file=self.fid)
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        if self.fid is not None:
+            self.fid.close()
+
+    def dump_grain(self, grain_id, completeness, chisq,
+                   grain_params):
+        assert len(grain_params) == 12, \
+            "len(grain_params) must be 12, not %d" % len(grain_params)
+
+        # extract strain
+        emat = logm(np.linalg.inv(mutil.vecMVToSymm(grain_params[6:])))
+        evec = mutil.symmToVecMV(emat, scale=False)
+
+        res = [int(grain_id), completeness, chisq] \
+            + grain_params.tolist() \
+            + evec.tolist()
+
+        if self.array is not None:
+            row = self._array_row
+            assert row < self.array.shape[0], \
+                f'invalid row {row} in array table'
+            self.array[row] = res
+            self._array_row += 1
+            return res
+
+        # (else) format and write to file
+        output_str = self._delim.join(
+            [self._delim.join(
+                ['{:<12d}', '{:<12f}', '{:<12e}']
+             ).format(*res[:3]),
+             self._delim.join(
+                np.tile('{:<23.16e}', len(res) - 3)
+             ).format(*res[3:])]
+        )
+        print(output_str, file=self.fid)
+        return output_str
 
 
 def unwrap_dict_to_h5(grp, d, asattr=False):

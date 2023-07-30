@@ -3,102 +3,145 @@
 Currently this is only for saving the reflection image data
 for a grain.
 """
+from collections import namedtuple
+import os
+from io import IOBase
+
+import numpy as np
+import h5py
+
+from hexrd import matrixutil as mutil
 
 
-class Spot:
+_DataPatch = namedtuple(
+    "_DataPatch",
+    ["detector_id", "irefl", "peak_id", "hkl_id", "hkl", "tth_edges",
+     "eta_edges", "ome_eval", "xyc_arr", "ijs", "frame_indices", "patch_data",
+     "ang_centers", "xy_centers", "meas_angs", "meas_xy", "sum_int", "max_int"]
+)
+"""
+     peak_id, hkl_id, hkl, sum_int, max_int,
+     ang_centers[i_pt], meas_angs,
+     xy_centers[i_pt], meas_xy)
+"""
+_DataPatch.__doc__ = r"""initialize spot
 
-    def __init__(self):
-        pass
+        Parameters
+        ----------
+        detector_id: string
+           name of detector containing current spot
+        irefl: int (nonnegative)
+           the reflection number
+        peak_id: int
+           the peak number, which is the reflection ID or -999
+           if there are no peaks associated with this reflection
+        hkl_id: in
+
+                detector_iRefl, peak_id, hkl_id, hkl,
+                tth_edges, eta_edges, ome_eval,
+                xyc_arr, ijs, frame_indices, patch_data,
+                ang_centers, xy_centers, meas_angs, meas_xy
+
+        Returns
+        -------
+        var
+           description
+"""
 
 
-class GrainDataWriter(object):
-    """Class for dumping grain data."""
+class Spot(_DataPatch):
+    pass
 
-    def __init__(self, filename=None, array=None):
-        """Writes to either file or np array
+r""" code from pull_spots
+writer.dump_patch(
+    detector_id, iRefl, peak_id, hkl_id, hkl,
+    tth_edges, eta_edges, np.radians(ome_eval),
+    xyc_arr, ijs, frame_indices, patch_data,
+    ang_centers[i_pt], xy_centers[i_pt],
+    meas_angs, meas_xy)
 
-        Array must be initialized with number of rows to be written.
+ writer.dump_patch(
+     peak_id, hkl_id, hkl, sum_int, max_int,
+     ang_centers[i_pt], meas_angs,
+     xy_centers[i_pt], meas_xy)
+
+-        # prepare output if requested
+-        if filename is not None and output_format.lower() == 'hdf5':
+-            this_filename = os.path.join(dirname, filename)
+-            writer = GrainDataWriter_h5(
+-                os.path.join(dirname, filename),
+-                self.write_config(), grain_params)
+
+"""
+
+
+class SpotWriter:
+
+
+
+    def __init__(self, summary=None, full=None, output_dir=None,
+                 instr_cfg=None, grain_params=None):
+        """Write spots to files
+
+        Parameters
+        ----------
+        summary: string or None
+           basename of file to write spot summary list
+        full: string or None
+           basename of file to write full spot list
+        output_dir: string
+           path to output directory
+        instr_cfg: dictionary
+           dictionary of instrument config parameters (full output)
+        grain_params: list
+           grain parameters (full output)
+
+
+        Returns
+        -------
+        SpotWriter instance
         """
-        if filename is None and array is None:
-            raise RuntimeError(
-                'GrainDataWriter must be specified with filename or array')
+        self.summary = summary
+        self.full = full
+        self.output_dir = output_dir
 
-        self.array = None
-        self.fid = None
+        if output_dir is not None:
+            os.makedirs(output_dir, exist_ok=True)
 
-        # array supersedes filename
-        if array is not None:
-            assert array.shape[1] == 21, \
-                f'grain data table must have 21 columns not {array.shape[21]}'
-            self.array = array
-            self._array_row = 0
-            return
+        if self.summary:
+            self._open_summary()
 
-        self._delim = '  '
-        header_items = (
-            '# grain ID', 'completeness', 'chi^2',
-            'exp_map_c[0]', 'exp_map_c[1]', 'exp_map_c[2]',
-            't_vec_c[0]', 't_vec_c[1]', 't_vec_c[2]',
-            'inv(V_s)[0,0]', 'inv(V_s)[1,1]', 'inv(V_s)[2,2]',
-            'inv(V_s)[1,2]*sqrt(2)',
-            'inv(V_s)[0,2]*sqrt(2)',
-            'inv(V_s)[0,1]*sqrt(2)',
-            'ln(V_s)[0,0]', 'ln(V_s)[1,1]', 'ln(V_s)[2,2]',
-            'ln(V_s)[1,2]', 'ln(V_s)[0,2]', 'ln(V_s)[0,1]'
+
+    def _open_summary(self):
+        # initialize text-based output writer
+        this_filename = os.path.join(self.output_dir, self.summary + ".out")
+        self.summary_writer = PatchDataWriter(this_filename)
+
+    def _open_full(self):
+        this_filename = os.path.join(output_dir, self.full + ".hdf5")
+        self.full_writer = GrainDataWriter_h5(
+            this_filename, self.instr_cfg, self.grain_params
         )
-        self._header = self._delim.join(
-            [self._delim.join(
-                np.tile('{:<12}', 3)
-                ).format(*header_items[:3]),
-             self._delim.join(
-                np.tile('{:<23}', len(header_items) - 3)
-                ).format(*header_items[3:])]
-        )
-        if isinstance(filename, IOBase):
-            self.fid = filename
-        else:
-            self.fid = open(filename, 'w')
-        print(self._header, file=self.fid)
 
-    def __del__(self):
-        self.close()
+    def write_spot(self, spot):
+        """Write data for a reflection"""
+        if self.summary:
+            self.summary_writer.dump_patch(
+                spot.peak_id, spot.hkl_id, spot.hkl, spot.sum_int,
+                spot.max_int, spot.ang_centers, spot.meas_angs,
+                spot.xy_centers, spot.meas_xy
+            )
+
+        if self.full:
+            pass
 
     def close(self):
-        if self.fid is not None:
-            self.fid.close()
+        if self.summary:
+            self.summary_writer.close()
+        if self.full:
+            # self.full_writer.close()
+            pass
 
-    def dump_grain(self, grain_id, completeness, chisq,
-                   grain_params):
-        assert len(grain_params) == 12, \
-            "len(grain_params) must be 12, not %d" % len(grain_params)
-
-        # extract strain
-        emat = logm(np.linalg.inv(mutil.vecMVToSymm(grain_params[6:])))
-        evec = mutil.symmToVecMV(emat, scale=False)
-
-        res = [int(grain_id), completeness, chisq] \
-            + grain_params.tolist() \
-            + evec.tolist()
-
-        if self.array is not None:
-            row = self._array_row
-            assert row < self.array.shape[0], \
-                f'invalid row {row} in array table'
-            self.array[row] = res
-            self._array_row += 1
-            return res
-
-        # (else) format and write to file
-        output_str = self._delim.join(
-            [self._delim.join(
-                ['{:<12d}', '{:<12f}', '{:<12e}']
-             ).format(*res[:3]),
-             self._delim.join(
-                np.tile('{:<23.16e}', len(res) - 3)
-             ).format(*res[3:])]
-        )
-        print(output_str, file=self.fid)
-        return output_str
 
 
 class GrainDataWriter_h5(object):

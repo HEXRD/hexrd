@@ -347,7 +347,8 @@ def fit_grains(cfg,
 
     if ids_to_refine is not None:
         grains_table = np.atleast_2d(grains_table[ids_to_refine, :])
-    spots_filename = "spots_%05d.out" if write_spots_files else None
+    # Spots filename is now basename only.
+    spots_filename = "spots_%05d" if write_spots_files else None
     params = dict(
             grains_table=grains_table,
             plane_data=cfg.material.plane_data,
