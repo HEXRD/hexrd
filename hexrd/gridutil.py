@@ -90,6 +90,11 @@ def cellIndices(edges, points_1d):
     return np.array(idx, dtype=int)
 
 
+def centers_of_edge_vec(edges):
+    assert np.asarray(edges).ndim == 1, "edges must be 1-d"
+    return np.average(np.vstack([edges[:-1], edges[1:]]), axis=0)
+
+
 def _fill_connectivity(out, m, n, p):
     i_con = 0
     for k in range(p):

@@ -4,6 +4,7 @@ This includes the previous utils.compatibility module.
 """
 from importlib.metadata import version
 
+import numpy as np
 import h5py
 
 

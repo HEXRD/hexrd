@@ -11,6 +11,9 @@ import numpy as np
 import h5py
 
 from hexrd import matrixutil as mutil
+from hexrd.gridutil import centers_of_edge_vec
+from hexrd.utils.hdf5 import unwrap_dict_to_h5, unwrap_h5_to_dict
+from hexrd.transforms.xfcapi import makeRotMatOfExpMap
 
 
 _DataPatch = namedtuple(
@@ -77,8 +80,6 @@ writer.dump_patch(
 
 class SpotWriter:
 
-
-
     def __init__(self, summary=None, full=None, output_dir=None,
                  instr_cfg=None, grain_params=None):
         """Write spots to files
@@ -111,16 +112,19 @@ class SpotWriter:
         if self.summary:
             self._open_summary()
 
+        if self.full:
+            self._open_full(instr_cfg, grain_params)
+
 
     def _open_summary(self):
         # initialize text-based output writer
         this_filename = os.path.join(self.output_dir, self.summary + ".out")
         self.summary_writer = PatchDataWriter(this_filename)
 
-    def _open_full(self):
-        this_filename = os.path.join(output_dir, self.full + ".hdf5")
+    def _open_full(self, instr_cfg, grain_params):
+        this_filename = os.path.join(self.output_dir, self.full + ".hdf5")
         self.full_writer = GrainDataWriter_h5(
-            this_filename, self.instr_cfg, self.grain_params
+            this_filename, instr_cfg, grain_params
         )
 
     def write_spot(self, spot):
@@ -133,15 +137,19 @@ class SpotWriter:
             )
 
         if self.full:
-            pass
+            self.full_writer.dump_patch(
+                    spot.detector_id, spot.irefl, spot.peak_id, spot.hkl_id,
+                    spot.hkl, spot.tth_edges, spot.eta_edges, spot.ome_eval,
+                    spot.xyc_arr, spot.ijs, spot.frame_indices,
+                    spot.patch_data, spot.ang_centers, spot.xy_centers,
+                    spot.meas_angs, spot.meas_xy
+            )
 
     def close(self):
         if self.summary:
             self.summary_writer.close()
         if self.full:
-            # self.full_writer.close()
-            pass
-
+            self.full_writer.close()
 
 
 class GrainDataWriter_h5(object):

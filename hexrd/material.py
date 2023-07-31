@@ -49,7 +49,7 @@ from warnings import warn
 from hexrd.mksupport import Write2H5File
 from hexrd.symbols import xtal_sys_dict
 from hexrd.symbols import Hall_to_sgnum, HM_to_sgnum
-from hexrd.utils.compatibility import h5py_read_string
+from hexrd.utils.hdf5 import h5py_read_string
 from hexrd.fitting.peakfunctions import _unit_gaussian
 
 __all__ = ['Material', 'loadMaterialList']
