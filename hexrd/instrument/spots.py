@@ -22,11 +22,6 @@ _DataPatch = namedtuple(
      "eta_edges", "ome_eval", "xyc_arr", "ijs", "frame_indices", "patch_data",
      "ang_centers", "xy_centers", "meas_angs", "meas_xy", "sum_int", "max_int"]
 )
-"""
-     peak_id, hkl_id, hkl, sum_int, max_int,
-     ang_centers[i_pt], meas_angs,
-     xy_centers[i_pt], meas_xy)
-"""
 _DataPatch.__doc__ = r"""initialize spot
 
         Parameters
@@ -45,43 +40,18 @@ _DataPatch.__doc__ = r"""initialize spot
                 xyc_arr, ijs, frame_indices, patch_data,
                 ang_centers, xy_centers, meas_angs, meas_xy
 
-        Returns
-        -------
-        var
-           description
 """
 
 
 class Spot(_DataPatch):
     pass
 
-r""" code from pull_spots
-writer.dump_patch(
-    detector_id, iRefl, peak_id, hkl_id, hkl,
-    tth_edges, eta_edges, np.radians(ome_eval),
-    xyc_arr, ijs, frame_indices, patch_data,
-    ang_centers[i_pt], xy_centers[i_pt],
-    meas_angs, meas_xy)
-
- writer.dump_patch(
-     peak_id, hkl_id, hkl, sum_int, max_int,
-     ang_centers[i_pt], meas_angs,
-     xy_centers[i_pt], meas_xy)
-
--        # prepare output if requested
--        if filename is not None and output_format.lower() == 'hdf5':
--            this_filename = os.path.join(dirname, filename)
--            writer = GrainDataWriter_h5(
--                os.path.join(dirname, filename),
--                self.write_config(), grain_params)
-
-"""
 
 
 class SpotWriter:
 
-    def __init__(self, summary=None, full=None, output_dir=None,
-                 instr_cfg=None, grain_params=None):
+    def __init__(self, summary=None, full=None, sparse=None,
+                 output_dir=None, instr_cfg=None, grain_params=None):
         """Write spots to files
 
         Parameters
@@ -90,6 +60,8 @@ class SpotWriter:
            basename of file to write spot summary list
         full: string or None
            basename of file to write full spot list
+        sparse: string or None
+           sparse output
         output_dir: string
            path to output directory
         instr_cfg: dictionary
@@ -104,6 +76,7 @@ class SpotWriter:
         """
         self.summary = summary
         self.full = full
+        self.sparse = sparse
         self.output_dir = output_dir
 
         if output_dir is not None:
@@ -115,6 +88,8 @@ class SpotWriter:
         if self.full:
             self._open_full(instr_cfg, grain_params)
 
+        if self.sparse:
+            self._open_sparse(instr_cfg, grain_params)
 
     def _open_summary(self):
         # initialize text-based output writer
@@ -122,10 +97,20 @@ class SpotWriter:
         self.summary_writer = PatchDataWriter(this_filename)
 
     def _open_full(self, instr_cfg, grain_params):
-        this_filename = os.path.join(self.output_dir, self.full + ".hdf5")
+        this_filename = os.path.join(self.output_dir, self.full)
         self.full_writer = GrainDataWriter_h5(
             this_filename, instr_cfg, grain_params
         )
+
+    def _open_sparse(self, instr_cfg, grain_params):
+        this_filename = os.path.join(
+            self.output_dir, self.sparse + "-sparse.hdf5"
+        )
+        self.h5_sparse = h5py.File(this_filename, "w")
+
+        # Create DataGroup for spots. Detectors are created as needed
+        # when writing spots.
+        self.h5_spots = self.h5_sparse.create_group("reflection_data")
 
     def write_spot(self, spot):
         """Write data for a reflection"""
@@ -145,11 +130,64 @@ class SpotWriter:
                     spot.meas_angs, spot.meas_xy
             )
 
+        if self.sparse:
+            self.write_sparse(spot)
+
+    def write_sparse(self, spot):
+        """Write a spot to sparse format"""
+        shuffle_data = True
+        gzip_level = 1
+        opts = dict(
+            compression="gzip",
+            compression_opts=gzip_level,
+            shuffle=shuffle_data
+        )
+
+        if spot.detector_id in self.h5_spots:
+            g = self.h5_spots[spot.detector_id]
+        else:
+            g = self.h5_spots.create_group(spot.detector_id)
+
+        s = g.create_group("spot_%05d" % spot.irefl)
+        s.attrs.create('peak_id', int(spot.peak_id))
+        s.attrs.create('hkl_id', int(spot.hkl_id))
+        s.attrs.create('hkl', np.array(spot.hkl, dtype=int))
+        ### Need to create sparse form
+        s.create_dataset(
+            'intensities', data=spot.patch_data, **opts
+        )
+
     def close(self):
         if self.summary:
             self.summary_writer.close()
         if self.full:
             self.full_writer.close()
+        if self.sparse:
+            self.h5_sparse.close()
+
+class SpotReader:
+    """Read a file of reflection data"""
+
+    def open(self, fname):
+        self.fname = fname
+        self.hfile = h5py.File(fname, "r")
+
+    def read_spot(self, det_id, spotnum):
+        """Read spot ID number on specified detector
+
+
+        Parameters
+        ----------
+        det_id: str
+           detector identifier
+        spotnum: int (>= 0)
+           spot ID number
+
+        Returns
+        -------
+        spot data
+        """
+        pass
 
 
 class GrainDataWriter_h5(object):

@@ -1782,7 +1782,7 @@ class HEDMInstrument(object):
                     dirname, detector_id
                 )
                 spot_writer = SpotWriter(
-                    summary=filename, full=filename, output_dir=output_dir,
+                    summary=filename, sparse=filename, output_dir=output_dir,
                     instr_cfg=self.write_config(), grain_params=grain_params
                 )
 
