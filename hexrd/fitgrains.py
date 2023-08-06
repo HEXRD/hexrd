@@ -92,6 +92,7 @@ def fit_grain_FF_reduced(grain_id):
     ome_period = paramMP['ome_period']
     analysis_dirname = paramMP['analysis_dirname']
     prefix = paramMP['spots_filename']
+    output_format = paramMP['output_format']
     spots_filename = None if prefix is None else prefix % grain_id
 
     grain = grains_table[grain_id]
@@ -107,9 +108,13 @@ def fit_grain_FF_reduced(grain_id):
             npdiv=npdiv, threshold=threshold,
             eta_ranges=eta_ranges,
             ome_period=ome_period,
-            dirname=analysis_dirname, filename=spots_filename,
+            dirname=analysis_dirname,
+            filename=spots_filename,
+            output_format=output_format,
             return_spot_list=False,
-            quiet=True, check_only=False, interp='nearest')
+            quiet=True,
+            check_only=False,
+            interp='nearest')
 
         # ======= DETERMINE VALID REFLECTIONS =======
 
@@ -350,20 +355,22 @@ def fit_grains(cfg,
     # Spots filename is now basename only.
     spots_filename = "spots_%05d" if write_spots_files else None
     params = dict(
-            grains_table=grains_table,
-            plane_data=cfg.material.plane_data,
-            instrument=instr,
-            imgser_dict=imsd,
-            tth_tol=cfg.fit_grains.tolerance.tth,
-            eta_tol=cfg.fit_grains.tolerance.eta,
-            ome_tol=cfg.fit_grains.tolerance.omega,
-            npdiv=cfg.fit_grains.npdiv,
-            refit=cfg.fit_grains.refit,
-            threshold=threshold,
-            eta_ranges=eta_ranges,
-            ome_period=ome_period,
-            analysis_dirname=cfg.analysis_dir,
-            spots_filename=spots_filename)
+        grains_table=grains_table,
+        plane_data=cfg.material.plane_data,
+        instrument=instr,
+        imgser_dict=imsd,
+        tth_tol=cfg.fit_grains.tolerance.tth,
+        eta_tol=cfg.fit_grains.tolerance.eta,
+        ome_tol=cfg.fit_grains.tolerance.omega,
+        npdiv=cfg.fit_grains.npdiv,
+        refit=cfg.fit_grains.refit,
+        threshold=threshold,
+        eta_ranges=eta_ranges,
+        ome_period=ome_period,
+        analysis_dirname=cfg.analysis_dir,
+        spots_filename=spots_filename,
+        output_format=cfg.fit_grains.output_format
+    )
 
     # =====================================================================
     # EXECUTE MP FIT

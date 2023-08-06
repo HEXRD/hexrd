@@ -30,6 +30,7 @@ fit_grains:
 ---
 fit_grains:
   tth_max: -1
+  output_format: ["a", "b"]
 ---
 # cgf #4
 fit_grains:
@@ -94,6 +95,9 @@ class TestFitGrainsConfig(TestConfig):
             getattr, self.cfgs[3].fit_grains, 'tth_max'
             )
 
+    def test_output_format(self):
+        self.assertTrue(self.cfgs[0].fit_grains.output_format[0] == 'summary')
+        self.assertTrue(self.cfgs[3].fit_grains.output_format[0] == 'a')
 
 class TestToleranceConfig(TestConfig):
 

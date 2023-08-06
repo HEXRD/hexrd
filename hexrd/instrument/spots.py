@@ -6,6 +6,7 @@ for a grain.
 from collections import namedtuple
 import os
 from io import IOBase
+import warnings
 
 import numpy as np
 import h5py
@@ -50,18 +51,17 @@ class Spot(_DataPatch):
 
 class SpotWriter:
 
-    def __init__(self, summary=None, full=None, sparse=None,
-                 output_dir=None, instr_cfg=None, grain_params=None):
+    def __init__(self, output_format, filename, output_dir=None,
+                 instr_cfg=None, grain_params=None):
         """Write spots to files
 
         Parameters
         ----------
-        summary: string or None
-           basename of file to write spot summary list
-        full: string or None
-           basename of file to write full spot list
-        sparse: string or None
-           sparse output
+        output_format: list of strings
+           list of output formats to write spot data; possible formats
+           are 'summary', 'full' and 'sparse'
+        filename: string
+           basename of output file(s)
         output_dir: string
            path to output directory
         instr_cfg: dictionary
@@ -74,9 +74,18 @@ class SpotWriter:
         -------
         SpotWriter instance
         """
-        self.summary = summary
-        self.full = full
-        self.sparse = sparse
+        # The legacy option "text" is considered equivalent to ["summary"].
+        if output_format == "text":
+            outfmt = ["summary"]
+            warnings.warn('output_fmt" "text" option is deprecated; see help')
+        else:
+            outfmt = output_format
+        #
+        self.output_format = outfmt
+        self.summary = filename if "summary" in outfmt else None
+        self.sparse = filename if "sparse" in outfmt else None
+        self.full = filename if "full" in outfmt else None
+
         self.output_dir = output_dir
 
         if output_dir is not None:

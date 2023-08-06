@@ -114,3 +114,8 @@ class FitGrainsConfig(Config):
         raise RuntimeError(
             '"%s" must be > 0, true, or false, got "%s"' % (key, temp)
             )
+
+    @property
+    def output_format(self):
+        key = 'fit_grains:output_format'
+        return self._cfg.get(key, ['summary'])

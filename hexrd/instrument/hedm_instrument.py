@@ -1685,12 +1685,12 @@ class HEDMInstrument(object):
             DESCRIPTION.
         imgser_dict : dictionary
             mapping of detector to it's corresponding imageseries
-        tth_tol : float (optional, default is 0.25)
-            two theta ...
-        eta_tol : float (optional, default is 1.)
-            eta ...
-        ome_tol : float (optional, default is 1.)
-            omega ...
+        tth_tol : float (default is 0.25)
+            two theta tolerance
+        eta_tol : float (default is 1.)
+            eta tolerance
+        ome_tol : float (default is 1.)
+            omega tolerance
         npdiv : TYPE, optional
             DESCRIPTION. The default is 2.
         threshold : TYPE, optional
@@ -1699,14 +1699,14 @@ class HEDMInstrument(object):
             DESCRIPTION. The default is [(-np.pi, np.pi), ].
         ome_period : TYPE, optional
             DESCRIPTION. The default is (-np.pi, np.pi).
-        dirname : TYPE, optional
-            DESCRIPTION. The default is 'results'.
-        filename : TYPE, optional
-            DESCRIPTION. The default is None.
-        output_format : TYPE, optional
-            DESCRIPTION. The default is 'text'.
-        return_spot_list : TYPE, optional
-            DESCRIPTION. The default is False.
+        dirname : string (optional, default="results")
+            name of directory for output files
+        filename : string or None (optional, default is None)
+            the basename (no suffix) of the spot output files
+        output_format : sequence of strings (default is [])
+            list of output formats to write
+        return_spot_list : bool (default is False)
+            if True, return detailed data for all reflections
         quiet : TYPE, optional
             DESCRIPTION. The default is True.
         check_only : TYPE, optional
@@ -1782,7 +1782,7 @@ class HEDMInstrument(object):
                     dirname, detector_id
                 )
                 spot_writer = SpotWriter(
-                    summary=filename, sparse=filename, output_dir=output_dir,
+                    output_format, filename, output_dir=output_dir,
                     instr_cfg=self.write_config(), grain_params=grain_params
                 )
 
@@ -2080,11 +2080,7 @@ class HEDMInstrument(object):
                 pass  # end patch loop
             output[detector_id] = patch_output
             spot_writer.close()
-            ##if filename is not None and output_format.lower() == 'text':
-            ##    writer.close()
-            ##pass  # end detector loop
-        if filename is not None and output_format.lower() == 'hdf5':
-            writer.close()
+
         return compl, output
 
     def update_memoization_sizes(self):
