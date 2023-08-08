@@ -279,17 +279,17 @@ class LeBail:
         for that change
         """
         self._background = []
-        degree = self.bkgmethod["chebyshev"]
-
+        # degree = self.bkgmethod["chebyshev"]
+        p = self.init_bkg
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
-            if s.y.shape[0] <= degree:
-                self._background.append(Spectrum(x=tth, y=np.zeros(tth.shape)))
-            else:
-                p = np.polynomial.Chebyshev.fit(
-                    tth, s.y, degree, w=self._weights[i] ** 4
-                )
-                self._background.append(Spectrum(x=tth, y=p(tth)))
+            # if s.y.shape[0] <= degree:
+            #     self._background.append(Spectrum(x=tth, y=np.zeros(tth.shape)))
+            # else:
+                # p = np.polynomial.Chebyshev.fit(
+                #     tth, s.y, degree, w=self._weights[i] ** 4
+                # )
+            self._background.append(Spectrum(x=tth, y=p(tth)))
 
     def selectpoints(self):
         """
@@ -1191,6 +1191,22 @@ class LeBail:
     @property
     def params(self):
         return self._params
+
+    @property
+    def init_bkg(self):
+        degree = self.bkgmethod["chebyshev"]
+        x   = np.empty([0,])
+        y   = np.empty([0,])
+        wts = np.empty([0,])
+        for i, s in enumerate(self._spectrum_expt):
+            tth = self._tth_list[i]
+            wt = self._weights[i]
+            x = np.append(x, tth)
+            y = np.append(y, s)
+            wts = np.append(wts, wt)
+        p = np.polynomial.Chebyshev.fit(x, y, deg, w=wts**4)
+        return p.coef
+
 
     @params.setter
     def params(self, param_info):
