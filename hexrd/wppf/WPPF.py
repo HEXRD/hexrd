@@ -1218,7 +1218,6 @@ class LeBail:
         p = np.polynomial.Chebyshev.fit(x, y, degree, w=wts**4)
         return p
 
-
     @params.setter
     def params(self, param_info):
         """
