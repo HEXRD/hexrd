@@ -932,7 +932,7 @@ class LeBail:
         """
         if hasattr(self, "params"):
             params = wppfsupport._generate_default_parameters_LeBail(
-                self.phases, self.peakshape
+                self.phases, self.peakshape, self.bkgmethod
             )
             for p in params:
                 if p in self.params:
@@ -1257,7 +1257,7 @@ class LeBail:
             mixing factor calculated by Thomax, Cox, Hastings formula
             """
             params = wppfsupport._generate_default_parameters_LeBail(
-                self.phases, self.peakshape
+                self.phases, self.peakshape, self.bkgmethod
             )
             self._params = params
 
