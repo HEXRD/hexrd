@@ -41,6 +41,7 @@ from hexrd.unitcell import _rqpDict
 import hexrd
 import numpy as np
 from hexrd import constants
+import warnings
 
 def _generate_default_parameters_pseudovoight(params):
     """
@@ -129,7 +130,7 @@ def _add_chebyshev_background(params,
     same as determined by WPPF.chebyshevfit 
     routine
     """
-    for d in range(degree):
+    for d in range(degree+1):
         n = f"bkg_{d}"
         if isinstance(params, Parameters):
             params.add(name=n,
@@ -353,14 +354,14 @@ def _generate_default_parameters_LeBail(mat,
     if "chebyshev" in bkgmethod:
         deg = bkgmethod["chebyshev"]
         if not (init_val is None):
-            if len(init_val) == deg+1:
+            if len(init_val) < deg+1:
                 msg = (f"size of init_val and degree "
                        f"of polynomial are not consistent. "
                        f"setting initial guess to zero.")
                 warnings.warn(msg)
-                init_val = np.zeros([deg,])
+                init_val = np.zeros([deg+1,])
         else:
-            init_val = np.zeros([deg,])
+            init_val = np.zeros([deg+1,])
 
         _add_chebyshev_background(params,
                                   deg,
@@ -509,6 +510,8 @@ def _add_absorption_parameters(mat, params):
 
 def _generate_default_parameters_Rietveld(mat,
                                           peakshape,
+                                          bkgmethod,
+                                          init_val=None,
                                           ptype="wppf"):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
@@ -518,6 +521,8 @@ def _generate_default_parameters_Rietveld(mat,
     """
     params = _generate_default_parameters_LeBail(mat,
                                                  peakshape,
+                                                 bkgmethod,
+                                                 init_val,
                                                  ptype=ptype)
 
     if ptype == "wppf":

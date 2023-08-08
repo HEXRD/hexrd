@@ -279,11 +279,9 @@ class LeBail:
         for that change
         """
         self._background = []
-        # degree = self.bkgmethod["chebyshev"]
-        p = self.init_bkg
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
-            self._background.append(Spectrum(x=tth, y=p(tth)))
+            self._background.append(Spectrum(x=tth, y=self.init_bkg(tth)))
 
     def selectpoints(self):
         """
@@ -886,6 +884,28 @@ class LeBail:
     def peakshape(self):
         return self._peakshape
 
+    @property
+    def cheb_coef(self):
+        coef = []
+        if "chebyshev" in self.bkgmethod:
+            for d in range(self.bkgmethod["chebyshev"]+1):
+                n = f"bkg_{d}"
+                coef.append(self.params[n].value)
+            return np.array(coef)
+        else:
+            return None
+
+    @property
+    def cheb_polynomial(self):
+        return np.polynomial.Chebyshev(
+               self.cheb_coef,
+               domain=[self.tth_list[0], self.tth_list[-1]]
+               )
+
+    @property
+    def cheb_init_coef(self):
+        return self.init_bkg.coef
+
     @peakshape.setter
     def peakshape(self, val):
         """
@@ -1165,7 +1185,7 @@ class LeBail:
 
     @property
     def background(self):
-        vector_list = [s.y for s in self._background]
+        vector_list = [self.cheb_polynomial(t) for t in self._tth_list]
 
         bkg_masked = join_regions(
             vector_list, self.global_index, self.global_shape
@@ -1193,10 +1213,10 @@ class LeBail:
             tth = self._tth_list[i]
             wt = self._weights[i]
             x = np.append(x, tth)
-            y = np.append(y, s)
+            y = np.append(y, s._y)
             wts = np.append(wts, wt)
-        p = np.polynomial.Chebyshev.fit(x, y, deg, w=wts**4)
-        return p.coef
+        p = np.polynomial.Chebyshev.fit(x, y, degree, w=wts**4)
+        return p
 
 
     @params.setter
@@ -1267,7 +1287,10 @@ class LeBail:
             mixing factor calculated by Thomax, Cox, Hastings formula
             """
             params = wppfsupport._generate_default_parameters_LeBail(
-                self.phases, self.peakshape, self.bkgmethod
+                self.phases,
+                self.peakshape,
+                self.bkgmethod,
+                init_val=self.cheb_init_coef
             )
             self._params = params
 
@@ -2267,7 +2290,10 @@ class Rietveld:
             final is the zero instrumental peak position error
             """
             params = wppfsupport._generate_default_parameters_Rietveld(
-                self.phases, self.peakshape
+                self.phases,
+                self.peakshape,
+                self.bkgmethod,
+                init_val=self.cheb_init_coef
             )
             self._params = params
 
@@ -2658,6 +2684,37 @@ class Rietveld:
             self._params = params
             self._set_params_vals_to_class(params, init=True, skip_phases=True)
             self.computespectrum()
+
+    @property
+    def init_bkg(self):
+        degree = self.bkgmethod["chebyshev"]
+        x   = np.empty([0,])
+        y   = np.empty([0,])
+        wts = np.empty([0,])
+        for i, s in enumerate(self._spectrum_expt):
+            tth = self._tth_list[i]
+            wt = self._weights[i]
+            x = np.append(x, tth)
+            y = np.append(y, s._y)
+            wts = np.append(wts, wt)
+        p = np.polynomial.Chebyshev.fit(x, y, degree, w=wts**4)
+        return p
+
+    @property
+    def cheb_coef(self):
+        coef = []
+        if "chebyshev" in self.bkgmethod:
+            for d in range(self.bkgmethod["chebyshev"]+1):
+                n = f"bkg_{d}"
+                coef.append(self.params[n].value)
+            return np.array(coef)
+        else:
+            return None
+
+
+    @property
+    def cheb_init_coef(self):
+        return self.init_bkg.coef
 
     @property
     def computespectrum_fcn(self):
