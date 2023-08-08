@@ -2515,7 +2515,7 @@ class Rietveld:
 
     @property
     def background(self):
-        vector_list = [s.y for s in self._background]
+        vector_list = [self.cheb_polynomial(t) for t in self._tth_list]
 
         bkg_masked = join_regions(
             vector_list, self.global_index, self.global_shape
@@ -2682,7 +2682,10 @@ class Rietveld:
         """
         if hasattr(self, "params"):
             params = wppfsupport._generate_default_parameters_Rietveld(
-                self.phases, self.peakshape
+                self.phases,
+                self.peakshape,
+                self.bkgmethod,
+                init_val=self.cheb_init_coef
             )
             for p in params:
                 if p in self.params:
@@ -2717,6 +2720,13 @@ class Rietveld:
         else:
             return None
 
+
+    @property
+    def cheb_polynomial(self):
+        return np.polynomial.Chebyshev(
+               self.cheb_coef,
+               domain=[self.tth_list[0], self.tth_list[-1]]
+               )
 
     @property
     def cheb_init_coef(self):
