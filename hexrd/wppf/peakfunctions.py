@@ -839,9 +839,7 @@ def calc_rwp(spectrum_sim,
     moved outside of the class to allow numba implementation
     P : number of independent parameters in fitting
     """
-    err = weights[:,1]* \
-    (spectrum_sim[:,1] - \
-    spectrum_expt[:,1])**2
+    err = weights[:,1]*(spectrum_sim[:,1] - spectrum_expt[:,1])**2
 
     weighted_expt = weights[:,1] * spectrum_expt[:,1] **2
 
