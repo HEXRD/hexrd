@@ -665,12 +665,9 @@ class LeBail:
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
         if print_to_screen:
-            print(
-                "Finished iteration. Rwp: \
-                {:.3f} % goodness of fit: {:.3f}".format(
-                    self.Rwp * 100.0, self.gofF
-                )
-            )
+            msg = (f"Finished iteration. Rwp: "
+                f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}")
+            print(msg)
 
     def Refine(self):
         """
@@ -2020,12 +2017,9 @@ class Rietveld:
             self.Rwplist = np.append(self.Rwplist, self.Rwp)
             self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-            print(
-                "Finished iteration. Rwp: {:.3f} % goodness of \
-                  fit: {:.3f}".format(
-                    self.Rwp * 100.0, self.gofF
-                )
-            )
+            msg = (f"Finished iteration. Rwp: "
+                f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}")
+            print(msg)
         else:
             print("Nothing to refine...")
 
@@ -2462,7 +2456,7 @@ class Rietveld:
                 ww = np.zeros(s.y.shape)
                 """also initialize statistical weights
                 for the error calculation"""
-                ww[~mask] = 1.0 / np.sqrt(s.y[~mask])
+                ww[~mask] = 1.0 / s.y[~mask]
                 self._weights.append(ww)
 
             self.initialize_bkg()

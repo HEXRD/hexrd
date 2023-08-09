@@ -848,8 +848,8 @@ def calc_rwp(spectrum_sim,
     errvec = np.sqrt(err)
 
     """ weighted sum of square """
-    wss = np.trapz(err, spectrum_expt[:,0])
-    den = np.trapz(weighted_expt, spectrum_expt[:,0])
+    wss = np.sum(err)
+    den = np.sum(weighted_expt)
 
     """ standard Rwp i.e. weighted residual """
     if(den > 0.):
@@ -873,7 +873,7 @@ def calc_rwp(spectrum_sim,
 
     # Rwp and goodness of fit parameters
     if Rexp > 0.:
-        gofF = (Rwp / Rexp)**2
+        gofF = wss/(N-P)
     else:
         gofF = np.inf
 
