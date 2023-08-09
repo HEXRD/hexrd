@@ -1154,7 +1154,7 @@ class LeBail:
                 ww = np.zeros(s.y.shape)
                 """also initialize statistical weights
                 for the error calculation"""
-                ww[~mask] = 1.0 / np.sqrt(s.y[~mask])
+                ww[~mask] = 1.0 / s.y[~mask]
                 self._weights.append(ww)
 
             self.initialize_bkg()
