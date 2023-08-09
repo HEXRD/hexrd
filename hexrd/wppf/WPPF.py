@@ -287,7 +287,7 @@ class LeBail:
                 self._background.append(Spectrum(x=tth, y=np.zeros(tth.shape)))
             else:
                 p = np.polynomial.Chebyshev.fit(
-                    tth, s.y, degree, w=self._weights[i] ** 4
+                    tth, s.y, degree, w=self._weights[i] ** 2
                 )
                 self._background.append(Spectrum(x=tth, y=p(tth)))
 
