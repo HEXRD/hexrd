@@ -839,17 +839,15 @@ def calc_rwp(spectrum_sim,
     moved outside of the class to allow numba implementation
     P : number of independent parameters in fitting
     """
-    err = weights[:,1]* \
-    (spectrum_sim[:,1] - \
-    spectrum_expt[:,1])**2
+    err = weights[:,1]*(spectrum_sim[:,1] - spectrum_expt[:,1])**2
 
     weighted_expt = weights[:,1] * spectrum_expt[:,1] **2
 
     errvec = np.sqrt(err)
 
     """ weighted sum of square """
-    wss = np.trapz(err, spectrum_expt[:,0])
-    den = np.trapz(weighted_expt, spectrum_expt[:,0])
+    wss = np.sum(err)
+    den = np.sum(weighted_expt)
 
     """ standard Rwp i.e. weighted residual """
     if(den > 0.):
@@ -873,7 +871,7 @@ def calc_rwp(spectrum_sim,
 
     # Rwp and goodness of fit parameters
     if Rexp > 0.:
-        gofF = (Rwp / Rexp)**2
+        gofF = wss/(N-P)
     else:
         gofF = np.inf
 
