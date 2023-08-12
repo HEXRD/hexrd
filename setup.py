@@ -3,9 +3,11 @@ import distutils.ccompiler
 import os
 from pathlib import Path
 from setuptools import setup, find_packages, Extension
+import sysconfig
 import sys
 
 import numpy
+import pybind11
 np_include_dir = numpy.get_include()
 
 install_reqs = [
@@ -62,6 +64,59 @@ def get_convolution_extensions():
 
     return [_convolve_ext]
 
+def get_include_path(library_name):
+    env_var_hint = os.getenv(f"{library_name.upper()}_INCLUDE_DIR")
+    if env_var_hint is not None and os.path.exists(env_var_hint):
+        return env_var_hint
+
+    possible_directories = [
+        "/xsimd/include/xsimd",
+        "/eigen3/eigen-3.4.0",
+        "/",
+        "/usr/include",
+        "/usr/local/include",
+        sysconfig.get_path('include'),
+    ]
+
+    for directory in possible_directories:
+        full_path = os.path.join(directory, library_name)
+        if os.path.exists(full_path):
+            return full_path
+
+    raise Exception(f"The {library_name} library was not found in any known directory.")
+
+def get_cpp_extensions():
+    cpp_transform_pkgdir = Path('hexrd') / 'transforms/cpp_sublibrary'
+    src_files = [str(cpp_transform_pkgdir / 'src/transforms.cpp'), str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')]
+
+    extra_compile_args = ['-O3', '-Wall', '-shared', '-std=c++20', '-funroll-loops']
+    if not sys.platform.startswith('win'):
+        extra_compile_args.append('-fPIC')
+
+    # Define include directories
+    include_dirs = [
+        sysconfig.get_path('include'),
+        get_include_path('eigen3'),
+        get_include_path('xsimd'),
+        pybind11.get_include(),
+        numpy.get_include(),
+    ]
+
+    # Create extensions
+    transforms_ext = Extension(name='hexrd.extensions.transforms',
+                               sources=[src_files[0]],
+                               extra_compile_args=extra_compile_args,
+                               include_dirs=include_dirs,
+                               language='c++')
+
+    inverse_distortion_ext = Extension(name='hexrd.extensions.inverse_distortion',
+                                       sources=[src_files[1]],
+                                       extra_compile_args=extra_compile_args,
+                                       include_dirs=include_dirs,
+                                       language='c++')
+
+    return [transforms_ext, inverse_distortion_ext]
+
 
 def get_old_xfcapi_extension_modules():
     # for transforms
@@ -94,6 +149,7 @@ def get_extension_modules():
         get_old_xfcapi_extension_modules(),
         get_new_xfcapi_extension_modules(),
         get_convolution_extensions(),
+        get_cpp_extensions(),
     ) for item in sublist]
 
 

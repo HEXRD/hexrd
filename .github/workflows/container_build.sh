@@ -2,7 +2,12 @@
 cd /github/workspace/
 
 # Install dependencies
-yum install -y wget git centos-release-scl
+yum install -y wget git centos-release-scl eigen3-devel
+
+# Install xsimd headers
+git clone https://github.com/xtensor-stack/xsimd.git
+mkdir -p /usr/include/xsimd
+cp -r xsimd/include/xsimd/* /usr/include/xsimd/
 
 # Need to install packages that depend on centos-release-scl on a different line.
 # This will use gcc==10, which is the same as what manylinux2014 uses.
@@ -23,6 +28,7 @@ ${HOME}/miniconda3/bin/conda activate hexrd
 
 # Install conda build and create output directory
 ${HOME}/miniconda3/bin/conda install --override-channels -c conda-forge conda-build -y
+${HOME}/miniconda3/bin/conda install -c conda-forge pybind11 -y
 mkdir output
 
 # Build the package

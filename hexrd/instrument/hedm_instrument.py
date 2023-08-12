@@ -48,7 +48,7 @@ import numpy as np
 
 from io import IOBase
 
-from scipy import ndimage
+from scipy import ndimage, sparse
 from scipy.linalg import logm
 from skimage.measure import regionprops
 
@@ -1870,17 +1870,17 @@ class HEDMInstrument(object):
                             """ % tuple(hkls_p[i_pt, :])
                             print(msg)
                         continue
-                    else:
-                        these_vertices = patch_xys[i_pt]
-                        ijs = panel.cartToPixel(these_vertices)
-                        ii, jj = polygon(ijs[:, 0], ijs[:, 1])
-                        contains_signal = False
-                        for i_frame in frame_indices:
-                            contains_signal = contains_signal or np.any(
-                                ome_imgser[i_frame][ii, jj] > threshold
-                            )
-                        compl.append(contains_signal)
-                        patch_output.append((ii, jj, frame_indices))
+
+                    these_vertices = patch_xys[i_pt]
+                    ijs = panel.cartToPixel(these_vertices)
+                    ii, jj = polygon(ijs[:, 0], ijs[:, 1])
+                    contains_signal = False
+                    for i_frame in frame_indices:
+                        contains_signal = contains_signal or np.any(
+                            ome_imgser[i_frame][ii, jj] > threshold
+                        )
+                    compl.append(contains_signal)
+                    patch_output.append((ii, jj, frame_indices))
             else:
                 # make the tth,eta patches for interpolation
                 patches = xrdutil.make_reflection_patches(
@@ -1932,171 +1932,156 @@ class HEDMInstrument(object):
                             """ % tuple(hkl)
                             print(msg)
                         continue
-                    else:
-                        # initialize spot data parameters
-                        # !!! maybe change these to nan to not fuck up writer
-                        peak_id = -999
-                        sum_int = np.nan
-                        max_int = np.nan
-                        meas_angs = np.nan*np.ones(3)
-                        meas_xy = np.nan*np.ones(2)
 
-                        # quick check for intensity
-                        contains_signal = False
-                        patch_data_raw = []
-                        for i_frame in frame_indices:
-                            tmp = ome_imgser[i_frame][ijs[0], ijs[1]]
-                            contains_signal = contains_signal or np.any(
-                                tmp > threshold
-                            )
-                            patch_data_raw.append(tmp)
-                            pass
-                        patch_data_raw = np.stack(patch_data_raw, axis=0)
-                        compl.append(contains_signal)
+                    # initialize spot data parameters
+                    # !!! maybe change these to nan to not fuck up writer
+                    peak_id = -999
+                    sum_int = np.nan
+                    max_int = np.nan
+                    meas_angs = np.nan*np.ones(3)
+                    meas_xy = np.nan*np.ones(2)
 
-                        if contains_signal:
-                            # initialize patch data array for intensities
-                            if interp.lower() == 'bilinear':
-                                patch_data = np.zeros(
-                                    (len(frame_indices), prows, pcols))
-                                for i, i_frame in enumerate(frame_indices):
-                                    patch_data[i] = \
-                                        panel.interpolate_bilinear(
-                                            xy_eval,
-                                            ome_imgser[i_frame],
-                                            pad_with_nans=False
-                                        ).reshape(prows, pcols)  # * nrm_fac
-                            elif interp.lower() == 'nearest':
-                                patch_data = patch_data_raw  # * nrm_fac
-                            else:
-                                msg = "interpolation option " + \
-                                    "'%s' not understood"
-                                raise RuntimeError(msg % interp)
+                    # quick check for intensity
+                    contains_signal = False
+                    patch_data_raw = []
+                    for i_frame in frame_indices:
+                        tmp = ome_imgser[i_frame][ijs].toarray()
+                        contains_signal = contains_signal or np.any(
+                            tmp > threshold
+                        )
+                        patch_data_raw.append(tmp)
 
-                            # now have interpolated patch data...
-                            labels, num_peaks = ndimage.label(
-                                patch_data > threshold, structure=label_struct
-                            )
-                            slabels = np.arange(1, num_peaks + 1)
+                    patch_data_raw = np.stack(patch_data_raw, axis=0)
+                    compl.append(contains_signal)
 
-                            if num_peaks > 0:
-                                peak_id = iRefl
-                                props = regionprops(labels, patch_data)
-                                coms = np.vstack(
-                                    [x.weighted_centroid for x in props])
-                                if num_peaks > 1:
-                                    center = np.r_[patch_data.shape]*0.5
-                                    center_t = np.tile(center, (num_peaks, 1))
-                                    com_diff = coms - center_t
-                                    closest_peak_idx = np.argmin(
-                                        np.sum(com_diff**2, axis=1)
-                                    )
-                                else:
-                                    closest_peak_idx = 0
-                                    pass  # end multipeak conditional
-                                coms = coms[closest_peak_idx]
-                                # meas_omes = \
-                                #     ome_edges[0] + (0.5 + coms[0])*delta_ome
-                                meas_omes = \
-                                    ome_eval[0] + coms[0]*delta_ome
-                                meas_angs = np.hstack(
-                                    [tth_edges[0] + (0.5 + coms[2])*delta_tth,
-                                     eta_edges[0] + (0.5 + coms[1])*delta_eta,
-                                     mapAngle(
-                                         np.radians(meas_omes), ome_period
-                                         )
-                                     ]
-                                )
-
-                                # intensities
-                                #   - summed is 'integrated' over interpolated
-                                #     data
-                                #   - max is max of raw input data
-                                sum_int = np.sum(
-                                    patch_data[
-                                        labels == slabels[closest_peak_idx]
-                                    ]
-                                )
-                                max_int = np.max(
-                                    patch_data_raw[
-                                        labels == slabels[closest_peak_idx]
-                                    ]
-                                )
-                                # ???: Should this only use labeled pixels?
-                                # Those are segmented from interpolated data,
-                                # not raw; likely ok in most cases.
-
-                                # need MEASURED xy coords
-                                # FIXME: overload angles_to_cart?
-                                gvec_c = angles_to_gvec(
-                                    meas_angs,
-                                    chi=self.chi,
-                                    rmat_c=rMat_c,
-                                    beam_vec=self.beam_vector)
-                                rMat_s = make_sample_rmat(
-                                    self.chi, meas_angs[2]
-                                )
-                                meas_xy = gvec_to_xy(
-                                    gvec_c,
-                                    panel.rmat, rMat_s, rMat_c,
-                                    panel.tvec, self.tvec, tVec_c,
-                                    beam_vec=self.beam_vector)
-                                if panel.distortion is not None:
-                                    meas_xy = panel.distortion.apply_inverse(
-                                        np.atleast_2d(meas_xy)
-                                    ).flatten()
-                                # FIXME: why is this suddenly necessary???
-                                meas_xy = meas_xy.squeeze()
-                                pass  # end num_peaks > 0
+                    if contains_signal:
+                        # initialize patch data array for intensities
+                        if interp.lower() == 'bilinear':
+                            patch_data = np.zeros(
+                                (len(frame_indices), prows, pcols))
+                            for i, i_frame in enumerate(frame_indices):
+                                patch_data[i] = \
+                                    panel.interpolate_bilinear(
+                                        xy_eval,
+                                        ome_imgser[i_frame],
+                                        pad_with_nans=False
+                                    ).reshape(prows, pcols)  # * nrm_fac
+                        elif interp.lower() == 'nearest':
+                            patch_data = patch_data_raw  # * nrm_fac
                         else:
-                            patch_data = patch_data_raw
-                            pass  # end contains_signal
-                        # write output
-                        if filename is not None:
-                            if output_format.lower() == 'text':
-                                writer.dump_patch(
-                                    peak_id, hkl_id, hkl, sum_int, max_int,
-                                    ang_centers[i_pt], meas_angs,
-                                    xy_centers[i_pt], meas_xy)
-                            elif output_format.lower() == 'hdf5':
-                                xyc_arr = xy_eval.reshape(
-                                    prows, pcols, 2
-                                ).transpose(2, 0, 1)
-                                writer.dump_patch(
-                                    detector_id, iRefl, peak_id, hkl_id, hkl,
-                                    tth_edges, eta_edges, np.radians(ome_eval),
-                                    xyc_arr, ijs, frame_indices, patch_data,
-                                    ang_centers[i_pt], xy_centers[i_pt],
-                                    meas_angs, meas_xy)
-                            pass  # end conditional on write output
-                        pass  # end conditional on check only
+                            msg = "interpolation option " + \
+                                "'%s' not understood"
+                            raise RuntimeError(msg % interp)
 
-                        if return_spot_list:
-                            # Full output
+                        # now have interpolated patch data...
+                        labels, num_peaks = ndimage.label(
+                            patch_data > threshold, structure=label_struct
+                        )
+                        slabels = np.arange(1, num_peaks + 1)
+
+                        if num_peaks > 0:
+                            peak_id = iRefl
+                            props = regionprops(labels, patch_data)
+                            coms = np.vstack(
+                                [x.weighted_centroid for x in props])
+                            if num_peaks > 1:
+                                center = np.r_[patch_data.shape]*0.5
+                                center_t = np.tile(center, (num_peaks, 1))
+                                com_diff = coms - center_t
+                                closest_peak_idx = np.argmin(np.sum(com_diff**2, axis=1))
+                            else:
+                                closest_peak_idx = 0
+                            coms = coms[closest_peak_idx]
+                            meas_omes = ome_eval[0] + coms[0]*delta_ome
+                            meas_angs = np.hstack(
+                                [
+                                    tth_edges[0] + (0.5 + coms[2])*delta_tth,
+                                    eta_edges[0] + (0.5 + coms[1])*delta_eta,
+                                    mapAngle(np.radians(meas_omes), ome_period)
+                                ]
+                            )
+
+                            # intensities
+                            #   - summed is 'integrated' over interpolated
+                            #     data
+                            #   - max is max of raw input data
+                            sum_int = np.sum(
+                                patch_data[
+                                    labels == slabels[closest_peak_idx]
+                                ]
+                            )
+                            max_int = np.max(
+                                patch_data_raw[
+                                    labels == slabels[closest_peak_idx]
+                                ]
+                            )
+                            # ???: Should this only use labeled pixels?
+                            # Those are segmented from interpolated data,
+                            # not raw; likely ok in most cases.
+
+                            # need MEASURED xy coords
+                            # FIXME: overload angles_to_cart?
+                            gvec_c = angles_to_gvec(
+                                meas_angs,
+                                chi=self.chi,
+                                rmat_c=rMat_c,
+                                beam_vec=self.beam_vector)
+                            rMat_s = make_sample_rmat(
+                                self.chi, meas_angs[2]
+                            )
+                            meas_xy = gvec_to_xy(
+                                gvec_c,
+                                panel.rmat, rMat_s, rMat_c,
+                                panel.tvec, self.tvec, tVec_c,
+                                beam_vec=self.beam_vector)
+                            if panel.distortion is not None:
+                                meas_xy = panel.distortion.apply_inverse(
+                                    np.atleast_2d(meas_xy)
+                                ).flatten()
+                    else:
+                        patch_data = patch_data_raw
+                    # write output
+                    if filename is not None:
+                        if output_format.lower() == 'text':
+                            writer.dump_patch(
+                                peak_id, hkl_id, hkl, sum_int, max_int,
+                                ang_centers[i_pt], meas_angs,
+                                xy_centers[i_pt], meas_xy)
+                        elif output_format.lower() == 'hdf5':
                             xyc_arr = xy_eval.reshape(
                                 prows, pcols, 2
                             ).transpose(2, 0, 1)
-                            _patch_output = [
+                            writer.dump_patch(
                                 detector_id, iRefl, peak_id, hkl_id, hkl,
                                 tth_edges, eta_edges, np.radians(ome_eval),
                                 xyc_arr, ijs, frame_indices, patch_data,
                                 ang_centers[i_pt], xy_centers[i_pt],
-                                meas_angs, meas_xy
-                            ]
-                        else:
-                            # Trimmed output
-                            _patch_output = [
-                                peak_id, hkl_id, hkl, sum_int, max_int,
-                                ang_centers[i_pt], meas_angs, meas_xy
-                            ]
-                        patch_output.append(_patch_output)
-                        iRefl += 1
-                    pass  # end patch conditional
-                pass  # end patch loop
+                                meas_angs, meas_xy)
+
+                    if return_spot_list:
+                        # Full output
+                        xyc_arr = xy_eval.reshape(
+                            prows, pcols, 2
+                        ).transpose(2, 0, 1)
+                        _patch_output = [
+                            detector_id, iRefl, peak_id, hkl_id, hkl,
+                            tth_edges, eta_edges, np.radians(ome_eval),
+                            xyc_arr, ijs, frame_indices, patch_data,
+                            ang_centers[i_pt], xy_centers[i_pt],
+                            meas_angs, meas_xy
+                        ]
+                    else:
+                        # Trimmed output
+                        _patch_output = [
+                            peak_id, hkl_id, hkl, sum_int, max_int,
+                            ang_centers[i_pt], meas_angs, meas_xy
+                        ]
+                    patch_output.append(_patch_output)
+                    iRefl += 1
             output[detector_id] = patch_output
             if filename is not None and output_format.lower() == 'text':
                 writer.close()
-            pass  # end detector loop
+
         if filename is not None and output_format.lower() == 'hdf5':
             writer.close()
         return compl, output
@@ -2721,15 +2706,14 @@ def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
 
     return retas, eta_bins, rtth_idx, reta_idx
 
-
 def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
     for i_row in range(*rows):
         image = ims[i_row]
 
-        # handle threshold if specified
         if threshold is not None:
+            if sparse.issparse(image):
+                image = image.toarray()
             # !!! NaNs get preserved
-            image = np.array(image)
             image[image < threshold] = 0.
 
         for i_r, tthr in enumerate(tth_ranges):

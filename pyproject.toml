@@ -1,2 +1,2 @@
 [build-system]
-requires = ["setuptools", "wheel", "numpy<1.25", "setuptools_scm[toml]"]
+requires = ["setuptools", "wheel", "numpy<1.25", "setuptools_scm[toml]", "pybind11"]

@@ -24,6 +24,7 @@ There are also some functions that maybe would be needed in the transforms modul
 """
 from . import constants as cnst
 from .transforms_definitions import xf_api
+from hexrd.extensions import transforms
 from hexrd.extensions import _new_transforms_capi as _impl
 
 import numpy as np
@@ -48,10 +49,9 @@ def angles_to_gvec(
     chi = 0.0 if chi is None else float(chi)
     rmat_c = cnst.identity_3x3 if rmat_c is None else np.ascontiguousarray( rmat_c )
 
-    result = _impl.anglesToGVec(angs, beam_vec, eta_vec, chi, rmat_c)
+    result = transforms.anglesToGVec(angs, beam_vec, eta_vec, chi, rmat_c)
 
     return result[0] if orig_ndim == 1 else result
-
 
 @xf_api
 def angles_to_dvec(
@@ -68,7 +68,7 @@ def angles_to_dvec(
     rmat_c = np.ascontiguousarray(rmat_c) if rmat_c is not None else cnst.identity_3x3
     chi = 0.0 if chi is None else float(chi)
 
-    return _impl.anglesToDVec(angs,
+    return transforms.anglesToDVec(angs,
                                          beam_vec, eta_vec,
                                          chi, rmat_c)
 
@@ -98,16 +98,36 @@ def gvec_to_xy(gvec_c,
     # version or the "scalar" (over rmat_s) version. Note that rmat_s is either
     # a 3x3 matrix (ndim 2) or an nx3x4 array of matrices (ndim 3)
     if rmat_s.ndim > 2:
-        result =  _impl.gvecToDetectorXYArray(gvec_c,
-                                              rmat_d, rmat_s, rmat_c,
+        result = transforms.gvecToDetectorXYArray(gvec_c,
+                                                 rmat_d, rmat_s.reshape(rmat_s.shape[0]*3, 3), rmat_c,
+                                                 tvec_d, tvec_s, tvec_c,
+                                                 beam_vec)
+    else:
+        result = transforms.gvecToDetectorXY(gvec_c,
+                                            rmat_d, rmat_s, rmat_c,
+                                            tvec_d, tvec_s, tvec_c,
+                                            beam_vec)
+    return result[0] if orig_ndim == 1 else result
+
+@xf_api
+def gvec_to_xy_from_angles(chi, omes, gvec_c,
+               rmat_d, rmat_c,
+               tvec_d, tvec_s, tvec_c,
+               beam_vec):
+    return transforms.gvecToDetectorXYFromAngles(chi, omes, gvec_c,
+                                              rmat_d, rmat_c,
                                               tvec_d, tvec_s, tvec_c,
                                               beam_vec)
-    else:
-        result =  _impl.gvecToDetectorXY(gvec_c,
-                                         rmat_d, rmat_s, rmat_c,
-                                         tvec_d, tvec_s, tvec_c,
-                                         beam_vec)
-    return result[0] if orig_ndim == 1 else result
+
+@xf_api
+def angles_to_gvec_to_xy_from_angles(chi, omes,
+               rmat_d, rmat_c,
+               tvec_d, tvec_s, tvec_c,
+               beam_vec):
+    return transforms.anglesToGvecToDetectorXYFromAngles(chi, omes,
+                                              rmat_d, rmat_c,
+                                              tvec_d, tvec_s, tvec_c,
+                                              beam_vec)
 
 
 @xf_api
@@ -139,7 +159,7 @@ def xy_to_gvec(xy_d,
     tvec_c  = np.ascontiguousarray( tvec_c.flatten() )
     beam_vec = np.ascontiguousarray( (-rmat_b[:,2]).flatten() )
     eta_vec  = np.ascontiguousarray( rmat_b[:,0].flatten() ) #check this!
-    return _impl.detectorXYToGvec(xy_det,
+    return transforms.detectorXYToGvec(xy_det,
                                   rmat_d, rmat_s,
                                   tvec_d, tvec_s, tvec_c,
                                   beam_vec, eta_vec)
@@ -157,7 +177,7 @@ def oscillAnglesOfHKLs(hkls, chi, rMat_c, bMat, wavelength,
     beamVec = np.ascontiguousarray(beamVec.flatten())
     etaVec  = np.ascontiguousarray(etaVec.flatten())
     bMat = np.ascontiguousarray(bMat)
-    return _impl.oscillAnglesOfHKLs(
+    return transforms.oscillAnglesOfHKLs(
         hkls, chi, rMat_c, bMat, wavelength, vInv, beamVec, etaVec
         )
 
@@ -166,9 +186,9 @@ def oscillAnglesOfHKLs(hkls, chi, rMat_c, bMat, wavelength,
 def unit_vector(vec_in):
     vec_in = np.ascontiguousarray(vec_in)
     if vec_in.ndim == 1:
-        return _impl.unitRowVector(vec_in)
+        return transforms.unitRowVector(vec_in)
     elif vec_in.ndim == 2:
-        return _impl.unitRowVectors(vec_in)
+        return transforms.unitRowVectors(vec_in)
     else:
         raise ValueError(
             "incorrect arg shape; must be 1-d or 2-d, yours is %d-d"
@@ -179,7 +199,7 @@ def unit_vector(vec_in):
 #@xf_api
 def makeDetectorRotMat(tiltAngles):
     arg = np.ascontiguousarray(np.r_[tiltAngles].flatten())
-    return _impl.makeDetectorRotMat(arg)
+    return transforms.makeDetectorRotMat(arg)
 
 
 # make_sample_rmat in CAPI is split between makeOscillRotMat
@@ -189,14 +209,14 @@ def makeDetectorRotMat(tiltAngles):
 def make_oscill_rot_mat(oscillAngles):
     chi, ome = oscillAngles
     ome = np.atleast_1d(ome)
-    result = _impl.makeOscillRotMat(chi, ome)
+    result = transforms.makeOscillRotMat(chi, ome)
     return result.reshape((3, 3))
 
 
 #@xf_api
 def make_oscill_rot_mat_array(chi, omeArray):
     arg = np.ascontiguousarray(omeArray)
-    return _impl.makeOscillRotMat(chi, arg)
+    return transforms.makeOscillRotMat(chi, arg)
 
 
 @xf_api
@@ -204,33 +224,35 @@ def make_sample_rmat(chi, ome):
     ome_array = np.atleast_1d(ome)
     if ome is ome_array:
         ome_array = np.ascontiguousarray(ome_array)
-        result = _impl.makeOscillRotMat(chi, ome_array)
+        result = transforms.makeOscillRotMat(chi, ome_array)
+        result = result.reshape(result.shape[0]//3, 3,3)
+        pass
     else:
         # converted to 1d array of 1 element, no need
         # to call ascontiguousarray, but need to remove
         # the outer dimension from the result
-        result = _impl.makeOscillRotMat(chi, ome_array)
-        result = result.reshape(3,3)
+        result = transforms.makeOscillRotMat(chi, ome_array)
+        result = result.reshape(3, 3)
 
     return result
 
 @xf_api
 def make_rmat_of_expmap(exp_map):
     arg = np.ascontiguousarray(exp_map.flatten())
-    return _impl.makeRotMatOfExpMap(arg)
+    return transforms.makeRotMatOfExpMap(arg)
 
 
 @xf_api
 def make_binary_rmat(axis):
     arg = np.ascontiguousarray(axis.flatten())
-    return _impl.makeBinaryRotMat(arg)
+    return transforms.makeBinaryRotMat(arg)
 
 
 @xf_api
 def make_beam_rmat(bvec_l, evec_l):
     arg1 = np.ascontiguousarray(bvec_l.flatten())
     arg2 = np.ascontiguousarray(evec_l.flatten())
-    return _impl.makeEtaFrameRotMat(arg1, arg2)
+    return transforms.makeEtaFrameRotMat(arg1, arg2)
 
 
 @xf_api
@@ -239,7 +261,7 @@ def validate_angle_ranges(ang_list, start_angs, stop_angs, ccw=True):
     start_angs = start_angs.astype(np.double, order="C")
     stop_angs = stop_angs.astype(np.double, order="C")
 
-    return _impl.validateAngleRanges(ang_list, start_angs, stop_angs, ccw)
+    return transforms.validateAngleRanges(ang_list, start_angs, stop_angs, ccw)
 
 
 @xf_api
@@ -247,7 +269,7 @@ def rotate_vecs_about_axis(angle, axis, vecs):
     angle = np.asarray(angle)
     axis = np.ascontiguousarray(axis.T)
     vecs = np.ascontiguousarray(vecs.T)
-    result = _impl.rotate_vecs_about_axis(angle, axis, vecs)
+    result = transforms.rotate_vecs_about_axis(angle, axis, vecs)
     return result.T
 
 @xf_api
@@ -256,4 +278,4 @@ def quat_distance(q1, q2, qsym):
     q2 = np.ascontiguousarray(q2.flatten())
     # C module expects quaternions in row major, numpy code in column major.
     qsym = np.ascontiguousarray(qsym.T)
-    return _impl.quat_distance(q1, q2, qsym)
+    return transforms.quat_distance(q1, q2, qsym)

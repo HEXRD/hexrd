@@ -127,7 +127,7 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
         return self._shape
 
     def __getitem__(self, key):
-        return self._framelist[key].toarray()
+        return self._framelist[key]
 
     def __iter__(self):
         return ImageSeriesIterator(self)

@@ -1138,32 +1138,23 @@ def _project_on_detector_plane(allAngs,
                                rMat_d, rMat_c, chi,
                                tVec_d, tVec_c, tVec_s,
                                distortion,
-                               beamVec=constants.beam_vec):
+                               beam_vec=constants.beam_vec):
     """
     utility routine for projecting a list of (tth, eta, ome) onto the
     detector plane parameterized by the args
     """
-    gVec_cs = xfcapi.angles_to_gvec(allAngs,
-                                  chi=chi,
-                                  rmat_c=rMat_c,
-                                  beam_vec=beamVec)
+    # (angs, beam_vec, eta_vec, chi, rmat_c)
 
-    rMat_ss = xfcapi.make_sample_rmat(chi, allAngs[:, 2])
-
-    tmp_xys = xfcapi.gvec_to_xy(
-        gVec_cs, rMat_d, rMat_ss, rMat_c,
-        tVec_d, tVec_s, tVec_c,
-        beam_vec=beamVec)
+    tmp_xys = xfcapi.angles_to_gvec_to_xy_from_angles(chi, allAngs,
+                                                      rMat_d, rMat_c,
+                                                      tVec_d, tVec_s, tVec_c,
+                                                      beam_vec)
 
     valid_mask = ~(np.isnan(tmp_xys[:, 0]) | np.isnan(tmp_xys[:, 1]))
-
-    det_xy = np.atleast_2d(tmp_xys[valid_mask, :])
-
-    # apply distortion if specified
     if distortion is not None:
-        det_xy = distortion.apply_inverse(det_xy)
+        tmp_xys = distortion.apply_inverse(tmp_xys)
 
-    return det_xy, rMat_ss, valid_mask
+    return tmp_xys, None, valid_mask
 
 
 def _project_on_detector_cylinder(allAngs,
@@ -1968,7 +1959,6 @@ def make_reflection_patches(instr_cfg,
     else:
         full_angs = np.hstack([tth_eta, omega.reshape(npts, 1)])
 
-    patches = []
     for angs, pix in zip(full_angs, ang_pixel_size):
         # calculate bin edges for patch based on local angular pixel size
         # tth
@@ -2004,13 +1994,13 @@ def make_reflection_patches(instr_cfg,
                                     m_eta.flatten(),
                                     np.zeros(npts_patch)]).T)
 
-        xy_eval_vtx, rmats_s, on_plane = _project_on_detector_plane(
+        xy_eval_vtx, *_ = _project_on_detector_plane(
                 gVec_angs_vtx,
                 rmat_d, rmat_c,
                 chi,
                 tvec_d, tvec_c, tvec_s,
                 distortion,
-                beamVec=bvec)
+                beam_vec=bvec)
 
         areas = compute_areas_func(xy_eval_vtx, conn)
 
@@ -2026,28 +2016,24 @@ def make_reflection_patches(instr_cfg,
              np.tile(angs[2], (len(tth_eta_cen), 1))]
         )
 
-        xy_eval, rmats_s, on_plane = _project_on_detector_plane(
+        xy_eval, *_ = _project_on_detector_plane(
                 gVec_angs,
                 rmat_d, rmat_c,
                 chi,
                 tvec_d, tvec_c, tvec_s,
                 distortion,
-                beamVec=bvec)
+                beam_vec=bvec)
 
         row_indices = gutil.cellIndices(row_edges, xy_eval[:, 1])
         col_indices = gutil.cellIndices(col_edges, xy_eval[:, 0])
 
         yield(
-            ((gVec_angs_vtx[:, 0].reshape(m_tth.shape),
-              gVec_angs_vtx[:, 1].reshape(m_tth.shape)),
-             (xy_eval_vtx[:, 0].reshape(m_tth.shape),
-              xy_eval_vtx[:, 1].reshape(m_tth.shape)),
+            ((gVec_angs_vtx[:, 0].reshape(m_tth.shape), gVec_angs_vtx[:, 1].reshape(m_tth.shape)),
+             (xy_eval_vtx[:, 0].reshape(m_tth.shape), xy_eval_vtx[:, 1].reshape(m_tth.shape)),
              conn,
              areas.reshape(netas, ntths),
-             (xy_eval[:, 0].reshape(netas, ntths),
-              xy_eval[:, 1].reshape(netas, ntths)),
-             (row_indices.reshape(netas, ntths),
-              col_indices.reshape(netas, ntths)))
+             (xy_eval[:, 0].reshape(netas, ntths), xy_eval[:, 1].reshape(netas, ntths)),
+             (row_indices.reshape(netas, ntths), col_indices.reshape(netas, ntths)))
         )
 
 

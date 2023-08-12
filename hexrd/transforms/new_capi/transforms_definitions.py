@@ -22,6 +22,8 @@ import functools
 # Note this can be kind of redundant with the definition classes, but it also
 # allows for some coherence checks.
 API = (
+    'gvec_to_xy_from_angles',
+    'angles_to_gvec_to_xy_from_angles',
     "angles_to_gvec",
     "angles_to_dvec",
     "gvec_to_xy",
@@ -195,6 +197,22 @@ class DEF_gvec_to_xy(DEF_Func):
                    beam_vec=None,
                    vmat_inv=None,
                    bmat=None):
+        pass
+
+class DEF_gvec_to_xy_from_angles(DEF_Func):
+    """ Adding this in begrudgingly because I have to - Zack Singer """
+    def _signature(chi, omes, gvec_c,
+                   rmat_d, rmat_c,
+                   tvec_d, tvec_s, tvec_c,
+                   beam_vec):
+        pass
+
+class DEF_angles_to_gvec_to_xy_from_angles(DEF_Func):
+    """ Adding this in begrudgingly because I have to - Zack Singer """
+    def _signature(chi, omes,
+               rmat_d, rmat_c,
+               tvec_d, tvec_s, tvec_c,
+               beam_vec):
         pass
 
 

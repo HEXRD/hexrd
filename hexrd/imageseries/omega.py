@@ -86,20 +86,13 @@ class OmegaImageSeries(ImageSeries):
         return d
 
     def omega_to_frame(self, om):
-        """Return frame and wedge which includes given omega, -1 if not found"""
-        f = -1
-        w = -1
-        for i in range(len(self._wedge_om)):
-            omin = self._wedge_om[i, 0]
-            omax = self._wedge_om[i, 1]
-            omcheck = omin + np.mod(om - omin, self.TAU)
-            if omcheck < omax:
-                odel = self._wedge_om[i, 2]
-                f = self._wedge_f[i,0] + int(np.floor((omcheck - omin)/odel))
-                w = i
-                break
+        for i, wedge_om in enumerate(self._wedge_om):
+            omin = wedge_om[0]
+            omcheck = omin + (om - omin) % self.TAU
+            if omcheck < wedge_om[1]:
+                return self._wedge_f[i, 0] + int((om - omin) / wedge_om[2]), i
 
-        return f, w
+        return -1, -1
 
     def omegarange_to_frames(self, omin, omax):
         """Return list of frames for range of omegas"""

@@ -62,31 +62,24 @@ def cellIndices(edges, points_1d):
       must be mapped to the same branch cut, and
       abs(edges[0] - edges[-1]) = 2*pi
     """
-    ztol = sqrt_epsf
-
     assert len(edges) >= 2, "must have at least 2 edges"
 
-    points_1d = np.r_[points_1d].flatten()
-    delta = float(edges[1] - edges[0])
+    delta = edges[1] - edges[0]
 
     if delta > 0:
-        on_last_rhs = points_1d >= edges[-1] - ztol
-        points_1d[on_last_rhs] = points_1d[on_last_rhs] - ztol
+        points_1d[points_1d >= edges[-1] - sqrt_epsf] -= sqrt_epsf
         idx = np.floor((points_1d - edges[0]) / delta)
     elif delta < 0:
-        on_last_rhs = points_1d <= edges[-1] + ztol
-        points_1d[on_last_rhs] = points_1d[on_last_rhs] + ztol
+        points_1d[points_1d <= edges[-1] + sqrt_epsf] += sqrt_epsf
         idx = np.ceil((points_1d - edges[0]) / delta) - 1
     else:
         raise RuntimeError("edges array gives delta of 0")
 
-    # # mark points outside range with NaN
-    # off_lo = idx < 0
-    # off_hi = idx >= len(edges) - 1
-    # if np.any(off_lo):
-    #     idx[off_lo] = np.nan
-    # if np.any(off_hi):
-    #     idx[off_hi] = np.nan
+    try:
+        return np.array(idx, dtype=int)
+    except Exception as e:
+        print(e)
+        pass
     return np.array(idx, dtype=int)
 
 

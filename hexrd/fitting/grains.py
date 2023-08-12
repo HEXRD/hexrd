@@ -175,10 +175,7 @@ def objFuncFitGrain(gFit, gFull, gFlag,
     calc_omes_dict = dict.fromkeys(instrument.detectors, [])
     calc_xy_dict = dict.fromkeys(instrument.detectors)
     meas_xyo_all = []
-    det_keys_ordered = []
     for det_key, panel in instrument.detectors.items():
-        det_keys_ordered.append(det_key)
-
         rMat_d, tVec_d, chi, tVec_s = extract_detector_transformation(
             instrument.detector_parameters[det_key])
 
@@ -202,10 +199,7 @@ def objFuncFitGrain(gFit, gFull, gFlag,
             # WARNING: hkls and derived vectors below must be columnwise;
             # strictly necessary??? change affected APIs instead?
             # <JVB 2017-03-26>
-            hkls = np.atleast_2d(
-                np.vstack([x[2] for x in results])
-            ).T
-
+            hkls = np.atleast_2d(np.vstack([x[2] for x in results])).T
             meas_xyo = np.atleast_2d(
                 np.vstack([np.r_[x[7], x[6][-1]] for x in results])
             )
@@ -218,7 +212,6 @@ def objFuncFitGrain(gFit, gFull, gFlag,
             meas_omes = meas_xyo[:, 2]
             xy_unwarped = panel.distortion.apply(meas_xyo[:, :2])
             meas_xyo = np.vstack([xy_unwarped.T, meas_omes]).T
-            pass
 
         # append to meas_omes
         meas_xyo_all.append(meas_xyo)
@@ -229,12 +222,10 @@ def objFuncFitGrain(gFit, gFull, gFlag,
         #   3. rotate back into CRYSTAL frame and normalize to unit magnitude
         # IDEA: make a function for this sequence of operations with option for
         # choosing ouput frame (i.e. CRYSTAL vs SAMPLE vs LAB)
-        gVec_c = np.dot(bMat, hkls)
-        gVec_s = np.dot(vMat_s, np.dot(rMat_c, gVec_c))
-        gHat_c = mutil.unitVector(np.dot(rMat_c.T, gVec_s))
+        gHat_c = mutil.unitVector(rMat_c.T @ vMat_s @ (rMat_c @ (bMat @ hkls)))
 
         # !!!: check that this operates on UNWARPED xy
-        match_omes, calc_omes = matchOmegas(
+        _, calc_omes = matchOmegas(
             meas_xyo, hkls, chi, rMat_c, bMat, wavelength,
             vInv=vInv_s, beamVec=bVec, etaVec=eVec,
             omePeriod=omePeriod)
@@ -242,21 +233,18 @@ def objFuncFitGrain(gFit, gFull, gFlag,
         # append to omes dict
         calc_omes_dict[det_key] = calc_omes
 
-        # TODO: try Numba implementations
-        rMat_s = xfcapi.make_sample_rmat(chi, calc_omes)
-        calc_xy = xfcapi.gvec_to_xy(gHat_c.T,
-                                    rMat_d, rMat_s, rMat_c,
-                                    tVec_d, tVec_s, tVec_c,
-                                    beam_vec=bVec)
+        calc_xy = xfcapi.gvec_to_xy_from_angles(chi, calc_omes, gHat_c.T,
+                                                rMat_d, rMat_c,
+                                                tVec_d, tVec_s, tVec_c.squeeze(),
+                                                beam_vec=bVec)
 
         # append to xy dict
         calc_xy_dict[det_key] = calc_xy
-        pass
 
     # stack results to concatenated arrays
-    calc_omes_all = np.hstack([calc_omes_dict[k] for k in det_keys_ordered])
+    calc_omes_all = np.hstack([calc_omes_dict[k] for k in instrument.detectors.keys()])
     tmp = []
-    for k in det_keys_ordered:
+    for k in instrument.detectors.keys():
         if calc_xy_dict[k] is not None:
             tmp.append(calc_xy_dict[k])
     calc_xy_all = np.vstack(tmp)
@@ -274,8 +262,8 @@ def objFuncFitGrain(gFit, gFull, gFlag,
         if return_value_flag in [None, 1]:
             retval = np.hstack([calc_xy_all, calc_omes_all.reshape(npts, 1)])
         else:
-            rd = dict.fromkeys(det_keys_ordered)
-            for det_key in det_keys_ordered:
+            rd = dict.fromkeys(instrument.detectors.keys())
+            for det_key in instrument.detectors.keys():
                 rd[det_key] = {'calc_xy': calc_xy_dict[det_key],
                                'calc_omes': calc_omes_dict[det_key]}
             retval = rd

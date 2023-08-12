@@ -35,4 +35,6 @@ from .new_capi.xf_new_capi import(
     angles_to_gvec,
     gvec_to_xy,  # this is gvecToDetectorXY and gvecToDetectorXYArray
     make_sample_rmat,  # this is makeOscillRotMat and makeOscillRotMatArray
+    gvec_to_xy_from_angles,
+    angles_to_gvec_to_xy_from_angles,
 )

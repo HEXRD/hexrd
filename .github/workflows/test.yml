@@ -2,9 +2,12 @@ name: test
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, refactor ]
   pull_request:
     branches: [ master ]
+
+env:
+  EIGEN3_INCLUDE_DIR: /eigen3/eigen-3.4.0
 
 jobs:
   pytest:
@@ -59,6 +62,75 @@ jobs:
       run: |
           pip install fabio==0.12
       if: ${{ matrix.config.os == 'macos-latest'}}
+
+    - name: Install Eigen on Linux
+      run: |
+          sudo apt-get update
+          sudo apt-get install -y libeigen3-dev
+      if: runner.os == 'Linux'
+
+    - name: Install Eigen on MacOS
+      run: |
+          brew update
+          brew install eigen
+      if: runner.os == 'macOS'
+
+    - name: Install Eigen on Windows
+      run: |
+          Invoke-WebRequest -Uri https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip -o eigen.zip
+          Expand-Archive -Path eigen.zip -DestinationPath C:\eigen3
+          cp -r C:\eigen3\eigen-3.4.0 D:/a/hexrd/hexrd/eigen
+      if: runner.os == 'Windows'
+      shell: pwsh
+
+    - name: Install xsimd on Linux
+      run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ wget unzip
+          wget -O xsimd.tar.gz https://github.com/xtensor-stack/xsimd/archive/refs/tags/7.4.10.tar.gz
+          tar -xf xsimd.tar.gz
+          cd xsimd-7.4.10
+          mkdir build
+          cd build
+          cmake ..
+          make -j$(nproc)
+          sudo make install
+      if: runner.os == 'Linux'
+      
+    - name: Install xsimd on macOS
+      run: |
+          brew install cmake wget
+          wget -O xsimd.tar.gz https://github.com/xtensor-stack/xsimd/archive/refs/tags/7.4.10.tar.gz
+          tar -xf xsimd.tar.gz
+          cd xsimd-7.4.10
+          mkdir build
+          cd build
+          cmake ..
+          make -j$(sysctl -n hw.physicalcpu)
+          sudo make install
+      if: runner.os == 'macOS'
+    
+    - name: Install xsimd on Windows
+      run: |
+          # Download and build xsimd from source
+          Invoke-WebRequest -Uri https://github.com/xtensor-stack/xsimd/archive/refs/tags/7.4.10.tar.gz  -o xsimd.tar.gz
+          tar -xf xsimd.tar.gz
+          mv xsimd-7.4.10 xsimd
+          cd xsimd
+          mkdir build
+          cd build
+          cmake -DCMAKE_INSTALL_PREFIX=/xsimd ..
+          cmake --build .
+          cmake --install .
+          echo "XSIMD_INCLUDE_DIR=/xsimd/include" >> $GITHUB_ENV
+      if: runner.os == 'Windows'
+      shell: pwsh
+
+    - name: Set up environment variables for Eigen3 and xsimd
+      run: |
+          echo "EIGEN3_INCLUDE_DIR=$(pwd)/eigen" >> $GITHUB_ENV
+          echo "XSIMD_INCLUDE_DIR=$(pwd)/xsimd/include" >> $GITHUB_ENV
+      if: runner.os == 'Windows'
 
     - name: Install HEXRD
       run: |
