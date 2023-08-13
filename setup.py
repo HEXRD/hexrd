@@ -89,7 +89,7 @@ def get_cpp_extensions():
     cpp_transform_pkgdir = Path('hexrd') / 'transforms/cpp_sublibrary'
     src_files = [str(cpp_transform_pkgdir / 'src/transforms.cpp'), str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')]
 
-    extra_compile_args = ['-O3', '-Wall', '-shared', '-std=c++20', '-funroll-loops']
+    extra_compile_args = ['-O3', '-Wall', '-shared', '-funroll-loops']
     if not sys.platform.startswith('win'):
         extra_compile_args.append('-fPIC')
 

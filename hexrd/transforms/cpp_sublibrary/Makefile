@@ -1,5 +1,5 @@
 CXX = c++
-CXXFLAGS = -O3 -Wall -shared -std=c++20 -fPIC -funroll-loops -Wno-maybe-uninitialized
+CXXFLAGS = -O3 -Wall -shared -fPIC -funroll-loops -Wno-maybe-uninitialized
 INCLUDES = -I/usr/include/eigen3/ -I/usr/include/xsimd -I/usr/include/pybind11 -I/usr/include/python3.10/
 SRCS_TRANSFORMS = src/transforms.cpp
 SRCS_INVERSE_DISTORTION = src/inverse_distortion.cpp
