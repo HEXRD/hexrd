@@ -75,11 +75,6 @@ def cellIndices(edges, points_1d):
     else:
         raise RuntimeError("edges array gives delta of 0")
 
-    try:
-        return np.array(idx, dtype=int)
-    except Exception as e:
-        print(e)
-        pass
     return np.array(idx, dtype=int)
 
 
