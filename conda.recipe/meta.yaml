@@ -19,6 +19,8 @@ requirements:
     - python {{ python }}
     - setuptools
     - setuptools_scm
+    - eigen
+    - xsimd
 
   run:
     - appdirs

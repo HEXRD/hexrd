@@ -70,12 +70,12 @@ def get_include_path(library_name):
         return env_var_hint
 
     possible_directories = [
+        sysconfig.get_path('include')+f'/../{library_name}'
         "/xsimd/include/xsimd",
         "/eigen3/eigen-3.4.0",
         "/",
         "/usr/include",
         "/usr/local/include",
-        sysconfig.get_path('include'),
     ]
 
     for directory in possible_directories:
