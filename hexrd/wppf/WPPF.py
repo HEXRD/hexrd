@@ -2057,7 +2057,7 @@ class Rietveld:
                 "jac": "2-point",
             }
 
-            fitter = lmfit.Minimizer(self.calcRwp, params, iter_cb=test_print)
+            fitter = lmfit.Minimizer(self.calcRwp, params)
 
             self.res = fitter.least_squares(**fdict)
 
@@ -2964,9 +2964,3 @@ peakshape_dict = {
     "pvtch": "pseudo-voight (thompson, cox, hastings)",
     "pvpink": "pseudo-voight (von dreele)",
 }
-
-def test_print(params, it, resid, *fcn_args, **fcn_kws):
-    val = []
-    for p in params:
-        val.append(params[p].value)
-    print(it, val, np.sum(resid**2))
