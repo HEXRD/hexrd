@@ -279,6 +279,7 @@ class LeBail:
         for that change
         """
         self._background = []
+        self.bkg_coef = self.cheb_init_coef
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
             self._background.append(Spectrum(x=tth, y=self.init_bkg(tth)))
@@ -614,6 +615,7 @@ class LeBail:
 
         self._set_params_vals_to_class(params, init=False, skip_phases=False)
         self._update_shkl(params)
+        self._update_bkg(params)
 
         errvec = self.computespectrum()
 
@@ -730,6 +732,21 @@ class LeBail:
                     shkl_dict[s] = self.params[k].value
 
             self.phases[p].shkl = wppfsupport._fill_shkl(shkl_dict, eq_const)
+
+    def _update_bkg(self, params):
+        """
+        update the background coefficients for
+        the chebyshev polynomials
+        """
+        if "chebyshev" in self.bkgmethod:
+            coef = self.bkg_coef.copy()
+            for p in params:
+                if "bkg" in p:
+                    indx = int(p.split("_")[1])
+                    coef[indx] = params[p].value
+            self.bkg_coef = coef
+        else:
+            return
 
     @property
     def U(self):
@@ -888,10 +905,7 @@ class LeBail:
     def cheb_coef(self):
         coef = []
         if "chebyshev" in self.bkgmethod:
-            for d in range(self.bkgmethod["chebyshev"]+1):
-                n = f"bkg_{d}"
-                coef.append(self.params[n].value)
-            return np.array(coef)
+            return self.bkg_coef
         else:
             return None
 
@@ -1215,7 +1229,7 @@ class LeBail:
             x = np.append(x, tth)
             y = np.append(y, s._y)
             wts = np.append(wts, wt)
-        p = np.polynomial.Chebyshev.fit(x, y, degree, w=wts**4)
+        p = np.polynomial.Chebyshev.fit(x, y, degree, w=wts)
         return p
 
     @params.setter
@@ -1749,13 +1763,10 @@ class Rietveld:
         for that change
         """
         self._background = []
-        degree = self.bkgmethod["chebyshev"]
+        self.bkg_coef = self.cheb_init_coef
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
-            p = np.polynomial.Chebyshev.fit(
-                tth, s.y, degree, w=self._weights[i] ** 2
-            )
-            self._background.append(Spectrum(x=tth, y=p(tth)))
+            self._background.append(Spectrum(x=tth, y=self.init_bkg(tth)))
 
     def selectpoints(self):
         """
@@ -1996,6 +2007,7 @@ class Rietveld:
         """
         self._set_params_vals_to_class(params, init=False, skip_phases=False)
         self._update_shkl(params)
+        self._update_bkg(params)
         errvec = self.computespectrum()
 
         return errvec
@@ -2039,7 +2051,7 @@ class Rietveld:
                 "jac": "2-point",
             }
 
-            fitter = lmfit.Minimizer(self.calcRwp, params)
+            fitter = lmfit.Minimizer(self.calcRwp, params, iter_cb=test_print)
 
             self.res = fitter.least_squares(**fdict)
 
@@ -2208,6 +2220,21 @@ class Rietveld:
                 self.phases[p][k].shkl = wppfsupport._fill_shkl(
                     shkl_dict, eq_const
                 )
+
+    def _update_bkg(self, params):
+        """
+        update the background coefficients for
+        the chebyshev polynomials
+        """
+        if "chebyshev" in self.bkgmethod:
+            coef = self.bkg_coef.copy()
+            for p in params:
+                if "bkg" in p:
+                    indx = int(p.split("_")[1])
+                    coef[indx] = params[p].value
+            self.bkg_coef = coef
+        else:
+            return
 
     @property
     def params(self):
@@ -2699,20 +2726,16 @@ class Rietveld:
             x = np.append(x, tth)
             y = np.append(y, s._y)
             wts = np.append(wts, wt)
-        p = np.polynomial.Chebyshev.fit(x, y, degree, w=wts**4)
+        p = np.polynomial.Chebyshev.fit(x, y, degree, w=wts)
         return p
 
     @property
     def cheb_coef(self):
         coef = []
         if "chebyshev" in self.bkgmethod:
-            for d in range(self.bkgmethod["chebyshev"]+1):
-                n = f"bkg_{d}"
-                coef.append(self.params[n].value)
-            return np.array(coef)
+            return self.bkg_coef
         else:
             return None
-
 
     @property
     def cheb_polynomial(self):
@@ -2930,3 +2953,9 @@ peakshape_dict = {
     "pvtch": "pseudo-voight (thompson, cox, hastings)",
     "pvpink": "pseudo-voight (von dreele)",
 }
+
+def test_print(params, it, resid, *fcn_args, **fcn_kws):
+    val = []
+    for p in params:
+        val.append(params[p].value)
+    print(it, val, np.sum(resid**2))
