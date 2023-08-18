@@ -1205,7 +1205,7 @@ class LeBail:
         if "chebyshev" in self.bkgmethod:
             vector_list = [self.cheb_polynomial(t) for t in self._tth_list]
         else:
-            vector_list = [s for s in self._background]
+            vector_list = [s.y for s in self._background]
 
         bkg_masked = join_regions(
             vector_list, self.global_index, self.global_shape
@@ -2544,7 +2544,7 @@ class Rietveld:
         if "chebyshev" in self.bkgmethod:
             vector_list = [self.cheb_polynomial(t) for t in self._tth_list]
         else:
-            vector_list = [s for s in self._background]
+            vector_list = [s.y for s in self._background]
         bkg_masked = join_regions(
             vector_list, self.global_index, self.global_shape
         )
