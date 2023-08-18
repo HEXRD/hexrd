@@ -918,7 +918,10 @@ class LeBail:
 
     @property
     def cheb_init_coef(self):
-        return self.init_bkg.coef
+        if "chebyshev" in self.bkgmethod:
+            return self.init_bkg.coef
+        else:
+            return None
 
     @peakshape.setter
     def peakshape(self, val):
@@ -1199,7 +1202,10 @@ class LeBail:
 
     @property
     def background(self):
-        vector_list = [self.cheb_polynomial(t) for t in self._tth_list]
+        if "chebyshev" in self.bkgmethod:
+            vector_list = [self.cheb_polynomial(t) for t in self._tth_list]
+        else:
+            vector_list = [s for s in self._background]
 
         bkg_masked = join_regions(
             vector_list, self.global_index, self.global_shape
@@ -2535,8 +2541,10 @@ class Rietveld:
 
     @property
     def background(self):
-        vector_list = [self.cheb_polynomial(t) for t in self._tth_list]
-
+        if "chebyshev" in self.bkgmethod:
+            vector_list = [self.cheb_polynomial(t) for t in self._tth_list]
+        else:
+            vector_list = [s for s in self._background]
         bkg_masked = join_regions(
             vector_list, self.global_index, self.global_shape
         )
@@ -2746,7 +2754,10 @@ class Rietveld:
 
     @property
     def cheb_init_coef(self):
-        return self.init_bkg.coef
+        if "chebyshev" in self.bkgmethod:
+            return self.init_bkg.coef
+        else:
+            return None
 
     @property
     def computespectrum_fcn(self):
