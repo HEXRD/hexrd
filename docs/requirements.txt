@@ -1,0 +1,8 @@
+# Pin sphinx to be less than 7 until new sphinx-rtd-theme comes out: https://github.com/readthedocs/readthedocs.org/issues/10279#issuecomment-1529988748
+sphinx<7
+pygments
+sphinx-rtd-theme
+myst-parser
+
+# We need matplotlib for some of the documentation
+matplotlib

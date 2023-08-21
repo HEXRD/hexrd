@@ -1,0 +1,19 @@
+version: 2
+
+sphinx:
+  configuration: docs/source/conf.py
+
+python:
+  install:
+    - requirements: docs/requirements.txt
+    - method: pip
+      path: .
+
+build:
+  os: ubuntu-22.04
+  tools:
+    python: '3.10'
+  jobs:
+    pre_build:
+      # Run the apidoc command to generate the initial module files
+      - docs/run_apidoc.sh
