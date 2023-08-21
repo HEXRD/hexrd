@@ -1411,8 +1411,6 @@ def extract_intensities(
     peakshape="pvtch",
 ):
     """
-    ===========================================================================
-
     >> @AUTHOR:  Saransh Singh, Lanwrence Livermore National Lab,
                  saransh1@llnl.gov
     >> @DATE:    01/28/2021 SS 1.0 original
@@ -1429,22 +1427,21 @@ def extract_intensities(
     >> @PARAMS   polar_view: mxn array with the polar view. the parallelization
                              is done !!! this is now a masked numpy array !!!
                              over "m" i.e. the eta dimension
-                    tth_array: nx1 array with two theta values at each sampling
-                               point
-                    params: parameter values for the LeBail class. Could be in
-                            the form of yaml file, dictionary or Parameter
-                            class
-                    phases: materials to use in intensity extraction. could be
-                            a list of material objects, or file or dictionary
-                    wavelength: dictionary of wavelengths to be used in the
-                                computation
-                    bkgmethod: "spline" or "chebyshev" or "snip"
-                                default is chebyshev
-                    intensity_init: initial intensities for each reflection.
-                                    If none, then it is specified to some power
-                                    of 10 depending on maximum intensity in
-                                    spectrum (only used for powder simulator)
-    ============================================================================
+                 tth_array: nx1 array with two theta values at each sampling
+                            point
+                 params: parameter values for the LeBail class. Could be in
+                         the form of yaml file, dictionary or Parameter
+                         class
+                 phases: materials to use in intensity extraction. could be
+                         a list of material objects, or file or dictionary
+                 wavelength: dictionary of wavelengths to be used in the
+                             computation
+                 bkgmethod: "spline" or "chebyshev" or "snip"
+                             default is chebyshev
+                 intensity_init: initial intensities for each reflection.
+                                 If none, then it is specified to some power
+                                 of 10 depending on maximum intensity in
+                                 spectrum (only used for powder simulator)
     """
 
     # prepare the data file to distribute suing multiprocessing
