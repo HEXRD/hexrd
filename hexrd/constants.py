@@ -25,9 +25,10 @@
 # the Free Software Foundation, Inc., 59 Temple Place, Suite 330,
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # =============================================================================
+from importlib.metadata import version, PackageNotFoundError
+import multiprocessing as mp
 import os
 import platform
-import multiprocessing as mp
 
 import numpy as np
 
@@ -213,8 +214,8 @@ tfit = np.array([ 0.9999999999999968E0, -0.49999999999986866E0,
 -3.5917775353564864E-9 ])
 
 BP = np.array([
-0., 1., 0.577350269189626, 0.414213562373095, 
-0., 0.267949192431123, 0., 0.198912367379658, 
+0., 1., 0.577350269189626, 0.414213562373095,
+0., 0.267949192431123, 0., 0.198912367379658,
 0., 0.158384440324536, 0., 0.131652497587396])
 
 # this is a constant which defines the sign of the
@@ -1158,3 +1159,9 @@ SYM_GL_PG = {
     'td': '2dm',
     'oh': '3dgh'
 }
+
+# Set the __version__ variable
+try:
+    __version__ = version('hexrd')
+except PackageNotFoundError:
+    __version__ = None

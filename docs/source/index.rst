@@ -4,7 +4,7 @@ HEXRD Documentation
 
 .. only:: html
 
-   :Release: |release|
+   :Version: |version|
    :Date: |today|
 
 
@@ -14,17 +14,10 @@ Contents:
    :maxdepth: 1
 
    users/index
-   api/index
+   The HEXRD API <hexrd>
    dev/index
-
-
-.. todo::
-
-   Joel's explanation of hexrd's :download:`transforms <_static/transforms.pdf>`
-   needs to find a permanent home in the docs.
 
 .. only:: html
 
    * :ref:`genindex`
    * :ref:`modindex`
-   * :ref:`search`
