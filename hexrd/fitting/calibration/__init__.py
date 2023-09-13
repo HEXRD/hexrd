@@ -1,4 +1,5 @@
 from .instrument import InstrumentCalibrator
+from .laue import LaueCalibrator
 from .multigrain import calibrate_instrument_from_sx, generate_parameter_names
 from .powder import PowderCalibrator
 from .structureless import StructurelessCalibrator
@@ -10,6 +11,7 @@ __all__ = [
     'calibrate_instrument_from_sx',
     'generate_parameter_names',
     'InstrumentCalibrator',
+    'LaueCalibrator',
     'PowderCalibrator',
     'StructurelessCalibrator',
     'StructureLessCalibrator',
