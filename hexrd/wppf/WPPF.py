@@ -273,6 +273,23 @@ class LeBail:
                 )
                 self._background.append(Spectrum(x=self._tth_list[i], y=yy))
 
+    @property
+    def bkgmethod(self):
+        return self._bkgmethod
+
+    @bkgmethod.setter
+    def bkgmethod(self, v):
+        self._bkgmethod = v
+        if "chebyshev" in v and hasattr(self, 'bkg_coef'):
+            degree = v["chebyshev"]
+            # In case the degree has changed, slice off any extra at the end,
+            # and in case it is less, pad with zeros.
+            if len(self.bkg_coef) > degree + 1:
+                self.bkg_coef = self.bkg_coef[:degree + 1]
+            elif len(self.bkg_coef) < degree + 1:
+                pad_width = (0, degree + 1 - len(self.bkg_coef))
+                self.bkg_coef = np.pad(self.bkg_coef, pad_width)
+
     def chebyshevfit(self):
         """
         03/08/2021 SS spectrum_expt is a list now. accounting
@@ -1762,6 +1779,23 @@ class Rietveld:
                     snip1d_quad(np.atleast_2d(s.y), w=ww, numiter=numiter)
                 )
                 self._background.append(Spectrum(x=self._tth_list[i], y=yy))
+
+    @property
+    def bkgmethod(self):
+        return self._bkgmethod
+
+    @bkgmethod.setter
+    def bkgmethod(self, v):
+        self._bkgmethod = v
+        if "chebyshev" in v and hasattr(self, 'bkg_coef'):
+            degree = v["chebyshev"]
+            # In case the degree has changed, slice off any extra at the end,
+            # and in case it is less, pad with zeros.
+            if len(self.bkg_coef) > degree + 1:
+                self.bkg_coef = self.bkg_coef[:degree + 1]
+            elif len(self.bkg_coef) < degree + 1:
+                pad_width = (0, degree + 1 - len(self.bkg_coef))
+                self.bkg_coef = np.pad(self.bkg_coef, pad_width)
 
     def chebyshevfit(self):
         """
