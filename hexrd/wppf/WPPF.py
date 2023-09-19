@@ -273,23 +273,33 @@ class LeBail:
                 )
                 self._background.append(Spectrum(x=self._tth_list[i], y=yy))
 
+    @property
+    def bkgmethod(self):
+        return self._bkgmethod
+
+    @bkgmethod.setter
+    def bkgmethod(self, v):
+        self._bkgmethod = v
+        if "chebyshev" in v and hasattr(self, 'bkg_coef'):
+            degree = v["chebyshev"]
+            # In case the degree has changed, slice off any extra at the end,
+            # and in case it is less, pad with zeros.
+            if len(self.bkg_coef) > degree + 1:
+                self.bkg_coef = self.bkg_coef[:degree + 1]
+            elif len(self.bkg_coef) < degree + 1:
+                pad_width = (0, degree + 1 - len(self.bkg_coef))
+                self.bkg_coef = np.pad(self.bkg_coef, pad_width)
+
     def chebyshevfit(self):
         """
         03/08/2021 SS spectrum_expt is a list now. accounting
         for that change
         """
         self._background = []
-        degree = self.bkgmethod["chebyshev"]
-
+        self.bkg_coef = self.cheb_init_coef
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
-            if s.y.shape[0] <= degree:
-                self._background.append(Spectrum(x=tth, y=np.zeros(tth.shape)))
-            else:
-                p = np.polynomial.Chebyshev.fit(
-                    tth, s.y, degree, w=self._weights[i] ** 2
-                )
-                self._background.append(Spectrum(x=tth, y=p(tth)))
+            self._background.append(Spectrum(x=tth, y=self.init_bkg(tth)))
 
     def selectpoints(self):
         """
@@ -622,6 +632,7 @@ class LeBail:
 
         self._set_params_vals_to_class(params, init=False, skip_phases=False)
         self._update_shkl(params)
+        self._update_bkg(params)
 
         errvec = self.computespectrum()
 
@@ -738,6 +749,21 @@ class LeBail:
                     shkl_dict[s] = self.params[k].value
 
             self.phases[p].shkl = wppfsupport._fill_shkl(shkl_dict, eq_const)
+
+    def _update_bkg(self, params):
+        """
+        update the background coefficients for
+        the chebyshev polynomials
+        """
+        if "chebyshev" in self.bkgmethod:
+            coef = self.bkg_coef.copy()
+            for p in params:
+                if "bkg" in p:
+                    indx = int(p.split("_")[1])
+                    coef[indx] = params[p].value
+            self.bkg_coef = coef
+        else:
+            return
 
     @property
     def U(self):
@@ -892,6 +918,28 @@ class LeBail:
     def peakshape(self):
         return self._peakshape
 
+    @property
+    def cheb_coef(self):
+        coef = []
+        if "chebyshev" in self.bkgmethod:
+            return self.bkg_coef
+        else:
+            return None
+
+    @property
+    def cheb_polynomial(self):
+        return np.polynomial.Chebyshev(
+               self.cheb_coef,
+               domain=[self.tth_list[0], self.tth_list[-1]]
+               )
+
+    @property
+    def cheb_init_coef(self):
+        if "chebyshev" in self.bkgmethod:
+            return self.init_bkg.coef
+        else:
+            return None
+
     @peakshape.setter
     def peakshape(self, val):
         """
@@ -932,7 +980,7 @@ class LeBail:
         """
         if hasattr(self, "params"):
             params = wppfsupport._generate_default_parameters_LeBail(
-                self.phases, self.peakshape
+                self.phases, self.peakshape, self.bkgmethod
             )
             for p in params:
                 if p in self.params:
@@ -1171,7 +1219,10 @@ class LeBail:
 
     @property
     def background(self):
-        vector_list = [s.y for s in self._background]
+        if "chebyshev" in self.bkgmethod:
+            vector_list = [self.cheb_polynomial(t) for t in self._tth_list]
+        else:
+            vector_list = [s.y for s in self._background]
 
         bkg_masked = join_regions(
             vector_list, self.global_index, self.global_shape
@@ -1188,6 +1239,21 @@ class LeBail:
     @property
     def params(self):
         return self._params
+
+    @property
+    def init_bkg(self):
+        degree = self.bkgmethod["chebyshev"]
+        x   = np.empty([0,])
+        y   = np.empty([0,])
+        wts = np.empty([0,])
+        for i, s in enumerate(self._spectrum_expt):
+            tth = self._tth_list[i]
+            wt = self._weights[i]
+            x = np.append(x, tth)
+            y = np.append(y, s._y)
+            wts = np.append(wts, wt)
+        p = np.polynomial.Chebyshev.fit(x, y, degree, w=wts)
+        return p
 
     @params.setter
     def params(self, param_info):
@@ -1257,7 +1323,10 @@ class LeBail:
             mixing factor calculated by Thomax, Cox, Hastings formula
             """
             params = wppfsupport._generate_default_parameters_LeBail(
-                self.phases, self.peakshape
+                self.phases,
+                self.peakshape,
+                self.bkgmethod,
+                init_val=self.cheb_init_coef
             )
             self._params = params
 
@@ -1708,19 +1777,33 @@ class Rietveld:
                 )
                 self._background.append(Spectrum(x=self._tth_list[i], y=yy))
 
+    @property
+    def bkgmethod(self):
+        return self._bkgmethod
+
+    @bkgmethod.setter
+    def bkgmethod(self, v):
+        self._bkgmethod = v
+        if "chebyshev" in v and hasattr(self, 'bkg_coef'):
+            degree = v["chebyshev"]
+            # In case the degree has changed, slice off any extra at the end,
+            # and in case it is less, pad with zeros.
+            if len(self.bkg_coef) > degree + 1:
+                self.bkg_coef = self.bkg_coef[:degree + 1]
+            elif len(self.bkg_coef) < degree + 1:
+                pad_width = (0, degree + 1 - len(self.bkg_coef))
+                self.bkg_coef = np.pad(self.bkg_coef, pad_width)
+
     def chebyshevfit(self):
         """
         03/08/2021 SS spectrum_expt is a list now. accounting
         for that change
         """
         self._background = []
-        degree = self.bkgmethod["chebyshev"]
+        self.bkg_coef = self.cheb_init_coef
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
-            p = np.polynomial.Chebyshev.fit(
-                tth, s.y, degree, w=self._weights[i] ** 2
-            )
-            self._background.append(Spectrum(x=tth, y=p(tth)))
+            self._background.append(Spectrum(x=tth, y=self.init_bkg(tth)))
 
     def selectpoints(self):
         """
@@ -1961,6 +2044,7 @@ class Rietveld:
         """
         self._set_params_vals_to_class(params, init=False, skip_phases=False)
         self._update_shkl(params)
+        self._update_bkg(params)
         errvec = self.computespectrum()
 
         return errvec
@@ -2174,6 +2258,21 @@ class Rietveld:
                     shkl_dict, eq_const
                 )
 
+    def _update_bkg(self, params):
+        """
+        update the background coefficients for
+        the chebyshev polynomials
+        """
+        if "chebyshev" in self.bkgmethod:
+            coef = self.bkg_coef.copy()
+            for p in params:
+                if "bkg" in p:
+                    indx = int(p.split("_")[1])
+                    coef[indx] = params[p].value
+            self.bkg_coef = coef
+        else:
+            return
+
     @property
     def params(self):
         return self._params
@@ -2254,7 +2353,10 @@ class Rietveld:
             final is the zero instrumental peak position error
             """
             params = wppfsupport._generate_default_parameters_Rietveld(
-                self.phases, self.peakshape
+                self.phases,
+                self.peakshape,
+                self.bkgmethod,
+                init_val=self.cheb_init_coef
             )
             self._params = params
 
@@ -2470,8 +2572,10 @@ class Rietveld:
 
     @property
     def background(self):
-        vector_list = [s.y for s in self._background]
-
+        if "chebyshev" in self.bkgmethod:
+            vector_list = [self.cheb_polynomial(t) for t in self._tth_list]
+        else:
+            vector_list = [s.y for s in self._background]
         bkg_masked = join_regions(
             vector_list, self.global_index, self.global_shape
         )
@@ -2637,7 +2741,10 @@ class Rietveld:
         """
         if hasattr(self, "params"):
             params = wppfsupport._generate_default_parameters_Rietveld(
-                self.phases, self.peakshape
+                self.phases,
+                self.peakshape,
+                self.bkgmethod,
+                init_val=self.cheb_init_coef
             )
             for p in params:
                 if p in self.params:
@@ -2645,6 +2752,43 @@ class Rietveld:
             self._params = params
             self._set_params_vals_to_class(params, init=True, skip_phases=True)
             self.computespectrum()
+
+    @property
+    def init_bkg(self):
+        degree = self.bkgmethod["chebyshev"]
+        x   = np.empty([0,])
+        y   = np.empty([0,])
+        wts = np.empty([0,])
+        for i, s in enumerate(self._spectrum_expt):
+            tth = self._tth_list[i]
+            wt = self._weights[i]
+            x = np.append(x, tth)
+            y = np.append(y, s._y)
+            wts = np.append(wts, wt)
+        p = np.polynomial.Chebyshev.fit(x, y, degree, w=wts)
+        return p
+
+    @property
+    def cheb_coef(self):
+        coef = []
+        if "chebyshev" in self.bkgmethod:
+            return self.bkg_coef
+        else:
+            return None
+
+    @property
+    def cheb_polynomial(self):
+        return np.polynomial.Chebyshev(
+               self.cheb_coef,
+               domain=[self.tth_list[0], self.tth_list[-1]]
+               )
+
+    @property
+    def cheb_init_coef(self):
+        if "chebyshev" in self.bkgmethod:
+            return self.init_bkg.coef
+        else:
+            return None
 
     @property
     def computespectrum_fcn(self):

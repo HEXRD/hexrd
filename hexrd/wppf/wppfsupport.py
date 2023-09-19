@@ -41,6 +41,7 @@ from hexrd.unitcell import _rqpDict
 import hexrd
 import numpy as np
 from hexrd import constants
+import warnings
 
 def _generate_default_parameters_pseudovoight(params):
     """
@@ -119,6 +120,30 @@ def _add_pvpink_parameters(params):
                        min=v[1],
                        max=v[2],
                        vary=v[3])
+
+def _add_chebyshev_background(params,
+                              degree,
+                              init_val):
+    """
+    add coefficients for chebyshev background
+    polynomial. The initial values will be the
+    same as determined by WPPF.chebyshevfit 
+    routine
+    """
+    for d in range(degree+1):
+        n = f"bkg_{d}"
+        if isinstance(params, Parameters):
+            params.add(name=n,
+                   value=init_val[d],
+                   lb=-np.inf,
+                   ub=np.inf,
+                   vary=False)
+        elif isinstance(params, Parameters_lmfit):
+            params.add(name=n,
+                   value=init_val[d],
+                   min=-np.inf,
+                   max=np.inf,
+                   vary=False)
 
 def _add_Shkl_terms(params,
                     mat,
@@ -298,7 +323,11 @@ def _add_atominfo_to_params(params, mat):
                     nn, value=mat.U[i],
                     min=0.0, max=np.inf,
                     vary=False)
-def _generate_default_parameters_LeBail(mat, peakshape, ptype="wppf"):
+def _generate_default_parameters_LeBail(mat,
+                                        peakshape,
+                                        bkgmethod,
+                                        init_val=None,
+                                        ptype="wppf"):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
     @date:    03/12/2021 SS 1.0 original
@@ -321,6 +350,22 @@ def _generate_default_parameters_LeBail(mat, peakshape, ptype="wppf"):
         msg = (f"_generate_default_parameters_LeBail: "
             f"unknown peak shape.")
         raise ValueError(msg)
+
+    if "chebyshev" in bkgmethod:
+        deg = bkgmethod["chebyshev"]
+        if not (init_val is None):
+            if len(init_val) < deg+1:
+                msg = (f"size of init_val and degree "
+                       f"of polynomial are not consistent. "
+                       f"setting initial guess to zero.")
+                warnings.warn(msg)
+                init_val = np.zeros([deg+1,])
+        else:
+            init_val = np.zeros([deg+1,])
+
+        _add_chebyshev_background(params,
+                                  deg,
+                                  init_val)
 
     if isinstance(mat, Phases_LeBail):
         """
@@ -463,14 +508,22 @@ def _add_extinction_parameters(mat, params):
 def _add_absorption_parameters(mat, params):
     return params
 
-def _generate_default_parameters_Rietveld(mat, peakshape, ptype="wppf"):
+def _generate_default_parameters_Rietveld(mat,
+                                          peakshape,
+                                          bkgmethod,
+                                          init_val=None,
+                                          ptype="wppf"):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
     @date:    03/12/2021 SS 1.0 original
     @details: generate a default parameter class given a list/dict/
     single instance of material class
     """
-    params = _generate_default_parameters_LeBail(mat, peakshape, ptype=ptype)
+    params = _generate_default_parameters_LeBail(mat,
+                                                 peakshape,
+                                                 bkgmethod,
+                                                 init_val,
+                                                 ptype=ptype)
 
     if ptype == "wppf":
         params.add(name="scale",
