@@ -1782,6 +1782,7 @@ class HEDMInstrument(object):
         # LOOP OVER PANELS
         # =====================================================================
         iRefl = 0
+        next_invalid_peak_id = -100
         compl = []
         output = dict.fromkeys(self.detectors)
         for detector_id, panel in self.detectors.items():
@@ -1935,7 +1936,7 @@ class HEDMInstrument(object):
                     else:
                         # initialize spot data parameters
                         # !!! maybe change these to nan to not fuck up writer
-                        peak_id = -999
+                        peak_id = next_invalid_peak_id
                         sum_int = np.nan
                         max_int = np.nan
                         meas_angs = np.nan*np.ones(3)
@@ -2051,6 +2052,12 @@ class HEDMInstrument(object):
                         else:
                             patch_data = patch_data_raw
                             pass  # end contains_signal
+
+                        if peak_id < 0:
+                            # The peak is invalid.
+                            # Decrement the next invalid peak ID.
+                            next_invalid_peak_id -= 1
+
                         # write output
                         if filename is not None:
                             if output_format.lower() == 'text':
