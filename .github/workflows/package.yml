@@ -46,6 +46,9 @@ jobs:
     - name: Install build requirements
       run: |
           conda activate hexrd
+          # Change default solver to be libmamba, so that it runs much faster
+          conda install -n base -c conda-forge conda-libmamba-solver
+          conda config --set solver libmamba
           # FIXME: downgrade urllib3 until this issue is fixed:
           # https://github.com/Anaconda-Platform/anaconda-client/issues/654
           conda install --override-channels -c conda-forge anaconda-client conda-build conda 'urllib3<2.0.0'
