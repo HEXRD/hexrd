@@ -76,7 +76,7 @@ pip install -e hexrd
 It is highly recommended to install hexrd in its own virtual env
 
 ```bash
-conda create --hexrd-dev python=3.9 hexrd
+conda create --name hexrd-dev python=3.9 hexrd
 conda activate hexrd-dev
 ```
 
