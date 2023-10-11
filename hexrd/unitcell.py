@@ -279,6 +279,8 @@ class unitcell:
         vlen = self.CalcLength(v, space)
 
         dot = self.CalcDot(u, v, space)/ulen/vlen
+        if np.isclose(np.abs(dot), 1.0):
+            dot = np.sign(dot)
         angle = np.arccos(dot)
 
         return angle
