@@ -21,6 +21,10 @@ ${HOME}/miniconda3/bin/conda create --override-channels -c conda-forge -y -n hex
 ${HOME}/miniconda3/bin/activate hexrd
 ${HOME}/miniconda3/bin/conda activate hexrd
 
+# Install the libmamba solver (it is much faster)
+${HOME}/miniconda3/bin/conda install -n base -c conda-forge conda-libmamba-solver
+${HOME}/miniconda3/bin/conda config --set solver libmamba
+
 # Install conda build and create output directory
 ${HOME}/miniconda3/bin/conda install --override-channels -c conda-forge conda-build -y
 mkdir output

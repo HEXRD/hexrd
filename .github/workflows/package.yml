@@ -45,6 +45,10 @@ jobs:
 
     - name: Install build requirements
       run: |
+          # Change default solver to be libmamba, so that it runs much faster
+          conda install -n base -c conda-forge conda-libmamba-solver
+          conda config --set solver libmamba
+
           conda activate hexrd
           # FIXME: downgrade urllib3 until this issue is fixed:
           # https://github.com/Anaconda-Platform/anaconda-client/issues/654
@@ -58,7 +62,16 @@ jobs:
       if: ${{ matrix.config.name != 'Linux' }}
       run: |
           conda activate hexrd
+          # For some reason, we need to set this in the environment as well.
+          # It seems conda build sometimes needs the solver in the environment
+          # and sometimes in the base environment. I don't know why.
+          conda install -c conda-forge conda-libmamba-solver
+          conda config --env --set solver libmamba
           mkdir output
+          # Conda build is ignoring the .condarc for some reason, so we need to
+          # set this environment variable instead.
+          # Setting this variable via `env` did not seem to work for some reason.
+          export CONDA_SOLVER=libmamba
           conda build --override-channels -c conda-forge --output-folder output/ conda.recipe/
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
