@@ -20,6 +20,7 @@ install_reqs = [
     'pyyaml',
     'scikit-learn',
     'scipy',
+    'tbb',
     'tqdm',
     'xxhash',
 ]
