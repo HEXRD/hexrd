@@ -10,7 +10,6 @@ from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
-import numpy.dual
 
 from hexrd import constants as ct
 from hexrd.instrument import Detector
@@ -366,9 +365,9 @@ def azimuth(vv, v0, v1):
     """
     with np.errstate(divide='ignore', invalid='ignore'):
         n0 = np.cross(v0, v1)
-        n0 /= np.dual.norm(n0, axis=-1)[..., np.newaxis]
+        n0 /= np.linalg.norm(n0, axis=-1)[..., np.newaxis]
         nn = np.cross(v0, vv)
-        nn /= np.dual.norm(nn, axis=-1)[..., np.newaxis]
+        nn /= np.linalg.norm(nn, axis=-1)[..., np.newaxis]
 
     azi = np.arccos(np.sum(nn * n0, -1))
     if len(np.shape(azi)) > 0:
