@@ -39,6 +39,9 @@ requirements:
     - scikit-image
     - scikit-learn
     - scipy
+    # TBB seems to be a little faster than OpenMP for the cases I've tried.
+    # Installing TBB means numba will use it instead of OpenMP.
+    - tbb
     - tqdm
 
 test:
