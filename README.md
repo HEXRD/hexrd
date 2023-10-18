@@ -4,7 +4,7 @@ The HEXRD project is developing a cross-platform, open-source library for the ge
 
 # Installing
 
-Requires Python 3.8+ (Python 3.9 recommended).  It is generally recommended for interactive use to install `hexrd` into a fresh environment with Spyder and Jupyter as well.  The GUI is in a separate package [here](https://github.com/hexrd/hexrdgui).
+Requires Python 3.9+ (Python 3.11 recommended).  It is generally recommended for interactive use to install `hexrd` into a fresh environment with Spyder and Jupyter as well.  The GUI is in a separate package [here](https://github.com/hexrd/hexrdgui).
 
 ## conda (main releases)
 
@@ -59,7 +59,7 @@ See [Citing HEXRD](https://hexrdgui.readthedocs.io/en/latest/citing/#hexrd) for 
 
 # Development
 
-Requires Python 3.8+ and a C compiler (_e.g._, `gcc` or VisualStudio).  First clone the Git repository:
+Requires Python 3.9+ and a C compiler (_e.g._, `gcc` or VisualStudio).  First clone the Git repository:
 
 ```bash
 git clone https://github.com/hexrd/hexrd.git
@@ -82,7 +82,7 @@ conda activate hexrd-dev
 
 ### Linux and Mac OS
 ```bash
-# First, make sure python3.8+ is installed in your target env.
+# First, make sure python3.9+ is installed in your target env.
 # If it is not, run the following command:
 conda install -c conda-forge python=3.9
 
@@ -95,7 +95,7 @@ CONDA_BUILD=1 pip install --no-build-isolation --no-deps -U -e hexrd
 
 ### Windows
 ```bash
-# First, make sure python3.8+ is installed in your target env.
+# First, make sure python3.9+ is installed in your target env.
 # If it is not, run the following command:
 conda install -c conda-forge python=3.9
 
