@@ -67,6 +67,12 @@ jobs:
           # and sometimes in the base environment. I don't know why.
           conda install -c conda-forge conda-libmamba-solver
           conda config --env --set solver libmamba
+          conda list
+
+          # Mac is having an issue with libarchive. We need to make sure that it
+          # comes from conda-forge. See here: https://github.com/conda/conda-libmamba-solver/issues/283
+          conda update -c conda-forge libarchive
+
           mkdir output
           # Conda build is ignoring the .condarc for some reason, so we need to
           # set this environment variable instead.
