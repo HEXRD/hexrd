@@ -17,7 +17,7 @@ chmod a+x Miniconda3-latest-Linux-x86_64.sh
 ./Miniconda3-latest-Linux-x86_64.sh -b
 
 # Set up the hexrd channel
-${HOME}/miniconda3/bin/conda create --override-channels -c conda-forge -y -n hexrd python=3.9
+${HOME}/miniconda3/bin/conda create --override-channels -c conda-forge -y -n hexrd python=3.11
 ${HOME}/miniconda3/bin/activate hexrd
 ${HOME}/miniconda3/bin/conda activate hexrd
 
