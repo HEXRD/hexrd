@@ -13,12 +13,20 @@ build:
 
 requirements:
   build:
-    # Numba is only here to ensure the numpy version is compatible
-    - numba
-    - numpy >=1.20
+    # This is so that we can build cross-platform for osx-arm64
+    - {{ compiler('c') }}
+    - python {{ python }}                    # [build_platform != target_platform]
+    - cross-python_{{ target_platform }}     # [build_platform != target_platform]
+    - numpy >=1.20                           # [build_platform != target_platform]
+    # Numba is only here to make sure we use a version of numpy that is compatible
+    - numba                                  # [build_platform != target_platform]
+  host:
     - python {{ python }}
+    - numpy >=1.20
     - setuptools
     - setuptools_scm
+    # Numba is only here to make sure we use a version of numpy that is compatible
+    - numba
 
   run:
     - appdirs
@@ -30,7 +38,7 @@ requirements:
     - h5py
     - lmfit
     - numba
-    - numpy >=1.20
+    - {{ pin_compatible('numpy') }}
     - psutil
     - pycifrw
     - python
@@ -44,7 +52,7 @@ requirements:
     - tbb
     - tqdm
 
-test:
+test:         # [build_platform == target_platform]
   imports:
     - hexrd
 
