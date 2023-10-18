@@ -9,6 +9,7 @@ import numpy
 np_include_dir = numpy.get_include()
 
 install_reqs = [
+    'appdirs',
     'fabio>=0.11',
     'fast-histogram',
     'h5py',
@@ -18,6 +19,7 @@ install_reqs = [
     'psutil',
     'pycifrw',
     'pyyaml',
+    'scikit-image',
     'scikit-learn',
     'scipy',
     'tbb',
@@ -33,15 +35,6 @@ elif compiler_type == "msvc":
     compiler_optimize_flags = ['/Ox', '/GL']
 else:
     compiler_optimize_flags = []
-
-# This a hack to get around the fact that scikit-image on conda-forge doesn't install
-# dist info so setuptools can't find it, even though its there, which results in
-# pkg_resources.DistributionNotFound, even though the package is available. So we
-# only added it if we aren't building with conda.
-# appdirs has the same issue.
-if os.environ.get('CONDA_BUILD') != '1':
-    install_reqs.append('scikit-image')
-    install_reqs.append('appdirs')
 
 
 # extension for convolution from astropy
@@ -103,7 +96,7 @@ ext_modules = get_extension_modules()
 # use entry_points, not scripts:
 entry_points = {
     'console_scripts': ["hexrd = hexrd.cli.main:main"]
-    }
+}
 
 setup(
     name='hexrd',
@@ -135,12 +128,3 @@ setup(
     python_requires='>=3.8',
     install_requires=install_reqs
 )
-
-# ext_modules = get_extension_modulesf()
-# setupF(
-#     name='hexrd',
-#     url='https://github.com/cryos/hexrd',
-#     license='BSD',
-#     ext_modules=ext_modules,
-#     packages=find_packages(),
-# )
