@@ -2,3 +2,12 @@ python:
   - 3.9
   - 3.10
   - 3.11
+c_compiler:
+  - gcc                    # [linux]
+  - clang                  # [osx]
+  - vs2019                 # [win]
+target_platform:
+  - linux-64               # [linux]
+  - osx-64                 # [osx]
+  - osx-arm64              # [osx]
+  - win-64                 # [win]
