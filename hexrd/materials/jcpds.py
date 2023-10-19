@@ -1,3 +1,6 @@
+import os
+import numpy as np
+
 class JCPDS_extend():
     def __init__(self, filename=None):
         if filename is None:
@@ -277,7 +280,7 @@ class JCPDS_extend():
             self.gamma = self.gamma0
             self.v = self.v0
 
-    def calc_pressure(self, volume=None, temperature=298):
+    def calc_pressure(self, volume=None, temperature=None):
         '''calculate the pressure given the volume
            and temperature using the third order 
            birch-murnaghan equation of state.
@@ -289,8 +292,22 @@ class JCPDS_extend():
             alpha0 = self.thermal_expansion
             alpha1 = self.thermal_expansion_dt
 
-            if temperature == 298:
+            beta0 = self.dk0dt
+            beta1 = self.dk0pdt
+
+            k0 = self.k0
+            k0p = self.k0p
+            if temperature is None:
                 vt = v0
+                kt = k0
+                ktp = k0p
             else:
-                vt = v0*np.exp(alpha0*(temperature-298)
-                        +0.5*alpha1*(temperature**2-298**2))
+                delT = (temperature-298)
+                delT2 = (temperature**2-298**2)
+                vt = v0*np.exp(alpha0*delT
+                        +0.5*alpha1*delT2)
+                kt = k0 + beta0*delT
+                ktp = k0p + beta1*delT
+            f = 0.5*((vt/volume)**(2./3.) - 1)
+
+            return 3.0*kt*f*(1 - 1.5*(4 - ktp)*f)*(1 + 2*f)**2.5
