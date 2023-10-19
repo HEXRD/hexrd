@@ -49,7 +49,7 @@ from hexrd.matrixutil import \
     columnNorm, unitVector, \
     skewMatrixOfVector, findDuplicateVectors, \
     multMatArray, nullSpace
-from hexrd import symmetry
+
 from hexrd.utils.decorators import numba_njit_if_available
 
 # =============================================================================
@@ -445,7 +445,7 @@ def quatAverageCluster(q_in, qsym):
             q_in)
 
         # second, re-cast to FR
-        qrot = symmetry.toFundamentalRegion(qrot.squeeze(), crysSym=qsym)
+        qrot = toFundamentalRegion(qrot.squeeze(), crysSym=qsym)
 
         # compute arithmetic average
         q_bar = unitVector(average(qrot, axis=1).reshape(4, 1))
@@ -456,7 +456,7 @@ def quatAverageCluster(q_in, qsym):
             q_bar)
 
         # re-map
-        q_bar = symmetry.toFundamentalRegion(q_bar, crysSym=qsym)
+        q_bar = toFundamentalRegion(q_bar, crysSym=qsym)
     return q_bar
 
 

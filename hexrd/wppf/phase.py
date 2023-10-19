@@ -1,9 +1,9 @@
 import numpy as np
 from hexrd.valunits import valWUnit
-from hexrd.spacegroup import Allowed_HKLs, SpaceGroup
+from hexrd.materials.spacegroup import Allowed_HKLs, SpaceGroup
 from hexrd import symmetry, symbols, constants
-from hexrd.material import Material
-from hexrd.unitcell import _rqpDict
+from hexrd.materials.material import Material
+from hexrd.materials.unitcell import _rqpDict
 from hexrd.wppf import wppfsupport
 from hexrd.wppf.xtal import _calc_dspacing, _get_tth, _calcxrsf,\
 _calc_extinction_factor, _calc_absorption_factor

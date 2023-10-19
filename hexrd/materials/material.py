@@ -34,7 +34,7 @@ materials are defined by name in materialDict.
 from configparser import SafeConfigParser as Parser
 import numpy
 
-from hexrd.crystallography import PlaneData as PData
+from hexrd.materials.crystallography import PlaneData as PData
 from hexrd.valunits import valWUnit
 from hexrd import unitcell
 from hexrd.constants import ptable, ptableinverse, chargestate
@@ -46,9 +46,10 @@ from pathlib import Path
 from CifFile import ReadCif
 import h5py
 from warnings import warn
-from hexrd.mksupport import Write2H5File
-from hexrd.symbols import xtal_sys_dict
-from hexrd.symbols import Hall_to_sgnum, HM_to_sgnum
+from hexrd.materials.mksupport import Write2H5File
+from hexrd.materials.symbols import (
+    xtal_sys_dict,Hall_to_sgnum, 
+    HM_to_sgnum)
 from hexrd.utils.compatibility import h5py_read_string
 from hexrd.fitting.peakfunctions import _unit_gaussian
 
