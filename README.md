@@ -18,7 +18,7 @@ conda install -c hexrd -c conda-forge hexrd
 To install the latest changes on master, do the following (Note that this release may be unstable!):
 
 ```bash
-conda install -c hexrd/label/hexrd-prerelease -c hexrd -c conda-forge hexrd
+conda install -c hexrd/label/prerelease -c conda-forge hexrd
 ```
 
 # Run
@@ -87,7 +87,7 @@ conda activate hexrd-dev
 conda install -c conda-forge python=3.9
 
 # Install deps using conda package
-conda install -c hexrd/label/hexrd-prerelease -c hexrd -c conda-forge hexrd
+conda install -c hexrd/label/prerelease -c conda-forge hexrd
 
 # Now using pip to link repo's into environment for development
 CONDA_BUILD=1 pip install --no-build-isolation --no-deps -U -e hexrd
@@ -100,7 +100,7 @@ CONDA_BUILD=1 pip install --no-build-isolation --no-deps -U -e hexrd
 conda install -c conda-forge python=3.9
 
 # Install deps using conda package
-conda install -c hexrd/label/hexrd-prerelease -c hexrd -c conda-forge hexrd
+conda install -c hexrd/label/prerelease -c conda-forge hexrd
 
 # Now using pip to link repo's into environment for development
 set CONDA_BUILD=1
