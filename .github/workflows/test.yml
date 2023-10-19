@@ -33,17 +33,17 @@ jobs:
     steps:
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
 
     - name: Checkout HEXRD
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         path: hexrd
 
     - name: Checkout examples
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: HEXRD/examples
         path: examples
