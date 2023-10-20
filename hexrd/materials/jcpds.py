@@ -32,8 +32,8 @@ class JCPDS_extend():
             self.alpha0 = 0.
             self.beta0 = 0.
             self.gamma0 = 0.
-            self.v0 = 0.
             self.read_file(self.file)
+            self.v0 = self.calc_volume_unitcell()
         self.a = 0.
         self.b = 0.
         self.c = 0.
@@ -278,7 +278,21 @@ class JCPDS_extend():
             self.alpha = self.alpha0
             self.beta = self.beta0
             self.gamma = self.gamma0
-            self.v = self.v0
+            self.v = self.calc_volume_unitcell()
+
+    def calc_volume_unitcell(self):
+        '''calculate volume of the unitcell
+        Ref: Introduction to conventional TEM
+        Marc De Graef, Appendix 1 pg. 662
+        '''
+        ca = np.cos(np.radians(self.alpha0))
+        cb = np.cos(np.radians(self.beta0))
+        cg = np.cos(np.radians(self.gamma0))
+
+        v0 = self.a0*self.b0*self.c0
+        f = np.sqrt(1 - ca**2 - cb**2 - cg**2
+                    +2*ca*cb*cg)
+        return v0*f
 
     def calc_pressure(self, volume=None, temperature=None):
         '''calculate the pressure given the volume
@@ -288,26 +302,71 @@ class JCPDS_extend():
         if volume is None:
             return 0
         else:
-            v0 = self.v0
-            alpha0 = self.thermal_expansion
-            alpha1 = self.thermal_expansion_dt
-
-            beta0 = self.dk0dt
-            beta1 = self.dk0pdt
-
-            k0 = self.k0
-            k0p = self.k0p
-            if temperature is None:
-                vt = v0
-                kt = k0
-                ktp = k0p
-            else:
-                delT = (temperature-298)
-                delT2 = (temperature**2-298**2)
-                vt = v0*np.exp(alpha0*delT
-                        +0.5*alpha1*delT2)
-                kt = k0 + beta0*delT
-                ktp = k0p + beta1*delT
+            vt =  self.vt(temperature=temperature)
+            kt =  self.kt(temperature=temperature)
+            ktp = self.ktp(temperature=temperature)
             f = 0.5*((vt/volume)**(2./3.) - 1)
 
             return 3.0*kt*f*(1 - 1.5*(4 - ktp)*f)*(1 + 2*f)**2.5
+
+    def calc_volume(self, pressure=None, temperature=None):
+        '''solve for volume in the birch-murnaghan EoS to
+        compute the volume. this number will be propagated 
+        to the Material object as updated lattice constants.
+        '''
+        vt = self.vt(temperature=temperature)
+        kt =  self.kt(temperature=temperature)
+        ktp = self.ktp(temperature=temperature)
+
+        if pressure is None:
+            return vt
+        else:
+            alpha = 0.75*(ktp - 4)
+            p = np.zeros([10,])
+            p[0] = 1.0
+            p[2] = (1 - 2*alpha)/alpha
+            p[4] = (alpha-1)/alpha
+            p[9] = -2*pressure/3/kt/alpha
+            res = np.roots(p)
+            res = res[np.isreal(res)]
+            res = 1/np.real(res)**3
+
+            mask = np.logical_and(res >= 0., res <= 1.0)
+            return res[mask] * vt
+
+    def vt(self, temperature=None):
+        '''calculate volume at high
+        temperature
+        '''
+        alpha0 = self.thermal_expansion
+        alpha1 = self.thermal_expansion_dt
+        if temperature is None:
+            vt = self.v0
+        else:
+            delT = (temperature-298)
+            delT2 = (temperature**2-298**2)
+            vt = self.v0*np.exp(alpha0*delT
+                    +0.5*alpha1*delT2)
+        return vt
+
+    def kt(self, temperature=None):
+        '''calculate bulk modulus for
+        high temperature
+        '''
+        k0 = self.k0
+        if temperature is None:
+            return k0
+        else:
+            delT = (temperature-298)
+            return k0 + self.dk0dt*delT
+
+    def ktp(self, temperature=None):
+        '''calculate bulk modulus derivative
+        for high temperature
+        '''
+        k0p = self.k0p
+        if temperature is None:
+            return k0p
+        else:
+            delT = (temperature-298)
+            return k0p + self.dk0pdt*delT
