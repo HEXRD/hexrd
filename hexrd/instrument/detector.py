@@ -9,7 +9,7 @@ from hexrd import distortion as distortion_pkg
 from hexrd import matrixutil as mutil
 from hexrd import xrdutil
 
-from hexrd.crystallography import PlaneData
+from hexrd.materials.crystallography import PlaneData
 
 from hexrd.transforms.xfcapi import (
     detectorXYToGvec,

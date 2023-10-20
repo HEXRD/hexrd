@@ -68,7 +68,7 @@ from hexrd.transforms.xfcapi import (
     unitRowVector,
 )
 from hexrd import xrdutil
-from hexrd.crystallography import PlaneData
+from hexrd.materials.crystallography import PlaneData
 from hexrd import constants as ct
 from hexrd.rotations import (
     angleAxisOfRotMat,
