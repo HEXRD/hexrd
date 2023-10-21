@@ -385,3 +385,14 @@ class JCPDS_extend():
         vpt = self.calc_volume(pressure=pressure,
                                temperature=temperature)
         return (vpt/vt)**(1./3.)
+
+    def calc_lp_at_PT(self, pressure=None, temperature=None):
+        '''calculate the lattice parameters for a given
+        pressure and temperature using the BM EoS. This 
+        is the main function which will be called from
+        the GUI.
+        '''
+        f = self.calc_lp_factor(pressure=pressure,
+                                temperature=temperature)
+        return np.array([f*self.a0, f*self.b0, f*self.c0,
+                         self.alpha0, self.beta0, self.gamma0,])
