@@ -294,6 +294,43 @@ class JCPDS_extend():
                     +2*ca*cb*cg)
         return v0*f
 
+    def vt(self, temperature=None):
+        '''calculate volume at high
+        temperature
+        '''
+        alpha0 = self.thermal_expansion
+        alpha1 = self.thermal_expansion_dt
+        if temperature is None:
+            vt = self.v0
+        else:
+            delT = (temperature-298)
+            delT2 = (temperature**2-298**2)
+            vt = self.v0*np.exp(alpha0*delT
+                    +0.5*alpha1*delT2)
+        return vt
+
+    def kt(self, temperature=None):
+        '''calculate bulk modulus for
+        high temperature
+        '''
+        k0 = self.k0
+        if temperature is None:
+            return k0
+        else:
+            delT = (temperature-298)
+            return k0 + self.dk0dt*delT
+
+    def ktp(self, temperature=None):
+        '''calculate bulk modulus derivative
+        for high temperature
+        '''
+        k0p = self.k0p
+        if temperature is None:
+            return k0p
+        else:
+            delT = (temperature-298)
+            return k0p + self.dk0pdt*delT
+
     def calc_pressure(self, volume=None, temperature=None):
         '''calculate the pressure given the volume
            and temperature using the third order 
@@ -332,41 +369,19 @@ class JCPDS_extend():
             res = 1/np.real(res)**3
 
             mask = np.logical_and(res >= 0., res <= 1.0)
-            return res[mask] * vt
+            res = res[mask]
+            if len(res) != 1:
+                msg = (f'more than one physically '
+                      f'reasonable solution found!')
+                raise ValueError(msg)
+            return res[0] * vt
 
-    def vt(self, temperature=None):
-        '''calculate volume at high
-        temperature
+    def calc_lp_factor(self, pressure=None, temperature=None):
+        '''calculate the factor to multiply the lattice
+        constants by. only the lengths will be modified, the 
+        angles will be kept constant.
         '''
-        alpha0 = self.thermal_expansion
-        alpha1 = self.thermal_expansion_dt
-        if temperature is None:
-            vt = self.v0
-        else:
-            delT = (temperature-298)
-            delT2 = (temperature**2-298**2)
-            vt = self.v0*np.exp(alpha0*delT
-                    +0.5*alpha1*delT2)
-        return vt
-
-    def kt(self, temperature=None):
-        '''calculate bulk modulus for
-        high temperature
-        '''
-        k0 = self.k0
-        if temperature is None:
-            return k0
-        else:
-            delT = (temperature-298)
-            return k0 + self.dk0dt*delT
-
-    def ktp(self, temperature=None):
-        '''calculate bulk modulus derivative
-        for high temperature
-        '''
-        k0p = self.k0p
-        if temperature is None:
-            return k0p
-        else:
-            delT = (temperature-298)
-            return k0p + self.dk0pdt*delT
+        vt  = self.vt(temperature=temperature)
+        vpt = self.calc_volume(pressure=pressure,
+                               temperature=temperature)
+        return (vpt/vt)**(1./3.)
