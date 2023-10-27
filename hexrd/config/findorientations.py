@@ -224,6 +224,12 @@ class OrientationMapsConfig(Config):
             )
 
     @property
+    def eta_step(self):
+        return self._cfg.get(
+            'find_orientations:orientation_maps:eta_step', default=0.25
+            )
+
+    @property
     def file(self):
         temp = self._cfg.get('find_orientations:orientation_maps:file',
                              default=None)

@@ -567,6 +567,7 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
     eta_ome = instrument.GenerateEtaOmeMaps(
         imsd, cfg.instrument.hedm, plane_data,
         active_hkls=active_hklIDs,
+        eta_step=cfg.find_orientations.orientation_maps.eta_step,
         threshold=cfg.find_orientations.orientation_maps.threshold,
         ome_period=ome_period)
 
