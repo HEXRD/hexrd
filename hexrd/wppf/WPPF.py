@@ -19,7 +19,7 @@ from scipy.interpolate import CubicSpline
 # -------------
 from hexrd import constants
 from hexrd.imageutil import snip1d_quad
-from hexrd.materials.material import Material
+from hexrd.material import Material
 from hexrd.utils.multiprocess_generic import GenericMultiprocessing
 from hexrd.valunits import valWUnit
 from hexrd.wppf.peakfunctions import (

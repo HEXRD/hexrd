@@ -1,4 +1,4 @@
-from hexrd.materials.symbols import pstr_Elements, sitesym, \
+from hexrd.material.symbols import pstr_Elements, sitesym, \
     tworig, PrintPossibleSG, TRIG, pstr_spacegroup,\
     pstr_mkxtal
 import h5py
@@ -6,7 +6,7 @@ import os
 import numpy as np
 import datetime
 import getpass
-from hexrd.materials.unitcell import _StiffnessDict, _pgDict
+from hexrd.material.unitcell import _StiffnessDict, _pgDict
 
 def mk(filename, xtalname):
 

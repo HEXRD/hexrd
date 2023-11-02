@@ -72,7 +72,8 @@ the HKL evaluation.
 from collections import OrderedDict
 from math import sqrt, floor
 
-from hexrd import symbols, constants, symmetry
+from hexrd import constants
+from hexrd.material import symbols, symmetry
 import numpy as np
 #
 __all__ = ['SpaceGroup']

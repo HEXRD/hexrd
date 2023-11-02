@@ -1,9 +1,9 @@
 import numpy as np
 from hexrd.valunits import valWUnit
-from hexrd.materials.spacegroup import Allowed_HKLs, SpaceGroup
+from hexrd.material.spacegroup import Allowed_HKLs, SpaceGroup
 from hexrd import symmetry, symbols, constants
-from hexrd.materials.material import Material
-from hexrd.materials.unitcell import _rqpDict
+from hexrd.material import Material
+from hexrd.material.unitcell import _rqpDict
 from hexrd.wppf import wppfsupport
 from hexrd.wppf.xtal import _calc_dspacing, _get_tth, _calcxrsf,\
 _calc_extinction_factor, _calc_absorption_factor
@@ -21,7 +21,7 @@ class Material_LeBail:
                     09/14/2020 SS 1.1 class can now be initialized using
                     a material.Material class instance
     >> @DETAILS:    Material_LeBail class is a stripped down version of the
-                    materials.Material class.this is done to keep the class lightweight
+                    material.Material class.this is done to keep the class lightweight
                     and make sure only the information necessary for the lebail fit is kept
 
     =========================================================================================
@@ -605,7 +605,7 @@ class Material_Rietveld:
     >> @DATE:       05/18/2020 SS 1.0 original
                     02/01/2021 SS 1.1 class can now be initialized using a
                     material.Material class instance
-    >> @DETAILS:    Material_LeBail class is a stripped down version of the materials.Material
+    >> @DETAILS:    Material_LeBail class is a stripped down version of the material.Material
                     class.this is done to keep the class lightweight and make sure only the
                     information necessary for the Rietveld fit is kept
     ===========================================================================================

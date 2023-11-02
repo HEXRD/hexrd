@@ -1,9 +1,7 @@
 import importlib.resources
 import numpy as np
 from hexrd import constants
-from hexrd import symbols
-from hexrd import symmetry
-from hexrd import spacegroup
+from hexrd.material import spacegroup, symbols, symmetry
 from hexrd.ipfcolor import sphere_sector, colorspace
 from hexrd.valunits import valWUnit
 import hexrd.resources
