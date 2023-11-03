@@ -109,5 +109,5 @@ class MaterialConfig(Config):
     def beam_energy(self, x):
         if not isinstance(x, valWUnit):
             x = valWUnit("beam energy", "energy", x, "keV")
-        for matl in self.material.values():
+        for matl in self.materials.values():
             matl.beamEnergy = x
