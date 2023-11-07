@@ -1,47 +1,36 @@
 import os
 import numpy as np
 
+
 class JCPDS_extend():
     def __init__(self, filename=None):
-        if filename is None:
-            self.file = ' '
-            self.name = ' '
-            self.version = 0
-            self.comments = ''
-            self.symmetry = ''
-            self.k0 = 0.
-            self.k0p = 0.  # k0p at 298K
-            self.dk0dt = 0.
-            self.dk0pdt = 0.
-            self.thermal_expansion = 0.  # alphat at 298K
-            self.thermal_expansion_dt = 0.
-            self.a0 = 0.
-            self.b0 = 0.
-            self.c0 = 0.
-            self.alpha0 = 0.
-            self.beta0 = 0.
-            self.gamma0 = 0.
-            self.v0 = 0.
-        else:
-            self.file = filename
-            self.dk0dt = 0.
-            self.dk0pdt = 0.
-            self.thermal_expansion_dt = 0.
-            self.b0 = 0.
-            self.c0 = 0.
-            self.alpha0 = 0.
-            self.beta0 = 0.
-            self.gamma0 = 0.
-            self.read_file(self.file)
-            self.v0 = self.calc_volume_unitcell()
-        self.a = 0.
-        self.b = 0.
-        self.c = 0.
-        self.alpha = 0.
-        self.beta = 0.
-        self.gamma = 0.
+        self.a0 = 0
+        self.b0 = 0
+        self.c0 = 0
+        self.alpha0 = 0
+        self.beta0 = 0
+        self.gamma0 = 0
+        self.v0 = 0
 
-        self.version_status = ''
+        self.k0 = 100
+        self.k0p = 5  # k0p at 298K
+
+        self.dk0dt = 0
+        self.dk0pdt = 0
+
+        self.symmetry = ''
+        self.thermal_expansion = 0  # alphat at 298K
+        self.thermal_expansion_dt = 0
+
+        self.file = ' '
+        self.name = ' '
+        self.version = 0
+        self.comments = ''
+
+        if filename:
+            self.file = filename
+            self.read_file(self.file)
+            self.update_v0()
 
     def read_file(self, file):
         """
@@ -55,6 +44,8 @@ class JCPDS_extend():
         version = 0.
         self.comments = []
         self.DiffLines = []
+
+        version_status = ''
 
         inp = open(file, 'r').readlines()
 #       my_list = [] # get all the text first and throw into my_list
@@ -156,7 +147,7 @@ class JCPDS_extend():
                 thermal_expansion = float(item[0])
             self.thermal_expansion = thermal_expansion
 
-            self.version_status = 'new'
+            version_status = 'new'
 
         elif 'VERSION' in inp[0]:
             jcpdsfile = open(file, 'r')
@@ -228,7 +219,7 @@ class JCPDS_extend():
 
                 if jlinespl[0] == 'DALPHATDT:':
                     dalphatdt = float(jlinespl[1])
-                    self.thermal_expansion_dt = dalphatat
+                    self.thermal_expansion_dt = dalphatdt
 
                 if jlinespl[0] == 'DIHKL:':
                     pass
@@ -266,19 +257,60 @@ class JCPDS_extend():
 
             jcpdsfile.close()
 
-            self.version_status = 'new'
+            version_status = 'new'
 
         else:
-            self.version_status = 'old'
+            version_status = 'old'
 
-        if self.version_status == 'new':
-            self.a = self.a0
-            self.b = self.b0
-            self.c = self.c0
-            self.alpha = self.alpha0
-            self.beta = self.beta0
-            self.gamma = self.gamma0
+        if version_status == 'new':
             self.v = self.calc_volume_unitcell()
+
+    def verify_symmetry_match(self, mat):
+        if not self.symmetry_matches(mat):
+            msg = (
+                f'The JCPDS symmetry "{self.symmetry}" does not match the '
+                f'symmetry of the material "{mat.latticeType}"!'
+            )
+            raise SymmetryMismatch(msg)
+
+    def symmetry_matches(self, mat):
+        return mat.latticeType == self.symmetry
+
+    @property
+    def _lat_param_names(self):
+        return ['a0', 'b0', 'c0', 'alpha0', 'beta0', 'gamma0']
+
+    @property
+    def lattice_params(self):
+        return [getattr(self, x) for x in self._lat_param_names]
+
+    @lattice_params.setter
+    def lattice_params(self, v):
+        for name, val in zip(self._lat_param_names, v):
+            setattr(self, name, val)
+
+        self.update_v0()
+
+    def matches_material(self, mat):
+        self.verify_symmetry_match(mat)
+        mat_lp = [x.value for x in mat.latticeParameters]
+        for v1, v2 in zip(mat_lp, self.lattice_params):
+            if not np.isclose(v1, v2):
+                return False
+
+    def load_from_material(self, mat):
+        if self.symmetry:
+            self.verify_symmetry_match(mat)
+
+        lp = [x.value for x in mat.latticeParameters]
+        self.lattice_params = lp
+
+    def write_to_material(self, mat):
+        self.verify_symmetry_match(mat)
+        mat.latticeParameters = self.lattice_params
+
+    def update_v0(self):
+        self.v0 = self.calc_volume_unitcell()
 
     def calc_volume_unitcell(self):
         '''calculate volume of the unitcell
@@ -333,7 +365,7 @@ class JCPDS_extend():
 
     def calc_pressure(self, volume=None, temperature=None):
         '''calculate the pressure given the volume
-           and temperature using the third order 
+           and temperature using the third order
            birch-murnaghan equation of state.
         '''
         if volume is None:
@@ -348,7 +380,7 @@ class JCPDS_extend():
 
     def calc_volume(self, pressure=None, temperature=None):
         '''solve for volume in the birch-murnaghan EoS to
-        compute the volume. this number will be propagated 
+        compute the volume. this number will be propagated
         to the Material object as updated lattice constants.
         '''
         vt = self.vt(temperature=temperature)
@@ -371,14 +403,14 @@ class JCPDS_extend():
             mask = np.logical_and(res >= 0., res <= 1.0)
             res = res[mask]
             if len(res) != 1:
-                msg = (f'more than one physically '
-                      f'reasonable solution found!')
+                msg = ('more than one physically '
+                       'reasonable solution found!')
                 raise ValueError(msg)
             return res[0] * vt
 
     def calc_lp_factor(self, pressure=None, temperature=None):
         '''calculate the factor to multiply the lattice
-        constants by. only the lengths will be modified, the 
+        constants by. only the lengths will be modified, the
         angles will be kept constant.
         '''
         vt  = self.vt(temperature=temperature)
@@ -388,7 +420,7 @@ class JCPDS_extend():
 
     def calc_lp_at_PT(self, pressure=None, temperature=None):
         '''calculate the lattice parameters for a given
-        pressure and temperature using the BM EoS. This 
+        pressure and temperature using the BM EoS. This
         is the main function which will be called from
         the GUI.
         '''
@@ -396,3 +428,7 @@ class JCPDS_extend():
                                 temperature=temperature)
         return np.array([f*self.a0, f*self.b0, f*self.c0,
                          self.alpha0, self.beta0, self.gamma0,])
+
+
+class SymmetryMismatch(Exception):
+    pass
