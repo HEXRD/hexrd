@@ -193,6 +193,13 @@ class Material(object):
             self._dmin = Material.DFLT_DMIN
             self._beamEnergy = Material.DFLT_KEV
 
+            self.k0 = 100.0
+            self.k0p = 0.0
+            self.dk0dt = 0.0
+            self.dk0pdt = 0.0
+            self.alphaT = 0.0
+            self.dalphaTdT = 0.0
+
         # If these were specified, they override any other method of
         # obtaining them (including loading them from files).
         if dmin is not None:
@@ -404,6 +411,110 @@ class Material(object):
         self.atomtype = self.unitcell.atom_type
         self.charge = self.unitcell.chargestates
         self._hkls_changed()
+
+
+    def vt(self, temperature=None):
+        '''calculate volume at high
+        temperature
+        '''
+        alpha0 = self.thermal_expansion
+        alpha1 = self.thermal_expansion_dt
+        if temperature is None:
+            vt = self.v0
+        else:
+            delT = (temperature-298)
+            delT2 = (temperature**2-298**2)
+            vt = self.v0*np.exp(alpha0*delT
+                    +0.5*alpha1*delT2)
+        return vt
+
+    def kt(self, temperature=None):
+        '''calculate bulk modulus for
+        high temperature
+        '''
+        k0 = self.k0
+        if temperature is None:
+            return k0
+        else:
+            delT = (temperature-298)
+            return k0 + self.dk0dt*delT
+
+    def ktp(self, temperature=None):
+        '''calculate bulk modulus derivative
+        for high temperature
+        '''
+        k0p = self.k0p
+        if temperature is None:
+            return k0p
+        else:
+            delT = (temperature-298)
+            return k0p + self.dk0pdt*delT
+
+    def calc_pressure(self, volume=None, temperature=None):
+        '''calculate the pressure given the volume
+           and temperature using the third order
+           birch-murnaghan equation of state.
+        '''
+        if volume is None:
+            return 0
+        else:
+            vt =  self.vt(temperature=temperature)
+            kt =  self.kt(temperature=temperature)
+            ktp = self.ktp(temperature=temperature)
+            f = 0.5*((vt/volume)**(2./3.) - 1)
+
+            return 3.0*kt*f*(1 - 1.5*(4 - ktp)*f)*(1 + 2*f)**2.5
+
+    def calc_volume(self, pressure=None, temperature=None):
+        '''solve for volume in the birch-murnaghan EoS to
+        compute the volume. this number will be propagated
+        to the Material object as updated lattice constants.
+        '''
+        vt = self.vt(temperature=temperature)
+        kt =  self.kt(temperature=temperature)
+        ktp = self.ktp(temperature=temperature)
+
+        if pressure is None:
+            return vt
+        else:
+            alpha = 0.75*(ktp - 4)
+            p = np.zeros([10,])
+            p[0] = 1.0
+            p[2] = (1 - 2*alpha)/alpha
+            p[4] = (alpha-1)/alpha
+            p[9] = -2*pressure/3/kt/alpha
+            res = np.roots(p)
+            res = res[np.isreal(res)]
+            res = 1/np.real(res)**3
+
+            mask = np.logical_and(res >= 0., res <= 1.0)
+            res = res[mask]
+            if len(res) != 1:
+                msg = ('more than one physically '
+                       'reasonable solution found!')
+                raise ValueError(msg)
+            return res[0] * vt
+
+    def calc_lp_factor(self, pressure=None, temperature=None):
+        '''calculate the factor to multiply the lattice
+        constants by. only the lengths will be modified, the
+        angles will be kept constant.
+        '''
+        vt  = self.vt(temperature=temperature)
+        vpt = self.calc_volume(pressure=pressure,
+                               temperature=temperature)
+        return (vpt/vt)**(1./3.)
+
+    def calc_lp_at_PT(self, pressure=None, temperature=None):
+        '''calculate the lattice parameters for a given
+        pressure and temperature using the BM EoS. This
+        is the main function which will be called from
+        the GUI.
+        '''
+        f = self.calc_lp_factor(pressure=pressure,
+                                temperature=temperature)
+        return np.array([f*self.a0, f*self.b0, f*self.c0,
+                         self.alpha0, self.beta0, self.gamma0,])
 
     def _readCif(self, fcif=DFLT_NAME+'.cif'):
 
@@ -627,6 +738,18 @@ class Material(object):
         self._beamEnergy = Material.DFLT_KEV
         self._tThWidth = Material.DFLT_TTH
 
+        '''set the Birch-Murnaghan equation of state
+        parameters to default values. These values can
+        be updated by user or by reading a JCPDS file
+        '''
+        self.k0 = 100.0
+        self.k0p = 0.0
+        self.dk0dt = 0.0
+        self.dk0pdt = 0.0
+        self.alphaT = 0.0
+        self.dalphaTdT = 0.0
+
+
     def _readHDFxtal(self, fhdf=DFLT_NAME, xtal=DFLT_NAME):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab,
@@ -707,6 +830,9 @@ class Material(object):
         else:
             self.stiffness = numpy.zeros([6, 6])
 
+        '''start reading the Birch-Murnaghan equation of state
+        parameters
+        '''
         self.k0 = 100.0
         if('k0' in gid):
             # this is the isotropic bulk modulus
@@ -737,6 +863,25 @@ class Material(object):
             dk0pdt = numpy.array(gid.get('dk0pdt'),
                  dtype=numpy.float64).item()
             self.dk0pdt = dk0pdt
+
+        self.alphaT = 0.0
+        if('alphaT' in gid):
+            # this is the temperature derivation of
+            # the pressure derivative of isotropic bulk modulus
+            alphaT = numpy.array(gid.get('alphaT'),
+                 dtype=numpy.float64).item()
+            self.alphaT = alphaT
+
+        self.dalphaTdT = 0.0
+        if('dalphaTdT' in gid):
+            # this is the temperature derivation of
+            # the pressure derivative of isotropic bulk modulus
+            dalphaTdT = numpy.array(gid.get('dalphaTdT'),
+                 dtype=numpy.float64).item()
+            self.dalphaTdT = dalphaTdT
+
+        '''Finished with the BM EOS
+        '''
 
         if('v0' in gid):
             # this is the isotropic ambient unitcell
@@ -821,7 +966,15 @@ class Material(object):
 
         AtomInfo['dk0pdt'] = 0.0
         if hasattr(self, 'dk0pdt'):
-            AtomInfo['v0'] = self.dk0pdt
+            AtomInfo['dk0pdt'] = self.dk0pdt
+
+        AtomInfo['alphaT'] = 0.0
+        if hasattr(self, 'alphaT'):
+            AtomInfo['alphaT'] = self.alphaT
+
+        AtomInfo['dalphaTdT'] = 0.0
+        if hasattr(self, 'dalphaTdT'):
+            AtomInfo['dalphaTdT'] = self.dalphaTdT
         '''
         lattice parameters
         '''
@@ -1080,6 +1233,22 @@ class Material(object):
     atomtype = property(
         _get_atomtype, _set_atomtype, None,
         "Information about atomic types")
+
+    @property
+    def thermal_expansion(self):
+        return self.alphaT
+
+    @thermal_expansion.setter
+    def thermal_expansion(self, val):
+        self.alphaT = val
+
+    @property
+    def thermal_expansion_dt(self):
+        return self.dalphaTdT
+    
+    @thermal_expansion_dt.setter
+    def thermal_expansion_dt(self, val):
+        self.dalphaTdT = val
 
     def _set_atomdata(self, atomtype, atominfo, U, charge):
         """
