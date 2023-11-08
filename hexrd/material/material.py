@@ -259,6 +259,9 @@ class Material(object):
             if pdata.laueGroup != laue or pdata.lparms != reduced_lparms:
                 pdata.set_laue_and_lparms(laue, reduced_lparms)
 
+        if not hasattr(self, 'v0'):
+            self.v0 = self.vol
+
     def _hkls_changed(self):
         # Call this when something happens that changes the hkls...
         self._newPdata()
@@ -704,6 +707,28 @@ class Material(object):
         else:
             self.stiffness = numpy.zeros([6, 6])
 
+        self.k0 = 100.0
+        if('k0' in gid):
+            # this is the isotropic bulk modulus
+            k0 = numpy.array(gid.get('k0'),
+                 dtype=numpy.float64).item()
+            self.k0 = k0
+
+        self.k0p = 0.0
+        if('k0p' in gid):
+            # this is the pressure derivation of
+            # the isotropic bulk modulus
+            k0p = numpy.array(gid.get('k0p'),
+                 dtype=numpy.float64).item()
+            self.k0p = k0p
+
+        if('v0' in gid):
+            # this is the isotropic ambient unitcell
+            # volume
+            v0 = numpy.array(gid.get('v0'),
+                 dtype=numpy.float64).item()
+            self.v0 = v0
+
         # if dmin is present in file:
         if('dmin' in gid):
             # if dmin is present in the HDF5 file, then use that
@@ -761,6 +786,18 @@ class Material(object):
             AtomInfo['tThWidth'] = numpy.degrees(Material.DFLT_TTH)
         else:
             AtomInfo['tThWidth'] = numpy.degrees(self.planeData.tThWidth)
+
+        AtomInfo['k0'] = 100.0
+        if hasattr(self, 'k0'):
+            AtomInfo['k0'] = self.k0
+
+        AtomInfo['k0p'] = 0.0
+        if hasattr(self, 'k0p'):
+            AtomInfo['k0p'] = self.k0p
+
+        AtomInfo['v0'] = self.vol
+        if hasattr(self, 'v0'):
+            AtomInfo['v0'] = self.v0
         '''
         lattice parameters
         '''

@@ -515,6 +515,14 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
     did = gid.create_dataset("stiffness", (6, 6), dtype=np.float64)
     did.write_direct(np.array(AtomInfo['stiffness'], dtype=np.float64))
 
+    did = gid.create_dataset("k0", (1,), dtype=np.float64)
+    did.write_direct(np.array([AtomInfo['k0']], dtype=np.float64))
+
+    did = gid.create_dataset("k0p", (1,), dtype=np.float64)
+    did.write_direct(np.array([AtomInfo['k0p']], dtype=np.float64))
+
+    did = gid.create_dataset("v0", (1,), dtype=np.float64)
+    did.write_direct(np.array([AtomInfo['v0']], dtype=np.float64))
 
     if "tThWidth" in AtomInfo: 
         did = gid.create_dataset("tThWidth", (1,), dtype=np.float64)
