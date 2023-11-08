@@ -424,7 +424,7 @@ class Material(object):
         else:
             delT = (temperature-298)
             delT2 = (temperature**2-298**2)
-            vt = self.v0*np.exp(alpha0*delT
+            vt = self.v0*numpy.exp(alpha0*delT
                     +0.5*alpha1*delT2)
         return vt
 
@@ -478,16 +478,16 @@ class Material(object):
             return vt
         else:
             alpha = 0.75*(ktp - 4)
-            p = np.zeros([10,])
+            p = numpy.zeros([10,])
             p[0] = 1.0
             p[2] = (1 - 2*alpha)/alpha
             p[4] = (alpha-1)/alpha
             p[9] = -2*pressure/3/kt/alpha
-            res = np.roots(p)
-            res = res[np.isreal(res)]
-            res = 1/np.real(res)**3
+            res = numpy.roots(p)
+            res = res[numpy.isreal(res)]
+            res = 1/numpy.real(res)**3
 
-            mask = np.logical_and(res >= 0., res <= 1.0)
+            mask = numpy.logical_and(res >= 0., res <= 1.0)
             res = res[mask]
             if len(res) != 1:
                 msg = ('more than one physically '
@@ -513,7 +513,7 @@ class Material(object):
         '''
         f = self.calc_lp_factor(pressure=pressure,
                                 temperature=temperature)
-        return np.array([f*self.a0, f*self.b0, f*self.c0,
+        return numpy.array([f*self.a0, f*self.b0, f*self.c0,
                          self.alpha0, self.beta0, self.gamma0,])
 
     def _readCif(self, fcif=DFLT_NAME+'.cif'):
