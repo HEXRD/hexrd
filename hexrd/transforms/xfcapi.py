@@ -33,6 +33,7 @@ from .old_xfcapi import (
 from .new_capi.xf_new_capi import(
     # New transform functions
     angles_to_gvec,
+    angles_to_dvec,
     gvec_to_xy,  # this is gvecToDetectorXY and gvecToDetectorXYArray
     make_sample_rmat,  # this is makeOscillRotMat and makeOscillRotMatArray
 )
