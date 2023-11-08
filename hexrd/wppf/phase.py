@@ -1,7 +1,8 @@
 import numpy as np
 from hexrd.valunits import valWUnit
 from hexrd.material.spacegroup import Allowed_HKLs, SpaceGroup
-from hexrd import symmetry, symbols, constants
+from hexrd import constants
+from hexrd.material import symmetry, symbols
 from hexrd.material import Material
 from hexrd.material.unitcell import _rqpDict
 from hexrd.wppf import wppfsupport
