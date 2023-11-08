@@ -92,19 +92,6 @@ class FitGrainsConfig(Config):
                 temp = [temp, temp]
             return temp
 
-    """
-    TODO: evaluate the need for this
-    """
-    @property
-    def skip_on_estimate(self):
-        key = 'fit_grains:skip_on_estimate'
-        temp = self._cfg.get(key, False)
-        if temp in (True, False):
-            return temp
-        raise RuntimeError(
-            '"%s" must be true or false, got "%s"' % (key, temp)
-            )
-
     @property
     def fit_only(self):
         key = 'fit_grains:fit_only'
@@ -127,3 +114,8 @@ class FitGrainsConfig(Config):
         raise RuntimeError(
             '"%s" must be > 0, true, or false, got "%s"' % (key, temp)
             )
+
+    @property
+    def output_format(self):
+        key = 'fit_grains:output_format'
+        return self._cfg.get(key, ['summary'])
