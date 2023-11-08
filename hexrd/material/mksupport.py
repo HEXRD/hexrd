@@ -521,6 +521,12 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
     did = gid.create_dataset("k0p", (1,), dtype=np.float64)
     did.write_direct(np.array([AtomInfo['k0p']], dtype=np.float64))
 
+    did = gid.create_dataset("dk0dt", (1,), dtype=np.float64)
+    did.write_direct(np.array([AtomInfo['dk0dt']], dtype=np.float64))
+
+    did = gid.create_dataset("dk0pdt", (1,), dtype=np.float64)
+    did.write_direct(np.array([AtomInfo['dk0pdt']], dtype=np.float64))
+
     did = gid.create_dataset("v0", (1,), dtype=np.float64)
     did.write_direct(np.array([AtomInfo['v0']], dtype=np.float64))
 

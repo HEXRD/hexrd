@@ -722,6 +722,22 @@ class Material(object):
                  dtype=numpy.float64).item()
             self.k0p = k0p
 
+        self.dk0dt = 0.0
+        if('dk0dt' in gid):
+            # this is the temperature derivation of
+            # the isotropic bulk modulus
+            dk0dt = numpy.array(gid.get('dk0dt'),
+                 dtype=numpy.float64).item()
+            self.dk0dt = dk0dt
+
+        self.dk0pdt = 0.0
+        if('dk0pdt' in gid):
+            # this is the temperature derivation of
+            # the pressure derivative of isotropic bulk modulus
+            dk0pdt = numpy.array(gid.get('dk0pdt'),
+                 dtype=numpy.float64).item()
+            self.dk0pdt = dk0pdt
+
         if('v0' in gid):
             # this is the isotropic ambient unitcell
             # volume
@@ -798,6 +814,14 @@ class Material(object):
         AtomInfo['v0'] = self.vol
         if hasattr(self, 'v0'):
             AtomInfo['v0'] = self.v0
+
+        AtomInfo['dk0dt'] = 0.0
+        if hasattr(self, 'dk0dt'):
+            AtomInfo['dk0dt'] = self.dk0dt
+
+        AtomInfo['dk0pdt'] = 0.0
+        if hasattr(self, 'dk0pdt'):
+            AtomInfo['v0'] = self.dk0pdt
         '''
         lattice parameters
         '''
