@@ -25,7 +25,7 @@ class MultiprocessingConfig(Config):
             if multiproc >= 0:
                 if multiproc > ncpus:
                     logger.warning(
-                        'Resuested %s processes, %d available',
+                        'Requested %s processes, %d available',
                         multiproc, ncpus
                         )
                     res = ncpus
@@ -69,6 +69,10 @@ class MultiprocessingConfig(Config):
     @property
     def limit(self):
         return self._cfg.get('multiprocessing:limit', None)
+
+    @property
+    def generate(self):
+        return self._cfg.get('multiprocessing:generate', None)
 
     @property
     def chunk_size(self):

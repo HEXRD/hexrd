@@ -39,7 +39,7 @@ class ExperimentConfig(Config):
             return temp
         else:
             raise RuntimeError('comp_thresh must be None or a number between 0 and 1')
-            
+
     @property
     def chi2_thresh(self):
         key = 'experiment:chi2_thresh'
@@ -51,15 +51,12 @@ class ExperimentConfig(Config):
         else:
             raise RuntimeError('chi2_thresh must be None or a number between 0 and 1')
 
-
     @property
     def misorientation(self):
         key = self._cfg.get('experiment:misorientation:use_misorientation')
         if key is True:
-            parms = dict(misorientation_bnd='experiment:bnd',
-            misorientation_spacing='experiment:spacing')
+            parms = dict(misorientation_bnd=self.get('experiment:misorientation:bnd', 0.0),
+            misorientation_spacing=self.get('experiment:misorientation:spacing', 0.25))
             return parms
         else:
-            parms = dict(misorientation_bnd=None,
-            misorientation_spacing=None) #won't look at spacing if bnd is 0
-            return parms
+            return

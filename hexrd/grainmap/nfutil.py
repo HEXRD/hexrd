@@ -1477,7 +1477,7 @@ def plot_ori_map(grain_map, confidence_map, exp_maps, layer_no,mat,id_remap=None
 
             ori = exp_maps[ii, :]
 
-            rmats = rot.rotMatOfExpMap(ori)
+            rmats = rotations.rotMatOfExpMap(ori)
             rgb = mat.unitcell.color_orientations(
                 rmats, ref_dir=np.array([0., 1., 0.]))
 
