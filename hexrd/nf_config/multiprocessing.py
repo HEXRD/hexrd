@@ -27,7 +27,7 @@ class MultiprocessingConfig(Config):
                     logger.warning(
                         'Requested %s processes, %d available',
                         multiproc, ncpus
-                        )
+                    )
                     res = ncpus
                 else:
                     res = multiproc if multiproc else 1
@@ -37,7 +37,7 @@ class MultiprocessingConfig(Config):
                     logger.warning(
                         'Cannot use less than 1 process, requested %d of %d',
                         temp, ncpus
-                        )
+                    )
                     res = 1
                 else:
                     res = temp
@@ -46,7 +46,7 @@ class MultiprocessingConfig(Config):
             logger.warning(
                 "Invalid value %s for multiprocessing",
                 multiproc
-                )
+            )
             res = temp
         return res
 
@@ -60,7 +60,7 @@ class MultiprocessingConfig(Config):
             raise RuntimeError(
                 '"num_cpus": must be 1:%d, got %s'
                 % (mp.cpu_count(), val)
-                )
+            )
 
     @property
     def check(self):

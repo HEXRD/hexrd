@@ -10,6 +10,7 @@ processing_methods = {
     'gaussian': dict(sigma=2.0, size=3.0),
     'dilations_only': dict(num_erosions=2, num_dilations=3)}
 
+
 class ImagesConfig(Config):
 
     @property

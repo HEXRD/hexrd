@@ -12,10 +12,10 @@ class ReconstructionConfig(Config):
     def tomography(self):
         key = self._cfg.get('NF_reconstruction:tomography:use_mask', False)
         if key is True:
-            parms = dict(use_mask = True,
-            mask_data_file='NF_reconstruction:tomography:mask_data_file',
-            mask_vert_offset='NF_reconstruction:tomography:mask_vert_offset',
-            project_single_layer = 'NF_reconstruction:tomography:project_single_layer')
+            parms = dict(use_mask=True,
+                         mask_data_file='NF_reconstruction:tomography:mask_data_file',
+                         mask_vert_offset='NF_reconstruction:tomography:mask_vert_offset',
+                         project_single_layer='NF_reconstruction:tomography:project_single_layer')
             return parms
         else:
             return
@@ -30,7 +30,7 @@ class ReconstructionConfig(Config):
 
     @property
     def v_bnds(self):
-        return self._cfg.get('NF_reconstruction:v_bnds',[0.0,0.0])
+        return self._cfg.get('NF_reconstruction:v_bnds', [0.0, 0.0])
 
     @property
     def beam_stop_y_cen(self):

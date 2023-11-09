@@ -37,7 +37,8 @@ class ExperimentConfig(Config):
         elif np.logical_and(temp <= 1.0, temp > 0.0):
             return temp
         else:
-            raise RuntimeError('comp_thresh must be None or a number between 0 and 1')
+            raise RuntimeError(
+                'comp_thresh must be None or a number between 0 and 1')
 
     @property
     def chi2_thresh(self):
@@ -47,14 +48,16 @@ class ExperimentConfig(Config):
         elif np.logical_and(temp <= 1.0, temp > 0.0):
             return temp
         else:
-            raise RuntimeError('chi2_thresh must be None or a number between 0 and 1')
+            raise RuntimeError(
+                'chi2_thresh must be None or a number between 0 and 1')
 
     @property
     def misorientation(self):
-        key = self._cfg.get('experiment:misorientation:use_misorientation', False)
+        key = self._cfg.get(
+            'experiment:misorientation:use_misorientation', False)
         if key is True:
             parms = dict(misorientation_bnd=self.get('experiment:misorientation:bnd', 0.0),
-            misorientation_spacing=self.get('experiment:misorientation:spacing', 0.25))
+                         misorientation_spacing=self.get('experiment:misorientation:spacing', 0.25))
             return parms
         else:
             return
