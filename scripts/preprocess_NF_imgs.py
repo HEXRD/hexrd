@@ -18,7 +18,7 @@ from hexrd import instrument
 try:
     import matplotlib.pyplot as plt
     matplot = True
-except(ImportError):
+except (ImportError):
     logging.warning(f'no matplotlib, debug plotting disabled')
     matplot = False
 
@@ -29,16 +29,17 @@ def load_instrument(yml):
     return instrument.HEDMInstrument(instrument_config=icfg)
 
 
-#%%
+# %%
 
 parser = argparse.ArgumentParser(description='Preprocess NF image stack')
 
-parser.add_argument('input_file', type=str, help='Input File for NF reconstruction')
+parser.add_argument('input_file', type=str,
+                    help='Input File for NF reconstruction')
 
 args = parser.parse_args()
 fname = args.input_file
 
-#%%
+# %%
 cfg = nf_config.open(fname)[0]
 
 analysis_name = cfg.analysis_name
@@ -49,7 +50,7 @@ num_digits = cfg.images.num_digits
 main_dir = cfg.main_dir
 output_dir = cfg.output_dir
 
-#full_stem = os.path.join(img_folder, img_stem)
+# full_stem = os.path.join(img_folder, img_stem)
 
 det_fname = cfg.input_files.det_file
 
@@ -79,17 +80,17 @@ else:
     print('Invalid image processing method')
 
 
-#==============================================================================
+# ==============================================================================
 # %% NEAR FIELD - MAKE MEDIAN DARK
-#==============================================================================
+# ==============================================================================
 
 dark = nfutil.gen_nf_dark(img_folder, img_nums, num_for_dark, nrows,
                           ncols, dark_type='median',
                           num_digits=num_digits, stem=img_stem)
 
-#==============================================================================
+# ==============================================================================
 # %% NEAR FIELD - LOAD IMAGE DATA AND PROCESS
-#==============================================================================
+# ==============================================================================
 
 image_stack = nfutil.gen_nf_cleaned_image_stack(img_folder, img_nums, dark,
                                                 nrows, ncols,
