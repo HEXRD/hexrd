@@ -1,0 +1,106 @@
+
+analysis_name: NF_vol0
+
+main_dir: './' #/nfs/chess/user/relim/voisin-3061-c/nf_s26 #working directory path
+output_dir: './' #/nfs/chess/user/relim/voisin-3061-c/nf_s26 #defaults to main_dir
+
+input_files:
+  det_file: retiga.yml
+  mat_file: ../../materials-ti7al.h5
+  grain_out_file: /Users/lim37/Library/CloudStorage/OneDrive-LLNL/ti7al_cyclic_HEDM/ti7-1/grains.out
+
+experiment:
+  beam_energy: 61.332
+  mat_name: ti7al
+
+  ome_start: 0.
+  ome_end: 359.75  # degrees
+
+  max_thh: None #number in degrees or None
+
+  # optional
+  comp_thresh: 0.8
+  chi2_thresh: 0.05
+
+  #you really don't want to be doing this... -REL
+  misorientation:
+    use_misorientation: True
+    bnd: 0.0  # degrees
+    spacing: 0.25  # degrees, doesn't matter if bnd is 0
+tomography:
+  #data_folder: /nfs/chess/raw/2022-1/id3a/voisin-3061-c/s26-1/
+  img_stem: nf_
+  num_digits: 5
+  bright:
+    folder: /nfs/chess/raw/2017-2/f2/rollett-628-1/ti7-1/7/nf/ #defaults to data_folder
+    img_start: 62
+    num_imgs: 50
+  dark:
+    folder: /nfs/chess/raw/2017-2/f2/rollett-628-1/ti7-1/6/nf/ #defaults to data_folder
+    img_start: 6
+    num_imgs: 50
+  images:
+    folder: /nfs/chess/raw/2017-2/f2/rollett-628-1/ti7-1/8/nf/
+    img_start: 118
+    num_imgs: 3600
+  ome_start: 0.0 #degrees
+  ome_end: 359.75
+
+  #Don't change these unless you know what you are doing, this will close small holes
+  #and remove noise
+  processing:
+    recon_thresh: 0.0002 #usually varies between 0.0001 and 0.0005
+    noise_obj_size: 500
+    min_hole_size: 500
+    erosion_iter: 1
+    dilation_iter: 1
+
+
+images:
+  data_folder: /nfs/chess/raw/2017-2/f2/rollett-628-1/ti7-1/13/nf
+  stem: nf_
+  num_digits: 5
+  img_start: 3885
+  nframes: 1440
+  processing:
+    num_for_dark: 250  # num images to use for median data
+    img_threshold: 0
+    method:
+      # gaussian:
+      #   sigma: 2.0
+      #   size: 3.0
+      dilations_only:
+        num_erosions: 2 #num iterations of images erosion, don't mess with unless you know what you're doing
+        num_dilations: 3 #num iterations of images erosion, don't mess with unless you know what you're doing
+      # non_local_means:
+      #   patch_size: 3
+      #   patch_distance: 5
+      #   binarization_threshold: 10
+    ome_dilation_iter: 1
+    # binarization_threshold: 5
+
+NF_reconstruction:
+  tomography:
+    use_mask: False #True for using tomo, False for not using tomo
+    mask_data_file: ./tomo_mask.npz
+    mask_vert_offset: -0.3 #offset between tomo and nf layer position
+    project_single_layer: False #True projects the center layers through the volume
+
+  cross_sectional_dim: 1.5
+  voxel_spacing: 0.05  #mm, cubic voxel size for reconstruction
+  v_bnds: [0., 0.] #[-0.5, 0.5] #mm, if bounds are equal, a single layer is produced
+
+  beam_stop_y_cen: 0.0  # mm, measured from the origin of the detector paramters
+  beam_stop_width: 0.6  # mm, width of the beam stop vertically
+
+multiprocessing:
+  num_cpus: 1 #number of processors, can use -1 or all
+  # chunksize for multiprocessing, don't mess with unless you know what you're doing
+  chunk_size: 500 # Use -1 if you wish automatic chunk_size calculation
+  RAM_set: True  # if True, manually set max amount of ram
+  max_RAM: 256  # only used if RAM_set is true. in GB
+  # check: None
+  # limit: None
+  # generate: None
+
+output_plot_check: True
