@@ -80,7 +80,7 @@ class MultiprocessingConfig(Config):
 
     @property
     def max_RAM(self):
-        key = self._cfg.get('multiprocessing:RAM_set')
+        key = self._cfg.get('multiprocessing:RAM_set', False)
         if key is True:
             return self._cfg.get('multiprocessing:max_RAM')
         else:

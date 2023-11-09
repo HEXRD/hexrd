@@ -10,7 +10,7 @@ class ReconstructionConfig(Config):
 
     @property
     def tomography(self):
-        key = self._cfg.get('NF_reconstruction:tomography:use_mask')
+        key = self._cfg.get('NF_reconstruction:tomography:use_mask', False)
         if key is True:
             parms = dict(use_mask = True,
             mask_data_file='NF_reconstruction:tomography:mask_data_file',

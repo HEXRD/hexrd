@@ -61,7 +61,7 @@ class BrightConfig(Config):
 
     @property
     def num_imgs(self):
-        return self._cfg.get('tomography:bright:num_imgs')
+        return self._cfg.get('tomography:bright:num_imgs', 10)
 
 
 class DarkConfig(Config):
@@ -76,7 +76,7 @@ class DarkConfig(Config):
 
     @property
     def num_imgs(self):
-        return self._cfg.get('tomography:dark:num_imgs')
+        return self._cfg.get('tomography:dark:num_imgs', 10)
 
 
 class TomoImagesConfig(Config):
@@ -97,7 +97,7 @@ class TomoProcessingConfig(Config):
 
     @property
     def recon_thresh(self):
-        return self._cfg.get('tomography:processing:recon_thresh')
+        return self._cfg.get('tomography:processing:recon_thresh',0.0003)
 
     @property
     def noise_obj_size(self):
@@ -120,7 +120,7 @@ class TomoReconstructionConfig(Config):
 
     @property
     def project_single_layer(self):
-        return self._cfg.get('tomography:reconstruction:project_single_layer', True)
+        return self._cfg.get('tomography:reconstruction:project_single_layer', False)
 
     @property
     def cross_sectional_dim(self):

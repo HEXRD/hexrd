@@ -31,8 +31,7 @@ class ExperimentConfig(Config):
 
     @property
     def comp_thresh(self):
-        key = 'experiment:comp_thresh'
-        temp = self._cfg.get(key, None)
+        temp = self._cfg.get('experiment:comp_thresh', None)
         if temp is None:
             return temp
         elif np.logical_and(temp <= 1.0, temp > 0.0):
@@ -42,8 +41,7 @@ class ExperimentConfig(Config):
 
     @property
     def chi2_thresh(self):
-        key = 'experiment:chi2_thresh'
-        temp = self._cfg.get(key, None)
+        temp = self._cfg.get('experiment:chi2_thresh', None)
         if temp is None:
             return temp
         elif np.logical_and(temp <= 1.0, temp > 0.0):
@@ -53,7 +51,7 @@ class ExperimentConfig(Config):
 
     @property
     def misorientation(self):
-        key = self._cfg.get('experiment:misorientation:use_misorientation')
+        key = self._cfg.get('experiment:misorientation:use_misorientation', False)
         if key is True:
             parms = dict(misorientation_bnd=self.get('experiment:misorientation:bnd', 0.0),
             misorientation_spacing=self.get('experiment:misorientation:spacing', 0.25))
