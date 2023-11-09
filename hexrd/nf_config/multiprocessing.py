@@ -3,7 +3,7 @@ import os
 import psutil
 import multiprocessing as mp
 
-from .config import Config
+from hexrd import config as Config
 
 
 logger = logging.getLogger('hexrd.config')

@@ -1,7 +1,6 @@
 import logging
 import os
-
-from .config import Config
+from hexrd import config as Config
 
 
 logger = logging.getLogger('hexrd.config')

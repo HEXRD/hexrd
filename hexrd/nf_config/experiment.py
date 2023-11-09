@@ -2,7 +2,7 @@ import logging
 import os
 import numpy as np
 
-from .config import Config
+from hexrd import config as Config
 
 
 logger = logging.getLogger('hexrd.config')

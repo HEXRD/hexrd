@@ -5,7 +5,7 @@ import multiprocessing as mp
 from hexrd.constants import shared_ims_key
 from hexrd import imageseries
 
-from .config import Config
+from hexrd import config as Config
 from .multiprocessing import MultiprocessingConfig
 from .reconstruction import ReconstructionConfig
 from .images import ImagesConfig
