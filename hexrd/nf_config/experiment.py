@@ -2,13 +2,15 @@ import logging
 import os
 import numpy as np
 
-from hexrd import config as Config
+from .config import Config
 
 
 logger = logging.getLogger('hexrd.config')
 
 
 class ExperimentConfig(Config):
+    def __init__(self, cfg):
+        self._cfg = cfg
 
     @property
     def beam_energy(self):

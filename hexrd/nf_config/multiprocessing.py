@@ -3,13 +3,15 @@ import os
 import psutil
 import multiprocessing as mp
 
-from hexrd import config as Config
+from .config import Config
 
 
 logger = logging.getLogger('hexrd.config')
 
 
 class MultiprocessingConfig(Config):
+    def __init__(self, cfg):
+        self._cfg = cfg
 
     @property
     def num_cpus(self):

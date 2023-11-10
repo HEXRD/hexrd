@@ -5,7 +5,7 @@ import multiprocessing as mp
 from hexrd.constants import shared_ims_key
 from hexrd import imageseries
 
-from hexrd import config as Config
+from .config import Config
 from .multiprocessing import MultiprocessingConfig
 from .reconstruction import ReconstructionConfig
 from .images import ImagesConfig
@@ -17,7 +17,9 @@ logger = logging.getLogger('hexrd.config')
 
 
 class NFRootConfig(Config):
-
+    def __init__(self, cfg):
+        self._cfg = cfg
+        
     @property
     def main_dir(self):
         return self._cfg.get('main_dir')

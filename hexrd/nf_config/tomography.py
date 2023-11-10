@@ -1,13 +1,15 @@
 import logging
 import os
 
-from hexrd import config as Config
+from .config import Config
 
 
 logger = logging.getLogger('hexrd.config')
 
 
 class TomographyConfig(Config):
+    def __init__(self, cfg):
+        self._cfg = cfg
 
     @property
     def data_folder(self):

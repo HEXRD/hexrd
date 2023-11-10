@@ -1,14 +1,16 @@
 import logging
 import os
 
-from hexrd import config as Config
+from .config import Config
 
 
 logger = logging.getLogger('hexrd.config')
 
 
 class InputConfig(Config):
-
+    def __init__(self, cfg):
+        self._cfg = cfg
+        
     @property
     def det_file(self):
         temp = self._cfg.get('input_files:det_file')
