@@ -637,9 +637,12 @@ class Detector:
                 columns=int(self.cols),
                 size=[float(self.pixel_size_row),
                       float(self.pixel_size_col)],
-                roi=roi
             )
         )
+
+        if roi is not None:
+            # Only add roi if it is not None
+            det_dict['pixels']['roi'] = roi
 
         # distortion
         if self.distortion is not None:
