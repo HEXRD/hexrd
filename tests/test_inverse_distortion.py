@@ -1,9 +1,10 @@
+import os
 import pickle
 
 import numpy as np
-import sys
-sys.path.append('..')
 from hexrd.extensions import inverse_distortion
+
+test_dir = os.path.dirname(os.path.abspath(__file__))
 
 RHO_MAX = 204.8
 params = [-2.277777438488093e-05, -8.763805995117837e-05, -0.00047451698761967085]
@@ -82,7 +83,7 @@ def test_large_input():
 
 def test_logged_data():
     # Load logged data
-    with open('data/inverse_distortion_in_out.pkl', 'rb') as f:
+    with open(os.path.join(test_dir, "data", "inverse_distortion_in_out.pkl"), 'rb') as f:
         logged_data = pickle.load(f)
 
     logged_inputs = logged_data['inputs']
@@ -91,7 +92,7 @@ def test_logged_data():
 
     for xy_in, xy_out_expected, params in zip(logged_inputs, logged_outputs, logged_params):
         xy_out = inverse_distortion.ge_41rt_inverse_distortion(xy_in, RHO_MAX, params)
-        assert np.allclose(xy_out, xy_out_expected, atol=1e-6)
+        assert np.allclose(xy_out, xy_out_expected, atol=1e-7)
 
 def test_random_values():
   np.random.seed(42)
