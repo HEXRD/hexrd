@@ -1,7 +1,9 @@
+import pickle
+
 import numpy as np
 import sys
 sys.path.append('..')
-from hexrd.distortion.ge_41rt import _ge_41rt_inverse_distortion
+from hexrd.extensions import inverse_distortion
 
 RHO_MAX = 204.8
 params = [-2.277777438488093e-05, -8.763805995117837e-05, -0.00047451698761967085]
@@ -65,22 +67,35 @@ big_test_out = np.array([[ 47.03288205,  -5.21719147],
 def test_known_values():
   xy_in = np.array([[140.40087891, 117.74253845]])
   expected_output = np.array([[140.44540352, 117.77987754]])
-  xy_out = _ge_41rt_inverse_distortion(xy_in, RHO_MAX, params)
+  xy_out = inverse_distortion.ge_41rt_inverse_distortion(xy_in, RHO_MAX, params)
   assert np.allclose(xy_out, expected_output)
 
 def test_big_input():
-  xy_out = _ge_41rt_inverse_distortion(big_test_in, RHO_MAX, params)
+  xy_out = inverse_distortion.ge_41rt_inverse_distortion(big_test_in, RHO_MAX, params)
   assert np.allclose(xy_out, big_test_out)
 
 def test_large_input():
   xy_in = np.array([[1e5, 1e5]])
-  xy_out = _ge_41rt_inverse_distortion(xy_in, RHO_MAX, params)
+  xy_out = inverse_distortion.ge_41rt_inverse_distortion(xy_in, RHO_MAX, params)
   # No specific expected output here, just ensure it doesn't fail
   assert xy_out.shape == xy_in.shape
 
+def test_logged_data():
+    # Load logged data
+    with open('data/inverse_distortion_in_out.pkl', 'rb') as f:
+        logged_data = pickle.load(f)
+
+    logged_inputs = logged_data['inputs']
+    logged_outputs = logged_data['outputs']
+    logged_params = logged_data['params']
+
+    for xy_in, xy_out_expected, params in zip(logged_inputs, logged_outputs, logged_params):
+        xy_out = inverse_distortion.ge_41rt_inverse_distortion(xy_in, RHO_MAX, params)
+        assert np.allclose(xy_out, xy_out_expected, atol=1e-6)
+
 def test_random_values():
-  np.random.seed(42)  # Set seed for reproducibility
+  np.random.seed(42)
   xy_in = np.random.rand(10, 2) * 200
-  xy_out = _ge_41rt_inverse_distortion(xy_in, RHO_MAX, params)
+  xy_out = inverse_distortion.ge_41rt_inverse_distortion(xy_in, RHO_MAX, params)
   # Verify function does not raise any exception
   assert xy_out.shape == xy_in.shape

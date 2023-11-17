@@ -1,18 +1,23 @@
 """GE41RT Detector Distortion"""
-import numpy as np
+from typing import List
 
-from hexrd import constants as cnst
+import numpy as np
 import numba
 
 from .distortionabc import DistortionABC
 from .registry import _RegisterDistortionClass
 from .utils import newton
+
+from hexrd import constants as cnst
 from hexrd.extensions import inverse_distortion
 
 RHO_MAX = 204.8  # max radius in mm for ge detector
 
+# NOTE: Deprecated in favor of inverse_distortion.ge_41rt_inverse_distortion
 @numba.njit(nogil=True, cache=True, fastmath=True)
-def _ge_41rt_inverse_distortion(inputs, rhoMax, params):
+def _ge_41rt_inverse_distortion(inputs: np.ndarray[np.float64, np.float64],
+                                rhoMax: float,
+                                params: List[float]):
     radii = np.hypot(inputs[:, 0], inputs[:, 1])
     inverted_radii = np.reciprocal(radii)
     cosines = inputs[:, 0]*inverted_radii
