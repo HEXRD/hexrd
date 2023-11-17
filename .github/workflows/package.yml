@@ -2,7 +2,7 @@ name: conda-package
 
 on:
   push:
-    branches: [ master, inverse-distortion ]
+    branches: [ master ]
     tags: ["*"]
   pull_request:
     branches: [ master ]
