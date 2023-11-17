@@ -3,9 +3,11 @@ import distutils.ccompiler
 import os
 from pathlib import Path
 from setuptools import setup, find_packages, Extension
+import sysconfig
 import sys
 
 import numpy
+import pybind11
 np_include_dir = numpy.get_include()
 
 install_reqs = [
@@ -36,6 +38,15 @@ elif compiler_type == "msvc":
 else:
     compiler_optimize_flags = []
 
+# This a hack to get around the fact that scikit-image on conda-forge doesn't install
+# dist info so setuptools can't find it, even though its there, which results in
+# pkg_resources.DistributionNotFound, even though the package is available. So we
+# only added it if we aren't building with conda.
+# appdirs has the same issue.
+if os.environ.get('CONDA_BUILD') != '1':
+    install_reqs.append('scikit-image')
+    install_reqs.append('appdirs')
+
 
 # extension for convolution from astropy
 def get_convolution_extensions():
@@ -55,6 +66,52 @@ def get_convolution_extensions():
                               language='c')
 
     return [_convolve_ext]
+
+def get_include_path(library_name):
+    env_var_hint = os.getenv(f"{library_name.upper()}_INCLUDE_DIR")
+    if env_var_hint is not None and os.path.exists(env_var_hint):
+        return env_var_hint
+    conda_include_dir = os.getenv('CONDA_PREFIX')
+    if conda_include_dir:
+        conda_include_dir = os.path.join(conda_include_dir, 'include')
+        full_path = os.path.join(conda_include_dir, library_name)
+        if os.path.exists(full_path):
+            return full_path
+    possible_directories = [
+        sysconfig.get_path('include'),
+        "/usr/include",
+        "/usr/local/include",
+    ]
+    for directory in possible_directories:
+        full_path = os.path.join(directory, library_name)
+        if os.path.exists(full_path):
+            return full_path
+    raise Exception(f"The {library_name} library was not found in any known directory.")
+
+def get_cpp_extensions():
+    cpp_transform_pkgdir = Path('hexrd') / 'transforms/cpp_sublibrary'
+    src_files = [str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')]
+
+    extra_compile_args = ['-O3', '-Wall', '-shared', '-std=c++11', '-funroll-loops']
+    if not sys.platform.startswith('win'):
+        extra_compile_args.append('-fPIC')
+
+    # Define include directories
+    include_dirs = [
+        sysconfig.get_path('include'),
+        get_include_path('eigen3'),
+        get_include_path('xsimd'),
+        pybind11.get_include(),
+        numpy.get_include(),
+    ]
+
+    inverse_distortion_ext = Extension(name='hexrd.extensions.inverse_distortion',
+                                       sources=[src_files[1]],
+                                       extra_compile_args=extra_compile_args,
+                                       include_dirs=include_dirs,
+                                       language='c++')
+
+    return [inverse_distortion_ext]
 
 
 def get_old_xfcapi_extension_modules():
@@ -88,6 +145,7 @@ def get_extension_modules():
         get_old_xfcapi_extension_modules(),
         get_new_xfcapi_extension_modules(),
         get_convolution_extensions(),
+        get_cpp_extensions(),
     ) for item in sublist]
 
 
