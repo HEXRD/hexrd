@@ -106,7 +106,7 @@ def get_cpp_extensions():
     ]
 
     inverse_distortion_ext = Extension(name='hexrd.extensions.inverse_distortion',
-                                       sources=[src_files[1]],
+                                       sources=[src_files[0]],
                                        extra_compile_args=extra_compile_args,
                                        include_dirs=include_dirs,
                                        language='c++')
