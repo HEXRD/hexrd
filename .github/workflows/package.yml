@@ -50,7 +50,7 @@ jobs:
           conda config --set solver libmamba
 
           conda activate hexrd
-          conda install --override-channels -c conda-forge anaconda-client conda-build conda
+          conda install --override-channels -c conda-forge anaconda-client conda-build conda pybind11
 
           python install_build_dependencies.py
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
