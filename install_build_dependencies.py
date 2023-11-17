@@ -67,6 +67,22 @@ def download_eigen(path):
 
   return str(target_path)
 
+def download_pybind11(path):
+  url = 'https://github.com/pybind/pybind11/archive/refs/tags/v2.11.0.tar.gz'
+  md5sum = '90c4946e87c64d8d8fc0ae4edf35d780'
+  out_dir_name = 'pybind11-2.11.0'
+
+  download_and_extract_tgz(url, md5sum, path)
+
+  target_path = Path(path) / 'pybind11'
+  if target_path.exists():
+      shutil.rmtree(target_path)
+
+  shutil.move(str(Path(path) / out_dir_name), str(Path(path) / 'pybind11'))
+
+  return str(target_path)
+
 # Call the functions to download and place the libraries
 download_eigen(CONDA_INCLUDE_PATH)
 download_xsimd(CONDA_INCLUDE_PATH)
+download_pybind11(CONDA_INCLUDE_PATH)
