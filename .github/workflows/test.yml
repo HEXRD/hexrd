@@ -2,7 +2,7 @@ name: test
 
 on:
   push:
-    branches: [ master, inverse-distortion ]
+    branches: [ master ]
   pull_request:
     branches: [ master ]
 
