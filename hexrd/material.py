@@ -852,6 +852,11 @@ class Material(object):
 
     sgnum = property(_get_sgnum, _set_sgnum, None,
                      "Space group number")
+
+    @property
+    def pgnum(self):
+        return self.unitcell.pgnum
+
     # property:  beamEnergy
 
     def _get_beamEnergy(self):
