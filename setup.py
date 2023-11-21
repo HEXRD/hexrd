@@ -17,7 +17,7 @@ install_reqs = [
     'h5py',
     'lmfit',
     'numba',
-    'numpy<1.27',  # NOTE: bump this to support the latest version numba supports
+    'numpy<1.27',  # noqa NOTE: bump this to support the latest version numba supports
     'psutil',
     'pycifrw',
     'pyyaml',
@@ -49,9 +49,10 @@ def get_convolution_extensions():
     if not sys.platform.startswith('win'):
         extra_compile_args.append('-fPIC')
     extra_compile_args += compiler_optimize_flags
-    # Add '-Rpass-missed=.*' to ``extra_compile_args`` when compiling with clang
-    # to report missed optimizations
-    _convolve_ext = Extension(name='hexrd.convolution._convolve', sources=src_files,
+    # Add '-Rpass-missed=.*' to ``extra_compile_args`` when compiling with
+    # clang to report missed optimizations
+    _convolve_ext = Extension(name='hexrd.convolution._convolve',
+                              sources=src_files,
                               extra_compile_args=extra_compile_args,
                               include_dirs=[numpy.get_include()],
                               language='c')
@@ -86,7 +87,7 @@ def get_include_path(library_name):
         build_include_dir,
     ]
 
-    result = subprocess.run(args, check=True)
+    subprocess.run(args, check=True)
 
     # It should exist now
     return full_path
@@ -96,7 +97,8 @@ def get_cpp_extensions():
     cpp_transform_pkgdir = Path('hexrd') / 'transforms/cpp_sublibrary'
     src_files = [str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')]
 
-    extra_compile_args = ['-O3', '-Wall', '-shared', '-std=c++11', '-funroll-loops']
+    extra_compile_args = ['-O3', '-Wall', '-shared', '-std=c++11',
+                          '-funroll-loops']
     if not sys.platform.startswith('win'):
         extra_compile_args.append('-fPIC')
 
@@ -108,11 +110,13 @@ def get_cpp_extensions():
         numpy.get_include(),
     ]
 
-    inverse_distortion_ext = Extension(name='hexrd.extensions.inverse_distortion',
-                                       sources=src_files,
-                                       extra_compile_args=extra_compile_args,
-                                       include_dirs=include_dirs,
-                                       language='c++')
+    inverse_distortion_ext = Extension(
+        name='hexrd.extensions.inverse_distortion',
+        sources=src_files,
+        extra_compile_args=extra_compile_args,
+        include_dirs=include_dirs,
+        language='c++',
+    )
 
     return [inverse_distortion_ext]
 
@@ -163,8 +167,8 @@ setup(
     name='hexrd',
     use_scm_version=True,
     setup_requires=['setuptools-scm'],
-    description = 'hexrd X-ray diffraction data analysis tool',
-    long_description = open('README.md').read(),
+    description='hexrd X-ray diffraction data analysis tool',
+    long_description=open('README.md').read(),
     author='The hexrd Development Team',
     author_email='joelvbernier@me.com',
     url='https://github.com/HEXRD/hexrd',
@@ -180,7 +184,7 @@ setup(
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
     ],
-    entry_points = entry_points,
+    entry_points=entry_points,
     ext_modules=ext_modules,
     packages=find_packages(),
     include_package_data=True,
