@@ -3,6 +3,7 @@ import distutils.ccompiler
 import os
 from pathlib import Path
 from setuptools import setup, find_packages, Extension
+import subprocess
 import sysconfig
 import sys
 
@@ -38,15 +39,6 @@ elif compiler_type == "msvc":
 else:
     compiler_optimize_flags = []
 
-# This a hack to get around the fact that scikit-image on conda-forge doesn't install
-# dist info so setuptools can't find it, even though its there, which results in
-# pkg_resources.DistributionNotFound, even though the package is available. So we
-# only added it if we aren't building with conda.
-# appdirs has the same issue.
-if os.environ.get('CONDA_BUILD') != '1':
-    install_reqs.append('scikit-image')
-    install_reqs.append('appdirs')
-
 
 # extension for convolution from astropy
 def get_convolution_extensions():
@@ -54,7 +46,7 @@ def get_convolution_extensions():
 
     src_files = [str(c_convolve_pkgdir / 'src/convolve.c')]
 
-    extra_compile_args=['-UNDEBUG']
+    extra_compile_args = ['-UNDEBUG']
     if not sys.platform.startswith('win'):
         extra_compile_args.append('-fPIC')
     extra_compile_args += compiler_optimize_flags
@@ -67,26 +59,32 @@ def get_convolution_extensions():
 
     return [_convolve_ext]
 
+
 def get_include_path(library_name):
     env_var_hint = os.getenv(f"{library_name.upper()}_INCLUDE_DIR")
     if env_var_hint is not None and os.path.exists(env_var_hint):
         return env_var_hint
+
     conda_include_dir = os.getenv('CONDA_PREFIX')
     if conda_include_dir:
-        conda_include_dir = os.path.join(conda_include_dir, 'include')
-        full_path = os.path.join(conda_include_dir, library_name)
-        if os.path.exists(full_path):
-            return full_path
-    possible_directories = [
-        sysconfig.get_path('include'),
-        "/usr/include",
-        "/usr/local/include",
-    ]
-    for directory in possible_directories:
-        full_path = os.path.join(directory, library_name)
-        if os.path.exists(full_path):
-            return full_path
-    raise Exception(f"The {library_name} library was not found in any known directory.")
+        full_path = Path(conda_include_dir) / 'include' / library_name
+        if full_path.exists():
+            return str(full_path)
+
+    build_include_dir = Path(__file__).parent / 'build/include'
+    full_path = build_include_dir / library_name
+    if full_path.exists():
+        return full_path
+
+    # If the path doesn't exist, then install it there
+    scripts_path = Path(__file__).parent / 'scripts'
+    install_script = scripts_path / 'install/install_build_dependencies.py'
+
+    subprocess.run([sys.executable, install_script, str(build_include_dir)])
+
+    # It should exist now
+    return full_path
+
 
 def get_cpp_extensions():
     cpp_transform_pkgdir = Path('hexrd') / 'transforms/cpp_sublibrary'
@@ -181,7 +179,7 @@ setup(
     ext_modules=ext_modules,
     packages=find_packages(),
     include_package_data=True,
-    package_data={'':['Anomalous.h5']},
+    package_data={'': ['Anomalous.h5']},
     python_requires='>=3.9',
     install_requires=install_reqs
 )

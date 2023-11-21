@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [ master ]
 
-env:
-  CONDA_PREFIX: ${{ github.workspace }}/miniconda3/envs/hexrd
-
 jobs:
   pytest:
     name: ${{ matrix.config.name }}
@@ -18,14 +15,21 @@ jobs:
       matrix:
         python-version: [3.11]
         config:
-          - {name: "Linux", os: ubuntu-latest}
-          - {name: "MacOSX", os: macos-latest}
-          - {name: "Windows", os: windows-latest}
-
+        - {
+            name: "Linux",
+            os: ubuntu-latest
+          }
+        - {
+            name: "MacOSX",
+            os: macos-latest
+          }
+        - {
+            name: "Windows",
+            os: windows-latest
+          }
     defaults:
       run:
         shell: bash
-
     steps:
 
     - name: Set up Python ${{ matrix.python-version }}
@@ -56,19 +60,14 @@ jobs:
           pip install fabio==0.12
       if: ${{ matrix.config.os == 'macos-latest'}}
 
-    - name: Install Build Dependencies
+    - name: Install HEXRD
       run: |
-        python install_build_dependencies.py
+          pip install .
       working-directory: hexrd
 
     - name: Install requirements-dev.txt
       run: |
           pip install -r tests/requirements-dev.txt
-      working-directory: hexrd
-
-    - name: Install HEXRD
-      run: |
-          pip install .
       working-directory: hexrd
 
     - name: Run tests
