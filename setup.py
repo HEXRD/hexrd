@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 from setuptools import setup, find_packages, Extension
 import subprocess
-import sysconfig
 import sys
 
 import numpy
@@ -69,7 +68,7 @@ def get_include_path(library_name):
     if conda_include_dir:
         full_path = Path(conda_include_dir) / 'include' / library_name
         if full_path.exists():
-            return str(full_path)
+            return full_path
 
     build_include_dir = Path(__file__).parent / 'build/include'
     full_path = build_include_dir / library_name
@@ -80,7 +79,14 @@ def get_include_path(library_name):
     scripts_path = Path(__file__).parent / 'scripts'
     install_script = scripts_path / 'install/install_build_dependencies.py'
 
-    subprocess.run([sys.executable, install_script, str(build_include_dir)])
+    args = [
+        sys.executable,
+        install_script,
+        library_name,
+        build_include_dir,
+    ]
+
+    result = subprocess.run(args, check=True)
 
     # It should exist now
     return full_path
@@ -96,7 +102,6 @@ def get_cpp_extensions():
 
     # Define include directories
     include_dirs = [
-        sysconfig.get_path('include'),
         get_include_path('eigen3'),
         get_include_path('xsimd'),
         pybind11.get_include(),
@@ -104,7 +109,7 @@ def get_cpp_extensions():
     ]
 
     inverse_distortion_ext = Extension(name='hexrd.extensions.inverse_distortion',
-                                       sources=[src_files[0]],
+                                       sources=src_files,
                                        extra_compile_args=extra_compile_args,
                                        include_dirs=include_dirs,
                                        language='c++')

@@ -55,7 +55,7 @@ def download_xsimd(path):
     return str(target_path)
 
 
-def download_eigen(path):
+def download_eigen3(path):
     url = 'https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz'  # noqa
     md5sum = '4c527a9171d71a72a9d4186e65bea559'
     out_dir_name = 'eigen-3.4.0'
@@ -87,14 +87,28 @@ def download_pybind11(path):
     return str(target_path)
 
 
+INSTALL_FUNCTIONS = {
+    'eigen3': download_eigen3,
+    'xsimd': download_xsimd,
+    'pybind11': download_pybind11,
+}
+
+
+def install(library, destination):
+    if library not in INSTALL_FUNCTIONS:
+        raise NotImplementedError(library)
+
+    return INSTALL_FUNCTIONS[library](destination)
+
+
 if __name__ == '__main__':
     import sys
 
-    if len(sys.argv) < 2:
-        sys.exit('<script> <destination')
+    if len(sys.argv) < 3:
+        sys.exit('<script> <library> <destination>')
 
-    destination = sys.argv[1]
+    library = sys.argv[1]
+    destination = sys.argv[2]
 
-    # Call the functions to download and place the libraries
-    download_eigen(destination)
-    download_xsimd(destination)
+    print(f'Installing "{library}" to "{destination}"')
+    install(library, destination)
