@@ -6,6 +6,7 @@ import numpy as np
 
 ndarray_key = '!__hexrd_ndarray__'
 
+
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.ndarray):
