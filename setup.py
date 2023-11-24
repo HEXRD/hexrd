@@ -3,9 +3,11 @@ import distutils.ccompiler
 import os
 from pathlib import Path
 from setuptools import setup, find_packages, Extension
+import subprocess
 import sys
 
 import numpy
+import pybind11
 np_include_dir = numpy.get_include()
 
 install_reqs = [
@@ -15,7 +17,7 @@ install_reqs = [
     'h5py',
     'lmfit',
     'numba',
-    'numpy<1.27',  # NOTE: bump this to support the latest version numba supports
+    'numpy<1.27',  # noqa NOTE: bump this to support the latest version numba supports
     'psutil',
     'pycifrw',
     'pyyaml',
@@ -43,18 +45,80 @@ def get_convolution_extensions():
 
     src_files = [str(c_convolve_pkgdir / 'src/convolve.c')]
 
-    extra_compile_args=['-UNDEBUG']
+    extra_compile_args = ['-UNDEBUG']
     if not sys.platform.startswith('win'):
         extra_compile_args.append('-fPIC')
     extra_compile_args += compiler_optimize_flags
-    # Add '-Rpass-missed=.*' to ``extra_compile_args`` when compiling with clang
-    # to report missed optimizations
-    _convolve_ext = Extension(name='hexrd.convolution._convolve', sources=src_files,
+    # Add '-Rpass-missed=.*' to ``extra_compile_args`` when compiling with
+    # clang to report missed optimizations
+    _convolve_ext = Extension(name='hexrd.convolution._convolve',
+                              sources=src_files,
                               extra_compile_args=extra_compile_args,
                               include_dirs=[numpy.get_include()],
                               language='c')
 
     return [_convolve_ext]
+
+
+def get_include_path(library_name):
+    env_var_hint = os.getenv(f"{library_name.upper()}_INCLUDE_DIR")
+    if env_var_hint is not None and os.path.exists(env_var_hint):
+        return env_var_hint
+
+    conda_include_dir = os.getenv('CONDA_PREFIX')
+    if conda_include_dir:
+        full_path = Path(conda_include_dir) / 'include' / library_name
+        if full_path.exists():
+            return full_path
+
+    build_include_dir = Path(__file__).parent / 'build/include'
+    full_path = build_include_dir / library_name
+    if full_path.exists():
+        return full_path
+
+    # If the path doesn't exist, then install it there
+    scripts_path = Path(__file__).parent / 'scripts'
+    install_script = scripts_path / 'install/install_build_dependencies.py'
+
+    args = [
+        sys.executable,
+        install_script,
+        library_name,
+        build_include_dir,
+    ]
+
+    subprocess.run(args, check=True)
+
+    # It should exist now
+    return full_path
+
+
+def get_cpp_extensions():
+    cpp_transform_pkgdir = Path('hexrd') / 'transforms/cpp_sublibrary'
+    src_files = [str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')]
+
+    extra_compile_args = ['-O3', '-Wall', '-shared', '-std=c++11',
+                          '-funroll-loops']
+    if not sys.platform.startswith('win'):
+        extra_compile_args.append('-fPIC')
+
+    # Define include directories
+    include_dirs = [
+        get_include_path('eigen3'),
+        get_include_path('xsimd'),
+        pybind11.get_include(),
+        numpy.get_include(),
+    ]
+
+    inverse_distortion_ext = Extension(
+        name='hexrd.extensions.inverse_distortion',
+        sources=src_files,
+        extra_compile_args=extra_compile_args,
+        include_dirs=include_dirs,
+        language='c++',
+    )
+
+    return [inverse_distortion_ext]
 
 
 def get_old_xfcapi_extension_modules():
@@ -88,6 +152,7 @@ def get_extension_modules():
         get_old_xfcapi_extension_modules(),
         get_new_xfcapi_extension_modules(),
         get_convolution_extensions(),
+        get_cpp_extensions(),
     ) for item in sublist]
 
 
@@ -102,8 +167,8 @@ setup(
     name='hexrd',
     use_scm_version=True,
     setup_requires=['setuptools-scm'],
-    description = 'hexrd X-ray diffraction data analysis tool',
-    long_description = open('README.md').read(),
+    description='hexrd X-ray diffraction data analysis tool',
+    long_description=open('README.md').read(),
     author='The hexrd Development Team',
     author_email='joelvbernier@me.com',
     url='https://github.com/HEXRD/hexrd',
@@ -119,11 +184,11 @@ setup(
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
     ],
-    entry_points = entry_points,
+    entry_points=entry_points,
     ext_modules=ext_modules,
     packages=find_packages(),
     include_package_data=True,
-    package_data={'':['Anomalous.h5']},
+    package_data={'': ['Anomalous.h5']},
     python_requires='>=3.9',
     install_requires=install_reqs
 )
