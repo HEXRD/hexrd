@@ -1,4 +1,3 @@
-import base64
 import io
 import json
 
@@ -27,8 +26,7 @@ class NumpyEncoder(json.JSONEncoder):
                 data = bytes_io.getvalue()
 
             return {
-                # Need to base64 encode it so it is json-valid
-                ndarray_key: base64.b64encode(data).decode('ascii')
+                ndarray_key: data.decode('raw_unicode_escape')
             }
 
         return super().default(obj)
@@ -44,7 +42,7 @@ class NumpyDecoder(json.JSONDecoder):
 
     def object_hook(self, obj):
         if ndarray_key in obj:
-            data = base64.b64decode(obj[ndarray_key])
+            data = obj[ndarray_key].encode('raw_unicode_escape')
             with io.BytesIO(data) as bytes_io:
                 return np.load(bytes_io)
 
