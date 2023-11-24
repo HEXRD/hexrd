@@ -7,6 +7,17 @@ import numpy as np
 ndarray_key = '!__hexrd_ndarray__'
 
 
+class NumpyToNativeEncoder(json.JSONEncoder):
+    # Change all Numpy arrays to native types during JSON encoding
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, (np.generic, np.number)):
+            return obj.item()
+
+        return super().default(obj)
+
+
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.ndarray):
@@ -20,7 +31,6 @@ class NumpyEncoder(json.JSONEncoder):
                 ndarray_key: base64.b64encode(data).decode('ascii')
             }
 
-        # Let the base class default method raise the TypeError
         return super().default(obj)
 
 
