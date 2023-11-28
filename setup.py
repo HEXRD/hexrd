@@ -7,7 +7,6 @@ import subprocess
 import sys
 
 import numpy
-import pybind11
 np_include_dir = numpy.get_include()
 
 install_reqs = [
@@ -93,6 +92,19 @@ def get_include_path(library_name):
     return full_path
 
 
+def get_pybind11_include_path():
+    # If we can import pybind11, use that include path
+    try:
+        import pybind11
+    except ImportError:
+        pass
+    else:
+        return pybind11.get_include()
+
+    # Otherwise, we will download the source and include that
+    return get_include_path('pybind11')
+
+
 def get_cpp_extensions():
     cpp_transform_pkgdir = Path('hexrd') / 'transforms/cpp_sublibrary'
     src_files = [str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')]
@@ -106,7 +118,7 @@ def get_cpp_extensions():
     include_dirs = [
         get_include_path('eigen3'),
         get_include_path('xsimd'),
-        pybind11.get_include(),
+        get_pybind11_include_path(),
         numpy.get_include(),
     ]
 

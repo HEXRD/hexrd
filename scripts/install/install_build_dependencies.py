@@ -76,13 +76,17 @@ def download_pybind11(path):
     md5sum = '90c4946e87c64d8d8fc0ae4edf35d780'
     out_dir_name = 'pybind11-2.11.0'
 
-    download_and_extract_tgz(url, md5sum, path)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        download_and_extract_tgz(url, md5sum, temp_dir)
 
-    target_path = Path(path) / 'pybind11'
-    if target_path.exists():
-        shutil.rmtree(target_path)
+        target_path = Path(path) / 'pybind11'
+        if target_path.exists():
+            shutil.rmtree(target_path)
 
-    shutil.move(str(Path(path) / out_dir_name), str(Path(path) / 'pybind11'))
+        os.makedirs(path, exist_ok=True)
+        shutil.move(str(Path(temp_dir) / out_dir_name / 'include/pybind11'),
+                    str(Path(path) / 'pybind11/pybind11'))
+
 
     return str(target_path)
 
