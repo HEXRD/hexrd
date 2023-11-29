@@ -61,7 +61,6 @@ from hexrd.gridutil import make_tolerance_grid
 from hexrd import matrixutil as mutil
 from hexrd.transforms.xfcapi import (
     angles_to_gvec,
-    angularDifference,
     gvec_to_xy,
     make_sample_rmat,
     makeRotMatOfExpMap,
@@ -2675,50 +2674,7 @@ def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
     #      detect a branch cut.  The histogram idx var
     #      is the left-hand edges...
     retas = peta[rtth_idx]
-    if fast_histogram:
-        reta_hist = histogram1d(
-            retas,
-            len(eta_edges) - 1,
-            (eta_edges[0], eta_edges[-1])
-        )
-    else:
-        reta_hist, _ = histogram1d(retas, bins=eta_edges)
-    reta_idx = np.where(reta_hist)[0]
-    reta_bin_idx = np.hstack(
-        [reta_idx,
-         reta_idx[-1] + 1]
-    )
-    eta_bins = eta_edges[reta_bin_idx]
-
-    arc_length = eta_edges[reta_bin_idx][-1] - eta_edges[reta_bin_idx][0]
-    etas_span_2pi = (arc_length / (2 * np.pi)) > 0.99
-
-    if etas_span_2pi:
-        eta_bins_diff = np.diff(eta_bins)
-        has_big_gap = eta_bins_diff.max() > np.median(eta_bins_diff) * 2
-
-        if has_big_gap:
-            # If there is a big gap and the eta values span nearly the
-            # whole two pi range, assume we have a branch cut. We must remap.
-
-            # Find the biggest gap.
-            eta_stop_idx = np.argmax(eta_bins_diff) + 1
-            eta_stop = eta_bins[eta_stop_idx]
-            new_period = np.cumsum([eta_stop, 2*np.pi])
-
-            # remap
-            retas = mapAngle(retas, new_period)
-            tmp_bins = mapAngle(
-                eta_edges[reta_idx], new_period
-            )
-            tmp_idx = np.argsort(tmp_bins)
-            reta_idx = reta_idx[np.argsort(tmp_bins)]
-            eta_bins = np.hstack(
-                [tmp_bins[tmp_idx],
-                 tmp_bins[tmp_idx][-1] + delta_eta]
-            )
-
-    return retas, eta_bins, rtth_idx, reta_idx
+    return rtth_idx, retas, eta_edges
 
 
 def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
@@ -2739,17 +2695,17 @@ def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
                 continue
 
             # Unpack the params
-            retas, eta_bins, rtth_idx, reta_idx = params
+            rtth_idx, retas, eta_edges = params
 
             if fast_histogram:
-                result = histogram1d(retas, len(eta_bins) - 1,
-                                     (eta_bins[0], eta_bins[-1]),
+                result = histogram1d(retas, len(eta_edges) - 1,
+                                     (eta_edges[0], eta_edges[-1]),
                                      weights=image[rtth_idx])
             else:
-                result, _ = histogram1d(retas, bins=eta_bins,
+                result, _ = histogram1d(retas, bins=eta_edges,
                                         weights=image[rtth_idx])
 
-            this_map[i_row, reta_idx] = result
+            this_map[i_row, :] = result
 
 
 def _extract_detector_line_positions(iter_args, plane_data, tth_tol,
