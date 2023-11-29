@@ -81,6 +81,7 @@ from hexrd.rotations import (
 from hexrd import distortion as distortion_pkg
 from hexrd.utils.compatibility import h5py_read_string
 from hexrd.utils.concurrent import distribute_tasks
+from hexrd.utils.yaml import NumpyToNativeDumper
 from hexrd.valunits import valWUnit
 from hexrd.wppf import LeBail
 
@@ -1008,7 +1009,7 @@ class HEDMInstrument(object):
         if file is not None:
             if style.lower() == 'yaml':
                 with open(file, 'w') as f:
-                    yaml.dump(par_dict, stream=f)
+                    yaml.dump(par_dict, stream=f, Dumper=NumpyToNativeDumper)
             else:
                 def _write_group(file):
                     instr_grp = file.create_group('instrument')

@@ -45,6 +45,6 @@ def save(config_list, file_name):
 
     with open_file(file_name, 'w') as f:
         if len(res) > 1:
-            yaml.dump_all(res, f)
+            yaml.safe_dump_all(res, f)
         else:
-            yaml.dump(res, f)
+            yaml.safe_dump(res, f)

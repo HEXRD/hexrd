@@ -93,7 +93,7 @@ class Parameters:
             dic[k] = [self[k].value, self[k].lb, self[k].ub, self[k].vary]
 
         with open(fname, 'w') as f:
-            data = yaml.dump(dic, f, sort_keys=False)
+            data = yaml.safe_dump(dic, f, sort_keys=False)
 
     def dump_hdf5(self, file):
         """
