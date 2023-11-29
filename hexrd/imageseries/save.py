@@ -212,7 +212,7 @@ class WriteFrameCache(Writer):
                  'nframes': len(self._ims), 'shape': list(self._ims.shape)}
         info = {'data': datad, 'meta': self._process_meta(save_omegas=True)}
         with open(self._fname, "w") as f:
-            yaml.dump(info, f)
+            yaml.safe_dump(info, f)
 
     def _write_frames(self):
         """also save shape array as originally done (before yaml)"""

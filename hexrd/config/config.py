@@ -56,7 +56,7 @@ class Config(object):
         import yaml
 
         with open(filename, 'w') as f:
-            yaml.dump(self._cfg, f)
+            yaml.safe_dump(self._cfg, f)
         self._dirty = False
 
     @staticmethod
