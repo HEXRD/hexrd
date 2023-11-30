@@ -19,8 +19,8 @@ class JCPDS_extend():
         self.dk0pdt = 0
 
         self.symmetry = ''
-        self.thermal_expansion = 0  # alphat at 298K
-        self.thermal_expansion_dt = 0
+        self.alpha_t = 0  # alphat at 298K
+        self.dalpha_t_dt = 0
 
         self.file = ' '
         self.name = ' '
@@ -142,10 +142,10 @@ class JCPDS_extend():
             item = str.split(inp[4])
 
             if self.version == 3:
-                thermal_expansion = 0.
+                alpha_t = 0.
             else:
-                thermal_expansion = float(item[0])
-            self.thermal_expansion = thermal_expansion
+                alpha_t = float(item[0])
+            self.alpha_t = alpha_t
 
             version_status = 'new'
 
@@ -215,11 +215,11 @@ class JCPDS_extend():
 
                 if jlinespl[0] == 'ALPHAT:':
                     alphat = float(jlinespl[1])
-                    self.thermal_expansion = alphat
+                    self.alpha_t = alphat
 
                 if jlinespl[0] == 'DALPHATDT:':
                     dalphatdt = float(jlinespl[1])
-                    self.thermal_expansion_dt = dalphatdt
+                    self.dalpha_t_dt = dalphatdt
 
                 if jlinespl[0] == 'DIHKL:':
                     pass
@@ -253,7 +253,7 @@ class JCPDS_extend():
             elif self.symmetry == 'monoclinic':
                 self.alpha0 = 90.
                 self.gamma0 = 90.
-            #elif self.symmetry == 'triclinic':
+            # elif self.symmetry == 'triclinic':
 
             jcpdsfile.close()
 
@@ -284,13 +284,6 @@ class JCPDS_extend():
     def lattice_params(self):
         return [getattr(self, x) for x in self._lat_param_names]
 
-    @lattice_params.setter
-    def lattice_params(self, v):
-        for name, val in zip(self._lat_param_names, v):
-            setattr(self, name, val)
-
-        self.update_v0()
-
     def matches_material(self, mat):
         self.verify_symmetry_match(mat)
         mat_lp = [x.value for x in mat.latticeParameters]
@@ -298,16 +291,18 @@ class JCPDS_extend():
             if not np.isclose(v1, v2):
                 return False
 
-    def load_from_material(self, mat):
-        if self.symmetry:
-            self.verify_symmetry_match(mat)
-
-        lp = [x.value for x in mat.latticeParameters]
-        self.lattice_params = lp
-
-    def write_to_material(self, mat):
+    def write_lattice_params_to_material(self, mat):
         self.verify_symmetry_match(mat)
-        mat.latticeParameters = self.lattice_params
+        mat.latticeParameters0 = self.lattice_params
+
+    def write_pt_params_to_material(self, mat):
+        self.verify_symmetry_match(mat)
+        mat.k0 = self.k0
+        mat.k0p = self.k0p
+        mat.dk0dt = self.dk0dt
+        mat.dk0pdt = self.dk0pdt
+        mat.alpha_t = self.alpha_t
+        mat.dalpha_t_dt = self.dalpha_t_dt
 
     def update_v0(self):
         self.v0 = self.calc_volume_unitcell()
@@ -323,7 +318,7 @@ class JCPDS_extend():
 
         v0 = self.a0*self.b0*self.c0
         f = np.sqrt(1 - ca**2 - cb**2 - cg**2
-                    +2*ca*cb*cg)
+                    + 2 * ca * cb * cg)
         return v0*f
 
 

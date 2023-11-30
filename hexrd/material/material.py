@@ -203,12 +203,15 @@ class Material(object):
             self._dmin = Material.DFLT_DMIN
             self._beamEnergy = Material.DFLT_KEV
 
+            self.pressure = 0
+            self.temperature = 298
+            self.pt_lp_factor = 0
             self.k0 = 100.0
             self.k0p = 0.0
             self.dk0dt = 0.0
             self.dk0pdt = 0.0
-            self.alphaT = 0.0
-            self.dalphaTdT = 0.0
+            self.alpha_t = 0.0
+            self.dalpha_t_dt = 0.0
 
         # If these were specified, they override any other method of
         # obtaining them (including loading them from files).
@@ -221,7 +224,7 @@ class Material(object):
         self._newUnitcell()
 
         if not hasattr(self, 'v0'):
-            self.v0 = self.vol
+            self.update_v0()
 
         self._newPdata()
         self.update_structure_factor()
@@ -338,6 +341,9 @@ class Material(object):
             )
 
             self.set_default_exclusions()
+
+    def update_v0(self):
+        self.v0 = self.vol
 
     def set_default_exclusions(self):
         if hasattr(self, 'hkl_from_file'):
@@ -531,7 +537,7 @@ class Material(object):
         vpt = self.calc_volume(pressure=pressure, temperature=temperature)
         return (vpt / vt) ** (1.0 / 3.0)
 
-    def calc_lp_at_PT(self, pressure=None, temperature=None):
+    def calc_lp_at_PT(self, lparms0, pressure=None, temperature=None):
         '''calculate the lattice parameters for a given
         pressure and temperature using the BM EoS. This
         is the main function which will be called from
@@ -540,12 +546,8 @@ class Material(object):
         f = self.calc_lp_factor(pressure=pressure, temperature=temperature)
         return np.array(
             [
-                f * self.a0,
-                f * self.b0,
-                f * self.c0,
-                self.alpha0,
-                self.beta0,
-                self.gamma0,
+                *(f * lparms0[:3]),
+                *lparms0[3:],
             ]
         )
 
@@ -790,12 +792,15 @@ class Material(object):
         parameters to default values. These values can
         be updated by user or by reading a JCPDS file
         '''
+        self.pressure = 0
+        self.temperature = 298
+        self.pt_lp_factor = 1
         self.k0 = 100.0
         self.k0p = 0.0
         self.dk0dt = 0.0
         self.dk0pdt = 0.0
-        self.alphaT = 0.0
-        self.dalphaTdT = 0.0
+        self.alpha_t = 0.0
+        self.dalpha_t_dt = 0.0
 
     def _readHDFxtal(self, fhdf=DFLT_NAME, xtal=DFLT_NAME):
         """
@@ -881,6 +886,21 @@ class Material(object):
         '''start reading the Birch-Murnaghan equation of state
         parameters
         '''
+        self.pressure = 0
+        if 'pressure' in gid:
+            self.pressure = np.array(gid.get('pressure'),
+                                     dtype=np.float64).item()
+
+        self.temperature = 298
+        if 'temperature' in gid:
+            self.temperature = np.array(gid.get('temperature'),
+                                        dtype=np.float64).item()
+
+        self.pt_lp_factor = 1
+        if 'pt_lp_factor' in gid:
+            self.pt_lp_factor = np.array(gid.get('pt_lp_factor'),
+                                         dtype=np.float64).item()
+
         self.k0 = 100.0
         if 'k0' in gid:
             # this is the isotropic bulk modulus
@@ -908,19 +928,19 @@ class Material(object):
             dk0pdt = np.array(gid.get('dk0pdt'), dtype=np.float64).item()
             self.dk0pdt = dk0pdt
 
-        self.alphaT = 0.0
-        if 'alphaT' in gid:
+        self.alpha_t = 0.0
+        if 'alpha_t' in gid:
             # this is the temperature derivation of
             # the pressure derivative of isotropic bulk modulus
-            alphaT = np.array(gid.get('alphaT'), dtype=np.float64).item()
-            self.alphaT = alphaT
+            alpha_t = np.array(gid.get('alpha_t'), dtype=np.float64).item()
+            self.alpha_t = alpha_t
 
-        self.dalphaTdT = 0.0
-        if 'dalphaTdT' in gid:
+        self.dalpha_t_dt = 0.0
+        if 'dalpha_t_dt' in gid:
             # this is the temperature derivation of
             # the pressure derivative of isotropic bulk modulus
-            dalphaTdT = np.array(gid.get('dalphaTdT'), dtype=np.float64).item()
-            self.dalphaTdT = dalphaTdT
+            dalpha_t_dt = np.array(gid.get('dalpha_t_dt'), dtype=np.float64).item()
+            self.dalpha_t_dt = dalpha_t_dt
 
         '''Finished with the BM EOS
         '''
@@ -985,6 +1005,10 @@ class Material(object):
         else:
             AtomInfo['tThWidth'] = np.degrees(self.planeData.tThWidth)
 
+        AtomInfo['pressure'] = self.pressure
+        AtomInfo['temperature'] = self.temperature
+        AtomInfo['pt_lp_factor'] = self.pt_lp_factor
+
         AtomInfo['k0'] = 100.0
         if hasattr(self, 'k0'):
             AtomInfo['k0'] = self.k0
@@ -1005,13 +1029,13 @@ class Material(object):
         if hasattr(self, 'dk0pdt'):
             AtomInfo['dk0pdt'] = self.dk0pdt
 
-        AtomInfo['alphaT'] = 0.0
-        if hasattr(self, 'alphaT'):
-            AtomInfo['alphaT'] = self.alphaT
+        AtomInfo['alpha_t'] = 0.0
+        if hasattr(self, 'alpha_t'):
+            AtomInfo['alpha_t'] = self.alpha_t
 
-        AtomInfo['dalphaTdT'] = 0.0
-        if hasattr(self, 'dalphaTdT'):
-            AtomInfo['dalphaTdT'] = self.dalphaTdT
+        AtomInfo['dalpha_t_dt'] = 0.0
+        if hasattr(self, 'dalpha_t_dt'):
+            AtomInfo['dalpha_t_dt'] = self.dalpha_t_dt
         '''
         lattice parameters
         '''
@@ -1284,19 +1308,19 @@ class Material(object):
 
     @property
     def thermal_expansion(self):
-        return self.alphaT
+        return self.alpha_t
 
     @thermal_expansion.setter
     def thermal_expansion(self, val):
-        self.alphaT = val
+        self.alpha_t = val
 
     @property
     def thermal_expansion_dt(self):
-        return self.dalphaTdT
+        return self.dalpha_t_dt
 
     @thermal_expansion_dt.setter
     def thermal_expansion_dt(self, val):
-        self.dalphaTdT = val
+        self.dalpha_t_dt = val
 
     def _set_atomdata(self, atomtype, atominfo, U, charge):
         """
@@ -1432,6 +1456,9 @@ def hkls_match(a, b):
     # Check if hkls match. Expects inputs to have shape (x, 3).
     def sorted_hkls(x):
         return x[np.lexsort((x[:, 2], x[:, 1], x[:, 0]))]
+
+    if a.shape != b.shape:
+        return False
 
     return np.array_equal(sorted_hkls(a), sorted_hkls(b))
 
