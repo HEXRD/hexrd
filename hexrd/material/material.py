@@ -32,7 +32,7 @@ Use the Material class directly for new materials.  Known
 materials are defined by name in materialDict.
 """
 from configparser import SafeConfigParser as Parser
-import numpy
+import numpy as np
 
 from hexrd.material.crystallography import PlaneData as PData
 from hexrd.material import symmetry, unitcell
@@ -98,7 +98,7 @@ class Material(object):
 
     DFLT_KEV = valWUnit('wavelength', 'energy', 80.725e0, 'keV')
     DFLT_STR = 0.0025
-    DFLT_TTH = numpy.radians(0.25)
+    DFLT_TTH = np.radians(0.25)
     DFLT_TTHMAX = None
     """
     ATOMINFO    Fractional Atom Position of an atom in the
@@ -108,10 +108,10 @@ class Material(object):
 
     ATOMTYPE    atomic number of all the different species in the unitcell
     """
-    DFLT_ATOMINFO = numpy.array([[0., 0., 0., 1.]])
-    DFLT_U = numpy.array([6.33E-3])
-    DFLT_ATOMTYPE = numpy.array([28])
-    DFLT_CHARGE = numpy.array(["0"])
+    DFLT_ATOMINFO = np.array([[0., 0., 0., 1.]])
+    DFLT_U = np.array([6.33E-3])
+    DFLT_ATOMTYPE = np.array([28])
+    DFLT_CHARGE = np.array(["0"])
 
     '''
     the dmin parameter is used to figure out the maximum sampling for g-vectors
@@ -122,7 +122,7 @@ class Material(object):
     '''
     default stiffness tensor in voight notation
     '''
-    DFLT_STIFFNESS = numpy.eye(6)
+    DFLT_STIFFNESS = np.eye(6)
 
     '''
     some materials have more than one space group setting. for ex
@@ -298,10 +298,10 @@ class Material(object):
             old_indices, new_indices = map_hkls_to_new(old_pdata, self._pData)
 
             # Map the new exclusions to the old ones. New ones default to True.
-            exclusions = numpy.ones(hkls.shape[1], dtype=bool)
+            exclusions = np.ones(hkls.shape[1], dtype=bool)
             exclusions[new_indices] = old_pdata.exclusions[old_indices]
 
-            if numpy.all(exclusions):
+            if np.all(exclusions):
                 # If they are all excluded, just set the default exclusions
                 self.set_default_exclusions()
             else:
@@ -328,7 +328,7 @@ class Material(object):
     def enable_hkls_from_file(self):
         # Enable hkls from the file
         # 'hkl_from_file' must be an attribute on `self`
-        exclusions = numpy.ones_like(self._pData.exclusions, dtype=bool)
+        exclusions = np.ones_like(self._pData.exclusions, dtype=bool)
         for i, g in enumerate(self._pData.hklDataList):
             if g['hkl'].tolist() in self.hkl_from_file.tolist():
                 exclusions[i] = False
@@ -337,7 +337,7 @@ class Material(object):
 
     def enable_hkls_below_index(self, index=5):
         # Enable hkls with indices less than @index
-        exclusions = numpy.ones_like(self._pData.exclusions, dtype=bool)
+        exclusions = np.ones_like(self._pData.exclusions, dtype=bool)
         exclusions[:index] = False
         self._pData.exclusions = exclusions
 
@@ -345,12 +345,12 @@ class Material(object):
         '''
           enable reflections with two-theta less than @tth_threshold degrees
         '''
-        tth_threshold = numpy.radians(tth_threshold)
+        tth_threshold = np.radians(tth_threshold)
 
-        tth = numpy.array([hkldata['tTheta']
+        tth = np.array([hkldata['tTheta']
                            for hkldata in self._pData.hklDataList])
-        dflt_excl = numpy.ones(tth.shape, dtype=numpy.bool)
-        dflt_excl2 = numpy.ones(tth.shape, dtype=numpy.bool)
+        dflt_excl = np.ones(tth.shape, dtype=np.bool)
+        dflt_excl2 = np.ones(tth.shape, dtype=np.bool)
 
         if(hasattr(self, 'hkl_from_file')):
             """
@@ -361,16 +361,16 @@ class Material(object):
                 if(g['hkl'].tolist() in self.hkl_from_file.tolist()):
                     dflt_excl[i] = False
 
-            dflt_excl2[~numpy.isnan(tth)] = \
-                ~((tth[~numpy.isnan(tth)] >= 0.0) &
-                  (tth[~numpy.isnan(tth)] <= tth_threshold))
+            dflt_excl2[~np.isnan(tth)] = \
+                ~((tth[~np.isnan(tth)] >= 0.0) &
+                  (tth[~np.isnan(tth)] <= tth_threshold))
 
-            dflt_excl = numpy.logical_or(dflt_excl, dflt_excl2)
+            dflt_excl = np.logical_or(dflt_excl, dflt_excl2)
 
         else:
-            dflt_excl[~numpy.isnan(tth)] = \
-                ~((tth[~numpy.isnan(tth)] >= 0.0) &
-                  (tth[~numpy.isnan(tth)] <= tth_threshold))
+            dflt_excl[~np.isnan(tth)] = \
+                ~((tth[~np.isnan(tth)] >= 0.0) &
+                  (tth[~np.isnan(tth)] <= tth_threshold))
             dflt_excl[0] = False
 
         self._pData.exclusions = dflt_excl
@@ -381,7 +381,7 @@ class Material(object):
         self.planeData.set_structFact(sf)
 
     def compute_powder_overlay(self,
-                               ttharray=numpy.linspace(0, 80, 2000),
+                               ttharray=np.linspace(0, 80, 2000),
                                fwhm=0.25,
                                scale=1.0):
         """
@@ -393,9 +393,9 @@ class Material(object):
 
         requested feature from Amy Jenei
         """
-        tth = numpy.degrees(self.planeData.getTTh())  # convert to degrees
+        tth = np.degrees(self.planeData.getTTh())  # convert to degrees
         Ip = self.planeData.powder_intensity
-        self.powder_overlay = numpy.zeros_like(ttharray)
+        self.powder_overlay = np.zeros_like(ttharray)
         for t, I in zip(tth, Ip):
             p = [t, fwhm]
             self.powder_overlay += scale*I*_unit_gaussian(p, ttharray)
@@ -424,7 +424,7 @@ class Material(object):
         else:
             delT = (temperature-298)
             delT2 = (temperature**2-298**2)
-            vt = self.v0*numpy.exp(alpha0*delT
+            vt = self.v0*np.exp(alpha0*delT
                     +0.5*alpha1*delT2)
         return vt
 
@@ -478,16 +478,16 @@ class Material(object):
             return vt
         else:
             alpha = 0.75*(ktp - 4)
-            p = numpy.zeros([10,])
+            p = np.zeros([10,])
             p[0] = 1.0
             p[2] = (1 - 2*alpha)/alpha
             p[4] = (alpha-1)/alpha
             p[9] = -2*pressure/3/kt/alpha
-            res = numpy.roots(p)
-            res = res[numpy.isreal(res)]
-            res = 1/numpy.real(res)**3
+            res = np.roots(p)
+            res = res[np.isreal(res)]
+            res = 1/np.real(res)**3
 
-            mask = numpy.logical_and(res >= 0., res <= 1.0)
+            mask = np.logical_and(res >= 0., res <= 1.0)
             res = res[mask]
             if len(res) != 1:
                 msg = ('more than one physically '
@@ -513,7 +513,7 @@ class Material(object):
         '''
         f = self.calc_lp_factor(pressure=pressure,
                                 temperature=temperature)
-        return numpy.array([f*self.a0, f*self.b0, f*self.c0,
+        return np.array([f*self.a0, f*self.b0, f*self.c0,
                          self.alpha0, self.beta0, self.gamma0,])
 
     def _readCif(self, fcif=DFLT_NAME+'.cif'):
@@ -629,8 +629,8 @@ class Material(object):
             sometimes cif files have negative values so need to
             bring them back to fractional coordinates between 0-1
             '''
-            pos = numpy.asarray(pos).astype(numpy.float64)
-            pos, _ = numpy.modf(pos+100.0)
+            pos = np.asarray(pos).astype(np.float64)
+            pos, _ = np.modf(pos+100.0)
             atompos.append(pos)
 
         """note that the vibration amplitude, U is just the amplitude (in A)
@@ -645,7 +645,7 @@ class Material(object):
 
         if(not pocc):
             warn('occupation fraction not present. setting it to 1')
-            occ = numpy.ones(atompos[0].shape)
+            occ = np.ones(atompos[0].shape)
             atompos.append(occ)
         else:
             slist = cifdata[occ_U[0]]
@@ -658,17 +658,17 @@ class Material(object):
                 else:
                     occ.append(p)
 
-            chkstr = numpy.asarray([isinstance(x, str) for x in occ])
-            occstr = numpy.array(occ)
+            chkstr = np.asarray([isinstance(x, str) for x in occ])
+            occstr = np.array(occ)
             occstr[chkstr] = 1.0
 
-            atompos.append(numpy.asarray(occstr).astype(numpy.float64))
+            atompos.append(np.asarray(occstr).astype(np.float64))
 
         if(not pU):
             msg = (f"'Debye-Waller factors not present. "
                    f"setting to same values for all atoms.'")
             warn(msg)
-            U = self.DFLT_U[0] * numpy.ones(atompos[0].shape)
+            U = self.DFLT_U[0] * np.ones(atompos[0].shape)
             self._U = U
         else:
             if(occ_U[1] in cifdata.keys()):
@@ -686,7 +686,7 @@ class Material(object):
                 else:
                     U.append(p)
 
-            chkstr = numpy.asarray([isinstance(x, str) for x in U])
+            chkstr = np.asarray([isinstance(x, str) for x in U])
 
             for ii, x in enumerate(chkstr):
                 if x:
@@ -695,11 +695,11 @@ class Material(object):
                     except ValueError:
                         U[ii] = self.DFLT_U[0]
 
-            self._U = numpy.asarray(U)
+            self._U = np.asarray(U)
         '''
         format everything in the right shape etc.
         '''
-        self._atominfo = numpy.asarray(atompos).T
+        self._atominfo = np.asarray(atompos).T
 
         '''
         get atome types here i.e. the atomic number of atoms at each site
@@ -730,7 +730,7 @@ class Material(object):
             atomtype.append(ptable[ss])
             charge.append(c)
 
-        self._atomtype = numpy.asarray(atomtype).astype(numpy.int32)
+        self._atomtype = np.asarray(atomtype).astype(np.int32)
         self._charge = charge
         self._sgsetting = 0
 
@@ -781,8 +781,8 @@ class Material(object):
 
         gid = root_gid.get(xtal)
 
-        sgnum = numpy.array(gid.get('SpaceGroupNumber'),
-                            dtype=numpy.int32).item()
+        sgnum = np.array(gid.get('SpaceGroupNumber'),
+                            dtype=np.int32).item()
         """
             IMPORTANT NOTE:
             note that the latice parameters is nm by default
@@ -804,31 +804,31 @@ class Material(object):
         self.sgnum = sgnum
 
         # the U factors are related to B by the relation B = 8pi^2 U
-        self._atominfo = numpy.transpose(numpy.array(
-            gid.get('AtomData'), dtype=numpy.float64))
-        self._U = numpy.transpose(numpy.array(
-            gid.get('U'), dtype=numpy.float64))
+        self._atominfo = np.transpose(np.array(
+            gid.get('AtomData'), dtype=np.float64))
+        self._U = np.transpose(np.array(
+            gid.get('U'), dtype=np.float64))
 
         # read atom types (by atomic number, Z)
-        self._atomtype = numpy.array(gid.get('Atomtypes'), dtype=numpy.int32)
+        self._atomtype = np.array(gid.get('Atomtypes'), dtype=np.int32)
         if 'ChargeStates' in gid:
             self._charge = h5py_read_string(gid['ChargeStates'])
         else:
             self._charge = ['0']*self._atomtype.shape[0]
         self._atom_ntype = self._atomtype.shape[0]
 
-        self._sgsetting = numpy.array(gid.get('SpaceGroupSetting'),
-                                      dtype=numpy.int32).item()
+        self._sgsetting = np.array(gid.get('SpaceGroupSetting'),
+                                      dtype=np.int32).item()
 
         if('stiffness' in gid):
             # we're assuming the stiffness is in units of GPa
-            self.stiffness = numpy.array(gid.get('stiffness'))
+            self.stiffness = np.array(gid.get('stiffness'))
         elif('compliance' in gid):
             # we're assuming the compliance is in units of TPa^-1
-            self.stiffness = numpy.linalg.inv(
-                numpy.array(gid.get('compliance'))) * 1.e3
+            self.stiffness = np.linalg.inv(
+                np.array(gid.get('compliance'))) * 1.e3
         else:
-            self.stiffness = numpy.zeros([6, 6])
+            self.stiffness = np.zeros([6, 6])
 
         '''start reading the Birch-Murnaghan equation of state
         parameters
@@ -836,48 +836,48 @@ class Material(object):
         self.k0 = 100.0
         if('k0' in gid):
             # this is the isotropic bulk modulus
-            k0 = numpy.array(gid.get('k0'),
-                 dtype=numpy.float64).item()
+            k0 = np.array(gid.get('k0'),
+                 dtype=np.float64).item()
             self.k0 = k0
 
         self.k0p = 0.0
         if('k0p' in gid):
             # this is the pressure derivation of
             # the isotropic bulk modulus
-            k0p = numpy.array(gid.get('k0p'),
-                 dtype=numpy.float64).item()
+            k0p = np.array(gid.get('k0p'),
+                 dtype=np.float64).item()
             self.k0p = k0p
 
         self.dk0dt = 0.0
         if('dk0dt' in gid):
             # this is the temperature derivation of
             # the isotropic bulk modulus
-            dk0dt = numpy.array(gid.get('dk0dt'),
-                 dtype=numpy.float64).item()
+            dk0dt = np.array(gid.get('dk0dt'),
+                 dtype=np.float64).item()
             self.dk0dt = dk0dt
 
         self.dk0pdt = 0.0
         if('dk0pdt' in gid):
             # this is the temperature derivation of
             # the pressure derivative of isotropic bulk modulus
-            dk0pdt = numpy.array(gid.get('dk0pdt'),
-                 dtype=numpy.float64).item()
+            dk0pdt = np.array(gid.get('dk0pdt'),
+                 dtype=np.float64).item()
             self.dk0pdt = dk0pdt
 
         self.alphaT = 0.0
         if('alphaT' in gid):
             # this is the temperature derivation of
             # the pressure derivative of isotropic bulk modulus
-            alphaT = numpy.array(gid.get('alphaT'),
-                 dtype=numpy.float64).item()
+            alphaT = np.array(gid.get('alphaT'),
+                 dtype=np.float64).item()
             self.alphaT = alphaT
 
         self.dalphaTdT = 0.0
         if('dalphaTdT' in gid):
             # this is the temperature derivation of
             # the pressure derivative of isotropic bulk modulus
-            dalphaTdT = numpy.array(gid.get('dalphaTdT'),
-                 dtype=numpy.float64).item()
+            dalphaTdT = np.array(gid.get('dalphaTdT'),
+                 dtype=np.float64).item()
             self.dalphaTdT = dalphaTdT
 
         '''Finished with the BM EOS
@@ -886,39 +886,39 @@ class Material(object):
         if('v0' in gid):
             # this is the isotropic ambient unitcell
             # volume
-            v0 = numpy.array(gid.get('v0'),
-                 dtype=numpy.float64).item()
+            v0 = np.array(gid.get('v0'),
+                 dtype=np.float64).item()
             self.v0 = v0
 
         # if dmin is present in file:
         if('dmin' in gid):
             # if dmin is present in the HDF5 file, then use that
-            dmin = numpy.array(gid.get('dmin'),
-                               dtype=numpy.float64).item()
+            dmin = np.array(gid.get('dmin'),
+                               dtype=np.float64).item()
             self._dmin = _angstroms(dmin*10.)
         else:
             self._dmin = Material.DFLT_DMIN
 
         # if kev is present in file
         if('kev' in gid):
-            kev = numpy.array(gid.get('kev'),
-                              dtype=numpy.float64).item()
+            kev = np.array(gid.get('kev'),
+                              dtype=np.float64).item()
             self._beamEnergy = _kev(kev)
         else:
             self._beamEnergy = Material.DFLT_KEV
 
         if 'tThWidth' in gid:
-            tThWidth = numpy.array(gid.get('tThWidth'),
-                                   dtype=numpy.float64).item()
-            tThWidth = numpy.radians(tThWidth)
+            tThWidth = np.array(gid.get('tThWidth'),
+                                   dtype=np.float64).item()
+            tThWidth = np.radians(tThWidth)
         else:
             tThWidth = Material.DFLT_TTH
 
         self._tThWidth = tThWidth
 
         if('hkls' in gid):
-            self.hkl_from_file = numpy.array(gid.get('hkls'),
-                                             dtype=numpy.int32)
+            self.hkl_from_file = np.array(gid.get('hkls'),
+                                             dtype=np.int32)
 
         if isinstance(fhdf, (Path, str)):
             # Close the file...
@@ -944,9 +944,9 @@ class Material(object):
         AtomInfo['dmin'] = self.unitcell.dmin
         AtomInfo['kev'] = self.beamEnergy.getVal("keV")
         if self.planeData.tThWidth is None:
-            AtomInfo['tThWidth'] = numpy.degrees(Material.DFLT_TTH)
+            AtomInfo['tThWidth'] = np.degrees(Material.DFLT_TTH)
         else:
-            AtomInfo['tThWidth'] = numpy.degrees(self.planeData.tThWidth)
+            AtomInfo['tThWidth'] = np.degrees(self.planeData.tThWidth)
 
         AtomInfo['k0'] = 100.0
         if hasattr(self, 'k0'):
@@ -1014,7 +1014,7 @@ class Material(object):
 
     @property
     def lparms(self):
-        return numpy.array([x.getVal("nm") if x.isLength() else
+        return np.array([x.getVal("nm") if x.isLength() else
                             x.getVal("degrees") for x in self._lparms])
 
     @property
@@ -1043,7 +1043,7 @@ class Material(object):
 
     @U.setter
     def U(self, Uarr):
-        Uarr = numpy.array(Uarr)
+        Uarr = np.array(Uarr)
         self._U = Uarr
 
     # property:  sgnum
@@ -1245,7 +1245,7 @@ class Material(object):
     @property
     def thermal_expansion_dt(self):
         return self.dalphaTdT
-    
+
     @thermal_expansion_dt.setter
     def thermal_expansion_dt(self, val):
         self.dalphaTdT = val
@@ -1269,9 +1269,9 @@ class Material(object):
         """
 
         # check for consistency of sizes here
-        atomtype = numpy.array(atomtype)
-        atominfo = numpy.array(atominfo)
-        U = numpy.array(U)
+        atomtype = np.array(atomtype)
+        atominfo = np.array(atominfo)
+        U = np.array(U)
 
         if atomtype.shape[0] != atominfo.shape[0]:
             msg = (f"inconsistent shapes: number of atoms "
@@ -1377,8 +1377,8 @@ def save_materials_hdf5(f, materials, path=None):
 def hkls_match(a, b):
     # Check if hkls match. Expects inputs to have shape (x, 3).
     def sorted_hkls(x):
-        return x[numpy.lexsort((x[:, 2], x[:, 1], x[:, 0]))]
-    return numpy.array_equal(sorted_hkls(a), sorted_hkls(b))
+        return x[np.lexsort((x[:, 2], x[:, 1], x[:, 0]))]
+    return np.array_equal(sorted_hkls(a), sorted_hkls(b))
 
 
 def map_hkls_to_new(old_pdata, new_pdata):
@@ -1392,7 +1392,7 @@ def map_hkls_to_new(old_pdata, new_pdata):
         'ar2': get_hkl_strings(new_pdata),
         'return_indices': True,
     }
-    return numpy.intersect1d(**kwargs)[1:]
+    return np.intersect1d(**kwargs)[1:]
 
 #
 #  ============================== Executable section for testing
