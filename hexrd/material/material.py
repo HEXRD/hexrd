@@ -219,6 +219,10 @@ class Material(object):
             self._beamEnergy = kev
 
         self._newUnitcell()
+
+        if not hasattr(self, 'v0'):
+            self.v0 = self.vol
+
         self._newPdata()
         self.update_structure_factor()
 
@@ -281,9 +285,6 @@ class Material(object):
             reduced_lparms = self.reduced_lattice_parameters
             if pdata.laueGroup != laue or pdata.lparms != reduced_lparms:
                 pdata.set_laue_and_lparms(laue, reduced_lparms)
-
-        if not hasattr(self, 'v0'):
-            self.v0 = self.vol
 
     def _hkls_changed(self):
         # Call this when something happens that changes the hkls...
