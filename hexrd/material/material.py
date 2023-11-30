@@ -38,7 +38,6 @@ from hexrd.material.crystallography import PlaneData as PData
 from hexrd.material import symmetry, unitcell
 from hexrd.valunits import valWUnit
 from hexrd.constants import ptable, ptableinverse, chargestate
-import copy
 
 from os import path
 from pathlib import Path
@@ -47,8 +46,10 @@ import h5py
 from warnings import warn
 from hexrd.material.mksupport import Write2H5File
 from hexrd.material.symbols import (
-    xtal_sys_dict,Hall_to_sgnum,
-    HM_to_sgnum)
+    xtal_sys_dict,
+    Hall_to_sgnum,
+    HM_to_sgnum,
+)
 from hexrd.utils.compatibility import h5py_read_string
 from hexrd.fitting.peakfunctions import _unit_gaussian
 
@@ -61,15 +62,15 @@ __all__ = ['Material', 'loadMaterialList']
 
 
 def _angstroms(x):
-    return valWUnit('lp', 'length',  x, 'angstrom')
+    return valWUnit('lp', 'length', x, 'angstrom')
 
 
 def _degrees(x):
-    return valWUnit('lp', 'angle',   x, 'degrees')
+    return valWUnit('lp', 'angle', x, 'degrees')
 
 
 def _kev(x):
-    return valWUnit('xrayenergy', 'energy',  x, 'keV')
+    return valWUnit('xrayenergy', 'energy', x, 'keV')
 
 
 def _key(x):
@@ -88,12 +89,19 @@ class Material(object):
     space group data.
     default data is for nickel, but name is material
     """
+
     DFLT_NAME = 'material.xtal'
     DFLT_XTAL = 'Ni'
     DFLT_SGNUM = 225
 
-    DFLT_LPARMS = [_angstroms(3.61), _angstroms(3.61), _angstroms(3.61),
-                   _degrees(90.0), _degrees(90.0), _degrees(90.0)]
+    DFLT_LPARMS = [
+        _angstroms(3.61),
+        _angstroms(3.61),
+        _angstroms(3.61),
+        _degrees(90.0),
+        _degrees(90.0),
+        _degrees(90.0),
+    ]
     DFLT_SSMAX = 100
 
     DFLT_KEV = valWUnit('wavelength', 'energy', 80.725e0, 'keV')
@@ -108,8 +116,8 @@ class Material(object):
 
     ATOMTYPE    atomic number of all the different species in the unitcell
     """
-    DFLT_ATOMINFO = np.array([[0., 0., 0., 1.]])
-    DFLT_U = np.array([6.33E-3])
+    DFLT_ATOMINFO = np.array([[0.0, 0.0, 0.0, 1.0]])
+    DFLT_U = np.array([6.33e-3])
     DFLT_ATOMTYPE = np.array([28])
     DFLT_CHARGE = np.array(["0"])
 
@@ -134,11 +142,14 @@ class Material(object):
     '''
     DFLT_SGSETTING = 0
 
-    def __init__(self, name=None,
-                 material_file=None,
-                 dmin=None,
-                 kev=None,
-                 sgsetting=DFLT_SGSETTING):
+    def __init__(
+        self,
+        name=None,
+        material_file=None,
+        dmin=None,
+        kev=None,
+        sgsetting=DFLT_SGSETTING,
+    ):
         """Constructor for Material
 
         name -- (str) name of crystal
@@ -157,7 +168,6 @@ class Material(object):
         self.sgsetting = sgsetting
 
         if material_file:
-
             # >> @ date 08/20/2020 SS removing dependence on hklmax
             if isinstance(material_file, (Path, str)):
                 form = Path(material_file).suffix[1:]
@@ -234,7 +244,7 @@ class Material(object):
         lparms = unitcell._rqpDict[ltype][1](lparms)
         lparms_vu = []
         for i in range(6):
-            if(i < 3):
+            if i < 3:
                 lparms_vu.append(_angstroms(lparms[i]))
             else:
                 lparms_vu.append(_degrees(lparms[i]))
@@ -250,10 +260,16 @@ class Material(object):
         """
         self._reset_lparms()
         self._unitcell = unitcell.unitcell(
-            self._lparms, self.sgnum, self._atomtype, self._charge,
-            self._atominfo, self._U,
-            self._dmin.getVal('nm'), self._beamEnergy.value,
-            self._sgsetting)
+            self._lparms,
+            self.sgnum,
+            self._atomtype,
+            self._charge,
+            self._atominfo,
+            self._U,
+            self._dmin.getVal('nm'),
+            self._beamEnergy.value,
+            self._sgsetting,
+        )
 
         if hasattr(self, 'stiffness'):
             self._unitcell.stiffness = self.stiffness
@@ -310,10 +326,15 @@ class Material(object):
             # Make the PlaneData object from scratch...
             lprm = self.reduced_lattice_parameters
             laue = self.unitcell._laueGroup
-            self._pData = PData(hkls, lprm, laue,
-                                self._beamEnergy, Material.DFLT_STR,
-                                tThWidth=self._tThWidth,
-                                tThMax=Material.DFLT_TTHMAX)
+            self._pData = PData(
+                hkls,
+                lprm,
+                laue,
+                self._beamEnergy,
+                Material.DFLT_STR,
+                tThWidth=self._tThWidth,
+                tThMax=Material.DFLT_TTHMAX,
+            )
 
             self.set_default_exclusions()
 
@@ -343,34 +364,37 @@ class Material(object):
 
     def enable_hkls_below_tth(self, tth_threshold=90.0):
         '''
-          enable reflections with two-theta less than @tth_threshold degrees
+        enable reflections with two-theta less than @tth_threshold degrees
         '''
         tth_threshold = np.radians(tth_threshold)
 
-        tth = np.array([hkldata['tTheta']
-                           for hkldata in self._pData.hklDataList])
+        tth = np.array(
+            [hkldata['tTheta'] for hkldata in self._pData.hklDataList]
+        )
         dflt_excl = np.ones(tth.shape, dtype=np.bool)
         dflt_excl2 = np.ones(tth.shape, dtype=np.bool)
 
-        if(hasattr(self, 'hkl_from_file')):
+        if hasattr(self, 'hkl_from_file'):
             """
             hkls were read from the file so the exclusions will be set
             based on what hkls are present
             """
             for i, g in enumerate(self._pData.hklDataList):
-                if(g['hkl'].tolist() in self.hkl_from_file.tolist()):
+                if g['hkl'].tolist() in self.hkl_from_file.tolist():
                     dflt_excl[i] = False
 
-            dflt_excl2[~np.isnan(tth)] = \
-                ~((tth[~np.isnan(tth)] >= 0.0) &
-                  (tth[~np.isnan(tth)] <= tth_threshold))
+            dflt_excl2[~np.isnan(tth)] = ~(
+                (tth[~np.isnan(tth)] >= 0.0)
+                & (tth[~np.isnan(tth)] <= tth_threshold)
+            )
 
             dflt_excl = np.logical_or(dflt_excl, dflt_excl2)
 
         else:
-            dflt_excl[~np.isnan(tth)] = \
-                ~((tth[~np.isnan(tth)] >= 0.0) &
-                  (tth[~np.isnan(tth)] <= tth_threshold))
+            dflt_excl[~np.isnan(tth)] = ~(
+                (tth[~np.isnan(tth)] >= 0.0)
+                & (tth[~np.isnan(tth)] <= tth_threshold)
+            )
             dflt_excl[0] = False
 
         self._pData.exclusions = dflt_excl
@@ -380,10 +404,9 @@ class Material(object):
         sf = self.unitcell.CalcXRSF(hkls)
         self.planeData.set_structFact(sf)
 
-    def compute_powder_overlay(self,
-                               ttharray=np.linspace(0, 80, 2000),
-                               fwhm=0.25,
-                               scale=1.0):
+    def compute_powder_overlay(
+        self, ttharray=np.linspace(0, 80, 2000), fwhm=0.25, scale=1.0
+    ):
         """
         this function computes a simulated spectra
         for using in place of lines for the powder
@@ -398,7 +421,7 @@ class Material(object):
         self.powder_overlay = np.zeros_like(ttharray)
         for t, I in zip(tth, Ip):
             p = [t, fwhm]
-            self.powder_overlay += scale*I*_unit_gaussian(p, ttharray)
+            self.powder_overlay += scale * I * _unit_gaussian(p, ttharray)
 
     def remove_duplicate_atoms(self):
         """
@@ -412,7 +435,6 @@ class Material(object):
         self.charge = self.unitcell.chargestates
         self._hkls_changed()
 
-
     def vt(self, temperature=None):
         '''calculate volume at high
         temperature
@@ -422,10 +444,9 @@ class Material(object):
         if temperature is None:
             vt = self.v0
         else:
-            delT = (temperature-298)
-            delT2 = (temperature**2-298**2)
-            vt = self.v0*np.exp(alpha0*delT
-                    +0.5*alpha1*delT2)
+            delT = temperature - 298
+            delT2 = temperature**2 - 298**2
+            vt = self.v0 * np.exp(alpha0 * delT + 0.5 * alpha1 * delT2)
         return vt
 
     def kt(self, temperature=None):
@@ -436,8 +457,8 @@ class Material(object):
         if temperature is None:
             return k0
         else:
-            delT = (temperature-298)
-            return k0 + self.dk0dt*delT
+            delT = temperature - 298
+            return k0 + self.dk0dt * delT
 
     def ktp(self, temperature=None):
         '''calculate bulk modulus derivative
@@ -447,23 +468,25 @@ class Material(object):
         if temperature is None:
             return k0p
         else:
-            delT = (temperature-298)
-            return k0p + self.dk0pdt*delT
+            delT = temperature - 298
+            return k0p + self.dk0pdt * delT
 
     def calc_pressure(self, volume=None, temperature=None):
         '''calculate the pressure given the volume
-           and temperature using the third order
-           birch-murnaghan equation of state.
+        and temperature using the third order
+        birch-murnaghan equation of state.
         '''
         if volume is None:
             return 0
         else:
-            vt =  self.vt(temperature=temperature)
-            kt =  self.kt(temperature=temperature)
+            vt = self.vt(temperature=temperature)
+            kt = self.kt(temperature=temperature)
             ktp = self.ktp(temperature=temperature)
-            f = 0.5*((vt/volume)**(2./3.) - 1)
+            f = 0.5 * ((vt / volume) ** (2.0 / 3.0) - 1)
 
-            return 3.0*kt*f*(1 - 1.5*(4 - ktp)*f)*(1 + 2*f)**2.5
+            return (
+                3.0 * kt * f * (1 - 1.5 * (4 - ktp) * f) * (1 + 2 * f) ** 2.5
+            )
 
     def calc_volume(self, pressure=None, temperature=None):
         '''solve for volume in the birch-murnaghan EoS to
@@ -471,27 +494,30 @@ class Material(object):
         to the Material object as updated lattice constants.
         '''
         vt = self.vt(temperature=temperature)
-        kt =  self.kt(temperature=temperature)
+        kt = self.kt(temperature=temperature)
         ktp = self.ktp(temperature=temperature)
 
         if pressure is None:
             return vt
         else:
-            alpha = 0.75*(ktp - 4)
-            p = np.zeros([10,])
+            alpha = 0.75 * (ktp - 4)
+            p = np.zeros(
+                [
+                    10,
+                ]
+            )
             p[0] = 1.0
-            p[2] = (1 - 2*alpha)/alpha
-            p[4] = (alpha-1)/alpha
-            p[9] = -2*pressure/3/kt/alpha
+            p[2] = (1 - 2 * alpha) / alpha
+            p[4] = (alpha - 1) / alpha
+            p[9] = -2 * pressure / 3 / kt / alpha
             res = np.roots(p)
             res = res[np.isreal(res)]
-            res = 1/np.real(res)**3
+            res = 1 / np.real(res) ** 3
 
-            mask = np.logical_and(res >= 0., res <= 1.0)
+            mask = np.logical_and(res >= 0.0, res <= 1.0)
             res = res[mask]
             if len(res) != 1:
-                msg = ('more than one physically '
-                       'reasonable solution found!')
+                msg = 'more than one physically ' 'reasonable solution found!'
                 raise ValueError(msg)
             return res[0] * vt
 
@@ -500,10 +526,9 @@ class Material(object):
         constants by. only the lengths will be modified, the
         angles will be kept constant.
         '''
-        vt  = self.vt(temperature=temperature)
-        vpt = self.calc_volume(pressure=pressure,
-                               temperature=temperature)
-        return (vpt/vt)**(1./3.)
+        vt = self.vt(temperature=temperature)
+        vpt = self.calc_volume(pressure=pressure, temperature=temperature)
+        return (vpt / vt) ** (1.0 / 3.0)
 
     def calc_lp_at_PT(self, pressure=None, temperature=None):
         '''calculate the lattice parameters for a given
@@ -511,13 +536,19 @@ class Material(object):
         is the main function which will be called from
         the GUI.
         '''
-        f = self.calc_lp_factor(pressure=pressure,
-                                temperature=temperature)
-        return np.array([f*self.a0, f*self.b0, f*self.c0,
-                         self.alpha0, self.beta0, self.gamma0,])
+        f = self.calc_lp_factor(pressure=pressure, temperature=temperature)
+        return np.array(
+            [
+                f * self.a0,
+                f * self.b0,
+                f * self.c0,
+                self.alpha0,
+                self.beta0,
+                self.gamma0,
+            ]
+        )
 
-    def _readCif(self, fcif=DFLT_NAME+'.cif'):
-
+    def _readCif(self, fcif=DFLT_NAME + '.cif'):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab,
                         saransh1@llnl.gov
@@ -536,7 +567,7 @@ class Material(object):
 
         # read the file
         for k in cif.keys():
-            if('_cell_length_a' in cif[k]):
+            if '_cell_length_a' in cif[k]:
                 m = k
                 break
         cifdata = cif[m]
@@ -544,51 +575,58 @@ class Material(object):
 
         # make sure the space group is present in the cif file, either as
         # international table number, hermann-maguain or hall symbol
-        sgkey = ['_space_group_IT_number',
-                 '_symmetry_space_group_name_h-m',
-                 '_symmetry_space_group_name_hall',
-                 '_symmetry_Int_Tables_number']
+        sgkey = [
+            '_space_group_IT_number',
+            '_symmetry_space_group_name_h-m',
+            '_symmetry_space_group_name_hall',
+            '_symmetry_Int_Tables_number',
+        ]
 
         sgdata = False
         for key in sgkey:
             sgdata = sgdata or (key in cifdata)
-            if(sgdata):
+            if sgdata:
                 skey = key
                 break
 
-        if(not(sgdata)):
+        if not (sgdata):
             raise RuntimeError(' No space group information in CIF file! ')
 
         sgnum = 0
         if skey is sgkey[0]:
             sgnum = int(cifdata[sgkey[0]])
-        elif (skey is sgkey[1]):
+        elif skey is sgkey[1]:
             HM = cifdata[sgkey[1]]
             HM = HM.replace(" ", "")
             HM = HM.replace("_", "")
             sgnum = HM_to_sgnum[HM]
-        elif (skey is sgkey[2]):
+        elif skey is sgkey[2]:
             hall = cifdata[sgkey[2]]
             hall = hall.replace(" ", "")
             sgnum = Hall_to_sgnum[HM]
-        elif(skey is sgkey[3]):
+        elif skey is sgkey[3]:
             sgnum = int(cifdata[sgkey[3]])
 
         # lattice parameters
         lparms = []
-        lpkey = ['_cell_length_a', '_cell_length_b',
-                 '_cell_length_c', '_cell_angle_alpha',
-                 '_cell_angle_beta', '_cell_angle_gamma']
+        lpkey = [
+            '_cell_length_a',
+            '_cell_length_b',
+            '_cell_length_c',
+            '_cell_angle_alpha',
+            '_cell_angle_beta',
+            '_cell_angle_gamma',
+        ]
 
         for key in lpkey:
             n = cifdata[key].find('(')
-            if(n != -1):
+            if n != -1:
                 lparms.append(float(cifdata[key][:n]))
             else:
                 lparms.append(float(cifdata[key]))
 
         for i in range(6):
-            if(i < 3):
+            if i < 3:
                 lparms[i] = _angstroms(lparms[i])
             else:
                 lparms[i] = _degrees(lparms[i])
@@ -597,20 +635,27 @@ class Material(object):
         self.sgnum = sgnum
 
         # fractional atomic site, occ and vibration amplitude
-        fracsitekey = ['_atom_site_fract_x', '_atom_site_fract_y',
-                       '_atom_site_fract_z', ]
+        fracsitekey = [
+            '_atom_site_fract_x',
+            '_atom_site_fract_y',
+            '_atom_site_fract_z',
+        ]
 
-        occ_U = ['_atom_site_occupancy',
-                 '_atom_site_u_iso_or_equiv', '_atom_site_U_iso_or_equiv']
+        occ_U = [
+            '_atom_site_occupancy',
+            '_atom_site_u_iso_or_equiv',
+            '_atom_site_U_iso_or_equiv',
+        ]
 
         sitedata = True
         for key in fracsitekey:
             sitedata = sitedata and (key in cifdata)
 
-        if(not(sitedata)):
+        if not (sitedata):
             raise RuntimeError(
                 ' fractional site position is not present \
-                or incomplete in the CIF file! ')
+                or incomplete in the CIF file! '
+            )
 
         atompos = []
         for key in fracsitekey:
@@ -620,7 +665,7 @@ class Material(object):
             for p in slist:
                 n = p.find('(')
 
-                if(n != -1):
+                if n != -1:
                     pos.append(p[:n])
                 else:
                     pos.append(p)
@@ -630,7 +675,7 @@ class Material(object):
             bring them back to fractional coordinates between 0-1
             '''
             pos = np.asarray(pos).astype(np.float64)
-            pos, _ = np.modf(pos+100.0)
+            pos, _ = np.modf(pos + 100.0)
             atompos.append(pos)
 
         """note that the vibration amplitude, U is just the amplitude (in A)
@@ -640,10 +685,10 @@ class Material(object):
             this will be done here so we dont have to worry about it later
         """
 
-        pocc = (occ_U[0] in cifdata.keys())
+        pocc = occ_U[0] in cifdata.keys()
         pU = (occ_U[1] in cifdata.keys()) or (occ_U[2] in cifdata.keys())
 
-        if(not pocc):
+        if not pocc:
             warn('occupation fraction not present. setting it to 1')
             occ = np.ones(atompos[0].shape)
             atompos.append(occ)
@@ -653,7 +698,7 @@ class Material(object):
             for p in slist:
                 n = p.find('(')
 
-                if(n != -1):
+                if n != -1:
                     occ.append(p[:n])
                 else:
                     occ.append(p)
@@ -664,14 +709,16 @@ class Material(object):
 
             atompos.append(np.asarray(occstr).astype(np.float64))
 
-        if(not pU):
-            msg = (f"'Debye-Waller factors not present. "
-                   f"setting to same values for all atoms.'")
+        if not pU:
+            msg = (
+                "'Debye-Waller factors not present. "
+                "setting to same values for all atoms.'"
+            )
             warn(msg)
             U = self.DFLT_U[0] * np.ones(atompos[0].shape)
             self._U = U
         else:
-            if(occ_U[1] in cifdata.keys()):
+            if occ_U[1] in cifdata.keys():
                 k = occ_U[1]
             else:
                 k = occ_U[2]
@@ -681,7 +728,7 @@ class Material(object):
             for p in slist:
                 n = p.find('(')
 
-                if(n != -1):
+                if n != -1:
                     U.append(p[:n])
                 else:
                     U.append(p)
@@ -705,8 +752,8 @@ class Material(object):
         get atome types here i.e. the atomic number of atoms at each site
         '''
         atype = '_atom_site_type_symbol'
-        patype = (atype in cifdata)
-        if(not patype):
+        patype = atype in cifdata
+        if not patype:
             raise RuntimeError('atom types not defined in cif file.')
 
         satype = cifdata[atype]
@@ -749,7 +796,6 @@ class Material(object):
         self.alphaT = 0.0
         self.dalphaTdT = 0.0
 
-
     def _readHDFxtal(self, fhdf=DFLT_NAME, xtal=DFLT_NAME):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab,
@@ -777,12 +823,11 @@ class Material(object):
             raise Exception(f'Unknown type for fhdf: {fhdf}')
 
         if xtal not in root_gid:
-            raise IOError('crystal doesn''t exist in material file.')
+            raise IOError('crystal doesn' 't exist in material file.')
 
         gid = root_gid.get(xtal)
 
-        sgnum = np.array(gid.get('SpaceGroupNumber'),
-                            dtype=np.int32).item()
+        sgnum = np.array(gid.get('SpaceGroupNumber'), dtype=np.int32).item()
         """
             IMPORTANT NOTE:
             note that the latice parameters is nm by default
@@ -793,8 +838,8 @@ class Material(object):
         lparms = list(gid.get('LatticeParameters'))
 
         for i in range(6):
-            if(i < 3):
-                lparms[i] = _angstroms(lparms[i]*10.0)
+            if i < 3:
+                lparms[i] = _angstroms(lparms[i] * 10.0)
             else:
                 lparms[i] = _degrees(lparms[i])
 
@@ -804,29 +849,31 @@ class Material(object):
         self.sgnum = sgnum
 
         # the U factors are related to B by the relation B = 8pi^2 U
-        self._atominfo = np.transpose(np.array(
-            gid.get('AtomData'), dtype=np.float64))
-        self._U = np.transpose(np.array(
-            gid.get('U'), dtype=np.float64))
+        self._atominfo = np.transpose(
+            np.array(gid.get('AtomData'), dtype=np.float64)
+        )
+        self._U = np.transpose(np.array(gid.get('U'), dtype=np.float64))
 
         # read atom types (by atomic number, Z)
         self._atomtype = np.array(gid.get('Atomtypes'), dtype=np.int32)
         if 'ChargeStates' in gid:
             self._charge = h5py_read_string(gid['ChargeStates'])
         else:
-            self._charge = ['0']*self._atomtype.shape[0]
+            self._charge = ['0'] * self._atomtype.shape[0]
         self._atom_ntype = self._atomtype.shape[0]
 
-        self._sgsetting = np.array(gid.get('SpaceGroupSetting'),
-                                      dtype=np.int32).item()
+        self._sgsetting = np.array(
+            gid.get('SpaceGroupSetting'), dtype=np.int32
+        ).item()
 
-        if('stiffness' in gid):
+        if 'stiffness' in gid:
             # we're assuming the stiffness is in units of GPa
             self.stiffness = np.array(gid.get('stiffness'))
-        elif('compliance' in gid):
+        elif 'compliance' in gid:
             # we're assuming the compliance is in units of TPa^-1
-            self.stiffness = np.linalg.inv(
-                np.array(gid.get('compliance'))) * 1.e3
+            self.stiffness = (
+                np.linalg.inv(np.array(gid.get('compliance'))) * 1.0e3
+            )
         else:
             self.stiffness = np.zeros([6, 6])
 
@@ -834,91 +881,80 @@ class Material(object):
         parameters
         '''
         self.k0 = 100.0
-        if('k0' in gid):
+        if 'k0' in gid:
             # this is the isotropic bulk modulus
-            k0 = np.array(gid.get('k0'),
-                 dtype=np.float64).item()
+            k0 = np.array(gid.get('k0'), dtype=np.float64).item()
             self.k0 = k0
 
         self.k0p = 0.0
-        if('k0p' in gid):
+        if 'k0p' in gid:
             # this is the pressure derivation of
             # the isotropic bulk modulus
-            k0p = np.array(gid.get('k0p'),
-                 dtype=np.float64).item()
+            k0p = np.array(gid.get('k0p'), dtype=np.float64).item()
             self.k0p = k0p
 
         self.dk0dt = 0.0
-        if('dk0dt' in gid):
+        if 'dk0dt' in gid:
             # this is the temperature derivation of
             # the isotropic bulk modulus
-            dk0dt = np.array(gid.get('dk0dt'),
-                 dtype=np.float64).item()
+            dk0dt = np.array(gid.get('dk0dt'), dtype=np.float64).item()
             self.dk0dt = dk0dt
 
         self.dk0pdt = 0.0
-        if('dk0pdt' in gid):
+        if 'dk0pdt' in gid:
             # this is the temperature derivation of
             # the pressure derivative of isotropic bulk modulus
-            dk0pdt = np.array(gid.get('dk0pdt'),
-                 dtype=np.float64).item()
+            dk0pdt = np.array(gid.get('dk0pdt'), dtype=np.float64).item()
             self.dk0pdt = dk0pdt
 
         self.alphaT = 0.0
-        if('alphaT' in gid):
+        if 'alphaT' in gid:
             # this is the temperature derivation of
             # the pressure derivative of isotropic bulk modulus
-            alphaT = np.array(gid.get('alphaT'),
-                 dtype=np.float64).item()
+            alphaT = np.array(gid.get('alphaT'), dtype=np.float64).item()
             self.alphaT = alphaT
 
         self.dalphaTdT = 0.0
-        if('dalphaTdT' in gid):
+        if 'dalphaTdT' in gid:
             # this is the temperature derivation of
             # the pressure derivative of isotropic bulk modulus
-            dalphaTdT = np.array(gid.get('dalphaTdT'),
-                 dtype=np.float64).item()
+            dalphaTdT = np.array(gid.get('dalphaTdT'), dtype=np.float64).item()
             self.dalphaTdT = dalphaTdT
 
         '''Finished with the BM EOS
         '''
 
-        if('v0' in gid):
+        if 'v0' in gid:
             # this is the isotropic ambient unitcell
             # volume
-            v0 = np.array(gid.get('v0'),
-                 dtype=np.float64).item()
+            v0 = np.array(gid.get('v0'), dtype=np.float64).item()
             self.v0 = v0
 
         # if dmin is present in file:
-        if('dmin' in gid):
+        if 'dmin' in gid:
             # if dmin is present in the HDF5 file, then use that
-            dmin = np.array(gid.get('dmin'),
-                               dtype=np.float64).item()
-            self._dmin = _angstroms(dmin*10.)
+            dmin = np.array(gid.get('dmin'), dtype=np.float64).item()
+            self._dmin = _angstroms(dmin * 10.0)
         else:
             self._dmin = Material.DFLT_DMIN
 
         # if kev is present in file
-        if('kev' in gid):
-            kev = np.array(gid.get('kev'),
-                              dtype=np.float64).item()
+        if 'kev' in gid:
+            kev = np.array(gid.get('kev'), dtype=np.float64).item()
             self._beamEnergy = _kev(kev)
         else:
             self._beamEnergy = Material.DFLT_KEV
 
         if 'tThWidth' in gid:
-            tThWidth = np.array(gid.get('tThWidth'),
-                                   dtype=np.float64).item()
+            tThWidth = np.array(gid.get('tThWidth'), dtype=np.float64).item()
             tThWidth = np.radians(tThWidth)
         else:
             tThWidth = Material.DFLT_TTH
 
         self._tThWidth = tThWidth
 
-        if('hkls' in gid):
-            self.hkl_from_file = np.array(gid.get('hkls'),
-                                             dtype=np.int32)
+        if 'hkls' in gid:
+            self.hkl_from_file = np.array(gid.get('hkls'), dtype=np.int32)
 
         if isinstance(fhdf, (Path, str)):
             # Close the file...
@@ -978,12 +1014,14 @@ class Material(object):
         '''
         lattice parameters
         '''
-        lat_param = {'a': self.unitcell.a,
-                     'b': self.unitcell.b,
-                     'c': self.unitcell.c,
-                     'alpha': self.unitcell.alpha,
-                     'beta': self.unitcell.beta,
-                     'gamma': self.unitcell.gamma}
+        lat_param = {
+            'a': self.unitcell.a,
+            'b': self.unitcell.b,
+            'c': self.unitcell.c,
+            'alpha': self.unitcell.alpha,
+            'beta': self.unitcell.beta,
+            'gamma': self.unitcell.gamma,
+        }
 
         Write2H5File(AtomInfo, lat_param, path)
 
@@ -1010,12 +1048,16 @@ class Material(object):
 
     @property
     def vol(self):
-        return self.unitcell.vol*1e3
+        return self.unitcell.vol * 1e3
 
     @property
     def lparms(self):
-        return np.array([x.getVal("nm") if x.isLength() else
-                            x.getVal("degrees") for x in self._lparms])
+        return np.array(
+            [
+                x.getVal("nm") if x.isLength() else x.getVal("degrees")
+                for x in self._lparms
+            ]
+        )
 
     @property
     def latticeType(self):
@@ -1064,14 +1106,11 @@ class Material(object):
             self._newUnitcell()
             self._hkls_changed()
 
-    sgnum = property(_get_sgnum, _set_sgnum, None,
-                     "Space group number")
+    sgnum = property(_get_sgnum, _set_sgnum, None, "Space group number")
 
     @property
     def pgnum(self):
         return self.unitcell.pgnum
-
-    # property:  beamEnergy
 
     def _get_beamEnergy(self):
         """Get method for beamEnergy"""
@@ -1085,7 +1124,7 @@ class Material(object):
           float arguments.  Also can take a valWUnit
           instance
         """
-        if(isinstance(keV, valWUnit)):
+        if isinstance(keV, valWUnit):
             self._beamEnergy = keV
         else:
             self._beamEnergy = valWUnit('kev', 'energy', keV, 'keV')
@@ -1095,16 +1134,18 @@ class Material(object):
         @TODO make voltage valWUnit instance so this that we dont have to
         track this manually inn the future
         '''
-        self.unitcell.voltage = self.beamEnergy.value*1e3
+        self.unitcell.voltage = self.beamEnergy.value * 1e3
         self.planeData.wavelength = keV
         self._hkls_changed()
 
-    beamEnergy = property(_get_beamEnergy, _set_beamEnergy, None,
-                          "Beam energy in keV")
+    beamEnergy = property(
+        _get_beamEnergy, _set_beamEnergy, None, "Beam energy in keV"
+    )
 
     """
     03/11/2021 SS 1.0 original
     """
+
     @property
     def unitcell(self):
         return self._unitcell
@@ -1122,7 +1163,7 @@ class Material(object):
     @latticeParameters.setter
     def latticeParameters(self, v):
         """Set method for latticeParameters"""
-        if(len(v) != 6):
+        if len(v) != 6:
             v = unitcell._rqpDict[self.unitcell.latticeType][1](v)
         lp = [_angstroms(v[i]) for i in range(3)]
         for i in range(3, 6):
@@ -1146,8 +1187,7 @@ class Material(object):
 
         return
 
-    name = property(_get_name, _set_name, None,
-                    "Name of material")
+    name = property(_get_name, _set_name, None, "Name of material")
 
     @property
     def dmin(self):
@@ -1175,8 +1215,10 @@ class Material(object):
         first make sure the lengths are correct
         """
         if len(vals) != len(self.atomtype):
-            msg = (f"incorrect size of charge. "
-                   f"must be same size as number of aom types.")
+            msg = (
+                "incorrect size of charge. "
+                "must be same size as number of aom types."
+            )
             raise ValueError(msg)
         """
         now check if charge states are actually allowed
@@ -1185,9 +1227,11 @@ class Material(object):
             elem = ptableinverse[z]
             cs = chargestate[elem]
             if not vals[ii] in cs:
-                msg = (f"element {elem} does not allow "
-                       f"charge state of {vals[ii]}. "
-                       f"allowed charge states are {cs}.")
+                msg = (
+                    f"element {elem} does not allow "
+                    f"charge state of {vals[ii]}. "
+                    f"allowed charge states are {cs}."
+                )
                 raise ValueError(msg)
 
         self._charge = vals
@@ -1218,8 +1262,11 @@ class Material(object):
         self._atominfo = v
 
     atominfo = property(
-        _get_atominfo, _set_atominfo, None,
-        "Information about atomic positions and electron number")
+        _get_atominfo,
+        _set_atominfo,
+        None,
+        "Information about atomic positions and electron number",
+    )
 
     # property: "atomtype"
     def _get_atomtype(self):
@@ -1231,8 +1278,8 @@ class Material(object):
         self._atomtype = v
 
     atomtype = property(
-        _get_atomtype, _set_atomtype, None,
-        "Information about atomic types")
+        _get_atomtype, _set_atomtype, None, "Information about atomic types"
+    )
 
     @property
     def thermal_expansion(self):
@@ -1274,27 +1321,35 @@ class Material(object):
         U = np.array(U)
 
         if atomtype.shape[0] != atominfo.shape[0]:
-            msg = (f"inconsistent shapes: number of atoms "
-                   f"types passed = {atomtype.shape[0]} \n"
-                   f" number of atom positions passed = {atominfo.shape[0]}")
+            msg = (
+                f"inconsistent shapes: number of atoms "
+                f"types passed = {atomtype.shape[0]} \n"
+                f" number of atom positions passed = {atominfo.shape[0]}"
+            )
             raise ValueError(msg)
 
         if atomtype.shape[0] != U.shape[0]:
-            msg = (f"inconsistent shapes: number of atoms "
-                   f"types passed = {atomtype.shape[0]} \n"
-                   f" U passed for {U.shape[0]} atoms.")
+            msg = (
+                f"inconsistent shapes: number of atoms "
+                f"types passed = {atomtype.shape[0]} \n"
+                f" U passed for {U.shape[0]} atoms."
+            )
             raise ValueError(msg)
 
         if atominfo.shape[0] != U.shape[0]:
-            msg = (f"inconsistent shapes: number of atom "
-                   f"positions passed = {atominfo.shape[0]} \n"
-                   f"U passed for {U.shape[0]} atoms.")
+            msg = (
+                f"inconsistent shapes: number of atom "
+                f"positions passed = {atominfo.shape[0]} \n"
+                f"U passed for {U.shape[0]} atoms."
+            )
             raise ValueError(msg)
 
         if len(charge) != atomtype.shape[0]:
-            msg = (f"inconsistent shapes: number of atoms "
-                   f"types passed = {atomtype.shape[0]} \n"
-                   f"charge value passed for {len(charge)} atoms.")
+            msg = (
+                f"inconsistent shapes: number of atoms "
+                f"types passed = {atomtype.shape[0]} \n"
+                f"charge value passed for {len(charge)} atoms."
+            )
             raise ValueError(msg)
 
         self.atomtype = atomtype
@@ -1304,6 +1359,7 @@ class Material(object):
 
         self._newUnitcell()
         self.update_structure_factor()
+
     #
     #  ========== Methods
     #
@@ -1321,8 +1377,7 @@ class Material(object):
 def loadMaterialList(cfgFile):
     """Load a list of materials from a file
 
-    The file uses the config file format.  See ConfigParser module.
-"""
+    The file uses the config file format.  See ConfigParser module."""
     p = Parser()
     p.read(cfgFile)
     #
@@ -1336,8 +1391,9 @@ def loadMaterialList(cfgFile):
     return matList
 
 
-def load_materials_hdf5(f, dmin=None, kev=None,
-                        sgsetting=Material.DFLT_SGSETTING):
+def load_materials_hdf5(
+    f, dmin=None, kev=None, sgsetting=Material.DFLT_SGSETTING
+):
     """Load materials from an HDF5 file
 
     The file uses the HDF5 file format.
@@ -1362,10 +1418,7 @@ def load_materials_hdf5(f, dmin=None, kev=None,
         'kev': kev,
         'sgsetting': sgsetting,
     }
-    return {
-        name: Material(name, **kwargs)
-        for name in names
-    }
+    return {name: Material(name, **kwargs) for name in names}
 
 
 def save_materials_hdf5(f, materials, path=None):
@@ -1378,6 +1431,7 @@ def hkls_match(a, b):
     # Check if hkls match. Expects inputs to have shape (x, 3).
     def sorted_hkls(x):
         return x[np.lexsort((x[:, 2], x[:, 1], x[:, 0]))]
+
     return np.array_equal(sorted_hkls(a), sorted_hkls(b))
 
 
@@ -1393,6 +1447,7 @@ def map_hkls_to_new(old_pdata, new_pdata):
         'return_indices': True,
     }
     return np.intersect1d(**kwargs)[1:]
+
 
 #
 #  ============================== Executable section for testing
