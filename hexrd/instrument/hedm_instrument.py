@@ -61,7 +61,6 @@ from hexrd.gridutil import make_tolerance_grid
 from hexrd import matrixutil as mutil
 from hexrd.transforms.xfcapi import (
     angles_to_gvec,
-    angularDifference,
     gvec_to_xy,
     make_sample_rmat,
     makeRotMatOfExpMap,
@@ -649,8 +648,9 @@ class HEDMInstrument(object):
                             if det_buffer.ndim == 2:
                                 if det_buffer.shape != shape:
                                     msg = (
-                                        f'Buffer shape for {det_id} ({det_buffer.shape}) '
-                                        f'does not match detector shape ({shape})'
+                                        f'Buffer shape for {det_id} '
+                                        f'({det_buffer.shape}) does not match '
+                                        f'detector shape ({shape})'
                                     )
                                     raise BufferShapeMismatchError(msg)
                             else:
@@ -1111,8 +1111,8 @@ class HEDMInstrument(object):
         for det_name, detector in self.detectors.items():
             det = det_name.replace('-', '_')
             euler = np.r_[params[f'{det}_euler_z'].value,
-                         params[f'{det}_euler_xp'].value,
-                         params[f'{det}_euler_zpp'].value]
+                          params[f'{det}_euler_xp'].value,
+                          params[f'{det}_euler_zpp'].value]
 
             rmat = make_rmat_euler(np.radians(euler),
                                    'zxz',
@@ -2666,68 +2666,26 @@ def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
     if not np.any(pixels_in_tthr):
         return None
 
-    # ???: faster to index with bool or use np.where,
-    # or recode in numba?
-    rtth_idx = np.where(pixels_in_tthr)
+    pixel_ids = np.where(pixels_in_tthr)
 
     # grab relevant eta coords using histogram
-    # !!!: This allows use to calculate arc length and
-    #      detect a branch cut.  The histogram idx var
-    #      is the left-hand edges...
-    retas = peta[rtth_idx]
-    if fast_histogram:
-        reta_hist = histogram1d(
-            retas,
-            len(eta_edges) - 1,
-            (eta_edges[0], eta_edges[-1])
-        )
-    else:
-        reta_hist, _ = histogram1d(retas, bins=eta_edges)
-    reta_idx = np.where(reta_hist)[0]
-    reta_bin_idx = np.hstack(
-        [reta_idx,
-         reta_idx[-1] + 1]
-    )
+    pixel_etas = peta[pixel_ids]
+    reta_hist = histogram(pixel_etas, eta_edges)
+    bins_on_detector = np.where(reta_hist)[0]
 
-    # ring arc lenght on panel
-    arc_length = angularDifference(
-        eta_edges[reta_bin_idx[0]],
-        eta_edges[reta_bin_idx[-1]]
-    )
+    return pixel_etas, eta_edges, pixel_ids, bins_on_detector
 
-    # Munge eta bins
-    # !!! need to work with the subset to preserve
-    #     NaN values at panel extents!
-    #
-    # !!! MUST RE-MAP IF BRANCH CUT IS IN RANGE
-    #
-    # The logic below assumes that eta_edges span 2*pi to
-    # single precision
-    eta_bins = eta_edges[reta_bin_idx]
-    if arc_length < 1e-4:
-        # have branch cut in here
-        ring_gap = np.where(
-            reta_idx
-            - np.arange(len(reta_idx))
-        )[0]
-        if len(ring_gap) > 0:
-            # have incomplete ring
-            eta_stop_idx = ring_gap[0]
-            eta_stop = eta_edges[eta_stop_idx]
-            new_period = np.cumsum([eta_stop, 2*np.pi])
-            # remap
-            retas = mapAngle(retas, new_period)
-            tmp_bins = mapAngle(
-                eta_edges[reta_idx], new_period
-            )
-            tmp_idx = np.argsort(tmp_bins)
-            reta_idx = reta_idx[np.argsort(tmp_bins)]
-            eta_bins = np.hstack(
-                [tmp_bins[tmp_idx],
-                 tmp_bins[tmp_idx][-1] + delta_eta]
-            )
 
-    return retas, eta_bins, rtth_idx, reta_idx
+def run_fast_histogram(x, bins, weights=None):
+    return histogram1d(x, len(bins) - 1, (bins[0], bins[-1]),
+                       weights=weights)
+
+
+def run_numpy_histogram(x, bins, weights=None):
+    return histogram1d(x, bins=bins, weights=weights)[0]
+
+
+histogram = run_fast_histogram if fast_histogram else run_numpy_histogram
 
 
 def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
@@ -2748,17 +2706,11 @@ def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
                 continue
 
             # Unpack the params
-            retas, eta_bins, rtth_idx, reta_idx = params
+            pixel_etas, eta_edges, pixel_ids, bins_on_detector = params
+            result = histogram(pixel_etas, eta_edges, weights=image[pixel_ids])
 
-            if fast_histogram:
-                result = histogram1d(retas, len(eta_bins) - 1,
-                                     (eta_bins[0], eta_bins[-1]),
-                                     weights=image[rtth_idx])
-            else:
-                result, _ = histogram1d(retas, bins=eta_bins,
-                                        weights=image[rtth_idx])
-
-            this_map[i_row, reta_idx] = result
+            # Note that this preserves nan values for bins not on the detector.
+            this_map[i_row, bins_on_detector] = result[bins_on_detector]
 
 
 def _extract_detector_line_positions(iter_args, plane_data, tth_tol,
