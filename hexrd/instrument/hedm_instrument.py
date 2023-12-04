@@ -61,7 +61,6 @@ from hexrd.gridutil import make_tolerance_grid
 from hexrd import matrixutil as mutil
 from hexrd.transforms.xfcapi import (
     angles_to_gvec,
-    angularDifference,
     gvec_to_xy,
     make_sample_rmat,
     makeRotMatOfExpMap,
@@ -649,8 +648,9 @@ class HEDMInstrument(object):
                             if det_buffer.ndim == 2:
                                 if det_buffer.shape != shape:
                                     msg = (
-                                        f'Buffer shape for {det_id} ({det_buffer.shape}) '
-                                        f'does not match detector shape ({shape})'
+                                        f'Buffer shape for {det_id} '
+                                        f'({det_buffer.shape}) does not match '
+                                        f'detector shape ({shape})'
                                     )
                                     raise BufferShapeMismatchError(msg)
                             else:
@@ -1111,8 +1111,8 @@ class HEDMInstrument(object):
         for det_name, detector in self.detectors.items():
             det = det_name.replace('-', '_')
             euler = np.r_[params[f'{det}_euler_z'].value,
-                         params[f'{det}_euler_xp'].value,
-                         params[f'{det}_euler_zpp'].value]
+                          params[f'{det}_euler_xp'].value,
+                          params[f'{det}_euler_zpp'].value]
 
             rmat = make_rmat_euler(np.radians(euler),
                                    'zxz',
@@ -2670,18 +2670,22 @@ def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
 
     # grab relevant eta coords using histogram
     pixel_etas = peta[pixel_ids]
-    if fast_histogram:
-        reta_hist = histogram1d(
-            pixel_etas,
-            len(eta_edges) - 1,
-            (eta_edges[0], eta_edges[-1])
-        )
-    else:
-        reta_hist, _ = histogram1d(pixel_etas, bins=eta_edges)
-
+    reta_hist = histogram(pixel_etas, eta_edges)
     bins_on_detector = np.where(reta_hist)[0]
 
     return pixel_etas, eta_edges, pixel_ids, bins_on_detector
+
+
+def run_fast_histogram(x, bins, weights=None):
+    return histogram1d(x, len(bins) - 1, (bins[0], bins[-1]),
+                       weights=weights)
+
+
+def run_numpy_histogram(x, bins, weights=None):
+    return histogram1d(x, bins=bins, weights=weights)[0]
+
+
+histogram = run_fast_histogram if fast_histogram else run_numpy_histogram
 
 
 def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
@@ -2703,13 +2707,7 @@ def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
 
             # Unpack the params
             pixel_etas, eta_edges, pixel_ids, bins_on_detector = params
-            if fast_histogram:
-                result = histogram1d(pixel_etas, len(eta_edges) - 1,
-                                     (eta_edges[0], eta_edges[-1]),
-                                     weights=image[pixel_ids])
-            else:
-                result, _ = histogram1d(pixel_etas, bins=eta_edges,
-                                        weights=image[pixel_ids])
+            result = histogram(pixel_etas, eta_edges, weights=image[pixel_ids])
 
             # Note that this preserves nan values for bins not on the detector.
             this_map[i_row, bins_on_detector] = result[bins_on_detector]
