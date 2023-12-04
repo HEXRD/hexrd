@@ -61,6 +61,7 @@ from hexrd.gridutil import make_tolerance_grid
 from hexrd import matrixutil as mutil
 from hexrd.transforms.xfcapi import (
     angles_to_gvec,
+    angularDifference,
     gvec_to_xy,
     make_sample_rmat,
     makeRotMatOfExpMap,
@@ -2665,16 +2666,22 @@ def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
     if not np.any(pixels_in_tthr):
         return None
 
-    # ???: faster to index with bool or use np.where,
-    # or recode in numba?
-    rtth_idx = np.where(pixels_in_tthr)
+    pixel_ids = np.where(pixels_in_tthr)
 
     # grab relevant eta coords using histogram
-    # !!!: This allows use to calculate arc length and
-    #      detect a branch cut.  The histogram idx var
-    #      is the left-hand edges...
-    retas = peta[rtth_idx]
-    return rtth_idx, retas, eta_edges
+    pixel_etas = peta[pixel_ids]
+    if fast_histogram:
+        reta_hist = histogram1d(
+            pixel_etas,
+            len(eta_edges) - 1,
+            (eta_edges[0], eta_edges[-1])
+        )
+    else:
+        reta_hist, _ = histogram1d(pixel_etas, bins=eta_edges)
+
+    bins_on_detector = np.where(reta_hist)[0]
+
+    return pixel_etas, eta_edges, pixel_ids, bins_on_detector
 
 
 def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
@@ -2695,17 +2702,17 @@ def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
                 continue
 
             # Unpack the params
-            rtth_idx, retas, eta_edges = params
-
+            pixel_etas, eta_edges, pixel_ids, bins_on_detector = params
             if fast_histogram:
-                result = histogram1d(retas, len(eta_edges) - 1,
+                result = histogram1d(pixel_etas, len(eta_edges) - 1,
                                      (eta_edges[0], eta_edges[-1]),
-                                     weights=image[rtth_idx])
+                                     weights=image[pixel_ids])
             else:
-                result, _ = histogram1d(retas, bins=eta_edges,
-                                        weights=image[rtth_idx])
+                result, _ = histogram1d(pixel_etas, bins=eta_edges,
+                                        weights=image[pixel_ids])
 
-            this_map[i_row, :] = result
+            # Note that this preserves nan values for bins not on the detector.
+            this_map[i_row, bins_on_detector] = result[bins_on_detector]
 
 
 def _extract_detector_line_positions(iter_args, plane_data, tth_tol,
