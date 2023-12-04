@@ -73,14 +73,15 @@ pip install -e hexrd
 ```
 
 ## conda
-It is highly recommended to install hexrd in its own virtual env
+It is highly recommended to install hexrd in its own virtual env:
 
 ```bash
-conda create --name hexrd-dev python=3.9 hexrd
+conda create --name hexrd-dev
 conda activate hexrd-dev
 ```
 
-### Linux and Mac OS
+Now, install hexrd and its dependencies:
+
 ```bash
 # First, make sure python3.9+ is installed in your target env.
 # If it is not, run the following command:
@@ -90,20 +91,6 @@ conda install -c conda-forge python=3.9
 conda install -c hexrd/label/prerelease -c conda-forge hexrd
 
 # Now using pip to link repo's into environment for development
-CONDA_BUILD=1 pip install --no-build-isolation --no-deps -U -e hexrd
-```
-
-### Windows
-```bash
-# First, make sure python3.9+ is installed in your target env.
-# If it is not, run the following command:
-conda install -c conda-forge python=3.9
-
-# Install deps using conda package
-conda install -c hexrd/label/prerelease -c conda-forge hexrd
-
-# Now using pip to link repo's into environment for development
-set CONDA_BUILD=1
 pip install --no-build-isolation --no-deps -U -e hexrd
 ```
 
