@@ -1662,6 +1662,14 @@ class unitcell:
         self.calc_absorption_length()
 
     @property
+    def pgnum(self):
+        return constants.SYM_PG_to_PGNUM[self.point_group]
+
+    @property
+    def point_group(self):
+        return self._pointGroup
+
+    @property
     def atom_pos(self):
         return self._atom_pos
 

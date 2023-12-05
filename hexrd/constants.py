@@ -1159,6 +1159,9 @@ SYM_GL_PG = {
     'td': '2dm',
     'oh': '3dgh'
 }
+# The above dict must be in the correct order for this to work
+SYM_PG_to_PGNUM = {pg: i + 1 for i, pg in enumerate(SYM_GL_PG)}
+SYM_PGNUM_to_PG = {v: k for k, v in SYM_PG_to_PGNUM.items()}
 
 # Set the __version__ variable
 try:
