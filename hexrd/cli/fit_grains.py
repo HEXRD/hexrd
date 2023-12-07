@@ -34,17 +34,28 @@ class GrainData(_BaseGrainData):
     """
 
     def save(self, fname):
-        """Save grain data to an np file"""
+        """Save grain data to an np file
+
+        Parameters
+        ----------
+        fname: path | string
+            name of the file to save to
+        """
         np.savez(fname, **self._asdict())
 
     @classmethod
     def load(cls, fname):
-        """Return GrainData instance from npz file"""
-        return cls(np.load(fname))
+        """Return GrainData instance from npz file
+        Parameters
+        ----------
+        fname: path | string
+            name of the file to load
+        """
+        return cls(**np.load(fname))
 
     @classmethod
     def from_array(cls, a):
-        """Return GrainData instance from numpy array"""
+        """Return GrainData instance from numpy datatype array"""
         return cls(
             id=a[:,0].astype(int),
             completeness=a[:, 1],
@@ -54,6 +65,21 @@ class GrainData(_BaseGrainData):
             inv_Vs=a[:, 9:15],
             ln_Vs=a[:, 15:21],
         )
+
+    @property
+    def rotation_matrices(self):
+        """"Return rotation matrices from exponential maps"""
+        #
+        # Compute the rotation matrices only once, the first time this is
+        # called, and save the results.
+        #
+        if not hasattr(self, "_rotation_matrices"):
+            n = len(self.expmap)
+            rmats = np.zeros((n, 3, 3))
+            for i in range(n):
+                rmats[i] = xfcapi.makeRotMatOfExpMap(self.expmap[i])
+            self._rotation_matrices = rmats
+        return self._rotation_matrices
 
 
 def configure_parser(sub_parsers):
