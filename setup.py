@@ -15,6 +15,7 @@ install_reqs = [
     'fast-histogram',
     'h5py',
     'lmfit',
+    'matplotlib',
     'numba',
     'numpy<1.27',  # noqa NOTE: bump this to support the latest version numba supports
     'psutil',

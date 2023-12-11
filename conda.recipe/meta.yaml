@@ -41,6 +41,7 @@ requirements:
     - fast-histogram
     - h5py
     - lmfit
+    - matplotlib-base
     - numba
     - {{ pin_compatible('numpy') }}
     - psutil
