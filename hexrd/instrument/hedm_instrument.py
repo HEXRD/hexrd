@@ -589,7 +589,7 @@ class HEDMInstrument(object):
                     xrs_dist=self._source_distance,
                     evec=self._eta_vector,
                     distortion=None,
-                    roi=None,
+                    roi=None, group=None,
                     max_workers=self.max_workers),
                 )
 
@@ -631,6 +631,7 @@ class HEDMInstrument(object):
             detectors_config = instrument_config['detectors']
             det_dict = dict.fromkeys(detectors_config)
             for det_id, det_info in detectors_config.items():
+                det_group = det_info.get('group')  # optional detector group
                 pixel_info = det_info['pixels']
                 affine_info = det_info['transform']
                 detector_type = det_info.get('detector_type', 'planar')
@@ -702,6 +703,7 @@ class HEDMInstrument(object):
                     evec=self._eta_vector,
                     distortion=distortion,
                     roi=roi,
+                    group=det_group,
                     max_workers=self.max_workers,
                 )
 

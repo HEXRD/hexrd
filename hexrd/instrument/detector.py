@@ -165,7 +165,7 @@ class Detector:
                  saturation_level=None,
                  panel_buffer=None,
                  tth_distortion=None,
-                 roi=None,
+                 roi=None, group=None,
                  distortion=None,
                  max_workers=max_workers_DFLT):
         """
@@ -196,6 +196,8 @@ class Detector:
             in mm. If an array with shape (nrows, ncols), interpretation is a
             boolean with True marking valid pixels.  The default is None.
         roi : TYPE, optional
+            DESCRIPTION. The default is None.
+        group : TYPE, optional
             DESCRIPTION. The default is None.
         distortion : TYPE, optional
             DESCRIPTION. The default is None.
@@ -238,6 +240,8 @@ class Detector:
         self._distortion = distortion
 
         self.max_workers = max_workers
+
+        self.group = group
 
         #
         # set up calibration parameter list and refinement flags
@@ -643,6 +647,10 @@ class Detector:
         if roi is not None:
             # Only add roi if it is not None
             det_dict['pixels']['roi'] = roi
+
+        if self.group is not None:
+            # Only add group if it is not None
+            det_dict['group'] = self.group
 
         # distortion
         if self.distortion is not None:
