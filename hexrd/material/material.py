@@ -205,7 +205,7 @@ class Material(object):
 
             self.pressure = 0
             self.temperature = 298
-            self.pt_lp_factor = 0
+            self.pt_lp_factor = 1
             self.k0 = 100.0
             self.k0p = 0.0
             self.dk0dt = 0.0
