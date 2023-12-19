@@ -11,7 +11,7 @@ import logging
 
 import numpy as np
 
-from hexrd.crystallography import PlaneData
+from hexrd.material.crystallography import PlaneData
 from hexrd.rotations import misorientation
 
 
