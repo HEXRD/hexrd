@@ -205,7 +205,6 @@ class Material(object):
 
             self.pressure = 0
             self.temperature = 298
-            self.pt_lp_factor = 1
             self.k0 = 100.0
             self.k0p = 0.0
             self.dk0dt = 0.0
@@ -478,6 +477,19 @@ class Material(object):
             delT = temperature - 298
             return k0p + self.dk0pdt * delT
 
+    @property
+    def pt_lp_factor(self):
+        return (self.unitcell.vol * 1e3 / self.v0) ** (1 / 3)
+
+    @property
+    def lparms0(self):
+        # Get the lattice parameters for 0 pressure and temperature (at v0)
+        lparms = self.lparms
+        return np.array([
+            *(lparms[:3] / self.pt_lp_factor),
+            *lparms[3:],
+        ])
+
     def calc_pressure(self, volume=None, temperature=None):
         '''calculate the pressure given the volume
         and temperature using the third order
@@ -537,13 +549,14 @@ class Material(object):
         vpt = self.calc_volume(pressure=pressure, temperature=temperature)
         return (vpt / vt) ** (1.0 / 3.0)
 
-    def calc_lp_at_PT(self, lparms0, pressure=None, temperature=None):
+    def calc_lp_at_PT(self, pressure=None, temperature=None):
         '''calculate the lattice parameters for a given
         pressure and temperature using the BM EoS. This
         is the main function which will be called from
         the GUI.
         '''
         f = self.calc_lp_factor(pressure=pressure, temperature=temperature)
+        lparms0 = self.lparms0
         return np.array(
             [
                 *(f * lparms0[:3]),
@@ -794,7 +807,6 @@ class Material(object):
         '''
         self.pressure = 0
         self.temperature = 298
-        self.pt_lp_factor = 1
         self.k0 = 100.0
         self.k0p = 0.0
         self.dk0dt = 0.0
@@ -895,11 +907,6 @@ class Material(object):
         if 'temperature' in gid:
             self.temperature = np.array(gid.get('temperature'),
                                         dtype=np.float64).item()
-
-        self.pt_lp_factor = 1
-        if 'pt_lp_factor' in gid:
-            self.pt_lp_factor = np.array(gid.get('pt_lp_factor'),
-                                         dtype=np.float64).item()
 
         self.k0 = 100.0
         if 'k0' in gid:
@@ -1007,7 +1014,6 @@ class Material(object):
 
         AtomInfo['pressure'] = self.pressure
         AtomInfo['temperature'] = self.temperature
-        AtomInfo['pt_lp_factor'] = self.pt_lp_factor
 
         AtomInfo['k0'] = 100.0
         if hasattr(self, 'k0'):
