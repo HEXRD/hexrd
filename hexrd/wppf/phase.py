@@ -22,7 +22,8 @@ class Material_LeBail:
                     09/14/2020 SS 1.1 class can now be initialized using
                     a material.Material class instance
     >> @DETAILS:    Material_LeBail class is a stripped down version of the
-                    material.Material class.this is done to keep the class lightweight
+                    material.Material class.this is done to keep the class
+                    lightweight
                     and make sure only the information necessary for the lebail fit is kept
 
     =========================================================================================
@@ -606,9 +607,10 @@ class Material_Rietveld:
     >> @DATE:       05/18/2020 SS 1.0 original
                     02/01/2021 SS 1.1 class can now be initialized using a
                     material.Material class instance
-    >> @DETAILS:    Material_LeBail class is a stripped down version of the material.Material
-                    class.this is done to keep the class lightweight and make sure only the
-                    information necessary for the Rietveld fit is kept
+    >> @DETAILS:    Material_LeBail class is a stripped down version of the
+                    material.Material class. This is done to keep the class
+                    lightweight and make sure only the information necessary
+                    for the Rietveld fit is kept
     ===========================================================================================
      ==========================================================================================
     """

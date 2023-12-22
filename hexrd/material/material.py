@@ -946,7 +946,8 @@ class Material(object):
         if 'dalpha_t_dt' in gid:
             # this is the temperature derivation of
             # the pressure derivative of isotropic bulk modulus
-            dalpha_t_dt = np.array(gid.get('dalpha_t_dt'), dtype=np.float64).item()
+            dalpha_t_dt = np.array(gid.get('dalpha_t_dt'),
+                                   dtype=np.float64).item()
             self.dalpha_t_dt = dalpha_t_dt
 
         '''Finished with the BM EOS
