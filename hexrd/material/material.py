@@ -223,7 +223,7 @@ class Material(object):
         self._newUnitcell()
 
         if not hasattr(self, 'v0'):
-            self.update_v0()
+            self.reset_v0()
 
         self._newPdata()
         self.update_structure_factor()
@@ -341,7 +341,7 @@ class Material(object):
 
             self.set_default_exclusions()
 
-    def update_v0(self):
+    def reset_v0(self):
         self.v0 = self.vol
 
     def set_default_exclusions(self):

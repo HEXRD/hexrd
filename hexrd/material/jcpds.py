@@ -293,7 +293,8 @@ class JCPDS_extend():
 
     def write_lattice_params_to_material(self, mat):
         self.verify_symmetry_match(mat)
-        mat.latticeParameters0 = self.lattice_params
+        mat.latticeParameters = self.lattice_params
+        mat.reset_v0()
 
     def write_pt_params_to_material(self, mat):
         self.verify_symmetry_match(mat)
