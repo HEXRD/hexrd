@@ -688,10 +688,13 @@ def findDuplicateVectors_numba(vec, tol=vTol, equivPM=False):
     eqv = _findduplicatevectors(vec, tol, equivPM)
     uid = np.arange(0, vec.shape[1], dtype=np.int64)
     idx = eqv[~np.isnan(eqv)].astype(np.int64)
-    uid2 = np.delete(uid, idx)
-
-
-    return eqv, uid2
+    uid2 = list(np.delete(uid, idx))
+    eqv2 = []
+    for ii in range(eqv.shape[1]):
+        v = eqv[ii, ~np.isnan(eqv[ii, :])]
+        if v.shape[0] > 0:
+            eqv2.append([ii] + list(v.astype(np.int64)))
+    return eqv2, uid2
 
 @numba_njit_if_available(cache=True, nogil=True, parallel=True)
 def _findduplicatevectors(vec, tol, equivPM):
@@ -737,7 +740,7 @@ def _findduplicatevectors(vec, tol, equivPM):
 
     n = vec.shape[0]; m = vec.shape[1]
 
-    eqv = np.ones_like(vec)
+    eqv = np.zeros((m, m), dtype=np.float64)
     eqv[:] = np.nan
 
     for ii in prange(m):
