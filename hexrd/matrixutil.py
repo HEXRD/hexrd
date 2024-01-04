@@ -583,7 +583,7 @@ def uniqueVectors(v, tol=1.0e-12):
     return vSrt[:, ivInd[0:nUniq]]
 
 
-def findDuplicateVectors(vec, tol=vTol, equivPM=False):
+def findDuplicateVectors_old(vec, tol=vTol, equivPM=False):
     """
     Find vectors in an array that are equivalent to within
     a specified tolerance
@@ -683,7 +683,7 @@ def findDuplicateVectors(vec, tol=vTol, equivPM=False):
 
     return eqv, uid
 
-def findDuplicateVectors_numba(vec, tol=vTol, equivPM=False):
+def findDuplicateVectors(vec, tol=vTol, equivPM=False):
 
     eqv = _findduplicatevectors(vec, tol, equivPM)
     uid = np.arange(0, vec.shape[1], dtype=np.int64)
