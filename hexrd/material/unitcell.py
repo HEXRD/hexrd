@@ -1,8 +1,7 @@
 import importlib.resources
 import numpy as np
 from hexrd import constants
-from hexrd import symmetry, symbols
-from hexrd.spacegroup import Allowed_HKLs
+from hexrd.material import spacegroup, symbols, symmetry
 from hexrd.ipfcolor import sphere_sector, colorspace
 from hexrd.valunits import valWUnit
 import hexrd.resources
@@ -1033,7 +1032,7 @@ class unitcell:
                             for ik in np.arange(kmax, kmin, -1)
                             for il in np.arange(lmax, lmin, -1)])
 
-        hkl_allowed = Allowed_HKLs(self.sgnum, hkllist)
+        hkl_allowed = spacegroup.Allowed_HKLs(self.sgnum, hkllist)
 
         hkl = []
         dsp = []

@@ -32,7 +32,7 @@ from hexrd import constants
 from hexrd import matrixutil as mutil
 from hexrd import gridutil as gutil
 
-from hexrd.crystallography import processWavelength, PlaneData
+from hexrd.material.crystallography import processWavelength, PlaneData
 
 from hexrd.transforms import xf
 from hexrd.transforms import xfcapi

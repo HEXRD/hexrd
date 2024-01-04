@@ -1,4 +1,4 @@
-from hexrd.symbols import pstr_Elements, sitesym, \
+from hexrd.material.symbols import pstr_Elements, sitesym, \
     tworig, PrintPossibleSG, TRIG, pstr_spacegroup,\
     pstr_mkxtal
 import h5py
@@ -6,7 +6,7 @@ import os
 import numpy as np
 import datetime
 import getpass
-from hexrd.unitcell import _StiffnessDict, _pgDict
+from hexrd.material.unitcell import _StiffnessDict, _pgDict
 
 def mk(filename, xtalname):
 
@@ -515,8 +515,34 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
     did = gid.create_dataset("stiffness", (6, 6), dtype=np.float64)
     did.write_direct(np.array(AtomInfo['stiffness'], dtype=np.float64))
 
+    did = gid.create_dataset("pressure", (1,), dtype=np.float64)
+    did.write_direct(np.array(AtomInfo['pressure'], dtype=np.float64))
 
-    if "tThWidth" in AtomInfo: 
+    did = gid.create_dataset("temperature", (1,), dtype=np.float64)
+    did.write_direct(np.array(AtomInfo['temperature'], dtype=np.float64))
+
+    did = gid.create_dataset("k0", (1,), dtype=np.float64)
+    did.write_direct(np.array([AtomInfo['k0']], dtype=np.float64))
+
+    did = gid.create_dataset("k0p", (1,), dtype=np.float64)
+    did.write_direct(np.array([AtomInfo['k0p']], dtype=np.float64))
+
+    did = gid.create_dataset("dk0dt", (1,), dtype=np.float64)
+    did.write_direct(np.array([AtomInfo['dk0dt']], dtype=np.float64))
+
+    did = gid.create_dataset("dk0pdt", (1,), dtype=np.float64)
+    did.write_direct(np.array([AtomInfo['dk0pdt']], dtype=np.float64))
+
+    did = gid.create_dataset("alpha_t", (1,), dtype=np.float64)
+    did.write_direct(np.array([AtomInfo['alpha_t']], dtype=np.float64))
+
+    did = gid.create_dataset("dalpha_t_dt", (1,), dtype=np.float64)
+    did.write_direct(np.array([AtomInfo['dalpha_t_dt']], dtype=np.float64))
+
+    did = gid.create_dataset("v0", (1,), dtype=np.float64)
+    did.write_direct(np.array([AtomInfo['v0']], dtype=np.float64))
+
+    if "tThWidth" in AtomInfo:
         did = gid.create_dataset("tThWidth", (1,), dtype=np.float64)
         did.write_direct(np.array([AtomInfo['tThWidth']], dtype=np.float64))
 

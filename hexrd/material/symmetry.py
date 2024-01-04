@@ -37,7 +37,7 @@ from numpy import array, sqrt, pi, \
 # from hexrd.rotations import quatOfAngleAxis, quatProductMatrix, fixQuat
 from hexrd import rotations as rot
 from hexrd import constants
-from hexrd.utils.decorators import numba_njit_if_available
+from hexrd.utils.decorators import memoize, numba_njit_if_available
 
 
 # =============================================================================
@@ -417,6 +417,8 @@ def SYM_fillgen(t):
     mat = np.broadcast_to(mat, [1,4,4])
     return mat
 
+
+@memoize(maxsize=20)
 def GenerateSGSym(sgnum, setting=0):
 
     '''

@@ -10,7 +10,7 @@ import coloredlogs
 
 from hexrd.findorientations import find_orientations, generate_eta_ome_maps
 from hexrd import config
-from hexrd.crystallography import PlaneData
+from hexrd.material.crystallography import PlaneData
 
 import find_orientations_testing as test_utils
 
