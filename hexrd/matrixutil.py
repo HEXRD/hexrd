@@ -690,8 +690,9 @@ def findDuplicateVectors_numba(vec, tol=vTol, equivPM=False):
     idx = eqv[~np.isnan(eqv)].astype(np.int64)
     uid2 = list(np.delete(uid, idx))
     eqv2 = []
+    mask = ~np.isnan(eqv)
     for ii in range(eqv.shape[1]):
-        v = eqv[ii, ~np.isnan(eqv[ii, :])]
+        v = eqv[ii, mask[ii, :]]
         if v.shape[0] > 0:
             eqv2.append([ii] + list(v.astype(np.int64)))
     return eqv2, uid2
