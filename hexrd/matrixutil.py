@@ -686,10 +686,10 @@ def findDuplicateVectors_old(vec, tol=vTol, equivPM=False):
 def findDuplicateVectors(vec, tol=vTol, equivPM=False):
     eqv = _findduplicatevectors(vec, tol, equivPM)
     uid = np.arange(0, vec.shape[1], dtype=np.int64)
-    idx = eqv[~np.isnan(eqv)].astype(np.int64)
+    mask = ~np.isnan(eqv)
+    idx = eqv[mask].astype(np.int64)
     uid2 = list(np.delete(uid, idx))
     eqv2 = []
-    mask = ~np.isnan(eqv)
     for ii in range(eqv.shape[1]):
         v = eqv[ii, mask[ii, :]]
         if v.shape[0] > 0:
