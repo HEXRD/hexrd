@@ -684,7 +684,6 @@ def findDuplicateVectors_old(vec, tol=vTol, equivPM=False):
     return eqv, uid
 
 def findDuplicateVectors(vec, tol=vTol, equivPM=False):
-
     eqv = _findduplicatevectors(vec, tol, equivPM)
     uid = np.arange(0, vec.shape[1], dtype=np.int64)
     idx = eqv[~np.isnan(eqv)].astype(np.int64)
@@ -696,6 +695,7 @@ def findDuplicateVectors(vec, tol=vTol, equivPM=False):
         if v.shape[0] > 0:
             eqv2.append([ii] + list(v.astype(np.int64)))
     return eqv2, uid2
+
 
 @numba_njit_if_available(cache=True, nogil=True, parallel=True)
 def _findduplicatevectors(vec, tol, equivPM):
@@ -739,7 +739,8 @@ def _findduplicatevectors(vec, tol, equivPM):
     if equivPM:
         vec2 = np.abs(vec.copy())
 
-    n = vec.shape[0]; m = vec.shape[1]
+    n = vec.shape[0]
+    m = vec.shape[1]
 
     eqv = np.zeros((m, m), dtype=np.float64)
     eqv[:] = np.nan
@@ -752,9 +753,9 @@ def _findduplicatevectors(vec, tol, equivPM):
             if jj > ii:
 
                 if equivPM:
-                    diff = np.sum(np.abs(vec[:,ii]-vec2[:,jj]))
+                    diff = np.sum(np.abs(vec[:, ii]-vec2[:, jj]))
                 else:
-                    diff = np.sum(np.abs(vec[:,ii]-vec[:,jj]))
+                    diff = np.sum(np.abs(vec[:, ii]-vec[:, jj]))
 
                 if diff < tol:
                     eqv_elem[ctr] = jj
