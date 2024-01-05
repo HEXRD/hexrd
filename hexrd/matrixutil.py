@@ -690,7 +690,7 @@ def findDuplicateVectors(vec, tol=vTol, equivPM=False):
     idx = eqv[mask].astype(np.int64)
     uid2 = list(np.delete(uid, idx))
     eqv2 = []
-    for ii in range(eqv.shape[1]):
+    for ii in range(eqv.shape[0]):
         v = eqv[ii, mask[ii, :]]
         if v.shape[0] > 0:
             eqv2.append([ii] + list(v.astype(np.int64)))
@@ -737,7 +737,7 @@ def _findduplicatevectors(vec, tol, equivPM):
     """
 
     if equivPM:
-        vec2 = np.abs(vec.copy())
+        vec2 = -vec.copy()
 
     n = vec.shape[0]
     m = vec.shape[1]
@@ -753,13 +753,16 @@ def _findduplicatevectors(vec, tol, equivPM):
             if jj > ii:
 
                 if equivPM:
-                    diff = np.sum(np.abs(vec[:, ii]-vec2[:, jj]))
+                    diff  = np.sum(np.abs(vec[:, ii]-vec2[:, jj]))
+                    diff2 = np.sum(np.abs(vec[:, ii]-vec[:, jj]))
+                    if diff < tol or diff2 < tol:
+                        eqv_elem[ctr] = jj
+                        ctr += 1
                 else:
                     diff = np.sum(np.abs(vec[:, ii]-vec[:, jj]))
-
-                if diff < tol:
-                    eqv_elem[ctr] = jj
-                    ctr += 1
+                    if diff < tol:
+                        eqv_elem[ctr] = jj
+                        ctr += 1
 
         for kk in range(ctr):
             eqv[ii, kk] = eqv_elem[kk]
