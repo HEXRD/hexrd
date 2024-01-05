@@ -32,7 +32,7 @@ from numpy.linalg import svd
 
 from scipy import sparse
 
-from hexrd.utils.decorators import numba_njit_if_available
+from hexrd.utils.decorators import limit_numba_threads, numba_njit_if_available
 from hexrd import constants
 from hexrd.constants import USE_NUMBA
 if USE_NUMBA:
@@ -697,6 +697,9 @@ def findDuplicateVectors(vec, tol=vTol, equivPM=False):
     return eqv2, uid2
 
 
+# We found that too many threads causes allocator contention,
+# so limit the number of threads here to just 8.
+@limit_numba_threads(8)
 @numba_njit_if_available(cache=True, nogil=True, parallel=True)
 def _findduplicatevectors(vec, tol, equivPM):
     """
@@ -749,20 +752,18 @@ def _findduplicatevectors(vec, tol, equivPM):
         ctr = 0
         eqv_elem = np.zeros((m, ), dtype=np.int64)
 
-        for jj in prange(m):
-            if jj > ii:
-
-                if equivPM:
-                    diff  = np.sum(np.abs(vec[:, ii]-vec2[:, jj]))
-                    diff2 = np.sum(np.abs(vec[:, ii]-vec[:, jj]))
-                    if diff < tol or diff2 < tol:
-                        eqv_elem[ctr] = jj
-                        ctr += 1
-                else:
-                    diff = np.sum(np.abs(vec[:, ii]-vec[:, jj]))
-                    if diff < tol:
-                        eqv_elem[ctr] = jj
-                        ctr += 1
+        for jj in prange(ii, m):
+            if equivPM:
+                diff  = np.sum(np.abs(vec[:, ii]-vec2[:, jj]))
+                diff2 = np.sum(np.abs(vec[:, ii]-vec[:, jj]))
+                if diff < tol or diff2 < tol:
+                    eqv_elem[ctr] = jj
+                    ctr += 1
+            else:
+                diff = np.sum(np.abs(vec[:, ii]-vec[:, jj]))
+                if diff < tol:
+                    eqv_elem[ctr] = jj
+                    ctr += 1
 
         for kk in range(ctr):
             eqv[ii, kk] = eqv_elem[kk]
