@@ -5,12 +5,3 @@ Dexela 2923 Subpanel:
     columns: 1536
     rows: 1944
     size: [0.0748, 0.0748]
-  transform:
-    tilt:
-      - 0
-      - 0
-      - 0
-    translation:
-      - 0
-      - 0
-      - 0

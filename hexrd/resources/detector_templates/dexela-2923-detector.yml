@@ -5,12 +5,3 @@ Dexela 2923:
     columns: 3072
     rows: 3888
     size: [0.0748, 0.0748]
-  transform:
-    tilt:
-      - 0
-      - 0
-      - 0
-    translation:
-      - 0
-      - 0
-      - 0
