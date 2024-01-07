@@ -752,7 +752,7 @@ def _findduplicatevectors(vec, tol, equivPM):
         ctr = 0
         eqv_elem = np.zeros((m, ), dtype=np.int64)
 
-        for jj in prange(ii, m):
+        for jj in prange(ii+1, m):
             if equivPM:
                 diff  = np.sum(np.abs(vec[:, ii]-vec2[:, jj]))
                 diff2 = np.sum(np.abs(vec[:, ii]-vec[:, jj]))
