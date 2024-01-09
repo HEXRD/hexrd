@@ -32,7 +32,7 @@ from numpy.linalg import svd
 
 from scipy import sparse
 
-from hexrd.utils.decorators import limit_numba_threads, numba_njit_if_available
+from hexrd.utils.decorators import numba_njit_if_available
 from hexrd import constants
 from hexrd.constants import USE_NUMBA
 if USE_NUMBA:
@@ -697,9 +697,6 @@ def findDuplicateVectors(vec, tol=vTol, equivPM=False):
     return eqv2, uid2
 
 
-# We found that too many threads causes allocator contention,
-# so limit the number of threads here to just 8.
-@limit_numba_threads(8)
 @numba_njit_if_available(cache=True, nogil=True)
 def _findduplicatevectors(vec, tol, equivPM):
     """
