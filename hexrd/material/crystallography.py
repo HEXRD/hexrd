@@ -700,6 +700,9 @@ class PlaneData(object):
             raise RuntimeError('have unparsed keyword arguments with keys: '
                                + str(list(kwargs.keys())))
 
+        # This is only used to calculate the structure factor if invalidated
+        self.__unitcell = None
+
         self.__calc()
 
         return
@@ -935,7 +938,27 @@ class PlaneData(object):
 
     wavelength = property(get_wavelength, set_wavelength, None)
 
+    def invalidate_structure_factor(self, unitcell):
+        # It can be expensive to compute the structure factor, so provide the
+        # option to just invalidate it, while providing a unit cell, so that
+        # it can be lazily computed from the unit cell.
+        self.__structFact = None
+        self._powder_intensity = None
+        self.__unitcell = unitcell
+
+    def _compute_sf_if_needed(self):
+        any_invalid = (
+            self.__structFact is None or
+            self._powder_intensity is None
+        )
+        if any_invalid and self.__unitcell is not None:
+            # Compute the structure factor first.
+            # This can be expensive to do, so we lazily compute it when needed.
+            hkls = self.getHKLs(allHKLs=True)
+            self.set_structFact(self.__unitcell.CalcXRSF(hkls))
+
     def get_structFact(self):
+        self._compute_sf_if_needed()
         return self.__structFact[~self.exclusions]
 
     def set_structFact(self, structFact):
@@ -953,6 +976,7 @@ class PlaneData(object):
 
     @property
     def powder_intensity(self):
+        self._compute_sf_if_needed()
         return self._powder_intensity[~self.exclusions]
 
     @staticmethod

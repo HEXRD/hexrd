@@ -226,7 +226,7 @@ class Material(object):
             self.reset_v0()
 
         self._newPdata()
-        self.update_structure_factor()
+        self.invalidate_structure_factor()
 
     def __str__(self):
         """String representation"""
@@ -291,7 +291,7 @@ class Material(object):
     def _hkls_changed(self):
         # Call this when something happens that changes the hkls...
         self._newPdata()
-        self.update_structure_factor()
+        self.invalidate_structure_factor()
 
     def _newPdata(self):
         """Create a new plane data instance if the hkls have changed"""
@@ -405,10 +405,8 @@ class Material(object):
 
         self._pData.exclusions = dflt_excl
 
-    def update_structure_factor(self):
-        hkls = self.planeData.getHKLs(allHKLs=True)
-        sf = self.unitcell.CalcXRSF(hkls)
-        self.planeData.set_structFact(sf)
+    def invalidate_structure_factor(self):
+        self.planeData.invalidate_structure_factor(self.unitcell)
 
     def compute_powder_overlay(
         self, ttharray=np.linspace(0, 80, 2000), fwhm=0.25, scale=1.0
@@ -1268,7 +1266,7 @@ class Material(object):
 
         self._charge = vals
         # self._newUnitcell()
-        # self.update_structure_factor()
+        # self.invalidate_structure_factor()
 
     @property
     def absorption_length(self):
@@ -1390,7 +1388,7 @@ class Material(object):
         self.charge = charge
 
         self._newUnitcell()
-        self.update_structure_factor()
+        self.invalidate_structure_factor()
 
     #
     #  ========== Methods

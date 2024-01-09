@@ -9,6 +9,7 @@ go into another topical module in :mod:`hexrd.utils`.
 from collections import OrderedDict
 from functools import wraps
 
+import numba
 import numpy as np
 import xxhash
 
@@ -139,3 +140,20 @@ if USE_NUMBA:
     from numba import prange
 else:
     prange = range
+
+
+# A decorator to limit the number of numba threads
+def limit_numba_threads(max_threads):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            prev_num_threads = numba.get_num_threads()
+            new_num_threads = min(prev_num_threads, max_threads)
+            numba.set_num_threads(new_num_threads)
+            try:
+                return func(*args, **kwargs)
+            finally:
+                numba.set_num_threads(prev_num_threads)
+
+        return wrapper
+
+    return decorator
