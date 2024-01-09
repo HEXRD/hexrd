@@ -700,7 +700,7 @@ def findDuplicateVectors(vec, tol=vTol, equivPM=False):
 # We found that too many threads causes allocator contention,
 # so limit the number of threads here to just 8.
 @limit_numba_threads(8)
-@numba_njit_if_available(cache=True, nogil=True, parallel=True)
+@numba_njit_if_available(cache=True, nogil=True)
 def _findduplicatevectors(vec, tol, equivPM):
     """
     Find vectors in an array that are equivalent to within
@@ -747,23 +747,26 @@ def _findduplicatevectors(vec, tol, equivPM):
 
     eqv = np.zeros((m, m), dtype=np.float64)
     eqv[:] = np.nan
+    eqv_elem_master = []
 
-    for ii in prange(m):
+    for ii in range(m):
         ctr = 0
         eqv_elem = np.zeros((m, ), dtype=np.int64)
-
-        for jj in prange(ii+1, m):
-            if equivPM:
-                diff  = np.sum(np.abs(vec[:, ii]-vec2[:, jj]))
-                diff2 = np.sum(np.abs(vec[:, ii]-vec[:, jj]))
-                if diff < tol or diff2 < tol:
-                    eqv_elem[ctr] = jj
-                    ctr += 1
-            else:
-                diff = np.sum(np.abs(vec[:, ii]-vec[:, jj]))
-                if diff < tol:
-                    eqv_elem[ctr] = jj
-                    ctr += 1
+        for jj in range(ii+1, m):
+            if not jj in eqv_elem_master:
+                if equivPM:
+                    diff  = np.sum(np.abs(vec[:, ii]-vec2[:, jj]))
+                    diff2 = np.sum(np.abs(vec[:, ii]-vec[:, jj]))
+                    if diff < tol or diff2 < tol:
+                        eqv_elem[ctr] = jj
+                        eqv_elem_master.append(jj)
+                        ctr += 1
+                else:
+                    diff = np.sum(np.abs(vec[:, ii]-vec[:, jj]))
+                    if diff < tol:
+                        eqv_elem[ctr] = jj
+                        eqv_elem_master.append(jj)
+                        ctr += 1
 
         for kk in range(ctr):
             eqv[ii, kk] = eqv_elem[kk]
