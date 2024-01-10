@@ -33,8 +33,10 @@ class StructurelessCalibrator:
         self._tth_distortion = tth_distortion
         self._engineering_constraints = engineering_constraints
         self.params = make_lmfit_params(self.instr,
-                                        self.meas_angles,
-                                        engineering_constraints=self.engineering_constraints)
+                                        meas_angles=self.meas_angles,
+                                        engineering_constraints=self.engineering_constraints,
+                                        calibration_type='structureless',
+                                        plane_data=None)
         self.set_minimizer()
 
     @property
