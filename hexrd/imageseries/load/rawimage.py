@@ -109,6 +109,7 @@ class RawImageSeriesAdapter(ImageSeriesAdapter):
             self.iframe = 0
         if key == 0:
             self.f.seek(0, 0)
+            _ = np.fromfile(self.f, np.byte, count=self.skipbytes) #dcp fix to make sure bytes are properly skipped
             self.iframe = 0
         if key != self.iframe:
             msg = "frame %d not available, series must be read in sequence!"
