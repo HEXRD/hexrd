@@ -42,7 +42,8 @@ def make_lmfit_params(instr,
         if not isinstance(meas_angles, list):
             msg = f'incorrect input type for meas_angles'
             raise TypeError('msg')
-        if not meas_angles:
+
+        if len(meas_angles) > 0:
             add_tth_parameters(all_params,
                                meas_angles)
         else:
