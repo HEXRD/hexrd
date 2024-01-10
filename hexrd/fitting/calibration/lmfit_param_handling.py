@@ -4,15 +4,51 @@ from hexrd.instrument import calc_angles_from_beam_vec
 from hexrd.rotations import RotMatEuler
 
 def make_lmfit_params(instr,
-                      meas_angles,
-                      engineering_constraints=None):
+                      meas_angles=None,
+                      engineering_constraints=None,
+                      calibration_type='structureless',
+                      plane_data=None):
+    """helper function to form a lmfit parameter class
+    to be used by a generic calibrator class.
+
+    Parameters
+    ----------
+    instr                   : hexrd.instrument.HEDMInstrument
+                              instrument to be refined
+    meas_angles             : list
+                              intial guess for the line positions
+                              in structureless calibration
+    engineering_constraints : str
+                              if 'TARDIS' then some extra constraints
+                              are added 
+    calibration_type        : str
+                              'structureless', 'fast_powder',
+                              'laue' or 'composite'. this keyword 
+                              decides what parameters are added
+
+    planeData               : hexrd.material.crystallography.PlaneData
+
+    Returns
+    -------
+    params : lmfit.Parameters
+        lmfit Parameter class object with all refinable variables
+    """
     params = lmfit.Parameters()
     # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
     all_params = []
     add_instr_params(all_params,
                      instr)
-    add_tth_parameters(all_params,
-                       meas_angles)
+    if calibration_type == 'structureless':
+        if not isinstance(meas_angles, list):
+            msg = f'incorrect input type for meas_angles'
+            raise TypeError('msg')
+        if not meas_angles:
+            add_tth_parameters(all_params,
+                               meas_angles)
+        else:
+            msg = f'empty meas_angles list'
+            raise ValueError(msg)
+
     params.add_many(*all_params)
     if engineering_constraints == 'TARDIS':
         # Since these plates always have opposite signs in y, we can add
