@@ -92,12 +92,18 @@ def make_lmfit_params(instr,
 def add_instr_params(parms_list,
                      instr):
     # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
-    parms_list.append(('beam_energy',instr.beam_energy,
-                        False, instr.beam_energy-0.2,
-                        instr.beam_energy+0.2))
-    azim, pol = calc_angles_from_beam_vec(instr.beam_vector)
-    parms_list.append(('beam_polar', pol, False, pol-2, pol+2))
-    parms_list.append(('beam_azimuth', azim, False, azim-2, azim+2))
+    if isinstance(instr.beam_vector, np.ndarray):
+        azim, pol = calc_angles_from_beam_vec(instr.beam_vector)
+        parms_list.append(('beam_polar', pol, False, pol-1, pol+1))
+        parms_list.append(('beam_azimuth', azim, False, azim-1, azim+1))
+        
+    elif isinstance(instr.beam_vector, dict):
+        for k, v in instr.beam_vectors.items():
+            azim, pol = calc_angles_from_beam_vec(v)
+            pname = f'{k}_beam_polar'
+            aname = f'{k}_beam_azimuth'
+            parms_list.append((pname, pol, False, pol-1, pol+1))
+            parms_list.append((aname, azim, False, azim-1, azim+1))
     parms_list.append(('instr_chi', np.degrees(instr.chi),
                        False, np.degrees(instr.chi)-1,
                        np.degrees(instr.chi)+1))
