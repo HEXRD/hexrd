@@ -201,3 +201,12 @@ class StructurelessCalibrator:
                     corr_dict[det_name] = tth_corr
             corr_list.append(corr_dict)
         return corr_list
+
+    @property
+    def two_XRS(self):
+        res = False
+        if not isinstance(self.instr.beam_vector, np.ndarray):
+            if isinstance(self.instr.beam_vector, dict):
+                if len(self.instr.beam_vector) > 1:
+                    res = True
+        return res
