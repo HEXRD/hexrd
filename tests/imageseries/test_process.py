@@ -1,6 +1,6 @@
 import numpy as np
 
-from .common import ImageSeriesTest, make_array_ims, compare
+from .common import ImageSeriesTest, make_array_ims, make_omega_meta, compare
 
 from hexrd import imageseries
 from hexrd.imageseries import process, ImageSeries
@@ -81,12 +81,15 @@ class TestImageSeriesProcess(ImageSeriesTest):
     def test_process_framelist(self):
         a, _ = make_array_ims()
         is_a = imageseries.open(None, 'array', data=a)
+        is_a.metadata["omega"] = make_omega_meta(len(is_a))
         ops = []
         frames = [0, 2]
         is_p = process.ProcessedImageSeries(is_a, ops, frame_list=frames)
         is_a2 = imageseries.open(None, 'array', data=a[tuple(frames), ...])
         diff = compare(is_a2, is_p)
         self.assertAlmostEqual(diff, 0., msg="frame list failed")
+        self.assertEqual(len(is_p), len(is_p.metadata["omega"]))
+
 
     def test_process_shape(self):
         a, _ = make_array_ims()

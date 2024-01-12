@@ -32,6 +32,8 @@ class ProcessedImageSeries(ImageSeries):
         self._oplist = oplist
         self._frames = kwargs.pop('frame_list', None)
         self._hasframelist = (self._frames is not None)
+        if self._hasframelist:
+            self._update_omega()
         self._opdict = {}
 
         self.addop(self.DARK, self._subtract_dark)
@@ -109,6 +111,11 @@ class ProcessedImageSeries(ImageSeries):
     def _gauss_laplace(self, img, sigma):
         return scipy.ndimage.gaussian_laplace(img, sigma)
 
+    def _update_omega(self):
+        """Update omega if there is a framelist"""
+        if "omega" in self.metadata:
+            omega = self.metadata["omega"]
+            self.metadata["omega"] = omega[self._frames]
     #
     # ==================== API
     #
