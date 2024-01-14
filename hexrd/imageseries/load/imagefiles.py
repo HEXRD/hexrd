@@ -30,10 +30,8 @@ class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
 
         Parameters
         ----------
-        fname: string | path
+        fname: string | Path
            name of YAML file or bytestring of YAML contents
-
-
         """
         self._fname = fname
         self._load_yml()
@@ -93,15 +91,18 @@ number of files: %s
         MAXFILF = 'max-file-frames'
         DTYPE = 'dtype'
         #
-        # Check whether fname is a filename or YAML content. If it has multiple
-        # lines, we consider it to be content, otherwise a file name.
+        # Check whether fname is a pathlib Path, a filename or YAML content.
+        # If it has multiple lines, we consider it to be YAML content,
+        # otherwise a file name.
         #
-        nlines = len(self.fname.splitlines())
+        is_str = isinstance(self.fname, str)
+        nlines = len(self.fname.splitlines()) if is_str else 1
         if nlines > 1:
             d = yaml.safe_load(self.fname)
         else:
             with open(self._fname, "r") as f:
                 d = yaml.safe_load(f)
+
         imgsd = d['image-files']
         dname = imgsd['directory']
         fglob = imgsd['files']
