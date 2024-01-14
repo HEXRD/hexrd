@@ -95,7 +95,17 @@ class TestFormatFrameCache(ImageSeriesFormatTest):
         """save/load frame-cache format"""
         imageseries.write(self.is_a, self.fcfile, self.fmt,
             threshold=self.thresh, cache_file=self.cache_file)
-        # is_fc = imageseries.open(self.fcfile, self.fmt, style='yml')
+        is_fc = imageseries.open(self.fcfile, self.fmt)
+        diff = compare(self.is_a, is_fc)
+        self.assertAlmostEqual(diff, 0., "frame-cache reconstruction failed")
+        self.assertTrue(compare_meta(self.is_a, is_fc))
+
+    def test_fmtfc_nocache_file(self):
+        """save/load frame-cache format with no cache_file arg"""
+        imageseries.write(
+            self.is_a, self.fcfile, self.fmt,
+            threshold=self.thresh
+        )
         is_fc = imageseries.open(self.fcfile, self.fmt)
         diff = compare(self.is_a, is_fc)
         self.assertAlmostEqual(diff, 0., "frame-cache reconstruction failed")

@@ -190,13 +190,14 @@ class WriteFrameCache(Writer):
            the imageseries to write
         fname: str or Path
            name of file to write;
+        threshold: float
+           threshold value for image, at or below which values are zeroed
         cache_file: str or Path, optional
            name of the npz file to save the image data, if not given in the
            `fname` argument; for YAML format (deprecated), this is required
         """
         Writer.__init__(self, ims, fname, **kwargs)
         self._thresh = self._opts['threshold']
-        cf = kwargs['cache_file']
         self._cache, self.cachename = self._set_cache()
         self.max_workers = kwargs.get('max_workers', None)
 
@@ -208,10 +209,10 @@ class WriteFrameCache(Writer):
             cachename = cache = self.fname
         else:
             if os.path.isabs(cf):
-                self._cache = cf
+                cache = cf
             else:
-                cdir = os.path.dirname(fname)
-                self._cache = os.path.join(cdir, cf)
+                cdir = os.path.dirname(self.fname)
+                cache = os.path.join(cdir, cf)
             cachename = cf
 
         return cache, cachename
