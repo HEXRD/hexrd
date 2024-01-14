@@ -41,6 +41,15 @@ def make_array_ims():
     return random_array, is_a
 
 
+def make_meta():
+    md = {'testing': '1,2,3'}
+    return {'testing': np.array([1, 2, 3])}
+
+
+def make_omega_meta(n):
+    return np.linspace((0,0), (1, 1), n)
+
+
 def compare(ims1, ims2):
     """compare two imageseries"""
     if len(ims1) != len(ims2):
@@ -60,11 +69,6 @@ def compare(ims1, ims2):
         maxdiff = np.maximum(maxdiff, fdiff)
 
     return maxdiff
-
-
-def make_meta():
-    md = {'testing': '1,2,3'}
-    return {'testing': np.array([1, 2, 3])}
 
 
 def compare_meta(ims1, ims2):
