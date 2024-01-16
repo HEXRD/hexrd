@@ -85,8 +85,17 @@ class Writer(object, metaclass=_RegisterWriter):
         self._fname_base = tmp[0]
         self._fname_suff = tmp[1]
 
-    pass  # end class
+    @property
+    def fname(self):
+        return self._fname
 
+    @property
+    def fname_dir(self):
+        return self._fname_dir
+
+    @property
+    def opts(self):
+        return self._opts
 
 class WriteH5(Writer):
     fmt = 'hdf5'
@@ -170,21 +179,47 @@ class WriteFrameCache(Writer):
     def __init__(self, ims, fname, **kwargs):
         """write yml file with frame cache info
 
-        kwargs has keys:
+        The default write option is to save image data and metadata all
+        in a single npz file. The original option was to have a YAML file
+        as the primary file and a specified cache file for the images; this
+        method is deprecated.
 
-        cache_file - name of array cache file
-        meta - metadata dictionary
+        Parameters
+        ----------
+        ims: Imageseries instance
+           the imageseries to write
+        fname: str or Path
+           name of file to write;
+        threshold: float
+           threshold value for image, at or below which values are zeroed
+        cache_file: str or Path, optional
+           name of the npz file to save the image data, if not given in the
+           `fname` argument; for YAML format (deprecated), this is required
         """
         Writer.__init__(self, ims, fname, **kwargs)
         self._thresh = self._opts['threshold']
-        cf = kwargs['cache_file']
-        if os.path.isabs(cf):
-            self._cache = cf
-        else:
-            cdir = os.path.dirname(fname)
-            self._cache = os.path.join(cdir, cf)
-        self._cachename = cf
+        self._cache, self.cachename = self._set_cache()
         self.max_workers = kwargs.get('max_workers', None)
+
+    def _set_cache(self):
+
+        cf = self.opts.get('cache_file')
+
+        if cf is None:
+            cachename = cache = self.fname
+        else:
+            if os.path.isabs(cf):
+                cache = cf
+            else:
+                cdir = os.path.dirname(self.fname)
+                cache = os.path.join(cdir, cf)
+            cachename = cf
+
+        return cache, cachename
+
+    @property
+    def cache(self):
+        return self._cache
 
     def _process_meta(self, save_omegas=False):
         d = {}
@@ -273,7 +308,7 @@ class WriteFrameCache(Writer):
         arrd['nframes'] = len(self._ims)
         arrd['dtype'] = str(self._ims.dtype).encode()
         arrd.update(self._process_meta())
-        np.savez_compressed(self._cache, **arrd)
+        np.savez_compressed(self.cache, **arrd)
 
     def write(self, output_yaml=False):
         """writes frame cache for imageseries
@@ -282,4 +317,8 @@ class WriteFrameCache(Writer):
         """
         self._write_frames()
         if output_yaml:
+            warnings.warn(
+                "YAML output for frame-cache is deprecated",
+                DeprecationWarning
+            )
             self._write_yml()
