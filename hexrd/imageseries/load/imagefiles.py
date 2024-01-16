@@ -25,13 +25,13 @@ class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
 
     format = 'image-files'
 
-    def __init__(self, fname, **kwargs):
+    def __init__(self, fname):
         """Constructor for image files image series
 
-        *fname* - should be yaml file with files and metadata sections
-        *kwargs* - keyword arguments
-                 . 'files' = a list of image files
-                 . 'metadata' = a dictionary
+        Parameters
+        ----------
+        fname: string | Path
+           name of YAML file or bytestring of YAML contents
         """
         self._fname = fname
         self._load_yml()
@@ -81,13 +81,28 @@ number of files: %s
             self.dtype, self.shape, self.singleframes)
         return s
 
+    @property
+    def fname(self):
+        return self._fname
+
     def _load_yml(self):
         EMPTY = 'empty-frames'
         MAXTOTF = 'max-total-frames'
         MAXFILF = 'max-file-frames'
         DTYPE = 'dtype'
-        with open(self._fname, "r") as f:
-            d = yaml.safe_load(f)
+        #
+        # Check whether fname is a pathlib Path, a filename or YAML content.
+        # If it has multiple lines, we consider it to be YAML content,
+        # otherwise a file name.
+        #
+        is_str = isinstance(self.fname, str)
+        nlines = len(self.fname.splitlines()) if is_str else 1
+        if nlines > 1:
+            d = yaml.safe_load(self.fname)
+        else:
+            with open(self._fname, "r") as f:
+                d = yaml.safe_load(f)
+
         imgsd = d['image-files']
         dname = imgsd['directory']
         fglob = imgsd['files']
