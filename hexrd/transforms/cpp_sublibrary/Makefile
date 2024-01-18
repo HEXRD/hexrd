@@ -1,6 +1,6 @@
 CXX = c++
-CXXFLAGS = -O3 -Wall -shared -fPIC -funroll-loops -Wno-maybe-uninitialized -fopenmp
-INCLUDES = -I/${CONDA_PREFIX}/include/eigen3/ -I/${CONDA_PREFIX}/include/xsimd -I/${CONDA_PREFIX}/include -I/${CONDA_PREFIX}/include/python3.11/
+CXXFLAGS = -O3 -Wall -shared -fPIC -funroll-loops -Wno-maybe-uninitialized -Wno-attributes -fopenmp
+INCLUDES = -I/${CONDA_PREFIX}/include -I/${CONDA_PREFIX}/include/python3.11/ -I/${CONDA_PREFIX}/lib/python3.11/site-packages/numpy/core/include
 SRCS_INVERSE_DISTORTION = src/inverse_distortion.cpp
 TARGET_DIR = ../../extensions/
 TARGET_NAME_INVERSE_DISTORTION = inverse_distortion
