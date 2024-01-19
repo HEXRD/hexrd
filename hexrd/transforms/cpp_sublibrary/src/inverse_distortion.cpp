@@ -1,4 +1,5 @@
 #define FORCE_IMPORT_ARRAY
+#define XTENSOR_USE_XSIMD
 
 #include <pybind11/pybind11.h>
 #include <xtensor/xmath.hpp>
