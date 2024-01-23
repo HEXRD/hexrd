@@ -2,6 +2,7 @@
 import distutils.ccompiler
 import os
 from pathlib import Path
+import platform
 from setuptools import setup, find_packages, Extension
 import subprocess
 import sys
@@ -24,10 +25,14 @@ install_reqs = [
     'scikit-image',
     'scikit-learn',
     'scipy',
-    'tbb',
     'tqdm',
     'xxhash',
 ]
+
+if platform.machine() == 'x86_64':
+    # tbb is an optional dependency, but it is nice to have
+    # Add it to the requirements automatically for intel computers.
+    install_reqs.append('tbb')
 
 # This will determine which compiler is being used to build the C modules
 compiler_type = distutils.ccompiler.get_default_compiler()
