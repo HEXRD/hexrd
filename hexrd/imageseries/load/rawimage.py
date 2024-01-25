@@ -1,5 +1,6 @@
 """ Adapter class for raw image reader"""
 import os
+import threading
 
 import numpy as np
 import yaml
@@ -30,6 +31,7 @@ class RawImageSeriesAdapter(ImageSeriesAdapter):
         self._shape = tuple((int(si) for si in y['shape'].split()))
         self._frame_size = self._shape[0] * self._shape[1]
         self._frame_bytes = self._frame_size * self.dtype.itemsize
+        self._frame_read_lock = threading.Lock()
         self.skipbytes = y['skip']
         self._len = self._get_length()
         self._meta = dict()
@@ -105,8 +107,12 @@ class RawImageSeriesAdapter(ImageSeriesAdapter):
 
     def __getitem__(self, key):
         count = key * self._frame_bytes + self.skipbytes
-        self.f.seek(count, 0)
-        frame = np.fromfile(self.f, self.dtype, count=self._frame_size)
+
+        # Ensure reading a frame the file is thread-safe
+        with self._frame_read_lock:
+            self.f.seek(count, 0)
+            frame = np.fromfile(self.f, self.dtype, count=self._frame_size)
+
         return frame.reshape(self.shape)
 
     @property
