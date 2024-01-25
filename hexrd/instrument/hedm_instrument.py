@@ -1257,7 +1257,10 @@ class HEDMInstrument(object):
                     func(task)
             else:
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    executor.map(func, tasks)
+                    # Evaluate the results via `list()`, so that if an
+                    # exception is raised in a thread, it will be re-raised
+                    # and visible to the user.
+                    list(executor.map(func, tasks))
 
             ring_maps_panel[det_key] = ring_maps
 
