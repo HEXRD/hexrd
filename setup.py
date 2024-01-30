@@ -115,15 +115,17 @@ def get_cpp_extensions():
     cpp_transform_pkgdir = Path('hexrd') / 'transforms/cpp_sublibrary'
     src_files = [str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')]
 
-    extra_compile_args = ['-O3', '-Wall', '-shared', '-std=c++11',
+    extra_compile_args = ['-O3', '-Wall', '-shared', '-std=c++14',
                           '-funroll-loops']
     if not sys.platform.startswith('win'):
         extra_compile_args.append('-fPIC')
 
     # Define include directories
     include_dirs = [
-        get_include_path('eigen3'),
         get_include_path('xsimd'),
+        get_include_path('xtensor'),
+        get_include_path('xtensor-python'),
+        get_include_path('xtl'),
         get_pybind11_include_path(),
         numpy.get_include(),
     ]

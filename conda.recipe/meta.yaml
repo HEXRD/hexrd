@@ -30,7 +30,8 @@ requirements:
     - numba
     - pybind11
     - xsimd
-    - eigen
+    - xtensor
+    - xtensor-python
 
   run:
     - appdirs
