@@ -1,11 +1,7 @@
-import os
 import json
 
 import numpy as np
 from hexrd.extensions import inverse_distortion
-
-
-test_dir = os.path.dirname(os.path.abspath(__file__))
 
 RHO_MAX = 204.8
 params = [
@@ -33,11 +29,8 @@ def test_large_input():
     assert xy_out.shape == xy_in.shape
 
 
-def test_logged_data():
-    with open(
-        os.path.join(test_dir, 'data', 'inverse_distortion_in_out.json'),
-        encoding='utf-8'
-    ) as f:
+def test_logged_data(test_data_dir):
+    with open(test_data_dir / 'inverse_distortion_in_out.json') as f:
         example_data = json.load(f)
 
     for example in example_data:
