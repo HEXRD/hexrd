@@ -23,7 +23,7 @@ from hexrd.constants import keVToAngstrom
 from hexrd import instrument
 from hexrd import imageseries
 from hexrd.imageseries import omega
-from hexrd.xrdutil import PolarView
+from hexrd.projections.polar import PolarView
 import time
 
 class LeBailCalibrator:
