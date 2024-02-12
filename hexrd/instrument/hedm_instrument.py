@@ -830,6 +830,14 @@ class HEDMInstrument(object):
         return ct.keVToAngstrom(self.beam_energy)
 
     @property
+    def has_multi_beam(self):
+        return bool(self.multi_beam_dict)
+
+    @property
+    def multi_beam_dict(self):
+        return {}
+
+    @property
     def beam_vector(self):
         return self._beam_vector
 
