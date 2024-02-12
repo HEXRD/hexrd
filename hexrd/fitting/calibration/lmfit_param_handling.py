@@ -20,10 +20,10 @@ def make_lmfit_params(instr,
                               in structureless calibration
     engineering_constraints : str
                               if 'TARDIS' then some extra constraints
-                              are added 
+                              are added
     calibration_type        : str
                               'structureless', 'fast_powder',
-                              'laue' or 'composite'. this keyword 
+                              'laue' or 'composite'. this keyword
                               decides what parameters are added
 
     planeData               : hexrd.material.crystallography.PlaneData
@@ -92,7 +92,22 @@ def make_lmfit_params(instr,
 def add_instr_params(parms_list,
                      instr):
     # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
-    if isinstance(instr.beam_vector, np.ndarray):
+    if instr.has_multi_beam:
+        for k, v in instr.multi_beam_dict.items():
+            azim, pol = calc_angles_from_beam_vec(v['beam_vector'])
+            pname = f'{k}_beam_polar'
+            aname = f'{k}_beam_azimuth'
+            parms_list.append((pname, pol, False, pol-1, pol+1))
+            parms_list.append((aname, azim, False, azim-1, azim+1))
+
+            bname = f'{k}_beam_energy'
+            beam_energy = v['beam_energy']
+            parms_list.append((bname,
+                               beam_energy,
+                               False,
+                               beam_energy-0.2,
+                               beam_energy+0.2))
+    else:
         azim, pol = calc_angles_from_beam_vec(instr.beam_vector)
         parms_list.append(('beam_polar', pol, False, pol-1, pol+1))
         parms_list.append(('beam_azimuth', azim, False, azim-1, azim+1))
@@ -102,22 +117,6 @@ def add_instr_params(parms_list,
                             False,
                             instr.beam_energy-0.2,
                             instr.beam_energy+0.2))
-
-    elif isinstance(instr.beam_vector, dict):
-        for k, v in instr.beam_vectors.items():
-            azim, pol = calc_angles_from_beam_vec(v)
-            pname = f'{k}_beam_polar'
-            aname = f'{k}_beam_azimuth'
-            parms_list.append((pname, pol, False, pol-1, pol+1))
-            parms_list.append((aname, azim, False, azim-1, azim+1))
-
-            bname = f'{k}_beam_energy'
-            beam_energy = instr.beam_energy[k]
-            parms_list.append((bname,
-                               beam_energy,
-                               False,
-                               beam_energy-0.2,
-                               beam_energy+0.2))
 
     parms_list.append(('instr_chi', np.degrees(instr.chi),
                        False, np.degrees(instr.chi)-1,

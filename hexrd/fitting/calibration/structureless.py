@@ -204,9 +204,4 @@ class StructurelessCalibrator:
 
     @property
     def two_XRS(self):
-        res = False
-        if not isinstance(self.instr.beam_vector, np.ndarray):
-            if isinstance(self.instr.beam_vector, dict):
-                if len(self.instr.beam_vector) > 1:
-                    res = True
-        return res
+        return self.instr.has_multi_beam
