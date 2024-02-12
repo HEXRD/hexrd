@@ -1,7 +1,9 @@
 import lmfit
 import numpy as np
+
 from hexrd.instrument import calc_angles_from_beam_vec
 from hexrd.rotations import RotMatEuler
+
 
 def make_lmfit_params(instr,
                       meas_angles=None,
@@ -40,21 +42,21 @@ def make_lmfit_params(instr,
                      instr)
     if calibration_type == 'structureless':
         if not isinstance(meas_angles, list):
-            msg = f'incorrect input type for meas_angles'
-            raise TypeError('msg')
+            msg = 'incorrect input type for meas_angles'
+            raise TypeError(msg)
 
         if len(meas_angles) > 0:
             add_tth_parameters(all_params,
                                meas_angles)
         else:
-            msg = f'empty meas_angles list'
+            msg = 'empty meas_angles list'
             raise ValueError(msg)
 
     params.add_many(*all_params)
     if engineering_constraints == 'TARDIS':
         # Since these plates always have opposite signs in y, we can add
         # their absolute values to get the difference.
-        dist_plates = (np.abs(params['IMAGE_PLATE_2_tvec_y'])+
+        dist_plates = (np.abs(params['IMAGE_PLATE_2_tvec_y']) +
                        np.abs(params['IMAGE_PLATE_4_tvec_y']))
 
         min_dist = 22.83
@@ -65,32 +67,33 @@ def make_lmfit_params(instr,
             delta = np.abs(dist_plates - max_dist)
             dist_plates = max_dist
             params['IMAGE_PLATE_2_tvec_y'].value = (
-            params['IMAGE_PLATE_2_tvec_y'].value +
-                0.5*delta)
+                params['IMAGE_PLATE_2_tvec_y'].value + 0.5 * delta
+            )
             params['IMAGE_PLATE_4_tvec_y'].value = (
-            params['IMAGE_PLATE_4_tvec_y'].value -
-                0.5*delta)
+                params['IMAGE_PLATE_4_tvec_y'].value - 0.5 * delta
+            )
         elif dist_plates < min_dist:
             delta = np.abs(dist_plates - min_dist)
             dist_plates = min_dist
             params['IMAGE_PLATE_2_tvec_y'].value = (
-            params['IMAGE_PLATE_2_tvec_y'].value -
-                0.5*delta)
+                params['IMAGE_PLATE_2_tvec_y'].value - 0.5 * delta
+            )
             params['IMAGE_PLATE_4_tvec_y'].value = (
-            params['IMAGE_PLATE_4_tvec_y'].value +
-                0.5*delta)
+                params['IMAGE_PLATE_4_tvec_y'].value + 0.5 * delta
+            )
+
         params.add('tardis_distance_between_plates',
-                         value=dist_plates,
-                         min=min_dist,
-                         max=max_dist,
-                         vary=True)
+                   value=dist_plates,
+                   min=min_dist,
+                   max=max_dist,
+                   vary=True)
         expr = 'tardis_distance_between_plates - abs(IMAGE_PLATE_2_tvec_y)'
         params['IMAGE_PLATE_4_tvec_y'].expr = expr
 
     return params
 
-def add_instr_params(parms_list,
-                     instr):
+
+def add_instr_params(parms_list, instr):
     # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
     if instr.has_multi_beam:
         for k, v in instr.multi_beam_dict.items():
@@ -113,10 +116,10 @@ def add_instr_params(parms_list,
         parms_list.append(('beam_azimuth', azim, False, azim-1, azim+1))
 
         parms_list.append(('beam_energy',
-                            instr.beam_energy,
-                            False,
-                            instr.beam_energy-0.2,
-                            instr.beam_energy+0.2))
+                           instr.beam_energy,
+                           False,
+                           instr.beam_energy-0.2,
+                           instr.beam_energy+0.2))
 
     parms_list.append(('instr_chi', np.degrees(instr.chi),
                        False, np.degrees(instr.chi)-1,
@@ -167,19 +170,20 @@ def add_instr_params(parms_list,
                            panel.tvec[2]+1))
         if panel.distortion is not None:
             p = panel.distortion.params
-            for ii,pp in enumerate(p):
-                parms_list.append((f'{det}_distortion_param_{ii}',pp,
+            for ii, pp in enumerate(p):
+                parms_list.append((f'{det}_distortion_param_{ii}', pp,
                                    False, -np.inf, np.inf))
         if panel.detector_type.lower() == 'cylindrical':
-            parms_list.append((f'{det}_radius', panel.radius, False, -np.inf, np.inf))
+            parms_list.append((f'{det}_radius', panel.radius, False,
+                               -np.inf, np.inf))
 
-def add_tth_parameters(parms_list,
-                       meas_angles):
-    for ii,tth in enumerate(meas_angles):
+
+def add_tth_parameters(parms_list, meas_angles):
+    for ii, tth in enumerate(meas_angles):
         ds_ang = np.empty([0,])
-        for k,v in tth.items():
+        for k, v in tth.items():
             if v is not None:
-                ds_ang = np.concatenate((ds_ang, v[:,0]))
+                ds_ang = np.concatenate((ds_ang, v[:, 0]))
         if ds_ang.size != 0:
             val = np.degrees(np.mean(ds_ang))
             parms_list.append((f'DS_ring_{ii}',
