@@ -948,6 +948,34 @@ class HEDMInstrument(object):
         return self._calibration_parameters
 
     @property
+    def calibration_flags_to_lmfit_names(self):
+        # Create a list identical in length to `self.calibration_flags`
+        # where the entries in the list are the corresponding lmfit
+        # parameter names.
+        flags = [
+            'beam_energy',
+            'beam_azimuth',
+            'beam_polar',
+            'instr_chi',
+            'instr_tvec_x',
+            'instr_tvec_y',
+            'instr_tvec_z',
+        ]
+
+        for panel in self.detectors.values():
+            flags += panel.calibration_flags_to_lmfit_names
+
+        return flags
+
+    def set_calibration_flags_to_lmfit_params(self, params_dict):
+        # Take the refinement flags from the old `self.calibration_flags`
+        # style of flags and set them to the provided lmfit params dict.
+        flags = self.calibration_flags
+        for i, name in enumerate(self.calibration_flags_to_lmfit_names):
+            if name in params_dict:
+                params_dict[name].vary = flags[i]
+
+    @property
     def calibration_flags(self):
         return self._calibration_flags
 

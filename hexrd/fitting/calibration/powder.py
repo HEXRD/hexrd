@@ -1,127 +1,81 @@
 import numpy as np
 
 from hexrd import matrixutil as mutil
+from hexrd.utils.hkl import hkl_to_str, str_to_hkl
 
-from .. import spectrum
-
+from .calibrator import Calibrator
+from .lmfit_param_handling import (
+    create_material_params,
+    update_material_from_params,
+)
 
 nfields_powder_data = 8
 
 
-class PowderCalibrator:
-    def __init__(self, instr, plane_data, img_dict, flags,
+class PowderCalibrator(Calibrator):
+    type = 'powder'
+
+    def __init__(self, instr, material, img_dict, default_refinements=None,
                  tth_tol=None, eta_tol=0.25,
                  fwhm_estimate=None, min_pk_sep=1e-3, min_ampl=0.,
                  pktype='pvoigt', bgtype='linear',
-                 tth_distortion=None):
+                 tth_distortion=None, calibration_picks=None):
         assert list(instr.detectors.keys()) == list(img_dict.keys()), \
             "instrument and image dict must have the same keys"
-        self._instr = instr
-        self._plane_data = plane_data
-        self._tth_distortion = tth_distortion
-        self._fwhm_estimate = fwhm_estimate
-        self._min_pk_sep = min_pk_sep
-        self._min_ampl = min_ampl
-        self._plane_data.wavelength = self._instr.beam_energy  # force
-        self._img_dict = img_dict
-        self._params = np.asarray(plane_data.lparms, dtype=float)
-        self._full_params = np.hstack(
-            [self._instr.calibration_parameters, self._params]
-        )
-        assert len(flags) == len(self._full_params), \
-            "flags must have %d elements" % len(self._full_params)
-        self._flags = flags
 
-        nparams_instr = len(self._instr.calibration_parameters)
-        # nparams_extra = len(self._params)
-        # nparams = nparams_instr + nparams_extra
-        self._instr.calibration_flags = self._flags[:nparams_instr]
+        self.instr = instr
+        self.material = material
+        self.img_dict = img_dict
+        self.default_refinements = default_refinements
 
         # for polar interpolation
-        if tth_tol is None:
-            self._tth_tol = np.degrees(plane_data.tThWidth)
-        else:
-            self._tth_tol = tth_tol
-            self._plane_data.tThWidth = np.radians(tth_tol)
-        self._eta_tol = eta_tol
+        if tth_tol is not None:
+            # This modifies the width on the plane data. Default to whatever
+            # is on the plane data, so only set it if it is not None.
+            self.tth_tol = tth_tol
 
-        # for peak fitting
-        # ??? fitting only, or do alternative peak detection?
-        self._pktype = pktype
-        self._bgtype = bgtype
+        self.eta_tol = eta_tol
+        self.fwhm_estimate = fwhm_estimate
+        self.min_pk_sep = min_pk_sep
+        self.min_ampl = min_ampl
+        self.pktype = pktype
+        self.bgtype = bgtype
+        self.tth_distortion = tth_distortion
 
-        # container for calibration data
-        self._calibration_data = None
+        self.plane_data.wavelength = instr.beam_energy  # force
 
-    @property
-    def npi(self):
-        return len(self._instr.calibration_parameters)
+        self.param_names = []
 
-    @property
-    def instr(self):
-        return self._instr
+        self.data_dict = None
+        if calibration_picks is not None:
+            # container for calibration data
+            self.calibration_picks = calibration_picks
+
+    def create_lmfit_params(self, current_params):
+        # There shouldn't be more than one calibrator for a given material, so
+        # just assume we have a unique name...
+        params = create_material_params(self.material,
+                                        self.default_refinements)
+
+        self.param_names = [x[0] for x in params]
+        return params
+
+    def update_from_lmfit_params(self, params_dict):
+        update_material_from_params(params_dict, self.material)
 
     @property
     def plane_data(self):
-        self._plane_data.wavelength = self._instr.beam_energy
-        self._plane_data.tThWidth = np.radians(self.tth_tol)
-        return self._plane_data
-
-    @property
-    def tth_distortion(self):
-        return self._tth_distortion
-
-    @property
-    def img_dict(self):
-        return self._img_dict
+        return self.material.planeData
 
     @property
     def tth_tol(self):
-        return self._tth_tol
+        tth_tol = self.plane_data.tThWidth
+        return np.degrees(tth_tol) if tth_tol is not None else tth_tol
 
     @tth_tol.setter
     def tth_tol(self, x):
         assert np.isscalar(x), "tth_tol must be a scalar value"
-        self._tth_tol = x
-
-    @property
-    def eta_tol(self):
-        return self._eta_tol
-
-    @eta_tol.setter
-    def eta_tol(self, x):
-        assert np.isscalar(x), "eta_tol must be a scalar value"
-        self._eta_tol = x
-
-    @property
-    def fwhm_estimate(self):
-        return self._fwhm_estimate
-
-    @fwhm_estimate.setter
-    def fwhm_estimate(self, x):
-        if x is not None:
-            assert np.isscalar(x), "fwhm_estimate must be a scalar value"
-        self._fwhm_estimate = x
-
-    @property
-    def min_pk_sep(self):
-        return self._min_pk_sep
-
-    @min_pk_sep.setter
-    def min_pk_sep(self, x):
-        if x is not None:
-            assert x > 0., "min_pk_sep must be greater than zero"
-        self._min_pk_sep = x
-
-    @property
-    def min_ampl(self):
-        return self._min_ampl
-
-    @min_ampl.setter
-    def min_ampl(self, x):
-        if x is not None:
-            assert x > 0., "min_ampl must be greater than zero"
-        self._min_ampl = x
+        self.plane_data.tThWidth = np.radians(self.tth_tol)
 
     @property
     def spectrum_kwargs(self):
@@ -132,78 +86,42 @@ class PowderCalibrator:
                     min_pk_sep=self.min_pk_sep)
 
     @property
-    def calibration_data(self):
-        return self._calibration_data
+    def calibration_picks(self):
+        # Convert this from our internal data dict format
+        picks = {}
+        for det_key, data in self.data_dict.items():
+            picks[det_key] = {}
+            for ringset in data:
+                for row in ringset:
+                    # Rows 3, 4, and 5 are the hkl
+                    hkl_str = hkl_to_str(row[3:6].astype(int))
+                    picks[det_key].setdefault(hkl_str, [])
+                    # Rows 0 and 1 are the xy coordinates
+                    picks[det_key][hkl_str].append(row[:2].tolist())
 
-    @property
-    def params(self):
-        return self._params
+        return picks
 
-    @params.setter
-    def params(self, x):
-        x = np.atleast_1d(x)
-        if len(x) != len(self.plane_data.lparms):
-            raise RuntimeError("params must have %d elements"
-                               % len(self.plane_data.lparms))
-        self._params = x
-        self._plane_data.lparms = x
+    @calibration_picks.setter
+    def calibration_picks(self, v):
+        # Convert this to our internal data dict format
+        data_dict = {}
+        for det_key, hkl_picks in v.items():
+            data_dict[det_key] = []
+            for hkl_str, picks in hkl_picks.items():
+                if len(picks) == 0:
+                    # Just skip over it
+                    continue
 
-    @property
-    def full_params(self):
-        return self._full_params
+                data = np.zeros((len(picks), 8), dtype=np.float64)
+                # Rows 0 and 1 are the xy coordinates
+                data[:, :2] = np.asarray(picks)
+                # Rows 3, 4, and 5 are the hkl
+                data[:, 3:6] = str_to_hkl(hkl_str)
+                data_dict[det_key].append(data)
 
-    @property
-    def npe(self):
-        return len(self._params)
+        self.data_dict = data_dict
 
-    @property
-    def flags(self):
-        return self._flags
-
-    @flags.setter
-    def flags(self, x):
-        x = np.atleast_1d(x)
-        nparams_instr = len(self.instr.calibration_parameters)
-        nparams_extra = len(self.params)
-        nparams = nparams_instr + nparams_extra
-        if len(x) != nparams:
-            raise RuntimeError("flags must have %d elements" % nparams)
-        self._flags = np.asarrasy(x, dtype=bool)
-        self._instr.calibration_flags = self._flags[:nparams_instr]
-
-    @property
-    def pktype(self):
-        return self._pktype
-
-    @pktype.setter
-    def pktype(self, x):
-        """
-        currently only
-            'gaussian', 'lorentzian,
-            'pvoigt', 'split_pvoigt',
-            or 'pink_beam_dcs'
-        """
-        assert x in spectrum._function_dict_1d, \
-            "pktype '%s' not understood"
-        self._pktype = x
-
-    @property
-    def bgtype(self):
-        return self._bgtype
-
-    @bgtype.setter
-    def bgtype(self, x):
-        """
-        currently only
-            'gaussian', 'lorentzian,
-            'pvoigt', 'split_pvoigt',
-            or 'pink_beam_dcs'
-        """
-        assert x in spectrum._function_dict_1d, \
-            "pktype '%s' not understood"
-        self._bgtype = x
-
-    def _extract_powder_lines(self, fit_tth_tol=5., int_cutoff=1e-4):
+    def autopick_points(self, fit_tth_tol=5., int_cutoff=1e-4):
         """
         return the RHS for the instrument DOF and image dict
 
@@ -303,20 +221,15 @@ class PowderCalibrator:
 
                 rhs[det_key].append(np.vstack(ret))
 
-        # assign attribute
-        self._calibration_data = rhs
+        self.data_dict = rhs
+        return rhs
 
-    def _evaluate(self, reduced_params,
-                  calibration_data=None, output='residual'):
+    def _evaluate(self, output='residual'):
         """
         Evaluate the powder diffraction model.
 
         Parameters
         ----------
-        reduced_params : TYPE
-            DESCRIPTION.
-        calibration_data : TYPE
-            DESCRIPTION.
         output : TYPE, optional
             DESCRIPTION. The default is 'residual'.
 
@@ -331,37 +244,22 @@ class PowderCalibrator:
             DESCRIPTION.
 
         """
-        # first update full parameters from input reduced parameters
-        # TODO: make this process a class method
-        full_params = np.asarray(self.full_params)
-        full_params[self.flags] = reduced_params
-
-        # !!! properties update from parameters
-        self.instr.update_from_parameter_list(full_params[:self.npi])
-        self.params = full_params[self.npi:]
+        # In case the beam energy was modified, ensure it is updated
+        # on the plane data as well.
+        self.plane_data.wavelength = self.instr.beam_energy
 
         # need this for dsp
         bmat = self.plane_data.latVecOps['B']
         wlen = self.instr.beam_wavelength
 
-        # calibration data
-        if calibration_data is None:
-            if self.calibration_data is None:
-                raise RuntimeError(
-                    "calibration data has not been provided; " +
-                    "run extraction method or assign table from picks."
-                )
-        else:
-            self._calibration_data = calibration_data
-
         # build residual
         retval = np.array([], dtype=float)
         for det_key, panel in self.instr.detectors.items():
-            if len(self.calibration_data[det_key]) == 0:
+            if len(self.data_dict[det_key]) == 0:
                 continue
             else:
                 # recast as array
-                pdata = np.vstack(self.calibration_data[det_key])
+                pdata = np.vstack(self.data_dict[det_key])
 
                 """
                 Here is the strategy:
@@ -400,7 +298,6 @@ class PowderCalibrator:
                     tmp = sd.apply(meas_xy, return_nominal=False)
                     corr_angs = tmp + np.vstack([tth0, np.zeros_like(tth0)]).T
                     tth0, eta0 = corr_angs.T
-                    pass
 
                 # map updated (tth0, eta0) back to cartesian coordinates
                 tth_eta = np.vstack([tth0, eta0]).T
@@ -433,12 +330,8 @@ class PowderCalibrator:
 
         return retval
 
-    def residual(self, reduced_params, calibration_data=None):
-        return self._evaluate(reduced_params,
-                              calibration_data=calibration_data,
-                              output='residual')
+    def residual(self):
+        return self._evaluate(output='residual')
 
-    def model(self, reduced_params, calibration_data=None):
-        return self._evaluate(reduced_params,
-                              calibration_data=calibration_data,
-                              output='model')
+    def model(self):
+        return self._evaluate(output='model')
