@@ -1,100 +1,13 @@
-import lmfit
 import numpy as np
 
 from hexrd.instrument import calc_angles_from_beam_vec
 from hexrd.rotations import RotMatEuler
+from hexrd.material.unitcell import _lpname
 
 
-def make_lmfit_params(instr,
-                      meas_angles=None,
-                      engineering_constraints=None,
-                      calibration_type='structureless',
-                      plane_data=None):
-    """helper function to form a lmfit parameter class
-    to be used by a generic calibrator class.
-
-    Parameters
-    ----------
-    instr                   : hexrd.instrument.HEDMInstrument
-                              instrument to be refined
-    meas_angles             : list
-                              intial guess for the line positions
-                              in structureless calibration
-    engineering_constraints : str
-                              if 'TARDIS' then some extra constraints
-                              are added
-    calibration_type        : str
-                              'structureless', 'fast_powder',
-                              'laue' or 'composite'. this keyword
-                              decides what parameters are added
-
-    planeData               : hexrd.material.crystallography.PlaneData
-
-    Returns
-    -------
-    params : lmfit.Parameters
-        lmfit Parameter class object with all refinable variables
-    """
-    params = lmfit.Parameters()
+def create_instr_params(instr):
     # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
-    all_params = []
-    add_instr_params(all_params,
-                     instr)
-    if calibration_type == 'structureless':
-        if not isinstance(meas_angles, list):
-            msg = 'incorrect input type for meas_angles'
-            raise TypeError(msg)
-
-        if len(meas_angles) > 0:
-            add_tth_parameters(all_params,
-                               meas_angles)
-        else:
-            msg = 'empty meas_angles list'
-            raise ValueError(msg)
-
-    params.add_many(*all_params)
-    if engineering_constraints == 'TARDIS':
-        # Since these plates always have opposite signs in y, we can add
-        # their absolute values to get the difference.
-        dist_plates = (np.abs(params['IMAGE_PLATE_2_tvec_y']) +
-                       np.abs(params['IMAGE_PLATE_4_tvec_y']))
-
-        min_dist = 22.83
-        max_dist = 23.43
-        # if distance between plates exceeds a certain value, then cap it
-        # at the max/min value and adjust the value of tvec_ys
-        if dist_plates > max_dist:
-            delta = np.abs(dist_plates - max_dist)
-            dist_plates = max_dist
-            params['IMAGE_PLATE_2_tvec_y'].value = (
-                params['IMAGE_PLATE_2_tvec_y'].value + 0.5 * delta
-            )
-            params['IMAGE_PLATE_4_tvec_y'].value = (
-                params['IMAGE_PLATE_4_tvec_y'].value - 0.5 * delta
-            )
-        elif dist_plates < min_dist:
-            delta = np.abs(dist_plates - min_dist)
-            dist_plates = min_dist
-            params['IMAGE_PLATE_2_tvec_y'].value = (
-                params['IMAGE_PLATE_2_tvec_y'].value - 0.5 * delta
-            )
-            params['IMAGE_PLATE_4_tvec_y'].value = (
-                params['IMAGE_PLATE_4_tvec_y'].value + 0.5 * delta
-            )
-
-        params.add('tardis_distance_between_plates',
-                   value=dist_plates,
-                   min=min_dist,
-                   max=max_dist,
-                   vary=True)
-        expr = 'tardis_distance_between_plates - abs(IMAGE_PLATE_2_tvec_y)'
-        params['IMAGE_PLATE_4_tvec_y'].expr = expr
-
-    return params
-
-
-def add_instr_params(parms_list, instr):
-    # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
+    parms_list = []
     if instr.has_multi_beam:
         for k, v in instr.multi_beam_dict.items():
             azim, pol = calc_angles_from_beam_vec(v['beam_vector'])
@@ -177,8 +90,11 @@ def add_instr_params(parms_list, instr):
             parms_list.append((f'{det}_radius', panel.radius, False,
                                -np.inf, np.inf))
 
+    return parms_list
 
-def add_tth_parameters(parms_list, meas_angles):
+
+def create_tth_parameters(meas_angles):
+    parms_list = []
     for ii, tth in enumerate(meas_angles):
         ds_ang = np.empty([0,])
         for k, v in tth.items():
@@ -191,3 +107,158 @@ def add_tth_parameters(parms_list, meas_angles):
                                True,
                                val-5.,
                                val+5.))
+    return parms_list
+
+
+def create_material_params(material, refinements=None):
+    # The refinements should be in reduced format
+    refine_idx = 0
+
+    parms_list = []
+    for i, lp_name in enumerate(_lpname):
+        if not material.unitcell.is_editable(lp_name):
+            continue
+
+        if i < 3:
+            # Lattice length
+            # Convert to angstroms
+            multiplier = 10
+            diff = 0.1
+        else:
+            # Lattice angle
+            multiplier = 1
+            diff = 0.5
+
+        refine = True if refinements is None else refinements[refine_idx]
+
+        val = material.lparms[i] * multiplier
+        parms_list.append((
+            f'{material.name}_{lp_name}',
+            val,
+            refine,
+            val - diff,
+            val + diff,
+        ))
+
+        refine_idx += 1
+
+    return parms_list
+
+
+def update_material_from_params(params, material):
+    new_lparms = material.lparms
+    for i, lp_name in enumerate(_lpname):
+        param_name = f'{material.name}_{lp_name}'
+        if param_name in params:
+            if i < 3:
+                # Lattice length
+                # Convert to nanometers
+                multiplier = 0.1
+            else:
+                # Lattice angle
+                multiplier = 1
+
+            new_lparms[i] = params[param_name].value * multiplier
+
+    material.lparms = new_lparms
+
+    if 'beam_energy' in params:
+        # Make sure the beam energy is up-to-date from the instrument
+        material.planeData.wavelength = params['beam_energy'].value
+
+
+def grain_param_names(mat_name):
+    return [f'{mat_name}_grain_param_{i}' for i in range(12)]
+
+
+def create_grain_params(mat_name, grain, refinements=None):
+    param_names = grain_param_names(mat_name)
+    if refinements is None:
+        refinements = [True] * len(param_names)
+
+    parms_list = []
+    for i, name in enumerate(param_names):
+        parms_list.append((
+            name,
+            grain[i],
+            refinements[i],
+            grain[i] - 2,
+            grain[i] + 2,
+        ))
+    return parms_list
+
+
+def rename_to_avoid_collision(params, all_params):
+    # Rename any params to avoid name collisions
+    current_names = [x[0] for x in all_params]
+    new_params = []
+    old_to_new_mapping = {}
+    for param in params:
+        new_param_names = [x[0] for x in new_params]
+        all_param_names = current_names + new_param_names
+        old = param[0]
+        if param[0] in all_param_names:
+            i = 1
+            while f'{i}_{param[0]}' in all_param_names:
+                i += 1
+            param = (f'{i}_{param[0]}', *param[1:])
+        old_to_new_mapping[old] = param[0]
+        new_params.append(param)
+
+    return new_params, old_to_new_mapping
+
+
+def add_engineering_constraints(params, engineering_constraints):
+    if engineering_constraints == 'TARDIS':
+        # Since these plates always have opposite signs in y, we can add
+        # their absolute values to get the difference.
+        dist_plates = (np.abs(params['IMAGE_PLATE_2_tvec_y']) +
+                       np.abs(params['IMAGE_PLATE_4_tvec_y']))
+
+        min_dist = 22.83
+        max_dist = 23.43
+        # if distance between plates exceeds a certain value, then cap it
+        # at the max/min value and adjust the value of tvec_ys
+        if dist_plates > max_dist:
+            delta = np.abs(dist_plates - max_dist)
+            dist_plates = max_dist
+            params['IMAGE_PLATE_2_tvec_y'].value = (
+                params['IMAGE_PLATE_2_tvec_y'].value + 0.5 * delta
+            )
+            params['IMAGE_PLATE_4_tvec_y'].value = (
+                params['IMAGE_PLATE_4_tvec_y'].value - 0.5 * delta
+            )
+        elif dist_plates < min_dist:
+            delta = np.abs(dist_plates - min_dist)
+            dist_plates = min_dist
+            params['IMAGE_PLATE_2_tvec_y'].value = (
+                params['IMAGE_PLATE_2_tvec_y'].value - 0.5 * delta
+            )
+            params['IMAGE_PLATE_4_tvec_y'].value = (
+                params['IMAGE_PLATE_4_tvec_y'].value + 0.5 * delta
+            )
+
+        params.add('tardis_distance_between_plates',
+                   value=dist_plates,
+                   min=min_dist,
+                   max=max_dist,
+                   vary=True)
+        expr = 'tardis_distance_between_plates - abs(IMAGE_PLATE_2_tvec_y)'
+        params['IMAGE_PLATE_4_tvec_y'].expr = expr
+
+
+class LmfitValidationException(Exception):
+    pass
+
+
+def validate_params_list(params_list):
+    # Make sure there are no duplicate names
+    duplicate_names = []
+    for i, x in enumerate(params_list):
+        for y in params_list[i + 1:]:
+            if x[0] == y[0]:
+                duplicate_names.append(x[0])
+
+    if duplicate_names:
+        msg = f'Duplicate names found in params list: {duplicate_names}'
+        raise LmfitValidationException(msg)

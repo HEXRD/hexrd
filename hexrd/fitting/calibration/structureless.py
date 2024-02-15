@@ -1,7 +1,12 @@
 import lmfit
 import numpy as np
 
-from .lmfit_param_handling import make_lmfit_params
+from .lmfit_param_handling import (
+    add_engineering_constraints,
+    create_instr_params,
+    create_tth_parameters,
+)
+
 
 class StructurelessCalibrator:
     """
@@ -32,29 +37,31 @@ class StructurelessCalibrator:
         self._data = data
         self._tth_distortion = tth_distortion
         self._engineering_constraints = engineering_constraints
-        self.params = make_lmfit_params(self.instr,
-                                        meas_angles=self.meas_angles,
-                                        engineering_constraints=self.engineering_constraints,
-                                        calibration_type='structureless',
-                                        plane_data=None)
+        self.make_lmfit_params()
         self.set_minimizer()
 
-    @property
-    def engineering_params(self):
-        ret = []
-        if self.engineering_constraints == 'TARDIS':
-            ret.append('tardis_distance_between_plates')
-        return ret
+    def make_lmfit_params(self):
+        params = []
+        params += create_instr_params(self.instr)
+        params += create_tth_parameters(self.meas_angles)
+
+        params_dict = lmfit.Parameters()
+        params_dict.add_many(*params)
+
+        add_engineering_constraints(params_dict, self.engineering_constraints)
+        self.params = params_dict
+        return params_dict
 
     def calc_residual(self, params):
         self.instr.update_from_lmfit_parameter_list(params)
         residual = np.empty([0,])
-        for ii, (rng, corr_rng) in enumerate(zip(self.meas_angles, self.tth_correction)):
+        for ii, (rng, corr_rng) in enumerate(zip(self.meas_angles,
+                                                 self.tth_correction)):
             for det_name, panel in self.instr.detectors.items():
                 if rng[det_name] is not None:
                     if rng[det_name].size != 0:
                         tth_rng = params[f'DS_ring_{ii}'].value
-                        tth_updated = np.degrees(rng[det_name][:,0])
+                        tth_updated = np.degrees(rng[det_name][:, 0])
                         delta_tth = tth_updated - tth_rng
                         if corr_rng[det_name] is not None:
                             delta_tth -= np.degrees(corr_rng[det_name])
@@ -108,7 +115,7 @@ class StructurelessCalibrator:
         return dictionary over panels with number
         of DS rings on each panel
         """
-        return len(data)
+        return len(self.data)
 
     @property
     def tth_distortion(self):
@@ -197,7 +204,7 @@ class StructurelessCalibrator:
                 for det_name, meas_xy in rng.items():
                     # !!! sd has ref to detector so is updated
                     sd = self.tth_distortion[det_name]
-                    tth_corr = sd.apply(meas_xy, return_nominal=False)[:,0]
+                    tth_corr = sd.apply(meas_xy, return_nominal=False)[:, 0]
                     corr_dict[det_name] = tth_corr
             corr_list.append(corr_dict)
         return corr_list

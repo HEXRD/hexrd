@@ -1089,6 +1089,16 @@ class Material(object):
             ]
         )
 
+    @lparms.setter
+    def lparms(self, v):
+        # Assume we are in `nm`, since that is what self.lparms returns.
+        # Convert to angstroms and set with latticeParameters
+        self.latticeParameters = np.array([
+            # Convert to angstroms
+            *(v[:3] * 10),
+            *v[3:],
+        ])
+
     @property
     def latticeType(self):
         return self.unitcell.latticeType

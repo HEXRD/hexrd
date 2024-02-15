@@ -1,4 +1,3 @@
-from .composite import CompositeCalibration
 from .instrument import InstrumentCalibrator
 from .laue import LaueCalibrator
 from .multigrain import calibrate_instrument_from_sx, generate_parameter_names
@@ -9,7 +8,6 @@ from .structureless import StructurelessCalibrator
 StructureLessCalibrator = StructurelessCalibrator
 
 __all__ = [
-    'CompositeCalibration',
     'calibrate_instrument_from_sx',
     'generate_parameter_names',
     'InstrumentCalibrator',
