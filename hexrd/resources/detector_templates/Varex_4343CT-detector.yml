@@ -1,0 +1,7 @@
+Varex_4343CT:
+  saturation_level: 65535
+  buffer: [2, 2]
+  pixels:
+    columns: 2880
+    rows: 2880
+    size: [0.15, 0.15]
