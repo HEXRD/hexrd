@@ -1104,7 +1104,7 @@ class unitcell:
             for j in range(i):
                 C[i, j] = C[j, i]
 
-        self.stifness = C
+        self.stiffness = C
         self.compliance = np.linalg.inv(C)
 
     def inside_spheretriangle(self, conn, dir3, hemisphere, switch):
@@ -1384,8 +1384,6 @@ class unitcell:
         '''
         rgb = self.color_directions(dir3, laueswitch)
         return rgb
-
-        self.stiffness = C
 
     def is_editable(self, lp_name):
         """
