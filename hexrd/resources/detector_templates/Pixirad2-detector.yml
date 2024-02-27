@@ -1,0 +1,10 @@
+# counter 15bit
+# pixel size: 60 μm hexagonal arrangement
+# pixel density: 323 pixels/mm2, equivalent to 55 μm on square arrangement
+Pixirad2:
+  saturation_level: 32768
+  buffer: [2, 2]
+  pixels:
+    columns: 1024
+    rows: 402
+    size: [0.06, 0.06]
