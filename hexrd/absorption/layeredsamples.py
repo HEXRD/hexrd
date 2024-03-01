@@ -151,6 +151,15 @@ class layeredsamples():
         return self.sample['thickness']
 
     @property
+    def sample_absorption_length(self):
+        return self.sample['material'].absorption_length
+
+    @property
     def window_thickness(self):
         return self.window['thickness']
+
+    @property
+    def window_absorption_length(self):
+        return self.window['material'].absorption_length
+    
     
