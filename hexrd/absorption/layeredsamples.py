@@ -3,7 +3,7 @@ from hexrd.material import Material
 from hexrd.rotations import make_rmat_euler
 from hexrd.instrument import HEDMInstrument
 
-class layeredsamples():
+class layeredsamples(object):
     """this class deals with intensity corrections
     related to self-absorption by a layered physics
     package. the class uses information from a material
@@ -34,11 +34,11 @@ class layeredsamples():
 
     Methods
     -------
-    transmission_sample
+    calc_transmission_sample
         compute transmission in sample
-    transmission_window
+    calc_transmission_window
         compute transmission in window
-    transmission
+    calc_transmission
         compute overall transmission over
         all detectors
     """
@@ -55,9 +55,7 @@ class layeredsamples():
         self.rmat_s = rmat_s
         self.transmission = dict.fromkeys(self.instr.detectors.keys())
 
-    def transmission(
-                    self,
-                    detector):
+    def calc_transmission(self):
 
         seca = 1./np.dot(det.bvec, self.sample_normal)
 
@@ -70,12 +68,14 @@ class layeredsamples():
 
             secb = 1./np.dot(dvecs, self.sample_normal).reshape(det.shape)
 
-            T_sample = self.transmission_sample(seca, secb)
-            T_window = self.transmission_window(secb)
+            T_sample = self.calc_transmission_sample(seca, secb)
+            T_window = self.calc_transmission_window(secb)
 
-    def transmission_sample(self, seca, secb):
+            self.transmission[det_name] = T_sample*T_window
+
+    def calc_transmission_sample(self, seca, secb):
         thickness_s = self.sample_thickness # in microns
-        mu_s = 1./self.sample_absorption_length
+        mu_s = 1./self.sample_absorption_length # in microns^-1
         x = (mu_s*thickness_s)
         pre = 1./x/(secb - seca)
 
@@ -83,9 +83,9 @@ class layeredsamples():
 
         return pre * (num/den)
 
-    def transmission_window(self, secb):
+    def calc_transmission_window(self, secb):
         thickness_w = self.window_thickness # in microns
-        mu_w = 1./self.window_absorption_length # in microns
+        mu_w = 1./self.window_absorption_length # in microns^-1
         return np.exp(-thickness_w*mu_w*secb)
 
     @property
@@ -125,6 +125,7 @@ class layeredsamples():
     def instr(self, ins):
         if not instance(ins, HEDMInstrument):
             raise ValueError(f'instr must be of type HEDMInstrument')
+        self._instr = ins
 
     @property
     def sample(self):
@@ -148,18 +149,26 @@ class layeredsamples():
 
     @property
     def sample_thickness(self):
+        if self.sample is None:
+            return 0.0
         return self.sample['thickness']
 
     @property
     def sample_absorption_length(self):
+        if self.sample is None:
+            return np.inf
         return self.sample['material'].absorption_length
 
     @property
     def window_thickness(self):
+        if self.window is None:
+            return 0.0
         return self.window['thickness']
 
     @property
     def window_absorption_length(self):
+        if self.window is None:
+            return np.inf
         return self.window['material'].absorption_length
     
     
