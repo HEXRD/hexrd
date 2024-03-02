@@ -56,9 +56,8 @@ class layeredsamples(object):
         self.transmission = dict.fromkeys(self.instr.detectors.keys())
 
     def calc_transmission(self):
-
-        seca = 1./np.dot(det.bvec, self.sample_normal)
-
+        bvec = self.instr.beam_vector
+        seca = 1./np.dot(bvec, self.sample_normal)
         for det_name, det in self.instr.detectors.items():
             x,y = det.pixel_coords
             xy_data = np.vstack((x.flatten(), y.flatten())).T
@@ -66,7 +65,7 @@ class layeredsamples(object):
             dvecs = det.cart_to_dvecs(xy_data)
             dvecs = dvecs/np.tile(np.linalg.norm(dvecs, axis=1), [3,1]).T
 
-            secb = 1./np.dot(dvecs, self.sample_normal).reshape(det.shape)
+            secb = np.abs(1./np.dot(dvecs, self.sample_normal).reshape(det.shape))
 
             T_sample = self.calc_transmission_sample(seca, secb)
             T_window = self.calc_transmission_window(secb)
@@ -78,10 +77,8 @@ class layeredsamples(object):
         mu_s = 1./self.sample_absorption_length # in microns^-1
         x = (mu_s*thickness_s)
         pre = 1./x/(secb - seca)
-
         num = np.exp(-x*seca) - np.exp(-x*secb)
-
-        return pre * (num/den)
+        return pre * num
 
     def calc_transmission_window(self, secb):
         thickness_w = self.window_thickness # in microns
@@ -123,7 +120,7 @@ class layeredsamples(object):
     
     @instr.setter
     def instr(self, ins):
-        if not instance(ins, HEDMInstrument):
+        if not isinstance(ins, HEDMInstrument):
             raise ValueError(f'instr must be of type HEDMInstrument')
         self._instr = ins
 
