@@ -33,10 +33,16 @@ format. Possible formats currently are:
   image files and metadata.
 * ``array`` - images are stored as a 3D numpy array; used for testing.
 
-See also [load options](https://github.com/donald-e-boyce/hexrd/wiki/ims-load-options).
+See also :ref:`keyword-options`.
 
 **Processed Imageseries.**
-This is a subclass of imageseries. It has a number of built-in operations, such as flipping, dark subtraction, restriction to a sub-rectangle. It was intended to be further subclassed by adding more operations. It is instantiated with an existing imageseries and a list of operations. When a frame is requested, the processed imageseries gets the frame from the original image series and applies the operations in order. It can then be saved as a regular imageseries and loaded as usual.
+This is a subclass of imageseries. It has a number of built-in operations,
+such as flipping, dark subtraction, restriction to a sub-rectangle, and
+selecting frames. It can be further subclassed by adding more operations. It is
+instantiated with an existing imageseries and a list of operations. When a
+frame is requested, the processed imageseries gets the frame from the original
+image series and applies the operations in order. It can then be saved as a
+regular imageseries and loaded as usual.
 
 For more detail, see [processed imageseries](https://github.com/donald-e-boyce/hexrd/wiki/processed-ims).
 
@@ -66,3 +72,7 @@ For the hexrd work, we usually have a sequence of rotations about the vertical a
 See [omega](https://github.com/donald-e-boyce/hexrd/wiki/imageseries-omega).
 
 .. include:: imageseries-usage.rst
+
+.. include:: imageseries-load-options.rst
+
+.. include:: imageseries-processed.rst
