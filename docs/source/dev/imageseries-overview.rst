@@ -40,10 +40,11 @@ format. Possible formats currently are:
 ``raw-image``
   This is for nonstandard or less common image formats that do not load with
   `fabio <https://pypi.org/project/fabio/>`. In that case, you can define
-  your own data format.
+  your own data format. This ``file`` argument is a YAML file.
 
 ``array``
-  images are stored as a 3D numpy array; used for testing.
+  images are stored as a 3D numpy array; used for testing. It takes no
+  ``file`` argument, use ``None``.
 
 See also :ref:`keyword-options`.
 

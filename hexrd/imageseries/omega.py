@@ -130,7 +130,6 @@ class OmegaImageSeries(ImageSeries):
 class OmegaWedges(object):
     """piecewise linear omega ranges"""
     def __init__(self, nframes):
-        """Constructor for OmegaWedge"""
         self.nframes = nframes
         self._wedges = []
     #

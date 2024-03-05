@@ -16,8 +16,10 @@ subtraction and flipping.
 **On Write.**
 
 ``path``
-    (required) path to directory containing data group (data set is named
-    `images`
+    (required) path to directory containing data group
+
+``dataname``
+    name of data set, default = "images"
 
 ``shuffle``
     (default=True) HDF5 write option
@@ -33,6 +35,11 @@ subtraction and flipping.
 ``path``
     (required) path to directory containing data group (data set is named
     `images`)
+
+``dataname``
+    name of data set, default = "images"; note that there is no actual
+    write option for this.
+
 
 Frame Cache
 ++++++++++++++++++++
@@ -154,3 +161,20 @@ Here is an example that describes the GE format:
       bytes: 2
       signed: false
       endian: little
+
+
+Array
+++++++
+
+This loads a 3D numpy array and treats it as an imageseries.
+
+**On Write.**
+
+There is no writer for this format.
+
+**On Open.**
+
+``data``
+   The 3-dimensional numpy array data.
+``metadata``
+   The metadata dictionary.
