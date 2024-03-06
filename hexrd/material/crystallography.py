@@ -943,12 +943,14 @@ class PlaneData(object):
         # option to just invalidate it, while providing a unit cell, so that
         # it can be lazily computed from the unit cell.
         self.__structFact = None
+        self._hedm_intensity = None
         self._powder_intensity = None
         self.__unitcell = unitcell
 
     def _compute_sf_if_needed(self):
         any_invalid = (
             self.__structFact is None or
+            self._hedm_intensity is None or
             self._powder_intensity is None
         )
         if any_invalid and self.__unitcell is not None:
@@ -965,11 +967,18 @@ class PlaneData(object):
         self.__structFact = structFact
         multiplicity = self.getMultiplicity(allHKLs=True)
         tth = self.getTTh(allHKLs=True)
-        lp = (1 + np.cos(tth)**2)/np.cos(0.5*tth)/np.sin(0.5*tth)**2/2.0
 
-        powderI = structFact*multiplicity*lp
-        powderI = 100.0*powderI/np.nanmax(powderI)
+        hedm_intensity = (
+            structFact * lorentz_factor(tth) * polarization_factor(tth)
+        )
 
+        powderI = hedm_intensity * multiplicity
+
+        # Now scale them
+        hedm_intensity = 100.0 * hedm_intensity / np.nanmax(hedm_intensity)
+        powderI = 100.0 * powderI / np.nanmax(powderI)
+
+        self._hedm_intensity = hedm_intensity
         self._powder_intensity = powderI
 
     structFact = property(get_structFact, set_structFact, None)
@@ -978,6 +987,11 @@ class PlaneData(object):
     def powder_intensity(self):
         self._compute_sf_if_needed()
         return self._powder_intensity[~self.exclusions]
+
+    @property
+    def hedm_intensity(self):
+        self._compute_sf_if_needed()
+        return self._hedm_intensity[~self.exclusions]
 
     @staticmethod
     def makePlaneData(hkls, lparms, qsym, symmGroup, strainMag, wavelength):
@@ -1947,3 +1961,51 @@ def RetrieveAtomicFormFactor(elecNum, magG, sinThOverLamdaList, ffDataList):
     )
 
     return ff
+
+
+def lorentz_factor(tth):
+    """
+    05/26/2022 SS adding lorentz factor computation
+    to the detector so that it can be compenstated for in the
+    intensity correction
+
+    parameters: tth two theta of every pixel in radians
+    """
+
+    theta = 0.5*tth
+
+    cth = np.cos(theta)
+    sth2 = np.sin(theta)**2
+
+    L = 1./(4.0*cth*sth2)
+
+    return L
+
+
+def polarization_factor(tth, unpolarized=True, eta=None,
+                        f_hor=None, f_vert=None):
+    """
+    06/14/2021 SS adding lorentz polarization factor computation
+    to the detector so that it can be compenstated for in the
+    intensity correction
+
+    05/26/2022 decoupling lorentz factor from polarization factor
+
+    parameters: tth two theta of every pixel in radians
+                if unpolarized is True, all subsequent arguments are optional
+                eta azimuthal angle of every pixel
+                f_hor fraction of horizontal polarization
+                (~1 for XFELs)
+                f_vert fraction of vertical polarization
+                (~0 for XFELs)
+    notice f_hor + f_vert = 1
+    """
+
+    ctth2 = np.cos(tth)**2
+
+    if unpolarized:
+        return (1 + ctth2) / 2
+
+    seta2 = np.sin(eta)**2
+    ceta2 = np.cos(eta)**2
+    return f_hor*(seta2 + ceta2*ctth2) + f_vert*(ceta2 + seta2*ctth2)

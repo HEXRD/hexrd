@@ -9,6 +9,7 @@ from hexrd import distortion as distortion_pkg
 from hexrd import matrixutil as mutil
 from hexrd import xrdutil
 
+from hexrd.material import crystallography
 from hexrd.material.crystallography import PlaneData
 
 from hexrd.transforms.xfcapi import (
@@ -36,6 +37,12 @@ panel_calibration_flags_DFLT = np.array(
 )
 
 beam_energy_DFLT = 65.351
+
+
+# Memoize these, so each detector can avoid re-computing if nothing
+# has changed.
+_lorentz_factor = memoize(crystallography.lorentz_factor)
+_polarization_factor = memoize(crystallography.polarization_factor)
 
 
 class Detector:
@@ -551,9 +558,15 @@ class Detector:
             raise RuntimeError(msg)
 
         tth, eta = self.pixel_angles()
-        args = (tth, eta, f_hor, f_vert, unpolarized)
+        kwargs = {
+            'tth': tth,
+            'eta': eta,
+            'f_hor': f_hor,
+            'f_vert': f_vert,
+            'unpolarized': unpolarized,
+        }
 
-        return _polarization_factor(*args)
+        return _polarization_factor(**kwargs)
 
     def lorentz_factor(self):
         """
@@ -575,9 +588,7 @@ class Detector:
             corresponding pixel
         """
         tth, eta = self.pixel_angles()
-        args = (tth,)
-
-        return _lorentz_factor(*args)
+        return _lorentz_factor(tth)
 
     def config_dict(self, chi=0, tvec=ct.zeros_3,
                     beam_energy=beam_energy_DFLT, beam_vector=ct.beam_vec,
@@ -1546,56 +1557,6 @@ def _row_edge_vec(rows, pixel_size_row):
 
 def _col_edge_vec(cols, pixel_size_col):
     return pixel_size_col*(np.arange(cols+1)-0.5*cols)
-
-
-@memoize
-def _polarization_factor(tth, eta, f_hor, f_vert, unpolarized):
-    """
-    06/14/2021 SS adding lorentz polarization factor computation
-    to the detector so that it can be compenstated for in the
-    intensity correction
-
-    05/26/2022 decoupling lorentz factor from polarization factor
-
-    parameters: tth two theta of every pixel in radians
-                eta azimuthal angle of every pixel
-                f_hor fraction of horizontal polarization
-                (~1 for XFELs)
-                f_vert fraction of vertical polarization
-                (~0 for XFELs)
-    notice f_hor + f_vert = 1
-    """
-
-    ctth2 = np.cos(tth)**2
-    seta2 = np.sin(eta)**2
-    ceta2 = np.cos(eta)**2
-
-    if unpolarized:
-        P = (1. + ctth2)/2.
-    else:
-        P = f_hor*(seta2 + ceta2*ctth2) + f_vert*(ceta2 + seta2*ctth2)
-
-    return P
-
-
-@memoize
-def _lorentz_factor(tth):
-    """
-    05/26/2022 SS adding lorentz factor computation
-    to the detector so that it can be compenstated for in the
-    intensity correction
-
-    parameters: tth two theta of every pixel in radians
-    """
-
-    theta = 0.5*tth
-
-    cth = np.cos(theta)
-    sth2 = np.sin(theta)**2
-
-    L = 1./(4.0*cth*sth2)
-
-    return L
 
 
 # FIXME find a better place for this, and maybe include loop over pixels
