@@ -197,7 +197,6 @@ class PolarView:
                detector.distortion)
         if detector.detector_type == 'cylindrical':
             arg = (gvec_angs,
-                   detector.rmat,
                    self.chi,
                    detector.tvec,
                    detector.caxis,
