@@ -73,9 +73,14 @@ If ``ims`` is an imageseries instance:
 * ``ims.metadata`` is a dictionary of metadata
 
 **Stats module.**
-This module delivers pixel by pixel stats on the imageseries. Functions are:
+This module delivers pixel by pixel stats on the imageseries. For each function
+below, there is also a corresponding iterator that does the same thing, but
+in smaller chunks.  The iterators are much better for median and percentiles,
+which involve data for all frames.  See the API docs. Functions are:
 
 * ``max(ims, nframes=0)`` gives a single image that is the max over all frames
+  or a subset
+* ``min(ims, nframes=0)`` gives a single image that is the min over all frames
   or a subset
 * ``average(ims, nframes=0)`` gives the mean pixel value over all the frames
   or a subset
@@ -85,6 +90,20 @@ This module delivers pixel by pixel stats on the imageseries. Functions are:
   or a subset
 
 The median is typically used to generate background images, but percentile could also be used too.
+
+Here is an example showing how to use the iterators.
+For example:
+
+.. code-block:: python
+
+    #  Using the standard function call
+    img = stats.average(ims)
+
+    # Using the iterable with 10 chunks
+    for img in stats.average_iter(ims, 10):
+        # update progress bar
+        pass
+
 
 **Omega module.**
 For the HEDM work, we usually have a sequence of rotations about the vertical
