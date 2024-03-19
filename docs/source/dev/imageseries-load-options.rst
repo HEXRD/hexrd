@@ -13,6 +13,16 @@ This is used at CHESS (Cornell High Energy Synchrotron Source). Raw data from
 the Dexela detectors comes out in HDF5 format. We still will do the dark
 subtraction and flipping.
 
+**On Open.**
+
+``path``
+    (required) path to directory containing data group (data set is named
+    `images`)
+
+``dataname``
+    name of data set, default = "images"; note that there is no actual
+    write option for this.
+
 **On Write.**
 
 ``path``
@@ -30,16 +40,6 @@ subtraction and flipping.
 ``chunk_rows``
     (default=all) sets HDF5 chunk size in terms of number of rows in image
 
-**On Open.**
-
-``path``
-    (required) path to directory containing data group (data set is named
-    `images`)
-
-``dataname``
-    name of data set, default = "images"; note that there is no actual
-    write option for this.
-
 
 Frame Cache
 ++++++++++++++++++++
@@ -49,6 +49,9 @@ A better name might be sparse matrix format because the images are stored as
 sparse matrices in numpy npz file. There are actually two forms of the
 frame-cache. The original is a YAML-based format, which is now deprecated.
 The current format is a single .npz file that includes array data and metadata.
+
+**On Open.**
+No options are available on open.
 
 **On Write.**
 
@@ -61,21 +64,11 @@ The current format is a single .npz file that includes array data and metadata.
 ``output_yaml``
     (default=False) This is deprecated.
 
-**On Open.**
-No options are available on open.
-
 
 Image Files
 +++++++++++++
 
 The format name is ``image-files``.
-
-**On Write.**
-
-There is actually no write function for this type of imageseries. It is
-usually used to load image data to be sparsed and saved in another (usually
-*frame-cache*) format.
-
 
 **On Open.**
 
@@ -93,29 +86,32 @@ YAML keywords are:
     - ``files``:  the list of images; it is a space separated list of file
       names or glob patterns
 
+``metadata``
+    (required) it usually contains array data or string, but it can be empty
+
 ``empty-frames``
     (optional) number of frames to skip at the beginning of
     each multiframe file; this is a commonly used option
 
 ``max-total-frames``
-    (optional) the maximum number of frames in the imageseries; this option
-     might be used for testing the data on a small number of frames
+    (optional) the maximum number of frames to make available in the
+    imageseries; this option might be used for testing the data on a small
+    number of frames
 
 ``max-file-frames``
     (optional) the maximum number of frames to read per file; this would
     be unusual
 
-``metadata``
-    (required) it usually contains array data or string, but it can be empty
+**On Write.**
+
+There is actually no write function for this type of imageseries. It is
+usually used to load image data to be sparsed and saved in another (usually
+*frame-cache*) format.
 
 
 Raw Image
 ++++++++++++++++++++
 The format name is ``raw-image``.
-
-**On Write.**
-
-Like the *image-files* format, there is no writer for this format.
 
 **On Open.**
 
@@ -134,7 +130,7 @@ YAML keywords are:
   - ``endian``: can be ``big`` or ``little``
 
 ``shape``
-  2-tuple of ints
+  2-tuple of ints describing the shape
 
 ``skip``
   number of bytes to skip at the beginning of the file (in the header)
@@ -162,15 +158,15 @@ Here is an example that describes the GE format:
       signed: false
       endian: little
 
+**On Write.**
+
+Like the *image-files* format, there is no writer for this format.
+
 
 Array
 ++++++
 
 This loads a 3D numpy array and treats it as an imageseries.
-
-**On Write.**
-
-There is no writer for this format.
 
 **On Open.**
 
@@ -178,3 +174,8 @@ There is no writer for this format.
    The 3-dimensional numpy array data.
 ``metadata``
    The metadata dictionary.
+
+
+**On Write.**
+
+There is no writer for this format.

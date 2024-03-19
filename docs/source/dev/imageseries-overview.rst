@@ -10,7 +10,7 @@ but the interface is independent of the source.
 See :ref:`examples` for an example of usage.
 
 **Open and Write.**
-The imageseries package has two main functions: open and save.
+The imageseries package has two main functions: open and write.
 
 .. code-block:: python
 
