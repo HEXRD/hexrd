@@ -7,18 +7,20 @@ import numpy as np
 
 
 class ArrayImageSeriesAdapter(ImageSeriesAdapter):
-    """collection of images in numpy array"""
+    """Collection of Images in numpy array
 
+    Parameters
+    ----------
+    fname: None
+       should be None
+    data: array (n, m, l)
+       3-dimensional data array
+    metadata: dict (optional)
+       the metadata dictionary
+    """
     format = 'array'
 
     def __init__(self, fname, **kwargs):
-        """Constructor for frame cache image series
-
-        *fname* - should be None
-        *kwargs* - keyword arguments
-                 . 'data' = a 3D array (double/float)
-                 . 'metadata' = a dictionary
-        """
         data_arr = np.array(kwargs['data'])
         if data_arr.ndim < 3:
             self._data = np.tile(data_arr, (1, 1, 1))
@@ -37,10 +39,7 @@ class ArrayImageSeriesAdapter(ImageSeriesAdapter):
 
     @property
     def metadata(self):
-        """(read-only) Image sequence metadata
-
-        Currently returns none
-        """
+        """Image sequence metadata"""
         return self._meta
 
     @property
@@ -57,8 +56,5 @@ class ArrayImageSeriesAdapter(ImageSeriesAdapter):
     def __iter__(self):
         return ImageSeriesIterator(self)
 
-    # @memoize
     def __len__(self):
         return self._nframes
-
-    pass  # end class

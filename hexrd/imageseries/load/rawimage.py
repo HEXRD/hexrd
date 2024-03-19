@@ -10,18 +10,17 @@ from ..imageseriesiter import ImageSeriesIterator
 
 
 class RawImageSeriesAdapter(ImageSeriesAdapter):
-    """collection of images in HDF5 format"""
+    """Image Data in Custom Format
+
+    Parameters
+    ----------
+    fname: string or Path
+       name of input YAML file describing the format
+    """
 
     format = 'raw-image'
 
     def __init__(self, fname, **kwargs):
-        """Image data in custom format
-
-        Parameters
-        ----------
-        fname: string or Path
-           name of input YAML file describing the format
-        """
         self.fname = fname
         with open(fname, "r") as f:
             y = yaml.safe_load(f)
@@ -72,10 +71,16 @@ class RawImageSeriesAdapter(ImageSeriesAdapter):
     def typechars(numtype, bytes_=4, signed=False, little=True):
         """Return byte-type for data type and endianness
 
-        numtype (str) - "i", "f", "d", "b"  for int, float, double or bool
-        bytes - number of bytes: 1,2,4, or 8 for ints only
-        signed (bool) - true for signed ints, false for unsigned
-        little (bool) - true for little endian
+        Parameters
+        ----------
+        numtype:  str {"i", "f", "d", "b"}
+            scalar type for int, float, double or bool
+        bytes: int
+            number of bytes: 1,2,4, or 8 (for ints only)
+        signed: bool
+            True for signed ints, False for unsigned
+        little: bool
+            True for little endian
         """
         intbytes = {
             1: "b",

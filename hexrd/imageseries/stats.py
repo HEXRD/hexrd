@@ -1,4 +1,4 @@
-"""aggregate statistics for imageseries
+"""Aggregate Statistics for Imageseries
 
 The functions here operate on the frames of an imageseries and return a
 single aggregate image. For each function, there is a corresponding iterable
@@ -8,15 +8,18 @@ sequence of images, the last being the final result.
 
 For example:
 
-#  Using the standard function call
-img = stats.average(ims)
+.. code-block:: python
 
-# Using the iterable with 10 chunks
-for img in stats.average_iter(ims, 10):
-    # update progress bar
-    pass
+    #  Using the standard function call
+    img = stats.average(ims)
 
-NOTE:
+    # Using the iterable with 10 chunks
+    for img in stats.average_iter(ims, 10):
+        # update progress bar
+        pass
+
+NOTES
+-----
 * Perhaps we should rename min -> minimum and max -> maximum to avoid
   conflicting with the python built-ins
 """
