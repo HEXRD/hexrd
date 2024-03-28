@@ -227,7 +227,10 @@ number of files: %s
             if frame is None:
                 data = img.data
             else:
-                data = img.getframe(frame).data
+                # Fabio does some arithmetic with the frame number.
+                # This can cause overflows if np.uint32 is used, so
+                # make sure we convert to a Python int before passing to fabio.
+                data = img.getframe(int(frame)).data
 
         return _process_data(filename, data)
 
