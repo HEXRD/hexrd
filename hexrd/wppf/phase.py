@@ -238,23 +238,26 @@ class Material_LeBail:
         J. Appl. Cryst. (2000). 33, 296-306
         """
         hkls = self.hkls.astype(np.float64)
-        sf_f = np.zeros([hkls.shape[0],])
         H2 = np.sum(hkls**2,axis=1)
-
+        sf_affected = []
         multiplicity = []
         Lfact = []
         for g in hkls:
-            gsym = self.CalcStar(g, 'r')
+            gsym = self.removeinversion(self.CalcStar(g, 'r'))
             L0 = np.sum(gsym,axis=1)
-            sign = -np.mod(L0,3)
+            sign = np.mod(np.abs(L0), 3)
+            sign[sign == 2] = -1
             multiplicity.append(gsym.shape[0])
             Lfact.append(np.sum(L0*sign))
+            n_unaffected = np.sum(sign == 0.)
+            affected_flag = n_unaffected < sign.shape[0]/2
+            sf_affected.append(affected_flag)
 
         Lfact = np.array(Lfact)
         multiplicity = np.array(multiplicity)
-
-
-        return (90.*np.sqrt(3)/np.pi**2)*Lfact/(H2*multiplicity)
+        sf_affected = np.array(sf_affected)
+        sf_f = (90.*np.sqrt(3)/np.pi**2)*Lfact/(H2*multiplicity)
+        return sf_f, sf_affected
 
     def GenerateRecipPGSym(self):
 
@@ -324,6 +327,31 @@ class Material_LeBail:
             if(isnew):
                 vsym = np.vstack((vsym, vp))
         return vsym
+
+    def removeinversion(self, ksym):
+        """
+        this function chooses a subset from a list 
+        of symmetrically equivalent reflections such
+        that there are no g and -g present.
+        """
+        klist = []
+        for i in range(ksym.shape[0]):
+            k = ksym[i,:]
+            kk = list(k)
+            nkk = list(-k)
+            if klist == []:
+                if(np.sum(k) > np.sum(-k)):
+                    klist.append(kk)
+                else:
+                    klist.append(nkk)
+
+            else:
+                if ( (kk in klist) or (nkk in klist) ):
+                    pass
+                else:
+                    klist.append(kk)
+        klist = np.array(klist)
+        return klist
 
     def ChooseSymmetric(self, hkllist, InversionSymmetry=True):
         """

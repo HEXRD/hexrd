@@ -341,14 +341,16 @@ class LeBail:
         self.hkls = {}
         self.dsp = {}
         self.sf_hkl_factors = {}
+        self.sf_hkl_affected = {}
         for p in self.phases:
             self.tth[p] = {}
             self.hkls[p] = {}
             self.dsp[p] = {}
             self.sf_hkl_factors[p] = {}
+            self.sf_hkl_affected[p] = {}
             for k, l in self.phases.wavelength.items():
                 t = self.phases[p].getTTh(l[0].getVal('nm'))
-                sf_f = self.phases[p].get_sf_hkl_factors()
+                sf_f, affected = self.phases[p].get_sf_hkl_factors()
                 allowed = self.phases[p].wavelength_allowed_hkls
                 t = t[allowed]
                 hkl = self.phases[p].hkls[allowed, :]
@@ -361,6 +363,7 @@ class LeBail:
                 self.hkls[p][k] = hkl[limit, :]
                 self.dsp[p][k] = dsp[limit]
                 self.sf_hkl_factors[p][k] = sf_f[limit]
+                self.sf_hkl_affected[p][k] = affected[limit]
 
     def initialize_Icalc(self):
         """
@@ -462,7 +465,7 @@ class LeBail:
                 eta_n = f"self.{name}_eta_fwhm"
                 eta_fwhm = eval(eta_n)
                 strain_direction_dot_product = 0.0
-                is_in_sublattice = False
+                is_in_sublattice = self.sf_hkl_affected[p][k]
 
                 if self.peakshape == 0:
                     args = (
@@ -564,7 +567,7 @@ class LeBail:
                 sf_shift = sf_alpha*np.tan(np.radians(self.tth[p][k]))*\
                            self.sf_hkl_factors[p][k]
                 # stth = np.sin(np.radians(self.tth[p][k]))
-                # smtth = stth * (1. + self.sf_alpha * self.sf_hkl_factors[p][k])
+                # smtth = stth * (1. + sf_alpha * self.sf_hkl_factors[p][k])
                 # smtth[np.abs(smtth) > 1.] = 1. # dealing with some edge cases
                 # tth = np.degrees(np.arcsin(smtth)) + self.zero_error + shft_c + trns_c
 
@@ -578,7 +581,7 @@ class LeBail:
                 eta_n = f"self.{name}_eta_fwhm"
                 eta_fwhm = eval(eta_n)
                 strain_direction_dot_product = 0.0
-                is_in_sublattice = False
+                is_in_sublattice = self.sf_hkl_affected[p][k]
 
                 if self.peakshape == 0:
                     args = (
