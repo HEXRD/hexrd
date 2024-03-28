@@ -117,9 +117,7 @@ def _lorentzian_fwhm(xy,
     sig_ani = np.sqrt(gamma_ani_sqr)*eta_mixing*dsp**2
     xx = 0.
     if is_in_sublattice:
-    #     xx = Xe*strain_direction_dot_product
-    # else:
-        xx = Xs
+        xx = Xe*strain_direction_dot_product + Xs
     gamma = (X+xx)/cth + (Y+Ye+sig_ani)*tanth
     return gamma*1e-2
 
