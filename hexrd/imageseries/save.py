@@ -24,10 +24,16 @@ MAX_NZ_FRACTION = 0.1    # 10% sparsity trigger for frame-cache write
 def write(ims, fname, fmt, **kwargs):
     """write imageseries to file with options
 
-    *ims* - an imageseries
-    *fname* - name of file or an h5py file for writing HDF5
-    *fmt* - a format string
-    *kwargs* - options specific to format
+    Parameters
+    ----------
+    ims: Imageseries
+       the imageseries to write
+    fname: str
+       the name of the HDF5 file to write
+    fmt: str
+       format name of the imageseries
+    kwargs: dict
+       options specific to format
     """
     wcls = _Registry.getwriter(fmt)
     w = wcls(ims, fname, **kwargs)
@@ -61,7 +67,17 @@ class _Registry(object):
 
 
 class Writer(object, metaclass=_RegisterWriter):
-    """Base class for writers"""
+    """Base class for writers
+
+    Parameters
+    ----------
+    ims: Imageseries
+       the imageseries to write
+    fname: str
+       the name of the HDF5 file to write
+    kwargs: dict
+       options specific to format
+    """
     fmt = None
 
     def __init__(self, ims, fname, **kwargs):
@@ -98,21 +114,29 @@ class Writer(object, metaclass=_RegisterWriter):
         return self._opts
 
 class WriteH5(Writer):
+    """Write imageseries in HDF5 file
+
+    Parameters
+    ----------
+    ims: Imageseries
+       the imageseries to write
+    fname: str
+       the name of the HDF5 file to write
+    path: str, required
+       the path in HDF5 file
+    gzip: int 0-9
+       0 turns off compression, default=1
+    chunk_rows: int
+       number of rows per chunk; default is all
+    shuffle: bool
+       shuffle HDF5 data
+    """
     fmt = 'hdf5'
     dflt_gzip = 1
     dflt_chrows = 0
     dflt_shuffle = True
 
     def __init__(self, ims, fname, **kwargs):
-        """Write imageseries in HDF5 file
-
-           Required Args:
-           path - the path in HDF5 file
-
-           Options:
-           gzip - 0-9; 0 turns off compression; 4 is default
-           chunk_rows - number of rows per chunk; default is all
-           """
         Writer.__init__(self, ims, fname, **kwargs)
         self._path = self._opts['path']
 
@@ -173,32 +197,31 @@ class WriteH5(Writer):
 
 
 class WriteFrameCache(Writer):
-    """info from yml file"""
+    """write frame cache imageseries
+
+    The default write option is to save image data and metadata all
+    in a single npz file. The original option was to have a YAML file
+    as the primary file and a specified cache file for the images; this
+    method is deprecated.
+
+    Parameters
+    ----------
+    ims: Imageseries instance
+       the imageseries to write
+    fname: str or Path
+       name of file to write;
+    threshold: float
+       threshold value for image, at or below which values are zeroed
+    cache_file: str or Path, optional
+       name of the npz file to save the image data, if not given in the
+       `fname` argument; for YAML format (deprecated), this is required
+    max_workers: int, optional
+       The max number of worker threads for multithreading. Defaults to
+       the number of CPUs.
+    """
     fmt = 'frame-cache'
 
     def __init__(self, ims, fname, **kwargs):
-        """write yml file with frame cache info
-
-        The default write option is to save image data and metadata all
-        in a single npz file. The original option was to have a YAML file
-        as the primary file and a specified cache file for the images; this
-        method is deprecated.
-
-        Parameters
-        ----------
-        ims: Imageseries instance
-           the imageseries to write
-        fname: str or Path
-           name of file to write;
-        threshold: float
-           threshold value for image, at or below which values are zeroed
-        cache_file: str or Path, optional
-           name of the npz file to save the image data, if not given in the
-           `fname` argument; for YAML format (deprecated), this is required
-        max_workers: int, optional
-           The max number of worker threads for multithreading. Defaults to
-           the number of CPUs.
-        """
         Writer.__init__(self, ims, fname, **kwargs)
         self._thresh = self._opts['threshold']
         self._cache, self.cachename = self._set_cache()

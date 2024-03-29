@@ -72,10 +72,12 @@ class OmegaImageSeries(ImageSeries):
 
     @property
     def omegawedges(self):
+        """OmegaWedges instance"""
         return self._omegawedges
 
     @property
     def nwedges(self):
+        """number of omega wedges (angular sections)"""
         return self.omegawedges.nwedges
 
     def wedge(self, i):
@@ -128,9 +130,14 @@ class OmegaImageSeries(ImageSeries):
 
 
 class OmegaWedges(object):
-    """piecewise linear omega ranges"""
+    """Piecewise Linear Omega Ranges
+
+    PARAMETERS
+    ----------
+    nframes: int
+        number of frames in imageseries
+    """
     def __init__(self, nframes):
-        """Constructor for OmegaWedge"""
         self.nframes = nframes
         self._wedges = []
     #
@@ -167,7 +174,19 @@ class OmegaWedges(object):
         return self._wedges
 
     def addwedge(self, ostart, ostop, nsteps, loc=None):
-        """add wedge to list"""
+        """add wedge to list
+
+        PARAMETERS
+        ----------
+        ostart: float
+            starting value of omega for this wedge
+        ostop: float
+            final value of omega for this wedge
+        nsteps: int
+            number of steps
+        loc: int, optional
+            where to insert wedge in the list of wedges; defaults to end
+        """
         d = dict(ostart=ostart, ostop=ostop, nsteps=nsteps)
         if loc is None:
             loc = self.nwedges
@@ -175,7 +194,7 @@ class OmegaWedges(object):
         self.wedges.insert(loc, d)
 
     def delwedge(self, i):
-        """delete wedge number i"""
+        """delete wedge number `i`"""
         self.wedges.pop(i)
 
     @property
@@ -185,7 +204,13 @@ class OmegaWedges(object):
         return int(np.sum(wf))
 
     def save_omegas(self, fname):
-        """save omegas to text file"""
+        """save omegas to text file
+
+        PARAMETERS
+        ----------
+        fname: str or Path
+            name of file to save omegas to
+        """
         np.save(fname, self.omegas)
 
     pass  # end class

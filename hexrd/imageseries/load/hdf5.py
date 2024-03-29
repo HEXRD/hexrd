@@ -10,35 +10,23 @@ from ..imageseriesiter import ImageSeriesIterator
 
 
 class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
-    """collection of images in HDF5 format"""
+    """Collection of Images in HDF5 Format
+
+    Parameters
+    ----------
+    fname : str or h5py.File object
+        filename of the HDF5 file, or an open h5py file.  Note that this
+        class will close the h5py.File when finished.
+    path : str, required
+        The path to the HDF dataset containing the image data
+    dataname : str, optional
+        The name of the HDF dataset containing the 2-d or 3d image data.
+        The default values is 'images'.
+    """
 
     format = 'hdf5'
 
     def __init__(self, fname, **kwargs):
-        """
-        Constructor for HDF% ImageSeries
-
-        Parameters
-        ----------
-        fname : str or h5py.File object
-            filename of the HDF5 file, or an open h5py file.  Note that this
-            class will close the h5py.File when finished.
-        **kwargs : Keyword arguments
-            See below.
-
-        Keyword Arguments
-        -----------------
-        path : str, required
-            The path to the HDF dataset containing the image data
-        dataname : str, optional
-            The name of the HDF dataset containing the 2-d or 3d image data.
-            The default values is 'images'.
-
-        Returns
-        -------
-        None.
-
-        """
         if isinstance(fname, h5py.File):
             self.__h5name = fname.filename
             self.__h5file = fname
