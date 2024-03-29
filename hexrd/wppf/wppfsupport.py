@@ -83,8 +83,8 @@ def _add_phase_dependent_parameters_pseudovoight(params,
     """
     name = mat.name
     p = {"P": [0., -np.inf, np.inf, False],
-     "X": [0.5665, -np.inf, np.inf, False],
-     "Y": [1.90994, -np.inf, np.inf, False]
+     "X": [0., -np.inf, np.inf, False],
+     "Y": [0., -np.inf, np.inf, False]
      }
 
     for k, v in p.items():
@@ -259,11 +259,11 @@ def _add_lp_to_params(params,
         """
         if(n in ['a', 'b', 'c']):
             if isinstance(params, Parameters):
-                params.add(nn, value=l, lb=l-0.05,
-                           ub=l+0.05, vary=False)
+                params.add(nn, value=l, lb=l-0.025,
+                           ub=l+0.025, vary=False)
             elif isinstance(params, Parameters_lmfit):
-                params.add(nn, value=l, min=l-0.05,
-                           max=l+0.05, vary=False)
+                params.add(nn, value=l, min=l-0.025,
+                           max=l+0.025, vary=False)
         else:
             if isinstance(params, Parameters):
                 params.add(nn, value=l, lb=l-1.,

@@ -489,7 +489,7 @@ class LeBail:
                         tth_list,
                         Ic,
                         self.xn,
-                        self.wn,
+                        self.wn
                     )
 
                 elif self.peakshape == 1:
@@ -504,7 +504,7 @@ class LeBail:
                         dsp,
                         hkls,
                         tth_list,
-                        Ic,
+                        Ic
                     )
 
                 elif self.peakshape == 2:
@@ -521,7 +521,7 @@ class LeBail:
                         dsp,
                         hkls,
                         tth_list,
-                        Ic,
+                        Ic
                     )
 
                 y += self.computespectrum_fcn(*args)
@@ -604,7 +604,7 @@ class LeBail:
                         tth_list,
                         Ic,
                         spec_expt,
-                        spec_sim,
+                        spec_sim
                     )
 
                 elif self.peakshape == 1:
@@ -621,7 +621,7 @@ class LeBail:
                         tth_list,
                         Ic,
                         spec_expt,
-                        spec_sim,
+                        spec_sim
                     )
 
                 elif self.peakshape == 2:
@@ -640,7 +640,7 @@ class LeBail:
                         tth_list,
                         Ic,
                         spec_expt,
-                        spec_sim,
+                        spec_sim
                     )
 
                 self.Iobs[p][k] = self.calc_Iobs_fcn(*args)
@@ -1878,14 +1878,18 @@ class Rietveld:
         self.hkls = {}
         self.dsp = {}
         self.limit = {}
+        self.sf_hkl_factors = {}
+        self.sf_lfactor = {}
         for p in self.phases:
             self.tth[p] = {}
             self.hkls[p] = {}
             self.dsp[p] = {}
             self.limit[p] = {}
-
+            self.sf_hkl_factors[p] = {}
+            self.sf_lfactor[p] = {}
             for k, l in self.phases.wavelength.items():
                 t = self.phases[p][k].getTTh(l[0].getVal('nm'))
+                sf_f, lfact_sf = self.phases[p][k].get_sf_hkl_factors()
                 allowed = self.phases[p][k].wavelength_allowed_hkls
                 t = t[allowed]
                 hkl = self.phases[p][k].hkls[allowed, :]
@@ -1897,6 +1901,9 @@ class Rietveld:
                 self.tth[p][k] = t[limit]
                 self.hkls[p][k] = hkl[limit, :]
                 self.dsp[p][k] = dsp[limit]
+                if sf_f is not None and lfact_sf is not None:
+                    self.sf_hkl_factors[p][k] = sf_f[limit]
+                    self.sf_lfactor[p][k] = lfact_sf[limit]
 
     def calcsf(self):
         self.sf = {}
@@ -1959,9 +1966,22 @@ class Rietveld:
 
             for k, l in self.phases.wavelength.items():
 
+                name = self.phases[p][k].name
+                lam = l[0].getVal("nm")
                 shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
                 trns_c = np.sin(np.radians(self.tth[p][k])) * self.trns
-                tth = self.tth[p][k] + self.zero_error + shft_c + trns_c
+
+                sf_shift = 0.0
+                Xs = np.zeros(self.tth[p][k].shape)
+                if self.phases[p][k].sf_alpha is not None:
+                    alpha = eval(f"self.{p}_sf_alpha")
+                    beta  = eval(f"self.{p}_twin_beta")
+                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k]))*\
+                               self.sf_hkl_factors[p][k]
+                    Xs = np.degrees(0.9*(1.5*alpha+beta)*self.sf_lfactor[p][k]*
+                         lam/self.phases[p][k].lparms[0])
+
+                tth = self.tth[p][k] + self.zero_error + shft_c + trns_c + sf_shift
 
                 pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                 sf = self.sf[p][k]
@@ -1983,18 +2003,20 @@ class Rietveld:
                 hkls = self.hkls[p][k]
 
                 shkl = self.phases[p][k].shkl
-                name = self.phases[p][k].name
                 eta_n = f"self.{name}_eta_fwhm"
                 eta_fwhm = eval(eta_n)
-                strain_direction_dot_product = 0.0
-                is_in_sublattice = False
+
+                X = eval(f"self.{name}_X")
+                Y = eval(f"self.{name}_Y")
+                P = eval(f"self.{name}_P")
+                XY = np.array([X, Y])
 
                 if self.peakshape == 0:
                     args = (
                         np.array([self.U, self.V, self.W]),
-                        self.P,
-                        np.array([self.X, self.Y]),
-                        np.array([self.Xe, self.Ye, self.Xs]),
+                        P,
+                        XY,
+                        Xs,
                         shkl,
                         eta_fwhm,
                         self.HL,
@@ -2002,8 +2024,6 @@ class Rietveld:
                         tth,
                         dsp,
                         hkls,
-                        strain_direction_dot_product,
-                        is_in_sublattice,
                         tth_list,
                         Ic,
                         self.xn,
@@ -2013,16 +2033,14 @@ class Rietveld:
                 elif self.peakshape == 1:
                     args = (
                         np.array([self.U, self.V, self.W]),
-                        self.P,
-                        np.array([self.X, self.Y]),
-                        np.array([self.Xe, self.Ye, self.Xs]),
+                        P,
+                        XY,
+                        Xs,
                         shkl,
                         eta_fwhm,
                         tth,
                         dsp,
                         hkls,
-                        strain_direction_dot_product,
-                        is_in_sublattice,
                         tth_list,
                         Ic,
                     )
@@ -2032,16 +2050,14 @@ class Rietveld:
                         np.array([self.alpha0, self.alpha1]),
                         np.array([self.beta0, self.beta1]),
                         np.array([self.U, self.V, self.W]),
-                        self.P,
-                        np.array([self.X, self.Y]),
-                        np.array([self.Xe, self.Ye, self.Xs]),
+                        P,
+                        XY,
+                        Xs,
                         shkl,
                         eta_fwhm,
                         tth,
                         dsp,
                         hkls,
-                        strain_direction_dot_product,
-                        is_in_sublattice,
                         tth_list,
                         Ic,
                     )
