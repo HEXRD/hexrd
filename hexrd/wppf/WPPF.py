@@ -341,16 +341,16 @@ class LeBail:
         self.hkls = {}
         self.dsp = {}
         self.sf_hkl_factors = {}
-        self.sf_hkl_affected = {}
+        self.sf_lfactor = {}
         for p in self.phases:
             self.tth[p] = {}
             self.hkls[p] = {}
             self.dsp[p] = {}
             self.sf_hkl_factors[p] = {}
-            self.sf_hkl_affected[p] = {}
+            self.sf_lfactor[p] = {}
             for k, l in self.phases.wavelength.items():
                 t = self.phases[p].getTTh(l[0].getVal('nm'))
-                sf_f, affected = self.phases[p].get_sf_hkl_factors()
+                sf_f, lfact_sf = self.phases[p].get_sf_hkl_factors()
                 allowed = self.phases[p].wavelength_allowed_hkls
                 t = t[allowed]
                 hkl = self.phases[p].hkls[allowed, :]
@@ -362,8 +362,9 @@ class LeBail:
                 self.tth[p][k] = t[limit]
                 self.hkls[p][k] = hkl[limit, :]
                 self.dsp[p][k] = dsp[limit]
-                self.sf_hkl_factors[p][k] = sf_f[limit]
-                self.sf_hkl_affected[p][k] = affected[limit]
+                if sf_f is not None and lfact_sf is not None:
+                    self.sf_hkl_factors[p][k] = sf_f[limit]
+                    self.sf_lfactor[p][k] = lfact_sf[limit]
 
     def initialize_Icalc(self):
         """
@@ -443,19 +444,21 @@ class LeBail:
             for k, l in self.phases.wavelength.items():
 
                 name = self.phases[p].name
-                sf_alpha_n = f"self.{name}_sf_alpha"
-                sf_alpha = eval(sf_alpha_n)
-
+                lam = l[0].getVal("nm")
                 Ic = self.Icalc[p][k]
 
                 shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
                 trns_c = np.sin(np.radians(self.tth[p][k])) * self.trns
-                sf_shift = sf_alpha*np.tan(np.radians(self.tth[p][k]))*\
-                           self.sf_hkl_factors[p][k]
-                # stth = np.sin(np.radians(self.tth[p][k]))
-                # smtth = stth * (1. + self.sf_alpha * self.sf_hkl_factors[p][k])
-                # smtth[np.abs(smtth) > 1.] = 1. # dealing with some edge cases
-                # tth = np.degrees(np.arcsin(smtth)) + self.zero_error + shft_c + trns_c
+
+                sf_shift = 0.0
+                Xs = np.zeros(Ic.shape)
+                if self.phases[p].sf_alpha is not None:
+                    alpha = eval(f"self.{p}_sf_alpha")
+                    beta  = eval(f"self.{p}_twin_beta")
+                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k]))*\
+                               self.sf_hkl_factors[p][k]
+                    Xs = np.degrees(0.9*(1.5*alpha+beta)*self.sf_lfactor[p][k]*lam/self.phases[p].lparms[0])
+
                 tth = self.tth[p][k] + self.zero_error + shft_c + trns_c + sf_shift
 
                 dsp = self.dsp[p][k]
@@ -464,15 +467,13 @@ class LeBail:
                 shkl = self.phases[p].shkl
                 eta_n = f"self.{name}_eta_fwhm"
                 eta_fwhm = eval(eta_n)
-                strain_direction_dot_product = 0.0
-                is_in_sublattice = self.sf_hkl_affected[p][k]
 
                 if self.peakshape == 0:
                     args = (
                         np.array([self.U, self.V, self.W]),
                         self.P,
                         np.array([self.X, self.Y]),
-                        np.array([self.Xe, self.Ye, self.Xs]),
+                        Xs,
                         shkl,
                         eta_fwhm,
                         self.HL,
@@ -480,8 +481,6 @@ class LeBail:
                         tth,
                         dsp,
                         hkls,
-                        strain_direction_dot_product,
-                        is_in_sublattice,
                         tth_list,
                         Ic,
                         self.xn,
@@ -493,14 +492,12 @@ class LeBail:
                         np.array([self.U, self.V, self.W]),
                         self.P,
                         np.array([self.X, self.Y]),
-                        np.array([self.Xe, self.Ye, self.Xs]),
+                        Xs,
                         shkl,
                         eta_fwhm,
                         tth,
                         dsp,
                         hkls,
-                        strain_direction_dot_product,
-                        is_in_sublattice,
                         tth_list,
                         Ic,
                     )
@@ -512,14 +509,12 @@ class LeBail:
                         np.array([self.U, self.V, self.W]),
                         self.P,
                         np.array([self.X, self.Y]),
-                        np.array([self.Xe, self.Ye, self.Xs]),
+                        Xs,
                         shkl,
                         eta_fwhm,
                         tth,
                         dsp,
                         hkls,
-                        strain_direction_dot_product,
-                        is_in_sublattice,
                         tth_list,
                         Ic,
                     )
@@ -557,19 +552,20 @@ class LeBail:
             for k, l in self.phases.wavelength.items():
 
                 name = self.phases[p].name
-                sf_alpha_n = f"self.{name}_sf_alpha"
-                sf_alpha = eval(sf_alpha_n)
-
                 Ic = self.Icalc[p][k]
+                lam = l[0].getVal("nm")
 
                 shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
                 trns_c = np.sin(np.radians(self.tth[p][k])) * self.trns
-                sf_shift = sf_alpha*np.tan(np.radians(self.tth[p][k]))*\
-                           self.sf_hkl_factors[p][k]
-                # stth = np.sin(np.radians(self.tth[p][k]))
-                # smtth = stth * (1. + sf_alpha * self.sf_hkl_factors[p][k])
-                # smtth[np.abs(smtth) > 1.] = 1. # dealing with some edge cases
-                # tth = np.degrees(np.arcsin(smtth)) + self.zero_error + shft_c + trns_c
+
+                sf_shift = 0.0
+                Xs = np.zeros(Ic.shape)
+                if self.phases[p].sf_alpha is not None:
+                    alpha = eval(f"self.{p}_sf_alpha")
+                    beta  = eval(f"self.{p}_twin_beta")
+                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k]))*\
+                               self.sf_hkl_factors[p][k]
+                    Xs = np.degrees(0.9*(1.5*alpha+beta)*self.sf_lfactor[p][k]*lam/self.phases[p].lparms[0])
 
                 tth = self.tth[p][k] + self.zero_error + shft_c + trns_c + sf_shift
 
@@ -577,18 +573,15 @@ class LeBail:
                 hkls = self.hkls[p][k]
                 # n = np.min((tth.shape[0], Ic.shape[0]))  # !!! not used
                 shkl = self.phases[p].shkl
-                name = self.phases[p].name
                 eta_n = f"self.{name}_eta_fwhm"
                 eta_fwhm = eval(eta_n)
-                strain_direction_dot_product = 0.0
-                is_in_sublattice = self.sf_hkl_affected[p][k]
 
                 if self.peakshape == 0:
                     args = (
                         np.array([self.U, self.V, self.W]),
                         self.P,
                         np.array([self.X, self.Y]),
-                        np.array([self.Xe, self.Ye, self.Xs]),
+                        Xs,
                         shkl,
                         eta_fwhm,
                         self.HL,
@@ -598,8 +591,6 @@ class LeBail:
                         tth,
                         dsp,
                         hkls,
-                        strain_direction_dot_product,
-                        is_in_sublattice,
                         tth_list,
                         Ic,
                         spec_expt,
@@ -611,14 +602,12 @@ class LeBail:
                         np.array([self.U, self.V, self.W]),
                         self.P,
                         np.array([self.X, self.Y]),
-                        np.array([self.Xe, self.Ye, self.Xs]),
+                        Xs,
                         shkl,
                         eta_fwhm,
                         tth,
                         dsp,
                         hkls,
-                        strain_direction_dot_product,
-                        is_in_sublattice,
                         tth_list,
                         Ic,
                         spec_expt,
@@ -632,14 +621,12 @@ class LeBail:
                         np.array([self.U, self.V, self.W]),
                         self.P,
                         np.array([self.X, self.Y]),
-                        np.array([self.Xe, self.Ye, self.Xs]),
+                        Xs,
                         shkl,
                         eta_fwhm,
                         tth,
                         dsp,
                         hkls,
-                        strain_direction_dot_product,
-                        is_in_sublattice,
                         tth_list,
                         Ic,
                         spec_expt,
@@ -941,14 +928,6 @@ class LeBail:
     @trns.setter
     def trns(self, val):
         self._trns = val
-
-    @property
-    def sf_alpha(self):
-        return self._sf_alpha
-    
-    @sf_alpha.setter
-    def sf_alpha(self, val):
-        self._sf_alpha = val
 
     @property
     def peakshape(self):
@@ -1471,12 +1450,20 @@ class LeBail:
 
             for p in self.phases:
                 mat = self.phases[p]
+
+                sf_alpha_name  = f"{p}_sf_alpha" 
+                twin_beta_name = f"{p}_twin_beta"
+                if (sf_alpha_name in params)  and (twin_beta_name in params):
+                    if params[sf_alpha_name].vary:
+                        mat.sf_alpha  = params[sf_alpha_name].value
+                    if params[twin_beta_name].vary:
+                        mat.twin_beta = params[twin_beta_name].value
                 """
                 PART 1: update the lattice parameters
                 """
                 lp = []
                 lpvary = False
-                pre = p + "_"
+                pre = f"{p}_"
 
                 name = [f"{pre}{x}" for x in wppfsupport._lpname]
 

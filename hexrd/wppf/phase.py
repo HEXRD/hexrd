@@ -40,7 +40,7 @@ class Material_LeBail:
             self.dmin = dmin.value
             self._readHDF(fhdf, xtal)
             self._calcrmt()
-
+            self.sf_and_twin_probability()
             _, self.SYM_PG_d, self.SYM_PG_d_laue, \
                 self.centrosymmetric, self.symmorphic = \
                 symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
@@ -103,6 +103,7 @@ class Material_LeBail:
         self.sgnum = material_obj.unitcell.sgnum
         self.sgsetting = material_obj.sgsetting
         self.sg = SpaceGroup(self.sgnum)
+        self.sf_and_twin_probability()
 
         if(material_obj.latticeParameters[0].unit == 'nm'):
             self.lparms = [x.value for x in material_obj.latticeParameters]
@@ -236,28 +237,41 @@ class Material_LeBail:
         due to stacking faults. for details see EQ. 10
         Velterop et. al., Stacking and twin faults
         J. Appl. Cryst. (2000). 33, 296-306
-        """
-        hkls = self.hkls.astype(np.float64)
-        H2 = np.sum(hkls**2,axis=1)
-        sf_affected = []
-        multiplicity = []
-        Lfact = []
-        for g in hkls:
-            gsym = self.removeinversion(self.CalcStar(g, 'r'))
-            L0 = np.sum(gsym,axis=1)
-            sign = np.mod(np.abs(L0), 3)
-            sign[sign == 2] = -1
-            multiplicity.append(gsym.shape[0])
-            Lfact.append(np.sum(L0*sign))
-            n_unaffected = np.sum(sign == 0.)
-            affected_flag = n_unaffected < sign.shape[0]/2
-            sf_affected.append(affected_flag)
 
-        Lfact = np.array(Lfact)
-        multiplicity = np.array(multiplicity)
-        sf_affected = np.array(sf_affected)
-        sf_f = (90.*np.sqrt(3)/np.pi**2)*Lfact/(H2*multiplicity)
-        return sf_f, sf_affected
+        currently only doing fcc. will be adding hcp and
+        bcc in the future
+        adding a guard rail so that the function only
+        returns for sgnum 225
+        """
+        if self.sgnum == 225:
+            hkls = self.hkls.astype(np.float64)
+            H2 = np.sum(hkls**2,axis=1)
+            sf_affected = []
+            multiplicity = []
+            Lfact = []
+            Lfact_broadening = []
+            for g in hkls:
+                gsym = self.CalcStar(g, 'r')
+                L0 = np.sum(gsym,axis=1)
+                sign = np.mod(L0, 3)
+                sign[sign == 2] = -1
+                multiplicity.append(gsym.shape[0])
+                Lfact.append(np.sum(L0*sign))
+                Lfact_broadening.append(np.sum(np.abs(L0*sign)))
+
+            Lfact = np.array(Lfact)
+            multiplicity = np.array(multiplicity)
+            Lfact_broadening = np.array(Lfact_broadening)
+            Lfact_broadening = Lfact_broadening/(np.sqrt(H2)*multiplicity)
+            sf_f = (90.*np.sqrt(3)/np.pi**2)*Lfact/(H2*multiplicity)
+            return sf_f, Lfact_broadening
+        else:
+            return None, None
+
+    def sf_and_twin_probability(self):
+        if self.sgnum == 225:
+            self.sf_alpha = 0.0
+            self.twin_beta  = 0.0
 
     def GenerateRecipPGSym(self):
 
@@ -691,7 +705,7 @@ class Material_Rietveld:
 
             self._readHDF(fhdf, xtal)
             self._calcrmt()
-
+            self.sf_and_twin_probability()
             if(self.aniU):
                 self.calcBetaij()
 
@@ -736,6 +750,7 @@ class Material_Rietveld:
         # space group number
         self.sgnum = material_obj.sgnum
         self.sg = SpaceGroup(self.sgnum)
+        self.sf_and_twin_probability()
 
         # space group setting
         self.sgsetting = material_obj.sgsetting
@@ -934,6 +949,49 @@ class Material_Rietveld:
         self.aij = np.array([[ast**2, ast*bst, ast*cst],
                              [bst*ast, bst**2, bst*cst],
                              [cst*ast, cst*bst, cst**2]])
+
+    def get_sf_hkl_factors(self):
+        """
+        this function calculates the prefactor for
+        each hkl used to calculate the 2theta shifts
+        due to stacking faults. for details see EQ. 10
+        Velterop et. al., Stacking and twin faults
+        J. Appl. Cryst. (2000). 33, 296-306
+
+        currently only doing fcc. will be adding hcp and
+        bcc in the future
+        adding a guard rail so that the function only
+        returns for sgnum 225
+        """
+        if self.sgnum == 225:
+            hkls = self.hkls.astype(np.float64)
+            H2 = np.sum(hkls**2,axis=1)
+            sf_affected = []
+            multiplicity = []
+            Lfact = []
+            Lfact_broadening = []
+            for g in hkls:
+                gsym = self.CalcStar(g, 'r')
+                L0 = np.sum(gsym,axis=1)
+                sign = np.mod(L0, 3)
+                sign[sign == 2] = -1
+                multiplicity.append(gsym.shape[0])
+                Lfact.append(np.sum(L0*sign))
+                Lfact_broadening.append(np.sum(np.abs(L0)))
+
+            Lfact = np.array(Lfact)
+            multiplicity = np.array(multiplicity)
+            Lfact_broadening = np.array(Lfact_broadening)
+            Lfact_broadening = (H2*multiplicity)/Lfact_broadening
+            sf_f = (90.*np.sqrt(3)/np.pi**2)*Lfact/(H2*multiplicity)
+            return sf_f, Lfact_broadening
+        else:
+            return None, None
+
+    def sf_and_twin_probability(self):
+        if self.sgnum == 225:
+            self.sf_alpha = 0.0
+            self.twin_beta  = 0.0
 
     def _calchkls(self):
         self.hkls, self.multiplicity = self.getHKLs(self.dmin)

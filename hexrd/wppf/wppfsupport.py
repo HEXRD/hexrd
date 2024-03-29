@@ -63,10 +63,7 @@ def _generate_default_parameters_pseudovoight(params):
          "W": [5.18275, -np.inf, np.inf, False],
          "P": [0., -np.inf, np.inf, False],
          "X": [0.5665, -np.inf, np.inf, False],
-         "Y": [1.90994, -np.inf, np.inf, False],
-         "Xe": [0., 0., 1, False],
-         "Ye": [0., 0., 1, False],
-         "Xs": [0., 0., 1, False]
+         "Y": [1.90994, -np.inf, np.inf, False]
          }
 
     for k, v in p.items():
@@ -151,13 +148,18 @@ def _add_stacking_fault_parameters(params,
     add stacking fault parameters for cubic systems only
     """
     phase_name = mat.name
-    if mat.sgnum >= 195 and mat.sgnum <= 230:
+    if mat.sgnum == 225:
         sf_alpha_name = f"{phase_name}_sf_alpha" 
+        twin_beta_name = f"{phase_name}_twin_beta"
         if isinstance(params, Parameters):
             params.add(sf_alpha_name, value=0., lb=0.,
                        ub=1., vary=False)
+            params.add(twin_beta_name, value=0., lb=0.,
+                       ub=1., vary=False)
         elif isinstance(params, Parameters_lmfit):
             params.add(sf_alpha_name, value=0., min=0.,
+                       max=1., vary=False)
+            params.add(twin_beta_name, value=0., min=0.,
                        max=1., vary=False)
 
 def _add_Shkl_terms(params,
