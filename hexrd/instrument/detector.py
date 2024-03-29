@@ -930,7 +930,7 @@ class Detector:
         int_xy[on_panel] = int_vals
         return int_xy
 
-    @profile
+
     def interpolate_bilinear(self, xy, img, pad_with_nans=True):
         """
         Interpolate an image array at the specified cartesian points.
