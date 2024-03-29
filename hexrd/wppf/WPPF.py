@@ -468,11 +468,16 @@ class LeBail:
                 eta_n = f"self.{name}_eta_fwhm"
                 eta_fwhm = eval(eta_n)
 
+                X = eval(f"self.{name}_X")
+                Y = eval(f"self.{name}_Y")
+                P = eval(f"self.{name}_P")
+                XY = np.array([X, Y])
+
                 if self.peakshape == 0:
                     args = (
                         np.array([self.U, self.V, self.W]),
-                        self.P,
-                        np.array([self.X, self.Y]),
+                        P,
+                        XY,
                         Xs,
                         shkl,
                         eta_fwhm,
@@ -490,8 +495,8 @@ class LeBail:
                 elif self.peakshape == 1:
                     args = (
                         np.array([self.U, self.V, self.W]),
-                        self.P,
-                        np.array([self.X, self.Y]),
+                        P,
+                        XY,
                         Xs,
                         shkl,
                         eta_fwhm,
@@ -507,8 +512,8 @@ class LeBail:
                         np.array([self.alpha0, self.alpha1]),
                         np.array([self.beta0, self.beta1]),
                         np.array([self.U, self.V, self.W]),
-                        self.P,
-                        np.array([self.X, self.Y]),
+                        P,
+                        XY,
                         Xs,
                         shkl,
                         eta_fwhm,
@@ -576,11 +581,16 @@ class LeBail:
                 eta_n = f"self.{name}_eta_fwhm"
                 eta_fwhm = eval(eta_n)
 
+                X = eval(f"self.{name}_X")
+                Y = eval(f"self.{name}_Y")
+                P = eval(f"self.{name}_P")
+                XY = np.array([X, Y])
+
                 if self.peakshape == 0:
                     args = (
                         np.array([self.U, self.V, self.W]),
-                        self.P,
-                        np.array([self.X, self.Y]),
+                        P,
+                        XY,
                         Xs,
                         shkl,
                         eta_fwhm,
@@ -600,8 +610,8 @@ class LeBail:
                 elif self.peakshape == 1:
                     args = (
                         np.array([self.U, self.V, self.W]),
-                        self.P,
-                        np.array([self.X, self.Y]),
+                        P,
+                        XY,
                         Xs,
                         shkl,
                         eta_fwhm,
@@ -619,8 +629,8 @@ class LeBail:
                         np.array([self.alpha0, self.alpha1]),
                         np.array([self.beta0, self.beta1]),
                         np.array([self.U, self.V, self.W]),
-                        self.P,
-                        np.array([self.X, self.Y]),
+                        P,
+                        XY,
                         Xs,
                         shkl,
                         eta_fwhm,

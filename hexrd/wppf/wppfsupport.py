@@ -47,23 +47,16 @@ def _generate_default_parameters_pseudovoight(params):
     """
     generate some default values of peak profile
     for the Thompson et. al. model. A total of
-    18 parameters are genrated which includes the
+    6 parameters are genrated which includes the
     following:
-    4 -> cagliotti + Scherrer broadening
-    5 -> lorentzian width with stacking fault
-    2 to 15 -> anisotropic hkl broadening depending on
-    symmetry
-    1 --> width_mixing of anisotropic broadening
+    3 -> cagliotti (instrumental broadening)
     """
     p = {"zero_error":[0., -1., 1., False],
          "trns":[0.0, -1.0, 1.0, False],
          "shft":[0.0,-1.0,1.0,False],
          "U": [81.5, -np.inf, np.inf, False],
          "V": [1.0337, -np.inf, np.inf, False],
-         "W": [5.18275, -np.inf, np.inf, False],
-         "P": [0., -np.inf, np.inf, False],
-         "X": [0.5665, -np.inf, np.inf, False],
-         "Y": [1.90994, -np.inf, np.inf, False]
+         "W": [5.18275, -np.inf, np.inf, False]
          }
 
     for k, v in p.items():
@@ -75,6 +68,35 @@ def _generate_default_parameters_pseudovoight(params):
                        vary=v[3])
         elif isinstance(params, Parameters_lmfit):
             params.add(name=k,
+                       value=v[0],
+                       min=v[1],
+                       max=v[2],
+                       vary=v[3])
+
+def _add_phase_dependent_parameters_pseudovoight(params,
+                                                 mat):
+    """
+    add the particle size broadening term
+    P : Gaussian scherrer broadening
+    X : Lorentzian scherrer broadening
+    Y : Lorentzian microstrain broadening
+    """
+    name = mat.name
+    p = {"P": [0., -np.inf, np.inf, False],
+     "X": [0.5665, -np.inf, np.inf, False],
+     "Y": [1.90994, -np.inf, np.inf, False]
+     }
+
+    for k, v in p.items():
+        pname = f"{name}_{k}"
+        if isinstance(params, Parameters):
+            params.add(name=pname,
+                       value=v[0],
+                       lb=v[1],
+                       ub=v[2],
+                       vary=v[3])
+        elif isinstance(params, Parameters_lmfit):
+            params.add(name=pname,
                        value=v[0],
                        min=v[1],
                        max=v[2],
@@ -390,6 +412,7 @@ def _generate_default_parameters_LeBail(mat,
         """
         for p in mat:
             m = mat[p]
+            _add_phase_dependent_parameters_pseudovoight(params, m)
             _add_Shkl_terms(params, m)
             _add_lp_to_params(params, m)
             _add_stacking_fault_parameters(params, m)
@@ -402,6 +425,7 @@ def _generate_default_parameters_LeBail(mat,
             m = mat[p]
             k = list(m.keys())
             mm = m[k[0]]
+            _add_phase_dependent_parameters_pseudovoight(params, mm)
             _add_Shkl_terms(params, mm)
             _add_lp_to_params(params, mm)
             _add_stacking_fault_parameters(params, mm)
@@ -411,6 +435,7 @@ def _generate_default_parameters_LeBail(mat,
         just an instance of Materials class
         this part initializes the lattice parameters in the
         """
+        _add_phase_dependent_parameters_pseudovoight(params, mat)
         _add_Shkl_terms(params, mat)
         _add_lp_to_params(params, mat)
         _add_stacking_fault_parameters(params, mat)
@@ -420,6 +445,7 @@ def _generate_default_parameters_LeBail(mat,
         a list of materials class
         """
         for m in mat:
+            _add_phase_dependent_parameters_pseudovoight(params, m)
             _add_Shkl_terms(params, m)
             _add_lp_to_params(params, m)
             _add_stacking_fault_parameters(params, m)
@@ -429,6 +455,7 @@ def _generate_default_parameters_LeBail(mat,
         dictionary of materials class
         """
         for k, m in mat.items():
+            _add_phase_dependent_parameters_pseudovoight(params, m)
             _add_Shkl_terms(params, m)
             _add_lp_to_params(params, m)
             _add_stacking_fault_parameters(params, m)
