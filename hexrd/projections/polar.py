@@ -233,42 +233,35 @@ class PolarView:
 
         """
 
-        angpts = self.angular_grid
-        dummy_ome = np.zeros((self.ntth*self.neta))
+        gvec_angs = np.vstack([
+            self.angular_grid[1].flatten(),
+            self.angular_grid[0].flatten(),
+            np.zeros((self.ntth*self.neta))]).T
+        xypts = np.empty((len(gvec_angs), 2))
 
-        # lcount = 0
         img_dict = dict.fromkeys(self.detectors)
         for detector_id, panel in self.detectors.items():
             _project_on_detector = self._func_project_on_detector(panel)
-            img = image_dict[detector_id]
 
-            gvec_angs = np.vstack([
-                    angpts[1].flatten(),
-                    angpts[0].flatten(),
-                    dummy_ome]).T
+            args, kwargs = self._args_project_on_detector(gvec_angs, panel)
 
-            args, kwargs = self._args_project_on_detector(gvec_angs,
-                                                          panel)
-
-            xypts = np.nan*np.ones((len(gvec_angs), 2))
-            valid_xys, rmats_s, on_plane = _project_on_detector(*args,
-                                                                **kwargs)
+            valid_xys, _, on_plane = _project_on_detector(*args, **kwargs)
             xypts[on_plane, :] = valid_xys
 
             if do_interpolation:
                 this_img = panel.interpolate_bilinear(
-                    xypts, img,
+                    xypts, image_dict[detector_id],
                     pad_with_nans=pad_with_nans).reshape(self.shape)
             else:
                 this_img = panel.interpolate_nearest(
-                    xypts, img,
+                    xypts, image_dict[detector_id],
                     pad_with_nans=pad_with_nans).reshape(self.shape)
             nan_mask = np.isnan(this_img)
             img_dict[detector_id] = np.ma.masked_array(
                 data=this_img, mask=nan_mask, fill_value=0.
             )
-        maimg = np.ma.sum(np.ma.stack(img_dict.values()), axis=0)
-        return maimg
+
+        return np.ma.sum(np.ma.stack(img_dict.values()), axis=0)
 
     def tth_to_pixel(self, tth):
         """
