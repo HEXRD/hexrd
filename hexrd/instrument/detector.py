@@ -878,10 +878,9 @@ class Detector:
 
                 idx = np.logical_or(roff, coff)
 
-                pix[idx, :] = 0
-
-                on_panel = self.panel_buffer[pix[:, 0], pix[:, 1]]
-                on_panel[idx] = False
+                on_panel = np.full(pix.shape[0], False)
+                valid_pix = pix[~idx, :]
+                on_panel[~idx] = self.panel_buffer[valid_pix[:, 0], valid_pix[:, 1]]
             else:
                 xlim -= self.panel_buffer[0]
                 ylim -= self.panel_buffer[1]
@@ -930,6 +929,7 @@ class Detector:
         int_vals = img[i_src, j_src]
         int_xy[on_panel] = int_vals
         return int_xy
+
 
     def interpolate_bilinear(self, xy, img, pad_with_nans=True):
         """
