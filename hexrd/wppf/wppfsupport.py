@@ -83,8 +83,8 @@ def _add_phase_dependent_parameters_pseudovoight(params,
     """
     name = mat.name
     p = {"P": [0., -np.inf, np.inf, False],
-     "X": [0., -np.inf, np.inf, False],
-     "Y": [0., -np.inf, np.inf, False]
+     "X": [0.5665, -np.inf, np.inf, False],
+     "Y": [1.90994, -np.inf, np.inf, False]
      }
 
     for k, v in p.items():
