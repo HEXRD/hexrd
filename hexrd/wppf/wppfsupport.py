@@ -54,9 +54,9 @@ def _generate_default_parameters_pseudovoight(params):
     p = {"zero_error":[0., -1., 1., False],
          "trns":[0.0, -1.0, 1.0, False],
          "shft":[0.0,-1.0,1.0,False],
-         "U": [81.5, -np.inf, np.inf, False],
-         "V": [1.0337, -np.inf, np.inf, False],
-         "W": [5.18275, -np.inf, np.inf, False]
+         "U": [81.5, 0., np.inf, False],
+         "V": [1.0337, 0., np.inf, False],
+         "W": [5.18275, 0., np.inf, False]
          }
 
     for k, v in p.items():
@@ -82,9 +82,9 @@ def _add_phase_dependent_parameters_pseudovoight(params,
     Y : Lorentzian microstrain broadening
     """
     name = mat.name
-    p = {"P": [0., -np.inf, np.inf, False],
-     "X": [0.5665, -np.inf, np.inf, False],
-     "Y": [1.90994, -np.inf, np.inf, False]
+    p = {"P": [0., 0., np.inf, False],
+     "X": [0.5665, 0., np.inf, False],
+     "Y": [1.90994, 0., np.inf, False]
      }
 
     for k, v in p.items():
