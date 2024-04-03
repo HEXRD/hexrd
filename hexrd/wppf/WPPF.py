@@ -454,12 +454,15 @@ class LeBail:
                 Xs = np.zeros(Ic.shape)
                 if self.phases[p].sf_alpha is not None:
                     alpha = eval(f"self.{p}_sf_alpha")
-                    beta  = eval(f"self.{p}_twin_beta")
-                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k]))*\
-                               self.sf_hkl_factors[p][k]
-                    Xs = np.degrees(0.9*(1.5*alpha+beta)*self.sf_lfactor[p][k]*lam/self.phases[p].lparms[0])
+                    beta = eval(f"self.{p}_twin_beta")
+                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k])) *\
+                        self.sf_hkl_factors[p][k]
+                    Xs = np.degrees(
+                        0.9*(1.5*alpha+beta)*(
+                        self.sf_lfactor[p][k]*lam/self.phases[p].lparms[0]))
 
-                tth = self.tth[p][k] + self.zero_error + shft_c + trns_c + sf_shift
+                tth = self.tth[p][k] + self.zero_error + \
+                    shft_c + trns_c + sf_shift
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
@@ -567,12 +570,15 @@ class LeBail:
                 Xs = np.zeros(Ic.shape)
                 if self.phases[p].sf_alpha is not None:
                     alpha = eval(f"self.{p}_sf_alpha")
-                    beta  = eval(f"self.{p}_twin_beta")
-                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k]))*\
-                               self.sf_hkl_factors[p][k]
-                    Xs = np.degrees(0.9*(1.5*alpha+beta)*self.sf_lfactor[p][k]*lam/self.phases[p].lparms[0])
+                    beta = eval(f"self.{p}_twin_beta")
+                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k])) *\
+                        self.sf_hkl_factors[p][k]
+                    Xs = np.degrees(
+                        0.9*(1.5*alpha+beta)*(
+                        self.sf_lfactor[p][k]*lam/self.phases[p].lparms[0]))
 
-                tth = self.tth[p][k] + self.zero_error + shft_c + trns_c + sf_shift
+                tth = self.tth[p][k] + self.zero_error + \
+                    shft_c + trns_c + sf_shift
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
@@ -702,7 +708,7 @@ class LeBail:
 
         if print_to_screen:
             msg = (f"Finished iteration. Rwp: "
-                f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}")
+                   f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}")
             print(msg)
 
     def Refine(self):
@@ -954,9 +960,9 @@ class LeBail:
     @property
     def cheb_polynomial(self):
         return np.polynomial.Chebyshev(
-               self.cheb_coef,
-               domain=[self.tth_list[0], self.tth_list[-1]]
-               )
+            self.cheb_coef,
+            domain=[self.tth_list[0], self.tth_list[-1]]
+        )
 
     @property
     def cheb_init_coef(self):
@@ -1268,9 +1274,9 @@ class LeBail:
     @property
     def init_bkg(self):
         degree = self.bkgmethod["chebyshev"]
-        x   = np.empty([0,])
-        y   = np.empty([0,])
-        wts = np.empty([0,])
+        x = np.empty([0, ])
+        y = np.empty([0, ])
+        wts = np.empty([0, ])
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
             wt = self._weights[i]
@@ -1461,11 +1467,11 @@ class LeBail:
             for p in self.phases:
                 mat = self.phases[p]
 
-                sf_alpha_name  = f"{p}_sf_alpha" 
+                sf_alpha_name = f"{p}_sf_alpha"
                 twin_beta_name = f"{p}_twin_beta"
-                if (sf_alpha_name in params)  and (twin_beta_name in params):
+                if (sf_alpha_name in params) and (twin_beta_name in params):
                     if params[sf_alpha_name].vary:
-                        mat.sf_alpha  = params[sf_alpha_name].value
+                        mat.sf_alpha = params[sf_alpha_name].value
                     if params[twin_beta_name].vary:
                         mat.twin_beta = params[twin_beta_name].value
                 """
@@ -1948,7 +1954,7 @@ class Rietveld:
                     (1 + Ph * np.cos(t) ** 2)
                     / np.cos(0.5 * t)
                     / np.sin(0.5 * t) ** 2
-                    #/ (2.0 * (1 + Ph))
+                    # / (2.0 * (1 + Ph))
                 )
 
     def computespectrum(self):
@@ -1975,13 +1981,15 @@ class Rietveld:
                 Xs = np.zeros(self.tth[p][k].shape)
                 if self.phases[p][k].sf_alpha is not None:
                     alpha = eval(f"self.{p}_sf_alpha")
-                    beta  = eval(f"self.{p}_twin_beta")
-                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k]))*\
-                               self.sf_hkl_factors[p][k]
-                    Xs = np.degrees(0.9*(1.5*alpha+beta)*self.sf_lfactor[p][k]*
-                         lam/self.phases[p][k].lparms[0])
+                    beta = eval(f"self.{p}_twin_beta")
+                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k])) *\
+                        self.sf_hkl_factors[p][k]
+                    Xs = np.degrees(0.9*(1.5*alpha+beta)*(
+                        self.sf_lfactor[p][k] *
+                        lam/self.phases[p][k].lparms[0]))
 
-                tth = self.tth[p][k] + self.zero_error + shft_c + trns_c + sf_shift
+                tth = self.tth[p][k] + self.zero_error + \
+                    shft_c + trns_c + sf_shift
 
                 pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                 sf = self.sf[p][k]
@@ -2148,7 +2156,7 @@ class Rietveld:
             self.gofFlist = np.append(self.gofFlist, self.gofF)
 
             msg = (f"Finished iteration. Rwp: "
-                f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}")
+                   f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}")
             print(msg)
         else:
             print("Nothing to refine...")
@@ -2167,7 +2175,7 @@ class Rietveld:
         if not skip_phases:
             updated_lp = False
             updated_atominfo = False
-            pf = np.zeros([self.phases.num_phases,])
+            pf = np.zeros([self.phases.num_phases, ])
             pf_cur = self.phases.phase_fraction.copy()
             for ii, p in enumerate(self.phases):
                 name = f"{p}_phase_fraction"
@@ -2805,9 +2813,9 @@ class Rietveld:
     @property
     def init_bkg(self):
         degree = self.bkgmethod["chebyshev"]
-        x   = np.empty([0,])
-        y   = np.empty([0,])
-        wts = np.empty([0,])
+        x = np.empty([0, ])
+        y = np.empty([0, ])
+        wts = np.empty([0, ])
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
             wt = self._weights[i]
@@ -2828,9 +2836,9 @@ class Rietveld:
     @property
     def cheb_polynomial(self):
         return np.polynomial.Chebyshev(
-               self.cheb_coef,
-               domain=[self.tth_list[0], self.tth_list[-1]]
-               )
+            self.cheb_coef,
+            domain=[self.tth_list[0], self.tth_list[-1]]
+        )
 
     @property
     def cheb_init_coef(self):
@@ -3038,6 +3046,7 @@ def join_regions(vector_list, global_index, global_shape):
 
     # out_array = np.ma.masked_array(out_array, mask = np.isnan(out_array))
     return out_vector
+
 
 peakshape_dict = {
     "pvfcj": "pseudo-voight (finger, cox, jephcoat)",
