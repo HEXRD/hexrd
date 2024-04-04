@@ -453,8 +453,8 @@ class LeBail:
                 sf_shift = 0.0
                 Xs = np.zeros(Ic.shape)
                 if self.phases[p].sf_alpha is not None:
-                    alpha = eval(f"self.{p}_sf_alpha")
-                    beta = eval(f"self.{p}_twin_beta")
+                    alpha = getattr(self, f"{p}_sf_alpha")
+                    beta  = getattr(self, f"{p}_twin_beta")
                     sf_shift = alpha*np.tan(np.radians(self.tth[p][k])) *\
                         self.sf_hkl_factors[p][k]
                     Xs = np.degrees(
@@ -468,12 +468,11 @@ class LeBail:
                 hkls = self.hkls[p][k]
                 # n = np.min((tth.shape[0], Ic.shape[0]))
                 shkl = self.phases[p].shkl
-                eta_n = f"self.{name}_eta_fwhm"
-                eta_fwhm = eval(eta_n)
+                eta_fwhm = getattr(self, f"{name}_eta_fwhm")
 
-                X = eval(f"self.{name}_X")
-                Y = eval(f"self.{name}_Y")
-                P = eval(f"self.{name}_P")
+                X = getattr(self, f"{name}_X")
+                Y = getattr(self, f"{name}_Y")
+                P = getattr(self, f"{name}_P")
                 XY = np.array([X, Y])
 
                 if self.peakshape == 0:
@@ -569,8 +568,8 @@ class LeBail:
                 sf_shift = 0.0
                 Xs = np.zeros(Ic.shape)
                 if self.phases[p].sf_alpha is not None:
-                    alpha = eval(f"self.{p}_sf_alpha")
-                    beta = eval(f"self.{p}_twin_beta")
+                    alpha = getattr(self, f"{p}_sf_alpha")
+                    beta  = getattr(self, f"{p}_twin_beta")
                     sf_shift = alpha*np.tan(np.radians(self.tth[p][k])) *\
                         self.sf_hkl_factors[p][k]
                     Xs = np.degrees(
@@ -584,12 +583,11 @@ class LeBail:
                 hkls = self.hkls[p][k]
                 # n = np.min((tth.shape[0], Ic.shape[0]))  # !!! not used
                 shkl = self.phases[p].shkl
-                eta_n = f"self.{name}_eta_fwhm"
-                eta_fwhm = eval(eta_n)
+                eta_fwhm = getattr(self, f"{name}_eta_fwhm")
 
-                X = eval(f"self.{name}_X")
-                Y = eval(f"self.{name}_Y")
-                P = eval(f"self.{name}_P")
+                X = getattr(self, f"{name}_X")
+                Y = getattr(self, f"{name}_Y")
+                P = getattr(self, f"{name}_P")
                 XY = np.array([X, Y])
 
                 if self.peakshape == 0:
@@ -1980,8 +1978,8 @@ class Rietveld:
                 sf_shift = 0.0
                 Xs = np.zeros(self.tth[p][k].shape)
                 if self.phases[p][k].sf_alpha is not None:
-                    alpha = eval(f"self.{p}_sf_alpha")
-                    beta = eval(f"self.{p}_twin_beta")
+                    alpha = getattr(self, f"{p}_sf_alpha")
+                    beta  = getattr(self, f"{p}_twin_beta")
                     sf_shift = alpha*np.tan(np.radians(self.tth[p][k])) *\
                         self.sf_hkl_factors[p][k]
                     Xs = np.degrees(0.9*(1.5*alpha+beta)*(
@@ -2011,12 +2009,11 @@ class Rietveld:
                 hkls = self.hkls[p][k]
 
                 shkl = self.phases[p][k].shkl
-                eta_n = f"self.{name}_eta_fwhm"
-                eta_fwhm = eval(eta_n)
+                eta_fwhm = getattr(self, f"{name}_eta_fwhm")
 
-                X = eval(f"self.{name}_X")
-                Y = eval(f"self.{name}_Y")
-                P = eval(f"self.{name}_P")
+                X = getattr(self, f"{name}_X")
+                Y = getattr(self, f"{name}_Y")
+                P = getattr(self, f"{name}_P")
                 XY = np.array([X, Y])
 
                 if self.peakshape == 0:
