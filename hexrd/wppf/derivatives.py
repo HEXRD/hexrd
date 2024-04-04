@@ -1,6 +1,6 @@
 import numpy as np
 from hexrd.utils.decorators import numba_njit_if_available
-from hexrrd.wppf.peakfunctions import _unit_gaussian, _unit_lorentzian
+from hexrd.wppf.peakfunctions import _unit_gaussian, _unit_lorentzian
 """
 naming convention for the derivative is as follows:
 _d_<peakshape>_<parameter>
