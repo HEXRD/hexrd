@@ -491,7 +491,7 @@ class LeBail:
                         tth_list,
                         Ic,
                         self.xn,
-                        self.wn
+                        self.wn,
                     )
 
                 elif self.peakshape == 1:
@@ -506,7 +506,7 @@ class LeBail:
                         dsp,
                         hkls,
                         tth_list,
-                        Ic
+                        Ic,
                     )
 
                 elif self.peakshape == 2:
@@ -523,7 +523,7 @@ class LeBail:
                         dsp,
                         hkls,
                         tth_list,
-                        Ic
+                        Ic,
                     )
 
                 y += self.computespectrum_fcn(*args)
@@ -608,7 +608,7 @@ class LeBail:
                         tth_list,
                         Ic,
                         spec_expt,
-                        spec_sim
+                        spec_sim,
                     )
 
                 elif self.peakshape == 1:
@@ -625,7 +625,7 @@ class LeBail:
                         tth_list,
                         Ic,
                         spec_expt,
-                        spec_sim
+                        spec_sim,
                     )
 
                 elif self.peakshape == 2:
@@ -644,7 +644,7 @@ class LeBail:
                         tth_list,
                         Ic,
                         spec_expt,
-                        spec_sim
+                        spec_sim,
                     )
 
                 self.Iobs[p][k] = self.calc_Iobs_fcn(*args)
