@@ -539,8 +539,7 @@ def _gaussian_pink_beam(p, x):
         + np.exp(v[~zmask])*t2[~zmask]
     mask = np.isnan(g)
     g[mask] = 0.
-    gmax = g.max()
-    g *= A/gmax
+    g *= A / g.max()
 
     return g
 

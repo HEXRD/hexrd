@@ -353,7 +353,7 @@ class Material_LeBail:
             k = ksym[i,:]
             kk = list(k)
             nkk = list(-k)
-            if klist == []:
+            if not klist:
                 if(np.sum(k) > np.sum(-k)):
                     klist.append(kk)
                 else:
