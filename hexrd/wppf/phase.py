@@ -269,6 +269,8 @@ class Material_LeBail:
             return None, None
 
     def sf_and_twin_probability(self):
+        self.sf_alpha = None
+        self.twin_beta  = None
         if self.sgnum == 225:
             self.sf_alpha = 0.0
             self.twin_beta  = 0.0
