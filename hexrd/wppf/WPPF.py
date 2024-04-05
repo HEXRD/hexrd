@@ -355,7 +355,6 @@ class LeBail:
                 t = t[allowed]
                 hkl = self.phases[p].hkls[allowed, :]
                 dsp = self.phases[p].dsp[allowed]
-                sf_f = sf_f[allowed]
                 tth_min = min(self.tth_min)
                 tth_max = max(self.tth_max)
                 limit = np.logical_and(t >= tth_min, t <= tth_max)
@@ -363,6 +362,7 @@ class LeBail:
                 self.hkls[p][k] = hkl[limit, :]
                 self.dsp[p][k] = dsp[limit]
                 if sf_f is not None and lfact_sf is not None:
+                    sf_f = sf_f[allowed]
                     self.sf_hkl_factors[p][k] = sf_f[limit]
                     self.sf_lfactor[p][k] = lfact_sf[limit]
 
