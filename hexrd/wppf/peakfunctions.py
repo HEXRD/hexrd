@@ -403,9 +403,9 @@ def _gaussian_pink_beam(alpha,
     t2 = erfc(z)
     g = np.zeros(tth_list.shape)
     zmask = np.abs(del_tth) > 5.0 
-    g = (0.5*(alpha*beta)/(alpha + beta)) \
-        * np.exp(u)*t1 + \
-            np.exp(v)*t2
+    g[~zmask] = (0.5*(alpha*beta)/(alpha + beta)) \
+        * np.exp(u[~zmask])*t1[~zmask] + \
+            np.exp(v[~zmask])*t2[~zmask]
     mask = np.isnan(g)
     g[mask] = 0.
 
