@@ -47,26 +47,16 @@ def _generate_default_parameters_pseudovoight(params):
     """
     generate some default values of peak profile
     for the Thompson et. al. model. A total of
-    18 parameters are genrated which includes the
+    6 parameters are genrated which includes the
     following:
-    4 -> cagliotti + Scherrer broadening
-    5 -> lorentzian width with stacking fault
-    2 to 15 -> anisotropic hkl broadening depending on
-    symmetry
-    1 --> width_mixing of anisotropic broadening
+    3 -> cagliotti (instrumental broadening)
     """
     p = {"zero_error":[0., -1., 1., False],
          "trns":[0.0, -1.0, 1.0, False],
          "shft":[0.0,-1.0,1.0,False],
-         "U": [81.5, 0., 5000, False],
-         "V": [1.0337, 0., 5000, False],
-         "W": [5.18275, 0., 5000, False],
-         "P": [0., 0., 5000, False],
-         "X": [0.5665, 0., 100., False],
-         "Y": [1.90994, 0., 100., False],
-         "Xe": [0., 0., 1, False],
-         "Ye": [0., 0., 1, False],
-         "Xs": [0., 0., 1, False]
+         "U": [81.5, 0., np.inf, False],
+         "V": [1.0337, 0., np.inf, False],
+         "W": [5.18275, 0., np.inf, False]
          }
 
     for k, v in p.items():
@@ -78,6 +68,35 @@ def _generate_default_parameters_pseudovoight(params):
                        vary=v[3])
         elif isinstance(params, Parameters_lmfit):
             params.add(name=k,
+                       value=v[0],
+                       min=v[1],
+                       max=v[2],
+                       vary=v[3])
+
+def _add_phase_dependent_parameters_pseudovoight(params,
+                                                 mat):
+    """
+    add the particle size broadening term
+    P : Gaussian scherrer broadening
+    X : Lorentzian scherrer broadening
+    Y : Lorentzian microstrain broadening
+    """
+    name = mat.name
+    p = {"P": [0., 0., np.inf, False],
+     "X": [0.5665, 0., np.inf, False],
+     "Y": [1.90994, 0., np.inf, False]
+     }
+
+    for k, v in p.items():
+        pname = f"{name}_{k}"
+        if isinstance(params, Parameters):
+            params.add(name=pname,
+                       value=v[0],
+                       lb=v[1],
+                       ub=v[2],
+                       vary=v[3])
+        elif isinstance(params, Parameters_lmfit):
+            params.add(name=pname,
                        value=v[0],
                        min=v[1],
                        max=v[2],
@@ -144,6 +163,26 @@ def _add_chebyshev_background(params,
                    min=-np.inf,
                    max=np.inf,
                    vary=False)
+
+def _add_stacking_fault_parameters(params,
+                                   mat):
+    """
+    add stacking fault parameters for cubic systems only
+    """
+    phase_name = mat.name
+    if mat.sgnum == 225:
+        sf_alpha_name = f"{phase_name}_sf_alpha" 
+        twin_beta_name = f"{phase_name}_twin_beta"
+        if isinstance(params, Parameters):
+            params.add(sf_alpha_name, value=0., lb=0.,
+                       ub=1., vary=False)
+            params.add(twin_beta_name, value=0., lb=0.,
+                       ub=1., vary=False)
+        elif isinstance(params, Parameters_lmfit):
+            params.add(sf_alpha_name, value=0., min=0.,
+                       max=1., vary=False)
+            params.add(twin_beta_name, value=0., min=0.,
+                       max=1., vary=False)
 
 def _add_Shkl_terms(params,
                     mat,
@@ -220,11 +259,11 @@ def _add_lp_to_params(params,
         """
         if(n in ['a', 'b', 'c']):
             if isinstance(params, Parameters):
-                params.add(nn, value=l, lb=l-0.05,
-                           ub=l+0.05, vary=False)
+                params.add(nn, value=l, lb=l-0.025,
+                           ub=l+0.025, vary=False)
             elif isinstance(params, Parameters_lmfit):
-                params.add(nn, value=l, min=l-0.05,
-                           max=l+0.05, vary=False)
+                params.add(nn, value=l, min=l-0.025,
+                           max=l+0.025, vary=False)
         else:
             if isinstance(params, Parameters):
                 params.add(nn, value=l, lb=l-1.,
@@ -373,8 +412,10 @@ def _generate_default_parameters_LeBail(mat,
         """
         for p in mat:
             m = mat[p]
+            _add_phase_dependent_parameters_pseudovoight(params, m)
             _add_Shkl_terms(params, m)
             _add_lp_to_params(params, m)
+            _add_stacking_fault_parameters(params, m)
 
     elif isinstance(mat, Phases_Rietveld):
         """
@@ -384,33 +425,40 @@ def _generate_default_parameters_LeBail(mat,
             m = mat[p]
             k = list(m.keys())
             mm = m[k[0]]
+            _add_phase_dependent_parameters_pseudovoight(params, mm)
             _add_Shkl_terms(params, mm)
             _add_lp_to_params(params, mm)
+            _add_stacking_fault_parameters(params, mm)
 
     elif isinstance(mat, Material):
         """
         just an instance of Materials class
         this part initializes the lattice parameters in the
         """
+        _add_phase_dependent_parameters_pseudovoight(params, mat)
         _add_Shkl_terms(params, mat)
         _add_lp_to_params(params, mat)
+        _add_stacking_fault_parameters(params, mat)
 
     elif isinstance(mat, list):
         """
         a list of materials class
         """
         for m in mat:
+            _add_phase_dependent_parameters_pseudovoight(params, m)
             _add_Shkl_terms(params, m)
             _add_lp_to_params(params, m)
-
+            _add_stacking_fault_parameters(params, m)
+            
     elif isinstance(mat, dict):
         """
         dictionary of materials class
         """
         for k, m in mat.items():
+            _add_phase_dependent_parameters_pseudovoight(params, m)
             _add_Shkl_terms(params, m)
             _add_lp_to_params(params, m)
-
+            _add_stacking_fault_parameters(params, m)
     else:
         msg = (f"_generate_default_parameters: "
                f"incorrect argument. only list, dict or "

@@ -31,6 +31,7 @@ from hexrd import constants
 from hexrd.utils.decorators import numba_njit_if_available
 from numba import vectorize, float64
 from hexrd.fitting.peakfunctions import erfc, exp1exp
+# from scipy.special import erfc, exp1
 
 if constants.USE_NUMBA:
     from numba import prange
@@ -92,9 +93,7 @@ def _lorentzian_fwhm(xy,
                      gamma_ani_sqr,
                      eta_mixing,
                      tth,
-                     dsp,
-                     strain_direction_dot_product,
-                     is_in_sublattice):
+                     dsp):
     """
     @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     @DATE:       07/20/2020 SS 1.0 original
@@ -109,16 +108,11 @@ def _lorentzian_fwhm(xy,
                 else regular broadening
     """
     X, Y = xy
-    Xe, Ye, Xs = xy_sf
     th = np.radians(0.5*tth)
     tanth = np.tan(th)
     cth = np.cos(th)
     sig_ani = np.sqrt(gamma_ani_sqr)*eta_mixing*dsp**2
-    if is_in_sublattice:
-        xx = Xe*strain_direction_dot_product
-    else:
-        xx = Xs*strain_direction_dot_product
-    gamma = (X+xx)/cth + (Y+Ye+sig_ani)*tanth
+    gamma = (X+xy_sf)/cth + (Y+sig_ani)*tanth
     return gamma*1e-2
 
 @numba_njit_if_available(cache=True, nogil=True)
@@ -253,8 +247,6 @@ def pvoight_wppf(uvw,
                  tth,
                  dsp,
                  hkl,
-                 strain_direction_dot_product,
-                 is_in_sublattice,
                  tth_list):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
@@ -269,9 +261,7 @@ def pvoight_wppf(uvw,
         tth, dsp)
     fwhm_l = _lorentzian_fwhm(xy, xy_sf,
         gamma_ani_sqr, eta_mixing,
-        tth, dsp,
-        strain_direction_dot_product,
-        is_in_sublattice)
+        tth, dsp)
 
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
@@ -318,8 +308,6 @@ def pvfcj(uvw,
           tth,
           dsp,
           hkl,
-          strain_direction_dot_product,
-          is_in_sublattice,
           tth_list,
           HoL,
           SoL,
@@ -370,8 +358,6 @@ def pvfcj(uvw,
              np.degrees(x),
              dsp,
              hkl,
-             strain_direction_dot_product,
-             is_in_sublattice,
              tth_list)
         res += pv*fact
 
@@ -448,6 +434,8 @@ def _lorentzian_pink_beam(alpha,
 
     f1 = exp1exp(p)
     f2 = exp1exp(q)
+    # f1 = exp1(p)
+    # f2 = exp1(q)
 
     y = -(alpha*beta)/(np.pi*(alpha+beta))*(f1+f2).imag
     
@@ -468,8 +456,6 @@ def pvoight_pink_beam(alpha,
                       tth,
                       dsp,
                       hkl,
-                      strain_direction_dot_product,
-                      is_in_sublattice,
                       tth_list):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
@@ -489,9 +475,7 @@ def pvoight_pink_beam(alpha,
     tth, dsp)
     fwhm_l = _lorentzian_fwhm(xy, xy_sf,
         gamma_ani_sqr, eta_mixing,
-        tth, dsp,
-        strain_direction_dot_product,
-        is_in_sublattice)
+        tth, dsp)
 
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
@@ -520,8 +504,6 @@ def computespectrum_pvfcj(uvw,
                  tth,
                  dsp,
                  hkl,
-                 strain_direction_dot_product,
-                 is_in_sublattice,
                  tth_list,
                  Iobs, 
                  xn, 
@@ -545,12 +527,11 @@ def computespectrum_pvfcj(uvw,
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
+        xs = xy_sf[ii]
 
-        pv = pvfcj(uvw,p,xy,xy_sf,
+        pv = pvfcj(uvw,p,xy,xs,
                shkl,eta_mixing,
                t,d,g,
-               strain_direction_dot_product,
-               is_in_sublattice,
                tth_list,
                HL,SL,xn,wn)
 
@@ -567,8 +548,6 @@ def computespectrum_pvtch(uvw,
                  tth,
                  dsp,
                  hkl,
-                 strain_direction_dot_product,
-                 is_in_sublattice,
                  tth_list,
                  Iobs):
     """
@@ -590,12 +569,11 @@ def computespectrum_pvtch(uvw,
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
+        xs = xy_sf[ii]
 
         pv = pvoight_wppf(uvw,p,xy,
-                 xy_sf,shkl,eta_mixing,
+                 xs,shkl,eta_mixing,
                  t,d,g,
-                 strain_direction_dot_product,
-                 is_in_sublattice,
                  tth_list)
 
         spec += II * pv
@@ -613,8 +591,6 @@ def computespectrum_pvpink(alpha,
                  tth,
                  dsp,
                  hkl,
-                 strain_direction_dot_product,
-                 is_in_sublattice,
                  tth_list,
                  Iobs):
     """
@@ -636,13 +612,12 @@ def computespectrum_pvpink(alpha,
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
+        xs = xy_sf[ii]
 
         pv = pvoight_pink_beam(alpha,beta,
                  uvw,p,xy,
-                 xy_sf,shkl,eta_mixing,
+                 xs,shkl,eta_mixing,
                  t,d,g,
-                 strain_direction_dot_product,
-                 is_in_sublattice,
                  tth_list)
 
         spec += II * pv
@@ -662,8 +637,6 @@ def calc_Iobs_pvfcj(uvw,
             tth,
             dsp,
             hkl,
-            strain_direction_dot_product,
-            is_in_sublattice,
             tth_list,
             Icalc,
             spectrum_expt,
@@ -694,12 +667,11 @@ def calc_Iobs_pvfcj(uvw,
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
+        xs = xy_sf[ii]
 
-        pv = pvfcj(uvw,p,xy,xy_sf,
+        pv = pvfcj(uvw,p,xy,xs,
                    shkl,eta_mixing,
                    t,d,g,
-                   strain_direction_dot_product,
-                   is_in_sublattice,
                    tth_list_mask,
                    HL,SL,xn,wn)
 
@@ -720,8 +692,6 @@ def calc_Iobs_pvtch(uvw,
             tth,
             dsp,
             hkl,
-            strain_direction_dot_product,
-            is_in_sublattice,
             tth_list,
             Icalc,
             spectrum_expt,
@@ -752,12 +722,11 @@ def calc_Iobs_pvtch(uvw,
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
+        xs = xy_sf[ii]
 
         pv = pvoight_wppf(uvw,p,xy,
-                 xy_sf,shkl,eta_mixing,
+                 xs,shkl,eta_mixing,
                  t,d,g,
-                 strain_direction_dot_product,
-                 is_in_sublattice,
                  tth_list_mask)
 
         y = Ic * pv
@@ -779,8 +748,6 @@ def calc_Iobs_pvpink(alpha,
             tth,
             dsp,
             hkl,
-            strain_direction_dot_product,
-            is_in_sublattice,
             tth_list,
             Icalc,
             spectrum_expt,
@@ -811,13 +778,12 @@ def calc_Iobs_pvpink(alpha,
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
+        xs = xy_sf[ii]
 
         pv = pvoight_pink_beam(alpha, beta,
-                   uvw,p,xy,xy_sf,
+                   uvw,p,xy,xs,
                    shkl,eta_mixing,
                    t,d,g,
-                   strain_direction_dot_product,
-                   is_in_sublattice,
                    tth_list_mask)
 
         y = Ic * pv
