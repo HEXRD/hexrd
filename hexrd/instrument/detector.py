@@ -277,6 +277,11 @@ class Detector:
         assert isinstance(s, str), "requires string input"
         self._name = s
 
+    @property
+    def lmfit_name(self):
+        # lmfit requires underscores instead of dashes
+        return self.name.replace('-', '_')
+
     # properties for physical size of rectangular detector
     @property
     def rows(self):
@@ -517,6 +522,26 @@ class Detector:
                 % (len(self._calibration_flags), len(x))
             )
         self._calibration_flags = x
+
+    @property
+    def calibration_flags_to_lmfit_names(self):
+        # Create a list identical in length to `self.calibration_flags`
+        # where the entries in the list are the corresponding lmfit
+        # parameter names.
+        name = self.lmfit_name
+        flags = [
+            f'{name}_euler_z',
+            f'{name}_euler_xp',
+            f'{name}_euler_zpp',
+            f'{name}_tvec_x',
+            f'{name}_tvec_y',
+            f'{name}_tvec_z',
+        ]
+        if self.distortion is not None:
+            for i in range(len(self.distortion.params)):
+                flags.append(f'{name}_distortion_param_{i}')
+
+        return flags
 
     # =========================================================================
     # METHODS

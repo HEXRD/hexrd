@@ -1,18 +1,25 @@
 import logging
 
+import lmfit
 import numpy as np
-from scipy.optimize import leastsq, least_squares
+
+from .lmfit_param_handling import (
+    add_engineering_constraints,
+    create_instr_params,
+    validate_params_list,
+)
 
 logger = logging.getLogger()
 logger.setLevel('INFO')
 
 
 def _normalized_ssqr(resd):
-    return np.sum(resd*resd)/len(resd)
+    return np.sum(resd * resd) / len(resd)
 
 
 class InstrumentCalibrator:
-    def __init__(self, *args):
+    def __init__(self, *args, engineering_constraints=None,
+                 set_refinements_from_instrument_flags=True):
         """
         Model for instrument calibration class as a function of
 
@@ -29,204 +36,139 @@ class InstrumentCalibrator:
         -----
         Flags are set on calibrators
         """
-        assert len(args) > 0, \
-            "must have at least one calibrator"
-        self._calibrators = args
-        self._instr = self._calibrators[0].instr
-        self.npi = len(self._instr.calibration_parameters)
-        self._full_params = self._instr.calibration_parameters
-        calib_data = []
-        for calib in self._calibrators:
-            assert calib.instr is self._instr, \
+        assert len(args) > 0, "must have at least one calibrator"
+        self.calibrators = args
+        for calib in self.calibrators:
+            assert calib.instr is self.instr, \
                 "all calibrators must refer to the same instrument"
-            self._full_params = np.hstack([self._full_params, calib.params])
-            calib_data.append(calib.calibration_data)
-        self._calibration_data = calib_data
+        self._engineering_constraints = engineering_constraints
+
+        self.params = self.make_lmfit_params()
+        if set_refinements_from_instrument_flags:
+            self.instr.set_calibration_flags_to_lmfit_params(self.params)
+
+        self.fitter = lmfit.Minimizer(self.minimizer_function,
+                                      self.params,
+                                      nan_policy='omit')
+
+    def make_lmfit_params(self):
+        params = create_instr_params(self.instr)
+
+        for calibrator in self.calibrators:
+            # We pass the params to the calibrator so it can ensure it
+            # creates unique parameter names. The calibrator will keep
+            # track of the names it chooses itself.
+            params += calibrator.create_lmfit_params(params)
+
+        # Perform validation on the params before proceeding
+        validate_params_list(params)
+
+        params_dict = lmfit.Parameters()
+        params_dict.add_many(*params)
+
+        add_engineering_constraints(params_dict, self.engineering_constraints)
+        return params_dict
+
+    def update_all_from_params(self, params):
+        # Update instrument and material from the lmfit parameters
+        self.instr.update_from_lmfit_parameter_list(params)
+        for calibrator in self.calibrators:
+            calibrator.update_from_lmfit_params(params)
 
     @property
     def instr(self):
-        return self._instr
+        return self.calibrators[0].instr
 
     @property
-    def calibrators(self):
-        return self._calibrators
+    def tth_distortion(self):
+        return self.calibrators[0].tth_distortion
+
+    @tth_distortion.setter
+    def tth_distortion(self, v):
+        for calibrator in self.calibrators:
+            calibrator.tth_distortion = v
+
+    def minimizer_function(self, params):
+        self.update_all_from_params(params)
+        return self.residual()
+
+    def residual(self):
+        return np.hstack([x.residual() for x in self.calibrators])
+
+    def minimize(self, method='least_squares', odict=None):
+        if odict is None:
+            odict = {}
+
+        if method == 'least_squares':
+            # Set defaults to the odict, if they are missing
+            odict = {
+                "ftol": 1e-8,
+                "xtol": 1e-8,
+                "gtol": 1e-8,
+                "verbose": 2,
+                "max_nfev": 1000,
+                "x_scale": "jac",
+                "method": "trf",
+                "jac": "3-point",
+                **odict,
+            }
+
+            result = self.fitter.least_squares(self.params, **odict)
+        else:
+            result = self.fitter.scalar_minimize(method=method,
+                                                 params=self.params,
+                                                 max_nfev=50000,
+                                                 **odict)
+
+        return result
 
     @property
-    def calibration_data(self):
-        return self._calibration_data
+    def engineering_constraints(self):
+        return self._engineering_constraints
 
-    @property
-    def flags(self):
-        # additional params come next
-        flags = [self.instr.calibration_flags, ]
-        for calib_class in self.calibrators:
-            flags.append(calib_class.flags[calib_class.npi:])
-        return np.hstack(flags)
+    @engineering_constraints.setter
+    def engineering_constraints(self, v):
+        if v == self._engineering_constraints:
+            return
 
-    @property
-    def full_params(self):
-        return self._full_params
-
-    @full_params.setter
-    def full_params(self, x):
-        assert len(x) == len(self._full_params), \
-            "input must have length %d; you gave %d" \
-            % (len(self._full_params), len(x))
-        self._full_params = x
-
-    @property
-    def reduced_params(self):
-        return self.full_params[self.flags]
-
-    # =========================================================================
-    # METHODS
-    # =========================================================================
-
-    def _reduced_params_flag(self, cidx):
-        assert cidx >= 0 and cidx < len(self.calibrators), \
-            "index must be in %s" % str(np.arange(len(self.calibrators)))
-
-        calib_class = self.calibrators[cidx]
-
-        # instrument params come first
-        npi = calib_class.npi
-
-        # additional params come next
-        cparams_flags = [calib_class.flags[:npi], ]
-        for i, calib_class in enumerate(self.calibrators):
-            if i == cidx:
-                cparams_flags.append(calib_class.flags[npi:])
-            else:
-                cparams_flags.append(np.zeros(calib_class.npe, dtype=bool))
-        return np.hstack(cparams_flags)
-
-    def extract_points(self, fit_tth_tol, int_cutoff=1e-4):
-        # !!! list in the same order as dict looping
-        calib_data_list = []
-        for calib_class in self.calibrators:
-            calib_class._extract_powder_lines(
-                fit_tth_tol=fit_tth_tol, int_cutoff=int_cutoff
+        valid_settings = [
+            None,
+            'None',
+            'TARDIS',
+        ]
+        if v not in valid_settings:
+            valid_str = ', '.join(map(valid_settings, str))
+            msg = (
+                f'Invalid engineering constraint "{v}". Valid constraints '
+                f'are: "{valid_str}"'
             )
-            calib_data_list.append(calib_class.calibration_data)
-        self._calibration_data = calib_data_list
-        return calib_data_list
+            raise Exception(msg)
 
-    def residual(self, x0):
-        # !!! list in the same order as dict looping
-        resd = []
-        for i, calib_class in enumerate(self.calibrators):
-            # !!! need to grab the param set
-            #     specific to this calibrator class
-            fp = np.array(self.full_params)  # copy full_params
-            fp[self.flags] = x0  # assign new global values
-            this_x0 = fp[self._reduced_params_flag(i)]  # select these
-            resd.append(calib_class.residual(this_x0))
-        return np.hstack(resd)
+        self._engineering_constraints = v
+        self.params = self.make_lmfit_params()
 
-    def run_calibration(self,
-                        fit_tth_tol=None, int_cutoff=1e-4,
-                        conv_tol=1e-4, max_iter=5,
-                        use_robust_optimization=False):
-        """
+    def run_calibration(self, odict):
+        resd0 = self.residual()
+        nrm_ssr_0 = _normalized_ssqr(resd0)
 
+        result = self.minimize(odict=odict)
 
-        Parameters
-        ----------
-        fit_tth_tol : TYPE, optional
-            DESCRIPTION. The default is None.
-        int_cutoff : TYPE, optional
-            DESCRIPTION. The default is 1e-4.
-        conv_tol : TYPE, optional
-            DESCRIPTION. The default is 1e-4.
-        max_iter : TYPE, optional
-            DESCRIPTION. The default is 5.
-        use_robust_optimization : TYPE, optional
-            DESCRIPTION. The default is False.
+        resd1 = self.residual()
 
-        Returns
-        -------
-        x1 : TYPE
-            DESCRIPTION.
+        nrm_ssr_1 = _normalized_ssqr(resd1)
 
-        """
+        delta_r = 1. - nrm_ssr_1/nrm_ssr_0
 
-        delta_r = np.inf
-        step_successful = True
-        iter_count = 0
-        nrm_ssr_prev = np.inf
-        rparams_prev = np.array(self.reduced_params)
-        while delta_r > conv_tol \
-            and step_successful \
-                and iter_count < max_iter:
+        if delta_r > 0:
+            logger.info('OPTIMIZATION SUCCESSFUL')
+        else:
+            logger.warning('no improvement in residual')
 
-            # extract data
-            check_cal = [i is None for i in self.calibration_data]
-            if np.any(check_cal) or iter_count > 0:
-                self.extract_points(
-                    fit_tth_tol=fit_tth_tol,
-                    int_cutoff=int_cutoff
-                )
+        logger.info('normalized initial ssr: %.4e' % nrm_ssr_0)
+        logger.info('normalized final ssr: %.4e' % nrm_ssr_1)
+        logger.info('change in resdiual: %.4e' % delta_r)
 
-            # grab reduced params for optimizer
-            x0 = np.array(self.reduced_params)  # !!! copy
-            resd0 = self.residual(x0)
-            nrm_ssr_0 = _normalized_ssqr(resd0)
-            if nrm_ssr_0 > nrm_ssr_prev:
-                logger.warning('No residual improvement; exiting')
-                self.full_params = rparams_prev
-                break
+        self.params = result.params
+        self.update_all_from_params(self.params)
 
-            if use_robust_optimization:
-                oresult = least_squares(
-                    self.residual, x0,
-                    method='trf', loss='soft_l1'
-                )
-                x1 = oresult['x']
-            else:
-                x1, cox_x, infodict, mesg, ierr = leastsq(
-                    self.residual, x0,
-                    full_output=True
-                )
-
-            # eval new residual
-            # !!! I thought this should update the underlying class params?
-            resd1 = self.residual(x1)
-
-            nrm_ssr_1 = _normalized_ssqr(resd1)
-
-            delta_r = 1. - nrm_ssr_1/nrm_ssr_0
-
-            if delta_r > 0:
-                logger.info('OPTIMIZATION SUCCESSFUL')
-                logger.info('normalized initial ssr: %.4e' % nrm_ssr_0)
-                logger.info('normalized final ssr: %.4e' % nrm_ssr_1)
-                logger.info('change in resdiual: %.4e' % delta_r)
-                # FIXME: WHY IS THIS UPDATE NECESSARY?
-                #        Thought the cal to self.residual below did this, but
-                #        appeasr not to.
-                new_params = np.array(self.full_params)
-                new_params[self.flags] = x1
-                self.full_params = new_params
-
-                nrm_ssr_prev = nrm_ssr_0
-                rparams_prev = np.array(self.full_params)  # !!! careful
-                rparams_prev[self.flags] = x0
-            else:
-                logger.warning('no improvement in residual; exiting')
-                step_successful = False
-                break
-
-            iter_count += 1
-
-        # handle exit condition in case step failed
-        if not step_successful:
-            x1 = x0
-            _ = self.residual(x1)
-
-        # update the full_params
-        # FIXME: this class is still hard-coded for one calibrator
-        fp = np.array(self.full_params, dtype=float)
-        fp[self.flags] = x1
-        self.full_params = fp
-
-        return x1
+        return result

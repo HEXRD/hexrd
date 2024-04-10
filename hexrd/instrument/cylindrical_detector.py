@@ -230,6 +230,14 @@ class CylindricalDetector(Detector):
             'radius': self.radius,
         }
 
+    @property
+    def calibration_flags_to_lmfit_names(self):
+        # Take the parent flags and add the radius
+        return [
+            *super().calibration_flags_to_lmfit_names,
+            f'{self.lmfit_name}_radius',
+        ]
+
 
 @memoize
 def _pixel_angles(origin,

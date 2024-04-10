@@ -1,5 +1,3 @@
-import copy
-
 import numpy as np
 from scipy import ndimage
 from scipy.integrate import nquad
@@ -9,78 +7,92 @@ from skimage.feature import blob_log
 
 from hexrd import xrdutil
 from hexrd.constants import fwhm_to_sigma
+from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
 from hexrd.transforms import xfcapi
+from hexrd.utils.hkl import hkl_to_str, str_to_hkl
+
+from .calibrator import Calibrator
+from .lmfit_param_handling import (
+    create_grain_params,
+    rename_to_avoid_collision,
+)
 
 
-class LaueCalibrator:
-    calibrator_type = 'laue'
-    _nparams = 12
+class LaueCalibrator(Calibrator):
+    type = 'laue'
 
-    def __init__(self, instr, plane_data, grain_params, flags,
-                 min_energy=5., max_energy=25.):
-        self._instr = instr
-        self._plane_data = copy.deepcopy(plane_data)
-        self._plane_data.wavelength = self._instr.beam_energy  # force
-        self._params = np.asarray(grain_params, dtype=float).flatten()
-        assert len(self._params) == self._nparams, \
-            "grain parameters must have %d elements" % self._nparams
-        self._full_params = np.hstack(
-            [self._instr.calibration_parameters, self._params]
+    def __init__(self, instr, material, grain_params, default_refinements=None,
+                 min_energy=5, max_energy=25, tth_distortion=None,
+                 calibration_picks=None):
+        self.instr = instr
+        self.material = material
+        self.grain_params = grain_params
+        self.default_refinements = default_refinements
+        self.energy_cutoffs = [min_energy, max_energy]
+        self.tth_distortion = tth_distortion
+
+        self.euler_convention = {
+            'axes_order': 'zxz',
+            'extrinsic': False,
+        }
+
+        self.data_dict = None
+        if calibration_picks is not None:
+            self.calibration_picks = calibration_picks
+
+        self.param_names = []
+
+    def create_lmfit_params(self, current_params):
+        params = create_grain_params(
+            self.material.name,
+            self.grain_params_euler,
+            self.default_refinements,
         )
-        assert len(flags) == len(self._full_params), \
-            "flags must have %d elements; you gave %d" \
-            % (len(self._full_params), len(flags))
-        self._flags = flags
-        self._energy_cutoffs = [min_energy, max_energy]
+
+        # Ensure there are no name collisions
+        params, _ = rename_to_avoid_collision(params, current_params)
+        self.param_names = [x[0] for x in params]
+
+        return params
+
+    def update_from_lmfit_params(self, params_dict):
+        grain_params = []
+        for i, name in enumerate(self.param_names):
+            grain_params.append(params_dict[name].value)
+
+        self.grain_params_euler = np.asarray(grain_params)
 
     @property
-    def instr(self):
-        return self._instr
+    def grain_params_euler(self):
+        # Grain parameters with orientation set using Euler angle convention
+        if self.euler_convention is None:
+            return self.grain_params
+
+        grain_params = self.grain_params.copy()
+        rme = RotMatEuler(np.zeros(3), **self.euler_convention)
+        rme.rmat = xfcapi.makeRotMatOfExpMap(grain_params[:3])
+        grain_params[:3] = np.degrees(rme.angles)
+        return grain_params
+
+    @grain_params_euler.setter
+    def grain_params_euler(self, v):
+        # Grain parameters with orientation set using Euler angle convention
+        grain_params = v.copy()
+        if self.euler_convention is not None:
+            rme = RotMatEuler(np.zeros(3,), **self.euler_convention)
+            rme.angles = np.radians(grain_params[:3])
+            phi, n = angleAxisOfRotMat(rme.rmat)
+            grain_params[:3] = phi * n.flatten()
+
+        self.grain_params = grain_params
 
     @property
     def plane_data(self):
-        self._plane_data.wavelength = self.energy_cutoffs[-1]
-        self._plane_data.exclusions = None
-        return self._plane_data
+        return self.material.planeData
 
     @property
-    def params(self):
-        return self._params
-
-    @params.setter
-    def params(self, x):
-        x = np.atleast_1d(x)
-        if len(x) != len(self.params):
-            raise RuntimeError("params must have %d elements"
-                               % len(self.params))
-        self._params = x
-
-    @property
-    def full_params(self):
-        return self._full_params
-
-    @property
-    def npi(self):
-        return len(self._instr.calibration_parameters)
-
-    @property
-    def npe(self):
-        return len(self._params)
-
-    @property
-    def flags(self):
-        return self._flags
-
-    @flags.setter
-    def flags(self, x):
-        x = np.atleast_1d(x)
-        nparams_instr = len(self.instr.calibration_parameters)
-        nparams_extra = len(self.params)
-        nparams = nparams_instr + nparams_extra
-        if len(x) != nparams:
-            raise RuntimeError("flags must have %d elements" % nparams)
-        self._flags = np.asarrasy(x, dtype=bool)
-        self._instr.calibration_flags = self._flags[:nparams_instr]
+    def bmatx(self):
+        return self.plane_data.latVecOps['B']
 
     @property
     def energy_cutoffs(self):
@@ -91,11 +103,42 @@ class LaueCalibrator:
         assert len(x) == 2, "input must have 2 elements"
         assert x[1] > x[0], "first element must be < than second"
         self._energy_cutoffs = x
+        self.plane_data.wavelength = self.energy_cutoffs[-1]
+        self.plane_data.exclusions = None
 
-    def _autopick_points(self, raw_img_dict, tth_tol=5., eta_tol=5.,
-                         npdiv=2, do_smoothing=True, smoothing_sigma=2,
-                         use_blob_detection=True, blob_threshold=0.25,
-                         fit_peaks=True, min_peak_int=1., fit_tth_tol=0.1):
+    @property
+    def calibration_picks(self):
+        # Convert this from our internal data dict format
+        picks = {}
+        for det_key in self.instr.detectors:
+            picks[det_key] = {}
+
+            # find valid reflections and recast hkls to int
+            xys = self.data_dict['pick_xys'][det_key]
+            hkls = self.data_dict['hkls'][det_key]
+
+            for hkl, xy in zip(hkls, xys):
+                picks[det_key][hkl_to_str(hkl)] = xy
+
+        return picks
+
+    @calibration_picks.setter
+    def calibration_picks(self, v):
+        # Convert this to our internal data dict format
+        data_dict = {
+            'pick_xys': {},
+            'hkls': {},
+        }
+        for det_key, det_picks in v.items():
+            data_dict['hkls'][det_key] = [str_to_hkl(x) for x in det_picks]
+            data_dict['pick_xys'][det_key] = list(det_picks.values())
+
+        self.data_dict = data_dict
+
+    def autopick_points(self, raw_img_dict, tth_tol=5., eta_tol=5.,
+                        npdiv=2, do_smoothing=True, smoothing_sigma=2,
+                        use_blob_detection=True, blob_threshold=0.25,
+                        fit_peaks=True, min_peak_int=1., fit_tth_tol=0.1):
         """
 
 
@@ -129,9 +172,9 @@ class LaueCalibrator:
         rmat_s = np.eye(3)  # !!! forcing to identity
         omega = 0.  # !!! same ^^^
 
-        rmat_c = xfcapi.makeRotMatOfExpMap(self.params[:3])
-        tvec_c = self.params[3:6]
-        # vinv_s = self.params[6:12]  # !!!: patches don't take this yet
+        rmat_c = xfcapi.makeRotMatOfExpMap(self.grain_params[:3])
+        tvec_c = self.grain_params[3:6]
+        # vinv_s = self.grain_params[6:12]  # !!!: patches don't take this yet
 
         # run simulation
         # ???: could we get this from overlays?
@@ -139,7 +182,7 @@ class LaueCalibrator:
             self.plane_data,
             minEnergy=self.energy_cutoffs[0],
             maxEnergy=self.energy_cutoffs[1],
-            rmat_s=None, grain_params=np.atleast_2d(self.params),
+            rmat_s=None, grain_params=np.atleast_2d(self.grain_params),
         )
 
         # loop over detectors for results
@@ -353,25 +396,32 @@ class LaueCalibrator:
                 dtype=reflInfo_dtype)
             refl_dict[det_key] = reflInfo
 
-        # !!! ok, here is where we would populated the data_dict from refl_dict
-        return refl_dict
+        # Convert to our data_dict format
+        data_dict = {
+            'pick_xys': {},
+            'hkls': {},
+        }
+        for det, det_picks in refl_dict.items():
+            data_dict['pick_xys'].setdefault(det, [])
+            data_dict['hkls'].setdefault(det, [])
+            for entry in det_picks:
+                hkl = entry[1].astype(int).tolist()
+                cart = entry[6]
+                data_dict['hkls'][det].append(hkl)
+                data_dict['pick_xys'][det].append(cart)
 
-    def _evaluate(self, reduced_params, data_dict):
-        """
-        """
-        # first update instrument from input parameters
-        full_params = np.asarray(self.full_params)
-        full_params[self.flags] = reduced_params
+        self.data_dict = data_dict
+        return data_dict
 
-        self.instr.update_from_parameter_list(full_params[:self.npi])
-        self.params = full_params[self.npi:]
+    def _evaluate(self):
+        data_dict = self.data_dict
 
         # grab reflection data from picks input
-        pick_hkls_dict = dict.fromkeys(self.instr.detectors)
-        pick_xys_dict = dict.fromkeys(self.instr.detectors)
+        pick_hkls_dict = {}
+        pick_xys_dict = {}
         for det_key in self.instr.detectors:
             # find valid reflections and recast hkls to int
-            xys = data_dict['pick_xys'][det_key]
+            xys = np.asarray(data_dict['pick_xys'][det_key], dtype=float)
             hkls = np.asarray(data_dict['hkls'][det_key], dtype=int)
 
             valid_idx = ~np.isnan(xys[:, 0])
@@ -382,42 +432,31 @@ class LaueCalibrator:
 
         return pick_hkls_dict, pick_xys_dict
 
-    def residual(self, reduced_params, data_dict):
+    def residual(self):
         # need this for laue obj
-        bmatx = self.plane_data.latVecOps['B']
-        pick_hkls_dict, pick_xys_dict = self._evaluate(
-            reduced_params, data_dict
-        )
+        pick_hkls_dict, pick_xys_dict = self._evaluate()
+
         # munge energy cutoffs
         energy_cutoffs = np.r_[0.5, 1.5] * np.asarray(self.energy_cutoffs)
 
         return sxcal_obj_func(
-            reduced_params, self.full_params, self.flags,
-            self.instr, pick_xys_dict, pick_hkls_dict,
-            bmatx, energy_cutoffs
+            [self.grain_params], self.instr, pick_xys_dict, pick_hkls_dict,
+            self.bmatx, energy_cutoffs
         )
 
-    def model(self, reduced_params, data_dict):
+    def model(self):
         # need this for laue obj
-        bmatx = self.plane_data.latVecOps['B']
-        pick_hkls_dict, pick_xys_dict = self._evaluate(
-            reduced_params, data_dict,
-        )
+        pick_hkls_dict, pick_xys_dict = self._evaluate()
 
         return sxcal_obj_func(
-            reduced_params, self.full_params, self.flags,
-            self.instr, pick_xys_dict, pick_hkls_dict,
-            bmatx, self.energy_cutoffs,
-            sim_only=True
+            [self.grain_params], self.instr, pick_xys_dict, pick_hkls_dict,
+            self.bmatx, self.energy_cutoffs, sim_only=True
         )
 
 
 # Objective function for Laue fitting
-def sxcal_obj_func(plist_fit, plist_full, param_flags,
-                   instr, meas_xy, hkls_idx,
-                   bmat, energy_cutoffs,
-                   sim_only=False,
-                   return_value_flag=None):
+def sxcal_obj_func(grain_params, instr, meas_xy, hkls_idx,
+                   bmat, energy_cutoffs, sim_only=False):
     """
     Objective function for Laue-based fitting.
 
@@ -425,76 +464,40 @@ def sxcal_obj_func(plist_fit, plist_full, param_flags,
     energy_cutoffs are [minEnergy, maxEnergy] where min/maxEnergy can be lists
 
     """
-    npi_tot = len(instr.calibration_parameters)
-
-    # fill out full parameter list
-    # !!! no scaling for now
-    plist_full[param_flags] = plist_fit
-
-    plist_instr = plist_full[:npi_tot]
-    grain_params = [plist_full[npi_tot:], ]
-
-    # update instrument
-    instr.update_from_parameter_list(plist_instr)
-
-    # beam vector
-    bvec = instr.beam_vector
-
     # right now just stuck on the end and assumed
     # to all be the same length... FIX THIS
     calc_xy = {}
     calc_ang = {}
-    npts_tot = 0
     for det_key, panel in instr.detectors.items():
-        # counter
-        npts_tot += len(meas_xy[det_key])
-
         # Simulate Laue pattern:
         # returns xy_det, hkls_in, angles, dspacing, energy
         sim_results = panel.simulate_laue_pattern(
             [hkls_idx[det_key], bmat],
             minEnergy=energy_cutoffs[0], maxEnergy=energy_cutoffs[1],
             grain_params=grain_params,
-            beam_vec=bvec
+            beam_vec=instr.beam_vector
         )
 
         calc_xy_tmp = sim_results[0][0]
-        calc_angs_tmp = sim_results[2][0]
 
         idx = ~np.isnan(calc_xy_tmp[:, 0])
         calc_xy[det_key] = calc_xy_tmp[idx, :]
-        calc_ang[det_key] = calc_angs_tmp[idx, :]
-        pass
+
+        if sim_only:
+            # Grab angles too. We dont use them otherwise.
+            # FIXME: might need tth correction if there is a distortion.
+            calc_angs_tmp = sim_results[2][0]
+            calc_ang[det_key] = calc_angs_tmp[idx, :]
 
     # return values
     if sim_only:
-        retval = {}
-        for det_key in calc_xy.keys():
-            # ??? calc_xy is always 2-d
-            retval[det_key] = [calc_xy[det_key], calc_ang[det_key]]
-    else:
-        meas_xy_all = []
-        calc_xy_all = []
-        for det_key in meas_xy.keys():
-            meas_xy_all.append(meas_xy[det_key])
-            calc_xy_all.append(calc_xy[det_key])
-            pass
-        meas_xy_all = np.vstack(meas_xy_all)
-        calc_xy_all = np.vstack(calc_xy_all)
+        return {k: [calc_xy[k], calc_ang[k]] for k in calc_xy}
 
-        diff_vecs_xy = calc_xy_all - meas_xy_all
-        retval = diff_vecs_xy.flatten()
-        if return_value_flag == 1:
-            retval = sum(abs(retval))
-        elif return_value_flag == 2:
-            denom = npts_tot - len(plist_fit) - 1.
-            if denom != 0:
-                nu_fac = 1. / denom
-            else:
-                nu_fac = 1.
-            nu_fac = 1 / (npts_tot - len(plist_fit) - 1.)
-            retval = nu_fac * sum(retval**2)
-    return retval
+    meas_xy_all = np.vstack(list(meas_xy.values()))
+    calc_xy_all = np.vstack(list(calc_xy.values()))
+
+    diff_vecs_xy = calc_xy_all - meas_xy_all
+    return diff_vecs_xy.flatten()
 
 
 def gaussian_2d(p, data):
