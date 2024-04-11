@@ -1,6 +1,5 @@
 Pilatus3X_2M:
   saturation_level: 1000000
-  buffer: [2, 2]
   pixels:
     columns: 1679
     rows: 1475
