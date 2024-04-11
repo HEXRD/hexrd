@@ -6,10 +6,6 @@ beam:
     polar_angle: 90.0
 detectors:
   ff1:
-    buffer:
-    - 2.0
-    - 2.0
-    detector_type: planar
     pixels:
       columns: 3072
       rows: 3888
@@ -27,10 +23,6 @@ detectors:
       - 3.325955053634411
       - -670.7508650125019
   ff2:
-    buffer:
-    - 2.0
-    - 2.0
-    detector_type: planar
     pixels:
       columns: 3072
       rows: 3888

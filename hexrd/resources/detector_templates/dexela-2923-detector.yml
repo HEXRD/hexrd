@@ -1,6 +1,5 @@
 Dexela 2923:
   saturation_level: 15800
-  buffer: [2, 2]
   pixels:
     columns: 3072
     rows: 3888
