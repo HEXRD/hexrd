@@ -54,7 +54,7 @@ def fast_snip1d(y, w=4, numiter=2):
                 kernel = np.zeros(p*2 + 1)
                 kernel[0] = 0.5
                 kernel[-1] = 0.5
-                b = np.minimum(b, signal.fftconvolve(z, kernel, mode='same'))
+                b = np.minimum(b, signal.convolve(z, kernel, mode='same'))
             z = b
         bkg[k, :] = _scale_image_snip(b, min_val, invert=True)
     return bkg
