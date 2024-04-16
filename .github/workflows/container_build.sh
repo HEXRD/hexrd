@@ -2,7 +2,7 @@
 cd /github/workspace/
 
 # Install dependencies
-yum install -y wget git centos-release-scl
+yum install -y wget git centos-release-scl ca-certificates
 
 # Need to install packages that depend on centos-release-scl on a different line.
 # This will use gcc==10, which is the same as what manylinux2014 uses.
