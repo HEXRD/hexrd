@@ -44,7 +44,6 @@ import io
 import os.path as osp
 
 import numpy as np
-import numpy.dual
 from numpy import pi, sin, cos, tan, radians
 
 import matplotlib as mpl
@@ -54,7 +53,7 @@ DPI_SCREEN = 150
 
 # reset mpl rc to defaults and adjust settings for image generation
 mpl.rcdefaults()
-mpl.rcParams.update({'backend': 'Qt5Agg' })
+mpl.rcParams.update({'backend': 'QtAgg' })
 mpl.rc('font',**{'family':'sans-serif', 'sans-serif':['Arial'], 'size':12})
 mpl.rc('mathtext', default='regular') # same font for mathtext as normal text
 mpl.rc('image', cmap='viridis', origin='lower') #
@@ -97,7 +96,7 @@ def zenith(vv, v0=(0,0,1), uom='radians'):
         v0 = np.reshape(v0, shape0_new)
 
     # normalization factor along last axis
-    norm = np.dual.norm(vv, axis=-1) * np.dual.norm(v0, axis=-1)
+    norm = np.linalg.norm(vv, axis=-1) * np.linalg.norm(v0, axis=-1)
 
     # np.clip eliminates rounding errors for (anti)parallel vectors
     out = np.arccos(np.clip(np.sum(vv * v0, -1) / norm, -1, 1))
@@ -113,9 +112,9 @@ def azimuth(vv, v0=None, v1=None, uom='radians'):
 
     with np.errstate(divide='ignore', invalid='ignore'):
         n0 = np.cross(v0, v1)
-        n0 /= np.dual.norm(n0, axis=-1)[...,np.newaxis]
+        n0 /= np.linalg.norm(n0, axis=-1)[...,np.newaxis]
         nn = np.cross(v0, vv)
-        nn /= np.dual.norm(nn, axis=-1)[...,np.newaxis]
+        nn /= np.linalg.norm(nn, axis=-1)[...,np.newaxis]
 
     azi = np.arccos(np.sum(nn * n0, -1))
     if len(np.shape(azi)) > 0:
