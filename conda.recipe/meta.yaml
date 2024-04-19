@@ -22,8 +22,9 @@ requirements:
     - numba                                  # [build_platform != target_platform]
     - pybind11                               # [build_platform != target_platform]
   host:
-    - python {{ python }}
+    - eigen3
     - numpy >=1.20
+    - python {{ python }}
     - setuptools
     - setuptools_scm
     # Numba is only here to make sure we use a version of numpy that is compatible

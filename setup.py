@@ -113,7 +113,9 @@ def get_pybind11_include_path():
 
 def get_cpp_extensions():
     cpp_transform_pkgdir = Path('hexrd') / 'transforms/cpp_sublibrary'
-    src_files = [str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')]
+
+    inverse_distortion_files = [str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')]
+    transforms_files = [str(cpp_transform_pkgdir / 'src/transforms.cpp')]
 
     extra_compile_args = ['-O3', '-Wall', '-shared', '-std=c++14',
                           '-funroll-loops']
@@ -122,6 +124,7 @@ def get_cpp_extensions():
 
     # Define include directories
     include_dirs = [
+        get_include_path('eigen3'),
         get_include_path('xsimd'),
         get_include_path('xtensor'),
         get_include_path('xtensor-python'),
@@ -132,13 +135,21 @@ def get_cpp_extensions():
 
     inverse_distortion_ext = Extension(
         name='hexrd.extensions.inverse_distortion',
-        sources=src_files,
+        sources=inverse_distortion_files,
         extra_compile_args=extra_compile_args,
         include_dirs=include_dirs,
         language='c++',
     )
 
-    return [inverse_distortion_ext]
+    transforms_ext = Extension(
+        name='hexrd.extensions.transforms',
+        sources=transforms_files,
+        extra_compile_args=extra_compile_args,
+        include_dirs=include_dirs,
+        language='c++',
+    )
+
+    return [inverse_distortion_ext, transforms_ext]
 
 
 def get_old_xfcapi_extension_modules():

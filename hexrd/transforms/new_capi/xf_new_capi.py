@@ -25,6 +25,7 @@ There are also some functions that maybe would be needed in the transforms modul
 from . import constants as cnst
 from .transforms_definitions import xf_api
 from hexrd.extensions import _new_transforms_capi as _impl
+from hexrd.extensions import transforms as _impl_new
 
 import numpy as np
 
@@ -48,7 +49,7 @@ def angles_to_gvec(
     chi = 0.0 if chi is None else float(chi)
     rmat_c = cnst.identity_3x3 if rmat_c is None else np.ascontiguousarray( rmat_c )
 
-    result = _impl.anglesToGVec(angs, beam_vec, eta_vec, chi, rmat_c)
+    result = _impl_new.anglesToGVec(angs, beam_vec, eta_vec, chi, rmat_c)
 
     return result[0] if orig_ndim == 1 else result
 
