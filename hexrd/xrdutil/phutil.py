@@ -21,11 +21,12 @@ from hexrd.utils.decorators import numba_njit_if_available
 class SampleLayerDistortion:
     def __init__(self, panel,
                  layer_standoff, layer_thickness,
-                 pinhole_thickness):
+                 pinhole_thickness, pinhole_radius):
         self._panel = panel
         self._layer_standoff = layer_standoff
         self._layer_thickness = layer_thickness
         self._pinhole_thickness = pinhole_thickness
+        self._pinhole_radius = pinhole_radius
 
     @property
     def panel(self):
@@ -60,12 +61,21 @@ class SampleLayerDistortion:
     def pinhole_thickness(self, x):
         self._pinhole_thickness = float(x)
 
+    @property
+    def pinhole_radius(self):
+        return self._pinhole_radius
+
+    @pinhole_radius.setter
+    def pinhole_radius(self, x):
+        self._pinhole_radius = float(x)
+
     def apply(self, xy_pts, return_nominal=True):
         """
         """
         return tth_corr_sample_layer(self.panel, xy_pts,
                                      self.layer_standoff, self.layer_thickness,
                                      self.pinhole_thickness,
+                                     self.pinhole_radius,
                                      return_nominal=return_nominal)
 
 
@@ -133,7 +143,8 @@ class RyggPinholeDistortion:
 
 def tth_corr_sample_layer(panel, xy_pts,
                           layer_standoff, layer_thickness,
-                          pinhole_thickness, return_nominal=True):
+                          pinhole_thickness, pinhole_radius,
+                          return_nominal=True):
     """
     Compute the Bragg angle distortion associated with a specific sample
     layer in a pinhole camera.
@@ -152,6 +163,8 @@ def tth_corr_sample_layer(panel, xy_pts,
         The thickness of the sample layer in mm.
     pinhole_thickness : scalar
         The thickenss (height) of the pinhole (cylinder) in mm
+    pinhole_radius : scalar
+        The radius of the pinhole in mm.
 
     Returns
     -------
@@ -159,6 +172,9 @@ def tth_corr_sample_layer(panel, xy_pts,
         DESCRIPTION.
 
     """
+    # Compute the critical beta angle. Anything past this is invalid.
+    critical_beta = np.arctan(2 * pinhole_radius / pinhole_thickness)
+
     source_distance = panel.xrs_dist
 
     xy_pts = np.atleast_2d(xy_pts)
@@ -173,6 +189,8 @@ def tth_corr_sample_layer(panel, xy_pts,
 
     dhats = xfcapi.unitRowVector(panel.cart_to_dvecs(xy_pts))
     cos_beta = -dhats[:, 2]
+    # Invalidate values past the critical beta
+    cos_beta[np.arccos(cos_beta) > critical_beta] = np.nan
     cos_tthn = np.cos(ref_tth)
     sin_tthn = np.sin(ref_tth)
     tth_corr = np.arctan(sin_tthn/(source_distance*cos_beta/zs - cos_tthn))
@@ -185,7 +203,7 @@ def tth_corr_sample_layer(panel, xy_pts,
 
 def tth_corr_map_sample_layer(instrument,
                               layer_standoff, layer_thickness,
-                              pinhole_thickness):
+                              pinhole_thickness, pinhole_radius):
     """
     Compute the Bragg angle distortion fields for an instrument associated
     with a specific sample layer in a pinhole camera.
@@ -201,6 +219,8 @@ def tth_corr_map_sample_layer(instrument,
         The thickness of the sample layer in mm.
     pinhole_thickness : scalar
         The thickenss (height) of the pinhole (cylinder) in mm
+    pinhole_radius : scalar
+        The radius of the pinhole in mm.
 
     Returns
     -------
@@ -215,6 +235,11 @@ def tth_corr_map_sample_layer(instrument,
                       attribute of the same name.
 
     """
+    # We currently don't invalidate tth values after the critical beta for
+    # this map, because it actually looks okay for warping to the polar
+    # view. But that is something we could do in the future:
+    # critical_beta = np.arctan(2 * pinhole_radius / pinhole_thickness)
+
     zs = layer_standoff + 0.5*layer_thickness + 0.5*pinhole_thickness
     tth_corr = dict.fromkeys(instrument.detectors)
     for det_key, panel in instrument.detectors.items():
@@ -223,6 +248,8 @@ def tth_corr_map_sample_layer(instrument,
         xy_data = np.vstack((px.flatten(), py.flatten())).T
         dhats = xfcapi.unitRowVector(panel.cart_to_dvecs(xy_data))
         cos_beta = -dhats[:, 2]
+        # Invalidate values past the critical beta
+        # cos_beta[np.arccos(cos_beta) > critical_beta] = np.nan
         cos_tthn = np.cos(ref_ptth.flatten())
         sin_tthn = np.sin(ref_ptth.flatten())
         tth_corr[det_key] = np.arctan(
@@ -247,7 +274,7 @@ def tth_corr_pinhole(panel, xy_pts,
     pinhole_thickness : scalar
         The thickenss (height) of the pinhole (cylinder) in mm
     pinhole_radius : scalar
-        The radius ofhte pinhole in mm.
+        The radius of the pinhole in mm.
 
     Returns
     -------
