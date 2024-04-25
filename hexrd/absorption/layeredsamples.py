@@ -2,6 +2,7 @@ import numpy as np
 from hexrd.material import Material
 from hexrd.rotations import make_rmat_euler
 from hexrd.instrument import HEDMInstrument
+from hexrd.transforms.xfcapi import anglesToDVec
 
 class layeredsamples(object):
     """this class deals with intensity corrections
@@ -59,11 +60,11 @@ class layeredsamples(object):
         bvec = self.instr.beam_vector
         seca = 1./np.dot(bvec, self.sample_normal)
         for det_name, det in self.instr.detectors.items():
-            x,y = det.pixel_coords
-            xy_data = np.vstack((x.flatten(), y.flatten())).T
+            tth, eta = det.pixel_angles()
+            angs = np.vstack((tth.flatten(), eta.flatten(),
+                              np.zeros(tth.flatten().shape))).T
 
-            dvecs = det.cart_to_dvecs(xy_data)
-            dvecs = dvecs/np.tile(np.linalg.norm(dvecs, axis=1), [3,1]).T
+            dvecs = anglesToDVec(angs, bHat_l=bvec)
 
             secb = np.abs(1./np.dot(dvecs, self.sample_normal).reshape(det.shape))
 
