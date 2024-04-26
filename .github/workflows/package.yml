@@ -21,7 +21,7 @@ jobs:
           }
         - {
             name: "MacOSX",
-            os: macos-latest
+            os: macos-12
           }
         - {
             name: "Windows",
