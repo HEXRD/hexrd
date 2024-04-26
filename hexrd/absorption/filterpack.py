@@ -11,12 +11,10 @@ class filterpack(object):
     ----------
     instr : HEDMInstrument
         instrument for absorption correction.
-    rmat_s : numpy.ndarray
-        3x3 array which specifies sample orientation
-    sample : dict
-        dictionary containing information about the sample
-    window : dict
-        dictionary containing information about window
+    filter : dict
+        dictionary containing information about the filter
+    coating : dict
+        dictionary containing information about coating (typically mylar)
     transmission : dict
         dictionary over detectors with each key,value 
         pair containing fraction of transmitted xrays
