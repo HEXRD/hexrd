@@ -310,16 +310,17 @@ del set_numba_cache
 
 
 # some physical constants
-cAvogadro = 6.02214076E23
-cBoltzmann = 1.380649E-23
-cCharge = 1.602176634E-19
-cJ2eV = 1.602176565E-19
-cLight = 299792458.0
-cMoment = 9.2740100707E-24
-cPermea = 1.2566370616E-6
-cPermit = 8.8541878163E-12
-cPlanck = 6.62607015E-34
-cRestmass = 9.1093837090E-31
+cAvogadro = 6.02214076E23  # Avogadro's constant Na
+cBoltzmann = 1.380649E-23  # Boltzmann's constant, K
+cCharge = 1.602176634E-19  # charge of electron
+cJ2eV = 1.602176565E-19  # joule to ev, JperkeV*1e-3
+cLight = 299792458.0  # speed of light, same as c above but name is more descriptive
+cMoment = 9.2740100707E-24  # magnetic moment of electron
+cPermea = 1.2566370616E-6  # permeability of free space
+cPermit = 8.8541878163E-12  # permittivity of free space
+cPlanck = 6.62607015E-34  # same as h above but name is more descriptive
+cRestmass = 9.1093837090E-31  # rest mass of electron
+cClassicalelectronRad = 2.8179403e-6  # classical electron radius in nm
 
 '''
 adding another parametrization of the
@@ -707,6 +708,43 @@ atom_weights = np.array([1.00794, 4.002602, 6.941, 9.012182, 10.811,
                          222.0, 223.0, 226.0, 227.0, 232.03806,
                          231.03588, 238.02891, 237.0, 244.0, 243.0,
                          247.0, 247.0, 251.0])
+
+"""
+dictionary of atomic weights
+"""
+atom_weights_dict = {'H': 1.00794,'He': 4.002602,'Li': 6.941,
+                'Be': 9.012182,'B': 10.811,'C': 12.0107,
+                'N': 14.0067,'O': 15.9994,'F': 18.9984032,
+                'Ne': 20.1797,'Na': 22.98976928,'Mg': 24.305,
+                'Al': 26.9815386,'Si': 28.0855,'P': 30.973762,
+                'S': 32.065,'Cl': 35.453,'Ar': 39.948,
+                'K': 39.0983,'Ca': 40.078,'Sc': 44.955912,
+                'Ti': 47.867,'V': 50.9415,'Cr': 51.9961,
+                'Mn': 54.938045,'Fe': 55.845,'Co': 58.933195,
+                'Ni': 58.6934,'Cu': 63.546,'Zn': 65.38,
+                'Ga': 69.723,'Ge': 72.64,'As': 74.9216,
+                'Se': 78.96,'Br': 79.904,'Kr': 83.798,
+                'Rb': 85.4678,'Sr': 87.62,'Y': 88.90585,
+                'Zr': 91.224,'Nb': 92.90638,'Mo': 95.96,
+                'Tc': 98.9062,'Ru': 101.07,'Rh': 102.9055,
+                'Pd': 106.42,'Ag': 107.8682,'Cd': 112.411,
+                'In': 114.818,'Sn': 118.71,'Sb': 121.76,
+                'Te': 127.6,'I': 126.90447,'Xe': 131.293,
+                'Cs': 132.9054519,'Ba': 137.327,'La': 138.90547,
+                'Ce': 140.116,'Pr': 140.90765,'Nd': 144.242,
+                'Pm': 145.0,'Sm': 150.36,'Eu': 151.964,
+                'Gd': 157.25,'Tb': 158.92535,'Dy': 162.5,
+                'Ho': 164.93032,'Er': 167.259,'Tm': 168.93421,
+                'Yb': 173.054,'Lu': 174.9668,'Hf': 178.49,
+                'Ta': 180.94788,'W': 183.84,'Re': 186.207,
+                'Os': 190.23,'Ir': 192.217,'Pt': 195.084,
+                'Au': 196.966569,'Hg': 200.59,'Tl': 204.3833,
+                'Pb': 207.2,'Bi': 208.9804,'Po': 209.0,
+                'At': 210.0,'Rn': 222.0,'Fr': 223.0,'Ra': 226.0,
+                'Ac': 227.0,'Th': 232.0377,'Pa': 231.03588,
+                'U': 238.02891,'Np': 237.0,'Pu': 244.0,
+                'Am': 243.0,'Cm': 247.0,'Bk': 247.0,
+                'Cf': 251.0}
 
 '''
 dictionary of atomic numbers with element symbol as keys
