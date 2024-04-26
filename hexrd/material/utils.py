@@ -78,7 +78,7 @@ def calculate_linear_absorption_length(density,
     Returns
     -------
     numpy.ndarray
-        the attenuation length in mm
+        the attenuation length in microns
 
     """
     data = importlib.resources.open_binary(hexrd.resources, 'mu_en.h5')
@@ -140,7 +140,7 @@ def calculate_energy_absorption_length(density,
     Returns
     -------
     numpy.ndarray
-        the attenuation length in mm
+        the attenuation length in microns
 
     """
     data = importlib.resources.open_binary(hexrd.resources, 'mu_en.h5')

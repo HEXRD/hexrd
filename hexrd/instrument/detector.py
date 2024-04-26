@@ -13,6 +13,7 @@ from hexrd.rotations import mapAngle
 
 from hexrd.material import crystallography
 from hexrd.material.crystallography import PlaneData
+from hexrd.constants import density, density_polymers
 
 from hexrd.transforms.xfcapi import (
     xy_to_gvec,
@@ -25,6 +26,11 @@ from hexrd.transforms.xfcapi import (
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
 
+from hexrd.material.utils import (calculate_linear_absorption_length,
+    calculate_energy_absorption_length)
+
+if ct.USE_NUMBA:
+    import numba
 
 distortion_registry = distortion_pkg.Registry()
 
@@ -34,6 +40,18 @@ panel_calibration_flags_DFLT = np.array([1, 1, 1, 1, 1, 1], dtype=bool)
 
 beam_energy_DFLT = 65.351
 
+# default filter and coating materials
+FILTER_DEFAULT = {
+    'material': 'Ge',
+    'density' : density['Ge'],
+    'thickness' : 10, # microns
+}
+
+COATING_DEFAULT = {
+    'material': 'C10H8O4',
+    'density' : density_polymers['C10H8O4'],
+    'thickness' : 9, # microns
+}
 
 # Memoize these, so each detector can avoid re-computing if nothing
 # has changed.
@@ -187,6 +205,8 @@ class Detector:
         group=None,
         distortion=None,
         max_workers=max_workers_DFLT,
+        detector_filter=FILTER_DEFAULT,
+        detector_coating=COATING_DEFAULT
     ):
         """
         Instantiate a PlanarDetector object.
@@ -221,6 +241,12 @@ class Detector:
             DESCRIPTION. The default is None.
         distortion : TYPE, optional
             DESCRIPTION. The default is None.
+        filter : dict
+            filter specifications including material type,
+            density and thickness
+        coating : dict
+            coating specifications including material type,
+            density and thickness
 
         Returns
         -------
@@ -263,6 +289,10 @@ class Detector:
         self.max_workers = max_workers
 
         self.group = group
+
+        self._filter = detector_filter
+
+        self._coating = detector_coating
 
         #
         # set up calibration parameter list and refinement flags
@@ -564,6 +594,38 @@ class Detector:
                 flags.append(f'{name}_distortion_param_{i}')
 
         return flags
+
+    @property
+    def filter(self):
+        return self._filter
+    
+    @filter.setter
+    def filter(self, det_filter):
+        if not isinstance(det_filter, dict):
+            msg = f'filter should be of type: dict'
+            raise ValueError(msg)
+        if not all([x in det_filter for x in 
+                   ['material', 'density', 'thickness']]):
+            msg = (f'dictionary missing material type, '
+                   f'density or thickness')
+            raise ValueError(msg)
+        self._filter = det_filter
+
+    @property
+    def coating(self):
+        return self._coating
+    
+    @coating.setter
+    def coating(self, det_coating):
+        if not isinstance(det_coating, dict):
+            msg = f'coating should be of type: dict'
+            raise ValueError(msg)
+        if not all([x in det_filter for x in 
+                   ['material', 'density', 'thickness']]):
+            msg = (f'dictionary missing material type, '
+                   f'density or thickness')
+            raise ValueError(msg)
+        self._coating = det_coating
 
     # =========================================================================
     # METHODS
@@ -1657,6 +1719,56 @@ class Detector:
             cache_info = f.cache_info()
             if cache_info['maxsize'] < min_size:
                 f.set_cache_maxsize(min_size)
+
+    def absorption_length_filter(self, energy):
+        """get absorption length of filter for
+        a given energy. units are microns
+        """
+        if isinstance(energy, float):
+            energy_inp = np.array([energy])
+        elif isinstance(energy, list):
+            energy_inp = np.array(energy)
+        elif isinstance(energy, np.ndarray):
+            energy_inp = energy
+
+        if self.filter is None:
+            return None
+        else:
+            args = (
+                self.filter['density'],
+                self.filter['material'],
+                energy_inp,
+                    )
+            abs_length = calculate_linear_absorption_length(*args)
+            if abs_length.shape[0] == 1:
+                return abs_length[0]
+            else:
+                return abs_length
+
+    def absorption_length_coating(self, energy):
+        """get absorption length of filter for
+        a given energy. units are microns
+        """
+        if isinstance(energy, float):
+            energy_inp = np.array([energy])
+        elif isinstance(energy, list):
+            energy_inp = np.array(energy)
+        elif isinstance(energy, np.ndarray):
+            energy_inp = energy
+
+        if self.coating is None:
+            return None
+        else:
+            args = (
+                self.coating['density'],
+                self.coating['material'],
+                energy_inp,
+                    )
+            abs_length = calculate_linear_absorption_length(*args)
+            if abs_length.shape[0] == 1:
+                return abs_length[0]
+            else:
+                return abs_length
 
 
 # =============================================================================
