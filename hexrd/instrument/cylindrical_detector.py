@@ -120,6 +120,77 @@ class CylindricalDetector(Detector):
     def pixel_angles(self, origin=ct.zeros_3):
         return _pixel_angles(origin=origin, **self._pixel_angle_kwargs)
 
+    def local_normal(self):
+        """get the local normal of each pixel in the 
+        cylindrical detector
+
+        output will be of shape [nx*ny, 3]
+        """
+        y, x = self.pixel_coords
+        x = x.flatten()
+        y = y.flatten()
+        num = x.shape[0]
+        naxis = np.cross(self.paxis, self.caxis)
+
+        th = x/self.radius
+        xp = np.sin(th)
+        xn = -np.cos(th)
+
+        pcomp = np.tile(xp, [3, 1]).T * np.tile(self.paxis, [num, 1])
+        ncomp = np.tile(xn, [3, 1]).T * np.tile(naxis, [num, 1])
+
+        cart3d = pcomp + ncomp
+        return cart3d
+
+    def calc_filter_coating_transmission(self, energy):
+        """
+        calculate thetrnasmission after x-ray beam interacts
+        with the filter and the mylar polymer coating.
+        Specifications of the polymer coating is taken from:
+
+        M. Stoeckl, A. A. Solodov
+        Readout models for BaFBr0.85I0.15:Eu image plates 
+        Rev. Sci. Instrum. 89, 063101 (2018)
+
+        Transmission Formulas are consistent with:
+
+        Rygg et al., X-ray diffraction at the National 
+        Ignition Facility, Rev. Sci. Instrum. 91, 043902 (2020)
+        """
+        filter_thickness  = self.filter_thickness
+        coating_thickness = self.coating_thickness
+
+        al_f = self.absorption_length_filter(energy)
+        al_c = self.absorption_length_filter(energy)
+
+        t_f = self.filter_thickness
+        t_c = self.coating_thickness
+
+        det_normal = self.local_normal()
+        bvec = self.bvec
+
+        y, x = self.pixel_coords
+        xy_data = np.vstack((x.flatten(), y.flatten())).T
+        dvecs = self.cart_to_dvecs(xy_data)
+        dvecs = dvecs/np.tile(np.linalg.norm(dvecs, axis=1), [3, 1]).T
+
+        secb = (1./np.sum(dvecs*det_normal, axis=1)).reshape(self.shape)
+
+        transmission_filter  = self.calc_transmission_generic(secb, t_f, al_f)
+        transmission_coating = self.calc_transmission_generic(secb, t_c, al_c)
+
+        transmission_filter  = transmission_filter.reshape(self.shape)
+        transmission_coating = transmission_coating.reshape(self.shape)
+
+        self.transmission_filter_coating = transmission_filter*transmission_coating
+
+    def calc_transmission_generic(self,
+                            secb,
+                            thickness,
+                            absorption_length):
+        mu = 1./absorption_length # in microns^-1
+        return np.exp(-thickness*mu*secb)
+
     @property
     def _pixel_angle_kwargs(self):
         # kwargs used for pixel angles, pixel_tth_gradient,

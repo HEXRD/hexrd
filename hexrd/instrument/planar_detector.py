@@ -5,7 +5,8 @@ from hexrd.transforms.xfcapi import (
     angles_to_gvec,
     xy_to_gvec,
     gvec_to_xy,
-    make_beam_rmat
+    make_beam_rmat,
+    anglesToDVec,
 )
 from hexrd.utils.decorators import memoize
 
@@ -100,6 +101,53 @@ class PlanarDetector(Detector):
         return _pixel_eta_gradient(origin, self.pixel_coords, self.distortion,
                                    self.rmat, self.tvec, self.bvec, self.evec,
                                    self.rows, self.cols)
+
+    def calc_filter_coating_transmission(self, energy):
+        """
+        calculate thetrnasmission after x-ray beam interacts
+        with the filter and the mylar polymer coating.
+        Specifications of the polymer coating is taken from:
+
+        M. Stoeckl, A. A. Solodov
+        Readout models for BaFBr0.85I0.15:Eu image plates 
+        Rev. Sci. Instrum. 89, 063101 (2018)
+
+        Transmission Formulas are consistent with:
+
+        Rygg et al., X-ray diffraction at the National 
+        Ignition Facility, Rev. Sci. Instrum. 91, 043902 (2020)
+        """
+        filter_thickness  = self.filter_thickness
+        coating_thickness = self.coating_thickness
+
+        al_f = self.absorption_length_filter(energy)
+        al_c = self.absorption_length_filter(energy)
+
+        t_f = self.filter_thickness
+        t_c = self.coating_thickness
+
+        det_normal = -self.normal
+        bvec = self.bvec
+
+        tth, eta = self.pixel_angles()
+        angs = np.vstack((tth.flatten(), eta.flatten(),
+                          np.zeros(tth.flatten().shape))).T
+
+        dvecs = anglesToDVec(angs, bHat_l=bvec)
+
+        secb = 1./np.dot(dvecs, det_normal).reshape(self.shape)
+
+        transmission_filter  = self.calc_transmission_generic(secb, t_f, al_f)
+        transmission_coating = self.calc_transmission_generic(secb, t_c, al_c)
+
+        self.transmission_filter_coating = transmission_filter*transmission_coating
+
+    def calc_transmission_generic(self,
+                            secb,
+                            thickness,
+                            absorption_length):
+        mu = 1./absorption_length # in microns^-1
+        return np.exp(-thickness*mu*secb)
 
     @property
     def beam_position(self):

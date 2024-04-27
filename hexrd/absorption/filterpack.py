@@ -74,54 +74,54 @@ class filterpack(object):
         mu_c = 1./absorption_length_coating # in microns^-1
         return np.exp(-thickness_c*mu_c*secb)
 
-    @property
-    def instr(self):
-        return self._instr
+    # @property
+    # def instr(self):
+    #     return self._instr
     
-    @instr.setter
-    def instr(self, ins):
-        if not isinstance(ins, HEDMInstrument):
-            raise ValueError(f'instr must be of type HEDMInstrument')
-        self._instr = ins
+    # @instr.setter
+    # def instr(self, ins):
+    #     if not isinstance(ins, HEDMInstrument):
+    #         raise ValueError(f'instr must be of type HEDMInstrument')
+    #     self._instr = ins
 
-    @property
-    def detector_normal(self):
-        detector_normal = dict.fromkeys(self.instr.detectors.keys())
-        for det_name, det in self.instr.detectors.items():
-            rmat = self.instr.detectors[det_name].rmat
-            detector_normal[det_name] = np.dot(rmat, [0., 0., -1.])
-        return detector_normal
+    # @property
+    # def detector_normal(self):
+    #     detector_normal = dict.fromkeys(self.instr.detectors.keys())
+    #     for det_name, det in self.instr.detectors.items():
+    #         rmat = self.instr.detectors[det_name].rmat
+    #         detector_normal[det_name] = np.dot(rmat, [0., 0., -1.])
+    #     return detector_normal
 
-    @property
-    def filter(self):
-        return self._filter
+    # @property
+    # def filter(self):
+    #     return self._filter
 
-    @filter.setter
-    def filter(self, filterdict):
-        if not isinstance(filterdict, dict):
-            raise ValueError(f'filterdict needs to be a dict')
-        self._filter = filterdict
+    # @filter.setter
+    # def filter(self, filterdict):
+    #     if not isinstance(filterdict, dict):
+    #         raise ValueError(f'filterdict needs to be a dict')
+    #     self._filter = filterdict
 
-    @property
-    def absorption_length_filter(self):
-        if self.filter is None:
-            return np.inf
-        elif isinstance(self.filter['material'], Material):
-            return self.filter['material'].absorption_length
-        elif isinstance(self.filter['material'], float):
-            return self.filter['material'] # in micron
+    # @property
+    # def absorption_length_filter(self):
+    #     if self.filter is None:
+    #         return np.inf
+    #     elif isinstance(self.filter['material'], Material):
+    #         return self.filter['material'].absorption_length
+    #     elif isinstance(self.filter['material'], float):
+    #         return self.filter['material'] # in micron
 
-    @property
-    def absorption_length_coating(self):
-        if self.coating is None:
-            return np.inf
-        elif isinstance(self.coating['material'], Material):
-            return self.coating['material'].absorption_length
-        elif isinstance(self.coating['material'], float):
-            return self.coating['material'] # in micron
+    # @property
+    # def absorption_length_coating(self):
+    #     if self.coating is None:
+    #         return np.inf
+    #     elif isinstance(self.coating['material'], Material):
+    #         return self.coating['material'].absorption_length
+    #     elif isinstance(self.coating['material'], float):
+    #         return self.coating['material'] # in micron
 
-    @property
-    def filter_thickness(self):
-        return dict((k, self.filter[k]) 
-                    for k in self.instr.detectors.keys())
+    # @property
+    # def filter_thickness(self):
+    #     return dict((k, self.filter[k]) 
+    #                 for k in self.instr.detectors.keys())
     
