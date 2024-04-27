@@ -19,7 +19,7 @@ from hexrd.transforms.xfcapi import (
     makeRotMatOfExpMap,
     mapAngle,
     oscillAnglesOfHKLs,
-    rowNorm,
+    rowNorm
 )
 
 from hexrd.utils.decorators import memoize
@@ -602,6 +602,30 @@ class Detector:
                    f'density or thickness')
             raise ValueError(msg)
         self._coating = det_coating
+
+    @property
+    def filter_thickness(self):
+        if self.filter is None:
+            return None
+        return self.filter['thickness']
+
+    @property
+    def coating_thickness(self):
+        if self.coating is None:
+            return None
+        return self.coating['thickness']
+
+    @property
+    def filter_density(self):
+        if self.filter is None:
+            return None
+        return self.filter['density']
+
+    @property
+    def coating_density(self):
+        if self.coating is None:
+            return None
+        return self.coating['density']
 
     # =========================================================================
     # METHODS
@@ -1671,7 +1695,6 @@ class Detector:
                 return abs_length[0]
             else:
                 return abs_length
-
 
 # =============================================================================
 # UTILITY METHODS
