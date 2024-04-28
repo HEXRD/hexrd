@@ -775,9 +775,12 @@ density = {'H': 8.99e-05,'He': 0.0001785,'Li': 0.535,'Be': 1.848,
            'Bk': 14.78,'Cf': 15.1}
 
 # some polymer densities commonly used in hexrd
-density_polymers = {
+density_compounds = {
     'C10H8O4': 1.4,
     'Ba2263F2263 Br1923I339C741H1730N247O494': 3.3,
+    'LiF': 2.64,
+    'quartz': 2.65,
+    'diamond': 3.5,
 }
 
 '''

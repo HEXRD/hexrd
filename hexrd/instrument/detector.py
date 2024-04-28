@@ -13,7 +13,7 @@ from hexrd.rotations import mapAngle
 
 from hexrd.material import crystallography
 from hexrd.material.crystallography import PlaneData
-from hexrd.constants import density, density_polymers
+from hexrd.constants import density, density_compounds
 
 from hexrd.transforms.xfcapi import (
     xy_to_gvec,
@@ -22,6 +22,7 @@ from hexrd.transforms.xfcapi import (
     make_rmat_of_expmap,
     oscill_angles_of_hkls,
     mapAngle,
+    anglesToDVec,
 )
 
 from hexrd.utils.decorators import memoize
@@ -50,9 +51,31 @@ FILTER_DEFAULT = {
 
 COATING_DEFAULT = {
     'material': 'C10H8O4',
-    'density' : density_polymers['C10H8O4'],
+    'density' : density_compounds['C10H8O4'],
     'thickness' : 9, # microns
 }
+
+"""default physics package for dynamic compression
+experiments the template of the other type is commented"""
+PHYSICS_PACKAGE_DEFAULT = {
+    'type' : 'HED',
+    'sample_material' : 'Fe',
+    'sample_density' : density['Fe'],
+    'sample_thickness' : 15,# in microns
+    'window_material' : 'LiF',
+    'window_density' : density_compounds['LiF'],
+    'window_thickness' : 150, # in microns
+}
+
+"""template for HEDM type physics package
+"""
+# PHYSICS_PACKAGE_DEFAULT = {
+#     'type' : 'HEDM',
+#     'shape' : 'cylinder', # cuboid
+#     'dimension' : 1.0, # radius (mm) for cylinder, width x thickness for cuboid
+#     'material' : 'Ti',
+#     'density' : density['Ti'],
+# }
 
 # Memoize these, so each detector can avoid re-computing if nothing
 # has changed.
@@ -207,7 +230,8 @@ class Detector:
         distortion=None,
         max_workers=max_workers_DFLT,
         detector_filter=FILTER_DEFAULT,
-        detector_coating=COATING_DEFAULT
+        detector_coating=COATING_DEFAULT,
+        physics_package=PHYSICS_PACKAGE_DEFAULT
     ):
         """
         Instantiate a PlanarDetector object.
@@ -294,6 +318,8 @@ class Detector:
         self._filter = detector_filter
 
         self._coating = detector_coating
+
+        self._physics_package = physics_package
 
         #
         # set up calibration parameter list and refinement flags
@@ -629,6 +655,33 @@ class Detector:
         self._coating = det_coating
 
     @property
+    def physics_package(self):
+        return self._physics_package
+
+    @physics_package.setter
+    def physics_package(self, pp):
+        if not isinstance(pp, dict):
+            msg = f'physics_package should be of type: dict'
+            raise ValueError(msg)
+        if 'type' in x:
+            if x['type'] == 'HED':
+                if not all([x in pp for x in 
+                           ['sample_material', 'sample_density', 
+                           'sample_thickness', 'window_material',
+                           'window_density', 'window_thickness']]):
+                    msg = (f'dictionary missing sample/window material '
+                           f'density or thickness')
+                    raise ValueError(msg)
+            elif x['type'] == 'HEDM':
+                if not all([x in pp for x in 
+                       ['shape', 'dimension',
+                       'material', 'density']]):
+                    msg = (f'dictionary missing material type, '
+                           f'density or shape')
+                    raise ValueError(msg)
+        self._physics_package = pp
+
+    @property
     def filter_thickness(self):
         if self.filter is None:
             return None
@@ -643,14 +696,78 @@ class Detector:
     @property
     def filter_density(self):
         if self.filter is None:
-            return None
+            return 0.0
         return self.filter['density']
 
     @property
     def coating_density(self):
         if self.coating is None:
-            return None
+            return 0.0
         return self.coating['density']
+
+    @property
+    def sample_thickness(self):
+        if self.physics_package is None:
+            return None
+        if self.physics_package['type'] == 'HED':
+            return self.physics_package['sample_thickness']
+        elif self.physics_package['type'] == 'HEDM':
+            return self.physics_package['dimension']
+
+    @property
+    def window_thickness(self):
+        if self.physics_package is None:
+            return None
+        if self.physics_package['type'] == 'HED':
+            return self.physics_package['window_thickness']
+        return None
+
+    @property
+    def sample_density(self):
+        if self.physics_package is None:
+            return None
+        if self.physics_package['type'] == 'HED':
+            return self.physics_package['sample_density']
+        elif self.physics_package['type'] == 'HEDM':
+            return self.physics_package['density']
+
+    @property
+    def window_density(self):
+        if self.physics_package is None:
+            return None
+        if self.physics_package['type'] == 'HED':
+            return self.physics_package['window_density']
+        return None
+
+    @property
+    def filter_material(self):
+        if self.filter is None:
+            return None
+        return self.filter['material']
+
+    @property
+    def coating_material(self):
+        if self.coating is None:
+            return None
+        return self.coating['material']
+
+    @property
+    def sample_material(self):
+        if self.physics_package is None:
+            return None
+        if self.physics_package['type'] == 'HED':
+            return self.physics_package['sample_material']
+        if self.physics_package['type'] == 'HEDM':
+            return self.physics_package['material']
+        return None
+
+    @property
+    def window_material(self):
+        if self.physics_package is None:
+            return None
+        if self.physics_package['type'] == 'HED':
+            return self.physics_package['window_material']
+        return None
 
     # =========================================================================
     # METHODS
@@ -1745,55 +1862,120 @@ class Detector:
             if cache_info['maxsize'] < min_size:
                 f.set_cache_maxsize(min_size)
 
+    def absorption_length(self, keyword, energy):
+        """get absorption length of material for
+        a given energy. units are microns
+        """
+        if isinstance(energy, float):
+            energy_inp = np.array([energy])
+        elif isinstance(energy, list):
+            energy_inp = np.array(energy)
+        elif isinstance(energy, np.ndarray):
+            energy_inp = energy
+
+        if keyword == 'filter':
+            if self.filter is None:
+                return np.inf
+            else:
+                args = (
+                    self.filter_density,
+                    self.filter_material,
+                    energy_inp,
+                        )
+
+        if keyword == 'coating':
+            if self.coating is None:
+                return np.inf
+            else:
+                args = (
+                    self.coating_density,
+                    self.coating_material,
+                    energy_inp,
+                        )
+
+        if keyword == 'sample':
+            if self.physics_package is None:
+                return np.inf
+            else:
+                args = (
+                    self.sample_density,
+                    self.sample_material,
+                    energy_inp,
+                    )
+
+        if keyword == 'window':
+            if self.physics_package is None:
+                return np.inf
+            else:
+                args = (
+                    self.window_density,
+                    self.window_material,
+                    energy_inp,
+                    )
+
+        abs_length = calculate_linear_absorption_length(*args)
+        if abs_length.shape[0] == 1:
+            return abs_length[0]
+        else:
+            return abs_length
+
     def absorption_length_filter(self, energy):
         """get absorption length of filter for
         a given energy. units are microns
         """
-        if isinstance(energy, float):
-            energy_inp = np.array([energy])
-        elif isinstance(energy, list):
-            energy_inp = np.array(energy)
-        elif isinstance(energy, np.ndarray):
-            energy_inp = energy
-
-        if self.filter is None:
-            return None
-        else:
-            args = (
-                self.filter['density'],
-                self.filter['material'],
-                energy_inp,
-                    )
-            abs_length = calculate_linear_absorption_length(*args)
-            if abs_length.shape[0] == 1:
-                return abs_length[0]
-            else:
-                return abs_length
+        return self.absorption_length('filter', energy)
 
     def absorption_length_coating(self, energy):
-        """get absorption length of filter for
+        """get absorption length of coating for
         a given energy. units are microns
         """
-        if isinstance(energy, float):
-            energy_inp = np.array([energy])
-        elif isinstance(energy, list):
-            energy_inp = np.array(energy)
-        elif isinstance(energy, np.ndarray):
-            energy_inp = energy
+        return self.absorption_length('coating', energy)
 
-        if self.coating is None:
-            return None
-        else:
-            args = (
-                self.coating['density'],
-                self.coating['material'],
-                energy_inp,
-                    )
-            abs_length = calculate_linear_absorption_length(*args)
-            if abs_length.shape[0] == 1:
-                return abs_length[0]
-            else:
-                return abs_length
+    def absorption_length_sample(self, energy):
+        """get absorption length of sample for
+        a given energy. units are microns
+        """
+        return self.absorption_length('sample', energy)
+
+    def absorption_length_window(self, energy):
+        """get absorption length of window for
+        a given energy. units are microns
+        """
+        return self.absorption_length('window', energy)
+
+    def calc_physics_package_transmission(self, energy, rMat_s):
+        """get the transmission from the physics package
+        need to consider HED and HEDM samples separately
+        """
+        bvec = self.bvec
+        sample_normal = np.dot(rMat_s, [0.,0.,-1.])
+        seca = 1./np.dot(bvec, sample_normal)
+
+        tth, eta = self.pixel_angles()
+        angs = np.vstack((tth.flatten(), eta.flatten(),
+                          np.zeros(tth.flatten().shape))).T
+
+        dvecs = anglesToDVec(angs, bHat_l=bvec)
+
+        secb = np.abs(1./np.dot(dvecs, sample_normal).reshape(self.shape))
+
+        T_sample = self.calc_transmission_sample(seca, secb, energy)
+        T_window = self.calc_transmission_window(secb, energy)
+
+        self.transmission_physics_package = T_sample*T_window
+
+    def calc_transmission_sample(self, seca, secb, energy):
+        thickness_s = self.sample_thickness # in microns
+        mu_s = 1./self.absorption_length_sample(energy) # in microns^-1
+        x = (mu_s*thickness_s)
+        pre = 1./x/(secb - seca)
+        num = np.exp(-x*seca) - np.exp(-x*secb)
+        return pre * num
+
+    def calc_transmission_window(self, secb, energy):
+        thickness_w = self.window_thickness # in microns
+        mu_w = 1./self.absorption_length_window(energy) # in microns^-1
+        return np.exp(-thickness_w*mu_w*secb)
 
 # =============================================================================
 # UTILITY METHODS
