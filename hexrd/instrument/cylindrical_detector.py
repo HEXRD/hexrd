@@ -162,9 +162,12 @@ class CylindricalDetector(Detector):
 
         al_f = self.absorption_length_filter(energy)
         al_c = self.absorption_length_filter(energy)
+        al_p = self.energy_absorption_length_phosphor(energy)
 
         t_f = self.filter_thickness
         t_c = self.coating_thickness
+        t_p = self.phosphor_thickness
+        L   = self.phosphor_readout_length
 
         det_normal = self.local_normal()
         bvec = self.bvec
@@ -178,18 +181,15 @@ class CylindricalDetector(Detector):
 
         transmission_filter  = self.calc_transmission_generic(secb, t_f, al_f)
         transmission_coating = self.calc_transmission_generic(secb, t_c, al_c)
+        transmission_phosphor = (self.phosphor_U0 * 
+                    self.calc_transmission_phosphor(secb, t_p, al_p, L, energy))
 
         transmission_filter  = transmission_filter.reshape(self.shape)
         transmission_coating = transmission_coating.reshape(self.shape)
 
         self.transmission_filter_coating = transmission_filter*transmission_coating
 
-    def calc_transmission_generic(self,
-                            secb,
-                            thickness,
-                            absorption_length):
-        mu = 1./absorption_length # in microns^-1
-        return np.exp(-thickness*mu*secb)
+        self.transmission_phosphor = transmission_phosphor
 
     @property
     def _pixel_angle_kwargs(self):

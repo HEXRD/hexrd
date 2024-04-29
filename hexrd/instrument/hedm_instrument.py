@@ -2100,7 +2100,8 @@ class HEDMInstrument(object):
             det.calc_effective_pinhole_area()
             det.transmission = (det.transmission_filter_coating * 
                                 det.transmission_physics_package * 
-                                det.effective_pinhole_area)
+                                det.effective_pinhole_area * 
+                                det.transmission_phosphor)
 
 # =============================================================================
 # UTILITIES
