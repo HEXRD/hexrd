@@ -684,8 +684,8 @@ class Detector:
         if not isinstance(pp, dict):
             msg = f'physics_package should be of type: dict'
             raise ValueError(msg)
-        if 'type' in x:
-            if x['type'] == 'HED':
+        if 'type' in pp:
+            if pp['type'] == 'HED':
                 if not all([x in pp for x in 
                            ['sample_material', 'sample_density', 
                            'sample_thickness', 'window_material',
@@ -693,7 +693,7 @@ class Detector:
                     msg = (f'dictionary missing sample/window material '
                            f'density or thickness')
                     raise ValueError(msg)
-            elif x['type'] == 'HEDM':
+            elif pp['type'] == 'HEDM':
                 if not all([x in pp for x in 
                        ['shape', 'dimension',
                        'material', 'density']]):
