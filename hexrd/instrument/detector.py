@@ -55,6 +55,14 @@ COATING_DEFAULT = {
     'thickness' : 9, # microns
 }
 
+PHOSPHOR_DEFAULT = {
+    'material' : 'Ba2263F2263Br1923I339C741H1730N247O494',
+    'density' : density_compounds['Ba2263F2263Br1923I339C741H1730N247O494'], # g/cc
+    'thickness' : 115, # microns
+    'readout_length' : 222, #microns,
+    'pre_U0' : 0.695
+}
+
 """default physics package for dynamic compression
 experiments the template of the other type is commented"""
 PHYSICS_PACKAGE_DEFAULT = {
@@ -238,6 +246,7 @@ class Detector:
         max_workers=max_workers_DFLT,
         detector_filter=FILTER_DEFAULT,
         detector_coating=COATING_DEFAULT,
+        phosphor=PHOSPHOR_DEFAULT,
         physics_package=PHYSICS_PACKAGE_DEFAULT,
         pinhole=PINHOLE_DEFAULT
     ):
@@ -330,6 +339,8 @@ class Detector:
         self._physics_package = physics_package
 
         self._pinhole = pinhole
+
+        self._phosphor = phosphor
 
         #
         # set up calibration parameter list and refinement flags
@@ -708,6 +719,22 @@ class Detector:
             raise ValueError(msg)
 
     @property
+    def phosphor(self):
+        return self._phosphor
+
+    @phosphor.setter
+    def phosphor(self, phos):
+        if not isinstance(phos, dict):
+            msg = f'phosphor should be of type: dict'
+            raise ValueError(msg)
+        if not all([x in phos for x in 
+                   ['material', 'density', 'thickness']]):
+            msg = (f'dictionary missing material type, '
+                   f'density or thickness')
+            raise ValueError(msg)
+        self._phosphor = phos
+
+    @property
     def filter_thickness(self):
         # thickness in microns
         if self.filter is None:
@@ -727,6 +754,16 @@ class Detector:
         if self.pinhole is None:
             return 0.0
         return self.pinhole['thickness']
+
+    @property
+    def phosphor_thickness(self):
+        if self.phosphor is None:
+            return 0.0
+        return self.phosphor['thickness']
+
+    @property
+    def phosphor_readout_length(self):
+        return self.phosphor['readout_length']
 
     @property
     def pinhole_diameter(self):
@@ -782,6 +819,18 @@ class Detector:
         return None
 
     @property
+    def phosphor_density(self):
+        if self.phosphor is None:
+            return 0.0
+        return self.phosphor['density']
+
+    @property
+    def phosphor_material(self):
+        if self.phosphor is None:
+            return None
+        return self.phosphor['material']
+
+    @property
     def filter_material(self):
         if self.filter is None:
             return None
@@ -816,6 +865,12 @@ class Detector:
         if self.physics_package is None:
             return None
         return self.pinhole['material']
+
+    @property
+    def phosphor_U0(self):
+        if self.phosphor is None:
+            return 0.0
+        return self.phosphor['pre_U0']
 
     # =========================================================================
     # METHODS
@@ -1967,6 +2022,39 @@ class Detector:
         else:
             return abs_length
 
+    def energy_absorption_length(self, keyword, energy):
+        """get energy absorption length for material
+        for a given energy, units are microns
+        """
+        if isinstance(energy, float):
+            energy_inp = np.array([energy])
+        elif isinstance(energy, list):
+            energy_inp = np.array(energy)
+        elif isinstance(energy, np.ndarray):
+            energy_inp = energy
+
+        if keyword == 'phosphor':
+            if self.phosphor is None:
+                return np.inf
+            else:
+                args = (
+                    self.phosphor_density,
+                    self.phosphor_material,
+                    energy_inp,
+                    )
+
+        abs_length = calculate_energy_absorption_length(*args)
+        if abs_length.shape[0] == 1:
+            return abs_length[0]
+        else:
+            return abs_length
+
+    def energy_absorption_length_phosphor(self, energy):
+        """get how much energy is dumped into the phosphor
+        due to interaction with xrays
+        """
+        return self.energy_absorption_length('phosphor', energy)
+
     def absorption_length_filter(self, energy):
         """get absorption length of filter for
         a given energy. units are microns
@@ -2043,6 +2131,25 @@ class Detector:
         asinf = np.arcsin(f)
         self.effective_pinhole_area = (2/np.pi) * cth * (np.pi/2 - asinf -
               f*np.cos(asinf))
+
+    def calc_transmission_generic(self,
+                                  secb,
+                                  thickness,
+                                  absorption_length):
+        mu = 1./absorption_length # in microns^-1
+        return np.exp(-thickness*mu*secb)
+
+    def calc_transmission_phosphor(self,
+                                   secb,
+                                   thickness,
+                                   readout_length,
+                                   absorption_length,
+                                   energy):
+
+        f1 = absorption_length*thickness
+        f2 = absorption_length*readout_length
+        arg = (secb + 1/f2)
+        return energy*((1.0 - np.exp(-f1*arg))/arg)
 
 # =============================================================================
 # UTILITY METHODS
