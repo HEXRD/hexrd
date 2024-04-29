@@ -183,6 +183,7 @@ class CylindricalDetector(Detector):
         transmission_coating = self.calc_transmission_generic(secb, t_c, al_c)
         transmission_phosphor = (self.phosphor_U0 * 
                     self.calc_transmission_phosphor(secb, t_p, al_p, L, energy))
+        transmission_phosphor /= transmission_phosphor.max()
 
         transmission_filter  = transmission_filter.reshape(self.shape)
         transmission_coating = transmission_coating.reshape(self.shape)
