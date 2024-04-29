@@ -67,6 +67,13 @@ PHYSICS_PACKAGE_DEFAULT = {
     'window_thickness' : 150, # in microns
 }
 
+"""defaults pinhole area correction parameters"""
+PINHOLE_DEFAULT = {
+    'material' : 'Ta',
+    'diameter' : 400, # in microns
+    'thickness' : 100 # in micorns
+}
+
 """template for HEDM type physics package
 """
 # PHYSICS_PACKAGE_DEFAULT = {
@@ -231,7 +238,8 @@ class Detector:
         max_workers=max_workers_DFLT,
         detector_filter=FILTER_DEFAULT,
         detector_coating=COATING_DEFAULT,
-        physics_package=PHYSICS_PACKAGE_DEFAULT
+        physics_package=PHYSICS_PACKAGE_DEFAULT,
+        pinhole=PINHOLE_DEFAULT
     ):
         """
         Instantiate a PlanarDetector object.
@@ -320,6 +328,8 @@ class Detector:
         self._coating = detector_coating
 
         self._physics_package = physics_package
+
+        self._pinhole = pinhole
 
         #
         # set up calibration parameter list and refinement flags
@@ -682,16 +692,48 @@ class Detector:
         self._physics_package = pp
 
     @property
+    def pinhole(self):
+        return self._pinhole
+
+    @pinhole.setter
+    def pinhole(self, ph):
+        if not isinstance(pp, dict):
+            msg = f'pinhole should be of type: dict'
+            raise ValueError(msg)
+        if not all([x in pp for x in 
+                   ['material', 'diameter', 
+                   'thickness']]):
+            msg = (f'dictionary missing pinhole material '
+                   f'diameter or thickness')
+            raise ValueError(msg)
+
+    @property
     def filter_thickness(self):
+        # thickness in microns
         if self.filter is None:
-            return None
+            return 0.0
         return self.filter['thickness']
 
     @property
     def coating_thickness(self):
+        # thickness in microns
         if self.coating is None:
-            return None
+            return 0.0
         return self.coating['thickness']
+
+    @property
+    def pinhole_thickness(self):
+        # thickness in microns
+        if self.pinhole is None:
+            return 0.0
+        return self.pinhole['thickness']
+
+    @property
+    def pinhole_diameter(self):
+        # diameter in microns
+        if self.pinhole is None:
+            return 0.0
+        return self.pinhole['diameter']
 
     @property
     def filter_density(self):
@@ -768,6 +810,12 @@ class Detector:
         if self.physics_package['type'] == 'HED':
             return self.physics_package['window_material']
         return None
+
+    @property
+    def pinhole_material(self):
+        if self.physics_package is None:
+            return None
+        return self.pinhole['material']
 
     # =========================================================================
     # METHODS
@@ -1976,6 +2024,25 @@ class Detector:
         thickness_w = self.window_thickness # in microns
         mu_w = 1./self.absorption_length_window(energy) # in microns^-1
         return np.exp(-thickness_w*mu_w*secb)
+
+    def calc_effective_pinhole_area(self):
+        """get the effective pinhole area correction
+        """
+        hod = self.pinhole_thickness/self.pinhole_diameter
+        bvec = self.bvec
+
+        tth, eta = self.pixel_angles()
+        angs = np.vstack((tth.flatten(), eta.flatten(),
+                  np.zeros(tth.flatten().shape))).T
+        dvecs = anglesToDVec(angs, bHat_l=bvec)
+
+        cth = -dvecs[:,2].reshape(self.shape)
+        tanth = np.tan(np.arccos(cth))
+        f = hod*tanth
+        f[np.abs(f) > 1.] = np.nan
+        asinf = np.arcsin(f)
+        self.effective_pinhole_area = (2/np.pi) * cth * (np.pi/2 - asinf -
+              f*np.cos(asinf))
 
 # =============================================================================
 # UTILITY METHODS

@@ -2085,8 +2085,10 @@ class HEDMInstrument(object):
         for det_name, det in self.detectors.items():
             det.calc_filter_coating_transmission(energy)
             det.calc_physics_package_transmission(energy, rMat_s)
+            det.calc_effective_pinhole_area()
             det.transmission = (det.transmission_filter_coating * 
-                                det.transmission_physics_package)
+                                det.transmission_physics_package * 
+                                det.effective_pinhole_area)
 
 # =============================================================================
 # UTILITIES
