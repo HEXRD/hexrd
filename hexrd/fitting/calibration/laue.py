@@ -14,6 +14,7 @@ from hexrd.utils.hkl import hkl_to_str, str_to_hkl
 from .calibrator import Calibrator
 from .lmfit_param_handling import (
     create_grain_params,
+    DEFAULT_EULER_CONVENTION,
     rename_to_avoid_collision,
 )
 
@@ -23,7 +24,8 @@ class LaueCalibrator(Calibrator):
 
     def __init__(self, instr, material, grain_params, default_refinements=None,
                  min_energy=5, max_energy=25, tth_distortion=None,
-                 calibration_picks=None):
+                 calibration_picks=None,
+                 euler_convention=DEFAULT_EULER_CONVENTION):
         self.instr = instr
         self.material = material
         self.grain_params = grain_params
@@ -31,10 +33,7 @@ class LaueCalibrator(Calibrator):
         self.energy_cutoffs = [min_energy, max_energy]
         self.tth_distortion = tth_distortion
 
-        self.euler_convention = {
-            'axes_order': 'zxz',
-            'extrinsic': False,
-        }
+        self.euler_convention = euler_convention
 
         self.data_dict = None
         if calibration_picks is not None:

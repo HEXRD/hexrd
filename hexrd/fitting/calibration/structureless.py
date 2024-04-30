@@ -5,6 +5,8 @@ from .lmfit_param_handling import (
     add_engineering_constraints,
     create_instr_params,
     create_tth_parameters,
+    DEFAULT_EULER_CONVENTION,
+    update_instrument_from_params,
 )
 
 
@@ -31,18 +33,20 @@ class StructurelessCalibrator:
                  instr,
                  data,
                  tth_distortion=None,
-                 engineering_constraints=None):
+                 engineering_constraints=None,
+                 euler_convention=DEFAULT_EULER_CONVENTION):
 
         self._instr = instr
         self._data = data
         self._tth_distortion = tth_distortion
         self._engineering_constraints = engineering_constraints
+        self.euler_convention = euler_convention
         self.make_lmfit_params()
         self.set_minimizer()
 
     def make_lmfit_params(self):
         params = []
-        params += create_instr_params(self.instr)
+        params += create_instr_params(self.instr, self.euler_convention)
         params += create_tth_parameters(self.meas_angles)
 
         params_dict = lmfit.Parameters()
@@ -53,7 +57,12 @@ class StructurelessCalibrator:
         return params_dict
 
     def calc_residual(self, params):
-        self.instr.update_from_lmfit_parameter_list(params)
+        update_instrument_from_params(
+            self.instr,
+            params,
+            self.euler_convention,
+        )
+
         residual = np.empty([0,])
         for ii, (rng, corr_rng) in enumerate(zip(self.meas_angles,
                                                  self.tth_correction)):
