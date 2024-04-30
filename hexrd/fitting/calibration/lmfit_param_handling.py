@@ -1,11 +1,24 @@
+import lmfit
 import numpy as np
 
-from hexrd.instrument import calc_angles_from_beam_vec
-from hexrd.rotations import RotMatEuler
+from hexrd.instrument import (
+    calc_angles_from_beam_vec,
+    calc_beam_vec,
+)
+from hexrd.rotations import (
+    expMapOfQuat,
+    make_rmat_euler,
+    quatOfRotMat,
+    RotMatEuler,
+)
 from hexrd.material.unitcell import _lpname
 
 
-def create_instr_params(instr):
+# First is the axes_order, second is extrinsic
+DEFAULT_EULER_CONVENTION = ('zxz', False)
+
+
+def create_instr_params(instr, euler_convention=DEFAULT_EULER_CONVENTION):
     # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
     parms_list = []
     if instr.has_multi_beam:
@@ -40,31 +53,18 @@ def create_instr_params(instr):
     parms_list.append(('instr_tvec_x', instr.tvec[0], False, -np.inf, np.inf))
     parms_list.append(('instr_tvec_y', instr.tvec[1], False, -np.inf, np.inf))
     parms_list.append(('instr_tvec_z', instr.tvec[2], False, -np.inf, np.inf))
-    euler_convention = {'axes_order': 'zxz',
-                        'extrinsic': False}
     for det_name, panel in instr.detectors.items():
         det = det_name.replace('-', '_')
-        rmat = panel.rmat
-        rme = RotMatEuler(np.zeros(3,),
-                          **euler_convention)
-        rme.rmat = rmat
-        euler = np.degrees(rme.angles)
 
-        parms_list.append((f'{det}_euler_z',
-                           euler[0],
-                           False,
-                           euler[0]-2,
-                           euler[0]+2))
-        parms_list.append((f'{det}_euler_xp',
-                           euler[1],
-                           False,
-                           euler[1]-2,
-                           euler[1]+2))
-        parms_list.append((f'{det}_euler_zpp',
-                           euler[2],
-                           False,
-                           euler[2]-2,
-                           euler[2]+2))
+        angles = detector_angles_euler(panel, euler_convention)
+        angle_names = param_names_euler_convention(det, euler_convention)
+
+        for name, angle in zip(angle_names, angles):
+            parms_list.append((name,
+                               angle,
+                               False,
+                               angle - 2,
+                               angle + 2))
 
         parms_list.append((f'{det}_tvec_x',
                            panel.tvec[0],
@@ -91,6 +91,63 @@ def create_instr_params(instr):
                                -np.inf, np.inf))
 
     return parms_list
+
+
+def update_instrument_from_params(instr, params, euler_convention):
+    """
+    this function updates the instrument from the
+    lmfit parameter list. we don't have to keep track
+    of the position numbers as the variables are named
+    variables. this will become the standard in the
+    future since bound constraints can be very easily
+    implemented.
+    """
+    if not isinstance(params, lmfit.Parameters):
+        msg = ('Only lmfit.Parameters is acceptable input. '
+               f'Received: {params}')
+        raise NotImplementedError(msg)
+
+    instr.beam_energy = params['beam_energy'].value
+
+    azim = params['beam_azimuth'].value
+    pola = params['beam_polar'].value
+    instr.beam_vector = calc_beam_vec(azim, pola)
+
+    chi = np.radians(params['instr_chi'].value)
+    instr.chi = chi
+
+    instr_tvec = [params['instr_tvec_x'].value,
+                  params['instr_tvec_y'].value,
+                  params['instr_tvec_z'].value]
+    instr.tvec = np.r_[instr_tvec]
+
+    for det_name, detector in instr.detectors.items():
+        det = det_name.replace('-', '_')
+        set_detector_angles_euler(detector, det, params, euler_convention)
+
+        tvec = np.r_[params[f'{det}_tvec_x'].value,
+                     params[f'{det}_tvec_y'].value,
+                     params[f'{det}_tvec_z'].value]
+        detector.tvec = tvec
+        if detector.detector_type.lower() == 'cylindrical':
+            rad = params[f'{det}_radius'].value
+            detector.radius = rad
+
+        distortion_str = f'{det}_distortion_param'
+        if any(distortion_str in p for p in params):
+            if detector.distortion is None:
+                raise RuntimeError(f"distortion discrepancy for '{det}'!")
+            else:
+                names = np.sort([p for p in params if distortion_str in p])
+                distortion = np.r_[[params[n].value for n in names]]
+                try:
+                    detector.distortion.params = distortion
+                except AssertionError:
+                    raise RuntimeError(
+                        f"distortion for '{det}' "
+                        f"expects {len(detector.distortion.params)} "
+                        f"params but got {len(distortion)}"
+                    )
 
 
 def create_tth_parameters(meas_angles):
@@ -262,3 +319,66 @@ def validate_params_list(params_list):
     if duplicate_names:
         msg = f'Duplicate names found in params list: {duplicate_names}'
         raise LmfitValidationException(msg)
+
+
+EULER_PARAM_NAMES_MAPPING = {
+    None: ('expmap_x', 'expmap_y', 'expmap_z'),
+    ('xyz', True): ('euler_x', 'euler_y', 'euler_z'),
+    ('zxz', False): ('euler_z', 'euler_xp', 'euler_zpp'),
+}
+
+
+def normalize_euler_convention(euler_convention):
+    if isinstance(euler_convention, dict):
+        return (
+            euler_convention['axes_order'],
+            euler_convention['extrinsic'],
+        )
+
+    return euler_convention
+
+
+def param_names_euler_convention(base, euler_convention):
+    normalized = normalize_euler_convention(euler_convention)
+    return [f'{base}_{x}' for x in EULER_PARAM_NAMES_MAPPING[normalized]]
+
+
+def detector_angles_euler(panel, euler_convention):
+    if euler_convention is None:
+        # Return exponential map parameters
+        return panel.tilt
+
+    normalized = normalize_euler_convention(euler_convention)
+    rmat = panel.rmat
+    rme = RotMatEuler(
+        np.zeros(3,),
+        axes_order=normalized[0],
+        extrinsic=normalized[1],
+    )
+
+    rme.rmat = rmat
+    return np.degrees(rme.angles)
+
+
+def set_detector_angles_euler(panel, base_name, params, euler_convention):
+    normalized = normalize_euler_convention(euler_convention)
+    names = param_names_euler_convention(base_name, euler_convention)
+
+    angles = []
+    for name in names:
+        angles.append(params[name].value)
+
+    angles = np.asarray(angles)
+
+    if euler_convention is None:
+        # No conversion needed
+        panel.tilt = angles
+        return
+
+    rmat = make_rmat_euler(
+        np.radians(angles),
+        axes_order=normalized[0],
+        extrinsic=normalized[1],
+    )
+
+    panel.tilt = expMapOfQuat(quatOfRotMat(rmat))

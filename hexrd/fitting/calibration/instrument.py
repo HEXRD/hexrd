@@ -6,6 +6,8 @@ import numpy as np
 from .lmfit_param_handling import (
     add_engineering_constraints,
     create_instr_params,
+    DEFAULT_EULER_CONVENTION,
+    update_instrument_from_params,
     validate_params_list,
 )
 
@@ -19,7 +21,8 @@ def _normalized_ssqr(resd):
 
 class InstrumentCalibrator:
     def __init__(self, *args, engineering_constraints=None,
-                 set_refinements_from_instrument_flags=True):
+                 set_refinements_from_instrument_flags=True,
+                 euler_convention=DEFAULT_EULER_CONVENTION):
         """
         Model for instrument calibration class as a function of
 
@@ -42,6 +45,7 @@ class InstrumentCalibrator:
             assert calib.instr is self.instr, \
                 "all calibrators must refer to the same instrument"
         self._engineering_constraints = engineering_constraints
+        self.euler_convention = euler_convention
 
         self.params = self.make_lmfit_params()
         if set_refinements_from_instrument_flags:
@@ -52,7 +56,10 @@ class InstrumentCalibrator:
                                       nan_policy='omit')
 
     def make_lmfit_params(self):
-        params = create_instr_params(self.instr)
+        params = create_instr_params(
+            self.instr,
+            euler_convention=self.euler_convention,
+        )
 
         for calibrator in self.calibrators:
             # We pass the params to the calibrator so it can ensure it
@@ -71,7 +78,12 @@ class InstrumentCalibrator:
 
     def update_all_from_params(self, params):
         # Update instrument and material from the lmfit parameters
-        self.instr.update_from_lmfit_parameter_list(params)
+        update_instrument_from_params(
+            self.instr,
+            params,
+            self.euler_convention,
+        )
+
         for calibrator in self.calibrators:
             calibrator.update_from_lmfit_params(params)
 

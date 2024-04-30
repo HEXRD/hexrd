@@ -42,8 +42,6 @@ import yaml
 
 import h5py
 
-import lmfit
-
 import numpy as np
 
 from io import IOBase
@@ -70,13 +68,7 @@ from hexrd.transforms.xfcapi import (
 from hexrd import xrdutil
 from hexrd.material.crystallography import PlaneData
 from hexrd import constants as ct
-from hexrd.rotations import (
-    angleAxisOfRotMat,
-    RotMatEuler,
-    make_rmat_euler,
-    expMapOfQuat,
-    quatOfRotMat
-    )
+from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
 from hexrd import distortion as distortion_pkg
 from hexrd.utils.compatibility import h5py_read_string
 from hexrd.utils.concurrent import distribute_tasks
@@ -1117,70 +1109,6 @@ class HEDMInstrument(object):
                         )
                 ii += dpnp
         return
-
-    def update_from_lmfit_parameter_list(self, params):
-        """
-        this function updates the instrument from the
-        lmfit parameter list. we don't have to keep track
-        of the position numbers as the variables are named
-        variables. this will become the standard in the
-        future since bound constraints can be very easily
-        implemented.
-        """
-        if not isinstance(params, lmfit.Parameters):
-            msg = ('Only lmfit.Parameters is acceptable input. '
-                   f'Received: {params}')
-            raise NotImplementedError(msg)
-
-        self.beam_energy = params['beam_energy'].value
-
-        azim = params['beam_azimuth'].value
-        pola = params['beam_polar'].value
-        self.beam_vector = calc_beam_vec(azim, pola)
-
-        chi = np.radians(params['instr_chi'].value)
-        self.chi = chi
-
-        instr_tvec = [params['instr_tvec_x'].value,
-                      params['instr_tvec_y'].value,
-                      params['instr_tvec_z'].value]
-        self.tvec = np.r_[instr_tvec]
-
-        for det_name, detector in self.detectors.items():
-            det = det_name.replace('-', '_')
-            euler = np.r_[params[f'{det}_euler_z'].value,
-                          params[f'{det}_euler_xp'].value,
-                          params[f'{det}_euler_zpp'].value]
-
-            rmat = make_rmat_euler(np.radians(euler),
-                                   'zxz',
-                                   extrinsic=False)
-            tilt = expMapOfQuat(quatOfRotMat(rmat))
-            detector.tilt = tilt
-
-            tvec = np.r_[params[f'{det}_tvec_x'].value,
-                         params[f'{det}_tvec_y'].value,
-                         params[f'{det}_tvec_z'].value]
-            detector.tvec = tvec
-            if detector.detector_type.lower() == 'cylindrical':
-                rad = params[f'{det}_radius'].value
-                detector.radius = rad
-
-            distortion_str = f'{det}_distortion_param'
-            if any(distortion_str in p for p in params):
-                if detector.distortion is None:
-                    raise RuntimeError(f"distortion discrepancy for '{det}'!")
-                else:
-                    names = np.sort([p for p in params if distortion_str in p])
-                    distortion = np.r_[[params[n].value for n in names]]
-                    try:
-                        detector.distortion.params = distortion
-                    except AssertionError:
-                        raise RuntimeError(
-                            f"distortion for '{det}' "
-                            f"expects {len(detector.distortion.params)} "
-                            f"params but got {len(distortion)}"
-                        )
 
     def extract_polar_maps(self, plane_data, imgser_dict,
                            active_hkls=None, threshold=None,
