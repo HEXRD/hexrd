@@ -837,7 +837,7 @@ def calc_rwp(spectrum_sim,
 
     # Rwp and goodness of fit parameters
     if Rexp > 0.:
-        gofF = wss/(N-P)
+        gofF = Rwp/Rexp
     else:
         gofF = np.inf
 
