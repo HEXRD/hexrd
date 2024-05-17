@@ -18,7 +18,19 @@ class ImageSeriesAdapter(ImageSeriesABC, metaclass=_RegisterAdapterClass):
 
 # import all adapter modules
 
-from . import array, framecache, hdf5, imagefiles, rawimage, metadata, trivial
+from . import (
+    array, framecache, hdf5, imagefiles, rawimage, metadata, trivial
+)
+
+try:
+    from dectris.compression import decompress
+except ImportError:
+    # Dectris compression is not available. Skip the eiger_stream_v1
+    pass
+else:
+    # Eiger stream v1 is supported
+    from . import eiger_stream_v1
+
 
 #for loader, name, ispkg in pkgutil.iter_modules(__path__):
 #    if name is not 'registry':
