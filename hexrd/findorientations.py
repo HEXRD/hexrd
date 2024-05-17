@@ -224,6 +224,8 @@ def run_cluster(compl, qfib, qsym, cfg,
     cl_radius = cfg.find_orientations.clustering.radius
     min_compl = cfg.find_orientations.clustering.completeness
 
+    ncpus = cfg.multiprocessing
+
     # check for override on completeness threshold
     if compl_thresh is not None:
         min_compl = compl_thresh
@@ -295,7 +297,8 @@ def run_cluster(compl, qfib, qsym, cfg,
                     pdist,
                     eps=np.radians(cl_radius),
                     min_samples=min_samples,
-                    metric='precomputed'
+                    metric='precomputed',
+                    n_jobs=ncpus,
                     )
             else:
                 if algorithm == 'ort-dbscan':
@@ -312,7 +315,9 @@ def run_cluster(compl, qfib, qsym, cfg,
                     pts,
                     eps=eps,
                     min_samples=min_samples,
-                    metric='minkowski', p=2,
+                    metric='minkowski',
+                    p=2,
+                    n_jobs=ncpus,
                     )
 
             # extract cluster labels
