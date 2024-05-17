@@ -9,5 +9,5 @@ c_compiler:
 target_platform:
   - linux-64               # [linux]
   - osx-64                 # [osx]
-  # - osx-arm64              # [osx]
+  - osx-arm64              # [osx]
   - win-64                 # [win]
