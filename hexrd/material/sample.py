@@ -23,6 +23,7 @@ class abstractlayer:
                  material=None,
                  density=None,
                  thickness=None,
+                 diameter=None,
                  readout_length=None,
                  pre_U0=None):
         self._material = material
@@ -45,7 +46,43 @@ class abstractlayer:
             return 0.0
         return self._thickness
 
-class Pinhole(object):
+    def absorption_length(self, energy):
+        if isinstance(energy, float):
+            energy_inp = np.array([energy])
+        elif isinstance(energy, list):
+            energy_inp = np.array(energy)
+        elif isinstance(energy, np.ndarray):
+            energy_inp = energy
+
+        args = (self.density,
+                self.material,
+                energy_inp,
+                )
+        abs_length = calculate_linear_absorption_length(*args)
+        if abs_length.shape[0] == 1:
+            return abs_length[0]
+        else:
+            return abs_length
+
+    def energy_absorption_length(self, energy):
+        if isinstance(energy, float):
+            energy_inp = np.array([energy])
+        elif isinstance(energy, list):
+            energy_inp = np.array(energy)
+        elif isinstance(energy, np.ndarray):
+            energy_inp = energy
+
+        args = (self.density,
+                self.material,
+                energy_inp,
+                )
+        abs_length = calculate_energy_absorption_length(*args)
+        if abs_length.shape[0] == 1:
+            return abs_length[0]
+        else:
+            return abs_length
+
+class Pinhole(abstractlayer):
     """simple class to encode all pinhole
     related parameters
 
@@ -66,13 +103,9 @@ class Pinhole(object):
         Readout models for BaFBr0.85I0.15:Eu image plates 
         Rev. Sci. Instrum. 89, 063101 (2018
     """
-    def __init__(self,
-                 material='Ta',
-                 diameter=400,
-                 thickness=100):
-        self._material = material
-        self._diameter = diameter
-        self._thickness = thickness
+    def __init__(self, **pinhole_kwargs):
+        super().__init__(**pinhole_kwargs)
+        self._diameter = pinhole_kwargs['diameter']
 
     @property
     def radius(self):
@@ -81,20 +114,10 @@ class Pinhole(object):
         return 0.5*self.diameter
 
     @property
-    def material(self):
-        return self._material
-
-    @property
     def diameter(self):
         if self._diameter is None:
             return 0.0
         return self._diameter
-
-    @property
-    def thickness(self):
-        if self._thickness is None:
-            return 0.0
-        return self._thickness
 
 class Filter(abstractlayer):
 
