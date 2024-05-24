@@ -11,7 +11,6 @@ from hexrd import xrdutil
 
 from hexrd.material import crystallography
 from hexrd.material.crystallography import PlaneData
-from hexrd.constants import density, density_compounds
 
 from hexrd.transforms.xfcapi import (
     detectorXYToGvec,
@@ -25,9 +24,6 @@ from hexrd.transforms.xfcapi import (
 
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
-
-from hexrd.material.utils import (calculate_linear_absorption_length,
-    calculate_energy_absorption_length)
 
 if ct.USE_NUMBA:
     import numba
