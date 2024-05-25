@@ -608,12 +608,7 @@ class Detector:
     @filter.setter
     def filter(self, det_filter):
         if not isinstance(det_filter, dict):
-            msg = f'filter should be of type: dict'
-            raise ValueError(msg)
-        if not all([x in det_filter for x in 
-                   ['material', 'density', 'thickness']]):
-            msg = (f'dictionary missing material type, '
-                   f'density or thickness')
+            msg = f'filter should be of type: hexrd.sample.Filter'
             raise ValueError(msg)
         self._filter = det_filter
 
@@ -624,12 +619,7 @@ class Detector:
     @coating.setter
     def coating(self, det_coating):
         if not isinstance(det_coating, dict):
-            msg = f'coating should be of type: dict'
-            raise ValueError(msg)
-        if not all([x in det_filter for x in 
-                   ['material', 'density', 'thickness']]):
-            msg = (f'dictionary missing material type, '
-                   f'density or thickness')
+            msg = f'coating should be of type: hexrd.sample.Coating'
             raise ValueError(msg)
         self._coating = det_coating
 
@@ -639,25 +629,12 @@ class Detector:
 
     @physics_package.setter
     def physics_package(self, pp):
-        if not isinstance(pp, dict):
-            msg = f'physics_package should be of type: dict'
+        if not isinstance(pp, (hexrd.sample.HED_physics_package,
+                          hexrd.sample.HEDM_physics_package)):
+            msg = (f'physics_package should be of type: '
+                f'hexrd.sample.HED_physics_package or '
+                f'hexrd.sample.HEDM_physics_package')
             raise ValueError(msg)
-        if 'type' in pp:
-            if pp['type'] == 'HED':
-                if not all([x in pp for x in 
-                           ['sample_material', 'sample_density', 
-                           'sample_thickness', 'window_material',
-                           'window_density', 'window_thickness']]):
-                    msg = (f'dictionary missing sample/window material '
-                           f'density or thickness')
-                    raise ValueError(msg)
-            elif pp['type'] == 'HEDM':
-                if not all([x in pp for x in 
-                       ['shape', 'dimension',
-                       'material', 'density']]):
-                    msg = (f'dictionary missing material type, '
-                           f'density or shape')
-                    raise ValueError(msg)
         self._physics_package = pp
 
     @property
@@ -667,14 +644,9 @@ class Detector:
     @pinhole.setter
     def pinhole(self, ph):
         if not isinstance(pp, dict):
-            msg = f'pinhole should be of type: dict'
+            msg = f'pinhole should be of type: hexrd.sample.Pinhole'
             raise ValueError(msg)
-        if not all([x in pp for x in 
-                   ['material', 'diameter', 
-                   'thickness']]):
-            msg = (f'dictionary missing pinhole material '
-                   f'diameter or thickness')
-            raise ValueError(msg)
+        self._pinhole = ph
 
     @property
     def phosphor(self):
@@ -682,153 +654,11 @@ class Detector:
 
     @phosphor.setter
     def phosphor(self, phos):
-        if not isinstance(phos, dict):
-            msg = f'phosphor should be of type: dict'
-            raise ValueError(msg)
-        if not all([x in phos for x in 
-                   ['material', 'density', 'thickness']]):
-            msg = (f'dictionary missing material type, '
-                   f'density or thickness')
+        if not isinstance(phos, sample.Phosphor):
+            msg = f'phosphor should be of type: hexrd.sample.Phosphor'
             raise ValueError(msg)
         self._phosphor = phos
 
-    @property
-    def filter_thickness(self):
-        # thickness in microns
-        if self.filter is None:
-            return 0.0
-        return self.filter['thickness']
-
-    @property
-    def coating_thickness(self):
-        # thickness in microns
-        if self.coating is None:
-            return 0.0
-        return self.coating['thickness']
-
-    @property
-    def pinhole_thickness(self):
-        # thickness in microns
-        if self.pinhole is None:
-            return 0.0
-        return self.pinhole['thickness']
-
-    @property
-    def phosphor_thickness(self):
-        if self.phosphor is None:
-            return 0.0
-        return self.phosphor['thickness']
-
-    @property
-    def phosphor_readout_length(self):
-        return self.phosphor['readout_length']
-
-    @property
-    def pinhole_diameter(self):
-        # diameter in microns
-        if self.pinhole is None:
-            return 0.0
-        return self.pinhole['diameter']
-
-    @property
-    def filter_density(self):
-        if self.filter is None:
-            return 0.0
-        return self.filter['density']
-
-    @property
-    def coating_density(self):
-        if self.coating is None:
-            return 0.0
-        return self.coating['density']
-
-    @property
-    def sample_thickness(self):
-        if self.physics_package is None:
-            return None
-        if self.physics_package['type'] == 'HED':
-            return self.physics_package['sample_thickness']
-        elif self.physics_package['type'] == 'HEDM':
-            return self.physics_package['dimension']
-
-    @property
-    def window_thickness(self):
-        if self.physics_package is None:
-            return None
-        if self.physics_package['type'] == 'HED':
-            return self.physics_package['window_thickness']
-        return None
-
-    @property
-    def sample_density(self):
-        if self.physics_package is None:
-            return None
-        if self.physics_package['type'] == 'HED':
-            return self.physics_package['sample_density']
-        elif self.physics_package['type'] == 'HEDM':
-            return self.physics_package['density']
-
-    @property
-    def window_density(self):
-        if self.physics_package is None:
-            return None
-        if self.physics_package['type'] == 'HED':
-            return self.physics_package['window_density']
-        return None
-
-    @property
-    def phosphor_density(self):
-        if self.phosphor is None:
-            return 0.0
-        return self.phosphor['density']
-
-    @property
-    def phosphor_material(self):
-        if self.phosphor is None:
-            return None
-        return self.phosphor['material']
-
-    @property
-    def filter_material(self):
-        if self.filter is None:
-            return None
-        return self.filter['material']
-
-    @property
-    def coating_material(self):
-        if self.coating is None:
-            return None
-        return self.coating['material']
-
-    @property
-    def sample_material(self):
-        if self.physics_package is None:
-            return None
-        if self.physics_package['type'] == 'HED':
-            return self.physics_package['sample_material']
-        if self.physics_package['type'] == 'HEDM':
-            return self.physics_package['material']
-        return None
-
-    @property
-    def window_material(self):
-        if self.physics_package is None:
-            return None
-        if self.physics_package['type'] == 'HED':
-            return self.physics_package['window_material']
-        return None
-
-    @property
-    def pinhole_material(self):
-        if self.physics_package is None:
-            return None
-        return self.pinhole['material']
-
-    @property
-    def phosphor_U0(self):
-        if self.phosphor is None:
-            return 0.0
-        return self.phosphor['pre_U0']
 
     # =========================================================================
     # METHODS
