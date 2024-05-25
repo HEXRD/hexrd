@@ -50,7 +50,8 @@ pinhole = sample.Pinhole(**sample.PINHOLE_DEFAULT)
 filterpack = sample.Filter(**sample.FILTER_DEFAULT)
 coating = sample.Coating(**sample.COATING_DEFAULT)
 phosphor = sample.Phosphor(**sample.PHOSPHOR_DEFAULT)
-physics_package = sample.Physics_package(**sample.physics_package)
+hed_physics_package = sample.HED_physics_package(
+                      **sample.HED_PHYSICS_PACKAGE_DEFAULT)
 
 class Detector:
     """
@@ -185,7 +186,7 @@ class Detector:
                  detector_filter=filterpack,
                  detector_coating=coating,
                  phosphor=phosphor,
-                 physics_package=PHYSICS_PACKAGE_DEFAULT,
+                 physics_package=hed_physics_package,
                  pinhole=pinhole):
         """
         Instantiate a PlanarDetector object.

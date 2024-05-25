@@ -27,8 +27,7 @@ PHOSPHOR_DEFAULT = {
 
 """default physics package for dynamic compression
 experiments the template of the other type is commented"""
-PHYSICS_PACKAGE_DEFAULT = {
-    'type' : 'HED',
+HED_PHYSICS_PACKAGE_DEFAULT = {
     'sample_material' : 'Fe',
     'sample_density' : density['Fe'],
     'sample_thickness' : 15,# in microns
@@ -46,14 +45,13 @@ PINHOLE_DEFAULT = {
 }
 
 """template for HEDM type physics package
-"""
-# PHYSICS_PACKAGE_DEFAULT = {
-#     'type' : 'HEDM',
-#     'shape' : 'cylinder', # cuboid
-#     'dimension' : 1.0, # radius (mm) for cylinder, width x thickness for cuboid
-#     'material' : 'Ti',
-#     'density' : density['Ti'],
-# }
+
+HEDM_PHYSICS_PACKAGE_DEFAULT = {
+    'sample_material' : 'Fe',
+    'sample_density' : density['Fe'],
+    'sample_thickness' : 1000, # in microns
+    'sample_geometry' : 'cylinder'
+}"""
 
 class abstractlayer:
     """abstract class for encode information
@@ -239,31 +237,6 @@ class abstractpp:
         pinhole diameter in microns
     thickness : float
         pinhole thickness in microns
-
-PHYSICS_PACKAGE_DEFAULT = {
-    'type' : 'HED',
-    'sample_material' : 'Fe',
-    'sample_density' : density['Fe'],
-    'sample_thickness' : 15,# in microns
-    'window_material' : 'LiF',
-    'window_density' : density_compounds['LiF'],
-    'window_thickness' : 150, # in microns
-}
-
-PINHOLE_DEFAULT = {
-    'material' : 'Ta',
-    'diameter' : 400, # in microns
-    'thickness' : 100, # in microns
-    'density' : 16.65, # g/cc
-}
-
-# PHYSICS_PACKAGE_DEFAULT = {
-#     'type' : 'HEDM',
-#     'shape' : 'cylinder', # cuboid
-#     'dimension' : 1.0, # radius (mm) for cylinder, width x thickness for cuboid
-#     'material' : 'Ti',
-#     'density' : density['Ti'],
-# }
 
     """
     # Abstract methods that must be redefined in derived classes
