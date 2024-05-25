@@ -144,7 +144,7 @@ class CylindricalDetector(Detector):
 
     def calc_filter_coating_transmission(self, energy):
         """
-        calculate thetrnasmission after x-ray beam interacts
+        calculate the transmission after x-ray beam interacts
         with the filter and the mylar polymer coating.
         Specifications of the polymer coating is taken from:
 
@@ -157,17 +157,17 @@ class CylindricalDetector(Detector):
         Rygg et al., X-ray diffraction at the National 
         Ignition Facility, Rev. Sci. Instrum. 91, 043902 (2020)
         """
-        filter_thickness  = self.filter_thickness
-        coating_thickness = self.coating_thickness
+        filter_thickness  = self.filter.thickness
+        coating_thickness = self.coating.thickness
 
-        al_f = self.absorption_length_filter(energy)
-        al_c = self.absorption_length_filter(energy)
-        al_p = self.energy_absorption_length_phosphor(energy)
+        al_f = self.filter.absorption_length(energy)
+        al_c = self.coating.absorption_length(energy)
+        al_p = self.phosphor.energy_absorption_length(energy)
 
-        t_f = self.filter_thickness
-        t_c = self.coating_thickness
-        t_p = self.phosphor_thickness
-        L   = self.phosphor_readout_length
+        t_f = self.filter.thickness
+        t_c = self.coating.thickness
+        t_p = self.phosphor.thickness
+        L   = self.phosphor.readout_length
 
         det_normal = self.local_normal()
         bvec = self.bvec
@@ -181,9 +181,8 @@ class CylindricalDetector(Detector):
 
         transmission_filter  = self.calc_transmission_generic(secb, t_f, al_f)
         transmission_coating = self.calc_transmission_generic(secb, t_c, al_c)
-        transmission_phosphor = (self.phosphor_U0 * 
+        transmission_phosphor = (self.phosphor.pre_U0 * 
                     self.calc_transmission_phosphor(secb, t_p, al_p, L, energy))
-        transmission_phosphor /= transmission_phosphor.max()
 
         transmission_filter  = transmission_filter.reshape(self.shape)
         transmission_coating = transmission_coating.reshape(self.shape)
