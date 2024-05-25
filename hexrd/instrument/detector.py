@@ -164,6 +164,10 @@ class Detector:
     def pixel_eta_gradient(self, origin=ct.zeros_3):
         raise NotImplementedError
 
+    @abstractmethod
+    def calc_filter_coating_transmission(self, energy):
+        pass
+
     @property
     @abstractmethod
     def beam_position(self):
@@ -1919,120 +1923,6 @@ class Detector:
             if cache_info['maxsize'] < min_size:
                 f.set_cache_maxsize(min_size)
 
-    def absorption_length(self, keyword, energy):
-        """get absorption length of material for
-        a given energy. units are microns
-        """
-        if isinstance(energy, float):
-            energy_inp = np.array([energy])
-        elif isinstance(energy, list):
-            energy_inp = np.array(energy)
-        elif isinstance(energy, np.ndarray):
-            energy_inp = energy
-
-        if keyword == 'filter':
-            if self.filter is None:
-                return np.inf
-            else:
-                args = (
-                    self.filter_density,
-                    self.filter_material,
-                    energy_inp,
-                        )
-
-        if keyword == 'coating':
-            if self.coating is None:
-                return np.inf
-            else:
-                args = (
-                    self.coating_density,
-                    self.coating_material,
-                    energy_inp,
-                        )
-
-        if keyword == 'sample':
-            if self.physics_package is None:
-                return np.inf
-            else:
-                args = (
-                    self.sample_density,
-                    self.sample_material,
-                    energy_inp,
-                    )
-
-        if keyword == 'window':
-            if self.physics_package is None:
-                return np.inf
-            else:
-                args = (
-                    self.window_density,
-                    self.window_material,
-                    energy_inp,
-                    )
-
-        abs_length = calculate_linear_absorption_length(*args)
-        if abs_length.shape[0] == 1:
-            return abs_length[0]
-        else:
-            return abs_length
-
-    def energy_absorption_length(self, keyword, energy):
-        """get energy absorption length for material
-        for a given energy, units are microns
-        """
-        if isinstance(energy, float):
-            energy_inp = np.array([energy])
-        elif isinstance(energy, list):
-            energy_inp = np.array(energy)
-        elif isinstance(energy, np.ndarray):
-            energy_inp = energy
-
-        if keyword == 'phosphor':
-            if self.phosphor is None:
-                return np.inf
-            else:
-                args = (
-                    self.phosphor_density,
-                    self.phosphor_material,
-                    energy_inp,
-                    )
-
-        abs_length = calculate_energy_absorption_length(*args)
-        if abs_length.shape[0] == 1:
-            return abs_length[0]
-        else:
-            return abs_length
-
-    def energy_absorption_length_phosphor(self, energy):
-        """get how much energy is dumped into the phosphor
-        due to interaction with xrays
-        """
-        return self.energy_absorption_length('phosphor', energy)
-
-    def absorption_length_filter(self, energy):
-        """get absorption length of filter for
-        a given energy. units are microns
-        """
-        return self.absorption_length('filter', energy)
-
-    def absorption_length_coating(self, energy):
-        """get absorption length of coating for
-        a given energy. units are microns
-        """
-        return self.absorption_length('coating', energy)
-
-    def absorption_length_sample(self, energy):
-        """get absorption length of sample for
-        a given energy. units are microns
-        """
-        return self.absorption_length('sample', energy)
-
-    def absorption_length_window(self, energy):
-        """get absorption length of window for
-        a given energy. units are microns
-        """
-        return self.absorption_length('window', energy)
-
     def calc_physics_package_transmission(self, energy, rMat_s):
         """get the transmission from the physics package
         need to consider HED and HEDM samples separately
@@ -2055,16 +1945,16 @@ class Detector:
         self.transmission_physics_package = T_sample*T_window
 
     def calc_transmission_sample(self, seca, secb, energy):
-        thickness_s = self.sample_thickness # in microns
-        mu_s = 1./self.absorption_length_sample(energy) # in microns^-1
+        thickness_s = self.physics_package.sample_thickness # in microns
+        mu_s = 1./self.physics_package.sample_absorption_length(energy) # in microns^-1
         x = (mu_s*thickness_s)
         pre = 1./x/(secb - seca)
         num = np.exp(-x*seca) - np.exp(-x*secb)
         return pre * num
 
     def calc_transmission_window(self, secb, energy):
-        thickness_w = self.window_thickness # in microns
-        mu_w = 1./self.absorption_length_window(energy) # in microns^-1
+        thickness_w = self.physics_package.window_thickness # in microns
+        mu_w = 1./self.physics_package.window_absorption_length(energy) # in microns^-1
         return np.exp(-thickness_w*mu_w*secb)
 
     def calc_effective_pinhole_area(self):

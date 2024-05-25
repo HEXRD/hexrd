@@ -118,14 +118,14 @@ class PlanarDetector(Detector):
         Ignition Facility, Rev. Sci. Instrum. 91, 043902 (2020)
         """
 
-        al_f = self.absorption_length_filter(energy)
-        al_c = self.absorption_length_filter(energy)
-        al_p = self.energy_absorption_length_phosphor(energy)
+        al_f = self.filter.absorption_length(energy)
+        al_c = self.coating.absorption_length(energy)
+        al_p = self.phosphor.energy_absorption_length(energy)
 
-        t_f = self.filter_thickness
-        t_c = self.coating_thickness
-        t_p = self.phosphor_thickness
-        L   = self.phosphor_readout_length
+        t_f = self.filter.thickness
+        t_c = self.coating.thickness
+        t_p = self.phosphor.thickness
+        L   = self.phosphor.readout_length
 
         det_normal = -self.normal
         bvec = self.bvec
@@ -140,7 +140,7 @@ class PlanarDetector(Detector):
 
         transmission_filter  = self.calc_transmission_generic(secb, t_f, al_f)
         transmission_coating = self.calc_transmission_generic(secb, t_c, al_c)
-        transmission_phosphor = (self.phosphor_U0 * 
+        transmission_phosphor = (self.phosphor.pre_U0 * 
                     self.calc_transmission_phosphor(secb, t_p, al_p, L, energy))
 
         self.transmission_filter_coating = (transmission_filter*
