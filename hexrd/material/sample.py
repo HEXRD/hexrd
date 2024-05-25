@@ -1,7 +1,59 @@
+from abc import abstractmethod
 import numpy as np
 from hexrd.material.utils import (calculate_linear_absorption_length,
     calculate_energy_absorption_length)
 from hexrd.constants import density, density_compounds
+
+# default filter and coating materials
+FILTER_DEFAULT = {
+    'material': 'Ge',
+    'density' : density['Ge'],
+    'thickness' : 10, # microns
+}
+
+COATING_DEFAULT = {
+    'material': 'C10H8O4',
+    'density' : density_compounds['C10H8O4'],
+    'thickness' : 9, # microns
+}
+
+PHOSPHOR_DEFAULT = {
+    'material' : 'Ba2263F2263Br1923I339C741H1730N247O494',
+    'density' : density_compounds['Ba2263F2263Br1923I339C741H1730N247O494'], # g/cc
+    'thickness' : 115, # microns
+    'readout_length' : 222, #microns,
+    'pre_U0' : 0.695
+}
+
+"""default physics package for dynamic compression
+experiments the template of the other type is commented"""
+PHYSICS_PACKAGE_DEFAULT = {
+    'type' : 'HED',
+    'sample_material' : 'Fe',
+    'sample_density' : density['Fe'],
+    'sample_thickness' : 15,# in microns
+    'window_material' : 'LiF',
+    'window_density' : density_compounds['LiF'],
+    'window_thickness' : 150, # in microns
+}
+
+"""defaults pinhole area correction parameters"""
+PINHOLE_DEFAULT = {
+    'material' : 'Ta',
+    'diameter' : 400, # in microns
+    'thickness' : 100, # in microns
+    'density' : 16.65, # g/cc
+}
+
+"""template for HEDM type physics package
+"""
+# PHYSICS_PACKAGE_DEFAULT = {
+#     'type' : 'HEDM',
+#     'shape' : 'cylinder', # cuboid
+#     'dimension' : 1.0, # radius (mm) for cylinder, width x thickness for cuboid
+#     'material' : 'Ti',
+#     'density' : density['Ti'],
+# }
 
 class abstractlayer:
     """abstract class for encode information
@@ -16,7 +68,14 @@ class abstractlayer:
         pinhole diameter in microns
     thickness : float
         pinhole thickness in microns
-
+    diameter : float
+        diameter for pinhole in microns
+    readout_length : float
+        the distance of phosphor screen that encodes
+        the information from x-rays
+    pre_U0 : float
+        scale factor for phosphor screen to convert
+        intensity to PSL
     """
 
     def __init__(self,
@@ -166,30 +225,21 @@ class Phosphor(abstractlayer):
 
 #     """
 
+class abstractpp:
+    """abstract class for the physics package.
+    there will be two separate physics package class
+    types -- one for HED samples and the other for
+    HEDM samples. 
 
-# default filter and coating materials
-FILTER_DEFAULT = {
-    'material': 'Ge',
-    'density' : density['Ge'],
-    'thickness' : 10, # microns
-}
+    Parameters
+    ----------
+    sample_material : str or hexrd.material.Material
+        either the formula or a hexrd material instance
+    diameter : float
+        pinhole diameter in microns
+    thickness : float
+        pinhole thickness in microns
 
-COATING_DEFAULT = {
-    'material': 'C10H8O4',
-    'density' : density_compounds['C10H8O4'],
-    'thickness' : 9, # microns
-}
-
-PHOSPHOR_DEFAULT = {
-    'material' : 'Ba2263F2263Br1923I339C741H1730N247O494',
-    'density' : density_compounds['Ba2263F2263Br1923I339C741H1730N247O494'], # g/cc
-    'thickness' : 115, # microns
-    'readout_length' : 222, #microns,
-    'pre_U0' : 0.695
-}
-
-"""default physics package for dynamic compression
-experiments the template of the other type is commented"""
 PHYSICS_PACKAGE_DEFAULT = {
     'type' : 'HED',
     'sample_material' : 'Fe',
@@ -200,8 +250,13 @@ PHYSICS_PACKAGE_DEFAULT = {
     'window_thickness' : 150, # in microns
 }
 
-"""template for HEDM type physics package
-"""
+PINHOLE_DEFAULT = {
+    'material' : 'Ta',
+    'diameter' : 400, # in microns
+    'thickness' : 100, # in microns
+    'density' : 16.65, # g/cc
+}
+
 # PHYSICS_PACKAGE_DEFAULT = {
 #     'type' : 'HEDM',
 #     'shape' : 'cylinder', # cuboid
@@ -209,3 +264,122 @@ PHYSICS_PACKAGE_DEFAULT = {
 #     'material' : 'Ti',
 #     'density' : density['Ti'],
 # }
+
+    """
+    # Abstract methods that must be redefined in derived classes
+    @property
+    @abstractmethod
+    def type(self):
+        pass
+
+    def __init__(self,
+                 sample_material=None,
+                 sample_density=None,
+                 sample_thickness=None,
+                 sample_geometry=None,
+                 window_material=None,
+                 window_density=None,
+                 window_thickness=None,
+                 ):
+        self._sample_material  = sample_material
+        self._sample_density   = sample_density
+        self._sample_thickness = sample_thickness
+
+    @property
+    def sample_material(self):
+        return self._sample_material
+
+    @property
+    def sample_density(self):
+        if self._sample_density is None:
+            return 0.0
+        return self._sample_density
+
+    @property
+    def sample_thickness(self):
+        if self._sample_thickness is None:
+            return 0.0
+        return self._sample_thickness
+
+    def absorption_length(self, energy, flag):
+        if isinstance(energy, float):
+            energy_inp = np.array([energy])
+        elif isinstance(energy, list):
+            energy_inp = np.array(energy)
+        elif isinstance(energy, np.ndarray):
+            energy_inp = energy
+
+        if flag.lower() == 'sample':
+            args = (self.sample_density,
+                    self.sample_material,
+                    energy_inp,
+                    )
+        elif flag.lower() == 'window':
+            args = (self.window_density,
+                    self.window_material,
+                    energy_inp,
+                    )
+        abs_length = calculate_linear_absorption_length(*args)
+        if abs_length.shape[0] == 1:
+            return abs_length[0]
+        else:
+            return abs_length
+
+    def sample_absorption_length(self, energy):
+        return self.absorption_length(energy, 'sample')
+
+
+class HED_physics_package(abstractpp):
+
+    def __init__(self, **pp_kwargs):
+        super().__init__(**pp_kwargs)
+        self._window_material  = pp_kwargs['window_material']
+        self._window_density   = pp_kwargs['window_density']
+        self._window_thickness = pp_kwargs['window_thickness']
+
+    @property
+    def type(self):
+        return 'HED'
+
+    @property
+    def window_material(self):
+        return self._window_material
+
+    @property
+    def window_density(self):
+        if self._window_density is None:
+            return 0.0
+        return self._window_density
+
+    @property
+    def window_thickness(self):
+        if self._window_thickness is None:
+            return 0.0
+        return self._window_thickness
+
+    def window_absorption_length(self, energy):
+        return self.absorption_length(energy, 'window')
+
+class HEDM_physics_package(abstractpp):
+
+    def __init__(self, **pp_kwargs):
+        super().__init__(**pp_kwargs)
+        self._sample_geometry = pp_kwargs['sample_geometry']
+
+    @property
+    def sample_geometry(self):
+        return self._sample_geometry
+
+    @property
+    def sample_diameter(self):
+        if self.sample_geometry == 'cylinder':
+            return self._sample_thickness
+        else:
+            msg = (f'sample geometry does not have diameter '
+                   f'associated with it.')
+            print(msg)
+            return 
+
+    @property
+    def type(self):
+        return 'HEDM'

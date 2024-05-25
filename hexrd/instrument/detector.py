@@ -27,6 +27,8 @@ from hexrd.transforms.xfcapi import (
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
 
+from hexrd.material import sample
+
 if ct.USE_NUMBA:
     import numba
 
@@ -38,61 +40,16 @@ panel_calibration_flags_DFLT = np.array([1, 1, 1, 1, 1, 1], dtype=bool)
 
 beam_energy_DFLT = 65.351
 
-# default filter and coating materials
-FILTER_DEFAULT = {
-    'material': 'Ge',
-    'density' : density['Ge'],
-    'thickness' : 10, # microns
-}
-
-COATING_DEFAULT = {
-    'material': 'C10H8O4',
-    'density' : density_compounds['C10H8O4'],
-    'thickness' : 9, # microns
-}
-
-PHOSPHOR_DEFAULT = {
-    'material' : 'Ba2263F2263Br1923I339C741H1730N247O494',
-    'density' : density_compounds['Ba2263F2263Br1923I339C741H1730N247O494'], # g/cc
-    'thickness' : 115, # microns
-    'readout_length' : 222, #microns,
-    'pre_U0' : 0.695
-}
-
-"""default physics package for dynamic compression
-experiments the template of the other type is commented"""
-PHYSICS_PACKAGE_DEFAULT = {
-    'type' : 'HED',
-    'sample_material' : 'Fe',
-    'sample_density' : density['Fe'],
-    'sample_thickness' : 15,# in microns
-    'window_material' : 'LiF',
-    'window_density' : density_compounds['LiF'],
-    'window_thickness' : 150, # in microns
-}
-
-"""defaults pinhole area correction parameters"""
-PINHOLE_DEFAULT = {
-    'material' : 'Ta',
-    'diameter' : 400, # in microns
-    'thickness' : 100 # in micorns
-}
-
-"""template for HEDM type physics package
-"""
-# PHYSICS_PACKAGE_DEFAULT = {
-#     'type' : 'HEDM',
-#     'shape' : 'cylinder', # cuboid
-#     'dimension' : 1.0, # radius (mm) for cylinder, width x thickness for cuboid
-#     'material' : 'Ti',
-#     'density' : density['Ti'],
-# }
-
 # Memoize these, so each detector can avoid re-computing if nothing
 # has changed.
 _lorentz_factor = memoize(crystallography.lorentz_factor)
 _polarization_factor = memoize(crystallography.polarization_factor)
 
+pinhole = sample.Pinhole(**sample.PINHOLE_DEFAULT)
+filterpack = sample.Filter(**sample.FILTER_DEFAULT)
+coating = sample.Coating(**sample.COATING_DEFAULT)
+phosphor = sample.Phosphor(**sample.PHOSPHOR_DEFAULT)
+physics_package = sample.Physics_package(**sample.physics_package)
 
 class Detector:
     """
@@ -240,11 +197,11 @@ class Detector:
         group=None,
         distortion=None,
         max_workers=max_workers_DFLT,
-        detector_filter=FILTER_DEFAULT,
-        detector_coating=COATING_DEFAULT,
-        phosphor=PHOSPHOR_DEFAULT,
+        detector_filter=filterpack,
+        detector_coating=coating,
+        phosphor=phosphor,
         physics_package=PHYSICS_PACKAGE_DEFAULT,
-        pinhole=PINHOLE_DEFAULT
+        pinhole=pinhole
     ):
         """
         Instantiate a PlanarDetector object.
