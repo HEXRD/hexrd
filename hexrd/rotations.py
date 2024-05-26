@@ -145,10 +145,23 @@ def invertQuat(q):
 
 def misorientation(q1, q2, *args):
     """
-    sym is a tuple (crystal_symmetry, *sample_symmetry)
-    generally coded.
+    PARAMETERS
+    ----------
+    q1: array(4, 1)
+        a single quaternion
+    q2: array(4, n)
+        array of quaternions
+    *args: tuple
+        there can be only one extra argument, which is 1- or 2-tuple with
+        symmetries (quaternion arrays); for crystal symmetry only,
+        use a 1-tuple; with both crystal and sample symmetry use a 2-tuyple
 
-    !!! may split up special cases for no symmetry or crystal/sample only...
+    RETURNS
+    -------
+    angle: array(n)
+        the misorientation angle between `q1` and each quaternion in `q2`
+    mis: array(4, n)
+        the quaternion of the smallest misorientation angle
     """
     if not isinstance(q1, ndarray) or not isinstance(q2, ndarray):
         raise RuntimeError("quaternion args are not of type `numpy ndarray'")
