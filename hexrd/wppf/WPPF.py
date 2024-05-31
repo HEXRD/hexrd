@@ -2287,7 +2287,7 @@ class Rietveld:
                 if updated_lp or updated_atominfo:
                     self.calcsf()
 
-            self.phases.phase_fraction = pf
+            self.phases.phase_fraction = pf/np.sum(pf)
 
     def _update_shkl(self, params):
         """

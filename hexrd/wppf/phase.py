@@ -1558,7 +1558,8 @@ class Phases_Rietveld:
         for k in self:
             l = list(self.wavelength.keys())[0]
             pf.append(self[k][l].pf)
-        return np.array(pf)
+        pf = np.array(pf)
+        return pf/np.sum(pf)
 
     @phase_fraction.setter
     def phase_fraction(self, val):
