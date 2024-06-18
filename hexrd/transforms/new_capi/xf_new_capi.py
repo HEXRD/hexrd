@@ -348,7 +348,7 @@ def unit_vector(vec_in):
     Parameters
     ----------
     vec_in : ndarray
-        The input vector(s) (3,n) to normalize.
+        The input vector(s) (n,3) to normalize.
 
     Returns
     -------
