@@ -317,7 +317,7 @@ def xy_to_gvec(xy_d,
     tvec_c  = np.ascontiguousarray( tvec_c.flatten() )
     beam_vec = np.ascontiguousarray( (-rmat_b[:,2]).flatten() )
     eta_vec  = np.ascontiguousarray( rmat_b[:,0].flatten() ) #check this!
-    return _impl.detectorXYToGvec(xy_det,
+    return _impl.detectorXYToGvec(xy_d,
                                   rmat_d, rmat_s,
                                   tvec_d, tvec_s, tvec_c,
                                   beam_vec, eta_vec)

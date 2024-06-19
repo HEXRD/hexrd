@@ -1,9 +1,10 @@
 from hexrd.transforms.new_capi.xf_new_capi import unit_vector
 import numpy as np
 
-np.random.seed(0)
+
 
 def test_unit_vector():
+    np.random.seed(0)
     # Generate some random vectors
     n = 50
     vecs = np.random.rand(n, 3) * 4

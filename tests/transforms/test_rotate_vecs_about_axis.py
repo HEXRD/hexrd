@@ -1,9 +1,10 @@
 from hexrd.transforms.new_capi.xf_new_capi import rotate_vecs_about_axis
 import numpy as np
 
-np.random.seed(0)
+
 
 def test_rotate_vecs_about_axis():
+    np.random.seed(0)
     # Test the rotate_vecs_about_axis function
     # Generate some random vectors
     n = 50
