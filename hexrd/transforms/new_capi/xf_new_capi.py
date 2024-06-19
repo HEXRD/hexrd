@@ -45,23 +45,23 @@ def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     Parameters
     ----------
     angs : ndarray
-        The euler angles of diffraction. The last dimension must be 3.  In 
+        The euler angles of diffraction. The last dimension must be 3.  In
         (2*theta, eta, omega) format.
     beam_vec : ndarray, optional
-        Unit vector pointing towards the X-ray source in the lab frame.  
+        Unit vector pointing towards the X-ray source in the lab frame.
         Defaults to [0,0,-1]
     eta_vec : ndarray, optional
         Vector defining eta=0 in the lab frame.  Defaults to [1,0,0]
     chi : float, optional
         The inclination angle of the sample frame about the lab frame X.
     rmat_c : ndarray, optional
-        The change of basis matrix from the reciprocal frame to the crystal 
+        The change of basis matrix from the reciprocal frame to the crystal
         frame.  Defaults to the identity.
 
     Returns
     -------
     ndarray
-        (3,n) array of unit reciprocal lattice vectors, frame depends on the 
+        (3,n) array of unit reciprocal lattice vectors, frame depends on the
         input parameters
     """
 
@@ -101,23 +101,23 @@ def angles_to_dvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     Parameters
     ----------
     angs : ndarray
-        The euler angles of diffraction. The last dimension must be 3.  In 
+        The euler angles of diffraction. The last dimension must be 3.  In
         (2*theta, eta, omega) format.
     beam_vec : ndarray, optional
-        Unit vector pointing towards the X-ray source in the lab frame.  
+        Unit vector pointing towards the X-ray source in the lab frame.
         Defaults to [0,0,-1]
     eta_vec : ndarray, optional
         Vector defining eta=0 in the lab frame.  Defaults to [1,0,0]
     chi : float, optional
         The inclination angle of the sample frame about the lab frame X.
     rmat_c : ndarray, optional
-        The change of basis matrix from the reciprocal frame to the crystal 
+        The change of basis matrix from the reciprocal frame to the crystal
         frame.  Defaults to the identity.
 
     Returns
     -------
     ndarray
-        (3,n) array of unit diffraction vectors, frame depends on the input 
+        (3,n) array of unit diffraction vectors, frame depends on the input
         parameters
     """
     # TODO: Improve capi to avoid multiplications when rmat_c is None
@@ -139,23 +139,24 @@ def angles_to_dvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
 
 def makeGVector(hkl, bMat):
     """
-    Take a crystal relative b matrix onto a list of hkls to output unit 
+    Take a crystal relative b matrix onto a list of hkls to output unit
     reciprocal latice vectors (a.k.a. lattice plane normals)
 
 
     Parameters
     ----------
     hkl : ndarray
-        (3,n) ndarray of n hstacked reciprocal lattice vector component triplets
+        (3,n) ndarray of n hstacked reciprocal lattice vector component
+        triplets
     bMat : ndarray
-        (3,3) ndarray of the change of basis matrix from the reciprocal 
+        (3,3) ndarray of the change of basis matrix from the reciprocal
         lattice to the crystal reference frame
 
     Returns
     -------
     ndarray
-        (3,n) ndarray of n unit reciprocal lattice vectors (a.k.a. lattice plane
-        normals)
+        (3,n) ndarray of n unit reciprocal lattice vectors (a.k.a. lattice
+        plane normals)
 
     """
     assert hkl.shape[0] == 3, 'hkl input must be (3, n)'
@@ -221,16 +222,16 @@ def gvec_to_xy(
     Returns
     -------
     array_like
-        The ([M, ][N, ] 2) array of [x, y] diffracted beam intersections for 
-        each of the N input G-vectors in the DETECTOR FRAME (all Z_d coordinates 
-        are 0 and excluded) and for each of the M candidate positions. For each
-        input G-vector that cannot satisfy a Bragg condition or intersect the
-        detector plane, [NaN, Nan] is returned.
+        The ([M, ][N, ] 2) array of [x, y] diffracted beam intersections for
+        each of the N input G-vectors in the DETECTOR FRAME (all Z_d
+        coordinates are 0 and excluded) and for each of the M candidate
+        positions. For each input G-vector that cannot satisfy a Bragg
+        condition or intersect the detector plane, [NaN, Nan] is returned.
 
     Notes
     -----
-        Previously only a single candidate position was allowed. This is in fact
-        a vectored version of the previous API function. It is backwards
+        Previously only a single candidate position was allowed. This is in
+        fact a vectored version of the previous API function. It is backwards
         compatible, as passing single tvec_c is supported and has the same
         result.
 
@@ -313,15 +314,15 @@ def xy_to_gvec(
     array_like, optional
         if output_ref is True
     """
-    # TODO: in the C library beam vector and eta vector are expected. However 
+    # TODO: in the C library beam vector and eta vector are expected. However
     # we receive rmat_b. Please check this!
     #
-    # It also seems that the output_ref version is not present as the argument 
+    # It also seems that the output_ref version is not present as the argument
     # gets ignored
 
     rmat_b = rmat_b if rmat_b is not None else cnst.identity_3x3
 
-    # the code seems to ignore this argument, assume output_ref == True not 
+    # the code seems to ignore this argument, assume output_ref == True not
     # implemented
     assert not output_ref, 'output_ref not implemented'
 
@@ -426,7 +427,7 @@ def make_oscill_rot_mat_array(chi, omeArray):
 def make_sample_rmat(chi, ome):
     # TODO: Check this docstring
     """
-    Make a rotation matrix representing the COB from sample frame to the lab 
+    Make a rotation matrix representing the COB from sample frame to the lab
     frame.
 
     Parameters
@@ -492,7 +493,7 @@ def make_beam_rmat(bvec_l, evec_l):
     Parameters
     ----------
     bvec_l : ndarray
-        The beam vector in the lab frame, The (3, ) incident beam propagation 
+        The beam vector in the lab frame, The (3, ) incident beam propagation
         vector components in the lab frame.
         the default is [0, 0, -1], which is the standard setting.
     evec_l : ndarray
@@ -517,7 +518,7 @@ def validate_angle_ranges(ang_list, start_angs, stop_angs, ccw=True):
     stop_angs : ndarray
         The stopping angles
     ccw : bool, optional
-        If True, the angles are in the CCW range from start to stop.  
+        If True, the angles are in the CCW range from start to stop.
         Defaults to True.
 
     Returns
@@ -562,7 +563,7 @@ def rotate_vecs_about_axis(angle, axis, vecs):
 @xf_api
 def quat_distance(q1, q2, qsym):
     """
-    Distance between two quaternions, taking quaternions of symmetry into 
+    Distance between two quaternions, taking quaternions of symmetry into
     account.
 
     Parameters
