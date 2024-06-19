@@ -17,7 +17,7 @@ Currently, this implementation contains code for the following functions:
  - rotate_vecs_about_axis
  - quat_distance
 
-There are also some functions that maybe would be needed in the transforms 
+There are also some functions that maybe would be needed in the transforms
 module:
  - makeGVector
  - makeRotMatOfQuat
