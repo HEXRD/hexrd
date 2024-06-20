@@ -34,7 +34,7 @@ import numpy as np
 def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     """
 
-    Takes triplets of angles in the beam frame (2*theta, eta, omega)
+    Takes triplets of angles in the beam frame (2*theta, eta, optional omega)
     to components of unit G-vectors in the LAB frame.  If the omega
     values are not trivial (i.e. angs[:, 2] = 0.), then the components
     are in the SAMPLE frame.  If the crystal rmat is specified and
@@ -45,8 +45,8 @@ def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     Parameters
     ----------
     angs : ndarray
-        The euler angles of diffraction. The last dimension must be 3.  In
-        (2*theta, eta, omega) format.
+        The euler angles of diffraction. The last dimension must be 2 or 3.  In
+        (2*theta, eta, omega) or (2*theta, eta) format.
     beam_vec : ndarray, optional
         Unit vector pointing towards the X-ray source in the lab frame.
         Defaults to [0,0,-1]
@@ -356,6 +356,7 @@ def oscillAnglesOfHKLs(
     # this was oscillAnglesOfHKLs
     hkls = np.array(hkls, dtype=float, order='C')
     if vInv is None:
+        vInv_ref = np.array([[1., 1., 1., 0., 0., 0.]], order='C').T 
         vInv = np.ascontiguousarray(vInv_ref.flatten())
     else:
         vInv = np.ascontiguousarray(vInv.flatten())
