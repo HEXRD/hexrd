@@ -149,7 +149,7 @@ def makeGVector(hkl, bMat):
 
     """
     assert hkl.shape[0] == 3, 'hkl input must be (3, n)'
-    return unitVector(np.dot(bMat, hkl))
+    return unit_vector(np.dot(bMat, hkl))
 
 
 @xf_api
