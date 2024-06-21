@@ -19,10 +19,13 @@ from hexrd.transforms.xfcapi import (
     mapAngle,
     oscillAnglesOfHKLs,
     rowNorm,
+    anglesToDVec,
 )
 
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
+
+from hexrd.material import sample
 
 if ct.USE_NUMBA:
     import numba
@@ -38,12 +41,17 @@ panel_calibration_flags_DFLT = np.array(
 
 beam_energy_DFLT = 65.351
 
-
 # Memoize these, so each detector can avoid re-computing if nothing
 # has changed.
 _lorentz_factor = memoize(crystallography.lorentz_factor)
 _polarization_factor = memoize(crystallography.polarization_factor)
 
+pinhole = sample.Pinhole(**sample.PINHOLE_DEFAULT)
+filterpack = sample.Filter(**sample.FILTER_DEFAULT)
+coating = sample.Coating(**sample.COATING_DEFAULT)
+phosphor = sample.Phosphor(**sample.PHOSPHOR_DEFAULT)
+hed_physics_package = sample.HED_physics_package(
+                      **sample.HED_PHYSICS_PACKAGE_DEFAULT)
 
 class Detector:
     """
@@ -145,6 +153,10 @@ class Detector:
     def pixel_eta_gradient(self, origin=ct.zeros_3):
         pass
 
+    @abstractmethod
+    def calc_filter_coating_transmission(self, energy):
+        pass
+
     @property
     @abstractmethod
     def beam_position(self):
@@ -174,7 +186,12 @@ class Detector:
                  tth_distortion=None,
                  roi=None, group=None,
                  distortion=None,
-                 max_workers=max_workers_DFLT):
+                 max_workers=max_workers_DFLT,
+                 detector_filter=filterpack,
+                 detector_coating=coating,
+                 phosphor=phosphor,
+                 physics_package=hed_physics_package,
+                 pinhole=pinhole):
         """
         Instantiate a PlanarDetector object.
 
@@ -208,6 +225,12 @@ class Detector:
             DESCRIPTION. The default is None.
         distortion : TYPE, optional
             DESCRIPTION. The default is None.
+        filter : dict
+            filter specifications including material type,
+            density and thickness
+        coating : dict
+            coating specifications including material type,
+            density and thickness
 
         Returns
         -------
@@ -249,6 +272,16 @@ class Detector:
         self.max_workers = max_workers
 
         self.group = group
+
+        self._filter = detector_filter
+
+        self._coating = detector_coating
+
+        self._physics_package = physics_package
+
+        self._pinhole = pinhole
+
+        self._phosphor = phosphor
 
         #
         # set up calibration parameter list and refinement flags
@@ -542,6 +575,65 @@ class Detector:
                 flags.append(f'{name}_distortion_param_{i}')
 
         return flags
+
+    @property
+    def filter(self):
+        return self._filter
+    
+    @filter.setter
+    def filter(self, det_filter):
+        if not isinstance(det_filter, dict):
+            msg = f'filter should be of type: hexrd.sample.Filter'
+            raise ValueError(msg)
+        self._filter = det_filter
+
+    @property
+    def coating(self):
+        return self._coating
+    
+    @coating.setter
+    def coating(self, det_coating):
+        if not isinstance(det_coating, dict):
+            msg = f'coating should be of type: hexrd.sample.Coating'
+            raise ValueError(msg)
+        self._coating = det_coating
+
+    @property
+    def physics_package(self):
+        return self._physics_package
+
+    @physics_package.setter
+    def physics_package(self, pp):
+        if not isinstance(pp, (hexrd.sample.HED_physics_package,
+                          hexrd.sample.HEDM_physics_package)):
+            msg = (f'physics_package should be of type: '
+                f'hexrd.sample.HED_physics_package or '
+                f'hexrd.sample.HEDM_physics_package')
+            raise ValueError(msg)
+        self._physics_package = pp
+
+    @property
+    def pinhole(self):
+        return self._pinhole
+
+    @pinhole.setter
+    def pinhole(self, ph):
+        if not isinstance(pp, dict):
+            msg = f'pinhole should be of type: hexrd.sample.Pinhole'
+            raise ValueError(msg)
+        self._pinhole = ph
+
+    @property
+    def phosphor(self):
+        return self._phosphor
+
+    @phosphor.setter
+    def phosphor(self, phos):
+        if not isinstance(phos, sample.Phosphor):
+            msg = f'phosphor should be of type: hexrd.sample.Phosphor'
+            raise ValueError(msg)
+        self._phosphor = phos
+
 
     # =========================================================================
     # METHODS
@@ -1562,6 +1654,77 @@ class Detector:
             if cache_info['maxsize'] < min_size:
                 f.set_cache_maxsize(min_size)
 
+    def calc_physics_package_transmission(self, energy, rMat_s):
+        """get the transmission from the physics package
+        need to consider HED and HEDM samples separately
+        """
+        bvec = self.bvec
+        sample_normal = np.dot(rMat_s, [0.,0.,-1.])
+        seca = 1./np.dot(bvec, sample_normal)
+
+        tth, eta = self.pixel_angles()
+        angs = np.vstack((tth.flatten(), eta.flatten(),
+                          np.zeros(tth.flatten().shape))).T
+
+        dvecs = anglesToDVec(angs, bHat_l=bvec)
+
+        secb = np.abs(1./np.dot(dvecs, sample_normal).reshape(self.shape))
+
+        T_sample = self.calc_transmission_sample(seca, secb, energy)
+        T_window = self.calc_transmission_window(secb, energy)
+
+        self.transmission_physics_package = T_sample*T_window
+
+    def calc_transmission_sample(self, seca, secb, energy):
+        thickness_s = self.physics_package.sample_thickness # in microns
+        mu_s = 1./self.physics_package.sample_absorption_length(energy) # in microns^-1
+        x = (mu_s*thickness_s)
+        pre = 1./x/(secb - seca)
+        num = np.exp(-x*seca) - np.exp(-x*secb)
+        return pre * num
+
+    def calc_transmission_window(self, secb, energy):
+        thickness_w = self.physics_package.window_thickness # in microns
+        mu_w = 1./self.physics_package.window_absorption_length(energy) # in microns^-1
+        return np.exp(-thickness_w*mu_w*secb)
+
+    def calc_effective_pinhole_area(self):
+        """get the effective pinhole area correction
+        """
+        hod = self.pinhole_thickness/self.pinhole_diameter
+        bvec = self.bvec
+
+        tth, eta = self.pixel_angles()
+        angs = np.vstack((tth.flatten(), eta.flatten(),
+                  np.zeros(tth.flatten().shape))).T
+        dvecs = anglesToDVec(angs, bHat_l=bvec)
+
+        cth = -dvecs[:,2].reshape(self.shape)
+        tanth = np.tan(np.arccos(cth))
+        f = hod*tanth
+        f[np.abs(f) > 1.] = np.nan
+        asinf = np.arcsin(f)
+        self.effective_pinhole_area = (2/np.pi) * cth * (np.pi/2 - asinf -
+              f*np.cos(asinf))
+
+    def calc_transmission_generic(self,
+                                  secb,
+                                  thickness,
+                                  absorption_length):
+        mu = 1./absorption_length # in microns^-1
+        return np.exp(-thickness*mu*secb)
+
+    def calc_transmission_phosphor(self,
+                                   secb,
+                                   thickness,
+                                   readout_length,
+                                   absorption_length,
+                                   energy):
+
+        f1 = absorption_length*thickness
+        f2 = absorption_length*readout_length
+        arg = (secb + 1/f2)
+        return energy*((1.0 - np.exp(-f1*arg))/arg)
 
 # =============================================================================
 # UTILITY METHODS
