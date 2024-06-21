@@ -2074,21 +2074,24 @@ class HEDMInstrument(object):
         PlanarDetector.update_memoization_sizes(all_panels)
         CylindricalDetector.update_memoization_sizes(all_panels)
 
-    def calc_transmission(self, rMat_s):
+    def calc_transmission(self, rMat_s=None):
         """calculate the transmission from the
         filter and polymer coating. the inverse of this
         number is the intensity correction that needs
         to be applied. actual computation is done inside
         the detector class
         """
+        if rMat_s is None:
+            rMat_s = ct.identity_3x3
+
         energy = self.beam_energy
         for det_name, det in self.detectors.items():
             det.calc_filter_coating_transmission(energy)
             det.calc_physics_package_transmission(energy, rMat_s)
             det.calc_effective_pinhole_area()
-            det.transmission = (det.transmission_filter_coating * 
-                                det.transmission_physics_package * 
-                                det.effective_pinhole_area * 
+            det.transmission = (det.transmission_filter_coating *
+                                det.transmission_physics_package *
+                                det.effective_pinhole_area *
                                 det.transmission_phosphor)
 
 # =============================================================================
