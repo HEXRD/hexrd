@@ -4,9 +4,9 @@
 # and hexrdgui. This is so that we can see clearly what is in use.
 from .old_xfcapi import (
     # Old transform functions still in use
-    anglesToDVec,
+    anglesToDVec, # new version provided below
     anglesToGVec,  # new version provided below
-    detectorXYToGvec,
+    detectorXYToGvec, # new version provided below
     gvecToDetectorXY,  # new version provided below
     gvecToDetectorXYArray,  # new version provided below
     oscillAnglesOfHKLs,
@@ -35,5 +35,6 @@ from .new_capi.xf_new_capi import(
     angles_to_gvec,
     angles_to_dvec,
     gvec_to_xy,  # this is gvecToDetectorXY and gvecToDetectorXYArray
+    xy_to_gvec,
     make_sample_rmat,  # this is makeOscillRotMat and makeOscillRotMatArray
 )
