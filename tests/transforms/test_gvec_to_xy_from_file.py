@@ -6,11 +6,12 @@ from __future__ import absolute_import
 import numpy as np
 from hexrd.transforms.new_capi.xf_new_capi import gvec_to_xy
 
-
-def test_gvec_to_xy_form_file():
+def test_gvec_to_xy_form_file(test_data_dir):
     # Load the array from a file
-    arr = np.load("tests/transforms/data/test_correct_gvec_to_xy.npy",
-                  allow_pickle=True)
+    arr = np.load(
+        test_data_dir / 'test_correct_gvec_to_xy.npy',
+        allow_pickle=True
+    )
     for obj in arr:
         result = gvec_to_xy(obj["gvec_c"],
                             obj["rmat_d"],
