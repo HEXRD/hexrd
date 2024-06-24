@@ -24,7 +24,7 @@ def test_rotate_vecs_about_axis():
         np.linalg.norm(vecs, axis=0), np.linalg.norm(rotated, axis=0)
     )
 
-    # Check that the angle between the rotated vectors and the rotation 
+    # Check that the angle between the rotated vectors and the rotation
     # axes is the same
     for i in range(n):
         assert np.allclose(
@@ -54,7 +54,7 @@ def test_rotate_vecs_about_axis():
 
     # Check that the angle between the projected vectors is the rotation angle
     for i in range(n):
-        # The angle between these vectors could be the rotation angle, 
+        # The angle between these vectors could be the rotation angle,
         # pi - rotation angle, or other things as well
         # Just call arccos(cos(angle)) to solve this
         ang_fixed = np.arccos(np.cos(angles[i]))

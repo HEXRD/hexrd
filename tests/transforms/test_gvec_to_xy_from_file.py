@@ -9,7 +9,7 @@ from hexrd.transforms.new_capi.xf_new_capi import gvec_to_xy
 
 def test_gvec_to_xy_form_file():
     # Load the array from a file
-    arr = np.load("tests/transforms/data/test_correct_gvec_to_xy.npy", 
+    arr = np.load("tests/transforms/data/test_correct_gvec_to_xy.npy",
                   allow_pickle=True)
     for obj in arr:
         result = gvec_to_xy(obj["gvec_c"],
@@ -25,8 +25,6 @@ def test_gvec_to_xy_form_file():
         assert np.allclose(result[mask], obj["result"][mask])
         # Make sure unmasked stuff is all nan
         assert np.isnan(result[~mask]).all()
-
-
 
 # def random_rotation_matrix():
 #     # Generate a random unit quaternion
@@ -94,5 +92,3 @@ def test_gvec_to_xy_form_file():
 #         arr.append(obj)
 #     # Save the array to a file
 #     np.save("tests/transforms//data/test_correct_gvec_to_xy.npy", arr)
-
-        
