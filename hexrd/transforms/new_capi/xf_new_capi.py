@@ -427,27 +427,28 @@ def make_oscill_rot_mat_array(chi, omeArray):
 
 
 @xf_api
-def make_sample_rmat(chi, ome):
+def make_sample_rmat(chi, omega):
     # TODO: Check this docstring
     """
     Make a rotation matrix representing the COB from sample frame to the lab
-    frame.
+    frame, or multiple at the same time.
 
     Parameters
     ----------
     chi : float
         The inclination angle of the sample frame about the lab frame Y.
-    ome : float or ndarray
+    omega : float or ndarray
         The oscillation angle(s) about the sample frame Y.
 
     Returns
     -------
     ndarray
-        A 3x3 rotation matrix representing the input oscillation angles.
+        A 3x3 rotation matrix representing the input oscillation angles if
+        omega is one value, or N 3x3 rotation matrices if omega is a list.
 
     """
-    ome_array = np.atleast_1d(ome)
-    if ome is ome_array:
+    ome_array = np.atleast_1d(omega)
+    if omega is ome_array:
         ome_array = np.ascontiguousarray(ome_array)
         result = _impl.makeOscillRotMat(chi, ome_array)
     else:

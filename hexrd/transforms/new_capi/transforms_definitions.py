@@ -518,7 +518,7 @@ class DEF_unit_vector(DEF_Func):
 class DEF_make_sample_rmat(DEF_Func):
     """
     Make SAMPLE frame rotation matrices as composition of
-    rotation of ome about the axis
+    rotation of omega about the axis
 
     [0., cos(chi), sin(chi)]
 
@@ -528,16 +528,16 @@ class DEF_make_sample_rmat(DEF_Func):
     ----------
     chi : float
         The inclination angle of the goniometer axis (standard coords)
-    ome : array_like
+    omega : array_like
         (n) angles to generate rotation matrices from.
 
     Returns
     -------
     array_like
         (n, 3, 3) a vector of the n rotation matrices along the
-        axis defined by chi, one for each ome.
+        axis defined by chi, one for each omega.
     """
-    def _signature(chi, ome):
+    def _signature(chi, omega):
         pass
 
 
