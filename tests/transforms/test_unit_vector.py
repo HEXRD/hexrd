@@ -2,7 +2,6 @@ from hexrd.transforms.new_capi.xf_new_capi import unit_vector
 import numpy as np
 
 
-
 def test_unit_vector():
     np.random.seed(0)
     # Generate some random vectors
@@ -14,5 +13,6 @@ def test_unit_vector():
 
     # Check against elementwise numpy function
     for i in range(n):
-        assert np.allclose(vecs_unit[i, :], vecs[i, :] / np.linalg.norm(vecs[i, :]))
-    
+        assert np.allclose(
+            vecs_unit[i, :], vecs[i, :] / np.linalg.norm(vecs[i, :])
+        )

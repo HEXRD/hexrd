@@ -8,7 +8,7 @@ import hexrd.constants as ct
 def convert_axis_angle_to_rmat(axis, angle):
     # Copied from: https://github.com/ovillellas/xrd-transforms/blob/b94f8b2d7839d883829d00a2adc5bec9c80e0116/test_xrd_transforms/common.py#L59  # noqa
     # This is based on
-    # https://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToMatrix/
+    # https://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToMatrix/ # noqa
 
     angle = float(angle)
     axis = np.array(axis, dtype=float)
