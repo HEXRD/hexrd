@@ -14,7 +14,7 @@ def test_angles_to_dvec_from_file(test_data_dir):
     )
 
     for obj in arr:
-        result = anglesToDVec(
+        result = angles_to_dvec(
             obj["angs"],
             obj["beam_vec"],
             obj["eta_vec"],
