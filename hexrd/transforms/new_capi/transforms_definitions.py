@@ -221,9 +221,11 @@ class DEF_xy_to_gvec(DEF_Func):
         (3, ) translation vector connecting LAB FRAME to SAMPLE FRAME
     tvec_c : array_like
         (3, ) translation vector connecting SAMPLE FRAME to CRYSTAL FRAME
-    rmat_b : array_like, optional
-        (3, 3) COB matrix taking components in the BEAM FRAME to the LAB FRAME;
-        defaults to None, which implies the standard setting of identity.
+    beam_vec : ndarray, optional
+        Unit vector pointing towards the X-ray source in the lab frame.
+        Defaults to [0,0,-1]
+    eta_vec : ndarray, optional
+        Vector defining eta=0 in the lab frame.  Defaults to [1,0,0]
     distortion : distortion class, optional
         Default is None
     output_ref : bool, optional
@@ -245,12 +247,12 @@ class DEF_xy_to_gvec(DEF_Func):
     -----
     ???: is there a need to flatten the tvec inputs?
     ???: include optional wavelength input for returning G with magnitude?
-    ???: is there a need to check that rmat_b is orthogonal if spec'd?
     """
     def _signature(xy_d,
                    rmat_d, rmat_s,
                    tvec_d, tvec_s, tvec_c,
-                   rmat_b=None,
+                   beam_vec=None,
+                   eta_vec=None,
                    distortion=None,
                    output_ref=False):
         pass

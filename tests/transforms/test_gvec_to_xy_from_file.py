@@ -91,5 +91,5 @@ def test_gvec_to_xy_form_file(test_data_dir):
 #             "result": result
 #         }
 #         arr.append(obj)
-#     # Save the array to a file
-#     np.save("tests/transforms//data/test_correct_gvec_to_xy.npy", arr)
+#     # Save the array to a file, move it to the tests/data folder
+#     np.save("test_correct_gvec_to_xy.npy", arr)

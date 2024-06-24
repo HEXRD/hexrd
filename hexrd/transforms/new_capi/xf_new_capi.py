@@ -268,7 +268,8 @@ def xy_to_gvec(
     tvec_d,
     tvec_s,
     tvec_c,
-    rmat_b=None,
+    beam_vec=None,
+    eta_vec=None,
     distortion=None,
     output_ref=False,
 ):
@@ -294,9 +295,11 @@ def xy_to_gvec(
         (3, ) translation vector connecting LAB FRAME to SAMPLE FRAME
     tvec_c : array_like
         (3, ) translation vector connecting SAMPLE FRAME to CRYSTAL FRAME
-    rmat_b : array_like, optional
-        (3, 3) COB matrix taking components in the BEAM FRAME to the LAB FRAME;
-        defaults to None, which implies the standard setting of identity.
+    beam_vec : ndarray, optional
+        Unit vector pointing towards the X-ray source in the lab frame.
+        Defaults to [0,0,-1]
+    eta_vec : ndarray, optional
+        Vector defining eta=0 in the lab frame.  Defaults to [1,0,0]
     distortion : distortion class, optional
         Default is None
     output_ref : bool, optional
@@ -314,13 +317,6 @@ def xy_to_gvec(
     array_like, optional
         if output_ref is True
     """
-    # TODO: in the C library beam vector and eta vector are expected. However
-    # we receive rmat_b. Please check this!
-    #
-    # It also seems that the output_ref version is not present as the argument
-    # gets ignored
-
-    rmat_b = rmat_b if rmat_b is not None else cnst.identity_3x3
 
     # the code seems to ignore this argument, assume output_ref == True not
     # implemented
@@ -335,8 +331,9 @@ def xy_to_gvec(
     tvec_d = np.ascontiguousarray(tvec_d.flatten())
     tvec_s = np.ascontiguousarray(tvec_s.flatten())
     tvec_c = np.ascontiguousarray(tvec_c.flatten())
-    beam_vec = np.ascontiguousarray((-rmat_b[:, 2]).flatten())
-    eta_vec = np.ascontiguousarray(rmat_b[:, 0].flatten())  # check this!
+    beam_vec = beam_vec if beam_vec is not None else cnst.beam_vec
+    eta_vec = eta_vec if eta_vec is not None else cnst.eta_vec
+
     return _impl.detectorXYToGvec(
         xy_d, rmat_d, rmat_s, tvec_d, tvec_s, tvec_c, beam_vec, eta_vec
     )
