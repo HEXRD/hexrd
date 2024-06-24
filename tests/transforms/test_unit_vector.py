@@ -12,8 +12,6 @@ def test_unit_vector():
     # Turn them into unit vectors
     vecs_unit = unit_vector(vecs)
 
-    print(vecs_unit)
-
     # Check against elementwise numpy function
     for i in range(n):
         assert np.allclose(vecs_unit[i, :], vecs[i, :] / np.linalg.norm(vecs[i, :]))
