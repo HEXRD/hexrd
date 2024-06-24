@@ -34,7 +34,7 @@ import numpy as np
 def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     """
 
-    Takes triplets of angles in the beam frame (2*theta, eta, optional omega)
+    Takes triplets of angles in the beam frame (2*theta, eta[, omega])
     to components of unit G-vectors in the LAB frame.  If the omega
     values are not trivial (i.e. angs[:, 2] = 0.), then the components
     are in the SAMPLE frame.  If the crystal rmat is specified and
@@ -46,12 +46,12 @@ def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     ----------
     angs : ndarray
         The euler angles of diffraction. The last dimension must be 2 or 3.  In
-        (2*theta, eta, omega) or (2*theta, eta) format.
+        (2*theta, eta[, omega]) format. omega is optional.
     beam_vec : ndarray, optional
         Unit vector pointing towards the X-ray source in the lab frame.
         Defaults to [0,0,-1]
     eta_vec : ndarray, optional
-        Vector defining eta=0 in the lab frame.  Defaults to [1,0,0]
+        Unit vector defining eta=0 in the lab frame.  Defaults to [1,0,0]
     chi : float, optional
         The inclination angle of the sample frame about the lab frame X.
     rmat_c : ndarray, optional
@@ -91,7 +91,7 @@ def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
 def angles_to_dvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     """
 
-    Takes triplets of angles in the beam frame (2*theta, eta, omega)
+    Takes triplets of angles in the beam frame (2*theta, eta[, omega])
     to components of unit diffraction vectors in the LAB frame.  If the omega
     values are not trivial (i.e. angs[:, 2] = 0.), then the components
     are in the SAMPLE frame.  If the crystal rmat is specified and
@@ -101,13 +101,13 @@ def angles_to_dvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     Parameters
     ----------
     angs : ndarray
-        The euler angles of diffraction. The last dimension must be 3.  In
-        (2*theta, eta, omega) format.
+        The euler angles of diffraction. The last dimension must be 2 or 3.  In
+        (2*theta, eta[, omega]) format. omega is optional.
     beam_vec : ndarray, optional
         Unit vector pointing towards the X-ray source in the lab frame.
         Defaults to [0,0,-1]
     eta_vec : ndarray, optional
-        Vector defining eta=0 in the lab frame.  Defaults to [1,0,0]
+        Unit vector defining eta=0 in the lab frame.  Defaults to [1,0,0]
     chi : float, optional
         The inclination angle of the sample frame about the lab frame X.
     rmat_c : ndarray, optional
@@ -124,6 +124,11 @@ def angles_to_dvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     beam_vec = beam_vec if beam_vec is not None else cnst.beam_vec
     eta_vec = eta_vec if eta_vec is not None else cnst.eta_vec
 
+    # if only a pair is provided... convert to a triplet with omegas == 0
+    # so that behavior is preserved.
+    if angs.shape[-1] == 2:
+        angs = np.hstack((angs, np.zeros(angs.shape[:-1] + (1,))))
+        
     angs = np.ascontiguousarray(np.atleast_2d(angs))
     beam_vec = np.ascontiguousarray(beam_vec.flatten())
     eta_vec = np.ascontiguousarray(eta_vec.flatten())
@@ -299,7 +304,7 @@ def xy_to_gvec(
         Unit vector pointing towards the X-ray source in the lab frame.
         Defaults to [0,0,-1]
     eta_vec : ndarray, optional
-        Vector defining eta=0 in the lab frame.  Defaults to [1,0,0]
+        Unit vector defining eta=0 in the lab frame.  Defaults to [1,0,0]
     distortion : distortion class, optional
         Default is None
     output_ref : bool, optional
@@ -495,7 +500,7 @@ def make_beam_rmat(bvec_l, evec_l):
         vector components in the lab frame.
         the default is [0, 0, -1], which is the standard setting.
     evec_l : ndarray
-        Vector defining eta=0 in the lab frame.  Defaults to [1,0,0]
+        Unit vector defining eta=0 in the lab frame.  Defaults to [1,0,0]
     """
     arg1 = np.ascontiguousarray(bvec_l.flatten())
     arg2 = np.ascontiguousarray(evec_l.flatten())
