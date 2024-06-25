@@ -14,14 +14,14 @@ from .old_xfcapi import (
     angularDifference,
     quat_distance,
     makeDetectorRotMat,
-    makeEtaFrameRotMat,
+    makeEtaFrameRotMat, # new version provided below (make_beam_rmat)
     makeOscillRotMat,  # new version provided below
     makeOscillRotMatArray,  # new version provided below
-    makeRotMatOfExpMap,
+    makeRotMatOfExpMap, # new version provided below
     makeRotMatOfQuat,
     mapAngle,
     rowNorm,
-    unitRowVector,
+    unitRowVector, # new version provided below (unit_vector)
     # Constants,
     bVec_ref,
     eta_ref,
@@ -37,4 +37,6 @@ from .new_capi.xf_new_capi import(
     gvec_to_xy,  # this is gvecToDetectorXY and gvecToDetectorXYArray
     xy_to_gvec,
     make_sample_rmat,  # this is makeOscillRotMat and makeOscillRotMatArray
+    make_beam_rmat,
+    unit_vector,
 )
