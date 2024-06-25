@@ -42,6 +42,7 @@ def convert_axis_angle_to_rmat(axis, angle):
 
     return m
 
+
 def random_rotation_matrix():
     # Generate a random unit quaternion
     q = np.random.rand(4) * 2 - 1
@@ -71,6 +72,7 @@ def random_rotation_matrix():
                            [r10, r11, r12],
                            [r20, r21, r22]])
     return rot_matrix
+
 
 def random_unit_vectors(shape1=3, shape2=None):
     if shape2 is None:
