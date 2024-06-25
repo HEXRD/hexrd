@@ -31,7 +31,7 @@ def test_xy_to_gvec_from_file(test_data_dir):
         assert np.allclose(result[1], obj["result"][1])
 
 
-# def test_correct_xy_to_gvec():
+# def test_correct_xy_to_gvec(test_data_dir):
 #     arr = [];
 #     # Generate random xy_dets
 #     for i in range(40):
@@ -66,4 +66,4 @@ def test_xy_to_gvec_from_file(test_data_dir):
 #         }
 #         arr.append(obj)
 #     # Save the array to a file, move it to the tests/data folder
-#     np.save("test_correct_xy_to_gvec.npy", arr)
+#     np.save(test_data_dir / "test_correct_xy_to_gvec.npy", arr)

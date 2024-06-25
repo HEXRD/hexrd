@@ -12,11 +12,11 @@ from .old_xfcapi import (
     oscillAnglesOfHKLs,
     # Utility functions
     angularDifference,
-    quat_distance,
+    # quat_distance, # new version provided below
     makeDetectorRotMat,
     makeEtaFrameRotMat,  # new version provided below (make_beam_rmat)
-    makeOscillRotMat,  # new version provided below
-    makeOscillRotMatArray,  # new version provided below
+    makeOscillRotMat,  # new version provided below (make_sample_rmat)
+    makeOscillRotMatArray,  # new version provided below (make_sample_rmat)
     makeRotMatOfExpMap,  # new version provided below
     makeRotMatOfQuat,
     mapAngle,
@@ -39,4 +39,5 @@ from .new_capi.xf_new_capi import(
     make_sample_rmat,  # this is makeOscillRotMat and makeOscillRotMatArray
     make_beam_rmat,
     unit_vector,
+    quat_distance
 )
