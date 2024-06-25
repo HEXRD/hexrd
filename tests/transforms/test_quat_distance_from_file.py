@@ -46,8 +46,7 @@ def test_quat_distance_from_file(test_data_dir):
 #         q1 = unit_vector(np.random.rand(4))
 #         q2 = unit_vector(np.random.rand(4))
 #         q_sym = quatOfLaueGroup(laueGroup)
-#        
-#
+
 #         # Gener
 #         result = quat_distance(
 #             q1,
