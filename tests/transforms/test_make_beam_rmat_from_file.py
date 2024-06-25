@@ -6,6 +6,7 @@
 from __future__ import absolute_import
 import numpy as np
 from hexrd.transforms.new_capi.xf_new_capi import make_beam_rmat
+from common import *
 
 
 def test_make_beam_rmat_from_file(test_data_dir):
@@ -24,15 +25,14 @@ def test_make_beam_rmat_from_file(test_data_dir):
 
         assert np.allclose(result, obj["result"])
 
+
 # def test_make_beam_rmat(test_data_dir):
 #     arr = [];
-#     # Generate random xy_dets
+
 #     for i in range(40):
-#         bvec_l = np.random.rand(3)
-#         evec_l = np.random.rand(3)
-#         bvec_l /= np.linalg.norm(bvec_l)
-#         evec_l /= np.linalg.norm(evec_l)
-#         # Gener
+#         bvec_l = random_unit_vectors()
+#         evec_l = random_unit_vectors()
+
 #         result = make_beam_rmat(
 #             bvec_l,
 #             evec_l

@@ -23,9 +23,9 @@ def test_make_sample_rmat_from_file(test_data_dir):
 
         assert np.allclose(result, obj["result"])
 
-# def test_correct_make_sample_rmat():
+# def test_correct_make_sample_rmat(test_data_dir):
 #     arr = [];
-#     # Generate random xy_dets
+
 #     for i in range(40):
 #         if np.random.choice([True, False]):
 #             omega = np.random.rand(10) * np.pi
@@ -33,12 +33,11 @@ def test_make_sample_rmat_from_file(test_data_dir):
 #             omega = np.random.rand() * np.pi
 #         chi = np.random.rand() * np.pi
 
-#         # Gener
 #         result = make_sample_rmat(
 #             chi,
 #             omega
 #         )
-#         # Add the result to the array=
+#         # Add the result to the array
 #         obj = {
 #             "omega": omega,
 #             "chi": chi,
@@ -46,4 +45,4 @@ def test_make_sample_rmat_from_file(test_data_dir):
 #         }
 #         arr.append(obj)
 #     # Save the array to a file, move it to the tests/data folder
-#     np.save("test_correct_make_sample_rmat.npy", arr)
+#     np.save(test_data_dir / "test_correct_make_sample_rmat.npy", arr)

@@ -5,8 +5,8 @@
 from __future__ import absolute_import
 import numpy as np
 from hexrd.transforms.new_capi.xf_new_capi import quat_distance
-# from hexrd.transforms.new_capi.xf_new_capi import unit_vector
-# from hexrd.rotations import quatOfLaueGroup
+from common import *
+from hexrd.rotations import quatOfLaueGroup
 
 
 def test_quat_distance_from_file(test_data_dir):
@@ -28,7 +28,7 @@ def test_quat_distance_from_file(test_data_dir):
 
 # def test_correct_quat_distance(test_data_dir):
 #     arr = [];
-#     # Generate random xy_dets
+
 #     for _ in range(40):
 #         laueGroup = np.random.choice([
 #             "Ci",
@@ -43,17 +43,16 @@ def test_quat_distance_from_file(test_data_dir):
 #             "Th",
 #             "Oh",
 #         ])
-#         q1 = unit_vector(np.random.rand(4))
-#         q2 = unit_vector(np.random.rand(4))
+#         q1 = random_unit_vectors(4)
+#         q2 = random_unit_vectors(4)
 #         q_sym = quatOfLaueGroup(laueGroup)
 
-#         # Gener
 #         result = quat_distance(
 #             q1,
 #             q2,
 #             q_sym,
 #         )
-#         # Add the result to the array=
+#         # Add the result to the array
 #         obj = {
 #             "q1": q1,
 #             "q2": q2,

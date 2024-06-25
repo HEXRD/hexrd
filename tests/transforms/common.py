@@ -3,6 +3,7 @@ import math
 import numpy as np
 
 import hexrd.constants as ct
+from hexrd.transforms.new_capi.xf_new_capi import unit_vector
 
 
 def convert_axis_angle_to_rmat(axis, angle):
@@ -40,3 +41,38 @@ def convert_axis_angle_to_rmat(axis, angle):
     m[2, 2] = c + axis[2]*axis[2]*t
 
     return m
+
+def random_rotation_matrix():
+    # Generate a random unit quaternion
+    q = np.random.rand(4) * 2 - 1
+    q /= np.linalg.norm(q)
+    q0 = q[0]
+    q1 = q[1]
+    q2 = q[2]
+    q3 = q[3]
+
+    # First row of the rotation matrix
+    r00 = 2 * (q0 * q0 + q1 * q1) - 1
+    r01 = 2 * (q1 * q2 - q0 * q3)
+    r02 = 2 * (q1 * q3 + q0 * q2)
+
+    # Second row of the rotation matrix
+    r10 = 2 * (q1 * q2 + q0 * q3)
+    r11 = 2 * (q0 * q0 + q2 * q2) - 1
+    r12 = 2 * (q2 * q3 - q0 * q1)
+
+    # Third row of the rotation matrix
+    r20 = 2 * (q1 * q3 - q0 * q2)
+    r21 = 2 * (q2 * q3 + q0 * q1)
+    r22 = 2 * (q0 * q0 + q3 * q3) - 1
+
+    # 3x3 rotation matrix
+    rot_matrix = np.array([[r00, r01, r02],
+                           [r10, r11, r12],
+                           [r20, r21, r22]])
+    return rot_matrix
+
+def random_unit_vectors(shape1=3, shape2=None):
+    if shape2 is None:
+        return unit_vector(np.random.rand(shape1) * 2 - 1)
+    return unit_vector(np.random.rand(shape1, shape2) * 2 - 1)

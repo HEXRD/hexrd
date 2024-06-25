@@ -27,7 +27,7 @@ def test_validate_angle_ranges_from_file(test_data_dir):
 
 # def test_correct_validate_angle_ranges(test_data_dir):
 #     arr = [];
-#     # Generate random xy_dets
+
 #     for i in range(40):
 #         angs_list = np.random.rand(20) * 2 * np.pi
 #         start_angs = np.random.rand(2) * 2 * np.pi
@@ -41,7 +41,7 @@ def test_validate_angle_ranges_from_file(test_data_dir):
 #             ccw
 #         )
 #         print(result)
-#         # Add the result to the array=
+#         # Add the result to the array
 #         obj = {
 #             "angs_list": angs_list,
 #             "start_angs": start_angs,
