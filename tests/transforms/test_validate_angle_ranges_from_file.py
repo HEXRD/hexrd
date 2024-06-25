@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import numpy as np
 from hexrd.transforms.new_capi.xf_new_capi import validate_angle_ranges
 
+
 def test_validate_angle_ranges_from_file(test_data_dir):
     # Load the array from a file
     arr = np.load(
@@ -29,17 +30,18 @@ def test_validate_angle_ranges_from_file(test_data_dir):
 #     # Generate random xy_dets
 #     for i in range(40):
 #         angs_list = np.random.rand(20) * 2 * np.pi
-#         start_angs = np.random.rand(20) * 2 * np.pi
-#         stop_angs = np.random.rand(20) * 2 * np.pi
+#         start_angs = np.random.rand(2) * 2 * np.pi
+#         stop_angs = np.random.rand(2) * 2 * np.pi
 #         ccw = np.random.choice([True, False])
-
-#         # Gener
+#         
+#         
 #         result = validate_angle_ranges(
 #             angs_list,
 #             start_angs,
 #             stop_angs,
 #             ccw
 #         )
+#         print(result)
 #         # Add the result to the array=
 #         obj = {
 #             "angs_list": angs_list,

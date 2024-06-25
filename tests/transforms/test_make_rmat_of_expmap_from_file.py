@@ -7,6 +7,7 @@ from __future__ import absolute_import
 import numpy as np
 from hexrd.transforms.new_capi.xf_new_capi import make_rmat_of_expmap
 
+
 def test_make_rmat_of_expmap_from_file(test_data_dir):
     # Load the array from a file
     arr = np.load(
@@ -27,8 +28,7 @@ def test_make_rmat_of_expmap_from_file(test_data_dir):
 #     # Generate random xy_dets
 #     for i in range(40):
 #         expmap = np.random.rand(3)
-
-#         # Gener
+#         
 #         result = make_rmat_of_expmap(
 #             expmap
 #         )

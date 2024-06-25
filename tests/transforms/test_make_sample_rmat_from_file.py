@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import numpy as np
 from hexrd.transforms.new_capi.xf_new_capi import make_sample_rmat
 
+
 def test_make_sample_rmat_from_file(test_data_dir):
     # Load the array from a file
     arr = np.load(
@@ -31,7 +32,7 @@ def test_make_sample_rmat_from_file(test_data_dir):
 #         else:
 #             omega = np.random.rand() * np.pi
 #         chi = np.random.rand() * np.pi
-
+#         
 #         # Gener
 #         result = make_sample_rmat(
 #             chi,

@@ -128,7 +128,6 @@ def angles_to_dvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     # so that behavior is preserved.
     if angs.shape[-1] == 2:
         angs = np.hstack((angs, np.zeros(angs.shape[:-1] + (1,))))
-        
     angs = np.ascontiguousarray(np.atleast_2d(angs))
     beam_vec = np.ascontiguousarray(beam_vec.flatten())
     eta_vec = np.ascontiguousarray(eta_vec.flatten())
@@ -511,7 +510,8 @@ def make_beam_rmat(bvec_l, evec_l):
 @xf_api
 def validate_angle_ranges(ang_list, start_angs, stop_angs, ccw=True):
     """
-    Find out if angles are in the CCW or CW range from start to stop
+    Find out if angles are in the CCW or CW range any of the start to stop
+    ranges
 
     Parameters
     ----------
@@ -528,7 +528,7 @@ def validate_angle_ranges(ang_list, start_angs, stop_angs, ccw=True):
     Returns
     -------
     ndarray
-        List of bools indicating if the angles are in the correct range
+        List of bools indicating if the angles are in any of the correct ranges
 
     """
     ang_list = ang_list.astype(np.double, order="C")
