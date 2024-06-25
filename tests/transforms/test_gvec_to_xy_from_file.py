@@ -4,7 +4,7 @@
 
 from __future__ import absolute_import
 import numpy as np
-from hexrd.transforms.new_capi.xf_new_capi import gvec_to_xy
+from hexrd.transforms.new_capi.xf_new_capi import gvec_to_xy#, unit_vector
 
 
 def test_gvec_to_xy_from_file(test_data_dir):
@@ -62,7 +62,7 @@ def test_gvec_to_xy_from_file(test_data_dir):
 #     arr = [];
 #     # Generate random xy_dets
 #     for i in range(40):
-#         gvec_c = np.random.rand(10, 3)
+#         gvec_c = unit_vector(np.random.rand(10, 3))
 #         rmat_d = random_rotation_matrix()
 #         rmat_s = [random_rotation_matrix() for j in range(10)]
 #         rmat_c = random_rotation_matrix()
