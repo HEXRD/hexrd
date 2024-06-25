@@ -33,8 +33,7 @@ def test_validate_angle_ranges_from_file(test_data_dir):
 #         start_angs = np.random.rand(2) * 2 * np.pi
 #         stop_angs = np.random.rand(2) * 2 * np.pi
 #         ccw = np.random.choice([True, False])
-#         
-#         
+
 #         result = validate_angle_ranges(
 #             angs_list,
 #             start_angs,

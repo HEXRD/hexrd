@@ -4,7 +4,7 @@
 
 from __future__ import absolute_import
 import numpy as np
-from hexrd.transforms.new_capi.xf_new_capi import gvec_to_xy#, unit_vector
+from hexrd.transforms.new_capi.xf_new_capi import gvec_to_xy  # , unit_vector
 
 
 def test_gvec_to_xy_from_file(test_data_dir):

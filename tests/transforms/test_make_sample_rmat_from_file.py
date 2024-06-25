@@ -32,7 +32,7 @@ def test_make_sample_rmat_from_file(test_data_dir):
 #         else:
 #             omega = np.random.rand() * np.pi
 #         chi = np.random.rand() * np.pi
-#         
+
 #         # Gener
 #         result = make_sample_rmat(
 #             chi,

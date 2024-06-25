@@ -28,7 +28,7 @@ def test_make_rmat_of_expmap_from_file(test_data_dir):
 #     # Generate random xy_dets
 #     for i in range(40):
 #         expmap = np.random.rand(3)
-#         
+
 #         result = make_rmat_of_expmap(
 #             expmap
 #         )
