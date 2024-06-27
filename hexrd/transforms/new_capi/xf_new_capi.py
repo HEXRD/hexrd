@@ -30,7 +30,6 @@ from hexrd.extensions import _new_transforms_capi as _impl
 import numpy as np
 
 
-@xf_api
 def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     """
 
@@ -87,7 +86,6 @@ def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     return result[0] if orig_ndim == 1 else result
 
 
-@xf_api
 def angles_to_dvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     """
 
@@ -163,7 +161,6 @@ def makeGVector(hkl, bMat):
     return unitVector(np.dot(bMat, hkl))
 
 
-@xf_api
 def gvec_to_xy(
     gvec_c,
     rmat_d,
@@ -260,7 +257,6 @@ def gvec_to_xy(
     return result[0] if orig_ndim == 1 else result
 
 
-@xf_api
 def xy_to_gvec(
     xy_d,
     rmat_d,
@@ -342,7 +338,6 @@ def xy_to_gvec(
     )
 
 
-# @xf_api
 def oscillAnglesOfHKLs(
     hkls,
     chi,
@@ -368,7 +363,6 @@ def oscillAnglesOfHKLs(
     )
 
 
-@xf_api
 def unit_vector(vec_in):
     """
     Normalize the input vector(s) to unit length.
@@ -400,7 +394,6 @@ def unit_vector(vec_in):
         )
 
 
-# @xf_api
 def makeDetectorRotMat(tiltAngles):
     arg = np.ascontiguousarray(np.r_[tiltAngles].flatten())
     return _impl.makeDetectorRotMat(arg)
@@ -410,7 +403,6 @@ def makeDetectorRotMat(tiltAngles):
 # and makeOscillRotMatArray...
 
 
-# @xf_api
 def make_oscill_rot_mat(oscillAngles):
     chi, ome = oscillAngles
     ome = np.atleast_1d(ome)
@@ -418,13 +410,11 @@ def make_oscill_rot_mat(oscillAngles):
     return result.reshape((3, 3))
 
 
-# @xf_api
 def make_oscill_rot_mat_array(chi, omeArray):
     arg = np.ascontiguousarray(omeArray)
     return _impl.makeOscillRotMat(chi, arg)
 
 
-@xf_api
 def make_sample_rmat(chi, ome):
     # TODO: Check this docstring
     """
@@ -458,7 +448,6 @@ def make_sample_rmat(chi, ome):
     return result
 
 
-@xf_api
 def make_rmat_of_expmap(exp_map):
     """
     Calculate the rotation matrix of an exponential map.
@@ -477,7 +466,6 @@ def make_rmat_of_expmap(exp_map):
     return _impl.makeRotMatOfExpMap(arg)
 
 
-@xf_api
 def make_binary_rmat(axis):
     # TODO: Make this docstring.
 
@@ -485,7 +473,6 @@ def make_binary_rmat(axis):
     return _impl.makeBinaryRotMat(arg)
 
 
-@xf_api
 def make_beam_rmat(bvec_l, evec_l):
     """
     Creates a COB matrix from the beam frame to the lab frame
@@ -505,7 +492,6 @@ def make_beam_rmat(bvec_l, evec_l):
     return _impl.makeEtaFrameRotMat(arg1, arg2)
 
 
-@xf_api
 def validate_angle_ranges(ang_list, start_angs, stop_angs, ccw=True):
     """
     Find out if angles are in the CCW or CW range from start to stop
@@ -535,7 +521,6 @@ def validate_angle_ranges(ang_list, start_angs, stop_angs, ccw=True):
     return _impl.validateAngleRanges(ang_list, start_angs, stop_angs, ccw)
 
 
-@xf_api
 def rotate_vecs_about_axis(angle, axis, vecs):
     """
     Rotate vectors about an axis
@@ -561,7 +546,6 @@ def rotate_vecs_about_axis(angle, axis, vecs):
     return result.T
 
 
-@xf_api
 def quat_distance(q1, q2, qsym):
     """
     Distance between two quaternions, taking quaternions of symmetry into
