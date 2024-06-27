@@ -24,7 +24,6 @@ module:
  - homochoricOfQuat
 """
 from . import constants as cnst
-# from .transforms_definitions import xf_api
 from hexrd.extensions import _new_transforms_capi as _impl
 
 import numpy as np
