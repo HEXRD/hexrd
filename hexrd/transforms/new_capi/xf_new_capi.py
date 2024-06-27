@@ -313,7 +313,7 @@ def xy_to_gvec(
     Returns
     -------
     array_like
-        (n, 2) ndarray containing the (tth, eta) pairs associated with each
+        (n, 2) ndarray containing the (2th, eta) pairs associated with each
         (x, y) associated with gVecs
     array_like
         (n, 3) ndarray containing the associated G vector directions in the
