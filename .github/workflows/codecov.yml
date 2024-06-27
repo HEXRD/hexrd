@@ -25,7 +25,7 @@ jobs:
 
       - name: Install HEXRD
         run: |
-            pip install .
+            pip install -e .
         working-directory: hexrd
 
       - name: Install requirements-dev.txt
