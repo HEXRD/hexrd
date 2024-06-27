@@ -36,6 +36,11 @@ jobs:
         run: |
             pytest tests --cov hexrd
         working-directory: hexrd
+      - name: See filesystem
+        run: |
+            ls -l
+            ls -l hexrd
+            ls -l hexrd/tests
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
