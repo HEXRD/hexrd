@@ -38,9 +38,9 @@ jobs:
         working-directory: hexrd
       - name: See filesystem
         run: |
-            ls -l
-            ls -l hexrd
-            ls -l hexrd/tests
+            ls -la
+            ls -la hexrd
+            ls -la hexrd/tests
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
