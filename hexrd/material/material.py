@@ -707,24 +707,13 @@ class Material(object):
             occ = np.ones(atompos[0].shape)
             atompos.append(occ)
         else:
-            slist = cifdata[occ_U[0]]
             occ = []
-            for p in slist:
-                n = p.find('(')
+            for p in cifdata[occ_U[0]]:
+                v = p.split('(')[0]
 
-                if n != -1:
-                    occ.append(p[:n])
-                else:
-                    occ.append(p)
+                occ.append(np.float64(v) if v.isnumeric() else 1.0)
 
-            chkstr = np.asarray([isinstance(x, str) for x in occ])
-            occstr = np.array(occ)
-            try:
-                occstr = occstr.astype(np.float64)
-            except:
-                occstr[chkstr] = 1.0
-
-            atompos.append(np.asarray(occstr).astype(np.float64))
+            atompos.append(np.asarray(occ))
 
         if not pU:
             msg = (
