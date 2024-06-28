@@ -145,11 +145,11 @@ test_fbp=tomoutil.tomo_reconstruct_layer(rad_stack,cross_sectional_dim,layer_row
                                                    start_tomo_ang=ome_range_deg[0][0],end_tomo_ang=ome_range_deg[0][1],\
                                                    tomo_num_imgs=tomo_num_imgs, center=rot_axis_pos,pixel_size=pixel_size)
 
-test_binary_recon=tomoutil.threshold_and_clean_tomo_layer(test_fbp,recon_thresh, \
+test_binary_recon=tomoutil.threshold_and_clean_tomo_layer(test_fbp, \
                                                           noise_obj_size,min_hole_size, erosion_iter=erosion_iter, \
                                                           dilation_iter=dilation_iter)
 
-tomo_mask_center=tomoutil.crop_and_rebin_tomo_layer(test_binary_recon,recon_thresh,voxel_spacing,pixel_size,cross_sectional_dim)
+tomo_mask_center=tomoutil.crop_and_rebin_tomo_layer(test_binary_recon,voxel_spacing,pixel_size,cross_sectional_dim)
 
 
 #==============================================================================
