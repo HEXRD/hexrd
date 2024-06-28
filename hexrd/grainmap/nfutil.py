@@ -4,24 +4,33 @@ Refactor of simulate_nf so that an experiment is mocked up.
 Also trying to minimize imports
 """
 
-import os
-import logging
-import h5py
-
-import numpy as np
-import numba
-import yaml
 import argparse
-import timeit
 import contextlib
+import copy
+import logging
 import multiprocessing
-import tempfile
+import os
 import shutil
 import socket
-import copy
+import tempfile
+import timeit
 
-# import of hexrd modules
-# import hexrd
+import h5py
+import numba
+import numpy as np
+import matplotlib.pyplot as plt
+import yaml
+
+# Import of image loading, this should probably be done properly with preprocessed frame-cache binaries
+import scipy.ndimage as img
+
+import skimage.filters as filters
+from skimage.morphology import dilation as ski_dilation
+try:
+    import imageio as imgio
+except ImportError:
+    from skimage import io as imgio
+
 from hexrd import constants
 from hexrd import instrument
 from hexrd import material
@@ -30,9 +39,6 @@ from hexrd.transforms import xfcapi
 from hexrd import valunits
 from hexrd import xrdutil
 
-from skimage.morphology import dilation as ski_dilation
-
-import matplotlib.pyplot as plt
 
 hostname = socket.gethostname()
 
@@ -50,26 +56,10 @@ except ImportError:
     pass
 
 
-# Import of image loading, this should probably be done properly with preprocessed frame-cache binaries
-
-import scipy.ndimage as img
-import skimage.filters as filters
-
-try:
-    import imageio as imgio
-except(ImportError):
-    from skimage import io as imgio
-
-
-
-
-
 def load_instrument(yml):
     with open(yml, 'r') as f:
         icfg = yaml.load(f, Loader=yaml.FullLoader)
     return instrument.HEDMInstrument(instrument_config=icfg)
-
-#%%
 
 
 beam = constants.beam_vec
@@ -1021,23 +1011,22 @@ def grand_loop_pool(ncpus, state):
 
 def gen_nf_test_grid(cross_sectional_dim, v_bnds, voxel_spacing):
 
-    Zs_list=np.arange(-cross_sectional_dim/2.+voxel_spacing/2.,cross_sectional_dim/2.,voxel_spacing)
-    Xs_list=np.arange(-cross_sectional_dim/2.+voxel_spacing/2.,cross_sectional_dim/2.,voxel_spacing)
-
+    grid_z = np.arange(-cross_sectional_dim/2.+voxel_spacing/2.,cross_sectional_dim/2.,voxel_spacing)
+    grid_x = np.arange(-cross_sectional_dim/2.+voxel_spacing/2.,cross_sectional_dim/2.,voxel_spacing)
 
     if v_bnds[0]==v_bnds[1]:
-        Xs,Ys,Zs=np.meshgrid(Xs_list,v_bnds[0],Zs_list)
+        x, y, z = np.meshgrid(grid_x, v_bnds[0], grid_z)
     else:
-        Xs,Ys,Zs=np.meshgrid(Xs_list,np.arange(v_bnds[0]+voxel_spacing/2.,v_bnds[1],voxel_spacing),Zs_list)
+        x, y, z = np.meshgrid(grid_x, np.arange(v_bnds[0]+voxel_spacing/2., v_bnds[1],voxel_spacing), grid_z)
         #note numpy shaping of arrays is goofy, returns(length(y),length(x),length(z))
 
 
 
-    test_crds = np.vstack([Xs.flatten(), Ys.flatten(), Zs.flatten()]).T
+    test_crds = np.vstack([x.flatten(), y.flatten(), z.flatten()]).T
     n_crds = len(test_crds)
 
 
-    return test_crds, n_crds, Xs, Ys, Zs
+    return test_crds, n_crds, x, y, z
 
 
 
@@ -1406,8 +1395,7 @@ def scan_detector_parm(image_stack, experiment,test_crds,controller,parm_to_opt,
 
     tmp_td=copy.copy(experiment.tVec_d)
     for jj in np.arange(num_parm_pts):
-        print('cycle %d of %d'%(jj+1,num_parm_pts))
-
+        print(f'cycle {jj+1} of {num_parm_pts}')
 
         #overwrite translation vector components
         if parm_to_opt==0:
@@ -1419,10 +1407,7 @@ def scan_detector_parm(image_stack, experiment,test_crds,controller,parm_to_opt,
         if parm_to_opt==2:
             tmp_td[1]=parm_vector[jj]
 
-
-
-
-        if  parm_to_opt==3:
+        if parm_to_opt==3:
             rMat_d_tmp=xfcapi.makeDetectorRotMat([parm_vector[jj],ytilt,ztilt])
         elif parm_to_opt==4:
             rMat_d_tmp=xfcapi.makeDetectorRotMat([xtilt,parm_vector[jj],ztilt])
@@ -1435,9 +1420,6 @@ def scan_detector_parm(image_stack, experiment,test_crds,controller,parm_to_opt,
         experiment.tVec_d = tmp_td
 
         if parm_to_opt==6:
-
-
-
             experiment.ome_range=[(ome_range[0][0]-parm_vector[jj],ome_range[0][1]-parm_vector[jj])]
             experiment.ome_period=(ome_period[0]-parm_vector[jj],ome_period[1]-parm_vector[jj])
             experiment.ome_edges=np.array(ome_edges-parm_vector[jj])
@@ -1586,8 +1568,8 @@ def build_controller(check=None,generate=None,ncpus=2,chunk_size=10,limit=None):
 
     return controller
 
-def output_grain_map(data_location,data_stems,output_stem,vol_spacing,top_down=True,save_type=['npz']):
-
+def output_grain_map(data_location, data_stems, output_stem, vol_spacing,
+                     top_down: bool=True, save_type=['npz']):
     num_scans=len(data_stems)
 
     confidence_maps=[None]*num_scans
@@ -1603,7 +1585,7 @@ def output_grain_map(data_location,data_stems,output_stem,vol_spacing,top_down=T
 
 
     for ii in np.arange(num_scans):
-        print('Loading Volume %d ....'%(ii))
+        print(f'Loading Volume {ii} ....')
         conf_data=np.load(os.path.join(data_location,data_stems[ii]+'_grain_map_data.npz'))
 
         confidence_maps[ii]=conf_data['confidence_map']
@@ -1628,26 +1610,17 @@ def output_grain_map(data_location,data_stems,output_stem,vol_spacing,top_down=T
 
 
     for ii in np.arange(num_scans):
-        if top_down==True:
-            grain_map_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=grain_maps[num_scans-1-ii]
-            confidence_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=confidence_maps[num_scans-1-ii]
-            Xs_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=\
-                Xss[num_scans-1-ii]
-            Zs_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=\
-                Zss[num_scans-1-ii]
-            Ys_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=Yss[num_scans-1-ii]+vol_shifts[ii]
-        else:
+        index = (num_scans - 1 - ii) if top_down else ii
+        index_slice = slice((ii * num_layers), ((ii + 1) * num_layers))
 
-            grain_map_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=grain_maps[ii]
-            confidence_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=confidence_maps[ii]
-            Xs_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=Xss[ii]
-            Zs_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=Zss[ii]
-            Ys_stitched[((ii)*num_layers):((ii)*num_layers+num_layers),:,:]=Yss[ii]+vol_shifts[ii]
+        grain_map_stitched[index_slice,:,:] = grain_maps[index]
+        confidence_stitched[index_slice,:,:] = confidence_maps[index]
+        Xs_stitched[index_slice,:,:] = Xss[index]
+        Zs_stitched[index_slice,:,:] = Zss[index]
+        Ys_stitched[index_slice,:,:] = Yss[index] + vol_shifts[index]
 
-    for ii in np.arange(len(save_type)):
-
-        if save_type[ii] == 'hdf5':
-
+    for save_type_i in save_type:
+        if save_type_i == 'hdf5':
             print('Writing HDF5 data...')
 
             hf = h5py.File(output_stem + '_assembled.h5', 'w')
@@ -1657,79 +1630,72 @@ def output_grain_map(data_location,data_stems,output_stem,vol_spacing,top_down=T
             hf.create_dataset('Ys', data=Ys_stitched)
             hf.create_dataset('Zs', data=Zs_stitched)
 
-        elif save_type[ii]=='npz':
-
+        elif save_type_i == 'npz':
             print('Writing NPZ data...')
 
-            np.savez(output_stem + '_assembled.npz',\
-             grain_map=grain_map_stitched,confidence=confidence_stitched,
-             Xs=Xs_stitched,Ys=Ys_stitched,Zs=Zs_stitched)
+            np.savez(output_stem + '_assembled.npz',
+                     grain_map=grain_map_stitched,
+                     confidence=confidence_stitched,
+                     Xs=Xs_stitched,Ys=Ys_stitched,Zs=Zs_stitched)
 
-        elif save_type[ii]=='vtk':
-
-
+        elif save_type_i == 'vtk':
             print('Writing VTK data...')
             # VTK Dump
-            Xslist=Xs_stitched[:,:,:].ravel()
-            Yslist=Ys_stitched[:,:,:].ravel()
-            Zslist=Zs_stitched[:,:,:].ravel()
+            x_list=Xs_stitched[:,:,:].ravel()
+            y_list=Ys_stitched[:,:,:].ravel()
+            z_list=Zs_stitched[:,:,:].ravel()
 
             grainlist=grain_map_stitched[:,:,:].ravel()
             conflist=confidence_stitched[:,:,:].ravel()
 
-            num_pts=Xslist.shape[0]
+            num_pts=x_list.shape[0]
             num_cells=(total_layers-1)*(num_rows-1)*(num_cols-1)
 
-            f = open(os.path.join(output_stem +'_assembled.vtk'), 'w')
+            with open(f'{output_stem}_assembled.vtk', 'w', 'utf-8') as f:
+                f.write('# vtk DataFile Version 3.0\n')
+                f.write('grainmap Data\n')
+                f.write('ASCII\n')
+                f.write('DATASET UNSTRUCTURED_GRID\n')
+                f.write(f'POINTS {num_pts} double\n')
+
+                for i in np.arange(num_pts):
+                    f.write('%e %e %e \n' %(x_list[i],y_list[i],z_list[i]))
+
+                scale2=num_cols*num_rows
+                scale1=num_cols
+
+                f.write('CELLS %d %d\n' % (num_cells, 9*num_cells))
+                for k in np.arange(Xs_stitched.shape[0]-1):
+                    for j in np.arange(Xs_stitched.shape[1]-1):
+                        for i in np.arange(Xs_stitched.shape[2]-1):
+                            base=scale2*k+scale1*j+i
+                            p1=base
+                            p2=base+1
+                            p3=base+1+scale1
+                            p4=base+scale1
+                            p5=base+scale2
+                            p6=base+scale2+1
+                            p7=base+scale2+scale1+1
+                            p8=base+scale2+scale1
+
+                            f.write('8 %d %d %d %d %d %d %d %d \n' \
+                                    %(p1,p2,p3,p4,p5,p6,p7,p8))
 
 
-            f.write('# vtk DataFile Version 3.0\n')
-            f.write('grainmap Data\n')
-            f.write('ASCII\n')
-            f.write('DATASET UNSTRUCTURED_GRID\n')
-            f.write('POINTS %d double\n' % (num_pts))
+                f.write('CELL_TYPES %d \n' % (num_cells))
+                for i in np.arange(num_cells):
+                    f.write('12 \n')
 
-            for i in np.arange(num_pts):
-                f.write('%e %e %e \n' %(Xslist[i],Yslist[i],Zslist[i]))
+                f.write('POINT_DATA %d \n' % (num_pts))
+                f.write('SCALARS grain_id int \n')
+                f.write('LOOKUP_TABLE default \n')
+                for i in np.arange(num_pts):
+                    f.write('%d \n' %(grainlist[i]))
 
-            scale2=num_cols*num_rows
-            scale1=num_cols
-
-            f.write('CELLS %d %d\n' % (num_cells, 9*num_cells))
-            for k in np.arange(Xs_stitched.shape[0]-1):
-                for j in np.arange(Xs_stitched.shape[1]-1):
-                    for i in np.arange(Xs_stitched.shape[2]-1):
-                        base=scale2*k+scale1*j+i
-                        p1=base
-                        p2=base+1
-                        p3=base+1+scale1
-                        p4=base+scale1
-                        p5=base+scale2
-                        p6=base+scale2+1
-                        p7=base+scale2+scale1+1
-                        p8=base+scale2+scale1
-
-                        f.write('8 %d %d %d %d %d %d %d %d \n' \
-                                %(p1,p2,p3,p4,p5,p6,p7,p8))
-
-
-            f.write('CELL_TYPES %d \n' % (num_cells))
-            for i in np.arange(num_cells):
-                f.write('12 \n')
-
-            f.write('POINT_DATA %d \n' % (num_pts))
-            f.write('SCALARS grain_id int \n')
-            f.write('LOOKUP_TABLE default \n')
-            for i in np.arange(num_pts):
-                f.write('%d \n' %(grainlist[i]))
-
-            f.write('FIELD FieldData 1 \n' )
-            f.write('confidence 1 %d float \n' % (num_pts))
-            for i in np.arange(num_pts):
-                f.write('%e \n' %(conflist[i]))
-
-
-            f.close()
+                f.write('FIELD FieldData 1 \n' )
+                f.write('confidence 1 %d float \n' % (num_pts))
+                for i in np.arange(num_pts):
+                    f.write('%e \n' %(conflist[i]))
 
         else:
             print('Not a valid save option, npz, vtk, or hdf5 allowed.')
