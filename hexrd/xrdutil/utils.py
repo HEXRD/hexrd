@@ -207,7 +207,6 @@ def zproject_sph_angles(
     if use_mask:
         pzi = spts_s[:, 2] <= 0
         spts_s = spts_s[pzi, :]
-    npts_s = len(spts_s)
 
     if method.lower() == 'stereographic':
         ppts = np.vstack(
@@ -217,7 +216,7 @@ def zproject_sph_angles(
             ]
         ).T
     elif method.lower() == 'equal-area':
-        chords = spts_s + np.tile([0, 0, 1], (npts_s, 1))
+        chords = spts_s + np.tile([0, 0, 1], (len(spts_s), 1))
         scl = np.tile(xfcapi.rowNorm(chords), (2, 1)).T
         ucrd = mutil.unitVector(
             np.hstack([chords[:, :2], np.zeros((len(spts_s), 1))]).T
@@ -225,7 +224,7 @@ def zproject_sph_angles(
 
         ppts = ucrd[:2, :].T * scl
     else:
-        raise RuntimeError("method '%s' not recognized" % method)
+        raise RuntimeError(f"method '{method}' not recognized")
 
     if use_mask:
         return ppts, pzi
@@ -250,27 +249,16 @@ def make_polar_net(
         net_angs = np.vstack(
             [[wtths[0], wtths[-1]], np.tile(eta, 2), np.zeros(2)]
         ).T
-        projp = zproject_sph_angles(net_angs, method=projection, source='d')
-        pts.append(projp)
+        pts.append(zproject_sph_angles(net_angs, method=projection, source='d'))
         pts.append(np.nan * np.ones((1, 2)))
     for tth in wtths[1:]:
         net_angs = np.vstack(
             [tth * np.ones_like(weta_gen), weta_gen, np.zeros_like(weta_gen)]
         ).T
-        projp = zproject_sph_angles(net_angs, method=projection, source='d')
-        pts.append(projp)
+        pts.append(zproject_sph_angles(net_angs, method=projection, source='d'))
         pts.append(nans_1x2)
-    '''
-    # old method
-    for tth in wtths:
-        net_angs = np.vstack([tth*np.ones_like(wetas),
-                              wetas,
-                              piby2*np.ones_like(wetas)]).T
-        projp = zproject_sph_angles(net_angs, method=projection)
-        pts.append(projp)
-    '''
-    pts = np.vstack(pts)
-    return pts
+
+    return np.vstack(pts)
 
 
 def validateAngleRanges(
@@ -314,7 +302,7 @@ def validateAngleRanges(
         # ambiguous case
         raise RuntimeError(
             "Improper usage; "
-            + "at least one of your ranges is alread 360 degrees!"
+            + "at least one of your ranges is already 360 degrees!"
         )
     elif dp[0] >= 1.0 - sqrt_epsf and len(startAngs) == 1:
         # trivial case!
@@ -329,7 +317,7 @@ def validateAngleRanges(
 
         arclen = 0.5 * np.pi - phi  # these are clockwise
         cw_phis = arclen < 0
-        arclen[cw_phis] = 2 * np.pi + arclen[cw_phis]  # all positive (CW) now
+        arclen[cw_phis] += 2 * np.pi  # all positive (CW) now
         if not ccw:
             arclen = 2 * np.pi - arclen
 
@@ -598,10 +586,6 @@ def simulateOmeEtaMaps(
                                 omeIndices[culledOmeIdx],
                                 etaIndices[culledEtaIdx],
                             ] = 1.0
-                            pass  # close conditional on pixel dilation
-                        pass  # close conditional on ranges
-                    pass  # close for loop on valid reflections
-                pass  # close conditional for valid angles
     return eta_ome
 
 
@@ -1273,10 +1257,8 @@ def simulateLauePattern(
                     validEnergy = validEnergy | np.logical_and(
                         wlen >= lmin[i], wlen <= lmax[i]
                     )
-                    pass
             else:
                 validEnergy = np.logical_and(wlen >= lmin, wlen <= lmax)
-                pass
 
             # index for valid reflections
             keepers = np.where(np.logical_and(onDetector, validEnergy))[0]
@@ -1287,8 +1269,6 @@ def simulateLauePattern(
             angles[iG][keepers, :] = tth_eta[keepers, :]
             dspacing[iG, keepers] = dsp[keepers]
             energy[iG, keepers] = processWavelength(wlen[keepers])
-            pass
-        pass
     return xy_det, hkls_in, angles, dspacing, energy
 
 
@@ -1428,7 +1408,6 @@ def make_reflection_patches(
         (x_center, y_center),
         (i_row, j_col)
     """
-    npts = len(tth_eta)
 
     # detector quantities
     rmat_d = xfcapi.makeRotMatOfExpMap(
@@ -1469,9 +1448,9 @@ def make_reflection_patches(
     # data to loop
     # ??? WOULD IT BE CHEAPER TO CARRY ZEROS OR USE CONDITIONAL?
     if omega is None:
-        full_angs = np.hstack([tth_eta, np.zeros((npts, 1))])
+        full_angs = np.hstack([tth_eta, np.zeros((len(tth_eta), 1))])
     else:
-        full_angs = np.hstack([tth_eta, omega.reshape(npts, 1)])
+        full_angs = np.hstack([tth_eta, omega.reshape(len(tth_eta), 1)])
 
     for angs, pix in zip(full_angs, ang_pixel_size):
         # calculate bin edges for patch based on local angular pixel size
