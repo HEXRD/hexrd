@@ -27,7 +27,9 @@
 # ============================================================
 
 
-from typing import Optional, Union, Tuple
+from typing import Optional, Union, Tuple, List, Any, Dict, Generator
+from hexrd.material.crystallography import PlaneData
+from hexrd.distortion.distortionabc import DistortionABC
 
 import numba
 import numpy as np
@@ -231,7 +233,9 @@ def zproject_sph_angles(
         return ppts
 
 
-def make_polar_net(ndiv=24, projection='stereographic', max_angle=120.0):
+def make_polar_net(
+    ndiv: int = 24, projection: str = 'stereographic', max_angle: float = 120.0
+) -> np.ndarray:
     """
     TODO: options for generating net boundaries; fixed to Z proj.
     """
@@ -269,7 +273,12 @@ def make_polar_net(ndiv=24, projection='stereographic', max_angle=120.0):
     return pts
 
 
-def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
+def validateAngleRanges(
+    angList: Union[np.ndarray, List[float]],
+    startAngs: Union[np.ndarray, List[float]],
+    stopAngs: Union[np.ndarray, List[float]],
+    ccw: bool = True,
+) -> np.ndarray:
     """
     Indetify angles that fall within specified ranges.
 
@@ -279,14 +288,12 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
     There is, of course an ambigutiy if the start and stop angle are
     the same; we treat them as implying 2*pi
     """
-    angList = np.atleast_1d(angList).flatten()  # needs to have len
-    startAngs = np.atleast_1d(startAngs).flatten()  # needs to have len
-    stopAngs = np.atleast_1d(stopAngs).flatten()  # needs to have len
+    angList = np.atleast_1d(angList).flatten()
+    startAngs = np.atleast_1d(startAngs).flatten()
+    stopAngs = np.atleast_1d(stopAngs).flatten()
 
-    n_ranges = len(startAngs)
-    assert (
-        len(stopAngs) == n_ranges
-    ), "length of min and max angular limits must match!"
+    if len(startAngs) != len(stopAngs):
+        raise ValueError("start and stop angles must have same length")
 
     # to avoid warnings in >=, <= later down, mark nans;
     # need these to trick output to False in the case of nan input
@@ -303,13 +310,13 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
 
     # dot products
     dp = np.sum(x0 * x1, axis=0)
-    if np.any(dp >= 1.0 - sqrt_epsf) and n_ranges > 1:
+    if np.any(dp >= 1.0 - sqrt_epsf) and len(startAngs) > 1:
         # ambiguous case
         raise RuntimeError(
             "Improper usage; "
             + "at least one of your ranges is alread 360 degrees!"
         )
-    elif dp[0] >= 1.0 - sqrt_epsf and n_ranges == 1:
+    elif dp[0] >= 1.0 - sqrt_epsf and len(startAngs) == 1:
         # trivial case!
         reflInRange = np.ones(angList.shape, dtype=bool)
         reflInRange[nan_mask] = False
@@ -332,17 +339,14 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
                 + "which is suspect..."
             )
 
-        # check that there are no more thandp = np.zeros(n_ranges)
-        for i in range(n_ranges):
+        # check that there are no more than dp = np.zeros(len(startAngs))
+        for i in range(len(startAngs)):
             # number or subranges using 'binLen'
             numSubranges = int(np.ceil(arclen[i] / binLen))
 
-            # check remaider
+            # check remainder
             binrem = np.remainder(arclen[i], binLen)
-            if binrem == 0:
-                finalBinLen = binLen
-            else:
-                finalBinLen = binrem
+            finalBinLen = binLen if binrem == 0 else binrem
 
             # if clockwise, negate bin length
             if not ccw:
@@ -374,6 +378,7 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
     return reflInRange
 
 
+# TODO: Deprecate this function
 def simulateOmeEtaMaps(
     omeEdges,
     etaEdges,
@@ -600,25 +605,29 @@ def simulateOmeEtaMaps(
     return eta_ome
 
 
-def _fetch_hkls_from_planedata(pd):
+def _fetch_hkls_from_planedata(pd: PlaneData):
     return np.hstack(pd.getSymHKLs(withID=True)).T
 
 
 def _filter_hkls_eta_ome(
-    hkls, angles, eta_range, ome_range, return_mask=False
-):
+    hkls: np.ndarray,
+    angles: np.ndarray,
+    eta_range: List[Tuple[float]],
+    ome_range: List[Tuple[float]],
+    return_mask: bool = False,
+) -> Union[
+    Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray, np.ndarray]
+]:
     """
     given a set of hkls and angles, filter them by the
     eta and omega ranges
     """
-    # do eta ranges
     angMask_eta = np.zeros(len(angles), dtype=bool)
     for etas in eta_range:
         angMask_eta = np.logical_or(
             angMask_eta, xf.validateAngleRanges(angles[:, 1], etas[0], etas[1])
         )
 
-    # do omega ranges
     ccw = True
     angMask_ome = np.zeros(len(angles), dtype=bool)
     for omes in ome_range:
@@ -629,7 +638,6 @@ def _filter_hkls_eta_ome(
             xf.validateAngleRanges(angles[:, 2], omes[0], omes[1], ccw=ccw),
         )
 
-    # mask angles list, hkls
     angMask = np.logical_and(angMask_eta, angMask_ome)
 
     allAngs = angles[angMask, :]
@@ -642,16 +650,16 @@ def _filter_hkls_eta_ome(
 
 
 def _project_on_detector_plane(
-    allAngs,
-    rMat_d,
-    rMat_c,
-    chi,
-    tVec_d,
-    tVec_c,
-    tVec_s,
-    distortion,
-    beamVec=constants.beam_vec,
-):
+    allAngs: np.ndarray,
+    rMat_d: np.ndarray,
+    rMat_c: np.ndarray,
+    chi: float,
+    tVec_d: np.ndarray,
+    tVec_c: np.ndarray,
+    tVec_s: np.ndarray,
+    distortion: DistortionABC,
+    beamVec: np.ndarray = constants.beam_vec,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     utility routine for projecting a list of (tth, eta, ome) onto the
     detector plane parameterized by the args
@@ -685,21 +693,21 @@ def _project_on_detector_plane(
 
 
 def _project_on_detector_cylinder(
-    allAngs,
-    chi,
-    tVec_d,
-    caxis,
-    paxis,
-    radius,
-    physical_size,
-    angle_extent,
-    distortion,
-    beamVec=constants.beam_vec,
-    etaVec=constants.eta_vec,
-    tVec_s=constants.zeros_3x1,
-    rmat_s=constants.identity_3x3,
-    tVec_c=constants.zeros_3x1,
-):
+    allAngs: np.ndarray,
+    chi: float,
+    tVec_d: np.ndarray,
+    caxis: np.ndarray,
+    paxis: np.ndarray,
+    radius: float,
+    physical_size: np.ndarray,
+    angle_extent: float,
+    distortion: DistortionABC = None,
+    beamVec: np.ndarray = constants.beam_vec,
+    etaVec: np.ndarray = constants.eta_vec,
+    tVec_s: np.ndarray = constants.zeros_3x1,
+    rmat_s: np.ndarray = constants.identity_3x3,
+    tVec_c: np.ndarray = constants.zeros_3x1,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     utility routine for projecting a list of (tth, eta, ome) onto the
     detector plane parameterized by the args. this function does the
@@ -734,17 +742,17 @@ def _project_on_detector_cylinder(
 
 
 def _dvecToDetectorXYcylinder(
-    dVec_cs,
-    tVec_d,
-    caxis,
-    paxis,
-    radius,
-    physical_size,
-    angle_extent,
-    tVec_s=constants.zeros_3x1,
-    tVec_c=constants.zeros_3x1,
-    rmat_s=constants.identity_3x3,
-):
+    dVec_cs: np.ndarray,
+    tVec_d: np.ndarray,
+    caxis: np.ndarray,
+    paxis: np.ndarray,
+    radius: float,
+    physical_size: np.ndarray,
+    angle_extent: float,
+    tVec_s: np.ndarray = constants.zeros_3x1,
+    tVec_c: np.ndarray = constants.zeros_3x1,
+    rmat_s: np.ndarray = constants.identity_3x3,
+) -> Tuple[np.ndarray, np.ndarray]:
 
     cvec = _unitvec_to_cylinder(
         dVec_cs,
@@ -785,15 +793,15 @@ def _dvecToDetectorXYcylinder(
 
 
 def _unitvec_to_cylinder(
-    uvw,
-    caxis,
-    paxis,
-    radius,
-    tvec,
-    tVec_s=constants.zeros_3x1,
-    tVec_c=constants.zeros_3x1,
-    rmat_s=constants.identity_3x3,
-):
+    uvw: np.ndarray,
+    caxis: np.ndarray,
+    paxis: np.ndarray,
+    radius: float,
+    tvec: np.ndarray,
+    tVec_s: np.ndarray = constants.zeros_3x1,
+    tVec_c: np.ndarray = constants.zeros_3x1,
+    rmat_s: np.ndarray = constants.identity_3x3,
+) -> np.ndarray:
     """
     get point where unitvector uvw
     intersect the cylindrical detector.
@@ -846,17 +854,17 @@ def _unitvec_to_cylinder(
 
 
 def _clip_to_cylindrical_detector(
-    uvw,
-    tVec_d,
-    caxis,
-    paxis,
-    radius,
-    physical_size,
-    angle_extent,
-    tVec_s=constants.zeros_3x1,
-    tVec_c=constants.zeros_3x1,
-    rmat_s=constants.identity_3x3,
-):
+    uvw: np.ndarray,
+    tVec_d: np.ndarray,
+    caxis: np.ndarray,
+    paxis: np.ndarray,
+    radius: float,
+    physical_size: np.ndarray,
+    angle_extent: float,
+    tVec_s: np.ndarray = constants.zeros_3x1,
+    tVec_c: np.ndarray = constants.zeros_3x1,
+    rmat_s: np.ndarray = constants.identity_3x3,
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     takes in the intersection points uvw
     with the cylindrical detector and
@@ -918,14 +926,14 @@ def _clip_to_cylindrical_detector(
 
 
 def _dewarp_from_cylinder(
-    uvw,
-    tVec_d,
-    caxis,
-    paxis,
-    radius,
-    tVec_s=constants.zeros_3x1,
-    tVec_c=constants.zeros_3x1,
-    rmat_s=constants.identity_3x3,
+    uvw: np.ndarray,
+    tVec_d: np.ndarray,
+    caxis: np.ndarray,
+    paxis: np.ndarray,
+    radius: float,
+    tVec_s: np.ndarray = constants.zeros_3x1,
+    tVec_c: np.ndarray = constants.zeros_3x1,
+    rmat_s: np.ndarray = constants.identity_3x3,
 ):
     """
     routine to convert cylindrical coordinates
@@ -962,16 +970,16 @@ def _dewarp_from_cylinder(
 
 
 def _warp_to_cylinder(
-    cart,
-    tVec_d,
-    radius,
-    caxis,
-    paxis,
-    tVec_s=constants.zeros_3x1,
-    rmat_s=constants.identity_3x3,
-    tVec_c=constants.zeros_3x1,
-    normalize=True,
-):
+    cart: np.ndarray,
+    tVec_d: np.ndarray,
+    radius: float,
+    caxis: np.ndarray,
+    paxis: np.ndarray,
+    tVec_s: np.ndarray = constants.zeros_3x1,
+    rmat_s: np.ndarray = constants.identity_3x3,
+    tVec_c: np.ndarray = constants.zeros_3x1,
+    normalize: bool = True,
+) -> np.ndarray:
     """
     routine to convert cartesian coordinates
     in image frame to cylindrical coordinates
@@ -1004,7 +1012,9 @@ def _warp_to_cylinder(
         return res
 
 
-def _dvec_to_angs(dvecs, bvec, evec):
+def _dvec_to_angs(
+    dvecs: np.ndarray, bvec: np.ndarray, evec: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     convert diffraction vectors to (tth, eta)
     angles in the 'eta' frame
@@ -1026,24 +1036,24 @@ def _dvec_to_angs(dvecs, bvec, evec):
     dpy = np.dot(exb, dvecs_p.T)
     eta = np.arctan2(dpy, dpx)
 
-    return (tth, eta)
+    return tth, eta
 
 
 def simulateGVecs(
-    pd,
-    detector_params,
-    grain_params,
-    ome_range=[
+    pd: PlaneData,
+    detector_params: np.ndarray,
+    grain_params: np.ndarray,
+    ome_range: List[Tuple[float]] = [
         (-np.pi, np.pi),
     ],
-    ome_period=(-np.pi, np.pi),
-    eta_range=[
+    ome_period: Tuple[float] = (-np.pi, np.pi),
+    eta_range: List[Tuple[float]] = [
         (-np.pi, np.pi),
     ],
-    panel_dims=[(-204.8, -204.8), (204.8, 204.8)],
-    pixel_pitch=(0.2, 0.2),
-    distortion=None,
-):
+    panel_dims: List[Tuple[float]] = [(-204.8, -204.8), (204.8, 204.8)],
+    pixel_pitch: Tuple[float] = (0.2, 0.2),
+    distortion: DistortionABC = None,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     returns valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps
 
@@ -1283,7 +1293,9 @@ def simulateLauePattern(
 
 
 @numba.njit(nogil=True, cache=True)
-def _expand_pixels(original, w, h, result):
+def _expand_pixels(
+    original: np.ndarray, w: float, h: float, result: np.ndarray
+) -> np.ndarray:
     hw = 0.5 * w
     hh = 0.5 * h
     for el in range(len(original)):
@@ -1301,7 +1313,9 @@ def _expand_pixels(original, w, h, result):
 
 
 @numba.njit(nogil=True, cache=True)
-def _compute_max(tth, eta, result):
+def _compute_max(
+    tth: np.ndarray, eta: np.ndarray, result: np.ndarray
+) -> np.ndarray:
     period = 2.0 * np.pi
     hperiod = np.pi
     for el in range(0, len(tth), 4):
@@ -1323,17 +1337,17 @@ def _compute_max(tth, eta, result):
 
 
 def angularPixelSize(
-    xy_det,
-    xy_pixelPitch,
-    rMat_d,
-    rMat_s,
-    tVec_d,
-    tVec_s,
-    tVec_c,
-    distortion=None,
-    beamVec=None,
-    etaVec=None,
-):
+    xy_det: np.ndarray,
+    xy_pixelPitch: Tuple[float],
+    rMat_d: np.ndarray,
+    rMat_s: np.ndarray,
+    tVec_d: np.ndarray,
+    tVec_s: np.ndarray,
+    tVec_c: np.ndarray,
+    distortion: DistortionABC = None,
+    beamVec: np.ndarray = None,
+    etaVec: np.ndarray = None,
+) -> np.ndarray:
     """
     Calculate angular pixel sizes on a detector.
 
@@ -1367,18 +1381,24 @@ def angularPixelSize(
 
 
 def make_reflection_patches(
-    instr_cfg,
-    tth_eta,
-    ang_pixel_size,
-    omega=None,
-    tth_tol=0.2,
-    eta_tol=1.0,
-    rmat_c=np.eye(3),
-    tvec_c=np.zeros((3, 1)),
-    npdiv=1,
-    quiet=False,
-    compute_areas_func=gutil.compute_areas,
-):
+    instr_cfg: Dict[str, Any],
+    tth_eta: np.ndarray,
+    ang_pixel_size: np.ndarray,
+    omega: Optional[np.ndarray] = None,
+    tth_tol: float = 0.2,
+    eta_tol: float = 1.0,
+    rmat_c: np.ndarray = np.eye(3),
+    tvec_c: np.ndarray = np.zeros((3, 1)),
+    npdiv: int = 1,
+    quiet: bool = False,  # TODO: Remove this parameter - it isn't used
+    compute_areas_func: np.ndarray = gutil.compute_areas,
+) -> Generator[
+    Tuple[
+        np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray
+    ],
+    None,
+    None,
+]:
     """Make angular patches on a detector.
 
     panel_dims are [(xmin, ymin), (xmax, ymax)] in mm
@@ -1548,7 +1568,9 @@ def make_reflection_patches(
         )
 
 
-def extract_detector_transformation(detector_params):
+def extract_detector_transformation(
+    detector_params: Union[Dict[str, Any], np.ndarray]
+) -> Tuple[np.ndarray, np.ndarray, float, np.ndarray]:
     """
     Construct arrays from detector parameters.
 
