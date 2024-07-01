@@ -1366,29 +1366,6 @@ def angularPixelSize(
     return _compute_max(gvec_space[0], gvec_space[1], result)
 
 
-@numba.njit(nogil=True, cache=True)
-def _coo_build_window_jit(
-    frame_row,
-    frame_col,
-    frame_data,
-    min_row,
-    max_row,
-    min_col,
-    max_col,
-    result,
-):
-    n = len(frame_row)
-    for i in range(n):
-        if (min_row <= frame_row[i] <= max_row) and (
-            min_col <= frame_col[i] <= max_col
-        ):
-            new_row = frame_row[i] - min_row
-            new_col = frame_col[i] - min_col
-            result[new_row, new_col] = frame_data[i]
-
-    return result
-
-
 def make_reflection_patches(
     instr_cfg,
     tth_eta,
