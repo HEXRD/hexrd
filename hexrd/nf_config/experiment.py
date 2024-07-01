@@ -31,8 +31,7 @@ class ExperimentConfig(Config):
 
     @property
     def comp_thresh(self):
-        key = 'experiment:comp_thresh'
-        temp = self._cfg.get(key, None)
+        temp = self._cfg.get('experiment:comp_thresh')
         if temp is not None and np.any(
             np.logical_or(temp > 1.0, temp <= 0.0)
         ):
@@ -44,8 +43,7 @@ class ExperimentConfig(Config):
 
     @property
     def chi2_thresh(self):
-        key = 'experiment:chi2_thresh'
-        temp = self._cfg.get(key, None)
+        temp = self._cfg.get('experiment:chi2_thresh')
         if temp is not None and np.any(
             np.logical_or(temp > 1.0, temp <= 0.0)
         ):
