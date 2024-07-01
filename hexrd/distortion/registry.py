@@ -13,12 +13,10 @@ class _RegisterDistortionClass(abc.ABCMeta):
 
 class Registry(object):
     """Registry for imageseries adapters"""
-    distortion_registry = dict()
+    distortion_registry = {}
 
     @classmethod
     def register(cls, acls):
         """Register adapter class"""
         if acls.__name__ != 'DistortionBase':
             cls.distortion_registry[acls.maptype] = acls
-
-    pass  # end class

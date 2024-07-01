@@ -61,7 +61,7 @@ class PolarView:
         self._eta_max = np.radians(eta_max)
 
         assert np.all(np.asarray(pixel_size) > 0), \
-            'pixel sizes must be non-negative'
+            'pixel sizes must be positive'
         self._tth_pixel_size = pixel_size[0]
         self._eta_pixel_size = pixel_size[1]
 
@@ -251,7 +251,7 @@ class PolarView:
                                                           panel)
 
             xypts = np.nan*np.ones((len(gvec_angs), 2))
-            valid_xys, rmats_s, on_plane = _project_on_detector(*args,
+            valid_xys, _rmats_s, on_plane = _project_on_detector(*args,
                                                                 **kwargs)
             xypts[on_plane, :] = valid_xys
 

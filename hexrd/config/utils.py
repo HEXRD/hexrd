@@ -8,14 +8,6 @@ ExclusionParameters = namedtuple(
                             "sfacmin", "sfacmax", "pintmin", "pintmax"]
 )
 
-
-class Null():
-    pass
-
-
-null = Null()
-
-
 def merge_dicts(a, b):
     """Return a merged dict, updating values from `a` with values from `b`."""
     # need to pass a deep copy of a at the top level only:

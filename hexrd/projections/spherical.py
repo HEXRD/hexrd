@@ -105,7 +105,7 @@ class SphericalView:
                 op.flatten()
             ]).T
 
-            ppts, nmask = zproject_sph_angles(
+            ppts, _nmask = zproject_sph_angles(
                 angs, method=self.mapping, source=self.vector_type,
                 invert_z=self.invert_z, use_mask=True
             )
@@ -127,7 +127,7 @@ class SphericalView:
             if len(map_ids) == 1:
                 return wimg
             else:
-                wimgs.append[wimg]
+                wimgs.append(wimg)
         return wimgs
 
     def warp_polar_image(self, pimg, skip=10):

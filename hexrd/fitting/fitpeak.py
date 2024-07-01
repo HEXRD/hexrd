@@ -28,9 +28,7 @@
 import numpy as np
 # from numpy.polynomial import chebyshev
 
-from scipy import integrate
-from scipy import ndimage as imgproc
-from scipy import optimize
+from scipy import integrate, optimize, ndimage as imgproc
 
 from hexrd import constants
 from hexrd.imageutil import snip1d
@@ -58,7 +56,7 @@ def cnst_fit_obj(x, b):
     return np.ones_like(x)*b
 
 
-def cnst_fit_jac(x, b):
+def cnst_fit_jac(x, _b):
     return np.vstack([np.ones_like(x)]).T
 
 
@@ -66,7 +64,7 @@ def lin_fit_obj(x, m, b):
     return m*np.asarray(x) + b
 
 
-def lin_fit_jac(x, m, b):
+def lin_fit_jac(x, _m, _b):
     return np.vstack([x, np.ones_like(x)]).T
 
 
@@ -77,7 +75,6 @@ def quad_fit_obj(x, a, b, c):
 
 def quad_fit_jac(x, a, b, c):
     x = np.asarray(x)
-    return a*x**2 + b*x + c
     return np.vstack([x**2, x, np.ones_like(x)]).T
 
 
@@ -198,13 +195,13 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
     weight = np.max(f)*10.  # hard coded should be changed
     fitArgs = (x, f, pktype)
     if pktype == 'gaussian':
-        p, outflag = optimize.leastsq(
+        p, _outflag = optimize.leastsq(
             fit_pk_obj_1d, p0,
             args=fitArgs, Dfun=eval_pk_deriv_1d,
             ftol=ftol, xtol=xtol
         )
     elif pktype == 'lorentzian':
-        p, outflag = optimize.leastsq(
+        p, _outflag = optimize.leastsq(
             fit_pk_obj_1d, p0,
             args=fitArgs, Dfun=eval_pk_deriv_1d,
             ftol=ftol, xtol=xtol
@@ -214,7 +211,7 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
         ub = [p0[0]*2.0, np.max(x), 4.*p0[2], 1., 2.*p0[4], None]
 
         fitArgs = (x, f, pktype, weight, lb, ub)
-        p, outflag = optimize.leastsq(
+        p, _outflag = optimize.leastsq(
             fit_pk_obj_1d_bnded, p0,
             args=fitArgs,
             ftol=ftol, xtol=xtol
@@ -223,13 +220,13 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
         lb = [p0[0]*0.5, np.min(x), 0., 0., 0., 0., 0., None]
         ub = [p0[0]*2.0, np.max(x), 4.*p0[2], 4.*p0[2], 1., 1., 2.*p0[4], None]
         fitArgs = (x, f, pktype, weight, lb, ub)
-        p, outflag = optimize.leastsq(
+        p, _outflag = optimize.leastsq(
             fit_pk_obj_1d_bnded, p0,
             args=fitArgs,
             ftol=ftol, xtol=xtol
         )
     elif pktype == 'tanh_stepdown':
-        p, outflag = optimize.leastsq(
+        p, _outflag = optimize.leastsq(
             fit_pk_obj_1d, p0,
             args=fitArgs,
             ftol=ftol, xtol=xtol)
@@ -404,6 +401,7 @@ def estimate_mpk_parms_1d(
 
     # case processing
     # !!! used to use (f[pt] - min_val) for ampl
+    
     if pktype == 'gaussian' or pktype == 'lorentzian':
         # x is just 2theta values
         # make guess for the initital parameters

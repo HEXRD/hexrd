@@ -12,9 +12,7 @@ sc = constants.sc
 
 @numba_njit_if_available(cache=True, nogil=True)
 def getPyramid(xyz):
-    x = xyz[0]
-    y = xyz[1]
-    z = xyz[2]
+    x, y, z = xyz
     if (np.abs(x) <= z) and (np.abs(y) <= z):
         return 1
 
