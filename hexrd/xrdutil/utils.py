@@ -46,6 +46,9 @@ from hexrd.valunits import valWUnit
 
 from hexrd import distortion as distortion_pkg
 
+from hexrd.deprecation import deprecated
+from hexrd.instrument.hedm_instrument import HEDMInstrument
+
 
 # =============================================================================
 # PARAMETERS
@@ -366,7 +369,7 @@ def validateAngleRanges(
     return reflInRange
 
 
-# TODO: Deprecate this function
+@deprecated
 def simulateOmeEtaMaps(
     omeEdges,
     etaEdges,
@@ -1137,7 +1140,7 @@ def simulateGVecs(
     return valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps
 
 
-# TODO: Deprecate this function
+@deprecated(new_func=HEDMInstrument.simulate_laue_pattern)
 def simulateLauePattern(
     hkls,
     bMat,
