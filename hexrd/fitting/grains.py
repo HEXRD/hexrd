@@ -233,7 +233,7 @@ def objFuncFitGrain(gFit, gFull, gFlag,
         gHat_c = mutil.unitVector(np.dot(rMat_c.T, gVec_s))
 
         # !!!: check that this operates on UNWARPED xy
-        _match_omes, calc_omes = matchOmegas(
+        _, calc_omes = matchOmegas(
             meas_xyo, hkls, chi, rMat_c, bMat, wavelength,
             vInv=vInv_s, beamVec=bVec, etaVec=eVec,
             omePeriod=omePeriod)
