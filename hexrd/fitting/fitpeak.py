@@ -195,13 +195,13 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
     weight = np.max(f)*10.  # hard coded should be changed
     fitArgs = (x, f, pktype)
     if pktype == 'gaussian':
-        p, _outflag = optimize.leastsq(
+        p, _ = optimize.leastsq(
             fit_pk_obj_1d, p0,
             args=fitArgs, Dfun=eval_pk_deriv_1d,
             ftol=ftol, xtol=xtol
         )
     elif pktype == 'lorentzian':
-        p, _outflag = optimize.leastsq(
+        p, _ = optimize.leastsq(
             fit_pk_obj_1d, p0,
             args=fitArgs, Dfun=eval_pk_deriv_1d,
             ftol=ftol, xtol=xtol
@@ -211,7 +211,7 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
         ub = [p0[0]*2.0, np.max(x), 4.*p0[2], 1., 2.*p0[4], None]
 
         fitArgs = (x, f, pktype, weight, lb, ub)
-        p, _outflag = optimize.leastsq(
+        p, _ = optimize.leastsq(
             fit_pk_obj_1d_bnded, p0,
             args=fitArgs,
             ftol=ftol, xtol=xtol
@@ -220,13 +220,13 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
         lb = [p0[0]*0.5, np.min(x), 0., 0., 0., 0., 0., None]
         ub = [p0[0]*2.0, np.max(x), 4.*p0[2], 4.*p0[2], 1., 1., 2.*p0[4], None]
         fitArgs = (x, f, pktype, weight, lb, ub)
-        p, _outflag = optimize.leastsq(
+        p, _ = optimize.leastsq(
             fit_pk_obj_1d_bnded, p0,
             args=fitArgs,
             ftol=ftol, xtol=xtol
         )
     elif pktype == 'tanh_stepdown':
-        p, _outflag = optimize.leastsq(
+        p, _ = optimize.leastsq(
             fit_pk_obj_1d, p0,
             args=fitArgs,
             ftol=ftol, xtol=xtol)
