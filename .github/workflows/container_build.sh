@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 cd /github/workspace/
 
+# Use archive mirror for CentOS 7 until we are ready to migrate to CentOS 8
+sed -i -e 's/mirrorlist/#mirrorlist/g' \
+	-e 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' \
+	/etc/yum.repos.d/CentOS-*
+
 # Install dependencies
 yum install -y wget git centos-release-scl ca-certificates
 
