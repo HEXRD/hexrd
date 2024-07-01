@@ -264,10 +264,10 @@ def vecMVCOBMatrix(R):
 
     for i in range(3):
         # Other two i values
-        i1, i2 = [k for k in range(3) if k!= i]
+        i1, i2 = [k for k in range(3) if k != i]
         for j in range(3):
             # Other two j values
-            j1, j2 = [k for k in range(3) if k!= j]
+            j1, j2 = [k for k in range(3) if k != j]
 
             T[:, i, j] = R[:, i, j] ** 2
             T[:, i, j + 3] = sqr2 * R[:, i, j1] * R[:, i, j2]

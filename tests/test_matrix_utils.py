@@ -2,10 +2,11 @@ import numpy as np
 
 from hexrd import matrixutil as mutil
 
+
 def test_vec_mv_cob_matrix():
     np.random.seed(0)
     # Generate some random matrices
-    R = np.random.rand(20,3,3) * 2 - 1
+    R = np.random.rand(20, 3, 3) * 2 - 1
 
     T = np.zeros((len(R), 6, 6), dtype='float64')
     sqr2 = np.sqrt(2)
