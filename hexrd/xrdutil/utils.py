@@ -27,7 +27,7 @@
 # ============================================================
 
 
-from typing import Optional, Union, Tuple, List, Any, Dict, Generator
+from typing import Optional, Union, List, Any, Dict, Generator
 from hexrd.material.crystallography import PlaneData
 from hexrd.distortion.distortionabc import DistortionABC
 
@@ -142,7 +142,7 @@ def zproject_sph_angles(
     use_mask: bool = False,
     invert_z: bool = False,
     rmat: Optional[np.ndarray] = None,
-) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
     """
     Projects spherical angles to 2-d mapping.
 
@@ -599,11 +599,11 @@ def _fetch_hkls_from_planedata(pd: PlaneData):
 def _filter_hkls_eta_ome(
     hkls: np.ndarray,
     angles: np.ndarray,
-    eta_range: List[Tuple[float]],
-    ome_range: List[Tuple[float]],
+    eta_range: List[tuple[float]],
+    ome_range: List[tuple[float]],
     return_mask: bool = False,
 ) -> Union[
-    Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray, np.ndarray]
+    tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray, np.ndarray]
 ]:
     """
     given a set of hkls and angles, filter them by the
@@ -646,7 +646,7 @@ def _project_on_detector_plane(
     tVec_s: np.ndarray,
     distortion: DistortionABC,
     beamVec: np.ndarray = constants.beam_vec,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     utility routine for projecting a list of (tth, eta, ome) onto the
     detector plane parameterized by the args
@@ -694,7 +694,7 @@ def _project_on_detector_cylinder(
     tVec_s: np.ndarray = constants.zeros_3x1,
     rmat_s: np.ndarray = constants.identity_3x3,
     tVec_c: np.ndarray = constants.zeros_3x1,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     utility routine for projecting a list of (tth, eta, ome) onto the
     detector plane parameterized by the args. this function does the
@@ -739,7 +739,7 @@ def _dvecToDetectorXYcylinder(
     tVec_s: np.ndarray = constants.zeros_3x1,
     tVec_c: np.ndarray = constants.zeros_3x1,
     rmat_s: np.ndarray = constants.identity_3x3,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
 
     cvec = _unitvec_to_cylinder(
         dVec_cs,
@@ -851,7 +851,7 @@ def _clip_to_cylindrical_detector(
     tVec_s: np.ndarray = constants.zeros_3x1,
     tVec_c: np.ndarray = constants.zeros_3x1,
     rmat_s: np.ndarray = constants.identity_3x3,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     takes in the intersection points uvw
     with the cylindrical detector and
@@ -1001,7 +1001,7 @@ def _warp_to_cylinder(
 
 def _dvec_to_angs(
     dvecs: np.ndarray, bvec: np.ndarray, evec: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     convert diffraction vectors to (tth, eta)
     angles in the 'eta' frame
@@ -1030,17 +1030,17 @@ def simulateGVecs(
     pd: PlaneData,
     detector_params: np.ndarray,
     grain_params: np.ndarray,
-    ome_range: List[Tuple[float]] = [
+    ome_range: List[tuple[float]] = [
         (-np.pi, np.pi),
     ],
-    ome_period: Tuple[float] = (-np.pi, np.pi),
-    eta_range: List[Tuple[float]] = [
+    ome_period: tuple[float] = (-np.pi, np.pi),
+    eta_range: List[tuple[float]] = [
         (-np.pi, np.pi),
     ],
-    panel_dims: List[Tuple[float]] = [(-204.8, -204.8), (204.8, 204.8)],
-    pixel_pitch: Tuple[float] = (0.2, 0.2),
+    panel_dims: List[tuple[float]] = [(-204.8, -204.8), (204.8, 204.8)],
+    pixel_pitch: tuple[float] = (0.2, 0.2),
     distortion: DistortionABC = None,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     returns valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps
 
@@ -1321,7 +1321,7 @@ def _compute_max(
 
 def angularPixelSize(
     xy_det: np.ndarray,
-    xy_pixelPitch: Tuple[float],
+    xy_pixelPitch: tuple[float],
     rMat_d: np.ndarray,
     rMat_s: np.ndarray,
     tVec_d: np.ndarray,
@@ -1376,7 +1376,7 @@ def make_reflection_patches(
     quiet: bool = False,  # TODO: Remove this parameter - it isn't used
     compute_areas_func: np.ndarray = gutil.compute_areas,
 ) -> Generator[
-    Tuple[
+    tuple[
         np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray
     ],
     None,
@@ -1552,7 +1552,7 @@ def make_reflection_patches(
 
 def extract_detector_transformation(
     detector_params: Union[Dict[str, Any], np.ndarray]
-) -> Tuple[np.ndarray, np.ndarray, float, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, float, np.ndarray]:
     """
     Construct arrays from detector parameters.
 
