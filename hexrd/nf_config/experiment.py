@@ -57,7 +57,11 @@ class ExperimentConfig(Config):
     @property
     def misorientation(self):
         key = self._cfg.get('experiment:misorientation:use_misorientation')
-        if key is True:
+        if key not in [True, False, None]:
+            raise ValueError(
+                'use_misorientation must be of type bool'
+            )
+        if key:
             return {
                 'misorientation_bnd': 'experiment:bnd',
                 'misorientation_spacing': 'experiment:spacing',

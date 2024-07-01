@@ -11,12 +11,12 @@ ap_2 = constants.cuA_2
 sc = constants.sc
 
 @numba_njit_if_available(cache=True, nogil=True)
-def getPyramid(xyz):
+def getPyramid(xyz : np.ndarray):
     try:
         x, y, z = xyz
-    except Exception as exc:
+    except (TypeError, ValueError) as exc:
         raise ValueError("xyz must be a 3-element array") from exc
-        
+
     if (np.abs(x) <= z) and (np.abs(y) <= z):
         return 1
 
