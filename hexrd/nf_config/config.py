@@ -3,8 +3,6 @@
 import logging
 import os
 
-from .utils import null
-
 logger = logging.getLogger('hexrd.config')
 
 class Config(object):
@@ -18,7 +16,7 @@ class Config(object):
     def dirty(self):
         return self._dirty
 
-    def get(self, key, default=null):
+    def get(self, key, default=None):
         args = key.split(':')
         args, item = args[:-1], args[-1]
         temp = self._cfg
@@ -29,7 +27,7 @@ class Config(object):
         try:
             res = temp[item]
         except KeyError:
-            if default is not null:
+            if default is not None:
                 logger.info(
                     '%s not specified, defaulting to %s', key, default
                     )
@@ -48,7 +46,7 @@ class Config(object):
             temp = temp.get(arg, {})
             # intermediate block may be None:
             temp = {} if temp is None else temp
-        if temp.get(item, null) != val:
+        if temp.get(item, None) != val:
             temp[item] = val
             self._dirty = True
 
