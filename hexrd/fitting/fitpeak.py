@@ -73,7 +73,7 @@ def quad_fit_obj(x, a, b, c):
     return a*x**2 + b*x + c
 
 
-def quad_fit_jac(x, a, b, c):
+def quad_fit_jac(x, _a, _b, _c):
     x = np.asarray(x)
     return np.vstack([x**2, x, np.ones_like(x)]).T
 
