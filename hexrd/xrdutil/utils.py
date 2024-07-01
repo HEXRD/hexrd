@@ -26,6 +26,10 @@
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # ============================================================
 
+
+from typing import Optional, Union, Tuple
+
+import numba
 import numpy as np
 
 from hexrd import constants
@@ -36,12 +40,9 @@ from hexrd.material.crystallography import processWavelength, PlaneData
 
 from hexrd.transforms import xf
 from hexrd.transforms import xfcapi
-
 from hexrd.valunits import valWUnit
 
 from hexrd import distortion as distortion_pkg
-
-import numba
 
 
 # =============================================================================
@@ -74,9 +75,8 @@ class EtaOmeMaps(object):
     reference to an open file object, which is not pickleable.
     """
 
-    def __init__(self, ome_eta_archive):
-
-        ome_eta = np.load(ome_eta_archive, allow_pickle=True)
+    def __init__(self, ome_eta_archive: str):
+        ome_eta: np.ndarray = np.load(ome_eta_archive, allow_pickle=True)
 
         planeData_args = ome_eta['planeData_args']
         planeData_hkls = ome_eta['planeData_hkls']
@@ -89,11 +89,11 @@ class EtaOmeMaps(object):
         self.etas = ome_eta['etas']
         self.omegas = ome_eta['omegas']
 
-    def save(self, filename):
+    def save(self, filename: str) -> None:
         self.save_eta_ome_maps(self, filename)
 
     @staticmethod
-    def save_eta_ome_maps(eta_ome, filename):
+    def save_eta_ome_maps(eta_ome, filename: str) -> None:
         """
         eta_ome.dataStore
         eta_ome.planeData
@@ -125,19 +125,19 @@ class EtaOmeMaps(object):
 # =============================================================================
 
 
-def _zproject(x, y):
+def _zproject(x: np.ndarray, y: np.ndarray):
     return np.cos(x) * np.sin(y) - np.sin(x) * np.cos(y)
 
 
 def zproject_sph_angles(
-    invecs,
-    chi=0.0,
-    method='stereographic',
-    source='d',
-    use_mask=False,
-    invert_z=False,
-    rmat=None,
-):
+    invecs: np.ndarray,
+    chi: float = 0.0,
+    method: str = 'stereographic',
+    source: str = 'd',
+    use_mask: bool = False,
+    invert_z: bool = False,
+    rmat: Optional[np.ndarray] = None,
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     """
     Projects spherical angles to 2-d mapping.
 
@@ -1107,20 +1107,23 @@ def simulateGVecs(
         ang_ps = []
     else:
         # ??? preallocate for speed?
-        det_xy, rMat_s, on_plane = _project_on_detector_plane(
+        det_xy, rMat_s, _ = _project_on_detector_plane(
             allAngs, rMat_d, rMat_c, chi, tVec_d, tVec_c, tVec_s, distortion
         )
-        #
-        on_panel_x = np.logical_and(
-            det_xy[:, 0] >= panel_dims[0][0], det_xy[:, 0] <= panel_dims[1][0]
+
+        on_panel = np.logical_and(
+            np.logical_and(
+                det_xy[:, 0] >= panel_dims[0][0],
+                det_xy[:, 0] <= panel_dims[1][0],
+            ),
+            np.logical_and(
+                det_xy[:, 1] >= panel_dims[0][1],
+                det_xy[:, 1] <= panel_dims[1][1],
+            ),
         )
-        on_panel_y = np.logical_and(
-            det_xy[:, 1] >= panel_dims[0][1], det_xy[:, 1] <= panel_dims[1][1]
-        )
-        on_panel = np.logical_and(on_panel_x, on_panel_y)
-        #
+
         op_idx = np.where(on_panel)[0]
-        #
+
         valid_ang = allAngs[op_idx, :]
         valid_ang[:, 2] = xfcapi.mapAngle(valid_ang[:, 2], ome_period)
         valid_ids = allHKLs[op_idx, 0]
@@ -1140,6 +1143,7 @@ def simulateGVecs(
     return valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps
 
 
+# TODO: Deprecate this function
 def simulateLauePattern(
     hkls,
     bMat,
@@ -1165,11 +1169,8 @@ def simulateLauePattern(
             minEnergy
         ), 'energy cutoff ranges must have the same length'
         multipleEnergyRanges = True
-        lmin = []
-        lmax = []
-        for i in range(len(maxEnergy)):
-            lmin.append(processWavelength(maxEnergy[i]))
-            lmax.append(processWavelength(minEnergy[i]))
+        lmin = [processWavelength(e) for e in minEnergy]
+        lmax = [processWavelength(e) for e in maxEnergy]
     else:
         lmin = processWavelength(maxEnergy)
         lmax = processWavelength(minEnergy)
@@ -1298,6 +1299,7 @@ def _expand_pixels(original, w, h, result):
 
     return result
 
+
 @numba.njit(nogil=True, cache=True)
 def _compute_max(tth, eta, result):
     period = 2.0 * np.pi
@@ -1305,9 +1307,7 @@ def _compute_max(tth, eta, result):
     for el in range(0, len(tth), 4):
         max_tth = np.abs(tth[el + 0] - tth[el + 3])
         eta_diff = eta[el + 0] - eta[el + 3]
-        max_eta = np.abs(
-            np.remainder(eta_diff + hperiod, period) - hperiod
-        )
+        max_eta = np.abs(np.remainder(eta_diff + hperiod, period) - hperiod)
         for i in range(3):
             curr_tth = np.abs(tth[el + i] - tth[el + i + 1])
             eta_diff = eta[el + i] - eta[el + i + 1]
@@ -1320,6 +1320,7 @@ def _compute_max(tth, eta, result):
         result[el // 4, 1] = max_eta
 
     return result
+
 
 def angularPixelSize(
     xy_det,
@@ -1466,8 +1467,6 @@ def make_reflection_patches(
     # sample frame
     chi = instr_cfg['oscillation_stage']['chi']
     tvec_s = np.r_[instr_cfg['oscillation_stage']['translation']]
-
-    # beam vector
     bvec = np.r_[instr_cfg['beam']['vector']]
 
     # data to loop
@@ -1477,7 +1476,6 @@ def make_reflection_patches(
     else:
         full_angs = np.hstack([tth_eta, omega.reshape(npts, 1)])
 
-    patches = []
     for angs, pix in zip(full_angs, ang_pixel_size):
         # calculate bin edges for patch based on local angular pixel size
         # tth
@@ -1510,7 +1508,7 @@ def make_reflection_patches(
             ).T
         )
 
-        xy_eval_vtx, rmats_s, on_plane = _project_on_detector_plane(
+        xy_eval_vtx, _, _ = _project_on_detector_plane(
             gVec_angs_vtx,
             rmat_d,
             rmat_c,
@@ -1534,7 +1532,7 @@ def make_reflection_patches(
             [tth_eta_cen, np.tile(angs[2], (len(tth_eta_cen), 1))]
         )
 
-        xy_eval, rmats_s, on_plane = _project_on_detector_plane(
+        xy_eval, _, _ = _project_on_detector_plane(
             gVec_angs,
             rmat_d,
             rmat_c,
