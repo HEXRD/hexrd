@@ -105,7 +105,7 @@ class SphericalView:
                 op.flatten()
             ]).T
 
-            ppts, _nmask = zproject_sph_angles(
+            ppts, _ = zproject_sph_angles(
                 angs, method=self.mapping, source=self.vector_type,
                 invert_z=self.invert_z, use_mask=True
             )

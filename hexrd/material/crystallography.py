@@ -1383,14 +1383,13 @@ class PlaneData(object):
         """
         # kwarg parsing
         opts = dict(asStr=False, thisTTh=None, allHKLs=False)
-        if len(kwargs) > 0:
-            # check keys
-            for k in kwargs.keys():
-                if k not in opts:
-                    raise TypeError(
-                        f"getHKLs() got an unexpected keyword argument '{k}'"
-                    )
-            opts.update(kwargs)
+        # check keys
+        for k in kwargs.keys():
+            if k not in opts:
+                raise TypeError(
+                    f"getHKLs() got an unexpected keyword argument '{k}'"
+                )
+        opts.update(kwargs)
 
         hkls = []
         if len(hkl_ids) == 0:
