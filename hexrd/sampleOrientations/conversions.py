@@ -11,7 +11,7 @@ ap_2 = constants.cuA_2
 sc = constants.sc
 
 @numba_njit_if_available(cache=True, nogil=True)
-def getPyramid(xyz : np.ndarray):
+def getPyramid(xyz):
     try:
         x, y, z = xyz
     except (TypeError, ValueError) as exc:
