@@ -251,7 +251,7 @@ class PolarView:
                                                           panel)
 
             xypts = np.nan*np.ones((len(gvec_angs), 2))
-            valid_xys, _rmats_s, on_plane = _project_on_detector(*args,
+            valid_xys, _, on_plane = _project_on_detector(*args,
                                                                 **kwargs)
             xypts[on_plane, :] = valid_xys
 
