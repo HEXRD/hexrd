@@ -27,7 +27,7 @@
 # ============================================================
 
 
-from typing import Optional, Union, List, Any, Dict, Generator
+from typing import Optional, Union, Any, Generator
 from hexrd.material.crystallography import PlaneData
 from hexrd.distortion.distortionabc import DistortionABC
 
@@ -265,9 +265,9 @@ def make_polar_net(
 
 
 def validateAngleRanges(
-    angList: Union[np.ndarray, List[float]],
-    startAngs: Union[np.ndarray, List[float]],
-    stopAngs: Union[np.ndarray, List[float]],
+    angList: Union[np.ndarray, list[float]],
+    startAngs: Union[np.ndarray, list[float]],
+    stopAngs: Union[np.ndarray, list[float]],
     ccw: bool = True,
 ) -> np.ndarray:
     """
@@ -599,8 +599,8 @@ def _fetch_hkls_from_planedata(pd: PlaneData):
 def _filter_hkls_eta_ome(
     hkls: np.ndarray,
     angles: np.ndarray,
-    eta_range: List[tuple[float]],
-    ome_range: List[tuple[float]],
+    eta_range: list[tuple[float]],
+    ome_range: list[tuple[float]],
     return_mask: bool = False,
 ) -> Union[
     tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray, np.ndarray]
@@ -1030,14 +1030,14 @@ def simulateGVecs(
     pd: PlaneData,
     detector_params: np.ndarray,
     grain_params: np.ndarray,
-    ome_range: List[tuple[float]] = [
+    ome_range: list[tuple[float]] = [
         (-np.pi, np.pi),
     ],
     ome_period: tuple[float] = (-np.pi, np.pi),
-    eta_range: List[tuple[float]] = [
+    eta_range: list[tuple[float]] = [
         (-np.pi, np.pi),
     ],
-    panel_dims: List[tuple[float]] = [(-204.8, -204.8), (204.8, 204.8)],
+    panel_dims: list[tuple[float]] = [(-204.8, -204.8), (204.8, 204.8)],
     pixel_pitch: tuple[float] = (0.2, 0.2),
     distortion: DistortionABC = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -1364,7 +1364,7 @@ def angularPixelSize(
 
 
 def make_reflection_patches(
-    instr_cfg: Dict[str, Any],
+    instr_cfg: dict[str, Any],
     tth_eta: np.ndarray,
     ang_pixel_size: np.ndarray,
     omega: Optional[np.ndarray] = None,
@@ -1551,7 +1551,7 @@ def make_reflection_patches(
 
 
 def extract_detector_transformation(
-    detector_params: Union[Dict[str, Any], np.ndarray]
+    detector_params: Union[dict[str, Any], np.ndarray]
 ) -> tuple[np.ndarray, np.ndarray, float, np.ndarray]:
     """
     Construct arrays from detector parameters.
