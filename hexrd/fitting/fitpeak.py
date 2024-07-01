@@ -400,8 +400,7 @@ def estimate_mpk_parms_1d(
     p0tmp_ub = np.zeros([num_pks, npp])
 
     # case processing
-    # !!! used to use (f[pt] - min_val) for ampl
-    
+    # !!! used to use (f[pt] - min_val) for amplitude guess
     if pktype == 'gaussian' or pktype == 'lorentzian':
         # x is just 2theta values
         # make guess for the initital parameters
