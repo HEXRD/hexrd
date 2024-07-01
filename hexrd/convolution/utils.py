@@ -1,7 +1,5 @@
 # Based on code from astropy
 # Licensed under a 3-clause BSD style license
-import ctypes
-import numpy as np
 
 class DiscretizationError(Exception):
     """
@@ -18,8 +16,7 @@ class KernelSizeError(Exception):
 def has_even_axis(array):
     if isinstance(array, (list, tuple)):
         return not len(array) % 2
-    else:
-        return any(not axes_size % 2 for axes_size in array.shape)
+    return any(not axes_size % 2 for axes_size in array.shape)
 
 
 def raise_even_kernel_exception():

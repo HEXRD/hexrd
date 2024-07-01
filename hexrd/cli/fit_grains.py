@@ -335,7 +335,6 @@ def execute(args, parser):
         gid_list = None
         if args.grains is not None:
             gid_list = [int(i) for i in args.grains.split(',')]
-            pass
 
         fit_results = fit_grains(
             cfg,

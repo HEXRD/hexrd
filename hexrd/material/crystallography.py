@@ -1385,7 +1385,7 @@ class PlaneData(object):
         opts = dict(asStr=False, thisTTh=None, allHKLs=False)
         if len(kwargs) > 0:
             # check keys
-            for k, v in kwargs.items():
+            for k in kwargs.keys():
                 if k not in opts:
                     raise TypeError(
                         f"getHKLs() got an unexpected keyword argument '{k}'"

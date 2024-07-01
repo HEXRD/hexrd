@@ -49,7 +49,7 @@ def fast_snip1d(y, w=4, numiter=2):
     zfull = _scale_image_snip(y, min_val, invert=False)
     for k, z in enumerate(zfull):
         b = z
-        for i in range(numiter):
+        for _ in range(numiter):
             for p in range(w, 0, -1):
                 kernel = np.zeros(p*2 + 1)
                 kernel[0] = 0.5
