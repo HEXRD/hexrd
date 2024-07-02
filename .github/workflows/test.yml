@@ -2,7 +2,7 @@ name: test
 
 on:
   push:
-    branches: [ master, code-coverage ]
+    branches: [ master ]
   pull_request:
     branches: [ master ]
 
