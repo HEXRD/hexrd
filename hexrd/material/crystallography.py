@@ -780,21 +780,13 @@ class PlaneData(object):
         'does not use exclusions or the like'
         return len(self.hklDataList)
 
-    def get_hkls(self):
-        """
-        do not do return self._hkls, as everywhere else hkls are returned
-        in 2-theta order; transpose is to comply with lparm convention
-        """
+    @property
+    def hkls(self):
         return self.getHKLs().T
 
-    def set_hkls(self, hkls):
-        raise RuntimeError('for now, not allowing hkls to be reset')
-        # self._exclusions = None
-        # self._hkls = hkls
-        # self._calc()
-        return
-
-    hkls = property(get_hkls, set_hkls, None)
+    @hkls.setter
+    def hkls(self, hkls):
+        raise NotImplementedError('for now, not allowing hkls to be reset')
 
     def get_tThMax(self):
         return self._tThMax
@@ -916,9 +908,6 @@ class PlaneData(object):
 
         self.exclusions = excl
 
-    def get_lparms(self):
-        return self._lparms
-
     def _parseLParms(self, lparms):
         lparmsDUnit = []
         for lparmThis in lparms:
@@ -937,11 +926,14 @@ class PlaneData(object):
                 lparmsDUnit.append(lparmThis)
         return lparmsDUnit
 
-    def set_lparms(self, lparms):
+    @property
+    def lparms(self):
+        return self._lparms
+
+    @lparms.setter
+    def lparms(self, lparms):
         self._lparms = self._parseLParms(lparms)
         self._calc()
-
-    lparms = property(get_lparms, set_lparms, None)
 
     def get_strainMag(self):
         return self._strainMag
@@ -1457,17 +1449,16 @@ class PlaneData(object):
 
         # handle output kwarg
         if opts['asStr']:
-            retval = list(map(hklToStr, np.array(hkls)))
+            return list(map(hklToStr, np.array(hkls)))
         else:
-            retval = np.array(hkls)
-        return retval
+            return np.array(hkls)
 
     def getSymHKLs(self, asStr=False, withID=False, indices=None):
         """
         new function that returns all symmetric hkls
         """
-        retval = []
-        iRetval = 0
+        sym_hkls = []
+        hkl_index = 0
         if indices is not None:
             indB = np.zeros(self.nHKLs, dtype=bool)
             indB[np.array(indices)] = True
@@ -1476,12 +1467,12 @@ class PlaneData(object):
         for iHKLr, hklData in enumerate(self.hklDataList):
             if not self._thisHKL(iHKLr):
                 continue
-            if indB[iRetval]:
+            if indB[hkl_index]:
                 hkls = hklData['symHKLs']
                 if asStr:
-                    retval.append(list(map(hklToStr, np.array(hkls).T)))
+                    sym_hkls.append(list(map(hklToStr, np.array(hkls).T)))
                 elif withID:
-                    retval.append(
+                    sym_hkls.append(
                         np.vstack(
                             [
                                 np.tile(hklData['hklID'], (1, hkls.shape[1])),
@@ -1490,17 +1481,18 @@ class PlaneData(object):
                         )
                     )
                 else:
-                    retval.append(np.array(hkls))
-            iRetval += 1
-        return retval
+                    sym_hkls.append(np.array(hkls))
+            hkl_index += 1
+        return sym_hkls
 
     def getCentroSymHKLs(self):
-        retval = []
+        centro_sym_hkls = []
         for iHKLr, hklData in enumerate(self.hklDataList):
             if not self._thisHKL(iHKLr):
                 continue
-            retval.append(hklData['centrosym'])
-        return retval
+            centro_sym_hkls.append(hklData['centrosym'])
+
+        return centro_sym_hkls
 
     def makeTheseScatteringVectors(
         self, hklList, rMat, bMat=None, wavelength=None, chiTilt=None
@@ -1539,10 +1531,7 @@ class PlaneData(object):
         FIXME: must do testing on strained bMat
         """
         # arg munging
-        if chiTilt is None:
-            chi = 0.0
-        else:
-            chi = float(chiTilt)
+        chi = float(chiTilt) if chiTilt is not None else 0.0
         rMat_c = rMat_c.squeeze()
 
         # these are the reciprocal lattice vectors in the SAMPLE FRAME
@@ -1555,6 +1544,10 @@ class PlaneData(object):
         assert (
             dim0 == 3
         ), "Looks like something is wrong with your lattice plane normals"
+        if dim0 != 3:
+            raise ValueError(
+                f'Number of dimensions'
+            )
 
         # call model from transforms now
         oangs0, oangs1 = xfcapi.oscillAnglesOfHKLs(
@@ -1652,7 +1645,7 @@ class PlaneData(object):
                         + hkls[2, jj] * r[ii, 2]
                     ),
                 )
-                F = F + ff * np.exp(exparg)
+                F += ff * np.exp(exparg)
 
             """
             F = sum_atoms(ff(Q)*e^(2*pi*i(hu+kv+lw)))
@@ -1741,19 +1734,9 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     c1 = 1.0
     c2 = pi / 180.0
 
-    # cast to arrays (in case they aren't)
-    if np.isscalar(eta0):
-        eta0 = [eta0]
-
-    if np.isscalar(tth0):
-        tth0 = [tth0]
-
-    if np.isscalar(ome0):
-        ome0 = [ome0]
-
-    eta0 = np.asarray(eta0)
-    tth0 = np.asarray(tth0)
-    ome0 = np.asarray(ome0)
+    eta0 = np.atleast_1d(eta0)
+    tth0 = np.atleast_1d(tth0)
+    ome0 = np.atleast_1d(ome0)
 
     if eta0.ndim != 1:
         raise RuntimeError('azimuthal input must be 1-D')
@@ -1777,7 +1760,7 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     if len(ome0) == 0:
         ome0 = np.zeros(npts)  # dummy ome0
     elif len(ome0) == 1 and npts > 1:
-        ome0 = ome0 * np.ones(npts)
+        ome0 *= np.ones(npts)
     else:
         if len(ome0) != npts:
             raise RuntimeError(
