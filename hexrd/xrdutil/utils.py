@@ -366,7 +366,7 @@ def validateAngleRanges(
     return reflInRange
 
 
-@deprecated(deprecation_date='2025-01-01')
+@deprecated(removal_date='2025-01-01')
 def simulateOmeEtaMaps(
     omeEdges,
     etaEdges,
@@ -1137,7 +1137,7 @@ def simulateGVecs(
     return valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps
 
 
-@deprecated(new_func=simlp, deprecation_date='2025-01-01')
+@deprecated(new_func=simlp, removal_date='2025-01-01')
 def simulateLauePattern(
     hkls,
     bMat,
