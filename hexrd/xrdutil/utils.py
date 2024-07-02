@@ -47,8 +47,9 @@ from hexrd.valunits import valWUnit
 from hexrd import distortion as distortion_pkg
 
 from hexrd.deprecation import deprecated
-from hexrd.instrument.hedm_instrument import HEDMInstrument
 
+
+simlp = 'hexrd.instrument.hedm_instrument.HEDMInstrument.simulate_laue_pattern'
 
 # =============================================================================
 # PARAMETERS
@@ -249,16 +250,16 @@ def make_polar_net(
     weta_gen = np.radians(np.linspace(-1, 1, num=181, endpoint=True) * 180.0)
     pts = []
     for eta in wetas:
-        net_angs = np.vstack(
+        net_ang = np.vstack(
             [[wtths[0], wtths[-1]], np.tile(eta, 2), np.zeros(2)]
         ).T
-        pts.append(zproject_sph_angles(net_angs, method=projection, source='d'))
+        pts.append(zproject_sph_angles(net_ang, method=projection, source='d'))
         pts.append(np.nan * np.ones((1, 2)))
     for tth in wtths[1:]:
-        net_angs = np.vstack(
+        net_ang = np.vstack(
             [tth * np.ones_like(weta_gen), weta_gen, np.zeros_like(weta_gen)]
         ).T
-        pts.append(zproject_sph_angles(net_angs, method=projection, source='d'))
+        pts.append(zproject_sph_angles(net_ang, method=projection, source='d'))
         pts.append(nans_1x2)
 
     return np.vstack(pts)
@@ -1140,7 +1141,7 @@ def simulateGVecs(
     return valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps
 
 
-@deprecated(new_func=HEDMInstrument.simulate_laue_pattern)
+@deprecated(new_func=simlp)
 def simulateLauePattern(
     hkls,
     bMat,
