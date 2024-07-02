@@ -95,11 +95,7 @@ class EtaOmeMaps(object):
         self.etas = ome_eta['etas']
         self.omegas = ome_eta['omegas']
 
-    def save(self, filename: str) -> None:
-        self.save_eta_ome_maps(self, filename)
-
-    @staticmethod
-    def save_eta_ome_maps(eta_ome, filename: str) -> None:
+    def save_eta_ome_maps(self, filename: str) -> None:
         """
         eta_ome.dataStore
         eta_ome.planeData
@@ -109,19 +105,19 @@ class EtaOmeMaps(object):
         eta_ome.etas
         eta_ome.omegas
         """
-        args = np.array(eta_ome.planeData.getParams(), dtype=object)[:4]
+        args = np.array(self.planeData.getParams(), dtype=object)[:4]
         args[2] = valWUnit('wavelength', 'length', args[2], 'angstrom')
-        hkls = np.vstack([i['hkl'] for i in eta_ome.planeData.hklDataList]).T
+        hkls = np.vstack([i['hkl'] for i in self.planeData.hklDataList]).T
         save_dict = {
-            'dataStore': eta_ome.dataStore,
-            'etas': eta_ome.etas,
-            'etaEdges': eta_ome.etaEdges,
-            'iHKLList': eta_ome.iHKLList,
-            'omegas': eta_ome.omegas,
-            'omeEdges': eta_ome.omeEdges,
+            'dataStore': self.dataStore,
+            'etas': self.etas,
+            'etaEdges': self.etaEdges,
+            'iHKLList': self.iHKLList,
+            'omegas': self.omegas,
+            'omeEdges': self.omeEdges,
             'planeData_args': args,
             'planeData_hkls': hkls,
-            'planeData_excl': eta_ome.planeData.exclusions,
+            'planeData_excl': self.planeData.exclusions,
         }
         np.savez_compressed(filename, **save_dict)
 
