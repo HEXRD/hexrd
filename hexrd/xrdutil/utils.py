@@ -1163,8 +1163,8 @@ def simulateLauePattern(
             minEnergy
         ), 'energy cutoff ranges must have the same length'
         multipleEnergyRanges = True
-        lmin = [processWavelength(e) for e in minEnergy]
-        lmax = [processWavelength(e) for e in maxEnergy]
+        lmin = [processWavelength(e) for e in maxEnergy]
+        lmax = [processWavelength(e) for e in minEnergy]
     else:
         lmin = processWavelength(maxEnergy)
         lmax = processWavelength(minEnergy)
