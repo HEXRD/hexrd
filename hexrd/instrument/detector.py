@@ -1085,14 +1085,6 @@ class Detector:
 
         # in case you want to give it tth angles directly
         if isinstance(pd, PlaneData):
-            # Okay, we have a PlaneData object
-            try:
-                pd = pd.makeNew()  # make a copy to munge
-            except TypeError:
-                # !!! have some other object here,
-                #     likely a dummy plane data object of sorts
-                raise
-
             if delta_tth is not None:
                 pd.tThWidth = np.radians(delta_tth)
             else:

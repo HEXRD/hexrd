@@ -94,21 +94,19 @@ def processWavelength(arg):
     """
     if hasattr(arg, 'getVal'):
         if arg.isLength():
-            retval = arg.getVal(dUnit)
+            return arg.getVal(dUnit)
         elif arg.isEnergy():
             e = arg.getVal('keV')
-            retval = valunits.valWUnit(
+            return valunits.valWUnit(
                 'wavelength', 'length', constants.keVToAngstrom(e), 'angstrom'
             ).getVal(dUnit)
         else:
             raise RuntimeError('do not know what to do with ' + str(arg))
     else:
         # !!! assuming arg is in keV
-        retval = valunits.valWUnit(
+        return valunits.valWUnit(
             'wavelength', 'length', constants.keVToAngstrom(arg), 'angstrom'
         ).getVal(dUnit)
-
-    return retval
 
 
 def latticePlanes(
@@ -976,16 +974,15 @@ class PlaneData(object):
         return copy.deepcopy(self._latVecOps)
 
     def _thisHKL(self, iHKLr):
-        retval = True
         hklData = self.hklDataList[iHKLr]
         if self._exclusions is not None:
             if self._exclusions[self.tThSortInv[iHKLr]]:
-                retval = False
+                return False
         if self._tThMax is not None:
             # FIXME: check for nans here???
             if hklData['tTheta'] > self._tThMax or np.isnan(hklData['tTheta']):
-                retval = False
-        return retval
+                return False
+        return True
 
     def _getTThRange(self, iHKLr):
         hklData = self.hklDataList[iHKLr]
@@ -1004,28 +1001,22 @@ class PlaneData(object):
 
         return array is n x 2
         """
-        if lparms is None:
-            tThRanges = []
-            for iHKLr, hklData in enumerate(self.hklDataList):
-                if not self._thisHKL(iHKLr):
-                    continue
-                # tThRanges.append([hklData['tThetaLo'], hklData['tThetaHi']])
-                if strainMag is None:
-                    tThRanges.append(self._getTThRange(iHKLr))
-                else:
-                    hklData = self.hklDataList[iHKLr]
-                    d = hklData['dSpacings']
-                    tThLo = 2.0 * np.arcsin(
-                        self._wavelength / 2.0 / (d * (1.0 + strainMag))
-                    )
-                    tThHi = 2.0 * np.arcsin(
-                        self._wavelength / 2.0 / (d * (1.0 - strainMag))
-                    )
-                    tThRanges.append((tThLo, tThHi))
-        else:
-            new = self.__class__(self._hkls, self)
-            new.lparms = lparms
-            tThRanges = new.getTThRanges(strainMag=strainMag)
+        tThRanges = []
+        for iHKLr, hklData in enumerate(self.hklDataList):
+            if not self._thisHKL(iHKLr):
+                continue
+            if strainMag is None:
+                tThRanges.append(self._getTThRange(iHKLr))
+            else:
+                hklData = self.hklDataList[iHKLr]
+                d = hklData['dSpacings']
+                tThLo = 2.0 * np.arcsin(
+                    self._wavelength / 2.0 / (d * (1.0 + strainMag))
+                )
+                tThHi = 2.0 * np.arcsin(
+                    self._wavelength / 2.0 / (d * (1.0 - strainMag))
+                )
+                tThRanges.append((tThLo, tThHi))
         return np.array(tThRanges)
 
     def getMergedRanges(self, cullDupl=False):
@@ -1063,24 +1054,12 @@ class PlaneData(object):
                 hklsCur = []
         return iHKLLists, mergedRanges
 
-    def makeNew(self):
-        new = self.__class__(None, self)
-        return new
-
-    def getTTh(self, lparms=None, allHKLs=False):
-        if lparms is None:
-            tTh = []
-            for iHKLr, hklData in enumerate(self.hklDataList):
-                if not allHKLs:
-                    if not self._thisHKL(iHKLr):
-                        continue
-                    tTh.append(hklData['tTheta'])
-                else:
-                    tTh.append(hklData['tTheta'])
-        else:
-            new = self.makeNew()
-            new.lparms = lparms
-            tTh = new.getTTh()
+    def getTTh(self, allHKLs: bool=False):
+        tTh = []
+        for iHKLr, hklData in enumerate(self.hklDataList):
+            if not allHKLs and not self._thisHKL(iHKLr):
+                continue
+            tTh.append(hklData['tTheta'])
         return np.array(tTh)
 
     def getDD_tThs_lparms(self):
@@ -1148,7 +1127,7 @@ class PlaneData(object):
 
         Returns
         -------
-        retval : list
+        hkl_ids : list
             The list of requested hklID values associate with the input.
 
         Notes
@@ -1173,7 +1152,7 @@ class PlaneData(object):
         for hkl that is a tuple, return externally visible hkl index
         """
         if isinstance(hkl, int):
-            retval = hkl
+            return hkl
         else:
             hklList = self.getSymHKLs()  # !!! list, reduced by exclusions
             intl_hklIDs = np.asarray([i['hklID'] for i in self.hklDataList])
@@ -1184,12 +1163,11 @@ class PlaneData(object):
                 for thisHKL in symHKLs.T:
                     dHKLInv[tuple(thisHKL)] = idx
             try:
-                retval = dHKLInv[tuple(hkl)]
+                return dHKLInv[tuple(hkl)]
             except KeyError:
                 raise RuntimeError(
                     f"hkl '{tuple(hkl)}' is not present in this material!"
                 )
-        return retval
 
     def getHKLs(self, *hkl_ids, **kwargs):
         """
@@ -1218,7 +1196,7 @@ class PlaneData(object):
 
         Returns
         -------
-        retval : list | numpy.ndarray
+        hkls : list | numpy.ndarray
             Either a list of hkls as strings (if asStr=True) or a vstacked
             array of hkls.
 
@@ -1333,10 +1311,9 @@ class PlaneData(object):
             bMat = self._latVecOps['B']
         if wavelength is None:
             wavelength = self._wavelength
-        retval = PlaneData.makeScatteringVectors(
+        return PlaneData.makeScatteringVectors(
             fHKLs, rMat, bMat, wavelength, chiTilt=chiTilt
         )
-        return retval
 
     def makeAllScatteringVectors(
         self, rMat, bMat=None, wavelength=None, chiTilt=None
@@ -1346,10 +1323,9 @@ class PlaneData(object):
             bMat = self._latVecOps['B']
         if wavelength is None:
             wavelength = self._wavelength
-        retval = PlaneData.makeScatteringVectors(
+        return PlaneData.makeScatteringVectors(
             fHKLs, rMat, bMat, wavelength, chiTilt=chiTilt
         )
-        return retval
 
     @staticmethod
     def makeScatteringVectors(hkls, rMat_c, bMat, wavelength, chiTilt=None):
@@ -1370,12 +1346,9 @@ class PlaneData(object):
         #   strained [a, b, c] in the CRYSTAL FRAME
         gVec_s = np.dot(rMat_c, np.dot(bMat, hkls))
 
-        dim0, nRefl = gVec_s.shape
-        assert (
-            dim0 == 3
-        ), "Looks like something is wrong with your lattice plane normals"
+        dim0 = gVec_s.shape[0]
         if dim0 != 3:
-            raise ValueError(f'Number of dimensions')
+            raise ValueError(f'Number of lattice plane normal dims is {dim0}')
 
         # call model from transforms now
         oangs0, oangs1 = xfcapi.oscillAnglesOfHKLs(
