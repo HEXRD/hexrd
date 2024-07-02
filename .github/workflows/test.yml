@@ -2,7 +2,7 @@ name: test
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, code-coverage ]
   pull_request:
     branches: [ master ]
 
@@ -61,8 +61,9 @@ jobs:
       if: ${{ matrix.config.os == 'macos-latest'}}
 
     - name: Install HEXRD
+      # Install in editable mode for codecov
       run: |
-          pip install .
+          pip install -e .
       working-directory: hexrd
 
     - name: Install requirements-dev.txt
@@ -75,4 +76,21 @@ jobs:
         HEXRD_EXAMPLE_REPO_PATH: ${{ github.workspace }}/examples
       run: |
           pytest -s tests/
+      if: ${{ matrix.config.os != 'ubuntu-latest'}}
       working-directory: hexrd
+      
+    - name: Run tests with codecov
+      env:
+        HEXRD_EXAMPLE_REPO_PATH: ${{ github.workspace }}/examples
+      run: |
+          pytest -s --cov hexrd --cov-report xml:coverage.xml tests
+      if: ${{ matrix.config.os == 'ubuntu-latest'}}
+      working-directory: hexrd
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: coverage.xml
+        working-directory: hexrd
+      
