@@ -221,9 +221,11 @@ class DEF_xy_to_gvec(DEF_Func):
         (3, ) translation vector connecting LAB FRAME to SAMPLE FRAME
     tvec_c : array_like
         (3, ) translation vector connecting SAMPLE FRAME to CRYSTAL FRAME
-    rmat_b : array_like, optional
-        (3, 3) COB matrix taking components in the BEAM FRAME to the LAB FRAME;
-        defaults to None, which implies the standard setting of identity.
+    beam_vec : ndarray, optional
+        Unit vector pointing towards the X-ray source in the lab frame.
+        Defaults to [0,0,-1]
+    eta_vec : ndarray, optional
+        Vector defining eta=0 in the lab frame.  Defaults to [1,0,0]
     distortion : distortion class, optional
         Default is None
     output_ref : bool, optional
@@ -245,12 +247,12 @@ class DEF_xy_to_gvec(DEF_Func):
     -----
     ???: is there a need to flatten the tvec inputs?
     ???: include optional wavelength input for returning G with magnitude?
-    ???: is there a need to check that rmat_b is orthogonal if spec'd?
     """
     def _signature(xy_d,
                    rmat_d, rmat_s,
                    tvec_d, tvec_s, tvec_c,
-                   rmat_b=None,
+                   beam_vec=None,
+                   eta_vec=None,
                    distortion=None,
                    output_ref=False):
         pass
@@ -516,7 +518,7 @@ class DEF_unit_vector(DEF_Func):
 class DEF_make_sample_rmat(DEF_Func):
     """
     Make SAMPLE frame rotation matrices as composition of
-    rotation of ome about the axis
+    rotation of omega about the axis
 
     [0., cos(chi), sin(chi)]
 
@@ -526,16 +528,16 @@ class DEF_make_sample_rmat(DEF_Func):
     ----------
     chi : float
         The inclination angle of the goniometer axis (standard coords)
-    ome : array_like
+    omega : array_like
         (n) angles to generate rotation matrices from.
 
     Returns
     -------
     array_like
         (n, 3, 3) a vector of the n rotation matrices along the
-        axis defined by chi, one for each ome.
+        axis defined by chi, one for each omega.
     """
-    def _signature(chi, ome):
+    def _signature(chi, omega):
         pass
 
 
