@@ -7,7 +7,7 @@ class DeprecatedFunctionError(Exception):
     pass
 
 
-def deprecated(new_func: str = None):
+def deprecated(new_func: str = None, deprecation_date: str = None):
     """
     Decorator to mark functions as deprecated. Raises an error if
     the 'ACK_DEPRECATED' environment variable is not set. Alerts the
@@ -21,6 +21,7 @@ def deprecated(new_func: str = None):
                 print(
                     f"Warning: {func.__name__} is deprecated and is marked for"
                     f" removal. Please use {new_func} instead."
+                    f" Deprecation date: {deprecation_date}"
                 )
             if os.getenv('ACK_DEPRECATED') != 'true':
                 raise DeprecatedFunctionError(
