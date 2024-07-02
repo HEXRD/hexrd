@@ -33,6 +33,7 @@ import numpy as np
 import csv
 import os
 
+from hexrd.deprecation import deprecated
 from hexrd import constants
 from hexrd.matrixutil import unitVector
 from hexrd.rotations import (
@@ -108,34 +109,6 @@ def processWavelength(arg):
         ).getVal(dUnit)
 
     return retval
-
-
-def latticeParameters(lvec):
-    """
-    Generates direct and reciprocal lattice vector components in a
-    crystal-relative RHON basis, X. The convention for fixing X to the
-    lattice is such that a || x1 and c* || x3, where a and c* are
-    direct and reciprocal lattice vectors, respectively.
-    """
-    lnorm = np.sqrt(np.sum(lvec**2, 0))
-
-    a = lnorm[0]
-    b = lnorm[1]
-    c = lnorm[2]
-
-    ahat = lvec[:, 0] / a
-    bhat = lvec[:, 1] / b
-    chat = lvec[:, 2] / c
-
-    gama = np.arccos(np.dot(ahat, bhat))
-    beta = np.arccos(np.dot(ahat, chat))
-    alfa = np.arccos(np.dot(bhat, chat))
-    if outputDegrees:
-        gama = r2d * gama
-        beta = r2d * beta
-        alfa = r2d * alfa
-
-    return [a, b, c, alfa, beta, gama]
 
 
 def latticePlanes(
@@ -507,149 +480,6 @@ def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
     }
 
     return L
-
-
-def hexagonalIndicesFromRhombohedral(hkl):
-    """
-    converts rhombohedral hkl to hexagonal indices
-    """
-    HKL = np.zeros((3, hkl.shape[1]), dtype='int')
-
-    HKL[0, :] = hkl[0, :] - hkl[1, :]
-    HKL[1, :] = hkl[1, :] - hkl[2, :]
-    HKL[2, :] = hkl[0, :] + hkl[1, :] + hkl[2, :]
-
-    return HKL
-
-
-def rhombohedralIndicesFromHexagonal(HKL):
-    """
-    converts hexagonal hkl to rhombohedral indices
-    """
-    hkl = np.zeros((3, HKL.shape[1]), dtype='int')
-
-    hkl[0, :] = 2 * HKL[0, :] + HKL[1, :] + HKL[2, :]
-    hkl[1, :] = -HKL[0, :] + HKL[1, :] + HKL[2, :]
-    hkl[2, :] = -HKL[0, :] - 2 * HKL[1, :] + HKL[2, :]
-
-    hkl = hkl / 3.0
-    return hkl
-
-
-def rhombohedralParametersFromHexagonal(a_h, c_h):
-    """
-    converts hexagonal lattice parameters (a, c) to rhombohedral
-    lattice parameters (a, alpha)
-    """
-    a_r = np.sqrt(3 * a_h**2 + c_h**2) / 3.0
-    alfa_r = 2 * np.arcsin(3.0 / (2 * np.sqrt(3 + (c_h / a_h) ** 2)))
-    if outputDegrees:
-        alfa_r = r2d * alfa_r
-    return a_r, alfa_r
-
-
-def convert_Miller_direction_to_cartesian(uvw, a=1.0, c=1.0, normalize=False):
-    """
-    Converts 3-index hexagonal Miller direction indices to components in the
-    crystal reference frame.
-
-    Parameters
-    ----------
-    uvw : array_like
-        The (n, 3) array of 3-index hexagonal indices to convert.
-    a : scalar, optional
-        The `a` lattice parameter.  The default value is 1.
-    c : scalar, optional
-        The `c` lattice parameter.  The default value is 1.
-    normalize : bool, optional
-        Flag for whether or not to normalize output vectors
-
-    Returns
-    -------
-    numpy.ndarray
-        The (n, 3) array of cartesian components associated with the input
-        direction indices.
-
-    Notes
-    -----
-    1) The [uv.w] the Miller-Bravais convention is in the hexagonal basis
-       {a1, a2, a3, c}.  The basis for the output, {o1, o2, o3}, is
-       chosen such that
-
-       o1 || a1
-       o3 || c
-       o2 = o3 ^ o1
-
-    """
-    u, v, w = np.atleast_2d(uvw).T
-    retval = np.vstack([1.5 * u * a, sqrt3by2 * a * (2 * v + u), w * c])
-    if normalize:
-        return unitVector(retval).T
-    else:
-        return retval.T
-
-
-def convert_Miller_direction_to_MillerBravias(uvw, suppress_redundant=True):
-    """
-    Converts 3-index hexagonal Miller direction indices to 4-index
-    Miller-Bravais direction indices.
-
-    Parameters
-    ----------
-    uvw : array_like
-        The (n, 3) array of 3-index hexagonal Miller indices to convert.
-    suppress_redundant : bool, optional
-        Flag to suppress the redundant 3rd index.  The default is True.
-
-    Returns
-    -------
-    numpy.ndarray
-        The (n, 3) or (n, 4) array -- depending on kwarg -- of Miller-Bravis
-        components associated with the input Miller direction indices.
-
-    Notes
-    -----
-    * NOT for plane normals!!!
-
-    """
-    u, v, w = np.atleast_2d(uvw).T
-    retval = np.vstack([(2 * u - v) / 3, (2 * v - u) / 3, w]).T
-    rem = np.vstack([np.mod(np.tile(i[0], 2), i[1:]) for i in retval])
-    rem[abs(rem) < epsf] = np.nan
-    lcm = np.nanmin(rem, axis=1)
-    lcm[np.isnan(lcm)] = 1
-    retval = retval / np.tile(lcm, (3, 1)).T
-    if suppress_redundant:
-        return retval
-    else:
-        t = np.atleast_2d(1 - np.sum(retval[:2], axis=1)).T
-        return np.hstack([retval[:, :2], t, np.atleast_2d(retval[:, 2]).T])
-
-
-def convert_MillerBravias_direction_to_Miller(UVW):
-    """
-    Converts 4-index hexagonal Miller-Bravais direction indices to
-    3-index Miller direction indices.
-
-    Parameters
-    ----------
-    UVW : array_like
-        The (n, 3) array of **non-redundant** Miller-Bravais direction indices
-        to convert.
-
-    Returns
-    -------
-    numpy.ndarray
-        The (n, 3) array of Miller direction indices associated with the
-        input Miller-Bravais indices.
-
-    Notes
-    -----
-    * NOT for plane normals!!!
-
-    """
-    U, V, W = np.atleast_2d(UVW).T
-    return np.vstack([2 * U + V, 2 * V + U, W])
 
 
 class PlaneData(object):
@@ -1545,9 +1375,7 @@ class PlaneData(object):
             dim0 == 3
         ), "Looks like something is wrong with your lattice plane normals"
         if dim0 != 3:
-            raise ValueError(
-                f'Number of dimensions'
-            )
+            raise ValueError(f'Number of dimensions')
 
         # call model from transforms now
         oangs0, oangs1 = xfcapi.oscillAnglesOfHKLs(
@@ -1583,78 +1411,8 @@ class PlaneData(object):
 
         return Qs_vec, Qs_ang0, Qs_ang1
 
-    def calcStructFactor(self, atominfo):
-        """
-        Calculates unit cell structure factors as a function of hkl
 
-        USAGE:
-
-        FSquared = calcStructFactor(atominfo,hkls,B)
-
-        INPUTS:
-
-        1) atominfo (m x 1 float ndarray) the first threee columns of the
-        matrix contain fractional atom positions [uvw] of atoms in the unit
-        cell. The last column contains the number of electrons for a given atom
-
-        2) hkls (3 x n float ndarray) is the array of Miller indices for
-        the planes of interest.  The vectors are assumed to be
-        concatenated along the 1-axis (horizontal)
-
-        3) B (3 x 3 float ndarray) is a matrix of reciprocal lattice basis
-        vectors,where each column contains a reciprocal lattice basis vector
-        ({g}=[B]*{hkl})
-
-
-        OUTPUTS:
-
-        1) FSquared (n x 1 float ndarray) array of structure factors,
-        one for each hkl passed into the function
-        """
-        r = atominfo[:, 0:3]
-        elecNum = atominfo[:, 3]
-        hkls = self.hkls
-        B = self.latVecOps['B']
-        sinThOverLamdaList, ffDataList = LoadFormFactorData()
-        FSquared = np.zeros(hkls.shape[1])
-
-        for jj in np.arange(0, hkls.shape[1]):
-            # ???: probably have other functions for this
-            # Calculate G for each hkl
-            # Calculate magnitude of G for each hkl
-            G = (
-                hkls[0, jj] * B[:, 0]
-                + hkls[1, jj] * B[:, 1]
-                + hkls[2, jj] * B[:, 2]
-            )
-            magG = np.sqrt(G[0] ** 2 + G[1] ** 2 + G[2] ** 2)
-
-            # Begin calculating form factor
-            F = 0
-            for ii in np.arange(0, r.shape[0]):
-                ff = RetrieveAtomicFormFactor(
-                    elecNum[ii], magG, sinThOverLamdaList, ffDataList
-                )
-                exparg = complex(
-                    0.0,
-                    2.0
-                    * np.pi
-                    * (
-                        hkls[0, jj] * r[ii, 0]
-                        + hkls[1, jj] * r[ii, 1]
-                        + hkls[2, jj] * r[ii, 2]
-                    ),
-                )
-                F += ff * np.exp(exparg)
-
-            """
-            F = sum_atoms(ff(Q)*e^(2*pi*i(hu+kv+lw)))
-            """
-            FSquared[jj] = np.real(F * np.conj(F))
-
-        return FSquared
-
-
+@deprecated(deprecation_date='2025-01-01')
 def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     """
     Get the diffractometer angular coordinates in degrees for
@@ -1748,10 +1506,10 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     else:
         if len(tth0) != npts:
             if len(tth0) == 1:
-                tth0 = tth0 * np.ones(npts)
+                tth0 *= np.ones(npts)
             elif npts == 1:
                 npts = len(tth0)
-                eta0 = eta0 * np.ones(npts)
+                eta0 *= np.ones(npts)
             else:
                 raise RuntimeError(
                     'the azimuthal and Bragg angle inputs are inconsistent'
@@ -1877,7 +1635,7 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
         rchi = rotMatOfExpMap(np.tile(ome_min[goodOnes][i], (3, 1)) * nchi)
         gHat_l = np.dot(rchi, tmp_gvec[:, i].reshape(3, 1))
         tmp_eta[i] = np.arctan2(gHat_l[1], gHat_l[0])
-        pass
+
     eta_min[goodOnes] = tmp_eta
 
     # everybody back to DEGREES!
@@ -1893,8 +1651,8 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     eta1 = mapAngle(r2d * eta_min, [-180, 180], units='degrees')
 
     if not outputDegrees:
-        ome1 = d2r * ome1
-        eta1 = d2r * eta1
+        ome1 *= d2r
+        eta1 *= d2r
 
     return ome1, eta1
 
@@ -1906,84 +1664,6 @@ def getDparms(lp, lpTag, radians=True):
     """
     latVecOps = latticeVectors(lp, tag=lpTag, radians=radians)
     return latVecOps['dparms']
-
-
-def LoadFormFactorData():
-    """
-    Script to read in a csv file containing information relating the
-    magnitude of Q (sin(th)/lambda) to atomic form factor
-
-
-    Notes:
-    Atomic form factor data gathered from the International Tables of
-    Crystallography:
-
-     P. J. Brown, A. G. Fox,  E. N. Maslen, M. A. O'Keefec and B. T. M. Willis,
-    "Chapter 6.1. Intensity of diffracted intensities", International Tables
-     for Crystallography (2006). Vol. C, ch. 6.1, pp. 554-595
-    """
-
-    dir1 = os.path.split(valunits.__file__)
-    dataloc = os.path.join(dir1[0], 'data', 'FormFactorVsQ.csv')
-
-    data = np.zeros((62, 99), float)
-
-    # FIXME: marked broken by DP
-    jj = 0
-    with open(dataloc, 'rU') as csvfile:
-        datareader = csv.reader(csvfile, dialect=csv.excel)
-        for row in datareader:
-            ii = 0
-            for val in row:
-                data[jj, ii] = float(val)
-                ii += 1
-            jj += 1
-
-    sinThOverLamdaList = data[:, 0]
-    ffDataList = data[:, 1:]
-
-    return sinThOverLamdaList, ffDataList
-
-
-def RetrieveAtomicFormFactor(elecNum, magG, sinThOverLamdaList, ffDataList):
-    """Interpolates between tabulated data to find the atomic form factor
-    for an atom with elecNum electrons for a given magnitude of Q
-
-    USAGE:
-
-    ff = RetrieveAtomicFormFactor(elecNum,magG,sinThOverLamdaList,ffDataList)
-
-    INPUTS:
-
-    1) elecNum, (1 x 1 float) number of electrons for atom of interest
-
-    2) magG (1 x 1 float) magnitude of G
-
-    3) sinThOverLamdaList (n x 1 float ndarray) form factor data is tabulated
-       in terms of sin(theta)/lambda (A^-1).
-
-    3) ffDataList (n x m float ndarray) form factor data is tabulated in terms
-       of sin(theta)/lambda (A^-1). Each column corresponds to a different
-       number of electrons
-
-    OUTPUTS:
-
-    1) ff (n x 1 float) atomic form factor for atom and hkl of interest
-
-    NOTES:
-    Data should be calculated in terms of G at some point
-
-    """
-    sinThOverLambda = 0.5 * magG
-    # lambda=2*d*sin(th)
-    # lambda=2*sin(th)/G
-    # 1/2*G=sin(th)/lambda
-
-    ff = np.interp(
-        sinThOverLambda, sinThOverLamdaList, ffDataList[:, (elecNum - 1)]
-    )
-
-    return ff
 
 
 def lorentz_factor(tth):
