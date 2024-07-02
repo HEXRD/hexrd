@@ -35,9 +35,13 @@ import os
 
 from hexrd import constants
 from hexrd.matrixutil import unitVector
-from hexrd.rotations import \
-    rotMatOfExpMap, mapAngle, applySym, \
-    ltypeOfLaueGroup, quatOfLaueGroup
+from hexrd.rotations import (
+    rotMatOfExpMap,
+    mapAngle,
+    applySym,
+    ltypeOfLaueGroup,
+    quatOfLaueGroup,
+)
 from hexrd.transforms import xfcapi
 from hexrd import valunits
 from hexrd.valunits import toFloat
@@ -78,7 +82,7 @@ def cosineXform(a, b, c):
         Cryst. (1968), A24, 247--248
 
     """
-    cosar = (np.cos(b)*np.cos(c) - np.cos(a)) / (np.sin(b)*np.sin(c))
+    cosar = (np.cos(b) * np.cos(c) - np.cos(a)) / (np.sin(b) * np.sin(c))
     sinar = np.sqrt(1 - cosar**2)
     return cosar, sinar
 
@@ -98,7 +102,7 @@ def processWavelength(arg):
                 'wavelength', 'length', constants.keVToAngstrom(e), 'angstrom'
             ).getVal(dUnit)
         else:
-            raise RuntimeError('do not know what to do with '+str(arg))
+            raise RuntimeError('do not know what to do with ' + str(arg))
     else:
         # !!! assuming arg is in keV
         retval = valunits.valWUnit(
@@ -121,23 +125,24 @@ def latticeParameters(lvec):
     b = lnorm[1]
     c = lnorm[2]
 
-    ahat = lvec[:, 0]/a
-    bhat = lvec[:, 1]/b
-    chat = lvec[:, 2]/c
+    ahat = lvec[:, 0] / a
+    bhat = lvec[:, 1] / b
+    chat = lvec[:, 2] / c
 
     gama = np.arccos(np.dot(ahat, bhat))
     beta = np.arccos(np.dot(ahat, chat))
     alfa = np.arccos(np.dot(bhat, chat))
     if outputDegrees:
-        gama = r2d*gama
-        beta = r2d*beta
-        alfa = r2d*alfa
+        gama = r2d * gama
+        beta = r2d * beta
+        alfa = r2d * alfa
 
     return [a, b, c, alfa, beta, gama]
 
 
-def latticePlanes(hkls, lparms,
-                  ltype='cubic', wavelength=1.54059292, strainMag=None):
+def latticePlanes(
+    hkls, lparms, ltype='cubic', wavelength=1.54059292, strainMag=None
+):
     """
     Generates lattice plane data in the direct lattice for a given set
     of Miller indices.  Vector components are written in the
@@ -216,8 +221,9 @@ def latticePlanes(hkls, lparms,
     """
     location = 'latticePlanes'
 
-    assert hkls.shape[0] == 3, \
+    assert hkls.shape[0] == 3, (
         "hkls aren't column vectors in call to '%s'!" % location
+    )
 
     tag = ltype
     wlen = wavelength
@@ -231,38 +237,37 @@ def latticePlanes(hkls, lparms,
     # magnitudes
     d = 1 / np.sqrt(np.sum(G**2, 0))
 
-    aconv = 1.
+    aconv = 1.0
     if outputDegrees:
         aconv = r2d
 
     # two thetas
-    sth = wlen / 2. / d
-    mask = (np.abs(sth) < 1.)
+    sth = wlen / 2.0 / d
+    mask = np.abs(sth) < 1.0
     tth = np.zeros(sth.shape)
 
     tth[~mask] = np.nan
-    tth[mask] = aconv * 2. * np.arcsin(sth[mask])
+    tth[mask] = aconv * 2.0 * np.arcsin(sth[mask])
 
-    p = dict(normals=unitVector(G),
-             dspacings=d,
-             tThetas=tth)
+    p = dict(normals=unitVector(G), dspacings=d, tThetas=tth)
 
     if strainMag is not None:
         p['tThetasLo'] = np.zeros(sth.shape)
         p['tThetasHi'] = np.zeros(sth.shape)
 
-        mask = (
-            (np.abs(wlen / 2. / (d * (1. + strainMag))) < 1.) &
-            (np.abs(wlen / 2. / (d * (1. - strainMag))) < 1.)
+        mask = (np.abs(wlen / 2.0 / (d * (1.0 + strainMag))) < 1.0) & (
+            np.abs(wlen / 2.0 / (d * (1.0 - strainMag))) < 1.0
         )
 
         p['tThetasLo'][~mask] = np.nan
         p['tThetasHi'][~mask] = np.nan
 
-        p['tThetasLo'][mask] = \
-            aconv * 2 * np.arcsin(wlen/2./(d[mask]*(1. + strainMag)))
-        p['tThetasHi'][mask] = \
-            aconv * 2 * np.arcsin(wlen/2./(d[mask]*(1. - strainMag)))
+        p['tThetasLo'][mask] = (
+            aconv * 2 * np.arcsin(wlen / 2.0 / (d[mask] * (1.0 + strainMag)))
+        )
+        p['tThetasHi'][mask] = (
+            aconv * 2 * np.arcsin(wlen / 2.0 / (d[mask] * (1.0 - strainMag)))
+        )
 
     return p
 
@@ -380,60 +385,70 @@ def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
         'tetragonal',
         'orthorhombic',
         'monoclinic',
-        'triclinic'
-        ]
+        'triclinic',
+    ]
 
     if radians:
-        aconv = 1.
+        aconv = 1.0
     else:
-        aconv = pi/180.  # degToRad
-    deg90 = pi/2.
-    deg120 = 2.*pi/3.
+        aconv = pi / 180.0  # degToRad
+    deg90 = pi / 2.0
+    deg120 = 2.0 * pi / 3.0
     #
     if tag == lattStrings[0]:
         # cubic
-        cellparms = np.r_[np.tile(lparms[0], (3,)), deg90*np.ones((3,))]
+        cellparms = np.r_[np.tile(lparms[0], (3,)), deg90 * np.ones((3,))]
     elif tag == lattStrings[1] or tag == lattStrings[2]:
         # hexagonal | trigonal (hex indices)
-        cellparms = np.r_[lparms[0], lparms[0], lparms[1],
-                          deg90, deg90, deg120]
+        cellparms = np.r_[
+            lparms[0], lparms[0], lparms[1], deg90, deg90, deg120
+        ]
     elif tag == lattStrings[3]:
         # rhombohedral
-        cellparms = np.r_[np.tile(lparms[0], (3,)),
-                          np.tile(aconv*lparms[1], (3,))]
+        cellparms = np.r_[
+            np.tile(lparms[0], (3,)), np.tile(aconv * lparms[1], (3,))
+        ]
     elif tag == lattStrings[4]:
         # tetragonal
-        cellparms = np.r_[lparms[0], lparms[0], lparms[1],
-                          deg90, deg90, deg90]
+        cellparms = np.r_[lparms[0], lparms[0], lparms[1], deg90, deg90, deg90]
     elif tag == lattStrings[5]:
         # orthorhombic
-        cellparms = np.r_[lparms[0], lparms[1], lparms[2],
-                          deg90, deg90, deg90]
+        cellparms = np.r_[lparms[0], lparms[1], lparms[2], deg90, deg90, deg90]
     elif tag == lattStrings[6]:
         # monoclinic
-        cellparms = np.r_[lparms[0], lparms[1], lparms[2],
-                          deg90, aconv*lparms[3], deg90]
+        cellparms = np.r_[
+            lparms[0], lparms[1], lparms[2], deg90, aconv * lparms[3], deg90
+        ]
     elif tag == lattStrings[7]:
         # triclinic
         # FIXME: fixed DP 2/24/16
-        cellparms = np.r_[lparms[0], lparms[1], lparms[2],
-                          aconv*lparms[3], aconv*lparms[4], aconv*lparms[5]]
+        cellparms = np.r_[
+            lparms[0],
+            lparms[1],
+            lparms[2],
+            aconv * lparms[3],
+            aconv * lparms[4],
+            aconv * lparms[5],
+        ]
     else:
         raise RuntimeError('lattice tag \'%s\' is not recognized' % (tag))
 
     if debug:
-        print((str(cellparms[0:3]) + ' ' + str(r2d*cellparms[3:6])))
+        print((str(cellparms[0:3]) + ' ' + str(r2d * cellparms[3:6])))
     alfa = cellparms[3]
     beta = cellparms[4]
     gama = cellparms[5]
 
     cosalfar, sinalfar = cosineXform(alfa, beta, gama)
 
-    a = cellparms[0]*np.r_[1, 0, 0]
-    b = cellparms[1]*np.r_[np.cos(gama), np.sin(gama), 0]
-    c = cellparms[2]*np.r_[np.cos(beta),
-                           -cosalfar*np.sin(beta),
-                           sinalfar*np.sin(beta)]
+    a = cellparms[0] * np.r_[1, 0, 0]
+    b = cellparms[1] * np.r_[np.cos(gama), np.sin(gama), 0]
+    c = (
+        cellparms[2]
+        * np.r_[
+            np.cos(beta), -cosalfar * np.sin(beta), sinalfar * np.sin(beta)
+        ]
+    )
 
     ad = np.sqrt(np.sum(a**2))
     bd = np.sqrt(np.sum(b**2))
@@ -446,46 +461,53 @@ def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
     F = np.c_[a, b, c]
 
     # Reciprocal lattice vectors
-    astar = np.cross(b, c)/V
-    bstar = np.cross(c, a)/V
-    cstar = np.cross(a, b)/V
+    astar = np.cross(b, c) / V
+    bstar = np.cross(c, a) / V
+    cstar = np.cross(a, b) / V
 
     # and parameters
     ar = np.sqrt(np.sum(astar**2))
     br = np.sqrt(np.sum(bstar**2))
     cr = np.sqrt(np.sum(cstar**2))
 
-    alfar = np.arccos(np.dot(bstar, cstar)/br/cr)
-    betar = np.arccos(np.dot(cstar, astar)/cr/ar)
-    gamar = np.arccos(np.dot(astar, bstar)/ar/br)
+    alfar = np.arccos(np.dot(bstar, cstar) / br / cr)
+    betar = np.arccos(np.dot(cstar, astar) / cr / ar)
+    gamar = np.arccos(np.dot(astar, bstar) / ar / br)
 
     # B takes components in the reciprocal lattice to X
     B = np.c_[astar, bstar, cstar]
 
     cosalfar2, sinalfar2 = cosineXform(alfar, betar, gamar)
 
-    afable = ar*np.r_[1, 0, 0]
-    bfable = br*np.r_[np.cos(gamar), np.sin(gamar), 0]
-    cfable = cr*np.r_[np.cos(betar),
-                      -cosalfar2*np.sin(betar),
-                      sinalfar2*np.sin(betar)]
+    afable = ar * np.r_[1, 0, 0]
+    bfable = br * np.r_[np.cos(gamar), np.sin(gamar), 0]
+    cfable = (
+        cr
+        * np.r_[
+            np.cos(betar),
+            -cosalfar2 * np.sin(betar),
+            sinalfar2 * np.sin(betar),
+        ]
+    )
 
     BR = np.c_[afable, bfable, cfable]
     U0 = np.dot(B, np.linalg.inv(BR))
     if outputDegrees:
-        dparms = np.r_[ad, bd, cd, r2d*np.r_[alfa, beta, gama]]
-        rparms = np.r_[ar, br, cr, r2d*np.r_[alfar, betar, gamar]]
+        dparms = np.r_[ad, bd, cd, r2d * np.r_[alfa, beta, gama]]
+        rparms = np.r_[ar, br, cr, r2d * np.r_[alfar, betar, gamar]]
     else:
         dparms = np.r_[ad, bd, cd, np.r_[alfa, beta, gama]]
         rparms = np.r_[ar, br, cr, np.r_[alfar, betar, gamar]]
 
-    L = {'F': F,
-         'B': B,
-         'BR': BR,
-         'U0': U0,
-         'vol': V,
-         'dparms': dparms,
-         'rparms': rparms}
+    L = {
+        'F': F,
+        'B': B,
+        'BR': BR,
+        'U0': U0,
+        'vol': V,
+        'dparms': dparms,
+        'rparms': rparms,
+    }
 
     return L
 
@@ -513,7 +535,7 @@ def rhombohedralIndicesFromHexagonal(HKL):
     hkl[1, :] = -HKL[0, :] + HKL[1, :] + HKL[2, :]
     hkl[2, :] = -HKL[0, :] - 2 * HKL[1, :] + HKL[2, :]
 
-    hkl = hkl / 3.
+    hkl = hkl / 3.0
     return hkl
 
 
@@ -522,14 +544,14 @@ def rhombohedralParametersFromHexagonal(a_h, c_h):
     converts hexagonal lattice parameters (a, c) to rhombohedral
     lattice parameters (a, alpha)
     """
-    a_r = np.sqrt(3 * a_h**2 + c_h**2) / 3.
-    alfa_r = 2 * np.arcsin(3. / (2 * np.sqrt(3 + (c_h / a_h)**2)))
+    a_r = np.sqrt(3 * a_h**2 + c_h**2) / 3.0
+    alfa_r = 2 * np.arcsin(3.0 / (2 * np.sqrt(3 + (c_h / a_h) ** 2)))
     if outputDegrees:
         alfa_r = r2d * alfa_r
     return a_r, alfa_r
 
 
-def convert_Miller_direction_to_cartesian(uvw, a=1., c=1., normalize=False):
+def convert_Miller_direction_to_cartesian(uvw, a=1.0, c=1.0, normalize=False):
     """
     Converts 3-index hexagonal Miller direction indices to components in the
     crystal reference frame.
@@ -563,7 +585,7 @@ def convert_Miller_direction_to_cartesian(uvw, a=1., c=1., normalize=False):
 
     """
     u, v, w = np.atleast_2d(uvw).T
-    retval = np.vstack([1.5*u*a, sqrt3by2*a*(2*v + u), w*c])
+    retval = np.vstack([1.5 * u * a, sqrt3by2 * a * (2 * v + u), w * c])
     if normalize:
         return unitVector(retval).T
     else:
@@ -594,7 +616,7 @@ def convert_Miller_direction_to_MillerBravias(uvw, suppress_redundant=True):
 
     """
     u, v, w = np.atleast_2d(uvw).T
-    retval = np.vstack([(2*u - v)/3, (2*v - u)/3, w]).T
+    retval = np.vstack([(2 * u - v) / 3, (2 * v - u) / 3, w]).T
     rem = np.vstack([np.mod(np.tile(i[0], 2), i[1:]) for i in retval])
     rem[abs(rem) < epsf] = np.nan
     lcm = np.nanmin(rem, axis=1)
@@ -630,7 +652,7 @@ def convert_MillerBravias_direction_to_Miller(UVW):
 
     """
     U, V, W = np.atleast_2d(UVW).T
-    return np.vstack([2*U + V, 2*V + U, W])
+    return np.vstack([2 * U + V, 2 * V + U, W])
 
 
 class PlaneData(object):
@@ -648,10 +670,7 @@ class PlaneData(object):
     tThWidth
     """
 
-    def __init__(self,
-                 hkls,
-                 *args,
-                 **kwargs):
+    def __init__(self, hkls, *args, **kwargs):
 
         self.phaseID = None
         self.__doTThSort = True
@@ -665,8 +684,9 @@ class PlaneData(object):
             self.__lparms = self.__parseLParms(lparms)
         elif len(args) == 1 and hasattr(args[0], 'getParams'):
             other = args[0]
-            lparms, laueGroup, wavelength, strainMag, tThWidth = \
+            lparms, laueGroup, wavelength, strainMag, tThWidth = (
                 other.getParams()
+            )
             self.__wavelength = wavelength
             self.__lparms = lparms
             self.phaseID = other.phaseID
@@ -676,7 +696,7 @@ class PlaneData(object):
             if hkls is None:
                 hkls = other.__hkls
         else:
-            raise NotImplementedError('args : '+str(args))
+            raise NotImplementedError('args : ' + str(args))
 
         self.__laueGroup = laueGroup
         self.__qsym = quatOfLaueGroup(self.__laueGroup)
@@ -697,8 +717,10 @@ class PlaneData(object):
         if 'tThWidth' in kwargs:
             self.tThWidth = kwargs.pop('tThWidth')
         if len(kwargs) > 0:
-            raise RuntimeError('have unparsed keyword arguments with keys: '
-                               + str(list(kwargs.keys())))
+            raise RuntimeError(
+                'have unparsed keyword arguments with keys: '
+                + str(list(kwargs.keys()))
+            )
 
         # This is only used to calculate the structure factor if invalidated
         self.__unitcell = None
@@ -710,8 +732,13 @@ class PlaneData(object):
     def __calc(self):
         symmGroup = ltypeOfLaueGroup(self.__laueGroup)
         latPlaneData, latVecOps, hklDataList = PlaneData.makePlaneData(
-            self.__hkls, self.__lparms, self.__qsym,
-            symmGroup, self.__strainMag, self.wavelength)
+            self.__hkls,
+            self.__lparms,
+            self.__qsym,
+            symmGroup,
+            self.__strainMag,
+            self.wavelength,
+        )
         'sort by tTheta'
         tThs = np.array(
             [hklDataList[iHKL]['tTheta'] for iHKL in range(len(hklDataList))]
@@ -749,8 +776,13 @@ class PlaneData(object):
         return self.phaseID
 
     def getParams(self):
-        return (self.__lparms, self.__laueGroup, self.__wavelength,
-                self.__strainMag, self.tThWidth)
+        return (
+            self.__lparms,
+            self.__laueGroup,
+            self.__wavelength,
+            self.__strainMag,
+            self.tThWidth,
+        )
 
     def getNhklRef(self):
         'does not use exclusions or the like'
@@ -770,6 +802,7 @@ class PlaneData(object):
         # self.__hkls = hkls
         # self.__calc()
         return
+
     hkls = property(get_hkls, set_hkls, None)
 
     def get_tThMax(self):
@@ -779,6 +812,7 @@ class PlaneData(object):
         self.__tThMax = toFloat(tThMax, 'radians')
         # self.__calc() # no need to redo calc for tThMax
         return
+
     tThMax = property(get_tThMax, set_tThMax, None)
 
     def get_exclusions(self):
@@ -797,8 +831,9 @@ class PlaneData(object):
         if exclusions is not None:
             exclusions = np.atleast_1d(exclusions)
             if len(exclusions) == len(self.hklDataList):
-                assert exclusions.dtype == 'bool', \
-                    'exclusions should be bool if full length'
+                assert (
+                    exclusions.dtype == 'bool'
+                ), 'exclusions should be bool if full length'
                 # convert from current hkl ordering to __hkl ordering
                 excl[:] = exclusions[self.tThSort]
             else:
@@ -817,11 +852,19 @@ class PlaneData(object):
         self.__exclusions = excl
         self.nHKLs = np.sum(np.logical_not(self.__exclusions))
         return
+
     exclusions = property(get_exclusions, set_exclusions, None)
 
     def exclude(
-            self, dmin=None, dmax=None, tthmin=None, tthmax=None,
-            sfacmin=None, sfacmax=None, pintmin=None, pintmax=None
+        self,
+        dmin=None,
+        dmax=None,
+        tthmin=None,
+        tthmax=None,
+        sfacmin=None,
+        sfacmax=None,
+        pintmin=None,
+        pintmax=None,
     ):
         """Set exclusions according to various parameters
 
@@ -856,32 +899,32 @@ class PlaneData(object):
 
         if (dmin is not None) or (dmax is not None):
             d = np.array(self.getPlaneSpacings())
-            if (dmin is not None):
+            if dmin is not None:
                 excl[d < dmin] = True
-            if (dmax is not None):
+            if dmax is not None:
                 excl[d > dmax] = True
 
         if (tthmin is not None) or (tthmax is not None):
             tth = self.getTTh()
-            if (tthmin is not None):
+            if tthmin is not None:
                 excl[tth < tthmin] = True
-            if (tthmax is not None):
+            if tthmax is not None:
                 excl[tth > tthmax] = True
 
         if (sfacmin is not None) or (sfacmax is not None):
             sfac = self.structFact
-            sfac = sfac/sfac.max()
-            if (sfacmin is not None):
+            sfac = sfac / sfac.max()
+            if sfacmin is not None:
                 excl[sfac < sfacmin] = True
-            if (sfacmax is not None):
+            if sfacmax is not None:
                 excl[sfac > sfacmax] = True
 
         if (pintmin is not None) or (pintmax is not None):
             pint = self.powder_intensity
-            pint = pint/pint.max()
-            if (pintmin is not None):
+            pint = pint / pint.max()
+            if pintmin is not None:
                 excl[pint < pintmin] = True
-            if (pintmax is not None):
+            if pintmax is not None:
                 excl[pint > pintmax] = True
 
         self.exclusions = excl
@@ -901,8 +944,7 @@ class PlaneData(object):
                     lparmsDUnit.append(lparmThis.getVal('degrees'))
                 else:
                     raise RuntimeError(
-                        'do not know what to do with '
-                        + str(lparmThis)
+                        'do not know what to do with ' + str(lparmThis)
                     )
             else:
                 lparmsDUnit.append(lparmThis)
@@ -912,6 +954,7 @@ class PlaneData(object):
         self.__lparms = self.__parseLParms(lparms)
         self.__calc()
         return
+
     lparms = property(get_lparms, set_lparms, None)
 
     def get_strainMag(self):
@@ -922,6 +965,7 @@ class PlaneData(object):
         self.tThWidth = None
         self.__calc()
         return
+
     strainMag = property(get_strainMag, set_strainMag, None)
 
     def get_wavelength(self):
@@ -949,9 +993,9 @@ class PlaneData(object):
 
     def _compute_sf_if_needed(self):
         any_invalid = (
-            self.__structFact is None or
-            self._hedm_intensity is None or
-            self._powder_intensity is None
+            self.__structFact is None
+            or self._hedm_intensity is None
+            or self._powder_intensity is None
         )
         if any_invalid and self.__unitcell is not None:
             # Compute the structure factor first.
@@ -1004,10 +1048,13 @@ class PlaneData(object):
         """
 
         tempSetOutputDegrees(False)
-        latPlaneData = latticePlanes(hkls, lparms,
-                                     ltype=symmGroup,
-                                     strainMag=strainMag,
-                                     wavelength=wavelength)
+        latPlaneData = latticePlanes(
+            hkls,
+            lparms,
+            ltype=symmGroup,
+            strainMag=strainMag,
+            wavelength=wavelength,
+        )
 
         latVecOps = latticeVectors(lparms, symmGroup)
 
@@ -1027,37 +1074,38 @@ class PlaneData(object):
                 np.dot(latVecOps['B'], hkls[:, iHKL].reshape(3, 1)),
                 qsym,
                 csFlag=True,
-                cullPM=False)
+                cullPM=False,
+            )
 
             # check for +/- in symmetry group
             latPlnNrmlsM = applySym(
                 np.dot(latVecOps['B'], hkls[:, iHKL].reshape(3, 1)),
                 qsym,
                 csFlag=False,
-                cullPM=False)
+                cullPM=False,
+            )
 
             csRefl = latPlnNrmls.shape[1] == latPlnNrmlsM.shape[1]
 
             # added this so that I retain the actual symmetric
             # integer hkls as well
             symHKLs = np.array(
-                np.round(
-                    np.dot(latVecOps['F'].T, latPlnNrmls)
-                ), dtype='int'
+                np.round(np.dot(latVecOps['F'].T, latPlnNrmls)), dtype='int'
             )
 
             hklDataList.append(
-                dict(hklID=iHKL,
-                     hkl=hkls[:, iHKL],
-                     tTheta=latPlaneData['tThetas'][iHKL],
-                     dSpacings=latPlaneData['dspacings'][iHKL],
-                     tThetaLo=latPlaneData['tThetasLo'][iHKL],
-                     tThetaHi=latPlaneData['tThetasHi'][iHKL],
-                     latPlnNrmls=unitVector(latPlnNrmls),
-                     symHKLs=symHKLs,
-                     centrosym=csRefl
-                     )
+                dict(
+                    hklID=iHKL,
+                    hkl=hkls[:, iHKL],
+                    tTheta=latPlaneData['tThetas'][iHKL],
+                    dSpacings=latPlaneData['dspacings'][iHKL],
+                    tThetaLo=latPlaneData['tThetasLo'][iHKL],
+                    tThetaHi=latPlaneData['tThetasHi'][iHKL],
+                    latPlnNrmls=unitVector(latPlnNrmls),
+                    symHKLs=symHKLs,
+                    centrosym=csRefl,
                 )
+            )
 
         revertOutputDegrees()
         return latPlaneData, latVecOps, hklDataList
@@ -1128,8 +1176,9 @@ class PlaneData(object):
                 retval = False
         if self.__tThMax is not None:
             # FIXME: check for nans here???
-            if hklData['tTheta'] > self.__tThMax \
-              or np.isnan(hklData['tTheta']):
+            if hklData['tTheta'] > self.__tThMax or np.isnan(
+                hklData['tTheta']
+            ):
                 retval = False
         return retval
 
@@ -1162,10 +1211,10 @@ class PlaneData(object):
                     hklData = self.hklDataList[iHKLr]
                     d = hklData['dSpacings']
                     tThLo = 2.0 * np.arcsin(
-                        self.__wavelength / 2. / (d*(1.+strainMag))
+                        self.__wavelength / 2.0 / (d * (1.0 + strainMag))
                     )
                     tThHi = 2.0 * np.arcsin(
-                        self.__wavelength / 2. / (d*(1.-strainMag))
+                        self.__wavelength / 2.0 / (d * (1.0 - strainMag))
                     )
                     tThRanges.append((tThLo, tThHi))
         else:
@@ -1191,11 +1240,11 @@ class PlaneData(object):
         mergedRanges = []
         hklsCur = []
         tThLoIdx = 0
-        tThHiCur = 0.
+        tThHiCur = 0.0
         for iHKL, nonoverlapNext in enumerate(nonoverlapNexts):
             tThHi = tThRanges[iHKL, -1]
             if not nonoverlapNext:
-                if cullDupl and abs(tThs[iHKL] - tThs[iHKL+1]) < sqrt_epsf:
+                if cullDupl and abs(tThs[iHKL] - tThs[iHKL + 1]) < sqrt_epsf:
                     continue
                 else:
                     hklsCur.append(iHKL)
@@ -1236,7 +1285,7 @@ class PlaneData(object):
         and finite difference
         """
         pert = 1.0e-5  # assume they are all around unity
-        pertInv = 1.0/pert
+        pertInv = 1.0 / pert
 
         lparmsRef = copy.deepcopy(self.__lparms)
         tThRef = self.getTTh()
@@ -1251,8 +1300,9 @@ class PlaneData(object):
             for iHKLr, hklData in enumerate(self.hklDataList):
                 if not self.__thisHKL(iHKLr):
                     continue
-                ddtTh[iTTh, iLparm] = \
-                    np.r_[hklData['tTheta'] - tThRef[iTTh]]*pertInv
+                ddtTh[iTTh, iLparm] = (
+                    np.r_[hklData['tTheta'] - tThRef[iTTh]] * pertInv
+                )
                 iTTh += 1
 
         'restore'
@@ -1333,7 +1383,7 @@ class PlaneData(object):
                     dHKLInv[tuple(thisHKL)] = idx
             try:
                 retval = dHKLInv[tuple(hkl)]
-            except(KeyError):
+            except KeyError:
                 raise RuntimeError(
                     f"hkl '{tuple(hkl)}' is not present in this material!"
                 )
@@ -1415,7 +1465,7 @@ class PlaneData(object):
                 # find ordinal index of current hklID
                 try:
                     idx[i] = int(np.where(all_hkl_ids == hkl_id)[0])
-                except(TypeError):
+                except TypeError:
                     raise RuntimeError(
                         f"Requested hklID '{hkl_id}'is invalid!"
                     )
@@ -1453,8 +1503,10 @@ class PlaneData(object):
                 elif withID:
                     retval.append(
                         np.vstack(
-                            [np.tile(hklData['hklID'], (1, hkls.shape[1])),
-                             hkls]
+                            [
+                                np.tile(hklData['hklID'], (1, hkls.shape[1])),
+                                hkls,
+                            ]
                         )
                     )
                 else:
@@ -1470,8 +1522,9 @@ class PlaneData(object):
             retval.append(hklData['centrosym'])
         return retval
 
-    def makeTheseScatteringVectors(self, hklList, rMat,
-                                   bMat=None, wavelength=None, chiTilt=None):
+    def makeTheseScatteringVectors(
+        self, hklList, rMat, bMat=None, wavelength=None, chiTilt=None
+    ):
         iHKLList = np.atleast_1d(self.getHKLID(hklList))
         fHKLs = np.hstack(self.getSymHKLs(indices=iHKLList))
         if bMat is None:
@@ -1483,8 +1536,9 @@ class PlaneData(object):
         )
         return retval
 
-    def makeAllScatteringVectors(self, rMat,
-                                 bMat=None, wavelength=None, chiTilt=None):
+    def makeAllScatteringVectors(
+        self, rMat, bMat=None, wavelength=None, chiTilt=None
+    ):
         fHKLs = np.hstack(self.getSymHKLs())
         if bMat is None:
             bMat = self._latVecOps['B']
@@ -1506,7 +1560,7 @@ class PlaneData(object):
         """
         # arg munging
         if chiTilt is None:
-            chi = 0.
+            chi = 0.0
         else:
             chi = float(chiTilt)
         rMat_c = rMat_c.squeeze()
@@ -1518,8 +1572,9 @@ class PlaneData(object):
         gVec_s = np.dot(rMat_c, np.dot(bMat, hkls))
 
         dim0, nRefl = gVec_s.shape
-        assert dim0 == 3, \
-            "Looks like something is wrong with your lattice plane normals"
+        assert (
+            dim0 == 3
+        ), "Looks like something is wrong with your lattice plane normals"
 
         # call model from transforms now
         oangs0, oangs1 = xfcapi.oscillAnglesOfHKLs(
@@ -1543,8 +1598,11 @@ class PlaneData(object):
             if not self.__thisHKL(iHKLr):
                 continue
             thisQs, thisAng0, thisAng1 = PlaneData.makeScatteringVectors(
-                hklData['symHKLs'], rMat, bMat,
-                self.__wavelength, chiTilt=chiTilt
+                hklData['symHKLs'],
+                rMat,
+                bMat,
+                self.__wavelength,
+                chiTilt=chiTilt,
             )
             Qs_vec.append(thisQs)
             Qs_ang0.append(thisAng0)
@@ -1591,8 +1649,12 @@ class PlaneData(object):
             # ???: probably have other functions for this
             # Calculate G for each hkl
             # Calculate magnitude of G for each hkl
-            G = hkls[0, jj]*B[:, 0] + hkls[1, jj]*B[:, 1] + hkls[2, jj]*B[:, 2]
-            magG = np.sqrt(G[0]**2 + G[1]**2 + G[2]**2)
+            G = (
+                hkls[0, jj] * B[:, 0]
+                + hkls[1, jj] * B[:, 1]
+                + hkls[2, jj] * B[:, 2]
+            )
+            magG = np.sqrt(G[0] ** 2 + G[1] ** 2 + G[2] ** 2)
 
             # Begin calculating form factor
             F = 0
@@ -1601,17 +1663,21 @@ class PlaneData(object):
                     elecNum[ii], magG, sinThOverLamdaList, ffDataList
                 )
                 exparg = complex(
-                    0.,
-                    2.*np.pi*(hkls[0, jj]*r[ii, 0]
-                              + hkls[1, jj]*r[ii, 1]
-                              + hkls[2, jj]*r[ii, 2])
+                    0.0,
+                    2.0
+                    * np.pi
+                    * (
+                        hkls[0, jj] * r[ii, 0]
+                        + hkls[1, jj] * r[ii, 1]
+                        + hkls[2, jj] * r[ii, 2]
+                    ),
                 )
-                F = F + ff*np.exp(exparg)
+                F = F + ff * np.exp(exparg)
 
             """
             F = sum_atoms(ff(Q)*e^(2*pi*i(hu+kv+lw)))
             """
-            FSquared[jj] = np.real(F*np.conj(F))
+            FSquared[jj] = np.real(F * np.conj(F))
 
         return FSquared
 
@@ -1692,8 +1758,8 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     dispFlag = False
     fableFlag = False
     chi = None
-    c1 = 1.
-    c2 = pi/180.
+    c1 = 1.0
+    c2 = pi / 180.0
 
     # cast to arrays (in case they aren't)
     if np.isscalar(eta0):
@@ -1719,25 +1785,24 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     else:
         if len(tth0) != npts:
             if len(tth0) == 1:
-                tth0 = tth0*np.ones(npts)
+                tth0 = tth0 * np.ones(npts)
             elif npts == 1:
                 npts = len(tth0)
-                eta0 = eta0*np.ones(npts)
+                eta0 = eta0 * np.ones(npts)
             else:
                 raise RuntimeError(
                     'the azimuthal and Bragg angle inputs are inconsistent'
                 )
 
     if len(ome0) == 0:
-        ome0 = np.zeros(npts)                  # dummy ome0
+        ome0 = np.zeros(npts)  # dummy ome0
     elif len(ome0) == 1 and npts > 1:
-        ome0 = ome0*np.ones(npts)
+        ome0 = ome0 * np.ones(npts)
     else:
         if len(ome0) != npts:
             raise RuntimeError(
                 'your oscialltion angle input is inconsistent; '
-                + 'it has length %d while it should be %d'
-                % (len(ome0), npts)
+                + 'it has length %d while it should be %d' % (len(ome0), npts)
             )
 
     # keyword args processing
@@ -1752,8 +1817,8 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
                     fableFlag = True
             elif argkeys[i] == 'units':
                 if kwargs[argkeys[i]] == 'radians':
-                    c1 = 180./pi
-                    c2 = 1.
+                    c1 = 180.0 / pi
+                    c2 = 1.0
             elif argkeys[i] == 'chiTilt':
                 if kwargs[argkeys[i]] is not None:
                     chi = kwargs[argkeys[i]]
@@ -1767,17 +1832,17 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
 
     # mapped eta input
     #   - in DEGREES, thanks to c1
-    eta0 = mapAngle(c1*eta0, [-180, 180], units='degrees')
+    eta0 = mapAngle(c1 * eta0, [-180, 180], units='degrees')
     if fableFlag:
         eta0 = 90 - eta0
 
     # must put args into RADIANS
     #   - eta0 is in DEGREES,
     #   - the others are in whatever was entered, hence c2
-    eta0 = d2r*eta0
-    tht0 = c2*tth0/2
+    eta0 = d2r * eta0
+    tht0 = c2 * tth0 / 2
     if chi is not None:
-        chi = c2*chi
+        chi = c2 * chi
     else:
         chi = 0
 
@@ -1809,23 +1874,20 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     ctht = np.cos(tht0)
     stht = np.sin(tht0)
 
-    nchi = np.c_[0., cchi, schi].T
+    nchi = np.c_[0.0, cchi, schi].T
 
-    gHat0_l = -np.vstack([ceta * ctht,
-                          seta * ctht,
-                          stht])
+    gHat0_l = -np.vstack([ceta * ctht, seta * ctht, stht])
 
-    a = cchi*ceta*ctht
-    b = -cchi*stht
-    c = stht + schi*seta*ctht
+    a = cchi * ceta * ctht
+    b = -cchi * stht
+    c = stht + schi * seta * ctht
 
     # form solution
-    abMag = np.sqrt(a*a + b*b)
-    assert np.all(abMag > 0), \
-        "Beam vector specification is infeasible!"
+    abMag = np.sqrt(a * a + b * b)
+    assert np.all(abMag > 0), "Beam vector specification is infeasible!"
     phaseAng = np.arctan2(b, a)
     rhs = c / abMag
-    rhs[abs(rhs) > 1.] = np.nan
+    rhs[abs(rhs) > 1.0] = np.nan
     rhsAng = np.arcsin(rhs)
 
     # write ome angle output arrays (NaNs persist here)
@@ -1849,9 +1911,7 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     tmp_eta = np.empty(numGood)
     tmp_gvec = gHat0_l[:, goodOnes]
     for i in range(numGood):
-        rchi = rotMatOfExpMap(
-            np.tile(ome_min[goodOnes][i], (3, 1)) * nchi
-        )
+        rchi = rotMatOfExpMap(np.tile(ome_min[goodOnes][i], (3, 1)) * nchi)
         gHat_l = np.dot(rchi, tmp_gvec[:, i].reshape(3, 1))
         tmp_eta[i] = np.arctan2(gHat_l[1], gHat_l[0])
         pass
@@ -1861,13 +1921,13 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     #     - ome1 is in RADIANS here
     #     - convert and put into [-180, 180]
     ome1 = mapAngle(
-        mapAngle(
-            r2d*ome_min, [-180, 180], units='degrees'
-        ) + c1*ome0, [-180, 180], units='degrees'
+        mapAngle(r2d * ome_min, [-180, 180], units='degrees') + c1 * ome0,
+        [-180, 180],
+        units='degrees',
     )
 
     # put eta1 in [-180, 180]
-    eta1 = mapAngle(r2d*eta_min, [-180, 180], units='degrees')
+    eta1 = mapAngle(r2d * eta_min, [-180, 180], units='degrees')
 
     if not outputDegrees:
         ome1 = d2r * ome1
@@ -1923,7 +1983,7 @@ def LoadFormFactorData():
 
 
 def RetrieveAtomicFormFactor(elecNum, magG, sinThOverLamdaList, ffDataList):
-    """ Interpolates between tabulated data to find the atomic form factor
+    """Interpolates between tabulated data to find the atomic form factor
     for an atom with elecNum electrons for a given magnitude of Q
 
     USAGE:
@@ -1951,7 +2011,7 @@ def RetrieveAtomicFormFactor(elecNum, magG, sinThOverLamdaList, ffDataList):
     Data should be calculated in terms of G at some point
 
     """
-    sinThOverLambda = 0.5*magG
+    sinThOverLambda = 0.5 * magG
     # lambda=2*d*sin(th)
     # lambda=2*sin(th)/G
     # 1/2*G=sin(th)/lambda
@@ -1972,18 +2032,17 @@ def lorentz_factor(tth):
     parameters: tth two theta of every pixel in radians
     """
 
-    theta = 0.5*tth
+    theta = 0.5 * tth
 
     cth = np.cos(theta)
-    sth2 = np.sin(theta)**2
+    sth2 = np.sin(theta) ** 2
 
-    L = 1./(4.0*cth*sth2)
-
-    return L
+    return 1.0 / (4.0 * cth * sth2)
 
 
-def polarization_factor(tth, unpolarized=True, eta=None,
-                        f_hor=None, f_vert=None):
+def polarization_factor(
+    tth, unpolarized=True, eta=None, f_hor=None, f_vert=None
+):
     """
     06/14/2021 SS adding lorentz polarization factor computation
     to the detector so that it can be compenstated for in the
@@ -2001,11 +2060,11 @@ def polarization_factor(tth, unpolarized=True, eta=None,
     notice f_hor + f_vert = 1
     """
 
-    ctth2 = np.cos(tth)**2
+    ctth2 = np.cos(tth) ** 2
 
     if unpolarized:
         return (1 + ctth2) / 2
 
-    seta2 = np.sin(eta)**2
-    ceta2 = np.cos(eta)**2
-    return f_hor*(seta2 + ceta2*ctth2) + f_vert*(ceta2 + seta2*ctth2)
+    seta2 = np.sin(eta) ** 2
+    ceta2 = np.cos(eta) ** 2
+    return f_hor * (seta2 + ceta2 * ctth2) + f_vert * (ceta2 + seta2 * ctth2)
