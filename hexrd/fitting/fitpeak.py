@@ -52,30 +52,12 @@ minf = -inf
 alpha0, alpha1, beta0, beta1 = np.r_[14.4, 0., 3.016, -7.94]
 
 
-def cnst_fit_obj(x, b):
-    return np.ones_like(x)*b
-
-
-def cnst_fit_jac(x, _b):
-    return np.vstack([np.ones_like(x)]).T
-
-
 def lin_fit_obj(x, m, b):
     return m*np.asarray(x) + b
 
 
 def lin_fit_jac(x, _m, _b):
     return np.vstack([x, np.ones_like(x)]).T
-
-
-def quad_fit_obj(x, a, b, c):
-    x = np.asarray(x)
-    return a*x**2 + b*x + c
-
-
-def quad_fit_jac(x, _a, _b, _c):
-    x = np.asarray(x)
-    return np.vstack([x**2, x, np.ones_like(x)]).T
 
 
 def _amplitude_guess(x, x0, y, fwhm):
