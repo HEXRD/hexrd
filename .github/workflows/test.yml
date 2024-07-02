@@ -93,4 +93,5 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: coverage.xml
         working-directory: hexrd
+      if: ${{ matrix.config.os == 'ubuntu-latest'}}
       
