@@ -209,7 +209,6 @@ class LaueCalibrator(Calibrator):
             valid_hkls = hkls[gid][:, valid_refl]
             valid_angs = angles[gid][valid_refl, :]
             valid_energy = energy[gid][valid_refl]
-            # pass
 
             # make patches
             refl_patches = xrdutil.make_reflection_patches(
@@ -291,7 +290,6 @@ class LaueCalibrator(Calibrator):
                         #
                     else:
                         closest_peak_idx = 0
-                        pass   # end multipeak conditional
                     #
                     coms = coms[closest_peak_idx]
                     #
@@ -338,7 +336,6 @@ class LaueCalibrator(Calibrator):
                             gaussian_2d_int,
                             [[0., 2.*y0], [0., 2.*x0]],
                             args=fit_par)
-                        pass
                     com_angs = np.hstack([
                         tth_edges[0] + (0.5 + coms[1])*delta_tth,
                         eta_edges[0] + (0.5 + coms[0])*delta_eta
@@ -382,14 +379,13 @@ class LaueCalibrator(Calibrator):
                     #
                     spot_intensity = np.nan
                     max_intensity = np.nan
-                    pass
                 reflInfoList.append([peakId, valid_hkls[:, iRefl],
                                      (spot_intensity, max_intensity),
                                      valid_energy[iRefl],
                                      valid_angs[iRefl, :],
                                      meas_angs[iRefl, :],
                                      meas_xy[iRefl, :]])
-                pass
+
             reflInfo = np.array(
                 [tuple(i) for i in reflInfoList],
                 dtype=reflInfo_dtype)

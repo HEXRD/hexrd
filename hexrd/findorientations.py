@@ -105,12 +105,6 @@ def generate_orientation_fibers(cfg, eta_ome):
     del_ome = eta_ome.omegas[1] - eta_ome.omegas[0]
     del_eta = eta_ome.etas[1] - eta_ome.etas[0]
 
-    params = dict(
-        bMat=bMat,
-        chi=chi,
-        csym=csym,
-        fiber_ndiv=fiber_ndiv)
-
     # =========================================================================
     # Labeling of spots from seed hkls
     # =========================================================================
@@ -131,9 +125,12 @@ def generate_orientation_fibers(cfg, eta_ome):
                 ome_c = eta_ome.omeEdges[0] + (0.5 + coms[i][ispot][0])*del_ome
                 eta_c = eta_ome.etaEdges[0] + (0.5 + coms[i][ispot][1])*del_eta
                 input_p.append(np.hstack([this_hkl, this_tth, eta_c, ome_c]))
-                pass
-            pass
-        pass
+
+    params = dict(
+        bMat=bMat,
+        chi=chi,
+        csym=csym,
+        fiber_ndiv=fiber_ndiv)
 
     # do the mapping
     start = timeit.default_timer()
@@ -352,8 +349,6 @@ def run_cluster(compl, qfib, qsym, cfg,
             qbar[:, i] = rot.quatAverageCluster(
                 qfib_r[:, cl == i + 1], qsym
             ).flatten()
-            pass
-        pass
 
     if algorithm in ('dbscan', 'ort-dbscan') and qbar.size/4 > 1:
         logger.info("\tchecking for duplicate orientations...")
@@ -374,10 +369,7 @@ def run_cluster(compl, qfib, qsym, cfg,
                 tmp[:, i] = rot.quatAverageCluster(
                     qbar[:, cl == i + 1].reshape(4, npts), qsym
                 ).flatten()
-                pass
             qbar = tmp
-            pass
-        pass
 
     logger.info("clustering took %f seconds", timeit.default_timer() - start)
     logger.info(

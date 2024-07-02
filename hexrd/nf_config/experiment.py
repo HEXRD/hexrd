@@ -31,35 +31,42 @@ class ExperimentConfig(Config):
 
     @property
     def comp_thresh(self):
-        key = 'experiment:comp_thresh'
-        temp = self._cfg.get(key, None)
-        if temp is None:
-            return temp
-        elif np.logical_and(temp <= 1.0, temp > 0.0):
-            return temp
-        else:
-            raise RuntimeError('comp_thresh must be None or a number between 0 and 1')
-            
+        temp = self._cfg.get('experiment:comp_thresh')
+        if temp is not None and np.any(
+            np.logical_or(temp > 1.0, temp <= 0.0)
+        ):
+            raise RuntimeError(
+                'comp_thresh must be None or a number between 0 and 1'
+            )
+
+        return temp
+
     @property
     def chi2_thresh(self):
-        key = 'experiment:chi2_thresh'
-        temp = self._cfg.get(key, None)
-        if temp is None:
-            return temp
-        elif np.logical_and(temp <= 1.0, temp > 0.0):
-            return temp
-        else:
-            raise RuntimeError('chi2_thresh must be None or a number between 0 and 1')
+        temp = self._cfg.get('experiment:chi2_thresh')
+        if temp is not None and np.any(
+            np.logical_or(temp > 1.0, temp <= 0.0)
+        ):
+            raise RuntimeError(
+                'chi2_thresh must be None or a number between 0 and 1'
+            )
+
+        return temp
 
 
     @property
     def misorientation(self):
         key = self._cfg.get('experiment:misorientation:use_misorientation')
-        if key is True:
-            parms = dict(misorientation_bnd='experiment:bnd',
-            misorientation_spacing='experiment:spacing')
-            return parms
-        else:
-            parms = dict(misorientation_bnd=None,
-            misorientation_spacing=None) #won't look at spacing if bnd is 0
-            return parms
+        if key not in [True, False, None]:
+            raise ValueError(
+                'use_misorientation must be of type bool'
+            )
+        if key:
+            return {
+                'misorientation_bnd': 'experiment:bnd',
+                'misorientation_spacing': 'experiment:spacing',
+            }
+        return {
+            'misorientation_bnd': None,
+            'misorientation_spacing': None,
+        }

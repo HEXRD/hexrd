@@ -8,10 +8,9 @@ ExclusionParameters = namedtuple(
                             "sfacmin", "sfacmax", "pintmin", "pintmax"]
 )
 
-
+# Converting to none threw errors, maybe change later
 class Null():
     pass
-
 
 null = Null()
 
