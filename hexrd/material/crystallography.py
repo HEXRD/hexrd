@@ -63,13 +63,11 @@ def tempSetOutputDegrees(val):
     global outputDegrees, outputDegrees_bak
     outputDegrees_bak = outputDegrees
     outputDegrees = val
-    return
 
 
 def revertOutputDegrees():
     global outputDegrees, outputDegrees_bak
     outputDegrees = outputDegrees_bak
-    return
 
 
 def cosineXform(a, b, c):
@@ -658,10 +656,10 @@ def convert_MillerBravias_direction_to_Miller(UVW):
 class PlaneData(object):
     """
     Careful with ordering: Outputs are ordered by the 2-theta for the
-    hkl unless you get self.__hkls directly, and this order can change
+    hkl unless you get self._hkls directly, and this order can change
     with changes in lattice parameters (lparms); setting and getting
     exclusions works on the current hkl ordering, not the original
-    ordering (in self.__hkls), but exclusions are stored in the
+    ordering (in self._hkls), but exclusions are stored in the
     original ordering in case the hkl ordering does change with
     lattice parameters
 
@@ -671,49 +669,48 @@ class PlaneData(object):
     """
 
     def __init__(self, hkls, *args, **kwargs):
-
         self.phaseID = None
-        self.__doTThSort = True
-        self.__exclusions = None
-        self.__tThMax = None
-        #
+        self._doTThSort = True
+        self._exclusions = None
+        self._tThMax = None
+
         if len(args) == 4:
             lparms, laueGroup, wavelength, strainMag = args
             tThWidth = None
-            self.__wavelength = processWavelength(wavelength)
-            self.__lparms = self.__parseLParms(lparms)
+            self._wavelength = processWavelength(wavelength)
+            self._lparms = self._parseLParms(lparms)
         elif len(args) == 1 and hasattr(args[0], 'getParams'):
             other = args[0]
             lparms, laueGroup, wavelength, strainMag, tThWidth = (
                 other.getParams()
             )
-            self.__wavelength = wavelength
-            self.__lparms = lparms
+            self._wavelength = wavelength
+            self._lparms = lparms
             self.phaseID = other.phaseID
-            self.__doTThSort = other.__doTThSort
-            self.__exclusions = other.__exclusions
-            self.__tThMax = other.__tThMax
+            self._doTThSort = other.__doTThSort
+            self._exclusions = other.__exclusions
+            self._tThMax = other.__tThMax
             if hkls is None:
                 hkls = other.__hkls
         else:
             raise NotImplementedError('args : ' + str(args))
 
-        self.__laueGroup = laueGroup
-        self.__qsym = quatOfLaueGroup(self.__laueGroup)
-        self.__hkls = copy.deepcopy(hkls)
-        self.__strainMag = strainMag
-        self.__structFact = np.ones(self.__hkls.shape[1])
+        self._laueGroup = laueGroup
+        self._qsym = quatOfLaueGroup(self._laueGroup)
+        self._hkls = copy.deepcopy(hkls)
+        self._strainMag = strainMag
+        self._structFact = np.ones(self._hkls.shape[1])
         self.tThWidth = tThWidth
 
         # ... need to implement tThMin too
         if 'phaseID' in kwargs:
             self.phaseID = kwargs.pop('phaseID')
         if 'doTThSort' in kwargs:
-            self.__doTThSort = kwargs.pop('doTThSort')
+            self._doTThSort = kwargs.pop('doTThSort')
         if 'exclusions' in kwargs:
-            self.__exclusions = kwargs.pop('exclusions')
+            self._exclusions = kwargs.pop('exclusions')
         if 'tThMax' in kwargs:
-            self.__tThMax = toFloat(kwargs.pop('tThMax'), 'radians')
+            self._tThMax = toFloat(kwargs.pop('tThMax'), 'radians')
         if 'tThWidth' in kwargs:
             self.tThWidth = kwargs.pop('tThWidth')
         if len(kwargs) > 0:
@@ -723,27 +720,25 @@ class PlaneData(object):
             )
 
         # This is only used to calculate the structure factor if invalidated
-        self.__unitcell = None
+        self._unitcell = None
 
-        self.__calc()
+        self._calc()
 
-        return
-
-    def __calc(self):
-        symmGroup = ltypeOfLaueGroup(self.__laueGroup)
-        latPlaneData, latVecOps, hklDataList = PlaneData.makePlaneData(
-            self.__hkls,
-            self.__lparms,
-            self.__qsym,
+    def _calc(self):
+        symmGroup = ltypeOfLaueGroup(self._laueGroup)
+        _, latVecOps, hklDataList = PlaneData.makePlaneData(
+            self._hkls,
+            self._lparms,
+            self._qsym,
             symmGroup,
-            self.__strainMag,
+            self._strainMag,
             self.wavelength,
         )
         'sort by tTheta'
         tThs = np.array(
             [hklDataList[iHKL]['tTheta'] for iHKL in range(len(hklDataList))]
         )
-        if self.__doTThSort:
+        if self._doTThSort:
             # sorted hkl -> __hkl
             # __hkl -> sorted hkl
             self.tThSort = np.argsort(tThs)
@@ -756,7 +751,6 @@ class PlaneData(object):
             self.hklDataList = hklDataList
         self._latVecOps = latVecOps
         self.nHKLs = len(self.getHKLs())
-        return
 
     def __str__(self):
         s = '========== plane data ==========\n'
@@ -777,52 +771,49 @@ class PlaneData(object):
 
     def getParams(self):
         return (
-            self.__lparms,
-            self.__laueGroup,
-            self.__wavelength,
-            self.__strainMag,
+            self._lparms,
+            self._laueGroup,
+            self._wavelength,
+            self._strainMag,
             self.tThWidth,
         )
 
     def getNhklRef(self):
         'does not use exclusions or the like'
-        retval = len(self.hklDataList)
-        return retval
+        return len(self.hklDataList)
 
     def get_hkls(self):
         """
-        do not do return self.__hkls, as everywhere else hkls are returned
+        do not do return self._hkls, as everywhere else hkls are returned
         in 2-theta order; transpose is to comply with lparm convention
         """
         return self.getHKLs().T
 
     def set_hkls(self, hkls):
         raise RuntimeError('for now, not allowing hkls to be reset')
-        # self.__exclusions = None
-        # self.__hkls = hkls
-        # self.__calc()
+        # self._exclusions = None
+        # self._hkls = hkls
+        # self._calc()
         return
 
     hkls = property(get_hkls, set_hkls, None)
 
     def get_tThMax(self):
-        return self.__tThMax
+        return self._tThMax
 
     def set_tThMax(self, tThMax):
-        self.__tThMax = toFloat(tThMax, 'radians')
-        # self.__calc() # no need to redo calc for tThMax
-        return
+        self._tThMax = toFloat(tThMax, 'radians')
 
     tThMax = property(get_tThMax, set_tThMax, None)
 
     def get_exclusions(self):
         retval = np.zeros(self.getNhklRef(), dtype=bool)
-        if self.__exclusions is not None:
+        if self._exclusions is not None:
             # report in current hkl ordering
-            retval[:] = self.__exclusions[self.tThSortInv]
-        if self.__tThMax is not None:
+            retval[:] = self._exclusions[self.tThSortInv]
+        if self._tThMax is not None:
             for iHKLr, hklData in enumerate(self.hklDataList):
-                if hklData['tTheta'] > self.__tThMax:
+                if hklData['tTheta'] > self._tThMax:
                     retval[iHKLr] = True
         return retval
 
@@ -849,9 +840,8 @@ class PlaneData(object):
                         'do not now what to do with exclusions with shape '
                         + str(exclusions.shape)
                     )
-        self.__exclusions = excl
-        self.nHKLs = np.sum(np.logical_not(self.__exclusions))
-        return
+        self._exclusions = excl
+        self.nHKLs = np.sum(np.logical_not(self._exclusions))
 
     exclusions = property(get_exclusions, set_exclusions, None)
 
@@ -930,9 +920,9 @@ class PlaneData(object):
         self.exclusions = excl
 
     def get_lparms(self):
-        return self.__lparms
+        return self._lparms
 
-    def __parseLParms(self, lparms):
+    def _parseLParms(self, lparms):
         lparmsDUnit = []
         for lparmThis in lparms:
             if hasattr(lparmThis, 'getVal'):
@@ -951,34 +941,32 @@ class PlaneData(object):
         return lparmsDUnit
 
     def set_lparms(self, lparms):
-        self.__lparms = self.__parseLParms(lparms)
-        self.__calc()
-        return
+        self._lparms = self._parseLParms(lparms)
+        self._calc()
 
     lparms = property(get_lparms, set_lparms, None)
 
     def get_strainMag(self):
-        return self.__strainMag
+        return self._strainMag
 
     def set_strainMag(self, strainMag):
-        self.__strainMag = strainMag
+        self._strainMag = strainMag
         self.tThWidth = None
-        self.__calc()
-        return
+        self._calc()
 
     strainMag = property(get_strainMag, set_strainMag, None)
 
     def get_wavelength(self):
-        return self.__wavelength
+        return self._wavelength
 
     def set_wavelength(self, wavelength):
         wavelength = processWavelength(wavelength)
-        if np.isclose(self.__wavelength, wavelength):
+        if np.isclose(self._wavelength, wavelength):
             # Do not re-compute if it is almost the same
             return
 
-        self.__wavelength = wavelength
-        self.__calc()
+        self._wavelength = wavelength
+        self._calc()
 
     wavelength = property(get_wavelength, set_wavelength, None)
 
@@ -986,29 +974,29 @@ class PlaneData(object):
         # It can be expensive to compute the structure factor, so provide the
         # option to just invalidate it, while providing a unit cell, so that
         # it can be lazily computed from the unit cell.
-        self.__structFact = None
+        self._structFact = None
         self._hedm_intensity = None
         self._powder_intensity = None
-        self.__unitcell = unitcell
+        self._unitcell = unitcell
 
     def _compute_sf_if_needed(self):
         any_invalid = (
-            self.__structFact is None
+            self._structFact is None
             or self._hedm_intensity is None
             or self._powder_intensity is None
         )
-        if any_invalid and self.__unitcell is not None:
+        if any_invalid and self._unitcell is not None:
             # Compute the structure factor first.
             # This can be expensive to do, so we lazily compute it when needed.
             hkls = self.getHKLs(allHKLs=True)
-            self.set_structFact(self.__unitcell.CalcXRSF(hkls))
+            self.set_structFact(self._unitcell.CalcXRSF(hkls))
 
     def get_structFact(self):
         self._compute_sf_if_needed()
-        return self.__structFact[~self.exclusions]
+        return self._structFact[~self.exclusions]
 
     def set_structFact(self, structFact):
-        self.__structFact = structFact
+        self._structFact = structFact
         multiplicity = self.getMultiplicity(allHKLs=True)
         tth = self.getTTh(allHKLs=True)
 
@@ -1112,15 +1100,15 @@ class PlaneData(object):
 
     def getLatticeType(self):
         """This is the lattice type"""
-        return ltypeOfLaueGroup(self.__laueGroup)
+        return ltypeOfLaueGroup(self._laueGroup)
 
     def getLaueGroup(self):
         """This is the Schoenflies tag"""
-        return self.__laueGroup
+        return self._laueGroup
 
     def setLaueGroup(self, laueGroup):
-        self.__laueGroup = laueGroup
-        self.__calc()
+        self._laueGroup = laueGroup
+        self._calc()
 
     laueGroup = property(getLaueGroup, setLaueGroup, None)
 
@@ -1128,16 +1116,16 @@ class PlaneData(object):
         """Set the Laue group and lattice parameters simultaneously
 
         When the Laue group changes, the lattice parameters may be
-        incompatible, and cause an error in self.__calc(). This function
+        incompatible, and cause an error in self._calc(). This function
         allows us to update both the Laue group and lattice parameters
         simultaneously to avoid this issue.
         """
-        self.__laueGroup = laueGroup
-        self.__lparms = self.__parseLParms(lparms)
-        self.__calc()
+        self._laueGroup = laueGroup
+        self._lparms = self._parseLParms(lparms)
+        self._calc()
 
     def getQSym(self):
-        return self.__qsym  # rotations.quatOfLaueGroup(self.__laueGroup)
+        return self._qsym  # rotations.quatOfLaueGroup(self._laueGroup)
 
     def getPlaneSpacings(self):
         """
@@ -1145,7 +1133,7 @@ class PlaneData(object):
         """
         dspacings = []
         for iHKLr, hklData in enumerate(self.hklDataList):
-            if not self.__thisHKL(iHKLr):
+            if not self._thisHKL(iHKLr):
                 continue
             dspacings.append(hklData['dSpacings'])
         return dspacings
@@ -1156,7 +1144,7 @@ class PlaneData(object):
         """
         plnNrmls = []
         for iHKLr, hklData in enumerate(self.hklDataList):
-            if not self.__thisHKL(iHKLr):
+            if not self._thisHKL(iHKLr):
                 continue
             plnNrmls.append(hklData['latPlnNrmls'])
         return plnNrmls
@@ -1168,21 +1156,21 @@ class PlaneData(object):
         """
         return copy.deepcopy(self._latVecOps)
 
-    def __thisHKL(self, iHKLr):
+    def _thisHKL(self, iHKLr):
         retval = True
         hklData = self.hklDataList[iHKLr]
-        if self.__exclusions is not None:
-            if self.__exclusions[self.tThSortInv[iHKLr]]:
+        if self._exclusions is not None:
+            if self._exclusions[self.tThSortInv[iHKLr]]:
                 retval = False
-        if self.__tThMax is not None:
+        if self._tThMax is not None:
             # FIXME: check for nans here???
-            if hklData['tTheta'] > self.__tThMax or np.isnan(
+            if hklData['tTheta'] > self._tThMax or np.isnan(
                 hklData['tTheta']
             ):
                 retval = False
         return retval
 
-    def __getTThRange(self, iHKLr):
+    def _getTThRange(self, iHKLr):
         hklData = self.hklDataList[iHKLr]
         if self.tThWidth is not None:  # tThHi-tThLo < self.tThWidth
             tTh = hklData['tTheta']
@@ -1202,23 +1190,23 @@ class PlaneData(object):
         if lparms is None:
             tThRanges = []
             for iHKLr, hklData in enumerate(self.hklDataList):
-                if not self.__thisHKL(iHKLr):
+                if not self._thisHKL(iHKLr):
                     continue
                 # tThRanges.append([hklData['tThetaLo'], hklData['tThetaHi']])
                 if strainMag is None:
-                    tThRanges.append(self.__getTThRange(iHKLr))
+                    tThRanges.append(self._getTThRange(iHKLr))
                 else:
                     hklData = self.hklDataList[iHKLr]
                     d = hklData['dSpacings']
                     tThLo = 2.0 * np.arcsin(
-                        self.__wavelength / 2.0 / (d * (1.0 + strainMag))
+                        self._wavelength / 2.0 / (d * (1.0 + strainMag))
                     )
                     tThHi = 2.0 * np.arcsin(
-                        self.__wavelength / 2.0 / (d * (1.0 - strainMag))
+                        self._wavelength / 2.0 / (d * (1.0 - strainMag))
                     )
                     tThRanges.append((tThLo, tThHi))
         else:
-            new = self.__class__(self.__hkls, self)
+            new = self.__class__(self._hkls, self)
             new.lparms = lparms
             tThRanges = new.getTThRanges(strainMag=strainMag)
         return np.array(tThRanges)
@@ -1267,7 +1255,7 @@ class PlaneData(object):
             tTh = []
             for iHKLr, hklData in enumerate(self.hklDataList):
                 if not allHKLs:
-                    if not self.__thisHKL(iHKLr):
+                    if not self._thisHKL(iHKLr):
                         continue
                     tTh.append(hklData['tTheta'])
                 else:
@@ -1287,18 +1275,18 @@ class PlaneData(object):
         pert = 1.0e-5  # assume they are all around unity
         pertInv = 1.0 / pert
 
-        lparmsRef = copy.deepcopy(self.__lparms)
+        lparmsRef = copy.deepcopy(self._lparms)
         tThRef = self.getTTh()
         ddtTh = np.empty((len(tThRef), len(lparmsRef)))
 
         for iLparm in range(len(lparmsRef)):
-            self.__lparms = copy.deepcopy(lparmsRef)
-            self.__lparms[iLparm] += pert
-            self.__calc()
+            self._lparms = copy.deepcopy(lparmsRef)
+            self._lparms[iLparm] += pert
+            self._calc()
 
             iTTh = 0
             for iHKLr, hklData in enumerate(self.hklDataList):
-                if not self.__thisHKL(iHKLr):
+                if not self._thisHKL(iHKLr):
                     continue
                 ddtTh[iTTh, iLparm] = (
                     np.r_[hklData['tTheta'] - tThRef[iTTh]] * pertInv
@@ -1306,8 +1294,8 @@ class PlaneData(object):
                 iTTh += 1
 
         'restore'
-        self.__lparms = lparmsRef
-        self.__calc()
+        self._lparms = lparmsRef
+        self._calc()
 
         return ddtTh
 
@@ -1316,7 +1304,7 @@ class PlaneData(object):
         multip = []
         for iHKLr, hklData in enumerate(self.hklDataList):
             if not allHKLs:
-                if not self.__thisHKL(iHKLr):
+                if not self._thisHKL(iHKLr):
                     continue
                 multip.append(hklData['symHKLs'].shape[1])
             else:
@@ -1357,16 +1345,13 @@ class PlaneData(object):
         if hasattr(hkl, '__setitem__'):  # tuple does not have __setitem__
             if hasattr(hkl, 'shape'):
                 # if is ndarray, assume is 3xN
-                # retval = list(map(self.__getHKLID, hkl.T))
-                retval = [self.__getHKLID(x, master=master) for x in hkl.T]
+                return [self._getHKLID(x, master=master) for x in hkl.T]
             else:
-                # retval = list(map(self.__getHKLID, hkl))
-                retval = [self.__getHKLID(x, master=master) for x in hkl]
+                return [self._getHKLID(x, master=master) for x in hkl]
         else:
-            retval = self.__getHKLID(hkl, master=master)
-        return retval
+            return self._getHKLID(hkl, master=master)
 
-    def __getHKLID(self, hkl, master=False):
+    def _getHKLID(self, hkl, master=False):
         """
         for hkl that is a tuple, return externally visible hkl index
         """
@@ -1446,10 +1431,10 @@ class PlaneData(object):
         if len(hkl_ids) == 0:
             for iHKLr, hklData in enumerate(self.hklDataList):
                 if not opts['allHKLs']:
-                    if not self.__thisHKL(iHKLr):
+                    if not self._thisHKL(iHKLr):
                         continue
                 if opts['thisTTh'] is not None:
-                    tThLo, tThHi = self.__getTThRange(iHKLr)
+                    tThLo, tThHi = self._getTThRange(iHKLr)
                     if opts['thisTTh'] < tThHi and opts['thisTTh'] > tThLo:
                         hkls.append(hklData['hkl'])
                 else:
@@ -1494,7 +1479,7 @@ class PlaneData(object):
         else:
             indB = np.ones(self.nHKLs, dtype=bool)
         for iHKLr, hklData in enumerate(self.hklDataList):
-            if not self.__thisHKL(iHKLr):
+            if not self._thisHKL(iHKLr):
                 continue
             if indB[iRetval]:
                 hkls = hklData['symHKLs']
@@ -1517,7 +1502,7 @@ class PlaneData(object):
     def getCentroSymHKLs(self):
         retval = []
         for iHKLr, hklData in enumerate(self.hklDataList):
-            if not self.__thisHKL(iHKLr):
+            if not self._thisHKL(iHKLr):
                 continue
             retval.append(hklData['centrosym'])
         return retval
@@ -1530,7 +1515,7 @@ class PlaneData(object):
         if bMat is None:
             bMat = self._latVecOps['B']
         if wavelength is None:
-            wavelength = self.__wavelength
+            wavelength = self._wavelength
         retval = PlaneData.makeScatteringVectors(
             fHKLs, rMat, bMat, wavelength, chiTilt=chiTilt
         )
@@ -1543,7 +1528,7 @@ class PlaneData(object):
         if bMat is None:
             bMat = self._latVecOps['B']
         if wavelength is None:
-            wavelength = self.__wavelength
+            wavelength = self._wavelength
         retval = PlaneData.makeScatteringVectors(
             fHKLs, rMat, bMat, wavelength, chiTilt=chiTilt
         )
@@ -1583,7 +1568,7 @@ class PlaneData(object):
 
         return gVec_s, oangs0.T, oangs1.T
 
-    def __makeScatteringVectors(self, rMat, bMat=None, chiTilt=None):
+    def _makeScatteringVectors(self, rMat, bMat=None, chiTilt=None):
         """
         modeled after QFromU.m
         """
@@ -1595,13 +1580,13 @@ class PlaneData(object):
         Qs_ang0 = []
         Qs_ang1 = []
         for iHKLr, hklData in enumerate(self.hklDataList):
-            if not self.__thisHKL(iHKLr):
+            if not self._thisHKL(iHKLr):
                 continue
             thisQs, thisAng0, thisAng1 = PlaneData.makeScatteringVectors(
                 hklData['symHKLs'],
                 rMat,
                 bMat,
-                self.__wavelength,
+                self._wavelength,
                 chiTilt=chiTilt,
             )
             Qs_vec.append(thisQs)
