@@ -93,9 +93,9 @@ def cellIndices(edges, points_1d):
 def _fill_connectivity(out, m, n, p):
     i_con = 0
     for k in range(p):
+        extra = k*(n+1)*(m+1)
         for j in range(m):
             for i in range(n):
-                extra = k*(n+1)*(m+1)
                 out[i_con, 0] = i + j*(n + 1) + 1 + extra
                 out[i_con, 1] = i + j*(n + 1) + extra
                 out[i_con, 2] = i + j + n*(j+1) + 1 + extra
@@ -122,12 +122,11 @@ def cellConnectivity(m, n, p=1, origin='ul'):
 
     if p > 1:
         nele = m*n*(p-1)
-        tmp_con3 = con.reshape(p, m*n, 4)
+        tmp_con3 = con.reshape((p, m*n, 4))
         hex_con = []
         for layer in range(p - 1):
             hex_con.append(np.hstack([tmp_con3[layer], tmp_con3[layer + 1]]))
         con = np.vstack(hex_con)
-        pass
     if origin.lower().strip() == 'll':
         con = con[:, ::-1]
     return con
@@ -152,7 +151,6 @@ if USE_NUMBA:
     def compute_areas(xy_eval_vtx, conn):
         areas = np.empty(len(conn))
         for i in range(len(conn)):
-            c0, c1, c2, c3 = conn[i]
             vtx0x, vtx0y = xy_eval_vtx[conn[i, 0]]
             vtx1x, vtx1y = xy_eval_vtx[conn[i, 1]]
             v0x, v0y = vtx1x-vtx0x, vtx1y-vtx0y
@@ -201,24 +199,23 @@ def computeArea(polygon):
     triv = np.array([[[0, i - 1], [0, i]] for i in range(2, n_vertices)])
 
     area = 0
-    for i in range(len(triv)):
+    for [s1, s2] in triv:
         tvp = np.diff(
-            np.hstack([polygon[triv[i][0], :],
-                       polygon[triv[i][1], :]]), axis=0).flatten()
+            np.hstack([polygon[s1, :],
+                       polygon[s2, :]]), axis=0).flatten()
         area += 0.5 * np.cross(tvp[:2], tvp[2:])
     return area
 
 
 def make_tolerance_grid(bin_width, window_width, num_subdivisions,
                         adjust_window=False, one_sided=False):
-    if bin_width > window_width:
-        bin_width = window_width
+    bin_width = min(bin_width, window_width)
     if adjust_window:
         window_width = np.ceil(window_width/bin_width)*bin_width
     if one_sided:
         ndiv = abs(int(window_width/bin_width))
         grid = (np.arange(0, 2*ndiv+1) - ndiv)*bin_width
-        ndiv = 2*ndiv
+        ndiv *= 2
     else:
         ndiv = int(num_subdivisions*np.ceil(window_width/float(bin_width)))
         grid = np.arange(0, ndiv+1)*window_width/float(ndiv) - 0.5*window_width
@@ -228,46 +225,33 @@ def make_tolerance_grid(bin_width, window_width, num_subdivisions,
 def computeIntersection(line1, line2):
     """
     compute intersection of two-dimensional line intersection
+    Returns the intersection point as an array of length 2.
+    If the lines are parallel (or equal) the function returns an empty array.
 
     this is an implementation of two lines:
 
-    line1 = [ [x0, y0], [x1, y1] ]
-    line1 = [ [x3, y3], [x4, y4] ]
+    line1 = [ [x1, y1], [x2, y2] ]
+    line2 = [ [x3, y3], [x4, y4] ]
 
 
      <http://en.wikipedia.org/wiki/Line-line_intersection>
     """
     intersection = np.zeros(2)
 
-    l1 = np.array(line1)
-    l2 = np.array(line2)
+    [x1, y1] = line1[0]
+    [x2, y2] = line1[1]
+    [x3, y3] = line2[0]
+    [x4, y4] = line2[1]
 
-    det_l1 = det(l1)
-    det_l2 = det(l2)
+    denom = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4)
+    if denom == 0:
+        return []
 
-    det_l1_x = det(np.vstack([l1[:, 0], np.ones(2)]).T)
-    det_l1_y = det(np.vstack([l1[:, 1], np.ones(2)]).T)
+    subterm1 = x1*y2 - y1*x2
+    subterm2 = x3*y4 - y3*x4
 
-    det_l2_x = det(np.vstack([l2[:, 0], np.ones(2)]).T)
-    det_l2_y = det(np.vstack([l2[:, 1], np.ones(2)]).T)
-
-    denominator = det(
-        np.vstack([[det_l1_x, det_l1_y], [det_l2_x, det_l2_y]])
-    )
-
-    if denominator == 0:
-        intersection = []
-    else:
-        intersection[0] = det(
-            np.vstack(
-                [[det_l1, det_l1_x], [det_l2, det_l2_x]]
-            )
-        ) / denominator
-        intersection[1] = det(
-            np.vstack(
-                [[det_l1, det_l1_y], [det_l2, det_l2_y]]
-            )
-        ) / denominator
+    intersection[0] = (subterm1*(x3-x4) - subterm2*(x1-x2)) / denom
+    intersection[1] = (subterm1*(y3-y4) - subterm2*(y1-y2)) / denom
     return intersection
 
 
@@ -295,6 +279,7 @@ def isinside(point, boundary, ccw=True):
 
 def sutherlandHodgman(subjectPolygon, clipPolygon):
     """
+    https://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm
     """
     subjectPolygon = np.array(subjectPolygon)
     clipPolygon = np.array(clipPolygon)
@@ -332,7 +317,6 @@ def sutherlandHodgman(subjectPolygon, clipPolygon):
                     outputList.append(
                         computeIntersection(subjectLineSegment, clipBoundary)
                     )
-                    pass
                 outputList.append(curr_subjectVertex)
             elif isinside(prev_subjectVertex, clipBoundary):
                 subjectLineSegment = np.vstack(
@@ -341,9 +325,6 @@ def sutherlandHodgman(subjectPolygon, clipPolygon):
                 outputList.append(
                     computeIntersection(subjectLineSegment, clipBoundary)
                 )
-                pass
             prev_subjectVertex = curr_subjectVertex
             prev_clipVertex = curr_clipVertex
-            pass
-        pass
     return outputList
