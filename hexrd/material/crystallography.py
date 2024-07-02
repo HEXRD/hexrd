@@ -219,9 +219,9 @@ def latticePlanes(
     """
     location = 'latticePlanes'
 
-    assert hkls.shape[0] == 3, (
-        "hkls aren't column vectors in call to '%s'!" % location
-    )
+    assert (
+        hkls.shape[0] == 3
+    ), f"hkls aren't column vectors in call to '{location}'!"
 
     tag = ltype
     wlen = wavelength
@@ -419,7 +419,6 @@ def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
         ]
     elif tag == lattStrings[7]:
         # triclinic
-        # FIXME: fixed DP 2/24/16
         cellparms = np.r_[
             lparms[0],
             lparms[1],
@@ -429,7 +428,7 @@ def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
             aconv * lparms[5],
         ]
     else:
-        raise RuntimeError('lattice tag \'%s\' is not recognized' % (tag))
+        raise RuntimeError(f'lattice tag "{tag}" is not recognized')
 
     if debug:
         print((str(cellparms[0:3]) + ' ' + str(r2d * cellparms[3:6])))
@@ -693,7 +692,7 @@ class PlaneData(object):
             if hkls is None:
                 hkls = other.__hkls
         else:
-            raise NotImplementedError('args : ' + str(args))
+            raise NotImplementedError(f'args : {args}')
 
         self._laueGroup = laueGroup
         self._qsym = quatOfLaueGroup(self._laueGroup)
@@ -715,8 +714,7 @@ class PlaneData(object):
             self.tThWidth = kwargs.pop('tThWidth')
         if len(kwargs) > 0:
             raise RuntimeError(
-                'have unparsed keyword arguments with keys: '
-                + str(list(kwargs.keys()))
+                f'have unparsed keyword arguments with keys: {kwargs.keys()}'
             )
 
         # This is only used to calculate the structure factor if invalidated
@@ -755,9 +753,9 @@ class PlaneData(object):
     def __str__(self):
         s = '========== plane data ==========\n'
         s += 'lattice parameters:\n   ' + str(self.lparms) + '\n'
-        s += 'two theta width: (%s)\n' % str(self.tThWidth)
-        s += 'strain magnitude: (%s)\n' % str(self.strainMag)
-        s += 'beam energy (%s)\n' % str(self.wavelength)
+        s += f'two theta width: ({str(self.tThWidth)})\n'
+        s += f'strain magnitude: ({str(self.strainMag)})\n'
+        s += f'beam energy ({str(self.wavelength)})\n'
         s += 'hkls: (%d)\n' % self.nHKLs
         s += str(self.getHKLs())
         return s
@@ -824,7 +822,7 @@ class PlaneData(object):
             if len(exclusions) == len(self.hklDataList):
                 assert (
                     exclusions.dtype == 'bool'
-                ), 'exclusions should be bool if full length'
+                ), 'Exclusions should be bool if full length'
                 # convert from current hkl ordering to __hkl ordering
                 excl[:] = exclusions[self.tThSort]
             else:
@@ -833,12 +831,11 @@ class PlaneData(object):
                     excl[self.tThSort[exclusions]] = True
                 elif len(exclusions.shape) == 2:
                     raise NotImplementedError(
-                        'have not yet coded treating exclusions as ranges'
+                        'Have not yet coded treating exclusions as ranges'
                     )
                 else:
                     raise RuntimeError(
-                        'do not now what to do with exclusions with shape '
-                        + str(exclusions.shape)
+                        f'Unclear behavior for shape {exclusions.shape}'
                     )
         self._exclusions = excl
         self.nHKLs = np.sum(np.logical_not(self._exclusions))
@@ -934,7 +931,7 @@ class PlaneData(object):
                     lparmsDUnit.append(lparmThis.getVal('degrees'))
                 else:
                     raise RuntimeError(
-                        'do not know what to do with ' + str(lparmThis)
+                        f'Do not know what to do with {lparmThis}'
                     )
             else:
                 lparmsDUnit.append(lparmThis)
@@ -961,8 +958,8 @@ class PlaneData(object):
 
     def set_wavelength(self, wavelength):
         wavelength = processWavelength(wavelength)
+        # Do not re-compute if it is almost the same
         if np.isclose(self._wavelength, wavelength):
-            # Do not re-compute if it is almost the same
             return
 
         self._wavelength = wavelength
@@ -1164,9 +1161,7 @@ class PlaneData(object):
                 retval = False
         if self._tThMax is not None:
             # FIXME: check for nans here???
-            if hklData['tTheta'] > self._tThMax or np.isnan(
-                hklData['tTheta']
-            ):
+            if hklData['tTheta'] > self._tThMax or np.isnan(hklData['tTheta']):
                 retval = False
         return retval
 
@@ -1787,7 +1782,7 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
         if len(ome0) != npts:
             raise RuntimeError(
                 'your oscialltion angle input is inconsistent; '
-                + 'it has length %d while it should be %d' % (len(ome0), npts)
+                + f'it has length {len(ome0)} while it should be {npts}'
             )
 
     # keyword args processing
