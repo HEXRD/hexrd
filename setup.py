@@ -12,6 +12,7 @@ np_include_dir = numpy.get_include()
 
 install_reqs = [
     'appdirs',
+    'chemparse',
     'fabio>=0.11',
     'fast-histogram',
     'h5py',
