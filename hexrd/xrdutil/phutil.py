@@ -201,6 +201,17 @@ def tth_corr_sample_layer(panel, xy_pts,
         return np.vstack([-tth_corr, ref_angs[:, 1]]).T
 
 
+def invalidate_past_critical_beta(panel: Detector, xy_pts: np.ndarray,
+                                  pinhole_thickness: float,
+                                  pinhole_radius: float) -> None:
+    """Set any xy_pts past critical beta to be nan"""
+    # Compute the critical beta angle. Anything past this is invalid.
+    critical_beta = np.arctan(2 * pinhole_radius / pinhole_thickness)
+    dhats = xfcapi.unitRowVector(panel.cart_to_dvecs(xy_pts))
+    cos_beta = -dhats[:, 2]
+    xy_pts[np.arccos(cos_beta) > critical_beta] = np.nan
+
+
 def tth_corr_map_sample_layer(instrument,
                               layer_standoff, layer_thickness,
                               pinhole_thickness, pinhole_radius):
