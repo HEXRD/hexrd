@@ -629,8 +629,8 @@ class Detector:
 
     @physics_package.setter
     def physics_package(self, pp):
-        if not isinstance(pp, (hexrd.sample.HED_physics_package,
-                          hexrd.sample.HEDM_physics_package)):
+        if not isinstance(pp, (sample.HED_physics_package,
+                          sample.HEDM_physics_package)):
             msg = (f'physics_package should be of type: '
                 f'hexrd.sample.HED_physics_package or '
                 f'hexrd.sample.HEDM_physics_package')
@@ -643,7 +643,7 @@ class Detector:
 
     @pinhole.setter
     def pinhole(self, ph):
-        if not isinstance(pp, dict):
+        if not isinstance(ph, sample.Pinhole):
             msg = f'pinhole should be of type: hexrd.sample.Pinhole'
             raise ValueError(msg)
         self._pinhole = ph
@@ -1790,7 +1790,7 @@ class Detector:
     def calc_effective_pinhole_area(self):
         """get the effective pinhole area correction
         """
-        hod = self.pinhole_thickness/self.pinhole_diameter
+        hod = self.pinhole.thickness/self.pinhole.diameter
         bvec = self.bvec
 
         tth, eta = self.pixel_angles()
