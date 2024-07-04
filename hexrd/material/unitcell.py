@@ -1,5 +1,6 @@
 import importlib.resources
 import numpy as np
+from numba import njit
 from hexrd import constants
 from hexrd.material import spacegroup, symbols, symmetry
 from hexrd.ipfcolor import sphere_sector, colorspace
@@ -10,8 +11,6 @@ import h5py
 from pathlib import Path
 from scipy.interpolate import interp1d
 import time
-
-from hexrd.utils.decorators import numba_njit_if_available
 
 eps = constants.sqrt_epsf
 ENERGY_ID = 0
@@ -25,12 +24,12 @@ WAV_ID = 7
 ''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _calclength(u, mat):
     return np.sqrt(np.dot(u, np.dot(mat, u)))
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _calcstar(v, sym, mat):
     vsym = np.atleast_2d(v)
     for s in sym:

@@ -27,6 +27,7 @@
 # ============================================================
 
 import numpy as np
+import numba
 
 from hexrd import constants
 from hexrd import matrixutil as mutil
@@ -40,11 +41,6 @@ from hexrd.transforms import xfcapi
 from hexrd.valunits import valWUnit
 
 from hexrd import distortion as distortion_pkg
-
-from hexrd.constants import USE_NUMBA
-if USE_NUMBA:
-    import numba
-
 
 # =============================================================================
 # PARAMETERS
@@ -118,7 +114,6 @@ class EtaOmeMaps(object):
                      'planeData_hkls': hkls,
                      'planeData_excl': eta_ome.planeData.exclusions}
         np.savez_compressed(filename, **save_dict)
-    pass  # end of class: EtaOmeMaps
 
 
 # =============================================================================
@@ -1265,167 +1260,102 @@ def simulateLauePattern(hkls, bMat,
     return xy_det, hkls_in, angles, dspacing, energy
 
 
-if USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)
-    def _expand_pixels(original, w, h, result):
-        hw = 0.5 * w
-        hh = 0.5 * h
-        for el in range(len(original)):
-            x, y = original[el, 0], original[el, 1]
-            result[el*4 + 0, 0] = x - hw
-            result[el*4 + 0, 1] = y - hh
-            result[el*4 + 1, 0] = x + hw
-            result[el*4 + 1, 1] = y - hh
-            result[el*4 + 2, 0] = x + hw
-            result[el*4 + 2, 1] = y + hh
-            result[el*4 + 3, 0] = x - hw
-            result[el*4 + 3, 1] = y + hh
+@numba.njit(nogil=True, cache=True)
+def _expand_pixels(original, w, h, result):
+    hw = 0.5 * w
+    hh = 0.5 * h
+    for el in range(len(original)):
+        x, y = original[el, 0], original[el, 1]
+        result[el*4 + 0, 0] = x - hw
+        result[el*4 + 0, 1] = y - hh
+        result[el*4 + 1, 0] = x + hw
+        result[el*4 + 1, 1] = y - hh
+        result[el*4 + 2, 0] = x + hw
+        result[el*4 + 2, 1] = y + hh
+        result[el*4 + 3, 0] = x - hw
+        result[el*4 + 3, 1] = y + hh
 
-        return result
+    return result
 
-    @numba.njit(nogil=True, cache=True)
-    def _compute_max(tth, eta, result):
-        period = 2.0 * np.pi
-        hperiod = np.pi
-        for el in range(0, len(tth), 4):
-            max_tth = np.abs(tth[el + 0] - tth[el + 3])
-            eta_diff = eta[el + 0] - eta[el + 3]
-            max_eta = np.abs(
+@numba.njit(nogil=True, cache=True)
+def _compute_max(tth, eta, result):
+    period = 2.0 * np.pi
+    hperiod = np.pi
+    for el in range(0, len(tth), 4):
+        max_tth = np.abs(tth[el + 0] - tth[el + 3])
+        eta_diff = eta[el + 0] - eta[el + 3]
+        max_eta = np.abs(
+            np.remainder(eta_diff + hperiod, period) - hperiod
+        )
+        for i in range(3):
+            curr_tth = np.abs(tth[el + i] - tth[el + i + 1])
+            eta_diff = eta[el + i] - eta[el + i + 1]
+            curr_eta = np.abs(
                 np.remainder(eta_diff + hperiod, period) - hperiod
             )
-            for i in range(3):
-                curr_tth = np.abs(tth[el + i] - tth[el + i + 1])
-                eta_diff = eta[el + i] - eta[el + i + 1]
-                curr_eta = np.abs(
-                    np.remainder(eta_diff + hperiod, period) - hperiod
-                )
-                max_tth = np.maximum(curr_tth, max_tth)
-                max_eta = np.maximum(curr_eta, max_eta)
-            result[el//4, 0] = max_tth
-            result[el//4, 1] = max_eta
+            max_tth = np.maximum(curr_tth, max_tth)
+            max_eta = np.maximum(curr_eta, max_eta)
+        result[el//4, 0] = max_tth
+        result[el//4, 1] = max_eta
 
-        return result
+    return result
 
-    def angularPixelSize(
-            xy_det, xy_pixelPitch,
-            rMat_d, rMat_s,
-            tVec_d, tVec_s, tVec_c,
-            distortion=None, beamVec=None, etaVec=None):
-        """
-        Calculate angular pixel sizes on a detector.
+def angularPixelSize(
+        xy_det, xy_pixelPitch,
+        rMat_d, rMat_s,
+        tVec_d, tVec_s, tVec_c,
+        distortion=None, beamVec=None, etaVec=None):
+    """
+    Calculate angular pixel sizes on a detector.
 
-        * choices to beam vector and eta vector specs have been supressed
-        * assumes xy_det in UNWARPED configuration
-        """
-        xy_det = np.atleast_2d(xy_det)
-        if distortion is not None:  # !!! check this logic
-            xy_det = distortion.apply(xy_det)
-        if beamVec is None:
-            beamVec = xfcapi.bVec_ref
-        if etaVec is None:
-            etaVec = xfcapi.eta_ref
+    * choices to beam vector and eta vector specs have been supressed
+    * assumes xy_det in UNWARPED configuration
+    """
+    xy_det = np.atleast_2d(xy_det)
+    if distortion is not None:  # !!! check this logic
+        xy_det = distortion.apply(xy_det)
+    if beamVec is None:
+        beamVec = xfcapi.bVec_ref
+    if etaVec is None:
+        etaVec = xfcapi.eta_ref
 
-        xy_expanded = np.empty((len(xy_det) * 4, 2), dtype=xy_det.dtype)
-        xy_expanded = _expand_pixels(
-            xy_det,
-            xy_pixelPitch[0], xy_pixelPitch[1],
-            xy_expanded)
-        gvec_space, _ = xfcapi.detectorXYToGvec(
-            xy_expanded,
-            rMat_d, rMat_s,
-            tVec_d, tVec_s, tVec_c,
-            beamVec=beamVec, etaVec=etaVec)
-        result = np.empty_like(xy_det)
-        return _compute_max(gvec_space[0], gvec_space[1], result)
-else:
-    def angularPixelSize(xy_det, xy_pixelPitch,
-                         rMat_d, rMat_s,
-                         tVec_d, tVec_s, tVec_c,
-                         distortion=None, beamVec=None, etaVec=None):
-        """
-        Calculate angular pixel sizes on a detector.
-
-        * choices to beam vector and eta vector specs have been supressed
-        * assumes xy_det in UNWARPED configuration
-        """
-        xy_det = np.atleast_2d(xy_det)
-        if distortion is not None:  # !!! check this logic
-            xy_det = distortion.apply(xy_det)
-        if beamVec is None:
-            beamVec = xfcapi.bVec_ref
-        if etaVec is None:
-            etaVec = xfcapi.eta_ref
-
-        xp = np.r_[-0.5,  0.5,  0.5, -0.5] * xy_pixelPitch[0]
-        yp = np.r_[-0.5, -0.5,  0.5,  0.5] * xy_pixelPitch[1]
-
-        diffs = np.array([[3, 3, 2, 1],
-                          [2, 0, 1, 0]])
-
-        ang_pix = np.zeros((len(xy_det), 2))
-
-        for ipt, xy in enumerate(xy_det):
-            xc = xp + xy[0]
-            yc = yp + xy[1]
-
-            tth_eta, gHat_l = xfcapi.detectorXYToGvec(
-                np.vstack([xc, yc]).T,
-                rMat_d, rMat_s,
-                tVec_d, tVec_s, tVec_c,
-                beamVec=beamVec, etaVec=etaVec)
-            delta_tth = np.zeros(4)
-            delta_eta = np.zeros(4)
-            for j in range(4):
-                delta_tth[j] = abs(
-                    tth_eta[0][diffs[0, j]] - tth_eta[0][diffs[1, j]]
-                )
-                delta_eta[j] = xfcapi.angularDifference(
-                    tth_eta[1][diffs[0, j]], tth_eta[1][diffs[1, j]]
-                )
-
-            ang_pix[ipt, 0] = np.amax(delta_tth)
-            ang_pix[ipt, 1] = np.amax(delta_eta)
-        return ang_pix
+    xy_expanded = np.empty((len(xy_det) * 4, 2), dtype=xy_det.dtype)
+    xy_expanded = _expand_pixels(
+        xy_det,
+        xy_pixelPitch[0], xy_pixelPitch[1],
+        xy_expanded)
+    gvec_space, _ = xfcapi.detectorXYToGvec(
+        xy_expanded,
+        rMat_d, rMat_s,
+        tVec_d, tVec_s, tVec_c,
+        beamVec=beamVec, etaVec=etaVec)
+    result = np.empty_like(xy_det)
+    return _compute_max(gvec_space[0], gvec_space[1], result)
 
 
-if USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)
-    def _coo_build_window_jit(frame_row, frame_col, frame_data,
-                              min_row, max_row, min_col, max_col,
-                              result):
-        n = len(frame_row)
-        for i in range(n):
-            if ((min_row <= frame_row[i] <= max_row) and
-                    (min_col <= frame_col[i] <= max_col)):
-                new_row = frame_row[i] - min_row
-                new_col = frame_col[i] - min_col
-                result[new_row, new_col] = frame_data[i]
+@numba.njit(nogil=True, cache=True)
+def _coo_build_window_jit(frame_row, frame_col, frame_data,
+                            min_row, max_row, min_col, max_col,
+                            result):
+    n = len(frame_row)
+    for i in range(n):
+        if ((min_row <= frame_row[i] <= max_row) and
+                (min_col <= frame_col[i] <= max_col)):
+            new_row = frame_row[i] - min_row
+            new_col = frame_col[i] - min_col
+            result[new_row, new_col] = frame_data[i]
 
-        return result
+    return result
 
-    def _coo_build_window(frame_i, min_row, max_row, min_col, max_col):
-        window = np.zeros(
-            ((max_row - min_row + 1), (max_col - min_col + 1)),
-            dtype=np.int16
-        )
+def _coo_build_window(frame_i, min_row, max_row, min_col, max_col):
+    window = np.zeros(
+        ((max_row - min_row + 1), (max_col - min_col + 1)),
+        dtype=np.int16
+    )
 
-        return _coo_build_window_jit(frame_i.row, frame_i.col, frame_i.data,
-                                     min_row, max_row, min_col, max_col,
-                                     window)
-else:  # not USE_NUMBA
-    def _coo_build_window(frame_i, min_row, max_row, min_col, max_col):
-        mask = ((min_row <= frame_i.row) & (frame_i.row <= max_row) &
-                (min_col <= frame_i.col) & (frame_i.col <= max_col))
-        new_row = frame_i.row[mask] - min_row
-        new_col = frame_i.col[mask] - min_col
-        new_data = frame_i.data[mask]
-        window = np.zeros(
-            ((max_row - min_row + 1), (max_col - min_col + 1)),
-            dtype=np.int16
-        )
-        window[new_row, new_col] = new_data
-
-        return window
+    return _coo_build_window_jit(frame_i.row, frame_i.col, frame_i.data,
+                                    min_row, max_row, min_col, max_col,
+                                    window)
 
 
 def make_reflection_patches(instr_cfg,

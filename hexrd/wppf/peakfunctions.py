@@ -28,15 +28,9 @@
 import numpy as np
 import copy
 from hexrd import constants
-from hexrd.utils.decorators import numba_njit_if_available
-from numba import vectorize, float64
+from numba import vectorize, float64, njit, prange
 from hexrd.fitting.peakfunctions import erfc, exp1exp
 # from scipy.special import erfc, exp1
-
-if constants.USE_NUMBA:
-    from numba import prange
-else:
-    prange = range
 
 # addr = get_cython_function_address("scipy.special.cython_special", "exp1")
 # functype = ctypes.CFUNCTYPE(ctypes.c_double, ctypes.c_double)
@@ -57,7 +51,7 @@ mpeak_nparams_dict = {
 """
 Calgliotti and Lorentzian FWHM functions
 """
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _gaussian_fwhm(uvw,
                    P,
                    gamma_ani_sqr,
@@ -87,7 +81,7 @@ def _gaussian_fwhm(uvw,
     return np.sqrt(sigsqr)*1e-2
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _lorentzian_fwhm(xy,
                      xy_sf,
                      gamma_ani_sqr,
@@ -115,7 +109,7 @@ def _lorentzian_fwhm(xy,
     gamma = (X+xy_sf)/cth + (Y+sig_ani)*tanth
     return gamma*1e-2
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _anisotropic_peak_broadening(shkl, hkl):
     """
     this function generates the broadening as
@@ -168,7 +162,7 @@ def _anisotropic_lorentzian_component(gamma_sqr, eta_mixing):
 # Split the unit gaussian so this can be called for 2d and 3d functions
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _unit_gaussian(p, x):
     """
     Required Arguments:
@@ -190,7 +184,7 @@ def _unit_gaussian(p, x):
 # 1-D Lorentzian Functions
 # =============================================================================
 # Split the unit function so this can be called for 2d and 3d functions
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _unit_lorentzian(p, x):
     """
     Required Arguments:
@@ -208,7 +202,7 @@ def _unit_lorentzian(p, x):
     f = gamma / ((x-x0)**2 + gamma**2)
     return f
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _mixing_factor_pv(fwhm_g, fwhm_l):
     """
     @AUTHOR:  Saransh Singh, Lawrence Livermore National Lab,
@@ -237,7 +231,7 @@ def _mixing_factor_pv(fwhm_g, fwhm_l):
 
     return eta, fwhm
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def pvoight_wppf(uvw,
                  p,
                  xy,
@@ -270,19 +264,19 @@ def pvoight_wppf(uvw,
 
     g = Ag*_unit_gaussian(np.array([tth, fwhm]), tth_list)
     l = Al*_unit_lorentzian(np.array([tth, fwhm]), tth_list)
-    
+
     return n*l + (1.0-n)*g
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _func_h(tau, tth_r):
     cph =  np.cos(tth_r - tau)
     ctth = np.cos(tth_r)
     return np.sqrt( (cph/ctth)**2 - 1.)
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _func_W(HoL, SoL, tau, tau_min, tau_infl, tth):
 
-    if(tth < np.pi/2.):
+    if tth < np.pi/2.0:
         if tau >= 0. and tau <= tau_infl:
             res = 2.0*min(HoL,SoL)
         elif tau > tau_infl and tau <= tau_min:
@@ -298,7 +292,7 @@ def _func_W(HoL, SoL, tau, tau_min, tau_infl, tth):
             res = 0.0
     return res
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def pvfcj(uvw,
           p,
           xy,
@@ -365,18 +359,18 @@ def pvfcj(uvw,
     a = np.trapz(res, tth_list)
     return res/a
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _calc_alpha(alpha, tth):
     a0, a1 = alpha
     return (a0 + a1*np.tan(np.radians(0.5*tth)))
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _calc_beta(beta, tth):
     b0, b1 = beta
     return b0 + b1*np.tan(np.radians(0.5*tth))
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _gaussian_pink_beam(alpha,
                         beta,
                         fwhm_g,
@@ -412,7 +406,7 @@ def _gaussian_pink_beam(alpha,
     return g
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _lorentzian_pink_beam(alpha,
                           beta,
                           fwhm_l,
@@ -444,7 +438,7 @@ def _lorentzian_pink_beam(alpha,
 
     return y
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def pvoight_pink_beam(alpha,
                       beta,
                       uvw,
@@ -492,7 +486,7 @@ def pvoight_pink_beam(alpha,
 
     return n*l/al + (1.0-n)*g/ag
 
-@numba_njit_if_available(cache=True, nogil=True, parallel=True)
+@njit(cache=True, nogil=True, parallel=True)
 def computespectrum_pvfcj(uvw,
                  p,
                  xy,
@@ -538,7 +532,7 @@ def computespectrum_pvfcj(uvw,
         spec += II * pv
     return spec
 
-@numba_njit_if_available(cache=True, nogil=True, parallel=True)
+@njit(cache=True, nogil=True, parallel=True)
 def computespectrum_pvtch(uvw,
                  p,
                  xy,
@@ -579,7 +573,7 @@ def computespectrum_pvtch(uvw,
         spec += II * pv
     return spec
 
-@numba_njit_if_available(cache=True, nogil=True, parallel=True)
+@njit(cache=True, nogil=True, parallel=True)
 def computespectrum_pvpink(alpha,
                  beta,
                  uvw,
@@ -623,7 +617,7 @@ def computespectrum_pvpink(alpha,
         spec += II * pv
     return spec
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def calc_Iobs_pvfcj(uvw,
             p,
             xy,
@@ -682,7 +676,7 @@ def calc_Iobs_pvfcj(uvw,
 
     return Iobs
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def calc_Iobs_pvtch(uvw,
             p,
             xy,
@@ -736,7 +730,7 @@ def calc_Iobs_pvtch(uvw,
 
     return Iobs
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def calc_Iobs_pvpink(alpha,
             beta,
             uvw,
@@ -793,7 +787,7 @@ def calc_Iobs_pvpink(alpha,
 
     return Iobs
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def calc_rwp(spectrum_sim,
              spectrum_expt,
              weights,
