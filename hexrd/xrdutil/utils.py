@@ -33,6 +33,7 @@ from hexrd.distortion.distortionabc import DistortionABC
 
 import numba
 import numpy as np
+import numba
 
 from hexrd import constants
 from hexrd import matrixutil as mutil
