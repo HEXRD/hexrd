@@ -1,20 +1,17 @@
 import numpy as np
+import numba
+from numba import prange
+
 from hexrd.constants import FZtypeArray, FZorderArray
-from hexrd.utils.decorators import numba_njit_if_available
 from hexrd import constants
 
-if constants.USE_NUMBA:
-    from numba import prange
-else:
-    prange = range
-
-@numba_njit_if_available(cache=True, nogil=True)
+@numba.njit(cache=True, nogil=True)
 def getFZtypeandOrder(pgnum):
     FZtype = FZtypeArray[pgnum-1]
     FZorder = FZorderArray[pgnum-1]
     return np.array([FZtype, FZorder])
 
-@numba_njit_if_available(cache=True, nogil=True)
+@numba.njit(cache=True, nogil=True)
 def insideCyclicFZ(ro, FZorder):
     res = False
     if ro[3] == np.inf:
@@ -32,14 +29,14 @@ def insideCyclicFZ(ro, FZorder):
 
     return res
 
-@numba_njit_if_available(cache=True, nogil=True)
+@numba.njit(cache=True, nogil=True)
 def insideDihedralFZ(ro, FZorder):
     if np.abs(ro[3]) >= np.sqrt(3.0):
         return False
     else:
         rod = ro[0:3] * ro[3]
 
-    c1 = (np.abs(rod[2]) <= constants.BP[FZorder-1])
+    c1 = np.abs(rod[2]) <= constants.BP[FZorder-1]
 
     if c1:
         if   FZorder == 2:
@@ -78,7 +75,7 @@ def insideDihedralFZ(ro, FZorder):
     else:
         return False
 
-@numba_njit_if_available(cache=True, nogil=True)
+@numba.njit(cache=True, nogil=True)
 def insideCubicFZ(ro, kwrd):
     rod = np.abs(ro[0:3] * ro[3])
 
@@ -91,7 +88,7 @@ def insideCubicFZ(ro, kwrd):
     res = np.logical_and(c1, c2)
     return res
 
-@numba_njit_if_available(cache=True, nogil=True)
+@numba.njit(cache=True, nogil=True)
 def insideFZ(ro, pgnum):
     res = getFZtypeandOrder(pgnum)
     FZtype = res[0] 
@@ -116,4 +113,3 @@ def insideFZ(ro, pgnum):
             return False
         else:
             return insideCubicFZ(ro, 'oct')
-

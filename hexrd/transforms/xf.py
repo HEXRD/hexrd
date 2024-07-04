@@ -28,15 +28,13 @@
 
 import sys
 import numpy as np
+import numba
 # np.seterr(invalid='ignore')
 
 import scipy.sparse as sparse
 
 from hexrd import matrixutil as mutil
 
-from hexrd.constants import USE_NUMBA
-if USE_NUMBA:
-    import numba
 
 # =============================================================================
 # Module Data
@@ -94,44 +92,31 @@ def makeGVector(hkl, bMat):
     return unitVector(np.dot(bMat, hkl))
 
 
-if USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)
-    def _anglesToGVecHelper(angs, out):
-        # gVec_e = np.vstack([[np.cos(0.5*angs[:, 0]) * np.cos(angs[:, 1])],
-        #                     [np.cos(0.5*angs[:, 0]) * np.sin(angs[:, 1])],
-        #                     [np.sin(0.5*angs[:, 0])]])
-        n = angs.shape[0]
-        for i in range(n):
-            ca0 = np.cos(0.5*angs[i, 0])
-            sa0 = np.sin(0.5*angs[i, 0])
-            ca1 = np.cos(angs[i, 1])
-            sa1 = np.sin(angs[i, 1])
-            out[i, 0] = ca0 * ca1
-            out[i, 1] = ca0 * sa1
-            out[i, 2] = sa0
+@numba.njit(nogil=True, cache=True)
+def _anglesToGVecHelper(angs, out):
+    # gVec_e = np.vstack([[np.cos(0.5*angs[:, 0]) * np.cos(angs[:, 1])],
+    #                     [np.cos(0.5*angs[:, 0]) * np.sin(angs[:, 1])],
+    #                     [np.sin(0.5*angs[:, 0])]])
+    n = angs.shape[0]
+    for i in range(n):
+        ca0 = np.cos(0.5*angs[i, 0])
+        sa0 = np.sin(0.5*angs[i, 0])
+        ca1 = np.cos(angs[i, 1])
+        sa1 = np.sin(angs[i, 1])
+        out[i, 0] = ca0 * ca1
+        out[i, 1] = ca0 * sa1
+        out[i, 2] = sa0
 
-    def anglesToGVec(angs, bHat_l, eHat_l, rMat_s=I3, rMat_c=I3):
-        """
-        from 'eta' frame out to lab
-        (with handy kwargs to go to crystal or sample)
-        """
-        rMat_e = makeEtaFrameRotMat(bHat_l, eHat_l)
-        gVec_e = np.empty((angs.shape[0], 3))
-        _anglesToGVecHelper(angs, gVec_e)
-        mat = np.dot(rMat_c.T, np.dot(rMat_s.T, rMat_e))
-        return np.dot(mat, gVec_e.T)
-else:
-    def anglesToGVec(angs, bHat_l, eHat_l, rMat_s=I3, rMat_c=I3):
-        """
-        from 'eta' frame out to lab
-        (with handy kwargs to go to crystal or sample)
-        """
-        rMat_e = makeEtaFrameRotMat(bHat_l, eHat_l)
-        gVec_e = np.vstack([[np.cos(0.5*angs[:, 0]) * np.cos(angs[:, 1])],
-                            [np.cos(0.5*angs[:, 0]) * np.sin(angs[:, 1])],
-                            [np.sin(0.5*angs[:, 0])]])
-        mat = np.dot(rMat_c.T, np.dot(rMat_s.T, rMat_e))
-        return np.dot(mat, gVec_e)
+def anglesToGVec(angs, bHat_l, eHat_l, rMat_s=I3, rMat_c=I3):
+    """
+    from 'eta' frame out to lab
+    (with handy kwargs to go to crystal or sample)
+    """
+    rMat_e = makeEtaFrameRotMat(bHat_l, eHat_l)
+    gVec_e = np.empty((angs.shape[0], 3))
+    _anglesToGVecHelper(angs, gVec_e)
+    mat = np.dot(rMat_c.T, np.dot(rMat_s.T, rMat_e))
+    return np.dot(mat, gVec_e.T)
 
 
 def gvecToDetectorXY(gVec_c,
@@ -203,7 +188,6 @@ def gvecToDetectorXY(gVec_c,
             dVec_l[:, ipt] = np.dot(
                 makeBinaryRotMat(adm_gVec_l[:, ipt]), -bHat_l
             ).squeeze()
-            pass
 
         # ###############################################################
         # displacement vector calculation
@@ -226,7 +210,6 @@ def gvecToDetectorXY(gVec_c,
 
         # put feasible transformed gVecs into return array
         retval[:, canDiffract] = P2_d
-        pass
     return retval[:2, :].T
 
 
@@ -480,7 +463,6 @@ def oscillAnglesOfHKLs(hkls, chi, rMat_c, bMat, wavelength,
                 )
             )
             tmp_eta[i] = np.arctan2(gVec_e[1], gVec_e[0])
-            pass
         eta0[goodOnes_s] = tmp_eta[:numGood_s]
         eta1[goodOnes_s] = tmp_eta[numGood_s:]
 
@@ -492,7 +474,6 @@ def oscillAnglesOfHKLs(hkls, chi, rMat_c, bMat, wavelength,
                   np.vstack([tTh0.flatten(), eta1.flatten(), ome1.flatten()]),)
     else:
         retval = (ome0.flatten(), ome1.flatten())
-        pass
     return retval
 
 
@@ -897,74 +878,51 @@ def rowNorm(a):
     return cnrma
 
 
-if USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)
-    def _unitVectorSingle(a, b):
-        n = a.shape[0]
+@numba.njit(nogil=True, cache=True)
+def _unitVectorSingle(a, b):
+    n = a.shape[0]
+    nrm = 0.0
+    for i in range(n):
+        nrm += a[i]*a[i]
+    nrm = np.sqrt(nrm)
+    # prevent divide by zero
+    if nrm > epsf:
+        for i in range(n):
+            b[i] = a[i] / nrm
+    else:
+        for i in range(n):
+            b[i] = a[i]
+
+@numba.njit(nogil=True, cache=True)
+def _unitVectorMulti(a, b):
+    n = a.shape[0]
+    m = a.shape[1]
+    for j in range(m):
         nrm = 0.0
         for i in range(n):
-            nrm += a[i]*a[i]
+            nrm += a[i, j]*a[i, j]
         nrm = np.sqrt(nrm)
         # prevent divide by zero
         if nrm > epsf:
             for i in range(n):
-                b[i] = a[i] / nrm
+                b[i, j] = a[i, j] / nrm
         else:
             for i in range(n):
-                b[i] = a[i]
+                b[i, j] = a[i, j]
 
-    @numba.njit(nogil=True, cache=True)
-    def _unitVectorMulti(a, b):
-        n = a.shape[0]
-        m = a.shape[1]
-        for j in range(m):
-            nrm = 0.0
-            for i in range(n):
-                nrm += a[i, j]*a[i, j]
-            nrm = np.sqrt(nrm)
-            # prevent divide by zero
-            if nrm > epsf:
-                for i in range(n):
-                    b[i, j] = a[i, j] / nrm
-            else:
-                for i in range(n):
-                    b[i, j] = a[i, j]
-
-    def unitVector(a):
-        """
-        normalize array of column vectors (hstacked, axis = 0)
-        """
-        result = np.empty_like(a)
-        if a.ndim == 1:
-            _unitVectorSingle(a, result)
-        elif a.ndim == 2:
-            _unitVectorMulti(a, result)
-        else:
-            raise ValueError("incorrect arg shape; must be 1-d or 2-d, "
-                             + "yours is %d-d" % (a.ndim))
-        return result
-
-else:  # not USE_NUMBA
-    def unitVector(a):
-        """
-        normalize array of column vectors (hstacked, axis = 0)
-        """
-        assert a.ndim in [1, 2], \
-            "incorrect arg shape; must be 1-d or 2-d, yours is %d-d" \
-            % (a.ndim)
-
-        m = a.shape[0]
-        n = 1
-
-        nrm = np.tile(np.sqrt(sum(np.asarray(a)**2, 0)), (m, n))
-
-        # prevent divide by zero
-        zchk = nrm <= epsf
-        nrm[zchk] = 1.
-
-        nrma = a/nrm
-
-        return nrma
+def unitVector(a):
+    """
+    normalize array of column vectors (hstacked, axis = 0)
+    """
+    result = np.empty_like(a)
+    if a.ndim == 1:
+        _unitVectorSingle(a, result)
+    elif a.ndim == 2:
+        _unitVectorMulti(a, result)
+    else:
+        raise ValueError("incorrect arg shape; must be 1-d or 2-d, "
+                            + "yours is %d-d" % (a.ndim))
+    return result
 
 
 def makeDetectorRotMat(tiltAngles):
@@ -1066,67 +1024,45 @@ def makeBinaryRotMat(axis):
     return 2*np.dot(n.reshape(3, 1), n.reshape(1, 3)) - I3
 
 
-if USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)
-    def _makeEtaFrameRotMat(bHat_l, eHat_l, out):
-        # bHat_l and eHat_l CANNOT have 0 magnitude!
-        # must catch this case as well as colinear bHat_l/eHat_l elsewhere...
-        bHat_mag = np.sqrt(bHat_l[0]**2 + bHat_l[1]**2 + bHat_l[2]**2)
+@numba.njit(nogil=True, cache=True)
+def _makeEtaFrameRotMat(bHat_l, eHat_l, out):
+    # bHat_l and eHat_l CANNOT have 0 magnitude!
+    # must catch this case as well as colinear bHat_l/eHat_l elsewhere...
+    bHat_mag = np.sqrt(bHat_l[0]**2 + bHat_l[1]**2 + bHat_l[2]**2)
 
-        # assign Ze as -bHat_l
-        for i in range(3):
-            out[i, 2] = -bHat_l[i] / bHat_mag
+    # assign Ze as -bHat_l
+    for i in range(3):
+        out[i, 2] = -bHat_l[i] / bHat_mag
 
-        # find Ye as Ze ^ eHat_l
-        Ye0 = out[1, 2]*eHat_l[2] - eHat_l[1]*out[2, 2]
-        Ye1 = out[2, 2]*eHat_l[0] - eHat_l[2]*out[0, 2]
-        Ye2 = out[0, 2]*eHat_l[1] - eHat_l[0]*out[1, 2]
+    # find Ye as Ze ^ eHat_l
+    Ye0 = out[1, 2]*eHat_l[2] - eHat_l[1]*out[2, 2]
+    Ye1 = out[2, 2]*eHat_l[0] - eHat_l[2]*out[0, 2]
+    Ye2 = out[0, 2]*eHat_l[1] - eHat_l[0]*out[1, 2]
 
-        Ye_mag = np.sqrt(Ye0**2 + Ye1**2 + Ye2**2)
+    Ye_mag = np.sqrt(Ye0**2 + Ye1**2 + Ye2**2)
 
-        out[0, 1] = Ye0 / Ye_mag
-        out[1, 1] = Ye1 / Ye_mag
-        out[2, 1] = Ye2 / Ye_mag
+    out[0, 1] = Ye0 / Ye_mag
+    out[1, 1] = Ye1 / Ye_mag
+    out[2, 1] = Ye2 / Ye_mag
 
-        # find Xe as Ye ^ Ze
-        out[0, 0] = out[1, 1]*out[2, 2] - out[1, 2]*out[2, 1]
-        out[1, 0] = out[2, 1]*out[0, 2] - out[2, 2]*out[0, 1]
-        out[2, 0] = out[0, 1]*out[1, 2] - out[0, 2]*out[1, 1]
+    # find Xe as Ye ^ Ze
+    out[0, 0] = out[1, 1]*out[2, 2] - out[1, 2]*out[2, 1]
+    out[1, 0] = out[2, 1]*out[0, 2] - out[2, 2]*out[0, 1]
+    out[2, 0] = out[0, 1]*out[1, 2] - out[0, 2]*out[1, 1]
 
-    def makeEtaFrameRotMat(bHat_l, eHat_l):
-        """
-        make eta basis COB matrix with beam antiparallel with Z
+def makeEtaFrameRotMat(bHat_l, eHat_l):
+    """
+    make eta basis COB matrix with beam antiparallel with Z
 
-        takes components from ETA frame to LAB
+    takes components from ETA frame to LAB
 
-        **NO EXCEPTION HANDLING FOR COLINEAR ARGS IN NUMBA VERSION!
+    **NO EXCEPTION HANDLING FOR COLINEAR ARGS IN NUMBA VERSION!
 
-        ...put checks for non-zero magnitudes and non-colinearity in wrapper?
-        """
-        result = np.empty((3, 3))
-        _makeEtaFrameRotMat(bHat_l.reshape(3), eHat_l.reshape(3), result)
-        return result
-
-else:  # not USE_NUMBA
-    def makeEtaFrameRotMat(bHat_l, eHat_l):
-        """
-        make eta basis COB matrix with beam antiparallel with Z
-
-        takes components from ETA frame to LAB
-        """
-        # normalize input
-        bHat_l = unitVector(bHat_l.reshape(3, 1))
-        eHat_l = unitVector(eHat_l.reshape(3, 1))
-
-        # find Ye as cross(eHat_l, bHat_l), normalize if kosher
-        Ye = np.cross(eHat_l.flatten(), bHat_l.flatten())
-        if np.sqrt(np.sum(Ye*Ye)) < 1e-8:
-            raise RuntimeError("bHat_l and eHat_l must NOT be colinear!")
-        Ye = unitVector(Ye.reshape(3, 1))
-
-        # find Xe as cross(bHat_l, Ye)
-        Xe = np.cross(bHat_l.flatten(), Ye.flatten()).reshape(3, 1)
-        return np.hstack([Xe, Ye, -bHat_l])
+    ...put checks for non-zero magnitudes and non-colinearity in wrapper?
+    """
+    result = np.empty((3, 3))
+    _makeEtaFrameRotMat(bHat_l.reshape(3), eHat_l.reshape(3), result)
+    return result
 
 
 def angles_in_range(angles, starts, stops, degrees=True):

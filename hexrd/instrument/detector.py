@@ -3,6 +3,7 @@ import copy
 import os
 
 import numpy as np
+import numba
 
 from hexrd import constants as ct
 from hexrd import distortion as distortion_pkg
@@ -24,8 +25,6 @@ from hexrd.transforms.xfcapi import (
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
 
-if ct.USE_NUMBA:
-    import numba
 
 distortion_registry = distortion_pkg.Registry()
 
@@ -1585,28 +1584,16 @@ def _col_edge_vec(cols, pixel_size_col):
 
 
 # FIXME find a better place for this, and maybe include loop over pixels
-if ct.USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)
-    def _solid_angle_of_triangle(vtx_list):
-        norms = np.sqrt(np.sum(vtx_list*vtx_list, axis=1))
-        norms_prod = norms[0] * norms[1] * norms[2]
-        scalar_triple_product = np.dot(vtx_list[0],
-                                       np.cross(vtx_list[2], vtx_list[1]))
-        denominator = norms_prod \
-            + norms[0]*np.dot(vtx_list[1], vtx_list[2]) \
-            + norms[1]*np.dot(vtx_list[2], vtx_list[0]) \
-            + norms[2]*np.dot(vtx_list[0], vtx_list[1])
 
-        return 2.*np.arctan2(scalar_triple_product, denominator)
-else:
-    def _solid_angle_of_triangle(vtx_list):
-        norms = rowNorm(vtx_list)
-        norms_prod = np.cumprod(norms)[-1]
-        scalar_triple_product = np.dot(vtx_list[0],
-                                       np.cross(vtx_list[2], vtx_list[1]))
-        denominator = norms_prod \
-            + norms[0]*np.dot(vtx_list[1], vtx_list[2]) \
-            + norms[1]*np.dot(vtx_list[2], vtx_list[0]) \
-            + norms[2]*np.dot(vtx_list[0], vtx_list[1])
+@numba.njit(nogil=True, cache=True)
+def _solid_angle_of_triangle(vtx_list):
+    norms = np.sqrt(np.sum(vtx_list*vtx_list, axis=1))
+    norms_prod = norms[0] * norms[1] * norms[2]
+    scalar_triple_product = np.dot(vtx_list[0],
+                                    np.cross(vtx_list[2], vtx_list[1]))
+    denominator = norms_prod \
+        + norms[0]*np.dot(vtx_list[1], vtx_list[2]) \
+        + norms[1]*np.dot(vtx_list[2], vtx_list[0]) \
+        + norms[2]*np.dot(vtx_list[0], vtx_list[1])
 
-        return 2.*np.arctan2(scalar_triple_product, denominator)
+    return 2.*np.arctan2(scalar_triple_product, denominator)

@@ -5,11 +5,9 @@ Created on Thu Jan 21 15:07:34 2021
 @author: Joel V. Bernier
 """
 import numpy as np
+import numba
 
 from hexrd import constants
-from hexrd.constants import USE_NUMBA
-if USE_NUMBA:
-    import numba
 
 from .distortionabc import DistortionABC
 from .registry import _RegisterDistortionClass
@@ -69,71 +67,43 @@ def _find_quadrant(xy_in):
     return quad_label
 
 
-if USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)
-    def _dexela_2923_distortion(out_, in_, params):
-        for el in range(len(in_)):
-            xi, yi = in_[el, :]
-            if xi < 0.:
-                if yi < 0.:
-                    # 3rd quadrant
-                    out_[el, :] = in_[el, :] + params[4:6]
-                else:
-                    # 2nd quadrant
-                    out_[el, :] = in_[el, :] + params[2:4]
+@numba.njit(nogil=True, cache=True)
+def _dexela_2923_distortion(out_, in_, params):
+    for el in range(len(in_)):
+        xi, yi = in_[el, :]
+        if xi < 0.:
+            if yi < 0.:
+                # 3rd quadrant
+                out_[el, :] = in_[el, :] + params[4:6]
             else:
-                if yi < 0.:
-                    # 4th quadrant
-                    out_[el, :] = in_[el, :] + params[6:8]
-                else:
-                    # 1st quadrant
-                    out_[el, :] = in_[el, :] + params[0:2]
-
-    @numba.njit(nogil=True, cache=True)
-    def _dexela_2923_inverse_distortion(out_, in_, params):
-        for el in range(len(in_)):
-            xi, yi = in_[el, :]
-            if xi < 0.:
-                if yi < 0.:
-                    # 3rd quadrant
-                    out_[el, :] = in_[el, :] - params[4:6]
-                else:
-                    # 2nd quadrant
-                    out_[el, :] = in_[el, :] - params[2:4]
+                # 2nd quadrant
+                out_[el, :] = in_[el, :] + params[2:4]
+        else:
+            if yi < 0.:
+                # 4th quadrant
+                out_[el, :] = in_[el, :] + params[6:8]
             else:
-                if yi < 0.:
-                    # 4th quadrant
-                    out_[el, :] = in_[el, :] - params[6:8]
-                else:
-                    # 1st quadrant
-                    out_[el, :] = in_[el, :] - params[0:2]
-else:
-    def _dexela_2923_distortion(out_, in_, params):
-        # find quadrant
-        ql = _find_quadrant(in_)
-        ql1 = ql == 1
-        ql2 = ql == 2
-        ql3 = ql == 3
-        ql4 = ql == 4
-        out_[ql1, :] = in_[ql1] + np.tile(params[0:2], (sum(ql1), 1))
-        out_[ql2, :] = in_[ql2] + np.tile(params[2:4], (sum(ql2), 1))
-        out_[ql3, :] = in_[ql3] + np.tile(params[4:6], (sum(ql3), 1))
-        out_[ql4, :] = in_[ql4] + np.tile(params[6:8], (sum(ql4), 1))
-        return
+                # 1st quadrant
+                out_[el, :] = in_[el, :] + params[0:2]
 
-    def _dexela_2923_inverse_distortion(out_, in_, params):
-        ql = _find_quadrant(in_)
-        ql1 = ql == 1
-        ql2 = ql == 2
-        ql3 = ql == 3
-        ql4 = ql == 4
-        out_[ql1, :] = in_[ql1] - np.tile(params[0:2], (sum(ql1), 1))
-        out_[ql2, :] = in_[ql2] - np.tile(params[2:4], (sum(ql2), 1))
-        out_[ql3, :] = in_[ql3] - np.tile(params[4:6], (sum(ql3), 1))
-        out_[ql4, :] = in_[ql4] - np.tile(params[6:8], (sum(ql4), 1))
-        return
-
-
+@numba.njit(nogil=True, cache=True)
+def _dexela_2923_inverse_distortion(out_, in_, params):
+    for el in range(len(in_)):
+        xi, yi = in_[el, :]
+        if xi < 0.:
+            if yi < 0.:
+                # 3rd quadrant
+                out_[el, :] = in_[el, :] - params[4:6]
+            else:
+                # 2nd quadrant
+                out_[el, :] = in_[el, :] - params[2:4]
+        else:
+            if yi < 0.:
+                # 4th quadrant
+                out_[el, :] = in_[el, :] - params[6:8]
+            else:
+                # 1st quadrant
+                out_[el, :] = in_[el, :] - params[0:2]
 
 def test_disortion():
     pts = np.random.randn(16, 2)
