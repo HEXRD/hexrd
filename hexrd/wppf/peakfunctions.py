@@ -119,31 +119,32 @@ def _anisotropic_peak_broadening(shkl, hkl):
               "s310", "s103", "s031", "s130", "s301", "s013",
               "s211", "s121", "s112"]
     """
-    h, k, l = hkl
+    # l_val is just l, but l is an ambiguous variable name, looks like I
+    h, k, l_val = hkl
     gamma_sqr = (
         shkl[0] * h**4
         + shkl[1] * k**4
-        + shkl[2] * l**4
+        + shkl[2] * l_val**4
         + 3.0
         * (
             shkl[3] * (h * k) ** 2
-            + shkl[4] * (h * l) ** 2
-            + shkl[5] * (k * l) ** 2
+            + shkl[4] * (h * l_val) ** 2
+            + shkl[5] * (k * l_val) ** 2
         )
         + 2.0
         * (
             shkl[6] * k * h**3
-            + shkl[7] * h * l**3
-            + shkl[8] * l * k**3
+            + shkl[7] * h * l_val**3
+            + shkl[8] * l_val * k**3
             + shkl[9] * h * k**3
-            + shkl[10] * l * h**3
-            + shkl[11] * k * l**3
+            + shkl[10] * l_val * h**3
+            + shkl[11] * k * l_val**3
         )
         + 4.0
         * (
-            shkl[12] * k * l * h**2
-            + shkl[13] * h * l * k**2
-            + shkl[14] * h * k * l**2
+            shkl[12] * k * l_val * h**2
+            + shkl[13] * h * l_val * k**2
+            + shkl[14] * h * k * l_val**2
         )
     )
 
@@ -264,9 +265,9 @@ def pvoight_wppf(uvw, p, xy, xy_sf, shkl, eta_mixing, tth, dsp, hkl, tth_list):
     Al = 1.0 / np.pi  # normalization factor for unit area
 
     g = Ag * _unit_gaussian(np.array([tth, fwhm]), tth_list)
-    l = Al * _unit_lorentzian(np.array([tth, fwhm]), tth_list)
+    l_val = Al * _unit_lorentzian(np.array([tth, fwhm]), tth_list)
 
-    return n * l + (1.0 - n) * g
+    return n * l_val + (1.0 - n) * g
 
 
 @njit(cache=True, nogil=True)
@@ -462,15 +463,15 @@ def pvoight_pink_beam(
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
     g = _gaussian_pink_beam(alpha_exp, beta_exp, fwhm_g, tth, tth_list)
-    l = _lorentzian_pink_beam(alpha_exp, beta_exp, fwhm_l, tth, tth_list)
+    l_val = _lorentzian_pink_beam(alpha_exp, beta_exp, fwhm_l, tth, tth_list)
     ag = np.trapz(g, tth_list)
-    al = np.trapz(l, tth_list)
+    al = np.trapz(l_val, tth_list)
     if np.abs(ag) < 1e-6:
         ag = 1.0
     if np.abs(al) < 1e-6:
         al = 1.0
 
-    return n * l / al + (1.0 - n) * g / ag
+    return n * l_val / al + (1.0 - n) * g / ag
 
 
 @njit(cache=True, nogil=True, parallel=True)
