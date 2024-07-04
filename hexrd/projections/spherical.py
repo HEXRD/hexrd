@@ -23,7 +23,6 @@ class SphericalView:
             self.invert_z = False
         elif self._vector_type == 'q':
             self.invert_z = True
-        pass
 
         self._output_dim = output_dim
         self._rmat = rmat

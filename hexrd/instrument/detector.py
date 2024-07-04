@@ -91,7 +91,6 @@ class Detector:
             DESCRIPTION.
 
         """
-        pass
 
     @abstractmethod
     def angles_to_cart(self, tth_eta,
@@ -126,12 +125,10 @@ class Detector:
             The (n, 2) array on the n input coordinates in the .
 
         """
-        pass
 
     @abstractmethod
     def cart_to_dvecs(self, xy_data):
         """Convert cartesian coordinates to dvectors"""
-        pass
 
     @abstractmethod
     def pixel_angles(self, origin=ct.zeros_3):
@@ -152,7 +149,7 @@ class Detector:
         returns the coordinates of the beam in the cartesian detector
         frame {Xd, Yd, Zd}.  NaNs if no intersection.
         """
-        pass
+
 
     @property
     def extra_config_kwargs(self):
@@ -735,7 +732,6 @@ class Detector:
                 # !!! can't write None to hdf5; substitute with zeros
                 panel_buffer = np.r_[0., 0.]
             '''
-            pass
         det_dict['buffer'] = panel_buffer
 
         det_dict.update(self.extra_config_kwargs)
@@ -1227,7 +1223,6 @@ class Detector:
             valid_ang.append(patch_valid_angs)
             valid_xy.append(patch_valid_xys)
             map_indices.append(patch_is_on)
-            pass
         # ??? is this option necessary?
         if full_output:
             return valid_ang, valid_xy, tth_ranges, map_indices, eta_edges
@@ -1527,10 +1522,8 @@ class Detector:
                                 wlen >= lmin[i],
                                 wlen <= lmax[i])
                         validEnergy = validEnergy | in_energy_range
-                        pass
                 else:
                     validEnergy = np.logical_and(wlen >= lmin, wlen <= lmax)
-                    pass
 
                 # index for valid reflections
                 keepers = np.where(np.logical_and(on_panel, validEnergy))[0]
@@ -1541,8 +1534,6 @@ class Detector:
                 angles[iG][keepers, :] = tth_eta[keepers, :]
                 dspacing[iG, keepers] = dsp[keepers]
                 energy[iG, keepers] = ct.keVToAngstrom(wlen[keepers])
-                pass    # close conditional on valids
-            pass    # close loop on grains
         return xy_det, hkls_in, angles, dspacing, energy
 
     @staticmethod

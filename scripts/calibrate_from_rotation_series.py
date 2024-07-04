@@ -224,7 +224,6 @@ def calibrate_instrument_from_sx(
             # !!! use jj to do distortion...
             if panel.distortion is not None:
                 pass
-            pass
 
         return fit_params, resd, sim_final
 
@@ -274,7 +273,6 @@ def sxcal_obj_func(plist_fit, plist_full, param_flags,
             dparams = dparams_all[jj:jj + len_these_dps]
             jj += len_these_dps
             xy_unwarped[det_key] = dfunc(xy_unwarped[det_key], dparams)
-            pass
         meas_omes[det_key] = xyo_det[det_key][:, 2]
 
         # get these panel params for convenience
@@ -316,7 +314,6 @@ def sxcal_obj_func(plist_fit, plist_full, param_flags,
         calc_xy[det_key] = calc_xy_tmp
 
         ii += 6
-        pass
 
     # return values
     if sim_only:
@@ -336,7 +333,6 @@ def sxcal_obj_func(plist_fit, plist_full, param_flags,
             calc_xy_all.append(calc_xy[det_key])
             meas_omes_all.append(meas_omes[det_key])
             calc_omes_all.append(calc_omes[det_key])
-            pass
         meas_xy_all = np.vstack(meas_xy_all)
         calc_xy_all = np.vstack(calc_xy_all)
         meas_omes_all = np.hstack(meas_omes_all)
@@ -404,7 +400,6 @@ def parse_reflection_tables(cfg, instr, grain_id, refit_idx=None):
         hkls[det_key] = gtable[idx, 2:5]
         meas_omes = gtable[idx, 12].reshape(sum(idx), 1)
         xyo_det[det_key] = np.hstack([gtable[idx, -2:], meas_omes])
-        pass
     return hkls, xyo_det, idx_0
 
 
@@ -435,7 +430,6 @@ for panel in instr.detectors.itervalues():
     max_pix_size = max(max_pix_size,
                        max(panel.pixel_size_col, panel.pixel_size_col)
                        )
-    pass
 
 # grab omega period
 # !!! data should be consistent
@@ -546,7 +540,6 @@ for det_key, panel in instr.detectors.iteritems():
 # for det_key, panel in instr.detectors.iteritems():
 #     hkls_refit = hkls[det_key][idx_new[det_key], :]
 #     xyo_det_refit = xyo_det[det_key][idx_0[det_key], :]
-#     pass
 
 # update calibration crystal params
 grain_parameters[:3] = params[5:8]

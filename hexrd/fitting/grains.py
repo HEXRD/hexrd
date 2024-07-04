@@ -218,7 +218,6 @@ def objFuncFitGrain(gFit, gFull, gFlag,
             meas_omes = meas_xyo[:, 2]
             xy_unwarped = panel.distortion.apply(meas_xyo[:, :2])
             meas_xyo = np.vstack([xy_unwarped.T, meas_omes]).T
-            pass
 
         # append to meas_omes
         meas_xyo_all.append(meas_xyo)
@@ -251,7 +250,6 @@ def objFuncFitGrain(gFit, gFull, gFlag,
 
         # append to xy dict
         calc_xy_dict[det_key] = calc_xy
-        pass
 
     # stack results to concatenated arrays
     calc_omes_all = np.hstack([calc_omes_dict[k] for k in det_keys_ordered])

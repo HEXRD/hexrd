@@ -62,4 +62,3 @@ for i, det_key in enumerate(det_keys):
         os.path.join(image_dir, tiff_fname),
         ims[i]
     )
-    pass

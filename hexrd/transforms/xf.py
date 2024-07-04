@@ -203,7 +203,6 @@ def gvecToDetectorXY(gVec_c,
             dVec_l[:, ipt] = np.dot(
                 makeBinaryRotMat(adm_gVec_l[:, ipt]), -bHat_l
             ).squeeze()
-            pass
 
         # ###############################################################
         # displacement vector calculation
@@ -226,7 +225,6 @@ def gvecToDetectorXY(gVec_c,
 
         # put feasible transformed gVecs into return array
         retval[:, canDiffract] = P2_d
-        pass
     return retval[:2, :].T
 
 
@@ -480,7 +478,6 @@ def oscillAnglesOfHKLs(hkls, chi, rMat_c, bMat, wavelength,
                 )
             )
             tmp_eta[i] = np.arctan2(gVec_e[1], gVec_e[0])
-            pass
         eta0[goodOnes_s] = tmp_eta[:numGood_s]
         eta1[goodOnes_s] = tmp_eta[numGood_s:]
 
@@ -492,7 +489,6 @@ def oscillAnglesOfHKLs(hkls, chi, rMat_c, bMat, wavelength,
                   np.vstack([tTh0.flatten(), eta1.flatten(), ome1.flatten()]),)
     else:
         retval = (ome0.flatten(), ome1.flatten())
-        pass
     return retval
 
 
@@ -621,7 +617,6 @@ def polarRebin(thisFrame,
             log.write(msg)
         else:
             print(msg)
-            pass
 
     rhoI = startRho - 10*deltaRho
     rhoF = stopRho + 10*deltaRho
@@ -633,7 +628,6 @@ def polarRebin(thisFrame,
                 log.write(msg)
             else:
                 print(msg)
-                pass
 
         # import pdb;pdb.set_trace()
         etaI1 = rowEta[i] - 10.5*deltaEta
@@ -811,12 +805,10 @@ def mapAngle(ang, *args, **kwargs):
         while lbi.sum() > 0:
             ang[lbi] = ang[lbi] + period
             lbi = ang < lb
-            pass
         ubi = ang > ub
         while ubi.sum() > 0:
             ang[ubi] = ang[ubi] - period
             ubi = ang > ub
-            pass
         retval = ang
     else:
         retval = np.mod(ang + 0.5*period, period) - 0.5*period

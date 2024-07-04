@@ -135,5 +135,3 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
     #@memoize
     def __len__(self):
         return self._nframes
-
-    pass  # end class

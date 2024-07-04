@@ -55,7 +55,6 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
             self.close()
         except(Exception):
             warnings.warn("HDF5ImageSeries could not close h5 file")
-            pass
 
     def __getitem__(self, key):
         if self._ndim == 2:
@@ -138,5 +137,3 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
             return self.__image_dataset.shape
         else:
             return self.__image_dataset.shape[1:]
-
-    pass  # end class
