@@ -43,7 +43,7 @@ from hexrd.transforms import xfcapi
 # =============================================================================
 # Parameters
 # =============================================================================
-omega_period_DFLT = np.radians(np.r_[-180., 180.])
+omega_period_DFLT = np.radians(np.r_[-180.0, 180.0])
 
 paramMP = None
 nCPUs_DFLT = multiprocessing.cpu_count()
@@ -53,13 +53,20 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Methods
 # =============================================================================
-def paintGrid(quats, etaOmeMaps,
-              threshold=None, bMat=None,
-              omegaRange=None, etaRange=None,
-              omeTol=constants.d2r, etaTol=constants.d2r,
-              omePeriod=omega_period_DFLT,
-              doMultiProc=False,
-              nCPUs=None, debug=False):
+def paintGrid(
+    quats,
+    etaOmeMaps,
+    threshold=None,
+    bMat=None,
+    omegaRange=None,
+    etaRange=None,
+    omeTol=constants.d2r,
+    etaTol=constants.d2r,
+    omePeriod=omega_period_DFLT,
+    doMultiProc=False,
+    nCPUs=None,
+    debug=False,
+):
     r"""
     Spherical map-based indexing algorithm, i.e. paintGrid.
 
@@ -156,10 +163,7 @@ def paintGrid(quats, etaOmeMaps,
     # !!! these are master hklIDs
     hklIDs = np.asarray(etaOmeMaps.iHKLList)
     hklList = planeData.getHKLs(*hklIDs).tolist()
-    hkl_idx = planeData.getHKLID(
-        planeData.getHKLs(*hklIDs).T,
-        master=False
-    )
+    hkl_idx = planeData.getHKLID(planeData.getHKLs(*hklIDs).T, master=False)
     nHKLS = len(hklIDs)
 
     numEtas = len(etaOmeMaps.etaEdges) - 1
@@ -169,8 +173,10 @@ def paintGrid(quats, etaOmeMaps,
         threshold = np.zeros(nHKLS)
         for i in range(nHKLS):
             threshold[i] = np.mean(
-                np.r_[np.mean(etaOmeMaps.dataStore[i]),
-                      np.median(etaOmeMaps.dataStore[i])]
+                np.r_[
+                    np.mean(etaOmeMaps.dataStore[i]),
+                    np.median(etaOmeMaps.dataStore[i]),
+                ]
             )
     elif threshold is not None and not hasattr(threshold, '__len__'):
         threshold = threshold * np.ones(nHKLS)
@@ -182,7 +188,7 @@ def paintGrid(quats, etaOmeMaps,
     else:
         raise RuntimeError(
             "unknown threshold option. should be a list of numbers or None"
-            )
+        )
     if bMat is None:
         bMat = planeData.latVecOps['B']
 
@@ -194,14 +200,22 @@ def paintGrid(quats, etaOmeMaps,
     omeMin = None
     omeMax = None
     if omegaRange is None:  # FIXME
-        omeMin = [np.min(etaOmeMaps.omeEdges), ]
-        omeMax = [np.max(etaOmeMaps.omeEdges), ]
+        omeMin = [
+            np.min(etaOmeMaps.omeEdges),
+        ]
+        omeMax = [
+            np.max(etaOmeMaps.omeEdges),
+        ]
     else:
         omeMin = [omegaRange[i][0] for i in range(len(omegaRange))]
         omeMax = [omegaRange[i][1] for i in range(len(omegaRange))]
     if omeMin is None:
-        omeMin = [-np.pi, ]
-        omeMax = [np.pi, ]
+        omeMin = [
+            -np.pi,
+        ]
+        omeMax = [
+            np.pi,
+        ]
     omeMin = np.asarray(omeMin)
     omeMax = np.asarray(omeMax)
 
@@ -211,8 +225,12 @@ def paintGrid(quats, etaOmeMaps,
         etaMin = [etaRange[i][0] for i in range(len(etaRange))]
         etaMax = [etaRange[i][1] for i in range(len(etaRange))]
     if etaMin is None:
-        etaMin = [-np.pi, ]
-        etaMax = [np.pi, ]
+        etaMin = [
+            -np.pi,
+        ]
+        etaMax = [
+            np.pi,
+        ]
     etaMin = np.asarray(etaMin)
     etaMax = np.asarray(etaMax)
 
@@ -223,8 +241,9 @@ def paintGrid(quats, etaOmeMaps,
         chunksize = min(quats.shape[1] // nCPUs, 10)
         logger.info(
             "using multiprocessing with %d processes and a chunk size of %d",
-            nCPUs, chunksize
-            )
+            nCPUs,
+            chunksize,
+        )
     else:
         logger.info("running in serial mode")
         nCPUs = 1
@@ -258,24 +277,24 @@ def paintGrid(quats, etaOmeMaps,
         'etaEdges': etaOmeMaps.etaEdges,
         'etaOmeMaps': np.stack(etaOmeMaps.dataStore),
         'bMat': bMat,
-        'threshold': np.asarray(threshold)
-        }
+        'threshold': np.asarray(threshold),
+    }
 
     # do the mapping
     start = timeit.default_timer()
     retval = None
     if multiProcMode:
         # multiple process version
-        pool = multiprocessing.Pool(nCPUs, paintgrid_init, (params, ))
+        pool = multiprocessing.Pool(nCPUs, paintgrid_init, (params,))
         retval = pool.map(paintGridThis, quats.T, chunksize=chunksize)
         pool.close()
     else:
         # single process version.
         global paramMP
-        paintgrid_init(params)    # sets paramMP
+        paintgrid_init(params)  # sets paramMP
         retval = list(map(paintGridThis, quats.T))
-        paramMP = None    # clear paramMP
-    elapsed = (timeit.default_timer() - start)
+        paramMP = None  # clear paramMP
+    elapsed = timeit.default_timer() - start
     logger.info("paintGrid took %.3f seconds", elapsed)
 
     return retval
@@ -356,18 +375,19 @@ def _normalize_ranges(starts, stops, offset, ccw=False):
     # return the full range
     two_pi = 2 * np.pi
     if np.any((starts + two_pi) < stops + 1e-8):
-        return np.array([offset, two_pi+offset])
+        return np.array([offset, two_pi + offset])
 
     starts = np.mod(starts - offset, two_pi) + offset
     stops = np.mod(stops - offset, two_pi) + offset
 
     order = np.argsort(starts)
-    result = np.hstack((starts[order, np.newaxis],
-                        stops[order, np.newaxis])).ravel()
+    result = np.hstack(
+        (starts[order, np.newaxis], stops[order, np.newaxis])
+    ).ravel()
     # at this point, result is in its final form unless there
     # is wrap-around in the last segment. Handle this case:
     if result[-1] < result[-2]:
-        new_result = np.empty((len(result)+2,), dtype=result.dtype)
+        new_result = np.empty((len(result) + 2,), dtype=result.dtype)
         new_result[0] = offset
         new_result[1] = result[-1]
         new_result[2:-1] = result[0:-1]
@@ -402,13 +422,13 @@ def paintgrid_init(params):
     #       instead of building etaMin/etaMax and omeMin/omeMax. It may also
     #       be worth handling range overlap and maybe "optimize" ranges if
     #       there happens to be contiguous spans.
-    paramMP['valid_eta_spans'] = _normalize_ranges(paramMP['etaMin'],
-                                                   paramMP['etaMax'],
-                                                   -np.pi)
+    paramMP['valid_eta_spans'] = _normalize_ranges(
+        paramMP['etaMin'], paramMP['etaMax'], -np.pi
+    )
 
-    paramMP['valid_ome_spans'] = _normalize_ranges(paramMP['omeMin'],
-                                                   paramMP['omeMax'],
-                                                   min(paramMP['omePeriod']))
+    paramMP['valid_ome_spans'] = _normalize_ranges(
+        paramMP['omeMin'], paramMP['omeMax'], min(paramMP['omePeriod'])
+    )
     return
 
 
@@ -443,11 +463,11 @@ def _check_dilated(eta, ome, dpix_eta, dpix_ome, etaOmeMap, threshold):
     i_max, j_max = etaOmeMap.shape
     ome_start, ome_stop = (
         max(ome - dpix_ome, 0),
-        min(ome + dpix_ome + 1, i_max)
+        min(ome + dpix_ome + 1, i_max),
     )
     eta_start, eta_stop = (
         max(eta - dpix_eta, 0),
-        min(eta + dpix_eta + 1, j_max)
+        min(eta + dpix_eta + 1, j_max),
     )
 
     for i in range(ome_start, ome_stop):
@@ -505,14 +525,27 @@ def paintGridThis(quat):
     rMat = xfcapi.makeRotMatOfQuat(quat)
 
     # Compute the oscillation angles of all the symHKLs at once
-    oangs_pair = xfcapi.oscillAnglesOfHKLs(symHKLs, 0., rMat, bMat,
-                                            wavelength)
+    oangs_pair = xfcapi.oscillAnglesOfHKLs(
+        symHKLs, 0.0, rMat, bMat, wavelength
+    )
     # pdb.set_trace()
-    return _filter_and_count_hits(oangs_pair[0], oangs_pair[1], symHKLs_ix,
-                                    etaEdges, valid_eta_spans,
-                                    valid_ome_spans, omeEdges, omePeriod,
-                                    etaOmeMaps, etaIndices, omeIndices,
-                                    dpix_eta, dpix_ome, threshold)
+    return _filter_and_count_hits(
+        oangs_pair[0],
+        oangs_pair[1],
+        symHKLs_ix,
+        etaEdges,
+        valid_eta_spans,
+        valid_ome_spans,
+        omeEdges,
+        omePeriod,
+        etaOmeMaps,
+        etaIndices,
+        omeIndices,
+        dpix_eta,
+        dpix_ome,
+        threshold,
+    )
+
 
 @numba.njit(nogil=True, cache=True)
 def _find_in_range(value, spans):
@@ -541,14 +574,28 @@ def _find_in_range(value, spans):
         if value < spans[mi]:
             ri = mi
         else:
-            li = mi+1
+            li = mi + 1
 
     return li
 
+
 @numba.njit(nogil=True, cache=True)
-def _angle_is_hit(ang, eta_offset, ome_offset, hkl, valid_eta_spans,
-                    valid_ome_spans, etaEdges, omeEdges, etaOmeMaps,
-                    etaIndices, omeIndices, dpix_eta, dpix_ome, threshold):
+def _angle_is_hit(
+    ang,
+    eta_offset,
+    ome_offset,
+    hkl,
+    valid_eta_spans,
+    valid_ome_spans,
+    etaEdges,
+    omeEdges,
+    etaOmeMaps,
+    etaIndices,
+    omeIndices,
+    dpix_eta,
+    dpix_ome,
+    threshold,
+):
     """Perform work on one of the angles.
 
     This includes:
@@ -598,18 +645,32 @@ def _angle_is_hit(ang, eta_offset, ome_offset, hkl, valid_eta_spans,
 
     eta = etaIndices[eta_idx]
     ome = omeIndices[ome_idx]
-    isHit = _check_dilated(eta, ome, dpix_eta, dpix_ome,
-                            etaOmeMaps[hkl], threshold[hkl])
+    isHit = _check_dilated(
+        eta, ome, dpix_eta, dpix_ome, etaOmeMaps[hkl], threshold[hkl]
+    )
     if isHit == -1:
         return 0, 0
     else:
         return isHit, 1
 
+
 @numba.njit(nogil=True, cache=True)
-def _filter_and_count_hits(angs_0, angs_1, symHKLs_ix, etaEdges,
-                            valid_eta_spans, valid_ome_spans, omeEdges,
-                            omePeriod, etaOmeMaps, etaIndices, omeIndices,
-                            dpix_eta, dpix_ome, threshold):
+def _filter_and_count_hits(
+    angs_0,
+    angs_1,
+    symHKLs_ix,
+    etaEdges,
+    valid_eta_spans,
+    valid_ome_spans,
+    omeEdges,
+    omePeriod,
+    etaOmeMaps,
+    etaIndices,
+    omeIndices,
+    dpix_eta,
+    dpix_ome,
+    threshold,
+):
     """Accumulate completeness scores.
 
     assumes:
@@ -633,33 +694,52 @@ def _filter_and_count_hits(angs_0, angs_1, symHKLs_ix, etaEdges,
     for i in range(count):
         if i >= end_curr:
             curr_hkl_idx += 1
-            end_curr = symHKLs_ix[curr_hkl_idx+1]
+            end_curr = symHKLs_ix[curr_hkl_idx + 1]
 
         # first solution
         hit, not_filtered = _angle_is_hit(
-            angs_0[i], eta_offset, ome_offset,
-            curr_hkl_idx, valid_eta_spans,
-            valid_ome_spans, etaEdges,
-            omeEdges, etaOmeMaps, etaIndices,
-            omeIndices, dpix_eta, dpix_ome,
-            threshold)
+            angs_0[i],
+            eta_offset,
+            ome_offset,
+            curr_hkl_idx,
+            valid_eta_spans,
+            valid_ome_spans,
+            etaEdges,
+            omeEdges,
+            etaOmeMaps,
+            etaIndices,
+            omeIndices,
+            dpix_eta,
+            dpix_ome,
+            threshold,
+        )
         hits += hit
         total += not_filtered
 
         # second solution
         hit, not_filtered = _angle_is_hit(
-            angs_1[i], eta_offset, ome_offset,
-            curr_hkl_idx, valid_eta_spans,
-            valid_ome_spans, etaEdges,
-            omeEdges, etaOmeMaps, etaIndices,
-            omeIndices, dpix_eta, dpix_ome,
-            threshold)
+            angs_1[i],
+            eta_offset,
+            ome_offset,
+            curr_hkl_idx,
+            valid_eta_spans,
+            valid_ome_spans,
+            etaEdges,
+            omeEdges,
+            etaOmeMaps,
+            etaIndices,
+            omeIndices,
+            dpix_eta,
+            dpix_ome,
+            threshold,
+        )
         hits += hit
         total += not_filtered
 
-    return float(hits)/float(total) if total != 0 else 0.0
+    return float(hits) / float(total) if total != 0 else 0.0
+
 
 @numba.njit(nogil=True, cache=True)
 def _map_angle(angle, offset):
     """Numba-firendly equivalent to xf.mapAngle."""
-    return np.mod(angle-offset, 2*np.pi)+offset
+    return np.mod(angle - offset, 2 * np.pi) + offset

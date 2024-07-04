@@ -86,6 +86,7 @@ def _dexela_2923_distortion(out_, in_, params):
                 # 1st quadrant
                 out_[el, :] = in_[el, :] + params[0:2]
 
+
 @numba.njit(nogil=True, cache=True)
 def _dexela_2923_inverse_distortion(out_, in_, params):
     for el in range(len(in_)):

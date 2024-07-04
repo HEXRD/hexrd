@@ -89,6 +89,7 @@ def cellIndices(edges, points_1d):
     #     idx[off_hi] = np.nan
     return np.array(idx, dtype=int)
 
+
 @numba.njit(nogil=True, cache=True)
 def _fill_connectivity(out, m, n, p):
     i_con = 0

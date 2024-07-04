@@ -1,13 +1,12 @@
 import numpy as np
 from numba import njit
-import numba
-from numba import prange
 from hexrd import constants
 
 ap_2 = constants.cuA_2
 sc = constants.sc
 
-@numba.njit(cache=True, nogil=True)
+
+@njit(cache=True, nogil=True)
 def getPyramid(xyz):
     x = xyz[0]
     y = xyz[1]
@@ -35,6 +34,7 @@ def getPyramid(xyz):
 def cu2ro(cu):
     ho = cu2ho(cu)
     return ho2ro(ho)
+
 
 @njit(cache=True, nogil=True)
 def cu2ho(cu):
@@ -87,10 +87,12 @@ def cu2ho(cu):
     elif pyd == 5 or pyd == 6:
         return np.array([LamXYZ[1], LamXYZ[2], LamXYZ[0]])
 
+
 @njit(cache=True, nogil=True)
 def ho2ro(ho):
     ax = ho2ax(ho)
     return ax2ro(ax)
+
 
 @njit(cache=True, nogil=True)
 def ho2ax(ho):
@@ -110,6 +112,7 @@ def ho2ax(ho):
     else:
         return np.array([hn[0], hn[1], hn[2], s])
 
+
 @njit(cache=True, nogil=True)
 def ax2ro(ax):
     if np.abs(ax[3]) < 1E-8:
@@ -121,10 +124,12 @@ def ax2ro(ax):
     else:
         return np.array([ax[0], ax[1], ax[2], np.tan(ax[3]*0.5)])
 
+
 @njit(cache=True, nogil=True)
 def ro2qu(ro):
     ax = ro2ax(ro)
     return ax2qu(ax)
+
 
 @njit(cache=True, nogil=True)
 def ro2ax(ro):
