@@ -28,7 +28,7 @@
 import re
 import copy
 from math import pi
-from typing import Optional, Union, Dict
+from typing import Optional, Union, Dict, List
 
 import numpy as np
 
@@ -190,9 +190,9 @@ def latticePlanes(
     2) lparms (1 x m float list) is the array of lattice parameters,
        where m depends on the symmetry group (see below).
 
-    3) The following optional keyword arguments are recognized:
+    The following optional arguments are recognized:
 
-       *) ltype=(string) is a string representing the symmetry type of
+       3) ltype=(string) is a string representing the symmetry type of
           the implied Laue group.  The 11 available choices are shown
           below.  The default value is 'cubic'. Note that each group
           expects a lattice parameter array of the indicated length
@@ -209,11 +209,11 @@ def latticePlanes(
           'monoclinic'     a, b, c, beta (in degrees)
           'triclinic'      a, b, c, alpha, beta, gamma (in degrees)
 
-       *) wavelength=<float> is a value represented the wavelength in
+       4) wavelength=<float> is a value represented the wavelength in
           Angstroms to calculate bragg angles for.  The default value
           is for Cu K-alpha radiation (1.54059292 Angstrom)
 
-       *) strainMag=None
+       5) strainMag=None
 
     OUTPUTS:
 
@@ -301,7 +301,7 @@ def latticePlanes(
 
 def latticeVectors(
     lparms: np.ndarray,
-    tag: str = 'cubic',
+    tag: Optional[str] = 'cubic',
     radians: Optional[bool] = False,
     debug: Optional[bool] = False,
 ) -> Dict[str, Union[np.ndarray, float]]:
@@ -337,12 +337,12 @@ def latticeVectors(
        'monoclinic'     a, b, c, beta (in degrees)
        'triclinic'      a, b, c, alpha, beta, gamma (in degrees)
 
-    3) The following optional keyword arguments are recognized:
+    The following optional arguments are recognized:
 
-       *) radians=<bool> is a boolean flag indicating usage of radians rather
+       3) radians=<bool> is a boolean flag indicating usage of radians rather
           than degrees, defaults to false.
 
-        *) debug=<bool> is a boolean flag indicating whether or not to print
+        4) debug=<bool> is a boolean flag indicating whether or not to print
            debug info, defaults to false.
 
     OUTPUTS:
@@ -576,18 +576,16 @@ class PlaneData(object):
             Miller indices to be used in the plane data.  Can be set later
 
         *args
-            Unnamed arguments. Could be in the format of `lparms, laueGroup, 
+            Unnamed arguments. Could be in the format of `lparms, laueGroup,
             wavelength, strainMag`, or just a `PlaneData` object.
-        
+
         **kwargs
             Valid keyword arguments include:
-            - phaseID
             - doTThSort
             - exclusions
             - tThMax
             - tThWidth
         """
-        self.phaseID = None
         self._doTThSort = True
         self._exclusions = None
         self._tThMax = None
@@ -604,7 +602,6 @@ class PlaneData(object):
             )
             self._wavelength = wavelength
             self._lparms = lparms
-            self.phaseID = other.phaseID
             self._doTThSort = other._doTThSort
             self._exclusions = other._exclusions
             self._tThMax = other._tThMax
@@ -621,8 +618,6 @@ class PlaneData(object):
         self.tThWidth = tThWidth
 
         # ... need to implement tThMin too
-        if 'phaseID' in kwargs:
-            self.phaseID = kwargs.pop('phaseID')
         if 'doTThSort' in kwargs:
             self._doTThSort = kwargs.pop('doTThSort')
         if 'exclusions' in kwargs:
@@ -690,18 +685,17 @@ class PlaneData(object):
         """
         return self.nHKLs
 
-    def getPhaseID(self) -> Optional[int]:
+    def getParams(self):
         """
-        Getter for the phaseID of the plane data.
+        Getter for the parameters of the plane data.
 
         Returns
         -------
-        int
-            The phaseID of the plane data.
-        """
-        return self.phaseID
+        tuple
+            The parameters of the plane data. In the order of
+            _lparams, _laueGroup, _wavelength, _strainMag, tThWidth
 
-    def getParams(self):
+        """
         return (
             self._lparms,
             self._laueGroup,
@@ -710,27 +704,52 @@ class PlaneData(object):
             self.tThWidth,
         )
 
-    def getNhklRef(self):
-        'does not use exclusions or the like'
+    def getNhklRef(self) -> int:
+        """
+        Get the total number of hkl's in the plane data, not ignoring
+        ones that are excluded in exclusions.
+
+        Returns
+        -------
+        int
+            The total number of hkl's in the plane data.
+        """
         return len(self.hklDataList)
 
     @property
-    def hkls(self):
+    def hkls(self) -> np.ndarray:
+        """
+        hStacked Hkls of the plane data (Miller indices).
+        """
         return self.getHKLs().T
 
     @hkls.setter
     def hkls(self, hkls):
         raise NotImplementedError('for now, not allowing hkls to be reset')
 
-    def get_tThMax(self):
+    @property
+    def tThMax(self) -> Optional[float]:
+        """
+        Maximum 2-theta value of the plane data.
+
+        float or None
+        """
         return self._tThMax
 
-    def set_tThMax(self, tThMax):
-        self._tThMax = toFloat(tThMax, 'radians')
+    @tThMax.setter
+    def tThMax(self, t_th_max: Union[float, valunits.valWUnit]) -> None:
+        self._tThMax = toFloat(t_th_max, 'radians')
 
-    tThMax = property(get_tThMax, set_tThMax, None)
+    @property
+    def exclusions(self) -> np.ndarray:
+        """
+        Excluded HKL's the plane data.
 
-    def get_exclusions(self):
+        Set as type np.ndarray, as a mask of length getNhklRef(), a list of
+            indices to be excluded, or a list of ranges of indices.
+
+        Read as a mask of length getNhklRef().
+        """
         retval = np.zeros(self.getNhklRef(), dtype=bool)
         if self._exclusions is not None:
             # report in current hkl ordering
@@ -741,10 +760,11 @@ class PlaneData(object):
                     retval[iHKLr] = True
         return retval
 
-    def set_exclusions(self, exclusions):
+    @exclusions.setter
+    def exclusions(self, new_exclusions: Optional[np.ndarray]) -> None:
         excl = np.zeros(len(self.hklDataList), dtype=bool)
-        if exclusions is not None:
-            exclusions = np.atleast_1d(exclusions)
+        if new_exclusions is not None:
+            exclusions = np.atleast_1d(new_exclusions)
             if len(exclusions) == len(self.hklDataList):
                 assert (
                     exclusions.dtype == 'bool'
@@ -756,9 +776,9 @@ class PlaneData(object):
                     # treat exclusions as indices
                     excl[self.tThSort[exclusions]] = True
                 elif len(exclusions.shape) == 2:
-                    raise NotImplementedError(
-                        'Have not yet coded treating exclusions as ranges'
-                    )
+                    # treat exclusions as ranges of indices
+                    for r in exclusions:
+                        excl[self.tThSort[r[0] : r[1]]] = True
                 else:
                     raise RuntimeError(
                         f'Unclear behavior for shape {exclusions.shape}'
@@ -766,20 +786,19 @@ class PlaneData(object):
         self._exclusions = excl
         self.nHKLs = np.sum(np.logical_not(self._exclusions))
 
-    exclusions = property(get_exclusions, set_exclusions, None)
-
     def exclude(
         self,
-        dmin=None,
-        dmax=None,
-        tthmin=None,
-        tthmax=None,
-        sfacmin=None,
-        sfacmax=None,
-        pintmin=None,
-        pintmax=None,
-    ):
-        """Set exclusions according to various parameters
+        dmin: Optional[float] = None,
+        dmax: Optional[float] = None,
+        tthmin: Optional[float] = None,
+        tthmax: Optional[float] = None,
+        sfacmin: Optional[float] = None,
+        sfacmax: Optional[float] = None,
+        pintmin: Optional[float] = None,
+        pintmax: Optional[float] = None,
+    ) -> None:
+        """
+        Set exclusions according to various parameters
 
         Any hkl with a value below any min or above any max will be excluded. So
         to be included, an hkl needs to have values between the min and max
@@ -842,10 +861,12 @@ class PlaneData(object):
 
         self.exclusions = excl
 
-    def _parseLParms(self, lparms):
+    def _parseLParms(
+        self, lparms: List[Union[valunits.valWUnit, float]]
+    ) -> List[float]:
         lparmsDUnit = []
         for lparmThis in lparms:
-            if hasattr(lparmThis, 'getVal'):
+            if isinstance(lparmThis, valunits.valWUnit):
                 if lparmThis.isLength():
                     lparmsDUnit.append(lparmThis.getVal(dUnit))
                 elif lparmThis.isAngle():
@@ -861,28 +882,48 @@ class PlaneData(object):
         return lparmsDUnit
 
     @property
-    def lparms(self):
+    def lparms(self) -> List[float]:
+        """
+        Lattice parameters of the plane data.
+
+        Can be set as a List[float | valWUnit], but will be converted to
+        List[float].
+        """
         return self._lparms
 
     @lparms.setter
-    def lparms(self, lparms):
+    def lparms(self, lparms: List[Union[valunits.valWUnit, float]]) -> None:
         self._lparms = self._parseLParms(lparms)
         self._calc()
 
-    def get_strainMag(self):
+    @property
+    def strainMag(self) -> Optional[float]:
+        """
+        Strain magnitude of the plane data.
+
+        float or None
+        """
         return self._strainMag
 
-    def set_strainMag(self, strainMag):
-        self._strainMag = strainMag
+    @strainMag.setter
+    def strainMag(self, strain_mag: float) -> None:
+        self._strainMag = strain_mag
         self.tThWidth = None
         self._calc()
 
-    strainMag = property(get_strainMag, set_strainMag, None)
+    @property
+    def wavelength(self) -> float:
+        """
+        Wavelength of the plane data.
 
-    def get_wavelength(self):
+        Set as float or valWUnit.
+
+        Read as float
+        """
         return self._wavelength
 
-    def set_wavelength(self, wavelength):
+    @wavelength.setter
+    def wavelength(self, wavelength: Union[float, valunits.valWUnit]) -> None:
         wavelength = processWavelength(wavelength)
         # Do not re-compute if it is almost the same
         if np.isclose(self._wavelength, wavelength):
@@ -890,8 +931,6 @@ class PlaneData(object):
 
         self._wavelength = wavelength
         self._calc()
-
-    wavelength = property(get_wavelength, set_wavelength, None)
 
     def invalidate_structure_factor(self, unitcell):
         # It can be expensive to compute the structure factor, so provide the
