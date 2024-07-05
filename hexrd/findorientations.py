@@ -352,8 +352,6 @@ def run_cluster(compl, qfib, qsym, cfg,
             qbar[:, i] = rot.quatAverageCluster(
                 qfib_r[:, cl == i + 1], qsym
             ).flatten()
-            pass
-        pass
 
     if algorithm in ('dbscan', 'ort-dbscan') and qbar.size/4 > 1:
         logger.info("\tchecking for duplicate orientations...")
@@ -374,10 +372,7 @@ def run_cluster(compl, qfib, qsym, cfg,
                 tmp[:, i] = rot.quatAverageCluster(
                     qbar[:, cl == i + 1].reshape(4, npts), qsym
                 ).flatten()
-                pass
             qbar = tmp
-            pass
-        pass
 
     logger.info("clustering took %f seconds", timeit.default_timer() - start)
     logger.info(
@@ -617,7 +612,7 @@ def _filter_eta_ome_maps(eta_ome, filter_stdev=False):
 
     """
     gl_filter = ndimage.filters.gaussian_laplace
-    for i, pf in enumerate(eta_ome.dataStore):
+    for pf in eta_ome.dataStore:
         # first compoute row-wise median over omega channel
         ome_median = np.tile(np.nanmedian(pf, axis=0), (len(pf), 1))
 

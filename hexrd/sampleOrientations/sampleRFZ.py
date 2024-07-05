@@ -1,15 +1,13 @@
 import numpy as np
-from hexrd.utils.decorators import numba_njit_if_available
+import numba
+from numba import prange
+
 from hexrd.sampleOrientations.conversions import cu2ro, ro2qu
 from hexrd.sampleOrientations.rfz import insideFZ
 from hexrd import constants
 
-if constants.USE_NUMBA:
-    from numba import prange
-else:
-    prange = range
 
-@numba_njit_if_available(cache=True, nogil=True, parallel=True)
+@numba.njit(cache=True, nogil=True, parallel=True)
 def _sample(pgnum,
             N,
             delta,
@@ -156,6 +154,3 @@ class sampleRFZ:
     @property
     def delta(self):
         return self.ap_2 / self.cubN
-    
-
-

@@ -33,6 +33,7 @@ from hexrd.distortion.distortionabc import DistortionABC
 
 import numba
 import numpy as np
+import numba
 
 from hexrd import constants
 from hexrd import matrixutil as mutil
@@ -366,7 +367,7 @@ def validateAngleRanges(
     return reflInRange
 
 
-@deprecated(deprecation_date='2025-01-01')
+@deprecated(removal_date='2025-01-01')
 def simulateOmeEtaMaps(
     omeEdges,
     etaEdges,
@@ -1137,7 +1138,7 @@ def simulateGVecs(
     return valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps
 
 
-@deprecated(new_func=simlp, deprecation_date='2025-01-01')
+@deprecated(new_func=simlp, removal_date='2025-01-01')
 def simulateLauePattern(
     hkls,
     bMat,
@@ -1163,8 +1164,8 @@ def simulateLauePattern(
             minEnergy
         ), 'energy cutoff ranges must have the same length'
         multipleEnergyRanges = True
-        lmin = [processWavelength(e) for e in minEnergy]
-        lmax = [processWavelength(e) for e in maxEnergy]
+        lmin = [processWavelength(e) for e in maxEnergy]
+        lmax = [processWavelength(e) for e in minEnergy]
     else:
         lmin = processWavelength(maxEnergy)
         lmax = processWavelength(minEnergy)

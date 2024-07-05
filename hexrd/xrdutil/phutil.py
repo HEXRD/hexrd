@@ -10,12 +10,12 @@ from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
+from numba import njit
 
 from hexrd import constants as ct
 from hexrd.instrument import Detector
 from hexrd.transforms import xfcapi
 from hexrd.utils.concurrent import distribute_tasks
-from hexrd.utils.decorators import numba_njit_if_available
 
 
 class SampleLayerDistortion:
@@ -199,6 +199,17 @@ def tth_corr_sample_layer(panel, xy_pts,
     else:
         # !!! NEED TO CHECK THIS
         return np.vstack([-tth_corr, ref_angs[:, 1]]).T
+
+
+def invalidate_past_critical_beta(panel: Detector, xy_pts: np.ndarray,
+                                  pinhole_thickness: float,
+                                  pinhole_radius: float) -> None:
+    """Set any xy_pts past critical beta to be nan"""
+    # Compute the critical beta angle. Anything past this is invalid.
+    critical_beta = np.arctan(2 * pinhole_radius / pinhole_thickness)
+    dhats = xfcapi.unitRowVector(panel.cart_to_dvecs(xy_pts))
+    cos_beta = -dhats[:, 2]
+    xy_pts[np.arccos(cos_beta) > critical_beta] = np.nan
 
 
 def tth_corr_map_sample_layer(instrument,
@@ -731,7 +742,7 @@ def _compute_vi_qq_i(phi_d, sin_b, bd, sin_phii, cos_phii, alpha_i, phi_xi,
 
 
 # The numba version (works better in conjunction with multi-threading)
-_compute_vi_qq_i_numba = numba_njit_if_available(
+_compute_vi_qq_i_numba = njit(
     nogil=True, cache=True)(_compute_vi_qq_i)
 
 

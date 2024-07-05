@@ -42,6 +42,7 @@ from numpy import (
 )
 from numpy import float_ as nFloat
 from numpy import int_ as nInt
+from numba import njit
 from scipy.optimize import leastsq
 
 from hexrd import constants as cnst
@@ -49,8 +50,6 @@ from hexrd.matrixutil import \
     columnNorm, unitVector, \
     skewMatrixOfVector, findDuplicateVectors, \
     multMatArray, nullSpace
-
-from hexrd.utils.decorators import numba_njit_if_available
 
 # =============================================================================
 # Module Data
@@ -677,7 +676,7 @@ def rotMatOfExpMap_orig(expMap):
 rotMatOfExpMap = rotMatOfExpMap_opt
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _rotmatofquat(quat):
     n = quat.shape[1]
     # FIXME: maybe preallocate for speed?

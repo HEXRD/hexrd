@@ -13,8 +13,6 @@ import numba
 import numpy as np
 import xxhash
 
-from hexrd.constants import USE_NUMBA
-
 
 def undoc(func):
     """Mark a function or class as undocumented.
@@ -115,31 +113,6 @@ def _make_hashable(items):
         return x
 
     return tuple(map(convert, items))
-
-
-def numba_njit_if_available(func=None, *args, **kwargs):
-    # Forwards decorator to numba.njit if numba is available
-    # Otherwise, does nothing.
-
-    def decorator(func):
-        if USE_NUMBA:
-            import numba
-            return numba.njit(*args, **kwargs)(func)
-        else:
-            # Do nothing...
-            return func
-
-    if func is None:
-        return decorator
-    else:
-        return decorator(func)
-
-
-# Also expose prange depending on whether we have numba or not
-if USE_NUMBA:
-    from numba import prange
-else:
-    prange = range
 
 
 # A decorator to limit the number of numba threads
