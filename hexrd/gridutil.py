@@ -27,10 +27,10 @@
 # =============================================================================
 import numpy as np
 from numpy.linalg import det
+import numba
 
-from hexrd.constants import USE_NUMBA, sqrt_epsf
-if USE_NUMBA:
-    import numba
+from hexrd.constants import sqrt_epsf
+
 
 
 def cellIndices(edges, points_1d):
@@ -90,6 +90,7 @@ def cellIndices(edges, points_1d):
     return np.array(idx, dtype=int)
 
 
+@numba.njit(nogil=True, cache=True)
 def _fill_connectivity(out, m, n, p):
     i_con = 0
     for k in range(p):
@@ -101,10 +102,6 @@ def _fill_connectivity(out, m, n, p):
                 out[i_con, 2] = i + j + n*(j+1) + 1 + extra
                 out[i_con, 3] = i + j + n*(j+1) + 2 + extra
                 i_con += 1
-
-
-if USE_NUMBA:
-    _fill_connectivity = numba.njit(nogil=True, cache=True)(_fill_connectivity)
 
 
 def cellConnectivity(m, n, p=1, origin='ul'):
@@ -132,61 +129,37 @@ def cellConnectivity(m, n, p=1, origin='ul'):
     return con
 
 
-if USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)  # relies on loop extraction
-    def cellCentroids(crd, con):
-        nele, conn_count = con.shape
-        dim = crd.shape[1]
-        out = np.empty((nele, dim))
-        inv_conn = 1.0/conn_count
-        for i in range(nele):
-            for j in range(dim):
-                acc = 0.0
-                for k in range(conn_count):
-                    acc += crd[con[i, k], j]
-                out[i, j] = acc * inv_conn
-        return out
+@numba.njit(nogil=True, cache=True)  # relies on loop extraction
+def cellCentroids(crd, con):
+    nele, conn_count = con.shape
+    dim = crd.shape[1]
+    out = np.empty((nele, dim))
+    inv_conn = 1.0/conn_count
+    for i in range(nele):
+        for j in range(dim):
+            acc = 0.0
+            for k in range(conn_count):
+                acc += crd[con[i, k], j]
+            out[i, j] = acc * inv_conn
+    return out
 
-    @numba.njit(nogil=True, cache=True)
-    def compute_areas(xy_eval_vtx, conn):
-        areas = np.empty(len(conn))
-        for i in range(len(conn)):
-            vtx0x, vtx0y = xy_eval_vtx[conn[i, 0]]
-            vtx1x, vtx1y = xy_eval_vtx[conn[i, 1]]
-            v0x, v0y = vtx1x-vtx0x, vtx1y-vtx0y
-            acc = 0
-            for j in range(2, 4):
-                vtx_x, vtx_y = xy_eval_vtx[conn[i, j]]
-                v1x = vtx_x - vtx0x
-                v1y = vtx_y - vtx0y
-                acc += v0x*v1y - v1x*v0y
 
-            areas[i] = 0.5 * acc
-        return areas
-else:
-    def cellCentroids(crd, con):
-        """
-        con.shape = (nele, 4)
-        crd.shape = (ncrd, 2)
+@numba.njit(nogil=True, cache=True)
+def compute_areas(xy_eval_vtx, conn):
+    areas = np.empty(len(conn))
+    for i in range(len(conn)):
+        vtx0x, vtx0y = xy_eval_vtx[conn[i, 0]]
+        vtx1x, vtx1y = xy_eval_vtx[conn[i, 1]]
+        v0x, v0y = vtx1x-vtx0x, vtx1y-vtx0y
+        acc = 0
+        for j in range(2, 4):
+            vtx_x, vtx_y = xy_eval_vtx[conn[i, j]]
+            v1x = vtx_x - vtx0x
+            v1y = vtx_y - vtx0y
+            acc += v0x*v1y - v1x*v0y
 
-        con.shape = (nele, 8)
-        crd.shape = (ncrd, 3)
-        """
-        nele = con.shape[0]
-        dim = crd.shape[1]
-        centroid_xy = np.zeros((nele, dim))
-        for i in range(len(con)):
-            el_crds = crd[con[i, :], :]  # (4, 2)
-            centroid_xy[i, :] = (el_crds).mean(axis=0)
-        return centroid_xy
-
-    def compute_areas(xy_eval_vtx, conn):
-        areas = np.zeros(len(conn))
-        for i in range(len(conn)):
-            polygon = [[xy_eval_vtx[conn[i, j], 0],
-                        xy_eval_vtx[conn[i, j], 1]] for j in range(4)]
-            areas[i] = computeArea(polygon)
-        return areas
+        areas[i] = 0.5 * acc
+    return areas
 
 
 def computeArea(polygon):
