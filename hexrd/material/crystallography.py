@@ -304,7 +304,6 @@ def latticeVectors(
     lparms: np.ndarray,
     tag: Optional[str] = 'cubic',
     radians: Optional[bool] = False,
-    debug: Optional[bool] = False,
 ) -> Dict[str, Union[np.ndarray, float]]:
     """
     Generates direct and reciprocal lattice vector components in a
@@ -342,9 +341,6 @@ def latticeVectors(
 
        3) radians=<bool> is a boolean flag indicating usage of radians rather
           than degrees, defaults to false.
-
-        4) debug=<bool> is a boolean flag indicating whether or not to print
-           debug info, defaults to false.
 
     OUTPUTS:
 
@@ -667,17 +663,6 @@ class PlaneData(object):
         s += 'hkls: (%d)\n' % self.nHKLs
         s += str(self.getHKLs())
         return s
-
-    def getNHKLs(self) -> int:
-        """
-        Getter for the number of hkls in the object.
-
-        Returns
-        -------
-        int
-            The number of hkls in the object.
-        """
-        return self.nHKLs
 
     def getParams(self):
         """
@@ -1054,10 +1039,6 @@ class PlaneData(object):
         revertOutputDegrees()
         return latPlaneData, latVecOps, hklDataList
 
-    def getLatticeType(self):
-        """This is the lattice type"""
-        return ltypeOfLaueGroup(self._laueGroup)
-
     def getLaueGroup(self):
         """This is the Schoenflies tag"""
         return self._laueGroup
@@ -1094,17 +1075,6 @@ class PlaneData(object):
                 continue
             dspacings.append(hklData['dSpacings'])
         return dspacings
-
-    def getPlaneNormals(self):
-        """
-        gets both +(hkl) and -(hkl) normals
-        """
-        plnNrmls = []
-        for iHKLr, hklData in enumerate(self.hklDataList):
-            if not self._thisHKL(iHKLr):
-                continue
-            plnNrmls.append(hklData['latPlnNrmls'])
-        return plnNrmls
 
     @property
     def latVecOps(self):
@@ -1200,39 +1170,6 @@ class PlaneData(object):
                 continue
             tTh.append(hklData['tTheta'])
         return np.array(tTh)
-
-    def getDD_tThs_lparms(self):
-        """
-        derivatives of tThs with respect to lattice parameters;
-        have not yet done coding for analytic derivatives, just wimp out
-        and finite difference
-        """
-        pert = 1.0e-5  # assume they are all around unity
-        pertInv = 1.0 / pert
-
-        lparmsRef = copy.deepcopy(self._lparms)
-        tThRef = self.getTTh()
-        ddtTh = np.empty((len(tThRef), len(lparmsRef)))
-
-        for iLparm in range(len(lparmsRef)):
-            self._lparms = copy.deepcopy(lparmsRef)
-            self._lparms[iLparm] += pert
-            self._calc()
-
-            iTTh = 0
-            for iHKLr, hklData in enumerate(self.hklDataList):
-                if not self._thisHKL(iHKLr):
-                    continue
-                ddtTh[iTTh, iLparm] = (
-                    np.r_[hklData['tTheta'] - tThRef[iTTh]] * pertInv
-                )
-                iTTh += 1
-
-        'restore'
-        self._lparms = lparmsRef
-        self._calc()
-
-        return ddtTh
 
     def getMultiplicity(self, allHKLs=False):
         # ... JVB: is this incorrect?
@@ -1431,40 +1368,6 @@ class PlaneData(object):
                     sym_hkls.append(np.array(hkls))
             hkl_index += 1
         return sym_hkls
-
-    def getCentroSymHKLs(self):
-        centro_sym_hkls = []
-        for iHKLr, hklData in enumerate(self.hklDataList):
-            if not self._thisHKL(iHKLr):
-                continue
-            centro_sym_hkls.append(hklData['centrosym'])
-
-        return centro_sym_hkls
-
-    def makeTheseScatteringVectors(
-        self, hklList, rMat, bMat=None, wavelength=None, chiTilt=None
-    ):
-        iHKLList = np.atleast_1d(self.getHKLID(hklList))
-        fHKLs = np.hstack(self.getSymHKLs(indices=iHKLList))
-        if bMat is None:
-            bMat = self._latVecOps['B']
-        if wavelength is None:
-            wavelength = self._wavelength
-        return PlaneData.makeScatteringVectors(
-            fHKLs, rMat, bMat, wavelength, chiTilt=chiTilt
-        )
-
-    def makeAllScatteringVectors(
-        self, rMat, bMat=None, wavelength=None, chiTilt=None
-    ):
-        fHKLs = np.hstack(self.getSymHKLs())
-        if bMat is None:
-            bMat = self._latVecOps['B']
-        if wavelength is None:
-            wavelength = self._wavelength
-        return PlaneData.makeScatteringVectors(
-            fHKLs, rMat, bMat, wavelength, chiTilt=chiTilt
-        )
 
     @staticmethod
     def makeScatteringVectors(hkls, rMat_c, bMat, wavelength, chiTilt=None):
