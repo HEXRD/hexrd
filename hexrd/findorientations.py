@@ -895,7 +895,7 @@ def find_orientations(cfg,
     logger.info("\tneighborhood size: %d", min_samples)
 
     qbar, cl = run_cluster(
-        completeness, qfib, plane_data.getQSym(), cfg,
+        completeness, qfib, plane_data.q_sym, cfg,
         min_samples=min_samples,
         compl_thresh=compl_thresh,
         radius=cl_radius)

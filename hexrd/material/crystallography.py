@@ -30,9 +30,8 @@ import copy
 from math import pi
 
 import numpy as np
-import csv
-import os
 
+from hexrd.unitcell import unitcell
 from hexrd.deprecation import deprecated
 from hexrd import constants
 from hexrd.matrixutil import unitVector
@@ -241,7 +240,7 @@ def latticePlanes(
     return p
 
 
-def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
+def latticeVectors(lparms, tag='cubic', radians=False):
     """
     Generates direct and reciprocal lattice vector components in a
     crystal-relative RHON basis, X. The convention for fixing X to the
@@ -401,16 +400,11 @@ def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
     else:
         raise RuntimeError(f'lattice tag "{tag}" is not recognized')
 
-    if debug:
-        print((str(cellparms[0:3]) + ' ' + str(r2d * cellparms[3:6])))
-    alfa = cellparms[3]
-    beta = cellparms[4]
-    gama = cellparms[5]
-
-    cosalfar, sinalfar = cosineXform(alfa, beta, gama)
+    alpha, beta, gamma = cellparms[3:6]
+    cosalfar, sinalfar = cosineXform(alpha, beta, gamma)
 
     a = cellparms[0] * np.r_[1, 0, 0]
-    b = cellparms[1] * np.r_[np.cos(gama), np.sin(gama), 0]
+    b = cellparms[1] * np.r_[np.cos(gamma), np.sin(gamma), 0]
     c = (
         cellparms[2]
         * np.r_[
@@ -461,13 +455,13 @@ def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
     BR = np.c_[afable, bfable, cfable]
     U0 = np.dot(B, np.linalg.inv(BR))
     if outputDegrees:
-        dparms = np.r_[ad, bd, cd, r2d * np.r_[alfa, beta, gama]]
+        dparms = np.r_[ad, bd, cd, r2d * np.r_[alpha, beta, gamma]]
         rparms = np.r_[ar, br, cr, r2d * np.r_[alfar, betar, gamar]]
     else:
-        dparms = np.r_[ad, bd, cd, np.r_[alfa, beta, gama]]
+        dparms = np.r_[ad, bd, cd, np.r_[alpha, beta, gamma]]
         rparms = np.r_[ar, br, cr, np.r_[alfar, betar, gamar]]
 
-    L = {
+    return {
         'F': F,
         'B': B,
         'BR': BR,
@@ -476,8 +470,6 @@ def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
         'dparms': dparms,
         'rparms': rparms,
     }
-
-    return L
 
 
 class PlaneData(object):
@@ -523,7 +515,7 @@ class PlaneData(object):
             raise NotImplementedError(f'args : {args}')
 
         self._laueGroup = laueGroup
-        self._qsym = quatOfLaueGroup(self._laueGroup)
+        self._q_sym = quatOfLaueGroup(self._laueGroup)
         self._hkls = copy.deepcopy(hkls)
         self._strainMag = strainMag
         self._structFact = np.ones(self._hkls.shape[1])
@@ -546,7 +538,7 @@ class PlaneData(object):
             )
 
         # This is only used to calculate the structure factor if invalidated
-        self._unitcell = None
+        self._unitcell: unitcell = None
 
         self._calc()
 
@@ -555,7 +547,7 @@ class PlaneData(object):
         _, latVecOps, hklDataList = PlaneData.makePlaneData(
             self._hkls,
             self._lparms,
-            self._qsym,
+            self._q_sym,
             symmGroup,
             self._strainMag,
             self.wavelength,
@@ -787,7 +779,7 @@ class PlaneData(object):
 
     wavelength = property(get_wavelength, set_wavelength, None)
 
-    def invalidate_structure_factor(self, unitcell):
+    def invalidate_structure_factor(self, unitcell: unitcell):
         # It can be expensive to compute the structure factor, so provide the
         # option to just invalidate it, while providing a unit cell, so that
         # it can be lazily computed from the unit cell.
@@ -941,8 +933,9 @@ class PlaneData(object):
         self._lparms = self._parseLParms(lparms)
         self._calc()
 
-    def getQSym(self):
-        return self._qsym  # rotations.quatOfLaueGroup(self._laueGroup)
+    @property
+    def q_sym(self):
+        return self._q_sym  # rotations.quatOfLaueGroup(self._laueGroup)
 
     def getPlaneSpacings(self):
         """
@@ -979,7 +972,6 @@ class PlaneData(object):
             if self._exclusions[self.tThSortInv[iHKLr]]:
                 return False
         if self._tThMax is not None:
-            # FIXME: check for nans here???
             if hklData['tTheta'] > self._tThMax or np.isnan(hklData['tTheta']):
                 return False
         return True
@@ -1548,15 +1540,15 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
         = sin(theta) - sin(chi)sin(eta)cos(theta)
 
 
-    Identity: a sin x + b cos x = sqrt(a**2 + b**2) sin (x + alfa)
+    Identity: a sin x + b cos x = sqrt(a**2 + b**2) sin (x + alpha)
 
            /
            |      atan(b/a) for a > 0
-     alfa <
+     alpha <
            | pi + atan(b/a) for a < 0
            \
 
-     => sin (x + alfa) = c / sqrt(a**2 + b**2)
+     => sin (x + alpha) = c / sqrt(a**2 + b**2)
 
      must use both branches for sin(x) = n:
      x = u (+ 2k*pi) | x = pi - u (+ 2k*pi)
