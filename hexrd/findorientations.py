@@ -608,7 +608,7 @@ def _filter_eta_ome_maps(eta_ome, filter_stdev=False):
 
     """
     gl_filter = ndimage.filters.gaussian_laplace
-    for i, pf in enumerate(eta_ome.dataStore):
+    for pf in eta_ome.dataStore:
         # first compoute row-wise median over omega channel
         ome_median = np.tile(np.nanmedian(pf, axis=0), (len(pf), 1))
 
@@ -885,7 +885,7 @@ def find_orientations(cfg,
     logger.info("\tmean reflections per grain: %d", mean_rpg)
     logger.info("\tneighborhood size: %d", min_samples)
 
-    qbar, cl = run_cluster(
+    qbar, _ = run_cluster(
         completeness, qfib, plane_data.getQSym(), cfg,
         min_samples=min_samples,
         compl_thresh=compl_thresh,

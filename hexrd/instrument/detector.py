@@ -3,6 +3,7 @@ import copy
 import os
 
 import numpy as np
+import numba
 
 from hexrd import constants as ct
 from hexrd import distortion as distortion_pkg
@@ -24,17 +25,12 @@ from hexrd.transforms.xfcapi import (
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
 
-if ct.USE_NUMBA:
-    import numba
 
 distortion_registry = distortion_pkg.Registry()
 
 max_workers_DFLT = max(1, os.cpu_count() - 1)
 
-panel_calibration_flags_DFLT = np.array(
-    [1, 1, 1, 1, 1, 1],
-    dtype=bool
-)
+panel_calibration_flags_DFLT = np.array([1, 1, 1, 1, 1, 1], dtype=bool)
 
 beam_energy_DFLT = 65.351
 
@@ -51,6 +47,7 @@ class Detector:
     common to planar and cylindrical detectors. This class
     will be inherited by both those classes.
     """
+
     __pixelPitchUnit = 'mm'
 
     # Abstract methods that must be redefined in derived classes
@@ -60,8 +57,14 @@ class Detector:
         raise NotImplementedError
 
     @abstractmethod
-    def cart_to_angles(self, xy_data, rmat_s=None, tvec_s=None,
-                       tvec_c=None, apply_distortion=False):
+    def cart_to_angles(
+        self,
+        xy_data,
+        rmat_s=None,
+        tvec_s=None,
+        tvec_c=None,
+        apply_distortion=False,
+    ):
         """
         Transform cartesian coordinates to angular.
 
@@ -94,10 +97,15 @@ class Detector:
         raise NotImplementedError
 
     @abstractmethod
-    def angles_to_cart(self, tth_eta,
-                       rmat_s=None, tvec_s=None,
-                       rmat_c=None, tvec_c=None,
-                       apply_distortion=False):
+    def angles_to_cart(
+        self,
+        tth_eta,
+        rmat_s=None,
+        tvec_s=None,
+        rmat_c=None,
+        tvec_c=None,
+        apply_distortion=False,
+    ):
         """
         Transform angular coordinates to cartesian.
 
@@ -161,21 +169,25 @@ class Detector:
 
     # End of abstract methods
 
-    def __init__(self,
-                 rows=2048, cols=2048,
-                 pixel_size=(0.2, 0.2),
-                 tvec=np.r_[0., 0., -1000.],
-                 tilt=ct.zeros_3,
-                 name='default',
-                 bvec=ct.beam_vec,
-                 xrs_dist=None,
-                 evec=ct.eta_vec,
-                 saturation_level=None,
-                 panel_buffer=None,
-                 tth_distortion=None,
-                 roi=None, group=None,
-                 distortion=None,
-                 max_workers=max_workers_DFLT):
+    def __init__(
+        self,
+        rows=2048,
+        cols=2048,
+        pixel_size=(0.2, 0.2),
+        tvec=np.r_[0.0, 0.0, -1000.0],
+        tilt=ct.zeros_3,
+        name='default',
+        bvec=ct.beam_vec,
+        xrs_dist=None,
+        evec=ct.eta_vec,
+        saturation_level=None,
+        panel_buffer=None,
+        tth_distortion=None,
+        roi=None,
+        group=None,
+        distortion=None,
+        max_workers=max_workers_DFLT,
+    ):
         """
         Instantiate a PlanarDetector object.
 
@@ -232,10 +244,11 @@ class Detector:
         if roi is None:
             self._roi = roi
         else:
-            assert len(roi) == 2, \
-                "roi is set via (start_row, start_col)"
-            self._roi = ((roi[0], roi[0] + self._rows),
-                         (roi[1], roi[1] + self._cols))
+            assert len(roi) == 2, "roi is set via (start_row, start_col)"
+            self._roi = (
+                (roi[0], roi[0] + self._rows),
+                (roi[1], roi[1] + self._cols),
+            )
 
         self._tvec = np.array(tvec).flatten()
         self._tilt = np.array(tilt).flatten()
@@ -261,12 +274,11 @@ class Detector:
         if self._distortion is not None:
             dparams = self._distortion.params
         self._calibration_parameters = np.hstack(
-                [self._tilt, self._tvec, dparams]
-            )
+            [self._tilt, self._tvec, dparams]
+        )
         self._calibration_flags = np.hstack(
-                [panel_calibration_flags_DFLT,
-                 np.zeros(len(dparams), dtype=bool)]
-            )
+            [panel_calibration_flags_DFLT, np.zeros(len(dparams), dtype=bool)]
+        )
 
     # detector ID
     @property
@@ -364,10 +376,13 @@ class Detector:
         !!! vertex array must be (r0, c0)
         """
         if vertex_array is not None:
-            assert len(vertex_array) == 2, \
-                "roi is set via (start_row, start_col)"
-        self._roi = ((vertex_array[0], vertex_array[0] + self.rows),
-                     (vertex_array[1], vertex_array[1] + self.cols))
+            assert (
+                len(vertex_array) == 2
+            ), "roi is set via (start_row, start_col)"
+        self._roi = (
+            (vertex_array[0], vertex_array[0] + self.rows),
+            (vertex_array[1], vertex_array[1] + self.cols),
+        )
 
     @property
     def row_dim(self):
@@ -379,7 +394,9 @@ class Detector:
 
     @property
     def row_pixel_vec(self):
-        return self.pixel_size_row*(0.5*(self.rows-1)-np.arange(self.rows))
+        return self.pixel_size_row * (
+            0.5 * (self.rows - 1) - np.arange(self.rows)
+        )
 
     @property
     def row_edge_vec(self):
@@ -387,7 +404,9 @@ class Detector:
 
     @property
     def col_pixel_vec(self):
-        return self.pixel_size_col*(np.arange(self.cols)-0.5*(self.cols-1))
+        return self.pixel_size_col * (
+            np.arange(self.cols) - 0.5 * (self.cols - 1)
+        )
 
     @property
     def col_edge_vec(self):
@@ -395,7 +414,7 @@ class Detector:
 
     @property
     def corner_ul(self):
-        return np.r_[-0.5 * self.col_dim,  0.5 * self.row_dim]
+        return np.r_[-0.5 * self.col_dim, 0.5 * self.row_dim]
 
     @property
     def corner_ll(self):
@@ -407,7 +426,7 @@ class Detector:
 
     @property
     def corner_ur(self):
-        return np.r_[0.5 * self.col_dim,  0.5 * self.row_dim]
+        return np.r_[0.5 * self.col_dim, 0.5 * self.row_dim]
 
     @property
     def shape(self):
@@ -439,8 +458,9 @@ class Detector:
     @bvec.setter
     def bvec(self, x):
         x = np.array(x).flatten()
-        assert len(x) == 3 and sum(x*x) > 1-ct.sqrt_epsf, \
-            'input must have length = 3 and have unit magnitude'
+        assert (
+            len(x) == 3 and sum(x * x) > 1 - ct.sqrt_epsf
+        ), 'input must have length = 3 and have unit magnitude'
         self._bvec = x
 
     @property
@@ -449,8 +469,9 @@ class Detector:
 
     @xrs_dist.setter
     def xrs_dist(self, x):
-        assert x is None or np.isscalar(x), \
-            f"'source_distance' must be None or scalar; you input '{x}'"
+        assert x is None or np.isscalar(
+            x
+        ), f"'source_distance' must be None or scalar; you input '{x}'"
         self._xrs_dist = x
 
     @property
@@ -460,8 +481,9 @@ class Detector:
     @evec.setter
     def evec(self, x):
         x = np.array(x).flatten()
-        assert len(x) == 3 and sum(x*x) > 1-ct.sqrt_epsf, \
-            'input must have length = 3 and have unit magnitude'
+        assert (
+            len(x) == 3 and sum(x * x) > 1 - ct.sqrt_epsf
+        ), 'input must have length = 3 and have unit magnitude'
         self._evec = x
 
     @property
@@ -474,8 +496,7 @@ class Detector:
             check_arg = np.zeros(len(distortion_registry), dtype=bool)
             for i, dcls in enumerate(distortion_registry.values()):
                 check_arg[i] = isinstance(x, dcls)
-            assert np.any(check_arg), \
-                'input distortion is not in registry!'
+            assert np.any(check_arg), 'input distortion is not in registry!'
         self._distortion = x
 
     @property
@@ -490,8 +511,8 @@ class Detector:
     @property
     def pixel_coords(self):
         pix_i, pix_j = np.meshgrid(
-            self.row_pixel_vec, self.col_pixel_vec,
-            indexing='ij')
+            self.row_pixel_vec, self.col_pixel_vec, indexing='ij'
+        )
         return pix_i, pix_j
 
     @property
@@ -506,8 +527,8 @@ class Detector:
         if self.distortion is not None:
             dparams = self.distortion.params
         self._calibration_parameters = np.hstack(
-                [self.tilt, self.tvec, dparams]
-            )
+            [self.tilt, self.tvec, dparams]
+        )
         return self._calibration_parameters
 
     @property
@@ -573,14 +594,18 @@ class Detector:
         """
         s = f_hor + f_vert
         if np.abs(s - 1) > ct.sqrt_epsf:
-            msg = ("sum of fraction of "
-                   "horizontal and vertical polarizations "
-                   "must be equal to 1.")
+            msg = (
+                "sum of fraction of "
+                "horizontal and vertical polarizations "
+                "must be equal to 1."
+            )
             raise RuntimeError(msg)
 
         if f_hor < 0 or f_vert < 0:
-            msg = ("fraction of polarization in horizontal "
-                   "or vertical directions can't be negative.")
+            msg = (
+                "fraction of polarization in horizontal "
+                "or vertical directions can't be negative."
+            )
             raise RuntimeError(msg)
 
         tth, eta = self.pixel_angles()
@@ -616,9 +641,16 @@ class Detector:
         tth, eta = self.pixel_angles()
         return _lorentz_factor(tth)
 
-    def config_dict(self, chi=0, tvec=ct.zeros_3,
-                    beam_energy=beam_energy_DFLT, beam_vector=ct.beam_vec,
-                    sat_level=None, panel_buffer=None, style='yaml'):
+    def config_dict(
+        self,
+        chi=0,
+        tvec=ct.zeros_3,
+        beam_energy=beam_energy_DFLT,
+        beam_vector=ct.beam_vec,
+        sat_level=None,
+        panel_buffer=None,
+        style='yaml',
+    ):
         """
         Return a dictionary of detector parameters.
 
@@ -646,8 +678,9 @@ class Detector:
             DESCRIPTION.
 
         """
-        assert style.lower() in ['yaml', 'hdf5'], \
+        assert style.lower() in ['yaml', 'hdf5'], (
             "style must be either 'yaml', or 'hdf5'; you gave '%s'" % style
+        )
 
         config_dict = {}
 
@@ -659,8 +692,11 @@ class Detector:
         # assign local vars; listify if necessary
         tilt = self.tilt
         translation = self.tvec
-        roi = None if self.roi is None \
+        roi = (
+            None
+            if self.roi is None
             else np.array([self.roi[0][0], self.roi[1][0]]).flatten()
+        )
         if style.lower() == 'yaml':
             tilt = tilt.tolist()
             translation = translation.tolist()
@@ -676,9 +712,8 @@ class Detector:
             pixels=dict(
                 rows=int(self.rows),
                 columns=int(self.cols),
-                size=[float(self.pixel_size_row),
-                      float(self.pixel_size_col)],
-            )
+                size=[float(self.pixel_size_row), float(self.pixel_size_col)],
+            ),
         )
 
         if roi is not None:
@@ -695,8 +730,7 @@ class Detector:
             if style.lower() == 'yaml':
                 dparams = dparams.tolist()
             dist_d = dict(
-                function_name=self.distortion.maptype,
-                parameters=dparams
+                function_name=self.distortion.maptype, parameters=dparams
             )
             det_dict['distortion'] = dist_d
 
@@ -712,8 +746,7 @@ class Detector:
         # !!! now we have to do some style-dependent munging of panel_buffer
         if isinstance(panel_buffer, np.ndarray):
             if panel_buffer.ndim == 1:
-                assert len(panel_buffer) == 2, \
-                    "length of 1-d buffer must be 2"
+                assert len(panel_buffer) == 2, "length of 1-d buffer must be 2"
                 # if here is a 2-element array
                 if style.lower() == 'yaml':
                     panel_buffer = panel_buffer.tolist()
@@ -722,7 +755,7 @@ class Detector:
                     # !!! can't practically write array-like buffers to YAML
                     #     so forced to clobber
                     print("clobbering panel buffer array in yaml-ready output")
-                    panel_buffer = [0., 0.]
+                    panel_buffer = [0.0, 0.0]
             else:
                 raise RuntimeError(
                     "panel buffer ndim must be 1 or 2; you specified %d"
@@ -743,10 +776,7 @@ class Detector:
         # =====================================================================
         # SAMPLE STAGE PARAMETERS
         # =====================================================================
-        stage_dict = dict(
-            chi=chi,
-            translation=tvec
-        )
+        stage_dict = dict(chi=chi, translation=tvec)
 
         # =====================================================================
         # BEAM PARAMETERS
@@ -760,10 +790,7 @@ class Detector:
         #         polar_angle=pola
         #     )
         # )
-        beam_dict = dict(
-            energy=beam_energy,
-            vector=beam_vector
-        )
+        beam_dict = dict(energy=beam_energy, vector=beam_vector)
 
         config_dict['detector'] = det_dict
         config_dict['oscillation_stage'] = stage_dict
@@ -822,10 +849,10 @@ class Detector:
         """
         ij_det = np.atleast_2d(ij_det)
 
-        x = (ij_det[:, 1] + 0.5)*self.pixel_size_col\
-            + self.corner_ll[0]
-        y = (self.rows - ij_det[:, 0] - 0.5)*self.pixel_size_row\
-            + self.corner_ll[1]
+        x = (ij_det[:, 1] + 0.5) * self.pixel_size_col + self.corner_ll[0]
+        y = (
+            self.rows - ij_det[:, 0] - 0.5
+        ) * self.pixel_size_row + self.corner_ll[1]
         return np.vstack([x, y]).T
 
     def angularPixelSize(self, xy, rMat_s=None, tVec_s=None, tVec_c=None):
@@ -863,11 +890,17 @@ class Detector:
         '''
         # call xrdutil function
         ang_ps = xrdutil.angularPixelSize(
-            xy, (self.pixel_size_row, self.pixel_size_col),
-            self.rmat, rMat_s,
-            self.tvec, tVec_s, tVec_c,
+            xy,
+            (self.pixel_size_row, self.pixel_size_col),
+            self.rmat,
+            rMat_s,
+            self.tvec,
+            tVec_s,
+            tVec_c,
             distortion=self.distortion,
-            beamVec=self.bvec, etaVec=self.evec)
+            beamVec=self.bvec,
+            etaVec=self.evec,
+        )
         return ang_ps
 
     def clip_to_panel(self, xy, buffer_edges=True):
@@ -892,8 +925,8 @@ class Detector:
             on_panel = np.logical_and(on_panel_rows, on_panel_cols)
         else:
         '''
-        xlim = 0.5*self.col_dim
-        ylim = 0.5*self.row_dim
+        xlim = 0.5 * self.col_dim
+        ylim = 0.5 * self.row_dim
         if buffer_edges and self.panel_buffer is not None:
             if self.panel_buffer.ndim == 2:
                 pix = self.cartToPixel(xy, pixels=True)
@@ -905,7 +938,9 @@ class Detector:
 
                 on_panel = np.full(pix.shape[0], False)
                 valid_pix = pix[~idx, :]
-                on_panel[~idx] = self.panel_buffer[valid_pix[:, 0], valid_pix[:, 1]]
+                on_panel[~idx] = self.panel_buffer[
+                    valid_pix[:, 0], valid_pix[:, 1]
+                ]
             else:
                 xlim -= self.panel_buffer[0]
                 ylim -= self.panel_buffer[1]
@@ -917,12 +952,8 @@ class Detector:
                 )
                 on_panel = np.logical_and(on_panel_x, on_panel_y)
         elif not buffer_edges or self.panel_buffer is None:
-            on_panel_x = np.logical_and(
-                xy[:, 0] >= -xlim, xy[:, 0] <= xlim
-            )
-            on_panel_y = np.logical_and(
-                xy[:, 1] >= -ylim, xy[:, 1] <= ylim
-            )
+            on_panel_x = np.logical_and(xy[:, 0] >= -xlim, xy[:, 0] <= xlim)
+            on_panel_y = np.logical_and(xy[:, 1] >= -ylim, xy[:, 1] <= ylim)
             on_panel = np.logical_and(on_panel_x, on_panel_y)
         return xy[on_panel, :], on_panel
 
@@ -933,13 +964,16 @@ class Detector:
         """
         is_2d = img.ndim == 2
         right_shape = img.shape[0] == self.rows and img.shape[1] == self.cols
-        assert is_2d and right_shape,\
-            "input image must be 2-d with shape (%d, %d)"\
-            % (self.rows, self.cols)
+        assert (
+            is_2d and right_shape
+        ), "input image must be 2-d with shape (%d, %d)" % (
+            self.rows,
+            self.cols,
+        )
 
         # initialize output with nans
         if pad_with_nans:
-            int_xy = np.nan*np.ones(len(xy))
+            int_xy = np.nan * np.ones(len(xy))
         else:
             int_xy = np.zeros(len(xy))
 
@@ -954,7 +988,6 @@ class Detector:
         int_vals = img[i_src, j_src]
         int_xy[on_panel] = int_vals
         return int_xy
-
 
     def interpolate_bilinear(self, xy, img, pad_with_nans=True):
         """
@@ -984,13 +1017,16 @@ class Detector:
 
         is_2d = img.ndim == 2
         right_shape = img.shape[0] == self.rows and img.shape[1] == self.cols
-        assert is_2d and right_shape,\
-            "input image must be 2-d with shape (%d, %d)"\
-            % (self.rows, self.cols)
+        assert (
+            is_2d and right_shape
+        ), "input image must be 2-d with shape (%d, %d)" % (
+            self.rows,
+            self.cols,
+        )
 
         # initialize output with nans
         if pad_with_nans:
-            int_xy = np.nan*np.ones(len(xy))
+            int_xy = np.nan * np.ones(len(xy))
         else:
             int_xy = np.zeros(len(xy))
 
@@ -1017,25 +1053,34 @@ class Detector:
         j_ceil_img = _fix_indices(j_ceil, 0, self.cols - 1)
 
         # first interpolate at top/bottom rows
-        row_floor_int = \
-            (j_ceil - ij_frac[:, 1])*img[i_floor_img, j_floor_img] \
-            + (ij_frac[:, 1] - j_floor)*img[i_floor_img, j_ceil_img]
-        row_ceil_int = \
-            (j_ceil - ij_frac[:, 1])*img[i_ceil_img, j_floor_img] \
-            + (ij_frac[:, 1] - j_floor)*img[i_ceil_img, j_ceil_img]
+        row_floor_int = (j_ceil - ij_frac[:, 1]) * img[
+            i_floor_img, j_floor_img
+        ] + (ij_frac[:, 1] - j_floor) * img[i_floor_img, j_ceil_img]
+        row_ceil_int = (j_ceil - ij_frac[:, 1]) * img[
+            i_ceil_img, j_floor_img
+        ] + (ij_frac[:, 1] - j_floor) * img[i_ceil_img, j_ceil_img]
 
         # next interpolate across cols
-        int_vals = \
-            (i_ceil - ij_frac[:, 0])*row_floor_int \
-            + (ij_frac[:, 0] - i_floor)*row_ceil_int
+        int_vals = (i_ceil - ij_frac[:, 0]) * row_floor_int + (
+            ij_frac[:, 0] - i_floor
+        ) * row_ceil_int
         int_xy[on_panel] = int_vals
         return int_xy
 
     def make_powder_rings(
-            self, pd, merge_hkls=False, delta_tth=None,
-            delta_eta=10., eta_period=None, eta_list=None,
-            rmat_s=ct.identity_3x3,  tvec_s=ct.zeros_3,
-            tvec_c=ct.zeros_3, full_output=False, tth_distortion=None):
+        self,
+        pd,
+        merge_hkls=False,
+        delta_tth=None,
+        delta_eta=10.0,
+        eta_period=None,
+        eta_list=None,
+        rmat_s=ct.identity_3x3,
+        tvec_s=ct.zeros_3,
+        tvec_c=ct.zeros_3,
+        full_output=False,
+        tth_distortion=None,
+    ):
         """
         Generate points on Debye_Scherrer rings over the detector.
 
@@ -1080,8 +1125,9 @@ class Detector:
         """
         if tth_distortion is not None:
             tnorms = rowNorm(np.vstack([tvec_s, tvec_c]))
-            assert np.all(tnorms) < ct.sqrt_epsf, \
-                "If using distrotion function, translations must be zero"
+            assert (
+                np.all(tnorms) < ct.sqrt_epsf
+            ), "If using distrotion function, translations must be zero"
 
         # in case you want to give it tth angles directly
         if isinstance(pd, PlaneData):
@@ -1110,28 +1156,50 @@ class Detector:
                 tth = pd.getTTh()
             tth_pm = tth_ranges - np.tile(tth, (2, 1)).T
             sector_vertices = np.vstack(
-                [[i[0], -del_eta,
-                  i[0], del_eta,
-                  i[1], del_eta,
-                  i[1], -del_eta,
-                  0.0, 0.0]
-                 for i in tth_pm])
+                [
+                    [
+                        i[0],
+                        -del_eta,
+                        i[0],
+                        del_eta,
+                        i[1],
+                        del_eta,
+                        i[1],
+                        -del_eta,
+                        0.0,
+                        0.0,
+                    ]
+                    for i in tth_pm
+                ]
+            )
         else:
             # Okay, we have a array-like tth specification
             tth = np.array(pd).flatten()
             if delta_tth is None:
                 raise RuntimeError(
                     "If supplying a 2theta list as first arg, "
-                    + "must supply a delta_tth")
-            tth_pm = 0.5*delta_tth*np.r_[-1., 1.]
+                    + "must supply a delta_tth"
+                )
+            tth_pm = 0.5 * delta_tth * np.r_[-1.0, 1.0]
             tth_ranges = np.radians([i + tth_pm for i in tth])  # !!! units
             sector_vertices = np.tile(
-                0.5*np.radians([-delta_tth, -delta_eta,
-                                -delta_tth, delta_eta,
-                                delta_tth, delta_eta,
-                                delta_tth, -delta_eta,
-                                0.0, 0.0]), (len(tth), 1)
-                )
+                0.5
+                * np.radians(
+                    [
+                        -delta_tth,
+                        -delta_eta,
+                        -delta_tth,
+                        delta_eta,
+                        delta_tth,
+                        delta_eta,
+                        delta_tth,
+                        -delta_eta,
+                        0.0,
+                        0.0,
+                    ]
+                ),
+                (len(tth), 1),
+            )
             # !! conversions, meh...
             tth = np.radians(tth)
             del_eta = np.radians(delta_eta)
@@ -1141,13 +1209,12 @@ class Detector:
             eta_period = (-np.pi, np.pi)
 
         if eta_list is None:
-            neta = int(360./float(delta_eta))
+            neta = int(360.0 / float(delta_eta))
             # this is the vector of ETA EDGES
             eta_edges = mapAngle(
-                np.radians(
-                    delta_eta*np.linspace(0., neta, num=neta + 1)
-                ) + eta_period[0],
-                eta_period
+                np.radians(delta_eta * np.linspace(0.0, neta, num=neta + 1))
+                + eta_period[0],
+                eta_period,
             )
 
             # get eta bin centers from edges
@@ -1158,13 +1225,13 @@ class Detector:
                 axis=0)
             """
             # !!! should be safe as eta_edges are monotonic
-            eta_centers = eta_edges[:-1] + 0.5*del_eta
+            eta_centers = eta_edges[:-1] + 0.5 * del_eta
         else:
             eta_centers = np.radians(eta_list).flatten()
             neta = len(eta_centers)
             eta_edges = (
-                np.tile(eta_centers, (2, 1)) +
-                np.tile(0.5*del_eta*np.r_[-1, 1], (neta, 1)).T
+                np.tile(eta_centers, (2, 1))
+                + np.tile(0.5 * del_eta * np.r_[-1, 1], (neta, 1)).T
             ).T.flatten()
 
         # get chi and ome from rmat_s
@@ -1174,8 +1241,10 @@ class Detector:
         ome = np.arctan2(rmat_s[0, 2], rmat_s[0, 0])
 
         # make list of angle tuples
-        angs = [np.vstack([i*np.ones(neta), eta_centers, ome*np.ones(neta)])
-                for i in tth]
+        angs = [
+            np.vstack([i * np.ones(neta), eta_centers, ome * np.ones(neta)])
+            for i in tth
+        ]
 
         # need xy coords and pixel sizes
         valid_ang = []
@@ -1192,15 +1261,18 @@ class Detector:
             patch_vertices = (
                 np.tile(these_angs[:, :2], (1, npp))
                 + np.tile(sector_vertices[i_ring], (neta, 1))
-            ).reshape(npp*neta, 2)
+            ).reshape(npp * neta, 2)
 
             # find vertices that all fall on the panel
             # !!! not API ambiguity regarding rmat_s above
             all_xy = self.angles_to_cart(
                 patch_vertices,
-                rmat_s=rmat_s, tvec_s=tvec_s,
-                rmat_c=None, tvec_c=tvec_c,
-                apply_distortion=True)
+                rmat_s=rmat_s,
+                tvec_s=tvec_s,
+                rmat_c=None,
+                tvec_c=tvec_c,
+                apply_distortion=True,
+            )
 
             _, on_panel = self.clip_to_panel(all_xy)
 
@@ -1215,10 +1287,11 @@ class Detector:
             if tth_distortion is not None:
                 patch_valid_angs = tth_distortion.apply(
                     self.angles_to_cart(these_angs[patch_is_on, :2]),
-                    return_nominal=True
+                    return_nominal=True,
                 )
-                patch_valid_xys = self.angles_to_cart(patch_valid_angs,
-                                                      apply_distortion=True)
+                patch_valid_xys = self.angles_to_cart(
+                    patch_valid_angs, apply_distortion=True
+                )
             else:
                 patch_valid_angs = these_angs[patch_is_on, :2]
                 patch_valid_xys = patch_xys[:, -1, :].squeeze()
@@ -1274,20 +1347,30 @@ class Detector:
         pts_lab = np.dot(self.rmat, pts_det.T) + tvec_d_lab
 
         # scaling along pts vectors to hit map plane
-        u = np.dot(nvec_map_lab.T, tvec_map_lab) \
-            / np.dot(nvec_map_lab.T, pts_lab)
+        u = np.dot(nvec_map_lab.T, tvec_map_lab) / np.dot(
+            nvec_map_lab.T, pts_lab
+        )
 
         # pts on map plane, in LAB FRAME
         pts_map_lab = np.tile(u, (3, 1)) * pts_lab
 
         return np.dot(rmat.T, pts_map_lab - tvec_map_lab)[:2, :].T
 
-    def simulate_rotation_series(self, plane_data, grain_param_list,
-                                 eta_ranges=[(-np.pi, np.pi), ],
-                                 ome_ranges=[(-np.pi, np.pi), ],
-                                 ome_period=(-np.pi, np.pi),
-                                 chi=0., tVec_s=ct.zeros_3,
-                                 wavelength=None):
+    def simulate_rotation_series(
+        self,
+        plane_data,
+        grain_param_list,
+        eta_ranges=[
+            (-np.pi, np.pi),
+        ],
+        ome_ranges=[
+            (-np.pi, np.pi),
+        ],
+        ome_period=(-np.pi, np.pi),
+        chi=0.0,
+        tVec_s=ct.zeros_3,
+        wavelength=None,
+    ):
         """
         Simulate a monochromatic rotation series for a list of grains.
 
@@ -1335,8 +1418,9 @@ class Detector:
         else:
             if plane_data.wavelength != wavelength:
                 plane_data.wavelength = ct.keVToAngstrom(wavelength)
-        assert not np.any(np.isnan(plane_data.getTTh())),\
-            "plane data exclusions incompatible with wavelength"
+        assert not np.any(
+            np.isnan(plane_data.getTTh())
+        ), "plane data exclusions incompatible with wavelength"
 
         # vstacked G-vector id, h, k, l
         full_hkls = xrdutil._fetch_hkls_from_planedata(plane_data)
@@ -1358,25 +1442,33 @@ class Detector:
             # for each omega solution
             angList = np.vstack(
                 oscillAnglesOfHKLs(
-                    full_hkls[:, 1:], chi,
-                    rMat_c, bMat, wavelength,
+                    full_hkls[:, 1:],
+                    chi,
+                    rMat_c,
+                    bMat,
+                    wavelength,
                     vInv=vInv_s,
-                    )
                 )
+            )
 
             # filter by eta and omega ranges
             # ??? get eta range from detector?
             allAngs, allHKLs = xrdutil._filter_hkls_eta_ome(
                 full_hkls, angList, eta_ranges, ome_ranges
-                )
+            )
             allAngs[:, 2] = mapAngle(allAngs[:, 2], ome_period)
 
             # find points that fall on the panel
             det_xy, rMat_s, on_plane = xrdutil._project_on_detector_plane(
                 allAngs,
-                self.rmat, rMat_c, chi,
-                self.tvec, tVec_c, tVec_s,
-                self.distortion)
+                self.rmat,
+                rMat_c,
+                chi,
+                self.tvec,
+                tVec_c,
+                tVec_s,
+                self.distortion,
+            )
             xys_p, on_panel = self.clip_to_panel(det_xy)
             valid_xys.append(xys_p)
 
@@ -1398,13 +1490,17 @@ class Detector:
             ang_pixel_size.append(self.angularPixelSize(xys_p))
         return valid_ids, valid_hkls, valid_angs, valid_xys, ang_pixel_size
 
-    def simulate_laue_pattern(self, crystal_data,
-                              minEnergy=5., maxEnergy=35.,
-                              rmat_s=None, tvec_s=None,
-                              grain_params=None,
-                              beam_vec=None):
-        """
-        """
+    def simulate_laue_pattern(
+        self,
+        crystal_data,
+        minEnergy=5.0,
+        maxEnergy=35.0,
+        rmat_s=None,
+        tvec_s=None,
+        grain_params=None,
+        beam_vec=None,
+    ):
+        """ """
         if isinstance(crystal_data, PlaneData):
 
             plane_data = crystal_data
@@ -1436,8 +1532,9 @@ class Detector:
         # TODO: allow for spectrum parsing
         multipleEnergyRanges = False
         if hasattr(maxEnergy, '__len__'):
-            assert len(maxEnergy) == len(minEnergy), \
-                'energy cutoff ranges must have the same length'
+            assert len(maxEnergy) == len(
+                minEnergy
+            ), 'energy cutoff ranges must have the same length'
             multipleEnergyRanges = True
             lmin = []
             lmax = []
@@ -1472,11 +1569,11 @@ class Detector:
         # =========================================================================
 
         # pre-allocate output arrays
-        xy_det = np.nan*np.ones((n_grains, nhkls_tot, 2))
-        hkls_in = np.nan*np.ones((n_grains, 3, nhkls_tot))
-        angles = np.nan*np.ones((n_grains, nhkls_tot, 2))
-        dspacing = np.nan*np.ones((n_grains, nhkls_tot))
-        energy = np.nan*np.ones((n_grains, nhkls_tot))
+        xy_det = np.nan * np.ones((n_grains, nhkls_tot, 2))
+        hkls_in = np.nan * np.ones((n_grains, 3, nhkls_tot))
+        angles = np.nan * np.ones((n_grains, nhkls_tot, 2))
+        dspacing = np.nan * np.ones((n_grains, nhkls_tot))
+        energy = np.nan * np.ones((n_grains, nhkls_tot))
         for iG, gp in enumerate(grain_params):
             rmat_c = makeRotMatOfExpMap(gp[:3])
             tvec_c = gp[3:6].reshape(3, 1)
@@ -1487,10 +1584,16 @@ class Detector:
             ghat_c_str = mutil.unitVector(np.dot(rmat_c.T, gvec_s_str))
 
             # project
-            dpts = gvec_to_xy(ghat_c_str.T,
-                              self.rmat, rmat_s, rmat_c,
-                              self.tvec, tvec_s, tvec_c,
-                              beam_vec=beam_vec)
+            dpts = gvec_to_xy(
+                ghat_c_str.T,
+                self.rmat,
+                rmat_s,
+                rmat_c,
+                self.tvec,
+                tvec_s,
+                tvec_c,
+                beam_vec=beam_vec,
+            )
 
             # check intersections with detector plane
             canIntersect = ~np.isnan(dpts[:, 0])
@@ -1503,9 +1606,13 @@ class Detector:
                 # back to angles
                 tth_eta, gvec_l = detectorXYToGvec(
                     dpts,
-                    self.rmat, rmat_s,
-                    self.tvec, tvec_s, tvec_c,
-                    beamVec=beam_vec)
+                    self.rmat,
+                    rmat_s,
+                    self.tvec,
+                    tvec_s,
+                    tvec_c,
+                    beamVec=beam_vec,
+                )
                 tth_eta = np.vstack(tth_eta).T
 
                 # warp measured points
@@ -1513,8 +1620,8 @@ class Detector:
                     dpts = self.distortion.apply_inverse(dpts)
 
                 # plane spacings and energies
-                dsp = 1. / rowNorm(gvec_s_str[:, canIntersect].T)
-                wlen = 2*dsp*np.sin(0.5*tth_eta[:, 0])
+                dsp = 1.0 / rowNorm(gvec_s_str[:, canIntersect].T)
+                wlen = 2 * dsp * np.sin(0.5 * tth_eta[:, 0])
 
                 # clip to detector panel
                 _, on_panel = self.clip_to_panel(dpts, buffer_edges=True)
@@ -1523,8 +1630,8 @@ class Detector:
                     validEnergy = np.zeros(len(wlen), dtype=bool)
                     for i in range(len(lmin)):
                         in_energy_range = np.logical_and(
-                                wlen >= lmin[i],
-                                wlen <= lmax[i])
+                            wlen >= lmin[i], wlen <= lmax[i]
+                        )
                         validEnergy = validEnergy | in_energy_range
                 else:
                     validEnergy = np.logical_and(wlen >= lmin, wlen <= lmax)
@@ -1562,6 +1669,7 @@ class Detector:
 # UTILITY METHODS
 # =============================================================================
 
+
 def _fix_indices(idx, lo, hi):
     nidx = np.array(idx)
     off_lo = nidx < lo
@@ -1572,36 +1680,26 @@ def _fix_indices(idx, lo, hi):
 
 
 def _row_edge_vec(rows, pixel_size_row):
-    return pixel_size_row*(0.5*rows-np.arange(rows+1))
+    return pixel_size_row * (0.5 * rows - np.arange(rows + 1))
 
 
 def _col_edge_vec(cols, pixel_size_col):
-    return pixel_size_col*(np.arange(cols+1)-0.5*cols)
+    return pixel_size_col * (np.arange(cols + 1) - 0.5 * cols)
 
 
 # FIXME find a better place for this, and maybe include loop over pixels
-if ct.USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)
-    def _solid_angle_of_triangle(vtx_list):
-        norms = np.sqrt(np.sum(vtx_list*vtx_list, axis=1))
-        norms_prod = norms[0] * norms[1] * norms[2]
-        scalar_triple_product = np.dot(vtx_list[0],
-                                       np.cross(vtx_list[2], vtx_list[1]))
-        denominator = norms_prod \
-            + norms[0]*np.dot(vtx_list[1], vtx_list[2]) \
-            + norms[1]*np.dot(vtx_list[2], vtx_list[0]) \
-            + norms[2]*np.dot(vtx_list[0], vtx_list[1])
+@numba.njit(nogil=True, cache=True)
+def _solid_angle_of_triangle(vtx_list):
+    norms = np.sqrt(np.sum(vtx_list * vtx_list, axis=1))
+    norms_prod = norms[0] * norms[1] * norms[2]
+    scalar_triple_product = np.dot(
+        vtx_list[0], np.cross(vtx_list[2], vtx_list[1])
+    )
+    denominator = (
+        norms_prod
+        + norms[0] * np.dot(vtx_list[1], vtx_list[2])
+        + norms[1] * np.dot(vtx_list[2], vtx_list[0])
+        + norms[2] * np.dot(vtx_list[0], vtx_list[1])
+    )
 
-        return 2.*np.arctan2(scalar_triple_product, denominator)
-else:
-    def _solid_angle_of_triangle(vtx_list):
-        norms = rowNorm(vtx_list)
-        norms_prod = np.cumprod(norms)[-1]
-        scalar_triple_product = np.dot(vtx_list[0],
-                                       np.cross(vtx_list[2], vtx_list[1]))
-        denominator = norms_prod \
-            + norms[0]*np.dot(vtx_list[1], vtx_list[2]) \
-            + norms[1]*np.dot(vtx_list[2], vtx_list[0]) \
-            + norms[2]*np.dot(vtx_list[0], vtx_list[1])
-
-        return 2.*np.arctan2(scalar_triple_product, denominator)
+    return 2.0 * np.arctan2(scalar_triple_product, denominator)

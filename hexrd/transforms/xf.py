@@ -28,33 +28,32 @@
 
 import sys
 import numpy as np
+import numba
+
 # np.seterr(invalid='ignore')
 
 import scipy.sparse as sparse
 
 from hexrd import matrixutil as mutil
 
-from hexrd.constants import USE_NUMBA
-if USE_NUMBA:
-    import numba
 
 # =============================================================================
 # Module Data
 # =============================================================================
 
-epsf = np.finfo(float).eps      # ~2.2e-16
-ten_epsf = 10 * epsf                # ~2.2e-15
-sqrt_epsf = np.sqrt(epsf)            # ~1.5e-8
+epsf = np.finfo(float).eps  # ~2.2e-16
+ten_epsf = 10 * epsf  # ~2.2e-15
+sqrt_epsf = np.sqrt(epsf)  # ~1.5e-8
 
-periodDict = {'degrees': 360.0, 'radians': 2*np.pi}
-angularUnits = 'radians'        # module-level angle units
-d2r = np.pi/180.0
+periodDict = {'degrees': 360.0, 'radians': 2 * np.pi}
+angularUnits = 'radians'  # module-level angle units
+d2r = np.pi / 180.0
 
 # basis vectors
-I3 = np.eye(3)                                 # (3, 3) identity
-Xl = np.array([[1., 0., 0.]], order='C').T     # X in the lab frame
-Yl = np.array([[0., 1., 0.]], order='C').T     # Y in the lab frame
-Zl = np.array([[0., 0., 1.]], order='C').T     # Z in the lab frame
+I3 = np.eye(3)  # (3, 3) identity
+Xl = np.array([[1.0, 0.0, 0.0]], order='C').T  # X in the lab frame
+Yl = np.array([[0.0, 1.0, 0.0]], order='C').T  # Y in the lab frame
+Zl = np.array([[0.0, 0.0, 1.0]], order='C').T  # Z in the lab frame
 
 zeroVec = np.zeros(3, order='C')
 
@@ -63,7 +62,7 @@ bVec_ref = -Zl
 eta_ref = Xl
 
 # reference stretch
-vInv_ref = np.array([[1., 1., 1., 0., 0., 0.]], order='C').T
+vInv_ref = np.array([[1.0, 1.0, 1.0, 0.0, 0.0, 0.0]], order='C').T
 
 
 # =============================================================================
@@ -94,50 +93,37 @@ def makeGVector(hkl, bMat):
     return unitVector(np.dot(bMat, hkl))
 
 
-if USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)
-    def _anglesToGVecHelper(angs, out):
-        # gVec_e = np.vstack([[np.cos(0.5*angs[:, 0]) * np.cos(angs[:, 1])],
-        #                     [np.cos(0.5*angs[:, 0]) * np.sin(angs[:, 1])],
-        #                     [np.sin(0.5*angs[:, 0])]])
-        n = angs.shape[0]
-        for i in range(n):
-            ca0 = np.cos(0.5*angs[i, 0])
-            sa0 = np.sin(0.5*angs[i, 0])
-            ca1 = np.cos(angs[i, 1])
-            sa1 = np.sin(angs[i, 1])
-            out[i, 0] = ca0 * ca1
-            out[i, 1] = ca0 * sa1
-            out[i, 2] = sa0
-
-    def anglesToGVec(angs, bHat_l, eHat_l, rMat_s=I3, rMat_c=I3):
-        """
-        from 'eta' frame out to lab
-        (with handy kwargs to go to crystal or sample)
-        """
-        rMat_e = makeEtaFrameRotMat(bHat_l, eHat_l)
-        gVec_e = np.empty((angs.shape[0], 3))
-        _anglesToGVecHelper(angs, gVec_e)
-        mat = np.dot(rMat_c.T, np.dot(rMat_s.T, rMat_e))
-        return np.dot(mat, gVec_e.T)
-else:
-    def anglesToGVec(angs, bHat_l, eHat_l, rMat_s=I3, rMat_c=I3):
-        """
-        from 'eta' frame out to lab
-        (with handy kwargs to go to crystal or sample)
-        """
-        rMat_e = makeEtaFrameRotMat(bHat_l, eHat_l)
-        gVec_e = np.vstack([[np.cos(0.5*angs[:, 0]) * np.cos(angs[:, 1])],
-                            [np.cos(0.5*angs[:, 0]) * np.sin(angs[:, 1])],
-                            [np.sin(0.5*angs[:, 0])]])
-        mat = np.dot(rMat_c.T, np.dot(rMat_s.T, rMat_e))
-        return np.dot(mat, gVec_e)
+@numba.njit(nogil=True, cache=True)
+def _anglesToGVecHelper(angs, out):
+    # gVec_e = np.vstack([[np.cos(0.5*angs[:, 0]) * np.cos(angs[:, 1])],
+    #                     [np.cos(0.5*angs[:, 0]) * np.sin(angs[:, 1])],
+    #                     [np.sin(0.5*angs[:, 0])]])
+    n = angs.shape[0]
+    for i in range(n):
+        ca0 = np.cos(0.5 * angs[i, 0])
+        sa0 = np.sin(0.5 * angs[i, 0])
+        ca1 = np.cos(angs[i, 1])
+        sa1 = np.sin(angs[i, 1])
+        out[i, 0] = ca0 * ca1
+        out[i, 1] = ca0 * sa1
+        out[i, 2] = sa0
 
 
-def gvecToDetectorXY(gVec_c,
-                     rMat_d, rMat_s, rMat_c,
-                     tVec_d, tVec_s, tVec_c,
-                     beamVec=bVec_ref):
+def anglesToGVec(angs, bHat_l, eHat_l, rMat_s=I3, rMat_c=I3):
+    """
+    from 'eta' frame out to lab
+    (with handy kwargs to go to crystal or sample)
+    """
+    rMat_e = makeEtaFrameRotMat(bHat_l, eHat_l)
+    gVec_e = np.empty((angs.shape[0], 3))
+    _anglesToGVecHelper(angs, gVec_e)
+    mat = np.dot(rMat_c.T, np.dot(rMat_s.T, rMat_e))
+    return np.dot(mat, gVec_e.T)
+
+
+def gvecToDetectorXY(
+    gVec_c, rMat_d, rMat_s, rMat_c, tVec_d, tVec_s, tVec_c, beamVec=bVec_ref
+):
     """
     Takes a list of unit reciprocal lattice vectors in crystal frame to the
     specified detector-relative frame.
@@ -176,10 +162,10 @@ def gvecToDetectorXY(gVec_c,
     """
     ztol = epsf
 
-    nVec_l = np.dot(rMat_d, Zl)                 # detector plane normal
+    nVec_l = np.dot(rMat_d, Zl)  # detector plane normal
     bHat_l = unitVector(beamVec.reshape(3, 1))  # make sure beam vector is unit
-    P0_l = tVec_s + np.dot(rMat_s, tVec_c)      # origin of CRYSTAL FRAME
-    P3_l = tVec_d                               # origin of DETECTOR FRAME
+    P0_l = tVec_s + np.dot(rMat_s, tVec_c)  # origin of CRYSTAL FRAME
+    P3_l = tVec_d  # origin of DETECTOR FRAME
 
     # form unit reciprocal lattice vectors in lab frame (w/o translation)
     gVec_l = np.dot(rMat_s, np.dot(rMat_c, unitVector(gVec_c)))
@@ -189,7 +175,7 @@ def gvecToDetectorXY(gVec_c,
 
     # see who can diffract; initialize output array with NaNs
     canDiffract = np.atleast_1d(
-        np.logical_and(bDot >= ztol, bDot <= 1. - ztol)
+        np.logical_and(bDot >= ztol, bDot <= 1.0 - ztol)
     )
     npts = sum(canDiffract)
     retval = np.nan * np.ones_like(gVec_l)
@@ -210,8 +196,8 @@ def gvecToDetectorXY(gVec_c,
         # first check for non-instersections
         denom = np.dot(nVec_l.T, dVec_l).flatten()
         dzero = abs(denom) < ztol
-        denom[dzero] = 1.           # mitigate divide-by-zero
-        cantIntersect = denom > 0.  # index to dVec_l that can't hit det
+        denom[dzero] = 1.0  # mitigate divide-by-zero
+        cantIntersect = denom > 0.0  # index to dVec_l that can't hit det
 
         # displacement scaling (along dVec_l)
         u = np.dot(nVec_l.T, P3_l - P0_l).flatten() / denom
@@ -228,12 +214,18 @@ def gvecToDetectorXY(gVec_c,
     return retval[:2, :].T
 
 
-def detectorXYToGvec(xy_det,
-                     rMat_d, rMat_s,
-                     tVec_d, tVec_s, tVec_c,
-                     distortion=None,
-                     beamVec=bVec_ref, etaVec=eta_ref,
-                     output_ref=False):
+def detectorXYToGvec(
+    xy_det,
+    rMat_d,
+    rMat_s,
+    tVec_d,
+    tVec_s,
+    tVec_c,
+    distortion=None,
+    beamVec=bVec_ref,
+    etaVec=eta_ref,
+    output_ref=False,
+):
     """
     Takes a list cartesian (x, y) pairs in the detector coordinates and
     calculates the associated reciprocal lattice (G) vectors and
@@ -293,7 +285,7 @@ def detectorXYToGvec(xy_det,
 
     # in LAB FRAME
     P2_l = np.dot(rMat_d, P2_d) + tVec_d
-    P0_l = tVec_s + np.dot(rMat_s, tVec_c)   # origin of CRYSTAL FRAME
+    P0_l = tVec_s + np.dot(rMat_s, tVec_c)  # origin of CRYSTAL FRAME
 
     # diffraction unit vector components in LAB FRAME
     dHat_l = unitVector(P2_l - P0_l)
@@ -302,8 +294,9 @@ def detectorXYToGvec(xy_det,
     # generate output
 
     # DEBUGGING
-    assert abs(np.dot(bHat_l.T, eHat_l)) < 1. - sqrt_epsf, \
-        "eta ref and beam cannot be parallel!"
+    assert (
+        abs(np.dot(bHat_l.T, eHat_l)) < 1.0 - sqrt_epsf
+    ), "eta ref and beam cannot be parallel!"
 
     rMat_e = makeEtaFrameRotMat(bHat_l, eHat_l)
     dHat_e = np.dot(rMat_e.T, dHat_l)
@@ -328,8 +321,16 @@ def detectorXYToGvec(xy_det,
     return (tTh, eta), gVec_l
 
 
-def oscillAnglesOfHKLs(hkls, chi, rMat_c, bMat, wavelength,
-                       vInv=vInv_ref, beamVec=bVec_ref, etaVec=eta_ref):
+def oscillAnglesOfHKLs(
+    hkls,
+    chi,
+    rMat_c,
+    bMat,
+    wavelength,
+    vInv=vInv_ref,
+    beamVec=bVec_ref,
+    etaVec=eta_ref,
+):
     """
 
 
@@ -426,20 +427,30 @@ def oscillAnglesOfHKLs(hkls, chi, rMat_c, bMat, wavelength,
     schi = np.sin(chi)
 
     # coefficients for harmonic equation
-    a = gHat_s[2, :]*bHat_l[0] \
-        + schi*gHat_s[0, :]*bHat_l[1] - cchi*gHat_s[0, :]*bHat_l[2]
-    b = gHat_s[0, :]*bHat_l[0] \
-        - schi*gHat_s[2, :]*bHat_l[1] + cchi*gHat_s[2, :]*bHat_l[2]
-    c = -sintht - cchi*gHat_s[1, :]*bHat_l[1] - schi*gHat_s[1, :]*bHat_l[2]
+    a = (
+        gHat_s[2, :] * bHat_l[0]
+        + schi * gHat_s[0, :] * bHat_l[1]
+        - cchi * gHat_s[0, :] * bHat_l[2]
+    )
+    b = (
+        gHat_s[0, :] * bHat_l[0]
+        - schi * gHat_s[2, :] * bHat_l[1]
+        + cchi * gHat_s[2, :] * bHat_l[2]
+    )
+    c = (
+        -sintht
+        - cchi * gHat_s[1, :] * bHat_l[1]
+        - schi * gHat_s[1, :] * bHat_l[2]
+    )
 
     # should all be 1-d: a = a.flatten(); b = b.flatten(); c = c.flatten()
 
     # form solution
-    abMag = np.sqrt(a*a + b*b)
+    abMag = np.sqrt(a * a + b * b)
     assert np.all(abMag > 0), "Beam vector specification is infealible!"
     phaseAng = np.arctan2(b, a)
     rhs = c / abMag
-    rhs[abs(rhs) > 1.] = np.nan
+    rhs[abs(rhs) > 1.0] = np.nan
     rhsAng = np.arcsin(rhs)  # will give NaN for abs(rhs) >  1. + 0.5*epsf
 
     # write ome angle output arrays (NaNs persist here)
@@ -449,11 +460,12 @@ def oscillAnglesOfHKLs(hkls, chi, rMat_c, bMat, wavelength,
     goodOnes_s = -np.isnan(ome0)
 
     # DEBUGGING
-    assert np.all(np.isnan(ome0) == np.isnan(ome1)), \
-        "infeasible hkls do not match for ome0, ome1!"
+    assert np.all(
+        np.isnan(ome0) == np.isnan(ome1)
+    ), "infeasible hkls do not match for ome0, ome1!"
 
     # do etas -- ONLY COMPUTE IN CASE CONSISTENT REFERENCE COORDINATES
-    if abs(np.dot(bHat_l.T, eHat_l)) < 1. - sqrt_epsf and np.any(goodOnes_s):
+    if abs(np.dot(bHat_l.T, eHat_l)) < 1.0 - sqrt_epsf and np.any(goodOnes_s):
         eta0 = np.nan * np.ones_like(ome0)
         eta1 = np.nan * np.ones_like(ome1)
 
@@ -471,34 +483,42 @@ def oscillAnglesOfHKLs(hkls, chi, rMat_c, bMat, wavelength,
         for i in range(numGood):
             rMat_s = makeOscillRotMat([chi, allome[goodOnes][i]])
             gVec_e = np.dot(
-                rMat_e.T, np.dot(
-                    rMat_s, np.dot(
-                        rMat_c, tmp_gvec[:, i].reshape(3, 1)
-                    )
-                )
+                rMat_e.T,
+                np.dot(rMat_s, np.dot(rMat_c, tmp_gvec[:, i].reshape(3, 1))),
             )
             tmp_eta[i] = np.arctan2(gVec_e[1], gVec_e[0])
         eta0[goodOnes_s] = tmp_eta[:numGood_s]
         eta1[goodOnes_s] = tmp_eta[numGood_s:]
 
         # make assoc tTh array
-        tTh = 2.*np.arcsin(sintht).flatten()
+        tTh = 2.0 * np.arcsin(sintht).flatten()
         tTh0 = tTh
         tTh0[-goodOnes_s] = np.nan
-        retval = (np.vstack([tTh0.flatten(), eta0.flatten(), ome0.flatten()]),
-                  np.vstack([tTh0.flatten(), eta1.flatten(), ome1.flatten()]),)
+        retval = (
+            np.vstack([tTh0.flatten(), eta0.flatten(), ome0.flatten()]),
+            np.vstack([tTh0.flatten(), eta1.flatten(), ome1.flatten()]),
+        )
     else:
         retval = (ome0.flatten(), ome1.flatten())
     return retval
 
 
-def polarRebin(thisFrame,
-               npdiv=2, mmPerPixel=(0.2, 0.2), convertToTTh=False,
-               rMat_d=I3, tVec_d=np.r_[0., 0., -1000.],
-               beamVec=bVec_ref, etaVec=eta_ref,
-               rhoRange=np.r_[20, 200], numRho=1000,
-               etaRange=(d2r*np.r_[-5, 355]),
-               numEta=36, verbose=True, log=None):
+def polarRebin(
+    thisFrame,
+    npdiv=2,
+    mmPerPixel=(0.2, 0.2),
+    convertToTTh=False,
+    rMat_d=I3,
+    tVec_d=np.r_[0.0, 0.0, -1000.0],
+    beamVec=bVec_ref,
+    etaVec=eta_ref,
+    rhoRange=np.r_[20, 200],
+    numRho=1000,
+    etaRange=(d2r * np.r_[-5, 355]),
+    numEta=36,
+    verbose=True,
+    log=None,
+):
     """
     Performs polar rebinning of an input image.
 
@@ -573,7 +593,9 @@ def polarRebin(thisFrame,
     startRho = rhoRange[0]
     stopRho = rhoRange[1]
 
-    subPixArea = 1/float(npdiv)**2  # areal rescaling for subpixel intensities
+    subPixArea = (
+        1 / float(npdiv) ** 2
+    )  # areal rescaling for subpixel intensities
 
     # MASTER COORDINATES
     #  - in pixel indices, UPPER LEFT PIXEL is [0, 0] --> (row, col)
@@ -585,17 +607,23 @@ def polarRebin(thisFrame,
 
     # need rhos (or tThs) and etas)
     if convertToTTh:
-        dAngs = detectorXYToGvec(np.vstack([x, y]).T,
-                                 rMat_d, I3,
-                                 tVec_d, zeroVec, zeroVec,
-                                 beamVec=beamVec, etaVec=etaVec)
-        rho = dAngs[0][0]       # this is tTh now
+        dAngs = detectorXYToGvec(
+            np.vstack([x, y]).T,
+            rMat_d,
+            I3,
+            tVec_d,
+            zeroVec,
+            zeroVec,
+            beamVec=beamVec,
+            etaVec=etaVec,
+        )
+        rho = dAngs[0][0]  # this is tTh now
         eta = dAngs[0][1]
     else:
         # in here, we are vanilla cartesian
-        rho = np.sqrt(x*x + y*y)
+        rho = np.sqrt(x * x + y * y)
         eta = np.arctan2(y, x)
-    eta = mapAngle(eta, [startEta, 2*np.pi + startEta], units='radians')
+    eta = mapAngle(eta, [startEta, 2 * np.pi + startEta], units='radians')
 
     # MAKE POLAR BIN CENTER ARRAY
     deltaEta = (stopEta - startEta) / float(numEta)
@@ -618,20 +646,20 @@ def polarRebin(thisFrame,
         else:
             print(msg)
 
-    rhoI = startRho - 10*deltaRho
-    rhoF = stopRho + 10*deltaRho
+    rhoI = startRho - 10 * deltaRho
+    rhoF = stopRho + 10 * deltaRho
     inAnnulus = np.where((rho >= rhoI) & (rho <= rhoF))[0]
     for i in range(numEta):
         if verbose:
-            msg = "INFO: Processing sector %d of %d\n" % (i+1, numEta)
+            msg = "INFO: Processing sector %d of %d\n" % (i + 1, numEta)
             if log:
                 log.write(msg)
             else:
                 print(msg)
 
         # import pdb;pdb.set_trace()
-        etaI1 = rowEta[i] - 10.5*deltaEta
-        etaF1 = rowEta[i] + 10.5*deltaEta
+        etaI1 = rowEta[i] - 10.5 * deltaEta
+        etaF1 = rowEta[i] + 10.5 * deltaEta
 
         tmpEta = eta[inAnnulus]
         inSector = np.where((tmpEta >= etaI1) & (tmpEta <= etaF1))[0]
@@ -653,32 +681,42 @@ def polarRebin(thisFrame,
         intY = np.tile(intY.flatten(), (nptsIn, 1)).T.flatten()
 
         # expand coords using pixel subdivision
-        tmpX = np.tile(tmpX, (npdiv**2, 1)).flatten() \
-            + (intX - 0.5)*mmPerPixel[0]
-        tmpY = np.tile(tmpY, (npdiv**2, 1)).flatten() \
-            + (intY - 0.5)*mmPerPixel[1]
+        tmpX = (
+            np.tile(tmpX, (npdiv**2, 1)).flatten()
+            + (intX - 0.5) * mmPerPixel[0]
+        )
+        tmpY = (
+            np.tile(tmpY, (npdiv**2, 1)).flatten()
+            + (intY - 0.5) * mmPerPixel[1]
+        )
         tmpI = np.tile(tmpI, (npdiv**2, 1)).flatten() / subPixArea
 
         if convertToTTh:
-            dAngs = detectorXYToGvec(np.vstack([tmpX, tmpY]).T,
-                                     rMat_d, I3,
-                                     tVec_d, zeroVec, zeroVec,
-                                     beamVec=beamVec, etaVec=etaVec)
-            tmpRho = dAngs[0][0]       # this is tTh now
+            dAngs = detectorXYToGvec(
+                np.vstack([tmpX, tmpY]).T,
+                rMat_d,
+                I3,
+                tVec_d,
+                zeroVec,
+                zeroVec,
+                beamVec=beamVec,
+                etaVec=etaVec,
+            )
+            tmpRho = dAngs[0][0]  # this is tTh now
             tmpEta = dAngs[0][1]
         else:
-            tmpRho = np.sqrt(tmpX*tmpX + tmpY*tmpY)
+            tmpRho = np.sqrt(tmpX * tmpX + tmpY * tmpY)
             tmpEta = np.arctan2(tmpY, tmpX)
         tmpEta = mapAngle(
-            tmpEta, [startEta, 2*np.pi + startEta],
-            units='radians'
+            tmpEta, [startEta, 2 * np.pi + startEta], units='radians'
         )
 
-        etaI2 = rowEta[i] - 0.5*deltaEta
-        etaF2 = rowEta[i] + 0.5*deltaEta
+        etaI2 = rowEta[i] - 0.5 * deltaEta
+        etaF2 = rowEta[i] + 0.5 * deltaEta
 
-        inSector2 = ((tmpRho >= startRho) & (tmpRho <= stopRho)) \
-            & ((tmpEta >= etaI2) & (tmpEta <= etaF2))
+        inSector2 = ((tmpRho >= startRho) & (tmpRho <= stopRho)) & (
+            (tmpEta >= etaI2) & (tmpEta <= etaF2)
+        )
 
         tmpRho = tmpRho[inSector2]
         tmpI = tmpI[inSector2]
@@ -686,14 +724,14 @@ def polarRebin(thisFrame,
         binId = np.floor((tmpRho - startRho) / deltaRho)
         nSubpixelsIn = len(binId)
 
-        if (nSubpixelsIn > 0):
+        if nSubpixelsIn > 0:
             tmpI = sparse.csc_matrix(
                 (tmpI, (binId, np.arange(nSubpixelsIn))),
-                shape=(numRho, nSubpixelsIn)
+                shape=(numRho, nSubpixelsIn),
             )
             binId = sparse.csc_matrix(
                 (np.ones(nSubpixelsIn), (binId, np.arange(nSubpixelsIn))),
-                shape=(numRho, nSubpixelsIn)
+                shape=(numRho, nSubpixelsIn),
             )
 
             # Normalized contribution to the ith sector's radial bins
@@ -701,8 +739,9 @@ def polarRebin(thisFrame,
             whereNZ = np.asarray(
                 np.not_equal(polImg['intensity'][i, :], binIdSum)
             )
-            polImg['intensity'][i, whereNZ] = \
+            polImg['intensity'][i, whereNZ] = (
                 np.asarray(tmpI.sum(1))[whereNZ].flatten() / binIdSum[whereNZ]
+            )
     return polImg
 
 
@@ -725,8 +764,8 @@ def arccosSafe(temp):
         print("attempt to take arccos of %s" % temp, file=sys.stderr)
         raise RuntimeError("unrecoverable error")
 
-    gte1 = temp >= 1.
-    lte1 = temp <= -1.
+    gte1 = temp >= 1.0
+    lte1 = temp <= -1.0
 
     temp[gte1] = 1
     temp[lte1] = -1
@@ -760,7 +799,7 @@ def angularDifference(angList0, angList1, units=angularUnits):
     period = periodDict[units]  # module-level
     # take difference as arrays
     diffAngles = np.atleast_1d(angList0) - np.atleast_1d(angList1)
-    return abs(np.remainder(diffAngles + 0.5*period, period) - 0.5*period)
+    return abs(np.remainder(diffAngles + 0.5 * period, period) - 0.5 * period)
 
 
 def mapAngle(ang, *args, **kwargs):
@@ -777,14 +816,16 @@ def mapAngle(ang, *args, **kwargs):
         if kwargKeys[iArg] == 'units':
             units = kwargs[kwargKeys[iArg]]
         else:
-            raise RuntimeError("Unknown keyword argument: "
-                               + str(kwargKeys[iArg]))
+            raise RuntimeError(
+                "Unknown keyword argument: " + str(kwargKeys[iArg])
+            )
 
     try:
         period = periodDict[units.lower()]
-    except(KeyError):
-        raise RuntimeError("unknown angular units: "
-                           + str(kwargs[kwargKeys[iArg]]))
+    except KeyError:
+        raise RuntimeError(
+            "unknown angular units: " + str(kwargs[kwargKeys[iArg]])
+        )
 
     ang = np.asarray(ang, dtype=float)
 
@@ -811,7 +852,7 @@ def mapAngle(ang, *args, **kwargs):
             ubi = ang > ub
         retval = ang
     else:
-        retval = np.mod(ang + 0.5*period, period) - 0.5*period
+        retval = np.mod(ang + 0.5 * period, period) - 0.5 * period
     return retval
 
 
@@ -872,9 +913,11 @@ def columnNorm(a):
     normalize array of column vectors (hstacked, axis = 0)
     """
     if len(a.shape) > 2:
-        raise RuntimeError("incorrect shape: arg must be 1-d or 2-d, "
-                           + "yours is %d" % (len(a.shape)))
-    cnrma = np.sqrt(sum(np.asarray(a)**2, 0))
+        raise RuntimeError(
+            "incorrect shape: arg must be 1-d or 2-d, "
+            + "yours is %d" % (len(a.shape))
+        )
+    cnrma = np.sqrt(sum(np.asarray(a) ** 2, 0))
     return cnrma
 
 
@@ -883,80 +926,63 @@ def rowNorm(a):
     normalize array of row vectors (vstacked, axis = 1)
     """
     if len(a.shape) > 2:
-        raise RuntimeError("incorrect shape: arg must be 1-d or 2-d, "
-                           + "yours is %d" % (len(a.shape)))
-    cnrma = np.sqrt(sum(np.asarray(a)**2, 1))
+        raise RuntimeError(
+            "incorrect shape: arg must be 1-d or 2-d, "
+            + "yours is %d" % (len(a.shape))
+        )
+    cnrma = np.sqrt(sum(np.asarray(a) ** 2, 1))
     return cnrma
 
 
-if USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)
-    def _unitVectorSingle(a, b):
-        n = a.shape[0]
+@numba.njit(nogil=True, cache=True)
+def _unitVectorSingle(a, b):
+    n = a.shape[0]
+    nrm = 0.0
+    for i in range(n):
+        nrm += a[i] * a[i]
+    nrm = np.sqrt(nrm)
+    # prevent divide by zero
+    if nrm > epsf:
+        for i in range(n):
+            b[i] = a[i] / nrm
+    else:
+        for i in range(n):
+            b[i] = a[i]
+
+
+@numba.njit(nogil=True, cache=True)
+def _unitVectorMulti(a, b):
+    n = a.shape[0]
+    m = a.shape[1]
+    for j in range(m):
         nrm = 0.0
         for i in range(n):
-            nrm += a[i]*a[i]
+            nrm += a[i, j] * a[i, j]
         nrm = np.sqrt(nrm)
         # prevent divide by zero
         if nrm > epsf:
             for i in range(n):
-                b[i] = a[i] / nrm
+                b[i, j] = a[i, j] / nrm
         else:
             for i in range(n):
-                b[i] = a[i]
+                b[i, j] = a[i, j]
 
-    @numba.njit(nogil=True, cache=True)
-    def _unitVectorMulti(a, b):
-        n = a.shape[0]
-        m = a.shape[1]
-        for j in range(m):
-            nrm = 0.0
-            for i in range(n):
-                nrm += a[i, j]*a[i, j]
-            nrm = np.sqrt(nrm)
-            # prevent divide by zero
-            if nrm > epsf:
-                for i in range(n):
-                    b[i, j] = a[i, j] / nrm
-            else:
-                for i in range(n):
-                    b[i, j] = a[i, j]
 
-    def unitVector(a):
-        """
-        normalize array of column vectors (hstacked, axis = 0)
-        """
-        result = np.empty_like(a)
-        if a.ndim == 1:
-            _unitVectorSingle(a, result)
-        elif a.ndim == 2:
-            _unitVectorMulti(a, result)
-        else:
-            raise ValueError("incorrect arg shape; must be 1-d or 2-d, "
-                             + "yours is %d-d" % (a.ndim))
-        return result
-
-else:  # not USE_NUMBA
-    def unitVector(a):
-        """
-        normalize array of column vectors (hstacked, axis = 0)
-        """
-        assert a.ndim in [1, 2], \
-            "incorrect arg shape; must be 1-d or 2-d, yours is %d-d" \
-            % (a.ndim)
-
-        m = a.shape[0]
-        n = 1
-
-        nrm = np.tile(np.sqrt(sum(np.asarray(a)**2, 0)), (m, n))
-
-        # prevent divide by zero
-        zchk = nrm <= epsf
-        nrm[zchk] = 1.
-
-        nrma = a/nrm
-
-        return nrma
+def unitVector(a):
+    """
+    normalize array of column vectors (hstacked, axis = 0)
+    """
+    result = np.empty_like(a)
+    if a.ndim == 1:
+        _unitVectorSingle(a, result)
+    elif a.ndim == 2:
+        _unitVectorMulti(a, result)
+    else:
+        raise ValueError(
+            "incorrect arg shape; must be 1-d or 2-d, "
+            + "yours is %d-d" % (a.ndim)
+        )
+    return result
 
 
 def makeDetectorRotMat(tiltAngles):
@@ -976,19 +1002,13 @@ def makeDetectorRotMat(tiltAngles):
     sin_gZ = np.sin(tiltAngles[2])
 
     rotXl = np.array(
-        [[1., 0., 0.],
-         [0., cos_gX, -sin_gX],
-         [0., sin_gX, cos_gX]]
+        [[1.0, 0.0, 0.0], [0.0, cos_gX, -sin_gX], [0.0, sin_gX, cos_gX]]
     )
     rotYl = np.array(
-        [[cos_gY, 0., sin_gY],
-         [0., 1., 0.],
-         [-sin_gY, 0., cos_gY]]
+        [[cos_gY, 0.0, sin_gY], [0.0, 1.0, 0.0], [-sin_gY, 0.0, cos_gY]]
     )
     rotZl = np.array(
-        [[cos_gZ, -sin_gZ, 0.],
-         [sin_gZ, cos_gZ, 0.],
-         [0., 0., 1.]]
+        [[cos_gZ, -sin_gZ, 0.0], [sin_gZ, cos_gZ, 0.0], [0.0, 0.0, 1.0]]
     )
     return np.dot(rotZl, np.dot(rotYl, rotXl))
 
@@ -1003,17 +1023,9 @@ def makeOscillRotMat(oscillAngles):
     come = np.cos(oscillAngles[1])
     some = np.sin(oscillAngles[1])
 
-    rchi = np.array(
-        [[1., 0., 0.],
-         [0., cchi, -schi],
-         [0., schi, cchi]]
-    )
+    rchi = np.array([[1.0, 0.0, 0.0], [0.0, cchi, -schi], [0.0, schi, cchi]])
 
-    rome = np.array(
-        [[come, 0., some],
-         [0., 1., 0.],
-         [-some, 0., come]]
-    )
+    rome = np.array([[come, 0.0, some], [0.0, 1.0, 0.0], [-some, 0.0, come]])
 
     return np.dot(rchi, rome)
 
@@ -1037,13 +1049,18 @@ def makeRotMatOfExpMap(expMap):
     phi = np.norm(expMap)
     if phi > epsf:
         wMat = np.array(
-            [[0., -expMap[2], expMap[1]],
-             [expMap[2], 0., -expMap[0]],
-             [-expMap[1], expMap[0], 0.]])
+            [
+                [0.0, -expMap[2], expMap[1]],
+                [expMap[2], 0.0, -expMap[0]],
+                [-expMap[1], expMap[0], 0.0],
+            ]
+        )
 
-        rMat = I3 \
-            + (np.sin(phi) / phi) * wMat \
-            + ((1. - np.cos(phi)) / (phi*phi)) * np.dot(wMat, wMat)
+        rMat = (
+            I3
+            + (np.sin(phi) / phi) * wMat
+            + ((1.0 - np.cos(phi)) / (phi * phi)) * np.dot(wMat, wMat)
+        )
     else:
         rMat = I3
 
@@ -1051,74 +1068,52 @@ def makeRotMatOfExpMap(expMap):
 
 
 def makeBinaryRotMat(axis):
-    """
-    """
+    """ """
     n = np.asarray(axis).flatten()
     assert len(n) == 3, 'Axis input does not have 3 components'
-    return 2*np.dot(n.reshape(3, 1), n.reshape(1, 3)) - I3
+    return 2 * np.dot(n.reshape(3, 1), n.reshape(1, 3)) - I3
 
 
-if USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)
-    def _makeEtaFrameRotMat(bHat_l, eHat_l, out):
-        # bHat_l and eHat_l CANNOT have 0 magnitude!
-        # must catch this case as well as colinear bHat_l/eHat_l elsewhere...
-        bHat_mag = np.sqrt(bHat_l[0]**2 + bHat_l[1]**2 + bHat_l[2]**2)
+@numba.njit(nogil=True, cache=True)
+def _makeEtaFrameRotMat(bHat_l, eHat_l, out):
+    # bHat_l and eHat_l CANNOT have 0 magnitude!
+    # must catch this case as well as colinear bHat_l/eHat_l elsewhere...
+    bHat_mag = np.sqrt(bHat_l[0] ** 2 + bHat_l[1] ** 2 + bHat_l[2] ** 2)
 
-        # assign Ze as -bHat_l
-        for i in range(3):
-            out[i, 2] = -bHat_l[i] / bHat_mag
+    # assign Ze as -bHat_l
+    for i in range(3):
+        out[i, 2] = -bHat_l[i] / bHat_mag
 
-        # find Ye as Ze ^ eHat_l
-        Ye0 = out[1, 2]*eHat_l[2] - eHat_l[1]*out[2, 2]
-        Ye1 = out[2, 2]*eHat_l[0] - eHat_l[2]*out[0, 2]
-        Ye2 = out[0, 2]*eHat_l[1] - eHat_l[0]*out[1, 2]
+    # find Ye as Ze ^ eHat_l
+    Ye0 = out[1, 2] * eHat_l[2] - eHat_l[1] * out[2, 2]
+    Ye1 = out[2, 2] * eHat_l[0] - eHat_l[2] * out[0, 2]
+    Ye2 = out[0, 2] * eHat_l[1] - eHat_l[0] * out[1, 2]
 
-        Ye_mag = np.sqrt(Ye0**2 + Ye1**2 + Ye2**2)
+    Ye_mag = np.sqrt(Ye0**2 + Ye1**2 + Ye2**2)
 
-        out[0, 1] = Ye0 / Ye_mag
-        out[1, 1] = Ye1 / Ye_mag
-        out[2, 1] = Ye2 / Ye_mag
+    out[0, 1] = Ye0 / Ye_mag
+    out[1, 1] = Ye1 / Ye_mag
+    out[2, 1] = Ye2 / Ye_mag
 
-        # find Xe as Ye ^ Ze
-        out[0, 0] = out[1, 1]*out[2, 2] - out[1, 2]*out[2, 1]
-        out[1, 0] = out[2, 1]*out[0, 2] - out[2, 2]*out[0, 1]
-        out[2, 0] = out[0, 1]*out[1, 2] - out[0, 2]*out[1, 1]
+    # find Xe as Ye ^ Ze
+    out[0, 0] = out[1, 1] * out[2, 2] - out[1, 2] * out[2, 1]
+    out[1, 0] = out[2, 1] * out[0, 2] - out[2, 2] * out[0, 1]
+    out[2, 0] = out[0, 1] * out[1, 2] - out[0, 2] * out[1, 1]
 
-    def makeEtaFrameRotMat(bHat_l, eHat_l):
-        """
-        make eta basis COB matrix with beam antiparallel with Z
 
-        takes components from ETA frame to LAB
+def makeEtaFrameRotMat(bHat_l, eHat_l):
+    """
+    make eta basis COB matrix with beam antiparallel with Z
 
-        **NO EXCEPTION HANDLING FOR COLINEAR ARGS IN NUMBA VERSION!
+    takes components from ETA frame to LAB
 
-        ...put checks for non-zero magnitudes and non-colinearity in wrapper?
-        """
-        result = np.empty((3, 3))
-        _makeEtaFrameRotMat(bHat_l.reshape(3), eHat_l.reshape(3), result)
-        return result
+    **NO EXCEPTION HANDLING FOR COLINEAR ARGS IN NUMBA VERSION!
 
-else:  # not USE_NUMBA
-    def makeEtaFrameRotMat(bHat_l, eHat_l):
-        """
-        make eta basis COB matrix with beam antiparallel with Z
-
-        takes components from ETA frame to LAB
-        """
-        # normalize input
-        bHat_l = unitVector(bHat_l.reshape(3, 1))
-        eHat_l = unitVector(eHat_l.reshape(3, 1))
-
-        # find Ye as cross(eHat_l, bHat_l), normalize if kosher
-        Ye = np.cross(eHat_l.flatten(), bHat_l.flatten())
-        if np.sqrt(np.sum(Ye*Ye)) < 1e-8:
-            raise RuntimeError("bHat_l and eHat_l must NOT be colinear!")
-        Ye = unitVector(Ye.reshape(3, 1))
-
-        # find Xe as cross(bHat_l, Ye)
-        Xe = np.cross(bHat_l.flatten(), Ye.flatten()).reshape(3, 1)
-        return np.hstack([Xe, Ye, -bHat_l])
+    ...put checks for non-zero magnitudes and non-colinearity in wrapper?
+    """
+    result = np.empty((3, 3))
+    _makeEtaFrameRotMat(bHat_l.reshape(3), eHat_l.reshape(3), result)
+    return result
 
 
 def angles_in_range(angles, starts, stops, degrees=True):
@@ -1130,8 +1125,8 @@ def angles_in_range(angles, starts, stops, degrees=True):
 
     OPTIONAL ARGS:
     *degrees* - [True] angles & ranges in degrees (or radians)
-"""
-    TAU = 360.0 if degrees else 2*np.pi
+    """
+    TAU = 360.0 if degrees else 2 * np.pi
     nw = len(starts)
     na = len(angles)
     in_range = np.zeros((na), dtype=bool)
@@ -1156,13 +1151,14 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
     the same; we treat them as implying 2*pi having been mapped
     """
     # Prefer ravel over flatten because flatten never skips the copy
-    angList = np.asarray(angList).ravel()      # needs to have len
+    angList = np.asarray(angList).ravel()  # needs to have len
     startAngs = np.asarray(startAngs).ravel()  # needs to have len
-    stopAngs = np.asarray(stopAngs).ravel()    # needs to have len
+    stopAngs = np.asarray(stopAngs).ravel()  # needs to have len
 
     n_ranges = len(startAngs)
-    assert len(stopAngs) == n_ranges, \
-        "length of min and max angular limits must match!"
+    assert (
+        len(stopAngs) == n_ranges
+    ), "length of min and max angular limits must match!"
 
     # to avoid warnings in >=, <= later down, mark nans;
     # need these to trick output to False in the case of nan input
@@ -1171,7 +1167,7 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
     reflInRange = np.zeros(angList.shape, dtype=bool)
 
     # bin length for chunking
-    binLen = np.pi / 2.
+    binLen = np.pi / 2.0
 
     # in plane vectors defining wedges
     x0 = np.vstack([np.cos(startAngs), np.sin(startAngs)])
@@ -1179,37 +1175,35 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
 
     # dot products
     dp = np.sum(x0 * x1, axis=0)
-    if np.any(dp >= 1. - sqrt_epsf) and n_ranges > 1:
+    if np.any(dp >= 1.0 - sqrt_epsf) and n_ranges > 1:
         # ambiguous case
         raise RuntimeError(
             "At least one of your ranges is alread 360 degrees!"
         )
-    elif dp[0] >= 1. - sqrt_epsf and n_ranges == 1:
+    elif dp[0] >= 1.0 - sqrt_epsf and n_ranges == 1:
         # trivial case!
         reflInRange = np.ones(angList.shape, dtype=bool)
         reflInRange[nan_mask] = False
     else:
         # solve for arc lengths
         # ...note: no zeros should have made it here
-        a = x0[0, :]*x1[1, :] - x0[1, :]*x1[0, :]
-        b = x0[0, :]*x1[0, :] + x0[1, :]*x1[1, :]
+        a = x0[0, :] * x1[1, :] - x0[1, :] * x1[0, :]
+        b = x0[0, :] * x1[0, :] + x0[1, :] * x1[1, :]
         phi = np.arctan2(b, a)
 
-        arclen = 0.5*np.pi - phi          # these are clockwise
+        arclen = 0.5 * np.pi - phi  # these are clockwise
         cw_phis = arclen < 0
-        arclen[cw_phis] = 2*np.pi + arclen[cw_phis]   # all positive (CW) now
+        arclen[cw_phis] = 2 * np.pi + arclen[cw_phis]  # all positive (CW) now
         if not ccw:
-            arclen = 2*np.pi - arclen
+            arclen = 2 * np.pi - arclen
 
-        if sum(arclen) > 2*np.pi:
-            raise RuntimeWarning(
-                "Specified angle ranges sum to > 360 degrees"
-            )
+        if sum(arclen) > 2 * np.pi:
+            raise RuntimeWarning("Specified angle ranges sum to > 360 degrees")
 
         # check that there are no more thandp = np.zeros(n_ranges)
         for i in range(n_ranges):
             # number or subranges using 'binLen'
-            numSubranges = int(np.ceil(arclen[i]/binLen))
+            numSubranges = int(np.ceil(arclen[i] / binLen))
 
             # check remaider
             binrem = np.remainder(arclen[i], binLen)
@@ -1226,23 +1220,25 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
             # Create sub ranges on the fly to avoid ambiguity in dot product
             # for wedges >= 180 degrees
             subRanges = np.array(
-                [startAngs[i] + binLen*j for j in range(numSubranges)]
-                + [startAngs[i] + binLen*(numSubranges - 1) + finalBinLen]
+                [startAngs[i] + binLen * j for j in range(numSubranges)]
+                + [startAngs[i] + binLen * (numSubranges - 1) + finalBinLen]
             )
 
             for k in range(numSubranges):
                 zStart = _z_project(angList, subRanges[k])
                 zStop = _z_project(angList, subRanges[k + 1])
                 if ccw:
-                    zStart[nan_mask] = 999.
-                    zStop[nan_mask] = -999.
-                    reflInRange = reflInRange | \
-                        np.logical_and(zStart <= 0, zStop >= 0)
+                    zStart[nan_mask] = 999.0
+                    zStop[nan_mask] = -999.0
+                    reflInRange = reflInRange | np.logical_and(
+                        zStart <= 0, zStop >= 0
+                    )
                 else:
-                    zStart[nan_mask] = -999.
-                    zStop[nan_mask] = 999.
-                    reflInRange = reflInRange | \
-                        np.logical_and(zStart >= 0, zStop <= 0)
+                    zStart[nan_mask] = -999.0
+                    zStop[nan_mask] = 999.0
+                    reflInRange = reflInRange | np.logical_and(
+                        zStart >= 0, zStop <= 0
+                    )
     return reflInRange
 
 
@@ -1269,33 +1265,50 @@ def rotate_vecs_about_axis(angle, axis, vecs):
     angle = np.atleast_1d(angle)
 
     # quaternion components
-    q0 = np.cos(0.5*angle)
-    q1 = np.sin(0.5*angle)
+    q0 = np.cos(0.5 * angle)
+    q1 = np.sin(0.5 * angle)
     qv = np.tile(q1, (3, 1)) * axis
 
     # component perpendicular to axes (inherits shape of vecs)
-    vp0 = vecs[0, :] - axis[0, :]*axis[0, :]*vecs[0, :] \
-        - axis[0, :]*axis[1, :]*vecs[1, :] - axis[0, :]*axis[2, :]*vecs[2, :]
-    vp1 = vecs[1, :] - axis[1, :]*axis[1, :]*vecs[1, :] \
-        - axis[1, :]*axis[0, :]*vecs[0, :] - axis[1, :]*axis[2, :]*vecs[2, :]
-    vp2 = vecs[2, :] - axis[2, :]*axis[2, :]*vecs[2, :] \
-        - axis[2, :]*axis[0, :]*vecs[0, :] - axis[2, :]*axis[1, :]*vecs[1, :]
+    vp0 = (
+        vecs[0, :]
+        - axis[0, :] * axis[0, :] * vecs[0, :]
+        - axis[0, :] * axis[1, :] * vecs[1, :]
+        - axis[0, :] * axis[2, :] * vecs[2, :]
+    )
+    vp1 = (
+        vecs[1, :]
+        - axis[1, :] * axis[1, :] * vecs[1, :]
+        - axis[1, :] * axis[0, :] * vecs[0, :]
+        - axis[1, :] * axis[2, :] * vecs[2, :]
+    )
+    vp2 = (
+        vecs[2, :]
+        - axis[2, :] * axis[2, :] * vecs[2, :]
+        - axis[2, :] * axis[0, :] * vecs[0, :]
+        - axis[2, :] * axis[1, :] * vecs[1, :]
+    )
 
     # dot product with components along; cross product with components normal
-    qdota = (axis[0, :] * vecs[0, :] +
-             axis[1, :] * vecs[1, :] +
-             axis[2, :] * vecs[2, :])\
-        * (axis[0, :] * qv[0, :] +
-           axis[1, :] * qv[1, :] +
-           axis[2, :] * qv[2, :])
-    qcrossn = np.vstack([qv[1, :]*vp2 - qv[2, :]*vp1,
-                         qv[2, :]*vp0 - qv[0, :]*vp2,
-                         qv[0, :]*vp1 - qv[1, :]*vp0])
+    qdota = (
+        axis[0, :] * vecs[0, :]
+        + axis[1, :] * vecs[1, :]
+        + axis[2, :] * vecs[2, :]
+    ) * (axis[0, :] * qv[0, :] + axis[1, :] * qv[1, :] + axis[2, :] * qv[2, :])
+    qcrossn = np.vstack(
+        [
+            qv[1, :] * vp2 - qv[2, :] * vp1,
+            qv[2, :] * vp0 - qv[0, :] * vp2,
+            qv[0, :] * vp1 - qv[1, :] * vp0,
+        ]
+    )
 
     # quaternion formula
-    v_rot = np.tile(q0*q0 - q1*q1, (3, 1)) * vecs \
-        + 2. * np.tile(qdota, (3, 1)) * qv \
-        + 2. * np.tile(q0, (3, 1)) * qcrossn
+    v_rot = (
+        np.tile(q0 * q0 - q1 * q1, (3, 1)) * vecs
+        + 2.0 * np.tile(qdota, (3, 1)) * qv
+        + 2.0 * np.tile(q0, (3, 1)) * qcrossn
+    )
     return v_rot
 
 
@@ -1328,24 +1341,27 @@ def quat_product_matrix(q, mult='right'):
     """
     if mult == 'right':
         qmat = np.array(
-            [[q[0], -q[1], -q[2], -q[3]],
-             [q[1], q[0], q[3], -q[2]],
-             [q[2], -q[3], q[0], q[1]],
-             [q[3], q[2], -q[1], q[0]]]
+            [
+                [q[0], -q[1], -q[2], -q[3]],
+                [q[1], q[0], q[3], -q[2]],
+                [q[2], -q[3], q[0], q[1]],
+                [q[3], q[2], -q[1], q[0]],
+            ]
         )
     elif mult == 'left':
         qmat = np.array(
-            [[q[0], -q[1], -q[2], -q[3]],
-             [q[1], q[0], -q[3], q[2]],
-             [q[2], q[3], q[0], -q[1]],
-             [q[3], -q[2], q[1], q[0]]]
+            [
+                [q[0], -q[1], -q[2], -q[3]],
+                [q[1], q[0], -q[3], q[2]],
+                [q[2], q[3], q[0], -q[1]],
+                [q[3], -q[2], q[1], q[0]],
+            ]
         )
     return qmat
 
 
 def quat_distance(q1, q2, qsym):
-    """
-    """
+    """ """
     # qsym from PlaneData objects are (4, nsym)
     # convert symmetries to (4, 4) qprod matrices
     nsym = qsym.shape[1]
@@ -1355,8 +1371,7 @@ def quat_distance(q1, q2, qsym):
 
     # inverse of q1 in matrix form
     q1i = quat_product_matrix(
-        np.r_[1, -1, -1, -1] * np.atleast_1d(q1).flatten(),
-        mult='right'
+        np.r_[1, -1, -1, -1] * np.atleast_1d(q1).flatten(), mult='right'
     )
 
     # Do R * Gc, store as vstacked equivalent quaternions (nsym, 4)

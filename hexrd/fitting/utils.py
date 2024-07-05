@@ -1,12 +1,12 @@
 import fnmatch
 
 import numpy as np
+from numba import njit
 
 from hexrd.constants import (
     c_erf, cnum_exp1exp, cden_exp1exp, c_coeff_exp1exp
 )
 from hexrd.matrixutil import uniqueVectors
-from hexrd.utils.decorators import numba_njit_if_available
 
 
 # =============================================================================
@@ -138,7 +138,7 @@ Error is < 1.5e-7 for all x
 """
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def erfc(x):
     # save the sign of x
     sign = np.sign(x)
@@ -162,7 +162,7 @@ and Stegun, eq. 5.1.53
 """
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def exp1exp_under1(x):
     f = np.zeros(x.shape).astype(np.complex128)
     for i in range(6):
@@ -181,7 +181,7 @@ special functions and their approximations, vol 2
 """
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def exp1exp_over1(x):
     num = np.zeros(x.shape).astype(np.complex128)
     den = np.zeros(x.shape).astype(np.complex128)
@@ -199,7 +199,7 @@ def exp1exp_over1(x):
     return (num/den)*(1./x)
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def exp1exp(x):
     mask = np.sign(x.real)*np.abs(x) > 1.
 
@@ -210,19 +210,19 @@ def exp1exp(x):
     return f
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _calc_alpha(alpha, x0):
     a0, a1 = alpha
     return (a0 + a1*np.tan(np.radians(0.5*x0)))
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _calc_beta(beta, x0):
     b0, b1 = beta
     return b0 + b1*np.tan(np.radians(0.5*x0))
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@njit(cache=True, nogil=True)
 def _mixing_factor_pv(fwhm_g, fwhm_l):
     """
     @AUTHOR:  Saransh Singh, Lawrence Livermore National Lab,
@@ -252,7 +252,7 @@ def _mixing_factor_pv(fwhm_g, fwhm_l):
     return eta, fwhm
 
 
-@numba_njit_if_available(nogil=True)
+@njit(nogil=True)
 def _gaussian_pink_beam(p, x):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
@@ -298,7 +298,7 @@ def _gaussian_pink_beam(p, x):
     return g
 
 
-@numba_njit_if_available(nogil=True)
+@njit(nogil=True)
 def _lorentzian_pink_beam(p, x):
     """
     @author Saransh Singh, Lawrence Livermore National Lab

@@ -31,13 +31,11 @@ import numpy as np
 from numpy.linalg import svd
 
 from scipy import sparse
+import numba
+from numba import prange
 
-from hexrd.utils.decorators import numba_njit_if_available
+
 from hexrd import constants
-from hexrd.constants import USE_NUMBA
-if USE_NUMBA:
-    import numba
-    from numba import prange
 
 # module variables
 sqr6i = 1./np.sqrt(6.)
@@ -671,7 +669,7 @@ def findDuplicateVectors(vec, tol=vTol, equivPM=False):
     return eqv2, uid2
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@numba.njit(cache=True, nogil=True)
 def _findduplicatevectors(vec, tol, equivPM):
     """
     Find vectors in an array that are equivalent to within
@@ -958,26 +956,16 @@ def solve_wahba(v, w, weights=None):
 # =============================================================================
 
 
-if USE_NUMBA:
-    @numba.njit(cache=True, nogil=True)
-    def extract_ijv(in_array, threshold, out_i, out_j, out_v):
-        n = 0
-        w, h = in_array.shape
-        for i in range(w):
-            for j in range(h):
-                v = in_array[i, j]
-                if v > threshold:
-                    out_i[n] = i
-                    out_j[n] = j
-                    out_v[n] = v
-                    n += 1
-        return n
-else:    # not USE_NUMBA
-    def extract_ijv(in_array, threshold, out_i, out_j, out_v):
-        mask = in_array > threshold
-        n = np.sum(mask)
-        tmp_i, tmp_j = mask.nonzero()
-        out_i[:n] = tmp_i
-        out_j[:n] = tmp_j
-        out_v[:n] = in_array[mask]
-        return n
+@numba.njit(cache=True, nogil=True)
+def extract_ijv(in_array, threshold, out_i, out_j, out_v):
+    n = 0
+    w, h = in_array.shape
+    for i in range(w):
+        for j in range(h):
+            v = in_array[i, j]
+            if v > threshold:
+                out_i[n] = i
+                out_j[n] = j
+                out_v[n] = v
+                n += 1
+    return n
