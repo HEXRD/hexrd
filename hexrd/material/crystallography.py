@@ -28,10 +28,9 @@
 import re
 import copy
 from math import pi
+from typing import Optional, Union, Dict
 
 import numpy as np
-import csv
-import os
 
 from hexrd.deprecation import deprecated
 from hexrd import constants
@@ -46,7 +45,7 @@ from hexrd.rotations import (
 from hexrd.transforms import xfcapi
 from hexrd import valunits
 from hexrd.valunits import toFloat
-from hexrd.constants import d2r, r2d, sqrt3by2, epsf, sqrt_epsf
+from hexrd.constants import d2r, r2d, sqrt_epsf
 
 """module vars"""
 
@@ -56,22 +55,60 @@ outputDegrees = False
 outputDegrees_bak = outputDegrees
 
 
-def hklToStr(x):
-    return re.sub(r'[\[\]\(\)\{\},]', '', str(x))
+def hklToStr(hkl: np.ndarray) -> str:
+    """
+    Converts hkl representation to a string.
+
+    Parameters
+    ----------
+    hkl : np.ndarray
+        3 element list of h, k, and l values (Miller indices).
+
+    Returns
+    -------
+    str
+        Space-separated string representation of h, k, and l values.
+
+    """
+    return re.sub(r'[\[\]\(\)\{\},]', '', str(hkl))
 
 
-def tempSetOutputDegrees(val):
+def tempSetOutputDegrees(val: bool) -> None:
+    """
+    Set the global outputDegrees flag temporarily. Can be reverted with
+    revertOutputDegrees().
+
+    Parameters
+    ----------
+    val : bool
+        True to output angles in degrees, False to output angles in radians.
+
+    Returns
+    -------
+    None
+
+    """
     global outputDegrees, outputDegrees_bak
     outputDegrees_bak = outputDegrees
     outputDegrees = val
 
 
-def revertOutputDegrees():
+def revertOutputDegrees() -> None:
+    """
+    Revert the effect of tempSetOutputDegrees(), resetting the outputDegrees
+    flag to its previous value (True to output in degrees, False for radians).
+
+    Returns
+    -------
+    None
+    """
     global outputDegrees, outputDegrees_bak
     outputDegrees = outputDegrees_bak
 
 
-def cosineXform(a, b, c):
+def cosineXform(
+    a: np.ndarray, b: np.ndarray, c: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Spherical trig transform to take alpha, beta, gamma to expressions
     for cos(alpha*).  See ref below.
@@ -80,19 +117,36 @@ def cosineXform(a, b, c):
         the relations between direct and reciprocal lattice quantities''. Acta
         Cryst. (1968), A24, 247--248
 
+    Parameters
+    ----------
+    a : np.ndarray
+        List of alpha angle values (radians).
+    b : np.ndarray
+        List of beta angle values (radians).
+    c : np.ndarray
+        List of gamma angle values (radians).
+
+    Returns
+    -------
+    np.ndarray
+        List of cos(alpha*) values.
+    np.ndarray
+        List of sin(alpha*) values.
+
     """
     cosar = (np.cos(b) * np.cos(c) - np.cos(a)) / (np.sin(b) * np.sin(c))
     sinar = np.sqrt(1 - cosar**2)
     return cosar, sinar
 
 
-def processWavelength(arg):
+def processWavelength(arg: Union[valunits.valWUnit, float]) -> float:
     """
     Convert an energy value to a wavelength.  If argument has units of length
     or energy, will convert to globally specified unit type for wavelength
     (dUnit).  If argument is a scalar, assumed input units are keV.
     """
-    if hasattr(arg, 'getVal'):
+    if isinstance(arg, valunits.valWUnit):
+        # arg is a valunits.valWUnit object
         if arg.isLength():
             return arg.getVal(dUnit)
         elif arg.isEnergy():
@@ -110,8 +164,12 @@ def processWavelength(arg):
 
 
 def latticePlanes(
-    hkls, lparms, ltype='cubic', wavelength=1.54059292, strainMag=None
-):
+    hkls: np.ndarray,
+    lparms: np.ndarray,
+    ltype: Optional[str] = 'cubic',
+    wavelength: Optional[float] = 1.54059292,
+    strainMag: Optional[float] = None,
+) -> Dict[str, np.ndarray]:
     """
     Generates lattice plane data in the direct lattice for a given set
     of Miller indices.  Vector components are written in the
@@ -168,7 +226,7 @@ def latticePlanes(
        dspacings (n,  ) double array    array of the d-spacings for
                                         each {hkl}
 
-       2thetas   (n,  ) double array    array of the Bragg angles for
+       tThetas   (n,  ) double array    array of the Bragg angles for
                                         each {hkl} relative to the
                                         specified wavelength
 
@@ -241,7 +299,12 @@ def latticePlanes(
     return p
 
 
-def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
+def latticeVectors(
+    lparms: np.ndarray,
+    tag: str = 'cubic',
+    radians: Optional[bool] = False,
+    debug: Optional[bool] = False,
+) -> Dict[str, Union[np.ndarray, float]]:
     """
     Generates direct and reciprocal lattice vector components in a
     crystal-relative RHON basis, X. The convention for fixing X to the
@@ -257,7 +320,7 @@ def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
     1) lparms (1 x n float list) is the array of lattice parameters,
        where n depends on the symmetry group (see below).
 
-    2) symTag (string) is a case-insensitive string representing the
+    2) tag (string) is a case-insensitive string representing the
        symmetry type of the implied Laue group.  The 11 available choices
        are shown below.  The default value is 'cubic'. Note that each
        group expects a lattice parameter array of the indicated length
@@ -273,6 +336,14 @@ def latticeVectors(lparms, tag='cubic', radians=False, debug=False):
        'orthorhombic'   a, b, c
        'monoclinic'     a, b, c, beta (in degrees)
        'triclinic'      a, b, c, alpha, beta, gamma (in degrees)
+
+    3) The following optional keyword arguments are recognized:
+
+       *) radians=<bool> is a boolean flag indicating usage of radians rather
+          than degrees, defaults to false.
+
+        *) debug=<bool> is a boolean flag indicating whether or not to print
+           debug info, defaults to false.
 
     OUTPUTS:
 
@@ -495,7 +566,27 @@ class PlaneData(object):
     tThWidth
     """
 
-    def __init__(self, hkls, *args, **kwargs):
+    def __init__(self, hkls: Optional[np.ndarray], *args, **kwargs) -> None:
+        """
+        Constructor for PlaneData
+
+        Parameters
+        ----------
+        hkls : np.ndarray, optional
+            Miller indices to be used in the plane data.  Can be set later
+
+        *args
+            Unnamed arguments. Could be in the format of `lparms, laueGroup, 
+            wavelength, strainMag`, or just a `PlaneData` object.
+        
+        **kwargs
+            Valid keyword arguments include:
+            - phaseID
+            - doTThSort
+            - exclusions
+            - tThMax
+            - tThWidth
+        """
         self.phaseID = None
         self._doTThSort = True
         self._exclusions = None
@@ -506,7 +597,7 @@ class PlaneData(object):
             tThWidth = None
             self._wavelength = processWavelength(wavelength)
             self._lparms = self._parseLParms(lparms)
-        elif len(args) == 1 and hasattr(args[0], 'getParams'):
+        elif len(args) == 1 and isinstance(args[0], PlaneData):
             other = args[0]
             lparms, laueGroup, wavelength, strainMag, tThWidth = (
                 other.getParams()
@@ -514,11 +605,11 @@ class PlaneData(object):
             self._wavelength = wavelength
             self._lparms = lparms
             self.phaseID = other.phaseID
-            self._doTThSort = other.__doTThSort
-            self._exclusions = other.__exclusions
-            self._tThMax = other.__tThMax
+            self._doTThSort = other._doTThSort
+            self._exclusions = other._exclusions
+            self._tThMax = other._tThMax
             if hkls is None:
-                hkls = other.__hkls
+                hkls = other._hkls
         else:
             raise NotImplementedError(f'args : {args}')
 
@@ -565,8 +656,8 @@ class PlaneData(object):
             [hklDataList[iHKL]['tTheta'] for iHKL in range(len(hklDataList))]
         )
         if self._doTThSort:
-            # sorted hkl -> __hkl
-            # __hkl -> sorted hkl
+            # sorted hkl -> _hkl
+            # _hkl -> sorted hkl
             self.tThSort = np.argsort(tThs)
             self.tThSortInv = np.empty(len(hklDataList), dtype=int)
             self.tThSortInv[self.tThSort] = np.arange(len(hklDataList))
@@ -588,11 +679,26 @@ class PlaneData(object):
         s += str(self.getHKLs())
         return s
 
-    def getNHKLs(self):
+    def getNHKLs(self) -> int:
+        """
+        Getter for the number of hkls in the object.
+
+        Returns
+        -------
+        int
+            The number of hkls in the object.
+        """
         return self.nHKLs
 
-    def getPhaseID(self):
-        'may return None if not set'
+    def getPhaseID(self) -> Optional[int]:
+        """
+        Getter for the phaseID of the plane data.
+
+        Returns
+        -------
+        int
+            The phaseID of the plane data.
+        """
         return self.phaseID
 
     def getParams(self):
@@ -643,7 +749,7 @@ class PlaneData(object):
                 assert (
                     exclusions.dtype == 'bool'
                 ), 'Exclusions should be bool if full length'
-                # convert from current hkl ordering to __hkl ordering
+                # convert from current hkl ordering to _hkl ordering
                 excl[:] = exclusions[self.tThSort]
             else:
                 if len(exclusions.shape) == 1:
@@ -1054,7 +1160,7 @@ class PlaneData(object):
                 hklsCur = []
         return iHKLLists, mergedRanges
 
-    def getTTh(self, allHKLs: bool=False):
+    def getTTh(self, allHKLs: bool = False):
         tTh = []
         for iHKLr, hklData in enumerate(self.hklDataList):
             if not allHKLs and not self._thisHKL(iHKLr):
