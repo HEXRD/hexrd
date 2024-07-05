@@ -57,7 +57,7 @@ class Detector:
     @property
     @abstractmethod
     def detector_type(self):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def cart_to_angles(self, xy_data, rmat_s=None, tvec_s=None,
@@ -91,6 +91,7 @@ class Detector:
             DESCRIPTION.
 
         """
+        raise NotImplementedError
 
     @abstractmethod
     def angles_to_cart(self, tth_eta,
@@ -125,22 +126,24 @@ class Detector:
             The (n, 2) array on the n input coordinates in the .
 
         """
+        raise NotImplementedError
 
     @abstractmethod
     def cart_to_dvecs(self, xy_data):
         """Convert cartesian coordinates to dvectors"""
+        raise NotImplementedError
 
     @abstractmethod
     def pixel_angles(self, origin=ct.zeros_3):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def pixel_tth_gradient(self, origin=ct.zeros_3):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def pixel_eta_gradient(self, origin=ct.zeros_3):
-        pass
+        raise NotImplementedError
 
     @property
     @abstractmethod
@@ -149,6 +152,7 @@ class Detector:
         returns the coordinates of the beam in the cartesian detector
         frame {Xd, Yd, Zd}.  NaNs if no intersection.
         """
+        raise NotImplementedError
 
 
     @property
@@ -727,11 +731,11 @@ class Detector:
         elif panel_buffer is None:
             # still None on self
             # !!! this gets handled by unwrap_dict_to_h5 now
-            '''
-            if style.lower() == 'hdf5':
-                # !!! can't write None to hdf5; substitute with zeros
-                panel_buffer = np.r_[0., 0.]
-            '''
+
+            # if style.lower() == 'hdf5':
+            #     # !!! can't write None to hdf5; substitute with zeros
+            #     panel_buffer = np.r_[0., 0.]
+            pass
         det_dict['buffer'] = panel_buffer
 
         det_dict.update(self.extra_config_kwargs)
