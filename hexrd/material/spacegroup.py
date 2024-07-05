@@ -133,8 +133,6 @@ class SpaceGroup:
                 self._pointGroup = pglg[0]
                 self._laueGroup = pglg[1]
 
-        return
-
     sgnum = property(_get_sgnum, _set_sgnum, None,
                      "Space group number")
 
@@ -1966,8 +1964,6 @@ def testHKLs():
         hkls = _getHKLsBySS(ss)
         print('                     number of hkls:  ', len(hkls))
         print(hkls)
-
-    return
 
 
 if __name__ == '__main__':

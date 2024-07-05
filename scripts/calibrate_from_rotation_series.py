@@ -221,9 +221,7 @@ def calibrate_instrument_from_sx(
             panel.tilt = fit_params[ii:ii + 3]
             panel.tvec = fit_params[ii + 3:ii + 6]
             ii += 6
-            # !!! use jj to do distortion...
-            if panel.distortion is not None:
-                pass
+            # !!! use jj to do distortion?
 
         return fit_params, resd, sim_final
 
