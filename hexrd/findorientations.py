@@ -88,7 +88,7 @@ def generate_orientation_fibers(cfg, eta_ome):
     pd = eta_ome.planeData
     tTh = pd.getTTh()
     bMat = pd.latVecOps['B']
-    csym = pd.getLaueGroup()
+    csym = pd.laueGroup
 
     # !!! changed recently where iHKLList are now master hklIDs
     pd_hkl_ids = eta_ome.iHKLList[seed_hkl_ids]
