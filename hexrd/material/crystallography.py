@@ -562,8 +562,9 @@ class PlaneData(object):
 
         Parameters
         ----------
-        hkls : np.ndarray, optional
-            Miller indices to be used in the plane data.  Can be set later
+        hkls : np.ndarray
+            Miller indices to be used in the plane data. Can be None if
+            args is another PlaneData object
 
         *args
             Unnamed arguments. Could be in the format of `lparms, laueGroup,
