@@ -70,8 +70,6 @@ class UNames(object):
     keV = 'keV'
     J = 'J'
 
-    pass
-
 
 cv_dict = {
     (UNames.degrees, UNames.radians): math.pi/180.0,
@@ -130,7 +128,6 @@ class valWUnit:
         #
         #  Original checked if unit is of unitType
         #
-        pass  # end init
 
     def __str__(self):
         tmpl = """item named "%s" representing %g %s"""
@@ -336,4 +333,3 @@ if __name__ == '__main__':
             print(('   in ', u, ': ', v.getVal(u)))
         return
     testConversions()
-    pass  # end of tests

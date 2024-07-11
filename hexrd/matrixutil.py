@@ -31,13 +31,11 @@ import numpy as np
 from numpy.linalg import svd
 
 from scipy import sparse
+import numba
+from numba import prange
 
-from hexrd.utils.decorators import numba_njit_if_available
+
 from hexrd import constants
-from hexrd.constants import USE_NUMBA
-if USE_NUMBA:
-    import numba
-    from numba import prange
 
 # module variables
 sqr6i = 1./np.sqrt(6.)
@@ -262,42 +260,19 @@ def vecMVCOBMatrix(R):
 
     T = np.zeros((nrot, 6, 6), dtype='float64')
 
-    T[:, 0, 0] = R[:, 0, 0]**2
-    T[:, 0, 1] = R[:, 0, 1]**2
-    T[:, 0, 2] = R[:, 0, 2]**2
-    T[:, 0, 3] = sqr2 * R[:, 0, 1] * R[:, 0, 2]
-    T[:, 0, 4] = sqr2 * R[:, 0, 0] * R[:, 0, 2]
-    T[:, 0, 5] = sqr2 * R[:, 0, 0] * R[:, 0, 1]
-    T[:, 1, 0] = R[:, 1, 0]**2
-    T[:, 1, 1] = R[:, 1, 1]**2
-    T[:, 1, 2] = R[:, 1, 2]**2
-    T[:, 1, 3] = sqr2 * R[:, 1, 1] * R[:, 1, 2]
-    T[:, 1, 4] = sqr2 * R[:, 1, 0] * R[:, 1, 2]
-    T[:, 1, 5] = sqr2 * R[:, 1, 0] * R[:, 1, 1]
-    T[:, 2, 0] = R[:, 2, 0]**2
-    T[:, 2, 1] = R[:, 2, 1]**2
-    T[:, 2, 2] = R[:, 2, 2]**2
-    T[:, 2, 3] = sqr2 * R[:, 2, 1] * R[:, 2, 2]
-    T[:, 2, 4] = sqr2 * R[:, 2, 0] * R[:, 2, 2]
-    T[:, 2, 5] = sqr2 * R[:, 2, 0] * R[:, 2, 1]
-    T[:, 3, 0] = sqr2 * R[:, 1, 0] * R[:, 2, 0]
-    T[:, 3, 1] = sqr2 * R[:, 1, 1] * R[:, 2, 1]
-    T[:, 3, 2] = sqr2 * R[:, 1, 2] * R[:, 2, 2]
-    T[:, 3, 3] = R[:, 1, 2] * R[:, 2, 1] + R[:, 1, 1] * R[:, 2, 2]
-    T[:, 3, 4] = R[:, 1, 2] * R[:, 2, 0] + R[:, 1, 0] * R[:, 2, 2]
-    T[:, 3, 5] = R[:, 1, 1] * R[:, 2, 0] + R[:, 1, 0] * R[:, 2, 1]
-    T[:, 4, 0] = sqr2 * R[:, 0, 0] * R[:, 2, 0]
-    T[:, 4, 1] = sqr2 * R[:, 0, 1] * R[:, 2, 1]
-    T[:, 4, 2] = sqr2 * R[:, 0, 2] * R[:, 2, 2]
-    T[:, 4, 3] = R[:, 0, 2] * R[:, 2, 1] + R[:, 0, 1] * R[:, 2, 2]
-    T[:, 4, 4] = R[:, 0, 2] * R[:, 2, 0] + R[:, 0, 0] * R[:, 2, 2]
-    T[:, 4, 5] = R[:, 0, 1] * R[:, 2, 0] + R[:, 0, 0] * R[:, 2, 1]
-    T[:, 5, 0] = sqr2 * R[:, 0, 0] * R[:, 1, 0]
-    T[:, 5, 1] = sqr2 * R[:, 0, 1] * R[:, 1, 1]
-    T[:, 5, 2] = sqr2 * R[:, 0, 2] * R[:, 1, 2]
-    T[:, 5, 3] = R[:, 0, 2] * R[:, 1, 1] + R[:, 0, 1] * R[:, 1, 2]
-    T[:, 5, 4] = R[:, 0, 0] * R[:, 1, 2] + R[:, 0, 2] * R[:, 1, 0]
-    T[:, 5, 5] = R[:, 0, 1] * R[:, 1, 0] + R[:, 0, 0] * R[:, 1, 1]
+    for i in range(3):
+        # Other two i values
+        i1, i2 = [k for k in range(3) if k != i]
+        for j in range(3):
+            # Other two j values
+            j1, j2 = [k for k in range(3) if k != j]
+
+            T[:, i, j] = R[:, i, j] ** 2
+            T[:, i, j + 3] = sqr2 * R[:, i, j1] * R[:, i, j2]
+            T[:, i + 3, j] = sqr2 * R[:, i1, j] * R[:, i2, j]
+            T[:, i + 3, j + 3] = (
+                R[:, i1, j1] * R[:, i2, j2] + R[:, i1, j2] * R[:, i2, j1]
+            )
 
     if nrot == 1:
         T = T.squeeze()
@@ -562,7 +537,6 @@ def uniqueVectors(v, tol=1.0e-12):
         indep = np.hstack([True, tmpcmp > tol])  # independent values
         rowint = indep.cumsum()
         iv[np.ix_([row], tmpord)] = rowint
-        pass
     #
     #  Dictionary sort from bottom up
     #
@@ -577,8 +551,6 @@ def uniqueVectors(v, tol=1.0e-12):
         if any(ivSrt[:, col] != ivSrt[:, col - 1]):
             ivInd[nUniq] = col
             nUniq += 1
-            pass
-        pass
 
     return vSrt[:, ivInd[0:nUniq]]
 
@@ -697,7 +669,7 @@ def findDuplicateVectors(vec, tol=vTol, equivPM=False):
     return eqv2, uid2
 
 
-@numba_njit_if_available(cache=True, nogil=True)
+@numba.njit(cache=True, nogil=True)
 def _findduplicatevectors(vec, tol, equivPM):
     """
     Find vectors in an array that are equivalent to within
@@ -984,26 +956,16 @@ def solve_wahba(v, w, weights=None):
 # =============================================================================
 
 
-if USE_NUMBA:
-    @numba.njit(cache=True, nogil=True)
-    def extract_ijv(in_array, threshold, out_i, out_j, out_v):
-        n = 0
-        w, h = in_array.shape
-        for i in range(w):
-            for j in range(h):
-                v = in_array[i, j]
-                if v > threshold:
-                    out_i[n] = i
-                    out_j[n] = j
-                    out_v[n] = v
-                    n += 1
-        return n
-else:    # not USE_NUMBA
-    def extract_ijv(in_array, threshold, out_i, out_j, out_v):
-        mask = in_array > threshold
-        n = np.sum(mask)
-        tmp_i, tmp_j = mask.nonzero()
-        out_i[:n] = tmp_i
-        out_j[:n] = tmp_j
-        out_v[:n] = in_array[mask]
-        return n
+@numba.njit(cache=True, nogil=True)
+def extract_ijv(in_array, threshold, out_i, out_j, out_v):
+    n = 0
+    w, h = in_array.shape
+    for i in range(w):
+        for j in range(h):
+            v = in_array[i, j]
+            if v > threshold:
+                out_i[n] = i
+                out_j[n] = j
+                out_v[n] = v
+                n += 1
+    return n

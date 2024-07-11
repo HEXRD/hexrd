@@ -58,7 +58,6 @@ try:
     logging.info(f'{rank=} {world_size=} {hostname=}')
 except ImportError:
     logging.warning(f'mpi4py failed to load on {hostname=}. MPI is disabled.')
-    pass
 
 
 def load_instrument(yml):

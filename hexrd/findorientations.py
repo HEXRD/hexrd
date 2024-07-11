@@ -131,9 +131,6 @@ def generate_orientation_fibers(cfg, eta_ome):
                 ome_c = eta_ome.omeEdges[0] + (0.5 + coms[i][ispot][0])*del_ome
                 eta_c = eta_ome.etaEdges[0] + (0.5 + coms[i][ispot][1])*del_eta
                 input_p.append(np.hstack([this_hkl, this_tth, eta_c, ome_c]))
-                pass
-            pass
-        pass
 
     # do the mapping
     start = timeit.default_timer()
@@ -155,7 +152,6 @@ def generate_orientation_fibers(cfg, eta_ome):
                     discretefiber_reduced, input_p, chunksize=chunksize
                 ), total=ntotal
             ):
-            pass
         print(_.shape)
         '''
         pool.close()
@@ -352,8 +348,6 @@ def run_cluster(compl, qfib, qsym, cfg,
             qbar[:, i] = rot.quatAverageCluster(
                 qfib_r[:, cl == i + 1], qsym
             ).flatten()
-            pass
-        pass
 
     if algorithm in ('dbscan', 'ort-dbscan') and qbar.size/4 > 1:
         logger.info("\tchecking for duplicate orientations...")
@@ -374,10 +368,7 @@ def run_cluster(compl, qfib, qsym, cfg,
                 tmp[:, i] = rot.quatAverageCluster(
                     qbar[:, cl == i + 1].reshape(4, npts), qsym
                 ).flatten()
-                pass
             qbar = tmp
-            pass
-        pass
 
     logger.info("clustering took %f seconds", timeit.default_timer() - start)
     logger.info(
@@ -592,7 +583,7 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
             map_fname
         )
 
-        eta_ome.save(fn)
+        eta_ome.save_eta_ome_maps(fn)
 
         logger.info('saved eta/ome orientation maps to "%s"', fn)
 
@@ -617,7 +608,7 @@ def _filter_eta_ome_maps(eta_ome, filter_stdev=False):
 
     """
     gl_filter = ndimage.filters.gaussian_laplace
-    for i, pf in enumerate(eta_ome.dataStore):
+    for pf in eta_ome.dataStore:
         # first compoute row-wise median over omega channel
         ome_median = np.tile(np.nanmedian(pf, axis=0), (len(pf), 1))
 
@@ -894,7 +885,7 @@ def find_orientations(cfg,
     logger.info("\tmean reflections per grain: %d", mean_rpg)
     logger.info("\tneighborhood size: %d", min_samples)
 
-    qbar, cl = run_cluster(
+    qbar, _ = run_cluster(
         completeness, qfib, plane_data.getQSym(), cfg,
         min_samples=min_samples,
         compl_thresh=compl_thresh,

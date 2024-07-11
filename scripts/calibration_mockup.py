@@ -280,11 +280,8 @@ class PowderCalibrator(object):
                              eta_ref]
                         )
                     )
-                    pass
                 rhs[det_key].append(np.vstack(tmp))
-                pass
             rhs[det_key] = np.vstack(rhs[det_key])
-            pass
         return rhs
 
     def residual(self, reduced_params, data_dict):
@@ -428,7 +425,6 @@ for i in range(instr.num_panels):
     cf[ii + 2] = False
     cf[ii + 6:ii + 9] = True
     ii += 12
-    pass
 instr.calibration_flags = cf
 
 # powder calibrator

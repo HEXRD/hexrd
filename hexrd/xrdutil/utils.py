@@ -26,7 +26,14 @@
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # ============================================================
 
+
+from typing import Optional, Union, Any, Generator
+from hexrd.material.crystallography import PlaneData
+from hexrd.distortion.distortionabc import DistortionABC
+
+import numba
 import numpy as np
+import numba
 
 from hexrd import constants
 from hexrd import matrixutil as mutil
@@ -36,15 +43,14 @@ from hexrd.material.crystallography import processWavelength, PlaneData
 
 from hexrd.transforms import xf
 from hexrd.transforms import xfcapi
-
 from hexrd.valunits import valWUnit
 
 from hexrd import distortion as distortion_pkg
 
-from hexrd.constants import USE_NUMBA
-if USE_NUMBA:
-    import numba
+from hexrd.deprecation import deprecated
 
+
+simlp = 'hexrd.instrument.hedm_instrument.HEDMInstrument.simulate_laue_pattern'
 
 # =============================================================================
 # PARAMETERS
@@ -55,14 +61,14 @@ distortion_key = 'distortion'
 d2r = piby180 = constants.d2r
 r2d = constants.r2d
 
-epsf = constants.epsf            # ~2.2e-16
-ten_epsf = 10 * epsf             # ~2.2e-15
+epsf = constants.epsf  # ~2.2e-16
+ten_epsf = 10 * epsf  # ~2.2e-15
 sqrt_epsf = constants.sqrt_epsf  # ~1.5e-8
 
 bHat_l_DFLT = constants.beam_vec.flatten()
 eHat_l_DFLT = constants.eta_vec.flatten()
 
-nans_1x2 = np.nan*np.ones((1, 2))
+nans_1x2 = np.nan * np.ones((1, 2))
 
 # =============================================================================
 # CLASSES
@@ -76,9 +82,8 @@ class EtaOmeMaps(object):
     reference to an open file object, which is not pickleable.
     """
 
-    def __init__(self, ome_eta_archive):
-
-        ome_eta = np.load(ome_eta_archive, allow_pickle=True)
+    def __init__(self, ome_eta_archive: str):
+        ome_eta: np.ndarray = np.load(ome_eta_archive, allow_pickle=True)
 
         planeData_args = ome_eta['planeData_args']
         planeData_hkls = ome_eta['planeData_hkls']
@@ -91,11 +96,7 @@ class EtaOmeMaps(object):
         self.etas = ome_eta['etas']
         self.omegas = ome_eta['omegas']
 
-    def save(self, filename):
-        self.save_eta_ome_maps(self, filename)
-
-    @staticmethod
-    def save_eta_ome_maps(eta_ome, filename):
+    def save_eta_ome_maps(self, filename: str) -> None:
         """
         eta_ome.dataStore
         eta_ome.planeData
@@ -105,20 +106,21 @@ class EtaOmeMaps(object):
         eta_ome.etas
         eta_ome.omegas
         """
-        args = np.array(eta_ome.planeData.getParams(), dtype=object)[:4]
+        args = np.array(self.planeData.getParams(), dtype=object)[:4]
         args[2] = valWUnit('wavelength', 'length', args[2], 'angstrom')
-        hkls = np.vstack([i['hkl'] for i in eta_ome.planeData.hklDataList]).T
-        save_dict = {'dataStore': eta_ome.dataStore,
-                     'etas': eta_ome.etas,
-                     'etaEdges': eta_ome.etaEdges,
-                     'iHKLList': eta_ome.iHKLList,
-                     'omegas': eta_ome.omegas,
-                     'omeEdges': eta_ome.omeEdges,
-                     'planeData_args': args,
-                     'planeData_hkls': hkls,
-                     'planeData_excl': eta_ome.planeData.exclusions}
+        hkls = np.vstack([i['hkl'] for i in self.planeData.hklDataList]).T
+        save_dict = {
+            'dataStore': self.dataStore,
+            'etas': self.etas,
+            'etaEdges': self.etaEdges,
+            'iHKLList': self.iHKLList,
+            'omegas': self.omegas,
+            'omeEdges': self.omeEdges,
+            'planeData_args': args,
+            'planeData_hkls': hkls,
+            'planeData_excl': self.planeData.exclusions,
+        }
         np.savez_compressed(filename, **save_dict)
-    pass  # end of class: EtaOmeMaps
 
 
 # =============================================================================
@@ -126,86 +128,19 @@ class EtaOmeMaps(object):
 # =============================================================================
 
 
-def _zproject(x, y):
+def _zproject(x: np.ndarray, y: np.ndarray):
     return np.cos(x) * np.sin(y) - np.sin(x) * np.cos(y)
 
 
-def _convert_angles(tth_eta, detector,
-                    rmat_s, tvec_s, tvec_c,
-                    beam_vector=constants.beam_vec,
-                    eta_vector=constants.eta_vec):
-    """
-    Coverts frame-local angles to effective angles in the LAB reference frame.
-
-    Operates on a detector instance in lieu of instrument.
-
-    Parameters
-    ----------
-    tth_eta : TYPE
-        DESCRIPTION.
-    detector : TYPE
-        DESCRIPTION.
-    rmat_s : TYPE
-        DESCRIPTION.
-    tvec_c : TYPE
-        DESCRIPTION.
-    beam_vector : TYPE, optional
-        DESCRIPTION. The default is constants.beam_vec.
-    eta_vector : TYPE, optional
-        DESCRIPTION. The default is constants.eta_vec.
-
-    Returns
-    -------
-    tth_eta_ref : TYPE
-        DESCRIPTION.
-
-    Notes
-    -----
-    FIXME: This API won't work for rotation series data
-    """
-
-    tth_eta = np.atleast_2d(tth_eta)
-
-    chi = np.arctan2(rmat_s[2, 1], rmat_s[1, 1])
-    ome = np.arctan2(rmat_s[0, 2], rmat_s[0, 0])
-
-    # !!! reform rmat_s to be consistent with def in geometric model
-    rmat_s = xfcapi.make_sample_rmat(chi, ome)
-    rmat_c = constants.identity_3x3
-    # tvec_s = constants.zeros_3
-    tvec_c_ref = constants.zeros_3
-
-    # FIXME: doesn't work for rotation series with different ome yet.
-    full_angs = np.hstack([tth_eta, ome*np.ones((len(tth_eta), 1))])
-
-    # convert to gvectors using trivial crystal frame
-    gvec_s = xfcapi.angles_to_gvec(
-        full_angs, beam_vec=beam_vector, eta_vec=eta_vector, chi=chi
-    )
-
-    # convert to detector points
-    det_xys = xfcapi.gvec_to_xy(
-        gvec_s,
-        detector.rmat, rmat_s, rmat_c,
-        detector.tvec, tvec_s, tvec_c,
-        beam_vec=beam_vector
-    )
-
-    # convert to angles in LAB ref
-    tth_eta_ref, _ = xfcapi.detectorXYToGvec(
-        det_xys, detector.rmat, rmat_s, detector.tvec, tvec_s, tvec_c_ref,
-        beamVec=beam_vector, etaVec=eta_vector
-    )
-
-    return np.vstack(tth_eta_ref).T
-
-
-def zproject_sph_angles(invecs, chi=0.,
-                        method='stereographic',
-                        source='d',
-                        use_mask=False,
-                        invert_z=False,
-                        rmat=None):
+def zproject_sph_angles(
+    invecs: np.ndarray,
+    chi: float = 0.0,
+    method: str = 'stereographic',
+    source: str = 'd',
+    use_mask: bool = False,
+    invert_z: bool = False,
+    rmat: Optional[np.ndarray] = None,
+) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
     """
     Projects spherical angles to 2-d mapping.
 
@@ -273,26 +208,24 @@ def zproject_sph_angles(invecs, chi=0.,
     if use_mask:
         pzi = spts_s[:, 2] <= 0
         spts_s = spts_s[pzi, :]
-    npts_s = len(spts_s)
 
     if method.lower() == 'stereographic':
-        ppts = np.vstack([
-            spts_s[:, 0]/(1. - spts_s[:, 2]),
-            spts_s[:, 1]/(1. - spts_s[:, 2])
-        ]).T
+        ppts = np.vstack(
+            [
+                spts_s[:, 0] / (1.0 - spts_s[:, 2]),
+                spts_s[:, 1] / (1.0 - spts_s[:, 2]),
+            ]
+        ).T
     elif method.lower() == 'equal-area':
-        chords = spts_s + np.tile([0, 0, 1], (npts_s, 1))
+        chords = spts_s + np.tile([0, 0, 1], (len(spts_s), 1))
         scl = np.tile(xfcapi.rowNorm(chords), (2, 1)).T
         ucrd = mutil.unitVector(
-                np.hstack([
-                        chords[:, :2],
-                        np.zeros((len(spts_s), 1))
-                ]).T
+            np.hstack([chords[:, :2], np.zeros((len(spts_s), 1))]).T
         )
 
         ppts = ucrd[:2, :].T * scl
     else:
-        raise RuntimeError("method '%s' not recognized" % method)
+        raise RuntimeError(f"method '{method}' not recognized")
 
     if use_mask:
         return ppts, pzi
@@ -300,49 +233,41 @@ def zproject_sph_angles(invecs, chi=0.,
         return ppts
 
 
-def make_polar_net(ndiv=24, projection='stereographic', max_angle=120.):
+def make_polar_net(
+    ndiv: int = 24, projection: str = 'stereographic', max_angle: float = 120.0
+) -> np.ndarray:
     """
     TODO: options for generating net boundaries; fixed to Z proj.
     """
-    ndiv_tth = int(np.floor(0.5*ndiv)) + 1
+    ndiv_tth = int(np.floor(0.5 * ndiv)) + 1
     wtths = np.radians(
-        np.linspace(0, 1, num=ndiv_tth, endpoint=True)*max_angle
+        np.linspace(0, 1, num=ndiv_tth, endpoint=True) * max_angle
     )
-    wetas = np.radians(
-        np.linspace(-1, 1, num=ndiv+1, endpoint=True)*180.
-    )
-    weta_gen = np.radians(
-        np.linspace(-1, 1, num=181, endpoint=True)*180.
-    )
+    wetas = np.radians(np.linspace(-1, 1, num=ndiv + 1, endpoint=True) * 180.0)
+    weta_gen = np.radians(np.linspace(-1, 1, num=181, endpoint=True) * 180.0)
     pts = []
     for eta in wetas:
-        net_angs = np.vstack([[wtths[0], wtths[-1]],
-                              np.tile(eta, 2),
-                              np.zeros(2)]).T
-        projp = zproject_sph_angles(net_angs, method=projection, source='d')
-        pts.append(projp)
-        pts.append(np.nan*np.ones((1, 2)))
+        net_ang = np.vstack(
+            [[wtths[0], wtths[-1]], np.tile(eta, 2), np.zeros(2)]
+        ).T
+        pts.append(zproject_sph_angles(net_ang, method=projection, source='d'))
+        pts.append(np.nan * np.ones((1, 2)))
     for tth in wtths[1:]:
-        net_angs = np.vstack([tth*np.ones_like(weta_gen),
-                              weta_gen,
-                              np.zeros_like(weta_gen)]).T
-        projp = zproject_sph_angles(net_angs, method=projection, source='d')
-        pts.append(projp)
+        net_ang = np.vstack(
+            [tth * np.ones_like(weta_gen), weta_gen, np.zeros_like(weta_gen)]
+        ).T
+        pts.append(zproject_sph_angles(net_ang, method=projection, source='d'))
         pts.append(nans_1x2)
-    '''
-    # old method
-    for tth in wtths:
-        net_angs = np.vstack([tth*np.ones_like(wetas),
-                              wetas,
-                              piby2*np.ones_like(wetas)]).T
-        projp = zproject_sph_angles(net_angs, method=projection)
-        pts.append(projp)
-    '''
-    pts = np.vstack(pts)
-    return pts
+
+    return np.vstack(pts)
 
 
-def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
+def validateAngleRanges(
+    angList: Union[np.ndarray, list[float]],
+    startAngs: Union[np.ndarray, list[float]],
+    stopAngs: Union[np.ndarray, list[float]],
+    ccw: bool = True,
+) -> np.ndarray:
     """
     Indetify angles that fall within specified ranges.
 
@@ -352,13 +277,12 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
     There is, of course an ambigutiy if the start and stop angle are
     the same; we treat them as implying 2*pi
     """
-    angList = np.atleast_1d(angList).flatten()      # needs to have len
-    startAngs = np.atleast_1d(startAngs).flatten()  # needs to have len
-    stopAngs = np.atleast_1d(stopAngs).flatten()    # needs to have len
+    angList = np.atleast_1d(angList).flatten()
+    startAngs = np.atleast_1d(startAngs).flatten()
+    stopAngs = np.atleast_1d(stopAngs).flatten()
 
-    n_ranges = len(startAngs)
-    assert len(stopAngs) == n_ranges, \
-        "length of min and max angular limits must match!"
+    if len(startAngs) != len(stopAngs):
+        raise ValueError("start and stop angles must have same length")
 
     # to avoid warnings in >=, <= later down, mark nans;
     # need these to trick output to False in the case of nan input
@@ -367,7 +291,7 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
     reflInRange = np.zeros(angList.shape, dtype=bool)
 
     # bin length for chunking
-    binLen = np.pi / 2.
+    binLen = np.pi / 2.0
 
     # in plane vectors defining wedges
     x0 = np.vstack([np.cos(startAngs), np.sin(startAngs)])
@@ -375,44 +299,43 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
 
     # dot products
     dp = np.sum(x0 * x1, axis=0)
-    if np.any(dp >= 1. - sqrt_epsf) and n_ranges > 1:
+    if np.any(dp >= 1.0 - sqrt_epsf) and len(startAngs) > 1:
         # ambiguous case
         raise RuntimeError(
-            "Improper usage; " +
-            "at least one of your ranges is alread 360 degrees!")
-    elif dp[0] >= 1. - sqrt_epsf and n_ranges == 1:
+            "Improper usage; "
+            + "at least one of your ranges is already 360 degrees!"
+        )
+    elif dp[0] >= 1.0 - sqrt_epsf and len(startAngs) == 1:
         # trivial case!
         reflInRange = np.ones(angList.shape, dtype=bool)
         reflInRange[nan_mask] = False
     else:
         # solve for arc lengths
         # ...note: no zeros should have made it here
-        a = x0[0, :]*x1[1, :] - x0[1, :]*x1[0, :]
-        b = x0[0, :]*x1[0, :] + x0[1, :]*x1[1, :]
+        a = x0[0, :] * x1[1, :] - x0[1, :] * x1[0, :]
+        b = x0[0, :] * x1[0, :] + x0[1, :] * x1[1, :]
         phi = np.arctan2(b, a)
 
-        arclen = 0.5*np.pi - phi          # these are clockwise
+        arclen = 0.5 * np.pi - phi  # these are clockwise
         cw_phis = arclen < 0
-        arclen[cw_phis] = 2*np.pi + arclen[cw_phis]   # all positive (CW) now
+        arclen[cw_phis] += 2 * np.pi  # all positive (CW) now
         if not ccw:
-            arclen = 2*np.pi - arclen
+            arclen = 2 * np.pi - arclen
 
-        if sum(arclen) > 2*np.pi:
+        if sum(arclen) > 2 * np.pi:
             raise RuntimeWarning(
-                "Specified angle ranges sum to > 360 degrees, " +
-                "which is suspect...")
+                "Specified angle ranges sum to > 360 degrees, "
+                + "which is suspect..."
+            )
 
-        # check that there are no more thandp = np.zeros(n_ranges)
-        for i in range(n_ranges):
+        # check that there are no more than dp = np.zeros(len(startAngs))
+        for i in range(len(startAngs)):
             # number or subranges using 'binLen'
-            numSubranges = int(np.ceil(arclen[i]/binLen))
+            numSubranges = int(np.ceil(arclen[i] / binLen))
 
-            # check remaider
+            # check remainder
             binrem = np.remainder(arclen[i], binLen)
-            if binrem == 0:
-                finalBinLen = binLen
-            else:
-                finalBinLen = binrem
+            finalBinLen = binLen if binrem == 0 else binrem
 
             # if clockwise, negate bin length
             if not ccw:
@@ -422,32 +345,43 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
             # Create sub ranges on the fly to avoid ambiguity in dot product
             # for wedges >= 180 degrees
             subRanges = np.array(
-                [startAngs[i] + binLen*j for j in range(numSubranges)]
-                + [startAngs[i] + binLen*(numSubranges - 1) + finalBinLen]
-                )
+                [startAngs[i] + binLen * j for j in range(numSubranges)]
+                + [startAngs[i] + binLen * (numSubranges - 1) + finalBinLen]
+            )
 
             for k in range(numSubranges):
                 zStart = _zproject(angList, subRanges[k])
                 zStop = _zproject(angList, subRanges[k + 1])
                 if ccw:
-                    zStart[nan_mask] = 999.
-                    zStop[nan_mask] = -999.
-                    reflInRange = \
-                        reflInRange | np.logical_and(zStart <= 0, zStop >= 0)
+                    zStart[nan_mask] = 999.0
+                    zStop[nan_mask] = -999.0
+                    reflInRange = reflInRange | np.logical_and(
+                        zStart <= 0, zStop >= 0
+                    )
                 else:
-                    zStart[nan_mask] = -999.
-                    zStop[nan_mask] = 999.
-                    reflInRange = \
-                        reflInRange | np.logical_and(zStart >= 0, zStop <= 0)
+                    zStart[nan_mask] = -999.0
+                    zStop[nan_mask] = 999.0
+                    reflInRange = reflInRange | np.logical_and(
+                        zStart >= 0, zStop <= 0
+                    )
     return reflInRange
 
 
-def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
-                       chi=0.,
-                       etaTol=None, omeTol=None,
-                       etaRanges=None, omeRanges=None,
-                       bVec=constants.beam_vec, eVec=constants.eta_vec,
-                       vInv=constants.identity_6x1):
+@deprecated(removal_date='2025-01-01')
+def simulateOmeEtaMaps(
+    omeEdges,
+    etaEdges,
+    planeData,
+    expMaps,
+    chi=0.0,
+    etaTol=None,
+    omeTol=None,
+    etaRanges=None,
+    omeRanges=None,
+    bVec=constants.beam_vec,
+    eVec=constants.eta_vec,
+    vInv=constants.identity_6x1,
+):
     """
     Simulate spherical maps.
 
@@ -506,10 +440,14 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
     omeMin = omeEdges[0]
     omeMax = omeEdges[-1]
     if omeRanges is None:
-        omeRanges = [[omeMin, omeMax], ]
+        omeRanges = [
+            [omeMin, omeMax],
+        ]
 
     if etaRanges is None:
-        etaRanges = [[etaMin, etaMax], ]
+        etaRanges = [
+            [etaMin, etaMax],
+        ]
 
     # signed deltas IN RADIANS
     del_ome = omeEdges[1] - omeEdges[0]
@@ -531,8 +469,9 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
     dpix_ome = round(omeTol / abs(del_ome))
     dpix_eta = round(etaTol / abs(del_eta))
 
-    i_dil, j_dil = np.meshgrid(np.arange(-dpix_ome, dpix_ome + 1),
-                               np.arange(-dpix_eta, dpix_eta + 1))
+    i_dil, j_dil = np.meshgrid(
+        np.arange(-dpix_ome, dpix_ome + 1), np.arange(-dpix_eta, dpix_eta + 1)
+    )
 
     # get symmetrically expanded hkls from planeData
     sym_hkls = planeData.getSymHKLs()
@@ -555,24 +494,34 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
         for iOr in range(nOrs):
             rMat_c = xfcapi.makeRotMatOfExpMap(expMaps[iOr, :])
             angList = np.vstack(
-                xfcapi.oscillAnglesOfHKLs(these_hkls, chi, rMat_c, bMat, wlen,
-                                          beamVec=bVec, etaVec=eVec, vInv=vInv)
+                xfcapi.oscillAnglesOfHKLs(
+                    these_hkls,
+                    chi,
+                    rMat_c,
+                    bMat,
+                    wlen,
+                    beamVec=bVec,
+                    etaVec=eVec,
+                    vInv=vInv,
                 )
+            )
             if not np.all(np.isnan(angList)):
                 #
                 angList[:, 1] = xfcapi.mapAngle(
-                        angList[:, 1],
-                        [etaEdges[0], etaEdges[0]+2*np.pi])
+                    angList[:, 1], [etaEdges[0], etaEdges[0] + 2 * np.pi]
+                )
                 angList[:, 2] = xfcapi.mapAngle(
-                        angList[:, 2],
-                        [omeEdges[0], omeEdges[0]+2*np.pi])
+                    angList[:, 2], [omeEdges[0], omeEdges[0] + 2 * np.pi]
+                )
                 #
                 # do eta ranges
                 angMask_eta = np.zeros(len(angList), dtype=bool)
                 for etas in etaRanges:
                     angMask_eta = np.logical_or(
                         angMask_eta,
-                        xf.validateAngleRanges(angList[:, 1], etas[0], etas[1])
+                        xf.validateAngleRanges(
+                            angList[:, 1], etas[0], etas[1]
+                        ),
                     )
 
                 # do omega ranges
@@ -584,7 +533,8 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
                     angMask_ome = np.logical_or(
                         angMask_ome,
                         xf.validateAngleRanges(
-                                angList[:, 2], omes[0], omes[1], ccw=ccw)
+                            angList[:, 2], omes[0], omes[1], ccw=ccw
+                        ),
                     )
 
                 # mask angles list, hkls
@@ -615,49 +565,54 @@ def simulateOmeEtaMaps(omeEdges, etaEdges, planeData, expMaps,
 
                     if culledEtaIdx is not None and culledOmeIdx is not None:
                         if dpix_ome > 0 or dpix_eta > 0:
-                            i_sup = omeIndices[culledOmeIdx] + \
-                                np.array([i_dil.flatten()], dtype=int)
-                            j_sup = etaIndices[culledEtaIdx] + \
-                                np.array([j_dil.flatten()], dtype=int)
+                            i_sup = omeIndices[culledOmeIdx] + np.array(
+                                [i_dil.flatten()], dtype=int
+                            )
+                            j_sup = etaIndices[culledEtaIdx] + np.array(
+                                [j_dil.flatten()], dtype=int
+                            )
 
                             # catch shit that falls off detector...
                             # maybe make this fancy enough to wrap at 2pi?
                             idx_mask = np.logical_and(
                                 np.logical_and(i_sup >= 0, i_sup < i_max),
-                                np.logical_and(j_sup >= 0, j_sup < j_max))
-                            eta_ome[iHKL,
-                                    i_sup[idx_mask],
-                                    j_sup[idx_mask]] = 1.
+                                np.logical_and(j_sup >= 0, j_sup < j_max),
+                            )
+                            eta_ome[iHKL, i_sup[idx_mask], j_sup[idx_mask]] = (
+                                1.0
+                            )
                         else:
-                            eta_ome[iHKL,
-                                    omeIndices[culledOmeIdx],
-                                    etaIndices[culledEtaIdx]] = 1.
-                            pass  # close conditional on pixel dilation
-                        pass  # close conditional on ranges
-                    pass  # close for loop on valid reflections
-                pass  # close conditional for valid angles
+                            eta_ome[
+                                iHKL,
+                                omeIndices[culledOmeIdx],
+                                etaIndices[culledEtaIdx],
+                            ] = 1.0
     return eta_ome
 
 
-def _fetch_hkls_from_planedata(pd):
+def _fetch_hkls_from_planedata(pd: PlaneData):
     return np.hstack(pd.getSymHKLs(withID=True)).T
 
 
-def _filter_hkls_eta_ome(hkls, angles, eta_range, ome_range,
-                         return_mask=False):
+def _filter_hkls_eta_ome(
+    hkls: np.ndarray,
+    angles: np.ndarray,
+    eta_range: list[tuple[float]],
+    ome_range: list[tuple[float]],
+    return_mask: bool = False,
+) -> Union[
+    tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray, np.ndarray]
+]:
     """
     given a set of hkls and angles, filter them by the
     eta and omega ranges
     """
-    # do eta ranges
     angMask_eta = np.zeros(len(angles), dtype=bool)
     for etas in eta_range:
         angMask_eta = np.logical_or(
-            angMask_eta,
-            xf.validateAngleRanges(angles[:, 1], etas[0], etas[1])
+            angMask_eta, xf.validateAngleRanges(angles[:, 1], etas[0], etas[1])
         )
 
-    # do omega ranges
     ccw = True
     angMask_ome = np.zeros(len(angles), dtype=bool)
     for omes in ome_range:
@@ -665,10 +620,9 @@ def _filter_hkls_eta_ome(hkls, angles, eta_range, ome_range,
             ccw = False
         angMask_ome = np.logical_or(
             angMask_ome,
-            xf.validateAngleRanges(angles[:, 2], omes[0], omes[1], ccw=ccw)
+            xf.validateAngleRanges(angles[:, 2], omes[0], omes[1], ccw=ccw),
         )
 
-    # mask angles list, hkls
     angMask = np.logical_and(angMask_eta, angMask_ome)
 
     allAngs = angles[angMask, :]
@@ -680,26 +634,37 @@ def _filter_hkls_eta_ome(hkls, angles, eta_range, ome_range,
         return allAngs, allHKLs
 
 
-def _project_on_detector_plane(allAngs,
-                               rMat_d, rMat_c, chi,
-                               tVec_d, tVec_c, tVec_s,
-                               distortion,
-                               beamVec=constants.beam_vec):
+def _project_on_detector_plane(
+    allAngs: np.ndarray,
+    rMat_d: np.ndarray,
+    rMat_c: np.ndarray,
+    chi: float,
+    tVec_d: np.ndarray,
+    tVec_c: np.ndarray,
+    tVec_s: np.ndarray,
+    distortion: DistortionABC,
+    beamVec: np.ndarray = constants.beam_vec,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     utility routine for projecting a list of (tth, eta, ome) onto the
     detector plane parameterized by the args
     """
-    gVec_cs = xfcapi.angles_to_gvec(allAngs,
-                                  chi=chi,
-                                  rmat_c=rMat_c,
-                                  beam_vec=beamVec)
+    gVec_cs = xfcapi.angles_to_gvec(
+        allAngs, chi=chi, rmat_c=rMat_c, beam_vec=beamVec
+    )
 
     rMat_ss = xfcapi.make_sample_rmat(chi, allAngs[:, 2])
 
     tmp_xys = xfcapi.gvec_to_xy(
-        gVec_cs, rMat_d, rMat_ss, rMat_c,
-        tVec_d, tVec_s, tVec_c,
-        beam_vec=beamVec)
+        gVec_cs,
+        rMat_d,
+        rMat_ss,
+        rMat_c,
+        tVec_d,
+        tVec_s,
+        tVec_c,
+        beam_vec=beamVec,
+    )
 
     valid_mask = ~(np.isnan(tmp_xys[:, 0]) | np.isnan(tmp_xys[:, 1]))
 
@@ -712,43 +677,45 @@ def _project_on_detector_plane(allAngs,
     return det_xy, rMat_ss, valid_mask
 
 
-def _project_on_detector_cylinder(allAngs,
-                                  chi,
-                                  tVec_d,
-                                  caxis,
-                                  paxis,
-                                  radius,
-                                  physical_size,
-                                  angle_extent,
-                                  distortion,
-                                  beamVec=constants.beam_vec,
-                                  etaVec=constants.eta_vec,
-                                  tVec_s=constants.zeros_3x1,
-                                  rmat_s=constants.identity_3x3,
-                                  tVec_c=constants.zeros_3x1):
+def _project_on_detector_cylinder(
+    allAngs: np.ndarray,
+    chi: float,
+    tVec_d: np.ndarray,
+    caxis: np.ndarray,
+    paxis: np.ndarray,
+    radius: float,
+    physical_size: np.ndarray,
+    angle_extent: float,
+    distortion: DistortionABC = None,
+    beamVec: np.ndarray = constants.beam_vec,
+    etaVec: np.ndarray = constants.eta_vec,
+    tVec_s: np.ndarray = constants.zeros_3x1,
+    rmat_s: np.ndarray = constants.identity_3x3,
+    tVec_c: np.ndarray = constants.zeros_3x1,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     utility routine for projecting a list of (tth, eta, ome) onto the
     detector plane parameterized by the args. this function does the
     computation for a cylindrical detector
     """
-    dVec_cs = xfcapi.anglesToDVec(allAngs,
-                                  chi=chi,
-                                  rMat_c=np.eye(3),
-                                  bHat_l=beamVec,
-                                  eHat_l=etaVec)
+    dVec_cs = xfcapi.anglesToDVec(
+        allAngs, chi=chi, rMat_c=np.eye(3), bHat_l=beamVec, eHat_l=etaVec
+    )
 
     rMat_ss = np.tile(rmat_s, [allAngs.shape[0], 1, 1])
 
-    tmp_xys, valid_mask = _dvecToDetectorXYcylinder(dVec_cs,
-                                                    tVec_d,
-                                                    caxis,
-                                                    paxis,
-                                                    radius,
-                                                    physical_size,
-                                                    angle_extent,
-                                                    tVec_s=tVec_s,
-                                                    rmat_s=rmat_s,
-                                                    tVec_c=tVec_c)
+    tmp_xys, valid_mask = _dvecToDetectorXYcylinder(
+        dVec_cs,
+        tVec_d,
+        caxis,
+        paxis,
+        radius,
+        physical_size,
+        angle_extent,
+        tVec_s=tVec_s,
+        rmat_s=rmat_s,
+        tVec_c=tVec_c,
+    )
 
     det_xy = np.atleast_2d(tmp_xys[valid_mask, :])
 
@@ -758,56 +725,68 @@ def _project_on_detector_cylinder(allAngs,
 
     return det_xy, rMat_ss, valid_mask
 
-def _dvecToDetectorXYcylinder(dVec_cs,
-                              tVec_d,
-                              caxis,
-                              paxis,
-                              radius,
-                              physical_size,
-                              angle_extent,
-                              tVec_s=constants.zeros_3x1,
-                              tVec_c=constants.zeros_3x1,
-                              rmat_s=constants.identity_3x3):
 
-    cvec = _unitvec_to_cylinder(dVec_cs,
-                                caxis,
-                                paxis,
-                                radius,
-                                tVec_d,
-                                tVec_s=tVec_s,
-                                tVec_c=tVec_c,
-                                rmat_s=rmat_s)
+def _dvecToDetectorXYcylinder(
+    dVec_cs: np.ndarray,
+    tVec_d: np.ndarray,
+    caxis: np.ndarray,
+    paxis: np.ndarray,
+    radius: float,
+    physical_size: np.ndarray,
+    angle_extent: float,
+    tVec_s: np.ndarray = constants.zeros_3x1,
+    tVec_c: np.ndarray = constants.zeros_3x1,
+    rmat_s: np.ndarray = constants.identity_3x3,
+) -> tuple[np.ndarray, np.ndarray]:
 
-    cvec_det, valid_mask = _clip_to_cylindrical_detector(cvec,
-                                             tVec_d,
-                                             caxis,
-                                             paxis,
-                                             radius,
-                                             physical_size,
-                                             angle_extent,
-                                             tVec_s=tVec_s,
-                                             tVec_c=tVec_c,
-                                             rmat_s=rmat_s)
+    cvec = _unitvec_to_cylinder(
+        dVec_cs,
+        caxis,
+        paxis,
+        radius,
+        tVec_d,
+        tVec_s=tVec_s,
+        tVec_c=tVec_c,
+        rmat_s=rmat_s,
+    )
 
-    xy_det = _dewarp_from_cylinder(cvec_det,
-                                   tVec_d,
-                                   caxis,
-                                   paxis,
-                                   radius,
-                                   tVec_s=tVec_s,
-                                   tVec_c=tVec_c,
-                                   rmat_s=rmat_s)
+    cvec_det, valid_mask = _clip_to_cylindrical_detector(
+        cvec,
+        tVec_d,
+        caxis,
+        paxis,
+        radius,
+        physical_size,
+        angle_extent,
+        tVec_s=tVec_s,
+        tVec_c=tVec_c,
+        rmat_s=rmat_s,
+    )
+
+    xy_det = _dewarp_from_cylinder(
+        cvec_det,
+        tVec_d,
+        caxis,
+        paxis,
+        radius,
+        tVec_s=tVec_s,
+        tVec_c=tVec_c,
+        rmat_s=rmat_s,
+    )
 
     return xy_det, valid_mask
 
-def _unitvec_to_cylinder(uvw,
-                         caxis,
-                         paxis,
-                         radius,
-                         tvec,
-                         tVec_s=constants.zeros_3x1,
-                         tVec_c=constants.zeros_3x1,
-                         rmat_s=constants.identity_3x3):
+
+def _unitvec_to_cylinder(
+    uvw: np.ndarray,
+    caxis: np.ndarray,
+    paxis: np.ndarray,
+    radius: float,
+    tvec: np.ndarray,
+    tVec_s: np.ndarray = constants.zeros_3x1,
+    tVec_c: np.ndarray = constants.zeros_3x1,
+    rmat_s: np.ndarray = constants.identity_3x3,
+) -> np.ndarray:
     """
     get point where unitvector uvw
     intersect the cylindrical detector.
@@ -827,17 +806,15 @@ def _unitvec_to_cylinder(uvw,
     the cylinder with (nx3) shape
     """
     naxis = np.cross(caxis, paxis)
-    naxis = naxis/np.linalg.norm(naxis)
+    naxis = naxis / np.linalg.norm(naxis)
 
     tvec_c_l = np.dot(rmat_s, tVec_c)
 
-    delta = tvec - (radius*naxis +
-                    np.squeeze(tVec_s) +
-                    np.squeeze(tvec_c_l))
+    delta = tvec - (radius * naxis + np.squeeze(tVec_s) + np.squeeze(tvec_c_l))
     num = uvw.shape[0]
     cx = np.atleast_2d(caxis).T
 
-    delta_t = np.tile(delta,[num,1])
+    delta_t = np.tile(delta, [num, 1])
 
     t1 = np.dot(uvw, delta.T)
     t2 = np.squeeze(np.dot(uvw, cx))
@@ -845,29 +822,34 @@ def _unitvec_to_cylinder(uvw,
     t4 = np.dot(uvw, cx)
 
     A = np.squeeze(1 - t4**2)
-    B = t1 - t2*t3
-    C = radius**2 - np.linalg.norm(delta)**2 + t3**2
+    B = t1 - t2 * t3
+    C = radius**2 - np.linalg.norm(delta) ** 2 + t3**2
 
-    mask = np.abs(A) < 1E-10
-    beta = np.zeros([num, ])
+    mask = np.abs(A) < 1e-10
+    beta = np.zeros(
+        [
+            num,
+        ]
+    )
 
-    beta[~mask] = (B[~mask] +
-                   np.sqrt(B[~mask]**2 +
-                   A[~mask]*C))/A[~mask]
+    beta[~mask] = (B[~mask] + np.sqrt(B[~mask] ** 2 + A[~mask] * C)) / A[~mask]
 
     beta[mask] = np.nan
     return np.tile(beta, [3, 1]).T * uvw
 
-def _clip_to_cylindrical_detector(uvw,
-                                  tVec_d,
-                                  caxis,
-                                  paxis,
-                                  radius,
-                                  physical_size,
-                                  angle_extent,
-                                  tVec_s=constants.zeros_3x1,
-                                  tVec_c=constants.zeros_3x1,
-                                  rmat_s=constants.identity_3x3):
+
+def _clip_to_cylindrical_detector(
+    uvw: np.ndarray,
+    tVec_d: np.ndarray,
+    caxis: np.ndarray,
+    paxis: np.ndarray,
+    radius: float,
+    physical_size: np.ndarray,
+    angle_extent: float,
+    tVec_s: np.ndarray = constants.zeros_3x1,
+    tVec_c: np.ndarray = constants.zeros_3x1,
+    rmat_s: np.ndarray = constants.identity_3x3,
+) -> tuple[np.ndarray, np.ndarray]:
     """
     takes in the intersection points uvw
     with the cylindrical detector and
@@ -895,52 +877,55 @@ def _clip_to_cylindrical_detector(uvw,
 
     tvec_c_l = np.dot(rmat_s, tVec_c)
 
-    delta = tVec_d - (radius*naxis +
-                      np.squeeze(tVec_s) +
-                      np.squeeze(tvec_c_l))
+    delta = tVec_d - (
+        radius * naxis + np.squeeze(tVec_s) + np.squeeze(tvec_c_l)
+    )
 
-    delta_t = np.tile(delta,[num,1])
+    delta_t = np.tile(delta, [num, 1])
 
     uvwp = uvw - delta_t
     dp = np.dot(uvwp, cx)
 
-    uvwpxy = uvwp - np.tile(dp,[1,3])*np.tile(cx,[1,num]).T
+    uvwpxy = uvwp - np.tile(dp, [1, 3]) * np.tile(cx, [1, num]).T
 
     size = physical_size
     tvec = np.atleast_2d(tVec_d).T
 
     # ycomp = uvwp - np.tile(tVec_d,[num, 1])
-    mask1 = np.squeeze(np.abs(dp) > size[0]*0.5)
-    uvwp[mask1,:] = np.nan
+    mask1 = np.squeeze(np.abs(dp) > size[0] * 0.5)
+    uvwp[mask1, :] = np.nan
 
     # next get rid of points that fall outside
     # the polar angle range
 
-    ang = np.dot(uvwpxy, nx)/radius
-    ang[np.abs(ang)>1.] = np.sign(ang[np.abs(ang)>1.])
+    ang = np.dot(uvwpxy, nx) / radius
+    ang[np.abs(ang) > 1.0] = np.sign(ang[np.abs(ang) > 1.0])
 
     ang = np.arccos(ang)
     mask2 = np.squeeze(ang >= angle_extent)
     mask = np.logical_or(mask1, mask2)
     res = uvw.copy()
-    res[mask,:] = np.nan
+    res[mask, :] = np.nan
 
     return res, ~mask
 
-def _dewarp_from_cylinder(uvw,
-                          tVec_d,
-                          caxis,
-                          paxis,
-                          radius,
-                          tVec_s=constants.zeros_3x1,
-                          tVec_c=constants.zeros_3x1,
-                          rmat_s=constants.identity_3x3):
+
+def _dewarp_from_cylinder(
+    uvw: np.ndarray,
+    tVec_d: np.ndarray,
+    caxis: np.ndarray,
+    paxis: np.ndarray,
+    radius: float,
+    tVec_s: np.ndarray = constants.zeros_3x1,
+    tVec_c: np.ndarray = constants.zeros_3x1,
+    rmat_s: np.ndarray = constants.identity_3x3,
+):
     """
     routine to convert cylindrical coordinates
     to cartesian coordinates in image frame
     """
     naxis = np.cross(caxis, paxis)
-    naxis = naxis/np.linalg.norm(naxis)
+    naxis = naxis / np.linalg.norm(naxis)
 
     cx = np.atleast_2d(caxis).T
     px = np.atleast_2d(paxis).T
@@ -949,34 +934,37 @@ def _dewarp_from_cylinder(uvw,
 
     tvec_c_l = np.dot(rmat_s, tVec_c)
 
-    delta = tVec_d - (radius*naxis +
-                      np.squeeze(tVec_s) +
-                      np.squeeze(tvec_c_l))
+    delta = tVec_d - (
+        radius * naxis + np.squeeze(tVec_s) + np.squeeze(tvec_c_l)
+    )
 
-    delta_t = np.tile(delta,[num,1])
+    delta_t = np.tile(delta, [num, 1])
 
     uvwp = uvw - delta_t
 
-    uvwpxy = uvwp - np.tile(np.dot(uvwp, cx), [1, 3]) * \
-         np.tile(cx, [1, num]).T
+    uvwpxy = uvwp - np.tile(np.dot(uvwp, cx), [1, 3]) * np.tile(cx, [1, num]).T
 
-    sgn = np.sign(np.dot(uvwpxy, px)); sgn[sgn==0.] = 1.
-    ang = np.dot(uvwpxy, nx)/radius
-    ang[np.abs(ang) > 1.] = np.sign(ang[np.abs(ang)>1.])
+    sgn = np.sign(np.dot(uvwpxy, px))
+    sgn[sgn == 0.0] = 1.0
+    ang = np.dot(uvwpxy, nx) / radius
+    ang[np.abs(ang) > 1.0] = np.sign(ang[np.abs(ang) > 1.0])
     ang = np.arccos(ang)
-    xcrd = np.squeeze(radius*ang*sgn)
+    xcrd = np.squeeze(radius * ang * sgn)
     ycrd = np.squeeze(np.dot(uvwp, cx))
     return np.vstack((xcrd, ycrd)).T
 
-def _warp_to_cylinder(cart,
-                      tVec_d,
-                      radius,
-                      caxis,
-                      paxis,
-                      tVec_s=constants.zeros_3x1,
-                      rmat_s=constants.identity_3x3,
-                      tVec_c=constants.zeros_3x1,
-                      normalize=True):
+
+def _warp_to_cylinder(
+    cart: np.ndarray,
+    tVec_d: np.ndarray,
+    radius: float,
+    caxis: np.ndarray,
+    paxis: np.ndarray,
+    tVec_s: np.ndarray = constants.zeros_3x1,
+    rmat_s: np.ndarray = constants.identity_3x3,
+    tVec_c: np.ndarray = constants.zeros_3x1,
+    normalize: bool = True,
+) -> np.ndarray:
     """
     routine to convert cartesian coordinates
     in image frame to cylindrical coordinates
@@ -988,10 +976,11 @@ def _warp_to_cylinder(cart,
         tVec_c = np.atleast_2d(tVec_c).T
     num = cart.shape[0]
     naxis = np.cross(paxis, caxis)
-    x = cart[:,0]; y = cart[:,1]
-    th = x/radius
-    xp = radius*np.sin(th)
-    xn = radius*(1-np.cos(th))
+    x = cart[:, 0]
+    y = cart[:, 1]
+    th = x / radius
+    xp = radius * np.sin(th)
+    xn = radius * (1 - np.cos(th))
 
     ccomp = np.tile(y, [3, 1]).T * np.tile(caxis, [num, 1])
     pcomp = np.tile(xp, [3, 1]).T * np.tile(paxis, [num, 1])
@@ -1000,14 +989,17 @@ def _warp_to_cylinder(cart,
 
     tVec_c_l = np.dot(rmat_s, tVec_c)
 
-    res = cart3d + np.tile(tvec-tVec_s-tVec_c_l, [1, num]).T
+    res = cart3d + np.tile(tvec - tVec_s - tVec_c_l, [1, num]).T
 
     if normalize:
-        return res/np.tile(np.linalg.norm(res, axis=1), [3, 1]).T
+        return res / np.tile(np.linalg.norm(res, axis=1), [3, 1]).T
     else:
         return res
 
-def _dvec_to_angs(dvecs, bvec, evec):
+
+def _dvec_to_angs(
+    dvecs: np.ndarray, bvec: np.ndarray, evec: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     """
     convert diffraction vectors to (tth, eta)
     angles in the 'eta' frame
@@ -1015,12 +1007,12 @@ def _dvec_to_angs(dvecs, bvec, evec):
     """
     num = dvecs.shape[0]
     exb = np.cross(evec, bvec)
-    exb = exb/np.linalg.norm(exb)
+    exb = exb / np.linalg.norm(exb)
     bxexb = np.cross(bvec, exb)
-    bxexb = bxexb/np.linalg.norm(bxexb)
+    bxexb = bxexb / np.linalg.norm(bxexb)
 
     dp = np.dot(bvec, dvecs.T)
-    dp[np.abs(dp) > 1.] = np.sign(dp[np.abs(dp) > 1.])
+    dp[np.abs(dp) > 1.0] = np.sign(dp[np.abs(dp) > 1.0])
     tth = np.arccos(dp)
 
     dvecs_p = dvecs - np.tile(dp, [3, 1]).T * np.tile(bvec, [num, 1])
@@ -1029,15 +1021,24 @@ def _dvec_to_angs(dvecs, bvec, evec):
     dpy = np.dot(exb, dvecs_p.T)
     eta = np.arctan2(dpy, dpx)
 
-    return (tth, eta)
+    return tth, eta
 
-def simulateGVecs(pd, detector_params, grain_params,
-                  ome_range=[(-np.pi, np.pi), ],
-                  ome_period=(-np.pi, np.pi),
-                  eta_range=[(-np.pi, np.pi), ],
-                  panel_dims=[(-204.8, -204.8), (204.8, 204.8)],
-                  pixel_pitch=(0.2, 0.2),
-                  distortion=None):
+
+def simulateGVecs(
+    pd: PlaneData,
+    detector_params: np.ndarray,
+    grain_params: np.ndarray,
+    ome_range: list[tuple[float]] = [
+        (-np.pi, np.pi),
+    ],
+    ome_period: tuple[float] = (-np.pi, np.pi),
+    eta_range: list[tuple[float]] = [
+        (-np.pi, np.pi),
+    ],
+    panel_dims: list[tuple[float]] = [(-204.8, -204.8), (204.8, 204.8)],
+    pixel_pitch: tuple[float] = (0.2, 0.2),
+    distortion: DistortionABC = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     returns valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps
 
@@ -1087,11 +1088,11 @@ def simulateGVecs(pd, detector_params, grain_params,
     angList = np.vstack(
         xfcapi.oscillAnglesOfHKLs(
             full_hkls[:, 1:], chi, rMat_c, bMat, wlen, vInv=vInv_s
-            )
         )
+    )
     allAngs, allHKLs = _filter_hkls_eta_ome(
         full_hkls, angList, eta_range, ome_range
-        )
+    )
 
     if len(allAngs) == 0:
         valid_ids = []
@@ -1101,46 +1102,57 @@ def simulateGVecs(pd, detector_params, grain_params,
         ang_ps = []
     else:
         # ??? preallocate for speed?
-        det_xy, rMat_s, on_plane = _project_on_detector_plane(
-            allAngs,
-            rMat_d, rMat_c, chi,
-            tVec_d, tVec_c, tVec_s,
-            distortion
-            )
-        #
-        on_panel_x = np.logical_and(
-            det_xy[:, 0] >= panel_dims[0][0],
-            det_xy[:, 0] <= panel_dims[1][0]
-            )
-        on_panel_y = np.logical_and(
-            det_xy[:, 1] >= panel_dims[0][1],
-            det_xy[:, 1] <= panel_dims[1][1]
-            )
-        on_panel = np.logical_and(on_panel_x, on_panel_y)
-        #
+        det_xy, rMat_s, _ = _project_on_detector_plane(
+            allAngs, rMat_d, rMat_c, chi, tVec_d, tVec_c, tVec_s, distortion
+        )
+
+        on_panel = np.logical_and(
+            np.logical_and(
+                det_xy[:, 0] >= panel_dims[0][0],
+                det_xy[:, 0] <= panel_dims[1][0],
+            ),
+            np.logical_and(
+                det_xy[:, 1] >= panel_dims[0][1],
+                det_xy[:, 1] <= panel_dims[1][1],
+            ),
+        )
+
         op_idx = np.where(on_panel)[0]
-        #
+
         valid_ang = allAngs[op_idx, :]
         valid_ang[:, 2] = xfcapi.mapAngle(valid_ang[:, 2], ome_period)
         valid_ids = allHKLs[op_idx, 0]
         valid_hkl = allHKLs[op_idx, 1:]
         valid_xy = det_xy[op_idx, :]
-        ang_ps = angularPixelSize(valid_xy, pixel_pitch,
-                                  rMat_d, rMat_s,
-                                  tVec_d, tVec_s, tVec_c,
-                                  distortion=distortion)
+        ang_ps = angularPixelSize(
+            valid_xy,
+            pixel_pitch,
+            rMat_d,
+            rMat_s,
+            tVec_d,
+            tVec_s,
+            tVec_c,
+            distortion=distortion,
+        )
 
     return valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps
 
 
-def simulateLauePattern(hkls, bMat,
-                        rmat_d, tvec_d,
-                        panel_dims, panel_buffer=5,
-                        minEnergy=8, maxEnergy=24,
-                        rmat_s=np.eye(3),
-                        grain_params=None,
-                        distortion=None,
-                        beamVec=None):
+@deprecated(new_func=simlp, removal_date='2025-01-01')
+def simulateLauePattern(
+    hkls,
+    bMat,
+    rmat_d,
+    tvec_d,
+    panel_dims,
+    panel_buffer=5,
+    minEnergy=8,
+    maxEnergy=24,
+    rmat_s=np.eye(3),
+    grain_params=None,
+    distortion=None,
+    beamVec=None,
+):
 
     if beamVec is None:
         beamVec = xfcapi.bVec_ref
@@ -1148,14 +1160,12 @@ def simulateLauePattern(hkls, bMat,
     # parse energy ranges
     multipleEnergyRanges = False
     if hasattr(maxEnergy, '__len__'):
-        assert len(maxEnergy) == len(minEnergy), \
-            'energy cutoff ranges must have the same length'
+        assert len(maxEnergy) == len(
+            minEnergy
+        ), 'energy cutoff ranges must have the same length'
         multipleEnergyRanges = True
-        lmin = []
-        lmax = []
-        for i in range(len(maxEnergy)):
-            lmin.append(processWavelength(maxEnergy[i]))
-            lmax.append(processWavelength(minEnergy[i]))
+        lmin = [processWavelength(e) for e in maxEnergy]
+        lmax = [processWavelength(e) for e in minEnergy]
     else:
         lmin = processWavelength(maxEnergy)
         lmax = processWavelength(minEnergy)
@@ -1163,10 +1173,7 @@ def simulateLauePattern(hkls, bMat,
     # process crystal rmats and inverse stretches
     if grain_params is None:
         grain_params = np.atleast_2d(
-            [0., 0., 0.,
-             0., 0., 0.,
-             1., 1., 1., 0., 0., 0.
-             ]
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0]
         )
 
     n_grains = len(grain_params)
@@ -1181,11 +1188,11 @@ def simulateLauePattern(hkls, bMat,
     ghat_c = mutil.unitVector(np.dot(bMat, hkls))
 
     # pre-allocate output arrays
-    xy_det = np.nan*np.ones((n_grains, nhkls_tot, 2))
-    hkls_in = np.nan*np.ones((n_grains, 3, nhkls_tot))
-    angles = np.nan*np.ones((n_grains, nhkls_tot, 2))
-    dspacing = np.nan*np.ones((n_grains, nhkls_tot))
-    energy = np.nan*np.ones((n_grains, nhkls_tot))
+    xy_det = np.nan * np.ones((n_grains, nhkls_tot, 2))
+    hkls_in = np.nan * np.ones((n_grains, 3, nhkls_tot))
+    angles = np.nan * np.ones((n_grains, nhkls_tot, 2))
+    dspacing = np.nan * np.ones((n_grains, nhkls_tot))
+    energy = np.nan * np.ones((n_grains, nhkls_tot))
 
     """
     LOOP OVER GRAINS
@@ -1197,16 +1204,20 @@ def simulateLauePattern(hkls, bMat,
         vInv_s = mutil.vecMVToSymm(gp[6:].reshape(6, 1))
 
         # stretch them: V^(-1) * R * Gc
-        ghat_s_str = mutil.unitVector(
-            np.dot(vInv_s, np.dot(rmat_c, ghat_c))
-        )
+        ghat_s_str = mutil.unitVector(np.dot(vInv_s, np.dot(rmat_c, ghat_c)))
         ghat_c_str = np.dot(rmat_c.T, ghat_s_str)
 
         # project
-        dpts = xfcapi.gvec_to_xy(ghat_c_str.T,
-                                 rmat_d, rmat_s, rmat_c,
-                                 tvec_d, tvec_s, tvec_c,
-                                 beam_vec=beamVec).T
+        dpts = xfcapi.gvec_to_xy(
+            ghat_c_str.T,
+            rmat_d,
+            rmat_s,
+            rmat_c,
+            tvec_d,
+            tvec_s,
+            tvec_c,
+            beam_vec=beamVec,
+        ).T
 
         # check intersections with detector plane
         canIntersect = ~np.isnan(dpts[0, :])
@@ -1218,10 +1229,8 @@ def simulateLauePattern(hkls, bMat,
 
             # back to angles
             tth_eta, gvec_l = xfcapi.detectorXYToGvec(
-                dpts.T,
-                rmat_d, rmat_s,
-                tvec_d, tvec_s, tvec_c,
-                beamVec=beamVec)
+                dpts.T, rmat_d, rmat_s, tvec_d, tvec_s, tvec_c, beamVec=beamVec
+            )
             tth_eta = np.vstack(tth_eta).T
 
             # warp measured points
@@ -1229,27 +1238,28 @@ def simulateLauePattern(hkls, bMat,
                 dpts = distortion.apply_inverse(dpts)
 
             # plane spacings and energies
-            dsp = 1. / mutil.columnNorm(np.dot(bMat, dhkl))
-            wlen = 2*dsp*np.sin(0.5*tth_eta[:, 0])
+            dsp = 1.0 / mutil.columnNorm(np.dot(bMat, dhkl))
+            wlen = 2 * dsp * np.sin(0.5 * tth_eta[:, 0])
 
             # find on spatial extent of detector
             xTest = np.logical_and(
-                dpts[0, :] >= -0.5*panel_dims[1] + panel_buffer,
-                dpts[0, :] <= 0.5*panel_dims[1] - panel_buffer)
+                dpts[0, :] >= -0.5 * panel_dims[1] + panel_buffer,
+                dpts[0, :] <= 0.5 * panel_dims[1] - panel_buffer,
+            )
             yTest = np.logical_and(
-                dpts[1, :] >= -0.5*panel_dims[0] + panel_buffer,
-                dpts[1, :] <= 0.5*panel_dims[0] - panel_buffer)
+                dpts[1, :] >= -0.5 * panel_dims[0] + panel_buffer,
+                dpts[1, :] <= 0.5 * panel_dims[0] - panel_buffer,
+            )
 
             onDetector = np.logical_and(xTest, yTest)
             if multipleEnergyRanges:
                 validEnergy = np.zeros(len(wlen), dtype=bool)
                 for i in range(len(lmin)):
-                    validEnergy = validEnergy | \
-                        np.logical_and(wlen >= lmin[i], wlen <= lmax[i])
-                    pass
+                    validEnergy = validEnergy | np.logical_and(
+                        wlen >= lmin[i], wlen <= lmax[i]
+                    )
             else:
                 validEnergy = np.logical_and(wlen >= lmin, wlen <= lmax)
-                pass
 
             # index for valid reflections
             keepers = np.where(np.logical_and(onDetector, validEnergy))[0]
@@ -1260,180 +1270,116 @@ def simulateLauePattern(hkls, bMat,
             angles[iG][keepers, :] = tth_eta[keepers, :]
             dspacing[iG, keepers] = dsp[keepers]
             energy[iG, keepers] = processWavelength(wlen[keepers])
-            pass
-        pass
     return xy_det, hkls_in, angles, dspacing, energy
 
 
-if USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)
-    def _expand_pixels(original, w, h, result):
-        hw = 0.5 * w
-        hh = 0.5 * h
-        for el in range(len(original)):
-            x, y = original[el, 0], original[el, 1]
-            result[el*4 + 0, 0] = x - hw
-            result[el*4 + 0, 1] = y - hh
-            result[el*4 + 1, 0] = x + hw
-            result[el*4 + 1, 1] = y - hh
-            result[el*4 + 2, 0] = x + hw
-            result[el*4 + 2, 1] = y + hh
-            result[el*4 + 3, 0] = x - hw
-            result[el*4 + 3, 1] = y + hh
+@numba.njit(nogil=True, cache=True)
+def _expand_pixels(
+    original: np.ndarray, w: float, h: float, result: np.ndarray
+) -> np.ndarray:
+    hw = 0.5 * w
+    hh = 0.5 * h
+    for el in range(len(original)):
+        x, y = original[el, 0], original[el, 1]
+        result[el * 4 + 0, 0] = x - hw
+        result[el * 4 + 0, 1] = y - hh
+        result[el * 4 + 1, 0] = x + hw
+        result[el * 4 + 1, 1] = y - hh
+        result[el * 4 + 2, 0] = x + hw
+        result[el * 4 + 2, 1] = y + hh
+        result[el * 4 + 3, 0] = x - hw
+        result[el * 4 + 3, 1] = y + hh
 
-        return result
+    return result
 
-    @numba.njit(nogil=True, cache=True)
-    def _compute_max(tth, eta, result):
-        period = 2.0 * np.pi
-        hperiod = np.pi
-        for el in range(0, len(tth), 4):
-            max_tth = np.abs(tth[el + 0] - tth[el + 3])
-            eta_diff = eta[el + 0] - eta[el + 3]
-            max_eta = np.abs(
+
+@numba.njit(nogil=True, cache=True)
+def _compute_max(
+    tth: np.ndarray, eta: np.ndarray, result: np.ndarray
+) -> np.ndarray:
+    period = 2.0 * np.pi
+    hperiod = np.pi
+    for el in range(0, len(tth), 4):
+        max_tth = np.abs(tth[el + 0] - tth[el + 3])
+        eta_diff = eta[el + 0] - eta[el + 3]
+        max_eta = np.abs(np.remainder(eta_diff + hperiod, period) - hperiod)
+        for i in range(3):
+            curr_tth = np.abs(tth[el + i] - tth[el + i + 1])
+            eta_diff = eta[el + i] - eta[el + i + 1]
+            curr_eta = np.abs(
                 np.remainder(eta_diff + hperiod, period) - hperiod
             )
-            for i in range(3):
-                curr_tth = np.abs(tth[el + i] - tth[el + i + 1])
-                eta_diff = eta[el + i] - eta[el + i + 1]
-                curr_eta = np.abs(
-                    np.remainder(eta_diff + hperiod, period) - hperiod
-                )
-                max_tth = np.maximum(curr_tth, max_tth)
-                max_eta = np.maximum(curr_eta, max_eta)
-            result[el//4, 0] = max_tth
-            result[el//4, 1] = max_eta
+            max_tth = np.maximum(curr_tth, max_tth)
+            max_eta = np.maximum(curr_eta, max_eta)
+        result[el // 4, 0] = max_tth
+        result[el // 4, 1] = max_eta
 
-        return result
-
-    def angularPixelSize(
-            xy_det, xy_pixelPitch,
-            rMat_d, rMat_s,
-            tVec_d, tVec_s, tVec_c,
-            distortion=None, beamVec=None, etaVec=None):
-        """
-        Calculate angular pixel sizes on a detector.
-
-        * choices to beam vector and eta vector specs have been supressed
-        * assumes xy_det in UNWARPED configuration
-        """
-        xy_det = np.atleast_2d(xy_det)
-        if distortion is not None:  # !!! check this logic
-            xy_det = distortion.apply(xy_det)
-        if beamVec is None:
-            beamVec = xfcapi.bVec_ref
-        if etaVec is None:
-            etaVec = xfcapi.eta_ref
-
-        xy_expanded = np.empty((len(xy_det) * 4, 2), dtype=xy_det.dtype)
-        xy_expanded = _expand_pixels(
-            xy_det,
-            xy_pixelPitch[0], xy_pixelPitch[1],
-            xy_expanded)
-        gvec_space, _ = xfcapi.detectorXYToGvec(
-            xy_expanded,
-            rMat_d, rMat_s,
-            tVec_d, tVec_s, tVec_c,
-            beamVec=beamVec, etaVec=etaVec)
-        result = np.empty_like(xy_det)
-        return _compute_max(gvec_space[0], gvec_space[1], result)
-else:
-    def angularPixelSize(xy_det, xy_pixelPitch,
-                         rMat_d, rMat_s,
-                         tVec_d, tVec_s, tVec_c,
-                         distortion=None, beamVec=None, etaVec=None):
-        """
-        Calculate angular pixel sizes on a detector.
-
-        * choices to beam vector and eta vector specs have been supressed
-        * assumes xy_det in UNWARPED configuration
-        """
-        xy_det = np.atleast_2d(xy_det)
-        if distortion is not None:  # !!! check this logic
-            xy_det = distortion.apply(xy_det)
-        if beamVec is None:
-            beamVec = xfcapi.bVec_ref
-        if etaVec is None:
-            etaVec = xfcapi.eta_ref
-
-        xp = np.r_[-0.5,  0.5,  0.5, -0.5] * xy_pixelPitch[0]
-        yp = np.r_[-0.5, -0.5,  0.5,  0.5] * xy_pixelPitch[1]
-
-        diffs = np.array([[3, 3, 2, 1],
-                          [2, 0, 1, 0]])
-
-        ang_pix = np.zeros((len(xy_det), 2))
-
-        for ipt, xy in enumerate(xy_det):
-            xc = xp + xy[0]
-            yc = yp + xy[1]
-
-            tth_eta, gHat_l = xfcapi.detectorXYToGvec(
-                np.vstack([xc, yc]).T,
-                rMat_d, rMat_s,
-                tVec_d, tVec_s, tVec_c,
-                beamVec=beamVec, etaVec=etaVec)
-            delta_tth = np.zeros(4)
-            delta_eta = np.zeros(4)
-            for j in range(4):
-                delta_tth[j] = abs(
-                    tth_eta[0][diffs[0, j]] - tth_eta[0][diffs[1, j]]
-                )
-                delta_eta[j] = xfcapi.angularDifference(
-                    tth_eta[1][diffs[0, j]], tth_eta[1][diffs[1, j]]
-                )
-
-            ang_pix[ipt, 0] = np.amax(delta_tth)
-            ang_pix[ipt, 1] = np.amax(delta_eta)
-        return ang_pix
+    return result
 
 
-if USE_NUMBA:
-    @numba.njit(nogil=True, cache=True)
-    def _coo_build_window_jit(frame_row, frame_col, frame_data,
-                              min_row, max_row, min_col, max_col,
-                              result):
-        n = len(frame_row)
-        for i in range(n):
-            if ((min_row <= frame_row[i] <= max_row) and
-                    (min_col <= frame_col[i] <= max_col)):
-                new_row = frame_row[i] - min_row
-                new_col = frame_col[i] - min_col
-                result[new_row, new_col] = frame_data[i]
+def angularPixelSize(
+    xy_det: np.ndarray,
+    xy_pixelPitch: tuple[float],
+    rMat_d: np.ndarray,
+    rMat_s: np.ndarray,
+    tVec_d: np.ndarray,
+    tVec_s: np.ndarray,
+    tVec_c: np.ndarray,
+    distortion: DistortionABC = None,
+    beamVec: np.ndarray = None,
+    etaVec: np.ndarray = None,
+) -> np.ndarray:
+    """
+    Calculate angular pixel sizes on a detector.
 
-        return result
+    * choices to beam vector and eta vector specs have been supressed
+    * assumes xy_det in UNWARPED configuration
+    """
+    xy_det = np.atleast_2d(xy_det)
+    if distortion is not None:  # !!! check this logic
+        xy_det = distortion.apply(xy_det)
+    if beamVec is None:
+        beamVec = xfcapi.bVec_ref
+    if etaVec is None:
+        etaVec = xfcapi.eta_ref
 
-    def _coo_build_window(frame_i, min_row, max_row, min_col, max_col):
-        window = np.zeros(
-            ((max_row - min_row + 1), (max_col - min_col + 1)),
-            dtype=np.int16
-        )
-
-        return _coo_build_window_jit(frame_i.row, frame_i.col, frame_i.data,
-                                     min_row, max_row, min_col, max_col,
-                                     window)
-else:  # not USE_NUMBA
-    def _coo_build_window(frame_i, min_row, max_row, min_col, max_col):
-        mask = ((min_row <= frame_i.row) & (frame_i.row <= max_row) &
-                (min_col <= frame_i.col) & (frame_i.col <= max_col))
-        new_row = frame_i.row[mask] - min_row
-        new_col = frame_i.col[mask] - min_col
-        new_data = frame_i.data[mask]
-        window = np.zeros(
-            ((max_row - min_row + 1), (max_col - min_col + 1)),
-            dtype=np.int16
-        )
-        window[new_row, new_col] = new_data
-
-        return window
+    xy_expanded = np.empty((len(xy_det) * 4, 2), dtype=xy_det.dtype)
+    xy_expanded = _expand_pixels(
+        xy_det, xy_pixelPitch[0], xy_pixelPitch[1], xy_expanded
+    )
+    gvec_space, _ = xfcapi.detectorXYToGvec(
+        xy_expanded,
+        rMat_d,
+        rMat_s,
+        tVec_d,
+        tVec_s,
+        tVec_c,
+        beamVec=beamVec,
+        etaVec=etaVec,
+    )
+    result = np.empty_like(xy_det)
+    return _compute_max(gvec_space[0], gvec_space[1], result)
 
 
-def make_reflection_patches(instr_cfg,
-                            tth_eta, ang_pixel_size, omega=None,
-                            tth_tol=0.2, eta_tol=1.0,
-                            rmat_c=np.eye(3), tvec_c=np.zeros((3, 1)),
-                            npdiv=1, quiet=False,
-                            compute_areas_func=gutil.compute_areas):
+def make_reflection_patches(
+    instr_cfg: dict[str, Any],
+    tth_eta: np.ndarray,
+    ang_pixel_size: np.ndarray,
+    omega: Optional[np.ndarray] = None,
+    tth_tol: float = 0.2,
+    eta_tol: float = 1.0,
+    rmat_c: np.ndarray = np.eye(3),
+    tvec_c: np.ndarray = np.zeros((3, 1)),
+    npdiv: int = 1,
+    quiet: bool = False,  # TODO: Remove this parameter - it isn't used
+    compute_areas_func: np.ndarray = gutil.compute_areas,
+) -> Generator[
+    tuple[
+        np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray
+    ],
+    None,
+    None,
+]:
     """Make angular patches on a detector.
 
     panel_dims are [(xmin, ymin), (xmax, ymax)] in mm
@@ -1463,12 +1409,11 @@ def make_reflection_patches(instr_cfg,
         (x_center, y_center),
         (i_row, j_col)
     """
-    npts = len(tth_eta)
 
     # detector quantities
     rmat_d = xfcapi.makeRotMatOfExpMap(
         np.r_[instr_cfg['detector']['transform']['tilt']]
-        )
+    )
     tvec_d = np.r_[instr_cfg['detector']['transform']['translation']]
     pixel_size = instr_cfg['detector']['pixels']['size']
 
@@ -1476,13 +1421,13 @@ def make_reflection_patches(instr_cfg,
     frame_ncols = instr_cfg['detector']['pixels']['columns']
 
     panel_dims = (
-        -0.5*np.r_[frame_ncols*pixel_size[1], frame_nrows*pixel_size[0]],
-        0.5*np.r_[frame_ncols*pixel_size[1], frame_nrows*pixel_size[0]]
-        )
-    row_edges = np.arange(frame_nrows + 1)[::-1]*pixel_size[1] \
-        + panel_dims[0][1]
-    col_edges = np.arange(frame_ncols + 1)*pixel_size[0] \
-        + panel_dims[0][0]
+        -0.5 * np.r_[frame_ncols * pixel_size[1], frame_nrows * pixel_size[0]],
+        0.5 * np.r_[frame_ncols * pixel_size[1], frame_nrows * pixel_size[0]],
+    )
+    row_edges = (
+        np.arange(frame_nrows + 1)[::-1] * pixel_size[1] + panel_dims[0][1]
+    )
+    col_edges = np.arange(frame_ncols + 1) * pixel_size[0] + panel_dims[0][0]
 
     # handle distortion
     distortion = None
@@ -1492,51 +1437,40 @@ def make_reflection_patches(instr_cfg,
             try:
                 func_name = distortion_cfg['function_name']
                 dparams = distortion_cfg['parameters']
-                distortion = distortion_pkg.get_mapping(
-                    func_name, dparams
-                )
-            except(KeyError):
-                raise RuntimeError(
-                    "problem with distortion specification"
-                )
+                distortion = distortion_pkg.get_mapping(func_name, dparams)
+            except KeyError:
+                raise RuntimeError("problem with distortion specification")
 
     # sample frame
     chi = instr_cfg['oscillation_stage']['chi']
     tvec_s = np.r_[instr_cfg['oscillation_stage']['translation']]
-
-    # beam vector
     bvec = np.r_[instr_cfg['beam']['vector']]
 
     # data to loop
     # ??? WOULD IT BE CHEAPER TO CARRY ZEROS OR USE CONDITIONAL?
     if omega is None:
-        full_angs = np.hstack([tth_eta, np.zeros((npts, 1))])
+        full_angs = np.hstack([tth_eta, np.zeros((len(tth_eta), 1))])
     else:
-        full_angs = np.hstack([tth_eta, omega.reshape(npts, 1)])
+        full_angs = np.hstack([tth_eta, omega.reshape(len(tth_eta), 1)])
 
-    patches = []
     for angs, pix in zip(full_angs, ang_pixel_size):
         # calculate bin edges for patch based on local angular pixel size
         # tth
         ntths, tth_edges = gutil.make_tolerance_grid(
             bin_width=np.degrees(pix[0]),
             window_width=tth_tol,
-            num_subdivisions=npdiv
+            num_subdivisions=npdiv,
         )
 
         # eta
         netas, eta_edges = gutil.make_tolerance_grid(
             bin_width=np.degrees(pix[1]),
             window_width=eta_tol,
-            num_subdivisions=npdiv
+            num_subdivisions=npdiv,
         )
 
         # FOR ANGULAR MESH
-        conn = gutil.cellConnectivity(
-            netas,
-            ntths,
-            origin='ll'
-        )
+        conn = gutil.cellConnectivity(netas, ntths, origin='ll')
 
         # meshgrid args are (cols, rows), a.k.a (fast, slow)
         m_tth, m_eta = np.meshgrid(tth_edges, eta_edges)
@@ -1545,59 +1479,78 @@ def make_reflection_patches(instr_cfg,
         # calculate the patch XY coords from the (tth, eta) angles
         # !!! will CHEAT and ignore the small perturbation the different
         #     omega angle values causes and simply use the central value
-        gVec_angs_vtx = np.tile(angs, (npts_patch, 1)) \
-            + np.radians(np.vstack([m_tth.flatten(),
-                                    m_eta.flatten(),
-                                    np.zeros(npts_patch)]).T)
+        gVec_angs_vtx = np.tile(angs, (npts_patch, 1)) + np.radians(
+            np.vstack(
+                [m_tth.flatten(), m_eta.flatten(), np.zeros(npts_patch)]
+            ).T
+        )
 
-        xy_eval_vtx, rmats_s, on_plane = _project_on_detector_plane(
-                gVec_angs_vtx,
-                rmat_d, rmat_c,
-                chi,
-                tvec_d, tvec_c, tvec_s,
-                distortion,
-                beamVec=bvec)
+        xy_eval_vtx, _, _ = _project_on_detector_plane(
+            gVec_angs_vtx,
+            rmat_d,
+            rmat_c,
+            chi,
+            tvec_d,
+            tvec_c,
+            tvec_s,
+            distortion,
+            beamVec=bvec,
+        )
 
         areas = compute_areas_func(xy_eval_vtx, conn)
 
         # EVALUATION POINTS
         # !!! for lack of a better option will use centroids
         tth_eta_cen = gutil.cellCentroids(
-            np.atleast_2d(gVec_angs_vtx[:, :2]),
-            conn
+            np.atleast_2d(gVec_angs_vtx[:, :2]), conn
         )
 
         gVec_angs = np.hstack(
-            [tth_eta_cen,
-             np.tile(angs[2], (len(tth_eta_cen), 1))]
+            [tth_eta_cen, np.tile(angs[2], (len(tth_eta_cen), 1))]
         )
 
-        xy_eval, rmats_s, on_plane = _project_on_detector_plane(
-                gVec_angs,
-                rmat_d, rmat_c,
-                chi,
-                tvec_d, tvec_c, tvec_s,
-                distortion,
-                beamVec=bvec)
+        xy_eval, _, _ = _project_on_detector_plane(
+            gVec_angs,
+            rmat_d,
+            rmat_c,
+            chi,
+            tvec_d,
+            tvec_c,
+            tvec_s,
+            distortion,
+            beamVec=bvec,
+        )
 
         row_indices = gutil.cellIndices(row_edges, xy_eval[:, 1])
         col_indices = gutil.cellIndices(col_edges, xy_eval[:, 0])
 
-        yield(
-            ((gVec_angs_vtx[:, 0].reshape(m_tth.shape),
-              gVec_angs_vtx[:, 1].reshape(m_tth.shape)),
-             (xy_eval_vtx[:, 0].reshape(m_tth.shape),
-              xy_eval_vtx[:, 1].reshape(m_tth.shape)),
-             conn,
-             areas.reshape(netas, ntths),
-             (xy_eval[:, 0].reshape(netas, ntths),
-              xy_eval[:, 1].reshape(netas, ntths)),
-             (row_indices.reshape(netas, ntths),
-              col_indices.reshape(netas, ntths)))
+        yield (
+            (
+                (
+                    gVec_angs_vtx[:, 0].reshape(m_tth.shape),
+                    gVec_angs_vtx[:, 1].reshape(m_tth.shape),
+                ),
+                (
+                    xy_eval_vtx[:, 0].reshape(m_tth.shape),
+                    xy_eval_vtx[:, 1].reshape(m_tth.shape),
+                ),
+                conn,
+                areas.reshape(netas, ntths),
+                (
+                    xy_eval[:, 0].reshape(netas, ntths),
+                    xy_eval[:, 1].reshape(netas, ntths),
+                ),
+                (
+                    row_indices.reshape(netas, ntths),
+                    col_indices.reshape(netas, ntths),
+                ),
+            )
         )
 
 
-def extract_detector_transformation(detector_params):
+def extract_detector_transformation(
+    detector_params: Union[dict[str, Any], np.ndarray]
+) -> tuple[np.ndarray, np.ndarray, float, np.ndarray]:
     """
     Construct arrays from detector parameters.
 
@@ -1625,13 +1578,14 @@ def extract_detector_transformation(detector_params):
     if isinstance(detector_params, dict):
         rMat_d = xfcapi.makeRotMatOfExpMap(
             np.array(detector_params['detector']['transform']['tilt'])
-            )
+        )
         tVec_d = np.r_[detector_params['detector']['transform']['translation']]
         chi = detector_params['oscillation_stage']['chi']
         tVec_s = np.r_[detector_params['oscillation_stage']['translation']]
     else:
-        assert len(detector_params >= 10), \
-            "list of detector parameters must have length >= 10"
+        assert len(
+            detector_params >= 10
+        ), "list of detector parameters must have length >= 10"
         rMat_d = xfcapi.makeRotMatOfExpMap(detector_params[:3])
         tVec_d = np.ascontiguousarray(detector_params[3:6])
         chi = detector_params[6]
