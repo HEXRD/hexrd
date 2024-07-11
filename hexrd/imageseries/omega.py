@@ -213,8 +213,6 @@ class OmegaWedges(object):
         """
         np.save(fname, self.omegas)
 
-    pass  # end class
-
 
 class OmegaSeriesError(Exception):
     def __init__(self, value):

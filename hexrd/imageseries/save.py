@@ -62,8 +62,6 @@ class _Registry(object):
     def getwriter(cls, name):
         """return instance associated with name"""
         return cls.writer_registry[name]
-    #
-    pass  # end class
 
 
 class Writer(object, metaclass=_RegisterWriter):
@@ -192,8 +190,6 @@ class WriteH5(Writer):
         d['chunks'] = (1, chrows, s1)
 
         return d
-
-    pass  # end class
 
 
 class WriteFrameCache(Writer):

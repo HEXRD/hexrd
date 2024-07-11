@@ -54,7 +54,7 @@ class Detector:
     @property
     @abstractmethod
     def detector_type(self):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def cart_to_angles(
@@ -94,7 +94,7 @@ class Detector:
             DESCRIPTION.
 
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def angles_to_cart(
@@ -134,24 +134,24 @@ class Detector:
             The (n, 2) array on the n input coordinates in the .
 
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def cart_to_dvecs(self, xy_data):
         """Convert cartesian coordinates to dvectors"""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def pixel_angles(self, origin=ct.zeros_3):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def pixel_tth_gradient(self, origin=ct.zeros_3):
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def pixel_eta_gradient(self, origin=ct.zeros_3):
-        pass
+        raise NotImplementedError
 
     @property
     @abstractmethod
@@ -160,7 +160,8 @@ class Detector:
         returns the coordinates of the beam in the cartesian detector
         frame {Xd, Yd, Zd}.  NaNs if no intersection.
         """
-        pass
+        raise NotImplementedError
+
 
     @property
     def extra_config_kwargs(self):
@@ -763,11 +764,10 @@ class Detector:
         elif panel_buffer is None:
             # still None on self
             # !!! this gets handled by unwrap_dict_to_h5 now
-            '''
-            if style.lower() == 'hdf5':
-                # !!! can't write None to hdf5; substitute with zeros
-                panel_buffer = np.r_[0., 0.]
-            '''
+
+            # if style.lower() == 'hdf5':
+            #     # !!! can't write None to hdf5; substitute with zeros
+            #     panel_buffer = np.r_[0., 0.]
             pass
         det_dict['buffer'] = panel_buffer
 
@@ -1300,7 +1300,6 @@ class Detector:
             valid_ang.append(patch_valid_angs)
             valid_xy.append(patch_valid_xys)
             map_indices.append(patch_is_on)
-            pass
         # ??? is this option necessary?
         if full_output:
             return valid_ang, valid_xy, tth_ranges, map_indices, eta_edges
@@ -1634,10 +1633,8 @@ class Detector:
                             wlen >= lmin[i], wlen <= lmax[i]
                         )
                         validEnergy = validEnergy | in_energy_range
-                        pass
                 else:
                     validEnergy = np.logical_and(wlen >= lmin, wlen <= lmax)
-                    pass
 
                 # index for valid reflections
                 keepers = np.where(np.logical_and(on_panel, validEnergy))[0]
@@ -1648,8 +1645,6 @@ class Detector:
                 angles[iG][keepers, :] = tth_eta[keepers, :]
                 dspacing[iG, keepers] = dsp[keepers]
                 energy[iG, keepers] = ct.keVToAngstrom(wlen[keepers])
-                pass  # close conditional on valids
-            pass  # close loop on grains
         return xy_det, hkls_in, angles, dspacing, energy
 
     @staticmethod

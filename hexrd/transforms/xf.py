@@ -645,7 +645,6 @@ def polarRebin(
             log.write(msg)
         else:
             print(msg)
-            pass
 
     rhoI = startRho - 10 * deltaRho
     rhoF = stopRho + 10 * deltaRho
@@ -657,7 +656,6 @@ def polarRebin(
                 log.write(msg)
             else:
                 print(msg)
-                pass
 
         # import pdb;pdb.set_trace()
         etaI1 = rowEta[i] - 10.5 * deltaEta
@@ -848,12 +846,10 @@ def mapAngle(ang, *args, **kwargs):
         while lbi.sum() > 0:
             ang[lbi] = ang[lbi] + period
             lbi = ang < lb
-            pass
         ubi = ang > ub
         while ubi.sum() > 0:
             ang[ubi] = ang[ubi] - period
             ubi = ang > ub
-            pass
         retval = ang
     else:
         retval = np.mod(ang + 0.5 * period, period) - 0.5 * period

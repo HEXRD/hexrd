@@ -225,9 +225,7 @@ for det_key in det_keys:
             tmp.append(
                 np.hstack([xy_meas.squeeze(), tth_meas, tth0[i_ring], eta_ref])
             )
-            pass
         rhs[det_key].append(np.vstack(tmp))
-        pass
     rhs[det_key] = np.array(rhs[det_key])
 
 # %% plot fit poistions
@@ -533,7 +531,6 @@ for rp in rpatches:
     else:
         good_patch = [px, py]
     ax2.plot(px, py, 'm.', markersize=0.1)
-    pass
 ax2.plot(good_patch[0], good_patch[1], 'c.', markersize=0.1)
 aext = np.degrees(
     [np.min(rp[0][0]),

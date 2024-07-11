@@ -1259,10 +1259,7 @@ def _buildDict(hstr):
             hstr = hstr.replace(" ", "")
             if n not in d:
                 d[n] = hstr
-                pass
             di[hstr] = n
-            pass
-        pass
 
     return d, di
 

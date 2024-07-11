@@ -39,5 +39,3 @@ class ImageSeries(ImageSeriesABC):
     @property
     def metadata(self):
         return self._adapter.metadata
-
-    pass  # end class

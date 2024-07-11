@@ -585,7 +585,6 @@ def rotMatOfExpMap_opt(expMap):
     numObjs = expMap.shape[1]
     if numObjs == 1:  # case of single point
         W = np.reshape(W, [1, 3, 3])
-        pass
 
     C1 = np.tile(
         np.reshape(C1, [numObjs, 1]),
@@ -599,8 +598,6 @@ def rotMatOfExpMap_opt(expMap):
     for i in range(3):
         for j in range(3):
             W2[:, i, j] = np.sum(W[:, i, :]*W[:, :, j], 1)
-            pass
-        pass
 
     rmat = C1*W + C2 * W2
     rmat[:, 0, 0] += 1.
@@ -1446,12 +1443,10 @@ def mapAngle(ang, *args, **kwargs):
         while lbi.sum() > 0:
             ang[lbi] = ang[lbi] + period
             lbi = ang < lb
-            pass
         ubi = ang > ub
         while ubi.sum() > 0:
             ang[ubi] = ang[ubi] - period
             ubi = ang > ub
-            pass
         retval = ang
     else:
         retval = mod(ang + 0.5*period, period) - 0.5*period
@@ -1922,5 +1917,3 @@ if __name__ == '__main__':
     dd = np.absolute(d2 - d1)
     print('maximum difference between results')
     print(np.max(dd, 0).max())
-
-    pass

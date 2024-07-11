@@ -47,7 +47,6 @@ try:
     logging.info(f'{rank=} {world_size=} {hostname=}')
 except ImportError:
     logging.warning(f'mpi4py failed to load on {hostname=}. MPI is disabled.')
-    pass
 
 
 # Import of image loading, this should probably be done properly with preprocessed frame-cache binaries
@@ -809,7 +808,6 @@ def evaluate_diffraction_angles(experiment, controller=None):
                                             distortion=None)
         all_angles.append(sim_results[2])
         controller.update(i + 1)
-        pass
     controller.finish(subprocess)
 
     return all_angles
