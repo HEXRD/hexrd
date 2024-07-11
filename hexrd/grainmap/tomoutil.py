@@ -42,9 +42,9 @@ def gen_median_image(
     num_imgs: int,
     nrows: int,
     ncols: int,
-    stem: str='nf_',
-    num_digits: int=5,
-    ext: str='.tif',
+    stem: str = 'nf_',
+    num_digits: int = 5,
+    ext: str = '.tif',
 ) -> np.ndarray:
     img_nums = np.arange(img_start, img_start + num_imgs, 1)
     stack = np.zeros([num_imgs, nrows, ncols])
@@ -53,10 +53,7 @@ def gen_median_image(
     for ii in np.arange(num_imgs):
         print(f'Image #: {ii}')
         stack[ii, :, :] = imgio.imread(
-            data_folder
-            + stem
-            + str(img_nums[ii]).zfill(num_digits)
-            + ext
+            data_folder + stem + str(img_nums[ii]).zfill(num_digits) + ext
         )
 
     print('making median...')
