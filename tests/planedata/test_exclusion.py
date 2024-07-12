@@ -26,7 +26,7 @@ def test_exclusion():
 
     try:
         # Exclude a range
-        pd.exclusions = [[0,2]]
+        pd.exclusions = [[0, 2]]
         assert pd.nHKLs == 1
         assert pd.getNhklRef() == 3
     except NotImplementedError:
