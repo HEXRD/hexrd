@@ -1,0 +1,40 @@
+# generated using pymatgen
+data_Ag(TeMo)6
+_symmetry_space_group_name_H-M   C12/m1
+_cell_length_a   18.19154404
+_cell_length_b   4.58640283
+_cell_length_c   9.54432697
+_cell_angle_alpha   90.00000000
+_cell_angle_beta   120.64044263
+_cell_angle_gamma   90.00000000
+_symmetry_Int_Tables_number   12
+_chemical_formula_structural   Ag(TeMo)6
+_chemical_formula_sum   'Ag2 Te12 Mo12'
+_cell_volume   685.13891770
+_cell_formula_units_Z   2
+loop_
+ _symmetry_equiv_pos_site_id
+ _symmetry_equiv_pos_as_xyz
+  1  'x, y, z'
+  2  '-x, -y, -z'
+  3  '-x, y, -z'
+  4  'x, -y, z'
+  5  'x+1/2, y+1/2, z'
+  6  '-x+1/2, -y+1/2, -z'
+  7  '-x+1/2, y+1/2, -z'
+  8  'x+1/2, -y+1/2, z'
+loop_
+ _atom_site_type_symbol
+ _atom_site_label
+ _atom_site_symmetry_multiplicity
+ _atom_site_fract_x
+ _atom_site_fract_y
+ _atom_site_fract_z
+ _atom_site_occupancy
+  Ag  Ag0  2  0.00000000  0.00000000  0.00000000  1
+  Te  Te1  4  0.04262539  0.50000000  0.25174168  1
+  Te  Te2  4  0.11944913  0.00000000  0.63549223  1
+  Te  Te3  4  0.17922723  0.00000000  0.10636935  1
+  Mo  Mo4  4  0.15422241  0.00000000  0.37963017  1
+  Mo  Mo5  4  0.18804360  0.50000000  0.56415747  1
+  Mo  Mo6  4  0.21503115  0.50000000  0.31690128  1
