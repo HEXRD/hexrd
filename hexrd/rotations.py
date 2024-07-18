@@ -345,58 +345,22 @@ def quatProductMatrix(quats, mult='right'):
         raise RuntimeError("input is the wrong size along the 0-axis")
 
     nq = quats.shape[1]
-
     q0 = quats[0, :].copy()
     q1 = quats[1, :].copy()
     q2 = quats[2, :].copy()
     q3 = quats[3, :].copy()
-
     if mult == 'right':
-        qmats = array(
-            [
-                [q0],
-                [q1],
-                [q2],
-                [q3],
-                [-q1],
-                [q0],
-                [-q3],
-                [q2],
-                [-q2],
-                [q3],
-                [q0],
-                [-q1],
-                [-q3],
-                [-q2],
-                [q1],
-                [q0],
-            ]
-        )
+        qmats = array([[q0], [q1], [q2], [q3],
+                       [-q1], [q0], [-q3], [q2],
+                       [-q2], [q3], [q0], [-q1],
+                       [-q3], [-q2], [q1], [q0]])
     elif mult == 'left':
-        qmats = array(
-            [
-                [q0],
-                [q1],
-                [q2],
-                [q3],
-                [-q1],
-                [q0],
-                [q3],
-                [-q2],
-                [-q2],
-                [-q3],
-                [q0],
-                [q1],
-                [-q3],
-                [q2],
-                [-q1],
-                [q0],
-            ]
-        )
-
+        qmats = array([[q0], [q1], [q2], [q3],
+                       [-q1], [q0], [q3], [-q2],
+                       [-q2], [-q3], [q0], [q1],
+                       [-q3], [q2], [-q1], [q0]])
     # some fancy reshuffling...
     qmats = qmats.T.reshape(nq, 4, 4).transpose(0, 2, 1)
-
     return qmats
 
 
@@ -423,6 +387,7 @@ def quatOfAngleAxis(angle, rotaxis):
         raise RuntimeError("rotation axes argument has incompatible shape")
 
     # Normalize the axes
+    rotaxis = unitVector(rotaxis)
     rot = R.from_rotvec((angle * rotaxis).T)
     return _scipy_rotation_to_quat(rot)
 
@@ -460,7 +425,7 @@ def quatOfExpMap(expMaps):
             "your input quaternions must have shape (%d, n) for n > 1" % cdim
         )
 
-    return _scipy_rotation_to_quat(R.from_rotvec(expMaps)).squeeze()
+    return _scipy_rotation_to_quat(R.from_rotvec(expMaps.T)).squeeze()
 
 
 def quatOfRotMat(r_mat):

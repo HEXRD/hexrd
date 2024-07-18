@@ -221,6 +221,22 @@ def test_exp_map_of_quat(num_quats):
         assert allclose(rot_mat, rot_mat2)
 
 
+def test_quat_of_exp_map(num_quats):
+    """
+    Make sure quatOfExpMap and expMapOfQuat are inverses
+    """
+    np.random.seed(0)
+    for _ in range(100):
+        quat = rand_quat(num_quats)
+        if num_quats == 1:
+            quat = rotations.fixQuat(quat.T).T[0]
+        else:
+            quat = rotations.fixQuat(quat.T)
+        exp_map = rotations.expMapOfQuat(quat)
+        quat2 = rotations.quatOfExpMap(exp_map)
+        assert allclose(quat, quat2)
+
+
 def test_quat_of_rot_mat(num_quats):
     """
     Make sure quatOfRotMat and rotMatOfQuat are inverses
