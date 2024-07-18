@@ -596,128 +596,17 @@ def expMapOfQuat(quats):
             "your input quaternions must have shape (%d, n) for n > 1" % cdim
         )
 
-    # ok, we have hstacked quats; get angle
-    phis = 2.0 * arccosSafe(quats[0, :])
-
-    # now axis
-    ns = unitVector(quats[1:, :])
-
-    # reassemble
-    expmaps = phis * ns
-    return expmaps.squeeze()
+    return _quat_to_scipy_rotation(quats).as_rotvec().T.squeeze()
 
 
-def rotMatOfExpMap_opt(expMap):
-    """Optimized version of rotMatOfExpMap"""
+def rotMatOfExpMap(expMap):
+    """
+    Make a rotation matrix from an expmap
+    """
     if expMap.ndim == 1:
         expMap = expMap.reshape(3, 1)
 
-    # angles of rotation from exponential maps
-    phi = atleast_1d(columnNorm(expMap))
-
-    # skew matrices of exponential maps
-    W = skewMatrixOfVector(expMap)
-
-    # Find tiny angles to avoid divide-by-zero and apply limits in expressions
-    zeroIndex = phi < cnst.epsf
-    phi[zeroIndex] = 1
-
-    # first term
-    C1 = sin(phi) / phi
-    C1[zeroIndex] = 1  # is this right?  might be OK since C1 multiplies W
-
-    # second term
-    C2 = (1 - cos(phi)) / phi**2
-    C2[zeroIndex] = 0.5  # won't matter because W^2 is small
-
-    numObjs = expMap.shape[1]
-    if numObjs == 1:  # case of single point
-        W = np.reshape(W, [1, 3, 3])
-
-    C1 = np.tile(np.reshape(C1, [numObjs, 1]), [1, 9]).reshape([numObjs, 3, 3])
-    C2 = np.tile(np.reshape(C2, [numObjs, 1]), [1, 9]).reshape([numObjs, 3, 3])
-
-    W2 = np.zeros([numObjs, 3, 3])
-
-    for i in range(3):
-        for j in range(3):
-            W2[:, i, j] = np.sum(W[:, i, :] * W[:, :, j], 1)
-
-    rmat = C1 * W + C2 * W2
-    rmat[:, 0, 0] += 1.0
-    rmat[:, 1, 1] += 1.0
-    rmat[:, 2, 2] += 1.0
-
-    return rmat.squeeze()
-
-
-def rotMatOfExpMap_orig(expMap):
-    """
-    Original rotMatOfExpMap, used for comparison to optimized version
-    """
-    if isinstance(expMap, ndarray):
-        if expMap.ndim != 2:
-            if expMap.ndim == 1 and len(expMap) == 3:
-                numObjs = 1
-                expMap = expMap.reshape(3, 1)
-            else:
-                raise RuntimeError("input is the wrong dimensionality")
-        elif expMap.shape[0] != 3:
-            raise RuntimeError(
-                "input is the wrong shape along the 0-axis; "
-                + "Yours is %d when is should be 3" % (expMap.shape[0])
-            )
-        else:
-            numObjs = expMap.shape[1]
-    elif isinstance(expMap, list) or isinstance(expMap, tuple):
-        if len(expMap) != 3:
-            raise RuntimeError(
-                "for list/tuple input only one exponential map "
-                + "vector is allowed"
-            )
-        else:
-            if (
-                not isscalar(expMap[0])
-                or not isscalar(expMap[1])
-                or not isscalar(expMap[2])
-            ):
-                raise RuntimeError(
-                    "for list/tuple input only one exponential map "
-                    + "vector is allowed"
-                )
-            else:
-                numObjs = 1
-                expMap = asarray(expMap).reshape(3, 1)
-
-    phi = columnNorm(expMap)  # angles of rotation from exponential maps
-    W = skewMatrixOfVector(expMap)  # skew matrices of exponential maps
-
-    # Find tiny angles to avoid divide-by-zero and apply limits in expressions
-    zeroIndex = phi < cnst.epsf
-    phi[zeroIndex] = 1
-
-    # first term
-    C1 = sin(phi) / phi
-    C1[zeroIndex] = 1
-
-    # second term
-    C2 = (1 - cos(phi)) / phi**2
-    C2[zeroIndex] = 1
-
-    if numObjs == 1:
-        rmat = I3 + C1 * W + C2 * dot(W, W)
-    else:
-        rmat = zeros((numObjs, 3, 3))
-        for i in range(numObjs):
-            rmat[i, :, :] = (
-                I3 + C1[i] * W[i, :, :] + C2[i] * dot(W[i, :, :], W[i, :, :])
-            )
-
-    return rmat
-
-
-# Donald Boyce's
-rotMatOfExpMap = rotMatOfExpMap_opt
+    return R.from_rotvec(expMap.T).as_matrix().squeeze()
 
 
 @njit(cache=True, nogil=True)
@@ -828,8 +717,7 @@ def angleAxisOfRotMat(rot_mat):
                 % (rdim)
             )
 
-    rotation = R.from_matrix(rot_mat)
-    rot_vec = rotation.as_rotvec()
+    rot_vec = R.from_matrix(rot_mat).as_rotvec()
     angs = np.linalg.norm(rot_vec, axis=1)
     axes = unitVector(rot_vec.T)
     return angs, axes
@@ -1077,7 +965,9 @@ class RotMatEuler(object):
         axo = self.axes_order
         if not self.extrinsic:
             axo = axo.upper()
-        self._angles = R.from_matrix(rmat).as_euler(axo, self.units == 'degrees')
+        self._angles = R.from_matrix(rmat).as_euler(
+            axo, self.units == 'degrees'
+        )
 
     @property
     def exponential_map(self):
@@ -1772,82 +1662,3 @@ def quatOfLaueGroup(tag):
     qsym = array(quatOfAngleAxis(angle, axis).T, order='C').T
 
     return qsym
-
-
-# =============================================================================
-# Tests
-# =============================================================================
-
-
-def printTestName(num, name):
-    print('==================== Test %d:  %s' % (num, name))
-
-
-def testRotMatOfExpMap(numpts):
-    """Test rotation matrix from axial vector."""
-    print('* checking case of 1D vector input')
-    map = np.zeros(3)
-    rmat_1 = rotMatOfExpMap_orig(map)
-    rmat_2 = rotMatOfExpMap_opt(map)
-    print('resulting shapes:  ', rmat_1.shape, rmat_2.shape)
-    #
-    #
-    map = np.random.rand(3, numPts)
-    map = np.zeros([3, numPts])
-    map[0, :] = np.linspace(0, np.pi, numPts)
-    #
-    print('* testing rotMatOfExpMap with %d random points' % numPts)
-    #
-    t0 = timeit.default_timer()
-    rmat_1 = rotMatOfExpMap_orig(map)
-    et1 = timeit.default_timer() - t0
-    #
-    t0 = timeit.default_timer()
-    rmat_2 = rotMatOfExpMap_opt(map)
-    et2 = timeit.default_timer() - t0
-    #
-    print('   timings:\n   ... original ', et1)
-    print('   ... optimized', et2)
-    #
-    drmat = np.absolute(rmat_2 - rmat_1)
-    print('maximum difference between results')
-    print(np.amax(drmat, 0))
-
-    return
-
-
-if __name__ == '__main__':
-    #
-    #  Simple tests.
-    #
-    #  1. Exponential map.
-    #
-    printTestName(1, 'rotMatOfExpMap')
-    numPts = 10000
-    testRotMatOfExpMap(numPts)
-    #
-    #  2.  Angular difference
-    #
-    num = 2
-    name = 'angularDifference'
-    printTestName(num, name)
-    units = 'radians'
-    numPts = 1000000
-    a1 = 2 * np.pi * np.random.rand(3, numPts) - np.pi
-    a2 = 2 * np.pi * np.random.rand(3, numPts) - np.pi
-    print('* testing %s with %d random points' % (name, numPts))
-    #
-    t0 = timeit.default_timer()
-    d1 = angularDifference_orig(a1, a2)
-    et1 = timeit.default_timer() - t0
-    #
-    t0 = timeit.default_timer()
-    d2 = angularDifference_opt(a1, a2)
-    et2 = timeit.default_timer() - t0
-    #
-    print('   timings:\n   ... original ', et1)
-    print('   ... optimized', et2)
-    #
-    dd = np.absolute(d2 - d1)
-    print('maximum difference between results')
-    print(np.max(dd, 0).max())
