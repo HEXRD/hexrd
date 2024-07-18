@@ -29,25 +29,20 @@
 # Module containing functions relevant to rotations
 #
 import sys
-import timeit
 
 import numpy as np
 from numpy import (
     arange,
-    arctan2,
     array,
     argmax,
     asarray,
     atleast_1d,
     average,
     ndarray,
-    diag,
     zeros,
-    cross,
     dot,
     pi,
     arccos,
-    arcsin,
     cos,
     sin,
     sqrt,
@@ -59,7 +54,6 @@ from numpy import (
     ix_,
     abs,
     mod,
-    sign,
     finfo,
     isscalar,
 )
@@ -73,7 +67,6 @@ from hexrd import constants as cnst
 from hexrd.matrixutil import (
     columnNorm,
     unitVector,
-    skewMatrixOfVector,
     findDuplicateVectors,
     multMatArray,
     nullSpace,
