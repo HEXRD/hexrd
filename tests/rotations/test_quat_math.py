@@ -64,7 +64,7 @@ def test_quat_mult(num_quats):
 
 def test_quat_mult_one_to_many():
     """
-    quatProduct supports one quaternion multiplied by many others, test this
+    quatProduct supports one quaternion multiplied by many others
     """
     np.random.seed(0)
     for _ in range(100):
