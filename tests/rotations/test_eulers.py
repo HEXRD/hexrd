@@ -93,11 +93,3 @@ def test_units_setter():
         assert rot.units == 'radians'
         assert np.allclose(old_angs, rot.angles)
         assert np.allclose(rot.rmat, scipy_rot.as_matrix())
-
-
-def pytest_generate_tests(metafunc):
-    """
-    Make sure methods work with multiple quaternions as well as single inputs.
-    """
-    if 'num_quats' in metafunc.fixturenames:
-        metafunc.parametrize('num_quats', [1, 10])
