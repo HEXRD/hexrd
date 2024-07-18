@@ -5,6 +5,13 @@ import numpy as np
 from hexrd import rotations
 
 
+def allclose(a, b):
+    """
+    numpy all close but make sure shapes are the same
+    """
+    return a.shape == b.shape and np.allclose(a, b)
+
+
 def rand_quat(n=1):
     """
     Generate a random unit quaternion for other methods
@@ -25,7 +32,7 @@ def test_make_rotmat(num_quats):
     Make rotmats with scipy and rotations.py from quternions, and compare
     """
     np.random.seed(0)
-
+    
     for _ in range(100):
         q = rand_quat(num_quats)
         if num_quats == 1:
@@ -35,7 +42,7 @@ def test_make_rotmat(num_quats):
         # Compute the rotation matrix using rotations.py
         R_rotations = rotations.rotMatOfQuat(q if num_quats == 1 else q.T)
         # Compare the rotation matrices
-        assert np.allclose(R_scipy, R_rotations)
+        assert allclose(R_scipy, R_rotations)
 
 
 def test_quat_mult(num_quats):
@@ -146,8 +153,12 @@ def test_quat_product_matrix(num_quats):
         prod1_scipy = rotations.fixQuat(prod1_scipy.T).T
         prod2_scipy = rotations.fixQuat(prod2_scipy.T).T
 
-        assert np.allclose(prod1, prod1_scipy)
-        assert np.allclose(prod2, prod2_scipy)
+        if num_quats == 1:
+            prod1_scipy = prod1_scipy[0]
+            prod2_scipy = prod2_scipy[0]
+
+        assert allclose(prod1, prod1_scipy)
+        assert allclose(prod2, prod2_scipy)
 
 
 def test_quat_of_angle_axis(num_quats):
@@ -172,7 +183,7 @@ def test_quat_of_angle_axis(num_quats):
         # Fix scipy results so it's in the right format
         q_scipy = np.roll(q_scipy, 1, axis=1)
         q_scipy = rotations.fixQuat(q_scipy.T).T
-        assert np.allclose(q_rotations, q_scipy)
+        assert allclose(q_rotations, q_scipy)
 
 
 def test_quat_of_angle_axis_single_axis():
@@ -189,7 +200,7 @@ def test_quat_of_angle_axis_single_axis():
         axes = np.tile(axis, (len(angles), 1)).T
         q_rotations2 = rotations.quatOfAngleAxis(angles, axes)
 
-        assert np.allclose(q_rotations, q_rotations2)
+        assert allclose(q_rotations, q_rotations2)
 
 
 def test_exp_map_of_quat(num_quats):
@@ -207,8 +218,44 @@ def test_exp_map_of_quat(num_quats):
         exp_map = rotations.expMapOfQuat(quat)
         # Make sure these representations agree
         rot_mat2 = rotations.rotMatOfExpMap(exp_map)
-        assert np.allclose(rot_mat, rot_mat2)
+        assert allclose(rot_mat, rot_mat2)
 
+
+def test_quat_of_rot_mat(num_quats):
+    """
+    Make sure quatOfRotMat and rotMatOfQuat are inverses
+    """
+    np.random.seed(0)
+    for _ in range(100):
+        quat = rand_quat(num_quats)
+        if num_quats == 1:
+            quat = rotations.fixQuat(quat.T).T[0]
+        else:
+            quat = rotations.fixQuat(quat.T)
+        rot_mat = rotations.rotMatOfQuat(quat)
+        quat2 = rotations.quatOfRotMat(rot_mat)
+        if num_quats == 1:
+            quat2 = quat2.T[0]
+        assert allclose(quat, quat2)
+
+
+def test_angle_axis_of_rot_mat(num_quats):
+    """
+    Assuming quat math is right, check if this function agrees
+    """
+    np.random.seed(0)
+    for _ in range(100):
+        quat = rand_quat(num_quats)
+        if num_quats == 1:
+            quat = rotations.fixQuat(quat.T).T[0]
+        else:
+            quat = rotations.fixQuat(quat.T)
+        rot_mat = rotations.rotMatOfQuat(quat)
+        angle, axis = rotations.angleAxisOfRotMat(rot_mat)
+        quat2 = rotations.quatOfAngleAxis(angle, axis)
+        if num_quats == 1:
+            quat2 = quat2.T[0]
+        assert allclose(quat, quat2)
 
 def pytest_generate_tests(metafunc):
     """
