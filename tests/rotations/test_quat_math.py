@@ -17,8 +17,7 @@ def quat_to_scipy_rotation(q):
     """
     scipy has quaternions written in a differnt order, so we need to convert
     """
-    return R.from_quat(np.roll(q, -1, axis = q.ndim-1))
-
+    return R.from_quat(np.roll(q, -1, axis=q.ndim - 1))
 
 
 def test_make_rotmat(num_quats):
@@ -43,7 +42,7 @@ def test_quat_mult(num_quats):
     """
     Generate quaternions and test if multiplication works
     """
-    np.random.seed()
+    np.random.seed(0)
     for _ in range(100):
         # Generate two random unit quaternions
         q1 = rand_quat(num_quats)
@@ -60,6 +59,36 @@ def test_quat_mult(num_quats):
 
         # Compare the results
         for a, b in zip(r_12, r_qp):
+            assert a.approx_equal(b)
+
+
+def test_quat_mult_one_to_many():
+    """
+    quatProduct supports one quaternion multiplied by many others, test this
+    """
+    np.random.seed(0)
+    for _ in range(100):
+        # Generate two random unit quaternions
+        q1 = rand_quat(10)
+        q2 = rand_quat()
+        # Compute the product of the quaternions
+        qp1 = rotations.quatProduct(q1.T, q2.T).T
+        qp2 = rotations.quatProduct(q2.T, q1.T).T
+
+        # Do the same in scipy
+        r1 = quat_to_scipy_rotation(q1)
+        r2 = quat_to_scipy_rotation(q2)
+
+        r_12 = r2 * r1
+        r_21 = r1 * r2
+        r_qp1 = quat_to_scipy_rotation(qp1)
+        r_qp2 = quat_to_scipy_rotation(qp2)
+
+        # Compare the results
+        for a, b in zip(r_12, r_qp1):
+            assert a.approx_equal(b)
+
+        for a, b in zip(r_21, r_qp2):
             assert a.approx_equal(b)
 
 
@@ -86,29 +115,40 @@ def test_invert_quat(num_quats):
 
 def test_quat_product_matrix(num_quats):
     """
-    Ensure quatProductMatrix matches quatProduct
+    Ensure quatProductMatrix works
     """
+    np.random.seed(0)
     for _ in range(100):
-        # Generate a random unit quaternion
+        # Generate the quaternions for the matrix
         q1 = rand_quat(num_quats)
-        q2 = rand_quat(num_quats)
-        # Compute the product matrix using rotations.py
-        R_rotations1 = rotations.quatProductMatrix(q1.T, mult='left')
-        R_rotations2 = rotations.quatProductMatrix(q2.T, mult='right')
-        prod1 = np.array([
-            R_rotations1.dot(np.array([a]).T)[i].T[0] for i, a in enumerate(q2)
-        ])
-        prod2 = np.array([
-            R_rotations2.dot(np.array([a]).T)[i].T[0] for i, a in enumerate(q1)
-        ])
-        prod = rotations.quatProduct(q2.T, q1.T).T
+        # Quat to multiply by
+        q_mult = rand_quat()
+        # Compute the product matrix 
+        left_matrix = rotations.quatProductMatrix(q1.T, mult='left')
+        right_matrix = rotations.quatProductMatrix(q1.T, mult='right')
+        prod1 = np.dot(left_matrix, q_mult.T)
+        prod2 = np.dot(right_matrix, q_mult.T)
+
 
         # Normalize products (should only change the sign if "necessary").
-        prod1 = rotations.fixQuat(prod1.T).T
-        prod2 = rotations.fixQuat(prod2.T).T
+        prod1 = rotations.fixQuat(prod1).squeeze()
+        prod2 = rotations.fixQuat(prod2).squeeze()
 
-        assert np.allclose(prod1, prod)
-        assert np.allclose(prod2, prod)
+        prod1_scipy = (quat_to_scipy_rotation(q1) * quat_to_scipy_rotation(
+            q_mult
+        )).as_quat()
+        prod2_scipy = (quat_to_scipy_rotation(q_mult) * quat_to_scipy_rotation(
+            q1
+        )).as_quat()
+
+        # Fix the scipy results
+        prod1_scipy = np.roll(prod1_scipy, 1, axis=1)
+        prod2_scipy = np.roll(prod2_scipy, 1, axis=1)
+        prod1_scipy = rotations.fixQuat(prod1_scipy.T).T
+        prod2_scipy = rotations.fixQuat(prod2_scipy.T).T
+
+        assert np.allclose(prod1, prod1_scipy)
+        assert np.allclose(prod2, prod2_scipy)
 
 
 def test_quat_of_angle_axis(num_quats):
@@ -131,7 +171,7 @@ def test_quat_of_angle_axis(num_quats):
         # Compute the quaternion using scipy
         q_scipy = R.from_rotvec((axis * angle).T).as_quat()
         # Fix scipy results so it's in the right format
-        q_scipy = np.roll(q_scipy,1, axis=1)
+        q_scipy = np.roll(q_scipy, 1, axis=1)
         q_scipy = rotations.fixQuat(q_scipy.T).T
         assert np.allclose(q_rotations, q_scipy)
 
