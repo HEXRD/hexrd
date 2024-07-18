@@ -81,7 +81,7 @@ def test_units_setter():
     for _ in range(1000):
         rot, scipy_rot = random_rot_mat_euler()
         old_angs = rot.angles
-        
+
         # Change to degrees, make sure angs changed but rotation matrix doesn't
         rot.units = 'degrees'
         assert rot.units == 'degrees'

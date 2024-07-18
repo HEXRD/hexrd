@@ -123,23 +123,22 @@ def test_quat_product_matrix(num_quats):
         q1 = rand_quat(num_quats)
         # Quat to multiply by
         q_mult = rand_quat()
-        # Compute the product matrix 
+        # Compute the product matrix
         left_matrix = rotations.quatProductMatrix(q1.T, mult='left')
         right_matrix = rotations.quatProductMatrix(q1.T, mult='right')
         prod1 = np.dot(left_matrix, q_mult.T)
         prod2 = np.dot(right_matrix, q_mult.T)
 
-
         # Normalize products (should only change the sign if "necessary").
         prod1 = rotations.fixQuat(prod1).squeeze()
         prod2 = rotations.fixQuat(prod2).squeeze()
 
-        prod1_scipy = (quat_to_scipy_rotation(q1) * quat_to_scipy_rotation(
-            q_mult
-        )).as_quat()
-        prod2_scipy = (quat_to_scipy_rotation(q_mult) * quat_to_scipy_rotation(
-            q1
-        )).as_quat()
+        prod1_scipy = (
+            quat_to_scipy_rotation(q1) * quat_to_scipy_rotation(q_mult)
+        ).as_quat()
+        prod2_scipy = (
+            quat_to_scipy_rotation(q_mult) * quat_to_scipy_rotation(q1)
+        ).as_quat()
 
         # Fix the scipy results
         prod1_scipy = np.roll(prod1_scipy, 1, axis=1)
