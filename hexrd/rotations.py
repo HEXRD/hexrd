@@ -459,11 +459,8 @@ def quatOfExpMap(expMaps):
         assert len(expMaps) == cdim, (
             "your input quaternions must have shape (%d, n) for n > 1" % cdim
         )
-    angles = columnNorm(expMaps)
-    axes = unitVector(expMaps)
 
-    quats = quatOfAngleAxis(angles, axes)
-    return quats.squeeze()
+    return _scipy_rotation_to_quat(R.from_rotvec(expMaps)).squeeze()
 
 
 def quatOfRotMat(r_mat):
