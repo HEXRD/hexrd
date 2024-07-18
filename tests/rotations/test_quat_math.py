@@ -32,7 +32,7 @@ def test_make_rotmat(num_quats):
     Make rotmats with scipy and rotations.py from quternions, and compare
     """
     np.random.seed(0)
-    
+
     for _ in range(100):
         q = rand_quat(num_quats)
         if num_quats == 1:
@@ -256,6 +256,7 @@ def test_angle_axis_of_rot_mat(num_quats):
         if num_quats == 1:
             quat2 = quat2.T[0]
         assert allclose(quat, quat2)
+
 
 def pytest_generate_tests(metafunc):
     """
