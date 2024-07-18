@@ -186,7 +186,7 @@ def test_quat_of_angle_axis_single_axis():
         axis /= np.linalg.norm(axis)
         q_rotations = rotations.quatOfAngleAxis(angles, np.array([axis]).T)
         # Turn axis into a list of axes
-        axes = np.array([axis]).T.dot([angles])
+        axes = np.tile(axis, (len(angles), 1)).T
         q_rotations2 = rotations.quatOfAngleAxis(angles, axes)
 
         assert np.allclose(q_rotations, q_rotations2)
