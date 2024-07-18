@@ -44,6 +44,7 @@ from numpy import float_ as nFloat
 from numpy import int_ as nInt
 from numba import njit
 from scipy.optimize import leastsq
+from scipy.spatial.transform import Rotation as R
 
 from hexrd import constants as cnst
 from hexrd.matrixutil import \
@@ -106,6 +107,20 @@ def arccosSafe(temp):
 #
 #  ==================== Quaternions
 #
+
+def _quat_to_scipy_rotation(q: np.ndarray) -> R:
+    """
+    Scipy has quaternions in a differnt order, this method converts them
+    q must be a 2d array of shape (4, n).
+    """
+    return R.from_quat(np.roll(q.T, -1, axis=1))
+
+
+def _scipy_rotation_to_quat(r: R) -> np.ndarray:
+    quat = np.roll(np.atleast_2d(r.as_quat()), 1, axis=1).T
+    # Fix quat would work, but it does too much.  Only need to check positive
+    quat *= np.sign(quat[0,:])
+    return quat
 
 
 def fixQuat(q):
@@ -264,30 +279,10 @@ def quatProduct(q1, q2):
 
     R(qp) = R(q2) R(q1)
     """
-    n1 = q1.shape[1]
-    n2 = q2.shape[1]
-
-    nq = 1
-    if n1 == 1 or n2 == 1:
-        if n2 > n1:
-            q1 = tile(q1, (1, n2))
-            nq = n2
-        else:
-            q2 = tile(q2, (1, n1))
-            nq = n1
-
-    # Changed just to show that the testcases are correct, old implementation
-    # did not work when both inputs were (4, n)
-    # see https://github.com/HEXRD/hexrd/issues/684
-    # Will replace this with scipy rotation after showing that testcases
-    # are correct
-
-    qp = zeros((4, nq))
-    for i in range(nq):
-        q2_matrix = quatProductMatrix(q2[:, i].reshape(4, 1), mult='left')
-        qp[:, i] = dot(q2_matrix, q1[:, i])
-
-    return fixQuat(qp)
+    rot_1 = _quat_to_scipy_rotation(q1)
+    rot_2 = _quat_to_scipy_rotation(q2)
+    rot_p = rot_2 * rot_1
+    return _scipy_rotation_to_quat(rot_p)
 
 
 def quatProductMatrix(quats, mult='right'):
@@ -346,6 +341,9 @@ def quatProductMatrix(quats, mult='right'):
 
 
 def quatOfAngleAxis(angle, rotaxis):
+    print("Running")
+    print(angle)
+    print(rotaxis)
     """
     make an hstacked array of quaternions from arrays of angle/axis pairs
     """
@@ -364,9 +362,16 @@ def quatOfAngleAxis(angle, rotaxis):
 
     if rotaxis.shape[1] == 1:
         rotaxis = tile(rotaxis, (1, n))
-    else:
-        if rotaxis.shape[1] != n:
-            raise RuntimeError("rotation axes argument has incompatible shape")
+    elif rotaxis.shape[1] != n:
+        raise RuntimeError("rotation axes argument has incompatible shape")
+
+
+    print(angle)
+    print(rotaxis.T)
+    print((angle * rotaxis).T)
+
+    rot = R.from_rotvec((angle * rotaxis).T)
+    return _scipy_rotation_to_quat(rot)
 
     halfangle = 0.5*angle
     cphiby2 = cos(halfangle)
