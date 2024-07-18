@@ -194,7 +194,7 @@ def test_quat_of_angle_axis_single_axis():
 
 def test_exp_map_of_quat(num_quats):
     """
-    Generate quaternions from exponential maps, and compare with scipy
+    Generate quaternions from exponential maps, and compare with rotMats
     """
     np.random.seed(0)
     for _ in range(100):
