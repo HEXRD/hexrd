@@ -2,8 +2,6 @@ from scipy.spatial.transform import Rotation as R
 
 import numpy as np
 
-from math import copysign
-
 from hexrd import rotations
 
 
@@ -16,7 +14,9 @@ def random_rot_mat_euler():
     rotation = R.from_quat(quats)
 
     # Extrinsic or intrinsic, random
-    extrinsic = np.random.choice([True, False])
+    extrinsic = bool(np.random.choice([True, False]))
+
+    units = np.random.choice(['degrees', 'radians'])
 
     # Generate random euler angle sequence
     seq = np.random.choice(
@@ -38,15 +38,16 @@ def random_rot_mat_euler():
     if not extrinsic:
         seq = seq.upper()
 
-    angs = rotation.as_euler(seq)
+    angs = rotation.as_euler(seq, units == 'degrees')
 
-    return rotations.RotMatEuler(angs, seq.lower(), extrinsic), rotation
+    return rotations.RotMatEuler(angs, seq.lower(), extrinsic, units), rotation
 
 
 def test_rot_mat_euler_constructor():
     """
     Generate a bunch of random rotMatEulers and check that they are set right
     """
+    np.random.seed(0)
     for _ in range(1000):
         rot, scipy_rot = random_rot_mat_euler()
         assert isinstance(rot, rotations.RotMatEuler)
@@ -55,13 +56,16 @@ def test_rot_mat_euler_constructor():
         if not rot.extrinsic:
             seq = seq.upper()
 
-        assert np.allclose(rot.angles, scipy_rot.as_euler(seq))
+        assert np.allclose(
+            rot.angles, scipy_rot.as_euler(seq, rot.units == 'degrees')
+        )
 
 
 def test_vals_from_rot_mat_euler():
     """
     Make sure that the euler maps create the correct rotation mat and expmap
     """
+    np.random.seed(0)
     for _ in range(1000):
         rot, scipy_rot = random_rot_mat_euler()
         assert np.allclose(rot.rmat, scipy_rot.as_matrix())
@@ -78,18 +82,64 @@ def test_units_setter():
     """
     Check if updating units breaks anything
     """
+    np.random.seed(0)
     for _ in range(1000):
         rot, scipy_rot = random_rot_mat_euler()
         old_angs = rot.angles
 
+        cur_unit = rot.units
+        other_unit = 'radians' if cur_unit == 'degrees' else 'degrees'
+
         # Change to degrees, make sure angs changed but rotation matrix doesn't
-        rot.units = 'degrees'
-        assert rot.units == 'degrees'
+        rot.units = other_unit
+        assert rot.units == other_unit
         assert not np.allclose(old_angs, rot.angles)
         assert np.allclose(rot.rmat, scipy_rot.as_matrix())
 
         # Change back
-        rot.units = 'radians'
-        assert rot.units == 'radians'
+        rot.units = cur_unit
+        assert rot.units == cur_unit
         assert np.allclose(old_angs, rot.angles)
         assert np.allclose(rot.rmat, scipy_rot.as_matrix())
+
+
+def test_rmat_setter():
+    """
+    Make sure updating the rmat changes things properly
+    """
+    np.random.seed(0)
+    for _ in range(1000):
+        rot1, _ = random_rot_mat_euler()
+        rot2, _ = random_rot_mat_euler()
+
+        # Change the rmat
+        try:
+            rot1.units = rot2.units
+            rot1.axes_order = rot2.axes_order
+            rot1.extrinsic = rot2.extrinsic
+            rot1.rmat = rot2.rmat
+            assert np.allclose(rot1.angles, rot2.angles)
+        except NotImplementedError:
+            # Not all axis orders are implemented
+            pass
+
+
+def test_exp_map_setter():
+    """
+    Make sure updating the expmap changes things properly
+    """
+    np.random.seed(0)
+    for _ in range(1000):
+        rot1, _ = random_rot_mat_euler()
+        rot2, _ = random_rot_mat_euler()
+
+        # Change the expmap
+        try:
+            rot1.units = rot2.units
+            rot1.axes_order = rot2.axes_order
+            rot1.extrinsic = rot2.extrinsic
+            rot1.exponential_map = rot2.exponential_map
+            assert np.allclose(rot1.angles, rot2.angles)
+        except NotImplementedError:
+            # Not all axis orders are implemented
+            pass

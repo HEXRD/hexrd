@@ -913,20 +913,7 @@ def angles_from_rmat_xyz(rmat):
     """
     rmat = _check_is_rmat(rmat)
 
-    eps = sqrt(finfo('float').eps)
-    ry = -arcsin(rmat[2, 0])
-    sgny = sign(ry)
-    if abs(ry) < 0.5 * pi - eps:
-        cosy = cos(ry)
-        rz = arctan2(rmat[1, 0] / cosy, rmat[0, 0] / cosy)
-        rx = arctan2(rmat[2, 1] / cosy, rmat[2, 2] / cosy)
-    else:
-        rz = 0.5 * arctan2(sgny * rmat[1, 2], sgny * rmat[0, 2])
-        if sgny > 0:
-            rx = -rz
-        else:
-            rx = rz
-    return rx, ry, rz
+    return R.from_matrix(rmat).as_euler('xyz')
 
 
 def angles_from_rmat_zxz(rmat):
@@ -950,21 +937,7 @@ def angles_from_rmat_zxz(rmat):
     """
     rmat = _check_is_rmat(rmat)
 
-    if abs(rmat[2, 2]) > 1.0 - sqrt(finfo('float').eps):
-        beta = 0.0
-        alpha = arctan2(rmat[1, 0], rmat[0, 0])
-        gamma = 0.0
-    else:
-        xnew = rmat[:, 0]
-        znew = rmat[:, 2]
-        alpha = arctan2(znew[0], -znew[1])
-        rma = rotMatOfExpMap(alpha * c_[0.0, 0.0, 1.0].T)
-        znew1 = dot(rma.T, znew)
-        beta = arctan2(-znew1[1], znew1[2])
-        rmb = rotMatOfExpMap(beta * c_[cos(alpha), sin(alpha), 0.0].T)
-        xnew2 = dot(rma.T, dot(rmb.T, xnew))
-        gamma = arctan2(xnew2[1], xnew2[0])
-    return alpha, beta, gamma
+    return R.from_matrix(rmat).as_euler('ZXZ')
 
 
 class RotMatEuler(object):
@@ -1096,37 +1069,15 @@ class RotMatEuler(object):
 
         Returns
         -------
-        None.
-
-        Notes
-        -----
-        1) This requires case-by-case implementations for all 24 possible
-           combinations of axes order and convention.
-        2) May be able to use SciPy to fill in some additional conventions.  As
-           for now, the api for a function that yields angles from simply takes
-           in a rotation matrix and yields the angles in radians.
+        None.WW
         """
         rmat = _check_is_rmat(x)
         self._rmat = rmat
-        if self.axes_order == 'xyz':
-            if self.extrinsic:
-                angles = angles_from_rmat_xyz(rmat)
-            else:
-                raise NotImplementedError
-        elif self.axes_order == 'zxz':
-            if self.extrinsic:
-                raise NotImplementedError
-            else:
-                angles = angles_from_rmat_zxz(rmat)
-        else:
-            raise NotImplementedError
 
-        # set self.angles according to self.units
-        # !!! at this point angles are in radians
-        if self.units == 'degrees':
-            self._angles = conversion_to_dict['degrees'] * np.asarray(angles)
-        else:
-            self._angles = angles
+        axo = self.axes_order
+        if not self.extrinsic:
+            axo = axo.upper()
+        self._angles = R.from_matrix(rmat).as_euler(axo, self.units == 'degrees')
 
     @property
     def exponential_map(self):
