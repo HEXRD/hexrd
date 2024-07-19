@@ -1141,56 +1141,35 @@ def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
 #
 
 
-def mapAngle(ang, *args, **kwargs):
+def mapAngle(ang, ang_range=None, units=angularUnits):
     """
     Utility routine to map an angle into a specified period
     """
-    period = 2.0 * np.pi  # radians
-    units = angularUnits  # usually
-
-    kwargKeys = list(kwargs.keys())
-    for iArg in range(len(kwargKeys)):
-        if kwargKeys[iArg] == 'units':
-            units = kwargs[kwargKeys[iArg]]
-        else:
-            raise RuntimeError(
-                "Unknown keyword argument: " + str(kwargKeys[iArg])
-            )
-
     if units.lower() == 'degrees':
         period = 360.0
-    elif units.lower() != 'radians':
+    elif units.lower() == 'radians':
+        period = 2.0 * np.pi
+    else:
         raise RuntimeError(
-            "unknown angular units: " + str(kwargs[kwargKeys[iArg]])
+            "unknown angular units: " + units
         )
 
-    ang = np.atleast_1d(np.float_(ang))
+    ang = np.nan_to_num(np.atleast_1d(np.float_(ang)))
+
+    min_val = -period / 2
+    max_val = period / 2
 
     # if we have a specified angular range, use that
-    if len(args) > 0:
-        angRange = np.atleast_1d(np.float_(args[0]))
+    if ang_range is not None:
+        ang_range = np.atleast_1d(np.float_(ang_range))
 
-        # divide of multiples of period
-        ang = ang - np.int_(np.nan_to_num(ang) / period) * period
+        min_val = ang_range.min()
+        max_val = ang_range.max()
 
-        lb = angRange.min()
-        ub = angRange.max()
-
-        if np.abs(ub - lb) != period:
+        if not np.allclose(max_val-min_val, period):
             raise RuntimeError('range is incomplete!')
 
-        lbi = ang < lb
-        while lbi.sum() > 0:
-            ang[lbi] = ang[lbi] + period
-            lbi = ang < lb
-        ubi = ang > ub
-        while ubi.sum() > 0:
-            ang[ubi] = ang[ubi] - period
-            ubi = ang > ub
-        retval = ang
-    else:
-        retval = np.mod(ang + 0.5 * period, period) - 0.5 * period
-    return retval
+    return np.mod(ang - min_val, period) + min_val
 
 
 def angularDifference_orig(angList0, angList1, units=angularUnits):
@@ -1253,7 +1232,7 @@ def applySym(vec, qsym, csFlag=False, cullPM=False, tol=cnst.sqrt_epsf):
 
     if csFlag:
         allhkl = np.hstack([allhkl, -1 * allhkl])
-    eqv, uid = findDuplicateVectors(allhkl, tol=tol, equivPM=cullPM)
+    _, uid = findDuplicateVectors(allhkl, tol=tol, equivPM=cullPM)
 
     return allhkl[np.ix_(list(range(3)), uid)]
 
