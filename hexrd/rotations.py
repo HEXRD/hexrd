@@ -901,15 +901,6 @@ class RotMatEuler(object):
         x : array_like
             A (3, 3) array to be interpreted as a rotation matrix.
 
-        Raises
-        ------
-        NotImplementedError
-            Currently only works for the cases:
-                axes_order     extrinsic
-                ----------     ---------
-                  'xyz'          True
-                  'zxz'          False
-
         Returns
         -------
         None.WW
