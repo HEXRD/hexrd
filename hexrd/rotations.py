@@ -332,7 +332,7 @@ def quatProductMatrix(quats, mult='right'):
                        [-q2], [-q3], [q0], [q1],
                        [-q3], [q2], [-q1], [q0]])
     # some fancy reshuffling...
-    qmats = qmats.T.reshape(nq, 4, 4).transpose(0, 2, 1)
+    qmats = qmats.T.reshape((nq, 4, 4)).transpose(0, 2, 1)
     return qmats
 
 
@@ -479,7 +479,9 @@ def quatAverage(q_in, qsym):
             q_bar = np.c_[1.0, 0.0, 0.0, 0.0].T
         else:
             n = results[0] / phi
-            q_bar = np.hstack([np.cos(0.5 * phi), np.sin(0.5 * phi) * n]).reshape(4, 1)
+            q_bar = np.hstack(
+                [np.cos(0.5 * phi), np.sin(0.5 * phi) * n]
+            ).reshape(4, 1)
     return q_bar
 
 
@@ -1122,7 +1124,9 @@ def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
         qh = quatOfAngleAxis(phi, np.tile(c[:, i_c], (ndiv, 1)).T)
 
         # the fibers, arraged as (npts, 4, ndiv)
-        qfib = np.dot(quatProductMatrix(qh, mult='right'), q0).transpose(2, 1, 0)
+        qfib = np.dot(quatProductMatrix(qh, mult='right'), q0).transpose(
+            2, 1, 0
+        )
         if csym is not None:
             retval.append(
                 toFundamentalRegion(qfib.squeeze(), crysSym=csym, sampSym=ssym)
