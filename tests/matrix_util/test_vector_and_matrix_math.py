@@ -14,7 +14,7 @@ def test_cross():
 def test_determinant():
     """Test determinant"""
     # Deteminant 0 testcase first
-    m2 = mu.rankOneMatrix(np.array([[1],[0],[0]]))
+    m2 = mu.rankOneMatrix(np.array([[1], [0], [0]]))
     assert np.allclose(mu.determinant3(m2), 0)
     np.random.seed(0)
     for _ in range(100):
@@ -40,7 +40,7 @@ def test_null_space():
 
     # Test with rank one matrix
     for _ in range(100):
-        vec = np.random.rand(5).reshape((5,1))
+        vec = np.random.rand(5).reshape((5, 1))
         m = mu.rankOneMatrix(vec)
         null_space = mu.nullSpace(m)
         assert len(null_space) == 4
