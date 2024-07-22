@@ -1673,12 +1673,6 @@ class unitcell:
                self.atom_ntype), 'shape of numat is not consistent'
         self._numat = val
 
-    # different atom types; read only
-    @property
-    def Z(self):
-        sz = self.atom_ntype
-        return self.atom_type[0:atom_ntype]
-
     # direct metric tensor is read only
     @property
     def dmt(self):
