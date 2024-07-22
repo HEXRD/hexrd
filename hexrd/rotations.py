@@ -642,7 +642,7 @@ def angleAxisOfRotMat(rot_mat):
             pass
         else:
             raise RuntimeError(
-                "rot_mat array must be (3, 3) or (n, 3, 3);" 
+                "rot_mat array must be (3, 3) or (n, 3, 3); "
                 "input has dimension %d"
                 % (rdim)
             )
