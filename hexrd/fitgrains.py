@@ -318,6 +318,7 @@ def fit_grains(cfg,
     even if there is only one grain or one process, so that it will be
     cancelable.
     """
+    grains_table = np.atleast_2d(grains_table)
 
     # grab imageseries dict
     imsd = cfg.image_series
