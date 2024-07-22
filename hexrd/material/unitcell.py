@@ -120,7 +120,6 @@ class unitcell:
             constants.cCharge / \
             self.voltage
         self.wavelength *= 1e9
-        # self.CalcAnomalous()
 
     def calcBetaij(self):
 
@@ -679,7 +678,6 @@ class unitcell:
         initialize interpolation from table for anomalous scattering
         '''
         self.InitializeInterpTable()
-        # self.CalcAnomalous()
         self.CalcPositions()
         self.CalcDensity()
         self.calc_absorption_length()
