@@ -134,7 +134,7 @@ def fixQuat(q):
 
     qfix = unitVector(q)
 
-    q0negative = qfix[0,] < 0
+    q0negative = qfix[0, ] < 0
     qfix[:, q0negative] = -1 * qfix[:, q0negative]
 
     if qdims == 3:
@@ -642,7 +642,8 @@ def angleAxisOfRotMat(rot_mat):
             pass
         else:
             raise RuntimeError(
-                "rot_mat array must be (3, 3) or (n, 3, 3); input has dimension %d"
+                "rot_mat array must be (3, 3) or (n, 3, 3);" 
+                "input has dimension %d"
                 % (rdim)
             )
 
@@ -1555,8 +1556,8 @@ def quatOfLaueGroup(tag):
             + "Oh, and have a great day ;-)"
         )
 
-    angle = angleAxis[0,]
-    axis = angleAxis[1:,]
+    angle = angleAxis[0, ]
+    axis = angleAxis[1:, ]
 
     #  Note: Axis does not need to be normalized in call to quatOfAngleAxis
     #  05/01/2014 JVB -- made output a contiguous C-ordered array
