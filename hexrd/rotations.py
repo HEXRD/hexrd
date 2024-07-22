@@ -276,20 +276,16 @@ def quatProduct(q1, q2):
             q2 = tile(q2, (1, n1))
             nq = n1
 
-    a = q2[0, ]
-    a3 = tile(a, (3, 1))
-    b = q1[0, ]
-    b3 = tile(b, (3, 1))
+    # Changed just to show that the testcases are correct, old implementation
+    # did not work when both inputs were (4, n)
+    # see https://github.com/HEXRD/hexrd/issues/684
+    # Will replace this with scipy rotation after showing that testcases
+    # are correct
 
-    avec = q2[1:, ]
-    bvec = q1[1:, ]
-
-    axb = zeros((3, nq))
+    qp = zeros((4, nq))
     for i in range(nq):
-        axb[:, i] = cross(avec[:, i], bvec[:, i])
-
-    qp = vstack([a*b - diag(dot(avec.T, bvec)),
-                 a3*bvec + b3*avec + axb])
+        q2_matrix = quatProductMatrix(q2[:, i].reshape(4, 1), mult='left')
+        qp[:, i] = dot(q2_matrix, q1[:, i])
 
     return fixQuat(qp)
 
