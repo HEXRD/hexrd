@@ -71,7 +71,7 @@ def test_normalized():
 
 def pytest_generate_tests(metafunc):
     """
-    Make sure methods work with multiple quaternions as well as single inputs.
+    Make sure methods work on different dimension sizes.
     """
     if 'n_dim' in metafunc.fixturenames:
         metafunc.parametrize('n_dim', [1, 2])
