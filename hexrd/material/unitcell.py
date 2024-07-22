@@ -780,54 +780,6 @@ class unitcell:
             self.f_anomalous_data_sizes[i] = nd
             self.f_anomalous_data[i, :nd, :] = f_anomalous_data[i]
 
-    def CalcAnomalous(self):
-
-        self.f_anam = {}
-        for i in range(self.atom_ntype):
-
-            Z = self.atom_type[i]
-            elem = constants.ptableinverse[Z]
-            f1 = self.f1[elem](self.wavelength)
-            f2 = self.f2[elem](self.wavelength)
-            frel = constants.frel[elem]
-            Z = constants.ptable[elem]
-            self.f_anam[elem] = complex(f1+frel-Z, f2)
-
-    def CalcXRFormFactor(self, Z, charge, s):
-        '''
-        we are using the following form factors for x-aray scattering:
-        1. coherent x-ray scattering, f0 tabulated in Acta Cryst. (1995). A51,416-431
-        2. Anomalous x-ray scattering (complex (f'+if")) tabulated in J. Phys. Chem. Ref. Data, 24, 71 (1995)
-        and J. Phys. Chem. Ref. Data, 29, 597 (2000).
-        3. Thompson nuclear scattering, fNT tabulated in Phys. Lett. B, 69, 281 (1977).
-
-        the anomalous scattering is a complex number (f' + if"), where the two terms are given by
-        f' = f1 + frel - Z
-        f" = f2
-
-        f1 and f2 have been tabulated as a function of energy in Anomalous.h5 in hexrd folder
-
-        overall f = (f0 + f' + if" +fNT)
-        '''
-        elem = constants.ptableinverse[Z]
-        if charge == '0':
-            sfact = constants.scatfac[elem]
-        else:
-            cs = f"{elem}{charge}"
-            if cs in constants.scatfac:
-                sfact = constants.scatfac[f"{elem}{charge}"]
-            else:
-                sfact = constants.scatfac[elem]
-        fe = sfact[5]
-        fNT = constants.fNT[elem]
-        frel = constants.frel[elem]
-        f_anomalous = self.f_anam[elem]
-
-        for i in range(5):
-            fe += sfact[i] * np.exp(-sfact[i+6]*s)
-
-        return (fe+fNT+f_anomalous)
-
     def CalcXRSF(self, hkl):
         from hexrd.wppf.xtal import _calcxrsf
         '''
