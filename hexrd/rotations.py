@@ -35,6 +35,7 @@ from numba import njit
 from scipy.optimize import leastsq
 from scipy.spatial.transform import Rotation as R
 
+from hexrd.deprecation import deprecated
 from hexrd import constants as cnst
 from hexrd.matrixutil import (
     columnNorm,
@@ -536,6 +537,16 @@ def rotMatOfExpMap(expMap):
         expMap = expMap.reshape(3, 1)
 
     return R.from_rotvec(expMap.T).as_matrix().squeeze()
+
+
+@deprecated(new_func="Use `rotMatOfExpMap` instead", removal_date="2025-07-01")
+def rotMatOfExpMap_orig(expMap):
+    return rotMatOfExpMap(expMap)
+
+
+@deprecated(new_func="Use `rotMatOfExpMap` instead", removal_date="2025-07-01")
+def rotMatOfExpMap_opt(expMap):
+    return rotMatOfExpMap(expMap)
 
 
 @njit(cache=True, nogil=True)
