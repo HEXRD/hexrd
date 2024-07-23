@@ -113,15 +113,11 @@ def test_rmat_setter():
         rot2, _ = random_rot_mat_euler()
 
         # Change the rmat
-        try:
-            rot1.units = rot2.units
-            rot1.axes_order = rot2.axes_order
-            rot1.extrinsic = rot2.extrinsic
-            rot1.rmat = rot2.rmat
-            assert np.allclose(rot1.angles, rot2.angles)
-        except NotImplementedError:
-            # Not all axis orders are implemented
-            pass
+        rot1.units = rot2.units
+        rot1.axes_order = rot2.axes_order
+        rot1.extrinsic = rot2.extrinsic
+        rot1.rmat = rot2.rmat
+        assert np.allclose(rot1.angles, rot2.angles)
 
 
 def test_exp_map_setter():
@@ -133,13 +129,8 @@ def test_exp_map_setter():
         rot1, _ = random_rot_mat_euler()
         rot2, _ = random_rot_mat_euler()
 
-        # Change the expmap
-        try:
-            rot1.units = rot2.units
-            rot1.axes_order = rot2.axes_order
-            rot1.extrinsic = rot2.extrinsic
-            rot1.exponential_map = rot2.exponential_map
-            assert np.allclose(rot1.angles, rot2.angles)
-        except NotImplementedError:
-            # Not all axis orders are implemented
-            pass
+        rot1.units = rot2.units
+        rot1.axes_order = rot2.axes_order
+        rot1.extrinsic = rot2.extrinsic
+        rot1.exponential_map = rot2.exponential_map
+        assert np.allclose(rot1.angles, rot2.angles)
