@@ -1,4 +1,5 @@
 # generated using pymatgen
+# From materialsproject.org: mp-149
 data_Si
 _symmetry_space_group_name_H-M   Fd-3m
 _cell_length_a   5.44370237

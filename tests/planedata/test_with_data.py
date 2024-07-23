@@ -4,6 +4,7 @@ import pytest
 
 from hexrd.material.crystallography import ltypeOfLaueGroup
 from hexrd.material.material import Material
+from hexrd.rotations import rotMatOfQuat
 
 
 @pytest.fixture
@@ -32,7 +33,7 @@ def assertEqualNumpyArrays(a, b):
     a, b = np.array(a), np.array(b)
     # Make sure shape is the same and values are close
     assert a.shape == b.shape, f'Shape mismatch: {a.shape} vs {b.shape}'
-    assert np.allclose(a, b, atol=1e-7), f'Numpy arrays not close: {a} vs {b}'
+    assert np.allclose(a, b), f'Numpy arrays not close: {a} vs {b}'
 
 
 def assertAllArraysEqual(a, b):
@@ -64,7 +65,10 @@ def test_plane_data_with_data(test_data_dir, materials):
         assert pd.getLatticeType() == ltypeOfLaueGroup(obj['laueGroup'])
         assertEqualNumpyArrays(pd.hedm_intensity, obj['hedm_intensity'])
         assertEqualNumpyArrays(pd.powder_intensity, obj['powder_intensity'])
-        assertEqualNumpyArrays(pd.getQSym(), obj['q_sym'])
+        # With the identity symmetry, zero rotation may have some sign issues,
+        # but the rotation matrix should be pretty much the exact same
+        assertEqualNumpyArrays(rotMatOfQuat(pd.getQSym()),
+                               rotMatOfQuat(obj['q_sym']))
         assert pd.nHKLs == obj['nHKLs']
         assert pd.getNhklRef() == obj['nhklRef']
         assertEqualNumpyArrays(pd.getMultiplicity(), obj['multiplicity'])

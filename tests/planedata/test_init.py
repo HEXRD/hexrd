@@ -32,15 +32,15 @@ def test_init_with_data_and_from_copy():
 
 def test_init_with_invalid_params():
     # One extra parameter but not a PlaneData object
-    with pytest.raises(Exception):
+    with pytest.raises((NotImplementedError, RuntimeError)):
         PlaneData(np.array([[1, 0, 0], [0, 1, 0]]), 1)
     # Invalid number of parameters
-    with pytest.raises(Exception):
+    with pytest.raises((NotImplementedError, RuntimeError)):
         PlaneData(
             np.array([[1, 0, 0], [0, 1, 0]]), np.array([1, 1, 1, 1, 1]), 3
         )
     # Invalid number of unnamed parameters
-    with pytest.raises(Exception):
+    with pytest.raises((NotImplementedError, RuntimeError)):
         PlaneData(
             np.array([[1, 0, 0], [0, 1, 0]]),
             np.array([1, 1, 1, 1]),
@@ -49,7 +49,7 @@ def test_init_with_invalid_params():
             doTThSort=True,
         )
     # Invalid named parameter
-    with pytest.raises(Exception):
+    with pytest.raises((NotImplementedError, RuntimeError)):
         PlaneData(
             np.array([[1, 0, 0], [0, 1, 0]]),
             np.array([1, 1, 1, 1]),
