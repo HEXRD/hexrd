@@ -637,8 +637,8 @@ class unitcell:
                     pos2 = uniqpos[0:3]
                     occ2 = uniqpos[3]
                     # cases with fractional occupancy on same site
-                    if (np.all(np.isclose(pos, pos2)) 
-                        and np.isclose(occ+occ2, 1.)):
+                    if (np.all(np.isclose(pos, pos2)) and
+                            np.isclose(occ+occ2, 1.)):
                         atom_pos_fixed.append(np.hstack([pos, occ]))
                         idx.append(i)
                         isclose = True
