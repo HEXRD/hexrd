@@ -1062,7 +1062,6 @@ class inverse_pole_figures:
         if samplingtype.lower() == "fem":
             msg = "sampling type FEM not implemented yet."
             raise ValueError(msg)
-            pass
 
     @property
     def sample_dir(self):

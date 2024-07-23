@@ -234,8 +234,6 @@ number of files: %s
 
         return _process_data(filename, data)
 
-    pass  # end class
-
 
 class FileInfo(object):
     """class for managing individual file information"""

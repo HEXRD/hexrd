@@ -250,7 +250,6 @@ def sxcal_obj_func(plist_fit, plist_full,
                 xy_unwarped[det_key][ig] = panel.distortion.apply(
                     xy_unwarped[det_key][ig]
                 )
-                pass
 
             # transform G-vectors:
             # 1) convert inv. stretch tensor from MV notation in to 3x3
@@ -286,8 +285,6 @@ def sxcal_obj_func(plist_fit, plist_full,
 
             calc_omes[det_key].append(calc_omes_tmp)
             calc_xy[det_key].append(calc_xy_tmp)
-            pass
-        pass
 
     # return values
     if sim_only:
@@ -311,7 +308,6 @@ def sxcal_obj_func(plist_fit, plist_full,
             calc_xy_all.append(np.vstack(calc_xy[det_key]))
             meas_omes_all.append(np.hstack(meas_omes[det_key]))
             calc_omes_all.append(np.hstack(calc_omes[det_key]))
-            pass
         meas_xy_all = np.vstack(meas_xy_all)
         calc_xy_all = np.vstack(calc_xy_all)
         meas_omes_all = np.hstack(meas_omes_all)

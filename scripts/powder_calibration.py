@@ -219,11 +219,8 @@ class PowderCalibrator(object):
                              eta_ref]
                         )
                     )
-                    pass
                 rhs[det_key].append(np.vstack(tmp))
-                pass
             rhs[det_key] = np.vstack(rhs[det_key])
-            pass
         return rhs
 
     def residual(self, reduced_params, data_dict):

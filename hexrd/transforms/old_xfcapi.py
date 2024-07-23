@@ -480,12 +480,10 @@ def mapAngle(ang, *args, **kwargs):
         while lbi.sum() > 0:
             ang[lbi] = ang[lbi] + period
             lbi = ang < lb
-            pass
         ubi = ang > ub
         while ubi.sum() > 0:
             ang[ubi] = ang[ubi] - period
             ubi = ang > ub
-            pass
         retval = ang
     else:
         retval = np.mod(ang + 0.5*period, period) - 0.5*period

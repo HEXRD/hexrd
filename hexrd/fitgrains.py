@@ -184,8 +184,7 @@ def fit_grain_FF_reduced(grain_id):
             culled_results[det_key] = [presults[i] for i in np.where(idx)[0]]
             num_refl_tot += len(valid_refl_ids)
             num_refl_valid += sum(valid_refl_ids)
-
-            pass  # now we have culled data
+            # now we have culled data
 
         # CAVEAT: completeness from pullspots only; incl saturated and overlaps
         # <JVB 2015-12-15>
@@ -220,8 +219,6 @@ def fit_grain_FF_reduced(grain_id):
                     plane_data.latVecOps['B'], plane_data.wavelength,
                     ome_period,
                     simOnly=False, return_value_flag=2)
-            pass  # end conditional on fit
-        pass  # end tolerance looping
 
     if refit is not None:
         # first get calculated x, y, ome from previous solution
@@ -279,7 +276,6 @@ def fit_grain_FF_reduced(grain_id):
             ]
 
             num_refl_valid += sum(idx_new)
-            pass
 
         # only execute fit if left with enough reflections
         if num_refl_valid > 12:
@@ -297,8 +293,6 @@ def fit_grain_FF_reduced(grain_id):
                     plane_data.latVecOps['B'], plane_data.wavelength,
                     ome_period,
                     simOnly=False, return_value_flag=2)
-            pass
-        pass  # close refit conditional
     return grain_id, completeness, chisq, grain_params
 
 
@@ -324,6 +318,7 @@ def fit_grains(cfg,
     even if there is only one grain or one process, so that it will be
     cancelable.
     """
+    grains_table = np.atleast_2d(grains_table)
 
     # grab imageseries dict
     imsd = cfg.image_series

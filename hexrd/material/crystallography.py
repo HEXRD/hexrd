@@ -1854,7 +1854,6 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
         )
         gHat_l = np.dot(rchi, tmp_gvec[:, i].reshape(3, 1))
         tmp_eta[i] = np.arctan2(gHat_l[1], gHat_l[0])
-        pass
     eta_min[goodOnes] = tmp_eta
 
     # everybody back to DEGREES!

@@ -251,24 +251,13 @@ def _readenv(name, ctor, default):
             del warnings
             return default
 
-
-# 0 = do NOT use numba
-# 1 = use numba (default)
-USE_NUMBA = _readenv("HEXRD_USE_NUMBA", int, 1)
-if USE_NUMBA:
-    try:
-        import numba
-    except ImportError:
-        print("*** Numba not available, processing may run slower ***")
-        USE_NUMBA = False
-
 del _readenv
 
 
 def set_numba_cache():
     """Set the numba cache only if the following are true:
 
-    1. We are using numba
+    1. We are using numba - assumed true now
     2. We are on Windows
     3. We don't have write access to this file
     4. The NUMBA_CACHE_DIR environment variable is not defined
@@ -277,8 +266,6 @@ def set_numba_cache():
     directory where it doesn't have permission, and cause the application to
     freeze. Avoid that by setting the cache dir ourselves.
     """
-    if not USE_NUMBA:
-        return
 
     if os.name != 'nt':
         return

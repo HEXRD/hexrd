@@ -132,10 +132,6 @@ class SpaceGroup:
                 pglg = _pgDict[k]
                 self._pointGroup = pglg[0]
                 self._laueGroup = pglg[1]
-                pass
-            pass
-
-        return
 
     sgnum = property(_get_sgnum, _set_sgnum, None,
                      "Space group number")
@@ -1299,10 +1295,7 @@ def _buildDict(hstr):
             n = int(nstr)
             if n not in d:
                 d[n] = hstr
-                pass
             di[hstr] = n
-            pass
-        pass
 
     return d, di
 
@@ -1926,10 +1919,6 @@ def _getHKLsBySS(ss):
                 l = iroot(rem)
                 if l*l == rem:
                     hkls += [(h, k, l), (h, k, -l)]
-                    pass
-                pass
-            pass
-        pass
 
     return hkls
 
@@ -1954,7 +1943,6 @@ def testHKLs():
     for hkl in myHKLs:
         ss = hkl[0]**2 + hkl[1]**2 + hkl[2]**2
         print((hkl, ss))
-        pass
 
     #
     #  2. Ruby (sg 167)
@@ -1968,7 +1956,6 @@ def testHKLs():
     for hkl in myHKLs:
         ss = hkl[0]**2 + hkl[1]**2 + hkl[2]**2
         print((hkl, ss))
-        pass
     #
     #  Test Generic HKLs
     #
@@ -1977,9 +1964,6 @@ def testHKLs():
         hkls = _getHKLsBySS(ss)
         print('                     number of hkls:  ', len(hkls))
         print(hkls)
-        pass
-
-    return
 
 
 if __name__ == '__main__':
@@ -2001,7 +1985,3 @@ if __name__ == '__main__':
         except:
             print(('failed for space group number: ', n))
             print(('Hall symbol:  ', lookupHall[n]))
-            pass
-        pass
-    #
-    pass
