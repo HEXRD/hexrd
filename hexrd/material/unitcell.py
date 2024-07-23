@@ -636,19 +636,26 @@ class unitcell:
                 for j,  uniqpos in enumerate(atom_pos_fixed):
                     pos2 = uniqpos[0:3]
                     occ2 = uniqpos[3]
-                    v2, n2 = self.CalcOrbit(pos2)
+                    # cases with fractional occupancy on same site
+                    if (np.all(np.isclose(pos, pos2)) 
+                        and np.isclose(occ+occ2, 1.)):
+                        atom_pos_fixed.append(np.hstack([pos, occ]))
+                        idx.append(i)
+                        isclose = True
+                        break
+                    else:
+                        v2, n2 = self.CalcOrbit(pos2)
+                        for v in v2:
+                            vv = np.tile(v, [v1.shape[0], 1])
+                            vv = vv - v1
 
-                    for v in v2:
-                        vv = np.tile(v, [v1.shape[0], 1])
-                        vv = vv - v1
-
-                        for vvv in vv:
-                            # check if distance less than tol
-                            # the factor of 10 is for A --> nm
-                            if self.CalcLength(vvv, 'd') < tol/10.:
-                                # if true then its a repeated atom
-                                isclose = True
-                                break
+                            for vvv in vv:
+                                # check if distance less than tol
+                                # the factor of 10 is for A --> nm
+                                if self.CalcLength(vvv, 'd') < tol/10.:
+                                    # if true then its a repeated atom
+                                    isclose = True
+                                    break
 
                         if isclose:
                             break
