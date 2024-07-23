@@ -92,16 +92,8 @@ def arccosSafe(temp):
         print("attempt to take arccos of %s" % temp, file=sys.stderr)
         raise RuntimeError("unrecoverable error")
 
-    gte1 = temp >= 1.0
-    lte1 = temp <= -1.0
-
-    temp[gte1] = 1
-    temp[lte1] = -1
-
-    ang = np.arccos(temp)
-
-    return ang
-
+    temp = np.clip(temp, -1.0, 1.0)
+    return np.arccos(temp)
 
 #
 #  ==================== Quaternions
@@ -157,7 +149,7 @@ def invertQuat(q):
     return fixQuat(qinv)
 
 
-def misorientation(q1, q2, *args):
+def misorientation(q1, q2, symmetries=None):
     """
     PARAMETERS
     ----------
@@ -165,10 +157,11 @@ def misorientation(q1, q2, *args):
         a single quaternion
     q2: array(4, n)
         array of quaternions
-    *args: tuple
-        there can be only one extra argument, which is 1- or 2-tuple with
-        symmetries (quaternion arrays); for crystal symmetry only,
-        use a 1-tuple; with both crystal and sample symmetry use a 2-tuyple
+    symmetries: tuple, optional
+        1- or 2-tuple with symmetries (quaternion arrays);
+        for crystal symmetry only, use a 1-tuple;
+        with both crystal and sample symmetry use a 2-tuple
+        Default is no symmetries.
 
     RETURNS
     -------
@@ -191,11 +184,11 @@ def misorientation(q1, q2, *args):
             % (q1.shape,)
         )
 
-    if len(args) == 0:
+    if symmetries is None:
         # no symmetries; use identity
         sym = (np.c_[1.0, 0, 0, 0].T, np.c_[1.0, 0, 0, 0].T)
     else:
-        sym = args[0]
+        sym = symmetries
         if len(sym) == 1:
             if not isinstance(sym[0], np.ndarray):
                 raise RuntimeError("symmetry argument is not an numpy array")
@@ -341,18 +334,8 @@ def quatOfAngleAxis(angle, rotaxis):
     """
     make an hstacked array of quaternions from arrays of angle/axis pairs
     """
-    if isinstance(angle, list):
-        n = len(angle)
-        angle = np.asarray(angle)
-    elif isinstance(angle, float) or isinstance(angle, int):
-        n = 1
-    elif isinstance(angle, np.ndarray):
-        n = angle.shape[0]
-    else:
-        raise RuntimeError(
-            "angle argument is of incorrect type; "
-            + "must be a list, int, float, or ndarray."
-        )
+    angle = np.atleast_1d(angle)
+    n = len(angle)
 
     if rotaxis.shape[1] == 1:
         rotaxis = np.tile(rotaxis, (1, n))
@@ -946,7 +929,7 @@ class RotMatEuler(object):
 #
 
 
-def distanceToFiber(c, s, q, qsym, **kwargs):
+def distanceToFiber(c, s, q, qsym, centrosymmetry=False, bmatrix=I3):
     """
     Calculate symmetrically reduced distance to orientation fiber.
 
@@ -960,8 +943,10 @@ def distanceToFiber(c, s, q, qsym, **kwargs):
         DESCRIPTION.
     qsym : TYPE
         DESCRIPTION.
-    **kwargs : TYPE
-        DESCRIPTION.
+    centrosymmetry : bool, optional
+        If True, apply centrosymmetry to c. The default is False.
+    bmatrix : np.ndarray, optional
+        (3,3) b matrix. Default is the identity
 
     Raises
     ------
@@ -974,34 +959,16 @@ def distanceToFiber(c, s, q, qsym, **kwargs):
         DESCRIPTION.
 
     """
-    csymFlag = False
-    B = I3
-
-    arglen = len(kwargs)
-
     if len(c) != 3 or len(s) != 3:
         raise RuntimeError('c and/or s are not 3-vectors')
 
-    # argument handling
-    if arglen > 0:
-        argkeys = list(kwargs.keys())
-        for i in range(arglen):
-            if argkeys[i] == 'centrosymmetry':
-                csymFlag = kwargs[argkeys[i]]
-            elif argkeys[i] == 'bmatrix':
-                B = kwargs[argkeys[i]]
-            else:
-                raise RuntimeError(
-                    "keyword arg \'%s\' is not recognized" % (argkeys[i])
-                )
-
-    c = unitVector(np.dot(B, np.asarray(c)))
+    c = unitVector(np.dot(bmatrix, np.asarray(c)))
     s = unitVector(np.asarray(s).reshape(3, 1))
 
     nq = q.shape[1]  # number of quaternions
     rmats = rotMatOfQuat(q)  # (nq, 3, 3)
 
-    csym = applySym(c, qsym, csymFlag)  # (3, m)
+    csym = applySym(c, qsym, centrosymmetry)  # (3, m)
     m = csym.shape[1]  # multiplicity
 
     if nq == 1:
@@ -1057,49 +1024,8 @@ def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
 
     ztol = cnst.sqrt_epsf
 
-    # arg handling for c
-    if hasattr(c, '__len__'):
-        if hasattr(c, 'shape'):
-            assert (
-                c.shape[0] == 3
-            ), 'scattering vector must be 3-d; yours is %d-d' % (c.shape[0])
-            if len(c.shape) == 1:
-                c = c.reshape(3, 1)
-            elif len(c.shape) > 2:
-                raise RuntimeError(
-                    'incorrect arg shape; must be 1-d or 2-d, yours is %d-d'
-                    % (len(c.shape))
-                )
-        else:
-            # convert list input to array and transpose
-            if len(c) == 3 and np.isscalar(c[0]):
-                c = np.asarray(c).reshape(3, 1)
-            else:
-                c = np.asarray(c).T
-    else:
-        raise RuntimeError('input must be array-like')
-
-    # arg handling for s
-    if hasattr(s, '__len__'):
-        if hasattr(s, 'shape'):
-            assert (
-                s.shape[0] == 3
-            ), 'scattering vector must be 3-d; yours is %d-d' % (s.shape[0])
-            if len(s.shape) == 1:
-                s = s.reshape(3, 1)
-            elif len(s.shape) > 2:
-                raise RuntimeError(
-                    'incorrect arg shape; must be 1-d or 2-d, yours is %d-d'
-                    % (len(s.shape))
-                )
-        else:
-            # convert list input to array and transpose
-            if len(s) == 3 and np.isscalar(s[0]):
-                s = np.asarray(s).reshape(3, 1)
-            else:
-                s = np.asarray(s).T
-    else:
-        raise RuntimeError('input must be array-like')
+    c = np.asarray(c).reshape((3, 1))
+    s = np.asarray(s).reshape((3, 1))
 
     nptc = c.shape[1]
     npts = s.shape[1]
