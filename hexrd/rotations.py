@@ -872,7 +872,7 @@ class RotMatEuler(object):
 
         Returns
         -------
-        None.WW
+        None
         """
         rmat = _check_is_rmat(x)
         self._rmat = rmat
