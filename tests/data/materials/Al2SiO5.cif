@@ -1,0 +1,50 @@
+# generated using pymatgen
+# From materialsproject.org: mp-5065
+data_Al2SiO5
+_symmetry_space_group_name_H-M   P-1
+_cell_length_a   5.56527499
+_cell_length_b   7.11781131
+_cell_length_c   7.84616848
+_cell_angle_alpha   74.00615350
+_cell_angle_beta   89.99270945
+_cell_angle_gamma   78.88941934
+_symmetry_Int_Tables_number   2
+_chemical_formula_structural   Al2SiO5
+_chemical_formula_sum   'Al8 Si4 O20'
+_cell_volume   292.71348472
+_cell_formula_units_Z   4
+loop_
+ _symmetry_equiv_pos_site_id
+ _symmetry_equiv_pos_as_xyz
+  1  'x, y, z'
+  2  '-x, -y, -z'
+loop_
+ _atom_type_symbol
+ _atom_type_oxidation_number
+  Al3+  3.0
+  Si4+  4.0
+  O2-  -2.0
+loop_
+ _atom_site_type_symbol
+ _atom_site_label
+ _atom_site_symmetry_multiplicity
+ _atom_site_fract_x
+ _atom_site_fract_y
+ _atom_site_fract_z
+ _atom_site_occupancy
+  Al3+  Al0  2  0.04971069  0.29679066  0.30132555  1
+  Al3+  Al1  2  0.16430556  0.88868150  0.91682702  1
+  Al3+  Al2  2  0.35960480  0.09922347  0.61357842  1
+  Al3+  Al3  2  0.45801054  0.67529487  0.70399539  1
+  Si4+  Si4  2  0.18922560  0.70885584  0.33177558  1
+  Si4+  Si5  2  0.29343003  0.29641085  0.93505643  1
+  O2-  O6  2  0.04570718  0.27482396  0.54535519  1
+  O2-  O7  2  0.06436486  0.28323005  0.06476586  1
+  O2-  O8  2  0.12852835  0.89069084  0.14666041  1
+  O2-  O9  2  0.18069989  0.87779916  0.68465669  1
+  O2-  O10  2  0.24398095  0.50190028  0.76881375  1
+  O2-  O11  2  0.24440619  0.49876321  0.27520081  1
+  O2-  O12  2  0.33326746  0.10833148  0.84753014  1
+  O2-  O13  2  0.36083507  0.12121549  0.36907910  1
+  O2-  O14  2  0.42911961  0.71772167  0.44560644  1
+  O2-  O15  2  0.46532351  0.70874671  0.94634481  1
