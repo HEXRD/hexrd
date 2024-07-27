@@ -106,7 +106,8 @@ class StructurelessCalibrator:
                         delta_tth -= np.degrees(corr_rng[det_name])
                     residual.append(delta_tth)
 
-        return np.hstack(residual)
+        residual = np.hstack(residual)
+        return residual/residual.size
 
     def set_minimizer(self):
         self.fitter = lmfit.Minimizer(self.calc_residual,
