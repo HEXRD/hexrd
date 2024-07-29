@@ -82,18 +82,16 @@ piby6 = np.pi / 6.0
 # =============================================================================
 
 
-def arccosSafe(temp):
+def arccosSafe(cosines):
     """
     Protect against numbers slightly larger than 1 in magnitude
     due to round-off
     """
-    temp = np.atleast_1d(temp)
-    if (np.abs(temp) > 1.00001).any():
-        print("attempt to take arccos of %s" % temp, file=sys.stderr)
+    cosines = np.atleast_1d(cosines)
+    if (np.abs(cosines) > 1.00001).any():
+        print("attempt to take arccos of %s" % cosines, file=sys.stderr)
         raise RuntimeError("unrecoverable error")
-
-    temp = np.clip(temp, -1.0, 1.0)
-    return np.arccos(temp)
+    return np.arccos(np.clip(cosines, -1.0, 1.0))
 
 #
 #  ==================== Quaternions
@@ -186,39 +184,39 @@ def misorientation(q1, q2, symmetries=None):
 
     if symmetries is None:
         # no symmetries; use identity
-        sym = (np.c_[1.0, 0, 0, 0].T, np.c_[1.0, 0, 0, 0].T)
+        symmetries = (np.c_[1.0, 0, 0, 0].T, np.c_[1.0, 0, 0, 0].T)
     else:
-        sym = symmetries
-        if len(sym) == 1:
-            if not isinstance(sym[0], np.ndarray):
+        # check symmetry argument
+        if len(symmetries) == 1:
+            if not isinstance(symmetries[0], np.ndarray):
                 raise RuntimeError("symmetry argument is not an numpy array")
             else:
                 # add triclinic sample symmetry (identity)
-                sym += (np.c_[1.0, 0, 0, 0].T,)
-        elif len(sym) == 2:
-            if not isinstance(sym[0], np.ndarray) or not isinstance(
-                sym[1], np.ndarray
+                symmetries += (np.c_[1.0, 0, 0, 0].T,)
+        elif len(symmetries) == 2:
+            if not isinstance(symmetries[0], np.ndarray) or not isinstance(
+                symmetries[1], np.ndarray
             ):
                 raise RuntimeError(
                     "symmetry arguments are not an numpy arrays"
                 )
-        elif len(sym) > 2:
+        elif len(symmetries) > 2:
             raise RuntimeError(
                 "symmetry argument has %d entries; should be 1 or 2"
-                % (len(sym))
+                % (len(symmetries))
             )
 
     # set some lengths
     n = q2.shape[1]  # length of misorientation list
-    m = sym[0].shape[1]  # crystal (right)
-    p = sym[1].shape[1]  # sample  (left)
+    m = symmetries[0].shape[1]  # crystal (right)
+    p = symmetries[1].shape[1]  # sample  (left)
 
     # tile q1 inverse
     q1i = quatProductMatrix(invertQuat(q1), mult='right').squeeze()
 
     # convert symmetries to (4, 4) qprod matrices
-    rsym = quatProductMatrix(sym[0], mult='right')
-    lsym = quatProductMatrix(sym[1], mult='left')
+    rsym = quatProductMatrix(symmetries[0], mult='right')
+    lsym = quatProductMatrix(symmetries[1], mult='left')
 
     # Do R * Gc, store as
     # [q2[:, 0] * Gc[:, 0:m], ..., q2[:, n-1] * Gc[:, 0:m]]
