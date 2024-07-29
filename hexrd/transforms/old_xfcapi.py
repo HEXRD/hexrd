@@ -440,84 +440,9 @@ def angularDifference(angList0, angList1, units=angularUnits):
     return abs(np.remainder(diffAngles + 0.5*period, period) - 0.5*period)
 
 
-def mapAngle(ang, *args, **kwargs):
-    """
-    Utility routine to map an angle into a specified period
-    """
-    units = angularUnits
-    period = periodDict[units]
-
-    kwargKeys = list(kwargs.keys())
-    for iArg in range(len(kwargKeys)):
-        if kwargKeys[iArg] == 'units':
-            units = kwargs[kwargKeys[iArg]]
-        else:
-            raise RuntimeError(
-                "Unknown keyword argument: " + str(kwargKeys[iArg]))
-
-    try:
-        period = periodDict[units.lower()]
-    except(KeyError):
-        raise RuntimeError("unknown angular units: " +
-                           str(kwargs[kwargKeys[iArg]]))
-
-    ang = np.atleast_1d(nFloat(ang))
-
-    # if we have a specified angular range, use that
-    if len(args) > 0:
-        angRange = np.atleast_1d(nFloat(args[0]))
-
-        # divide of multiples of period
-        ang = ang - nInt(ang / period) * period
-
-        lb = angRange.min()
-        ub = angRange.max()
-
-        if abs(abs(ub - lb) - period) > sqrt_epsf:
-            raise RuntimeError('range is incomplete!')
-
-        lbi = ang < lb
-        while lbi.sum() > 0:
-            ang[lbi] = ang[lbi] + period
-            lbi = ang < lb
-        ubi = ang > ub
-        while ubi.sum() > 0:
-            ang[ubi] = ang[ubi] - period
-            ubi = ang > ub
-        retval = ang
-    else:
-        retval = np.mod(ang + 0.5*period, period) - 0.5*period
-    return retval
-
-
-def columnNorm(a):
-    """
-    normalize array of column vectors (hstacked, axis = 0)
-    """
-    if len(a.shape) > 2:
-        raise RuntimeError(
-            "incorrect shape: arg must be 1-d or 2-d, yours is %d"
-            % (len(a.shape))
-        )
-
-    cnrma = np.sqrt(np.sum(np.asarray(a)**2, 0))
-
-    return cnrma
-
-
-def rowNorm(a):
-    """
-    normalize array of row vectors (vstacked, axis = 1)
-    """
-    if len(a.shape) > 2:
-        raise RuntimeError(
-            "incorrect shape: arg must be 1-d or 2-d, yours is %d"
-            % (len(a.shape))
-        )
-
-    cnrma = np.sqrt(np.sum(np.asarray(a)**2, 1))
-
-    return cnrma
+# Imports so that others can import from this module
+from hexrd.rotations import mapAngle
+from hexrd.matrixutil import columnNorm, rowNorm
 
 
 def unitRowVector(vecIn):
