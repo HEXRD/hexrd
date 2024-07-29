@@ -1281,7 +1281,7 @@ def _buildDict(hstr):
     for the rhombohedral lattices so that they use the hexagonal
     convention.
     """
-    d  = dict()
+    d = dict()
     di = dict()
     hs = hstr.split('\n')
     for l in hs:
@@ -1300,7 +1300,7 @@ def _buildDict(hstr):
 
 
 lookupHall, Hall_to_sgnum = _buildDict(_hallStr)
-lookupHM,   HM_to_sgnum   = _buildDict(_hmStr)
+lookupHM, HM_to_sgnum = _buildDict(_hmStr)
 
 
 def _map_sg_info(hstr):
