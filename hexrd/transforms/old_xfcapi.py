@@ -30,9 +30,9 @@ import numpy as np
 import sys
 
 from hexrd.extensions import _transforms_CAPI
-
-from numpy import float_ as nFloat
-from numpy import int_ as nInt
+# Imports so that others can import from this module
+from hexrd.rotations import mapAngle
+from hexrd.matrixutil import columnNorm, rowNorm
 
 # ######################################################################
 # Module Data
@@ -438,11 +438,6 @@ def angularDifference(angList0, angList1, units=angularUnits):
     diffAngles = np.atleast_1d(angList0) - np.atleast_1d(angList1)
 
     return abs(np.remainder(diffAngles + 0.5*period, period) - 0.5*period)
-
-
-# Imports so that others can import from this module
-from hexrd.rotations import mapAngle
-from hexrd.matrixutil import columnNorm, rowNorm
 
 
 def unitRowVector(vecIn):
