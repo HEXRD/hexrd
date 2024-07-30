@@ -27,7 +27,7 @@ from hexrd.rotations import \
     angleAxisOfRotMat, \
     angles_from_rmat_xyz, make_rmat_euler, \
     RotMatEuler
-from hexrd.transforms.xfcapi import mapAngle
+from hexrd.transforms.new_capi.xf_new_capi import mapAngle
 
 
 # plane data

@@ -28,6 +28,21 @@ from hexrd.extensions import _new_transforms_capi as _impl
 
 import numpy as np
 
+periodDict = {'degrees': 360.0, 'radians': 2*np.pi}
+
+
+# basis vectors
+I3 = np.eye(3)                                        # (3, 3) identity
+Xl = np.ascontiguousarray(I3[:, 0].reshape(3, 1))     # X in the lab frame
+Yl = np.ascontiguousarray(I3[:, 1].reshape(3, 1))     # Y in the lab frame
+Zl = np.ascontiguousarray(I3[:, 2].reshape(3, 1))     # Z in the lab frame
+
+# reference stretch
+vInv_ref = np.array([[1., 1., 1., 0., 0., 0.]], order='C').T
+
+# reference beam direction and eta=0 ref in LAB FRAME for standard geometry
+bVec_ref = -Zl
+eta_ref = Xl
 
 def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     """
@@ -569,3 +584,67 @@ def quat_distance(q1, q2, qsym):
     # C module expects quaternions in row major, numpy code in column major.
     qsym = np.ascontiguousarray(qsym.T)
     return _impl.quat_distance(q1, q2, qsym)
+
+
+def mapAngle(ang, *args, **kwargs):
+    """
+    Utility routine to map an angle into a specified period
+    """
+    units = 'radians'
+    period = periodDict[units]
+
+    kwargKeys = list(kwargs.keys())
+    for iArg in range(len(kwargKeys)):
+        if kwargKeys[iArg] == 'units':
+            units = kwargs[kwargKeys[iArg]]
+        else:
+            raise RuntimeError(
+                "Unknown keyword argument: " + str(kwargKeys[iArg]))
+
+    try:
+        period = periodDict[units.lower()]
+    except(KeyError):
+        raise RuntimeError("unknown angular units: " +
+                           str(kwargs[kwargKeys[iArg]]))
+
+    ang = np.atleast_1d(np.float_(ang))
+
+    # if we have a specified angular range, use that
+    if len(args) > 0:
+        angRange = np.atleast_1d(np.float_(args[0]))
+
+        # divide of multiples of period
+        ang = ang - np.int_(ang / period) * period
+
+        lb = angRange.min()
+        ub = angRange.max()
+
+        if abs(abs(ub - lb) - period) > np.sqrt(np.finfo(float).eps):
+            raise RuntimeError('range is incomplete!')
+
+        lbi = ang < lb
+        while lbi.sum() > 0:
+            ang[lbi] = ang[lbi] + period
+            lbi = ang < lb
+        ubi = ang > ub
+        while ubi.sum() > 0:
+            ang[ubi] = ang[ubi] - period
+            ubi = ang > ub
+        retval = ang
+    else:
+        retval = np.mod(ang + 0.5*period, period) - 0.5*period
+    return retval
+
+def rowNorm(a):
+    """
+    normalize array of row vectors (vstacked, axis = 1)
+    """
+    if len(a.shape) > 2:
+        raise RuntimeError(
+            "incorrect shape: arg must be 1-d or 2-d, yours is %d"
+            % (len(a.shape))
+        )
+
+    cnrma = np.sqrt(np.sum(np.asarray(a)**2, 1))
+
+    return cnrma

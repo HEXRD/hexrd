@@ -57,13 +57,13 @@ from hexrd.imageseries.omega import OmegaImageSeries
 from hexrd.fitting.utils import fit_ring
 from hexrd.gridutil import make_tolerance_grid
 from hexrd import matrixutil as mutil
-from hexrd.transforms.xfcapi import (
+from hexrd.transforms.new_capi.xf_new_capi import (
     angles_to_gvec,
     gvec_to_xy,
     make_sample_rmat,
-    makeRotMatOfExpMap,
+    make_rmat_of_expmap as makeRotMatOfExpMap,
     mapAngle,
-    unitRowVector,
+    unit_vector as unitRowVector,
 )
 from hexrd import xrdutil
 from hexrd.material.crystallography import PlaneData

@@ -13,10 +13,10 @@ from hexrd import xrdutil
 from hexrd.material import crystallography
 from hexrd.material.crystallography import PlaneData
 
-from hexrd.transforms.xfcapi import (
-    detectorXYToGvec,
+from hexrd.transforms.new_capi.xf_new_capi import (
+    xy_to_gvec as detectorXYToGvec,
     gvec_to_xy,
-    makeRotMatOfExpMap,
+    make_rmat_of_expmap as makeRotMatOfExpMap,
     mapAngle,
     oscillAnglesOfHKLs,
     rowNorm,

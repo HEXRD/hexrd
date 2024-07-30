@@ -13,7 +13,7 @@ import timeit
 import warnings
 
 from hexrd import instrument
-from hexrd.transforms import xfcapi
+from hexrd.transforms.new_capi import xf_new_capi as xfcapi
 from hexrd.fitting import fitGrain, objFuncFitGrain, gFlag_ref
 
 logger = logging.getLogger(__name__)

@@ -31,7 +31,7 @@ from hexrd import material
 from hexrd.fitting import fitpeak
 from hexrd.rotations import \
     angleAxisOfRotMat, angles_from_rmat_xyz, make_rmat_euler
-from hexrd.transforms.xfcapi import mapAngle
+from hexrd.transforms.new_capi.xf_new_capi import mapAngle
 from hexrd.xrdutil import make_reflection_patches
 
 

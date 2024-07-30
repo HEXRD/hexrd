@@ -9,7 +9,7 @@ from hexrd import config
 from hexrd import constants as cnst
 from hexrd import instrument
 from hexrd.fitgrains import fit_grains
-from hexrd.transforms import xfcapi
+from hexrd.transforms.new_capi import xf_new_capi as xfcapi
 
 
 descr = 'Extracts G vectors, grain position and strain'
@@ -77,7 +77,7 @@ class GrainData(_BaseGrainData):
             n = len(self.expmap)
             rmats = np.zeros((n, 3, 3))
             for i in range(n):
-                rmats[i] = xfcapi.makeRotMatOfExpMap(self.expmap[i])
+                rmats[i] = xfcapi.make_rmat_of_expmap(self.expmap[i])
             self._rotation_matrices = rmats
         return self._rotation_matrices
 

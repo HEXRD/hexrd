@@ -4,12 +4,12 @@
 # and hexrdgui. This is so that we can see clearly what is in use.
 from .old_xfcapi import (
     # Old transform functions still in use
-    anglesToDVec,
-    anglesToGVec,  # new version provided below
-    detectorXYToGvec,
-    gvecToDetectorXY,  # new version provided below
-    gvecToDetectorXYArray,  # new version provided below
-    oscillAnglesOfHKLs,
+    # anglesToDVec,
+    # anglesToGVec,  # new version provided below
+    # detectorXYToGvec,
+    # gvecToDetectorXY,  # new version provided below
+    # gvecToDetectorXYArray,  # new version provided below
+    # oscillAnglesOfHKLs,
     # Utility functions
     angularDifference,
     quat_distance,
@@ -19,8 +19,8 @@ from .old_xfcapi import (
     makeOscillRotMatArray,  # new version provided below
     makeRotMatOfExpMap,
     makeRotMatOfQuat,
-    mapAngle,
-    rowNorm,
+    # mapAngle,
+    # rowNorm,
     unitRowVector,
     # Constants,
     bVec_ref,

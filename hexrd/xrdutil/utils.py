@@ -42,7 +42,7 @@ from hexrd import gridutil as gutil
 from hexrd.material.crystallography import processWavelength, PlaneData
 
 from hexrd.transforms import xf
-from hexrd.transforms import xfcapi
+from hexrd.transforms.new_capi import xf_new_capi as xfcapi
 from hexrd.valunits import valWUnit
 
 from hexrd import distortion as distortion_pkg
@@ -492,7 +492,7 @@ def simulateOmeEtaMaps(
     for iHKL in range(nhkls):
         these_hkls = np.ascontiguousarray(sym_hkls[iHKL].T, dtype=float)
         for iOr in range(nOrs):
-            rMat_c = xfcapi.makeRotMatOfExpMap(expMaps[iOr, :])
+            rMat_c = xfcapi.make_rmat_of_expmap(expMaps[iOr, :])
             angList = np.vstack(
                 xfcapi.oscillAnglesOfHKLs(
                     these_hkls,
@@ -1080,7 +1080,7 @@ def simulateGVecs(
     tVec_d = np.ascontiguousarray(detector_params[3:6])
     chi = detector_params[6]
     tVec_s = np.ascontiguousarray(detector_params[7:10])
-    rMat_c = xfcapi.makeRotMatOfExpMap(grain_params[:3])
+    rMat_c = xfcapi.make_rmat_of_expmap(grain_params[:3])
     tVec_c = np.ascontiguousarray(grain_params[3:6])
     vInv_s = np.ascontiguousarray(grain_params[6:12])
 
@@ -1199,7 +1199,7 @@ def simulateLauePattern(
     """
 
     for iG, gp in enumerate(grain_params):
-        rmat_c = xfcapi.makeRotMatOfExpMap(gp[:3])
+        rmat_c = xfcapi.make_rmat_of_expmap(gp[:3])
         tvec_c = gp[3:6].reshape(3, 1)
         vInv_s = mutil.vecMVToSymm(gp[6:].reshape(6, 1))
 
@@ -1228,7 +1228,7 @@ def simulateLauePattern(
             dhkl = hkls[:, canIntersect].reshape(3, npts_in)
 
             # back to angles
-            tth_eta, gvec_l = xfcapi.detectorXYToGvec(
+            tth_eta, gvec_l = xfcapi.xy_to_gvec(
                 dpts.T, rmat_d, rmat_s, tvec_d, tvec_s, tvec_c, beamVec=beamVec
             )
             tth_eta = np.vstack(tth_eta).T
@@ -1347,7 +1347,7 @@ def angularPixelSize(
     xy_expanded = _expand_pixels(
         xy_det, xy_pixelPitch[0], xy_pixelPitch[1], xy_expanded
     )
-    gvec_space, _ = xfcapi.detectorXYToGvec(
+    gvec_space, _ = xfcapi.xy_to_gvec(
         xy_expanded,
         rMat_d,
         rMat_s,
@@ -1411,7 +1411,7 @@ def make_reflection_patches(
     """
 
     # detector quantities
-    rmat_d = xfcapi.makeRotMatOfExpMap(
+    rmat_d = xfcapi.make_rmat_of_expmap(
         np.r_[instr_cfg['detector']['transform']['tilt']]
     )
     tvec_d = np.r_[instr_cfg['detector']['transform']['translation']]
@@ -1576,7 +1576,7 @@ def extract_detector_transformation(
     """
     # extract variables for convenience
     if isinstance(detector_params, dict):
-        rMat_d = xfcapi.makeRotMatOfExpMap(
+        rMat_d = xfcapi.make_rmat_of_expmap(
             np.array(detector_params['detector']['transform']['tilt'])
         )
         tVec_d = np.r_[detector_params['detector']['transform']['translation']]
@@ -1586,7 +1586,7 @@ def extract_detector_transformation(
         assert len(
             detector_params >= 10
         ), "list of detector parameters must have length >= 10"
-        rMat_d = xfcapi.makeRotMatOfExpMap(detector_params[:3])
+        rMat_d = xfcapi.make_rmat_of_expmap(detector_params[:3])
         tVec_d = np.ascontiguousarray(detector_params[3:6])
         chi = detector_params[6]
         tVec_s = np.ascontiguousarray(detector_params[7:10])

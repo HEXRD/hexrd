@@ -6,7 +6,7 @@ from scipy import optimize
 
 from hexrd import matrixutil as mutil
 
-from hexrd.transforms import xfcapi
+from hexrd.transforms.new_capi import xf_new_capi as xfcapi
 
 from hexrd.xrdutil import extract_detector_transformation
 
@@ -162,7 +162,7 @@ def objFuncFitGrain(gFit, gFull, gFlag,
     gFull[gFlag] = gFit
 
     # map parameters to functional arrays
-    rMat_c = xfcapi.makeRotMatOfExpMap(gFull[:3])
+    rMat_c = xfcapi.make_rmat_of_expmap(gFull[:3])
     tVec_c = gFull[3:6].reshape(3, 1)
     vInv_s = gFull[6:]
     vMat_s = mutil.vecMVToSymm(vInv_s)  # NOTE: Inverse of V from F = V * R

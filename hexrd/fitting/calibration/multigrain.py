@@ -6,7 +6,7 @@ from scipy.optimize import leastsq, least_squares
 
 from hexrd import constants as cnst
 from hexrd import matrixutil as mutil
-from hexrd.transforms import xfcapi
+from hexrd.transforms.new_capi import xf_new_capi as xfcapi
 
 from .. import grains as grainutil
 
@@ -257,7 +257,7 @@ def sxcal_obj_func(plist_fit, plist_full,
             # 3) apply stretch tensor
             # 4) normalize reciprocal lattice vectors in SAMPLE frame
             # 5) transform unit reciprocal lattice vetors back to CRYSAL frame
-            rmat_c = xfcapi.makeRotMatOfExpMap(grain[:3])
+            rmat_c = xfcapi.make_rmat_of_expmap(grain[:3])
             tvec_c = grain[3:6]
             vinv_s = grain[6:]
             gvec_c = np.dot(bmat, ghkls.T)

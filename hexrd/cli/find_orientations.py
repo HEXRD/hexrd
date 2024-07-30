@@ -5,7 +5,7 @@ import numpy as np
 
 from hexrd import constants as const
 from hexrd import instrument
-from hexrd.transforms import xfcapi
+from hexrd.transforms.new_capi import xf_new_capi as xfcapi
 
 
 descr = 'Process rotation image series to find grain orientations'

@@ -18,7 +18,7 @@ from hexrd import indexer
 from hexrd import instrument
 from hexrd.imageutil import find_peaks_2d
 from hexrd import rotations as rot
-from hexrd.transforms import xfcapi
+from hexrd.transforms.new_capi import xf_new_capi as xfcapi
 from hexrd.xrdutil import EtaOmeMaps
 
 # just require scikit-learn?

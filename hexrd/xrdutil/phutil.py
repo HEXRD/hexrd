@@ -14,7 +14,7 @@ from numba import njit
 
 from hexrd import constants as ct
 from hexrd.instrument import Detector
-from hexrd.transforms import xfcapi
+from hexrd.transforms.new_capi import xf_new_capi as xfcapi
 from hexrd.utils.concurrent import distribute_tasks
 
 

@@ -8,7 +8,7 @@ from skimage.feature import blob_log
 from hexrd import xrdutil
 from hexrd.constants import fwhm_to_sigma
 from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
-from hexrd.transforms import xfcapi
+from hexrd.transforms.new_capi import xf_new_capi as xfcapi
 from hexrd.utils.hkl import hkl_to_str, str_to_hkl
 
 from .calibrator import Calibrator
@@ -69,7 +69,7 @@ class LaueCalibrator(Calibrator):
 
         grain_params = self.grain_params.copy()
         rme = RotMatEuler(np.zeros(3), **self.euler_convention)
-        rme.rmat = xfcapi.makeRotMatOfExpMap(grain_params[:3])
+        rme.rmat = xfcapi.make_rmat_of_expmap(grain_params[:3])
         grain_params[:3] = np.degrees(rme.angles)
         return grain_params
 
@@ -171,7 +171,7 @@ class LaueCalibrator(Calibrator):
         rmat_s = np.eye(3)  # !!! forcing to identity
         omega = 0.  # !!! same ^^^
 
-        rmat_c = xfcapi.makeRotMatOfExpMap(self.grain_params[:3])
+        rmat_c = xfcapi.make_rmat_of_expmap(self.grain_params[:3])
         tvec_c = self.grain_params[3:6]
         # vinv_s = self.grain_params[6:12]  # !!!: patches don't take this yet
 

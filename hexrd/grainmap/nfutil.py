@@ -26,7 +26,7 @@ from hexrd import constants
 from hexrd import instrument
 from hexrd import material
 from hexrd import rotations
-from hexrd.transforms import xfcapi
+from hexrd.transforms.new_capi import xf_new_capi as xfcapi
 from hexrd import valunits
 from hexrd import xrdutil
 
@@ -532,7 +532,7 @@ def simulate_diffractions(grain_params, experiment, controller):
 
     controller.start(subprocess, count)
     for i in range(count):
-        rC = xfcapi.makeRotMatOfExpMap(grain_params[i][0:3])
+        rC = xfcapi.make_rmat_of_expmap(grain_params[i][0:3])
         tC = np.ascontiguousarray(grain_params[i][3:6])
         vInv_s = np.ascontiguousarray(grain_params[i][6:12])
         ang_list = np.vstack(xfcapi.oscillAnglesOfHKLs(full_hkls[:, 1:], chi,

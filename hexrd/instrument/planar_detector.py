@@ -1,9 +1,9 @@
 import numpy as np
 
 from hexrd import constants as ct
-from hexrd.transforms.xfcapi import (
+from hexrd.transforms.new_capi.xf_new_capi import (
     angles_to_gvec,
-    detectorXYToGvec,
+    xy_to_gvec as detectorXYToGvec,
     gvec_to_xy,
 )
 from hexrd.utils.decorators import memoize

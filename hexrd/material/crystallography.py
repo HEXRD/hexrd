@@ -38,7 +38,7 @@ from hexrd.matrixutil import unitVector
 from hexrd.rotations import \
     rotMatOfExpMap, mapAngle, applySym, \
     ltypeOfLaueGroup, quatOfLaueGroup
-from hexrd.transforms import xfcapi
+from hexrd.transforms.new_capi import xf_new_capi as xfcapi
 from hexrd import valunits
 from hexrd.valunits import toFloat
 from hexrd.constants import d2r, r2d, sqrt3by2, epsf, sqrt_epsf
