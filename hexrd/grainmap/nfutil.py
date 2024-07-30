@@ -1475,7 +1475,7 @@ def plot_ori_map(grain_map, confidence_map, exp_maps, layer_no,mat,id_remap=None
 
             ori = exp_maps[ii, :]
 
-            rmats = rot.rotMatOfExpMap(ori)
+            rmats = rotations.rotMatOfExpMap(ori)
             rgb = mat.unitcell.color_orientations(
                 rmats, ref_dir=np.array([0., 1., 0.]))
 
@@ -1489,9 +1489,9 @@ def plot_ori_map(grain_map, confidence_map, exp_maps, layer_no,mat,id_remap=None
     fig1 = plt.figure()
     plt.imshow(rgb_image, interpolation='none')
     plt.title('Layer %d Grain Map' % layer_no)
-    plt.show()
-    #plt.hold(True)
-    fig2 = plt.figure()
+    #plt.show()
+    plt.hold(True)
+    #fig2 = plt.figure()
     plt.imshow(conf_plot, vmin=0.0, vmax=1.,
                interpolation='none', cmap=plt.cm.gray, alpha=0.5)
     plt.title('Layer %d Confidence Map' % layer_no)
