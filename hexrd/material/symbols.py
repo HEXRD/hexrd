@@ -167,6 +167,7 @@ def PrintPossibleSG(xtal_sys):
 
         return sgmin, sgmax
 
+
 #
 # Hall Symbols copied from:
 #
@@ -1265,4 +1266,4 @@ def _buildDict(hstr):
 
 
 lookupHall, Hall_to_sgnum = _buildDict(HALL_STR)
-lookupHM,   HM_to_sgnum   = _buildDict(HM_STR)
+lookupHM,     HM_to_sgnum = _buildDict(HM_STR)
