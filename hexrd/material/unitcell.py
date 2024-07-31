@@ -11,7 +11,6 @@ import h5py
 from pathlib import Path
 from scipy.interpolate import interp1d
 import time
-import copy
 
 eps = constants.sqrt_epsf
 ENERGY_ID = 0
