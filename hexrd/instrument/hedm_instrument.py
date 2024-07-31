@@ -69,7 +69,12 @@ from hexrd.transforms.xfcapi import (
 from hexrd import xrdutil
 from hexrd.material.crystallography import PlaneData
 from hexrd import constants as ct
-from hexrd.rotations import angleAxisOfRotMat, RotMatEuler, mapAngle
+
+from hexrd.rotations import (angleAxisOfRotMat,
+    RotMatEuler,
+    mapAngle,
+    rotMatOfExpMap)
+
 from hexrd import distortion as distortion_pkg
 from hexrd.utils.concurrent import distribute_tasks
 from hexrd.utils.hdf5 import unwrap_dict_to_h5, unwrap_h5_to_dict
@@ -119,6 +124,7 @@ t_vec_d_DFLT = np.r_[0., 0., -1000.]
 
 chi_DFLT = 0.
 t_vec_s_DFLT = np.zeros(3)
+tilt_DFLT = np.zeros(3)
 
 multi_ims_key = ct.shared_ims_key
 ims_classes = (ImageSeries, ProcessedImageSeries, OmegaImageSeries)
@@ -590,6 +596,7 @@ class HEDMInstrument(object):
                 )
 
             self._tvec = t_vec_s_DFLT
+            self._tilt = tilt_DFLT
             self._chi = chi_DFLT
         else:
             if isinstance(instrument_config, h5py.File):
@@ -825,6 +832,20 @@ class HEDMInstrument(object):
         x = np.array(x).flatten()
         assert len(x) == 3, 'input must have length = 3'
         self._tvec = x
+
+    @property
+    def tilt(self):
+        return self._tilt
+
+    @tilt.setter
+    def tilt(self, x):
+        x = np.array(x).flatten()
+        assert len(x) == 3, 'input must have length = 3'
+        self._tilt = x
+
+    @property
+    def rmat(self):
+        return rotMatOfExpMap(self.tilt)
 
     @property
     def chi(self):

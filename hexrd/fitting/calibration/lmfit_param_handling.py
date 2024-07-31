@@ -11,9 +11,10 @@ from hexrd.rotations import (
     make_rmat_euler,
     quatOfRotMat,
     RotMatEuler,
+    rotMatOfExpMap
 )
 from hexrd.material.unitcell import _lpname
-
+import copy
 
 # First is the axes_order, second is extrinsic
 DEFAULT_EULER_CONVENTION = ('zxz', False)
@@ -85,6 +86,55 @@ def create_instr_params(instr, euler_convention=DEFAULT_EULER_CONVENTION):
 
     return parms_list
 
+def create_instr_params_fiddle(instr, euler_convention=DEFAULT_EULER_CONVENTION):
+    # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
+    # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
+    parms_list = []
+    if instr.has_multi_beam:
+        for k, v in instr.multi_beam_dict.items():
+            azim, pol = calc_angles_from_beam_vec(v['beam_vector'])
+            pname = f'{k}_beam_polar'
+            aname = f'{k}_beam_azimuth'
+            parms_list.append((pname, pol, False, pol-1, pol+1))
+            parms_list.append((aname, azim, False, azim-1, azim+1))
+
+            bname = f'{k}_beam_energy'
+            beam_energy = v['beam_energy']
+            parms_list.append((bname,
+                               beam_energy,
+                               False,
+                               beam_energy-0.2,
+                               beam_energy+0.2))
+    else:
+        azim, pol = calc_angles_from_beam_vec(instr.beam_vector)
+        parms_list.append(('beam_polar', pol, False, pol-1, pol+1))
+        parms_list.append(('beam_azimuth', azim, False, azim-1, azim+1))
+
+        parms_list.append(('beam_energy',
+                           instr.beam_energy,
+                           False,
+                           instr.beam_energy-0.2,
+                           instr.beam_energy+0.2))
+
+    parms_list.append(('instr_chi', np.degrees(instr.chi),
+                       False, np.degrees(instr.chi)-1,
+                       np.degrees(instr.chi)+1))
+    parms_list.append(('instr_tvec_x', instr.tvec[0], False, -np.inf, np.inf))
+    parms_list.append(('instr_tvec_y', instr.tvec[1], False, -np.inf, np.inf))
+    parms_list.append(('instr_tvec_z', instr.tvec[2], False, -np.inf, np.inf))
+
+    parms_list.append(('instr_tilt_x', instr.tilt[0], False, -np.inf, np.inf))
+    parms_list.append(('instr_tilt_y', instr.tilt[1], False, -np.inf, np.inf))
+    parms_list.append(('instr_tilt_z', instr.tilt[2], False, -np.inf, np.inf))
+
+    for det_name, panel in instr.detectors.items():
+        if panel.distortion is not None:
+                p = panel.distortion.params
+                for ii, pp in enumerate(p):
+                    parms_list.append((f'{det}_distortion_param_{ii}', pp,
+                                       False, -np.inf, np.inf))
+
+    return parms_list
 
 def create_beam_param_names(instr: HEDMInstrument) -> dict[str, str]:
     param_names = {}
@@ -161,6 +211,55 @@ def update_instrument_from_params(instr, params, euler_convention):
                         f"params but got {len(distortion)}"
                     )
 
+def update_instrument_from_params_fiddle(instr, params, euler_convention):
+    """
+    this function is specifically meant for the fiddle
+    instrument. Only a global translation and rotation
+    parameter controls the calibration. the relative
+    locations/orientations of the icarus detectors are 
+    fixed.
+    """
+    if not isinstance(params, lmfit.Parameters):
+        msg = ('Only lmfit.Parameters is acceptable input. '
+               f'Received: {params}')
+        raise NotImplementedError(msg)
+
+    instr.beam_energy = params['beam_energy'].value
+
+    azim = params['beam_azimuth'].value
+    pola = params['beam_polar'].value
+    instr.beam_vector = calc_beam_vec(azim, pola)
+
+    instr_tvec = [params['instr_tvec_x'].value,
+                  params['instr_tvec_y'].value,
+                  params['instr_tvec_z'].value]
+    instr.tvec = np.r_[instr_tvec]
+
+    chi = np.radians(params['instr_chi'].value)
+    instr.chi = chi
+
+    instr_tilt = [params['instr_tilt_x'].value,
+                  params['instr_tilt_y'].value,
+                  params['instr_tilt_z'].value]
+    instr.tilt = np.r_[instr_tilt]
+
+    for det_name, detector in instr.detectors.items():
+        det = det_name.replace('-', '_')
+        distortion_str = f'{det}_distortion_param'
+        if any(distortion_str in p for p in params):
+            if detector.distortion is None:
+                raise RuntimeError(f"distortion discrepancy for '{det}'!")
+            else:
+                names = np.sort([p for p in params if distortion_str in p])
+                distortion = np.r_[[params[n].value for n in names]]
+                try:
+                    detector.distortion.params = distortion
+                except AssertionError:
+                    raise RuntimeError(
+                        f"distortion for '{det}' "
+                        f"expects {len(detector.distortion.params)} "
+                        f"params but got {len(distortion)}"
+                    )
 
 def create_tth_parameters(
     instr: HEDMInstrument,
@@ -377,7 +476,6 @@ def param_names_euler_convention(base, euler_convention):
     normalized = normalize_euler_convention(euler_convention)
     return [f'{base}_{x}' for x in EULER_PARAM_NAMES_MAPPING[normalized]]
 
-
 def detector_angles_euler(panel, euler_convention):
     if euler_convention is None:
         # Return exponential map parameters
@@ -393,7 +491,6 @@ def detector_angles_euler(panel, euler_convention):
 
     rme.rmat = rmat
     return np.degrees(rme.angles)
-
 
 def set_detector_angles_euler(panel, base_name, params, euler_convention):
     normalized = normalize_euler_convention(euler_convention)
@@ -417,3 +514,8 @@ def set_detector_angles_euler(panel, base_name, params, euler_convention):
     )
 
     panel.tilt = expMapOfQuat(quatOfRotMat(rmat))
+
+def update_detector_tilts_fiddle(instr):
+    for det_name, panel in instr.detectors.items():
+        rmat_new = np.dot(instr.rmat, panel.rmat)
+        panel.tilt = expMapOfQuat(quatOfRotMat(rmat_new))
