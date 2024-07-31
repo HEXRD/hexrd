@@ -718,7 +718,10 @@ class Material(object):
 
             chkstr = np.asarray([isinstance(x, str) for x in occ])
             occstr = np.array(occ)
-            occstr[chkstr] = 1.0
+            try:
+                occstr = occstr.astype(np.float64)
+            except:
+                occstr[chkstr] = 1.0
 
             atompos.append(np.asarray(occstr).astype(np.float64))
 
