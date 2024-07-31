@@ -617,7 +617,7 @@ class unitcell:
         """
 
         if atom_pos is None:
-            atom_pos = copy.deepcopy(self.atom_pos)
+            atom_pos = self.atom_pos
 
         atom_pos_fixed = []
         idx = []
@@ -638,7 +638,7 @@ class unitcell:
                     occ2 = uniqpos[3]
                     # cases with fractional occupancy on same site
                     if (np.all(np.isclose(pos, pos2)) and
-                            np.isclose(occ+occ2, 1.)):
+                            (occ+occ2 <= 1.)):
                         atom_pos_fixed.append(np.hstack([pos, occ]))
                         idx.append(i)
                         isclose = True
