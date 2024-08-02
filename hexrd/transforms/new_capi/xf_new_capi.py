@@ -32,7 +32,7 @@ import numpy as np
 def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     """
 
-    Takes triplets of angles in the beam frame (2*theta, eta, optional omega)
+    Takes triplets of angles in the beam frame (2*theta, eta[, omega])
     to components of unit G-vectors in the LAB frame.  If the omega
     values are not trivial (i.e. angs[:, 2] = 0.), then the components
     are in the SAMPLE frame.  If the crystal rmat is specified and
@@ -43,8 +43,8 @@ def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     Parameters
     ----------
     angs : ndarray
-        The euler angles of diffraction. The last dimension must be 2 or 3.  In
-        (2*theta, eta, omega) or (2*theta, eta) format.
+        The euler angles of diffraction. The last dimension must be 2 or 3. In
+        (2*theta, eta[, omega]) format.
     beam_vec : ndarray, optional
         Unit vector pointing towards the X-ray source in the lab frame.
         Defaults to [0,0,-1]
@@ -88,7 +88,7 @@ def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
 def angles_to_dvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     """
 
-    Takes triplets of angles in the beam frame (2*theta, eta, omega)
+    Takes triplets of angles in the beam frame (2*theta, eta[, omega])
     to components of unit diffraction vectors in the LAB frame.  If the omega
     values are not trivial (i.e. angs[:, 2] = 0.), then the components
     are in the SAMPLE frame.  If the crystal rmat is specified and
@@ -98,8 +98,8 @@ def angles_to_dvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     Parameters
     ----------
     angs : ndarray
-        The euler angles of diffraction. The last dimension must be 3.  In
-        (2*theta, eta, omega) format.
+        The euler angles of diffraction. The last dimension must be 2 or 3. In
+        (2*theta, eta[, omega]) format.
     beam_vec : ndarray, optional
         Unit vector pointing towards the X-ray source in the lab frame.
         Defaults to [0,0,-1]
@@ -121,7 +121,13 @@ def angles_to_dvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     beam_vec = beam_vec if beam_vec is not None else cnst.beam_vec
     eta_vec = eta_vec if eta_vec is not None else cnst.eta_vec
 
+    # if only a pair is provided... convert to a triplet with omegas == 0
+    # so that behavior is preserved.
+    if angs.shape[-1] == 2:
+        angs = np.hstack((angs, np.zeros(angs.shape[:-1] + (1,))))
+
     angs = np.ascontiguousarray(np.atleast_2d(angs))
+    
     beam_vec = np.ascontiguousarray(beam_vec.flatten())
     eta_vec = np.ascontiguousarray(eta_vec.flatten())
     rmat_c = (
@@ -157,7 +163,7 @@ def makeGVector(hkl, bMat):
 
     """
     assert hkl.shape[0] == 3, 'hkl input must be (3, n)'
-    return unitVector(np.dot(bMat, hkl))
+    return unit_vector(np.dot(bMat, hkl))
 
 
 def gvec_to_xy(
@@ -309,10 +315,7 @@ def xy_to_gvec(
     array_like, optional
         if output_ref is True
     """
-    # TODO: in the C library beam vector and eta vector are expected. However
-    # we receive rmat_b. Please check this!
-    #
-    # It also seems that the output_ref version is not present as the argument
+    # It seems that the output_ref version is not present as the argument
     # gets ignored
 
     rmat_b = rmat_b if rmat_b is not None else cnst.identity_3x3
@@ -331,7 +334,7 @@ def xy_to_gvec(
     tvec_s = np.ascontiguousarray(tvec_s.flatten())
     tvec_c = np.ascontiguousarray(tvec_c.flatten())
     beam_vec = np.ascontiguousarray((-rmat_b[:, 2]).flatten())
-    eta_vec = np.ascontiguousarray(rmat_b[:, 0].flatten())  # check this!
+    eta_vec = np.ascontiguousarray(rmat_b[:, 0].flatten())
     return _impl.detectorXYToGvec(
         xy_d, rmat_d, rmat_s, tvec_d, tvec_s, tvec_c, beam_vec, eta_vec
     )
