@@ -13,7 +13,6 @@ def test_validate_angle_ranges_from_file(test_data_dir):
         test_data_dir / 'test_correct_validate_angle_ranges.npy',
         allow_pickle=True
     )
-
     for obj in arr:
         result = validate_angle_ranges(
             obj["angs_list"],
@@ -21,7 +20,7 @@ def test_validate_angle_ranges_from_file(test_data_dir):
             obj["stop_angs"],
             obj["ccw"]
         )
-        assert np.allclose(result, obj["result"])
+        assert np.all(result == obj["result"])
 
 
 

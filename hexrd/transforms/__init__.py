@@ -26,7 +26,6 @@
 # ============================================================
 """Tools or X-ray diffraction analysis
 """
-from . import xf
 from . import xfcapi
 
 

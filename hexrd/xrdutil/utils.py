@@ -41,7 +41,6 @@ from hexrd import gridutil as gutil
 
 from hexrd.material.crystallography import processWavelength, PlaneData
 
-from hexrd.transforms import xf
 from hexrd.transforms import xfcapi
 from hexrd.valunits import valWUnit
 
@@ -519,7 +518,7 @@ def simulateOmeEtaMaps(
                 for etas in etaRanges:
                     angMask_eta = np.logical_or(
                         angMask_eta,
-                        xf.validateAngleRanges(
+                        xfcapi.validate_angle_ranges(
                             angList[:, 1], etas[0], etas[1]
                         ),
                     )
@@ -532,7 +531,7 @@ def simulateOmeEtaMaps(
                         ccw = False
                     angMask_ome = np.logical_or(
                         angMask_ome,
-                        xf.validateAngleRanges(
+                        xfcapi.validate_angle_ranges(
                             angList[:, 2], omes[0], omes[1], ccw=ccw
                         ),
                     )
@@ -610,7 +609,7 @@ def _filter_hkls_eta_ome(
     angMask_eta = np.zeros(len(angles), dtype=bool)
     for etas in eta_range:
         angMask_eta = np.logical_or(
-            angMask_eta, xf.validateAngleRanges(angles[:, 1], etas[0], etas[1])
+            angMask_eta, xfcapi.validate_angle_ranges(angles[:, 1], etas[0], etas[1])
         )
 
     ccw = True
@@ -620,7 +619,7 @@ def _filter_hkls_eta_ome(
             ccw = False
         angMask_ome = np.logical_or(
             angMask_ome,
-            xf.validateAngleRanges(angles[:, 2], omes[0], omes[1], ccw=ccw),
+            xfcapi.validate_angle_ranges(angles[:, 2], omes[0], omes[1], ccw=ccw),
         )
 
     angMask = np.logical_and(angMask_eta, angMask_ome)

@@ -127,7 +127,7 @@ def angles_to_dvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
         angs = np.hstack((angs, np.zeros(angs.shape[:-1] + (1,))))
 
     angs = np.ascontiguousarray(np.atleast_2d(angs))
-    
+
     beam_vec = np.ascontiguousarray(beam_vec.flatten())
     eta_vec = np.ascontiguousarray(eta_vec.flatten())
     rmat_c = (
@@ -242,7 +242,9 @@ def gvec_to_xy(
 
     orig_ndim = gvec_c.ndim
     gvec_c = np.ascontiguousarray(np.atleast_2d(gvec_c))
+    rmat_d = np.ascontiguousarray(rmat_d)
     rmat_s = np.ascontiguousarray(rmat_s)
+    rmat_c = np.ascontiguousarray(rmat_c)
     tvec_d = np.ascontiguousarray(tvec_d.flatten())
     tvec_s = np.ascontiguousarray(tvec_s.flatten())
     tvec_c = np.ascontiguousarray(tvec_c.flatten())
@@ -353,10 +355,10 @@ def oscillAnglesOfHKLs(
     # this was oscillAnglesOfHKLs
     hkls = np.array(hkls, dtype=float, order='C')
     if vInv is None:
-        vInv_ref = np.array([[1., 1., 1., 0., 0., 0.]], order='C').T 
-        vInv = np.ascontiguousarray(vInv_ref.flatten())
+        vInv = np.array([1., 1., 1., 0., 0., 0.])
     else:
         vInv = np.ascontiguousarray(vInv.flatten())
+    rMat_c = np.ascontiguousarray(rMat_c)
     beamVec = np.ascontiguousarray(beamVec.flatten())
     etaVec = np.ascontiguousarray(etaVec.flatten())
     bMat = np.ascontiguousarray(bMat)
@@ -396,7 +398,12 @@ def unit_vector(vec_in):
         )
 
 
-def makeDetectorRotMat(tiltAngles):
+def make_detector_rot_mat(tiltAngles):
+    """
+    Form the (3, 3) tilt rotations from the tilt angle list:
+
+    tiltAngles = [gamma_Xl, gamma_Yl, gamma_Zl] in radians
+    """
     arg = np.ascontiguousarray(np.r_[tiltAngles].flatten())
     return _impl.makeDetectorRotMat(arg)
 
@@ -516,9 +523,9 @@ def validate_angle_ranges(ang_list, start_angs, stop_angs, ccw=True):
         List of bools indicating if the angles are in the correct range
 
     """
-    ang_list = ang_list.astype(np.double, order="C")
-    start_angs = start_angs.astype(np.double, order="C")
-    stop_angs = stop_angs.astype(np.double, order="C")
+    ang_list = np.atleast_1d(ang_list).astype(np.double, order='C')
+    start_angs = np.atleast_1d(start_angs).astype(np.double, order='C')
+    stop_angs = np.atleast_1d(stop_angs).astype(np.double, order='C')
 
     return _impl.validateAngleRanges(ang_list, start_angs, stop_angs, ccw)
 
