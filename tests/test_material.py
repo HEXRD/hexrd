@@ -21,6 +21,10 @@ def default_material():
 def test_materials_file(example_repo_path):
     return example_repo_path / 'NIST_ruby/single_GE/include/materials.h5'
 
+@pytest.fixture
+def test_material_file_duplicate_atoms():
+    return f'{test_data_dir}/testmat.h5'
+
 
 def normalize_unit(v):
     if hasattr(v, 'unit'):
@@ -83,6 +87,26 @@ def test_load_materials(test_materials_file):
         for i in range(6):
             assert are_close(params[i], ruby.latticeParameters[i])
 
+def test_remove_duplicate_atoms(test_material_file_duplicate_atoms):
+    mats = load_materials_hdf5(test_material_file_duplicate_atoms)
+
+    apos_xtal1 = np.array([[0., 0., 0., 1.]])
+    apos_xtal2 = np.array([[0., 0., 0., 0.5],
+                           [0., 0., 0., 0.5]])
+    apos_xtal3 = np.array([[0., 0., 0., 1./3.],
+                           [0. , 0. , 0.  , 1./3.],
+                           [0. , 0. , 0.  , 1./3.],
+                           [0.5, 0. , 0.  , 1.],
+                           [0.5, 0.5, 0.25, 1.]])
+
+    mats['xtal1'].unitcell.remove_duplicate_atoms()
+    assert np.all(np.isclose(mats['xtal1'].atom_pos, apos_xtal1))
+
+    mats['xtal2'].unitcell.remove_duplicate_atoms()
+    assert np.all(np.isclose(mats['xtal2'].atom_pos, apos_xtal2))
+
+    mats['xtal3'].unitcell.remove_duplicate_atoms()
+    assert np.all(np.isclose(mats['xtal3'].atom_pos, apos_xtal3))
 
 class TestExclusions:
 
