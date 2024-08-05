@@ -22,7 +22,7 @@ def test_materials_file(example_repo_path):
     return example_repo_path / 'NIST_ruby/single_GE/include/materials.h5'
 
 @pytest.fixture
-def test_material_file_duplicate_atoms():
+def test_material_file_duplicate_atoms(test_data_dir):
     return f'{test_data_dir}/testmat.h5'
 
 
