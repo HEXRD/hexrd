@@ -283,7 +283,9 @@ def objFuncFitGrain(gFit, gFull, gFlag,
         # return residual vector
         # IDEA: try angles instead of xys?
         diff_vecs_xy = calc_xy_all - meas_xyo_all[:, :2]
-        diff_ome = rotations.angularDifference(calc_omes_all, meas_xyo_all[:, 2])
+        diff_ome = rotations.angularDifference(
+            calc_omes_all, meas_xyo_all[:, 2]
+        )
         retval = np.hstack([diff_vecs_xy,
                             diff_ome.reshape(npts, 1)
                             ]).flatten()
@@ -338,7 +340,9 @@ def matchOmegas(xyo_det, hkls_idx, chi, rMat_c, bMat, wavelength,
         calc_omes = np.vstack([rotations.mapAngle(oangs0[:, 2], omePeriod),
                                rotations.mapAngle(oangs1[:, 2], omePeriod)])
     # do angular difference
-    diff_omes = rotations.angularDifference(np.tile(meas_omes, (2, 1)), calc_omes)
+    diff_omes = rotations.angularDifference(
+        np.tile(meas_omes, (2, 1)), calc_omes
+    )
     match_omes = np.argsort(diff_omes, axis=0) == 0
     calc_omes = calc_omes.T.flatten()[match_omes.T.flatten()]
 

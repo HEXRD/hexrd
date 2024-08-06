@@ -448,8 +448,8 @@ def _infer_eHat_l(panel):
     instr_type = _infer_instrument_type(panel)
 
     eHat_l_dict = {
-        'TARDIS': -ct.lab_x.reshape((3,1)),
-        'PXRDIP': ct.lab_y.reshape((3,1))
+        'TARDIS': -ct.lab_x.reshape((3, 1)),
+        'PXRDIP': ct.lab_y.reshape((3, 1))
     }
 
     return eHat_l_dict[instr_type]

@@ -1602,7 +1602,7 @@ class Detector:
             if np.any(canIntersect):
                 dpts = dpts[canIntersect, :].reshape(npts_in, 2)
                 dhkl = hkls[:, canIntersect].reshape(3, npts_in)
-                
+
                 rmat_b = make_beam_rmat(beam_vec, ct.eta_vec)
                 # back to angles
                 tth_eta, gvec_l = xy_to_gvec(
