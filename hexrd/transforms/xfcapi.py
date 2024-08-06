@@ -4,7 +4,7 @@
 # and hexrdgui. This is so that we can see clearly what is in use.
 from .old_xfcapi import (
     # Old transform functions still in use
-    anglesToDVec,
+    anglesToDVec,  # new version provided below
     anglesToGVec,  # new version provided below
     detectorXYToGvec,  # new version provided below
     gvecToDetectorXY,  # new version provided below
@@ -42,4 +42,6 @@ from .new_capi.xf_new_capi import (
     unit_vector,  # this is unitRowVector
     rotate_vecs_about_axis,
     make_detector_rot_mat,
+    make_rmat_of_expmap,
+    oscill_angles_of_hkls
 )

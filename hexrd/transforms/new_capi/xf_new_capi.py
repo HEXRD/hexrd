@@ -23,13 +23,21 @@ module:
  - makeRotMatOfQuat
  - homochoricOfQuat
 """
-from . import constants as cnst
-from hexrd.extensions import _new_transforms_capi as _impl
-
+from typing import Optional, Tuple, Union
 import numpy as np
 
+from hexrd.extensions import _new_transforms_capi as _impl
+from hexrd.distortion.distortionabc import DistortionABC
+from hexrd import constants as cnst
 
-def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
+
+def angles_to_gvec(
+    angs: np.ndarray,
+    beam_vec: Optional[np.ndarray] = None,
+    eta_vec: Optional[np.ndarray] = None,
+    chi: Optional[float] = None,
+    rmat_c: Optional[np.ndarray] = None,
+) -> np.ndarray:
     """
 
     Takes triplets of angles in the beam frame (2*theta, eta[, omega])
@@ -85,7 +93,13 @@ def angles_to_gvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     return result[0] if orig_ndim == 1 else result
 
 
-def angles_to_dvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
+def angles_to_dvec(
+    angs: np.ndarray,
+    beam_vec: Optional[np.ndarray] = None,
+    eta_vec: Optional[np.ndarray] = None,
+    chi: Optional[float] = None,
+    rmat_c: Optional[np.ndarray] = None,
+) -> np.ndarray:
     """
 
     Takes triplets of angles in the beam frame (2*theta, eta[, omega])
@@ -140,7 +154,7 @@ def angles_to_dvec(angs, beam_vec=None, eta_vec=None, chi=None, rmat_c=None):
     return _impl.anglesToDVec(angs, beam_vec, eta_vec, chi, rmat_c)
 
 
-def makeGVector(hkl, bMat):
+def makeGVector(hkl: np.ndarray, bMat: np.ndarray) -> np.ndarray:
     """
     Take a crystal relative b matrix onto a list of hkls to output unit
     reciprocal latice vectors (a.k.a. lattice plane normals)
@@ -167,17 +181,17 @@ def makeGVector(hkl, bMat):
 
 
 def gvec_to_xy(
-    gvec_c,
-    rmat_d,
-    rmat_s,
-    rmat_c,
-    tvec_d,
-    tvec_s,
-    tvec_c,
-    beam_vec=None,
-    vmat_inv=None,
-    bmat=None,
-):
+    gvec_c: np.ndarray,
+    rmat_d: np.ndarray,
+    rmat_s: np.ndarray,
+    rmat_c: np.ndarray,
+    tvec_d: np.ndarray,
+    tvec_s: np.ndarray,
+    tvec_c: np.ndarray,
+    beam_vec: Optional[np.ndarray] = None,
+    vmat_inv: Optional[np.ndarray] = None,
+    bmat: Optional[np.ndarray] = None,
+) -> np.ndarray:
     """
     Takes a concatenated list of reciprocal lattice vectors components in the
     CRYSTAL FRAME to the specified detector-relative frame, subject to the
@@ -265,16 +279,16 @@ def gvec_to_xy(
 
 
 def xy_to_gvec(
-    xy_d,
-    rmat_d,
-    rmat_s,
-    tvec_d,
-    tvec_s,
-    tvec_c,
-    rmat_b=None,
-    distortion=None,
-    output_ref=False,
-):
+    xy_d: np.ndarray,
+    rmat_d: np.ndarray,
+    rmat_s: np.ndarray,
+    tvec_d: np.ndarray,
+    tvec_s: np.ndarray,
+    tvec_c: np.ndarray,
+    rmat_b: Optional[np.ndarray] = None,
+    distortion: Optional[DistortionABC] = None,
+    output_ref: Optional[bool] = False,
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Takes a list cartesian (x, y) pairs in the DETECTOR FRAME and calculates
     the associated reciprocal lattice (G) vectors and (bragg angle, azimuth)
@@ -327,7 +341,7 @@ def xy_to_gvec(
     assert not output_ref, 'output_ref not implemented'
 
     if distortion is not None:
-        xy_d = distortion.unwarp(xy_d)
+        xy_d = distortion.apply_inverse(xy_d)
 
     xy_d = np.ascontiguousarray(np.atleast_2d(xy_d))
     rmat_d = np.ascontiguousarray(rmat_d)
@@ -342,32 +356,107 @@ def xy_to_gvec(
     )
 
 
-def oscillAnglesOfHKLs(
-    hkls,
-    chi,
-    rMat_c,
-    bMat,
-    wavelength,
-    vInv=None,
-    beamVec=cnst.beam_vec,
-    etaVec=cnst.eta_vec,
-):
+def oscill_angles_of_hkls(
+    hkls: np.ndarray,
+    chi: float,
+    rmat_c: np.ndarray,
+    bmat: np.ndarray,
+    wavelength: float,
+    v_inv: Optional[np.ndarray] = None,
+    beam_vec: np.ndarray = cnst.beam_vec,
+    eta_vec: np.ndarray = cnst.eta_vec,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Takes a list of unit reciprocal lattice vectors in crystal frame to the
+    specified detector-relative frame, subject to the conditions:
+
+    1) the reciprocal lattice vector must be able to satisfy a bragg condition
+    2) the associated diffracted beam must intersect the detector plane
+
+    Parameters
+    ----------
+    hkls       -- (n, 3) ndarray of n reciprocal lattice vectors
+                  in the CRYSTAL FRAME
+    chi        -- float representing the inclination angle of the
+                  oscillation axis (std coords)
+    rmat_c     -- (3, 3) ndarray, the COB taking CRYSTAL FRAME components
+                  to SAMPLE FRAME
+    bmat       -- (3, 3) ndarray, the COB taking RECIPROCAL LATTICE components
+                  to CRYSTAL FRAME
+    wavelength -- float representing the x-ray wavelength in Angstroms
+
+    Optional Keyword Arguments:
+    v_inv      -- (6, ) ndarray, vec representation inverse stretch tensor
+                  components in the SAMPLE FRAME. The default is None, which
+                  implies a strain-free state (i.e. V = I).
+    beam_vec -- (3, 1) mdarray containing the incident beam direction
+               components in the LAB FRAME
+    eta_vec  -- (3, 1) mdarray containing the reference azimuth direction
+               components in the LAB FRAME
+
+    Outputs:
+    ome0 -- (n, 3) ndarray containing the feasible (tTh, eta, ome) triplets
+            for each input hkl (first solution)
+    ome1 -- (n, 3) ndarray containing the feasible (tTh, eta, ome) triplets
+            for each input hkl (second solution)
+
+    Notes:
+    ------------------------------------------------------------------------
+    The reciprocal lattice vector, G, will satisfy the the Bragg condition
+    when:
+
+        b.T * G / ||G|| = -sin(theta)
+
+    where b is the incident beam direction (k_i) and theta is the Bragg
+    angle consistent with G and the specified wavelength. The components of
+    G in the lab frame in this case are obtained using the crystal
+    orientation, Rc, and the single-parameter oscillation matrix, Rs(ome):
+
+        Rs(ome) * Rc * G / ||G||
+
+    The equation above can be rearranged to yield an expression of the form:
+
+        a*sin(ome) + b*cos(ome) = c
+
+    which is solved using the relation:
+
+        a*sin(x) + b*cos(x) = sqrt(a**2 + b**2) * sin(x + alpha)
+
+        --> sin(x + alpha) = c / sqrt(a**2 + b**2)
+
+    where:
+
+        alpha = atan2(b, a)
+
+     The solutions are:
+
+                /
+                |       arcsin(c / sqrt(a**2 + b**2)) - alpha
+            x = <
+                |  pi - arcsin(c / sqrt(a**2 + b**2)) - alpha
+                \
+
+    There is a double root in the case the reflection is tangent to the
+    Debye-Scherrer cone (c**2 = a**2 + b**2), and no solution if the
+    Laue condition cannot be satisfied (filled with NaNs in the results
+    array here)
+    """
     # this was oscillAnglesOfHKLs
     hkls = np.array(hkls, dtype=float, order='C')
-    if vInv is None:
-        vInv = np.array([1., 1., 1., 0., 0., 0.])
+    if v_inv is None:
+        v_inv = np.array([1.0, 1.0, 1.0, 0.0, 0.0, 0.0])
     else:
-        vInv = np.ascontiguousarray(vInv.flatten())
-    rMat_c = np.ascontiguousarray(rMat_c)
-    beamVec = np.ascontiguousarray(beamVec.flatten())
-    etaVec = np.ascontiguousarray(etaVec.flatten())
-    bMat = np.ascontiguousarray(bMat)
+        v_inv = np.ascontiguousarray(v_inv.flatten())
+    rmat_c = np.ascontiguousarray(rmat_c)
+    beam_vec = np.ascontiguousarray(beam_vec.flatten())
+    eta_vec = np.ascontiguousarray(eta_vec.flatten())
+    bmat = np.ascontiguousarray(bmat)
     return _impl.oscillAnglesOfHKLs(
-        hkls, chi, rMat_c, bMat, wavelength, vInv, beamVec, etaVec
+        hkls, chi, rmat_c, bmat, wavelength, v_inv, beam_vec, eta_vec
     )
 
 
-def unit_vector(vec_in):
+def unit_vector(vec_in: np.ndarray) -> np.ndarray:
     """
     Normalize the input vector(s) to unit length.
 
@@ -398,14 +487,15 @@ def unit_vector(vec_in):
         )
 
 
-def make_detector_rot_mat(tiltAngles):
+def make_detector_rot_mat(tilt_angles: np.ndarray) -> np.ndarray:
     """
     Form the (3, 3) tilt rotations from the tilt angle list:
 
-    tiltAngles = [gamma_Xl, gamma_Yl, gamma_Zl] in radians
+    tilt_angles = [gamma_Xl, gamma_Yl, gamma_Zl] in radians
+    Returns the (3, 3) rotation matrix from the detector frame to the lab frame
     """
-    arg = np.ascontiguousarray(np.r_[tiltAngles].flatten())
-    return _impl.makeDetectorRotMat(arg)
+    t_angles = np.ascontiguousarray(np.r_[tilt_angles].flatten())
+    return _impl.makeDetectorRotMat(t_angles)
 
 
 # make_sample_rmat in CAPI is split between makeOscillRotMat
@@ -424,7 +514,7 @@ def make_oscill_rot_mat_array(chi, omeArray):
     return _impl.makeOscillRotMat(chi, arg)
 
 
-def make_sample_rmat(chi, ome):
+def make_sample_rmat(chi: float, ome: Union[float, np.ndarray]) -> np.ndarray:
     # TODO: Check this docstring
     """
     Make a rotation matrix representing the COB from sample frame to the lab
@@ -457,7 +547,7 @@ def make_sample_rmat(chi, ome):
     return result
 
 
-def make_rmat_of_expmap(exp_map):
+def make_rmat_of_expmap(exp_map: np.ndarray) -> np.ndarray:
     """
     Calculate the rotation matrix of an exponential map.
 
@@ -475,14 +565,27 @@ def make_rmat_of_expmap(exp_map):
     return _impl.makeRotMatOfExpMap(arg)
 
 
-def make_binary_rmat(axis):
-    # TODO: Make this docstring.
+def make_binary_rmat(axis: np.ndarray) -> np.ndarray:
+    """
+    Create a 180 degree rotation matrix about the input axis.
+
+    Parameters
+    ----------
+    axis : ndarray
+        3-element sequence representing the rotation axis, in radians.
+
+    Returns
+    -------
+    ndarray
+        A 3x3 rotation matrix representing a 180 degree rotation about the
+        input axis.
+    """
 
     arg = np.ascontiguousarray(axis.flatten())
     return _impl.makeBinaryRotMat(arg)
 
 
-def make_beam_rmat(bvec_l, evec_l):
+def make_beam_rmat(bvec_l: np.ndarray, evec_l: np.ndarray) -> np.ndarray:
     """
     Creates a COB matrix from the beam frame to the lab frame
     Note: beam and eta vectors must not be colinear
@@ -501,7 +604,12 @@ def make_beam_rmat(bvec_l, evec_l):
     return _impl.makeEtaFrameRotMat(arg1, arg2)
 
 
-def validate_angle_ranges(ang_list, start_angs, stop_angs, ccw=True):
+def validate_angle_ranges(
+    ang_list: Union[float, np.ndarray],
+    start_angs: Union[float, np.ndarray],
+    stop_angs: Union[float, np.ndarray],
+    ccw: bool = True,
+) -> np.ndarray[bool]:
     """
     Find out if angles are in the CCW or CW range from start to stop
 
@@ -530,7 +638,9 @@ def validate_angle_ranges(ang_list, start_angs, stop_angs, ccw=True):
     return _impl.validateAngleRanges(ang_list, start_angs, stop_angs, ccw)
 
 
-def rotate_vecs_about_axis(angle, axis, vecs):
+def rotate_vecs_about_axis(
+    angle: np.ndarray, axis: np.ndarray, vecs: np.ndarray
+) -> np.ndarray:
     """
     Rotate vectors about an axis
 
@@ -555,7 +665,9 @@ def rotate_vecs_about_axis(angle, axis, vecs):
     return result.T
 
 
-def quat_distance(q1, q2, qsym):
+def quat_distance(
+    q1: np.ndarray, q2: np.ndarray, qsym: np.ndarray
+) -> np.ndarray:
     """
     Distance between two quaternions, taking quaternions of symmetry into
     account.

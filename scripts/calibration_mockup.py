@@ -26,8 +26,7 @@ from hexrd.fitting import fitpeak
 from hexrd.rotations import \
     angleAxisOfRotMat, \
     angles_from_rmat_xyz, make_rmat_euler, \
-    RotMatEuler
-from hexrd.transforms.xfcapi import mapAngle
+    RotMatEuler, mapAngle
 
 
 # plane data

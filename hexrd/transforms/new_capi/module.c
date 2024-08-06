@@ -67,7 +67,7 @@
 #include "xy_to_gvec.c"
 #include "oscill_angles_of_HKLs.c"
 #include "unit_row_vector.c"
-/* #include "make_detector_rmat.c" */
+#include "make_detector_rmat.c"
 #include "make_sample_rmat.c"
 #include "make_rmat_of_expmap.c"
 #include "make_binary_rmat.c"
@@ -100,6 +100,7 @@ static PyMethodDef _module_methods[] = {
     EXPORT_METHOD(unitRowVectors), /* unit_vector */
     EXPORT_METHOD(makeOscillRotMat), /* make_sample_rmat */
     EXPORT_METHOD(makeRotMatOfExpMap), /* make_rmat_of_expmap */
+    EXPORT_METHOD(makeDetectorRotMat), /* make_detector_rmat */
     EXPORT_METHOD(makeBinaryRotMat), /* make_binary_rmat */
     EXPORT_METHOD(makeEtaFrameRotMat), /* make_beam_rmat */
     EXPORT_METHOD(validateAngleRanges), /* validate_angle_ranges */

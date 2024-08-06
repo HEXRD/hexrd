@@ -9,17 +9,17 @@ from hexrd import constants as ct
 from hexrd import distortion as distortion_pkg
 from hexrd import matrixutil as mutil
 from hexrd import xrdutil
+from hexrd.rotations import mapAngle
 
 from hexrd.material import crystallography
 from hexrd.material.crystallography import PlaneData
 
 from hexrd.transforms.xfcapi import (
-    detectorXYToGvec,
+    xy_to_gvec,
     gvec_to_xy,
-    makeRotMatOfExpMap,
-    mapAngle,
-    oscillAnglesOfHKLs,
-    rowNorm,
+    make_beam_rmat,
+    make_rmat_of_expmap,
+    oscill_angles_of_hkls,
 )
 
 from hexrd.utils.decorators import memoize
@@ -501,7 +501,7 @@ class Detector:
 
     @property
     def rmat(self):
-        return makeRotMatOfExpMap(self.tilt)
+        return make_rmat_of_expmap(self.tilt)
 
     @property
     def normal(self):
@@ -1124,7 +1124,7 @@ class Detector:
 
         """
         if tth_distortion is not None:
-            tnorms = rowNorm(np.vstack([tvec_s, tvec_c]))
+            tnorms = mutil.rowNorm(np.vstack([tvec_s, tvec_c]))
             assert (
                 np.all(tnorms) < ct.sqrt_epsf
             ), "If using distrotion function, translations must be zero"
@@ -1434,20 +1434,20 @@ class Detector:
         for gparm in grain_param_list:
 
             # make useful parameters
-            rMat_c = makeRotMatOfExpMap(gparm[:3])
+            rMat_c = make_rmat_of_expmap(gparm[:3])
             tVec_c = gparm[3:6]
             vInv_s = gparm[6:]
 
             # All possible bragg conditions as vstacked [tth, eta, ome]
             # for each omega solution
             angList = np.vstack(
-                oscillAnglesOfHKLs(
+                oscill_angles_of_hkls(
                     full_hkls[:, 1:],
                     chi,
                     rMat_c,
                     bMat,
                     wavelength,
-                    vInv=vInv_s,
+                    v_inv=vInv_s,
                 )
             )
 
@@ -1575,7 +1575,7 @@ class Detector:
         dspacing = np.nan * np.ones((n_grains, nhkls_tot))
         energy = np.nan * np.ones((n_grains, nhkls_tot))
         for iG, gp in enumerate(grain_params):
-            rmat_c = makeRotMatOfExpMap(gp[:3])
+            rmat_c = make_rmat_of_expmap(gp[:3])
             tvec_c = gp[3:6].reshape(3, 1)
             vInv_s = mutil.vecMVToSymm(gp[6:].reshape(6, 1))
 
@@ -1602,16 +1602,17 @@ class Detector:
             if np.any(canIntersect):
                 dpts = dpts[canIntersect, :].reshape(npts_in, 2)
                 dhkl = hkls[:, canIntersect].reshape(3, npts_in)
-
+                
+                rmat_b = make_beam_rmat(beam_vec, ct.eta_vec)
                 # back to angles
-                tth_eta, gvec_l = detectorXYToGvec(
+                tth_eta, gvec_l = xy_to_gvec(
                     dpts,
                     self.rmat,
                     rmat_s,
                     self.tvec,
                     tvec_s,
                     tvec_c,
-                    beamVec=beam_vec,
+                    rmat_b=rmat_b,
                 )
                 tth_eta = np.vstack(tth_eta).T
 
@@ -1620,7 +1621,7 @@ class Detector:
                     dpts = self.distortion.apply_inverse(dpts)
 
                 # plane spacings and energies
-                dsp = 1.0 / rowNorm(gvec_s_str[:, canIntersect].T)
+                dsp = 1.0 / mutil.rowNorm(gvec_s_str[:, canIntersect].T)
                 wlen = 2 * dsp * np.sin(0.5 * tth_eta[:, 0])
 
                 # clip to detector panel

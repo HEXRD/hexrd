@@ -61,14 +61,13 @@ from hexrd.transforms.xfcapi import (
     angles_to_gvec,
     gvec_to_xy,
     make_sample_rmat,
-    makeRotMatOfExpMap,
-    mapAngle,
-    unitRowVector,
+    make_rmat_of_expmap,
+    unit_vector,
 )
 from hexrd import xrdutil
 from hexrd.material.crystallography import PlaneData
 from hexrd import constants as ct
-from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
+from hexrd.rotations import angleAxisOfRotMat, RotMatEuler, mapAngle
 from hexrd import distortion as distortion_pkg
 from hexrd.utils.compatibility import h5py_read_string
 from hexrd.utils.concurrent import distribute_tasks
@@ -383,7 +382,7 @@ def calc_angles_from_beam_vec(bvec):
     vector
     """
     bvec = np.atleast_1d(bvec).flatten()
-    nvec = unitRowVector(-bvec)
+    nvec = unit_vector(-bvec)
     azim = float(
         np.degrees(np.arctan2(nvec[2], nvec[0]))
     )
@@ -744,7 +743,7 @@ class HEDMInstrument(object):
         for detector in self._detectors.values():
             this_det_params = detector.calibration_parameters
             if self._tilt_calibration_mapping is not None:
-                rmat = makeRotMatOfExpMap(detector.tilt)
+                rmat = make_rmat_of_expmap(detector.tilt)
                 self._tilt_calibration_mapping.rmat = rmat
                 tilt = np.degrees(self._tilt_calibration_mapping.angles)
                 this_det_params[:3] = tilt
@@ -921,7 +920,7 @@ class HEDMInstrument(object):
         for detector in self.detectors.values():
             this_det_params = detector.calibration_parameters
             if self.tilt_calibration_mapping is not None:
-                rmat = makeRotMatOfExpMap(detector.tilt)
+                rmat = make_rmat_of_expmap(detector.tilt)
                 self.tilt_calibration_mapping.rmat = rmat
                 tilt = np.degrees(self.tilt_calibration_mapping.angles)
                 this_det_params[:3] = tilt
@@ -1696,7 +1695,7 @@ class HEDMInstrument(object):
 
         """
         # grain parameters
-        rMat_c = makeRotMatOfExpMap(grain_params[:3])
+        rMat_c = make_rmat_of_expmap(grain_params[:3])
         tVec_c = grain_params[3:6]
 
         # grab omega ranges from first imageseries
@@ -2250,7 +2249,7 @@ class GrainDataWriter_h5(object):
 
         # add grain group
         self.grain_grp = self.fid.create_group('grain')
-        rmat_c = makeRotMatOfExpMap(grain_params[:3])
+        rmat_c = make_rmat_of_expmap(grain_params[:3])
         tvec_c = np.array(grain_params[3:6]).flatten()
         vinv_s = np.array(grain_params[6:]).flatten()
         vmat_s = np.linalg.inv(mutil.vecMVToSymm(vinv_s))

@@ -532,16 +532,16 @@ def simulate_diffractions(grain_params, experiment, controller):
 
     controller.start(subprocess, count)
     for i in range(count):
-        rC = xfcapi.makeRotMatOfExpMap(grain_params[i][0:3])
+        rC = xfcapi.make_rmat_of_expmap(grain_params[i][0:3])
         tC = np.ascontiguousarray(grain_params[i][3:6])
         vInv_s = np.ascontiguousarray(grain_params[i][6:12])
-        ang_list = np.vstack(xfcapi.oscillAnglesOfHKLs(full_hkls[:, 1:], chi,
+        ang_list = np.vstack(xfcapi.oscill_angles_of_hkls(full_hkls[:, 1:], chi,
                                                        rC, bMat, wlen,
-                                                       vInv=vInv_s))
+                                                       v_inv=vInv_s))
         # hkls not needed here
         all_angs, _ = xrdutil._filter_hkls_eta_ome(full_hkls, ang_list,
                                                    eta_range, ome_range)
-        all_angs[:, 2] = xfcapi.mapAngle(all_angs[:, 2], ome_period)
+        all_angs[:, 2] = rotations.mapAngle(all_angs[:, 2], ome_period)
 
         proj_pts =  _project(all_angs, rD, rC, chi, tD,
                              tC, tS, distortion)
@@ -1421,13 +1421,13 @@ def scan_detector_parm(image_stack, experiment,test_crds,controller,parm_to_opt,
 
 
         if  parm_to_opt==3:
-            rMat_d_tmp=xfcapi.makeDetectorRotMat([parm_vector[jj],ytilt,ztilt])
+            rMat_d_tmp=xfcapi.make_detector_rot_mat([parm_vector[jj],ytilt,ztilt])
         elif parm_to_opt==4:
-            rMat_d_tmp=xfcapi.makeDetectorRotMat([xtilt,parm_vector[jj],ztilt])
+            rMat_d_tmp=xfcapi.make_detector_rot_mat([xtilt,parm_vector[jj],ztilt])
         elif parm_to_opt==5:
-            rMat_d_tmp=xfcapi.makeDetectorRotMat([xtilt,ytilt,parm_vector[jj]])
+            rMat_d_tmp=xfcapi.make_detector_rot_mat([xtilt,ytilt,parm_vector[jj]])
         else:
-            rMat_d_tmp=xfcapi.makeDetectorRotMat([xtilt,ytilt,ztilt])
+            rMat_d_tmp=xfcapi.make_detector_rot_mat([xtilt,ytilt,ztilt])
 
         experiment.rMat_d = rMat_d_tmp
         experiment.tVec_d = tmp_td

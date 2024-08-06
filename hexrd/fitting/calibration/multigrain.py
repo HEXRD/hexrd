@@ -6,6 +6,7 @@ from scipy.optimize import leastsq, least_squares
 
 from hexrd import constants as cnst
 from hexrd import matrixutil as mutil
+from hexrd import rotations
 from hexrd.transforms import xfcapi
 
 from .. import grains as grainutil
@@ -49,7 +50,7 @@ def calibrate_instrument_from_sx(
     if ome_period is not None:
         for det_key in instr.detectors:
             for ig in range(ngrains):
-                xyo_det[det_key][ig][:, 2] = xfcapi.mapAngle(
+                xyo_det[det_key][ig][:, 2] = rotations.mapAngle(
                         xyo_det[det_key][ig][:, 2],
                         ome_period
                 )
@@ -257,7 +258,7 @@ def sxcal_obj_func(plist_fit, plist_full,
             # 3) apply stretch tensor
             # 4) normalize reciprocal lattice vectors in SAMPLE frame
             # 5) transform unit reciprocal lattice vetors back to CRYSAL frame
-            rmat_c = xfcapi.makeRotMatOfExpMap(grain[:3])
+            rmat_c = xfcapi.make_rmat_of_expmap(grain[:3])
             tvec_c = grain[3:6]
             vinv_s = grain[6:]
             gvec_c = np.dot(bmat, ghkls.T)
@@ -314,7 +315,7 @@ def sxcal_obj_func(plist_fit, plist_full,
         calc_omes_all = np.hstack(calc_omes_all)
 
         diff_vecs_xy = calc_xy_all - meas_xy_all
-        diff_ome = xfcapi.angularDifference(calc_omes_all, meas_omes_all)
+        diff_ome = rotations.angularDifference(calc_omes_all, meas_omes_all)
         retval = np.hstack(
             [diff_vecs_xy,
              diff_ome.reshape(npts_tot, 1)]
@@ -359,8 +360,8 @@ def parse_reflection_tables(cfg, instr, grain_ids, refit_idx=None):
             valid_reflections = gtable[:, 0] >= 0  # is indexed
             not_saturated = gtable[:, 6] < panel.saturation_level
             # throw away extremem etas
-            p90 = xfcapi.angularDifference(gtable[:, 8], cnst.piby2)
-            m90 = xfcapi.angularDifference(gtable[:, 8], -cnst.piby2)
+            p90 = rotations.angularDifference(gtable[:, 8], cnst.piby2)
+            m90 = rotations.angularDifference(gtable[:, 8], -cnst.piby2)
             accept_etas = np.logical_or(p90 > ext_eta_tol,
                                         m90 > ext_eta_tol)
             logger.info(f"panel '{det_key}', grain {grain_id}")

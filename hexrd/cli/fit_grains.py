@@ -77,7 +77,7 @@ class GrainData(_BaseGrainData):
             n = len(self.expmap)
             rmats = np.zeros((n, 3, 3))
             for i in range(n):
-                rmats[i] = xfcapi.makeRotMatOfExpMap(self.expmap[i])
+                rmats[i] = xfcapi.make_rmat_of_expmap(self.expmap[i])
             self._rotation_matrices = rmats
         return self._rotation_matrices
 
@@ -307,7 +307,7 @@ def execute(args, parser):
                 gw = instrument.GrainDataWriter(grains_filename)
                 for i_g, q in enumerate(qbar.T):
                     phi = 2*np.arccos(q[0])
-                    n = xfcapi.unitRowVector(q[1:])
+                    n = xfcapi.unit_vector(q[1:])
                     grain_params = np.hstack(
                         [phi*n, cnst.zeros_3, cnst.identity_6x1]
                     )

@@ -14,6 +14,7 @@ import warnings
 
 from hexrd import instrument
 from hexrd.transforms import xfcapi
+from hexrd import rotations
 from hexrd.fitting import fitGrain, objFuncFitGrain, gFlag_ref
 
 logger = logging.getLogger(__name__)
@@ -258,7 +259,7 @@ def fit_grain_FF_reduced(grain_id):
             x_diff = abs(xyo_det[:, 0] - xyo_det_fit['calc_xy'][:, 0])
             y_diff = abs(xyo_det[:, 1] - xyo_det_fit['calc_xy'][:, 1])
             ome_diff = np.degrees(
-                xfcapi.angularDifference(xyo_det[:, 2],
+                rotations.angularDifference(xyo_det[:, 2],
                                          xyo_det_fit['calc_omes'])
                 )
 

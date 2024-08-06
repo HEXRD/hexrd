@@ -1,4 +1,4 @@
-from hexrd.transforms.new_capi.xf_new_capi import unit_vector
+from hexrd.transforms.xfcapi import unit_vector
 import numpy as np
 
 

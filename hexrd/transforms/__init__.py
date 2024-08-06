@@ -27,9 +27,3 @@
 """Tools or X-ray diffraction analysis
 """
 from . import xfcapi
-
-
-
-
-
-

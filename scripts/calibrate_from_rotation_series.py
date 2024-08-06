@@ -15,6 +15,7 @@ import yaml
 from hexrd import config
 from hexrd import constants as cnst
 from hexrd import matrixutil as mutil
+from hexrd import rotations as rot
 from hexrd import instrument
 from hexrd.xrd import fitting
 from hexrd.xrd import transforms_CAPI as xfcapi
@@ -337,7 +338,7 @@ def sxcal_obj_func(plist_fit, plist_full, param_flags,
         calc_omes_all = np.hstack(calc_omes_all)
 
         diff_vecs_xy = calc_xy_all - meas_xy_all
-        diff_ome = xfcapi.angularDifference(calc_omes_all, meas_omes_all)
+        diff_ome = rot.angularDifference(calc_omes_all, meas_omes_all)
         retval = np.hstack(
             [diff_vecs_xy,
              diff_ome.reshape(npts_tot, 1)]
@@ -507,7 +508,7 @@ for det_key, panel in instr.detectors.iteritems():
     x_diff = abs(xyo_det[det_key][:, 0] - xyo_f[det_key][:, 0])
     y_diff = abs(xyo_det[det_key][:, 1] - xyo_f[det_key][:, 1])
     ome_diff = np.degrees(
-        xfcapi.angularDifference(
+        xfcapi.rot(
             xyo_det[det_key][:, 2],
             xyo_f[det_key][:, 2])
     )

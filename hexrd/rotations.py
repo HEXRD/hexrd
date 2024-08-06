@@ -1181,7 +1181,11 @@ def mapAngle(ang, ang_range=None, units=angularUnits):
         if not np.allclose(max_val-min_val, period):
             raise RuntimeError('range is incomplete!')
 
-    return np.mod(ang - min_val, period) + min_val
+    val = np.mod(ang - min_val, max_val - min_val) + min_val
+    # To match old implementation, map to closer value on the boundary
+    # Not doing this breaks hedm_instrument's _extract_polar_maps
+    val[np.logical_and(val == min_val, ang > min_val)] = max_val
+    return val
 
 
 def angularDifference_orig(angList0, angList1, units=angularUnits):
