@@ -1410,19 +1410,19 @@ def scan_detector_parm(image_stack, experiment,test_crds,controller,parm_to_opt,
             tmp_td[1]=parm_vector[jj]
 
         if parm_to_opt == 3:
-            rMat_d_tmp = xfcapi.make_detector_rot_mat(
+            rMat_d_tmp = xfcapi.make_detector_rmat(
                 [parm_vector[jj], ytilt, ztilt]
             )
         elif parm_to_opt == 4:
-            rMat_d_tmp = xfcapi.make_detector_rot_mat(
+            rMat_d_tmp = xfcapi.make_detector_rmat(
                 [xtilt, parm_vector[jj], ztilt]
             )
         elif parm_to_opt == 5:
-            rMat_d_tmp = xfcapi.make_detector_rot_mat(
+            rMat_d_tmp = xfcapi.make_detector_rmat(
                 [xtilt, ytilt, parm_vector[jj]]
             )
         else:
-            rMat_d_tmp = xfcapi.make_detector_rot_mat([xtilt, ytilt, ztilt])
+            rMat_d_tmp = xfcapi.make_detector_rmat([xtilt, ytilt, ztilt])
 
         experiment.rMat_d = rMat_d_tmp
         experiment.tVec_d = tmp_td

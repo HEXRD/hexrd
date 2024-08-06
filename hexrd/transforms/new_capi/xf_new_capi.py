@@ -487,7 +487,7 @@ def unit_vector(vec_in: np.ndarray) -> np.ndarray:
         )
 
 
-def make_detector_rot_mat(tilt_angles: np.ndarray) -> np.ndarray:
+def make_detector_rmat(tilt_angles: np.ndarray) -> np.ndarray:
     """
     Form the (3, 3) tilt rotations from the tilt angle list:
 
@@ -502,14 +502,14 @@ def make_detector_rot_mat(tilt_angles: np.ndarray) -> np.ndarray:
 # and makeOscillRotMatArray...
 
 
-def make_oscill_rot_mat(oscillAngles):
+def make_oscill_rmat(oscillAngles):
     chi, ome = oscillAngles
     ome = np.atleast_1d(ome)
     result = _impl.makeOscillRotMat(chi, ome)
     return result.reshape((3, 3))
 
 
-def make_oscill_rot_mat_array(chi, omeArray):
+def make_oscill_rmat_array(chi, omeArray):
     arg = np.ascontiguousarray(omeArray)
     return _impl.makeOscillRotMat(chi, arg)
 

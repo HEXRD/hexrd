@@ -1080,7 +1080,7 @@ def simulateGVecs(
     full_hkls = _fetch_hkls_from_planedata(pd)
 
     # extract variables for convenience
-    rMat_d = xfcapi.make_detector_rot_mat(detector_params[:3])
+    rMat_d = xfcapi.make_detector_rmat(detector_params[:3])
     tVec_d = np.ascontiguousarray(detector_params[3:6])
     chi = detector_params[6]
     tVec_s = np.ascontiguousarray(detector_params[7:10])

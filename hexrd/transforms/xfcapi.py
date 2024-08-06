@@ -41,7 +41,7 @@ from .new_capi.xf_new_capi import (
     make_beam_rmat,  # this is makeEtaFrameRotMat
     unit_vector,  # this is unitRowVector
     rotate_vecs_about_axis,
-    make_detector_rot_mat,
+    make_detector_rmat,
     make_rmat_of_expmap,
     oscill_angles_of_hkls
 )
