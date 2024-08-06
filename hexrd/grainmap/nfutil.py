@@ -1379,7 +1379,8 @@ def scan_detector_parm(image_stack, experiment,test_crds,controller,parm_to_opt,
 
     multiprocessing_start_method = 'fork' if hasattr(os, 'fork') else 'spawn'
 
-    # current detector parameters, note the value for the actively optimized parameters will be ignored
+    # current detector parameters, note the value for the actively optimized
+    # parameters will be ignored
     distance=experiment.detector_params[5]#mm
     x_cen=experiment.detector_params[3]#mm
     y_cen=experiment.detector_params[4]#mm
