@@ -243,6 +243,8 @@ def update_instrument_from_params_fiddle(instr, params, euler_convention):
                   params['instr_tilt_z'].value]
     instr.tilt = np.r_[instr_tilt]
 
+    update_detector_pretilt(instr)
+
     for det_name, detector in instr.detectors.items():
         det = det_name.replace('-', '_')
         distortion_str = f'{det}_distortion_param'
@@ -515,7 +517,6 @@ def set_detector_angles_euler(panel, base_name, params, euler_convention):
 
     panel.tilt = expMapOfQuat(quatOfRotMat(rmat))
 
-def update_detector_tilts_fiddle(instr):
+def update_detector_pretilt(instr):
     for det_name, panel in instr.detectors.items():
-        rmat_new = np.dot(instr.rmat, panel.rmat)
-        panel.tilt = expMapOfQuat(quatOfRotMat(rmat_new))
+        panel.pretilt = instr.tilt

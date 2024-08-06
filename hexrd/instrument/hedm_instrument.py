@@ -744,6 +744,9 @@ class HEDMInstrument(object):
             ]
             self._chi = instrument_config['oscillation_stage']['chi']
 
+            if not hasattr(self, '_tilt'):
+                self._tilt = np.zeros(3)
+
         #
         # set up calibration parameter list and refinement flags
         #
