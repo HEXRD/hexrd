@@ -24,7 +24,7 @@ from hexrd.transforms.xfcapi import (
 
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
-
+from hexrd.rotations import expMapOfQuat, quatOfRotMat
 
 distortion_registry = distortion_pkg.Registry()
 
@@ -444,12 +444,26 @@ class Detector:
 
     @property
     def tilt(self):
-        return self._tilt
+        if not hasattr(self, '_pretilt'):
+            return self._tilt
+        else:
+            rmat = np.dot(self.prermat,
+                   makeRotMatOfExpMap(self._tilt))
+            return expMapOfQuat(quatOfRotMat(rmat))
 
     @tilt.setter
     def tilt(self, x):
         assert len(x) == 3, 'input must have length = 3'
         self._tilt = np.array(x).squeeze()
+
+    @property
+    def pretilt(self):
+        return self._pretilt
+
+    @pretilt.setter
+    def pretilt(self, x):
+        assert len(x) == 3, 'input must have length = 3'
+        self._pretilt = np.array(x).squeeze()
 
     @property
     def bvec(self):
@@ -502,6 +516,14 @@ class Detector:
     @property
     def rmat(self):
         return makeRotMatOfExpMap(self.tilt)
+
+    @property
+    def prermat(self):
+        return makeRotMatOfExpMap(self.pretilt)
+
+    @property
+    def prermat(self):
+        return makeRotMatOfExpMap(self.pretilt)
 
     @property
     def normal(self):
