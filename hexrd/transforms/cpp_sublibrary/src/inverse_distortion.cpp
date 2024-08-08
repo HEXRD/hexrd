@@ -2,6 +2,7 @@
 #include <pybind11/eigen.h>
 #include <Eigen/Core>
 #include <xsimd/xsimd.hpp>
+#define _USE_MATH_DEFINES 
 
 namespace py = pybind11;
 constexpr double FOUR_THIRDS_PI = M_PI * 4.0 / 3.0;
