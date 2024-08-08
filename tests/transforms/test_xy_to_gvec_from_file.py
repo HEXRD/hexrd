@@ -5,7 +5,7 @@
 from __future__ import absolute_import
 import numpy as np
 from hexrd.transforms.xfcapi import xy_to_gvec
-from common import *
+# from common import random_rotation_matrix, random_unit_vectors
 
 
 def test_xy_to_gvec_from_file(test_data_dir):

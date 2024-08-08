@@ -507,7 +507,7 @@ for det_key, panel in instr.detectors.iteritems():
     x_diff = abs(xyo_det[det_key][:, 0] - xyo_f[det_key][:, 0])
     y_diff = abs(xyo_det[det_key][:, 1] - xyo_f[det_key][:, 1])
     ome_diff = np.degrees(
-        xfcapi.rot(
+        rot.angularDifference(
             xyo_det[det_key][:, 2],
             xyo_f[det_key][:, 2])
     )

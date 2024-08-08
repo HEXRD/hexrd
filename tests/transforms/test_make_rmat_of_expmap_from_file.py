@@ -6,7 +6,6 @@
 from __future__ import absolute_import
 import numpy as np
 from hexrd.transforms.new_capi.xf_new_capi import make_rmat_of_expmap
-from common import *
 
 
 def test_make_rmat_of_expmap_from_file(test_data_dir):
