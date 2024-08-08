@@ -625,39 +625,43 @@ class unitcell:
         for i in range(atom_pos.shape[0]):
             pos = atom_pos[i, 0:3]
             occ = atom_pos[i, 3]
+            v1, n1 = self.CalcOrbit(pos)
             if i == 0:
                 atom_pos_fixed.append(np.hstack([pos, occ]))
                 idx.append(i)
-                v1, n1 = self.CalcOrbit(pos)
+            else:
+                isclose = False
+                for j,  uniqpos in enumerate(atom_pos_fixed):
+                    pos2 = uniqpos[0:3]
+                    occ2 = uniqpos[3]
+                    # cases with fractional occupancy on same site
+                    if (np.all(np.isclose(pos, pos2)) and
+                            (occ+occ2 <= 1.)):
+                        atom_pos_fixed.append(np.hstack([pos, occ]))
+                        idx.append(i)
+                        isclose = True
+                        break
+                    else:
+                        v2, n2 = self.CalcOrbit(pos2)
+                        for v in v2:
+                            vv = np.tile(v, [v1.shape[0], 1])
+                            vv = vv - v1
 
-                for j in range(i+1, atom_pos.shape[0]):
-                    isclose = False
-                    # atom_pos_fixed.append(np.hstack([pos, occ]))
-                    pos = atom_pos[j, 0:3]
-                    occ = atom_pos[j, 3]
-                    v2, n2 = self.CalcOrbit(pos)
-
-                    for v in v2:
-                        vv = np.tile(v, [v1.shape[0], 1])
-                        vv = vv - v1
-
-                        for vvv in vv:
-
-                            # check if distance less than tol
-                            # the factor of 10 is for A --> nm
-                            if self.CalcLength(vvv, 'd') < tol/10.:
-                                # if true then its a repeated atom
-                                isclose = True
-                                break
+                            for vvv in vv:
+                                # check if distance less than tol
+                                # the factor of 10 is for A --> nm
+                                if self.CalcLength(vvv, 'd') < tol/10.:
+                                    # if true then its a repeated atom
+                                    isclose = True
+                                    break
 
                         if isclose:
                             break
-
                     if isclose:
                         break
-                    else:
-                        atom_pos_fixed.append(np.hstack([pos, occ]))
-                        idx.append(i)
+                if not isclose:
+                    atom_pos_fixed.append(np.hstack([pos, occ]))
+                    idx.append(i)
 
         idx = np.array(idx)
         atom_pos_fixed = np.array(atom_pos_fixed)
