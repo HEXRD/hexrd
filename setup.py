@@ -123,9 +123,8 @@ def get_cpp_extensions():
     # Define include directories
     include_dirs = [
         get_include_path('xsimd'),
-        get_include_path('xtensor'),
-        get_include_path('xtensor-python'),
-        get_include_path('xtl'),
+        get_include_path('eigen3'),
+        get_include_path('xsimd'),
         get_pybind11_include_path(),
         numpy.get_include(),
     ]
