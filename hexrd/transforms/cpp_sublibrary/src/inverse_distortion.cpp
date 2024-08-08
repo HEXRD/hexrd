@@ -1,8 +1,8 @@
+#define _USE_MATH_DEFINES 
 #include <pybind11/pybind11.h>
 #include <pybind11/eigen.h>
 #include <Eigen/Core>
 #include <xsimd/xsimd.hpp>
-#define _USE_MATH_DEFINES 
 #include <cmath>
 
 namespace py = pybind11;
