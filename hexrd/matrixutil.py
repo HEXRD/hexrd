@@ -32,7 +32,6 @@ from numpy.linalg import svd
 
 from scipy import sparse
 import numba
-from numba import prange
 
 
 from hexrd import constants
@@ -51,7 +50,7 @@ vTol = 100*fpTol
 
 def columnNorm(a):
     """
-    normalize array of column vectors (hstacked, axis = 0)
+    Get the norm(s) of column vectors (hstacked, axis = 0)
     """
     if len(a.shape) > 2:
         raise RuntimeError(
@@ -59,14 +58,12 @@ def columnNorm(a):
             % (len(a.shape))
         )
 
-    cnrma = np.sqrt(np.sum(np.asarray(a)**2, axis=0))
-
-    return cnrma
+    return np.linalg.norm(a, axis=0)
 
 
 def rowNorm(a):
     """
-    normalize array of row vectors (vstacked, axis = 1)
+    Get the norm(s) of row vectors (hstacked, axis = 1)
     """
     if len(a.shape) > 2:
         raise RuntimeError(
@@ -74,9 +71,7 @@ def rowNorm(a):
             % (len(a.shape))
         )
 
-    cnrma = np.sqrt(np.sum(np.asarray(a)**2, axis=1))
-
-    return cnrma
+    return np.linalg.norm(a, axis=1)
 
 
 def unitVector(a):
@@ -89,17 +84,12 @@ def unitVector(a):
     ztol = constants.ten_epsf
 
     m = a.shape[0]
-    n = 1
 
-    nrm = np.tile(np.sqrt(np.sum(np.asarray(a)**2, axis=0)), (m, n))
+    nrm = np.tile(np.sqrt(np.sum(np.asarray(a)**2, axis=0)), (m, 1))
 
     # prevent divide by zero
-    zchk = nrm <= ztol
-    nrm[zchk] = 1.0
-
-    nrma = a/nrm
-
-    return nrma
+    nrm[nrm <= ztol] = 1.0
+    return a/nrm
 
 
 def nullSpace(A, tol=vTol):
@@ -114,7 +104,7 @@ def nullSpace(A, tol=vTol):
     if n > m:
         return nullSpace(A.T, tol).T
 
-    U, S, V = svd(A)
+    _, S, V = svd(A)
 
     S = np.hstack([S, np.zeros(m - n)])
 
@@ -150,9 +140,9 @@ def blockSparseOfMatArray(matArray):
     imax = p*m
     ntot = p*m*n
 
-    rl = np.asarray(list(range(p)), 'int')
-    rm = np.asarray(list(range(m)), 'int')
-    rjmax = np.asarray(list(range(jmax)), 'int')
+    rl = np.arange(p)
+    rm = np.arange(m)
+    rjmax = np.arange(jmax)
 
     sij = matArray.transpose(0, 2, 1).reshape(1, ntot).squeeze()
     j = np.reshape(np.tile(rjmax, (m, 1)).T, (1, ntot))
@@ -196,17 +186,17 @@ def vecMVToSymm(A, scale=True):
         fac = sqr2
     else:
         fac = 1.
-    symm = np.zeros((3, 3), dtype='float64')
-    symm[0, 0] = A[0]
-    symm[1, 1] = A[1]
-    symm[2, 2] = A[2]
-    symm[1, 2] = A[3] / fac
-    symm[0, 2] = A[4] / fac
-    symm[0, 1] = A[5] / fac
-    symm[2, 1] = A[3] / fac
-    symm[2, 0] = A[4] / fac
-    symm[1, 0] = A[5] / fac
-    return symm
+    symm_mat = np.zeros((3, 3), dtype='float64')
+    symm_mat[0, 0] = A[0]
+    symm_mat[1, 1] = A[1]
+    symm_mat[2, 2] = A[2]
+    symm_mat[1, 2] = A[3] / fac
+    symm_mat[0, 2] = A[4] / fac
+    symm_mat[0, 1] = A[5] / fac
+    symm_mat[2, 1] = A[3] / fac
+    symm_mat[2, 0] = A[4] / fac
+    symm_mat[1, 0] = A[5] / fac
+    return symm_mat
 
 
 def vecMVCOBMatrix(R):
@@ -274,10 +264,7 @@ def vecMVCOBMatrix(R):
                 R[:, i1, j1] * R[:, i2, j2] + R[:, i1, j2] * R[:, i2, j1]
             )
 
-    if nrot == 1:
-        T = T.squeeze()
-
-    return T
+    return T.squeeze()
 
 
 def nrmlProjOfVecMV(vec):
@@ -330,7 +317,7 @@ def rankOneMatrix(vec1, *args):
     if len(vec1.shape) > 2:
         raise RuntimeError("input vec1 is the wrong shape")
 
-    if (len(args) == 0):
+    if len(args) == 0:
         vec2 = vec1.copy()
     else:
         vec2 = args[0]
@@ -340,7 +327,7 @@ def rankOneMatrix(vec1, *args):
     m1, n1 = np.asmatrix(vec1).shape
     m2, n2 = np.asmatrix(vec2).shape
 
-    if (n1 != n2):
+    if n1 != n2:
         raise RuntimeError("Number of vectors differ in arguments.")
 
     m1m2 = m1 * m2
@@ -742,39 +729,15 @@ def _findduplicatevectors(vec, tol, equivPM):
 
     return eqv
 
-def normvec(v):
-    mag = np.linalg.norm(v)
-    return mag
 
-
-def normvec3(v):
-    """
-    ??? deprecated
-    """
-    mag = np.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])
-    return mag
+normvec = normvec3 = np.linalg.norm
+cross = np.cross
+determinant3 = np.linalg.det
+trace3 = np.trace
 
 
 def normalized(v):
-    mag = normvec(v)  # normvec3(v)
-    n = v / mag
-    return n
-
-
-def cross(v1, v2):
-    # return the cross product of v1 with another vector
-    # return a vector
-    newv3 = np.zeros(3, dtype='float64')
-    newv3[0] = v1[1]*v2[2] - v1[2]*v2[1]
-    newv3[1] = v1[2]*v2[0] - v1[0]*v2[2]
-    newv3[2] = v1[0]*v2[1] - v1[1]*v2[0]
-    return newv3
-
-
-def determinant3(mat):
-    v = np.cross(mat[0, :], mat[1, :])
-    det = np.sum(mat[2, :] * v[:])
-    return det
+    return v / normvec(v)
 
 
 def strainTenToVec(strainTen):
@@ -889,10 +852,6 @@ def vecdsSToTrace(vecdsS):
     return vecdsS * sqr3
 
 
-def trace3(A):
-    return A[0, 0] + A[1, 1] + A[2, 2]
-
-
 def symmToVecds(A):
     """convert from symmetry matrix to vecds representation"""
     vecds = np.zeros(6, dtype='float64')
@@ -945,7 +904,7 @@ def solve_wahba(v, w, weights=None):
         B += weights[i]*np.dot(w[i].reshape(3, 1), v[i].reshape(1, 3))
 
     # compute svd
-    Us, Ss, VsT = svd(B)
+    Us, _, VsT = svd(B)
 
     # form diagonal matrix for solution
     M = np.diag([1., 1., np.linalg.det(Us)*np.linalg.det(VsT)])

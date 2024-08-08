@@ -37,6 +37,13 @@ import scipy.sparse as sparse
 from hexrd import matrixutil as mutil
 
 
+# Added to not break people importing these methods
+from hexrd.rotations import (mapAngle,
+                             quatProductMatrix as quat_product_matrix,
+                             arccosSafe, angularDifference)
+from hexrd.matrixutil import columnNorm, rowNorm
+
+
 # =============================================================================
 # Module Data
 # =============================================================================
@@ -754,108 +761,6 @@ def _z_project(x, y):
     return np.cos(x) * np.sin(y) - np.sin(x) * np.cos(y)
 
 
-def arccosSafe(temp):
-    """
-    Protect against numbers slightly larger than 1 in magnitude
-    due to round-off
-    """
-    temp = np.atleast_1d(temp)
-    if np.any(abs(temp) > 1.00001):
-        print("attempt to take arccos of %s" % temp, file=sys.stderr)
-        raise RuntimeError("unrecoverable error")
-
-    gte1 = temp >= 1.0
-    lte1 = temp <= -1.0
-
-    temp[gte1] = 1
-    temp[lte1] = -1
-
-    ang = np.arccos(temp)
-
-    return ang
-
-
-def angularDifference(angList0, angList1, units=angularUnits):
-    """
-    Calculate the proper (acute) angular difference in the context
-    of a branch cut.
-
-    Parameters
-    ----------
-    angList0 : array_like
-        An (n, ) array on input angles in radians.
-    angList1 : array_like
-        An (n, ) array on input angles in radians.
-    units : str, optional
-        Either 'degrees' or 'radians'. The default is 'radians'.
-
-    Returns
-    -------
-    numpy.ndarray
-        The (n, ) array of acute angular differences bwetween the inputs
-        on the circle [-pi, pi].
-
-    """
-    period = periodDict[units]  # module-level
-    # take difference as arrays
-    diffAngles = np.atleast_1d(angList0) - np.atleast_1d(angList1)
-    return abs(np.remainder(diffAngles + 0.5 * period, period) - 0.5 * period)
-
-
-def mapAngle(ang, *args, **kwargs):
-    """Utility routine to map an angle into a specified period
-
-    actual function is mapAngle(ang[, range], units=angularUnits).  range is
-    optional and defaults to the appropriate angle for the unit centered on 0.
-    """
-    units = angularUnits
-    period = periodDict[units]
-
-    kwargKeys = list(kwargs.keys())
-    for iArg in range(len(kwargKeys)):
-        if kwargKeys[iArg] == 'units':
-            units = kwargs[kwargKeys[iArg]]
-        else:
-            raise RuntimeError(
-                "Unknown keyword argument: " + str(kwargKeys[iArg])
-            )
-
-    try:
-        period = periodDict[units.lower()]
-    except KeyError:
-        raise RuntimeError(
-            "unknown angular units: " + str(kwargs[kwargKeys[iArg]])
-        )
-
-    ang = np.asarray(ang, dtype=float)
-
-    # if we have a specified angular range, use that
-    if len(args) > 0:
-        angRange = np.asarray(args[0], dtype=float)
-
-        # divide of multiples of period
-        ang = ang - int(ang / period) * period
-
-        lb = angRange.min()
-        ub = angRange.max()
-
-        if abs(ub - lb) != period:
-            raise RuntimeError('range is incomplete!')
-
-        lbi = ang < lb
-        while lbi.sum() > 0:
-            ang[lbi] = ang[lbi] + period
-            lbi = ang < lb
-        ubi = ang > ub
-        while ubi.sum() > 0:
-            ang[ubi] = ang[ubi] - period
-            ubi = ang > ub
-        retval = ang
-    else:
-        retval = np.mod(ang + 0.5 * period, period) - 0.5 * period
-    return retval
-
-
 def reg_grid_indices(edges, points_1d):
     """
     get indices in a 1-d regular grid.
@@ -906,32 +811,6 @@ def reg_grid_indices(edges, points_1d):
     else:
         raise RuntimeError("edges array gives delta of 0")
     return np.array(idx, dtype=int)
-
-
-def columnNorm(a):
-    """
-    normalize array of column vectors (hstacked, axis = 0)
-    """
-    if len(a.shape) > 2:
-        raise RuntimeError(
-            "incorrect shape: arg must be 1-d or 2-d, "
-            + "yours is %d" % (len(a.shape))
-        )
-    cnrma = np.sqrt(sum(np.asarray(a) ** 2, 0))
-    return cnrma
-
-
-def rowNorm(a):
-    """
-    normalize array of row vectors (vstacked, axis = 1)
-    """
-    if len(a.shape) > 2:
-        raise RuntimeError(
-            "incorrect shape: arg must be 1-d or 2-d, "
-            + "yours is %d" % (len(a.shape))
-        )
-    cnrma = np.sqrt(sum(np.asarray(a) ** 2, 1))
-    return cnrma
 
 
 @numba.njit(nogil=True, cache=True)
@@ -1310,54 +1189,6 @@ def rotate_vecs_about_axis(angle, axis, vecs):
         + 2.0 * np.tile(q0, (3, 1)) * qcrossn
     )
     return v_rot
-
-
-def quat_product_matrix(q, mult='right'):
-    """
-    Form 4 x 4 array to perform the quaternion product
-
-    USAGE
-        qmat = quatProductMatrix(q, mult='right')
-
-    INPUTS
-        1) quats is (4,), an iterable representing a unit quaternion
-           horizontally concatenated
-        2) mult is a keyword arg, either 'left' or 'right', denoting
-           the sense of the multiplication:
-
-                       / quatProductMatrix(h, mult='right') * q
-           q * h  --> <
-                       \\ quatProductMatrix(q, mult='left') * h
-
-    OUTPUTS
-        1) qmat is (4, 4), the left or right quaternion product
-           operator
-
-    NOTES
-       *) This function is intended to replace a cross-product based
-          routine for products of quaternions with large arrays of
-          quaternions (e.g. applying symmetries to a large set of
-          orientations).
-    """
-    if mult == 'right':
-        qmat = np.array(
-            [
-                [q[0], -q[1], -q[2], -q[3]],
-                [q[1], q[0], q[3], -q[2]],
-                [q[2], -q[3], q[0], q[1]],
-                [q[3], q[2], -q[1], q[0]],
-            ]
-        )
-    elif mult == 'left':
-        qmat = np.array(
-            [
-                [q[0], -q[1], -q[2], -q[3]],
-                [q[1], q[0], -q[3], q[2]],
-                [q[2], q[3], q[0], -q[1]],
-                [q[3], -q[2], q[1], q[0]],
-            ]
-        )
-    return qmat
 
 
 def quat_distance(q1, q2, qsym):
