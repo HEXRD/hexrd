@@ -7,6 +7,8 @@ from scipy import optimize
 from hexrd import matrixutil as mutil
 
 from hexrd.transforms import xfcapi
+from hexrd import constants
+from hexrd import rotations
 
 from hexrd.xrdutil import extract_detector_transformation
 
@@ -15,8 +17,8 @@ return_value_flag = None
 epsf = np.finfo(float).eps  # ~2.2e-16
 sqrt_epsf = np.sqrt(epsf)  # ~1.5e-8
 
-bVec_ref = xfcapi.bVec_ref
-eta_ref = xfcapi.eta_ref
+bVec_ref = constants.beam_vec
+eta_ref = constants.eta_vec
 vInv_ref = np.r_[1., 1., 1., 0., 0., 0.]
 
 
@@ -71,7 +73,7 @@ def fitGrain(gFull, instrument, reflections_dict,
     """
     # FIXME: will currently fail if omePeriod is specifed
     if omePeriod is not None:
-        # xyo_det[:, 2] = xfcapi.mapAngle(xyo_det[:, 2], omePeriod)
+        # xyo_det[:, 2] = rotations.mapAngle(xyo_det[:, 2], omePeriod)
         raise RuntimeError
 
     gFit = gFull[gFlag]
@@ -162,7 +164,7 @@ def objFuncFitGrain(gFit, gFull, gFlag,
     gFull[gFlag] = gFit
 
     # map parameters to functional arrays
-    rMat_c = xfcapi.makeRotMatOfExpMap(gFull[:3])
+    rMat_c = xfcapi.make_rmat_of_expmap(gFull[:3])
     tVec_c = gFull[3:6].reshape(3, 1)
     vInv_s = gFull[6:]
     vMat_s = mutil.vecMVToSymm(vInv_s)  # NOTE: Inverse of V from F = V * R
@@ -281,7 +283,9 @@ def objFuncFitGrain(gFit, gFull, gFlag,
         # return residual vector
         # IDEA: try angles instead of xys?
         diff_vecs_xy = calc_xy_all - meas_xyo_all[:, :2]
-        diff_ome = xfcapi.angularDifference(calc_omes_all, meas_xyo_all[:, 2])
+        diff_ome = rotations.angularDifference(
+            calc_omes_all, meas_xyo_all[:, 2]
+        )
         retval = np.hstack([diff_vecs_xy,
                             diff_ome.reshape(npts, 1)
                             ]).flatten()
@@ -309,15 +313,15 @@ def matchOmegas(xyo_det, hkls_idx, chi, rMat_c, bMat, wavelength,
     """
     # get omegas for rMat_s calculation
     if omePeriod is not None:
-        meas_omes = xfcapi.mapAngle(xyo_det[:, 2], omePeriod)
+        meas_omes = rotations.mapAngle(xyo_det[:, 2], omePeriod)
     else:
         meas_omes = xyo_det[:, 2]
 
-    oangs0, oangs1 = xfcapi.oscillAnglesOfHKLs(
+    oangs0, oangs1 = xfcapi.oscill_angles_of_hkls(
             hkls_idx.T, chi, rMat_c, bMat, wavelength,
-            vInv=vInv,
-            beamVec=beamVec,
-            etaVec=etaVec)
+            v_inv=vInv,
+            beam_vec=beamVec,
+            eta_vec=etaVec)
     if np.any(np.isnan(oangs0)):
         # debugging
         # TODO: remove this
@@ -333,10 +337,12 @@ def matchOmegas(xyo_det, hkls_idx, chi, rMat_c, bMat, wavelength,
         # CAPI version gives vstacked angles... must be (2, nhkls)
         calc_omes = np.vstack([oangs0[:, 2], oangs1[:, 2]])
     if omePeriod is not None:
-        calc_omes = np.vstack([xfcapi.mapAngle(oangs0[:, 2], omePeriod),
-                               xfcapi.mapAngle(oangs1[:, 2], omePeriod)])
+        calc_omes = np.vstack([rotations.mapAngle(oangs0[:, 2], omePeriod),
+                               rotations.mapAngle(oangs1[:, 2], omePeriod)])
     # do angular difference
-    diff_omes = xfcapi.angularDifference(np.tile(meas_omes, (2, 1)), calc_omes)
+    diff_omes = rotations.angularDifference(
+        np.tile(meas_omes, (2, 1)), calc_omes
+    )
     match_omes = np.argsort(diff_omes, axis=0) == 0
     calc_omes = calc_omes.T.flatten()[match_omes.T.flatten()]
 

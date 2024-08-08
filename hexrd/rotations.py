@@ -1111,6 +1111,7 @@ def mapAngle(ang, ang_range=None, units=angularUnits):
     val[np.logical_and(val == min_val, ang > min_val)] = max_val
     return val
 
+
 def angularDifference_orig(angList0, angList1, units=angularUnits):
     """
     Do the proper (acute) angular difference in the context of a branch cut.

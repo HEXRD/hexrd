@@ -1522,7 +1522,7 @@ class PlaneData(object):
             "Looks like something is wrong with your lattice plane normals"
 
         # call model from transforms now
-        oangs0, oangs1 = xfcapi.oscillAnglesOfHKLs(
+        oangs0, oangs1 = xfcapi.oscill_angles_of_hkls(
             hkls.T, chi, rMat_c, bMat, wavelength
         )
 

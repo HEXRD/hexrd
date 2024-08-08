@@ -69,7 +69,7 @@ class LaueCalibrator(Calibrator):
 
         grain_params = self.grain_params.copy()
         rme = RotMatEuler(np.zeros(3), **self.euler_convention)
-        rme.rmat = xfcapi.makeRotMatOfExpMap(grain_params[:3])
+        rme.rmat = xfcapi.make_rmat_of_expmap(grain_params[:3])
         grain_params[:3] = np.degrees(rme.angles)
         return grain_params
 
@@ -171,7 +171,7 @@ class LaueCalibrator(Calibrator):
         rmat_s = np.eye(3)  # !!! forcing to identity
         omega = 0.  # !!! same ^^^
 
-        rmat_c = xfcapi.makeRotMatOfExpMap(self.grain_params[:3])
+        rmat_c = xfcapi.make_rmat_of_expmap(self.grain_params[:3])
         tvec_c = self.grain_params[3:6]
         # vinv_s = self.grain_params[6:12]  # !!!: patches don't take this yet
 
@@ -358,16 +358,16 @@ class LaueCalibrator(Calibrator):
                     # need xy coords
                     # !!! forcing ome = 0. -- could be inconsistent with rmat_s
                     cmv = np.atleast_2d(np.hstack([com_angs, omega]))
-                    gvec_c = xfcapi.anglesToGVec(
+                    gvec_c = xfcapi.angles_to_gvec(
                         cmv,
                         chi=self.instr.chi,
-                        rMat_c=rmat_c,
-                        bHat_l=self.instr.beam_vector)
-                    new_xy = xfcapi.gvecToDetectorXY(
+                        rmat_c=rmat_c,
+                        beam_vec=self.instr.beam_vector)
+                    new_xy = xfcapi.gvec_to_xy(
                         gvec_c,
                         det.rmat, rmat_s, rmat_c,
                         det.tvec, self.instr.tvec, tvec_c,
-                        beamVec=self.instr.beam_vector)
+                        beam_vec=self.instr.beam_vector)
                     meas_xy[iRefl, :] = new_xy
                     if det.distortion is not None:
                         meas_xy[iRefl, :] = det.distortion.apply_inverse(

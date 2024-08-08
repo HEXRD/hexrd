@@ -37,11 +37,11 @@ import numba
 
 from hexrd import constants
 from hexrd import matrixutil as mutil
+from hexrd import rotations as rot
 from hexrd import gridutil as gutil
 
 from hexrd.material.crystallography import processWavelength, PlaneData
 
-from hexrd.transforms import xf
 from hexrd.transforms import xfcapi
 from hexrd.valunits import valWUnit
 
@@ -192,7 +192,7 @@ def zproject_sph_angles(
 
     invecs = np.atleast_2d(invecs)
     if source.lower() == 'd':
-        spts_s = xfcapi.anglesToDVec(invecs, chi=chi)
+        spts_s = xfcapi.angles_to_dvec(invecs, chi=chi)
     elif source.lower() == 'q':
         spts_s = xfcapi.angles_to_gvec(invecs, chi=chi)
     elif source.lower() == 'g':
@@ -218,7 +218,7 @@ def zproject_sph_angles(
         ).T
     elif method.lower() == 'equal-area':
         chords = spts_s + np.tile([0, 0, 1], (len(spts_s), 1))
-        scl = np.tile(xfcapi.rowNorm(chords), (2, 1)).T
+        scl = np.tile(mutil.rowNorm(chords), (2, 1)).T
         ucrd = mutil.unitVector(
             np.hstack([chords[:, :2], np.zeros((len(spts_s), 1))]).T
         )
@@ -492,25 +492,25 @@ def simulateOmeEtaMaps(
     for iHKL in range(nhkls):
         these_hkls = np.ascontiguousarray(sym_hkls[iHKL].T, dtype=float)
         for iOr in range(nOrs):
-            rMat_c = xfcapi.makeRotMatOfExpMap(expMaps[iOr, :])
+            rMat_c = xfcapi.make_rmat_of_expmap(expMaps[iOr, :])
             angList = np.vstack(
-                xfcapi.oscillAnglesOfHKLs(
+                xfcapi.oscill_angles_of_hkls(
                     these_hkls,
                     chi,
                     rMat_c,
                     bMat,
                     wlen,
-                    beamVec=bVec,
-                    etaVec=eVec,
-                    vInv=vInv,
+                    beam_vec=bVec,
+                    eta_vec=eVec,
+                    v_inv=vInv,
                 )
             )
             if not np.all(np.isnan(angList)):
                 #
-                angList[:, 1] = xfcapi.mapAngle(
+                angList[:, 1] = rot.mapAngle(
                     angList[:, 1], [etaEdges[0], etaEdges[0] + 2 * np.pi]
                 )
-                angList[:, 2] = xfcapi.mapAngle(
+                angList[:, 2] = rot.mapAngle(
                     angList[:, 2], [omeEdges[0], omeEdges[0] + 2 * np.pi]
                 )
                 #
@@ -519,7 +519,7 @@ def simulateOmeEtaMaps(
                 for etas in etaRanges:
                     angMask_eta = np.logical_or(
                         angMask_eta,
-                        xf.validateAngleRanges(
+                        xfcapi.validate_angle_ranges(
                             angList[:, 1], etas[0], etas[1]
                         ),
                     )
@@ -532,7 +532,7 @@ def simulateOmeEtaMaps(
                         ccw = False
                     angMask_ome = np.logical_or(
                         angMask_ome,
-                        xf.validateAngleRanges(
+                        xfcapi.validate_angle_ranges(
                             angList[:, 2], omes[0], omes[1], ccw=ccw
                         ),
                     )
@@ -610,7 +610,9 @@ def _filter_hkls_eta_ome(
     angMask_eta = np.zeros(len(angles), dtype=bool)
     for etas in eta_range:
         angMask_eta = np.logical_or(
-            angMask_eta, xf.validateAngleRanges(angles[:, 1], etas[0], etas[1])
+            angMask_eta, xfcapi.validate_angle_ranges(
+                angles[:, 1], etas[0], etas[1]
+            )
         )
 
     ccw = True
@@ -620,7 +622,9 @@ def _filter_hkls_eta_ome(
             ccw = False
         angMask_ome = np.logical_or(
             angMask_ome,
-            xf.validateAngleRanges(angles[:, 2], omes[0], omes[1], ccw=ccw),
+            xfcapi.validate_angle_ranges(
+                angles[:, 2], omes[0], omes[1], ccw=ccw
+            ),
         )
 
     angMask = np.logical_and(angMask_eta, angMask_ome)
@@ -698,8 +702,8 @@ def _project_on_detector_cylinder(
     detector plane parameterized by the args. this function does the
     computation for a cylindrical detector
     """
-    dVec_cs = xfcapi.anglesToDVec(
-        allAngs, chi=chi, rMat_c=np.eye(3), bHat_l=beamVec, eHat_l=etaVec
+    dVec_cs = xfcapi.angles_to_dvec(
+        allAngs, chi=chi, rmat_c=np.eye(3), beam_vec=beamVec, eta_vec=etaVec
     )
 
     rMat_ss = np.tile(rmat_s, [allAngs.shape[0], 1, 1])
@@ -1076,18 +1080,18 @@ def simulateGVecs(
     full_hkls = _fetch_hkls_from_planedata(pd)
 
     # extract variables for convenience
-    rMat_d = xfcapi.makeDetectorRotMat(detector_params[:3])
+    rMat_d = xfcapi.make_detector_rmat(detector_params[:3])
     tVec_d = np.ascontiguousarray(detector_params[3:6])
     chi = detector_params[6]
     tVec_s = np.ascontiguousarray(detector_params[7:10])
-    rMat_c = xfcapi.makeRotMatOfExpMap(grain_params[:3])
+    rMat_c = xfcapi.make_rmat_of_expmap(grain_params[:3])
     tVec_c = np.ascontiguousarray(grain_params[3:6])
     vInv_s = np.ascontiguousarray(grain_params[6:12])
 
     # first find valid G-vectors
     angList = np.vstack(
-        xfcapi.oscillAnglesOfHKLs(
-            full_hkls[:, 1:], chi, rMat_c, bMat, wlen, vInv=vInv_s
+        xfcapi.oscill_angles_of_hkls(
+            full_hkls[:, 1:], chi, rMat_c, bMat, wlen, v_inv=vInv_s
         )
     )
     allAngs, allHKLs = _filter_hkls_eta_ome(
@@ -1155,7 +1159,7 @@ def simulateLauePattern(
 ):
 
     if beamVec is None:
-        beamVec = xfcapi.bVec_ref
+        beamVec = constants.beam_vec
 
     # parse energy ranges
     multipleEnergyRanges = False
@@ -1199,7 +1203,7 @@ def simulateLauePattern(
     """
 
     for iG, gp in enumerate(grain_params):
-        rmat_c = xfcapi.makeRotMatOfExpMap(gp[:3])
+        rmat_c = xfcapi.make_rmat_of_expmap(gp[:3])
         tvec_c = gp[3:6].reshape(3, 1)
         vInv_s = mutil.vecMVToSymm(gp[6:].reshape(6, 1))
 
@@ -1227,9 +1231,11 @@ def simulateLauePattern(
             dpts = dpts[:, canIntersect].reshape(2, npts_in)
             dhkl = hkls[:, canIntersect].reshape(3, npts_in)
 
+            rmat_b = xfcapi.make_beam_rmat(beamVec, constants.eta_vec)
+
             # back to angles
-            tth_eta, gvec_l = xfcapi.detectorXYToGvec(
-                dpts.T, rmat_d, rmat_s, tvec_d, tvec_s, tvec_c, beamVec=beamVec
+            tth_eta, gvec_l = xfcapi.xy_to_gvec(
+                dpts.T, rmat_d, rmat_s, tvec_d, tvec_s, tvec_c, rmat_b=rmat_b
             )
             tth_eta = np.vstack(tth_eta).T
 
@@ -1339,23 +1345,25 @@ def angularPixelSize(
     if distortion is not None:  # !!! check this logic
         xy_det = distortion.apply(xy_det)
     if beamVec is None:
-        beamVec = xfcapi.bVec_ref
+        beamVec = constants.beam_vec
     if etaVec is None:
-        etaVec = xfcapi.eta_ref
+        etaVec = constants.eta_vec
 
     xy_expanded = np.empty((len(xy_det) * 4, 2), dtype=xy_det.dtype)
     xy_expanded = _expand_pixels(
         xy_det, xy_pixelPitch[0], xy_pixelPitch[1], xy_expanded
     )
-    gvec_space, _ = xfcapi.detectorXYToGvec(
+
+    rmat_b = xfcapi.make_beam_rmat(beamVec, etaVec)
+
+    gvec_space, _ = xfcapi.xy_to_gvec(
         xy_expanded,
         rMat_d,
         rMat_s,
         tVec_d,
         tVec_s,
         tVec_c,
-        beamVec=beamVec,
-        etaVec=etaVec,
+        rmat_b=rmat_b,
     )
     result = np.empty_like(xy_det)
     return _compute_max(gvec_space[0], gvec_space[1], result)
@@ -1411,7 +1419,7 @@ def make_reflection_patches(
     """
 
     # detector quantities
-    rmat_d = xfcapi.makeRotMatOfExpMap(
+    rmat_d = xfcapi.make_rmat_of_expmap(
         np.r_[instr_cfg['detector']['transform']['tilt']]
     )
     tvec_d = np.r_[instr_cfg['detector']['transform']['translation']]
@@ -1576,7 +1584,7 @@ def extract_detector_transformation(
     """
     # extract variables for convenience
     if isinstance(detector_params, dict):
-        rMat_d = xfcapi.makeRotMatOfExpMap(
+        rMat_d = xfcapi.make_rmat_of_expmap(
             np.array(detector_params['detector']['transform']['tilt'])
         )
         tVec_d = np.r_[detector_params['detector']['transform']['translation']]
@@ -1586,7 +1594,7 @@ def extract_detector_transformation(
         assert len(
             detector_params >= 10
         ), "list of detector parameters must have length >= 10"
-        rMat_d = xfcapi.makeRotMatOfExpMap(detector_params[:3])
+        rMat_d = xfcapi.make_rmat_of_expmap(detector_params[:3])
         tVec_d = np.ascontiguousarray(detector_params[3:6])
         chi = detector_params[6]
         tVec_s = np.ascontiguousarray(detector_params[7:10])
