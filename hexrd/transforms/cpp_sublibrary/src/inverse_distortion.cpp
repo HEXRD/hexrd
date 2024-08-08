@@ -5,8 +5,8 @@
 
 namespace py = pybind11;
 constexpr double FOUR_THIRDS_PI = M_PI * 4.0 / 3.0;
-constexpr double N_THREE_HALVES_SQRT_3 = -3.0 / 2.0 * sqrt(3.0);
-constexpr double TWO_OVER_SQRT_THREE = 2.0 / sqrt(3.0);
+constexpr double N_THREE_HALVES_SQRT_3 = -3.0 / 2.0 * std::sqrt(3.0);
+constexpr double TWO_OVER_SQRT_THREE = 2.0 / std::sqrt(3.0);
 
 Eigen::ArrayXXd ge_41rt_inverse_distortion(const Eigen::ArrayXXd& inputs, const double rhoMax, const Eigen::ArrayXd& params) {
   Eigen::ArrayXd radii = inputs.matrix().rowwise().norm();
