@@ -124,7 +124,6 @@ def get_cpp_extensions():
     include_dirs = [
         get_include_path('xsimd'),
         get_include_path('eigen3'),
-        get_include_path('xsimd'),
         get_pybind11_include_path(),
         numpy.get_include(),
     ]
