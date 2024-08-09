@@ -163,20 +163,20 @@ const static Eigen::MatrixX3d anglesToVec(const Eigen::MatrixXd &angs,
 
   // Loop for remaining elements, if any
   for (size_t i = num_full_batches * batch_size; i < vec_size; ++i) {
-    auto angs1_v = xsimd::load_unaligned(angs.data() + vec_size + i);
-    auto angs2_v = xsimd::load_unaligned(angs.data() + 2 * vec_size + i);
+    auto angs1_v = *(angs.data() + vec_size + i);
+    auto angs2_v = *(angs.data() + 2 * vec_size + i);
     
-    auto cosAngs2 = xsimd::cos(angs2_v);
-    auto sinAngs2 = xsimd::sin(angs2_v);
-    xsimd::batch<double> gVec_row_0, gVec_row_1, gVec_row_2;
+    auto cosAngs2 = std::cos(angs2_v);
+    auto sinAngs2 = std::sin(angs2_v);
+    double gVec_row_0, gVec_row_1, gVec_row_2;
 
     if (toGVec) {
-      auto half_angs_v = xsimd::load_unaligned(angs.data() + i) * 0.5;
-      auto cosHalfAngs = xsimd::cos(half_angs_v);
+      auto half_angs_v = *(angs.data() + i) * 0.5;
+      auto cosHalfAngs = std::cos(half_angs_v);
 
-      auto preMult_gVec_row_0 = cosHalfAngs * xsimd::cos(angs1_v);
-      auto preMult_gVec_row_1 = cosHalfAngs * xsimd::sin(angs1_v);
-      auto preMult_gVec_row_2 = xsimd::sin(half_angs_v);
+      auto preMult_gVec_row_0 = cosHalfAngs * std::cos(angs1_v);
+      auto preMult_gVec_row_1 = cosHalfAngs * std::sin(angs1_v);
+      auto preMult_gVec_row_2 = std::sin(half_angs_v);
 
       gVec_row_0 = preMult_gVec_row_0 * rotMat00 +
                   preMult_gVec_row_1 * rotMat01 +
@@ -188,15 +188,13 @@ const static Eigen::MatrixX3d anglesToVec(const Eigen::MatrixXd &angs,
                   preMult_gVec_row_1 * rotMat21 +
                   preMult_gVec_row_2 * rotMat22;
     } else {
-      auto angs_v = xsimd::load_unaligned(angs.data() + i);
-      xsimd::batch<double> sinAngs, cosAngs, sinAngs1, cosAngs1;
-      std::tie(sinAngs, cosAngs) = xsimd::sincos(angs_v);
-      std::tie(sinAngs1, cosAngs1) = xsimd::sincos(angs1_v);
+      auto angs_v = *(angs.data() + i);
+      double sinAngs = std::sin(angs_v);
 
 
-      auto preMult_gVec_row_0 = sinAngs * cosAngs1;
-      auto preMult_gVec_row_1 = sinAngs * sinAngs1;
-      auto preMult_gVec_row_2 = -cosAngs;
+      auto preMult_gVec_row_0 = sinAngs * std::cos(angs1_v);
+      auto preMult_gVec_row_1 = sinAngs * std::sin(angs1_v);
+      auto preMult_gVec_row_2 = -std::cos(angs_v);
 
       gVec_row_0 = preMult_gVec_row_0 * rotMat00 +
                   preMult_gVec_row_1 * rotMat01 +
@@ -228,9 +226,9 @@ const static Eigen::MatrixX3d anglesToVec(const Eigen::MatrixXd &angs,
         (-mat02 * cchi * sinAngs2 + mat12 * schi + mat22 * cchi * cosAngs2) *
             gVec_row_2;
 
-    xsimd::store_unaligned(gVec_c.data() + i, dot0);
-    xsimd::store_unaligned(gVec_c.data() + vec_size + i, dot1);
-    xsimd::store_unaligned(gVec_c.data() + 2 * vec_size + i, dot2);
+    *(gVec_c.data() + i) = dot0;
+    *(gVec_c.data() + vec_size + i) = dot1;
+    *(gVec_c.data() + 2 * vec_size + i) = dot2;
   }
 
   return gVec_c;
