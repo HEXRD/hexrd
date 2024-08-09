@@ -1622,9 +1622,23 @@ class PlaneData(object):
     @deprecated(new_func="len(self.hkls.T)", removal_date="2025-08-01")
     def getNHKLs(self):
         return len(self.getHKLs())
-    
-    get_exclusions = exclusions.__getattribute__("getter")
-    set_exclusions = exclusions.__getattribute__("setter")
+
+    @deprecated(new_func="self.exclusions", removal_date="2025-08-01")
+    def get_exclusions(self):
+        return self.exclusions
+
+    @deprecated(new_func="self.exclusions=...", removal_date="2025-08-01")
+    def set_exclusions(self, exclusions):
+        self.exclusions = exclusions
+
+    @deprecated(new_func="rotations.ltypeOfLaueGroup(self.laueGroup)",
+                removal_date="2025-08-01")
+    def getLatticeType(self):
+        return ltypeOfLaueGroup(self.laueGroup)
+
+    @deprecated(new_func="self.q_sym", removal_date="2025-08-01")
+    def getQSym(self):
+        return self.q_sym
 
 
 @deprecated(removal_date='2025-01-01')
