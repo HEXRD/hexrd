@@ -994,7 +994,7 @@ class PlaneData(object):
         strainMag,
         wavelength,
     ) -> Tuple[
-        Dict[str, np.ndarray], Dict[str, np.ndarray | float], List[Dict]
+        Dict[str, np.ndarray], Dict[str, Union[np.ndarray, float]], List[Dict]
     ]:
         """
         Generate lattice plane data from inputs.
@@ -1105,7 +1105,7 @@ class PlaneData(object):
         self._calc()
 
     def set_laue_and_lparms(
-        self, laueGroup: str, lparms: List[valunits.valWUnit | float]
+        self, laueGroup: str, lparms: List[Union[valunits.valWUnit, float]]
     ) -> None:
         """
         Set the Laue group and lattice parameters simultaneously
@@ -1152,7 +1152,7 @@ class PlaneData(object):
         return dspacings
 
     @property
-    def latVecOps(self) -> Dict[str, np.ndarray | float]:
+    def latVecOps(self) -> Dict[str, Union[np.ndarray, float]]:
         """
         gets lattice vector operators as a new (deepcopy)
 
