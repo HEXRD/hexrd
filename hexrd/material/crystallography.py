@@ -758,7 +758,7 @@ class PlaneData(object):
                 elif len(exclusions.shape) == 2:
                     # treat exclusions as ranges of indices
                     for r in exclusions:
-                        excl[self.tThSort[r[0] : r[1]]] = True
+                        excl[self.tThSort[r[0]:r[1]]] = True
                 else:
                     raise RuntimeError(
                         f'Unclear behavior for shape {exclusions.shape}'
