@@ -46,7 +46,7 @@ from hexrd.rotations import (
 from hexrd.transforms import xfcapi
 from hexrd import valunits
 from hexrd.valunits import toFloat
-from hexrd.constants import d2r, r2d, sqrt_epsf
+from hexrd.constants import d2r, r2d, sqrt3by2, epsf, sqrt_epsf
 
 """module vars"""
 
@@ -1617,6 +1617,14 @@ class PlaneData(object):
             Qs_ang1.append(thisAng1)
 
         return Qs_vec, Qs_ang0, Qs_ang1
+
+    # OLD DEPRECATED PLANE_DATA STUFF ====================================
+    @deprecated(new_func="len(self.hkls.T)", removal_date="2025-08-01")
+    def getNHKLs(self):
+        return len(self.getHKLs())
+    
+    get_exclusions = exclusions.__getattribute__("getter")
+    set_exclusions = exclusions.__getattribute__("setter")
 
 
 @deprecated(removal_date='2025-01-01')
