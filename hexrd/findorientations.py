@@ -131,9 +131,6 @@ def generate_orientation_fibers(cfg, eta_ome):
                 ome_c = eta_ome.omeEdges[0] + (0.5 + coms[i][ispot][0])*del_ome
                 eta_c = eta_ome.etaEdges[0] + (0.5 + coms[i][ispot][1])*del_eta
                 input_p.append(np.hstack([this_hkl, this_tth, eta_c, ome_c]))
-                pass
-            pass
-        pass
 
     # do the mapping
     start = timeit.default_timer()
@@ -155,7 +152,6 @@ def generate_orientation_fibers(cfg, eta_ome):
                     discretefiber_reduced, input_p, chunksize=chunksize
                 ), total=ntotal
             ):
-            pass
         print(_.shape)
         '''
         pool.close()

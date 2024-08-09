@@ -167,10 +167,11 @@ def PrintPossibleSG(xtal_sys):
 
         return sgmin, sgmax
 
+
 #
 # Hall Symbols copied from:
 #
-_hallStr = r"""
+HALL_STR = r"""
      1         P 1
      2        -P 1
      3:b       P 2y
@@ -703,7 +704,7 @@ _hallStr = r"""
    230        -I 4bd 2c 3
 """
 # Hermann-Mauguin notation
-_hmStr = r"""
+HM_STR = r"""
      1        P 1
      2        P -1
      3:b      P 1 2 1
@@ -1259,13 +1260,10 @@ def _buildDict(hstr):
             hstr = hstr.replace(" ", "")
             if n not in d:
                 d[n] = hstr
-                pass
             di[hstr] = n
-            pass
-        pass
 
     return d, di
 
 
-lookupHall, Hall_to_sgnum = _buildDict(_hallStr)
-lookupHM,   HM_to_sgnum   = _buildDict(_hmStr)
+lookupHall, Hall_to_sgnum = _buildDict(HALL_STR)
+lookupHM,     HM_to_sgnum = _buildDict(HM_STR)

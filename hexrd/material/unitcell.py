@@ -120,7 +120,6 @@ class unitcell:
             constants.cCharge / \
             self.voltage
         self.wavelength *= 1e9
-        # self.CalcAnomalous()
 
     def calcBetaij(self):
 
@@ -626,39 +625,43 @@ class unitcell:
         for i in range(atom_pos.shape[0]):
             pos = atom_pos[i, 0:3]
             occ = atom_pos[i, 3]
+            v1, n1 = self.CalcOrbit(pos)
             if i == 0:
                 atom_pos_fixed.append(np.hstack([pos, occ]))
                 idx.append(i)
-                v1, n1 = self.CalcOrbit(pos)
+            else:
+                isclose = False
+                for j,  uniqpos in enumerate(atom_pos_fixed):
+                    pos2 = uniqpos[0:3]
+                    occ2 = uniqpos[3]
+                    # cases with fractional occupancy on same site
+                    if (np.all(np.isclose(pos, pos2)) and
+                            (occ+occ2 <= 1.)):
+                        atom_pos_fixed.append(np.hstack([pos, occ]))
+                        idx.append(i)
+                        isclose = True
+                        break
+                    else:
+                        v2, n2 = self.CalcOrbit(pos2)
+                        for v in v2:
+                            vv = np.tile(v, [v1.shape[0], 1])
+                            vv = vv - v1
 
-                for j in range(i+1, atom_pos.shape[0]):
-                    isclose = False
-                    # atom_pos_fixed.append(np.hstack([pos, occ]))
-                    pos = atom_pos[j, 0:3]
-                    occ = atom_pos[j, 3]
-                    v2, n2 = self.CalcOrbit(pos)
-
-                    for v in v2:
-                        vv = np.tile(v, [v1.shape[0], 1])
-                        vv = vv - v1
-
-                        for vvv in vv:
-
-                            # check if distance less than tol
-                            # the factor of 10 is for A --> nm
-                            if self.CalcLength(vvv, 'd') < tol/10.:
-                                # if true then its a repeated atom
-                                isclose = True
-                                break
+                            for vvv in vv:
+                                # check if distance less than tol
+                                # the factor of 10 is for A --> nm
+                                if self.CalcLength(vvv, 'd') < tol/10.:
+                                    # if true then its a repeated atom
+                                    isclose = True
+                                    break
 
                         if isclose:
                             break
-
                     if isclose:
                         break
-                    else:
-                        atom_pos_fixed.append(np.hstack([pos, occ]))
-                        idx.append(i)
+                if not isclose:
+                    atom_pos_fixed.append(np.hstack([pos, occ]))
+                    idx.append(i)
 
         idx = np.array(idx)
         atom_pos_fixed = np.array(atom_pos_fixed)
@@ -679,7 +682,6 @@ class unitcell:
         initialize interpolation from table for anomalous scattering
         '''
         self.InitializeInterpTable()
-        # self.CalcAnomalous()
         self.CalcPositions()
         self.CalcDensity()
         self.calc_absorption_length()
@@ -779,54 +781,6 @@ class unitcell:
             nd = f_anomalous_data[i].shape[0]
             self.f_anomalous_data_sizes[i] = nd
             self.f_anomalous_data[i, :nd, :] = f_anomalous_data[i]
-
-    def CalcAnomalous(self):
-
-        self.f_anam = {}
-        for i in range(self.atom_ntype):
-
-            Z = self.atom_type[i]
-            elem = constants.ptableinverse[Z]
-            f1 = self.f1[elem](self.wavelength)
-            f2 = self.f2[elem](self.wavelength)
-            frel = constants.frel[elem]
-            Z = constants.ptable[elem]
-            self.f_anam[elem] = complex(f1+frel-Z, f2)
-
-    def CalcXRFormFactor(self, Z, charge, s):
-        '''
-        we are using the following form factors for x-aray scattering:
-        1. coherent x-ray scattering, f0 tabulated in Acta Cryst. (1995). A51,416-431
-        2. Anomalous x-ray scattering (complex (f'+if")) tabulated in J. Phys. Chem. Ref. Data, 24, 71 (1995)
-        and J. Phys. Chem. Ref. Data, 29, 597 (2000).
-        3. Thompson nuclear scattering, fNT tabulated in Phys. Lett. B, 69, 281 (1977).
-
-        the anomalous scattering is a complex number (f' + if"), where the two terms are given by
-        f' = f1 + frel - Z
-        f" = f2
-
-        f1 and f2 have been tabulated as a function of energy in Anomalous.h5 in hexrd folder
-
-        overall f = (f0 + f' + if" +fNT)
-        '''
-        elem = constants.ptableinverse[Z]
-        if charge == '0':
-            sfact = constants.scatfac[elem]
-        else:
-            cs = f"{elem}{charge}"
-            if cs in constants.scatfac:
-                sfact = constants.scatfac[f"{elem}{charge}"]
-            else:
-                sfact = constants.scatfac[elem]
-        fe = sfact[5]
-        fNT = constants.fNT[elem]
-        frel = constants.frel[elem]
-        f_anomalous = self.f_anam[elem]
-
-        for i in range(5):
-            fe += sfact[i] * np.exp(-sfact[i+6]*s)
-
-        return (fe+fNT+f_anomalous)
 
     def CalcXRSF(self, hkl):
         from hexrd.wppf.xtal import _calcxrsf
@@ -1720,12 +1674,6 @@ class unitcell:
         assert(val.shape[0] ==
                self.atom_ntype), 'shape of numat is not consistent'
         self._numat = val
-
-    # different atom types; read only
-    @property
-    def Z(self):
-        sz = self.atom_ntype
-        return self.atom_type[0:atom_ntype]
 
     # direct metric tensor is read only
     @property

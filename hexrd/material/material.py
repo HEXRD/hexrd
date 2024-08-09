@@ -233,7 +233,6 @@ class Material(object):
         s = 'Material:  %s\n' % self.name
         if self.description:
             s += '   description:  %s\n' % self.description
-            pass
         s += '   plane Data:  %s' % str(self.planeData)
         return s
 
@@ -719,7 +718,10 @@ class Material(object):
 
             chkstr = np.asarray([isinstance(x, str) for x in occ])
             occstr = np.array(occ)
-            occstr[chkstr] = 1.0
+            try:
+                occstr = occstr.astype(np.float64)
+            except:
+                occstr[chkstr] = 1.0
 
             atompos.append(np.asarray(occstr).astype(np.float64))
 
@@ -1400,12 +1402,6 @@ class Material(object):
         self._newUnitcell()
         self.invalidate_structure_factor()
 
-    #
-    #  ========== Methods
-    #
-    #
-    pass  # end class
-
 
 #
 #  -----------------------------------------------END CLASS:  Material
@@ -1506,7 +1502,6 @@ if __name__ == '__main__':
     if len(sys.argv) == 1:
         print("need argument:  materials.cfg")
         sys.exit()
-        pass
 
     ml = loadMaterialList(sys.argv[1])
 
@@ -1514,5 +1509,3 @@ if __name__ == '__main__':
     print(('   from file:  ', sys.argv[1]))
     for m in ml:
         print(m)
-        pass
-    pass

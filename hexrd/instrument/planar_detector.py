@@ -3,8 +3,9 @@ import numpy as np
 from hexrd import constants as ct
 from hexrd.transforms.xfcapi import (
     angles_to_gvec,
-    detectorXYToGvec,
+    xy_to_gvec,
     gvec_to_xy,
+    make_beam_rmat
 )
 from hexrd.utils.decorators import memoize
 
@@ -40,10 +41,11 @@ class PlanarDetector(Detector):
             tvec_c = ct.zeros_3
         if apply_distortion and self.distortion is not None:
             xy_data = self.distortion.apply(xy_data)
-        angs, g_vec = detectorXYToGvec(
+        rmat_b = make_beam_rmat(self.bvec, self.evec)
+        angs, g_vec = xy_to_gvec(
             xy_data, self.rmat, rmat_s,
             self.tvec, tvec_s, tvec_c,
-            beamVec=self.bvec, etaVec=self.evec)
+            rmat_b=rmat_b)
         tth_eta = np.vstack([angs[0], angs[1]]).T
         return tth_eta, g_vec
 
@@ -154,11 +156,11 @@ def _pixel_angles(origin, pixel_coords, distortion, rmat, tvec, bvec, evec,
 
     if distortion is not None:
         xy = distortion.apply(xy)
-
-    angs, g_vec = detectorXYToGvec(
+    rmat_b = make_beam_rmat(bvec, evec)
+    angs, g_vec = xy_to_gvec(
         xy, rmat, ct.identity_3x3,
         tvec, ct.zeros_3, origin,
-        beamVec=bvec, etaVec=evec)
+        rmat_b=rmat_b)
 
     tth = angs[0].reshape(rows, cols)
     eta = angs[1].reshape(rows, cols)

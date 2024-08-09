@@ -85,7 +85,7 @@ def write_results(results, cfg):
     )
     for gid, q in enumerate(results['qbar'].T):
         phi = 2*np.arccos(q[0])
-        n = xfcapi.unitRowVector(q[1:])
+        n = xfcapi.unit_vector(q[1:])
         grain_params = np.hstack([phi*n, const.zeros_3, const.identity_6x1])
         gw.dump_grain(gid, 1., 0., grain_params)
     gw.close()

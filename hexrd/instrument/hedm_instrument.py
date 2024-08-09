@@ -61,14 +61,13 @@ from hexrd.transforms.xfcapi import (
     angles_to_gvec,
     gvec_to_xy,
     make_sample_rmat,
-    makeRotMatOfExpMap,
-    mapAngle,
-    unitRowVector,
+    make_rmat_of_expmap,
+    unit_vector,
 )
 from hexrd import xrdutil
 from hexrd.material.crystallography import PlaneData
 from hexrd import constants as ct
-from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
+from hexrd.rotations import angleAxisOfRotMat, RotMatEuler, mapAngle
 from hexrd import distortion as distortion_pkg
 from hexrd.utils.compatibility import h5py_read_string
 from hexrd.utils.concurrent import distribute_tasks
@@ -383,7 +382,7 @@ def calc_angles_from_beam_vec(bvec):
     vector
     """
     bvec = np.atleast_1d(bvec).flatten()
-    nvec = unitRowVector(-bvec)
+    nvec = unit_vector(-bvec)
     azim = float(
         np.degrees(np.arctan2(nvec[2], nvec[0]))
     )
@@ -486,7 +485,6 @@ def pixel_resolution(instr):
         max_eta = min(max_eta, np.min(angps[:, 1]))
         min_tth = max(min_tth, np.max(angps[:, 0]))
         min_eta = max(min_eta, np.max(angps[:, 1]))
-        pass
     med_tth, med_eta = np.median(np.vstack(ang_ps_full), axis=0).flatten()
     return (min_tth, med_tth, max_tth), (min_eta, med_eta, max_eta)
 
@@ -745,7 +743,7 @@ class HEDMInstrument(object):
         for detector in self._detectors.values():
             this_det_params = detector.calibration_parameters
             if self._tilt_calibration_mapping is not None:
-                rmat = makeRotMatOfExpMap(detector.tilt)
+                rmat = make_rmat_of_expmap(detector.tilt)
                 self._tilt_calibration_mapping.rmat = rmat
                 tilt = np.degrees(self._tilt_calibration_mapping.angles)
                 this_det_params[:3] = tilt
@@ -922,7 +920,7 @@ class HEDMInstrument(object):
         for detector in self.detectors.values():
             this_det_params = detector.calibration_parameters
             if self.tilt_calibration_mapping is not None:
-                rmat = makeRotMatOfExpMap(detector.tilt)
+                rmat = make_rmat_of_expmap(detector.tilt)
                 self.tilt_calibration_mapping.rmat = rmat
                 tilt = np.degrees(self.tilt_calibration_mapping.angles)
                 this_det_params[:3] = tilt
@@ -1163,7 +1161,6 @@ class HEDMInstrument(object):
                 except ValueError:
                     raise RuntimeError(f"hklID '{input_hklID}' is invalid")
             tth_ranges = tth_ranges[idx]
-            pass  # end of active_hkls handling
 
         delta_eta = eta_edges[1] - eta_edges[0]
         ncols_eta = len(eta_edges) - 1
@@ -1698,7 +1695,7 @@ class HEDMInstrument(object):
 
         """
         # grain parameters
-        rMat_c = makeRotMatOfExpMap(grain_params[:3])
+        rMat_c = make_rmat_of_expmap(grain_params[:3])
         tVec_c = grain_params[3:6]
 
         # grab omega ranges from first imageseries
@@ -1922,7 +1919,6 @@ class HEDMInstrument(object):
                                 tmp > threshold
                             )
                             patch_data_raw.append(tmp)
-                            pass
                         patch_data_raw = np.stack(patch_data_raw, axis=0)
                         compl.append(contains_signal)
 
@@ -1965,7 +1961,6 @@ class HEDMInstrument(object):
                                     )
                                 else:
                                     closest_peak_idx = 0
-                                    pass  # end multipeak conditional
                                 coms = coms[closest_peak_idx]
                                 # meas_omes = \
                                 #     ome_edges[0] + (0.5 + coms[0])*delta_ome
@@ -2019,10 +2014,8 @@ class HEDMInstrument(object):
                                     ).flatten()
                                 # FIXME: why is this suddenly necessary???
                                 meas_xy = meas_xy.squeeze()
-                                pass  # end num_peaks > 0
                         else:
                             patch_data = patch_data_raw
-                            pass  # end contains_signal
 
                         if peak_id < 0:
                             # The peak is invalid.
@@ -2046,8 +2039,6 @@ class HEDMInstrument(object):
                                     xyc_arr, ijs, frame_indices, patch_data,
                                     ang_centers[i_pt], xy_centers[i_pt],
                                     meas_angs, meas_xy)
-                            pass  # end conditional on write output
-                        pass  # end conditional on check only
 
                         if return_spot_list:
                             # Full output
@@ -2069,12 +2060,9 @@ class HEDMInstrument(object):
                             ]
                         patch_output.append(_patch_output)
                         iRefl += 1
-                    pass  # end patch conditional
-                pass  # end patch loop
             output[detector_id] = patch_output
             if filename is not None and output_format.lower() == 'text':
                 writer.close()
-            pass  # end detector loop
         if filename is not None and output_format.lower() == 'hdf5':
             writer.close()
         return compl, output
@@ -2261,7 +2249,7 @@ class GrainDataWriter_h5(object):
 
         # add grain group
         self.grain_grp = self.fid.create_group('grain')
-        rmat_c = makeRotMatOfExpMap(grain_params[:3])
+        rmat_c = make_rmat_of_expmap(grain_params[:3])
         tvec_c = np.array(grain_params[3:6]).flatten()
         vinv_s = np.array(grain_params[6:]).flatten()
         vmat_s = np.linalg.inv(mutil.vecMVToSymm(vinv_s))
@@ -2450,7 +2438,6 @@ class GenerateEtaOmeMaps(object):
                 [this_det_ims.omega_to_frame(ome)[0] != -1
                  for ome in ome_centers]
             )
-            pass  # end multi-wedge case
 
         # ???: need to pass a threshold?
         eta_mapping, etas = instrument.extract_polar_maps(
@@ -2542,7 +2529,6 @@ class GenerateEtaOmeMaps(object):
 
     def save(self, filename):
         xrdutil.EtaOmeMaps.save_eta_ome_maps(self, filename)
-    pass  # end of class: GenerateEtaOmeMaps
 
 
 def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
@@ -2811,7 +2797,6 @@ def _extract_ring_line_positions(iter_args, instr_cfg, panel, eta_tol, npdiv,
                         fit_data.append(result)
                 else:
                     ims_data.append(p_img)
-            pass  # close image loop
         if not collapse_tth:
             output = [ang_data, ims_data]
             if do_fitting:

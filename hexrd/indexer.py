@@ -37,6 +37,7 @@ import numba
 import timeit
 
 from hexrd import constants
+from hexrd import rotations
 from hexrd.transforms import xfcapi
 
 
@@ -522,10 +523,10 @@ def paintGridThis(quat):
     # get the equivalent rotation of the quaternion in matrix form (as
     # expected by oscillAnglesOfHKLs
 
-    rMat = xfcapi.makeRotMatOfQuat(quat)
+    rMat = rotations.rotMatOfQuat(quat.T if quat.ndim == 2 else quat)
 
     # Compute the oscillation angles of all the symHKLs at once
-    oangs_pair = xfcapi.oscillAnglesOfHKLs(
+    oangs_pair = xfcapi.oscill_angles_of_hkls(
         symHKLs, 0.0, rMat, bMat, wavelength
     )
     # pdb.set_trace()

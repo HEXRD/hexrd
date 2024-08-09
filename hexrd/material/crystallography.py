@@ -1580,7 +1580,7 @@ class PlaneData(object):
             raise ValueError(f'Number of lattice plane normal dims is {dim0}')
 
         # call model from transforms now
-        oangs0, oangs1 = xfcapi.oscillAnglesOfHKLs(
+        oangs0, oangs1 = xfcapi.oscill_angles_of_hkls(
             hkls.T, chi, rMat_c, bMat, wavelength
         )
 
@@ -1850,7 +1850,6 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
         rchi = rotMatOfExpMap(np.tile(ome_min[goodOnes][i], (3, 1)) * nchi)
         gHat_l = np.dot(rchi, tmp_gvec[:, i].reshape(3, 1))
         tmp_eta[i] = np.arctan2(gHat_l[1], gHat_l[0])
-
     eta_min[goodOnes] = tmp_eta
 
     # everybody back to DEGREES!

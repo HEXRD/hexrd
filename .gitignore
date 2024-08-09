@@ -128,3 +128,5 @@ dmypy.json
 
 # MacOSX dir index files
 .DS_Store
+
+.vscode
