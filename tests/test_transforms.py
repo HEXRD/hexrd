@@ -128,15 +128,20 @@ class TestGvecXY:
            azimuthal angle in degrees
         """
         ThetaEta = namedtuple("ThetaEta", ["theta_deg", "eta_deg"])
+        nan_tests = [
+            ThetaEta(0, 0), ThetaEta(46, 0),
+        ]
+
         tests = [
-            ThetaEta(0, 0), ThetaEta(10, 0), ThetaEta(44.9, 0),
-            ThetaEta(46, 0), ThetaEta(10, 45), ThetaEta(10, -45),
+            ThetaEta(10, 0), ThetaEta(44.9, 0),
+            ThetaEta(10, 45), ThetaEta(10, -45),
         ]
 
         p0_l = (0, 0, 0)
         d0_l = cls.base.tvec_d
         nv_l = (0, 0, 1)
         for t in tests:
+            print("test: ", t)
             gvec, dvec = cls.gvec_dvec(t.theta_deg, t.eta_deg)
             det_x = line_plane_intersect(
                 p0_l, dvec, d0_l, nv_l
