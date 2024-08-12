@@ -218,9 +218,9 @@ class unitcell:
 
         elif(inspace == 'c'):
             if(outspace == 'r'):
-                v_out = np.dot(v_in, self.rsm)
-            elif(outspace == 'd'):
                 v_out = np.dot(v_in, self.dsm)
+            elif(outspace == 'd'):
+                v_out = np.dot(v_in, self.rsm)
             else:
                 raise ValueError(
                     'inspace in ''c'' but outspace can''t be identified')
