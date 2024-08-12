@@ -24,10 +24,7 @@ def test_exclusion():
     assert pd.nHKLs == 2
     assert pd.getNhklRef() == 3
 
-    try:
-        # Exclude a range
-        pd.exclusions = [[0, 2]]
-        assert pd.nHKLs == 1
-        assert pd.getNhklRef() == 3
-    except NotImplementedError:
-        pass
+    # Exclude a range
+    pd.exclusions = [[0, 2]]
+    assert pd.nHKLs == 1
+    assert pd.getNhklRef() == 3
