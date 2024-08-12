@@ -136,6 +136,35 @@ class TestGvecXY:
             np.array(axis), np.radians(angle_deg)
         )
 
+    @staticmethod
+    def line_plane_intersect(p0, dvec, d0, nvec):
+        """Solve line/plane intersection
+
+        PARAMETERS
+        ----------
+        p0: array/3-tuple of floats
+            a point on the line
+        dvec: array/3-tuple of floats
+            direction (unit) vector of line
+        d0: array/3-tuple of floats
+            origin of detector
+        nvec: array/3-tuple of floats
+            normal vector to detector
+
+        RETURNS
+        -------
+        xyz: 3-tuple
+            intersection point
+
+        NOTES
+        -----
+        From geometry, t = (d0 - p0).n/(d.n), and x = p0 + td
+        """
+        p0_, d = np.array([p0, dvec])
+        t = np.dot((d0 - p0_), nvec)/np.dot(d, nvec)
+        x = p0_ + t * d
+        return x
+
     @classmethod
     def test_theta_eta(cls):
         """Vary diffraction angle in simple case
@@ -163,7 +192,7 @@ class TestGvecXY:
         for t in tests:
             print("test: ", t)
             gvec, dvec = cls.gvec_dvec(t.theta_deg, t.eta_deg)
-            det_x = line_plane_intersect(
+            det_x = cls.line_plane_intersect(
                 p0_l, dvec, d0_l, nv_l
             )
             if t.theta_deg <= 0:
@@ -208,7 +237,7 @@ class TestGvecXY:
             dvec_l = rmat_d @ dvec
             tvec_l = rmat_d @ cls.base.tvec_d
             beam = rmat_d @ cls.base.beam_vec
-            det_x = line_plane_intersect(
+            det_x = cls.line_plane_intersect(
                 p0_l, dvec_l, tvec_l, rmat_d @ nv_d
             )
             x_d = rmat_d.T @ (det_x - tvec_l)
@@ -250,7 +279,7 @@ class TestGvecXY:
             ts = np.array(t.ts)
             tc = np.array(t.tc)
             p0_l = ts + tc
-            det_x = line_plane_intersect(
+            det_x = cls.line_plane_intersect(
                 p0_l, dvec, td, nv_l
             )
             xy = det_x[:2] - td[:2]
@@ -289,7 +318,7 @@ class TestGvecXY:
             print(t)
             tvec_l= -cls.base.tvec_d
             rmat_d = cls.make_rmat(t.angle_deg, t.axis)
-            det_x = line_plane_intersect(
+            det_x = cls.line_plane_intersect(
                 p0_l, dvec, d0_l, rmat_d @ nv_l
             )
             x_d = rmat_d.T @ (det_x - d0_l)
@@ -334,7 +363,7 @@ class TestGvecXY:
             rmat_c = cls.make_rmat(ang_c, ax_c)
 
             gvec_c = rmat_c.T @ rmat_s.T @ gvec_l
-            det_x = line_plane_intersect(
+            det_x = cls.line_plane_intersect(
                 (0, 0, 0), dvec_l, cls.base.tvec_d, (0, 0, 1)
             )
             xy = det_x[:2]
@@ -342,55 +371,3 @@ class TestGvecXY:
             cls.run_test(cls.base._replace(
                 gvec_c=gvec_c, rmat_s=rmat_s, rmat_c=rmat_c, xy=xy
             ))
-
-def unit_vector(v):
-    return v/np.linalg.norm(v)
-
-
-def make_unit_vector(theta, phi):
-    """Make a unit vector from spherical coordinates
-
-    PARAMETERS
-    ----------
-    theta: float
-       azimuth angle
-    phi: float
-       angle with north pole
-
-    RETURNS
-    -------
-    array(3)
-       unit vector
-    """
-    return (
-        np.sin(phi) * np.cos(theta), np.sin(phi) * np.sin(theta), np.cos(phi)
-    )
-
-
-def line_plane_intersect(p0, dvec, d0, nvec):
-    """Solve line/plane intersection
-
-    PARAMETERS
-    ----------
-    p0: array/3-tuple of floats
-        a point on the line
-    dvec: array/3-tuple of floats
-        direction (unit) vector of line
-    d0: array/3-tuple of floats
-        origin of detector
-    nvec: array/3-tuple of floats
-        normal vector to detector
-
-    RETURNS
-    -------
-    xyz: 3-tuple
-        intersection point
-
-    NOTES
-    -----
-    From geometry, t = (d0 - p0).n/(d.n), and x = p0 + td
-    """
-    p0_, d = np.array([p0, dvec])
-    t = np.dot((d0 - p0_), nvec)/np.dot(d, nvec)
-    x = p0_ + t * d
-    return x
