@@ -297,6 +297,52 @@ class TestGvecXY:
                 gvec_c=gvec, rmat_d=rmat_d, xy=x_d[:2]
             ))
 
+    @classmethod
+    def test_sample_crystal_orientations(cls):
+        """Vary sample and crystal orientations
+
+        TEST PARAMETERS
+        ----------
+        data: named_tuple
+           angle/axis pairs for sample and crystal rotation
+        """
+        _flds = ["aa_s", "aa_c"]
+        SampleCrystalData = namedtuple("SampleCrystalData", _flds)
+
+        ex, ey, ez = (1, 0, 0), (0, 1, 0), (0, 0, 1)
+        ang = 10
+        tests =[
+            SampleCrystalData((0, ex), (0, ex)),
+            SampleCrystalData((ang, ex), (-ang, ex)),
+            SampleCrystalData((ang, ey), (-ang, ey)),
+            SampleCrystalData((ang, ez), (-ang, ez)),
+            SampleCrystalData((ang, ex), (0, ex)),
+            SampleCrystalData((ang, ey), (0, ey)),
+            SampleCrystalData((ang, ez), (0, ez)),
+            SampleCrystalData((0, ex), (ang, ex)),
+            SampleCrystalData((0, ey), (ang, ey)),
+            SampleCrystalData((0, ez), (ang, ez)),
+        ]
+
+        theta_deg, eta_deg = 5, 90
+        gvec_l, dvec_l  = cls.gvec_dvec(theta_deg, eta_deg)
+        for t in tests:
+            print(t)
+            ang_s, ax_s = t.aa_s
+            rmat_s = cls.make_rmat(ang_s, ax_s)
+            ang_c, ax_c = t.aa_c
+            rmat_c = cls.make_rmat(ang_c, ax_c)
+
+            gvec_c = rmat_c.T @ rmat_s.T @ gvec_l
+            det_x = line_plane_intersect(
+                (0, 0, 0), dvec_l, cls.base.tvec_d, (0, 0, 1)
+            )
+            xy = det_x[:2]
+
+            cls.run_test(cls.base._replace(
+                gvec_c=gvec_c, rmat_s=rmat_s, rmat_c=rmat_c, xy=xy
+            ))
+
 def unit_vector(v):
     return v/np.linalg.norm(v)
 
