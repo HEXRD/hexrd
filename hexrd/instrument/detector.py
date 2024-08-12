@@ -1131,6 +1131,7 @@ class Detector:
 
         # in case you want to give it tth angles directly
         if isinstance(pd, PlaneData):
+            pd = PlaneData(None, pd)
             if delta_tth is not None:
                 pd.tThWidth = np.radians(delta_tth)
             else:
