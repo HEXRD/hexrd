@@ -1,3 +1,4 @@
+import os
 import numpy as np
 
 from hexrd.material.crystallography import PlaneData
@@ -16,6 +17,8 @@ def test_misc():
         0.5,
         0.01,
     )
+    # Set ACK_DEPRECATED environment variable to true
+    os.environ['ACK_DEPRECATED'] = 'true'
 
     assert pd.laueGroup == 'C2h'
     assert pd.getLatticeType() == 'monoclinic'
