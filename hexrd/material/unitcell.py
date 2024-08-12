@@ -1274,7 +1274,7 @@ class unitcell:
            replaceing barycenter to pi-theta)
         '''
 
-        if bool(laueswitch):
+        if laueswitch:
             '''
             this is the case where we color orientations based on the laue group
             of the crystal. this is always going to be the case with x-ray which
