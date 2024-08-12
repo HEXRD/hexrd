@@ -70,7 +70,6 @@ class TestGvecXY:
     @classmethod
     def run_test(cls, prob):
         """Run a test problem"""
-        print("prob: ", prob)
         xy_d = gvec_to_xy(
             cls.to_array(prob.gvec_c),
             cls.to_array(prob.rmat_d),
@@ -261,6 +260,42 @@ class TestGvecXY:
                 xy=xy
             ))
 
+    @classmethod
+    def test_detector_orientation(cls):
+        """Vary detector orientation
+
+        TEST PARAMETERS
+        ---------------
+        rd: 2-tuple
+           angle/axis pairs
+        """
+        RmatData = namedtuple("RmatData", ["angle_deg", "axis"])
+        nan_tests = [
+            RmatData(90, (0, 1, 0)),
+        ]
+        tests =[
+            RmatData(90, (1, 0, 0)),
+            RmatData(45, (1, 0, 0)),
+            RmatData(45, (0, 0, 1))
+        ]
+
+        theta_deg, eta_deg = 5, 0
+        gvec, dvec = cls.gvec_dvec(theta_deg, eta_deg)
+
+        p0_l = (0, 0, 0)
+        d0_l = cls.base.tvec_d
+        nv_l = (0, 0, 1)
+        for t in tests:
+            print(t)
+            tvec_l= -cls.base.tvec_d
+            rmat_d = cls.make_rmat(t.angle_deg, t.axis)
+            det_x = line_plane_intersect(
+                p0_l, dvec, d0_l, rmat_d @ nv_l
+            )
+            x_d = rmat_d.T @ (det_x - d0_l)
+            cls.run_test(cls.base._replace(
+                gvec_c=gvec, rmat_d=rmat_d, xy=x_d[:2]
+            ))
 
 def unit_vector(v):
     return v/np.linalg.norm(v)
