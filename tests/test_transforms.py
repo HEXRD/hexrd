@@ -67,17 +67,19 @@ class TestGvecXY:
     def to_array(a):
         return np.array(a, dtype=float)
 
-    def run_test(prob):
+    @classmethod
+    def run_test(cls, prob):
         """Run a test problem"""
+        print("prob: ", prob)
         xy_d = gvec_to_xy(
-            np.array(prob.gvec_c),
-            np.array(prob.rmat_d),
-            np.array(prob.rmat_s),
-            np.array(prob.rmat_c),
-            np.array(prob.tvec_d),
-            np.array(prob.tvec_s),
-            np.array(prob.tvec_c),
-            beam_vec=np.array(prob.beam_vec),
+            cls.to_array(prob.gvec_c),
+            cls.to_array(prob.rmat_d),
+            cls.to_array(prob.rmat_s),
+            cls.to_array(prob.rmat_c),
+            cls.to_array(prob.tvec_d),
+            cls.to_array(prob.tvec_s),
+            cls.to_array(prob.tvec_c),
+            beam_vec=cls.to_array(prob.beam_vec),
         )
         assert np.allclose(xy_d, prob.xy, equal_nan=True)
 
@@ -215,6 +217,48 @@ class TestGvecXY:
             cls.run_test(cls.base._replace(
                 beam_vec=beam, tvec_d=tvec_l, gvec_c=gvec_l,
                 rmat_d=rmat_d, xy=x_d[:2],
+            ))
+
+    @classmethod
+    def test_translations(cls):
+        """Vary translation vectors
+
+        TEST PARAMETERS
+        ---------------
+        td: array(3)/3-tuple
+           detector translation in lab frame
+        ts:
+           sample translation in lab frame
+        tc:
+           crystal translation in sample frame
+        """
+        _flds = ["td", "ts", "tc"]
+        TvecData = namedtuple("TvecData", _flds)
+
+        tests = [
+            TvecData(td=(0, 0, -10), ts=(0, 0, 0), tc=(0, 0, 0)),
+            TvecData(td=(0, 0, -10), ts=(0, 0, 7), tc=(0, 0, 0)),
+            TvecData(td=(2, 3, -10), ts=(0, 0, 0), tc=(0, 0, -3)),
+            TvecData(td=(0, 0, -10), ts=(0, 1, 2), tc=(2, 3, -4)),
+        ]
+
+        nv_l = (0, 0, 1)
+        theta_deg, eta_deg = 7.5, 0
+        gvec, dvec = cls.gvec_dvec(theta_deg, eta_deg)
+        for t in tests:
+            print("test data:\n", t)
+            td = np.array(t.td)
+            ts = np.array(t.ts)
+            tc = np.array(t.tc)
+            p0_l = ts + tc
+            det_x = line_plane_intersect(
+                p0_l, dvec, td, nv_l
+            )
+            xy = det_x[:2] - td[:2]
+
+            cls.run_test(cls.base._replace(
+                gvec_c=gvec, tvec_d=td, tvec_s=ts, tvec_c=tc,
+                xy=xy
             ))
 
 
