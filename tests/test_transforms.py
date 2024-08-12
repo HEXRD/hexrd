@@ -83,7 +83,7 @@ class TestGvecXY:
 
 
     @staticmethod
-    def gvec_dvec(theta_deg, eta_deg=0):
+    def gvec_dvec(theta_deg, eta_deg):
         """Return diffraction vector
 
         PARAMETERS
@@ -115,6 +115,25 @@ class TestGvecXY:
 
         return gvec, dvec
 
+    @staticmethod
+    def make_rmat(angle_deg, axis):
+        """Make a rotation matrix
+
+        PARAMETERS
+        ----------
+        angle: float
+           rotation angle in degrees
+        axis: array(3)
+           axis of rotation (not normalized to unit vector)
+
+        RETURNS
+        -------
+        array(3, 3):
+           rotation matrix
+        """
+        return convert_axis_angle_to_rmat(
+            np.array(axis), np.radians(angle_deg)
+        )
 
     @classmethod
     def test_theta_eta(cls):
@@ -155,6 +174,48 @@ class TestGvecXY:
                 gvec_c=gvec, xy=answer
             ))
 
+    @classmethod
+    def test_beam(cls):
+        """Vary beam direction
+
+        The beam is rotated by a specified rotation matrix, determined
+        from an angle/axis pair.
+
+        TEST PARAMETERS
+        ---------------
+        aa: 2-tuple
+           angle/axis pairs
+        """
+        TestData = namedtuple("TestData", ["angle", "axis"])
+        tests =[
+            TestData(90, (1, 0, 0)),
+            TestData(90, (0, 1, 0)),
+            TestData(45, (1, 0, 0)),
+            TestData(45, (0, 0, 1))
+        ]
+
+        theta_deg, eta_deg = 5, 0
+        gvec, dvec = cls.gvec_dvec(theta_deg, eta_deg)
+
+        p0_l = (0, 0, 0)
+        d0_l = cls.base.tvec_d
+        nv_d = (0, 0, 1)
+        for t in tests:
+            print("test: ", t)
+            rmat_d = cls.make_rmat(t.angle, t.axis)
+            gvec_l = rmat_d @ gvec
+            dvec_l = rmat_d @ dvec
+            tvec_l = rmat_d @ cls.base.tvec_d
+            beam = rmat_d @ cls.base.beam_vec
+            det_x = line_plane_intersect(
+                p0_l, dvec_l, tvec_l, rmat_d @ nv_d
+            )
+            x_d = rmat_d.T @ (det_x - tvec_l)
+
+            cls.run_test(cls.base._replace(
+                beam_vec=beam, tvec_d=tvec_l, gvec_c=gvec_l,
+                rmat_d=rmat_d, xy=x_d[:2],
+            ))
 
 
 def unit_vector(v):
@@ -179,31 +240,6 @@ def make_unit_vector(theta, phi):
     return (
         np.sin(phi) * np.cos(theta), np.sin(phi) * np.sin(theta), np.cos(phi)
     )
-
-
-def make_rmat(angle, axis):
-    """Make a rotation matrix
-
-    PARAMETERS
-    ----------
-    angle: float
-       rotation angle in degrees
-    axis: array(3)
-       axis of rotation (not normalized to unit vector)
-
-    RETURNS
-    -------
-    array(3, 3):
-       rotation matrix
-    """
-    n = unit_vector(np.array(axis, dtype=float))
-    ang = np.radians(angle)
-    c, s = np.cos(0.5 * ang), np.sin(0.5 * ang)
-    q = np.array((c, s * n[0], s * n[1], s * n[2]))
-    rmat = rotMatOfQuat(q.reshape(4, 1))
-    # check_rmat(rmat.T)
-    return rmat
-
 
 
 def line_plane_intersect(p0, dvec, d0, nvec):
