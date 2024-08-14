@@ -37,7 +37,7 @@ if platform.machine() == 'x86_64':
 # Determine which compiler is being used to build the C/C++ modules
 compiler_type = distutils.ccompiler.get_default_compiler()
 if compiler_type in ("unix", "mingw32"):
-    compiler_flags = ['-O3', '-ftree-vectorize', '-Wall', '-std=c++14', '-funroll-loops']
+    compiler_flags = ['-O3', '-ftree-vectorize', '-Wall', '-funroll-loops']
     if not sys.platform.startswith('win'):
         compiler_flags.append('-fPIC')
 elif compiler_type == "msvc":
