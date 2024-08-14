@@ -91,17 +91,29 @@ class abstractlayer:
     def material(self):
         return self._material
 
+    @material.setter
+    def material(self, material):
+        self._material = material
+
     @property
     def density(self):
         if self._density is None:
             return 0.0
         return self._density
 
+    @density.setter
+    def density(self, density):
+        self._density = density
+
     @property
     def thickness(self):
         if self._thickness is None:
             return 0.0
         return self._thickness
+
+    @thickness.setter
+    def thickness(self, value):
+        self._thickness = value
 
     def absorption_length(self, energy):
         if isinstance(energy, float):
@@ -170,11 +182,19 @@ class Pinhole(abstractlayer):
             return 0.0
         return 0.5*self.diameter
 
+    @radius.setter
+    def radius(self, value):
+        self._diameter = 2.0 * value
+
     @property
     def diameter(self):
         if self._diameter is None:
             return 0.0
         return self._diameter
+
+    @diameter.setter
+    def diameter(self, value):
+        self._diameter = value
 
 class Filter(abstractlayer):
 
@@ -262,17 +282,29 @@ class abstractpp:
     def sample_material(self):
         return self._sample_material
 
+    @sample_material.setter
+    def sample_material(self, material):
+        self._sample_material = material
+
     @property
     def sample_density(self):
         if self._sample_density is None:
             return 0.0
         return self._sample_density
 
+    @sample_density.setter
+    def sample_density(self, density):
+        self._sample_density = density
+
     @property
     def sample_thickness(self):
         if self._sample_thickness is None:
             return 0.0
         return self._sample_thickness
+
+    @sample_thickness.setter
+    def sample_thickness(self, value):
+        self._sample_thickness = value
 
     def absorption_length(self, energy, flag):
         if isinstance(energy, float):
@@ -318,17 +350,29 @@ class HED_physics_package(abstractpp):
     def window_material(self):
         return self._window_material
 
+    @window_material.setter
+    def window_material(self, material):
+        self._window_material = material
+
     @property
     def window_density(self):
         if self._window_density is None:
             return 0.0
         return self._window_density
 
+    @window_density.setter
+    def window_density(self, density):
+        self._window_density = density
+
     @property
     def window_thickness(self):
         if self._window_thickness is None:
             return 0.0
         return self._window_thickness
+
+    @window_thickness.setter
+    def window_thickness(self, thickness):
+        self._window_thickness = thickness
 
     def window_absorption_length(self, energy):
         return self.absorption_length(energy, 'window')
