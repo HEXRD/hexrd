@@ -34,36 +34,35 @@ if platform.machine() == 'x86_64':
     # Add it to the requirements automatically for intel computers.
     install_reqs.append('tbb')
 
-# This will determine which compiler is being used to build the C modules
+# Determine which compiler is being used to build the C/C++ modules
 compiler_type = distutils.ccompiler.get_default_compiler()
 if compiler_type in ("unix", "mingw32"):
-    compiler_optimize_flags = ['-O3', '-ftree-vectorize']
+    compiler_flags = ['-O3', '-ftree-vectorize', '-Wall', '-std=c++14', '-funroll-loops']
+    if not sys.platform.startswith('win'):
+        compiler_flags.append('-fPIC')
 elif compiler_type == "msvc":
-    compiler_optimize_flags = ['/Ox', '/GL']
+    compiler_flags = ['/Ox', '/GL', '/std:c++14']
 else:
-    compiler_optimize_flags = []
+    compiler_flags = []
 
-
-# extension for convolution from astropy
+# Extension for convolution from astropy
 def get_convolution_extensions():
     c_convolve_pkgdir = Path('hexrd') / 'convolution'
 
     src_files = [str(c_convolve_pkgdir / 'src/convolve.c')]
 
-    extra_compile_args = ['-UNDEBUG']
-    if not sys.platform.startswith('win'):
-        extra_compile_args.append('-fPIC')
-    extra_compile_args += compiler_optimize_flags
+    extra_compile_args = ['-UNDEBUG'] + compiler_flags
     # Add '-Rpass-missed=.*' to ``extra_compile_args`` when compiling with
     # clang to report missed optimizations
-    _convolve_ext = Extension(name='hexrd.convolution._convolve',
-                              sources=src_files,
-                              extra_compile_args=extra_compile_args,
-                              include_dirs=[numpy.get_include()],
-                              language='c')
+    _convolve_ext = Extension(
+        name='hexrd.convolution._convolve',
+        sources=src_files,
+        extra_compile_args=extra_compile_args,
+        include_dirs=[numpy.get_include()],
+        language='c'
+    )
 
     return [_convolve_ext]
-
 
 def get_include_path(library_name):
     env_var_hint = os.getenv(f"{library_name.upper()}_INCLUDE_DIR")
@@ -97,7 +96,6 @@ def get_include_path(library_name):
     # It should exist now
     return full_path
 
-
 def get_pybind11_include_path():
     # If we can import pybind11, use that include path
     try:
@@ -110,15 +108,9 @@ def get_pybind11_include_path():
     # Otherwise, we will download the source and include that
     return get_include_path('pybind11')
 
-
 def get_cpp_extensions():
     cpp_transform_pkgdir = Path('hexrd') / 'transforms/cpp_sublibrary'
     src_files = [str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')]
-
-    extra_compile_args = ['-O3', '-Wall', '-shared', '-std=c++14',
-                          '-funroll-loops']
-    if not sys.platform.startswith('win'):
-        extra_compile_args.append('-fPIC')
 
     # Define include directories
     include_dirs = [
@@ -131,13 +123,12 @@ def get_cpp_extensions():
     inverse_distortion_ext = Extension(
         name='hexrd.extensions.inverse_distortion',
         sources=src_files,
-        extra_compile_args=extra_compile_args,
+        extra_compile_args=compiler_flags,
         include_dirs=include_dirs,
         language='c++',
     )
 
     return [inverse_distortion_ext]
-
 
 def get_old_xfcapi_extension_modules():
     # for transforms
@@ -147,22 +138,20 @@ def get_old_xfcapi_extension_modules():
         'hexrd.extensions._transforms_CAPI',
         sources=srclist,
         include_dirs=[np_include_dir],
-        extra_compile_args=compiler_optimize_flags,
+        extra_compile_args=compiler_flags,
     )
 
     return [transforms_mod]
-
 
 def get_new_xfcapi_extension_modules():
     transforms_mod = Extension(
         'hexrd.extensions._new_transforms_capi',
         sources=['hexrd/transforms/new_capi/module.c'],
         include_dirs=[np_include_dir],
-        extra_compile_args=compiler_optimize_flags,
+        extra_compile_args=compiler_flags,
     )
 
     return [transforms_mod]
-
 
 def get_extension_modules():
     # Flatten the lists
@@ -172,7 +161,6 @@ def get_extension_modules():
         get_convolution_extensions(),
         get_cpp_extensions(),
     ) for item in sublist]
-
 
 ext_modules = get_extension_modules()
 
