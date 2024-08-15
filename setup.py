@@ -37,7 +37,7 @@ if platform.machine() == 'x86_64':
 # Determine which compiler is being used to build the C/C++ modules
 compiler_type = distutils.ccompiler.get_default_compiler()
 if compiler_type in ("unix", "mingw32"):
-    compiler_flags = ['-O3', '-ftree-vectorize', '-Wall', '-funroll-loops', '--std=c++14']
+    compiler_flags = ['-O3', '-ftree-vectorize', '-Wall', '-funroll-loops']
     if not sys.platform.startswith('win'):
         compiler_flags.append('-fPIC')
 elif compiler_type == "msvc":
@@ -123,7 +123,7 @@ def get_cpp_extensions():
     inverse_distortion_ext = Extension(
         name='hexrd.extensions.inverse_distortion',
         sources=src_files,
-        extra_compile_args=compiler_flags,
+        extra_compile_args=compiler_flags+['-std=c++14'],
         include_dirs=include_dirs,
         language='c++',
     )
@@ -138,7 +138,7 @@ def get_old_xfcapi_extension_modules():
         'hexrd.extensions._transforms_CAPI',
         sources=srclist,
         include_dirs=[np_include_dir],
-        extra_compile_args=compiler_flags,
+        extra_compile_args=compiler_flags+['-std=c++14'],
     )
 
     return [transforms_mod]
