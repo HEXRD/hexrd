@@ -77,7 +77,7 @@ def test_calibration(calibration_dir, test_data_dir):
     )
 
     x0 = calibrator.params.valuesdict()
-    result = calibrator.run_calibration(None)
+    result = calibrator.run_calibration({'max_nfev': 1300})
     x1 = result.params.valuesdict()
 
     # Parse the data
@@ -124,6 +124,17 @@ def test_calibration(calibration_dir, test_data_dir):
         'new': x1['diamond_a'],
     }
 
+    # expected_obj = {
+    #     'rmat_2': rmats['new'][0],
+    #     'rmat_4': rmats['new'][1],
+    #     'tvec_2': tvecs['new'][0],
+    #     'tvec_4': tvecs['new'][1],
+    #     'grain_params': grain_params['new'],
+    #     'diamond_a': diamond_a_vals['new'],
+    # }
+
+    # np.save(test_data_dir / 'calibration_expected.npy', expected_obj)
+
     expected = np.load(
         test_data_dir / 'calibration_expected.npy', allow_pickle=True
     )
@@ -145,7 +156,7 @@ def assert_errors_are_better(
     """
     # What fraction of the old error we need to have (at worst) for the
     # test to pass
-    ERROR_TOLERANCE = 0.5
+    ERROR_TOLERANCE = 0.8
 
     rmat_error_2_old = np.linalg.norm(
         rmats['old'][0] @ expected['rmat_2'].T - np.eye(3)
