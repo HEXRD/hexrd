@@ -1100,6 +1100,38 @@ SYM_GENERATORS['X'] = -3./8.
 SYM_GENERATORS['Y'] = -1./4.
 SYM_GENERATORS['Z'] = -1./8.
 
+''' this dictionary contains the space group numbers 
+which have two origin choices the two values are the 
+site symmetries of the origin. There are 24 such space 
+groups
+'''
+two_origin_choice = {
+48 : ['222', '-1'],
+50 : ['222/n', '-1'],
+59 : ['mm2/n', '-1'],
+68 : ['222', '-1'],
+70 : ['222', '-1'],
+85 : ['-4', '-1'],
+86 : ['-4', '-1'],
+88 : ['-4', '-1'],
+125: ['422', '2/m'],
+126: ['422/n', '-1'],
+129: ['-4m2', '2/m'],
+130: ['-4/ncn', '-1'],
+133: ['-4121/c', '-1'],
+134: ['-42m', '2/m'],
+137: ['-4m2/n', '-1'],
+138: ['-4cg', '2/m'],
+141: ['-4m2', '2/m'],
+142: ['-4c21', '-1'],
+201: ['23', '-3'],
+203: ['23', '-3'],
+222: ['432', '-3'],
+224: ['-43m', '-3m'],
+227: ['-43m', '-3m'],
+228: ['23', '-3'],
+}
+
 
 '''
     @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
