@@ -138,7 +138,7 @@ def get_old_xfcapi_extension_modules():
         'hexrd.extensions._transforms_CAPI',
         sources=srclist,
         include_dirs=[np_include_dir],
-        extra_compile_args=compiler_flags+['-std=c++14'],
+        extra_compile_args=compiler_flags,
     )
 
     return [transforms_mod]
