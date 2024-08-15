@@ -80,6 +80,7 @@ def GeneratorString(sgnum):
 
 def MakeGenerators(genstr, setting):
 
+
     t = 'aOOO'
     mat = SYM_fillgen(t)
     genmat = mat
@@ -113,22 +114,29 @@ def MakeGenerators(genstr, setting):
     if(genstr[istop] != '0'):
         if(setting != 0):
             t = genstr[istop+1:istop+4]
-            trans = np.array([constants.SYM_GENERATORS[t[0]],\
-                              constants.SYM_GENERATORS[t[1]],\
-                              constants.SYM_GENERATORS[t[2]]
-                              ])
-            for i in range(genmat.shape[0]):
-                genmat[i,0:3,3] -= trans
+            t = 'a' + t # get the translation without any rotation
+            sym  = np.squeeze(SYM_fillgen(t, sgn=-1))
+            sym2 = np.squeeze(SYM_fillgen(t))
+            for i in range(1, genmat.shape[0]):
+                generator = np.dot(sym2, np.dot(
+                                  np.squeeze(genmat[i,:,:]),
+                                  sym))
+                frac = np.modf(generator[0:3,3])[0]
+                frac[frac < 0.] += 1.
+                frac[np.abs(frac) < 1E-5] = 0.0
+                frac[np.abs(frac-1.0) < 1E-5] = 0.0
+                generator[0:3,3] = frac
+                genmat[i,:,:] = generator
 
     return genmat, centrosymmetric
 
-def SYM_fillgen(t):
+def SYM_fillgen(t, sgn=1):
     mat = np.zeros([4,4])
     mat[3,3] = 1.
 
     mat[0:3,0:3] = constants.SYM_GENERATORS[t[0]]
-    mat[0:3,3] = np.array([constants.SYM_GENERATORS[t[1]],\
-                           constants.SYM_GENERATORS[t[2]],\
+    mat[0:3,3] = sgn*np.array([constants.SYM_GENERATORS[t[1]],
+                           constants.SYM_GENERATORS[t[2]],
                            constants.SYM_GENERATORS[t[3]]
                            ])
 
