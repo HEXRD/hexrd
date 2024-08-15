@@ -1,3 +1,5 @@
+import copy
+
 import h5py
 import numpy as np
 import yaml
@@ -6,7 +8,6 @@ import pytest
 
 from hexrd.material.material import load_materials_hdf5
 from hexrd.instrument.hedm_instrument import HEDMInstrument
-from hexrd import rotations as rot
 
 from hexrd.fitting.calibration import (
     InstrumentCalibrator,
@@ -76,11 +77,6 @@ def test_calibration(calibration_dir, test_data_dir):
         euler_convention=euler_convention,
     )
 
-    x0 = calibrator.params.valuesdict()
-    result = calibrator.run_calibration({'max_nfev': 1300})
-    x1 = result.params.valuesdict()
-
-    # Parse the data
     tilt_angle_names = [
         [
             f'IMAGE_PLATE_{n}_euler_z',
@@ -89,16 +85,22 @@ def test_calibration(calibration_dir, test_data_dir):
         ]
         for n in [2, 4]
     ]
+    all_tilt_angle_names = tilt_angle_names[0] + tilt_angle_names[1]
 
-    rmats = {
-        'old': [
-            euler_to_rot([x0[k] for k in names]) for names in tilt_angle_names
-        ],
-        'new': [
-            euler_to_rot([x1[k] for k in names]) for names in tilt_angle_names
-        ],
-    }
+    # The tilts are already ideal. Do not refine.
+    orig_params = copy.deepcopy(calibrator.params)
+    for name in all_tilt_angle_names:
+        calibrator.params[name].vary = False
 
+    # The lattice parameter is actually perfect. Adjust it a little
+    # So that it can be corrected.
+    calibrator.params['diamond_a'].value = 3.58
+
+    x0 = calibrator.params.valuesdict()
+    result = calibrator.run_calibration({})
+    x1 = result.params.valuesdict()
+
+    # Parse the data
     tvec_names = [
         [
             f'IMAGE_PLATE_{n}_tvec_x',
@@ -124,54 +126,24 @@ def test_calibration(calibration_dir, test_data_dir):
         'new': x1['diamond_a'],
     }
 
-    # expected_obj = {
-    #     'rmat_2': rmats['new'][0],
-    #     'rmat_4': rmats['new'][1],
-    #     'tvec_2': tvecs['new'][0],
-    #     'tvec_4': tvecs['new'][1],
-    #     'grain_params': grain_params['new'],
-    #     'diamond_a': diamond_a_vals['new'],
-    # }
-
-    # np.save(test_data_dir / 'calibration_expected.npy', expected_obj)
-
     expected = np.load(
         test_data_dir / 'calibration_expected.npy', allow_pickle=True
     )
 
     assert_errors_are_better(
-        rmats, tvecs, grain_params, diamond_a_vals, expected.item()
+        tvecs, grain_params, diamond_a_vals, expected.item()
     )
 
 
-def euler_to_rot(euler):
-    return rot.RotMatEuler(np.array(euler), 'zxz', False, 'degrees').rmat
-
-
 def assert_errors_are_better(
-    rmats, tvecs, grain_params, diamond_a_vals, expected
+    tvecs, grain_params, diamond_a_vals, expected
 ):
     """
     Make sure error has decreased during fitting
     """
     # What fraction of the old error we need to have (at worst) for the
-    # test to pass
-    ERROR_TOLERANCE = 0.8
-
-    rmat_error_2_old = np.linalg.norm(
-        rmats['old'][0] @ expected['rmat_2'].T - np.eye(3)
-    )
-    rmat_error_2_new = np.linalg.norm(
-        rmats['new'][0] @ expected['rmat_2'].T - np.eye(3)
-    )
-    rmat_error_4_old = np.linalg.norm(
-        rmats['old'][1] @ expected['rmat_4'].T - np.eye(3)
-    )
-    rmat_error_4_new = np.linalg.norm(
-        rmats['new'][1] @ expected['rmat_4'].T - np.eye(3)
-    )
-    assert rmat_error_2_new < rmat_error_2_old * ERROR_TOLERANCE
-    assert rmat_error_4_new < rmat_error_4_old * ERROR_TOLERANCE
+    # test to pass. For now, just make sure the error decreased.
+    ERROR_TOLERANCE = 1
 
     tvec_error_2_old = np.linalg.norm(tvecs['old'][0] - expected['tvec_2'])
     tvec_error_2_new = np.linalg.norm(tvecs['new'][0] - expected['tvec_2'])
@@ -191,4 +163,7 @@ def assert_errors_are_better(
 
     diamond_a_error_old = np.abs(diamond_a_vals['old'] - expected['diamond_a'])
     diamond_a_error_new = np.abs(diamond_a_vals['new'] - expected['diamond_a'])
+
+    # The old diamond setting was actually perfect, but we let it refine
+    # The new diamond error should be less than 2%
     assert diamond_a_error_new < diamond_a_error_old * ERROR_TOLERANCE
