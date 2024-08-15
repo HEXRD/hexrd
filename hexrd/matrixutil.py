@@ -182,6 +182,7 @@ def vecMVToSymm(A, scale=True):
     convert from Mandel-Voigt vector to symmetric matrix
     representation (JVB)
     """
+    A = np.atleast_1d(A).flatten()
     if scale:
         fac = sqr2
     else:
