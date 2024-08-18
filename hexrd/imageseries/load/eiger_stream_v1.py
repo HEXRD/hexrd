@@ -5,9 +5,11 @@ import warnings
 from dectris.compression import decompress
 import h5py
 import numpy as np
+import yaml
 
 from hexrd.utils.compatibility import h5py_read_string
 from hexrd.utils.hdf5 import unwrap_h5_to_dict
+from hexrd.utils.yaml import NumpyToNativeDumper
 
 from . import ImageSeriesAdapter
 from ..imageseriesiter import ImageSeriesIterator
@@ -96,8 +98,22 @@ class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
 
     def _get_metadata(self):
         d = {}
+        # First, unwrap the metadata from the HDF5 file into a dict
         unwrap_h5_to_dict(self.__h5file['/metadata'], d)
-        return d
+
+        # Because frame cache imageseries do not yet support nested
+        # metadata structures, we should not use them. The frame cache
+        # imageseries should, at some point, start allowing for nested
+        # metadata structures. At that point, we can return to the
+        # previous way.
+        # For now instead, we will serialize this nested structure to
+        # yaml and keep it as a string. This means the metadata is still
+        # saved and accessible.
+        metadata = {
+            'eiger_metadata_as_yaml': yaml.dump(d, Dumper=NumpyToNativeDumper)
+        }
+
+        return metadata
 
     @property
     def metadata(self):
