@@ -6,6 +6,7 @@ from dectris.compression import decompress
 import h5py
 import numpy as np
 
+from hexrd.utils.compatibility import h5py_read_string
 from hexrd.utils.hdf5 import unwrap_h5_to_dict
 
 from . import ImageSeriesAdapter
@@ -116,7 +117,7 @@ class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
 
     @property
     def dtype(self):
-        return self._first_data_entry['dtype'][()]
+        return h5py_read_string(self._first_data_entry['dtype'])
 
     @property
     def shape(self):
