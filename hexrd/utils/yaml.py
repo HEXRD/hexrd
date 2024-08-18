@@ -12,9 +12,13 @@ class NumpyToNativeDumper(yaml.SafeDumper):
     converted to a basic type.
     """
     def represent_data(self, data):
-        if isinstance(data, np.ndarray):
+        # Empty shape arrays should be treated as numbers, not arrays.
+        is_empty_shape_array = (
+            isinstance(data, np.ndarray) and data.shape == ()
+        )
+        if isinstance(data, np.ndarray) and not is_empty_shape_array:
             return self.represent_list(data.tolist())
-        elif isinstance(data, (np.generic, np.number)):
+        elif isinstance(data, (np.generic, np.number)) or is_empty_shape_array:
             item = data.item()
             if isinstance(item, (np.generic, np.number)):
                 # This means it was not converted successfully.
