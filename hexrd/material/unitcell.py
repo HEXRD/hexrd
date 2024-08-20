@@ -57,9 +57,9 @@ def unitcell_volume(lp):
     cb = np.cos(np.radians(lp['beta']))
     cg = np.cos(np.radians(lp['gamma']))
 
-    fact = np.sqrt(1 - ca**2 - cb**2 - cg**2 +2*ca*cb*cg)
+    fact = np.sqrt(1 - ca**2 - cb**2 - cg**2 + 2*ca*cb*cg)
     # 1E3 factor to go from nm to A
-    return lp['a']*lp['b']*lp['c']*fact*1E3 
+    return lp['a']*lp['b']*lp['c']*fact*1E3
 
 class unitcell:
 
