@@ -1,6 +1,5 @@
 
-pstr_mkxtal = "\n\n    This is a program to create a HDF5 file for storing crystallographic information.\n "
-pstr_mkxtal = pstr_mkxtal + " This format is the same format as used in the EMsoft (electron microscoy) suite.\n "
+pstr_mkxtal = "\n\n  This is a program to create a HDF5 file for storing crystallographic information.\n "
 pstr_mkxtal = pstr_mkxtal + " The following inputs are required:\n "
 pstr_mkxtal = pstr_mkxtal + "         Crystal System:\n"
 pstr_mkxtal = pstr_mkxtal + "                 1. Cubic\n"
