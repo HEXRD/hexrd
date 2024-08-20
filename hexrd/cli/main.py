@@ -16,7 +16,7 @@ from hexrd.utils import profiler
 from hexrd.cli import find_orientations
 from hexrd.cli import fit_grains
 from hexrd.cli import pickle23
-
+from hexrd.cli import make_material
 
 try:
     _version = version("hexrd")
