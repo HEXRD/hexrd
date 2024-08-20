@@ -11,7 +11,7 @@ examples:
     hexrd make_material --file material.h5 --xtal diamond
 """
 
-def make_material():
+def configure_parser(sub_parsers):
 
     p = sub_parsers.add_parser('make_material',
         description = descr, help = descr)

@@ -66,6 +66,7 @@ def main():
     find_orientations.configure_parser(sub_parsers)
     fit_grains.configure_parser(sub_parsers)
     pickle23.configure_parser(sub_parsers)
+    make_material.configure_parser(sub_parsers)
 
     try:
         import argcomplete
