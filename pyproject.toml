@@ -4,7 +4,3 @@ requires = ["setuptools", "wheel", "numpy<2.0", "setuptools_scm[toml]", "pybind1
 [tool.black]
 line-length = 79
 skip-string-normalization = true
-
-[tool.setuptools_scm]
-version_scheme = "post-release"
-local_scheme = "node-and-date"
