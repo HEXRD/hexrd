@@ -81,13 +81,10 @@ def _key(x):
 
 
 def get_default_sgsetting(sgnum):
-    setting = 0
     if sgnum in two_origin_choice:
-        # only set cubic materials
-        # in the second setting by default
-        if sgnum > 194:
-            setting = 1
-    return setting
+        return 1
+    else:
+        return 0
 
 #
 # ---------------------------------------------------CLASS:  Material
