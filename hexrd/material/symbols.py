@@ -23,8 +23,7 @@ pstr_mkxtal = pstr_mkxtal + " a RHOMBOHEDRAL basis (second setting).  The defaul
 pstr_mkxtal = pstr_mkxtal + " trigonal symmetry is the hexagonal setting.  When you select\n"
 pstr_mkxtal = pstr_mkxtal + " crystal system 5 above, you will be prompted for the setting. \n"
 
-pstr_spacegroup =
-[
+pstr_spacegroup = [
     " P  1      ", " P -1      ", \
     # MONOCLINIC SPACE GROUPS
     " P 2       ", " P 21      ", " C 2       ", " P m       ", \
@@ -93,8 +92,8 @@ pstr_spacegroup =
     " F d 3 m   ", " F d 3 c   ", " I m 3 m   ", " I a 3 d   ", \
     # TRIGONAL GROUPS RHOMBOHEDRAL SETTING
     " R 3   |146", " R -3  |148", " R 3 2 |155", " R 3 m |160", \
-    " R 3 c |161", " R -3 m|166", " R -3 c|167"
-]
+    " R 3 c |161", " R -3 m|166", " R -3 c|167"]
+
 
 
 xtal_dict = {1: 'cubic', 2: 'tetragonal', 3: 'orthorhombic',
@@ -106,15 +105,14 @@ xtal_sys_dict = {'cubic': 1, 'tetragonal': 2, 'orthorhombic': 3,
 
 
 
-pstr_pointgroup =
-[
+pstr_pointgroup = [
     '    1', '   -1', '    2', '    m', '  2/m', '  222',
     '  mm2', '  mmm', '    4', '   -4', '  4/m', '  422',
     '  4mm', ' -42m', '4/mmm', '    3', '   -3', '   32',
     '   3m', '  -3m', '    6', '   -6', '  6/m', '  622',
     '  6mm', ' -6m2', '6/mmm', '   23', '   m3', '  432',
-    ' -43m', ' m-3m', '  532', '  822', ' 1022', ' 1222'
-]
+    ' -43m', ' m-3m', '  532', '  822', ' 1022', ' 1222']
+
 
 
 TRIG = [146, 148, 155, 160, 161, 166, 167]
