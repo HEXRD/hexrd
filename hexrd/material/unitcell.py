@@ -48,6 +48,7 @@ def _calcstar(v, sym, mat):
 
     return vsym
 
+
 def unitcell_volume(lp):
     '''helper function to explicitly compute unitcell
     volume (in A^3) using the forula. the unitcell class
