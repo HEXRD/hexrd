@@ -1,4 +1,3 @@
-from hexrd.material.mksupport import mk
 import sys
 from hexrd.cli import help
 
@@ -13,22 +12,26 @@ examples:
 
 def configure_parser(sub_parsers):
 
-    p = sub_parsers.add_parser('make_material',
+    p = sub_parsers.add_parser('make-material',
         description = descr, help = descr)
+
+    p.add_argument(
+        '-f', '--file', type = str,
+        default='test.h5',
+        help='name of h5 file, default = test.h5'
+        )
+
+    p.add_argument(
+        '-x', '--xtal', type = str,
+        default='xtal',
+        help='name of crystal, default = xtal'
+        )
 
     p.set_defaults(func=execute)
 
-    p.add_argument(
-        '-f', '--file', action='store',
-        help='name of h5 file'
-        )
-
-    p.add_argument(
-        '-x', '--xtal', action='store',
-        help='name of crystal'
-        )
-
-def execute(parser):
-    file = parser.parse_args['--file']
-    xtal = parser.parse_args['--xtal']
+def execute(args, parser):
+    from hexrd.material.mksupport import mk
+    
+    file = args.file
+    xtal = args.xtal
     mk(file, xtal)

@@ -6,7 +6,10 @@ import os
 import numpy as np
 import datetime
 import getpass
-from hexrd.material.unitcell import _StiffnessDict, _pgDict
+from hexrd.material.unitcell import (_StiffnessDict,
+                                     _pgDict,
+                                     unitcell_volume)
+
 
 def mk(filename, xtalname):
 
@@ -23,7 +26,7 @@ def mk(filename, xtalname):
 
     AtomInfo = GetAtomInfo()
     AtomInfo.update({'file': filename, 'xtalname': xtalname,
-                     'xtal_sys': xtal_sys, 'SG': space_group,\
+                     'xtal_sys': xtal_sys, 'SG': space_group,
                      'SGsetting': iset})
 
     Write2H5File(AtomInfo, lat_param)
@@ -326,8 +329,8 @@ def GetAtomInfo():
 def GetAsymmetricPositions(aniU):
 
     asym = input(
-        "Enter asymmetric position of atom in unit cell \
-         separated by comma (fractional coordinates) :  ")
+        f'Enter asymmetric position of atom in unit cell '
+        f'separated by comma (fractional coordinates) :  ')
     asym = [x.strip() for x in asym.split(',')]
 
     for i, x in enumerate(asym):
@@ -479,7 +482,6 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
     material.h5 file output
     @Date 01/14/2022 SS added tThWidth to materials file
     """
-
     # Add the path prefix if we have been given one
     if path is not None:
         path = f"{path}/{AtomInfo['xtalname']}"
@@ -515,32 +517,41 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
     did = gid.create_dataset("stiffness", (6, 6), dtype=np.float64)
     did.write_direct(np.array(AtomInfo['stiffness'], dtype=np.float64))
 
+    P = AtomInfo['pressure'] if 'pressure' in AtomInfo else 1.01325E-4  # 1 atm
     did = gid.create_dataset("pressure", (1,), dtype=np.float64)
-    did.write_direct(np.array(AtomInfo['pressure'], dtype=np.float64))
+    did.write_direct(np.array(P, dtype=np.float64))
 
+    T = AtomInfo['temperature'] if 'temperature' in AtomInfo else 293  # R.T.
     did = gid.create_dataset("temperature", (1,), dtype=np.float64)
-    did.write_direct(np.array(AtomInfo['temperature'], dtype=np.float64))
+    did.write_direct(np.array(T, dtype=np.float64))
 
+    k0 = AtomInfo['k0'] if 'k0' in AtomInfo else 100.0
     did = gid.create_dataset("k0", (1,), dtype=np.float64)
-    did.write_direct(np.array([AtomInfo['k0']], dtype=np.float64))
+    did.write_direct(np.array([k0], dtype=np.float64))
 
+    k0p = AtomInfo['k0p'] if 'k0p' in AtomInfo else 0.0
     did = gid.create_dataset("k0p", (1,), dtype=np.float64)
-    did.write_direct(np.array([AtomInfo['k0p']], dtype=np.float64))
+    did.write_direct(np.array([k0p], dtype=np.float64))
 
+    dk0dt = AtomInfo['dk0dt'] if 'dk0dt' in AtomInfo else 0.0
     did = gid.create_dataset("dk0dt", (1,), dtype=np.float64)
-    did.write_direct(np.array([AtomInfo['dk0dt']], dtype=np.float64))
+    did.write_direct(np.array([dk0dt], dtype=np.float64))
 
+    dk0pdt = AtomInfo['dk0pdt'] if 'dk0pdt' in AtomInfo else 0.0
     did = gid.create_dataset("dk0pdt", (1,), dtype=np.float64)
-    did.write_direct(np.array([AtomInfo['dk0pdt']], dtype=np.float64))
+    did.write_direct(np.array([dk0pdt], dtype=np.float64))
 
+    alpha_t = AtomInfo['alpha_t'] if 'alpha_t' in AtomInfo else 0.0
     did = gid.create_dataset("alpha_t", (1,), dtype=np.float64)
-    did.write_direct(np.array([AtomInfo['alpha_t']], dtype=np.float64))
+    did.write_direct(np.array([alpha_t], dtype=np.float64))
 
+    dalpha_t_dt = AtomInfo['dalpha_t_dt'] if 'dalpha_t_dt' in AtomInfo else 0.0
     did = gid.create_dataset("dalpha_t_dt", (1,), dtype=np.float64)
-    did.write_direct(np.array([AtomInfo['dalpha_t_dt']], dtype=np.float64))
+    did.write_direct(np.array([dalpha_t_dt], dtype=np.float64))
 
+    v0 = AtomInfo['v0'] if 'v0' in AtomInfo else unitcell_volume(lat_param)
     did = gid.create_dataset("v0", (1,), dtype=np.float64)
-    did.write_direct(np.array([AtomInfo['v0']], dtype=np.float64))
+    did.write_direct(np.array([v0], dtype=np.float64))
 
     if "tThWidth" in AtomInfo:
         did = gid.create_dataset("tThWidth", (1,), dtype=np.float64)
