@@ -106,12 +106,16 @@ xtal_sys_dict = {'cubic': 1, 'tetragonal': 2, 'orthorhombic': 3,
 
 
 
-pstr_pointgroup = ['    1', '   -1', '    2', '    m', '  2/m', '  222',
-                   '  mm2', '  mmm', '    4', '   -4', '  4/m', '  422',
-                   '  4mm', ' -42m', '4/mmm', '    3', '   -3', '   32',
-                   '   3m', '  -3m', '    6', '   -6', '  6/m', '  622',
-                   '  6mm', ' -6m2', '6/mmm', '   23', '   m3', '  432',
-                   ' -43m', ' m-3m', '  532', '  822', ' 1022', ' 1222']
+pstr_pointgroup =
+[
+    '    1', '   -1', '    2', '    m', '  2/m', '  222',
+    '  mm2', '  mmm', '    4', '   -4', '  4/m', '  422',
+    '  4mm', ' -42m', '4/mmm', '    3', '   -3', '   32',
+    '   3m', '  -3m', '    6', '   -6', '  6/m', '  622',
+    '  6mm', ' -6m2', '6/mmm', '   23', '   m3', '  432',
+    ' -43m', ' m-3m', '  532', '  822', ' 1022', ' 1222'
+]
+
 
 TRIG = [146, 148, 155, 160, 161, 166, 167]
 
@@ -129,11 +133,12 @@ pstr_Elements = ' ------------------------------------ Periodic Table of the Ele
 '89:Ac 90:Th 91:Pa 92:U' + "\n" \
 ' ----------------------------------------------------------------------------------------------------------'
 
-''' this dictionary contains the space group numbers 
+'''this dictionary contains the space group numbers 
 which have two origin choices the two values are the 
 site symmetries of the origin. There are 24 such space 
-groups
-'''
+groups'''
+
+
 two_origin_choice = {
     48: ['222', '-1'],
     50: ['222/n', '-1'],
