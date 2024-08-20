@@ -24,7 +24,8 @@ def materials(test_data_dir):
     for mat_name in material_names:
         # Load {test_data_dir}/materials/{mat_name}.cif
         mat = Material(
-            mat_name, str(test_data_dir) + "/materials/" + mat_name + ".cif"
+            mat_name, str(test_data_dir) + "/materials/" + mat_name + ".cif",
+            sgsetting=0
         )
         mats[mat_name] = mat.planeData
     return mats

@@ -31,9 +31,9 @@
 
 import numpy as np
 from numba import njit
-from numpy import array, sqrt, pi, \
-     vstack, c_, dot, \
-     argmax
+from numpy import (array, sqrt, pi,
+                   vstack, c_, dot,
+                   argmax)
 
 # from hexrd.rotations import quatOfAngleAxis, quatProductMatrix, fixQuat
 from hexrd import rotations as rot
@@ -41,8 +41,9 @@ from hexrd import constants
 from hexrd.utils.decorators import memoize
 
 # Imports in case others are importing from here
-from hexrd.rotations import toFundamentalRegion, ltypeOfLaueGroup, \
-    quatOfLaueGroup
+from hexrd.rotations import (toFundamentalRegion,
+                             ltypeOfLaueGroup,
+                             quatOfLaueGroup)
 
 
 # =============================================================================
@@ -78,6 +79,7 @@ def GeneratorString(sgnum):
 
     return constants.SYM_GL[sg]
 
+
 def MakeGenerators(genstr, setting):
 
     t = 'aOOO'
@@ -98,7 +100,7 @@ def MakeGenerators(genstr, setting):
     if(n > 0):
         for i in range(n):
             istart = 2 + i * 4
-            istop  = 2 + (i+1) * 4
+            istop = 2 + (i+1) * 4
 
             t = genstr[istart:istop]
 
@@ -113,32 +115,39 @@ def MakeGenerators(genstr, setting):
     if(genstr[istop] != '0'):
         if(setting != 0):
             t = genstr[istop+1:istop+4]
-            trans = np.array([constants.SYM_GENERATORS[t[0]],\
-                              constants.SYM_GENERATORS[t[1]],\
-                              constants.SYM_GENERATORS[t[2]]
-                              ])
-            for i in range(genmat.shape[0]):
-                genmat[i,0:3,3] -= trans
+            t = 'a' + t  # get the translation without any rotation
+            sym = np.squeeze(SYM_fillgen(t, sgn=-1))
+            sym2 = np.squeeze(SYM_fillgen(t))
+            for i in range(1, genmat.shape[0]):
+                generator = np.dot(sym2, np.dot(
+                    np.squeeze(genmat[i, :, :]),
+                    sym))
+                frac = np.modf(generator[0:3, 3])[0]
+                frac[frac < 0.] += 1.
+                frac[np.abs(frac) < 1E-5] = 0.0
+                frac[np.abs(frac-1.0) < 1E-5] = 0.0
+                generator[0:3, 3] = frac
+                genmat[i, :, :] = generator
 
     return genmat, centrosymmetric
 
-def SYM_fillgen(t):
-    mat = np.zeros([4,4])
-    mat[3,3] = 1.
 
-    mat[0:3,0:3] = constants.SYM_GENERATORS[t[0]]
-    mat[0:3,3] = np.array([constants.SYM_GENERATORS[t[1]],\
-                           constants.SYM_GENERATORS[t[2]],\
-                           constants.SYM_GENERATORS[t[3]]
-                           ])
+def SYM_fillgen(t, sgn=1):
+    mat = np.zeros([4, 4])
+    mat[3, 3] = 1.
 
-    mat = np.broadcast_to(mat, [1,4,4])
+    mat[0:3, 0:3] = constants.SYM_GENERATORS[t[0]]
+    mat[0:3, 3] = sgn*np.array([constants.SYM_GENERATORS[t[1]],
+                                constants.SYM_GENERATORS[t[2]],
+                                constants.SYM_GENERATORS[t[3]]
+                                ])
+
+    mat = np.broadcast_to(mat, [1, 4, 4])
     return mat
 
 
 @memoize(maxsize=20)
 def GenerateSGSym(sgnum, setting=0):
-
     '''
     get the generators for a space group using the
     generator string
@@ -165,22 +174,22 @@ def GenerateSGSym(sgnum, setting=0):
     k1 = 0
     while k1 < nsym:
 
-        g1 = np.squeeze(SYM_SG[k1,:,:])
+        g1 = np.squeeze(SYM_SG[k1, :, :])
         k2 = k1
 
         while k2 < nsym:
-            g2 = np.squeeze(SYM_SG[k2,:,:])
+            g2 = np.squeeze(SYM_SG[k2, :, :])
             gnew = np.dot(g1, g2)
 
             # only fractional parts
-            frac = np.modf(gnew[0:3,3])[0]
+            frac = np.modf(gnew[0:3, 3])[0]
             frac[frac < 0.] += 1.
             frac[np.abs(frac) < 1E-5] = 0.0
             frac[np.abs(frac-1.0) < 1E-5] = 0.0
-            gnew[0:3,3] = frac
+            gnew[0:3, 3] = frac
 
             if(isnew(gnew, SYM_SG)):
-                gnew = np.broadcast_to(gnew, [1,4,4])
+                gnew = np.broadcast_to(gnew, [1, 4, 4])
                 SYM_SG = np.concatenate((SYM_SG, gnew))
                 nsym += 1
 
@@ -195,11 +204,11 @@ def GenerateSGSym(sgnum, setting=0):
     SYM_PG_d_laue = GeneratePGSym_Laue(SYM_PG_d)
 
     for s in SYM_PG_d:
-        if(np.allclose(-np.eye(3),s)):
+        if(np.allclose(-np.eye(3), s)):
             centrosymmetric = True
 
-
     return SYM_SG, SYM_PG_d, SYM_PG_d_laue, centrosymmetric, symmorphic
+
 
 def GeneratePGSym(SYM_SG):
     '''
@@ -214,18 +223,19 @@ def GeneratePGSym(SYM_SG):
     nsgsym = SYM_SG.shape[0]
 
     # first fill the identity rotation
-    SYM_PG_d = SYM_SG[0,0:3,0:3]
-    SYM_PG_d = np.broadcast_to(SYM_PG_d,[1,3,3])
+    SYM_PG_d = SYM_SG[0, 0:3, 0:3]
+    SYM_PG_d = np.broadcast_to(SYM_PG_d, [1, 3, 3])
 
-    for i in range(1,nsgsym):
-        g = SYM_SG[i,:,:]
-        t = g[0:3,3]
-        g = g[0:3,0:3]
-        if(isnew(g,SYM_PG_d)):
-            g = np.broadcast_to(g,[1,3,3])
+    for i in range(1, nsgsym):
+        g = SYM_SG[i, :, :]
+        t = g[0:3, 3]
+        g = g[0:3, 0:3]
+        if(isnew(g, SYM_PG_d)):
+            g = np.broadcast_to(g, [1, 3, 3])
             SYM_PG_d = np.concatenate((SYM_PG_d, g))
 
     return SYM_PG_d.astype(np.int32)
+
 
 def GeneratePGSym_Laue(SYM_PG_d):
     '''
@@ -240,7 +250,7 @@ def GeneratePGSym_Laue(SYM_PG_d):
     first check if the group already has the inversion symmetry
     '''
     for s in SYM_PG_d:
-        if(np.allclose(s,-np.eye(3))):
+        if(np.allclose(s, -np.eye(3))):
             return SYM_PG_d
 
     '''
@@ -248,7 +258,7 @@ def GeneratePGSym_Laue(SYM_PG_d):
     add the inversion symmetry
     '''
     SYM_PG_d_laue = SYM_PG_d
-    g = np.broadcast_to(-np.eye(3).astype(np.int32),[1,3,3])
+    g = np.broadcast_to(-np.eye(3).astype(np.int32), [1, 3, 3])
     SYM_PG_d_laue = np.concatenate((SYM_PG_d_laue, g))
 
     '''
@@ -258,14 +268,14 @@ def GeneratePGSym_Laue(SYM_PG_d):
     nsym = SYM_PG_d_laue.shape[0]
     k1 = 0
     while k1 < nsym:
-        g1 = np.squeeze(SYM_PG_d_laue[k1,:,:])
+        g1 = np.squeeze(SYM_PG_d_laue[k1, :, :])
         k2 = k1
         while k2 < nsym:
-            g2 = np.squeeze(SYM_PG_d_laue[k2,:,:])
+            g2 = np.squeeze(SYM_PG_d_laue[k2, :, :])
             gnew = np.dot(g1, g2)
 
             if(isnew(gnew, SYM_PG_d_laue)):
-                gnew = np.broadcast_to(gnew, [1,3,3])
+                gnew = np.broadcast_to(gnew, [1, 3, 3])
                 SYM_PG_d_laue = np.concatenate((SYM_PG_d_laue, gnew))
                 nsym += 1
 
@@ -287,6 +297,7 @@ def isnew(mat, sym_mats):
             return False
     return True
 
+
 def latticeType(sgnum):
 
     if(sgnum <= 2):
@@ -301,7 +312,7 @@ def latticeType(sgnum):
         return 'trigonal'
     elif(sgnum > 167 and sgnum <= 194):
         return 'hexagonal'
-    elif(sgnum > 194 and sgnum <=230):
+    elif(sgnum > 194 and sgnum <= 230):
         return 'cubic'
     else:
         raise RuntimeError('symmetry.latticeType: unknown space group number')
@@ -315,13 +326,14 @@ def MakeGenerators_PGSYM(pggenstr):
              for any point group. this is needed for the coloring routines
     '''
     ngen = int(pggenstr[0])
-    SYM_GEN_PG = np.zeros([ngen,3,3])
+    SYM_GEN_PG = np.zeros([ngen, 3, 3])
 
     for i in range(ngen):
         s = pggenstr[i+1]
-        SYM_GEN_PG[i,:,:] = constants.SYM_GENERATORS[s]
+        SYM_GEN_PG[i, :, :] = constants.SYM_GENERATORS[s]
 
     return SYM_GEN_PG
+
 
 def GeneratePGSYM(pgsym):
     '''
@@ -337,7 +349,6 @@ def GeneratePGSYM(pgsym):
     generate the powers of the group
     '''
 
-
     '''
     now go through the group actions and see if its a new matrix
     if it is then add it to the group
@@ -345,14 +356,14 @@ def GeneratePGSYM(pgsym):
     nsym = SYM_GEN_PG.shape[0]
     k1 = 0
     while k1 < nsym:
-        g1 = np.squeeze(SYM_GEN_PG[k1,:,:])
+        g1 = np.squeeze(SYM_GEN_PG[k1, :, :])
         k2 = k1
         while k2 < nsym:
-            g2 = np.squeeze(SYM_GEN_PG[k2,:,:])
+            g2 = np.squeeze(SYM_GEN_PG[k2, :, :])
             gnew = np.dot(g1, g2)
 
             if(isnew(gnew, SYM_GEN_PG)):
-                gnew = np.broadcast_to(gnew, [1,3,3])
+                gnew = np.broadcast_to(gnew, [1, 3, 3])
                 SYM_GEN_PG = np.concatenate((SYM_GEN_PG, gnew))
                 nsym += 1
 
