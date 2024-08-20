@@ -36,11 +36,11 @@ import numpy as np
 
 from hexrd.material.crystallography import PlaneData as PData
 from hexrd.material import symmetry, unitcell
+from hexrd.material.symbols import two_origin_choice
 from hexrd.valunits import valWUnit
 from hexrd.constants import (ptable,
-    ptableinverse,
-    chargestate,
-    two_origin_choice)
+                             ptableinverse,
+                             chargestate)
 
 from os import path
 from pathlib import Path
@@ -78,6 +78,7 @@ def _kev(x):
 
 def _key(x):
     return x.name
+
 
 def get_default_sgsetting(sgnum):
     if sgnum in two_origin_choice:
@@ -187,8 +188,8 @@ class Material(object):
             elif isinstance(material_file, h5py.Group) or form in h5_suffixes:
                 self._readHDFxtal(fhdf=material_file, xtal=name)
             if sgsetting is not None:
-                    if sgsetting in [0, 1]:
-                        self._sgsetting = sgsetting
+                if sgsetting in [0, 1]:
+                    self._sgsetting = sgsetting
         else:
             # default name
             self._name = Material.DFLT_XTAL
@@ -1436,7 +1437,7 @@ def loadMaterialList(cfgFile):
 
 
 def load_materials_hdf5(
-    f, dmin=None, kev=None):
+        f, dmin=None, kev=None):
     """Load materials from an HDF5 file
 
     The file uses the HDF5 file format.

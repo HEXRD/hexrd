@@ -1,12 +1,16 @@
-from hexrd.material.symbols import pstr_Elements, sitesym, \
-    tworig, PrintPossibleSG, TRIG, pstr_spacegroup,\
-    pstr_mkxtal
+from hexrd.material.symbols import (pstr_Elements,
+                                    two_origin_choice,
+                                    PrintPossibleSG,
+                                    TRIG,
+                                    pstr_spacegroup,
+                                    pstr_mkxtal)
 import h5py
 import os
 import numpy as np
 import datetime
 import getpass
 from hexrd.material.unitcell import _StiffnessDict, _pgDict
+
 
 def mk(filename, xtalname):
 
@@ -23,7 +27,7 @@ def mk(filename, xtalname):
 
     AtomInfo = GetAtomInfo()
     AtomInfo.update({'file': filename, 'xtalname': xtalname,
-                     'xtal_sys': xtal_sys, 'SG': space_group,\
+                     'xtal_sys': xtal_sys, 'SG': space_group,
                      'SGsetting': iset})
 
     Write2H5File(AtomInfo, lat_param)
@@ -275,14 +279,15 @@ def GetSpaceGroup(xtal_sys, btrigonal, bhexset):
 def SpaceGroupSetting(sgnum):
 
     iset = 1
-    if(sgnum in tworig):
-        idx = tworig.index(sgnum)
+    if(sgnum in two_origin_choice):
+        sitesym1 = two_origin_choice[sgnum][0]
+        sitesym2 = two_origin_choice[sgnum][1]
         print(' ---------------------------------------------')
         print(' This space group has two origin settings.')
         print(' The first setting has site symmetry    : ' +
-              sitesym[2*idx - 2])
+              sitesym1)
         print(' the second setting has site symmetry   : ' +
-              sitesym[2*idx - 1])
+              sitesym2)
         iset = input(' Which setting do you wish to use (1/2) : ')
         if(not iset.isdigit()):
             raise ValueError("Invalid integer value for atomic number.")
@@ -293,7 +298,6 @@ def SpaceGroupSetting(sgnum):
                 raise ValueError(" Value entered for setting must be 1 or 2 !")
 
     return iset-1
-
 
 def GetAtomInfo():
 
