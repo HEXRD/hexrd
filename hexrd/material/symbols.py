@@ -1,6 +1,6 @@
 
 pstr_mkxtal = (
-    f'\n\n  This is a program to create a HDF5 file for storing '
+    f'\n\n This is a program to create a HDF5 file for storing '
     f'crystallographic information.\n'
     f' The following inputs are required:\n '
     f'         Crystal System:\n'
