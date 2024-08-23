@@ -9,6 +9,7 @@ from .lmfit_param_handling import (
     DEFAULT_EULER_CONVENTION,
     update_instrument_from_params,
     validate_params_list,
+    RelativeConstraints,
 )
 
 logger = logging.getLogger()
@@ -22,7 +23,8 @@ def _normalized_ssqr(resd):
 class InstrumentCalibrator:
     def __init__(self, *args, engineering_constraints=None,
                  set_refinements_from_instrument_flags=True,
-                 euler_convention=DEFAULT_EULER_CONVENTION):
+                 euler_convention=DEFAULT_EULER_CONVENTION,
+                 relative_constraints=RelativeConstraints.none):
         """
         Model for instrument calibration class as a function of
 
@@ -45,6 +47,7 @@ class InstrumentCalibrator:
             assert calib.instr is self.instr, \
                 "all calibrators must refer to the same instrument"
         self._engineering_constraints = engineering_constraints
+        self._relative_constraints = relative_constraints
         self.euler_convention = euler_convention
 
         self.params = self.make_lmfit_params()
@@ -59,6 +62,7 @@ class InstrumentCalibrator:
         params = create_instr_params(
             self.instr,
             euler_convention=self.euler_convention,
+            relative_constraints=self.relative_constraints,
         )
 
         for calibrator in self.calibrators:
@@ -82,6 +86,7 @@ class InstrumentCalibrator:
             self.instr,
             params,
             self.euler_convention,
+            self.relative_constraints,
         )
 
         for calibrator in self.calibrators:
@@ -157,6 +162,18 @@ class InstrumentCalibrator:
             raise Exception(msg)
 
         self._engineering_constraints = v
+        self.params = self.make_lmfit_params()
+
+    @property
+    def relative_constraints(self) -> RelativeConstraints:
+        return self._relative_constraints
+
+    @relative_constraints.setter
+    def relative_constraints(self, v: RelativeConstraints):
+        if v == self._relative_constraints:
+            return
+
+        self._relative_constraints = v
         self.params = self.make_lmfit_params()
 
     def run_calibration(self, odict):
