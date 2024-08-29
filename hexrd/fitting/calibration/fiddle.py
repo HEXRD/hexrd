@@ -1,6 +1,7 @@
 import lmfit
 import numpy as np
 
+from hexrd.utils.hkl import hkl_to_str, str_to_hkl
 from .lmfit_param_handling import (
     create_instr_params_fiddle,
     create_tth_parameters,
@@ -8,7 +9,7 @@ from .lmfit_param_handling import (
     update_instrument_from_params_fiddle,
 )
 
-class Fiddle:
+class Fiddle_structureless:
     """this class is a special case of the calibration.
     The instrument is a multi-detector instrument. However,
     the relative locations of each panel is very tightly
@@ -68,7 +69,7 @@ class Fiddle:
                             delta_tth -= np.degrees(corr_rng[det_name])
                         residual = np.concatenate((residual, delta_tth))
 
-        return residual
+        return residual/len(residual)
 
     def set_minimizer(self):
         self.fitter = lmfit.Minimizer(self.calc_residual,
@@ -94,17 +95,16 @@ class Fiddle:
                 "x_scale": "jac",
                 "method": "trf",
                 "jac": "3-point",
+                **odict
             }
-            fdict.update(odict)
 
             self.res = self.fitter.least_squares(self.params,
-                                                 **fdict)
+                                                 **odict)
         else:
-            fdict = odict
             self.res = self.fitter.scalar_minimize(method=method,
                                                    params=self.params,
                                                    max_nfev=50000,
-                                                   **fdict)
+                                                   **odict)
 
         self.params = self.res.params
         # res = self.fitter.least_squares(**fdict)
@@ -188,3 +188,65 @@ class Fiddle:
     @property
     def two_XRS(self):
         return self.instr.has_multi_beam
+
+class Fiddle_composite:
+    """this class is a special case of the powder calibration.
+    The instrument is a multi-detector instrument. However,
+    the relative locations of each panel is very tightly
+    constrained. Therefore, we constrain the relative 
+    translation and tilt of each panel w.r.t Icarus sensor 2
+    (chosen at random). There is a "global" tvec and tilt
+    angle which can translate and rotate the entire instrument.
+    There is no overall tvec in the instrument class which will
+    be used for translation. However, there is no global tilt
+    angles with all degrees of freedom. So that will have to be
+    manually dealt with.
+
+    @Author: Saransh Singh, Lawrence Livermore National Lab
+             saransh1@llnl.gov
+    """
+    def __init__(self,
+                 instr,
+                 materials,
+                 picks,
+                 tth_distortion=None,
+                 euler_convention=DEFAULT_EULER_CONVENTION):
+
+        pass
+
+    @property
+    def calibration_picks(self):
+        # Convert this from our internal data dict format
+        picks = {}
+        for det_key, data in self.data_dict.items():
+            picks[det_key] = {}
+            for ringset in data:
+                for row in ringset:
+                    # Rows 3, 4, and 5 are the hkl
+                    hkl_str = hkl_to_str(row[3:6].astype(int))
+                    picks[det_key].setdefault(hkl_str, [])
+                    # Rows 0 and 1 are the xy coordinates
+                    picks[det_key][hkl_str].append(row[:2].tolist())
+
+        return picks
+
+    @calibration_picks.setter
+    def calibration_picks(self, v):
+        # Convert this to our internal data dict format
+        data_dict = {}
+        for det_key, hkl_picks in v.items():
+            data_dict[det_key] = []
+            for hkl_str, picks in hkl_picks.items():
+                if len(picks) == 0:
+                    # Just skip over it
+                    continue
+
+                data = np.zeros((len(picks), 8), dtype=np.float64)
+                # Rows 0 and 1 are the xy coordinates
+                data[:, :2] = np.asarray(picks)
+                # Rows 3, 4, and 5 are the hkl
+                data[:, 3:6] = str_to_hkl(hkl_str)
+                data_dict[det_key].append(data)
+
+        self.data_dict = data_dict
+
