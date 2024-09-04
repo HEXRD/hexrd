@@ -88,7 +88,7 @@ def generate_orientation_fibers(cfg, eta_ome):
     pd = eta_ome.planeData
     tTh = pd.getTTh()
     bMat = pd.latVecOps['B']
-    csym = pd.getLaueGroup()
+    csym = pd.laueGroup
 
     # !!! changed recently where iHKLList are now master hklIDs
     pd_hkl_ids = eta_ome.iHKLList[seed_hkl_ids]
@@ -885,8 +885,8 @@ def find_orientations(cfg,
     logger.info("\tmean reflections per grain: %d", mean_rpg)
     logger.info("\tneighborhood size: %d", min_samples)
 
-    qbar, _ = run_cluster(
-        completeness, qfib, plane_data.getQSym(), cfg,
+    qbar, cl = run_cluster(
+        completeness, qfib, plane_data.q_sym, cfg,
         min_samples=min_samples,
         compl_thresh=compl_thresh,
         radius=cl_radius)

@@ -1,3 +1,4 @@
+import os
 import numpy as np
 
 import pytest
@@ -23,7 +24,8 @@ def materials(test_data_dir):
     for mat_name in material_names:
         # Load {test_data_dir}/materials/{mat_name}.cif
         mat = Material(
-            mat_name, str(test_data_dir) + "/materials/" + mat_name + ".cif"
+            mat_name, str(test_data_dir) + "/materials/" + mat_name + ".cif",
+            sgsetting=0
         )
         mats[mat_name] = mat.planeData
     return mats
@@ -56,6 +58,7 @@ def flatten(xs):
 
 def test_plane_data_with_data(test_data_dir, materials):
     data = np.load(test_data_dir / 'plane_data_test.npy', allow_pickle=True)
+    os.environ['ACK_DEPRECATED'] = 'true'
     for obj in data:
         pd = materials[obj['mat_name']]
         assertEqualNumpyArrays(pd.hkls, obj['hkls'])
@@ -84,6 +87,7 @@ def test_plane_data_with_data(test_data_dir, materials):
 
 # def test_with_data_maker(test_data_dir, materials):
 #     data = []
+#     os.environ['ACK_DEPRECATED'] = 'true'
 #     for mat_name, pd in materials.items():
 #         obj = {"mat_name": mat_name}
 #         obj['hkls'] = pd.hkls
