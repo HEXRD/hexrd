@@ -10,7 +10,7 @@ from common import convert_axis_angle_to_rmat
 
 
 _flds = [
-    "tvec_c", "tvec_d", "tvec_s","rmat_c", "rmat_d", "rmat_s",
+    "tvec_c", "tvec_d", "tvec_s", "rmat_c", "rmat_d", "rmat_s",
     "gvec_c", "beam_vec", "xy"
 ]
 GvecXYData = namedtuple("GvecData", _flds)
@@ -52,14 +52,14 @@ class TestGvecXY:
     # Base Case: sample and crystal align with lab frame;
     # detector distance = 10; gvec = beam, no diffraction.
     base = GvecXYData(
-        tvec_c = np.zeros(3),
-        tvec_d = np.array([0., 0., -10]),
-        tvec_s = np.zeros(3),
-        rmat_c = np.identity(3),
-        rmat_d = np.identity(3),
-        rmat_s = np.identity(3),
-        gvec_c = np.array([0, 0, -1.0]),
-        beam_vec = np.array([0, 0, -1.0]),
+        tvec_c=np.zeros(3),
+        tvec_d=np.array([0., 0., -10]),
+        tvec_s=np.zeros(3),
+        rmat_c=np.identity(3),
+        rmat_d=np.identity(3),
+        rmat_s=np.identity(3),
+        gvec_c=np.array([0, 0, -1.0]),
+        beam_vec=np.array([0, 0, -1.0]),
         xy = np.array((np.nan, np.nan))
     )
 
@@ -81,7 +81,6 @@ class TestGvecXY:
             beam_vec=cls.to_array(prob.beam_vec),
         )
         assert np.allclose(xy_d, prob.xy, equal_nan=True)
-
 
     @staticmethod
     def gvec_dvec(theta_deg, eta_deg):
@@ -196,7 +195,7 @@ class TestGvecXY:
                 p0_l, dvec, d0_l, nv_l
             )
             if t.theta_deg <= 0:
-                answer =  np.array((np.nan, np.nan))
+                answer = np.array((np.nan, np.nan))
             else:
                 answer = det_x[:2]
 
@@ -217,7 +216,7 @@ class TestGvecXY:
            angle/axis pairs
         """
         TestData = namedtuple("TestData", ["angle", "axis"])
-        tests =[
+        tests = [
             TestData(90, (1, 0, 0)),
             TestData(90, (0, 1, 0)),
             TestData(45, (1, 0, 0)),
@@ -302,7 +301,7 @@ class TestGvecXY:
         nan_tests = [
             RmatData(90, (0, 1, 0)),
         ]
-        tests =[
+        tests = [
             RmatData(90, (1, 0, 0)),
             RmatData(45, (1, 0, 0)),
             RmatData(45, (0, 0, 1))
@@ -316,7 +315,7 @@ class TestGvecXY:
         nv_l = (0, 0, 1)
         for t in tests:
             print(t)
-            tvec_l= -cls.base.tvec_d
+            tvec_l = -cls.base.tvec_d
             rmat_d = cls.make_rmat(t.angle_deg, t.axis)
             det_x = cls.line_plane_intersect(
                 p0_l, dvec, d0_l, rmat_d @ nv_l
@@ -340,7 +339,7 @@ class TestGvecXY:
 
         ex, ey, ez = (1, 0, 0), (0, 1, 0), (0, 0, 1)
         ang = 10
-        tests =[
+        tests = [
             SampleCrystalData((0, ex), (0, ex)),
             SampleCrystalData((ang, ex), (-ang, ex)),
             SampleCrystalData((ang, ey), (-ang, ey)),
@@ -354,7 +353,7 @@ class TestGvecXY:
         ]
 
         theta_deg, eta_deg = 5, 90
-        gvec_l, dvec_l  = cls.gvec_dvec(theta_deg, eta_deg)
+        gvec_l, dvec_l = cls.gvec_dvec(theta_deg, eta_deg)
         for t in tests:
             print(t)
             ang_s, ax_s = t.aa_s
