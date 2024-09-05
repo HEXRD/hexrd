@@ -55,11 +55,6 @@ jobs:
       run: echo 'SETUPTOOLS_USE_DISTUTILS=stdlib' >> $GITHUB_ENV
       if: ${{ matrix.config.os == 'windows-latest'}}
 
-    - name: Pin fabio to 0.12 on the Mac ( as binary wheel is available )
-      run: |
-          pip install fabio==0.12
-      if: ${{ matrix.config.os == 'macos-latest'}}
-
     - name: Install HEXRD
       # Install in editable mode for codecov
       run: |
@@ -78,7 +73,7 @@ jobs:
           pytest -s tests/
       if: ${{ matrix.config.os != 'ubuntu-latest'}}
       working-directory: hexrd
-      
+
     - name: Run tests with codecov
       env:
         HEXRD_EXAMPLE_REPO_PATH: ${{ github.workspace }}/examples
@@ -94,4 +89,4 @@ jobs:
         file: coverage.xml
         working-directory: hexrd
       if: ${{ matrix.config.os == 'ubuntu-latest'}}
-      
+
