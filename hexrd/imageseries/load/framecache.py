@@ -1,6 +1,7 @@
 """Adapter class for frame caches
 """
 import os
+from threading import Lock
 
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -23,6 +24,9 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
         """
         self._fname = fname
         self._framelist = []
+        self._framelist_was_loaded = False
+        self._load_framelist_lock = Lock()
+
         if style.lower() in ('yml', 'yaml', 'test'):
             self._from_yml = True
             self._load_yml()
@@ -96,11 +100,6 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
             self._framelist.append(frame)
 
     @property
-    def _framelist_was_loaded(self):
-        # Just assume that if the framelist is empty, it wasn't loaded...
-        return len(self._framelist) > 0
-
-    @property
     def metadata(self):
         """(read-only) Image sequence metadata
         """
@@ -131,10 +130,20 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
     def shape(self):
         return self._shape
 
-    def __getitem__(self, key):
+    def _load_framelist_if_needed(self):
         if not self._framelist_was_loaded:
-            # Load the framelist now
-            self._load_framelist()
+            # Only one thread should load the framelist.
+            # Acquire the lock for loading the framelist.
+            with self._load_framelist_lock:
+                # It is possible that another thread already loaded
+                # the framelist by the time this lock was acquired.
+                # Check again.
+                if not self._framelist_was_loaded:
+                    self._load_framelist()
+                    self._framelist_was_loaded = True
+
+    def __getitem__(self, key):
+        self._load_framelist_if_needed()
         return self._framelist[key].toarray()
 
     def __iter__(self):
