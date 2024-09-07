@@ -140,13 +140,13 @@ class PlanarDetector(Detector):
 
         transmission_filter  = self.calc_transmission_generic(secb, t_f, al_f)
         transmission_coating = self.calc_transmission_generic(secb, t_c, al_c)
-        transmission_phosphor = (self.phosphor.pre_U0 * 
-                    self.calc_transmission_phosphor(secb, t_p, al_p, L, energy))
+        transmission_phosphor = (
+            self.phosphor.pre_U0 *
+            self.calc_transmission_phosphor(secb, t_p, al_p, L, energy))
+        transmission_filter_coating = (
+            transmission_filter * transmission_coating)
 
-        self.transmission_filter_coating = (transmission_filter*
-                                            transmission_coating)
-
-        self.transmission_phosphor = transmission_phosphor
+        return transmission_filter_coating, transmission_phosphor
 
     @property
     def beam_position(self):

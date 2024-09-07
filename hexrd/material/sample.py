@@ -53,7 +53,7 @@ HEDM_PHYSICS_PACKAGE_DEFAULT = {
     'sample_geometry' : 'cylinder'
 }"""
 
-class abstractlayer:
+class AbstractLayer:
     """abstract class for encode information
     for an arbitrary planar layer of given
     thickness, density, and material
@@ -151,7 +151,8 @@ class abstractlayer:
         else:
             return abs_length
 
-class Pinhole(abstractlayer):
+
+class Pinhole(AbstractLayer):
     """simple class to encode all pinhole
     related parameters
 
@@ -196,17 +197,20 @@ class Pinhole(abstractlayer):
     def diameter(self, value):
         self._diameter = value
 
-class Filter(abstractlayer):
+
+class Filter(AbstractLayer):
 
     def __init__(self, **abstractlayer_kwargs):
         super().__init__(**abstractlayer_kwargs)
 
-class Coating(abstractlayer):
+
+class Coating(AbstractLayer):
 
     def __init__(self, **abstractlayer_kwargs):
         super().__init__(**abstractlayer_kwargs)
 
-class Phosphor(abstractlayer):
+
+class Phosphor(AbstractLayer):
 
     def __init__(self, **abstractlayer_kwargs):
         super().__init__(**abstractlayer_kwargs)
@@ -225,25 +229,8 @@ class Phosphor(abstractlayer):
             return 0.0
         return self._pre_U0
 
-# class Scintillator(object):
-#     """simple class to encode all information related
-#     to the detector. we need maximum flexibility here
-#     since the detector could be an image plate (omega/NIF),
-#     a scintillator/CCD based (DCS), hybrid photon counting
-#     detectors (SLAC) etc.
 
-#      Parameters
-#     ----------
-#     material : str or hexrd.material.Material
-#         either the formula or a hexrd material instance
-#     diameter : float
-#         pinhole diameter in microns
-#     thickness : float
-#         pinhole thickness in microns
-
-#     """
-
-class abstractpp:
+class AbstractPP:
     """abstract class for the physics package.
     there will be two separate physics package class
     types -- one for HED samples and the other for
@@ -334,7 +321,7 @@ class abstractpp:
         return self.absorption_length(energy, 'sample')
 
 
-class HED_physics_package(abstractpp):
+class HED_physics_package(AbstractPP):
 
     def __init__(self, **pp_kwargs):
         super().__init__(**pp_kwargs)
@@ -377,7 +364,8 @@ class HED_physics_package(abstractpp):
     def window_absorption_length(self, energy):
         return self.absorption_length(energy, 'window')
 
-class HEDM_physics_package(abstractpp):
+
+class HEDM_physics_package(AbstractPP):
 
     def __init__(self, **pp_kwargs):
         super().__init__(**pp_kwargs)

@@ -2085,14 +2085,18 @@ class HEDMInstrument(object):
             rMat_s = ct.identity_3x3
 
         energy = self.beam_energy
+        transmissions = {}
         for det_name, det in self.detectors.items():
-            det.calc_filter_coating_transmission(energy)
-            det.calc_physics_package_transmission(energy, rMat_s)
-            det.calc_effective_pinhole_area()
-            det.transmission = (det.transmission_filter_coating *
-                                det.transmission_physics_package *
-                                det.effective_pinhole_area *
-                                det.transmission_phosphor)
+            transmission_filter, transmission_phosphor = (
+                det.calc_filter_coating_transmission(energy))
+            transmission_physics_package = (
+                det.calc_physics_package_transmission(energy, rMat_s))
+            effective_pinhole_area = det.calc_effective_pinhole_area()
+            transmissions[det_name] = (transmission_filter *
+                                       transmission_physics_package *
+                                       effective_pinhole_area *
+                                       transmission_phosphor)
+        return transmissions
 
 # =============================================================================
 # UTILITIES

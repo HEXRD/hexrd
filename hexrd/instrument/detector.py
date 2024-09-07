@@ -26,7 +26,6 @@ from hexrd.transforms.xfcapi import (
 
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
-
 from hexrd.material import sample
 
 if ct.USE_NUMBA:
@@ -1772,7 +1771,8 @@ class Detector:
         T_sample = self.calc_transmission_sample(seca, secb, energy)
         T_window = self.calc_transmission_window(secb, energy)
 
-        self.transmission_physics_package = T_sample*T_window
+        transmission_physics_package = T_sample * T_window
+        return transmission_physics_package
 
     def calc_transmission_sample(self, seca, secb, energy):
         thickness_s = self.physics_package.sample_thickness # in microns
@@ -1803,8 +1803,9 @@ class Detector:
         f = hod*tanth
         f[np.abs(f) > 1.] = np.nan
         asinf = np.arcsin(f)
-        self.effective_pinhole_area = (2/np.pi) * cth * (np.pi/2 - asinf -
-              f*np.cos(asinf))
+        effective_pinhole_area = (
+            (2/np.pi) * cth * (np.pi/2 - asinf - f*np.cos(asinf)))
+        return effective_pinhole_area
 
     def calc_transmission_generic(self,
                                   secb,

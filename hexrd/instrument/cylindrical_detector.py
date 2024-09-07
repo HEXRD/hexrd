@@ -157,9 +157,6 @@ class CylindricalDetector(Detector):
         Rygg et al., X-ray diffraction at the National 
         Ignition Facility, Rev. Sci. Instrum. 91, 043902 (2020)
         """
-        filter_thickness  = self.filter.thickness
-        coating_thickness = self.coating.thickness
-
         al_f = self.filter.absorption_length(energy)
         al_c = self.coating.absorption_length(energy)
         al_p = self.phosphor.energy_absorption_length(energy)
@@ -170,7 +167,6 @@ class CylindricalDetector(Detector):
         L   = self.phosphor.readout_length
 
         det_normal = self.local_normal()
-        bvec = self.bvec
 
         y, x = self.pixel_coords
         xy_data = np.vstack((x.flatten(), y.flatten())).T
@@ -181,15 +177,16 @@ class CylindricalDetector(Detector):
 
         transmission_filter  = self.calc_transmission_generic(secb, t_f, al_f)
         transmission_coating = self.calc_transmission_generic(secb, t_c, al_c)
-        transmission_phosphor = (self.phosphor.pre_U0 * 
-                    self.calc_transmission_phosphor(secb, t_p, al_p, L, energy))
+        transmission_phosphor = (
+            self.phosphor.pre_U0 *
+            self.calc_transmission_phosphor(secb, t_p, al_p, L, energy))
 
         transmission_filter  = transmission_filter.reshape(self.shape)
         transmission_coating = transmission_coating.reshape(self.shape)
+        transmission_filter_coating = (
+            transmission_filter * transmission_coating)
 
-        self.transmission_filter_coating = transmission_filter*transmission_coating
-
-        self.transmission_phosphor = transmission_phosphor
+        return transmission_filter_coating, transmission_phosphor
 
     @property
     def _pixel_angle_kwargs(self):
