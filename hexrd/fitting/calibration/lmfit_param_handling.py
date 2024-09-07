@@ -4,6 +4,7 @@ import numpy as np
 from hexrd.instrument import (
     calc_angles_from_beam_vec,
     calc_beam_vec,
+    HEDMInstrument,
 )
 from hexrd.rotations import (
     expMapOfQuat,
@@ -21,31 +22,23 @@ DEFAULT_EULER_CONVENTION = ('zxz', False)
 def create_instr_params(instr, euler_convention=DEFAULT_EULER_CONVENTION):
     # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
     parms_list = []
-    if instr.has_multi_beam:
-        for k, v in instr.multi_beam_dict.items():
-            azim, pol = calc_angles_from_beam_vec(v['beam_vector'])
-            pname = f'{k}_beam_polar'
-            aname = f'{k}_beam_azimuth'
-            parms_list.append((pname, pol, False, pol-1, pol+1))
-            parms_list.append((aname, azim, False, azim-1, azim+1))
 
-            bname = f'{k}_beam_energy'
-            beam_energy = v['beam_energy']
-            parms_list.append((bname,
-                               beam_energy,
-                               False,
-                               beam_energy-0.2,
-                               beam_energy+0.2))
-    else:
-        azim, pol = calc_angles_from_beam_vec(instr.beam_vector)
-        parms_list.append(('beam_polar', pol, False, pol-1, pol+1))
-        parms_list.append(('beam_azimuth', azim, False, azim-1, azim+1))
+    # This supports either single beam or multi-beam
+    beam_param_names = create_beam_param_names(instr)
+    for beam_name, beam in instr.beam_dict.items():
+        azim, pol = calc_angles_from_beam_vec(beam['vector'])
+        energy = beam['energy']
 
-        parms_list.append(('beam_energy',
-                           instr.beam_energy,
-                           False,
-                           instr.beam_energy-0.2,
-                           instr.beam_energy+0.2))
+        names = beam_param_names[beam_name]
+        parms_list.append((
+            names['beam_polar'], pol, False, pol - 1, pol + 1
+        ))
+        parms_list.append((
+            names['beam_azimuth'], azim, False, azim - 1, azim + 1
+        ))
+        parms_list.append((
+            names['beam_energy'], energy, False, energy - 0.2, energy + 0.2
+        ))
 
     parms_list.append(('instr_chi', np.degrees(instr.chi),
                        False, np.degrees(instr.chi)-1,
@@ -93,6 +86,18 @@ def create_instr_params(instr, euler_convention=DEFAULT_EULER_CONVENTION):
     return parms_list
 
 
+def create_beam_param_names(instr: HEDMInstrument) -> dict[str, str]:
+    param_names = {}
+    for k, v in instr.beam_dict.items():
+        prefix = f'{k}_' if instr.has_multi_beam else ''
+        param_names[k] = {
+            'beam_polar': f'{prefix}beam_polar',
+            'beam_azimuth': f'{prefix}beam_azimuth',
+            'beam_energy': f'{prefix}beam_energy',
+        }
+    return param_names
+
+
 def update_instrument_from_params(instr, params, euler_convention):
     """
     this function updates the instrument from the
@@ -107,11 +112,18 @@ def update_instrument_from_params(instr, params, euler_convention):
                f'Received: {params}')
         raise NotImplementedError(msg)
 
-    instr.beam_energy = params['beam_energy'].value
+    # This supports single XRS or multi XRS
+    beam_param_names = create_beam_param_names(instr)
+    for xrs_name, param_names in beam_param_names.items():
+        energy = params[param_names['beam_energy']].value
+        azim = params[param_names['beam_azimuth']].value
+        pola = params[param_names['beam_polar']].value
 
-    azim = params['beam_azimuth'].value
-    pola = params['beam_polar'].value
-    instr.beam_vector = calc_beam_vec(azim, pola)
+        instr.beam_dict[xrs_name]['energy'] = energy
+        instr.beam_dict[xrs_name]['vector'] = calc_beam_vec(azim, pola)
+
+    # Trigger any needed updates from beam modifications
+    instr.beam_dict_modified()
 
     chi = np.radians(params['instr_chi'].value)
     instr.chi = chi

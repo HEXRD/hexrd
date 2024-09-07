@@ -30,11 +30,13 @@ Created on Fri Dec  9 13:05:27 2016
 
 @author: bernier2
 """
+from contextlib import contextmanager
 import copy
 import logging
 import os
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
+from typing import Optional
 
 from tqdm import tqdm
 
@@ -69,7 +71,6 @@ from hexrd.material.crystallography import PlaneData
 from hexrd import constants as ct
 from hexrd.rotations import angleAxisOfRotMat, RotMatEuler, mapAngle
 from hexrd import distortion as distortion_pkg
-from hexrd.utils.compatibility import h5py_read_string
 from hexrd.utils.concurrent import distribute_tasks
 from hexrd.utils.hdf5 import unwrap_dict_to_h5, unwrap_h5_to_dict
 from hexrd.utils.yaml import NumpyToNativeDumper
@@ -549,10 +550,13 @@ class HEDMInstrument(object):
     def __init__(self, instrument_config=None,
                  image_series=None, eta_vector=None,
                  instrument_name=None, tilt_calibration_mapping=None,
-                 max_workers=max_workers_DFLT, physics_package=None):
+                 max_workers=max_workers_DFLT,
+                 physics_package=None,
+                 active_beam_name: Optional[str] = None):
         self._id = instrument_name_DFLT
 
-        self._source_distance = source_distance_DFLT
+        self._active_beam_name = active_beam_name
+        self._beam_dict = {}
 
         if eta_vector is None:
             self._eta_vector = eta_vec_DFLT
@@ -568,8 +572,7 @@ class HEDMInstrument(object):
             if instrument_name is not None:
                 self._id = instrument_name
             self._num_panels = 1
-            self._beam_energy = beam_energy_DFLT
-            self._beam_vector = beam_vec_DFLT
+            self._create_default_beam()
 
             # FIXME: must add cylindrical
             self._detectors = dict(
@@ -578,8 +581,8 @@ class HEDMInstrument(object):
                     pixel_size=pixel_size_DFLT,
                     tvec=t_vec_d_DFLT,
                     tilt=tilt_params_DFLT,
-                    bvec=self._beam_vector,
-                    xrs_dist=self._source_distance,
+                    bvec=self.beam_vector,
+                    xrs_dist=self.source_distance,
                     evec=self._eta_vector,
                     distortion=None,
                     roi=None, group=None,
@@ -611,17 +614,29 @@ class HEDMInstrument(object):
                 self.physics_package = instrument_config['physics_package']
 
             xrs_config = instrument_config['beam']
-            self._beam_energy = xrs_config['energy']  # keV
-            self._beam_vector = calc_beam_vec(
-                xrs_config['vector']['azimuth'],
-                xrs_config['vector']['polar_angle'],
-                )
+            is_single_beam = (
+                'energy' in xrs_config and
+                'vector' in xrs_config
+            )
+            if is_single_beam:
+                # Assume single beam. Load the same way as multibeam
+                self._create_default_beam()
+                xrs_config = {self.active_beam_name: xrs_config}
 
-            if 'source_distance' in xrs_config:
-                xrsd = xrs_config['source_distance']
-                assert np.isscalar(xrsd), \
-                    "'source_distance' must be a scalar"
-                self._source_distance = xrsd
+            # Multi beam load
+            for beam_name, beam in xrs_config.items():
+                self._beam_dict[beam_name] = {
+                    'energy': beam['energy'],
+                    'vector': calc_beam_vec(
+                        beam['vector']['azimuth'],
+                        beam['vector']['polar_angle'],
+                    ),
+                    'distance': beam.get('source_distance', np.inf),
+                }
+
+            # Set the active beam name if not set already
+            if self._active_beam_name is None:
+                self._active_beam_name = next(iter(self._beam_dict))
 
             # now build detector dict
             detectors_config = instrument_config['detectors']
@@ -697,8 +712,8 @@ class HEDMInstrument(object):
                     saturation_level=saturation_level,
                     tvec=affine_info['translation'],
                     tilt=affine_info['tilt'],
-                    bvec=self._beam_vector,
-                    xrs_dist=self._source_distance,
+                    bvec=self.beam_vector,
+                    xrs_dist=self.source_distance,
                     evec=self._eta_vector,
                     distortion=distortion,
                     roi=roi,
@@ -735,12 +750,12 @@ class HEDMInstrument(object):
 
         # grab angles from beam vec
         # !!! these are in DEGREES!
-        azim, pola = calc_angles_from_beam_vec(self._beam_vector)
+        azim, pola = calc_angles_from_beam_vec(self.beam_vector)
 
         # stack instrument level parameters
         # units: keV, degrees, mm
         self._calibration_parameters = [
-            self._beam_energy,
+            self.beam_energy,
             azim,
             pola,
             np.degrees(self._chi),
@@ -820,58 +835,109 @@ class HEDMInstrument(object):
         self._chi = float(x)
 
     @property
-    def beam_energy(self):
-        return self._beam_energy
+    def beam_energy(self) -> float:
+        return self.active_beam['energy']
 
     @beam_energy.setter
-    def beam_energy(self, x):
-        self._beam_energy = float(x)
+    def beam_energy(self, x: float):
+        self.active_beam['energy'] = float(x)
+        self.beam_dict_modified()
 
     @property
     def beam_wavelength(self):
         return ct.keVToAngstrom(self.beam_energy)
 
     @property
-    def has_multi_beam(self):
-        return bool(self.multi_beam_dict)
+    def has_multi_beam(self) -> bool:
+        return len(self.beam_dict) > 1
 
     @property
-    def multi_beam_dict(self):
-        return {}
+    def beam_dict(self) -> dict:
+        return self._beam_dict
+
+    def _create_default_beam(self):
+        name = 'XRS1'
+        self._beam_dict[name] = {
+            'energy': beam_energy_DFLT,
+            'vector': beam_vec_DFLT.copy(),
+            'distance': np.inf,
+        }
+
+        if self._active_beam_name is None:
+            self._active_beam_name = name
 
     @property
-    def beam_vector(self):
-        return self._beam_vector
+    def beam_names(self) -> list[str]:
+        return list(self.beam_dict)
+
+    def xrs_beam_energy(self, beam_name: Optional[str]) -> float:
+        if beam_name is None:
+            beam_name = self.active_beam_name
+
+        return self.beam_dict[beam_name]['energy']
+
+    @property
+    def active_beam_name(self) -> str:
+        return self._active_beam_name
+
+    @active_beam_name.setter
+    def active_beam_name(self, name: str):
+        if self._active_beam_name not in self.beam_dict:
+            raise RuntimeError(
+                f'"{name}" is not present in "{self.beam_names}"'
+            )
+
+        self._active_beam_name = name
+
+        # Update anything beam related where we need to
+        self._update_panel_beams()
+
+    def beam_dict_modified(self):
+        # A function to call to indicate that the beam dict was modified.
+        # Update anything beam related where we need to
+        self._update_panel_beams()
+
+    @property
+    def active_beam(self) -> dict:
+        return self.beam_dict[self.active_beam_name]
+
+    def _update_panel_beams(self):
+        # FIXME: maybe we shouldn't store these on the panels?
+        # Might be hard to fix, though...
+        for panel in self.detectors.values():
+            panel.bvec = self.beam_vector
+            panel.xrs_dist = self.source_distance
+
+    @property
+    def beam_vector(self) -> np.ndarray:
+        return self.active_beam['vector']
 
     @beam_vector.setter
-    def beam_vector(self, x):
+    def beam_vector(self, x: np.ndarray):
         x = np.array(x).flatten()
         if len(x) == 3:
             assert sum(x*x) > 1-ct.sqrt_epsf, \
                 'input must have length = 3 and have unit magnitude'
-            self._beam_vector = x
+            bvec = x
         elif len(x) == 2:
-            self._beam_vector = calc_beam_vec(*x)
+            bvec = calc_beam_vec(*x)
         else:
             raise RuntimeError("input must be a unit vector or angle pair")
 
-        # reset on all detectors
-        for panel in self.detectors.values():
-            panel.bvec = self._beam_vector
+        # Modify the beam vector for the active beam dict
+        self.active_beam['vector'] = bvec
+        self.beam_dict_modified()
 
     @property
     def source_distance(self):
-        return self._source_distance
+        return self.active_beam['distance']
 
     @source_distance.setter
     def source_distance(self, x):
         assert np.isscalar(x), \
             f"'source_distance' must be a scalar; you input '{x}'"
-        self._source_distance = x
-
-        # reset on all detectors
-        for panel in self.detectors.values():
-            panel.xrs_dist = self._source_distance
+        self.active_beam['distance'] = x
+        self.beam_dict_modified()
 
     @property
     def eta_vector(self):
@@ -1011,18 +1077,25 @@ class HEDMInstrument(object):
 
         par_dict['id'] = self.id
 
-        azim, pola = calc_angles_from_beam_vec(self.beam_vector)
-        beam = dict(
-            energy=self.beam_energy,
-            vector=dict(
-                azimuth=azim,
-                polar_angle=pola,
-            )
-        )
-        if self.source_distance is not None:
-            beam['source_distance'] = self.source_distance
+        # Multi beam writer
+        beam_dict = {}
+        for beam_name, beam in self.beam_dict.items():
+            azim, polar = calc_angles_from_beam_vec(beam['vector'])
+            beam_dict[beam_name] = {
+                'energy': beam['energy'],
+                'vector': {
+                    'azimuth': azim,
+                    'polar_angle': polar,
+                },
+            }
+            if beam['distance'] != np.inf:
+                beam_dict[beam_name]['source_distance'] = beam['distance']
 
-        par_dict['beam'] = beam
+        if len(beam_dict) == 1:
+            # Just write it out a single beam (classical way)
+            beam_dict = next(iter(beam_dict.values()))
+
+        par_dict['beam'] = beam_dict
 
         if calibration_dict:
             par_dict['calibration_crystal'] = calibration_dict
@@ -2854,3 +2927,18 @@ DETECTOR_TYPES = {
 class BufferShapeMismatchError(RuntimeError):
     # This is raised when the buffer shape does not match the detector shape
     pass
+
+
+@contextmanager
+def switch_xray_source(instr: HEDMInstrument, xray_source: Optional[str]):
+    if xray_source is None:
+        # If the x-ray source is None, leave it as the current active one
+        yield
+        return
+
+    prev_beam_name = instr.active_beam_name
+    instr.active_beam_name = xray_source
+    try:
+        yield
+    finally:
+        instr.active_beam_name = prev_beam_name

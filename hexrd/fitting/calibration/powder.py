@@ -1,6 +1,9 @@
+from typing import Optional
+
 import numpy as np
 
 from hexrd import matrixutil as mutil
+from hexrd.instrument import calc_angles_from_beam_vec, switch_xray_source
 from hexrd.utils.hkl import hkl_to_str, str_to_hkl
 
 from .calibrator import Calibrator
@@ -19,7 +22,8 @@ class PowderCalibrator(Calibrator):
                  tth_tol=None, eta_tol=0.25,
                  fwhm_estimate=None, min_pk_sep=1e-3, min_ampl=0.,
                  pktype='pvoigt', bgtype='linear',
-                 tth_distortion=None, calibration_picks=None):
+                 tth_distortion=None, calibration_picks=None,
+                 xray_source: Optional[str] = None):
         assert list(instr.detectors.keys()) == list(img_dict.keys()), \
             "instrument and image dict must have the same keys"
 
@@ -27,6 +31,7 @@ class PowderCalibrator(Calibrator):
         self.material = material
         self.img_dict = img_dict
         self.default_refinements = default_refinements
+        self.xray_source = xray_source
 
         # for polar interpolation
         if tth_tol is not None:
@@ -42,7 +47,7 @@ class PowderCalibrator(Calibrator):
         self.bgtype = bgtype
         self.tth_distortion = tth_distortion
 
-        self.plane_data.wavelength = instr.beam_energy  # force
+        self.plane_data.wavelength = instr.xrs_beam_energy(xray_source)
 
         self.param_names = []
 
@@ -57,11 +62,17 @@ class PowderCalibrator(Calibrator):
         params = create_material_params(self.material,
                                         self.default_refinements)
 
+        # If multiple powder calibrators were used for the same material (such
+        # as in 2XRS), then don't add params again.
+        param_names = [x[0] for x in current_params]
+        params = [x for x in params if x[0] not in param_names]
+
         self.param_names = [x[0] for x in params]
         return params
 
     def update_from_lmfit_params(self, params_dict):
-        update_material_from_params(params_dict, self.material)
+        if self.param_names:
+            update_material_from_params(params_dict, self.material)
 
     @property
     def plane_data(self):
@@ -133,6 +144,12 @@ class PowderCalibrator(Calibrator):
 
         FIXME: can not yet handle tth ranges with multiple peaks!
         """
+        # If needed, change the x-ray source before proceeding.
+        # This does nothing for single x-ray sources.
+        with switch_xray_source(self.instr, self.xray_source):
+            return self._autopick_points(fit_tth_tol, int_cutoff)
+
+    def _autopick_points(self, fit_tth_tol=5., int_cutoff=1e-4):
         # ideal tth
         dsp_ideal = np.atleast_1d(self.plane_data.getPlaneSpacings())
         hkls_ref = self.plane_data.hkls.T
@@ -331,7 +348,13 @@ class PowderCalibrator(Calibrator):
         return retval
 
     def residual(self):
-        return self._evaluate(output='residual')
+        # If needed, change the x-ray source before proceeding.
+        # This does nothing for single x-ray sources.
+        with switch_xray_source(self.instr, self.xray_source):
+            return self._evaluate(output='residual')
 
     def model(self):
-        return self._evaluate(output='model')
+        # If needed, change the x-ray source before proceeding.
+        # This does nothing for single x-ray sources.
+        with switch_xray_source(self.instr, self.xray_source):
+            return self._evaluate(output='model')
