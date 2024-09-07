@@ -57,6 +57,7 @@ requirements:
     # Installing TBB means numba will use it instead of OpenMP.
     - tbb
     - tqdm
+    - chemparse
 
 test:         # [build_platform == target_platform]
   imports:
