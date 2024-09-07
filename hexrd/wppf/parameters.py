@@ -242,6 +242,10 @@ class Parameter:
     def max(self, maxval):
         self._max = maxval
 
+    # Make "lb" and "ub" references to the min/max properties
+    lb = min
+    ub = max
+
     @property
     def vary(self):
         return self._vary
