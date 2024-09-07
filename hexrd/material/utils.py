@@ -1,7 +1,7 @@
 import importlib.resources
 import hexrd.resources
 from hexrd.constants import cClassicalelectronRad as re,\
-cAvogadro, atom_weights_dict
+cAvogadro, ATOM_WEIGHTS_DICT
 import chemparse
 import numpy as np
 import h5py
@@ -33,7 +33,7 @@ def calculate_molecular_mass(formula):
     formula_dict = interpret_formula(formula)
     M = 0.
     for k,v in formula_dict.items():
-        M += v * atom_weights_dict[k]
+        M += v * ATOM_WEIGHTS_DICT[k]
 
     return M
 
@@ -91,7 +91,7 @@ def calculate_linear_absorption_length(density,
 
     mu_rho = 0.0
     for k, v in formula_dict.items():
-        wi = v*atom_weights_dict[k]/molecular_mass
+        wi = v*ATOM_WEIGHTS_DICT[k]/molecular_mass
 
         d = np.array(fid[f"/{k}/data"])
 
@@ -153,7 +153,7 @@ def calculate_energy_absorption_length(density,
 
     mu_rho = 0.0
     for k, v in formula_dict.items():
-        wi = v*atom_weights_dict[k]/molecular_mass
+        wi = v*ATOM_WEIGHTS_DICT[k]/molecular_mass
 
         d = np.array(fid[f"/{k}/data"])
 

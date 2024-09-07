@@ -712,7 +712,7 @@ atom_weights = np.array([1.00794, 4.002602, 6.941, 9.012182, 10.811,
 """
 dictionary of atomic weights
 """
-atom_weights_dict = {'H': 1.00794,'He': 4.002602,'Li': 6.941,
+ATOM_WEIGHTS_DICT = {'H': 1.00794,'He': 4.002602,'Li': 6.941,
                 'Be': 9.012182,'B': 10.811,'C': 12.0107,
                 'N': 14.0067,'O': 15.9994,'F': 18.9984032,
                 'Ne': 20.1797,'Na': 22.98976928,'Mg': 24.305,
@@ -749,7 +749,7 @@ atom_weights_dict = {'H': 1.00794,'He': 4.002602,'Li': 6.941,
 """
 densities of elements in g/cc
 """
-density = {'H': 8.99e-05,'He': 0.0001785,'Li': 0.535,'Be': 1.848,
+DENSITY = {'H': 8.99e-05,'He': 0.0001785,'Li': 0.535,'Be': 1.848,
            'B': 2.46,'C': 2.26,'N': 0.001251,'O': 0.001429,
            'F': 0.001696,'Ne': 0.0009,'Na': 0.968,'Mg': 1.738,
            'Al': 2.7,'Si': 2.33,'P': 1.823,'S': 1.96,'Cl': 0.003214,
@@ -775,7 +775,7 @@ density = {'H': 8.99e-05,'He': 0.0001785,'Li': 0.535,'Be': 1.848,
            'Bk': 14.78,'Cf': 15.1}
 
 # some polymer densities commonly used in hexrd
-density_compounds = {
+DENSITY_COMPOUNDS = {
     'C10H8O4': 1.4,
     'Ba2263F2263Br1923I339C741H1730N247O494': 3.3,
     'LiF': 2.64,

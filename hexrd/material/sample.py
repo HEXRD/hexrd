@@ -2,24 +2,24 @@ from abc import abstractmethod
 import numpy as np
 from hexrd.material.utils import (calculate_linear_absorption_length,
     calculate_energy_absorption_length)
-from hexrd.constants import density, density_compounds
+from hexrd.constants import DENSITY, DENSITY_COMPOUNDS
 
 # default filter and coating materials
 FILTER_DEFAULT = {
     'material': 'Ge',
-    'density' : density['Ge'],
+    'density' : DENSITY['Ge'],
     'thickness' : 10, # microns
 }
 
 COATING_DEFAULT = {
     'material': 'C10H8O4',
-    'density' : density_compounds['C10H8O4'],
+    'density' : DENSITY_COMPOUNDS['C10H8O4'],
     'thickness' : 9, # microns
 }
 
 PHOSPHOR_DEFAULT = {
     'material' : 'Ba2263F2263Br1923I339C741H1730N247O494',
-    'density' : density_compounds['Ba2263F2263Br1923I339C741H1730N247O494'], # g/cc
+    'density' : DENSITY_COMPOUNDS['Ba2263F2263Br1923I339C741H1730N247O494'], # g/cc
     'thickness' : 115, # microns
     'readout_length' : 222, #microns,
     'pre_U0' : 0.695
@@ -29,10 +29,10 @@ PHOSPHOR_DEFAULT = {
 experiments the template of the other type is commented"""
 HED_PHYSICS_PACKAGE_DEFAULT = {
     'sample_material' : 'Fe',
-    'sample_density' : density['Fe'],
+    'sample_density' : DENSITY['Fe'],
     'sample_thickness' : 15,# in microns
     'window_material' : 'LiF',
-    'window_density' : density_compounds['LiF'],
+    'window_density' : DENSITY_COMPOUNDS['LiF'],
     'window_thickness' : 150, # in microns
 }
 
@@ -48,7 +48,7 @@ PINHOLE_DEFAULT = {
 
 HEDM_PHYSICS_PACKAGE_DEFAULT = {
     'sample_material' : 'Fe',
-    'sample_density' : density['Fe'],
+    'sample_density' : DENSITY['Fe'],
     'sample_thickness' : 1000, # in microns
     'sample_geometry' : 'cylinder'
 }"""
