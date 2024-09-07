@@ -51,14 +51,14 @@ class PHYSICS_PACKAGE_DEFAULTS:
 # Default pinhole area correction parameters
 class PINHOLE_DEFAULTS:
     TARDIS = {
-        'material' : 'Ta',
-        'diameter' : 400, # in microns
-        'thickness' : 100, # in microns
-        'density' : 16.65, # g/cc
+        'pinhole_material' : 'Ta',
+        'pinhole_diameter' : 400, # in microns
+        'pinhole_thickness' : 100, # in microns
+        'pinhole_density' : 16.65, # g/cc
     }
     PXRDIP = {
-        'material' : 'Ta',
-        'diameter' : 130, # in microns
-        'thickness' : 70, # in microns
-        'density' : 16.65, # g/cc
+        'pinhole_material' : 'Ta',
+        'pinhole_diameter' : 130, # in microns
+        'pinhole_thickness' : 70, # in microns
+        'pinhole_density' : 16.65, # g/cc
     }

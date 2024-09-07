@@ -202,8 +202,7 @@ class Detector:
         detector_filter=None,
         detector_coating=None,
         phosphor=None,
-        physics_package=None,
-        pinhole=None
+        physics_package=None
     ):
         """
         Instantiate a PlanarDetector object.
@@ -297,12 +296,8 @@ class Detector:
 
         if physics_package is None:
             physics_package = sample.HED_physics_package(
-                **PHYSICS_PACKAGE_DEFAULTS.HED)
+                **PHYSICS_PACKAGE_DEFAULTS.HED, **PINHOLE_DEFAULTS.TARDIS)
         self._physics_package = physics_package
-
-        if pinhole is None:
-            pinhole = sample.Pinhole(**PINHOLE_DEFAULTS.TARDIS)
-        self._pinhole = pinhole
 
         if phosphor is None:
             phosphor = sample.Phosphor(**PHOSPHOR_DEFAULT)
@@ -644,17 +639,6 @@ class Detector:
                 f'hexrd.sample.HEDM_physics_package')
             raise ValueError(msg)
         self._physics_package = pp
-
-    @property
-    def pinhole(self):
-        return self._pinhole
-
-    @pinhole.setter
-    def pinhole(self, ph):
-        if not isinstance(ph, sample.Pinhole):
-            msg = f'pinhole should be of type: hexrd.sample.Pinhole'
-            raise ValueError(msg)
-        self._pinhole = ph
 
     @property
     def phosphor(self):
@@ -1799,7 +1783,8 @@ class Detector:
     def calc_effective_pinhole_area(self):
         """get the effective pinhole area correction
         """
-        hod = self.pinhole.thickness/self.pinhole.diameter
+        hod = (self.physics_package.pinhole_thickness /
+               self.physics_package.pinhole_diameter)
         bvec = self.bvec
 
         tth, eta = self.pixel_angles()
