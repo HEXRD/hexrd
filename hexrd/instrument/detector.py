@@ -44,12 +44,6 @@ beam_energy_DFLT = 65.351
 _lorentz_factor = memoize(crystallography.lorentz_factor)
 _polarization_factor = memoize(crystallography.polarization_factor)
 
-pinhole = sample.Pinhole(**sample.PINHOLE_DEFAULT)
-filterpack = sample.Filter(**sample.FILTER_DEFAULT)
-coating = sample.Coating(**sample.COATING_DEFAULT)
-phosphor = sample.Phosphor(**sample.PHOSPHOR_DEFAULT)
-hed_physics_package = sample.HED_physics_package(
-                      **sample.HED_PHYSICS_PACKAGE_DEFAULT)
 
 class Detector:
     """
@@ -201,11 +195,11 @@ class Detector:
         group=None,
         distortion=None,
         max_workers=max_workers_DFLT,
-        detector_filter=filterpack,
-        detector_coating=coating,
-        phosphor=phosphor,
-        physics_package=hed_physics_package,
-        pinhole=pinhole
+        detector_filter=None,
+        detector_coating=None,
+        phosphor=None,
+        physics_package=None,
+        pinhole=None
     ):
         """
         Instantiate a PlanarDetector object.
@@ -240,10 +234,10 @@ class Detector:
             DESCRIPTION. The default is None.
         distortion : TYPE, optional
             DESCRIPTION. The default is None.
-        filter : dict
+        filter : dict, optional
             filter specifications including material type,
             density and thickness
-        coating : dict
+        coating : dict, optional
             coating specifications including material type,
             density and thickness
 
@@ -289,14 +283,25 @@ class Detector:
 
         self.group = group
 
+        if detector_filter is None:
+            detector_filter = sample.Filter(**sample.FILTER_DEFAULT)
         self._filter = detector_filter
 
+        if detector_coating is None:
+            detector_coating = sample.Coating(**sample.COATING_DEFAULT)
         self._coating = detector_coating
 
+        if physics_package is None:
+            physics_package = sample.HED_physics_package(
+                **sample.HED_PHYSICS_PACKAGE_DEFAULT)
         self._physics_package = physics_package
 
+        if pinhole is None:
+            pinhole = sample.Pinhole(**sample.PINHOLE_DEFAULT)
         self._pinhole = pinhole
 
+        if phosphor is None:
+            phosphor = sample.Phosphor(**sample.PHOSPHOR_DEFAULT)
         self._phosphor = phosphor
 
         #
