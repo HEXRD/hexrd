@@ -2,6 +2,10 @@ from abc import abstractmethod
 import copy
 import os
 
+from hexrd.instrument.constants import (
+    COATING_DEFAULT, FILTER_DEFAULTS, PHOSPHOR_DEFAULT,
+    PHYSICS_PACKAGE_DEFAULTS, PINHOLE_DEFAULTS
+)
 import numpy as np
 import numba
 
@@ -284,24 +288,24 @@ class Detector:
         self.group = group
 
         if detector_filter is None:
-            detector_filter = sample.Filter(**sample.FILTER_DEFAULT)
+            detector_filter = sample.Filter(**FILTER_DEFAULTS.TARDIS)
         self._filter = detector_filter
 
         if detector_coating is None:
-            detector_coating = sample.Coating(**sample.COATING_DEFAULT)
+            detector_coating = sample.Coating(**COATING_DEFAULT)
         self._coating = detector_coating
 
         if physics_package is None:
             physics_package = sample.HED_physics_package(
-                **sample.HED_PHYSICS_PACKAGE_DEFAULT)
+                **PHYSICS_PACKAGE_DEFAULTS.HED)
         self._physics_package = physics_package
 
         if pinhole is None:
-            pinhole = sample.Pinhole(**sample.PINHOLE_DEFAULT)
+            pinhole = sample.Pinhole(**PINHOLE_DEFAULTS.TARDIS)
         self._pinhole = pinhole
 
         if phosphor is None:
-            phosphor = sample.Phosphor(**sample.PHOSPHOR_DEFAULT)
+            phosphor = sample.Phosphor(**PHOSPHOR_DEFAULT)
         self._phosphor = phosphor
 
         #

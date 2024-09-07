@@ -2,56 +2,7 @@ from abc import abstractmethod
 import numpy as np
 from hexrd.material.utils import (calculate_linear_absorption_length,
     calculate_energy_absorption_length)
-from hexrd.constants import DENSITY, DENSITY_COMPOUNDS
 
-# default filter and coating materials
-FILTER_DEFAULT = {
-    'material': 'Ge',
-    'density' : DENSITY['Ge'],
-    'thickness' : 10, # microns
-}
-
-COATING_DEFAULT = {
-    'material': 'C10H8O4',
-    'density' : DENSITY_COMPOUNDS['C10H8O4'],
-    'thickness' : 9, # microns
-}
-
-PHOSPHOR_DEFAULT = {
-    'material' : 'Ba2263F2263Br1923I339C741H1730N247O494',
-    'density' : DENSITY_COMPOUNDS['Ba2263F2263Br1923I339C741H1730N247O494'], # g/cc
-    'thickness' : 115, # microns
-    'readout_length' : 222, #microns,
-    'pre_U0' : 0.695
-}
-
-"""default physics package for dynamic compression
-experiments the template of the other type is commented"""
-HED_PHYSICS_PACKAGE_DEFAULT = {
-    'sample_material' : 'Fe',
-    'sample_density' : DENSITY['Fe'],
-    'sample_thickness' : 15,# in microns
-    'window_material' : 'LiF',
-    'window_density' : DENSITY_COMPOUNDS['LiF'],
-    'window_thickness' : 150, # in microns
-}
-
-"""defaults pinhole area correction parameters"""
-PINHOLE_DEFAULT = {
-    'material' : 'Ta',
-    'diameter' : 400, # in microns
-    'thickness' : 100, # in microns
-    'density' : 16.65, # g/cc
-}
-
-"""template for HEDM type physics package
-
-HEDM_PHYSICS_PACKAGE_DEFAULT = {
-    'sample_material' : 'Fe',
-    'sample_density' : DENSITY['Fe'],
-    'sample_thickness' : 1000, # in microns
-    'sample_geometry' : 'cylinder'
-}"""
 
 class AbstractLayer:
     """abstract class for encode information
