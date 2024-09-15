@@ -29,7 +29,7 @@ from hexrd.transforms.xfcapi import (
 
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
-from hexrd.instrument import physics_package
+from hexrd.instrument import detector_coatings
 
 if ct.USE_NUMBA:
     import numba
@@ -285,15 +285,15 @@ class Detector:
         self.group = group
 
         if detector_filter is None:
-            detector_filter = physics_package.Filter(**FILTER_DEFAULTS.TARDIS)
+            detector_filter = detector_coatings.Filter(**FILTER_DEFAULTS.TARDIS)
         self._filter = detector_filter
 
         if detector_coating is None:
-            detector_coating = physics_package.Coating(**COATING_DEFAULT)
+            detector_coating = detector_coatings.Coating(**COATING_DEFAULT)
         self._coating = detector_coating
 
         if phosphor is None:
-            phosphor = physics_package.Phosphor(**PHOSPHOR_DEFAULT)
+            phosphor = detector_coatings.Phosphor(**PHOSPHOR_DEFAULT)
         self._phosphor = phosphor
 
         #
@@ -625,7 +625,7 @@ class Detector:
 
     @phosphor.setter
     def phosphor(self, phos):
-        if not isinstance(phos, physics_package.Phosphor):
+        if not isinstance(phos, detector_coatings.Phosphor):
             msg = f'phosphor should be of type: hexrd.sample.Phosphor'
             raise ValueError(msg)
         self._phosphor = phos
