@@ -99,6 +99,16 @@ class AbstractLayer:
         else:
             return abs_length
 
+    def serialize(self):
+        return {
+            attr: getattr(self, attr)
+            for attr in dir(self)
+            if isinstance(getattr(type(self), attr, None), property)
+        }
+
+    def deserialize(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
 class Filter(AbstractLayer):
 
@@ -298,6 +308,7 @@ class AbstractPP:
                     self.pinhole_material,
                     energy_inp,
                     )
+        print(f'args: {args}')
         abs_length = calculate_linear_absorption_length(*args)
         if abs_length.shape[0] == 1:
             return abs_length[0]
@@ -309,6 +320,17 @@ class AbstractPP:
 
     def pinhole_absorption_length(self, energy):
         return self.absorption_length(energy, 'pinhole')
+
+    def serialize(self):
+        return {
+            attr: getattr(self, attr)
+            for attr in dir(self)
+            if isinstance(getattr(type(self), attr, None), property)
+        }
+
+    def deserialize(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
 
 class HEDPhysicsPackage(AbstractPP):

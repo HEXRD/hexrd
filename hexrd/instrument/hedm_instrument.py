@@ -43,7 +43,7 @@ import yaml
 import h5py
 
 from hexrd.instrument.constants import PHYSICS_PACKAGE_DEFAULTS, PINHOLE_DEFAULTS
-from hexrd.material.sample import HEDPhysicsPackage
+from hexrd.instrument.physics_package import HEDPhysicsPackage
 import numpy as np
 
 from io import IOBase
