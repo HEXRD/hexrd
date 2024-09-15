@@ -42,8 +42,6 @@ import yaml
 
 import h5py
 
-from hexrd.instrument.constants import PHYSICS_PACKAGE_DEFAULTS, PINHOLE_DEFAULTS
-from hexrd.instrument.physics_package import HEDPhysicsPackage
 import numpy as np
 
 from io import IOBase
@@ -563,9 +561,7 @@ class HEDMInstrument(object):
 
         self.max_workers = max_workers
 
-        if physics_package is None:
-            self.physics_package = HEDPhysicsPackage(
-                **PHYSICS_PACKAGE_DEFAULTS.HED, **PINHOLE_DEFAULTS.TARDIS)
+        self.physics_package = physics_package
 
         if instrument_config is None:
             # Default instrument
@@ -2087,6 +2083,10 @@ class HEDMInstrument(object):
         to be applied. actual computation is done inside
         the detector class
         """
+        if self.physics_package is None:
+            msg = f'Cannot calculate transmission without a physics package'
+            raise ValueError(msg)
+
         if rMat_s is None:
             rMat_s = ct.identity_3x3
 
