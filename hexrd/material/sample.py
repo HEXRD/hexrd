@@ -311,7 +311,7 @@ class AbstractPP:
         return self.absorption_length(energy, 'pinhole')
 
 
-class HED_physics_package(AbstractPP):
+class HEDPhysicsPackage(AbstractPP):
 
     def __init__(self, **pp_kwargs):
         super().__init__(**pp_kwargs)
@@ -355,7 +355,7 @@ class HED_physics_package(AbstractPP):
         return self.absorption_length(energy, 'window')
 
 
-class HEDM_physics_package(AbstractPP):
+class HEDMPhysicsPackage(AbstractPP):
 
     def __init__(self, **pp_kwargs):
         super().__init__(**pp_kwargs)

@@ -42,6 +42,8 @@ import yaml
 
 import h5py
 
+from hexrd.instrument.constants import PHYSICS_PACKAGE_DEFAULTS, PINHOLE_DEFAULTS
+from hexrd.material.sample import HEDPhysicsPackage
 import numpy as np
 
 from io import IOBase
@@ -549,7 +551,7 @@ class HEDMInstrument(object):
     def __init__(self, instrument_config=None,
                  image_series=None, eta_vector=None,
                  instrument_name=None, tilt_calibration_mapping=None,
-                 max_workers=max_workers_DFLT):
+                 max_workers=max_workers_DFLT, physics_package=None):
         self._id = instrument_name_DFLT
 
         self._source_distance = source_distance_DFLT
@@ -560,6 +562,10 @@ class HEDMInstrument(object):
             self._eta_vector = eta_vector
 
         self.max_workers = max_workers
+
+        if physics_package is None:
+            self.physics_package = HEDPhysicsPackage(
+                **PHYSICS_PACKAGE_DEFAULTS.HED, **PINHOLE_DEFAULTS.TARDIS)
 
         if instrument_config is None:
             # Default instrument
@@ -2090,8 +2096,9 @@ class HEDMInstrument(object):
             transmission_filter, transmission_phosphor = (
                 det.calc_filter_coating_transmission(energy))
             transmission_physics_package = (
-                det.calc_physics_package_transmission(energy, rMat_s))
-            effective_pinhole_area = det.calc_effective_pinhole_area()
+                det.calc_physics_package_transmission(energy, rMat_s, self.physics_package))
+            effective_pinhole_area = det.calc_effective_pinhole_area(
+                self.physics_package)
             transmissions[det_name] = (transmission_filter *
                                        transmission_physics_package *
                                        effective_pinhole_area *

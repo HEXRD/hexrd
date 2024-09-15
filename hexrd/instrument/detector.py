@@ -3,8 +3,7 @@ import copy
 import os
 
 from hexrd.instrument.constants import (
-    COATING_DEFAULT, FILTER_DEFAULTS, PHOSPHOR_DEFAULT,
-    PHYSICS_PACKAGE_DEFAULTS, PINHOLE_DEFAULTS
+    COATING_DEFAULT, FILTER_DEFAULTS, PHOSPHOR_DEFAULT
 )
 import numpy as np
 import numba
@@ -202,7 +201,6 @@ class Detector:
         detector_filter=None,
         detector_coating=None,
         phosphor=None,
-        physics_package=None
     ):
         """
         Instantiate a PlanarDetector object.
@@ -293,11 +291,6 @@ class Detector:
         if detector_coating is None:
             detector_coating = sample.Coating(**COATING_DEFAULT)
         self._coating = detector_coating
-
-        if physics_package is None:
-            physics_package = sample.HED_physics_package(
-                **PHYSICS_PACKAGE_DEFAULTS.HED, **PINHOLE_DEFAULTS.TARDIS)
-        self._physics_package = physics_package
 
         if phosphor is None:
             phosphor = sample.Phosphor(**PHOSPHOR_DEFAULT)
@@ -625,20 +618,6 @@ class Detector:
             msg = f'coating should be of type: hexrd.sample.Coating'
             raise ValueError(msg)
         self._coating = det_coating
-
-    @property
-    def physics_package(self):
-        return self._physics_package
-
-    @physics_package.setter
-    def physics_package(self, pp):
-        if not isinstance(pp, (sample.HED_physics_package,
-                          sample.HEDM_physics_package)):
-            msg = (f'physics_package should be of type: '
-                f'hexrd.sample.HED_physics_package or '
-                f'hexrd.sample.HEDM_physics_package')
-            raise ValueError(msg)
-        self._physics_package = pp
 
     @property
     def phosphor(self):
@@ -1745,7 +1724,7 @@ class Detector:
             if cache_info['maxsize'] < min_size:
                 f.set_cache_maxsize(min_size)
 
-    def calc_physics_package_transmission(self, energy, rMat_s):
+    def calc_physics_package_transmission(self, energy, rMat_s, physics_package):
         """get the transmission from the physics package
         need to consider HED and HEDM samples separately
         """
@@ -1761,30 +1740,30 @@ class Detector:
 
         secb = np.abs(1./np.dot(dvecs, sample_normal).reshape(self.shape))
 
-        T_sample = self.calc_transmission_sample(seca, secb, energy)
-        T_window = self.calc_transmission_window(secb, energy)
+        T_sample = self.calc_transmission_sample(seca, secb, energy, physics_package)
+        T_window = self.calc_transmission_window(secb, energy, physics_package)
 
         transmission_physics_package = T_sample * T_window
         return transmission_physics_package
 
-    def calc_transmission_sample(self, seca, secb, energy):
-        thickness_s = self.physics_package.sample_thickness # in microns
-        mu_s = 1./self.physics_package.sample_absorption_length(energy) # in microns^-1
+    def calc_transmission_sample(self, seca, secb, energy, physics_package):
+        thickness_s = physics_package.sample_thickness # in microns
+        mu_s = 1./physics_package.sample_absorption_length(energy) # in microns^-1
         x = (mu_s*thickness_s)
         pre = 1./x/(secb - seca)
         num = np.exp(-x*seca) - np.exp(-x*secb)
         return pre * num
 
-    def calc_transmission_window(self, secb, energy):
-        thickness_w = self.physics_package.window_thickness # in microns
-        mu_w = 1./self.physics_package.window_absorption_length(energy) # in microns^-1
+    def calc_transmission_window(self, secb, energy, physics_package):
+        thickness_w = physics_package.window_thickness # in microns
+        mu_w = 1./physics_package.window_absorption_length(energy) # in microns^-1
         return np.exp(-thickness_w*mu_w*secb)
 
-    def calc_effective_pinhole_area(self):
+    def calc_effective_pinhole_area(self, physics_package):
         """get the effective pinhole area correction
         """
-        hod = (self.physics_package.pinhole_thickness /
-               self.physics_package.pinhole_diameter)
+        hod = (physics_package.pinhole_thickness /
+               physics_package.pinhole_diameter)
         bvec = self.bvec
 
         tth, eta = self.pixel_angles()
