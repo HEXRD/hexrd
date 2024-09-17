@@ -606,6 +606,7 @@ class HEDMInstrument(object):
                 self._id = instrument_name
 
             self._num_panels = len(instrument_config['detectors'])
+            self.physics_package = instrument_config.get('physics_package', None)
 
             xrs_config = instrument_config['beam']
             self._beam_energy = xrs_config['energy']  # keV
@@ -628,6 +629,9 @@ class HEDMInstrument(object):
                 pixel_info = det_info['pixels']
                 affine_info = det_info['transform']
                 detector_type = det_info.get('detector_type', 'planar')
+                filter = det_info.get('filter', None)
+                coating = det_info.get('coating', None)
+                phosphor = det_info.get('phosphor', None)
                 try:
                     saturation_level = det_info['saturation_level']
                 except KeyError:
@@ -698,6 +702,9 @@ class HEDMInstrument(object):
                     roi=roi,
                     group=det_group,
                     max_workers=self.max_workers,
+                    detector_filter=filter,
+                    detector_coating=coating,
+                    phosphor=phosphor,
                 )
 
                 if DetectorClass is CylindricalDetector:
