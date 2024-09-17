@@ -169,7 +169,6 @@ class AbstractPP:
                     self.pinhole_material,
                     energy_inp,
                     )
-        print(f'args: {args}')
         abs_length = calculate_linear_absorption_length(*args)
         if abs_length.shape[0] == 1:
             return abs_length[0]
