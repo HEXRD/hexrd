@@ -35,6 +35,14 @@ class AbstractLayer:
         self._thickness = thickness
 
     @property
+    def attributes_to_serialize(self):
+        return [
+            'material',
+            'density',
+            'thickness',
+        ]
+
+    @property
     def material(self):
         return self._material
 
@@ -99,11 +107,7 @@ class AbstractLayer:
             return abs_length
 
     def serialize(self):
-        return {
-            attr: getattr(self, attr)
-            for attr in dir(self)
-            if isinstance(getattr(type(self), attr, None), property)
-        }
+        return {a: getattr(self, a) for a in self.attributes_to_serialize}
 
     def deserialize(self, **kwargs):
         for key, value in kwargs.items():
@@ -127,6 +131,16 @@ class Phosphor(AbstractLayer):
         super().__init__(**abstractlayer_kwargs)
         self._readout_length = abstractlayer_kwargs['readout_length']
         self._pre_U0 = abstractlayer_kwargs['pre_U0']
+
+    @property
+    def attributes_to_serialize(self):
+        return [
+            'material',
+            'density',
+            'thickness',
+            'readout_length',
+            'pre_U0'
+        ]
 
     @property
     def readout_length(self):

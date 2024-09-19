@@ -71,6 +71,18 @@ class AbstractPP:
         self._pinhole_diameter = pinhole_diameter
 
     @property
+    def attributes_to_serialize(self):
+        return [
+            'sample_material',
+            'sample_density',
+            'sample_thickness',
+            'pinhole_material',
+            'pinhole_density',
+            'pinhole_thickness',
+            'pinhole_diameter',
+        ]
+
+    @property
     def sample_material(self):
         return self._sample_material
 
@@ -182,11 +194,7 @@ class AbstractPP:
         return self.absorption_length(energy, 'pinhole')
 
     def serialize(self):
-        return {
-            attr: getattr(self, attr)
-            for attr in dir(self)
-            if isinstance(getattr(type(self), attr, None), property)
-        }
+        return {a: getattr(self, a) for a in self.attributes_to_serialize}
 
     def deserialize(self, **kwargs):
         for key, value in kwargs.items():
@@ -200,6 +208,21 @@ class HEDPhysicsPackage(AbstractPP):
         self._window_material = pp_kwargs['window_material']
         self._window_density = pp_kwargs['window_density']
         self._window_thickness = pp_kwargs['window_thickness']
+
+    @property
+    def attributes_to_serialize(self):
+        return [
+            'sample_material',
+            'sample_density',
+            'sample_thickness',
+            'pinhole_material',
+            'pinhole_density',
+            'pinhole_thickness',
+            'pinhole_diameter',
+            'window_material',
+            'window_density',
+            'window_thickness',
+        ]
 
     @property
     def type(self):
@@ -242,6 +265,19 @@ class HEDMPhysicsPackage(AbstractPP):
     def __init__(self, **pp_kwargs):
         super().__init__(**pp_kwargs)
         self._sample_geometry = pp_kwargs['sample_geometry']
+
+    @property
+    def attributes_to_serialize(self):
+        return [
+            'sample_material',
+            'sample_density',
+            'sample_thickness',
+            'sample_geometry',
+            'pinhole_material',
+            'pinhole_density',
+            'pinhole_thickness',
+            'pinhole_diameter',
+        ]
 
     @property
     def sample_geometry(self):
