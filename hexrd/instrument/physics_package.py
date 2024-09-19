@@ -53,14 +53,11 @@ class AbstractPP:
                  sample_material=None,
                  sample_density=None,
                  sample_thickness=None,
-                 sample_geometry=None,
                  pinhole_material=None,
                  pinhole_density=None,
                  pinhole_thickness=None,
                  pinhole_diameter=None,
-                 window_material=None,
-                 window_density=None,
-                 window_thickness=None,
+                 **kwargs
                  ):
         self._sample_material = sample_material
         self._sample_density = sample_density
@@ -205,9 +202,9 @@ class HEDPhysicsPackage(AbstractPP):
 
     def __init__(self, **pp_kwargs):
         super().__init__(**pp_kwargs)
-        self._window_material = pp_kwargs['window_material']
-        self._window_density = pp_kwargs['window_density']
-        self._window_thickness = pp_kwargs['window_thickness']
+        self._window_material = pp_kwargs.get('window_material', None)
+        self._window_density = pp_kwargs.get('window_density', None)
+        self._window_thickness = pp_kwargs.get('window_thickness', None)
 
     @property
     def attributes_to_serialize(self):
@@ -264,7 +261,7 @@ class HEDMPhysicsPackage(AbstractPP):
 
     def __init__(self, **pp_kwargs):
         super().__init__(**pp_kwargs)
-        self._sample_geometry = pp_kwargs['sample_geometry']
+        self._sample_geometry = pp_kwargs.get('sample_geometry', None)
 
     @property
     def attributes_to_serialize(self):
