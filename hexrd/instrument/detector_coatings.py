@@ -134,8 +134,16 @@ class Phosphor(AbstractLayer):
             return 0.0
         return self._readout_length
 
+    @readout_length.setter
+    def readout_length(self, value):
+        self._readout_length = value
+
     @property
     def pre_U0(self):
         if self._pre_U0 is None:
             return 0.0
         return self._pre_U0
+
+    @pre_U0.setter
+    def pre_U0(self, value):
+        self._pre_U0 = value
