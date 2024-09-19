@@ -6,7 +6,7 @@ from hexrd.transforms.xfcapi import (
     xy_to_gvec,
     gvec_to_xy,
     make_beam_rmat,
-    anglesToDVec,
+    angles_to_dvec,
 )
 from hexrd.utils.decorators import memoize
 
@@ -134,7 +134,7 @@ class PlanarDetector(Detector):
         angs = np.vstack((tth.flatten(), eta.flatten(),
                           np.zeros(tth.flatten().shape))).T
 
-        dvecs = anglesToDVec(angs, bHat_l=bvec)
+        dvecs = angles_to_dvec(angs, beam_vec=bvec)
 
         secb = 1./np.dot(dvecs, det_normal).reshape(self.shape)
 

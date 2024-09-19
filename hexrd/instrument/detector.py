@@ -24,15 +24,12 @@ from hexrd.transforms.xfcapi import (
     make_rmat_of_expmap,
     oscill_angles_of_hkls,
     mapAngle,
-    anglesToDVec,
+    angles_to_dvec,
 )
 
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
 from hexrd.instrument import detector_coatings
-
-if ct.USE_NUMBA:
-    import numba
 
 distortion_registry = distortion_pkg.Registry()
 
@@ -1736,7 +1733,7 @@ class Detector:
         angs = np.vstack((tth.flatten(), eta.flatten(),
                           np.zeros(tth.flatten().shape))).T
 
-        dvecs = anglesToDVec(angs, bHat_l=bvec)
+        dvecs = angles_to_dvec(angs, beam_vec=bvec)
 
         secb = np.abs(1./np.dot(dvecs, sample_normal).reshape(self.shape))
 
@@ -1769,7 +1766,7 @@ class Detector:
         tth, eta = self.pixel_angles()
         angs = np.vstack((tth.flatten(), eta.flatten(),
                   np.zeros(tth.flatten().shape))).T
-        dvecs = anglesToDVec(angs, bHat_l=bvec)
+        dvecs = angles_to_dvec(angs, beam_vec=bvec)
 
         cth = -dvecs[:,2].reshape(self.shape)
         tanth = np.tan(np.arccos(cth))
