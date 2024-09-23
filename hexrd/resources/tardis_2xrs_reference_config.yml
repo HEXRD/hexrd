@@ -1,0 +1,84 @@
+# for TARDIS-C2
+# from Jon Eggert:
+#   TBsep = 23.13, Rrad = 49.51, Rz = -0.19.
+beam:
+  XRS1:
+    energy: 10.2505
+    vector:
+      azimuth: 119.3
+      polar_angle: 90.0
+    source_distance: 31.0
+  XRS2:
+    energy: 10.2505
+    vector:
+      azimuth: 60.7
+      polar_angle: 90.0
+    source_distance: 31.0
+detectors:
+  IMAGE-PLATE-2:
+    detector_type: 'planar'
+    pixels:
+      columns: 901
+      rows: 421
+      size:
+      - 0.1
+      - 0.1
+    buffer:
+    - 0.2
+    - 0.2
+    transform:
+      tilt:
+      - -1.57079633e+00
+      - 0.0
+      - 0.0
+      translation:
+      - 0.0
+      - -11.565
+      - -25.08
+  IMAGE-PLATE-3:
+    detector_type: 'cylindrical'
+    pixels:
+      columns: 1330
+      rows: 238
+      size:
+      - 0.1
+      - 0.1
+    buffer:
+    - 0.2
+    - 0.2
+    transform:
+      tilt:
+      - 0.0
+      - 0.0
+      - 0.0
+      translation:
+      - 0.0
+      - 0.0
+      - -49.51
+  IMAGE-PLATE-4:
+    detector_type: 'planar'
+    pixels:
+      columns: 901
+      rows: 421
+      size:
+      - 0.1
+      - 0.1
+    buffer:
+    - 0.2
+    - 0.2
+    transform:
+      tilt:
+      - 0.0
+      - -2.22144147e+00
+      - 2.22144147e+00
+      translation:
+      - 0.0
+      - 11.565
+      - -25.08
+id: NXXXXXX-XXX
+oscillation_stage:
+  chi: 0.0
+  translation:
+  - 0.0
+  - 0.0
+  - 0.0
