@@ -4,7 +4,7 @@
 beam:
   energy: 10.2505
   vector:
-    azimuth: 119.0
+    azimuth: 119.3
     polar_angle: 90.0
   source_distance: 31.0
 detectors:
