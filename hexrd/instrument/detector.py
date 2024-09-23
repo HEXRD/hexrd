@@ -6,7 +6,7 @@ from typing import Optional
 from hexrd.instrument.constants import (
     COATING_DEFAULT, FILTER_DEFAULTS, PHOSPHOR_DEFAULT
 )
-from hexrd.instrument.physics_package import PhysicsPackage
+from hexrd.instrument.physics_package import AbstractPhysicsPackage
 import numpy as np
 import numba
 
@@ -1696,7 +1696,7 @@ class Detector:
 
     def calc_physics_package_transmission(self, energy: np.floating,
                                           rMat_s: np.array,
-                                          physics_package: PhysicsPackage) -> np.float64:
+                                          physics_package: AbstractPhysicsPackage) -> np.float64:
         """get the transmission from the physics package
         need to consider HED and HEDM samples separately
         """
@@ -1720,7 +1720,7 @@ class Detector:
 
     def calc_transmission_sample(self, seca: np.array,
                                  secb: np.array, energy: np.floating,
-                                 physics_package: PhysicsPackage) -> np.array:
+                                 physics_package: AbstractPhysicsPackage) -> np.array:
         thickness_s = physics_package.sample_thickness # in microns
         mu_s = 1./physics_package.sample_absorption_length(energy) # in microns^-1
         x = (mu_s*thickness_s)
@@ -1729,12 +1729,12 @@ class Detector:
         return pre * num
 
     def calc_transmission_window(self, secb: np.array, energy: np.floating,
-                                 physics_package: PhysicsPackage) -> np.array:
+                                 physics_package: AbstractPhysicsPackage) -> np.array:
         thickness_w = physics_package.window_thickness # in microns
         mu_w = 1./physics_package.window_absorption_length(energy) # in microns^-1
         return np.exp(-thickness_w*mu_w*secb)
 
-    def calc_effective_pinhole_area(self, physics_package: PhysicsPackage) -> np.array:
+    def calc_effective_pinhole_area(self, physics_package: AbstractPhysicsPackage) -> np.array:
         """get the effective pinhole area correction
         """
         hod = (physics_package.pinhole_thickness /

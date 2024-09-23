@@ -3,11 +3,11 @@ import numpy as np
 from hexrd.material.utils import calculate_linear_absorption_length
 
 
-class AbstractPP:
+class AbstractPhysicsPackage:
     """abstract class for the physics package.
     there will be two separate physics package class
     types -- one for HED samples and the other for
-    HEDM samples. 
+    HEDM samples.
 
     Parameters
     ----------
@@ -198,7 +198,7 @@ class AbstractPP:
             setattr(self, key, value)
 
 
-class HEDPhysicsPackage(AbstractPP):
+class HEDPhysicsPackage(AbstractPhysicsPackage):
 
     def __init__(self, **pp_kwargs):
         super().__init__(**pp_kwargs)
@@ -257,7 +257,7 @@ class HEDPhysicsPackage(AbstractPP):
         return self.absorption_length(energy, 'window')
 
 
-class HEDMPhysicsPackage(AbstractPP):
+class HEDMPhysicsPackage(AbstractPhysicsPackage):
 
     def __init__(self, **pp_kwargs):
         super().__init__(**pp_kwargs)
@@ -288,7 +288,7 @@ class HEDMPhysicsPackage(AbstractPP):
             msg = (f'sample geometry does not have diameter '
                    f'associated with it.')
             print(msg)
-            return 
+            return
 
     @property
     def type(self):
