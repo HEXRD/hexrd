@@ -1,10 +1,12 @@
 from abc import abstractmethod
 import copy
 import os
+from typing import Optional
 
 from hexrd.instrument.constants import (
     COATING_DEFAULT, FILTER_DEFAULTS, PHOSPHOR_DEFAULT
 )
+from hexrd.instrument.physics_package import PhysicsPackage
 import numpy as np
 import numba
 
@@ -23,7 +25,6 @@ from hexrd.transforms.xfcapi import (
     make_beam_rmat,
     make_rmat_of_expmap,
     oscill_angles_of_hkls,
-    mapAngle,
     angles_to_dvec,
 )
 
@@ -195,9 +196,9 @@ class Detector:
         group=None,
         distortion=None,
         max_workers=max_workers_DFLT,
-        detector_filter=None,
-        detector_coating=None,
-        phosphor=None,
+        detector_filter: Optional[detector_coatings.Filter] = None,
+        detector_coating: Optional[detector_coatings.Coating] = None,
+        phosphor: Optional[detector_coatings.Phosphor] = None,
     ):
         """
         Instantiate a PlanarDetector object.
@@ -232,12 +233,18 @@ class Detector:
             DESCRIPTION. The default is None.
         distortion : TYPE, optional
             DESCRIPTION. The default is None.
-        filter : dict, optional
+        detector_filter : detector_coatings.Filter, optional
             filter specifications including material type,
-            density and thickness
-        coating : dict, optional
+            density and thickness. Used for absorption correction
+            calculations.
+        detector_coating : detector_coatings.Coating, optional
             coating specifications including material type,
-            density and thickness
+            density and thickness. Used for absorption correction
+            calculations.
+        phosphor : detector_coatings.Phosphor, optional
+            phosphor specifications including material type,
+            density and thickness. Used for absorption correction
+            calculations.
 
         Returns
         -------
@@ -283,15 +290,15 @@ class Detector:
 
         if detector_filter is None:
             detector_filter = detector_coatings.Filter(**FILTER_DEFAULTS.TARDIS)
-        self._filter = detector_filter
+        self.filter = detector_filter
 
         if detector_coating is None:
             detector_coating = detector_coatings.Coating(**COATING_DEFAULT)
-        self._coating = detector_coating
+        self.coating = detector_coating
 
         if phosphor is None:
             phosphor = detector_coatings.Phosphor(**PHOSPHOR_DEFAULT)
-        self._phosphor = phosphor
+        self.phosphor = phosphor
 
         #
         # set up calibration parameter list and refinement flags
@@ -593,40 +600,6 @@ class Detector:
                 flags.append(f'{name}_distortion_param_{i}')
 
         return flags
-
-    @property
-    def filter(self):
-        return self._filter
-    
-    @filter.setter
-    def filter(self, det_filter):
-        if not isinstance(det_filter, dict):
-            msg = f'filter should be of type: hexrd.sample.Filter'
-            raise ValueError(msg)
-        self._filter = det_filter
-
-    @property
-    def coating(self):
-        return self._coating
-    
-    @coating.setter
-    def coating(self, det_coating):
-        if not isinstance(det_coating, dict):
-            msg = f'coating should be of type: hexrd.sample.Coating'
-            raise ValueError(msg)
-        self._coating = det_coating
-
-    @property
-    def phosphor(self):
-        return self._phosphor
-
-    @phosphor.setter
-    def phosphor(self, phos):
-        if not isinstance(phos, detector_coatings.Phosphor):
-            msg = f'phosphor should be of type: hexrd.sample.Phosphor'
-            raise ValueError(msg)
-        self._phosphor = phos
-
 
     # =========================================================================
     # METHODS
@@ -1721,7 +1694,9 @@ class Detector:
             if cache_info['maxsize'] < min_size:
                 f.set_cache_maxsize(min_size)
 
-    def calc_physics_package_transmission(self, energy, rMat_s, physics_package):
+    def calc_physics_package_transmission(self, energy: np.floating,
+                                          rMat_s: np.array,
+                                          physics_package: PhysicsPackage) -> np.float64:
         """get the transmission from the physics package
         need to consider HED and HEDM samples separately
         """
@@ -1743,7 +1718,9 @@ class Detector:
         transmission_physics_package = T_sample * T_window
         return transmission_physics_package
 
-    def calc_transmission_sample(self, seca, secb, energy, physics_package):
+    def calc_transmission_sample(self, seca: np.array,
+                                 secb: np.array, energy: np.floating,
+                                 physics_package: PhysicsPackage) -> np.array:
         thickness_s = physics_package.sample_thickness # in microns
         mu_s = 1./physics_package.sample_absorption_length(energy) # in microns^-1
         x = (mu_s*thickness_s)
@@ -1751,12 +1728,13 @@ class Detector:
         num = np.exp(-x*seca) - np.exp(-x*secb)
         return pre * num
 
-    def calc_transmission_window(self, secb, energy, physics_package):
+    def calc_transmission_window(self, secb: np.array, energy: np.floating,
+                                 physics_package: PhysicsPackage) -> np.array:
         thickness_w = physics_package.window_thickness # in microns
         mu_w = 1./physics_package.window_absorption_length(energy) # in microns^-1
         return np.exp(-thickness_w*mu_w*secb)
 
-    def calc_effective_pinhole_area(self, physics_package):
+    def calc_effective_pinhole_area(self, physics_package: PhysicsPackage) -> np.array:
         """get the effective pinhole area correction
         """
         hod = (physics_package.pinhole_thickness /
@@ -1778,18 +1756,18 @@ class Detector:
         return effective_pinhole_area
 
     def calc_transmission_generic(self,
-                                  secb,
-                                  thickness,
-                                  absorption_length):
+                                  secb: np.array,
+                                  thickness: np.floating,
+                                  absorption_length: np.floating) -> np.array:
         mu = 1./absorption_length # in microns^-1
         return np.exp(-thickness*mu*secb)
 
     def calc_transmission_phosphor(self,
-                                   secb,
-                                   thickness,
-                                   readout_length,
-                                   absorption_length,
-                                   energy):
+                                   secb: np.array,
+                                   thickness: np.floating,
+                                   readout_length: np.floating,
+                                   absorption_length: np.floating,
+                                   energy: np.floating) -> np.array:
 
         f1 = absorption_length*thickness
         f2 = absorption_length*readout_length
