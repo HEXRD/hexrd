@@ -44,6 +44,8 @@ from hexrd.matrixutil import (
     multMatArray,
     nullSpace,
 )
+from hexrd.utils.warnings import ignore_warnings
+
 
 # =============================================================================
 # Module Data
@@ -723,7 +725,9 @@ def angles_from_rmat_xyz(rmat):
     """
     rmat = _check_is_rmat(rmat)
 
-    return R.from_matrix(rmat).as_euler('xyz')
+    # Ignore Gimbal Lock warning. It is okay.
+    with ignore_warnings(UserWarning):
+        return R.from_matrix(rmat).as_euler('xyz')
 
 
 def angles_from_rmat_zxz(rmat):
@@ -747,7 +751,9 @@ def angles_from_rmat_zxz(rmat):
     """
     rmat = _check_is_rmat(rmat)
 
-    return R.from_matrix(rmat).as_euler('ZXZ')
+    # Ignore Gimbal Lock warning. It is okay.
+    with ignore_warnings(UserWarning):
+        return R.from_matrix(rmat).as_euler('ZXZ')
 
 
 class RotMatEuler(object):
@@ -878,9 +884,12 @@ class RotMatEuler(object):
         axo = self.axes_order
         if not self.extrinsic:
             axo = axo.upper()
-        self._angles = R.from_matrix(rmat).as_euler(
-            axo, self.units == 'degrees'
-        )
+
+        # Ignore Gimbal Lock warning. It is okay.
+        with ignore_warnings(UserWarning):
+            self._angles = R.from_matrix(rmat).as_euler(
+                axo, self.units == 'degrees'
+            )
 
     @property
     def exponential_map(self):
