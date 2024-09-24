@@ -1,3 +1,4 @@
+import copy
 from typing import Optional
 
 import numpy as np
@@ -35,7 +36,6 @@ class LaueCalibrator(Calibrator):
         self.grain_params = grain_params
         self.default_refinements = default_refinements
         self.energy_cutoffs = [min_energy, max_energy]
-        self.tth_distortion = tth_distortion
         self.euler_convention = euler_convention
         self.xray_source = xray_source
 
@@ -43,7 +43,30 @@ class LaueCalibrator(Calibrator):
         if calibration_picks is not None:
             self.calibration_picks = calibration_picks
 
+        self._tth_distortion = tth_distortion
+        self._update_tth_distortion_panels()
+
         self.param_names = []
+
+    @property
+    def tth_distortion(self):
+        return self._tth_distortion
+
+    @tth_distortion.setter
+    def tth_distortion(self, v):
+        self._tth_distortion = v
+        self._update_tth_distortion_panels()
+
+    def _update_tth_distortion_panels(self):
+        # Make sure the panels in the tth distortion are the same
+        # as those on the instrument, so their beam vectors get modified
+        # accordingly.
+        if self._tth_distortion is None:
+            return
+
+        self._tth_distortion = copy.deepcopy(self._tth_distortion)
+        for det_key, obj in self._tth_distortion.items():
+            obj.panel = self.instr.detectors[det_key]
 
     def create_lmfit_params(self, current_params):
         params = create_grain_params(

@@ -1,3 +1,4 @@
+import copy
 from typing import Optional
 
 import numpy as np
@@ -45,7 +46,9 @@ class PowderCalibrator(Calibrator):
         self.min_ampl = min_ampl
         self.pktype = pktype
         self.bgtype = bgtype
-        self.tth_distortion = tth_distortion
+
+        self._tth_distortion = tth_distortion
+        self._update_tth_distortion_panels()
 
         self.plane_data.wavelength = instr.xrs_beam_energy(xray_source)
 
@@ -55,6 +58,26 @@ class PowderCalibrator(Calibrator):
         if calibration_picks is not None:
             # container for calibration data
             self.calibration_picks = calibration_picks
+
+    @property
+    def tth_distortion(self):
+        return self._tth_distortion
+
+    @tth_distortion.setter
+    def tth_distortion(self, v):
+        self._tth_distortion = v
+        self._update_tth_distortion_panels()
+
+    def _update_tth_distortion_panels(self):
+        # Make sure the panels in the tth distortion are the same
+        # as those on the instrument, so their beam vectors get modified
+        # accordingly.
+        if self._tth_distortion is None:
+            return
+
+        self._tth_distortion = copy.deepcopy(self._tth_distortion)
+        for det_key, obj in self._tth_distortion.items():
+            obj.panel = self.instr.detectors[det_key]
 
     def create_lmfit_params(self, current_params):
         # There shouldn't be more than one calibrator for a given material, so

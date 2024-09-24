@@ -1,3 +1,4 @@
+import copy
 import lmfit
 import numpy as np
 
@@ -44,6 +45,7 @@ class StructurelessCalibrator:
         self._tth_distortion = tth_distortion
         self._engineering_constraints = engineering_constraints
         self.euler_convention = euler_convention
+        self._update_tth_distortion_panels()
         self.make_lmfit_params()
         self.set_minimizer()
 
@@ -138,7 +140,19 @@ class StructurelessCalibrator:
     @tth_distortion.setter
     def tth_distortion(self, v):
         self._tth_distortion = v
+        self._update_tth_distortion_panels()
         # No need to update lmfit parameters
+
+    def _update_tth_distortion_panels(self):
+        # Make sure the panels in the tth distortion are the same
+        # as those on the instrument, so their beam vectors get modified
+        # accordingly.
+        if self._tth_distortion is None:
+            return
+
+        self._tth_distortion = copy.deepcopy(self._tth_distortion)
+        for det_key, obj in self.tth_distortion.items():
+            obj.panel = self.instr.detectors[det_key]
 
     @property
     def engineering_constraints(self):
@@ -173,6 +187,7 @@ class StructurelessCalibrator:
     def instr(self, ins):
         self._instr = ins
         self.make_lmfit_params()
+        self._update_tth_distortion_panels()
 
     @property
     def data(self):
