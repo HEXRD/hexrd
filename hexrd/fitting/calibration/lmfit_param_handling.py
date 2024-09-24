@@ -162,21 +162,44 @@ def update_instrument_from_params(instr, params, euler_convention):
                     )
 
 
-def create_tth_parameters(meas_angles):
+def create_tth_parameters(
+    instr: HEDMInstrument,
+    meas_angles: dict[str, np.ndarray],
+) -> list[lmfit.Parameter]:
+
+    prefixes = tth_parameter_prefixes(instr)
+
     parms_list = []
-    for ii, tth in enumerate(meas_angles):
-        ds_ang = np.empty([0,])
-        for k, v in tth.items():
-            if v is not None:
-                ds_ang = np.concatenate((ds_ang, v[:, 0]))
-        if ds_ang.size != 0:
-            val = np.degrees(np.mean(ds_ang))
-            parms_list.append((f'DS_ring_{ii}',
+    for xray_source, angles in meas_angles.items():
+        prefix = prefixes[xray_source]
+        for ii, tth in enumerate(angles):
+            ds_ang = []
+            for k, v in tth.items():
+                if v is not None:
+                    ds_ang.append(v[:, 0])
+
+            if not ds_ang:
+                continue
+
+            val = np.degrees(np.mean(np.hstack(ds_ang)))
+
+            parms_list.append((f'{prefix}{ii}',
                                val,
                                True,
                                val-5.,
                                val+5.))
+
     return parms_list
+
+
+def tth_parameter_prefixes(instr: HEDMInstrument) -> dict[str, str]:
+    """Generate tth parameter prefixes according to beam names"""
+    prefix = 'DS_ring_'
+    beam_names = instr.beam_names
+    if len(beam_names) == 1:
+        return {beam_names[0]: prefix}
+
+    return {name: f'{name}_{prefix}' for name in beam_names}
 
 
 def create_material_params(material, refinements=None):
