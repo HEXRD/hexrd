@@ -12,9 +12,11 @@ np_include_dir = numpy.get_include()
 
 install_reqs = [
     'appdirs',
+    'chemparse',
     'fabio>=0.11',
     'fast-histogram',
-    'h5py',
+    'h5py<3.12',  # Currently, h5py 3.12 on Windows fails to import.
+                  # We can remove this version pin when that is fixed.
     'lmfit',
     'matplotlib',
     'numba',

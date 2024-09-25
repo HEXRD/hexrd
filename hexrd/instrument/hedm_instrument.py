@@ -549,7 +549,7 @@ class HEDMInstrument(object):
     def __init__(self, instrument_config=None,
                  image_series=None, eta_vector=None,
                  instrument_name=None, tilt_calibration_mapping=None,
-                 max_workers=max_workers_DFLT):
+                 max_workers=max_workers_DFLT, physics_package=None):
         self._id = instrument_name_DFLT
 
         self._source_distance = source_distance_DFLT
@@ -560,6 +560,8 @@ class HEDMInstrument(object):
             self._eta_vector = eta_vector
 
         self.max_workers = max_workers
+
+        self.physics_package = physics_package
 
         if instrument_config is None:
             # Default instrument
@@ -605,6 +607,9 @@ class HEDMInstrument(object):
 
             self._num_panels = len(instrument_config['detectors'])
 
+            if instrument_config.get('physics_package', None) is not None:
+                self.physics_package = instrument_config['physics_package']
+
             xrs_config = instrument_config['beam']
             self._beam_energy = xrs_config['energy']  # keV
             self._beam_vector = calc_beam_vec(
@@ -626,6 +631,9 @@ class HEDMInstrument(object):
                 pixel_info = det_info['pixels']
                 affine_info = det_info['transform']
                 detector_type = det_info.get('detector_type', 'planar')
+                filter = det_info.get('filter', None)
+                coating = det_info.get('coating', None)
+                phosphor = det_info.get('phosphor', None)
                 try:
                     saturation_level = det_info['saturation_level']
                 except KeyError:
@@ -696,6 +704,9 @@ class HEDMInstrument(object):
                     roi=roi,
                     group=det_group,
                     max_workers=self.max_workers,
+                    detector_filter=filter,
+                    detector_coating=coating,
+                    phosphor=phosphor,
                 )
 
                 if DetectorClass is CylindricalDetector:
@@ -2074,6 +2085,34 @@ class HEDMInstrument(object):
         PlanarDetector.update_memoization_sizes(all_panels)
         CylindricalDetector.update_memoization_sizes(all_panels)
 
+    def calc_transmission(self, rMat_s: np.ndarray = None) -> dict[str, np.ndarray]:
+        """calculate the transmission from the
+        filter and polymer coating. the inverse of this
+        number is the intensity correction that needs
+        to be applied. actual computation is done inside
+        the detector class
+        """
+        if self.physics_package is None:
+            msg = f'Cannot calculate transmission without a physics package'
+            raise ValueError(msg)
+
+        if rMat_s is None:
+            rMat_s = ct.identity_3x3
+
+        energy = self.beam_energy
+        transmissions = {}
+        for det_name, det in self.detectors.items():
+            transmission_filter, transmission_phosphor = (
+                det.calc_filter_coating_transmission(energy))
+            transmission_physics_package = (
+                det.calc_physics_package_transmission(energy, rMat_s, self.physics_package))
+            effective_pinhole_area = det.calc_effective_pinhole_area(
+                self.physics_package)
+            transmissions[det_name] = (transmission_filter *
+                                       transmission_physics_package *
+                                       effective_pinhole_area *
+                                       transmission_phosphor)
+        return transmissions
 
 # =============================================================================
 # UTILITIES

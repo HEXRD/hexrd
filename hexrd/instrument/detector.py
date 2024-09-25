@@ -1,7 +1,12 @@
 from abc import abstractmethod
 import copy
 import os
+from typing import Optional
 
+from hexrd.instrument.constants import (
+    COATING_DEFAULT, FILTER_DEFAULTS, PHOSPHOR_DEFAULT
+)
+from hexrd.instrument.physics_package import AbstractPhysicsPackage
 import numpy as np
 import numba
 
@@ -20,11 +25,12 @@ from hexrd.transforms.xfcapi import (
     make_beam_rmat,
     make_rmat_of_expmap,
     oscill_angles_of_hkls,
+    angles_to_dvec,
 )
 
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
-
+from hexrd.instrument import detector_coatings
 
 distortion_registry = distortion_pkg.Registry()
 
@@ -33,7 +39,6 @@ max_workers_DFLT = max(1, os.cpu_count() - 1)
 panel_calibration_flags_DFLT = np.array([1, 1, 1, 1, 1, 1], dtype=bool)
 
 beam_energy_DFLT = 65.351
-
 
 # Memoize these, so each detector can avoid re-computing if nothing
 # has changed.
@@ -153,6 +158,10 @@ class Detector:
     def pixel_eta_gradient(self, origin=ct.zeros_3):
         raise NotImplementedError
 
+    @abstractmethod
+    def calc_filter_coating_transmission(self, energy):
+        pass
+
     @property
     @abstractmethod
     def beam_position(self):
@@ -187,6 +196,9 @@ class Detector:
         group=None,
         distortion=None,
         max_workers=max_workers_DFLT,
+        detector_filter: Optional[detector_coatings.Filter] = None,
+        detector_coating: Optional[detector_coatings.Coating] = None,
+        phosphor: Optional[detector_coatings.Phosphor] = None,
     ):
         """
         Instantiate a PlanarDetector object.
@@ -221,6 +233,18 @@ class Detector:
             DESCRIPTION. The default is None.
         distortion : TYPE, optional
             DESCRIPTION. The default is None.
+        detector_filter : detector_coatings.Filter, optional
+            filter specifications including material type,
+            density and thickness. Used for absorption correction
+            calculations.
+        detector_coating : detector_coatings.Coating, optional
+            coating specifications including material type,
+            density and thickness. Used for absorption correction
+            calculations.
+        phosphor : detector_coatings.Phosphor, optional
+            phosphor specifications including material type,
+            density and thickness. Used for absorption correction
+            calculations.
 
         Returns
         -------
@@ -263,6 +287,18 @@ class Detector:
         self.max_workers = max_workers
 
         self.group = group
+
+        if detector_filter is None:
+            detector_filter = detector_coatings.Filter(**FILTER_DEFAULTS.TARDIS)
+        self.filter = detector_filter
+
+        if detector_coating is None:
+            detector_coating = detector_coatings.Coating(**COATING_DEFAULT)
+        self.coating = detector_coating
+
+        if phosphor is None:
+            phosphor = detector_coatings.Phosphor(**PHOSPHOR_DEFAULT)
+        self.phosphor = phosphor
 
         #
         # set up calibration parameter list and refinement flags
@@ -1658,6 +1694,85 @@ class Detector:
             if cache_info['maxsize'] < min_size:
                 f.set_cache_maxsize(min_size)
 
+    def calc_physics_package_transmission(self, energy: np.floating,
+                                          rMat_s: np.array,
+                                          physics_package: AbstractPhysicsPackage) -> np.float64:
+        """get the transmission from the physics package
+        need to consider HED and HEDM samples separately
+        """
+        bvec = self.bvec
+        sample_normal = np.dot(rMat_s, [0.,0.,-1.])
+        seca = 1./np.dot(bvec, sample_normal)
+
+        tth, eta = self.pixel_angles()
+        angs = np.vstack((tth.flatten(), eta.flatten(),
+                          np.zeros(tth.flatten().shape))).T
+
+        dvecs = angles_to_dvec(angs, beam_vec=bvec)
+
+        secb = np.abs(1./np.dot(dvecs, sample_normal).reshape(self.shape))
+
+        T_sample = self.calc_transmission_sample(seca, secb, energy, physics_package)
+        T_window = self.calc_transmission_window(secb, energy, physics_package)
+
+        transmission_physics_package = T_sample * T_window
+        return transmission_physics_package
+
+    def calc_transmission_sample(self, seca: np.array,
+                                 secb: np.array, energy: np.floating,
+                                 physics_package: AbstractPhysicsPackage) -> np.array:
+        thickness_s = physics_package.sample_thickness # in microns
+        mu_s = 1./physics_package.sample_absorption_length(energy) # in microns^-1
+        x = (mu_s*thickness_s)
+        pre = 1./x/(secb - seca)
+        num = np.exp(-x*seca) - np.exp(-x*secb)
+        return pre * num
+
+    def calc_transmission_window(self, secb: np.array, energy: np.floating,
+                                 physics_package: AbstractPhysicsPackage) -> np.array:
+        thickness_w = physics_package.window_thickness # in microns
+        mu_w = 1./physics_package.window_absorption_length(energy) # in microns^-1
+        return np.exp(-thickness_w*mu_w*secb)
+
+    def calc_effective_pinhole_area(self, physics_package: AbstractPhysicsPackage) -> np.array:
+        """get the effective pinhole area correction
+        """
+        hod = (physics_package.pinhole_thickness /
+               physics_package.pinhole_diameter)
+        bvec = self.bvec
+
+        tth, eta = self.pixel_angles()
+        angs = np.vstack((tth.flatten(), eta.flatten(),
+                  np.zeros(tth.flatten().shape))).T
+        dvecs = angles_to_dvec(angs, beam_vec=bvec)
+
+        cth = -dvecs[:,2].reshape(self.shape)
+        tanth = np.tan(np.arccos(cth))
+        f = hod*tanth
+        f[np.abs(f) > 1.] = np.nan
+        asinf = np.arcsin(f)
+        effective_pinhole_area = (
+            (2/np.pi) * cth * (np.pi/2 - asinf - f*np.cos(asinf)))
+        return effective_pinhole_area
+
+    def calc_transmission_generic(self,
+                                  secb: np.array,
+                                  thickness: np.floating,
+                                  absorption_length: np.floating) -> np.array:
+        mu = 1./absorption_length # in microns^-1
+        return np.exp(-thickness*mu*secb)
+
+    def calc_transmission_phosphor(self,
+                                   secb: np.array,
+                                   thickness: np.floating,
+                                   readout_length: np.floating,
+                                   absorption_length: np.floating,
+                                   energy: np.floating) -> np.array:
+
+        f1 = absorption_length*thickness
+        f2 = absorption_length*readout_length
+        arg = (secb + 1/f2)
+        return energy*((1.0 - np.exp(-f1*arg))/arg)
 
 # =============================================================================
 # UTILITY METHODS
