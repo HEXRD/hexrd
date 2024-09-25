@@ -35,6 +35,7 @@ requirements:
 
   run:
     - appdirs
+    - chemparse
     - fabio >=0.11
     # fabio uses lxml, and lxml 4.9.1 has some crashing issue on Windows
     # so, make sure lxml >= 4.9.2 is being used
@@ -57,7 +58,6 @@ requirements:
     # Installing TBB means numba will use it instead of OpenMP.
     - tbb
     - tqdm
-    - chemparse
 
 test:         # [build_platform == target_platform]
   imports:

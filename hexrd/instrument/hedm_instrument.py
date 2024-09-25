@@ -606,7 +606,9 @@ class HEDMInstrument(object):
                 self._id = instrument_name
 
             self._num_panels = len(instrument_config['detectors'])
-            self.physics_package = instrument_config.get('physics_package', None)
+
+            if instrument_config.get('physics_package', None) is not None:
+                self.physics_package = instrument_config['physics_package']
 
             xrs_config = instrument_config['beam']
             self._beam_energy = xrs_config['energy']  # keV
@@ -2083,7 +2085,7 @@ class HEDMInstrument(object):
         PlanarDetector.update_memoization_sizes(all_panels)
         CylindricalDetector.update_memoization_sizes(all_panels)
 
-    def calc_transmission(self, rMat_s=None):
+    def calc_transmission(self, rMat_s: np.ndarray = None) -> dict[str, np.ndarray]:
         """calculate the transmission from the
         filter and polymer coating. the inverse of this
         number is the intensity correction that needs

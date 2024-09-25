@@ -102,19 +102,19 @@ class PlanarDetector(Detector):
                                    self.rmat, self.tvec, self.bvec, self.evec,
                                    self.rows, self.cols)
 
-    def calc_filter_coating_transmission(self, energy):
+    def calc_filter_coating_transmission(self, energy: np.floating) -> tuple[np.ndarray, np.ndarray]:
         """
         calculate thetrnasmission after x-ray beam interacts
         with the filter and the mylar polymer coating.
         Specifications of the polymer coating is taken from:
 
         M. Stoeckl, A. A. Solodov
-        Readout models for BaFBr0.85I0.15:Eu image plates 
+        Readout models for BaFBr0.85I0.15:Eu image plates
         Rev. Sci. Instrum. 89, 063101 (2018)
 
         Transmission Formulas are consistent with:
 
-        Rygg et al., X-ray diffraction at the National 
+        Rygg et al., X-ray diffraction at the National
         Ignition Facility, Rev. Sci. Instrum. 91, 043902 (2020)
         """
 
