@@ -210,8 +210,14 @@ class LeBail:
 
         elif "spline" in self.bkgmethod.keys():
             self._background = []
-            self.selectpoints()
-            for i, pts in enumerate(self.points):
+
+            points = self.bkgmethod["spline"]
+            if not points:
+                raise RuntimeError(
+                    "Background points must be set to use spline"
+                )
+
+            for i, pts in enumerate(np.asarray(points)):
                 tth = self._spectrum_expt[i]._x
                 x = pts[:, 0]
                 y = pts[:, 1]
@@ -300,31 +306,6 @@ class LeBail:
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
             self._background.append(Spectrum(x=tth, y=self.init_bkg(tth)))
-
-    def selectpoints(self):
-        """
-        03/08/2021 SS spectrum_expt is a list now. accounting
-        for that change
-        """
-        # Keep matplotlib as an optional dependency
-        # FIXME: move this function to where it is needed
-        from pylab import plot, ginput, close, title, xlabel, ylabel
-
-        self.points = []
-        for i, s in enumerate(self._spectrum_expt):
-            txt = (
-                f"Select points for background estimation\n"
-                f"click middle mouse button when done. segment # {i}"
-            )
-            title(txt)
-
-            plot(s.x, s.y, "-k")
-            xlabel(r"2$\theta$")
-            ylabel("intensity (a.u.)")
-
-            self.points.append(np.asarray(ginput(0, timeout=-1)))
-
-            close()
 
     # cubic spline fit of background using custom points chosen from plot
     def splinefit(self, x, y, tth):
@@ -1751,8 +1732,14 @@ class Rietveld:
 
         elif "spline" in self.bkgmethod.keys():
             self._background = []
-            self.selectpoints()
-            for i, pts in enumerate(self.points):
+
+            points = self.bkgmethod["spline"]
+            if not points:
+                raise RuntimeError(
+                    "Background points must be set to use spline"
+                )
+
+            for i, pts in enumerate(np.asarray(points)):
                 tth = self._spectrum_expt[i]._x
                 x = pts[:, 0]
                 y = pts[:, 1]
@@ -1841,31 +1828,6 @@ class Rietveld:
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
             self._background.append(Spectrum(x=tth, y=self.init_bkg(tth)))
-
-    def selectpoints(self):
-        """
-        03/08/2021 SS spectrum_expt is a list now. accounting
-        for that change
-        """
-
-        # Keep matplotlib as an optional dependency
-        from pylab import plot, ginput, close, title, xlabel, ylabel
-
-        self.points = []
-        for i, s in enumerate(self._spectrum_expt):
-            txt = (
-                f"Select points for background estimation\n"
-                f"click middle mouse button when done. segment # {i}"
-            )
-            title(txt)
-
-            plot(s.x, s.y, "-k")
-            xlabel(r"2$\theta$")
-            ylabel("intensity (a.u.)")
-
-            self.points.append(np.asarray(ginput(0, timeout=-1)))
-
-            close()
 
     # cubic spline fit of background using custom points chosen from plot
     def splinefit(self, x, y, tth):
