@@ -1157,6 +1157,19 @@ class Material(object):
             self._newUnitcell()
             self._hkls_changed()
 
+    @property
+    def sgsetting(self):
+        return self._sgsetting
+
+    @sgsetting.setter
+    def sgsetting(self, val):
+        if val in [0, 1]:
+            self._sgsetting = val
+        else:
+            msg = (f'space group setting must be either 0'
+                   f' or 1.')
+            raise ValueError(msg)
+
     sgnum = property(_get_sgnum, _set_sgnum, None, "Space group number")
 
     @property
