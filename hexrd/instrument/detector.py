@@ -1025,7 +1025,9 @@ class Detector:
         int_xy[on_panel] = int_vals
         return int_xy
 
-    def interpolate_bilinear(self, xy, img, pad_with_nans=True):
+    def interpolate_bilinear(self, xy, img, pad_with_nans=True,
+                             clip_to_panel=True,
+                             on_panel: Optional[np.ndarray] = None):
         """
         Interpolate an image array at the specified cartesian points.
 
@@ -1039,6 +1041,9 @@ class Detector:
         pad_with_nans : bool, optional
             Toggle for assigning NaN to points that fall off the detector.
             The default is True.
+        on_panel : np.ndarray, optional
+            If you want to skip clip_to_panel() for performance reasons,
+            just provide an array of which pixels are on the panel.
 
         Returns
         -------
@@ -1066,8 +1071,11 @@ class Detector:
         else:
             int_xy = np.zeros(len(xy))
 
-        # clip away points too close to or off the edges of the detector
-        xy_clip, on_panel = self.clip_to_panel(xy, buffer_edges=True)
+        if on_panel is None:
+            # clip away points too close to or off the edges of the detector
+            xy_clip, on_panel = self.clip_to_panel(xy, buffer_edges=True)
+        else:
+            xy_clip = xy[on_panel]
 
         # grab fractional pixel indices of clipped points
         ij_frac = self.cartToPixel(xy_clip)
