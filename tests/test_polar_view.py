@@ -37,7 +37,7 @@ def ceria_composite_instrument(ceria_examples_path: Path) -> HEDMInstrument:
         return HEDMInstrument(rf)
 
 
-def test_caking(
+def test_polar_view(
     ceria_composite_instrument: HEDMInstrument,
     ceria_example_data: np.ndarray,
     test_data_dir: Path,
@@ -73,18 +73,16 @@ def test_caking(
 
     # Verify that the image is identical to a reference image
     ref = np.load(
-        test_data_dir / 'cake_test_polar_view_expected.npy', allow_pickle=True
+        test_data_dir / 'test_polar_view_expected.npy', allow_pickle=True
     )
     assert np.allclose(img, ref, equal_nan=True)
 
-    # The actual caking next consists of performing a mean.
-    # If the images were already identical, then the mean will
-    # definitely be identical, but we can just add this to the
-    # test anyways just to make it clear...
-    # Set nans to zero.
-    img[np.isnan(img)] = 0
-    ref[np.isnan(ref)] = 0
+    # Also generate it using the cache
+    pv = PolarView(tth_range, instr, eta_min, eta_max, pixel_size,
+                   cache_coordinate_map=True)
+    fast_img = pv.warp_image(img_dict, pad_with_nans=True,
+                             do_interpolation=True)
 
-    cake = np.mean(img, axis=0)
-    cake_ref = np.mean(ref, axis=0)
-    assert np.allclose(cake, cake_ref)
+    # This should also be identical
+    fast_img = fast_img.filled(np.nan)
+    assert np.allclose(fast_img, ref, equal_nan=True)
