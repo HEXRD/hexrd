@@ -241,7 +241,10 @@ class StructurelessCalibrator:
                         for det_name, meas_xy in rng.items():
                             # !!! sd has ref to detector so is updated
                             sd = self.tth_distortion[det_name]
-                            tth_corr = sd.apply(meas_xy, return_nominal=False)[:, 0]
+                            tth_corr = sd.apply(
+                                meas_xy,
+                                return_nominal=False,
+                            )[:, 0]
                             corr_dict[det_name] = tth_corr
                     corr_list.append(corr_dict)
 
