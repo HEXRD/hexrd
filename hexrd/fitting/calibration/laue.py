@@ -1,3 +1,6 @@
+import copy
+from typing import Optional
+
 import numpy as np
 from scipy import ndimage
 from scipy.integrate import nquad
@@ -7,6 +10,7 @@ from skimage.feature import blob_log
 
 from hexrd import xrdutil
 from hexrd.constants import fwhm_to_sigma
+from hexrd.instrument import switch_xray_source
 from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
 from hexrd.transforms import xfcapi
 from hexrd.utils.hkl import hkl_to_str, str_to_hkl
@@ -25,21 +29,44 @@ class LaueCalibrator(Calibrator):
     def __init__(self, instr, material, grain_params, default_refinements=None,
                  min_energy=5, max_energy=25, tth_distortion=None,
                  calibration_picks=None,
-                 euler_convention=DEFAULT_EULER_CONVENTION):
+                 euler_convention=DEFAULT_EULER_CONVENTION,
+                 xray_source: Optional[str] = None):
         self.instr = instr
         self.material = material
         self.grain_params = grain_params
         self.default_refinements = default_refinements
         self.energy_cutoffs = [min_energy, max_energy]
-        self.tth_distortion = tth_distortion
-
         self.euler_convention = euler_convention
+        self.xray_source = xray_source
 
         self.data_dict = None
         if calibration_picks is not None:
             self.calibration_picks = calibration_picks
 
+        self._tth_distortion = tth_distortion
+        self._update_tth_distortion_panels()
+
         self.param_names = []
+
+    @property
+    def tth_distortion(self):
+        return self._tth_distortion
+
+    @tth_distortion.setter
+    def tth_distortion(self, v):
+        self._tth_distortion = v
+        self._update_tth_distortion_panels()
+
+    def _update_tth_distortion_panels(self):
+        # Make sure the panels in the tth distortion are the same
+        # as those on the instrument, so their beam vectors get modified
+        # accordingly.
+        if self._tth_distortion is None:
+            return
+
+        self._tth_distortion = copy.deepcopy(self._tth_distortion)
+        for det_key, obj in self._tth_distortion.items():
+            obj.panel = self.instr.detectors[det_key]
 
     def create_lmfit_params(self, current_params):
         params = create_grain_params(
@@ -139,8 +166,6 @@ class LaueCalibrator(Calibrator):
                         use_blob_detection=True, blob_threshold=0.25,
                         fit_peaks=True, min_peak_int=1., fit_tth_tol=0.1):
         """
-
-
         Parameters
         ----------
         raw_img_dict : TYPE
@@ -167,6 +192,26 @@ class LaueCalibrator(Calibrator):
         None.
 
         """
+
+        with switch_xray_source(self.instr, self.xray_source):
+            return self._autopick_points(
+                raw_img_dict=raw_img_dict,
+                tth_tol=tth_tol,
+                eta_tol=eta_tol,
+                npdiv=npdiv,
+                do_smoothing=do_smoothing,
+                smoothing_sigma=smoothing_sigma,
+                use_blob_detection=use_blob_detection,
+                blob_threshold=blob_threshold,
+                fit_peaks=fit_peaks,
+                min_peak_int=min_peak_int,
+                fit_tth_tol=fit_tth_tol,
+            )
+
+    def _autopick_points(self, raw_img_dict, tth_tol=5., eta_tol=5.,
+                         npdiv=2, do_smoothing=True, smoothing_sigma=2,
+                         use_blob_detection=True, blob_threshold=0.25,
+                         fit_peaks=True, min_peak_int=1., fit_tth_tol=0.1):
         labelStructure = ndimage.generate_binary_structure(2, 1)
         rmat_s = np.eye(3)  # !!! forcing to identity
         omega = 0.  # !!! same ^^^
@@ -427,6 +472,10 @@ class LaueCalibrator(Calibrator):
         return pick_hkls_dict, pick_xys_dict
 
     def residual(self):
+        with switch_xray_source(self.instr, self.xray_source):
+            return self._residual()
+
+    def _residual(self):
         # need this for laue obj
         pick_hkls_dict, pick_xys_dict = self._evaluate()
 
@@ -439,6 +488,10 @@ class LaueCalibrator(Calibrator):
         )
 
     def model(self):
+        with switch_xray_source(self.instr, self.xray_source):
+            return self._model()
+
+    def _model(self):
         # need this for laue obj
         pick_hkls_dict, pick_xys_dict = self._evaluate()
 

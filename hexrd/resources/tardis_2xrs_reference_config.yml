@@ -2,11 +2,18 @@
 # from Jon Eggert:
 #   TBsep = 23.13, Rrad = 49.51, Rz = -0.19.
 beam:
-  energy: 10.2505
-  vector:
-    azimuth: 119.3
-    polar_angle: 90.0
-  source_distance: 31.0
+  XRS1:
+    energy: 10.2505
+    vector:
+      azimuth: 119.3
+      polar_angle: 90.0
+    source_distance: 31.0
+  XRS2:
+    energy: 10.2505
+    vector:
+      azimuth: 60.7
+      polar_angle: 90.0
+    source_distance: 31.0
 detectors:
   IMAGE-PLATE-2:
     detector_type: 'planar'

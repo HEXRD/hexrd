@@ -6,6 +6,7 @@ from .hedm_instrument import (
     GrainDataWriter,
     HEDMInstrument,
     max_tth,
+    switch_xray_source,
     unwrap_dict_to_h5,
     unwrap_h5_to_dict,
 )
