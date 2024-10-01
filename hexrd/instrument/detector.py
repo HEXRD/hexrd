@@ -30,11 +30,9 @@ from hexrd.transforms.xfcapi import (
 
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
-<<<<<<< HEAD
 from hexrd.instrument import detector_coatings
-=======
 from hexrd.rotations import expMapOfQuat, quatOfRotMat
->>>>>>> e40804c (pretilt option works well now)
+
 
 distortion_registry = distortion_pkg.Registry()
 
