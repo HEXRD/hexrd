@@ -15,7 +15,8 @@ class PolarView:
 
     def __init__(self, plane_data, instrument,
                  eta_min=0., eta_max=360.,
-                 pixel_size=(0.1, 0.25)):
+                 pixel_size=(0.1, 0.25),
+                 cache_coordinate_map=False):
         """
         Instantiates a PolarView class.
 
@@ -36,6 +37,13 @@ class PolarView:
         pixel_size : array_like, optional
             The angular pixels sizes (2theta, eta) in degrees.
             The default is (0.1, 0.25).
+        cache_coordinate_map : bool, optional
+            If True, the coordinate map will be cached so that calls to
+            `warp_image()` will be *significantly* faster.
+            If set to True, the caller *must* ensure that no parameters
+            on the instrument that would affect polar view generation,
+            and no parameters set on this class, will be modified,
+            because doing so would result in an incorrect `warp_image()`.
 
         Returns
         -------
@@ -67,6 +75,15 @@ class PolarView:
 
         self._instrument = instrument
 
+        self._coordinate_mapping = None
+        self._cache_coordinate_map = cache_coordinate_map
+        if cache_coordinate_map:
+            # It is important to generate the cached map now, rather than
+            # later, because this object might be sent to other processes
+            # for parallelization, and it will be faster if the mapping
+            # is already generated.
+            self._coordinate_mapping = self._generate_coordinate_mapping()
+
     @property
     def instrument(self):
         return self._instrument
@@ -74,6 +91,10 @@ class PolarView:
     @property
     def detectors(self):
         return self._instrument.detectors
+
+    @property
+    def cache_coordinate_map(self):
+        return self._cache_coordinate_map
 
     @property
     def tvec(self):
@@ -216,6 +237,10 @@ class PolarView:
         """
         Performs the polar mapping of the input images.
 
+        Note: this function has the potential to run much faster if
+        `cache_coordinate_map` is set to `True` on the `PolarView`
+        initialization.
+
         Parameters
         ----------
         image_dict : dict
@@ -232,16 +257,46 @@ class PolarView:
         Tested ouput using Maud.
 
         """
+        if self.cache_coordinate_map:
+            # The mapping should have already been generated.
+            mapping = self._coordinate_mapping
+        else:
+            # Otherwise, we must generate it every time
+            mapping = self._generate_coordinate_mapping()
 
+        return self._warp_image_from_coordinate_map(
+            image_dict,
+            mapping,
+            pad_with_nans=pad_with_nans,
+            do_interpolation=do_interpolation,
+        )
+
+    def _generate_coordinate_mapping(self) -> dict[str, dict[str, np.ndarray]]:
+        """Generate mapping of detector coordinates to generate polar view
+
+        This function is, in general, the most time consuming part of creating
+        the polar view. Its results can be cached
+        If you plan to generate the polar view many times in a row using the
+        same instrument configuration, but different data files, this
+        function can be called once at the beginning to generate a mapping
+        of the detectors to the cartesian coordinates for each angular pixel,
+        followed by warp_image_from_mapping() to create the polar view.
+
+        This can be significantly faster than calling `warp_image()` every
+        time
+
+        The dictionary that returns has detector IDs as the first key, and
+        another dict as the second key.
+
+        The nested dict has "xypts" and "on_panel" as keys, and the
+        respective arrays as the values.
+        """
         angpts = self.angular_grid
         dummy_ome = np.zeros((self.ntth*self.neta))
 
-        # lcount = 0
-        img_dict = dict.fromkeys(self.detectors)
+        mapping = {}
         for detector_id, panel in self.detectors.items():
             _project_on_detector = self._func_project_on_detector(panel)
-            img = image_dict[detector_id]
-
             gvec_angs = np.vstack([
                     angpts[1].flatten(),
                     angpts[0].flatten(),
@@ -255,20 +310,53 @@ class PolarView:
                                                                 **kwargs)
             xypts[on_plane, :] = valid_xys
 
+            _, on_panel = panel.clip_to_panel(xypts, buffer_edges=True)
+
+            mapping[detector_id] = {
+                'xypts': xypts,
+                'on_panel': on_panel,
+            }
+
+        return mapping
+
+    def _warp_image_from_coordinate_map(
+            self,
+            image_dict: dict[str, np.ndarray],
+            coordinate_map: dict[str, dict[str, np.ndarray]],
+            pad_with_nans: bool = False,
+            do_interpolation=True) -> np.ma.MaskedArray:
+        img_dict = dict.fromkeys(self.detectors)
+        nan_mask = None
+        for detector_id, panel in self.detectors.items():
+            img = image_dict[detector_id]
+            xypts = coordinate_map[detector_id]['xypts']
+            on_panel = coordinate_map[detector_id]['on_panel']
+
             if do_interpolation:
                 this_img = panel.interpolate_bilinear(
                     xypts, img,
-                    pad_with_nans=pad_with_nans).reshape(self.shape)
+                    pad_with_nans=pad_with_nans,
+                    on_panel=on_panel).reshape(self.shape)
             else:
                 this_img = panel.interpolate_nearest(
                     xypts, img,
                     pad_with_nans=pad_with_nans).reshape(self.shape)
-            nan_mask = np.isnan(this_img)
-            img_dict[detector_id] = np.ma.masked_array(
-                data=this_img, mask=nan_mask, fill_value=0.
-            )
-        maimg = np.ma.sum(np.ma.stack(img_dict.values()), axis=0)
-        return maimg
+
+            # It is faster to keep track of the global nans like this
+            # rather than the previous way we were doing it...
+            img_nans = np.isnan(this_img)
+            if nan_mask is None:
+                nan_mask = img_nans
+            else:
+                nan_mask = np.logical_and(img_nans, nan_mask)
+
+            this_img[img_nans] = 0
+            img_dict[detector_id] = this_img
+
+        summed_img = np.sum(list(img_dict.values()), axis=0)
+        return np.ma.masked_array(
+            data=summed_img, mask=nan_mask, fill_value=0.
+        )
 
     def tth_to_pixel(self, tth):
         """
