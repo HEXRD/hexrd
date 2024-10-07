@@ -31,7 +31,10 @@ from hexrd.transforms.xfcapi import (
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
 from hexrd.instrument import detector_coatings
-from hexrd.rotations import expMapOfQuat, quatOfRotMat
+from hexrd.rotations import (
+    expMapOfQuat,
+    quatOfRotMat
+)
 
 
 distortion_registry = distortion_pkg.Registry()
@@ -486,7 +489,7 @@ class Detector:
             return self._tilt
         else:
             rmat = np.dot(self.prermat,
-                   makeRotMatOfExpMap(self._tilt))
+                   make_rmat_of_expmap(self._tilt))
             return expMapOfQuat(quatOfRotMat(rmat))
 
     @tilt.setter
@@ -557,11 +560,11 @@ class Detector:
 
     @property
     def prermat(self):
-        return makeRotMatOfExpMap(self.pretilt)
+        return make_rmat_of_expmap(self.pretilt)
 
     @property
     def prermat(self):
-        return makeRotMatOfExpMap(self.pretilt)
+        return make_rmat_of_expmap(self.pretilt)
 
     @property
     def normal(self):

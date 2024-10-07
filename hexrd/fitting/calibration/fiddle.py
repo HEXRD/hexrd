@@ -6,8 +6,11 @@ from .lmfit_param_handling import (
     create_instr_params_fiddle,
     create_tth_parameters,
     DEFAULT_EULER_CONVENTION,
+    tth_parameter_prefixes,
     update_instrument_from_params_fiddle,
 )
+
+from hexrd.instrument import switch_xray_source
 
 class Fiddle_structureless:
     """this class is a special case of the calibration.
@@ -41,7 +44,8 @@ class Fiddle_structureless:
     def make_lmfit_params_fiddle(self):
         params = []
         params += create_instr_params_fiddle(self.instr, self.euler_convention)
-        params += create_tth_parameters(self.meas_angles)
+        params += create_tth_parameters(self.instr,
+                                        self.meas_angles)
 
         params_dict = lmfit.Parameters()
         params_dict.add_many(*params)
@@ -55,19 +59,26 @@ class Fiddle_structureless:
             params,
             self.euler_convention,
         )
+        # Store these in variables so they are only computed once.
+        meas_angles = self.meas_angles
+        tth_correction = self.tth_correction
 
         residual = np.empty([0,])
-        for ii, (rng, corr_rng) in enumerate(zip(self.meas_angles,
-                                                 self.tth_correction)):
-            for det_name, panel in self.instr.detectors.items():
-                if rng[det_name] is not None:
-                    if rng[det_name].size != 0:
-                        tth_rng = params[f'DS_ring_{ii}'].value
-                        tth_updated = np.degrees(rng[det_name][:, 0])
-                        delta_tth = tth_updated - tth_rng
-                        if corr_rng[det_name] is not None:
-                            delta_tth -= np.degrees(corr_rng[det_name])
-                        residual = np.concatenate((residual, delta_tth))
+        prefixes = tth_parameter_prefixes(self.instr)
+        for xray_source in self.data:
+            prefix = prefixes[xray_source]
+            for ii, (rng, corr_rng) in enumerate(zip(
+                meas_angles[xray_source],
+                tth_correction[xray_source])):
+                for det_name, panel in self.instr.detectors.items():
+                    if rng[det_name] is not None:
+                        if rng[det_name].size != 0:
+                            tth_rng = params[f'DS_ring_{ii}'].value
+                            tth_updated = np.degrees(rng[det_name][:, 0])
+                            delta_tth = tth_updated - tth_rng
+                            if corr_rng[det_name] is not None:
+                                delta_tth -= np.degrees(corr_rng[det_name])
+                            residual = np.concatenate((residual, delta_tth))
 
         return residual/len(residual)
 
@@ -150,40 +161,54 @@ class Fiddle_structureless:
         return self.calc_residual(self.params)
 
     @property
-    def meas_angles(self):
+    def meas_angles(self) -> dict:
         """
         this property will return a dictionary
         of angles based on current instrument
         parameters.
         """
-        ang_list = []
-        for rng in self.data:
-            ang_dict = dict.fromkeys(self.instr.detectors)
-            for det_name, meas_xy in rng.items():
+        angles_dict = {}
+        for xray_source, rings in self.data.items():
+            with switch_xray_source(self.instr, xray_source):
+                ang_list = []
+                for rng in rings:
+                    ang_dict = dict.fromkeys(self.instr.detectors)
+                    for det_name, meas_xy in rng.items():
 
-                panel = self.instr.detectors[det_name]
-                angles, _ = panel.cart_to_angles(
-                                            meas_xy,
-                                            tvec_s=self.instr.tvec,
-                                            apply_distortion=True)
-                ang_dict[det_name] = angles
-            ang_list.append(ang_dict)
+                        panel = self.instr.detectors[det_name]
+                        angles, _ = panel.cart_to_angles(
+                                                    meas_xy,
+                                                    tvec_s=self.instr.tvec,
+                                                    apply_distortion=True)
+                        ang_dict[det_name] = angles
+                    ang_list.append(ang_dict)
 
-        return ang_list
+            angles_dict[xray_source] = ang_list
+
+        return angles_dict
 
     @property
-    def tth_correction(self):
-        corr_list = []
-        for rng in self.data:
-            corr_dict = dict.fromkeys(self.instr.detectors)
-            if self.tth_distortion is not None:
-                for det_name, meas_xy in rng.items():
-                    # !!! sd has ref to detector so is updated
-                    sd = self.tth_distortion[det_name]
-                    tth_corr = sd.apply(meas_xy, return_nominal=False)[:, 0]
-                    corr_dict[det_name] = tth_corr
-            corr_list.append(corr_dict)
-        return corr_list
+    def tth_correction(self) -> dict:
+        ret = {}
+        for xray_source, rings in self.data.items():
+            with switch_xray_source(self.instr, xray_source):
+                corr_list = []
+                for rng in rings:
+                    corr_dict = dict.fromkeys(self.instr.detectors)
+                    if self.tth_distortion is not None:
+                        for det_name, meas_xy in rng.items():
+                            # !!! sd has ref to detector so is updated
+                            sd = self.tth_distortion[det_name]
+                            tth_corr = sd.apply(
+                                meas_xy,
+                                return_nominal=False,
+                            )[:, 0]
+                            corr_dict[det_name] = tth_corr
+                    corr_list.append(corr_dict)
+
+            ret[xray_source] = corr_list
+
+        return ret
 
     @property
     def two_XRS(self):
