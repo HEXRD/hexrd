@@ -9,6 +9,7 @@ from .lmfit_param_handling import (
     create_instr_params,
     create_tth_parameters,
     DEFAULT_EULER_CONVENTION,
+    RelativeConstraints,
     tth_parameter_prefixes,
     update_instrument_from_params,
 )
@@ -38,12 +39,14 @@ class StructurelessCalibrator:
                  data,
                  tth_distortion=None,
                  engineering_constraints=None,
+                 relative_constraints=RelativeConstraints.none,
                  euler_convention=DEFAULT_EULER_CONVENTION):
 
         self._instr = instr
         self._data = data
         self._tth_distortion = tth_distortion
         self._engineering_constraints = engineering_constraints
+        self._relative_constraints = relative_constraints
         self.euler_convention = euler_convention
         self._update_tth_distortion_panels()
         self.make_lmfit_params()
@@ -51,7 +54,11 @@ class StructurelessCalibrator:
 
     def make_lmfit_params(self):
         params = []
-        params += create_instr_params(self.instr, self.euler_convention)
+        params += create_instr_params(
+            self.instr,
+            self.euler_convention,
+            self.relative_constraints,
+        )
         params += create_tth_parameters(self.instr, self.meas_angles)
 
         params_dict = lmfit.Parameters()
@@ -66,6 +73,7 @@ class StructurelessCalibrator:
             self.instr,
             params,
             self.euler_convention,
+            self.relative_constraints,
         )
 
         # Store these in variables so they are only computed once.
@@ -153,6 +161,18 @@ class StructurelessCalibrator:
         self._tth_distortion = copy.deepcopy(self._tth_distortion)
         for det_key, obj in self.tth_distortion.items():
             obj.panel = self.instr.detectors[det_key]
+
+    @property
+    def relative_constraints(self):
+        return self._relative_constraints
+
+    @relative_constraints.setter
+    def relative_constraints(self, v):
+        if v == self._relative_constraints:
+            return
+
+        self._relative_constraints = v
+        self.make_lmfit_params()
 
     @property
     def engineering_constraints(self):
