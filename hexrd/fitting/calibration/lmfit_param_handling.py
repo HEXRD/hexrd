@@ -26,11 +26,11 @@ DEFAULT_EULER_CONVENTION = ('zxz', False)
 class RelativeConstraints(Enum):
     """These are relative constraints between the detectors"""
     # 'none' means no relative constraints
-    none = 0
+    none = 'None'
     # 'group' means constrain tilts/translations within a group
-    group = 1
+    group = 'Group'
     # 'system' means constrain tilts/translations within the whole system
-    system = 2
+    system = 'System'
 
 
 def create_instr_params(instr, euler_convention=DEFAULT_EULER_CONVENTION,
@@ -265,7 +265,8 @@ def update_system_constrained_detector_parameters(instr, params, euler_conventio
         # and translations.
         new_mean_tilt = np.array([params[x].value for x in tilt_names])
 
-        old_rmat = _tilt_to_rmat(mean_tilt, euler_convention)
+        # The old mean tilt was in the None convention
+        old_rmat = _tilt_to_rmat(mean_tilt, None)
         new_rmat = _tilt_to_rmat(new_mean_tilt, euler_convention)
 
         # Compute the rmat used to convert from old to new
