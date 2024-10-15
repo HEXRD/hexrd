@@ -791,6 +791,28 @@ class HEDMInstrument(object):
 
         self.update_memoization_sizes()
 
+    @property
+    def mean_detector_center(self) -> np.ndarray:
+        """Return the mean center for all detectors"""
+        centers = np.array([panel.tvec for panel in self.detectors.values()])
+        return centers.sum(axis=0) / len(centers)
+
+    @property
+    def mean_group_centers(self) -> dict[str, np.ndarray]:
+        """Return the mean center for every group of detectors"""
+        centers = {}
+        for panel in self.detectors.values():
+            if panel.group is None:
+                # Skip over panels without groups
+                continue
+
+            if panel.group not in centers:
+                centers[panel.group] = []
+
+            centers[panel.group].append(panel.tvec)
+
+        return {k: v.sum(axis=0) / len(v) for k, v in centers.items()}
+
     # properties for physical size of rectangular detector
     @property
     def id(self):
