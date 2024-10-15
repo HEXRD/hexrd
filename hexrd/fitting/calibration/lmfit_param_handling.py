@@ -1,4 +1,4 @@
-from enum import Enum
+from typing import Optional
 
 import lmfit
 import numpy as np
@@ -17,24 +17,18 @@ from hexrd.rotations import (
     rotMatOfExpMap,
 )
 from hexrd.material.unitcell import _lpname
+from .relative_constraints import (
+    RelativeConstraints,
+    RelativeConstraintsType,
+)
 
 
 # First is the axes_order, second is extrinsic
 DEFAULT_EULER_CONVENTION = ('zxz', False)
 
 
-class RelativeConstraints(Enum):
-    """These are relative constraints between the detectors"""
-    # 'none' means no relative constraints
-    none = 'None'
-    # 'group' means constrain tilts/translations within a group
-    group = 'Group'
-    # 'system' means constrain tilts/translations within the whole system
-    system = 'System'
-
-
 def create_instr_params(instr, euler_convention=DEFAULT_EULER_CONVENTION,
-                        relative_constraints=RelativeConstraints.none):
+                        relative_constraints=None):
     # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
     parms_list = []
 
@@ -62,23 +56,27 @@ def create_instr_params(instr, euler_convention=DEFAULT_EULER_CONVENTION,
     parms_list.append(('instr_tvec_y', instr.tvec[1], False, -np.inf, np.inf))
     parms_list.append(('instr_tvec_z', instr.tvec[2], False, -np.inf, np.inf))
 
-    if relative_constraints == RelativeConstraints.none:
+    if (
+        relative_constraints is None or
+        relative_constraints.type == RelativeConstraintsType.none
+    ):
         add_unconstrained_detector_parameters(
             instr,
             euler_convention,
             parms_list,
         )
-    elif relative_constraints == RelativeConstraints.group:
+    elif relative_constraints.type == RelativeConstraintsType.group:
         # This should be implemented soon
-        raise NotImplementedError(relative_constraints)
-    elif relative_constraints == RelativeConstraints.system:
+        raise NotImplementedError(relative_constraints.type)
+    elif relative_constraints.type == RelativeConstraintsType.system:
         add_system_constrained_detector_parameters(
             instr,
             euler_convention,
             parms_list,
+            relative_constraints,
         )
     else:
-        raise NotImplementedError(relative_constraints)
+        raise NotImplementedError(relative_constraints.type)
 
     return parms_list
 
@@ -122,10 +120,24 @@ def add_unconstrained_detector_parameters(instr, euler_convention, parms_list):
                                -np.inf, np.inf))
 
 
-def add_system_constrained_detector_parameters(instr, euler_convention,
-                                               parms_list):
-    mean_center = instr.mean_detector_center
-    mean_tilt = instr.mean_detector_tilt
+def add_system_constrained_detector_parameters(
+        instr, euler_convention,
+        parms_list, relative_constraints: RelativeConstraints):
+    system_params = relative_constraints.params
+    system_tvec = system_params['translation']
+    system_tilt = system_params['tilt']
+
+    if euler_convention is not None:
+        # Convert the tilt to the specified Euler convention
+        normalized = normalize_euler_convention(euler_convention)
+        rme = RotMatEuler(
+            np.zeros(3,),
+            axes_order=normalized[0],
+            extrinsic=normalized[1],
+        )
+
+        rme.rmat = _tilt_to_rmat(system_tilt, None)
+        system_tilt = np.degrees(rme.angles)
 
     tvec_names = [
         'system_tvec_x',
@@ -138,12 +150,12 @@ def add_system_constrained_detector_parameters(instr, euler_convention,
     tilt_deltas = [2, 2, 2]
 
     for i, name in enumerate(tvec_names):
-        value = mean_center[i]
+        value = system_tvec[i]
         delta = tvec_deltas[i]
         parms_list.append((name, value, True, value - delta, value + delta))
 
     for i, name in enumerate(tilt_names):
-        value = mean_tilt[i]
+        value = system_tilt[i]
         delta = tilt_deltas[i]
         parms_list.append((name, value, True, value - delta, value + delta))
 
@@ -160,8 +172,10 @@ def create_beam_param_names(instr: HEDMInstrument) -> dict[str, str]:
     return param_names
 
 
-def update_instrument_from_params(instr, params, euler_convention,
-                                  relative_constraints):
+def update_instrument_from_params(
+        instr, params,
+        euler_convention=DEFAULT_EULER_CONVENTION,
+        relative_constraints: Optional[RelativeConstraints] = None):
     """
     this function updates the instrument from the
     lmfit parameter list. we don't have to keep track
@@ -196,23 +210,27 @@ def update_instrument_from_params(instr, params, euler_convention,
                   params['instr_tvec_z'].value]
     instr.tvec = np.r_[instr_tvec]
 
-    if relative_constraints == RelativeConstraints.none:
+    if (
+        relative_constraints is None or
+        relative_constraints.type == RelativeConstraintsType.none
+    ):
         update_unconstrained_detector_parameters(
             instr,
             params,
             euler_convention,
         )
-    elif relative_constraints == RelativeConstraints.group:
+    elif relative_constraints.type == RelativeConstraintsType.group:
         # This should be implemented soon
-        raise NotImplementedError(relative_constraints)
-    elif relative_constraints == RelativeConstraints.system:
+        raise NotImplementedError(relative_constraints.type)
+    elif relative_constraints.type == RelativeConstraintsType.system:
         update_system_constrained_detector_parameters(
             instr,
             params,
             euler_convention,
+            relative_constraints,
         )
     else:
-        raise NotImplementedError(relative_constraints)
+        raise NotImplementedError(relative_constraints.type)
 
 
 def update_unconstrained_detector_parameters(instr, params, euler_convention):
@@ -245,10 +263,15 @@ def update_unconstrained_detector_parameters(instr, params, euler_convention):
                     )
 
 
-def update_system_constrained_detector_parameters(instr, params, euler_convention):
-    # We will always rotate/translate about the center of the group
+def update_system_constrained_detector_parameters(
+        instr, params, euler_convention,
+        relative_constraints: RelativeConstraints):
+    # We will always rotate about the center of the detectors
     mean_center = instr.mean_detector_center
-    mean_tilt = instr.mean_detector_tilt
+
+    system_params = relative_constraints.params
+    system_tvec = system_params['translation']
+    system_tilt = system_params['tilt']
 
     tvec_names = [
         'system_tvec_x',
@@ -263,11 +286,11 @@ def update_system_constrained_detector_parameters(instr, params, euler_conventio
     if any(params[x].vary for x in tilt_names):
         # Find the change in tilt, create an rmat, then apply to detector tilts
         # and translations.
-        new_mean_tilt = np.array([params[x].value for x in tilt_names])
+        new_system_tilt = np.array([params[x].value for x in tilt_names])
 
-        # The old mean tilt was in the None convention
-        old_rmat = _tilt_to_rmat(mean_tilt, None)
-        new_rmat = _tilt_to_rmat(new_mean_tilt, euler_convention)
+        # The old system tilt was in the None convention
+        old_rmat = _tilt_to_rmat(system_tilt, None)
+        new_rmat = _tilt_to_rmat(new_system_tilt, euler_convention)
 
         # Compute the rmat used to convert from old to new
         rmat_diff = new_rmat @ old_rmat.T
@@ -276,19 +299,26 @@ def update_system_constrained_detector_parameters(instr, params, euler_conventio
         for panel in instr.detectors.values():
             panel.tilt = _rmat_to_tilt(rmat_diff @ panel.rmat)
 
-            # Also rotate the detectors about the center
+            # Also rotate the detectors about the mean center
             panel.tvec = rmat_diff @ (panel.tvec - mean_center) + mean_center
+
+        # Update the system tilt
+        system_tilt[:] = _rmat_to_tilt(new_rmat)
 
     if any(params[x].vary for x in tvec_names):
         # Find the change in center and shift all tvecs
-        new_mean_center = np.array([params[x].value for x in tvec_names])
+        new_system_tvec = np.array([params[x].value for x in tvec_names])
 
-        diff = new_mean_center - mean_center
+        diff = new_system_tvec - system_tvec
         for panel in instr.detectors.values():
             panel.tvec += diff
 
+        # Update the system tvec
+        system_tvec[:] = new_system_tvec
 
-def _tilt_to_rmat(tilt: np.ndarray, euler_convention: dict | tuple) -> np.ndarray:
+
+def _tilt_to_rmat(tilt: np.ndarray,
+                  euler_convention: dict | tuple) -> np.ndarray:
     # Convert the tilt to exponential map parameters, and then
     # to the rotation matrix, and return.
     if euler_convention is None:

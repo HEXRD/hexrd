@@ -1,6 +1,5 @@
 from .instrument import InstrumentCalibrator
 from .laue import LaueCalibrator
-from .lmfit_param_handling import RelativeConstraints
 from .multigrain import calibrate_instrument_from_sx, generate_parameter_names
 from .powder import PowderCalibrator
 from .structureless import StructurelessCalibrator
@@ -14,7 +13,6 @@ __all__ = [
     'InstrumentCalibrator',
     'LaueCalibrator',
     'PowderCalibrator',
-    'RelativeConstraints',
     'StructurelessCalibrator',
     'StructureLessCalibrator',
 ]

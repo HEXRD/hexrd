@@ -813,28 +813,6 @@ class HEDMInstrument(object):
 
         return {k: v.sum(axis=0) / len(v) for k, v in centers.items()}
 
-    @property
-    def mean_detector_tilt(self) -> np.ndarray:
-        """Return the mean tilt for all detectors"""
-        tilts = np.array([panel.tilt for panel in self.detectors.values()])
-        return tilts.sum(axis=0) / len(tilts)
-
-    @property
-    def mean_group_tilts(self) -> dict[str, np.ndarray]:
-        """Return the mean tilt for every group of detectors"""
-        tilts = {}
-        for panel in self.detectors.values():
-            if panel.group is None:
-                # Skip over panels without groups
-                continue
-
-            if panel.group not in tilts:
-                tilts[panel.group] = []
-
-            tilts[panel.group].append(panel.tilt)
-
-        return {k: v.sum(axis=0) / len(v) for k, v in tilts.items()}
-
     # properties for physical size of rectangular detector
     @property
     def id(self):

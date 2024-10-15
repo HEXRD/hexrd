@@ -9,7 +9,9 @@ from hexrd import imageseries
 from hexrd.fitting.calibration import (
     InstrumentCalibrator,
     PowderCalibrator,
-    RelativeConstraints,
+)
+from hexrd.fitting.calibration.relative_constraints import (
+    RelativeConstraintsType,
 )
 from hexrd.imageseries.process import ProcessedImageSeries
 from hexrd.instrument import HEDMInstrument
@@ -200,10 +202,9 @@ def test_relative_constraints(
     instr = copy.deepcopy(orig_instr)
     calibrator = make_calibrator(instr)
 
-    calibrator.relative_constraints = RelativeConstraints.system
+    calibrator.relative_constraints_type = RelativeConstraintsType.system
 
     orig_center = instr.mean_detector_center
-    orig_tilt = instr.mean_detector_tilt
     orig_tvecs = {k: v.tvec for k, v in instr.detectors.items()}
     orig_rmats = {k: v.rmat for k, v in instr.detectors.items()}
 
@@ -228,8 +229,6 @@ def test_relative_constraints(
 
     # The new center should not match
     assert not np.allclose(orig_center, instr.mean_detector_center)
-    # The new tilt should match
-    assert np.allclose(orig_tilt, instr.mean_detector_tilt)
 
     # Find new translations and rmats
     new_relative_translations = compute_relative_translations(instr)
@@ -253,7 +252,7 @@ def test_relative_constraints(
     instr = copy.deepcopy(orig_instr)
     calibrator = make_calibrator(instr)
 
-    calibrator.relative_constraints = RelativeConstraints.system
+    calibrator.relative_constraints_type = RelativeConstraintsType.system
 
     orig_center = instr.mean_detector_center
     orig_tvecs = {k: v.tvec for k, v in instr.detectors.items()}
@@ -267,21 +266,23 @@ def test_relative_constraints(
     for tilt_name in system_tilt_names:
         calibrator.params[tilt_name].vary = True
 
+    orig_system_tilt = calibrator.relative_constraints.params['tilt'].copy()
+
     # Run the calibration
     calibrator.run_calibration(calibration_options)
 
     # The new center should match
     assert np.allclose(orig_center, instr.mean_detector_center)
-    # The new tilt should not match
-    assert not np.allclose(orig_tilt, instr.mean_detector_tilt)
-
-    tilt_rmat_diff = (
-        rotMatOfExpMap(instr.mean_detector_tilt) @ rotMatOfExpMap(orig_tilt).T
-    )
 
     # Find new translations and rmats
     new_relative_translations = compute_relative_translations(instr)
     new_relative_rmats = compute_relative_rmats(instr)
+
+    new_system_tilt = calibrator.relative_constraints.params['tilt'].copy()
+
+    tilt_rmat_diff = (
+        rotMatOfExpMap(new_system_tilt) @ rotMatOfExpMap(orig_system_tilt).T
+    )
 
     # absolute and relative tvecs should not match
     # absolute rmat should not match, but relative rmat should
@@ -308,10 +309,9 @@ def test_relative_constraints(
     instr = copy.deepcopy(orig_instr)
     calibrator = make_calibrator(instr)
 
-    calibrator.relative_constraints = RelativeConstraints.system
+    calibrator.relative_constraints_type = RelativeConstraintsType.system
 
     orig_center = instr.mean_detector_center
-    orig_tilt = instr.mean_detector_tilt
     orig_tvecs = {k: v.tvec for k, v in instr.detectors.items()}
     orig_rmats = {k: v.rmat for k, v in instr.detectors.items()}
 
@@ -322,21 +322,23 @@ def test_relative_constraints(
     for tilt_name in system_tilt_names:
         calibrator.params[tilt_name].vary = True
 
+    orig_system_tilt = calibrator.relative_constraints.params['tilt'].copy()
+
     # Run the calibration
     calibrator.run_calibration(calibration_options)
 
     # The new center should be different
     assert not np.allclose(orig_center, instr.mean_detector_center)
-    # The new tilt should not match
-    assert not np.allclose(orig_tilt, instr.mean_detector_tilt)
-
-    tilt_rmat_diff = (
-        rotMatOfExpMap(instr.mean_detector_tilt) @ rotMatOfExpMap(orig_tilt).T
-    )
 
     # Find new translations and rmats
     new_relative_translations = compute_relative_translations(instr)
     new_relative_rmats = compute_relative_rmats(instr)
+
+    new_system_tilt = calibrator.relative_constraints.params['tilt'].copy()
+
+    tilt_rmat_diff = (
+        rotMatOfExpMap(new_system_tilt) @ rotMatOfExpMap(orig_system_tilt).T
+    )
 
     # absolute and relative tvecs should not match
     # absolute rmat should not match, but relative rmat should
