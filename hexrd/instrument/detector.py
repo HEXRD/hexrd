@@ -171,7 +171,6 @@ class Detector:
         """
         raise NotImplementedError
 
-
     @property
     def extra_config_kwargs(self):
         return {}
@@ -289,7 +288,8 @@ class Detector:
         self.group = group
 
         if detector_filter is None:
-            detector_filter = detector_coatings.Filter(**FILTER_DEFAULTS.TARDIS)
+            detector_filter = detector_coatings.Filter(
+                **FILTER_DEFAULTS.TARDIS)
         self.filter = detector_filter
 
         if detector_coating is None:
@@ -1709,7 +1709,7 @@ class Detector:
         need to consider HED and HEDM samples separately
         """
         bvec = self.bvec
-        sample_normal = np.dot(rMat_s, [0.,0.,-1.])
+        sample_normal = np.dot(rMat_s, [0., 0., -1.])
         seca = 1./np.dot(bvec, sample_normal)
 
         tth, eta = self.pixel_angles()
@@ -1720,7 +1720,8 @@ class Detector:
 
         secb = np.abs(1./np.dot(dvecs, sample_normal).reshape(self.shape))
 
-        T_sample = self.calc_transmission_sample(seca, secb, energy, physics_package)
+        T_sample = self.calc_transmission_sample(
+            seca, secb, energy, physics_package)
         T_window = self.calc_transmission_window(secb, energy, physics_package)
 
         transmission_physics_package = T_sample * T_window
@@ -1729,8 +1730,9 @@ class Detector:
     def calc_transmission_sample(self, seca: np.array,
                                  secb: np.array, energy: np.floating,
                                  physics_package: AbstractPhysicsPackage) -> np.array:
-        thickness_s = physics_package.sample_thickness # in microns
-        mu_s = 1./physics_package.sample_absorption_length(energy) # in microns^-1
+        thickness_s = physics_package.sample_thickness  # in microns
+        # in microns^-1
+        mu_s = 1./physics_package.sample_absorption_length(energy)
         x = (mu_s*thickness_s)
         pre = 1./x/(secb - seca)
         num = np.exp(-x*seca) - np.exp(-x*secb)
@@ -1738,8 +1740,9 @@ class Detector:
 
     def calc_transmission_window(self, secb: np.array, energy: np.floating,
                                  physics_package: AbstractPhysicsPackage) -> np.array:
-        thickness_w = physics_package.window_thickness # in microns
-        mu_w = 1./physics_package.window_absorption_length(energy) # in microns^-1
+        thickness_w = physics_package.window_thickness  # in microns
+        # in microns^-1
+        mu_w = 1./physics_package.window_absorption_length(energy)
         return np.exp(-thickness_w*mu_w*secb)
 
     def calc_effective_pinhole_area(self, physics_package: AbstractPhysicsPackage) -> np.array:
@@ -1747,8 +1750,8 @@ class Detector:
         """
         effective_pinhole_area = np.ones(self.shape)
 
-        if (physics_package.pinhole_diameter !=0.
-            and physics_package.pinhole_thickness != 0.):
+        if (physics_package.pinhole_diameter != 0.
+                and physics_package.pinhole_thickness != 0.):
 
             hod = (physics_package.pinhole_thickness /
                    physics_package.pinhole_diameter)
@@ -1756,10 +1759,10 @@ class Detector:
 
             tth, eta = self.pixel_angles()
             angs = np.vstack((tth.flatten(), eta.flatten(),
-                      np.zeros(tth.flatten().shape))).T
+                              np.zeros(tth.flatten().shape))).T
             dvecs = angles_to_dvec(angs, beam_vec=bvec)
 
-            cth = -dvecs[:,2].reshape(self.shape)
+            cth = -dvecs[:, 2].reshape(self.shape)
             tanth = np.tan(np.arccos(cth))
             f = hod*tanth
             f[np.abs(f) > 1.] = np.nan
@@ -1773,7 +1776,7 @@ class Detector:
                                   secb: np.array,
                                   thickness: np.floating,
                                   absorption_length: np.floating) -> np.array:
-        mu = 1./absorption_length # in microns^-1
+        mu = 1./absorption_length  # in microns^-1
         return np.exp(-thickness*mu*secb)
 
     def calc_transmission_phosphor(self,
