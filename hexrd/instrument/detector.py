@@ -1759,8 +1759,8 @@ class Detector:
         f = hod*tanth
         f[np.abs(f) > 1.] = np.nan
         asinf = np.arcsin(f)
-        effective_pinhole_area = (
-            (2/np.pi) * cth * (np.pi/2 - asinf - f*np.cos(asinf)))
+        effective_pinhole_area = (0.5 * cth * 
+            (np.pi/2 - asinf - f*np.cos(asinf)))
         return effective_pinhole_area
 
     def calc_transmission_generic(self,
