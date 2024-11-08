@@ -85,6 +85,7 @@ class TestFormatFrameCache(ImageSeriesFormatTest):
         self.fcfile = os.path.join(self.tmpdir,  'frame-cache.npz')
         self.fmt = 'frame-cache'
         self.thresh = 0.5
+        self.style = 'npz'
         self.cache_file='frame-cache.npz'
         _, self.is_a = make_array_ims()
 
@@ -93,9 +94,9 @@ class TestFormatFrameCache(ImageSeriesFormatTest):
 
     def test_fmtfc(self):
         """save/load frame-cache format"""
-        imageseries.write(self.is_a, self.fcfile, self.fmt,
+        imageseries.write(self.is_a, self.fcfile, self.fmt, style=self.style,
             threshold=self.thresh, cache_file=self.cache_file)
-        is_fc = imageseries.open(self.fcfile, self.fmt)
+        is_fc = imageseries.open(self.fcfile, self.fmt, style=self.style)
         diff = compare(self.is_a, is_fc)
         self.assertAlmostEqual(diff, 0., "frame-cache reconstruction failed")
         self.assertTrue(compare_meta(self.is_a, is_fc))
@@ -104,9 +105,9 @@ class TestFormatFrameCache(ImageSeriesFormatTest):
         """save/load frame-cache format with no cache_file arg"""
         imageseries.write(
             self.is_a, self.fcfile, self.fmt,
-            threshold=self.thresh
+            threshold=self.thresh, style=self.style
         )
-        is_fc = imageseries.open(self.fcfile, self.fmt)
+        is_fc = imageseries.open(self.fcfile, self.fmt, style=self.style)
         diff = compare(self.is_a, is_fc)
         self.assertAlmostEqual(diff, 0., "frame-cache reconstruction failed")
         self.assertTrue(compare_meta(self.is_a, is_fc))
@@ -117,11 +118,22 @@ class TestFormatFrameCache(ImageSeriesFormatTest):
         npa = np.array([0,2.0,1.3])
         self.is_a.metadata[key] = npa
 
-        imageseries.write(self.is_a, self.fcfile, self.fmt,
+        imageseries.write(self.is_a, self.fcfile, self.fmt, style=self.style,
             threshold=self.thresh, cache_file=self.cache_file
         )
-        is_fc = imageseries.open(self.fcfile, self.fmt)
+        is_fc = imageseries.open(self.fcfile, self.fmt, style=self.style)
         meta = is_fc.metadata
         diff = np.linalg.norm(meta[key] - npa)
         self.assertAlmostEqual(diff, 0.,
                                "frame-cache numpy array metadata failed")
+
+
+class TestFormatFrameCache_FCH5(TestFormatFrameCache):
+
+    def setUp(self):
+        self.fcfile = os.path.join(self.tmpdir,  'frame-cache.fch5')
+        self.fmt = 'frame-cache'
+        self.style = 'fch5'
+        self.thresh = 0.5
+        self.cache_file = 'frame-cache.fch5'
+        _, self.is_a = make_array_ims()
