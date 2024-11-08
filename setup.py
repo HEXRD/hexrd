@@ -17,6 +17,7 @@ install_reqs = [
     'fast-histogram',
     'h5py<3.12',  # Currently, h5py 3.12 on Windows fails to import.
                   # We can remove this version pin when that is fixed.
+    'hdf5plugin',
     'lmfit',
     'matplotlib',
     'numba',
