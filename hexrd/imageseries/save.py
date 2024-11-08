@@ -211,19 +211,26 @@ class WriteFrameCache(Writer):
     cache_file: str or Path, optional
        name of the npz file to save the image data, if not given in the
        `fname` argument; for YAML format (deprecated), this is required
+    style: str, type of file to use for saving. options are:
+       - 'npz' for saving in a numpy compressed file
+       - 'fch5' for saving in the HDF5-based frame-cache format
     max_workers: int, optional
        The max number of worker threads for multithreading. Defaults to
        the number of CPUs.
     """
     fmt = 'frame-cache'
 
-    def __init__(self, ims, fname, **kwargs):
+    def __init__(self, ims, fname, style='npz', **kwargs):
         Writer.__init__(self, ims, fname, **kwargs)
         self._thresh = self._opts['threshold']
         self._cache, self.cachename = self._set_cache()
 
         ncpus = multiprocessing.cpu_count()
         self.max_workers = kwargs.get('max_workers', ncpus)
+        supported_formats = ['npz','cfh5']
+        if style not in supported_formats:
+          raise TypeError(f"Unknown file style for writing framecache: {style}. Supported formats are  {supported_formats}")
+        self.style = style
 
     def _set_cache(self):
 
@@ -274,6 +281,10 @@ class WriteFrameCache(Writer):
             yaml.safe_dump(info, f)
 
     def _write_frames(self):
+        if self.style == 'npz':
+          self._write_frames_npz()
+
+    def _write_frames_npz(self):
         """also save shape array as originally done (before yaml)"""
         buff_size = self._ims.shape[0]*self._ims.shape[1]
         arrd = {}
