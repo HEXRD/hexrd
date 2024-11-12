@@ -137,3 +137,13 @@ class TestFormatFrameCache_FCH5(TestFormatFrameCache):
         self.thresh = 0.5
         self.cache_file = 'frame-cache.fch5'
         _, self.is_a = make_array_ims()
+
+    def test_fmtfc_nested_metadata(self):
+        """frame-cache format with nested metadata"""
+        metadata = {'int': 1, 'array': np.array([1, 2, 3])}
+        self.is_a.metadata["key"] = metadata
+
+        imageseries.write(self.is_a, self.fcfile, self.fmt, style=self.style,
+                          threshold=self.thresh, cache_file=self.cache_file)
+        is_fc = imageseries.open(self.fcfile, self.fmt, style=self.style)
+        self.assertTrue(compare_meta(self.is_a, is_fc))
