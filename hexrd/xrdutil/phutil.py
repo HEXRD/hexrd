@@ -392,7 +392,8 @@ def calc_phi_x(bvec, eHat_l):
     """
     bv = np.array(bvec)
     bv[2] = 0.
-    if np.linalg.norm(bv) == 0.:
+    bv_norm = np.linalg.norm(bv)
+    if np.isclose(bv_norm, 0):
         return 0.
     else:
         bv = bv/np.linalg.norm(bv)
