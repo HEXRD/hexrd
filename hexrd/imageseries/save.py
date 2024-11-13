@@ -398,7 +398,7 @@ class WriteFrameCache(Writer):
             h5f.attrs['HEXRD_FRAMECACHE_VERSION'] = 1
             h5f["shape"] = shape
             h5f["nframes"] = nframes
-            h5f["dtype"] = str(self._ims.dtype).encode()
+            h5f["dtype"] = str(np.dtype(self._ims.dtype)).encode("utf-8")
             metadata = h5f.create_group("metadata")
             unwrap_dict_to_h5(metadata, self._meta.copy())
 

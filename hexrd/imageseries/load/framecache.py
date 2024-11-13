@@ -12,6 +12,7 @@ from . import ImageSeriesAdapter
 from ..imageseriesiter import ImageSeriesIterator
 from .metadata import yamlmeta
 from hexrd.utils.hdf5 import unwrap_h5_to_dict
+from hexrd.utils.compatibility import h5py_read_string
 
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
@@ -81,7 +82,7 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
 
             self._shape = file["shape"][()]
             self._nframes = file["nframes"][()]
-            self._dtype = np.dtype(file["dtype"][()])
+            self._dtype = np.dtype(h5py_read_string(file["dtype"]))
             self._meta = {}
             unwrap_h5_to_dict(file["metadata"], self._meta)
 
