@@ -392,8 +392,12 @@ def calc_phi_x(bvec, eHat_l):
     """
     bv = np.array(bvec)
     bv[2] = 0.
-    bv = bv/np.linalg.norm(bv)
-    return np.arccos(np.dot(bv, -eHat_l)).item()
+    bv_norm = np.linalg.norm(bv)
+    if np.isclose(bv_norm, 0):
+        return 0.
+    else:
+        bv = bv / bv_norm
+        return np.arccos(np.dot(bv, -eHat_l)).item()
 
 
 def azimuth(vv, v0, v1):
@@ -449,7 +453,7 @@ def _infer_eHat_l(panel):
 
     eHat_l_dict = {
         'TARDIS': -ct.lab_x.reshape((3, 1)),
-        'PXRDIP': ct.lab_y.reshape((3, 1))
+        'PXRDIP': -ct.lab_x.reshape((3, 1))
     }
 
     return eHat_l_dict[instr_type]
@@ -460,7 +464,7 @@ def _infer_eta_shift(panel):
 
     eta_shift_dict = {
         'TARDIS': -np.radians(180),
-        'PXRDIP': -np.radians(90),
+        'PXRDIP': -np.radians(180),
     }
 
     return eta_shift_dict[instr_type]
@@ -525,8 +529,8 @@ def calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
 
     v0 = np.array([0, 0, 1])
     v1 = np.squeeze(eHat_l)
-    phi_d = azimuth(dvectors, v0, v1).reshape(tth.shape)
-    beta = np.arccos(np.dot(dvectors, [0, 0, -1])).reshape(tth.shape)
+    phi_d = azimuth(dvectors, -v0, v1).reshape(tth.shape)
+    beta = np.arccos(-dvectors[:, 2]).reshape(tth.shape)
 
     # Compute r_d
     # We will first convert to Cartesian, then clip to the panel, add the
