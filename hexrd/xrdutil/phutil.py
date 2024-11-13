@@ -396,7 +396,7 @@ def calc_phi_x(bvec, eHat_l):
     if np.isclose(bv_norm, 0):
         return 0.
     else:
-        bv = bv/np.linalg.norm(bv)
+        bv = bv / bv_norm
         return np.arccos(np.dot(bv, -eHat_l)).item()
 
 
