@@ -87,7 +87,9 @@ def cellIndices(edges, points_1d):
     #     idx[off_lo] = np.nan
     # if np.any(off_hi):
     #     idx[off_hi] = np.nan
-    return np.array(idx, dtype=int)
+    idx = np.array(idx)
+    idx[np.isnan(idx)] = 0
+    return np.array(idx).astype(int)
 
 
 @numba.njit(nogil=True, cache=True)
