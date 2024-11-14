@@ -42,6 +42,7 @@ requirements:
     - lxml >=4.9.2
     - fast-histogram
     - h5py
+    - hdf5plugin
     - lmfit
     - matplotlib-base
     - numba
