@@ -1750,8 +1750,8 @@ class Detector:
         """
         effective_pinhole_area = np.ones(self.shape)
 
-        if (physics_package.pinhole_diameter != 0.
-                and physics_package.pinhole_thickness != 0.):
+        if (not np.isclose(physics_package.pinhole_diameter, 0)
+            and not np.isclose(physics_package.pinhole_thickness, 0)):
 
             hod = (physics_package.pinhole_thickness /
                    physics_package.pinhole_diameter)
