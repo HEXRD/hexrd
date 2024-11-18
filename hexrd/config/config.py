@@ -8,11 +8,22 @@ from .utils import null
 logger = logging.getLogger('hexrd.config')
 
 class Config(object):
+    """Access a level of the YAML configuration file
 
+    PARAMETERS
+    ----------
+    cfg: Config instance or a (pyyaml) YAMLObject
+       config representings a level of the YAML input
+    """
     _dirty = False
 
     def __init__(self, cfg):
         self._cfg = cfg
+
+    @property
+    def parent(self):
+        """Parent Config file or None for root (top) level"""
+        return self._cfg  if isinstance(self._cfg, type(self)) else None
 
     @property
     def dirty(self):

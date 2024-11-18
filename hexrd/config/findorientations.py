@@ -1,5 +1,5 @@
 import os
-
+from pathlib import Path
 import logging
 
 import numpy as np
@@ -229,14 +229,43 @@ class OrientationMapsConfig(Config):
             'find_orientations:orientation_maps:eta_step', default=0.25
             )
 
-    @property
-    def file(self):
-        temp = self._cfg.get('find_orientations:orientation_maps:file',
-                             default=None)
-        if temp is not None:
-            if not os.path.isabs(temp):
-                temp = os.path.join(self._cfg.working_dir, temp)
-        return temp
+    def file(self, to_load):
+        """Path of eta-omega maps file
+
+        This function implements the newer file placement for the eta-omega
+        maps file in the analysis directory, instead of the old placement in
+        the working directory. New files will be saved using the new
+        placement. For loading existing files, the new placement will be
+        checked first, and then the old placement. This ensures that old
+        data sets will still find existing map files.
+
+        PARAMETERS
+        ----------
+        to_load: bool
+           if True, the filename with the eta-omega maps; otherwise, it
+           returns the filename to save the eta-omega maps
+
+        RETURNS
+        -------
+        Path:
+           the path to an existing file or where to write a new file or None
+        """
+        temp = Path(self._cfg.get(
+            'find_orientations:orientation_maps:file',
+            default="eta-ome_maps.npz"
+        ))
+        if temp.suffix != ".npz":
+            temp = temp.with_suffix(".npz")
+
+        oem_path = oem_new = self.parent.analysis_dir / temp
+        if temp.is_absolute():
+            oem_path = temp
+        else:
+            ome_old = self.parent.working_dir / temp
+            if loading and not ome_new.exists():
+                oem_path = ome_old if oeme_old.exists() else None
+
+        return oem_path
 
     @property
     def threshold(self):
