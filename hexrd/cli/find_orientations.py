@@ -51,14 +51,8 @@ def configure_parser(sub_parsers):
 
 
 def write_scored_orientations(results, cfg):
-    # grab working directory from config
-    wdir = cfg.working_dir
-
-    scored_quats_filename = os.path.join(
-        wdir, '_'.join(['scored_orientations', cfg.analysis_id])
-    )
     np.savez_compressed(
-        scored_quats_filename,
+        cfg.find_orientations.orientation_maps.scored_orientations_file,
         **results['scored_orientations']
     )
 

@@ -9,6 +9,7 @@ from .config import Config
 
 logger = logging.getLogger('hexrd.config')
 
+
 # TODO: set these as defaults
 seed_search_methods = {
     'label': dict(filter_radius=1, threshold=1),
@@ -25,10 +26,13 @@ class FindOrientationsConfig(Config):
 
     _find_ori = "find-orientations"
 
+    def _active_material_str(self):
+        return self.parent.material.active.strip().replace(' ', '-')
+
     @property
     def logfile(self):
         """Name of log file"""
-        actmat = self.parent.material.active.strip().replace(' ', '-')
+        actmat = self._active_material_str()
         return self.parent.analysis_dir() / f"{self._find_ori}-{actmat}.log"
 
     # Subsections
@@ -263,28 +267,39 @@ class OrientationMapsConfig(Config):
         # returns a valid value of None, we have to check twice before setting
         # it to the default value.
         #
-        dflt = "eta-ome_maps.npz"
+        actmat = self.parent.find_orientations._active_material_str()
+        dflt = f"eta-ome-maps-{actmat}.npz"
         temp = self._cfg.get(
             'find_orientations:orientation_maps:file',
-            default=dflt
+            default=None
         )
         if temp is None:
-            temp = dflt
-        temp = Path(temp)
+            ome_new = self.parent.analysis_dir() / dflt
+            old_name = '_'.join([self.parent.analysis_id, "eta-ome_maps.npz"])
+            ome_old = Path(self.parent.working_dir) / old_name
+
+        else:
+            # User specified value
+            if temp.suffix != ".npz":
+                temp = temp.with_suffix(".npz")
+            ome_new = ome_old = temp
 
         # Now, we put the file in the analysis directory.
-        if temp.suffix != ".npz":
-            temp = temp.with_suffix(".npz")
 
-        oem_path = ome_new = self.parent.analysis_dir() / temp
-        if temp.is_absolute():
-            oem_path = temp
+        if ome_new.is_absolute():
+            oem_path = ome_new
         else:
-            ome_old = self.parent.working_dir / temp
             if to_load and not ome_new.exists():
                 oem_path = ome_old if ome_old.exists() else None
 
         return oem_path
+
+    @property
+    def scored_orientations_file(self):
+        root = self.parent
+        adir = root.analysis_dir()
+        actmat = root.find_orientations._active_material_str()
+        return Path(adir) / f'scored-orientations-{actmat}.npz'
 
     @property
     def threshold(self):
