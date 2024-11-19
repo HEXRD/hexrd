@@ -23,7 +23,7 @@ class Config(object):
     @property
     def parent(self):
         """Parent Config file or None for root (top) level"""
-        return self._cfg  if isinstance(self._cfg, type(self)) else None
+        return self._cfg if isinstance(self._cfg, Config) else None
 
     @property
     def dirty(self):

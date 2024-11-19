@@ -23,6 +23,14 @@ seed_search_methods = {
 
 class FindOrientationsConfig(Config):
 
+    _find_ori = "find-orientations"
+
+    @property
+    def logfile(self):
+        """Name of log file"""
+        actmat = self.parent.material.active.strip().replace(' ', '-')
+        return self.parent.analysis_dir() / f"{self._find_ori}-{actmat}.log"
+
     # Subsections
     @property
     def orientation_maps(self):
@@ -250,20 +258,31 @@ class OrientationMapsConfig(Config):
         Path:
            the path to an existing file or where to write a new file or None
         """
-        temp = Path(self._cfg.get(
+        #
+        # Get file name.  Because users often set file to "null", which
+        # returns a valid value of None, we have to check twice before setting
+        # it to the default value.
+        #
+        dflt = "eta-ome_maps.npz"
+        temp = self._cfg.get(
             'find_orientations:orientation_maps:file',
-            default="eta-ome_maps.npz"
-        ))
+            default=dflt
+        )
+        if temp is None:
+            temp = dflt
+        temp = Path(temp)
+
+        # Now, we put the file in the analysis directory.
         if temp.suffix != ".npz":
             temp = temp.with_suffix(".npz")
 
-        oem_path = oem_new = self.parent.analysis_dir / temp
+        oem_path = ome_new = self.parent.analysis_dir() / temp
         if temp.is_absolute():
             oem_path = temp
         else:
             ome_old = self.parent.working_dir / temp
-            if loading and not ome_new.exists():
-                oem_path = ome_old if oeme_old.exists() else None
+            if to_load and not ome_new.exists():
+                oem_path = ome_old if ome_old.exists() else None
 
         return oem_path
 

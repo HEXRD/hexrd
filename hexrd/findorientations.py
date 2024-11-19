@@ -413,7 +413,7 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
         res = generate_eta_ome_maps(cfg, hkls=hkls)
     else:
         try:
-            res = EtaOmeMaps(fn)
+            res = EtaOmeMaps(str(fn))
             pd = res.planeData
             logger.info(f'loaded eta/ome orientation maps from {fn}')
             shkls = pd.getHKLs(*res.iHKLList, asStr=True)
@@ -563,7 +563,7 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
 
     if save:
         # save maps
-        map_fname = cfg.find_orientations.orientation_maps.file(False)
+        fn = cfg.find_orientations.orientation_maps.file(False)
         eta_ome.save(fn)
 
         logger.info(f'saved eta/ome orientation maps to "{fn}"', fn)

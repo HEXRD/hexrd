@@ -134,14 +134,9 @@ def execute(args, parser):
             quats_f
         )
         sys.exit()
-    if not os.path.exists(cfg.working_dir):
-        os.makedirs(cfg.working_dir)
 
     # configure logging to file
-    logfile = os.path.join(
-        cfg.working_dir,
-        'find-orientations_%s.log' % cfg.analysis_id
-        )
+    logfile = cfg.find_orientations.logfile
     fh = logging.FileHandler(logfile, mode='w')
     fh.setLevel(log_level)
     fh.setFormatter(
