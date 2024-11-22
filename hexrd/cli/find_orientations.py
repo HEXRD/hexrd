@@ -50,33 +50,20 @@ def configure_parser(sub_parsers):
     p.set_defaults(func=execute)
 
 
-def write_scored_orientations(results, cfg):
+def write_results(results, cfg):
+    # Write scored orientations.
     np.savez_compressed(
         cfg.find_orientations.orientation_maps.scored_orientations_file,
         **results['scored_orientations']
     )
 
-
-def write_results(results, cfg):
-    # Write out the data
-    write_scored_orientations(results, cfg)
-
-    # grab working directory from config
-    wdir = cfg.working_dir
-
-    if not os.path.exists(cfg.analysis_dir):
-        os.makedirs(cfg.analysis_dir)
-    qbar_filename = os.path.join(
-        wdir,
-        'accepted_orientations_' + cfg.analysis_id + '.dat'
-    )
+    # Write accepted orientations.
+    qbar_filename = str(cfg.find_orientations.accepted_orientations_file())
     np.savetxt(qbar_filename, results['qbar'].T,
                fmt='%.18e', delimiter='\t')
 
-    # ??? do we want to do this by default?
-    gw = instrument.GrainDataWriter(
-        os.path.join(cfg.analysis_dir, 'grains.out')
-    )
+    # Write grains.out.
+    gw = instrument.GrainDataWriter(cfg.find_orientations.grains_file)
     for gid, q in enumerate(results['qbar'].T):
         phi = 2*np.arccos(q[0])
         n = xfcapi.unit_vector(q[1:])
@@ -118,16 +105,17 @@ def execute(args, parser):
     cfg = config.open(args.yml)[0]
 
     # prepare the analysis directory
-    quats_f = os.path.join(
-        cfg.working_dir,
-        'accepted_orientations_%s.dat' % cfg.analysis_id
-        )
-    if os.path.exists(quats_f) and not (args.force or args.clean):
+    quats_f = cfg.find_orientations.accepted_orientations_file(to_load=True)
+
+    if (quats_f is not None) and not (args.force or args.clean):
         logger.error(
             '%s already exists. Change yml file or specify "force" or "clean"',
             quats_f
         )
         sys.exit()
+
+    # Create analysis directory and any intermediates.
+    cfg.analysis_dir.mkdir(parents=True, exist_ok=True)
 
     # configure logging to file
     logfile = cfg.find_orientations.logfile

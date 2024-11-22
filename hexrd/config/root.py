@@ -47,7 +47,7 @@ class RootConfig(Config):
 
     @property
     def analysis_name(self):
-        """Name of the analysis
+        """Name (Path) of the analysis
 
         This will be used to set up the output directory. The name can
         contain slash ("/") characters, which will generate a subdirectory
@@ -59,14 +59,17 @@ class RootConfig(Config):
     def analysis_name(self, val):
         self.set('analysis_name', val)
 
-    def analysis_dir(self):
+    @property
+    def analysis_dir(self, mkdirs=False):
         """Analysis directory, where output files go
 
-        The name is derived from `working_dir` and `analysis_name`.
-        Intermediate directories will be created.
+        The name is derived from `working_dir` and `analysis_name`. This
+        propetry returns a Path object. The directory and any intermediate
+        directories can be created with the `mkdir()` method, e.g.
+
+        >>> analysis_dir.mkdir(parents=True, exist_ok=True)
         """
         adir = Path(self.working_dir) / self.analysis_name
-        Path.mkdir(adir, parents=True, exist_ok=True)
         return adir
 
     @property

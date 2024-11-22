@@ -34,10 +34,24 @@ class ToleranceConfig(Config):
 
 class FitGrainsConfig(Config):
 
+    _fit_grains = "fit-grains"
+
+    def _active_material_str(self):
+        return self.parent.material.active.strip().replace(' ', '-')
+
     def __init__(self, cfg):
         super().__init__(cfg)
         re, ep = get_exclusion_parameters(self._cfg, 'fit_grains')
         self._reset_exclusions, self._exclusion_parameters = re, ep
+
+    @property
+    def logfile(self):
+        """Name of log file"""
+        return self.parent.analysis_dir / f"fit-grains.log"
+
+    @property
+    def grains_file(self):
+        return self.parent.analysis_dir / "grains.out"
 
     @property
     def reset_exclusions(self):

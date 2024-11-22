@@ -563,7 +563,7 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
 
     if save:
         # save maps
-        fn = cfg.find_orientations.orientation_maps.file(False)
+        fn = cfg.find_orientations.orientation_maps.file()
         eta_ome.save(fn)
 
         logger.info(f'saved eta/ome orientation maps to "{fn}"', fn)
@@ -705,6 +705,7 @@ def find_orientations(cfg,
 
     """
     # grab objects from config
+    cfg.analysis_dir.mkdir(parents=True, exist_ok=True)
     plane_data = cfg.material.plane_data
     imsd = cfg.image_series
     instr = cfg.instrument.hedm

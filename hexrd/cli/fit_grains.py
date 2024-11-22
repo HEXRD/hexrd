@@ -8,6 +8,7 @@ import numpy as np
 from hexrd import config
 from hexrd import constants as cnst
 from hexrd import instrument
+from hexrd.findorientations import find_orientations
 from hexrd.fitgrains import fit_grains
 from hexrd.transforms import xfcapi
 
@@ -118,21 +119,12 @@ def write_results(
     instr = cfg.instrument.hedm
     nfit = len(fit_results)
 
-    # make output directories
-    if not os.path.exists(cfg.analysis_dir):
-        os.mkdir(cfg.analysis_dir)
-        for det_key in instr.detectors:
-            os.mkdir(os.path.join(cfg.analysis_dir, det_key))
-    else:
-        # make sure panel dirs exist under analysis dir
-        for det_key in instr.detectors:
-            if not os.path.exists(os.path.join(cfg.analysis_dir, det_key)):
-                os.mkdir(os.path.join(cfg.analysis_dir, det_key))
+    # Make output directories: analysis directory and a subdirectory for
+    # each panel.
+    for det_key in instr.detectors:
+        (cfg.analysis_dir / det_key).mkdir(parents=True, exist_ok=True)
 
-
-    gw = instrument.GrainDataWriter(
-        os.path.join(cfg.analysis_dir, grains_filename)
-    )
+    gw = instrument.GrainDataWriter(str(cfg.analysis_dir /grains_filename))
     gd_array = np.zeros((nfit, 21))
     gwa = instrument.GrainDataWriter(array=gd_array)
     for fit_result in fit_results:
@@ -142,7 +134,7 @@ def write_results(
     gwa.close()
 
     gdata = GrainData.from_array(gd_array)
-    gdata.save(os.path.join(cfg.analysis_dir, grains_npz))
+    gdata.save(str(cfg.analysis_dir / grains_npz))
 
 
 def execute(args, parser):
@@ -167,18 +159,14 @@ def execute(args, parser):
     cfg = cfgs[0]
 
     # use path to grains.out to determine if analysis exists
-    # !!! note that the analysis dir pre-pends the working_dir
-    grains_filename = os.path.join(cfg.analysis_dir, 'grains.out')
+    grains_filename = cfg.find_orientations.grains_file
 
     # path to accepted_orientations
-    quats_f = os.path.join(
-        cfg.working_dir,
-        'accepted_orientations_%s.dat' % cfg.analysis_id
-        )
+    quats_f = cfg.find_orientations.accepted_orientations_file(to_load = True)
 
     # some conditionals for arg handling
-    have_orientations = os.path.exists(quats_f)
-    existing_analysis = os.path.exists(grains_filename)
+    have_orientations = quats_f is not None
+    existing_analysis = grains_filename.exists()
     fit_estimate = cfg.fit_grains.estimate
     force_without_estimate = args.force and fit_estimate is None
     new_without_estimate = not existing_analysis and fit_estimate is None
@@ -195,9 +183,9 @@ def execute(args, parser):
                 raise(RuntimeError,
                       "error loading indexing results '%s'" % quats_f)
         else:
+            quats_f = cfg.find_orientations.accepted_orientations_file()
             logger.info("Missing %s, running find-orientations", quats_f)
             logger.removeHandler(ch)
-            from hexrd.findorientations import find_orientations
             results = find_orientations(cfg)
             qbar = results['qbar']
             logger.addHandler(ch)
@@ -205,14 +193,25 @@ def execute(args, parser):
     logger.info('=== begin fit-grains ===')
 
     for cfg in cfgs:
-        # prepare the analysis directory
-        if os.path.exists(cfg.analysis_dir) and not clobber:
+
+        # Check whether an existing analysis exists.
+        grains_filename = cfg.fit_grains.grains_file
+
+        if grains_filename.exists() and not clobber:
             logger.error(
-                'Analysis "%s" at %s already exists.'
-                ' Change yml file or specify "force"',
-                cfg.analysis_name, cfg.analysis_dir
+                'Analysis "%s" already exists. '
+                'Change yml file or specify "force"',
+                cfg.analysis_name
                 )
             sys.exit()
+
+        # Set up analysis directory and output directories.
+        cfg.analysis_dir.mkdir(parents=True, exist_ok=True)
+
+        instr = cfg.instrument.hedm
+        for det_key in instr.detectors:
+            det_dir = cfg.analysis_dir / det_key
+            det_dir.mkdir(exist_ok=True)
 
         # Set HKLs to use.
         if cfg.fit_grains.reset_exclusions:
@@ -235,26 +234,10 @@ def execute(args, parser):
         )
         logger.info(f'using {using_nhkls} HKLs')
 
-        # make output directories
-        instr = cfg.instrument.hedm
-        if not os.path.exists(cfg.analysis_dir):
-            os.makedirs(cfg.analysis_dir)
-            for det_key in instr.detectors:
-                os.mkdir(os.path.join(cfg.analysis_dir, det_key))
-        else:
-            # make sure panel dirs exist under analysis dir
-            for det_key in instr.detectors:
-                if not os.path.exists(os.path.join(cfg.analysis_dir, det_key)):
-                    os.mkdir(os.path.join(cfg.analysis_dir, det_key))
-
         logger.info('*** begin analysis "%s" ***', cfg.analysis_name)
 
         # configure logging to file for this particular analysis
-        logfile = os.path.join(
-            cfg.working_dir,
-            cfg.analysis_name,
-            'fit-grains.log'
-            )
+        logfile = cfg.fit_grains.logfile
         fh = logging.FileHandler(logfile, mode='w')
         fh.setLevel(log_level)
         ff = logging.Formatter(
@@ -273,17 +256,15 @@ def execute(args, parser):
             pr = profile.Profile()
             pr.enable()
 
-        grains_filename = os.path.join(
-            cfg.analysis_dir, 'grains.out'
-        )
 
         # some conditionals for arg handling
-        existing_analysis = os.path.exists(grains_filename)
+        existing_analysis = grains_filename.exists()
         fit_estimate = cfg.fit_grains.estimate
         new_with_estimate = not existing_analysis and fit_estimate is not None
         new_without_estimate = not existing_analysis and fit_estimate is None
         force_with_estimate = args.force and fit_estimate is not None
         force_without_estimate = args.force and fit_estimate is None
+        #
         # ------- handle args
         # - 'clean' indicates ignoring any estimate specified and starting with
         #   the 'accepted_orientations' file.  Will run find-orientations if
@@ -292,6 +273,7 @@ def execute(args, parser):
         #   option "fit_grains:estimate" is None, will use results from
         #   find-orientations.  If 'accepted_orientations' does not exists,
         #   then it runs find-orientations.
+        #
         if args.clean or force_without_estimate or new_without_estimate:
             # need accepted orientations from indexing in this case
             if args.clean:
@@ -304,6 +286,8 @@ def execute(args, parser):
                     + "using default"
                 )
             try:
+                # Write the accepted orientations (in `qbar`) to the
+                # grains.out file
                 gw = instrument.GrainDataWriter(grains_filename)
                 for i_g, q in enumerate(qbar.T):
                     phi = 2*np.arccos(q[0])
@@ -316,7 +300,7 @@ def execute(args, parser):
             except(IOError):
                 raise(RuntimeError,
                       "indexing results '%s' not found!"
-                      % 'accepted_orientations_' + cfg.analysis_id + '.dat')
+                      % str(grains_filename))
         elif force_with_estimate or new_with_estimate:
             grains_filename = fit_estimate
             logger.info("using initial estimate '%s'", fit_estimate)

@@ -33,7 +33,46 @@ class FindOrientationsConfig(Config):
     def logfile(self):
         """Name of log file"""
         actmat = self._active_material_str()
-        return self.parent.analysis_dir() / f"{self._find_ori}-{actmat}.log"
+        return self.parent.analysis_dir / f"{self._find_ori}-{actmat}.log"
+
+    def accepted_orientations_file(self, to_load=False):
+        """Path of accepted_orientations file
+
+        PARAMETERS
+        ----------
+        to_load: bool, default = False
+           if True, check whether possible file names exist
+
+        RETURNS
+        -------
+        Path or None:
+            if to_load is False, it returns the path to write the file; if
+            True, it checks for existing files (new name first) and returns
+            an existing file name or None
+        """
+        actmat = self._active_material_str()
+        newname = f"accepted-orientations-{actmat}.dat"
+        aof_new = self.parent.analysis_dir / newname
+
+        if not to_load:
+            fname = aof_new
+        else:
+            fname = None
+            if aof_new.exists():
+                fname = aof_new
+            else:
+                oldname = (
+                    'accepted_orientations_%s.dat' % self.parent.analysis_id
+                )
+                aof_old = self.parent.working_dir / oldname
+                if aof_old.exists():
+                    fname = aof_old
+
+        return fname
+
+    @property
+    def grains_file(self):
+        return self.parent.analysis_dir / "grains.out"
 
     # Subsections
     @property
@@ -241,7 +280,7 @@ class OrientationMapsConfig(Config):
             'find_orientations:orientation_maps:eta_step', default=0.25
             )
 
-    def file(self, to_load):
+    def file(self, to_load=False):
         """Path of eta-omega maps file
 
         This function implements the newer file placement for the eta-omega
@@ -253,14 +292,15 @@ class OrientationMapsConfig(Config):
 
         PARAMETERS
         ----------
-        to_load: bool
-           if True, the filename with the eta-omega maps; otherwise, it
-           returns the filename to save the eta-omega maps
+        to_load: bool, default = False
+           if True, check whether possible file names exist
 
         RETURNS
         -------
-        Path:
-           the path to an existing file or where to write a new file or None
+        Path or None:
+            if `to_load` is False, it returns the path to write the file; if
+            True, it checks for existing files (new name first) and returns
+            the name of an existing file or None
         """
         #
         # Get file name.  Because users often set file to "null", which
@@ -274,30 +314,38 @@ class OrientationMapsConfig(Config):
             default=None
         )
         if temp is None:
-            ome_new = self.parent.analysis_dir() / dflt
+            ome_new = self.parent.analysis_dir / dflt
             old_name = '_'.join([self.parent.analysis_id, "eta-ome_maps.npz"])
             ome_old = Path(self.parent.working_dir) / old_name
 
         else:
-            # User specified value
+            # User specified value.
             if temp.suffix != ".npz":
                 temp = temp.with_suffix(".npz")
             ome_new = ome_old = temp
 
-        # Now, we put the file in the analysis directory.
+        # Now, we whether to use the old or the new and set the correct
+        # directory.
 
         if ome_new.is_absolute():
-            oem_path = ome_new
+            ome_path = ome_new
         else:
-            if to_load and not ome_new.exists():
-                oem_path = ome_old if ome_old.exists() else None
+            if not to_load:
+                ome_path = ome_new
+            else:
+                if ome_new.exists():
+                    ome_path = ome_new
+                elif ome_old.exists():
+                    ome_path = ome_old
+                else:
+                    ome_path = None
 
-        return oem_path
+        return ome_path
 
     @property
     def scored_orientations_file(self):
         root = self.parent
-        adir = root.analysis_dir()
+        adir = root.analysis_dir
         actmat = root.find_orientations._active_material_str()
         return Path(adir) / f'scored-orientations-{actmat}.npz'
 
