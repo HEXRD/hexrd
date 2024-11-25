@@ -40,9 +40,9 @@ class RootConfig(Config):
 
     @working_dir.setter
     def working_dir(self, val):
-        val = os.path.abspath(val)
-        if not os.path.isdir(val):
-            raise IOError('"working_dir": "%s" does not exist' % val)
+        val = Path(val)
+        if not val.is_dir():
+            raise IOError('"working_dir": "%s" does not exist' % str(val))
         self.set('working_dir', val)
 
     @property
@@ -60,7 +60,7 @@ class RootConfig(Config):
         self.set('analysis_name', val)
 
     @property
-    def analysis_dir(self, mkdirs=False):
+    def analysis_dir(self):
         """Analysis directory, where output files go
 
         The name is derived from `working_dir` and `analysis_name`. This
@@ -78,6 +78,15 @@ class RootConfig(Config):
             [self.analysis_name.strip().replace(' ', '-'),
              self.material.active.strip().replace(' ', '-')]
         )
+
+    @property
+    def new_file_placement(self):
+        """Use new file placements for find-orientations and fit-grains
+
+        The new file placement rules put several files in the `analysis_dir`
+        instead of the `work
+        """
+        return self.get('new_file_placement', default=False)
 
     @property
     def find_orientations(self):

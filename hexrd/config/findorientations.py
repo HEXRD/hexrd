@@ -32,46 +32,32 @@ class FindOrientationsConfig(Config):
     @property
     def logfile(self):
         """Name of log file"""
-        actmat = self._active_material_str()
-        return self.parent.analysis_dir / f"{self._find_ori}-{actmat}.log"
-
-    def accepted_orientations_file(self, to_load=False):
-        """Path of accepted_orientations file
-
-        PARAMETERS
-        ----------
-        to_load: bool, default = False
-           if True, check whether possible file names exist
-
-        RETURNS
-        -------
-        Path or None:
-            if to_load is False, it returns the path to write the file; if
-            True, it checks for existing files (new name first) and returns
-            an existing file name or None
-        """
-        actmat = self._active_material_str()
-        newname = f"accepted-orientations-{actmat}.dat"
-        aof_new = self.parent.analysis_dir / newname
-
-        if not to_load:
-            fname = aof_new
+        if self.parent.new_file_placement:
+            fname = f"{self._find_ori}-{self._active_material_str()}.log"
+            pth = self.parent.analysis_dir / fname
         else:
-            fname = None
-            if aof_new.exists():
-                fname = aof_new
-            else:
-                oldname = (
-                    'accepted_orientations_%s.dat' % self.parent.analysis_id
-                )
-                aof_old = self.parent.working_dir / oldname
-                if aof_old.exists():
-                    fname = aof_old
+            fname = f"{self._find_ori}_{cfg.analysis_id}.log"
+            pth = self.parent.working_dir / name
 
-        return fname
+        return pth
+
+    def accepted_orientations_file(self):
+        """Path of accepted_orientations file"""
+        actmat = self._active_material_str()
+        if self.parent.new_file_placement:
+            newname = f"accepted-orientations-{actmat}.dat"
+            aof_path = self.parent.analysis_dir / newname
+        else:
+            oldname = (
+                'accepted_orientations_%s.dat' % self.parent.analysis_id
+            )
+            aof_path = self.parent.working_dir / oldname
+
+        return aof_path
 
     @property
     def grains_file(self):
+        """Path to `grains.out` file"""
         return self.parent.analysis_dir / "grains.out"
 
     # Subsections
@@ -280,74 +266,49 @@ class OrientationMapsConfig(Config):
             'find_orientations:orientation_maps:eta_step', default=0.25
             )
 
-    def file(self, to_load=False):
-        """Path of eta-omega maps file
-
-        This function implements the newer file placement for the eta-omega
-        maps file in the analysis directory, instead of the old placement in
-        the working directory. New files will be saved using the new
-        placement. For loading existing files, the new placement will be
-        checked first, and then the old placement. This ensures that old
-        data sets will still find existing map files.
-
-        PARAMETERS
-        ----------
-        to_load: bool, default = False
-           if True, check whether possible file names exist
-
-        RETURNS
-        -------
-        Path or None:
-            if `to_load` is False, it returns the path to write the file; if
-            True, it checks for existing files (new name first) and returns
-            the name of an existing file or None
-        """
+    @property
+    def file(self):
+        """Path of eta-omega maps file"""
         #
         # Get file name.  Because users often set file to "null", which
         # returns a valid value of None, we have to check twice before setting
         # it to the default value.
         #
-        actmat = self.parent.find_orientations._active_material_str()
-        dflt = f"eta-ome-maps-{actmat}.npz"
+        root = self.parent
+        if root.new_file_placement:
+            actmat = root.find_orientations._active_material_str()
+            dflt = f"eta-ome-maps-{actmat}.npz"
+            mapf = root.analysis_dir / dflt
+        else:
+            fname = '_'.join([root.analysis_id, "eta-ome_maps.npz"])
+            mapf = root.working_dir / fname
+
+        # Now check the YAML.
         temp = self._cfg.get(
             'find_orientations:orientation_maps:file',
             default=None
         )
-        if temp is None:
-            ome_new = self.parent.analysis_dir / dflt
-            old_name = '_'.join([self.parent.analysis_id, "eta-ome_maps.npz"])
-            ome_old = Path(self.parent.working_dir) / old_name
-
-        else:
-            # User specified value.
-            if temp.suffix != ".npz":
-                temp = temp.with_suffix(".npz")
-            ome_new = ome_old = temp
-
-        # Now, we whether to use the old or the new and set the correct
-        # directory.
-
-        if ome_new.is_absolute():
-            ome_path = ome_new
-        else:
-            if not to_load:
-                ome_path = ome_new
+        if temp is not None:
+            ptemp = Path(temp)
+            if ptemp.is_absolute():
+                mapf = ptemp
             else:
-                if ome_new.exists():
-                    ome_path = ome_new
-                elif ome_old.exists():
-                    ome_path = ome_old
-                else:
-                    ome_path = None
+                mapf = root.working_dir / ptemp
 
-        return ome_path
+        return mapf
 
     @property
     def scored_orientations_file(self):
         root = self.parent
-        adir = root.analysis_dir
-        actmat = root.find_orientations._active_material_str()
-        return Path(adir) / f'scored-orientations-{actmat}.npz'
+        if root.new_file_placement:
+            adir = root.analysis_dir
+            actmat = root.find_orientations._active_material_str()
+            sof = Path(adir) / f'scored-orientations-{actmat}.npz'
+        else:
+            fname = '_'.join(['scored_orientations', cfg.analysis_id])
+            sof = root.working_dir / fname
+
+        return sof
 
     @property
     def threshold(self):
