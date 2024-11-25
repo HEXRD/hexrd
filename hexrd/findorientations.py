@@ -405,7 +405,7 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
         list of eta-omega map arrays
 
     """
-    fn = cfg.find_orientations.orientation_maps.file(to_load := True)
+    fn = cfg.find_orientations.orientation_maps.file
     if clean:
         logger.info(
             'clean option specified; recomputing eta/ome orientation maps'
@@ -415,7 +415,7 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
         try:
             res = EtaOmeMaps(str(fn))
             pd = res.planeData
-            logger.info(f'loaded eta/ome orientation maps from {fn}')
+            logger.info(f'loaded eta/ome orientation maps from {str(fn)}')
             shkls = pd.getHKLs(*res.iHKLList, asStr=True)
             logger.info(
                 'hkls used to generate orientation maps: %s',
@@ -423,7 +423,7 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
             )
         except (AttributeError, IOError):
             logger.info(
-                f"specified maps file '{fn}' not found "
+                f"specified maps file '{str(fn)}' not found "
                 f"and clean option not specified; "
                 f"recomputing eta/ome orientation maps"
             )

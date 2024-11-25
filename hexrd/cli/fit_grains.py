@@ -162,10 +162,10 @@ def execute(args, parser):
     grains_filename = cfg.find_orientations.grains_file
 
     # path to accepted_orientations
-    quats_f = cfg.find_orientations.accepted_orientations_file(to_load = True)
+    quats_f = cfg.find_orientations.accepted_orientations_file
 
     # some conditionals for arg handling
-    have_orientations = quats_f is not None
+    have_orientations = quats_f.exists()
     existing_analysis = grains_filename.exists()
     fit_estimate = cfg.fit_grains.estimate
     force_without_estimate = args.force and fit_estimate is None
@@ -183,7 +183,7 @@ def execute(args, parser):
                 raise(RuntimeError,
                       "error loading indexing results '%s'" % quats_f)
         else:
-            quats_f = cfg.find_orientations.accepted_orientations_file()
+            quats_f = cfg.find_orientations.accepted_orientations_file
             logger.info("Missing %s, running find-orientations", quats_f)
             logger.removeHandler(ch)
             results = find_orientations(cfg)

@@ -58,7 +58,7 @@ def write_results(results, cfg):
     )
 
     # Write accepted orientations.
-    qbar_filename = str(cfg.find_orientations.accepted_orientations_file())
+    qbar_filename = str(cfg.find_orientations.accepted_orientations_file)
     np.savetxt(qbar_filename, results['qbar'].T,
                fmt='%.18e', delimiter='\t')
 
@@ -105,7 +105,7 @@ def execute(args, parser):
     cfg = config.open(args.yml)[0]
 
     # prepare the analysis directory
-    quats_f = cfg.find_orientations.accepted_orientations_file(to_load=True)
+    quats_f = cfg.find_orientations.accepted_orientations_file
 
     if (quats_f is not None) and not (args.force or args.clean):
         logger.error(
