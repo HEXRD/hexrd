@@ -229,3 +229,23 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
     # @memoize
     def __len__(self):
         return self._nframes
+
+    def __getstate__(self):
+        # Remove any non-pickleable attributes
+        to_remove = [
+            '_load_framelist_lock',
+        ]
+
+        # Make a copy of the dict to modify
+        state = self.__dict__.copy()
+
+        # Remove them
+        for attr in to_remove:
+            state.pop(attr)
+
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # initialize lock after un-pickling
+        self._load_framelist_lock = Lock()
