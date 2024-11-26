@@ -365,7 +365,7 @@ def fit_grains(cfg,
             eta_ranges=eta_ranges,
             ome_period=ome_period,
             analysis_dirname=cfg.analysis_dir,
-            spots_filename=spots_filename)
+            spots_filename=SPOTS_OUT_FILE)
 
     # =====================================================================
     # EXECUTE MP FIT

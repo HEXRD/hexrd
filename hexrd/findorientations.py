@@ -563,7 +563,7 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
 
     if save:
         # save maps
-        fn = cfg.find_orientations.orientation_maps.file()
+        fn = cfg.find_orientations.orientation_maps.file
         eta_ome.save(fn)
 
         logger.info(f'saved eta/ome orientation maps to "{fn}"', fn)

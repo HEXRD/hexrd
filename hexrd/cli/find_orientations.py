@@ -107,7 +107,7 @@ def execute(args, parser):
     # prepare the analysis directory
     quats_f = cfg.find_orientations.accepted_orientations_file
 
-    if (quats_f is not None) and not (args.force or args.clean):
+    if (quats_f.exists()) and not (args.force or args.clean):
         logger.error(
             '%s already exists. Change yml file or specify "force" or "clean"',
             quats_f
