@@ -32,15 +32,17 @@ class FindOrientationsConfig(Config):
     @property
     def logfile(self):
         """Name of log file"""
+        root = self.parent
         if self.parent.new_file_placement:
             fname = f"{self._find_ori}-{self._active_material_str()}.log"
-            pth = self.parent.analysis_dir / fname
+            pth = root.analysis_dir / fname
         else:
-            fname = f"{self._find_ori}_{cfg.analysis_id}.log"
-            pth = self.parent.working_dir / name
+            fname = f"{self._find_ori}_{root.analysis_id}.log"
+            pth = self.parent.working_dir / fname
 
         return pth
 
+    @property
     def accepted_orientations_file(self):
         """Path of accepted_orientations file"""
         actmat = self._active_material_str()
