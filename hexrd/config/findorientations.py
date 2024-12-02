@@ -307,7 +307,7 @@ class OrientationMapsConfig(Config):
             actmat = root.find_orientations._active_material_str()
             sof = Path(adir) / f'scored-orientations-{actmat}.npz'
         else:
-            fname = '_'.join(['scored_orientations', cfg.analysis_id])
+            fname = '_'.join(['scored_orientations', root.analysis_id])
             sof = root.working_dir / fname
 
         return sof

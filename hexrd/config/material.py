@@ -31,8 +31,8 @@ class MaterialConfig(Config):
         if os.path.exists(temp):
             return temp
         raise IOError(
-            '"material:definitions": "%s" does not exist'
-            )
+            f'"material:definitions": "{temp}" does not exist'
+        )
 
     @property
     def active(self):
