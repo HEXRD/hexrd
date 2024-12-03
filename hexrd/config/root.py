@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import logging
 import multiprocessing as mp
 
@@ -17,7 +18,41 @@ logger = logging.getLogger('hexrd.config')
 class RootConfig(Config):
 
     @property
+    def working_dir(self):
+        """Working directory, either specified in file or current directory
+
+        This directory is certain to exist. If the specified directory does
+        not exist, it defaults to the current working directory.
+        """
+        try:
+            temp = Path(self.get('working_dir'))
+            if not temp.exists():
+                raise IOError(f'"working_dir": {temp} does not exist')
+            return temp
+
+        except RuntimeError:
+            temp = Path.cwd()
+            self.working_dir = temp
+            logger.info(
+                '"working_dir" not specified, defaulting to "%s"' % temp
+                )
+            return temp
+
+    @working_dir.setter
+    def working_dir(self, val):
+        val = Path(val)
+        if not val.is_dir():
+            raise IOError('"working_dir": "%s" does not exist' % str(val))
+        self.set('working_dir', val)
+
+    @property
     def analysis_name(self):
+        """Name (Path) of the analysis
+
+        This will be used to set up the output directory. The name can
+        contain slash ("/") characters, which will generate a subdirectory
+        structure in the `analysis_dir`.
+        """
         return str(self.get('analysis_name', default='analysis'))
 
     @analysis_name.setter
@@ -26,7 +61,32 @@ class RootConfig(Config):
 
     @property
     def analysis_dir(self):
-        return os.path.join(self.working_dir, self.analysis_name)
+        """Analysis directory, where output files go
+
+        The name is derived from `working_dir` and `analysis_name`. This
+        propetry returns a Path object. The directory and any intermediate
+        directories can be created with the `mkdir()` method, e.g.
+
+        >>> analysis_dir.mkdir(parents=True, exist_ok=True)
+        """
+        adir = Path(self.working_dir) / self.analysis_name
+        return adir
+
+    @property
+    def analysis_id(self):
+        return '_'.join(
+            [self.analysis_name.strip().replace(' ', '-'),
+             self.material.active.strip().replace(' ', '-')]
+        )
+
+    @property
+    def new_file_placement(self):
+        """Use new file placements for find-orientations and fit-grains
+
+        The new file placement rules put several files in the `analysis_dir`
+        instead of the `work
+        """
+        return self.get('new_file_placement', default=False)
 
     @property
     def find_orientations(self):
@@ -66,13 +126,6 @@ class RootConfig(Config):
     @material.setter
     def material(self, material_config):
         self._material_config = material_config
-
-    @property
-    def analysis_id(self):
-        return '_'.join(
-            [self.analysis_name.strip().replace(' ', '-'),
-             self.material.active.strip().replace(' ', '-')]
-        )
 
     @property
     def multiprocessing(self):
@@ -125,33 +178,6 @@ class RootConfig(Config):
                 '"multiprocessing": must be 1:%d, got %s'
                 % (mp.cpu_count(), val)
                 )
-
-    @property
-    def working_dir(self):
-        try:
-            temp = self.get('working_dir')
-            if not os.path.exists(temp):
-                raise IOError(
-                    '"working_dir": "%s" does not exist', temp
-                    )
-            return temp
-        except RuntimeError:
-            temp = os.getcwd()
-            was_dirty = self.dirty
-            self.working_dir = temp
-            if not was_dirty:
-                self._dirty = False
-            logger.info(
-                '"working_dir" not specified, defaulting to "%s"' % temp
-                )
-            return temp
-
-    @working_dir.setter
-    def working_dir(self, val):
-        val = os.path.abspath(val)
-        if not os.path.isdir(val):
-            raise IOError('"working_dir": "%s" does not exist' % val)
-        self.set('working_dir', val)
 
     @property
     def image_series(self):
