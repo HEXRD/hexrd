@@ -42,6 +42,22 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
+def write_scored_orientations(results, fname):
+    """Write scored orientations to a file
+
+    PARAMETERS
+    ----------
+    results: dict
+       output of main `find_orientations` function
+    cfg: Config instance
+       the main Config input file for `find-orientations`
+    """
+    np.savez_compressed(
+        cfg.find_orientations.orientation_maps.scored_orientations_file,
+        **results['scored_orientations']
+    )
+
+
 def _process_omegas(omegaimageseries_dict):
     """Extract omega period and ranges from an OmegaImageseries dictionary."""
     oims = next(iter(omegaimageseries_dict.values()))
@@ -384,7 +400,10 @@ def run_cluster(compl, qfib, qsym, cfg,
 
 def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
     """
-    Load the eta-ome maps specified by the config and CLI flags.
+    Load the eta-ome maps specified by the config and CLI flags. If the
+    maps file exists, it will return those values. If the file does not exist,
+    it will generate them using the passed HKLs (if not None) or the HKLs
+    specified in the config file (if passed HKLs are Noe).
 
     Parameters
     ----------
@@ -395,7 +414,7 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
     image_series: ImageSeries instance
         stack of images
     hkls: list, default = None
-        list of HKLs used in the eta-omega maps.
+        list of HKLs used to generate the eta-omega maps
     clean: bool, default = False
         flag indicating whether (if True) to overwrite existing maps file
 
@@ -415,7 +434,7 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
         try:
             res = EtaOmeMaps(str(fn))
             pd = res.planeData
-            logger.info(f'loaded eta/ome orientation maps from {str(fn)}')
+            logger.info(f'loaded eta/ome orientation maps from {fn}')
             shkls = pd.getHKLs(*res.iHKLList, asStr=True)
             logger.info(
                 'hkls used to generate orientation maps: %s',
@@ -429,7 +448,7 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
             )
             res = generate_eta_ome_maps(cfg, hkls=hkls)
 
-            filter_maps_if_requested(res, cfg)
+        filter_maps_if_requested(res, cfg)
     return res
 
 

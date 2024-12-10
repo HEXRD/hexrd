@@ -183,7 +183,6 @@ def execute(args, parser):
                 raise(RuntimeError,
                       "error loading indexing results '%s'" % quats_f)
         else:
-            quats_f = cfg.find_orientations.accepted_orientations_file
             logger.info("Missing %s, running find-orientations", quats_f)
             logger.removeHandler(ch)
             results = find_orientations(cfg)

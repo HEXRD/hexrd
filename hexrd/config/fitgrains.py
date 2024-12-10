@@ -34,8 +34,6 @@ class ToleranceConfig(Config):
 
 class FitGrainsConfig(Config):
 
-    _fit_grains = "fit-grains"
-
     def _active_material_str(self):
         return self.parent.material.active.strip().replace(' ', '-')
 
@@ -47,7 +45,7 @@ class FitGrainsConfig(Config):
     @property
     def logfile(self):
         """Name of log file"""
-        return self.parent.analysis_dir / f"fit-grains.log"
+        return self.parent.analysis_dir / "fit-grains.log"
 
     @property
     def grains_file(self):

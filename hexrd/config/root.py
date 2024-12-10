@@ -21,22 +21,23 @@ class RootConfig(Config):
     def working_dir(self):
         """Working directory, either specified in file or current directory
 
-        This directory is certain to exist. If the specified directory does
-        not exist, it defaults to the current working directory.
+        If the directory is not specified in the config file, then it will
+        default to the current working directory. If it is specified, the
+        director must exist, or it will throw and IOError.
         """
-        try:
-            temp = Path(self.get('working_dir'))
-            if not temp.exists():
-                raise IOError(f'"working_dir": {temp} does not exist')
-            return temp
-
-        except RuntimeError:
-            temp = Path.cwd()
-            self.working_dir = temp
+        wdir = self.get('working_dir', default=None)
+        if wdir is not None:
+            wdir = Path(wdir)
+            if not wdir.exists():
+                raise IOError(f'"working_dir": {str(wdir)} does not exist')
+        else:
+            # Working directory has not been specified, so we use current
+            # directory.
+            wdir = Path.cwd()
             logger.info(
-                '"working_dir" not specified, defaulting to "%s"' % temp
-                )
-            return temp
+                '"working_dir" not specified, defaulting to "%s"' % wdir
+            )
+        return wdir
 
     @working_dir.setter
     def working_dir(self, val):
@@ -47,7 +48,7 @@ class RootConfig(Config):
 
     @property
     def analysis_name(self):
-        """Name (Path) of the analysis
+        """Name of the analysis
 
         This will be used to set up the output directory. The name can
         contain slash ("/") characters, which will generate a subdirectory
@@ -64,7 +65,7 @@ class RootConfig(Config):
         """Analysis directory, where output files go
 
         The name is derived from `working_dir` and `analysis_name`. This
-        propetry returns a Path object. The directory and any intermediate
+        property returns a Path object. The directory and any intermediate
         directories can be created with the `mkdir()` method, e.g.
 
         >>> analysis_dir.mkdir(parents=True, exist_ok=True)

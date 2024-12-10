@@ -1,11 +1,16 @@
 from __future__ import print_function, division, absolute_import
 
 import os
+import logging
+import sys
+
 import numpy as np
 
 from hexrd import constants as const
+from hexrd import config
 from hexrd import instrument
 from hexrd.transforms import xfcapi
+from hexrd.findorientations import find_orientations, write_scored_orientations
 
 
 descr = 'Process rotation image series to find grain orientations'
@@ -52,10 +57,7 @@ def configure_parser(sub_parsers):
 
 def write_results(results, cfg):
     # Write scored orientations.
-    np.savez_compressed(
-        cfg.find_orientations.orientation_maps.scored_orientations_file,
-        **results['scored_orientations']
-    )
+    write_scored_orientations(results, cfg)
 
     # Write accepted orientations.
     qbar_filename = str(cfg.find_orientations.accepted_orientations_file)
@@ -73,12 +75,6 @@ def write_results(results, cfg):
 
 
 def execute(args, parser):
-    import logging
-    import sys
-
-    from hexrd import config
-    from hexrd.findorientations import find_orientations
-
     # make sure hkls are passed in as a list of ints
     try:
         if args.hkls is not None:
