@@ -46,7 +46,7 @@ jobs:
     - name: Install build requirements
       run: |
           # Change default solver to be libmamba, so that it runs much faster
-          conda install -n base -c conda-forge conda-libmamba-solver
+          conda install -n base --override-channels -c conda-forge conda-libmamba-solver
           conda config --set solver libmamba
 
           conda activate hexrd
@@ -63,7 +63,7 @@ jobs:
           # For some reason, we need to set this in the environment as well.
           # It seems conda build sometimes needs the solver in the environment
           # and sometimes in the base environment. I don't know why.
-          conda install -c conda-forge conda-libmamba-solver
+          conda install --override-channels -c conda-forge conda-libmamba-solver
           conda config --env --set solver libmamba
           conda list
 
