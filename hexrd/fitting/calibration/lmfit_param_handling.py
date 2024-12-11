@@ -266,9 +266,6 @@ def update_unconstrained_detector_parameters(instr, params, euler_convention):
 def update_system_constrained_detector_parameters(
         instr, params, euler_convention,
         relative_constraints: RelativeConstraints):
-    # We will always rotate about the center of the detectors
-    mean_center = instr.mean_detector_center
-
     system_params = relative_constraints.params
     system_tvec = system_params['translation']
     system_tilt = system_params['tilt']
@@ -284,6 +281,9 @@ def update_system_constrained_detector_parameters(
     # Only apply these transforms if they were marked "Vary".
 
     if any(params[x].vary for x in tilt_names):
+        # Get the center of rotation (depending on the settings)
+        rotation_center = relative_constraints.center_of_rotation(instr)
+
         # Find the change in tilt, create an rmat, then apply to detector tilts
         # and translations.
         new_system_tilt = np.array([params[x].value for x in tilt_names])
@@ -299,8 +299,10 @@ def update_system_constrained_detector_parameters(
         for panel in instr.detectors.values():
             panel.tilt = _rmat_to_tilt(rmat_diff @ panel.rmat)
 
-            # Also rotate the detectors about the mean center
-            panel.tvec = rmat_diff @ (panel.tvec - mean_center) + mean_center
+            # Also rotate the detectors about the rotation center
+            panel.tvec = (
+                rmat_diff @ (panel.tvec - rotation_center) + rotation_center
+            )
 
         # Update the system tilt
         system_tilt[:] = _rmat_to_tilt(new_rmat)
