@@ -290,7 +290,9 @@ class OrientationMapsConfig(Config):
             'find_orientations:orientation_maps:file',
             default=None
         )
-        if temp is not None:
+        if temp is None:
+            return None
+        else:
             ptemp = Path(temp)
             if ptemp.is_absolute():
                 mapf = ptemp
