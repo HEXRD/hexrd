@@ -1,0 +1,119 @@
+beam:
+  energy: 10.25
+  source_distance: 29.81502928
+  vector:
+    azimuth: -92.99696498922033
+    polar_angle: 114.98012133882347
+detectors:
+  ic2:
+    buffer:
+    - 0.0
+    - 0.0
+    detector_type: planar
+    pixels:
+      columns: 512
+      rows: 1024
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 65536.0
+    transform:
+      tilt:
+      - 1.8496392739293273
+      - 2.5380251768660202
+      - -0.01561236535824728
+      translation:
+      - -46.44506775
+      - -1.82675053
+      - 56.74914575
+  ic3:
+    buffer:
+    - 0.0
+    - 0.0
+    detector_type: planar
+    pixels:
+      columns: 512
+      rows: 1024
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 65536.0
+    transform:
+      tilt:
+      - 1.8576078605864668
+      - 2.5302061768992976
+      - -0.020510375530949938
+      translation:
+      - -28.03713625
+      - -20.49304925
+      - 56.736206
+  ic5:
+    buffer:
+    - 0.0
+    - 0.0
+    detector_type: planar
+    pixels:
+      columns: 512
+      rows: 1024
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 65536.0
+    transform:
+      tilt:
+      - 3.0918624767079854
+      - 0.48951541871405857
+      - 0.001330789429297985
+      translation:
+      - 23.45847575
+      - -35.2935375
+      - 56.7352295
+  ic7:
+    buffer:
+    - 0.0
+    - 0.0
+    detector_type: planar
+    pixels:
+      columns: 512
+      rows: 1024
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 65536.0
+    transform:
+      tilt:
+      - 1.8497452172992923
+      - 2.5334350288854344
+      - 0.011700759463319168
+      translation:
+      - 39.3931285
+      - 25.3847675
+      - 56.32685875
+  ic8:
+    buffer:
+    - 0.0
+    - 0.0
+    detector_type: planar
+    pixels:
+      columns: 512
+      rows: 1024
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 65536.0
+    transform:
+      tilt:
+      - 1.8515245209816935
+      - 2.5311607497074546
+      - 0.011809272417333701
+      translation:
+      - 32.2744345
+      - 47.66782775
+      - 56.290207
+id: NXXXXXX-XXX
+oscillation_stage:
+  chi: 0.0
+  translation:
+  - 0.0
+  - 0.0
+  - 9.8
