@@ -40,7 +40,7 @@ class TestRootConfig(TestConfig):
 
     def test_analysis_dir(self):
         self.assertEqual(
-            self.cfgs[0].analysis_dir,
+            str(self.cfgs[0].analysis_dir),
             os.path.join(os.getcwd(), 'analysis')
             )
 
@@ -56,11 +56,15 @@ class TestRootConfig(TestConfig):
         self.assertEqual(self.cfgs[2].analysis_name, 'analysis_2')
 
     def test_working_dir(self):
-        self.assertEqual(self.cfgs[0].working_dir, os.getcwd())
-        self.assertEqual(self.cfgs[1].working_dir, test_data['existing_path'])
+        self.assertEqual(str(self.cfgs[0].working_dir), os.getcwd())
+        self.assertEqual(
+            str(self.cfgs[1].working_dir), test_data['existing_path']
+        )
         self.assertRaises(IOError, getattr, self.cfgs[2], 'working_dir')
         self.cfgs[7].working_dir = test_data['existing_path']
-        self.assertEqual(self.cfgs[7].working_dir, test_data['existing_path'])
+        self.assertEqual(
+            str(self.cfgs[7].working_dir), test_data['existing_path']
+        )
         self.assertRaises(
             IOError, setattr, self.cfgs[7], 'working_dir',
             test_data['nonexistent_path']

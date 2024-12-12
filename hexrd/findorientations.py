@@ -42,6 +42,22 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
+def write_scored_orientations(results, fname):
+    """Write scored orientations to a file
+
+    PARAMETERS
+    ----------
+    results: dict
+       output of main `find_orientations` function
+    cfg: Config instance
+       the main Config input file for `find-orientations`
+    """
+    np.savez_compressed(
+        cfg.find_orientations.orientation_maps.scored_orientations_file,
+        **results['scored_orientations']
+    )
+
+
 def _process_omegas(omegaimageseries_dict):
     """Extract omega period and ranges from an OmegaImageseries dictionary."""
     oims = next(iter(omegaimageseries_dict.values()))
@@ -384,60 +400,55 @@ def run_cluster(compl, qfib, qsym, cfg,
 
 def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
     """
-    Load the eta-ome maps specified by the config and CLI flags.
+    Load the eta-ome maps specified by the config and CLI flags. If the
+    maps file exists, it will return those values. If the file does not exist,
+    it will generate them using the passed HKLs (if not None) or the HKLs
+    specified in the config file (if passed HKLs are Noe).
 
     Parameters
     ----------
-    cfg : TYPE
-        DESCRIPTION.
-    pd : TYPE
-        DESCRIPTION.
-    image_series : TYPE
-        DESCRIPTION.
-    hkls : TYPE, optional
-        DESCRIPTION. The default is None.
-    clean : TYPE, optional
-        DESCRIPTION. The default is False.
+    cfg: Config instance
+        root config file for this problem
+    pd: PlaneData instance
+        crystallographic properties
+    image_series: ImageSeries instance
+        stack of images
+    hkls: list, default = None
+        list of HKLs used to generate the eta-omega maps
+    clean: bool, default = False
+        flag indicating whether (if True) to overwrite existing maps file
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    list:
+        list of eta-omega map arrays
 
     """
-    # check maps filename
-    if cfg.find_orientations.orientation_maps.file is None:
-        maps_fname = '_'.join([cfg.analysis_id, "eta-ome_maps.npz"])
+    fn = cfg.find_orientations.orientation_maps.file
+    if clean:
+        logger.info(
+            'clean option specified; recomputing eta/ome orientation maps'
+        )
+        res = generate_eta_ome_maps(cfg, hkls=hkls)
     else:
-        maps_fname = cfg.find_orientations.orientation_maps.file
-
-    fn = os.path.join(cfg.working_dir, maps_fname)
-
-    # ???: necessary?
-    if fn.split('.')[-1] != 'npz':
-        fn = fn + '.npz'
-
-    if not clean:
         try:
-            res = EtaOmeMaps(fn)
+            res = EtaOmeMaps(str(fn))
             pd = res.planeData
-            logger.info('loaded eta/ome orientation maps from %s', fn)
+            logger.info(f'loaded eta/ome orientation maps from {fn}')
             shkls = pd.getHKLs(*res.iHKLList, asStr=True)
             logger.info(
                 'hkls used to generate orientation maps: %s',
                 [f'[{i}]' for i in shkls]
             )
         except (AttributeError, IOError):
-            logger.info("specified maps file '%s' not found "
-                        + "and clean option specified; "
-                        + "recomputing eta/ome orientation maps",
-                        fn)
+            logger.info(
+                f"specified maps file '{str(fn)}' not found "
+                f"and clean option not specified; "
+                f"recomputing eta/ome orientation maps"
+            )
             res = generate_eta_ome_maps(cfg, hkls=hkls)
-    else:
-        logger.info('clean option specified; '
-                    + 'recomputing eta/ome orientation maps')
-        res = generate_eta_ome_maps(cfg, hkls=hkls)
-    filter_maps_if_requested(res, cfg)
+
+        filter_maps_if_requested(res, cfg)
     return res
 
 
@@ -571,21 +582,10 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
 
     if save:
         # save maps
-        # ???: should perhaps set default maps name at module level
-        map_fname = cfg.find_orientations.orientation_maps.file \
-            or '_'.join([cfg.analysis_id, "eta-ome_maps.npz"])
-
-        if not os.path.exists(cfg.working_dir):
-            os.mkdir(cfg.working_dir)
-
-        fn = os.path.join(
-            cfg.working_dir,
-            map_fname
-        )
-
+        fn = cfg.find_orientations.orientation_maps.file
         eta_ome.save(fn)
 
-        logger.info('saved eta/ome orientation maps to "%s"', fn)
+        logger.info(f'saved eta/ome orientation maps to "{fn}"')
 
     return eta_ome
 
@@ -724,6 +724,7 @@ def find_orientations(cfg,
 
     """
     # grab objects from config
+    cfg.analysis_dir.mkdir(parents=True, exist_ok=True)
     plane_data = cfg.material.plane_data
     imsd = cfg.image_series
     instr = cfg.instrument.hedm

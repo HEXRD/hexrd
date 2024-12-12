@@ -1,5 +1,5 @@
 import os
-
+from pathlib import Path
 import logging
 
 import numpy as np
@@ -8,6 +8,7 @@ from .config import Config
 
 
 logger = logging.getLogger('hexrd.config')
+
 
 # TODO: set these as defaults
 seed_search_methods = {
@@ -22,6 +23,44 @@ seed_search_methods = {
 
 
 class FindOrientationsConfig(Config):
+
+    _find_ori = "find-orientations"
+
+    def _active_material_str(self):
+        return self.parent.material.active.strip().replace(' ', '-')
+
+    @property
+    def logfile(self):
+        """Name of log file"""
+        root = self.parent
+        if self.parent.new_file_placement:
+            fname = f"{self._find_ori}-{self._active_material_str()}.log"
+            pth = root.analysis_dir / fname
+        else:
+            fname = f"{self._find_ori}_{root.analysis_id}.log"
+            pth = self.parent.working_dir / fname
+
+        return pth
+
+    @property
+    def accepted_orientations_file(self):
+        """Path of accepted_orientations file"""
+        actmat = self._active_material_str()
+        if self.parent.new_file_placement:
+            newname = f"accepted-orientations-{actmat}.dat"
+            aof_path = self.parent.analysis_dir / newname
+        else:
+            oldname = (
+                'accepted_orientations_%s.dat' % self.parent.analysis_id
+            )
+            aof_path = self.parent.working_dir / oldname
+
+        return aof_path
+
+    @property
+    def grains_file(self):
+        """Path to `grains.out` file"""
+        return self.parent.analysis_dir / "grains.out"
 
     # Subsections
     @property
@@ -231,12 +270,49 @@ class OrientationMapsConfig(Config):
 
     @property
     def file(self):
-        temp = self._cfg.get('find_orientations:orientation_maps:file',
-                             default=None)
-        if temp is not None:
-            if not os.path.isabs(temp):
-                temp = os.path.join(self._cfg.working_dir, temp)
-        return temp
+        """Path of eta-omega maps file"""
+        #
+        # Get file name.  Because users often set file to "null", which
+        # returns a valid value of None, we have to check twice before setting
+        # it to the default value.
+        #
+        root = self.parent
+        if root.new_file_placement:
+            actmat = root.find_orientations._active_material_str()
+            dflt = f"eta-ome-maps-{actmat}.npz"
+            mapf = root.analysis_dir / dflt
+        else:
+            fname = '_'.join([root.analysis_id, "eta-ome_maps.npz"])
+            mapf = root.working_dir / fname
+
+        # Now check the YAML.
+        temp = self._cfg.get(
+            'find_orientations:orientation_maps:file',
+            default=None
+        )
+        if temp is None:
+            return None
+        else:
+            ptemp = Path(temp)
+            if ptemp.is_absolute():
+                mapf = ptemp
+            else:
+                mapf = root.working_dir / ptemp
+
+        return mapf
+
+    @property
+    def scored_orientations_file(self):
+        root = self.parent
+        if root.new_file_placement:
+            adir = root.analysis_dir
+            actmat = root.find_orientations._active_material_str()
+            sof = Path(adir) / f'scored-orientations-{actmat}.npz'
+        else:
+            fname = '_'.join(['scored_orientations', root.analysis_id])
+            sof = root.working_dir / fname
+
+        return sof
 
     @property
     def threshold(self):

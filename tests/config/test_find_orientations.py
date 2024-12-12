@@ -9,6 +9,9 @@ reference_data = \
 """
 analysis_name: analysis
 working_dir: %(tempdir)s
+material:
+  definitions: %(existing_file)s
+  active: actmat
 ---
 find_orientations:
   orientation_maps:
@@ -326,11 +329,11 @@ class TestOrientationMapsConfig(TestConfig):
             self.cfgs[0].find_orientations.orientation_maps.file is None
         )
         self.assertEqual(
-            self.cfgs[1].find_orientations.orientation_maps.file,
+            str(self.cfgs[1].find_orientations.orientation_maps.file),
             os.path.join(test_data['tempdir'], test_data['nonexistent_file'])
             )
         self.assertEqual(
-            self.cfgs[2].find_orientations.orientation_maps.file,
+            str(self.cfgs[2].find_orientations.orientation_maps.file),
             test_data['existing_file']
             )
 

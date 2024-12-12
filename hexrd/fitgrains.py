@@ -19,6 +19,13 @@ from hexrd.fitting import fitGrain, objFuncFitGrain, gFlag_ref
 
 logger = logging.getLogger(__name__)
 
+# These are file names that were hardwired in the code. I am putting them
+# here so they will be easier to find if we want to make them user inputs
+# at some point later.
+
+OVERLAP_TABLE_FILE = 'overlap_table.npz'
+SPOTS_OUT_FILE = "spots_%05d.out"
+
 
 # multiprocessing fit funcs
 def fit_grain_FF_init(params):
@@ -157,7 +164,7 @@ def fit_grain_FF_reduced(grain_id):
                 ot = np.load(
                     os.path.join(
                         analysis_dirname, os.path.join(
-                            det_key, 'overlap_table.npz'
+                            det_key, OVERLAP_TABLE_FILE
                         )
                     )
                 )
@@ -343,7 +350,7 @@ def fit_grains(cfg,
 
     if ids_to_refine is not None:
         grains_table = np.atleast_2d(grains_table[ids_to_refine, :])
-    spots_filename = "spots_%05d.out" if write_spots_files else None
+        spots_filename = SPOTS_OUT_FILE if write_spots_files else None
     params = dict(
             grains_table=grains_table,
             plane_data=cfg.material.plane_data,
@@ -358,7 +365,7 @@ def fit_grains(cfg,
             eta_ranges=eta_ranges,
             ome_period=ome_period,
             analysis_dirname=cfg.analysis_dir,
-            spots_filename=spots_filename)
+            spots_filename=SPOTS_OUT_FILE)
 
     # =====================================================================
     # EXECUTE MP FIT
