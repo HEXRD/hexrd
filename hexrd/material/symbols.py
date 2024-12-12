@@ -1,27 +1,28 @@
-
-pstr_mkxtal = "\n\n    This is a program to create a HDF5 file for storing crystallographic information.\n "
-pstr_mkxtal = pstr_mkxtal + " The following inputs are required:\n "
-pstr_mkxtal = pstr_mkxtal + "         Crystal System:\n"
-pstr_mkxtal = pstr_mkxtal + "                 1. Cubic\n"
-pstr_mkxtal = pstr_mkxtal + "                 2. Tetragonal\n"
-pstr_mkxtal = pstr_mkxtal + "                 3. Orthorhombic\n"
-pstr_mkxtal = pstr_mkxtal + "                 4. Hexagonal\n"
-pstr_mkxtal = pstr_mkxtal + "                 5. Trigonal\n"
-pstr_mkxtal = pstr_mkxtal + "                 6. Monoclinic\n"
-pstr_mkxtal = pstr_mkxtal + "                 7. Triclinic\n\n"
-pstr_mkxtal = pstr_mkxtal + "         Space group number\n"
-pstr_mkxtal = pstr_mkxtal + "         Atomic number (Z) for all species in unit cell\n"
-pstr_mkxtal = pstr_mkxtal + "         Asymmetric positions for all atoms in unit cell\n"
-pstr_mkxtal = pstr_mkxtal + "         Debye-Waller factors for all atoms in the unit cell\n"
-pstr_mkxtal = pstr_mkxtal + "         You'll be prompted for these values now\n\n"
-pstr_mkxtal = pstr_mkxtal + "\n Note about the trigonal system:\n"
-pstr_mkxtal = pstr_mkxtal + " -------------------------------\n"
-pstr_mkxtal = pstr_mkxtal + " Primitive trigonal crystals are defined with respect to a HEXAGONAL\n"
-pstr_mkxtal = pstr_mkxtal + " reference frame.  Rhombohedral crystals can be referenced with\n"
-pstr_mkxtal = pstr_mkxtal + " respect to a HEXAGONAL basis (first setting), or with respect to\n"
-pstr_mkxtal = pstr_mkxtal + " a RHOMBOHEDRAL basis (second setting).  The default setting for\n"
-pstr_mkxtal = pstr_mkxtal + " trigonal symmetry is the hexagonal setting.  When you select\n"
-pstr_mkxtal = pstr_mkxtal + " crystal system 5 above, you will be prompted for the setting. \n"
+pstr_mkxtal = (
+    f'\n\n This is a program to create a HDF5 file for storing '
+    f'crystallographic information.\n'
+    f' The following inputs are required:\n '
+    f'         Crystal System:\n'
+    f'                 1. Cubic\n'
+    f'                 2. Tetragonal\n'
+    f'                 3. Orthorhombic\n'
+    f'                 4. Hexagonal\n'
+    f'                 5. Trigonal\n'
+    f'                 6. Monoclinic\n'
+    f'                 7. Triclinic\n\n'
+    f'         Space group number\n'
+    f'         Atomic number (Z) for all species in unit cell\n'
+    f'         Asymmetric positions for all atoms in unit cell\n'
+    f'         Debye-Waller factors for all atoms in the unit cell\n'
+    f'         You\'ll be prompted for these values now \n\n'
+    f'\n Note about the trigonal system:\n'
+    f' -------------------------------\n'
+    f' Primitive trigonal crystals are defined with respect to a HEXAGONAL\n'
+    f' reference frame.  Rhombohedral crystals can be referenced with\n'
+    f' respect to a HEXAGONAL basis (first setting), or with respect to\n'
+    f' a RHOMBOHEDRAL basis (second setting).  The default setting for\n'
+    f' trigonal symmetry is the hexagonal setting.  When you select\n'
+    f' crystal system 5 above, you will be prompted for the setting. \n')
 
 pstr_spacegroup = [
     " P  1      ", " P -1      ", \
