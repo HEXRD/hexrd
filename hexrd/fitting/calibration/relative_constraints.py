@@ -16,6 +16,15 @@ class RelativeConstraintsType(Enum):
     system = 'System'
 
 
+class RotationCenter(Enum):
+    """These are different centers for relative constraint rotations"""
+    # Rotate about the mean center of all the detectors
+    instrument_mean_center = 'InstrumentMeanCenter'
+
+    # Rotate about lab origin, which is (0, 0, 0)
+    lab_origin = 'Origin'
+
+
 class RelativeConstraints(ABC):
     @property
     @abstractmethod
@@ -25,6 +34,11 @@ class RelativeConstraints(ABC):
     @property
     @abstractmethod
     def params(self) -> dict:
+        pass
+
+    @property
+    @abstractmethod
+    def rotation_center(self) -> RotationCenter:
         pass
 
     @abstractmethod
@@ -39,6 +53,10 @@ class RelativeConstraintsNone(RelativeConstraints):
     @property
     def params(self) -> dict:
         return {}
+
+    @property
+    def rotation_center(self) -> RotationCenter:
+        return RotationCenter.instrument_mean_center
 
     def reset(self):
         pass
@@ -64,9 +82,19 @@ class RelativeConstraintsGroup(RelativeConstraints):
                 'translation': np.array([0, 0, 0], dtype=float),
             }
 
+        self._rotation_center = RotationCenter.instrument_mean_center
+
     @property
     def params(self) -> dict:
         return self.group_params
+
+    @property
+    def rotation_center(self):
+        return self._rotation_center
+
+    @rotation_center.setter
+    def rotation_center(self, v: RotationCenter):
+        self._rotation_center = v
 
 
 class RelativeConstraintsSystem(RelativeConstraints):
@@ -79,11 +107,28 @@ class RelativeConstraintsSystem(RelativeConstraints):
     def params(self) -> dict:
         return self._params
 
+    @property
+    def rotation_center(self):
+        return self._rotation_center
+
+    @rotation_center.setter
+    def rotation_center(self, v: RotationCenter):
+        self._rotation_center = v
+
     def reset(self):
         self._params = {
             'tilt': np.array([0, 0, 0], dtype=float),
             'translation': np.array([0, 0, 0], dtype=float),
         }
+        self._rotation_center = RotationCenter.instrument_mean_center
+
+    def center_of_rotation(self, instr: HEDMInstrument) -> np.ndarray:
+        if self.rotation_center == RotationCenter.instrument_mean_center:
+            return instr.mean_detector_center
+        elif self.rotation_center == RotationCenter.lab_origin:
+            return np.array([0.0, 0.0, 0.0])
+
+        raise NotImplementedError(self.rotation_center)
 
 
 def create_relative_constraints(type: RelativeConstraintsType,
