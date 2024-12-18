@@ -1,0 +1,140 @@
+beam:
+  energy: 10.25
+  source_distance: 29.81502928
+  vector:
+    azimuth: -92.99777538400174
+    polar_angle: 114.97993317387846
+detectors:
+  IMAGE-PLATE-1:
+    buffer:
+    - 0.0
+    - 0.0
+    detector_type: planar
+    pixels:
+      columns: 3000
+      rows: 3500
+      size:
+      - 0.05
+      - 0.05
+    saturation_level: 65536.0
+    transform:
+      tilt:
+      - 1.80194351871266
+      - -2.573442044511357
+      - -5.289408818462053e-16
+      translation:
+      - 7.6000000000000005
+      - -12.200000000000001
+      - 41.900000000000006
+  CAMERA-02:
+    buffer:
+    - 0.0
+    - 0.0
+    detector_type: planar
+    pixels:
+      columns: 512
+      rows: 1024
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 65536.0
+    transform:
+      tilt:
+      - -1.8019435187126598
+      - 2.5734420445113577
+      - 4.247804022478392e-17
+      translation:
+      - 54.7
+      - -3.6
+      - 45.900000000000006
+  CAMERA-03:
+    buffer:
+    - 0.0
+    - 0.0
+    detector_type: planar
+    pixels:
+      columns: 512
+      rows: 1024
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 65536.0
+    transform:
+      tilt:
+      - 1.8019435187126596
+      - -2.5734420445113573
+      - -1.1003598039171944e-15
+      translation:
+      - 33.1
+      - -22.1
+      - 46.38287466600221
+  CAMERA-05:
+    buffer:
+    - 0.0
+    - 0.0
+    detector_type: planar
+    pixels:
+      columns: 512
+      rows: 1024
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 65536.0
+    transform:
+      tilt:
+      - -0.5455318392676838
+      - -3.0938648020614243
+      - 8.15854368145039e-16
+      translation:
+      - -26.0
+      - -30.400000000000002
+      - 46.43974464191931
+  CAMERA-07:
+    buffer:
+    - 0.0
+    - 0.0
+    detector_type: planar
+    pixels:
+      columns: 512
+      rows: 1024
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 65536.0
+    transform:
+      tilt:
+      - 2.5734420445113573
+      - 1.8019435187126605
+      - -1.7537224291370567e-16
+      translation:
+      - -34.9
+      - 26.400000000000002
+      - 49.300000000000004
+  CAMERA-08:
+    buffer:
+    - 0.0
+    - 0.0
+    detector_type: planar
+    pixels:
+      columns: 512
+      rows: 1024
+      size:
+      - 0.025
+      - 0.025
+    saturation_level: 65536.0
+    transform:
+      tilt:
+      - 2.5734420445113573
+      - 1.8019435187126605
+      - -1.7537224291370567e-16
+      translation:
+      - -24.400000000000002
+      - 49.32723072574969
+      - 45.94936148630125
+id: NXXXXXX-XXX
+oscillation_stage:
+  chi: 0.0
+  translation:
+  - 0.0
+  - 0.0
+  - 0.0
