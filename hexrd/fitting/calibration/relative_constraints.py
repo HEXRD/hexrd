@@ -43,6 +43,12 @@ class RelativeConstraints(ABC):
 
     @abstractmethod
     def reset(self):
+        # Reset everything
+        pass
+
+    @property
+    @abstractmethod
+    def reset_params(self):
         # Reset the parameters
         pass
 
@@ -61,6 +67,9 @@ class RelativeConstraintsNone(RelativeConstraints):
     def reset(self):
         pass
 
+    def reset_params(self):
+        pass
+
 
 class RelativeConstraintsGroup(RelativeConstraints):
     type = RelativeConstraintsType.group
@@ -74,6 +83,10 @@ class RelativeConstraintsGroup(RelativeConstraints):
         self.reset()
 
     def reset(self):
+        self.reset_params()
+        self.reset_rotation_center()
+
+    def reset_params(self):
         self.group_params = {}
 
         for group in self._groups:
@@ -82,6 +95,7 @@ class RelativeConstraintsGroup(RelativeConstraints):
                 'translation': np.array([0, 0, 0], dtype=float),
             }
 
+    def reset_rotation_center(self):
         self._rotation_center = RotationCenter.instrument_mean_center
 
     @property
@@ -116,10 +130,16 @@ class RelativeConstraintsSystem(RelativeConstraints):
         self._rotation_center = v
 
     def reset(self):
+        self.reset_params()
+        self.reset_rotation_center()
+
+    def reset_params(self):
         self._params = {
             'tilt': np.array([0, 0, 0], dtype=float),
             'translation': np.array([0, 0, 0], dtype=float),
         }
+
+    def reset_rotation_center(self):
         self._rotation_center = RotationCenter.instrument_mean_center
 
     def center_of_rotation(self, instr: HEDMInstrument) -> np.ndarray:
