@@ -940,6 +940,7 @@ def simulateGVecs(
     panel_dims: list[tuple[float]] = [(-204.8, -204.8), (204.8, 204.8)],
     pixel_pitch: tuple[float] = (0.2, 0.2),
     distortion: DistortionABC = None,
+    beam_vector: np.ndarray = constants.beam_vec,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     returns valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps
@@ -985,11 +986,13 @@ def simulateGVecs(
     rMat_c = xfcapi.make_rmat_of_expmap(grain_params[:3])
     tVec_c = np.ascontiguousarray(grain_params[3:6])
     vInv_s = np.ascontiguousarray(grain_params[6:12])
+    beam_vector = np.ascontiguousarray(beam_vector)
 
     # first find valid G-vectors
     angList = np.vstack(
         xfcapi.oscill_angles_of_hkls(
-            full_hkls[:, 1:], chi, rMat_c, bMat, wlen, v_inv=vInv_s
+            full_hkls[:, 1:], chi, rMat_c, bMat, wlen, v_inv=vInv_s,
+            beam_vec=beam_vector
         )
     )
     allAngs, allHKLs = _filter_hkls_eta_ome(
@@ -1005,7 +1008,8 @@ def simulateGVecs(
     else:
         # ??? preallocate for speed?
         det_xy, rMat_s, _ = _project_on_detector_plane(
-            allAngs, rMat_d, rMat_c, chi, tVec_d, tVec_c, tVec_s, distortion
+            allAngs, rMat_d, rMat_c, chi, tVec_d, tVec_c, tVec_s, distortion,
+            beamVec=beam_vector
         )
 
         on_panel = np.logical_and(
@@ -1035,6 +1039,7 @@ def simulateGVecs(
             tVec_s,
             tVec_c,
             distortion=distortion,
+            beamVec=beam_vector,
         )
 
     return valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps
