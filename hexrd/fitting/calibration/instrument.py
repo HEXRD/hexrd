@@ -192,6 +192,9 @@ class InstrumentCalibrator:
         self._relative_constraints = v
         self.params = self.make_lmfit_params()
 
+    def reset_lmfit_params(self):
+        self.params = self.make_lmfit_params()
+
     def reset_relative_constraint_params(self):
         # Set them back to zero.
         self.relative_constraints.reset()
