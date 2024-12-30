@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
-def write_scored_orientations(results, fname):
+def write_scored_orientations(results, cfg):
     """Write scored orientations to a file
 
     PARAMETERS
