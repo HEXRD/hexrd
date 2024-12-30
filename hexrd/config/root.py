@@ -23,20 +23,11 @@ class RootConfig(Config):
 
         If the directory is not specified in the config file, then it will
         default to the current working directory. If it is specified, the
-        director must exist, or it will throw and IOError.
+        directory must exist, or it will throw an IOError.
         """
-        wdir = self.get('working_dir', default=None)
-        if wdir is not None:
-            wdir = Path(wdir)
-            if not wdir.exists():
-                raise IOError(f'"working_dir": {str(wdir)} does not exist')
-        else:
-            # Working directory has not been specified, so we use current
-            # directory.
-            wdir = Path.cwd()
-            logger.info(
-                '"working_dir" not specified, defaulting to "%s"' % wdir
-            )
+        wdir = Path(self.get('working_dir', default=Path.cwd()))
+        if not wdir.exists():
+            raise IOError(f'"working_dir": {str(wdir)} does not exist')
         return wdir
 
     @working_dir.setter
@@ -85,7 +76,7 @@ class RootConfig(Config):
         """Use new file placements for find-orientations and fit-grains
 
         The new file placement rules put several files in the `analysis_dir`
-        instead of the `work
+        instead of the `working_dir`.
         """
         return self.get('new_file_placement', default=False)
 
