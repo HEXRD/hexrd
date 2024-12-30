@@ -291,12 +291,13 @@ class OrientationMapsConfig(Config):
             default=None
         )
         if temp is None:
-            return None
+            return mapf
         else:
             ptemp = Path(temp)
             if ptemp.is_absolute():
                 mapf = ptemp
             else:
+                # Path is relative to working directory.
                 mapf = root.working_dir / ptemp
 
         return mapf
