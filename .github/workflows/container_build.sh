@@ -33,6 +33,9 @@ ${HOME}/miniconda3/bin/conda activate hexrd
 ${HOME}/miniconda3/bin/conda install -n base -c conda-forge conda-libmamba-solver
 ${HOME}/miniconda3/bin/conda config --set solver libmamba
 
+# Remove anaconda telemetry (it is causing errors for us)
+${HOME}/miniconda3/bin/conda remove -n base conda-anaconda-telemetry
+
 # Install conda build and create output directory
 ${HOME}/miniconda3/bin/conda install --override-channels -c conda-forge conda-build -y
 mkdir output
