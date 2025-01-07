@@ -1007,7 +1007,7 @@ def simulateGVecs(
         ang_ps = []
     else:
         # ??? preallocate for speed?
-        det_xy, rMat_s, _ = _project_on_detector_plane(
+        det_xy, rMat_ss, _ = _project_on_detector_plane(
             allAngs, rMat_d, rMat_c, chi, tVec_d, tVec_c, tVec_s, distortion,
             beamVec=beam_vector
         )
@@ -1034,7 +1034,9 @@ def simulateGVecs(
             valid_xy,
             pixel_pitch,
             rMat_d,
-            rMat_s,
+            # Provide only the first sample rotation matrix to angularPixelSize
+            # Perhaps this is something that can be improved in the future?
+            rMat_ss[0],
             tVec_d,
             tVec_s,
             tVec_c,
@@ -1251,6 +1253,16 @@ def angularPixelSize(
         beamVec = constants.beam_vec
     if etaVec is None:
         etaVec = constants.eta_vec
+
+    # Verify that rMat_s is only 2D (a single matrix).
+    # Arrays of matrices were previously provided, which `xy_to_gvec`
+    # cannot currently handle.
+    if rMat_s.ndim != 2:
+        msg = (
+            f'rMat_s should have 2 dimensions, but has {rMat_s.ndim} '
+            'dimensions instead'
+        )
+        raise ValueError(msg)
 
     xy_expanded = np.empty((len(xy_det) * 4, 2), dtype=xy_det.dtype)
     xy_expanded = _expand_pixels(
