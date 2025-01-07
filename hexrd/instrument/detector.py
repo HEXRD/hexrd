@@ -1485,6 +1485,7 @@ class Detector:
                     bMat,
                     wavelength,
                     v_inv=vInv_s,
+                    beam_vec=self.bvec,
                 )
             )
 
@@ -1505,6 +1506,7 @@ class Detector:
                 tVec_c,
                 tVec_s,
                 self.distortion,
+                self.bvec,
             )
             xys_p, on_panel = self.clip_to_panel(det_xy)
             valid_xys.append(xys_p)
