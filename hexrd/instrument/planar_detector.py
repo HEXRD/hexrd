@@ -126,6 +126,7 @@ class PlanarDetector(Detector):
         t_c = self.coating.thickness
         t_p = self.phosphor.thickness
         L   = self.phosphor.readout_length
+        pre_U0 = self.phosphor.pre_U0
 
         det_normal = -self.normal
         bvec = self.bvec
@@ -141,8 +142,7 @@ class PlanarDetector(Detector):
         transmission_filter  = self.calc_transmission_generic(secb, t_f, al_f)
         transmission_coating = self.calc_transmission_generic(secb, t_c, al_c)
         transmission_phosphor = (
-            self.phosphor.pre_U0 *
-            self.calc_transmission_phosphor(secb, t_p, al_p, L, energy))
+            self.calc_transmission_phosphor(secb, t_p, al_p, L, energy, pre_U0))
         transmission_filter_coating = (
             transmission_filter * transmission_coating)
 

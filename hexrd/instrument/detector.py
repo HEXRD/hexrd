@@ -1733,6 +1733,9 @@ class Detector:
                                  secb: np.array, energy: np.floating,
                                  physics_package: AbstractPhysicsPackage) -> np.array:
         thickness_s = physics_package.sample_thickness  # in microns
+        if np.isclose(thickness_s, 0):
+            return np.ones(self.shape)
+
         # in microns^-1
         mu_s = 1./physics_package.sample_absorption_length(energy)
         x = (mu_s*thickness_s)
@@ -1743,6 +1746,9 @@ class Detector:
     def calc_transmission_window(self, secb: np.array, energy: np.floating,
                                  physics_package: AbstractPhysicsPackage) -> np.array:
         thickness_w = physics_package.window_thickness  # in microns
+        if np.isclose(thickness_w, 0):
+            return np.ones(self.shape)
+
         # in microns^-1
         mu_w = 1./physics_package.window_absorption_length(energy)
         return np.exp(-thickness_w*mu_w*secb)
@@ -1750,34 +1756,33 @@ class Detector:
     def calc_effective_pinhole_area(self, physics_package: AbstractPhysicsPackage) -> np.array:
         """get the effective pinhole area correction
         """
-        effective_pinhole_area = np.ones(self.shape)
+        if (np.isclose(physics_package.pinhole_diameter, 0)
+                or np.isclose(physics_package.pinhole_thickness, 0)):
+            return np.ones(self.shape)
 
-        if (not np.isclose(physics_package.pinhole_diameter, 0)
-            and not np.isclose(physics_package.pinhole_thickness, 0)):
+        hod = (physics_package.pinhole_thickness /
+               physics_package.pinhole_diameter)
+        bvec = self.bvec
 
-            hod = (physics_package.pinhole_thickness /
-                   physics_package.pinhole_diameter)
-            bvec = self.bvec
+        tth, eta = self.pixel_angles()
+        angs = np.vstack((tth.flatten(), eta.flatten(),
+                          np.zeros(tth.flatten().shape))).T
+        dvecs = angles_to_dvec(angs, beam_vec=bvec)
 
-            tth, eta = self.pixel_angles()
-            angs = np.vstack((tth.flatten(), eta.flatten(),
-                              np.zeros(tth.flatten().shape))).T
-            dvecs = angles_to_dvec(angs, beam_vec=bvec)
-
-            cth = -dvecs[:, 2].reshape(self.shape)
-            tanth = np.tan(np.arccos(cth))
-            f = hod*tanth
-            f[np.abs(f) > 1.] = np.nan
-            asinf = np.arcsin(f)
-            effective_pinhole_area = (
-                (2/np.pi) * cth * (np.pi/2 - asinf - f*np.cos(asinf)))
-
-        return effective_pinhole_area
+        cth = -dvecs[:, 2].reshape(self.shape)
+        tanth = np.tan(np.arccos(cth))
+        f = hod*tanth
+        f[np.abs(f) > 1.] = np.nan
+        asinf = np.arcsin(f)
+        return 2 / np.pi * cth * (np.pi / 2 - asinf - f * np.cos(asinf))
 
     def calc_transmission_generic(self,
                                   secb: np.array,
                                   thickness: np.floating,
                                   absorption_length: np.floating) -> np.array:
+        if np.isclose(thickness, 0):
+            return np.ones(self.shape)
+
         mu = 1./absorption_length  # in microns^-1
         return np.exp(-thickness*mu*secb)
 
@@ -1786,12 +1791,15 @@ class Detector:
                                    thickness: np.floating,
                                    readout_length: np.floating,
                                    absorption_length: np.floating,
-                                   energy: np.floating) -> np.array:
+                                   energy: np.floating,
+                                   pre_U0: np.floating) -> np.array:
+        if np.isclose(thickness, 0):
+            return np.ones(self.shape)
 
         f1 = absorption_length*thickness
         f2 = absorption_length*readout_length
         arg = (secb + 1/f2)
-        return energy*((1.0 - np.exp(-f1*arg))/arg)
+        return pre_U0 * energy*((1.0 - np.exp(-f1*arg))/arg)
 
 # =============================================================================
 # UTILITY METHODS

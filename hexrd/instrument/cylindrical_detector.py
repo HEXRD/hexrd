@@ -121,7 +121,7 @@ class CylindricalDetector(Detector):
         return _pixel_angles(origin=origin, **self._pixel_angle_kwargs)
 
     def local_normal(self):
-        """get the local normal of each pixel in the 
+        """get the local normal of each pixel in the
         cylindrical detector
 
         output will be of shape [nx*ny, 3]
@@ -149,12 +149,12 @@ class CylindricalDetector(Detector):
         Specifications of the polymer coating is taken from:
 
         M. Stoeckl, A. A. Solodov
-        Readout models for BaFBr0.85I0.15:Eu image plates 
+        Readout models for BaFBr0.85I0.15:Eu image plates
         Rev. Sci. Instrum. 89, 063101 (2018)
 
         Transmission Formulas are consistent with:
 
-        Rygg et al., X-ray diffraction at the National 
+        Rygg et al., X-ray diffraction at the National
         Ignition Facility, Rev. Sci. Instrum. 91, 043902 (2020)
         """
         al_f = self.filter.absorption_length(energy)
@@ -165,6 +165,7 @@ class CylindricalDetector(Detector):
         t_c = self.coating.thickness
         t_p = self.phosphor.thickness
         L   = self.phosphor.readout_length
+        pre_U0 = self.phosphor.pre_U0
 
         det_normal = self.local_normal()
 
@@ -178,8 +179,7 @@ class CylindricalDetector(Detector):
         transmission_filter  = self.calc_transmission_generic(secb, t_f, al_f)
         transmission_coating = self.calc_transmission_generic(secb, t_c, al_c)
         transmission_phosphor = (
-            self.phosphor.pre_U0 *
-            self.calc_transmission_phosphor(secb, t_p, al_p, L, energy))
+            self.calc_transmission_phosphor(secb, t_p, al_p, L, energy, pre_U0))
 
         transmission_filter  = transmission_filter.reshape(self.shape)
         transmission_coating = transmission_coating.reshape(self.shape)
