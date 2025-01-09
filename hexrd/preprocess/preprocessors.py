@@ -16,13 +16,7 @@ class PP_Base(object):
         self.omwedges = omw
         self.panel_opts = panel_opts
         self.frame_start = frame_start
-        self.raw = imageseries.open(self.fname, format=self.RAWFMT)
-        self.use_frame_list = self.nframes != len(self.raw)
         self.style = style
-        print(
-            f"On Init:\n\t{self.fname}, {self.nframes} frames,"
-            f"{self.omwedges.nframes} omw, {len(self.raw)} total"
-        )
 
     @property
     def oplist(self):
@@ -83,6 +77,12 @@ class PP_Eiger(PP_Base):
             frame_start=frame_start,
             style=style,
         )
+        self.raw = imageseries.open(self.fname, format=self.RAWFMT)
+        self.use_frame_list = self.nframes != len(self.raw)
+        print(
+            f"On Init:\n\t{self.fname}, {self.nframes} frames,"
+            f"{self.omwedges.nframes} omw, {len(self.raw)} total"
+        )
 
 
 class PP_Dexela(PP_Base):
@@ -114,6 +114,7 @@ class PP_Dexela(PP_Base):
         )
 
         self._panel_id = panel_id
+        # TODO is this logic applicable also for Eiger ?
         if raw_format.lower() == "hdf5":
             self.raw = imageseries.open(
                 self.fname, self.RAWFMT, path=self.RAWPATH
@@ -125,6 +126,10 @@ class PP_Dexela(PP_Base):
         self.use_frame_list = self.nframes != len(
             self.raw
         )  # Framelist fix, DCP 6/18/18
+        print(
+            f"On Init:\n\t{self.fname}, {self.nframes} frames,"
+            f"{self.omwedges.nframes} omw, {len(self.raw)} total"
+        )
 
     def _attach_metadata(self, metadata):
         super()._attach_metadata(metadata)
@@ -173,15 +178,7 @@ def preprocess(args):
         )
         pp.save_processed(args.output, args.threshold)
     elif type(args) == Dexelas_Arguments:
-        pp = PP_Dexela(
-            fname=args.file_name,
-            omw=omw,
-            panel_opts=args.panel_opts,
-            frame_start=args.start_frame,
-            style=args.style,
-        )
-
-        for file_name in pp.file_name:
+        for file_name in args.file_names:
             for key in args.panel_keys:
                 if key.lower() in file_name:
                     pp = PP_Dexela(
