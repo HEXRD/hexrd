@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import numpy as np
 
@@ -57,6 +58,11 @@ find_orientations:
     algorithm: foo
   omega:
     period: [-60, 60]
+---
+new_file_placemnt: on
+find_orientations:
+  orientation_maps:
+    file: null
 """ % test_data
 
 
@@ -325,18 +331,18 @@ class TestOrientationMapsConfig(TestConfig):
 
 
     def test_file(self):
-        self.assertTrue(
-            self.cfgs[0].find_orientations.orientation_maps.file is None
+        self.assertEqual(
+            self.cfgs[0].find_orientations.orientation_maps.file,
+            Path(test_data['tempdir']) / "analysis_actmat_eta-ome_maps.npz"
         )
         self.assertEqual(
-            str(self.cfgs[1].find_orientations.orientation_maps.file),
-            os.path.join(test_data['tempdir'], test_data['nonexistent_file'])
+            self.cfgs[1].find_orientations.orientation_maps.file,
+            Path(test_data['tempdir']) / test_data['nonexistent_file']
             )
         self.assertEqual(
             str(self.cfgs[2].find_orientations.orientation_maps.file),
             test_data['existing_file']
             )
-
 
     def test_threshold(self):
         self.assertRaises(
