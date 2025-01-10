@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 import numpy
+
 np_include_dir = numpy.get_include()
 
 install_reqs = [
@@ -113,7 +114,20 @@ def get_pybind11_include_path():
 
 def get_cpp_extensions():
     cpp_transform_pkgdir = Path('hexrd') / 'transforms/cpp_sublibrary'
-    src_files = [str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')]
+    src_files = [
+        str(cpp_transform_pkgdir / 'src/transforms.cpp'),
+        str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp'),
+    ]
+
+    extra_compile_args = [
+        '-O3',
+        '-Wall',
+        '-shared',
+        '-std=c++14',
+        '-funroll-loops',
+    ]
+    if not sys.platform.startswith('win'):
+        extra_compile_args.append('-fPIC')
 
     # Define include directories
     include_dirs = [
@@ -123,15 +137,23 @@ def get_cpp_extensions():
         numpy.get_include(),
     ]
 
-    inverse_distortion_ext = Extension(
-        name='hexrd.extensions.inverse_distortion',
-        sources=src_files,
-        extra_compile_args=compiler_flags+['-std=c++14'],
+    transforms_ext = Extension(
+        name='hexrd.extensions.transforms',
+        sources=[src_files[0]],
+        extra_compile_args=extra_compile_args,
         include_dirs=include_dirs,
         language='c++',
     )
 
-    return [inverse_distortion_ext]
+    inverse_distortion_ext = Extension(
+        name='hexrd.extensions.inverse_distortion',
+        sources=[src_files[1]],
+        extra_compile_args=extra_compile_args,
+        include_dirs=include_dirs,
+        language='c++',
+    )
+
+    return [transforms_ext, inverse_distortion_ext]
 
 def get_old_xfcapi_extension_modules():
     # for transforms
@@ -158,19 +180,21 @@ def get_new_xfcapi_extension_modules():
 
 def get_extension_modules():
     # Flatten the lists
-    return [item for sublist in (
-        get_old_xfcapi_extension_modules(),
-        get_new_xfcapi_extension_modules(),
-        get_convolution_extensions(),
-        get_cpp_extensions(),
-    ) for item in sublist]
+    return [
+        item
+        for sublist in (
+            get_old_xfcapi_extension_modules(),
+            get_new_xfcapi_extension_modules(),
+            get_convolution_extensions(),
+            get_cpp_extensions(),
+        )
+        for item in sublist
+    ]
 
 ext_modules = get_extension_modules()
 
 # use entry_points, not scripts:
-entry_points = {
-    'console_scripts': ["hexrd = hexrd.cli.main:main"]
-}
+entry_points = {'console_scripts': ["hexrd = hexrd.cli.main:main"]}
 
 setup(
     name='hexrd',
@@ -199,5 +223,5 @@ setup(
     include_package_data=True,
     package_data={'': ['Anomalous.h5']},
     python_requires='>=3.9',
-    install_requires=install_reqs
+    install_requires=install_reqs,
 )
