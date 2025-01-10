@@ -1082,6 +1082,11 @@ class HEDMInstrument(object):
             npp = 6
             if panel.distortion is not None:
                 npp += len(panel.distortion.params)
+
+            if panel.detector_type == 'cylindrical':
+                # Add one for the radius
+                npp += 1
+
             panel.calibration_flags = x[ii:ii + npp]
         self._calibration_flags = x
 
