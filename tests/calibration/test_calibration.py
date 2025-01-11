@@ -73,7 +73,9 @@ def test_calibration(calibration_dir, test_data_dir):
 
     calibrator = InstrumentCalibrator(
         *calibrators,
-        engineering_constraints='TARDIS',
+        # Engineering constraints were actually not being utilized before,
+        # due to a bug. Disable them for now.
+        # engineering_constraints='TARDIS',
         euler_convention=euler_convention,
     )
 
