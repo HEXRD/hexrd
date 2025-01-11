@@ -1,0 +1,49 @@
+beam:
+  energy: 24.0
+  vector:
+    azimuth: 90.0
+    polar_angle: 90.0
+detectors:
+  Varex1:
+    detector_type: planar
+    pixels:
+      columns: 2880
+      rows: 2880
+      size:
+      - 0.15
+      - 0.15
+    saturation_level: 14000.0
+    transform:
+      tilt:
+      - -1.1993716471482228
+      - 0.044388196740224595
+      - 2.882069943870495
+      translation:
+      - 151.18106409857853
+      - -244.39105904935926
+      - -151.64125179106293
+  Varex2:
+    detector_type: planar
+    pixels:
+      columns: 2880
+      rows: 2880
+      size:
+      - 0.15
+      - 0.15
+    saturation_level: 14000.0
+    transform:
+      tilt:
+      - -1.2219868969754015
+      - -0.007147864589267325
+      - 2.8824890099757896
+      translation:
+      - 157.3792565441871
+      - 244.92718829312406
+      - -151.8067276074099
+id: EuXFEL
+oscillation_stage:
+  chi: 0.0
+  translation:
+  - 0.0
+  - 0.0
+  - 0.0

@@ -1,0 +1,31 @@
+beam:
+  energy: 23.53
+  vector:
+    azimuth: 90.0
+    polar_angle: 90.0
+detectors:
+  DCS:
+    detector_type: planar
+    pixels:
+      columns: 2048
+      rows: 2048
+      size:
+      - 0.08
+      - 0.08
+    saturation_level: 65536.0
+    transform:
+      tilt:
+      - 0.0
+      - 0.0
+      - 0.0
+      translation:
+      - 2.1428412398904606
+      - 7.399220264133925
+      - -99.0
+id: NXXXXXX-XXX-preshot
+oscillation_stage:
+  chi: 0.0
+  translation:
+  - 0.0
+  - 0.0
+  - 0.0
