@@ -1063,7 +1063,13 @@ class HEDMInstrument(object):
         flags = self.calibration_flags
         for i, name in enumerate(self.calibration_flags_to_lmfit_names):
             if name in params_dict:
-                params_dict[name].vary = flags[i]
+                param = params_dict[name]
+                if param.expr is not None:
+                    # Don't update the flags on anything with an expression,
+                    # because it is computed and should not be varied.
+                    continue
+
+                param.vary = flags[i]
 
     @property
     def calibration_flags(self):
@@ -1082,6 +1088,11 @@ class HEDMInstrument(object):
             npp = 6
             if panel.distortion is not None:
                 npp += len(panel.distortion.params)
+
+            if panel.detector_type == 'cylindrical':
+                # Add one for the radius
+                npp += 1
+
             panel.calibration_flags = x[ii:ii + npp]
         self._calibration_flags = x
 
