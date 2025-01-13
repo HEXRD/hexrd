@@ -1,0 +1,34 @@
+beam:
+  energy: 23.705586186374113
+  vector:
+    azimuth: 38.0
+    polar_angle: 90.0
+detectors:
+  DCS:
+    buffer:
+    - 0.0
+    - 0.0
+    detector_type: planar
+    pixels:
+      columns: 2048
+      rows: 2048
+      size:
+      - 0.08
+      - 0.08
+    saturation_level: 65536.0
+    transform:
+      tilt:
+      - 0.00607509641736381
+      - 0.9097932993284474
+      - -0.012420530801278116
+      translation:
+      - -71.19159364308402
+      - 9.200121736992893
+      - -61.02325283143973
+id: DCS
+oscillation_stage:
+  chi: 0.0
+  translation:
+  - 0.0
+  - 0.0
+  - 0.0
