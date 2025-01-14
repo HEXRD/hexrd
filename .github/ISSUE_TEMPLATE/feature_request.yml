@@ -1,0 +1,60 @@
+name: "\U0001F4A1 Feature Proposal"
+description: Propose a new feature for HEXRD
+labels: ["triage: enhancement"]
+body:
+    - type: textarea
+      id: description
+      attributes:
+          label: Description
+          description: |
+              Brief 1-2 sentence summary of the feature being proposed.
+
+              One-paragraph abstract of the rationale for the Feature Proposal, and the implications it has on the library as a whole.
+          placeholder:
+      validations:
+          required: true
+
+    - type: textarea
+      id: rationale
+      attributes:
+          label: Rationale
+          description: >
+              Explanation of why this feature is valuable, and how it will benefit the HEXRD community. It
+              should also describe any alternative solutions that were considered, and why they were rejected.
+          placeholder: Rationale
+      validations:
+          required: true
+
+    - type: textarea
+      id: specification
+      attributes:
+          label: Specification
+          description: |
+              Detailed description of the feature, including any code snippets or examples that may be helpful to the reader. 
+
+              This should not be an implementation of the feature, but it should contain the core technical information that could be used to implement the feature (e.g. equations, existing code references, paper references).
+      validations:
+          required: true
+
+    - type: textarea
+      id: version
+      attributes:
+          label: Compatibility
+          description: >
+              Description of how this feature will affect existing code, and whether it will be implemented in a way that is backwards-compatible with previous versions of 
+              HEXRD. If the feature will include changes which break existing code, such changes should be enumerated here. If the feature will strictly not affect existing 
+              usability, this should be stated explicitly.
+      validations:
+          required: true
+
+    - type: checkboxes
+      id: workflows
+      attributes:
+          label: Affected Workflows
+          description: Check which workflows this feature relates to.
+          options:
+              - label: core
+              - label: EDD
+              - label: HEDM
+              - label: Powder
+              - label: Laue
