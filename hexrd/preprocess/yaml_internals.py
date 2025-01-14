@@ -28,4 +28,5 @@ class HexrdPPScriptArgumentsDumper(yaml.Dumper):
     # first instance.
     def _ignore(*args):
         return True
+
     ignore_aliases = _ignore
