@@ -49,6 +49,19 @@ def _calcstar(v, sym, mat):
     return vsym
 
 
+def unitcell_volume(lp):
+    '''helper function to explicitly compute unitcell
+    volume (in A^3) using the forula. the unitcell class
+    value is set using the determinant of the metric tensor
+    '''
+    ca = np.cos(np.radians(lp['alpha']))
+    cb = np.cos(np.radians(lp['beta']))
+    cg = np.cos(np.radians(lp['gamma']))
+
+    fact = np.sqrt(1 - ca**2 - cb**2 - cg**2 + 2*ca*cb*cg)
+    # 1E3 factor to go from nm to A
+    return lp['a']*lp['b']*lp['c']*fact*1E3
+
 class unitcell:
 
     '''
