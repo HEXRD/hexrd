@@ -138,10 +138,11 @@ class Eiger_Arguments(HexrdPPScript_Arguments):
                     "*.h5",
                 )
             )
-        if not os.path.exists(file_name):
-            raise RuntimeError(f"File {file_name} does not exist!")
+            if len(file_name) == 0:
+                raise RuntimeError(f"No files matching found!")
 
         return file_name
+
 
 @dataclass
 @autoregister
@@ -149,14 +150,14 @@ class Dexelas_Arguments(Eiger_Arguments):
     yaml_tag = "!Dexelas_Arguments"
     profile_name = "dexelas"
     # !!!: hard coded options for each dexela for April 2017
-    panel_opts: dict[str, any] = field(
+    panel_opts: dict[str, list[list[Union[str, int]]]] = field(
         default_factory=lambda: {
             "FF1": [
-                ("add-row", 1944),
-                ("add-column", 1296),
-                ("flip", "v"),
+                ["add-row", 1944],
+                ["add-column", 1296],
+                ["flip", "v"],
             ],
-            "FF2": [("add-row", 1944), ("add-column", 1296), ("flip", "h")],
+            "FF2": [["add-row", 1944], ["add-column", 1296], ["flip", "h"]],
         }
     )
 

@@ -34,7 +34,7 @@ def test_save_load_dexelas():
     eargs = Dexelas_Arguments()
     eargs.base_dir = "/data"
     eargs.num_frames = 1
-    eargs.panel_opts["FF1"] = {("add-row", 1000)}
+    eargs.panel_opts["FF1"] = [["add-row", 1000]]
     buffer = eargs.dump_config()
     args = HexrdPPScript_Arguments.load_from_config(buffer)
     assert eargs == args
