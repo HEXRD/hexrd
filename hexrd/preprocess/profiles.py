@@ -8,7 +8,6 @@ from hexrd.preprocess.argument_classes_factory import (
 )
 from hexrd.preprocess.yaml_internals import (
     HexrdPPScriptArgumentsDumper,
-    HexrdPPScriptArgumentsSafeLoader,
 )
 from typing import Union
 
@@ -64,7 +63,7 @@ class HexrdPPScript_Arguments(yaml.YAMLObject):
     def load_from_config(cls, buffer: str):
         """Create an HexrdPPScript_Arguments instance from yaml string"""
         try:
-            args = yaml.load(buffer, Loader=HexrdPPScriptArgumentsSafeLoader)
+            args = yaml.safe_load(buffer)
         except Exception as e:
             raise RuntimeError(f"Could not read config from buffer: {e}")
         return args
