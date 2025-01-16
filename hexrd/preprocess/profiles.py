@@ -124,23 +124,10 @@ class Eiger_Arguments(HexrdPPScript_Arguments):
 
     @property
     def file_name(self) -> str:
-        if self.absolute_path:
-            file_name = os.path.abspath(self.absolute_path)
-        else:
-            file_name = glob.glob(
-                os.path.join(
-                    self.base_dir,
-                    self.expt_name,
-                    self.samp_name,
-                    str(self.scan_number),
-                    "ff",
-                    "*.h5",
-                )
-            )
-            if len(file_name) == 0:
-                raise RuntimeError(f"No files matching found!")
+        return self.absolute_path
 
-        return file_name
+
+
 
 
 @dataclass
@@ -163,3 +150,16 @@ class Dexelas_Arguments(Eiger_Arguments):
     num_frames: int = 1441
     start_frame: int = 4  # usually 4 for normal CHESS stuff
     threshold: int = 50
+    @property
+    def file_names(self) -> list[str]:
+        names = glob.glob(
+            os.path.join(
+                self.data_dir,
+                self.expt_name,
+                self.samp_name,
+                str(self.scan_number),
+                'ff',
+                '*.h5',
+            )
+        )
+        return names
