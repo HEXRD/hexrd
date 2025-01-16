@@ -2,7 +2,9 @@ import dataclasses
 from hexrd.preprocess.profiles import HexrdPPScript_Arguments
 from hexrd.preprocess.preprocessors import preprocess
 from dataclasses import fields
-from typing import Any
+import json
+import copy
+from typing import get_origin, get_args, Union
 
 import argparse
 
@@ -55,7 +57,7 @@ def add_profile_subparser(
 
     subparser = subparsers.add_parser(
         name,
-        help=f"{name} help",
+        help=f"Preprocess data for detector profile: {name}",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
@@ -63,22 +65,30 @@ def add_profile_subparser(
     short_switches = getattr(klass, "short_switches")
 
     for field in fields(klass):
-        switches = [f"--{field.name}"]
-        if field.name in short_switches:
-            switch = short_switches[field.name]
-            switches.insert(0, f"-{switch}")
         default_value = None
         if field.default_factory != dataclasses.MISSING:
             default_value = field.default_factory()
         else:
             default_value = field.default
-
-        subparser.add_argument(
-            *switches,
-            type=field.type,
-            default=default_value,
-            help=help_messages[field.name],
-        )
+        tp, default_value = _get_supported_type(field.type, default_value)
+        # fields with default value = None are treated as posiitonal
+        if default_value is not None:
+            switches = [f"--{field.name}"]
+            if field.name in short_switches:
+                switch = short_switches[field.name]
+                switches.insert(0, f"-{switch}")
+            subparser.add_argument(
+                *switches,
+                type=tp,
+                default=default_value,
+                help=help_messages[field.name],
+            )
+        else:
+            subparser.add_argument(
+                field.name,
+                type=tp,
+                help=help_messages[field.name],
+            )
 
     subparser.add_argument(
         "--generate-default-config",
@@ -95,13 +105,43 @@ def add_profile_subparser(
 
 def _remove_non_dataclass_args(args_dict: dict) -> tuple[dict, dict]:
     """Remove args that do not belong to any dataclass. These are standard args
-    we manually inserted and now remove to allow the rest of the arguments to
-    initialize dataclass"""
+    we manually inserted or application args to allow the rest
+    of the arguments to initialize dataclass"""
 
+    # keep orignal intact
+    args = copy.deepcopy(args_dict)
+
+    # these are defined in main.py
+    # if we ever add more we will need to update this list
+    hexrd_app_args = ['debug', 'inst_profile', 'cmd', 'func']
+    for key in hexrd_app_args:
+        del args[key]
+
+    # extra are added by the preprocess subparser
     extra = {}
     for key in ["profile", "config", "generate_default_config"]:
-        v = args_dict.get(key, None)
+        v = args.get(key, None)
         extra[key] = v
-        if v is not None:
-            del args_dict[key]
-    return args_dict, extra
+        del args[key]
+    return args, extra
+
+
+def _get_supported_type(tp, default_value=None):
+    """Replace any type not supported by argparse in the command line with an
+    alternative. Also, return the new default value in the appropriate format.
+
+    For now we just replace dictionaries with json strings this
+    allows to pass a dict as '{"key1":value1, "key2":value2}'
+    """
+    # second condition is required in case the dataclass field is defined using
+    # members of the typing module.
+    if tp is dict or get_origin(tp) is dict:
+        return json.loads, f"'{json.dumps(default_value)}'"
+    elif is_optional(tp):
+        return get_args(tp)[0], None
+    else:
+        return tp, default_value
+
+
+def is_optional(field):
+    return get_origin(field) is Union and type(None) in get_args(field)

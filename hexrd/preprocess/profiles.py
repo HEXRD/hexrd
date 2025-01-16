@@ -142,7 +142,6 @@ class Eiger_Arguments(Chess_Arguments):
 
     short_switches = {
         **Chess_Arguments.short_switches,
-        "absolute_path": "ap",
     }
 
     def validate_arguments(self) -> None:
