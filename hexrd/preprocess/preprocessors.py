@@ -1,49 +1,68 @@
-from hexrd.preprocess.profiles import Eiger_Arguments, Dexelas_Arguments
+from hexrd.imageseries.baseclass import ImageSeries
+from hexrd.imageseries.omega import OmegaWedges
+from hexrd.preprocess.profiles import (
+    Eiger_Arguments,
+    Dexelas_Arguments,
+    HexrdPPScript_Arguments,
+)
 from hexrd import imageseries
 from hexrd.imageseries.process import ProcessedImageSeries
 import os
 import time
+from typing import Any, Optional, Union, Sequence, cast
+from numpy.typing import NDArray
+from numpy import float32
 
 
 class PP_Base(object):
-    PROCFMT = None
-    RAWFMT = None
+    PROCFMT: Optional[str] = None
+    RAWFMT: Optional[str] = None
 
     def __init__(
-        self, fname, omw, panel_opts, frame_start=0, style="npz", **kwargs
+        self,
+        fname: str,
+        omw: OmegaWedges,
+        panel_opts: list,
+        frame_start: int = 0,
+        style: str = "npz",
+        **kwargs: Any,
     ):
         self.fname = fname
         self.omwedges = omw
         self.panel_opts = panel_opts
         self.frame_start = frame_start
         self.style = style
+        self.use_frame_list = False
+        self.raw = ImageSeries(adapter=None)
 
     @property
-    def oplist(self):
+    def oplist(self) -> list:
         return self.panel_opts
 
     @property
-    def framelist(self):
+    def framelist(self) -> Sequence[int]:
         return range(self.frame_start, self.nframes + self.frame_start)
 
     @property
-    def nframes(self):
+    def nframes(self) -> int:
         return self.omwedges.nframes
 
     @property
-    def omegas(self):
+    def omegas(self) -> NDArray:
         return self.omwedges.omegas
 
-    def processed(self):
+    def processed(self) -> ProcessedImageSeries:
         kw = {}
         if self.use_frame_list:
             kw = dict(frame_list=self.framelist)
         return ProcessedImageSeries(self.raw, self.oplist, **kw)
 
-    def _attach_metadata(self, metadata):
+    def _attach_metadata(self, metadata: dict) -> None:
         metadata["omega"] = self.omegas
 
-    def save_processed(self, name, threshold, output_dir=None):
+    def save_processed(
+        self, name: str, threshold: int, output_dir: Optional[str] = None
+    ) -> None:
         if output_dir is None:
             output_dir = os.getcwd()
         else:
@@ -69,7 +88,14 @@ class PP_Eiger(PP_Base):
     PROCFMT = "frame-cache"
     RAWFMT = "eiger-stream-v1"
 
-    def __init__(self, fname, omw, panel_opts, frame_start=0, style="npz"):
+    def __init__(
+        self,
+        fname: str,
+        omw: OmegaWedges,
+        panel_opts: list = [],
+        frame_start: int = 0,
+        style: str = "npz",
+    ) -> None:
         super().__init__(
             fname=fname,
             omw=omw,
@@ -96,15 +122,15 @@ class PP_Dexela(PP_Base):
 
     def __init__(
         self,
-        fname,
-        omw,
-        panel_opts,
-        panel_id,
-        frame_start=0,
-        style="npz",
-        raw_format="hdf5",
-        dark=None,
-    ):
+        fname: str,
+        omw: OmegaWedges,
+        panel_opts: list,
+        panel_id: str,
+        frame_start: int = 0,
+        style: str = "npz",
+        raw_format: str = "hdf5",
+        dark: Union[NDArray, float32] = None,
+    ) -> None:
         super().__init__(
             fname=fname,
             omw=omw,
@@ -131,16 +157,20 @@ class PP_Dexela(PP_Base):
             f"{self.omwedges.nframes} omw, {len(self.raw)} total"
         )
 
-    def _attach_metadata(self, metadata):
+    def _attach_metadata(self, metadata: dict) -> None:
         super()._attach_metadata(metadata)
         metadata["panel_id"] = self.panel_id
 
     @property
-    def panel_id(self):
+    def panel_id(self) -> str:
         return self._panel_id
 
     @property
-    def dark(self, nframes=100):
+    def oplist(self) -> list:
+        return [('dark', self.dark)] + self.panel_opts
+
+    @property
+    def dark(self, nframes: int = 100) -> Union[NDArray, float32]:
         """build and return dark image"""
         if self._dark is None:
             usenframes = min(nframes, self.nframes)
@@ -164,25 +194,25 @@ class PP_Dexela(PP_Base):
         return self._dark
 
 
-def preprocess(args):
-    omw = imageseries.omega.OmegaWedges(args.num_frames)
-    omw.addwedge(args.ome_start, args.ome_end, args.num_frames)
-
+def preprocess(args: HexrdPPScript_Arguments) -> None:
     if type(args) == Eiger_Arguments:
-        pp = PP_Eiger(
+        omw = imageseries.omega.OmegaWedges(args.num_frames)
+        omw.addwedge(args.ome_start, args.ome_end, args.num_frames)
+        ppe = PP_Eiger(
             fname=args.file_name,
             omw=omw,
-            panel_opts=args.panel_opts,
             frame_start=args.start_frame,
             style=args.style,
         )
-        pp.save_processed(args.output, args.threshold)
+        ppe.save_processed(args.output, args.threshold)
     elif type(args) == Dexelas_Arguments:
+        omw = imageseries.omega.OmegaWedges(args.num_frames)
+        omw.addwedge(args.ome_start, args.ome_end, args.num_frames)
         for file_name in args.file_names:
-            for key in args.panel_keys:
+            for key in args.panel_opts.keys():
                 if key.lower() in file_name:
-                    pp = PP_Dexela(
-                        fname=args.file_name,
+                    ppd = PP_Dexela(
+                        fname=file_name,
                         omw=omw,
                         panel_opts=args.panel_opts[key],
                         panel_id=key,
@@ -190,13 +220,15 @@ def preprocess(args):
                         style=args.style,
                     )
 
+                    samp_name = cast(str, args.samp_name)
+                    scan_number = cast(int, args.scan_number)
                     output_name = (
-                        args.samp_name
+                        samp_name
                         + "_"
-                        + str(args.scan_number)
+                        + str(scan_number)
                         + "_"
                         + file_name.split("/")[-1].split(".")[0]
                     )
-                    pp.save_processed(output_name, args.threshold)
+                    ppd.save_processed(output_name, args.threshold)
     else:
         raise AttributeError(f"Unknown argument type: {type(args)}")

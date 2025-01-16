@@ -2,6 +2,7 @@ import dataclasses
 from hexrd.preprocess.profiles import HexrdPPScript_Arguments
 from hexrd.preprocess.preprocessors import preprocess
 from dataclasses import fields
+from typing import Any
 
 import argparse
 
@@ -9,7 +10,7 @@ _description = 'Preprocess detector images'
 _help = "Preprocess data from detector and attach metadata"
 
 
-def configure_parser(sub_parsers):
+def configure_parser(sub_parsers: argparse._SubParsersAction) -> None:
     parser = sub_parsers.add_parser(
         'preprocess', description=_description, help=_help
     )
@@ -25,7 +26,7 @@ def configure_parser(sub_parsers):
     parser.set_defaults(func=execute)
 
 
-def execute(args, parser):
+def execute(args: argparse.Namespace, _: argparse.ArgumentParser) -> None:
     kwargs, extra = _remove_non_dataclass_args(vars(args))
 
     if extra["generate_default_config"]:
@@ -40,10 +41,15 @@ def execute(args, parser):
             args_object = HexrdPPScript_Arguments.create_args(
                 extra["profile"], **kwargs
             )
+        args_object.validate_arguments()
         preprocess(args_object)
 
 
-def add_profile_subparser(subparsers, name, klass):
+def add_profile_subparser(
+    subparsers: argparse._SubParsersAction,
+    name: str,
+    klass: HexrdPPScript_Arguments,
+) -> None:
     """Create a subparser with the options related to detector `name` using
     `klass` to retrieve default values"""
 
@@ -87,7 +93,7 @@ def add_profile_subparser(subparsers, name, klass):
     )
 
 
-def _remove_non_dataclass_args(args_dict):
+def _remove_non_dataclass_args(args_dict: dict) -> tuple[dict, dict]:
     """Remove args that do not belong to any dataclass. These are standard args
     we manually inserted and now remove to allow the rest of the arguments to
     initialize dataclass"""
