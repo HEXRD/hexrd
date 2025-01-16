@@ -70,29 +70,19 @@ class HexrdPPScript_Arguments(yaml.YAMLObject):
 
 
 @dataclass
-@autoregister
-class Eiger_Arguments(HexrdPPScript_Arguments):
-    yaml_tag = "!Eiger_Arguments"
-    profile_name = "eiger"
-    # fields
-    base_dir: str = None
-    expt_name: str = None
-    samp_name: str = None
-    scan_number: int = None
+class Chess_Arguments(HexrdPPScript_Arguments):
     num_frames: int = 1440
     start_frame: int = 0
     threshold: int = 5
     ome_start: float = 0.0
     ome_end: float = 360.0
-    absolute_path: str = None
-    panel_opts: dict[str, any] = field(default_factory=dict)
     style: str = "npz"
     output: str = "test"
 
     # class helpers
+
     # we gather all argument messages here to allow for automated help
-    # generation but also easier derivation of new dataclass arguments
-    # through inheritance
+    # generation
     help_messages = {
         "base_dir": "raw data path on chess daq",
         "expt_name": "experiment name",
@@ -103,8 +93,6 @@ class Eiger_Arguments(HexrdPPScript_Arguments):
         "threshold": "threshold for frame caches",
         "ome_start": "start omega",
         "ome_end": "end omega",
-        "absolute_path": "absolute path to image file",
-        "panel_opts": "detector-specific options",
         "style": "format for saving framecache",
         "output": "output filename",
     }
@@ -115,12 +103,36 @@ class Eiger_Arguments(HexrdPPScript_Arguments):
         "threshold": "t",
         "ome_start": "o",
         "ome_end": "e",
-        "absolute_path": "ap",
     }
 
     @property
     def ostep(self) -> float:
         return (self.ome_end - self.ome_start) / float(self.num_frames)
+
+
+
+@dataclass
+@autoregister
+class Eiger_Arguments(Chess_Arguments):
+    yaml_tag = "!Eiger_Arguments"
+    profile_name = "eiger"
+    # fields
+    absolute_path: Optional[str] = None
+
+    help_messages = {
+        **Chess_Arguments.help_messages,
+        "absolute_path": "absolute path to image file",
+    }
+
+    short_switches = {
+        **Chess_Arguments.short_switches,
+        "absolute_path": "ap",
+    }
+
+    def validate_arguments(self) -> None:
+        super().validate_arguments()
+        if not os.path.exists(self.file_name):
+            raise RuntimeError(f'File {self.file_name} does not exist!')
 
     @property
     def file_name(self) -> str:
@@ -132,9 +144,17 @@ class Eiger_Arguments(HexrdPPScript_Arguments):
 
 @dataclass
 @autoregister
-class Dexelas_Arguments(Eiger_Arguments):
+class Dexelas_Arguments(Chess_Arguments):
     yaml_tag = "!Dexelas_Arguments"
     profile_name = "dexelas"
+    # fields
+    base_dir: Optional[str] = None
+    expt_name: Optional[str] = None
+    samp_name: Optional[str] = None
+    scan_number: Optional[int] = None
+    num_frames: int = 1441
+    start_frame: int = 4  # usually 4 for normal CHESS stuff
+    threshold: int = 50
     # !!!: hard coded options for each dexela for April 2017
     panel_opts: dict[str, list[list[Union[str, int]]]] = field(
         default_factory=lambda: {
@@ -147,9 +167,15 @@ class Dexelas_Arguments(Eiger_Arguments):
         }
     )
 
-    num_frames: int = 1441
-    start_frame: int = 4  # usually 4 for normal CHESS stuff
-    threshold: int = 50
+    help_messages = {
+        "base_dir": "raw data path on chess daq",
+        "expt_name": "experiment name",
+        "samp_name": "sample name",
+        "scan_number": "ff scan number",
+        "panel_opts": "detector-specific options",
+        **Chess_Arguments.help_messages,
+    }
+
     @property
     def file_names(self) -> list[str]:
         names = glob.glob(
