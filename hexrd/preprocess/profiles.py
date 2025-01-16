@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 import glob
 import os
 import yaml
@@ -9,7 +9,7 @@ from hexrd.preprocess.argument_classes_factory import (
 from hexrd.preprocess.yaml_internals import (
     HexrdPPScriptArgumentsDumper,
 )
-from typing import Union
+from typing import Any, Union, Optional, cast
 
 
 # Classes holding script arguments and their defaults based on the detector.
@@ -38,9 +38,9 @@ class HexrdPPScript_Arguments(yaml.YAMLObject):
     yaml_loader = yaml.SafeLoader
 
     @classmethod
-    def known_formats(_):
+    def known_formats(cls) -> list[str]:
         """Get all know argument formats registered so far"""
-        return list(ArgumentClassesFactory().get_registered())
+        return ArgumentClassesFactory().get_registered()
 
     def dump_config(self) -> str:
         """Create a yaml string representation of the values hold in this
@@ -48,25 +48,30 @@ class HexrdPPScript_Arguments(yaml.YAMLObject):
         return yaml.dump(self, Dumper=HexrdPPScriptArgumentsDumper)
 
     @classmethod
-    def create_default_config(_, name) -> str:
+    def create_default_config(cls, name: str) -> str:
         """Create argument class of type name using kwargs to set the
         dataclass values"""
         return ArgumentClassesFactory().get_args(name)().dump_config()
 
     @classmethod
-    def create_args(_, name, **kwargs):
+    def create_args(
+        cls, name: str, **kwargs: Any
+    ) -> 'HexrdPPScript_Arguments':
         """Create argument class of type name using kwargs to set the
         dataclass values"""
         return ArgumentClassesFactory().get_args(name)(**kwargs)
 
     @classmethod
-    def load_from_config(cls, buffer: str):
+    def load_from_config(cls, buffer: str) -> 'HexrdPPScript_Arguments':
         """Create an HexrdPPScript_Arguments instance from yaml string"""
         try:
             args = yaml.safe_load(buffer)
         except Exception as e:
             raise RuntimeError(f"Could not read config from buffer: {e}")
         return args
+
+    def validate_arguments(self) -> None:
+        pass
 
 
 @dataclass
@@ -109,6 +114,17 @@ class Chess_Arguments(HexrdPPScript_Arguments):
     def ostep(self) -> float:
         return (self.ome_end - self.ome_start) / float(self.num_frames)
 
+    def validate_arguments(self) -> None:
+        super().validate_arguments()
+        """ Make sure that we set all the required (i.e. = None) arguments """
+        collect_none = []
+        for f in fields(self):
+            if getattr(self, f.name) is None:
+                collect_none.append(f.name)
+        if len(collect_none) != 0:
+            raise RuntimeError(
+                f"Required argument are missing a value: {collect_none}"
+            )
 
 
 @dataclass
@@ -136,10 +152,10 @@ class Eiger_Arguments(Chess_Arguments):
 
     @property
     def file_name(self) -> str:
-        return self.absolute_path
-
-
-
+        value = cast(
+            str, self.absolute_path
+        )  # validate_arguments ensures that this is not None
+        return value
 
 
 @dataclass
@@ -176,14 +192,27 @@ class Dexelas_Arguments(Chess_Arguments):
         **Chess_Arguments.help_messages,
     }
 
+    def validate_arguments(self) -> None:
+        super().validate_arguments()
+        check_files_exist = [
+            os.path.exists(file_name) for file_name in self.file_names
+        ]
+        if not all(check_files_exist):
+            raise RuntimeError("files don't exist!")
+
     @property
     def file_names(self) -> list[str]:
+        # validate_arguments() ensures that none of these are None
+        base_dir = cast(str, self.base_dir)
+        expt_name = cast(str, self.expt_name)
+        samp_name = cast(str, self.samp_name)
+        scan_number = cast(int, self.scan_number)
         names = glob.glob(
             os.path.join(
-                self.data_dir,
-                self.expt_name,
-                self.samp_name,
-                str(self.scan_number),
+                base_dir,
+                expt_name,
+                samp_name,
+                str(scan_number),
                 'ff',
                 '*.h5',
             )
