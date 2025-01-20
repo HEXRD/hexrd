@@ -5,7 +5,7 @@ import lmfit
 import numpy as np
 
 from .lmfit_param_handling import add_engineering_constraints, create_instr_params, DEFAULT_EULER_CONVENTION, update_instrument_from_params, validate_params_list
-from ....core.fitting.calibration.relative_constraints import create_relative_constraints, RelativeConstraints, RelativeConstraintsType
+from hexrd.core.fitting.calibration.relative_constraints import create_relative_constraints, RelativeConstraints, RelativeConstraintsType
 
 logger = logging.getLogger()
 logger.setLevel('INFO')

@@ -7,6 +7,7 @@ from hexrd.core.instrument import calc_angles_from_beam_vec, calc_beam_vec, HEDM
 from hexrd.core.rotations import angleAxisOfRotMat, expMapOfQuat, make_rmat_euler, quatOfRotMat, RotMatEuler, rotMatOfExpMap
 from hexrd.core.material.unitcell import _lpname
 from .relative_constraints import RelativeConstraints, RelativeConstraintsType
+from hexrd.core.fitting.calibration.relative_constraints import RelativeConstraints, RelativeConstraintsType
 
 
 # First is the axes_order, second is extrinsic

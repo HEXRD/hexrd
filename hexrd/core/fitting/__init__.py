@@ -28,7 +28,7 @@
 Functions for peak fitting
 """
 # TODO: Resolve extra-workflow dependency
-from ...hedm.fitting import grains
+from hexrd.hedm.fitting import grains
 
 fitGrain = grains.fitGrain
 objFuncFitGrain = grains.objFuncFitGrain

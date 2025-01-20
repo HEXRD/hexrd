@@ -4,7 +4,7 @@ import logging
 
 import numpy as np
 
-from ...core.config.config import Config
+from hexrd.core.config.config import Config
 
 
 logger = logging.getLogger('hexrd.config')

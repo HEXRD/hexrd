@@ -60,7 +60,7 @@ def get_convolution_extensions():
     # Add '-Rpass-missed=.*' to ``extra_compile_args`` when compiling with
     # clang to report missed optimizations
     _convolve_ext = Extension(
-        name='hexrd.core/convolution._convolve',
+        name='hexrd.core.convolution._convolve',
         sources=src_files,
         extra_compile_args=extra_compile_args,
         include_dirs=[numpy.get_include()],

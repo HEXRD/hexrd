@@ -5,6 +5,11 @@ import yaml
 from . import root
 from . import utils
 
+
+# The following were moved to core
+from hexrd.core.config import config
+from hexrd.core.config import material
+
 """
 Note that we need to use the open() builtin in what was formerly the "open()"
 function. So we define the _open(), and then redefine open() to the new
