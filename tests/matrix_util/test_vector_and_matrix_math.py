@@ -1,5 +1,5 @@
 import numpy as np
-from hexrd import matrixutil as mu
+from hexrd.core import matrixutil as mu
 
 
 def test_cross():

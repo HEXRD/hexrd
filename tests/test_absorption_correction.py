@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import yaml
 
-from hexrd.instrument.hedm_instrument import HEDMInstrument
-from hexrd.instrument.physics_package import HEDPhysicsPackage
+from hexrd.hedm.instrument.hedm_instrument import HEDMInstrument
+from hexrd.hedm.instrument.physics_package import HEDPhysicsPackage
 
 
 @pytest.fixture

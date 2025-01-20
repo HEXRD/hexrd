@@ -37,9 +37,8 @@ from hexrd.powder.wppf.parameters import Parameters
 from lmfit import Parameters as Parameters_lmfit
 from hexrd.powder.wppf.phase import Phases_LeBail, Phases_Rietveld
 from hexrd.core.material import Material
-from hexrd.hedm.material.unitcell import _rqpDict
 from hexrd.core.material.unitcell import _rqpDict
-import hexrd
+import hexrd.core
 import numpy as np
 from hexrd.core import constants
 import warnings
@@ -793,7 +792,7 @@ def _add_detector_geometry(params, instr):
     detector as a parameter to the LeBail class
     such that those can be refined as well
     """
-    if isinstance(instr, hexrd.instrument.HEDMInstrument):
+    if isinstance(instr, hexrd.core.instrument.HEDMInstrument):
         for key,det in instr.detectors.items():
             tvec = det.tvec
             tilt = det.tilt

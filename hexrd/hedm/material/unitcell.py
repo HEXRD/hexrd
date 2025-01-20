@@ -752,7 +752,7 @@ class unitcell:
         f_anomalous_data = []
         self.pe_cs = {}
         data = (
-            importlib.resources.files(hexrd.resources)
+            importlib.resources.files(hexrd.core.resources)
             .joinpath('Anomalous.h5')
             .open('rb')
         )

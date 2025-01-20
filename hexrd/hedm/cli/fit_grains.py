@@ -32,7 +32,7 @@ class GrainData(_BaseGrainData):
     """Simple class for storing grain output data
 
     To read the grains file, use the `load` method, like this:
-    > from hexrd.fitgrains import GrainData
+    > from hexrd.hedm.fitgrains import GrainData
     > gd = GrainData.load("grains.npz")
     """
 

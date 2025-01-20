@@ -71,6 +71,7 @@ def main():
 
     try:
         import argcomplete
+
         argcomplete.autocomplete(p)
     except ImportError:
         pass

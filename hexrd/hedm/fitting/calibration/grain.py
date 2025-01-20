@@ -6,9 +6,9 @@ from hexrd.core import matrixutil as mutil
 from hexrd.core.rotations import angularDifference
 from hexrd.core.transforms import xfcapi
 
-from .abstract_grain import AbstractGrainCalibrator
-from .lmfit_param_handling import DEFAULT_EULER_CONVENTION
-from . import grains as grainutil
+from ....core.fitting.calibration.abstract_grain import AbstractGrainCalibrator
+from ....core.fitting.calibration.lmfit_param_handling import DEFAULT_EULER_CONVENTION
+from .. import grains as grainutil
 
 logger = logging.getLogger(__name__)
 

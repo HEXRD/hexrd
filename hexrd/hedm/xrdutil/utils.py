@@ -29,9 +29,6 @@
 
 from typing import Optional, Union, Any, Generator
 from hexrd.hedm.material.crystallography import PlaneData
-from hexrd.laue.material.crystallography import PlaneData
-from hexrd.powder.material.crystallography import PlaneData
-from hexrd.core.material.crystallography import PlaneData
 from hexrd.core.distortion.distortionabc import DistortionABC
 
 import numba
@@ -44,9 +41,6 @@ from hexrd.core import rotations as rot
 from hexrd.core import gridutil as gutil
 
 from hexrd.hedm.material.crystallography import processWavelength, PlaneData
-from hexrd.laue.material.crystallography import processWavelength, PlaneData
-from hexrd.powder.material.crystallography import processWavelength, PlaneData
-from hexrd.core.material.crystallography import processWavelength, PlaneData
 
 from hexrd.core.transforms import xfcapi
 from hexrd.core.valunits import valWUnit
@@ -56,7 +50,7 @@ from hexrd.core import distortion as distortion_pkg
 from hexrd.core.deprecation import deprecated
 
 
-simlp = 'hexrd.instrument.hedm_instrument.HEDMInstrument.simulate_laue_pattern'
+simlp = 'hexrd.hedm.instrument.hedm_instrument.HEDMInstrument.simulate_laue_pattern'
 
 # =============================================================================
 # PARAMETERS

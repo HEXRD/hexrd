@@ -4,7 +4,6 @@ from hexrd.core.material.spacegroup import Allowed_HKLs, SpaceGroup
 from hexrd.core import constants
 from hexrd.core.material import symmetry, symbols
 from hexrd.core.material import Material
-from hexrd.hedm.material.unitcell import _rqpDict
 from hexrd.core.material.unitcell import _rqpDict
 from hexrd.powder.wppf import wppfsupport
 from hexrd.powder.wppf.xtal import _calc_dspacing, _get_tth, _calcxrsf, _calc_extinction_factor, _calc_absorption_factor
@@ -1275,7 +1274,7 @@ class Material_Rietveld:
     def InitializeInterpTable(self):
 
         f_anomalous_data = []
-        data = importlib.resources.open_binary(hexrd.resources, 'Anomalous.h5')
+        data = importlib.resources.open_binary(hexrd.core.resources, 'Anomalous.h5')
         with h5py.File(data, 'r') as fid:
             for i in range(0, self.atom_ntype):
 

@@ -479,7 +479,7 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
 
     Parameters
     ----------
-    cfg : hexrd.config.root.RootConfig
+    cfg : hexrd.core.config.root.RootConfig
         A hexrd far-field HEDM config instance.
     hkls : array_like, optional
         If not None, an override for the hkls used to generate maps. This can

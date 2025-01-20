@@ -1754,7 +1754,7 @@ def output_grain_map(data_location,data_stems,output_stem,vol_spacing,top_down=T
 #     args = parse_args()
 
 #     if len(args.inst_profile) > 0:
-#         from hexrd.utils import profiler
+#         from hexrd.core.utils import profiler
 
 #         logging.debug("Instrumenting functions")
 #         profiler.instrument_all(args.inst_profile)

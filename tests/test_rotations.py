@@ -2,8 +2,8 @@
 import numpy as np
 import pytest
 
-from hexrd.material import symmetry
-from hexrd import rotations
+from hexrd.core.material import symmetry
+from hexrd.core import rotations
 
 
 def test_misorientations():

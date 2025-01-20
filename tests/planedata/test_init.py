@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
 
-from hexrd.material.crystallography import PlaneData
+# TODO: Check that this test is still sensible after PlaneData change.
+from hexrd.core.material.crystallography import PlaneData
 
 
 def test_init_with_data_and_from_copy():

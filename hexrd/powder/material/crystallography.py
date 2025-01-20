@@ -34,7 +34,6 @@ from typing import Optional, Union, Dict, List, Tuple
 
 import numpy as np
 
-from hexrd.hedm.material.unitcell import unitcell
 from hexrd.core.material.unitcell import unitcell
 from hexrd.core.deprecation import deprecated
 from hexrd.core import constants

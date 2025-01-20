@@ -1,7 +1,7 @@
 import numpy as np
 import yaml
 
-from hexrd.utils.yaml import NumpyToNativeDumper
+from hexrd.core.utils.yaml import NumpyToNativeDumper
 
 
 def test_numpy_to_native():

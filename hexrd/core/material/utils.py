@@ -83,7 +83,7 @@ def calculate_linear_absorption_length(density,
         the attenuation length in microns
 
     """
-    data = importlib.resources.open_binary(hexrd.resources, 'mu_en.h5')
+    data = importlib.resources.open_binary(hexrd.core.resources, 'mu_en.h5')
     fid = h5py.File(data, 'r')
 
     formula_dict =  interpret_formula(formula)
@@ -145,7 +145,7 @@ def calculate_energy_absorption_length(density,
         the attenuation length in microns
 
     """
-    data = importlib.resources.open_binary(hexrd.resources, 'mu_en.h5')
+    data = importlib.resources.open_binary(hexrd.core.resources, 'mu_en.h5')
     fid = h5py.File(data, 'r')
 
     formula_dict =  interpret_formula(formula)

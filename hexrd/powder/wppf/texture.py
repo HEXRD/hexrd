@@ -17,8 +17,8 @@ from scipy.spatial import Delaunay
 # HEXRD imports
 import hexrd.core.resources
 # FIXME: unused imports @saransh13?
-# from hexrd.transforms.xfcapi import angles_to_gvec
-# from hexrd.wppf import phase
+# from hexrd.core.transforms.xfcapi import angles_to_gvec
+# from hexrd.powder.wppf import phase
 
 """
 ===============================================================================
@@ -39,7 +39,7 @@ import hexrd.core.resources
 ===============================================================================
 """
 
-# FIXME: these are available in hexrd.constants @saransh13
+# FIXME: these are available in hexrd.core.constants @saransh13
 I3 = np.eye(3)
 
 Xl = np.ascontiguousarray(I3[:, 0].reshape(3, 1))     # X in the lab frame
@@ -61,7 +61,7 @@ class mesh_s2:
     def __init__(self,
                  symmetry):
 
-        data = importlib.resources.open_binary(hexrd.resources, "surface_harmonics.h5")
+        data = importlib.resources.open_binary(hexrd.core.resources, "surface_harmonics.h5")
         with h5py.File(data, 'r') as fid:
 
             gname = f"{symmetry}"

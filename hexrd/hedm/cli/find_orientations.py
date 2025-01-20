@@ -8,7 +8,6 @@ import numpy as np
 
 from hexrd.core import constants as const
 from hexrd.hedm import config
-from hexrd.core import config
 from hexrd.core import instrument
 from hexrd.core.transforms import xfcapi
 from hexrd.hedm.findorientations import find_orientations, write_scored_orientations

@@ -151,7 +151,7 @@ def tth_corr_sample_layer(panel, xy_pts,
 
     Parameters
     ----------
-    panel : hexrd.instrument.Detector
+    panel : hexrd.core.instrument.Detector
         A panel instance.
     xy_pts : array_like
         The (n, 2) array of n (x, y) coordinates to be transformed in the raw
@@ -221,7 +221,7 @@ def tth_corr_map_sample_layer(instrument,
 
     Parameters
     ----------
-    instrument : hexrd.instrument.HEDMInstrument
+    instrument : hexrd.hedm.instrument.HEDMInstrument
         The pionhole camera instrument object.
     layer_standoff : scalar
         The sample layer standoff from the upstream face of the pinhole
@@ -277,7 +277,7 @@ def tth_corr_pinhole(panel, xy_pts,
 
     Parameters
     ----------
-    panel : hexrd.instrument.Detector
+    panel : hexrd.core.instrument.Detector
         A detector instance.
     xy_pts : array_like
         The (n, 2) array of n (x, y) coordinates to be transformed in the raw
@@ -342,7 +342,7 @@ def tth_corr_map_pinhole(instrument, pinhole_thickness, pinhole_radius):
 
     Parameters
     ----------
-    instrument : hexrd.instrument.HEDMInstrument
+    instrument : hexrd.hedm.instrument.HEDMInstrument
         The pionhole camera instrument object.
     pinhole_thickness : scalar
         The thickenss (height) of the pinhole (cylinder) in mm

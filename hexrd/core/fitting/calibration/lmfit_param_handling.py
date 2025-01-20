@@ -3,9 +3,8 @@ from typing import Optional
 import lmfit
 import numpy as np
 
-from hexrd.core.instrument import calc_angles_from_beam_vec, calc_beam_vec, Detector, HEDMInstrument
+from hexrd.core.instrument import calc_angles_from_beam_vec, calc_beam_vec, HEDMInstrument
 from hexrd.core.rotations import angleAxisOfRotMat, expMapOfQuat, make_rmat_euler, quatOfRotMat, RotMatEuler, rotMatOfExpMap
-from hexrd.hedm.material.unitcell import _lpname
 from hexrd.core.material.unitcell import _lpname
 from .relative_constraints import RelativeConstraints, RelativeConstraintsType
 
