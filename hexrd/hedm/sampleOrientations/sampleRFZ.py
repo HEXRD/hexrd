@@ -2,9 +2,9 @@ import numpy as np
 import numba
 from numba import prange
 
-from hexrd.sampleOrientations.conversions import cu2ro, ro2qu
-from hexrd.sampleOrientations.rfz import insideFZ
-from hexrd import constants
+from hexrd.hedm.sampleOrientations.conversions import cu2ro, ro2qu
+from hexrd.hedm.sampleOrientations.rfz import insideFZ
+from hexrd.core import constants
 
 
 @numba.njit(cache=True, nogil=True, parallel=True)

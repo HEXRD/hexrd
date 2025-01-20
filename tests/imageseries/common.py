@@ -1,7 +1,7 @@
 import numpy as np
 import unittest
 
-from hexrd import imageseries
+from hexrd.core import imageseries
 
 _NFXY = (3, 7, 5)
 

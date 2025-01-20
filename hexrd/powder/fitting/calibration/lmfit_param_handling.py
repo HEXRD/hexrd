@@ -3,24 +3,10 @@ from typing import Optional
 import lmfit
 import numpy as np
 
-from hexrd.instrument import (
-    calc_angles_from_beam_vec,
-    calc_beam_vec,
-    HEDMInstrument,
-)
-from hexrd.rotations import (
-    angleAxisOfRotMat,
-    expMapOfQuat,
-    make_rmat_euler,
-    quatOfRotMat,
-    RotMatEuler,
-    rotMatOfExpMap,
-)
-from hexrd.material.unitcell import _lpname
-from .relative_constraints import (
-    RelativeConstraints,
-    RelativeConstraintsType,
-)
+from hexrd.core.instrument import calc_angles_from_beam_vec, calc_beam_vec, HEDMInstrument
+from hexrd.core.rotations import angleAxisOfRotMat, expMapOfQuat, make_rmat_euler, quatOfRotMat, RotMatEuler, rotMatOfExpMap
+from hexrd.core.material.unitcell import _lpname
+from ....core.fitting.calibration.relative_constraints import RelativeConstraints, RelativeConstraintsType
 
 
 # First is the axes_order, second is extrinsic

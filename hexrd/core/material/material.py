@@ -34,12 +34,8 @@ materials are defined by name in materialDict.
 from configparser import SafeConfigParser as Parser
 import numpy as np
 
-from hexrd.hedm.material.crystallography import PlaneData as PData
-from hexrd.laue.material.crystallography import PlaneData as PData
-from hexrd.powder.material.crystallography import PlaneData as PData
 from hexrd.core.material.crystallography import PlaneData as PData
 from hexrd.core.material import symmetry, unitcell
-from hexrd.hedm.material import unitcell
 from hexrd.core.material.symbols import two_origin_choice
 from hexrd.core.valunits import valWUnit
 from hexrd.core.constants import ptable, ptableinverse, chargestate

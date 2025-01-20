@@ -2,8 +2,8 @@ import math
 
 import numpy as np
 
-import hexrd.constants as ct
-from hexrd.transforms.new_capi.xf_new_capi import unit_vector
+import hexrd.core.constants as ct
+from hexrd.core.transforms.new_capi.xf_new_capi import unit_vector
 
 
 def convert_axis_angle_to_rmat(axis, angle):

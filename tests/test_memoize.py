@@ -2,7 +2,7 @@ import copy
 
 import numpy as np
 
-from hexrd.utils.decorators import memoize
+from hexrd.core.utils.decorators import memoize
 
 
 def test_memoize():

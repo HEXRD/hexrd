@@ -60,11 +60,9 @@ from hexrd.core.fitting.utils import fit_ring
 from hexrd.core.gridutil import make_tolerance_grid
 from hexrd.core import matrixutil as mutil
 from hexrd.core.transforms.xfcapi import angles_to_gvec, gvec_to_xy, make_sample_rmat, make_rmat_of_expmap, unit_vector
+# TODO: Resolve extra-workflow-dependency
 from hexrd.hedm import xrdutil
 from hexrd.hedm.material.crystallography import PlaneData
-from hexrd.laue.material.crystallography import PlaneData
-from hexrd.powder.material.crystallography import PlaneData
-from hexrd.core.material.crystallography import PlaneData
 from hexrd.core import constants as ct
 from hexrd.core.rotations import angleAxisOfRotMat, RotMatEuler, mapAngle
 from hexrd.core import distortion as distortion_pkg
@@ -72,14 +70,16 @@ from hexrd.core.utils.concurrent import distribute_tasks
 from hexrd.core.utils.hdf5 import unwrap_dict_to_h5, unwrap_h5_to_dict
 from hexrd.core.utils.yaml import NumpyToNativeDumper
 from hexrd.core.valunits import valWUnit
+# TODO: Resolve extra-workflow-dependency
 from hexrd.powder.wppf import LeBail
 
-from .cylindrical_detector import CylindricalDetector
-from .detector import beam_energy_DFLT, max_workers_DFLT
-from .planar_detector import PlanarDetector
+from ...core.instrument.cylindrical_detector import CylindricalDetector
+from ...core.instrument.detector import beam_energy_DFLT, max_workers_DFLT
+from ...core.instrument.planar_detector import PlanarDetector
 
 from skimage.draw import polygon
 from skimage.util import random_noise
+# TODO: Resolve extra-workflow-dependency
 from hexrd.powder.wppf import wppfsupport
 
 try:
@@ -295,7 +295,7 @@ def _parse_imgser_dict(imgser_dict, det_key, roi=None):
 
     Returns
     -------
-    ims : hexrd.imageseries
+    ims : hexrd.core.imageseries
         The desired imageseries object.
 
     """
@@ -430,7 +430,7 @@ def max_tth(instr):
 
     Parameters
     ----------
-    instr : hexrd.instrument.HEDMInstrument instance
+    instr : hexrd.hedm.instrument.HEDMInstrument instance
         the instrument class to evalutate.
 
     Returns
@@ -1386,9 +1386,9 @@ class HEDMInstrument(object):
             to have any effect. The default is False.
         tth_distortion : special class, optional
             for special case of pinhole camera distortions.  See
-            hexrd.xrdutil.phutil.SampleLayerDistortion (only type supported)
+            hexrd.hedm.xrdutil.phutil.SampleLayerDistortion (only type supported)
         fitting_kwargs : dict, optional
-            kwargs passed to hexrd.fitting.utils.fit_ring if do_fitting is True
+            kwargs passed to hexrd.core.fitting.utils.fit_ring if do_fitting is True
 
         Raises
         ------

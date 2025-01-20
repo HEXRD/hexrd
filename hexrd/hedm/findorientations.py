@@ -12,14 +12,14 @@ import numpy as np
 import scipy.cluster as cluster
 from scipy import ndimage
 
-from hexrd import constants as const
-from hexrd import matrixutil as mutil
-from hexrd import indexer
-from hexrd import instrument
-from hexrd.imageutil import find_peaks_2d
-from hexrd import rotations as rot
-from hexrd.transforms import xfcapi
-from hexrd.xrdutil import EtaOmeMaps
+from hexrd.core import constants as const
+from hexrd.core import matrixutil as mutil
+from hexrd.hedm import indexer
+from hexrd.core import instrument
+from hexrd.core.imageutil import find_peaks_2d
+from hexrd.core import rotations as rot
+from hexrd.core.transforms import xfcapi
+from hexrd.hedm.xrdutil import EtaOmeMaps
 
 # just require scikit-learn?
 have_sklearn = False
@@ -479,7 +479,7 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
 
     Parameters
     ----------
-    cfg : hexrd.config.root.RootConfig
+    cfg : hexrd.core.config.root.RootConfig
         A hexrd far-field HEDM config instance.
     hkls : array_like, optional
         If not None, an override for the hkls used to generate maps. This can

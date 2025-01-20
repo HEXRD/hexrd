@@ -7,7 +7,7 @@ import numpy as np
 from .common import ImageSeriesTest
 from .common import make_array_ims, compare, compare_meta
 
-from hexrd import imageseries
+from hexrd.core import imageseries
 
 
 class ImageSeriesFormatTest(ImageSeriesTest):

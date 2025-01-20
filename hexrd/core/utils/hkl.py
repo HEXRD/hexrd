@@ -1,8 +1,5 @@
 import numpy as np
 
-from hexrd.hedm.material.crystallography import hklToStr
-from hexrd.laue.material.crystallography import hklToStr
-from hexrd.powder.material.crystallography import hklToStr
 from hexrd.core.material.crystallography import hklToStr
 
 

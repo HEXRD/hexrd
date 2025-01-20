@@ -2,6 +2,7 @@ import numpy as np
 from skimage.transform import PiecewiseAffineTransform, warp
 
 from hexrd.core import constants
+# TODO: Resolve extra-core-dependency
 from hexrd.hedm.xrdutil.utils import zproject_sph_angles
 
 

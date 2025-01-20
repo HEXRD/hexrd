@@ -4,7 +4,6 @@ import os
 import numpy as np
 import datetime
 import getpass
-from hexrd.hedm.material.unitcell import _StiffnessDict, _pgDict
 from hexrd.core.material.unitcell import _StiffnessDict, _pgDict
 
 

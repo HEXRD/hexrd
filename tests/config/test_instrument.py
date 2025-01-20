@@ -1,10 +1,9 @@
 import os
 
-import hexrd.instrument
+import hexrd.core.instrument
 from .common import TestConfig, test_data
 try:
-    from hexrd.config.instrument import (Instrument, Beam, OscillationStage,
-                                         Detector)
+    from hexrd.hedm.config.instrument import Instrument, Beam, OscillationStage, Detector
 except:
     pass
 
@@ -68,19 +67,19 @@ class TestInstrument(TestConfig):
     def test_beam(self):
         icfg = Instrument(self.cfgs[1])
         b = icfg.beam
-        self.assertTrue(isinstance(b, hexrd.instrument.beam.Beam), "Failed to produce a Beam instance")
+        self.assertTrue(isinstance(b, hexrd.core.instrument.beam.Beam), "Failed to produce a Beam instance")
 
     def test_oscillation_stage(self):
         icfg = Instrument(self.cfgs[2])
         ostage = icfg.oscillation_stage
-        self.assertTrue(isinstance(ostage, hexrd.instrument.oscillation_stage.OscillationStage),
+        self.assertTrue(isinstance(ostage, hexrd.core.instrument.oscillation_stage.OscillationStage),
                         "Failed to produce an OscillationStage instance")
 
     def test_detector(self):
         cfg = self.cfgs[3]
         icfg = Detector(cfg, 'GE1')
         det = icfg.detector(Beam(cfg).beam)
-        self.assertTrue(isinstance(det, hexrd.instrument.PlanarDetector),
+        self.assertTrue(isinstance(det, hexrd.core.instrument.PlanarDetector),
                         "Failed to produce an Detector instance")
 
     def test_detector_dict(self):
@@ -90,7 +89,7 @@ class TestInstrument(TestConfig):
                         "Failed to produce an Detector Dictionary instance")
         for k in dd:
             d = dd[k]
-            self.assertTrue(isinstance(d, hexrd.instrument.PlanarDetector),
+            self.assertTrue(isinstance(d, hexrd.core.instrument.PlanarDetector),
                             "Detector dictionary values are not detector instances")
 
 

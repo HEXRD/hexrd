@@ -8,8 +8,9 @@ from hexrd.core import imageseries
 
 from .config import Config
 from .instrument import Instrument
-from .findorientations import FindOrientationsConfig
-from .fitgrains import FitGrainsConfig
+# TODO: Resolve extra-core-dependency
+from ...hedm.config.findorientations import FindOrientationsConfig
+from ...hedm.config.fitgrains import FitGrainsConfig
 from .material import MaterialConfig
 
 logger = logging.getLogger('hexrd.config')

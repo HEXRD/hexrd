@@ -11,8 +11,10 @@ import logging
 
 import numpy as np
 
-from hexrd.material.crystallography import PlaneData
-from hexrd.rotations import misorientation
+
+# TODO: Check that this test is still sensible after PlaneData change.
+from hexrd.core.material.crystallography import PlaneData
+from hexrd.core.rotations import misorientation
 
 
 # =============================================================================

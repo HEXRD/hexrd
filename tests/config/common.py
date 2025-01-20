@@ -4,7 +4,7 @@ import tempfile
 import logging
 import unittest
 
-from hexrd import config
+from hexrd.hedm import config
 
 
 test_data = {

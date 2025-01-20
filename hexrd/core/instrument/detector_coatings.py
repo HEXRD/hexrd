@@ -9,7 +9,7 @@ class AbstractLayer:
 
     Parameters
     ----------
-    material : str or hexrd.material.Material
+    material : str or hexrd.core.material.Material
         either the formula or a hexrd material instance
     density : float
         density of element in g/cc

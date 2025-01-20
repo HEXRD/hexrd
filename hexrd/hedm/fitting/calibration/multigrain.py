@@ -4,10 +4,10 @@ import os
 import numpy as np
 from scipy.optimize import leastsq, least_squares
 
-from hexrd import constants as cnst
-from hexrd import matrixutil as mutil
-from hexrd import rotations
-from hexrd.transforms import xfcapi
+from hexrd.core import constants as cnst
+from hexrd.core import matrixutil as mutil
+from hexrd.core import rotations
+from hexrd.core.transforms import xfcapi
 
 from .. import grains as grainutil
 

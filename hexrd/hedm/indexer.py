@@ -36,9 +36,9 @@ import numba
 
 import timeit
 
-from hexrd import constants
-from hexrd import rotations
-from hexrd.transforms import xfcapi
+from hexrd.core import constants
+from hexrd.core import rotations
+from hexrd.core.transforms import xfcapi
 
 
 # =============================================================================
@@ -80,7 +80,7 @@ def paintGrid(
     quats : (4, N) ndarray
         hstacked array of trial orientations in the form of unit quaternions.
     etaOmeMaps : object
-        an spherical map object of type `hexrd.instrument.GenerateEtaOmeMaps`.
+        an spherical map object of type `hexrd.hedm.instrument.GenerateEtaOmeMaps`.
     threshold : float, optional
         threshold value on the etaOmeMaps.
     bMat : (3, 3) ndarray, optional
