@@ -2,7 +2,7 @@ import numpy as np
 from skimage.transform import PiecewiseAffineTransform, warp
 
 from hexrd.core import constants
-from hexrd.xrdutils.util import zproject_sph_angles
+from hexrd.hedm.xrdutil.utils import zproject_sph_angles
 
 
 class SphericalView:
