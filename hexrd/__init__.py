@@ -1,4 +1,6 @@
 import importlib
+import importlib.abc
+import importlib.machinery
 import sys
 
 from .core.material import crystallography
@@ -30,3 +32,17 @@ for alias, module in module_aliases.items():
         raise Exception(f'"{alias}" is an alias path and should not exist')
 
     sys.modules[alias] = module
+
+
+from . import module_map
+
+
+def __getattr__(name):
+    # __getattr__ is only called if the attribute doesn't exist
+    module = module_map.get("hexrd." + name)
+    if module is not None:
+        if isinstance(module, str):
+            return importlib.import_module(module)
+        return module
+    raise AttributeError(f"Module `hexrd` has no attribute {name}")
+    

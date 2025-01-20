@@ -1,7 +1,7 @@
 import h5py
 import yaml
 
-from ...core.config.config import Config
+from hexrd.core.config.config import Config
 from .loader import NumPyIncludeLoader
 
 from hexrd.core import instrument
