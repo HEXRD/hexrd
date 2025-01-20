@@ -6,11 +6,11 @@ import sys
 
 import numpy as np
 
-from hexrd import constants as const
-from hexrd import config
-from hexrd import instrument
-from hexrd.transforms import xfcapi
-from hexrd.findorientations import find_orientations, write_scored_orientations
+from hexrd.core import constants as const
+from hexrd.hedm import config
+from hexrd.core import instrument
+from hexrd.core.transforms import xfcapi
+from hexrd.hedm.findorientations import find_orientations, write_scored_orientations
 
 
 descr = 'Process rotation image series to find grain orientations'

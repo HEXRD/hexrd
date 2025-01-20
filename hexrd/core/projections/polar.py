@@ -1,13 +1,13 @@
 import numpy as np
 
 from hexrd.core import constants
-from hexrd.hedm.material.crystallography import PlaneData
-from hexrd.laue.material.crystallography import PlaneData
-from hexrd.powder.material.crystallography import PlaneData
 from hexrd.core.material.crystallography import PlaneData
-from hexrd.hedm.xrdutil.utils import _project_on_detector_cylinder, _project_on_detector_plane
-from hexrd.hed.xrdutil.utils import _project_on_detector_cylinder, _project_on_detector_plane
-from hexrd.laue.xrdutil.utils import _project_on_detector_cylinder, _project_on_detector_plane
+
+# TODO: Resolve extra-core-dependency
+from hexrd.hedm.xrdutil.utils import (
+    _project_on_detector_cylinder,
+    _project_on_detector_plane,
+)
 from hexrd.core.utils.panel_buffer import panel_buffer_as_2d_array
 
 
@@ -16,10 +16,15 @@ class PolarView:
     Create (two-theta, eta) plot of detector images.
     """
 
-    def __init__(self, plane_data, instrument,
-                 eta_min=0., eta_max=360.,
-                 pixel_size=(0.1, 0.25),
-                 cache_coordinate_map=False):
+    def __init__(
+        self,
+        plane_data,
+        instrument,
+        eta_min=0.0,
+        eta_max=360.0,
+        pixel_size=(0.1, 0.25),
+        cache_coordinate_map=False,
+    ):
         """
         Instantiates a PolarView class.
 
@@ -31,7 +36,7 @@ class PolarView:
             as defined but the active hkls and the tThWidth (or strainMag).
             If array_like, the input must be (2, ) specifying the [min, maz]
             2theta values explicitly in degrees.
-        instrument : hexrd.instrument.HEDMInstrument
+        instrument : hexrd.hedm.instrument.HEDMInstrument
             The instruemnt object.
         eta_min : scalar, optional
             The minimum azimuthal extent in degrees. The default is 0.
@@ -71,8 +76,9 @@ class PolarView:
         self._eta_min = np.radians(eta_min)
         self._eta_max = np.radians(eta_max)
 
-        assert np.all(np.asarray(pixel_size) > 0), \
-            'pixel sizes must be non-negative'
+        assert np.all(
+            np.asarray(pixel_size) > 0
+        ), 'pixel sizes must be non-negative'
         self._tth_pixel_size = pixel_size[0]
         self._eta_pixel_size = pixel_size[1]
 
@@ -172,12 +178,12 @@ class PolarView:
     @property
     def ntth(self):
         # return int(np.ceil(np.degrees(self.tth_range)/self.tth_pixel_size))
-        return int(round(np.degrees(self.tth_range)/self.tth_pixel_size))
+        return int(round(np.degrees(self.tth_range) / self.tth_pixel_size))
 
     @property
     def neta(self):
         # return int(np.ceil(np.degrees(self.eta_range)/self.eta_pixel_size))
-        return int(round(np.degrees(self.eta_range)/self.eta_pixel_size))
+        return int(round(np.degrees(self.eta_range) / self.eta_pixel_size))
 
     @property
     def shape(self):
@@ -185,19 +191,29 @@ class PolarView:
 
     @property
     def angular_grid(self):
-        tth_vec = np.radians(self.tth_pixel_size*(np.arange(self.ntth)))\
-            + self.tth_min + 0.5*np.radians(self.tth_pixel_size)
-        eta_vec = np.radians(self.eta_pixel_size*(np.arange(self.neta)))\
-            + self.eta_min + 0.5*np.radians(self.eta_pixel_size)
+        tth_vec = (
+            np.radians(self.tth_pixel_size * (np.arange(self.ntth)))
+            + self.tth_min
+            + 0.5 * np.radians(self.tth_pixel_size)
+        )
+        eta_vec = (
+            np.radians(self.eta_pixel_size * (np.arange(self.neta)))
+            + self.eta_min
+            + 0.5 * np.radians(self.eta_pixel_size)
+        )
         return np.meshgrid(eta_vec, tth_vec, indexing='ij')
 
     @property
     def extent(self):
         ev, tv = self.angular_grid
-        heps = np.radians(0.5*self.eta_pixel_size)
-        htps = np.radians(0.5*self.tth_pixel_size)
-        return [np.min(tv) - htps, np.max(tv) + htps,
-                np.max(ev) + heps, np.min(ev) - heps]
+        heps = np.radians(0.5 * self.eta_pixel_size)
+        htps = np.radians(0.5 * self.tth_pixel_size)
+        return [
+            np.min(tv) - htps,
+            np.max(tv) + htps,
+            np.max(ev) + heps,
+            np.min(ev) - heps,
+        ]
 
     def _func_project_on_detector(self, detector):
         '''
@@ -211,32 +227,37 @@ class PolarView:
 
     def _args_project_on_detector(self, gvec_angs, detector):
         kwargs = {'beamVec': detector.bvec}
-        arg = (gvec_angs,
-               detector.rmat,
-               constants.identity_3x3,
-               self.chi,
-               detector.tvec,
-               constants.zeros_3,
-               self.tvec,
-               detector.distortion)
+        arg = (
+            gvec_angs,
+            detector.rmat,
+            constants.identity_3x3,
+            self.chi,
+            detector.tvec,
+            constants.zeros_3,
+            self.tvec,
+            detector.distortion,
+        )
         if detector.detector_type == 'cylindrical':
-            arg = (gvec_angs,
-                   self.chi,
-                   detector.tvec,
-                   detector.caxis,
-                   detector.paxis,
-                   detector.radius,
-                   detector.physical_size,
-                   detector.angle_extent,
-                   detector.distortion)
+            arg = (
+                gvec_angs,
+                self.chi,
+                detector.tvec,
+                detector.caxis,
+                detector.paxis,
+                detector.radius,
+                detector.physical_size,
+                detector.angle_extent,
+                detector.distortion,
+            )
 
         return arg, kwargs
 
     # =========================================================================
     #                         ####### METHODS #######
     # =========================================================================
-    def warp_image(self, image_dict, pad_with_nans=False,
-                   do_interpolation=True):
+    def warp_image(
+        self, image_dict, pad_with_nans=False, do_interpolation=True
+    ):
         """
         Performs the polar mapping of the input images.
 
@@ -295,22 +316,21 @@ class PolarView:
         respective arrays as the values.
         """
         angpts = self.angular_grid
-        dummy_ome = np.zeros((self.ntth*self.neta))
+        dummy_ome = np.zeros((self.ntth * self.neta))
 
         mapping = {}
         for detector_id, panel in self.detectors.items():
             _project_on_detector = self._func_project_on_detector(panel)
-            gvec_angs = np.vstack([
-                    angpts[1].flatten(),
-                    angpts[0].flatten(),
-                    dummy_ome]).T
+            gvec_angs = np.vstack(
+                [angpts[1].flatten(), angpts[0].flatten(), dummy_ome]
+            ).T
 
-            args, kwargs = self._args_project_on_detector(gvec_angs,
-                                                          panel)
+            args, kwargs = self._args_project_on_detector(gvec_angs, panel)
 
-            xypts = np.nan*np.ones((len(gvec_angs), 2))
-            valid_xys, rmats_s, on_plane = _project_on_detector(*args,
-                                                                **kwargs)
+            xypts = np.nan * np.ones((len(gvec_angs), 2))
+            valid_xys, rmats_s, on_plane = _project_on_detector(
+                *args, **kwargs
+            )
             xypts[on_plane, :] = valid_xys
 
             _, on_panel = panel.clip_to_panel(xypts, buffer_edges=True)
@@ -323,11 +343,12 @@ class PolarView:
         return mapping
 
     def _warp_image_from_coordinate_map(
-            self,
-            image_dict: dict[str, np.ndarray],
-            coordinate_map: dict[str, dict[str, np.ndarray]],
-            pad_with_nans: bool = False,
-            do_interpolation=True) -> np.ma.MaskedArray:
+        self,
+        image_dict: dict[str, np.ndarray],
+        coordinate_map: dict[str, dict[str, np.ndarray]],
+        pad_with_nans: bool = False,
+        do_interpolation=True,
+    ) -> np.ma.MaskedArray:
 
         panel_buffer_fill_value = np.nan
         img_dict = dict.fromkeys(self.detectors)
@@ -339,8 +360,9 @@ class PolarView:
             # Before warping, mask out any pixels that are invalid,
             # so that they won't affect the results.
             buffer = panel_buffer_as_2d_array(panel)
-            if (np.issubdtype(type(panel_buffer_fill_value), np.floating) and
-                    not np.issubdtype(img.dtype, np.floating)):
+            if np.issubdtype(
+                type(panel_buffer_fill_value), np.floating
+            ) and not np.issubdtype(img.dtype, np.floating):
                 # Convert to float. This is especially important
                 # for nan, since it is a float...
                 img = img.astype(float)
@@ -352,13 +374,12 @@ class PolarView:
 
             if do_interpolation:
                 this_img = panel.interpolate_bilinear(
-                    xypts, img,
-                    pad_with_nans=pad_with_nans,
-                    on_panel=on_panel).reshape(self.shape)
+                    xypts, img, pad_with_nans=pad_with_nans, on_panel=on_panel
+                ).reshape(self.shape)
             else:
                 this_img = panel.interpolate_nearest(
-                    xypts, img,
-                    pad_with_nans=pad_with_nans).reshape(self.shape)
+                    xypts, img, pad_with_nans=pad_with_nans
+                ).reshape(self.shape)
 
             # It is faster to keep track of the global nans like this
             # rather than the previous way we were doing it...
@@ -373,11 +394,11 @@ class PolarView:
 
         summed_img = np.sum(list(img_dict.values()), axis=0)
         return np.ma.masked_array(
-            data=summed_img, mask=nan_mask, fill_value=0.
+            data=summed_img, mask=nan_mask, fill_value=0.0
         )
 
     def tth_to_pixel(self, tth):
         """
         convert two-theta value to pixel value (float) along two-theta axis
         """
-        return np.degrees(tth - self.tth_min)/self.tth_pixel_size
+        return np.degrees(tth - self.tth_min) / self.tth_pixel_size

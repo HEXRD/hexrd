@@ -3,6 +3,7 @@ import numpy as np
 from numba import njit
 from hexrd.core import constants
 from hexrd.core.material import spacegroup, symbols, symmetry
+# TODO: Resolve extra-core-dependency
 from hexrd.hedm.ipfcolor import sphere_sector, colorspace
 from hexrd.core.valunits import valWUnit
 import hexrd.core.resources
@@ -752,7 +753,7 @@ class unitcell:
         f_anomalous_data = []
         self.pe_cs = {}
         data = (
-            importlib.resources.files(hexrd.resources)
+            importlib.resources.files(hexrd.core.resources)
             .joinpath('Anomalous.h5')
             .open('rb')
         )
@@ -788,6 +789,7 @@ class unitcell:
             self.f_anomalous_data[i, :nd, :] = f_anomalous_data[i]
 
     def CalcXRSF(self, hkl):
+        # TODO: Resolve extra-core dependency
         from hexrd.powder.wppf.xtal import _calcxrsf
         '''
         the 1E-2 is to convert to A^-2

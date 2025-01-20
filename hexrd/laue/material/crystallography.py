@@ -34,21 +34,15 @@ from typing import Optional, Union, Dict, List, Tuple
 
 import numpy as np
 
-from hexrd.material.unitcell import unitcell
-from hexrd.deprecation import deprecated
-from hexrd import constants
-from hexrd.matrixutil import unitVector
-from hexrd.rotations import (
-    rotMatOfExpMap,
-    mapAngle,
-    applySym,
-    ltypeOfLaueGroup,
-    quatOfLaueGroup,
-)
-from hexrd.transforms import xfcapi
-from hexrd import valunits
-from hexrd.valunits import toFloat
-from hexrd.constants import d2r, r2d, sqrt3by2, epsf, sqrt_epsf
+from hexrd.core.material.unitcell import unitcell
+from hexrd.core.deprecation import deprecated
+from hexrd.core import constants
+from hexrd.core.matrixutil import unitVector
+from hexrd.core.rotations import rotMatOfExpMap, mapAngle, applySym, ltypeOfLaueGroup, quatOfLaueGroup
+from hexrd.core.transforms import xfcapi
+from hexrd.core import valunits
+from hexrd.core.valunits import toFloat
+from hexrd.core.constants import d2r, r2d, sqrt3by2, epsf, sqrt_epsf
 
 """module vars"""
 

@@ -1,7 +1,7 @@
 import json
 
 import numpy as np
-from hexrd.extensions import inverse_distortion
+from hexrd.core.extensions import inverse_distortion
 
 RHO_MAX = 204.8
 params = [

@@ -4,7 +4,7 @@
 
 from __future__ import absolute_import
 import numpy as np
-from hexrd.transforms.new_capi.xf_new_capi import angles_to_dvec
+from hexrd.core.transforms.new_capi.xf_new_capi import angles_to_dvec
 # from common import random_rotation_matrix, random_unit_vectors
 
 

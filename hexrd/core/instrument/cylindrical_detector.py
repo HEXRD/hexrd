@@ -3,6 +3,7 @@ import logging
 import numpy as np
 
 from hexrd.core import constants as ct
+# TODO: Resolve extra-core dependency
 from hexrd.hedm import xrdutil
 from hexrd.core.utils.decorators import memoize
 

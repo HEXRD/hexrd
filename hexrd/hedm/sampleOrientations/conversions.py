@@ -1,6 +1,6 @@
 import numpy as np
 from numba import njit
-from hexrd import constants
+from hexrd.core import constants
 
 ap_2 = constants.cuA_2
 sc = constants.sc

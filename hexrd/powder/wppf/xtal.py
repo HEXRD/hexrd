@@ -1,7 +1,7 @@
 import numpy as np
 from numba import njit, prange
 
-from hexrd import constants
+from hexrd.core import constants
 
 
 @njit(cache=True, nogil=True)

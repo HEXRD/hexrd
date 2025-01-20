@@ -1,6 +1,6 @@
 from abc import abstractmethod
 import numpy as np
-from hexrd.material.utils import calculate_linear_absorption_length
+from hexrd.core.material.utils import calculate_linear_absorption_length
 
 
 class AbstractPhysicsPackage:
@@ -11,7 +11,7 @@ class AbstractPhysicsPackage:
 
     Parameters
     ----------
-    sample_material : str or hexrd.material.Material
+    sample_material : str or hexrd.core.material.Material
         either the formula or a hexrd material instance
     sample_density : float
         density of sample material in g/cc
@@ -19,7 +19,7 @@ class AbstractPhysicsPackage:
         sample thickness in microns
     sample_geometry : FIXME
         FIXME
-    pinhole_material : str or hexrd.material.Material, optional
+    pinhole_material : str or hexrd.core.material.Material, optional
         either the formula or a hexrd material instance
     pinhole_density : float
         density of pinhole material in g/cc
@@ -27,7 +27,7 @@ class AbstractPhysicsPackage:
         pinhole thickness in microns
     pinhole_diameter : float
         pinhole diameter in microns
-    window_material : str or hexrd.material.Material
+    window_material : str or hexrd.core.material.Material
         either the formula or a hexrd material instance
     window_density : float
         density of window material in g/cc

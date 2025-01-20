@@ -8,19 +8,17 @@ from scipy.optimize import leastsq
 from skimage import filters
 from skimage.feature import blob_log
 
-from hexrd import xrdutil
-from hexrd.constants import fwhm_to_sigma
-from hexrd.instrument import switch_xray_source
-from hexrd.rotations import angleAxisOfRotMat, RotMatEuler
-from hexrd.transforms import xfcapi
-from hexrd.utils.hkl import hkl_to_str, str_to_hkl
+# TODO: Resolve extra-workflow-dependency
+from hexrd.hedm import xrdutil
+from hexrd.core.constants import fwhm_to_sigma
+from hexrd.core.instrument import switch_xray_source
+from hexrd.core.rotations import angleAxisOfRotMat, RotMatEuler
+from hexrd.core.transforms import xfcapi
+from hexrd.core.utils.hkl import hkl_to_str, str_to_hkl
 
-from .calibrator import Calibrator
-from .lmfit_param_handling import (
-    create_grain_params,
-    DEFAULT_EULER_CONVENTION,
-    rename_to_avoid_collision,
-)
+# TODO: Resolve extra-workflow-dependency
+from ....powder.fitting.calibration.calibrator import Calibrator
+from ....powder.fitting.calibration.lmfit_param_handling import create_grain_params, DEFAULT_EULER_CONVENTION, rename_to_avoid_collision
 
 
 class LaueCalibrator(Calibrator):

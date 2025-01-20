@@ -8,15 +8,15 @@ from importlib.metadata import version, PackageNotFoundError
 
 # These can't be relative imports on Windows because of the hack
 # in main() for multiprocessing.freeze_support()
-from hexrd.cli import help
-from hexrd.cli import test
-from hexrd.cli import documentation
-from hexrd.utils import profiler
+from hexrd.hedm.cli import help
+from hexrd.hedm.cli import test
+from hexrd.hedm.cli import documentation
+from hexrd.core.utils import profiler
 
-from hexrd.cli import find_orientations
-from hexrd.cli import fit_grains
-from hexrd.cli import pickle23
-from hexrd.cli import preprocess
+from hexrd.hedm.cli import find_orientations
+from hexrd.hedm.cli import fit_grains
+from hexrd.hedm.cli import pickle23
+from hexrd.hedm.cli import preprocess
 
 
 try:
@@ -71,6 +71,7 @@ def main():
 
     try:
         import argcomplete
+
         argcomplete.autocomplete(p)
     except ImportError:
         pass

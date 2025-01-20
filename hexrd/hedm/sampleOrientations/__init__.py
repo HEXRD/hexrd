@@ -1,1 +1,1 @@
-from hexrd.sampleOrientations.sampleRFZ import sampleRFZ
+from hexrd.hedm.sampleOrientations.sampleRFZ import sampleRFZ

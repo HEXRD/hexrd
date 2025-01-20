@@ -1,7 +1,7 @@
 import numpy as np
 
-from hexrd import imageseries
-from hexrd.imageseries import stats
+from hexrd.core import imageseries
+from hexrd.core.imageseries import stats
 from .common import ImageSeriesTest, make_array_ims
 
 

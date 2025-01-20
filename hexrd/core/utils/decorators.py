@@ -2,8 +2,8 @@
 """Decorators that don't go anywhere else.
 
 This module contains decorators that don't really go with another module
-in :mod:`hexrd.utils`. Before putting something here please see if it should
-go into another topical module in :mod:`hexrd.utils`.
+in :mod:`hexrd.core.utils`. Before putting something here please see if it should
+go into another topical module in :mod:`hexrd.core.utils`.
 """
 
 from collections import OrderedDict

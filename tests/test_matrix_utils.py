@@ -1,6 +1,6 @@
 import numpy as np
 
-from hexrd import matrixutil as mutil
+from hexrd.core import matrixutil as mutil
 
 
 def test_vec_mv_cob_matrix():

@@ -12,10 +12,10 @@ import numpy as np
 import timeit
 import warnings
 
-from hexrd import instrument
-from hexrd.transforms import xfcapi
-from hexrd import rotations
-from hexrd.fitting import fitGrain, objFuncFitGrain, gFlag_ref
+from hexrd.core import instrument
+from hexrd.core.transforms import xfcapi
+from hexrd.core import rotations
+from hexrd.core.fitting import fitGrain, objFuncFitGrain, gFlag_ref
 
 logger = logging.getLogger(__name__)
 

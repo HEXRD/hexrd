@@ -2,7 +2,7 @@ import json
 
 import numpy as np
 
-from hexrd.utils.json import NumpyDecoder, NumpyEncoder, NumpyToNativeEncoder
+from hexrd.core.utils.json import NumpyDecoder, NumpyEncoder, NumpyToNativeEncoder
 
 
 def test_decode_encode():

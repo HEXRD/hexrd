@@ -22,13 +22,13 @@ import copy
 
 # import of hexrd modules
 # import hexrd
-from hexrd import constants
-from hexrd import instrument
-from hexrd import material
-from hexrd import rotations
-from hexrd.transforms import xfcapi
-from hexrd import valunits
-from hexrd import xrdutil
+from hexrd.core import constants
+from hexrd.core import instrument
+from hexrd.core import material
+from hexrd.core import rotations
+from hexrd.core.transforms import xfcapi
+from hexrd.core import valunits
+from hexrd.hedm import xrdutil
 
 from skimage.morphology import dilation as ski_dilation
 
@@ -1754,7 +1754,7 @@ def output_grain_map(data_location,data_stems,output_stem,vol_spacing,top_down=T
 #     args = parse_args()
 
 #     if len(args.inst_profile) > 0:
-#         from hexrd.utils import profiler
+#         from hexrd.core.utils import profiler
 
 #         logging.debug("Instrumenting functions")
 #         profiler.instrument_all(args.inst_profile)
