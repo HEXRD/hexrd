@@ -7,7 +7,7 @@ import numpy as np
 from hexrd.core.instrument import switch_xray_source
 
 from .lmfit_param_handling import add_engineering_constraints, create_instr_params, create_tth_parameters, DEFAULT_EULER_CONVENTION, tth_parameter_prefixes, update_instrument_from_params
-from ....core.fitting.calibration.relative_constraints import create_relative_constraints, RelativeConstraints, RelativeConstraintsType
+from hexrd.core.fitting.calibration.relative_constraints import create_relative_constraints, RelativeConstraints, RelativeConstraintsType
 
 
 class StructurelessCalibrator:

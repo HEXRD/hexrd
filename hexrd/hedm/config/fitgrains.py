@@ -1,7 +1,7 @@
 import logging
 import os
 
-from ...core.config.config import Config
+from hexrd.core.config.config import Config
 from .utils import get_exclusion_parameters
 
 

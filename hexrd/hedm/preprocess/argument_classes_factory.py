@@ -1,5 +1,7 @@
-import hexrd.preprocess.profiles as profiles
-from typing import Type
+from typing import Type, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import hexrd.hedm.preprocess.profiles as profiles
 
 
 class ArgumentClassesFactory:

@@ -119,6 +119,10 @@ hexrd/instrument/hedm_instrument.py	hexrd/core/instrument/hedm_instrument.py
 hexrd/instrument/physics_package.py	hexrd/hedm/instrument/physics_package.py
 hexrd/instrument/physics_package.py	hexrd/core/instrument/physics_package.py
 hexrd/instrument/detector.py	hexrd/core/instrument/detector.py
+hexrd/instrument/detector.py	hexrd/hed/instrument/detector.py
+hexrd/instrument/detector.py	hexrd/hedm/instrument/detector.py
+hexrd/instrument/detector.py	hexrd/powder/instrument/detector.py
+hexrd/instrument/detector.py	hexrd/laue/instrument/detector.py
 hexrd/instrument/cylindrical_detector.py	hexrd/core/instrument/cylindrical_detector.py
 hexrd/instrument/__init__.py	hexrd/core/instrument/__init__.py
 hexrd/instrument/planar_detector.py	hexrd/core/instrument/planar_detector.py
@@ -526,11 +530,3 @@ hexrd\transforms\new_capi   hexrd\core\transforms\new_capi
 hexrd\transforms\cpp_sublibrary   hexrd\core\transforms\cpp_sublibrary
 hexrd\transforms\cpp_sublibrary\src   hexrd\core\transforms\cpp_sublibrary\src
 hexrd\convolution\src   hexrd\core\convolution\src
-hexrd\distortion\dexela_2923_quad.py	hexrd\core\distortion\dexela_2923_quad.py
-hexrd\preprocess\__init__.py	hexrd\preprocess\__init__.py
-hexrd\resources\instrument_templates\rigaku.hexrd	hexrd\core\resources\instrument_templates\rigaku.hexrd
-hexrd\transforms\cpp_sublibrary\src\transforms.cpp	hexrd\core\transforms\cpp_sublibrary\src\transforms.cpp
-hexrd\utils\panel_buffer.py	hexrd\core\utils\panel_buffer.py
-tests\test_distortion.py	tests\test_distortion.py
-tests\transforms\test_make_binary_rmat.py	tests\transforms\test_make_binary_rmat.py
-warning-log.txt	warning-log.txt

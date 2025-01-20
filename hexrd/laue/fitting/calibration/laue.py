@@ -17,8 +17,8 @@ from hexrd.core.transforms import xfcapi
 from hexrd.core.utils.hkl import hkl_to_str, str_to_hkl
 
 # TODO: Resolve extra-workflow-dependency
-from ....powder.fitting.calibration.calibrator import Calibrator
-from ....powder.fitting.calibration.lmfit_param_handling import create_grain_params, DEFAULT_EULER_CONVENTION, rename_to_avoid_collision
+from hexrd.powder.fitting.calibration.calibrator import Calibrator
+from hexrd.powder.fitting.calibration.lmfit_param_handling import create_grain_params, DEFAULT_EULER_CONVENTION, rename_to_avoid_collision
 
 
 class LaueCalibrator(Calibrator):
