@@ -32,6 +32,8 @@ ${HOME}/miniconda3/bin/conda activate hexrd
 # Install the libmamba solver (it is much faster)
 ${HOME}/miniconda3/bin/conda install -n base -c conda-forge conda-libmamba-solver
 ${HOME}/miniconda3/bin/conda config --set solver libmamba
+${HOME}/miniconda3/bin/conda config --set conda_build.pkg_format 1 # force tar.bz2 files
+
 
 # Remove anaconda telemetry (it is causing errors for us)
 ${HOME}/miniconda3/bin/conda remove -n base conda-anaconda-telemetry
