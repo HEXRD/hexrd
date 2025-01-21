@@ -65,6 +65,7 @@ jobs:
           # and sometimes in the base environment. I don't know why.
           conda install --override-channels -c conda-forge conda-libmamba-solver
           conda config --env --set solver libmamba
+          conda config --set conda_build.pkg_format 1 # force tar.bz2 files
           conda list
 
           mkdir output
