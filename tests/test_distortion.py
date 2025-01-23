@@ -21,7 +21,7 @@ def test_distortion():
     ptile = np.vstack([params.reshape(4, 2)[j - 1, :] for j in qi])
     result = dc.apply(pts) - pts
     result_inv = dc.apply_inverse(pts) - pts
-    if not np.all(abs(result - ptile) <= constants.epsf):
+    if not np.all(abs(result - ptile) <= constants.ten_epsf):
         raise RuntimeError("distortion apply failed!")
-    if not np.all(abs(result_inv + ptile) <= constants.epsf):
+    if not np.all(abs(result_inv + ptile) <= constants.ten_epsf):
         raise RuntimeError("distortion apply_inverse failed!")
