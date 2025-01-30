@@ -359,7 +359,7 @@ const static Eigen::MatrixXd gvecToDetectorXYFromAngles(
   return result;
 }
 
-const static Eigen::MatrixX2d anglesToGvecToDetectorXYFromAngles(
+const static Eigen::MatrixX2d anglesToDetectorXY(
     const double chi, const Eigen::MatrixXd omes, const Eigen::Matrix3d &rMat_d,
     const Eigen::Matrix3d &rMat_c, const Eigen::Vector3d &tVec_d,
     const Eigen::Vector3d &tVec_s, const Eigen::Vector3d &tVec_c,
