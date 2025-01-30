@@ -18,7 +18,8 @@ def test_make_binary_rmat():
 
         # Two binary rmats should be the identity
         assert np.allclose(rmat @ rmat, np.eye(3))
-
+        assert np.allclose(rmat.T @ rmat, np.eye(3)), "It is orthogonal"
+        assert np.all((np.abs(rmat) - 1 < 1e-10) | (np.abs(rmat) < 1e-10)), "It is binary"
         rmat_expected = rotMatOfQuat(
             quatOfAngleAxis(np.pi, np.c_[axis])
         )

@@ -114,10 +114,6 @@ def get_pybind11_include_path():
 
 def get_cpp_extensions():
     cpp_transform_pkgdir = Path('hexrd') / 'transforms/cpp_sublibrary'
-    src_files = [
-        str(cpp_transform_pkgdir / 'src/transforms.cpp'),
-        str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp'),
-    ]
 
     extra_compile_args = [
         '-O3',
@@ -139,7 +135,7 @@ def get_cpp_extensions():
 
     transforms_ext = Extension(
         name='hexrd.extensions.transforms',
-        sources=[src_files[0]],
+        sources=[cpp_transform_pkgdir / 'src/transforms.cpp'],
         extra_compile_args=extra_compile_args,
         include_dirs=include_dirs,
         language='c++',
@@ -147,7 +143,7 @@ def get_cpp_extensions():
 
     inverse_distortion_ext = Extension(
         name='hexrd.extensions.inverse_distortion',
-        sources=[src_files[1]],
+        sources=[cpp_transform_pkgdir / 'src/inverse_distortion.cpp'],
         extra_compile_args=extra_compile_args,
         include_dirs=include_dirs,
         language='c++',
