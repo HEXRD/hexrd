@@ -15,7 +15,6 @@ def test_gvec_to_xy_from_file(test_data_dir):
         allow_pickle=True
     )
     for obj in arr:
-        print(1)
         result = gvec_to_xy(obj["gvec_c"],
                             obj["rmat_d"],
                             obj["rmat_s"],
