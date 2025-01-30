@@ -135,7 +135,7 @@ def get_cpp_extensions():
 
     transforms_ext = Extension(
         name='hexrd.extensions.transforms',
-        sources=[cpp_transform_pkgdir / 'src/transforms.cpp'],
+        sources=[str(cpp_transform_pkgdir / 'src/transforms.cpp')],
         extra_compile_args=extra_compile_args,
         include_dirs=include_dirs,
         language='c++',
@@ -143,7 +143,7 @@ def get_cpp_extensions():
 
     inverse_distortion_ext = Extension(
         name='hexrd.extensions.inverse_distortion',
-        sources=[cpp_transform_pkgdir / 'src/inverse_distortion.cpp'],
+        sources=[str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')],
         extra_compile_args=extra_compile_args,
         include_dirs=include_dirs,
         language='c++',
