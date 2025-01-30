@@ -392,7 +392,7 @@ PYBIND11_MODULE(transforms, m)
   m.def("make_binary_rot_mat", &makeBinaryRotMat, "Function that computes a rotation matrix from a binary vector");
   m.def("make_rot_mat_of_exp_map", &makeRotMatOfExpMap, "Function that computes a rotation matrix from an exponential map");
   m.def("makeOscillRotMat", &makeOscillRotMat, "Function that generates a collection of rotation matrices from two angles (chi, ome)");
-  m.def("anglesToGvecToDetectorXYFromAngles", &anglesToGvecToDetectorXYFromAngles, "I hate this.");
+  m.def("anglesToDetectorXY", &anglesToDetectorXY, "Converts angles to detector xy coordinates.");
   m.def("anglesToGVec", &anglesToGVec, "Function that converts angles to g-vectors");
   m.def("anglesToDVec", &anglesToDVec, "Function that converts angles to d-vectors");
   m.def("gvecToDetectorXY", &gvecToDetectorXY, "A function that converts gVec to detector XY");
