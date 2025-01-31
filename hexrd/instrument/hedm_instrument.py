@@ -2844,6 +2844,13 @@ def _extract_ring_line_positions(iter_args, instr_cfg, panel, eta_tol, npdiv,
     # points are already checked to fall on detector
     angs, xys, tth_tol, this_tth0 = iter_args
 
+    # SS 01/31/25 noticed some nans in xys even after clipping
+    # going to do another round of masking to get rid of those
+    nan_mask = ~np.logical_or(np.isnan(xys), np.isnan(angs))
+    nan_mask = np.logical_or.reduce(nan_mask, 1)
+    angs = angs[nan_mask,:]
+    xys = xys[nan_mask, :]
+
     n_images = len(images)
     native_area = panel.pixel_area
 
