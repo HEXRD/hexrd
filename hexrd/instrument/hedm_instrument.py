@@ -2848,8 +2848,9 @@ def _extract_ring_line_positions(iter_args, instr_cfg, panel, eta_tol, npdiv,
     # going to do another round of masking to get rid of those
     nan_mask = ~np.logical_or(np.isnan(xys), np.isnan(angs))
     nan_mask = np.logical_or.reduce(nan_mask, 1)
-    angs = angs[nan_mask,:]
-    xys = xys[nan_mask, :]
+    if angs.ndim > 1 and xys.ndim > 1:
+        angs = angs[nan_mask,:]
+        xys  = xys[nan_mask, :]
 
     n_images = len(images)
     native_area = panel.pixel_area
