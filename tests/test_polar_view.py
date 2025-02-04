@@ -72,9 +72,7 @@ def test_polar_view(
     img = img.filled(np.nan)
 
     # Verify that the image is identical to a reference image
-    ref = np.load(
-        test_data_dir / 'test_polar_view_expected.npy', allow_pickle=True
-    )
+    ref = np.load(test_data_dir / 'test_polar_view_expected.npy')
     assert np.allclose(img, ref, equal_nan=True)
 
     # Also generate it using the cache
