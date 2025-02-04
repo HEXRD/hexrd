@@ -6,6 +6,7 @@ from hexrd.xrdutil.utils import (
     _project_on_detector_cylinder,
     _project_on_detector_plane,
 )
+from hexrd.utils.panel_buffer import panel_buffer_as_2d_array
 
 
 class PolarView:
@@ -325,10 +326,25 @@ class PolarView:
             coordinate_map: dict[str, dict[str, np.ndarray]],
             pad_with_nans: bool = False,
             do_interpolation=True) -> np.ma.MaskedArray:
+
+        panel_buffer_fill_value = np.nan
         img_dict = dict.fromkeys(self.detectors)
         nan_mask = None
         for detector_id, panel in self.detectors.items():
-            img = image_dict[detector_id]
+            # Make a copy since we may modify
+            img = image_dict[detector_id].copy()
+
+            # Before warping, mask out any pixels that are invalid,
+            # so that they won't affect the results.
+            buffer = panel_buffer_as_2d_array(panel)
+            if (np.issubdtype(type(panel_buffer_fill_value), np.floating) and
+                    not np.issubdtype(img.dtype, np.floating)):
+                # Convert to float. This is especially important
+                # for nan, since it is a float...
+                img = img.astype(float)
+
+            img[~buffer] = panel_buffer_fill_value
+
             xypts = coordinate_map[detector_id]['xypts']
             on_panel = coordinate_map[detector_id]['on_panel']
 
