@@ -9,6 +9,7 @@ from . import identity
 from . import nyi
 from . import ge_41rt
 from . import dexela_2923
+from . import dexela_2923_quad
 
 __all__ = ['maptypes', 'get_mapping']
 
