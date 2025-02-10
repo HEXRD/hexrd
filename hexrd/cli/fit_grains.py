@@ -7,6 +7,7 @@ import numpy as np
 
 from hexrd import config
 from hexrd import constants as cnst
+from hexrd import rotations
 from hexrd import instrument
 from hexrd.findorientations import find_orientations
 from hexrd.fitgrains import fit_grains
@@ -55,6 +56,11 @@ class GrainData(_BaseGrainData):
         return cls(**np.load(fname))
 
     @classmethod
+    def from_grains_out(cls, fname):
+        """Read hexrd grains output file"""
+        return cls.from_array(np.loadtxt(fname))
+
+    @classmethod
     def from_array(cls, a):
         """Return GrainData instance from numpy datatype array"""
         return cls(
@@ -67,9 +73,29 @@ class GrainData(_BaseGrainData):
             ln_Vs=a[:, 15:21],
         )
 
+    def write_grains_out(self, fname):
+        """Write a file in grains.out format"""
+        gw = GrainDataWriter(filename=fname)
+        n = len(self.id)
+        for i in range(n):
+            gparams = np.hstack(
+                (self.expmap[i], self.centroid[i], self.inv_Vs[i])
+            )
+            gw.dump_grain(self.id, self.completeness, self.chisq, gparams)
+        gw.close()
+
+    @property
+    def num_grains(self):
+        return len(self.id)
+
+    @property
+    def quaternions(self):
+        """Return quaternions from exponential map parameters"""
+        return rotations.quatOfExpMap(self.expmap.T).T
+
     @property
     def rotation_matrices(self):
-        """"Return rotation matrices from exponential maps"""
+        """"Return rotation matrices from exponential map parameters"""
         #
         # Compute the rotation matrices only once, the first time this is
         # called, and save the results.
@@ -81,6 +107,40 @@ class GrainData(_BaseGrainData):
                 rmats[i] = xfcapi.make_rmat_of_expmap(self.expmap[i])
             self._rotation_matrices = rmats
         return self._rotation_matrices
+
+    @property
+    def strain(self):
+        """Return strain tensor
+
+        The result is an array(`n`, 6) of symmetric strain  components in the
+        order `11`, `22`, `33`, `23`, `13`, `23`.
+        """
+        return self.ln_Vs
+
+    def select(self, min_completeness=0.0, max_chisq=None):
+        """Return a new GrainData instance with only selected grains
+
+        PARAMETERS
+        ----------
+        min_completeness: float, default=0
+           minimum value of completeness
+        max_chisq: float | None, default=None
+           if not None, maximum value for chi-squared
+
+        RETURNS
+        -------
+        GrainData instance
+           new instance for subset of grains meeting selection criteria
+        """
+        has_chisq = max_chisq is not None
+        sel_comp = self.completeness >= min_completeness
+        sel = sel_comp & (self.chisq <= max_chisq) if has_chisq else sel_comp
+
+        return __class__(
+            self.id[sel], self.completeness[sel], self.chisq[sel],
+            self.expmap[sel], self.centroid[sel], self.inv_Vs[sel],
+            self.ln_Vs[sel]
+        )
 
 
 def configure_parser(sub_parsers):
