@@ -75,13 +75,15 @@ class GrainData(_BaseGrainData):
 
     def write_grains_out(self, fname):
         """Write a file in grains.out format"""
-        gw = GrainDataWriter(filename=fname)
+        gw = instrument.GrainDataWriter(filename=fname)
         n = len(self.id)
         for i in range(n):
             gparams = np.hstack(
                 (self.expmap[i], self.centroid[i], self.inv_Vs[i])
             )
-            gw.dump_grain(self.id, self.completeness, self.chisq, gparams)
+            gw.dump_grain(
+                self.id[i], self.completeness[i], self.chisq[i], gparams
+            )
         gw.close()
 
     @property
