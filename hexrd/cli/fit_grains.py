@@ -92,7 +92,8 @@ class GrainData(_BaseGrainData):
 
     @property
     def quaternions(self):
-        """Return quaternions from exponential map parameters"""
+        """Return quaternions as array(num_grains, 4).
+        """
         return rotations.quatOfExpMap(self.expmap.T).T
 
     @property
@@ -112,10 +113,9 @@ class GrainData(_BaseGrainData):
 
     @property
     def strain(self):
-        """Return strain tensor
+        """Return symmetric strain tensor as array(num_grains, 6).
 
-        The result is an array(`n`, 6) of symmetric strain  components in the
-        order `11`, `22`, `33`, `23`, `13`, `23`.
+        The order of components is `11`, `22`, `33`, `23`, `13`, `23`.
         """
         return self.ln_Vs
 
