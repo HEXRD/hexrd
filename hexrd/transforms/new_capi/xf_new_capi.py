@@ -27,6 +27,7 @@ from typing import Optional, Tuple, Union
 import numpy as np
 
 from hexrd.extensions import _new_transforms_capi as _impl
+from hexrd.extensions import transforms as cpp_transforms
 from hexrd.distortion.distortionabc import DistortionABC
 from hexrd import constants as cnst
 
@@ -88,7 +89,7 @@ def angles_to_gvec(
         cnst.identity_3x3 if rmat_c is None else np.ascontiguousarray(rmat_c)
     )
 
-    result = _impl.anglesToGVec(angs, beam_vec, eta_vec, chi, rmat_c)
+    result = cpp_transforms.anglesToGVec(angs, beam_vec, eta_vec, chi, rmat_c)
 
     return result[0] if orig_ndim == 1 else result
 
@@ -151,7 +152,7 @@ def angles_to_dvec(
     )
     chi = 0.0 if chi is None else float(chi)
 
-    return _impl.anglesToDVec(angs, beam_vec, eta_vec, chi, rmat_c)
+    return cpp_transforms.anglesToDVec(angs, beam_vec, eta_vec, chi, rmat_c)
 
 
 def makeGVector(hkl: np.ndarray, bMat: np.ndarray) -> np.ndarray:
@@ -536,13 +537,14 @@ def make_sample_rmat(chi: float, ome: Union[float, np.ndarray]) -> np.ndarray:
     ome_array = np.atleast_1d(ome)
     if ome is ome_array:
         ome_array = np.ascontiguousarray(ome_array)
-        result = _impl.makeOscillRotMat(chi, ome_array)
+        result = cpp_transforms.makeOscillRotMat(chi, ome_array).reshape(
+            len(ome_array), 3, 3
+        )
     else:
         # converted to 1d array of 1 element, no need
         # to call ascontiguousarray, but need to remove
         # the outer dimension from the result
-        result = _impl.makeOscillRotMat(chi, ome_array)
-        result = result.reshape(3, 3)
+        result = cpp_transforms.makeOscillRotMat(chi, ome_array)
 
     return result
 
@@ -562,7 +564,7 @@ def make_rmat_of_expmap(exp_map: np.ndarray) -> np.ndarray:
         A 3x3 rotation matrix representing the input exponential map
     """
     arg = np.ascontiguousarray(exp_map.flatten())
-    return _impl.makeRotMatOfExpMap(arg)
+    return cpp_transforms.make_rot_mat_of_exp_map(arg)
 
 
 def make_binary_rmat(axis: np.ndarray) -> np.ndarray:
@@ -582,7 +584,7 @@ def make_binary_rmat(axis: np.ndarray) -> np.ndarray:
     """
 
     arg = np.ascontiguousarray(axis.flatten())
-    return _impl.makeBinaryRotMat(arg)
+    return cpp_transforms.make_binary_rot_mat(arg)
 
 
 def make_beam_rmat(bvec_l: np.ndarray, evec_l: np.ndarray) -> np.ndarray:

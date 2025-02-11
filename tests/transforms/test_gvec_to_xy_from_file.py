@@ -23,11 +23,7 @@ def test_gvec_to_xy_from_file(test_data_dir):
                             obj["tvec_s"],
                             obj["tvec_c"],
                             obj["beam_vec"])
-        # Ignore nans
-        mask = ~(np.isnan(obj["result"]))
-        assert np.allclose(result[mask], obj["result"][mask])
-        # Make sure unmasked stuff is all nan
-        assert np.isnan(result[~mask]).all()
+        assert np.allclose(result, obj["result"], equal_nan=True)
 
 
 # def test_correct_gvec_to_xy(test_data_dir):
