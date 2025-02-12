@@ -3,7 +3,7 @@ from enum import Enum
 
 import numpy as np
 
-from hexrd.instrument import HEDMInstrument
+from hexrd.core.instrument import HEDMInstrument
 
 
 class RelativeConstraintsType(Enum):

@@ -1,6 +1,5 @@
 import numpy as np
-from hexrd.material.utils import (calculate_linear_absorption_length,
-    calculate_energy_absorption_length)
+from hexrd.core.material.utils import calculate_linear_absorption_length, calculate_energy_absorption_length
 
 
 class AbstractLayer:

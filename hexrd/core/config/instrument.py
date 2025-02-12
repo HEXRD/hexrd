@@ -4,7 +4,7 @@ import yaml
 from .config import Config
 from .loader import NumPyIncludeLoader
 
-from hexrd import instrument
+from hexrd.core import instrument
 
 
 class Instrument(Config):

@@ -3,20 +3,10 @@ from numpy.polynomial import chebyshev
 
 from lmfit import Model, Parameters
 
-from hexrd.constants import fwhm_to_sigma
-from hexrd.imageutil import snip1d
+from hexrd.core.constants import fwhm_to_sigma
+from hexrd.core.imageutil import snip1d
 
-from .utils import (_calc_alpha, _calc_beta,
-                    _mixing_factor_pv,
-                    _gaussian_pink_beam,
-                    _lorentzian_pink_beam,
-                    _parameter_arg_constructor,
-                    _extract_parameters_by_name,
-                    _set_bound_constraints,
-                    _set_refinement_by_name,
-                    _set_width_mixing_bounds,
-                    _set_equality_constraints,
-                    _set_peak_center_bounds)
+from .utils import _calc_alpha, _calc_beta, _mixing_factor_pv, _gaussian_pink_beam, _lorentzian_pink_beam, _parameter_arg_constructor, _extract_parameters_by_name, _set_bound_constraints, _set_refinement_by_name, _set_width_mixing_bounds, _set_equality_constraints, _set_peak_center_bounds
 
 # =============================================================================
 # PARAMETERS

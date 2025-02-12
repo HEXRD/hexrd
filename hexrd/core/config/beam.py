@@ -3,7 +3,7 @@ import os
 import numpy as np
 
 from .config import Config
-from hexrd import imageseries
+from hexrd.core import imageseries
 
 
 class Beam(Config):

@@ -1,15 +1,11 @@
-from hexrd.material.symbols import (pstr_Elements,
-                                    two_origin_choice,
-                                    PrintPossibleSG,
-                                    TRIG,
-                                    pstr_spacegroup,
-                                    pstr_mkxtal)
+from hexrd.core.material.symbols import pstr_Elements, two_origin_choice, PrintPossibleSG, TRIG, pstr_spacegroup, pstr_mkxtal
 import h5py
 import os
 import numpy as np
 import datetime
 import getpass
-from hexrd.material.unitcell import _StiffnessDict, _pgDict
+from hexrd.hedm.material.unitcell import _StiffnessDict, _pgDict
+from hexrd.core.material.unitcell import _StiffnessDict, _pgDict
 
 
 def mk(filename, xtalname):

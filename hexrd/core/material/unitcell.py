@@ -1,11 +1,11 @@
 import importlib.resources
 import numpy as np
 from numba import njit
-from hexrd import constants
-from hexrd.material import spacegroup, symbols, symmetry
-from hexrd.ipfcolor import sphere_sector, colorspace
-from hexrd.valunits import valWUnit
-import hexrd.resources
+from hexrd.core import constants
+from hexrd.core.material import spacegroup, symbols, symmetry
+from hexrd.hedm.ipfcolor import sphere_sector, colorspace
+from hexrd.core.valunits import valWUnit
+import hexrd.core.resources
 import warnings
 import h5py
 from pathlib import Path
@@ -788,7 +788,7 @@ class unitcell:
             self.f_anomalous_data[i, :nd, :] = f_anomalous_data[i]
 
     def CalcXRSF(self, hkl):
-        from hexrd.wppf.xtal import _calcxrsf
+        from hexrd.powder.wppf.xtal import _calcxrsf
         '''
         the 1E-2 is to convert to A^-2
         since the fitting is done in those units

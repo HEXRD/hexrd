@@ -1,7 +1,7 @@
 from .config import Config
-from hexrd import imageseries
+from hexrd.core import imageseries
 
-from hexrd.constants import shared_ims_key
+from hexrd.core.constants import shared_ims_key
 
 
 class ImageSeries(Config):

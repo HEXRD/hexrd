@@ -8,8 +8,8 @@ from .distortionabc import DistortionABC
 from .registry import _RegisterDistortionClass
 from .utils import newton
 
-from hexrd import constants as cnst
-from hexrd.extensions import inverse_distortion
+from hexrd.core import constants as cnst
+from hexrd.core.extensions import inverse_distortion
 
 RHO_MAX = 204.8  # max radius in mm for ge detector
 
