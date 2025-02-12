@@ -2,6 +2,7 @@ import numpy as np
 import h5py
 from os import path
 
+
 class Spectrum:
     """
     ==================================================================================
@@ -18,11 +19,11 @@ class Spectrum:
 
     def __init__(self, x=None, y=None, name=''):
         if x is None:
-            self._x = np.linspace(10., 100., 500)
+            self._x = np.linspace(10.0, 100.0, 500)
         else:
             self._x = x
         if y is None:
-            self._y = np.log(self._x ** 2) - (self._x * 0.2) ** 2
+            self._y = np.log(self._x**2) - (self._x * 0.2) ** 2
         else:
             self._y = y
         self.name = name
@@ -69,51 +70,51 @@ class Spectrum:
         new_x = np.arange(x_min, x_max + 0.1 * bin_size, bin_size)
 
         bins = np.hstack((x_min - bin_size * 0.5, new_x + bin_size * 0.5))
-        new_y = (np.histogram(x, bins, weights=y)
-                 [0] / np.histogram(x, bins)[0])
+        new_y = np.histogram(x, bins, weights=y)[0] / np.histogram(x, bins)[0]
 
         return Spectrum(new_x, new_y)
 
     def dump_hdf5(self, file, name):
         """
-            >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-            >> @DATE:       01/15/2021 SS 1.0 original
-            >> @DETAILS:    dump the class to a hdf5 file. the file argument could either be a 
-                            string or a h5.File instance. If it is a filename, then HDF5 file
-                            is created, a Spectrum group is created and data is written out.
-                            Else data written to Spectrum group in existing file object
-            >> @PARAMS file file name string or h5py.File object
-                       name name ID of the spectrum e.g. experimental or simulated or background
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       01/15/2021 SS 1.0 original
+        >> @DETAILS:    dump the class to a hdf5 file. the file argument could either be a
+                        string or a h5.File instance. If it is a filename, then HDF5 file
+                        is created, a Spectrum group is created and data is written out.
+                        Else data written to Spectrum group in existing file object
+        >> @PARAMS file file name string or h5py.File object
+                   name name ID of the spectrum e.g. experimental or simulated or background
         """
 
-        if(isinstance(file, str)):
+        if isinstance(file, str):
             fexist = path.isfile(file)
-            if(fexist):
+            if fexist:
                 fid = h5py.File(file, 'r+')
             else:
                 fid = h5py.File(file, 'x')
 
-        elif(isinstance(file, h5py.File)):
+        elif isinstance(file, h5py.File):
             fid = file
 
         else:
             raise RuntimeError(
                 'Parameters: dump_hdf5 Pass in a filename \
-                 string or h5py.File object')
+                 string or h5py.File object'
+            )
 
-        name_spectrum = 'Spectrum/'+name
-        if(name_spectrum in fid):
-            del(fid[name_spectrum])
+        name_spectrum = 'Spectrum/' + name
+        if name_spectrum in fid:
+            del fid[name_spectrum]
         gid = fid.create_group(name_spectrum)
 
         tth, I = self.data
 
         # make sure these arrays are not zero sized
-        if(tth.shape[0] > 0):
+        if tth.shape[0] > 0:
             did = gid.create_dataset("tth", tth.shape, dtype=np.float64)
             did.write_direct(tth.astype(np.float64))
 
-        if(I.shape[0] > 0):
+        if I.shape[0] > 0:
             did = gid.create_dataset("intensity", I.shape, dtype=np.float64)
             did.write_direct(I.astype(np.float64))
 
@@ -128,22 +129,22 @@ class Spectrum:
                 f_bkg = interp1d(x_bkg, y_bkg, kind='linear')
 
                 # find overlapping x and y values:
-                ind = np.where((self._x <= np.max(x_bkg)) &
-                               (self._x >= np.min(x_bkg)))
+                ind = np.where(
+                    (self._x <= np.max(x_bkg)) & (self._x >= np.min(x_bkg))
+                )
                 x = self._x[ind]
                 y = self._y[ind]
 
                 if len(x) == 0:
-                    """ if there is no overlapping between background
-                     and Spectrum, raise an error """
+                    """if there is no overlapping between background
+                    and Spectrum, raise an error"""
                     raise BkgNotInRangeError(self.name)
 
                 y = y * self._scaling + self.offset - f_bkg(x)
             else:
-                """ if Spectrum and bkg have the same
-                 x basis we just delete y-y_bkg"""
-                x, y = self._x, self._y * \
-                    self._scaling + self.offset - y_bkg
+                """if Spectrum and bkg have the same
+                x basis we just delete y-y_bkg"""
+                x, y = self._x, self._y * self._scaling + self.offset - y_bkg
         else:
             x, y = self.original_data
 
@@ -171,8 +172,7 @@ class Spectrum:
 
     @property
     def original_data(self):
-        return self._x, self._y * self._scaling +\
-            self.offset
+        return self._x, self._y * self._scaling + self.offset
 
     @property
     def x(self):
@@ -203,13 +203,15 @@ class Spectrum:
 
     def limit(self, x_min, x_max):
         x, y = self.data
-        return Spectrum(x[np.where((x_min < x) & (x < x_max))],
-                        y[np.where((x_min < x) & (x < x_max))])
+        return Spectrum(
+            x[np.where((x_min < x) & (x < x_max))],
+            y[np.where((x_min < x) & (x < x_max))],
+        )
 
     def extend_to(self, x_value, y_value):
         """
-        Extends the current Spectrum to a specific x_value by filling it 
-        with the y_value. Does not modify inplace but returns a new filled 
+        Extends the current Spectrum to a specific x_value by filling it
+        with the y_value. Does not modify inplace but returns a new filled
         Spectrum
         :param x_value: Point to which extend the Spectrum should be smaller
         than the lowest x-value in the Spectrum or vice versa
@@ -220,15 +222,16 @@ class Spectrum:
         x_min = np.min(self.x)
         x_max = np.max(self.x)
         if x_value < x_min:
-            x_fill = np.arange(x_min - x_step, x_value -
-                               x_step*0.5, -x_step)[::-1]
+            x_fill = np.arange(
+                x_min - x_step, x_value - x_step * 0.5, -x_step
+            )[::-1]
             y_fill = np.zeros(x_fill.shape)
             y_fill.fill(y_value)
 
             new_x = np.concatenate((x_fill, self.x))
             new_y = np.concatenate((y_fill, self.y))
         elif x_value > x_max:
-            x_fill = np.arange(x_max + x_step, x_value+x_step*0.5, x_step)
+            x_fill = np.arange(x_max + x_step, x_value + x_step * 0.5, x_step)
             y_fill = np.zeros(x_fill.shape)
             y_fill.fill(y_value)
 
@@ -241,6 +244,7 @@ class Spectrum:
 
     def plot(self, show=False, *args, **kwargs):
         import matplotlib.pyplot as plt
+
         plt.plot(self.x, self.y, *args, **kwargs)
         if show:
             plt.show()
@@ -265,8 +269,9 @@ class Spectrum:
             other_fcn = interp1d(other_x, other_x, kind='linear')
 
             # find overlapping x and y values:
-            ind = np.where((orig_x <= np.max(other_x)) &
-                           (orig_x >= np.min(other_x)))
+            ind = np.where(
+                (orig_x <= np.max(other_x)) & (orig_x >= np.min(other_x))
+            )
             x = orig_x[ind]
             y = orig_y[ind]
 
@@ -287,8 +292,9 @@ class Spectrum:
             other_fcn = interp1d(other_x, other_x, kind='linear')
 
             # find overlapping x and y values:
-            ind = np.where((orig_x <= np.max(other_x)) &
-                           (orig_x >= np.min(other_x)))
+            ind = np.where(
+                (orig_x <= np.max(other_x)) & (orig_x >= np.min(other_x))
+            )
             x = orig_x[ind]
             y = orig_y[ind]
 

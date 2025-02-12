@@ -5,6 +5,7 @@
 from __future__ import absolute_import
 import numpy as np
 from hexrd.core.transforms.new_capi.xf_new_capi import quat_distance
+
 # from common import  random_unit_vectors
 # from hexrd.core.rotations import quatOfLaueGroup
 
@@ -12,16 +13,12 @@ from hexrd.core.transforms.new_capi.xf_new_capi import quat_distance
 def test_quat_distance_from_file(test_data_dir):
     # Load the array from a file
     arr = np.load(
-        test_data_dir / 'test_correct_quat_distance.npy',
-        allow_pickle=True
+        test_data_dir / 'test_correct_quat_distance.npy', allow_pickle=True
     )
     for obj in arr:
-        result = quat_distance(
-            obj["q1"],
-            obj["q2"],
-            obj["q_sym"]
-        )
+        result = quat_distance(obj["q1"], obj["q2"], obj["q_sym"])
         assert np.allclose(result, obj["result"])
+
 
 # def test_correct_quat_distance(test_data_dir):
 #     arr = [];

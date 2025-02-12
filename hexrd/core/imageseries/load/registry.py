@@ -1,7 +1,9 @@
-"""Adapter registry
-"""
+"""Adapter registry"""
+
+
 class Registry(object):
     """Registry for imageseries adapters"""
+
     adapter_registry = dict()
 
     @classmethod

@@ -16,7 +16,6 @@ from hexrd.core import constants as ct
 from hexrd.core import distortion as distortion_pkg
 from hexrd.core import matrixutil as mutil
 
-# TODO: Resolve extra-core-dependency
 from hexrd.hedm import xrdutil
 from hexrd.core.rotations import mapAngle
 

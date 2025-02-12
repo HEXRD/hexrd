@@ -5,6 +5,7 @@ from .common import ImageSeriesTest, make_array_ims, make_omega_meta, compare
 from hexrd.core import imageseries
 from hexrd.core.imageseries import process, ImageSeries
 
+
 class TestImageSeriesProcess(ImageSeriesTest):
 
     def _runfliptest(self, a, flip, aflip):
@@ -14,7 +15,7 @@ class TestImageSeriesProcess(ImageSeriesTest):
         is_aflip = imageseries.open(None, 'array', data=aflip)
         diff = compare(is_aflip, is_p)
         msg = "flipped [%s] image series failed" % flip
-        self.assertAlmostEqual(diff, 0., msg=msg)
+        self.assertAlmostEqual(diff, 0.0, msg=msg)
 
     def test_process(self):
         """Processed image series"""
@@ -22,7 +23,7 @@ class TestImageSeriesProcess(ImageSeriesTest):
         is_p = process.ProcessedImageSeries(is_a, [])
         diff = compare(is_a, is_p)
         msg = "processed image series failed to reproduce original"
-        self.assertAlmostEqual(diff, 0., msg)
+        self.assertAlmostEqual(diff, 0.0, msg)
 
     def test_process_flip_t(self):
         """Processed image series: flip transpose"""
@@ -60,7 +61,7 @@ class TestImageSeriesProcess(ImageSeriesTest):
         self._runfliptest(a, flip, aflip)
 
     def test_process_flip_r270(self):
-        """Processed image series: flip clockwise 90 """
+        """Processed image series: flip clockwise 90"""
         flip = 'cw90'
         a, _ = make_array_ims()
         aflip = np.transpose(a, (0, 2, 1))[:, :, ::-1]
@@ -71,12 +72,12 @@ class TestImageSeriesProcess(ImageSeriesTest):
         a, _ = make_array_ims()
         dark = np.ones_like(a[0])
         is_a = imageseries.open(None, 'array', data=a)
-        apos = np.where(a >= 1, a-1, 0)
+        apos = np.where(a >= 1, a - 1, 0)
         is_a1 = imageseries.open(None, 'array', data=apos)
         ops = [('dark', dark)]
         is_p = process.ProcessedImageSeries(is_a, ops)
         diff = compare(is_a1, is_p)
-        self.assertAlmostEqual(diff, 0., msg="dark image failed")
+        self.assertAlmostEqual(diff, 0.0, msg="dark image failed")
 
     def test_process_framelist(self):
         a, _ = make_array_ims()
@@ -87,9 +88,8 @@ class TestImageSeriesProcess(ImageSeriesTest):
         is_p = process.ProcessedImageSeries(is_a, ops, frame_list=frames)
         is_a2 = imageseries.open(None, 'array', data=a[tuple(frames), ...])
         diff = compare(is_a2, is_p)
-        self.assertAlmostEqual(diff, 0., msg="frame list failed")
+        self.assertAlmostEqual(diff, 0.0, msg="frame list failed")
         self.assertEqual(len(is_p), len(is_p.metadata["omega"]))
-
 
     def test_process_shape(self):
         a, _ = make_array_ims()

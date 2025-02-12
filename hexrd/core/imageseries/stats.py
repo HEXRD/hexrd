@@ -23,13 +23,14 @@ NOTES
 * Perhaps we should rename min -> minimum and max -> maximum to avoid
   conflicting with the python built-ins
 """
+
 import numpy as np
 
 from psutil import virtual_memory
 
 # Default Buffer Size: half of available memory
 vmem = virtual_memory()
-STATS_BUFFER = int(0.5*vmem.available)
+STATS_BUFFER = int(0.5 * vmem.available)
 del vmem
 
 
@@ -105,7 +106,7 @@ def average_iter(ims, nchunk, nframes=0):
     """average over frames
 
     Note: average returns a float even if images are uint
-"""
+    """
     nf = _nframes(ims, nframes)
     stops = _chunk_stops(nf, nchunk)
     s0, stop = 0, stops[0]
@@ -135,7 +136,7 @@ def percentile(ims, pctl, nframes=0):
     return np.percentile(_toarray(ims, nf), pctl, axis=0).astype(np.float32)
 
 
-def percentile_iter(ims, pctl, nchunks,  nframes=0, use_buffer=True):
+def percentile_iter(ims, pctl, nchunks, nframes=0, use_buffer=True):
     """iterator for percentile function"""
     nf = _nframes(ims, nframes)
     nr, nc = ims.shape
@@ -146,8 +147,7 @@ def percentile_iter(ims, pctl, nchunks,  nframes=0, use_buffer=True):
     for s in stops:
         r1 = s + 1
         img[r0:r1] = np.percentile(
-            _toarray(ims, nf, rows=(r0, r1), buffer=buffer),
-            pctl, axis=0
+            _toarray(ims, nf, rows=(r0, r1), buffer=buffer), pctl, axis=0
         )
         r0 = r1
         yield img.astype(np.float32)
@@ -176,12 +176,12 @@ def _chunk_stops(n, nchunks):
 
     n -- number of items to be chunked (e.g. frames/rows)
     nchunks -- number of chunks
-"""
+    """
     if nchunks > n:
         raise ValueError("number of chunks cannot exceed number of items")
-    csize = n//nchunks
+    csize = n // nchunks
     rem = n % nchunks
-    pieces = csize*np.ones(nchunks, dtype=int)
+    pieces = csize * np.ones(nchunks, dtype=int)
     pieces[:rem] += 1
     pieces[0] += -1
 
@@ -231,8 +231,8 @@ def _toarray(ims, nframes, rows=None, buffer=None):
 def _alloc_buffer(ims, nf):
     """Allocate buffer to save as many full frames as possible"""
     shp, dt = ims.shape, ims.dtype
-    framesize = shp[0]*shp[1]*dt.itemsize
-    nf = np.minimum(nf, np.floor(STATS_BUFFER/framesize).astype(int))
+    framesize = shp[0] * shp[1] * dt.itemsize
+    nf = np.minimum(nf, np.floor(STATS_BUFFER / framesize).astype(int))
     bshp = (nf,) + shp
 
     return np.empty(bshp, dt)

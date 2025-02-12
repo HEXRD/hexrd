@@ -11,6 +11,7 @@ class NumpyToNativeDumper(yaml.SafeDumper):
     For instance, np.float128 will raise an error, since it cannot be
     converted to a basic type.
     """
+
     def represent_data(self, data):
         if isinstance(data, np.ndarray):
             return self.represent_list(data.tolist())

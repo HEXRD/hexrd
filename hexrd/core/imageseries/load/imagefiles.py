@@ -1,9 +1,8 @@
-"""Adapter class for list of image files
-"""
-
+"""Adapter class for list of image files"""
 
 # import sys
 import os
+
 # import logging
 import glob
 
@@ -58,7 +57,7 @@ class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
             # !!! handled in self._process_files
             try:
                 dinfo = np.iinfo(self._dtype)
-            except(ValueError):
+            except ValueError:
                 dinfo = np.finfo(self._dtype)
             if np.max(data) > dinfo.max:
                 raise RuntimeError("specified dtype will truncate image")
@@ -77,8 +76,14 @@ number of files: %s
           dtype: %s
           shape: %s
   single frames: %s
-     """ % (self.fabioclass, len(self._files), len(self),
-            self.dtype, self.shape, self.singleframes)
+     """ % (
+            self.fabioclass,
+            len(self._files),
+            len(self),
+            self.dtype,
+            self.shape,
+            self.singleframes,
+        )
         return s
 
     @property
@@ -114,12 +119,15 @@ number of files: %s
         self._files.sort()
         self.optsd = d['options'] if 'options' else None
         self._empty = self.optsd[EMPTY] if EMPTY in self.optsd else 0
-        self._maxframes_tot = self.optsd[MAXTOTF] \
-            if MAXTOTF in self.optsd else 0
-        self._maxframes_file = self.optsd[MAXFILF] \
-            if MAXFILF in self.optsd else 0
-        self._dtype = np.dtype(self.optsd[DTYPE]) \
-            if DTYPE in self.optsd else None
+        self._maxframes_tot = (
+            self.optsd[MAXTOTF] if MAXTOTF in self.optsd else 0
+        )
+        self._maxframes_file = (
+            self.optsd[MAXFILF] if MAXFILF in self.optsd else 0
+        )
+        self._dtype = (
+            np.dtype(self.optsd[DTYPE]) if DTYPE in self.optsd else None
+        )
 
         self._meta = yamlmeta(d['meta'])  # , path=imgsd)
 
@@ -134,17 +142,19 @@ number of files: %s
         for imgf in self._files:
             info = FileInfo(imgf, **kw)
             infolist.append(info)
-            shp = self._checkvalue(shp, info.shape,
-                                   "inconsistent image shapes")
+            shp = self._checkvalue(
+                shp, info.shape, "inconsistent image shapes"
+            )
             if self._dtype is not None:
                 dtp = self._dtype
 
             else:
                 dtp = self._checkvalue(
-                    dtp, info.dtype,
-                    "inconsistent image dtypes")
-            fcl = self._checkvalue(fcl, info.fabioclass,
-                                   "inconsistent image types")
+                    dtp, info.dtype, "inconsistent image dtypes"
+                )
+            fcl = self._checkvalue(
+                fcl, info.fabioclass, "inconsistent image types"
+            )
             nf += info.nframes
             if info.nframes > 1:
                 self._singleframes = False
@@ -261,8 +271,13 @@ class FileInfo(object):
 fabio class: %s
      frames: %s
       dtype: %s
-      shape: %s\n""" % (self.filename, self.fabioclass,
-                        self.nframes, self.dtype, self.shape)
+      shape: %s\n""" % (
+            self.filename,
+            self.fabioclass,
+            self.nframes,
+            self.dtype,
+            self.shape,
+        )
 
         return s
 
@@ -308,4 +323,4 @@ def _process_gel_data(array):
     """Convert a gel data array to regular image data"""
     # An inversion seems to be necessary for our examples
     array = np.invert(array)
-    return array.astype(np.float64)**2 * GEL_SCALE_FACTOR
+    return array.astype(np.float64) ** 2 * GEL_SCALE_FACTOR

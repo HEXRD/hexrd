@@ -2,6 +2,7 @@
 
 To illustrate error when abstract method is not implemented
 """
+
 from .distortionabc import DistortionABC
 from .registry import _RegisterDistortionClass
 

@@ -1,4 +1,5 @@
 """Class for processing individual frames"""
+
 import copy
 
 import numpy as np
@@ -20,6 +21,7 @@ class ProcessedImageSeries(ImageSeries):
     frame_list: list of ints or None, default = None
        specify subset of frames by list; if None, then all frames are used
     """
+
     FLIP = 'flip'
     DARK = 'dark'
     RECT = 'rectangle'
@@ -32,7 +34,7 @@ class ProcessedImageSeries(ImageSeries):
         self._meta = copy.deepcopy(imser.metadata)
         self._oplist = oplist
         self._frames = kwargs.pop('frame_list', None)
-        self._hasframelist = (self._frames is not None)
+        self._hasframelist = self._frames is not None
         if self._hasframelist:
             self._update_omega()
         self._opdict = {}
@@ -83,7 +85,7 @@ class ProcessedImageSeries(ImageSeries):
 
     def _rectangle(self, img, r):
         # restrict to rectangle
-        return img[r[0][0]:r[0][1], r[1][0]:r[1][1]]
+        return img[r[0][0] : r[0][1], r[1][0] : r[1][1]]
 
     def _flip(self, img, flip):
         if flip in ('y', 'v'):  # about y-axis (vertical)
@@ -117,6 +119,7 @@ class ProcessedImageSeries(ImageSeries):
         if "omega" in self.metadata:
             omega = self.metadata["omega"]
             self.metadata["omega"] = omega[self._frames]
+
     #
     # ==================== API
     #

@@ -1,4 +1,3 @@
-
 pstr_mkxtal = "\n\n    This is a program to create a HDF5 file for storing crystallographic information.\n "
 pstr_mkxtal = pstr_mkxtal + " The following inputs are required:\n "
 pstr_mkxtal = pstr_mkxtal + "         Crystal System:\n"
@@ -10,19 +9,47 @@ pstr_mkxtal = pstr_mkxtal + "                 5. Trigonal\n"
 pstr_mkxtal = pstr_mkxtal + "                 6. Monoclinic\n"
 pstr_mkxtal = pstr_mkxtal + "                 7. Triclinic\n\n"
 pstr_mkxtal = pstr_mkxtal + "         Space group number\n"
-pstr_mkxtal = pstr_mkxtal + "         Atomic number (Z) for all species in unit cell\n"
-pstr_mkxtal = pstr_mkxtal + "         Asymmetric positions for all atoms in unit cell\n"
-pstr_mkxtal = pstr_mkxtal + "         Debye-Waller factors for all atoms in the unit cell\n"
-pstr_mkxtal = pstr_mkxtal + "         You'll be prompted for these values now\n\n"
+pstr_mkxtal = (
+    pstr_mkxtal + "         Atomic number (Z) for all species in unit cell\n"
+)
+pstr_mkxtal = (
+    pstr_mkxtal + "         Asymmetric positions for all atoms in unit cell\n"
+)
+pstr_mkxtal = (
+    pstr_mkxtal
+    + "         Debye-Waller factors for all atoms in the unit cell\n"
+)
+pstr_mkxtal = (
+    pstr_mkxtal + "         You'll be prompted for these values now\n\n"
+)
 pstr_mkxtal = pstr_mkxtal + "\n Note about the trigonal system:\n"
 pstr_mkxtal = pstr_mkxtal + " -------------------------------\n"
-pstr_mkxtal = pstr_mkxtal + " Primitive trigonal crystals are defined with respect to a HEXAGONAL\n"
-pstr_mkxtal = pstr_mkxtal + " reference frame.  Rhombohedral crystals can be referenced with\n"
-pstr_mkxtal = pstr_mkxtal + " respect to a HEXAGONAL basis (first setting), or with respect to\n"
-pstr_mkxtal = pstr_mkxtal + " a RHOMBOHEDRAL basis (second setting).  The default setting for\n"
-pstr_mkxtal = pstr_mkxtal + " trigonal symmetry is the hexagonal setting.  When you select\n"
-pstr_mkxtal = pstr_mkxtal + " crystal system 5 above, you will be prompted for the setting. \n"
+pstr_mkxtal = (
+    pstr_mkxtal
+    + " Primitive trigonal crystals are defined with respect to a HEXAGONAL\n"
+)
+pstr_mkxtal = (
+    pstr_mkxtal
+    + " reference frame.  Rhombohedral crystals can be referenced with\n"
+)
+pstr_mkxtal = (
+    pstr_mkxtal
+    + " respect to a HEXAGONAL basis (first setting), or with respect to\n"
+)
+pstr_mkxtal = (
+    pstr_mkxtal
+    + " a RHOMBOHEDRAL basis (second setting).  The default setting for\n"
+)
+pstr_mkxtal = (
+    pstr_mkxtal
+    + " trigonal symmetry is the hexagonal setting.  When you select\n"
+)
+pstr_mkxtal = (
+    pstr_mkxtal
+    + " crystal system 5 above, you will be prompted for the setting. \n"
+)
 
+# fmt: off
 pstr_spacegroup = [
     " P  1      ", " P -1      ", \
     # MONOCLINIC SPACE GROUPS
@@ -93,18 +120,30 @@ pstr_spacegroup = [
     # TRIGONAL GROUPS RHOMBOHEDRAL SETTING
     " R 3   |146", " R -3  |148", " R 3 2 |155", " R 3 m |160", \
     " R 3 c |161", " R -3 m|166", " R -3 c|167"]
+# fmt: on
 
 
+xtal_dict = {
+    1: 'cubic',
+    2: 'tetragonal',
+    3: 'orthorhombic',
+    4: 'hexagonal',
+    5: 'trigonal',
+    6: 'monoclinic',
+    7: 'triclinic',
+}
+xtal_sys_dict = {
+    'cubic': 1,
+    'tetragonal': 2,
+    'orthorhombic': 3,
+    'hexagonal': 4,
+    'trigonal': 5,
+    'monoclinic': 6,
+    'triclinic': 7,
+}
 
-xtal_dict = {1: 'cubic', 2: 'tetragonal', 3: 'orthorhombic',
-             4: 'hexagonal', 5: 'trigonal', 6: 'monoclinic',
-             7: 'triclinic'}
-xtal_sys_dict = {'cubic': 1, 'tetragonal': 2, 'orthorhombic': 3,
-                 'hexagonal': 4, 'trigonal': 5, 'monoclinic': 6,
-                 'triclinic': 7}
 
-
-
+# fmt: off
 pstr_pointgroup = [
     '    1', '   -1', '    2', '    m', '  2/m', '  222',
     '  mm2', '  mmm', '    4', '   -4', '  4/m', '  422',
@@ -112,12 +151,13 @@ pstr_pointgroup = [
     '   3m', '  -3m', '    6', '   -6', '  6/m', '  622',
     '  6mm', ' -6m2', '6/mmm', '   23', '   m3', '  432',
     ' -43m', ' m-3m', '  532', '  822', ' 1022', ' 1222']
-
+# fmt: on
 
 
 TRIG = [146, 148, 155, 160, 161, 166, 167]
 
 
+# fmt: off
 # symbols and Z for all elements
 pstr_Elements = ' ------------------------------------ Periodic Table of the Elements --------------------------------------' + "\n" \
 '1:H                                                                                                    2:He' + "\n" \
@@ -135,7 +175,7 @@ pstr_Elements = ' ------------------------------------ Periodic Table of the Ele
 which have two origin choices the two values are the 
 site symmetries of the origin. There are 24 such space 
 groups'''
-
+# fmt: on
 
 two_origin_choice = {
     48: ['222', '-1'],
@@ -166,32 +206,32 @@ two_origin_choice = {
 
 
 def PrintPossibleSG(xtal_sys):
-    if(xtal_sys == 1):
+    if xtal_sys == 1:
         sgmax = 230
         sgmin = 195
-    elif(xtal_sys == 2):
+    elif xtal_sys == 2:
         sgmax = 142
         sgmin = 75
-    elif(xtal_sys == 3):
+    elif xtal_sys == 3:
         sgmax = 74
         sgmin = 16
-    elif(xtal_sys == 4):
+    elif xtal_sys == 4:
         sgmax = 194
         sgmin = 168
-    elif(xtal_sys == 5):
+    elif xtal_sys == 5:
         sgmax = 167
         sgmin = 143
-    elif(xtal_sys == 6):
+    elif xtal_sys == 6:
         sgmax = 15
         sgmin = 3
-    elif(xtal_sys == 7):
+    elif xtal_sys == 7:
         sgmax = 2
         sgmin = 1
 
-    for i in range(sgmin, sgmax+1):
+    for i in range(sgmin, sgmax + 1):
         j = i - sgmin + 1
-        pstr = str(i) + ":" + pstr_spacegroup[i-1] + "\t"
-        if(j % 4 == 0 or j == sgmax):
+        pstr = str(i) + ":" + pstr_spacegroup[i - 1] + "\t"
+        if j % 4 == 0 or j == sgmax:
             print(pstr)
         else:
             print(pstr, end='')
@@ -1299,4 +1339,4 @@ def _buildDict(hstr):
 
 
 lookupHall, Hall_to_sgnum = _buildDict(HALL_STR)
-lookupHM,     HM_to_sgnum = _buildDict(HM_STR)
+lookupHM, HM_to_sgnum = _buildDict(HM_STR)

@@ -7,8 +7,8 @@ from .common import TestConfig, test_data
 from hexrd.hedm import config
 
 
-reference_data = \
-"""
+reference_data = (
+    """
 analysis_name: analysis
 #working_dir: # not set to test defaulting to cwd
 ---
@@ -29,7 +29,9 @@ multiprocessing: 1000
 multiprocessing: -1000
 ---
 multiprocessing: foo
-""" % test_data
+"""
+    % test_data
+)
 
 
 class TestRootConfig(TestConfig):
@@ -41,8 +43,8 @@ class TestRootConfig(TestConfig):
     def test_analysis_dir(self):
         self.assertEqual(
             str(self.cfgs[0].analysis_dir),
-            os.path.join(os.getcwd(), 'analysis')
-            )
+            os.path.join(os.getcwd(), 'analysis'),
+        )
 
     def test_analysis_name(self):
         self.assertEqual(self.cfgs[0].analysis_name, 'analysis')
@@ -66,9 +68,12 @@ class TestRootConfig(TestConfig):
             str(self.cfgs[7].working_dir), test_data['existing_path']
         )
         self.assertRaises(
-            IOError, setattr, self.cfgs[7], 'working_dir',
-            test_data['nonexistent_path']
-            )
+            IOError,
+            setattr,
+            self.cfgs[7],
+            'working_dir',
+            test_data['nonexistent_path'],
+        )
 
     @skipIf(mp.cpu_count() < 2, 'test requires at least two cores')
     def test_multiprocessing(self):
@@ -76,11 +81,11 @@ class TestRootConfig(TestConfig):
         self.assertEqual(self.cfgs[0].multiprocessing, ncpus - 1)
         self.assertEqual(self.cfgs[1].multiprocessing, ncpus - 1)
         self.assertEqual(self.cfgs[2].multiprocessing, ncpus)
-        self.assertEqual(self.cfgs[3].multiprocessing, ncpus//2)
+        self.assertEqual(self.cfgs[3].multiprocessing, ncpus // 2)
         self.assertEqual(self.cfgs[4].multiprocessing, 2)
         self.assertEqual(self.cfgs[5].multiprocessing, ncpus)
         self.assertEqual(self.cfgs[6].multiprocessing, 1)
-        self.assertEqual(self.cfgs[7].multiprocessing, ncpus-1)
+        self.assertEqual(self.cfgs[7].multiprocessing, ncpus - 1)
         self.cfgs[7].multiprocessing = 1
         self.assertEqual(self.cfgs[7].multiprocessing, 1)
         self.cfgs[7].multiprocessing = 'all'
@@ -89,11 +94,10 @@ class TestRootConfig(TestConfig):
         self.assertEqual(self.cfgs[7].multiprocessing, 2)
         self.assertRaises(
             RuntimeError, setattr, self.cfgs[7], 'multiprocessing', 'foo'
-            )
+        )
         self.assertRaises(
             RuntimeError, setattr, self.cfgs[7], 'multiprocessing', -2
-            )
-
+        )
 
 
 class TestSingleConfig(TestConfig):

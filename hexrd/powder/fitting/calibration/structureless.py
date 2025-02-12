@@ -6,8 +6,19 @@ import numpy as np
 
 from hexrd.core.instrument import switch_xray_source
 
-from .lmfit_param_handling import add_engineering_constraints, create_instr_params, create_tth_parameters, DEFAULT_EULER_CONVENTION, tth_parameter_prefixes, update_instrument_from_params
-from hexrd.core.fitting.calibration.relative_constraints import create_relative_constraints, RelativeConstraints, RelativeConstraintsType
+from .lmfit_param_handling import (
+    add_engineering_constraints,
+    create_instr_params,
+    create_tth_parameters,
+    DEFAULT_EULER_CONVENTION,
+    tth_parameter_prefixes,
+    update_instrument_from_params,
+)
+from hexrd.core.fitting.calibration.relative_constraints import (
+    create_relative_constraints,
+    RelativeConstraints,
+    RelativeConstraintsType,
+)
 
 
 class StructurelessCalibrator:
@@ -29,20 +40,24 @@ class StructurelessCalibrator:
     22.83 mm <= |IMAGE-PLATE-2 tvec[1]| + |IMAGE-PLATE-2 tvec[1]| <= 23.43 mm
 
     """
-    def __init__(self,
-                 instr,
-                 data,
-                 tth_distortion=None,
-                 engineering_constraints=None,
-                 relative_constraints_type=RelativeConstraintsType.none,
-                 euler_convention=DEFAULT_EULER_CONVENTION):
+
+    def __init__(
+        self,
+        instr,
+        data,
+        tth_distortion=None,
+        engineering_constraints=None,
+        relative_constraints_type=RelativeConstraintsType.none,
+        euler_convention=DEFAULT_EULER_CONVENTION,
+    ):
 
         self._instr = instr
         self._data = data
         self._tth_distortion = tth_distortion
         self._engineering_constraints = engineering_constraints
         self._relative_constraints = create_relative_constraints(
-            relative_constraints_type, self.instr)
+            relative_constraints_type, self.instr
+        )
         self.euler_convention = euler_convention
         self._update_tth_distortion_panels()
         self.make_lmfit_params()
@@ -80,10 +95,9 @@ class StructurelessCalibrator:
         prefixes = tth_parameter_prefixes(self.instr)
         for xray_source in self.data:
             prefix = prefixes[xray_source]
-            for ii, (rng, corr_rng) in enumerate(zip(
-                meas_angles[xray_source],
-                tth_correction[xray_source]
-            )):
+            for ii, (rng, corr_rng) in enumerate(
+                zip(meas_angles[xray_source], tth_correction[xray_source])
+            ):
                 for det_name, panel in self.instr.detectors.items():
                     if rng[det_name] is None or rng[det_name].size == 0:
                         continue
@@ -98,13 +112,11 @@ class StructurelessCalibrator:
         return np.hstack(residual)
 
     def set_minimizer(self):
-        self.fitter = lmfit.Minimizer(self.calc_residual,
-                                      self.params,
-                                      nan_policy='omit')
+        self.fitter = lmfit.Minimizer(
+            self.calc_residual, self.params, nan_policy='omit'
+        )
 
-    def run_calibration(self,
-                        method='least_squares',
-                        odict=None):
+    def run_calibration(self, method='least_squares', odict=None):
         """
         odict is the options dictionary
         """
@@ -124,14 +136,12 @@ class StructurelessCalibrator:
             }
             fdict.update(odict)
 
-            self.res = self.fitter.least_squares(self.params,
-                                                 **fdict)
+            self.res = self.fitter.least_squares(self.params, **fdict)
         else:
             fdict = odict
-            self.res = self.fitter.scalar_minimize(method=method,
-                                                   params=self.params,
-                                                   max_nfev=50000,
-                                                   **fdict)
+            self.res = self.fitter.scalar_minimize(
+                method=method, params=self.params, max_nfev=50000, **fdict
+            )
 
         self.params = self.res.params
         # res = self.fitter.least_squares(**fdict)
@@ -169,7 +179,8 @@ class StructurelessCalibrator:
         current = getattr(self, '_relative_constraints', None)
         if current is None or current.type != v:
             self.relative_constraints = create_relative_constraints(
-                v, self.instr)
+                v, self.instr
+            )
 
     @property
     def relative_constraints(self) -> RelativeConstraints:
@@ -245,9 +256,10 @@ class StructurelessCalibrator:
 
                         panel = self.instr.detectors[det_name]
                         angles, _ = panel.cart_to_angles(
-                                                    meas_xy,
-                                                    tvec_s=self.instr.tvec,
-                                                    apply_distortion=True)
+                            meas_xy,
+                            tvec_s=self.instr.tvec,
+                            apply_distortion=True,
+                        )
                         ang_dict[det_name] = angles
                     ang_list.append(ang_dict)
 

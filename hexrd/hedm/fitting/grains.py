@@ -19,7 +19,7 @@ sqrt_epsf = np.sqrt(epsf)  # ~1.5e-8
 
 bVec_ref = constants.beam_vec
 eta_ref = constants.eta_vec
-vInv_ref = np.r_[1., 1., 1., 0., 0., 0.]
+vInv_ref = np.r_[1.0, 1.0, 1.0, 0.0, 0.0, 0.0]
 
 
 # for grain parameters
@@ -27,11 +27,19 @@ gFlag_ref = np.ones(12, dtype=bool)
 gScl_ref = np.ones(12, dtype=bool)
 
 
-def fitGrain(gFull, instrument, reflections_dict,
-             bMat, wavelength,
-             gFlag=gFlag_ref, gScl=gScl_ref,
-             omePeriod=None,
-             factor=0.1, xtol=sqrt_epsf, ftol=sqrt_epsf):
+def fitGrain(
+    gFull,
+    instrument,
+    reflections_dict,
+    bMat,
+    wavelength,
+    gFlag=gFlag_ref,
+    gScl=gScl_ref,
+    omePeriod=None,
+    factor=0.1,
+    xtol=sqrt_epsf,
+    ftol=sqrt_epsf,
+):
     """
     Perform least-squares optimization of grain parameters.
 
@@ -78,11 +86,24 @@ def fitGrain(gFull, instrument, reflections_dict,
 
     gFit = gFull[gFlag]
 
-    fitArgs = (gFull, gFlag, instrument, reflections_dict,
-               bMat, wavelength, omePeriod)
-    results = optimize.leastsq(objFuncFitGrain, gFit, args=fitArgs,
-                               diag=1./gScl[gFlag].flatten(),
-                               factor=0.1, xtol=xtol, ftol=ftol)
+    fitArgs = (
+        gFull,
+        gFlag,
+        instrument,
+        reflections_dict,
+        bMat,
+        wavelength,
+        omePeriod,
+    )
+    results = optimize.leastsq(
+        objFuncFitGrain,
+        gFit,
+        args=fitArgs,
+        diag=1.0 / gScl[gFlag].flatten(),
+        factor=0.1,
+        xtol=xtol,
+        ftol=ftol,
+    )
 
     gFit_opt = results[0]
 
@@ -91,13 +112,18 @@ def fitGrain(gFull, instrument, reflections_dict,
     return retval
 
 
-def objFuncFitGrain(gFit, gFull, gFlag,
-                    instrument,
-                    reflections_dict,
-                    bMat, wavelength,
-                    omePeriod,
-                    simOnly=False,
-                    return_value_flag=return_value_flag):
+def objFuncFitGrain(
+    gFit,
+    gFull,
+    gFlag,
+    instrument,
+    reflections_dict,
+    bMat,
+    wavelength,
+    omePeriod,
+    simOnly=False,
+    return_value_flag=return_value_flag,
+):
     """
     Calculate residual between measured and simulated ff-HEDM G-vectors.
 
@@ -182,7 +208,8 @@ def objFuncFitGrain(gFit, gFull, gFlag,
         det_keys_ordered.append(det_key)
 
         rMat_d, tVec_d, chi, tVec_s = extract_detector_transformation(
-            instrument.detector_parameters[det_key])
+            instrument.detector_parameters[det_key]
+        )
 
         results = reflections_dict[det_key]
         if len(results) == 0:
@@ -204,9 +231,7 @@ def objFuncFitGrain(gFit, gFull, gFlag,
             # WARNING: hkls and derived vectors below must be columnwise;
             # strictly necessary??? change affected APIs instead?
             # <JVB 2017-03-26>
-            hkls = np.atleast_2d(
-                np.vstack([x[2] for x in results])
-            ).T
+            hkls = np.atleast_2d(np.vstack([x[2] for x in results])).T
 
             meas_xyo = np.atleast_2d(
                 np.vstack([np.r_[x[7], x[6][-1]] for x in results])
@@ -236,19 +261,33 @@ def objFuncFitGrain(gFit, gFull, gFlag,
 
         # !!!: check that this operates on UNWARPED xy
         match_omes, calc_omes = matchOmegas(
-            meas_xyo, hkls, chi, rMat_c, bMat, wavelength,
-            vInv=vInv_s, beamVec=bVec, etaVec=eVec,
-            omePeriod=omePeriod)
+            meas_xyo,
+            hkls,
+            chi,
+            rMat_c,
+            bMat,
+            wavelength,
+            vInv=vInv_s,
+            beamVec=bVec,
+            etaVec=eVec,
+            omePeriod=omePeriod,
+        )
 
         # append to omes dict
         calc_omes_dict[det_key] = calc_omes
 
         # TODO: try Numba implementations
         rMat_s = xfcapi.make_sample_rmat(chi, calc_omes)
-        calc_xy = xfcapi.gvec_to_xy(gHat_c.T,
-                                    rMat_d, rMat_s, rMat_c,
-                                    tVec_d, tVec_s, tVec_c,
-                                    beam_vec=bVec)
+        calc_xy = xfcapi.gvec_to_xy(
+            gHat_c.T,
+            rMat_d,
+            rMat_s,
+            rMat_c,
+            tVec_d,
+            tVec_s,
+            tVec_c,
+            beam_vec=bVec,
+        )
 
         # append to xy dict
         calc_xy_dict[det_key] = calc_xy
@@ -265,8 +304,9 @@ def objFuncFitGrain(gFit, gFull, gFlag,
     npts = len(meas_xyo_all)
     if np.any(np.isnan(calc_xy)):
         raise RuntimeError(
-            "infeasible pFull: may want to scale" +
-            "back finite difference step size")
+            "infeasible pFull: may want to scale"
+            + "back finite difference step size"
+        )
 
     # return values
     if simOnly:
@@ -276,8 +316,10 @@ def objFuncFitGrain(gFit, gFull, gFlag,
         else:
             rd = dict.fromkeys(det_keys_ordered)
             for det_key in det_keys_ordered:
-                rd[det_key] = {'calc_xy': calc_xy_dict[det_key],
-                               'calc_omes': calc_omes_dict[det_key]}
+                rd[det_key] = {
+                    'calc_xy': calc_xy_dict[det_key],
+                    'calc_omes': calc_omes_dict[det_key],
+                }
             retval = rd
     else:
         # return residual vector
@@ -286,27 +328,34 @@ def objFuncFitGrain(gFit, gFull, gFlag,
         diff_ome = rotations.angularDifference(
             calc_omes_all, meas_xyo_all[:, 2]
         )
-        retval = np.hstack([diff_vecs_xy,
-                            diff_ome.reshape(npts, 1)
-                            ]).flatten()
+        retval = np.hstack([diff_vecs_xy, diff_ome.reshape(npts, 1)]).flatten()
         if return_value_flag == 1:
             # return scalar sum of squared residuals
             retval = sum(abs(retval))
         elif return_value_flag == 2:
             # return DOF-normalized chisq
             # TODO: check this calculation
-            denom = 3*npts - len(gFit) - 1.
+            denom = 3 * npts - len(gFit) - 1.0
             if denom != 0:
-                nu_fac = 1. / denom
+                nu_fac = 1.0 / denom
             else:
-                nu_fac = 1.
+                nu_fac = 1.0
             retval = nu_fac * sum(retval**2)
     return retval
 
 
-def matchOmegas(xyo_det, hkls_idx, chi, rMat_c, bMat, wavelength,
-                vInv=vInv_ref, beamVec=bVec_ref, etaVec=eta_ref,
-                omePeriod=None):
+def matchOmegas(
+    xyo_det,
+    hkls_idx,
+    chi,
+    rMat_c,
+    bMat,
+    wavelength,
+    vInv=vInv_ref,
+    beamVec=bVec_ref,
+    etaVec=eta_ref,
+    omePeriod=None,
+):
     """
     For a given list of (x, y, ome) points, outputs the index into the results
     from oscillAnglesOfHKLs, including the calculated omega values.
@@ -318,10 +367,15 @@ def matchOmegas(xyo_det, hkls_idx, chi, rMat_c, bMat, wavelength,
         meas_omes = xyo_det[:, 2]
 
     oangs0, oangs1 = xfcapi.oscill_angles_of_hkls(
-            hkls_idx.T, chi, rMat_c, bMat, wavelength,
-            v_inv=vInv,
-            beam_vec=beamVec,
-            eta_vec=etaVec)
+        hkls_idx.T,
+        chi,
+        rMat_c,
+        bMat,
+        wavelength,
+        v_inv=vInv,
+        beam_vec=beamVec,
+        eta_vec=etaVec,
+    )
     if np.any(np.isnan(oangs0)):
         # debugging
         # TODO: remove this
@@ -337,8 +391,12 @@ def matchOmegas(xyo_det, hkls_idx, chi, rMat_c, bMat, wavelength,
         # CAPI version gives vstacked angles... must be (2, nhkls)
         calc_omes = np.vstack([oangs0[:, 2], oangs1[:, 2]])
     if omePeriod is not None:
-        calc_omes = np.vstack([rotations.mapAngle(oangs0[:, 2], omePeriod),
-                               rotations.mapAngle(oangs1[:, 2], omePeriod)])
+        calc_omes = np.vstack(
+            [
+                rotations.mapAngle(oangs0[:, 2], omePeriod),
+                rotations.mapAngle(oangs1[:, 2], omePeriod),
+            ]
+        )
     # do angular difference
     diff_omes = rotations.angularDifference(
         np.tile(meas_omes, (2, 1)), calc_omes

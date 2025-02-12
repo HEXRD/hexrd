@@ -45,4 +45,3 @@ def __getattr__(name):
             return importlib.import_module(module)
         return module
     raise AttributeError(f"Module `hexrd` has no attribute {name}")
-    

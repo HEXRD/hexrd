@@ -10,18 +10,15 @@ from hexrd.core.transforms.new_capi.xf_new_capi import make_sample_rmat
 def test_make_sample_rmat_from_file(test_data_dir):
     # Load the array from a file
     arr = np.load(
-        test_data_dir / 'test_correct_make_sample_rmat.npy',
-        allow_pickle=True
+        test_data_dir / 'test_correct_make_sample_rmat.npy', allow_pickle=True
     )
 
     for obj in arr:
 
-        result = make_sample_rmat(
-            obj["chi"],
-            obj["omega"]
-        )
+        result = make_sample_rmat(obj["chi"], obj["omega"])
 
         assert np.allclose(result, obj["result"])
+
 
 # def test_correct_make_sample_rmat(test_data_dir):
 #     arr = [];

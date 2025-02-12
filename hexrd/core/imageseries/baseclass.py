@@ -1,6 +1,7 @@
-"""Base class for imageseries
-"""
+"""Base class for imageseries"""
+
 from .imageseriesabc import ImageSeriesABC
+
 
 class ImageSeries(ImageSeriesABC):
     """collection of images

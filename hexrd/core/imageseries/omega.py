@@ -2,14 +2,17 @@
 
 * OmegaWedges class specifies omega metadata in wedges
 """
+
 import numpy as np
 
 from .baseclass import ImageSeries
 
 OMEGA_KEY = 'omega'
 
+
 class OmegaImageSeries(ImageSeries):
     """ImageSeries with omega metadata"""
+
     DFLT_TOL = 1.0e-6
     TAU = 360
 
@@ -40,8 +43,8 @@ class OmegaImageSeries(ImageSeries):
             if delta <= 0:
                 raise OmegaSeriesError('omega array must be increasing')
             # check whether delta changes or ranges not contiguous
-            d = om[f,1] - om[f,0]
-            if (np.abs(d - delta) > tol) or (np.abs(om[f,0] - omlast) > tol):
+            d = om[f, 1] - om[f, 0]
+            if (np.abs(d - delta) > tol) or (np.abs(om[f, 0] - omlast) > tol):
                 starts.append(f)
                 delta = d
             omlast = om[f, 1]
@@ -55,15 +58,15 @@ class OmegaImageSeries(ImageSeries):
         for s in range(nw):
             ostart = om[starts[s], 0]
             ostop = om[starts[s + 1] - 1, 1]
-            steps = starts[s+1] - starts[s]
+            steps = starts[s + 1] - starts[s]
             self._omegawedges.addwedge(ostart, ostop, steps)
             #
-            delta = (ostop - ostart)/steps
+            delta = (ostop - ostart) / steps
             self._wedge_om[s, :] = (ostart, ostop, delta)
             self._wedge_f[s, 0] = nf0
             self._wedge_f[s, 1] = steps
             nf0 += steps
-        assert(nf0 == nf)
+        assert nf0 == nf
 
     @property
     def omega(self):
@@ -83,7 +86,7 @@ class OmegaImageSeries(ImageSeries):
     def wedge(self, i):
         """return i'th wedge as a dictionary"""
         d = self.omegawedges.wedges[i]
-        delta = (d['ostop'] - d['ostart'])/d['nsteps']
+        delta = (d['ostop'] - d['ostart']) / d['nsteps']
         d.update(delta=delta)
         return d
 
@@ -97,7 +100,9 @@ class OmegaImageSeries(ImageSeries):
             omcheck = omin + np.mod(om - omin, self.TAU)
             if omcheck < omax:
                 odel = self._wedge_om[i, 2]
-                f = self._wedge_f[i,0] + int(np.floor((omcheck - omin)/odel))
+                f = self._wedge_f[i, 0] + int(
+                    np.floor((omcheck - omin) / odel)
+                )
                 w = i
                 break
 
@@ -115,7 +120,7 @@ class OmegaImageSeries(ImageSeries):
 
         # if same wedge, require frames be increasing
         if (w0 == w1) and (f1 > f0):
-            return list(range(f0, f1+1))
+            return list(range(f0, f1 + 1))
 
         # case: adjacent wedges with 2pi jump in omega
         w0max = self._wedge_om[w0, 1]
@@ -137,9 +142,11 @@ class OmegaWedges(object):
     nframes: int
         number of frames in imageseries
     """
+
     def __init__(self, nframes):
         self.nframes = nframes
         self._wedges = []
+
     #
     # ============================== API
     #
@@ -147,8 +154,10 @@ class OmegaWedges(object):
     def omegas(self):
         """n x 2 array of omega values, one per frame"""
         if self.nframes != self.wframes:
-            msg = "number of frames (%s) does not match "\
-                  "number of wedge frames (%s)" %(self.nframes, self.wframes)
+            msg = (
+                "number of frames (%s) does not match "
+                "number of wedge frames (%s)" % (self.nframes, self.wframes)
+            )
             raise OmegaSeriesError(msg)
 
         oa = np.zeros((self.nframes, 2))
@@ -217,5 +226,6 @@ class OmegaWedges(object):
 class OmegaSeriesError(Exception):
     def __init__(self, value):
         self.value = value
+
     def __str__(self):
         return repr(self.value)

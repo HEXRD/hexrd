@@ -2,13 +2,11 @@ from dataclasses import dataclass, field, fields
 import glob
 import os
 import yaml
-from hexrd.preprocess.argument_classes_factory import (
+from hexrd.hedm.preprocess.argument_classes_factory import (
     ArgumentClassesFactory,
     autoregister,
 )
-from hexrd.preprocess.yaml_internals import (
-    HexrdPPScriptArgumentsDumper,
-)
+from hexrd.hedm.preprocess.yaml_internals import HexrdPPScriptArgumentsDumper
 from typing import Any, Union, Optional, cast
 
 

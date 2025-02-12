@@ -3,6 +3,7 @@
 import ctypes
 import numpy as np
 
+
 class DiscretizationError(Exception):
     """
     Called when discretization of models goes wrong.

@@ -524,6 +524,7 @@ hexrd\preprocess\argument_classes_factory.py	hexrd\hedm\preprocess\argument_clas
 hexrd\preprocess\preprocessors.py	hexrd\hedm\preprocess\preprocessors.py
 hexrd\preprocess\profiles.py	hexrd\hedm\preprocess\profiles.py
 hexrd\preprocess\yaml_internals.py	hexrd\hedm\preprocess\yaml_internals.py
+hexrd\preprocess\__init__.py    hexrd\hedm\preprocess\__init__.py
 tests\test_preprocess.py	tests\test_preprocess.py
 tests\test_polar_view.py	tests\test_polar_view.py
 hexrd\transforms\new_capi   hexrd\core\transforms\new_capi

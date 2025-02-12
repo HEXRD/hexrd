@@ -69,25 +69,25 @@ def _calcxrayformfactor(
     f_anomalous_data,
     f_anomalous_data_sizes,
 ):
-    """we are using the following form factors for 
-       x-aray scattering:
-        1. coherent x-ray scattering, f0 tabulated in 
-           Acta Cryst. (1995). A51,416-431
-        2. Anomalous x-ray scattering (complex (f'+if")) 
-           tabulated in J. Phys. Chem. Ref. Data, 24, 71 (1995)
-           and J. Phys. Chem. Ref. Data, 29, 597 (2000).
-        3. Thompson nuclear scattering, fNT tabulated in 
-           Phys. Lett. B, 69, 281 (1977).
+    """we are using the following form factors for
+    x-aray scattering:
+     1. coherent x-ray scattering, f0 tabulated in
+        Acta Cryst. (1995). A51,416-431
+     2. Anomalous x-ray scattering (complex (f'+if"))
+        tabulated in J. Phys. Chem. Ref. Data, 24, 71 (1995)
+        and J. Phys. Chem. Ref. Data, 29, 597 (2000).
+     3. Thompson nuclear scattering, fNT tabulated in
+        Phys. Lett. B, 69, 281 (1977).
 
-        the anomalous scattering is a complex number (f' + if"), 
-        where the two terms are given by:
-        f' = f1 + frel - Z
-        f" = f2
+     the anomalous scattering is a complex number (f' + if"),
+     where the two terms are given by:
+     f' = f1 + frel - Z
+     f" = f2
 
-        f1 and f2 have been tabulated as a function of energy in 
-        Anomalous.h5 in hexrd folder
+     f1 and f2 have been tabulated as a function of energy in
+     Anomalous.h5 in hexrd folder
 
-        overall f = (f0 + f' + if" +fNT)
+     overall f = (f0 + f' + if" +fNT)
     """
 
     f_anomalous = _calcanomalousformfactor(

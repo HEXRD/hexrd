@@ -1,5 +1,5 @@
-"""HDF5 adapter class
-"""
+"""HDF5 adapter class"""
+
 import h5py
 import warnings
 
@@ -53,7 +53,7 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
         #     an issue arises at some point
         try:
             self.close()
-        except(Exception):
+        except Exception:
             warnings.warn("HDF5ImageSeries could not close h5 file")
 
     def __getitem__(self, key):

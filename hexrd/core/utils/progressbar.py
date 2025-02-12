@@ -6,12 +6,13 @@ try:
 
     class ProgressBar(_ProgressBar):
         "overriding the default to delete the progress bar when finished"
+
         def finish(self):
             'Puts the ProgressBar bar in the finished state.'
             self.finished = True
             self.update(self.maxval)
             # clear the progress bar:
-            self.fd.write('\r'+' '*self.term_width+'\r')
+            self.fd.write('\r' + ' ' * self.term_width + '\r')
             if self.signal_set:
                 signal.signal(signal.SIGWINCH, signal.SIG_DFL)
 

@@ -7,7 +7,10 @@ import pytest
 from hexrd.core.material.material import load_materials_hdf5
 from hexrd.hedm.instrument.hedm_instrument import HEDMInstrument
 
-from hexrd.core.fitting.calibration import InstrumentCalibrator, PowderCalibrator
+from hexrd.core.fitting.calibration import (
+    InstrumentCalibrator,
+    PowderCalibrator,
+)
 
 
 @pytest.fixture
@@ -25,7 +28,8 @@ def test_2xrs_calibration(tardis_2xrs_examples_dir, test_data_dir):
 
     # Load the picks
     with open(
-        tardis_2xrs_examples_dir / 'tardis_2xrs_example.yml', 'r',
+        tardis_2xrs_examples_dir / 'tardis_2xrs_example.yml',
+        'r',
         encoding='utf-8',
     ) as rf:
         conf = yaml.safe_load(rf)

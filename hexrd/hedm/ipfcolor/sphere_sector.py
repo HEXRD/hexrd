@@ -62,6 +62,7 @@ groups. This will say 'upper' or 'both' depending on what hemisphere is consider
 there are no triangles for the triclininc cases and needs to be handles differently
 
 '''
+# fmt: off
 pg2vertex = {
     'c1': [3, np.array([[0., 0., 1.],
                         [1., 0., 0.],
@@ -281,6 +282,7 @@ pg2vertex = {
            np.atleast_2d(np.array([0, 1, 2])).T,
            'upper']
 }
+# fmt: on
 
 
 class sector:
@@ -290,7 +292,7 @@ class sector:
     @DETAIL  this class is used to store spherical patch for a given point group.
              the class also has methods to compute the color of a direction by
              computing the hue, saturation and lightness values in [0,1]. these
-             values can be converted to rgb for display with the well known 
+             values can be converted to rgb for display with the well known
              conversion formula.
 
 
@@ -306,7 +308,7 @@ class sector:
                 11/12/2020 SS 1.1 added lauesym as additional input parameter
                 11/23/2020 SS 1.2 added supergroupsym as additional parameter
 
-        @detail: this routine initializes the data needed for reducing a 
+        @detail: this routine initializes the data needed for reducing a
         direction to the stereographic fundamental zone (standard
         stereographic triangle) for the pointgroup/lauegroup symmetry
         of the crystal.
@@ -341,37 +343,37 @@ class sector:
         self.connectivity['superlaue'] = data[2]
         self.hemisphere['superlaue'] = data[3]
 
-        if(self.ntriangle['pg'] != 0):
+        if self.ntriangle['pg'] != 0:
             # compute the barycenter or the centroid of point group
             b = np.mean(self.vertices['pg'], axis=1)
-            b = b/np.linalg.norm(b)
+            b = b / np.linalg.norm(b)
             self.barycenter['pg'] = b
         else:
-            self.barycenter['pg'] = np.array([0., 0., 1.])
+            self.barycenter['pg'] = np.array([0.0, 0.0, 1.0])
 
-        if(self.ntriangle['laue'] != 0):
+        if self.ntriangle['laue'] != 0:
             # compute the barycenter or the centroid of the laue group triangle
             b = np.mean(self.vertices['laue'], axis=1)
-            b = b/np.linalg.norm(b)
+            b = b / np.linalg.norm(b)
             self.barycenter['laue'] = b
         else:
-            self.barycenter['laue'] = np.array([0., 0., 1.])
+            self.barycenter['laue'] = np.array([0.0, 0.0, 1.0])
 
-        if(self.ntriangle['super'] != 0):
+        if self.ntriangle['super'] != 0:
             # compute the barycenter or the centroid of the supergroup group triangle
             b = np.mean(self.vertices['super'], axis=1)
-            b = b/np.linalg.norm(b)
+            b = b / np.linalg.norm(b)
             self.barycenter['super'] = b
         else:
-            self.barycenter['super'] = np.array([0., 0., 1.])
+            self.barycenter['super'] = np.array([0.0, 0.0, 1.0])
 
-        if(self.ntriangle['superlaue'] != 0):
+        if self.ntriangle['superlaue'] != 0:
             # compute the barycenter or the centroid of the supergroup group triangle
             b = np.mean(self.vertices['superlaue'], axis=1)
-            b = b/np.linalg.norm(b)
+            b = b / np.linalg.norm(b)
             self.barycenter['superlaue'] = b
         else:
-            self.barycenter['superlaue'] = np.array([0., 0., 1.])
+            self.barycenter['superlaue'] = np.array([0.0, 0.0, 1.0])
 
     def check_norm(self, dir3):
         '''
@@ -384,43 +386,49 @@ class sector:
         n = np.linalg.norm(dir3, axis=1)
         mask = n > eps
         n = n[mask]
-        dir3[mask, :] = dir3[mask, :]/np.tile(n, [3, 1]).T
+        dir3[mask, :] = dir3[mask, :] / np.tile(n, [3, 1]).T
 
     def check_hemisphere(self):
 
         zcoord = np.array([self.vx[2], self.vy[2], self.vz[2]])
-        if(np.logical_or(np.all(zcoord >= 0.),  np.all(zcoord <= 0.))):
+        if np.logical_or(np.all(zcoord >= 0.0), np.all(zcoord <= 0.0)):
             pass
         else:
-            raise RuntimeError("sphere_sector: the vertices of the stereographic \
-                triangle are not in the same hemisphere")
+            raise RuntimeError(
+                "sphere_sector: the vertices of the stereographic \
+                triangle are not in the same hemisphere"
+            )
 
     def inside_sphericalpatch(self, vertex, dir3):
         '''
-            @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-            @DATE    12/09/2020 SS 1.0 original
-            @PARAM   vertex vertices of the spherical triangle
-                     dir3 normalized direction vectors
-                     switch which group to check. acceptable arguments are 'pg', 'laue', 'supergroup'
-                     and 'supergroup_laue'
-            @DETAIL  check if direction is inside a spherical patch
-                     the logic used as follows:
-                     if determinant of [x A B], [x B C] and [x C A] are 
-                     all same sign, then the sphere is inside the traingle
-                     formed by A, B and C
-                     returns a mask with inside as True and outside as False
+        @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        @DATE    12/09/2020 SS 1.0 original
+        @PARAM   vertex vertices of the spherical triangle
+                 dir3 normalized direction vectors
+                 switch which group to check. acceptable arguments are 'pg', 'laue', 'supergroup'
+                 and 'supergroup_laue'
+        @DETAIL  check if direction is inside a spherical patch
+                 the logic used as follows:
+                 if determinant of [x A B], [x B C] and [x C A] are
+                 all same sign, then the sphere is inside the traingle
+                 formed by A, B and C
+                 returns a mask with inside as True and outside as False
         '''
         nn = vertex.shape[1]
 
         mask = []
-        d = np.zeros([nn, ])
+        d = np.zeros(
+            [
+                nn,
+            ]
+        )
 
         for x in dir3:
             x2 = np.atleast_2d(x).T
 
             for ii in range(nn):
                 A = np.atleast_2d(vertex[:, np.mod(ii, nn)]).T
-                B = np.atleast_2d(vertex[:, np.mod(ii+1, nn)]).T
+                B = np.atleast_2d(vertex[:, np.mod(ii + 1, nn)]).T
                 d[ii] = np.linalg.det(np.hstack((x2, A, B)))
 
                 '''
@@ -428,11 +436,11 @@ class sector:
                 determinant can be very small positive or negative
                 number
                 '''
-                if(np.abs(d[ii]) < eps):
-                    d[ii] = 0.
+                if np.abs(d[ii]) < eps:
+                    d[ii] = 0.0
 
             ss = np.unique(np.sign(d))
-            if(np.all(ss >= 0.)):
+            if np.all(ss >= 0.0):
                 mask.append(True)
             else:
                 mask.append(False)
@@ -455,7 +463,7 @@ class sector:
         returns 1 if its barycenter, vertex 1 and vertex 2
         returns 2 if its barycenter, vertex 2 and vertex 3
 
-        it is implicitly assumed that the point lies inside the 
+        it is implicitly assumed that the point lies inside the
         spherical triangle. behavior is unknown if it is not the
         case
 
@@ -463,40 +471,45 @@ class sector:
         '''
 
         vertex = np.copy(self.vertices[switch])
-        fregion = -np.ones([dir3.shape[0], ]).astype(np.int32)
+        fregion = -np.ones(
+            [
+                dir3.shape[0],
+            ]
+        ).astype(np.int32)
 
         bar_cen = self.barycenter[switch]
 
         # if barycenter matches one of the vertices, then remove that vertex
-        mask = np.all(bar_cen == vertex.T,axis=1)
-        vertex = vertex[:,~mask]
+        mask = np.all(bar_cen == vertex.T, axis=1)
+        vertex = vertex[:, ~mask]
 
         nn = vertex.shape[1]
         f = np.zeros([nn, 3, 3])
 
         for i in range(nn):
             idx1 = np.mod(i, nn)
-            idx2 = np.mod(i+1, nn)
+            idx2 = np.mod(i + 1, nn)
             A = np.atleast_2d(vertex[:, idx1]).T
             B = np.atleast_2d(vertex[:, idx2]).T
             f[i, :, :] = np.hstack((np.atleast_2d(bar_cen).T, A, B))
 
         for i in range(nn):
-            inside = np.logical_and(self.inside_sphericalpatch(
-                                    np.squeeze(f[i, :, :]), dir3),
-                                    fregion == -1)
+            inside = np.logical_and(
+                self.inside_sphericalpatch(np.squeeze(f[i, :, :]), dir3),
+                fregion == -1,
+            )
             fregion[inside] = i
 
         return fregion
 
     def point_on_boundary(self, dir3, switch):
         '''
-            @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-            @DATE    12/09/2020 SS 1.0 original
-            @PARAM   dir3 direction in fundamental sector. size is nx3
-                     switch color using pg or laue group
-            @DETAIL  this function figures out the equivalent point on the boundary 
-            given that the point is inside the spherical triangle
+        @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        @DATE    12/09/2020 SS 1.0 original
+        @PARAM   dir3 direction in fundamental sector. size is nx3
+                 switch color using pg or laue group
+        @DETAIL  this function figures out the equivalent point on the boundary
+        given that the point is inside the spherical triangle
         '''
         vertex = self.vertices[switch]
         fregion = self.fillet_region(dir3, switch)
@@ -509,18 +522,18 @@ class sector:
             d = dir3[i, :]
 
             A = vertex[:, np.mod(f, nn)]
-            B = vertex[:, np.mod(f+1, nn)]
+            B = vertex[:, np.mod(f + 1, nn)]
 
             nhat = np.cross(B, A)
-            nhat = nhat/np.linalg.norm(nhat)
+            nhat = nhat / np.linalg.norm(nhat)
 
             lam = np.dot(nhat, d)
-            deldir = lam*nhat
+            deldir = lam * nhat
 
             dp = d - deldir
             ndp = np.linalg.norm(dp)
-            if(ndp > 0.):
-                dp = dp/ndp
+            if ndp > 0.0:
+                dp = dp / ndp
             else:
                 dp = d
 
@@ -535,16 +548,20 @@ class sector:
         @PARAM   dir3 direction in fundamental sector. size is nx3
                  switch color using pg or laue group
         @DETAIL  this function is used to calculate the azimuthal angle
-                 of a bunch of directions. it is assumed all directions 
+                 of a bunch of directions. it is assumed all directions
                  are indide the SST
         '''
         vertex = self.vertices[switch]
         bar_cen = self.barycenter[switch]
-        rho = np.zeros([dir3.shape[0], ])
+        rho = np.zeros(
+            [
+                dir3.shape[0],
+            ]
+        )
 
         # handle triclinic and monoclinic cases a little differently
-        if(np.all(bar_cen == np.array([0., 0., 1.]))):
-            rho = np.arctan2(dir3[:,1], dir3[:,0]) + np.pi
+        if np.all(bar_cen == np.array([0.0, 0.0, 1.0])):
+            rho = np.arctan2(dir3[:, 1], dir3[:, 0]) + np.pi
 
         else:
             dir3_b, fregion = self.point_on_boundary(dir3, switch)
@@ -555,25 +572,27 @@ class sector:
                 d = dir3_b[i, :]
 
                 A = vertex[:, np.mod(f, nn)]
-                B = vertex[:, np.mod(f+1, nn)]
+                B = vertex[:, np.mod(f + 1, nn)]
 
                 # angle between A and B
                 omega = np.dot(A, B)
-                if(np.abs(omega) > 1.):
+                if np.abs(omega) > 1.0:
                     omega = np.sign(omega)
 
                 # angle between point and A
                 omegap = np.dot(A, d)
-                if(np.abs(omegap) > 1.):
+                if np.abs(omegap) > 1.0:
                     omegap = np.sign(omega)
 
                 omega = np.arccos(omega)
                 omegap = np.arccos(omegap)
 
-                if(omegap != 0.):
-                    rho[i] = 2*np.pi*omegap/omega/nn + f*2.*np.pi/nn
+                if omegap != 0.0:
+                    rho[i] = (
+                        2 * np.pi * omegap / omega / nn + f * 2.0 * np.pi / nn
+                    )
                 else:
-                    rho[i] = f*2.*np.pi/nn
+                    rho[i] = f * 2.0 * np.pi / nn
 
         return rho
 
@@ -583,26 +602,30 @@ class sector:
         @DATE    12/09/2020 SS 1.0 original
         @PARAM   dir3 direction in fundamental sector. size is nx3
                  switch color using pg or laue group
-        @DETAIL  this function is used to calculate the polar angle 
+        @DETAIL  this function is used to calculate the polar angle
         of direction vectors. it is assumed that the direction vector
         lies inside the SST
         '''
         vertex = self.vertices[switch]
         dir3_b, fregion = self.point_on_boundary(dir3, switch)
-        theta = np.zeros([dir3.shape[0], ])
+        theta = np.zeros(
+            [
+                dir3.shape[0],
+            ]
+        )
 
         bar_cen = self.barycenter[switch]
 
         # handle triclinic and monoclinic cases a little differently
-        if(np.all(bar_cen == np.array([0., 0., 1.]))):
-            dp = np.dot(np.array([0., 0., 1.]), dir3.T)
+        if np.all(bar_cen == np.array([0.0, 0.0, 1.0])):
+            dp = np.dot(np.array([0.0, 0.0, 1.0]), dir3.T)
             # catch some cases where dot product is 1+/-epsilon
-            mask = np.abs(dp) > 1.
+            mask = np.abs(dp) > 1.0
             dp[mask] = np.sign(dp[mask])
             theta = np.arccos(dp)
 
         else:
-        # first calculate the angle the point makes with the barycenter
+            # first calculate the angle the point makes with the barycenter
             omega = np.dot(bar_cen, dir3.T)
             mask = np.abs(omega) > 1.0
             omega[mask] = np.sign(omega[mask])
@@ -615,25 +638,28 @@ class sector:
             omega = np.arccos(omega)
             omegap = np.arccos(omegap)
 
-            zmask = omegap == 0.
+            zmask = omegap == 0.0
 
-            theta[~zmask] = np.pi*omega[~zmask]/omegap[~zmask]/2.0
+            theta[~zmask] = np.pi * omega[~zmask] / omegap[~zmask] / 2.0
             theta[zmask] = 0.0
         return theta
 
     def hue_speed(self, rho):
         '''
-            @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-            @DATE    12/09/2020 SS 1.0 original
-            @PARAM   rho azimuthal angle
-            @DETAIL  calculate the hue speed for a vector of azimuthal angles
-                    this is utilized in increasing the area of the red, blue and 
-                    green regions
+        @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        @DATE    12/09/2020 SS 1.0 original
+        @PARAM   rho azimuthal angle
+        @DETAIL  calculate the hue speed for a vector of azimuthal angles
+                this is utilized in increasing the area of the red, blue and
+                green regions
         '''
         rho = rho - np.pi
-        v = 0.5 + np.exp(-(4./7.)*rho**2) + \
-            np.exp(-(4./7.)*(rho - 2.*np.pi/3.)**2) + \
-            np.exp(-(4./7.)*(rho + 2.*np.pi/3.)**2)
+        v = (
+            0.5
+            + np.exp(-(4.0 / 7.0) * rho**2)
+            + np.exp(-(4.0 / 7.0) * (rho - 2.0 * np.pi / 3.0) ** 2)
+            + np.exp(-(4.0 / 7.0) * (rho + 2.0 * np.pi / 3.0) ** 2)
+        )
 
         return v
 
@@ -660,16 +686,16 @@ class sector:
 
         '''
         rho = self.calculate_rho(dir3, switch)
-        r = np.linspace(0., 2*np.pi, 1000)
+        r = np.linspace(0.0, 2 * np.pi, 1000)
         v = self.hue_speed(r)
         cons = np.trapz(v, r)
 
         h = np.zeros(rho.shape)
 
         for i in range(rho.shape[0]):
-            r = np.linspace(0., rho[i], 1000)
+            r = np.linspace(0.0, rho[i], 1000)
             v = self.hue_speed(r)
-            h[i] = np.trapz(v, r)/cons
+            h[i] = np.trapz(v, r) / cons
 
         return h
 
@@ -689,7 +715,7 @@ class sector:
         @DETAIL  calculate saturation. this is always set to 1.
 
         '''
-        s = 1. - 2.*0.25*np.abs(l - 0.5)
+        s = 1.0 - 2.0 * 0.25 * np.abs(l - 0.5)
         return s
 
     def calc_lightness(self, dir3, mask, switch):
@@ -714,10 +740,10 @@ class sector:
 
         '''
         theta = np.pi - self.calculate_theta(dir3, switch)
-        f1 = theta/np.pi
-        f2 = np.sin(theta/2.)**2
-        l = 0.35*f1 + 0.65*f2
-        l[~mask] = 1. - l[~mask]
+        f1 = theta / np.pi
+        f2 = np.sin(theta / 2.0) ** 2
+        l = 0.35 * f1 + 0.65 * f2
+        l[~mask] = 1.0 - l[~mask]
 
         return l
 
@@ -729,7 +755,7 @@ class sector:
                  11/23/2020 SS 1.2 added mask argument which tell the directions
                  for which the supergroup reductions dont match the point or laue
                  group reductions. mask has size dir3.shape[0]
-                
+
         @PARAM   dir3 direction in fundamental sector. behavior is undefined if
                  mask True if symmetry reduction of dir3 using point group does not
                  match the super group and False otherwise

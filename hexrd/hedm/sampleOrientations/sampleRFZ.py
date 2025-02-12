@@ -8,20 +8,16 @@ from hexrd.core import constants
 
 
 @numba.njit(cache=True, nogil=True, parallel=True)
-def _sample(pgnum,
-            N,
-            delta,
-            shift,
-            ap_2):
+def _sample(pgnum, N, delta, shift, ap_2):
 
-    N3 = (2*N+1)**3
+    N3 = (2 * N + 1) ** 3
     res = np.full((N3, 4), np.nan, dtype=np.float64)
 
-    for ii in prange(-N, N+1):
+    for ii in prange(-N, N + 1):
         xx = (ii + shift) * delta
-        for jj in prange(-N, N+1):
+        for jj in prange(-N, N + 1):
             yy = (jj + shift) * delta
-            for kk in prange(-N, N+1):
+            for kk in prange(-N, N + 1):
                 zz = (kk + shift) * delta
                 cu = np.array([xx, yy, zz])
                 ma = np.max(np.abs(cu))
@@ -29,13 +25,17 @@ def _sample(pgnum,
                 if ma <= ap_2:
                     ro = cu2ro(cu)
                     if insideFZ(ro, pgnum):
-                        idx = (ii+N)*(2*N+1)**2 + (jj+N)*(2*N+1) + (kk+N)
-                        res[idx,:] = ro2qu(ro)
+                        idx = (
+                            (ii + N) * (2 * N + 1) ** 2
+                            + (jj + N) * (2 * N + 1)
+                            + (kk + N)
+                        )
+                        res[idx, :] = ro2qu(ro)
 
     return res
 
-class sampleRFZ:
 
+class sampleRFZ:
     """This class samples the rodrigues fundamental zone
     of a point group uniformly in the density sense and
     returns a list of orientations which are spaced,
@@ -46,8 +46,8 @@ class sampleRFZ:
      Note
     ----
     Details can be found in:
-    S. Singh and M. De Graef, "Orientation sampling for 
-    dictionary-based diffraction pattern indexing methods". 
+    S. Singh and M. De Graef, "Orientation sampling for
+    dictionary-based diffraction pattern indexing methods".
     MSMSE 24, 085013 (2016)
 
     Attributes
@@ -59,10 +59,9 @@ class sampleRFZ:
 
     """
 
-    def __init__(self,
-                 pgnum,
-                 sampling_type='default',
-                 average_angular_spacing=3.0):
+    def __init__(
+        self, pgnum, sampling_type='default', average_angular_spacing=3.0
+    ):
         """__init__ method of the sampleRFZ class.
 
 
@@ -92,19 +91,20 @@ class sampleRFZ:
 
         """
         if self.sampling_type.lower() == 'default':
-            return np.rint(131.97049 / (self.avg_ang_spacing - 0.03732)).astype(np.int32)
+            return np.rint(
+                131.97049 / (self.avg_ang_spacing - 0.03732)
+            ).astype(np.int32)
         elif self.sampling_type.lower() == 'special':
-            return np.rint(125.70471 / (self.avg_ang_spacing - 0.07127)).astype(np.int32)
+            return np.rint(
+                125.70471 / (self.avg_ang_spacing - 0.07127)
+            ).astype(np.int32)
 
     def sample(self):
-        res = _sample(self.pgnum,
-                                    self.cubN,
-                                    self.delta,
-                                    self.shift,
-                                    self.ap_2)
-        mask = ~np.isnan(res[:,0])
-        res = res[mask,:]
+        res = _sample(self.pgnum, self.cubN, self.delta, self.shift, self.ap_2)
+        mask = ~np.isnan(res[:, 0])
+        res = res[mask, :]
         self.orientations = res
+
     def sample_if_possible(self):
         required_attributes = ('pgnum', 'avg_ang_spacing', 'sampling_type')
         if not all(hasattr(self, x) for x in required_attributes):
@@ -133,7 +133,6 @@ class sampleRFZ:
     @property
     def avg_ang_spacing(self):
         return self._avg_ang_spacing
-
 
     @avg_ang_spacing.setter
     def avg_ang_spacing(self, ang):

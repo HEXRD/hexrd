@@ -1,4 +1,5 @@
 """Testing GrainData class"""
+
 from pathlib import Path
 
 import pytest
@@ -9,19 +10,25 @@ from hexrd.hedm.cli.fit_grains import GrainData
 
 save_file = "save.npz"
 
-exp90 = (np.pi/2) * np.identity(3)
-rmats90 = np.array([
-    [[1, 0, 0], [0, 0,- 1], [0, 1, 0]],
-    [[0, 0, 1], [0, 1, 0], [-1, 0, 0]],
-    [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
-])
+exp90 = (np.pi / 2) * np.identity(3)
+rmats90 = np.array(
+    [
+        [[1, 0, 0], [0, 0, -1], [0, 1, 0]],
+        [[0, 0, 1], [0, 1, 0], [-1, 0, 0]],
+        [[0, -1, 0], [1, 0, 0], [0, 0, 1]],
+    ]
+)
 
 
 @pytest.fixture
 def graindata_0():
     args = dict(
-        id=[0, 1, 2], completeness=[0, 0.5, 1.0], chisq=[2.1, 1.2, 0.1],
-        expmap=exp90, centroid=np.identity(3), inv_Vs=np.zeros(6),
+        id=[0, 1, 2],
+        completeness=[0, 0.5, 1.0],
+        chisq=[2.1, 1.2, 0.1],
+        expmap=exp90,
+        centroid=np.identity(3),
+        inv_Vs=np.zeros(6),
         ln_Vs=np.zeros(6),
     )
     return GrainData(**args)
