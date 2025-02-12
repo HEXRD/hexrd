@@ -10,6 +10,4 @@ from .hedm_instrument import (
     unwrap_dict_to_h5,
     unwrap_h5_to_dict,
 )
-from .cylindrical_detector import CylindricalDetector
 from .detector import Detector
-from .planar_detector import PlanarDetector

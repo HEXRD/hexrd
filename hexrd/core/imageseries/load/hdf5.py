@@ -1,5 +1,5 @@
-"""HDF5 adapter class
-"""
+"""HDF5 adapter class"""
+
 import h5py
 import warnings
 
@@ -53,7 +53,7 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
         #     an issue arises at some point
         try:
             self.close()
-        except(Exception):
+        except Exception:
             warnings.warn("HDF5ImageSeries could not close h5 file")
 
     def __getitem__(self, key):
@@ -69,7 +69,9 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
 
     def get_region(self, frame_idx: int, region: RegionType) -> np.ndarray:
         r = region
-        return self.__image_dataset[frame_idx][r[0][0]:r[0][1], r[1][0]:r[1][1]]
+        return self.__image_dataset[frame_idx][
+            r[0][0] : r[0][1], r[1][0] : r[1][1]
+        ]
 
     def __iter__(self):
         return ImageSeriesIterator(self)

@@ -4,6 +4,7 @@ import numpy as np
 # easily testable and clear. They will be use to test against in unit tests.
 # They may be slow and not vectorized.
 
+
 def intersect_ray_plane(ro, rv, p):
     '''
     ray-plane intersection
@@ -51,6 +52,6 @@ def intersect_ray_plane(ro, rv, p):
     # the behavior of the function actually relies in IEEE754 with a division
     # by 0 generating the appropriate infinity, or a NAN if it is a 0/0.
     with np.errstate(divide='ignore', invalid='ignore'):
-        t = (D - normal@ro)/(normal@rv)
+        t = (D - normal @ ro) / (normal @ rv)
 
     return t

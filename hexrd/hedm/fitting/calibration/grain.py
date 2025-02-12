@@ -7,7 +7,9 @@ from hexrd.core.rotations import angularDifference
 from hexrd.core.transforms import xfcapi
 
 from ....core.fitting.calibration.abstract_grain import AbstractGrainCalibrator
-from ....core.fitting.calibration.lmfit_param_handling import DEFAULT_EULER_CONVENTION
+from ....core.fitting.calibration.lmfit_param_handling import (
+    DEFAULT_EULER_CONVENTION,
+)
 from .. import grains as grainutil
 
 logger = logging.getLogger(__name__)
@@ -15,14 +17,27 @@ logger = logging.getLogger(__name__)
 
 class GrainCalibrator(AbstractGrainCalibrator):
     """This is for HEDM grain calibration"""
+
     type = 'grain'
 
-    def __init__(self, instr, material, grain_params, ome_period,
-                 index=0, default_refinements=None, calibration_picks=None,
-                 euler_convention=DEFAULT_EULER_CONVENTION):
+    def __init__(
+        self,
+        instr,
+        material,
+        grain_params,
+        ome_period,
+        index=0,
+        default_refinements=None,
+        calibration_picks=None,
+        euler_convention=DEFAULT_EULER_CONVENTION,
+    ):
         super().__init__(
-            instr, material, grain_params, default_refinements,
-            calibration_picks, euler_convention,
+            instr,
+            material,
+            grain_params,
+            default_refinements,
+            calibration_picks,
+            euler_convention,
         )
         self.ome_period = ome_period
         self.index = index
@@ -58,22 +73,32 @@ class GrainCalibrator(AbstractGrainCalibrator):
         pick_hkls_dict, pick_xys_dict = self._evaluate()
 
         return sxcal_obj_func(
-            [self.grain_params], self.instr, pick_xys_dict, pick_hkls_dict,
-            self.bmatx, self.ome_period
+            [self.grain_params],
+            self.instr,
+            pick_xys_dict,
+            pick_hkls_dict,
+            self.bmatx,
+            self.ome_period,
         )
 
     def model(self):
         pick_hkls_dict, pick_xys_dict = self._evaluate()
 
         return sxcal_obj_func(
-            [self.grain_params], self.instr, pick_xys_dict, pick_hkls_dict,
-            self.bmatx, self.ome_period, sim_only=True
+            [self.grain_params],
+            self.instr,
+            pick_xys_dict,
+            pick_hkls_dict,
+            self.bmatx,
+            self.ome_period,
+            sim_only=True,
         )
 
 
 # Objective function for multigrain fitting
-def sxcal_obj_func(grain_params, instr, xyo_det, hkls_idx,
-                   bmat, ome_period, sim_only=False):
+def sxcal_obj_func(
+    grain_params, instr, xyo_det, hkls_idx, bmat, ome_period, sim_only=False
+):
     ngrains = len(grain_params)
 
     # assign some useful params
@@ -108,7 +133,7 @@ def sxcal_obj_func(grain_params, instr, xyo_det, hkls_idx,
 
             xy_unwarped[det_key].append(xyo[:, :2])
             meas_omes[det_key].append(xyo[:, 2])
-            if panel.distortion is not None:    # do unwarping
+            if panel.distortion is not None:  # do unwarping
                 xy_unwarped[det_key][ig] = panel.distortion.apply(
                     xy_unwarped[det_key][ig]
                 )
@@ -128,22 +153,28 @@ def sxcal_obj_func(grain_params, instr, xyo_det, hkls_idx,
             ghat_c = np.dot(rmat_c.T, ghat_s)
 
             match_omes, calc_omes_tmp = grainutil.matchOmegas(
-                xyo, ghkls.T,
-                chi, rmat_c, bmat, wavelength,
+                xyo,
+                ghkls.T,
+                chi,
+                rmat_c,
+                bmat,
+                wavelength,
                 vInv=vinv_s,
                 beamVec=bvec,
-                omePeriod=ome_period)
+                omePeriod=ome_period,
+            )
 
             rmat_s_arr = xfcapi.make_sample_rmat(
                 chi, np.ascontiguousarray(calc_omes_tmp)
             )
             calc_xy_tmp = xfcapi.gvec_to_xy(
-                    ghat_c.T, rmat_d, rmat_s_arr, rmat_c,
-                    tvec_d, tvec_s, tvec_c
+                ghat_c.T, rmat_d, rmat_s_arr, rmat_c, tvec_d, tvec_s, tvec_c
             )
             if np.any(np.isnan(calc_xy_tmp)):
-                logger.warning("infeasible parameters: may want to scale back "
-                               "finite difference step size")
+                logger.warning(
+                    "infeasible parameters: may want to scale back "
+                    "finite difference step size"
+                )
 
             calc_omes[det_key].append(calc_omes_tmp)
             calc_xy[det_key].append(calc_xy_tmp)
@@ -178,7 +209,6 @@ def sxcal_obj_func(grain_params, instr, xyo_det, hkls_idx,
         diff_vecs_xy = calc_xy_all - meas_xy_all
         diff_ome = angularDifference(calc_omes_all, meas_omes_all)
         retval = np.hstack(
-            [diff_vecs_xy,
-             diff_ome.reshape(npts_tot, 1)]
+            [diff_vecs_xy, diff_ome.reshape(npts_tot, 1)]
         ).flatten()
     return retval

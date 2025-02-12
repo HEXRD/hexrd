@@ -2,6 +2,7 @@
 
 For use by adapter classes.
 """
+
 import collections.abc
 
 

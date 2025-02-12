@@ -8,7 +8,7 @@ def _dict_path_by_id(d, value, path=()):
         return path
     elif isinstance(d, dict):
         for k, v in d.items():
-            p = _dict_path_by_id(v, value, path + (k, ))
+            p = _dict_path_by_id(v, value, path + (k,))
             if p is not None:
                 return p
     elif isinstance(d, list):
@@ -32,6 +32,7 @@ class NumPyIncludeDumper(yaml.Dumper):
     The ndarray would be saved in foo/bar.npy.
 
     """
+
     def __init__(self, stream, **kwargs):
         super().__init__(stream, **kwargs)
 
@@ -58,5 +59,6 @@ class NumPyIncludeDumper(yaml.Dumper):
         return super().represent(data)
 
 
-NumPyIncludeDumper.add_representer(np.ndarray,
-                                   NumPyIncludeDumper.ndarray_representer)
+NumPyIncludeDumper.add_representer(
+    np.ndarray, NumPyIncludeDumper.ndarray_representer
+)

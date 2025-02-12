@@ -45,8 +45,12 @@ def unwrap_dict_to_h5(grp, d, asattr=False):
                     else:
                         # probably a string badness
 
-                        if isinstance(item, np.ndarray) and np.issubdtype(item.dtype, 'U'):
-                            item = str(item) # hdf5 files do not support unicode arrays
+                        if isinstance(item, np.ndarray) and np.issubdtype(
+                            item.dtype, 'U'
+                        ):
+                            item = str(
+                                item
+                            )  # hdf5 files do not support unicode arrays
                         grp.create_dataset(key, data=item)
 
 

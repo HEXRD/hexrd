@@ -1,4 +1,5 @@
 """Testing GrainData class"""
+
 from pathlib import Path
 
 import pytest
@@ -9,22 +10,24 @@ from hexrd.hedm.cli.fit_grains import GrainData
 
 @pytest.fixture
 def exp90():
-    return (np.pi/2) * np.identity(3)
+    return (np.pi / 2) * np.identity(3)
 
 
 @pytest.fixture
 def quats90():
-    c45, s45 = np.cos(np.pi / 4), np.sin(np.pi /4)
+    c45, s45 = np.cos(np.pi / 4), np.sin(np.pi / 4)
     return [[c45, s45, 0, 0], [c45, 0, s45, 0], [c45, 0, 0, s45]]
 
 
 @pytest.fixture
 def rmats90():
-    return np.array([
-        [[1, 0, 0], [0, 0,- 1], [0, 1, 0]],
-        [[0, 0, 1], [0, 1, 0], [-1, 0, 0]],
-        [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
-    ])
+    return np.array(
+        [
+            [[1, 0, 0], [0, 0, -1], [0, 1, 0]],
+            [[0, 0, 1], [0, 1, 0], [-1, 0, 0]],
+            [[0, -1, 0], [1, 0, 0], [0, 0, 1]],
+        ]
+    )
 
 
 @pytest.fixture

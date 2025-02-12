@@ -12,4 +12,5 @@ def execute(args, parser):
     import webbrowser
 
     import hexrd
+
     webbrowser.open_new_tab(hexrd.doc_url)

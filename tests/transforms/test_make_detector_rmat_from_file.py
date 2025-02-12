@@ -12,16 +12,15 @@ def test_make_detector_rmat_from_file(test_data_dir):
     # Load the array from a file
     arr = np.load(
         test_data_dir / 'test_correct_make_detector_rmat.npy',
-        allow_pickle=True
+        allow_pickle=True,
     )
 
     for obj in arr:
 
-        result = make_detector_rmat(
-            obj["tilt_angles"]
-        )
+        result = make_detector_rmat(obj["tilt_angles"])
 
         assert np.allclose(result, obj["result"])
+
 
 # def test_correct_make_detector_rmat(test_data_dir):
 #     arr = [];

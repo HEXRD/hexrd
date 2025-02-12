@@ -10,15 +10,25 @@ from hexrd.core.transforms import xfcapi
 from hexrd.core.utils.hkl import hkl_to_str, str_to_hkl
 
 from .calibrator import Calibrator
-from .lmfit_param_handling import create_grain_params, DEFAULT_EULER_CONVENTION, rename_to_avoid_collision
+from .lmfit_param_handling import (
+    create_grain_params,
+    DEFAULT_EULER_CONVENTION,
+    rename_to_avoid_collision,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class AbstractGrainCalibrator(Calibrator):
-    def __init__(self, instr, material, grain_params,
-                 default_refinements=None, calibration_picks=None,
-                 euler_convention=DEFAULT_EULER_CONVENTION):
+    def __init__(
+        self,
+        instr,
+        material,
+        grain_params,
+        default_refinements=None,
+        calibration_picks=None,
+        euler_convention=DEFAULT_EULER_CONVENTION,
+    ):
         self.instr = instr
         self.material = material
         self.grain_params = grain_params
@@ -106,7 +116,12 @@ class AbstractGrainCalibrator(Calibrator):
         # Grain parameters with orientation set using Euler angle convention
         grain_params = v.copy()
         if self.euler_convention is not None:
-            rme = RotMatEuler(np.zeros(3,), **self.euler_convention)
+            rme = RotMatEuler(
+                np.zeros(
+                    3,
+                ),
+                **self.euler_convention
+            )
             rme.angles = np.radians(grain_params[:3])
             phi, n = angleAxisOfRotMat(rme.rmat)
             grain_params[:3] = phi * n.flatten()

@@ -38,7 +38,13 @@ from hexrd.core.material.unitcell import unitcell
 from hexrd.core.deprecation import deprecated
 from hexrd.core import constants
 from hexrd.core.matrixutil import unitVector
-from hexrd.core.rotations import rotMatOfExpMap, mapAngle, applySym, ltypeOfLaueGroup, quatOfLaueGroup
+from hexrd.core.rotations import (
+    rotMatOfExpMap,
+    mapAngle,
+    applySym,
+    ltypeOfLaueGroup,
+    quatOfLaueGroup,
+)
 from hexrd.core.transforms import xfcapi
 from hexrd.core import valunits
 from hexrd.core.valunits import toFloat
@@ -159,6 +165,7 @@ def processWavelength(arg: Union[valunits.valWUnit, float]) -> float:
             'wavelength', 'length', constants.keVToAngstrom(arg), 'angstrom'
         ).getVal(dUnit)
 
+
 def latticeParameters(lvec):
     """
     Generates direct and reciprocal lattice vector components in a
@@ -185,6 +192,7 @@ def latticeParameters(lvec):
         alfa = r2d * alfa
 
     return [a, b, c, alfa, beta, gama]
+
 
 def latticePlanes(
     hkls: np.ndarray,
@@ -562,6 +570,7 @@ def latticeVectors(
         'rparms': rparms,
     }
 
+
 def hexagonalIndicesFromRhombohedral(hkl):
     """
     converts rhombohedral hkl to hexagonal indices
@@ -909,7 +918,7 @@ class PlaneData(object):
                 elif len(exclusions.shape) == 2:
                     # treat exclusions as ranges of indices
                     for r in exclusions:
-                        excl[self.tThSort[r[0]:r[1]]] = True
+                        excl[self.tThSort[r[0] : r[1]]] = True
                 else:
                     raise RuntimeError(
                         f'Unclear behavior for shape {exclusions.shape}'
@@ -1844,8 +1853,10 @@ class PlaneData(object):
     def set_exclusions(self, exclusions):
         self.exclusions = exclusions
 
-    @deprecated(new_func="rotations.ltypeOfLaueGroup(self.laueGroup)",
-                removal_date="2025-08-01")
+    @deprecated(
+        new_func="rotations.ltypeOfLaueGroup(self.laueGroup)",
+        removal_date="2025-08-01",
+    )
     def getLatticeType(self):
         return ltypeOfLaueGroup(self.laueGroup)
 

@@ -38,7 +38,12 @@ from hexrd.core import matrixutil as mutil
 
 
 # Added to not break people importing these methods
-from hexrd.core.rotations import mapAngle, quatProductMatrix as quat_product_matrix, arccosSafe, angularDifference
+from hexrd.core.rotations import (
+    mapAngle,
+    quatProductMatrix as quat_product_matrix,
+    arccosSafe,
+    angularDifference,
+)
 from hexrd.core.matrixutil import columnNorm, rowNorm
 
 

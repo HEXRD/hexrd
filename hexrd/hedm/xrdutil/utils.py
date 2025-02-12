@@ -508,9 +508,8 @@ def _filter_hkls_eta_ome(
     angMask_eta = np.zeros(len(angles), dtype=bool)
     for etas in eta_range:
         angMask_eta = np.logical_or(
-            angMask_eta, xfcapi.validate_angle_ranges(
-                angles[:, 1], etas[0], etas[1]
-            )
+            angMask_eta,
+            xfcapi.validate_angle_ranges(angles[:, 1], etas[0], etas[1]),
         )
 
     ccw = True
@@ -991,8 +990,13 @@ def simulateGVecs(
     # first find valid G-vectors
     angList = np.vstack(
         xfcapi.oscill_angles_of_hkls(
-            full_hkls[:, 1:], chi, rMat_c, bMat, wlen, v_inv=vInv_s,
-            beam_vec=beam_vector
+            full_hkls[:, 1:],
+            chi,
+            rMat_c,
+            bMat,
+            wlen,
+            v_inv=vInv_s,
+            beam_vec=beam_vector,
         )
     )
     allAngs, allHKLs = _filter_hkls_eta_ome(
@@ -1008,8 +1012,15 @@ def simulateGVecs(
     else:
         # ??? preallocate for speed?
         det_xy, rMat_ss, _ = _project_on_detector_plane(
-            allAngs, rMat_d, rMat_c, chi, tVec_d, tVec_c, tVec_s, distortion,
-            beamVec=beam_vector
+            allAngs,
+            rMat_d,
+            rMat_c,
+            chi,
+            tVec_d,
+            tVec_c,
+            tVec_s,
+            distortion,
+            beamVec=beam_vector,
         )
 
         on_panel = np.logical_and(
@@ -1472,7 +1483,7 @@ def make_reflection_patches(
 
 
 def extract_detector_transformation(
-    detector_params: Union[dict[str, Any], np.ndarray]
+    detector_params: Union[dict[str, Any], np.ndarray],
 ) -> tuple[np.ndarray, np.ndarray, float, np.ndarray]:
     """
     Construct arrays from detector parameters.

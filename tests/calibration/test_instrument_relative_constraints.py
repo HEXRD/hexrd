@@ -6,8 +6,13 @@ import numpy as np
 import pytest
 
 from hexrd.core import imageseries
-from hexrd.core.fitting.calibration import InstrumentCalibrator, PowderCalibrator
-from hexrd.core.fitting.calibration.relative_constraints import RelativeConstraintsType
+from hexrd.core.fitting.calibration import (
+    InstrumentCalibrator,
+    PowderCalibrator,
+)
+from hexrd.core.fitting.calibration.relative_constraints import (
+    RelativeConstraintsType,
+)
 from hexrd.core.imageseries.process import ProcessedImageSeries
 from hexrd.core.instrument import HEDMInstrument
 from hexrd.core.material import load_materials_hdf5, Material

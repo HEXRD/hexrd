@@ -31,7 +31,7 @@ class Instrument(Config):
 
             try:
                 icfg = h5py.File(self.configuration, 'r')
-            except(OSError):
+            except OSError:
                 with open(self.configuration, 'r') as f:
                     icfg = yaml.load(f, Loader=NumPyIncludeLoader)
 
@@ -47,7 +47,7 @@ class Instrument(Config):
         """Set the HEDMInstrument class."""
         try:
             icfg = h5py.File(icfg_fname, 'r')
-        except(OSError):
+        except OSError:
             with open(icfg_fname, 'r') as f:
                 icfg = yaml.load(f, Loader=NumPyIncludeLoader)
 

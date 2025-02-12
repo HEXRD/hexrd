@@ -7,8 +7,8 @@ from hexrd.core import constants
 
 @numba.njit(cache=True, nogil=True)
 def getFZtypeandOrder(pgnum):
-    FZtype = FZtypeArray[pgnum-1]
-    FZorder = FZorderArray[pgnum-1]
+    FZtype = FZtypeArray[pgnum - 1]
+    FZorder = FZorderArray[pgnum - 1]
     return np.array([FZtype, FZorder])
 
 
@@ -24,9 +24,9 @@ def insideCyclicFZ(ro, FZorder):
                 res = True
     else:
         if FZorder == 2:
-            res = np.abs(ro[1]*ro[3]) <= constants.BP[FZorder-1]
+            res = np.abs(ro[1] * ro[3]) <= constants.BP[FZorder - 1]
         else:
-            res = np.abs(ro[2]*ro[3]) <= constants.BP[FZorder-1]
+            res = np.abs(ro[2] * ro[3]) <= constants.BP[FZorder - 1]
 
     return res
 
@@ -38,41 +38,38 @@ def insideDihedralFZ(ro, FZorder):
     else:
         rod = ro[0:3] * ro[3]
 
-    c1 = np.abs(rod[2]) <= constants.BP[FZorder-1]
+    c1 = np.abs(rod[2]) <= constants.BP[FZorder - 1]
 
     if c1:
-        if   FZorder == 2:
-            c2 = np.logical_and(np.abs(rod[0]) <= 1.0, 
-                                np.abs(rod[1]) <= 1.0)
+        if FZorder == 2:
+            c2 = np.logical_and(np.abs(rod[0]) <= 1.0, np.abs(rod[1]) <= 1.0)
 
         elif FZorder == 3:
-            srt = np.sqrt(3.0)/2.0
-            c2 = np.abs(srt*rod[0] + 0.5*rod[1]) <= 1.0
-            c3 = np.abs(srt*rod[0] - 0.5*rod[1]) <= 1.0
+            srt = np.sqrt(3.0) / 2.0
+            c2 = np.abs(srt * rod[0] + 0.5 * rod[1]) <= 1.0
+            c3 = np.abs(srt * rod[0] - 0.5 * rod[1]) <= 1.0
             c4 = np.abs(rod[1]) <= 1.0
-            return np.logical_and(c2, 
-                   np.logical_and(c3, c4))
+            return np.logical_and(c2, np.logical_and(c3, c4))
 
         elif FZorder == 4:
-            r22 = 1.0/np.sqrt(2.0)
-            c2 = np.logical_and(np.abs(rod[0]) <= 1.0,
-                                np.abs(rod[1]) <= 1.0)
-            c3 = np.logical_and(r22*np.abs(rod[0]+rod[1]) <= 1.0,
-                                r22*np.abs(rod[0]-rod[1]) <= 1.0)
+            r22 = 1.0 / np.sqrt(2.0)
+            c2 = np.logical_and(np.abs(rod[0]) <= 1.0, np.abs(rod[1]) <= 1.0)
+            c3 = np.logical_and(
+                r22 * np.abs(rod[0] + rod[1]) <= 1.0,
+                r22 * np.abs(rod[0] - rod[1]) <= 1.0,
+            )
             return np.logical_and(c2, c3)
 
         elif FZorder == 6:
-            srt = np.sqrt(3.0)/2.0
-            c2 = np.abs(0.5*rod[0] + srt*rod[1]) < 1.0
-            c2 = np.logical_and(c2,
-                 np.abs(srt*rod[0] + 0.5*rod[1]) < 1.0)
-            c2 = np.logical_and(c2,
-                 np.abs(0.5*rod[0] - srt*rod[1]) < 1.0)
-            c2 = np.logical_and(c2,
-                 np.abs(srt*rod[0] - 0.5*rod[1]) < 1.0)
-            c2 = np.logical_and(c2, 
-                 np.logical_and(np.abs(rod[0]) <= 1.0,
-                                np.abs(rod[1]) <= 1.0))
+            srt = np.sqrt(3.0) / 2.0
+            c2 = np.abs(0.5 * rod[0] + srt * rod[1]) < 1.0
+            c2 = np.logical_and(c2, np.abs(srt * rod[0] + 0.5 * rod[1]) < 1.0)
+            c2 = np.logical_and(c2, np.abs(0.5 * rod[0] - srt * rod[1]) < 1.0)
+            c2 = np.logical_and(c2, np.abs(srt * rod[0] - 0.5 * rod[1]) < 1.0)
+            c2 = np.logical_and(
+                c2,
+                np.logical_and(np.abs(rod[0]) <= 1.0, np.abs(rod[1]) <= 1.0),
+            )
             return c2
     else:
         return False
@@ -83,11 +80,11 @@ def insideCubicFZ(ro, kwrd):
     rod = np.abs(ro[0:3] * ro[3])
 
     if kwrd == 'oct':
-        c1 = (np.max(rod) - constants.BP[3]) <= 1E-8
+        c1 = (np.max(rod) - constants.BP[3]) <= 1e-8
     else:
         c1 = True
 
-    c2 = (rod[0]+rod[1]+rod[2] - 1.0) <= 1E-8
+    c2 = (rod[0] + rod[1] + rod[2] - 1.0) <= 1e-8
     res = np.logical_and(c1, c2)
     return res
 
@@ -95,7 +92,7 @@ def insideCubicFZ(ro, kwrd):
 @numba.njit(cache=True, nogil=True)
 def insideFZ(ro, pgnum):
     res = getFZtypeandOrder(pgnum)
-    FZtype = res[0] 
+    FZtype = res[0]
     FZorder = res[1]
 
     if FZtype == 0:

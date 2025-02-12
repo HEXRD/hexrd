@@ -2,6 +2,7 @@ import numpy as np
 from skimage.transform import PiecewiseAffineTransform, warp
 
 from hexrd.core import constants
+
 # TODO: Resolve extra-core-dependency
 from hexrd.hedm.xrdutil.utils import zproject_sph_angles
 
@@ -10,12 +11,18 @@ class SphericalView:
     """
     Creates a spherical mapping of detector images.
     """
+
     MAPPING_TYPES = ('stereographic', 'equal-area')
     VECTOR_TYPES = ('d', 'q')
-    PROJ_IMG_DIM = 3.  # 2*np.sqrt(2) rounded up
+    PROJ_IMG_DIM = 3.0  # 2*np.sqrt(2) rounded up
 
-    def __init__(self, mapping='stereographic', vector_type='d',
-                 output_dim=512, rmat=constants.identity_3x3):
+    def __init__(
+        self,
+        mapping='stereographic',
+        vector_type='d',
+        output_dim=512,
+        rmat=constants.identity_3x3,
+    ):
         self._mapping = mapping
         self._vector_type = vector_type
 
@@ -62,8 +69,10 @@ class SphericalView:
     def rmat(self, x):
         x = np.atleast_2d(x)
         assert x.shape == (3, 3), "rmat must be (3, 3)"
-        assert np.linalg.norm(np.dot(x.T, x) - constants.identity_3x3) \
-            < constants.ten_epsf, "input matrix is not orthogonal"
+        assert (
+            np.linalg.norm(np.dot(x.T, x) - constants.identity_3x3)
+            < constants.ten_epsf
+        ), "input matrix is not orthogonal"
         self._rmat = x
 
     def warp_eta_ome_map(self, eta_ome, map_ids=None, skip=10):
@@ -80,14 +89,14 @@ class SphericalView:
         etas = eta_ome.etas[::skip]
 
         # make grid of angular values
-        op, ep = np.meshgrid(omes,
-                             etas,
-                             indexing='ij')
+        op, ep = np.meshgrid(omes, etas, indexing='ij')
 
         # make grid of output pixel values
-        oc, ec = np.meshgrid(np.arange(nrows_in)[::skip],
-                             np.arange(ncols_in)[::skip],
-                             indexing='ij')
+        oc, ec = np.meshgrid(
+            np.arange(nrows_in)[::skip],
+            np.arange(ncols_in)[::skip],
+            indexing='ij',
+        )
 
         ps = self.PROJ_IMG_DIM / self.output_dim  # output pixel size
 
@@ -99,30 +108,45 @@ class SphericalView:
             img = eta_ome.dataStore[map_id]
 
             # ??? do we need to use iHKLlist?
-            angs = np.vstack([
-                tths[map_id]*np.ones_like(ep.flatten()),
-                ep.flatten(),
-                op.flatten()
-            ]).T
+            angs = np.vstack(
+                [
+                    tths[map_id] * np.ones_like(ep.flatten()),
+                    ep.flatten(),
+                    op.flatten(),
+                ]
+            ).T
 
             ppts, nmask = zproject_sph_angles(
-                angs, method=self.mapping, source=self.vector_type,
-                invert_z=self.invert_z, use_mask=True
+                angs,
+                method=self.mapping,
+                source=self.vector_type,
+                invert_z=self.invert_z,
+                use_mask=True,
             )
 
             # pixel coords in output image
-            rp = 0.5*self.output_dim - ppts[:, 1]/ps
-            cp = ppts[:, 0]/ps + 0.5*self.output_dim
+            rp = 0.5 * self.output_dim - ppts[:, 1] / ps
+            cp = ppts[:, 0] / ps + 0.5 * self.output_dim
 
             # compute piecewise affine transform
-            src = np.vstack([ec.flatten(), oc.flatten(), ]).T
-            dst = np.vstack([cp.flatten(), rp.flatten(), ]).T
+            src = np.vstack(
+                [
+                    ec.flatten(),
+                    oc.flatten(),
+                ]
+            ).T
+            dst = np.vstack(
+                [
+                    cp.flatten(),
+                    rp.flatten(),
+                ]
+            ).T
             paxf.estimate(src, dst)
 
             wimg = warp(
                 img,
                 inverse_map=paxf.inverse,
-                output_shape=(self.output_dim, self.output_dim)
+                output_shape=(self.output_dim, self.output_dim),
             )
             if len(map_ids) == 1:
                 return wimg
@@ -145,38 +169,49 @@ class SphericalView:
         tth_cen = np.array(pimg['tth_coordinates'])[0, :]
         eta_cen = np.array(pimg['eta_coordinates'])[:, 0]
 
-        tp, ep = np.meshgrid(tth_cen[::skip],
-                             eta_cen[::skip])
-        tc, ec = np.meshgrid(np.arange(ncols_in)[::skip],
-                             np.arange(nrows_in)[::skip])
+        tp, ep = np.meshgrid(tth_cen[::skip], eta_cen[::skip])
+        tc, ec = np.meshgrid(
+            np.arange(ncols_in)[::skip], np.arange(nrows_in)[::skip]
+        )
         op = np.zeros_like(tp.flatten())
 
         angs = np.radians(
-            np.vstack([tp.flatten(),
-                       ep.flatten(),
-                       op.flatten()]).T
+            np.vstack([tp.flatten(), ep.flatten(), op.flatten()]).T
         )
 
         ppts = zproject_sph_angles(
-            angs, method='stereographic', source='d', invert_z=self.invert_z,
-            rmat=self.rmat
+            angs,
+            method='stereographic',
+            source='d',
+            invert_z=self.invert_z,
+            rmat=self.rmat,
         )
 
         # output pixel size
         ps = self.PROJ_IMG_DIM / self.output_dim
 
         # pixel coords in output image
-        rp = 0.5*self.output_dim - ppts[:, 1]/ps
-        cp = ppts[:, 0]/ps + 0.5*self.output_dim
+        rp = 0.5 * self.output_dim - ppts[:, 1] / ps
+        cp = ppts[:, 0] / ps + 0.5 * self.output_dim
 
-        src = np.vstack([tc.flatten(), ec.flatten(), ]).T
-        dst = np.vstack([cp.flatten(), rp.flatten(), ]).T
+        src = np.vstack(
+            [
+                tc.flatten(),
+                ec.flatten(),
+            ]
+        ).T
+        dst = np.vstack(
+            [
+                cp.flatten(),
+                rp.flatten(),
+            ]
+        ).T
         paxf.estimate(src, dst)
 
         wimg = warp(
             img,
             inverse_map=paxf.inverse,
-            output_shape=(self.output_dim, self.output_dim)
+            output_shape=(self.output_dim, self.output_dim),
         )
 
         return wimg

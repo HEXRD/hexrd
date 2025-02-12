@@ -8,6 +8,7 @@ from hexrd.core.instrument import HEDMInstrument
 
 class RelativeConstraintsType(Enum):
     """These are relative constraints between the detectors"""
+
     # 'none' means no relative constraints
     none = 'None'
     # 'group' means constrain tilts/translations within a group
@@ -18,6 +19,7 @@ class RelativeConstraintsType(Enum):
 
 class RotationCenter(Enum):
     """These are different centers for relative constraint rotations"""
+
     # Rotate about the mean center of all the detectors
     instrument_mean_center = 'InstrumentMeanCenter'
 
@@ -164,8 +166,9 @@ class RelativeConstraintsSystem(RelativeConstraints):
         raise NotImplementedError(self.rotation_center)
 
 
-def create_relative_constraints(type: RelativeConstraintsType,
-                                instr: HEDMInstrument):
+def create_relative_constraints(
+    type: RelativeConstraintsType, instr: HEDMInstrument
+):
     types = {
         'None': RelativeConstraintsNone,
         'Group': RelativeConstraintsGroup,

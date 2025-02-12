@@ -1,6 +1,10 @@
 import importlib.resources
 import hexrd.core.resources
-from hexrd.core.constants import cClassicalelectronRad as re, cAvogadro, ATOM_WEIGHTS_DICT
+from hexrd.core.constants import (
+    cClassicalelectronRad as re,
+    cAvogadro,
+    ATOM_WEIGHTS_DICT,
+)
 import chemparse
 import numpy as np
 import h5py
@@ -13,6 +17,8 @@ calculate the molecular weight given the formula unit
 @author Saransh Singh, LLNL
 @date   1.0 original 02/16/2022
 """
+
+
 def interpret_formula(formula):
     """
     first interpret if the formula is a dictionary
@@ -27,17 +33,19 @@ def interpret_formula(formula):
 
         return chemparse.parse_formula(formula)
 
+
 def calculate_molecular_mass(formula):
     """
     interpret the formula as either a dictionary
     or a chemical formula
     """
     formula_dict = interpret_formula(formula)
-    M = 0.
-    for k,v in formula_dict.items():
+    M = 0.0
+    for k, v in formula_dict.items():
         M += v * ATOM_WEIGHTS_DICT[k]
 
     return M
+
 
 """
 calculate the number density of element or compound
@@ -45,15 +53,15 @@ number density is the number of atoms per unit volume
 @author Saransh Singh, LLNL
 @date   1.0 original 02/16/2022
 """
-def calculate_number_density(density,
-                             formula):
+
+
+def calculate_number_density(density, formula):
 
     molecular_mass = calculate_molecular_mass(formula)
-    return 1e-21*density*cAvogadro/molecular_mass
+    return 1e-21 * density * cAvogadro / molecular_mass
 
-def calculate_linear_absorption_length(density,
-                                       formula,
-                                       energy_vector):
+
+def calculate_linear_absorption_length(density, formula, energy_vector):
     """
     this function calculates the absorption length (in mm)
     based on both coherent and incoherent scattering cross
@@ -86,38 +94,39 @@ def calculate_linear_absorption_length(density,
     data = importlib.resources.open_binary(hexrd.core.resources, 'mu_en.h5')
     fid = h5py.File(data, 'r')
 
-    formula_dict =  interpret_formula(formula)
+    formula_dict = interpret_formula(formula)
     molecular_mass = calculate_molecular_mass(formula)
 
     density_conv = density
 
     mu_rho = 0.0
     for k, v in formula_dict.items():
-        wi = v*ATOM_WEIGHTS_DICT[k]/molecular_mass
+        wi = v * ATOM_WEIGHTS_DICT[k] / molecular_mass
 
         d = np.array(fid[f"/{k}/data"])
 
-        E   = d[:,0]
-        mu_rho_tab = d[:,1]
+        E = d[:, 0]
+        mu_rho_tab = d[:, 1]
 
-        val = np.interp(np.log(energy_vector),
-                        np.log(E),
-                        np.log(mu_rho_tab),
-                        left=0.0,
-                        right=0.0)
+        val = np.interp(
+            np.log(energy_vector),
+            np.log(E),
+            np.log(mu_rho_tab),
+            left=0.0,
+            right=0.0,
+        )
 
         val = np.exp(val)
         mu_rho += wi * val
 
-    mu = mu_rho * density_conv # this is in cm^-1
-    mu = mu * 1E-4 # this is in mm^-1
-    absorption_length = 1./mu
+    mu = mu_rho * density_conv  # this is in cm^-1
+    mu = mu * 1e-4  # this is in mm^-1
+    absorption_length = 1.0 / mu
 
     return absorption_length
 
-def calculate_energy_absorption_length(density,
-                                       formula,
-                                       energy_vector):
+
+def calculate_energy_absorption_length(density, formula, energy_vector):
     """
     this function calculates the absorption length (in mm)
     based on the total energy absorbed by the medium. this
@@ -148,32 +157,34 @@ def calculate_energy_absorption_length(density,
     data = importlib.resources.open_binary(hexrd.core.resources, 'mu_en.h5')
     fid = h5py.File(data, 'r')
 
-    formula_dict =  interpret_formula(formula)
+    formula_dict = interpret_formula(formula)
     molecular_mass = calculate_molecular_mass(formula)
 
     density_conv = density
 
     mu_rho = 0.0
     for k, v in formula_dict.items():
-        wi = v*ATOM_WEIGHTS_DICT[k]/molecular_mass
+        wi = v * ATOM_WEIGHTS_DICT[k] / molecular_mass
 
         d = np.array(fid[f"/{k}/data"])
 
-        E   = d[:,0]
-        mu_rho_tab = d[:,2]
+        E = d[:, 0]
+        mu_rho_tab = d[:, 2]
 
-        val = np.interp(np.log(energy_vector),
-                        np.log(E),
-                        np.log(mu_rho_tab),
-                        left=0.0,
-                        right=0.0)
+        val = np.interp(
+            np.log(energy_vector),
+            np.log(E),
+            np.log(mu_rho_tab),
+            left=0.0,
+            right=0.0,
+        )
         val = np.exp(val)
 
         mu_rho += wi * val
 
-    mu = mu_rho * density_conv # this is in cm^-1
-    mu = mu * 1E-4 # this is in microns^-1
-    absorption_length = 1./mu
+    mu = mu_rho * density_conv  # this is in cm^-1
+    mu = mu * 1e-4  # this is in microns^-1
+    absorption_length = 1.0 / mu
 
     return absorption_length
 
@@ -208,20 +219,20 @@ def convert_density_to_atoms_per_cubic_angstrom(
     """
     # get_smallest abundance
     if composition is None:
-        return 0.
+        return 0.0
 
     norm_elemental_abundances = normalize_composition(composition)
     mean_z = 0.0
     for element, concentration in norm_elemental_abundances.items():
         mean_z += concentration * constants.ATOM_WEIGHTS_DICT[element]
-    return density / mean_z * .602214129
+    return density / mean_z * 0.602214129
 
 
 def calculate_coherent_scattering_factor(
     element: str,
     Q: np.ndarray,
 ) -> np.ndarray:
-    s = Q/(4. * np.pi)
+    s = Q / (4.0 * np.pi)
     sfact = constants.scatfac[element]
     fe = sfact[5]
     for jj in range(5):
@@ -261,10 +272,7 @@ def calculate_f_squared_mean(
     norm_elemental_abundances = normalize_composition(formula)
     res = 0
     for key, value in norm_elemental_abundances.items():
-        res += (
-            value *
-            calculate_coherent_scattering_factor(key, Q) ** 2
-        )
+        res += value * calculate_coherent_scattering_factor(key, Q) ** 2
     return res
 
 
@@ -280,11 +288,8 @@ def calculate_f_mean_squared(
     norm_elemental_abundances = normalize_composition(formula)
     res = 0
     for key, value in norm_elemental_abundances.items():
-        res += (
-            value *
-            calculate_coherent_scattering_factor(key, Q)
-        )
-    return res ** 2
+        res += value * calculate_coherent_scattering_factor(key, Q)
+    return res**2
 
 
 def calculate_incoherent_scattering(
@@ -296,12 +301,8 @@ def calculate_incoherent_scattering(
         return np.zeros_like(Q)
 
     formula = interpret_formula(composition)
-    norm_elemental_abundances = normalize_composition(
-        formula)
+    norm_elemental_abundances = normalize_composition(formula)
     res = 0
     for key, value in norm_elemental_abundances.items():
-        res += (
-            value *
-            calculate_incoherent_scattering_factor(key, Q)
-        ) ** 2
+        res += (value * calculate_incoherent_scattering_factor(key, Q)) ** 2
     return res

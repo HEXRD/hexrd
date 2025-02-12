@@ -1,5 +1,5 @@
-"""Base class for imageseries
-"""
+"""Base class for imageseries"""
+
 import numpy as np
 
 from .imageseriesabc import ImageSeriesABC, RegionType

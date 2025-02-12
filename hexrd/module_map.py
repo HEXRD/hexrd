@@ -44,7 +44,7 @@ with open(HEXRD_PACKAGE_PATH / "file_table.tsv", "r") as f:
 module_map: dict[str, tuple[str, Path]] = {}
 
 for old_path, new_paths in file_map.items():
-    if old_path.suffix not in  ("", ".py") or not "hexrd" in old_path.parts:
+    if old_path.suffix not in ("", ".py") or not "hexrd" in old_path.parts:
         continue
     old_module_path = path_to_module(old_path)
     # TODO: This just picks one. We should probably pick the right one? We should know the right one after
@@ -94,15 +94,18 @@ def get(alias: str) -> ModuleAlias | str | None:
     return None
 
 
-
 class ModuleSpecWithParent(importlib.machinery.ModuleSpec):
-    def __init__(self, name, loader, *, origin=None, parent=None, is_package=False):
+    def __init__(
+        self, name, loader, *, origin=None, parent=None, is_package=False
+    ):
         super().__init__(name, loader, origin=origin, is_package=is_package)
         self._parent = parent
 
     @property
     def parent(self):
         return self._parent
+
+
 class ModuleAliasFinder(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path, target=None):
         if fullname in module_map:
@@ -113,7 +116,6 @@ class ModuleAliasFinder(importlib.abc.MetaPathFinder):
             else:
                 parent = mapped_module
 
-            
             # Need to set these to be the exact same module so that class comparison
             # works correctly if you are comparing classes that are imported one way with classes
             # that are imported the mapped way.
@@ -138,12 +140,12 @@ class ModuleAliasFinder(importlib.abc.MetaPathFinder):
                 spec = ModuleSpecWithParent(
                     mapped_module,
                     importlib.machinery.NamespaceLoader(
-                        mapped_module, 
-                        list(mapped_fp.parts), 
-                        path_finder=importlib.machinery.PathFinder.find_spec, # type: ignore
+                        mapped_module,
+                        list(mapped_fp.parts),
+                        path_finder=importlib.machinery.PathFinder.find_spec,  # type: ignore
                     ),
                     parent=parent,
-                    is_package=True
+                    is_package=True,
                 )
             return spec
         return None

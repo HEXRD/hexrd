@@ -58,6 +58,7 @@ uTDict = dict(
 
 class UNames(object):
     """Units used in this module"""
+
     degrees = 'degrees'
     radians = 'radians'
 
@@ -72,36 +73,31 @@ class UNames(object):
 
 
 cv_dict = {
-    (UNames.degrees, UNames.radians): math.pi/180.0,
-    (UNames.radians, UNames.degrees): 180/math.pi,
-
-    (UNames.m, UNames.mm):  1.0e3,
-    (UNames.m, UNames.meter):  1.0,
+    (UNames.degrees, UNames.radians): math.pi / 180.0,
+    (UNames.radians, UNames.degrees): 180 / math.pi,
+    (UNames.m, UNames.mm): 1.0e3,
+    (UNames.m, UNames.meter): 1.0,
     (UNames.m, UNames.nm): 1.0e9,
-    (UNames.m, UNames.angstrom):  1.0e10,
-
-    (UNames.meter, UNames.mm):  1.0e3,
-    (UNames.meter, UNames.m):  1.0,
+    (UNames.m, UNames.angstrom): 1.0e10,
+    (UNames.meter, UNames.mm): 1.0e3,
+    (UNames.meter, UNames.m): 1.0,
     (UNames.meter, UNames.nm): 1.0e9,
-    (UNames.meter, UNames.angstrom):  1.0e10,
-
-    (UNames.mm, UNames.m):  1.0e-3,
-    (UNames.mm, UNames.meter):  1.0e-3,
+    (UNames.meter, UNames.angstrom): 1.0e10,
+    (UNames.mm, UNames.m): 1.0e-3,
+    (UNames.mm, UNames.meter): 1.0e-3,
     (UNames.mm, UNames.nm): 1.0e6,
-    (UNames.mm, UNames.angstrom):  1.0e7,
-
-    (UNames.angstrom, UNames.m):  1.0e-10,
-    (UNames.angstrom, UNames.meter):  1.0e-10,
-    (UNames.angstrom, UNames.mm):  1.0e-7,
+    (UNames.mm, UNames.angstrom): 1.0e7,
+    (UNames.angstrom, UNames.m): 1.0e-10,
+    (UNames.angstrom, UNames.meter): 1.0e-10,
+    (UNames.angstrom, UNames.mm): 1.0e-7,
     (UNames.angstrom, UNames.nm): 1.0e-1,
-
     (UNames.keV, UNames.J): 1.60217646e-16,
-    (UNames.J, UNames.keV): (1/1.60217646e-16)
-    }
+    (UNames.J, UNames.keV): (1 / 1.60217646e-16),
+}
 
 
 class valWUnit:
-    "Value with units"""
+    "Value with units" ""
 
     def __init__(self, name, unitType, value, unit):
         """Initialization
@@ -139,14 +135,15 @@ class valWUnit:
 
     def __mul__(self, other):
         if isinstance(other, float):
-            new = valWUnit(self.name, self.uT, self.value*other, self.unit)
+            new = valWUnit(self.name, self.uT, self.value * other, self.unit)
             return new
         elif isinstance(other, valWUnit):
-            new = valWUnit('%s_times_%s' % (self.name, other.name),
-                           '%s %s' % (self.uT, other.uT),
-                           self.value*other.value,
-                           '(%s)*(%s)' % (self.unit, other.unit)
-                           )
+            new = valWUnit(
+                '%s_times_%s' % (self.name, other.name),
+                '%s %s' % (self.uT, other.uT),
+                self.value * other.value,
+                '(%s)*(%s)' % (self.unit, other.unit),
+            )
             # really need to put in here something to resolve new.uT
             return new
         else:
@@ -154,12 +151,15 @@ class valWUnit:
 
     def __add__(self, other):
         if isinstance(other, float):
-            new = valWUnit(self.name, self.uT,
-                           self.value + other, self.unit)
+            new = valWUnit(self.name, self.uT, self.value + other, self.unit)
             return new
         elif isinstance(other, valWUnit):
-            new = valWUnit(self.name, self.uT,
-                           self.value + other.getVal(self.unit), self.unit)
+            new = valWUnit(
+                self.name,
+                self.uT,
+                self.value + other.getVal(self.unit),
+                self.unit,
+            )
             return new
         else:
             raise RuntimeError("add with unsupported operand")
@@ -169,8 +169,12 @@ class valWUnit:
             new = valWUnit(self.name, self.uT, self.value - other, self.unit)
             return new
         elif isinstance(other, valWUnit):
-            new = valWUnit(self.name, self.uT, self.value
-                           - other.getVal(self.unit), self.unit)
+            new = valWUnit(
+                self.name,
+                self.uT,
+                self.value - other.getVal(self.unit),
+                self.unit,
+            )
             return new
         else:
             raise RuntimeError("add with unsupported operand")
@@ -212,13 +216,15 @@ class valWUnit:
         #
         from_to = (self.unit, toUnit)
         try:
-            return cv_dict[from_to]*self.value
-        except(KeyError):
+            return cv_dict[from_to] * self.value
+        except KeyError:
             special_case = ('keV', 'angstrom')
             if from_to == special_case or from_to == special_case[::-1]:
                 return keVToAngstrom(self.value)
-            raise RuntimeError(f"Unit conversion '{from_to[0]} --> "
-                               + f"{from_to[1]}' not recognized")
+            raise RuntimeError(
+                f"Unit conversion '{from_to[0]} --> "
+                + f"{from_to[1]}' not recognized"
+            )
 
     def isLength(self):
         """Return true if quantity is a length"""
@@ -332,4 +338,5 @@ if __name__ == '__main__':
         for u in ulist:
             print(('   in ', u, ': ', v.getVal(u)))
         return
+
     testConversions()

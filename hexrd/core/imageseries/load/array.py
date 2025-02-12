@@ -1,5 +1,5 @@
-"""Adapter class for numpy array (3D)
-"""
+"""Adapter class for numpy array (3D)"""
+
 from . import ImageSeriesAdapter
 from ..imageseriesiter import ImageSeriesIterator
 
@@ -18,6 +18,7 @@ class ArrayImageSeriesAdapter(ImageSeriesAdapter):
     metadata: dict (optional)
        the metadata dictionary
     """
+
     format = 'array'
 
     def __init__(self, fname, **kwargs):
@@ -28,9 +29,9 @@ class ArrayImageSeriesAdapter(ImageSeriesAdapter):
             self._data = data_arr
         else:
             raise RuntimeError(
-                    'input array must be 2-d or 3-d; you provided ndim=%d'
-                    % data_arr.ndim
-                )
+                'input array must be 2-d or 3-d; you provided ndim=%d'
+                % data_arr.ndim
+            )
 
         self._meta = kwargs.pop('meta', dict())
         self._shape = self._data.shape

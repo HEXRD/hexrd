@@ -22,11 +22,24 @@ from hexrd.core.imageutil import snip1d_quad
 from hexrd.core.material import Material
 from hexrd.core.utils.multiprocess_generic import GenericMultiprocessing
 from hexrd.core.valunits import valWUnit
-from hexrd.powder.wppf.peakfunctions import calc_rwp, computespectrum_pvfcj, computespectrum_pvtch, computespectrum_pvpink, calc_Iobs_pvfcj, calc_Iobs_pvtch, calc_Iobs_pvpink
+from hexrd.powder.wppf.peakfunctions import (
+    calc_rwp,
+    computespectrum_pvfcj,
+    computespectrum_pvtch,
+    computespectrum_pvpink,
+    calc_Iobs_pvfcj,
+    calc_Iobs_pvtch,
+    calc_Iobs_pvpink,
+)
 from hexrd.powder.wppf import wppfsupport
 from hexrd.powder.wppf.spectrum import Spectrum
 from hexrd.powder.wppf.parameters import Parameters
-from hexrd.powder.wppf.phase import Phases_LeBail, Phases_Rietveld, Material_LeBail, Material_Rietveld
+from hexrd.powder.wppf.phase import (
+    Phases_LeBail,
+    Phases_Rietveld,
+    Material_LeBail,
+    Material_Rietveld,
+)
 
 
 class LeBail:
@@ -85,7 +98,7 @@ class LeBail:
         phases=None,
         wavelength={
             "kalpha1": [_nm(0.15406), 1.0],
-            "kalpha2": [_nm(0.154443), 1.0]
+            "kalpha2": [_nm(0.154443), 1.0],
         },
         bkgmethod={"spline": None},
         intensity_init=None,
@@ -278,7 +291,7 @@ class LeBail:
             # In case the degree has changed, slice off any extra at the end,
             # and in case it is less, pad with zeros.
             if len(self.bkg_coef) > degree + 1:
-                self.bkg_coef = self.bkg_coef[:degree + 1]
+                self.bkg_coef = self.bkg_coef[: degree + 1]
             elif len(self.bkg_coef) < degree + 1:
                 pad_width = (0, degree + 1 - len(self.bkg_coef))
                 self.bkg_coef = np.pad(self.bkg_coef, pad_width)
@@ -351,8 +364,9 @@ class LeBail:
             for p in self.phases:
                 self.Icalc[p] = {}
                 for k in self.phases.wavelength.keys():
-                    self.Icalc[p][k] = \
-                        (10 ** n10) * np.ones(self.tth[p][k].shape)
+                    self.Icalc[p][k] = (10**n10) * np.ones(
+                        self.tth[p][k].shape
+                    )
 
         elif isinstance(self.intensity_init, dict):
             """
@@ -385,10 +399,12 @@ class LeBail:
                          from the dictionary."
                         )
 
-                    if (self.tth[p][k].shape[0]
-                            <= self.intensity_init[p][k].shape[0]):
+                    if (
+                        self.tth[p][k].shape[0]
+                        <= self.intensity_init[p][k].shape[0]
+                    ):
                         self.Icalc[p][k] = self.intensity_init[p][k][
-                            0:self.tth[p][k].shape[0]
+                            0 : self.tth[p][k].shape[0]
                         ]
         else:
             raise RuntimeError(
@@ -422,15 +438,29 @@ class LeBail:
                 Xs = np.zeros(Ic.shape)
                 if self.phases[p].sf_alpha is not None:
                     alpha = getattr(self, f"{p}_sf_alpha")
-                    beta  = getattr(self, f"{p}_twin_beta")
-                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k])) *\
-                        self.sf_hkl_factors[p][k]
+                    beta = getattr(self, f"{p}_twin_beta")
+                    sf_shift = (
+                        alpha
+                        * np.tan(np.radians(self.tth[p][k]))
+                        * self.sf_hkl_factors[p][k]
+                    )
                     Xs = np.degrees(
-                        0.9*(1.5*alpha+beta)*(
-                        self.sf_lfactor[p][k]*lam/self.phases[p].lparms[0]))
+                        0.9
+                        * (1.5 * alpha + beta)
+                        * (
+                            self.sf_lfactor[p][k]
+                            * lam
+                            / self.phases[p].lparms[0]
+                        )
+                    )
 
-                tth = self.tth[p][k] + self.zero_error + \
-                    shft_c + trns_c + sf_shift
+                tth = (
+                    self.tth[p][k]
+                    + self.zero_error
+                    + shft_c
+                    + trns_c
+                    + sf_shift
+                )
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
@@ -537,15 +567,29 @@ class LeBail:
                 Xs = np.zeros(Ic.shape)
                 if self.phases[p].sf_alpha is not None:
                     alpha = getattr(self, f"{p}_sf_alpha")
-                    beta  = getattr(self, f"{p}_twin_beta")
-                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k])) *\
-                        self.sf_hkl_factors[p][k]
+                    beta = getattr(self, f"{p}_twin_beta")
+                    sf_shift = (
+                        alpha
+                        * np.tan(np.radians(self.tth[p][k]))
+                        * self.sf_hkl_factors[p][k]
+                    )
                     Xs = np.degrees(
-                        0.9*(1.5*alpha+beta)*(
-                        self.sf_lfactor[p][k]*lam/self.phases[p].lparms[0]))
+                        0.9
+                        * (1.5 * alpha + beta)
+                        * (
+                            self.sf_lfactor[p][k]
+                            * lam
+                            / self.phases[p].lparms[0]
+                        )
+                    )
 
-                tth = self.tth[p][k] + self.zero_error + \
-                    shft_c + trns_c + sf_shift
+                tth = (
+                    self.tth[p][k]
+                    + self.zero_error
+                    + shft_c
+                    + trns_c
+                    + sf_shift
+                )
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
@@ -673,8 +717,10 @@ class LeBail:
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
         if print_to_screen:
-            msg = (f"Finished iteration. Rwp: "
-                   f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}")
+            msg = (
+                f"Finished iteration. Rwp: "
+                f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
+            )
             print(msg)
 
     def Refine(self):
@@ -926,8 +972,7 @@ class LeBail:
     @property
     def cheb_polynomial(self):
         return np.polynomial.Chebyshev(
-            self.cheb_coef,
-            domain=[self.tth_list[0], self.tth_list[-1]]
+            self.cheb_coef, domain=[self.tth_list[0], self.tth_list[-1]]
         )
 
     @property
@@ -1076,9 +1121,7 @@ class LeBail:
                     for s in expt_spec_list:
                         self._spectrum_expt.append(
                             Spectrum(
-                                x=s[:, 0],
-                                y=s[:, 1],
-                                name="expt_spectrum"
+                                x=s[:, 0], y=s[:, 1], name="expt_spectrum"
                             )
                         )
 
@@ -1240,9 +1283,9 @@ class LeBail:
     @property
     def init_bkg(self):
         degree = self.bkgmethod["chebyshev"]
-        x = np.empty([0, ])
-        y = np.empty([0, ])
-        wts = np.empty([0, ])
+        x = np.empty([0])
+        y = np.empty([0])
+        wts = np.empty([0])
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
             wt = self._weights[i]
@@ -1323,7 +1366,7 @@ class LeBail:
                 self.phases,
                 self.peakshape,
                 self.bkgmethod,
-                init_val=self.cheb_init_coef
+                init_val=self.cheb_init_coef,
             )
             self._params = params
 
@@ -1384,15 +1427,16 @@ class LeBail:
 
                 elif isinstance(phase_info, Material):
                     p[phase_info.name] = Material_LeBail(
-                        fhdf=None, xtal=None,
-                        dmin=None, material_obj=phase_info
+                        fhdf=None,
+                        xtal=None,
+                        dmin=None,
+                        material_obj=phase_info,
                     )
 
                 elif isinstance(phase_info, list):
                     for mat in phase_info:
                         p[mat.name] = Material_LeBail(
-                            fhdf=None, xtal=None,
-                            dmin=None, material_obj=mat
+                            fhdf=None, xtal=None, dmin=None, material_obj=mat
                         )
 
                         p.num_phases += 1
@@ -1656,8 +1700,10 @@ class Rietveld:
         expt_spectrum=None,
         params=None,
         phases=None,
-        wavelength={"kalpha1": [_nm(0.15406), 1.0],
-                    "kalpha2": [_nm(0.154443), 0.52]},
+        wavelength={
+            "kalpha1": [_nm(0.15406), 1.0],
+            "kalpha2": [_nm(0.154443), 0.52],
+        },
         bkgmethod={"spline": None},
         peakshape="pvfcj",
         shape_factor=1.0,
@@ -1800,7 +1846,7 @@ class Rietveld:
             # In case the degree has changed, slice off any extra at the end,
             # and in case it is less, pad with zeros.
             if len(self.bkg_coef) > degree + 1:
-                self.bkg_coef = self.bkg_coef[:degree + 1]
+                self.bkg_coef = self.bkg_coef[: degree + 1]
             elif len(self.bkg_coef) < degree + 1:
                 pad_width = (0, degree + 1 - len(self.bkg_coef))
                 self.bkg_coef = np.pad(self.bkg_coef, pad_width)
@@ -1874,8 +1920,9 @@ class Rietveld:
                 tth = self.tth[p][k]
                 # allowed = self.phases[p][k].wavelength_allowed_hkls
                 # limit = self.limit[p][k]
-                self.sf[p][k], self.sf_raw[p][k] = \
-                    self.phases[p][k].CalcXRSF(w, w_int)
+                self.sf[p][k], self.sf_raw[p][k] = self.phases[p][k].CalcXRSF(
+                    w, w_int
+                )
 
                 self.extinction[p][k] = self.phases[p][k].calc_extinction(
                     10.0 * w,
@@ -1928,15 +1975,29 @@ class Rietveld:
                 Xs = np.zeros(self.tth[p][k].shape)
                 if self.phases[p][k].sf_alpha is not None:
                     alpha = getattr(self, f"{p}_sf_alpha")
-                    beta  = getattr(self, f"{p}_twin_beta")
-                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k])) *\
-                        self.sf_hkl_factors[p][k]
-                    Xs = np.degrees(0.9*(1.5*alpha+beta)*(
-                        self.sf_lfactor[p][k] *
-                        lam/self.phases[p][k].lparms[0]))
+                    beta = getattr(self, f"{p}_twin_beta")
+                    sf_shift = (
+                        alpha
+                        * np.tan(np.radians(self.tth[p][k]))
+                        * self.sf_hkl_factors[p][k]
+                    )
+                    Xs = np.degrees(
+                        0.9
+                        * (1.5 * alpha + beta)
+                        * (
+                            self.sf_lfactor[p][k]
+                            * lam
+                            / self.phases[p][k].lparms[0]
+                        )
+                    )
 
-                tth = self.tth[p][k] + self.zero_error + \
-                    shft_c + trns_c + sf_shift
+                tth = (
+                    self.tth[p][k]
+                    + self.zero_error
+                    + shft_c
+                    + trns_c
+                    + sf_shift
+                )
 
                 pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                 sf = self.sf[p][k]
@@ -2101,8 +2162,10 @@ class Rietveld:
             self.Rwplist = np.append(self.Rwplist, self.Rwp)
             self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-            msg = (f"Finished iteration. Rwp: "
-                   f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}")
+            msg = (
+                f"Finished iteration. Rwp: "
+                f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
+            )
             print(msg)
         else:
             print("Nothing to refine...")
@@ -2121,7 +2184,11 @@ class Rietveld:
         if not skip_phases:
             updated_lp = False
             updated_atominfo = False
-            pf = np.zeros([self.phases.num_phases, ])
+            pf = np.zeros(
+                [
+                    self.phases.num_phases,
+                ]
+            )
             pf_cur = self.phases.phase_fraction.copy()
             for ii, p in enumerate(self.phases):
                 name = f"{p}_phase_fraction"
@@ -2236,7 +2303,7 @@ class Rietveld:
                 if updated_lp or updated_atominfo:
                     self.calcsf()
 
-            self.phases.phase_fraction = pf/np.sum(pf)
+            self.phases.phase_fraction = pf / np.sum(pf)
 
     def _update_shkl(self, params):
         """
@@ -2359,7 +2426,7 @@ class Rietveld:
                 self.phases,
                 self.peakshape,
                 self.bkgmethod,
-                init_val=self.cheb_init_coef
+                init_val=self.cheb_init_coef,
             )
             self._params = params
 
@@ -2436,9 +2503,9 @@ class Rietveld:
                     self._spectrum_expt = []
                     for s in expt_spec_list:
                         self._spectrum_expt.append(
-                            Spectrum(x=s[:, 0],
-                                     y=s[:, 1],
-                                     name="expt_spectrum")
+                            Spectrum(
+                                x=s[:, 0], y=s[:, 1], name="expt_spectrum"
+                            )
                         )
 
                 else:
@@ -2657,8 +2724,10 @@ class Rietveld:
                             "kev", "ENERGY", E, "keV"
                         )
                         p[phase_info.name][k] = Material_Rietveld(
-                            fhdf=None, xtal=None,
-                            dmin=None, material_obj=phase_info
+                            fhdf=None,
+                            xtal=None,
+                            dmin=None,
+                            material_obj=phase_info,
                         )
                         p[phase_info.name][k].pf = 1.0
                     p.num_phases = 1
@@ -2678,8 +2747,10 @@ class Rietveld:
                                 "kev", "ENERGY", E, "keV"
                             )
                             p[mat.name][k] = Material_Rietveld(
-                                fhdf=None, xtal=None,
-                                dmin=None, material_obj=mat
+                                fhdf=None,
+                                xtal=None,
+                                dmin=None,
+                                material_obj=mat,
                             )
                         p.num_phases += 1
 
@@ -2747,7 +2818,7 @@ class Rietveld:
                 self.phases,
                 self.peakshape,
                 self.bkgmethod,
-                init_val=self.cheb_init_coef
+                init_val=self.cheb_init_coef,
             )
             for p in params:
                 if p in self.params:
@@ -2759,9 +2830,9 @@ class Rietveld:
     @property
     def init_bkg(self):
         degree = self.bkgmethod["chebyshev"]
-        x = np.empty([0, ])
-        y = np.empty([0, ])
-        wts = np.empty([0, ])
+        x = np.empty([0])
+        y = np.empty([0])
+        wts = np.empty([0])
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
             wt = self._weights[i]
@@ -2782,8 +2853,7 @@ class Rietveld:
     @property
     def cheb_polynomial(self):
         return np.polynomial.Chebyshev(
-            self.cheb_coef,
-            domain=[self.tth_list[0], self.tth_list[-1]]
+            self.cheb_coef, domain=[self.tth_list[0], self.tth_list[-1]]
         )
 
     @property
@@ -2971,7 +3041,7 @@ def separate_regions(masked_spec_array):
     m0 = np.concatenate(([False], mask, [False]))
     idx = np.flatnonzero(m0[1:] != m0[:-1])
     gidx = [(idx[i], idx[i + 1]) for i in range(0, len(idx), 2)]
-    return [array[idx[i]: idx[i + 1], :] for i in range(0, len(idx), 2)], gidx
+    return [array[idx[i] : idx[i + 1], :] for i in range(0, len(idx), 2)], gidx
 
 
 def join_regions(vector_list, global_index, global_shape):
@@ -2988,7 +3058,7 @@ def join_regions(vector_list, global_index, global_shape):
     )
     out_vector[:] = np.nan
     for s, ids in zip(vector_list, global_index):
-        out_vector[ids[0]: ids[1]] = s
+        out_vector[ids[0] : ids[1]] = s
 
     # out_array = np.ma.masked_array(out_array, mask = np.isnan(out_array))
     return out_vector

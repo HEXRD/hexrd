@@ -63,8 +63,9 @@ def _fix_all_params(parameters: Parameters):
         param.vary = False
 
 
-def test_wppf_rietveld(expt_spectrum, spline_picks, ceo2_material,
-                       rietveld_params):
+def test_wppf_rietveld(
+    expt_spectrum, spline_picks, ceo2_material, rietveld_params
+):
 
     beam_wavelength = 0.15358835358711712
     params = rietveld_params

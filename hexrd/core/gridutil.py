@@ -32,7 +32,6 @@ import numba
 from hexrd.core.constants import sqrt_epsf
 
 
-
 def cellIndices(edges, points_1d):
     """
     get indices in a 1-d regular grid.
@@ -95,13 +94,13 @@ def cellIndices(edges, points_1d):
 def _fill_connectivity(out, m, n, p):
     i_con = 0
     for k in range(p):
-        extra = k*(n+1)*(m+1)
+        extra = k * (n + 1) * (m + 1)
         for j in range(m):
             for i in range(n):
-                out[i_con, 0] = i + j*(n + 1) + 1 + extra
-                out[i_con, 1] = i + j*(n + 1) + extra
-                out[i_con, 2] = i + j + n*(j+1) + 1 + extra
-                out[i_con, 3] = i + j + n*(j+1) + 2 + extra
+                out[i_con, 0] = i + j * (n + 1) + 1 + extra
+                out[i_con, 1] = i + j * (n + 1) + extra
+                out[i_con, 2] = i + j + n * (j + 1) + 1 + extra
+                out[i_con, 3] = i + j + n * (j + 1) + 2 + extra
                 i_con += 1
 
 
@@ -113,14 +112,14 @@ def cellConnectivity(m, n, p=1, origin='ul'):
 
     choice will affect handedness (cw or ccw)
     """
-    nele = p*m*n
+    nele = p * m * n
     con = np.empty((nele, 4), dtype=int)
 
     _fill_connectivity(con, m, n, p)
 
     if p > 1:
-        nele = m*n*(p-1)
-        tmp_con3 = con.reshape((p, m*n, 4))
+        nele = m * n * (p - 1)
+        tmp_con3 = con.reshape((p, m * n, 4))
         hex_con = []
         for layer in range(p - 1):
             hex_con.append(np.hstack([tmp_con3[layer], tmp_con3[layer + 1]]))
@@ -135,7 +134,7 @@ def cellCentroids(crd, con):
     nele, conn_count = con.shape
     dim = crd.shape[1]
     out = np.empty((nele, dim))
-    inv_conn = 1.0/conn_count
+    inv_conn = 1.0 / conn_count
     for i in range(nele):
         for j in range(dim):
             acc = 0.0
@@ -151,13 +150,13 @@ def compute_areas(xy_eval_vtx, conn):
     for i in range(len(conn)):
         vtx0x, vtx0y = xy_eval_vtx[conn[i, 0]]
         vtx1x, vtx1y = xy_eval_vtx[conn[i, 1]]
-        v0x, v0y = vtx1x-vtx0x, vtx1y-vtx0y
+        v0x, v0y = vtx1x - vtx0x, vtx1y - vtx0y
         acc = 0
         for j in range(2, 4):
             vtx_x, vtx_y = xy_eval_vtx[conn[i, j]]
             v1x = vtx_x - vtx0x
             v1y = vtx_y - vtx0y
-            acc += v0x*v1y - v1x*v0y
+            acc += v0x * v1y - v1x * v0y
 
         areas[i] = 0.5 * acc
     return areas
@@ -175,24 +174,32 @@ def computeArea(polygon):
     area = 0
     for [s1, s2] in triv:
         tvp = np.diff(
-            np.hstack([polygon[s1, :],
-                       polygon[s2, :]]), axis=0).flatten()
+            np.hstack([polygon[s1, :], polygon[s2, :]]), axis=0
+        ).flatten()
         area += 0.5 * np.cross(tvp[:2], tvp[2:])
     return area
 
 
-def make_tolerance_grid(bin_width, window_width, num_subdivisions,
-                        adjust_window=False, one_sided=False):
+def make_tolerance_grid(
+    bin_width,
+    window_width,
+    num_subdivisions,
+    adjust_window=False,
+    one_sided=False,
+):
     bin_width = min(bin_width, window_width)
     if adjust_window:
-        window_width = np.ceil(window_width/bin_width)*bin_width
+        window_width = np.ceil(window_width / bin_width) * bin_width
     if one_sided:
-        ndiv = abs(int(window_width/bin_width))
-        grid = (np.arange(0, 2*ndiv+1) - ndiv)*bin_width
+        ndiv = abs(int(window_width / bin_width))
+        grid = (np.arange(0, 2 * ndiv + 1) - ndiv) * bin_width
         ndiv *= 2
     else:
-        ndiv = int(num_subdivisions*np.ceil(window_width/float(bin_width)))
-        grid = np.arange(0, ndiv+1)*window_width/float(ndiv) - 0.5*window_width
+        ndiv = int(num_subdivisions * np.ceil(window_width / float(bin_width)))
+        grid = (
+            np.arange(0, ndiv + 1) * window_width / float(ndiv)
+            - 0.5 * window_width
+        )
     return ndiv, grid
 
 
@@ -217,15 +224,15 @@ def computeIntersection(line1, line2):
     [x3, y3] = line2[0]
     [x4, y4] = line2[1]
 
-    denom = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4)
+    denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
     if denom == 0:
         return []
 
-    subterm1 = x1*y2 - y1*x2
-    subterm2 = x3*y4 - y3*x4
+    subterm1 = x1 * y2 - y1 * x2
+    subterm2 = x3 * y4 - y3 * x4
 
-    intersection[0] = (subterm1*(x3-x4) - subterm2*(x1-x2)) / denom
-    intersection[1] = (subterm1*(y3-y4) - subterm2*(y1-y2)) / denom
+    intersection[0] = (subterm1 * (x3 - x4) - subterm2 * (x1 - x2)) / denom
+    intersection[1] = (subterm1 * (y3 - y4) - subterm2 * (y1 - y2)) / denom
     return intersection
 
 
@@ -233,8 +240,8 @@ def isinside(point, boundary, ccw=True):
     """
     Assumes CCW boundary ordering
     """
-    pointPositionVector = np.hstack([point - boundary[0, :], 0.])
-    boundaryVector = np.hstack([boundary[1, :] - boundary[0, :], 0.])
+    pointPositionVector = np.hstack([point - boundary[0, :], 0.0])
+    boundaryVector = np.hstack([boundary[1, :] - boundary[0, :], 0.0])
 
     crossVector = np.cross(pointPositionVector, boundaryVector)
 
@@ -268,10 +275,7 @@ def sutherlandHodgman(subjectPolygon, clipPolygon):
 
         curr_clipVertex = clipPolygon[iClip, :]
 
-        clipBoundary = np.vstack(
-            [curr_clipVertex,
-             prev_clipVertex]
-        )
+        clipBoundary = np.vstack([curr_clipVertex, prev_clipVertex])
 
         inputList = np.array(outputList)
         if len(inputList) > 0:

@@ -1,6 +1,10 @@
 from hexrd.core.imageseries.baseclass import ImageSeries
 from hexrd.core.imageseries.omega import OmegaWedges
-from hexrd.hedm.preprocess.profiles import Eiger_Arguments, Dexelas_Arguments, HexrdPPScript_Arguments
+from hexrd.hedm.preprocess.profiles import (
+    Eiger_Arguments,
+    Dexelas_Arguments,
+    HexrdPPScript_Arguments,
+)
 from hexrd.core import imageseries
 from hexrd.core.imageseries.process import ProcessedImageSeries
 import os

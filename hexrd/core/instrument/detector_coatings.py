@@ -1,5 +1,8 @@
 import numpy as np
-from hexrd.core.material.utils import calculate_linear_absorption_length, calculate_energy_absorption_length
+from hexrd.core.material.utils import (
+    calculate_linear_absorption_length,
+    calculate_energy_absorption_length,
+)
 
 
 class AbstractLayer:
@@ -23,12 +26,14 @@ class AbstractLayer:
         intensity to PSL
     """
 
-    def __init__(self,
-                 material=None,
-                 density=None,
-                 thickness=None,
-                 readout_length=None,
-                 pre_U0=None):
+    def __init__(
+        self,
+        material=None,
+        density=None,
+        thickness=None,
+        readout_length=None,
+        pre_U0=None,
+    ):
         self._material = material
         self._density = density
         self._thickness = thickness
@@ -77,10 +82,11 @@ class AbstractLayer:
         elif isinstance(energy, np.ndarray):
             energy_inp = energy
 
-        args = (self.density,
-                self.material,
-                energy_inp,
-                )
+        args = (
+            self.density,
+            self.material,
+            energy_inp,
+        )
         abs_length = calculate_linear_absorption_length(*args)
         if abs_length.shape[0] == 1:
             return abs_length[0]
@@ -95,10 +101,11 @@ class AbstractLayer:
         elif isinstance(energy, np.ndarray):
             energy_inp = energy
 
-        args = (self.density,
-                self.material,
-                energy_inp,
-                )
+        args = (
+            self.density,
+            self.material,
+            energy_inp,
+        )
         abs_length = calculate_energy_absorption_length(*args)
         if abs_length.shape[0] == 1:
             return abs_length[0]
@@ -111,6 +118,7 @@ class AbstractLayer:
     def deserialize(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
+
 
 class Filter(AbstractLayer):
 
@@ -133,13 +141,7 @@ class Phosphor(AbstractLayer):
 
     @property
     def attributes_to_serialize(self):
-        return [
-            'material',
-            'density',
-            'thickness',
-            'readout_length',
-            'pre_U0'
-        ]
+        return ['material', 'density', 'thickness', 'readout_length', 'pre_U0']
 
     @property
     def readout_length(self):

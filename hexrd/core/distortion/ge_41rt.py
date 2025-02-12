@@ -1,4 +1,5 @@
 """GE41RT Detector Distortion"""
+
 from typing import List
 
 import numpy as np

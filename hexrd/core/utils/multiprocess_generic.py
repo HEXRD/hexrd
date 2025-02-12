@@ -17,8 +17,8 @@ class GenericMultiprocessing:
         pass
 
     def _func_queue(self, func, q_in, q_out, *args, **kwargs):
-        """ 
-        Retrive processes from the queue 
+        """
+        Retrive processes from the queue
         """
         while True:
             pos, var = q_in.get()
@@ -27,13 +27,18 @@ class GenericMultiprocessing:
 
             res = func(var, *args, **kwargs)
             q_out.put((pos, res))
-            print("finished azimuthal position #",
-                  pos, "with rwp = ", res[2]*100., "%")
+            print(
+                "finished azimuthal position #",
+                pos,
+                "with rwp = ",
+                res[2] * 100.0,
+                "%",
+            )
         return
 
     def parallelise_function(self, var, func, *args, **kwargs):
-        """ 
-        Split evaluations of func across processors 
+        """
+        Split evaluations of func across processors
         """
         n = len(var)
 
@@ -48,9 +53,9 @@ class GenericMultiprocessing:
         for i in range(nprocs):
             pass_args = [func, q_in, q_out]
 
-            p = Process(target=self._func_queue,
-                        args=tuple(pass_args),
-                        kwargs=kwargs)
+            p = Process(
+                target=self._func_queue, args=tuple(pass_args), kwargs=kwargs
+            )
 
             processes.append(p)
 

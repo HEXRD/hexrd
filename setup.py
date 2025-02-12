@@ -138,7 +138,7 @@ def get_cpp_extensions():
     ]
 
     transforms_ext = Extension(
-        name='hexrd.extensions.transforms',
+        name='hexrd.core.extensions.transforms',
         sources=[str(cpp_transform_pkgdir / 'src/transforms.cpp')],
         extra_compile_args=extra_compile_args,
         include_dirs=include_dirs,

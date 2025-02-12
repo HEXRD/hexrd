@@ -21,7 +21,8 @@ root.setLevel(logging.INFO)
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.INFO)
 formatter = coloredlogs.ColoredFormatter(
-    '%(asctime)s,%(msecs)03d - %(name)s - %(levelname)s - %(message)s')
+    '%(asctime)s,%(msecs)03d - %(name)s - %(levelname)s - %(message)s'
+)
 handler.setFormatter(formatter)
 root.addHandler(handler)
 
@@ -73,21 +74,30 @@ def test_config(single_ge_config_path, single_ge_include_path):
     return conf
 
 
-def test_fit_grains(single_ge_include_path, test_config, grains_file_path,
-                    grains_reference_file_path):
+def test_fit_grains(
+    single_ge_include_path,
+    test_config,
+    grains_file_path,
+    grains_reference_file_path,
+):
     os.chdir(str(single_ge_include_path))
 
     grains_table = np.loadtxt(grains_reference_file_path, ndmin=2)
     ref_grain_params = grains_table[:, 3:15]
-    gresults = fit_grains(test_config,
-                          grains_table,
-                          show_progress=False,
-                          ids_to_refine=None,
-                          write_spots_files=False)
+    gresults = fit_grains(
+        test_config,
+        grains_table,
+        show_progress=False,
+        ids_to_refine=None,
+        write_spots_files=False,
+    )
 
     cresult = compare_grain_fits(
-        np.vstack([i[-1] for i in gresults]), ref_grain_params,
-        mtol=1.e-4, ctol=1.e-3, vtol=1.e-4
+        np.vstack([i[-1] for i in gresults]),
+        ref_grain_params,
+        mtol=1.0e-4,
+        ctol=1.0e-3,
+        vtol=1.0e-4,
     )
 
     assert cresult

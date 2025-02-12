@@ -19,7 +19,11 @@ from hexrd.core.utils.hkl import hkl_to_str, str_to_hkl
 # TODO: Resolve extra-workflow-dependency
 from ....core.fitting.calibration.calibrator import Calibrator
 from ....core.fitting.calibration.abstract_grain import AbstractGrainCalibrator
-from ....core.fitting.calibration.lmfit_param_handling import create_grain_params, DEFAULT_EULER_CONVENTION, rename_to_avoid_collision
+from ....core.fitting.calibration.lmfit_param_handling import (
+    create_grain_params,
+    DEFAULT_EULER_CONVENTION,
+    rename_to_avoid_collision,
+)
 
 
 class LaueCalibrator(AbstractGrainCalibrator):
@@ -32,16 +36,29 @@ class LaueCalibrator(AbstractGrainCalibrator):
     varying energy range rather than a constant energy value. Also, we
     do not utilize any omega periods.
     """
+
     type = 'laue'
 
-    def __init__(self, instr, material, grain_params, default_refinements=None,
-                 min_energy=5, max_energy=25, tth_distortion=None,
-                 calibration_picks=None,
-                 euler_convention=DEFAULT_EULER_CONVENTION,
-                 xray_source: Optional[str] = None):
+    def __init__(
+        self,
+        instr,
+        material,
+        grain_params,
+        default_refinements=None,
+        min_energy=5,
+        max_energy=25,
+        tth_distortion=None,
+        calibration_picks=None,
+        euler_convention=DEFAULT_EULER_CONVENTION,
+        xray_source: Optional[str] = None,
+    ):
         super().__init__(
-            instr, material, grain_params, default_refinements,
-            calibration_picks, euler_convention,
+            instr,
+            material,
+            grain_params,
+            default_refinements,
+            calibration_picks,
+            euler_convention,
         )
         self.energy_cutoffs = [min_energy, max_energy]
         self.xray_source = xray_source
@@ -85,10 +102,20 @@ class LaueCalibrator(AbstractGrainCalibrator):
         self.plane_data.wavelength = self.energy_cutoffs[-1]
         self.plane_data.exclusions = None
 
-    def autopick_points(self, raw_img_dict, tth_tol=5., eta_tol=5.,
-                        npdiv=2, do_smoothing=True, smoothing_sigma=2,
-                        use_blob_detection=True, blob_threshold=0.25,
-                        fit_peaks=True, min_peak_int=1., fit_tth_tol=0.1):
+    def autopick_points(
+        self,
+        raw_img_dict,
+        tth_tol=5.0,
+        eta_tol=5.0,
+        npdiv=2,
+        do_smoothing=True,
+        smoothing_sigma=2,
+        use_blob_detection=True,
+        blob_threshold=0.25,
+        fit_peaks=True,
+        min_peak_int=1.0,
+        fit_tth_tol=0.1,
+    ):
         """
         Parameters
         ----------
@@ -132,13 +159,23 @@ class LaueCalibrator(AbstractGrainCalibrator):
                 fit_tth_tol=fit_tth_tol,
             )
 
-    def _autopick_points(self, raw_img_dict, tth_tol=5., eta_tol=5.,
-                         npdiv=2, do_smoothing=True, smoothing_sigma=2,
-                         use_blob_detection=True, blob_threshold=0.25,
-                         fit_peaks=True, min_peak_int=1., fit_tth_tol=0.1):
+    def _autopick_points(
+        self,
+        raw_img_dict,
+        tth_tol=5.0,
+        eta_tol=5.0,
+        npdiv=2,
+        do_smoothing=True,
+        smoothing_sigma=2,
+        use_blob_detection=True,
+        blob_threshold=0.25,
+        fit_peaks=True,
+        min_peak_int=1.0,
+        fit_tth_tol=0.1,
+    ):
         labelStructure = ndimage.generate_binary_structure(2, 1)
         rmat_s = np.eye(3)  # !!! forcing to identity
-        omega = 0.  # !!! same ^^^
+        omega = 0.0  # !!! same ^^^
 
         rmat_c = xfcapi.make_rmat_of_expmap(self.grain_params[:3])
         tvec_c = self.grain_params[3:6]
@@ -150,7 +187,8 @@ class LaueCalibrator(AbstractGrainCalibrator):
             self.plane_data,
             minEnergy=self.energy_cutoffs[0],
             maxEnergy=self.energy_cutoffs[1],
-            rmat_s=None, grain_params=np.atleast_2d(self.grain_params),
+            rmat_s=None,
+            grain_params=np.atleast_2d(self.grain_params),
         )
 
         # loop over detectors for results
@@ -159,7 +197,7 @@ class LaueCalibrator(AbstractGrainCalibrator):
             det_config = det.config_dict(
                 chi=self.instr.chi,
                 tvec=self.instr.tvec,
-                beam_vector=self.instr.beam_vector
+                beam_vector=self.instr.beam_vector,
             )
 
             xy_det, hkls, angles, dspacing, energy = laue_sim[det_key]
@@ -182,57 +220,66 @@ class LaueCalibrator(AbstractGrainCalibrator):
             # make patches
             refl_patches = xrdutil.make_reflection_patches(
                 det_config,
-                valid_angs, det.angularPixelSize(valid_xy),
-                rmat_c=rmat_c, tvec_c=tvec_c,
-                tth_tol=tth_tol, eta_tol=eta_tol,
-                npdiv=npdiv, quiet=True)
+                valid_angs,
+                det.angularPixelSize(valid_xy),
+                rmat_c=rmat_c,
+                tvec_c=tvec_c,
+                tth_tol=tth_tol,
+                eta_tol=eta_tol,
+                npdiv=npdiv,
+                quiet=True,
+            )
 
             reflInfoList = []
             img = raw_img_dict[det_key]
             native_area = det.pixel_area
             num_patches = len(valid_angs)
-            meas_xy = np.nan*np.ones((num_patches, 2))
-            meas_angs = np.nan*np.ones((num_patches, 2))
+            meas_xy = np.nan * np.ones((num_patches, 2))
+            meas_angs = np.nan * np.ones((num_patches, 2))
             for iRefl, patch in enumerate(refl_patches):
                 # check for overrun
                 irow = patch[-1][0]
                 jcol = patch[-1][1]
-                if np.any([irow < 0, irow >= det.rows,
-                           jcol < 0, jcol >= det.cols]):
+                if np.any(
+                    [irow < 0, irow >= det.rows, jcol < 0, jcol >= det.cols]
+                ):
                     continue
                 if not np.all(
-                        det.clip_to_panel(
-                            np.vstack([patch[1][0].flatten(),
-                                       patch[1][1].flatten()]).T
-                            )[1]
-                        ):
+                    det.clip_to_panel(
+                        np.vstack(
+                            [patch[1][0].flatten(), patch[1][1].flatten()]
+                        ).T
+                    )[1]
+                ):
                     continue
                 # use nearest interpolation
                 spot_data = img[irow, jcol] * patch[3] * npdiv**2 / native_area
                 spot_data -= np.amin(spot_data)
                 patch_size = spot_data.shape
 
-                sigmax = 0.25*np.min(spot_data.shape) * fwhm_to_sigma
+                sigmax = 0.25 * np.min(spot_data.shape) * fwhm_to_sigma
 
                 # optional gaussian smoothing
                 if do_smoothing:
                     spot_data = filters.gaussian(spot_data, smoothing_sigma)
 
                 if use_blob_detection:
-                    spot_data_scl = 2.*spot_data/np.max(spot_data) - 1.
+                    spot_data_scl = 2.0 * spot_data / np.max(spot_data) - 1.0
 
                     # Compute radii in the 3rd column.
-                    blobs_log = blob_log(spot_data_scl,
-                                         min_sigma=2,
-                                         max_sigma=min(sigmax, 20),
-                                         num_sigma=10,
-                                         threshold=blob_threshold,
-                                         overlap=0.1)
+                    blobs_log = blob_log(
+                        spot_data_scl,
+                        min_sigma=2,
+                        max_sigma=min(sigmax, 20),
+                        num_sigma=10,
+                        threshold=blob_threshold,
+                        overlap=0.1,
+                    )
                     numPeaks = len(blobs_log)
                 else:
                     labels, numPeaks = ndimage.label(
                         spot_data > np.percentile(spot_data, 99),
-                        structure=labelStructure
+                        structure=labelStructure,
                     )
                     slabels = np.arange(1, numPeaks + 1)
                 tth_edges = patch[0][0][0, :]
@@ -247,11 +294,11 @@ class LaueCalibrator(AbstractGrainCalibrator):
                         coms = np.array(
                             ndimage.center_of_mass(
                                 spot_data, labels=labels, index=slabels
-                                )
                             )
+                        )
                     if numPeaks > 1:
                         #
-                        center = np.r_[spot_data.shape]*0.5
+                        center = np.r_[spot_data.shape] * 0.5
                         com_diff = coms - np.tile(center, (numPeaks, 1))
                         closest_peak_idx = np.argmin(
                             np.sum(com_diff**2, axis=1)
@@ -263,20 +310,28 @@ class LaueCalibrator(AbstractGrainCalibrator):
                     coms = coms[closest_peak_idx]
                     #
                     if fit_peaks:
-                        sigm = 0.2*np.min(spot_data.shape)
+                        sigm = 0.2 * np.min(spot_data.shape)
                         if use_blob_detection:
                             sigm = min(blobs_log[closest_peak_idx, 2], sigm)
                         y0, x0 = coms.flatten()
                         ampl = float(spot_data[int(y0), int(x0)])
                         # y0, x0 = 0.5*np.array(spot_data.shape)
                         # ampl = np.max(spot_data)
-                        a_par = c_par = 0.5/float(sigm**2)
-                        b_par = 0.
-                        bgx = bgy = 0.
+                        a_par = c_par = 0.5 / float(sigm**2)
+                        b_par = 0.0
+                        bgx = bgy = 0.0
                         bkg = np.min(spot_data)
-                        params = [ampl,
-                                  a_par, b_par, c_par,
-                                  x0, y0, bgx, bgy, bkg]
+                        params = [
+                            ampl,
+                            a_par,
+                            b_par,
+                            c_par,
+                            x0,
+                            y0,
+                            bgx,
+                            bgy,
+                            bkg,
+                        ]
                         #
                         result = leastsq(gaussian_2d, params, args=(spot_data))
                         #
@@ -291,24 +346,29 @@ class LaueCalibrator(AbstractGrainCalibrator):
                         row_cen = fit_tth_tol * patch_size[0]
                         col_cen = fit_tth_tol * patch_size[1]
                         if np.any(
-                            [coms[0] < row_cen,
-                             coms[0] >= patch_size[0] - row_cen,
-                             coms[1] < col_cen,
-                             coms[1] >= patch_size[1] - col_cen]
+                            [
+                                coms[0] < row_cen,
+                                coms[0] >= patch_size[0] - row_cen,
+                                coms[1] < col_cen,
+                                coms[1] >= patch_size[1] - col_cen,
+                            ]
                         ):
                             continue
-                        if (fit_par[0] < min_peak_int):
+                        if fit_par[0] < min_peak_int:
                             continue
 
                         # intensities
                         spot_intensity, int_err = nquad(
                             gaussian_2d_int,
-                            [[0., 2.*y0], [0., 2.*x0]],
-                            args=fit_par)
-                    com_angs = np.hstack([
-                        tth_edges[0] + (0.5 + coms[1])*delta_tth,
-                        eta_edges[0] + (0.5 + coms[0])*delta_eta
-                        ])
+                            [[0.0, 2.0 * y0], [0.0, 2.0 * x0]],
+                            args=fit_par,
+                        )
+                    com_angs = np.hstack(
+                        [
+                            tth_edges[0] + (0.5 + coms[1]) * delta_tth,
+                            eta_edges[0] + (0.5 + coms[0]) * delta_eta,
+                        ]
+                    )
 
                     # grab intensities
                     if not fit_peaks:
@@ -331,12 +391,18 @@ class LaueCalibrator(AbstractGrainCalibrator):
                         cmv,
                         chi=self.instr.chi,
                         rmat_c=rmat_c,
-                        beam_vec=self.instr.beam_vector)
+                        beam_vec=self.instr.beam_vector,
+                    )
                     new_xy = xfcapi.gvec_to_xy(
                         gvec_c,
-                        det.rmat, rmat_s, rmat_c,
-                        det.tvec, self.instr.tvec, tvec_c,
-                        beam_vec=self.instr.beam_vector)
+                        det.rmat,
+                        rmat_s,
+                        rmat_c,
+                        det.tvec,
+                        self.instr.tvec,
+                        tvec_c,
+                        beam_vec=self.instr.beam_vector,
+                    )
                     meas_xy[iRefl, :] = new_xy
                     if det.distortion is not None:
                         meas_xy[iRefl, :] = det.distortion.apply_inverse(
@@ -348,15 +414,20 @@ class LaueCalibrator(AbstractGrainCalibrator):
                     #
                     spot_intensity = np.nan
                     max_intensity = np.nan
-                reflInfoList.append([peakId, valid_hkls[:, iRefl],
-                                     (spot_intensity, max_intensity),
-                                     valid_energy[iRefl],
-                                     valid_angs[iRefl, :],
-                                     meas_angs[iRefl, :],
-                                     meas_xy[iRefl, :]])
+                reflInfoList.append(
+                    [
+                        peakId,
+                        valid_hkls[:, iRefl],
+                        (spot_intensity, max_intensity),
+                        valid_energy[iRefl],
+                        valid_angs[iRefl, :],
+                        meas_angs[iRefl, :],
+                        meas_xy[iRefl, :],
+                    ]
+                )
             reflInfo = np.array(
-                [tuple(i) for i in reflInfoList],
-                dtype=reflInfo_dtype)
+                [tuple(i) for i in reflInfoList], dtype=reflInfo_dtype
+            )
             refl_dict[det_key] = reflInfo
 
         # Convert to our data_dict format
@@ -407,8 +478,12 @@ class LaueCalibrator(AbstractGrainCalibrator):
         energy_cutoffs = np.r_[0.5, 1.5] * np.asarray(self.energy_cutoffs)
 
         return sxcal_obj_func(
-            [self.grain_params], self.instr, pick_xys_dict, pick_hkls_dict,
-            self.bmatx, energy_cutoffs
+            [self.grain_params],
+            self.instr,
+            pick_xys_dict,
+            pick_hkls_dict,
+            self.bmatx,
+            energy_cutoffs,
         )
 
     def model(self):
@@ -420,14 +495,26 @@ class LaueCalibrator(AbstractGrainCalibrator):
         pick_hkls_dict, pick_xys_dict = self._evaluate()
 
         return sxcal_obj_func(
-            [self.grain_params], self.instr, pick_xys_dict, pick_hkls_dict,
-            self.bmatx, self.energy_cutoffs, sim_only=True
+            [self.grain_params],
+            self.instr,
+            pick_xys_dict,
+            pick_hkls_dict,
+            self.bmatx,
+            self.energy_cutoffs,
+            sim_only=True,
         )
 
 
 # Objective function for Laue fitting
-def sxcal_obj_func(grain_params, instr, meas_xy, hkls_idx,
-                   bmat, energy_cutoffs, sim_only=False):
+def sxcal_obj_func(
+    grain_params,
+    instr,
+    meas_xy,
+    hkls_idx,
+    bmat,
+    energy_cutoffs,
+    sim_only=False,
+):
     """
     Objective function for Laue-based fitting.
 
@@ -444,9 +531,10 @@ def sxcal_obj_func(grain_params, instr, meas_xy, hkls_idx,
         # returns xy_det, hkls_in, angles, dspacing, energy
         sim_results = panel.simulate_laue_pattern(
             [hkls_idx[det_key], bmat],
-            minEnergy=energy_cutoffs[0], maxEnergy=energy_cutoffs[1],
+            minEnergy=energy_cutoffs[0],
+            maxEnergy=energy_cutoffs[1],
             grain_params=grain_params,
-            beam_vec=instr.beam_vector
+            beam_vec=instr.beam_vector,
         )
 
         calc_xy_tmp = sim_results[0][0]
@@ -474,20 +562,30 @@ def sxcal_obj_func(grain_params, instr, meas_xy, hkls_idx,
 def gaussian_2d(p, data):
     shape = data.shape
     x, y = np.meshgrid(range(shape[1]), range(shape[0]))
-    func = p[0]*np.exp(
-        -(p[1]*(x-p[4])*(x-p[4])
-          + p[2]*(x-p[4])*(y-p[5])
-          + p[3]*(y-p[5])*(y-p[5]))
-        ) + p[6]*(x-p[4]) + p[7]*(y-p[5]) + p[8]
+    func = (
+        p[0]
+        * np.exp(
+            -(
+                p[1] * (x - p[4]) * (x - p[4])
+                + p[2] * (x - p[4]) * (y - p[5])
+                + p[3] * (y - p[5]) * (y - p[5])
+            )
+        )
+        + p[6] * (x - p[4])
+        + p[7] * (y - p[5])
+        + p[8]
+    )
     return func.flatten() - data.flatten()
 
 
 def gaussian_2d_int(y, x, *p):
-    func = p[0]*np.exp(
-        -(p[1]*(x-p[4])*(x-p[4])
-          + p[2]*(x-p[4])*(y-p[5])
-          + p[3]*(y-p[5])*(y-p[5]))
+    func = p[0] * np.exp(
+        -(
+            p[1] * (x - p[4]) * (x - p[4])
+            + p[2] * (x - p[4]) * (y - p[5])
+            + p[3] * (y - p[5]) * (y - p[5])
         )
+    )
     return func.flatten()
 
 

@@ -3,11 +3,26 @@ from typing import Optional
 import lmfit
 import numpy as np
 
-from hexrd.core.instrument import calc_angles_from_beam_vec, calc_beam_vec, HEDMInstrument
-from hexrd.core.rotations import angleAxisOfRotMat, expMapOfQuat, make_rmat_euler, quatOfRotMat, RotMatEuler, rotMatOfExpMap
+from hexrd.core.instrument import (
+    calc_angles_from_beam_vec,
+    calc_beam_vec,
+    Detector,
+    HEDMInstrument,
+)
+from hexrd.core.rotations import (
+    angleAxisOfRotMat,
+    expMapOfQuat,
+    make_rmat_euler,
+    quatOfRotMat,
+    RotMatEuler,
+    rotMatOfExpMap,
+)
 from hexrd.core.material.unitcell import _lpname
 from .relative_constraints import RelativeConstraints, RelativeConstraintsType
-from hexrd.core.fitting.calibration.relative_constraints import RelativeConstraints, RelativeConstraintsType
+from hexrd.core.fitting.calibration.relative_constraints import (
+    RelativeConstraints,
+    RelativeConstraintsType,
+)
 
 
 # First is the axes_order, second is extrinsic
@@ -16,8 +31,9 @@ DEFAULT_EULER_CONVENTION = ('zxz', False)
 EULER_CONVENTION_TYPES = dict | tuple | None
 
 
-def create_instr_params(instr, euler_convention=DEFAULT_EULER_CONVENTION,
-                        relative_constraints=None):
+def create_instr_params(
+    instr, euler_convention=DEFAULT_EULER_CONVENTION, relative_constraints=None
+):
     # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
     parms_list = []
 
@@ -28,26 +44,30 @@ def create_instr_params(instr, euler_convention=DEFAULT_EULER_CONVENTION,
         energy = beam['energy']
 
         names = beam_param_names[beam_name]
-        parms_list.append((
-            names['beam_polar'], pol, False, pol - 1, pol + 1
-        ))
-        parms_list.append((
-            names['beam_azimuth'], azim, False, azim - 1, azim + 1
-        ))
-        parms_list.append((
-            names['beam_energy'], energy, False, energy - 0.2, energy + 0.2
-        ))
+        parms_list.append((names['beam_polar'], pol, False, pol - 1, pol + 1))
+        parms_list.append(
+            (names['beam_azimuth'], azim, False, azim - 1, azim + 1)
+        )
+        parms_list.append(
+            (names['beam_energy'], energy, False, energy - 0.2, energy + 0.2)
+        )
 
-    parms_list.append(('instr_chi', np.degrees(instr.chi),
-                       False, np.degrees(instr.chi)-1,
-                       np.degrees(instr.chi)+1))
+    parms_list.append(
+        (
+            'instr_chi',
+            np.degrees(instr.chi),
+            False,
+            np.degrees(instr.chi) - 1,
+            np.degrees(instr.chi) + 1,
+        )
+    )
     parms_list.append(('instr_tvec_x', instr.tvec[0], False, -np.inf, np.inf))
     parms_list.append(('instr_tvec_y', instr.tvec[1], False, -np.inf, np.inf))
     parms_list.append(('instr_tvec_z', instr.tvec[2], False, -np.inf, np.inf))
 
     if (
-        relative_constraints is None or
-        relative_constraints.type == RelativeConstraintsType.none
+        relative_constraints is None
+        or relative_constraints.type == RelativeConstraintsType.none
     ):
         add_unconstrained_detector_parameters(
             instr,
@@ -82,35 +102,51 @@ def add_unconstrained_detector_parameters(instr, euler_convention, parms_list):
         angle_names = param_names_euler_convention(det, euler_convention)
 
         for name, angle in zip(angle_names, angles):
-            parms_list.append((name,
-                               angle,
-                               False,
-                               angle - 2,
-                               angle + 2))
+            parms_list.append((name, angle, False, angle - 2, angle + 2))
 
-        parms_list.append((f'{det}_tvec_x',
-                           panel.tvec[0],
-                           True,
-                           panel.tvec[0]-1,
-                           panel.tvec[0]+1))
-        parms_list.append((f'{det}_tvec_y',
-                           panel.tvec[1],
-                           True,
-                           panel.tvec[1]-0.5,
-                           panel.tvec[1]+0.5))
-        parms_list.append((f'{det}_tvec_z',
-                           panel.tvec[2],
-                           True,
-                           panel.tvec[2]-1,
-                           panel.tvec[2]+1))
+        parms_list.append(
+            (
+                f'{det}_tvec_x',
+                panel.tvec[0],
+                True,
+                panel.tvec[0] - 1,
+                panel.tvec[0] + 1,
+            )
+        )
+        parms_list.append(
+            (
+                f'{det}_tvec_y',
+                panel.tvec[1],
+                True,
+                panel.tvec[1] - 0.5,
+                panel.tvec[1] + 0.5,
+            )
+        )
+        parms_list.append(
+            (
+                f'{det}_tvec_z',
+                panel.tvec[2],
+                True,
+                panel.tvec[2] - 1,
+                panel.tvec[2] + 1,
+            )
+        )
         if panel.distortion is not None:
             p = panel.distortion.params
             for ii, pp in enumerate(p):
-                parms_list.append((f'{det}_distortion_param_{ii}', pp,
-                                   False, -np.inf, np.inf))
+                parms_list.append(
+                    (
+                        f'{det}_distortion_param_{ii}',
+                        pp,
+                        False,
+                        -np.inf,
+                        np.inf,
+                    )
+                )
         if panel.detector_type.lower() == 'cylindrical':
-            parms_list.append((f'{det}_radius', panel.radius, False,
-                               -np.inf, np.inf))
+            parms_list.append(
+                (f'{det}_radius', panel.radius, False, -np.inf, np.inf)
+            )
 
 
 def _add_constrained_detector_parameters(
@@ -126,7 +162,9 @@ def _add_constrained_detector_parameters(
         # Convert the tilt to the specified Euler convention
         normalized = normalize_euler_convention(euler_convention)
         rme = RotMatEuler(
-            np.zeros(3,),
+            np.zeros(
+                3,
+            ),
             axes_order=normalized[0],
             extrinsic=normalized[1],
         )
@@ -225,9 +263,11 @@ def fix_detector_y(
 
 
 def update_instrument_from_params(
-        instr, params,
-        euler_convention=DEFAULT_EULER_CONVENTION,
-        relative_constraints: Optional[RelativeConstraints] = None):
+    instr,
+    params,
+    euler_convention=DEFAULT_EULER_CONVENTION,
+    relative_constraints: Optional[RelativeConstraints] = None,
+):
     """
     this function updates the instrument from the
     lmfit parameter list. we don't have to keep track
@@ -237,8 +277,9 @@ def update_instrument_from_params(
     implemented.
     """
     if not isinstance(params, lmfit.Parameters):
-        msg = ('Only lmfit.Parameters is acceptable input. '
-               f'Received: {params}')
+        msg = (
+            'Only lmfit.Parameters is acceptable input. ' f'Received: {params}'
+        )
         raise NotImplementedError(msg)
 
     # This supports single XRS or multi XRS
@@ -257,14 +298,16 @@ def update_instrument_from_params(
     chi = np.radians(params['instr_chi'].value)
     instr.chi = chi
 
-    instr_tvec = [params['instr_tvec_x'].value,
-                  params['instr_tvec_y'].value,
-                  params['instr_tvec_z'].value]
+    instr_tvec = [
+        params['instr_tvec_x'].value,
+        params['instr_tvec_y'].value,
+        params['instr_tvec_z'].value,
+    ]
     instr.tvec = np.r_[instr_tvec]
 
     if (
-        relative_constraints is None or
-        relative_constraints.type == RelativeConstraintsType.none
+        relative_constraints is None
+        or relative_constraints.type == RelativeConstraintsType.none
     ):
         update_unconstrained_detector_parameters(
             instr,
@@ -294,9 +337,11 @@ def update_unconstrained_detector_parameters(instr, params, euler_convention):
         det = det_name.replace('-', '_')
         set_detector_angles_euler(detector, det, params, euler_convention)
 
-        tvec = np.r_[params[f'{det}_tvec_x'].value,
-                     params[f'{det}_tvec_y'].value,
-                     params[f'{det}_tvec_z'].value]
+        tvec = np.r_[
+            params[f'{det}_tvec_x'].value,
+            params[f'{det}_tvec_y'].value,
+            params[f'{det}_tvec_z'].value,
+        ]
         detector.tvec = tvec
         if detector.detector_type.lower() == 'cylindrical':
             rad = params[f'{det}_radius'].value
@@ -326,7 +371,6 @@ def _update_constrained_detector_parameters(
     euler_convention: EULER_CONVENTION_TYPES,
     prefix: str,
     constraint_params: dict,
-
 ):
     tvec = constraint_params['translation']
     tilt = constraint_params['tilt']
@@ -424,8 +468,9 @@ def update_group_constrained_detector_parameters(
         )
 
 
-def _tilt_to_rmat(tilt: np.ndarray,
-                  euler_convention: dict | tuple) -> np.ndarray:
+def _tilt_to_rmat(
+    tilt: np.ndarray, euler_convention: dict | tuple
+) -> np.ndarray:
     # Convert the tilt to exponential map parameters, and then
     # to the rotation matrix, and return.
     if euler_convention is None:
@@ -464,11 +509,9 @@ def create_tth_parameters(
 
             val = np.degrees(np.mean(np.hstack(ds_ang)))
 
-            parms_list.append((f'{prefix}{ii}',
-                               val,
-                               True,
-                               val-5.,
-                               val+5.))
+            parms_list.append(
+                (f'{prefix}{ii}', val, True, val - 5.0, val + 5.0)
+            )
 
     return parms_list
 
@@ -505,13 +548,15 @@ def create_material_params(material, refinements=None):
         refine = True if refinements is None else refinements[refine_idx]
 
         val = material.lparms[i] * multiplier
-        parms_list.append((
-            f'{material.name}_{lp_name}',
-            val,
-            refine,
-            val - diff,
-            val + diff,
-        ))
+        parms_list.append(
+            (
+                f'{material.name}_{lp_name}',
+                val,
+                refine,
+                val - diff,
+                val + diff,
+            )
+        )
 
         refine_idx += 1
 
@@ -551,13 +596,15 @@ def create_grain_params(base_name, grain, refinements=None):
 
     parms_list = []
     for i, name in enumerate(param_names):
-        parms_list.append((
-            name,
-            grain[i],
-            refinements[i],
-            grain[i] - 2,
-            grain[i] + 2,
-        ))
+        parms_list.append(
+            (
+                name,
+                grain[i],
+                refinements[i],
+                grain[i] - 2,
+                grain[i] + 2,
+            )
+        )
     return parms_list
 
 
@@ -585,8 +632,9 @@ def add_engineering_constraints(params, engineering_constraints):
     if engineering_constraints == 'TARDIS':
         # Since these plates always have opposite signs in y, we can add
         # their absolute values to get the difference.
-        dist_plates = (np.abs(params['IMAGE_PLATE_2_tvec_y']) +
-                       np.abs(params['IMAGE_PLATE_4_tvec_y']))
+        dist_plates = np.abs(params['IMAGE_PLATE_2_tvec_y']) + np.abs(
+            params['IMAGE_PLATE_4_tvec_y']
+        )
 
         min_dist = 22.83
         max_dist = 23.43
@@ -611,11 +659,13 @@ def add_engineering_constraints(params, engineering_constraints):
                 params['IMAGE_PLATE_4_tvec_y'].value + 0.5 * delta
             )
 
-        params.add('tardis_distance_between_plates',
-                   value=dist_plates,
-                   min=min_dist,
-                   max=max_dist,
-                   vary=True)
+        params.add(
+            'tardis_distance_between_plates',
+            value=dist_plates,
+            min=min_dist,
+            max=max_dist,
+            vary=True,
+        )
         expr = 'tardis_distance_between_plates - abs(IMAGE_PLATE_2_tvec_y)'
         params['IMAGE_PLATE_4_tvec_y'].expr = expr
 
@@ -628,7 +678,7 @@ def validate_params_list(params_list):
     # Make sure there are no duplicate names
     duplicate_names = []
     for i, x in enumerate(params_list):
-        for y in params_list[i + 1:]:
+        for y in params_list[i + 1 :]:
             if x[0] == y[0]:
                 duplicate_names.append(x[0])
 
@@ -667,7 +717,7 @@ def detector_angles_euler(panel, euler_convention):
     normalized = normalize_euler_convention(euler_convention)
     rmat = panel.rmat
     rme = RotMatEuler(
-        np.zeros(3,),
+        np.zeros(3),
         axes_order=normalized[0],
         extrinsic=normalized[1],
     )

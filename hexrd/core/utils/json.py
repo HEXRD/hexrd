@@ -25,9 +25,7 @@ class NumpyEncoder(json.JSONEncoder):
                 np.save(bytes_io, obj, allow_pickle=False)
                 data = bytes_io.getvalue()
 
-            return {
-                ndarray_key: data.decode('raw_unicode_escape')
-            }
+            return {ndarray_key: data.decode('raw_unicode_escape')}
 
         return super().default(obj)
 

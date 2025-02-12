@@ -1,4 +1,5 @@
 """Abstract Base Class"""
+
 import collections.abc
 
 # Type for extracting regions

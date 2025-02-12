@@ -67,8 +67,10 @@ class RootConfig(Config):
     @property
     def analysis_id(self):
         return '_'.join(
-            [self.analysis_name.strip().replace(' ', '-'),
-             self.material.active.strip().replace(' ', '-')]
+            [
+                self.analysis_name.strip().replace(' ', '-'),
+                self.material.active.strip().replace(' ', '-'),
+            ]
         )
 
     @property
@@ -134,8 +136,9 @@ class RootConfig(Config):
                 if multiproc > ncpus:
                     logger.warning(
                         'Resuested %s processes, %d available',
-                        multiproc, ncpus
-                        )
+                        multiproc,
+                        ncpus,
+                    )
                     res = ncpus
                 else:
                     res = multiproc if multiproc else 1
@@ -144,17 +147,15 @@ class RootConfig(Config):
                 if temp < 1:
                     logger.warning(
                         'Cannot use less than 1 process, requested %d of %d',
-                        temp, ncpus
-                        )
+                        temp,
+                        ncpus,
+                    )
                     res = 1
                 else:
                     res = temp
         else:
             temp = ncpus - 1
-            logger.warning(
-                "Invalid value %s for multiprocessing",
-                multiproc
-                )
+            logger.warning("Invalid value %s for multiprocessing", multiproc)
             res = temp
         return res
 
@@ -163,13 +164,13 @@ class RootConfig(Config):
         isint = isinstance(val, int)
         if val in ('half', 'all', -1):
             self.set('multiprocessing', val)
-        elif (isint and val >= 0 and val <= mp.cpu_count()):
+        elif isint and val >= 0 and val <= mp.cpu_count():
             self.set('multiprocessing', int(val))
         else:
             raise RuntimeError(
                 '"multiprocessing": must be 1:%d, got %s'
                 % (mp.cpu_count(), val)
-                )
+            )
 
     @property
     def image_series(self):
@@ -189,10 +190,10 @@ class RootConfig(Config):
                         panel = '_'.join(panel)
                     elif panel is None:
                         panel = shared_ims_key
-                except(KeyError):
+                except KeyError:
                     try:
                         panel = oms.metadata['panel']
-                    except(KeyError):
+                    except KeyError:
                         panel = shared_ims_key
                 self._image_dict[panel] = oms
 

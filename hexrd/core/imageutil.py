@@ -16,6 +16,7 @@ from hexrd.core.constants import fwhm_to_sigma
 # BACKGROUND REMOVAL
 # =============================================================================
 
+
 def _scale_image_snip(y, offset, invert=False):
     """
     Log-Log scale image for snip
@@ -40,14 +41,13 @@ def _scale_image_snip(y, offset, invert=False):
 
     """
     if invert:
-        return (np.exp(np.exp(y) - 1.) - 1.)**2 + offset
+        return (np.exp(np.exp(y) - 1.0) - 1.0) ** 2 + offset
     else:
-        return np.log(np.log(np.sqrt(y - offset) + 1.) + 1.)
+        return np.log(np.log(np.sqrt(y - offset) + 1.0) + 1.0)
 
 
 def fast_snip1d(y, w=4, numiter=2):
-    """
-    """
+    """ """
     bkg = np.zeros_like(y)
     min_val = np.nanmin(y)
     zfull = _scale_image_snip(y, min_val, invert=False)
@@ -55,7 +55,7 @@ def fast_snip1d(y, w=4, numiter=2):
         b = z
         for i in range(numiter):
             for p in range(w, 0, -1):
-                kernel = np.zeros(p*2 + 1)
+                kernel = np.zeros(p * 2 + 1)
                 kernel[0] = 0.5
                 kernel[-1] = 0.5
                 b = np.minimum(b, signal.convolve(z, kernel, mode='same'))
@@ -111,14 +111,18 @@ def _run_snip1d_row(task, numiter, w, min_val):
     b = z
     for i in range(numiter):
         for p in range(w, 0, -1):
-            kernel = np.zeros(p*2 + 1)
-            kernel[0] = kernel[-1] = 1./2.
+            kernel = np.zeros(p * 2 + 1)
+            kernel[0] = kernel[-1] = 1.0 / 2.0
             b = np.minimum(
                 b,
                 convolution.convolve(
-                    z, kernel, boundary='extend', mask=mask,
-                    nan_treatment='interpolate', preserve_nan=True
-                )
+                    z,
+                    kernel,
+                    boundary='extend',
+                    mask=mask,
+                    nan_treatment='interpolate',
+                    preserve_nan=True,
+                ),
             )
         z = b
     return k, _scale_image_snip(b, min_val, invert=True)
@@ -134,19 +138,21 @@ def snip1d_quad(y, w=4, numiter=2):
         N = p * 2 + 1
         # linear kernel
         kern1 = np.zeros(N)
-        kern1[0] = kern1[-1] = 1./2.
+        kern1[0] = kern1[-1] = 1.0 / 2.0
 
         # quadratic kernel
         kern2 = np.zeros(N)
-        kern2[0] = kern2[-1] = -1./6.
-        kern2[int(p/2.)] = kern2[int(3.*p/2.)] = 4./6.
+        kern2[0] = kern2[-1] = -1.0 / 6.0
+        kern2[int(p / 2.0)] = kern2[int(3.0 * p / 2.0)] = 4.0 / 6.0
         kernels.append([kern1, kern2])
 
     z = b = _scale_image_snip(y, min_val, invert=False)
     for i in range(numiter):
-        for (kern1, kern2) in kernels:
-            c = np.maximum(ndimage.convolve1d(z, kern1, mode='nearest'),
-                           ndimage.convolve1d(z, kern2, mode='nearest'))
+        for kern1, kern2 in kernels:
+            c = np.maximum(
+                ndimage.convolve1d(z, kern1, mode='nearest'),
+                ndimage.convolve1d(z, kern2, mode='nearest'),
+            )
             b = np.minimum(b, c)
         z = b
 
@@ -194,16 +200,16 @@ def snip2d(y, w=4, numiter=2, order=1):
         # linear filter kernel
         kern1 = np.zeros((N, N))  # initialize a kernel with all zeros
         xx, yy = np.indices(kern1.shape)  # x-y indices of kernel points
-        ij = np.round(
-            np.hypot(xx - p1, yy - p1)
-        ) == p1  # select circular shape
+        ij = (
+            np.round(np.hypot(xx - p1, yy - p1)) == p1
+        )  # select circular shape
         kern1[ij] = 1 / ij.sum()  # normalize so sum of kernel elements is 1
         kernels.append([kern1])
 
         if order >= 2:  # add quadratic filter kernel
             p2 = p1 // 2
             kern2 = np.zeros_like(kern1)
-            radii, norms = (p2, 2 * p2), (4/3, -1/3)
+            radii, norms = (p2, 2 * p2), (4 / 3, -1 / 3)
             for radius, norm in zip(radii, norms):
                 ij = np.round(np.hypot(xx - p1, yy - p1)) == radius
                 kern2[ij] = norm / ij.sum()
@@ -214,8 +220,10 @@ def snip2d(y, w=4, numiter=2, order=1):
     for i in range(numiter):
         for kk in kernels:
             if order > 1:
-                c = maximum(ndimage.convolve(z, kk[0], mode='nearest'),
-                            ndimage.convolve(z, kk[1], mode='nearest'))
+                c = maximum(
+                    ndimage.convolve(z, kk[0], mode='nearest'),
+                    ndimage.convolve(z, kk[1], mode='nearest'),
+                )
             else:
                 c = ndimage.convolve(z, kk[0], mode='nearest')
             b = minimum(b, c)
@@ -238,21 +246,16 @@ def find_peaks_2d(img, method, method_kwargs):
         filter_fwhm = method_kwargs['filter_radius']
         if filter_fwhm:
             filt_stdev = fwhm_to_sigma * filter_fwhm
-            img = -ndimage.filters.gaussian_laplace(
-                img, filt_stdev
-            )
+            img = -ndimage.filters.gaussian_laplace(img, filt_stdev)
 
         labels_t, numSpots_t = ndimage.label(
-            img > method_kwargs['threshold'],
-            structureNDI_label
-            )
+            img > method_kwargs['threshold'], structureNDI_label
+        )
         coms_t = np.atleast_2d(
             ndimage.center_of_mass(
-                img,
-                labels=labels_t,
-                index=np.arange(1, np.amax(labels_t) + 1)
-                )
+                img, labels=labels_t, index=np.arange(1, np.amax(labels_t) + 1)
             )
+        )
     elif method in ['blob_log', 'blob_dog']:
         # must scale map
         # TODO: we should so a parameter study here
@@ -265,13 +268,9 @@ def find_peaks_2d(img, method, method_kwargs):
         # for 'blob_dog': min_sigma=0.5, max_sigma=5,
         #                 sigma_ratio=1.6, threshold=0.01, overlap=0.1
         if method == 'blob_log':
-            blobs = np.atleast_2d(
-                blob_log(scl_map, **method_kwargs)
-            )
+            blobs = np.atleast_2d(blob_log(scl_map, **method_kwargs))
         else:  # blob_dog
-            blobs = np.atleast_2d(
-                blob_dog(scl_map, **method_kwargs)
-            )
+            blobs = np.atleast_2d(blob_dog(scl_map, **method_kwargs))
         numSpots_t = len(blobs)
         coms_t = blobs[:, :2]
 

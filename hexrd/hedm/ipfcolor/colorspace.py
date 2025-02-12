@@ -46,13 +46,15 @@ def hsl2rgb(hsl):
     different components
     '''
     hsl = np.atleast_2d(hsl)
-    hsl[np.abs(hsl) < eps] = 0.
-    hsl[np.abs(hsl - np.ones(hsl.shape)) < eps] = 1.
+    hsl[np.abs(hsl) < eps] = 0.0
+    hsl[np.abs(hsl - np.ones(hsl.shape)) < eps] = 1.0
 
-    if( (hsl.min() < 0.) or (hsl.max() > 1.)):
-        raise RuntimeError("value of not in range [0,1]. normalizing before conversion")
+    if (hsl.min() < 0.0) or (hsl.max() > 1.0):
+        raise RuntimeError(
+            "value of not in range [0,1]. normalizing before conversion"
+        )
 
-    if(hsl.ndim != 2):
+    if hsl.ndim != 2:
         raise RuntimeError("hsl_rgb: shape of hsl array is invalid.")
     rgb = np.zeros(hsl.shape)
 
@@ -63,19 +65,19 @@ def hsl2rgb(hsl):
     S = hsl[:, 1]
     L = hsl[:, 2]
 
-    C = (1.0 - np.abs(2.*L - 1.)) * S
-    X = (1.0 - np.abs(np.mod(6*H, 2) - 1.0)) * C
-    m = L - C/2.
+    C = (1.0 - np.abs(2.0 * L - 1.0)) * S
+    X = (1.0 - np.abs(np.mod(6 * H, 2) - 1.0)) * C
+    m = L - C / 2.0
 
-    case = np.floor(6.*H).astype(np.int32)
+    case = np.floor(6.0 * H).astype(np.int32)
 
     '''
     depending on the range of H, the rgb definition changes. see
     https://www.rapidtables.com/convert/color/hsl-to-rgb.html
     for the detailed formula
     '''
-    Cp = np.atleast_2d(C+m).T
-    Xp = np.atleast_2d(X+m).T
+    Cp = np.atleast_2d(C + m).T
+    Xp = np.atleast_2d(X + m).T
     Zp = np.atleast_2d(m).T
 
     mask = np.logical_or((case == 0), (case == 6))
@@ -99,8 +101,8 @@ def hsl2rgb(hsl):
     '''
         catch all cases where rgb values are out of [0,1] bounds
     '''
-    rgb[rgb < 0.] = 0.
-    rgb[rgb > 1.] = 1.
+    rgb[rgb < 0.0] = 0.0
+    rgb[rgb > 1.0] = 1.0
     return rgb
 
 
@@ -117,7 +119,7 @@ def rgb2hsl(rgb):
     different components
     '''
     rgb = np.atleast_2d(rgb)
-    if(rgb.ndim != 2):
+    if rgb.ndim != 2:
         raise RuntimeError("hsl_rgb: shape of hsl array is invalid.")
     hsl = np.zeros(rgb.shape)
 
@@ -139,27 +141,31 @@ def rgb2hsl(rgb):
 
     rmask = rgb[:, 0] == Cmax
     rmask = np.logical_and(rmask, np.logical_not(zmask))
-    hsl[rmask, 0] = np.mod(
-        (rgb[rmask, 1] - rgb[rmask, 2])/delta[rmask], 6) / 6.
+    hsl[rmask, 0] = (
+        np.mod((rgb[rmask, 1] - rgb[rmask, 2]) / delta[rmask], 6) / 6.0
+    )
 
     gmask = rgb[:, 1] == Cmax
     gmask = np.logical_and(gmask, np.logical_not(zmask))
-    hsl[gmask, 0] = np.mod(
-        (rgb[gmask, 2] - rgb[gmask, 0])/delta[gmask] + 2., 6) / 6.
+    hsl[gmask, 0] = (
+        np.mod((rgb[gmask, 2] - rgb[gmask, 0]) / delta[gmask] + 2.0, 6) / 6.0
+    )
 
     bmask = rgb[:, 2] == Cmax
     bmask = np.logical_and(bmask, np.logical_not(zmask))
-    hsl[bmask, 0] = np.mod(
-        (rgb[bmask, 0] - rgb[bmask, 1])/delta[bmask] + 4., 6) / 6.
+    hsl[bmask, 0] = (
+        np.mod((rgb[bmask, 0] - rgb[bmask, 1]) / delta[bmask] + 4.0, 6) / 6.0
+    )
 
-    hsl[np.logical_not(zmask), 1] = delta[np.logical_not(
-        zmask)] / (1. - np.abs(2 * L[np.logical_not(zmask)] - 1.))
+    hsl[np.logical_not(zmask), 1] = delta[np.logical_not(zmask)] / (
+        1.0 - np.abs(2 * L[np.logical_not(zmask)] - 1.0)
+    )
 
-    hsl[:,2] = L
+    hsl[:, 2] = L
 
     '''
         catch cases where hsl is out of [0,1] bounds
     '''
-    hsl[hsl < 0.] = 0.
-    hsl[hsl > 1.] = 1.
+    hsl[hsl < 0.0] = 0.0
+    hsl[hsl > 1.0] = 1.0
     return hsl

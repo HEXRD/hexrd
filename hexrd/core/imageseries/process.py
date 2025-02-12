@@ -1,4 +1,5 @@
 """Class for processing individual frames"""
+
 import copy
 
 import numpy as np
@@ -20,6 +21,7 @@ class ProcessedImageSeries(ImageSeries):
     frame_list: list of ints or None, default = None
        specify subset of frames by list; if None, then all frames are used
     """
+
     FLIP = 'flip'
     DARK = 'dark'
     RECT = 'rectangle'
@@ -32,7 +34,7 @@ class ProcessedImageSeries(ImageSeries):
         self._meta = copy.deepcopy(imser.metadata)
         self._oplist = oplist
         self._frames = kwargs.pop('frame_list', None)
-        self._hasframelist = (self._frames is not None)
+        self._hasframelist = self._frames is not None
         if self._hasframelist:
             self._update_omega()
         self._opdict = {}
@@ -56,16 +58,16 @@ class ProcessedImageSeries(ImageSeries):
         return (self[i] for i in range(len(self)))
 
     def _process_frame(self, key):
-       # note: key refers to original imageseries
+        # note: key refers to original imageseries
         oplist = self.oplist
 
         # when rectangle is the first operation we can try to call the
         # optimized version. If the adapter provides one it should be
         # significantly faster if not it will fallback to the same
         # implementation that _rectangle provides.
-        if oplist and  oplist[0][0] == self.RECT:
+        if oplist and oplist[0][0] == self.RECT:
             region = oplist[0][1]
-            img = self._rectangle_optimized(key,region)
+            img = self._rectangle_optimized(key, region)
 
             # remove the first operation since we already used it
             oplist = oplist[1:]
@@ -100,7 +102,7 @@ class ProcessedImageSeries(ImageSeries):
 
     def _rectangle(self, img, r):
         # restrict to rectangle
-        return img[r[0][0]:r[0][1], r[1][0]:r[1][1]]
+        return img[r[0][0] : r[0][1], r[1][0] : r[1][1]]
 
     def _flip(self, img, flip):
         if flip in ('y', 'v'):  # about y-axis (vertical)
@@ -134,6 +136,7 @@ class ProcessedImageSeries(ImageSeries):
         if "omega" in self.metadata:
             omega = self.metadata["omega"]
             self.metadata["omega"] = omega[self._frames]
+
     #
     # ==================== API
     #

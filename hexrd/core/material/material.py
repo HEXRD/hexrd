@@ -46,7 +46,11 @@ from CifFile import ReadCif
 import h5py
 from warnings import warn
 from hexrd.core.material.mksupport import Write2H5File
-from hexrd.core.material.symbols import xtal_sys_dict, Hall_to_sgnum, HM_to_sgnum
+from hexrd.core.material.symbols import (
+    xtal_sys_dict,
+    Hall_to_sgnum,
+    HM_to_sgnum,
+)
 from hexrd.core.utils.compatibility import h5py_read_string
 from hexrd.core.fitting.peakfunctions import _unit_gaussian
 
@@ -79,6 +83,7 @@ def get_default_sgsetting(sgnum):
         return 1
     else:
         return 0
+
 
 #
 # ---------------------------------------------------CLASS:  Material
@@ -486,10 +491,12 @@ class Material(object):
     def lparms0(self):
         # Get the lattice parameters for 0 pressure and temperature (at v0)
         lparms = self.lparms
-        return np.array([
-            *(lparms[:3] / self.pt_lp_factor),
-            *lparms[3:],
-        ])
+        return np.array(
+            [
+                *(lparms[:3] / self.pt_lp_factor),
+                *lparms[3:],
+            ]
+        )
 
     def calc_pressure(self, volume=None, temperature=None):
         '''calculate the pressure given the volume
@@ -903,13 +910,15 @@ class Material(object):
         '''
         self.pressure = 0
         if 'pressure' in gid:
-            self.pressure = np.array(gid.get('pressure'),
-                                     dtype=np.float64).item()
+            self.pressure = np.array(
+                gid.get('pressure'), dtype=np.float64
+            ).item()
 
         self.temperature = 298
         if 'temperature' in gid:
-            self.temperature = np.array(gid.get('temperature'),
-                                        dtype=np.float64).item()
+            self.temperature = np.array(
+                gid.get('temperature'), dtype=np.float64
+            ).item()
 
         self.k0 = 100.0
         if 'k0' in gid:
@@ -949,8 +958,9 @@ class Material(object):
         if 'dalpha_t_dt' in gid:
             # this is the temperature derivation of
             # the pressure derivative of isotropic bulk modulus
-            dalpha_t_dt = np.array(gid.get('dalpha_t_dt'),
-                                   dtype=np.float64).item()
+            dalpha_t_dt = np.array(
+                gid.get('dalpha_t_dt'), dtype=np.float64
+            ).item()
             self.dalpha_t_dt = dalpha_t_dt
 
         '''Finished with the BM EOS
@@ -1098,11 +1108,13 @@ class Material(object):
     def lparms(self, v):
         # Assume we are in `nm`, since that is what self.lparms returns.
         # Convert to angstroms and set with latticeParameters
-        self.latticeParameters = np.array([
-            # Convert to angstroms
-            *(v[:3] * 10),
-            *v[3:],
-        ])
+        self.latticeParameters = np.array(
+            [
+                # Convert to angstroms
+                *(v[:3] * 10),
+                *v[3:],
+            ]
+        )
 
     @property
     def latticeType(self):
@@ -1160,8 +1172,7 @@ class Material(object):
         if val in [0, 1]:
             self._sgsetting = val
         else:
-            msg = (f'space group setting must be either 0'
-                   f' or 1.')
+            msg = f'space group setting must be either 0' f' or 1.'
             raise ValueError(msg)
 
     sgnum = property(_get_sgnum, _set_sgnum, None, "Space group number")
@@ -1443,8 +1454,7 @@ def loadMaterialList(cfgFile):
     return matList
 
 
-def load_materials_hdf5(
-        f, dmin=None, kev=None):
+def load_materials_hdf5(f, dmin=None, kev=None):
     """Load materials from an HDF5 file
 
     The file uses the HDF5 file format.

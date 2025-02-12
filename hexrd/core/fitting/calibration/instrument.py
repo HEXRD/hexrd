@@ -4,8 +4,18 @@ from typing import Optional
 import lmfit
 import numpy as np
 
-from .lmfit_param_handling import add_engineering_constraints, create_instr_params, DEFAULT_EULER_CONVENTION, update_instrument_from_params, validate_params_list
-from hexrd.core.fitting.calibration.relative_constraints import create_relative_constraints, RelativeConstraints, RelativeConstraintsType
+from .lmfit_param_handling import (
+    add_engineering_constraints,
+    create_instr_params,
+    DEFAULT_EULER_CONVENTION,
+    update_instrument_from_params,
+    validate_params_list,
+)
+from hexrd.core.fitting.calibration.relative_constraints import (
+    create_relative_constraints,
+    RelativeConstraints,
+    RelativeConstraintsType,
+)
 
 logger = logging.getLogger()
 logger.setLevel('INFO')
@@ -16,10 +26,14 @@ def _normalized_ssqr(resd):
 
 
 class InstrumentCalibrator:
-    def __init__(self, *args, engineering_constraints=None,
-                 set_refinements_from_instrument_flags=True,
-                 euler_convention=DEFAULT_EULER_CONVENTION,
-                 relative_constraints_type=RelativeConstraintsType.none):
+    def __init__(
+        self,
+        *args,
+        engineering_constraints=None,
+        set_refinements_from_instrument_flags=True,
+        euler_convention=DEFAULT_EULER_CONVENTION,
+        relative_constraints_type=RelativeConstraintsType.none,
+    ):
         """
         Model for instrument calibration class as a function of
 
@@ -39,20 +53,22 @@ class InstrumentCalibrator:
         assert len(args) > 0, "must have at least one calibrator"
         self.calibrators = args
         for calib in self.calibrators:
-            assert calib.instr is self.instr, \
-                "all calibrators must refer to the same instrument"
+            assert (
+                calib.instr is self.instr
+            ), "all calibrators must refer to the same instrument"
         self._engineering_constraints = engineering_constraints
         self._relative_constraints = create_relative_constraints(
-            relative_constraints_type, self.instr)
+            relative_constraints_type, self.instr
+        )
         self.euler_convention = euler_convention
 
         self.params = self.make_lmfit_params()
         if set_refinements_from_instrument_flags:
             self.instr.set_calibration_flags_to_lmfit_params(self.params)
 
-        self.fitter = lmfit.Minimizer(self.minimizer_function,
-                                      self.params,
-                                      nan_policy='omit')
+        self.fitter = lmfit.Minimizer(
+            self.minimizer_function, self.params, nan_policy='omit'
+        )
 
     def make_lmfit_params(self):
         params = create_instr_params(
@@ -128,10 +144,9 @@ class InstrumentCalibrator:
 
             result = self.fitter.least_squares(self.params, **odict)
         else:
-            result = self.fitter.scalar_minimize(method=method,
-                                                 params=self.params,
-                                                 max_nfev=50000,
-                                                 **odict)
+            result = self.fitter.scalar_minimize(
+                method=method, params=self.params, max_nfev=50000, **odict
+            )
 
         return result
 
@@ -171,7 +186,8 @@ class InstrumentCalibrator:
         current = getattr(self, '_relative_constraints', None)
         if current is None or current.type != v:
             self.relative_constraints = create_relative_constraints(
-                v, self.instr)
+                v, self.instr
+            )
 
     @property
     def relative_constraints(self) -> RelativeConstraints:
@@ -199,7 +215,7 @@ class InstrumentCalibrator:
 
         nrm_ssr_1 = _normalized_ssqr(resd1)
 
-        delta_r = 1. - nrm_ssr_1/nrm_ssr_0
+        delta_r = 1.0 - nrm_ssr_1 / nrm_ssr_0
 
         if delta_r > 0:
             logger.info('OPTIMIZATION SUCCESSFUL')

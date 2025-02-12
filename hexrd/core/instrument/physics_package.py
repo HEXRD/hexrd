@@ -43,22 +43,24 @@ class AbstractPhysicsPackage:
         Readout models for BaFBr0.85I0.15:Eu image plates
         Rev. Sci. Instrum. 89, 063101 (2018
     """
+
     # Abstract methods that must be redefined in derived classes
     @property
     @abstractmethod
     def type(self):
         pass
 
-    def __init__(self,
-                 sample_material=None,
-                 sample_density=None,
-                 sample_thickness=None,
-                 pinhole_material=None,
-                 pinhole_density=None,
-                 pinhole_thickness=None,
-                 pinhole_diameter=None,
-                 **kwargs
-                 ):
+    def __init__(
+        self,
+        sample_material=None,
+        sample_density=None,
+        sample_thickness=None,
+        pinhole_material=None,
+        pinhole_density=None,
+        pinhole_thickness=None,
+        pinhole_diameter=None,
+        **kwargs,
+    ):
         self._sample_material = sample_material
         self._sample_density = sample_density
         self._sample_thickness = sample_thickness
@@ -164,20 +166,23 @@ class AbstractPhysicsPackage:
             energy_inp = energy
 
         if flag.lower() == 'sample':
-            args = (self.sample_density,
-                    self.sample_material,
-                    energy_inp,
-                    )
+            args = (
+                self.sample_density,
+                self.sample_material,
+                energy_inp,
+            )
         elif flag.lower() == 'window':
-            args = (self.window_density,
-                    self.window_material,
-                    energy_inp,
-                    )
+            args = (
+                self.window_density,
+                self.window_material,
+                energy_inp,
+            )
         elif flag.lower() == 'pinhole':
-            args = (self.pinhole_density,
-                    self.pinhole_material,
-                    energy_inp,
-                    )
+            args = (
+                self.pinhole_density,
+                self.pinhole_material,
+                energy_inp,
+            )
         abs_length = calculate_linear_absorption_length(*args)
         if abs_length.shape[0] == 1:
             return abs_length[0]
@@ -285,8 +290,10 @@ class HEDMPhysicsPackage(AbstractPhysicsPackage):
         if self.sample_geometry == 'cylinder':
             return self._sample_thickness
         else:
-            msg = (f'sample geometry does not have diameter '
-                   f'associated with it.')
+            msg = (
+                f'sample geometry does not have diameter '
+                f'associated with it.'
+            )
             print(msg)
             return
 
