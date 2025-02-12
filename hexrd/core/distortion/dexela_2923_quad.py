@@ -1,6 +1,5 @@
 import numpy as np
 import numba
-from hexrd import constants
 
 from .distortionabc import DistortionABC
 from .registry import _RegisterDistortionClass
