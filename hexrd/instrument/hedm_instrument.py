@@ -1521,6 +1521,9 @@ class HEDMInstrument(object):
         assert len(origin) == 3, \
             "origin must be a 3-element sequence"
 
+        if bkgmethod is None:
+            bkgmethod = {'chebyshev': 3}
+
         '''
         if params is none, fill in some sane default values
         only the first value is used. the rest of the values are
@@ -1542,7 +1545,9 @@ class HEDMInstrument(object):
             #           }
             params = wppfsupport._generate_default_parameters_LeBail(
                 mat_list,
-                1)
+                1,
+                bkgmethod,
+            )
         '''
         use the material list to obtain the dictionary of initial intensities
         we need to make sure that the intensities are properly scaled by the
@@ -1603,7 +1608,7 @@ class HEDMInstrument(object):
 
             intensity[mat.name] = {}
             intensity[mat.name]['synchrotron'] = \
-                mat.planeData.get_structFact() * LP * multiplicity
+                mat.planeData.structFact * LP * multiplicity
 
         kwargs = {
             'expt_spectrum': expt,
@@ -1640,6 +1645,10 @@ class HEDMInstrument(object):
                 img_dict[det_key] = img
 
             else:
+                # Rescale to be between 0 and 1 so random_noise() will work
+                prev_max = img.max()
+                img /= prev_max
+
                 if noise.lower() == 'poisson':
                     im_noise = random_noise(img,
                                             mode='poisson',
@@ -1649,26 +1658,23 @@ class HEDMInstrument(object):
                     if ma > mi:
                         im_noise = (im_noise - mi)/(ma - mi)
 
-                    img_dict[det_key] = im_noise
-
                 elif noise.lower() == 'gaussian':
-                    img_dict[det_key] = random_noise(img,
-                                                     mode='gaussian',
-                                                     clip=True)
+                    im_noise = random_noise(img, mode='gaussian', clip=True)
 
                 elif noise.lower() == 'salt':
-                    img_dict[det_key] = random_noise(img, mode='salt')
+                    im_noise = random_noise(img, mode='salt')
 
                 elif noise.lower() == 'pepper':
-                    img_dict[det_key] = random_noise(img, mode='pepper')
+                    im_noise = random_noise(img, mode='pepper')
 
                 elif noise.lower() == 's&p':
-                    img_dict[det_key] = random_noise(img, mode='s&p')
+                    im_noise = random_noise(img, mode='s&p')
 
                 elif noise.lower() == 'speckle':
-                    img_dict[det_key] = random_noise(img,
-                                                     mode='speckle',
-                                                     clip=True)
+                    im_noise = random_noise(img, mode='speckle', clip=True)
+
+                # Now scale back up
+                img_dict[det_key] = im_noise * prev_max
 
         return img_dict
 
