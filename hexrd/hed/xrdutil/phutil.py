@@ -13,15 +13,20 @@ import numpy as np
 from numba import njit
 
 from hexrd.core import constants as ct
-from hexrd.core.instrument import Detector
+from hexrd.hed.instrument import Detector
 from hexrd.core.transforms import xfcapi
 from hexrd.core.utils.concurrent import distribute_tasks
 
 
 class SampleLayerDistortion:
-    def __init__(self, panel,
-                 layer_standoff, layer_thickness,
-                 pinhole_thickness, pinhole_radius):
+    def __init__(
+        self,
+        panel,
+        layer_standoff,
+        layer_thickness,
+        pinhole_thickness,
+        pinhole_radius,
+    ):
         self._panel = panel
         self._layer_standoff = layer_standoff
         self._layer_thickness = layer_thickness
@@ -70,18 +75,20 @@ class SampleLayerDistortion:
         self._pinhole_radius = float(x)
 
     def apply(self, xy_pts, return_nominal=True):
-        """
-        """
-        return tth_corr_sample_layer(self.panel, xy_pts,
-                                     self.layer_standoff, self.layer_thickness,
-                                     self.pinhole_thickness,
-                                     self.pinhole_radius,
-                                     return_nominal=return_nominal)
+        """ """
+        return tth_corr_sample_layer(
+            self.panel,
+            xy_pts,
+            self.layer_standoff,
+            self.layer_thickness,
+            self.pinhole_thickness,
+            self.pinhole_radius,
+            return_nominal=return_nominal,
+        )
 
 
 class JHEPinholeDistortion:
-    def __init__(self, panel,
-                 pinhole_thickness, pinhole_radius):
+    def __init__(self, panel, pinhole_thickness, pinhole_radius):
         self._panel = panel
         self._pinhole_thickness = pinhole_thickness
         self._pinhole_radius = pinhole_radius
@@ -112,11 +119,14 @@ class JHEPinholeDistortion:
         self._pinhole_radius = float(x)
 
     def apply(self, xy_pts, return_nominal=True):
-        """
-        """
-        return tth_corr_pinhole(self.panel, xy_pts,
-                                self.pinhole_thickness, self.pinhole_radius,
-                                return_nominal=return_nominal)
+        """ """
+        return tth_corr_pinhole(
+            self.panel,
+            xy_pts,
+            self.pinhole_thickness,
+            self.pinhole_radius,
+            return_nominal=return_nominal,
+        )
 
 
 # Make an alias to the name for backward compatibility
@@ -124,8 +134,14 @@ PinholeDistortion = JHEPinholeDistortion
 
 
 class RyggPinholeDistortion:
-    def __init__(self, panel, absorption_length,
-                 pinhole_thickness, pinhole_radius, num_phi_elements=60):
+    def __init__(
+        self,
+        panel,
+        absorption_length,
+        pinhole_thickness,
+        pinhole_radius,
+        num_phi_elements=60,
+    ):
 
         self.panel = panel
         self.absorption_length = absorption_length
@@ -134,17 +150,26 @@ class RyggPinholeDistortion:
         self.num_phi_elements = num_phi_elements
 
     def apply(self, xy_pts, return_nominal=True):
-        return tth_corr_rygg_pinhole(self.panel, self.absorption_length,
-                                     xy_pts, self.pinhole_thickness,
-                                     self.pinhole_radius,
-                                     return_nominal=return_nominal,
-                                     num_phi_elements=self.num_phi_elements)
+        return tth_corr_rygg_pinhole(
+            self.panel,
+            self.absorption_length,
+            xy_pts,
+            self.pinhole_thickness,
+            self.pinhole_radius,
+            return_nominal=return_nominal,
+            num_phi_elements=self.num_phi_elements,
+        )
 
 
-def tth_corr_sample_layer(panel, xy_pts,
-                          layer_standoff, layer_thickness,
-                          pinhole_thickness, pinhole_radius,
-                          return_nominal=True):
+def tth_corr_sample_layer(
+    panel,
+    xy_pts,
+    layer_standoff,
+    layer_thickness,
+    pinhole_thickness,
+    pinhole_radius,
+    return_nominal=True,
+):
     """
     Compute the Bragg angle distortion associated with a specific sample
     layer in a pinhole camera.
@@ -180,11 +205,11 @@ def tth_corr_sample_layer(panel, xy_pts,
     xy_pts = np.atleast_2d(xy_pts)
 
     # !!! full z offset from center of pinhole to center of layer
-    zs = layer_standoff + 0.5*layer_thickness + 0.5*pinhole_thickness
+    zs = layer_standoff + 0.5 * layer_thickness + 0.5 * pinhole_thickness
 
-    ref_angs, _ = panel.cart_to_angles(xy_pts,
-                                       rmat_s=None, tvec_s=None,
-                                       tvec_c=None, apply_distortion=True)
+    ref_angs, _ = panel.cart_to_angles(
+        xy_pts, rmat_s=None, tvec_s=None, tvec_c=None, apply_distortion=True
+    )
     ref_tth = ref_angs[:, 0]
 
     dhats = xfcapi.unit_vector(panel.cart_to_dvecs(xy_pts))
@@ -193,7 +218,9 @@ def tth_corr_sample_layer(panel, xy_pts,
     cos_beta[np.arccos(cos_beta) > critical_beta] = np.nan
     cos_tthn = np.cos(ref_tth)
     sin_tthn = np.sin(ref_tth)
-    tth_corr = np.arctan(sin_tthn/(source_distance*cos_beta/zs - cos_tthn))
+    tth_corr = np.arctan(
+        sin_tthn / (source_distance * cos_beta / zs - cos_tthn)
+    )
     if return_nominal:
         return np.vstack([ref_tth - tth_corr, ref_angs[:, 1]]).T
     else:
@@ -201,9 +228,12 @@ def tth_corr_sample_layer(panel, xy_pts,
         return np.vstack([-tth_corr, ref_angs[:, 1]]).T
 
 
-def invalidate_past_critical_beta(panel: Detector, xy_pts: np.ndarray,
-                                  pinhole_thickness: float,
-                                  pinhole_radius: float) -> None:
+def invalidate_past_critical_beta(
+    panel: Detector,
+    xy_pts: np.ndarray,
+    pinhole_thickness: float,
+    pinhole_radius: float,
+) -> None:
     """Set any xy_pts past critical beta to be nan"""
     # Compute the critical beta angle. Anything past this is invalid.
     critical_beta = np.arctan(2 * pinhole_radius / pinhole_thickness)
@@ -212,9 +242,13 @@ def invalidate_past_critical_beta(panel: Detector, xy_pts: np.ndarray,
     xy_pts[np.arccos(cos_beta) > critical_beta] = np.nan
 
 
-def tth_corr_map_sample_layer(instrument,
-                              layer_standoff, layer_thickness,
-                              pinhole_thickness, pinhole_radius):
+def tth_corr_map_sample_layer(
+    instrument,
+    layer_standoff,
+    layer_thickness,
+    pinhole_thickness,
+    pinhole_radius,
+):
     """
     Compute the Bragg angle distortion fields for an instrument associated
     with a specific sample layer in a pinhole camera.
@@ -251,7 +285,7 @@ def tth_corr_map_sample_layer(instrument,
     # view. But that is something we could do in the future:
     # critical_beta = np.arctan(2 * pinhole_radius / pinhole_thickness)
 
-    zs = layer_standoff + 0.5*layer_thickness + 0.5*pinhole_thickness
+    zs = layer_standoff + 0.5 * layer_thickness + 0.5 * pinhole_thickness
     tth_corr = dict.fromkeys(instrument.detectors)
     for det_key, panel in instrument.detectors.items():
         ref_ptth, _ = panel.pixel_angles()
@@ -264,14 +298,14 @@ def tth_corr_map_sample_layer(instrument,
         cos_tthn = np.cos(ref_ptth.flatten())
         sin_tthn = np.sin(ref_ptth.flatten())
         tth_corr[det_key] = np.arctan(
-            sin_tthn/(instrument.source_distance*cos_beta/zs - cos_tthn)
+            sin_tthn / (instrument.source_distance * cos_beta / zs - cos_tthn)
         ).reshape(panel.shape)
     return tth_corr
 
 
-def tth_corr_pinhole(panel, xy_pts,
-                     pinhole_thickness, pinhole_radius,
-                     return_nominal=True):
+def tth_corr_pinhole(
+    panel, xy_pts, pinhole_thickness, pinhole_radius, return_nominal=True
+):
     """
     Compute the Bragg angle distortion associated with the pinhole as a source.
 
@@ -305,17 +339,13 @@ def tth_corr_pinhole(panel, xy_pts,
     cp_det = copy.deepcopy(panel)
     cp_det.bvec = ct.beam_vec  # !!! [0, 0, -1]
     ref_angs, _ = cp_det.cart_to_angles(
-        xy_pts,
-        rmat_s=None, tvec_s=None,
-        tvec_c=None, apply_distortion=True
+        xy_pts, rmat_s=None, tvec_s=None, tvec_c=None, apply_distortion=True
     )
     ref_eta = ref_angs[:, 1]
 
     # These are the nominal tth values
     nom_angs, _ = panel.cart_to_angles(
-        xy_pts,
-        rmat_s=None, tvec_s=None,
-        tvec_c=None, apply_distortion=True
+        xy_pts, rmat_s=None, tvec_s=None, tvec_c=None, apply_distortion=True
     )
     nom_tth = nom_angs[:, 0]
 
@@ -323,8 +353,8 @@ def tth_corr_pinhole(panel, xy_pts,
     for i, (pxy, reta) in enumerate(zip(xy_pts, ref_eta)):
         # !!! JHE used pinhole center, but the back surface
         #     seems to hew a bit closer to JRR's solution
-        origin = -pinhole_radius*np.array(
-            [np.cos(reta), np.sin(reta), 0.5*pinhole_thickness]
+        origin = -pinhole_radius * np.array(
+            [np.cos(reta), np.sin(reta), 0.5 * pinhole_thickness]
         )
         angs, _ = panel.cart_to_angles(np.atleast_2d(pxy), tvec_c=origin)
         pin_tth[i] = angs[:, 0]
@@ -377,8 +407,8 @@ def tth_corr_map_pinhole(instrument, pinhole_thickness, pinhole_radius):
         for i, (pxy, reta) in enumerate(zip(pcrds, ref_peta)):
             # !!! JHE used pinhole center, but the back surface
             #     seems to hew a bit closer to JRR's solution
-            origin = -pinhole_radius*np.array(
-                [np.cos(reta), np.sin(reta), 0.5*pinhole_thickness]
+            origin = -pinhole_radius * np.array(
+                [np.cos(reta), np.sin(reta), 0.5 * pinhole_thickness]
             )
             angs, _ = panel.cart_to_angles(np.atleast_2d(pxy), tvec_c=origin)
             new_ptth[i] = angs[:, 0]
@@ -391,10 +421,10 @@ def calc_phi_x(bvec, eHat_l):
     returns phi_x in RADIANS
     """
     bv = np.array(bvec)
-    bv[2] = 0.
+    bv[2] = 0.0
     bv_norm = np.linalg.norm(bv)
     if np.isclose(bv_norm, 0):
-        return 0.
+        return 0.0
     else:
         bv = bv / bv_norm
         return np.arccos(np.dot(bv, -eHat_l)).item()
@@ -453,7 +483,7 @@ def _infer_eHat_l(panel):
 
     eHat_l_dict = {
         'TARDIS': -ct.lab_x.reshape((3, 1)),
-        'PXRDIP': -ct.lab_x.reshape((3, 1))
+        'PXRDIP': -ct.lab_x.reshape((3, 1)),
     }
 
     return eHat_l_dict[instr_type]
@@ -470,9 +500,16 @@ def _infer_eta_shift(panel):
     return eta_shift_dict[instr_type]
 
 
-def calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
-                          pinhole_thickness, pinhole_radius,
-                          num_phi_elements=60, clip_to_panel=True):
+def calc_tth_rygg_pinhole(
+    panels,
+    absorption_length,
+    tth,
+    eta,
+    pinhole_thickness,
+    pinhole_radius,
+    num_phi_elements=60,
+    clip_to_panel=True,
+):
     """Return pinhole twotheta [rad] and effective scattering volume [mm3].
 
     num_phi_elements: number of pinhole phi elements for integration
@@ -523,8 +560,9 @@ def calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
     mu_p = 1000 * mu_p  # convert to [mm^-1]
 
     # Convert tth and eta to phi_d, beta, and r_d
-    dvec_arg = np.vstack((tth.flatten(), eta.flatten(),
-                          np.zeros(np.prod(eta.shape))))
+    dvec_arg = np.vstack(
+        (tth.flatten(), eta.flatten(), np.zeros(np.prod(eta.shape)))
+    )
     dvectors = xfcapi.angles_to_dvec(dvec_arg.T, bvec, eta_vec=eHat_l)
 
     v0 = np.array([0, 0, 1])
@@ -556,7 +594,7 @@ def calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
 
         dvecs = panel.cart_to_dvecs(cart)
         full_dvecs = dvecs.T.reshape(3, *tth.shape).T
-        panel_r_d = np.sqrt(np.sum((full_dvecs)**2, axis=2)).T
+        panel_r_d = np.sqrt(np.sum((full_dvecs) ** 2, axis=2)).T
 
         # Only overwrite positions that are still nan on r_d
         r_d[np.isnan(r_d)] = panel_r_d[np.isnan(r_d)]
@@ -583,24 +621,28 @@ def calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
 
     phi_vec = np.arange(dphi / 2, 2 * np.pi, dphi)
     # includes elements for X and D edges
-    z_vec = np.arange(-h_p/2 - dz/2, h_p/2 + dz/1.999, dz)
-    z_vec[0] = -h_p/2  # X-side edge (negative z)
-    z_vec[-1] = h_p/2  # D-side edge (positive z)
+    z_vec = np.arange(-h_p / 2 - dz / 2, h_p / 2 + dz / 1.999, dz)
+    z_vec[0] = -h_p / 2  # X-side edge (negative z)
+    z_vec[-1] = h_p / 2  # D-side edge (positive z)
     phi_i, z_i = np.meshgrid(phi_vec, z_vec)  # [Nz x Np]
-    phi_i = phi_i[:, :, None, None]    # [Nz x Np x 1 x 1]
-    z_i = z_i[:, :, None, None]      # axes 0,1 => P; axes 2,3 => D
+    phi_i = phi_i[:, :, None, None]  # [Nz x Np x 1 x 1]
+    z_i = z_i[:, :, None, None]  # axes 0,1 => P; axes 2,3 => D
 
     # ------ calculate twotheta_i [a.k.a. qq_i], for each grid element ------
-    bx, bd = (d_p / (2 * r_x),  d_p / (2 * r_d))
+    bx, bd = (d_p / (2 * r_x), d_p / (2 * r_d))
     sin_a, cos_a, tan_a = np.sin(alpha), np.cos(alpha), np.tan(alpha)
-    sin_b, cos_b, tan_b = np.sin(beta),  np.cos(beta),  np.tan(beta)
+    sin_b, cos_b, tan_b = np.sin(beta), np.cos(beta), np.tan(beta)
     sin_phii, cos_phii = np.sin(phi_i), np.cos(phi_i)
     cos_dphi_x = np.cos(phi_i - phi_x + np.pi)  # [Nz x Np x Nu x Nv]
 
-    alpha_i = np.arctan2(np.sqrt(sin_a**2 + 2*bx*sin_a*cos_dphi_x + bx**2),
-                         cos_a + z_i/r_x)
-    phi_xi = np.arctan2(sin_a * np.sin(phi_x) - bx*sin_phii,
-                        sin_a * np.cos(phi_x) - bx * cos_phii)
+    alpha_i = np.arctan2(
+        np.sqrt(sin_a**2 + 2 * bx * sin_a * cos_dphi_x + bx**2),
+        cos_a + z_i / r_x,
+    )
+    phi_xi = np.arctan2(
+        sin_a * np.sin(phi_x) - bx * sin_phii,
+        sin_a * np.cos(phi_x) - bx * cos_phii,
+    )
 
     # !!! This section used 4D arrays before, which was very time consuming
     # for large grids. Instead, we now loop over the columns and do them
@@ -694,26 +736,51 @@ def _compute_qq_p(use_numba=True, *args, **kwargs):
 
     with np.errstate(divide='ignore', invalid='ignore'):
         # Ignore the errors this will inevitably produce
-        return np.nansum(V_i * qq_i,
-                         axis=(0, 1)) / V_p  # [Nu x Nv] <= detector
+        return (
+            np.nansum(V_i * qq_i, axis=(0, 1)) / V_p
+        )  # [Nu x Nv] <= detector
 
 
-def _compute_vi_qq_i(phi_d, sin_b, bd, sin_phii, cos_phii, alpha_i, phi_xi,
-                     sin_a, cos_dphi_x, cos_a, cos_b, dV_s, dV_e, z_i, h_p,
-                     d_p, tan_b, tan_a, phi_i, r_d):
+def _compute_vi_qq_i(
+    phi_d,
+    sin_b,
+    bd,
+    sin_phii,
+    cos_phii,
+    alpha_i,
+    phi_xi,
+    sin_a,
+    cos_dphi_x,
+    cos_a,
+    cos_b,
+    dV_s,
+    dV_e,
+    z_i,
+    h_p,
+    d_p,
+    tan_b,
+    tan_a,
+    phi_i,
+    r_d,
+):
     # This function can be numbafied, and has a numbafied version below.
 
     # Compute V_i and qq_i
 
     cos_dphi_d = np.cos(phi_i - phi_d + np.pi)
-    beta_i = np.arctan2(np.sqrt(sin_b**2 + 2*bd*sin_b*cos_dphi_d + bd**2),
-                        cos_b - z_i/r_d)
+    beta_i = np.arctan2(
+        np.sqrt(sin_b**2 + 2 * bd * sin_b * cos_dphi_d + bd**2),
+        cos_b - z_i / r_d,
+    )
 
-    phi_di = np.arctan2(sin_b * np.sin(phi_d) - bd*sin_phii,
-                        sin_b * np.cos(phi_d) - bd * cos_phii)
+    phi_di = np.arctan2(
+        sin_b * np.sin(phi_d) - bd * sin_phii,
+        sin_b * np.cos(phi_d) - bd * cos_phii,
+    )
 
-    arg = (np.cos(alpha_i) * np.cos(beta_i) - np.sin(alpha_i) *
-           np.sin(beta_i) * np.cos(phi_di - phi_xi))
+    arg = np.cos(alpha_i) * np.cos(beta_i) - np.sin(alpha_i) * np.sin(
+        beta_i
+    ) * np.cos(phi_di - phi_xi)
     # scattering angle for each P to each D
     qq_i = np.arccos(np.clip(arg, -1, 1))
 
@@ -733,12 +800,14 @@ def _compute_vi_qq_i(phi_d, sin_b, bd, sin_phii, cos_phii, alpha_i, phi_xi,
 
     # ------ visibility of each grid element ------
     # pinhole surface
-    is_seen = np.logical_and(z_i > h_p/2 - d_p/tan_b * cos_dphi_d,
-                             z_i < -h_p/2 + d_p/tan_a * cos_dphi_x)
+    is_seen = np.logical_and(
+        z_i > h_p / 2 - d_p / tan_b * cos_dphi_d,
+        z_i < -h_p / 2 + d_p / tan_a * cos_dphi_x,
+    )
     # X-side edge
-    is_seen[0] = np.where(h_p/d_p * tan_b < cos_dphi_d[0], 1, 0)
+    is_seen[0] = np.where(h_p / d_p * tan_b < cos_dphi_d[0], 1, 0)
     # D-side edge
-    is_seen[-1] = np.where(h_p/d_p * tan_a < cos_dphi_x[-1], 1, 0)
+    is_seen[-1] = np.where(h_p / d_p * tan_a < cos_dphi_x[-1], 1, 0)
 
     # ------ weighted sum over elements to obtain average ------
     V_i *= is_seen  # zero weight to elements with no view of both X and D
@@ -746,25 +815,35 @@ def _compute_vi_qq_i(phi_d, sin_b, bd, sin_phii, cos_phii, alpha_i, phi_xi,
 
 
 # The numba version (works better in conjunction with multi-threading)
-_compute_vi_qq_i_numba = njit(
-    nogil=True, cache=True)(_compute_vi_qq_i)
+_compute_vi_qq_i_numba = njit(nogil=True, cache=True)(_compute_vi_qq_i)
 
 
-def tth_corr_rygg_pinhole(panel, absorption_length, xy_pts,
-                          pinhole_thickness, pinhole_radius,
-                          return_nominal=True, num_phi_elements=60):
+def tth_corr_rygg_pinhole(
+    panel,
+    absorption_length,
+    xy_pts,
+    pinhole_thickness,
+    pinhole_radius,
+    return_nominal=True,
+    num_phi_elements=60,
+):
     # These are the nominal tth values
     nom_angs, _ = panel.cart_to_angles(
-        xy_pts,
-        rmat_s=None, tvec_s=None,
-        tvec_c=None, apply_distortion=True
+        xy_pts, rmat_s=None, tvec_s=None, tvec_c=None, apply_distortion=True
     )
     nom_tth, nom_eta = nom_angs[:, :2].T
 
     # Don't clip these values to the panel because they will be shifted
     qq_p = calc_tth_rygg_pinhole(
-        panel, absorption_length, nom_tth, nom_eta, pinhole_thickness,
-        pinhole_radius, num_phi_elements, clip_to_panel=False)
+        panel,
+        absorption_length,
+        nom_tth,
+        nom_eta,
+        pinhole_thickness,
+        pinhole_radius,
+        num_phi_elements,
+        clip_to_panel=False,
+    )
 
     # Make the distortion shift to the left instead of the right
     # FIXME: why is qq_p shifting the data to the right instead of the left?
@@ -783,23 +862,49 @@ def tth_corr_rygg_pinhole(panel, absorption_length, xy_pts,
         return angs
 
 
-def tth_corr_map_rygg_pinhole(instrument, absorption_length, pinhole_thickness,
-                              pinhole_radius, num_phi_elements=60):
+def tth_corr_map_rygg_pinhole(
+    instrument,
+    absorption_length,
+    pinhole_thickness,
+    pinhole_radius,
+    num_phi_elements=60,
+):
     tth_corr = {}
     for det_key, panel in instrument.detectors.items():
         nom_ptth, nom_peta = panel.pixel_angles()
         qq_p = calc_tth_rygg_pinhole(
-            panel, absorption_length, nom_ptth, nom_peta, pinhole_thickness,
-            pinhole_radius, num_phi_elements)
+            panel,
+            absorption_length,
+            nom_ptth,
+            nom_peta,
+            pinhole_thickness,
+            pinhole_radius,
+            num_phi_elements,
+        )
         tth_corr[det_key] = nom_ptth - qq_p
     return tth_corr
 
 
-def polar_tth_corr_map_rygg_pinhole(tth, eta, instrument, absorption_length,
-                                    pinhole_thickness, pinhole_radius,
-                                    num_phi_elements=60):
+def polar_tth_corr_map_rygg_pinhole(
+    tth,
+    eta,
+    instrument,
+    absorption_length,
+    pinhole_thickness,
+    pinhole_radius,
+    num_phi_elements=60,
+):
     """Generate a polar tth corr map directly for all panels"""
     panels = list(instrument.detectors.values())
-    return calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
-                                 pinhole_thickness, pinhole_radius,
-                                 num_phi_elements) - tth
+    return (
+        calc_tth_rygg_pinhole(
+            panels,
+            absorption_length,
+            tth,
+            eta,
+            pinhole_thickness,
+            pinhole_radius,
+            num_phi_elements,
+        )
+        - tth
+    )

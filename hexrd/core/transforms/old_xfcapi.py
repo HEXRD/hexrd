@@ -30,27 +30,28 @@ import numpy as np
 import sys
 
 from hexrd.core.extensions import _transforms_CAPI
+
 # Imports so that others can import from this module
 from hexrd.core.rotations import mapAngle
 from hexrd.core.matrixutil import columnNorm, rowNorm
 
 # ######################################################################
 # Module Data
-epsf = np.finfo(float).eps      # ~2.2e-16
-ten_epsf = 10 * epsf                # ~2.2e-15
-sqrt_epsf = np.sqrt(epsf)            # ~1.5e-8
+epsf = np.finfo(float).eps  # ~2.2e-16
+ten_epsf = 10 * epsf  # ~2.2e-15
+sqrt_epsf = np.sqrt(epsf)  # ~1.5e-8
 
-periodDict = {'degrees': 360.0, 'radians': 2*np.pi}
-angularUnits = 'radians'        # module-level angle units
+periodDict = {'degrees': 360.0, 'radians': 2 * np.pi}
+angularUnits = 'radians'  # module-level angle units
 
 # basis vectors
-I3 = np.eye(3)                                        # (3, 3) identity
-Xl = np.ascontiguousarray(I3[:, 0].reshape(3, 1))     # X in the lab frame
-Yl = np.ascontiguousarray(I3[:, 1].reshape(3, 1))     # Y in the lab frame
-Zl = np.ascontiguousarray(I3[:, 2].reshape(3, 1))     # Z in the lab frame
+I3 = np.eye(3)  # (3, 3) identity
+Xl = np.ascontiguousarray(I3[:, 0].reshape(3, 1))  # X in the lab frame
+Yl = np.ascontiguousarray(I3[:, 1].reshape(3, 1))  # Y in the lab frame
+Zl = np.ascontiguousarray(I3[:, 2].reshape(3, 1))  # Z in the lab frame
 
 # reference stretch
-vInv_ref = np.array([[1., 1., 1., 0., 0., 0.]], order='C').T
+vInv_ref = np.array([[1.0, 1.0, 1.0, 0.0, 0.0, 0.0]], order='C').T
 
 # reference beam direction and eta=0 ref in LAB FRAME for standard geometry
 bVec_ref = -Zl
@@ -60,7 +61,7 @@ eta_ref = Xl
 # Funtions
 
 
-def anglesToGVec(angs, bHat_l=bVec_ref, eHat_l=eta_ref, chi=0., rMat_c=I3):
+def anglesToGVec(angs, bHat_l=bVec_ref, eHat_l=eta_ref, chi=0.0, rMat_c=I3):
     """
     from 'eta' frame out to lab (with handy kwargs to go to crystal or sample)
 
@@ -72,12 +73,10 @@ def anglesToGVec(angs, bHat_l=bVec_ref, eHat_l=eta_ref, chi=0., rMat_c=I3):
     eHat_l = np.ascontiguousarray(eHat_l.flatten())
     rMat_c = np.ascontiguousarray(rMat_c)
     chi = float(chi)
-    return _transforms_CAPI.anglesToGVec(angs,
-                                         bHat_l, eHat_l,
-                                         chi, rMat_c)
+    return _transforms_CAPI.anglesToGVec(angs, bHat_l, eHat_l, chi, rMat_c)
 
 
-def anglesToDVec(angs, bHat_l=bVec_ref, eHat_l=eta_ref, chi=0., rMat_c=I3):
+def anglesToDVec(angs, bHat_l=bVec_ref, eHat_l=eta_ref, chi=0.0, rMat_c=I3):
     """
     from 'eta' frame out to lab (with handy kwargs to go to crystal or sample)
 
@@ -89,9 +88,7 @@ def anglesToDVec(angs, bHat_l=bVec_ref, eHat_l=eta_ref, chi=0., rMat_c=I3):
     eHat_l = np.ascontiguousarray(eHat_l.flatten())
     rMat_c = np.ascontiguousarray(rMat_c)
     chi = float(chi)
-    return _transforms_CAPI.anglesToDVec(angs,
-                                         bHat_l, eHat_l,
-                                         chi, rMat_c)
+    return _transforms_CAPI.anglesToDVec(angs, bHat_l, eHat_l, chi, rMat_c)
 
 
 def makeGVector(hkl, bMat):
@@ -117,10 +114,9 @@ def makeGVector(hkl, bMat):
     return unitRowVector(np.dot(bMat, hkl))
 
 
-def gvecToDetectorXY(gVec_c,
-                     rMat_d, rMat_s, rMat_c,
-                     tVec_d, tVec_s, tVec_c,
-                     beamVec=bVec_ref):
+def gvecToDetectorXY(
+    gVec_c, rMat_d, rMat_s, rMat_c, tVec_d, tVec_s, tVec_c, beamVec=bVec_ref
+):
     """
     Takes a list of unit reciprocal lattice vectors in crystal frame to the
     specified detector-relative frame, subject to the conditions:
@@ -156,16 +152,14 @@ def gvecToDetectorXY(gVec_c,
     tVec_s = np.ascontiguousarray(tVec_s.flatten())
     tVec_c = np.ascontiguousarray(tVec_c.flatten())
     beamVec = np.ascontiguousarray(beamVec.flatten())
-    return _transforms_CAPI.gvecToDetectorXY(gVec_c,
-                                             rMat_d, rMat_s, rMat_c,
-                                             tVec_d, tVec_s, tVec_c,
-                                             beamVec)
+    return _transforms_CAPI.gvecToDetectorXY(
+        gVec_c, rMat_d, rMat_s, rMat_c, tVec_d, tVec_s, tVec_c, beamVec
+    )
 
 
-def gvecToDetectorXYArray(gVec_c,
-                          rMat_d, rMat_s, rMat_c,
-                          tVec_d, tVec_s, tVec_c,
-                          beamVec=bVec_ref):
+def gvecToDetectorXYArray(
+    gVec_c, rMat_d, rMat_s, rMat_c, tVec_d, tVec_s, tVec_c, beamVec=bVec_ref
+):
     """
     Takes a list of unit reciprocal lattice vectors in crystal frame to the
     specified detector-relative frame, subject to the conditions:
@@ -201,16 +195,21 @@ def gvecToDetectorXYArray(gVec_c,
     tVec_s = np.ascontiguousarray(tVec_s.flatten())
     tVec_c = np.ascontiguousarray(tVec_c.flatten())
     beamVec = np.ascontiguousarray(beamVec.flatten())
-    return _transforms_CAPI.gvecToDetectorXYArray(gVec_c,
-                                                  rMat_d, rMat_s, rMat_c,
-                                                  tVec_d, tVec_s, tVec_c,
-                                                  beamVec)
+    return _transforms_CAPI.gvecToDetectorXYArray(
+        gVec_c, rMat_d, rMat_s, rMat_c, tVec_d, tVec_s, tVec_c, beamVec
+    )
 
 
-def detectorXYToGvec(xy_det,
-                     rMat_d, rMat_s,
-                     tVec_d, tVec_s, tVec_c,
-                     beamVec=bVec_ref, etaVec=eta_ref):
+def detectorXYToGvec(
+    xy_det,
+    rMat_d,
+    rMat_s,
+    tVec_d,
+    tVec_s,
+    tVec_c,
+    beamVec=bVec_ref,
+    etaVec=eta_ref,
+):
     """
     Takes a list cartesian (x, y) pairs in the detector coordinates and
     calculates the associated reciprocal lattice (G) vectors and
@@ -249,16 +248,21 @@ def detectorXYToGvec(xy_det,
     tVec_c = np.ascontiguousarray(tVec_c.flatten())
     beamVec = np.ascontiguousarray(beamVec.flatten())
     etaVec = np.ascontiguousarray(etaVec.flatten())
-    return _transforms_CAPI.detectorXYToGvec(xy_det,
-                                             rMat_d, rMat_s,
-                                             tVec_d, tVec_s, tVec_c,
-                                             beamVec, etaVec)
+    return _transforms_CAPI.detectorXYToGvec(
+        xy_det, rMat_d, rMat_s, tVec_d, tVec_s, tVec_c, beamVec, etaVec
+    )
 
 
-def detectorXYToGvecArray(xy_det,
-                          rMat_d, rMat_s,
-                          tVec_d, tVec_s, tVec_c,
-                          beamVec=bVec_ref, etaVec=eta_ref):
+def detectorXYToGvecArray(
+    xy_det,
+    rMat_d,
+    rMat_s,
+    tVec_d,
+    tVec_s,
+    tVec_c,
+    beamVec=bVec_ref,
+    etaVec=eta_ref,
+):
     """
     Takes a list cartesian (x, y) pairs in the detector coordinates and
     calculates the associated reciprocal lattice (G) vectors and
@@ -297,14 +301,21 @@ def detectorXYToGvecArray(xy_det,
     tVec_c = np.ascontiguousarray(tVec_c.flatten())
     beamVec = np.ascontiguousarray(beamVec.flatten())
     etaVec = np.ascontiguousarray(etaVec.flatten())
-    return _transforms_CAPI.detectorXYToGvec(xy_det,
-                                             rMat_d, rMat_s,
-                                             tVec_d, tVec_s, tVec_c,
-                                             beamVec, etaVec)
+    return _transforms_CAPI.detectorXYToGvec(
+        xy_det, rMat_d, rMat_s, tVec_d, tVec_s, tVec_c, beamVec, etaVec
+    )
 
 
-def oscillAnglesOfHKLs(hkls, chi, rMat_c, bMat, wavelength,
-                       vInv=None, beamVec=bVec_ref, etaVec=eta_ref):
+def oscillAnglesOfHKLs(
+    hkls,
+    chi,
+    rMat_c,
+    bMat,
+    wavelength,
+    vInv=None,
+    beamVec=bVec_ref,
+    etaVec=eta_ref,
+):
     """
     Takes a list of unit reciprocal lattice vectors in crystal frame to the
     specified detector-relative frame, subject to the conditions:
@@ -416,8 +427,8 @@ def arccosSafe(temp):
         print("attempt to take arccos of %s" % temp, file=sys.stderr)
         raise RuntimeError("unrecoverable error")
 
-    gte1 = temp >= 1.
-    lte1 = temp <= -1.
+    gte1 = temp >= 1.0
+    lte1 = temp <= -1.0
 
     temp[gte1] = 1
     temp[lte1] = -1
@@ -437,7 +448,7 @@ def angularDifference(angList0, angList1, units=angularUnits):
     # take difference as arrays
     diffAngles = np.atleast_1d(angList0) - np.atleast_1d(angList1)
 
-    return abs(np.remainder(diffAngles + 0.5*period, period) - 0.5*period)
+    return abs(np.remainder(diffAngles + 0.5 * period, period) - 0.5 * period)
 
 
 def unitRowVector(vecIn):
@@ -447,8 +458,10 @@ def unitRowVector(vecIn):
     elif vecIn.ndim == 2:
         return _transforms_CAPI.unitRowVectors(vecIn)
     else:
-        assert vecIn.ndim in [1, 2], \
-            "arg shape must be 1-d or 2-d, yours is %d-d" % (vecIn.ndim)
+        assert vecIn.ndim in [
+            1,
+            2,
+        ], "arg shape must be 1-d or 2-d, yours is %d-d" % (vecIn.ndim)
 
 
 def makeDetectorRotMat(tiltAngles):
@@ -535,6 +548,7 @@ def homochoricOfQuat(quats):
     """
     q = np.ascontiguousarray(quats.T)
     return _transforms_CAPI.homochoricOfQuat(q)
+
 
 # def rotateVecsAboutAxis(angle, axis, vecs):
 #     return _transforms_CAPI.rotateVecsAboutAxis(angle, axis, vecs)

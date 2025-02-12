@@ -20,7 +20,13 @@ examples:
 """
 
 _flds = [
-    "id", "completeness", "chisq", "expmap", "centroid", "inv_Vs", "ln_Vs"
+    "id",
+    "completeness",
+    "chisq",
+    "expmap",
+    "centroid",
+    "inv_Vs",
+    "ln_Vs",
 ]
 _BaseGrainData = namedtuple("_BaseGrainData", _flds)
 del _flds
@@ -58,7 +64,7 @@ class GrainData(_BaseGrainData):
     def from_array(cls, a):
         """Return GrainData instance from numpy datatype array"""
         return cls(
-            id=a[:,0].astype(int),
+            id=a[:, 0].astype(int),
             completeness=a[:, 1],
             chisq=a[:, 2],
             expmap=a[:, 3:6],
@@ -69,7 +75,7 @@ class GrainData(_BaseGrainData):
 
     @property
     def rotation_matrices(self):
-        """"Return rotation matrices from exponential maps"""
+        """ "Return rotation matrices from exponential maps"""
         #
         # Compute the rotation matrices only once, the first time this is
         # called, and save the results.
@@ -85,36 +91,43 @@ class GrainData(_BaseGrainData):
 
 def configure_parser(sub_parsers):
     p = sub_parsers.add_parser('fit-grains', description=descr, help=descr)
+    p.add_argument('yml', type=str, help='YAML configuration file')
     p.add_argument(
-        'yml', type=str,
-        help='YAML configuration file'
-        )
+        '-g',
+        '--grains',
+        type=str,
+        default=None,
+        help="comma-separated list of IDs to refine, defaults to all",
+    )
     p.add_argument(
-        '-g', '--grains', type=str, default=None,
-        help="comma-separated list of IDs to refine, defaults to all"
-        )
+        '-q',
+        '--quiet',
+        action='store_true',
+        help="don't report progress in terminal",
+    )
     p.add_argument(
-        '-q', '--quiet', action='store_true',
-        help="don't report progress in terminal"
-        )
+        '-c',
+        '--clean',
+        action='store_true',
+        help='overwrites existing analysis, uses initial orientations',
+    )
     p.add_argument(
-        '-c', '--clean', action='store_true',
-        help='overwrites existing analysis, uses initial orientations'
-        )
+        '-f',
+        '--force',
+        action='store_true',
+        help='overwrites existing analysis',
+    )
     p.add_argument(
-        '-f', '--force', action='store_true',
-        help='overwrites existing analysis'
-        )
-    p.add_argument(
-        '-p', '--profile', action='store_true',
+        '-p',
+        '--profile',
+        action='store_true',
         help='runs the analysis with cProfile enabled',
-        )
+    )
     p.set_defaults(func=execute)
 
 
 def write_results(
-        fit_results, cfg,
-        grains_filename='grains.out', grains_npz='grains.npz'
+    fit_results, cfg, grains_filename='grains.out', grains_npz='grains.npz'
 ):
     instr = cfg.instrument.hedm
     nfit = len(fit_results)
@@ -124,7 +137,7 @@ def write_results(
     for det_key in instr.detectors:
         (cfg.analysis_dir / det_key).mkdir(parents=True, exist_ok=True)
 
-    gw = instrument.GrainDataWriter(str(cfg.analysis_dir /grains_filename))
+    gw = instrument.GrainDataWriter(str(cfg.analysis_dir / grains_filename))
     gd_array = np.zeros((nfit, 21))
     gwa = instrument.GrainDataWriter(array=gd_array)
     for fit_result in fit_results:
@@ -179,9 +192,11 @@ def execute(args, parser):
         if have_orientations:
             try:
                 qbar = np.loadtxt(quats_f, ndmin=2).T
-            except(IOError):
-                raise(RuntimeError,
-                      "error loading indexing results '%s'" % quats_f)
+            except IOError:
+                raise (
+                    RuntimeError,
+                    "error loading indexing results '%s'" % quats_f,
+                )
         else:
             logger.info("Missing %s, running find-orientations", quats_f)
             logger.removeHandler(ch)
@@ -200,8 +215,8 @@ def execute(args, parser):
             logger.error(
                 'Analysis "%s" already exists. '
                 'Change yml file or specify "force"',
-                cfg.analysis_name
-                )
+                cfg.analysis_name,
+            )
             sys.exit()
 
         # Set up analysis directory and output directories.
@@ -225,9 +240,7 @@ def execute(args, parser):
                     maxtth = np.radians(cfg.fit_grains.tth_max)
                 excl_p = excl_p._replace(tthmax=maxtth)
 
-            cfg.material.plane_data.exclude(
-                **excl_p._asdict()
-            )
+            cfg.material.plane_data.exclude(**excl_p._asdict())
         using_nhkls = np.count_nonzero(
             np.logical_not(cfg.material.plane_data.exclusions)
         )
@@ -240,9 +253,8 @@ def execute(args, parser):
         fh = logging.FileHandler(logfile, mode='w')
         fh.setLevel(log_level)
         ff = logging.Formatter(
-                '%(asctime)s - %(name)s - %(message)s',
-                '%m-%d %H:%M:%S'
-                )
+            '%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S'
+        )
         fh.setFormatter(ff)
         logger.info("logging to %s", logfile)
         logger.addHandler(fh)
@@ -254,7 +266,6 @@ def execute(args, parser):
 
             pr = profile.Profile()
             pr.enable()
-
 
         # some conditionals for arg handling
         existing_analysis = grains_filename.exists()
@@ -289,29 +300,32 @@ def execute(args, parser):
                 # grains.out file
                 gw = instrument.GrainDataWriter(grains_filename)
                 for i_g, q in enumerate(qbar.T):
-                    phi = 2*np.arccos(q[0])
+                    phi = 2 * np.arccos(q[0])
                     n = xfcapi.unit_vector(q[1:])
                     grain_params = np.hstack(
-                        [phi*n, cnst.zeros_3, cnst.identity_6x1]
+                        [phi * n, cnst.zeros_3, cnst.identity_6x1]
                     )
-                    gw.dump_grain(int(i_g), 1., 0., grain_params)
+                    gw.dump_grain(int(i_g), 1.0, 0.0, grain_params)
                 gw.close()
-            except(IOError):
-                raise(RuntimeError,
-                      "indexing results '%s' not found!"
-                      % str(grains_filename))
+            except IOError:
+                raise (
+                    RuntimeError,
+                    "indexing results '%s' not found!" % str(grains_filename),
+                )
         elif force_with_estimate or new_with_estimate:
             grains_filename = fit_estimate
             logger.info("using initial estimate '%s'", fit_estimate)
         elif existing_analysis and not clobber:
-            raise(RuntimeError,
-                  "fit results '%s' exist, " % grains_filename
-                  + "but --clean or --force options not specified")
+            raise (
+                RuntimeError,
+                "fit results '%s' exist, " % grains_filename
+                + "but --clean or --force options not specified",
+            )
 
         # get grain parameters by loading grains table
         try:
             grains_table = np.loadtxt(grains_filename, ndmin=2)
-        except(IOError):
+        except IOError:
             raise RuntimeError("problem loading '%s'" % grains_filename)
 
         # process the data
@@ -324,7 +338,7 @@ def execute(args, parser):
             grains_table,
             show_progress=not args.quiet,
             ids_to_refine=gid_list,
-            )
+        )
 
         if args.profile:
             pr.disable()

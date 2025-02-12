@@ -1,5 +1,7 @@
 """Trivial adapter: just for testing"""
+
 from . import ImageSeriesAdapter
+
 
 class TrivialAdapter(ImageSeriesAdapter):
 

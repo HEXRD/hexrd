@@ -4,6 +4,7 @@ import yaml
 import warnings
 from os import path
 
+
 class Parameters:
     """
     ==================================================================================
@@ -19,45 +20,28 @@ class Parameters:
         ===============================================================================
     """
 
-    def __init__(self,
-                 name=None,
-                 vary=False,
-                 value=0.0,
-                 lb=-np.Inf,
-                 ub=np.Inf):
+    def __init__(
+        self, name=None, vary=False, value=0.0, lb=-np.Inf, ub=np.Inf
+    ):
 
         self.param_dict = {}
 
-        if(name is not None):
-            self.add(name=name,
-                     vary=vary,
-                     value=value,
-                     lb=min,
-                     ub=max)
+        if name is not None:
+            self.add(name=name, vary=vary, value=value, lb=min, ub=max)
 
-    def add(self,
-            name,
-            vary=False,
-            value=0.0,
-            lb=-np.Inf,
-            ub=np.Inf):
+    def add(self, name, vary=False, value=0.0, lb=-np.Inf, ub=np.Inf):
         """
-            >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-            >> @DATE:       05/18/2020 SS 1.0 original
-            >> @DETAILS:    add a single named parameter
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       05/18/2020 SS 1.0 original
+        >> @DETAILS:    add a single named parameter
         """
         self[name] = Parameter(name=name, vary=vary, value=value, lb=lb, ub=ub)
 
-    def add_many(self,
-                 names,
-                 varies,
-                 values,
-                 lbs,
-                 ubs):
+    def add_many(self, names, varies, values, lbs, ubs):
         """
-            >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-            >> @DATE:       05/18/2020 SS 1.0 original
-            >> @DETAILS:    load a list of named parameters
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       05/18/2020 SS 1.0 original
+        >> @DETAILS:    load a list of named parameters
         """
         assert len(names) == len(varies), "lengths of tuples not consistent"
         assert len(names) == len(values), "lengths of tuples not consistent"
@@ -69,24 +53,29 @@ class Parameters:
 
     def load(self, fname):
         """
-            >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-            >> @DATE:       05/18/2020 SS 1.0 original
-            >> @DETAILS:    load parameters from yaml file
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       05/18/2020 SS 1.0 original
+        >> @DETAILS:    load parameters from yaml file
         """
         with open(fname) as file:
             dic = yaml.load(file, Loader=yaml.FullLoader)
 
         for k in dic.keys():
             v = dic[k]
-            self.add(k, value=float(v[0]), lb=float(v[1]),
-                     ub=float(v[2]), vary=bool(v[3]))
+            self.add(
+                k,
+                value=float(v[0]),
+                lb=float(v[1]),
+                ub=float(v[2]),
+                vary=bool(v[3]),
+            )
 
     def dump(self, fname):
         """
-            >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-            >> @DATE:       05/18/2020 SS 1.0 original
-            >> @DETAILS:    dump the class to a yaml looking file. name is the key and the list
-                            has [value, lb, ub, vary] in that order
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       05/18/2020 SS 1.0 original
+        >> @DETAILS:    dump the class to a yaml looking file. name is the key and the list
+                        has [value, lb, ub, vary] in that order
         """
         dic = {}
         for k in self.param_dict.keys():
@@ -97,31 +86,32 @@ class Parameters:
 
     def dump_hdf5(self, file):
         """
-            >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-            >> @DATE:       01/15/2021 SS 1.0 original
-            >> @DETAILS:    dump the class to a hdf5 file. the file argument could either be a
-                            string or a h5.File instance. If it is a filename, then HDF5 file
-                            is created, a parameter group is created and data is written out
-                            with data names being the parameter name. Else data written to Parameter
-                            group in existing file object
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       01/15/2021 SS 1.0 original
+        >> @DETAILS:    dump the class to a hdf5 file. the file argument could either be a
+                        string or a h5.File instance. If it is a filename, then HDF5 file
+                        is created, a parameter group is created and data is written out
+                        with data names being the parameter name. Else data written to Parameter
+                        group in existing file object
         """
-        if(isinstance(file, str)):
+        if isinstance(file, str):
             fexist = path.isfile(file)
-            if(fexist):
+            if fexist:
                 fid = h5py.File(file, 'r+')
             else:
                 fid = h5py.File(file, 'x')
 
-        elif(isinstance(file, h5py.File)):
+        elif isinstance(file, h5py.File):
             fid = file
 
         else:
             raise RuntimeError(
                 'Parameters: dump_hdf5 Pass in a \
-                 filename string or h5py.File object')
+                 filename string or h5py.File object'
+            )
 
-        if("/Parameters" in fid):
-            del(fid["Parameters"])
+        if "/Parameters" in fid:
+            del fid["Parameters"]
         gid_top = fid.create_group("Parameters")
 
         for p in self:
@@ -129,27 +119,27 @@ class Parameters:
             gid = gid_top.create_group(p)
 
             # write the value, lower and upper bounds and vary status
-            did = gid.create_dataset("value", (1, ), dtype=np.float64)
+            did = gid.create_dataset("value", (1,), dtype=np.float64)
             did.write_direct(np.array(param.value, dtype=np.float64))
 
-            did = gid.create_dataset("lb", (1, ), dtype=np.float64)
+            did = gid.create_dataset("lb", (1,), dtype=np.float64)
             did.write_direct(np.array(param.lb, dtype=np.float64))
 
-            did = gid.create_dataset("ub", (1, ), dtype=np.float64)
+            did = gid.create_dataset("ub", (1,), dtype=np.float64)
             did.write_direct(np.array(param.ub, dtype=np.float64))
 
-            did = gid.create_dataset("vary", (1, ), dtype=bool)
+            did = gid.create_dataset("vary", (1,), dtype=bool)
             did.write_direct(np.array(param.vary, dtype=bool))
 
     def __getitem__(self, key):
-        if(key in self.param_dict.keys()):
+        if key in self.param_dict.keys():
             return self.param_dict[key]
         else:
             raise ValueError(f'variable with name {key} not found')
 
     def __setitem__(self, key, parm_cls):
 
-        if(isinstance(parm_cls, Parameter)):
+        if isinstance(parm_cls, Parameter):
             self.param_dict[key] = parm_cls
         else:
             raise ValueError('input not a Parameter class')
@@ -159,7 +149,7 @@ class Parameters:
         return self
 
     def __next__(self):
-        if(self.n < len(self.param_dict.keys())):
+        if self.n < len(self.param_dict.keys()):
             res = list(self.param_dict.keys())[self.n]
             self.n += 1
             return res
@@ -169,7 +159,7 @@ class Parameters:
     def __str__(self):
         retstr = 'Parameters{\n'
         for k in self.param_dict.keys():
-            retstr += self[k].__str__()+'\n'
+            retstr += self[k].__str__() + '\n'
 
         retstr += '}'
         return retstr
@@ -189,12 +179,9 @@ class Parameter:
     =================================================================================
     """
 
-    def __init__(self,
-                 name=None,
-                 vary=False,
-                 value=0.0,
-                 lb=-np.Inf,
-                 ub=np.Inf):
+    def __init__(
+        self, name=None, vary=False, value=0.0, lb=-np.Inf, ub=np.Inf
+    ):
 
         self.name = name
         self.vary = vary
@@ -203,10 +190,11 @@ class Parameter:
         self.ub = ub
 
     def __str__(self):
+        # fmt: off
         retstr = '< Parameter \''+self.name+'\'; value : ' + \
             str(self.value)+'; bounds : ['+str(self.lb)+',' + \
             str(self.ub)+' ]; vary :'+str(self.vary)+' >'
-
+        # fmt: on
         return retstr
 
     @property
@@ -215,7 +203,7 @@ class Parameter:
 
     @name.setter
     def name(self, name):
-        if(isinstance(name, str)):
+        if isinstance(name, str):
             self._name = name
 
     @property
@@ -252,5 +240,5 @@ class Parameter:
 
     @vary.setter
     def vary(self, vary):
-        if(isinstance(vary, (bool, np.bool_))):
+        if isinstance(vary, (bool, np.bool_)):
             self._vary = vary

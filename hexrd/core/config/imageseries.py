@@ -34,7 +34,7 @@ class ImageSeries(Config):
                         panel = '_'.join(panel)
                     elif panel is None:
                         panel = shared_ims_key
-                except(KeyError):
+                except KeyError:
                     panel = shared_ims_key
                 self._image_dict[panel] = oms
 

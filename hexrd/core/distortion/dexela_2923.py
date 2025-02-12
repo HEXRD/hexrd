@@ -38,9 +38,7 @@ class Dexela_2923(DistortionABC, metaclass=_RegisterDistortionClass):
             return xy_in
         else:
             xy_out = np.empty_like(xy_in)
-            _dexela_2923_distortion(
-                xy_out, xy_in, np.asarray(self.params)
-            )
+            _dexela_2923_distortion(xy_out, xy_in, np.asarray(self.params))
             return xy_out
 
     def apply_inverse(self, xy_in):
@@ -56,9 +54,9 @@ class Dexela_2923(DistortionABC, metaclass=_RegisterDistortionClass):
 
 def _find_quadrant(xy_in):
     quad_label = np.zeros(len(xy_in), dtype=int)
-    in_2_or_3 = xy_in[:, 0] < 0.
+    in_2_or_3 = xy_in[:, 0] < 0.0
     in_1_or_4 = ~in_2_or_3
-    in_3_or_4 = xy_in[:, 1] < 0.
+    in_3_or_4 = xy_in[:, 1] < 0.0
     in_1_or_2 = ~in_3_or_4
     quad_label[np.logical_and(in_1_or_4, in_1_or_2)] = 1
     quad_label[np.logical_and(in_2_or_3, in_1_or_2)] = 2
@@ -71,15 +69,15 @@ def _find_quadrant(xy_in):
 def _dexela_2923_distortion(out_, in_, params):
     for el in range(len(in_)):
         xi, yi = in_[el, :]
-        if xi < 0.:
-            if yi < 0.:
+        if xi < 0.0:
+            if yi < 0.0:
                 # 3rd quadrant
                 out_[el, :] = in_[el, :] + params[4:6]
             else:
                 # 2nd quadrant
                 out_[el, :] = in_[el, :] + params[2:4]
         else:
-            if yi < 0.:
+            if yi < 0.0:
                 # 4th quadrant
                 out_[el, :] = in_[el, :] + params[6:8]
             else:
@@ -91,18 +89,17 @@ def _dexela_2923_distortion(out_, in_, params):
 def _dexela_2923_inverse_distortion(out_, in_, params):
     for el in range(len(in_)):
         xi, yi = in_[el, :]
-        if xi < 0.:
-            if yi < 0.:
+        if xi < 0.0:
+            if yi < 0.0:
                 # 3rd quadrant
                 out_[el, :] = in_[el, :] - params[4:6]
             else:
                 # 2nd quadrant
                 out_[el, :] = in_[el, :] - params[2:4]
         else:
-            if yi < 0.:
+            if yi < 0.0:
                 # 4th quadrant
                 out_[el, :] = in_[el, :] - params[6:8]
             else:
                 # 1st quadrant
                 out_[el, :] = in_[el, :] - params[0:2]
-

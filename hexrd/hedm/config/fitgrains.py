@@ -99,7 +99,7 @@ class FitGrainsConfig(Config):
                 raise RuntimeError(
                     '"%s" must be None, a scalar, or a list, got "%s"'
                     % (key, temp)
-                    )
+                )
             if isinstance(temp, (int, float)):
                 temp = [temp, temp]
             return temp
@@ -107,6 +107,7 @@ class FitGrainsConfig(Config):
     """
     TODO: evaluate the need for this
     """
+
     @property
     def skip_on_estimate(self):
         key = 'fit_grains:skip_on_estimate'
@@ -115,7 +116,7 @@ class FitGrainsConfig(Config):
             return temp
         raise RuntimeError(
             '"%s" must be true or false, got "%s"' % (key, temp)
-            )
+        )
 
     @property
     def fit_only(self):
@@ -125,7 +126,7 @@ class FitGrainsConfig(Config):
             return temp
         raise RuntimeError(
             '"%s" must be true or false, got "%s"' % (key, temp)
-            )
+        )
 
     @property
     def tth_max(self):
@@ -138,4 +139,4 @@ class FitGrainsConfig(Config):
                 return temp
         raise RuntimeError(
             '"%s" must be > 0, true, or false, got "%s"' % (key, temp)
-            )
+        )

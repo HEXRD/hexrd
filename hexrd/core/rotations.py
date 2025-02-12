@@ -37,7 +37,13 @@ from scipy.spatial.transform import Rotation as R
 
 from hexrd.core.deprecation import deprecated
 from hexrd.core import constants as cnst
-from hexrd.core.matrixutil import columnNorm, unitVector, findDuplicateVectors, multMatArray, nullSpace
+from hexrd.core.matrixutil import (
+    columnNorm,
+    unitVector,
+    findDuplicateVectors,
+    multMatArray,
+    nullSpace,
+)
 from hexrd.core.utils.warnings import ignore_warnings
 
 
@@ -89,6 +95,7 @@ def arccosSafe(cosines):
         raise RuntimeError("unrecoverable error")
     return np.arccos(np.clip(cosines, -1.0, 1.0))
 
+
 #
 #  ==================== Quaternions
 #
@@ -121,7 +128,7 @@ def fixQuat(q):
 
     qfix = unitVector(q)
 
-    q0negative = qfix[0, ] < 0
+    q0negative = qfix[0,] < 0
     qfix[:, q0negative] = -1 * qfix[:, q0negative]
 
     if qdims == 3:
@@ -310,15 +317,47 @@ def quatProductMatrix(quats, mult='right'):
     q2 = quats[2, :].copy()
     q3 = quats[3, :].copy()
     if mult == 'right':
-        qmats = np.array([[q0], [q1], [q2], [q3],
-                       [-q1], [q0], [-q3], [q2],
-                       [-q2], [q3], [q0], [-q1],
-                       [-q3], [-q2], [q1], [q0]])
+        qmats = np.array(
+            [
+                [q0],
+                [q1],
+                [q2],
+                [q3],
+                [-q1],
+                [q0],
+                [-q3],
+                [q2],
+                [-q2],
+                [q3],
+                [q0],
+                [-q1],
+                [-q3],
+                [-q2],
+                [q1],
+                [q0],
+            ]
+        )
     elif mult == 'left':
-        qmats = np.array([[q0], [q1], [q2], [q3],
-                       [-q1], [q0], [q3], [-q2],
-                       [-q2], [-q3], [q0], [q1],
-                       [-q3], [q2], [-q1], [q0]])
+        qmats = np.array(
+            [
+                [q0],
+                [q1],
+                [q2],
+                [q3],
+                [-q1],
+                [q0],
+                [q3],
+                [-q2],
+                [-q2],
+                [-q3],
+                [q0],
+                [q1],
+                [-q3],
+                [q2],
+                [-q1],
+                [q0],
+            ]
+        )
     # some fancy reshuffling...
     qmats = qmats.T.reshape((nq, 4, 4)).transpose(0, 2, 1)
     return qmats
@@ -631,8 +670,7 @@ def angleAxisOfRotMat(rot_mat):
         else:
             raise RuntimeError(
                 "rot_mat array must be (3, 3) or (n, 3, 3); "
-                "input has dimension %d"
-                % (rdim)
+                "input has dimension %d" % (rdim)
             )
 
     rot_vec = R.from_matrix(rot_mat).as_rotvec()
@@ -1089,9 +1127,7 @@ def mapAngle(ang, ang_range=None, units=angularUnits):
     elif units.lower() == 'radians':
         period = 2.0 * np.pi
     else:
-        raise RuntimeError(
-            "unknown angular units: " + units
-        )
+        raise RuntimeError("unknown angular units: " + units)
 
     ang = np.nan_to_num(np.atleast_1d(np.float_(ang)))
 
@@ -1105,7 +1141,7 @@ def mapAngle(ang, ang_range=None, units=angularUnits):
         min_val = ang_range.min()
         max_val = ang_range.max()
 
-        if not np.allclose(max_val-min_val, period):
+        if not np.allclose(max_val - min_val, period):
             raise RuntimeError('range is incomplete!')
 
     val = np.mod(ang - min_val, max_val - min_val) + min_val
@@ -1498,8 +1534,8 @@ def quatOfLaueGroup(tag):
             + "Oh, and have a great day ;-)"
         )
 
-    angle = angleAxis[0, ]
-    axis = angleAxis[1:, ]
+    angle = angleAxis[0,]
+    axis = angleAxis[1:,]
 
     #  Note: Axis does not need to be normalized in call to quatOfAngleAxis
     #  05/01/2014 JVB -- made output a contiguous C-ordered array

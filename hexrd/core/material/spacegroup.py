@@ -76,6 +76,7 @@ from hexrd.core import constants
 from hexrd.core.material import symbols, symmetry
 
 import numpy as np
+
 #
 __all__ = ['SpaceGroup']
 
@@ -134,8 +135,7 @@ class SpaceGroup:
                 self._pointGroup = pglg[0]
                 self._laueGroup = pglg[1]
 
-    sgnum = property(_get_sgnum, _set_sgnum, None,
-                     "Space group number")
+    sgnum = property(_get_sgnum, _set_sgnum, None, "Space group number")
 
     @property
     def laueGroup(self):
@@ -161,7 +161,7 @@ class SpaceGroup:
 
         Rhombohedral lattices are treated as trigonal using the
         "obverse" setting.
-"""
+        """
         return _ltDict[self.laueGroup]
 
     @property
@@ -273,34 +273,38 @@ laue_9 = 'd6h'
 laue_10 = 'th'
 laue_11 = 'oh'
 
-_laue_international = {laue_1:"-1",
-laue_2:"2/m",
-laue_3:"mmm",
-laue_4:"4/m",
-laue_5:"4/mmm",
-laue_6:"-3",
-laue_7:"-3m",
-laue_8:"6/m",
-laue_9:"6/mmm",
-laue_10:"m3",
-laue_11:"m3m"}
+_laue_international = {
+    laue_1: "-1",
+    laue_2: "2/m",
+    laue_3: "mmm",
+    laue_4: "4/m",
+    laue_5: "4/mmm",
+    laue_6: "-3",
+    laue_7: "-3m",
+    laue_8: "6/m",
+    laue_9: "6/mmm",
+    laue_10: "m3",
+    laue_11: "m3m",
+}
 
-def _sgrange(min, max): return tuple(range(min, max + 1))  # inclusive range
+
+def _sgrange(min, max):
+    return tuple(range(min, max + 1))  # inclusive range
 
 
 _pgDict = {
-    _sgrange(1,   1): ('c1', laue_1),  # Triclinic
-    _sgrange(2,   2): ('ci', laue_1),  # laue 1
-    _sgrange(3,   5): ('c2', laue_2),  # Monoclinic
-    _sgrange(6,   9): ('cs', laue_2),
-    _sgrange(10,  15): ('c2h', laue_2),  # laue 2
-    _sgrange(16,  24): ('d2', laue_3),  # Orthorhombic
-    _sgrange(25,  46): ('c2v', laue_3),
-    _sgrange(47,  74): ('d2h', laue_3),  # laue 3
-    _sgrange(75,  80): ('c4', laue_4),  # Tetragonal
-    _sgrange(81,  82): ('s4', laue_4),
-    _sgrange(83,  88): ('c4h', laue_4),  # laue 4
-    _sgrange(89,  98): ('d4', laue_5),
+    _sgrange(1, 1): ('c1', laue_1),  # Triclinic
+    _sgrange(2, 2): ('ci', laue_1),  # laue 1
+    _sgrange(3, 5): ('c2', laue_2),  # Monoclinic
+    _sgrange(6, 9): ('cs', laue_2),
+    _sgrange(10, 15): ('c2h', laue_2),  # laue 2
+    _sgrange(16, 24): ('d2', laue_3),  # Orthorhombic
+    _sgrange(25, 46): ('c2v', laue_3),
+    _sgrange(47, 74): ('d2h', laue_3),  # laue 3
+    _sgrange(75, 80): ('c4', laue_4),  # Tetragonal
+    _sgrange(81, 82): ('s4', laue_4),
+    _sgrange(83, 88): ('c4h', laue_4),  # laue 4
+    _sgrange(89, 98): ('d4', laue_5),
     _sgrange(99, 110): ('c4v', laue_5),
     _sgrange(111, 122): ('d2d', laue_5),
     _sgrange(123, 142): ('d4h', laue_5),  # laue 5
@@ -316,9 +320,9 @@ _pgDict = {
     _sgrange(183, 186): ('c6v', laue_9),
     _sgrange(187, 190): ('d3h', laue_9),
     _sgrange(191, 194): ('d6h', laue_9),  # laue 9
-    _sgrange(195, 199): ('t',  laue_10),  # Cubic
+    _sgrange(195, 199): ('t', laue_10),  # Cubic
     _sgrange(200, 206): ('th', laue_10),  # laue 10
-    _sgrange(207, 214): ('o',  laue_11),
+    _sgrange(207, 214): ('o', laue_11),
     _sgrange(215, 220): ('td', laue_11),
     _sgrange(221, 230): ('oh', laue_11),  # laue 11
 }
@@ -347,7 +351,7 @@ _ltDict = {
     laue_8: ltype_6,
     laue_9: ltype_6,
     laue_10: ltype_7,
-    laue_11: ltype_7
+    laue_11: ltype_7,
 }
 
 
@@ -361,11 +365,11 @@ _rqpDict = {
     ltype_1: (tuple(range(6)), lambda p: p),  # all 6
     # note beta
     ltype_2: ((0, 1, 2, 4), lambda p: (p[0], p[1], p[2], 90, p[3], 90)),
-    ltype_3: ((0, 1, 2), lambda p: (p[0], p[1], p[2], 90, 90,   90)),
-    ltype_4: ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90,   90)),
-    ltype_5: ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90,  120)),
-    ltype_6: ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90,  120)),
-    ltype_7: ((0,), lambda p: (p[0], p[0], p[0], 90, 90,   90)),
+    ltype_3: ((0, 1, 2), lambda p: (p[0], p[1], p[2], 90, 90, 90)),
+    ltype_4: ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90, 90)),
+    ltype_5: ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90, 120)),
+    ltype_6: ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90, 120)),
+    ltype_7: ((0,), lambda p: (p[0], p[0], p[0], 90, 90, 90)),
 }
 
 
@@ -374,47 +378,53 @@ def Allowed_HKLs(sgnum, hkllist):
     this function checks if a particular g vector is allowed
     by lattice centering, screw axis or glide plane
     """
-    sg_hmsymbol = symbols.pstr_spacegroup[sgnum-1].strip()
+    sg_hmsymbol = symbols.pstr_spacegroup[sgnum - 1].strip()
     symmorphic = False
-    if(sgnum in constants.sgnum_symmorphic):
+    if sgnum in constants.sgnum_symmorphic:
         symmorphic = True
 
     hkllist = np.atleast_2d(hkllist)
 
     centering = sg_hmsymbol[0]
-    if(centering == 'P'):
+    if centering == 'P':
         # all reflections are allowed
-        mask = np.ones([hkllist.shape[0], ], dtype=bool)
-    elif(centering == 'F'):
+        mask = np.ones(
+            [
+                hkllist.shape[0],
+            ],
+            dtype=bool,
+        )
+    elif centering == 'F':
         # same parity
-        seo = np.sum(np.mod(hkllist+100, 2), axis=1)
+        seo = np.sum(np.mod(hkllist + 100, 2), axis=1)
         mask = np.logical_not(np.logical_or(seo == 1, seo == 2))
-    elif(centering == 'I'):
+    elif centering == 'I':
         # sum is even
-        seo = np.mod(np.sum(hkllist, axis=1)+100, 2)
-        mask = (seo == 0)
-    elif(centering == 'A'):
+        seo = np.mod(np.sum(hkllist, axis=1) + 100, 2)
+        mask = seo == 0
+    elif centering == 'A':
         # k+l is even
-        seo = np.mod(np.sum(hkllist[:, 1:3], axis=1)+100, 2)
+        seo = np.mod(np.sum(hkllist[:, 1:3], axis=1) + 100, 2)
         mask = seo == 0
-    elif(centering == 'B'):
+    elif centering == 'B':
         # h+l is even
-        seo = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2)
+        seo = np.mod(hkllist[:, 0] + hkllist[:, 2] + 100, 2)
         mask = seo == 0
-    elif(centering == 'C'):
+    elif centering == 'C':
         # h+k is even
-        seo = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2)
+        seo = np.mod(hkllist[:, 0] + hkllist[:, 1] + 100, 2)
         mask = seo == 0
-    elif(centering == 'R'):
+    elif centering == 'R':
         # -h+k+l is divisible by 3
-        seo = np.mod(-hkllist[:, 0]+hkllist[:, 1]+hkllist[:, 2]+90, 3)
+        seo = np.mod(-hkllist[:, 0] + hkllist[:, 1] + hkllist[:, 2] + 90, 3)
         mask = seo == 0
     else:
         raise RuntimeError(
-            'IsGAllowed: unknown lattice centering encountered.')
+            'IsGAllowed: unknown lattice centering encountered.'
+        )
 
     hkls = hkllist[mask, :]
-    if(not symmorphic):
+    if not symmorphic:
         hkls = NonSymmorphicAbsences(sgnum, hkls)
     return hkls.astype(np.int32)
 
@@ -434,118 +444,123 @@ def omitscrewaxisabsences(sgnum, hkllist, ax, iax):
     """
     latticeType = symmetry.latticeType(sgnum)
 
-    if(latticeType == 'triclinic'):
+    if latticeType == 'triclinic':
         """
-            no systematic absences for the triclinic crystals
+        no systematic absences for the triclinic crystals
         """
         pass
 
-    elif(latticeType == 'monoclinic'):
-        if(ax != '2_1'):
+    elif latticeType == 'monoclinic':
+        if ax != '2_1':
             raise RuntimeError(
                 'omitscrewaxisabsences: monoclinic systems\
-                 can only have 2_1 screw axis')
+                 can only have 2_1 screw axis'
+            )
         """
             only unique b-axis will be encoded
             it is the users responsibility to input
             lattice parameters in the standard setting
             with b-axis having the 2-fold symmetry
         """
-        if(iax == 1):
+        if iax == 1:
             mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
-            mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
+            mask2 = np.mod(hkllist[:, 1] + 100, 2) != 0
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
         else:
             raise RuntimeError(
                 'omitscrewaxisabsences: only b-axis\
-                 can have 2_1 screw axis')
+                 can have 2_1 screw axis'
+            )
 
-    elif(latticeType == 'orthorhombic'):
-        if(ax != '2_1'):
+    elif latticeType == 'orthorhombic':
+        if ax != '2_1':
             raise RuntimeError(
                 'omitscrewaxisabsences: orthorhombic systems\
-                 can only have 2_1 screw axis')
+                 can only have 2_1 screw axis'
+            )
         """
         2_1 screw on primary axis
         h00 ; h = 2n
         """
-        if(iax == 0):
+        if iax == 0:
             mask1 = np.logical_and(hkllist[:, 1] == 0, hkllist[:, 2] == 0)
-            mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
+            mask2 = np.mod(hkllist[:, 0] + 100, 2) != 0
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
-        elif(iax == 1):
+        elif iax == 1:
             mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
-            mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
+            mask2 = np.mod(hkllist[:, 1] + 100, 2) != 0
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
-        elif(iax == 2):
+        elif iax == 2:
             mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
-            mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
+            mask2 = np.mod(hkllist[:, 2] + 100, 2) != 0
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
 
-    elif(latticeType == 'tetragonal'):
-        if(iax == 0):
+    elif latticeType == 'tetragonal':
+        if iax == 0:
             mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
-            if(ax == '4_2'):
-                mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
-            elif(ax in ['4_1', '4_3']):
-                mask2 = np.mod(hkllist[:, 2]+100, 4) != 0
+            if ax == '4_2':
+                mask2 = np.mod(hkllist[:, 2] + 100, 2) != 0
+            elif ax in ['4_1', '4_3']:
+                mask2 = np.mod(hkllist[:, 2] + 100, 4) != 0
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
-        elif(iax == 1):
+        elif iax == 1:
             mask1 = np.logical_and(hkllist[:, 1] == 0, hkllist[:, 2] == 0)
             mask2 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
-            if(ax == '2_1'):
-                mask3 = np.mod(hkllist[:, 0]+100, 2) != 0
-                mask4 = np.mod(hkllist[:, 1]+100, 2) != 0
+            if ax == '2_1':
+                mask3 = np.mod(hkllist[:, 0] + 100, 2) != 0
+                mask4 = np.mod(hkllist[:, 1] + 100, 2) != 0
             mask1 = np.logical_not(np.logical_and(mask1, mask3))
             mask2 = np.logical_not(np.logical_and(mask2, mask4))
             mask = ~np.logical_or(~mask1, ~mask2)
             hkllist = hkllist[mask, :]
 
-    elif(latticeType == 'trigonal'):
+    elif latticeType == 'trigonal':
         mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
-        if(iax == 0):
-            if(ax in ['3_1', '3_2']):
-                mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
+        if iax == 0:
+            if ax in ['3_1', '3_2']:
+                mask2 = np.mod(hkllist[:, 2] + 90, 3) != 0
         else:
             raise RuntimeError(
                 'omitscrewaxisabsences: trigonal \
-                systems can only have screw axis')
+                systems can only have screw axis'
+            )
         mask = np.logical_not(np.logical_and(mask1, mask2))
         hkllist = hkllist[mask, :]
 
-    elif(latticeType == 'hexagonal'):
+    elif latticeType == 'hexagonal':
         mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
-        if(iax == 0):
-            if(ax == '6_3'):
-                mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
-            elif(ax in ['3_1', '3_2', '6_2', '6_4']):
-                mask2 = np.mod(hkllist[:, 2]+90, 3) != 0
-            elif(ax in ['6_1', '6_5']):
-                mask2 = np.mod(hkllist[:, 2]+120, 6) != 0
+        if iax == 0:
+            if ax == '6_3':
+                mask2 = np.mod(hkllist[:, 2] + 100, 2) != 0
+            elif ax in ['3_1', '3_2', '6_2', '6_4']:
+                mask2 = np.mod(hkllist[:, 2] + 90, 3) != 0
+            elif ax in ['6_1', '6_5']:
+                mask2 = np.mod(hkllist[:, 2] + 120, 6) != 0
         else:
             raise RuntimeError(
                 'omitscrewaxisabsences: hexagonal \
-                systems can only have screw axis')
+                systems can only have screw axis'
+            )
         mask = np.logical_not(np.logical_and(mask1, mask2))
         hkllist = hkllist[mask, :]
 
-    elif(latticeType == 'cubic'):
+    elif latticeType == 'cubic':
         mask1 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 1] == 0)
         mask2 = np.logical_and(hkllist[:, 0] == 0, hkllist[:, 2] == 0)
         mask3 = np.logical_and(hkllist[:, 1] == 0, hkllist[:, 2] == 0)
-        if(ax in ['2_1', '4_2']):
-            mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
-            mask5 = np.mod(hkllist[:, 1]+100, 2) != 0
-            mask6 = np.mod(hkllist[:, 0]+100, 2) != 0
-        elif(ax in ['4_1', '4_3']):
-            mask4 = np.mod(hkllist[:, 2]+100, 4) != 0
-            mask5 = np.mod(hkllist[:, 1]+100, 4) != 0
-            mask6 = np.mod(hkllist[:, 0]+100, 4) != 0
+        if ax in ['2_1', '4_2']:
+            mask4 = np.mod(hkllist[:, 2] + 100, 2) != 0
+            mask5 = np.mod(hkllist[:, 1] + 100, 2) != 0
+            mask6 = np.mod(hkllist[:, 0] + 100, 2) != 0
+        elif ax in ['4_1', '4_3']:
+            mask4 = np.mod(hkllist[:, 2] + 100, 4) != 0
+            mask5 = np.mod(hkllist[:, 1] + 100, 4) != 0
+            mask6 = np.mod(hkllist[:, 0] + 100, 4) != 0
         mask1 = np.logical_not(np.logical_and(mask1, mask4))
         mask2 = np.logical_not(np.logical_and(mask2, mask5))
         mask3 = np.logical_not(np.logical_and(mask3, mask6))
@@ -569,229 +584,239 @@ def omitglideplaneabsences(sgnum, hkllist, plane, ip):
     """
     latticeType = symmetry.latticeType(sgnum)
 
-    if(latticeType == 'triclinic'):
+    if latticeType == 'triclinic':
         pass
 
-    elif(latticeType == 'monoclinic'):
-        if(ip == 1):
+    elif latticeType == 'monoclinic':
+        if ip == 1:
             mask1 = hkllist[:, 1] == 0
-            if(plane == 'c'):
-                mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
-            elif(plane == 'a'):
-                mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
-            elif(plane == 'n'):
-                mask2 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
+            if plane == 'c':
+                mask2 = np.mod(hkllist[:, 2] + 100, 2) != 0
+            elif plane == 'a':
+                mask2 = np.mod(hkllist[:, 0] + 100, 2) != 0
+            elif plane == 'n':
+                mask2 = np.mod(hkllist[:, 0] + hkllist[:, 2] + 100, 2) != 0
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
 
-    elif(latticeType == 'orthorhombic'):
-        if(ip == 0):
+    elif latticeType == 'orthorhombic':
+        if ip == 0:
             mask1 = hkllist[:, 0] == 0
-            if(plane == 'b'):
-                mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
-            elif(plane == 'c'):
-                mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
-            elif(plane == 'n'):
-                mask2 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 2) != 0
-            elif(plane == 'd'):
-                mask2 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 4) != 0
+            if plane == 'b':
+                mask2 = np.mod(hkllist[:, 1] + 100, 2) != 0
+            elif plane == 'c':
+                mask2 = np.mod(hkllist[:, 2] + 100, 2) != 0
+            elif plane == 'n':
+                mask2 = np.mod(hkllist[:, 1] + hkllist[:, 2] + 100, 2) != 0
+            elif plane == 'd':
+                mask2 = np.mod(hkllist[:, 1] + hkllist[:, 2] + 100, 4) != 0
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
 
-        elif(ip == 1):
+        elif ip == 1:
             mask1 = hkllist[:, 1] == 0
-            if(plane == 'c'):
-                mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
-            elif(plane == 'a'):
-                mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
-            elif(plane == 'n'):
-                mask2 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
-            elif(plane == 'd'):
-                mask2 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+            if plane == 'c':
+                mask2 = np.mod(hkllist[:, 2] + 100, 2) != 0
+            elif plane == 'a':
+                mask2 = np.mod(hkllist[:, 0] + 100, 2) != 0
+            elif plane == 'n':
+                mask2 = np.mod(hkllist[:, 0] + hkllist[:, 2] + 100, 2) != 0
+            elif plane == 'd':
+                mask2 = np.mod(hkllist[:, 0] + hkllist[:, 2] + 100, 4) != 0
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
 
-        elif(ip == 2):
+        elif ip == 2:
             mask1 = hkllist[:, 2] == 0
-            if(plane == 'a'):
-                mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
-            elif(plane == 'b'):
-                mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
-            elif(plane == 'n'):
-                mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2) != 0
-            elif(plane == 'd'):
-                mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
+            if plane == 'a':
+                mask2 = np.mod(hkllist[:, 0] + 100, 2) != 0
+            elif plane == 'b':
+                mask2 = np.mod(hkllist[:, 1] + 100, 2) != 0
+            elif plane == 'n':
+                mask2 = np.mod(hkllist[:, 0] + hkllist[:, 1] + 100, 2) != 0
+            elif plane == 'd':
+                mask2 = np.mod(hkllist[:, 0] + hkllist[:, 1] + 100, 4) != 0
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
 
-    elif(latticeType == 'tetragonal'):
-        if(ip == 0):
+    elif latticeType == 'tetragonal':
+        if ip == 0:
             mask1 = hkllist[:, 2] == 0
-            if(plane == 'a'):
-                mask2 = np.mod(hkllist[:, 0]+100, 2) != 0
-            elif(plane == 'b'):
-                mask2 = np.mod(hkllist[:, 1]+100, 2) != 0
-            elif(plane == 'n'):
-                mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2) != 0
-            elif(plane == 'd'):
-                mask2 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
+            if plane == 'a':
+                mask2 = np.mod(hkllist[:, 0] + 100, 2) != 0
+            elif plane == 'b':
+                mask2 = np.mod(hkllist[:, 1] + 100, 2) != 0
+            elif plane == 'n':
+                mask2 = np.mod(hkllist[:, 0] + hkllist[:, 1] + 100, 2) != 0
+            elif plane == 'd':
+                mask2 = np.mod(hkllist[:, 0] + hkllist[:, 1] + 100, 4) != 0
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
 
-        elif(ip == 1):
+        elif ip == 1:
             mask1 = hkllist[:, 0] == 0
             mask2 = hkllist[:, 1] == 0
-            if(plane in ['a', 'b']):
-                mask3 = np.mod(hkllist[:, 1]+100, 2) != 0
-                mask4 = np.mod(hkllist[:, 0]+100, 2) != 0
-            elif(plane == 'c'):
-                mask3 = np.mod(hkllist[:, 2]+100, 2) != 0
+            if plane in ['a', 'b']:
+                mask3 = np.mod(hkllist[:, 1] + 100, 2) != 0
+                mask4 = np.mod(hkllist[:, 0] + 100, 2) != 0
+            elif plane == 'c':
+                mask3 = np.mod(hkllist[:, 2] + 100, 2) != 0
                 mask4 = mask3
-            elif(plane == 'n'):
-                mask3 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 2) != 0
-                mask4 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
-            elif(plane == 'd'):
-                mask3 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 4) != 0
-                mask4 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+            elif plane == 'n':
+                mask3 = np.mod(hkllist[:, 1] + hkllist[:, 2] + 100, 2) != 0
+                mask4 = np.mod(hkllist[:, 0] + hkllist[:, 2] + 100, 2) != 0
+            elif plane == 'd':
+                mask3 = np.mod(hkllist[:, 1] + hkllist[:, 2] + 100, 4) != 0
+                mask4 = np.mod(hkllist[:, 0] + hkllist[:, 2] + 100, 4) != 0
             mask1 = np.logical_not(np.logical_and(mask1, mask3))
             mask2 = np.logical_not(np.logical_and(mask2, mask4))
             mask = ~np.logical_or(~mask1, ~mask2)
             hkllist = hkllist[mask, :]
 
-        elif(ip == 2):
+        elif ip == 2:
             mask1 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 1])
-            if(plane in ['c', 'n']):
-                mask2 = np.mod(hkllist[:, 2]+100, 2) != 0
-            elif(plane == 'd'):
-                mask2 = np.mod(2*hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
+            if plane in ['c', 'n']:
+                mask2 = np.mod(hkllist[:, 2] + 100, 2) != 0
+            elif plane == 'd':
+                mask2 = np.mod(2 * hkllist[:, 0] + hkllist[:, 2] + 100, 4) != 0
             mask = np.logical_not(np.logical_and(mask1, mask2))
             hkllist = hkllist[mask, :]
 
-    elif(latticeType == 'trigonal'):
-        if(plane != 'c'):
+    elif latticeType == 'trigonal':
+        if plane != 'c':
             raise RuntimeError(
                 'omitglideplaneabsences: only c-glide \
-                allowed for trigonal systems')
-        if(ip == 1):
+                allowed for trigonal systems'
+            )
+        if ip == 1:
             mask1 = hkllist[:, 0] == 0
             mask2 = hkllist[:, 1] == 0
             mask3 = hkllist[:, 0] == -hkllist[:, 1]
-            if(plane == 'c'):
-                mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+            if plane == 'c':
+                mask4 = np.mod(hkllist[:, 2] + 100, 2) != 0
             else:
                 raise RuntimeError(
                     'omitglideplaneabsences: only c-glide \
-                    allowed for trigonal systems')
+                    allowed for trigonal systems'
+                )
 
-        elif(ip == 2):
+        elif ip == 2:
             mask1 = hkllist[:, 1] == hkllist[:, 0]
-            mask2 = hkllist[:, 0] == -2*hkllist[:, 1]
-            mask3 = -2*hkllist[:, 0] == hkllist[:, 1]
-            if(plane == 'c'):
-                mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+            mask2 = hkllist[:, 0] == -2 * hkllist[:, 1]
+            mask3 = -2 * hkllist[:, 0] == hkllist[:, 1]
+            if plane == 'c':
+                mask4 = np.mod(hkllist[:, 2] + 100, 2) != 0
             else:
                 raise RuntimeError(
                     'omitglideplaneabsences: only c-glide \
-                    allowed for trigonal systems')
+                    allowed for trigonal systems'
+                )
         mask1 = np.logical_and(mask1, mask4)
         mask2 = np.logical_and(mask2, mask4)
         mask3 = np.logical_and(mask3, mask4)
-        mask = np.logical_not(np.logical_or(
-            mask1, np.logical_or(mask2, mask3)))
+        mask = np.logical_not(
+            np.logical_or(mask1, np.logical_or(mask2, mask3))
+        )
         hkllist = hkllist[mask, :]
 
-    elif(latticeType == 'hexagonal'):
-        if(plane != 'c'):
+    elif latticeType == 'hexagonal':
+        if plane != 'c':
             raise RuntimeError(
                 'omitglideplaneabsences: only c-glide \
-                allowed for hexagonal systems')
-        if(ip == 2):
+                allowed for hexagonal systems'
+            )
+        if ip == 2:
             mask1 = hkllist[:, 0] == hkllist[:, 1]
-            mask2 = hkllist[:, 0] == -2*hkllist[:, 1]
-            mask3 = -2*hkllist[:, 0] == hkllist[:, 1]
-            mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+            mask2 = hkllist[:, 0] == -2 * hkllist[:, 1]
+            mask3 = -2 * hkllist[:, 0] == hkllist[:, 1]
+            mask4 = np.mod(hkllist[:, 2] + 100, 2) != 0
             mask1 = np.logical_and(mask1, mask4)
             mask2 = np.logical_and(mask2, mask4)
             mask3 = np.logical_and(mask3, mask4)
-            mask = np.logical_not(np.logical_or(
-                mask1, np.logical_or(mask2, mask3)))
+            mask = np.logical_not(
+                np.logical_or(mask1, np.logical_or(mask2, mask3))
+            )
 
-        elif(ip == 1):
+        elif ip == 1:
             mask1 = hkllist[:, 1] == 0
             mask2 = hkllist[:, 0] == 0
             mask3 = hkllist[:, 1] == -hkllist[:, 0]
-            mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
+            mask4 = np.mod(hkllist[:, 2] + 100, 2) != 0
         mask1 = np.logical_and(mask1, mask4)
         mask2 = np.logical_and(mask2, mask4)
         mask3 = np.logical_and(mask3, mask4)
-        mask = np.logical_not(np.logical_or(
-            mask1, np.logical_or(mask2, mask3)))
+        mask = np.logical_not(
+            np.logical_or(mask1, np.logical_or(mask2, mask3))
+        )
         hkllist = hkllist[mask, :]
 
-    elif(latticeType == 'cubic'):
-        if(ip == 0):
+    elif latticeType == 'cubic':
+        if ip == 0:
             mask1 = hkllist[:, 0] == 0
             mask2 = hkllist[:, 1] == 0
             mask3 = hkllist[:, 2] == 0
-            mask4 = np.mod(hkllist[:, 0]+100, 2) != 0
-            mask5 = np.mod(hkllist[:, 1]+100, 2) != 0
-            mask6 = np.mod(hkllist[:, 2]+100, 2) != 0
-            if(plane == 'a'):
-                mask1 = np.logical_or(np.logical_and(
-                    mask1, mask5), np.logical_and(mask1, mask6))
-                mask2 = np.logical_or(np.logical_and(
-                    mask2, mask4), np.logical_and(mask2, mask6))
+            mask4 = np.mod(hkllist[:, 0] + 100, 2) != 0
+            mask5 = np.mod(hkllist[:, 1] + 100, 2) != 0
+            mask6 = np.mod(hkllist[:, 2] + 100, 2) != 0
+            if plane == 'a':
+                mask1 = np.logical_or(
+                    np.logical_and(mask1, mask5), np.logical_and(mask1, mask6)
+                )
+                mask2 = np.logical_or(
+                    np.logical_and(mask2, mask4), np.logical_and(mask2, mask6)
+                )
                 mask3 = np.logical_and(mask3, mask4)
-                mask = np.logical_not(np.logical_or(
-                    mask1, np.logical_or(mask2, mask3)))
-            elif(plane == 'b'):
+                mask = np.logical_not(
+                    np.logical_or(mask1, np.logical_or(mask2, mask3))
+                )
+            elif plane == 'b':
                 mask1 = np.logical_and(mask1, mask5)
                 mask3 = np.logical_and(mask3, mask5)
                 mask = np.logical_not(np.logical_or(mask1, mask3))
-            elif(plane == 'c'):
+            elif plane == 'c':
                 mask1 = np.logical_and(mask1, mask6)
                 mask2 = np.logical_and(mask2, mask6)
                 mask = np.logical_not(np.logical_or(mask1, mask2))
-            elif(plane == 'n'):
-                mask4 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 2) != 0
-                mask5 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 2) != 0
-                mask6 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 2) != 0
+            elif plane == 'n':
+                mask4 = np.mod(hkllist[:, 1] + hkllist[:, 2] + 100, 2) != 0
+                mask5 = np.mod(hkllist[:, 0] + hkllist[:, 2] + 100, 2) != 0
+                mask6 = np.mod(hkllist[:, 0] + hkllist[:, 1] + 100, 2) != 0
                 mask1 = np.logical_not(np.logical_and(mask1, mask4))
                 mask2 = np.logical_not(np.logical_and(mask2, mask5))
                 mask3 = np.logical_not(np.logical_and(mask3, mask6))
-                mask = ~np.logical_or(
-                    ~mask1, np.logical_or(~mask2, ~mask3))
-            elif(plane == 'd'):
-                mask4 = np.mod(hkllist[:, 1]+hkllist[:, 2]+100, 4) != 0
-                mask5 = np.mod(hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
-                mask6 = np.mod(hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
+                mask = ~np.logical_or(~mask1, np.logical_or(~mask2, ~mask3))
+            elif plane == 'd':
+                mask4 = np.mod(hkllist[:, 1] + hkllist[:, 2] + 100, 4) != 0
+                mask5 = np.mod(hkllist[:, 0] + hkllist[:, 2] + 100, 4) != 0
+                mask6 = np.mod(hkllist[:, 0] + hkllist[:, 1] + 100, 4) != 0
                 mask1 = np.logical_not(np.logical_and(mask1, mask4))
                 mask2 = np.logical_not(np.logical_and(mask2, mask5))
                 mask3 = np.logical_not(np.logical_and(mask3, mask6))
-                mask = ~np.logical_or(
-                    ~mask1, np.logical_or(~mask2, ~mask3))
+                mask = ~np.logical_or(~mask1, np.logical_or(~mask2, ~mask3))
             else:
                 raise RuntimeError(
                     'omitglideplaneabsences: unknown glide \
-                    plane encountered.')
+                    plane encountered.'
+                )
             hkllist = hkllist[mask, :]
 
-        if(ip == 2):
+        if ip == 2:
             mask1 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 1])
             mask2 = np.abs(hkllist[:, 1]) == np.abs(hkllist[:, 2])
             mask3 = np.abs(hkllist[:, 0]) == np.abs(hkllist[:, 2])
-            if(plane in ['a', 'b', 'c', 'n']):
-                mask4 = np.mod(hkllist[:, 2]+100, 2) != 0
-                mask5 = np.mod(hkllist[:, 0]+100, 2) != 0
-                mask6 = np.mod(hkllist[:, 1]+100, 2) != 0
-            elif(plane == 'd'):
-                mask4 = np.mod(2*hkllist[:, 0]+hkllist[:, 2]+100, 4) != 0
-                mask5 = np.mod(hkllist[:, 0]+2*hkllist[:, 1]+100, 4) != 0
-                mask6 = np.mod(2*hkllist[:, 0]+hkllist[:, 1]+100, 4) != 0
+            if plane in ['a', 'b', 'c', 'n']:
+                mask4 = np.mod(hkllist[:, 2] + 100, 2) != 0
+                mask5 = np.mod(hkllist[:, 0] + 100, 2) != 0
+                mask6 = np.mod(hkllist[:, 1] + 100, 2) != 0
+            elif plane == 'd':
+                mask4 = np.mod(2 * hkllist[:, 0] + hkllist[:, 2] + 100, 4) != 0
+                mask5 = np.mod(hkllist[:, 0] + 2 * hkllist[:, 1] + 100, 4) != 0
+                mask6 = np.mod(2 * hkllist[:, 0] + hkllist[:, 1] + 100, 4) != 0
             else:
                 raise RuntimeError(
                     'omitglideplaneabsences: unknown glide \
-                    plane encountered.')
+                    plane encountered.'
+                )
             mask1 = np.logical_not(np.logical_and(mask1, mask4))
             mask2 = np.logical_not(np.logical_and(mask2, mask5))
             mask3 = np.logical_not(np.logical_and(mask3, mask6))
@@ -808,13 +833,14 @@ def NonSymmorphicAbsences(sgnum, hkllist):
     """
     planes = constants.SYS_AB[sgnum][0]
     for ip, p in enumerate(planes):
-        if(p != ''):
+        if p != '':
             hkllist = omitglideplaneabsences(sgnum, hkllist, p, ip)
     axes = constants.SYS_AB[sgnum][1]
     for iax, ax in enumerate(axes):
-        if(ax != ''):
+        if ax != '':
             hkllist = omitscrewaxisabsences(sgnum, hkllist, ax, iax)
     return hkllist
+
 
 #
 # ================================================== HKL Enumeration
@@ -826,28 +852,32 @@ def _getHKLsBySS(ss):
 
     ss - (int) sum of squares
 
-"""
+    """
+
     #
     #  NOTE:  the loop below could be speeded up by requiring
     #         h >= k > = l, and then applying all permutations
     #         and sign changes.  Could possibly save up to
     #         a factor of 48.
     #
-    def pmrange(n): return list(range(n, -(n+1), -1))  # plus/minus range
-    def iroot(n): return int(floor(sqrt(n)))  # integer square root
+    def pmrange(n):
+        return list(range(n, -(n + 1), -1))  # plus/minus range
+
+    def iroot(n):
+        return int(floor(sqrt(n)))  # integer square root
 
     hkls = []
     hmax = iroot(ss)
     for h in pmrange(hmax):
-        ss2 = ss - h*h
+        ss2 = ss - h * h
         kmax = iroot(ss2)
         for k in pmrange(kmax):
-            rem = ss2 - k*k
+            rem = ss2 - k * k
             if rem == 0:
                 hkls.append((h, k, 0))
             else:
                 l = iroot(rem)
-                if l*l == rem:
+                if l * l == rem:
                     hkls += [(h, k, l), (h, k, -l)]
 
     return hkls
@@ -868,10 +898,12 @@ def testHKLs():
     print('==================== Titanium (194)')
     ssmax = 20
     myHKLs = sg.getHKLs(ssmax)
-    print('Number of HKLs with sum of square %d or less:  %d'
-          % (ssmax, len(myHKLs)))
+    print(
+        'Number of HKLs with sum of square %d or less:  %d'
+        % (ssmax, len(myHKLs))
+    )
     for hkl in myHKLs:
-        ss = hkl[0]**2 + hkl[1]**2 + hkl[2]**2
+        ss = hkl[0] ** 2 + hkl[1] ** 2 + hkl[2] ** 2
         print((hkl, ss))
 
     #
@@ -881,10 +913,12 @@ def testHKLs():
     print('==================== Ruby (167)')
     ssmax = 10
     myHKLs = sg.getHKLs(ssmax)
-    print('Number of HKLs with sum of square %d or less:  %d'
-          % (ssmax, len(myHKLs)))
+    print(
+        'Number of HKLs with sum of square %d or less:  %d'
+        % (ssmax, len(myHKLs))
+    )
     for hkl in myHKLs:
-        ss = hkl[0]**2 + hkl[1]**2 + hkl[2]**2
+        ss = hkl[0] ** 2 + hkl[1] ** 2 + hkl[2] ** 2
         print((hkl, ss))
     #
     #  Test Generic HKLs
@@ -899,6 +933,7 @@ def testHKLs():
 if __name__ == '__main__':
     #
     import sys
+
     #
     if 'testHKLs' in sys.argv:
         testHKLs()

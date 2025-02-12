@@ -4,6 +4,7 @@ import functools
 
 class DeprecatedFunctionError(Exception):
     """Custom exception for deprecated functions."""
+
     pass
 
 

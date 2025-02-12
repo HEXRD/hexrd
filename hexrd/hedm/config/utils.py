@@ -4,12 +4,21 @@ import warnings
 
 
 ExclusionParameters = namedtuple(
-    'ExclusionParameters', ["dmin", "dmax", "tthmin", "tthmax",
-                            "sfacmin", "sfacmax", "pintmin", "pintmax"]
+    'ExclusionParameters',
+    [
+        "dmin",
+        "dmax",
+        "tthmin",
+        "tthmax",
+        "sfacmin",
+        "sfacmax",
+        "pintmin",
+        "pintmax",
+    ],
 )
 
 
-class Null():
+class Null:
     pass
 
 
@@ -52,22 +61,22 @@ def get_exclusion_parameters(cfg, prefix):
     if sfmin_dflt is not None:
         warnings.warn(
             '"min_sfac_ratio" is deprecated, use "sfacmin" instead',
-            DeprecationWarning
+            DeprecationWarning,
         )
     # Default for reset_exclusions is True so that old config files will
     # produce the same behavior.
-    reset_exclusions= cfg.get(yaml_key("reset_exclusions"), True)
+    reset_exclusions = cfg.get(yaml_key("reset_exclusions"), True)
 
-    return(
+    return (
         reset_exclusions,
         ExclusionParameters(
-            dmin = cfg.get(yaml_key("dmin"), None),
-            dmax = cfg.get(yaml_key("dmax"), None),
-            tthmin = cfg.get(yaml_key("tthmin"), None),
-            tthmax = cfg.get(yaml_key("tthmax"), None),
-            sfacmin = cfg.get(yaml_key("sfacmin"), sfmin_dflt),
-            sfacmax = cfg.get(yaml_key("sfacmax"), None),
-            pintmin = cfg.get(yaml_key("pintmin"), None),
-            pintmax = cfg.get(yaml_key("pintmax"), None),
-        )
+            dmin=cfg.get(yaml_key("dmin"), None),
+            dmax=cfg.get(yaml_key("dmax"), None),
+            tthmin=cfg.get(yaml_key("tthmin"), None),
+            tthmax=cfg.get(yaml_key("tthmax"), None),
+            sfacmin=cfg.get(yaml_key("sfacmin"), sfmin_dflt),
+            sfacmax=cfg.get(yaml_key("sfacmax"), None),
+            pintmin=cfg.get(yaml_key("pintmin"), None),
+            pintmax=cfg.get(yaml_key("pintmax"), None),
+        ),
     )

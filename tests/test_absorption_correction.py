@@ -66,8 +66,7 @@ def test_absorption_correction(simulated_tardis_dir, test_data_dir):
     transmissions = instr.calc_transmission()
 
     # Normalize so that the max transmission across all detectors is 1
-    max_transmission = max(
-        [np.nanmax(v) for v in transmissions.values()])
+    max_transmission = max([np.nanmax(v) for v in transmissions.values()])
     transmissions = {k: v / max_transmission for k, v in transmissions.items()}
 
     # Now compare to our reference

@@ -12,16 +12,15 @@ def test_make_rmat_of_expmap_from_file(test_data_dir):
     # Load the array from a file
     arr = np.load(
         test_data_dir / 'test_correct_make_rmat_of_expmap.npy',
-        allow_pickle=True
+        allow_pickle=True,
     )
 
     for obj in arr:
 
-        result = make_rmat_of_expmap(
-            obj["expmap"]
-        )
+        result = make_rmat_of_expmap(obj["expmap"])
 
         assert np.allclose(result, obj["result"])
+
 
 # def test_correct_make_sample_rmat(test_data_dir):
 #     arr = [];

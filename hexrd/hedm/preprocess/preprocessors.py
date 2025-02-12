@@ -1,12 +1,12 @@
-from hexrd.imageseries.baseclass import ImageSeries
-from hexrd.imageseries.omega import OmegaWedges
-from hexrd.preprocess.profiles import (
+from hexrd.core.imageseries.baseclass import ImageSeries
+from hexrd.core.imageseries.omega import OmegaWedges
+from hexrd.hedm.preprocess.profiles import (
     Eiger_Arguments,
     Dexelas_Arguments,
     HexrdPPScript_Arguments,
 )
-from hexrd import imageseries
-from hexrd.imageseries.process import ProcessedImageSeries
+from hexrd.core import imageseries
+from hexrd.core.imageseries.process import ProcessedImageSeries
 import os
 import time
 from typing import Any, Optional, Union, Sequence, cast

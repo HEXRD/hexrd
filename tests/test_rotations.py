@@ -1,4 +1,5 @@
 """Test rotations module"""
+
 import numpy as np
 import pytest
 
@@ -13,8 +14,17 @@ def test_misorientations():
     # their own members.
     #
     laue_groups = [
-        "ci", "c2h", "d2h", "c4h", "d4h", "c3i",
-        "d3d", "c6h", "d6h", "th", "oh"
+        "ci",
+        "c2h",
+        "d2h",
+        "c4h",
+        "d4h",
+        "c3i",
+        "d3d",
+        "c6h",
+        "d6h",
+        "th",
+        "oh",
     ]
     for lg in laue_groups:
         print("group: ", lg)
@@ -22,5 +32,5 @@ def test_misorientations():
         q1 = qsym[:, -1:]
         ang, mis = rotations.misorientation(q1, qsym, (qsym,))
         assert np.allclose(ang, 0.0)
-        assert np.allclose(mis[0, :], 1.)
-        assert np.allclose(mis[1:, :], 0.)
+        assert np.allclose(mis[0, :], 1.0)
+        assert np.allclose(mis[1:, :], 0.0)

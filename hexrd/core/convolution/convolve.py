@@ -17,7 +17,9 @@ LIBRARY_PATH = os.path.dirname(__file__)
 try:
     _convolve = load_library("_convolve", LIBRARY_PATH)
 except Exception:
-    raise ImportError("Convolution C extension is missing. Try re-building astropy.")
+    raise ImportError(
+        "Convolution C extension is missing. Try re-building astropy."
+    )
 
 # The GIL is automatically released by default when calling functions imported
 # from libraries loaded by ctypes.cdll.LoadLibrary(<path>)
@@ -26,19 +28,23 @@ except Exception:
 # Boundary None
 _convolveNd_c = _convolve.convolveNd_c
 _convolveNd_c.restype = None
-_convolveNd_c.argtypes = [ndpointer(ctypes.c_double, flags={"C_CONTIGUOUS", "WRITEABLE"}),  # return array
-                          ndpointer(ctypes.c_double, flags="C_CONTIGUOUS"),  # input array
-                          ctypes.c_uint,  # N dim
-                          # size array for input and result unless
-                          # embed_result_within_padded_region is False,
-                          # in which case the result array is assumed to be
-                          # input.shape - 2*(kernel.shape//2). Note: integer division.
-                          ndpointer(ctypes.c_size_t, flags="C_CONTIGUOUS"),
-                          ndpointer(ctypes.c_double, flags="C_CONTIGUOUS"),  # kernel array
-                          ndpointer(ctypes.c_size_t, flags="C_CONTIGUOUS"),  # size array for kernel
-                          ctypes.c_bool,  # nan_interpolate
-                          ctypes.c_bool,  # embed_result_within_padded_region
-                          ctypes.c_uint]  # n_threads
+_convolveNd_c.argtypes = [
+    ndpointer(
+        ctypes.c_double, flags={"C_CONTIGUOUS", "WRITEABLE"}
+    ),  # return array
+    ndpointer(ctypes.c_double, flags="C_CONTIGUOUS"),  # input array
+    ctypes.c_uint,  # N dim
+    # size array for input and result unless
+    # embed_result_within_padded_region is False,
+    # in which case the result array is assumed to be
+    # input.shape - 2*(kernel.shape//2). Note: integer division.
+    ndpointer(ctypes.c_size_t, flags="C_CONTIGUOUS"),
+    ndpointer(ctypes.c_double, flags="C_CONTIGUOUS"),  # kernel array
+    ndpointer(ctypes.c_size_t, flags="C_CONTIGUOUS"),  # size array for kernel
+    ctypes.c_bool,  # nan_interpolate
+    ctypes.c_bool,  # embed_result_within_padded_region
+    ctypes.c_uint,
+]  # n_threads
 
 # Disabling all doctests in this module until a better way of handling warnings
 # in doctests can be determined
@@ -48,8 +54,15 @@ BOUNDARY_OPTIONS = [None, 'fill', 'wrap', 'extend']
 
 MAX_NORMALIZATION = 100
 
-def _copy_input_if_needed(input, dtype=float, order='C', nan_treatment=None,
-                          mask=None, fill_value=None):
+
+def _copy_input_if_needed(
+    input,
+    dtype=float,
+    order='C',
+    nan_treatment=None,
+    mask=None,
+    fill_value=None,
+):
     # strip quantity attributes
     if hasattr(input, 'unit'):
         input = input.value
@@ -59,7 +72,11 @@ def _copy_input_if_needed(input, dtype=float, order='C', nan_treatment=None,
         # Anything that's masked must be turned into NaNs for the interpolation.
         # This requires copying. A copy is also needed for nan_treatment == 'fill'
         # A copy prevents possible function side-effects of the input array.
-        if nan_treatment == 'fill' or np.ma.is_masked(input) or mask is not None:
+        if (
+            nan_treatment == 'fill'
+            or np.ma.is_masked(input)
+            or mask is not None
+        ):
             if np.ma.is_masked(input):
                 # ``np.ma.maskedarray.filled()`` returns a copy, however there
                 # is no way to specify the return type or order etc. In addition
@@ -68,12 +85,16 @@ def _copy_input_if_needed(input, dtype=float, order='C', nan_treatment=None,
                 # ``float`` masked arrays. ``subok=True`` is needed to retain
                 # ``np.ma.maskedarray.filled()``. ``copy=False`` allows the fill
                 # to act as the copy if type and order are already correct.
-                output = np.array(input, dtype=dtype, copy=False, order=order, subok=True)
+                output = np.array(
+                    input, dtype=dtype, copy=False, order=order, subok=True
+                )
                 output = output.filled(fill_value)
             else:
                 # Since we're making a copy, we might as well use `subok=False` to save,
                 # what is probably, a negligible amount of memory.
-                output = np.array(input, dtype=dtype, copy=True, order=order, subok=False)
+                output = np.array(
+                    input, dtype=dtype, copy=True, order=order, subok=False
+                )
 
             if mask is not None:
                 # mask != 0 yields a bool mask for all ints/floats/bool
@@ -83,16 +104,29 @@ def _copy_input_if_needed(input, dtype=float, order='C', nan_treatment=None,
             # The advantage of `subok=True` is that it won't copy when array is an ndarray subclass. If it
             # is and `subok=False` (default), then it will copy even if `copy=False`. This uses less memory
             # when ndarray subclasses are passed in.
-            output = np.array(input, dtype=dtype, copy=False, order=order, subok=True)
+            output = np.array(
+                input, dtype=dtype, copy=False, order=order, subok=True
+            )
     except (TypeError, ValueError) as e:
-        raise TypeError('input should be a Numpy array or something '
-                        'convertible into a float array', e)
+        raise TypeError(
+            'input should be a Numpy array or something '
+            'convertible into a float array',
+            e,
+        )
     return output
 
 
-def convolve(array, kernel, boundary='fill', fill_value=0.,
-             nan_treatment='interpolate', normalize_kernel=True, mask=None,
-             preserve_nan=False, normalization_zero_tol=1e-8):
+def convolve(
+    array,
+    kernel,
+    boundary='fill',
+    fill_value=0.0,
+    nan_treatment='interpolate',
+    normalize_kernel=True,
+    mask=None,
+    preserve_nan=False,
+    normalization_zero_tol=1e-8,
+):
     """
     Convolve an array with a kernel.
 
@@ -167,8 +201,11 @@ def convolve(array, kernel, boundary='fill', fill_value=0.,
     """
 
     if boundary not in BOUNDARY_OPTIONS:
-        raise ValueError("Invalid boundary option: must be one of {}"
-                         .format(BOUNDARY_OPTIONS))
+        raise ValueError(
+            "Invalid boundary option: must be one of {}".format(
+                BOUNDARY_OPTIONS
+            )
+        )
 
     if nan_treatment not in ('interpolate', 'fill'):
         raise ValueError("nan_treatment must be one of 'interpolate','fill'")
@@ -195,14 +232,24 @@ def convolve(array, kernel, boundary='fill', fill_value=0.,
     # Convert kernel to ndarray if not already
 
     # Copy or alias array to array_internal
-    array_internal = _copy_input_if_needed(passed_array, dtype=float, order='C',
-                                           nan_treatment=nan_treatment, mask=mask,
-                                           fill_value=np.nan)
+    array_internal = _copy_input_if_needed(
+        passed_array,
+        dtype=float,
+        order='C',
+        nan_treatment=nan_treatment,
+        mask=mask,
+        fill_value=np.nan,
+    )
     array_dtype = getattr(passed_array, 'dtype', array_internal.dtype)
     # Copy or alias kernel to kernel_internal
-    kernel_internal = _copy_input_if_needed(passed_kernel, dtype=float, order='C',
-                                            nan_treatment=None, mask=None,
-                                            fill_value=fill_value)
+    kernel_internal = _copy_input_if_needed(
+        passed_kernel,
+        dtype=float,
+        order='C',
+        nan_treatment=None,
+        mask=None,
+        fill_value=fill_value,
+    )
 
     # Make sure kernel has all odd axes
     if has_even_axis(kernel_internal):
@@ -219,15 +266,18 @@ def convolve(array, kernel, boundary='fill', fill_value=0.,
     if array_internal.ndim == 0:
         raise Exception("cannot convolve 0-dimensional arrays")
     elif array_internal.ndim > 3:
-        raise NotImplementedError('convolve only supports 1, 2, and 3-dimensional '
-                                  'arrays at this time')
+        raise NotImplementedError(
+            'convolve only supports 1, 2, and 3-dimensional '
+            'arrays at this time'
+        )
     elif array_internal.ndim != kernel_internal.ndim:
-        raise Exception('array and kernel have differing number of '
-                        'dimensions.')
+        raise Exception(
+            'array and kernel have differing number of ' 'dimensions.'
+        )
 
     array_shape = np.array(array_internal.shape)
     kernel_shape = np.array(kernel_internal.shape)
-    pad_width = kernel_shape//2
+    pad_width = kernel_shape // 2
 
     # For boundary=None only the center space is convolved. All array indices within a
     # distance kernel.shape//2 from the edge are completely ignored (zeroed).
@@ -239,25 +289,34 @@ def convolve(array, kernel, boundary='fill', fill_value=0.,
     # For odd kernels it is:
     # array_shape >= kernel_shape OR array_shape > kernel_shape-1 OR array_shape > 2*(kernel_shape//2).
     # Since the latter is equal to the former two for even lengths, the latter condition is complete.
-    if boundary is None and not np.all(array_shape > 2*pad_width):
-        raise KernelSizeError("for boundary=None all kernel axes must be smaller than array's - "
-                              "use boundary in ['fill', 'extend', 'wrap'] instead.")
+    if boundary is None and not np.all(array_shape > 2 * pad_width):
+        raise KernelSizeError(
+            "for boundary=None all kernel axes must be smaller than array's - "
+            "use boundary in ['fill', 'extend', 'wrap'] instead."
+        )
 
     # NaN interpolation significantly slows down the C convolution
     # computation. Since nan_treatment = 'interpolate', is the default
     # check whether it is even needed, if not, don't interpolate.
     # NB: np.isnan(array_internal.sum()) is faster than np.isnan(array_internal).any()
-    nan_interpolate = (nan_treatment == 'interpolate') and np.isnan(array_internal.sum())
+    nan_interpolate = (nan_treatment == 'interpolate') and np.isnan(
+        array_internal.sum()
+    )
 
     # Check if kernel is normalizable
     if normalize_kernel or nan_interpolate:
         kernel_sum = kernel_internal.sum()
-        kernel_sums_to_zero = np.isclose(kernel_sum, 0, atol=normalization_zero_tol)
+        kernel_sums_to_zero = np.isclose(
+            kernel_sum, 0, atol=normalization_zero_tol
+        )
 
-        if kernel_sum < 1. / MAX_NORMALIZATION or kernel_sums_to_zero:
-            raise ValueError("The kernel can't be normalized, because its sum is "
-                             "close to zero. The sum of the given kernel is < {}"
-                             .format(1. / MAX_NORMALIZATION))
+        if kernel_sum < 1.0 / MAX_NORMALIZATION or kernel_sums_to_zero:
+            raise ValueError(
+                "The kernel can't be normalized, because its sum is "
+                "close to zero. The sum of the given kernel is < {}".format(
+                    1.0 / MAX_NORMALIZATION
+                )
+            )
 
     # Mark the NaN values so we can replace them later if interpolate_nan is
     # not set
@@ -276,20 +335,35 @@ def convolve(array, kernel, boundary='fill', fill_value=0.,
         embed_result_within_padded_region = False
         if boundary == 'fill':
             # This method is faster than using numpy.pad(..., mode='constant')
-            array_to_convolve = np.full(array_shape + 2*pad_width, fill_value=fill_value, dtype=float, order='C')
+            array_to_convolve = np.full(
+                array_shape + 2 * pad_width,
+                fill_value=fill_value,
+                dtype=float,
+                order='C',
+            )
             # Use bounds [pad_width[0]:array_shape[0]+pad_width[0]] instead of [pad_width[0]:-pad_width[0]]
             # to account for when the kernel has size of 1 making pad_width = 0.
             if array_internal.ndim == 1:
-                array_to_convolve[pad_width[0]:array_shape[0]+pad_width[0]] = array_internal
+                array_to_convolve[
+                    pad_width[0] : array_shape[0] + pad_width[0]
+                ] = array_internal
             elif array_internal.ndim == 2:
-                array_to_convolve[pad_width[0]:array_shape[0]+pad_width[0],
-                                  pad_width[1]:array_shape[1]+pad_width[1]] = array_internal
+                array_to_convolve[
+                    pad_width[0] : array_shape[0] + pad_width[0],
+                    pad_width[1] : array_shape[1] + pad_width[1],
+                ] = array_internal
             else:
-                array_to_convolve[pad_width[0]:array_shape[0]+pad_width[0],
-                                  pad_width[1]:array_shape[1]+pad_width[1],
-                                  pad_width[2]:array_shape[2]+pad_width[2]] = array_internal
+                array_to_convolve[
+                    pad_width[0] : array_shape[0] + pad_width[0],
+                    pad_width[1] : array_shape[1] + pad_width[1],
+                    pad_width[2] : array_shape[2] + pad_width[2],
+                ] = array_internal
         else:
-            np_pad_mode_dict = {'fill': 'constant', 'extend': 'edge', 'wrap': 'wrap'}
+            np_pad_mode_dict = {
+                'fill': 'constant',
+                'extend': 'edge',
+                'wrap': 'wrap',
+            }
             np_pad_mode = np_pad_mode_dict[boundary]
             pad_width = kernel_shape // 2
 
@@ -298,18 +372,27 @@ def convolve(array, kernel, boundary='fill', fill_value=0.,
             elif array_internal.ndim == 2:
                 np_pad_width = ((pad_width[0],), (pad_width[1],))
             else:
-                np_pad_width = ((pad_width[0],), (pad_width[1],), (pad_width[2],))
+                np_pad_width = (
+                    (pad_width[0],),
+                    (pad_width[1],),
+                    (pad_width[2],),
+                )
 
-            array_to_convolve = np.pad(array_internal, pad_width=np_pad_width,
-                                       mode=np_pad_mode)
+            array_to_convolve = np.pad(
+                array_internal, pad_width=np_pad_width, mode=np_pad_mode
+            )
 
-    _convolveNd_c(result, array_to_convolve,
-                  array_to_convolve.ndim,
-                  np.array(array_to_convolve.shape, dtype=ctypes.c_size_t, order='C'),
-                  kernel_internal,
-                  np.array(kernel_shape, dtype=ctypes.c_size_t, order='C'),
-                  nan_interpolate, embed_result_within_padded_region,
-                  n_threads)
+    _convolveNd_c(
+        result,
+        array_to_convolve,
+        array_to_convolve.ndim,
+        np.array(array_to_convolve.shape, dtype=ctypes.c_size_t, order='C'),
+        kernel_internal,
+        np.array(kernel_shape, dtype=ctypes.c_size_t, order='C'),
+        nan_interpolate,
+        embed_result_within_padded_region,
+        n_threads,
+    )
 
     # So far, normalization has only occured for nan_treatment == 'interpolate'
     # because this had to happen within the C extension so as to ignore
@@ -321,10 +404,12 @@ def convolve(array, kernel, boundary='fill', fill_value=0.,
         result *= kernel_sum
 
     if nan_interpolate and not preserve_nan and np.isnan(result.sum()):
-        warnings.warn("nan_treatment='interpolate', however, NaN values detected "
-                      "post convolution. A contiguous region of NaN values, larger "
-                      "than the kernel size, are present in the input array. "
-                      "Increase the kernel size to avoid this.")
+        warnings.warn(
+            "nan_treatment='interpolate', however, NaN values detected "
+            "post convolution. A contiguous region of NaN values, larger "
+            "than the kernel size, are present in the input array. "
+            "Increase the kernel size to avoid this."
+        )
 
     if preserve_nan:
         result[initially_nan] = np.nan
@@ -339,6 +424,3 @@ def convolve(array, kernel, boundary='fill', fill_value=0.,
             return result.astype(array_dtype)
     else:
         return result
-
-
-

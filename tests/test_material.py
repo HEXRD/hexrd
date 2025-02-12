@@ -5,7 +5,7 @@ import pytest
 from hexrd.core.material import Material, load_materials_hdf5
 
 # Tolerance for comparing floats
-FLOAT_TOL = 1.e-8
+FLOAT_TOL = 1.0e-8
 
 # Use consistent units to simplify testing
 DEFAULT_LENGTH_UNIT = 'angstrom'
@@ -92,14 +92,22 @@ def test_load_materials(test_materials_file):
 def test_remove_duplicate_atoms(test_material_file_duplicate_atoms):
     mats = load_materials_hdf5(test_material_file_duplicate_atoms)
 
-    apos_xtal1 = np.array([[0., 0., 0., 1.]])
-    apos_xtal2 = np.array([[0., 0., 0., 0.5],
-                           [0., 0., 0., 0.5]])
-    apos_xtal3 = np.array([[0., 0., 0., 1./3.],
-                           [0., 0., 0., 1./3.],
-                           [0., 0., 0., 1./3.],
-                           [0.5, 0., 0., 1.],
-                           [0.5, 0.5, 0.25, 1.]])
+    apos_xtal1 = np.array([[0.0, 0.0, 0.0, 1.0]])
+    apos_xtal2 = np.array(
+        [
+            [0.0, 0.0, 0.0, 0.5],
+            [0.0, 0.0, 0.0, 0.5],
+        ]
+    )
+    apos_xtal3 = np.array(
+        [
+            [0.0, 0.0, 0.0, 1.0 / 3.0],
+            [0.0, 0.0, 0.0, 1.0 / 3.0],
+            [0.0, 0.0, 0.0, 1.0 / 3.0],
+            [0.5, 0.0, 0.0, 1.0],
+            [0.5, 0.5, 0.25, 1.0],
+        ]
+    )
 
     mats['xtal1'].unitcell.remove_duplicate_atoms()
     assert np.all(np.isclose(mats['xtal1'].atom_pos, apos_xtal1))
@@ -146,11 +154,11 @@ class TestExclusions:
         pd = default_material.planeData
         pd.exclude()
         sfacmax_pd = pd.structFact.max()
-        sfac = pd.structFact/sfacmax_pd
+        sfac = pd.structFact / sfacmax_pd
         assert (sfac.min() < sfacmin) and (sfac.max() > sfacmax)
 
         pd.exclude(sfacmin=sfacmin, sfacmax=sfacmax)
-        sfac = pd.structFact/sfacmax_pd
+        sfac = pd.structFact / sfacmax_pd
         assert (sfac.min() >= sfacmin) and (sfac.max() <= sfacmax)
 
     def test_pint(self, default_material):
@@ -160,9 +168,9 @@ class TestExclusions:
         pd = default_material.planeData
         pd.exclude()
         pintmax_pd = pd.powder_intensity.max()
-        pint = np.array(pd.powder_intensity)/pintmax_pd
+        pint = np.array(pd.powder_intensity) / pintmax_pd
         assert (pint.min() < pintmin) and (pint.max() > pintmax)
 
         pd.exclude(pintmin=pintmin, pintmax=pintmax)
-        pint = np.array(pd.powder_intensity)/pintmax_pd
+        pint = np.array(pd.powder_intensity) / pintmax_pd
         assert (pint.min() >= pintmin) and (pint.max() <= pintmax)

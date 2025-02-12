@@ -15,22 +15,33 @@ logger = logging.getLogger()
 logger.setLevel('INFO')
 
 # grains
+# fmt: off
 grain_flags_DFLT = np.array(
     [1, 1, 1,
      1, 0, 1,
      0, 0, 0, 0, 0, 0],
     dtype=bool
 )
+# fmt: on
 
-ext_eta_tol = np.radians(5.)  # for HEDM cal, may make this a user param
+ext_eta_tol = np.radians(5.0)  # for HEDM cal, may make this a user param
 
 
 def calibrate_instrument_from_sx(
-        instr, grain_params, bmat, xyo_det, hkls_idx,
-        param_flags=None, grain_flags=None,
-        ome_period=None,
-        xtol=cnst.sqrt_epsf, ftol=cnst.sqrt_epsf,
-        factor=10., sim_only=False, use_robust_lsq=False):
+    instr,
+    grain_params,
+    bmat,
+    xyo_det,
+    hkls_idx,
+    param_flags=None,
+    grain_flags=None,
+    ome_period=None,
+    xtol=cnst.sqrt_epsf,
+    ftol=cnst.sqrt_epsf,
+    factor=10.0,
+    sim_only=False,
+    use_robust_lsq=False,
+):
     """
     arguments xyo_det, hkls_idx are DICTs over panels
 
@@ -51,8 +62,7 @@ def calibrate_instrument_from_sx(
         for det_key in instr.detectors:
             for ig in range(ngrains):
                 xyo_det[det_key][ig][:, 2] = rotations.mapAngle(
-                        xyo_det[det_key][ig][:, 2],
-                        ome_period
+                    xyo_det[det_key][ig][:, 2], ome_period
                 )
 
     # first grab the instrument parameters
@@ -66,25 +76,35 @@ def calibrate_instrument_from_sx(
     if grain_flags is None:
         grain_flags = np.tile(grain_flags_DFLT, ngrains)
 
-    plist_full = np.concatenate(
-        [plist_full, np.hstack(grain_params)]
-    )
+    plist_full = np.concatenate([plist_full, np.hstack(grain_params)])
     plf_copy = np.copy(plist_full)
 
     # concatenate refinement flags
     refine_flags = np.hstack([param_flags, grain_flags])
     plist_fit = plist_full[refine_flags]
-    fit_args = (plist_full,
-                param_flags, grain_flags,
-                instr, xyo_det, hkls_idx,
-                bmat, ome_period)
+    fit_args = (
+        plist_full,
+        param_flags,
+        grain_flags,
+        instr,
+        xyo_det,
+        hkls_idx,
+        bmat,
+        ome_period,
+    )
     if sim_only:
         return sxcal_obj_func(
-            plist_fit, plist_full,
-            param_flags, grain_flags,
-            instr, xyo_det, hkls_idx,
-            bmat, ome_period,
-            sim_only=True)
+            plist_fit,
+            plist_full,
+            param_flags,
+            grain_flags,
+            instr,
+            xyo_det,
+            hkls_idx,
+            bmat,
+            ome_period,
+            sim_only=True,
+        )
     else:
         logger.info("Set up to refine:")
         for i in np.where(refine_flags)[0]:
@@ -93,9 +113,13 @@ def calibrate_instrument_from_sx(
         # run optimization
         if use_robust_lsq:
             result = least_squares(
-                sxcal_obj_func, plist_fit, args=fit_args,
-                xtol=xtol, ftol=ftol,
-                loss='soft_l1', method='trf'
+                sxcal_obj_func,
+                plist_fit,
+                args=fit_args,
+                xtol=xtol,
+                ftol=ftol,
+                loss='soft_l1',
+                method='trf',
             )
             x = result.x
             resd = result.fun
@@ -104,9 +128,13 @@ def calibrate_instrument_from_sx(
         else:
             # do least squares problem
             x, cov_x, infodict, mesg, ierr = leastsq(
-                sxcal_obj_func, plist_fit, args=fit_args,
-                factor=factor, xtol=xtol, ftol=ftol,
-                full_output=1
+                sxcal_obj_func,
+                plist_fit,
+                args=fit_args,
+                factor=factor,
+                xtol=xtol,
+                ftol=ftol,
+                full_output=1,
             )
             resd = infodict['fvec']
         if ierr not in [1, 2, 3, 4]:
@@ -121,11 +149,17 @@ def calibrate_instrument_from_sx(
 
         # run simulation with optimized results
         sim_final = sxcal_obj_func(
-            x, plist_full,
-            param_flags, grain_flags,
-            instr, xyo_det, hkls_idx,
-            bmat, ome_period,
-            sim_only=True)
+            x,
+            plist_full,
+            param_flags,
+            grain_flags,
+            instr,
+            xyo_det,
+            hkls_idx,
+            bmat,
+            ome_period,
+            sim_only=True,
+        )
 
         # ??? reset instrument here?
         instr.update_from_parameter_list(fit_params)
@@ -133,8 +167,10 @@ def calibrate_instrument_from_sx(
         # report final
         logger.info("Optimization Reults:")
         for i in np.where(refine_flags)[0]:
-            logger.info("\t%s = %1.7e --> %1.7e"
-                        % (pnames[i], plf_copy[i], fit_params[i]))
+            logger.info(
+                "\t%s = %1.7e --> %1.7e"
+                % (pnames[i], plf_copy[i], fit_params[i])
+            )
 
         return fit_params, resd, sim_final
 
@@ -162,9 +198,7 @@ def generate_parameter_names(instr, grain_params):
         # now add distortion if there
         if panel.distortion is not None:
             for j in range(len(panel.distortion.params)):
-                pnames.append(
-                    '{:>24s}'.format('%s dparam[%d]' % (det_key, j))
-                )
+                pnames.append('{:>24s}'.format('%s dparam[%d]' % (det_key, j)))
 
     grain_params = np.atleast_2d(grain_params)
     for ig, grain in enumerate(grain_params):
@@ -180,26 +214,31 @@ def generate_parameter_names(instr, grain_params):
             '{:>24s}'.format('grain %d vinv_s[2]' % ig),
             '{:>24s}'.format('grain %d vinv_s[3]' % ig),
             '{:>24s}'.format('grain %d vinv_s[4]' % ig),
-            '{:>24s}'.format('grain %d vinv_s[5]' % ig)
+            '{:>24s}'.format('grain %d vinv_s[5]' % ig),
         ]
 
     return pnames
 
 
-def sxcal_obj_func(plist_fit, plist_full,
-                   param_flags, grain_flags,
-                   instr, xyo_det, hkls_idx,
-                   bmat, ome_period,
-                   sim_only=False, return_value_flag=None):
-    """
-    """
+def sxcal_obj_func(
+    plist_fit,
+    plist_full,
+    param_flags,
+    grain_flags,
+    instr,
+    xyo_det,
+    hkls_idx,
+    bmat,
+    ome_period,
+    sim_only=False,
+    return_value_flag=None,
+):
+    """ """
     npi = len(instr.calibration_parameters)
     NP_GRN = 12
 
     # stack flags and force bool repr
-    refine_flags = np.array(
-        np.hstack([param_flags, grain_flags]),
-        dtype=bool)
+    refine_flags = np.array(np.hstack([param_flags, grain_flags]), dtype=bool)
 
     # fill out full parameter list
     # !!! no scaling for now
@@ -247,7 +286,7 @@ def sxcal_obj_func(plist_fit, plist_full,
 
             xy_unwarped[det_key].append(xyo[:, :2])
             meas_omes[det_key].append(xyo[:, 2])
-            if panel.distortion is not None:    # do unwarping
+            if panel.distortion is not None:  # do unwarping
                 xy_unwarped[det_key][ig] = panel.distortion.apply(
                     xy_unwarped[det_key][ig]
                 )
@@ -267,22 +306,28 @@ def sxcal_obj_func(plist_fit, plist_full,
             ghat_c = np.dot(rmat_c.T, ghat_s)
 
             match_omes, calc_omes_tmp = grainutil.matchOmegas(
-                xyo, ghkls.T,
-                chi, rmat_c, bmat, wavelength,
+                xyo,
+                ghkls.T,
+                chi,
+                rmat_c,
+                bmat,
+                wavelength,
                 vInv=vinv_s,
                 beamVec=bvec,
-                omePeriod=ome_period)
+                omePeriod=ome_period,
+            )
 
             rmat_s_arr = xfcapi.make_sample_rmat(
                 chi, np.ascontiguousarray(calc_omes_tmp)
             )
             calc_xy_tmp = xfcapi.gvec_to_xy(
-                    ghat_c.T, rmat_d, rmat_s_arr, rmat_c,
-                    tvec_d, tvec_s, tvec_c
+                ghat_c.T, rmat_d, rmat_s_arr, rmat_c, tvec_d, tvec_s, tvec_c
             )
             if np.any(np.isnan(calc_xy_tmp)):
-                logger.warning("infeasible parameters: may want to scale back "
-                               "finite difference step size")
+                logger.warning(
+                    "infeasible parameters: may want to scale back "
+                    "finite difference step size"
+                )
 
             calc_omes[det_key].append(calc_omes_tmp)
             calc_xy[det_key].append(calc_xy_tmp)
@@ -317,18 +362,17 @@ def sxcal_obj_func(plist_fit, plist_full,
         diff_vecs_xy = calc_xy_all - meas_xy_all
         diff_ome = rotations.angularDifference(calc_omes_all, meas_omes_all)
         retval = np.hstack(
-            [diff_vecs_xy,
-             diff_ome.reshape(npts_tot, 1)]
+            [diff_vecs_xy, diff_ome.reshape(npts_tot, 1)]
         ).flatten()
         if return_value_flag == 1:
             retval = sum(abs(retval))
         elif return_value_flag == 2:
-            denom = npts_tot - len(plist_fit) - 1.
+            denom = npts_tot - len(plist_fit) - 1.0
             if denom != 0:
-                nu_fac = 1. / denom
+                nu_fac = 1.0 / denom
             else:
-                nu_fac = 1.
-            nu_fac = 1 / (npts_tot - len(plist_fit) - 1.)
+                nu_fac = 1.0
+            nu_fac = 1 / (npts_tot - len(plist_fit) - 1.0)
             retval = nu_fac * sum(retval**2)
     return retval
 
@@ -346,15 +390,14 @@ def parse_reflection_tables(cfg, instr, grain_ids, refit_idx=None):
         idx_0[det_key] = []
         for ig, grain_id in enumerate(grain_ids):
             spots_filename = os.path.join(
-                cfg.analysis_dir, os.path.join(
-                    det_key, 'spots_%05d.out' % grain_id
-                )
+                cfg.analysis_dir,
+                os.path.join(det_key, 'spots_%05d.out' % grain_id),
             )
 
             # load pull_spots output table
             gtable = np.loadtxt(spots_filename, ndmin=2)
             if len(gtable) == 0:
-                gtable = np.nan*np.ones((1, 17))
+                gtable = np.nan * np.ones((1, 17))
 
             # apply conditions for accepting valid data
             valid_reflections = gtable[:, 0] >= 0  # is indexed
@@ -362,30 +405,37 @@ def parse_reflection_tables(cfg, instr, grain_ids, refit_idx=None):
             # throw away extremem etas
             p90 = rotations.angularDifference(gtable[:, 8], cnst.piby2)
             m90 = rotations.angularDifference(gtable[:, 8], -cnst.piby2)
-            accept_etas = np.logical_or(p90 > ext_eta_tol,
-                                        m90 > ext_eta_tol)
+            accept_etas = np.logical_or(p90 > ext_eta_tol, m90 > ext_eta_tol)
             logger.info(f"panel '{det_key}', grain {grain_id}")
-            logger.info(f"{sum(valid_reflections)} of {len(gtable)} "
-                        "reflections are indexed")
-            logger.info(f"{sum(not_saturated)} of {sum(valid_reflections)}"
-                        " valid reflections be are below" +
-                        f" saturation threshold of {panel.saturation_level}")
-            logger.info(f"{sum(accept_etas)} of {len(gtable)}"
-                        " reflections be are greater than " +
-                        f" {np.degrees(ext_eta_tol)} from the rotation axis")
+            logger.info(
+                f"{sum(valid_reflections)} of {len(gtable)} "
+                "reflections are indexed"
+            )
+            logger.info(
+                f"{sum(not_saturated)} of {sum(valid_reflections)}"
+                " valid reflections be are below"
+                + f" saturation threshold of {panel.saturation_level}"
+            )
+            logger.info(
+                f"{sum(accept_etas)} of {len(gtable)}"
+                " reflections be are greater than "
+                + f" {np.degrees(ext_eta_tol)} from the rotation axis"
+            )
 
             # valid reflections index
             if refit_idx is None:
                 idx = np.logical_and(
                     valid_reflections,
-                    np.logical_and(not_saturated, accept_etas)
+                    np.logical_and(not_saturated, accept_etas),
                 )
                 idx_0[det_key].append(idx)
             else:
                 idx = refit_idx[det_key][ig]
                 idx_0[det_key].append(idx)
-                logger.info(f"input reflection specify {sum(idx)} of "
-                            f"{len(gtable)} total valid reflections")
+                logger.info(
+                    f"input reflection specify {sum(idx)} of "
+                    f"{len(gtable)} total valid reflections"
+                )
 
             hkls[det_key].append(gtable[idx, 2:5])
             meas_omes = gtable[idx, 12].reshape(sum(idx), 1)

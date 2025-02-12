@@ -1,4 +1,5 @@
-""" Adapter class for raw image reader"""
+"""Adapter class for raw image reader"""
+
 import os
 import threading
 
@@ -86,13 +87,13 @@ class RawImageSeriesAdapter(ImageSeriesAdapter):
             1: "b",
             2: "h",
             4: "i",
-            8: "l"
+            8: "l",
         }
 
         typechar = {
             "f": "f",
             "d": "d",
-            "b": "?"
+            "b": "?",
         }
 
         if numtype == "i":
@@ -102,7 +103,7 @@ class RawImageSeriesAdapter(ImageSeriesAdapter):
         else:
             char = typechar[numtype]
 
-        return "<"+char if little else ">"+char
+        return "<" + char if little else ">" + char
 
     def __len__(self):
         return self._len

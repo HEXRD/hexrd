@@ -2,7 +2,7 @@ import os
 import numpy as np
 
 
-class JCPDS_extend():
+class JCPDS_extend:
     def __init__(self, filename=None):
         self.a0 = 0
         self.b0 = 0
@@ -40,15 +40,15 @@ class JCPDS_extend():
         # Construct base name = file without path and without extension
         name = os.path.splitext(os.path.basename(self.file))[0]
         self.name = name
-#       line = '', nd=0
-        version = 0.
+        #       line = '', nd=0
+        version = 0.0
         self.comments = []
         self.DiffLines = []
 
         version_status = ''
 
         inp = open(file, 'r').readlines()
-#       my_list = [] # get all the text first and throw into my_list
+        #       my_list = [] # get all the text first and throw into my_list
 
         if inp[0][0] in ('2', '3', '4'):
             version = int(inp[0])  # JCPDS version number
@@ -86,44 +86,44 @@ class JCPDS_extend():
                 a = float(item[0])
                 b = a
                 c = a
-                alpha = 90.
-                beta = 90.
-                gamma = 90.
+                alpha = 90.0
+                beta = 90.0
+                gamma = 90.0
             elif crystal_system == 7:  # P, d-sp input
                 a = float(item[0])
                 b = a
                 c = a
-                alpha = 90.
-                beta = 90.
-                gamma = 90.
+                alpha = 90.0
+                beta = 90.0
+                gamma = 90.0
             elif crystal_system == 2:  # hexagonal
                 a = float(item[0])
                 c = float(item[1])
                 b = a
-                alpha = 90.
-                beta = 90.
-                gamma = 120.
+                alpha = 90.0
+                beta = 90.0
+                gamma = 120.0
             elif crystal_system == 3:  # tetragonal
                 a = float(item[0])
                 c = float(item[1])
                 b = a
-                alpha = 90.
-                beta = 90.
-                gamma = 90.
+                alpha = 90.0
+                beta = 90.0
+                gamma = 90.0
             elif crystal_system == 4:  # orthorhombic
                 a = float(item[0])
                 b = float(item[1])
                 c = float(item[2])
-                alpha = 90.
-                beta = 90.
-                gamma = 90.
+                alpha = 90.0
+                beta = 90.0
+                gamma = 90.0
             elif crystal_system == 5:  # monoclinic
                 a = float(item[0])
                 b = float(item[1])
                 c = float(item[2])
                 beta = float(item[3])
-                alpha = 90.
-                gamma = 90.
+                alpha = 90.0
+                gamma = 90.0
             elif crystal_system == 6:  # triclinic
                 a = float(item[0])
                 b = float(item[1])
@@ -142,7 +142,7 @@ class JCPDS_extend():
             item = str.split(inp[4])
 
             if self.version == 3:
-                alpha_t = 0.
+                alpha_t = 0.0
             else:
                 alpha_t = float(item[0])
             self.alpha_t = alpha_t
@@ -227,32 +227,32 @@ class JCPDS_extend():
             if self.symmetry == 'cubic':
                 self.b0 = self.a0
                 self.c0 = self.a0
-                self.alpha0 = 90.
-                self.beta0 = 90.
-                self.gamma0 = 90.
+                self.alpha0 = 90.0
+                self.beta0 = 90.0
+                self.gamma0 = 90.0
             elif self.symmetry == 'manual':
                 self.b0 = self.a0
                 self.c0 = self.a0
-                self.alpha0 = 90.
-                self.beta0 = 90.
-                self.gamma0 = 90.
+                self.alpha0 = 90.0
+                self.beta0 = 90.0
+                self.gamma0 = 90.0
             elif self.symmetry == 'hexagonal' or self.symmetry == 'trigonal':
                 self.b0 = self.a0
-                self.alpha0 = 90.
-                self.beta0 = 90.
-                self.gamma0 = 120.
+                self.alpha0 = 90.0
+                self.beta0 = 90.0
+                self.gamma0 = 120.0
             elif self.symmetry == 'tetragonal':
                 self.b0 = self.a0
-                self.alpha0 = 90.
-                self.beta0 = 90.
-                self.gamma0 = 90.
+                self.alpha0 = 90.0
+                self.beta0 = 90.0
+                self.gamma0 = 90.0
             elif self.symmetry == 'orthorhombic':
-                self.alpha0 = 90.
-                self.beta0 = 90.
-                self.gamma0 = 90.
+                self.alpha0 = 90.0
+                self.beta0 = 90.0
+                self.gamma0 = 90.0
             elif self.symmetry == 'monoclinic':
-                self.alpha0 = 90.
-                self.gamma0 = 90.
+                self.alpha0 = 90.0
+                self.gamma0 = 90.0
             # elif self.symmetry == 'triclinic':
 
             jcpdsfile.close()
@@ -317,10 +317,9 @@ class JCPDS_extend():
         cb = np.cos(np.radians(self.beta0))
         cg = np.cos(np.radians(self.gamma0))
 
-        v0 = self.a0*self.b0*self.c0
-        f = np.sqrt(1 - ca**2 - cb**2 - cg**2
-                    + 2 * ca * cb * cg)
-        return v0*f
+        v0 = self.a0 * self.b0 * self.c0
+        f = np.sqrt(1 - ca**2 - cb**2 - cg**2 + 2 * ca * cb * cg)
+        return v0 * f
 
 
 class SymmetryMismatch(Exception):

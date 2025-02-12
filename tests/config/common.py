@@ -15,7 +15,7 @@ test_data = {
     'file_stem': 'test_%%05d.dat',
     'tempdir': tempfile.gettempdir(),
     'pathsep': os.path.sep,
-    }
+}
 
 
 class TestConfig(unittest.TestCase):
@@ -37,10 +37,8 @@ class TestConfig(unittest.TestCase):
     def setUp(self):
         self.cfgs = config.open(self.file_name)
 
-
     def tearDown(self):
-        del(self.cfgs)
-
+        del self.cfgs
 
     @classmethod
     def get_reference_data(cls):

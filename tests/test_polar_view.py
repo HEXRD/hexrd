@@ -65,8 +65,7 @@ def test_polar_view(
     pixel_size = (0.01, 5.0)
 
     pv = PolarView(tth_range, instr, eta_min, eta_max, pixel_size)
-    img = pv.warp_image(img_dict, pad_with_nans=True,
-                        do_interpolation=True)
+    img = pv.warp_image(img_dict, pad_with_nans=True, do_interpolation=True)
 
     # This is a masked array. Just fill it with nans.
     img = img.filled(np.nan)
@@ -76,10 +75,17 @@ def test_polar_view(
     assert np.allclose(img, ref, equal_nan=True)
 
     # Also generate it using the cache
-    pv = PolarView(tth_range, instr, eta_min, eta_max, pixel_size,
-                   cache_coordinate_map=True)
-    fast_img = pv.warp_image(img_dict, pad_with_nans=True,
-                             do_interpolation=True)
+    pv = PolarView(
+        tth_range,
+        instr,
+        eta_min,
+        eta_max,
+        pixel_size,
+        cache_coordinate_map=True,
+    )
+    fast_img = pv.warp_image(
+        img_dict, pad_with_nans=True, do_interpolation=True
+    )
 
     # This should also be identical
     fast_img = fast_img.filled(np.nan)

@@ -105,8 +105,7 @@ def _make_hashable(items):
             # Create an sha1 of the data, and throw in a string
             # and the shape.
             x = np.ascontiguousarray(x)
-            return ('__type_np.ndarray', x.shape,
-                    xxhash.xxh3_128_hexdigest(x))
+            return ('__type_np.ndarray', x.shape, xxhash.xxh3_128_hexdigest(x))
         elif isinstance(x, (list, tuple)):
             return _make_hashable(x)
         elif isinstance(x, dict):

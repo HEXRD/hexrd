@@ -8,7 +8,10 @@ from hexrd.core.instrument import calc_angles_from_beam_vec, switch_xray_source
 from hexrd.core.utils.hkl import hkl_to_str, str_to_hkl
 
 from .calibrator import Calibrator
-from .lmfit_param_handling import create_material_params, update_material_from_params
+from .lmfit_param_handling import (
+    create_material_params,
+    update_material_from_params,
+)
 
 nfields_powder_data = 8
 
@@ -16,14 +19,26 @@ nfields_powder_data = 8
 class PowderCalibrator(Calibrator):
     type = 'powder'
 
-    def __init__(self, instr, material, img_dict, default_refinements=None,
-                 tth_tol=None, eta_tol=0.25,
-                 fwhm_estimate=None, min_pk_sep=1e-3, min_ampl=0.,
-                 pktype='pvoigt', bgtype='linear',
-                 tth_distortion=None, calibration_picks=None,
-                 xray_source: Optional[str] = None):
-        assert list(instr.detectors.keys()) == list(img_dict.keys()), \
-            "instrument and image dict must have the same keys"
+    def __init__(
+        self,
+        instr,
+        material,
+        img_dict,
+        default_refinements=None,
+        tth_tol=None,
+        eta_tol=0.25,
+        fwhm_estimate=None,
+        min_pk_sep=1e-3,
+        min_ampl=0.0,
+        pktype='pvoigt',
+        bgtype='linear',
+        tth_distortion=None,
+        calibration_picks=None,
+        xray_source: Optional[str] = None,
+    ):
+        assert list(instr.detectors.keys()) == list(
+            img_dict.keys()
+        ), "instrument and image dict must have the same keys"
 
         self.instr = instr
         self.material = material
@@ -79,8 +94,9 @@ class PowderCalibrator(Calibrator):
     def create_lmfit_params(self, current_params):
         # There shouldn't be more than one calibrator for a given material, so
         # just assume we have a unique name...
-        params = create_material_params(self.material,
-                                        self.default_refinements)
+        params = create_material_params(
+            self.material, self.default_refinements
+        )
 
         # If multiple powder calibrators were used for the same material (such
         # as in 2XRS), then don't add params again.
@@ -110,11 +126,13 @@ class PowderCalibrator(Calibrator):
 
     @property
     def spectrum_kwargs(self):
-        return dict(pktype=self.pktype,
-                    bgtype=self.bgtype,
-                    fwhm_init=self.fwhm_estimate,
-                    min_ampl=self.min_ampl,
-                    min_pk_sep=self.min_pk_sep)
+        return dict(
+            pktype=self.pktype,
+            bgtype=self.bgtype,
+            fwhm_init=self.fwhm_estimate,
+            min_ampl=self.min_ampl,
+            min_pk_sep=self.min_pk_sep,
+        )
 
     @property
     def calibration_picks(self):
@@ -152,7 +170,7 @@ class PowderCalibrator(Calibrator):
 
         self.data_dict = data_dict
 
-    def autopick_points(self, fit_tth_tol=5., int_cutoff=1e-4):
+    def autopick_points(self, fit_tth_tol=5.0, int_cutoff=1e-4):
         """
         return the RHS for the instrument DOF and image dict
 
@@ -169,7 +187,7 @@ class PowderCalibrator(Calibrator):
         with switch_xray_source(self.instr, self.xray_source):
             return self._autopick_points(fit_tth_tol, int_cutoff)
 
-    def _autopick_points(self, fit_tth_tol=5., int_cutoff=1e-4):
+    def _autopick_points(self, fit_tth_tol=5.0, int_cutoff=1e-4):
         # ideal tth
         dsp_ideal = np.atleast_1d(self.plane_data.getPlaneSpacings())
         hkls_ref = self.plane_data.hkls.T
@@ -244,13 +262,15 @@ class PowderCalibrator(Calibrator):
                     )
 
                     # cat results
-                    output = np.hstack([
-                                xy_meas,
-                                tth_meas.reshape(npeaks, 1),
-                                this_hkl,
-                                this_dsp0.reshape(npeaks, 1),
-                                eta_ref_tile.reshape(npeaks, 1),
-                             ])
+                    output = np.hstack(
+                        [
+                            xy_meas,
+                            tth_meas.reshape(npeaks, 1),
+                            this_hkl,
+                            this_dsp0.reshape(npeaks, 1),
+                            eta_ref_tile.reshape(npeaks, 1),
+                        ]
+                    )
                     ret.append(output)
 
                 if not ret:
@@ -311,18 +331,16 @@ class PowderCalibrator(Calibrator):
                 # to (tth, eta)
                 meas_xy = pdata[:, :2]
                 updated_angles, _ = panel.cart_to_angles(
-                    meas_xy,
-                    tvec_s=self.instr.tvec,
-                    apply_distortion=True
+                    meas_xy, tvec_s=self.instr.tvec, apply_distortion=True
                 )
 
                 # derive ideal tth positions from additional ring point info
                 hkls = pdata[:, 3:6]
                 gvecs = np.dot(hkls, bmat.T)
-                dsp0 = 1./np.sqrt(np.sum(gvecs*gvecs, axis=1))
+                dsp0 = 1.0 / np.sqrt(np.sum(gvecs * gvecs, axis=1))
 
                 # updated reference Bragg angles
-                tth0 = 2.*np.arcsin(0.5*wlen/dsp0)
+                tth0 = 2.0 * np.arcsin(0.5 * wlen / dsp0)
 
                 # !!! get eta from mapped markers rather than ref
                 # eta0 = pdata[:, -1]
@@ -346,23 +364,16 @@ class PowderCalibrator(Calibrator):
                     #     meas_xy.flatten() - calc_xy.flatten()
                     # )
                     retval = np.append(
-                        retval,
-                        updated_angles[:, 0].flatten() - tth0.flatten()
+                        retval, updated_angles[:, 0].flatten() - tth0.flatten()
                     )
                 elif output == 'model':
                     calc_xy = panel.angles_to_cart(
-                        tth_eta,
-                        tvec_s=self.instr.tvec,
-                        apply_distortion=True
+                        tth_eta, tvec_s=self.instr.tvec, apply_distortion=True
                     )
-                    retval = np.append(
-                        retval,
-                        calc_xy.flatten()
-                    )
+                    retval = np.append(retval, calc_xy.flatten())
                 else:
                     raise RuntimeError(
-                        "unrecognized output flag '%s'"
-                        % output
+                        "unrecognized output flag '%s'" % output
                     )
 
         return retval

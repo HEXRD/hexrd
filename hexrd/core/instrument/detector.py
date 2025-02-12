@@ -3,7 +3,11 @@ import copy
 import os
 from typing import Optional
 
-from hexrd.core.instrument.constants import COATING_DEFAULT, FILTER_DEFAULTS, PHOSPHOR_DEFAULT
+from hexrd.core.instrument.constants import (
+    COATING_DEFAULT,
+    FILTER_DEFAULTS,
+    PHOSPHOR_DEFAULT,
+)
 from hexrd.core.instrument.physics_package import AbstractPhysicsPackage
 import numpy as np
 import numba
@@ -11,6 +15,7 @@ import numba
 from hexrd.core import constants as ct
 from hexrd.core import distortion as distortion_pkg
 from hexrd.core import matrixutil as mutil
+
 # TODO: Resolve extra-core-dependency
 from hexrd.hedm import xrdutil
 from hexrd.core.rotations import mapAngle
@@ -18,7 +23,14 @@ from hexrd.core.rotations import mapAngle
 from hexrd.core.material import crystallography
 from hexrd.core.material.crystallography import PlaneData
 
-from hexrd.core.transforms.xfcapi import xy_to_gvec, gvec_to_xy, make_beam_rmat, make_rmat_of_expmap, oscill_angles_of_hkls, angles_to_dvec
+from hexrd.core.transforms.xfcapi import (
+    xy_to_gvec,
+    gvec_to_xy,
+    make_beam_rmat,
+    make_rmat_of_expmap,
+    oscill_angles_of_hkls,
+    angles_to_dvec,
+)
 
 from hexrd.core.utils.decorators import memoize
 from hexrd.core.gridutil import cellIndices
@@ -281,7 +293,8 @@ class Detector:
 
         if detector_filter is None:
             detector_filter = detector_coatings.Filter(
-                **FILTER_DEFAULTS.TARDIS)
+                **FILTER_DEFAULTS.TARDIS
+            )
         self.filter = detector_filter
 
         if detector_coating is None:
@@ -1017,9 +1030,14 @@ class Detector:
         int_xy[on_panel] = int_vals
         return int_xy
 
-    def interpolate_bilinear(self, xy, img, pad_with_nans=True,
-                             clip_to_panel=True,
-                             on_panel: Optional[np.ndarray] = None):
+    def interpolate_bilinear(
+        self,
+        xy,
+        img,
+        pad_with_nans=True,
+        clip_to_panel=True,
+        on_panel: Optional[np.ndarray] = None,
+    ):
         """
         Interpolate an image array at the specified cartesian points.
 
@@ -1696,102 +1714,125 @@ class Detector:
             if cache_info['maxsize'] < min_size:
                 f.set_cache_maxsize(min_size)
 
-    def calc_physics_package_transmission(self, energy: np.floating,
-                                          rMat_s: np.array,
-                                          physics_package: AbstractPhysicsPackage) -> np.float64:
+    def calc_physics_package_transmission(
+        self,
+        energy: np.floating,
+        rMat_s: np.array,
+        physics_package: AbstractPhysicsPackage,
+    ) -> np.float64:
         """get the transmission from the physics package
         need to consider HED and HEDM samples separately
         """
         bvec = self.bvec
-        sample_normal = np.dot(rMat_s, [0., 0., -1.])
-        seca = 1./np.dot(bvec, sample_normal)
+        sample_normal = np.dot(rMat_s, [0.0, 0.0, -1.0])
+        seca = 1.0 / np.dot(bvec, sample_normal)
 
         tth, eta = self.pixel_angles()
-        angs = np.vstack((tth.flatten(), eta.flatten(),
-                          np.zeros(tth.flatten().shape))).T
+        angs = np.vstack(
+            (tth.flatten(), eta.flatten(), np.zeros(tth.flatten().shape))
+        ).T
 
         dvecs = angles_to_dvec(angs, beam_vec=bvec)
 
-        secb = np.abs(1./np.dot(dvecs, sample_normal).reshape(self.shape))
+        secb = np.abs(1.0 / np.dot(dvecs, sample_normal).reshape(self.shape))
 
         T_sample = self.calc_transmission_sample(
-            seca, secb, energy, physics_package)
+            seca, secb, energy, physics_package
+        )
         T_window = self.calc_transmission_window(secb, energy, physics_package)
 
         transmission_physics_package = T_sample * T_window
         return transmission_physics_package
 
-    def calc_transmission_sample(self, seca: np.array,
-                                 secb: np.array, energy: np.floating,
-                                 physics_package: AbstractPhysicsPackage) -> np.array:
+    def calc_transmission_sample(
+        self,
+        seca: np.array,
+        secb: np.array,
+        energy: np.floating,
+        physics_package: AbstractPhysicsPackage,
+    ) -> np.array:
         thickness_s = physics_package.sample_thickness  # in microns
         if np.isclose(thickness_s, 0):
             return np.ones(self.shape)
 
         # in microns^-1
-        mu_s = 1./physics_package.sample_absorption_length(energy)
-        x = (mu_s*thickness_s)
-        pre = 1./x/(secb - seca)
-        num = np.exp(-x*seca) - np.exp(-x*secb)
+        mu_s = 1.0 / physics_package.sample_absorption_length(energy)
+        x = mu_s * thickness_s
+        pre = 1.0 / x / (secb - seca)
+        num = np.exp(-x * seca) - np.exp(-x * secb)
         return pre * num
 
-    def calc_transmission_window(self, secb: np.array, energy: np.floating,
-                                 physics_package: AbstractPhysicsPackage) -> np.array:
+    def calc_transmission_window(
+        self,
+        secb: np.array,
+        energy: np.floating,
+        physics_package: AbstractPhysicsPackage,
+    ) -> np.array:
         thickness_w = physics_package.window_thickness  # in microns
         if np.isclose(thickness_w, 0):
             return np.ones(self.shape)
 
         # in microns^-1
-        mu_w = 1./physics_package.window_absorption_length(energy)
-        return np.exp(-thickness_w*mu_w*secb)
+        mu_w = 1.0 / physics_package.window_absorption_length(energy)
+        return np.exp(-thickness_w * mu_w * secb)
 
-    def calc_effective_pinhole_area(self, physics_package: AbstractPhysicsPackage) -> np.array:
-        """get the effective pinhole area correction
-        """
-        if (np.isclose(physics_package.pinhole_diameter, 0)
-                or np.isclose(physics_package.pinhole_thickness, 0)):
+    def calc_effective_pinhole_area(
+        self, physics_package: AbstractPhysicsPackage
+    ) -> np.array:
+        """get the effective pinhole area correction"""
+        if np.isclose(physics_package.pinhole_diameter, 0) or np.isclose(
+            physics_package.pinhole_thickness, 0
+        ):
             return np.ones(self.shape)
 
-        hod = (physics_package.pinhole_thickness /
-               physics_package.pinhole_diameter)
+        hod = (
+            physics_package.pinhole_thickness
+            / physics_package.pinhole_diameter
+        )
         bvec = self.bvec
 
         tth, eta = self.pixel_angles()
-        angs = np.vstack((tth.flatten(), eta.flatten(),
-                          np.zeros(tth.flatten().shape))).T
+        angs = np.vstack(
+            (tth.flatten(), eta.flatten(), np.zeros(tth.flatten().shape))
+        ).T
         dvecs = angles_to_dvec(angs, beam_vec=bvec)
 
         cth = -dvecs[:, 2].reshape(self.shape)
         tanth = np.tan(np.arccos(cth))
-        f = hod*tanth
-        f[np.abs(f) > 1.] = np.nan
+        f = hod * tanth
+        f[np.abs(f) > 1.0] = np.nan
         asinf = np.arcsin(f)
         return 2 / np.pi * cth * (np.pi / 2 - asinf - f * np.cos(asinf))
 
-    def calc_transmission_generic(self,
-                                  secb: np.array,
-                                  thickness: np.floating,
-                                  absorption_length: np.floating) -> np.array:
+    def calc_transmission_generic(
+        self,
+        secb: np.array,
+        thickness: np.floating,
+        absorption_length: np.floating,
+    ) -> np.array:
         if np.isclose(thickness, 0):
             return np.ones(self.shape)
 
-        mu = 1./absorption_length  # in microns^-1
-        return np.exp(-thickness*mu*secb)
+        mu = 1.0 / absorption_length  # in microns^-1
+        return np.exp(-thickness * mu * secb)
 
-    def calc_transmission_phosphor(self,
-                                   secb: np.array,
-                                   thickness: np.floating,
-                                   readout_length: np.floating,
-                                   absorption_length: np.floating,
-                                   energy: np.floating,
-                                   pre_U0: np.floating) -> np.array:
+    def calc_transmission_phosphor(
+        self,
+        secb: np.array,
+        thickness: np.floating,
+        readout_length: np.floating,
+        absorption_length: np.floating,
+        energy: np.floating,
+        pre_U0: np.floating,
+    ) -> np.array:
         if np.isclose(thickness, 0):
             return np.ones(self.shape)
 
-        f1 = absorption_length*thickness
-        f2 = absorption_length*readout_length
-        arg = (secb + 1/f2)
-        return pre_U0 * energy*((1.0 - np.exp(-f1*arg))/arg)
+        f1 = absorption_length * thickness
+        f2 = absorption_length * readout_length
+        arg = secb + 1 / f2
+        return pre_U0 * energy * ((1.0 - np.exp(-f1 * arg)) / arg)
+
 
 # =============================================================================
 # UTILITY METHODS

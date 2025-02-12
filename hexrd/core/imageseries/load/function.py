@@ -1,6 +1,7 @@
 """Adapter class for a custom function that takes an int as an argument
 and returns a 2D numpy array.
 """
+
 from . import ImageSeriesAdapter
 from ..imageseriesiter import ImageSeriesIterator
 
@@ -17,6 +18,7 @@ class FunctionImageSeriesAdapter(ImageSeriesAdapter):
     metadata: dict (optional)
        the metadata dictionary
     """
+
     format = 'function'
 
     def __init__(self, fname, **kwargs):

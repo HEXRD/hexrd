@@ -10,8 +10,8 @@ from .config import Config
 from .utils import get_exclusion_parameters
 
 
-DMIN_DFLT = 0.5    # angstrom
-TTHW_DFLT = 0.25   # degrees
+DMIN_DFLT = 0.5  # angstrom
+TTHW_DFLT = 0.25  # degrees
 
 
 class MaterialConfig(Config):
@@ -30,9 +30,7 @@ class MaterialConfig(Config):
             temp = os.path.join(self._cfg.working_dir, temp)
         if os.path.exists(temp):
             return temp
-        raise IOError(
-            f'"material:definitions": "{temp}" does not exist'
-        )
+        raise IOError(f'"material:definitions": "{temp}" does not exist')
 
     @property
     def active(self):

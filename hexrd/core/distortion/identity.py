@@ -2,6 +2,7 @@
 
 Simple class that returns it's input.
 """
+
 from .distortionabc import DistortionABC
 from .registry import _RegisterDistortionClass
 

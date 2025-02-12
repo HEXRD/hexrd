@@ -3,15 +3,17 @@ import logging
 import numpy as np
 
 from hexrd.core import constants as ct
+
 # TODO: Resolve extra-core dependency
 from hexrd.hedm import xrdutil
 from hexrd.core.utils.decorators import memoize
 
-from .detector import Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
-from ...hed.instrument.detector import Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
-from ...hedm.instrument.detector import Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
-from ...laue.instrument.detector import Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
-from ...powder.instrument.detector import Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
+from .detector import (
+    Detector,
+    _solid_angle_of_triangle,
+    _row_edge_vec,
+    _col_edge_vec,
+)
 
 from functools import partial
 from hexrd.core.gridutil import cellConnectivity
@@ -25,11 +27,11 @@ logger.setLevel(logging.WARNING)
 class CylindricalDetector(Detector):
     """2D cylindrical detector
 
-       A cylindrical detector is a simple rectangular
-       row-column detector which has been bent in the
-       shape of a cylinder. Inherting the PlanarDetector
-       class except for a few changes to account for the
-       cylinder ray intersection.
+    A cylindrical detector is a simple rectangular
+    row-column detector which has been bent in the
+    shape of a cylinder. Inherting the PlanarDetector
+    class except for a few changes to account for the
+    cylinder ray intersection.
     """
 
     def __init__(self, radius=49.51, **detector_kwargs):
@@ -46,10 +48,15 @@ class CylindricalDetector(Detector):
     def detector_type(self):
         return 'cylindrical'
 
-    def cart_to_angles(self, xy_data,
-                       rmat_s=None,
-                       tvec_s=None, tvec_c=None,
-                       apply_distortion=False, normalize=True):
+    def cart_to_angles(
+        self,
+        xy_data,
+        rmat_s=None,
+        tvec_s=None,
+        tvec_c=None,
+        apply_distortion=False,
+        normalize=True,
+    ):
         xy_data = np.asarray(xy_data)
         if rmat_s is None:
             rmat_s = ct.identity_3x3
@@ -60,23 +67,30 @@ class CylindricalDetector(Detector):
         if apply_distortion and self.distortion is not None:
             xy_data = self.distortion.apply(xy_data)
 
-        dvecs = xrdutil.utils._warp_to_cylinder(xy_data,
-                                                self.tvec,
-                                                self.radius,
-                                                self.caxis,
-                                                self.paxis,
-                                                tVec_s=tvec_s,
-                                                tVec_c=tvec_c,
-                                                rmat_s=rmat_s,
-                                                normalize=normalize)
+        dvecs = xrdutil.utils._warp_to_cylinder(
+            xy_data,
+            self.tvec,
+            self.radius,
+            self.caxis,
+            self.paxis,
+            tVec_s=tvec_s,
+            tVec_c=tvec_c,
+            rmat_s=rmat_s,
+            normalize=normalize,
+        )
         tth, eta = xrdutil.utils._dvec_to_angs(dvecs, self.bvec, self.evec)
         tth_eta = np.vstack((tth, eta)).T
         return tth_eta, dvecs
 
-    def angles_to_cart(self, tth_eta,
-                       rmat_s=None, tvec_s=None,
-                       rmat_c=None, tvec_c=None,
-                       apply_distortion=False):
+    def angles_to_cart(
+        self,
+        tth_eta,
+        rmat_s=None,
+        tvec_s=None,
+        rmat_c=None,
+        tvec_c=None,
+        apply_distortion=False,
+    ):
         if rmat_s is None:
             rmat_s = ct.identity_3x3
         if tvec_s is None:
@@ -94,15 +108,24 @@ class CylindricalDetector(Detector):
         ome = np.arccos(rmat_s[0, 0])
 
         angs = np.hstack([tth_eta, np.tile(ome, (len(tth_eta), 1))])
-        kwargs = {'beamVec': self.bvec,
-                  'etaVec': self.evec,
-                  'tVec_s': tvec_s,
-                  'rmat_s': rmat_s,
-                  'tVec_c': tvec_c}
-        args = (angs, chi, self.tvec,
-                self.caxis, self.paxis,
-                self.radius, self.physical_size,
-                self.angle_extent, self.distortion)
+        kwargs = {
+            'beamVec': self.bvec,
+            'etaVec': self.evec,
+            'tVec_s': tvec_s,
+            'rmat_s': rmat_s,
+            'tVec_c': tvec_c,
+        }
+        args = (
+            angs,
+            chi,
+            self.tvec,
+            self.caxis,
+            self.paxis,
+            self.radius,
+            self.physical_size,
+            self.angle_extent,
+            self.distortion,
+        )
 
         proj_func = xrdutil.utils._project_on_detector_cylinder
         valid_xy, rMat_ss, valid_mask = proj_func(*args, **kwargs)
@@ -111,20 +134,24 @@ class CylindricalDetector(Detector):
         xy_det[valid_mask, :] = valid_xy
         return xy_det
 
-    def cart_to_dvecs(self,
-                      xy_data,
-                      tvec_s=ct.zeros_3x1,
-                      rmat_s=ct.identity_3x3,
-                      tvec_c=ct.zeros_3x1):
-        return xrdutil.utils._warp_to_cylinder(xy_data,
-                                               self.tvec,
-                                               self.radius,
-                                               self.caxis,
-                                               self.paxis,
-                                               tVec_s=tvec_s,
-                                               rmat_s=rmat_s,
-                                               tVec_c=tvec_c,
-                                               normalize=False)
+    def cart_to_dvecs(
+        self,
+        xy_data,
+        tvec_s=ct.zeros_3x1,
+        rmat_s=ct.identity_3x3,
+        tvec_c=ct.zeros_3x1,
+    ):
+        return xrdutil.utils._warp_to_cylinder(
+            xy_data,
+            self.tvec,
+            self.radius,
+            self.caxis,
+            self.paxis,
+            tVec_s=tvec_s,
+            rmat_s=rmat_s,
+            tVec_c=tvec_c,
+            normalize=False,
+        )
 
     def pixel_angles(self, origin=ct.zeros_3):
         return _pixel_angles(origin=origin, **self._pixel_angle_kwargs)
@@ -141,7 +168,7 @@ class CylindricalDetector(Detector):
         num = x.shape[0]
         naxis = np.cross(self.paxis, self.caxis)
 
-        th = x/self.radius
+        th = x / self.radius
         xp = np.sin(th)
         xn = -np.cos(th)
 
@@ -173,7 +200,7 @@ class CylindricalDetector(Detector):
         t_f = self.filter.thickness
         t_c = self.coating.thickness
         t_p = self.phosphor.thickness
-        L   = self.phosphor.readout_length
+        L = self.phosphor.readout_length
         pre_U0 = self.phosphor.pre_U0
 
         det_normal = self.local_normal()
@@ -181,19 +208,21 @@ class CylindricalDetector(Detector):
         y, x = self.pixel_coords
         xy_data = np.vstack((x.flatten(), y.flatten())).T
         dvecs = self.cart_to_dvecs(xy_data)
-        dvecs = dvecs/np.tile(np.linalg.norm(dvecs, axis=1), [3, 1]).T
+        dvecs = dvecs / np.tile(np.linalg.norm(dvecs, axis=1), [3, 1]).T
 
-        secb = (1./np.sum(dvecs*det_normal, axis=1)).reshape(self.shape)
+        secb = (1.0 / np.sum(dvecs * det_normal, axis=1)).reshape(self.shape)
 
-        transmission_filter  = self.calc_transmission_generic(secb, t_f, al_f)
+        transmission_filter = self.calc_transmission_generic(secb, t_f, al_f)
         transmission_coating = self.calc_transmission_generic(secb, t_c, al_c)
-        transmission_phosphor = (
-            self.calc_transmission_phosphor(secb, t_p, al_p, L, energy, pre_U0))
+        transmission_phosphor = self.calc_transmission_phosphor(
+            secb, t_p, al_p, L, energy, pre_U0
+        )
 
-        transmission_filter  = transmission_filter.reshape(self.shape)
+        transmission_filter = transmission_filter.reshape(self.shape)
         transmission_coating = transmission_coating.reshape(self.shape)
         transmission_filter_coating = (
-            transmission_filter * transmission_coating)
+            transmission_filter * transmission_coating
+        )
 
         return transmission_filter_coating, transmission_phosphor
 
@@ -249,8 +278,9 @@ class CylindricalDetector(Detector):
     def physical_size(self):
         # return physical size of detector
         # in mm after dewarped to rectangle
-        return np.array([self.rows*self.pixel_size_row,
-                         self.cols*self.pixel_size_col])
+        return np.array(
+            [self.rows * self.pixel_size_row, self.cols * self.pixel_size_col]
+        )
 
     @property
     def beam_position(self):
@@ -259,13 +289,24 @@ class CylindricalDetector(Detector):
         frame {Xd, Yd, Zd}.  NaNs if no intersection.
         """
         output = np.nan * np.ones(2)
-        args = (np.atleast_2d(self.bvec), self.caxis, self.paxis,
-                self.radius, self.tvec)
+        args = (
+            np.atleast_2d(self.bvec),
+            self.caxis,
+            self.paxis,
+            self.radius,
+            self.tvec,
+        )
         pt_on_cylinder = xrdutil.utils._unitvec_to_cylinder(*args)
 
-        args = (pt_on_cylinder, self.tvec, self.caxis,
-                self.paxis, self.radius, self.physical_size,
-                self.angle_extent)
+        args = (
+            pt_on_cylinder,
+            self.tvec,
+            self.caxis,
+            self.paxis,
+            self.radius,
+            self.physical_size,
+            self.angle_extent,
+        )
         pt_on_cylinder, _ = xrdutil.utils._clip_to_cylindrical_detector(*args)
 
         args = (pt_on_cylinder, self.tvec, self.caxis, self.paxis, self.radius)
@@ -297,7 +338,9 @@ class CylindricalDetector(Detector):
     def update_memoization_sizes(all_panels):
         Detector.update_memoization_sizes(all_panels)
 
-        num_matches = sum(isinstance(x, CylindricalDetector) for x in all_panels)
+        num_matches = sum(
+            isinstance(x, CylindricalDetector) for x in all_panels
+        )
         funcs = [
             _pixel_angles,
             _pixel_tth_gradient,
@@ -322,35 +365,30 @@ class CylindricalDetector(Detector):
 
 
 @memoize
-def _pixel_angles(origin,
-                  pixel_coords,
-                  distortion,
-                  caxis,
-                  paxis,
-                  tvec_d,
-                  radius,
-                  bvec,
-                  evec,
-                  rows,
-                  cols):
+def _pixel_angles(
+    origin,
+    pixel_coords,
+    distortion,
+    caxis,
+    paxis,
+    tvec_d,
+    radius,
+    bvec,
+    evec,
+    rows,
+    cols,
+):
     assert len(origin) == 3, "origin must have 3 elements"
 
     pix_i, pix_j = pixel_coords
-    xy = np.ascontiguousarray(
-        np.vstack([
-            pix_j.flatten(), pix_i.flatten()
-            ]).T
-        )
+    xy = np.ascontiguousarray(np.vstack([pix_j.flatten(), pix_i.flatten()]).T)
 
     if distortion is not None:
         xy = distortion.apply(xy)
 
-    dvecs = xrdutil.utils._warp_to_cylinder(xy,
-                                            tvec_d-origin,
-                                            radius,
-                                            caxis,
-                                            paxis,
-                                            normalize=True)
+    dvecs = xrdutil.utils._warp_to_cylinder(
+        xy, tvec_d - origin, radius, caxis, paxis, normalize=True
+    )
 
     angs = xrdutil.utils._dvec_to_angs(dvecs, bvec, evec)
 
@@ -383,13 +421,21 @@ def _pixel_eta_gradient(origin, **pixel_angle_kwargs):
 
 def _fix_branch_cut_in_gradients(pgarray):
     return np.min(
-        np.abs(np.stack([pgarray - np.pi, pgarray, pgarray + np.pi])),
-        axis=0
+        np.abs(np.stack([pgarray - np.pi, pgarray, pgarray + np.pi])), axis=0
     )
 
 
-def _generate_pixel_solid_angles(start_stop, rows, cols, pixel_size_row,
-                                 pixel_size_col, caxis, paxis, radius, tvec):
+def _generate_pixel_solid_angles(
+    start_stop,
+    rows,
+    cols,
+    pixel_size_row,
+    pixel_size_col,
+    caxis,
+    paxis,
+    radius,
+    tvec,
+):
     start, stop = start_stop
     row_edge_vec = _row_edge_vec(rows, pixel_size_row)
     col_edge_vec = _col_edge_vec(cols, pixel_size_col)
@@ -400,12 +446,9 @@ def _generate_pixel_solid_angles(start_stop, rows, cols, pixel_size_row,
 
     # transform to lab frame using the _warp_to_cylinder
     # function
-    pcrd_array_full = xrdutil.utils._warp_to_cylinder(xy_data,
-                                                      tvec,
-                                                      radius,
-                                                      caxis,
-                                                      paxis,
-                                                      normalize=False)
+    pcrd_array_full = xrdutil.utils._warp_to_cylinder(
+        xy_data, tvec, radius, caxis, paxis, normalize=False
+    )
 
     conn = cellConnectivity(rows, cols)
 
@@ -414,15 +457,25 @@ def _generate_pixel_solid_angles(start_stop, rows, cols, pixel_size_row,
     for i, ipix in enumerate(range(start, stop)):
         pix_conn = conn[ipix]
         vtx_list = pcrd_array_full[pix_conn, :]
-        ret[i] = (_solid_angle_of_triangle(vtx_list[[0, 1, 2], :]) +
-                  _solid_angle_of_triangle(vtx_list[[2, 3, 0], :]))
+        ret[i] = _solid_angle_of_triangle(
+            vtx_list[[0, 1, 2], :]
+        ) + _solid_angle_of_triangle(vtx_list[[2, 3, 0], :])
 
     return ret
 
 
 @memoize
-def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
-                        caxis, paxis, radius, tvec, max_workers):
+def _pixel_solid_angles(
+    rows,
+    cols,
+    pixel_size_row,
+    pixel_size_col,
+    caxis,
+    paxis,
+    radius,
+    tvec,
+    max_workers,
+):
     # connectivity array for pixels
     conn = cellConnectivity(rows, cols)
 
@@ -442,8 +495,9 @@ def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
         'tvec': tvec,
     }
     func = partial(_generate_pixel_solid_angles, **kwargs)
-    with ProcessPoolExecutor(mp_context=ct.mp_context,
-                             max_workers=max_workers) as executor:
+    with ProcessPoolExecutor(
+        mp_context=ct.mp_context, max_workers=max_workers
+    ) as executor:
         results = executor.map(func, tasks)
 
     # Concatenate all the results together

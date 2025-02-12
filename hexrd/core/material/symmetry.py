@@ -39,7 +39,11 @@ from hexrd.core import constants
 from hexrd.core.utils.decorators import memoize
 
 # Imports in case others are importing from here
-from hexrd.core.rotations import toFundamentalRegion, ltypeOfLaueGroup, quatOfLaueGroup
+from hexrd.core.rotations import (
+    toFundamentalRegion,
+    ltypeOfLaueGroup,
+    quatOfLaueGroup,
+)
 
 
 # =============================================================================
@@ -47,11 +51,11 @@ from hexrd.core.rotations import toFundamentalRegion, ltypeOfLaueGroup, quatOfLa
 # =============================================================================
 
 eps = constants.sqrt_epsf
-sq3by2 = sqrt(3.)/2.
-piby2 = pi/2.
-piby3 = pi/3.
-piby4 = pi/4.
-piby6 = pi/6.
+sq3by2 = sqrt(3.0) / 2.0
+piby2 = pi / 2.0
+piby3 = pi / 3.0
+piby4 = pi / 4.0
+piby6 = pi / 6.0
 
 
 # =============================================================================
@@ -68,7 +72,7 @@ def GeneratorString(sgnum):
     ...
     and so on
     '''
-    sg = sgnum-1
+    sg = sgnum - 1
     # sgdict = {146:231, 148:232, 155:233, 160:234, 161:235, 166:236, 167:237}
     # if(sgnum in sgdict):
     #     sg = sgdict[sgnum]-1
@@ -86,17 +90,17 @@ def MakeGenerators(genstr, setting):
     centrosymmetric = False
 
     # check if space group has inversion symmetry
-    if(genstr[0] == '1'):
+    if genstr[0] == '1':
         t = 'hOOO'
         mat = SYM_fillgen(t)
         genmat = np.concatenate((genmat, mat))
         centrosymmetric = True
 
     n = int(genstr[1])
-    if(n > 0):
+    if n > 0:
         for i in range(n):
             istart = 2 + i * 4
-            istop = 2 + (i+1) * 4
+            istop = 2 + (i + 1) * 4
 
             t = genstr[istart:istop]
 
@@ -108,20 +112,20 @@ def MakeGenerators(genstr, setting):
     if there is an alternate setting for this space group
     check if the alternate setting needs to be used
     '''
-    if(genstr[istop] != '0'):
-        if(setting != 0):
-            t = genstr[istop+1:istop+4]
+    if genstr[istop] != '0':
+        if setting != 0:
+            t = genstr[istop + 1 : istop + 4]
             t = 'a' + t  # get the translation without any rotation
             sym = np.squeeze(SYM_fillgen(t, sgn=-1))
             sym2 = np.squeeze(SYM_fillgen(t))
             for i in range(1, genmat.shape[0]):
-                generator = np.dot(sym2, np.dot(
-                    np.squeeze(genmat[i, :, :]),
-                    sym))
+                generator = np.dot(
+                    sym2, np.dot(np.squeeze(genmat[i, :, :]), sym)
+                )
                 frac = np.modf(generator[0:3, 3])[0]
-                frac[frac < 0.] += 1.
-                frac[np.abs(frac) < 1E-5] = 0.0
-                frac[np.abs(frac-1.0) < 1E-5] = 0.0
+                frac[frac < 0.0] += 1.0
+                frac[np.abs(frac) < 1e-5] = 0.0
+                frac[np.abs(frac - 1.0) < 1e-5] = 0.0
                 generator[0:3, 3] = frac
                 genmat[i, :, :] = generator
 
@@ -130,13 +134,16 @@ def MakeGenerators(genstr, setting):
 
 def SYM_fillgen(t, sgn=1):
     mat = np.zeros([4, 4])
-    mat[3, 3] = 1.
+    mat[3, 3] = 1.0
 
     mat[0:3, 0:3] = constants.SYM_GENERATORS[t[0]]
-    mat[0:3, 3] = sgn*np.array([constants.SYM_GENERATORS[t[1]],
-                                constants.SYM_GENERATORS[t[2]],
-                                constants.SYM_GENERATORS[t[3]]
-                                ])
+    mat[0:3, 3] = sgn * np.array(
+        [
+            constants.SYM_GENERATORS[t[1]],
+            constants.SYM_GENERATORS[t[2]],
+            constants.SYM_GENERATORS[t[3]],
+        ]
+    )
 
     mat = np.broadcast_to(mat, [1, 4, 4])
     return mat
@@ -151,7 +158,7 @@ def GenerateSGSym(sgnum, setting=0):
     genstr = GeneratorString(sgnum)
     genmat, centrosymmetric = MakeGenerators(genstr, setting)
     symmorphic = False
-    if(sgnum in constants.sgnum_symmorphic):
+    if sgnum in constants.sgnum_symmorphic:
         symmorphic = True
     '''
     use the generator string to get the rest of the
@@ -179,17 +186,17 @@ def GenerateSGSym(sgnum, setting=0):
 
             # only fractional parts
             frac = np.modf(gnew[0:3, 3])[0]
-            frac[frac < 0.] += 1.
-            frac[np.abs(frac) < 1E-5] = 0.0
-            frac[np.abs(frac-1.0) < 1E-5] = 0.0
+            frac[frac < 0.0] += 1.0
+            frac[np.abs(frac) < 1e-5] = 0.0
+            frac[np.abs(frac - 1.0) < 1e-5] = 0.0
             gnew[0:3, 3] = frac
 
-            if(isnew(gnew, SYM_SG)):
+            if isnew(gnew, SYM_SG):
                 gnew = np.broadcast_to(gnew, [1, 4, 4])
                 SYM_SG = np.concatenate((SYM_SG, gnew))
                 nsym += 1
 
-                if (nsym >= 192):
+                if nsym >= 192:
                     k2 = nsym
                     k1 = nsym
 
@@ -200,7 +207,7 @@ def GenerateSGSym(sgnum, setting=0):
     SYM_PG_d_laue = GeneratePGSym_Laue(SYM_PG_d)
 
     for s in SYM_PG_d:
-        if(np.allclose(-np.eye(3), s)):
+        if np.allclose(-np.eye(3), s):
             centrosymmetric = True
 
     return SYM_SG, SYM_PG_d, SYM_PG_d_laue, centrosymmetric, symmorphic
@@ -226,7 +233,7 @@ def GeneratePGSym(SYM_SG):
         g = SYM_SG[i, :, :]
         t = g[0:3, 3]
         g = g[0:3, 0:3]
-        if(isnew(g, SYM_PG_d)):
+        if isnew(g, SYM_PG_d):
             g = np.broadcast_to(g, [1, 3, 3])
             SYM_PG_d = np.concatenate((SYM_PG_d, g))
 
@@ -246,7 +253,7 @@ def GeneratePGSym_Laue(SYM_PG_d):
     first check if the group already has the inversion symmetry
     '''
     for s in SYM_PG_d:
-        if(np.allclose(s, -np.eye(3))):
+        if np.allclose(s, -np.eye(3)):
             return SYM_PG_d
 
     '''
@@ -270,12 +277,12 @@ def GeneratePGSym_Laue(SYM_PG_d):
             g2 = np.squeeze(SYM_PG_d_laue[k2, :, :])
             gnew = np.dot(g1, g2)
 
-            if(isnew(gnew, SYM_PG_d_laue)):
+            if isnew(gnew, SYM_PG_d_laue):
                 gnew = np.broadcast_to(gnew, [1, 3, 3])
                 SYM_PG_d_laue = np.concatenate((SYM_PG_d_laue, gnew))
                 nsym += 1
 
-                if (nsym >= 48):
+                if nsym >= 48:
                     k2 = nsym
                     k1 = nsym
 
@@ -296,19 +303,19 @@ def isnew(mat, sym_mats):
 
 def latticeType(sgnum):
 
-    if(sgnum <= 2):
+    if sgnum <= 2:
         return 'triclinic'
-    elif(sgnum > 2 and sgnum <= 15):
+    elif sgnum > 2 and sgnum <= 15:
         return 'monoclinic'
-    elif(sgnum > 15 and sgnum <= 74):
+    elif sgnum > 15 and sgnum <= 74:
         return 'orthorhombic'
-    elif(sgnum > 74 and sgnum <= 142):
+    elif sgnum > 74 and sgnum <= 142:
         return 'tetragonal'
-    elif(sgnum > 142 and sgnum <= 167):
+    elif sgnum > 142 and sgnum <= 167:
         return 'trigonal'
-    elif(sgnum > 167 and sgnum <= 194):
+    elif sgnum > 167 and sgnum <= 194:
         return 'hexagonal'
-    elif(sgnum > 194 and sgnum <= 230):
+    elif sgnum > 194 and sgnum <= 230:
         return 'cubic'
     else:
         raise RuntimeError('symmetry.latticeType: unknown space group number')
@@ -325,7 +332,7 @@ def MakeGenerators_PGSYM(pggenstr):
     SYM_GEN_PG = np.zeros([ngen, 3, 3])
 
     for i in range(ngen):
-        s = pggenstr[i+1]
+        s = pggenstr[i + 1]
         SYM_GEN_PG[i, :, :] = constants.SYM_GENERATORS[s]
 
     return SYM_GEN_PG
@@ -358,18 +365,18 @@ def GeneratePGSYM(pgsym):
             g2 = np.squeeze(SYM_GEN_PG[k2, :, :])
             gnew = np.dot(g1, g2)
 
-            if(isnew(gnew, SYM_GEN_PG)):
+            if isnew(gnew, SYM_GEN_PG):
                 gnew = np.broadcast_to(gnew, [1, 3, 3])
                 SYM_GEN_PG = np.concatenate((SYM_GEN_PG, gnew))
                 nsym += 1
 
-                if (nsym >= 48):
+                if nsym >= 48:
                     k2 = nsym
                     k1 = nsym
 
             k2 += 1
         k1 += 1
 
-    SYM_GEN_PG[np.abs(SYM_GEN_PG) < eps] = 0.
+    SYM_GEN_PG[np.abs(SYM_GEN_PG) < eps] = 0.0
 
     return SYM_GEN_PG

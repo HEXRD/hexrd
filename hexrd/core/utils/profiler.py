@@ -21,7 +21,6 @@ except ImportError:
     pass
 
 
-
 def instrument_function(fn_desc):
     """Interpret a record for an instrumented function, and instrument
     accordingly. The record, fn_desc, contains:
@@ -48,7 +47,7 @@ def instrument_function(fn_desc):
     # consume as many as possible with import (ignore last part that is
     # the function name)
     pos = 0
-    for i in range(1, path_parts+1):
+    for i in range(1, path_parts + 1):
         try:
             m = importlib.import_module('.'.join(parts[0:i]))
             pos = i
@@ -71,11 +70,11 @@ def instrument_function(fn_desc):
         warnings.warn('Could not instrument "{0}"'.format(full_name))
 
 
-
 def parse_file(filename):
     """Parse a file and instrument the associated functions"""
     try:
         import yaml
+
         with open(filename, 'r') as f:
             cfg = yaml.load(f)
 
@@ -87,8 +86,10 @@ def parse_file(filename):
         profile_cfg = cfg['profile']
         if 'instrument' in profile_cfg:
             # instrument all
-            [instrument_function(fn_desc) for fn_desc in
-             profile_cfg['instrument']]
+            [
+                instrument_function(fn_desc)
+                for fn_desc in profile_cfg['instrument']
+            ]
     except Exception as e:
         msg = 'Failed to include profile file: {0}'
         warnings.warn(msg.format(filename))
@@ -96,18 +97,17 @@ def parse_file(filename):
 
 
 def instrument_all(filenames):
-    """Instrument functions based on a list of profiler configuration files.
-
-    """
+    """Instrument functions based on a list of profiler configuration files."""
     [parse_file(filename) for filename in filenames]
 
-    
+
 def dump_results(args):
     print(" STATS ".center(72, '='))
     fmt = "{2:>14}, {1:>8}, {0:<40}"
     print(fmt.format("FUNCTION", "CALLS", "TIME"))
     fmt = "{2:>14F}, {1:>8}, {0:<40}"
-    sorted_by_time = sorted(nvtx.getstats().iteritems(), key=lambda tup: tup[1][1])
+    sorted_by_time = sorted(
+        nvtx.getstats().iteritems(), key=lambda tup: tup[1][1]
+    )
     for key, val in sorted_by_time:
         print(fmt.format(key, *val))
-

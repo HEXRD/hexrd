@@ -1,5 +1,5 @@
-"""Adapter class for frame caches
-"""
+"""Adapter class for frame caches"""
+
 import os
 from threading import Lock
 
@@ -49,9 +49,11 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
             self._from_yml = False
             self._load_cache()
         else:
-            raise TypeError(f"Unknown style format for loading data: {style}."
-                            "Known style formats: 'npz', 'fch5' 'yml', ",
-                            "'yaml', 'test'")
+            raise TypeError(
+                f"Unknown style format for loading data: {style}."
+                "Known style formats: 'npz', 'fch5' 'yml', ",
+                "'yaml', 'test'",
+            )
 
     def _load_yml(self):
         with open(self._fname, "r") as f:
@@ -72,13 +74,16 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
     def _load_cache_fch5(self):
         with h5py.File(self._fname, "r") as file:
             if 'HEXRD_FRAMECACHE_VERSION' not in file.attrs.keys():
-                raise NotImplementedError("Unsupported file. "
-                                          "HEXRD_FRAMECACHE_VERSION "
-                                          "is missing!")
+                raise NotImplementedError(
+                    "Unsupported file. "
+                    "HEXRD_FRAMECACHE_VERSION "
+                    "is missing!"
+                )
             version = file.attrs.get('HEXRD_FRAMECACHE_VERSION', 0)
             if version != 1:
-                raise NotImplementedError("Framecache version is not "
-                                          f"supported: {version}")
+                raise NotImplementedError(
+                    "Framecache version is not " f"supported: {version}"
+                )
 
             self._shape = file["shape"][()]
             self._nframes = file["nframes"][()]
@@ -134,14 +139,16 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
             indices = file["indices"]
 
             def read_list_arrays_method_thread(i):
-                frame_data = data[frame_id[2*i]: frame_id[2*i+1]]
-                frame_indices = indices[frame_id[2*i]: frame_id[2*i+1]]
+                frame_data = data[frame_id[2 * i] : frame_id[2 * i + 1]]
+                frame_indices = indices[frame_id[2 * i] : frame_id[2 * i + 1]]
                 row = frame_indices[:, 0]
                 col = frame_indices[:, 1]
                 mat_data = frame_data[:, 0]
-                frame = csr_matrix((mat_data, (row, col)),
-                                   shape=self._shape,
-                                   dtype=self._dtype)
+                frame = csr_matrix(
+                    (mat_data, (row, col)),
+                    shape=self._shape,
+                    dtype=self._dtype,
+                )
                 self._framelist[i] = frame
                 return
 
@@ -152,8 +159,11 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
                 # Evaluate the results via `list()`, so that if an exception is
                 # raised in a thread, it will be re-raised and visible to the
                 # user.
-                list(executor.map(read_list_arrays_method_thread,
-                                  range(self._nframes)))
+                list(
+                    executor.map(
+                        read_list_arrays_method_thread, range(self._nframes)
+                    )
+                )
 
     def _load_framelist_npz(self):
         self._framelist = []
@@ -171,15 +181,14 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
             row = arrs[f"{i}_row"]
             col = arrs[f"{i}_col"]
             data = arrs[f"{i}_data"]
-            frame = csr_matrix((data, (row, col)),
-                               shape=self._shape,
-                               dtype=self._dtype)
+            frame = csr_matrix(
+                (data, (row, col)), shape=self._shape, dtype=self._dtype
+            )
             self._framelist.append(frame)
 
     @property
     def metadata(self):
-        """(read-only) Image sequence metadata
-        """
+        """(read-only) Image sequence metadata"""
         return self._meta
 
     def load_metadata(self, indict):
