@@ -13,7 +13,7 @@ import numpy as np
 from numba import njit
 
 from hexrd.core import constants as ct
-from hexrd.hed.instrument import Detector
+from hexrd.core.instrument import Detector
 from hexrd.core.transforms import xfcapi
 from hexrd.core.utils.concurrent import distribute_tasks
 
