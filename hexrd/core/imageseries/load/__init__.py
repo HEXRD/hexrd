@@ -18,9 +18,7 @@ class ImageSeriesAdapter(ImageSeriesABC, metaclass=_RegisterAdapterClass):
 
 # import all adapter modules
 
-from . import (
-    array, framecache, function, hdf5, imagefiles, rawimage, metadata, trivial
-)
+from . import array, framecache, function, hdf5, imagefiles, rawimage, metadata, trivial
 
 try:
     from dectris.compression import decompress

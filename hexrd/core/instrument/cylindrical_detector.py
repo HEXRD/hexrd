@@ -2,17 +2,19 @@ import logging
 
 import numpy as np
 
-from hexrd import constants as ct
-from hexrd import xrdutil
-from hexrd.utils.decorators import memoize
+from hexrd.core import constants as ct
+from hexrd.hedm import xrdutil
+from hexrd.core.utils.decorators import memoize
 
-from .detector import (
-    Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
-)
+from .detector import Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
+from ...hed.instrument.detector import Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
+from ...hedm.instrument.detector import Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
+from ...laue.instrument.detector import Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
+from ...powder.instrument.detector import Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
 
 from functools import partial
-from hexrd.gridutil import cellConnectivity
-from hexrd.utils.concurrent import distribute_tasks
+from hexrd.core.gridutil import cellConnectivity
+from hexrd.core.utils.concurrent import distribute_tasks
 from concurrent.futures import ProcessPoolExecutor
 
 logger = logging.getLogger(__name__)

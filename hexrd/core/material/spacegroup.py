@@ -72,8 +72,8 @@ the HKL evaluation.
 from collections import OrderedDict
 from math import sqrt, floor
 
-from hexrd import constants
-from hexrd.material import symbols, symmetry
+from hexrd.core import constants
+from hexrd.core.material import symbols, symmetry
 
 import numpy as np
 #

@@ -1,7 +1,6 @@
 import importlib.resources
-import hexrd.resources
-from hexrd.constants import cClassicalelectronRad as re,\
-cAvogadro, ATOM_WEIGHTS_DICT
+import hexrd.core.resources
+from hexrd.core.constants import cClassicalelectronRad as re, cAvogadro, ATOM_WEIGHTS_DICT
 import chemparse
 import numpy as np
 import h5py

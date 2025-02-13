@@ -3,10 +3,8 @@ import fnmatch
 import numpy as np
 from numba import njit
 
-from hexrd.constants import (
-    c_erf, cnum_exp1exp, cden_exp1exp, c_coeff_exp1exp
-)
-from hexrd.matrixutil import uniqueVectors
+from hexrd.core.constants import c_erf, cnum_exp1exp, cden_exp1exp, c_coeff_exp1exp
+from hexrd.core.matrixutil import uniqueVectors
 
 
 # =============================================================================

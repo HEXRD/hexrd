@@ -37,7 +37,7 @@ the units to only those used by the heXRD package.
 import doctest
 import math
 
-from hexrd.constants import keVToAngstrom
+from hexrd.core.constants import keVToAngstrom
 
 
 __all__ = ['valWUnit', 'toFloat', 'valWithDflt']

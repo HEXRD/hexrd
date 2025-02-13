@@ -3,8 +3,8 @@ from pathlib import Path
 import logging
 import multiprocessing as mp
 
-from hexrd.constants import shared_ims_key
-from hexrd import imageseries
+from hexrd.core.constants import shared_ims_key
+from hexrd.core import imageseries
 
 from .config import Config
 from .instrument import Instrument

@@ -52,41 +52,35 @@ from scipy import ndimage
 from scipy.linalg import logm
 from skimage.measure import regionprops
 
-from hexrd import constants
-from hexrd.imageseries import ImageSeries
-from hexrd.imageseries.process import ProcessedImageSeries
-from hexrd.imageseries.omega import OmegaImageSeries
-from hexrd.fitting.utils import fit_ring
-from hexrd.gridutil import make_tolerance_grid
-from hexrd import matrixutil as mutil
-from hexrd.transforms.xfcapi import (
-    angles_to_gvec,
-    gvec_to_xy,
-    make_sample_rmat,
-    make_rmat_of_expmap,
-    unit_vector,
-)
-from hexrd import xrdutil
-from hexrd.material.crystallography import PlaneData
-from hexrd import constants as ct
-from hexrd.rotations import angleAxisOfRotMat, RotMatEuler, mapAngle
-from hexrd import distortion as distortion_pkg
-from hexrd.utils.concurrent import distribute_tasks
-from hexrd.utils.hdf5 import unwrap_dict_to_h5, unwrap_h5_to_dict
-from hexrd.utils.yaml import NumpyToNativeDumper
-from hexrd.valunits import valWUnit
-from hexrd.wppf import LeBail
+from hexrd.core import constants
+from hexrd.core.imageseries import ImageSeries
+from hexrd.core.imageseries.process import ProcessedImageSeries
+from hexrd.core.imageseries.omega import OmegaImageSeries
+from hexrd.core.fitting.utils import fit_ring
+from hexrd.core.gridutil import make_tolerance_grid
+from hexrd.core import matrixutil as mutil
+from hexrd.core.transforms.xfcapi import angles_to_gvec, gvec_to_xy, make_sample_rmat, make_rmat_of_expmap, unit_vector
+from hexrd.hedm import xrdutil
+from hexrd.hedm.material.crystallography import PlaneData
+from hexrd.laue.material.crystallography import PlaneData
+from hexrd.powder.material.crystallography import PlaneData
+from hexrd.core.material.crystallography import PlaneData
+from hexrd.core import constants as ct
+from hexrd.core.rotations import angleAxisOfRotMat, RotMatEuler, mapAngle
+from hexrd.core import distortion as distortion_pkg
+from hexrd.core.utils.concurrent import distribute_tasks
+from hexrd.core.utils.hdf5 import unwrap_dict_to_h5, unwrap_h5_to_dict
+from hexrd.core.utils.yaml import NumpyToNativeDumper
+from hexrd.core.valunits import valWUnit
+from hexrd.powder.wppf import LeBail
 
 from .cylindrical_detector import CylindricalDetector
-from .detector import (
-    beam_energy_DFLT,
-    max_workers_DFLT,
-)
+from .detector import beam_energy_DFLT, max_workers_DFLT
 from .planar_detector import PlanarDetector
 
 from skimage.draw import polygon
 from skimage.util import random_noise
-from hexrd.wppf import wppfsupport
+from hexrd.powder.wppf import wppfsupport
 
 try:
     from fast_histogram import histogram1d
