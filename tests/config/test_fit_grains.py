@@ -3,8 +3,8 @@ import os
 from .common import TestConfig, test_data
 
 
-reference_data = \
-"""
+reference_data = (
+    """
 analysis_name: analysis
 ---
 fit_grains:
@@ -48,11 +48,12 @@ fit_grains:
   tthmax: 1.2
   sfacmax: 1.3
   pintmax: 1.4
-""" % test_data
+"""
+    % test_data
+)
 
 
 class TestFitGrainsConfig(TestConfig):
-
 
     @classmethod
     def get_reference_data(cls):
@@ -65,14 +66,10 @@ class TestFitGrainsConfig(TestConfig):
     def test_estimate(self):
         self.assertEqual(self.cfgs[0].fit_grains.estimate, None)
         # nonexistent file needs to return None
+        self.assertEqual(self.cfgs[1].fit_grains.estimate, None)
         self.assertEqual(
-            self.cfgs[1].fit_grains.estimate,
-            None
-            )
-        self.assertEqual(
-            self.cfgs[2].fit_grains.estimate,
-            test_data['existing_file']
-            )
+            self.cfgs[2].fit_grains.estimate, test_data['existing_file']
+        )
 
     def test_npdiv(self):
         self.assertEqual(self.cfgs[0].fit_grains.npdiv, 2)
@@ -80,9 +77,8 @@ class TestFitGrainsConfig(TestConfig):
 
     def test_threshold(self):
         self.assertRaises(
-            RuntimeError,
-            getattr, self.cfgs[0].fit_grains, 'threshold'
-            )
+            RuntimeError, getattr, self.cfgs[0].fit_grains, 'threshold'
+        )
         self.assertEqual(self.cfgs[1].fit_grains.threshold, 1850)
 
     def test_tth_max(self):
@@ -90,9 +86,8 @@ class TestFitGrainsConfig(TestConfig):
         self.assertFalse(self.cfgs[1].fit_grains.tth_max)
         self.assertEqual(self.cfgs[2].fit_grains.tth_max, 15)
         self.assertRaises(
-            RuntimeError,
-            getattr, self.cfgs[3].fit_grains, 'tth_max'
-            )
+            RuntimeError, getattr, self.cfgs[3].fit_grains, 'tth_max'
+        )
 
 
 class TestToleranceConfig(TestConfig):
@@ -103,45 +98,24 @@ class TestToleranceConfig(TestConfig):
 
     def test_eta(self):
         self.assertRaises(
-            RuntimeError,
-            getattr, self.cfgs[0].fit_grains.tolerance, 'eta'
-            )
-        self.assertEqual(
-            self.cfgs[1].fit_grains.tolerance.eta,
-            [1, 1]
-            )
-        self.assertEqual(
-            self.cfgs[2].fit_grains.tolerance.eta,
-            [1, 2]
-            )
+            RuntimeError, getattr, self.cfgs[0].fit_grains.tolerance, 'eta'
+        )
+        self.assertEqual(self.cfgs[1].fit_grains.tolerance.eta, [1, 1])
+        self.assertEqual(self.cfgs[2].fit_grains.tolerance.eta, [1, 2])
 
     def test_omega(self):
         self.assertRaises(
-            RuntimeError,
-            getattr, self.cfgs[0].fit_grains.tolerance, 'omega'
-            )
-        self.assertEqual(
-            self.cfgs[1].fit_grains.tolerance.omega,
-            [2, 2]
-            )
-        self.assertEqual(
-            self.cfgs[2].fit_grains.tolerance.omega,
-            [3, 4]
-            )
+            RuntimeError, getattr, self.cfgs[0].fit_grains.tolerance, 'omega'
+        )
+        self.assertEqual(self.cfgs[1].fit_grains.tolerance.omega, [2, 2])
+        self.assertEqual(self.cfgs[2].fit_grains.tolerance.omega, [3, 4])
 
     def test_tth(self):
         self.assertRaises(
-            RuntimeError,
-            getattr, self.cfgs[0].fit_grains.tolerance, 'tth'
-            )
-        self.assertEqual(
-            self.cfgs[1].fit_grains.tolerance.tth,
-            [3, 3]
-            )
-        self.assertEqual(
-            self.cfgs[2].fit_grains.tolerance.tth,
-            [5, 6]
-            )
+            RuntimeError, getattr, self.cfgs[0].fit_grains.tolerance, 'tth'
+        )
+        self.assertEqual(self.cfgs[1].fit_grains.tolerance.tth, [3, 3])
+        self.assertEqual(self.cfgs[2].fit_grains.tolerance.tth, [5, 6])
 
 
 class TestExclusions(TestConfig):

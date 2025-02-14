@@ -1,0 +1,53 @@
+name: "\U0001F41E Bug report"
+description: Report an Issue with HEXRD
+labels: ['triage: bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Describe the bug
+      description: Describe what issue you are seeing in as much detail as possible. If you can, include the function, module, file, or functionality that is affected.
+      placeholder: Bug description
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Impact
+      description: Select the severity of this issue
+      options:
+        - Not sure if its an issue
+        - Will eventually cause someone a problem
+        - I have to use a workaround right now
+        - I cannot work around the issue
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include steps to reproduce the issue. While not always possible, it is ideal if you provide an minimal reproduction script that will cause the issue. This makes it much easier for someone to investigate
+      placeholder: Reproduction
+    validations:
+      required: true
+  - type: textarea
+    id: version
+    attributes:
+      label: Version
+      description: Include information about which version of the code you are seeing this on. If you are working off of a release, you can just list that. If you are working off of a live branch, you can include the output of running `git log <branch-name>` in the root of the repository instead. As users work on a number of different versions of the code, this is often necessary to correctly understand the issue.
+      render: shell
+  - type: checkboxes
+    id: workflows
+    attributes:
+      label: Affected Workflows
+      description: Check which workflows you think are affected by this issue.
+      options:
+        - label: core
+        - label: EDD
+        - label: HEDM
+        - label: Powder
+        - label: Laue

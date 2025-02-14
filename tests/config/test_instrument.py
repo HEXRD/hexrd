@@ -1,22 +1,26 @@
 import os
 
-import hexrd.instrument
+import hexrd.core.instrument
 from .common import TestConfig, test_data
+
 try:
-    from hexrd.config.instrument import (Instrument, Beam, OscillationStage,
-                                         Detector)
+    from hexrd.hedm.config.instrument import (
+        Instrument,
+        Beam,
+        OscillationStage,
+        Detector,
+    )
 except:
     pass
 
 import pytest
 
 pytest.skip(
-    "This module needs updating--skipping for now",
-    allow_module_level=True
+    "This module needs updating--skipping for now", allow_module_level=True
 )
 
-reference_data = \
-"""
+reference_data = (
+    """
 beam: {}
 ---
 beam:
@@ -56,7 +60,9 @@ detectors:
       tilt_angles: [0.00044459111576242654, 0.003958638944891969, -0.47488346109306645]
 ---
 instrument: instrument.yaml
-""" % test_data
+"""
+    % test_data
+)
 
 
 class TestInstrument(TestConfig):
@@ -68,30 +74,44 @@ class TestInstrument(TestConfig):
     def test_beam(self):
         icfg = Instrument(self.cfgs[1])
         b = icfg.beam
-        self.assertTrue(isinstance(b, hexrd.instrument.beam.Beam), "Failed to produce a Beam instance")
+        self.assertTrue(
+            isinstance(b, hexrd.core.instrument.beam.Beam),
+            "Failed to produce a Beam instance",
+        )
 
     def test_oscillation_stage(self):
         icfg = Instrument(self.cfgs[2])
         ostage = icfg.oscillation_stage
-        self.assertTrue(isinstance(ostage, hexrd.instrument.oscillation_stage.OscillationStage),
-                        "Failed to produce an OscillationStage instance")
+        self.assertTrue(
+            isinstance(
+                ostage,
+                hexrd.core.instrument.oscillation_stage.OscillationStage,
+            ),
+            "Failed to produce an OscillationStage instance",
+        )
 
     def test_detector(self):
         cfg = self.cfgs[3]
         icfg = Detector(cfg, 'GE1')
         det = icfg.detector(Beam(cfg).beam)
-        self.assertTrue(isinstance(det, hexrd.instrument.PlanarDetector),
-                        "Failed to produce an Detector instance")
+        self.assertTrue(
+            isinstance(det, hexrd.core.instrument.PlanarDetector),
+            "Failed to produce an Detector instance",
+        )
 
     def test_detector_dict(self):
         icfg = Instrument(self.cfgs[3])
         dd = icfg.detector_dict
-        self.assertTrue(isinstance(dd, dict),
-                        "Failed to produce an Detector Dictionary instance")
+        self.assertTrue(
+            isinstance(dd, dict),
+            "Failed to produce an Detector Dictionary instance",
+        )
         for k in dd:
             d = dd[k]
-            self.assertTrue(isinstance(d, hexrd.instrument.PlanarDetector),
-                            "Detector dictionary values are not detector instances")
+            self.assertTrue(
+                isinstance(d, hexrd.core.instrument.PlanarDetector),
+                "Detector dictionary values are not detector instances",
+            )
 
 
 class TestBeam(TestConfig):
@@ -103,7 +123,9 @@ class TestBeam(TestConfig):
     def test_beam_energy_dflt(self):
         bcfg = Beam(self.cfgs[0])
         energy = bcfg._energy
-        self.assertEqual(energy, Beam.beam_energy_DFLT, "Incorrect default beam energy")
+        self.assertEqual(
+            energy, Beam.beam_energy_DFLT, "Incorrect default beam energy"
+        )
 
     def test_beam_energy(self):
         bcfg = Beam(self.cfgs[1])
@@ -136,25 +158,37 @@ class TestOscillationStage(TestConfig):
 
     def test_chi_dflt(self):
         oscfg = OscillationStage(self.cfgs[0])
-        self.assertEqual(oscfg._chi, OscillationStage.chi_DFLT, "Incorrect default chi for oscillation stage")
+        self.assertEqual(
+            oscfg._chi,
+            OscillationStage.chi_DFLT,
+            "Incorrect default chi for oscillation stage",
+        )
 
     def test_chi(self):
         oscfg = OscillationStage(self.cfgs[2])
-        self.assertEqual(oscfg._chi, 0.05, "Incorrect default chi for oscillation stage")
+        self.assertEqual(
+            oscfg._chi, 0.05, "Incorrect default chi for oscillation stage"
+        )
 
     def test_tvec_dflt(self):
         oscfg = OscillationStage(self.cfgs[0])
         tvec_dflt = OscillationStage.tvec_DFLT
         tvec = oscfg._tvec
 
-        self.assertEqual(tvec[0], tvec_dflt[0], "Incorrect default translation vector")
-        self.assertEqual(tvec[1], tvec_dflt[1], "Incorrect default translation vector")
-        self.assertEqual(tvec[2], tvec_dflt[2], "Incorrect default translation vector")
+        self.assertEqual(
+            tvec[0], tvec_dflt[0], "Incorrect default translation vector"
+        )
+        self.assertEqual(
+            tvec[1], tvec_dflt[1], "Incorrect default translation vector"
+        )
+        self.assertEqual(
+            tvec[2], tvec_dflt[2], "Incorrect default translation vector"
+        )
 
     def test_tvec(self):
         oscfg = OscillationStage(self.cfgs[2])
         tvec = oscfg._tvec
 
-        self.assertEqual(tvec[0], 1., "Incorrect translation vector")
-        self.assertEqual(tvec[1], 2., "Incorrect translation vector")
-        self.assertEqual(tvec[2], 3., "Incorrect translation vector")
+        self.assertEqual(tvec[0], 1.0, "Incorrect translation vector")
+        self.assertEqual(tvec[1], 2.0, "Incorrect translation vector")
+        self.assertEqual(tvec[2], 3.0, "Incorrect translation vector")

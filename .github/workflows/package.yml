@@ -65,6 +65,7 @@ jobs:
           # and sometimes in the base environment. I don't know why.
           conda install --override-channels -c conda-forge conda-libmamba-solver
           conda config --env --set solver libmamba
+          conda config --set conda_build.pkg_format 1 # force tar.bz2 files
           conda list
 
           mkdir output
@@ -105,7 +106,7 @@ jobs:
       run: echo "HEXRD_GIT_DESCRIBE=$(git describe --tag)" >> $GITHUB_ENV
 
     - name: Upload the package to github
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: HEXRD-${{ matrix.config.name }}-${{ env.HEXRD_GIT_DESCRIBE }}.tar.bz2
         path: output/**/*.tar.bz2

@@ -1,10 +1,9 @@
 from .common import TestConfig, test_data
-from hexrd.config.material import TTHW_DFLT, DMIN_DFLT
-from hexrd.config.utils import get_exclusion_parameters
+from hexrd.core.config.material import TTHW_DFLT, DMIN_DFLT
+from hexrd.hedm.config.utils import get_exclusion_parameters
 
 
-reference_data = \
-"""
+reference_data = """
 material:
   definitions: %(existing_file)s
 #  active: # not set to test error
@@ -48,28 +47,22 @@ material:
 
 class TestMaterialConfig(TestConfig):
 
-
     @classmethod
     def get_reference_data(cls):
         return reference_data % test_data
 
-
     def test_definitions(self):
         self.assertEqual(
-            self.cfgs[0].material.definitions,
-            test_data['existing_file']
-            )
+            self.cfgs[0].material.definitions, test_data['existing_file']
+        )
         self.assertRaises(
-            IOError,
-            getattr, self.cfgs[1].material, 'definitions'
-            )
-
+            IOError, getattr, self.cfgs[1].material, 'definitions'
+        )
 
     def test_active(self):
         self.assertRaises(
-            RuntimeError,
-            getattr, self.cfgs[0].material, 'active'
-            )
+            RuntimeError, getattr, self.cfgs[0].material, 'active'
+        )
         self.assertEqual(self.cfgs[1].material.active, 'ruby')
         self.assertEqual(self.cfgs[2].material.active, 'CeO2')
 

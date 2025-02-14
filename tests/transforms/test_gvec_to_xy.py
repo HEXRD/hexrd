@@ -12,7 +12,7 @@ from numpy.testing import assert_allclose
 
 from common import convert_axis_angle_to_rmat
 
-from hexrd.transforms.new_capi.xf_new_capi import gvec_to_xy
+from hexrd.core.transforms.new_capi.xf_new_capi import gvec_to_xy
 
 
 # gvec_to_xy intersects vectors from crystal position with the detector plane.

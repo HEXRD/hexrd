@@ -4,10 +4,10 @@ import h5py
 import numpy as np
 import pytest
 
-from hexrd import imageseries
-from hexrd.imageseries.process import ProcessedImageSeries
-from hexrd.instrument import HEDMInstrument
-from hexrd.projections.polar import PolarView
+from hexrd.core import imageseries
+from hexrd.core.imageseries.process import ProcessedImageSeries
+from hexrd.core.instrument import HEDMInstrument
+from hexrd.core.projections.polar import PolarView
 
 
 @pytest.fixture
@@ -65,23 +65,27 @@ def test_polar_view(
     pixel_size = (0.01, 5.0)
 
     pv = PolarView(tth_range, instr, eta_min, eta_max, pixel_size)
-    img = pv.warp_image(img_dict, pad_with_nans=True,
-                        do_interpolation=True)
+    img = pv.warp_image(img_dict, pad_with_nans=True, do_interpolation=True)
 
     # This is a masked array. Just fill it with nans.
     img = img.filled(np.nan)
 
     # Verify that the image is identical to a reference image
-    ref = np.load(
-        test_data_dir / 'test_polar_view_expected.npy', allow_pickle=True
-    )
+    ref = np.load(test_data_dir / 'test_polar_view_expected.npy')
     assert np.allclose(img, ref, equal_nan=True)
 
     # Also generate it using the cache
-    pv = PolarView(tth_range, instr, eta_min, eta_max, pixel_size,
-                   cache_coordinate_map=True)
-    fast_img = pv.warp_image(img_dict, pad_with_nans=True,
-                             do_interpolation=True)
+    pv = PolarView(
+        tth_range,
+        instr,
+        eta_min,
+        eta_max,
+        pixel_size,
+        cache_coordinate_map=True,
+    )
+    fast_img = pv.warp_image(
+        img_dict, pad_with_nans=True, do_interpolation=True
+    )
 
     # This should also be identical
     fast_img = fast_img.filled(np.nan)
