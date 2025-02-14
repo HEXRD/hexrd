@@ -80,6 +80,7 @@ from hexrd.wppf import LeBail
 from .cylindrical_detector import CylindricalDetector
 from .detector import (
     beam_energy_DFLT,
+    Detector,
     max_workers_DFLT,
 )
 from .planar_detector import PlanarDetector
@@ -797,21 +798,25 @@ class HEDMInstrument(object):
         centers = np.array([panel.tvec for panel in self.detectors.values()])
         return centers.sum(axis=0) / len(centers)
 
+    def mean_group_center(self, group: str) -> np.ndarray:
+        """Return the mean center for detectors belonging to a group"""
+        centers = np.array([
+            x.tvec for x in self.detectors_in_group(group).values()
+        ])
+        return centers.sum(axis=0) / len(centers)
+
     @property
-    def mean_group_centers(self) -> dict[str, np.ndarray]:
-        """Return the mean center for every group of detectors"""
-        centers = {}
+    def detector_groups(self) -> list[str]:
+        groups = []
         for panel in self.detectors.values():
-            if panel.group is None:
-                # Skip over panels without groups
-                continue
+            group = panel.group
+            if group is not None and group not in groups:
+                groups.append(group)
 
-            if panel.group not in centers:
-                centers[panel.group] = []
+        return groups
 
-            centers[panel.group].append(panel.tvec)
-
-        return {k: v.sum(axis=0) / len(v) for k, v in centers.items()}
+    def detectors_in_group(self, group: str) -> dict[str, Detector]:
+        return {k: v for k, v in self.detectors.items() if v.group == group}
 
     # properties for physical size of rectangular detector
     @property

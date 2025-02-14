@@ -21,6 +21,9 @@ class RotationCenter(Enum):
     # Rotate about the mean center of all the detectors
     instrument_mean_center = 'InstrumentMeanCenter'
 
+    # Rotate about the mean center of the group
+    group_mean_center = 'GroupMeanCenter'
+
     # Rotate about lab origin, which is (0, 0, 0)
     lab_origin = 'Origin'
 
@@ -75,11 +78,7 @@ class RelativeConstraintsGroup(RelativeConstraints):
     type = RelativeConstraintsType.group
 
     def __init__(self, instr: HEDMInstrument):
-        self._groups = []
-        for panel in instr.detectors.values():
-            if panel.group is not None and panel.group not in self._groups:
-                self._groups.append(panel.group)
-
+        self._groups = instr.detector_groups
         self.reset()
 
     def reset(self):
@@ -96,7 +95,7 @@ class RelativeConstraintsGroup(RelativeConstraints):
             }
 
     def reset_rotation_center(self):
-        self._rotation_center = RotationCenter.instrument_mean_center
+        self._rotation_center = RotationCenter.group_mean_center
 
     @property
     def params(self) -> dict:
@@ -109,6 +108,20 @@ class RelativeConstraintsGroup(RelativeConstraints):
     @rotation_center.setter
     def rotation_center(self, v: RotationCenter):
         self._rotation_center = v
+
+    def center_of_rotation(
+        self,
+        instr: HEDMInstrument,
+        group: str,
+    ) -> np.ndarray:
+        if self.rotation_center == RotationCenter.instrument_mean_center:
+            return instr.mean_detector_center
+        elif self.rotation_center == RotationCenter.lab_origin:
+            return np.array([0.0, 0.0, 0.0])
+        elif self.rotation_center == RotationCenter.group_mean_center:
+            return instr.mean_group_center(group)
+
+        raise NotImplementedError(self.rotation_center)
 
 
 class RelativeConstraintsSystem(RelativeConstraints):
@@ -160,7 +173,7 @@ def create_relative_constraints(type: RelativeConstraintsType,
     }
 
     kwargs = {}
-    if type == 'System':
+    if type.value == 'Group':
         kwargs['instr'] = instr
 
     return types[type.value](**kwargs)
