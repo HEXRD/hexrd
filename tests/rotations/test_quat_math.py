@@ -2,7 +2,7 @@ from scipy.spatial.transform import Rotation as R
 
 import numpy as np
 
-from hexrd import rotations
+from hexrd.core import rotations
 
 
 def allclose(a, b):

@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 import numpy
+
 np_include_dir = numpy.get_include()
 
 install_reqs = [
@@ -16,7 +17,7 @@ install_reqs = [
     'fabio>=0.11',
     'fast-histogram',
     'h5py<3.12',  # Currently, h5py 3.12 on Windows fails to import.
-                  # We can remove this version pin when that is fixed.
+    # We can remove this version pin when that is fixed.
     'hdf5plugin',
     'lmfit',
     'matplotlib',
@@ -48,9 +49,10 @@ elif compiler_type == "msvc":
 else:
     compiler_flags = []
 
+
 # Extension for convolution from astropy
 def get_convolution_extensions():
-    c_convolve_pkgdir = Path('hexrd') / 'convolution'
+    c_convolve_pkgdir = Path('hexrd') / 'core/convolution'
 
     src_files = [str(c_convolve_pkgdir / 'src/convolve.c')]
 
@@ -58,14 +60,15 @@ def get_convolution_extensions():
     # Add '-Rpass-missed=.*' to ``extra_compile_args`` when compiling with
     # clang to report missed optimizations
     _convolve_ext = Extension(
-        name='hexrd.convolution._convolve',
+        name='hexrd.core.convolution._convolve',
         sources=src_files,
         extra_compile_args=extra_compile_args,
         include_dirs=[numpy.get_include()],
-        language='c'
+        language='c',
     )
 
     return [_convolve_ext]
+
 
 def get_include_path(library_name):
     env_var_hint = os.getenv(f"{library_name.upper()}_INCLUDE_DIR")
@@ -99,6 +102,7 @@ def get_include_path(library_name):
     # It should exist now
     return full_path
 
+
 def get_pybind11_include_path():
     # If we can import pybind11, use that include path
     try:
@@ -111,9 +115,19 @@ def get_pybind11_include_path():
     # Otherwise, we will download the source and include that
     return get_include_path('pybind11')
 
+
 def get_cpp_extensions():
-    cpp_transform_pkgdir = Path('hexrd') / 'transforms/cpp_sublibrary'
-    src_files = [str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')]
+    cpp_transform_pkgdir = Path('hexrd') / 'core/transforms/cpp_sublibrary'
+
+    extra_compile_args = [
+        '-O3',
+        '-Wall',
+        '-shared',
+        '-std=c++14',
+        '-funroll-loops',
+    ]
+    if not sys.platform.startswith('win'):
+        extra_compile_args.append('-fPIC')
 
     # Define include directories
     include_dirs = [
@@ -123,22 +137,31 @@ def get_cpp_extensions():
         numpy.get_include(),
     ]
 
-    inverse_distortion_ext = Extension(
-        name='hexrd.extensions.inverse_distortion',
-        sources=src_files,
-        extra_compile_args=compiler_flags+['-std=c++14'],
+    transforms_ext = Extension(
+        name='hexrd.core.extensions.transforms',
+        sources=[str(cpp_transform_pkgdir / 'src/transforms.cpp')],
+        extra_compile_args=extra_compile_args,
         include_dirs=include_dirs,
         language='c++',
     )
 
-    return [inverse_distortion_ext]
+    inverse_distortion_ext = Extension(
+        name='hexrd.core.extensions.inverse_distortion',
+        sources=[str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')],
+        extra_compile_args=extra_compile_args,
+        include_dirs=include_dirs,
+        language='c++',
+    )
+
+    return [transforms_ext, inverse_distortion_ext]
+
 
 def get_old_xfcapi_extension_modules():
     # for transforms
     srclist = ['transforms_CAPI.c', 'transforms_CFUNC.c']
-    srclist = [os.path.join('hexrd/transforms', f) for f in srclist]
+    srclist = [os.path.join('hexrd/core/transforms', f) for f in srclist]
     transforms_mod = Extension(
-        'hexrd.extensions._transforms_CAPI',
+        'hexrd.core.extensions._transforms_CAPI',
         sources=srclist,
         include_dirs=[np_include_dir],
         extra_compile_args=compiler_flags,
@@ -146,31 +169,36 @@ def get_old_xfcapi_extension_modules():
 
     return [transforms_mod]
 
+
 def get_new_xfcapi_extension_modules():
     transforms_mod = Extension(
-        'hexrd.extensions._new_transforms_capi',
-        sources=['hexrd/transforms/new_capi/module.c'],
+        'hexrd.core.extensions._new_transforms_capi',
+        sources=['hexrd/core/transforms/new_capi/module.c'],
         include_dirs=[np_include_dir],
         extra_compile_args=compiler_flags,
     )
 
     return [transforms_mod]
 
+
 def get_extension_modules():
     # Flatten the lists
-    return [item for sublist in (
-        get_old_xfcapi_extension_modules(),
-        get_new_xfcapi_extension_modules(),
-        get_convolution_extensions(),
-        get_cpp_extensions(),
-    ) for item in sublist]
+    return [
+        item
+        for sublist in (
+            get_old_xfcapi_extension_modules(),
+            get_new_xfcapi_extension_modules(),
+            get_convolution_extensions(),
+            get_cpp_extensions(),
+        )
+        for item in sublist
+    ]
+
 
 ext_modules = get_extension_modules()
 
 # use entry_points, not scripts:
-entry_points = {
-    'console_scripts': ["hexrd = hexrd.cli.main:main"]
-}
+entry_points = {'console_scripts': ["hexrd = hexrd.hedm.cli.main:main"]}
 
 setup(
     name='hexrd',
@@ -199,5 +227,5 @@ setup(
     include_package_data=True,
     package_data={'': ['Anomalous.h5']},
     python_requires='>=3.9',
-    install_requires=install_reqs
+    install_requires=install_reqs,
 )

@@ -4,15 +4,15 @@
 
 from __future__ import absolute_import
 import numpy as np
-from hexrd.transforms.xfcapi import xy_to_gvec
+from hexrd.core.transforms.xfcapi import xy_to_gvec
+
 # from common import random_rotation_matrix, random_unit_vectors
 
 
 def test_xy_to_gvec_from_file(test_data_dir):
     # Load the array from a file
     arr = np.load(
-        test_data_dir / 'test_correct_xy_to_gvec.npy',
-        allow_pickle=True
+        test_data_dir / 'test_correct_xy_to_gvec.npy', allow_pickle=True
     )
 
     for obj in arr:
@@ -23,7 +23,7 @@ def test_xy_to_gvec_from_file(test_data_dir):
             obj["tvec_d"],
             obj["tvec_s"],
             obj["tvec_c"],
-            obj["rmat_b"]
+            obj["rmat_b"],
         )
 
         assert np.allclose(result[0], obj["result"][0])

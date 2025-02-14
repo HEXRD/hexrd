@@ -8,9 +8,14 @@ import pytest
 import coloredlogs
 
 
-from hexrd.findorientations import find_orientations, generate_eta_ome_maps
-from hexrd import config
-from hexrd.material.crystallography import PlaneData
+from hexrd.hedm.findorientations import (
+    find_orientations,
+    generate_eta_ome_maps,
+)
+from hexrd.hedm import config
+
+# TODO: Check that this test is still sensible after PlaneData change.
+from hexrd.hedm.material.crystallography import PlaneData
 
 import find_orientations_testing as test_utils
 
@@ -20,7 +25,8 @@ root.setLevel(logging.DEBUG)
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.INFO)
 formatter = coloredlogs.ColoredFormatter(
-    '%(asctime)s,%(msecs)03d - %(name)s - %(levelname)s - %(message)s')
+    '%(asctime)s,%(msecs)03d - %(name)s - %(levelname)s - %(message)s'
+)
 handler.setFormatter(formatter)
 root.addHandler(handler)
 
@@ -69,8 +75,9 @@ def example_repo_config_with_eta_ome_maps(test_config, reference_eta_ome_maps):
 
 @pytest.fixture
 def reference_orientations_path(example_repo_results_path):
-    filename = \
+    filename = (
         'accepted_orientations_results_mruby_composite_hexrd06_py27_ruby.dat'
+    )
     return example_repo_results_path / filename
 
 
@@ -94,13 +101,13 @@ def to_eomap(eta_ome_maps):
         eta_ome_maps.omegas,
         eta_ome_maps.omeEdges,
         eta_ome_maps.iHKLList,
-        plane_data(eta_ome_maps.planeData)
+        plane_data(eta_ome_maps.planeData),
     )
 
 
-def test_generate_eta_ome_maps(example_repo_include_path,
-                               test_config,
-                               reference_eta_ome_maps):
+def test_generate_eta_ome_maps(
+    example_repo_include_path, test_config, reference_eta_ome_maps
+):
     os.chdir(example_repo_include_path)
     eta_ome_maps = generate_eta_ome_maps(test_config, save=False)
     eta_ome_maps = to_eomap(eta_ome_maps)
@@ -110,19 +117,20 @@ def test_generate_eta_ome_maps(example_repo_include_path,
     assert comparison.compare()
 
 
-def test_find_orientations(example_repo_include_path,
-                           example_repo_config_with_eta_ome_maps,
-                           reference_orientations):
+def test_find_orientations(
+    example_repo_include_path,
+    example_repo_config_with_eta_ome_maps,
+    reference_orientations,
+):
 
     os.chdir(example_repo_include_path)
-    results = find_orientations(
-         example_repo_config_with_eta_ome_maps
-    )
+    results = find_orientations(example_repo_config_with_eta_ome_maps)
 
     orientations = results['qbar']
 
     try:
-        test_utils.compare_quaternion_lists(orientations.T,
-                                            reference_orientations)
+        test_utils.compare_quaternion_lists(
+            orientations.T, reference_orientations
+        )
     except RuntimeError as err:
         pytest.fail(str(err))

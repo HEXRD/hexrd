@@ -6,10 +6,10 @@ import yaml
 
 import pytest
 
-from hexrd.material.material import load_materials_hdf5
-from hexrd.instrument.hedm_instrument import HEDMInstrument
+from hexrd.core.material.material import load_materials_hdf5
+from hexrd.hedm.instrument.hedm_instrument import HEDMInstrument
 
-from hexrd.fitting.calibration import (
+from hexrd.core.fitting.calibration import (
     InstrumentCalibrator,
     LaueCalibrator,
     PowderCalibrator,
@@ -113,8 +113,12 @@ def test_calibration(calibration_dir, test_data_dir):
     ]
 
     tvecs = {
-        'old': [np.array([x0[k] for k in vec_names]) for vec_names in tvec_names],
-        'new': [np.array([x1[k] for k in vec_names]) for vec_names in tvec_names],
+        'old': [
+            np.array([x0[k] for k in vec_names]) for vec_names in tvec_names
+        ],
+        'new': [
+            np.array([x1[k] for k in vec_names]) for vec_names in tvec_names
+        ],
     }
 
     grain_param_names = [f'LiF_grain_param_{n}' for n in range(12)]
@@ -137,9 +141,7 @@ def test_calibration(calibration_dir, test_data_dir):
     )
 
 
-def assert_errors_are_better(
-    tvecs, grain_params, diamond_a_vals, expected
-):
+def assert_errors_are_better(tvecs, grain_params, diamond_a_vals, expected):
     """
     Make sure error has decreased during fitting
     """

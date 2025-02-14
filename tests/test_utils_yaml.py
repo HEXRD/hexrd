@@ -1,7 +1,7 @@
 import numpy as np
 import yaml
 
-from hexrd.utils.yaml import NumpyToNativeDumper
+from hexrd.core.utils.yaml import NumpyToNativeDumper
 
 
 def test_numpy_to_native():
@@ -20,26 +20,24 @@ def test_numpy_to_native():
     output = yaml.safe_load(encoded)
 
     assert (
-        isinstance(output['inside'], list) and
-        output['inside'] == to_test['inside'].tolist()
+        isinstance(output['inside'], list)
+        and output['inside'] == to_test['inside'].tolist()
     )
     assert (
-        isinstance(output['nested']['float16'], list) and
-        output['nested']['float16'] == to_test['nested']['float16'].tolist()
+        isinstance(output['nested']['float16'], list)
+        and output['nested']['float16']
+        == to_test['nested']['float16'].tolist()
     )
     assert (
-        isinstance(output['float32'], float) and
-        output['float32'] == to_test['float32'].item()
+        isinstance(output['float32'], float)
+        and output['float32'] == to_test['float32'].item()
     )
     assert (
-        isinstance(output['float64'], float) and
-        output['float64'] == to_test['float64'].item()
+        isinstance(output['float64'], float)
+        and output['float64'] == to_test['float64'].item()
     )
     assert (
-        isinstance(output['int64'], int) and
-        output['int64'] == to_test['int64'].item()
+        isinstance(output['int64'], int)
+        and output['int64'] == to_test['int64'].item()
     )
-    assert (
-        isinstance(output['str'], str) and
-        output['str'] == to_test['str']
-    )
+    assert isinstance(output['str'], str) and output['str'] == to_test['str']
