@@ -65,7 +65,7 @@ def ceria_picks(ceria_examples_path: Path) -> dict:
     return output
 
 
-def test_relative_constraints(
+def test_instrument_relative_constraints(
     ceria_composite_instrument: HEDMInstrument,
     ceria_example_data: np.ndarray,
     ceria_material: Material,
