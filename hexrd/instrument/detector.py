@@ -1720,14 +1720,17 @@ class Detector:
 
         dvecs = angles_to_dvec(angs, beam_vec=bvec)
 
-        secb = 1./np.dot(dvecs, sample_normal)
+        cosb = np.dot(dvecs, sample_normal)
         '''angles for which secb <= 0 or close are diffracted beams
         almost parallel to the sample surface or backscattered, we
         can mask out these values by setting secb to nan
         '''
-        mask = np.logical_or(secb < 0, np.isclose(secb, 0.))
-        secb[mask] = np.nan
-        secb = secb.reshape(self.shape)
+        mask = np.logical_or(cosb < 0, 
+                             np.isclose(
+                            cosb, 0.,
+                            atol=5E-2))
+        cosb[mask] = np.nan
+        secb = 1./cosb.reshape(self.shape)
 
         T_sample = self.calc_transmission_sample(
             seca, secb, energy, physics_package)
