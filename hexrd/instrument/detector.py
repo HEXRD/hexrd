@@ -31,6 +31,7 @@ from hexrd.transforms.xfcapi import (
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
 from hexrd.instrument import detector_coatings
+from hexrd.material.utils import calculate_linear_absorption_length
 
 distortion_registry = distortion_pkg.Registry()
 
@@ -609,8 +610,20 @@ class Detector:
                 energy,
                 origin=ct.zeros_3):
         '''get the equivalent momentum transfer
-        for the angles. energy is keV. Q is in 
-        units of A^-1
+        for the angles. 
+
+        Parameters
+        ----------
+        energy: float
+            incident photon energy in keV
+        origin: np.ndarray 
+            origin of diffraction volume
+
+        Returns
+        -------
+        np.ndarray
+            pixel wise Q in A^-1
+
         '''
         lam = ct.keVToAngstrom(energy)
         tth, _ = self.pixel_angles()
@@ -623,12 +636,63 @@ class Detector:
         to energy loss of the incident photons.
         compute the final energy of the photons
         for each pixel.
-        incident photon energy in keV
+        
+        Parameters
+        ----------
+        energy: float
+            incident photon energy in keV
+        origin: np.ndarray 
+            origin of diffraction volume
+
+        Returns
+        -------
+        np.ndarray
+            pixel wise energy of inelastically
+            scatterd photons in keV
         '''
         tth, _ = self.pixel_angles()
-        ang_fact = (1 = np.cos(tth))
+        ang_fact = (1 - np.cos(tth))
         beta = energy/ct.cRestmasskeV
         return energy/(1 + beta*ang_fact)
+
+    def pixel_compton_attenuation_length(self,
+                                         energy,
+                                         density,
+                                         formula,
+                                         origin=ct.zeros_3):
+        '''each pixel intercepts inelastically
+        scattered photons of different energy.
+        the attenuation length and the transmission
+        for these photons are different. this function
+        calculate attenuatin length for each pixel
+        on the detector.
+
+        Parameters
+        ----------
+        energy: float
+            incident photon energy in keV
+        density: float
+            density of material in g/cc
+        formula: str
+            formula of the material scattering
+        origin: np.ndarray
+            origin of diffraction volume
+
+        Returns
+        -------
+        np.ndarray
+            pixel wise attentuation length of compton
+            scattered photons
+        '''
+        pixel_energy = self.pixel_compton_energy_loss(energy)
+
+        pixel_attenuation_length = calculate_linear_absorption_length(
+                                        density, 
+                                        formula,
+                                        pixel_energy.flatten())
+        pixel_attenuation_length = pixel_attenuation_length.reshape(
+                                        self.shape)
+
 
     def polarization_factor(self, f_hor, f_vert, unpolarized=False):
         """
