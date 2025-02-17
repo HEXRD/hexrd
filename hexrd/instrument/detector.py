@@ -607,7 +607,7 @@ class Detector:
     # =========================================================================
 
     def pixel_Q(self,
-                energy,
+                energy: np.floating,
                 origin=ct.zeros_3):
         '''get the equivalent momentum transfer
         for the angles. 
@@ -630,7 +630,7 @@ class Detector:
         return 4.*np.pi*np.sin(tth*0.5)/lam
 
     def pixel_compton_energy_loss(self,
-                                  energy,
+                                  energy: np.floating,
                                   origin=ct.zeros_3):
         '''inelastic compton scattering leads
         to energy loss of the incident photons.
@@ -650,6 +650,9 @@ class Detector:
             pixel wise energy of inelastically
             scatterd photons in keV
         '''
+        if isinstance(energy, list):
+            energy = np.array(energy)
+
         tth, _ = self.pixel_angles()
         ang_fact = (1 - np.cos(tth))
         beta = energy/ct.cRestmasskeV
@@ -690,9 +693,8 @@ class Detector:
                                         density, 
                                         formula,
                                         pixel_energy.flatten())
-        pixel_attenuation_length = pixel_attenuation_length.reshape(
+        return pixel_attenuation_length.reshape(
                                         self.shape)
-
 
     def polarization_factor(self, f_hor, f_vert, unpolarized=False):
         """
@@ -1800,7 +1802,7 @@ class Detector:
         need to consider HED and HEDM samples separately
         """
         bvec = self.bvec
-        sample_normal = np.dot(rMat_s, [0., 0., -1.])
+        sample_normal = np.dot(rMat_s, [0., 0., np.sign(bvec[2])])
         seca = 1./np.dot(bvec, sample_normal)
 
         tth, eta = self.pixel_angles()
@@ -1823,10 +1825,49 @@ class Detector:
 
         T_sample = self.calc_transmission_sample(
             seca, secb, energy, physics_package)
-        T_window = self.calc_transmission_window(secb, energy, physics_package)
+        T_window = self.calc_transmission_window(
+            secb, energy, physics_package)
 
         transmission_physics_package = T_sample * T_window
         return transmission_physics_package
+
+    def calc_compton_physics_package_transmission(
+        self, energy: np.floating,
+        rMat_s: np.array,
+        physics_package: AbstractPhysicsPackage) -> np.float64:
+        '''calculate the attenuation of inelastically 
+        scattered photons. since these photons lose energy,
+        the attenuation length is angle dependent ergo a separate
+        routine than elastically scattered absorption.
+        '''
+        bvec = self.bvec
+        sample_normal = np.dot(rMat_s, [0., 0., np.sign(bvec[2])])
+        seca = 1./np.dot(bvec, sample_normal)
+
+        tth, eta = self.pixel_angles()
+        angs = np.vstack((tth.flatten(), eta.flatten(),
+                          np.zeros(tth.flatten().shape))).T
+
+        dvecs = angles_to_dvec(angs, beam_vec=bvec)
+
+        cosb = np.dot(dvecs, sample_normal)
+        '''angles for which secb <= 0 or close are diffracted beams
+        almost parallel to the sample surface or backscattered, we
+        can mask out these values by setting secb to nan
+        '''
+        mask = np.logical_or(cosb < 0, 
+                             np.isclose(
+                            cosb, 0.,
+                            atol=5E-2))
+        cosb[mask] = np.nan
+        secb = 1./cosb.reshape(self.shape)
+
+        T_sample = self.calc_compton_transmission_sample(
+            seca, secb, energy, physics_package)
+        T_window = self.calc_compton_transmission_window(
+            secb, energy, physics_package)
+
+        return T_sample * T_window
 
     def calc_transmission_sample(self, seca: np.array,
                                  secb: np.array, energy: np.floating,
@@ -1851,6 +1892,35 @@ class Detector:
         # in microns^-1
         mu_w = 1./physics_package.window_absorption_length(energy)
         return np.exp(-thickness_w*mu_w*secb)
+
+    def calc_compton_transmission_sample(self, seca: np.array,
+            secb: np.array, energy: np.floating,
+            physics_package: AbstractPhysicsPackage) -> np.array:
+
+        formula = physics_package.sample_material
+        density = physics_package.sample_density
+        thickness_s = physics_package.sample_thickness
+
+        mu_s = 1./physics_package.sample_absorption_length(energy)
+        mu_s_prime = 1./self.pixel_compton_attenuation_length(
+            energy, density, formula)
+
+        x1 = mu_s*thickness_s*seca
+        x2 = mu_s_prime*thickness_s*secb
+        num = (np.exp(-x1) - np.exp(-x2))
+        return -num/(x1 - x2)
+
+    def calc_compton_transmission_window(self, 
+            secb: np.array, energy: np.floating,
+            physics_package: AbstractPhysicsPackage) -> np.array:
+
+        formula = physics_package.window_material
+        density = physics_package.window_density        # in g/cc
+        thickness_w = physics_package.window_thickness  # in microns
+
+        mu_w_prime = 1./self.pixel_compton_attenuation_length(
+            energy, density, formula)
+        return np.exp(-mu_w_prime*thickness_w*secb)
 
     def calc_effective_pinhole_area(self, physics_package: AbstractPhysicsPackage) -> np.array:
         """get the effective pinhole area correction
