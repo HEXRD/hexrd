@@ -605,6 +605,15 @@ class Detector:
     # METHODS
     # =========================================================================
 
+    def pixel_Q(self, energy, origin=ct.zeros_3):
+        '''get the equivalent momentum transfer
+        for the angles. energy is keV. Q is in 
+        units of A^-1
+        '''
+        lam = ct.keVToAngstrom(energy)
+        tth, _ = self.pixel_angles()
+        return 4.*np.pi*np.sin(tth*0.5)/lam
+
     def polarization_factor(self, f_hor, f_vert, unpolarized=False):
         """
         Calculated the polarization factor for every pixel.
