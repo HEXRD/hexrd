@@ -605,7 +605,9 @@ class Detector:
     # METHODS
     # =========================================================================
 
-    def pixel_Q(self, energy, origin=ct.zeros_3):
+    def pixel_Q(self,
+                energy,
+                origin=ct.zeros_3):
         '''get the equivalent momentum transfer
         for the angles. energy is keV. Q is in 
         units of A^-1
@@ -613,6 +615,20 @@ class Detector:
         lam = ct.keVToAngstrom(energy)
         tth, _ = self.pixel_angles()
         return 4.*np.pi*np.sin(tth*0.5)/lam
+
+    def pixel_compton_energy_loss(self,
+                                  energy,
+                                  origin=ct.zeros_3):
+        '''inelastic compton scattering leads
+        to energy loss of the incident photons.
+        compute the final energy of the photons
+        for each pixel.
+        incident photon energy in keV
+        '''
+        tth, _ = self.pixel_angles()
+        ang_fact = (1 = np.cos(tth))
+        beta = energy/ct.cRestmasskeV
+        return energy/(1 + beta*ang_fact)
 
     def polarization_factor(self, f_hor, f_vert, unpolarized=False):
         """
