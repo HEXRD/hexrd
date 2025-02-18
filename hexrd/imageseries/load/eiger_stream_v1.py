@@ -116,7 +116,7 @@ class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
 
     @property
     def dtype(self):
-        return self._first_data_entry['dtype'][()]
+        return np.dtype(self._first_data_entry['dtype'][()])
 
     @property
     def shape(self):
