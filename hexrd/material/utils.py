@@ -5,6 +5,9 @@ cAvogadro, ATOM_WEIGHTS_DICT
 import chemparse
 import numpy as np
 import h5py
+from copy import copy
+from scipy.interpolate import interp1d
+from hexrd import constants
 
 """
 calculate the molecular weight given the formula unit
@@ -174,3 +177,91 @@ def calculate_energy_absorption_length(density,
     absorption_length = 1./mu
 
     return absorption_length
+
+def normalize_composition(composition):
+    """
+    normalizes elemental abundances to 1
+
+    :param composition: dictionary with elements as key and abundances as relative numbers
+    :return: normalized elemental abundances dictionary
+    """
+    sum = 0.0
+    for key, val in composition.items():
+        sum += val
+
+    result = copy(composition)
+
+    for key in result:
+        result[key] /= sum
+
+    return result
+
+def convert_density_to_atoms_per_cubic_angstrom(composition, density):
+    """
+    Converts densities given in g/cm3 into atoms per A^3
+
+    :param composition: dictionary with elements as key and abundances as relative numbers
+    :param density: density in g/cm^3
+    :return: density in atoms/A^3
+    """
+
+    # get_smallest abundance
+    norm_elemental_abundances = normalize_composition(composition)
+    mean_z = 0.0
+    for element, concentration in norm_elemental_abundances.items():
+        mean_z += concentration * constants.ATOM_WEIGHTS_DICT[element]
+    return density / mean_z * .602214129
+
+def calculate_coherent_scattering_factor(element, Q):
+
+    s = Q/(4. * np.pi)
+    sfact = constants.scatfac[element]
+    fe = sfact[5]
+    for jj in range(5):
+        fe += sfact[jj] * np.exp(-sfact[jj + 6] * s)
+    return fe
+
+def calculate_incoherent_scattering_factor(element, Q):
+
+    data = importlib.resources.open_binary(
+            hexrd.resources, 'Anomalous.h5')
+    fid = h5py.File(data, 'r')
+    compton_table = np.array(fid[element]['compton'])
+    interp = interp1d(
+        compton_table[:,0], 
+        compton_table[:,1],
+        kind='cubic')
+    return interp(Q)
+
+def calculate_f_squared_mean(composition, Q):
+
+    formula = interpret_formula(composition)
+    norm_elemental_abundances = normalize_composition(
+        formula)
+    res = 0
+    for key, value in norm_elemental_abundances.items():
+        res += (value *
+        calculate_coherent_scattering_factor(key, Q) ** 2)
+    return res
+
+def calculate_f_mean_squared(composition, Q):
+
+    formula = interpret_formula(composition)
+    norm_elemental_abundances = normalize_composition(
+        formula)
+    res = 0
+    for key, value in norm_elemental_abundances.items():
+        res += (value *
+        calculate_coherent_scattering_factor(key, Q))
+    return res ** 2
+
+def calculate_incoherent_scattering(composition, Q):
+
+    formula = interpret_formula(composition)
+    norm_elemental_abundances = normalize_composition(
+        formula)
+    res = 0
+    for key, value in norm_elemental_abundances.items():
+        res += (value *
+        calculate_incoherent_scattering_factor(key, Q))**2
+    return res

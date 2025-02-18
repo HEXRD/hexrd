@@ -31,7 +31,9 @@ from hexrd.transforms.xfcapi import (
 from hexrd.utils.decorators import memoize
 from hexrd.gridutil import cellIndices
 from hexrd.instrument import detector_coatings
-from hexrd.material.utils import calculate_linear_absorption_length
+from hexrd.material.utils import (
+    calculate_linear_absorption_length,
+    calculate_incoherent_scattering)
 
 distortion_registry = distortion_pkg.Registry()
 
@@ -695,6 +697,44 @@ class Detector:
                                         pixel_energy.flatten())
         return pixel_attenuation_length.reshape(
                                         self.shape)
+
+    def compute_compton_scattering_intensity(
+        self,
+        energy: np.floating,
+        density: np.floating,
+        formula: str,
+        rMat_s: np.array,
+        physics_package: AbstractPhysicsPackage,
+        origin: np.array=ct.zeros_3) -> np.array:
+
+        ''' compute the theoretical compton scattering
+        signal on the detector. this value is corrected
+        for the transmission of compton scattered photons
+        and normlaized before getting subtracting from the
+        raw intensity
+
+        Parameters
+        -----------
+        energy: float
+            energy of incident photon
+        density: float
+            density of material in g/cc
+        formula: str
+            chemical formula of the material
+        Returns
+        -------
+        compton_intensity: np.ndarray
+            transmission corrected compton scattering
+            intensity
+        '''
+        Q = self.pixel_Q(energy)
+        Inc = calculate_incoherent_scattering(
+            formula, Q.flatten()).reshape(self.shape)
+
+        T = self.calc_compton_physics_package_transmission(
+            energy, rMat_s, physics_package)
+
+        return Inc*T
 
     def polarization_factor(self, f_hor, f_vert, unpolarized=False):
         """
