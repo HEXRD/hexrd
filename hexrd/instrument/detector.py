@@ -734,7 +734,7 @@ class Detector:
         T = self.calc_compton_physics_package_transmission(
             energy, rMat_s, physics_package)
 
-        return Inc*T
+        return Inc*T, T
 
     def polarization_factor(self, f_hor, f_vert, unpolarized=False):
         """
