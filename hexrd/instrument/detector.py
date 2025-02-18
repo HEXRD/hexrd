@@ -628,7 +628,7 @@ class Detector:
 
         '''
         lam = ct.keVToAngstrom(energy)
-        tth, _ = self.pixel_angles()
+        tth, _ = self.pixel_angles(origin=origin)
         return 4.*np.pi*np.sin(tth*0.5)/lam
 
     def pixel_compton_energy_loss(self,
