@@ -734,7 +734,10 @@ class Detector:
         T = self.calc_compton_physics_package_transmission(
             energy, rMat_s, physics_package)
 
-        return Inc*T, T
+        T_w = self.calc_compton_window_transmission(
+            energy, rMat_s, physics_package)
+
+        return Inc*T, T, T_w
 
     def polarization_factor(self, f_hor, f_vert, unpolarized=False):
         """
@@ -1902,12 +1905,54 @@ class Detector:
         cosb[mask] = np.nan
         secb = 1./cosb.reshape(self.shape)
 
-        T_sample = self.calc_compton_transmission_sample(
-            seca, secb, energy, physics_package)
+        T_sample = self.calc_compton_transmission(
+            seca, secb, energy,
+            physics_package, 'sample')
         T_window = self.calc_compton_transmission_window(
             secb, energy, physics_package)
 
         return T_sample * T_window
+
+    def calc_compton_window_transmission(
+        self, energy: np.floating,
+        rMat_s: np.array,
+        physics_package: AbstractPhysicsPackage) -> np.float64:
+        '''calculate the attenuation of inelastically 
+        scattered photons just fropm the window. 
+        since these photons lose energy, the attenuation length 
+        is angle dependent ergo a separate routine than 
+        elastically scattered absorption.
+        '''
+        bvec = self.bvec
+        sample_normal = np.dot(rMat_s, [0., 0., np.sign(bvec[2])])
+        seca = 1./np.dot(bvec, sample_normal)
+
+        tth, eta = self.pixel_angles()
+        angs = np.vstack((tth.flatten(), eta.flatten(),
+                          np.zeros(tth.flatten().shape))).T
+
+        dvecs = angles_to_dvec(angs, beam_vec=bvec)
+
+        cosb = np.dot(dvecs, sample_normal)
+        '''angles for which secb <= 0 or close are diffracted beams
+        almost parallel to the sample surface or backscattered, we
+        can mask out these values by setting secb to nan
+        '''
+        mask = np.logical_or(cosb < 0, 
+                             np.isclose(
+                            cosb, 0.,
+                            atol=5E-2))
+        cosb[mask] = np.nan
+        secb = 1./cosb.reshape(self.shape)
+
+        T_window = self.calc_compton_transmission(
+            seca, secb, energy,
+            physics_package, 'window')
+        T_sample = self.calc_compton_transmission_sample( 
+            seca, energy, physics_package)
+
+        return T_sample * T_window
+
 
     def calc_transmission_sample(self, seca: np.array,
                                  secb: np.array, energy: np.floating,
@@ -1933,22 +1978,40 @@ class Detector:
         mu_w = 1./physics_package.window_absorption_length(energy)
         return np.exp(-thickness_w*mu_w*secb)
 
-    def calc_compton_transmission_sample(self, seca: np.array,
+    def calc_compton_transmission(self, seca: np.array,
             secb: np.array, energy: np.floating,
-            physics_package: AbstractPhysicsPackage) -> np.array:
+            physics_package: AbstractPhysicsPackage,
+            pp_layer: str) -> np.array:
 
-        formula = physics_package.sample_material
-        density = physics_package.sample_density
-        thickness_s = physics_package.sample_thickness
-
-        mu_s = 1./physics_package.sample_absorption_length(energy)
-        mu_s_prime = 1./self.pixel_compton_attenuation_length(
+        if pp_layer == 'sample':
+            formula = physics_package.sample_material
+            density = physics_package.sample_density
+            thickness = physics_package.sample_thickness
+            mu = 1./physics_package.sample_absorption_length(energy)
+            mu_prime = 1./self.pixel_compton_attenuation_length(
             energy, density, formula)
+        elif pp_layer == 'window':
+            formula = physics_package.window_material
+            density = physics_package.window_density
+            thickness = physics_package.window_thickness
+            mu = 1./physics_package.sample_absorption_length(energy)
+            mu_prime = 1./self.pixel_compton_attenuation_length(
+                energy, density, formula)
 
-        x1 = mu_s*thickness_s*seca
-        x2 = mu_s_prime*thickness_s*secb
+        x1 = mu*thickness*seca
+        x2 = mu_prime*thickness*secb
         num = (np.exp(-x1) - np.exp(-x2))
         return -num/(x1 - x2)
+
+    def calc_compton_transmission_sample(self, 
+            seca: np.array, energy: np.floating,
+            physics_package: AbstractPhysicsPackage) -> np.array:
+
+        thickness_s = physics_package.sample_thickness  # in microns
+
+        mu_s = 1./physics_package.sample_absorption_length(
+            energy)
+        return np.exp(-mu_s*thickness_s*seca)
 
     def calc_compton_transmission_window(self, 
             secb: np.array, energy: np.floating,
