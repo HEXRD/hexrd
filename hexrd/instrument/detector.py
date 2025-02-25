@@ -701,8 +701,6 @@ class Detector:
     def compute_compton_scattering_intensity(
         self,
         energy: np.floating,
-        density: np.floating,
-        formula: str,
         rMat_s: np.array,
         physics_package: AbstractPhysicsPackage,
         origin: np.array=ct.zeros_3) -> np.array:
@@ -717,27 +715,33 @@ class Detector:
         -----------
         energy: float
             energy of incident photon
-        density: float
-            density of material in g/cc
-        formula: str
-            chemical formula of the material
+        rMat_s: np.ndarray
+            rotation matrix of sample orientation
+        physics_package: AbstractPhysicsPackage
+            physics package information
         Returns
         -------
         compton_intensity: np.ndarray
             transmission corrected compton scattering
             intensity
         '''
-        Q = self.pixel_Q(energy)
-        Inc = calculate_incoherent_scattering(
-            formula, Q.flatten()).reshape(self.shape)
 
-        T = self.calc_compton_physics_package_transmission(
+        Q = self.pixel_Q(energy)
+        Inc_s = calculate_incoherent_scattering(
+            physics_package.sample_material,
+            Q.flatten()).reshape(self.shape)
+
+        Inc_w = calculate_incoherent_scattering(
+            physics_package.window_material,
+            Q.flatten()).reshape(self.shape)
+
+        T_s = self.calc_compton_physics_package_transmission(
             energy, rMat_s, physics_package)
 
         T_w = self.calc_compton_window_transmission(
             energy, rMat_s, physics_package)
 
-        return Inc*T, T, T_w
+        return Inc_s*T_s+Inc_w*T_w, T_s, T_w
 
     def polarization_factor(self, f_hor, f_vert, unpolarized=False):
         """
