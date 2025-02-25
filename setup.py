@@ -24,7 +24,7 @@ install_reqs = [
     'numba',
     'numpy<1.27',  # noqa NOTE: bump this to support the latest version numba supports
     'psutil',
-    'pycifrw',
+    'pycifrw<5.0',  # Remove version pin when this issue is fixed: https://github.com/jamesrhester/pycifrw/issues/14
     'pyyaml',
     'scikit-image',
     'scikit-learn',
