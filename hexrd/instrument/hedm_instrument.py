@@ -517,8 +517,11 @@ def max_resolution(instr):
                 axis=0
             ).reshape(2, np.cumprod(panel.shape)[-1]).T
         )
-        max_tth = min(max_tth, np.min(angps[:, 0]))
-        max_eta = min(max_eta, np.min(angps[:, 1]))
+        mask = ~np.logical_or(
+            np.isclose(angps[:,0], 0),
+            np.isclose(angps[:,1], 0))
+        max_tth = min(max_tth, np.min(angps[mask, 0]))
+        max_eta = min(max_eta, np.min(angps[mask, 1]))
     return max_tth, max_eta
 
 
