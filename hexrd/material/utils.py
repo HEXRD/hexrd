@@ -235,6 +235,11 @@ def calculate_incoherent_scattering_factor(element, Q):
 
 def calculate_f_squared_mean(composition, Q):
 
+    if composition is None:
+        return np.zeros_like(Q)
+    elif isinstance(composition, dict):
+        if 'None' in composition.keys():
+            return np.zeros_like(Q)
     formula = interpret_formula(composition)
     norm_elemental_abundances = normalize_composition(
         formula)
@@ -246,6 +251,11 @@ def calculate_f_squared_mean(composition, Q):
 
 def calculate_f_mean_squared(composition, Q):
 
+    if composition is None:
+        return np.zeros_like(Q)
+    elif isinstance(composition, dict):
+        if 'None' in composition.keys():
+            return np.zeros_like(Q)
     formula = interpret_formula(composition)
     norm_elemental_abundances = normalize_composition(
         formula)
@@ -257,6 +267,11 @@ def calculate_f_mean_squared(composition, Q):
 
 def calculate_incoherent_scattering(composition, Q):
 
+    if composition is None:
+        return np.zeros_like(Q)
+    elif isinstance(composition, dict):
+        if 'None' in composition.keys():
+            return np.zeros_like(Q)
     formula = interpret_formula(composition)
     norm_elemental_abundances = normalize_composition(
         formula)

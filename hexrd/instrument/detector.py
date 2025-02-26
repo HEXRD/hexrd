@@ -1974,9 +1974,11 @@ class Detector:
 
     def calc_transmission_window(self, secb: np.array, energy: np.floating,
                                  physics_package: AbstractPhysicsPackage) -> np.array:
-        thickness_w = physics_package.window_thickness  # in microns
-        if np.isclose(thickness_w, 0):
-            return np.ones(self.shape)
+        thickness_w = physics_package.window_thickness # in microns
+        if np.logical_or(
+            physics_package.window_material is None,
+            np.isclose(thickness_w, 0)):
+                return np.ones(self.shape)
 
         # in microns^-1
         mu_w = 1./physics_package.window_absorption_length(energy)
@@ -1996,16 +1998,20 @@ class Detector:
             energy, density, formula)
         elif pp_layer == 'window':
             formula = physics_package.window_material
+            if formula is None:
+                return np.ones(self.shape)
             density = physics_package.window_density
             thickness = physics_package.window_thickness
             mu = 1./physics_package.sample_absorption_length(energy)
             mu_prime = 1./self.pixel_compton_attenuation_length(
                 energy, density, formula)
-
-        x1 = mu*thickness*seca
-        x2 = mu_prime*thickness*secb
-        num = (np.exp(-x1) - np.exp(-x2))
-        return -num/(x1 - x2)
+        if thickness > 0:
+            x1 = mu*thickness*seca
+            x2 = mu_prime*thickness*secb
+            num = (np.exp(-x1) - np.exp(-x2))
+            return -num/(x1 - x2)
+        else:
+            return np.ones(self.shape)
 
     def calc_compton_transmission_sample(self, 
             seca: np.array, energy: np.floating,
@@ -2022,6 +2028,8 @@ class Detector:
             physics_package: AbstractPhysicsPackage) -> np.array:
 
         formula = physics_package.window_material
+        if formula is None:
+            return np.ones(self.shape)
         density = physics_package.window_density        # in g/cc
         thickness_w = physics_package.window_thickness  # in microns
 
