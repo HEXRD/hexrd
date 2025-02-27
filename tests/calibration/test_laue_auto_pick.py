@@ -8,6 +8,7 @@ import pytest
 from hexrd.fitting.calibration import LaueCalibrator
 from hexrd.material.material import load_materials_hdf5, Material
 from hexrd.instrument.hedm_instrument import HEDMInstrument
+from common import compare_vector_set
 
 
 @pytest.fixture
@@ -134,8 +135,7 @@ def test_autopick_laue_spots(
     # Now just verify that everything matches the previous results
     for pick_key in expected_laue_auto_pick_results:
         for det_key in expected_laue_auto_pick_results[pick_key]:
-            assert np.allclose(
-                picks[pick_key][det_key],
-                expected_laue_auto_pick_results[pick_key][det_key],
-                equal_nan=True
+            assert compare_vector_set(
+                np.array(picks[pick_key][det_key]),
+                np.array(expected_laue_auto_pick_results[pick_key][det_key]),
             )

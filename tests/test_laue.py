@@ -7,6 +7,7 @@ import pytest
 
 from hexrd.material.material import load_materials_hdf5, Material
 from hexrd.instrument.hedm_instrument import HEDMInstrument
+from common import compare_vector_set
 
 
 @pytest.fixture
@@ -107,5 +108,16 @@ def test_simulate_laue_spots(
 
         # Now verify that nothing changed
         ref = expected_simulated_laue_results[det_key]
-        for results, results_ref in zip(psim, ref):
-            assert np.allclose(results, results_ref, equal_nan=True)
+        (
+            result_xy_det,
+            result_hkls,
+            result_angles,
+            result_dspacing,
+            result_energy,
+        ) = ref
+
+        assert compare_vector_set(xy_det, result_xy_det, 1)
+        assert compare_vector_set(hkls, result_hkls, 2)
+        assert compare_vector_set(angles, result_angles, 1)
+        assert compare_vector_set(dspacing, result_dspacing, 1)
+        assert compare_vector_set(energy, result_energy, 1)
