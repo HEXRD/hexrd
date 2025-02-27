@@ -69,7 +69,7 @@ from hexrd.transforms.xfcapi import (
 from hexrd import xrdutil
 from hexrd.material.crystallography import PlaneData
 from hexrd import constants as ct
-from hexrd.rotations import angleAxisOfRotMat, RotMatEuler, mapAngle
+from hexrd.rotations import mapAngle
 from hexrd import distortion as distortion_pkg
 from hexrd.utils.concurrent import distribute_tasks
 from hexrd.utils.hdf5 import unwrap_dict_to_h5, unwrap_h5_to_dict
@@ -123,38 +123,6 @@ t_vec_s_DFLT = np.zeros(3)
 
 multi_ims_key = ct.shared_ims_key
 ims_classes = (ImageSeries, ProcessedImageSeries, OmegaImageSeries)
-
-"""
-Calibration parameter flags
-
- for instrument level, len is 7
-
- [beam energy,
-  beam azimuth,
-  beam elevation,
-  chi,
-  tvec[0],
-  tvec[1],
-  tvec[2],
-  ]
-"""
-instr_calibration_flags_DFLT = np.zeros(7, dtype=bool)
-
-"""
- for each panel, order is:
-
- [tilt[0],
-  tilt[1],
-  tilt[2],
-  tvec[0],
-  tvec[1],
-  tvec[2],
-  <dparams>,
-  ]
-
- len is 6 + len(dparams) for each panel
- by default, dparams are not set for refinement
-"""
 
 buffer_key = 'buffer'
 distortion_key = 'distortion'
@@ -738,57 +706,9 @@ class HEDMInstrument(object):
             ]
             self._chi = instrument_config['oscillation_stage']['chi']
 
-        #
-        # set up calibration parameter list and refinement flags
-        #
-        # first, grab the mapping function for tilt parameters if specified
-        if tilt_calibration_mapping is not None:
-            if not isinstance(tilt_calibration_mapping, RotMatEuler):
-                raise RuntimeError(
-                    "tilt mapping must be a 'RotMatEuler' instance"
-                )
-        self._tilt_calibration_mapping = tilt_calibration_mapping
-
         # grab angles from beam vec
         # !!! these are in DEGREES!
         azim, pola = calc_angles_from_beam_vec(self.beam_vector)
-
-        # stack instrument level parameters
-        # units: keV, degrees, mm
-        self._calibration_parameters = [
-            self.beam_energy,
-            azim,
-            pola,
-            np.degrees(self._chi),
-            *self._tvec,
-        ]
-        self._calibration_flags = instr_calibration_flags_DFLT
-
-        # collect info from panels and append
-        det_params = []
-        det_flags = []
-        for detector in self._detectors.values():
-            this_det_params = detector.calibration_parameters
-            if self._tilt_calibration_mapping is not None:
-                rmat = make_rmat_of_expmap(detector.tilt)
-                self._tilt_calibration_mapping.rmat = rmat
-                tilt = np.degrees(self._tilt_calibration_mapping.angles)
-                this_det_params[:3] = tilt
-            det_params.append(this_det_params)
-            det_flags.append(detector.calibration_flags)
-        det_params = np.hstack(det_params)
-        det_flags = np.hstack(det_flags)
-
-        # !!! hstack here assumes that calib params will be float and
-        # !!! flags will all be bool
-        self._calibration_parameters = np.hstack(
-            [self._calibration_parameters,
-             det_params]
-        ).flatten()
-        self._calibration_flags = np.hstack(
-            [self._calibration_flags,
-             det_flags]
-        )
 
         self.update_memoization_sizes()
 
@@ -981,126 +901,6 @@ class HEDMInstrument(object):
             panel = self.detectors[detector_id]
             panel.evec = self._eta_vector
 
-    @property
-    def tilt_calibration_mapping(self):
-        return self._tilt_calibration_mapping
-
-    @tilt_calibration_mapping.setter
-    def tilt_calibration_mapping(self, x):
-        if not isinstance(x, RotMatEuler) and x is not None:
-            raise RuntimeError(
-                    "tilt mapping must be None or a 'RotMatEuler' instance"
-                )
-        self._tilt_calibration_mapping = x
-
-    @property
-    def calibration_parameters(self):
-        """
-        Yields concatenated list of instrument parameters.
-
-        Returns
-        -------
-        array_like
-            concatenated list of instrument parameters.
-
-        """
-        # grab angles from beam vec
-        # !!! these are in DEGREES!
-        azim, pola = calc_angles_from_beam_vec(self.beam_vector)
-
-        # stack instrument level parameters
-        # units: keV, degrees, mm
-        calibration_parameters = [
-            self.beam_energy,
-            azim,
-            pola,
-            np.degrees(self.chi),
-            *self.tvec,
-        ]
-
-        # collect info from panels and append
-        det_params = []
-        det_flags = []
-        for detector in self.detectors.values():
-            this_det_params = detector.calibration_parameters
-            if self.tilt_calibration_mapping is not None:
-                rmat = make_rmat_of_expmap(detector.tilt)
-                self.tilt_calibration_mapping.rmat = rmat
-                tilt = np.degrees(self.tilt_calibration_mapping.angles)
-                this_det_params[:3] = tilt
-            det_params.append(this_det_params)
-            det_flags.append(detector.calibration_flags)
-        det_params = np.hstack(det_params)
-        det_flags = np.hstack(det_flags)
-
-        # !!! hstack here assumes that calib params will be float and
-        # !!! flags will all be bool
-        calibration_parameters = np.hstack(
-            [calibration_parameters,
-             det_params]
-        ).flatten()
-        self._calibration_parameters = calibration_parameters
-        return self._calibration_parameters
-
-    @property
-    def calibration_flags_to_lmfit_names(self):
-        # Create a list identical in length to `self.calibration_flags`
-        # where the entries in the list are the corresponding lmfit
-        # parameter names.
-        flags = [
-            'beam_energy',
-            'beam_azimuth',
-            'beam_polar',
-            'instr_chi',
-            'instr_tvec_x',
-            'instr_tvec_y',
-            'instr_tvec_z',
-        ]
-
-        for panel in self.detectors.values():
-            flags += panel.calibration_flags_to_lmfit_names
-
-        return flags
-
-    def set_calibration_flags_to_lmfit_params(self, params_dict):
-        # Take the refinement flags from the old `self.calibration_flags`
-        # style of flags and set them to the provided lmfit params dict.
-        flags = self.calibration_flags
-        for i, name in enumerate(self.calibration_flags_to_lmfit_names):
-            if name in params_dict:
-                param = params_dict[name]
-                if param.expr is not None:
-                    # Don't update the flags on anything with an expression,
-                    # because it is computed and should not be varied.
-                    continue
-
-                param.vary = flags[i]
-
-    @property
-    def calibration_flags(self):
-        return self._calibration_flags
-
-    @calibration_flags.setter
-    def calibration_flags(self, x):
-        x = np.array(x, dtype=bool).flatten()
-        if len(x) != len(self._calibration_flags):
-            raise RuntimeError(
-                "length of parameter list must be %d; you gave %d"
-                % (len(self._calibration_flags), len(x))
-            )
-        ii = 7
-        for panel in self.detectors.values():
-            npp = 6
-            if panel.distortion is not None:
-                npp += len(panel.distortion.params)
-
-            if panel.detector_type == 'cylindrical':
-                # Add one for the radius
-                npp += 1
-
-            panel.calibration_flags = x[ii:ii + npp]
-        self._calibration_flags = x
-
     # =========================================================================
     # METHODS
     # =========================================================================
@@ -1176,60 +976,6 @@ class HEDMInstrument(object):
                     raise TypeError("Unexpected file type.")
 
         return par_dict
-
-    def update_from_parameter_list(self, p):
-        """
-        Update the instrument class from a parameter list.
-
-        Utility function to update instrument parameters from a 1-d master
-        parameter list (e.g. as used in calibration)
-
-        !!! Note that angles are reported in DEGREES!
-        """
-        self.beam_energy = p[0]
-        self.beam_vector = calc_beam_vec(p[1], p[2])
-        self.chi = np.radians(p[3])
-        self.tvec = np.r_[p[4:7]]
-
-        ii = 7
-        for det_name, detector in self.detectors.items():
-            this_det_params = detector.calibration_parameters
-            npd = len(this_det_params)  # total number of params
-            dpnp = npd - 6  # number of distortion params
-
-            # first do tilt
-            tilt = np.r_[p[ii:ii + 3]]
-            if self.tilt_calibration_mapping is not None:
-                self.tilt_calibration_mapping.angles = np.radians(tilt)
-                rmat = self.tilt_calibration_mapping.rmat
-                phi, n = angleAxisOfRotMat(rmat)
-                tilt = phi*n.flatten()
-            detector.tilt = tilt
-
-            # then do translation
-            ii += 3
-            detector.tvec = np.r_[p[ii:ii + 3]]
-
-            # then do distortion (if necessart)
-            # FIXME will need to update this with distortion fix
-            ii += 3
-            if dpnp > 0:
-                if detector.distortion is None:
-                    raise RuntimeError(
-                        "distortion discrepancy for '%s'!"
-                        % det_name
-                    )
-                else:
-                    try:
-                        detector.distortion.params = p[ii:ii + dpnp]
-                    except AssertionError:
-                        raise RuntimeError(
-                            "distortion for '%s' " % det_name
-                            + "expects %d params but got %d"
-                            % (len(detector.distortion.params), dpnp)
-                        )
-                ii += dpnp
-        return
 
     def extract_polar_maps(self, plane_data, imgser_dict,
                            active_hkls=None, threshold=None,

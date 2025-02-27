@@ -214,6 +214,30 @@ def create_beam_param_names(instr: HEDMInstrument) -> dict[str, str]:
     return param_names
 
 
+def fix_detector_y(
+    instr: HEDMInstrument,
+    params: lmfit.Parameters,
+    relative_constraints: Optional[RelativeConstraints] = None,
+):
+    """Fix the y translation for all detectors"""
+    if relative_constraints is None:
+        rtype = RelativeConstraintsType.none
+    else:
+        rtype = relative_constraints.type
+
+    if rtype == RelativeConstraintsType.none:
+        prefixes = list(instr.detectors)
+    elif rtype == RelativeConstraintsType.group:
+        prefixes = instr.detector_groups
+    elif rtype == RelativeConstraintsType.system:
+        prefixes = ['system']
+
+    prefixes = [x.replace('-', '_') for x in prefixes]
+    names = [f'{x}_tvec_y' for x in prefixes]
+    for name in names:
+        params[name].vary = False
+
+
 def update_instrument_from_params(
         instr, params,
         euler_convention=DEFAULT_EULER_CONVENTION,
@@ -530,12 +554,12 @@ def update_material_from_params(params, material):
         material.planeData.wavelength = params['beam_energy'].value
 
 
-def grain_param_names(mat_name):
-    return [f'{mat_name}_grain_param_{i}' for i in range(12)]
+def grain_param_names(base_name):
+    return [f'{base_name}_grain_param_{i}' for i in range(12)]
 
 
-def create_grain_params(mat_name, grain, refinements=None):
-    param_names = grain_param_names(mat_name)
+def create_grain_params(base_name, grain, refinements=None):
+    param_names = grain_param_names(base_name)
     if refinements is None:
         refinements = [True] * len(param_names)
 
