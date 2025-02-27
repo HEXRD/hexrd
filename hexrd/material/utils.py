@@ -206,6 +206,11 @@ def convert_density_to_atoms_per_cubic_angstrom(composition, density):
     """
 
     # get_smallest abundance
+    if composition is None:
+        return 0.
+    elif isinstance(composition, dict):
+        if 'None' in composition.keys():
+            return 0.
     norm_elemental_abundances = normalize_composition(composition)
     mean_z = 0.0
     for element, concentration in norm_elemental_abundances.items():
