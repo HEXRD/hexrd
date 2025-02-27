@@ -71,14 +71,16 @@ jobs:
         HEXRD_EXAMPLE_REPO_PATH: ${{ github.workspace }}/examples
       run: |
           pytest -s tests/
-      if: ${{ matrix.config.os != 'ubuntu-latest'}}
       working-directory: hexrd
 
     - name: Run tests with codecov
       env:
         HEXRD_EXAMPLE_REPO_PATH: ${{ github.workspace }}/examples
+        NUMBA_DISABLE_JIT: 1
       run: |
-          pytest -s --cov hexrd --cov-report xml:coverage.xml tests/
+          coverage run --include "./*" -m pytest tests/
+          coverage combine
+          coverage xml
       if: ${{ matrix.config.os == 'ubuntu-latest'}}
       working-directory: hexrd
 
