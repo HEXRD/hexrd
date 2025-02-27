@@ -27,7 +27,6 @@ def _normalized_ssqr(resd):
 
 class InstrumentCalibrator:
     def __init__(self, *args, engineering_constraints=None,
-                 set_refinements_from_instrument_flags=True,
                  euler_convention=DEFAULT_EULER_CONVENTION,
                  relative_constraints_type=RelativeConstraintsType.none):
         """
@@ -57,9 +56,6 @@ class InstrumentCalibrator:
         self.euler_convention = euler_convention
 
         self.params = self.make_lmfit_params()
-        if set_refinements_from_instrument_flags:
-            self.instr.set_calibration_flags_to_lmfit_params(self.params)
-
         self.fitter = lmfit.Minimizer(self.minimizer_function,
                                       self.params,
                                       nan_policy='omit')

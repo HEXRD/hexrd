@@ -530,12 +530,13 @@ def update_material_from_params(params, material):
         material.planeData.wavelength = params['beam_energy'].value
 
 
-def grain_param_names(mat_name):
-    return [f'{mat_name}_grain_param_{i}' for i in range(12)]
+def grain_param_names(mat_name, grain_idx=None):
+    grain_name = 'grain' if grain_idx is None else f'grain_{grain_idx}'
+    return [f'{mat_name}_{grain_name}_param_{i}' for i in range(12)]
 
 
-def create_grain_params(mat_name, grain, refinements=None):
-    param_names = grain_param_names(mat_name)
+def create_grain_params(mat_name, grain, grain_idx=None, refinements=None):
+    param_names = grain_param_names(mat_name, grain_idx)
     if refinements is None:
         refinements = [True] * len(param_names)
 

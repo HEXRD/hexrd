@@ -33,12 +33,6 @@ class CylindricalDetector(Detector):
         self._radius = radius
         super().__init__(**detector_kwargs)
 
-        # Add the radius to the calibration flags
-        self._calibration_flags = np.hstack(
-            (self._calibration_flags, np.zeros((1,), dtype=bool)),
-            dtype=bool,
-        )
-
     @property
     def detector_type(self):
         return 'cylindrical'
@@ -308,14 +302,6 @@ class CylindricalDetector(Detector):
         return {
             'radius': self.radius,
         }
-
-    @property
-    def calibration_flags_to_lmfit_names(self):
-        # Take the parent flags and add the radius
-        return [
-            *super().calibration_flags_to_lmfit_names,
-            f'{self.lmfit_name}_radius',
-        ]
 
 
 @memoize

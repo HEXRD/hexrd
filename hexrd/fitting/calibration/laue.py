@@ -72,7 +72,7 @@ class LaueCalibrator(Calibrator):
         params = create_grain_params(
             self.material.name,
             self.grain_params_euler,
-            self.default_refinements,
+            refinements=self.default_refinements,
         )
 
         # Ensure there are no name collisions

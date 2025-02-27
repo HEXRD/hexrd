@@ -1,212 +1,229 @@
 import logging
-import os
 
 import numpy as np
-from scipy.optimize import leastsq, least_squares
 
-from hexrd import constants as cnst
 from hexrd import matrixutil as mutil
-from hexrd import rotations
+from hexrd.rotations import (
+    angleAxisOfRotMat,
+    angularDifference,
+    RotMatEuler,
+)
 from hexrd.transforms import xfcapi
+from hexrd.utils.hkl import hkl_to_str, str_to_hkl
 
+from .calibrator import Calibrator
+from .lmfit_param_handling import (
+    create_grain_params,
+    DEFAULT_EULER_CONVENTION,
+    rename_to_avoid_collision,
+)
 from .. import grains as grainutil
 
-logger = logging.getLogger()
-logger.setLevel('INFO')
-
-# grains
-grain_flags_DFLT = np.array(
-    [1, 1, 1,
-     1, 0, 1,
-     0, 0, 0, 0, 0, 0],
-    dtype=bool
-)
-
-ext_eta_tol = np.radians(5.)  # for HEDM cal, may make this a user param
+logger = logging.getLogger(__name__)
 
 
-def calibrate_instrument_from_sx(
-        instr, grain_params, bmat, xyo_det, hkls_idx,
-        param_flags=None, grain_flags=None,
-        ome_period=None,
-        xtol=cnst.sqrt_epsf, ftol=cnst.sqrt_epsf,
-        factor=10., sim_only=False, use_robust_lsq=False):
-    """
-    arguments xyo_det, hkls_idx are DICTs over panels
+class MultigrainCalibrator(Calibrator):
+    type = 'multigrain'
 
-    """
-    grain_params = np.atleast_2d(grain_params)
-    ngrains = len(grain_params)
-    pnames = generate_parameter_names(instr, grain_params)
+    def __init__(self, instr, material, grain_params, default_refinements=None,
+                 calibration_picks=None,
+                 euler_convention=DEFAULT_EULER_CONVENTION):
+        self.instr = instr
+        self.material = material
+        self.grain_params = grain_params
+        self.default_refinements = default_refinements
+        self.euler_convention = euler_convention
 
-    # reset parameter flags for instrument as specified
-    if param_flags is None:
-        param_flags = instr.calibration_flags
-    else:
-        # will throw an AssertionError if wrong length
-        instr.calibration_flags = param_flags
+        self.data_dict = None
+        if calibration_picks is not None:
+            self.calibration_picks = calibration_picks
 
-    # re-map omegas if need be
-    if ome_period is not None:
-        for det_key in instr.detectors:
-            for ig in range(ngrains):
-                xyo_det[det_key][ig][:, 2] = rotations.mapAngle(
-                        xyo_det[det_key][ig][:, 2],
-                        ome_period
-                )
+        self.param_names = []
 
-    # first grab the instrument parameters
-    # 7 global
-    # 6*num_panels for the detectors
-    # num_panels*ndp in case of distortion
-    plist_full = instr.calibration_parameters
+    @property
+    def num_grains(self) -> int:
+        return len(self.grain_params)
 
-    # now handle grains
-    # reset parameter flags for grains as specified
-    if grain_flags is None:
-        grain_flags = np.tile(grain_flags_DFLT, ngrains)
+    def create_lmfit_params(self, current_params):
+        all_params = []
+        for i in range(self.num_grains):
+            params = create_grain_params(
+                self.material.name,
+                self.grain_params_euler,
+                grain_idx=i,
+                refinements=self.default_refinements,
+            )
 
-    plist_full = np.concatenate(
-        [plist_full, np.hstack(grain_params)]
-    )
-    plf_copy = np.copy(plist_full)
+            # Ensure there are no name collisions
+            params, _ = rename_to_avoid_collision(params, current_params)
+            all_params.append(params)
 
-    # concatenate refinement flags
-    refine_flags = np.hstack([param_flags, grain_flags])
-    plist_fit = plist_full[refine_flags]
-    fit_args = (plist_full,
-                param_flags, grain_flags,
-                instr, xyo_det, hkls_idx,
-                bmat, ome_period)
-    if sim_only:
+        self.param_names = [x[0] for x in all_params]
+        return all_params
+
+    def update_from_lmfit_params(self, params_dict):
+        grain_params = []
+        for grain_idx, param_names in enumerate(self.param_names):
+            grain_params.append([params_dict[x].value for x in param_names])
+
+        self.grain_params_euler = np.asarray(grain_params)
+
+    @property
+    def grain_params_euler(self):
+        # Grain parameters with orientation set using Euler angle convention
+        if self.euler_convention is None:
+            return self.grain_params
+
+        grain_params = self.grain_params.copy()
+        for i in range(self.num_grains):
+            rme = RotMatEuler(np.zeros(3), **self.euler_convention)
+            rme.rmat = xfcapi.make_rmat_of_expmap(grain_params[i, :3])
+            grain_params[i, :3] = np.degrees(rme.angles)
+        return grain_params
+
+    @grain_params_euler.setter
+    def grain_params_euler(self, v):
+        # Grain parameters with orientation set using Euler angle convention
+        grain_params = v.copy()
+        if self.euler_convention is not None:
+            for i in range(len(v)):
+                rme = RotMatEuler(np.zeros(3,), **self.euler_convention)
+                rme.angles = np.radians(grain_params[i, :3])
+                phi, n = angleAxisOfRotMat(rme.rmat)
+                grain_params[i, :3] = phi * n.flatten()
+
+        self.grain_params = grain_params
+
+    @property
+    def plane_data(self):
+        return self.material.planeData
+
+    @property
+    def bmatx(self):
+        return self.plane_data.latVecOps['B']
+
+    @property
+    def calibration_picks(self):
+        # Convert this from our internal data dict format
+        picks = {}
+        for det_key in self.instr.detectors:
+            picks[det_key] = {}
+
+            # find valid reflections and recast hkls to int
+            xys = self.data_dict['pick_xys'][det_key]
+            hkls = self.data_dict['hkls'][det_key]
+
+            for hkl, xy in zip(hkls, xys):
+                picks[det_key][hkl_to_str(hkl)] = xy
+
+        return picks
+
+    @calibration_picks.setter
+    def calibration_picks(self, v):
+        # Convert this to our internal data dict format
+        data_dict = {
+            'pick_xys': {},
+            'hkls': {},
+        }
+        for det_key, det_picks in v.items():
+            data_dict['hkls'][det_key] = [str_to_hkl(x) for x in det_picks]
+            data_dict['pick_xys'][det_key] = list(det_picks.values())
+
+        self.data_dict = data_dict
+
+    def autopick_points(self, raw_img_dict, tth_tol=5., eta_tol=5.,
+                        npdiv=2, do_smoothing=True, smoothing_sigma=2,
+                        use_blob_detection=True, blob_threshold=0.25,
+                        fit_peaks=True, min_peak_int=1., fit_tth_tol=0.1):
+        """
+        Parameters
+        ----------
+        raw_img_dict : TYPE
+            DESCRIPTION.
+        tth_tol : TYPE, optional
+            DESCRIPTION. The default is 5..
+        eta_tol : TYPE, optional
+            DESCRIPTION. The default is 5..
+        npdiv : TYPE, optional
+            DESCRIPTION. The default is 2.
+        do_smoothing : TYPE, optional
+            DESCRIPTION. The default is True.
+        smoothing_sigma : TYPE, optional
+            DESCRIPTION. The default is 2.
+        use_blob_detection : TYPE, optional
+            DESCRIPTION. The default is True.
+        blob_threshold : TYPE, optional
+            DESCRIPTION. The default is 0.25.
+        fit_peaks : TYPE, optional
+            DESCRIPTION. The default is True.
+
+        Returns
+        -------
+        None.
+
+        """
+        # Convert to our data_dict format
+        data_dict = {
+            'pick_xys': {},
+            'hkls': {},
+        }
+        # for det, det_picks in refl_dict.items():
+        #     data_dict['pick_xys'].setdefault(det, [])
+        #     data_dict['hkls'].setdefault(det, [])
+        #     for entry in det_picks:
+        #         hkl = entry[1].astype(int).tolist()
+        #         cart = entry[6]
+        #         data_dict['hkls'][det].append(hkl)
+        #         data_dict['pick_xys'][det].append(cart)
+
+        self.data_dict = data_dict
+        return data_dict
+
+    def _evaluate(self):
+        data_dict = self.data_dict
+
+        # grab reflection data from picks input
+        pick_hkls_dict = {}
+        pick_xys_dict = {}
+        for det_key in self.instr.detectors:
+            # find valid reflections and recast hkls to int
+            xys = np.asarray(data_dict['pick_xys'][det_key], dtype=float)
+            hkls = np.asarray(data_dict['hkls'][det_key], dtype=int)
+
+            valid_idx = ~np.isnan(xys[:, 0])
+
+            # fill local dicts
+            pick_hkls_dict[det_key] = np.atleast_2d(hkls[valid_idx, :]).T
+            pick_xys_dict[det_key] = np.atleast_2d(xys[valid_idx, :])
+
+        return pick_hkls_dict, pick_xys_dict
+
+    def residual(self):
+        # need this for laue obj
+        pick_hkls_dict, pick_xys_dict = self._evaluate()
+
+        # munge energy cutoffs
+        energy_cutoffs = np.r_[0.5, 1.5] * np.asarray(self.energy_cutoffs)
+
         return sxcal_obj_func(
-            plist_fit, plist_full,
-            param_flags, grain_flags,
-            instr, xyo_det, hkls_idx,
-            bmat, ome_period,
-            sim_only=True)
-    else:
-        logger.info("Set up to refine:")
-        for i in np.where(refine_flags)[0]:
-            logger.info("\t%s = %1.7e" % (pnames[i], plist_full[i]))
+            [self.grain_params], self.instr, pick_xys_dict, pick_hkls_dict,
+            self.bmatx, energy_cutoffs
+        )
 
-        # run optimization
-        if use_robust_lsq:
-            result = least_squares(
-                sxcal_obj_func, plist_fit, args=fit_args,
-                xtol=xtol, ftol=ftol,
-                loss='soft_l1', method='trf'
-            )
-            x = result.x
-            resd = result.fun
-            mesg = result.message
-            ierr = result.status
-        else:
-            # do least squares problem
-            x, cov_x, infodict, mesg, ierr = leastsq(
-                sxcal_obj_func, plist_fit, args=fit_args,
-                factor=factor, xtol=xtol, ftol=ftol,
-                full_output=1
-            )
-            resd = infodict['fvec']
-        if ierr not in [1, 2, 3, 4]:
-            raise RuntimeError(f"solution not found: {ierr=}")
-        else:
-            logger.info(f"optimization fininshed successfully with {ierr=}")
-            logger.info(mesg)
+    def model(self):
+        # need this for laue obj
+        pick_hkls_dict, pick_xys_dict = self._evaluate()
 
-        # ??? output message handling?
-        fit_params = plist_full
-        fit_params[refine_flags] = x
-
-        # run simulation with optimized results
-        sim_final = sxcal_obj_func(
-            x, plist_full,
-            param_flags, grain_flags,
-            instr, xyo_det, hkls_idx,
-            bmat, ome_period,
-            sim_only=True)
-
-        # ??? reset instrument here?
-        instr.update_from_parameter_list(fit_params)
-
-        # report final
-        logger.info("Optimization Reults:")
-        for i in np.where(refine_flags)[0]:
-            logger.info("\t%s = %1.7e --> %1.7e"
-                        % (pnames[i], plf_copy[i], fit_params[i]))
-
-        return fit_params, resd, sim_final
+        return sxcal_obj_func(
+            [self.grain_params], self.instr, pick_xys_dict, pick_hkls_dict,
+            self.bmatx, self.energy_cutoffs, sim_only=True
+        )
 
 
-def generate_parameter_names(instr, grain_params):
-    pnames = [
-        '{:>24s}'.format('beam energy'),
-        '{:>24s}'.format('beam azimuth'),
-        '{:>24s}'.format('beam polar'),
-        '{:>24s}'.format('chi'),
-        '{:>24s}'.format('tvec_s[0]'),
-        '{:>24s}'.format('tvec_s[1]'),
-        '{:>24s}'.format('tvec_s[2]'),
-    ]
-
-    for det_key, panel in instr.detectors.items():
-        pnames += [
-            '{:>24s}'.format('%s tilt[0]' % det_key),
-            '{:>24s}'.format('%s tilt[1]' % det_key),
-            '{:>24s}'.format('%s tilt[2]' % det_key),
-            '{:>24s}'.format('%s tvec[0]' % det_key),
-            '{:>24s}'.format('%s tvec[1]' % det_key),
-            '{:>24s}'.format('%s tvec[2]' % det_key),
-        ]
-        # now add distortion if there
-        if panel.distortion is not None:
-            for j in range(len(panel.distortion.params)):
-                pnames.append(
-                    '{:>24s}'.format('%s dparam[%d]' % (det_key, j))
-                )
-
-    grain_params = np.atleast_2d(grain_params)
-    for ig, grain in enumerate(grain_params):
-        pnames += [
-            '{:>24s}'.format('grain %d xi[0]' % ig),
-            '{:>24s}'.format('grain %d xi[1]' % ig),
-            '{:>24s}'.format('grain %d xi[2]' % ig),
-            '{:>24s}'.format('grain %d tvec_c[0]' % ig),
-            '{:>24s}'.format('grain %d tvec_c[1]' % ig),
-            '{:>24s}'.format('grain %d tvec_c[2]' % ig),
-            '{:>24s}'.format('grain %d vinv_s[0]' % ig),
-            '{:>24s}'.format('grain %d vinv_s[1]' % ig),
-            '{:>24s}'.format('grain %d vinv_s[2]' % ig),
-            '{:>24s}'.format('grain %d vinv_s[3]' % ig),
-            '{:>24s}'.format('grain %d vinv_s[4]' % ig),
-            '{:>24s}'.format('grain %d vinv_s[5]' % ig)
-        ]
-
-    return pnames
-
-
-def sxcal_obj_func(plist_fit, plist_full,
-                   param_flags, grain_flags,
-                   instr, xyo_det, hkls_idx,
-                   bmat, ome_period,
-                   sim_only=False, return_value_flag=None):
-    """
-    """
-    npi = len(instr.calibration_parameters)
-    NP_GRN = 12
-
-    # stack flags and force bool repr
-    refine_flags = np.array(
-        np.hstack([param_flags, grain_flags]),
-        dtype=bool)
-
-    # fill out full parameter list
-    # !!! no scaling for now
-    plist_full[refine_flags] = plist_fit
-
-    # instrument update
-    instr.update_from_parameter_list(plist_full)
+# Objective function for multigrain fitting
+def sxcal_obj_func(grain_params, instr, xyo_det, hkls_idx,
+                   bmat, ome_period, sim_only=False):
+    ngrains = len(grain_params)
 
     # assign some useful params
     wavelength = instr.beam_wavelength
@@ -220,13 +237,6 @@ def sxcal_obj_func(plist_fit, plist_full,
     meas_omes = {}
     calc_omes = {}
     calc_xy = {}
-
-    # grain params
-    grain_params = plist_full[npi:]
-    if np.mod(len(grain_params), NP_GRN) != 0:
-        raise RuntimeError("parameter list length is not consistent")
-    ngrains = len(grain_params) // NP_GRN
-    grain_params = grain_params.reshape((ngrains, NP_GRN))
 
     # loop over panels
     npts_tot = 0
@@ -315,25 +325,17 @@ def sxcal_obj_func(plist_fit, plist_full,
         calc_omes_all = np.hstack(calc_omes_all)
 
         diff_vecs_xy = calc_xy_all - meas_xy_all
-        diff_ome = rotations.angularDifference(calc_omes_all, meas_omes_all)
+        diff_ome = angularDifference(calc_omes_all, meas_omes_all)
         retval = np.hstack(
             [diff_vecs_xy,
              diff_ome.reshape(npts_tot, 1)]
         ).flatten()
-        if return_value_flag == 1:
-            retval = sum(abs(retval))
-        elif return_value_flag == 2:
-            denom = npts_tot - len(plist_fit) - 1.
-            if denom != 0:
-                nu_fac = 1. / denom
-            else:
-                nu_fac = 1.
-            nu_fac = 1 / (npts_tot - len(plist_fit) - 1.)
-            retval = nu_fac * sum(retval**2)
     return retval
 
 
 def parse_reflection_tables(cfg, instr, grain_ids, refit_idx=None):
+    # FIXME: is this function actually used by anyone? If not, maybe
+    # we should delete it...
     """
     make spot dictionaries
     """
