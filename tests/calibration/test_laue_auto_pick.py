@@ -19,14 +19,14 @@ def simulated_tardis_path(example_repo_path: Path) -> Path:
 @pytest.fixture
 def simulated_tardis_images(
     simulated_tardis_path: Path,
-) -> dict[str, np.array]:
+) -> dict[str, np.ndarray]:
     path = simulated_tardis_path / 'tardis_images.npz'
     npz = np.load(path)
     return {k: v for k, v in npz.items()}
 
 
 @pytest.fixture
-def lif_grain_params(simulated_tardis_path: Path) -> np.array:
+def lif_grain_params(simulated_tardis_path: Path) -> np.ndarray:
     path = simulated_tardis_path / 'lif_grains_ideal.out'
     grain = np.loadtxt(path, ndmin=2)[0]
     return grain[3:15]
@@ -56,8 +56,8 @@ def expected_laue_auto_pick_results(test_data_dir: Path) -> dict[str, list]:
 def test_autopick_laue_spots(
     tardis_instrument: HEDMInstrument,
     lif_material: Material,
-    lif_grain_params: np.array,
-    simulated_tardis_images: dict[str, np.array],
+    lif_grain_params: np.ndarray,
+    simulated_tardis_images: dict[str, np.ndarray],
     expected_laue_auto_pick_results: dict[str, list],
 ):
     instr = tardis_instrument

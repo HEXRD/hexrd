@@ -16,7 +16,7 @@ def simulated_tardis_path(example_repo_path: Path) -> Path:
 
 
 @pytest.fixture
-def lif_grain_params(simulated_tardis_path: Path) -> np.array:
+def lif_grain_params(simulated_tardis_path: Path) -> np.ndarray:
     path = simulated_tardis_path / 'lif_grains_ideal.out'
     grain = np.loadtxt(path, ndmin=2)[0]
     return grain[3:15]
@@ -46,7 +46,7 @@ def expected_simulated_laue_results(test_data_dir: Path) -> dict[str, list]:
 def test_simulate_laue_spots(
     tardis_instrument: HEDMInstrument,
     lif_material: Material,
-    lif_grain_params: np.array,
+    lif_grain_params: np.ndarray,
     expected_simulated_laue_results: dict[str, np.ndarray],
 ):
     instr = tardis_instrument
@@ -56,10 +56,7 @@ def test_simulate_laue_spots(
     plane_data.exclusions = None
 
     sim_data = instr.simulate_laue_pattern(
-        plane_data,
-        minEnergy=5,
-        maxEnergy=35,
-        grain_params=[lif_grain_params]
+        plane_data, minEnergy=5, maxEnergy=35, grain_params=[lif_grain_params]
     )
 
     # A few manual expected results
