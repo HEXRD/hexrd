@@ -119,7 +119,7 @@ def estimate_pk_parms_1d(x, f, pktype='pvoigt'):
 
     # handle background
     # ??? make kernel width a kwarg?
-    bkg = snip1d(np.atleast_2d(f), w=int(2*npts/3.)).flatten()
+    bkg = snip1d(np.atleast_2d(f), w=int(2*npts/3.), max_workers=1).flatten()
 
     # fit linear bg and grab params
     bp, _ = optimize.curve_fit(lin_fit_obj, x, bkg, jac=lin_fit_jac)
@@ -372,8 +372,11 @@ def estimate_mpk_parms_1d(
     min_val = np.min(f)
 
     # estimate background with SNIP1d
-    bkg = snip1d(np.atleast_2d(f),
-                 w=int(np.floor(0.25*len(f)))).flatten()
+    bkg = snip1d(
+        np.atleast_2d(f),
+        w=int(np.floor(0.25*len(f))),
+        max_workers=1,
+    ).flatten()
 
     # fit linear bg and grab params
     bp, _ = optimize.curve_fit(lin_fit_obj, x, bkg, jac=lin_fit_jac)

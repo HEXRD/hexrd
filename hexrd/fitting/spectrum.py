@@ -204,8 +204,11 @@ def _initial_guess(peak_positions, x, f,
 
     # estimate background with snip1d
     # !!! using a window size based on abcissa
-    bkg = snip1d(np.atleast_2d(f),
-                 w=int(np.floor(len(f)/num_pks/2.))).flatten()
+    bkg = snip1d(
+        np.atleast_2d(f),
+        w=int(np.floor(len(f)/num_pks/2.)),
+        max_workers=1,
+    ).flatten()
 
     bkg_mod = chebyshev.Chebyshev(
         [0., 0.], domain=(min(x), max(x))
