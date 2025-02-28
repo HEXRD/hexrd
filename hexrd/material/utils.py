@@ -5,7 +5,7 @@ cAvogadro, ATOM_WEIGHTS_DICT
 import chemparse
 import numpy as np
 import h5py
-from copy import copy
+from copy import deepcopy
 from scipy.interpolate import interp1d
 from hexrd import constants
 
@@ -30,7 +30,7 @@ def interpret_formula(formula):
 
 def calculate_molecular_mass(formula):
     """
-    interpret the formula as either a dictionary 
+    interpret the formula as either a dictionary
     or a chemical formula
     """
     formula_dict = interpret_formula(formula)
@@ -46,13 +46,13 @@ number density is the number of atoms per unit volume
 @author Saransh Singh, LLNL
 @date   1.0 original 02/16/2022
 """
-def calculate_number_density(density, 
+def calculate_number_density(density,
                              formula):
 
     molecular_mass = calculate_molecular_mass(formula)
     return 1e-21*density*cAvogadro/molecular_mass
 
-def calculate_linear_absorption_length(density, 
+def calculate_linear_absorption_length(density,
                                        formula,
                                        energy_vector):
     """
@@ -75,7 +75,7 @@ def calculate_linear_absorption_length(density,
         or a dict. eg. "H2O" and {"H":2, "O":1} are both
         acceptable
     energy_vector: list/numpy.ndarray
-        energy (units keV) list or array of 1D vector 
+        energy (units keV) list or array of 1D vector
         for which beta values are calculated for.
 
     Returns
@@ -116,7 +116,7 @@ def calculate_linear_absorption_length(density,
 
     return absorption_length
 
-def calculate_energy_absorption_length(density, 
+def calculate_energy_absorption_length(density,
                                        formula,
                                        energy_vector):
     """
@@ -137,7 +137,7 @@ def calculate_energy_absorption_length(density,
         or a dict. eg. "H2O" and {"H":2, "O":1} are both
         acceptable
     energy_vector: list/numpy.ndarray
-        energy (units keV) list or array of 1D vector 
+        energy (units keV) list or array of 1D vector
         for which beta values are calculated for.
 
     Returns
@@ -178,25 +178,28 @@ def calculate_energy_absorption_length(density,
 
     return absorption_length
 
-def normalize_composition(composition):
+
+def normalize_composition(composition: dict[str, float]) -> dict[str, float]:
     """
     normalizes elemental abundances to 1
 
     :param composition: dictionary with elements as key and abundances as relative numbers
     :return: normalized elemental abundances dictionary
     """
-    sum = 0.0
-    for key, val in composition.items():
-        sum += val
+    comp_sum = sum(composition.values())
 
-    result = copy(composition)
+    result = deepcopy(composition)
 
     for key in result:
-        result[key] /= sum
+        result[key] /= comp_sum
 
     return result
 
-def convert_density_to_atoms_per_cubic_angstrom(composition, density):
+
+def convert_density_to_atoms_per_cubic_angstrom(
+    composition: dict[str, float] | None,
+    density: float,
+) -> float:
     """
     Converts densities given in g/cm3 into atoms per A^3
 
@@ -204,21 +207,21 @@ def convert_density_to_atoms_per_cubic_angstrom(composition, density):
     :param density: density in g/cm^3
     :return: density in atoms/A^3
     """
-
     # get_smallest abundance
     if composition is None:
         return 0.
-    elif isinstance(composition, dict):
-        if 'None' in composition.keys():
-            return 0.
+
     norm_elemental_abundances = normalize_composition(composition)
     mean_z = 0.0
     for element, concentration in norm_elemental_abundances.items():
         mean_z += concentration * constants.ATOM_WEIGHTS_DICT[element]
     return density / mean_z * .602214129
 
-def calculate_coherent_scattering_factor(element, Q):
 
+def calculate_coherent_scattering_factor(
+    element: str,
+    Q: np.ndarray,
+) -> np.ndarray:
     s = Q/(4. * np.pi)
     sfact = constants.scatfac[element]
     fe = sfact[5]
@@ -226,62 +229,80 @@ def calculate_coherent_scattering_factor(element, Q):
         fe += sfact[jj] * np.exp(-sfact[jj + 6] * s)
     return fe
 
-def calculate_incoherent_scattering_factor(element, Q):
 
-    data = importlib.resources.open_binary(
-            hexrd.resources, 'Anomalous.h5')
-    fid = h5py.File(data, 'r')
-    compton_table = np.array(fid[element]['compton'])
+def calculate_incoherent_scattering_factor(
+    element: str,
+    Q: np.ndarray,
+) -> np.ndarray:
+
+    with importlib.resources.open_binary(
+        hexrd.resources,
+        'Anomalous.h5',
+    ) as data:
+        with h5py.File(data, 'r') as f:
+            compton_table = f[element]['compton'][()]
+
     interp = interp1d(
-        compton_table[:,0], 
-        compton_table[:,1],
-        kind='cubic')
+        compton_table[:, 0],
+        compton_table[:, 1],
+        kind='cubic',
+    )
     return interp(Q)
 
-def calculate_f_squared_mean(composition, Q):
+
+def calculate_f_squared_mean(
+    composition: str,
+    Q: np.ndarray,
+) -> np.ndarray:
 
     if composition is None:
         return np.zeros_like(Q)
-    elif isinstance(composition, dict):
-        if 'None' in composition.keys():
-            return np.zeros_like(Q)
+
     formula = interpret_formula(composition)
-    norm_elemental_abundances = normalize_composition(
-        formula)
+    norm_elemental_abundances = normalize_composition(formula)
     res = 0
     for key, value in norm_elemental_abundances.items():
-        res += (value *
-        calculate_coherent_scattering_factor(key, Q) ** 2)
+        res += (
+            value *
+            calculate_coherent_scattering_factor(key, Q) ** 2
+        )
     return res
 
-def calculate_f_mean_squared(composition, Q):
+
+def calculate_f_mean_squared(
+    composition: str,
+    Q: np.ndarray,
+) -> np.ndarray:
 
     if composition is None:
         return np.zeros_like(Q)
-    elif isinstance(composition, dict):
-        if 'None' in composition.keys():
-            return np.zeros_like(Q)
+
     formula = interpret_formula(composition)
-    norm_elemental_abundances = normalize_composition(
-        formula)
+    norm_elemental_abundances = normalize_composition(formula)
     res = 0
     for key, value in norm_elemental_abundances.items():
-        res += (value *
-        calculate_coherent_scattering_factor(key, Q))
+        res += (
+            value *
+            calculate_coherent_scattering_factor(key, Q)
+        )
     return res ** 2
 
-def calculate_incoherent_scattering(composition, Q):
+
+def calculate_incoherent_scattering(
+    composition: str,
+    Q: np.ndarray,
+) -> np.ndarray:
 
     if composition is None:
         return np.zeros_like(Q)
-    elif isinstance(composition, dict):
-        if 'None' in composition.keys():
-            return np.zeros_like(Q)
+
     formula = interpret_formula(composition)
     norm_elemental_abundances = normalize_composition(
         formula)
     res = 0
     for key, value in norm_elemental_abundances.items():
-        res += (value *
-        calculate_incoherent_scattering_factor(key, Q))**2
+        res += (
+            value *
+            calculate_incoherent_scattering_factor(key, Q)
+        ) ** 2
     return res
