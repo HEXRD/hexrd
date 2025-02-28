@@ -8,6 +8,7 @@ import pytest
 from hexrd.fitting.calibration import LaueCalibrator
 from hexrd.material.material import load_materials_hdf5, Material
 from hexrd.instrument.hedm_instrument import HEDMInstrument
+from common import compare_vector_set
 
 
 @pytest.fixture
@@ -18,14 +19,14 @@ def simulated_tardis_path(example_repo_path: Path) -> Path:
 @pytest.fixture
 def simulated_tardis_images(
     simulated_tardis_path: Path,
-) -> dict[str, np.array]:
+) -> dict[str, np.ndarray]:
     path = simulated_tardis_path / 'tardis_images.npz'
     npz = np.load(path)
     return {k: v for k, v in npz.items()}
 
 
 @pytest.fixture
-def lif_grain_params(simulated_tardis_path: Path) -> np.array:
+def lif_grain_params(simulated_tardis_path: Path) -> np.ndarray:
     path = simulated_tardis_path / 'lif_grains_ideal.out'
     grain = np.loadtxt(path, ndmin=2)[0]
     return grain[3:15]
@@ -55,8 +56,8 @@ def expected_laue_auto_pick_results(test_data_dir: Path) -> dict[str, list]:
 def test_autopick_laue_spots(
     tardis_instrument: HEDMInstrument,
     lif_material: Material,
-    lif_grain_params: np.array,
-    simulated_tardis_images: dict[str, np.array],
+    lif_grain_params: np.ndarray,
+    simulated_tardis_images: dict[str, np.ndarray],
     expected_laue_auto_pick_results: dict[str, list],
 ):
     instr = tardis_instrument
@@ -134,8 +135,7 @@ def test_autopick_laue_spots(
     # Now just verify that everything matches the previous results
     for pick_key in expected_laue_auto_pick_results:
         for det_key in expected_laue_auto_pick_results[pick_key]:
-            assert np.allclose(
-                picks[pick_key][det_key],
-                expected_laue_auto_pick_results[pick_key][det_key],
-                equal_nan=True
+            assert compare_vector_set(
+                np.array(picks[pick_key][det_key]),
+                np.array(expected_laue_auto_pick_results[pick_key][det_key]),
             )

@@ -29,14 +29,32 @@ def convert_axis_angle_to_rmat(axis, angle):
     s = math.sin(angle)
     t = 1.0 - c
 
-    m[0, 0] = c + axis[0]*axis[0]*t
-    m[0, 1] = axis[0]*axis[1]*t - axis[2]*s
-    m[0, 2] = axis[0]*axis[2]*t + axis[1]*s
-    m[1, 0] = axis[0]*axis[1]*t + axis[2]*s
-    m[1, 1] = c + axis[1]*axis[1]*t
-    m[1, 2] = axis[1]*axis[2]*t - axis[0]*s
-    m[2, 0] = axis[0]*axis[2]*t - axis[1]*s
-    m[2, 1] = axis[1]*axis[2]*t + axis[0]*s
-    m[2, 2] = c + axis[2]*axis[2]*t
+    m[0, 0] = c + axis[0] * axis[0] * t
+    m[0, 1] = axis[0] * axis[1] * t - axis[2] * s
+    m[0, 2] = axis[0] * axis[2] * t + axis[1] * s
+    m[1, 0] = axis[0] * axis[1] * t + axis[2] * s
+    m[1, 1] = c + axis[1] * axis[1] * t
+    m[1, 2] = axis[1] * axis[2] * t - axis[0] * s
+    m[2, 0] = axis[0] * axis[2] * t - axis[1] * s
+    m[2, 1] = axis[1] * axis[2] * t + axis[0] * s
+    m[2, 2] = c + axis[2] * axis[2] * t
 
     return m
+
+
+def compare_vector_set(
+    vectors1: np.ndarray,
+    vectors2: np.ndarray,
+    sort_dim: int = 0,
+    rtol: float = 1.0e-5,
+    atol: float = 1.0e-8,
+) -> bool:
+    """Compares two sets of vectors for equality. Ignores the order."""
+    vectors1 = vectors1.copy()
+    vectors2 = vectors2.copy()
+    vectors1.sort(axis=sort_dim)
+    vectors2.sort(axis=sort_dim)
+
+    return np.allclose(
+        vectors1, vectors2, rtol=rtol, atol=atol, equal_nan=True
+    )
