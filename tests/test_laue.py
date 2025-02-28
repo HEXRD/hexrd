@@ -113,8 +113,28 @@ def test_simulate_laue_spots(
             result_energy,
         ) = ref
 
-        assert compare_vector_set(xy_det, result_xy_det, 1)
-        assert compare_vector_set(hkls, result_hkls, 2)
-        assert compare_vector_set(angles, result_angles, 1)
-        assert compare_vector_set(dspacing, result_dspacing, 1)
-        assert compare_vector_set(energy, result_energy, 1)
+        # Stack all of the coupled data into the same vector before comparing.
+
+        stacked = np.concatenate(
+            [
+                xy_det,
+                hkls.transpose(0, 2, 1),
+                angles,
+                dspacing[..., None],
+                energy[..., None],
+            ],
+            axis=2,
+        )
+
+        results_stacked = np.concatenate(
+            [
+                result_xy_det,
+                result_hkls.transpose(0, 2, 1),
+                result_angles,
+                result_dspacing[..., None],
+                result_energy[..., None],
+            ],
+            axis=2,
+        )
+
+        assert compare_vector_set(stacked, results_stacked, 1)

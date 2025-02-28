@@ -9,6 +9,7 @@ from hexrd.fitting.calibration import LaueCalibrator
 from hexrd.material.material import load_materials_hdf5, Material
 from hexrd.instrument.hedm_instrument import HEDMInstrument
 from common import compare_vector_set
+from collections import defaultdict
 
 
 @pytest.fixture
@@ -132,10 +133,21 @@ def test_autopick_laue_spots(
         )
         assert np.allclose(entry['point'], point_deg)
 
-    # Now just verify that everything matches the previous results
+    # We want to compare the results as a set, but keep the "hkls" and the "pick_xys" together.
+    # So we flip the dict structure, group by detector key, and then concatenate the results
+    # so each HKL is on the same row as the corresponding pick_xy. So they are sorted together in compare_vector_set.
+    expected_results = defaultdict(list)
+    results = defaultdict(list)
+
     for pick_key in expected_laue_auto_pick_results:
         for det_key in expected_laue_auto_pick_results[pick_key]:
-            assert compare_vector_set(
-                np.array(picks[pick_key][det_key]),
-                np.array(expected_laue_auto_pick_results[pick_key][det_key]),
+            expected_results[det_key].append(
+                expected_laue_auto_pick_results[pick_key][det_key]
             )
+            results[det_key].append(picks[pick_key][det_key])
+
+    for det_key in expected_results:
+        assert compare_vector_set(
+            np.concatenate(results[det_key], axis=1),
+            np.concatenate(expected_results[det_key], axis=1),
+        )
