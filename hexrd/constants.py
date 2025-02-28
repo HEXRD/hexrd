@@ -321,6 +321,7 @@ cPermit = 8.8541878163E-12  # permittivity of free space
 cPlanck = 6.62607015E-34  # same as h above but name is more descriptive
 cRestmass = 9.1093837090E-31  # rest mass of electron
 cClassicalelectronRad = 2.8179403e-6  # classical electron radius in nm
+cRestmasskeV = 510.99895069 # rest mass of electron in keV
 
 '''
 adding another parametrization of the
