@@ -45,16 +45,13 @@ def convert_axis_angle_to_rmat(axis, angle):
 def compare_vector_set(
     vectors1: np.ndarray,
     vectors2: np.ndarray,
-    sort_dim: int = 0,
     rtol: float = 1.0e-5,
     atol: float = 1.0e-8,
 ) -> bool:
     """Compares two sets of vectors for equality. Ignores the order."""
-    vectors1 = vectors1.copy()
-    vectors2 = vectors2.copy()
-    vectors1.sort(axis=sort_dim)
-    vectors2.sort(axis=sort_dim)
+    i = np.lexsort(vectors1.T)
+    j = np.lexsort(vectors2.T)
 
     return np.allclose(
-        vectors1, vectors2, rtol=rtol, atol=atol, equal_nan=True
+        vectors1[i], vectors2[j], rtol=rtol, atol=atol, equal_nan=True
     )

@@ -137,4 +137,6 @@ def test_simulate_laue_spots(
             axis=2,
         )
 
-        assert compare_vector_set(stacked, results_stacked, 1)
+        assert compare_vector_set(
+            stacked.transpose(1, 0, 2), results_stacked.transpose(1, 0, 2)
+        )
