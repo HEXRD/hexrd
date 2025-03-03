@@ -8,7 +8,6 @@ import pytest
 from hexrd.fitting.calibration import LaueCalibrator
 from hexrd.material.material import load_materials_hdf5, Material
 from hexrd.instrument.hedm_instrument import HEDMInstrument
-from common import compare_vector_set
 from collections import defaultdict
 
 
