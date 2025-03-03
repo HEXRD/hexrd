@@ -133,21 +133,22 @@ def test_autopick_laue_spots(
         )
         assert np.allclose(entry['point'], point_deg)
 
-    # We want to compare the results as a set, but keep the "hkls" and the "pick_xys" together.
-    # So we flip the dict structure, group by detector key, and then concatenate the results
-    # so each HKL is on the same row as the corresponding pick_xy. So they are sorted together in compare_vector_set.
-    expected_results = defaultdict(list)
-    results = defaultdict(list)
+    # Sort the results by HKL for comparison.
+    # The order of the HKLs is not guaranteed to be the same.
+    for pick_set in (picks, expected_laue_auto_pick_results):
+        for det_key, hkls in pick_set['hkls'].items():
+            hkls = np.asarray(hkls)
+            i = np.lexsort(hkls.T)
+            pick_set['hkls'][det_key] = hkls[i]
+            pick_set['pick_xys'][det_key] = np.asarray(
+                pick_set['pick_xys'][det_key]
+            )[i]
 
+    # Now just verify that everything matches the previous results
     for pick_key in expected_laue_auto_pick_results:
         for det_key in expected_laue_auto_pick_results[pick_key]:
-            expected_results[det_key].append(
-                expected_laue_auto_pick_results[pick_key][det_key]
+            assert np.allclose(
+                picks[pick_key][det_key],
+                expected_laue_auto_pick_results[pick_key][det_key],
+                equal_nan=True,
             )
-            results[det_key].append(picks[pick_key][det_key])
-
-    for det_key in expected_results:
-        assert compare_vector_set(
-            np.concatenate(results[det_key], axis=1),
-            np.concatenate(expected_results[det_key], axis=1),
-        )

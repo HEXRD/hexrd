@@ -113,30 +113,27 @@ def test_simulate_laue_spots(
             result_energy,
         ) = ref
 
-        # Stack all of the coupled data into the same vector before comparing.
+        # Get everything into a similar shape and sort them by hkl
+        hkls = hkls.transpose(0, 2, 1)[0]
+        result_hkls = result_hkls.transpose(0, 2, 1)[0]
 
-        stacked = np.concatenate(
-            [
-                xy_det,
-                hkls.transpose(0, 2, 1),
-                angles,
-                dspacing[..., None],
-                energy[..., None],
-            ],
-            axis=2,
-        )
+        i = np.lexsort(hkls.T)
+        j = np.lexsort(result_hkls.T)
 
-        results_stacked = np.concatenate(
-            [
-                result_xy_det,
-                result_hkls.transpose(0, 2, 1),
-                result_angles,
-                result_dspacing[..., None],
-                result_energy[..., None],
-            ],
-            axis=2,
-        )
+        hkls = hkls[i]
+        xy_det = xy_det[0][i]
+        angles = angles[0][i]
+        dspacing = dspacing[..., None][0][i]
+        energy = energy[..., None][0][i]
 
-        assert compare_vector_set(
-            stacked.transpose(1, 0, 2), results_stacked.transpose(1, 0, 2)
-        )
+        result_hkls = result_hkls[j]
+        result_xy_det = result_xy_det[0][j]
+        result_angles = result_angles[0][j]
+        result_dspacing = result_dspacing[..., None][0][j]
+        result_energy = result_energy[..., None][0][j]
+
+        assert np.allclose(hkls, result_hkls, equal_nan=True)
+        assert np.allclose(xy_det, result_xy_det, equal_nan=True)
+        assert np.allclose(angles, result_angles, equal_nan=True)
+        assert np.allclose(dspacing, result_dspacing, equal_nan=True)
+        assert np.allclose(energy, result_energy, equal_nan=True)
