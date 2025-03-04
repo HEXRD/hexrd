@@ -1,3 +1,7 @@
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
+import os
+
 import numpy as np
 from scipy import signal, ndimage
 
@@ -60,7 +64,7 @@ def fast_snip1d(y, w=4, numiter=2):
     return bkg
 
 
-def snip1d(y, w=4, numiter=2, threshold=None):
+def snip1d(y, w=4, numiter=2, threshold=None, max_workers=os.cpu_count()):
     """
     Return SNIP-estimated baseline-background for given spectrum y.
 
@@ -79,27 +83,45 @@ def snip1d(y, w=4, numiter=2, threshold=None):
         mask = np.zeros_like(y, dtype=bool)
 
     # step through rows
-    for k, z in enumerate(zfull):
-        if np.all(mask[k]):
-            bkg[k, :] = np.nan
-        else:
-            b = z
-            for i in range(numiter):
-                for p in range(w, 0, -1):
-                    kernel = np.zeros(p*2 + 1)
-                    kernel[0] = kernel[-1] = 1./2.
-                    b = np.minimum(
-                        b,
-                        convolution.convolve(
-                            z, kernel, boundary='extend', mask=mask[k],
-                            nan_treatment='interpolate', preserve_nan=True
-                        )
-                    )
-                z = b
-            bkg[k, :] = _scale_image_snip(b, min_val, invert=True)
+    tasks = enumerate(zip(zfull, mask))
+    f = partial(_run_snip1d_row, numiter=numiter, w=w, min_val=min_val)
+
+    if max_workers > 1:
+        # Parallelize over tasks
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            for k, result in executor.map(f, tasks):
+                bkg[k, :] = result
+    else:
+        # Run the tasks in this process
+        for task in tasks:
+            k, result = f(task)
+            bkg[k, :] = result
+
     nan_idx = np.isnan(bkg)
     bkg[nan_idx] = threshold
     return bkg
+
+
+def _run_snip1d_row(task, numiter, w, min_val):
+    k, (z, mask) = task
+
+    if np.all(mask):
+        return k, np.nan
+
+    b = z
+    for i in range(numiter):
+        for p in range(w, 0, -1):
+            kernel = np.zeros(p*2 + 1)
+            kernel[0] = kernel[-1] = 1./2.
+            b = np.minimum(
+                b,
+                convolution.convolve(
+                    z, kernel, boundary='extend', mask=mask,
+                    nan_treatment='interpolate', preserve_nan=True
+                )
+            )
+        z = b
+    return k, _scale_image_snip(b, min_val, invert=True)
 
 
 def snip1d_quad(y, w=4, numiter=2):
