@@ -15,7 +15,7 @@ def simulated_tardis_path(example_repo_path: Path) -> Path:
 
 
 @pytest.fixture
-def lif_grain_params(simulated_tardis_path: Path) -> np.array:
+def lif_grain_params(simulated_tardis_path: Path) -> np.ndarray:
     path = simulated_tardis_path / 'lif_grains_ideal.out'
     grain = np.loadtxt(path, ndmin=2)[0]
     return grain[3:15]
@@ -45,7 +45,7 @@ def expected_simulated_laue_results(test_data_dir: Path) -> dict[str, list]:
 def test_simulate_laue_spots(
     tardis_instrument: HEDMInstrument,
     lif_material: Material,
-    lif_grain_params: np.array,
+    lif_grain_params: np.ndarray,
     expected_simulated_laue_results: dict[str, np.ndarray],
 ):
     instr = tardis_instrument
@@ -55,10 +55,7 @@ def test_simulate_laue_spots(
     plane_data.exclusions = None
 
     sim_data = instr.simulate_laue_pattern(
-        plane_data,
-        minEnergy=5,
-        maxEnergy=35,
-        grain_params=[lif_grain_params]
+        plane_data, minEnergy=5, maxEnergy=35, grain_params=[lif_grain_params]
     )
 
     # A few manual expected results
@@ -107,5 +104,35 @@ def test_simulate_laue_spots(
 
         # Now verify that nothing changed
         ref = expected_simulated_laue_results[det_key]
-        for results, results_ref in zip(psim, ref):
-            assert np.allclose(results, results_ref, equal_nan=True)
+        (
+            result_xy_det,
+            result_hkls,
+            result_angles,
+            result_dspacing,
+            result_energy,
+        ) = ref
+
+        # Get everything into a similar shape and sort them by hkl
+        hkls = hkls.transpose(0, 2, 1)[0]
+        result_hkls = result_hkls.transpose(0, 2, 1)[0]
+
+        i = np.lexsort(hkls.T)
+        j = np.lexsort(result_hkls.T)
+
+        hkls = hkls[i]
+        xy_det = xy_det[0][i]
+        angles = angles[0][i]
+        dspacing = dspacing[..., None][0][i]
+        energy = energy[..., None][0][i]
+
+        result_hkls = result_hkls[j]
+        result_xy_det = result_xy_det[0][j]
+        result_angles = result_angles[0][j]
+        result_dspacing = result_dspacing[..., None][0][j]
+        result_energy = result_energy[..., None][0][j]
+
+        assert np.allclose(hkls, result_hkls, equal_nan=True)
+        assert np.allclose(xy_det, result_xy_det, equal_nan=True)
+        assert np.allclose(angles, result_angles, equal_nan=True)
+        assert np.allclose(dspacing, result_dspacing, equal_nan=True)
+        assert np.allclose(energy, result_energy, equal_nan=True)

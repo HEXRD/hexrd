@@ -29,14 +29,14 @@ def convert_axis_angle_to_rmat(axis, angle):
     s = math.sin(angle)
     t = 1.0 - c
 
-    m[0, 0] = c + axis[0]*axis[0]*t
-    m[0, 1] = axis[0]*axis[1]*t - axis[2]*s
-    m[0, 2] = axis[0]*axis[2]*t + axis[1]*s
-    m[1, 0] = axis[0]*axis[1]*t + axis[2]*s
-    m[1, 1] = c + axis[1]*axis[1]*t
-    m[1, 2] = axis[1]*axis[2]*t - axis[0]*s
-    m[2, 0] = axis[0]*axis[2]*t - axis[1]*s
-    m[2, 1] = axis[1]*axis[2]*t + axis[0]*s
-    m[2, 2] = c + axis[2]*axis[2]*t
+    m[0, 0] = c + axis[0] * axis[0] * t
+    m[0, 1] = axis[0] * axis[1] * t - axis[2] * s
+    m[0, 2] = axis[0] * axis[2] * t + axis[1] * s
+    m[1, 0] = axis[0] * axis[1] * t + axis[2] * s
+    m[1, 1] = c + axis[1] * axis[1] * t
+    m[1, 2] = axis[1] * axis[2] * t - axis[0] * s
+    m[2, 0] = axis[0] * axis[2] * t - axis[1] * s
+    m[2, 1] = axis[1] * axis[2] * t + axis[0] * s
+    m[2, 2] = c + axis[2] * axis[2] * t
 
     return m

@@ -8,6 +8,7 @@ import pytest
 from hexrd.fitting.calibration import LaueCalibrator
 from hexrd.material.material import load_materials_hdf5, Material
 from hexrd.instrument.hedm_instrument import HEDMInstrument
+from collections import defaultdict
 
 
 @pytest.fixture
@@ -18,14 +19,14 @@ def simulated_tardis_path(example_repo_path: Path) -> Path:
 @pytest.fixture
 def simulated_tardis_images(
     simulated_tardis_path: Path,
-) -> dict[str, np.array]:
+) -> dict[str, np.ndarray]:
     path = simulated_tardis_path / 'tardis_images.npz'
     npz = np.load(path)
     return {k: v for k, v in npz.items()}
 
 
 @pytest.fixture
-def lif_grain_params(simulated_tardis_path: Path) -> np.array:
+def lif_grain_params(simulated_tardis_path: Path) -> np.ndarray:
     path = simulated_tardis_path / 'lif_grains_ideal.out'
     grain = np.loadtxt(path, ndmin=2)[0]
     return grain[3:15]
@@ -55,8 +56,8 @@ def expected_laue_auto_pick_results(test_data_dir: Path) -> dict[str, list]:
 def test_autopick_laue_spots(
     tardis_instrument: HEDMInstrument,
     lif_material: Material,
-    lif_grain_params: np.array,
-    simulated_tardis_images: dict[str, np.array],
+    lif_grain_params: np.ndarray,
+    simulated_tardis_images: dict[str, np.ndarray],
     expected_laue_auto_pick_results: dict[str, list],
 ):
     instr = tardis_instrument
@@ -131,11 +132,22 @@ def test_autopick_laue_spots(
         )
         assert np.allclose(entry['point'], point_deg)
 
+    # Sort the results by HKL for comparison.
+    # The order of the HKLs is not guaranteed to be the same.
+    for pick_set in (picks, expected_laue_auto_pick_results):
+        for det_key, hkls in pick_set['hkls'].items():
+            hkls = np.asarray(hkls)
+            i = np.lexsort(hkls.T)
+            pick_set['hkls'][det_key] = hkls[i]
+            pick_set['pick_xys'][det_key] = np.asarray(
+                pick_set['pick_xys'][det_key]
+            )[i]
+
     # Now just verify that everything matches the previous results
     for pick_key in expected_laue_auto_pick_results:
         for det_key in expected_laue_auto_pick_results[pick_key]:
             assert np.allclose(
                 picks[pick_key][det_key],
                 expected_laue_auto_pick_results[pick_key][det_key],
-                equal_nan=True
+                equal_nan=True,
             )
