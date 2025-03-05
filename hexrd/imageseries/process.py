@@ -57,7 +57,7 @@ class ProcessedImageSeries(ImageSeries):
 
     def _process_frame(self, key):
         # note: key refers to original imageseries
-        img = np.copy(self._imser[key])
+        img = self._imser[key]
         for k, d in self.oplist:
             func = self._opdict[k]
             img = func(img, d)
