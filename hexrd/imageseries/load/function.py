@@ -6,7 +6,16 @@ from ..imageseriesiter import ImageSeriesIterator
 
 
 class FunctionImageSeriesAdapter(ImageSeriesAdapter):
-    """Collection of Images in numpy array
+    """A highly customizable "generator-like" imageseries adapter
+
+    This adapter allows a function to be provided which should
+    generate and return a frame for the index requested. It allows
+    any function to be used that can provide a frame.
+
+    Note: to match behavior with other imageseries adapters, it may
+    be advisable to return a new copy each time a frame is requested
+    (rather than returning a locally stored/cached copy), since other
+    parts of the code may modify the frame in place.
 
     Parameters
     ----------
