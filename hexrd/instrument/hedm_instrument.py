@@ -1970,13 +1970,13 @@ class HEDMInstrument(object):
                 transmission_physics_package = (
                     det.calc_physics_package_transmission(
                         energy, rMat_s, self.physics_package))
-                effective_pinhole_area = det.calc_effective_pinhole_area(
-                    self.physics_package)
+                # effective_pinhole_area = det.calc_effective_pinhole_area(
+                #     self.physics_package)
 
                 transmission = (
                     transmission *
-                    transmission_physics_package *
-                    effective_pinhole_area
+                    transmission_physics_package# *
+                    #effective_pinhole_area
                 )
 
             transmissions[det_name] = transmission
