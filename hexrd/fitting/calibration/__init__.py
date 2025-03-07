@@ -1,6 +1,7 @@
+from .grain import GrainCalibrator
 from .instrument import InstrumentCalibrator
 from .laue import LaueCalibrator
-from .multigrain import calibrate_instrument_from_sx, generate_parameter_names
+from .lmfit_param_handling import fix_detector_y
 from .powder import PowderCalibrator
 from .structureless import StructurelessCalibrator
 
@@ -8,8 +9,8 @@ from .structureless import StructurelessCalibrator
 StructureLessCalibrator = StructurelessCalibrator
 
 __all__ = [
-    'calibrate_instrument_from_sx',
-    'generate_parameter_names',
+    'fix_detector_y',
+    'GrainCalibrator',
     'InstrumentCalibrator',
     'LaueCalibrator',
     'PowderCalibrator',

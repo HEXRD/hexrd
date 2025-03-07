@@ -39,8 +39,6 @@ distortion_registry = distortion_pkg.Registry()
 
 max_workers_DFLT = max(1, os.cpu_count() - 1)
 
-panel_calibration_flags_DFLT = np.array([1, 1, 1, 1, 1, 1], dtype=bool)
-
 beam_energy_DFLT = 65.351
 
 # Memoize these, so each detector can avoid re-computing if nothing
@@ -303,22 +301,6 @@ class Detector:
             phosphor = detector_coatings.Phosphor(**PHOSPHOR_DEFAULT)
         self.phosphor = phosphor
 
-        #
-        # set up calibration parameter list and refinement flags
-        #
-        # order for a single detector will be
-        #
-        #     [tilt, translation, <distortion>]
-        dparams = []
-        if self._distortion is not None:
-            dparams = self._distortion.params
-        self._calibration_parameters = np.hstack(
-            [self._tilt, self._tvec, dparams]
-        )
-        self._calibration_flags = np.hstack(
-            [panel_calibration_flags_DFLT, np.zeros(len(dparams), dtype=bool)]
-        )
-
     # detector ID
     @property
     def name(self):
@@ -553,56 +535,6 @@ class Detector:
             self.row_pixel_vec, self.col_pixel_vec, indexing='ij'
         )
         return pix_i, pix_j
-
-    @property
-    def calibration_parameters(self):
-        #
-        # set up calibration parameter list and refinement flags
-        #
-        # order for a single detector will be
-        #
-        #     [tilt, translation, <distortion>]
-        dparams = []
-        if self.distortion is not None:
-            dparams = self.distortion.params
-        self._calibration_parameters = np.hstack(
-            [self.tilt, self.tvec, dparams]
-        )
-        return self._calibration_parameters
-
-    @property
-    def calibration_flags(self):
-        return self._calibration_flags
-
-    @calibration_flags.setter
-    def calibration_flags(self, x):
-        x = np.array(x, dtype=bool).flatten()
-        if len(x) != len(self._calibration_flags):
-            raise RuntimeError(
-                "length of parameter list must be %d; you gave %d"
-                % (len(self._calibration_flags), len(x))
-            )
-        self._calibration_flags = x
-
-    @property
-    def calibration_flags_to_lmfit_names(self):
-        # Create a list identical in length to `self.calibration_flags`
-        # where the entries in the list are the corresponding lmfit
-        # parameter names.
-        name = self.lmfit_name
-        flags = [
-            f'{name}_euler_z',
-            f'{name}_euler_xp',
-            f'{name}_euler_zpp',
-            f'{name}_tvec_x',
-            f'{name}_tvec_y',
-            f'{name}_tvec_z',
-        ]
-        if self.distortion is not None:
-            for i in range(len(self.distortion.params)):
-                flags.append(f'{name}_distortion_param_{i}')
-
-        return flags
 
     # =========================================================================
     # METHODS

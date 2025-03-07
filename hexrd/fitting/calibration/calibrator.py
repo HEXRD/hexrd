@@ -80,3 +80,14 @@ class Calibrator(ABC):
     def calibration_picks(self, val):
         """Setter for calibration_picks. See getter docs for details."""
         raise NotImplementedError
+
+    @property
+    def tth_distortion(self):
+        # By default, don't do anything. Subclasses can override.
+        return None
+
+    @tth_distortion.setter
+    def tth_distortion(self, v):
+        # By default, don't do anything. Subclasses can override.
+        if v is not None:
+            raise NotImplementedError(v)
