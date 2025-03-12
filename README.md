@@ -1,11 +1,12 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8033939.svg)](https://doi.org/10.5281/zenodo.8033939) ![conda-package](https://github.com/HEXRD/hexrd/workflows/conda-package/badge.svg) ![test](https://github.com/HEXRD/hexrd/workflows/test/badge.svg) [![codecov](https://codecov.io/gh/Hexrd/hexrd/graph/badge.svg)](https://codecov.io/gh/Hexrd/hexrd) ![latest version](https://anaconda.org/hexrd/hexrd/badges/version.svg) ![last updated](https://anaconda.org/hexrd/hexrd/badges/latest_release_relative_date.svg) ![downloads](https://anaconda.org/hexrd/hexrd/badges/downloads.svg)
 
 # HEXRD
-The HEXRD project is developing a cross-platform, open-source library for the general analysis of X-ray diffraction data.  This includes powder diffraction, Laue diffraction, and High Energy Diffraction Microscopy (_a.k.a._ 3DXRD, multi-grain rotation method) modalities.  At its core, HEXRD provides an abstraction of a generic diffraction instrument with support for multiple detectors.  This includes optimized transforms from the direct and reciprocal crystal lattices to the local detector coordinates, harnesses for interpolating image data into scattering angle coordinates, and sophisticated calibration routines.
+
+The HEXRD project is developing a cross-platform, open-source library for the general analysis of X-ray diffraction data. This includes powder diffraction, Laue diffraction, and High Energy Diffraction Microscopy (_a.k.a._ 3DXRD, multi-grain rotation method) modalities. At its core, HEXRD provides an abstraction of a generic diffraction instrument with support for multiple detectors. This includes optimized transforms from the direct and reciprocal crystal lattices to the local detector coordinates, harnesses for interpolating image data into scattering angle coordinates, and sophisticated calibration routines.
 
 # Installing
 
-Requires Python 3.9+ (Python 3.11 recommended).  It is generally recommended for interactive use to install `hexrd` into a fresh environment with Spyder and Jupyter as well.  The GUI is in a separate package [here](https://github.com/hexrd/hexrdgui).
+Requires Python 3.9+ (Python 3.11 recommended). It is generally recommended for interactive use to install `hexrd` into a fresh environment with Spyder and Jupyter as well. The GUI is in a separate package [here](https://github.com/hexrd/hexrdgui).
 
 ## conda (main releases)
 
@@ -16,6 +17,7 @@ conda install -c hexrd -c conda-forge hexrd
 ```
 
 ## conda (prerelease)
+
 To install the latest changes on master, do the following (Note that this release may be unstable!):
 
 ```bash
@@ -24,7 +26,7 @@ conda install -c hexrd/label/prerelease -c conda-forge hexrd
 
 # Run
 
-There is currently a CLI for far-field HEDM analysis (a.k.a. 3DXRD).  Other CLI's for high-level functions are under development.
+There is currently a CLI for far-field HEDM analysis (a.k.a. 3DXRD). Other CLI's for high-level functions are under development.
 
 ```bash
 > hexrd --help
@@ -60,7 +62,7 @@ See [Citing HEXRD](https://hexrdgui.readthedocs.io/en/latest/citing/#hexrd) for 
 
 # Development
 
-Requires Python 3.9+ and a C compiler (_e.g._, `gcc` or VisualStudio).  First clone the Git repository:
+Requires Python 3.9+ and a C compiler (_e.g._, `gcc` or VisualStudio). First clone the Git repository:
 
 ```bash
 git clone https://github.com/hexrd/hexrd.git
@@ -74,6 +76,7 @@ pip install -e hexrd
 ```
 
 ## conda
+
 It is highly recommended to install hexrd in its own virtual env:
 
 ```bash
@@ -101,20 +104,20 @@ Have fun!
 
 Many thanks go to Hexrd's [contributors](https://github.com/HEXRD/hexrd/graphs/contributors).
 
-* Joel Bernier
-* Donald Boyce
-* Saransh Singh
-* Darren Pagan
-* Kelly Nygren
-* Rachel Lim
-* Patrick Avery
-* Chris Harris
-* Nathan Barton
-* and many more...
+-   Joel Bernier
+-   Donald Boyce
+-   Saransh Singh
+-   Darren Pagan
+-   Kelly Nygren
+-   Rachel Lim
+-   Patrick Avery
+-   Chris Harris
+-   Nathan Barton
+-   and many more...
 
 # Contributing
 
-Please submit any bugfixes or feature improvements as [pull requests](https://help.github.com/articles/using-pull-requests/).
+All forms of contribution are appreciated. For more details on how to contribute, see the [CONTRIBUTING](https://github.com/HEXRD/hexrd/wiki/Contributing) page of the wiki.
 
 # License
 
@@ -124,4 +127,4 @@ See [LICENSE](https://github.com/hexrd/hexrd/blob/master/LICENSE) and [NOTICE](h
 
 `SPDX-License-Identifier: BSD 3-Clause`
 
-``LLNL-CODE-819716``
+`LLNL-CODE-819716`
