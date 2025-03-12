@@ -894,7 +894,7 @@ def direct_pk_analysis(x, f,
     data_max = np.max(f)
 
     # numerically integrate the peak using the simpson rule
-    total_int = integrate.simps(ffine, xfine)
+    total_int = integrate.simpson(ffine, xfine)
 
     cen_index = np.argmax(ffine)
     A = data_max
@@ -970,22 +970,22 @@ def calc_pk_integrated_intensities(p, x, pktype, num_pks):
 
     for ii in np.arange(num_pks):
         if pktype == 'gaussian':
-            ints[ii] = integrate.simps(
+            ints[ii] = integrate.simpson(
                 pkfuncs._gaussian1d_no_bg(p_fit[ii], x),
                 x
             )
         elif pktype == 'lorentzian':
-            ints[ii] = integrate.simps(
+            ints[ii] = integrate.simpson(
                 pkfuncs._lorentzian1d_no_bg(p_fit[ii], x),
                 x
             )
         elif pktype == 'pvoigt':
-            ints[ii] = integrate.simps(
+            ints[ii] = integrate.simpson(
                 pkfuncs._pvoigt1d_no_bg(p_fit[ii], x),
                 x
             )
         elif pktype == 'split_pvoigt':
-            ints[ii] = integrate.simps(
+            ints[ii] = integrate.simpson(
                 pkfuncs._split_pvoigt1d_no_bg(p_fit[ii], x),
                 x
             )
