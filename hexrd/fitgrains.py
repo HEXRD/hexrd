@@ -350,7 +350,8 @@ def fit_grains(cfg,
 
     if ids_to_refine is not None:
         grains_table = np.atleast_2d(grains_table[ids_to_refine, :])
-        spots_filename = SPOTS_OUT_FILE if write_spots_files else None
+
+    spots_filename = SPOTS_OUT_FILE if write_spots_files else None
     params = dict(
             grains_table=grains_table,
             plane_data=cfg.material.plane_data,
@@ -365,7 +366,7 @@ def fit_grains(cfg,
             eta_ranges=eta_ranges,
             ome_period=ome_period,
             analysis_dirname=cfg.analysis_dir,
-            spots_filename=SPOTS_OUT_FILE)
+            spots_filename=spots_filename)
 
     # =====================================================================
     # EXECUTE MP FIT
