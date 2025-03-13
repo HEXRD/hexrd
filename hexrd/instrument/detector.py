@@ -2001,25 +2001,30 @@ class Detector:
     def calc_effective_pinhole_area(self, physics_package: AbstractPhysicsPackage) -> np.array:
         """get the effective pinhole area correction
         """
-        if (np.isclose(physics_package.pinhole_diameter, 0)
-                or np.isclose(physics_package.pinhole_thickness, 0)):
-            return np.ones(self.shape)
-
+        # always assume thin pinhole
         hod = (physics_package.pinhole_thickness /
-               physics_package.pinhole_diameter)
-        bvec = self.bvec
+        physics_package.pinhole_diameter)
 
-        tth, eta = self.pixel_angles()
-        angs = np.vstack((tth.flatten(), eta.flatten(),
-                          np.zeros(tth.flatten().shape))).T
-        dvecs = angles_to_dvec(angs, beam_vec=bvec)
+        bvec_old = self.bvec.copy()
+        bvec_new = np.array([0., 0., np.sign(bvec_old[2])])
+        self.bvec = bvec_new
+        beta, eta = self.pixel_angles()
+        tb = np.tan(beta)
+        jb = hod*tb
+        jb[jb > 1] = np.nan
+        jb2 = jb**2
+        mask = np.isclose(jb2, 0.)
 
-        cth = -dvecs[:, 2].reshape(self.shape)
-        tanth = np.tan(np.arccos(cth))
-        f = hod*tanth
-        f[np.abs(f) > 1.] = np.nan
-        asinf = np.arcsin(f)
-        return 2 / np.pi * cth * (np.pi / 2 - asinf - f * np.cos(asinf))
+        f1 = np.zeros_like(jb)
+        f1[~mask] = np.arctan(np.sqrt(1/jb2[~mask] - 1))
+        f1[mask] = np.pi/2
+
+        f2 = jb*np.sqrt(1 - jb2)
+
+        # set beam vector back to original
+        self.bvec = bvec_old
+
+        return 0.5*(f1 - f2)
 
     def calc_transmission_generic(self,
                                   secb: np.array,
