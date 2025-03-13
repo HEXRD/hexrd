@@ -8,7 +8,7 @@ from scipy.sparse import csr_matrix
 import yaml
 import h5py
 
-from . import ImageSeriesAdapter
+from . import ImageSeriesAdapter, RegionType
 from ..imageseriesiter import ImageSeriesIterator
 from .metadata import yamlmeta
 from hexrd.utils.hdf5 import unwrap_h5_to_dict
@@ -175,6 +175,12 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
                                shape=self._shape,
                                dtype=self._dtype)
             self._framelist.append(frame)
+
+    def get_region(self, frame_idx: int, region: RegionType) -> np.ndarray:
+        self._load_framelist_if_needed()
+        csr_frame = self._framelist[frame_idx]
+        r = region
+        return csr_frame[r[0][0]:r[0][1], r[1][0]:r[1][1]].toarray()
 
     @property
     def metadata(self):
