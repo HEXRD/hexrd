@@ -8,7 +8,7 @@ from .baseclass import ImageSeries
 
 
 class ProcessedImageSeries(ImageSeries):
-    """imsageseries based on existing one with image processing options
+    """imageseries based on existing one with image processing options
 
     Parameters
     ----------
@@ -56,9 +56,23 @@ class ProcessedImageSeries(ImageSeries):
         return (self[i] for i in range(len(self)))
 
     def _process_frame(self, key):
-        # note: key refers to original imageseries
-        img = self._imser[key]
-        for k, d in self.oplist:
+       # note: key refers to original imageseries
+        oplist = self.oplist
+
+        # when rectangle is the first operation we can try to call the
+        # optimized version. If the adapter provides one it should be
+        # significantly faster if not it will fallback to the same
+        # implementation that _rectangle provides.
+        if oplist and  oplist[0][0] == self.RECT:
+            region = oplist[0][1]
+            img = self._rectangle_optimized(key,region)
+
+            # remove the first operation since we already used it
+            oplist = oplist[1:]
+        else:
+            img = self._imser[key]
+
+        for k, d in oplist:
             func = self._opdict[k]
             img = func(img, d)
 
@@ -80,6 +94,9 @@ class ProcessedImageSeries(ImageSeries):
         ret = img - dark
         ret[ret < 0] = 0
         return ret
+
+    def _rectangle_optimized(self, img_key, r):
+        return self._imser._adapter.get_region(img_key, r)
 
     def _rectangle(self, img, r):
         # restrict to rectangle

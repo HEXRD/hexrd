@@ -5,7 +5,7 @@ import warnings
 
 import numpy as np
 
-from . import ImageSeriesAdapter
+from . import ImageSeriesAdapter,RegionType
 from ..imageseriesiter import ImageSeriesIterator
 
 
@@ -66,6 +66,10 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
             return np.asarray(self.__image_dataset)
         else:
             return self.__image_dataset[key]
+
+    def get_region(self, frame_idx: int, region: RegionType) -> np.ndarray:
+        r = region
+        return self.__image_dataset[frame_idx][r[0][0]:r[0][1], r[1][0]:r[1][1]]
 
     def __iter__(self):
         return ImageSeriesIterator(self)
