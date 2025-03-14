@@ -2001,14 +2001,29 @@ class Detector:
         """get the effective pinhole area correction
         """
         # always assume thin pinhole
+        hod = (physics_package.pinhole_thickness /
+        physics_package.pinhole_diameter)
+
         bvec_old = self.bvec.copy()
         bvec_new = np.array([0., 0., np.sign(bvec_old[2])])
         self.bvec = bvec_new
         beta, eta = self.pixel_angles()
-        cb = np.cos(beta)
+        tb = np.tan(beta)
+        jb = hod*tb
+        jb[jb > 1] = np.nan
+        jb2 = jb**2
+        mask = np.isclose(jb2, 0.)
 
+        f1 = np.zeros_like(jb)
+        f1[~mask] = np.arctan(np.sqrt(1/jb2[~mask] - 1))
+        f1[mask] = np.pi/2
+
+        f2 = jb*np.sqrt(1 - jb2)
+
+        # set beam vector back to original
         self.bvec = bvec_old
-        return cb
+
+        return 0.5*(f1 - f2)
 
     def calc_transmission_generic(self,
                                   secb: np.array,
