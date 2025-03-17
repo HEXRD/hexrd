@@ -514,8 +514,9 @@ class Detector:
     @distortion.setter
     def distortion(self, x):
         if x is not None:
-            check_arg = np.zeros(len(distortion_registry), dtype=bool)
-            for i, dcls in enumerate(distortion_registry.values()):
+            registry = distortion_registry.distortion_registry
+            check_arg = np.zeros(len(registry), dtype=bool)
+            for i, dcls in enumerate(registry.values()):
                 check_arg[i] = isinstance(x, dcls)
             assert np.any(check_arg), 'input distortion is not in registry!'
         self._distortion = x
