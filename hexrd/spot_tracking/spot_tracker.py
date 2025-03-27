@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 
 import rtree
-from spot_finder import Spot
+
+from .spot import Spot
 
 
 @dataclass
