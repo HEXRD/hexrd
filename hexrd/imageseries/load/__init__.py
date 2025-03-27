@@ -2,10 +2,8 @@ import abc
 import pkgutil
 import numpy as np
 
-from ..imageseriesabc import ImageSeriesABC
+from ..imageseriesabc import ImageSeriesABC, RegionType
 from .registry import Registry
-
-RegionType = tuple[tuple[int, int], tuple[int, int]]
 
 # Metaclass for adapter registry
 
