@@ -96,7 +96,7 @@ class ProcessedImageSeries(ImageSeries):
         return ret
 
     def _rectangle_optimized(self, img_key, r):
-        return self._imser._adapter.get_region(img_key, r)
+        return self._imser.get_region(img_key, r)
 
     def _rectangle(self, img, r):
         # restrict to rectangle

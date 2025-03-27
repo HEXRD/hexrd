@@ -1,6 +1,9 @@
 """Base class for imageseries
 """
-from .imageseriesabc import ImageSeriesABC
+import numpy as np
+
+from .imageseriesabc import ImageSeriesABC, RegionType
+
 
 class ImageSeries(ImageSeriesABC):
     """collection of images
@@ -39,3 +42,6 @@ class ImageSeries(ImageSeriesABC):
     @property
     def metadata(self):
         return self._adapter.metadata
+
+    def get_region(self, frame_idx: int, region: RegionType) -> np.ndarray:
+        return self._adapter.get_region(frame_idx, region)
