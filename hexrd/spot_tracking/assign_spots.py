@@ -7,9 +7,10 @@ import numpy as np
 from hexrd.instrument import HEDMInstrument
 from hexrd.material.crystallography import PlaneData
 from hexrd.rotations import mapAngle
+from hexrd.utils.decorators import memoize
 
-from spot_finder import Spot
-from spot_tracker import SpotTracker, TrackedSpot
+from .spot import Spot
+from .spot_tracker import SpotTracker, TrackedSpot
 
 # First key is detector key, second key is spot ID, and the
 # final list is the list of spots (one for each frame a tracked
@@ -60,6 +61,8 @@ def compute_mean_spot(
     max_width = widths.max()
     coords = np.array([(s.i, s.j) for s in spot_list])
     n_frames = len(spot_list)
+    max_int = max(s.max for s in spot_list)
+    sum_int = sum(s.sum for s in spot_list)
 
     # We are using a width-weighted omega as the average omega, currently
     sum_weighted_omega = (omega_values * sums).sum() / (sums.sum())
@@ -75,6 +78,8 @@ def compute_mean_spot(
         sum_weighted_omega,
         omega_width,
         n_frames,
+        max_int,
+        sum_int,
     ))
 
 
@@ -87,7 +92,7 @@ def combine_spots(
     # and omega values.
     spot_arrays = {}
     for det_key, spots_dict in tracked_spots.items():
-        array = np.empty((len(spots_dict), 6), dtype=float)
+        array = np.empty((len(spots_dict), 8), dtype=float)
         for i, spot_list in enumerate(spots_dict.values()):
             array[i] = compute_mean_spot(spot_list, omegas)
 
@@ -188,6 +193,8 @@ def assign_spots_to_hkls(
         # Stack the omegas on the end
         ang_spot_coords = np.hstack((ang_crds, spot_array[:, [2]]))
         num_frames = spot_arrays[det_key][:, 5]
+        max_int = spot_arrays[det_key][:, 6]
+        sum_int = spot_arrays[det_key][:, 7]
 
         # Grab some simulated HKLs
         sim_all_hkls = sim_results[1]
@@ -290,6 +297,8 @@ def assign_spots_to_hkls(
                 'spots_assigned': spots_assigned,
                 'meas_angs': meas_angs,
                 'num_frames': num_frames[spots_assigned],
+                'max_int': max_int[spots_assigned],
+                'sum_int': sum_int[spots_assigned],
             }
 
         # Check if any spots assigned to HKLs from one grain were also assigned
@@ -307,3 +316,45 @@ def assign_spots_to_hkls(
             )
 
     return ret
+
+
+def track_combine_and_chunk_spots(
+    spots_filename: Path,
+    instr: HEDMInstrument,
+    num_images: int,
+    omegas: np.ndarray,
+):
+    # Use detector groups if they are available, because the spots
+    # will have been identified from the raw images
+    det_keys = instr.detector_groups
+    was_chunked = True
+    if not det_keys:
+        # Must not be chunked into groups
+        det_keys = list(instr.detectors)
+        was_chunked = False
+
+    spot_arrays = _track_and_combine_spots(
+        spots_filename,
+        num_images,
+        det_keys,
+        omegas,
+    )
+    if was_chunked:
+        spot_arrays = chunk_spots_into_subpanels(spot_arrays, instr)
+
+    return spot_arrays
+
+
+# Memoize this. It involves extracting the spots from the file,
+# tracking them, and combining them. This might be repeated once for
+# each grain, and memoizing it makes it so we don't have to repeat those
+# steps.
+@memoize(maxsize=2)
+def _track_and_combine_spots(
+    spots_filename: Path,
+    num_images: int,
+    det_keys: list[str],
+    omegas: np.ndarray,
+) -> dict[str, np.ndarray]:
+    tracked_spots = track_spots(spots_filename, num_images, det_keys)
+    return combine_spots(tracked_spots, omegas)

@@ -139,3 +139,15 @@ class FitGrainsConfig(Config):
         raise RuntimeError(
             '"%s" must be > 0, true, or false, got "%s"' % (key, temp)
             )
+
+    @property
+    def spots_data_file(self):
+        if getattr(self, '_spots_data_file', None):
+            return self._spots_data_file
+
+        key = 'fit_grains:spots_data_file'
+        return self._cfg.get(key, None)
+
+    @spots_data_file.setter
+    def spots_data_file(self, filepath):
+        self._spots_data_file = filepath

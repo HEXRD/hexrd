@@ -1,3 +1,4 @@
 pytest
 coloredlogs
 coverage
+opencv-python  # this is required to test spot finding

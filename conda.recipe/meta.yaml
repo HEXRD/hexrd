@@ -52,6 +52,7 @@ requirements:
     - python
     - python-xxhash
     - pyyaml
+    - rtree
     - scikit-image
     - scikit-learn
     - scipy
