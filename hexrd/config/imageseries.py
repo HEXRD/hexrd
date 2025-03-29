@@ -21,10 +21,11 @@ class ImageSeries(Config):
         if self._image_dict is None:
             self._image_dict = dict()
             fmt = self.format
+            style = self.style
             for ispec in self.data:
                 fname = ispec['file']
                 args = ispec['args']
-                ims = imageseries.open(fname, fmt, **args)
+                ims = imageseries.open(fname, fmt, style=style, **args)
                 oms = imageseries.omega.OmegaImageSeries(ims)
                 # handle special case for single IMS
                 # for use with ROI
@@ -49,3 +50,7 @@ class ImageSeries(Config):
     @property
     def format(self):
         return self.get('format')
+
+    @property
+    def style(self):
+        return self.get('style')

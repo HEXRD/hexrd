@@ -1,142 +1,14 @@
-import copy
-from pathlib import Path
-
-import h5py
 import numpy as np
+from scipy.spatial import KDTree
 
 from hexrd.instrument import HEDMInstrument
 from hexrd.material.crystallography import PlaneData
-from hexrd.rotations import mapAngle
-
-from spot_finder import Spot
-from spot_tracker import SpotTracker, TrackedSpot
-
-# First key is detector key, second key is spot ID, and the
-# final list is the list of spots (one for each frame a tracked
-# spot is on) for that spot ID.
-TrackSpotsOutputType = dict[str, dict[int, list[TrackedSpot]]]
-
-
-# Track the spots in the raw images
-def track_spots(
-    spots_filename: Path,
-    num_images: int,
-    det_keys: list[str],
-) -> TrackSpotsOutputType:
-    spot_trackers = {k: SpotTracker() for k in det_keys}
-    tracked_spots = {k: {} for k in det_keys}
-    with h5py.File(spots_filename, 'r') as rf:
-        for frame_index in range(num_images):
-            for det_key in det_keys:
-                # Pull the spots from the file
-                path = f'{det_key}/{frame_index}'
-                spots_array = rf[path][()]
-
-                # Convert to list of Spot
-                spots = [Spot.from_array(x) for x in spots_array]
-
-                # Next, track spots
-                tracker = spot_trackers[det_key]
-                tracker.track_spots(spots, frame_index)
-
-                # Now update our tracked list
-                spot_dict = tracked_spots[det_key]
-                for spot_id, spot in tracker.current_spots.items():
-                    spot_list = spot_dict.setdefault(spot_id, [])
-                    spot_list.append(copy.deepcopy(spot))
-
-    return tracked_spots
-
-
-# Compute x, y, w, omega, and omega width for every spot
-def compute_mean_spot(
-    spot_list: list[TrackedSpot],
-    omegas: np.ndarray,
-) -> np.ndarray:
-    omega_ranges = np.radians([omegas[s.frame_index] for s in spot_list])
-    omega_values = [np.mean(x) for x in omega_ranges]
-    sums = np.array([s.sum for s in spot_list])
-    widths = np.array([s.w for s in spot_list])
-    max_width = widths.max()
-    coords = np.array([(s.i, s.j) for s in spot_list])
-    n_frames = len(spot_list)
-
-    # We are using a width-weighted omega as the average omega, currently
-    sum_weighted_omega = (omega_values * sums).sum() / (sums.sum())
-    sum_weighted_coords = (coords * sums[:, np.newaxis]).sum(
-        axis=0
-    ) / sums.sum()
-
-    # We are using the full range of omegas
-    omega_width = (omega_ranges[-1][1] - omega_ranges[0][0]) / 2
-    return np.asarray((
-        *sum_weighted_coords,
-        max_width,
-        sum_weighted_omega,
-        omega_width,
-        n_frames,
-    ))
-
-
-def combine_spots(
-    tracked_spots: TrackSpotsOutputType,
-    omegas: np.ndarray,
-) -> dict[str, np.ndarray]:
-    # Combine spots on different frames that appear to belong to the
-    # same HKL, and perform weighted averages for computing their x, y
-    # and omega values.
-    spot_arrays = {}
-    for det_key, spots_dict in tracked_spots.items():
-        array = np.empty((len(spots_dict), 6), dtype=float)
-        for i, spot_list in enumerate(spots_dict.values()):
-            array[i] = compute_mean_spot(spot_list, omegas)
-
-        spot_arrays[det_key] = array
-
-    return spot_arrays
-
-
-def in_range(x: np.ndarray, xrange: tuple[float, float]) -> np.ndarray:
-    # Generic function to determine which `x` values are in the range `xrange`
-    # Returns an array of booleans indicating which ones were in range
-    return (xrange[0] <= x) & (x < xrange[1])
-
-
-def chunk_spots_into_subpanels(
-    spot_arrays: dict[str, np.ndarray],
-    instr: HEDMInstrument,
-) -> dict[str, np.ndarray]:
-    # Break up the spots into subpanels, and remap the coordinates
-    # to be within the subpanel's coordinates.
-    all_groups = instr.detector_groups
-    if not all_groups:
-        # There are no subpanels...
-        return spot_arrays
-
-    subpanel_spot_arrays = {}
-    for group, array in spot_arrays.items():
-        for det_key, panel in instr.detectors_in_group(group).items():
-            # Extract all spots that belong to this subpanel
-            on_panel_rows = in_range(array[:, 0], panel.roi[0]) & in_range(
-                array[:, 1], panel.roi[1]
-            )
-            if np.any(on_panel_rows):
-                # Extract the spots on the subpanel
-                subpanel_array = array[on_panel_rows]
-
-                # Adjust the i, j coordinates for this subpanel
-                subpanel_array[:, 0] -= panel.roi[0][0]
-                subpanel_array[:, 1] -= panel.roi[1][0]
-                subpanel_spot_arrays[det_key] = subpanel_array
-            else:
-                subpanel_spot_arrays[det_key] = np.empty((0,))
-
-    return subpanel_spot_arrays
+from hexrd.rotations import angularDifference, mapAngle
 
 
 # First key is detector key. Second key is grain ID. Third key is
 # array name. Choices are 'hkls', 'sim_xys', 'sim_angs', 'meas_xys',
-# 'assigned_spots', 'meas_angs', and 'num_frames'
+# 'assigned_spots', 'meas_angs', and 'spot_num_frames'
 # All arrays are the same length, and a value at index `i` always
 # corresponds to the HKL at index `i`.
 AssignSpotsOutputType = dict[str, dict[int, dict[str, np.ndarray]]]
@@ -152,6 +24,7 @@ def assign_spots_to_hkls(
     eta_ranges: list[tuple[float, float]],
     omega_ranges: list[tuple[float, float]],
     omega_period: tuple[float, float],
+    n_frames: int,
 ) -> AssignSpotsOutputType:
 
     # Simulate the spots
@@ -162,6 +35,12 @@ def assign_spots_to_hkls(
         omega_ranges,
         omega_period,
     )
+
+    if len(omega_ranges) > 1:
+        # We convert the omegas to frame coordinates. This is a
+        # lot simpler if we assume a single omega range.
+        msg = 'We can only use a single omega range right now'
+        raise NotImplementedError(msg)
 
     # Loop over detectors and grain IDs and try to locate their matching spots
     ret = {}
@@ -187,7 +66,24 @@ def assign_spots_to_hkls(
 
         # Stack the omegas on the end
         ang_spot_coords = np.hstack((ang_crds, spot_array[:, [2]]))
-        num_frames = spot_arrays[det_key][:, 5]
+        spot_num_frames = spot_arrays[det_key][:, 5]
+        max_int = spot_arrays[det_key][:, 6]
+        sum_int = spot_arrays[det_key][:, 7]
+
+        # We verified earlier that there should only be one omega range.
+        # We could do more than one, but it's easier to just assume one
+        # for now...
+        min_ome, max_ome = omega_ranges[0]
+
+        def omegas_to_frame_pixels(omegas: np.ndarray) -> np.ndarray:
+            return (omegas - min_ome) / (max_ome - min_ome) * n_frames
+
+        # Compute measured pixels
+        meas_pixels = spot_array.copy()
+        # Convert the omegas to frame pixels
+        meas_pixels[:, 2] = omegas_to_frame_pixels(meas_pixels[:, 2])
+
+        kd_tree = KDTree(meas_pixels)
 
         # Grab some simulated HKLs
         sim_all_hkls = sim_results[1]
@@ -204,26 +100,45 @@ def assign_spots_to_hkls(
             sim_hkls = sim_all_hkls[grain_id]
 
             tvec_c = grain_params[grain_id][3:6]
-            angles, _ = panel.cart_to_angles(sim_xys, tvec_c=tvec_c)
+            sim_angles, _ = panel.cart_to_angles(sim_xys, tvec_c=tvec_c)
 
             # Fix eta period
-            angles[:, 1] = mapAngle(angles[:, 1], eta_period)
+            sim_angles[:, 1] = mapAngle(sim_angles[:, 1], eta_period)
 
             # Add the omegas
-            angles = np.hstack((angles, sim_omegas[:, np.newaxis]))
+            sim_angles = np.hstack((sim_angles, sim_omegas[:, np.newaxis]))
+
+            # Compute simulated spots in pixel coordinates as well.
+            # We will assign spots to HKLs according to minimum pixel
+            # distance (like `pull_spots()` does), rather than angular
+            # distances. However, we will still compare angles to verify
+            # they are within the specified tolerances.
+            sim_pixels = panel.cartToPixel(
+                sim_xys,
+                apply_distortion=True,
+            )
+
+            frame_pixels = omegas_to_frame_pixels(sim_omegas)
+            sim_pixels = np.hstack((sim_pixels, frame_pixels[:, np.newaxis]))
 
             # Create the hkl assignments array
             hkl_assignments = np.full(len(sim_hkls), -1, dtype=int)
             skipped_hkls = []
             spots_assigned = []
-            for i, ang_crd in enumerate(angles):
-                # Find the closest spot
-                differences = abs(ang_crd - ang_spot_coords)
-                distances = np.sqrt((differences**2).sum(axis=1))
-                min_idx = distances.argmin()
+            for i, ang_crd in enumerate(sim_angles):
+                # Find the closest spot. Include wrapping around to other side.
+                d1, min_idx1 = kd_tree.query(sim_pixels[i])
+                d2, min_idx2 = kd_tree.query(sim_pixels[i] - [0, 0, n_frames])
+                min_idx = min_idx1 if d1 < d2 else min_idx2
+
+                # Use special function to take into account angular wrapping
+                ang_differences = angularDifference(
+                    ang_crd,
+                    ang_spot_coords[min_idx],
+                )
 
                 # Verify that the differences are within the tolerances
-                if not np.all(differences[min_idx] < tolerances):
+                if not np.all(ang_differences < tolerances):
                     # Not within the tolerance...
                     skipped_hkls.append(sim_hkls[i])
                     continue
@@ -285,11 +200,13 @@ def assign_spots_to_hkls(
             grain_hkl_assignments[grain_id] = {
                 'hkls': sim_hkls[keep_hkls],
                 'sim_xys': sim_xys[keep_hkls],
-                'sim_angs': angles[keep_hkls],
+                'sim_angs': sim_angles[keep_hkls],
                 'meas_xys': cart_spot_coords,
                 'spots_assigned': spots_assigned,
                 'meas_angs': meas_angs,
-                'num_frames': num_frames[spots_assigned],
+                'max_int': max_int[spots_assigned],
+                'sum_int': sum_int[spots_assigned],
+                'spot_num_frames': spot_num_frames[spots_assigned],
             }
 
         # Check if any spots assigned to HKLs from one grain were also assigned
