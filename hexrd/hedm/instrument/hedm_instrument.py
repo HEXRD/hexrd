@@ -80,7 +80,11 @@ from hexrd.core.valunits import valWUnit
 from hexrd.powder.wppf import LeBail
 
 from hexrd.core.instrument.cylindrical_detector import CylindricalDetector
-from hexrd.core.instrument.detector import beam_energy_DFLT, max_workers_DFLT
+from hexrd.core.instrument.detector import (
+    beam_energy_DFLT,
+    max_workers_DFLT,
+    Detector,
+)
 from hexrd.core.instrument.planar_detector import PlanarDetector
 
 from skimage.draw import polygon
