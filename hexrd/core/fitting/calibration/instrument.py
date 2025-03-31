@@ -11,7 +11,7 @@ from .lmfit_param_handling import (
     update_instrument_from_params,
     validate_params_list,
 )
-from hexrd.core.fitting.calibration.relative_constraints import (
+from .relative_constraints import (
     create_relative_constraints,
     RelativeConstraints,
     RelativeConstraintsType,
@@ -30,7 +30,6 @@ class InstrumentCalibrator:
         self,
         *args,
         engineering_constraints=None,
-        set_refinements_from_instrument_flags=True,
         euler_convention=DEFAULT_EULER_CONVENTION,
         relative_constraints_type=RelativeConstraintsType.none,
     ):
@@ -63,9 +62,6 @@ class InstrumentCalibrator:
         self.euler_convention = euler_convention
 
         self.params = self.make_lmfit_params()
-        if set_refinements_from_instrument_flags:
-            self.instr.set_calibration_flags_to_lmfit_params(self.params)
-
         self.fitter = lmfit.Minimizer(
             self.minimizer_function, self.params, nan_policy='omit'
         )

@@ -14,7 +14,7 @@ from .lmfit_param_handling import (
     tth_parameter_prefixes,
     update_instrument_from_params,
 )
-from hexrd.core.fitting.calibration.relative_constraints import (
+from .relative_constraints import (
     create_relative_constraints,
     RelativeConstraints,
     RelativeConstraintsType,

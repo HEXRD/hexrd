@@ -8,24 +8,26 @@ from scipy.optimize import leastsq
 from skimage import filters
 from skimage.feature import blob_log
 
-# TODO: Resolve extra-workflow-dependency
 from hexrd.hedm import xrdutil
 from hexrd.core.constants import fwhm_to_sigma
 from hexrd.core.instrument import switch_xray_source
-from hexrd.core.rotations import angleAxisOfRotMat, RotMatEuler
 from hexrd.core.transforms import xfcapi
-from hexrd.core.utils.hkl import hkl_to_str, str_to_hkl
 
-# TODO: Resolve extra-workflow-dependency
-from .calibrator import Calibrator
-from .lmfit_param_handling import (
-    create_grain_params,
-    DEFAULT_EULER_CONVENTION,
-    rename_to_avoid_collision,
-)
+from .abstract_grain import AbstractGrainCalibrator
+from .lmfit_param_handling import DEFAULT_EULER_CONVENTION
 
 
-class LaueCalibrator(Calibrator):
+class LaueCalibrator(AbstractGrainCalibrator):
+    """A Laue calibrator "is-a" specific case for a grain calibrator.
+
+    Just like a grain calibrator, a Laue calibrator is calibrating
+    grain parameters.
+
+    There are some unique properties for Laue, though, such as having a
+    varying energy range rather than a constant energy value. Also, we
+    do not utilize any omega periods.
+    """
+
     type = 'laue'
 
     def __init__(
@@ -41,22 +43,23 @@ class LaueCalibrator(Calibrator):
         euler_convention=DEFAULT_EULER_CONVENTION,
         xray_source: Optional[str] = None,
     ):
-        self.instr = instr
-        self.material = material
-        self.grain_params = grain_params
-        self.default_refinements = default_refinements
+        super().__init__(
+            instr,
+            material,
+            grain_params,
+            default_refinements,
+            calibration_picks,
+            euler_convention,
+        )
         self.energy_cutoffs = [min_energy, max_energy]
-        self.euler_convention = euler_convention
         self.xray_source = xray_source
-
-        self.data_dict = None
-        if calibration_picks is not None:
-            self.calibration_picks = calibration_picks
 
         self._tth_distortion = tth_distortion
         self._update_tth_distortion_panels()
 
-        self.param_names = []
+    @property
+    def name(self):
+        return self.material.name
 
     @property
     def tth_distortion(self):
@@ -78,63 +81,6 @@ class LaueCalibrator(Calibrator):
         for det_key, obj in self._tth_distortion.items():
             obj.panel = self.instr.detectors[det_key]
 
-    def create_lmfit_params(self, current_params):
-        params = create_grain_params(
-            self.material.name,
-            self.grain_params_euler,
-            self.default_refinements,
-        )
-
-        # Ensure there are no name collisions
-        params, _ = rename_to_avoid_collision(params, current_params)
-        self.param_names = [x[0] for x in params]
-
-        return params
-
-    def update_from_lmfit_params(self, params_dict):
-        grain_params = []
-        for i, name in enumerate(self.param_names):
-            grain_params.append(params_dict[name].value)
-
-        self.grain_params_euler = np.asarray(grain_params)
-
-    @property
-    def grain_params_euler(self):
-        # Grain parameters with orientation set using Euler angle convention
-        if self.euler_convention is None:
-            return self.grain_params
-
-        grain_params = self.grain_params.copy()
-        rme = RotMatEuler(np.zeros(3), **self.euler_convention)
-        rme.rmat = xfcapi.make_rmat_of_expmap(grain_params[:3])
-        grain_params[:3] = np.degrees(rme.angles)
-        return grain_params
-
-    @grain_params_euler.setter
-    def grain_params_euler(self, v):
-        # Grain parameters with orientation set using Euler angle convention
-        grain_params = v.copy()
-        if self.euler_convention is not None:
-            rme = RotMatEuler(
-                np.zeros(
-                    3,
-                ),
-                **self.euler_convention
-            )
-            rme.angles = np.radians(grain_params[:3])
-            phi, n = angleAxisOfRotMat(rme.rmat)
-            grain_params[:3] = phi * n.flatten()
-
-        self.grain_params = grain_params
-
-    @property
-    def plane_data(self):
-        return self.material.planeData
-
-    @property
-    def bmatx(self):
-        return self.plane_data.latVecOps['B']
-
     @property
     def energy_cutoffs(self):
         return self._energy_cutoffs
@@ -146,35 +92,6 @@ class LaueCalibrator(Calibrator):
         self._energy_cutoffs = x
         self.plane_data.wavelength = self.energy_cutoffs[-1]
         self.plane_data.exclusions = None
-
-    @property
-    def calibration_picks(self):
-        # Convert this from our internal data dict format
-        picks = {}
-        for det_key in self.instr.detectors:
-            picks[det_key] = {}
-
-            # find valid reflections and recast hkls to int
-            xys = self.data_dict['pick_xys'][det_key]
-            hkls = self.data_dict['hkls'][det_key]
-
-            for hkl, xy in zip(hkls, xys):
-                picks[det_key][hkl_to_str(hkl)] = xy
-
-        return picks
-
-    @calibration_picks.setter
-    def calibration_picks(self, v):
-        # Convert this to our internal data dict format
-        data_dict = {
-            'pick_xys': {},
-            'hkls': {},
-        }
-        for det_key, det_picks in v.items():
-            data_dict['hkls'][det_key] = [str_to_hkl(x) for x in det_picks]
-            data_dict['pick_xys'][det_key] = list(det_picks.values())
-
-        self.data_dict = data_dict
 
     def autopick_points(
         self,
