@@ -17,29 +17,16 @@ from scipy.interpolate import CubicSpline
 
 # hexrd imports
 # -------------
-from hexrd import constants
-from hexrd.imageutil import snip1d_quad
-from hexrd.material import Material
-from hexrd.utils.multiprocess_generic import GenericMultiprocessing
-from hexrd.valunits import valWUnit
-from hexrd.wppf.peakfunctions import (
-    calc_rwp,
-    computespectrum_pvfcj,
-    computespectrum_pvtch,
-    computespectrum_pvpink,
-    calc_Iobs_pvfcj,
-    calc_Iobs_pvtch,
-    calc_Iobs_pvpink,
-)
-from hexrd.wppf import wppfsupport
-from hexrd.wppf.spectrum import Spectrum
-from hexrd.wppf.parameters import Parameters
-from hexrd.wppf.phase import (
-    Phases_LeBail,
-    Phases_Rietveld,
-    Material_LeBail,
-    Material_Rietveld,
-)
+from hexrd.core import constants
+from hexrd.core.imageutil import snip1d_quad
+from hexrd.core.material import Material
+from hexrd.core.utils.multiprocess_generic import GenericMultiprocessing
+from hexrd.core.valunits import valWUnit
+from hexrd.powder.wppf.peakfunctions import calc_rwp, computespectrum_pvfcj, computespectrum_pvtch, computespectrum_pvpink, calc_Iobs_pvfcj, calc_Iobs_pvtch, calc_Iobs_pvpink
+from hexrd.powder.wppf import wppfsupport
+from hexrd.powder.wppf.spectrum import Spectrum
+from hexrd.powder.wppf.parameters import Parameters
+from hexrd.powder.wppf.phase import Phases_LeBail, Phases_Rietveld, Material_LeBail, Material_Rietveld
 
 
 class LeBail:

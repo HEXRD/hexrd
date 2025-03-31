@@ -22,13 +22,13 @@ import copy
 
 # import of hexrd modules
 # import hexrd
-from hexrd import constants
-from hexrd import instrument
-from hexrd import material
-from hexrd import rotations
-from hexrd.transforms import xfcapi
-from hexrd import valunits
-from hexrd import xrdutil
+from hexrd.core import constants
+from hexrd.core import instrument
+from hexrd.core import material
+from hexrd.core import rotations
+from hexrd.core.transforms import xfcapi
+from hexrd.core import valunits
+from hexrd.hedm import xrdutil
 
 from skimage.morphology import dilation as ski_dilation
 

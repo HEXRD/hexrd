@@ -32,9 +32,9 @@ from scipy import integrate
 from scipy import ndimage as imgproc
 from scipy import optimize
 
-from hexrd import constants
-from hexrd.imageutil import snip1d
-from hexrd.fitting import peakfunctions as pkfuncs
+from hexrd.core import constants
+from hexrd.core.imageutil import snip1d
+from hexrd.core.fitting import peakfunctions as pkfuncs
 
 import matplotlib.pyplot as plt
 

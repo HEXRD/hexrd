@@ -1,6 +1,10 @@
 import numpy as np
 
-from hexrd.instrument.detector import Detector
+from hexrd.core.instrument.detector import Detector
+from hexrd.hed.instrument.detector import Detector
+from hexrd.hedm.instrument.detector import Detector
+from hexrd.powder.instrument.detector import Detector
+from hexrd.laue.instrument.detector import Detector
 
 
 def panel_buffer_as_2d_array(panel: Detector) -> np.ndarray:

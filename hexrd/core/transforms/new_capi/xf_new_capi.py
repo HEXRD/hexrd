@@ -26,10 +26,10 @@ module:
 from typing import Optional, Tuple, Union
 import numpy as np
 
-from hexrd.extensions import _new_transforms_capi as _impl
-from hexrd.extensions import transforms as cpp_transforms
-from hexrd.distortion.distortionabc import DistortionABC
-from hexrd import constants as cnst
+from hexrd.core.extensions import _new_transforms_capi as _impl
+from hexrd.core.extensions import transforms as cpp_transforms
+from hexrd.core.distortion.distortionabc import DistortionABC
+from hexrd.core import constants as cnst
 
 
 def angles_to_gvec(

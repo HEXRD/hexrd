@@ -35,16 +35,10 @@ from numba import njit
 from scipy.optimize import leastsq
 from scipy.spatial.transform import Rotation as R
 
-from hexrd.deprecation import deprecated
-from hexrd import constants as cnst
-from hexrd.matrixutil import (
-    columnNorm,
-    unitVector,
-    findDuplicateVectors,
-    multMatArray,
-    nullSpace,
-)
-from hexrd.utils.warnings import ignore_warnings
+from hexrd.core.deprecation import deprecated
+from hexrd.core import constants as cnst
+from hexrd.core.matrixutil import columnNorm, unitVector, findDuplicateVectors, multMatArray, nullSpace
+from hexrd.core.utils.warnings import ignore_warnings
 
 
 # =============================================================================

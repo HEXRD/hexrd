@@ -3,37 +3,33 @@ import copy
 import os
 from typing import Optional
 
-from hexrd.instrument.constants import (
-    COATING_DEFAULT, FILTER_DEFAULTS, PHOSPHOR_DEFAULT
-)
-from hexrd.instrument.physics_package import AbstractPhysicsPackage
+from hexrd.core.instrument.constants import COATING_DEFAULT, FILTER_DEFAULTS, PHOSPHOR_DEFAULT
+from hexrd.hedm.instrument.physics_package import AbstractPhysicsPackage
+from hexrd.core.instrument.physics_package import AbstractPhysicsPackage
 import numpy as np
 import numba
 
-from hexrd import constants as ct
-from hexrd import distortion as distortion_pkg
-from hexrd import matrixutil as mutil
-from hexrd import xrdutil
-from hexrd.rotations import mapAngle
+from hexrd.core import constants as ct
+from hexrd.core import distortion as distortion_pkg
+from hexrd.core import matrixutil as mutil
+from hexrd.hedm import xrdutil
+from hexrd.core.rotations import mapAngle
 
-from hexrd.material import crystallography
-from hexrd.material.crystallography import PlaneData
+from hexrd.hedm.material import crystallography
+from hexrd.laue.material import crystallography
+from hexrd.powder.material import crystallography
+from hexrd.core.material import crystallography
+from hexrd.hedm.material.crystallography import PlaneData
+from hexrd.laue.material.crystallography import PlaneData
+from hexrd.powder.material.crystallography import PlaneData
+from hexrd.core.material.crystallography import PlaneData
 
-from hexrd.transforms.xfcapi import (
-    xy_to_gvec,
-    gvec_to_xy,
-    make_beam_rmat,
-    make_rmat_of_expmap,
-    oscill_angles_of_hkls,
-    angles_to_dvec,
-)
+from hexrd.core.transforms.xfcapi import xy_to_gvec, gvec_to_xy, make_beam_rmat, make_rmat_of_expmap, oscill_angles_of_hkls, angles_to_dvec
 
-from hexrd.utils.decorators import memoize
-from hexrd.gridutil import cellIndices
-from hexrd.instrument import detector_coatings
-from hexrd.material.utils import (
-    calculate_linear_absorption_length,
-    calculate_incoherent_scattering)
+from hexrd.core.utils.decorators import memoize
+from hexrd.core.gridutil import cellIndices
+from hexrd.core.instrument import detector_coatings
+from hexrd.core.material.utils import calculate_linear_absorption_length, calculate_incoherent_scattering
 
 distortion_registry = distortion_pkg.Registry()
 

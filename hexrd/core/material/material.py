@@ -34,27 +34,25 @@ materials are defined by name in materialDict.
 from configparser import SafeConfigParser as Parser
 import numpy as np
 
-from hexrd.material.crystallography import PlaneData as PData
-from hexrd.material import symmetry, unitcell
-from hexrd.material.symbols import two_origin_choice
-from hexrd.valunits import valWUnit
-from hexrd.constants import (ptable,
-                             ptableinverse,
-                             chargestate)
+from hexrd.hedm.material.crystallography import PlaneData as PData
+from hexrd.laue.material.crystallography import PlaneData as PData
+from hexrd.powder.material.crystallography import PlaneData as PData
+from hexrd.core.material.crystallography import PlaneData as PData
+from hexrd.core.material import symmetry, unitcell
+from hexrd.hedm.material import unitcell
+from hexrd.core.material.symbols import two_origin_choice
+from hexrd.core.valunits import valWUnit
+from hexrd.core.constants import ptable, ptableinverse, chargestate
 
 from os import path
 from pathlib import Path
 from CifFile import ReadCif
 import h5py
 from warnings import warn
-from hexrd.material.mksupport import Write2H5File
-from hexrd.material.symbols import (
-    xtal_sys_dict,
-    Hall_to_sgnum,
-    HM_to_sgnum,
-)
-from hexrd.utils.compatibility import h5py_read_string
-from hexrd.fitting.peakfunctions import _unit_gaussian
+from hexrd.core.material.mksupport import Write2H5File
+from hexrd.core.material.symbols import xtal_sys_dict, Hall_to_sgnum, HM_to_sgnum
+from hexrd.core.utils.compatibility import h5py_read_string
+from hexrd.core.fitting.peakfunctions import _unit_gaussian
 
 __all__ = ['Material', 'loadMaterialList']
 

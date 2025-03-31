@@ -29,7 +29,7 @@ import numpy as np
 from numpy.linalg import det
 import numba
 
-from hexrd.constants import sqrt_epsf
+from hexrd.core.constants import sqrt_epsf
 
 
 

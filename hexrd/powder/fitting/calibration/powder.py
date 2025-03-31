@@ -3,15 +3,12 @@ from typing import Optional
 
 import numpy as np
 
-from hexrd import matrixutil as mutil
-from hexrd.instrument import calc_angles_from_beam_vec, switch_xray_source
-from hexrd.utils.hkl import hkl_to_str, str_to_hkl
+from hexrd.core import matrixutil as mutil
+from hexrd.core.instrument import calc_angles_from_beam_vec, switch_xray_source
+from hexrd.core.utils.hkl import hkl_to_str, str_to_hkl
 
 from .calibrator import Calibrator
-from .lmfit_param_handling import (
-    create_material_params,
-    update_material_from_params,
-)
+from .lmfit_param_handling import create_material_params, update_material_from_params
 
 nfields_powder_data = 8
 

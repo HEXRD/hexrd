@@ -1,4 +1,4 @@
-from hexrd.constants import DENSITY, DENSITY_COMPOUNDS
+from hexrd.core.constants import DENSITY, DENSITY_COMPOUNDS
 
 
 # default filter and coating materials

@@ -8,8 +8,8 @@ from scipy import signal, ndimage
 from skimage.feature import blob_dog, blob_log
 from skimage.exposure import rescale_intensity
 
-from hexrd import convolution
-from hexrd.constants import fwhm_to_sigma
+from hexrd.core import convolution
+from hexrd.core.constants import fwhm_to_sigma
 
 
 # =============================================================================

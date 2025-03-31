@@ -1,12 +1,14 @@
 import numpy as np
 
-from hexrd import constants
-from hexrd.material.crystallography import PlaneData
-from hexrd.xrdutil.utils import (
-    _project_on_detector_cylinder,
-    _project_on_detector_plane,
-)
-from hexrd.utils.panel_buffer import panel_buffer_as_2d_array
+from hexrd.core import constants
+from hexrd.hedm.material.crystallography import PlaneData
+from hexrd.laue.material.crystallography import PlaneData
+from hexrd.powder.material.crystallography import PlaneData
+from hexrd.core.material.crystallography import PlaneData
+from hexrd.hedm.xrdutil.utils import _project_on_detector_cylinder, _project_on_detector_plane
+from hexrd.hed.xrdutil.utils import _project_on_detector_cylinder, _project_on_detector_plane
+from hexrd.laue.xrdutil.utils import _project_on_detector_cylinder, _project_on_detector_plane
+from hexrd.core.utils.panel_buffer import panel_buffer_as_2d_array
 
 
 class PolarView:

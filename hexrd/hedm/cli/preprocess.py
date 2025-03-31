@@ -1,6 +1,6 @@
 import dataclasses
-from hexrd.preprocess.profiles import HexrdPPScript_Arguments
-from hexrd.preprocess.preprocessors import preprocess
+from hexrd.hedm.preprocess.profiles import HexrdPPScript_Arguments
+from hexrd.hedm.preprocess.preprocessors import preprocess
 from dataclasses import fields
 import json
 import copy

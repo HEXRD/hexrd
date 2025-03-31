@@ -15,7 +15,7 @@ from numpy.polynomial.polynomial import Polynomial
 from scipy.spatial import Delaunay
 
 # HEXRD imports
-import hexrd.resources
+import hexrd.core.resources
 # FIXME: unused imports @saransh13?
 # from hexrd.transforms.xfcapi import angles_to_gvec
 # from hexrd.wppf import phase

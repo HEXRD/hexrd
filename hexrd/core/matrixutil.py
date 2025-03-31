@@ -34,7 +34,7 @@ from scipy import sparse
 import numba
 
 
-from hexrd import constants
+from hexrd.core import constants
 
 # module variables
 sqr6i = 1./np.sqrt(6.)

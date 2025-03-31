@@ -1,8 +1,8 @@
 import numpy as np
 import numba
 
-from hexrd.constants import FZtypeArray, FZorderArray
-from hexrd import constants
+from hexrd.core.constants import FZtypeArray, FZorderArray
+from hexrd.core import constants
 
 
 @numba.njit(cache=True, nogil=True)

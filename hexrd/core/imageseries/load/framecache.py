@@ -11,8 +11,8 @@ import h5py
 from . import ImageSeriesAdapter, RegionType
 from ..imageseriesiter import ImageSeriesIterator
 from .metadata import yamlmeta
-from hexrd.utils.hdf5 import unwrap_h5_to_dict
-from hexrd.utils.compatibility import h5py_read_string
+from hexrd.core.utils.hdf5 import unwrap_h5_to_dict
+from hexrd.core.utils.compatibility import h5py_read_string
 
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor

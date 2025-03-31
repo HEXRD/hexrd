@@ -28,26 +28,32 @@
 
 
 from typing import Optional, Union, Any, Generator
-from hexrd.material.crystallography import PlaneData
-from hexrd.distortion.distortionabc import DistortionABC
+from hexrd.hedm.material.crystallography import PlaneData
+from hexrd.laue.material.crystallography import PlaneData
+from hexrd.powder.material.crystallography import PlaneData
+from hexrd.core.material.crystallography import PlaneData
+from hexrd.core.distortion.distortionabc import DistortionABC
 
 import numba
 import numpy as np
 import numba
 
-from hexrd import constants
-from hexrd import matrixutil as mutil
-from hexrd import rotations as rot
-from hexrd import gridutil as gutil
+from hexrd.core import constants
+from hexrd.core import matrixutil as mutil
+from hexrd.core import rotations as rot
+from hexrd.core import gridutil as gutil
 
-from hexrd.material.crystallography import processWavelength, PlaneData
+from hexrd.hedm.material.crystallography import processWavelength, PlaneData
+from hexrd.laue.material.crystallography import processWavelength, PlaneData
+from hexrd.powder.material.crystallography import processWavelength, PlaneData
+from hexrd.core.material.crystallography import processWavelength, PlaneData
 
-from hexrd.transforms import xfcapi
-from hexrd.valunits import valWUnit
+from hexrd.core.transforms import xfcapi
+from hexrd.core.valunits import valWUnit
 
-from hexrd import distortion as distortion_pkg
+from hexrd.core import distortion as distortion_pkg
 
-from hexrd.deprecation import deprecated
+from hexrd.core.deprecation import deprecated
 
 
 simlp = 'hexrd.instrument.hedm_instrument.HEDMInstrument.simulate_laue_pattern'

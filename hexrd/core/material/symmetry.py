@@ -31,19 +31,15 @@
 
 import numpy as np
 from numba import njit
-from numpy import (array, sqrt, pi,
-                   vstack, c_, dot,
-                   argmax)
+from numpy import array, sqrt, pi, vstack, c_, dot, argmax
 
 # from hexrd.rotations import quatOfAngleAxis, quatProductMatrix, fixQuat
-from hexrd import rotations as rot
-from hexrd import constants
-from hexrd.utils.decorators import memoize
+from hexrd.core import rotations as rot
+from hexrd.core import constants
+from hexrd.core.utils.decorators import memoize
 
 # Imports in case others are importing from here
-from hexrd.rotations import (toFundamentalRegion,
-                             ltypeOfLaueGroup,
-                             quatOfLaueGroup)
+from hexrd.core.rotations import toFundamentalRegion, ltypeOfLaueGroup, quatOfLaueGroup
 
 
 # =============================================================================

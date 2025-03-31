@@ -1,16 +1,16 @@
 import numpy as np
-from hexrd.valunits import valWUnit
-from hexrd.material.spacegroup import Allowed_HKLs, SpaceGroup
-from hexrd import constants
-from hexrd.material import symmetry, symbols
-from hexrd.material import Material
-from hexrd.material.unitcell import _rqpDict
-from hexrd.wppf import wppfsupport
-from hexrd.wppf.xtal import _calc_dspacing, _get_tth, _calcxrsf,\
-_calc_extinction_factor, _calc_absorption_factor
+from hexrd.core.valunits import valWUnit
+from hexrd.core.material.spacegroup import Allowed_HKLs, SpaceGroup
+from hexrd.core import constants
+from hexrd.core.material import symmetry, symbols
+from hexrd.core.material import Material
+from hexrd.hedm.material.unitcell import _rqpDict
+from hexrd.core.material.unitcell import _rqpDict
+from hexrd.powder.wppf import wppfsupport
+from hexrd.powder.wppf.xtal import _calc_dspacing, _get_tth, _calcxrsf, _calc_extinction_factor, _calc_absorption_factor
 import h5py
 import importlib.resources
-import hexrd.resources
+import hexrd.core.resources
 
 class Material_LeBail:
     """

@@ -27,9 +27,9 @@
 
 import numpy as np
 import copy
-from hexrd import constants
+from hexrd.core import constants
 from numba import vectorize, float64, njit, prange
-from hexrd.fitting.peakfunctions import erfc, exp1exp
+from hexrd.core.fitting.peakfunctions import erfc, exp1exp
 
 # from scipy.special import erfc, exp1
 

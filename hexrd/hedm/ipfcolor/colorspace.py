@@ -26,7 +26,7 @@
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # =============================================================================
 
-from hexrd import constants
+from hexrd.core import constants
 import numpy as np
 
 eps = constants.sqrt_epsf

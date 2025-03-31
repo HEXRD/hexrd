@@ -32,15 +32,16 @@ the functions which are common to both the Rietveld and LeBail
 classes are put here to minimize code duplication. Some examples
 include initialize background, generate_default_parameter list etc.
 """
-from hexrd.material.symbols import pstr_spacegroup
-from hexrd.wppf.parameters import Parameters
+from hexrd.core.material.symbols import pstr_spacegroup
+from hexrd.powder.wppf.parameters import Parameters
 from lmfit import Parameters as Parameters_lmfit
-from hexrd.wppf.phase import Phases_LeBail, Phases_Rietveld
-from hexrd.material import Material
-from hexrd.material.unitcell import _rqpDict
+from hexrd.powder.wppf.phase import Phases_LeBail, Phases_Rietveld
+from hexrd.core.material import Material
+from hexrd.hedm.material.unitcell import _rqpDict
+from hexrd.core.material.unitcell import _rqpDict
 import hexrd
 import numpy as np
-from hexrd import constants
+from hexrd.core import constants
 import warnings
 
 def _generate_default_parameters_pseudovoight(params):

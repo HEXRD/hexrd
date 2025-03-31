@@ -29,10 +29,10 @@
 import numpy as np
 import sys
 
-from hexrd.extensions import _transforms_CAPI
+from hexrd.core.extensions import _transforms_CAPI
 # Imports so that others can import from this module
-from hexrd.rotations import mapAngle
-from hexrd.matrixutil import columnNorm, rowNorm
+from hexrd.core.rotations import mapAngle
+from hexrd.core.matrixutil import columnNorm, rowNorm
 
 # ######################################################################
 # Module Data

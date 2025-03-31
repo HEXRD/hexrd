@@ -1,4 +1,4 @@
-import hexrd.preprocess.profiles as profiles
+import hexrd.hedm.preprocess.profiles as profiles
 from typing import Type
 
 

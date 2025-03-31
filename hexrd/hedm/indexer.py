@@ -36,9 +36,9 @@ import numba
 
 import timeit
 
-from hexrd import constants
-from hexrd import rotations
-from hexrd.transforms import xfcapi
+from hexrd.core import constants
+from hexrd.core import rotations
+from hexrd.core.transforms import xfcapi
 
 
 # =============================================================================

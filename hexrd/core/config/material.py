@@ -2,9 +2,9 @@ import os
 
 import numpy as np
 
-from hexrd import material
-from hexrd.constants import keVToAngstrom
-from hexrd.valunits import valWUnit
+from hexrd.core import material
+from hexrd.core.constants import keVToAngstrom
+from hexrd.core.valunits import valWUnit
 
 from .config import Config
 from .utils import get_exclusion_parameters

@@ -4,20 +4,13 @@ import logging
 import lmfit
 import numpy as np
 
-import hexrd.constants as cnst
-from hexrd.rotations import (
-    angleAxisOfRotMat,
-    RotMatEuler,
-)
-from hexrd.transforms import xfcapi
-from hexrd.utils.hkl import hkl_to_str, str_to_hkl
+import hexrd.core.constants as cnst
+from hexrd.core.rotations import angleAxisOfRotMat, RotMatEuler
+from hexrd.core.transforms import xfcapi
+from hexrd.core.utils.hkl import hkl_to_str, str_to_hkl
 
 from .calibrator import Calibrator
-from .lmfit_param_handling import (
-    create_grain_params,
-    DEFAULT_EULER_CONVENTION,
-    rename_to_avoid_collision,
-)
+from .lmfit_param_handling import create_grain_params, DEFAULT_EULER_CONVENTION, rename_to_avoid_collision
 
 logger = logging.getLogger(__name__)
 

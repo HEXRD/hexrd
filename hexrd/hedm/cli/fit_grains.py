@@ -5,13 +5,14 @@ from collections import namedtuple
 
 import numpy as np
 
-from hexrd import config
-from hexrd import constants as cnst
-from hexrd import rotations
-from hexrd import instrument
-from hexrd.findorientations import find_orientations
-from hexrd.fitgrains import fit_grains
-from hexrd.transforms import xfcapi
+from hexrd.hedm import config
+from hexrd.core import config
+from hexrd.core import constants as cnst
+from hexrd.core import rotations
+from hexrd.core import instrument
+from hexrd.hedm.findorientations import find_orientations
+from hexrd.hedm.fitgrains import fit_grains
+from hexrd.core.transforms import xfcapi
 
 
 descr = 'Extracts G vectors, grain position and strain'

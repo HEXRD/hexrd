@@ -5,7 +5,7 @@ import warnings
 
 import numpy as np
 
-from . import ImageSeriesAdapter,RegionType
+from . import ImageSeriesAdapter, RegionType
 from ..imageseriesiter import ImageSeriesIterator
 
 

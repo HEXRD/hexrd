@@ -12,8 +12,8 @@ import h5py
 import hdf5plugin
 import yaml
 
-from hexrd.matrixutil import extract_ijv
-from hexrd.utils.hdf5 import unwrap_dict_to_h5
+from hexrd.core.matrixutil import extract_ijv
+from hexrd.core.utils.hdf5 import unwrap_dict_to_h5
 
 MAX_NZ_FRACTION = 0.1  # 10% sparsity trigger for frame-cache write
 

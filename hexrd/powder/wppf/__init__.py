@@ -1,2 +1,2 @@
-from hexrd.wppf.WPPF import LeBail
-from hexrd.wppf.WPPF import Rietveld
+from hexrd.powder.wppf.WPPF import LeBail
+from hexrd.powder.wppf.WPPF import Rietveld

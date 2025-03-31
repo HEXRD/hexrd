@@ -12,10 +12,10 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from numba import njit
 
-from hexrd import constants as ct
-from hexrd.instrument import Detector
-from hexrd.transforms import xfcapi
-from hexrd.utils.concurrent import distribute_tasks
+from hexrd.core import constants as ct
+from hexrd.core.instrument import Detector
+from hexrd.core.transforms import xfcapi
+from hexrd.core.utils.concurrent import distribute_tasks
 
 
 class SampleLayerDistortion:

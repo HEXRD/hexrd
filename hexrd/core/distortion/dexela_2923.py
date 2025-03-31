@@ -7,7 +7,7 @@ Created on Thu Jan 21 15:07:34 2021
 import numpy as np
 import numba
 
-from hexrd import constants
+from hexrd.core import constants
 
 from .distortionabc import DistortionABC
 from .registry import _RegisterDistortionClass

@@ -34,14 +34,12 @@ import numba
 
 import scipy.sparse as sparse
 
-from hexrd import matrixutil as mutil
+from hexrd.core import matrixutil as mutil
 
 
 # Added to not break people importing these methods
-from hexrd.rotations import (mapAngle,
-                             quatProductMatrix as quat_product_matrix,
-                             arccosSafe, angularDifference)
-from hexrd.matrixutil import columnNorm, rowNorm
+from hexrd.core.rotations import mapAngle, quatProductMatrix as quat_product_matrix, arccosSafe, angularDifference
+from hexrd.core.matrixutil import columnNorm, rowNorm
 
 
 # =============================================================================

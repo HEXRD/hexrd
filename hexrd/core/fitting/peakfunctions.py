@@ -28,9 +28,8 @@
 import numpy as np
 from numba import njit
 import copy
-from hexrd import constants
-from hexrd.constants import \
-    c_erf, cnum_exp1exp, cden_exp1exp, c_coeff_exp1exp
+from hexrd.core import constants
+from hexrd.core.constants import c_erf, cnum_exp1exp, cden_exp1exp, c_coeff_exp1exp
 
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.

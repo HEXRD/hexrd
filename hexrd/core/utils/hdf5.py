@@ -1,4 +1,4 @@
-from hexrd.utils.compatibility import h5py_read_string
+from hexrd.core.utils.compatibility import h5py_read_string
 
 import numpy as np
 

@@ -4,13 +4,13 @@ import numpy as np
 
 from scipy import optimize
 
-from hexrd import matrixutil as mutil
+from hexrd.core import matrixutil as mutil
 
-from hexrd.transforms import xfcapi
-from hexrd import constants
-from hexrd import rotations
+from hexrd.core.transforms import xfcapi
+from hexrd.core import constants
+from hexrd.core import rotations
 
-from hexrd.xrdutil import extract_detector_transformation
+from hexrd.hedm.xrdutil import extract_detector_transformation
 
 return_value_flag = None
 

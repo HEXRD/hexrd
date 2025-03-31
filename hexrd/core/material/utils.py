@@ -1,13 +1,12 @@
 import importlib.resources
-import hexrd.resources
-from hexrd.constants import cClassicalelectronRad as re,\
-cAvogadro, ATOM_WEIGHTS_DICT
+import hexrd.core.resources
+from hexrd.core.constants import cClassicalelectronRad as re, cAvogadro, ATOM_WEIGHTS_DICT
 import chemparse
 import numpy as np
 import h5py
 from copy import deepcopy
 from scipy.interpolate import interp1d
-from hexrd import constants
+from hexrd.core import constants
 
 """
 calculate the molecular weight given the formula unit

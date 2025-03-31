@@ -3,27 +3,21 @@ import numpy as np
 from numpy.polynomial.chebyshev import Chebyshev
 import lmfit
 import warnings
-from hexrd.wppf.peakfunctions import \
-calc_rwp, computespectrum_pvfcj, \
-computespectrum_pvtch,\
-computespectrum_pvpink,\
-calc_Iobs_pvfcj,\
-calc_Iobs_pvtch,\
-calc_Iobs_pvpink
-from hexrd.wppf.spectrum import Spectrum
-from hexrd.wppf import wppfsupport, LeBail
-from hexrd.wppf.parameters import Parameters
+from hexrd.powder.wppf.peakfunctions import calc_rwp, computespectrum_pvfcj, computespectrum_pvtch, computespectrum_pvpink, calc_Iobs_pvfcj, calc_Iobs_pvtch, calc_Iobs_pvpink
+from hexrd.powder.wppf.spectrum import Spectrum
+from hexrd.powder.wppf import wppfsupport, LeBail
+from hexrd.powder.wppf.parameters import Parameters
 from lmfit import Parameters as Parameters_lmfit
-from hexrd.wppf.phase import Phases_LeBail, Material_LeBail
-from hexrd.imageutil import snip1d, snip1d_quad
-from hexrd.material import Material
-from hexrd.valunits import valWUnit
-from hexrd.constants import keVToAngstrom
+from hexrd.powder.wppf.phase import Phases_LeBail, Material_LeBail
+from hexrd.core.imageutil import snip1d, snip1d_quad
+from hexrd.core.material import Material
+from hexrd.core.valunits import valWUnit
+from hexrd.core.constants import keVToAngstrom
 
-from hexrd import instrument
-from hexrd import imageseries
-from hexrd.imageseries import omega
-from hexrd.projections.polar import PolarView
+from hexrd.core import instrument
+from hexrd.core import imageseries
+from hexrd.core.imageseries import omega
+from hexrd.core.projections.polar import PolarView
 import time
 
 class LeBailCalibrator:
