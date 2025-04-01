@@ -142,6 +142,13 @@ hexrd/fitting/calibration/multigrain.py	hexrd/hedm/fitting/calibration/multigrai
 hexrd/fitting/calibration/calibrator.py	hexrd/powder/fitting/calibration/calibrator.py
 hexrd/fitting/calibration/lmfit_param_handling.py	hexrd/powder/fitting/calibration/lmfit_param_handling.py
 hexrd/fitting/calibration/instrument.py	hexrd/powder/fitting/calibration/instrument.py
+hexrd/fitting/calibration/laue.py	hexrd/core/fitting/calibration/laue.py
+hexrd/fitting/calibration/structureless.py	hexrd/core/fitting/calibration/structureless.py
+hexrd/fitting/calibration/powder.py	hexrd/core/fitting/calibration/powder.py
+hexrd/fitting/calibration/multigrain.py	hexrd/core/fitting/calibration/multigrain.py
+hexrd/fitting/calibration/calibrator.py	hexrd/core/fitting/calibration/calibrator.py
+hexrd/fitting/calibration/lmfit_param_handling.py	hexrd/core/fitting/calibration/lmfit_param_handling.py
+hexrd/fitting/calibration/instrument.py	hexrd/core/fitting/calibration/instrument.py
 hexrd/ipfcolor/sphere_sector.py	hexrd/hedm/ipfcolor/sphere_sector.py
 hexrd/ipfcolor/colorspace.py	hexrd/hedm/ipfcolor/colorspace.py
 hexrd/ipfcolor/__init__.py	hexrd/hedm/ipfcolor/__init__.py
@@ -408,6 +415,10 @@ hexrd\core\instrument\__init__.py	hexrd\core\instrument\__init__.py
 hexrd\core\instrument\constants.py	hexrd\core\instrument\constants.py
 hexrd\core\instrument\cylindrical_detector.py	hexrd\core\instrument\cylindrical_detector.py
 hexrd\core\instrument\detector.py	hexrd\core\instrument\detector.py
+hexrd\core\instrument\detector.py	hexrd\hed\instrument\detector.py
+hexrd\core\instrument\detector.py	hexrd\hedm\instrument\detector.py
+hexrd\core\instrument\detector.py	hexrd\laue\instrument\detector.py
+hexrd\core\instrument\detector.py	hexrd\powder\instrument\detector.py
 hexrd\core\instrument\detector_coatings.py	hexrd\core\instrument\detector_coatings.py
 hexrd\core\instrument\hedm_instrument.py	hexrd\core\instrument\hedm_instrument.py
 hexrd\core\instrument\physics_package.py	hexrd\core\instrument\physics_package.py
@@ -531,3 +542,9 @@ hexrd\transforms\new_capi   hexrd\core\transforms\new_capi
 hexrd\transforms\cpp_sublibrary   hexrd\core\transforms\cpp_sublibrary
 hexrd\transforms\cpp_sublibrary\src   hexrd\core\transforms\cpp_sublibrary\src
 hexrd\convolution\src   hexrd\core\convolution\src
+hexrd\distortion\dexela_2923_quad.py	hexrd\core\distortion\dexela_2923_quad.py
+hexrd\resources\instrument_templates\rigaku.hexrd	hexrd\core\resources\instrument_templates\rigaku.hexrd
+hexrd\transforms\cpp_sublibrary\src\transforms.cpp	hexrd\core\transforms\cpp_sublibrary\src\transforms.cpp
+hexrd\utils\panel_buffer.py	hexrd\core\utils\panel_buffer.py
+tests\test_distortion.py	tests\test_distortion.py
+tests\transforms\test_make_binary_rmat.py	tests\transforms\test_make_binary_rmat.py

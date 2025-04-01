@@ -225,7 +225,7 @@ setup(
     ext_modules=ext_modules,
     packages=find_packages(),
     include_package_data=True,
-    package_data={'': ['Anomalous.h5']},
+    package_data={'': ['Anomalous.h5', 'file_table.tsv']},
     python_requires='>=3.9',
     install_requires=install_reqs,
 )
