@@ -348,6 +348,7 @@ def _assign_spots_data(
         eta_ranges,
         omega_ranges,
         omega_period,
+        num_images,
     )
 
     """

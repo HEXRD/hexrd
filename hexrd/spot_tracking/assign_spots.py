@@ -6,7 +6,7 @@ import numpy as np
 
 from hexrd.instrument import HEDMInstrument
 from hexrd.material.crystallography import PlaneData
-from hexrd.rotations import mapAngle
+from hexrd.rotations import angularDifference, mapAngle
 from hexrd.utils.decorators import memoize
 
 from .spot import Spot
@@ -157,6 +157,7 @@ def assign_spots_to_hkls(
     eta_ranges: list[tuple[float, float]],
     omega_ranges: list[tuple[float, float]],
     omega_period: tuple[float, float],
+    n_frames: int,
 ) -> AssignSpotsOutputType:
 
     # Simulate the spots
@@ -167,6 +168,12 @@ def assign_spots_to_hkls(
         omega_ranges,
         omega_period,
     )
+
+    if len(omega_ranges) > 1:
+        # We convert the omegas to frame coordinates. This is a
+        # lot simpler if we assume a single omega range.
+        msg = 'We can only use a single omega range right now'
+        raise NotImplementedError(msg)
 
     # Loop over detectors and grain IDs and try to locate their matching spots
     ret = {}
@@ -211,26 +218,56 @@ def assign_spots_to_hkls(
             sim_hkls = sim_all_hkls[grain_id]
 
             tvec_c = grain_params[grain_id][3:6]
-            angles, _ = panel.cart_to_angles(sim_xys, tvec_c=tvec_c)
+            sim_angles, _ = panel.cart_to_angles(sim_xys, tvec_c=tvec_c)
 
             # Fix eta period
-            angles[:, 1] = mapAngle(angles[:, 1], eta_period)
+            sim_angles[:, 1] = mapAngle(sim_angles[:, 1], eta_period)
 
             # Add the omegas
-            angles = np.hstack((angles, sim_omegas[:, np.newaxis]))
+            sim_angles = np.hstack((sim_angles, sim_omegas[:, np.newaxis]))
+
+            # Compute simulated spots in pixel coordinates as well.
+            # We will assign spots to HKLs according to minimum pixel
+            # distance (like `pull_spots()` does), rather than angular
+            # distances. However, we will still compare angles to verify
+            # they are within the specified tolerances.
+            sim_pixels = panel.cartToPixel(
+                sim_xys,
+                apply_distortion=True,
+            )
+
+            # We verified earlier that there should only be one omega range.
+            # We could do more than one, but it's easier to just assume one
+            # for now...
+            min_ome, max_ome = omega_ranges[0]
+
+            def omegas_to_frame_pixels(omegas: np.ndarray) -> np.ndarray:
+                return (omegas - min_ome) / (max_ome - min_ome) * n_frames
+
+            frame_pixels = omegas_to_frame_pixels(sim_omegas)
+            sim_pixels = np.hstack((sim_pixels, frame_pixels[:, np.newaxis]))
+
+            meas_pixels = spot_array.copy()
+            # Convert the omegas to frame pixels
+            meas_pixels[:, 2] = omegas_to_frame_pixels(meas_pixels[:, 2])
 
             # Create the hkl assignments array
             hkl_assignments = np.full(len(sim_hkls), -1, dtype=int)
             skipped_hkls = []
             spots_assigned = []
-            for i, ang_crd in enumerate(angles):
+            for i, ang_crd in enumerate(sim_angles):
+                sim_pixels_i = sim_pixels[i]
+                differences = abs(sim_pixels[i] - meas_pixels)
+
+                # Use special function to take into account angular wrapping
+                ang_differences = angularDifference(ang_crd, ang_spot_coords)
+
                 # Find the closest spot
-                differences = abs(ang_crd - ang_spot_coords)
                 distances = np.sqrt((differences**2).sum(axis=1))
                 min_idx = distances.argmin()
 
                 # Verify that the differences are within the tolerances
-                if not np.all(differences[min_idx] < tolerances):
+                if not np.all(ang_differences[min_idx] < tolerances):
                     # Not within the tolerance...
                     skipped_hkls.append(sim_hkls[i])
                     continue
@@ -292,7 +329,7 @@ def assign_spots_to_hkls(
             grain_hkl_assignments[grain_id] = {
                 'hkls': sim_hkls[keep_hkls],
                 'sim_xys': sim_xys[keep_hkls],
-                'sim_angs': angles[keep_hkls],
+                'sim_angs': sim_angles[keep_hkls],
                 'meas_xys': cart_spot_coords,
                 'spots_assigned': spots_assigned,
                 'meas_angs': meas_angs,
