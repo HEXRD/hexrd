@@ -1999,11 +1999,11 @@ class Detector:
         return np.exp(-mu_w_prime*thickness_w*secb)
 
     def calc_effective_pinhole_area(self, physics_package: AbstractPhysicsPackage) -> np.array:
-        """get the effective pinhole area correction
+        '''get the effective pinhole area correction
         @SS 04/01/25 a modification was made based on the 
         CeO2 data recorded on NIF. An extra factor of sec(beta)
         was included as compared to RSI 91, 043902 (2020).
-        """
+        '''
         hod = (physics_package.pinhole_thickness /
         physics_package.pinhole_diameter)
 
