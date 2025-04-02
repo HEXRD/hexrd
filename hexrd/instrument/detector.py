@@ -1999,27 +1999,36 @@ class Detector:
         return np.exp(-mu_w_prime*thickness_w*secb)
 
     def calc_effective_pinhole_area(self, physics_package: AbstractPhysicsPackage) -> np.array:
-        """get the effective pinhole area correction
-        """
-        if (np.isclose(physics_package.pinhole_diameter, 0)
-                or np.isclose(physics_package.pinhole_thickness, 0)):
-            return np.ones(self.shape)
+        '''get the effective pinhole area correction
+        @SS 04/01/25 a modification was made based on the
+        CeO2 data recorded on NIF. An extra factor of sec(beta)
+        was included as compared to RSI 91, 043902 (2020).
+        '''
+        hod = (
+            physics_package.pinhole_thickness /
+            physics_package.pinhole_diameter
+        )
 
-        hod = (physics_package.pinhole_thickness /
-               physics_package.pinhole_diameter)
-        bvec = self.bvec
+        '''we compute the beta angle using existing
+        functions by just changing beam vector
+        to be the z-axis with the right sign.
+        '''
+        bvec = np.array([0., 0., np.sign(self.bvec[2])])
+        beta, eta = self.pixel_angles(bvec=bvec)
 
-        tth, eta = self.pixel_angles()
-        angs = np.vstack((tth.flatten(), eta.flatten(),
-                          np.zeros(tth.flatten().shape))).T
-        dvecs = angles_to_dvec(angs, beam_vec=bvec)
+        tb = np.tan(beta)
+        jb = hod*tb
+        jb[jb > 1] = np.nan
+        jb2 = jb**2
+        mask = np.isclose(jb2, 0.)
 
-        cth = -dvecs[:, 2].reshape(self.shape)
-        tanth = np.tan(np.arccos(cth))
-        f = hod*tanth
-        f[np.abs(f) > 1.] = np.nan
-        asinf = np.arcsin(f)
-        return 2 / np.pi * cth * (np.pi / 2 - asinf - f * np.cos(asinf))
+        f1 = np.zeros_like(jb)
+        f1[~mask] = np.arctan(np.sqrt(1/jb2[~mask] - 1))
+        f1[mask] = np.pi/2
+
+        f2 = jb*np.sqrt(1 - jb2)
+
+        return 0.5*(f1 - f2)
 
     def calc_transmission_generic(self,
                                   secb: np.array,

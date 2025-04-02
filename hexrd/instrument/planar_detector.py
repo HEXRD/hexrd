@@ -87,9 +87,12 @@ class PlanarDetector(Detector):
         crds = np.hstack([xy_data, np.zeros((npts, 1))])
         return np.dot(crds, self.rmat.T) + self.tvec
 
-    def pixel_angles(self, origin=ct.zeros_3):
+    def pixel_angles(self, origin=ct.zeros_3, bvec: np.ndarray | None = None):
+        if bvec is None:
+            bvec = self.bvec
+
         return _pixel_angles(origin, self.pixel_coords, self.distortion,
-                             self.rmat, self.tvec, self.bvec, self.evec,
+                             self.rmat, self.tvec, bvec, self.evec,
                              self.rows, self.cols)
 
     def pixel_tth_gradient(self, origin=ct.zeros_3):
