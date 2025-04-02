@@ -2000,21 +2000,22 @@ class Detector:
 
     def calc_effective_pinhole_area(self, physics_package: AbstractPhysicsPackage) -> np.array:
         '''get the effective pinhole area correction
-        @SS 04/01/25 a modification was made based on the 
+        @SS 04/01/25 a modification was made based on the
         CeO2 data recorded on NIF. An extra factor of sec(beta)
         was included as compared to RSI 91, 043902 (2020).
         '''
-        hod = (physics_package.pinhole_thickness /
-        physics_package.pinhole_diameter)
+        hod = (
+            physics_package.pinhole_thickness /
+            physics_package.pinhole_diameter
+        )
 
         '''we compute the beta angle using existing
         functions by just changing beam vector
         to be the z-axis with the right sign.
         '''
-        bvec_old = self.bvec.copy()
-        bvec_new = np.array([0., 0., np.sign(bvec_old[2])])
-        self.bvec = bvec_new
-        beta, eta = self.pixel_angles()
+        bvec = np.array([0., 0., np.sign(self.bvec[2])])
+        beta, eta = self.pixel_angles(bvec=bvec)
+
         tb = np.tan(beta)
         jb = hod*tb
         jb[jb > 1] = np.nan
@@ -2026,9 +2027,6 @@ class Detector:
         f1[mask] = np.pi/2
 
         f2 = jb*np.sqrt(1 - jb2)
-
-        # set beam vector back to original
-        self.bvec = bvec_old
 
         return 0.5*(f1 - f2)
 
