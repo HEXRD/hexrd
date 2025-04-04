@@ -3,6 +3,7 @@ from pathlib import Path
 
 import h5py
 import numpy as np
+from scipy.spatial import KDTree
 
 from hexrd.instrument import HEDMInstrument
 from hexrd.material.crystallography import PlaneData
@@ -141,7 +142,7 @@ def chunk_spots_into_subpanels(
 
 # First key is detector key. Second key is grain ID. Third key is
 # array name. Choices are 'hkls', 'sim_xys', 'sim_angs', 'meas_xys',
-# 'assigned_spots', 'meas_angs', and 'num_frames'
+# 'assigned_spots', 'meas_angs', and 'spot_num_frames'
 # All arrays are the same length, and a value at index `i` always
 # corresponds to the HKL at index `i`.
 AssignSpotsOutputType = dict[str, dict[int, dict[str, np.ndarray]]]
@@ -199,9 +200,24 @@ def assign_spots_to_hkls(
 
         # Stack the omegas on the end
         ang_spot_coords = np.hstack((ang_crds, spot_array[:, [2]]))
-        num_frames = spot_arrays[det_key][:, 5]
+        spot_num_frames = spot_arrays[det_key][:, 5]
         max_int = spot_arrays[det_key][:, 6]
         sum_int = spot_arrays[det_key][:, 7]
+
+        # We verified earlier that there should only be one omega range.
+        # We could do more than one, but it's easier to just assume one
+        # for now...
+        min_ome, max_ome = omega_ranges[0]
+
+        def omegas_to_frame_pixels(omegas: np.ndarray) -> np.ndarray:
+            return (omegas - min_ome) / (max_ome - min_ome) * n_frames
+
+        # Compute measured pixels
+        meas_pixels = spot_array.copy()
+        # Convert the omegas to frame pixels
+        meas_pixels[:, 2] = omegas_to_frame_pixels(meas_pixels[:, 2])
+
+        kd_tree = KDTree(meas_pixels)
 
         # Grab some simulated HKLs
         sim_all_hkls = sim_results[1]
@@ -236,38 +252,24 @@ def assign_spots_to_hkls(
                 apply_distortion=True,
             )
 
-            # We verified earlier that there should only be one omega range.
-            # We could do more than one, but it's easier to just assume one
-            # for now...
-            min_ome, max_ome = omega_ranges[0]
-
-            def omegas_to_frame_pixels(omegas: np.ndarray) -> np.ndarray:
-                return (omegas - min_ome) / (max_ome - min_ome) * n_frames
-
             frame_pixels = omegas_to_frame_pixels(sim_omegas)
             sim_pixels = np.hstack((sim_pixels, frame_pixels[:, np.newaxis]))
-
-            meas_pixels = spot_array.copy()
-            # Convert the omegas to frame pixels
-            meas_pixels[:, 2] = omegas_to_frame_pixels(meas_pixels[:, 2])
 
             # Create the hkl assignments array
             hkl_assignments = np.full(len(sim_hkls), -1, dtype=int)
             skipped_hkls = []
             spots_assigned = []
             for i, ang_crd in enumerate(sim_angles):
-                sim_pixels_i = sim_pixels[i]
-                differences = abs(sim_pixels[i] - meas_pixels)
+                # Find the closest spot. Include wrapping around to other side.
+                d1, min_idx1 = kd_tree.query(sim_pixels[i])
+                d2, min_idx2 = kd_tree.query(sim_pixels[i] - [0, 0, n_frames])
+                min_idx = min_idx1 if d1 < d2 else min_idx2
 
                 # Use special function to take into account angular wrapping
-                ang_differences = angularDifference(ang_crd, ang_spot_coords)
-
-                # Find the closest spot
-                distances = np.sqrt((differences**2).sum(axis=1))
-                min_idx = distances.argmin()
+                ang_differences = angularDifference(ang_crd, ang_spot_coords[min_idx])
 
                 # Verify that the differences are within the tolerances
-                if not np.all(ang_differences[min_idx] < tolerances):
+                if not np.all(ang_differences < tolerances):
                     # Not within the tolerance...
                     skipped_hkls.append(sim_hkls[i])
                     continue
@@ -333,9 +335,9 @@ def assign_spots_to_hkls(
                 'meas_xys': cart_spot_coords,
                 'spots_assigned': spots_assigned,
                 'meas_angs': meas_angs,
-                'num_frames': num_frames[spots_assigned],
                 'max_int': max_int[spots_assigned],
                 'sum_int': sum_int[spots_assigned],
+                'spot_num_frames': spot_num_frames[spots_assigned],
             }
 
         # Check if any spots assigned to HKLs from one grain were also assigned
