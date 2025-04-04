@@ -1767,6 +1767,7 @@ class HEDMInstrument(object):
                     frame_indices = [
                         ome_imgser.omega_to_frame(ome)[0] for ome in ome_eval
                     ]
+                    ome_edges = np.array(frame_indices) * delta_ome
 
                     if -1 in frame_indices:
                         if not quiet:
@@ -1836,10 +1837,12 @@ class HEDMInstrument(object):
                                 else:
                                     closest_peak_idx = 0
                                 coms = coms[closest_peak_idx]
-                                # meas_omes = \
-                                #     ome_edges[0] + (0.5 + coms[0])*delta_ome
                                 meas_omes = \
-                                    ome_eval[0] + coms[0]*delta_ome
+                                    ome_edges[0] + (0.5 + coms[0])*delta_ome
+                                # The old way of calculating `meas_omes`
+                                # (which is likely not as accurate):
+                                # meas_omes = \
+                                #     ome_eval[0] + coms[0]*delta_ome
                                 meas_angs = np.hstack(
                                     [tth_edges[0] + (0.5 + coms[2])*delta_tth,
                                      eta_edges[0] + (0.5 + coms[1])*delta_eta,
