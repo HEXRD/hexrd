@@ -344,6 +344,7 @@ class LeBail:
                 self.dsp[p][k] = dsp[limit]
                 if sf_f is not None and lfact_sf is not None:
                     sf_f = sf_f[allowed]
+                    lfact_sf = lfact_sf[allowed]
                     self.sf_hkl_factors[p][k] = sf_f[limit]
                     self.sf_lfactor[p][k] = lfact_sf[limit]
 
