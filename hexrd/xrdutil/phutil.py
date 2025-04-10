@@ -424,52 +424,6 @@ def azimuth(vv, v0, v1):
     return azi
 
 
-def _infer_instrument_type(panel):
-    tardis_names = [
-        'IMAGE-PLATE-1',
-        'IMAGE-PLATE-2',
-        'IMAGE-PLATE-3',
-        'IMAGE-PLATE-4',
-    ]
-
-    pxrdip_names = [
-        'IMAGE-PLATE-B',
-        'IMAGE-PLATE-D',
-        'IMAGE-PLATE-L',
-        'IMAGE-PLATE-R',
-        'IMAGE-PLATE-U',
-    ]
-
-    if panel.name in tardis_names:
-        return 'TARDIS'
-    elif panel.name in pxrdip_names:
-        return 'PXRDIP'
-
-    raise NotImplementedError(f'Unknown detector name: {panel.name}')
-
-
-def _infer_eHat_l(panel):
-    instr_type = _infer_instrument_type(panel)
-
-    eHat_l_dict = {
-        'TARDIS': -ct.lab_x.reshape((3, 1)),
-        'PXRDIP': -ct.lab_x.reshape((3, 1))
-    }
-
-    return eHat_l_dict[instr_type]
-
-
-def _infer_eta_shift(panel):
-    instr_type = _infer_instrument_type(panel)
-
-    eta_shift_dict = {
-        'TARDIS': -np.radians(180),
-        'PXRDIP': -np.radians(180),
-    }
-
-    return eta_shift_dict[instr_type]
-
-
 def calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
                           pinhole_thickness, pinhole_radius,
                           num_phi_elements=60, clip_to_panel=True):
@@ -494,10 +448,10 @@ def calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
     # Grab info from the first panel that should be same across all panels
     first_panel = panels[0]
     bvec = first_panel.bvec
-    eHat_l = _infer_eHat_l(first_panel)
+    eHat_l = -ct.lab_x.reshape((3, 1))
     max_workers = first_panel.max_workers
 
-    eta_shift = _infer_eta_shift(first_panel)
+    eta_shift = -np.radians(180)
     # This code expects eta to be shifted by a certain amount
     # !! do not modify the original eta array
     eta = eta + eta_shift
