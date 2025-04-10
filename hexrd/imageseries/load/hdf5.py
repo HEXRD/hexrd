@@ -22,6 +22,9 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
     dataname : str, optional
         The name of the HDF dataset containing the 2-d or 3d image data.
         The default values is 'images'.
+    close_when_finished: bool, optional
+        Whether to close the h5py file handle when this imageseries is
+        deleted. The default is `True`.
     """
 
     format = 'hdf5'
@@ -34,6 +37,7 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
             self.__h5name = fname
             self.__h5file = h5py.File(self.__h5name, 'r')
 
+        self._close_when_finished = kwargs.get('close_when_finished', True)
         self.__path = kwargs['path']
         self.__dataname = kwargs.pop('dataname', 'images')
         self.__images = '/'.join([self.__path, self.__dataname])
@@ -43,7 +47,10 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
     def close(self):
         self.__image_dataset = None
         self.__data_group = None
-        self.__h5file.close()
+
+        if self._close_when_finished and self.__h5file is not None:
+            self.__h5file.close()
+
         self.__h5file = None
 
     def __del__(self):
