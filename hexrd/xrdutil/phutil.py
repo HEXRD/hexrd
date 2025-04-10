@@ -440,10 +440,20 @@ def _infer_instrument_type(panel):
         'IMAGE-PLATE-U',
     ]
 
+    fiddle_names = [
+        'CAMERA-02',
+        'CAMERA-03',
+        'CAMERA-05',
+        'CAMERA-07',
+        'CAMERA-08',
+        'IMAGE-PLATE']
+
     if panel.name in tardis_names:
         return 'TARDIS'
     elif panel.name in pxrdip_names:
         return 'PXRDIP'
+    elif panel.name in fiddle_names:
+        return 'FIDDLE'
 
     raise NotImplementedError(f'Unknown detector name: {panel.name}')
 
@@ -453,7 +463,8 @@ def _infer_eHat_l(panel):
 
     eHat_l_dict = {
         'TARDIS': -ct.lab_x.reshape((3, 1)),
-        'PXRDIP': -ct.lab_x.reshape((3, 1))
+        'PXRDIP': -ct.lab_x.reshape((3, 1)),
+        'FIDDLE': ct.lab_x.reshape((3, 1))
     }
 
     return eHat_l_dict[instr_type]
@@ -465,6 +476,7 @@ def _infer_eta_shift(panel):
     eta_shift_dict = {
         'TARDIS': -np.radians(180),
         'PXRDIP': -np.radians(180),
+        'FIDDLE': 0.0,
     }
 
     return eta_shift_dict[instr_type]
