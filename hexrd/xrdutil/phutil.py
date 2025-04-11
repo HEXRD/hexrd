@@ -538,7 +538,7 @@ def calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
     v0 = np.array([0, 0, 1])
     v1 = np.squeeze(eHat_l)
     phi_d = azimuth(dvectors, -v0, v1).reshape(tth.shape)
-    beta = np.arccos(-dvectors[:, 2]).reshape(tth.shape)
+    beta = np.arccos(np.abs(dvectors[:, 2])).reshape(tth.shape)
 
     # Compute r_d
     # We will first convert to Cartesian, then clip to the panel, add the
