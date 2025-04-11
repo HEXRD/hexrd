@@ -303,7 +303,7 @@ def tth_corr_pinhole(panel, xy_pts,
 
     # first we need the reference etas of the points wrt the pinhole axis
     cp_det = copy.deepcopy(panel)
-    cp_det.bvec = ct.beam_vec  # !!! [0, 0, -1]
+    cp_det.bvec = np.sign(cp_det.bvec[2])*ct.beam_vec  # !!! [0, 0, -1]
     ref_angs, _ = cp_det.cart_to_angles(
         xy_pts,
         rmat_s=None, tvec_s=None,
@@ -360,7 +360,7 @@ def tth_corr_map_pinhole(instrument, pinhole_thickness, pinhole_radius):
     The follows a slightly modified version of Jon Eggert's pinhole correction.
     """
     cp_instr = copy.deepcopy(instrument)
-    cp_instr.beam_vector = ct.beam_vec  # !!! [0, 0, -1]
+    cp_instr.beam_vector = np.sign(cp_det.bvec[2])*ct.beam_vec  # !!! [0, 0, -1]
 
     tth_corr = dict.fromkeys(instrument.detectors)
     for det_key, panel in instrument.detectors.items():
@@ -514,7 +514,7 @@ def calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
     r_x = first_panel.xrs_dist
 
     # zenith angle of the x-ray source from (negative) pinhole axis
-    alpha = np.arccos(np.dot(bvec, [0, 0, -1]))
+    alpha = np.arccos(np.abs(bvec[2]))
 
     # azimuthal angle of the x-ray source around the pinhole axis
     phi_x = calc_phi_x(bvec, eHat_l)
