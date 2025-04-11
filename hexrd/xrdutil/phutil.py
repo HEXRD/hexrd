@@ -446,7 +446,8 @@ def _infer_instrument_type(panel):
         'CAMERA-05',
         'CAMERA-07',
         'CAMERA-08',
-        'IMAGE-PLATE']
+        'IMAGE-PLATE',
+    ]
 
     if panel.name in tardis_names:
         return 'TARDIS'
@@ -464,7 +465,7 @@ def _infer_eHat_l(panel):
     eHat_l_dict = {
         'TARDIS': -ct.lab_x.reshape((3, 1)),
         'PXRDIP': -ct.lab_x.reshape((3, 1)),
-        'FIDDLE': ct.lab_x.reshape((3, 1))
+        'FIDDLE': ct.lab_x.reshape((3, 1)),
     }
 
     return eHat_l_dict[instr_type]
