@@ -188,7 +188,7 @@ def tth_corr_sample_layer(panel, xy_pts,
     ref_tth = ref_angs[:, 0]
 
     dhats = xfcapi.unit_vector(panel.cart_to_dvecs(xy_pts))
-    cos_beta = -dhats[:, 2]
+    cos_beta = np.abs(dhats[:, 2])
     # Invalidate values past the critical beta
     cos_beta[np.arccos(cos_beta) > critical_beta] = np.nan
     cos_tthn = np.cos(ref_tth)
@@ -208,7 +208,7 @@ def invalidate_past_critical_beta(panel: Detector, xy_pts: np.ndarray,
     # Compute the critical beta angle. Anything past this is invalid.
     critical_beta = np.arctan(2 * pinhole_radius / pinhole_thickness)
     dhats = xfcapi.unit_vector(panel.cart_to_dvecs(xy_pts))
-    cos_beta = -dhats[:, 2]
+    cos_beta = np.abs(dhats[:, 2])
     xy_pts[np.arccos(cos_beta) > critical_beta] = np.nan
 
 
@@ -258,7 +258,7 @@ def tth_corr_map_sample_layer(instrument,
         py, px = panel.pixel_coords
         xy_data = np.vstack((px.flatten(), py.flatten())).T
         dhats = xfcapi.unit_vector(panel.cart_to_dvecs(xy_data))
-        cos_beta = -dhats[:, 2]
+        cos_beta = np.abs(dhats[:, 2])
         # Invalidate values past the critical beta
         # cos_beta[np.arccos(cos_beta) > critical_beta] = np.nan
         cos_tthn = np.cos(ref_ptth.flatten())
