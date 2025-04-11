@@ -188,7 +188,7 @@ def tth_corr_sample_layer(panel, xy_pts,
     ref_tth = ref_angs[:, 0]
 
     dhats = xfcapi.unit_vector(panel.cart_to_dvecs(xy_pts))
-    cos_beta = -dhats[:, 2]
+    cos_beta = np.abs(dhats[:, 2])
     # Invalidate values past the critical beta
     cos_beta[np.arccos(cos_beta) > critical_beta] = np.nan
     cos_tthn = np.cos(ref_tth)
@@ -208,7 +208,7 @@ def invalidate_past_critical_beta(panel: Detector, xy_pts: np.ndarray,
     # Compute the critical beta angle. Anything past this is invalid.
     critical_beta = np.arctan(2 * pinhole_radius / pinhole_thickness)
     dhats = xfcapi.unit_vector(panel.cart_to_dvecs(xy_pts))
-    cos_beta = -dhats[:, 2]
+    cos_beta = np.abs(dhats[:, 2])
     xy_pts[np.arccos(cos_beta) > critical_beta] = np.nan
 
 
@@ -258,7 +258,7 @@ def tth_corr_map_sample_layer(instrument,
         py, px = panel.pixel_coords
         xy_data = np.vstack((px.flatten(), py.flatten())).T
         dhats = xfcapi.unit_vector(panel.cart_to_dvecs(xy_data))
-        cos_beta = -dhats[:, 2]
+        cos_beta = np.abs(dhats[:, 2])
         # Invalidate values past the critical beta
         # cos_beta[np.arccos(cos_beta) > critical_beta] = np.nan
         cos_tthn = np.cos(ref_ptth.flatten())
@@ -303,7 +303,7 @@ def tth_corr_pinhole(panel, xy_pts,
 
     # first we need the reference etas of the points wrt the pinhole axis
     cp_det = copy.deepcopy(panel)
-    cp_det.bvec = ct.beam_vec  # !!! [0, 0, -1]
+    cp_det.bvec = np.sign(cp_det.bvec[2])*ct.beam_vec  # !!! [0, 0, -1]
     ref_angs, _ = cp_det.cart_to_angles(
         xy_pts,
         rmat_s=None, tvec_s=None,
@@ -360,7 +360,7 @@ def tth_corr_map_pinhole(instrument, pinhole_thickness, pinhole_radius):
     The follows a slightly modified version of Jon Eggert's pinhole correction.
     """
     cp_instr = copy.deepcopy(instrument)
-    cp_instr.beam_vector = ct.beam_vec  # !!! [0, 0, -1]
+    cp_instr.beam_vector = np.sign(cp_det.bvec[2])*ct.beam_vec  # !!! [0, 0, -1]
 
     tth_corr = dict.fromkeys(instrument.detectors)
     for det_key, panel in instrument.detectors.items():
@@ -425,8 +425,9 @@ def azimuth(vv, v0, v1):
 
 
 def _infer_instrument_type(panel):
+    # FIXME: we should figure out a more robust we to do this, especially
+    # considering that we keep on adding instruments.
     tardis_names = [
-        'IMAGE-PLATE-1',
         'IMAGE-PLATE-2',
         'IMAGE-PLATE-3',
         'IMAGE-PLATE-4',
@@ -445,7 +446,12 @@ def _infer_instrument_type(panel):
     elif panel.name in pxrdip_names:
         return 'PXRDIP'
 
-    raise NotImplementedError(f'Unknown detector name: {panel.name}')
+    # Assume it is FIDDLE otherwise
+    # We have to do this because we also use the Cartesian view in FIDDLE,
+    # which has a panel name of `dpanel`, and we unfortunately cannot
+    # figure out based upon the detector name which instrument a `dpanel`
+    # belongs to. We should really figure out something more robust...
+    return 'FIDDLE'
 
 
 def _infer_eHat_l(panel):
@@ -453,7 +459,8 @@ def _infer_eHat_l(panel):
 
     eHat_l_dict = {
         'TARDIS': -ct.lab_x.reshape((3, 1)),
-        'PXRDIP': -ct.lab_x.reshape((3, 1))
+        'PXRDIP': -ct.lab_x.reshape((3, 1)),
+        'FIDDLE': ct.lab_x.reshape((3, 1)),
     }
 
     return eHat_l_dict[instr_type]
@@ -465,6 +472,7 @@ def _infer_eta_shift(panel):
     eta_shift_dict = {
         'TARDIS': -np.radians(180),
         'PXRDIP': -np.radians(180),
+        'FIDDLE': 0.0,
     }
 
     return eta_shift_dict[instr_type]
@@ -506,7 +514,7 @@ def calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
     r_x = first_panel.xrs_dist
 
     # zenith angle of the x-ray source from (negative) pinhole axis
-    alpha = np.arccos(np.dot(bvec, [0, 0, -1]))
+    alpha = np.arccos(np.abs(bvec[2]))
 
     # azimuthal angle of the x-ray source around the pinhole axis
     phi_x = calc_phi_x(bvec, eHat_l)
@@ -530,7 +538,7 @@ def calc_tth_rygg_pinhole(panels, absorption_length, tth, eta,
     v0 = np.array([0, 0, 1])
     v1 = np.squeeze(eHat_l)
     phi_d = azimuth(dvectors, -v0, v1).reshape(tth.shape)
-    beta = np.arccos(-dvectors[:, 2]).reshape(tth.shape)
+    beta = np.arccos(np.abs(dvectors[:, 2])).reshape(tth.shape)
 
     # Compute r_d
     # We will first convert to Cartesian, then clip to the panel, add the
