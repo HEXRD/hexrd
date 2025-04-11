@@ -425,8 +425,9 @@ def azimuth(vv, v0, v1):
 
 
 def _infer_instrument_type(panel):
+    # FIXME: we should figure out a more robust we to do this, especially
+    # considering that we keep on adding instruments.
     tardis_names = [
-        'IMAGE-PLATE-1',
         'IMAGE-PLATE-2',
         'IMAGE-PLATE-3',
         'IMAGE-PLATE-4',
@@ -446,7 +447,7 @@ def _infer_instrument_type(panel):
         'CAMERA-05',
         'CAMERA-07',
         'CAMERA-08',
-        'IMAGE-PLATE',
+        'IMAGE-PLATE-1',
     ]
 
     if panel.name in tardis_names:
