@@ -441,23 +441,17 @@ def _infer_instrument_type(panel):
         'IMAGE-PLATE-U',
     ]
 
-    fiddle_names = [
-        'CAMERA-02',
-        'CAMERA-03',
-        'CAMERA-05',
-        'CAMERA-07',
-        'CAMERA-08',
-        'IMAGE-PLATE-1',
-    ]
-
     if panel.name in tardis_names:
         return 'TARDIS'
     elif panel.name in pxrdip_names:
         return 'PXRDIP'
-    elif panel.name in fiddle_names:
-        return 'FIDDLE'
 
-    raise NotImplementedError(f'Unknown detector name: {panel.name}')
+    # Assume it is FIDDLE otherwise
+    # We have to do this because we also use the Cartesian view in FIDDLE,
+    # which has a panel name of `dpanel`, and we unfortunately cannot
+    # figure out based upon the detector name which instrument a `dpanel`
+    # belongs to. We should really figure out something more robust...
+    return 'FIDDLE'
 
 
 def _infer_eHat_l(panel):
