@@ -169,14 +169,25 @@ def assign_spots_to_hkls(
                 return_counts=True,
             )
             if np.any(counts > 1):
-                # FIXME: better handling here
                 # This means two different HKLs were assigned to the same spot.
                 # We'll definitely have to figure out what to do about this...
                 print(
                     f'WARNING!!! {grain_id} on detector {det_key}, '
-                    'some spots were assigned twice!',
+                    f'{len(counts[counts > 1])} out of {len(counts)} spots '
+                    'were used more than once! Here are the counts greater '
+                    'than 1:',
                     counts[counts > 1],
                 )
+                print('These spots will be removed...')
+                to_remove_indices = assigned_indices_sorted[counts > 1]
+                assigned_indices_sorted = assigned_indices_sorted[counts == 1]
+                counts = counts[counts == 1]
+                hkl_assignments[
+                    np.isin(hkl_assignments, to_remove_indices)
+                ] = -1
+                spots_assigned = spots_assigned[
+                    np.isin(spots_assigned, to_remove_indices, invert=True)
+                ]
 
             # Keep track of all spots assigned on this detector, so
             # we can figure out if any spots were assigned to multiple
