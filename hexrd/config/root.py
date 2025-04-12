@@ -177,11 +177,20 @@ class RootConfig(Config):
         if not hasattr(self, '_image_dict'):
             self._image_dict = dict()
             fmt = self.get('image_series:format')
+            style = self.get('image_series:style', None)
             imsdata = self.get('image_series:data')
             for ispec in imsdata:
                 fname = self.check_filename(ispec['file'], self.working_dir)
                 args = ispec['args']
-                ims = imageseries.open(fname, fmt, **args)
+
+                kwargs = {}
+                if style:
+                    # Some imageseries don't support 'style', so don't pass
+                    # it as an argument unless it was provided.
+                    kwargs['style'] = style
+
+                ims = imageseries.open(fname, fmt, **args, **kwargs)
+
                 oms = imageseries.omega.OmegaImageSeries(ims)
                 try:
                     panel = ispec['panel']
