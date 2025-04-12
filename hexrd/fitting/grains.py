@@ -78,7 +78,33 @@ def fitGrain(gFull, instrument, reflections_dict,
 
     gFit = gFull[gFlag]
 
-    fitArgs = (gFull, gFlag, instrument, reflections_dict,
+    # objFuncFitGrain can run *significantly* faster if we convert the
+    # results to use a dictionary instead of lists or numpy arrays.
+    # Do that conversion here, if necessary.
+    new_reflections_dict = {}
+    for det_key, results in reflections_dict.items():
+        if not isinstance(results, (list, np.ndarray)) or len(results) == 0:
+            # Maybe it's already a dict...
+            new_reflections_dict[det_key] = results
+            continue
+
+        if isinstance(results, list):
+            hkls = np.atleast_2d(
+                np.vstack([x[2] for x in results])
+            ).T
+            meas_xyo = np.atleast_2d(
+                np.vstack([np.r_[x[7], x[6][-1]] for x in results])
+            )
+        else:
+            hkls = np.atleast_2d(results[:, 2:5]).T
+            meas_xyo = np.atleast_2d(results[:, [15, 16, 12]])
+
+        new_reflections_dict[det_key] = {
+            'hkls': hkls,
+            'meas_xyo': meas_xyo,
+        }
+
+    fitArgs = (gFull, gFlag, instrument, new_reflections_dict,
                bMat, wavelength, omePeriod)
     results = optimize.leastsq(objFuncFitGrain, gFit, args=fitArgs,
                                diag=1./gScl[gFlag].flatten(),
@@ -185,7 +211,7 @@ def objFuncFitGrain(gFit, gFull, gFlag,
             instrument.detector_parameters[det_key])
 
         results = reflections_dict[det_key]
-        if len(results) == 0:
+        if not isinstance(results, dict) and len(results) == 0:
             continue
 
         """
@@ -214,6 +240,9 @@ def objFuncFitGrain(gFit, gFull, gFlag,
         elif isinstance(results, np.ndarray):
             hkls = np.atleast_2d(results[:, 2:5]).T
             meas_xyo = np.atleast_2d(results[:, [15, 16, 12]])
+        elif isinstance(results, dict):
+            hkls = results['hkls']
+            meas_xyo = results['meas_xyo']
 
         # distortion handling
         if panel.distortion is not None:
