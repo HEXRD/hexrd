@@ -390,6 +390,19 @@ def _assign_spots_data(
                 meas_xy,
             ])
 
+        # Put in some fillers for invalid peaks
+        for i in range(spots['num_hkls_skipped']):
+            data_list.append([
+                -1,
+                -1,
+                [0, 0, 0],
+                0,
+                0,
+                [np.nan, np.nan, np.nan],
+                [np.nan, np.nan, np.nan],
+                [np.nan, np.nan],
+            ])
+
         results[det_key] = data_list
 
     return results

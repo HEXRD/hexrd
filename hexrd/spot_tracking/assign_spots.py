@@ -212,6 +212,8 @@ def assign_spots_to_hkls(
                 'max_int': max_int[spots_assigned],
                 'sum_int': sum_int[spots_assigned],
                 'spot_num_frames': spot_num_frames[spots_assigned],
+                # We need this to compute completeness
+                'num_hkls_skipped': len(hkl_assignments == -1),
             }
 
         # Check if any spots assigned to HKLs from one grain were also assigned
