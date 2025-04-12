@@ -101,7 +101,6 @@ def assign_spots_to_hkls(
         detector_assigned_spots = []
         grain_hkl_assignments = ret.setdefault(det_key, {})
         for grain_id, sim_xys in enumerate(sim_all_xys):
-            print('Assigning HKLs for grain ID:', grain_id)
             sim_omegas = sim_results[2][grain_id][:, 2]
             sim_hkls = sim_all_hkls[grain_id]
 
