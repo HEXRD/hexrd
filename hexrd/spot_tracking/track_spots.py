@@ -115,6 +115,10 @@ def track_combine_and_chunk_spots(
         k = '_pretracked_spots'
         if k in rf:
             # Shortcut! The spots were pre-tracked...
+            print(
+                'Pre-tracked spots found in the spots data file. '
+                'Skipping spot tracking and using those...'
+            )
             return {
                 det_key: rf[f'{k}/{det_key}'][()]
                 for det_key in instr.detectors
