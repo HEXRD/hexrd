@@ -211,6 +211,12 @@ def assign_spots_to_hkls(
 
             keep_hkls = hkl_assignments != -1
 
+            if spots_assigned.size != 0:
+                # Select only the spots that were assigned
+                max_int = max_int[spots_assigned]
+                sum_int = sum_int[spots_assigned]
+                spot_num_frames = spot_num_frames[spots_assigned]
+
             # Store our assignments. `hkls[i]` is the HKL that corresponds
             # to both `sim_xys[i]`, `meas_xys[i]`, and `meas_angs[i]`
             grain_hkl_assignments[grain_id] = {
@@ -220,9 +226,9 @@ def assign_spots_to_hkls(
                 'meas_xys': cart_spot_coords,
                 'spots_assigned': spots_assigned,
                 'meas_angs': meas_angs,
-                'max_int': max_int[spots_assigned],
-                'sum_int': sum_int[spots_assigned],
-                'spot_num_frames': spot_num_frames[spots_assigned],
+                'max_int': max_int,
+                'sum_int': sum_int,
+                'spot_num_frames': spot_num_frames,
                 # We need this to compute completeness
                 'num_hkls_skipped': len(hkl_assignments == -1),
             }
