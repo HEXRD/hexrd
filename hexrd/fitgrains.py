@@ -514,8 +514,6 @@ def fit_grains(cfg,
     if cfg.fit_grains.spots_data_file is not None:
         # Use the spots data file instead of `pull_spots()`
         params['spots_data_file'] = cfg.fit_grains.spots_data_file
-        # This is much faster than `pull_spots()`. Force a serial run.
-        run_serial = True
 
     # =====================================================================
     # EXECUTE MP FIT
