@@ -107,7 +107,19 @@ def track_combine_and_chunk_spots(
     instr: HEDMInstrument,
     num_images: int,
     omegas: np.ndarray,
-):
+) -> dict[str, np.ndarray]:
+    # First, check if the spots have been pre-tracked. If they have
+    # been, we don't need to track them again.
+    # FIXME: this is all going to change with the new spot finding/tracking
+    with h5py.File(spots_filename, 'r') as rf:
+        k = '_pretracked_spots'
+        if k in rf:
+            # Shortcut! The spots were pre-tracked...
+            return {
+                det_key: rf[f'{k}/{det_key}'][()]
+                for det_key in instr.detectors
+            }
+
     # Use detector groups if they are available, because the spots
     # will have been identified from the raw images
     det_keys = instr.detector_groups
