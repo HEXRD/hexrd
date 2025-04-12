@@ -86,6 +86,7 @@ def fit_grain_FF_reduced(grain_id):
     [plane_data, instrument, imgser_dict,
     tth_tol, eta_tol, ome_tol, npdiv, threshold]
     """
+    print('Running fit_grains for grain ID:', grain_id)
     grains_table = paramMP['grains_table']
     plane_data = paramMP['plane_data']
     instrument = paramMP['instrument']
@@ -285,6 +286,7 @@ def fit_grain_FF_reduced(grain_id):
                     plane_data.latVecOps['B'], plane_data.wavelength,
                     ome_period,
                     simOnly=False, return_value_flag=2)
+
     return grain_id, completeness, chisq, grain_params
 
 

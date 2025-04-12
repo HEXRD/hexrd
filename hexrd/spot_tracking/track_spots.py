@@ -28,6 +28,7 @@ def track_spots(
     tracked_spots = {k: {} for k in det_keys}
     with h5py.File(spots_filename, 'r') as rf:
         for frame_index in range(num_images):
+            print('Tracking spots for frame:', frame_index)
             for det_key in det_keys:
                 # Pull the spots from the file
                 path = f'{det_key}/{frame_index}'
