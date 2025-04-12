@@ -4,6 +4,7 @@ from scipy.spatial import KDTree
 from hexrd.instrument import HEDMInstrument
 from hexrd.material.crystallography import PlaneData
 from hexrd.rotations import angularDifference, mapAngle
+from hexrd.utils.decorators import memoize
 
 
 # First key is detector key. Second key is grain ID. Third key is
@@ -27,6 +28,14 @@ def assign_spots_to_hkls(
     n_frames: int,
 ) -> AssignSpotsOutputType:
 
+    if len(omega_ranges) > 1:
+        # We convert the omegas to frame coordinates. This is a
+        # lot simpler if we assume a single omega range.
+        msg = 'We can only use a single omega range right now'
+        raise NotImplementedError(msg)
+
+    increase_make_kd_tree_memoize_size(len(instr.detectors))
+
     # Simulate the spots
     simulated_results = instr.simulate_rotation_series(
         plane_data,
@@ -35,12 +44,6 @@ def assign_spots_to_hkls(
         omega_ranges,
         omega_period,
     )
-
-    if len(omega_ranges) > 1:
-        # We convert the omegas to frame coordinates. This is a
-        # lot simpler if we assume a single omega range.
-        msg = 'We can only use a single omega range right now'
-        raise NotImplementedError(msg)
 
     # Loop over detectors and grain IDs and try to locate their matching spots
     ret = {}
@@ -83,7 +86,9 @@ def assign_spots_to_hkls(
         # Convert the omegas to frame pixels
         meas_pixels[:, 2] = omegas_to_frame_pixels(meas_pixels[:, 2])
 
-        kd_tree = KDTree(meas_pixels)
+        # This is memoized because it can be so time-consuming, especially
+        # when running in serial...
+        kd_tree = make_kd_tree(meas_pixels)
 
         # Grab some simulated HKLs
         sim_all_hkls = sim_results[1]
@@ -224,3 +229,17 @@ def assign_spots_to_hkls(
             )
 
     return ret
+
+
+def increase_make_kd_tree_memoize_size(min_size: int):
+    f = make_kd_tree
+    cache_info = f.cache_info()
+    if cache_info['maxsize'] < min_size:
+        f.set_cache_maxsize(min_size)
+
+
+# Memoize making the kdtree, because this is very time-consuming, especially
+# for the serial case
+@memoize
+def make_kd_tree(array: np.ndarray) -> KDTree:
+    return KDTree(array)
