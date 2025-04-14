@@ -7,6 +7,13 @@ from hexrd.spot_tracking.assign_spots import assign_spots_to_hkls
 from hexrd.spot_tracking.track_spots import track_combine_and_chunk_spots
 
 
+# FIXME: the functions in this file are not designed all that well.
+# fit-grains is using `create_measure_spots_params()` to make the
+# fit-grains parameters, which is kind of weird. We should refactor
+# the calls from fit-grains and the HEDM calibration and clean this
+# up before merging.
+
+
 def measure_spots(
     grain_id: int,
     tols: list[int],
