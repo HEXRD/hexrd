@@ -2023,10 +2023,14 @@ class Detector:
         mask = np.isclose(jb2, 0.)
 
         f1 = np.zeros_like(jb)
-        f1[~mask] = np.arctan(np.sqrt(1/jb2[~mask] - 1))
+        f3 = 1/jb2[~mask] - 1
+        f3[f3<0.] = np.nan
+        f1[~mask] = np.arctan(np.sqrt(f3))
         f1[mask] = np.pi/2
 
-        f2 = jb*np.sqrt(1 - jb2)
+        f3 = 1 - jb2
+        f3[f3<0.] = np.nan
+        f2 = jb*np.sqrt(f3)
 
         return 0.5*(f1 - f2)
 
