@@ -120,7 +120,11 @@ class CylindricalDetector(Detector):
     def pixel_angles(self, origin=ct.zeros_3, bvec: np.ndarray | None = None):
         if bvec is None:
             bvec = self.bvec
-        return _pixel_angles(origin=origin, **self._pixel_angle_kwargs)
+        return _pixel_angles(
+            origin=origin,
+            bvec=bvec,
+            **self._pixel_angle_kwargs,
+        )
 
     def local_normal(self):
         """get the local normal of each pixel in the
@@ -201,7 +205,6 @@ class CylindricalDetector(Detector):
             'paxis': self.paxis,
             'tvec_d': self.tvec,
             'radius': self.radius,
-            'bvec': self.bvec,
             'evec': self.evec,
             'rows': self.rows,
             'cols': self.cols,
