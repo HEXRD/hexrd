@@ -117,7 +117,9 @@ class CylindricalDetector(Detector):
                                                tVec_c=tvec_c,
                                                normalize=False)
 
-    def pixel_angles(self, origin=ct.zeros_3):
+    def pixel_angles(self, origin=ct.zeros_3, bvec: np.ndarray | None = None):
+        if bvec is None:
+            bvec = self.bvec
         return _pixel_angles(origin=origin, **self._pixel_angle_kwargs)
 
     def local_normal(self):
