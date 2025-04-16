@@ -210,11 +210,25 @@ class CylindricalDetector(Detector):
             'cols': self.cols,
         }
 
-    def pixel_tth_gradient(self, origin=ct.zeros_3):
-        return _pixel_tth_gradient(origin=origin, **self._pixel_angle_kwargs)
+    def pixel_tth_gradient(self, origin=ct.zeros_3, bvec: np.ndarray | None = None):
+        if bvec is None:
+            bvec = self.bvec
 
-    def pixel_eta_gradient(self, origin=ct.zeros_3):
-        return _pixel_eta_gradient(origin=origin, **self._pixel_angle_kwargs)
+        return _pixel_tth_gradient(
+            origin=origin,
+            bvec=bvec,
+            **self._pixel_angle_kwargs,
+        )
+
+    def pixel_eta_gradient(self, origin=ct.zeros_3, bvec: np.ndarray | None = None):
+        if bvec is None:
+            bvec = self.bvec
+
+        return _pixel_eta_gradient(
+            origin=origin,
+            bvec=bvec,
+            **self._pixel_angle_kwargs,
+        )
 
     @property
     def caxis(self):
