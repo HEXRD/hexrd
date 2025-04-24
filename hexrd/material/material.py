@@ -31,7 +31,7 @@ Module for XRD material class
 Use the Material class directly for new materials.  Known
 materials are defined by name in materialDict.
 """
-from configparser import SafeConfigParser as Parser
+from configparser import ConfigParser as Parser
 import numpy as np
 
 from hexrd.material.crystallography import PlaneData as PData
