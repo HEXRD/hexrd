@@ -1424,6 +1424,12 @@ class Material(object):
         self._newUnitcell()
         self.invalidate_structure_factor()
 
+    @property
+    def chemical_formula(self):
+        '''get chemical formula for the unitcell.
+        each atom's abundance will be occ. * numat
+        '''
+        return self.unitcell.chemical_formula
 
 #
 #  -----------------------------------------------END CLASS:  Material
