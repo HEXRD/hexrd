@@ -1837,7 +1837,7 @@ class Rietveld:
         for i, s in enumerate(self._spectrum_expt):
             tth = self._tth_list[i]
             bkg = cs(tth)
-            self._background.append(Spectrum(x=tth, y=cs(tth)))
+            self._background.append(Spectrum(x=tth, y=bkg))
 
     def calctth(self):
         self.tth = {}
