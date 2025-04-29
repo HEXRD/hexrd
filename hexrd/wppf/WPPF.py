@@ -209,7 +209,6 @@ class LeBail:
                 self._background.append(Spectrum(x=tth, y=np.zeros(tth.shape)))
 
         elif "spline" in self.bkgmethod.keys():
-            self._background = []
 
             points = self.bkgmethod["spline"]
             if not points:
@@ -217,11 +216,7 @@ class LeBail:
                     "Background points must be set to use spline"
                 )
 
-            for i, pts in enumerate(np.asarray(points)):
-                tth = self._spectrum_expt[i]._x
-                x = pts[:, 0]
-                y = pts[:, 1]
-                self._background.append(self.splinefit(x, y, tth))
+            self.splinefit(np.squeeze(np.array(points)))
 
         elif "chebyshev" in self.bkgmethod.keys():
             self.chebyshevfit()
@@ -307,15 +302,19 @@ class LeBail:
             tth = self._tth_list[i]
             self._background.append(Spectrum(x=tth, y=self.init_bkg(tth)))
 
-    # cubic spline fit of background using custom points chosen from plot
-    def splinefit(self, x, y, tth):
+    def splinefit(self, points):
         """
         03/08/2021 SS adding tth as input. this is the
         list of points for which background is estimated
         """
+        self._background = []
+        x = points[:,0]
+        y = points[:,1]
         cs = CubicSpline(x, y)
-        bkg = cs(tth)
-        return Spectrum(x=tth, y=bkg)
+        for i, s in enumerate(self._spectrum_expt):
+            tth = self._tth_list[i]
+            bkg = cs(tth)
+            self._background.append(Spectrum(x=tth, y=cs(tth)))
 
     def calctth(self):
         self.tth = {}
@@ -1732,7 +1731,6 @@ class Rietveld:
                 self._background.append(Spectrum(x=tth, y=np.zeros(tth.shape)))
 
         elif "spline" in self.bkgmethod.keys():
-            self._background = []
 
             points = self.bkgmethod["spline"]
             if not points:
@@ -1740,11 +1738,7 @@ class Rietveld:
                     "Background points must be set to use spline"
                 )
 
-            for i, pts in enumerate(np.asarray(points)):
-                tth = self._spectrum_expt[i]._x
-                x = pts[:, 0]
-                y = pts[:, 1]
-                self._background.append(self.splinefit(x, y, tth))
+            self.splinefit(np.squeeze(np.asarray(points)))
 
         elif "chebyshev" in self.bkgmethod.keys():
             self.chebyshevfit()
@@ -1831,14 +1825,19 @@ class Rietveld:
             self._background.append(Spectrum(x=tth, y=self.init_bkg(tth)))
 
     # cubic spline fit of background using custom points chosen from plot
-    def splinefit(self, x, y, tth):
+    def splinefit(self, points):
         """
         03/08/2021 SS adding tth as input. this is the
         list of points for which background is estimated
         """
+        self._background = []
+        x = points[:,0]
+        y = points[:,1]
         cs = CubicSpline(x, y)
-        bkg = cs(tth)
-        return Spectrum(x=tth, y=bkg)
+        for i, s in enumerate(self._spectrum_expt):
+            tth = self._tth_list[i]
+            bkg = cs(tth)
+            self._background.append(Spectrum(x=tth, y=cs(tth)))
 
     def calctth(self):
         self.tth = {}
@@ -1869,6 +1868,8 @@ class Rietveld:
                 self.hkls[p][k] = hkl[limit, :]
                 self.dsp[p][k] = dsp[limit]
                 if sf_f is not None and lfact_sf is not None:
+                    sf_f = sf_f[allowed]
+                    lfact_sf = lfact_sf[allowed]
                     self.sf_hkl_factors[p][k] = sf_f[limit]
                     self.sf_lfactor[p][k] = lfact_sf[limit]
 
