@@ -1,6 +1,28 @@
 from abc import abstractmethod
+from dataclasses import dataclass, fields
+from functools import partial
+
 import numpy as np
 from hexrd.material.utils import calculate_linear_absorption_length
+
+
+# Below are the possible layers
+@dataclass
+class PhysicsPackageLayer:
+    name: str = ''
+    material: str = ''
+    density: float = 0
+    thickness: float = 0
+
+
+@dataclass
+class PinholeLayer(PhysicsPackageLayer):
+    diameter: float = 0
+
+
+@dataclass
+class HEDMSampleLayer(PhysicsPackageLayer):
+    geometry: str = ''
 
 
 class AbstractPhysicsPackage:
@@ -11,29 +33,10 @@ class AbstractPhysicsPackage:
 
     Parameters
     ----------
-    sample_material : str or hexrd.material.Material
-        either the formula or a hexrd material instance
-    sample_density : float
-        density of sample material in g/cc
-    sample_thickness : float
-        sample thickness in microns
-    sample_geometry : FIXME
-        FIXME
-    pinhole_material : str or hexrd.material.Material, optional
-        either the formula or a hexrd material instance
-    pinhole_density : float
-        density of pinhole material in g/cc
-    pinhole_thickness : float
-        pinhole thickness in microns
-    pinhole_diameter : float
-        pinhole diameter in microns
-    window_material : str or hexrd.material.Material
-        either the formula or a hexrd material instance
-    window_density : float
-        density of window material in g/cc
-    window_thickness : float
-        window thickness in microns
+    The parameters are set up so that layer attributes can be accessed
+    (via both setters and getters) with `<layer_name>_<attribute>`.
 
+    For example, for sample thickness, you may specify `sample_thickness`.
 
     Notes
     -----
@@ -49,146 +52,54 @@ class AbstractPhysicsPackage:
     def type(self):
         pass
 
-    def __init__(self,
-                 sample_material=None,
-                 sample_density=None,
-                 sample_thickness=None,
-                 pinhole_material=None,
-                 pinhole_density=None,
-                 pinhole_thickness=None,
-                 pinhole_diameter=None,
-                 **kwargs
-                 ):
-        self._sample_material = sample_material
-        self._sample_density = sample_density
-        self._sample_thickness = sample_thickness
-        self._pinhole_material = pinhole_material
-        self._pinhole_density = pinhole_density
-        self._pinhole_thickness = pinhole_thickness
-        self._pinhole_diameter = pinhole_diameter
+    # If you want to add more layers, you just need to:
+    #   1. Add the layer name to this list
+    #   2. If the layer requires a special class (like `PinholeLayer`),
+    #      specify that in `SPECIAL_LAYERS`
+    LAYER_TYPES = []
+    SPECIAL_LAYERS = {}
+
+    def __init__(self, **kwargs):
+        # The physics packages are set up so that you can access layer
+        # attributes via `<layer>_<attr>`. For example, for the sample
+        # thickness, you can do `self.sample_thickness`.
+        self._setup_layers()
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    def _setup_layers(self):
+        super().__setattr__('_layers', {})
+        for name in self.LAYER_TYPES:
+            self._layers[name] = self.make_layer(name)
+
+    def __getattr__(self, key):
+        if not key.startswith('_') and key.count('_') == 1:
+            name, attr = key.split('_')
+            if name in self._layers:
+                return getattr(self._layers[name], attr)
+
+        return super().__getattr__(key)
+
+    def __setattr__(self, key, value):
+        if key.count('_') == 1:
+            name, attr = key.split('_')
+            if name in self._layers:
+                setattr(self._layers[name], attr, value)
+
+        # Default behavior is standard
+        super().__setattr__(key, value)
 
     @property
     def attributes_to_serialize(self):
-        return [
-            'sample_material',
-            'sample_density',
-            'sample_thickness',
-            'pinhole_material',
-            'pinhole_density',
-            'pinhole_thickness',
-            'pinhole_diameter',
-        ]
+        result = []
+        for name, layer in self._layers.items():
+            result += [f'{name}_{x.name}' for x in fields(layer)]
 
-    @property
-    def sample_material(self):
-        return self._sample_material
+        return result
 
-    @sample_material.setter
-    def sample_material(self, material):
-        self._sample_material = material
-
-    @property
-    def sample_density(self):
-        if self._sample_density is None:
-            return 0.0
-        return self._sample_density
-
-    @sample_density.setter
-    def sample_density(self, density):
-        self._sample_density = density
-
-    @property
-    def sample_thickness(self):
-        if self._sample_thickness is None:
-            return 0.0
-        return self._sample_thickness
-
-    @sample_thickness.setter
-    def sample_thickness(self, value):
-        self._sample_thickness = value
-
-    @property
-    def pinhole_material(self):
-        return self._pinhole_material
-
-    @pinhole_material.setter
-    def pinhole_material(self, material):
-        self._pinhole_material = material
-
-    @property
-    def pinhole_density(self):
-        if self._pinhole_density is None:
-            return 0.0
-        return self._pinhole_density
-
-    @pinhole_density.setter
-    def pinhole_density(self, density):
-        self._pinhole_density = density
-
-    @property
-    def pinhole_thickness(self):
-        if self._pinhole_thickness is None:
-            return 0.0
-        return self._pinhole_thickness
-
-    @pinhole_thickness.setter
-    def pinhole_thickness(self, value):
-        self._pinhole_thickness = value
-
-    @property
-    def pinhole_radius(self):
-        if self.pinhole_diameter is None:
-            return 0.0
-        return 0.5 * self.pinhole_diameter
-
-    @pinhole_radius.setter
-    def pinhole_radius(self, value):
-        self._pinhole_diameter = 2.0 * value
-
-    @property
-    def pinhole_diameter(self):
-        if self._pinhole_diameter is None:
-            return 0.0
-        return self._pinhole_diameter
-
-    @pinhole_diameter.setter
-    def pinhole_diameter(self, value):
-        self._pinhole_diameter = value
-
-    def absorption_length(self, energy, flag):
-        if isinstance(energy, float):
-            energy_inp = np.array([energy])
-        elif isinstance(energy, list):
-            energy_inp = np.array(energy)
-        elif isinstance(energy, np.ndarray):
-            energy_inp = energy
-
-        if flag.lower() == 'sample':
-            args = (self.sample_density,
-                    self.sample_material,
-                    energy_inp,
-                    )
-        elif flag.lower() == 'window':
-            args = (self.window_density,
-                    self.window_material,
-                    energy_inp,
-                    )
-        elif flag.lower() == 'pinhole':
-            args = (self.pinhole_density,
-                    self.pinhole_material,
-                    energy_inp,
-                    )
-        abs_length = calculate_linear_absorption_length(*args)
-        if abs_length.shape[0] == 1:
-            return abs_length[0]
-        else:
-            return abs_length
-
-    def sample_absorption_length(self, energy):
-        return self.absorption_length(energy, 'sample')
-
-    def pinhole_absorption_length(self, energy):
-        return self.absorption_length(energy, 'pinhole')
+    def make_layer(self, name: str, **kwargs) -> PhysicsPackageLayer:
+        cls = self.SPECIAL_LAYERS.get(name, PhysicsPackageLayer)
+        return cls(name, **kwargs)
 
     def serialize(self):
         return {a: getattr(self, a) for a in self.attributes_to_serialize}
@@ -200,96 +111,102 @@ class AbstractPhysicsPackage:
 
 class HEDPhysicsPackage(AbstractPhysicsPackage):
 
-    def __init__(self, **pp_kwargs):
-        super().__init__(**pp_kwargs)
-        self._window_material = pp_kwargs.get('window_material', None)
-        self._window_density = pp_kwargs.get('window_density', None)
-        self._window_thickness = pp_kwargs.get('window_thickness', None)
-
-    @property
-    def attributes_to_serialize(self):
-        return [
-            'sample_material',
-            'sample_density',
-            'sample_thickness',
-            'pinhole_material',
-            'pinhole_density',
-            'pinhole_thickness',
-            'pinhole_diameter',
-            'window_material',
-            'window_density',
-            'window_thickness',
-        ]
+    # If you want to add more layers, you just need to:
+    #   1. Add the layer name to this list
+    #   2. If the layer requires a special class (like `PinholeLayer`),
+    #      specify that in `SPECIAL_LAYERS`
+    # These layer types should be in order, for proper computation of
+    # layer standoff.
+    LAYER_TYPES = [
+        'ablator',
+        'heatshield',
+        'pusher',
+        'sample',
+        'window',
+        'pinhole',
+    ]
+    SPECIAL_LAYERS = {
+        'pinhole': PinholeLayer,
+    }
 
     @property
     def type(self):
         return 'HED'
 
     @property
-    def window_material(self):
-        return self._window_material
+    def pinhole_radius(self):
+        return 0.5 * self.pinhole_diameter
 
-    @window_material.setter
-    def window_material(self, material):
-        self._window_material = material
+    @pinhole_radius.setter
+    def pinhole_radius(self, value):
+        self.pinhole_diameter = 2.0 * value
 
-    @property
-    def window_density(self):
-        if self._window_density is None:
-            return 0.0
-        return self._window_density
+    def absorption_length(self, energy, layer):
+        if isinstance(energy, float):
+            energy_inp = np.array([energy])
+        elif isinstance(energy, list):
+            energy_inp = np.array(energy)
+        elif isinstance(energy, np.ndarray):
+            energy_inp = energy
 
-    @window_density.setter
-    def window_density(self, density):
-        self._window_density = density
+        layer = layer.lower()
+        args = (
+            getattr(self, f'{layer}_density'),
+            getattr(self, f'{layer}_material'),
+            energy_inp
+        )
+        abs_length = calculate_linear_absorption_length(*args)
+        if abs_length.shape[0] == 1:
+            return abs_length[0]
+        else:
+            return abs_length
 
-    @property
-    def window_thickness(self):
-        if self._window_thickness is None:
-            return 0.0
-        return self._window_thickness
+    def layer_standoff(self, layer: str) -> float:
+        # Compute layer standoff from the pinhole
+        idx = self.LAYER_TYPES.index(layer)
+        result = 0.
+        for i in range(idx + 1, len(self.LAYER_TYPES) - 1):
+            name = self.LAYER_TYPES[i]
+            result += self._layers[name].thickness
+        return result
 
-    @window_thickness.setter
-    def window_thickness(self, thickness):
-        self._window_thickness = thickness
+    def layer_thickness(self, layer: str) -> float:
+        return self._layers[layer].thickness
 
-    def window_absorption_length(self, energy):
-        return self.absorption_length(energy, 'window')
+    def __getattr__(self, key: str):
+        if key.endswith('_absorption_length'):
+            # Make a function to get the absorption length of the layer
+            # For example, you can get the sample absorption length like
+            # this: `package.sample_absorption_length(energy)`
+            name = key.split('_', 1)[0]
+            f = partial(self.absorption_length, layer=name)
+            return f
+
+        return super().__getattr__(key)
 
 
 class HEDMPhysicsPackage(AbstractPhysicsPackage):
 
-    def __init__(self, **pp_kwargs):
-        super().__init__(**pp_kwargs)
-        self._sample_geometry = pp_kwargs.get('sample_geometry', None)
-
-    @property
-    def attributes_to_serialize(self):
-        return [
-            'sample_material',
-            'sample_density',
-            'sample_thickness',
-            'sample_geometry',
-            'pinhole_material',
-            'pinhole_density',
-            'pinhole_thickness',
-            'pinhole_diameter',
-        ]
-
-    @property
-    def sample_geometry(self):
-        return self._sample_geometry
-
-    @property
-    def sample_diameter(self):
-        if self.sample_geometry == 'cylinder':
-            return self._sample_thickness
-        else:
-            msg = (f'sample geometry does not have diameter '
-                   f'associated with it.')
-            print(msg)
-            return
+    # If you want to add more layers, you just need to:
+    #   1. Add the layer name to this list
+    #   2. If the layer requires a special class (like `PinholeLayer`),
+    #      specify that in `SPECIAL_LAYERS`
+    LAYER_TYPES = [
+        'sample',
+    ]
+    SPECIAL_LAYERS = {
+        'sample': HEDMSampleLayer,
+    }
 
     @property
     def type(self):
         return 'HEDM'
+
+    @property
+    def sample_diameter(self):
+        if self.sample_geometry == 'cylinder':
+            return self.sample_thickness
+
+        raise Exception(
+            'sample geometry does not have diameter associated with it.'
+        )

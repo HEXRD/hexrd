@@ -1145,8 +1145,8 @@ class HEDMInstrument(object):
             to the returned data. collapse_eta must also be True for this
             to have any effect. The default is False.
         tth_distortion : special class, optional
-            for special case of pinhole camera distortions.  See
-            hexrd.xrdutil.phutil.SampleLayerDistortion (only type supported)
+            for special case of pinhole camera distortions.
+            See classes in hexrd.xrdutil.phutil
         fitting_kwargs : dict, optional
             kwargs passed to hexrd.fitting.utils.fit_ring if do_fitting is True
 

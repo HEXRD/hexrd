@@ -18,11 +18,12 @@ from hexrd.transforms import xfcapi
 from hexrd.utils.concurrent import distribute_tasks
 
 
-class SampleLayerDistortion:
-    def __init__(self, panel,
-                 layer_standoff, layer_thickness,
-                 pinhole_thickness, pinhole_radius):
+class LayerDistortion:
+    def __init__(self, panel: Detector, layer_type: str,
+                 layer_standoff: float, layer_thickness: float,
+                 pinhole_thickness: float, pinhole_radius: float):
         self._panel = panel
+        self._layer_type = layer_type
         self._layer_standoff = layer_standoff
         self._layer_thickness = layer_thickness
         self._pinhole_thickness = pinhole_thickness
@@ -36,6 +37,10 @@ class SampleLayerDistortion:
     def panel(self, x):
         assert isinstance(x, Detector), "input must be a detector"
         self._panel = x
+
+    @property
+    def layer_type(self) -> str:
+        return self._layer_type
 
     @property
     def layer_standoff(self):
@@ -72,11 +77,11 @@ class SampleLayerDistortion:
     def apply(self, xy_pts, return_nominal=True):
         """
         """
-        return tth_corr_sample_layer(self.panel, xy_pts,
-                                     self.layer_standoff, self.layer_thickness,
-                                     self.pinhole_thickness,
-                                     self.pinhole_radius,
-                                     return_nominal=return_nominal)
+        return tth_corr_layer(self.panel, xy_pts,
+                              self.layer_standoff, self.layer_thickness,
+                              self.pinhole_thickness,
+                              self.pinhole_radius,
+                              return_nominal=return_nominal)
 
 
 class JHEPinholeDistortion:
@@ -141,13 +146,14 @@ class RyggPinholeDistortion:
                                      num_phi_elements=self.num_phi_elements)
 
 
-def tth_corr_sample_layer(panel, xy_pts,
-                          layer_standoff, layer_thickness,
-                          pinhole_thickness, pinhole_radius,
-                          return_nominal=True):
+def tth_corr_layer(panel, xy_pts,
+                   layer_standoff, layer_thickness,
+                   pinhole_thickness, pinhole_radius,
+                   return_nominal=True):
     """
-    Compute the Bragg angle distortion associated with a specific sample
-    layer in a pinhole camera.
+    Compute the Bragg angle distortion associated with a specific
+    layer in a pinhole camera. Could be any layer before the pinhole,
+    including ablator, heat shield, pusher, sample, and window.
 
     Parameters
     ----------
@@ -157,10 +163,9 @@ def tth_corr_sample_layer(panel, xy_pts,
         The (n, 2) array of n (x, y) coordinates to be transformed in the raw
         detector coordinates (cartesian plane, origin at center).
     layer_standoff : scalar
-        The sample layer standoff from the upstream face of the pinhole
-        in mm.
+        The layer standoff from the upstream face of the pinhole in mm.
     layer_thickness : scalar
-        The thickness of the sample layer in mm.
+        The thickness of the layer in mm.
     pinhole_thickness : scalar
         The thickenss (height) of the pinhole (cylinder) in mm
     pinhole_radius : scalar
@@ -212,12 +217,13 @@ def invalidate_past_critical_beta(panel: Detector, xy_pts: np.ndarray,
     xy_pts[np.arccos(cos_beta) > critical_beta] = np.nan
 
 
-def tth_corr_map_sample_layer(instrument,
-                              layer_standoff, layer_thickness,
-                              pinhole_thickness, pinhole_radius):
+def tth_corr_map_layer(instrument,
+                       layer_standoff, layer_thickness,
+                       pinhole_thickness, pinhole_radius):
     """
     Compute the Bragg angle distortion fields for an instrument associated
-    with a specific sample layer in a pinhole camera.
+    with a specific layer in a pinhole camera. Could be any layer before the
+    pinhole, including ablator, heat shield, pusher, sample, and window.
 
     Parameters
     ----------
@@ -227,7 +233,7 @@ def tth_corr_map_sample_layer(instrument,
         The sample layer standoff from the upstream face of the pinhole
         in mm.
     layer_thickness : scalar
-        The thickness of the sample layer in mm.
+        The thickness of the layer in mm.
     pinhole_thickness : scalar
         The thickenss (height) of the pinhole (cylinder) in mm
     pinhole_radius : scalar
@@ -267,6 +273,14 @@ def tth_corr_map_sample_layer(instrument,
             sin_tthn/(instrument.source_distance*cos_beta/zs - cos_tthn)
         ).reshape(panel.shape)
     return tth_corr
+
+
+# Make aliases of these names for backward compatibility
+# This distortion was originally intended only for the sample layer,
+# but it can really be used for any layers other than the pinhole.
+SampleLayerDistortion = LayerDistortion
+tth_corr_sample_layer = tth_corr_layer
+tth_corr_map_sample_layer = tth_corr_map_layer
 
 
 def tth_corr_pinhole(panel, xy_pts,
