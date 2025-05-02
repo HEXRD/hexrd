@@ -34,7 +34,10 @@ class PHYSICS_PACKAGE_DEFAULTS:
     HED = {
         'sample_material': 'Fe',
         'sample_density': DENSITY['Fe'],
-        'sample_thickness': 15, # in microns
+        'sample_thickness': 15,  # in microns
+        'reflective_material': 'Ti',
+        'reflective_density': DENSITY['Ti'],
+        'reflective_thickness': 0,  # in microns
         'window_material': 'LiF',
         'window_density': DENSITY_COMPOUNDS['LiF'],
         'window_thickness': 150, # in microns
