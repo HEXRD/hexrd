@@ -87,6 +87,7 @@ class StructurelessCalibrator:
         meas_angles = self.meas_angles
         tth_correction = self.tth_correction
 
+<<<<<<< HEAD
         residual = []
         prefixes = tth_parameter_prefixes(self.instr)
         for xray_source in self.data:
@@ -107,6 +108,8 @@ class StructurelessCalibrator:
                     residual.append(delta_tth)
 
         residual = np.hstack(residual)
+=======
+>>>>>>> 377b124 (use size instead of len)
         return residual/residual.size
 
     def set_minimizer(self):
