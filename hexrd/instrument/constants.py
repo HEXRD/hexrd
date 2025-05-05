@@ -34,10 +34,25 @@ class PHYSICS_PACKAGE_DEFAULTS:
     HED = {
         'sample_material': 'Fe',
         'sample_density': DENSITY['Fe'],
-        'sample_thickness': 15, # in microns
+        'sample_thickness': 15,  # in microns
+        'reflective_material': 'Ti',
+        'reflective_density': DENSITY['Ti'],
+        'reflective_thickness': 0,  # in microns
         'window_material': 'LiF',
         'window_density': DENSITY_COMPOUNDS['LiF'],
         'window_thickness': 150, # in microns
+        'ablator_material': 'C22H10N2O5',
+        'ablator_density': DENSITY_COMPOUNDS['C22H10N2O5'],
+        # No ablator by default, so thickness is 0
+        'ablator_thickness': 0,  # in microns
+        'heatshield_material': 'Au',
+        'heatshield_density': DENSITY['Au'],
+        # No heatshield by default, so thickness is 0
+        'heatshield_thickness': 0,  # in microns
+        'pusher_material': 'Be',
+        'pusher_density': DENSITY['Be'],
+        # No pusher by default, so thickness is 0
+        'pusher_thickness': 0,  # in microns
     }
     # # Template for HEDM type physics package
     # HEDM = {
