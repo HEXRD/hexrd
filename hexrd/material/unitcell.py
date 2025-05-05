@@ -1728,9 +1728,15 @@ class unitcell:
             numat = self.numat[i]
             occ = self.atom_pos[i, 3]
             abundance = str(numat*occ)
-            chemical_formula = chemical_formula.join(
-                               (elem, abundance))
-            return chemical_formula
+            if abundance.endswith('.0'):
+                # We can remove the trailing decimal and zero.
+                # This looks nicer if you print the formula,
+                # like `C8` instead of `C8.0`.
+                abundance = abundance[:-2]
+
+            chemical_formula += f'{elem}{abundance}'
+
+        return chemical_formula
 
 
 _rqpDict = {
