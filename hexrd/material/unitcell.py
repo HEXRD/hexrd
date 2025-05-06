@@ -1714,6 +1714,31 @@ class unitcell:
         return 1e3*self.vol/self.num_atom
 
 
+    @property
+    def chemical_formula(self):
+        chemical_formula = ''
+        for i in range(self.atom_ntype):
+            '''
+            atype is atom type i.e. atomic number
+            numat is the number of atoms of atype
+            atom_pos(i,3) has the occupation factor
+            '''
+            Z = self.atom_type[i]
+            elem = constants.ptableinverse[Z]
+            numat = self.numat[i]
+            occ = self.atom_pos[i, 3]
+            abundance = str(numat*occ)
+            if abundance.endswith('.0'):
+                # We can remove the trailing decimal and zero.
+                # This looks nicer if you print the formula,
+                # like `C8` instead of `C8.0`.
+                abundance = abundance[:-2]
+
+            chemical_formula += f'{elem}{abundance}'
+
+        return chemical_formula
+
+
 _rqpDict = {
     'triclinic': (tuple(range(6)), lambda p: p),  # all 6
     # note beta
