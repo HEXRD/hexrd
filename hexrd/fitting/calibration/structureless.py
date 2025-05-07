@@ -99,16 +99,16 @@ class StructurelessCalibrator:
                     if rng[det_name] is None or rng[det_name].size == 0:
                         continue
 
-                    tth_rng = params[f'{prefix}{ii}'].value
-                    tth_updated = np.degrees(rng[det_name][:, 0])
+                    # To make these residuals consistent with the powder
+                    # calibrator residuals, convert them to radians
+                    tth_rng = np.radians(params[f'{prefix}{ii}'].value)
+                    tth_updated = rng[det_name][:, 0]
                     delta_tth = tth_updated - tth_rng
                     if corr_rng[det_name] is not None:
-                        delta_tth -= np.degrees(corr_rng[det_name])
+                        delta_tth -= corr_rng[det_name]
                     residual.append(delta_tth)
 
-        residual = np.hstack(residual)
-
-        return residual/residual.size
+        return np.hstack(residual)
 
     def set_minimizer(self):
         self.fitter = lmfit.Minimizer(self.calc_residual,
