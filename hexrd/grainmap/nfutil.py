@@ -1262,7 +1262,12 @@ def gen_trial_exp_data(grain_out_file,det_file,mat_file, mat_name, max_tth, comp
     # crystallography data
     beam_energy = valunits.valWUnit("beam_energy", "energy", instr.beam_energy, "keV")
     beam_wavelength = constants.keVToAngstrom(beam_energy.getVal('keV'))
-    dmin = valunits.valWUnit("dmin", "length",
+    if max_tth is not None:
+        dmin = valWUnit("dmin", "length",
+                             0.5*beam_wavelength/np.sin(0.5*np.radians(max_tth)),
+                             "angstrom")   
+    else:
+        dmin = valWUnit("dmin", "length",
                              0.5*beam_wavelength/np.sin(0.5*max_pixel_tth),
                              "angstrom")
 
