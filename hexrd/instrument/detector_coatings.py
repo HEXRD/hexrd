@@ -1,6 +1,8 @@
 import numpy as np
-from hexrd.material.utils import (calculate_linear_absorption_length,
-    calculate_energy_absorption_length)
+from hexrd.material.utils import (
+    calculate_energy_absorption_length,
+    calculate_linear_absorption_length,
+)
 
 
 class AbstractLayer:
@@ -10,8 +12,8 @@ class AbstractLayer:
 
     Parameters
     ----------
-    material : str or hexrd.material.Material
-        either the formula or a hexrd material instance
+    material : str
+        either the formula or a material name
     density : float
         density of element in g/cc
     thickness : float
@@ -22,17 +24,24 @@ class AbstractLayer:
     pre_U0 : float
         scale factor for phosphor screen to convert
         intensity to PSL
+    formula: str or None
+        The chemical formula to use for absorption length calculations.
+        If one is not provided, the chemical formula is assumed to be the
+        same as the material name.
     """
 
     def __init__(self,
-                 material=None,
-                 density=None,
-                 thickness=None,
-                 readout_length=None,
-                 pre_U0=None):
+                 material: str | None = None,
+                 density: float | None = None,
+                 thickness: float | None = None,
+                 readout_length: float | None = None,
+                 pre_U0: float | None = None,
+                 formula: str | None = None,
+    ):
         self._material = material
         self._density = density
         self._thickness = thickness
+        self._formula = formula
 
     @property
     def attributes_to_serialize(self):
@@ -40,6 +49,7 @@ class AbstractLayer:
             'material',
             'density',
             'thickness',
+            'formula',
         ]
 
     @property
@@ -70,6 +80,14 @@ class AbstractLayer:
     def thickness(self, value):
         self._thickness = value
 
+    @property
+    def formula(self) -> str:
+        return self._formula
+
+    @formula.setter
+    def formula(self, value: str):
+        self._formula = value
+
     def absorption_length(self, energy):
         if isinstance(energy, float):
             energy_inp = np.array([energy])
@@ -78,10 +96,14 @@ class AbstractLayer:
         elif isinstance(energy, np.ndarray):
             energy_inp = energy
 
-        args = (self.density,
-                self.material,
-                energy_inp,
-                )
+        # Use the chemical formula if provided. Otherwise, assume the material
+        # name is the chemical formula.
+        formula = self.formula if self.formula else self.material
+        args = (
+            self.density,
+            formula,
+            energy_inp,
+        )
         abs_length = calculate_linear_absorption_length(*args)
         if abs_length.shape[0] == 1:
             return abs_length[0]
@@ -96,10 +118,14 @@ class AbstractLayer:
         elif isinstance(energy, np.ndarray):
             energy_inp = energy
 
-        args = (self.density,
-                self.material,
-                energy_inp,
-                )
+        # Use the chemical formula if provided. Otherwise, assume the material
+        # name is the chemical formula.
+        formula = self.formula if self.formula else self.material
+        args = (
+            self.density,
+            formula,
+            energy_inp,
+        )
         abs_length = calculate_energy_absorption_length(*args)
         if abs_length.shape[0] == 1:
             return abs_length[0]
@@ -134,12 +160,9 @@ class Phosphor(AbstractLayer):
 
     @property
     def attributes_to_serialize(self):
-        return [
-            'material',
-            'density',
-            'thickness',
+        return super().attributes_to_serialize + [
             'readout_length',
-            'pre_U0'
+            'pre_U0',
         ]
 
     @property
