@@ -13,6 +13,7 @@ class PhysicsPackageLayer:
     material: str = ''
     density: float = 0
     thickness: float = 0
+    formula: str | None = None  # chemical formula
 
 
 @dataclass
@@ -150,10 +151,16 @@ class HEDPhysicsPackage(AbstractPhysicsPackage):
         elif isinstance(energy, np.ndarray):
             energy_inp = energy
 
+        density = getattr(self, f'{layer}_density')
+        formula = getattr(self, f'{layer}_formula')
+        if not formula:
+            # Assume the material name is the formula
+            formula = getattr(self, f'{layer}_material')
+
         layer = layer.lower()
         args = (
-            getattr(self, f'{layer}_density'),
-            getattr(self, f'{layer}_material'),
+            density,
+            formula,
             energy_inp
         )
         abs_length = calculate_linear_absorption_length(*args)
