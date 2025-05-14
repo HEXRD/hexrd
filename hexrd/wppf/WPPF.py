@@ -436,7 +436,7 @@ class LeBail:
                 if self.phases[p].sf_alpha is not None:
                     alpha = getattr(self, f"{p}_sf_alpha")
                     beta  = getattr(self, f"{p}_twin_beta")
-                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k])) *\
+                    sf_shift = alpha*np.tan(np.radians(0.5*self.tth[p][k])) *\
                         self.sf_hkl_factors[p][k]
                     Xs = np.degrees(
                         0.9*(1.5*alpha+beta)*(
@@ -551,7 +551,7 @@ class LeBail:
                 if self.phases[p].sf_alpha is not None:
                     alpha = getattr(self, f"{p}_sf_alpha")
                     beta  = getattr(self, f"{p}_twin_beta")
-                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k])) *\
+                    sf_shift = alpha*np.tan(np.radians(0.5*self.tth[p][k])) *\
                         self.sf_hkl_factors[p][k]
                     Xs = np.degrees(
                         0.9*(1.5*alpha+beta)*(
@@ -1944,7 +1944,7 @@ class Rietveld:
                 if self.phases[p][k].sf_alpha is not None:
                     alpha = getattr(self, f"{p}_sf_alpha")
                     beta  = getattr(self, f"{p}_twin_beta")
-                    sf_shift = alpha*np.tan(np.radians(self.tth[p][k])) *\
+                    sf_shift = alpha*np.tan(np.radians(0.5*self.tth[p][k])) *\
                         self.sf_hkl_factors[p][k]
                     Xs = np.degrees(0.9*(1.5*alpha+beta)*(
                         self.sf_lfactor[p][k] *
