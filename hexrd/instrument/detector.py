@@ -537,6 +537,22 @@ class Detector:
         )
         return pix_i, pix_j
 
+    @property
+    def pixel_solid_angles(self):
+        y, x = self.pixel_coords
+        xy = np.vstack((x.flatten(),y.flatten())).T
+        dvecs = self.cart_to_dvecs(xy)
+        mod_r = np.linalg.norm(dvecs,axis=1)
+        args = (
+            self.pixel_area,
+            mod_r,
+            dvecs,
+            self.pixel_normal,
+            self.shape
+            )
+        return _pixel_solid_angles(*args)
+
+
     # =========================================================================
     # METHODS
     # =========================================================================
@@ -2063,6 +2079,18 @@ class Detector:
 # UTILITY METHODS
 # =============================================================================
 
+@memoize
+def _pixel_solid_angles(pixel_area,
+                        mod_r,
+                        dvecs,
+                        pixel_normal,
+                        det_shape):
+
+    return np.reshape(
+            (pixel_area/mod_r**3)*
+            np.abs(np.sum(
+            pixel_normal*dvecs,axis=1)),
+            det_shape)
 
 def _fix_indices(idx, lo, hi):
     nidx = np.array(idx)
@@ -2079,21 +2107,3 @@ def _row_edge_vec(rows, pixel_size_row):
 
 def _col_edge_vec(cols, pixel_size_col):
     return pixel_size_col * (np.arange(cols + 1) - 0.5 * cols)
-
-
-# FIXME find a better place for this, and maybe include loop over pixels
-@numba.njit(nogil=True, cache=True)
-def _solid_angle_of_triangle(vtx_list):
-    norms = np.sqrt(np.sum(vtx_list * vtx_list, axis=1))
-    norms_prod = norms[0] * norms[1] * norms[2]
-    scalar_triple_product = np.dot(
-        vtx_list[0], np.cross(vtx_list[2], vtx_list[1])
-    )
-    denominator = (
-        norms_prod
-        + norms[0] * np.dot(vtx_list[1], vtx_list[2])
-        + norms[1] * np.dot(vtx_list[2], vtx_list[0])
-        + norms[2] * np.dot(vtx_list[0], vtx_list[1])
-    )
-
-    return 2.0 * np.arctan2(scalar_triple_product, denominator)
