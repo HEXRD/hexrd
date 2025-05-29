@@ -231,6 +231,12 @@ class CylindricalDetector(Detector):
         )
 
     @property
+    def pixel_normal(self):
+        if not hasattr(self, '_pixel_normal'):
+            self._pixel_normal = self.local_normal()
+        return self._pixel_normal
+
+    @property
     def caxis(self):
         # returns the cylinder axis
         return np.dot(self.rmat, ct.lab_y)

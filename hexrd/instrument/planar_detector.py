@@ -166,6 +166,14 @@ class PlanarDetector(Detector):
         return output
 
     @property
+    def pixel_normal(self):
+        if not hasattr(self, '_pixel_normal'):
+            self._pixel_normal = np.repeat(np.atleast_2d(
+                self.normal),
+                np.prod(self.shape),axis=0)
+        return self._pixel_normal
+
+    @property
     def pixel_solid_angles(self):
         kwargs = {
             'rows': self.rows,
