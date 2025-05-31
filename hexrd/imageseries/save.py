@@ -6,6 +6,7 @@ import multiprocessing
 import os
 import threading
 import warnings
+import sys
 
 import numpy as np
 import h5py
@@ -266,6 +267,14 @@ class WriteFrameCache(Writer):
     def _process_meta(self, save_omegas=False):
         d = {}
         for k, v in list(self._meta.items()):
+            if isinstance(v, dict):
+                print(
+                    'WARNING: NPZ files do not support nested metadata. '
+                    f'The metadata key "{k}" will not be written out.',
+                    file=sys.stderr,
+                )
+                continue
+
             if isinstance(v, np.ndarray) and save_omegas:
                 # Save as a numpy array file
                 # if file does not exist (careful about directory)
