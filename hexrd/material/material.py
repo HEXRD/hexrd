@@ -532,20 +532,20 @@ class Material(object):
                     10,
                 ]
             )
-            p[0] = 1.0
-            p[2] = (1 - 2 * alpha) / alpha
-            p[4] = (alpha - 1) / alpha
-            p[9] = -2 * pressure / 3 / kt / alpha
+            p[0] = alpha
+            p[2] = (1 - 2 * alpha)
+            p[4] = (alpha - 1)
+            p[9] = -2 * pressure / 3 / kt
             res = np.roots(p)
             res = res[np.isreal(res)]
             res = 1 / np.real(res) ** 3
 
             mask = np.logical_and(res >= 0.0, res <= 1.0)
             res = res[mask]
-            if len(res) != 1:
-                msg = 'more than one physically ' 'reasonable solution found!'
-                raise ValueError(msg)
-            return res[0] * vt
+            if len(res) == 0:
+                return vt
+            else:
+                return np.nanmax(res) * vt
 
     def calc_lp_factor(self, pressure=None, temperature=None):
         '''calculate the factor to multiply the lattice
