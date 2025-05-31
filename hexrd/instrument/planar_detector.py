@@ -10,14 +10,7 @@ from hexrd.transforms.xfcapi import (
 )
 from hexrd.utils.decorators import memoize
 
-from .detector import (
-    Detector, _row_edge_vec, _col_edge_vec
-)
-
-from functools import partial
-from hexrd.gridutil import cellConnectivity
-from hexrd.utils.concurrent import distribute_tasks
-from concurrent.futures import ProcessPoolExecutor
+from .detector import Detector
 
 
 class PlanarDetector(Detector):
@@ -166,12 +159,24 @@ class PlanarDetector(Detector):
         return output
 
     @property
-    def pixel_normal(self):
-        if not hasattr(self, '_pixel_normal'):
-            self._pixel_normal = np.repeat(np.atleast_2d(
-                self.normal),
-                np.prod(self.shape),axis=0)
-        return self._pixel_normal
+    def pixel_normal(self) -> np.ndarray:
+        return np.repeat(
+            np.atleast_2d(self.normal),
+            np.prod(self.shape),
+            axis=0,
+        )
+
+    @staticmethod
+    def update_memoization_sizes(all_panels):
+        Detector.update_memoization_sizes(all_panels)
+
+        num_matches = sum(isinstance(x, PlanarDetector) for x in all_panels)
+        funcs = [
+            _pixel_angles,
+            _pixel_tth_gradient,
+            _pixel_eta_gradient,
+        ]
+        Detector.increase_memoization_sizes(funcs, num_matches)
 
 
 @memoize

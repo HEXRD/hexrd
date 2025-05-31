@@ -8,7 +8,6 @@ from hexrd.instrument.constants import (
 )
 from hexrd.instrument.physics_package import AbstractPhysicsPackage
 import numpy as np
-import numba
 
 from hexrd import constants as ct
 from hexrd import distortion as distortion_pkg
@@ -538,20 +537,18 @@ class Detector:
         return pix_i, pix_j
 
     @property
-    def pixel_solid_angles(self):
+    def pixel_solid_angles(self) -> np.ndarray:
         y, x = self.pixel_coords
-        xy = np.vstack((x.flatten(),y.flatten())).T
+        xy = np.vstack((x.flatten(), y.flatten())).T
         dvecs = self.cart_to_dvecs(xy)
-        mod_r = np.linalg.norm(dvecs,axis=1)
-        args = (
-            self.pixel_area,
-            mod_r,
-            dvecs,
-            self.pixel_normal,
-            self.shape
-            )
-        return _pixel_solid_angles(*args)
-
+        mod_r = np.linalg.norm(dvecs, axis=1)
+        return (
+            (self.pixel_area / mod_r**3) *
+            np.abs(np.sum(
+                self.pixel_normal * dvecs,
+                axis=1,
+            ))
+        ).reshape(self.shape)
 
     # =========================================================================
     # METHODS
@@ -2078,19 +2075,6 @@ class Detector:
 # =============================================================================
 # UTILITY METHODS
 # =============================================================================
-
-@memoize
-def _pixel_solid_angles(pixel_area,
-                        mod_r,
-                        dvecs,
-                        pixel_normal,
-                        det_shape):
-
-    return np.reshape(
-            (pixel_area/mod_r**3)*
-            np.abs(np.sum(
-            pixel_normal*dvecs,axis=1)),
-            det_shape)
 
 def _fix_indices(idx, lo, hi):
     nidx = np.array(idx)
