@@ -6,14 +6,7 @@ from hexrd import constants as ct
 from hexrd import xrdutil
 from hexrd.utils.decorators import memoize
 
-from .detector import (
-    Detector, _solid_angle_of_triangle, _row_edge_vec, _col_edge_vec
-)
-
-from functools import partial
-from hexrd.gridutil import cellConnectivity
-from hexrd.utils.concurrent import distribute_tasks
-from concurrent.futures import ProcessPoolExecutor
+from .detector import Detector
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.WARNING)
@@ -231,6 +224,10 @@ class CylindricalDetector(Detector):
         )
 
     @property
+    def pixel_normal(self) -> np.ndarray:
+        return self.local_normal()
+
+    @property
     def caxis(self):
         # returns the cylinder axis
         return np.dot(self.rmat, ct.lab_y)
@@ -283,21 +280,6 @@ class CylindricalDetector(Detector):
         sz = self.physical_size[1]
         return sz / self.radius / 2.0
 
-    @property
-    def pixel_solid_angles(self):
-        kwargs = {
-            'rows': self.rows,
-            'cols': self.cols,
-            'pixel_size_row': self.pixel_size_row,
-            'pixel_size_col': self.pixel_size_col,
-            'caxis': self.caxis,
-            'paxis': self.paxis,
-            'radius': self.radius,
-            'tvec': self.tvec,
-            'max_workers': self.max_workers,
-        }
-        return _pixel_solid_angles(**kwargs)
-
     @staticmethod
     def update_memoization_sizes(all_panels):
         Detector.update_memoization_sizes(all_panels)
@@ -307,7 +289,6 @@ class CylindricalDetector(Detector):
             _pixel_angles,
             _pixel_tth_gradient,
             _pixel_eta_gradient,
-            _pixel_solid_angles,
         ]
         Detector.increase_memoization_sizes(funcs, num_matches)
 
@@ -383,68 +364,3 @@ def _fix_branch_cut_in_gradients(pgarray):
         np.abs(np.stack([pgarray - np.pi, pgarray, pgarray + np.pi])),
         axis=0
     )
-
-
-def _generate_pixel_solid_angles(start_stop, rows, cols, pixel_size_row,
-                                 pixel_size_col, caxis, paxis, radius, tvec):
-    start, stop = start_stop
-    row_edge_vec = _row_edge_vec(rows, pixel_size_row)
-    col_edge_vec = _col_edge_vec(cols, pixel_size_col)
-
-    # pixel vertex coords
-    pvy, pvx = np.meshgrid(row_edge_vec, col_edge_vec, indexing='ij')
-    xy_data = np.vstack((pvx.flatten(), pvy.flatten())).T
-
-    # transform to lab frame using the _warp_to_cylinder
-    # function
-    pcrd_array_full = xrdutil.utils._warp_to_cylinder(xy_data,
-                                                      tvec,
-                                                      radius,
-                                                      caxis,
-                                                      paxis,
-                                                      normalize=False)
-
-    conn = cellConnectivity(rows, cols)
-
-    ret = np.empty(len(range(start, stop)), dtype=float)
-
-    for i, ipix in enumerate(range(start, stop)):
-        pix_conn = conn[ipix]
-        vtx_list = pcrd_array_full[pix_conn, :]
-        ret[i] = (_solid_angle_of_triangle(vtx_list[[0, 1, 2], :]) +
-                  _solid_angle_of_triangle(vtx_list[[2, 3, 0], :]))
-
-    return ret
-
-
-@memoize
-def _pixel_solid_angles(rows, cols, pixel_size_row, pixel_size_col,
-                        caxis, paxis, radius, tvec, max_workers):
-    # connectivity array for pixels
-    conn = cellConnectivity(rows, cols)
-
-    # result
-    solid_angs = np.empty(len(conn), dtype=float)
-
-    # Distribute tasks to each process
-    tasks = distribute_tasks(len(conn), max_workers)
-    kwargs = {
-        'rows': rows,
-        'cols': cols,
-        'pixel_size_row': pixel_size_row,
-        'pixel_size_col': pixel_size_col,
-        'caxis': caxis,
-        'paxis': paxis,
-        'radius': radius,
-        'tvec': tvec,
-    }
-    func = partial(_generate_pixel_solid_angles, **kwargs)
-    with ProcessPoolExecutor(mp_context=ct.mp_context,
-                             max_workers=max_workers) as executor:
-        results = executor.map(func, tasks)
-
-    # Concatenate all the results together
-    solid_angs[:] = np.concatenate(list(results))
-    solid_angs = solid_angs.reshape(rows, cols)
-
-    return solid_angs
