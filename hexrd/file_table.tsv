@@ -24,9 +24,7 @@ hexrd/cli/pickle23.py	hexrd/hedm/cli/pickle23.py
 hexrd/cli/documentation.py	hexrd/hedm/cli/documentation.py
 hexrd/config/fitgrains.py	hexrd/hedm/config/fitgrains.py
 hexrd/config/material.py	hexrd/core/config/material.py
-hexrd/config/root.py	hexrd/hedm/config/root.py
 hexrd/config/root.py	hexrd/core/config/root.py
-hexrd/config/dumper.py	hexrd/hedm/config/dumper.py
 hexrd/config/dumper.py	hexrd/core/config/dumper.py
 hexrd/config/loader.py	hexrd/hedm/config/loader.py
 hexrd/config/loader.py	hexrd/core/config/loader.py
@@ -34,7 +32,6 @@ hexrd/config/__init__.py	hexrd/hedm/config/__init__.py
 hexrd/config/__init__.py	hexrd/core/config/__init__.py
 hexrd/config/findorientations.py	hexrd/hedm/config/findorientations.py
 hexrd/config/config.py	hexrd/core/config/config.py
-hexrd/config/utils.py	hexrd/hedm/config/utils.py
 hexrd/config/utils.py	hexrd/core/config/utils.py
 hexrd/config/instrument.py	hexrd/hedm/config/instrument.py
 hexrd/config/instrument.py	hexrd/core/config/instrument.py
@@ -88,11 +85,7 @@ hexrd/wppf/phase.py	hexrd/powder/wppf/phase.py
 hexrd/material/mksupport.py	hexrd/core/material/mksupport.py
 hexrd/material/symmetry.py	hexrd/core/material/symmetry.py
 hexrd/material/material.py	hexrd/core/material/material.py
-hexrd/material/crystallography.py	hexrd/hedm/material/crystallography.py
-hexrd/material/crystallography.py	hexrd/laue/material/crystallography.py
-hexrd/material/crystallography.py	hexrd/powder/material/crystallography.py
 hexrd/material/crystallography.py	hexrd/core/material/crystallography.py
-hexrd/material/unitcell.py	hexrd/hedm/material/unitcell.py
 hexrd/material/unitcell.py	hexrd/core/material/unitcell.py
 hexrd/material/__init__.py	hexrd/core/material/__init__.py
 hexrd/material/symbols.py	hexrd/core/material/symbols.py
@@ -116,13 +109,8 @@ hexrd/instrument/hedm_instrument.py	hexrd/hedm/instrument/hedm_instrument.py
 hexrd/instrument/hedm_instrument.py	hexrd/laue/instrument/hedm_instrument.py
 hexrd/instrument/hedm_instrument.py	hexrd/powder/instrument/hedm_instrument.py
 hexrd/instrument/hedm_instrument.py	hexrd/core/instrument/hedm_instrument.py
-hexrd/instrument/physics_package.py	hexrd/hedm/instrument/physics_package.py
 hexrd/instrument/physics_package.py	hexrd/core/instrument/physics_package.py
 hexrd/instrument/detector.py	hexrd/core/instrument/detector.py
-hexrd/instrument/detector.py	hexrd/hed/instrument/detector.py
-hexrd/instrument/detector.py	hexrd/hedm/instrument/detector.py
-hexrd/instrument/detector.py	hexrd/powder/instrument/detector.py
-hexrd/instrument/detector.py	hexrd/laue/instrument/detector.py
 hexrd/instrument/cylindrical_detector.py	hexrd/core/instrument/cylindrical_detector.py
 hexrd/instrument/__init__.py	hexrd/core/instrument/__init__.py
 hexrd/instrument/planar_detector.py	hexrd/core/instrument/planar_detector.py

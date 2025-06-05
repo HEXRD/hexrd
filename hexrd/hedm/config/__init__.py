@@ -2,12 +2,10 @@ import os
 
 import yaml
 
-from . import root
-from . import utils
 
 
 # The following were moved to core
-from hexrd.core.config import config
+from hexrd.core.config import config, root, utils
 from hexrd.core.config import material
 
 """

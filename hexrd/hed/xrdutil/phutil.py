@@ -255,7 +255,7 @@ def tth_corr_map_sample_layer(
 
     Parameters
     ----------
-    instrument : hexrd.hedm.instrument.HEDMInstrument
+    instrument : hexrd.core.instrument.HEDMInstrument
         The pionhole camera instrument object.
     layer_standoff : scalar
         The sample layer standoff from the upstream face of the pinhole
@@ -372,7 +372,7 @@ def tth_corr_map_pinhole(instrument, pinhole_thickness, pinhole_radius):
 
     Parameters
     ----------
-    instrument : hexrd.hedm.instrument.HEDMInstrument
+    instrument : hexrd.core.instrument.HEDMInstrument
         The pionhole camera instrument object.
     pinhole_thickness : scalar
         The thickenss (height) of the pinhole (cylinder) in mm

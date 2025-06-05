@@ -2,7 +2,7 @@ import logging
 import os
 
 from hexrd.core.config.config import Config
-from .utils import get_exclusion_parameters
+from hexrd.core.config.utils import get_exclusion_parameters
 
 
 logger = logging.getLogger('hexrd.config')

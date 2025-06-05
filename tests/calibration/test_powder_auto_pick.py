@@ -6,10 +6,10 @@ import numpy as np
 import pytest
 
 from hexrd import imageseries
-from hexrd.fitting.calibration import PowderCalibrator
-from hexrd.material.material import load_materials_hdf5, Material
-from hexrd.imageseries.process import ProcessedImageSeries
-from hexrd.instrument.hedm_instrument import HEDMInstrument
+from hexrd.core.fitting.calibration import PowderCalibrator
+from hexrd.core.material.material import load_materials_hdf5, Material
+from hexrd.core.imageseries.process import ProcessedImageSeries
+from hexrd.core.instrument.hedm_instrument import HEDMInstrument
 
 
 @pytest.fixture

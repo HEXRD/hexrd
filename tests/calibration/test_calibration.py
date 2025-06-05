@@ -7,7 +7,7 @@ import yaml
 import pytest
 
 from hexrd.core.material.material import load_materials_hdf5
-from hexrd.hedm.instrument.hedm_instrument import HEDMInstrument
+from hexrd.core.instrument.hedm_instrument import HEDMInstrument
 
 from hexrd.core.fitting.calibration import (
     InstrumentCalibrator,

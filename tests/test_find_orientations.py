@@ -15,7 +15,7 @@ from hexrd.hedm.findorientations import (
 from hexrd.hedm import config
 
 # TODO: Check that this test is still sensible after PlaneData change.
-from hexrd.hedm.material.crystallography import PlaneData
+from hexrd.core.material.crystallography import PlaneData
 
 import find_orientations_testing as test_utils
 

@@ -1,4 +1,4 @@
-from .hedm_instrument import (
+from hexrd.core.instrument.hedm_instrument import (
     calc_angles_from_beam_vec,
     calc_beam_vec,
     centers_of_edge_vec,
@@ -10,4 +10,4 @@ from .hedm_instrument import (
     unwrap_dict_to_h5,
     unwrap_h5_to_dict,
 )
-from .detector import Detector
+from hexrd.core.instrument.detector import Detector

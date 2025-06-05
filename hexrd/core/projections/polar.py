@@ -4,7 +4,7 @@ from hexrd.core import constants
 from hexrd.core.material.crystallography import PlaneData
 
 # TODO: Resolve extra-core-dependency
-from hexrd.hedm.xrdutil.utils import (
+from hexrd.hed.xrdutil.utils import (
     _project_on_detector_cylinder,
     _project_on_detector_plane,
 )
@@ -36,7 +36,7 @@ class PolarView:
             as defined but the active hkls and the tThWidth (or strainMag).
             If array_like, the input must be (2, ) specifying the [min, maz]
             2theta values explicitly in degrees.
-        instrument : hexrd.hedm.instrument.HEDMInstrument
+        instrument : hexrd.core.instrument.HEDMInstrument
             The instruemnt object.
         eta_min : scalar, optional
             The minimum azimuthal extent in degrees. The default is 0.

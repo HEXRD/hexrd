@@ -1,6 +1,6 @@
 from .common import TestConfig, test_data
 from hexrd.core.config.material import TTHW_DFLT, DMIN_DFLT
-from hexrd.hedm.config.utils import get_exclusion_parameters
+from hexrd.core.config.utils import get_exclusion_parameters
 
 
 reference_data = """

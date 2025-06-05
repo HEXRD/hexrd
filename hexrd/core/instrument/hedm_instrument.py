@@ -69,6 +69,7 @@ from hexrd.core.transforms.xfcapi import (
 
 # TODO: Resolve extra-core-dependency
 from hexrd.hedm import xrdutil
+from hexrd.hed.xrdutil import _project_on_detector_plane
 from hexrd.core.material.crystallography import PlaneData
 from hexrd.core import constants as ct
 from hexrd.core.rotations import mapAngle
@@ -1757,7 +1758,7 @@ class HEDMInstrument(object):
             )
 
             # find vertices that all fall on the panel
-            det_xy, rmats_s, on_plane = xrdutil._project_on_detector_plane(
+            det_xy, rmats_s, on_plane = _project_on_detector_plane(
                 np.hstack([patch_vertices, ome_dupl]),
                 panel.rmat,
                 rMat_c,

@@ -10,4 +10,4 @@ from .hedm_instrument import (
     unwrap_dict_to_h5,
     unwrap_h5_to_dict,
 )
-from .detector import Detector
+from hexrd.core.instrument.detector import Detector

@@ -18,6 +18,7 @@ from hexrd.core import matrixutil as mutil
 
 # TODO: Resolve extra-core-dependency
 from hexrd.hedm import xrdutil
+from hexrd.hed.xrdutil import _project_on_detector_plane
 from hexrd.core.rotations import mapAngle
 
 from hexrd.core.material import crystallography
@@ -1583,7 +1584,7 @@ class Detector:
             allAngs[:, 2] = mapAngle(allAngs[:, 2], ome_period)
 
             # find points that fall on the panel
-            det_xy, rMat_s, on_plane = xrdutil._project_on_detector_plane(
+            det_xy, rMat_s, on_plane = _project_on_detector_plane(
                 allAngs,
                 self.rmat,
                 rMat_c,

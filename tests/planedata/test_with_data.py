@@ -3,7 +3,7 @@ import numpy as np
 
 import pytest
 
-from hexrd.laue.material.crystallography import ltypeOfLaueGroup
+from hexrd.core.material.crystallography import ltypeOfLaueGroup
 from hexrd.core.material.material import Material
 from hexrd.core.rotations import rotMatOfQuat
 
