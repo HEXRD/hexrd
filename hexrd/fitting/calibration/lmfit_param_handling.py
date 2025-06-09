@@ -501,6 +501,9 @@ def create_material_params(material, refinements=None):
     # The refinements should be in reduced format
     refine_idx = 0
 
+    # lmfit doesn't like '-' in names
+    mat_name = material.name.replace('-', '_')
+
     parms_list = []
     for i, lp_name in enumerate(_lpname):
         if not material.unitcell.is_editable(lp_name):
@@ -520,7 +523,7 @@ def create_material_params(material, refinements=None):
 
         val = material.lparms[i] * multiplier
         parms_list.append((
-            f'{material.name}_{lp_name}',
+            f'{mat_name}_{lp_name}',
             val,
             refine,
             val - diff,
@@ -533,9 +536,12 @@ def create_material_params(material, refinements=None):
 
 
 def update_material_from_params(params, material):
+    # lmfit doesn't like '-' in names
+    mat_name = material.name.replace('-', '_')
+
     new_lparms = material.lparms
     for i, lp_name in enumerate(_lpname):
-        param_name = f'{material.name}_{lp_name}'
+        param_name = f'{mat_name}_{lp_name}'
         if param_name in params:
             if i < 3:
                 # Lattice length
@@ -559,6 +565,8 @@ def grain_param_names(base_name):
 
 
 def create_grain_params(base_name, grain, refinements=None):
+    # lmfit doesn't like '-' in names
+    base_name = base_name.replace('-', '_')
     param_names = grain_param_names(base_name)
     if refinements is None:
         refinements = [True] * len(param_names)
