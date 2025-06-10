@@ -1,5 +1,6 @@
 """Adapter class for frame caches
 """
+import functools
 import os
 from threading import Lock
 
@@ -127,54 +128,35 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
             self._load_framelist_npz()
 
     def _load_framelist_fch5(self):
-        self._framelist = [None] * self._nframes
-        with h5py.File(self._fname, "r") as file:
-            frame_id = file["frame_ids"]
-            data = file["data"]
-            indices = file["indices"]
-
-            def read_list_arrays_method_thread(i):
-                frame_data = data[frame_id[2*i]: frame_id[2*i+1]]
-                frame_indices = indices[frame_id[2*i]: frame_id[2*i+1]]
-                row = frame_indices[:, 0]
-                col = frame_indices[:, 1]
-                mat_data = frame_data[:, 0]
-                frame = csr_matrix((mat_data, (row, col)),
-                                   shape=self._shape,
-                                   dtype=self._dtype)
-                self._framelist[i] = frame
-                return
-
-            kwargs = {
-                "max_workers": self._max_workers,
-            }
-            with ThreadPoolExecutor(**kwargs) as executor:
-                # Evaluate the results via `list()`, so that if an exception is
-                # raised in a thread, it will be re-raised and visible to the
-                # user.
-                list(executor.map(read_list_arrays_method_thread,
-                                  range(self._nframes)))
+        # Perform a memoized load, so that if multiple imageseries are
+        # utilizing the same file, they can all share the same csr matrices
+        self._framelist = _load_framecache_fch5(
+            filepath=str(self._fname),
+            num_frames=int(self._nframes),
+            shape=tuple(self._shape),
+            dtype=self._dtype,
+            max_workers=int(self._max_workers),
+        )
 
     def _load_framelist_npz(self):
-        self._framelist = []
         if self._from_yml:
             bpath = os.path.dirname(self._fname)
             if os.path.isabs(self._cache):
                 cachepath = self._cache
             else:
                 cachepath = os.path.join(bpath, self._cache)
-            arrs = np.load(cachepath)
+            filepath = cachepath
         else:
-            arrs = np.load(self._fname)
+            filepath = self._fname
 
-        for i in range(self._nframes):
-            row = arrs[f"{i}_row"]
-            col = arrs[f"{i}_col"]
-            data = arrs[f"{i}_data"]
-            frame = csr_matrix((data, (row, col)),
-                               shape=self._shape,
-                               dtype=self._dtype)
-            self._framelist.append(frame)
+        # Perform a memoized load, so that if multiple imageseries are
+        # utilizing the same file, they can all share the same csr matrices
+        self._framelist = _load_framecache_npz(
+            filepath=str(filepath),
+            num_frames=int(self._nframes),
+            shape=tuple(self._shape),
+            dtype=self._dtype,
+        )
 
     def get_region(self, frame_idx: int, region: RegionType) -> np.ndarray:
         self._load_framelist_if_needed()
@@ -255,3 +237,79 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
         self.__dict__.update(state)
         # initialize lock after un-pickling
         self._load_framelist_lock = Lock()
+
+
+# This is memoized so that if multiple imageseries are sharing the
+# same file (such as 32 subpanel Eiger), all of the imageseries can
+# share the same sparse matrices.
+@functools.lru_cache(maxsize=2)
+def _load_framecache_npz(
+    filepath: str,
+    num_frames: int,
+    shape: tuple[int, int],
+    dtype: np.dtype,
+) -> list[csr_matrix]:
+
+    framelist = []
+    arrs = np.load(filepath)
+    for i in range(num_frames):
+        row = arrs[f"{i}_row"]
+        col = arrs[f"{i}_col"]
+        data = arrs[f"{i}_data"]
+        frame = csr_matrix((data, (row, col)),
+                           shape=shape,
+                           dtype=dtype)
+
+        # Make the data unwriteable, so we can be sure it won't be modified
+        frame.data.flags.writeable = False
+
+        framelist.append(frame)
+
+    return framelist
+
+
+# This is memoized so that if multiple imageseries are sharing the
+# same file (such as 32 subpanel Eiger), all of the imageseries can
+# share the same sparse matrices.
+@functools.lru_cache(maxsize=2)
+def _load_framecache_fch5(
+    filepath: str,
+    num_frames: int,
+    shape: tuple[int, int],
+    dtype: np.dtype,
+    max_workers: int,
+) -> list[csr_matrix]:
+
+    framelist = [None] * num_frames
+
+    with h5py.File(filepath, "r") as file:
+        frame_id = file["frame_ids"]
+        data = file["data"]
+        indices = file["indices"]
+
+        def read_list_arrays_method_thread(i):
+            frame_data = data[frame_id[2*i]: frame_id[2*i+1]]
+            frame_indices = indices[frame_id[2*i]: frame_id[2*i+1]]
+            row = frame_indices[:, 0]
+            col = frame_indices[:, 1]
+            mat_data = frame_data[:, 0]
+            frame = csr_matrix((mat_data, (row, col)),
+                               shape=shape,
+                               dtype=dtype)
+
+            # Make the data unwriteable, so we can be sure it won't be modified
+            frame.data.flags.writeable = False
+
+            framelist[i] = frame
+
+        kwargs = {
+            "max_workers": max_workers,
+        }
+        with ThreadPoolExecutor(**kwargs) as executor:
+            # Evaluate the results via `list()`, so that if an exception is
+            # raised in a thread, it will be re-raised and visible to the
+            # user.
+            list(executor.map(read_list_arrays_method_thread,
+                              range(num_frames)))
+
+    return framelist
