@@ -212,6 +212,58 @@ def _unit_lorentzian(p, x):
     f = gamma / ((x - x0) ** 2 + gamma**2)
     return f
 
+@njit(cache=True, nogil=True)
+def _heaviside(x, x0):
+    y = np.zeros_like(x)
+    for ii in np.arange(x.size):
+        if x[ii] < 0.:
+            y[ii] = 0.
+        elif x[ii] == 0.:
+            y[ii] = x0
+        else:
+            y[ii] = 1.
+
+    return y
+
+
+# =============================================================================
+# 1-D split gaussian functions
+# =============================================================================
+# split gaussian function for asymmetric peaks
+@njit(cache=True, nogil=True)
+def _split_unit_gaussian(p, x):
+    '''
+    Parameters
+    ----------
+    p : numpy.ndarray
+        numpy of size (3,) with (cent, fwhm_l, fwhm_r)
+    x : numpy.ndarray
+        coordinate positions
+
+    Returns
+    -------
+    y : numpy.ndarray
+        intensity of split gaussian function
+    '''
+    x0     = p[0]
+    fwhm_l = p[1]
+    fwhm_r = p[2]
+
+    sigma_l = fwhm_l / gauss_width_fact
+    sigma_r = fwhm_r / gauss_width_fact
+
+    heav_l = _heaviside(x0-x, 1.0)
+    heav_r = _heaviside(x-x0, 1.0)
+
+    p_l = np.array([x0, fwhm_l])
+    p_r = np.array([x0, fwhm_r])
+
+    gauss_l = _unit_gaussian(p_l, x)
+    gauss_r = _unit_gaussian(p_r, x)
+
+    return (gauss_l*heav_l + 
+            gauss_r*heav_r)
+
 
 @njit(cache=True, nogil=True)
 def _mixing_factor_pv(fwhm_g, fwhm_l):

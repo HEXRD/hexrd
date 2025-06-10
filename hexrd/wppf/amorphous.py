@@ -47,7 +47,10 @@ class Amorphous:
     '''
     def __init__(self,
                  model_type='split_pv',
-                 model_data=None):
+                 model_data=None,
+                 scale=None,
+                 shift=None,
+                 smoothing=None,):
         '''
         Parameters
         ----------
