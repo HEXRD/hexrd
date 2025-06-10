@@ -103,6 +103,7 @@ class LeBail:
         bkgmethod={"spline": None},
         intensity_init=None,
         peakshape="pvfcj",
+        amorphous_model=None,
     ):
 
         self.peakshape = peakshape
@@ -120,6 +121,8 @@ class LeBail:
         self.phases = phases
 
         self.params = params
+
+        self.amorphous_model = amorphous_model
 
         self.initialize_Icalc()
 
@@ -508,6 +511,9 @@ class LeBail:
                     )
 
                 y += self.computespectrum_fcn(*args)
+
+        if self.amorphous_model is not None:
+            y += self.amorphous_model.amorphous_lienout
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
@@ -1676,6 +1682,7 @@ class Rietveld:
         shape_factor=1.0,
         particle_size=1.0,
         phi=0.0,
+        amorphous_model=None,
     ):
 
         self.bkgmethod = bkgmethod
@@ -1684,6 +1691,7 @@ class Rietveld:
         self.phi = phi
         self.peakshape = peakshape
         self.spectrum_expt = expt_spectrum
+        self.amorphous_model = amorphous_model
 
         self._tstart = time.time()
 
@@ -2032,6 +2040,9 @@ class Rietveld:
                     )
 
                 y += self.computespectrum_fcn(*args)
+
+        if self.amorphous_model is not None:
+            y += self.amorphous_model.amorphous_lienout
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
