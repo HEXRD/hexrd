@@ -513,7 +513,7 @@ class LeBail:
                 y += self.computespectrum_fcn(*args)
 
         if self.amorphous_model is not None:
-            y += self.amorphous_model.amorphous_lienout
+            y += self.amorphous_model.amorphous_lineout
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
@@ -2042,7 +2042,7 @@ class Rietveld:
                 y += self.computespectrum_fcn(*args)
 
         if self.amorphous_model is not None:
-            y += self.amorphous_model.amorphous_lienout
+            y += self.amorphous_model.amorphous_lineout
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
