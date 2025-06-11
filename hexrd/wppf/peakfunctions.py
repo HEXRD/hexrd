@@ -226,9 +226,9 @@ def _heaviside(x, x0):
     return y
 
 
-# =============================================================================
+# =====================================================
 # 1-D split gaussian functions
-# =============================================================================
+# =====================================================
 # split gaussian function for asymmetric peaks
 @njit(cache=True, nogil=True)
 def _split_unit_gaussian(p, x):
@@ -264,6 +264,65 @@ def _split_unit_gaussian(p, x):
     return (gauss_l*heav_l + 
             gauss_r*heav_r)
 
+# =========================================================
+# 1-D split pseudo-voight functions
+# =========================================================
+# split pseudo-voight function for asymmetric peaks
+@njit(cache=True, nogil=True)
+def _split_unit_pv(p, x):
+    '''
+    Parameters
+    ----------
+    p : numpy.ndarray
+        numpy of size (3,) with (cent, fwhm_g_l, fwhm_l_l,
+        fwhm_g_r, fwhm_l_r)
+    x : numpy.ndarray
+        coordinate positions
+
+    Returns
+    -------
+    y : numpy.ndarray
+        intensity of split gaussian function
+    '''
+
+    '''get the mixing factors for the left and right
+    pseudo-voight functions
+    '''
+    # center
+    x0 = p[0]
+
+    # left branch
+    fwhm_g_l = p[1]
+    fwhm_l_l = p[2]
+
+    # right branch
+    fwhm_g_r = p[3]
+    fwhm_l_r = p[4]
+
+    heav_l = _heaviside(x0-x, 1.0)
+    heav_r = _heaviside(x-x0, 1.0)
+
+    eta_l, fwhm_l = _mixing_factor_pv(fwhm_g_l, fwhm_l_l)
+    eta_r, fwhm_r = _mixing_factor_pv(fwhm_g_r, fwhm_l_r)
+
+    # Ag_l = 0.9394372787 / fwhm_l  # normalization factor for unit area
+    # Ag_r = 0.9394372787 / fwhm_r  # normalization factor for unit area
+    Al = 1.0 / np.pi  # normalization factor for unit area
+
+    gamma_l = fwhm_l / lorentz_width_fact
+    gamma_r = fwhm_r / lorentz_width_fact
+
+    g_l = _unit_gaussian(np.array([x0, fwhm_l]), x)
+    l_l = _unit_lorentzian(np.array([x0, fwhm_l]), x)*gamma_l
+
+    g_r = _unit_gaussian(np.array([x0, fwhm_r]), x)
+    l_r = _unit_lorentzian(np.array([x0, fwhm_r]), x)*gamma_r
+
+    pv_l = eta_l * l_l + (1.0 - eta_l) * g_l
+
+    pv_r = eta_r * l_r + (1.0 - eta_r) * g_r
+
+    return pv_l*heav_l + pv_r*heav_r
 
 @njit(cache=True, nogil=True)
 def _mixing_factor_pv(fwhm_g, fwhm_l):
