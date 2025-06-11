@@ -428,14 +428,14 @@ def _generate_default_parameters_amoprhous_model(
                     params.add(
                         nn, 
                         value=amorphous_model.fwhm[key][0],
-                        lb=-np.inf,
+                        lb=0,
                         ub=np.inf,
                         vary=False)
             elif isinstance(params, Parameters_lmfit):
                 params.add(
                     nn, 
                     value=amorphous_model.fwhm[key][0],
-                    min=-np.inf,
+                    min=0,
                     max=np.inf,
                     vary=False)
 
@@ -444,14 +444,14 @@ def _generate_default_parameters_amoprhous_model(
                     params.add(
                         nn, 
                         value=amorphous_model.fwhm[key][1],
-                        lb=-np.inf,
+                        lb=0,
                         ub=np.inf,
                         vary=False)
             elif isinstance(params, Parameters_lmfit):
                 params.add(
                     nn, 
                     value=amorphous_model.fwhm[key][1],
-                    min=-np.inf,
+                    min=0,
                     max=np.inf,
                     vary=False)
 
