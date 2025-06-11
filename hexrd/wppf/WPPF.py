@@ -1488,9 +1488,57 @@ class LeBail:
             if updated_lp:
                 self.calctth()
 
-
         if self.amorphous_model is not None:
-            if self.amorphous_model.model_type
+            scale = {}
+            shift = {}
+            center = {}
+            fwhm = {}
+            for key in self.amorphous_model.scale:
+                nn = f'{key}_amorphous_scale'
+                if nn in params:
+                    scale[key] = params[nn].value
+                else:
+                    scale[key] = self.amorphous_model.scale[key]
+
+                if self.amorphous_model.model_type == "experimental":
+                    nn = f'{key}_amorphous_shift'
+                    if nn in params:
+                        shift[key] = params[nn].value
+                    else:
+                        shift[key] = self.amorphous_model.shift[key]
+
+                elif self.amorphous_model.model_type == "split_gaussian":
+                    nn = f'{key}_amorphous_center'
+                    if nn in params:
+                        center[key] = params[nn].value
+                    else:
+                        center[key] = self.amorphous_model.center[key]
+
+                    nnl = f'{key}_amorphous_fwhm_l'
+                    if nnl in params:
+                        fwhm_l = params[nnl].value
+                    else:
+                        fwhm_l = self.amorphous_model.fwhm[key][0]
+
+                    nnr = f'{key}_amorphous_fwhm_r'
+                    if nnr in params:
+                        fwhm_r = params[nnr].value
+                    else:
+                        fwhm_r = self.amorphous_model.fwhm[key][1]
+
+                    fwhm[key] = np.array([fwhm_l,
+                                          fwhm_r
+                                          ])
+
+            self.amorphous_model.scale = scale
+
+            if self.amorphous_model.model_type == "experimental":
+                self.amorphous_model.shift = shift
+
+            elif self.amorphous_model.model_type == "split_gaussian":
+                self.amorphous_model.center = center
+                self.amorphous_model.fwhm = fwhm
+
 
 def _nm(x):
     return valWUnit("lp", "length", x, "nm")
@@ -2267,6 +2315,57 @@ class Rietveld:
                     self.calcsf()
 
             self.phases.phase_fraction = pf/np.sum(pf)
+
+        if self.amorphous_model is not None:
+            scale = {}
+            shift = {}
+            center = {}
+            fwhm = {}
+            for key in self.amorphous_model.scale:
+                nn = f'{key}_amorphous_scale'
+                if nn in params:
+                    scale[key] = params[nn].value
+                else:
+                    scale[key] = self.amorphous_model.scale[key]
+
+                if self.amorphous_model.model_type == "experimental":
+                    nn = f'{key}_amorphous_shift'
+                    if nn in params:
+                        shift[key] = params[nn].value
+                    else:
+                        shift[key] = self.amorphous_model.shift[key]
+
+                elif self.amorphous_model.model_type == "split_gaussian":
+                    nn = f'{key}_amorphous_center'
+                    if nn in params:
+                        center[key] = params[nn].value
+                    else:
+                        center[key] = self.amorphous_model.center[key]
+
+                    nnl = f'{key}_amorphous_fwhm_l'
+                    if nnl in params:
+                        fwhm_l = params[nnl].value
+                    else:
+                        fwhm_l = self.amorphous_model.fwhm[key][0]
+
+                    nnr = f'{key}_amorphous_fwhm_r'
+                    if nnr in params:
+                        fwhm_r = params[nnr].value
+                    else:
+                        fwhm_r = self.amorphous_model.fwhm[key][1]
+
+                    fwhm[key] = np.array([fwhm_l,
+                                          fwhm_r
+                                          ])
+
+            self.amorphous_model.scale = scale
+
+            if self.amorphous_model.model_type == "experimental":
+                self.amorphous_model.shift = shift
+
+            elif self.amorphous_model.model_type == "split_gaussian":
+                self.amorphous_model.center = center
+                self.amorphous_model.fwhm = fwhm
 
     def _update_shkl(self, params):
         """

@@ -242,7 +242,7 @@ class Amorphous:
     def fwhm(self, val):
         if self.model_type in ["split_gaussian",
                                "split_pv"]:
-            if isinstance(fwhm, dict):
+            if isinstance(val, dict):
                 self._fwhm = val
             else:
                 msg = f'fwhm should be passed as a dictionary'
