@@ -3,8 +3,8 @@ import warnings
 from scipy.interpolate import CubicSpline
 from scipy.ndimage import gaussian_filter
 from hexrd.wppf.peakfunctions import (
-    _split_unit_gaussian as sp_gauss)
-    #_split_unit_pv as sp_pv)
+    _split_unit_gaussian as sp_gauss,
+    _split_unit_pv as sp_pv)
 
 class Amorphous:
     '''
@@ -94,9 +94,11 @@ class Amorphous:
             should have same keys as scale
 
         fwhm: dict
-            dictionary of arrays of shape [2,] with [
-            fwhm_l, fwhm_r] of the two halves. should have
-            same keys as scale
+            dictionary of arrays of shape [2,] with 
+            [fwhm_l, fwhm_r] of the two halves for gaussian peak. 
+            for pseudo-voight peaks, shape is [4,] with entries for
+            [fwhm_g_l, fwhm_l_l, fwhm_g_r, fwhm_l_r].
+            should have same keys as scale
         '''
         self.tth_list = tth_list
 
@@ -269,15 +271,16 @@ class Amorphous:
                                     smooth_model_data,
                                     left=0.,
                                     right=0.)
-            return lo
 
-        elif self.model_type == "split_gaussian":
+        elif self.model_type in ["split_gaussian",
+                                 "split_pv"]:
             lo = np.zeros_like(self.tth_list)
             for key in self.center:
                 p = np.hstack((self.center[key],
                            self.fwhm[key]))
-                lo += self.scale[key]*sp_gauss(p, self.tth_list)
-            return lo
+                lo += self.scale[key]*self.peak_model(p, self.tth_list)
+
+        return lo
 
     @property
     def integrated_area(self):
@@ -285,3 +288,9 @@ class Amorphous:
         y = self.amorphous_lineout
         return np.trapz(y, x)
 
+    @property
+    def peak_model(self):
+        if self.model_type == "split_gaussian":
+            return sp_gauss
+        elif self.model_type == "split_pv":
+            return sp_pv
