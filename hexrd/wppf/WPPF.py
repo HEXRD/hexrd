@@ -120,9 +120,9 @@ class LeBail:
 
         self.phases = phases
 
-        self.params = params
-
         self.amorphous_model = amorphous_model
+
+        self.params = params
 
         self.initialize_Icalc()
 
@@ -1342,7 +1342,8 @@ class LeBail:
                 self.phases,
                 self.peakshape,
                 self.bkgmethod,
-                init_val=self.cheb_init_coef
+                init_val=self.cheb_init_coef,
+                amorphous_model=self.amorphous_model
             )
             self._params = params
 
@@ -1487,6 +1488,9 @@ class LeBail:
             if updated_lp:
                 self.calctth()
 
+
+        if self.amorphous_model is not None:
+            if self.amorphous_model.model_type
 
 def _nm(x):
     return valWUnit("lp", "length", x, "nm")
@@ -2385,7 +2389,8 @@ class Rietveld:
                 self.phases,
                 self.peakshape,
                 self.bkgmethod,
-                init_val=self.cheb_init_coef
+                init_val=self.cheb_init_coef,
+                amorphous_model=self.amorphous_model
             )
             self._params = params
 

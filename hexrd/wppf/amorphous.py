@@ -53,11 +53,11 @@ class Amorphous:
                  tth_list,
                  model_type='split_gaussian',
                  model_data=None,
-                 scale=1.,
-                 shift=0.,
+                 scale={'c1':1.},
+                 shift={'c1':0.},
                  smoothing=0,
-                 center=30.,
-                 fwhm=np.array([5, 5])):
+                 center={'c1': 30.},
+                 fwhm={'c1': np.array([5, 5])}):
         '''
         Parameters
         ----------
@@ -78,7 +78,7 @@ class Amorphous:
             shifted and scaled to minimize the difference
             between observed and calculated intensities
 
-        scale: float
+        scale: dict
             scaling factor for the experimentally measured
             signal
 
@@ -89,12 +89,14 @@ class Amorphous:
         smoothing: int
             width of gaussian kernel smoothing function
 
-        center: float
-            center of split gaussian or pseudo-voight function
+        center: dict
+            center of split gaussian or pseudo-voight function.
+            should have same keys as scale
 
-        fwhm: numpy.ndarray
-            array of shape [2,] with [fwhm_l, fwhm_r] of the 
-            two halves
+        fwhm: dict
+            dictionary of arrays of shape [2,] with [
+            fwhm_l, fwhm_r] of the two halves. should have
+            same keys as scale
         '''
         self.tth_list = tth_list
 
@@ -145,7 +147,11 @@ class Amorphous:
     def model_data(self, data):
         if self.model_type.lower() == "experimental":
             if data is not None:
-                self._model_data = data
+                if isinstance(data, dict):
+                    self._model_data = data
+                else:
+                    msg = f'data should be passed as a dictionary'
+                    raise ValueError(msg)
             else:
                 msg = (f'experimental model is being used. '
                        f'please supply the data array')
@@ -162,7 +168,11 @@ class Amorphous:
 
     @scale.setter
     def scale(self, val):
-        self._scale = val
+        if isinstance(val, dict):
+            self._scale = val
+        else:
+            msg = f'scale should be passed as a dictionary'
+            raise ValueError(msg)
 
     @property
     def shift(self):
@@ -173,7 +183,11 @@ class Amorphous:
     @shift.setter
     def shift(self, val):
         if self.model_type == "experimental":
-            self._shift = val
+            if isinstance(val, dict):
+                self._shift = val
+            else:
+                msg = f'shift should be passed as a dictionary'
+                raise ValueError(msg)
         else:
             msg = (f'can not set shift for '
                    f'model_type {self.model_type}')
@@ -206,7 +220,11 @@ class Amorphous:
     def center(self, val):
         if self.model_type in ["split_gaussian",
                                "split_pv"]:
-            self._center = val
+            if isinstance(val, dict):
+                self._center = val
+            else:
+                msg = f'center should be passed as a dictionary'
+                raise ValueError(msg)
         else:
             msg = (f'can not set center for '
                    f'model_type {self.model_type}')
@@ -224,7 +242,11 @@ class Amorphous:
     def fwhm(self, val):
         if self.model_type in ["split_gaussian",
                                "split_pv"]:
-            self._fwhm = val
+            if isinstance(fwhm, dict):
+                self._fwhm = val
+            else:
+                msg = f'fwhm should be passed as a dictionary'
+                raise ValueError(msg)
         else:
             msg = (f'can not set fwhm for '
                    f'model_type {self.model_type}')
@@ -233,11 +255,33 @@ class Amorphous:
     @property
     def amorphous_lineout(self):
         if self.model_type == "experimental":
-            return self.scale*gaussian_filter(
-                                   self.model_data,
+
+            for key in self.shift:
+                lo = np.zeros_like(self.tth_list)
+                smooth_model_data = gaussian_filter(
+                                   self.model_data[key],
                                    self.smoothing
                                    )
+                
+                lo  += self.scale[key]*np.interp(
+                                    self.tth_list,
+                                    self.tth_list+self.shift[key],
+                                    smooth_model_data,
+                                    left=0.,
+                                    right=0.)
+            return lo
+
         elif self.model_type == "split_gaussian":
-            p = np.hstack((self.center,
-                           self.fwhm))
-            return self.scale*sp_gauss(p, self.tth_list)
+            lo = np.zeros_like(self.tth_list)
+            for key in self.center:
+                p = np.hstack((self.center[key],
+                           self.fwhm[key]))
+                lo += self.scale[key]*sp_gauss(p, self.tth_list)
+            return lo
+
+    @property
+    def integrated_area(self):
+        x = self.tth_list
+        y = self.amorphous_lineout
+        return np.trapz(y, x)
+
