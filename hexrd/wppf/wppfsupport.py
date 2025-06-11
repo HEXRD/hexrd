@@ -362,11 +362,105 @@ def _add_atominfo_to_params(params, mat):
                     nn, value=mat.U[i],
                     min=0.0, max=np.inf,
                     vary=False)
+
+def _generate_default_parameters_amoprhous_model(
+                                        params,
+                                        amorphous_model):
+    '''
+    add refinement parameters for amorphous models
+    '''
+    if amorphous_model is None:
+        return
+
+    for key in amorphous_model.scale:
+        nn = f'{key}_amorphous_scale'
+        if isinstance(params, Parameters):
+            params.add(
+                nn, 
+                value=amorphous_model.scale[key],
+                lb=0,
+                ub=np.inf,
+                vary=False)
+        elif isinstance(params, Parameters_lmfit):
+            params.add(
+                nn, 
+                value=amorphous_model.scale[key],
+                min=0,
+                max=np.inf,
+                vary=False)
+
+        if amorphous_model.model_type == "experimental":
+            nn = f'{key}_amorphous_shift'
+            if isinstance(params, Parameters):
+                params.add(
+                    nn, 
+                    value=amorphous_model.shift[key],
+                    lb=-np.inf,
+                    ub=np.inf,
+                    vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(
+                    nn, 
+                    value=amorphous_model.shift[key],
+                    min=-np.inf,
+                    max=np.inf,
+                    vary=False)
+
+        elif amorphous_model.model_type == "split_gaussian":
+            nn = f'{key}_amorphous_center'
+            if isinstance(params, Parameters):
+                    params.add(
+                        nn, 
+                        value=amorphous_model.center[key],
+                        lb=-np.inf,
+                        ub=np.inf,
+                        vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(
+                    nn, 
+                    value=amorphous_model.center[key],
+                    min=-np.inf,
+                    max=np.inf,
+                    vary=False)
+
+            nn = f'{key}_amorphous_fwhm_l'
+            if isinstance(params, Parameters):
+                    params.add(
+                        nn, 
+                        value=amorphous_model.fwhm[key][0],
+                        lb=-np.inf,
+                        ub=np.inf,
+                        vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(
+                    nn, 
+                    value=amorphous_model.fwhm[key][0],
+                    min=-np.inf,
+                    max=np.inf,
+                    vary=False)
+
+            nn = f'{key}_amorphous_fwhm_r'
+            if isinstance(params, Parameters):
+                    params.add(
+                        nn, 
+                        value=amorphous_model.fwhm[key][1],
+                        lb=-np.inf,
+                        ub=np.inf,
+                        vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(
+                    nn, 
+                    value=amorphous_model.fwhm[key][1],
+                    min=-np.inf,
+                    max=np.inf,
+                    vary=False)
+
 def _generate_default_parameters_LeBail(mat,
                                         peakshape,
                                         bkgmethod,
                                         init_val=None,
-                                        ptype="wppf"):
+                                        ptype="wppf",
+                                        amorphous_model=None):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
     @date:    03/12/2021 SS 1.0 original
@@ -465,6 +559,9 @@ def _generate_default_parameters_LeBail(mat,
                f"Material is accpeted.")
         raise ValueError(msg)
 
+    _generate_default_parameters_amoprhous_model(params,
+                                                amorphous_model)
+
     return params
 
 def _add_phase_fractions(mat, params):
@@ -560,7 +657,8 @@ def _generate_default_parameters_Rietveld(mat,
                                           peakshape,
                                           bkgmethod,
                                           init_val=None,
-                                          ptype="wppf"):
+                                          ptype="wppf",
+                                          amorphous_model=None):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
     @date:    03/12/2021 SS 1.0 original
@@ -571,7 +669,8 @@ def _generate_default_parameters_Rietveld(mat,
                                                  peakshape,
                                                  bkgmethod,
                                                  init_val,
-                                                 ptype=ptype)
+                                                 ptype=ptype,
+                                                 amorphous_model=amorphous_model)
 
     if ptype == "wppf":
         params.add(name="scale",
