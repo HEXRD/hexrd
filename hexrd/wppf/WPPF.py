@@ -1539,6 +1539,19 @@ class LeBail:
                 self.amorphous_model.center = center
                 self.amorphous_model.fwhm = fwhm
 
+    @property
+    def DOC(self):
+        if self.amorphous_model is None:
+            return 1.
+        else:
+            tth, intensity   = self.spectrum_sim.data
+            _, background    = self.background.data
+            crystalline_intensity = intensity-background
+            amorphous_area = \
+                self.amorphous_model.integrated_area
+            return 1. - amorphous_area/np.trapz(
+                        crystalline_intensity, tth)
+
 
 def _nm(x):
     return valWUnit("lp", "length", x, "nm")
@@ -3078,6 +3091,20 @@ class Rietveld:
     @eta_fwhm.setter
     def eta_fwhm(self, val):
         self._eta_fwhm = val
+
+    @property
+    def DOC(self):
+        if self.amorphous_model is None:
+            return 1.
+        else:
+            tth, intensity   = self.spectrum_sim.data
+            _, background    = self.background.data
+            crystalline_intensity = intensity-background
+            amorphous_area = \
+                self.amorphous_model.integrated_area
+            return 1. - amorphous_area/np.trapz(
+                        crystalline_intensity, tth)
+
 
 
 def calc_num_variables(params):
