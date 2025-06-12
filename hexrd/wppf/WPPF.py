@@ -1507,7 +1507,7 @@ class LeBail:
                     else:
                         shift[key] = self.amorphous_model.shift[key]
 
-                elif self.amorphous_model.model_type in ["split_gaussian",
+                if self.amorphous_model.model_type in ["split_gaussian",
                                                      "split_pv"]:
                     nn = f'{key}_amorphous_center'
                     if nn in params:
@@ -2381,7 +2381,7 @@ class Rietveld:
                     else:
                         shift[key] = self.amorphous_model.shift[key]
 
-                elif self.amorphous_model.model_type in ["split_gaussian",
+                if self.amorphous_model.model_type in ["split_gaussian",
                                                      "split_pv"]:
                     nn = f'{key}_amorphous_center'
                     if nn in params:
@@ -2441,7 +2441,9 @@ class Rietveld:
             if self.amorphous_model.model_type == "experimental":
                 self.amorphous_model.shift = shift
 
-            elif self.amorphous_model.model_type == "split_gaussian":
+
+            elif self.amorphous_model.model_type in ["split_gaussian",
+                                                     "split_pv"]:
                 self.amorphous_model.center = center
                 self.amorphous_model.fwhm = fwhm
 

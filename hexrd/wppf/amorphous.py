@@ -245,7 +245,7 @@ class Amorphous:
         if self.model_type in ["split_gaussian",
                                "split_pv"]:
             if isinstance(val, dict):
-                sizes = [val[k] for k in val]
+                sizes = np.array([val[k].size for k in val])
                 if self.model_type == "split_gaussian":
                     if np.all(sizes==2):
                         self._fwhm = val
