@@ -406,15 +406,16 @@ def _generate_default_parameters_amoprhous_model(
                     max=np.inf,
                     vary=False)
 
-        elif amorphous_model.model_type == "split_gaussian":
+        elif amorphous_model.model_type in ["split_gaussian",
+                                            "split_pv"]:
             nn = f'{key}_amorphous_center'
             if isinstance(params, Parameters):
-                    params.add(
-                        nn, 
-                        value=amorphous_model.center[key],
-                        lb=-np.inf,
-                        ub=np.inf,
-                        vary=False)
+                params.add(
+                    nn, 
+                    value=amorphous_model.center[key],
+                    lb=-np.inf,
+                    ub=np.inf,
+                    vary=False)
             elif isinstance(params, Parameters_lmfit):
                 params.add(
                     nn, 
@@ -423,14 +424,15 @@ def _generate_default_parameters_amoprhous_model(
                     max=np.inf,
                     vary=False)
 
+        if amorphous_model.model_type == "split_gaussian":
             nn = f'{key}_amorphous_fwhm_l'
             if isinstance(params, Parameters):
-                    params.add(
-                        nn, 
-                        value=amorphous_model.fwhm[key][0],
-                        lb=0,
-                        ub=np.inf,
-                        vary=False)
+                params.add(
+                    nn, 
+                    value=amorphous_model.fwhm[key][0],
+                    lb=0,
+                    ub=np.inf,
+                    vary=False)
             elif isinstance(params, Parameters_lmfit):
                 params.add(
                     nn, 
@@ -441,16 +443,81 @@ def _generate_default_parameters_amoprhous_model(
 
             nn = f'{key}_amorphous_fwhm_r'
             if isinstance(params, Parameters):
-                    params.add(
-                        nn, 
-                        value=amorphous_model.fwhm[key][1],
-                        lb=0,
-                        ub=np.inf,
-                        vary=False)
+                params.add(
+                    nn, 
+                    value=amorphous_model.fwhm[key][1],
+                    lb=0,
+                    ub=np.inf,
+                    vary=False)
             elif isinstance(params, Parameters_lmfit):
                 params.add(
                     nn, 
                     value=amorphous_model.fwhm[key][1],
+                    min=0,
+                    max=np.inf,
+                    vary=False)
+
+        elif amorphous_model.model_type == "split_pv":
+            nn = f'{key}_amorphous_fwhm_g_l'
+            if isinstance(params, Parameters):
+                params.add(
+                    nn, 
+                    value=amorphous_model.fwhm[key][0],
+                    lb=0,
+                    ub=np.inf,
+                    vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(
+                    nn, 
+                    value=amorphous_model.fwhm[key][0],
+                    min=0,
+                    max=np.inf,
+                    vary=False)
+
+            nn = f'{key}_amorphous_fwhm_l_l'
+            if isinstance(params, Parameters):
+                params.add(
+                    nn, 
+                    value=amorphous_model.fwhm[key][1],
+                    lb=0,
+                    ub=np.inf,
+                    vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(
+                    nn, 
+                    value=amorphous_model.fwhm[key][1],
+                    min=0,
+                    max=np.inf,
+                    vary=False)
+
+            nn = f'{key}_amorphous_fwhm_g_r'
+            if isinstance(params, Parameters):
+                params.add(
+                    nn, 
+                    value=amorphous_model.fwhm[key][2],
+                    lb=0,
+                    ub=np.inf,
+                    vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(
+                    nn, 
+                    value=amorphous_model.fwhm[key][2],
+                    min=0,
+                    max=np.inf,
+                    vary=False)
+
+            nn = f'{key}_amorphous_fwhm_l_r'
+            if isinstance(params, Parameters):
+                params.add(
+                    nn, 
+                    value=amorphous_model.fwhm[key][3],
+                    lb=0,
+                    ub=np.inf,
+                    vary=False)
+            elif isinstance(params, Parameters_lmfit):
+                params.add(
+                    nn, 
+                    value=amorphous_model.fwhm[key][3],
                     min=0,
                     max=np.inf,
                     vary=False)
