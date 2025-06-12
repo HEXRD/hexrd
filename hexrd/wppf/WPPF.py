@@ -1577,13 +1577,13 @@ class LeBail:
         if self.amorphous_model is None:
             return 1.
         else:
-            tth, intensity   = self.spectrum_sim.data
+            tth, intensity   = self.spectrum_expt.data
             _, background    = self.background.data
-            crystalline_intensity = intensity-background
+            total_intensity = intensity-background
             amorphous_area = \
                 self.amorphous_model.integrated_area
             return 1. - amorphous_area/np.trapz(
-                        crystalline_intensity, tth)
+                        total_intensity, tth)
 
 
 def _nm(x):
@@ -3162,15 +3162,13 @@ class Rietveld:
         if self.amorphous_model is None:
             return 1.
         else:
-            tth, intensity   = self.spectrum_sim.data
+            tth, intensity   = self.spectrum_expt.data
             _, background    = self.background.data
-            crystalline_intensity = intensity-background
+            total_intensity = intensity-background
             amorphous_area = \
                 self.amorphous_model.integrated_area
             return 1. - amorphous_area/np.trapz(
-                        crystalline_intensity, tth)
-
-
+                        total_intensity, tth)
 
 def calc_num_variables(params):
     P = 0
