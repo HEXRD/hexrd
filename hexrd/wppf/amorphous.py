@@ -245,11 +245,12 @@ class Amorphous:
         if self.model_type in ["split_gaussian",
                                "split_pv"]:
             if isinstance(val, dict):
+                sizes = [val[k] for k in val]
                 if self.model_type == "split_gaussian":
-                    if val.size==2:
+                    if np.all(sizes==2):
                         self._fwhm = val
                 elif self.model_type == "split_pv":
-                    if val.size==4:
+                    if np.all(sizes==4):
                         self._fwhm = val
                 else:
                     msg = (f'incompatible fwhm size')
