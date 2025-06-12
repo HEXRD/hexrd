@@ -1507,13 +1507,15 @@ class LeBail:
                     else:
                         shift[key] = self.amorphous_model.shift[key]
 
-                elif self.amorphous_model.model_type == "split_gaussian":
+                elif self.amorphous_model.model_type in ["split_gaussian",
+                                                     "split_pv"]:
                     nn = f'{key}_amorphous_center'
                     if nn in params:
                         center[key] = params[nn].value
                     else:
                         center[key] = self.amorphous_model.center[key]
 
+                if self.amorphous_model.model_type == "split_gaussian":
                     nnl = f'{key}_amorphous_fwhm_l'
                     if nnl in params:
                         fwhm_l = params[nnl].value
@@ -1529,13 +1531,44 @@ class LeBail:
                     fwhm[key] = np.array([fwhm_l,
                                           fwhm_r
                                           ])
+                elif self.amorphous_model.model_type == "split_pv":
+                    nnl = f'{key}_amorphous_fwhm_g_l'
+                    if nnl in params:
+                        fwhm_g_l = params[nnl].value
+                    else:
+                        fwhm_g_l = self.amorphous_model.fwhm[key][0]
+
+                    nnl = f'{key}_amorphous_fwhm_l_l'
+                    if nnl in params:
+                        fwhm_l_l = params[nnl].value
+                    else:
+                        fwhm_l_l = self.amorphous_model.fwhm[key][1]
+
+                    nnr = f'{key}_amorphous_fwhm_g_r'
+                    if nnr in params:
+                        fwhm_g_r = params[nnr].value
+                    else:
+                        fwhm_g_r = self.amorphous_model.fwhm[key][2]
+
+                    nnr = f'{key}_amorphous_fwhm_l_r'
+                    if nnr in params:
+                        fwhm_l_r = params[nnr].value
+                    else:
+                        fwhm_l_r = self.amorphous_model.fwhm[key][3]
+
+                    fwhm[key] = np.array([fwhm_g_l,
+                                          fwhm_l_l,
+                                          fwhm_g_r,
+                                          fwhm_l_r
+                                          ])
 
             self.amorphous_model.scale = scale
 
             if self.amorphous_model.model_type == "experimental":
                 self.amorphous_model.shift = shift
 
-            elif self.amorphous_model.model_type == "split_gaussian":
+            elif self.amorphous_model.model_type in ["split_gaussian",
+                                                     "split_pv"]:
                 self.amorphous_model.center = center
                 self.amorphous_model.fwhm = fwhm
 
@@ -2348,13 +2381,15 @@ class Rietveld:
                     else:
                         shift[key] = self.amorphous_model.shift[key]
 
-                elif self.amorphous_model.model_type == "split_gaussian":
+                elif self.amorphous_model.model_type in ["split_gaussian",
+                                                     "split_pv"]:
                     nn = f'{key}_amorphous_center'
                     if nn in params:
                         center[key] = params[nn].value
                     else:
                         center[key] = self.amorphous_model.center[key]
 
+                if self.amorphous_model.model_type == "split_gaussian":
                     nnl = f'{key}_amorphous_fwhm_l'
                     if nnl in params:
                         fwhm_l = params[nnl].value
@@ -2369,6 +2404,36 @@ class Rietveld:
 
                     fwhm[key] = np.array([fwhm_l,
                                           fwhm_r
+                                          ])
+                elif self.amorphous_model.model_type == "split_pv":
+                    nnl = f'{key}_amorphous_fwhm_g_l'
+                    if nnl in params:
+                        fwhm_g_l = params[nnl].value
+                    else:
+                        fwhm_g_l = self.amorphous_model.fwhm[key][0]
+
+                    nnl = f'{key}_amorphous_fwhm_l_l'
+                    if nnl in params:
+                        fwhm_l_l = params[nnl].value
+                    else:
+                        fwhm_l_l = self.amorphous_model.fwhm[key][1]
+
+                    nnr = f'{key}_amorphous_fwhm_g_r'
+                    if nnr in params:
+                        fwhm_g_r = params[nnr].value
+                    else:
+                        fwhm_g_r = self.amorphous_model.fwhm[key][2]
+
+                    nnr = f'{key}_amorphous_fwhm_l_r'
+                    if nnr in params:
+                        fwhm_l_r = params[nnr].value
+                    else:
+                        fwhm_l_r = self.amorphous_model.fwhm[key][3]
+
+                    fwhm[key] = np.array([fwhm_g_l,
+                                          fwhm_l_l,
+                                          fwhm_g_r,
+                                          fwhm_l_r
                                           ])
 
             self.amorphous_model.scale = scale
