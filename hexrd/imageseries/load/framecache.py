@@ -210,7 +210,7 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
 
     def __getitem__(self, key):
         self._load_framelist_if_needed()
-        if isinstance(key, tuple):
+        if not isinstance(key, int):
             # Extract only what we need from the sparse array
             # using fancy indexing before we convert it to a
             # numpy array.

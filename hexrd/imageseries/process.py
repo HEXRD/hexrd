@@ -44,7 +44,22 @@ class ProcessedImageSeries(ImageSeries):
         self.addop(self.GAUSS_LAPLACE, self._gauss_laplace)
 
     def __getitem__(self, key):
-        return self._process_frame(self._get_index(key))
+        if isinstance(key, int):
+            idx = key
+            rest = []
+        else:
+            # Handle fancy indexing
+            idx = key[0]
+            rest = key[1:]
+
+        idx = self._get_index(idx)
+
+        if rest:
+            arg = tuple([idx, *rest])
+        else:
+            arg = idx
+
+        return self._process_frame(arg)
 
     def _get_index(self, key):
         return self._frames[key] if self._hasframelist else key

@@ -111,7 +111,7 @@ class RawImageSeriesAdapter(ImageSeriesAdapter):
         return ImageSeriesIterator(self)
 
     def __getitem__(self, key):
-        if isinstance(key, tuple):
+        if not isinstance(key, int):
             # FIXME: we do not yet support fancy indexing here.
             # Fully expand the array then apply the fancy indexing.
             return self[key[0]][*key[1:]]
