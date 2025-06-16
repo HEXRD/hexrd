@@ -64,6 +64,11 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
             warnings.warn("HDF5ImageSeries could not close h5 file")
 
     def __getitem__(self, key):
+        if isinstance(key, tuple):
+            # FIXME: we do not yet support fancy indexing here.
+            # Fully expand the array then apply the fancy indexing.
+            return self[key[0]][*key[1:]]
+
         if self._ndim == 2:
             if key != 0:
                 raise IndexError(

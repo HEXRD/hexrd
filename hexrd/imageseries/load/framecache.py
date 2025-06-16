@@ -209,7 +209,14 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
 
     def __getitem__(self, key):
         self._load_framelist_if_needed()
-        return self._framelist[key].toarray()
+        if isinstance(key, tuple):
+            # Extract only what we need from the sparse array
+            # using fancy indexing before we convert it to a
+            # numpy array.
+            sparse_frame = self._framelist[key[0]][*key[1:]]
+        else:
+            sparse_frame = self._framelist[key]
+        return sparse_frame.toarray()
 
     def __iter__(self):
         return ImageSeriesIterator(self)
