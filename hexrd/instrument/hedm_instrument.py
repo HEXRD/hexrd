@@ -1723,7 +1723,7 @@ class HEDMInstrument(object):
                         contains_signal = False
                         for i_frame in frame_indices:
                             contains_signal = contains_signal or np.any(
-                                ome_imgser[i_frame][ii, jj] > threshold
+                                ome_imgser[i_frame, ii, jj] > threshold
                             )
                         compl.append(contains_signal)
                         patch_output.append((ii, jj, frame_indices))
@@ -1792,7 +1792,7 @@ class HEDMInstrument(object):
                         contains_signal = False
                         patch_data_raw = []
                         for i_frame in frame_indices:
-                            tmp = ome_imgser[i_frame][ijs[0], ijs[1]]
+                            tmp = ome_imgser[i_frame, ijs[0], ijs[1]]
                             contains_signal = contains_signal or np.any(
                                 tmp > threshold
                             )

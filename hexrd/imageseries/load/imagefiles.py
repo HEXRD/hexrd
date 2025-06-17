@@ -45,6 +45,11 @@ class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
             return self._nframes
 
     def __getitem__(self, key):
+        if not isinstance(key, int):
+            # FIXME: we do not yet support fancy indexing here.
+            # Fully expand the array then apply the fancy indexing.
+            return self[key[0]][*key[1:]]
+
         if self.singleframes:
             frame = None
             filename = self._files[key]

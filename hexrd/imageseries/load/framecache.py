@@ -4,10 +4,11 @@ import functools
 import os
 from threading import Lock
 
-import numpy as np
-from scipy.sparse import csr_matrix
-import yaml
 import h5py
+import numpy as np
+import yaml
+from scipy.sparse import csr_matrix
+from scipy.sparse.compressed import csr_sample_values
 
 from . import ImageSeriesAdapter, RegionType
 from ..imageseriesiter import ImageSeriesIterator
@@ -209,6 +210,19 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
 
     def __getitem__(self, key):
         self._load_framelist_if_needed()
+        if not isinstance(key, int):
+            # Extract only what we need from the sparse array
+            # using fancy indexing before we convert it to a
+            # numpy array.
+            mat = self._framelist[key[0]]
+            if len(key) == 3:
+                # This is definitely used frequently and needs to
+                # be performant.
+                return _extract_sparse_values(mat, key[1], key[2])
+            elif len(key) == 2:
+                # Not sure if this will actually be used.
+                return mat[key[1]].toarray()
+
         return self._framelist[key].toarray()
 
     def __iter__(self):
@@ -313,3 +327,28 @@ def _load_framecache_fch5(
                               range(num_frames)))
 
     return framelist
+
+
+def _extract_sparse_values(
+    mat: csr_matrix,
+    row: np.ndarray,
+    col: np.ndarray,
+) -> np.ndarray:
+    # This was first copied from here: https://github.com/scipy/scipy/blob/a465e2ce014c1b20b0e4b949e46361e5c2fb727e/scipy/sparse/_compressed.py#L556-L569
+    # And then subsequently modified to return the internal `val` array.
+
+    # It uses the `csr_sample_values()` function to extract values. This is
+    # excellent because it skips the creation of a new sparse array (and
+    # subsequent conversion to a numpy array *again*). It provides a nearly
+    # 10% performance boost for `pull_spots()`.
+    idx_dtype = mat.indices.dtype
+    M, N = mat._swap(mat.shape)
+    major, minor = mat._swap((row, col))
+    major = np.asarray(major, dtype=idx_dtype)
+    minor = np.asarray(minor, dtype=idx_dtype)
+
+    val = np.empty(major.size, dtype=mat.dtype)
+    csr_sample_values(M, N, mat.indptr, mat.indices, mat.data,
+                      major.size, major.ravel(), minor.ravel(), val)
+
+    return val.reshape(major.shape)
