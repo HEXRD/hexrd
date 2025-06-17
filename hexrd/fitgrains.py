@@ -386,6 +386,16 @@ def fit_grains(cfg,
     else:
         nproc = min(ncpus, len(grains_table))
         chunksize = max(1, len(grains_table)//ncpus)
+
+        if multiprocessing.get_start_method() == 'fork':
+            # For frame cache, we need to load in all of the data up-front
+            # so it can use fork multiprocessing to share with the other
+            # processes. Otherwise, every process will load in the data on
+            # its own. Accessing one frame in the imageseries is currently
+            # all we need to do to trigger frame caches to load in all the data.
+            for ims in imsd.values():
+                ims[0]
+
         logger.info("\tstarting fit on %d processes with chunksize %d",
                     nproc, chunksize)
         start = timeit.default_timer()
