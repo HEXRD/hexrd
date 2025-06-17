@@ -1770,7 +1770,7 @@ class HEDMInstrument(object):
                     frame_indices = [
                         ome_imgser.omega_to_frame(ome)[0] for ome in ome_eval
                     ]
-                    ome_edges = np.array(frame_indices) * delta_ome
+                    ome_edges = [ome_imgser.omega[i][0] for i in frame_indices]
 
                     if -1 in frame_indices:
                         if not quiet:
