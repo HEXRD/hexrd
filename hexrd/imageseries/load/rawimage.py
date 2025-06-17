@@ -114,7 +114,7 @@ class RawImageSeriesAdapter(ImageSeriesAdapter):
         if not isinstance(key, int):
             # FIXME: we do not yet support fancy indexing here.
             # Fully expand the array then apply the fancy indexing.
-            return self[key[0]][*key[1:]]
+            return self[key[0]][tuple(key[1:])]
 
         count = key * self._frame_bytes + self.skipbytes
 
