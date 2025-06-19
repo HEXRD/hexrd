@@ -36,7 +36,7 @@ import logging
 import os
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
-from typing import Optional
+from typing import Optional, Union
 
 from tqdm import tqdm
 
@@ -604,6 +604,7 @@ class HEDMInstrument(object):
                         beam['vector']['polar_angle'],
                     ),
                     'distance': beam.get('source_distance', np.inf),
+                    'energy_correction': beam.get('energy_correction', None),
                 }
 
             # Set the active beam name if not set already
@@ -811,6 +812,7 @@ class HEDMInstrument(object):
             'energy': beam_energy_DFLT,
             'vector': beam_vec_DFLT.copy(),
             'distance': np.inf,
+            'energy_correction': None,
         }
 
         if self._active_beam_name is None:
@@ -890,6 +892,51 @@ class HEDMInstrument(object):
         self.beam_dict_modified()
 
     @property
+    def energy_correction(self) -> Union[dict,  None]:
+        """Energy correction dict appears as follows:
+
+            {
+                # The beam energy gradient center, along the specified
+                # axis, in millimeters.
+                'intercept': 0.0,
+
+                # The slope of the beam energy gradient along the
+                # specified axis, in eV/mm.
+                'slope': 0.0,
+
+                # The specified axis for the beam energy gradient,
+                # either 'x' or 'y'.
+                'axis': 'y',
+            }
+        """
+        return self.active_beam['energy_correction']
+
+    @energy_correction.setter
+    def energy_correction(self, v: Union[dict, None]):
+        if v is not None:
+            # First validate
+            keys = sorted(list(v))
+            default_keys = sorted(list(
+                self.create_default_energy_correction()
+            ))
+            if keys != default_keys:
+                msg = (
+                    f'Keys in energy correction dict, "{keys}", do not match '
+                    f'the required keys: "{default_keys}"'
+                )
+                raise RuntimeError(msg)
+
+        self.active_beam['energy_correction'] = v
+
+    @staticmethod
+    def create_default_energy_correction() -> dict[str, float]:
+        return {
+            'intercept': 0.0,  # in mm
+            'slope': 0.0,      # eV/mm
+            'axis': 'y',
+        }
+
+    @property
     def eta_vector(self):
         return self._eta_vector
 
@@ -931,6 +978,11 @@ class HEDMInstrument(object):
             }
             if beam['distance'] != np.inf:
                 beam_dict[beam_name]['source_distance'] = beam['distance']
+
+            if beam.get('energy_correction') is not None:
+                beam_dict[beam_name]['energy_correction'] = beam[
+                    'energy_correction'
+                ]
 
         if len(beam_dict) == 1:
             # Just write it out a single beam (classical way)
@@ -1508,7 +1560,8 @@ class HEDMInstrument(object):
                 ome_ranges=ome_ranges,
                 ome_period=ome_period,
                 chi=self.chi, tVec_s=self.tvec,
-                wavelength=wavelength)
+                wavelength=wavelength,
+                energy_correction=self.energy_correction)
         return results
 
     def pull_spots(self, plane_data, grain_params,

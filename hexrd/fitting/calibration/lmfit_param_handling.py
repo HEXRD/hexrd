@@ -51,6 +51,20 @@ def create_instr_params(instr, euler_convention=DEFAULT_EULER_CONVENTION,
         parms_list.append((
             names['beam_energy'], energy, False, energy - 0.2, energy + 0.2
         ))
+        if beam.get('energy_correction') is not None:
+            base_name = names['beam_energy_correction']
+            intercept = beam['energy_correction']['intercept']
+            slope = beam['energy_correction']['slope']
+            parms_list.append((
+                f'{base_name}_intercept',
+                intercept,
+                False,
+                -np.inf,
+                np.inf,
+            ))
+            parms_list.append((
+                f'{base_name}_slope', slope, False, -np.inf, np.inf
+            ))
 
     parms_list.append(('instr_chi', np.degrees(instr.chi),
                        False, np.degrees(instr.chi)-1,
@@ -210,6 +224,7 @@ def create_beam_param_names(instr: HEDMInstrument) -> dict[str, str]:
             'beam_polar': f'{prefix}beam_polar',
             'beam_azimuth': f'{prefix}beam_azimuth',
             'beam_energy': f'{prefix}beam_energy',
+            'beam_energy_correction': f'{prefix}beam_energy_correction',
         }
     return param_names
 
@@ -258,12 +273,21 @@ def update_instrument_from_params(
     # This supports single XRS or multi XRS
     beam_param_names = create_beam_param_names(instr)
     for xrs_name, param_names in beam_param_names.items():
+        beam = instr.beam_dict[xrs_name]
         energy = params[param_names['beam_energy']].value
         azim = params[param_names['beam_azimuth']].value
         pola = params[param_names['beam_polar']].value
 
-        instr.beam_dict[xrs_name]['energy'] = energy
-        instr.beam_dict[xrs_name]['vector'] = calc_beam_vec(azim, pola)
+        beam['energy'] = energy
+        beam['vector'] = calc_beam_vec(azim, pola)
+
+        if beam.get('energy_correction'):
+            base_name = param_names['beam_energy_correction']
+            slope = params[f'{base_name}_slope'].value
+            intercept = params[f'{base_name}_intercept'].value
+
+            beam['energy_correction']['slope'] = slope
+            beam['energy_correction']['intercept'] = intercept
 
     # Trigger any needed updates from beam modifications
     instr.beam_dict_modified()

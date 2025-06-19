@@ -941,6 +941,7 @@ def simulateGVecs(
     pixel_pitch: tuple[float] = (0.2, 0.2),
     distortion: DistortionABC = None,
     beam_vector: np.ndarray = constants.beam_vec,
+    energy_correction: Union[dict, None] = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     returns valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps
@@ -988,10 +989,18 @@ def simulateGVecs(
     vInv_s = np.ascontiguousarray(grain_params[6:12])
     beam_vector = np.ascontiguousarray(beam_vector)
 
+    # Apply an energy correction according to grain position
+    corrected_wlen = apply_correction_to_wavelength(
+        wlen,
+        energy_correction,
+        tVec_s,
+        tVec_c,
+    )
+
     # first find valid G-vectors
     angList = np.vstack(
         xfcapi.oscill_angles_of_hkls(
-            full_hkls[:, 1:], chi, rMat_c, bMat, wlen, v_inv=vInv_s,
+            full_hkls[:, 1:], chi, rMat_c, bMat, corrected_wlen, v_inv=vInv_s,
             beam_vec=beam_vector
         )
     )
@@ -1514,3 +1523,49 @@ def extract_detector_transformation(
         chi = detector_params[6]
         tVec_s = np.ascontiguousarray(detector_params[7:10])
     return rMat_d, tVec_d, chi, tVec_s
+
+
+def apply_correction_to_wavelength(
+    wavelength: float,
+    energy_correction: Union[dict, None],
+    tvec_s: np.ndarray,
+    tvec_c: np.ndarray,
+) -> float:
+    """Apply an energy correction to the wavelength according to grain position
+
+    The energy correction dict appears as follows:
+
+        {
+            # The beam energy gradient center, in millimeters,
+            # along the specified axis
+            'intercept': 0.0,
+
+            # The slope of the beam energy gradient along the
+            # specified axis, in eV/mm.
+            'slope': 0.0,
+
+            # The specified axis for the beam energy gradient,
+            # either 'x' or 'y'.
+            'axis': 'y',
+        }
+
+    If the energy_correction dict is `None`, then no correction
+    is performed.
+    """
+    if not energy_correction:
+        # No correction
+        return wavelength
+
+    # 'c' here is the conversion factor between keV and angstrom
+    c = constants.keVToAngstrom(1)
+
+    ind = 1 if energy_correction['axis'] == 'y' else 0
+
+    # Correct wavelength according to grain position. Position is in mm.
+    position = tvec_c[ind] + tvec_s[ind] - energy_correction['intercept']
+
+    # The slope is in eV/mm. Convert to keV.
+    adjustment = position * energy_correction['slope'] / 1e3
+
+    # Convert to keV, apply the adjustment, and then convert back to wavelength
+    return c / (c / wavelength + adjustment)
