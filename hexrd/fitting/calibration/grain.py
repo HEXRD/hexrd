@@ -5,6 +5,7 @@ import numpy as np
 from hexrd import matrixutil as mutil
 from hexrd.rotations import angularDifference
 from hexrd.transforms import xfcapi
+from hexrd import xrdutil
 
 from .abstract_grain import AbstractGrainCalibrator
 from .lmfit_param_handling import DEFAULT_EULER_CONVENTION
@@ -81,6 +82,7 @@ def sxcal_obj_func(grain_params, instr, xyo_det, hkls_idx,
     bvec = instr.beam_vector
     chi = instr.chi
     tvec_s = instr.tvec
+    energy_correction = instr.energy_correction
 
     # right now just stuck on the end and assumed
     # to all be the same length... FIX THIS
@@ -127,9 +129,17 @@ def sxcal_obj_func(grain_params, instr, xyo_det, hkls_idx,
             ghat_s = mutil.unitVector(np.dot(vmat_s, np.dot(rmat_c, gvec_c)))
             ghat_c = np.dot(rmat_c.T, ghat_s)
 
+            # Apply an energy correction according to grain position
+            corrected_wavelength = xrdutil.apply_correction_to_wavelength(
+                wavelength,
+                energy_correction,
+                tvec_s,
+                tvec_c,
+            )
+
             match_omes, calc_omes_tmp = grainutil.matchOmegas(
                 xyo, ghkls.T,
-                chi, rmat_c, bmat, wavelength,
+                chi, rmat_c, bmat, corrected_wavelength,
                 vInv=vinv_s,
                 beamVec=bvec,
                 omePeriod=ome_period)

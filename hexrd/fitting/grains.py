@@ -10,7 +10,10 @@ from hexrd.transforms import xfcapi
 from hexrd import constants
 from hexrd import rotations
 
-from hexrd.xrdutil import extract_detector_transformation
+from hexrd.xrdutil import (
+    apply_correction_to_wavelength,
+    extract_detector_transformation,
+)
 
 return_value_flag = None
 
@@ -185,6 +188,8 @@ def objFuncFitGrain(gFit, gFull, gFlag,
     """
     bVec = instrument.beam_vector
     eVec = instrument.eta_vector
+    tVec_s = instrument.tvec
+    energy_correction = instrument.energy_correction
 
     # fill out parameters
     gFull[gFlag] = gFit
@@ -194,6 +199,14 @@ def objFuncFitGrain(gFit, gFull, gFlag,
     tVec_c = gFull[3:6].reshape(3, 1)
     vInv_s = gFull[6:]
     vMat_s = mutil.vecMVToSymm(vInv_s)  # NOTE: Inverse of V from F = V * R
+
+    # Apply an energy correction according to grain position
+    corrected_wavelength = apply_correction_to_wavelength(
+        wavelength,
+        energy_correction,
+        tVec_s,
+        tVec_c,
+    )
 
     # loop over instrument panels
     # CAVEAT: keeping track of key ordering in the "detectors" attribute of
@@ -265,7 +278,7 @@ def objFuncFitGrain(gFit, gFull, gFlag,
 
         # !!!: check that this operates on UNWARPED xy
         match_omes, calc_omes = matchOmegas(
-            meas_xyo, hkls, chi, rMat_c, bMat, wavelength,
+            meas_xyo, hkls, chi, rMat_c, bMat, corrected_wavelength,
             vInv=vInv_s, beamVec=bVec, etaVec=eVec,
             omePeriod=omePeriod)
 

@@ -1493,6 +1493,7 @@ class Detector:
         chi=0.0,
         tVec_s=ct.zeros_3,
         wavelength=None,
+        energy_correction=None,
     ):
         """
         Simulate a monochromatic rotation series for a list of grains.
@@ -1561,6 +1562,14 @@ class Detector:
             tVec_c = gparm[3:6]
             vInv_s = gparm[6:]
 
+            # Apply an energy correction according to grain position
+            corrected_wavelength = xrdutil.apply_correction_to_wavelength(
+                wavelength,
+                energy_correction,
+                tVec_s,
+                tVec_c,
+            )
+
             # All possible bragg conditions as vstacked [tth, eta, ome]
             # for each omega solution
             angList = np.vstack(
@@ -1569,7 +1578,7 @@ class Detector:
                     chi,
                     rMat_c,
                     bMat,
-                    wavelength,
+                    corrected_wavelength,
                     v_inv=vInv_s,
                     beam_vec=self.bvec,
                 )
