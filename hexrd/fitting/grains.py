@@ -74,11 +74,6 @@ def fitGrain(gFull, instrument, reflections_dict,
         DESCRIPTION.
 
     """
-    # FIXME: will currently fail if omePeriod is specifed
-    if omePeriod is not None:
-        # xyo_det[:, 2] = rotations.mapAngle(xyo_det[:, 2], omePeriod)
-        raise RuntimeError
-
     gFit = gFull[gFlag]
 
     # objFuncFitGrain can run *significantly* faster if we convert the

@@ -216,7 +216,8 @@ def fit_grain_FF_reduced(grain_id):
         else:
             grain_params = fitGrain(
                     grain_params, instrument, culled_results,
-                    plane_data.latVecOps['B'], plane_data.wavelength
+                    plane_data.latVecOps['B'], plane_data.wavelength,
+                    omePeriod=ome_period,
                 )
             # get chisq
             # TODO: do this while evaluating fit???
@@ -289,7 +290,8 @@ def fit_grain_FF_reduced(grain_id):
         if num_refl_valid > 12:
             grain_params = fitGrain(
                 grain_params, instrument, culled_results_r,
-                plane_data.latVecOps['B'], plane_data.wavelength
+                plane_data.latVecOps['B'], plane_data.wavelength,
+                omePeriod=ome_period,
             )
             # get chisq
             # TODO: do this while evaluating fit???
