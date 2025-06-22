@@ -8,7 +8,9 @@ import h5py
 import numpy as np
 import yaml
 from scipy.sparse import csr_matrix
-from scipy.sparse.compressed import csr_sample_values
+
+# FIXME: figure out if there is a public way to import this function
+from scipy.sparse._compressed import csr_sample_values
 
 from . import ImageSeriesAdapter, RegionType
 from ..imageseriesiter import ImageSeriesIterator
