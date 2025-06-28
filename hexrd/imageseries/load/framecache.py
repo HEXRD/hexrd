@@ -7,7 +7,7 @@ from threading import Lock
 import h5py
 import numpy as np
 import yaml
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_array
 
 # FIXME: figure out if there is a public way to import this function
 from scipy.sparse._compressed import csr_sample_values
@@ -264,7 +264,7 @@ def _load_framecache_npz(
     num_frames: int,
     shape: tuple[int, int],
     dtype: np.dtype,
-) -> list[csr_matrix]:
+) -> list[csr_array]:
 
     framelist = []
     arrs = np.load(filepath)
@@ -272,7 +272,7 @@ def _load_framecache_npz(
         row = arrs[f"{i}_row"]
         col = arrs[f"{i}_col"]
         data = arrs[f"{i}_data"]
-        frame = csr_matrix((data, (row, col)),
+        frame = csr_array((data, (row, col)),
                            shape=shape,
                            dtype=dtype)
 
@@ -294,7 +294,7 @@ def _load_framecache_fch5(
     shape: tuple[int, int],
     dtype: np.dtype,
     max_workers: int,
-) -> list[csr_matrix]:
+) -> list[csr_array]:
 
     framelist = [None] * num_frames
 
@@ -309,7 +309,7 @@ def _load_framecache_fch5(
             row = frame_indices[:, 0]
             col = frame_indices[:, 1]
             mat_data = frame_data[:, 0]
-            frame = csr_matrix((mat_data, (row, col)),
+            frame = csr_array((mat_data, (row, col)),
                                shape=shape,
                                dtype=dtype)
 
@@ -332,7 +332,7 @@ def _load_framecache_fch5(
 
 
 def _extract_sparse_values(
-    mat: csr_matrix,
+    mat: csr_array,
     row: np.ndarray,
     col: np.ndarray,
 ) -> np.ndarray:
