@@ -35,7 +35,7 @@ import hexrd.resources
     precompute the values of k_l^m(y) and we already know what the reflections
     are so k_l^m(h) can also be pre-computed.
 
->> @PARAMETERS:  ymmetry symmetry of the mesh
+>> @PARAMETERS: symmetry of the mesh
 ===============================================================================
 """
 

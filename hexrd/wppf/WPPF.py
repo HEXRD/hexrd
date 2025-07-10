@@ -103,6 +103,7 @@ class LeBail:
         bkgmethod={"spline": None},
         intensity_init=None,
         peakshape="pvfcj",
+        amorphous_model=None,
     ):
 
         self.peakshape = peakshape
@@ -118,6 +119,8 @@ class LeBail:
         self._tstart = time.time()
 
         self.phases = phases
+
+        self.amorphous_model = amorphous_model
 
         self.params = params
 
@@ -508,6 +511,9 @@ class LeBail:
                     )
 
                 y += self.computespectrum_fcn(*args)
+
+        if self.amorphous_model is not None:
+            y += self.amorphous_model.amorphous_lineout
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
@@ -1336,7 +1342,8 @@ class LeBail:
                 self.phases,
                 self.peakshape,
                 self.bkgmethod,
-                init_val=self.cheb_init_coef
+                init_val=self.cheb_init_coef,
+                amorphous_model=self.amorphous_model
             )
             self._params = params
 
@@ -1480,6 +1487,103 @@ class LeBail:
 
             if updated_lp:
                 self.calctth()
+
+        if self.amorphous_model is not None:
+            scale = {}
+            shift = {}
+            center = {}
+            fwhm = {}
+            for key in self.amorphous_model.scale:
+                nn = f'{key}_amorphous_scale'
+                if nn in params:
+                    scale[key] = params[nn].value
+                else:
+                    scale[key] = self.amorphous_model.scale[key]
+
+                if self.amorphous_model.model_type == "experimental":
+                    nn = f'{key}_amorphous_shift'
+                    if nn in params:
+                        shift[key] = params[nn].value
+                    else:
+                        shift[key] = self.amorphous_model.shift[key]
+
+                if self.amorphous_model.model_type in ["split_gaussian",
+                                                     "split_pv"]:
+                    nn = f'{key}_amorphous_center'
+                    if nn in params:
+                        center[key] = params[nn].value
+                    else:
+                        center[key] = self.amorphous_model.center[key]
+
+                if self.amorphous_model.model_type == "split_gaussian":
+                    nnl = f'{key}_amorphous_fwhm_l'
+                    if nnl in params:
+                        fwhm_l = params[nnl].value
+                    else:
+                        fwhm_l = self.amorphous_model.fwhm[key][0]
+
+                    nnr = f'{key}_amorphous_fwhm_r'
+                    if nnr in params:
+                        fwhm_r = params[nnr].value
+                    else:
+                        fwhm_r = self.amorphous_model.fwhm[key][1]
+
+                    fwhm[key] = np.array([fwhm_l,
+                                          fwhm_r
+                                          ])
+                elif self.amorphous_model.model_type == "split_pv":
+                    nnl = f'{key}_amorphous_fwhm_g_l'
+                    if nnl in params:
+                        fwhm_g_l = params[nnl].value
+                    else:
+                        fwhm_g_l = self.amorphous_model.fwhm[key][0]
+
+                    nnl = f'{key}_amorphous_fwhm_l_l'
+                    if nnl in params:
+                        fwhm_l_l = params[nnl].value
+                    else:
+                        fwhm_l_l = self.amorphous_model.fwhm[key][1]
+
+                    nnr = f'{key}_amorphous_fwhm_g_r'
+                    if nnr in params:
+                        fwhm_g_r = params[nnr].value
+                    else:
+                        fwhm_g_r = self.amorphous_model.fwhm[key][2]
+
+                    nnr = f'{key}_amorphous_fwhm_l_r'
+                    if nnr in params:
+                        fwhm_l_r = params[nnr].value
+                    else:
+                        fwhm_l_r = self.amorphous_model.fwhm[key][3]
+
+                    fwhm[key] = np.array([fwhm_g_l,
+                                          fwhm_l_l,
+                                          fwhm_g_r,
+                                          fwhm_l_r
+                                          ])
+
+            self.amorphous_model.scale = scale
+
+            if self.amorphous_model.model_type == "experimental":
+                self.amorphous_model.shift = shift
+
+            elif self.amorphous_model.model_type in ["split_gaussian",
+                                                     "split_pv"]:
+                self.amorphous_model.center = center
+                self.amorphous_model.fwhm = fwhm
+
+    @property
+    def DOC(self):
+        if self.amorphous_model is None:
+            return 1.
+        else:
+            tth, intensity   = self.spectrum_expt.data
+            _, background    = self.background.data
+            total_intensity = intensity-background
+            amorphous_area = \
+                self.amorphous_model.integrated_area
+            return 1. - amorphous_area/np.trapz(
+                        total_intensity, tth)
 
 
 def _nm(x):
@@ -1676,6 +1780,7 @@ class Rietveld:
         shape_factor=1.0,
         particle_size=1.0,
         phi=0.0,
+        amorphous_model=None,
     ):
 
         self.bkgmethod = bkgmethod
@@ -1684,6 +1789,7 @@ class Rietveld:
         self.phi = phi
         self.peakshape = peakshape
         self.spectrum_expt = expt_spectrum
+        self.amorphous_model = amorphous_model
 
         self._tstart = time.time()
 
@@ -2033,6 +2139,9 @@ class Rietveld:
 
                 y += self.computespectrum_fcn(*args)
 
+        if self.amorphous_model is not None:
+            y += self.amorphous_model.amorphous_lineout
+
         self._spectrum_sim = Spectrum(x=x, y=y)
 
         P = calc_num_variables(self.params)
@@ -2253,6 +2362,91 @@ class Rietveld:
 
             self.phases.phase_fraction = pf/np.sum(pf)
 
+        if self.amorphous_model is not None:
+            scale = {}
+            shift = {}
+            center = {}
+            fwhm = {}
+            for key in self.amorphous_model.scale:
+                nn = f'{key}_amorphous_scale'
+                if nn in params:
+                    scale[key] = params[nn].value
+                else:
+                    scale[key] = self.amorphous_model.scale[key]
+
+                if self.amorphous_model.model_type == "experimental":
+                    nn = f'{key}_amorphous_shift'
+                    if nn in params:
+                        shift[key] = params[nn].value
+                    else:
+                        shift[key] = self.amorphous_model.shift[key]
+
+                if self.amorphous_model.model_type in ["split_gaussian",
+                                                     "split_pv"]:
+                    nn = f'{key}_amorphous_center'
+                    if nn in params:
+                        center[key] = params[nn].value
+                    else:
+                        center[key] = self.amorphous_model.center[key]
+
+                if self.amorphous_model.model_type == "split_gaussian":
+                    nnl = f'{key}_amorphous_fwhm_l'
+                    if nnl in params:
+                        fwhm_l = params[nnl].value
+                    else:
+                        fwhm_l = self.amorphous_model.fwhm[key][0]
+
+                    nnr = f'{key}_amorphous_fwhm_r'
+                    if nnr in params:
+                        fwhm_r = params[nnr].value
+                    else:
+                        fwhm_r = self.amorphous_model.fwhm[key][1]
+
+                    fwhm[key] = np.array([fwhm_l,
+                                          fwhm_r
+                                          ])
+                elif self.amorphous_model.model_type == "split_pv":
+                    nnl = f'{key}_amorphous_fwhm_g_l'
+                    if nnl in params:
+                        fwhm_g_l = params[nnl].value
+                    else:
+                        fwhm_g_l = self.amorphous_model.fwhm[key][0]
+
+                    nnl = f'{key}_amorphous_fwhm_l_l'
+                    if nnl in params:
+                        fwhm_l_l = params[nnl].value
+                    else:
+                        fwhm_l_l = self.amorphous_model.fwhm[key][1]
+
+                    nnr = f'{key}_amorphous_fwhm_g_r'
+                    if nnr in params:
+                        fwhm_g_r = params[nnr].value
+                    else:
+                        fwhm_g_r = self.amorphous_model.fwhm[key][2]
+
+                    nnr = f'{key}_amorphous_fwhm_l_r'
+                    if nnr in params:
+                        fwhm_l_r = params[nnr].value
+                    else:
+                        fwhm_l_r = self.amorphous_model.fwhm[key][3]
+
+                    fwhm[key] = np.array([fwhm_g_l,
+                                          fwhm_l_l,
+                                          fwhm_g_r,
+                                          fwhm_l_r
+                                          ])
+
+            self.amorphous_model.scale = scale
+
+            if self.amorphous_model.model_type == "experimental":
+                self.amorphous_model.shift = shift
+
+
+            elif self.amorphous_model.model_type in ["split_gaussian",
+                                                     "split_pv"]:
+                self.amorphous_model.center = center
+                self.amorphous_model.fwhm = fwhm
+
     def _update_shkl(self, params):
         """
         if certain shkls are refined, then update
@@ -2374,7 +2568,8 @@ class Rietveld:
                 self.phases,
                 self.peakshape,
                 self.bkgmethod,
-                init_val=self.cheb_init_coef
+                init_val=self.cheb_init_coef,
+                amorphous_model=self.amorphous_model
             )
             self._params = params
 
@@ -2964,6 +3159,18 @@ class Rietveld:
     def eta_fwhm(self, val):
         self._eta_fwhm = val
 
+    @property
+    def DOC(self):
+        if self.amorphous_model is None:
+            return 1.
+        else:
+            tth, intensity   = self.spectrum_expt.data
+            _, background    = self.background.data
+            total_intensity = intensity-background
+            amorphous_area = \
+                self.amorphous_model.integrated_area
+            return 1. - amorphous_area/np.trapz(
+                        total_intensity, tth)
 
 def calc_num_variables(params):
     P = 0

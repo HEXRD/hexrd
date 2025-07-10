@@ -146,7 +146,7 @@ def _add_chebyshev_background(params,
     """
     add coefficients for chebyshev background
     polynomial. The initial values will be the
-    same as determined by WPPF.chebyshevfit 
+    same as determined by WPPF.chebyshevfit
     routine
     """
     for d in range(degree+1):
@@ -171,7 +171,7 @@ def _add_stacking_fault_parameters(params,
     """
     phase_name = mat.name
     if mat.sgnum == 225:
-        sf_alpha_name = f"{phase_name}_sf_alpha" 
+        sf_alpha_name = f"{phase_name}_sf_alpha"
         twin_beta_name = f"{phase_name}_twin_beta"
         if isinstance(params, Parameters):
             params.add(sf_alpha_name, value=0., lb=0.,
@@ -362,11 +362,101 @@ def _add_atominfo_to_params(params, mat):
                     nn, value=mat.U[i],
                     min=0.0, max=np.inf,
                     vary=False)
+
+def _generate_default_parameters_amorphous_model(
+                                        params,
+                                        amorphous_model):
+    '''
+    add refinement parameters for amorphous models
+    '''
+    if amorphous_model is None:
+        return
+
+    # Use 'min' and 'max' below, and automatically convert to
+    # 'lb' and 'ub' if needed.
+    def convert(**kwargs):
+        if isinstance(params, Parameters):
+            kwargs['lb'] = kwargs.pop('min')
+            kwargs['ub'] = kwargs.pop('max')
+        return kwargs
+
+
+    for key in amorphous_model.scale:
+        params.add(f'{key}_amorphous_scale', **convert(
+            value=amorphous_model.scale[key],
+            min=0,
+            max=np.inf,
+            vary=False,
+        ))
+
+        if amorphous_model.model_type == "experimental":
+            params.add(f'{key}_amorphous_shift', **convert(
+                value=amorphous_model.shift[key],
+                min=-np.inf,
+                max=np.inf,
+                vary=False,
+            ))
+        else:
+            params.add(f'{key}_amorphous_center', **convert(
+                value=amorphous_model.center[key],
+                min=-np.inf,
+                max=np.inf,
+                vary=False,
+            ))
+
+        if amorphous_model.model_type == "split_gaussian":
+            params.add(f'{key}_amorphous_fwhm_l', **convert(
+                nn,
+                value=amorphous_model.fwhm[key][0],
+                min=0,
+                max=np.inf,
+                vary=False,
+            ))
+
+            params.add(f'{key}_amorphous_fwhm_r', **convert(
+                nn,
+                value=amorphous_model.fwhm[key][1],
+                min=0,
+                max=np.inf,
+                vary=False,
+            ))
+
+        elif amorphous_model.model_type == "split_pv":
+            params.add(f'{key}_amorphous_fwhm_g_l', **convert(
+                value=amorphous_model.fwhm[key][0],
+                min=0,
+                max=np.inf,
+                vary=False,
+            ))
+
+            params.add(f'{key}_amorphous_fwhm_l_l', **convert(
+                value=amorphous_model.fwhm[key][1],
+                min=0,
+                max=np.inf,
+                vary=False,
+            ))
+
+            params.add(f'{key}_amorphous_fwhm_g_r', **convert(
+                value=amorphous_model.fwhm[key][2],
+                min=0,
+                max=np.inf,
+                vary=False,
+            ))
+
+            params.add(f'{key}_amorphous_fwhm_l_r', **convert(
+                value=amorphous_model.fwhm[key][3],
+                min=0,
+                max=np.inf,
+                vary=False,
+            ))
+
+
 def _generate_default_parameters_LeBail(mat,
                                         peakshape,
                                         bkgmethod,
                                         init_val=None,
-                                        ptype="wppf"):
+                                        ptype="wppf",
+                                        amorphous_model=None):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
     @date:    03/12/2021 SS 1.0 original
@@ -449,7 +539,7 @@ def _generate_default_parameters_LeBail(mat,
             _add_Shkl_terms(params, m)
             _add_lp_to_params(params, m)
             _add_stacking_fault_parameters(params, m)
-            
+
     elif isinstance(mat, dict):
         """
         dictionary of materials class
@@ -464,6 +554,9 @@ def _generate_default_parameters_LeBail(mat,
                f"incorrect argument. only list, dict or "
                f"Material is accpeted.")
         raise ValueError(msg)
+
+    _generate_default_parameters_amorphous_model(params,
+                                                 amorphous_model)
 
     return params
 
@@ -560,7 +653,8 @@ def _generate_default_parameters_Rietveld(mat,
                                           peakshape,
                                           bkgmethod,
                                           init_val=None,
-                                          ptype="wppf"):
+                                          ptype="wppf",
+                                          amorphous_model=None):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
     @date:    03/12/2021 SS 1.0 original
@@ -571,7 +665,8 @@ def _generate_default_parameters_Rietveld(mat,
                                                  peakshape,
                                                  bkgmethod,
                                                  init_val,
-                                                 ptype=ptype)
+                                                 ptype=ptype,
+                                                 amorphous_model=amorphous_model)
 
     if ptype == "wppf":
         params.add(name="scale",
