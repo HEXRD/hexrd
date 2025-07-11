@@ -406,7 +406,6 @@ def _generate_default_parameters_amorphous_model(
 
         if amorphous_model.model_type == "split_gaussian":
             params.add(f'{key}_amorphous_fwhm_l', **convert(
-                nn,
                 value=amorphous_model.fwhm[key][0],
                 min=0,
                 max=np.inf,
@@ -414,7 +413,6 @@ def _generate_default_parameters_amorphous_model(
             ))
 
             params.add(f'{key}_amorphous_fwhm_r', **convert(
-                nn,
                 value=amorphous_model.fwhm[key][1],
                 min=0,
                 max=np.inf,
