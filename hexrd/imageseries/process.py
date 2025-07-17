@@ -78,9 +78,20 @@ class ProcessedImageSeries(ImageSeries):
         # optimized version. If the adapter provides one it should be
         # significantly faster if not it will fallback to the same
         # implementation that _rectangle provides.
-        if oplist and  oplist[0][0] == self.RECT:
+        if oplist and oplist[0][0] == self.RECT:
             region = oplist[0][1]
-            img = self._rectangle_optimized(key,region)
+            if isinstance(key, int):
+                idx = key
+                rest = []
+            else:
+                # Handle fancy indexing
+                idx = key[0]
+                rest = key[1:]
+
+            img = self._rectangle_optimized(idx, region)
+
+            if rest:
+                img = img[*rest]
 
             # remove the first operation since we already used it
             oplist = oplist[1:]
