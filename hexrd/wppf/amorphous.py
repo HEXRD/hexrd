@@ -160,7 +160,10 @@ class Amorphous:
 
     @tth_list.setter
     def tth_list(self, val):
-        if isinstance(val, np.ndarray):
+        if isinstance(val, np.ma.MaskedArray):
+            print('here')
+            self._tth_list = val.filled()
+        elif isinstance(val, np.ndarray):
             self._tth_list = val
         elif isinstance(val, (list, tuple)):
             self._tth_list = np.array(val)
@@ -313,6 +316,7 @@ class Amorphous:
             for key in self.center:
                 p = np.hstack((self.center[key],
                            self.fwhm[key]))
+
                 lo += self.scale[key]*self.peak_model(p, self.tth_list)
 
         return lo
