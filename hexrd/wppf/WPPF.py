@@ -1578,7 +1578,7 @@ class LeBail:
         if self.amorphous_model is None:
             return 1.
         else:
-            tth, intensity   = self.spectrum_expt.data
+            tth, intensity   = self.spectrum_sim.data
             _, background    = self.background.data
             total_intensity = intensity-background
             amorphous_area = \
