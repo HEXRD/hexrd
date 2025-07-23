@@ -996,7 +996,8 @@ class LeBail:
         """
         if hasattr(self, "params"):
             params = wppfsupport._generate_default_parameters_LeBail(
-                self.phases, self.peakshape, self.bkgmethod
+                self.phases, self.peakshape, self.bkgmethod,
+                amorphous_model=self.amorphous_model,
             )
             for p in params:
                 if p in self.params:
@@ -1343,7 +1344,7 @@ class LeBail:
                 self.peakshape,
                 self.bkgmethod,
                 init_val=self.cheb_init_coef,
-                amorphous_model=self.amorphous_model
+                amorphous_model=self.amorphous_model,
             )
             self._params = params
 
@@ -1577,7 +1578,7 @@ class LeBail:
         if self.amorphous_model is None:
             return 1.
         else:
-            tth, intensity   = self.spectrum_expt.data
+            tth, intensity   = self.spectrum_sim.data
             _, background    = self.background.data
             total_intensity = intensity-background
             amorphous_area = \
@@ -2569,7 +2570,7 @@ class Rietveld:
                 self.peakshape,
                 self.bkgmethod,
                 init_val=self.cheb_init_coef,
-                amorphous_model=self.amorphous_model
+                amorphous_model=self.amorphous_model,
             )
             self._params = params
 
@@ -2957,7 +2958,8 @@ class Rietveld:
                 self.phases,
                 self.peakshape,
                 self.bkgmethod,
-                init_val=self.cheb_init_coef
+                init_val=self.cheb_init_coef,
+                amorphous_model=self.amorphous_model,
             )
             for p in params:
                 if p in self.params:

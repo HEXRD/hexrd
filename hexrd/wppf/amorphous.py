@@ -6,6 +6,14 @@ from hexrd.wppf.peakfunctions import (
     _split_unit_gaussian as sp_gauss,
     _split_unit_pv as sp_pv)
 
+
+AMORPHOUS_MODEL_TYPES = {
+    'Split Gaussian': 'split_gaussian',
+    'Split Pseudo-Voigt': 'split_pv',
+    'Experimental': 'experimental',
+}
+
+
 class Amorphous:
     '''
     >> @AUTHOR:     Saransh Singh,
@@ -112,7 +120,12 @@ class Amorphous:
             center = {'c1': 30.}
 
         if fwhm is None:
-            fwhm = {'c1': np.array([5, 5])}
+            if model_type == 'split_pv':
+                array = np.array([5, 5, 5, 5])
+            else:
+                array = np.array([5, 5])
+
+            fwhm = {'c1': array}
 
         self.tth_list = tth_list
 
@@ -147,7 +160,10 @@ class Amorphous:
 
     @tth_list.setter
     def tth_list(self, val):
-        if isinstance(val, np.ndarray):
+        if isinstance(val, np.ma.MaskedArray):
+            print('here')
+            self._tth_list = val.filled()
+        elif isinstance(val, np.ndarray):
             self._tth_list = val
         elif isinstance(val, (list, tuple)):
             self._tth_list = np.array(val)
@@ -300,6 +316,7 @@ class Amorphous:
             for key in self.center:
                 p = np.hstack((self.center[key],
                            self.fwhm[key]))
+
                 lo += self.scale[key]*self.peak_model(p, self.tth_list)
 
         return lo
