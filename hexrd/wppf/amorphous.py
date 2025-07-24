@@ -180,7 +180,24 @@ class Amorphous:
         if self.model_type.lower() == "experimental":
             if data is not None:
                 if isinstance(data, dict):
-                    self._model_data = data
+                    '''the liquid diffraction data might be 
+                    on a different grid size and shape than the
+                    lineout. we will deal with that here via 
+                    interpolation
+                    '''
+                    data_interp = dict.fromkeys(data.keys())
+                    for k, v in data.items():
+                        if v.ndim == 2:
+                            # potential case with different tth step size
+                            mi = np.nanmin(v[:,1])
+                            data_interp[k] = np.interp(self.tth_list,
+                                                       v[:, 0],
+                                                       v[:, 1],
+                                                       left=mi,
+                                                       right=mi)
+                        elif v.ndim == 1:
+                            data_interp[k] = v.copy()
+                    self._model_data = data_interp
                 else:
                     msg = f'data should be passed as a dictionary'
                     raise ValueError(msg)
@@ -303,12 +320,13 @@ class Amorphous:
                                    self.smoothing
                                    )
 
+                mi = np.nanmin(smooth_model_data)
                 lo  += self.scale[key]*np.interp(
                                     self.tth_list,
                                     self.tth_list+self.shift[key],
-                                    smooth_model_data,
+                                    smooth_model_data-mi,
                                     left=0.,
-                                    right=0.)
+                                    right=0.) + mi
 
         elif self.model_type in ["split_gaussian",
                                  "split_pv"]:
