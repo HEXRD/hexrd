@@ -32,6 +32,9 @@ the functions which are common to both the Rietveld and LeBail
 classes are put here to minimize code duplication. Some examples
 include initialize background, generate_default_parameter list etc.
 """
+import copy
+import warnings
+
 from hexrd.material.symbols import pstr_spacegroup
 from hexrd.wppf.parameters import Parameters
 from lmfit import Parameters as Parameters_lmfit
@@ -41,7 +44,6 @@ from hexrd.material.unitcell import _rqpDict
 import hexrd
 import numpy as np
 from hexrd import constants
-import warnings
 
 def _generate_default_parameters_pseudovoight(params):
     """
@@ -461,6 +463,9 @@ def _generate_default_parameters_LeBail(mat,
     @details: generate a default parameter class given a list/dict/
     single instance of material class
     """
+    # Sanitize the material names
+    mat = _sanitize_material_names(mat)
+
     if ptype == "wppf":
         params = Parameters()
     elif ptype == "lmfit":
@@ -659,6 +664,8 @@ def _generate_default_parameters_Rietveld(mat,
     @details: generate a default parameter class given a list/dict/
     single instance of material class
     """
+    mat = _sanitize_material_names(mat)
+
     params = _generate_default_parameters_LeBail(mat,
                                                  peakshape,
                                                  bkgmethod,
@@ -932,6 +939,27 @@ def _add_intensity_parameters(params,hkls,Icalc,prefix):
                 [params.add(name=pname[i],
                     value=Icalc[p][k][i],
                     min=0.0) for i in range(shape)]
+
+
+def _sanitize_material_names(mats):
+    if isinstance(mats, Material):
+        if '-' in mats.name:
+            mats = copy.deepcopy(mats)
+            mats.name = mats.name.replace('-', '_')
+    elif isinstance(mats, (list, dict)):
+        mats = copy.deepcopy(mats)
+        if isinstance(mats, list):
+            mats_iter = mats
+        else:
+            mats_iter = mats.values()
+
+        for mat in mats_iter:
+            if '-' in mat.name:
+                mat.name = mat.name.replace('-', '_')
+
+    return mats
+
+
 background_methods = {
     'spline': None,
 
