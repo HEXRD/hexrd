@@ -86,7 +86,7 @@ class Material_LeBail:
             confusion later on
         """
         self.lparms = list(gid.get('LatticeParameters'))
-        self.name = name
+        self.name = name.replace('-', '_')
         fid.close()
 
     def _init_from_materials(self, material_obj):
@@ -98,7 +98,7 @@ class Material_LeBail:
         O7/01/2021 SS ADDED DIRECT AND RECIPROCAL STRUCTURE MATRIX AS
         FIELDS IN THE CLASS
         """
-        self.name = material_obj.name
+        self.name = material_obj.name.replace('-', '_')
         self.dmin = material_obj.dmin.getVal('nm')
         self.sgnum = material_obj.unitcell.sgnum
         self.sgsetting = material_obj.sgsetting
@@ -346,7 +346,7 @@ class Material_LeBail:
 
     def removeinversion(self, ksym):
         """
-        this function chooses a subset from a list 
+        this function chooses a subset from a list
         of symmetrically equivalent reflections such
         that there are no g and -g present.
         """
@@ -541,12 +541,17 @@ class Phases_LeBail:
         return resstr
 
     def __getitem__(self, key):
+        # Always sanitize the material name since lmfit won't accept '-'
+        key = key.replace('-', '_')
+
         if(key in self.phase_dict.keys()):
             return self.phase_dict[key]
         else:
             raise ValueError('phase with name not found')
 
     def __setitem__(self, key, mat_cls):
+        # Always sanitize the material name since lmfit won't accept '-'
+        key = key.replace('-', '_')
 
         if(key in self.phase_dict.keys()):
             warnings.warn('phase already in parameter \
@@ -589,7 +594,7 @@ class Phases_LeBail:
             self[k].pf = 1.0/len(self)
 
         self.material_file = material_file
-        self.material_keys = material_keys
+        self.material_keys = [k.replace('-', '_') for k in material_keys]
 
     def load(self, fname):
         """
@@ -737,7 +742,7 @@ class Material_Rietveld:
 
         """
         # name
-        self.name = material_obj.name
+        self.name = material_obj.name.replace('-', '_')
 
         # inverse of absorption length
         self.abs_fact = 1e-4 * (1./material_obj.absorption_length)
@@ -860,7 +865,7 @@ class Material_Rietveld:
         # read atom types (by atomic number, Z)
         self.atom_type = np.array(gid.get('Atomtypes'), dtype=np.int32)
         self.atom_ntype = self.atom_type.shape[0]
-        self.name = name
+        self.name = name.replace('-', '_')
 
         fid.close()
 
@@ -1461,12 +1466,17 @@ class Phases_Rietveld:
         return resstr
 
     def __getitem__(self, key):
+        # Always sanitize the material name since lmfit won't accept '-'
+        key = key.replace('-', '_')
+
         if(key in self.phase_dict.keys()):
             return self.phase_dict[key]
         else:
             raise ValueError('phase with name not found')
 
     def __setitem__(self, key, mat_cls):
+        # Always sanitize the material name since lmfit won't accept '-'
+        key = key.replace('-', '_')
 
         if(key in self.phase_dict.keys()):
             warnings.warn('phase already in parameter list. overwriting ...')
@@ -1524,7 +1534,7 @@ class Phases_Rietveld:
                 self[k][l].pf = 1.0/self.num_phases
 
         self.material_file = material_file
-        self.material_keys = material_keys
+        self.material_keys = [k.replace('-', '_') for k in material_keys]
 
     def load(self, fname):
         """
