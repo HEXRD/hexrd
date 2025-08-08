@@ -98,15 +98,6 @@ class InstrumentCalibrator:
     def instr(self):
         return self.calibrators[0].instr
 
-    @property
-    def tth_distortion(self):
-        return self.calibrators[0].tth_distortion
-
-    @tth_distortion.setter
-    def tth_distortion(self, v):
-        for calibrator in self.calibrators:
-            calibrator.tth_distortion = v
-
     def minimizer_function(self, params):
         self.update_all_from_params(params)
         return self.residual()
