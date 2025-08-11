@@ -161,7 +161,6 @@ class Amorphous:
     @tth_list.setter
     def tth_list(self, val):
         if isinstance(val, np.ma.MaskedArray):
-            print('here')
             self._tth_list = val.filled()
         elif isinstance(val, np.ndarray):
             self._tth_list = val
@@ -180,9 +179,9 @@ class Amorphous:
         if self.model_type.lower() == "experimental":
             if data is not None:
                 if isinstance(data, dict):
-                    '''the liquid diffraction data might be 
+                    '''the liquid diffraction data might be
                     on a different grid size and shape than the
-                    lineout. we will deal with that here via 
+                    lineout. we will deal with that here via
                     interpolation
                     '''
                     data_interp = dict.fromkeys(data.keys())
