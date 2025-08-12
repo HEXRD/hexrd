@@ -312,8 +312,8 @@ class Amorphous:
     def amorphous_lineout(self):
         if self.model_type == "experimental":
 
+            lo = np.zeros_like(self.tth_list)
             for key in self.shift:
-                lo = np.zeros_like(self.tth_list)
                 smooth_model_data = gaussian_filter(
                                    self.model_data[key],
                                    self.smoothing
