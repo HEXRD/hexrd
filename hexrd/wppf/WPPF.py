@@ -1574,17 +1574,27 @@ class LeBail:
                 self.amorphous_model.fwhm = fwhm
 
     @property
+    def total_area(self):
+        tth, intensity   = self.spectrum_sim.data
+        _, background    = self.background.data
+        total_intensity = intensity-background
+        '''put some guard rails around the total intensity
+        to protect against nans in the values
+        '''
+        mask = np.isnan(total_intensity)
+        sum_area = np.trapz(total_intensity[~mask], tth[~mask])
+        return sum_area
+
+
+    @property
     def DOC(self):
         if self.amorphous_model is None:
             return 1.
         else:
-            tth, intensity   = self.spectrum_sim.data
-            _, background    = self.background.data
-            total_intensity = intensity-background
             amorphous_area = \
                 self.amorphous_model.integrated_area
-            return 1. - amorphous_area/np.trapz(
-                        total_intensity, tth)
+            total_area = self.total_area
+            return 1. - amorphous_area/total_area
 
 
 def _nm(x):
