@@ -33,7 +33,6 @@ from hexrd.wppf.peakfunctions import (
 )
 from hexrd.wppf import wppfsupport
 from hexrd.wppf.spectrum import Spectrum
-from hexrd.wppf.parameters import Parameters
 from hexrd.wppf.phase import (
     Phases_LeBail,
     Phases_Rietveld,
@@ -654,17 +653,6 @@ class LeBail:
 
         return errvec
 
-    def initialize_lmfit_parameters(self):
-
-        params = lmfit.Parameters()
-
-        for p in self.params:
-            par = self.params[p]
-            if par.vary:
-                params.add(p, value=par.value, min=par.lb, max=par.ub)
-
-        return params
-
     def update_parameters(self):
 
         for p in self.res.params:
@@ -705,7 +693,12 @@ class LeBail:
                      variables which are allowed to be varied.
         """
 
-        params = self.initialize_lmfit_parameters()
+        # FIXME: why is this necessary? We get the wrong answer if we
+        # don't do this.
+        params = lmfit.Parameters()
+        for name, param in self.params.items():
+            if param.vary:
+                params[name] = param
 
         if len(params) > 0:
             fdict = {
@@ -743,8 +736,7 @@ class LeBail:
         simulated and experimental spectra
         """
         # ???: is this supposed to return something, or is it incomplete?
-        params = self.initialize_lmfit_parameters()
-        errvec = self.calcRwp(params)
+        errvec = self.calcRwp(self.params)
 
     def _update_shkl(self, params):
         """
@@ -1291,7 +1283,7 @@ class LeBail:
         self.wn = wn[8:]
 
         if param_info is not None:
-            if isinstance(param_info, Parameters):
+            if isinstance(param_info, lmfit.Parameters):
                 """
                 directly passing the parameter class
                 """
@@ -1299,7 +1291,7 @@ class LeBail:
                 params = param_info
 
             else:
-                params = Parameters()
+                params = lmfit.Parameters()
 
                 if isinstance(param_info, dict):
                     """
@@ -1309,8 +1301,8 @@ class LeBail:
                         params.add(
                             k,
                             value=float(v[0]),
-                            lb=float(v[1]),
-                            ub=float(v[2]),
+                            min=float(v[1]),
+                            max=float(v[2]),
                             vary=bool(v[3]),
                         )
 
@@ -2187,17 +2179,6 @@ class Rietveld:
 
         return errvec
 
-    def initialize_lmfit_parameters(self):
-
-        params = lmfit.Parameters()
-
-        for p in self.params:
-            par = self.params[p]
-            if par.vary:
-                params.add(p, value=par.value, min=par.lb, max=par.ub)
-
-        return params
-
     def update_parameters(self):
 
         for p in self.res.params:
@@ -2213,7 +2194,12 @@ class Rietveld:
                      variables that are allowed to be varied.
         """
 
-        params = self.initialize_lmfit_parameters()
+        # FIXME: why is this necessary? We get the wrong answer if we
+        # don't do this.
+        params = lmfit.Parameters()
+        for name, param in self.params.items():
+            if param.vary:
+                params[name] = param
 
         if len(params) > 0:
             fdict = {
@@ -2521,14 +2507,14 @@ class Rietveld:
         self.xn = xn[8:]
         self.wn = wn[8:]
         if param_info is not None:
-            if isinstance(param_info, Parameters):
+            if isinstance(param_info, lmfit.Parameters):
                 """
                 directly passing the parameter class
                 """
                 self._params = param_info
                 params = param_info
             else:
-                params = Parameters()
+                params = lmfit.Parameters()
 
                 if isinstance(param_info, dict):
                     """
@@ -2538,8 +2524,8 @@ class Rietveld:
                         params.add(
                             k,
                             value=float(v[0]),
-                            lb=float(v[1]),
-                            ub=float(v[2]),
+                            min=float(v[1]),
+                            max=float(v[2]),
                             vary=bool(v[3]),
                         )
 

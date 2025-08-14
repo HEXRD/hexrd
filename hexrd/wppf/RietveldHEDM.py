@@ -407,7 +407,7 @@ class RietveldHEDM:
 
         if(param_info is not None):
             pl = wppfsupport._generate_default_parameters_Rietveld(
-                self.phases, self.peakshape, ptype="lmfit")
+                self.phases, self.peakshape)
             self.rietveld_param_list = [p for p in pl]
             if(isinstance(param_info, Parameters_lmfit)):
                 """

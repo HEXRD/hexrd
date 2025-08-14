@@ -1,12 +1,12 @@
 import json
 from pathlib import Path
 
+import lmfit
 import numpy as np
 import pytest
 
 from hexrd.material import _angstroms, load_materials_hdf5, Material
 from hexrd.wppf import LeBail, Rietveld
-from hexrd.wppf.parameters import Parameter, Parameters
 
 
 @pytest.fixture
@@ -33,33 +33,47 @@ def ceo2_material(wppf_examples_path: Path) -> Material:
 
 
 @pytest.fixture
-def rietveld_params(wppf_examples_path: Path) -> dict[str, Parameter]:
+def rietveld_params(wppf_examples_path: Path) -> dict[str, lmfit.Parameter]:
     path = wppf_examples_path / 'rietveld_params.json'
     with open(path, 'r') as rf:
         params_json = json.load(rf)
 
-    params = Parameters()
+    params = lmfit.Parameters()
     for k, v in params_json.items():
-        params[k] = Parameter(**v)
+        # For backward compatibility
+        if 'lb' in v:
+            v['min'] = v.pop('lb')
+
+        if 'ub' in v:
+            v['max'] = v.pop('ub')
+
+        params[k] = lmfit.Parameter(**v)
 
     return params
 
 
 @pytest.fixture
-def lebail_params(wppf_examples_path: Path) -> dict[str, Parameter]:
+def lebail_params(wppf_examples_path: Path) -> dict[str, lmfit.Parameter]:
     path = wppf_examples_path / 'lebail_params.json'
     with open(path, 'r') as rf:
         params_json = json.load(rf)
 
-    params = Parameters()
+    params = lmfit.Parameters()
     for k, v in params_json.items():
-        params[k] = Parameter(**v)
+        # For backward compatibility
+        if 'lb' in v:
+            v['min'] = v.pop('lb')
+
+        if 'ub' in v:
+            v['max'] = v.pop('ub')
+
+        params[k] = lmfit.Parameter(**v)
 
     return params
 
 
-def _fix_all_params(parameters: Parameters):
-    for param in parameters.param_dict.values():
+def _fix_all_params(parameters: lmfit.Parameters):
+    for param in parameters.values():
         param.vary = False
 
 
