@@ -475,6 +475,7 @@ def _add_phase_fractions(mat, params):
      @details: ass phase fraction to params class
      given a list/dict/single instance of material class
     """
+    all_names = []
     if isinstance(mat, Phases_Rietveld):
         """
         phase file
@@ -486,6 +487,7 @@ def _add_phase_fractions(mat, params):
                 name=name, value=pf[ii],
                 min=0.0, max=1.0,
                 vary=False)
+            all_names.append(name)
     elif isinstance(mat, Material):
         """
         just an instance of Materials class
@@ -497,6 +499,7 @@ def _add_phase_fractions(mat, params):
             name=name, value=1.0,
             min=0.0, max=1.0,
             vary=False)
+        all_names.append(name)
     elif isinstance(mat, list):
         """
         a list of materials class
@@ -509,6 +512,7 @@ def _add_phase_fractions(mat, params):
                 name=name, value=pf[ii],
                 min=0.0, max=1.0,
                 vary=False)
+            all_names.append(name)
     elif isinstance(mat, dict):
         """
         dictionary of materials class
@@ -521,11 +525,22 @@ def _add_phase_fractions(mat, params):
                 name=name, value=pf[ii],
                 min=0.0, max=1.0,
                 vary=False)
+            all_names.append(name)
     else:
         msg = (f"_generate_default_parameters: "
                f"incorrect argument. only list, dict or "
                f"Material is accpeted.")
         raise ValueError(msg)
+
+    if all_names:
+        fixed_name = all_names[-1]
+        if len(all_names) == 1:
+            expr = '1'
+        else:
+            others = ' - '.join(all_names[:-1])
+            expr = f'1 - {others}'
+
+        params[fixed_name].expr = expr
 
 def _add_extinction_parameters(mat, params):
     return params

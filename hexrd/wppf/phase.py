@@ -562,16 +562,7 @@ class Phases_LeBail:
             raise ValueError('input not a material class')
 
     def __iter__(self):
-        self.n = 0
-        return self
-
-    def __next__(self):
-        if(self.n < len(self.phase_dict.keys())):
-            res = list(self.phase_dict.keys())[self.n]
-            self.n += 1
-            return res
-        else:
-            raise StopIteration
+        return iter(self.phase_dict)
 
     def __len__(self):
         return len(self.phase_dict)
@@ -1486,16 +1477,7 @@ class Phases_Rietveld:
         # raise ValueError('input not a material class')
 
     def __iter__(self):
-        self.n = 0
-        return self
-
-    def __next__(self):
-        if(self.n < len(self.phase_dict.keys())):
-            res = list(self.phase_dict.keys())[self.n]
-            self.n += 1
-            return res
-        else:
-            raise StopIteration
+        return iter(self.phase_dict)
 
     def __len__(self):
         return len(self.phase_dict)
