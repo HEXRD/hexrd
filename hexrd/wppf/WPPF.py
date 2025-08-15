@@ -33,7 +33,6 @@ from hexrd.wppf.peakfunctions import (
 )
 from hexrd.wppf import wppfsupport
 from hexrd.wppf.spectrum import Spectrum
-from hexrd.wppf.parameters import Parameters
 from hexrd.wppf.phase import (
     Phases_LeBail,
     Phases_Rietveld,
@@ -104,6 +103,7 @@ class LeBail:
         intensity_init=None,
         peakshape="pvfcj",
         amorphous_model=None,
+        reset_background_params=True,
     ):
 
         self.peakshape = peakshape
@@ -133,6 +133,12 @@ class LeBail:
         self.niter = 0
         self.Rwplist = np.empty([0])
         self.gofFlist = np.empty([0])
+
+        if reset_background_params:
+            # Reset background parameters to their initial values
+            self.reset_background_params()
+        else:
+            self._update_bkg(self.params)
 
     def __str__(self):
         resstr = "<LeBail Fit class>\nParameters of \
@@ -654,16 +660,16 @@ class LeBail:
 
         return errvec
 
-    def initialize_lmfit_parameters(self):
+    def reset_background_params(self):
+        # Reset background parameters to their initial values
+        if "chebyshev" not in self.bkgmethod:
+            return
 
-        params = lmfit.Parameters()
-
-        for p in self.params:
-            par = self.params[p]
-            if par.vary:
-                params.add(p, value=par.value, min=par.lb, max=par.ub)
-
-        return params
+        params = self.params
+        for i in range(len(self.bkg_coef)):
+            name = f'bkg_{i}'
+            if name in params:
+                params[name].value = self.bkg_coef[i]
 
     def update_parameters(self):
 
@@ -704,10 +710,7 @@ class LeBail:
         >> @DETAILS: this routine performs the least squares refinement for all
                      variables which are allowed to be varied.
         """
-
-        params = self.initialize_lmfit_parameters()
-
-        if len(params) > 0:
+        if self.num_vary > 0:
             fdict = {
                 "ftol": 1e-6,
                 "xtol": 1e-6,
@@ -717,7 +720,7 @@ class LeBail:
                 "method": "trf",
                 "jac": "2-point",
             }
-            fitter = lmfit.Minimizer(self.calcRwp, params)
+            fitter = lmfit.Minimizer(self.calcRwp, self.params)
 
             res = fitter.least_squares(**fdict)
             return res
@@ -743,8 +746,7 @@ class LeBail:
         simulated and experimental spectra
         """
         # ???: is this supposed to return something, or is it incomplete?
-        params = self.initialize_lmfit_parameters()
-        errvec = self.calcRwp(params)
+        errvec = self.calcRwp(self.params)
 
     def _update_shkl(self, params):
         """
@@ -1258,6 +1260,10 @@ class LeBail:
         return self._params
 
     @property
+    def num_vary(self) -> int:
+        return sum(x.vary for x in self.params.values())
+
+    @property
     def init_bkg(self):
         degree = self.bkgmethod["chebyshev"]
         x = np.empty([0, ])
@@ -1291,7 +1297,7 @@ class LeBail:
         self.wn = wn[8:]
 
         if param_info is not None:
-            if isinstance(param_info, Parameters):
+            if isinstance(param_info, lmfit.Parameters):
                 """
                 directly passing the parameter class
                 """
@@ -1299,7 +1305,7 @@ class LeBail:
                 params = param_info
 
             else:
-                params = Parameters()
+                params = lmfit.Parameters()
 
                 if isinstance(param_info, dict):
                     """
@@ -1309,8 +1315,8 @@ class LeBail:
                         params.add(
                             k,
                             value=float(v[0]),
-                            lb=float(v[1]),
-                            ub=float(v[2]),
+                            min=float(v[1]),
+                            max=float(v[2]),
                             vary=bool(v[3]),
                         )
 
@@ -1792,6 +1798,7 @@ class Rietveld:
         particle_size=1.0,
         phi=0.0,
         amorphous_model=None,
+        reset_background_params=True,
     ):
 
         self.bkgmethod = bkgmethod
@@ -1822,6 +1829,12 @@ class Rietveld:
         self.niter = 0
         self.Rwplist = np.empty([0])
         self.gofFlist = np.empty([0])
+
+        if reset_background_params:
+            # Reset background parameters to their initial values
+            self.reset_background_params()
+        else:
+            self._update_bkg(self.params)
 
     def __str__(self):
         resstr = "<Rietveld Fit class>\nParameters of \
@@ -2187,16 +2200,15 @@ class Rietveld:
 
         return errvec
 
-    def initialize_lmfit_parameters(self):
+    def reset_background_params(self):
+        if "chebyshev" not in self.bkgmethod:
+            return
 
-        params = lmfit.Parameters()
-
-        for p in self.params:
-            par = self.params[p]
-            if par.vary:
-                params.add(p, value=par.value, min=par.lb, max=par.ub)
-
-        return params
+        params = self.params
+        for i in range(len(self.bkg_coef)):
+            name = f'bkg_{i}'
+            if name in params:
+                params[name].value = self.bkg_coef[i]
 
     def update_parameters(self):
 
@@ -2212,10 +2224,7 @@ class Rietveld:
         >> @DETAILS: this routine performs the least squares refinement for all
                      variables that are allowed to be varied.
         """
-
-        params = self.initialize_lmfit_parameters()
-
-        if len(params) > 0:
+        if self.num_vary > 0:
             fdict = {
                 "ftol": 1e-6,
                 "xtol": 1e-6,
@@ -2226,7 +2235,7 @@ class Rietveld:
                 "jac": "2-point",
             }
 
-            fitter = lmfit.Minimizer(self.calcRwp, params)
+            fitter = lmfit.Minimizer(self.calcRwp, self.params)
 
             self.res = fitter.least_squares(**fdict)
 
@@ -2521,14 +2530,14 @@ class Rietveld:
         self.xn = xn[8:]
         self.wn = wn[8:]
         if param_info is not None:
-            if isinstance(param_info, Parameters):
+            if isinstance(param_info, lmfit.Parameters):
                 """
                 directly passing the parameter class
                 """
                 self._params = param_info
                 params = param_info
             else:
-                params = Parameters()
+                params = lmfit.Parameters()
 
                 if isinstance(param_info, dict):
                     """
@@ -2538,8 +2547,8 @@ class Rietveld:
                         params.add(
                             k,
                             value=float(v[0]),
-                            lb=float(v[1]),
-                            ub=float(v[2]),
+                            min=float(v[1]),
+                            max=float(v[2]),
                             vary=bool(v[3]),
                         )
 
@@ -2585,6 +2594,10 @@ class Rietveld:
             self._params = params
 
         self._set_params_vals_to_class(params, init=True, skip_phases=True)
+
+    @property
+    def num_vary(self) -> int:
+        return sum(x.vary for x in self.params.values())
 
     @property
     def spectrum_expt(self):

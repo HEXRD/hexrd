@@ -12,8 +12,6 @@ calc_Iobs_pvtch,\
 calc_Iobs_pvpink
 from hexrd.wppf.spectrum import Spectrum
 from hexrd.wppf import wppfsupport, LeBail
-from hexrd.wppf.parameters import Parameters
-from lmfit import Parameters as Parameters_lmfit
 from hexrd.wppf.phase import Phases_LeBail, Material_LeBail
 from hexrd.imageutil import snip1d, snip1d_quad
 from hexrd.material import Material
@@ -773,16 +771,16 @@ class LeBailCalibrator:
 
         if(param_info is not None):
             pl = wppfsupport._generate_default_parameters_LeBail(
-                self.phases, self.peakshape, ptype="lmfit")
+                self.phases, self.peakshape)
             self.lebail_param_list = [p for p in pl]
-            if(isinstance(param_info, Parameters_lmfit)):
+            if isinstance(param_info, lmfit.Parameters):
                 """
                 directly passing the parameter class
                 """
                 self._params = param_info
                 params = param_info
             else:
-                params = Parameters_lmfit()
+                params = lmfit.Parameters()
 
                 if(isinstance(param_info, dict)):
                     """
@@ -814,7 +812,7 @@ class LeBailCalibrator:
         else:
 
             params = wppfsupport._generate_default_parameters_LeBail(
-                self.phases, self.peakshape, ptype="lmfit")
+                self.phases, self.peakshape)
             self.lebail_param_list = [p for p in params]
             wppfsupport._add_detector_geometry(params, self.instrument)
             if "chebyshev" in self.bkgmethod.keys():
@@ -1157,7 +1155,7 @@ class LeBaillight:
         set the local value of the parameters to the
         global values from the calibrator class
         """
-        if isinstance(params, Parameters_lmfit):
+        if isinstance(params, lmfit.Parameters):
             if hasattr(self, '_params'):
                 for p in params:
                     if (p in self.lebail_param_list) or (self.name in p):
@@ -1170,7 +1168,7 @@ class LeBaillight:
                 xn, wn = roots_legendre(16)
                 self.xn = xn[8:]
                 self.wn = wn[8:]
-                self._params = Parameters_lmfit()
+                self._params = lmfit.Parameters()
                 for p in params:
                     if (p in self.lebail_param_list) or (self.name in p):
                         self._params.add(name=p,
