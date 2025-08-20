@@ -88,7 +88,10 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
             unwrap_h5_to_dict(file["metadata"], self._meta)
 
     def _load_cache_npz(self):
-        arrs = np.load(self._fname)
+        with np.load(self._fname) as arrs:
+            self._load_cache_npz_arrays(arrs)
+
+    def _load_cache_npz_arrays(self, arrs: np.lib.npyio.NpzFile):
         # HACK: while the loaded npz file has a getitem method
         # that mimicks a dict, it doesn't have a "pop" method.
         # must make an empty dict to pop after assignment of
@@ -266,19 +269,19 @@ def _load_framecache_npz(
 ) -> list[csr_array]:
 
     framelist = []
-    arrs = np.load(filepath)
-    for i in range(num_frames):
-        row = arrs[f"{i}_row"]
-        col = arrs[f"{i}_col"]
-        data = arrs[f"{i}_data"]
-        frame = csr_array((data, (row, col)),
-                           shape=shape,
-                           dtype=dtype)
+    with np.load(filepath) as arrs:
+        for i in range(num_frames):
+            row = arrs[f"{i}_row"]
+            col = arrs[f"{i}_col"]
+            data = arrs[f"{i}_data"]
+            frame = csr_array((data, (row, col)),
+                               shape=shape,
+                               dtype=dtype)
 
-        # Make the data unwriteable, so we can be sure it won't be modified
-        frame.data.flags.writeable = False
+            # Make the data unwriteable, so we can be sure it won't be modified
+            frame.data.flags.writeable = False
 
-        framelist.append(frame)
+            framelist.append(frame)
 
     return framelist
 
