@@ -234,7 +234,7 @@ class PolarView:
     #                         ####### METHODS #######
     # =========================================================================
     def warp_image(self, image_dict, pad_with_nans=False,
-                   do_interpolation=True):
+                   do_interpolation=True, apply_panel_buffer_to_image=True):
         """
         Performs the polar mapping of the input images.
 
@@ -270,6 +270,7 @@ class PolarView:
             mapping,
             pad_with_nans=pad_with_nans,
             do_interpolation=do_interpolation,
+            apply_panel_buffer_to_image=apply_panel_buffer_to_image,
         )
 
     def _generate_coordinate_mapping(self) -> dict[str, dict[str, np.ndarray]]:
@@ -325,25 +326,28 @@ class PolarView:
             image_dict: dict[str, np.ndarray],
             coordinate_map: dict[str, dict[str, np.ndarray]],
             pad_with_nans: bool = False,
-            do_interpolation=True) -> np.ma.MaskedArray:
-
+            do_interpolation=True,
+            apply_panel_buffer_to_image=True,
+    ) -> np.ma.MaskedArray:
         panel_buffer_fill_value = np.nan
         summed_img = None
         nan_mask = None
         for detector_id, panel in self.detectors.items():
-            # Make a copy since we may modify
-            img = image_dict[detector_id].copy()
+            img = image_dict[detector_id]
+            if apply_panel_buffer_to_image and panel.panel_buffer is not None:
+                # Before warping, mask out any pixels that are invalid,
+                # so that they won't affect the results.
+                if (np.issubdtype(type(panel_buffer_fill_value), np.floating) and
+                        not np.issubdtype(img.dtype, np.floating)):
+                    # Convert to float. This is especially important
+                    # for nan, since it is a float...
+                    img = img.astype(float)
+                else:
+                    # Make a copy to modify
+                    img = img.copy()
 
-            # Before warping, mask out any pixels that are invalid,
-            # so that they won't affect the results.
-            buffer = panel_buffer_as_2d_array(panel)
-            if (np.issubdtype(type(panel_buffer_fill_value), np.floating) and
-                    not np.issubdtype(img.dtype, np.floating)):
-                # Convert to float. This is especially important
-                # for nan, since it is a float...
-                img = img.astype(float)
-
-            img[~buffer] = panel_buffer_fill_value
+                buffer = panel_buffer_as_2d_array(panel)
+                img[~buffer] = panel_buffer_fill_value
 
             xypts = coordinate_map[detector_id]['xypts']
             on_panel = coordinate_map[detector_id]['on_panel']
