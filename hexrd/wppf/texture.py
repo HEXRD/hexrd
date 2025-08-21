@@ -977,14 +977,15 @@ class pole_figures:
         n = self.num_pfs
         nrows = int(n/3)+1
         if nrows == 1:
-            ncols = np.min(3, n)
+            ncols = np.min((3, n))
         else:
             ncols = 3
 
         self.fig, self.ax = plt.subplots(
             nrows=nrows, ncols=ncols,
             subplot_kw={'projection': 'polar'},
-            figsize=(10,4*nrows))
+            figsize=(12,4*nrows))
+        self.ax = np.atleast_2d(self.ax)
 
         [ax.set_axis_off() for ax in self.ax.flatten()]
         [ax.set_yticklabels([]) for ax in self.ax.flatten()]
