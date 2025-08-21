@@ -1,24 +1,12 @@
 import copy
-
-import importlib.resources
-
 from warnings import warn
-
 # 3rd party imports
 import h5py
-
 from lmfit import Parameters, Minimizer
-
 import numpy as np
 from numpy.polynomial.polynomial import Polynomial
-
-from scipy.spatial import Delaunay
-
-# HEXRD imports
-import hexrd.resources
-# FIXME: unused imports @saransh13?
-# from hexrd.transforms.xfcapi import angles_to_gvec
-# from hexrd.wppf import phase
+from scipy.special import sph_harm_y
+from matplotlib import pyplot as plt
 
 """
 ===============================================================================
@@ -968,6 +956,61 @@ class pole_figures:
             data = np.hstack((angs,intensities))
             np.savetxt(fname, data, delimiter="\t")
 
+    def stereographic_radius(self):
+        sr = {}
+        for h, angs in self.angs.items():
+            t = angs[:,0]
+            cth = np.cos(t)
+            sth = np.sin(t)
+            sr[h] = sth/(1 + cth)
+        return sr
+
+    def plot_pf(self,
+                filled=False,
+                grid=False,
+                cmap='jet',
+                colorbar=True,
+                colorbar_label='m.r.d.',
+                show=True):
+        '''first get the layout of the subplot
+        '''
+        n = self.num_pfs
+        nrows = int(n/3)+1
+        if nrows == 1:
+            ncols = np.min(3, n)
+        else:
+            ncols = 3
+
+        self.fig, self.ax = plt.subplots(
+            nrows=nrows, ncols=ncols,
+            subplot_kw={'projection': 'polar'},
+            figsize=(10,4*nrows))
+
+        [ax.set_axis_off() for ax in self.ax.flatten()]
+        [ax.set_yticklabels([]) for ax in self.ax.flatten()]
+        [ax.set_xticklabels([]) for ax in self.ax.flatten()]
+        [ax.grid(False) for ax in self.ax.flatten()]
+
+        for ii, h in enumerate(self.pfdata):
+            nr = int(ii/3)
+            nc = int(np.mod(ii, 3))
+            rho = self.angs[h][:,1]
+            r = self.stereo_radius[h]
+            I = self.intensities[h]
+            if filled:
+                pf = self.ax[nr][nc].tricontourf(rho, r, I, 
+                    levels=20, cmap=cmap)
+            else:
+                pf = self.ax[nr][nc].tricontour(rho, r, I, 
+                    levels=20, cmap=cmap)
+            self.ax[nr][nc].set_yticklabels([])
+            self.ax[nr][nc].grid(grid)
+            self.ax[nr][nc].set_title(f'({h})')
+            plt.colorbar(pf, label=colorbar_label)
+
+        if show:
+            self.fig.show()
+
     @property
     def num_pfs(self):
         """ number of pole figures (read only) """
@@ -997,7 +1040,8 @@ class pole_figures:
             self._gvecs[k] = v[:,0:3]
             self._pfdata[k] = v
             self._intensities[k] = v[:,3]
-            self._angs[k] = np.vstack((t,rho)).T
+            self._angs[k] = np.vstack((t, rho)).T
+            self._stereo_radius = self.stereographic_radius()
 
     @property
     def gvecs(self):
@@ -1010,6 +1054,11 @@ class pole_figures:
     @property
     def intensities(self):
         return self._intensities
+
+    @property
+    def stereo_radius(self):
+        return self._stereo_radius
+    
 
 class inverse_pole_figures:
     """
