@@ -314,9 +314,16 @@ class PolarView:
 
             _, on_panel = panel.clip_to_panel(xypts, buffer_edges=True)
 
+            xy_clip = xypts[on_panel]
+
+            bilinear_interp_dict = panel._generate_bilinear_interp_dict(
+                xy_clip,
+            )
+
             mapping[detector_id] = {
                 'xypts': xypts,
                 'on_panel': on_panel,
+                'bilinear_interp_dict': bilinear_interp_dict,
             }
 
         return mapping
@@ -351,16 +358,22 @@ class PolarView:
 
             xypts = coordinate_map[detector_id]['xypts']
             on_panel = coordinate_map[detector_id]['on_panel']
+            interp_dict = coordinate_map[detector_id]['bilinear_interp_dict']
 
             if do_interpolation:
                 this_img = panel.interpolate_bilinear(
-                    xypts, img,
+                    xypts,
+                    img,
                     pad_with_nans=pad_with_nans,
-                    on_panel=on_panel).reshape(self.shape)
+                    on_panel=on_panel,
+                    interp_dict=interp_dict,
+                ).reshape(self.shape)
             else:
                 this_img = panel.interpolate_nearest(
-                    xypts, img,
-                    pad_with_nans=pad_with_nans).reshape(self.shape)
+                    xypts,
+                    img,
+                    pad_with_nans=pad_with_nans,
+                ).reshape(self.shape)
 
             # It is faster to keep track of the global nans like this
             # rather than the previous way we were doing it...

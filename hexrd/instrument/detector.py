@@ -1111,9 +1111,15 @@ class Detector:
         int_xy[on_panel] = int_vals
         return int_xy
 
-    def interpolate_bilinear(self, xy, img, pad_with_nans=True,
-                             clip_to_panel=True,
-                             on_panel: Optional[np.ndarray] = None):
+    def interpolate_bilinear(
+        self,
+        xy,
+        img,
+        pad_with_nans=True,
+        clip_to_panel=True,
+        on_panel: Optional[np.ndarray] = None,
+        interp_dict: Optional[dict[str, np.ndarray]] = None,
+    ):
         """
         Interpolate an image array at the specified cartesian points.
 
@@ -1130,6 +1136,12 @@ class Detector:
         on_panel : np.ndarray, optional
             If you want to skip clip_to_panel() for performance reasons,
             just provide an array of which pixels are on the panel.
+        interp_dict: dict[str, np.ndarray], optional
+            A pre-computed dictionary of the interpolation multipliers.
+            For doing repeated computations using the same instrument,
+            it is advisable to generate one of these beforehand and
+            pass it to this function, for performance reasons.
+            If one is not provided, one will be computed automatically.
 
         Returns
         -------
@@ -1157,12 +1169,39 @@ class Detector:
         else:
             int_xy = np.zeros(len(xy))
 
-        if on_panel is None:
-            # clip away points too close to or off the edges of the detector
-            xy_clip, on_panel = self.clip_to_panel(xy, buffer_edges=True)
-        else:
-            xy_clip = xy[on_panel]
+        if not interp_dict:
+            if on_panel is None:
+                # clip away points too close to or off the detector edges
+                xy_clip, on_panel = self.clip_to_panel(xy, buffer_edges=True)
+            else:
+                xy_clip = xy[on_panel]
 
+            interp_dict = self._generate_bilinear_interp_dict(xy_clip)
+
+        i_floor_img = interp_dict['i_floor_img']
+        j_floor_img = interp_dict['j_floor_img']
+        i_ceil_img = interp_dict['i_ceil_img']
+        j_ceil_img = interp_dict['j_ceil_img']
+
+        int_xy[on_panel] = (
+            interp_dict['cc'] * img[i_floor_img, j_floor_img] +
+            interp_dict['fc'] * img[i_floor_img, j_ceil_img] +
+            interp_dict['cf'] * img[i_ceil_img, j_floor_img] +
+            interp_dict['ff'] * img[i_ceil_img, j_ceil_img]
+        )
+        return int_xy
+
+    def _generate_bilinear_interp_dict(
+        self,
+        xy_clip: np.ndarray,
+    ) -> dict[str, np.ndarray]:
+        """Compute bilinear interpolation multipliers and indices for the panel
+
+        If you are going to be using the same panel settings and performing
+        interpolation on multiple images, it is advised to run this beforehand
+        to precompute the interpolation parameters, so you can use them
+        repeatedly.
+        """
         # grab fractional pixel indices of clipped points
         ij_frac = self.cartToPixel(xy_clip)
 
@@ -1182,20 +1221,21 @@ class Detector:
         j_ceil = j_floor + 1
         j_ceil_img = _fix_indices(j_ceil, 0, self.cols - 1)
 
-        # first interpolate at top/bottom rows
-        row_floor_int = (j_ceil - ij_frac[:, 1]) * img[
-            i_floor_img, j_floor_img
-        ] + (ij_frac[:, 1] - j_floor) * img[i_floor_img, j_ceil_img]
-        row_ceil_int = (j_ceil - ij_frac[:, 1]) * img[
-            i_ceil_img, j_floor_img
-        ] + (ij_frac[:, 1] - j_floor) * img[i_ceil_img, j_ceil_img]
+        j_ceil_sub = j_ceil - ij_frac[:, 1]
+        j_floor_sub = ij_frac[:, 1] - j_floor
+        i_ceil_sub = i_ceil - ij_frac[:, 0]
+        i_floor_sub = ij_frac[:, 0] - i_floor
 
-        # next interpolate across cols
-        int_vals = (i_ceil - ij_frac[:, 0]) * row_floor_int + (
-            ij_frac[:, 0] - i_floor
-        ) * row_ceil_int
-        int_xy[on_panel] = int_vals
-        return int_xy
+        return {
+            'cc': j_ceil_sub * i_ceil_sub,
+            'fc': j_floor_sub * i_ceil_sub,
+            'cf': j_ceil_sub * i_floor_sub,
+            'ff': j_floor_sub * i_floor_sub,
+            'i_floor_img': i_floor_img,
+            'j_floor_img': j_floor_img,
+            'i_ceil_img': i_ceil_img,
+            'j_ceil_img': j_ceil_img,
+        }
 
     def make_powder_rings(
         self,
