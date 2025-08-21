@@ -328,7 +328,7 @@ class PolarView:
             do_interpolation=True) -> np.ma.MaskedArray:
 
         panel_buffer_fill_value = np.nan
-        img_dict = dict.fromkeys(self.detectors)
+        summed_img = None
         nan_mask = None
         for detector_id, panel in self.detectors.items():
             # Make a copy since we may modify
@@ -367,9 +367,12 @@ class PolarView:
                 nan_mask = np.logical_and(img_nans, nan_mask)
 
             this_img[img_nans] = 0
-            img_dict[detector_id] = this_img
 
-        summed_img = np.sum(list(img_dict.values()), axis=0)
+            if summed_img is None:
+                summed_img = this_img
+            else:
+                summed_img += this_img
+
         return np.ma.masked_array(
             data=summed_img, mask=nan_mask, fill_value=0.
         )
