@@ -1165,25 +1165,22 @@ class Detector:
             self.cols,
         )
 
-        if output_buffer is not None:
-            # Use the provided output buffer
-            int_xy = output_buffer
-            # Ensure all are set to nan by default
-            int_xy[:] = np.nan
+        fill_value = np.nan if pad_with_nans else 0
+        if output_buffer is None:
+            int_xy = np.full(len(xy), fill_value)
         else:
-            # initialize output with nans
-            if pad_with_nans:
-                int_xy = np.nan * np.ones(len(xy))
-            else:
-                int_xy = np.zeros(len(xy))
+            int_xy = output_buffer
+            # Ensure all are set to the fill value by default
+            int_xy[:] = fill_value
+
+        xy_clip = None
+        if on_panel is None:
+            # clip away points too close to or off the detector edges
+            xy_clip, on_panel = self.clip_to_panel(xy, buffer_edges=True)
 
         if not interp_dict:
-            if on_panel is None:
-                # clip away points too close to or off the detector edges
-                xy_clip, on_panel = self.clip_to_panel(xy, buffer_edges=True)
-            else:
-                xy_clip = xy[on_panel]
-
+            # Need the clipped points
+            xy_clip = xy[on_panel] if xy_clip is None else xy_clip
             interp_dict = self._generate_bilinear_interp_dict(xy_clip)
 
         int_xy[on_panel] = _interpolate_bilinear(img, **interp_dict)

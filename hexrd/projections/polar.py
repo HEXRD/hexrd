@@ -77,6 +77,7 @@ class PolarView:
         self._instrument = instrument
 
         self._coordinate_mapping = None
+        self._nan_mask = None
         self._cache_coordinate_map = cache_coordinate_map
         if cache_coordinate_map:
             # It is important to generate the cached map now, rather than
@@ -84,6 +85,7 @@ class PolarView:
             # for parallelization, and it will be faster if the mapping
             # is already generated.
             self._coordinate_mapping = self._generate_coordinate_mapping()
+            self._nan_mask = self._generate_nan_mask(self._coordinate_mapping)
 
     @property
     def instrument(self):
@@ -234,7 +236,7 @@ class PolarView:
     #                         ####### METHODS #######
     # =========================================================================
     def warp_image(self, image_dict, pad_with_nans=False,
-                   do_interpolation=True, apply_panel_buffer_to_image=True):
+                   do_interpolation=True):
         """
         Performs the polar mapping of the input images.
 
@@ -261,16 +263,23 @@ class PolarView:
         if self.cache_coordinate_map:
             # The mapping should have already been generated.
             mapping = self._coordinate_mapping
+            nan_mask = self._nan_mask
         else:
             # Otherwise, we must generate it every time
             mapping = self._generate_coordinate_mapping()
+            # FIXME: this performs a bilinear interpolation
+            # each time. Maybe it doesn't matter that much
+            # since the interpolation is very fast now, but
+            # it'd be nice if we could figure out another
+            # way to do it.
+            nan_mask = self._generate_nan_mask(mapping)
 
         return self._warp_image_from_coordinate_map(
             image_dict,
             mapping,
+            nan_mask,
             pad_with_nans=pad_with_nans,
             do_interpolation=do_interpolation,
-            apply_panel_buffer_to_image=apply_panel_buffer_to_image,
         )
 
     def _generate_coordinate_mapping(self) -> dict[str, dict[str, np.ndarray]]:
@@ -328,35 +337,54 @@ class PolarView:
 
         return mapping
 
+    def _generate_nan_mask(
+        self,
+        coordinate_map: dict[str, dict[str, np.ndarray]],
+    ) -> np.ndarray:
+        """Generate the nan mask
+
+        This saves time during repeated calls to warp_image(),
+        since the nan mask should stay the same and not change.
+        """
+        mapping = coordinate_map
+        # Generate the nan mask that we will use
+        nan_mask = np.ones(self.shape, dtype=bool).flatten()
+        for detector_id, panel in self.detectors.items():
+            on_panel = mapping[detector_id]['on_panel']
+            xypts = mapping[detector_id]['xypts']
+            interp_dict = mapping[detector_id]['bilinear_interp_dict']
+
+            # To reproduce old behavior, perform a bilinear
+            # interpolation so that if any point has neighboring
+            # pixels that are nan, that point will also be excluded.
+            dummy_img = np.zeros(panel.shape)
+            buffer = panel_buffer_as_2d_array(panel)
+            dummy_img[~buffer] = np.nan
+
+            output = panel.interpolate_bilinear(
+                xypts,
+                dummy_img,
+                pad_with_nans=True,
+                on_panel=on_panel,
+                interp_dict=interp_dict,
+            )
+            nan_mask[~np.isnan(output)] = False
+
+        return nan_mask.reshape(self.shape)
+
     def _warp_image_from_coordinate_map(
-            self,
-            image_dict: dict[str, np.ndarray],
-            coordinate_map: dict[str, dict[str, np.ndarray]],
-            pad_with_nans: bool = False,
-            do_interpolation=True,
-            apply_panel_buffer_to_image=True,
+        self,
+        image_dict: dict[str, np.ndarray],
+        coordinate_map: dict[str, dict[str, np.ndarray]],
+        nan_mask: np.ndarray,
+        pad_with_nans: bool = False,
+        do_interpolation=True,
     ) -> np.ma.MaskedArray:
         panel_buffer_fill_value = np.nan
         summed_img = None
-        nan_mask = None
         output_buffer = None
         for detector_id, panel in self.detectors.items():
             img = image_dict[detector_id]
-            if apply_panel_buffer_to_image and panel.panel_buffer is not None:
-                # Before warping, mask out any pixels that are invalid,
-                # so that they won't affect the results.
-                if (np.issubdtype(type(panel_buffer_fill_value), np.floating) and
-                        not np.issubdtype(img.dtype, np.floating)):
-                    # Convert to float. This is especially important
-                    # for nan, since it is a float...
-                    img = img.astype(float)
-                else:
-                    # Make a copy to modify
-                    img = img.copy()
-
-                buffer = panel_buffer_as_2d_array(panel)
-                img[~buffer] = panel_buffer_fill_value
-
             xypts = coordinate_map[detector_id]['xypts']
             on_panel = coordinate_map[detector_id]['on_panel']
             interp_dict = coordinate_map[detector_id]['bilinear_interp_dict']
@@ -368,7 +396,9 @@ class PolarView:
                 this_img = panel.interpolate_bilinear(
                     xypts,
                     img,
-                    pad_with_nans=pad_with_nans,
+                    # DON'T pad with nans, so we can sum images together
+                    # correctly. We'll pad with nans later.
+                    pad_with_nans=False,
                     on_panel=on_panel,
                     interp_dict=interp_dict,
                     output_buffer=output_buffer,
@@ -377,24 +407,20 @@ class PolarView:
                 this_img = panel.interpolate_nearest(
                     xypts,
                     img,
-                    pad_with_nans=pad_with_nans,
+                    # DON'T pad with nans, so we can sum images together
+                    # correctly. We'll pad with nans later.
+                    pad_with_nans=False,
                 ).reshape(self.shape)
-
-            # It is faster to keep track of the global nans like this
-            # rather than the previous way we were doing it...
-            img_nans = np.isnan(this_img)
-            if nan_mask is None:
-                nan_mask = img_nans
-            else:
-                nan_mask = np.logical_and(img_nans, nan_mask)
-
-            this_img[img_nans] = 0
 
             if summed_img is None:
                 # We use an output buffer so ensure the image is copied
                 summed_img = this_img.copy()
             else:
                 summed_img += this_img
+
+        if pad_with_nans:
+            # We pad with nans manually here
+            summed_img[nan_mask] = np.nan
 
         return np.ma.masked_array(
             data=summed_img, mask=nan_mask, fill_value=0.
