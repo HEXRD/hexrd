@@ -7,6 +7,7 @@ from hexrd.instrument.constants import (
     COATING_DEFAULT, FILTER_DEFAULTS, PHOSPHOR_DEFAULT
 )
 from hexrd.instrument.physics_package import AbstractPhysicsPackage
+import numba
 import numpy as np
 
 from hexrd import constants as ct
@@ -1119,6 +1120,7 @@ class Detector:
         clip_to_panel=True,
         on_panel: Optional[np.ndarray] = None,
         interp_dict: Optional[dict[str, np.ndarray]] = None,
+        output_buffer: Optional[np.ndarray] = None,
     ):
         """
         Interpolate an image array at the specified cartesian points.
@@ -1163,11 +1165,17 @@ class Detector:
             self.cols,
         )
 
-        # initialize output with nans
-        if pad_with_nans:
-            int_xy = np.nan * np.ones(len(xy))
+        if output_buffer is not None:
+            # Use the provided output buffer
+            int_xy = output_buffer
+            # Ensure all are set to nan by default
+            int_xy[:] = np.nan
         else:
-            int_xy = np.zeros(len(xy))
+            # initialize output with nans
+            if pad_with_nans:
+                int_xy = np.nan * np.ones(len(xy))
+            else:
+                int_xy = np.zeros(len(xy))
 
         if not interp_dict:
             if on_panel is None:
@@ -1178,17 +1186,7 @@ class Detector:
 
             interp_dict = self._generate_bilinear_interp_dict(xy_clip)
 
-        i_floor_img = interp_dict['i_floor_img']
-        j_floor_img = interp_dict['j_floor_img']
-        i_ceil_img = interp_dict['i_ceil_img']
-        j_ceil_img = interp_dict['j_ceil_img']
-
-        int_xy[on_panel] = (
-            interp_dict['cc'] * img[i_floor_img, j_floor_img] +
-            interp_dict['fc'] * img[i_floor_img, j_ceil_img] +
-            interp_dict['cf'] * img[i_ceil_img, j_floor_img] +
-            interp_dict['ff'] * img[i_ceil_img, j_ceil_img]
-        )
+        int_xy[on_panel] = _interpolate_bilinear(img, **interp_dict)
         return int_xy
 
     def _generate_bilinear_interp_dict(
@@ -1221,16 +1219,19 @@ class Detector:
         j_ceil = j_floor + 1
         j_ceil_img = _fix_indices(j_ceil, 0, self.cols - 1)
 
+        # Compute differences between raw coordinates to use for interpolation
         j_ceil_sub = j_ceil - ij_frac[:, 1]
         j_floor_sub = ij_frac[:, 1] - j_floor
         i_ceil_sub = i_ceil - ij_frac[:, 0]
         i_floor_sub = ij_frac[:, 0] - i_floor
 
         return {
+            # Compute interpolation multipliers for every pixel
             'cc': j_ceil_sub * i_ceil_sub,
             'fc': j_floor_sub * i_ceil_sub,
             'cf': j_ceil_sub * i_floor_sub,
             'ff': j_floor_sub * i_floor_sub,
+            # Store needed pixel indices
             'i_floor_img': i_floor_img,
             'j_floor_img': j_floor_img,
             'i_ceil_img': i_ceil_img,
@@ -2140,3 +2141,38 @@ def _row_edge_vec(rows, pixel_size_row):
 
 def _col_edge_vec(cols, pixel_size_col):
     return pixel_size_col * (np.arange(cols + 1) - 0.5 * cols)
+
+
+@numba.njit(nogil=True, cache=True)
+def _fancy_index(
+    img: np.ndarray,
+    row_indices: np.ndarray,
+    col_indices: np.ndarray,
+) -> np.ndarray:
+    # Numba doesn't support fancy indexing, so we must do it manually
+    result = np.zeros(row_indices.shape, dtype=img.dtype)
+    for i in range(row_indices.shape[0]):
+        result[i] = img[row_indices[i], col_indices[i]]
+    return result
+
+
+@numba.njit(nogil=True, cache=True)
+def _interpolate_bilinear(
+    img: np.ndarray,
+    cc: np.ndarray,
+    fc: np.ndarray,
+    cf: np.ndarray,
+    ff: np.ndarray,
+    i_floor_img: np.ndarray,
+    j_floor_img: np.ndarray,
+    i_ceil_img: np.ndarray,
+    j_ceil_img: np.ndarray,
+) -> np.ndarray:
+    # The math is faster and uses the GIL less (which is more
+    # multi-threading friendly) when we run this code in numba.
+    return (
+        cc * _fancy_index(img, i_floor_img, j_floor_img) +
+        fc * _fancy_index(img, i_floor_img, j_ceil_img) +
+        cf * _fancy_index(img, i_ceil_img, j_floor_img) +
+        ff * _fancy_index(img, i_ceil_img, j_ceil_img)
+    )

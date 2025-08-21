@@ -339,6 +339,7 @@ class PolarView:
         panel_buffer_fill_value = np.nan
         summed_img = None
         nan_mask = None
+        output_buffer = None
         for detector_id, panel in self.detectors.items():
             img = image_dict[detector_id]
             if apply_panel_buffer_to_image and panel.panel_buffer is not None:
@@ -360,6 +361,9 @@ class PolarView:
             on_panel = coordinate_map[detector_id]['on_panel']
             interp_dict = coordinate_map[detector_id]['bilinear_interp_dict']
 
+            if output_buffer is None:
+                output_buffer = np.empty(len(xypts))
+
             if do_interpolation:
                 this_img = panel.interpolate_bilinear(
                     xypts,
@@ -367,6 +371,7 @@ class PolarView:
                     pad_with_nans=pad_with_nans,
                     on_panel=on_panel,
                     interp_dict=interp_dict,
+                    output_buffer=output_buffer,
                 ).reshape(self.shape)
             else:
                 this_img = panel.interpolate_nearest(
@@ -386,7 +391,8 @@ class PolarView:
             this_img[img_nans] = 0
 
             if summed_img is None:
-                summed_img = this_img
+                # We use an output buffer so ensure the image is copied
+                summed_img = this_img.copy()
             else:
                 summed_img += this_img
 
