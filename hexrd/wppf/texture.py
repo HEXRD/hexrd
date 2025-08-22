@@ -606,6 +606,7 @@ class pole_figures:
                  material,
                  hkls,
                  pfdata,
+                 ssym='axial',
                  bHat_l=bVec_ref,
                  eHat_l=eta_ref,
                  chi=0.):
@@ -631,6 +632,7 @@ class pole_figures:
         self.bHat_l = bHat_l
         self.eHat_l = eHat_l
         self.chi = chi
+        self.ssym = ssym
 
         if hkls.shape[0] != len(pfdata):
             msg = (f"pole figure initialization.\n"
@@ -680,7 +682,8 @@ class pole_figures:
                 cmap='jet',
                 colorbar=True,
                 colorbar_label='m.r.d.',
-                show=True):
+                show=True,
+                recalculated=False):
         '''first get the layout of the subplot
         '''
         n = self.num_pfs
@@ -704,15 +707,20 @@ class pole_figures:
         for ii, h in enumerate(self.pfdata):
             nr = int(ii/3)
             nc = int(np.mod(ii, 3))
-            rho = self.angs[h][:,1]
+            rho = self.angs[h][:,1]+np.pi
             r = self.stereo_radius[h]
             I = self.intensities[h]
+
+            # triangles = tri.Triangulation(
+            #         np.pi*np.cos(rho), r).get_masked_triangles()
+            if recalculated:
+                I = self.intensities_recalc[h]
             if filled:
-                pf = self.ax[nr][nc].tricontourf(rho, r, I, 
-                    levels=20, cmap=cmap)
+                pf = self.ax[nr][nc].tricontourf(rho, r, 
+                                    I, levels=20, cmap=cmap)
             else:
-                pf = self.ax[nr][nc].tricontour(rho, r, I, 
-                    levels=20, cmap=cmap)
+                pf = self.ax[nr][nc].tricontour(rho, r,
+                                    I, levels=20, cmap=cmap)
             self.ax[nr][nc].set_yticklabels([])
             self.ax[nr][nc].grid(grid)
             self.ax[nr][nc].set_title(f'({h})')
@@ -733,28 +741,49 @@ class pole_figures:
         calculated = np.empty(0)
         for h, v in self.intensities.items():
             term = np.zeros_like(v)
-            for ell in np.arange(0, self.ell_max, 2):
+
+            for ell in np.arange(0, self.ell_max+1, 2):
                 pre = 4*np.pi/(2*ell+1)
-                for 
+                cmat = self.get_c_matrix(params, ell)
+                sph_s_mat = self.get_sph_s_matrix(h, ell)
+                sph_c_mat = self.get_sph_c_matrix(h, ell)
+                t = pre*np.dot(sph_s_mat, np.dot(
+                                   cmat, sph_c_mat))
+                term += np.squeeze(t)
+
             calculated = np.concatenate((calculated, term))
 
+        return np.sqrt(self.weights*(measured - calculated)**2)
+
+    def recalculated_pf(self, params):
+        self.intensities_recalc = {}
+
+        for h, v in self.intensities.items():
+            term = np.zeros_like(v)
+
+            for ell in np.arange(0, self.ell_max+1, 2):
+                pre = 4*np.pi/(2*ell+1)
+                cmat = self.get_c_matrix(params, ell)
+                sph_s_mat = self.get_sph_s_matrix(h, ell)
+                sph_c_mat = self.get_sph_c_matrix(h, ell)
+                t = pre*np.dot(sph_s_mat, np.dot(
+                                   cmat, sph_c_mat))
+                term += np.squeeze(t)
+
+            self.intensities_recalc[h] = term
 
     def calculate_harmonic_coefficients(self,
                                         ell_max,
-                                        ssym='axial'):
+                                        ):
 
         self.ell_max = ell_max
-        csym = self.material.sg.laueGroup
         param = get_parameters(ell_max,
-                               csym=csym,
-                               ssym=ssym)
+                               csym=self.csym,
+                               ssym=self.ssym)
         '''precompute the spherical harmonics for
         the given hkls and sample directions
         '''
-        nc = get_total_sym_harm(ell_max,
-                                sym=csym)
-        ns = get_total_sym_harm(ell_max,
-                                sym=ssym)
+
         self.sph_c = {}
         self.sph_s = {}
 
@@ -767,7 +796,7 @@ class pole_figures:
                 Ylm = calc_sym_sph_harm(ell, 
                                         theta,
                                         phi,
-                                        sym=csym)
+                                        sym=self.csym)
                 for jj in np.arange(Ylm.shape[1]):
                     kname = f'c_{ell}{jj}'
                     self.sph_c[h][kname] = Ylm[:,jj]
@@ -778,10 +807,61 @@ class pole_figures:
                 Ylm = calc_sym_sph_harm(ell, 
                                         theta,
                                         phi,
-                                        sym=ssym)
+                                        sym=self.ssym)
                 for jj in np.arange(Ylm.shape[1]):
                     kname = f's_{ell}{jj}'
                     self.sph_s[h][kname] = Ylm[:,jj]
+
+        params = get_parameters(self.ell_max)
+        fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
+         'verbose': 2, 'max_nfev': 20000, 'method':'trf',
+         'jac':'3-point'}
+
+        fitter = Minimizer(self.calc_residual, params)
+
+        self.res = fitter.least_squares(**fdict)
+
+    def get_c_matrix(self, params, ell):
+        nc = get_num_sym_harm(ell, 
+                            sym=self.csym)
+        ns = get_num_sym_harm(ell,
+                            sym=self.ssym)
+
+        cmat = np.zeros([ns, nc])
+        for ii in np.arange(ns):
+            for jj in np.arange(nc):
+                pname = f'c_{ell}{ii}{jj}'
+                cmat[ii, jj] = params[pname].value
+        return cmat
+
+    def get_sph_s_matrix(self, h, ell):
+
+        ns = get_num_sym_harm(ell,
+                            sym=self.ssym)
+        ngrid = self.angs[h].shape[0]
+        smat = np.zeros((ngrid, ns))
+        Ylm = self.sph_s[h]
+
+        for ii in np.arange(ns):
+            yname = f's_{ell}{ii}'
+            smat[:,ii] = Ylm[yname]
+
+        return smat
+
+    def get_sph_c_matrix(self, h, ell):
+
+        nc = get_num_sym_harm(ell,
+                            sym=self.csym)
+        ngrid = 1
+        cmat = np.zeros((nc, ngrid))
+        Ylm = self.sph_c[h]
+
+        for ii in np.arange(nc):
+            yname = f'c_{ell}{ii}'
+
+            cmat[ii, :] = Ylm[yname]
+
+        return cmat
 
     @property
     def num_pfs(self):
@@ -801,6 +881,7 @@ class pole_figures:
     def pfdata(self, val):
         self._pfdata = {}
         self._intensities = {}
+        self._weights = np.empty(0)
         self._gvecs = {}
         self._angs = {}
         self._hkl_angles = {}
@@ -813,11 +894,14 @@ class pole_figures:
             self._gvecs[k] = v[:,0:3]
             self._pfdata[k] = v
             self._intensities[k] = v[:,3]
+            self._weights = np.concatenate((self._weights,v[:,3]))
             self._angs[k] = np.vstack((t, rho)).T
             self._stereo_radius = self.stereographic_radius()
             self._hkl_angles[k] = np.array([np.arccos(
                 self.hkls_c[ii, 2]),
                 np.arctan2(self.hkls_c[ii, 1], self.hkls_c[ii, 0])])
+        self._weights = 1/self._weights
+        self._weights = np.nan_to_num(self._weights)
 
     @property
     def gvecs(self):
@@ -832,13 +916,32 @@ class pole_figures:
         return self._intensities
 
     @property
+    def weights(self):
+        return self._weights
+
+    @property
     def stereo_radius(self):
         return self._stereo_radius
 
     @property
     def hkl_angles(self):
         return self._hkl_angles
-    
+
+    @property
+    def csym(self):
+        return self.material.sg.laueGroup
+
+    @property
+    def ssym(self):
+        return self._ssym
+
+    @ssym.setter
+    def ssym(self, v):
+        if isinstance(v, str):
+            self._ssym = v
+        else:
+            msg = f'unknown sample symmetry type'
+            raise ValueError(msg)
 
 class inverse_pole_figures:
     """
@@ -1207,24 +1310,17 @@ def get_parameters(ell_max,
         raise ValueError(msg)
 
     for ell in np.arange(0, ell_max+1, 2):
-        '''fill the crystal symmetry parameters
-        first
-        '''
-        norder = get_num_sym_harm(ell, csym)
-        for m in np.arange(norder):
-            pname = f'c_{ell}{m}'
-            params.add(name=pname, 
-                       value=0.,
-                       vary=True)
-        '''fill the sample symmetry parameters
-        next
-        '''
-        norder = get_num_sym_harm(ell, ssym)
-        for m in np.arange(norder):
-            pname = f's_{ell}{m}'
-            params.add(name=pname, 
-                       value=0.,
-                       vary=True)
+        nc = get_num_sym_harm(ell, sym=csym)
+        ns = get_num_sym_harm(ell, sym=ssym)
+        
+        for ii in np.arange(ns):
+            for jj in np.arange(nc):
+
+                pname = f'c_{ell}{ii}{jj}'
+                params.add(name=pname, 
+                           value=0.,
+                           vary=True)
+
     return params
 
 
