@@ -1131,7 +1131,7 @@ class Detector:
             Array of cartesian coordinates in the image plane at which
             to evaluate intensity.
         img : array_like
-            2-dimensional image array.
+            2-dimensional image array. The shape must match (rows, cols).
         pad_with_nans : bool, optional
             Toggle for assigning NaN to points that fall off the detector.
             The default is True.
@@ -1155,16 +1155,6 @@ class Detector:
         -----
         TODO: revisit normalization in here?
         """
-
-        is_2d = img.ndim == 2
-        right_shape = img.shape[0] == self.rows and img.shape[1] == self.cols
-        assert (
-            is_2d and right_shape
-        ), "input image must be 2-d with shape (%d, %d)" % (
-            self.rows,
-            self.cols,
-        )
-
         fill_value = np.nan if pad_with_nans else 0
         if output_buffer is None:
             int_xy = np.full(len(xy), fill_value)

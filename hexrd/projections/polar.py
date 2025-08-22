@@ -380,14 +380,15 @@ class PolarView:
         pad_with_nans: bool = False,
         do_interpolation=True,
     ) -> np.ma.MaskedArray:
-        panel_buffer_fill_value = np.nan
         summed_img = None
         output_buffer = None
         for detector_id, panel in self.detectors.items():
             img = image_dict[detector_id]
-            xypts = coordinate_map[detector_id]['xypts']
-            on_panel = coordinate_map[detector_id]['on_panel']
-            interp_dict = coordinate_map[detector_id]['bilinear_interp_dict']
+            panel_map = coordinate_map[detector_id]
+
+            xypts = panel_map['xypts']
+            on_panel = panel_map['on_panel']
+            interp_dict = panel_map['bilinear_interp_dict']
 
             if output_buffer is None:
                 output_buffer = np.empty(len(xypts))
