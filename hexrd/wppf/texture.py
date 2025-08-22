@@ -721,6 +721,68 @@ class pole_figures:
         if show:
             self.fig.show()
 
+    def calc_residual(self, params):
+        '''get the difference between the
+        input pole figures and the calculated
+        pole figures
+        '''
+        measured = np.empty(0)
+        for h, v in self.intensities.items():
+            measured = np.concatenate((measured, v))
+
+        calculated = np.empty(0)
+        for h, v in self.intensities.items():
+            term = np.zeros_like(v)
+            for ell in np.arange(0, self.ell_max, 2):
+                pre = 4*np.pi/(2*ell+1)
+                for 
+            calculated = np.concatenate((calculated, term))
+
+
+    def calculate_harmonic_coefficients(self,
+                                        ell_max,
+                                        ssym='axial'):
+
+        self.ell_max = ell_max
+        csym = self.material.sg.laueGroup
+        param = get_parameters(ell_max,
+                               csym=csym,
+                               ssym=ssym)
+        '''precompute the spherical harmonics for
+        the given hkls and sample directions
+        '''
+        nc = get_total_sym_harm(ell_max,
+                                sym=csym)
+        ns = get_total_sym_harm(ell_max,
+                                sym=ssym)
+        self.sph_c = {}
+        self.sph_s = {}
+
+        for ii, (h, v) in enumerate(self.hkl_angles.items()):
+            theta = np.array([v[0]])
+            phi = np.array([v[1]])
+            self.sph_c[h] = {}
+            self.sph_s[h] = {}
+            for ell in np.arange(0, ell_max+1, 2):
+                Ylm = calc_sym_sph_harm(ell, 
+                                        theta,
+                                        phi,
+                                        sym=csym)
+                for jj in np.arange(Ylm.shape[1]):
+                    kname = f'c_{ell}{jj}'
+                    self.sph_c[h][kname] = Ylm[:,jj]
+
+            theta = self.angs[h][:,0]
+            phi   = self.angs[h][:,1]
+            for ell in np.arange(0, ell_max+1, 2):
+                Ylm = calc_sym_sph_harm(ell, 
+                                        theta,
+                                        phi,
+                                        sym=ssym)
+                for jj in np.arange(Ylm.shape[1]):
+                    kname = f's_{ell}{jj}'
+                    self.sph_s[h][kname] = Ylm[:,jj]
+
     @property
     def num_pfs(self):
         """ number of pole figures (read only) """
@@ -741,7 +803,8 @@ class pole_figures:
         self._intensities = {}
         self._gvecs = {}
         self._angs = {}
-        for k,v in val.items():
+        self._hkl_angles = {}
+        for ii, (k,v) in enumerate(val.items()):
             norm = np.linalg.norm(v[:,0:3],axis=1)
             v[:,0:3] = v[:,0:3]/np.tile(norm, [3,1]).T
             t = np.arccos(v[:,2])
@@ -752,6 +815,9 @@ class pole_figures:
             self._intensities[k] = v[:,3]
             self._angs[k] = np.vstack((t, rho)).T
             self._stereo_radius = self.stereographic_radius()
+            self._hkl_angles[k] = np.array([np.arccos(
+                self.hkls_c[ii, 2]),
+                np.arctan2(self.hkls_c[ii, 1], self.hkls_c[ii, 0])])
 
     @property
     def gvecs(self):
@@ -768,6 +834,10 @@ class pole_figures:
     @property
     def stereo_radius(self):
         return self._stereo_radius
+
+    @property
+    def hkl_angles(self):
+        return self._hkl_angles
     
 
 class inverse_pole_figures:
@@ -896,7 +966,8 @@ using the spherical python package. However, this will build an
 extra dependency, so not sure if we need that
 '''
 Blmn = {
-    'td':{
+    'th':{
+        0:np.array([[1.]]),
         2:np.array([[1.]]),
         4:np.array([[0.4564354645876384,0.0,
                      0.7637626158259735,0.0,
@@ -992,6 +1063,7 @@ Blmn = {
                     -0.0728366471909116,]]),
         },
     'oh': {
+        0:np.array([[1.]]),
         2:np.array([[1.]]),
         4:np.array([[0.4564354645876381,0.7637626158259734,
                      0.4564354645876386,],]),
@@ -1027,17 +1099,18 @@ Blmn = {
     }
 }
 
-def calcPoleFigure(ell, m, theta, phi):
-    # theta is azimuth (radians)
-    # phi is co-latitude (radians)
-    # m is order
-    # ell is degree
-    return sph_harm_y(ell, m, theta, phi)
+'''
+=================================================================
+=================================================================
+utility functions for texture computation
+=================================================================
+=================================================================
+'''
 
 def calc_sym_sph_harm(deg, 
                       theta,
                       phi,
-                      lauesym='oh'):
+                      sym='oh'):
     '''
     get symmetrized harmonics with given degree
     and set of coefficients
@@ -1062,39 +1135,64 @@ def calc_sym_sph_harm(deg,
     numpy.ndarray
         spherical harmonics
     '''
-    if lauesym == 'oh':
+    if sym == 'oh':
         nfold = 4
-    elif lauesym == 'td':
+    elif sym == 'th':
         nfold = 2
 
-    coeff = Blmn[lauesym][deg]
+    if sym in ['th', 'oh']:
+        coeff = Blmn[sym][deg]
 
-    num_sym = coeff.shape[0]
-    n = int(deg/nfold)
+        num_sym = coeff.shape[0]
+        n = int(deg/nfold)
 
-    Intensity = np.zeros((theta.shape[0], num_sym)).astype(complex)
+        Intensity = np.zeros((theta.shape[0], num_sym)).astype(complex)
 
-    for ii in np.arange(num_sym):
-        for jj in np.arange(-n, n+1):
-            Intensity[:,ii] += (coeff[ii, jj+n]*
-                calcPoleFigure(deg, nfold*jj, theta, phi))
+        for ii in np.arange(num_sym):
+            for jj in np.arange(-n, n+1):
+                Intensity[:,ii] += (coeff[ii, jj+n]*
+                    sph_harm_y(deg, nfold*jj, theta, phi))
+
+    elif sym == 'axial':
+        Intensity = np.zeros((theta.shape[0], 1)).astype(complex)
+        Intensity[:,0] = sph_harm_y(deg, 0, theta, phi)
 
     return np.real(Intensity)
 
 def get_num_sym_harm(ell,
-                     lauesym='oh'):
+                     sym='oh'):
     if ell < 0:
         msg = f'the degree is negative'
         raise ValueError(msg)
     if ell > 16:
         msg = f'maximum degree available is 16'
         raise ValueError(msg)
-    elif lauesym in ['td', 'oh']:
-        return Blmn[lauesym][ell].shape[0]
+    elif sym in ['th', 'oh']:
+        return Blmn[sym][ell].shape[0]
+    elif sym == 'axial':
+        return 1
 
+def get_total_sym_harm(ell_max,
+                       sym='oh'):
+    if ell_max < 0:
+        msg = f'the degree is negative'
+        raise ValueError(msg)
+    if ell_max > 16:
+        msg = f'maximum degree available is 16'
+        raise ValueError(msg)
+    elif sym in ['th', 'oh']:
+        num = 0
+        for ell in np.arange(2, ell_max+1, 2):
+            num += Blmn[sym][ell].shape[0]
+    elif sym == 'axial':
+        num = int(ell_max/2)
+
+    return num
 
 def get_parameters(ell_max,
-                   lauesym='oh'):
+                   csym='oh',
+                   ssym='axial'
+                   ):
     '''
     make lmfit parameter class for a given
     symmetry and maximum degree
@@ -1108,10 +1206,22 @@ def get_parameters(ell_max,
         msg = f'maximum degree available is 16'
         raise ValueError(msg)
 
-    for ell in np.arange(2, ell_max+1, 2):
-        norder = get_num_sym_harm(ell, lauesym)
+    for ell in np.arange(0, ell_max+1, 2):
+        '''fill the crystal symmetry parameters
+        first
+        '''
+        norder = get_num_sym_harm(ell, csym)
         for m in np.arange(norder):
             pname = f'c_{ell}{m}'
+            params.add(name=pname, 
+                       value=0.,
+                       vary=True)
+        '''fill the sample symmetry parameters
+        next
+        '''
+        norder = get_num_sym_harm(ell, ssym)
+        for m in np.arange(norder):
+            pname = f's_{ell}{m}'
             params.add(name=pname, 
                        value=0.,
                        vary=True)
