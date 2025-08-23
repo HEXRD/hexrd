@@ -1114,13 +1114,9 @@ class Detector:
 
     def interpolate_bilinear(
         self,
-        xy,
-        img,
-        pad_with_nans=True,
-        clip_to_panel=True,
-        on_panel: Optional[np.ndarray] = None,
-        interp_dict: Optional[dict[str, np.ndarray]] = None,
-        output_buffer: Optional[np.ndarray] = None,
+        xy: np.ndarray,
+        img: np.ndarray,
+        pad_with_nans: bool = True,
     ):
         """
         Interpolate an image array at the specified cartesian points.
@@ -1135,15 +1131,6 @@ class Detector:
         pad_with_nans : bool, optional
             Toggle for assigning NaN to points that fall off the detector.
             The default is True.
-        on_panel : np.ndarray, optional
-            If you want to skip clip_to_panel() for performance reasons,
-            just provide an array of which pixels are on the panel.
-        interp_dict: dict[str, np.ndarray], optional
-            A pre-computed dictionary of the interpolation multipliers.
-            For doing repeated computations using the same instrument,
-            it is advisable to generate one of these beforehand and
-            pass it to this function, for performance reasons.
-            If one is not provided, one will be computed automatically.
 
         Returns
         -------
@@ -1156,23 +1143,15 @@ class Detector:
         TODO: revisit normalization in here?
         """
         fill_value = np.nan if pad_with_nans else 0
-        if output_buffer is None:
-            int_xy = np.full(len(xy), fill_value)
-        else:
-            int_xy = output_buffer
-            # Ensure all are set to the fill value by default
-            int_xy[:] = fill_value
+        int_xy = np.full(len(xy), fill_value)
 
-        xy_clip = None
-        if on_panel is None:
-            # clip away points too close to or off the detector edges
-            xy_clip, on_panel = self.clip_to_panel(xy, buffer_edges=True)
+        # clip away points too close to or off the detector edges
+        xy_clip, on_panel = self.clip_to_panel(xy, buffer_edges=True)
 
-        if not interp_dict:
-            # Need the clipped points
-            xy_clip = xy[on_panel] if xy_clip is None else xy_clip
-            interp_dict = self._generate_bilinear_interp_dict(xy_clip)
+        # Generate the interpolation dict
+        interp_dict = self._generate_bilinear_interp_dict(xy_clip)
 
+        # Set the output and return
         int_xy[on_panel] = _interpolate_bilinear(img, **interp_dict)
         return int_xy
 

@@ -1,6 +1,7 @@
 import numpy as np
 
 from hexrd import constants
+from hexrd.instrument.detector import _interpolate_bilinear
 from hexrd.material.crystallography import PlaneData
 from hexrd.xrdutil.utils import (
     _project_on_detector_cylinder,
@@ -361,13 +362,10 @@ class PolarView:
             buffer = panel_buffer_as_2d_array(panel)
             dummy_img[~buffer] = np.nan
 
-            output = panel.interpolate_bilinear(
-                xypts,
-                dummy_img,
-                pad_with_nans=True,
-                on_panel=on_panel,
-                interp_dict=interp_dict,
-            )
+            output = np.full(len(xypts), np.nan)
+            valid = _interpolate_bilinear(dummy_img, **interp_dict)
+            output[on_panel] = valid
+
             nan_mask[~np.isnan(output)] = False
 
         return nan_mask.reshape(self.shape)
@@ -380,8 +378,9 @@ class PolarView:
         pad_with_nans: bool = False,
         do_interpolation=True,
     ) -> np.ma.MaskedArray:
-        summed_img = None
-        output_buffer = None
+        first_det = next(iter(self.detectors))
+        # This is a flat image. We'll reshape at the end.
+        summed_img = np.zeros(len(coordinate_map[first_det]['xypts']))
         for detector_id, panel in self.detectors.items():
             img = image_dict[detector_id]
             panel_map = coordinate_map[detector_id]
@@ -390,41 +389,29 @@ class PolarView:
             on_panel = panel_map['on_panel']
             interp_dict = panel_map['bilinear_interp_dict']
 
-            if output_buffer is None:
-                output_buffer = np.empty(len(xypts))
-
             if do_interpolation:
-                this_img = panel.interpolate_bilinear(
-                    xypts,
-                    img,
-                    # DON'T pad with nans, so we can sum images together
-                    # correctly. We'll pad with nans later.
-                    pad_with_nans=False,
-                    on_panel=on_panel,
-                    interp_dict=interp_dict,
-                    output_buffer=output_buffer,
-                ).reshape(self.shape)
+                # It's faster if we do _interpolate_bilinear ourselves,
+                # since we already have all appropriate options set up.
+                valid = _interpolate_bilinear(img, **interp_dict)
+                summed_img[on_panel] += valid
             else:
-                this_img = panel.interpolate_nearest(
+                summed_img += panel.interpolate_nearest(
                     xypts,
                     img,
                     # DON'T pad with nans, so we can sum images together
                     # correctly. We'll pad with nans later.
                     pad_with_nans=False,
-                ).reshape(self.shape)
+                )
 
-            if summed_img is None:
-                # We use an output buffer so ensure the image is copied
-                summed_img = this_img.copy()
-            else:
-                summed_img += this_img
+        # Now reshape the image to the appropriate shape
+        output_img = summed_img.reshape(self.shape)
 
         if pad_with_nans:
             # We pad with nans manually here
-            summed_img[nan_mask] = np.nan
+            output_img[nan_mask] = np.nan
 
         return np.ma.masked_array(
-            data=summed_img, mask=nan_mask, fill_value=0.
+            data=output_img, mask=nan_mask, fill_value=0.
         )
 
     def tth_to_pixel(self, tth):
