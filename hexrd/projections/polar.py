@@ -1,7 +1,7 @@
 import numpy as np
 
 from hexrd import constants
-from hexrd.instrument.detector import _interpolate_bilinear
+from hexrd.instrument.detector import _interpolate_bilinear_in_place
 from hexrd.material.crystallography import PlaneData
 from hexrd.xrdutil.utils import (
     _project_on_detector_cylinder,
@@ -323,8 +323,8 @@ class PolarView:
             xypts[on_plane, :] = valid_xys
 
             _, on_panel = panel.clip_to_panel(xypts, buffer_edges=True)
-
-            xy_clip = xypts[on_panel]
+            on_panel_idx = np.where(on_panel)[0]
+            xy_clip = xypts[on_panel_idx]
 
             bilinear_interp_dict = panel._generate_bilinear_interp_dict(
                 xy_clip,
@@ -332,7 +332,7 @@ class PolarView:
 
             mapping[detector_id] = {
                 'xypts': xypts,
-                'on_panel': on_panel,
+                'on_panel_idx': on_panel_idx,
                 'bilinear_interp_dict': bilinear_interp_dict,
             }
 
@@ -351,7 +351,7 @@ class PolarView:
         # Generate the nan mask that we will use
         nan_mask = np.ones(self.shape, dtype=bool).flatten()
         for detector_id, panel in self.detectors.items():
-            on_panel = mapping[detector_id]['on_panel']
+            on_panel_idx = mapping[detector_id]['on_panel_idx']
             xypts = mapping[detector_id]['xypts']
             interp_dict = mapping[detector_id]['bilinear_interp_dict']
 
@@ -363,8 +363,13 @@ class PolarView:
             dummy_img[~buffer] = np.nan
 
             output = np.full(len(xypts), np.nan)
-            valid = _interpolate_bilinear(dummy_img, **interp_dict)
-            output[on_panel] = valid
+            output[on_panel_idx] = 0
+            _interpolate_bilinear_in_place(
+                dummy_img,
+                **interp_dict,
+                on_panel_idx=on_panel_idx,
+                output_img=output,
+            )
 
             nan_mask[~np.isnan(output)] = False
 
@@ -386,14 +391,18 @@ class PolarView:
             panel_map = coordinate_map[detector_id]
 
             xypts = panel_map['xypts']
-            on_panel = panel_map['on_panel']
+            on_panel_idx = panel_map['on_panel_idx']
             interp_dict = panel_map['bilinear_interp_dict']
 
             if do_interpolation:
                 # It's faster if we do _interpolate_bilinear ourselves,
                 # since we already have all appropriate options set up.
-                valid = _interpolate_bilinear(img, **interp_dict)
-                summed_img[on_panel] += valid
+                _interpolate_bilinear_in_place(
+                    img,
+                    **interp_dict,
+                    on_panel_idx=on_panel_idx,
+                    output_img=summed_img,
+                )
             else:
                 summed_img += panel.interpolate_nearest(
                     xypts,

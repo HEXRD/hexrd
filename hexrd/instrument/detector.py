@@ -2110,19 +2110,6 @@ def _col_edge_vec(cols, pixel_size_col):
 
 
 @numba.njit(nogil=True, cache=True)
-def _fancy_index(
-    img: np.ndarray,
-    row_indices: np.ndarray,
-    col_indices: np.ndarray,
-) -> np.ndarray:
-    # Numba doesn't support fancy indexing, so we must do it manually
-    result = np.zeros(row_indices.shape, dtype=img.dtype)
-    for i in range(row_indices.shape[0]):
-        result[i] = img[row_indices[i], col_indices[i]]
-    return result
-
-
-@numba.njit(nogil=True, cache=True)
 def _interpolate_bilinear(
     img: np.ndarray,
     cc: np.ndarray,
@@ -2136,9 +2123,46 @@ def _interpolate_bilinear(
 ) -> np.ndarray:
     # The math is faster and uses the GIL less (which is more
     # multi-threading friendly) when we run this code in numba.
-    return (
-        cc * _fancy_index(img, i_floor_img, j_floor_img) +
-        fc * _fancy_index(img, i_floor_img, j_ceil_img) +
-        cf * _fancy_index(img, i_ceil_img, j_floor_img) +
-        ff * _fancy_index(img, i_ceil_img, j_ceil_img)
+    result = np.zeros(i_floor_img.shape[0], dtype=img.dtype)
+    on_panel_idx = np.arange(i_floor_img.shape[0])
+    return _interpolate_bilinear_in_place(
+        img,
+        cc,
+        fc,
+        cf,
+        ff,
+        i_floor_img,
+        j_floor_img,
+        i_ceil_img,
+        j_ceil_img,
+        on_panel_idx,
+        result,
     )
+
+
+@numba.njit(nogil=True, cache=True)
+def _interpolate_bilinear_in_place(
+    img: np.ndarray,
+    cc: np.ndarray,
+    fc: np.ndarray,
+    cf: np.ndarray,
+    ff: np.ndarray,
+    i_floor_img: np.ndarray,
+    j_floor_img: np.ndarray,
+    i_ceil_img: np.ndarray,
+    j_ceil_img: np.ndarray,
+    on_panel_idx: np.ndarray,
+    output_img: np.ndarray,
+):
+    # The math is faster and uses the GIL less (which is more
+    # multi-threading friendly) when we run this code in numba.
+    # Running in-place eliminates some intermediary arrays for
+    # even faster performance.
+    for i in range(on_panel_idx.shape[0]):
+        idx = on_panel_idx[i]
+        output_img[idx] += (
+            cc[i] * img[i_floor_img[i], j_floor_img[i]] +
+            fc[i] * img[i_floor_img[i], j_ceil_img[i]] +
+            cf[i] * img[i_ceil_img[i], j_floor_img[i]] +
+            ff[i] * img[i_ceil_img[i], j_ceil_img[i]]
+        )
