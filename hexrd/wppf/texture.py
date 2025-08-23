@@ -7,7 +7,7 @@ import numpy as np
 from hexrd import constants
 from scipy.special import sph_harm_y
 from matplotlib import pyplot as plt
-
+from hexrd.rotations import rotMatOfExpMap
 """
 ===============================================================================
 
@@ -34,536 +34,8 @@ class harmonic_model:
     this class brings all the elements together to compute the
     texture model given the sample and crystal symmetry.
     """
-    def __init__(self,
-                pole_figures,
-                sample_symmetry,
-                max_degree):
-
-        self.pole_figures = pole_figures
-        self.crystal_symmetry = pole_figures.material.sg.laueGroup_international
-        self.sample_symmetry = sample_symmetry
-        self.max_degree = max_degree
-        self.mesh_crystal = mesh_s2(self.crystal_symmetry)
-        self.mesh_sample = mesh_s2(self.sample_symmetry)
-
-        self.init_harmonic_values()
-        self.itercounter = 0
-
-        ncoeff = self._num_coefficients()
-        self.coeff = np.zeros([ncoeff,])
-
-    def init_harmonic_values(self):
-        """
-        once the harmonic model is initialized, initialize
-        the values of the harmonic functions for different
-        values of hkl and sample directions. the hkl are the
-        keys and the sample_dir are the values of the sample_dir
-        dictionary.
-        """
-        self.V_c_allowed = {}
-        self.V_s_allowed = {}
-        self.allowed_degrees = {}
-
-        pole_figures = self.pole_figures
-        for ii in np.arange(pole_figures.num_pfs):
-            key = str(pole_figures.hkls[ii,:])[1:-1].replace(" ", "")
-            hkl = np.atleast_2d(pole_figures.hkls_c[ii,:])
-            sample_dir = pole_figures.gvecs[key]
-
-            self.V_c_allowed[key], self.V_s_allowed[key] = \
-            self._compute_harmonic_values_grid(hkl,
-                                               sample_dir)
-        self.allowed_degrees = self._allowed_degrees()
-
-    def init_equiangular_grid(self):
-        """
-        this function initializes sample directions
-        for an 5x5 equiangular grid of points. the harmonic
-        functions will be calculated using the
-        calc_pole_figures function instead of here.
-        """
-        angs = []
-        for tth in np.arange(0,91,5):
-            for eta in np.arange(0, 360, 5):
-                angs.append([np.radians(tth), np.radians(eta), 0.])
-                if tth == 0:
-                    break
-        angs = np.array(angs)
-
-        return angs
-
-    def init_coeff_params(self):
-        """
-        this function initializes a lmfit
-        parameter class with all the coefficients.
-        this will be passed to the minimize
-        routine
-        """
-        params = Parameters()
-        self.coeff_loc = {}
-        self.coeff_loc_inv = {}
-        ctr = 0
-        for ii,(k,v) in enumerate(self.allowed_degrees.items()):
-            if k > 0:
-                for icry in np.arange(v[0]):
-                    for isamp in np.arange(v[1]):
-                        vname = f"c_{k}_{icry}_{isamp}"
-                        self.coeff_loc[vname] = ctr
-                        self.coeff_loc_inv[ctr] = vname
-                        idx = self.coeff_loc[vname]
-                        ctr += 1
-                        params.add(vname,value=self.coeff[idx],
-                        vary=True,min=-np.inf,max=np.inf)
-
-        if hasattr(self, 'phon'):
-            val = self.phon
-        else:
-            val = 0.0
-
-        params.add("phon",value=val,vary=True,min=0.0)
-
-        return params
-
-    def set_coeff_from_param(self, params):
-        """
-        this function takes the the values in the
-        parameters and sets the values of the coefficients
-        """
-        self.coeff = np.zeros([len(self.coeff_loc),])
-        for ii,k in enumerate(params):
-            if k.lower() != "phon":
-                loc = self.coeff_loc[k]
-                self.coeff[loc] = params[k].value
-
-        self.phon = params["phon"].value
-
-    def residual_function(self, params):
-        """
-        calculate the residual between input pole figure
-        data and generalized axis distribution function
-        """
-        self.set_coeff_from_param(params)
-        pf_recalc = self.recalculate_pole_figures()
-
-        for ii,(k,v) in enumerate(self.pole_figures.pfdata.items()):
-            inp_intensity = np.squeeze(v[:,3])
-            calc_intensity = np.squeeze(pf_recalc[k])
-            diff = (inp_intensity-calc_intensity)
-            if ii == 0:
-                residual = diff
-                vals = inp_intensity
-                weights = 1./np.sqrt(inp_intensity)
-                weights[np.isnan(weights)] = 0.0
-            else:
-                residual = np.hstack((residual,diff))
-                vals = np.hstack((vals,inp_intensity))
-                ww = 1./np.sqrt(inp_intensity)
-                ww[np.isnan(ww)] = 0.0
-                weights = np.hstack((weights,ww))
-
-        err = (weights*residual)**2
-        wss = np.sum(err)
-        den = np.sum((weights*vals)**2)
-
-        Rwp = np.sqrt(wss/den)
-        if np.mod(self.itercounter,100) == 0:
-            msg = f"iteration# {self.itercounter}, Rwp error = {Rwp*100} %"
-            print(msg)
-        self.itercounter += 1
-        return err
-
-    def _compute_harmonic_values_grid(self,
-                                      hkl,
-                                      sample_dir):
-        """
-        compute the dictionary of invariant harmonic values for
-        a given set of sample directions and hkls
-        """
-        ninv_c = self.mesh_crystal.num_invariant_harmonic(
-        self.max_degree)
-
-        ninv_s = self.mesh_sample.num_invariant_harmonic(
-                 self.max_degree)
-
-        V_c = self.mesh_crystal._get_harmonic_values(hkl)
-        V_s = self.mesh_sample._get_harmonic_values(sample_dir)
-
-        """
-        some degrees for which the crystal symmetry has
-        fewer terms than sample symmetry or vice versa
-        needs to be weeded out
-        """
-        V_c_allowed = {}
-        V_s_allowed = {}
-        for i in np.arange(0,self.max_degree+1,2):
-            if i in ninv_c[:,0] and i in ninv_s[:,0]:
-
-                istc, ienc = self._index_of_harmonics(i, "crystal")
-                V_c_allowed[i] = V_c[:,istc:ienc]
-
-                ists, iens = self._index_of_harmonics(i, "sample")
-                V_s_allowed[i] = V_s[:,ists:iens]
-
-        return V_c_allowed, V_s_allowed
-
-    def compute_texture_factor(self,
-                               coeff):
-        """
-        first check if the size of the coef vector is
-        consistent with the max degree argumeents for
-        crystal and sample.
-        """
-        ncoeff = coeff.shape[0]+1
-
-        ncoeff_inv = self._num_coefficients()
-        if ncoeff < ncoeff_inv:
-            msg = (f"inconsistent number of entries in "
-                   f"coefficients based on the degree of "
-                   f"crystal and sample harmonic degrees. "
-                   f"needed {ncoeff_inv}, found {ncoeff}")
-            raise ValueError(msg)
-        elif ncoeff > ncoeff_inv:
-            msg = (f"more coefficients passed than required "
-                   f"based on the degree of crystal and "
-                   f"sample harmonic degrees. "
-                   f"needed {ncoeff_inv}, found {ncoeff}. "
-                   f"ignoring extra terms.")
-            warn(msg)
-            coeff = coeff[:ncoeff_inv]
-
-        tex_fact = {}
-        for g in self.pole_figures.hkls:
-            key = str(g)[1:-1].replace(" ","")
-            nsamp = self.pole_figures.gvecs[key].shape[0]
-            tex_fact[key] = np.zeros([nsamp,])
-
-            tex_fact[key] = self._compute_sum(nsamp,
-                                              coeff,
-                                              self.allowed_degrees,
-                                              self.V_c_allowed[key],
-                                              self.V_s_allowed[key])
-        return tex_fact
-
-    def _index_of_harmonics(self,
-                            deg,
-                            c_or_s):
-        """
-        calculate the start and end index of harmonics
-        of a given degree and crystal or sample symmetry
-        returns the start and end index
-        """
-        ninv_c = self.mesh_crystal.num_invariant_harmonic(
-                 self.max_degree)
-
-        ninv_s = self.mesh_sample.num_invariant_harmonic(
-                 self.max_degree)
-
-        ninv_c_csum = np.r_[0,np.cumsum(ninv_c[:,1])]
-        ninv_s_csum = np.r_[0,np.cumsum(ninv_s[:,1])]
-
-        if c_or_s.lower() == "crystal":
-            idx = np.where(ninv_c[:,0] == deg)[0]
-            return int(ninv_c_csum[idx]), int(ninv_c_csum[idx+1])
-        elif c_or_s.lower() == "sample":
-            idx = np.where(ninv_s[:,0] == deg)[0]
-            return int(ninv_s_csum[idx]), int(ninv_s_csum[idx+1])
-        else:
-            msg = f"unknown input to c_or_s"
-            raise ValueError(msg)
-
-    def _compute_sum(self,
-                    nsamp,
-                    coeff,
-                    allowed_degrees,
-                    V_c_allowed,
-                    V_s_allowed):
-        """
-        compute the degree by degree sum in the
-        generalized axis distribution function
-        """
-        tmp = copy.deepcopy(allowed_degrees)
-        del tmp[0]
-        nn = np.cumsum(np.array([tmp[k][0]*tmp[k][1]
-            for k in tmp]))
-        ncoeff_csum = np.r_[0,nn]
-
-        val = np.ones([nsamp,])+self.phon
-        for i,(k,v) in enumerate(tmp.items()):
-            deg = k
-            kc = V_c_allowed[deg]
-
-            ks = V_s_allowed[deg].T
-
-            mu = kc.shape[1]
-            nu = ks.shape[0]
-
-            ist = ncoeff_csum[i]
-            ien = ncoeff_csum[i+1]
-
-            C = np.reshape(coeff[ist:ien],[mu, nu])
-
-            val = val + np.squeeze(np.dot(kc,np.dot(C,ks))*4*np.pi/(2*k+1))
-
-        return val
-
-    def _num_coefficients(self):
-        """
-        utility function to compute the number of
-        independent coefficients required for the
-        given maximum degree of harmonics
-        """
-        ninv_c = self.mesh_crystal.num_invariant_harmonic(
-         self.max_degree)
-
-        ninv_s = self.mesh_sample.num_invariant_harmonic(
-                 self.max_degree)
-        ncoef_inv = 0
-
-        for i in np.arange(0,self.max_degree+1,2):
-            if i in ninv_c[:,0] and i in ninv_s[:,0]:
-                idc = int(np.where(ninv_c[:,0] == i)[0])
-                ids = int(np.where(ninv_s[:,0] == i)[0])
-
-                ncoef_inv += ninv_c[idc,1]*ninv_s[ids,1]
-        return ncoef_inv
-
-    def _allowed_degrees(self):
-        """
-        utility function to get the allowed degrees
-        and the corresponding number of harmonics for
-        crystal and sample symmetry
-        """
-        ninv_c = self.mesh_crystal.num_invariant_harmonic(
-         self.max_degree)
-
-        ninv_s = self.mesh_sample.num_invariant_harmonic(
-                 self.max_degree)
-
-        """
-        some degrees for which the crystal symmetry has
-        fewer terms than sample symmetry or vice versa
-        needs to be weeded out
-        """
-        allowed_degrees = {}
-
-        for i in np.arange(0,self.max_degree+1,2):
-            if i in ninv_c[:,0] and i in ninv_s[:,0]:
-                idc = int(np.where(ninv_c[:,0] == i)[0])
-                ids = int(np.where(ninv_s[:,0] == i)[0])
-
-                allowed_degrees[i] = [ninv_c[idc,1], ninv_s[ids,1]]
-
-        return allowed_degrees
-
-    def refine(self):
-
-        params = self.init_coeff_params()
-        fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
-         'verbose': 0, 'max_nfev': 20000, 'method':'trf',
-         'jac':'3-point'}
-
-        fitter = Minimizer(self.residual_function, params)
-
-        res = fitter.least_squares(**fdict)
-        params_res = res.params
-        self.set_coeff_from_param(params_res)
-
-    def recalculate_pole_figures(self):
-        """
-        this function calculates the pole figures for
-        the sample directions in the pole figure used
-        to initialize the model. this can be used to
-        test how well the harmonic model fit the data.
-        """
-        return self.compute_texture_factor(self.coeff)
-
-
-
-    def calc_pole_figures(self,
-                      hkls,
-                      grid="equiangular"):
-        """
-        given a set of hkl, coefficients and maximum degree of
-        harmonic function to use for both crystal and sample
-        symmetries, compute the pole figures for full coverage.
-        the default grid is the equiangular grid, but other
-        options include computing it on the s2 mesh or modified
-        lambert grid or custom (theta, phi) coordinates.
-
-        this uses the general axis distributiin function. other
-        formalisms such as direct pole figure inversion is also
-        possible using quadratic programming, but for that explicit
-        pole figure operators are needed. the axis distributuion
-        function is easy to integrate with the rietveld method.
-        """
-
-        """
-        first check if the dimensions of coef is consistent with
-        the maximum degrees of the harmonics
-        """
-
-        """
-        check if class already exists with the same
-        hkl values. if it does, then do nothing.
-        otherwise initialize a new instance
-        """
-        init = True
-        if hasattr(self, "pf_equiangular"):
-            if self.pf_equiangular.hkls.shape == hkls.shape:
-                if np.sum(np.abs(hkls - self.pf_equiangular.hkls)) < 1e-6:
-                    init = False
-
-        if init:
-
-            angs = self.init_equiangular_grid()
-            mat = self.pole_figures.material
-            bHat_l = self.pole_figures.bHat_l
-            eHat_l = self.pole_figures.eHat_l
-            chi = self.pole_figures.chi
-
-            t = angs[:,0]
-            r = angs[:,1]
-            st = np.sin(t)
-            ct = np.cos(t)
-            sr = np.sin(r)
-            cr = np.cos(r)
-            pfdata = {}
-            for g in hkls:
-                key = str(g)[1:-1].replace(" ","")
-                xyz = np.vstack((st*cr,st*sr,ct)).T
-                v = angs[:,2]
-                pfdata[key] = np.vstack((xyz.T,v)).T
-
-            args   = (mat, hkls, pfdata)
-            kwargs = {"bHat_l":bHat_l,
-                      "eHat_l":eHat_l,
-                      "chi":chi}
-            self.pf_equiangular = pole_figures(*args, **kwargs)
-
-        model = harmonic_model(self.pf_equiangular,
-                               self.sample_symmetry,
-                               self.max_degree)
-
-        model.coeff = self.coeff
-        model.phon = self.phon
-
-        pf = model.recalculate_pole_figures()
-        pfdata = {}
-        for k,v in self.pf_equiangular.pfdata.items():
-            pfdata[k] = np.hstack((
-                        np.degrees(model.pole_figures.angs[k]),
-                        np.atleast_2d(pf[k]).T ))
-
-        return pfdata
-
-    def calc_inverse_pole_figures(self,
-                                  sample_dir="ND",
-                                  grid="equiangular",
-                                  resolution = 5.0):
-        """
-        given a sample direction such as TD, RD and ND,
-        calculate the distribution of crystallographic
-        axes aligned with that direction. this is sometimes
-        more useful than the regular pole figures especially
-        for cylindrical sample symmetry where the PFs are
-        usually "Bulls Eye" type. this follows the same
-        flow as the pole figure calculation.
-        sample_dir can have "RD", "TD" and "ND" as string
-        arguments or can also have a nx3 array
-        grid can be "equiangular" or "FEM"
-        resolution in degrees. only used for equiangular grid
-
-        instead of sampling asymmetric unit of stereogram,
-        we will sample the entire northern hemisphere. the
-        resulting IPDF will have symmetry of crystal
-        """
-        ipf = inverse_pole_figures(sample_dir,
-                                   sampling=grid,
-                                   resolution=resolution)
-        vc, vs = self._compute_ipdf_mesh_vals(ipf)
-        ipdf = self._compute_ipdf(ipf,vc,vs)
-        angs = ipf.angs
-        return np.hstack((angs,np.atleast_2d(ipdf).T))
-
-    def _compute_ipdf_mesh_vals(self,
-                    ipf):
-        """
-        compute the inverse pole density function.
-        """
-        ninv_c = self.mesh_crystal.num_invariant_harmonic(
-        self.max_degree)
-
-        ninv_s = self.mesh_sample.num_invariant_harmonic(
-                 self.max_degree)
-
-        V_c = self.mesh_crystal._get_harmonic_values(ipf.crystal_dir)
-        V_s = self.mesh_sample._get_harmonic_values(ipf.sample_dir)
-
-        """
-        some degrees for which the crystal symmetry has
-        fewer terms than sample symmetry or vice versa
-        needs to be weeded out
-        """
-        V_c_allowed = {}
-        V_s_allowed = {}
-        for i in np.arange(0,self.max_degree+1,2):
-            if i in ninv_c[:,0] and i in ninv_s[:,0]:
-
-                istc, ienc = self._index_of_harmonics(i, "crystal")
-                V_c_allowed[i] = V_c[:,istc:ienc]
-
-                ists, iens = self._index_of_harmonics(i, "sample")
-                V_s_allowed[i] = V_s[:,ists:iens]
-
-        return V_c_allowed,V_s_allowed
-
-
-    def _compute_ipdf(self,
-                      ipf,
-                      vc,
-                      vs):
-        """
-        compute the generalized axis distribution
-        function sum for the coefficients
-        """
-        allowed_degrees = self.allowed_degrees
-        tmp = copy.deepcopy(allowed_degrees)
-        del tmp[0]
-        nn = np.cumsum(np.array([tmp[k][0]*tmp[k][1]
-            for k in tmp]))
-        ncoeff_csum = np.r_[0,nn]
-        nsamp = ipf.sample_dir.shape[0]
-        ncryst = ipf.crystal_dir.shape[0]
-        coeff = self.coeff
-
-        val = np.ones([ncryst,])+self.phon
-        for i,(k,v) in enumerate(tmp.items()):
-            deg = k
-            kc = vc[deg]
-
-            ks = vs[deg].T
-
-            mu = kc.shape[1]
-            nu = ks.shape[0]
-
-            ist = ncoeff_csum[i]
-            ien = ncoeff_csum[i+1]
-
-            C = np.reshape(coeff[ist:ien],[mu, nu])
-
-            val = val + np.squeeze(np.dot(kc,np.dot(C,ks))*4*np.pi/(2*k+1))
-
-        return val
-
-    def write_pole_figures(self, pfdata):
-        """
-        take output of the calc_pole_figures routine and write
-        it out as text files
-        """
-        for k,v in pfdata.items():
-            fname = f"pf_{k}.txt"
-            np.savetxt(fname, v, fmt="%10.4f", delimiter="\t")
-
+    def __init__(self):
+        pass
 
     @property
     def phon(self):
@@ -572,23 +44,6 @@ class harmonic_model:
     @phon.setter
     def phon(self, val):
         self._phon = val
-
-
-    @property
-    def J(self):
-        tmp = copy.deepcopy(self.allowed_degrees)
-        del tmp[0]
-        nn = np.cumsum(np.array([tmp[k][0]*tmp[k][1]
-            for k in tmp]))
-        ncoeff_csum = np.r_[0,nn]
-        J = 1.0
-        for ii,k in enumerate(tmp):
-            ist = ncoeff_csum[ii]
-            ien = ncoeff_csum[ii+1]
-            J += np.sum(self.coeff[ist:ien]**2)/(2*k+1)
-
-        return J
-
 
 class pole_figures:
     """
@@ -609,6 +64,7 @@ class pole_figures:
                  ssym='axial',
                  bHat_l=bVec_ref,
                  eHat_l=eta_ref,
+                 sample_normal=-constants.lab_z,
                  chi=0.):
         """
         material Either a Material object of Material_Rietveld object
@@ -629,8 +85,9 @@ class pole_figures:
         self.material = material
         self.convert_hkls_to_cartesian()
 
-        self.bHat_l = bHat_l
-        self.eHat_l = eHat_l
+        self.bvec = bHat_l
+        self.etavec = eHat_l
+        self.sample_normal = sample_normal
         self.chi = chi
         self.ssym = ssym
 
@@ -673,7 +130,7 @@ class pole_figures:
             t = angs[:,0]
             cth = np.cos(t)
             sth = np.sin(t)
-            sr[h] = sth/(1 + cth)
+            sr[h] = sth/(1 + np.abs(cth))
         return sr
 
     def plot_pf(self,
@@ -684,6 +141,11 @@ class pole_figures:
                 colorbar_label='m.r.d.',
                 show=True,
                 recalculated=False):
+        '''# FIXME: there is a bug during plots when the
+        0/2pi or -pi/pi points are not filled in for some
+        set of inputs. need to come up with a fix for this
+        '''
+
         '''first get the layout of the subplot
         '''
         n = self.num_pfs
@@ -740,9 +202,9 @@ class pole_figures:
 
         calculated = np.empty(0)
         for h, v in self.intensities.items():
-            term = np.zeros_like(v)
+            term = np.ones_like(v)
 
-            for ell in np.arange(0, self.ell_max+1, 2):
+            for ell in np.arange(2, self.ell_max+1, 2):
                 pre = 4*np.pi/(2*ell+1)
                 cmat = self.get_c_matrix(params, ell)
                 sph_s_mat = self.get_sph_s_matrix(h, ell)
@@ -759,9 +221,9 @@ class pole_figures:
         self.intensities_recalc = {}
 
         for h, v in self.intensities.items():
-            term = np.zeros_like(v)
+            term = np.ones_like(v)
 
-            for ell in np.arange(0, self.ell_max+1, 2):
+            for ell in np.arange(2, self.ell_max+1, 2):
                 pre = 4*np.pi/(2*ell+1)
                 cmat = self.get_c_matrix(params, ell)
                 sph_s_mat = self.get_sph_s_matrix(h, ell)
@@ -788,11 +250,14 @@ class pole_figures:
         self.sph_s = {}
 
         for ii, (h, v) in enumerate(self.hkl_angles.items()):
+            '''needs special attention for monoclininc case
+                since the 2-fold axis is aligned with b*
+            '''
             theta = np.array([v[0]])
             phi = np.array([v[1]])
             self.sph_c[h] = {}
             self.sph_s[h] = {}
-            for ell in np.arange(0, ell_max+1, 2):
+            for ell in np.arange(2, ell_max+1, 2):
                 Ylm = calc_sym_sph_harm(ell, 
                                         theta,
                                         phi,
@@ -801,9 +266,13 @@ class pole_figures:
                     kname = f'c_{ell}{jj}'
                     self.sph_c[h][kname] = Ylm[:,jj]
 
-            theta = self.angs[h][:,0]
-            phi   = self.angs[h][:,1]
-            for ell in np.arange(0, ell_max+1, 2):
+            '''use the rotated angles to account for the
+            misalignment between sample normal and beam
+            propagation vector
+            '''
+            theta = self.rotated_angs[h][:,0]
+            phi   = self.rotated_angs[h][:,1]
+            for ell in np.arange(2, ell_max+1, 2):
                 Ylm = calc_sym_sph_harm(ell, 
                                         theta,
                                         phi,
@@ -863,6 +332,21 @@ class pole_figures:
 
         return cmat
 
+    def calc_ref_frame(self):
+        an = np.arccos(np.dot(
+                self.bvec,
+                self.sample_normal))
+        ax = np.cross(self.bvec,
+                      self.sample_normal)
+        norm = np.linalg.norm(ax)
+        if norm == 0:
+            self._ref_frame_rmat = np.eye(3)
+        else:
+            ax = ax/norm
+            self._ref_frame_rmat = (
+                rotMatOfExpMap(an*ax)
+                )
+
     @property
     def num_pfs(self):
         """ number of pole figures (read only) """
@@ -884,18 +368,26 @@ class pole_figures:
         self._weights = np.empty(0)
         self._gvecs = {}
         self._angs = {}
+        self._rotated_angs = {}
         self._hkl_angles = {}
         for ii, (k,v) in enumerate(val.items()):
+
             norm = np.linalg.norm(v[:,0:3],axis=1)
             v[:,0:3] = v[:,0:3]/np.tile(norm, [3,1]).T
+
             t = np.arccos(v[:,2])
             rho = np.arctan2(v[:,1],v[:,0])
+
+            vr = np.dot(self.ref_frame_rmat, v[:,0:3].T).T
+            tr = np.arccos(vr[:,2])
+            rhor = np.arctan2(vr[:,1],vr[:,0])
 
             self._gvecs[k] = v[:,0:3]
             self._pfdata[k] = v
             self._intensities[k] = v[:,3]
             self._weights = np.concatenate((self._weights,v[:,3]))
             self._angs[k] = np.vstack((t, rho)).T
+            self._rotated_angs[k] = np.vstack((tr, rhor)).T
             self._stereo_radius = self.stereographic_radius()
             self._hkl_angles[k] = np.array([np.arccos(
                 self.hkls_c[ii, 2]),
@@ -910,6 +402,10 @@ class pole_figures:
     @property
     def angs(self):
         return self._angs
+
+    @property
+    def rotated_angs(self):
+        return self._rotated_angs
 
     @property
     def intensities(self):
@@ -942,6 +438,57 @@ class pole_figures:
         else:
             msg = f'unknown sample symmetry type'
             raise ValueError(msg)
+
+    @property
+    def J(self):
+        if hasattr(self, 'res'):
+            J = 1.
+            for ell in np.arange(2, self.ell_max+1, 2):
+                nc = get_num_sym_harm(ell, sym=self.csym)
+                ns = get_num_sym_harm(ell, sym=self.ssym)
+                for ii in np.arange(ns):
+                    for jj in np.arange(nc):
+                        pname = f'c_{ell}{ii}{jj}'
+                        pre = 1/(2*ell+1)
+                        J += pre*(
+                        self.res.params[pname].value**2)
+        else:
+            msg = f'coefficeints have not been computed yet'
+            warnings.warn(msg)
+        return J
+
+    @property
+    def bvec(self):
+        return self._bvec
+
+    @property
+    def etavec(self):
+        return self._etavec
+
+    @bvec.setter
+    def bvec(self, bHat_l):
+        self._bvec = bHat_l
+        if hasattr(self, '_sample_normal'):
+            self.calc_ref_frame()
+
+    @etavec.setter
+    def etavec(self, eHat_l):
+        self._etavec = eHat_l
+
+    @property
+    def sample_normal(self):
+        return self._sample_normal
+
+    @sample_normal.setter
+    def sample_normal(self, val):
+        self._sample_normal = val
+        if hasattr(self, '_bvec'):
+            self.calc_ref_frame()
+
+    @property
+    def ref_frame_rmat(self):
+        return self._ref_frame_rmat
+
 
 class inverse_pole_figures:
     """
@@ -1070,7 +617,6 @@ extra dependency, so not sure if we need that
 '''
 Blmn = {
     'th':{
-        0:np.array([[1.]]),
         2:np.array([[1.]]),
         4:np.array([[0.4564354645876384,0.0,
                      0.7637626158259735,0.0,
@@ -1166,7 +712,6 @@ Blmn = {
                     -0.0728366471909116,]]),
         },
     'oh': {
-        0:np.array([[1.]]),
         2:np.array([[1.]]),
         4:np.array([[0.4564354645876381,0.7637626158259734,
                      0.4564354645876386,],]),
@@ -1309,7 +854,7 @@ def get_parameters(ell_max,
         msg = f'maximum degree available is 16'
         raise ValueError(msg)
 
-    for ell in np.arange(0, ell_max+1, 2):
+    for ell in np.arange(2, ell_max+1, 2):
         nc = get_num_sym_harm(ell, sym=csym)
         ns = get_num_sym_harm(ell, sym=ssym)
         
