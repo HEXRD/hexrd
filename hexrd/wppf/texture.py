@@ -26,7 +26,7 @@ from hexrd.rotations import rotMatOfExpMap
 """
 
 
-bVec_ref = constants.beam_vec
+bvec_ref = constants.beam_vec
 eta_ref  = constants.lab_x
 
 class harmonic_model:
@@ -62,8 +62,8 @@ class pole_figures:
                  hkls,
                  pfdata,
                  ssym='axial',
-                 bHat_l=bVec_ref,
-                 eHat_l=eta_ref,
+                 bvec=bvec_ref,
+                 evec=eta_ref,
                  sample_normal=-constants.lab_z,
                  chi=0.):
         """
@@ -85,8 +85,8 @@ class pole_figures:
         self.material = material
         self.convert_hkls_to_cartesian()
 
-        self.bvec = bHat_l
-        self.etavec = eHat_l
+        self.bvec = bvec
+        self.etavec = evec
         self.sample_normal = sample_normal
         self.chi = chi
         self.ssym = ssym
@@ -141,7 +141,8 @@ class pole_figures:
                 colorbar_label='m.r.d.',
                 show=True,
                 recalculated=False):
-        '''# FIXME: there is a bug during plots when the
+        '''
+        # FIXME: there is a bug during plots when the
         0/2pi or -pi/pi points are not filled in for some
         set of inputs. need to come up with a fix for this
         '''
