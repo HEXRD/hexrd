@@ -1143,7 +1143,7 @@ class Detector:
         TODO: revisit normalization in here?
         """
         fill_value = np.nan if pad_with_nans else 0
-        int_xy = np.full(len(xy), fill_value)
+        int_xy = np.full(len(xy), fill_value, dtype=float)
 
         # clip away points too close to or off the detector edges
         xy_clip, on_panel = self.clip_to_panel(xy, buffer_edges=True)
@@ -2125,7 +2125,7 @@ def _interpolate_bilinear(
     # multi-threading friendly) when we run this code in numba.
     result = np.zeros(i_floor_img.shape[0], dtype=img.dtype)
     on_panel_idx = np.arange(i_floor_img.shape[0])
-    return _interpolate_bilinear_in_place(
+    _interpolate_bilinear_in_place(
         img,
         cc,
         fc,
@@ -2138,6 +2138,7 @@ def _interpolate_bilinear(
         on_panel_idx,
         result,
     )
+    return result
 
 
 @numba.njit(nogil=True, cache=True)
