@@ -7,6 +7,7 @@ from hexrd.instrument.constants import (
     COATING_DEFAULT, FILTER_DEFAULTS, PHOSPHOR_DEFAULT
 )
 from hexrd.instrument.physics_package import AbstractPhysicsPackage
+import numba
 import numpy as np
 
 from hexrd import constants as ct
@@ -1111,9 +1112,12 @@ class Detector:
         int_xy[on_panel] = int_vals
         return int_xy
 
-    def interpolate_bilinear(self, xy, img, pad_with_nans=True,
-                             clip_to_panel=True,
-                             on_panel: Optional[np.ndarray] = None):
+    def interpolate_bilinear(
+        self,
+        xy: np.ndarray,
+        img: np.ndarray,
+        pad_with_nans: bool = True,
+    ):
         """
         Interpolate an image array at the specified cartesian points.
 
@@ -1123,13 +1127,10 @@ class Detector:
             Array of cartesian coordinates in the image plane at which
             to evaluate intensity.
         img : array_like
-            2-dimensional image array.
+            2-dimensional image array. The shape must match (rows, cols).
         pad_with_nans : bool, optional
             Toggle for assigning NaN to points that fall off the detector.
             The default is True.
-        on_panel : np.ndarray, optional
-            If you want to skip clip_to_panel() for performance reasons,
-            just provide an array of which pixels are on the panel.
 
         Returns
         -------
@@ -1141,28 +1142,30 @@ class Detector:
         -----
         TODO: revisit normalization in here?
         """
+        fill_value = np.nan if pad_with_nans else 0
+        int_xy = np.full(len(xy), fill_value, dtype=float)
 
-        is_2d = img.ndim == 2
-        right_shape = img.shape[0] == self.rows and img.shape[1] == self.cols
-        assert (
-            is_2d and right_shape
-        ), "input image must be 2-d with shape (%d, %d)" % (
-            self.rows,
-            self.cols,
-        )
+        # clip away points too close to or off the detector edges
+        xy_clip, on_panel = self.clip_to_panel(xy, buffer_edges=True)
 
-        # initialize output with nans
-        if pad_with_nans:
-            int_xy = np.nan * np.ones(len(xy))
-        else:
-            int_xy = np.zeros(len(xy))
+        # Generate the interpolation dict
+        interp_dict = self._generate_bilinear_interp_dict(xy_clip)
 
-        if on_panel is None:
-            # clip away points too close to or off the edges of the detector
-            xy_clip, on_panel = self.clip_to_panel(xy, buffer_edges=True)
-        else:
-            xy_clip = xy[on_panel]
+        # Set the output and return
+        int_xy[on_panel] = _interpolate_bilinear(img, **interp_dict)
+        return int_xy
 
+    def _generate_bilinear_interp_dict(
+        self,
+        xy_clip: np.ndarray,
+    ) -> dict[str, np.ndarray]:
+        """Compute bilinear interpolation multipliers and indices for the panel
+
+        If you are going to be using the same panel settings and performing
+        interpolation on multiple images, it is advised to run this beforehand
+        to precompute the interpolation parameters, so you can use them
+        repeatedly.
+        """
         # grab fractional pixel indices of clipped points
         ij_frac = self.cartToPixel(xy_clip)
 
@@ -1182,20 +1185,24 @@ class Detector:
         j_ceil = j_floor + 1
         j_ceil_img = _fix_indices(j_ceil, 0, self.cols - 1)
 
-        # first interpolate at top/bottom rows
-        row_floor_int = (j_ceil - ij_frac[:, 1]) * img[
-            i_floor_img, j_floor_img
-        ] + (ij_frac[:, 1] - j_floor) * img[i_floor_img, j_ceil_img]
-        row_ceil_int = (j_ceil - ij_frac[:, 1]) * img[
-            i_ceil_img, j_floor_img
-        ] + (ij_frac[:, 1] - j_floor) * img[i_ceil_img, j_ceil_img]
+        # Compute differences between raw coordinates to use for interpolation
+        j_ceil_sub = j_ceil - ij_frac[:, 1]
+        j_floor_sub = ij_frac[:, 1] - j_floor
+        i_ceil_sub = i_ceil - ij_frac[:, 0]
+        i_floor_sub = ij_frac[:, 0] - i_floor
 
-        # next interpolate across cols
-        int_vals = (i_ceil - ij_frac[:, 0]) * row_floor_int + (
-            ij_frac[:, 0] - i_floor
-        ) * row_ceil_int
-        int_xy[on_panel] = int_vals
-        return int_xy
+        return {
+            # Compute interpolation multipliers for every pixel
+            'cc': j_ceil_sub * i_ceil_sub,
+            'fc': j_floor_sub * i_ceil_sub,
+            'cf': j_ceil_sub * i_floor_sub,
+            'ff': j_floor_sub * i_floor_sub,
+            # Store needed pixel indices
+            'i_floor_img': i_floor_img,
+            'j_floor_img': j_floor_img,
+            'i_ceil_img': i_ceil_img,
+            'j_ceil_img': j_ceil_img,
+        }
 
     def make_powder_rings(
         self,
@@ -2100,3 +2107,63 @@ def _row_edge_vec(rows, pixel_size_row):
 
 def _col_edge_vec(cols, pixel_size_col):
     return pixel_size_col * (np.arange(cols + 1) - 0.5 * cols)
+
+
+@numba.njit(nogil=True, cache=True)
+def _interpolate_bilinear(
+    img: np.ndarray,
+    cc: np.ndarray,
+    fc: np.ndarray,
+    cf: np.ndarray,
+    ff: np.ndarray,
+    i_floor_img: np.ndarray,
+    j_floor_img: np.ndarray,
+    i_ceil_img: np.ndarray,
+    j_ceil_img: np.ndarray,
+) -> np.ndarray:
+    # The math is faster and uses the GIL less (which is more
+    # multi-threading friendly) when we run this code in numba.
+    result = np.zeros(i_floor_img.shape[0], dtype=img.dtype)
+    on_panel_idx = np.arange(i_floor_img.shape[0])
+    _interpolate_bilinear_in_place(
+        img,
+        cc,
+        fc,
+        cf,
+        ff,
+        i_floor_img,
+        j_floor_img,
+        i_ceil_img,
+        j_ceil_img,
+        on_panel_idx,
+        result,
+    )
+    return result
+
+
+@numba.njit(nogil=True, cache=True)
+def _interpolate_bilinear_in_place(
+    img: np.ndarray,
+    cc: np.ndarray,
+    fc: np.ndarray,
+    cf: np.ndarray,
+    ff: np.ndarray,
+    i_floor_img: np.ndarray,
+    j_floor_img: np.ndarray,
+    i_ceil_img: np.ndarray,
+    j_ceil_img: np.ndarray,
+    on_panel_idx: np.ndarray,
+    output_img: np.ndarray,
+):
+    # The math is faster and uses the GIL less (which is more
+    # multi-threading friendly) when we run this code in numba.
+    # Running in-place eliminates some intermediary arrays for
+    # even faster performance.
+    for i in range(on_panel_idx.shape[0]):
+        idx = on_panel_idx[i]
+        output_img[idx] += (
+            cc[i] * img[i_floor_img[i], j_floor_img[i]] +
+            fc[i] * img[i_floor_img[i], j_ceil_img[i]] +
+            cf[i] * img[i_ceil_img[i], j_floor_img[i]] +
+            ff[i] * img[i_ceil_img[i], j_ceil_img[i]]
+        )
