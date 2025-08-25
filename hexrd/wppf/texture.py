@@ -83,7 +83,7 @@ class pole_figures:
         """
         self.hkls = hkls
         self.material = material
-        self.convert_hkls_to_cartesian()
+        self.hkls_c = self.convert_hkls_to_cartesian(self.hkls)
 
         self.bvec = bvec
         self.etavec = evec
@@ -99,17 +99,19 @@ class pole_figures:
 
         self.pfdata = pfdata
 
-    def convert_hkls_to_cartesian(self):
+    def convert_hkls_to_cartesian(self,
+                                  hkls):
         """
         this routine converts hkls in the crystallographic frame to
         the cartesian frame and normalizes them
         """
-        self.hkls_c = np.atleast_2d(np.zeros(self.hkls.shape))
+        hkls_c = np.atleast_2d(np.zeros(hkls.shape))
 
-        for ii, g in enumerate(self.hkls):
+        for ii, g in enumerate(hkls):
             v = self.material.TransSpace(g, "r", "c")
             v = v/np.linalg.norm(v)
-            self.hkls_c[ii,:] = v
+            hkls_c[ii,:] = v
+        return hkls_c
 
     def write_data(self, prefix):
         """
@@ -124,9 +126,13 @@ class pole_figures:
             data = np.hstack((angs,intensities))
             np.savetxt(fname, data, delimiter="\t")
 
-    def stereographic_radius(self):
+    def stereographic_radius(self,
+                             new=False):
         sr = {}
-        for h, angs in self.angs.items():
+        angs = self.angs
+        if new:
+            angs = self.angs_new
+        for h, angs in angs.items():
             t = angs[:,0]
             cth = np.cos(t)
             sth = np.sin(t)
@@ -206,6 +212,68 @@ class pole_figures:
         if show:
             self.fig.show()
 
+    def plot_new_pf(self,
+                filled=False,
+                grid=False,
+                cmap='jet',
+                colorbar=True,
+                colorbar_label='m.r.d.',
+                show=True):
+
+        '''first get the layout of the subplot
+        '''
+        n = self.num_pfs_new
+        nrows = int(n/3)+1
+        if nrows == 1:
+            ncols = np.min((3, n))
+        else:
+            ncols = 3
+
+        self.fig_new, self.ax_new = plt.subplots(
+            nrows=nrows, ncols=ncols,
+            subplot_kw={'projection': 'polar'},
+            figsize=(12,4*nrows))
+        self.ax_new = np.atleast_2d(self.ax_new)
+
+        [ax.set_axis_off() for ax in self.ax_new.flatten()]
+        [ax.set_yticklabels([]) for ax in self.ax_new.flatten()]
+        [ax.set_xticklabels([]) for ax in self.ax_new.flatten()]
+        [ax.grid(False) for ax in self.ax_new.flatten()]
+
+        for ii, h in enumerate(self.angs_new):
+            nr = int(ii/3)
+            nc = int(np.mod(ii, 3))
+            rho = self.angs_new[h][:,1]
+            r = self.stereo_radius_new[h]
+            I = self.intensities_new[h]
+
+            # since there is a discontinuity at +/- pi azimuth
+            # we will add some extra points there for the plots
+
+            # first get the points which have rho values of +/- pi
+            mask = np.isclose(np.abs(rho), np.pi)
+            if np.any(mask):
+                # add these same points at -/+ pi
+                rho = np.concatenate((rho, -rho[mask]))
+
+                # next add points at r and intensity
+                r = np.concatenate((r, r[mask]))
+                I = np.concatenate((I, I[mask]))
+
+            if filled:
+                pf = self.ax_new[nr][nc].tricontourf(rho, r, 
+                                    I, levels=20, cmap=cmap)
+            else:
+                pf = self.ax_new[nr][nc].tricontour(rho, r,
+                                    I, levels=20, cmap=cmap)
+            self.ax_new[nr][nc].set_yticklabels([])
+            self.ax_new[nr][nc].grid(grid)
+            self.ax_new[nr][nc].set_title(f'({h})')
+            plt.colorbar(pf, label=colorbar_label)
+
+        if show:
+            self.fig_new.show()
+
     def calc_residual(self, params):
         '''get the difference between the
         input pole figures and the calculated
@@ -232,32 +300,136 @@ class pole_figures:
 
         return np.sqrt(self.weights*(measured - calculated)**2)
 
-    def recalculated_pf(self, params):
-        self.intensities_recalc = {}
+    def recalculated_pf(self,
+                        params,
+                        new=False):
 
-        for h, v in self.intensities.items():
-            term = np.ones_like(v)
+        if not new:
+            self.intensities_recalc = {}
+
+            for h, v in self.intensities.items():
+                term = np.ones_like(v)
+
+                for ell in np.arange(2, self.ell_max+1, 2):
+                    pre = 4*np.pi/(2*ell+1)
+                    cmat = self.get_c_matrix(params, ell)
+                    sph_s_mat = self.get_sph_s_matrix(h, ell)
+                    sph_c_mat = self.get_sph_c_matrix(h, ell)
+                    t = pre*np.dot(sph_s_mat, np.dot(
+                                       cmat, sph_c_mat))
+                    term += np.squeeze(t)
+
+                self.intensities_recalc[h] = term
+        else:
+            self.intensities_new = {}
+
+            for h, v in self.angs_new.items():
+                term = np.ones_like(v[:,0])
+
+                for ell in np.arange(2, self.ell_max+1, 2):
+                    pre = 4*np.pi/(2*ell+1)
+                    cmat = self.get_c_matrix(params, ell)
+                    sph_s_mat = self.get_sph_s_matrix(h, ell, new=True)
+                    sph_c_mat = self.get_sph_c_matrix(h, ell, new=True)
+                    t = pre*np.dot(sph_s_mat, np.dot(
+                                       cmat, sph_c_mat))
+                    term += np.squeeze(t)
+
+                self.intensities_new[h] = term
+
+    def calc_new_pole_figure(self,
+                             hkls,
+                             plot=False):
+        '''calculate pole figure for new poles
+        given by hkls. the data will be computed 
+        on the same grid as the input grid. this
+        is done so that the spherical harmonics 
+        don't have to be recomputed. 
+
+        by default, we will pick the pf grid with
+        the most points i.e. densest gridding
+
+        hkls has the shape nx3
+        '''
+        if not hasattr(self, 'res'):
+            msg = (f'harmonic coefficients have not '
+                    f'been computed yet')
+            raise RuntimeError(msg)
+
+        self.num_pfs_new = hkls.shape[0]
+        self.hkls_c_new = self.convert_hkls_to_cartesian(
+                                    hkls)
+        self.calc_new_pfdata(hkls)
+
+        if plot:
+            self.plot_new_pf(
+                        filled=True,
+                        grid=False,
+                        cmap='jet',
+                        colorbar=True,
+                        colorbar_label='m.r.d.',
+                        show=True)
+
+    def calc_new_pfdata(self,
+                        hkls):
+        '''this routine computes the new pfdata which will
+        will be used in computing pole figures for a new hkl
+        pole
+        '''
+        self.intensities_new = {}
+        self.angs_new = {}
+        self.rotated_angs_new = {}
+        self.hkl_angles_new = {}
+
+        '''also pre-compute the spherical harmonics
+        '''
+        self.sph_c_new = {}
+        self.sph_s_new = {}
+
+        # get the densest grid and associated data
+        dg = self.densest_grid
+        angs = self.angs[dg]
+        rotated_angs = self.rotated_angs[dg]
+        hkls_c = self.convert_hkls_to_cartesian(hkls)
+
+        for ii, h in enumerate(hkls):
+
+            hstr = str(h).strip('[').strip(']').replace(" ","")
+            self.angs_new[hstr] = angs.copy()
+            self.rotated_angs[hstr] = rotated_angs.copy()
+            self.stereo_radius_new = self.stereographic_radius(new=True)
+            self.hkl_angles_new[hstr] = np.array([np.arccos(
+                                         hkls_c[ii, 2]),
+                                         np.arctan2(hkls_c[ii, 1], 
+                                                    hkls_c[ii, 0])])
+
+
+        for ii, (h, v) in enumerate(self.hkl_angles_new.items()):
+            '''needs special attention for monoclininc case
+                since the 2-fold axis is aligned with b*
+            '''
+            theta = np.array([v[0]])
+            phi = np.array([v[1]])
+            self.sph_c_new[h] = {}
+            self.sph_s_new[h] = self.sph_s[dg].copy()
 
             for ell in np.arange(2, self.ell_max+1, 2):
-                pre = 4*np.pi/(2*ell+1)
-                cmat = self.get_c_matrix(params, ell)
-                sph_s_mat = self.get_sph_s_matrix(h, ell)
-                sph_c_mat = self.get_sph_c_matrix(h, ell)
-                t = pre*np.dot(sph_s_mat, np.dot(
-                                   cmat, sph_c_mat))
-                term += np.squeeze(t)
+                Ylm = calc_sym_sph_harm(ell, 
+                                        theta,
+                                        phi,
+                                        sym=self.csym)
+                for jj in np.arange(Ylm.shape[1]):
+                    kname = f'c_{ell}{jj}'
+                    self.sph_c_new[h][kname] = Ylm[:,jj]
 
-            self.intensities_recalc[h] = term
-
-    def calc_new_pole_figure(self, hkls):
-        pass
+        self.recalculated_pf(self.res.params, new=True)
 
     def calculate_harmonic_coefficients(self,
                                         ell_max,
                                         ):
 
         self.ell_max = ell_max
-        param = get_parameters(ell_max,
+        params = get_parameters(ell_max,
                                csym=self.csym,
                                ssym=self.ssym)
         '''precompute the spherical harmonics for
@@ -299,7 +471,6 @@ class pole_figures:
                     kname = f's_{ell}{jj}'
                     self.sph_s[h][kname] = Ylm[:,jj]
 
-        params = get_parameters(self.ell_max)
         fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
          'verbose': 2, 'max_nfev': 20000, 'method':'trf',
          'jac':'3-point'}
@@ -321,13 +492,22 @@ class pole_figures:
                 cmat[ii, jj] = params[pname].value
         return cmat
 
-    def get_sph_s_matrix(self, h, ell):
+    def get_sph_s_matrix(self,
+                         h,
+                         ell,
+                         new=False):
+
+        if not new:
+            ngrid = self.angs[h].shape[0]
+            Ylm = self.sph_s[h]
+
+        else:
+            ngrid = self.angs_new[h].shape[0]
+            Ylm = self.sph_s_new[h]
 
         ns = get_num_sym_harm(ell,
                             sym=self.ssym)
-        ngrid = self.angs[h].shape[0]
         smat = np.zeros((ngrid, ns))
-        Ylm = self.sph_s[h]
 
         for ii in np.arange(ns):
             yname = f's_{ell}{ii}'
@@ -335,17 +515,23 @@ class pole_figures:
 
         return smat
 
-    def get_sph_c_matrix(self, h, ell):
+    def get_sph_c_matrix(self,
+                         h,
+                         ell,
+                         new=False):
 
         nc = get_num_sym_harm(ell,
                             sym=self.csym)
         ngrid = 1
         cmat = np.zeros((nc, ngrid))
-        Ylm = self.sph_c[h]
+
+        if not new:
+            Ylm = self.sph_c[h]
+        else:
+            Ylm = self.sph_c_new[h]
 
         for ii in np.arange(nc):
             yname = f'c_{ell}{ii}'
-
             cmat[ii, :] = Ylm[yname]
 
         return cmat
@@ -516,6 +702,15 @@ class pole_figures:
     def ref_frame_rmat(self):
         return self._ref_frame_rmat
 
+    @property
+    def densest_grid(self):
+        sz = 0
+        dg = ''
+        for h, v in self.pfdata.items():
+            if v.shape[0] > sz:
+                dg = h
+                sz = v.shape[0]
+        return dg
 
 class inverse_pole_figures:
     """
@@ -644,133 +839,134 @@ extra dependency, so not sure if we need that
 '''
 Blmn = {
     'th':{
-        2:np.array([[1.]]),
-        4:np.array([[0.4564354645876384,0.0,
-                     0.7637626158259735,0.0,
-                     0.4564354645876382,]]),
-        6:np.array([[-0.3952847075210473,0.0,
-                     0.5863019699779287,0.0,
-                     0.5863019699779286,0.0,
-                    -0.3952847075210476,],
-                    [-0.23587862860606446,0.5307650734434042,
-                    0.349864545721299,-0.28370586538444675,
-                    0.349864545721299,0.5307650734434044,
-                    -0.23587862860606465,]]),
-        8:np.array([[0.4114253678777401,0.0,
-                    0.270030862433661,0.0,
-                    0.7180703308172532,0.0,
-                    0.270030862433661,0.0,
-                    0.4114253678777393,]]),
-        10:np.array([[-0.39365513190875756,-0.040358697757753324,
-                    0.10745401012934847,-0.033908088412492564,
-                    0.547910094463344,0.033650228484593495,
-                    0.547910094463344,-0.0339080884124925,
-                    0.10745401012934841,-0.04035869775775318,
-                    -0.3936551319087571,],
-                     [0.11765319612066327,0.47226403896469205,
-                    -0.03211518586433684,0.39678115689893184,
-                    -0.16375595940491486,-0.3937637659075811,
-                    -0.163755959404915,0.39678115689893145,
-                    -0.03211518586433705,0.4722640389646918,
-                    0.117653196120663,]]),
-        12:np.array([[0.35435463302663495,-0.17379154613641162,
-                    0.13422630916783754,0.2754451663660531,
-                    0.2490795461687716,-0.07009627867210125,
-                    0.6055804920306865,-0.07009627867210133,
-                    0.24907954616877184,0.27544516636605293,
-                    0.13422630916783768,-0.1737915461364115,
-                    0.3543546330266347,],
-                     [0.029964757460644757,-0.34851935846790966,
-                    0.20072357823323558,0.5523742368897112,
-                    -0.06998760599808057,-0.1405701866223871,
-                    0.12243483258685284,-0.1405701866223871,
-                    -0.06998760599808042,0.5523742368897113,
-                    0.20072357823323567,-0.3485193584679096,
-                    0.029964757460644646,],
-                     [-0.14236359629542855,0.21023745347413406,
-                    0.4399875511085443,-0.33320890248081825,
-                    -0.33754122137204073,0.0847962024255695,
-                    -0.057526585048038516,0.0847962024255693,
-                    -0.33754122137204073,-0.3332089024808181,
-                    0.4399875511085443,0.21023745347413386,
-                    -0.14236359629542847,]]),
-        14:np.array([[-0.4081984524254106,0.0,
-                    0.014263608268363568,0.0,
-                    0.1757378418625312,0.0,
-                    0.5498061329724928,0.0,
-                    0.5498061329724929,0.0,
-                    0.1757378418625312,0.0,
-                    0.01426360826836375,0.0,
-                    -0.4081984524254106,],
-                     [-0.2609562260878263,-0.31517901621833544,
-                    0.009118548495201403,-0.2595707050634366,
-                    0.11234703052100681,-0.24189163409933004,
-                    0.3514842662630142,0.32894254900247105,
-                    0.3514842662630142,-0.24189163409933007,
-                    0.11234703052100689,-0.25957070506343644,
-                    0.009118548495201627,-0.31517901621833566,
-                    -0.2609562260878262,]]),
-        16:np.array([[0.4082607490228619,0.0,
-                    0.004724991415765843,0.0,
-                    0.08080978644090049,0.0,
-                    0.3744089876279586,0.0,
-                    0.6108821877615943,0.0,
-                    0.37440898762795843,0.0,
-                    0.08080978644090046,0.0,
-                    0.004724991415765664,0.0,
-                    0.4082607490228623,],
-                     [0.0002761390670381201,-0.36909867621231496,
-                    0.20752737777828104,0.1813395395452281,
-                    0.12139515667567446,0.4656650692573661,
-                    -0.1280742029731327,-0.17983149224440206,
-                    0.12240364673979474,-0.1798314922444023,
-                    -0.12807420297313307,0.46566506925736645,
-                    0.12139515667567449,0.18133953954522805,
-                    0.20752737777828129,-0.369098676212315,
-                    0.00027613906703817444,],
-                     [-0.07283664719091107,0.09028739951989459,
-                    0.488682129558481,-0.04435853204267701,
-                    0.2718108984316556,-0.11390907326450131,
-                    -0.3695065787821054,0.04398963971680427,
-                    0.17877535778204223,0.04398963971680411,
-                    -0.36950657878210535,-0.11390907326450159,
-                    0.2718108984316559,-0.04435853204267742,
-                    0.4886821295584812,0.09028739951989452,
-                    -0.0728366471909116,]]),
+        2:np.array([[0., 1., 0.]]),
+        4:np.array([[0.4564354645876387,0.0,
+        0.7637626158259737,0.0,
+        0.4564354645876387,]]),
+        6:np.array([[-0.39528470752104744,0.0,
+                0.5863019699779289,0.0,
+                0.5863019699779287,0.0,
+                -0.3952847075210474,],
+                 [0.0,0.6614378277661476,
+                0.0,-0.35355339059327384,
+                0.0,0.6614378277661477,
+                0.0,]]),
+        8:np.array([[0.4114253678777394,0.0,
+                0.27003086243366087,0.0,
+                0.7180703308172529,0.0,
+                0.270030862433661,0.0,
+                0.4114253678777394,]]),
+        10:np.array([[-0.32179907341941766,-0.3026705127825632,
+                0.08783983261480693,-0.25429409464318103,
+                0.4478970205736254,0.25236027118158605,
+                0.44789702057362524,-0.25429409464318115,
+                0.08783983261480709,-0.3026705127825629,
+                -0.3217990734194177,],
+                 [0.24992195050936286,-0.3897180314346175,
+                -0.06821990525403415,-0.3274286386826981,
+                -0.34785462810576917,0.32493865092120033,
+                -0.34785462810576934,-0.3274286386826982,
+                -0.06821990525403382,-0.38971803143461725,
+                0.24992195050936322,]]),
+        12:np.array([[-0.10774660850851898,0.35440527769341207,
+                0.042183172840390366,-0.5617029300070009,
+                -0.11564076236589332,0.14294418606853107,
+                -0.15291919171429025,0.1429441860685311,
+                -0.1156407623658934,-0.5617029300070007,
+                0.042183172840390734,0.35440527769341246,
+                -0.10774660850851901,],
+                 [0.3411000537498401,0.10028705753178294,
+                -0.2620437799555088,-0.15894665684441117,
+                0.42787445167677257,0.04044931809534165,
+                0.4357742152904641,0.040449318095341594,
+                0.4278744516767727,-0.15894665684441128,
+                -0.2620437799555087,0.100287057531783,
+                0.3411000537498399,],
+                 [0.19715691408140235,0.02017705548403037,
+                0.561512087862538,-0.03197895713646226,
+                -0.09548336992239026,0.00813812026783474,
+                0.5200389527975391,0.00813812026783466,
+                -0.09548336992239025,-0.0319789571364624,
+                0.5615120878625383,0.02017705548403026,
+                0.19715691408140232,]]),
+        14:np.array([[-0.28955062552019833,-0.2972304474122511,
+                0.010117717673205564,-0.2447888749918319,
+                0.12465750846560059,-0.22811657797300322,
+                0.38999831765926807,0.3102101852656362,
+                0.3899983176592681,-0.228116577973003,
+                0.1246575084656004,-0.24478887499183172,
+                0.010117717673205809,-0.297230447412251,
+                -0.2895506255201985,],
+                 [0.28772627934090717,-0.2991150553540337,
+                -0.010053969858649543,-0.2463409739167105,
+                -0.12387208985743604,-0.22956296517271021,
+                -0.387541089533881,0.31217709203398175,
+                -0.3875410895338812,-0.22956296517271035,
+                -0.12387208985743622,-0.2463409739167103,
+                -0.010053969858649592,-0.29911505535403393,
+                0.28772627934090733,]]),
+        16:np.array([[0.16618905573198167,-0.3654438510445056,
+                -0.059213072462354854,0.17954391047429719,
+                -0.002851898776857607,0.4610540410294765,
+                0.19021431714221818,-0.17805079589901174,
+                0.2127310570059948,-0.17805079589901207,
+                0.19021431714221823,0.4610540410294766,
+                -0.002851898776857436,0.1795439104742971,
+                -0.05921307246235514,-0.36544385104450566,
+                0.16618905573198162,],
+                 [0.30796148329941286,0.1641675465982823,
+                -0.26096265404956615,-0.08065612050929621,
+                -0.09371337438188433,-0.20711830435427173,
+                0.44600261056672585,0.07998537189520905,
+                0.305305250454509,0.07998537189520934,
+                0.4460026105667255,-0.20711830435427164,
+                -0.09371337438188454,-0.08065612050929624,
+                -0.26096265404956615,0.16416754659828256,
+                0.3079614832994129,],
+                 [0.21028019819195082,0.04839013590249786,
+                0.4381584188768272,-0.02377425205947472,
+                0.29639275890473565,-0.06105033000294009,
+                -0.07659622573459653,0.02357654174909582,
+                0.5707783675995487,0.02357654174909576,
+                -0.07659622573459626,-0.06105033000294006,
+                0.29639275890473576,-0.023774252059474876,
+                0.4381584188768272,0.048390135902498174,
+                0.2102801981919509,]]),
         },
     'oh': {
         2:np.array([[1.]]),
-        4:np.array([[0.4564354645876381,0.7637626158259734,
-                     0.4564354645876386,],]),
-        6:np.array([[0.6614378277661478,-0.35355339059327384,
-                     0.6614378277661475,],]),
-        8:np.array([[0.4114253678777395,0.2700308624336608,
-                     0.7180703308172537,0.2700308624336609,
-                     0.41142536787773965,],]),
-        10:np.array([[0.49344663676362555,0.41457809879442475,
-                     -0.41142536787773953,0.41457809879442487,
-                     0.4934466367636257,],]),
-        12:np.array([[0.4084475818062013,0.0410768724615144,
-                     0.34173954767501197,0.6552821453699549,
-                     0.34173954767501197,0.04107687246151456,
-                     0.4084475818062011,],[0.4078044975385258,
-                     0.006250066404837358,0.3579150356801124,
-                     0.6411758817850054,0.3579150356801124,
-                     0.006250066404837514,0.4078044975385257,],]),
-        14:np.array([[-0.4216820546434637,-0.347282980795201,
-                     -0.3236299246438747,0.440096461964117,
-                     -0.32362992464387447,-0.3472829807952011,
-                     -0.421682054643464,],]),
-        16:np.array([[0.4082607490228622,0.004724991415765745,
-                      0.08080978644090052,0.3744089876279585,
-                      0.6108821877615942,0.37440898762795843,
-                      0.08080978644090042,0.00472499141576571,
-                      0.40826074902286186,],
-                      [0.33277795799251847, -0.2935570355266691,
-                      -0.10802732705903098,0.4890944822748237,
-                      0.3231092124465864,0.4890944822748239,
-                      -0.10802732705903116,-0.2935570355266692,
-                      0.3327779579925184,],],)
+        4:np.array([[-0.4564354645876382,-0.7637626158259734,
+        -0.4564354645876386,]]),
+        6:np.array([[0.6614378277661479,-0.3535533905932739,
+                0.6614378277661476,]]),
+        8:np.array([[-0.4114253678777393,-0.2700308624336607,
+                -0.7180703308172534,-0.2700308624336608,
+                -0.4114253678777394,]]),
+        10:np.array([[-0.4934466367636259,-0.41457809879442503,
+                0.4114253678777398,-0.41457809879442514,
+                -0.49344663676362605,]]),
+        12:np.array([[-0.40844758180620133,-0.04107687246151441,
+                -0.34173954767501197,-0.6552821453699549,
+                -0.34173954767501197,-0.04107687246151456,
+                -0.40844758180620117,],
+                 [0.0,0.6197216133464934,
+                -0.2979605473965942,0.23308639662726535,
+                -0.29796054739659417,0.6197216133464934,
+                0.0,]]),
+        14:np.array([[-0.421682054643464,-0.3472829807952012,
+                -0.32362992464387486,0.4400964619641172,
+                -0.32362992464387463,-0.34728298079520126,
+                -0.4216820546434642,]]),
+        16:np.array([[0.40826074902286213,0.004724991415765744,
+                0.0808097864409005,0.3744089876279584,
+                0.6108821877615941,0.3744089876279583,
+                0.0808097864409004,0.004724991415765709,
+                0.4082607490228618,],
+                 [0.0,-0.5133889064323339,
+                -0.3001812382731627,0.3174660719799944,
+                -0.3017891584619822,0.3174660719799949,
+                -0.30018123827316284,-0.5133889064323339,
+                0.0,]]),
     }
 }
 
@@ -836,6 +1032,9 @@ def calc_sym_sph_harm(deg,
 
 def get_num_sym_harm(ell,
                      sym='oh'):
+    #TODO add other symmetries
+    # monoclinic and orthorhombic for SS
+    # all symmetries for CS
     if ell < 0:
         msg = f'the degree is negative'
         raise ValueError(msg)
@@ -849,6 +1048,10 @@ def get_num_sym_harm(ell,
 
 def get_total_sym_harm(ell_max,
                        sym='oh'):
+    #TODO add other symmetries
+    # monoclinic and orthorhombic for SS
+    # all symmetries for CS
+
     if ell_max < 0:
         msg = f'the degree is negative'
         raise ValueError(msg)
