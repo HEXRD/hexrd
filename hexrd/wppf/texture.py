@@ -1006,16 +1006,20 @@ def calc_sym_sph_harm(deg,
     numpy.ndarray
         spherical harmonics
     '''
+    check_degrees(deg, sym=sym)
     if sym == 'oh':
         nfold = 4
-    elif sym == 'th':
+    elif sym in ['th', 'orthorhombic', 'monoclinic']:
         nfold = 2
+    elif sym == 'axial':
+        nfold = np.inf
+
+    n = int(deg/nfold)
 
     if sym in ['th', 'oh']:
         coeff = Blmn[sym][deg]
 
         num_sym = coeff.shape[0]
-        n = int(deg/nfold)
 
         Intensity = np.zeros((theta.shape[0], num_sym)).astype(complex)
 
@@ -1028,6 +1032,38 @@ def calc_sym_sph_harm(deg,
         Intensity = np.zeros((theta.shape[0], 1)).astype(complex)
         Intensity[:,0] = sph_harm_y(deg, 0, theta, phi)
 
+    elif sym == 'orthorhombic':
+        '''this is the 2/m sample symmetry with the 
+        following selection rules:
+        1. l = 2l'
+        2. m = 2m' for all allowed m's
+        '''
+        num_sym = n+1
+        Intensity = np.zeros((theta.shape[0], 
+                            num_sym)).astype(complex)
+        for ii in np.arange(0, n+1):
+            if ii == 0:
+                Intensity[:,ii] = sph_harm_y(deg, nfold*ii,
+                                             theta, phi)
+            else:
+                Intensity[:,ii] = (
+                    sph_harm_y(deg, -nfold*ii, theta, phi) + 
+                    sph_harm_y(deg, nfold*ii, theta, phi)
+                    )/np.sqrt(2.)
+
+    elif sym == 'monoclinic':
+        '''this is the 2/m sample symmetry with the 
+        following selection rules:
+        1. l = 2l'
+        2. m = 2m' for all allowed m's
+        '''
+        num_sym = 2*n+1
+        Intensity = np.zeros((theta.shape[0], 
+                            num_sym)).astype(complex)
+        for ii in np.arange(-n, n+1):
+            Intensity[:,ii+n] = sph_harm_y(
+                                deg, nfold*ii, theta, phi)
+
     return np.real(Intensity)
 
 def get_num_sym_harm(ell,
@@ -1035,16 +1071,15 @@ def get_num_sym_harm(ell,
     #TODO add other symmetries
     # monoclinic and orthorhombic for SS
     # all symmetries for CS
-    if ell < 0:
-        msg = f'the degree is negative'
-        raise ValueError(msg)
-    if ell > 16:
-        msg = f'maximum degree available is 16'
-        raise ValueError(msg)
-    elif sym in ['th', 'oh']:
+    check_degrees(ell, sym=sym)
+    if sym in ['th', 'oh']:
         return Blmn[sym][ell].shape[0]
     elif sym == 'axial':
         return 1
+    elif sym == 'monoclinic':
+        return 2*int(ell/2)+1
+    elif sym == 'orthorhombic':
+        return int(ell/2) + 1
 
 def get_total_sym_harm(ell_max,
                        sym='oh'):
@@ -1052,18 +1087,9 @@ def get_total_sym_harm(ell_max,
     # monoclinic and orthorhombic for SS
     # all symmetries for CS
 
-    if ell_max < 0:
-        msg = f'the degree is negative'
-        raise ValueError(msg)
-    if ell_max > 16:
-        msg = f'maximum degree available is 16'
-        raise ValueError(msg)
-    elif sym in ['th', 'oh']:
-        num = 0
-        for ell in np.arange(2, ell_max+1, 2):
-            num += Blmn[sym][ell].shape[0]
-    elif sym == 'axial':
-        num = int(ell_max/2)
+    num = 0
+    for ell in np.arange(2, ell_max+1, 2):
+        num += get_num_sym_harm(ell, sym=sym)
 
     return num
 
@@ -1075,14 +1101,8 @@ def get_parameters(ell_max,
     make lmfit parameter class for a given
     symmetry and maximum degree
     '''
-    params = Parameters()
 
-    if ell_max < 0:
-        msg = f'the degree is negative'
-        raise ValueError(msg)
-    if ell_max > 16:
-        msg = f'maximum degree available is 16'
-        raise ValueError(msg)
+    params = Parameters()
 
     for ell in np.arange(2, ell_max+1, 2):
         nc = get_num_sym_harm(ell, sym=csym)
@@ -1098,4 +1118,16 @@ def get_parameters(ell_max,
 
     return params
 
-
+def check_degrees(ell,
+                  sym='oh'):
+    if ell < 0:
+        msg = f'the degree is negative'
+        raise ValueError(msg)
+    if np.mod(ell, 2) != 0:
+        msg = (f'only even degrees allowed due to'
+               f'inversion symmetry')
+        raise ValueError(msg)
+    if sym in ['td', 'oh']:
+        if ell > 16:
+            msg = f'maximum degree available is 16'
+            raise ValueError(msg)
