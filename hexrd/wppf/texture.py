@@ -145,6 +145,9 @@ class pole_figures:
         # FIXME: there is a bug during plots when the
         0/2pi or -pi/pi points are not filled in for some
         set of inputs. need to come up with a fix for this
+
+        08/25/25 SS added a fix which seems to work for some
+        cases. needs more extensive testing
         '''
 
         '''first get the layout of the subplot
@@ -170,14 +173,25 @@ class pole_figures:
         for ii, h in enumerate(self.pfdata):
             nr = int(ii/3)
             nc = int(np.mod(ii, 3))
-            rho = self.angs[h][:,1]+np.pi
+            rho = self.angs[h][:,1]
             r = self.stereo_radius[h]
             I = self.intensities[h]
 
-            # triangles = tri.Triangulation(
-            #         np.pi*np.cos(rho), r).get_masked_triangles()
+            # since there is a discontinuity at +/- pi azimuth
+            # we will add some extra points there for the plots
+
+            # first get the points which have rho values of +/- pi
+            mask = np.isclose(np.abs(rho), np.pi)
+            # add these same points at -pi
+            rho = np.concatenate((rho, -rho[mask]))
+
+            # next add points at r and intensity
+            r = np.concatenate((r, r[mask]))
+            I = np.concatenate((I, I[mask]))
+
             if recalculated:
                 I = self.intensities_recalc[h]
+                I = np.concatenate((I, I[mask]))
             if filled:
                 pf = self.ax[nr][nc].tricontourf(rho, r, 
                                     I, levels=20, cmap=cmap)
@@ -234,6 +248,9 @@ class pole_figures:
                 term += np.squeeze(t)
 
             self.intensities_recalc[h] = term
+
+    def calc_new_pole_figure(self, hkls):
+        pass
 
     def calculate_harmonic_coefficients(self,
                                         ell_max,
@@ -376,10 +393,19 @@ class pole_figures:
             norm = np.linalg.norm(v[:,0:3],axis=1)
             v[:,0:3] = v[:,0:3]/np.tile(norm, [3,1]).T
 
+            # sanitize v[:, 2] for arccos operation
+            mask = np.abs(v[:,2]) > 1.
+            v[mask,2] = np.sign(v[mask,2])
+
             t = np.arccos(v[:,2])
             rho = np.arctan2(v[:,1],v[:,0])
 
             vr = np.dot(self.ref_frame_rmat, v[:,0:3].T).T
+            
+            # sanitize vr[:, 2] for arccos operation
+            mask = np.abs(vr[:,2]) > 1.
+            vr[mask,2] = np.sign(vr[mask,2])
+            
             tr = np.arccos(vr[:,2])
             rhor = np.arctan2(vr[:,1],vr[:,0])
 
