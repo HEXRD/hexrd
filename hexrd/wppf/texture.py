@@ -976,6 +976,22 @@ Blmn = {
 utility functions for texture computation
 =================================================================
 =================================================================
+
+quick overview of different laue group symmetries
+
+laue_1 = 'ci'  # triclinic
+laue_2 = 'c2h' # monoclinic
+laue_3 = 'd2h' # Orthorhombic
+laue_4 = 'c4h' # cyclic tetragonal
+laue_5 = 'd4h' # dihedral tetragonal
+laue_6 = 's6'  # cyclic trigonal + inversion
+laue_7 = 'd3d' # dihedral trigonal
+laue_8 = 'c6h' # cyclic
+laue_9 = 'd6h' # dihedral hexagonal
+laue_10 = 'th' # cubic low
+laue_11 = 'oh' # cubic high
+
+
 '''
 
 def calc_sym_sph_harm(deg, 
@@ -1006,11 +1022,31 @@ def calc_sym_sph_harm(deg,
     numpy.ndarray
         spherical harmonics
     '''
+    check_symmetry(sym)
     check_degrees(deg, sym=sym)
-    if sym == 'oh':
+
+    # cubic and tetragonal
+    if sym in ['oh', 'c4h', 'd4h']:
         nfold = 4
-    elif sym in ['th', 'orthorhombic', 'monoclinic']:
+
+    # hexagonal
+    elif sym in ['c6h', 'd6h']:
+        nfold = 6
+
+    # cubic low, orthorhombic and monoclinic
+    elif sym in ['th', 'c2h', 'd2h', 
+            'orthorhombic', 'monoclinic']:
         nfold = 2
+
+    # trigonal
+    elif sym in ['s6', 'd3d']:
+        nfold = 3
+
+    # triclinic
+    elif sym == 'ci':
+        nfold = 1
+
+    # cylindrical symmetry
     elif sym == 'axial':
         nfold = np.inf
 
@@ -1021,65 +1057,110 @@ def calc_sym_sph_harm(deg,
 
         num_sym = coeff.shape[0]
 
-        Intensity = np.zeros((theta.shape[0], num_sym)).astype(complex)
+        Intensity = np.zeros((theta.shape[0], num_sym))
 
         for ii in np.arange(num_sym):
             for jj in np.arange(-n, n+1):
                 Intensity[:,ii] += (coeff[ii, jj+n]*
                     sph_harm_y(deg, nfold*jj, theta, phi))
+        Intensity = np.real(Intensity)
 
     elif sym == 'axial':
-        Intensity = np.zeros((theta.shape[0], 1)).astype(complex)
-        Intensity[:,0] = sph_harm_y(deg, 0, theta, phi)
+        Intensity = np.zeros((theta.shape[0], 1))
+        Intensity[:,0] = np.real(sph_harm_y(deg, 0,
+                                            theta, phi))
 
-    elif sym == 'orthorhombic':
-        '''this is the 2/m sample symmetry with the 
+    elif sym in ['d2h', 'd3d', 'd4h', 'd6h', 'orthorhombic']:
+        '''this is the dihedral symmetry with the 
         following selection rules:
         1. l = 2l'
-        2. m = 2m' for all allowed m's
+        2. m = [0, nfold*m'] for all allowed m's
         '''
         num_sym = n+1
         Intensity = np.zeros((theta.shape[0], 
-                            num_sym)).astype(complex)
+                            num_sym))
         for ii in np.arange(0, n+1):
             if ii == 0:
-                Intensity[:,ii] = sph_harm_y(deg, nfold*ii,
-                                             theta, phi)
+                Intensity[:,ii] = np.real(sph_harm_y(
+                                             deg, nfold*ii,
+                                             theta, phi))
             else:
-                Intensity[:,ii] = (
-                    sph_harm_y(deg, -nfold*ii, theta, phi) + 
-                    sph_harm_y(deg, nfold*ii, theta, phi)
-                    )/np.sqrt(2.)
-
-    elif sym == 'monoclinic':
-        '''this is the 2/m sample symmetry with the 
+                '''we need special attention for laue 
+                group d3d and d6h. for this cases the 
+                real/imaginary component flips for
+                m = (2k+1)*nfold*m'
+                '''
+                Intensity[:,ii] = np.real((
+                    sph_harm_y(deg, -nfold*ii,
+                               theta, phi) + 
+                    sph_harm_y(deg, nfold*ii,
+                               theta, phi)
+                    )/np.sqrt(2.))
+                if sym in ['d3d',] and np.mod(ii, 2) != 0:
+                    Intensity[:,ii] = np.imag((
+                        sph_harm_y(deg, -nfold*ii,
+                                   theta, phi) + 
+                        sph_harm_y(deg, nfold*ii,
+                                   theta, phi)
+                        )/np.sqrt(2.))
+    elif sym in ['ci', 'c2h', 's6', 'c4h', 'c6h', 'monoclinic']:
+        '''this is the cyclic symmetry with the 
         following selection rules:
         1. l = 2l'
         2. m = 2m' for all allowed m's
         '''
         num_sym = 2*n+1
         Intensity = np.zeros((theta.shape[0], 
-                            num_sym)).astype(complex)
+                            num_sym))
         for ii in np.arange(-n, n+1):
-            Intensity[:,ii+n] = sph_harm_y(
-                                deg, nfold*ii, theta, phi)
+            if ii < 0:
+                Intensity[:,ii+n] = np.imag(sph_harm_y(
+                                    deg, nfold*ii,
+                                    theta, phi))
+            else:
+                Intensity[:,ii+n] = np.real(sph_harm_y(
+                                    deg, nfold*ii,
+                                    theta, phi))
 
-    return np.real(Intensity)
+    return Intensity
 
 def get_num_sym_harm(ell,
                      sym='oh'):
-    #TODO add other symmetries
-    # monoclinic and orthorhombic for SS
-    # all symmetries for CS
+
+    # TODO all symmetries for CS
     check_degrees(ell, sym=sym)
+
+    # crystal symmetries
     if sym in ['th', 'oh']:
         return Blmn[sym][ell].shape[0]
+    elif sym == 'ci':
+        return 2*ell+1
+    elif sym == 'c2h':
+        return 2*int(ell/2)+1
+    elif sym == 'd2h':
+        return int(ell/2) + 1
+    elif sym == 'c4h':
+        return 2*int(ell/4)+1
+    elif sym == 'd4h':
+        return int(ell/4)+1
+    elif sym == 's6':
+        return 2*int(ell/3)+1
+    elif sym == 'd3h':
+        return int(ell/3)+1
+    elif sym == 'c6h':
+        return 2*int(ell/6)+1
+    elif sym == 'd6h':
+        return int(ell/6)+1
+
+    # sample symmetries
     elif sym == 'axial':
         return 1
     elif sym == 'monoclinic':
         return 2*int(ell/2)+1
     elif sym == 'orthorhombic':
         return int(ell/2) + 1
+    elif sym == 'triclinic':
+        return 2*ell + 1
 
 def get_total_sym_harm(ell_max,
                        sym='oh'):
@@ -1131,3 +1212,25 @@ def check_degrees(ell,
         if ell > 16:
             msg = f'maximum degree available is 16'
             raise ValueError(msg)
+
+def check_symmetry(sym):
+    symlist = ['ci' ,
+              'c2h',
+              'd2h',
+              'c4h',
+              'd4h',
+              's6' ,
+              'd3d',
+              'c6h',
+              'd6h',
+               'th',
+               'oh', # end of crystal symmtries
+               'monoclinic',
+               'orthorhombic',
+               'axial'] # end of sample symmetries
+    if not sym in symlist:
+        msg = (f'unknown crystal/sample symmetry. '
+               f'It should be one of {symlist[0:11]} '
+               f'for crystal symmetries and {symlist[11:]} '
+               f'for sample symmetries')
+        raise ValueError(msg)
