@@ -4,25 +4,27 @@
 
 from __future__ import absolute_import
 import numpy as np
-from hexrd.transforms.new_capi.xf_new_capi import gvec_to_xy
+from hexrd.core.transforms.new_capi.xf_new_capi import gvec_to_xy
+
 # from common import random_rotation_matrix, random_unit_vectors
 
 
 def test_gvec_to_xy_from_file(test_data_dir):
     # Load the array from a file
     arr = np.load(
-        test_data_dir / 'test_correct_gvec_to_xy.npy',
-        allow_pickle=True
+        test_data_dir / 'test_correct_gvec_to_xy.npy', allow_pickle=True
     )
     for obj in arr:
-        result = gvec_to_xy(obj["gvec_c"],
-                            obj["rmat_d"],
-                            obj["rmat_s"],
-                            obj["rmat_c"],
-                            obj["tvec_d"],
-                            obj["tvec_s"],
-                            obj["tvec_c"],
-                            obj["beam_vec"])
+        result = gvec_to_xy(
+            obj["gvec_c"],
+            obj["rmat_d"],
+            obj["rmat_s"],
+            obj["rmat_c"],
+            obj["tvec_d"],
+            obj["tvec_s"],
+            obj["tvec_c"],
+            obj["beam_vec"],
+        )
         assert np.allclose(result, obj["result"], equal_nan=True)
 
 

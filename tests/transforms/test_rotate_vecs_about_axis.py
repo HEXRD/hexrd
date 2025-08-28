@@ -1,4 +1,4 @@
-from hexrd.transforms.new_capi.xf_new_capi import rotate_vecs_about_axis
+from hexrd.core.transforms.new_capi.xf_new_capi import rotate_vecs_about_axis
 import numpy as np
 
 

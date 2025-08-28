@@ -2,8 +2,8 @@ import math
 
 import numpy as np
 
-import hexrd.constants as ct
-from hexrd.transforms.new_capi.xf_new_capi import unit_vector
+import hexrd.core.constants as ct
+from hexrd.core.transforms.new_capi.xf_new_capi import unit_vector
 
 
 def convert_axis_angle_to_rmat(axis, angle):
@@ -30,15 +30,15 @@ def convert_axis_angle_to_rmat(axis, angle):
     s = math.sin(angle)
     t = 1.0 - c
 
-    m[0, 0] = c + axis[0]*axis[0]*t
-    m[0, 1] = axis[0]*axis[1]*t - axis[2]*s
-    m[0, 2] = axis[0]*axis[2]*t + axis[1]*s
-    m[1, 0] = axis[0]*axis[1]*t + axis[2]*s
-    m[1, 1] = c + axis[1]*axis[1]*t
-    m[1, 2] = axis[1]*axis[2]*t - axis[0]*s
-    m[2, 0] = axis[0]*axis[2]*t - axis[1]*s
-    m[2, 1] = axis[1]*axis[2]*t + axis[0]*s
-    m[2, 2] = c + axis[2]*axis[2]*t
+    m[0, 0] = c + axis[0] * axis[0] * t
+    m[0, 1] = axis[0] * axis[1] * t - axis[2] * s
+    m[0, 2] = axis[0] * axis[2] * t + axis[1] * s
+    m[1, 0] = axis[0] * axis[1] * t + axis[2] * s
+    m[1, 1] = c + axis[1] * axis[1] * t
+    m[1, 2] = axis[1] * axis[2] * t - axis[0] * s
+    m[2, 0] = axis[0] * axis[2] * t - axis[1] * s
+    m[2, 1] = axis[1] * axis[2] * t + axis[0] * s
+    m[2, 2] = c + axis[2] * axis[2] * t
 
     return m
 
@@ -68,9 +68,11 @@ def random_rotation_matrix():
     r22 = 2 * (q0 * q0 + q3 * q3) - 1
 
     # 3x3 rotation matrix
+    # fmt: off
     rot_matrix = np.array([[r00, r01, r02],
                            [r10, r11, r12],
                            [r20, r21, r22]])
+    # fmt: on
     return rot_matrix
 
 

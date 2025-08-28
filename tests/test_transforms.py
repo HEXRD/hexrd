@@ -3,7 +3,7 @@ import json
 
 import numpy as np
 
-from hexrd.transforms.xfcapi import gvec_to_xy
+from hexrd.core.transforms.xfcapi import gvec_to_xy
 
 from common import convert_axis_angle_to_rmat
 

@@ -41,10 +41,12 @@ def pull_spots_picks(calibration_dir):
     path = calibration_dir
     picks = []
     for i in range(3):
-        picks.append({
-            'pick_xys': np.load(path / f'grain{i + 1}_picks.npz'),
-            'hkls': np.load(path / f'grain{i + 1}_pick_hkls.npz'),
-        })
+        picks.append(
+            {
+                'pick_xys': np.load(path / f'grain{i + 1}_picks.npz'),
+                'hkls': np.load(path / f'grain{i + 1}_pick_hkls.npz'),
+            }
+        )
     return picks
 
 
@@ -53,8 +55,9 @@ def grain_params(calibration_dir):
     return np.load(calibration_dir / 'grain_params.npy')
 
 
-def test_calibration(dexelas_instrument, ruby_material, pull_spots_picks,
-                     grain_params):
+def test_calibration(
+    dexelas_instrument, ruby_material, pull_spots_picks, grain_params
+):
 
     instr = dexelas_instrument
 

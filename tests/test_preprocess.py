@@ -1,4 +1,4 @@
-from hexrd.preprocess.profiles import (
+from hexrd.hedm.preprocess.profiles import (
     Eiger_Arguments,
     Dexelas_Arguments,
     HexrdPPScript_Arguments,

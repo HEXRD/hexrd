@@ -13,7 +13,7 @@
 import os
 import sys
 
-from hexrd.constants import __version__ as version
+from hexrd.core.constants import __version__ as version
 
 sys.path.insert(0, os.path.abspath('../..'))
 

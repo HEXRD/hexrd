@@ -3,9 +3,9 @@ import numpy as np
 
 import pytest
 
-from hexrd.material.crystallography import ltypeOfLaueGroup
-from hexrd.material.material import Material
-from hexrd.rotations import rotMatOfQuat
+from hexrd.core.material.crystallography import ltypeOfLaueGroup
+from hexrd.core.material.material import Material
+from hexrd.core.rotations import rotMatOfQuat
 
 
 @pytest.fixture
@@ -24,8 +24,9 @@ def materials(test_data_dir):
     for mat_name in material_names:
         # Load {test_data_dir}/materials/{mat_name}.cif
         mat = Material(
-            mat_name, str(test_data_dir) + "/materials/" + mat_name + ".cif",
-            sgsetting=0
+            mat_name,
+            str(test_data_dir) + "/materials/" + mat_name + ".cif",
+            sgsetting=0,
         )
         mats[mat_name] = mat.planeData
     return mats
@@ -70,8 +71,9 @@ def test_plane_data_with_data(test_data_dir, materials):
         assertEqualNumpyArrays(pd.powder_intensity, obj['powder_intensity'])
         # With the identity symmetry, zero rotation may have some sign issues,
         # but the rotation matrix should be pretty much the exact same
-        assertEqualNumpyArrays(rotMatOfQuat(pd.getQSym()),
-                               rotMatOfQuat(obj['q_sym']))
+        assertEqualNumpyArrays(
+            rotMatOfQuat(pd.getQSym()), rotMatOfQuat(obj['q_sym'])
+        )
         assert pd.nHKLs == obj['nHKLs']
         assert pd.getNhklRef() == obj['nhklRef']
         assertEqualNumpyArrays(pd.getMultiplicity(), obj['multiplicity'])

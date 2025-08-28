@@ -4,15 +4,15 @@
 
 from __future__ import absolute_import
 import numpy as np
-from hexrd.transforms.new_capi.xf_new_capi import angles_to_dvec
+from hexrd.core.transforms.new_capi.xf_new_capi import angles_to_dvec
+
 # from common import random_rotation_matrix, random_unit_vectors
 
 
 def test_angles_to_dvec_from_file(test_data_dir):
     # Load the array from a file
     arr = np.load(
-        test_data_dir / 'test_correct_angles_to_dvec.npy',
-        allow_pickle=True
+        test_data_dir / 'test_correct_angles_to_dvec.npy', allow_pickle=True
     )
 
     for obj in arr:
@@ -21,7 +21,7 @@ def test_angles_to_dvec_from_file(test_data_dir):
             obj["beam_vec"],
             obj["eta_vec"],
             obj["chi"],
-            obj["rmat_c"]
+            obj["rmat_c"],
         )
         assert np.allclose(result, obj["result"])
 

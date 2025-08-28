@@ -6,10 +6,10 @@ import numpy as np
 import pytest
 
 from hexrd import imageseries
-from hexrd.fitting.calibration import PowderCalibrator
-from hexrd.material.material import load_materials_hdf5, Material
-from hexrd.imageseries.process import ProcessedImageSeries
-from hexrd.instrument.hedm_instrument import HEDMInstrument
+from hexrd.core.fitting.calibration import PowderCalibrator
+from hexrd.core.material.material import load_materials_hdf5, Material
+from hexrd.core.imageseries.process import ProcessedImageSeries
+from hexrd.core.instrument.hedm_instrument import HEDMInstrument
 
 
 @pytest.fixture
@@ -24,9 +24,7 @@ def ceria_examples_path(eiger_examples_path: Path) -> Path:
 
 @pytest.fixture
 def eiger_instrument(ceria_examples_path: Path) -> HEDMInstrument:
-    instr_path = (
-        ceria_examples_path / 'eiger_ceria_calibrated_composite.hexrd'
-    )
+    instr_path = ceria_examples_path / 'eiger_ceria_calibrated_composite.hexrd'
     with h5py.File(instr_path, 'r') as rf:
         return HEDMInstrument(rf)
 
@@ -92,7 +90,7 @@ def test_powder_auto_pick(
     )
 
     calibrator.autopick_points(
-        fit_tth_tol=1.,
+        fit_tth_tol=1.0,
         int_cutoff=1e-4,
     )
 

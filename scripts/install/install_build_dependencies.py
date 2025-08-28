@@ -49,8 +49,10 @@ def download_xtensor(path):
             shutil.rmtree(target_path)
 
         os.makedirs(path, exist_ok=True)
-        shutil.move(str(Path(temp_dir) / out_dir_name / 'include/xtensor'),
-                    str(Path(path) / 'xtensor/xtensor'))
+        shutil.move(
+            str(Path(temp_dir) / out_dir_name / 'include/xtensor'),
+            str(Path(path) / 'xtensor/xtensor'),
+        )
 
     return str(target_path)
 
@@ -70,7 +72,8 @@ def download_xtensor_python(path):
         os.makedirs(path, exist_ok=True)
         shutil.move(
             str(Path(temp_dir) / out_dir_name / 'include/xtensor-python'),
-            str(Path(path) / 'xtensor-python/xtensor-python'))
+            str(Path(path) / 'xtensor-python/xtensor-python'),
+        )
 
     return str(target_path)
 
@@ -88,8 +91,10 @@ def download_xtl(path):
             shutil.rmtree(target_path)
 
         os.makedirs(path, exist_ok=True)
-        shutil.move(str(Path(temp_dir) / out_dir_name / 'include/xtl'),
-                    str(Path(path) / 'xtl/xtl'))
+        shutil.move(
+            str(Path(temp_dir) / out_dir_name / 'include/xtl'),
+            str(Path(path) / 'xtl/xtl'),
+        )
 
     return str(target_path)
 
@@ -107,8 +112,10 @@ def download_xsimd(path):
             shutil.rmtree(target_path)
 
         os.makedirs(path, exist_ok=True)
-        shutil.move(str(Path(temp_dir) / out_dir_name / 'include/xsimd'),
-                    str(Path(path) / 'xsimd/xsimd'))
+        shutil.move(
+            str(Path(temp_dir) / out_dir_name / 'include/xsimd'),
+            str(Path(path) / 'xsimd/xsimd'),
+        )
 
     return str(target_path)
 
@@ -142,8 +149,10 @@ def download_pybind11(path):
             shutil.rmtree(target_path)
 
         os.makedirs(path, exist_ok=True)
-        shutil.move(str(Path(temp_dir) / out_dir_name / 'include/pybind11'),
-                    str(Path(path) / 'pybind11/pybind11'))
+        shutil.move(
+            str(Path(temp_dir) / out_dir_name / 'include/pybind11'),
+            str(Path(path) / 'pybind11/pybind11'),
+        )
 
     return str(target_path)
 

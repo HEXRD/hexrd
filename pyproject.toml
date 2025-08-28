@@ -1,6 +1,27 @@
+[project]
+name = "hexrd"
+dynamic = [
+    "version", 
+    "authors", 
+    "description", 
+    "license", 
+    "dependencies", 
+    "scripts", 
+    "classifiers", 
+    "readme",
+    "requires-python"
+]
+
+
 [build-system]
 requires = ["setuptools", "wheel", "numpy<2.0", "setuptools_scm[toml]", "pybind11>=2.11.0"]
 
 [tool.black]
 line-length = 79
 skip-string-normalization = true
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "coloredlogs",
+]

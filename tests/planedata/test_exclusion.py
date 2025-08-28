@@ -1,6 +1,7 @@
 import numpy as np
 
-from hexrd.material.crystallography import PlaneData
+# TODO: Check that this test is still sensible after PlaneData change.
+from hexrd.core.material.crystallography import PlaneData
 
 
 def test_exclusion():

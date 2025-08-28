@@ -49,9 +49,7 @@ def ceria_example_data(ceria_examples_path: Path) -> dict[str, np.ndarray]:
 
 @pytest.fixture
 def dexelas_composite_instrument(ceria_examples_path: Path) -> HEDMInstrument:
-    instr_path = (
-        ceria_examples_path / 'dexelas.yml'
-    )
+    instr_path = ceria_examples_path / 'dexelas.yml'
     with open(instr_path, 'r') as rf:
         config = yaml.safe_load(rf)
 
