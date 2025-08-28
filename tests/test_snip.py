@@ -55,8 +55,7 @@ def test_snip1d(
     pixel_size = (0.1, 1.0)
 
     pv = PolarView(tth_range, instr, eta_min, eta_max, pixel_size)
-    img = pv.warp_image(img_dict, pad_with_nans=True,
-                        do_interpolation=True)
+    img = pv.warp_image(img_dict, pad_with_nans=True, do_interpolation=True)
 
     snip_width = 100
     numiter = 2
