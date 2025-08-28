@@ -3816,6 +3816,7 @@ DENSITY_COMPOUNDS = {
     'LiF': 2.64,
     'quartz': 2.65,
     'diamond': 3.5,
+    'C22H10N2O5': 1.42,  # kapton
 }
 
 '''

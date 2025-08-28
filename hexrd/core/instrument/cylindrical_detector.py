@@ -6,6 +6,7 @@ from hexrd.core import constants as ct
 
 # TODO: Resolve extra-core dependency
 from hexrd.hedm import xrdutil
+from hexrd.hed.xrdutil.utils import _warp_to_cylinder
 from hexrd.core.utils.decorators import memoize
 
 from .detector import Detector
@@ -51,7 +52,7 @@ class CylindricalDetector(Detector):
         if apply_distortion and self.distortion is not None:
             xy_data = self.distortion.apply(xy_data)
 
-        dvecs = xrdutil.utils._warp_to_cylinder(
+        dvecs = _warp_to_cylinder(
             xy_data,
             self.tvec,
             self.radius,
@@ -125,7 +126,7 @@ class CylindricalDetector(Detector):
         rmat_s=ct.identity_3x3,
         tvec_c=ct.zeros_3x1,
     ):
-        return xrdutil.utils._warp_to_cylinder(
+        return _warp_to_cylinder(
             xy_data,
             self.tvec,
             self.radius,
@@ -364,7 +365,7 @@ def _pixel_angles(
     if distortion is not None:
         xy = distortion.apply(xy)
 
-    dvecs = xrdutil.utils._warp_to_cylinder(
+    dvecs = _warp_to_cylinder(
         xy, tvec_d - origin, radius, caxis, paxis, normalize=True
     )
 

@@ -10,7 +10,7 @@ from hexrd.core.transforms import xfcapi
 from hexrd.core import constants
 from hexrd.core import rotations
 
-from hexrd.xrdutil import (
+from hexrd.hedm.xrdutil import (
     apply_correction_to_wavelength,
     extract_detector_transformation,
 )

@@ -5,7 +5,7 @@ import numpy as np
 from hexrd.core import matrixutil as mutil
 from hexrd.core.rotations import angularDifference
 from hexrd.core.transforms import xfcapi
-from hexrd.core import xrdutil
+from hexrd.hedm import xrdutil
 
 from .abstract_grain import AbstractGrainCalibrator
 from .lmfit_param_handling import (
