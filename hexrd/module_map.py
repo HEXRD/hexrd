@@ -1,13 +1,14 @@
 # The following dynamically generates aliases for the remapped modules based
 # on the file_map
-import pickle
+from collections import defaultdict
 import importlib
 import importlib.util
 import importlib.abc
 import importlib.machinery
-import sys
 from pathlib import Path
-from collections import defaultdict
+import pickle
+import sys
+from typing import Union
 
 
 def path_to_module(path: Path) -> str:
@@ -78,7 +79,7 @@ class ModuleAlias:
         )
 
 
-flattened_module_map: dict[str, ModuleAlias | str] = {}
+flattened_module_map: dict[str, Union[ModuleAlias, str]] = {}
 
 for key, (mapped_module, _mapped_fp) in module_map.items():
     parts = mapped_module.split(".")
@@ -88,8 +89,7 @@ for key, (mapped_module, _mapped_fp) in module_map.items():
             flattened_module_map[module] = ModuleAlias(parts[:i])
     flattened_module_map[key] = mapped_module
 
-
-def get(alias: str) -> ModuleAlias | str | None:
+def get(alias: str) -> Union[ModuleAlias, str, None]:
     """
     Returns the the module or an alias to it if it exists.
     """
