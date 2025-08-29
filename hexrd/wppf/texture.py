@@ -1223,11 +1223,11 @@ def check_symmetry(sym):
               'd3d',
               'c6h',
               'd6h',
-               'th',
-               'oh', # end of crystal symmtries
-               'monoclinic',
-               'orthorhombic',
-               'axial'] # end of sample symmetries
+              'th',
+              'oh', # end of crystal symmtries
+              'monoclinic',
+              'orthorhombic',
+              'axial'] # end of sample symmetries
     if not sym in symlist:
         msg = (f'unknown crystal/sample symmetry. '
                f'It should be one of {symlist[0:11]} '
