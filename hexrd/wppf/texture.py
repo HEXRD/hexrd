@@ -339,6 +339,7 @@ class pole_figures:
 
     def calc_new_pole_figure(self,
                              hkls,
+                             pfgrid=None,
                              plot=False):
         '''calculate pole figure for new poles
         given by hkls. the data will be computed 
@@ -359,7 +360,8 @@ class pole_figures:
         self.num_pfs_new = hkls.shape[0]
         self.hkls_c_new = self.convert_hkls_to_cartesian(
                                     hkls)
-        self.calc_new_pfdata(hkls)
+        self.calc_new_pfdata(hkls,
+                             pfgrid=pfgrid)
 
         if plot:
             self.plot_new_pf(
@@ -371,7 +373,8 @@ class pole_figures:
                         show=True)
 
     def calc_new_pfdata(self,
-                        hkls):
+                        hkls,
+                        pfgrid=None):
         '''this routine computes the new pfdata which will
         will be used in computing pole figures for a new hkl
         pole
@@ -386,10 +389,42 @@ class pole_figures:
         self.sph_c_new = {}
         self.sph_s_new = {}
 
-        # get the densest grid and associated data
-        dg = self.densest_grid
-        angs = self.angs[dg]
-        rotated_angs = self.rotated_angs[dg]
+        '''get the densest grid and associated data
+        if the user does not specify a grid of points
+
+        otherwise use the grid data provided by the
+        user to generate the angs and the values of the
+        spherical harmonics
+        
+        '''
+        if pfgrid is None:
+            dg = self.densest_grid
+            angs = self.angs[dg]
+            rotated_angs = self.rotated_angs[dg]
+
+        else:
+            norm = np.linalg.norm(pfgrid,axis=1)
+            v = pfgrid/np.tile(norm, [3,1]).T
+
+            # sanitize v[:, 2] for arccos operation
+            mask = np.abs(v[:,2]) > 1.
+            v[mask,2] = np.sign(v[mask,2])
+
+            t = np.arccos(v[:,2])
+            rho = np.arctan2(v[:,1],v[:,0])
+
+            vr = np.dot(self.ref_frame_rmat, v[:,0:3].T).T
+            
+            # sanitize vr[:, 2] for arccos operation
+            mask = np.abs(vr[:,2]) > 1.
+            vr[mask,2] = np.sign(vr[mask,2])
+            
+            tr = np.arccos(vr[:,2])
+            rhor = np.arctan2(vr[:,1],vr[:,0])
+
+            angs = np.vstack((t, rho)).T
+            rotated_angs = np.vstack((tr, rhor)).T
+
         hkls_c = self.convert_hkls_to_cartesian(hkls)
 
         for ii, h in enumerate(hkls):
@@ -403,15 +438,15 @@ class pole_figures:
                                          np.arctan2(hkls_c[ii, 1], 
                                                     hkls_c[ii, 0])])
 
-
         for ii, (h, v) in enumerate(self.hkl_angles_new.items()):
             '''needs special attention for monoclininc case
                 since the 2-fold axis is aligned with b*
             '''
             theta = np.array([v[0]])
             phi = np.array([v[1]])
+            '''is the requested data on a new grid?
+            '''
             self.sph_c_new[h] = {}
-            self.sph_s_new[h] = self.sph_s[dg].copy()
 
             for ell in np.arange(2, self.ell_max+1, 2):
                 Ylm = calc_sym_sph_harm(ell, 
@@ -421,6 +456,24 @@ class pole_figures:
                 for jj in np.arange(Ylm.shape[1]):
                     kname = f'c_{ell}{jj}'
                     self.sph_c_new[h][kname] = Ylm[:,jj]
+
+            if pfgrid is None:
+                self.sph_s_new[h] = self.sph_s[dg].copy()
+
+            else:
+                self.sph_s_new[h] = {}
+                theta_samp = self.rotated_angs[h][:,0]
+                phi_samp   = self.rotated_angs[h][:,1]
+
+                for ell in np.arange(2, self.ell_max+1, 2):
+                    Ylm = calc_sym_sph_harm(ell, 
+                                            theta_samp,
+                                            phi_samp,
+                                            sym=self.ssym)
+                    for jj in np.arange(Ylm.shape[1]):
+                        kname = f's_{ell}{jj}'
+                        self.sph_s_new[h][kname] = Ylm[:,jj]
+
 
         self.recalculated_pf(self.res.params, new=True)
 
@@ -1057,7 +1110,7 @@ def calc_sym_sph_harm(deg,
 
         num_sym = coeff.shape[0]
 
-        Intensity = np.zeros((theta.shape[0], num_sym))
+        Intensity = np.zeros((theta.shape[0], num_sym)).astype(complex)
 
         for ii in np.arange(num_sym):
             for jj in np.arange(-n, n+1):
