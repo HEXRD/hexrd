@@ -379,15 +379,21 @@ class pole_figures:
         will be used in computing pole figures for a new hkl
         pole
         '''
-        self.intensities_new = {}
-        self.angs_new = {}
-        self.rotated_angs_new = {}
-        self.hkl_angles_new = {}
+        if not hasattr(self, 'intensities_new'):
+            self.intensities_new = {}
+        if not hasattr(self, 'angs_new'):
+            self.angs_new = {}
+        if not hasattr(self, 'rotated_angs_new'):
+            self.rotated_angs_new = {}
+        if not hasattr(self, 'hkl_angles_new'):
+            self.hkl_angles_new = {}
 
         '''also pre-compute the spherical harmonics
         '''
-        self.sph_c_new = {}
-        self.sph_s_new = {}
+        if not hasattr(self, 'sph_c_new'):
+            self.sph_c_new = {}
+        if not hasattr(self, 'sph_s_new'):
+            self.sph_s_new = {}
 
         '''get the densest grid and associated data
         if the user does not specify a grid of points
