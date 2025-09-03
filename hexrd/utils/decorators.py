@@ -75,8 +75,15 @@ def memoize(func=None, maxsize=2):
                     # Remove the left item (least recently used)
                     cache.popitem(last=False)
 
+                output = func(*args, **kwargs)
+                if isinstance(output, np.ndarray):
+                    # Make the array readonly so that caller functions *cannot*
+                    # modify the cached output array. Otherwise, we run into
+                    # hard-to-track-down bugs.
+                    output.flags.writeable = False
+
                 # This inserts the item on the right (most recently used)
-                cache[key] = func(*args, **kwargs)
+                cache[key] = output
                 misses += 1
             else:
                 # Move the item to the right (most recently used)
