@@ -1,6 +1,7 @@
 import numpy as np
 
 from hexrd import constants
+from hexrd.instrument.detector import _interpolate_bilinear_in_place
 from hexrd.material.crystallography import PlaneData
 from hexrd.xrdutil.utils import (
     _project_on_detector_cylinder,
@@ -77,6 +78,7 @@ class PolarView:
         self._instrument = instrument
 
         self._coordinate_mapping = None
+        self._nan_mask = None
         self._cache_coordinate_map = cache_coordinate_map
         if cache_coordinate_map:
             # It is important to generate the cached map now, rather than
@@ -84,6 +86,7 @@ class PolarView:
             # for parallelization, and it will be faster if the mapping
             # is already generated.
             self._coordinate_mapping = self._generate_coordinate_mapping()
+            self._nan_mask = self._generate_nan_mask(self._coordinate_mapping)
 
     @property
     def instrument(self):
@@ -261,13 +264,21 @@ class PolarView:
         if self.cache_coordinate_map:
             # The mapping should have already been generated.
             mapping = self._coordinate_mapping
+            nan_mask = self._nan_mask
         else:
             # Otherwise, we must generate it every time
             mapping = self._generate_coordinate_mapping()
+            # FIXME: this performs a bilinear interpolation
+            # each time. Maybe it doesn't matter that much
+            # since the interpolation is very fast now, but
+            # it'd be nice if we could figure out another
+            # way to do it.
+            nan_mask = self._generate_nan_mask(mapping)
 
         return self._warp_image_from_coordinate_map(
             image_dict,
             mapping,
+            nan_mask,
             pad_with_nans=pad_with_nans,
             do_interpolation=do_interpolation,
         )
@@ -312,66 +323,104 @@ class PolarView:
             xypts[on_plane, :] = valid_xys
 
             _, on_panel = panel.clip_to_panel(xypts, buffer_edges=True)
+            on_panel_idx = np.where(on_panel)[0]
+            xy_clip = xypts[on_panel_idx]
+
+            bilinear_interp_dict = panel._generate_bilinear_interp_dict(
+                xy_clip,
+            )
 
             mapping[detector_id] = {
                 'xypts': xypts,
-                'on_panel': on_panel,
+                'on_panel_idx': on_panel_idx,
+                'bilinear_interp_dict': bilinear_interp_dict,
             }
 
         return mapping
 
-    def _warp_image_from_coordinate_map(
-            self,
-            image_dict: dict[str, np.ndarray],
-            coordinate_map: dict[str, dict[str, np.ndarray]],
-            pad_with_nans: bool = False,
-            do_interpolation=True) -> np.ma.MaskedArray:
+    def _generate_nan_mask(
+        self,
+        coordinate_map: dict[str, dict[str, np.ndarray]],
+    ) -> np.ndarray:
+        """Generate the nan mask
 
-        panel_buffer_fill_value = np.nan
-        img_dict = dict.fromkeys(self.detectors)
-        nan_mask = None
+        This saves time during repeated calls to warp_image(),
+        since the nan mask should stay the same and not change.
+        """
+        mapping = coordinate_map
+        # Generate the nan mask that we will use
+        nan_mask = np.ones(self.shape, dtype=bool).flatten()
         for detector_id, panel in self.detectors.items():
-            # Make a copy since we may modify
-            img = image_dict[detector_id].copy()
+            on_panel_idx = mapping[detector_id]['on_panel_idx']
+            xypts = mapping[detector_id]['xypts']
+            interp_dict = mapping[detector_id]['bilinear_interp_dict']
 
-            # Before warping, mask out any pixels that are invalid,
-            # so that they won't affect the results.
+            # To reproduce old behavior, perform a bilinear
+            # interpolation so that if any point has neighboring
+            # pixels that are nan, that point will also be excluded.
+            dummy_img = np.zeros(panel.shape)
             buffer = panel_buffer_as_2d_array(panel)
-            if (np.issubdtype(type(panel_buffer_fill_value), np.floating) and
-                    not np.issubdtype(img.dtype, np.floating)):
-                # Convert to float. This is especially important
-                # for nan, since it is a float...
-                img = img.astype(float)
+            dummy_img[~buffer] = np.nan
 
-            img[~buffer] = panel_buffer_fill_value
+            output = np.full(len(xypts), np.nan)
+            output[on_panel_idx] = 0
+            _interpolate_bilinear_in_place(
+                dummy_img,
+                **interp_dict,
+                on_panel_idx=on_panel_idx,
+                output_img=output,
+            )
 
-            xypts = coordinate_map[detector_id]['xypts']
-            on_panel = coordinate_map[detector_id]['on_panel']
+            nan_mask[~np.isnan(output)] = False
+
+        return nan_mask.reshape(self.shape)
+
+    def _warp_image_from_coordinate_map(
+        self,
+        image_dict: dict[str, np.ndarray],
+        coordinate_map: dict[str, dict[str, np.ndarray]],
+        nan_mask: np.ndarray,
+        pad_with_nans: bool = False,
+        do_interpolation=True,
+    ) -> np.ma.MaskedArray:
+        first_det = next(iter(self.detectors))
+        # This is a flat image. We'll reshape at the end.
+        summed_img = np.zeros(len(coordinate_map[first_det]['xypts']))
+        for detector_id, panel in self.detectors.items():
+            img = image_dict[detector_id]
+            panel_map = coordinate_map[detector_id]
+
+            xypts = panel_map['xypts']
+            on_panel_idx = panel_map['on_panel_idx']
+            interp_dict = panel_map['bilinear_interp_dict']
 
             if do_interpolation:
-                this_img = panel.interpolate_bilinear(
-                    xypts, img,
-                    pad_with_nans=pad_with_nans,
-                    on_panel=on_panel).reshape(self.shape)
+                # It's faster if we do _interpolate_bilinear ourselves,
+                # since we already have all appropriate options set up.
+                _interpolate_bilinear_in_place(
+                    img,
+                    **interp_dict,
+                    on_panel_idx=on_panel_idx,
+                    output_img=summed_img,
+                )
             else:
-                this_img = panel.interpolate_nearest(
-                    xypts, img,
-                    pad_with_nans=pad_with_nans).reshape(self.shape)
+                summed_img += panel.interpolate_nearest(
+                    xypts,
+                    img,
+                    # DON'T pad with nans, so we can sum images together
+                    # correctly. We'll pad with nans later.
+                    pad_with_nans=False,
+                )
 
-            # It is faster to keep track of the global nans like this
-            # rather than the previous way we were doing it...
-            img_nans = np.isnan(this_img)
-            if nan_mask is None:
-                nan_mask = img_nans
-            else:
-                nan_mask = np.logical_and(img_nans, nan_mask)
+        # Now reshape the image to the appropriate shape
+        output_img = summed_img.reshape(self.shape)
 
-            this_img[img_nans] = 0
-            img_dict[detector_id] = this_img
+        if pad_with_nans:
+            # We pad with nans manually here
+            output_img[nan_mask] = np.nan
 
-        summed_img = np.sum(list(img_dict.values()), axis=0)
         return np.ma.masked_array(
-            data=summed_img, mask=nan_mask, fill_value=0.
+            data=output_img, mask=nan_mask, fill_value=0.
         )
 
     def tth_to_pixel(self, tth):
