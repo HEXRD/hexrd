@@ -1,5 +1,5 @@
 import numpy as np
-from hexrd.core import matrixutil as mu
+from hexrd.utilities.core import matrixutil as mu
 
 
 def test_column_norm(n_dim):

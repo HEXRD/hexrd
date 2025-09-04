@@ -2,9 +2,9 @@ import os
 import numpy as np
 
 # TODO: Check that this test is still sensible after PlaneData change.
-from hexrd.core.material.crystallography import PlaneData
-from hexrd.core.rotations import quatOfLaueGroup
-from hexrd.core.valunits import valWUnit
+from hexrd.utilities.core.material.crystallography import PlaneData
+from hexrd.utilities.core.rotations import quatOfLaueGroup
+from hexrd.utilities.core.valunits import valWUnit
 
 
 def test_misc():

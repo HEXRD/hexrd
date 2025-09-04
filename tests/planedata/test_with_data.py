@@ -3,9 +3,9 @@ import numpy as np
 
 import pytest
 
-from hexrd.core.material.crystallography import ltypeOfLaueGroup
-from hexrd.core.material.material import Material
-from hexrd.core.rotations import rotMatOfQuat
+from hexrd.utilities.core.material.crystallography import ltypeOfLaueGroup
+from hexrd.utilities.core.material.material import Material
+from hexrd.utilities.core.rotations import rotMatOfQuat
 
 
 @pytest.fixture

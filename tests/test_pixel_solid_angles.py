@@ -6,13 +6,13 @@ import yaml
 
 import pytest
 
-import hexrd.core.resources
-from hexrd.core.instrument.hedm_instrument import HEDMInstrument
+import hexrd.utilities.core.resources
+from hexrd.utilities.core.instrument.hedm_instrument import HEDMInstrument
 
 
 @pytest.fixture
 def tardis_instrument() -> HEDMInstrument:
-    path = importlib.resources.files(hexrd.core.resources).joinpath(
+    path = importlib.resources.files(hexrd.utilities.core.resources).joinpath(
         'tardis_reference_config.yml'
     )
     with open(path, 'r') as rf:

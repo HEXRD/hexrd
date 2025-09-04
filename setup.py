@@ -52,7 +52,7 @@ else:
 
 # Extension for convolution from astropy
 def get_convolution_extensions():
-    c_convolve_pkgdir = Path('hexrd') / 'core/convolution'
+    c_convolve_pkgdir = Path('hexrd') / 'utilities/core/convolution'
 
     src_files = [str(c_convolve_pkgdir / 'src/convolve.c')]
 
@@ -60,7 +60,7 @@ def get_convolution_extensions():
     # Add '-Rpass-missed=.*' to ``extra_compile_args`` when compiling with
     # clang to report missed optimizations
     _convolve_ext = Extension(
-        name='hexrd.core.convolution._convolve',
+        name='hexrd.utilities.core.convolution._convolve',
         sources=src_files,
         extra_compile_args=extra_compile_args,
         include_dirs=[numpy.get_include()],
@@ -117,7 +117,7 @@ def get_pybind11_include_path():
 
 
 def get_cpp_extensions():
-    cpp_transform_pkgdir = Path('hexrd') / 'core/transforms/cpp_sublibrary'
+    cpp_transform_pkgdir = Path('hexrd') / 'utilities/core/transforms/cpp_sublibrary'
 
     extra_compile_args = [
         '-O3',
@@ -138,7 +138,7 @@ def get_cpp_extensions():
     ]
 
     transforms_ext = Extension(
-        name='hexrd.core.extensions.transforms',
+        name='hexrd.utilities.core.extensions.transforms',
         sources=[str(cpp_transform_pkgdir / 'src/transforms.cpp')],
         extra_compile_args=extra_compile_args,
         include_dirs=include_dirs,
@@ -146,7 +146,7 @@ def get_cpp_extensions():
     )
 
     inverse_distortion_ext = Extension(
-        name='hexrd.core.extensions.inverse_distortion',
+        name='hexrd.utilities.core.extensions.inverse_distortion',
         sources=[str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')],
         extra_compile_args=extra_compile_args,
         include_dirs=include_dirs,
@@ -159,9 +159,9 @@ def get_cpp_extensions():
 def get_old_xfcapi_extension_modules():
     # for transforms
     srclist = ['transforms_CAPI.c', 'transforms_CFUNC.c']
-    srclist = [os.path.join('hexrd/core/transforms', f) for f in srclist]
+    srclist = [os.path.join('hexrd/utilities/core/transforms', f) for f in srclist]
     transforms_mod = Extension(
-        'hexrd.core.extensions._transforms_CAPI',
+        'hexrd.utilities.core.extensions._transforms_CAPI',
         sources=srclist,
         include_dirs=[np_include_dir],
         extra_compile_args=compiler_flags,
@@ -172,8 +172,8 @@ def get_old_xfcapi_extension_modules():
 
 def get_new_xfcapi_extension_modules():
     transforms_mod = Extension(
-        'hexrd.core.extensions._new_transforms_capi',
-        sources=['hexrd/core/transforms/new_capi/module.c'],
+        'hexrd.utilities.core.extensions._new_transforms_capi',
+        sources=['hexrd/utilities/core/transforms/new_capi/module.c'],
         include_dirs=[np_include_dir],
         extra_compile_args=compiler_flags,
     )
@@ -198,7 +198,7 @@ def get_extension_modules():
 ext_modules = get_extension_modules()
 
 # use entry_points, not scripts:
-entry_points = {'console_scripts': ["hexrd = hexrd.hedm.cli.main:main"]}
+entry_points = {'console_scripts': ["hexrd = hexrd.workflows.hedm.cli.main:main"]}
 
 setup(
     name='hexrd',

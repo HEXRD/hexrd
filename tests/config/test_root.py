@@ -4,7 +4,7 @@ import tempfile
 from unittest import skipIf
 
 from .common import TestConfig, test_data
-from hexrd.hedm import config
+from hexrd.workflows.hedm import config
 
 
 reference_data = (

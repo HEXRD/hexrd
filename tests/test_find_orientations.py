@@ -8,14 +8,14 @@ import pytest
 import coloredlogs
 
 
-from hexrd.hedm.findorientations import (
+from hexrd.workflows.hedm.findorientations import (
     find_orientations,
     generate_eta_ome_maps,
 )
-from hexrd.hedm import config
+from hexrd.workflows.hedm import config
 
 # TODO: Check that this test is still sensible after PlaneData change.
-from hexrd.core.material.crystallography import PlaneData
+from hexrd.utilities.core.material.crystallography import PlaneData
 
 import find_orientations_testing as test_utils
 

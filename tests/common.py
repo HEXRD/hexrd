@@ -2,7 +2,7 @@ import math
 
 import numpy as np
 
-import hexrd.core.constants as ct
+import hexrd.utilities.core.constants as ct
 
 
 def convert_axis_angle_to_rmat(axis, angle):

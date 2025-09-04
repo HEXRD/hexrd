@@ -4,7 +4,7 @@ import tempfile
 import logging
 import unittest
 
-from hexrd.hedm import config
+from hexrd.workflows.hedm import config
 
 
 test_data = {

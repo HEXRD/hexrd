@@ -1,4 +1,4 @@
-from hexrd.core import rotations
+from hexrd.utilities.core import rotations
 import numpy as np
 
 

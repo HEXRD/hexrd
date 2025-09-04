@@ -2,8 +2,8 @@ import numpy as np
 
 from .common import ImageSeriesTest
 
-from hexrd.core import imageseries
-from hexrd.core.imageseries.omega import OmegaSeriesError, OmegaImageSeries
+from hexrd.utilities.core import imageseries
+from hexrd.utilities.core.imageseries.omega import OmegaSeriesError, OmegaImageSeries
 
 
 class TestOmegaSeries(ImageSeriesTest):

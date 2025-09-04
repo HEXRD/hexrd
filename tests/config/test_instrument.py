@@ -1,10 +1,10 @@
 import os
 
-import hexrd.core.instrument
+import hexrd.utilities.core.instrument
 from .common import TestConfig, test_data
 
 try:
-    from hexrd.hedm.config.instrument import (
+    from hexrd.workflows.hedm.config.instrument import (
         Instrument,
         Beam,
         OscillationStage,
@@ -75,7 +75,7 @@ class TestInstrument(TestConfig):
         icfg = Instrument(self.cfgs[1])
         b = icfg.beam
         self.assertTrue(
-            isinstance(b, hexrd.core.instrument.beam.Beam),
+            isinstance(b, hexrd.utilities.core.instrument.beam.Beam),
             "Failed to produce a Beam instance",
         )
 
@@ -85,7 +85,7 @@ class TestInstrument(TestConfig):
         self.assertTrue(
             isinstance(
                 ostage,
-                hexrd.core.instrument.oscillation_stage.OscillationStage,
+                hexrd.utilities.core.instrument.oscillation_stage.OscillationStage,
             ),
             "Failed to produce an OscillationStage instance",
         )
@@ -95,7 +95,7 @@ class TestInstrument(TestConfig):
         icfg = Detector(cfg, 'GE1')
         det = icfg.detector(Beam(cfg).beam)
         self.assertTrue(
-            isinstance(det, hexrd.core.instrument.PlanarDetector),
+            isinstance(det, hexrd.utilities.core.instrument.PlanarDetector),
             "Failed to produce an Detector instance",
         )
 
@@ -109,7 +109,7 @@ class TestInstrument(TestConfig):
         for k in dd:
             d = dd[k]
             self.assertTrue(
-                isinstance(d, hexrd.core.instrument.PlanarDetector),
+                isinstance(d, hexrd.utilities.core.instrument.PlanarDetector),
                 "Detector dictionary values are not detector instances",
             )
 

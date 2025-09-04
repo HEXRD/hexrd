@@ -8,8 +8,8 @@ import pytest
 import coloredlogs
 
 
-from hexrd.hedm import config
-from hexrd.hedm.fitgrains import fit_grains
+from hexrd.workflows.hedm import config
+from hexrd.workflows.hedm.fitgrains import fit_grains
 
 
 from fit_grains_check import compare_grain_fits

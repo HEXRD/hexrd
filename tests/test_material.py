@@ -2,7 +2,7 @@ import numpy as np
 import h5py
 import pytest
 
-from hexrd.core.material import Material, load_materials_hdf5
+from hexrd.utilities.core.material import Material, load_materials_hdf5
 
 # Tolerance for comparing floats
 FLOAT_TOL = 1.0e-8

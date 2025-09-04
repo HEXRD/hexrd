@@ -2,7 +2,7 @@ import json
 
 import numpy as np
 
-from hexrd.core.utils.json import (
+from hexrd.utilities.core.utils.json import (
     NumpyDecoder,
     NumpyEncoder,
     NumpyToNativeEncoder,

@@ -4,10 +4,10 @@ import h5py
 import numpy as np
 import pytest
 
-from hexrd.core import imageseries
-from hexrd.core.imageseries.process import ProcessedImageSeries
-from hexrd.core.instrument import HEDMInstrument
-from hexrd.core.projections.polar import PolarView
+from hexrd.utilities.core import imageseries
+from hexrd.utilities.core.imageseries.process import ProcessedImageSeries
+from hexrd.utilities.core.instrument import HEDMInstrument
+from hexrd.utilities.core.projections.polar import PolarView
 
 
 @pytest.fixture

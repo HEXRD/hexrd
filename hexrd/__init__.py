@@ -3,13 +3,13 @@ import importlib.abc
 import importlib.machinery
 import sys
 
-from .core.material import crystallography
-from .core.material import jcpds
-from .core.material import mksupport
-from .core.material import spacegroup
-from .core.material import symbols
-from .core.material import symmetry
-from .core.material import unitcell
+from .utilities.core.material import crystallography
+from .utilities.core.material import jcpds
+from .utilities.core.material import mksupport
+from .utilities.core.material import spacegroup
+from .utilities.core.material import symbols
+from .utilities.core.material import symmetry
+from .utilities.core.material import unitcell
 
 # These are aliases for import paths, so we don't break old HEXRD scripts.
 # We will verify the alias files *do not* exist, to avoid confusion.

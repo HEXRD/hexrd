@@ -1,5 +1,5 @@
 from pytest import fixture
-from hexrd.core.material import Material, unitcell
+from hexrd.utilities.core.material import Material, unitcell
 import numpy as np
 
 

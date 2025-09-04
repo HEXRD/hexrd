@@ -5,9 +5,9 @@ import yaml
 
 import pytest
 
-from hexrd.core.fitting.calibration import LaueCalibrator
-from hexrd.core.material import load_materials_hdf5, Material
-from hexrd.core.instrument.hedm_instrument import HEDMInstrument
+from hexrd.utilities.core.fitting.calibration import LaueCalibrator
+from hexrd.utilities.core.material import load_materials_hdf5, Material
+from hexrd.utilities.core.instrument.hedm_instrument import HEDMInstrument
 
 
 @pytest.fixture

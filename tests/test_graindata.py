@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import numpy as np
 
-from hexrd.hedm.cli.fit_grains import GrainData
+from hexrd.workflows.hedm.cli.fit_grains import GrainData
 
 
 @pytest.fixture

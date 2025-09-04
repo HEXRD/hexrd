@@ -1,4 +1,4 @@
-from hexrd.core.utils.concurrent import distribute_tasks
+from hexrd.utilities.core.utils.concurrent import distribute_tasks
 
 
 def test_distribute_tasks():

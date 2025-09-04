@@ -9,10 +9,10 @@ import argparse
 
 import numpy as np
 
-from hexrd.hedm import config
-from hexrd.hedm.fitgrains import fit_grains
-from hexrd.core import matrixutil as mutil
-from hexrd.core import rotations as rot
+from hexrd.workflows.hedm import config
+from hexrd.workflows.hedm.fitgrains import fit_grains
+from hexrd.utilities.core import matrixutil as mutil
+from hexrd.utilities.core import rotations as rot
 
 
 def compare_grain_fits(

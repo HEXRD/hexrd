@@ -5,19 +5,19 @@ import h5py
 import numpy as np
 import pytest
 
-from hexrd.core import imageseries
-from hexrd.core.fitting.calibration import (
+from hexrd.utilities.core import imageseries
+from hexrd.utilities.core.fitting.calibration import (
     InstrumentCalibrator,
     PowderCalibrator,
 )
-from hexrd.core.fitting.calibration.relative_constraints import (
+from hexrd.utilities.core.fitting.calibration.relative_constraints import (
     RelativeConstraintsType,
 )
-from hexrd.core.imageseries.process import ProcessedImageSeries
-from hexrd.core.instrument import HEDMInstrument
-from hexrd.core.material import load_materials_hdf5, Material
-from hexrd.core.rotations import rotMatOfExpMap
-from hexrd.core.utils.hdf5 import unwrap_h5_to_dict
+from hexrd.utilities.core.imageseries.process import ProcessedImageSeries
+from hexrd.utilities.core.instrument import HEDMInstrument
+from hexrd.utilities.core.material import load_materials_hdf5, Material
+from hexrd.utilities.core.rotations import rotMatOfExpMap
+from hexrd.utilities.core.utils.hdf5 import unwrap_h5_to_dict
 
 
 @pytest.fixture

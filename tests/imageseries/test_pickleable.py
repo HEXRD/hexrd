@@ -4,9 +4,9 @@ import tempfile
 import unittest
 
 from .common import make_array_ims
-from hexrd.core.imageseries.load.hdf5 import HDF5ImageSeriesAdapter
-from hexrd.core.imageseries.load.framecache import FrameCacheImageSeriesAdapter
-from hexrd.core import imageseries
+from hexrd.utilities.core.imageseries.load.hdf5 import HDF5ImageSeriesAdapter
+from hexrd.utilities.core.imageseries.load.framecache import FrameCacheImageSeriesAdapter
+from hexrd.utilities.core import imageseries
 
 
 class ImageSeriesPickleableTest(unittest.TestCase):

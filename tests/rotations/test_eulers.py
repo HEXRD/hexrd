@@ -2,7 +2,7 @@ from scipy.spatial.transform import Rotation as R
 
 import numpy as np
 
-from hexrd.core import rotations
+from hexrd.utilities.core import rotations
 
 
 def random_rot_mat_euler():

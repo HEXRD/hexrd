@@ -4,10 +4,10 @@
 
 from __future__ import absolute_import
 import numpy as np
-from hexrd.core.transforms.new_capi.xf_new_capi import quat_distance
+from hexrd.utilities.core.transforms.new_capi.xf_new_capi import quat_distance
 
 # from common import  random_unit_vectors
-# from hexrd.core.rotations import quatOfLaueGroup
+# from hexrd.utilities.core.rotations import quatOfLaueGroup
 
 
 def test_quat_distance_from_file(test_data_dir):
