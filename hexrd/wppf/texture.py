@@ -134,8 +134,8 @@ class pole_figures:
             angs = self.angs_new
         for h, angs in angs.items():
             t = angs[:,0]
-            cth = np.cos(t)
-            sth = np.sin(t)
+            cth = np.cos(t*0.5)
+            sth = np.sin(t*0.5)
             sr[h] = sth/(1 + np.abs(cth))
         return sr
 
@@ -394,6 +394,22 @@ class pole_figures:
             self.sph_c_new = {}
         if not hasattr(self, 'sph_s_new'):
             self.sph_s_new = {}
+
+        '''
+        # if not hasattr(self, 'intensities_new'):
+        self.intensities_new = {}
+        # if not hasattr(self, 'angs_new'):
+        self.angs_new = {}
+        # if not hasattr(self, 'rotated_angs_new'):
+        self.rotated_angs_new = {}
+        # if not hasattr(self, 'hkl_angles_new'):
+        self.hkl_angles_new = {}
+
+        # if not hasattr(self, 'sph_c_new'):
+        self.sph_c_new = {}
+        # if not hasattr(self, 'sph_s_new'):
+        self.sph_s_new = {}
+        '''
 
         '''get the densest grid and associated data
         if the user does not specify a grid of points
