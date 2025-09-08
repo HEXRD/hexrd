@@ -70,6 +70,36 @@ class AbstractWPPF(ABC):
         resstr += self.params.__str__()
         return resstr
 
+    def dump_hdf5(self, file):
+        """
+        >> @AUTHOR: Saransh Singh, Lawrence Livermore National Lab,
+                    saransh1@llnl.gov
+        >> @DATE:   01/19/2021 SS 1.0 original
+        >> @DETAILS: write out the hdf5 file with all the spectrum, parameters
+                     and phases pecified by filename or h5py.File object
+        """
+        if isinstance(file, str):
+            fexist = path.isfile(file)
+            if fexist:
+                fid = h5py.File(file, "r+")
+            else:
+                fid = h5py.File(file, "x")
+
+        elif isinstance(file, h5py.File):
+            fid = file
+
+        else:
+            raise RuntimeError(
+                "Parameters: dump_hdf5 Pass in a filename \
+                string or h5py.File object"
+            )
+
+        self.phases.dump_hdf5(fid)
+        self.params.dump_hdf5(fid)
+        self.spectrum_expt.dump_hdf5(fid, "experimental")
+        self.spectrum_sim.dump_hdf5(fid, "simulated")
+        self.background.dump_hdf5(fid, "background")
+
     def params_vary_off(self):
         """
         no params are varied
@@ -1018,36 +1048,6 @@ class LeBail(AbstractWPPF):
     def _get_phase(self, name: str, wavelength_type: str):
         # LeBail just ignores the wavelength type for phases
         return self.phases[name]
-
-    def dump_hdf5(self, file):
-        """
-        >> @AUTHOR: Saransh Singh, Lawrence Livermore National Lab,
-                    saransh1@llnl.gov
-        >> @DATE:   01/19/2021 SS 1.0 original
-        >> @DETAILS: write out the hdf5 file with all the spectrum, parameters
-                     and phases pecified by filename or h5py.File object
-        """
-        if isinstance(file, str):
-            fexist = path.isfile(file)
-            if fexist:
-                fid = h5py.File(file, "r+")
-            else:
-                fid = h5py.File(file, "x")
-
-        elif isinstance(file, h5py.File):
-            fid = file
-
-        else:
-            raise RuntimeError(
-                "Parameters: dump_hdf5 Pass in a filename \
-                string or h5py.File object"
-            )
-
-        self.phases.dump_hdf5(fid)
-        self.params.dump_hdf5(fid)
-        self.spectrum_expt.dump_hdf5(fid, "experimental")
-        self.spectrum_sim.dump_hdf5(fid, "simulated")
-        self.background.dump_hdf5(fid, "background")
 
     def initialize_Icalc(self):
         """
