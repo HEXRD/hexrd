@@ -407,7 +407,7 @@ class pole_figures:
             self.sph_s_rings = {}
 
         hkls   = self.material.hkls
-        tth    = self.material.getTTh(self.material.wavelength)
+        tth    = np.radians(self.material.getTTh(self.material.wavelength))
         hkls_c = self.convert_hkls_to_cartesian(hkls)
 
         for ii, (t, h, hc) in enumerate(zip(tth, hkls, hkls_c)):
