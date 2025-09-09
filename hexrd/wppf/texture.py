@@ -437,7 +437,7 @@ def get_total_sym_harm(ell_max,
 
 def get_parameters(ell_max,
                    csym='oh',
-                   ssym='axial'
+                   ssym='axial',
                    params=None):
     '''
     make lmfit parameter class for a given
@@ -446,29 +446,23 @@ def get_parameters(ell_max,
     if params is None:
         params = Parameters()
 
-    else:
-        for ell in np.arange(2, ell_max+1, 2):
-            nc = get_num_sym_harm(ell, sym=csym)
-            ns = get_num_sym_harm(ell, sym=ssym)
-            
-            for ii in np.arange(ns):
-                for jj in np.arange(nc):
+    for ell in np.arange(2, ell_max+1, 2):
+        nc = get_num_sym_harm(ell, sym=csym)
+        ns = get_num_sym_harm(ell, sym=ssym)
+        
+        for ii in np.arange(ns):
+            for jj in np.arange(nc):
 
-                    pname = f'c_{ell}{ii}{jj}'
-                    params.add(name=pname, 
-                               value=0.,
-                               vary=True)
+                pname = f'c_{ell}{ii}{jj}'
+                params.add(name=pname, 
+                           value=0.,
+                           vary=True)
     return params
 
-
-
-class harmonic_model:
-    """
-    this class brings all the elements together to compute the
-    texture model given the sample and crystal symmetry. the model
-    will be part of the Rietveld class and give the modification in
-    the integrated intensity of each hkl reflection at a particular
-    azimuthal angle.
+class AbstractHarmonicTextureModel(ABC):
+    """this is the abstract class which is used by 
+    both the harmonic model as well as the pole figure
+    class
 
     Parameters
     ----------
@@ -484,65 +478,337 @@ class harmonic_model:
     params: lmfit.Parameters
         Parameter class for the refinement
     """
+
+    def __init__(self,
+                material=None,
+                ssym='axial',
+                ell_max=10,
+                bvec=bvec_ref,
+                evec=eta_ref,
+                sample_normal=-constants.lab_z):
+
+        self.material = material
+        self.ssym = ssym
+        self.ell_max = ell_max
+        self.csym = self.material.sg.laueGroup
+        self.bvec = bvec
+        self.etavec = evec
+        self.sample_normal = sample_normal
+
+    @property
+    def csym(self):
+        return self._csym
+
+    @property
+    def ssym(self):
+        return self._ssym
+
+    @property
+    def material(self):
+        return self._material
+
+    @material.setter
+    def material(self, mat):
+        if isinstance(mat, Material_Rietveld):
+            self._material = mat
+
+    @ssym.setter
+    def ssym(self, val):
+        if check_symmetry(val, 
+                symtype='sample'):
+            self._ssym = val
+        else:
+            msg = f'unknown sample symmetry'
+            raise ValueError(msg)
+
+    @csym.setter
+    def csym(self, val):
+        if check_symmetry(val, 
+                symtype='crystal'):
+            self._csym = val
+        else:
+            msg = f'unknown sample symmetry'
+            raise ValueError(msg)
+
+    @property
+    def ell_max(self):
+        return self._ell_max
     
+    @ell_max.setter
+    def ell_max(self, val):
+        if check_degrees(val, self.csym):
+            self._ell_max = val
+
+    @property
+    def bvec(self):
+        return self._bvec
+
+    @property
+    def etavec(self):
+        return self._etavec
+
+    @bvec.setter
+    def bvec(self, bHat_l):
+        self._bvec = bHat_l
+        if hasattr(self, '_sample_normal'):
+            self.calc_ref_frame()
+
+    @etavec.setter
+    def etavec(self, eHat_l):
+        self._etavec = eHat_l
+
+    @property
+    def sample_normal(self):
+        return self._sample_normal
+
+    @sample_normal.setter
+    def sample_normal(self, val):
+        self._sample_normal = val
+        if hasattr(self, '_bvec') and hasattr(self, '_etavec'):
+            self.calc_ref_frame()
+
+    @property
+    def ref_frame_rmat(self):
+        return self._ref_frame_rmat
+
+    def calc_ref_frame(self):
+        an = np.arccos(np.dot(
+                self.bvec,
+                self.sample_normal))
+        ax = np.cross(self.bvec,
+                      self.sample_normal)
+        norm = np.linalg.norm(ax)
+        if norm == 0:
+            self._ref_frame_rmat = np.eye(3)
+        else:
+            ax = ax/norm
+            self._ref_frame_rmat = (
+                rotMatOfExpMap(an*ax)
+                )
+
+    # Abstract methods which must be defined for each WPPF type
+    @abstractmethod
+    def J(self) -> float:
+        raise NotImplementedError
+
+    def get_total_sym_harm(self, symtype):
+        '''function to return the total symmetrized harmonics
+        for a given degree and symmetry
+        '''
+        if symtype == 'crystal':
+            sym = self.csym
+        elif symtype == 'sample':
+            sym = self.ssym
+        num = 0
+        for ell in np.arange(2, self.ell_max+1, 2):
+            num += get_num_sym_harm(ell, sym=sym)
+
+        return num
+
+    def get_parameters(self,
+                       params=None):
+        '''
+        make lmfit parameter class for refinement
+        '''
+        if params is None:
+            params = Parameters()
+
+        for ell in np.arange(2, self.ell_max+1, 2):
+            nc = get_num_sym_harm(ell, sym=self.csym)
+            ns = get_num_sym_harm(ell, sym=self.ssym)
+            
+            for ii in np.arange(ns):
+                for jj in np.arange(nc):
+
+                    pname = f'c_{ell}{ii}{jj}'
+                    params.add(name=pname, 
+                               value=0.,
+                               vary=True)
+        return params
+
+    def convert_hkls_to_cartesian(self,
+                                  hkls):
+        """
+        this routine converts hkls in the crystallographic frame to
+        the cartesian frame and normalizes them
+        """
+        hkls_c = np.atleast_2d(np.zeros(hkls.shape))
+
+        for ii, g in enumerate(hkls):
+            v = self.material.TransSpace(g, "r", "c")
+            v = v/np.linalg.norm(v)
+            hkls_c[ii,:] = v
+        return hkls_c
+
+    def convert_hkl_to_str(self, h):
+        return str(h).strip('[').strip(']').replace(" ","")
+
+    def calc_pf_rings(self,
+                      eta_min=-np.pi,
+                      eta_max=np.pi,
+                      eta_step=np.radians(0.1)):
+        '''this functin computes the  intensity variation 
+        along the debye-scherrer rings for each hkl in the material.
+        the intensity variation around the ring is computed between 
+        eta_min and eta_max. Default values are (-pi,pi) which gives 
+        the full ring. eta_step is the angular step size in azimuth. 
+        Default value is 0.1 degrees for eta_step
+        '''
+        eta_grid = np.arange(eta_min, 
+                             eta_max,
+                             eta_step)
+
+        '''initialize all the dictionaries which will store the data
+        '''
+        if not hasattr(self, 'intensities_rings'):
+            self.intensities_rings = {}
+        if not hasattr(self, 'angs_rings'):
+            self.angs_rings = {}
+        if not hasattr(self, 'rotated_angs_rings'):
+            self.rotated_angs_rings = {}
+        if not hasattr(self, 'hkl_angles_rings'):
+            self.hkl_angles_rings = {}
+
+        '''also pre-compute the spherical harmonics
+        '''
+        if not hasattr(self, 'sph_c_rings'):
+            self.sph_c_rings = {}
+        if not hasattr(self, 'sph_s_rings'):
+            self.sph_s_rings = {}
+
+        hkls   = self.hkls
+        tth    = self.tth
+        hkls_c = self.hkls_c
+
+        for ii, (t, h, hc) in enumerate(zip(tth, hkls, hkls_c)):
+            hstr = self.convert_hkl_to_str(h)
+
+            angs = np.vstack((t*np.ones_like(eta_grid),
+                             eta_grid,
+                             np.zeros_like(eta_grid))).T
+
+            pfgrid = anglesToGVec(angs,
+                 bHat_l=self.bvec,
+                 eHat_l=self.etavec)
+
+            norm = np.linalg.norm(pfgrid, axis=1)
+            v = pfgrid/np.tile(norm, [3,1]).T
+
+            # sanitize v[:, 2] for arccos operation
+            mask = np.abs(v[:,2]) > 1.
+            v[mask, 2] = np.sign(v[mask, 2])
+
+            tt = np.arccos(v[:, 2])
+            rho = np.arctan2(v[:,1], v[:,0])
+
+            vr = np.dot(self.ref_frame_rmat, v[:,0:3].T).T
+
+            # sanitize vr[:, 2] for arccos operation
+            mask = np.abs(vr[:,2]) > 1.
+            vr[mask, 2] = np.sign(vr[mask, 2])
+            
+            tr = np.arccos(vr[:, 2])
+            rhor = np.arctan2(vr[:,1], vr[:,0])
+
+            self.angs_rings[hstr] = np.vstack((tt, rho)).T
+            self.rotated_angs_rings[hstr] = np.vstack((tr, rhor)).T
+            self.hkl_angles_rings[hstr] = np.array([np.arccos(hc[2]),
+                                                    np.arctan2(hc[1], 
+                                                               hc[0])])
+
+            theta = np.array([self.hkl_angles_rings[hstr][0]])
+            phi   = np.array([self.hkl_angles_rings[hstr][1]])
+
+            self.sph_c_rings[hstr] = {}
+
+            for ell in np.arange(2, self.ell_max+1, 2):
+                Ylm = calc_sym_sph_harm(ell, 
+                                        theta,
+                                        phi,
+                                        sym=self.csym)
+                for jj in np.arange(Ylm.shape[1]):
+                    kname = f'c_{ell}{jj}'
+                    self.sph_c_rings[hstr][kname] = Ylm[:,jj]
+
+            self.sph_s_rings[hstr] = {}
+            theta_samp = self.rotated_angs_rings[hstr][:,0]
+            phi_samp   = self.rotated_angs_rings[hstr][:,1]
+
+            for ell in np.arange(2, self.ell_max+1, 2):
+                Ylm = calc_sym_sph_harm(ell, 
+                                        theta_samp,
+                                        phi_samp,
+                                        sym=self.ssym)
+                for jj in np.arange(Ylm.shape[1]):
+                    kname = f's_{ell}{jj}'
+                    self.sph_s_rings[hstr][kname] = Ylm[:,jj]
+
+            '''perform the series sum if coefficeints are calculated
+            '''
+            if hasattr(self, 'res'):
+                term = np.ones_like(v[:,0])
+
+                for ell in np.arange(2, self.ell_max+1, 2):
+                    pre = 4*np.pi/(2*ell+1)
+                    cmat = self.get_c_matrix(self.res.params, ell)
+                    sph_s_mat = self.get_sph_s_matrix(hstr,
+                                                      ell,
+                                                      gridtype='rings')
+                    sph_c_mat = self.get_sph_c_matrix(hstr,
+                                                      ell,
+                                                      gridtype='rings')
+                    t = pre*np.dot(sph_s_mat, np.dot(
+                                       cmat, sph_c_mat))
+                    term += np.squeeze(t)
+
+                self.intensities_rings[hstr] = term
+
+            else:
+                msg = (f'coefficeints have not been computed yet. '
+                       f'consider running'
+                       f'"pole_figures.calculate_harmonic_coefficients" first')
+                raise RuntimeError(msg)
+
+
+class harmonic_model(AbstractHarmonicTextureModel):
+    """
+    this class brings all the elements together to compute the
+    texture model given the sample and crystal symmetry. the model
+    will be part of the Rietveld class and give the modification in
+    the integrated intensity of each hkl reflection at a particular
+    azimuthal angle.
+    """
     def __init__(self,
                 material=None,
                 ssym='axial',
                 ell_max=10):
 
-        self.material = material
-        self.ssym = ssym
-        self.ell_max = ell_max
+        super().__init__(material=material,
+                         ssym=ssym,
+                         ell_max=ell_max)
 
-        @property
-        def csym(self):
-            return self._csym
+        self.hkls = self.material.hkls
+        self.hkls_c = self.convert_hkls_to_cartesian(self.hkls)
+        self.tth = np.radians(self.material.getTTh(
+                              self.material.wavelength))
 
-        @property
-        def ssym(self):
-            return self._ssym
+    def J(self, params):
+        '''this is the texture index for the harmonic
+        model. A value of 1 is a random texture and any
+        value > 1 is preferred orientation.
+        '''
+        J = 1.
+        for ell in np.arange(2, self.ell_max+1, 2):
+            nc = get_num_sym_harm(ell, sym=self.csym)
+            ns = get_num_sym_harm(ell, sym=self.ssym)
+            for ii in np.arange(ns):
+                for jj in np.arange(nc):
+                    pname = f'c_{ell}{ii}{jj}'
+                    pre = 1/(2*ell+1)
+                    J += pre*params[pname].value**2
+        return J
 
-        @material.setter
-        def material(self, mat):
-            if isinstance(mat, Material_Rietveld):
-                self._material = mat
-                self._csym = mat.sg.laueGroup
-
-        @ssym.setter
-        def ssym(self, val):
-            if check_symmetry(val, 
-                    symtype='sample'):
-                self._ssym = val
-            else:
-                msg = f'unknown sample symmetry'
-                raise ValueError(msg)
-
-        @property
-        def ell_max(self):
-            return self._ell_max
-        
-        @ell_max.setter
-        def ell_max(self, val):
-            if check_degrees(val, self.csym):
-                self._ell_max = val
-
-        def J(self, params):
-            '''this is the texture index for the harmonic
-            model. A value of 1 is a random texture and any
-            value > 1 is preferred orientation.
-            '''
-            J = 1.
-            for ell in np.arange(2, self.ell_max+1, 2):
-                nc = get_num_sym_harm(ell, sym=self.csym)
-                ns = get_num_sym_harm(ell, sym=self.ssym)
-                for ii in np.arange(ns):
-                    for jj in np.arange(nc):
-                        pname = f'c_{ell}{ii}{jj}'
-                        pre = 1/(2*ell+1)
-                        J += pre*params[pname].value**2
-            return J
-
-class pole_figures:
+class pole_figures(AbstractHarmonicTextureModel):
     """
     this class deals with everything related to pole figures.
     pole figures can be initialized in a number of ways. the most
@@ -558,11 +824,12 @@ class pole_figures:
                  material,
                  hkls,
                  pfdata,
+                 ell_max=12,
                  ssym='axial',
                  bvec=bvec_ref,
                  evec=eta_ref,
-                 sample_normal=-constants.lab_z,
-                 chi=0.):
+                 sample_normal=-constants.lab_z
+                 ):
         """
         material Either a Material object of Material_Rietveld object
         hkl      reciprocal lattice vectors for which pole figures are
@@ -578,15 +845,14 @@ class pole_figures:
         chi      inclination of sample frame about x direction. default
                  value is 0, corresponding to no tilt.
         """
+        super().__init__(material=material,
+                         ssym=ssym,
+                         ell_max=ell_max,
+                         bvec=bvec_ref,
+                         evec=eta_ref,
+                         sample_normal=-constants.lab_z)
         self.hkls = hkls
-        self.material = material
         self.hkls_c = self.convert_hkls_to_cartesian(self.hkls)
-
-        self.bvec = bvec
-        self.etavec = evec
-        self.sample_normal = sample_normal
-        self.chi = chi
-        self.ssym = ssym
 
         if hkls.shape[0] != len(pfdata):
             msg = (f"pole figure initialization.\n"
@@ -595,20 +861,6 @@ class pole_figures:
             raise RuntimeError(msg)
 
         self.pfdata = pfdata
-
-    def convert_hkls_to_cartesian(self,
-                                  hkls):
-        """
-        this routine converts hkls in the crystallographic frame to
-        the cartesian frame and normalizes them
-        """
-        hkls_c = np.atleast_2d(np.zeros(hkls.shape))
-
-        for ii, g in enumerate(hkls):
-            v = self.material.TransSpace(g, "r", "c")
-            v = v/np.linalg.norm(v)
-            hkls_c[ii,:] = v
-        return hkls_c
 
     def write_data(self, prefix):
         """
@@ -869,132 +1121,6 @@ class pole_figures:
                         colorbar_label='m.r.d.',
                         show=True)
 
-    def calc_pf_rings(self,
-                      eta_min=-np.pi,
-                      eta_max=np.pi,
-                      eta_step=np.radians(0.1)):
-        '''this functin computes the  intensity variation 
-        along the debye-scherrer rings for each hkl in the material.
-        the intensity variation around the ring is computed between 
-        eta_min and eta_max. Default values are (-pi,pi) which gives 
-        the full ring. eta_step is the angular step size in azimuth. 
-        Default value is 0.1 degrees for eta_step
-        '''
-        eta_grid = np.arange(eta_min, 
-                             eta_max,
-                             eta_step)
-
-        '''initialize all the dictionaries which will store the data
-        '''
-        if not hasattr(self, 'intensities_rings'):
-            self.intensities_rings = {}
-        if not hasattr(self, 'angs_rings'):
-            self.angs_rings = {}
-        if not hasattr(self, 'rotated_angs_rings'):
-            self.rotated_angs_rings = {}
-        if not hasattr(self, 'hkl_angles_rings'):
-            self.hkl_angles_rings = {}
-
-        '''also pre-compute the spherical harmonics
-        '''
-        if not hasattr(self, 'sph_c_rings'):
-            self.sph_c_rings = {}
-        if not hasattr(self, 'sph_s_rings'):
-            self.sph_s_rings = {}
-
-        hkls   = self.material.hkls
-        tth    = np.radians(self.material.getTTh(self.material.wavelength))
-        hkls_c = self.convert_hkls_to_cartesian(hkls)
-
-        for ii, (t, h, hc) in enumerate(zip(tth, hkls, hkls_c)):
-            hstr = str(h).strip('[').strip(']').replace(" ","")
-
-            angs = np.vstack((t*np.ones_like(eta_grid),
-                             eta_grid,
-                             np.zeros_like(eta_grid))).T
-
-            pfgrid = anglesToGVec(angs,
-                 bHat_l=self.bvec,
-                 eHat_l=self.etavec)
-
-            norm = np.linalg.norm(pfgrid, axis=1)
-            v = pfgrid/np.tile(norm, [3,1]).T
-
-            # sanitize v[:, 2] for arccos operation
-            mask = np.abs(v[:,2]) > 1.
-            v[mask, 2] = np.sign(v[mask, 2])
-
-            tt = np.arccos(v[:, 2])
-            rho = np.arctan2(v[:,1], v[:,0])
-
-            vr = np.dot(self.ref_frame_rmat, v[:,0:3].T).T
-
-            # sanitize vr[:, 2] for arccos operation
-            mask = np.abs(vr[:,2]) > 1.
-            vr[mask, 2] = np.sign(vr[mask, 2])
-            
-            tr = np.arccos(vr[:, 2])
-            rhor = np.arctan2(vr[:,1], vr[:,0])
-
-            self.angs_rings[hstr] = np.vstack((tt, rho)).T
-            self.rotated_angs_rings[hstr] = np.vstack((tr, rhor)).T
-            self.hkl_angles_rings[hstr] = np.array([np.arccos(hc[2]),
-                                                    np.arctan2(hc[1], 
-                                                               hc[0])])
-
-            theta = np.array([self.hkl_angles_rings[hstr][0]])
-            phi   = np.array([self.hkl_angles_rings[hstr][1]])
-
-            self.sph_c_rings[hstr] = {}
-
-            for ell in np.arange(2, self.ell_max+1, 2):
-                Ylm = calc_sym_sph_harm(ell, 
-                                        theta,
-                                        phi,
-                                        sym=self.csym)
-                for jj in np.arange(Ylm.shape[1]):
-                    kname = f'c_{ell}{jj}'
-                    self.sph_c_rings[hstr][kname] = Ylm[:,jj]
-
-            self.sph_s_rings[hstr] = {}
-            theta_samp = self.rotated_angs_rings[hstr][:,0]
-            phi_samp   = self.rotated_angs_rings[hstr][:,1]
-
-            for ell in np.arange(2, self.ell_max+1, 2):
-                Ylm = calc_sym_sph_harm(ell, 
-                                        theta_samp,
-                                        phi_samp,
-                                        sym=self.ssym)
-                for jj in np.arange(Ylm.shape[1]):
-                    kname = f's_{ell}{jj}'
-                    self.sph_s_rings[hstr][kname] = Ylm[:,jj]
-
-            '''perform the series sum if coefficeints are calculated
-            '''
-            if hasattr(self, 'res'):
-                term = np.ones_like(v[:,0])
-
-                for ell in np.arange(2, self.ell_max+1, 2):
-                    pre = 4*np.pi/(2*ell+1)
-                    cmat = self.get_c_matrix(self.res.params, ell)
-                    sph_s_mat = self.get_sph_s_matrix(hstr,
-                                                      ell,
-                                                      gridtype='rings')
-                    sph_c_mat = self.get_sph_c_matrix(hstr,
-                                                      ell,
-                                                      gridtype='rings')
-                    t = pre*np.dot(sph_s_mat, np.dot(
-                                       cmat, sph_c_mat))
-                    term += np.squeeze(t)
-
-                self.intensities_rings[hstr] = term
-
-            else:
-                msg = (f'coefficeints have not been computed yet. '
-                       f'consider running'
-                       f'"pole_figures.calculate_harmonic_coefficients" first')
-                raise RuntimeError(msg)
-
     def calc_new_pfdata(self,
                         hkls,
                         pfgrid=None):
@@ -1107,11 +1233,8 @@ class pole_figures:
 
         self.recalculated_pf(self.res.params, new=True)
 
-    def calculate_harmonic_coefficients(self,
-                                        ell_max,
-                                        ):
+    def calculate_harmonic_coefficients(self):
 
-        self.ell_max = ell_max
         params = get_parameters(ell_max,
                                csym=self.csym,
                                ssym=self.ssym)
@@ -1224,21 +1347,6 @@ class pole_figures:
             cmat[ii, :] = Ylm[yname]
 
         return cmat
-
-    def calc_ref_frame(self):
-        an = np.arccos(np.dot(
-                self.bvec,
-                self.sample_normal))
-        ax = np.cross(self.bvec,
-                      self.sample_normal)
-        norm = np.linalg.norm(ax)
-        if norm == 0:
-            self._ref_frame_rmat = np.eye(3)
-        else:
-            ax = ax/norm
-            self._ref_frame_rmat = (
-                rotMatOfExpMap(an*ax)
-                )
 
     @property
     def num_pfs(self):
@@ -1358,38 +1466,6 @@ class pole_figures:
             msg = f'coefficeints have not been computed yet'
             warnings.warn(msg)
         return J
-
-    @property
-    def bvec(self):
-        return self._bvec
-
-    @property
-    def etavec(self):
-        return self._etavec
-
-    @bvec.setter
-    def bvec(self, bHat_l):
-        self._bvec = bHat_l
-        if hasattr(self, '_sample_normal'):
-            self.calc_ref_frame()
-
-    @etavec.setter
-    def etavec(self, eHat_l):
-        self._etavec = eHat_l
-
-    @property
-    def sample_normal(self):
-        return self._sample_normal
-
-    @sample_normal.setter
-    def sample_normal(self, val):
-        self._sample_normal = val
-        if hasattr(self, '_bvec'):
-            self.calc_ref_frame()
-
-    @property
-    def ref_frame_rmat(self):
-        return self._ref_frame_rmat
 
     @property
     def densest_grid(self):
