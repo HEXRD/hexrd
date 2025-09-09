@@ -8,6 +8,7 @@ from hexrd import constants
 from scipy.special import sph_harm_y
 from matplotlib import pyplot as plt
 from hexrd.rotations import rotMatOfExpMap
+from hexrd.transforms.xfcapi import anglesToGVec
 """
 ===============================================================================
 
@@ -134,8 +135,8 @@ class pole_figures:
             angs = self.angs_new
         for h, angs in angs.items():
             t = angs[:,0]
-            cth = np.cos(t*0.5)
-            sth = np.sin(t*0.5)
+            cth = np.cos(t)
+            sth = np.sin(t)
             sr[h] = sth/(1 + np.abs(cth))
         return sr
 
@@ -329,8 +330,8 @@ class pole_figures:
                 for ell in np.arange(2, self.ell_max+1, 2):
                     pre = 4*np.pi/(2*ell+1)
                     cmat = self.get_c_matrix(params, ell)
-                    sph_s_mat = self.get_sph_s_matrix(h, ell, new=True)
-                    sph_c_mat = self.get_sph_c_matrix(h, ell, new=True)
+                    sph_s_mat = self.get_sph_s_matrix(h, ell, gridtype='new')
+                    sph_c_mat = self.get_sph_c_matrix(h, ell, gridtype='new')
                     t = pre*np.dot(sph_s_mat, np.dot(
                                        cmat, sph_c_mat))
                     term += np.squeeze(t)
@@ -371,6 +372,132 @@ class pole_figures:
                         colorbar=True,
                         colorbar_label='m.r.d.',
                         show=True)
+
+    def calc_pf_rings(self,
+                      eta_min=-np.pi,
+                      eta_max=np.pi,
+                      eta_step=np.radians(0.1)):
+        '''this functin computes the  intensity variation 
+        along the debye-scherrer rings for each hkl in the material.
+        the intensity variation around the ring is computed between 
+        eta_min and eta_max. Default values are (-pi,pi) which gives 
+        the full ring. eta_step is the angular step size in azimuth. 
+        Default value is 0.1 degrees for eta_step
+        '''
+        eta_grid = np.arange(eta_min, 
+                             eta_max,
+                             eta_step)
+
+        '''initialize all the dictionaries which will store the data
+        '''
+        if not hasattr(self, 'intensities_rings'):
+            self.intensities_rings = {}
+        if not hasattr(self, 'angs_rings'):
+            self.angs_rings = {}
+        if not hasattr(self, 'rotated_angs_rings'):
+            self.rotated_angs_rings = {}
+        if not hasattr(self, 'hkl_angles_rings'):
+            self.hkl_angles_rings = {}
+
+        '''also pre-compute the spherical harmonics
+        '''
+        if not hasattr(self, 'sph_c_rings'):
+            self.sph_c_rings = {}
+        if not hasattr(self, 'sph_s_rings'):
+            self.sph_s_rings = {}
+
+        hkls   = self.material.hkls
+        tth    = self.material.getTTh(self.material.wavelength)
+        hkls_c = self.convert_hkls_to_cartesian(hkls)
+
+        for ii, (t, h, hc) in enumerate(zip(tth, hkls, hkls_c)):
+            hstr = str(h).strip('[').strip(']').replace(" ","")
+
+            angs = np.vstack((t*np.ones_like(eta_grid),
+                             eta_grid,
+                             np.zeros_like(eta_grid))).T
+
+            pfgrid = anglesToGVec(angs,
+                 bHat_l=self.bvec,
+                 eHat_l=self.etavec)
+
+            norm = np.linalg.norm(pfgrid, axis=1)
+            v = pfgrid/np.tile(norm, [3,1]).T
+
+            # sanitize v[:, 2] for arccos operation
+            mask = np.abs(v[:,2]) > 1.
+            v[mask, 2] = np.sign(v[mask, 2])
+
+            tt = np.arccos(v[:, 2])
+            rho = np.arctan2(v[:,1], v[:,0])
+
+            vr = np.dot(self.ref_frame_rmat, v[:,0:3].T).T
+
+            # sanitize vr[:, 2] for arccos operation
+            mask = np.abs(vr[:,2]) > 1.
+            vr[mask, 2] = np.sign(vr[mask, 2])
+            
+            tr = np.arccos(vr[:, 2])
+            rhor = np.arctan2(vr[:,1], vr[:,0])
+
+            self.angs_rings[hstr] = np.vstack((tt, rho)).T
+            self.rotated_angs_rings[hstr] = np.vstack((tr, rhor)).T
+            self.hkl_angles_rings[hstr] = np.array([np.arccos(hc[2]),
+                                                    np.arctan2(hc[1], 
+                                                               hc[0])])
+
+            theta = np.array([self.hkl_angles_rings[hstr][0]])
+            phi   = np.array([self.hkl_angles_rings[hstr][1]])
+
+            self.sph_c_rings[hstr] = {}
+
+            for ell in np.arange(2, self.ell_max+1, 2):
+                Ylm = calc_sym_sph_harm(ell, 
+                                        theta,
+                                        phi,
+                                        sym=self.csym)
+                for jj in np.arange(Ylm.shape[1]):
+                    kname = f'c_{ell}{jj}'
+                    self.sph_c_rings[hstr][kname] = Ylm[:,jj]
+
+            self.sph_s_rings[hstr] = {}
+            theta_samp = self.rotated_angs_rings[hstr][:,0]
+            phi_samp   = self.rotated_angs_rings[hstr][:,1]
+
+            for ell in np.arange(2, self.ell_max+1, 2):
+                Ylm = calc_sym_sph_harm(ell, 
+                                        theta_samp,
+                                        phi_samp,
+                                        sym=self.ssym)
+                for jj in np.arange(Ylm.shape[1]):
+                    kname = f's_{ell}{jj}'
+                    self.sph_s_rings[hstr][kname] = Ylm[:,jj]
+
+            '''perform the series sum if coefficeints are calculated
+            '''
+            if hasattr(self, 'res'):
+                term = np.ones_like(v[:,0])
+
+                for ell in np.arange(2, self.ell_max+1, 2):
+                    pre = 4*np.pi/(2*ell+1)
+                    cmat = self.get_c_matrix(self.res.params, ell)
+                    sph_s_mat = self.get_sph_s_matrix(hstr,
+                                                      ell,
+                                                      gridtype='rings')
+                    sph_c_mat = self.get_sph_c_matrix(hstr,
+                                                      ell,
+                                                      gridtype='rings')
+                    t = pre*np.dot(sph_s_mat, np.dot(
+                                       cmat, sph_c_mat))
+                    term += np.squeeze(t)
+
+                self.intensities_rings[hstr] = term
+
+            else:
+                msg = (f'coefficeints have not been computed yet. '
+                       f'consider running'
+                       f'"pole_figures.calculate_harmonic_coefficients" first')
+                raise RuntimeError(msg)
 
     def calc_new_pfdata(self,
                         hkls,
@@ -460,7 +587,8 @@ class pole_figures:
                                          np.arctan2(hkls_c[ii, 1], 
                                                     hkls_c[ii, 0])])
 
-        for ii, (h, v) in enumerate(self.hkl_angles_new.items()):
+            h = hstr
+            v = self.hkl_angles_new[hstr]
             '''needs special attention for monoclininc case
                 since the 2-fold axis is aligned with b*
             '''
@@ -570,15 +698,19 @@ class pole_figures:
     def get_sph_s_matrix(self,
                          h,
                          ell,
-                         new=False):
+                         gridtype=None):
 
-        if not new:
+        if gridtype is None:
             ngrid = self.angs[h].shape[0]
             Ylm = self.sph_s[h]
 
-        else:
+        elif gridtype == 'new':
             ngrid = self.angs_new[h].shape[0]
             Ylm = self.sph_s_new[h]
+
+        elif gridtype == 'rings':
+            ngrid = self.angs_rings[h].shape[0]
+            Ylm = self.sph_s_rings[h]
 
         ns = get_num_sym_harm(ell,
                             sym=self.ssym)
@@ -593,17 +725,19 @@ class pole_figures:
     def get_sph_c_matrix(self,
                          h,
                          ell,
-                         new=False):
+                         gridtype=None):
 
         nc = get_num_sym_harm(ell,
                             sym=self.csym)
         ngrid = 1
         cmat = np.zeros((nc, ngrid))
 
-        if not new:
+        if gridtype is None:
             Ylm = self.sph_c[h]
-        else:
+        elif gridtype == 'new':
             Ylm = self.sph_c_new[h]
+        elif gridtype == 'rings':
+            Ylm = self.sph_c_rings[h]
 
         for ii in np.arange(nc):
             yname = f'c_{ell}{ii}'
