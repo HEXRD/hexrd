@@ -1403,61 +1403,54 @@ class LeBail(AbstractWPPF):
                      03/05/2021 SS 2.0 moved everything to property setter
         >> @DETAILS: load the phases for the LeBail fits
         """
+        if phase_info is None:
+            self._on_phases_changed()
+            return
 
-        if phase_info is not None:
-            if isinstance(phase_info, Phases_LeBail):
-                """
-                directly passing the phase class
-                """
-                self._phases = phase_info
+        if isinstance(phase_info, Phases_LeBail):
+            """
+            directly passing the phase class
+            """
+            self._phases = phase_info
+            self._on_phases_changed()
+            return
 
-            else:
+        p = Phases_LeBail(wavelength=getattr(self, "wavelength", None))
 
-                if hasattr(self, "wavelength"):
-                    if self.wavelength is not None:
-                        p = Phases_LeBail(wavelength=self.wavelength)
-                else:
-                    p = Phases_LeBail()
+        if isinstance(phase_info, dict):
+            """
+            initialize class using a dictionary with key as
+            material file and values as the name of each phase
+            """
+            for material_file, material_names in phase_info.items():
+                if not isinstance(material_names, list):
+                    material_names = [material_names]
+                p.add_many(material_file, material_names)
+        elif isinstance(phase_info, str):
+            """
+            load from a yaml file
+            """
+            p.load(phase_info)
+        else:
+            mat_list = []
+            if isinstance(phase_info, Material):
+                mat_list = [phase_info]
+            elif isinstance(phase_info, list):
+                mat_list = phase_info
 
-                if isinstance(phase_info, dict):
-                    """
-                    initialize class using a dictionary with key as
-                    material file and values as the name of each phase
-                    """
-                    for material_file in phase_info:
-                        material_names = phase_info[material_file]
-                        if not isinstance(material_names, list):
-                            material_names = [material_names]
-                        p.add_many(material_file, material_names)
+            for mat in mat_list:
+                p[mat.name] = Material_LeBail(
+                    fhdf=None, xtal=None,
+                    dmin=None, material_obj=mat
+                )
 
-                elif isinstance(phase_info, str):
-                    """
-                    load from a yaml file
-                    """
-                    if path.exists(phase_info):
-                        p.load(phase_info)
-                    else:
-                        raise FileNotFoundError("phase file doesn't exist.")
+            p.reset_phase_fractions()
 
-                elif isinstance(phase_info, Material):
-                    p[phase_info.name] = Material_LeBail(
-                        fhdf=None, xtal=None,
-                        dmin=None, material_obj=phase_info
-                    )
+        self._phases = p
+        self._on_phases_changed()
 
-                elif isinstance(phase_info, list):
-                    for mat in phase_info:
-                        p[mat.name] = Material_LeBail(
-                            fhdf=None, xtal=None,
-                            dmin=None, material_obj=mat
-                        )
-
-                    p.reset_phase_fractions()
-
-                self._phases = p
-
+    def _on_phases_changed(self):
         self.calctth()
-
         for p in self.phases:
             (
                 self.phases[p].valid_shkl,
@@ -1904,84 +1897,64 @@ class Rietveld(AbstractWPPF):
         >> @DETAILS: load the phases for the LeBail fits
         """
 
-        if phase_info is not None:
-            if isinstance(phase_info, Phases_Rietveld):
-                """
-                directly passing the phase class
-                """
-                self._phases = phase_info
-            else:
+        if phase_info is None:
+            self._on_phases_changed()
+            return
 
-                if hasattr(self, "wavelength"):
-                    if self.wavelength is not None:
-                        p = Phases_Rietveld(wavelength=self.wavelength)
-                else:
-                    p = Phases_Rietveld()
+        if isinstance(phase_info, Phases_Rietveld):
+            """
+            directly passing the phase class
+            """
+            self._phases = phase_info
+            self._on_phases_changed()
+            return
 
-                if isinstance(phase_info, dict):
-                    """
-                    initialize class using a dictionary with key as
-                    material file and values as the name of each phase
-                    """
-                    for material_file in phase_info:
-                        material_names = phase_info[material_file]
-                        if not isinstance(material_names, list):
-                            material_names = [material_names]
-                        p.add_many(material_file, material_names)
+        p = Phases_Rietveld(wavelength=getattr(self, "wavelength", None))
+        if isinstance(phase_info, dict):
+            """
+            initialize class using a dictionary with key as
+            material file and values as the name of each phase
+            """
+            for material_file, material_names in phase_info.items():
+                if not isinstance(material_names, list):
+                    material_names = [material_names]
+                p.add_many(material_file, material_names)
+        elif isinstance(phase_info, str):
+            """
+            load from a yaml file
+            """
+            p.load(phase_info)
+        else:
+            mat_list = []
+            if isinstance(phase_info, Material):
+                mat_list = [phase_info]
+            elif isinstance(phase_info, list):
+                mat_list = phase_info
 
-                elif isinstance(phase_info, str):
-                    """
-                    load from a yaml file
-                    """
-                    if path.exists(phase_info):
-                        p.load(phase_info)
-                    else:
-                        raise FileNotFoundError("phase file doesn't exist.")
+            for mat in mat_list:
+                p[mat.name] = {}
+                for k, v in self.wavelength.items():
+                    E = (
+                        1.0e6
+                        * constants.cPlanck
+                        * constants.cLight
+                        / constants.cCharge
+                        / v[0].getVal('nm')
+                    )
+                    mat.beamEnergy = valWUnit(
+                        "kev", "ENERGY", E, "keV"
+                    )
+                    p[mat.name][k] = Material_Rietveld(
+                        fhdf=None, xtal=None,
+                        dmin=None, material_obj=mat
+                    )
 
-                elif isinstance(phase_info, Material):
-                    if not p.phase_dict:
-                        p[phase_info.name] = {}
+            p.reset_phase_fractions()
 
-                    for k, v in self.wavelength.items():
-                        E = (
-                            1.0e6
-                            * constants.cPlanck
-                            * constants.cLight
-                            / constants.cCharge
-                            / v[0].getVal('nm')
-                        )
-                        phase_info.beamEnergy = valWUnit(
-                            "kev", "ENERGY", E, "keV"
-                        )
-                        p[phase_info.name][k] = Material_Rietveld(
-                            fhdf=None, xtal=None,
-                            dmin=None, material_obj=phase_info
-                        )
-                    p.num_phases = 1
+        self._phases = p
+        self._on_phases_changed()
 
-                elif isinstance(phase_info, list):
-                    for mat in phase_info:
-                        p[mat.name] = {}
-                        for k, v in self.wavelength.items():
-                            E = (
-                                1.0e6
-                                * constants.cPlanck
-                                * constants.cLight
-                                / constants.cCharge
-                                / v[0].getVal('nm')
-                            )
-                            mat.beamEnergy = valWUnit(
-                                "kev", "ENERGY", E, "keV"
-                            )
-                            p[mat.name][k] = Material_Rietveld(
-                                fhdf=None, xtal=None,
-                                dmin=None, material_obj=mat
-                            )
-
-                p.reset_phase_fractions()
-
-                self._phases = p
-
+    def _on_phases_changed(self):
         self.calctth()
         self.calcsf()
 
