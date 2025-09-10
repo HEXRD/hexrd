@@ -1,18 +1,37 @@
-import numpy as np
-from hexrd.valunits import valWUnit
-from hexrd.material.spacegroup import Allowed_HKLs, SpaceGroup
-from hexrd import constants
-from hexrd.material import symmetry, symbols
-from hexrd.material import Material
-from hexrd.material.unitcell import _rqpDict
-from hexrd.wppf import wppfsupport
-from hexrd.wppf.xtal import _calc_dspacing, _get_tth, _calcxrsf,\
-_calc_extinction_factor, _calc_absorption_factor
-import h5py
+from abc import ABC, abstractmethod
 import importlib.resources
+from pathlib import Path
+import warnings
+
+import h5py
+import numpy as np
+import yaml
+
+from hexrd import constants
+from hexrd.material import Material, symmetry, symbols
+from hexrd.material.spacegroup import Allowed_HKLs, SpaceGroup
+from hexrd.material.unitcell import _rqpDict
+from hexrd.valunits import valWUnit
+from hexrd.wppf.xtal import (
+    _calc_dspacing, _get_tth, _calcxrsf, _calc_extinction_factor,
+    _calc_absorption_factor,
+)
 import hexrd.resources
 
-class Material_LeBail:
+
+def _kev(x):
+    return valWUnit('beamenergy', 'energy', x, 'keV')
+
+
+def _nm(x):
+    return valWUnit('lp', 'length', x, 'nm')
+
+
+class AbstractMaterial(ABC):
+    pass
+
+
+class Material_LeBail(AbstractMaterial):
     """
     ========================================================================================
     ========================================================================================
@@ -484,188 +503,8 @@ class Material_LeBail:
 
         self._shkl = val
 
-class Phases_LeBail:
-    """
-    ========================================================================================
-    ========================================================================================
-    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-    >> @DATE:       05/20/2020 SS 1.0 original
-    >> @DETAILS:    class to handle different phases in the LeBail fit. this is a stripped down
-                    version of main Phase class for efficiency. only the
-                    components necessary for calculating peak positions are retained. further
-                    this will have a slight modification to account for different wavelengths
-                    in the same phase name
-    =========================================================================================
-    =========================================================================================
-    """
-    def _kev(x):
-        return valWUnit('beamenergy', 'energy', x, 'keV')
 
-    def _nm(x):
-        return valWUnit('lp', 'length', x, 'nm')
-
-    def __init__(self, material_file=None,
-                 material_keys=None,
-                 dmin=_nm(0.05),
-                 wavelength={'alpha1': [_nm(0.15406), 1.0],
-                             'alpha2': [_nm(0.154443), 0.52]}
-                 ):
-
-        self.phase_dict = {}
-        self.num_phases = 0
-
-        """
-        set wavelength. check if wavelength is supplied in A, if it is
-        convert to nm since the rest of the code assumes those units
-        """
-        wavelength_nm = {}
-        for k, v in wavelength.items():
-            wavelength_nm[k] = [valWUnit('lp', 'length',
-                                         v[0].getVal('nm'), 'nm'), v[1]]
-
-        self.wavelength = wavelength_nm
-
-        self.dmin = dmin
-
-        if(material_file is not None):
-            if(material_keys is not None):
-                if(type(material_keys) is not list):
-                    self.add(material_file, material_keys)
-                else:
-                    self.add_many(material_file, material_keys)
-
-    def __str__(self):
-        resstr = 'Phases in calculation:\n'
-        for i, k in enumerate(self.phase_dict.keys()):
-            resstr += '\t'+str(i+1)+'. '+k+'\n'
-        return resstr
-
-    def __getitem__(self, key):
-        # Always sanitize the material name since lmfit won't accept '-'
-        key = key.replace('-', '_')
-
-        if(key in self.phase_dict.keys()):
-            return self.phase_dict[key]
-        else:
-            raise ValueError('phase with name not found')
-
-    def __setitem__(self, key, mat_cls):
-        # Always sanitize the material name since lmfit won't accept '-'
-        key = key.replace('-', '_')
-
-        if(key in self.phase_dict.keys()):
-            warnings.warn('phase already in parameter \
-                list. overwriting ...')
-        if(isinstance(mat_cls, Material_LeBail)):
-            self.phase_dict[key] = mat_cls
-        else:
-            raise ValueError('input not a material class')
-
-    def __iter__(self):
-        return iter(self.phase_dict)
-
-    def __len__(self):
-        return len(self.phase_dict)
-
-    def add(self, material_file, material_key):
-
-        self[material_key] = Material_LeBail(
-            fhdf=material_file, xtal=material_key, dmin=self.dmin)
-
-    def add_many(self, material_file, material_keys):
-
-        for k in material_keys:
-
-            self[k] = Material_LeBail(
-                fhdf=material_file, xtal=k, dmin=self.dmin)
-
-            self.num_phases += 1
-
-        for k in self:
-            self[k].pf = 1.0/len(self)
-
-        self.material_file = material_file
-        self.material_keys = [k.replace('-', '_') for k in material_keys]
-
-    def load(self, fname):
-        """
-            >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-            >> @DATE:       06/08/2020 SS 1.0 original
-            >> @DETAILS:    load parameters from yaml file
-        """
-        with open(fname) as file:
-            dic = yaml.load(file, Loader=yaml.FullLoader)
-
-        for mfile in dic.keys():
-            mat_keys = list(dic[mfile])
-            self.add_many(mfile, mat_keys)
-
-    def dump(self, fname):
-        """
-            >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-            >> @DATE:       06/08/2020 SS 1.0 original
-            >> @DETAILS:    dump parameters to yaml file
-        """
-        dic = {}
-        k = self.material_file
-        dic[k] = [m for m in self]
-
-        with open(fname, 'w') as f:
-            data = yaml.safe_dump(dic, f, sort_keys=False)
-
-    def dump_hdf5(self, file):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       01/15/2021 SS 1.0 original
-        >> @ DETAILS    dumps the information from each material in the phase class
-                        to a hdf5 file specified by filename or h5py.File object
-        """
-        if(isinstance(file, str)):
-            fexist = path.isfile(file)
-            if(fexist):
-                fid = h5py.File(file, 'r+')
-            else:
-                fid = h5py.File(file, 'x')
-
-        elif(isinstance(file, h5py.File)):
-            fid = file
-
-        else:
-            raise RuntimeError(
-                'Parameters: dump_hdf5 Pass in a filename \
-                string or h5py.File object')
-
-        if("/Phases" in fid):
-            del(fid["Phases"])
-        gid_top = fid.create_group("Phases")
-
-        for p in self:
-            mat = self[p]
-
-            sgnum = mat.sgnum
-            sgsetting = mat.sgsetting
-            lparms = mat.lparms
-            dmin = mat.dmin
-            hkls = mat.hkls
-
-            gid = gid_top.create_group(p)
-
-            did = gid.create_dataset("SpaceGroupNumber", (1, ), dtype=np.int32)
-            did.write_direct(np.array(sgnum, dtype=np.int32))
-
-            did = gid.create_dataset(
-                "SpaceGroupSetting", (1, ), dtype=np.int32)
-            did.write_direct(np.array(sgsetting, dtype=np.int32))
-
-            did = gid.create_dataset(
-                "LatticeParameters", (6, ), dtype=np.float64)
-            did.write_direct(np.array(lparms, dtype=np.float64))
-
-            did = gid.create_dataset("dmin", (1, ), dtype=np.float64)
-            did.attrs["units"] = "nm"
-            did.write_direct(np.array(dmin, dtype=np.float64))
-
-class Material_Rietveld:
+class Material_Rietveld(AbstractMaterial):
     """
     ===========================================================================================
     ===========================================================================================
@@ -1391,42 +1230,45 @@ class Material_Rietveld:
         """
         set the shkl as array
         """
-        if(len(val) != 15):
-            msg = (f"incorrect shape for shkl. "
-                f"shape should be (15, ).")
-            raise ValueError(msg)
+        if len(val) != 15:
+            raise ValueError("shkl shape must be (15, )")
 
         self._shkl = val
 
-class Phases_Rietveld:
-    """
-    ==============================================================================================
-    ==============================================================================================
 
+class AbstractPhases(ABC):
+    """
+    ========================================================================================
+    ========================================================================================
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/20/2020 SS 1.0 original
-    >> @DETAILS:    class to handle different phases in the LeBail fit. this is a stripped down
-                    version of main Phase class for efficiency. only the components necessary for
-                    calculating peak positions are retained. further this will have a slight
-                    modification to account for different wavelengths in the same phase name
-    ==============================================================================================
-     =============================================================================================
+    >> @DETAILS:    class to handle different phases in the fits. this is a stripped down
+                    version of main Phase class for efficiency. only the
+                    components necessary for calculating peak positions are retained. further
+                    this will have a slight modification to account for different wavelengths
+                    in the same phase name
+    =========================================================================================
+    =========================================================================================
     """
-    def _kev(x):
-        return valWUnit('beamenergy', 'energy', x, 'keV')
+    # Abstract methods which must be defined for each phase type
+    @abstractmethod
+    def _get_phase(self, material_key: str,
+                   wavelength_name: str) -> AbstractMaterial:
+        pass
 
-    def _nm(x):
-        return valWUnit('lp', 'length', x, 'nm')
+    @abstractmethod
+    def add(self, material_file, material_key):
+        pass
 
+    # Shared methods which each phase uses
     def __init__(self, material_file=None,
                  material_keys=None,
                  dmin=_nm(0.05),
-                 wavelength={'alpha1': [_nm(0.15406), 1.], 'alpha2': [
-                     _nm(0.154443), 0.52]}
+                 wavelength={'alpha1': [_nm(0.15406), 1.0],
+                             'alpha2': [_nm(0.154443), 0.52]}
                  ):
 
         self.phase_dict = {}
-        self.num_phases = 0
 
         """
         set wavelength. check if wavelength is supplied in A, if it is
@@ -1439,42 +1281,35 @@ class Phases_Rietveld:
                     valWUnit('lp', 'length', v[0].getVal("nm"), 'nm'), v[1]]
             else:
                 wavelength_nm[k] = v
+
         self.wavelength = wavelength_nm
 
         self.dmin = dmin
 
-        if(material_file is not None):
-            if(material_keys is not None):
-                if(type(material_keys) is not list):
-                    self.add(material_file, material_keys)
-                else:
-                    self.add_many(material_file, material_keys)
+        if material_file is not None and material_keys is not None:
+            keys = material_keys
+            keys = keys if isinstance(keys, list) else [keys]
+            self.add_many(material_file, keys)
+
+    @property
+    def num_phases(self) -> int:
+        return len(self)
 
     def __str__(self):
         resstr = 'Phases in calculation:\n'
-        for i, k in enumerate(self.phase_dict.keys()):
-            resstr += '\t'+str(i+1)+'. '+k+'\n'
+        for i, k in enumerate(self.phase_dict):
+            resstr += f'\t{i+1}. {k}\n'
         return resstr
 
     def __getitem__(self, key):
         # Always sanitize the material name since lmfit won't accept '-'
         key = key.replace('-', '_')
-
-        if(key in self.phase_dict.keys()):
-            return self.phase_dict[key]
-        else:
-            raise ValueError('phase with name not found')
+        return self.phase_dict[key]
 
     def __setitem__(self, key, mat_cls):
         # Always sanitize the material name since lmfit won't accept '-'
         key = key.replace('-', '_')
-
-        if(key in self.phase_dict.keys()):
-            warnings.warn('phase already in parameter list. overwriting ...')
-        # if(isinstance(mat_cls, Material_Rietveld)):
         self.phase_dict[key] = mat_cls
-        # else:
-        # raise ValueError('input not a material class')
 
     def __iter__(self):
         return iter(self.phase_dict)
@@ -1482,38 +1317,18 @@ class Phases_Rietveld:
     def __len__(self):
         return len(self.phase_dict)
 
-    def add(self, material_file, material_key):
-        self[material_key] = {}
-        self.num_phases += 1
-        for l in self.wavelength:
-            lam = self.wavelength[l][0].getVal('nm') * 1e-9
-            E = constants.cPlanck * constants.cLight / constants.cCharge / lam
-            E *= 1e-3
-            kev = valWUnit('beamenergy', 'energy', E, 'keV')
-            self[material_key][l] = Material_Rietveld(
-                material_file, material_key, dmin=self.dmin, kev=kev)
-
+    def reset_phase_fractions(self):
+        pf = 1.0 / self.num_phases
         for k in self:
             for l in self.wavelength:
-                self[k][l].pf = 1.0/self.num_phases
+                mat = self._get_phase(k, l)
+                mat.pf = pf
 
     def add_many(self, material_file, material_keys):
-
         for k in material_keys:
-            self[k] = {}
-            self.num_phases += 1
-            for l in self.wavelength:
-                lam = self.wavelength[l][0].getVal('nm') * 1e-9
-                E = constants.cPlanck * constants.cLight / \
-                    constants.cCharge / lam
-                E *= 1e-3
-                kev = valWUnit('beamenergy', 'energy', E, 'keV')
-                self[k][l] = Material_Rietveld(
-                    material_file, k, dmin=self.dmin, kev=kev)
+            self.add(material_file, k, update_pf=False)
 
-        for k in self:
-            for l in self.wavelength:
-                self[k][l].pf = 1.0/self.num_phases
+        self.reset_phase_fractions()
 
         self.material_file = material_file
         self.material_keys = [k.replace('-', '_') for k in material_keys]
@@ -1525,7 +1340,7 @@ class Phases_Rietveld:
             >> @DETAILS:    load parameters from yaml file
         """
         with open(fname) as file:
-            dic = yaml.load(file, Loader=yaml.FullLoader)
+            dic = yaml.load(file, Loader=yaml.SafeLoader)
 
         for mfile in dic.keys():
             mat_keys = list(dic[mfile])
@@ -1537,35 +1352,86 @@ class Phases_Rietveld:
             >> @DATE:       06/08/2020 SS 1.0 original
             >> @DETAILS:    dump parameters to yaml file
         """
-        dic = {}
-        k = self.material_file
-        dic[k] = [m for m in self]
-
+        dic = {self.material_file: [m for m in self]}
         with open(fname, 'w') as f:
-            data = yaml.safe_dump(dic, f, sort_keys=False)
+            yaml.safe_dump(dic, f, sort_keys=False)
+
+    def dump_hdf5(self, file):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       01/15/2021 SS 1.0 original
+        >> @ DETAILS    dumps the information from each material in the phase class
+                        to a hdf5 file specified by filename or h5py.File object
+        """
+        if isinstance(file, str):
+            mode = 'r+' if Path(file).exists() else 'x'
+            fid = h5py.File(mode)
+        elif isinstance(file, h5py.File):
+            fid = file
+        else:
+            raise RuntimeError(
+                'Parameters: dump_hdf5 Pass in a filename \
+                string or h5py.File object')
+
+        if "/Phases" in fid:
+            del fid["Phases"]
+
+        gid_top = fid.create_group("Phases")
+        # Only write out the first material
+        l = next(iter(self.wavelength))
+        for p in self:
+            mat = self._get_phase(p, l)
+            gid = gid_top.create_group(p)
+            gid["SpaceGroupNumber"] = mat.sgnum
+            gid["SpaceGroupSetting"] = mat.sgsetting
+            gid["LatticeParameters"] = np.asarray(mat.lparms)
+            gid["dmin"] = mat.dmin
+            gid["dmin"].attrs["units"] = "nm"
+            gid["hkls"] = np.asarray(mat.hkls)
+
+
+class Phases_LeBail(AbstractPhases):
+    def _get_phase(self, material_key: str,
+                   wavelength_name: str) -> Material_LeBail:
+        return self[material_key]
+
+    def add(self, material_file, material_key, update_pf=True):
+        self[material_key] = Material_LeBail(
+            fhdf=material_file, xtal=material_key, dmin=self.dmin)
+
+        if update_pf:
+            self.reset_phase_fractions()
+
+
+class Phases_Rietveld(AbstractPhases):
+    def _get_phase(self, material_key: str,
+                   wavelength_name: str) -> Material_Rietveld:
+        return self[material_key][wavelength_name]
+
+    def add(self, material_file, material_key, update_pf=True):
+        self[material_key] = {}
+        for l in self.wavelength:
+            lam = self.wavelength[l][0].getVal('nm') * 1e-9
+            E = constants.cPlanck * constants.cLight / constants.cCharge / lam
+            E *= 1e-3
+            kev = valWUnit('beamenergy', 'energy', E * 1e-3, 'keV')
+            self[material_key][l] = Material_Rietveld(
+                material_file, material_key, dmin=self.dmin, kev=kev)
+
+        if update_pf:
+            self.reset_phase_fractions()
 
     @property
     def phase_fraction(self):
-        pf = []
-        for k in self:
-            l = list(self.wavelength.keys())[0]
-            pf.append(self[k][l].pf)
-        pf = np.array(pf)
-        return pf/np.sum(pf)
+        l = next(iter(self.wavelength))
+        pf = np.array([self[k][l].pf for k in self])
+        return pf / pf.sum()
 
     @phase_fraction.setter
     def phase_fraction(self, val):
-        msg = (f"phase_fraction setter: "
-               f"number of phases does not match"
-               f"size of input")
+        if len(val) != len(self):
+            raise ValueError("number of phases does not match size of input")
 
-        if isinstance(val, list):
-            if len(val) != len(self):
-                raise ValueError(msg)
-        elif isinstance(val, np.ndarray):
-            if val.shape[0] != len(self):
-                raise ValueError(msg)
-
-        for ii,k in enumerate(self):
+        for ii, k in enumerate(self):
             for l in self.wavelength:
                 self[k][l].pf = val[ii]

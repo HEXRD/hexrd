@@ -1452,10 +1452,7 @@ class LeBail(AbstractWPPF):
                             dmin=None, material_obj=mat
                         )
 
-                        p.num_phases += 1
-
-                    for mat in p:
-                        p[mat].pf = 1.0 / p.num_phases
+                    p.reset_phase_fractions()
 
                 self._phases = p
 
@@ -1960,7 +1957,6 @@ class Rietveld(AbstractWPPF):
                             fhdf=None, xtal=None,
                             dmin=None, material_obj=phase_info
                         )
-                        p[phase_info.name][k].pf = 1.0
                     p.num_phases = 1
 
                 elif isinstance(phase_info, list):
@@ -1981,11 +1977,9 @@ class Rietveld(AbstractWPPF):
                                 fhdf=None, xtal=None,
                                 dmin=None, material_obj=mat
                             )
-                        p.num_phases += 1
 
-                    for mat in p:
-                        for k, v in self.wavelength.items():
-                            p[mat][k].pf = 1.0 / p.num_phases
+                p.reset_phase_fractions()
+
                 self._phases = p
 
         self.calctth()
