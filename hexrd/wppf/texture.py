@@ -489,8 +489,8 @@ class AbstractHarmonicTextureModel(ABC):
 
         self.material = material
         self.ssym = ssym
-        self.ell_max = ell_max
         self.csym = self.material.sg.laueGroup
+        self.ell_max = ell_max
         self.bvec = bvec
         self.etavec = evec
         self.sample_normal = sample_normal
@@ -848,9 +848,9 @@ class pole_figures(AbstractHarmonicTextureModel):
         super().__init__(material=material,
                          ssym=ssym,
                          ell_max=ell_max,
-                         bvec=bvec_ref,
-                         evec=eta_ref,
-                         sample_normal=-constants.lab_z)
+                         bvec=bvec,
+                         evec=evec,
+                         sample_normal=sample_normal)
         self.hkls = hkls
         self.hkls_c = self.convert_hkls_to_cartesian(self.hkls)
 
@@ -1235,9 +1235,8 @@ class pole_figures(AbstractHarmonicTextureModel):
 
     def calculate_harmonic_coefficients(self):
 
-        params = get_parameters(ell_max,
-                               csym=self.csym,
-                               ssym=self.ssym)
+        params = self.get_parameters()
+
         '''precompute the spherical harmonics for
         the given hkls and sample directions
         '''
@@ -1253,7 +1252,7 @@ class pole_figures(AbstractHarmonicTextureModel):
             phi = np.array([v[1]])
             self.sph_c[h] = {}
             self.sph_s[h] = {}
-            for ell in np.arange(2, ell_max+1, 2):
+            for ell in np.arange(2, self.ell_max+1, 2):
                 Ylm = calc_sym_sph_harm(ell, 
                                         theta,
                                         phi,
@@ -1268,7 +1267,7 @@ class pole_figures(AbstractHarmonicTextureModel):
             '''
             theta = self.rotated_angs[h][:,0]
             phi   = self.rotated_angs[h][:,1]
-            for ell in np.arange(2, ell_max+1, 2):
+            for ell in np.arange(2, self.ell_max+1, 2):
                 Ylm = calc_sym_sph_harm(ell, 
                                         theta,
                                         phi,
@@ -1432,22 +1431,6 @@ class pole_figures(AbstractHarmonicTextureModel):
     @property
     def hkl_angles(self):
         return self._hkl_angles
-
-    @property
-    def csym(self):
-        return self.material.sg.laueGroup
-
-    @property
-    def ssym(self):
-        return self._ssym
-
-    @ssym.setter
-    def ssym(self, v):
-        if isinstance(v, str):
-            self._ssym = v
-        else:
-            msg = f'unknown sample symmetry type'
-            raise ValueError(msg)
 
     @property
     def J(self):
