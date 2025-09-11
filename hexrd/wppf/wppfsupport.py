@@ -457,12 +457,19 @@ def _add_extinction_parameters(mat, params):
 def _add_absorption_parameters(mat, params):
     return params
 
+def _add_texture_model_parameters(texture_model, params):
+        for k, hm in texture_model.items():
+            if hm is not None:
+                hm.get_parameters(params,
+                                  vary=False)
+        return
 
 def _generate_default_parameters_Rietveld(mat,
                                           peakshape,
                                           bkgmethod,
                                           init_val=None,
-                                          amorphous_model=None):
+                                          amorphous_model=None,
+                                          texture_model=None):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
     @date:    03/12/2021 SS 1.0 original
@@ -492,6 +499,7 @@ def _generate_default_parameters_Rietveld(mat,
     _add_phase_fractions(mat, params)
     _add_extinction_parameters(mat, params)
     _add_absorption_parameters(mat, params)
+    _add_texture_model_parameters(texture_model, params)
 
     for m in _mat_list(mat):
         _add_atominfo_to_params(params, m)

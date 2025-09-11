@@ -1504,7 +1504,6 @@ class Rietveld(AbstractWPPF):
         self.peakshape = peakshape
         self.spectrum_expt = expt_spectrum
         self.amorphous_model = amorphous_model
-        self.texture_model = texture_model
 
         self._tstart = time.time()
 
@@ -1514,6 +1513,7 @@ class Rietveld(AbstractWPPF):
                 v[0] = valWUnit("lp", "length", v[0].getVal("nm"), "nm")
 
         self.phases = phases
+        self.texture_model = texture_model
 
         self.params = params
 
@@ -1540,6 +1540,7 @@ class Rietveld(AbstractWPPF):
             self.bkgmethod,
             init_val=self.cheb_init_coef,
             amorphous_model=self.amorphous_model,
+            texture_model=self.texture_model,
         )
 
     def _add_phase_params(self, params: lmfit.Parameters):
@@ -1730,6 +1731,12 @@ class Rietveld(AbstractWPPF):
 
             for k, l in self.phases.wavelength.items():
 
+                texture_factor = np.ones_like(self.tth[p][k])
+                if self.texture_model[p] is not None:
+                    texture_factor = self.texture_model[p].calc_texture_factor(self.params,
+                                                                               eta_min=-np.pi,
+                                                                               eta_max=np.pi)
+
                 name = self.phases[p][k].name
                 lam = l[0].getVal("nm")
                 shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
@@ -1755,15 +1762,17 @@ class Rietveld(AbstractWPPF):
                 extinction = self.extinction[p][k]
                 absorption = self.absorption[p][k]
 
-                n = np.min((tth.shape[0], sf.shape[0], lp.shape[0]))
+                n = np.min((tth.shape[0], sf.shape[0],
+                    lp.shape[0], texture_factor.shape[0]))
 
                 tth = tth[:n]
                 sf = sf[:n]
                 lp = lp[:n]
                 extinction = extinction[:n]
                 absorption = absorption[:n]
+                texture_factor = texture_factor[:n]
 
-                Ic = self.scale * pf * sf * lp  # *extinction*absorption
+                Ic = self.scale * pf * sf * lp * texture_factor # *extinction*absorption
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
@@ -1877,6 +1886,16 @@ class Rietveld(AbstractWPPF):
         else:
             print("Nothing to refine...")
 
+    def texture_parameters_vary(self,
+                                vary=False):
+        '''helper function to turn texture related
+        parameters on or off
+        '''
+        for phase_name in self.phases:
+            for p in self.params:
+                if f'{phase_name}_c_' in p:
+                    self.params[p].vary = vary
+
     @property
     def phases(self):
         return self._phases
@@ -1963,6 +1982,44 @@ class Rietveld(AbstractWPPF):
                     self._phases[p][k].trig_ptype,
                 ) = wppfsupport._required_shkl_names(self._phases[p][k])
 
+    @property
+    def texture_model(self):
+        return self._texture_model
+
+    @texture_model.setter
+    def texture_model(self, valdict):
+        '''only dictionary key value pairs are acceptable. 
+        key should match name of the phase. if a certain 
+        phase is not present, texture model for that phase
+        is set to None
+        '''
+        if valdict is None:
+            self._texture_model = dict.fromkeys(
+                        self.phases.phase_dict.keys())
+            print(self._texture_model)
+            return
+
+        if not isinstance(valdict, dict):
+            msg = (f'only dictionary input allowed '
+                   f'where key are name of phase and '
+                   f'value is the harmonic_model instance')
+            raise ValueError(msg)
+
+        self._texture_model = valdict
+        for phase_name in self.phases:
+            if phase_name not in valdict:
+                self._texture_model[phase_name] = None
+
+
+    @property
+    def texture_index(self):
+        res = dict.fromkeys(self.texture_model.keys())
+        for p in self.phases:
+            if self.texture_model[p] is not None:
+                res[p]  = self.texture_model[p].J(self.params)
+            else:
+                res[p] = 1.
+        return res
 
 def separate_regions(masked_spec_array):
     """
