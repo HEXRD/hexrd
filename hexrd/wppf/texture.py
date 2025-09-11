@@ -732,20 +732,15 @@ class AbstractHarmonicTextureModel(ABC):
 
         '''initialize all the dictionaries which will store the data
         '''
-        # if not hasattr(self, 'intensities_rings'):
+       
         self.intensities_rings = {}
-        # if not hasattr(self, 'angs_rings'):
         self.angs_rings = {}
-        # if not hasattr(self, 'rotated_angs_rings'):
         self.rotated_angs_rings = {}
-        # if not hasattr(self, 'hkl_angles_rings'):
         self.hkl_angles_rings = {}
 
         '''also pre-compute the spherical harmonics
         '''
-        # if not hasattr(self, 'sph_c_rings'):
         self.sph_c_rings = {}
-        # if not hasattr(self, 'sph_s_rings'):
         self.sph_s_rings = {}
 
         hkls = self.material.hkls
@@ -775,6 +770,8 @@ class AbstractHarmonicTextureModel(ABC):
             rho = np.arctan2(v[:,1], v[:,0])
 
             self.angs_rings[hstr] = np.vstack((tt, rho)).T
+
+            # in the beam frame
             self.rotated_angs_rings[hstr] = np.vstack((
                 np.pi/2-t/2*np.ones_like(eta_grid), 
                 eta_grid)).T
@@ -797,8 +794,6 @@ class AbstractHarmonicTextureModel(ABC):
                     self.sph_c_rings[hstr][kname] = Ylm[:,jj]
 
             self.sph_s_rings[hstr] = {}
-            # theta_samp = self.rotated_angs_rings[hstr][:,0]
-            # phi_samp   = self.rotated_angs_rings[hstr][:,1]
 
             theta_samp = self.angs_rings[hstr][:,0]
             phi_samp   = self.angs_rings[hstr][:,1]
@@ -832,8 +827,18 @@ class AbstractHarmonicTextureModel(ABC):
             self.intensities_rings[hstr] = term
 
     def calc_texture_factor_abstract(self,
-                                     params):
-        pass
+                                     params,
+                                     eta_min=-np.pi,
+                                     eta_max=np.pi):
+        self.calc_pf_rings_abstract(
+                                    params,
+                                    eta_min=eta_min,
+                                    eta_max=eta_max,
+                                    eta_step=np.radians(1))
+        tf = np.zeros([len(self.intensities_rings), ])
+        for ii, (k, v) in enumerate(self.intensities_rings.items()):
+            tf[ii] = np.mean(v)
+        return tf
 
 class harmonic_model(AbstractHarmonicTextureModel):
     """
@@ -891,7 +896,9 @@ class harmonic_model(AbstractHarmonicTextureModel):
                                            eta_step=eta_step)
 
     def calc_texture_factor(self,
-                            params):
+                            params,
+                            eta_min=-np.pi,
+                            eta_max=np.pi):
         return self.calc_texture_factor_abstract(params)
 
 class pole_figures(AbstractHarmonicTextureModel):
@@ -1389,7 +1396,9 @@ class pole_figures(AbstractHarmonicTextureModel):
     def calc_texture_factor(self):
         if hasattr(self, 'res'):
             return self.calc_texture_factor_abstract(
-                params)
+                self.res.params,
+                eta_min=-np.pi,
+                eta_max=np.pi)
         else:
             msg = (f'harmonic model has not been run yet. '
                 f'consider running '
