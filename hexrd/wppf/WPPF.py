@@ -1494,6 +1494,7 @@ class Rietveld(AbstractWPPF):
         phi=0.0,
         amorphous_model=None,
         reset_background_params=True,
+        texture_model=None,
     ):
 
         self.bkgmethod = bkgmethod
@@ -1503,6 +1504,7 @@ class Rietveld(AbstractWPPF):
         self.peakshape = peakshape
         self.spectrum_expt = expt_spectrum
         self.amorphous_model = amorphous_model
+        self.texture_model = texture_model
 
         self._tstart = time.time()
 
