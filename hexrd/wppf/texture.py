@@ -427,37 +427,37 @@ def get_num_sym_harm(ell,
     elif sym == 'triclinic':
         return 2*ell + 1
 
-def get_total_sym_harm(ell_max,
-                       sym='oh'):
-    num = 0
-    for ell in np.arange(2, ell_max+1, 2):
-        num += get_num_sym_harm(ell, sym=sym)
+# def get_total_sym_harm(ell_max,
+#                        sym='oh'):
+#     num = 0
+#     for ell in np.arange(2, ell_max+1, 2):
+#         num += get_num_sym_harm(ell, sym=sym)
 
-    return num
+#     return num
 
-def get_parameters(ell_max,
-                   csym='oh',
-                   ssym='axial',
-                   params=None):
-    '''
-    make lmfit parameter class for a given
-    symmetry and maximum degree
-    '''
-    if params is None:
-        params = Parameters()
+# def get_parameters(ell_max,
+#                    csym='oh',
+#                    ssym='axial',
+#                    params=None):
+#     '''
+#     make lmfit parameter class for a given
+#     symmetry and maximum degree
+#     '''
+#     if params is None:
+#         params = Parameters()
 
-    for ell in np.arange(2, ell_max+1, 2):
-        nc = get_num_sym_harm(ell, sym=csym)
-        ns = get_num_sym_harm(ell, sym=ssym)
+#     for ell in np.arange(2, ell_max+1, 2):
+#         nc = get_num_sym_harm(ell, sym=csym)
+#         ns = get_num_sym_harm(ell, sym=ssym)
         
-        for ii in np.arange(ns):
-            for jj in np.arange(nc):
+#         for ii in np.arange(ns):
+#             for jj in np.arange(nc):
 
-                pname = f'c_{ell}{ii}{jj}'
-                params.add(name=pname, 
-                           value=0.,
-                           vary=True)
-    return params
+#                 pname = f'c_{ell}{ii}{jj}'
+#                 params.add(name=pname, 
+#                            value=0.,
+#                            vary=True)
+#     return params
 
 class AbstractHarmonicTextureModel(ABC):
     """this is the abstract class which is used by 
@@ -591,6 +591,14 @@ class AbstractHarmonicTextureModel(ABC):
     def J(self) -> float:
         raise NotImplementedError
 
+    @abstractmethod
+    def calc_pf_rings(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def calc_texture_factor(self) -> np.ndarray:
+        raise NotImplementedError
+
     def get_total_sym_harm(self, symtype):
         '''function to return the total symmetrized harmonics
         for a given degree and symmetry
@@ -643,10 +651,74 @@ class AbstractHarmonicTextureModel(ABC):
     def convert_hkl_to_str(self, h):
         return str(h).strip('[').strip(']').replace(" ","")
 
-    def calc_pf_rings(self,
-                      eta_min=-np.pi,
-                      eta_max=np.pi,
-                      eta_step=np.radians(0.1)):
+    def get_c_matrix(self, params, ell):
+        nc = get_num_sym_harm(ell, 
+                            sym=self.csym)
+        ns = get_num_sym_harm(ell,
+                            sym=self.ssym)
+
+        cmat = np.zeros([ns, nc])
+        for ii in np.arange(ns):
+            for jj in np.arange(nc):
+                pname = f'c_{ell}{ii}{jj}'
+                cmat[ii, jj] = params[pname].value
+        return cmat
+
+    def get_sph_s_matrix(self,
+                         h,
+                         ell,
+                         gridtype=None):
+
+        if gridtype is None:
+            ngrid = self.angs[h].shape[0]
+            Ylm = self.sph_s[h]
+
+        elif gridtype == 'new':
+            ngrid = self.angs_new[h].shape[0]
+            Ylm = self.sph_s_new[h]
+
+        elif gridtype == 'rings':
+            ngrid = self.rotated_angs_rings[h].shape[0]
+            Ylm = self.sph_s_rings[h]
+
+        ns = get_num_sym_harm(ell,
+                            sym=self.ssym)
+        smat = np.zeros((ngrid, ns))
+
+        for ii in np.arange(ns):
+            yname = f's_{ell}{ii}'
+            smat[:,ii] = Ylm[yname]
+
+        return smat
+
+    def get_sph_c_matrix(self,
+                         h,
+                         ell,
+                         gridtype=None):
+
+        nc = get_num_sym_harm(ell,
+                            sym=self.csym)
+        ngrid = 1
+        cmat = np.zeros((nc, ngrid))
+
+        if gridtype is None:
+            Ylm = self.sph_c[h]
+        elif gridtype == 'new':
+            Ylm = self.sph_c_new[h]
+        elif gridtype == 'rings':
+            Ylm = self.sph_c_rings[h]
+
+        for ii in np.arange(nc):
+            yname = f'c_{ell}{ii}'
+            cmat[ii, :] = Ylm[yname]
+
+        return cmat
+
+    def calc_pf_rings_abstract(self,
+                               params,
+                               eta_min=-np.pi,
+                               eta_max=np.pi,
+                               eta_step=np.radians(0.1)):
         '''this functin computes the  intensity variation 
         along the debye-scherrer rings for each hkl in the material.
         the intensity variation around the ring is computed between 
@@ -660,25 +732,26 @@ class AbstractHarmonicTextureModel(ABC):
 
         '''initialize all the dictionaries which will store the data
         '''
-        if not hasattr(self, 'intensities_rings'):
-            self.intensities_rings = {}
-        if not hasattr(self, 'angs_rings'):
-            self.angs_rings = {}
-        if not hasattr(self, 'rotated_angs_rings'):
-            self.rotated_angs_rings = {}
-        if not hasattr(self, 'hkl_angles_rings'):
-            self.hkl_angles_rings = {}
+        # if not hasattr(self, 'intensities_rings'):
+        self.intensities_rings = {}
+        # if not hasattr(self, 'angs_rings'):
+        self.angs_rings = {}
+        # if not hasattr(self, 'rotated_angs_rings'):
+        self.rotated_angs_rings = {}
+        # if not hasattr(self, 'hkl_angles_rings'):
+        self.hkl_angles_rings = {}
 
         '''also pre-compute the spherical harmonics
         '''
-        if not hasattr(self, 'sph_c_rings'):
-            self.sph_c_rings = {}
-        if not hasattr(self, 'sph_s_rings'):
-            self.sph_s_rings = {}
+        # if not hasattr(self, 'sph_c_rings'):
+        self.sph_c_rings = {}
+        # if not hasattr(self, 'sph_s_rings'):
+        self.sph_s_rings = {}
 
-        hkls   = self.hkls
-        tth    = self.tth
-        hkls_c = self.hkls_c
+        hkls = self.material.hkls
+        hkls_c = self.convert_hkls_to_cartesian(hkls)
+        tth = np.radians(self.material.getTTh(
+                              self.material.wavelength))
 
         for ii, (t, h, hc) in enumerate(zip(tth, hkls, hkls_c)):
             hstr = self.convert_hkl_to_str(h)
@@ -688,8 +761,8 @@ class AbstractHarmonicTextureModel(ABC):
                              np.zeros_like(eta_grid))).T
 
             pfgrid = anglesToGVec(angs,
-                 bHat_l=self.bvec,
-                 eHat_l=self.etavec)
+                                  bHat_l=self.bvec,
+                                  eHat_l=self.etavec)
 
             norm = np.linalg.norm(pfgrid, axis=1)
             v = pfgrid/np.tile(norm, [3,1]).T
@@ -701,17 +774,10 @@ class AbstractHarmonicTextureModel(ABC):
             tt = np.arccos(v[:, 2])
             rho = np.arctan2(v[:,1], v[:,0])
 
-            vr = np.dot(self.ref_frame_rmat, v[:,0:3].T).T
-
-            # sanitize vr[:, 2] for arccos operation
-            mask = np.abs(vr[:,2]) > 1.
-            vr[mask, 2] = np.sign(vr[mask, 2])
-            
-            tr = np.arccos(vr[:, 2])
-            rhor = np.arctan2(vr[:,1], vr[:,0])
-
             self.angs_rings[hstr] = np.vstack((tt, rho)).T
-            self.rotated_angs_rings[hstr] = np.vstack((tr, rhor)).T
+            self.rotated_angs_rings[hstr] = np.vstack((
+                np.pi/2-t/2*np.ones_like(eta_grid), 
+                eta_grid)).T
             self.hkl_angles_rings[hstr] = np.array([np.arccos(hc[2]),
                                                     np.arctan2(hc[1], 
                                                                hc[0])])
@@ -731,8 +797,11 @@ class AbstractHarmonicTextureModel(ABC):
                     self.sph_c_rings[hstr][kname] = Ylm[:,jj]
 
             self.sph_s_rings[hstr] = {}
-            theta_samp = self.rotated_angs_rings[hstr][:,0]
-            phi_samp   = self.rotated_angs_rings[hstr][:,1]
+            # theta_samp = self.rotated_angs_rings[hstr][:,0]
+            # phi_samp   = self.rotated_angs_rings[hstr][:,1]
+
+            theta_samp = self.angs_rings[hstr][:,0]
+            phi_samp   = self.angs_rings[hstr][:,1]
 
             for ell in np.arange(2, self.ell_max+1, 2):
                 Ylm = calc_sym_sph_harm(ell, 
@@ -743,32 +812,28 @@ class AbstractHarmonicTextureModel(ABC):
                     kname = f's_{ell}{jj}'
                     self.sph_s_rings[hstr][kname] = Ylm[:,jj]
 
-            '''perform the series sum if coefficeints are calculated
+            '''perform the series sum with given coefficients
             '''
-            if hasattr(self, 'res'):
-                term = np.ones_like(v[:,0])
+            term = np.ones_like(eta_grid)
 
-                for ell in np.arange(2, self.ell_max+1, 2):
-                    pre = 4*np.pi/(2*ell+1)
-                    cmat = self.get_c_matrix(self.res.params, ell)
-                    sph_s_mat = self.get_sph_s_matrix(hstr,
-                                                      ell,
-                                                      gridtype='rings')
-                    sph_c_mat = self.get_sph_c_matrix(hstr,
-                                                      ell,
-                                                      gridtype='rings')
-                    t = pre*np.dot(sph_s_mat, np.dot(
-                                       cmat, sph_c_mat))
-                    term += np.squeeze(t)
+            for ell in np.arange(2, self.ell_max+1, 2):
+                pre = 4*np.pi/(2*ell+1)
+                cmat = self.get_c_matrix(params, ell)
+                sph_s_mat = self.get_sph_s_matrix(hstr,
+                                                  ell,
+                                                  gridtype='rings')
+                sph_c_mat = self.get_sph_c_matrix(hstr,
+                                                  ell,
+                                                  gridtype='rings')
+                t = pre*np.dot(sph_s_mat, np.dot(
+                                   cmat, sph_c_mat))
+                term += np.squeeze(t)
 
-                self.intensities_rings[hstr] = term
+            self.intensities_rings[hstr] = term
 
-            else:
-                msg = (f'coefficeints have not been computed yet. '
-                       f'consider running'
-                       f'"pole_figures.calculate_harmonic_coefficients" first')
-                raise RuntimeError(msg)
-
+    def calc_texture_factor_abstract(self,
+                                     params):
+        pass
 
 class harmonic_model(AbstractHarmonicTextureModel):
     """
@@ -781,11 +846,18 @@ class harmonic_model(AbstractHarmonicTextureModel):
     def __init__(self,
                 material=None,
                 ssym='axial',
-                ell_max=10):
+                ell_max=10,
+                bvec=bvec_ref,
+                evec=eta_ref,
+                sample_normal=-constants.lab_z
+                ):
 
         super().__init__(material=material,
                          ssym=ssym,
-                         ell_max=ell_max)
+                         ell_max=ell_max,
+                         bvec=bvec,
+                         evec=evec,
+                         sample_normal=sample_normal)
 
         self.hkls = self.material.hkls
         self.hkls_c = self.convert_hkls_to_cartesian(self.hkls)
@@ -805,8 +877,22 @@ class harmonic_model(AbstractHarmonicTextureModel):
                 for jj in np.arange(nc):
                     pname = f'c_{ell}{ii}{jj}'
                     pre = 1/(2*ell+1)
-                    J += pre*params[pname].value**2
+                    J += pre*(params[pname].value**2)
         return J
+
+    def calc_pf_rings(self,
+                      params,
+                      eta_min=-np.pi,
+                      eta_max=np.pi,
+                      eta_step=np.radians(0.1)):
+        return self.calc_pf_rings_abstract(params,
+                                           eta_min=eta_min,
+                                           eta_max=eta_max,
+                                           eta_step=eta_step)
+
+    def calc_texture_factor(self,
+                            params):
+        return self.calc_texture_factor_abstract(params)
 
 class pole_figures(AbstractHarmonicTextureModel):
     """
@@ -1284,68 +1370,31 @@ class pole_figures(AbstractHarmonicTextureModel):
 
         self.res = fitter.least_squares(**fdict)
 
-    def get_c_matrix(self, params, ell):
-        nc = get_num_sym_harm(ell, 
-                            sym=self.csym)
-        ns = get_num_sym_harm(ell,
-                            sym=self.ssym)
+    def calc_pf_rings(self,
+                      eta_min=-np.pi,
+                      eta_max=np.pi,
+                      eta_step=np.radians(0.1)):
+        if hasattr(self, 'res'):
+            return self.calc_pf_rings_abstract(
+                self.res.params,
+                eta_min=eta_min,
+                eta_max=eta_max,
+                eta_step=eta_step)
+        else:
+            msg = (f'harmonic model has not been run yet. '
+                f'consider running '
+                f'"calculate_harmonic_coefficients" ')
+            raise RuntimeError(msg)
 
-        cmat = np.zeros([ns, nc])
-        for ii in np.arange(ns):
-            for jj in np.arange(nc):
-                pname = f'c_{ell}{ii}{jj}'
-                cmat[ii, jj] = params[pname].value
-        return cmat
-
-    def get_sph_s_matrix(self,
-                         h,
-                         ell,
-                         gridtype=None):
-
-        if gridtype is None:
-            ngrid = self.angs[h].shape[0]
-            Ylm = self.sph_s[h]
-
-        elif gridtype == 'new':
-            ngrid = self.angs_new[h].shape[0]
-            Ylm = self.sph_s_new[h]
-
-        elif gridtype == 'rings':
-            ngrid = self.angs_rings[h].shape[0]
-            Ylm = self.sph_s_rings[h]
-
-        ns = get_num_sym_harm(ell,
-                            sym=self.ssym)
-        smat = np.zeros((ngrid, ns))
-
-        for ii in np.arange(ns):
-            yname = f's_{ell}{ii}'
-            smat[:,ii] = Ylm[yname]
-
-        return smat
-
-    def get_sph_c_matrix(self,
-                         h,
-                         ell,
-                         gridtype=None):
-
-        nc = get_num_sym_harm(ell,
-                            sym=self.csym)
-        ngrid = 1
-        cmat = np.zeros((nc, ngrid))
-
-        if gridtype is None:
-            Ylm = self.sph_c[h]
-        elif gridtype == 'new':
-            Ylm = self.sph_c_new[h]
-        elif gridtype == 'rings':
-            Ylm = self.sph_c_rings[h]
-
-        for ii in np.arange(nc):
-            yname = f'c_{ell}{ii}'
-            cmat[ii, :] = Ylm[yname]
-
-        return cmat
+    def calc_texture_factor(self):
+        if hasattr(self, 'res'):
+            return self.calc_texture_factor_abstract(
+                params)
+        else:
+            msg = (f'harmonic model has not been run yet. '
+                f'consider running '
+                f'"calculate_harmonic_coefficients" ')
+            raise RuntimeError(msg)
 
     @property
     def num_pfs(self):
