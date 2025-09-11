@@ -427,38 +427,6 @@ def get_num_sym_harm(ell,
     elif sym == 'triclinic':
         return 2*ell + 1
 
-# def get_total_sym_harm(ell_max,
-#                        sym='oh'):
-#     num = 0
-#     for ell in np.arange(2, ell_max+1, 2):
-#         num += get_num_sym_harm(ell, sym=sym)
-
-#     return num
-
-# def get_parameters(ell_max,
-#                    csym='oh',
-#                    ssym='axial',
-#                    params=None):
-#     '''
-#     make lmfit parameter class for a given
-#     symmetry and maximum degree
-#     '''
-#     if params is None:
-#         params = Parameters()
-
-#     for ell in np.arange(2, ell_max+1, 2):
-#         nc = get_num_sym_harm(ell, sym=csym)
-#         ns = get_num_sym_harm(ell, sym=ssym)
-        
-#         for ii in np.arange(ns):
-#             for jj in np.arange(nc):
-
-#                 pname = f'c_{ell}{ii}{jj}'
-#                 params.add(name=pname, 
-#                            value=0.,
-#                            vary=True)
-#     return params
-
 class AbstractHarmonicTextureModel(ABC):
     """this is the abstract class which is used by 
     both the harmonic model as well as the pole figure
@@ -614,13 +582,15 @@ class AbstractHarmonicTextureModel(ABC):
         return num
 
     def get_parameters(self,
-                       params=None):
+                       params=None,
+                       vary=True):
         '''
         make lmfit parameter class for refinement
         '''
         if params is None:
             params = Parameters()
 
+        phase = self.material.name
         for ell in np.arange(2, self.ell_max+1, 2):
             nc = get_num_sym_harm(ell, sym=self.csym)
             ns = get_num_sym_harm(ell, sym=self.ssym)
@@ -628,10 +598,10 @@ class AbstractHarmonicTextureModel(ABC):
             for ii in np.arange(ns):
                 for jj in np.arange(nc):
 
-                    pname = f'c_{ell}{ii}{jj}'
+                    pname = f'{phase}_c_{ell}{ii}{jj}'
                     params.add(name=pname, 
                                value=0.,
-                               vary=True)
+                               vary=vary)
         return params
 
     def convert_hkls_to_cartesian(self,
@@ -656,11 +626,11 @@ class AbstractHarmonicTextureModel(ABC):
                             sym=self.csym)
         ns = get_num_sym_harm(ell,
                             sym=self.ssym)
-
+        phase = self.material.name
         cmat = np.zeros([ns, nc])
         for ii in np.arange(ns):
             for jj in np.arange(nc):
-                pname = f'c_{ell}{ii}{jj}'
+                pname = f'{phase}_c_{ell}{ii}{jj}'
                 cmat[ii, jj] = params[pname].value
         return cmat
 
@@ -761,6 +731,7 @@ class AbstractHarmonicTextureModel(ABC):
 
             norm = np.linalg.norm(pfgrid, axis=1)
             v = pfgrid/np.tile(norm, [3,1]).T
+            v = np.dot(self.ref_frame_rmat, v.T).T
 
             # sanitize v[:, 2] for arccos operation
             mask = np.abs(v[:,2]) > 1.
@@ -875,12 +846,13 @@ class harmonic_model(AbstractHarmonicTextureModel):
         value > 1 is preferred orientation.
         '''
         J = 1.
+        phase = self.material.name
         for ell in np.arange(2, self.ell_max+1, 2):
             nc = get_num_sym_harm(ell, sym=self.csym)
             ns = get_num_sym_harm(ell, sym=self.ssym)
             for ii in np.arange(ns):
                 for jj in np.arange(nc):
-                    pname = f'c_{ell}{ii}{jj}'
+                    pname = f'{phase}_c_{ell}{ii}{jj}'
                     pre = 1/(2*ell+1)
                     J += pre*(params[pname].value**2)
         return J
@@ -1221,6 +1193,11 @@ class pole_figures(AbstractHarmonicTextureModel):
         will be used in computing pole figures for a new hkl
         pole
         '''
+
+        #@TODO make the naming convention same as calc_pf_rings
+        # currently the rotated angs are used for calculating the
+        # values of the spherical harmonics, which is not the case 
+        # with the other function
         if not hasattr(self, 'intensities_new'):
             self.intensities_new = {}
         if not hasattr(self, 'angs_new'):
@@ -1428,7 +1405,9 @@ class pole_figures(AbstractHarmonicTextureModel):
         self._angs = {}
         self._rotated_angs = {}
         self._hkl_angles = {}
+
         for ii, (k,v) in enumerate(val.items()):
+
 
             norm = np.linalg.norm(v[:,0:3],axis=1)
             v[:,0:3] = v[:,0:3]/np.tile(norm, [3,1]).T
@@ -1494,12 +1473,13 @@ class pole_figures(AbstractHarmonicTextureModel):
     def J(self):
         if hasattr(self, 'res'):
             J = 1.
+            phase = self.material.name
             for ell in np.arange(2, self.ell_max+1, 2):
                 nc = get_num_sym_harm(ell, sym=self.csym)
                 ns = get_num_sym_harm(ell, sym=self.ssym)
                 for ii in np.arange(ns):
                     for jj in np.arange(nc):
-                        pname = f'c_{ell}{ii}{jj}'
+                        pname = f'{phase}_c_{ell}{ii}{jj}'
                         pre = 1/(2*ell+1)
                         J += pre*(
                         self.res.params[pname].value**2)
