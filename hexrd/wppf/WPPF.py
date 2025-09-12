@@ -1716,6 +1716,41 @@ class Rietveld(AbstractWPPF):
                     # / (2.0 * (1 + Ph))
                 )
 
+    def compute_intensities(self):
+        '''this function computes the intensities of the 
+        xray diffraction excluding any texture. this function
+        will replace part of the code in the computespectrum
+        function
+        '''
+
+        x = self.tth_list
+        y = np.zeros(x.shape)
+        tth_list = np.ascontiguousarray(self.tth_list)
+        Ic = {}
+        for iph, p in enumerate(self.phases):
+            Ic[p] = {}
+            for k, l in self.phases.wavelength.items():
+
+                name = self.phases[p][k].name
+                tth = self.tth[p][k]
+                pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
+                sf = self.sf[p][k]
+                lp = self.LP[p][k]
+                extinction = self.extinction[p][k]
+                absorption = self.absorption[p][k]
+
+                n = np.min((tth.shape[0], sf.shape[0],
+                    lp.shape[0]))
+
+                tth = tth[:n]
+                sf = sf[:n]
+                lp = lp[:n]
+                extinction = extinction[:n]
+                absorption = absorption[:n]
+
+                Ic[p][k] = self.scale * pf * sf * lp # *extinction*absorption
+        return Ic
+
     def computespectrum(self):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab
@@ -1726,16 +1761,17 @@ class Rietveld(AbstractWPPF):
         x = self.tth_list
         y = np.zeros(x.shape)
         tth_list = np.ascontiguousarray(self.tth_list)
+        Icomputed = self.compute_intensities()
 
         for iph, p in enumerate(self.phases):
 
             for k, l in self.phases.wavelength.items():
 
                 texture_factor = np.ones_like(self.tth[p][k])
-                if self.texture_model[p] is not None:
-                    texture_factor = self.texture_model[p].calc_texture_factor(self.params,
-                                                                               eta_min=-np.pi,
-                                                                               eta_max=np.pi)
+                # if self.texture_model[p] is not None:
+                #     texture_factor = self.texture_model[p].calc_texture_factor(self.params,
+                #                                                                eta_min=-np.pi,
+                #                                                                eta_max=np.pi)
 
                 name = self.phases[p][k].name
                 lam = l[0].getVal("nm")
@@ -1756,23 +1792,15 @@ class Rietveld(AbstractWPPF):
                 tth = self.tth[p][k] + self.zero_error + \
                     shft_c + trns_c + sf_shift
 
-                pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
-                sf = self.sf[p][k]
-                lp = self.LP[p][k]
-                extinction = self.extinction[p][k]
-                absorption = self.absorption[p][k]
+                Ic = Icomputed[p][k]
 
-                n = np.min((tth.shape[0], sf.shape[0],
-                    lp.shape[0], texture_factor.shape[0]))
+                n = np.min((Ic.shape[0], texture_factor.shape[0]))
 
                 tth = tth[:n]
-                sf = sf[:n]
-                lp = lp[:n]
-                extinction = extinction[:n]
-                absorption = absorption[:n]
+                Ic  = Ic[:n]
                 texture_factor = texture_factor[:n]
 
-                Ic = self.scale * pf * sf * lp * texture_factor # *extinction*absorption
+                Ic *= texture_factor # *extinction*absorption
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]

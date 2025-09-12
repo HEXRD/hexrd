@@ -1198,21 +1198,16 @@ class pole_figures(AbstractHarmonicTextureModel):
         # currently the rotated angs are used for calculating the
         # values of the spherical harmonics, which is not the case 
         # with the other function
-        if not hasattr(self, 'intensities_new'):
-            self.intensities_new = {}
-        if not hasattr(self, 'angs_new'):
-            self.angs_new = {}
-        if not hasattr(self, 'rotated_angs_new'):
-            self.rotated_angs_new = {}
-        if not hasattr(self, 'hkl_angles_new'):
-            self.hkl_angles_new = {}
+        
+        self.intensities_new = {}
+        self.angs_new = {}
+        self.rotated_angs_new = {}
+        self.hkl_angles_new = {}
 
         '''also pre-compute the spherical harmonics
         '''
-        if not hasattr(self, 'sph_c_new'):
-            self.sph_c_new = {}
-        if not hasattr(self, 'sph_s_new'):
-            self.sph_s_new = {}
+        self.sph_c_new = {}
+        self.sph_s_new = {}
 
         '''get the densest grid and associated data
         if the user does not specify a grid of points
