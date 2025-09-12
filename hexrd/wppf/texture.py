@@ -1161,8 +1161,8 @@ class pole_figures(AbstractHarmonicTextureModel):
         is done so that the spherical harmonics 
         don't have to be recomputed. 
 
-        by default, we will pick the pf grid with
-        the most points i.e. densest gridding
+        by default, we will pick the pf grid 5 degrees
+        in theta and 10 degrees in azimuth
 
         hkls has the shape nx3
         '''
@@ -1223,9 +1223,30 @@ class pole_figures(AbstractHarmonicTextureModel):
         
         '''
         if pfgrid is None:
-            dg = self.densest_grid
-            angs = self.angs[dg]
-            rotated_angs = self.rotated_angs[dg]
+            t = np.radians(np.arange(0, 90, 5))
+            e = np.radians(np.arange(-180, 180, 10))
+            tt, ee = np.meshgrid(t, e)
+
+            tt = tt.flatten()
+            ee = ee.flatten()
+            
+            ctt = np.cos(tt)
+            stt = np.sin(tt)
+
+            cee = np.cos(ee)
+            see = np.sin(ee)
+
+            v = np.vstack((cee*stt, 
+                           see*stt, ctt)).T
+
+            vr = np.dot(self.ref_frame_rmat, v.T).T
+
+            tr = np.arccos(vr[:,2])
+            rhor = np.arctan2(vr[:,1],vr[:,0])
+
+            angs = np.vstack((tt, ee)).T
+
+            rotated_angs = np.vstack((tr, rhor)).T
 
         else:
             norm = np.linalg.norm(pfgrid,axis=1)
@@ -1283,22 +1304,18 @@ class pole_figures(AbstractHarmonicTextureModel):
                     kname = f'c_{ell}{jj}'
                     self.sph_c_new[h][kname] = Ylm[:,jj]
 
-            if pfgrid is None:
-                self.sph_s_new[h] = self.sph_s[dg].copy()
+            self.sph_s_new[h] = {}
+            theta_samp = self.rotated_angs[h][:,0]
+            phi_samp   = self.rotated_angs[h][:,1]
 
-            else:
-                self.sph_s_new[h] = {}
-                theta_samp = self.rotated_angs[h][:,0]
-                phi_samp   = self.rotated_angs[h][:,1]
-
-                for ell in np.arange(2, self.ell_max+1, 2):
-                    Ylm = calc_sym_sph_harm(ell, 
-                                            theta_samp,
-                                            phi_samp,
-                                            sym=self.ssym)
-                    for jj in np.arange(Ylm.shape[1]):
-                        kname = f's_{ell}{jj}'
-                        self.sph_s_new[h][kname] = Ylm[:,jj]
+            for ell in np.arange(2, self.ell_max+1, 2):
+                Ylm = calc_sym_sph_harm(ell, 
+                                        theta_samp,
+                                        phi_samp,
+                                        sym=self.ssym)
+                for jj in np.arange(Ylm.shape[1]):
+                    kname = f's_{ell}{jj}'
+                    self.sph_s_new[h][kname] = Ylm[:,jj]
 
 
         self.recalculated_pf(self.res.params, new=True)
