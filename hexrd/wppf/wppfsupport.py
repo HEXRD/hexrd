@@ -458,10 +458,11 @@ def _add_absorption_parameters(mat, params):
     return params
 
 def _add_texture_model_parameters(texture_model, params):
-        for k, hm in texture_model.items():
-            if hm is not None:
-                hm.get_parameters(params,
-                                  vary=False)
+        if texture_model is not None:
+            for k, hm in texture_model.items():
+                if hm is not None:
+                    hm.get_parameters(params,
+                                      vary=False)
         return
 
 def _generate_default_parameters_Rietveld(mat,
