@@ -10,7 +10,7 @@ import yaml
 from hexrd import constants
 from hexrd.material import Material, symmetry, symbols
 from hexrd.material.spacegroup import Allowed_HKLs, SpaceGroup
-from hexrd.material.unitcell import _rqpDict
+from hexrd.material.unitcell import _calcstar, _rqpDict
 from hexrd.valunits import valWUnit
 from hexrd.wppf.xtal import (
     _calc_dspacing, _get_tth, _calcxrsf, _calc_extinction_factor,
@@ -326,30 +326,15 @@ class Material_LeBail(AbstractMaterial):
         this function calculates the symmetrically equivalent hkls (or uvws)
         for the reciprocal (or direct) point group symmetry.
         """
-        if(space == 'd'):
-            if(applyLaue):
-                sym = self.SYM_PG_d_laue
-            else:
-                sym = self.SYM_PG_d
-        elif(space == 'r'):
-            if(applyLaue):
-                sym = self.SYM_PG_r_laue
-            else:
-                sym = self.SYM_PG_r
-        else:
+        if space not in ('d', 'r'):
             raise ValueError('CalcStar: unrecognized space.')
-        vsym = np.atleast_2d(v)
-        for s in sym:
-            vp = np.dot(s, v)
-            # check if this is new
-            isnew = True
-            for vec in vsym:
-                if(np.sum(np.abs(vp - vec)) < 1E-4):
-                    isnew = False
-                    break
-            if(isnew):
-                vsym = np.vstack((vsym, vp))
-        return vsym
+
+        suffix = '_laue' if applyLaue else ''
+        name = f'SYM_PG_{space}{suffix}'
+        sym = getattr(self, name).astype(float)
+        v = np.asarray(v).astype(float)
+        mat = (self.dmt if space == 'd' else self.rmt).astype(float)
+        return _calcstar(v, sym, mat)
 
     def removeinversion(self, ksym):
         """
