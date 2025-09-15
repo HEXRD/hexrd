@@ -1006,37 +1006,35 @@ class LeBail(AbstractWPPF):
 
     def _set_phase_params_vals_to_class(self, params: lmfit.Parameters):
         updated_lp = False
-
         for p in self.phases:
             mat = self.phases[p]
 
-            sf_alpha_name = f"{p}_sf_alpha"
-            twin_beta_name = f"{p}_twin_beta"
-            if (sf_alpha_name in params) and (twin_beta_name in params):
+            """
+            PART 1: update stacking fault and twin beta parameters
+            """
+            if mat.sgnum == 225:
+                sf_alpha_name = f"{p}_sf_alpha"
+                twin_beta_name = f"{p}_twin_beta"
                 if params[sf_alpha_name].vary:
                     mat.sf_alpha = params[sf_alpha_name].value
                 if params[twin_beta_name].vary:
                     mat.twin_beta = params[twin_beta_name].value
+
             """
-            PART 1: update the lattice parameters
+            PART 2: update the lattice parameters
             """
             lp = []
             lpvary = False
             pre = f"{p}_"
 
             name = [f"{pre}{x}" for x in wppfsupport._lpname]
-
             for nn in name:
                 if nn in params:
                     if params[nn].vary:
                         lpvary = True
                     lp.append(params[nn].value)
-                elif nn in self.params:
-                    lp.append(self.params[nn].value)
 
-            if not lpvary:
-                pass
-            else:
+            if lpvary:
                 lp = self.phases[p].Required_lp(lp)
                 mat.lparms = np.array(lp)
                 mat._calcrmt()
@@ -1550,25 +1548,29 @@ class Rietveld(AbstractWPPF):
                 )
 
     def _set_phase_params_vals_to_class(self, params: lmfit.Parameters):
+        # These indicate that *any* materials updated their lattice
+        # parameters or atom info.
         updated_lp = False
         updated_atominfo = False
+
         pf = np.zeros([self.phases.num_phases, ])
         pf_cur = self.phases.phase_fraction.copy()
         for ii, p in enumerate(self.phases):
             name = f"{p}_phase_fraction"
-            if name in params:
-                pf[ii] = params[name].value
-            else:
-                pf[ii] = pf_cur[ii]
+            pf[ii] = params[name].value
 
             for lpi in self.phases[p]:
                 mat = self.phases[p][lpi]
+
+                # This indicate *this* material updated its lattice parameter
+                # or atom info.
+                lpvary = False
+                atominfo_vary = False
 
                 """
                 PART 1: update the lattice parameters
                 """
                 lp = []
-                lpvary = False
                 pre = f"{p}_"
                 name = [f"{pre}{x}" for x in wppfsupport._lpname]
                 for nn in name:
@@ -1576,15 +1578,11 @@ class Rietveld(AbstractWPPF):
                         if params[nn].vary:
                             lpvary = True
                         lp.append(params[nn].value)
-                    elif nn in self.params:
-                        lp.append(self.params[nn].value)
 
-                if not lpvary:
-                    pass
-                else:
+                if lpvary:
                     lp = self.phases[p][lpi].Required_lp(lp)
                     self.phases[p][lpi].lparms = np.array(lp)
-                    updated_lp = True
+
                 """
                 PART 2: update the atom info
                 """
@@ -1612,60 +1610,45 @@ class Rietveld(AbstractWPPF):
                     else:
                         dw = f"{p}_{elem}{atom_label[i]}_dw"
 
-                    if nx in params:
-                        x = params[nx].value
-                        updated_atominfo = True
-                    else:
-                        x = self.params[nx].value
-
-                    if ny in params:
-                        y = params[ny].value
-                        updated_atominfo = True
-                    else:
-                        y = self.params[ny].value
-
-                    if nz in params:
-                        z = params[nz].value
-                        updated_atominfo = True
-                    else:
-                        z = self.params[nz].value
-
-                    if oc in params:
-                        oc = params[oc].value
-                        updated_atominfo = True
-                    else:
-                        oc = self.params[oc].value
+                    atominfo_vary = any(
+                        params[name].vary for name in (nx, ny, nz, oc)
+                    )
+                    x = params[nx].value
+                    y = params[ny].value
+                    z = params[nz].value
+                    oc = params[oc].value
 
                     if mat.aniU:
                         U = []
                         for j in range(6):
-                            if Un[j] in params:
-                                updated_atominfo = True
-                                U.append(params[Un[j]].value)
-                            else:
-                                U.append(self.params[Un[j]].value)
-                        U = np.array(U)
-                        mat.U[i, :] = U
+                            param = params[Un[j]]
+                            if param.vary:
+                                atominfo_vary = True
+                            U.append(param.value)
+                        mat.U[i, :] = np.array(U)
                     else:
-                        if dw in params:
-                            dw = params[dw].value
-                            updated_atominfo = True
-                        else:
-                            dw = self.params[dw].value
-                        mat.U[i] = dw
+                        if params[dw].vary:
+                            atominfo_vary = True
+
+                        mat.U[i] = params[dw].value
 
                     mat.atom_pos[i, :] = np.array([x, y, z, oc])
 
                 if mat.aniU:
                     mat.calcBetaij()
-                if updated_lp:
+
+                if lpvary:
                     mat._calcrmt()
+                    updated_lp = True
 
-            if updated_lp:
-                self.calctth()
+                if atominfo_vary:
+                    updated_atominfo = True
 
-            if updated_lp or updated_atominfo:
-                self.calcsf()
+        if updated_lp:
+            self.calctth()
+
+        if updated_lp or updated_atominfo:
+            self.calcsf()
 
         self.phases.phase_fraction = pf / np.sum(pf)
 
