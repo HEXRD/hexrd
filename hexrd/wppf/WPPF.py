@@ -1768,10 +1768,11 @@ class Rietveld(AbstractWPPF):
             for k, l in self.phases.wavelength.items():
 
                 texture_factor = np.ones_like(self.tth[p][k])
-                # if self.texture_model[p] is not None:
-                #     texture_factor = self.texture_model[p].calc_texture_factor(self.params,
-                #                                                                eta_min=-np.pi,
-                #                                                                eta_max=np.pi)
+                if self.texture_model[p] is not None:
+                    texture_factor = self.texture_model[p].calc_texture_factor(
+                                            self.params,
+                                            eta_min=-np.pi/2,
+                                            eta_max=np.pi/2)
 
                 name = self.phases[p][k].name
                 lam = l[0].getVal("nm")
@@ -2218,6 +2219,7 @@ def single_azimuthal_extraction(
         "wavelength": wavelength,
         "bkgmethod": bkgmethod,
         "peakshape": peakshape,
+        "intensity_init": intensity_init
     }
 
     # get termination conditions for the LeBail refinement
