@@ -1568,7 +1568,18 @@ class Rietveld(AbstractWPPF):
                 atominfo_vary = False
 
                 """
-                PART 1: update the lattice parameters
+                PART 1: update stacking fault and twin beta parameters
+                """
+                if mat.sgnum == 225:
+                    sf_alpha_name = f"{p}_sf_alpha"
+                    twin_beta_name = f"{p}_twin_beta"
+                    if params[sf_alpha_name].vary:
+                        mat.sf_alpha = params[sf_alpha_name].value
+                    if params[twin_beta_name].vary:
+                        mat.twin_beta = params[twin_beta_name].value
+
+                """
+                PART 2: update the lattice parameters
                 """
                 lp = []
                 pre = f"{p}_"
@@ -1584,7 +1595,7 @@ class Rietveld(AbstractWPPF):
                     self.phases[p][lpi].lparms = np.array(lp)
 
                 """
-                PART 2: update the atom info
+                PART 3: update the atom info
                 """
                 atom_type = mat.atom_type
                 atom_label = wppfsupport._getnumber(atom_type)
