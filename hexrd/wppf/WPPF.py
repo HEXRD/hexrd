@@ -1653,7 +1653,6 @@ class Rietveld(AbstractWPPF):
                     mat.calcBetaij()
 
                 if lpvary:
-                    mat._calcrmt()
                     updated_lp = True
 
                 if atominfo_vary:
