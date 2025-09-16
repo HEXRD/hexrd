@@ -486,8 +486,10 @@ class AbstractHarmonicTextureModel(ABC):
 
     @material.setter
     def material(self, mat):
-        if isinstance(mat, Material_Rietveld):
-            self._material = mat
+        if not isinstance(mat, Material_Rietveld):
+            raise Exception(f'Invalid material: {mat}')
+
+        self._material = mat
 
     @ssym.setter
     def ssym(self, val):
@@ -842,7 +844,7 @@ class AbstractHarmonicTextureModel(ABC):
             tf[ii] = np.mean(v)
         return tf
 
-class harmonic_model(AbstractHarmonicTextureModel):
+class HarmonicModel(AbstractHarmonicTextureModel):
     """
     this class brings all the elements together to compute the
     texture model given the sample and crystal symmetry. the model
@@ -910,7 +912,7 @@ class harmonic_model(AbstractHarmonicTextureModel):
                                     eta_step=eta_step
                                     )
 
-class pole_figures(AbstractHarmonicTextureModel):
+class PoleFigures(AbstractHarmonicTextureModel):
     """
     this class deals with everything related to pole figures.
     pole figures can be initialized in a number of ways. the most
@@ -1548,7 +1550,7 @@ class pole_figures(AbstractHarmonicTextureModel):
                 sz = v.shape[0]
         return dg
 
-class inverse_pole_figures:
+class InversePoleFigures:
     """
     this class deals with everything related to inverse pole figures.
 
@@ -1661,3 +1663,9 @@ class inverse_pole_figures:
         polar = np.arccos(self.crystal_dir[:,2])
         az = np.arctan2(self.crystal_dir[:,1],self.crystal_dir[:,0])
         return np.degrees(np.vstack((polar,az)).T)
+
+
+# These are here only for backward-compatibility
+harmonic_model = HarmonicModel
+pole_figures = PoleFigures
+inverse_polar_figures = InversePoleFigures
