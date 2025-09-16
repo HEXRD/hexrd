@@ -2,6 +2,7 @@ import numpy as np
 from numba import njit, prange
 
 from hexrd import constants
+from hexrd.material.unitcell import _calcstar
 
 
 @njit(cache=True, nogil=True)
@@ -254,3 +255,25 @@ def _calc_absorption_factor(abs_fact, tth, phi, wavelength):
 
             absorption[ii] = (f1 - f2) / f3
     return absorption
+
+
+@njit(cache=True, nogil=True, parallel=True)
+def _get_sf_hkl_factors(hkls, sym, mat):
+    multiplicity = np.empty(len(hkls), dtype=np.int64)
+    Lfact = np.empty(len(hkls), dtype=np.float64)
+    Lfact_broadening = np.empty(len(hkls), dtype=np.float64)
+
+    for i in prange(len(hkls)):
+        gsym = _calcstar(hkls[i].astype(np.float64), sym, mat)
+        L0 = np.sum(gsym, axis=1)
+        sign = np.mod(L0, 3)
+        sign[sign == 2] = -1
+
+        multiplicity[i] = gsym.shape[0]
+        Lfact[i] = np.sum(L0*sign)
+        Lfact_broadening[i] = np.sum(np.abs(L0))
+
+    H2 = np.sum(hkls**2, axis=1)
+    Lfact_broadening = H2 * multiplicity / Lfact_broadening
+    sf_f = (90. * np.sqrt(3) / np.pi**2 ) * Lfact / (H2 * multiplicity)
+    return sf_f, Lfact_broadening

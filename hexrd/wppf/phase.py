@@ -14,7 +14,7 @@ from hexrd.material.unitcell import _calcstar, _rqpDict
 from hexrd.valunits import valWUnit
 from hexrd.wppf.xtal import (
     _calc_dspacing, _get_tth, _calcxrsf, _calc_extinction_factor,
-    _calc_absorption_factor,
+    _calc_absorption_factor, _get_sf_hkl_factors,
 )
 import hexrd.resources
 
@@ -254,26 +254,9 @@ class Material_LeBail(AbstractMaterial):
         if self.sgnum != 225:
             return None, None
 
-        hkls = self.hkls.astype(np.float64)
-        H2 = np.sum(hkls**2,axis=1)
-        multiplicity = []
-        Lfact = []
-        Lfact_broadening = []
-        for g in hkls:
-            gsym = self.CalcStar(g, 'r')
-            L0 = np.sum(gsym,axis=1)
-            sign = np.mod(L0, 3)
-            sign[sign == 2] = -1
-            multiplicity.append(gsym.shape[0])
-            Lfact.append(np.sum(L0*sign))
-            Lfact_broadening.append(np.sum(np.abs(L0)))
-
-        Lfact = np.array(Lfact)
-        multiplicity = np.array(multiplicity)
-        Lfact_broadening = np.array(Lfact_broadening)
-        Lfact_broadening = (H2*multiplicity)/Lfact_broadening
-        sf_f = (90.*np.sqrt(3)/np.pi**2)*Lfact/(H2*multiplicity)
-        return sf_f, Lfact_broadening
+        sym = self.SYM_PG_r.astype(float)
+        mat = self.rmt.astype(float)
+        return _get_sf_hkl_factors(self.hkls, sym, mat)
 
     def sf_and_twin_probability(self):
         self.sf_alpha = None
