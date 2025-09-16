@@ -1,10 +1,11 @@
 # standard imports
 # ---------
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from os import path
 import time
 import warnings
-
 
 # 3rd party imports
 # -----------------
@@ -19,7 +20,6 @@ from scipy.special import roots_legendre
 from hexrd import constants
 from hexrd.imageutil import snip1d_quad
 from hexrd.material import Material
-from hexrd.utils.multiprocess_generic import GenericMultiprocessing
 from hexrd.valunits import valWUnit
 from hexrd.wppf.peakfunctions import (
     calc_rwp,
@@ -1594,8 +1594,9 @@ class Rietveld(AbstractWPPF):
                         lp.append(params[nn].value)
 
                 if lpvary:
-                    lp = self.phases[p][lpi].Required_lp(lp)
-                    self.phases[p][lpi].lparms = np.array(lp)
+                    lp = mat.Required_lp(lp)
+                    mat.lparms = np.array(lp)
+                    mat._calcrmt()
 
                 """
                 PART 3: update the atom info
@@ -1717,7 +1718,7 @@ class Rietveld(AbstractWPPF):
                 )
 
     def compute_intensities(self):
-        '''this function computes the intensities of the 
+        '''this function computes the intensities of the
         xray diffraction excluding any texture. this function
         will replace part of the code in the computespectrum
         function
@@ -2017,8 +2018,8 @@ class Rietveld(AbstractWPPF):
 
     @texture_model.setter
     def texture_model(self, valdict):
-        '''only dictionary key value pairs are acceptable. 
-        key should match name of the phase. if a certain 
+        '''only dictionary key value pairs are acceptable.
+        key should match name of the phase. if a certain
         phase is not present, texture model for that phase
         is set to None
         '''
@@ -2160,11 +2161,18 @@ def extract_intensities(
         "termination_condition": termination_condition,
         "peakshape": peakshape,
     }
+    func = partial(single_azimuthal_extraction, **kwargs)
 
-    P = GenericMultiprocessing()
-    results = P.parallelise_function(
-        data_inp_list, single_azimuthal_extraction, **kwargs
-    )
+    # We found that 2 max workers in a thread pool performed
+    # the best on our example dataset. This is likely because
+    # there is already parallelism going on in each thread.
+    # ProcessPoolExecutor was always slower.
+    max_workers = 2
+    if max_workers > 1:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(func, data_inp_list))
+    else:
+        results = [func(x) for x in data_inp_list]
 
     """
     process the outputs from the multiprocessing to make the
