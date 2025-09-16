@@ -59,13 +59,13 @@ SYMLIST = [
 
 '''
 in this section we will list the constants we need for symmetrizing
-the spherical harmonics for the cubic crystals (sgnum 195-230). 
+the spherical harmonics for the cubic crystals (sgnum 195-230).
 For cyclic and dihedral symmetries, the symmetrization is done by
 selection rules, so they don't need to be explicitly written here
 
 we will list all constants up to degree 16. If the user asks for
 anything more than that, we will need to compute it on the fly
-using the spherical python package. However, this will build an 
+using the spherical python package. However, this will build an
 extra dependency, so not sure if we need that
 '''
 Blmn = {
@@ -222,7 +222,7 @@ laue_10 = 'th' # cubic low
 laue_11 = 'oh' # cubic high
 
 '''
-def check_symmetry(sym, 
+def check_symmetry(sym,
                    symtype='either'):
     '''
     helper functio to check crystal and sample
@@ -252,7 +252,7 @@ def check_degrees(ell,
             raise ValueError(msg)
     return True
 
-def calc_sym_sph_harm(deg, 
+def calc_sym_sph_harm(deg,
                       theta,
                       phi,
                       sym='oh'):
@@ -299,7 +299,7 @@ def calc_sym_sph_harm(deg,
         nfold = 6
 
     # cubic low, orthorhombic and monoclinic
-    elif sym in ['th', 'c2h', 'd2h', 
+    elif sym in ['th', 'c2h', 'd2h',
             'orthorhombic', 'monoclinic']:
         nfold = 2
 
@@ -336,13 +336,13 @@ def calc_sym_sph_harm(deg,
                                             theta, phi))
 
     elif sym in ['d2h', 'd3d', 'd4h', 'd6h', 'orthorhombic']:
-        '''this is the dihedral symmetry with the 
+        '''this is the dihedral symmetry with the
         following selection rules:
         1. l = 2l'
         2. m = [0, nfold*m'] for all allowed m's
         '''
         num_sym = n+1
-        Intensity = np.zeros((theta.shape[0], 
+        Intensity = np.zeros((theta.shape[0],
                             num_sym))
         for ii in np.arange(0, n+1):
             if ii == 0:
@@ -350,32 +350,32 @@ def calc_sym_sph_harm(deg,
                                              deg, nfold*ii,
                                              theta, phi))
             else:
-                '''we need special attention for laue 
-                group d3d and d6h. for this cases the 
+                '''we need special attention for laue
+                group d3d and d6h. for this cases the
                 real/imaginary component flips for
                 m = (2k+1)*nfold*m'
                 '''
                 Intensity[:,ii] = np.real((
                     sph_harm_y(deg, -nfold*ii,
-                               theta, phi) + 
+                               theta, phi) +
                     sph_harm_y(deg, nfold*ii,
                                theta, phi)
                     )/np.sqrt(2.))
                 if sym in ['d3d',] and np.mod(ii, 2) != 0:
                     Intensity[:,ii] = np.imag((
                         sph_harm_y(deg, -nfold*ii,
-                                   theta, phi) + 
+                                   theta, phi) +
                         sph_harm_y(deg, nfold*ii,
                                    theta, phi)
                         )/np.sqrt(2.))
     elif sym in ['ci', 'c2h', 's6', 'c4h', 'c6h', 'monoclinic', 'triclinic']:
-        '''this is the cyclic symmetry with the 
+        '''this is the cyclic symmetry with the
         following selection rules:
         1. l = 2l'
         2. m = 2m' for all allowed m's
         '''
         num_sym = 2*n+1
-        Intensity = np.zeros((theta.shape[0], 
+        Intensity = np.zeros((theta.shape[0],
                             num_sym))
         for ii in np.arange(-n, n+1):
             if ii < 0:
@@ -428,7 +428,7 @@ def get_num_sym_harm(ell,
         return 2*ell + 1
 
 class AbstractHarmonicTextureModel(ABC):
-    """this is the abstract class which is used by 
+    """this is the abstract class which is used by
     both the harmonic model as well as the pole figure
     class
 
@@ -491,7 +491,7 @@ class AbstractHarmonicTextureModel(ABC):
 
     @ssym.setter
     def ssym(self, val):
-        if check_symmetry(val, 
+        if check_symmetry(val,
                 symtype='sample'):
             self._ssym = val
         else:
@@ -500,7 +500,7 @@ class AbstractHarmonicTextureModel(ABC):
 
     @csym.setter
     def csym(self, val):
-        if check_symmetry(val, 
+        if check_symmetry(val,
                 symtype='crystal'):
             self._csym = val
         else:
@@ -510,7 +510,7 @@ class AbstractHarmonicTextureModel(ABC):
     @property
     def ell_max(self):
         return self._ell_max
-    
+
     @ell_max.setter
     def ell_max(self, val):
         if check_degrees(val, self.csym):
@@ -603,12 +603,12 @@ class AbstractHarmonicTextureModel(ABC):
         for ell in np.arange(2, self.ell_max+1, 2):
             nc = get_num_sym_harm(ell, sym=self.csym)
             ns = get_num_sym_harm(ell, sym=self.ssym)
-            
+
             for ii in np.arange(ns):
                 for jj in np.arange(nc):
 
                     pname = f'{phase}_c_{ell}{ii}{jj}'
-                    params.add(name=pname, 
+                    params.add(name=pname,
                                value=0.,
                                vary=vary)
         return params
@@ -631,7 +631,7 @@ class AbstractHarmonicTextureModel(ABC):
         return str(h).strip('[').strip(']').replace(" ","")
 
     def get_c_matrix(self, params, ell):
-        nc = get_num_sym_harm(ell, 
+        nc = get_num_sym_harm(ell,
                             sym=self.csym)
         ns = get_num_sym_harm(ell,
                             sym=self.ssym)
@@ -701,7 +701,7 @@ class AbstractHarmonicTextureModel(ABC):
         harmonic functions so we don't keep repeating
         the calculations
         '''
-        self.eta_grid = np.arange(eta_min, 
+        self.eta_grid = np.arange(eta_min,
                              eta_max,
                              eta_step)
         '''initialize all the dictionaries which will store the data
@@ -741,10 +741,10 @@ class AbstractHarmonicTextureModel(ABC):
 
             # in the beam frame
             self.rotated_angs_rings[hstr] = np.vstack((
-                np.pi/2-t/2*np.ones_like(self.eta_grid), 
+                np.pi/2-t/2*np.ones_like(self.eta_grid),
                 self.eta_grid)).T
             self.hkl_angles_rings[hstr] = np.array([np.arccos(hc[2]),
-                                                    np.arctan2(hc[1], 
+                                                    np.arctan2(hc[1],
                                                                hc[0])])
 
             theta = np.array([self.hkl_angles_rings[hstr][0]])
@@ -760,7 +760,7 @@ class AbstractHarmonicTextureModel(ABC):
                 self.sph_c_rings[hstr] = {}
 
                 for ell in np.arange(2, self.ell_max+1, 2):
-                    Ylm = calc_sym_sph_harm(ell, 
+                    Ylm = calc_sym_sph_harm(ell,
                                             theta,
                                             phi,
                                             sym=self.csym)
@@ -778,7 +778,7 @@ class AbstractHarmonicTextureModel(ABC):
                 phi_samp   = self.angs_rings[hstr][:,1]
 
                 for ell in np.arange(2, self.ell_max+1, 2):
-                    Ylm = calc_sym_sph_harm(ell, 
+                    Ylm = calc_sym_sph_harm(ell,
                                             theta_samp,
                                             phi_samp,
                                             sym=self.ssym)
@@ -791,11 +791,11 @@ class AbstractHarmonicTextureModel(ABC):
                                eta_min=-np.pi,
                                eta_max=np.pi,
                                eta_step=np.radians(0.1)):
-        '''this functin computes the  intensity variation 
+        '''this functin computes the  intensity variation
         along the debye-scherrer rings for each hkl in the material.
-        the intensity variation around the ring is computed between 
-        eta_min and eta_max. Default values are (-pi,pi) which gives 
-        the full ring. eta_step is the angular step size in azimuth. 
+        the intensity variation around the ring is computed between
+        eta_min and eta_max. Default values are (-pi,pi) which gives
+        the full ring. eta_step is the angular step size in azimuth.
         Default value is 0.1 degrees for eta_step
         '''
         self.precompute_spherical_harmonics(
@@ -1047,7 +1047,7 @@ class pole_figures(AbstractHarmonicTextureModel):
                 I = self.intensities_recalc[h]
                 I = np.concatenate((I, I[mask]))
             if filled:
-                pf = self.ax[nr][nc].tricontourf(rho, r, 
+                pf = self.ax[nr][nc].tricontourf(rho, r,
                                     I, levels=20, cmap=cmap)
             else:
                 pf = self.ax[nr][nc].tricontour(rho, r,
@@ -1109,7 +1109,7 @@ class pole_figures(AbstractHarmonicTextureModel):
                 I = np.concatenate((I, I[mask]))
 
             if filled:
-                pf = self.ax_new[nr][nc].tricontourf(rho, r, 
+                pf = self.ax_new[nr][nc].tricontourf(rho, r,
                                     I, levels=20, cmap=cmap)
             else:
                 pf = self.ax_new[nr][nc].tricontour(rho, r,
@@ -1190,10 +1190,10 @@ class pole_figures(AbstractHarmonicTextureModel):
                              pfgrid=None,
                              plot=False):
         '''calculate pole figure for new poles
-        given by hkls. the data will be computed 
+        given by hkls. the data will be computed
         on the same grid as the input grid. this
-        is done so that the spherical harmonics 
-        don't have to be recomputed. 
+        is done so that the spherical harmonics
+        don't have to be recomputed.
 
         by default, we will pick the pf grid 5 degrees
         in theta and 10 degrees in azimuth
@@ -1230,9 +1230,9 @@ class pole_figures(AbstractHarmonicTextureModel):
 
         #@TODO make the naming convention same as calc_pf_rings
         # currently the rotated angs are used for calculating the
-        # values of the spherical harmonics, which is not the case 
+        # values of the spherical harmonics, which is not the case
         # with the other function
-        
+
         self.intensities_new = {}
         self.angs_new = {}
         self.rotated_angs_new = {}
@@ -1249,7 +1249,7 @@ class pole_figures(AbstractHarmonicTextureModel):
         otherwise use the grid data provided by the
         user to generate the angs and the values of the
         spherical harmonics
-        
+
         '''
         if pfgrid is None:
             t = np.radians(np.arange(0, 90, 5))
@@ -1258,14 +1258,14 @@ class pole_figures(AbstractHarmonicTextureModel):
 
             tt = tt.flatten()
             ee = ee.flatten()
-            
+
             ctt = np.cos(tt)
             stt = np.sin(tt)
 
             cee = np.cos(ee)
             see = np.sin(ee)
 
-            v = np.vstack((cee*stt, 
+            v = np.vstack((cee*stt,
                            see*stt, ctt)).T
 
             vr = np.dot(self.ref_frame_rmat, v.T).T
@@ -1289,11 +1289,11 @@ class pole_figures(AbstractHarmonicTextureModel):
             rho = np.arctan2(v[:,1],v[:,0])
 
             vr = np.dot(self.ref_frame_rmat, v[:,0:3].T).T
-            
+
             # sanitize vr[:, 2] for arccos operation
             mask = np.abs(vr[:,2]) > 1.
             vr[mask,2] = np.sign(vr[mask,2])
-            
+
             tr = np.arccos(vr[:,2])
             rhor = np.arctan2(vr[:,1],vr[:,0])
 
@@ -1310,7 +1310,7 @@ class pole_figures(AbstractHarmonicTextureModel):
             self.stereo_radius_new = self.stereographic_radius(new=True)
             self.hkl_angles_new[hstr] = np.array([np.arccos(
                                          hkls_c[ii, 2]),
-                                         np.arctan2(hkls_c[ii, 1], 
+                                         np.arctan2(hkls_c[ii, 1],
                                                     hkls_c[ii, 0])])
 
             h = hstr
@@ -1325,7 +1325,7 @@ class pole_figures(AbstractHarmonicTextureModel):
             self.sph_c_new[h] = {}
 
             for ell in np.arange(2, self.ell_max+1, 2):
-                Ylm = calc_sym_sph_harm(ell, 
+                Ylm = calc_sym_sph_harm(ell,
                                         theta,
                                         phi,
                                         sym=self.csym)
@@ -1338,7 +1338,7 @@ class pole_figures(AbstractHarmonicTextureModel):
             phi_samp   = self.rotated_angs[h][:,1]
 
             for ell in np.arange(2, self.ell_max+1, 2):
-                Ylm = calc_sym_sph_harm(ell, 
+                Ylm = calc_sym_sph_harm(ell,
                                         theta_samp,
                                         phi_samp,
                                         sym=self.ssym)
@@ -1369,7 +1369,7 @@ class pole_figures(AbstractHarmonicTextureModel):
             self.sph_c[h] = {}
             self.sph_s[h] = {}
             for ell in np.arange(2, self.ell_max+1, 2):
-                Ylm = calc_sym_sph_harm(ell, 
+                Ylm = calc_sym_sph_harm(ell,
                                         theta,
                                         phi,
                                         sym=self.csym)
@@ -1384,7 +1384,7 @@ class pole_figures(AbstractHarmonicTextureModel):
             theta = self.rotated_angs[h][:,0]
             phi   = self.rotated_angs[h][:,1]
             for ell in np.arange(2, self.ell_max+1, 2):
-                Ylm = calc_sym_sph_harm(ell, 
+                Ylm = calc_sym_sph_harm(ell,
                                         theta,
                                         phi,
                                         sym=self.ssym)
@@ -1470,11 +1470,11 @@ class pole_figures(AbstractHarmonicTextureModel):
             rho = np.arctan2(v[:,1],v[:,0])
 
             vr = np.dot(self.ref_frame_rmat, v[:,0:3].T).T
-            
+
             # sanitize vr[:, 2] for arccos operation
             mask = np.abs(vr[:,2]) > 1.
             vr[mask,2] = np.sign(vr[mask,2])
-            
+
             tr = np.arccos(vr[:,2])
             rhor = np.arctan2(vr[:,1],vr[:,0])
 
