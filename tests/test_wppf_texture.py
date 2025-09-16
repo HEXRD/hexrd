@@ -187,6 +187,8 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
 
     R.Refine()
 
+    assert R.Rwp < 1
+
     R.params['scale'].vary = False
     R.params['bkg_0'].vary = False
     R.params['bkg_1'].vary = False
@@ -197,9 +199,13 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
 
     R.Refine()
 
+    assert R.Rwp < 0.95
+
     R.params['scale'].vary = True
 
     R.Refine()
+
+    assert R.Rwp < 0.4
 
     R.params_vary_off()
 
@@ -207,6 +213,8 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
     R.texture_parameters_vary(True)
 
     R.Refine()
+
+    assert R.Rwp < 0.3
 
     params = _generate_default_parameters_LeBail(mat, 1, {"chebyshev": 1})
 
