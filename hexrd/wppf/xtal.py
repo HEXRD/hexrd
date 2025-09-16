@@ -39,9 +39,7 @@ def _get_tth(dsp, wavelength):
 def _calcanomalousformfactor(
     atom_type, wavelength, frel, f_anomalous_data, f_anomalous_data_sizes
 ):
-
-    f_anam = np.zeros(atom_type.shape, dtype=np.complex64)
-
+    f_anam = np.empty(atom_type.shape, dtype=np.complex64)
     for i in range(atom_type.shape[0]):
         nd = f_anomalous_data_sizes[i]
         Z = atom_type[i]
@@ -53,8 +51,8 @@ def _calcanomalousformfactor(
 
         f1 = np.interp(wavelength, xp, yp)
         f2 = np.interp(wavelength, xp, ypp)
-
         f_anam[i] = complex(f1 + fr - Z, f2)
+
     return f_anam
 
 
@@ -69,22 +67,22 @@ def _calcxrayformfactor(
     f_anomalous_data,
     f_anomalous_data_sizes,
 ):
-    """we are using the following form factors for 
+    """we are using the following form factors for
        x-aray scattering:
-        1. coherent x-ray scattering, f0 tabulated in 
+        1. coherent x-ray scattering, f0 tabulated in
            Acta Cryst. (1995). A51,416-431
-        2. Anomalous x-ray scattering (complex (f'+if")) 
+        2. Anomalous x-ray scattering (complex (f'+if"))
            tabulated in J. Phys. Chem. Ref. Data, 24, 71 (1995)
            and J. Phys. Chem. Ref. Data, 29, 597 (2000).
-        3. Thompson nuclear scattering, fNT tabulated in 
+        3. Thompson nuclear scattering, fNT tabulated in
            Phys. Lett. B, 69, 281 (1977).
 
-        the anomalous scattering is a complex number (f' + if"), 
+        the anomalous scattering is a complex number (f' + if"),
         where the two terms are given by:
         f' = f1 + frel - Z
         f" = f2
 
-        f1 and f2 have been tabulated as a function of energy in 
+        f1 and f2 have been tabulated as a function of energy in
         Anomalous.h5 in hexrd folder
 
         overall f = (f0 + f' + if" +fNT)
@@ -93,7 +91,7 @@ def _calcxrayformfactor(
     f_anomalous = _calcanomalousformfactor(
         atom_type, wavelength, frel, f_anomalous_data, f_anomalous_data_sizes
     )
-    ff = np.zeros(atom_type.shape, dtype=np.complex64)
+    ff = np.empty(atom_type.shape, dtype=np.complex64)
     for ii in range(atom_type.shape[0]):
         sfact = scatfac[ii, :]
         fe = sfact[5]
@@ -125,10 +123,8 @@ def _calcxrsf(
     f_anomalous_data,
     f_anomalous_data_sizes,
 ):
-
-    struct_factors = np.zeros(multiplicity.shape, dtype=np.float64)
-
-    struct_factors_raw = np.zeros(multiplicity.shape, dtype=np.float64)
+    struct_factors = np.empty(multiplicity.shape, dtype=np.float64)
+    struct_factors_raw = np.empty(multiplicity.shape, dtype=np.float64)
 
     for ii in prange(nref):
         g = hkls[ii, :]
@@ -207,7 +203,7 @@ def _calc_laue_factor(x, tth):
             - (5.0 / 48.0) * x**3
             + (7.0 / 192.0) * x**4
         )
-    elif x > 1.0:
+    else:
         El = (2.0 / np.pi / x) ** 2 * (
             1.0
             - (1 / 8.0 / x)
@@ -221,8 +217,7 @@ def _calc_laue_factor(x, tth):
 def _calc_extinction_factor(hkls, tth, v_unitcell, wavelength, f_sqr, K, D):
     nref = np.min(np.array([hkls.shape[0], tth.shape[0]]))
 
-    extinction = np.zeros(nref)
-
+    extinction = np.empty(nref)
     for ii in prange(nref):
         fs = f_sqr[ii]
         t = tth[ii]
@@ -235,14 +230,18 @@ def _calc_extinction_factor(hkls, tth, v_unitcell, wavelength, f_sqr, K, D):
 @njit(cache=True, nogil=True, parallel=True)
 def _calc_absorption_factor(abs_fact, tth, phi, wavelength):
     nref = tth.shape[0]
-    absorption = np.zeros(nref)
+    absorption = np.empty(nref)
     phir = np.radians(phi)
+    zero_phi = np.abs(phir) <= 1e-3
 
     abl = -abs_fact * wavelength
     for ii in prange(nref):
         t = np.radians(tth[ii]) * 0.5
 
-        if np.abs(phir) > 1e-3:
+        if zero_phi:
+            c = np.cos(t)
+            absorption[ii] = np.exp(abl / c)
+        else:
             c1 = np.cos(t + phir)
             c2 = np.cos(t - phir)
 
@@ -254,7 +253,4 @@ def _calc_absorption_factor(abs_fact, tth, phi, wavelength):
                 f3 = np.inf
 
             absorption[ii] = (f1 - f2) / f3
-        else:
-            c = np.cos(t)
-            absorption[ii] = np.exp(abl / c)
     return absorption
