@@ -389,12 +389,8 @@ def calc_sym_sph_harm(deg,
 
     return Intensity
 
-def get_num_sym_harm(ell,
-                     sym='oh'):
 
-    if check_degrees(ell, sym=sym):
-        pass
-
+def get_num_sym_harm(ell, sym='oh'):
     # crystal symmetries
     if sym in ['th', 'oh']:
         return Blmn[sym][ell].shape[0]
