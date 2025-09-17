@@ -629,16 +629,13 @@ class AbstractHarmonicTextureModel(ABC):
             hkls_c[ii,:] = v
         return hkls_c
 
-    def convert_hkl_to_str(self, h):
-        return str(h).strip('[').strip(']').replace(" ","")
-
     def get_c_matrix(self, params, ell):
         nc = get_num_sym_harm(ell,
                             sym=self.csym)
         ns = get_num_sym_harm(ell,
                             sym=self.ssym)
         phase = self.material.name
-        cmat = np.zeros([ns, nc])
+        cmat = np.empty([ns, nc])
         for ii in np.arange(ns):
             for jj in np.arange(nc):
                 pname = f'{phase}_c_{ell}{ii}{jj}'
@@ -718,8 +715,7 @@ class AbstractHarmonicTextureModel(ABC):
                               self.material.wavelength))
 
         for ii, (t, h, hc) in enumerate(zip(tth, hkls, hkls_c)):
-            hstr = self.convert_hkl_to_str(h)
-
+            hkey = tuple(h)
             angs = np.vstack((t*np.ones_like(self.eta_grid),
                              self.eta_grid,
                              np.zeros_like(self.eta_grid))).T
@@ -739,18 +735,18 @@ class AbstractHarmonicTextureModel(ABC):
             tt = np.arccos(v[:, 2])
             rho = np.arctan2(v[:,1], v[:,0])
 
-            self.angs_rings[hstr] = np.vstack((tt, rho)).T
+            self.angs_rings[hkey] = np.vstack((tt, rho)).T
 
             # in the beam frame
-            self.rotated_angs_rings[hstr] = np.vstack((
+            self.rotated_angs_rings[hkey] = np.vstack((
                 np.pi/2-t/2*np.ones_like(self.eta_grid),
                 self.eta_grid)).T
-            self.hkl_angles_rings[hstr] = np.array([np.arccos(hc[2]),
+            self.hkl_angles_rings[hkey] = np.array([np.arccos(hc[2]),
                                                     np.arctan2(hc[1],
                                                                hc[0])])
 
-            theta = np.array([self.hkl_angles_rings[hstr][0]])
-            phi   = np.array([self.hkl_angles_rings[hstr][1]])
+            theta = np.array([self.hkl_angles_rings[hkey][0]])
+            phi   = np.array([self.hkl_angles_rings[hkey][1]])
 
             '''also pre-compute the spherical harmonics if they are
             not already precomputed
@@ -758,8 +754,8 @@ class AbstractHarmonicTextureModel(ABC):
             if not hasattr(self, 'sph_c_rings'):
                 self.sph_c_rings = {}
 
-            if not hstr in self.sph_c_rings:
-                self.sph_c_rings[hstr] = {}
+            if not hkey in self.sph_c_rings:
+                self.sph_c_rings[hkey] = {}
 
                 for ell in np.arange(2, self.ell_max+1, 2):
                     Ylm = calc_sym_sph_harm(ell,
@@ -768,16 +764,16 @@ class AbstractHarmonicTextureModel(ABC):
                                             sym=self.csym)
                     for jj in np.arange(Ylm.shape[1]):
                         kname = f'c_{ell}{jj}'
-                        self.sph_c_rings[hstr][kname] = Ylm[:,jj]
+                        self.sph_c_rings[hkey][kname] = Ylm[:,jj]
 
             if not hasattr(self, 'sph_s_rings'):
                 self.sph_s_rings = {}
 
-            if not hstr in self.sph_s_rings:
-                self.sph_s_rings[hstr] = {}
+            if not hkey in self.sph_s_rings:
+                self.sph_s_rings[hkey] = {}
 
-                theta_samp = self.angs_rings[hstr][:,0]
-                phi_samp   = self.angs_rings[hstr][:,1]
+                theta_samp = self.angs_rings[hkey][:,0]
+                phi_samp   = self.angs_rings[hkey][:,1]
 
                 for ell in np.arange(2, self.ell_max+1, 2):
                     Ylm = calc_sym_sph_harm(ell,
@@ -786,7 +782,7 @@ class AbstractHarmonicTextureModel(ABC):
                                             sym=self.ssym)
                     for jj in np.arange(Ylm.shape[1]):
                         kname = f's_{ell}{jj}'
-                        self.sph_s_rings[hstr][kname] = Ylm[:,jj]
+                        self.sph_s_rings[hkey][kname] = Ylm[:,jj]
 
     def calc_pf_rings_abstract(self,
                                params,
@@ -807,8 +803,7 @@ class AbstractHarmonicTextureModel(ABC):
 
         self.intensities_rings = {}
         for ii, h in enumerate(self.material.hkls):
-
-            hstr = self.convert_hkl_to_str(h)
+            hkey = tuple(h)
             '''perform the series sum with given coefficients
             '''
             term = np.ones_like(self.eta_grid)
@@ -816,17 +811,17 @@ class AbstractHarmonicTextureModel(ABC):
             for ell in np.arange(2, self.ell_max+1, 2):
                 pre = 4*np.pi/(2*ell+1)
                 cmat = self.get_c_matrix(params, ell)
-                sph_s_mat = self.get_sph_s_matrix(hstr,
+                sph_s_mat = self.get_sph_s_matrix(hkey,
                                                   ell,
                                                   gridtype='rings')
-                sph_c_mat = self.get_sph_c_matrix(hstr,
+                sph_c_mat = self.get_sph_c_matrix(hkey,
                                                   ell,
                                                   gridtype='rings')
                 t = pre*np.dot(sph_s_mat, np.dot(
                                    cmat, sph_c_mat))
                 term += np.squeeze(t)
 
-            self.intensities_rings[hstr] = term
+            self.intensities_rings[hkey] = term
 
     def calc_texture_factor_abstract(self,
                                      params,
@@ -1305,18 +1300,16 @@ class PoleFigures(AbstractHarmonicTextureModel):
         hkls_c = self.convert_hkls_to_cartesian(hkls)
 
         for ii, h in enumerate(hkls):
-
-            hstr = str(h).strip('[').strip(']').replace(" ","")
-            self.angs_new[hstr] = angs.copy()
-            self.rotated_angs[hstr] = rotated_angs.copy()
+            hkey = tuple(h)
+            self.angs_new[hkey] = angs.copy()
+            self.rotated_angs[hkey] = rotated_angs.copy()
             self.stereo_radius_new = self.stereographic_radius(new=True)
-            self.hkl_angles_new[hstr] = np.array([np.arccos(
+            self.hkl_angles_new[hkey] = np.array([np.arccos(
                                          hkls_c[ii, 2]),
                                          np.arctan2(hkls_c[ii, 1],
                                                     hkls_c[ii, 0])])
 
-            h = hstr
-            v = self.hkl_angles_new[hstr]
+            v = self.hkl_angles_new[hkey]
             '''needs special attention for monoclininc case
                 since the 2-fold axis is aligned with b*
             '''
@@ -1324,7 +1317,7 @@ class PoleFigures(AbstractHarmonicTextureModel):
             phi = np.array([v[1]])
             '''is the requested data on a new grid?
             '''
-            self.sph_c_new[h] = {}
+            self.sph_c_new[hkey] = {}
 
             for ell in np.arange(2, self.ell_max+1, 2):
                 Ylm = calc_sym_sph_harm(ell,
@@ -1333,11 +1326,11 @@ class PoleFigures(AbstractHarmonicTextureModel):
                                         sym=self.csym)
                 for jj in np.arange(Ylm.shape[1]):
                     kname = f'c_{ell}{jj}'
-                    self.sph_c_new[h][kname] = Ylm[:,jj]
+                    self.sph_c_new[hkey][kname] = Ylm[:,jj]
 
-            self.sph_s_new[h] = {}
-            theta_samp = self.rotated_angs[h][:,0]
-            phi_samp   = self.rotated_angs[h][:,1]
+            self.sph_s_new[hkey] = {}
+            theta_samp = self.rotated_angs[hkey][:,0]
+            phi_samp   = self.rotated_angs[hkey][:,1]
 
             for ell in np.arange(2, self.ell_max+1, 2):
                 Ylm = calc_sym_sph_harm(ell,
@@ -1346,8 +1339,7 @@ class PoleFigures(AbstractHarmonicTextureModel):
                                         sym=self.ssym)
                 for jj in np.arange(Ylm.shape[1]):
                     kname = f's_{ell}{jj}'
-                    self.sph_s_new[h][kname] = Ylm[:,jj]
-
+                    self.sph_s_new[hkey][kname] = Ylm[:,jj]
 
         self.recalculated_pf(self.res.params, new=True)
 
