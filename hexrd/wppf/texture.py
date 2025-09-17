@@ -606,7 +606,7 @@ class AbstractHarmonicTextureModel(ABC):
             for ii in range(ns):
                 for jj in range(nc):
 
-                    pname = f'{phase}_c_{ell}{ii}{jj}'
+                    pname = f'{phase}_c_{ell}_{ii}_{jj}'
                     params.add(name=pname,
                                value=0.,
                                vary=vary)
@@ -635,7 +635,7 @@ class AbstractHarmonicTextureModel(ABC):
         cmat = np.empty([ns, nc])
         for ii in range(ns):
             for jj in range(nc):
-                pname = f'{phase}_c_{ell}{ii}{jj}'
+                pname = f'{phase}_c_{ell}_{ii}_{jj}'
                 cmat[ii, jj] = params[pname].value
         return cmat
 
@@ -661,7 +661,7 @@ class AbstractHarmonicTextureModel(ABC):
 
         smat = np.empty((ngrid, ns))
         for ii in range(ns):
-            yname = f's_{ell}{ii}'
+            yname = f's_{ell}_{ii}'
             smat[:,ii] = Ylm[yname]
 
         return smat
@@ -683,7 +683,7 @@ class AbstractHarmonicTextureModel(ABC):
 
         cmat = np.empty((nc, ngrid))
         for ii in range(nc):
-            yname = f'c_{ell}{ii}'
+            yname = f'c_{ell}_{ii}'
             cmat[ii, :] = Ylm[yname]
 
         return cmat
@@ -751,7 +751,7 @@ class AbstractHarmonicTextureModel(ABC):
                                             phi,
                                             sym=self.csym)
                     for jj in range(Ylm.shape[1]):
-                        kname = f'c_{ell}{jj}'
+                        kname = f'c_{ell}_{jj}'
                         self.sph_c_rings[hkey][kname] = Ylm[:,jj]
 
             if not hasattr(self, 'sph_s_rings'):
@@ -769,7 +769,7 @@ class AbstractHarmonicTextureModel(ABC):
                                             phi_samp,
                                             sym=self.ssym)
                     for jj in range(Ylm.shape[1]):
-                        kname = f's_{ell}{jj}'
+                        kname = f's_{ell}_{jj}'
                         self.sph_s_rings[hkey][kname] = Ylm[:,jj]
 
     def calc_pf_rings_abstract(self,
@@ -868,7 +868,7 @@ class HarmonicModel(AbstractHarmonicTextureModel):
             ns = get_num_sym_harm(ell, sym=self.ssym)
             for ii in range(ns):
                 for jj in range(nc):
-                    pname = f'{phase}_c_{ell}{ii}{jj}'
+                    pname = f'{phase}_c_{ell}_{ii}_{jj}'
                     pre = 1/(2*ell+1)
                     J += pre*(params[pname].value**2)
         return J
@@ -1313,7 +1313,7 @@ class PoleFigures(AbstractHarmonicTextureModel):
                                         phi,
                                         sym=self.csym)
                 for jj in range(Ylm.shape[1]):
-                    kname = f'c_{ell}{jj}'
+                    kname = f'c_{ell}_{jj}'
                     self.sph_c_new[hkey][kname] = Ylm[:,jj]
 
             self.sph_s_new[hkey] = {}
@@ -1326,7 +1326,7 @@ class PoleFigures(AbstractHarmonicTextureModel):
                                         phi_samp,
                                         sym=self.ssym)
                 for jj in range(Ylm.shape[1]):
-                    kname = f's_{ell}{jj}'
+                    kname = f's_{ell}_{jj}'
                     self.sph_s_new[hkey][kname] = Ylm[:,jj]
 
         self.recalculated_pf(self.res.params, new=True)
@@ -1356,7 +1356,7 @@ class PoleFigures(AbstractHarmonicTextureModel):
                                         phi,
                                         sym=self.csym)
                 for jj in range(Ylm.shape[1]):
-                    kname = f'c_{ell}{jj}'
+                    kname = f'c_{ell}_{jj}'
                     self.sph_c[h][kname] = Ylm[:,jj]
 
             '''use the rotated angles to account for the
@@ -1371,7 +1371,7 @@ class PoleFigures(AbstractHarmonicTextureModel):
                                         phi,
                                         sym=self.ssym)
                 for jj in range(Ylm.shape[1]):
-                    kname = f's_{ell}{jj}'
+                    kname = f's_{ell}_{jj}'
                     self.sph_s[h][kname] = Ylm[:,jj]
 
         fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
@@ -1511,7 +1511,7 @@ class PoleFigures(AbstractHarmonicTextureModel):
                 ns = get_num_sym_harm(ell, sym=self.ssym)
                 for ii in range(ns):
                     for jj in range(nc):
-                        pname = f'{phase}_c_{ell}{ii}{jj}'
+                        pname = f'{phase}_c_{ell}_{ii}_{jj}'
                         pre = 1/(2*ell+1)
                         J += pre*(
                         self.res.params[pname].value**2)
