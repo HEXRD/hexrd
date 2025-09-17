@@ -457,13 +457,14 @@ def _add_extinction_parameters(mat, params):
 def _add_absorption_parameters(mat, params):
     return params
 
+
 def _add_texture_model_parameters(texture_model, params):
         if texture_model is not None:
             for k, hm in texture_model.items():
                 if hm is not None:
                     hm.get_parameters(params,
                                       vary=False)
-        return
+
 
 def _generate_default_parameters_Rietveld(mat,
                                           peakshape,
@@ -558,37 +559,6 @@ def _required_shkl_names(mat):
     valid_shkl = [_shkl_name[i] for i in rqd_index]
 
     return valid_shkl, eq_constraints, rqd_index, trig_ptype
-
-
-def _add_texture_coefficients(crystal_sym, sample_sym, name, degree):
-    """
-    add the texture coefficients for a particular phase
-    given its laue group. the crystal sym decides what the
-    symmetry of the crystal is and what coefficients to add. the
-    sample symmetry decides what the sample symmtry is. allowed ones
-    are
-    triclinic : -1
-    monoclinic: 2/m
-    orthorhombic: mmm
-    cylindrical: inf/mmm
-
-    if cylindrical symmetry is used, then the total coefficients used
-    are drastically reduced
-    """
-    pass
-
-
-def _add_texture_parameters(mat, degree):
-    """
-    @SS 06/22/2021 1.0 original
-    this routine adds the texture coefficients to the wppf
-    parameter list based on the material list and the
-    degree of harmonic coefficients passed. Also required is the
-    assumed sample symmetry. The same sample symmetry will be used
-    for each of the phases.
-    """
-    for m in _mat_list(mat):
-        _add_atominfo_to_params(params, m)
 
 
 """
