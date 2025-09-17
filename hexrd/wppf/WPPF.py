@@ -1131,9 +1131,10 @@ class LeBail(AbstractWPPF):
                 shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
                 trns_c = np.sin(np.radians(self.tth[p][k])) * self.trns
 
-                sf_shift = 0.0
-                Xs = np.zeros(Ic.shape)
-                if self.phases[p].sf_alpha is not None:
+                if self.phases[p].sf_alpha is None:
+                    sf_shift = 0.0
+                    Xs = np.zeros(Ic.shape)
+                else:
                     alpha = getattr(self, f"{p}_sf_alpha")
                     beta = getattr(self, f"{p}_twin_beta")
                     sf_shift = alpha*np.tan(np.radians(0.5*self.tth[p][k])) *\
@@ -1767,8 +1768,9 @@ class Rietveld(AbstractWPPF):
 
             for k, l in self.phases.wavelength.items():
 
-                texture_factor = np.ones_like(self.tth[p][k])
-                if self.texture_model[p] is not None:
+                if self.texture_model[p] is None:
+                    texture_factor = np.ones_like(self.tth[p][k])
+                else:
                     texture_factor = self.texture_model[p].calc_texture_factor(
                                             self.params,
                                             eta_min=-np.pi/2,
@@ -1779,9 +1781,10 @@ class Rietveld(AbstractWPPF):
                 shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
                 trns_c = np.sin(np.radians(self.tth[p][k])) * self.trns
 
-                sf_shift = 0.0
-                Xs = np.zeros(self.tth[p][k].shape)
-                if self.phases[p][k].sf_alpha is not None:
+                if self.phases[p][k].sf_alpha is None:
+                    sf_shift = 0.0
+                    Xs = np.zeros(self.tth[p][k].shape)
+                else:
                     alpha = getattr(self, f"{p}_sf_alpha")
                     beta = getattr(self, f"{p}_twin_beta")
                     sf_shift = alpha*np.tan(np.radians(0.5*self.tth[p][k])) *\

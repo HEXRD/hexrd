@@ -15,6 +15,7 @@ from hexrd.wppf.phase import Material_Rietveld
 # -----------------
 import h5py
 from lmfit import Parameters, Minimizer
+import numba
 import numpy as np
 from scipy.special import sph_harm_y
 from matplotlib import pyplot as plt
@@ -617,7 +618,7 @@ class AbstractHarmonicTextureModel(ABC):
         this routine converts hkls in the crystallographic frame to
         the cartesian frame and normalizes them
         """
-        hkls_c = np.atleast_2d(np.zeros(hkls.shape))
+        hkls_c = np.atleast_2d(np.empty(hkls.shape))
 
         for ii, g in enumerate(hkls):
             v = self.material.TransSpace(g, "r", "c")
@@ -711,7 +712,7 @@ class AbstractHarmonicTextureModel(ABC):
 
         for ii, (t, h, hc) in enumerate(zip(tth, hkls, hkls_c)):
             hkey = tuple(h)
-            angs = np.vstack((t*np.ones_like(self.eta_grid),
+            angs = np.vstack((np.full(self.eta_grid.shape, t),
                              self.eta_grid,
                              np.zeros_like(self.eta_grid))).T
 
@@ -719,29 +720,18 @@ class AbstractHarmonicTextureModel(ABC):
                                   bHat_l=self.bvec,
                                   eHat_l=self.etavec)
 
-            norm = np.linalg.norm(pfgrid, axis=1)
-            v = pfgrid/np.tile(norm, [3,1]).T
-            v = np.dot(self.ref_frame_rmat, v.T).T
-
-            # sanitize v[:, 2] for arccos operation
-            mask = np.abs(v[:,2]) > 1.
-            v[mask, 2] = np.sign(v[mask, 2])
-
-            tt = np.arccos(v[:, 2])
-            rho = np.arctan2(v[:,1], v[:,0])
-
-            self.angs_rings[hkey] = np.vstack((tt, rho)).T
-
-            # in the beam frame
-            self.rotated_angs_rings[hkey] = np.vstack((
-                np.pi/2-t/2*np.ones_like(self.eta_grid),
-                self.eta_grid)).T
-            self.hkl_angles_rings[hkey] = np.array([np.arccos(hc[2]),
-                                                    np.arctan2(hc[1],
-                                                               hc[0])])
-
-            theta = np.array([self.hkl_angles_rings[hkey][0]])
-            phi   = np.array([self.hkl_angles_rings[hkey][1]])
+            # Next part runs in a numba function to accelerate it.
+            (
+                self.angs_rings[hkey],
+                self.rotated_angs_rings[hkey],
+                self.hkl_angles_rings[hkey],
+            ) = _calc_ang_rings(
+                pfgrid,
+                t,
+                hc,
+                self.ref_frame_rmat,
+                self.eta_grid,
+            )
 
             '''also pre-compute the spherical harmonics if they are
             not already precomputed
@@ -749,8 +739,11 @@ class AbstractHarmonicTextureModel(ABC):
             if not hasattr(self, 'sph_c_rings'):
                 self.sph_c_rings = {}
 
-            if not hkey in self.sph_c_rings:
+            if hkey not in self.sph_c_rings:
                 self.sph_c_rings[hkey] = {}
+
+                theta = np.array([self.hkl_angles_rings[hkey][0]])
+                phi   = np.array([self.hkl_angles_rings[hkey][1]])
 
                 for ell in range(2, self.ell_max+1, 2):
                     Ylm = calc_sym_sph_harm(ell,
@@ -764,7 +757,7 @@ class AbstractHarmonicTextureModel(ABC):
             if not hasattr(self, 'sph_s_rings'):
                 self.sph_s_rings = {}
 
-            if not hkey in self.sph_s_rings:
+            if hkey not in self.sph_s_rings:
                 self.sph_s_rings[hkey] = {}
 
                 theta_samp = self.angs_rings[hkey][:,0]
@@ -1656,3 +1649,32 @@ class InversePoleFigures:
 harmonic_model = HarmonicModel
 pole_figures = PoleFigures
 inverse_polar_figures = InversePoleFigures
+
+
+@numba.njit(nogil=True, cache=True)
+def _calc_ang_rings(pfgrid, t, hc, ref_frame_rmat, eta_grid):
+    norm = np.sqrt(np.sum(pfgrid**2, axis=1))
+    v = pfgrid / norm.repeat(3).reshape((3, -1)).T
+    v = np.dot(ref_frame_rmat, v.T).T
+
+    # sanitize v[:, 2] for arccos operation
+    mask = np.abs(v[:,2]) > 1.
+    v[mask, 2] = np.sign(v[mask, 2])
+
+    tt = np.arccos(v[:, 2])
+    rho = np.arctan2(v[:,1], v[:,0])
+
+    ang_rings = np.vstack((tt, rho)).T
+
+    # in the beam frame
+    rotated_ang_rings = np.vstack((
+        np.pi/2-t/2*np.ones_like(eta_grid),
+        eta_grid,
+    )).T
+
+    hkl_ang_rings = np.array([
+        np.arccos(hc[2]),
+        np.arctan2(hc[1], hc[0])
+    ])
+
+    return ang_rings, rotated_ang_rings, hkl_ang_rings
