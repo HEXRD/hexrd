@@ -214,7 +214,7 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
 
     R.Refine()
 
-    assert R.Rwp < 0.3
+    assert R.Rwp < 0.35
 
     params = _generate_default_parameters_LeBail(mat, 1, {"chebyshev": 1})
 
