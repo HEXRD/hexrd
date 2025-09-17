@@ -790,14 +790,13 @@ class AbstractHarmonicTextureModel(ABC):
                                        eta_step=eta_step)
 
         self.intensities_rings = {}
-        for ii, h in enumerate(self.material.hkls):
+        for h in self.material.hkls:
             hkey = tuple(h)
             '''perform the series sum with given coefficients
             '''
             term = np.ones_like(self.eta_grid)
 
             for ell in range(2, self.ell_max+1, 2):
-                pre = 4*np.pi/(2*ell+1)
                 cmat = self.get_c_matrix(params, ell)
                 sph_s_mat = self.get_sph_s_matrix(hkey,
                                                   ell,
@@ -805,9 +804,10 @@ class AbstractHarmonicTextureModel(ABC):
                 sph_c_mat = self.get_sph_c_matrix(hkey,
                                                   ell,
                                                   gridtype='rings')
+                pre = 4*np.pi/(2*ell+1)
                 t = pre*np.dot(sph_s_mat, np.dot(
                                    cmat, sph_c_mat))
-                term += np.squeeze(t)
+                term += t.flatten()
 
             self.intensities_rings[hkey] = term
 
