@@ -324,8 +324,8 @@ def calc_sym_sph_harm(deg,
 
         Intensity = np.zeros((theta.shape[0], num_sym)).astype(complex)
 
-        for ii in np.arange(num_sym):
-            for jj in np.arange(-n, n+1):
+        for ii in range(num_sym):
+            for jj in range(-n, n+1):
                 Intensity[:,ii] += (coeff[ii, jj+n]*
                     sph_harm_y(deg, nfold*jj, theta, phi))
         Intensity = np.real(Intensity)
@@ -344,7 +344,7 @@ def calc_sym_sph_harm(deg,
         num_sym = n+1
         Intensity = np.zeros((theta.shape[0],
                             num_sym))
-        for ii in np.arange(0, n+1):
+        for ii in range(0, n+1):
             if ii == 0:
                 Intensity[:,ii] = np.real(sph_harm_y(
                                              deg, nfold*ii,
@@ -377,7 +377,7 @@ def calc_sym_sph_harm(deg,
         num_sym = 2*n+1
         Intensity = np.zeros((theta.shape[0],
                             num_sym))
-        for ii in np.arange(-n, n+1):
+        for ii in range(-n, n+1):
             if ii < 0:
                 Intensity[:,ii+n] = np.imag(sph_harm_y(
                                     deg, nfold*ii,
@@ -583,7 +583,7 @@ class AbstractHarmonicTextureModel(ABC):
         elif symtype == 'sample':
             sym = self.ssym
         num = 0
-        for ell in np.arange(2, self.ell_max+1, 2):
+        for ell in range(2, self.ell_max+1, 2):
             num += get_num_sym_harm(ell, sym=sym)
 
         return num
@@ -598,12 +598,12 @@ class AbstractHarmonicTextureModel(ABC):
             params = Parameters()
 
         phase = self.material.name
-        for ell in np.arange(2, self.ell_max+1, 2):
+        for ell in range(2, self.ell_max+1, 2):
             nc = get_num_sym_harm(ell, sym=self.csym)
             ns = get_num_sym_harm(ell, sym=self.ssym)
 
-            for ii in np.arange(ns):
-                for jj in np.arange(nc):
+            for ii in range(ns):
+                for jj in range(nc):
 
                     pname = f'{phase}_c_{ell}{ii}{jj}'
                     params.add(name=pname,
@@ -632,8 +632,8 @@ class AbstractHarmonicTextureModel(ABC):
                             sym=self.ssym)
         phase = self.material.name
         cmat = np.empty([ns, nc])
-        for ii in np.arange(ns):
-            for jj in np.arange(nc):
+        for ii in range(ns):
+            for jj in range(nc):
                 pname = f'{phase}_c_{ell}{ii}{jj}'
                 cmat[ii, jj] = params[pname].value
         return cmat
@@ -657,9 +657,9 @@ class AbstractHarmonicTextureModel(ABC):
 
         ns = get_num_sym_harm(ell,
                             sym=self.ssym)
-        smat = np.zeros((ngrid, ns))
 
-        for ii in np.arange(ns):
+        smat = np.empty((ngrid, ns))
+        for ii in range(ns):
             yname = f's_{ell}{ii}'
             smat[:,ii] = Ylm[yname]
 
@@ -670,11 +670,9 @@ class AbstractHarmonicTextureModel(ABC):
                          ell,
                          gridtype=None):
 
-        nc = get_num_sym_harm(ell,
-                            sym=self.csym)
-        ngrid = 1
-        cmat = np.zeros((nc, ngrid))
+        nc = get_num_sym_harm(ell, sym=self.csym)
 
+        ngrid = 1
         if gridtype is None:
             Ylm = self.sph_c[h]
         elif gridtype == 'new':
@@ -682,7 +680,8 @@ class AbstractHarmonicTextureModel(ABC):
         elif gridtype == 'rings':
             Ylm = self.sph_c_rings[h]
 
-        for ii in np.arange(nc):
+        cmat = np.empty((nc, ngrid))
+        for ii in range(nc):
             yname = f'c_{ell}{ii}'
             cmat[ii, :] = Ylm[yname]
 
@@ -753,12 +752,12 @@ class AbstractHarmonicTextureModel(ABC):
             if not hkey in self.sph_c_rings:
                 self.sph_c_rings[hkey] = {}
 
-                for ell in np.arange(2, self.ell_max+1, 2):
+                for ell in range(2, self.ell_max+1, 2):
                     Ylm = calc_sym_sph_harm(ell,
                                             theta,
                                             phi,
                                             sym=self.csym)
-                    for jj in np.arange(Ylm.shape[1]):
+                    for jj in range(Ylm.shape[1]):
                         kname = f'c_{ell}{jj}'
                         self.sph_c_rings[hkey][kname] = Ylm[:,jj]
 
@@ -771,12 +770,12 @@ class AbstractHarmonicTextureModel(ABC):
                 theta_samp = self.angs_rings[hkey][:,0]
                 phi_samp   = self.angs_rings[hkey][:,1]
 
-                for ell in np.arange(2, self.ell_max+1, 2):
+                for ell in range(2, self.ell_max+1, 2):
                     Ylm = calc_sym_sph_harm(ell,
                                             theta_samp,
                                             phi_samp,
                                             sym=self.ssym)
-                    for jj in np.arange(Ylm.shape[1]):
+                    for jj in range(Ylm.shape[1]):
                         kname = f's_{ell}{jj}'
                         self.sph_s_rings[hkey][kname] = Ylm[:,jj]
 
@@ -804,7 +803,7 @@ class AbstractHarmonicTextureModel(ABC):
             '''
             term = np.ones_like(self.eta_grid)
 
-            for ell in np.arange(2, self.ell_max+1, 2):
+            for ell in range(2, self.ell_max+1, 2):
                 pre = 4*np.pi/(2*ell+1)
                 cmat = self.get_c_matrix(params, ell)
                 sph_s_mat = self.get_sph_s_matrix(hkey,
@@ -871,11 +870,11 @@ class HarmonicModel(AbstractHarmonicTextureModel):
         '''
         J = 1.
         phase = self.material.name
-        for ell in np.arange(2, self.ell_max+1, 2):
+        for ell in range(2, self.ell_max+1, 2):
             nc = get_num_sym_harm(ell, sym=self.csym)
             ns = get_num_sym_harm(ell, sym=self.ssym)
-            for ii in np.arange(ns):
-                for jj in np.arange(nc):
+            for ii in range(ns):
+                for jj in range(nc):
                     pname = f'{phase}_c_{ell}{ii}{jj}'
                     pre = 1/(2*ell+1)
                     J += pre*(params[pname].value**2)
@@ -1128,7 +1127,7 @@ class PoleFigures(AbstractHarmonicTextureModel):
         for h, v in self.intensities.items():
             term = np.ones_like(v)
 
-            for ell in np.arange(2, self.ell_max+1, 2):
+            for ell in range(2, self.ell_max+1, 2):
                 pre = 4*np.pi/(2*ell+1)
                 cmat = self.get_c_matrix(params, ell)
                 sph_s_mat = self.get_sph_s_matrix(h, ell)
@@ -1151,7 +1150,7 @@ class PoleFigures(AbstractHarmonicTextureModel):
             for h, v in self.intensities.items():
                 term = np.ones_like(v)
 
-                for ell in np.arange(2, self.ell_max+1, 2):
+                for ell in range(2, self.ell_max+1, 2):
                     pre = 4*np.pi/(2*ell+1)
                     cmat = self.get_c_matrix(params, ell)
                     sph_s_mat = self.get_sph_s_matrix(h, ell)
@@ -1167,7 +1166,7 @@ class PoleFigures(AbstractHarmonicTextureModel):
             for h, v in self.angs_new.items():
                 term = np.ones_like(v[:,0])
 
-                for ell in np.arange(2, self.ell_max+1, 2):
+                for ell in range(2, self.ell_max+1, 2):
                     pre = 4*np.pi/(2*ell+1)
                     cmat = self.get_c_matrix(params, ell)
                     sph_s_mat = self.get_sph_s_matrix(h, ell, gridtype='new')
@@ -1315,12 +1314,12 @@ class PoleFigures(AbstractHarmonicTextureModel):
             '''
             self.sph_c_new[hkey] = {}
 
-            for ell in np.arange(2, self.ell_max+1, 2):
+            for ell in range(2, self.ell_max+1, 2):
                 Ylm = calc_sym_sph_harm(ell,
                                         theta,
                                         phi,
                                         sym=self.csym)
-                for jj in np.arange(Ylm.shape[1]):
+                for jj in range(Ylm.shape[1]):
                     kname = f'c_{ell}{jj}'
                     self.sph_c_new[hkey][kname] = Ylm[:,jj]
 
@@ -1328,12 +1327,12 @@ class PoleFigures(AbstractHarmonicTextureModel):
             theta_samp = self.rotated_angs[hkey][:,0]
             phi_samp   = self.rotated_angs[hkey][:,1]
 
-            for ell in np.arange(2, self.ell_max+1, 2):
+            for ell in range(2, self.ell_max+1, 2):
                 Ylm = calc_sym_sph_harm(ell,
                                         theta_samp,
                                         phi_samp,
                                         sym=self.ssym)
-                for jj in np.arange(Ylm.shape[1]):
+                for jj in range(Ylm.shape[1]):
                     kname = f's_{ell}{jj}'
                     self.sph_s_new[hkey][kname] = Ylm[:,jj]
 
@@ -1358,12 +1357,12 @@ class PoleFigures(AbstractHarmonicTextureModel):
             phi = np.array([v[1]])
             self.sph_c[h] = {}
             self.sph_s[h] = {}
-            for ell in np.arange(2, self.ell_max+1, 2):
+            for ell in range(2, self.ell_max+1, 2):
                 Ylm = calc_sym_sph_harm(ell,
                                         theta,
                                         phi,
                                         sym=self.csym)
-                for jj in np.arange(Ylm.shape[1]):
+                for jj in range(Ylm.shape[1]):
                     kname = f'c_{ell}{jj}'
                     self.sph_c[h][kname] = Ylm[:,jj]
 
@@ -1373,12 +1372,12 @@ class PoleFigures(AbstractHarmonicTextureModel):
             '''
             theta = self.rotated_angs[h][:,0]
             phi   = self.rotated_angs[h][:,1]
-            for ell in np.arange(2, self.ell_max+1, 2):
+            for ell in range(2, self.ell_max+1, 2):
                 Ylm = calc_sym_sph_harm(ell,
                                         theta,
                                         phi,
                                         sym=self.ssym)
-                for jj in np.arange(Ylm.shape[1]):
+                for jj in range(Ylm.shape[1]):
                     kname = f's_{ell}{jj}'
                     self.sph_s[h][kname] = Ylm[:,jj]
 
@@ -1514,11 +1513,11 @@ class PoleFigures(AbstractHarmonicTextureModel):
         if hasattr(self, 'res'):
             J = 1.
             phase = self.material.name
-            for ell in np.arange(2, self.ell_max+1, 2):
+            for ell in range(2, self.ell_max+1, 2):
                 nc = get_num_sym_harm(ell, sym=self.csym)
                 ns = get_num_sym_harm(ell, sym=self.ssym)
-                for ii in np.arange(ns):
-                    for jj in np.arange(nc):
+                for ii in range(ns):
+                    for jj in range(nc):
                         pname = f'{phase}_c_{ell}{ii}{jj}'
                         pre = 1/(2*ell+1)
                         J += pre*(
@@ -1571,8 +1570,8 @@ class InversePoleFigures:
         """
         if samplingtype.lower() == "equiangular":
             angs = []
-            for tth in np.arange(0,91,resolution):
-                for eta in np.arange(0, 360, resolution):
+            for tth in range(0,91,resolution):
+                for eta in range(0, 360, resolution):
                     angs.append([np.radians(tth), np.radians(eta)])
                     if tth == 0:
                         break
