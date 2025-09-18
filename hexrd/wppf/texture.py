@@ -2,7 +2,6 @@
 # ---------
 import copy
 from warnings import warn
-from abc import ABC, abstractmethod
 
 # hexrd imports
 # -------------
@@ -424,7 +423,7 @@ def get_num_sym_harm(ell, sym='oh'):
     elif sym == 'triclinic':
         return 2*ell + 1
 
-class AbstractHarmonicTextureModel(ABC):
+class HarmonicModel:
     """this is the abstract class which is used by
     both the harmonic model as well as the pole figure
     class
@@ -459,7 +458,9 @@ class AbstractHarmonicTextureModel(ABC):
                 ell_max=10,
                 bvec=bvec_ref,
                 evec=eta_ref,
-                sample_normal=-constants.lab_z):
+                sample_normal=-constants.lab_z,
+                pfdata=None,
+    ):
 
         self.material = material
         self.ssym = ssym
@@ -468,6 +469,7 @@ class AbstractHarmonicTextureModel(ABC):
         self.bvec = bvec
         self.etavec = evec
         self.sample_normal = sample_normal
+        self.pfdata = pfdata
 
     @property
     def csym(self):
@@ -562,19 +564,6 @@ class AbstractHarmonicTextureModel(ABC):
                 rotMatOfExpMap(an*ax)
                 )
 
-    # Abstract methods which must be defined for each WPPF type
-    @abstractmethod
-    def J(self) -> float:
-        raise NotImplementedError
-
-    @abstractmethod
-    def calc_pf_rings(self) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
-    def calc_texture_factor(self) -> np.ndarray:
-        raise NotImplementedError
-
     def get_total_sym_harm(self, symtype):
         '''function to return the total symmetrized harmonics
         for a given degree and symmetry
@@ -598,19 +587,24 @@ class AbstractHarmonicTextureModel(ABC):
         if params is None:
             params = Parameters()
 
+        for name in self.parameter_names:
+            params.add(name, value=0., vary=vary)
+
+        return params
+
+    @property
+    def parameter_names(self):
         phase = self.material.name
+        ret = []
         for ell in range(2, self.ell_max+1, 2):
             nc = get_num_sym_harm(ell, sym=self.csym)
             ns = get_num_sym_harm(ell, sym=self.ssym)
 
             for ii in range(ns):
                 for jj in range(nc):
+                    ret.append(f'{phase}_c_{ell}_{ii}_{jj}')
 
-                    pname = f'{phase}_c_{ell}_{ii}_{jj}'
-                    params.add(name=pname,
-                               value=0.,
-                               vary=vary)
-        return params
+        return ret
 
     def convert_hkls_to_cartesian(self,
                                   hkls):
@@ -772,11 +766,11 @@ class AbstractHarmonicTextureModel(ABC):
                         kname = f's_{ell}_{jj}'
                         self.sph_s_rings[hkey][kname] = Ylm[:,jj]
 
-    def calc_pf_rings_abstract(self,
-                               params,
-                               eta_min=-np.pi,
-                               eta_max=np.pi,
-                               eta_step=np.radians(0.1)):
+    def calc_pf_rings(self,
+                      params,
+                      eta_min=-np.pi,
+                      eta_max=np.pi,
+                      eta_step=np.radians(0.1)):
         '''this functin computes the  intensity variation
         along the debye-scherrer rings for each hkl in the material.
         the intensity variation around the ring is computed between
@@ -811,50 +805,20 @@ class AbstractHarmonicTextureModel(ABC):
 
             self.intensities_rings[hkey] = term
 
-    def calc_texture_factor_abstract(self,
-                                     params,
-                                     eta_min=-np.pi,
-                                     eta_max=np.pi,
-                                     eta_step=np.radians(1)):
+    def calc_texture_factor(self,
+                            params,
+                            eta_min=-np.pi,
+                            eta_max=np.pi,
+                            eta_step=np.radians(1)):
 
-        self.calc_pf_rings_abstract(
-                                    params,
-                                    eta_min=eta_min,
-                                    eta_max=eta_max,
-                                    eta_step=eta_step)
+        self.calc_pf_rings(params,
+                           eta_min=eta_min,
+                           eta_max=eta_max,
+                           eta_step=eta_step)
         tf = np.zeros([len(self.intensities_rings), ])
         for ii, (k, v) in enumerate(self.intensities_rings.items()):
             tf[ii] = np.mean(v)
         return tf
-
-class HarmonicModel(AbstractHarmonicTextureModel):
-    """
-    this class brings all the elements together to compute the
-    texture model given the sample and crystal symmetry. the model
-    will be part of the Rietveld class and give the modification in
-    the integrated intensity of each hkl reflection at a particular
-    azimuthal angle.
-    """
-    def __init__(self,
-                material=None,
-                ssym='axial',
-                ell_max=10,
-                bvec=bvec_ref,
-                evec=eta_ref,
-                sample_normal=-constants.lab_z
-                ):
-
-        super().__init__(material=material,
-                         ssym=ssym,
-                         ell_max=ell_max,
-                         bvec=bvec,
-                         evec=evec,
-                         sample_normal=sample_normal)
-
-        self.hkls = self.material.hkls
-        self.hkls_c = self.convert_hkls_to_cartesian(self.hkls)
-        self.tth = np.radians(self.material.getTTh(
-                              self.material.wavelength))
 
     def J(self, params):
         '''this is the texture index for the harmonic
@@ -873,31 +837,8 @@ class HarmonicModel(AbstractHarmonicTextureModel):
                     J += pre*(params[pname].value**2)
         return J
 
-    def calc_pf_rings(self,
-                      params,
-                      eta_min=-np.pi,
-                      eta_max=np.pi,
-                      eta_step=np.radians(0.1)):
-        return self.calc_pf_rings_abstract(params,
-                                           eta_min=eta_min,
-                                           eta_max=eta_max,
-                                           eta_step=eta_step)
-
-    def calc_texture_factor(self,
-                            params,
-                            eta_min=-np.pi,
-                            eta_max=np.pi,
-                            eta_step=np.radians(1)):
-        return self.calc_texture_factor_abstract(
-                                    params,
-                                    eta_min=eta_min,
-                                    eta_max=eta_max,
-                                    eta_step=eta_step
-                                    )
-
-class PoleFigures(AbstractHarmonicTextureModel):
     """
-    this class deals with everything related to pole figures.
+    the following functions deal with everything related to pole figures.
     pole figures can be initialized in a number of ways. the most
     basic being the (x,y,z, intensities) array. There are
     other formats which will be slowly added to this class. a list of
@@ -918,33 +859,6 @@ class PoleFigures(AbstractHarmonicTextureModel):
         is the corresponding hkl
 
     """
-    def __init__(self,
-                 material,
-                 hkls,
-                 pfdata,
-                 ell_max=12,
-                 ssym='axial',
-                 bvec=bvec_ref,
-                 evec=eta_ref,
-                 sample_normal=-constants.lab_z
-                 ):
-
-        super().__init__(material=material,
-                         ssym=ssym,
-                         ell_max=ell_max,
-                         bvec=bvec,
-                         evec=evec,
-                         sample_normal=sample_normal)
-        self.hkls = hkls
-        self.hkls_c = self.convert_hkls_to_cartesian(self.hkls)
-
-        if hkls.shape[0] != len(pfdata):
-            msg = (f"pole figure initialization.\n"
-                f"# reciprocal reflections = {hkls.shape[0]}.\n"
-                f"# of entries in pfdata = {len(pfdata)}.")
-            raise RuntimeError(msg)
-
-        self.pfdata = pfdata
 
     def write_data(self, prefix):
         """
@@ -1171,6 +1085,7 @@ class PoleFigures(AbstractHarmonicTextureModel):
                 self.intensities_new[h] = term
 
     def calc_new_pole_figure(self,
+                             params,
                              hkls,
                              pfgrid=None,
                              plot=False):
@@ -1185,15 +1100,10 @@ class PoleFigures(AbstractHarmonicTextureModel):
 
         hkls has the shape nx3
         '''
-        if not hasattr(self, 'res'):
-            msg = (f'harmonic coefficients have not '
-                    f'been computed yet')
-            raise RuntimeError(msg)
-
         self.num_pfs_new = hkls.shape[0]
         self.hkls_c_new = self.convert_hkls_to_cartesian(
                                     hkls)
-        self.calc_new_pfdata(hkls,
+        self.calc_new_pfdata(params, hkls,
                              pfgrid=pfgrid)
 
         if plot:
@@ -1206,6 +1116,7 @@ class PoleFigures(AbstractHarmonicTextureModel):
                         show=True)
 
     def calc_new_pfdata(self,
+                        params,
                         hkls,
                         pfgrid=None):
         '''this routine computes the new pfdata which will
@@ -1329,20 +1240,33 @@ class PoleFigures(AbstractHarmonicTextureModel):
                     kname = f's_{ell}_{jj}'
                     self.sph_s_new[hkey][kname] = Ylm[:,jj]
 
-        self.recalculated_pf(self.res.params, new=True)
+        self.recalculated_pf(params, new=True)
 
-    def calculate_harmonic_coefficients(self):
-
-        params = self.get_parameters()
-
+    def calculate_harmonic_coefficients(self, params, hkls):
         '''precompute the spherical harmonics for
         the given hkls and sample directions
         '''
+        # Make a copy of the parameters to modify. We want to disable `vary`
+        # for all parameters other than the texture parameters, because
+        # varying other parameters will make no sense and may produce bad
+        # results.
+        harmonic_params = Parameters()
+        for name in self.parameter_names:
+            harmonic_params[name] = copy.deepcopy(params[name])
 
         self.sph_c = {}
         self.sph_s = {}
 
-        for ii, (h, v) in enumerate(self.hkl_angles.items()):
+        hkls_c = self.convert_hkls_to_cartesian(hkls)
+        hkl_angles = {}
+        for ii, hkl in enumerate(hkls):
+            k = tuple(hkl)
+            hkl_angles[k] = np.array([
+                np.arccos(hkls_c[ii, 2]),
+                np.arctan2(hkls_c[ii, 1], hkls_c[ii, 0]),
+            ])
+
+        for ii, (h, v) in enumerate(hkl_angles.items()):
             '''needs special attention for monoclininc case
                 since the 2-fold axis is aligned with b*
             '''
@@ -1378,41 +1302,18 @@ class PoleFigures(AbstractHarmonicTextureModel):
          'verbose': 2, 'max_nfev': 20000, 'method':'trf',
          'jac':'3-point'}
 
-        fitter = Minimizer(self.calc_residual, params)
+        fitter = Minimizer(self.calc_residual, harmonic_params)
+        results = fitter.least_squares(**fdict)
 
-        self.res = fitter.least_squares(**fdict)
+        # Update parameters with the new values
+        for param_name, param in results.params.items():
+            if not param.vary:
+                continue
 
-    def calc_pf_rings(self,
-                      eta_min=-np.pi,
-                      eta_max=np.pi,
-                      eta_step=np.radians(0.1)):
-        if hasattr(self, 'res'):
-            return self.calc_pf_rings_abstract(
-                self.res.params,
-                eta_min=eta_min,
-                eta_max=eta_max,
-                eta_step=eta_step)
-        else:
-            msg = (f'harmonic model has not been run yet. '
-                f'consider running '
-                f'"calculate_harmonic_coefficients" ')
-            raise RuntimeError(msg)
+            params[param_name].value = param.value
+            params[param_name].stderr = param.stderr
 
-    def calc_texture_factor(self,
-                            eta_min=-np.pi,
-                            eta_max=np.pi,
-                            eta_step=np.radians(1)):
-        if hasattr(self, 'res'):
-            return self.calc_texture_factor_abstract(
-                self.res.params,
-                eta_min=eta_min,
-                eta_max=eta_max,
-                eta_step=eta_step)
-        else:
-            msg = (f'harmonic model has not been run yet. '
-                f'consider running '
-                f'"calculate_harmonic_coefficients" ')
-            raise RuntimeError(msg)
+        return results
 
     @property
     def num_pfs(self):
@@ -1436,7 +1337,8 @@ class PoleFigures(AbstractHarmonicTextureModel):
         self._gvecs = {}
         self._angs = {}
         self._rotated_angs = {}
-        self._hkl_angles = {}
+        if not val:
+            return
 
         for ii, (k,v) in enumerate(val.items()):
 
@@ -1467,9 +1369,6 @@ class PoleFigures(AbstractHarmonicTextureModel):
             self._angs[k] = np.vstack((t, rho)).T
             self._rotated_angs[k] = np.vstack((tr, rhor)).T
             self._stereo_radius = self.stereographic_radius()
-            self._hkl_angles[k] = np.array([np.arccos(
-                self.hkls_c[ii, 2]),
-                np.arctan2(self.hkls_c[ii, 1], self.hkls_c[ii, 0])])
         self._weights = 1/self._weights
         self._weights = np.nan_to_num(self._weights)
 
@@ -1498,29 +1397,6 @@ class PoleFigures(AbstractHarmonicTextureModel):
         return self._stereo_radius
 
     @property
-    def hkl_angles(self):
-        return self._hkl_angles
-
-    @property
-    def J(self):
-        if hasattr(self, 'res'):
-            J = 1.
-            phase = self.material.name
-            for ell in range(2, self.ell_max+1, 2):
-                nc = get_num_sym_harm(ell, sym=self.csym)
-                ns = get_num_sym_harm(ell, sym=self.ssym)
-                for ii in range(ns):
-                    for jj in range(nc):
-                        pname = f'{phase}_c_{ell}_{ii}_{jj}'
-                        pre = 1/(2*ell+1)
-                        J += pre*(
-                        self.res.params[pname].value**2)
-        else:
-            msg = f'coefficeints have not been computed yet'
-            warnings.warn(msg)
-        return J
-
-    @property
     def densest_grid(self):
         sz = 0
         dg = ''
@@ -1529,6 +1405,7 @@ class PoleFigures(AbstractHarmonicTextureModel):
                 dg = h
                 sz = v.shape[0]
         return dg
+
 
 class InversePoleFigures:
     """
@@ -1647,7 +1524,6 @@ class InversePoleFigures:
 
 # These are here only for backward-compatibility
 harmonic_model = HarmonicModel
-pole_figures = PoleFigures
 inverse_polar_figures = InversePoleFigures
 
 

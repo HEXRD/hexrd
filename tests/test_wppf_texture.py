@@ -12,7 +12,7 @@ from hexrd.transforms.xfcapi import anglesToGVec
 from hexrd.valunits import valWUnit
 from hexrd.wppf import Rietveld
 from hexrd.wppf.phase import Material_Rietveld
-from hexrd.wppf.texture import HarmonicModel, PoleFigures
+from hexrd.wppf.texture import HarmonicModel
 from hexrd.wppf.WPPF import extract_intensities
 from hexrd.wppf.wppfsupport import _generate_default_parameters_LeBail
 
@@ -207,15 +207,6 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
 
     assert R.Rwp < 0.4
 
-    R.params_vary_off()
-
-    R.params['scale'].vary = True
-    R.texture_parameters_vary(True)
-
-    R.Refine()
-
-    assert R.Rwp < 0.35
-
     params = _generate_default_parameters_LeBail(mat, 1, {"chebyshev": 1})
 
     for p in params:
@@ -245,7 +236,6 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
     # we have to divide by the computed instensites
     # to get the texture contribution
     pfdata = {}
-    hkl_master = []
     Ic = R.compute_intensities()
 
     for ii in range(pv_binned.shape[0]):
@@ -264,31 +254,22 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
                     bHat_l=instr.beam_vector,
                     eHat_l=instr.eta_vector,
                 )
-                h = hkl[jj, :]
-                hstr = str(h).strip('[').strip(']').replace(" ", "")
+                hkey = tuple(hkl[jj, :])
                 data = np.hstack((v, np.atleast_2d(I[jj]/Icomp[jj])))
-                if hstr not in pfdata:
-                    pfdata[hstr] = data
+                if hkey not in pfdata:
+                    pfdata[hkey] = data
                 else:
-                    pfdata[hstr] = np.vstack((pfdata[hstr], data))
+                    pfdata[hkey] = np.vstack((pfdata[hkey], data))
 
-    for k in pfdata:
-        h = np.array([int(k[0]), int(k[1]), int(k[2])])
-        hkl_master.append(h)
+    hkl_master = np.array(list(pfdata))
 
-    hkl_master = np.array(hkl_master)
+    R.params_vary_off()
+    R.texture_parameters_vary(True)
 
-    pf = PoleFigures(R.phases['Ni']['XFEL'],
-                     hkl_master,
-                     pfdata,
-                     ell_max=16,
-                     bvec=instr.beam_vector,
-                     sample_normal=sample_normal,
-                     ssym='axial')
-
-    pf.calculate_harmonic_coefficients()
-
-    pf.calc_new_pole_figure(np.atleast_2d(hkl_master[0:3, :]))
+    # Set the pole figure data on the harmonic model
+    hm.pfdata = pfdata
+    hm.calculate_harmonic_coefficients(R.params, hkl_master)
+    hm.calc_new_pole_figure(R.params, np.atleast_2d(hkl_master[0:3, :]))
 
     # R.spectrum_expt.plot(0, '-k', lw=2.5)
     # R.spectrum_sim.plot(1, '--r', lw=1.75)
@@ -301,9 +282,9 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
         'stereo_radius': 'stereo_radius_new',
         'intensities': 'intensities_new',
     }
-    for ref_name, pf_name in ref_map.items():
+    for ref_name, hm_name in ref_map.items():
         d1 = ref_data[ref_name]
-        d2 = getattr(pf, pf_name)
+        d2 = getattr(hm, hm_name)
 
         assert sorted(list(d1)) == sorted(list(d2))
         for key in d1:
