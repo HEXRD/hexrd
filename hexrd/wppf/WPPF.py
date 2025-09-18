@@ -2,6 +2,7 @@
 # ---------
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
+import copy
 from functools import partial
 from os import path
 import time
@@ -2224,19 +2225,19 @@ def single_azimuthal_extraction(
 
     kwargs = {
         "expt_spectrum": expt_spectrum,
-        "params": params,
+        # Make a deepcopy of params we pass to LeBail since it will modify them
+        "params": copy.deepcopy(params),
         "phases": phases,
         "wavelength": wavelength,
         "bkgmethod": bkgmethod,
         "peakshape": peakshape,
         "intensity_init": intensity_init
     }
+    L = LeBail(**kwargs)
 
     # get termination conditions for the LeBail refinement
     del_rwp = termination_condition["rwp_perct_change"]
     max_iter = termination_condition["max_iter"]
-
-    L = LeBail(**kwargs)
 
     rel_error = 1.0
     init_error = 1.0
