@@ -428,3 +428,33 @@ class PolarView:
         convert two-theta value to pixel value (float) along two-theta axis
         """
         return np.degrees(tth - self.tth_min)/self.tth_pixel_size
+
+
+def bin_polar_view(polar_obj: PolarView,
+                   pv: np.ndarray,
+                   azimuthal_interval: float,
+                   integration_range: float):
+    '''bin the polar view image into a coarser
+    grid by integration around +/- "integration_range"
+    every "azimuthal_interval" degree
+    '''
+    eta_mi = np.degrees(polar_obj.eta_min)
+    eta_ma = np.degrees(polar_obj.eta_max)
+
+    nspec = int((eta_ma - eta_mi)/azimuthal_interval)-1
+
+    pv_binned = np.zeros((nspec, pv.shape[1]))
+
+    tth_step = polar_obj.tth_pixel_size
+    eta_step = polar_obj.eta_pixel_size
+
+    for i in range(nspec):
+        start = ((i + 1) * azimuthal_interval - integration_range) / eta_step
+        stop = ((i + 1) * azimuthal_interval + integration_range) / eta_step
+
+        start = int(start)
+        stop = int(stop)
+
+        pv_binned[i, :] = np.squeeze(np.nanmean(pv[start:stop, :], axis=0))
+
+    return pv_binned

@@ -21,6 +21,7 @@ from scipy.special import roots_legendre
 from hexrd import constants
 from hexrd.imageutil import snip1d_quad
 from hexrd.material import Material
+from hexrd.transforms.xfcapi import angles_to_gvec
 from hexrd.valunits import valWUnit
 from hexrd.wppf.peakfunctions import (
     calc_rwp,
@@ -1559,7 +1560,6 @@ class Rietveld(AbstractWPPF):
         updated_atominfo = False
 
         pf = np.zeros([self.phases.num_phases, ])
-        pf_cur = self.phases.phase_fraction.copy()
         for ii, p in enumerate(self.phases):
             name = f"{p}_phase_fraction"
             pf[ii] = params[name].value
@@ -1724,16 +1724,10 @@ class Rietveld(AbstractWPPF):
         will replace part of the code in the computespectrum
         function
         '''
-
-        x = self.tth_list
-        y = np.zeros(x.shape)
-        tth_list = np.ascontiguousarray(self.tth_list)
         Ic = {}
         for iph, p in enumerate(self.phases):
             Ic[p] = {}
             for k, l in self.phases.wavelength.items():
-
-                name = self.phases[p][k].name
                 tth = self.tth[p][k]
                 pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                 sf = self.sf[p][k]
@@ -1741,8 +1735,7 @@ class Rietveld(AbstractWPPF):
                 extinction = self.extinction[p][k]
                 absorption = self.absorption[p][k]
 
-                n = np.min((tth.shape[0], sf.shape[0],
-                    lp.shape[0]))
+                n = np.min((tth.shape[0], sf.shape[0], lp.shape[0]))
 
                 tth = tth[:n]
                 sf = sf[:n]
@@ -1750,7 +1743,7 @@ class Rietveld(AbstractWPPF):
                 extinction = extinction[:n]
                 absorption = absorption[:n]
 
-                Ic[p][k] = self.scale * pf * sf * lp # *extinction*absorption
+                Ic[p][k] = self.scale * pf * sf * lp  # *extinction*absorption
         return Ic
 
     def computespectrum(self):
@@ -1802,10 +1795,10 @@ class Rietveld(AbstractWPPF):
                 n = np.min((Ic.shape[0], texture_factor.shape[0]))
 
                 tth = tth[:n]
-                Ic  = Ic[:n]
+                Ic = Ic[:n]
                 texture_factor = texture_factor[:n]
 
-                Ic *= texture_factor # *extinction*absorption
+                Ic *= texture_factor  # *extinction*absorption
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
@@ -2027,15 +2020,14 @@ class Rietveld(AbstractWPPF):
         is set to None
         '''
         if valdict is None:
-            self._texture_model = dict.fromkeys(
-                        self.phases.phase_dict.keys())
-            print(self._texture_model)
-            return
+            valdict = {}
 
         if not isinstance(valdict, dict):
-            msg = (f'only dictionary input allowed '
-                   f'where key are name of phase and '
-                   f'value is the harmonic_model instance')
+            msg = (
+                'only dictionary input allowed '
+                'where key are name of phase and '
+                'value is the harmonic_model instance'
+            )
             raise ValueError(msg)
 
         self._texture_model = valdict
@@ -2043,16 +2035,100 @@ class Rietveld(AbstractWPPF):
             if phase_name not in valdict:
                 self._texture_model[phase_name] = None
 
-
     @property
     def texture_index(self):
-        res = dict.fromkeys(self.texture_model.keys())
+        res = {}
         for p in self.phases:
             if self.texture_model[p] is not None:
-                res[p]  = self.texture_model[p].J(self.params)
+                res[p] = self.texture_model[p].J(self.params)
             else:
                 res[p] = 1.
         return res
+
+    def compute_texture_data(self,
+                             pv_binned: np.ndarray,
+                             tth_array: np.ndarray,
+                             bvec: np.ndarray | None = None,
+                             evec: np.ndarray | None = None,
+                             azimuthal_interval: float = 5):
+        """Compute texture data to use in texture refinement
+
+        Using the current parameters on the Rietveld object, fit the peaks
+        to LeBail models in order to determine their intensities, and then
+        compute and return a dictionary of texture contributions.
+        """
+        # Use only the first lambda key, since it doesn't matter for LeBail
+        lambda_key = next(iter(self.wavelength))
+        mats = [v[lambda_key] for v in self.phases.phase_dict.values()]
+
+        # Create LeBail params to use for intensity-finding. When possible,
+        # we'll use the same params currently on the Rietveld object.
+        bkg_method = {'chebyshev': 1}
+        params = wppfsupport._generate_default_parameters_LeBail(
+            mats, 1, bkg_method)
+
+        for p in params:
+            params[p].value = self.params[p].value
+
+        # Ensure these are marked as `Vary`
+        params['U'].vary = True
+        params['V'].vary = True
+        params['W'].vary = True
+
+        # Allow lattice constants to vary as well
+        for mat in mats:
+            lp_names = [f"{mat.name}_{x}" for x in wppfsupport._lpname]
+            for name in lp_names:
+                if name in params:
+                    params[name].vary = True
+
+        # Compute the current intensities from Rietveld
+        ints_computed = self.compute_intensities()
+
+        # Extract the intensities from the data
+        mask = np.isnan(pv_binned)
+        results = extract_intensities(**{
+            'polar_view': np.ma.masked_array(pv_binned, mask=mask),
+            'tth_array': tth_array,
+            'params': params,
+            'phases': mats,
+            'wavelength': self.wavelength,
+            'bkgmethod': bkg_method,
+            'intensity_init': ints_computed,
+            'termination_condition': {
+                "rwp_perct_change": 0.05,
+                "max_iter": 10,
+            },
+            'peakshape': "pvtch",
+        })
+
+        # we have to divide by the computed instensites
+        # to get the texture contribution
+        pfdata = {}
+        for ii in range(pv_binned.shape[0]):
+            eta = np.radians(-100 + (ii + 1) * azimuthal_interval)
+            t = results[2][ii]['Ni']['XFEL']
+            hkl = results[1][ii]['Ni']['XFEL']
+            ints = results[0][ii]['Ni']['XFEL']
+            ints_comp = ints_computed['Ni']['XFEL']
+
+            nn = np.min((t.shape[0], ints_comp.shape[0]))
+            for jj in range(nn):
+                angs = np.atleast_2d([np.radians(t[jj]), eta, 0])
+                v = angles_to_gvec(angs, beam_vec=bvec, eta_vec=evec)
+                hkey = tuple(hkl[jj, :])
+                data = np.hstack((
+                    v,
+                    np.atleast_2d(ints[jj] / ints_comp[jj]),
+                ))
+                if hkey in pfdata:
+                    # Stack with previous data
+                    data = np.vstack((pfdata[hkey], data))
+
+                pfdata[hkey] = data
+
+        return pfdata, results[4]
+
 
 def separate_regions(masked_spec_array):
     """
@@ -2166,13 +2242,13 @@ def extract_intensities(
     }
     func = partial(single_azimuthal_extraction, **kwargs)
 
-    # We found that 2 max workers in a thread pool performed
+    # We found that 3 max workers in a thread pool performed
     # the best on our example dataset. This is likely because
     # there is already parallelism going on in each thread.
     # ProcessPoolExecutor was always slower.
-    max_workers = 2
+    max_workers = 3
     if max_workers > 1:
-        with ThreadPoolExecutor(max_workers=2) as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             results = list(executor.map(func, data_inp_list))
     else:
         results = [func(x) for x in data_inp_list]

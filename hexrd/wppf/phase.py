@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import copy
 import importlib.resources
 from pathlib import Path
 import warnings
@@ -60,6 +61,9 @@ class Material_LeBail(AbstractMaterial):
         if isinstance(material_obj, Material):
             self._init_from_materials(material_obj)
             return
+        elif isinstance(material_obj, Material_Rietveld):
+            self._init_from_rietveld(material_obj)
+            return
         elif material_obj is not None:
             raise ValueError(
                 "Invalid material_obj argument. \
@@ -107,12 +111,6 @@ class Material_LeBail(AbstractMaterial):
                                 material_obj.unitcell.beta,
                                 material_obj.unitcell.gamma])
 
-        self.dmt = material_obj.unitcell.dmt
-        self.rmt = material_obj.unitcell.rmt
-        self.dsm = material_obj.unitcell.dsm
-        self.rsm = material_obj.unitcell.rsm
-        self.vol = material_obj.unitcell.vol
-
         self.latticeType = material_obj.unitcell.latticeType
         self.sg_hmsymbol = material_obj.unitcell.sg_hmsymbol
 
@@ -134,6 +132,36 @@ class Material_LeBail(AbstractMaterial):
         self.symmorphic = material_obj.unitcell.symmorphic
 
         self.hkls = material_obj.planeData.getHKLs()
+
+        self._calcrmt()
+
+    def _init_from_rietveld(self, mat: 'Material_Rietveld'):
+        # Just copy over the attributes we need
+        attrs_to_copy = [
+            'name',
+            'dmin',
+            'sgnum',
+            'sgsetting',
+            'sg',
+            'lparms',
+            'latticeType',
+            'sg_hmsymbol',
+            'ih',
+            'ik',
+            'il',
+            'sf_alpha',
+            'twin_beta',
+            'SYM_SG',
+            'SYM_PG_d',
+            'SYM_PG_d_laue',
+            'SYM_PG_r',
+            'SYM_PG_r_laue',
+            'centrosymmetric',
+            'symmorphic',
+            'hkls',
+        ]
+        for name in attrs_to_copy:
+            setattr(self, name, copy.deepcopy(getattr(mat, name)))
 
         self._calcrmt()
 

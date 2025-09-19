@@ -7,8 +7,7 @@ import pytest
 
 from hexrd.instrument import HEDMInstrument
 from hexrd.material import Material
-from hexrd.projections.polar import PolarView
-from hexrd.transforms.xfcapi import anglesToGVec
+from hexrd.projections.polar import bin_polar_view, PolarView
 from hexrd.valunits import valWUnit
 from hexrd.wppf import Rietveld
 from hexrd.wppf.phase import Material_Rietveld
@@ -48,45 +47,6 @@ def _angstrom(x):
 
 def _kev(x):
     return valWUnit('xray_energy', 'energy', x, 'keV')
-
-
-def get_mean(ii,
-             pv,
-             eta_step,
-             azimuthal_interval,
-             integration_range):
-
-    start = int(((ii+1)*azimuthal_interval-integration_range)/eta_step)
-    stop = int(((ii+1)*azimuthal_interval+integration_range)/eta_step)
-
-    return np.squeeze(np.nanmean(pv[start:stop, :], axis=0))
-
-
-def bin_polar_view(polar_obj,
-                   pv,
-                   azimuthal_interval,
-                   integration_range):
-    '''bin the polar view image into a coarser
-    grid by integration around +/- "integration_range"
-    every "azimuthal_interval" degree
-    '''
-    eta_mi = np.degrees(polar_obj.eta_min)
-    eta_ma = np.degrees(polar_obj.eta_max)
-
-    nspec = int((eta_ma - eta_mi)/azimuthal_interval)-1
-
-    pv_binned = np.zeros((nspec, pv.shape[1]))
-
-    eta_step = polar_obj.eta_pixel_size
-
-    for ii in np.arange(nspec):
-        pv_binned[ii, :] = get_mean(ii,
-                                    pv,
-                                    eta_step,
-                                    azimuthal_interval,
-                                    integration_range)
-
-    return pv_binned
 
 
 def get_lineout(pv):
@@ -207,59 +167,13 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
 
     assert R.Rwp < 0.4
 
-    params = _generate_default_parameters_LeBail(mat, 1, {"chebyshev": 1})
-
-    for p in params:
-        params[p].value = R.params[p].value
-
-    params["U"].vary = True
-    params["V"].vary = True
-    params["W"].vary = True
-    params["Ni_a"].vary = True
-
-    Ic = R.compute_intensities()
-
-    mask = np.isnan(pv_binned)
-
-    results = extract_intensities(**{
-        'polar_view': np.ma.masked_array(pv_binned, mask=mask),
-        'tth_array': ttharray,
-        'params': params,
-        'phases': [mat],
-        'wavelength': {"XFEL": [_angstrom(instr.beam_wavelength), 1.]},
-        'bkgmethod': {"chebyshev": 1},
-        'intensity_init': Ic,
-        'termination_condition': {"rwp_perct_change": 0.05, "max_iter": 10},
-        'peakshape': "pvtch",
-    })
-
-    # we have to divide by the computed instensites
-    # to get the texture contribution
-    pfdata = {}
-    Ic = R.compute_intensities()
-
-    for ii in range(pv_binned.shape[0]):
-        eta = np.radians(-100 + (ii+1)*azimuthal_interval)
-        t = results[2][ii]['Ni']['XFEL']
-        hkl = results[1][ii]['Ni']['XFEL']
-        I = results[0][ii]['Ni']['XFEL']  # noqa
-        Icomp = Ic['Ni']['XFEL']
-
-        nn = np.min((t.shape[0], Icomp.shape[0]))
-        for jj in np.arange(nn):
-            if jj < 3:
-                angs = np.atleast_2d([np.radians(t[jj]), eta, 0])
-                v = anglesToGVec(
-                    angs,
-                    bHat_l=instr.beam_vector,
-                    eHat_l=instr.eta_vector,
-                )
-                hkey = tuple(hkl[jj, :])
-                data = np.hstack((v, np.atleast_2d(I[jj]/Icomp[jj])))
-                if hkey not in pfdata:
-                    pfdata[hkey] = data
-                else:
-                    pfdata[hkey] = np.vstack((pfdata[hkey], data))
+    pfdata, pv_sim = R.compute_texture_data(
+        pv_binned,
+        tth_array=ttharray,
+        bvec=instr.beam_vector,
+        evec=instr.eta_vector,
+        azimuthal_interval=azimuthal_interval,
+    )
 
     hkl_master = np.array(list(pfdata))
 
@@ -269,7 +183,7 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
     # Set the pole figure data on the harmonic model
     hm.pfdata = pfdata
     hm.calculate_harmonic_coefficients(R.params, hkl_master)
-    hm.calc_new_pole_figure(R.params, np.atleast_2d(hkl_master[0:3, :]))
+    hm.calc_new_pole_figure(R.params, np.atleast_2d(hkl_master))
 
     # R.spectrum_expt.plot(0, '-k', lw=2.5)
     # R.spectrum_sim.plot(1, '--r', lw=1.75)
@@ -288,4 +202,4 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
 
         assert sorted(list(d1)) == sorted(list(d2))
         for key in d1:
-            assert np.allclose(d1[key], d2[key], rtol=1e-3)
+            assert np.allclose(d1[key], d2[key], rtol=1e-5)
