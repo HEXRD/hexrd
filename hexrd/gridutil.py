@@ -147,6 +147,10 @@ def cellCentroids(crd, con):
 
 @numba.njit(nogil=True, cache=True)
 def compute_areas(xy_eval_vtx, conn):
+    # NOTE: this function may return negative areas if the vertices
+    # are passed in the opposite order to the function. This happens
+    # if the beam vector is in the opposite direction (positive Z
+    # instead of the usual negative Z)
     areas = np.empty(len(conn))
     for i in range(len(conn)):
         vtx0x, vtx0y = xy_eval_vtx[conn[i, 0]]
