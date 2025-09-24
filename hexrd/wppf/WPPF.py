@@ -1912,15 +1912,41 @@ class Rietveld(AbstractWPPF):
         else:
             print("Nothing to refine...")
 
+    def RefineTexture(self):
+        for model in self.texture_model.values():
+            if model is None:
+                continue
+
+            model.calculate_harmonic_coefficients(self.params)
+
     def texture_parameters_vary(self,
                                 vary=False):
         '''helper function to turn texture related
         parameters on or off
         '''
         for phase_name in self.phases:
+            prefix = f'{phase_name}_c_'
             for p in self.params:
-                if f'{phase_name}_c_' in p:
+                if p.startswith(prefix):
                     self.params[p].vary = vary
+
+    @property
+    def any_texture_params_varied(self):
+        for phase_name in self.phases:
+            prefix = f'{phase_name}_c_'
+            for param in self.params.values():
+                if param.name.startswith(prefix) and param.vary:
+                    return True
+
+        return False
+
+    @property
+    def texture_models_have_pfdata(self):
+        for model in self.texture_model.values():
+            if not model.pfdata:
+                return False
+
+        return True
 
     @property
     def phases(self):
@@ -2047,7 +2073,6 @@ class Rietveld(AbstractWPPF):
 
     def compute_texture_data(self,
                              pv_binned: np.ndarray,
-                             tth_array: np.ndarray,
                              bvec: np.ndarray | None = None,
                              evec: np.ndarray | None = None,
                              azimuthal_interval: float = 5):
@@ -2055,7 +2080,11 @@ class Rietveld(AbstractWPPF):
 
         Using the current parameters on the Rietveld object, fit the peaks
         to LeBail models in order to determine their intensities, and then
-        compute and return a dictionary of texture contributions.
+        compute a dictionary of texture contributions. These texture
+        contributions are automatically set on the `pfdata` of the texture
+        models.
+
+        A simulated spectrum is returned.
         """
         # Use only the first lambda key, since it doesn't matter for LeBail
         lambda_key = next(iter(self.wavelength))
@@ -2089,7 +2118,7 @@ class Rietveld(AbstractWPPF):
         mask = np.isnan(pv_binned)
         results = extract_intensities(**{
             'polar_view': np.ma.masked_array(pv_binned, mask=mask),
-            'tth_array': tth_array,
+            'tth_array': self.tth_list,
             'params': params,
             'phases': mats,
             'wavelength': self.wavelength,
@@ -2104,30 +2133,38 @@ class Rietveld(AbstractWPPF):
 
         # we have to divide by the computed instensites
         # to get the texture contribution
-        pfdata = {}
-        for ii in range(pv_binned.shape[0]):
-            eta = np.radians(-100 + (ii + 1) * azimuthal_interval)
-            t = results[2][ii]['Ni']['XFEL']
-            hkl = results[1][ii]['Ni']['XFEL']
-            ints = results[0][ii]['Ni']['XFEL']
-            ints_comp = ints_computed['Ni']['XFEL']
+        for mat_key, model in self.texture_model.items():
+            if model is None:
+                continue
 
-            nn = np.min((t.shape[0], ints_comp.shape[0]))
-            for jj in range(nn):
-                angs = np.atleast_2d([np.radians(t[jj]), eta, 0])
-                v = angles_to_gvec(angs, beam_vec=bvec, eta_vec=evec)
-                hkey = tuple(hkl[jj, :])
-                data = np.hstack((
-                    v,
-                    np.atleast_2d(ints[jj] / ints_comp[jj]),
-                ))
-                if hkey in pfdata:
-                    # Stack with previous data
-                    data = np.vstack((pfdata[hkey], data))
+            pfdata = {}
+            for ii in range(pv_binned.shape[0]):
+                eta = np.radians(-100 + (ii + 1) * azimuthal_interval)
+                t = results[2][ii][mat_key][lambda_key]
+                hkl = results[1][ii][mat_key][lambda_key]
+                ints = results[0][ii][mat_key][lambda_key]
+                ints_comp = ints_computed[mat_key][lambda_key]
 
-                pfdata[hkey] = data
+                nn = np.min((t.shape[0], ints_comp.shape[0]))
+                for jj in range(nn):
+                    angs = np.atleast_2d([np.radians(t[jj]), eta, 0])
+                    v = angles_to_gvec(angs, beam_vec=bvec, eta_vec=evec)
+                    data = np.hstack((
+                        v,
+                        np.atleast_2d(ints[jj] / ints_comp[jj]),
+                    ))
 
-        return pfdata, results[4]
+                    hkey = tuple(hkl[jj, :])
+                    if hkey in pfdata:
+                        # Stack with previous data
+                        data = np.vstack((pfdata[hkey], data))
+
+                    pfdata[hkey] = data
+
+            # Now set the texture data on the texture model
+            model.pfdata = pfdata
+
+        return results[4]
 
 
 def separate_regions(masked_spec_array):

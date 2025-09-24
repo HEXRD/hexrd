@@ -167,23 +167,19 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
 
     assert R.Rwp < 0.4
 
-    pfdata, pv_sim = R.compute_texture_data(
+    pv_sim = R.compute_texture_data(
         pv_binned,
-        tth_array=ttharray,
         bvec=instr.beam_vector,
         evec=instr.eta_vector,
         azimuthal_interval=azimuthal_interval,
     )
 
-    hkl_master = np.array(list(pfdata))
-
     R.params_vary_off()
     R.texture_parameters_vary(True)
 
-    # Set the pole figure data on the harmonic model
-    hm.pfdata = pfdata
-    hm.calculate_harmonic_coefficients(R.params, hkl_master)
-    hm.calc_new_pole_figure(R.params, np.atleast_2d(hkl_master))
+    # The pole figure data will have been set on the harmonic model
+    hm.calculate_harmonic_coefficients(R.params)
+    hm.calc_new_pole_figure(R.params)
 
     # R.spectrum_expt.plot(0, '-k', lw=2.5)
     # R.spectrum_sim.plot(1, '--r', lw=1.75)

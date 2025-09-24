@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 
 from hexrd import constants
@@ -455,6 +457,9 @@ def bin_polar_view(polar_obj: PolarView,
         start = int(start)
         stop = int(stop)
 
-        pv_binned[i, :] = np.squeeze(np.nanmean(pv[start:stop, :], axis=0))
+        # Ignore any warnings about empty slices
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            pv_binned[i, :] = np.squeeze(np.nanmean(pv[start:stop, :], axis=0))
 
     return pv_binned

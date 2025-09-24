@@ -982,6 +982,9 @@ class HarmonicModel:
             figsize=(12,4*nrows))
         self.ax_new = np.atleast_2d(self.ax_new)
 
+        title = f'Pole Figures for {self.material.name}'
+        self.fig_new.canvas.manager.set_window_title(title)
+
         [ax.set_axis_off() for ax in self.ax_new.flatten()]
         [ax.set_yticklabels([]) for ax in self.ax_new.flatten()]
         [ax.set_xticklabels([]) for ax in self.ax_new.flatten()]
@@ -1086,7 +1089,7 @@ class HarmonicModel:
 
     def calc_new_pole_figure(self,
                              params,
-                             hkls,
+                             hkls=None,
                              pfgrid=None,
                              plot=False):
         '''calculate pole figure for new poles
@@ -1100,11 +1103,14 @@ class HarmonicModel:
 
         hkls has the shape nx3
         '''
+        if hkls is None:
+            hkls = np.array(list(self.pfdata))
+
+        hkls = np.atleast_2d(hkls)
+
         self.num_pfs_new = hkls.shape[0]
-        self.hkls_c_new = self.convert_hkls_to_cartesian(
-                                    hkls)
-        self.calc_new_pfdata(params, hkls,
-                             pfgrid=pfgrid)
+        self.hkls_c_new = self.convert_hkls_to_cartesian(hkls)
+        self.calc_new_pfdata(params, hkls, pfgrid=pfgrid)
 
         if plot:
             self.plot_new_pf(
@@ -1242,10 +1248,14 @@ class HarmonicModel:
 
         self.recalculated_pf(params, new=True)
 
-    def calculate_harmonic_coefficients(self, params, hkls):
+    def calculate_harmonic_coefficients(self, params, hkls=None):
         '''precompute the spherical harmonics for
         the given hkls and sample directions
         '''
+        if hkls is None:
+            # If no hkls are specified, use all of them
+            hkls = np.array(list(self.pfdata))
+
         # Make a copy of the parameters to modify. We want to disable `vary`
         # for all parameters other than the texture parameters, because
         # varying other parameters will make no sense and may produce bad
