@@ -959,6 +959,13 @@ class HarmonicModel:
         if show:
             self.fig.show()
 
+    @property
+    def new_pf_plots_visible(self):
+        if not hasattr(self, 'fig_new'):
+            return False
+
+        return self.fig_new.canvas.isVisible()
+
     def plot_new_pf(self,
                 filled=False,
                 grid=False,
@@ -991,6 +998,26 @@ class HarmonicModel:
         [ax.set_xticklabels([]) for ax in self.ax_new.flatten()]
         [ax.grid(False) for ax in self.ax_new.flatten()]
 
+        self.new_pf_filled = filled
+        self.new_pf_cmap = cmap
+        self.new_pf_grid = grid
+        self.new_pf_colorbar_label = colorbar_label
+
+        self.update_new_pf_plots()
+
+        if show:
+            self.fig_new.show()
+
+    def update_new_pf_plot_data(self, params):
+        self.calc_new_pfdata(params, self.hkls_new, pfgrid=self.pfgrid_new)
+        self.update_new_pf_plots()
+        self.fig_new.canvas.draw_idle()
+
+    def update_new_pf_plots(self):
+        filled = self.new_pf_filled
+        cmap = self.new_pf_cmap
+        grid = self.new_pf_grid
+        colorbar_label = self.new_pf_colorbar_label
         for ii, h in enumerate(self.angs_new):
             nr = int(ii/3)
             nc = int(np.mod(ii, 3))
@@ -1011,19 +1038,22 @@ class HarmonicModel:
                 r = np.concatenate((r, r[mask]))
                 I = np.concatenate((I, I[mask]))
 
-            if filled:
-                pf = self.ax_new[nr][nc].tricontourf(rho, r,
-                                    I, levels=20, cmap=cmap)
-            else:
-                pf = self.ax_new[nr][nc].tricontour(rho, r,
-                                    I, levels=20, cmap=cmap)
-            self.ax_new[nr][nc].set_yticklabels([])
-            self.ax_new[nr][nc].grid(grid)
-            self.ax_new[nr][nc].set_title(f'({h})')
-            plt.colorbar(pf, label=colorbar_label)
+            ax = self.ax_new[nr][nc]
+            # Remove any old artists
+            if hasattr(ax, '_plt_colorbar'):
+                ax._plt_colorbar.remove()
 
-        if show:
-            self.fig_new.show()
+            if hasattr(ax, '_plt_pf'):
+                ax._plt_pf.remove()
+
+            func = ax.tricontourf if filled else ax.tricontour
+            pf = func(rho, r, I, levels=20, cmap=cmap)
+            ax._plt_pf = pf
+
+            ax.set_yticklabels([])
+            ax.grid(grid)
+            ax.set_title(f'({h})')
+            ax._plt_colorbar = self.fig_new.colorbar(pf, label=colorbar_label)
 
     def calc_residual(self, params):
         '''get the difference between the
@@ -1109,6 +1139,8 @@ class HarmonicModel:
 
         hkls = np.atleast_2d(hkls)
 
+        self.hkls_new = hkls
+        self.pfgrid_new = pfgrid
         self.num_pfs_new = hkls.shape[0]
         self.hkls_c_new = self.convert_hkls_to_cartesian(hkls)
         self.calc_new_pfdata(params, hkls, pfgrid=pfgrid)
@@ -1208,7 +1240,7 @@ class HarmonicModel:
         for ii, h in enumerate(hkls):
             hkey = tuple(h)
             self.angs_new[hkey] = angs.copy()
-            self.rotated_angs[hkey] = rotated_angs.copy()
+            self.rotated_angs_new[hkey] = rotated_angs.copy()
             self.stereo_radius_new = self.stereographic_radius(new=True)
             self.hkl_angles_new[hkey] = np.array([np.arccos(
                                          hkls_c[ii, 2]),
@@ -1235,8 +1267,8 @@ class HarmonicModel:
                     self.sph_c_new[hkey][kname] = Ylm[:,jj]
 
             self.sph_s_new[hkey] = {}
-            theta_samp = self.rotated_angs[hkey][:,0]
-            phi_samp   = self.rotated_angs[hkey][:,1]
+            theta_samp = self.rotated_angs_new[hkey][:,0]
+            phi_samp   = self.rotated_angs_new[hkey][:,1]
 
             for ell in range(2, self.ell_max+1, 2):
                 Ylm = calc_sym_sph_harm(ell,
