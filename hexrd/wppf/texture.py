@@ -970,7 +970,7 @@ class HarmonicModel:
         '''first get the layout of the subplot
         '''
         n = self.num_pfs_new
-        nrows = int(n/3)+1
+        nrows = int(np.ceil(n/3))
         if nrows == 1:
             ncols = np.min((3, n))
         else:
@@ -979,7 +979,8 @@ class HarmonicModel:
         self.fig_new, self.ax_new = plt.subplots(
             nrows=nrows, ncols=ncols,
             subplot_kw={'projection': 'polar'},
-            figsize=(12,4*nrows))
+            figsize=(12,4*nrows),
+            tight_layout=True)
         self.ax_new = np.atleast_2d(self.ax_new)
 
         title = f'Pole Figures for {self.material.name}'
