@@ -1920,6 +1920,15 @@ class Rietveld(AbstractWPPF):
             print(f'Refining texture parameters for "{name}"')
             results = model.calculate_harmonic_coefficients(self.params)
 
+        self.computespectrum()
+        self.niter += 1
+        self.Rwplist = np.append(self.Rwplist, self.Rwp)
+        self.gofFlist = np.append(self.gofFlist, self.gofF)
+
+        msg = (f"Finished iteration. Rwp: "
+               f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}")
+        print(msg)
+
     def texture_parameters_vary(self,
                                 vary=False):
         '''helper function to turn texture related
