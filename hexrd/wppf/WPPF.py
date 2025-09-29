@@ -1996,6 +1996,9 @@ class Rietveld(AbstractWPPF):
             print(f'Refining texture parameters for "{name}"')
             results = model.calculate_harmonic_coefficients(self.params)
 
+        # Set the results to the final one
+        self.res = results
+
         self.computespectrum()
         self.niter += 1
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
