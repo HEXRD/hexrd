@@ -167,7 +167,7 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
 
     assert R.Rwp < 0.4
 
-    pv_sim = R.compute_texture_data(
+    R.compute_texture_data(
         pv_binned,
         bvec=instr.beam_vector,
         evec=instr.eta_vector,
@@ -178,7 +178,8 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
     R.texture_parameters_vary(True)
 
     # The pole figure data will have been set on the harmonic model
-    hm.calculate_harmonic_coefficients(R.params)
+    # Now we can refine the texture
+    R.RefineTexture()
     hm.calc_new_pole_figure(R.params)
 
     # R.spectrum_expt.plot(0, '-k', lw=2.5)
