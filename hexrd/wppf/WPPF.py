@@ -1913,11 +1913,12 @@ class Rietveld(AbstractWPPF):
             print("Nothing to refine...")
 
     def RefineTexture(self):
-        for model in self.texture_model.values():
+        for name, model in self.texture_model.items():
             if model is None:
                 continue
 
-            model.calculate_harmonic_coefficients(self.params)
+            print(f'Refining texture parameters for "{name}"')
+            results = model.calculate_harmonic_coefficients(self.params)
 
     def texture_parameters_vary(self,
                                 vary=False):
