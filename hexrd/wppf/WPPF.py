@@ -1814,11 +1814,11 @@ class Rietveld(AbstractWPPF):
 
         tth, Xs = self.compute_tth_after_shifts(p, k)
 
+        Icmod = Ic.copy()
         if not texture_factor is None:
             n = np.min((tth.shape[0], Ic.shape[0], texture_factor.shape[0]))
             tth = tth[:n]
-            Ic = Ic[:n]
-            Ic *= texture_factor[:n]  # *extinction*absorption
+            Icmod = Icmod[:n] * texture_factor[:n]  # *extinction*absorption
 
         dsp = self.dsp[p][k]
         hkls = self.hkls[p][k]
@@ -1843,7 +1843,7 @@ class Rietveld(AbstractWPPF):
                 dsp,
                 hkls,
                 tth_list,
-                Ic,
+                Icmod,
                 self.xn,
                 self.wn,
             )
@@ -1859,7 +1859,7 @@ class Rietveld(AbstractWPPF):
                 dsp,
                 hkls,
                 tth_list,
-                Ic,
+                Icmod,
             )
         elif self.peakshape == 2:
             args = (
@@ -1875,7 +1875,7 @@ class Rietveld(AbstractWPPF):
                 dsp,
                 hkls,
                 tth_list,
-                Ic,
+                Icmod,
             )
         return self.computespectrum_fcn(*args)
 
@@ -1961,7 +1961,8 @@ class Rietveld(AbstractWPPF):
                                                    k,
                                                    Icomputed[p][k],
                                                    texture_factor=None)
-
+            y[self.global_mask] = np.nan
+            y += self.background.y
             if self.amorphous_model is not None:
                 y += self.amorphous_model.amorphous_lineout
 
@@ -1987,6 +1988,7 @@ class Rietveld(AbstractWPPF):
                     azimuth_texture_factor[p] = None
 
             for irow in range(1, nazimuth):
+                y = np.zeros(x.shape)
                 for iph, p in enumerate(self.phases):
 
                     for k, l in self.phases.wavelength.items():
@@ -2004,6 +2006,8 @@ class Rietveld(AbstractWPPF):
                                                         Icomputed[p][k],
                                                         texture_factor=texture_factor)
 
+                y[self.global_mask] = np.nan
+                y += self.background.y
                 if self.amorphous_model is not None:
                     y += self.amorphous_model.amorphous_lineout
 
