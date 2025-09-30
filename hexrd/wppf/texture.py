@@ -650,6 +650,10 @@ class HarmonicModel:
             ngrid = self.rotated_angs_rings[h].shape[0]
             Ylm = self.sph_s_rings[h]
 
+        elif gridtype == 'rings_spectrum_2d':
+            ngrid = self.rotated_angs_rings_2d[h].shape[0]
+            Ylm = self.sph_s_rings_2d[h]
+
         ns = get_num_sym_harm(ell,
                             sym=self.ssym)
 
@@ -672,7 +676,7 @@ class HarmonicModel:
             Ylm = self.sph_c[h]
         elif gridtype == 'new':
             Ylm = self.sph_c_new[h]
-        elif gridtype == 'rings':
+        elif gridtype in ['rings', 'rings_spectrum_2d']:
             Ylm = self.sph_c_rings[h]
 
         cmat = np.empty((nc, ngrid))
@@ -683,20 +687,32 @@ class HarmonicModel:
         return cmat
 
     def precompute_spherical_harmonics(self,
-                                       eta_min=-np.pi,
-                                       eta_max=np.pi,
-                                       eta_step=np.radians(0.1)):
+                                       eta_min,
+                                       eta_max,
+                                       eta_step,
+                                       calc_type='texture_factor'):
         '''this function precomputes the spherical
         harmonic functions so we don't keep repeating
         the calculations
         '''
-        self.eta_grid = np.arange(eta_min,
-                             eta_max,
-                             eta_step)
+        if calc_type == 'texture_factor':
+            self.eta_grid = np.arange(eta_min,
+                                 eta_max,
+                                 eta_step)
+        elif calc_type == 'spectrum_2d':
+            eta_grid = np.arange(eta_min,
+                                 eta_max,
+                                 eta_step)
+
         '''initialize all the dictionaries which will store the data
         '''
-        self.angs_rings = {}
-        self.rotated_angs_rings = {}
+        if calc_type == 'texture_factor':
+            self.angs_rings = {}
+            self.rotated_angs_rings = {}
+        elif calc_type == 'spectrum_2d':
+            self.angs_rings_2d = {}
+            self.rotated_angs_rings_2d = {}
+
         self.hkl_angles_rings = {}
 
         hkls = self.material.hkls
@@ -706,26 +722,44 @@ class HarmonicModel:
 
         for ii, (t, h, hc) in enumerate(zip(tth, hkls, hkls_c)):
             hkey = tuple(h)
-            angs = np.vstack((np.full(self.eta_grid.shape, t),
-                             self.eta_grid,
-                             np.zeros_like(self.eta_grid))).T
+            if calc_type == 'texture_factor':
+                angs = np.vstack((np.full(self.eta_grid.shape, t),
+                                 self.eta_grid,
+                                 np.zeros_like(self.eta_grid))).T
+            elif calc_type == 'spectrum_2d':
+                angs = np.vstack((np.full(eta_grid.shape, t),
+                                 eta_grid,
+                                 np.zeros_like(eta_grid))).T
 
             pfgrid = anglesToGVec(angs,
                                   bHat_l=self.bvec,
                                   eHat_l=self.etavec)
 
             # Next part runs in a numba function to accelerate it.
-            (
-                self.angs_rings[hkey],
-                self.rotated_angs_rings[hkey],
-                self.hkl_angles_rings[hkey],
-            ) = _calc_ang_rings(
-                pfgrid,
-                t,
-                hc,
-                self.ref_frame_rmat,
-                self.eta_grid,
-            )
+            if calc_type == 'texture_factor':
+                (
+                    self.angs_rings[hkey],
+                    self.rotated_angs_rings[hkey],
+                    self.hkl_angles_rings[hkey],
+                ) = _calc_ang_rings(
+                    pfgrid,
+                    t,
+                    hc,
+                    self.ref_frame_rmat,
+                    self.eta_grid,
+                )
+            elif calc_type == 'spectrum_2d':
+                (
+                    self.angs_rings_2d[hkey],
+                    self.rotated_angs_rings_2d[hkey],
+                    self.hkl_angles_rings[hkey],
+                ) = _calc_ang_rings(
+                    pfgrid,
+                    t,
+                    hc,
+                    self.ref_frame_rmat,
+                    eta_grid,
+                )
 
             '''also pre-compute the spherical harmonics if they are
             not already precomputed
@@ -748,29 +782,46 @@ class HarmonicModel:
                         kname = f'c_{ell}_{jj}'
                         self.sph_c_rings[hkey][kname] = Ylm[:,jj]
 
-            if not hasattr(self, 'sph_s_rings'):
-                self.sph_s_rings = {}
+            if calc_type == 'texture_factor':
+                if not hasattr(self, 'sph_s_rings'):
+                    self.sph_s_rings = {}
 
-            if hkey not in self.sph_s_rings:
-                self.sph_s_rings[hkey] = {}
+                if hkey not in self.sph_s_rings:
+                    self.sph_s_rings[hkey] = {}
 
                 theta_samp = self.angs_rings[hkey][:,0]
                 phi_samp   = self.angs_rings[hkey][:,1]
 
-                for ell in range(2, self.ell_max+1, 2):
-                    Ylm = calc_sym_sph_harm(ell,
-                                            theta_samp,
-                                            phi_samp,
-                                            sym=self.ssym)
+            elif calc_type == 'spectrum_2d':
+                if not hasattr(self, 'sph_s_rings_2d'):
+                    self.sph_s_rings_2d = {}
+
+                if hkey not in self.sph_s_rings_2d:
+                    self.sph_s_rings_2d[hkey] = {}
+
+                theta_samp = self.angs_rings_2d[hkey][:,0]
+                phi_samp   = self.angs_rings_2d[hkey][:,1]
+
+            for ell in range(2, self.ell_max+1, 2):
+                Ylm = calc_sym_sph_harm(ell,
+                                        theta_samp,
+                                        phi_samp,
+                                        sym=self.ssym)
+                if calc_type == 'texture_factor':
                     for jj in range(Ylm.shape[1]):
                         kname = f's_{ell}_{jj}'
                         self.sph_s_rings[hkey][kname] = Ylm[:,jj]
+                elif calc_type == 'spectrum_2d':
+                    for jj in range(Ylm.shape[1]):
+                        kname = f's_{ell}_{jj}'
+                        self.sph_s_rings_2d[hkey][kname] = Ylm[:,jj]
 
     def calc_pf_rings(self,
                       params,
                       eta_min=-np.pi,
                       eta_max=np.pi,
-                      eta_step=np.radians(0.1)):
+                      eta_step=np.radians(0.1),
+                      calc_type='texture_factor'):
         '''this functin computes the  intensity variation
         along the debye-scherrer rings for each hkl in the material.
         the intensity variation around the ring is computed between
@@ -778,32 +829,50 @@ class HarmonicModel:
         the full ring. eta_step is the angular step size in azimuth.
         Default value is 0.1 degrees for eta_step
         '''
+        eta_grid = np.arange(eta_min,
+                             eta_max,
+                             eta_step)
+
+        if not calc_type in ['texture_factor', 'spectrum_2d']:
+            msg = (f'unknown type of grid for precomputing'
+                   f'spherical harmonics')
+            raise ValueError(msg)
+
+        if calc_type == 'texture_factor':
+            gtype = 'rings'
+            self.intensities_rings = {}
+        elif calc_type == 'spectrum_2d':
+            gtype = 'rings_spectrum_2d'
+            self.intensities_rings_2d = {}
+
         self.precompute_spherical_harmonics(
                                        eta_min=eta_min,
                                        eta_max=eta_max,
-                                       eta_step=eta_step)
+                                       eta_step=eta_step,
+                                       calc_type=calc_type)
 
-        self.intensities_rings = {}
         for h in self.material.hkls:
             hkey = tuple(h)
             '''perform the series sum with given coefficients
             '''
-            term = np.ones_like(self.eta_grid)
+            term = np.ones_like(eta_grid)
 
             for ell in range(2, self.ell_max+1, 2):
                 cmat = self.get_c_matrix(params, ell)
                 sph_s_mat = self.get_sph_s_matrix(hkey,
                                                   ell,
-                                                  gridtype='rings')
+                                                  gridtype=gtype)
                 sph_c_mat = self.get_sph_c_matrix(hkey,
                                                   ell,
-                                                  gridtype='rings')
+                                                  gridtype=gtype)
                 pre = 4*np.pi/(2*ell+1)
                 t = pre*np.dot(sph_s_mat, np.dot(
                                    cmat, sph_c_mat))
                 term += t.flatten()
-
-            self.intensities_rings[hkey] = term
+            if calc_type == 'texture_factor':
+                self.intensities_rings[hkey] = term
+            elif calc_type == 'spectrum_2d':
+                self.intensities_rings_2d[hkey] = term
 
     def calc_texture_factor(self,
                             params,
@@ -814,7 +883,8 @@ class HarmonicModel:
         self.calc_pf_rings(params,
                            eta_min=eta_min,
                            eta_max=eta_max,
-                           eta_step=eta_step)
+                           eta_step=eta_step,
+                           calc_type='texture_factor')
         tf = np.zeros([len(self.intensities_rings), ])
         for ii, (k, v) in enumerate(self.intensities_rings.items()):
             tf[ii] = np.mean(v)

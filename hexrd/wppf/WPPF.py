@@ -1498,8 +1498,9 @@ class Rietveld(AbstractWPPF):
         amorphous_model=None,
         reset_background_params=True,
         texture_model=None,
-        eta_min=-np.pi,
-        eta_max=np.pi,
+        eta_min=-180,
+        eta_max=180,
+        eta_step=5.,
     ):
 
         self.bkgmethod = bkgmethod
@@ -1514,6 +1515,7 @@ class Rietveld(AbstractWPPF):
         # important for texture analysis
         self.eta_min = eta_min
         self.eta_max = eta_max
+        self.eta_step = eta_step
 
         self._tstart = time.time()
 
@@ -1812,13 +1814,11 @@ class Rietveld(AbstractWPPF):
 
         tth, Xs = self.compute_tth_after_shifts(p, k)
 
-        # Ic = Icomputed[p][k]
         if not texture_factor is None:
-            n = np.min((Ic.shape[0], texture_factor.shape[0]))
+            n = np.min((tth.shape[0], Ic.shape[0], texture_factor.shape[0]))
             tth = tth[:n]
             Ic = Ic[:n]
-
-            Ic *= texture_factor  # *extinction*absorption
+            Ic *= texture_factor[:n]  # *extinction*absorption
 
         dsp = self.dsp[p][k]
         hkls = self.hkls[p][k]
@@ -1896,13 +1896,16 @@ class Rietveld(AbstractWPPF):
             for k, l in self.phases.wavelength.items():
 
                 if self.texture_model[p] is None:
-                    texture_factor = np.ones_like(self.tth[p][k])
+                    texture_factor = None
                 else:
                     texture_factor = self.texture_model[p].calc_texture_factor(
                                             self.params,
                                             eta_min=self.eta_min,
                                             eta_max=self.eta_max)
-                y += self.computespectrum_phase(p, k, Icomputed[p][k])
+                y += self.computespectrum_phase(p,
+                                    k,
+                                    Icomputed[p][k],
+                                    texture_factor=texture_factor)
 
         if self.amorphous_model is not None:
             y += self.amorphous_model.amorphous_lineout
@@ -1917,10 +1920,7 @@ class Rietveld(AbstractWPPF):
         )
         return errvec
 
-    def computespectrum_2D(self,
-                           eta_min=-np.pi,
-                           eta_max=np.pi,
-                           eta_step=np.radians(5.)):
+    def computespectrum_2D(self):
         '''this function computes the 2D pattern for the 
         Rietevld model. if there is no texture, the pattern
         is  uniform in the azimuthal direction. if there is
@@ -1943,15 +1943,71 @@ class Rietveld(AbstractWPPF):
         simulated_2d: np.ndarray
             simulated 2D diffraction pattern
         '''
+        x = self.tth_list
+        y = np.zeros(x.shape)
+
+        azimuth = np.arange(self.eta_min,
+                            self.eta_max,
+                            self.eta_step)
+        nazimuth = azimuth.shape[0]
+
+        Icomputed = self.compute_intensities()
 
         if self.texture_model is None:
-            '''no need to modify intensities in the azimuth
-            '''
-            pass
+
+            for iph, p in enumerate(self.phases):
+                for k, l in self.phases.wavelength.items():
+                   y += self.computespectrum_phase(p,
+                                                   k,
+                                                   Icomputed[p][k],
+                                                   texture_factor=None)
+
+            if self.amorphous_model is not None:
+                y += self.amorphous_model.amorphous_lineout
+
+            self.simulated_2d = np.tile(y, (nazimuth, 1))
+
+            return
+
         else:
             '''get pole figure intensities around the azimuth
             '''
-            pass
+            self.simulated_2d = np.empty([nazimuth, x.shape[0]])
+            azimuth_texture_factor = {}
+            for iph, p in enumerate(self.phases):
+                if p in self.texture_model:
+                    self.texture_model[p].calc_pf_rings(
+                                        self.params,
+                                        eta_min=self.eta_min,
+                                        eta_max=self.eta_max,
+                                        eta_step=self.eta_step,
+                                        calc_type='spectrum_2d')
+                    azimuth_texture_factor[p] = self.texture_model[p].intensities_rings_2d
+                else:
+                    azimuth_texture_factor[p] = None
+
+            for irow in range(nazimuth):
+                for iph, p in enumerate(self.phases):
+
+                    for k, l in self.phases.wavelength.items():
+                        hkls = self.hkls[p][k]
+                        texture_factor = None
+
+                        if not azimuth_texture_factor[p] is None:
+                            texture_factor = np.empty([hkls.shape[0], ])
+                            for ii,h in enumerate(hkls):
+                                hkey = tuple(h)
+                                texture_factor[ii] = azimuth_texture_factor[p][hkey][irow]
+
+                        y += self.computespectrum_phase(p,
+                                                        k,
+                                                        Icomputed[p][k],
+                                                        texture_factor=texture_factor)
+
+                if self.amorphous_model is not None:
+                    y += self.amorphous_model.amorphous_lineout
+
+                self.simulated_2d[irow, :] = y
 
     def Refine(self):
         """
@@ -2159,6 +2215,30 @@ class Rietveld(AbstractWPPF):
             else:
                 res[p] = 1.
         return res
+
+    @property
+    def eta_min(self):
+        return self._eta_min
+
+    @eta_min.setter
+    def eta_min(self, val):
+        self._eta_min = np.radians(val)
+
+    @property
+    def eta_max(self):
+        return self._eta_max
+
+    @eta_max.setter
+    def eta_max(self, val):
+        self._eta_max = np.radians(val)
+
+    @property
+    def eta_step(self):
+        return self._eta_step
+
+    @eta_step.setter
+    def eta_step(self, val):
+        self._eta_step = np.radians(val)
 
     def compute_texture_data(self,
                              pv_binned: np.ndarray,
