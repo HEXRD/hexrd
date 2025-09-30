@@ -2456,7 +2456,8 @@ def extract_intensities(
     # the best on our example dataset. This is likely because
     # there is already parallelism going on in each thread.
     # ProcessPoolExecutor was always slower.
-    max_workers = 3
+    # SETTING THIS TO 1 FOR NOW TO PREVENT CI ISSUES ON MAC
+    max_workers = 1
     if max_workers > 1:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             results = list(executor.map(func, data_inp_list))
