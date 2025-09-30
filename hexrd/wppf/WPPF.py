@@ -1,10 +1,12 @@
 # standard imports
 # ---------
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
+import copy
+from functools import partial
 from os import path
 import time
 import warnings
-
 
 # 3rd party imports
 # -----------------
@@ -19,7 +21,7 @@ from scipy.special import roots_legendre
 from hexrd import constants
 from hexrd.imageutil import snip1d_quad
 from hexrd.material import Material
-from hexrd.utils.multiprocess_generic import GenericMultiprocessing
+from hexrd.transforms.xfcapi import angles_to_gvec
 from hexrd.valunits import valWUnit
 from hexrd.wppf.peakfunctions import (
     calc_rwp,
@@ -1131,9 +1133,10 @@ class LeBail(AbstractWPPF):
                 shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
                 trns_c = np.sin(np.radians(self.tth[p][k])) * self.trns
 
-                sf_shift = 0.0
-                Xs = np.zeros(Ic.shape)
-                if self.phases[p].sf_alpha is not None:
+                if self.phases[p].sf_alpha is None:
+                    sf_shift = 0.0
+                    Xs = np.zeros(Ic.shape)
+                else:
                     alpha = getattr(self, f"{p}_sf_alpha")
                     beta = getattr(self, f"{p}_twin_beta")
                     sf_shift = alpha*np.tan(np.radians(0.5*self.tth[p][k])) *\
@@ -1494,6 +1497,10 @@ class Rietveld(AbstractWPPF):
         phi=0.0,
         amorphous_model=None,
         reset_background_params=True,
+        texture_model=None,
+        eta_min=-180,
+        eta_max=180,
+        eta_step=5.,
     ):
 
         self.bkgmethod = bkgmethod
@@ -1504,6 +1511,12 @@ class Rietveld(AbstractWPPF):
         self.spectrum_expt = expt_spectrum
         self.amorphous_model = amorphous_model
 
+        # extent of 2D data in the azimuth
+        # important for texture analysis
+        self.eta_min = eta_min
+        self.eta_max = eta_max
+        self.eta_step = eta_step
+
         self._tstart = time.time()
 
         if wavelength is not None:
@@ -1512,6 +1525,7 @@ class Rietveld(AbstractWPPF):
                 v[0] = valWUnit("lp", "length", v[0].getVal("nm"), "nm")
 
         self.phases = phases
+        self.texture_model = texture_model
 
         self.params = params
 
@@ -1538,6 +1552,7 @@ class Rietveld(AbstractWPPF):
             self.bkgmethod,
             init_val=self.cheb_init_coef,
             amorphous_model=self.amorphous_model,
+            texture_model=self.texture_model,
         )
 
     def _add_phase_params(self, params: lmfit.Parameters):
@@ -1554,7 +1569,6 @@ class Rietveld(AbstractWPPF):
         updated_atominfo = False
 
         pf = np.zeros([self.phases.num_phases, ])
-        pf_cur = self.phases.phase_fraction.copy()
         for ii, p in enumerate(self.phases):
             name = f"{p}_phase_fraction"
             pf[ii] = params[name].value
@@ -1591,8 +1605,9 @@ class Rietveld(AbstractWPPF):
                         lp.append(params[nn].value)
 
                 if lpvary:
-                    lp = self.phases[p][lpi].Required_lp(lp)
-                    self.phases[p][lpi].lparms = np.array(lp)
+                    lp = mat.Required_lp(lp)
+                    mat.lparms = np.array(lp)
+                    mat._calcrmt()
 
                 """
                 PART 3: update the atom info
@@ -1649,7 +1664,6 @@ class Rietveld(AbstractWPPF):
                     mat.calcBetaij()
 
                 if lpvary:
-                    mat._calcrmt()
                     updated_lp = True
 
                 if atominfo_vary:
@@ -1713,40 +1727,17 @@ class Rietveld(AbstractWPPF):
                     # / (2.0 * (1 + Ph))
                 )
 
-    def computespectrum(self):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab
-        >> @EMAIL:      saransh1@llnl.gov
-        >> @DATE:       06/08/2020 SS 1.0 original
-        >> @DETAILS:    compute the simulated spectrum
-        """
-        x = self.tth_list
-        y = np.zeros(x.shape)
-        tth_list = np.ascontiguousarray(self.tth_list)
-
+    def compute_intensities(self):
+        '''this function computes the intensities of the
+        xray diffraction excluding any texture. this function
+        will replace part of the code in the computespectrum
+        function
+        '''
+        Ic = {}
         for iph, p in enumerate(self.phases):
-
+            Ic[p] = {}
             for k, l in self.phases.wavelength.items():
-
-                name = self.phases[p][k].name
-                lam = l[0].getVal("nm")
-                shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
-                trns_c = np.sin(np.radians(self.tth[p][k])) * self.trns
-
-                sf_shift = 0.0
-                Xs = np.zeros(self.tth[p][k].shape)
-                if self.phases[p][k].sf_alpha is not None:
-                    alpha = getattr(self, f"{p}_sf_alpha")
-                    beta = getattr(self, f"{p}_twin_beta")
-                    sf_shift = alpha*np.tan(np.radians(0.5*self.tth[p][k])) *\
-                        self.sf_hkl_factors[p][k]
-                    Xs = np.degrees(0.9*(1.5*alpha+beta)*(
-                        self.sf_lfactor[p][k] *
-                        lam/self.phases[p][k].lparms[0]))
-
-                tth = self.tth[p][k] + self.zero_error + \
-                    shft_c + trns_c + sf_shift
-
+                tth = self.tth[p][k]
                 pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                 sf = self.sf[p][k]
                 lp = self.LP[p][k]
@@ -1761,71 +1752,160 @@ class Rietveld(AbstractWPPF):
                 extinction = extinction[:n]
                 absorption = absorption[:n]
 
-                Ic = self.scale * pf * sf * lp  # *extinction*absorption
+                Ic[p][k] = self.scale * pf * sf * lp  # *extinction*absorption
+        return Ic
 
-                dsp = self.dsp[p][k]
-                hkls = self.hkls[p][k]
+    def compute_tth_after_shifts(self,
+                                 p,
+                                 k):
+        '''another helper function to be used by both
+        Rietveld.computspectrum and Rietveld.computespectrum_2d
 
-                shkl = self.phases[p][k].shkl
-                eta_fwhm = getattr(self, f"{name}_eta_fwhm")
+        Parameters
+        ----------
 
-                X = getattr(self, f"{name}_X")
-                Y = getattr(self, f"{name}_Y")
-                P = getattr(self, f"{name}_P")
-                XY = np.array([X, Y])
+        p: str
+            name of the phase
+        k: str
+            wavelength key
+        '''
+        name = self.phases[p][k].name
+        lam = self.phases.wavelength[k][0].getVal("nm")
+        shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
+        trns_c = np.sin(np.radians(self.tth[p][k])) * self.trns
+        if self.phases[p][k].sf_alpha is None:
+            sf_shift = 0.0
+            Xs = np.zeros(self.tth[p][k].shape)
+        else:
+            alpha = getattr(self, f"{p}_sf_alpha")
+            beta = getattr(self, f"{p}_twin_beta")
+            sf_shift = alpha*np.tan(np.radians(0.5*self.tth[p][k])) *\
+                self.sf_hkl_factors[p][k]
+            Xs = np.degrees(0.9*(1.5*alpha+beta)*(
+                self.sf_lfactor[p][k] *
+                lam/self.phases[p][k].lparms[0]))
+        tth = self.tth[p][k] + self.zero_error + \
+            shft_c + trns_c + sf_shift
 
-                if self.peakshape == 0:
-                    args = (
-                        np.array([self.U, self.V, self.W]),
-                        P,
-                        XY,
-                        Xs,
-                        shkl,
-                        eta_fwhm,
-                        self.HL,
-                        self.SL,
-                        tth,
-                        dsp,
-                        hkls,
-                        tth_list,
-                        Ic,
-                        self.xn,
-                        self.wn,
-                    )
+        return tth, Xs
 
-                elif self.peakshape == 1:
-                    args = (
-                        np.array([self.U, self.V, self.W]),
-                        P,
-                        XY,
-                        Xs,
-                        shkl,
-                        eta_fwhm,
-                        tth,
-                        dsp,
-                        hkls,
-                        tth_list,
-                        Ic,
-                    )
 
-                elif self.peakshape == 2:
-                    args = (
-                        np.array([self.alpha0, self.alpha1]),
-                        np.array([self.beta0, self.beta1]),
-                        np.array([self.U, self.V, self.W]),
-                        P,
-                        XY,
-                        Xs,
-                        shkl,
-                        eta_fwhm,
-                        tth,
-                        dsp,
-                        hkls,
-                        tth_list,
-                        Ic,
-                    )
+    def computespectrum_phase(self,
+                              p,
+                              k,
+                              Ic,
+                              texture_factor=None):
+        '''this is a helper function so which is use by both the
+        Rietveld.computspectrum and Rietveld.computespectrum_2d
+        function to avoid code repetition.
 
-                y += self.computespectrum_fcn(*args)
+        Parameters
+        ----------
+
+        p: str
+            name of the phase
+        k: str
+            wavelength key
+        texture_factor: numpy.ndarray
+            azimuthally averaged texture factor
+        '''
+        tth_list = np.ascontiguousarray(self.tth_list)
+        name = self.phases[p][k].name
+
+        tth, Xs = self.compute_tth_after_shifts(p, k)
+
+        Icmod = Ic.copy()
+        if not texture_factor is None:
+            n = np.min((tth.shape[0], Ic.shape[0], texture_factor.shape[0]))
+            tth = tth[:n]
+            Icmod = Icmod[:n] * texture_factor[:n]  # *extinction*absorption
+
+        dsp = self.dsp[p][k]
+        hkls = self.hkls[p][k]
+        shkl = self.phases[p][k].shkl
+        eta_fwhm = getattr(self, f"{name}_eta_fwhm")
+        X = getattr(self, f"{name}_X")
+        Y = getattr(self, f"{name}_Y")
+        P = getattr(self, f"{name}_P")
+        XY = np.array([X, Y])
+
+        if self.peakshape == 0:
+            args = (
+                np.array([self.U, self.V, self.W]),
+                P,
+                XY,
+                Xs,
+                shkl,
+                eta_fwhm,
+                self.HL,
+                self.SL,
+                tth,
+                dsp,
+                hkls,
+                tth_list,
+                Icmod,
+                self.xn,
+                self.wn,
+            )
+        elif self.peakshape == 1:
+            args = (
+                np.array([self.U, self.V, self.W]),
+                P,
+                XY,
+                Xs,
+                shkl,
+                eta_fwhm,
+                tth,
+                dsp,
+                hkls,
+                tth_list,
+                Icmod,
+            )
+        elif self.peakshape == 2:
+            args = (
+                np.array([self.alpha0, self.alpha1]),
+                np.array([self.beta0, self.beta1]),
+                np.array([self.U, self.V, self.W]),
+                P,
+                XY,
+                Xs,
+                shkl,
+                eta_fwhm,
+                tth,
+                dsp,
+                hkls,
+                tth_list,
+                Icmod,
+            )
+        return self.computespectrum_fcn(*args)
+
+
+    def computespectrum(self):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab
+        >> @EMAIL:      saransh1@llnl.gov
+        >> @DATE:       06/08/2020 SS 1.0 original
+        >> @DETAILS:    compute the simulated spectrum
+        """
+
+        x = self.tth_list
+        y = np.zeros(x.shape)
+        Icomputed = self.compute_intensities()
+        for iph, p in enumerate(self.phases):
+
+            for k, l in self.phases.wavelength.items():
+
+                if self.texture_model[p] is None:
+                    texture_factor = None
+                else:
+                    texture_factor = self.texture_model[p].calc_texture_factor(
+                                            self.params,
+                                            eta_min=self.eta_min,
+                                            eta_max=self.eta_max)
+                y += self.computespectrum_phase(p,
+                                    k,
+                                    Icomputed[p][k],
+                                    texture_factor=texture_factor)
 
         if self.amorphous_model is not None:
             y += self.amorphous_model.amorphous_lineout
@@ -1839,6 +1919,99 @@ class Rietveld(AbstractWPPF):
             self.num_vary,
         )
         return errvec
+
+    def computespectrum_2D(self):
+        '''this function computes the 2D pattern for the
+        Rietevld model. if there is no texture, the pattern
+        is  uniform in the azimuthal direction. if there is
+        a texture model present, then the azimuthal intensities
+        are modulated based on the texture model.
+
+        Parameters
+        -----------
+
+        eta_min: float
+            minimum azimuthal angle
+        eta_max: float
+            maximum azimuthal angle
+        eta_step: float
+            step size in azimuth. this determines the
+            dimensions in the azimuthal direction
+
+        Returns
+        --------
+        simulated_2d: np.ndarray
+            simulated 2D diffraction pattern
+        '''
+        x = self.tth_list
+        y = np.zeros(x.shape)
+
+        azimuth = np.arange(self.eta_min,
+                            self.eta_max,
+                            self.eta_step)
+        nazimuth = azimuth.shape[0]
+
+        Icomputed = self.compute_intensities()
+
+        if self.texture_model is None:
+
+            for iph, p in enumerate(self.phases):
+                for k, l in self.phases.wavelength.items():
+                   y += self.computespectrum_phase(p,
+                                                   k,
+                                                   Icomputed[p][k],
+                                                   texture_factor=None)
+            y[self.global_mask] = np.nan
+            y += self.background.y
+            if self.amorphous_model is not None:
+                y += self.amorphous_model.amorphous_lineout
+
+            self.simulated_2d = np.tile(y, (nazimuth-1, 1))
+
+            return
+
+        else:
+            '''get pole figure intensities around the azimuth
+            '''
+            self.simulated_2d = np.empty([nazimuth-1, x.shape[0]])
+            azimuth_texture_factor = {}
+            for iph, p in enumerate(self.phases):
+                if p in self.texture_model:
+                    self.texture_model[p].calc_pf_rings(
+                                        self.params,
+                                        eta_min=self.eta_min,
+                                        eta_max=self.eta_max,
+                                        eta_step=self.eta_step,
+                                        calc_type='spectrum_2d')
+                    azimuth_texture_factor[p] = self.texture_model[p].intensities_rings_2d
+                else:
+                    azimuth_texture_factor[p] = None
+
+            for irow in range(1, nazimuth):
+                y = np.zeros(x.shape)
+                for iph, p in enumerate(self.phases):
+
+                    for k, l in self.phases.wavelength.items():
+                        hkls = self.hkls[p][k]
+                        texture_factor = None
+
+                        if not azimuth_texture_factor[p] is None:
+                            texture_factor = np.empty([hkls.shape[0], ])
+                            for ii,h in enumerate(hkls):
+                                hkey = tuple(h)
+                                texture_factor[ii] = azimuth_texture_factor[p][hkey][irow]
+
+                        y += self.computespectrum_phase(p,
+                                                        k,
+                                                        Icomputed[p][k],
+                                                        texture_factor=texture_factor)
+
+                y[self.global_mask] = np.nan
+                y += self.background.y
+                if self.amorphous_model is not None:
+                    y += self.amorphous_model.amorphous_lineout
+
+                self.simulated_2d[irow-1, :] = y
 
     def Refine(self):
         """
@@ -1874,6 +2047,55 @@ class Rietveld(AbstractWPPF):
             print(msg)
         else:
             print("Nothing to refine...")
+
+    def RefineTexture(self):
+        for name, model in self.texture_model.items():
+            if model is None:
+                continue
+
+            print(f'Refining texture parameters for "{name}"')
+            results = model.calculate_harmonic_coefficients(self.params)
+
+        # Set the results to the final one
+        self.res = results
+
+        self.computespectrum()
+        self.niter += 1
+        self.Rwplist = np.append(self.Rwplist, self.Rwp)
+        self.gofFlist = np.append(self.gofFlist, self.gofF)
+
+        msg = (f"Finished iteration. Rwp: "
+               f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}")
+        print(msg)
+
+    def texture_parameters_vary(self,
+                                vary=False):
+        '''helper function to turn texture related
+        parameters on or off
+        '''
+        for phase_name in self.phases:
+            prefix = f'{phase_name}_c_'
+            for p in self.params:
+                if p.startswith(prefix):
+                    self.params[p].vary = vary
+
+    @property
+    def any_texture_params_varied(self):
+        for phase_name in self.phases:
+            prefix = f'{phase_name}_c_'
+            for param in self.params.values():
+                if param.name.startswith(prefix) and param.vary:
+                    return True
+
+        return False
+
+    @property
+    def texture_models_have_pfdata(self):
+        for model in self.texture_model.values():
+            if not model.pfdata:
+                return False
+
+        return True
 
     @property
     def phases(self):
@@ -1960,6 +2182,162 @@ class Rietveld(AbstractWPPF):
                     self._phases[p][k].rqd_index,
                     self._phases[p][k].trig_ptype,
                 ) = wppfsupport._required_shkl_names(self._phases[p][k])
+
+    @property
+    def texture_model(self):
+        return self._texture_model
+
+    @texture_model.setter
+    def texture_model(self, valdict):
+        '''only dictionary key value pairs are acceptable.
+        key should match name of the phase. if a certain
+        phase is not present, texture model for that phase
+        is set to None
+        '''
+        if valdict is None:
+            valdict = {}
+
+        if not isinstance(valdict, dict):
+            msg = (
+                'only dictionary input allowed '
+                'where key are name of phase and '
+                'value is the harmonic_model instance'
+            )
+            raise ValueError(msg)
+
+        self._texture_model = valdict
+        for phase_name in self.phases:
+            if phase_name not in valdict:
+                self._texture_model[phase_name] = None
+
+    @property
+    def texture_index(self):
+        res = {}
+        for p in self.phases:
+            if self.texture_model[p] is not None:
+                res[p] = self.texture_model[p].J(self.params)
+            else:
+                res[p] = 1.
+        return res
+
+    @property
+    def eta_min(self):
+        return self._eta_min
+
+    @eta_min.setter
+    def eta_min(self, val):
+        self._eta_min = np.radians(val)
+
+    @property
+    def eta_max(self):
+        return self._eta_max
+
+    @eta_max.setter
+    def eta_max(self, val):
+        self._eta_max = np.radians(val)
+
+    @property
+    def eta_step(self):
+        return self._eta_step
+
+    @eta_step.setter
+    def eta_step(self, val):
+        self._eta_step = np.radians(val)
+
+    def compute_texture_data(self,
+                             pv_binned: np.ndarray,
+                             bvec: np.ndarray | None = None,
+                             evec: np.ndarray | None = None,
+                             azimuthal_interval: float = 5):
+        """Compute texture data to use in texture refinement
+
+        Using the current parameters on the Rietveld object, fit the peaks
+        to LeBail models in order to determine their intensities, and then
+        compute a dictionary of texture contributions. These texture
+        contributions are automatically set on the `pfdata` of the texture
+        models.
+
+        A simulated spectrum is returned.
+        """
+        # Use only the first lambda key, since it doesn't matter for LeBail
+        lambda_key = next(iter(self.wavelength))
+        mats = [v[lambda_key] for v in self.phases.phase_dict.values()]
+
+        # Create LeBail params to use for intensity-finding. When possible,
+        # we'll use the same params currently on the Rietveld object.
+        bkg_method = {'chebyshev': 1}
+        params = wppfsupport._generate_default_parameters_LeBail(
+            mats, 1, bkg_method)
+
+        for p in params:
+            params[p].value = self.params[p].value
+
+        # Ensure these are marked as `Vary`
+        params['U'].vary = True
+        params['V'].vary = True
+        params['W'].vary = True
+
+        # Allow lattice constants to vary as well
+        for mat in mats:
+            lp_names = [f"{mat.name}_{x}" for x in wppfsupport._lpname]
+            for name in lp_names:
+                if name in params:
+                    params[name].vary = True
+
+        # Compute the current intensities from Rietveld
+        ints_computed = self.compute_intensities()
+
+        # Extract the intensities from the data
+        mask = np.isnan(pv_binned)
+        results = extract_intensities(**{
+            'polar_view': np.ma.masked_array(pv_binned, mask=mask),
+            'tth_array': self.tth_list,
+            'params': params,
+            'phases': mats,
+            'wavelength': self.wavelength,
+            'bkgmethod': bkg_method,
+            'intensity_init': ints_computed,
+            'termination_condition': {
+                "rwp_perct_change": 0.05,
+                "max_iter": 10,
+            },
+            'peakshape': "pvtch",
+        })
+
+        # we have to divide by the computed instensites
+        # to get the texture contribution
+        for mat_key, model in self.texture_model.items():
+            if model is None:
+                continue
+
+            pfdata = {}
+            for ii in range(pv_binned.shape[0]):
+                eta = self.eta_min + (ii + 1) * np.radians(azimuthal_interval)
+                t = results[2][ii][mat_key][lambda_key]
+                hkl = results[1][ii][mat_key][lambda_key]
+                ints = results[0][ii][mat_key][lambda_key]
+                ints_comp = ints_computed[mat_key][lambda_key]
+
+                nn = np.min((t.shape[0], ints_comp.shape[0]))
+                for jj in range(nn):
+                    angs = np.atleast_2d([np.radians(t[jj]), eta, 0])
+                    v = angles_to_gvec(angs, beam_vec=bvec, eta_vec=evec)
+                    data = np.hstack((
+                        v,
+                        np.atleast_2d(ints[jj] / ints_comp[jj]),
+                    ))
+
+                    hkey = tuple(hkl[jj, :])
+                    if hkey in pfdata:
+                        # Stack with previous data
+                        data = np.vstack((pfdata[hkey], data))
+
+                    pfdata[hkey] = data
+
+            # Now set the texture data on the texture model
+            model.pfdata = pfdata
+
+        return results[4]
 
 
 def separate_regions(masked_spec_array):
@@ -2072,11 +2450,19 @@ def extract_intensities(
         "termination_condition": termination_condition,
         "peakshape": peakshape,
     }
+    func = partial(single_azimuthal_extraction, **kwargs)
 
-    P = GenericMultiprocessing()
-    results = P.parallelise_function(
-        data_inp_list, single_azimuthal_extraction, **kwargs
-    )
+    # We found that 3 max workers in a thread pool performed
+    # the best on our example dataset. This is likely because
+    # there is already parallelism going on in each thread.
+    # ProcessPoolExecutor was always slower.
+    # SETTING THIS TO 1 FOR NOW TO PREVENT CI ISSUES ON MAC
+    max_workers = 1
+    if max_workers > 1:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = list(executor.map(func, data_inp_list))
+    else:
+        results = [func(x) for x in data_inp_list]
 
     """
     process the outputs from the multiprocessing to make the
@@ -2126,18 +2512,19 @@ def single_azimuthal_extraction(
 
     kwargs = {
         "expt_spectrum": expt_spectrum,
-        "params": params,
+        # Make a deepcopy of params we pass to LeBail since it will modify them
+        "params": copy.deepcopy(params),
         "phases": phases,
         "wavelength": wavelength,
         "bkgmethod": bkgmethod,
         "peakshape": peakshape,
+        "intensity_init": intensity_init
     }
+    L = LeBail(**kwargs)
 
     # get termination conditions for the LeBail refinement
     del_rwp = termination_condition["rwp_perct_change"]
     max_iter = termination_condition["max_iter"]
-
-    L = LeBail(**kwargs)
 
     rel_error = 1.0
     init_error = 1.0

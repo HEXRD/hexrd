@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import copy
 import importlib.resources
 from pathlib import Path
 import warnings
@@ -14,7 +15,7 @@ from hexrd.material.unitcell import _calcstar, _rqpDict
 from hexrd.valunits import valWUnit
 from hexrd.wppf.xtal import (
     _calc_dspacing, _get_tth, _calcxrsf, _calc_extinction_factor,
-    _calc_absorption_factor,
+    _calc_absorption_factor, _get_sf_hkl_factors,
 )
 import hexrd.resources
 
@@ -59,6 +60,9 @@ class Material_LeBail(AbstractMaterial):
 
         if isinstance(material_obj, Material):
             self._init_from_materials(material_obj)
+            return
+        elif isinstance(material_obj, Material_Rietveld):
+            self._init_from_rietveld(material_obj)
             return
         elif material_obj is not None:
             raise ValueError(
@@ -107,12 +111,6 @@ class Material_LeBail(AbstractMaterial):
                                 material_obj.unitcell.beta,
                                 material_obj.unitcell.gamma])
 
-        self.dmt = material_obj.unitcell.dmt
-        self.rmt = material_obj.unitcell.rmt
-        self.dsm = material_obj.unitcell.dsm
-        self.rsm = material_obj.unitcell.rsm
-        self.vol = material_obj.unitcell.vol
-
         self.latticeType = material_obj.unitcell.latticeType
         self.sg_hmsymbol = material_obj.unitcell.sg_hmsymbol
 
@@ -134,6 +132,36 @@ class Material_LeBail(AbstractMaterial):
         self.symmorphic = material_obj.unitcell.symmorphic
 
         self.hkls = material_obj.planeData.getHKLs()
+
+        self._calcrmt()
+
+    def _init_from_rietveld(self, mat: 'Material_Rietveld'):
+        # Just copy over the attributes we need
+        attrs_to_copy = [
+            'name',
+            'dmin',
+            'sgnum',
+            'sgsetting',
+            'sg',
+            'lparms',
+            'latticeType',
+            'sg_hmsymbol',
+            'ih',
+            'ik',
+            'il',
+            'sf_alpha',
+            'twin_beta',
+            'SYM_SG',
+            'SYM_PG_d',
+            'SYM_PG_d_laue',
+            'SYM_PG_r',
+            'SYM_PG_r_laue',
+            'centrosymmetric',
+            'symmorphic',
+            'hkls',
+        ]
+        for name in attrs_to_copy:
+            setattr(self, name, copy.deepcopy(getattr(mat, name)))
 
         self._calcrmt()
 
@@ -254,26 +282,9 @@ class Material_LeBail(AbstractMaterial):
         if self.sgnum != 225:
             return None, None
 
-        hkls = self.hkls.astype(np.float64)
-        H2 = np.sum(hkls**2,axis=1)
-        multiplicity = []
-        Lfact = []
-        Lfact_broadening = []
-        for g in hkls:
-            gsym = self.CalcStar(g, 'r')
-            L0 = np.sum(gsym,axis=1)
-            sign = np.mod(L0, 3)
-            sign[sign == 2] = -1
-            multiplicity.append(gsym.shape[0])
-            Lfact.append(np.sum(L0*sign))
-            Lfact_broadening.append(np.sum(np.abs(L0)))
-
-        Lfact = np.array(Lfact)
-        multiplicity = np.array(multiplicity)
-        Lfact_broadening = np.array(Lfact_broadening)
-        Lfact_broadening = (H2*multiplicity)/Lfact_broadening
-        sf_f = (90.*np.sqrt(3)/np.pi**2)*Lfact/(H2*multiplicity)
-        return sf_f, Lfact_broadening
+        sym = self.SYM_PG_r.astype(float)
+        mat = self.rmt.astype(float)
+        return _get_sf_hkl_factors(self.hkls, sym, mat)
 
     def sf_and_twin_probability(self):
         self.sf_alpha = None
