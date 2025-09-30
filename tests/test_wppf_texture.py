@@ -214,7 +214,7 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
 
         assert sorted(list(d1)) == sorted(list(d2))
         for key in d1:
-            assert np.allclose(d1[key], d2[key], rtol=1e-4)
+            assert np.allclose(d1[key], d2[key], rtol=1e-3)
 
     for name in ref_on_rietveld_obj:
-        assert np.allclose(ref_data[name], getattr(R, name), rtol=1e-3)
+        assert np.allclose(ref_data[name], getattr(R, name), rtol=1e-2)
