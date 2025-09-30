@@ -1758,7 +1758,7 @@ class Rietveld(AbstractWPPF):
     def compute_tth_after_shifts(self,
                                  p,
                                  k):
-        '''another helper function to be used by both 
+        '''another helper function to be used by both
         Rietveld.computspectrum and Rietveld.computespectrum_2d
 
         Parameters
@@ -1795,7 +1795,7 @@ class Rietveld(AbstractWPPF):
                               k,
                               Ic,
                               texture_factor=None):
-        '''this is a helper function so which is use by both the 
+        '''this is a helper function so which is use by both the
         Rietveld.computspectrum and Rietveld.computespectrum_2d
         function to avoid code repetition.
 
@@ -1921,7 +1921,7 @@ class Rietveld(AbstractWPPF):
         return errvec
 
     def computespectrum_2D(self):
-        '''this function computes the 2D pattern for the 
+        '''this function computes the 2D pattern for the
         Rietevld model. if there is no texture, the pattern
         is  uniform in the azimuthal direction. if there is
         a texture model present, then the azimuthal intensities
@@ -2312,7 +2312,7 @@ class Rietveld(AbstractWPPF):
 
             pfdata = {}
             for ii in range(pv_binned.shape[0]):
-                eta = np.radians(-100 + (ii + 1) * azimuthal_interval)
+                eta = np.radians(self.eta_min + (ii + 1) * azimuthal_interval)
                 t = results[2][ii][mat_key][lambda_key]
                 hkl = results[1][ii][mat_key][lambda_key]
                 ints = results[0][ii][mat_key][lambda_key]
