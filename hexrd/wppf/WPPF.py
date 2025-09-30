@@ -1965,14 +1965,14 @@ class Rietveld(AbstractWPPF):
             if self.amorphous_model is not None:
                 y += self.amorphous_model.amorphous_lineout
 
-            self.simulated_2d = np.tile(y, (nazimuth, 1))
+            self.simulated_2d = np.tile(y, (nazimuth-1, 1))
 
             return
 
         else:
             '''get pole figure intensities around the azimuth
             '''
-            self.simulated_2d = np.empty([nazimuth, x.shape[0]])
+            self.simulated_2d = np.empty([nazimuth-1, x.shape[0]])
             azimuth_texture_factor = {}
             for iph, p in enumerate(self.phases):
                 if p in self.texture_model:
@@ -1986,7 +1986,7 @@ class Rietveld(AbstractWPPF):
                 else:
                     azimuth_texture_factor[p] = None
 
-            for irow in range(nazimuth):
+            for irow in range(1, nazimuth):
                 for iph, p in enumerate(self.phases):
 
                     for k, l in self.phases.wavelength.items():
@@ -2007,7 +2007,7 @@ class Rietveld(AbstractWPPF):
                 if self.amorphous_model is not None:
                     y += self.amorphous_model.amorphous_lineout
 
-                self.simulated_2d[irow, :] = y
+                self.simulated_2d[irow-1, :] = y
 
     def Refine(self):
         """
