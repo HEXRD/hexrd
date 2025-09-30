@@ -2312,7 +2312,7 @@ class Rietveld(AbstractWPPF):
 
             pfdata = {}
             for ii in range(pv_binned.shape[0]):
-                eta = np.radians(self.eta_min + (ii + 1) * azimuthal_interval)
+                eta = self.eta_min + (ii + 1) * np.radians(azimuthal_interval)
                 t = results[2][ii][mat_key][lambda_key]
                 hkl = results[1][ii][mat_key][lambda_key]
                 ints = results[0][ii][mat_key][lambda_key]
