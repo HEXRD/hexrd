@@ -79,8 +79,8 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
     polar_obj = PolarView(
         (2, 40),
         instr,
-        eta_min=-100.,
-        eta_max=100.,
+        eta_min=-180.,
+        eta_max=180.,
         pixel_size=(0.05, 0.1),
         cache_coordinate_map=True,
     )
@@ -134,7 +134,10 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
         'bkgmethod': {'chebyshev': 1},
         'peakshape': "pvtch",
         'phases': [mat],
-        'texture_model': {'Ni': hm}
+        'texture_model': {'Ni': hm},
+        'eta_min': -180,
+        'eta_max': 180,
+        'eta_step': 5,
     }
     R = Rietveld(**kwargs)
 
@@ -185,6 +188,9 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
     # R.spectrum_expt.plot(0, '-k', lw=2.5)
     # R.spectrum_sim.plot(1, '--r', lw=1.75)
 
+    # Compute the 2D spectrum
+    R.computespectrum_2D()
+
     # Load refs and verify they match
     ref_path = test_data_dir / 'test_wppf_texture_expected.npy'
     ref_data = np.load(ref_path, allow_pickle=True).item()
@@ -193,10 +199,22 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
         'stereo_radius': 'stereo_radius_new',
         'intensities': 'intensities_new',
     }
+
+    ref_on_rietveld_obj = [
+        'simulated_2d',
+    ]
+
     for ref_name, hm_name in ref_map.items():
+        if hm_name in ref_on_rietveld_obj:
+            # This one is on the Rietveld object
+            continue
+
         d1 = ref_data[ref_name]
         d2 = getattr(hm, hm_name)
 
         assert sorted(list(d1)) == sorted(list(d2))
         for key in d1:
             assert np.allclose(d1[key], d2[key], rtol=1e-5)
+
+    for name in ref_on_rietveld_obj:
+        assert np.allclose(ref_data[name], getattr(R, name), rtol=1e-3)
