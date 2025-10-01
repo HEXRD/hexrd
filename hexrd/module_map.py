@@ -2,11 +2,9 @@
 # on the file_map
 from collections import defaultdict
 import importlib
-import importlib.util
 import importlib.abc
 import importlib.machinery
 from pathlib import Path
-import pickle
 import sys
 from typing import Union
 
@@ -15,11 +13,9 @@ def path_to_module(path: Path) -> str:
     """
     Convert a path to a module name.
 
-
     e.g.
     * "package_remapper/remapper.py" -> "package_remapper.remapper"
     * "package_remapper/__init__.py" -> "package_remapper"
-
     """
     if path.suffix not in (".py", ""):
         raise ValueError(f"Expected a .py file, got {path}")
@@ -137,7 +133,50 @@ class ModuleAliasImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             raise ImportError(f"Module {fullname} not found in module_map")
 
         mapped_module, _mapped_fp = module_map[fullname]
-        sys.modules[fullname] = importlib.import_module(mapped_module)
+        base_mod = importlib.import_module(mapped_module)
+
+        extra_candidates: list[str] = []
+        for old_path, new_paths in file_map.items():
+            if path_to_module(old_path) == fullname:
+                for p in new_paths:
+                    candidate = path_to_module(p)
+                    if candidate != mapped_module:
+                        extra_candidates.append(candidate)
+                break
+
+        if extra_candidates:
+            for candidate in extra_candidates:
+                try:
+                    cand_mod = importlib.import_module(candidate)
+                except Exception:
+                    continue
+
+                if hasattr(base_mod, "__path__") and hasattr(cand_mod, "__path__"):
+                    try:
+                        for p in list(cand_mod.__path__):
+                            if p not in base_mod.__path__:
+                                base_mod.__path__.append(p)
+                    except Exception:
+                        pass
+
+                base_all = getattr(base_mod, "__all__", None)
+                cand_all = getattr(cand_mod, "__all__", None)
+                if cand_all:
+                    if base_all is None:
+                        base_mod.__all__ = list(cand_all)
+                    else:
+                        for name in cand_all:
+                            if name not in base_all:
+                                base_all.append(name)
+                        base_mod.__all__ = base_all
+
+                for name, val in cand_mod.__dict__.items():
+                    if name in ("__name__", "__file__", "__package__", "__path__", "__loader__", "__spec__"):
+                        continue
+                    if name not in base_mod.__dict__:
+                        base_mod.__dict__[name] = val
+
+        sys.modules[fullname] = base_mod
         return sys.modules[fullname]
 
 
