@@ -1149,7 +1149,10 @@ class HarmonicModel:
 
             calculated = np.concatenate((calculated, term))
 
-        return np.sqrt(self.weights*(measured - calculated)**2)
+        residual = np.sqrt(self.weights*(measured - calculated)**2)
+        if np.all(np.isnan(residual)):
+            return 1E10
+        return residual[~np.isnan(residual)]
 
     def recalculated_pf(self,
                         params,
