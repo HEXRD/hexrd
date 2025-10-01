@@ -5,8 +5,8 @@ import lmfit
 import numpy as np
 import pytest
 
-from hexrd.material import _angstroms, load_materials_hdf5, Material
-from hexrd.wppf import LeBail, Rietveld
+from hexrd.core.material import _angstroms, load_materials_hdf5, Material
+from hexrd.powder.wppf import LeBail, Rietveld
 
 
 @pytest.fixture

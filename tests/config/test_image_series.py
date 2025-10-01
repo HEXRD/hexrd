@@ -3,8 +3,8 @@ import tempfile
 
 from .common import TestConfig, test_data
 
-reference_data = \
-"""
+reference_data = (
+    """
 image_series:
   format: array
   data:
@@ -12,23 +12,20 @@ image_series:
       args: a1
     - filename: f2
       args: a2
-""" % test_data
+"""
+    % test_data
+)
 
 
 class TestImageSeries(TestConfig):
-
 
     @classmethod
     def get_reference_data(cls):
         return reference_data
 
-
     def test_format(self):
 
-        self.assertEqual(
-            'array',
-            self.cfgs[0].get('image_series:format')
-            )
+        self.assertEqual('array', self.cfgs[0].get('image_series:format'))
 
     def test_data(self):
 

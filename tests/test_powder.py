@@ -23,9 +23,7 @@ def ceria_examples_path(eiger_examples_path: Path) -> Path:
 
 @pytest.fixture
 def eiger_instrument(ceria_examples_path: Path) -> HEDMInstrument:
-    instr_path = (
-        ceria_examples_path / 'eiger_ceria_calibrated_composite.hexrd'
-    )
+    instr_path = ceria_examples_path / 'eiger_ceria_calibrated_composite.hexrd'
     with h5py.File(instr_path, 'r') as rf:
         return HEDMInstrument(rf)
 
@@ -164,8 +162,7 @@ def test_simulate_powder_pattern_image(
     eta_max = 180
     pixel_size = (0.1, 0.1)
     pv = PolarView(tth_range, instr, eta_min, eta_max, pixel_size)
-    img = pv.warp_image(img_dict, pad_with_nans=True,
-                        do_interpolation=True)
+    img = pv.warp_image(img_dict, pad_with_nans=True, do_interpolation=True)
 
     lineout = img.mean(axis=0).filled(np.nan)
 

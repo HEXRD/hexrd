@@ -2,7 +2,11 @@ import json
 
 import numpy as np
 
-from hexrd.utils.json import NumpyDecoder, NumpyEncoder, NumpyToNativeEncoder
+from hexrd.core.utils.json import (
+    NumpyDecoder,
+    NumpyEncoder,
+    NumpyToNativeEncoder,
+)
 
 
 def test_decode_encode():
@@ -46,16 +50,16 @@ def test_numpy_to_native():
     output = json.loads(encoded)
 
     assert (
-        isinstance(output['inside'], list) and
-        output['inside'] == to_test['inside'].tolist()
+        isinstance(output['inside'], list)
+        and output['inside'] == to_test['inside'].tolist()
     )
     assert (
-        isinstance(output['float'], float) and
-        output['float'] == to_test['float'].item()
+        isinstance(output['float'], float)
+        and output['float'] == to_test['float'].item()
     )
     assert (
-        isinstance(output['nested']['float'], list) and
-        output['nested']['float'] == to_test['nested']['float'].tolist()
+        isinstance(output['nested']['float'], list)
+        and output['nested']['float'] == to_test['nested']['float'].tolist()
     )
 
 
