@@ -183,8 +183,6 @@ def _add_Shkl_terms(params, mat, return_dict=None):
 
         for s in valid_shkl:
             n = f"{mname}_{s}"
-            ne = f"{mname}_eta_fwhm"
-
             params.add(
                 name=n,
                 value=0.0,
@@ -193,6 +191,7 @@ def _add_Shkl_terms(params, mat, return_dict=None):
                 vary=False,
             )
 
+        ne = f"{mname}_eta_fwhm"
         params.add(
             name=ne,
             value=0.5,
@@ -408,66 +407,11 @@ def _generate_default_parameters_LeBail(mat,
 
         _add_chebyshev_background(params, deg, init_val)
 
-    if isinstance(mat, Phases_LeBail):
-        """
-        phase file
-        """
-        for p in mat:
-            m = mat[p]
-            _add_phase_dependent_parameters_pseudovoight(params, m)
-            _add_Shkl_terms(params, m)
-            _add_lp_to_params(params, m)
-            _add_stacking_fault_parameters(params, m)
-
-    elif isinstance(mat, Phases_Rietveld):
-        """
-        phase file
-        """
-        for p in mat:
-            m = mat[p]
-            k = list(m.keys())
-            mm = m[k[0]]
-            _add_phase_dependent_parameters_pseudovoight(params, mm)
-            _add_Shkl_terms(params, mm)
-            _add_lp_to_params(params, mm)
-            _add_stacking_fault_parameters(params, mm)
-
-    elif isinstance(mat, Material):
-        """
-        just an instance of Materials class
-        this part initializes the lattice parameters in the
-        """
-        _add_phase_dependent_parameters_pseudovoight(params, mat)
-        _add_Shkl_terms(params, mat)
-        _add_lp_to_params(params, mat)
-        _add_stacking_fault_parameters(params, mat)
-
-    elif isinstance(mat, list):
-        """
-        a list of materials class
-        """
-        for m in mat:
-            _add_phase_dependent_parameters_pseudovoight(params, m)
-            _add_Shkl_terms(params, m)
-            _add_lp_to_params(params, m)
-            _add_stacking_fault_parameters(params, m)
-
-    elif isinstance(mat, dict):
-        """
-        dictionary of materials class
-        """
-        for k, m in mat.items():
-            _add_phase_dependent_parameters_pseudovoight(params, m)
-            _add_Shkl_terms(params, m)
-            _add_lp_to_params(params, m)
-            _add_stacking_fault_parameters(params, m)
-    else:
-        msg = (
-            f"_generate_default_parameters: "
-            f"incorrect argument. only list, dict or "
-            f"Material is accpeted."
-        )
-        raise ValueError(msg)
+    for m in _mat_list(mat):
+        _add_phase_dependent_parameters_pseudovoight(params, m)
+        _add_Shkl_terms(params, m)
+        _add_lp_to_params(params, m)
+        _add_stacking_fault_parameters(params, m)
 
     _generate_default_parameters_amorphous_model(params,
                                                  amorphous_model)
@@ -482,66 +426,28 @@ def _add_phase_fractions(mat, params):
     @details: ass phase fraction to params class
     given a list/dict/single instance of material class
     """
-    all_names = []
+    pf_list = []
+    mat_list = _mat_list(mat)
     if isinstance(mat, Phases_Rietveld):
-        """
-        phase file
-        """
-        pf = mat.phase_fraction
-        for ii,p in enumerate(mat):
-            name=f"{p}_phase_fraction"
-            params.add(
-                name=name, value=pf[ii],
-                min=0.0, max=1.0,
-                vary=False)
-            all_names.append(name)
-    elif isinstance(mat, Material):
-        """
-        just an instance of Materials class
-        this part initializes the lattice parameters in the
-        """
-        p = mat.name
-        name=f"{p}_phase_fraction"
-        params.add(
-            name=name, value=1.0,
-            min=0.0, max=1.0,
-            vary=False)
-        all_names.append(name)
-    elif isinstance(mat, list):
-        """
-        a list of materials class
-        """
-        pf = [1.0 / len(mat)] * len(mat)
-        for ii, m in enumerate(mat):
-            p = m.name
-            name=f"{p}_phase_fraction"
-            params.add(
-                name=name, value=pf[ii],
-                min=0.0, max=1.0,
-                vary=False)
-            all_names.append(name)
-    elif isinstance(mat, dict):
-        """
-        dictionary of materials class
-        """
-        pf = [1.0 / len(mat)] * len(mat)
-        for ii, (k, m) in enumerate(mat.items()):
-            p = m.name
-            name=f"{p}_phase_fraction"
-            params.add(
-                name=name, value=pf[ii],
-                min=0.0, max=1.0,
-                vary=False)
-            all_names.append(name)
+        # Use phase fraction setting
+        pf_list = mat.phase_fraction
     else:
-        msg = (
-            f"_generate_default_parameters: "
-            f"incorrect argument. only list, dict or "
-            f"Material is accpeted."
+        # Otherwise, evenly distribute among materials
+        pf_list = [1 / len(mat_list)] * len(mat_list)
+
+    all_names = [f'{x.name}_phase_fraction' for x in mat_list]
+    for name, pf in zip(all_names, pf_list):
+        params.add(
+            name=name,
+            value=pf,
+            min=0.0,
+            max=1.0,
+            vary=False,
         )
-        raise ValueError(msg)
 
     if all_names:
+        # Make the final one an expression using the other ones.
+        # This is so that they will always sum to 1.
         fixed_name = all_names[-1]
         if len(all_names) == 1:
             expr = '1'
@@ -551,6 +457,7 @@ def _add_phase_fractions(mat, params):
 
         params[fixed_name].expr = expr
 
+
 def _add_extinction_parameters(mat, params):
     return params
 
@@ -558,11 +465,21 @@ def _add_extinction_parameters(mat, params):
 def _add_absorption_parameters(mat, params):
     return params
 
+
+def _add_texture_model_parameters(texture_model, params):
+        if texture_model is not None:
+            for k, hm in texture_model.items():
+                if hm is not None:
+                    hm.get_parameters(params,
+                                      vary=False)
+
+
 def _generate_default_parameters_Rietveld(mat,
                                           peakshape,
                                           bkgmethod,
                                           init_val=None,
-                                          amorphous_model=None):
+                                          amorphous_model=None,
+                                          texture_model=None):
     """
     @author:  Saransh Singh, Lawrence Livermore National Lab
     @date:    03/12/2021 SS 1.0 original
@@ -592,45 +509,10 @@ def _generate_default_parameters_Rietveld(mat,
     _add_phase_fractions(mat, params)
     _add_extinction_parameters(mat, params)
     _add_absorption_parameters(mat, params)
+    _add_texture_model_parameters(texture_model, params)
 
-    if isinstance(mat, Phases_Rietveld):
-        """
-        phase file
-        """
-        for p in mat:
-            m = mat[p]
-            k = list(m.keys())
-            mm = m[k[0]]
-            _add_atominfo_to_params(params, mm)
-
-    elif isinstance(mat, Material):
-        """
-        just an instance of Materials class
-        this part initializes the lattice parameters in the
-        """
-        _add_atominfo_to_params(params, mat)
-
-    elif isinstance(mat, list):
-        """
-        a list of materials class
-        """
-        for m in mat:
-            _add_atominfo_to_params(params, m)
-
-    elif isinstance(mat, dict):
-        """
-        dictionary of materials class
-        """
-        for k, m in mat.items():
-            _add_atominfo_to_params(params, m)
-
-    else:
-        msg = (
-            f"_generate_default_parameters: "
-            f"incorrect argument. only list, dict or "
-            f"Material is accpeted."
-        )
-        raise ValueError(msg)
+    for m in _mat_list(mat):
+        _add_atominfo_to_params(params, m)
 
     return params
 
@@ -689,72 +571,6 @@ def _required_shkl_names(mat):
     return valid_shkl, eq_constraints, rqd_index, trig_ptype
 
 
-def _add_texture_coefficients(crystal_sym, sample_sym, name, degree):
-    """
-    add the texture coefficients for a particular phase
-    given its laue group. the crystal sym decides what the
-    symmetry of the crystal is and what coefficients to add. the
-    sample symmetry decides what the sample symmtry is. allowed ones
-    are
-    triclinic : -1
-    monoclinic: 2/m
-    orthorhombic: mmm
-    cylindrical: inf/mmm
-
-    if cylindrical symmetry is used, then the total coefficients used
-    are drastically reduced
-    """
-    pass
-
-
-def _add_texture_parameters(mat, degree):
-    """
-    @SS 06/22/2021 1.0 original
-    this routine adds the texture coefficients to the wppf
-    parameter list based on the material list and the
-    degree of harmonic coefficients passed. Also required is the
-    assumed sample symmetry. The same sample symmetry will be used
-    for each of the phases.
-    """
-    if isinstance(mat, Phases_Rietveld):
-        """
-        phase file
-        """
-        for p in mat:
-            m = mat[p]
-            k = list(m.keys())
-            mm = m[k[0]]
-            _add_atominfo_to_params(params, mm)
-
-    elif isinstance(mat, Material):
-        """
-        just an instance of Materials class
-        this part initializes the lattice parameters in the
-        """
-        _add_atominfo_to_params(params, mat)
-
-    elif isinstance(mat, list):
-        """
-        a list of materials class
-        """
-        for m in mat:
-            _add_atominfo_to_params(params, m)
-
-    elif isinstance(mat, dict):
-        """
-        dictionary of materials class
-        """
-        for k, m in mat.items():
-            _add_atominfo_to_params(params, m)
-
-    else:
-        msg = (
-            f"_generate_default_parameters: "
-            f"incorrect argument. only list, dict or "
-            f"Material is accpeted."
-        )
-        raise ValueError(msg)
-
 
 """
 this dictionary structure holds information for the shkl
@@ -764,36 +580,19 @@ second component of ist are the equality constraints with
 a weight factor (sometimes theres a factor of 2 or 3.)
 """
 _rqd_shkl = {
-    "cubic": [(0, 3), ((0, 1, 1.0), (0, 2, 1.0), (3, 4, 1.0), (3, 5, 1.0))],
-    "hexagonal": [
-        (0, 2, 4),
-        (
-            (0, 1, 1.0),
-            (0, 6, 2.0),
-            (0, 9, 2.0),
-            (0, 3, 3.0),
-            (4, 5, 1.0),
-            (4, 14, 1.0),
-        ),
-    ],
-    "trigonal": [
-        (0, 2, 4, 10),
-        (
-            (0, 1, 1.0),
-            (0, 6, 2.0),
-            (0, 9, 2.0),
-            (0, 3, 3.0),
-            (4, 5, 1.0),
-            (4, 14, 1.0),
-            (10, 8, -1.0),
-            (10, 12, 1.5),
-            (10, 13, -1.5),
-        ),
-    ],
-    "tetragonal": [(0, 2, 3, 4), ((0, 1, 1.0), (4, 5, 1.0))],
-    "orthorhombic": [tuple(range(6)), ()],
-    "monoclinic": [tuple(range(6)) + (7, 10, 13), ()],
-    "triclinic": [tuple(range(15)), ()],
+    "cubic": [(0, 3),
+              ((0,1,1.),(0,2,1.),(3,4,1.),(3,5,1.))],
+    "hexagonal": [(0, 2, 4),
+                  ((0,1,1.),(0,6,2.),(0,9,2.),(0,3,3.),
+                   (4,5,1.),(4,14,1.))],
+    "trigonal": [(0, 2, 4, 10),
+                 ((0,1,1.),(0,6,2.),(0,9,2.),(0,3,3.),
+                  (4,5,1.),(4,14,1.),
+                  (10,8,-1.),(10,12,1.5),(10,13,-1.5))],
+    "tetragonal": [(0, 2, 3, 4),((0,1,1.),(4,5,1.))],
+    "orthorhombic": [tuple(range(6)),()],
+    "monoclinic": [tuple(range(6))+(7, 10, 13),()],
+    "triclinic": [tuple(range(15)),()],
 }
 
 
@@ -826,17 +625,18 @@ def _add_detector_geometry(params, instr):
         raise ValueError(msg)
 
 
-def _add_background(params, lineouts, bkgdegree):
+def _add_background(params,lineouts,bkgdegree):
     for k in lineouts:
         pname = [f"{k}_bkg_C{ii}" for ii in range(bkgdegree)]
         shape = len(pname)
         [params.add(name=pname[i],value=0.0) for i in range(shape)]
 
+
 def striphkl(g):
     return str(g)[1:-1].replace(" ", "")
 
 
-def _add_intensity_parameters(params, hkls, Icalc, prefix):
+def _add_intensity_parameters(params,hkls,Icalc,prefix):
     """
     this routine adds the Icalc values as refinable
     parameters in the params parameter class
@@ -848,8 +648,8 @@ def _add_intensity_parameters(params, hkls, Icalc, prefix):
             pname = [f"{prefix}_{p}_{k}_I{striphkl(g)}"
                      for i,g in zip(range(shape),hkls[p][k])]
             [params.add(name=pname[i],
-                value=Icalc[p][k][i],
-                min=0.0) for i in range(shape)]
+                        value=Icalc[p][k][i],
+                        min=0.0) for i in range(shape)]
 
 
 def _sanitize_material_names(mats):
@@ -869,6 +669,26 @@ def _sanitize_material_names(mats):
                 mat.name = mat.name.replace('-', '_')
 
     return mats
+
+
+def _mat_list(mat):
+    # Make a list of unique materials depending on
+    # what the argument of `mat` is.
+    if isinstance(mat, Phases_LeBail):
+        return list(mat.phase_dict.values())
+    elif isinstance(mat, Phases_Rietveld):
+        # Get the first wavelength name
+        k = next(iter(next(iter(mat.phase_dict.values()))))
+        return [d[k] for d in mat.phase_dict.values()]
+    elif isinstance(mat, Material):
+        return [mat]
+    elif isinstance(mat, list):
+        return mat
+    elif isinstance(mat, dict):
+        return list(mat.values())
+
+    msg = "incorrect argument. only list, dict or Material is accpeted."
+    raise ValueError(msg)
 
 
 background_methods = {

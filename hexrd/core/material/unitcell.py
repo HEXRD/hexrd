@@ -592,28 +592,19 @@ class unitcell:
         this function calculates the symmetrically equivalent hkls (or uvws)
         for the reciprocal (or direct) point group symmetry.
         '''
-        if space == 'd':
-            mat = self.dmt.astype(np.float64)
-            if applyLaue:
-                sym = self.SYM_PG_d_laue.astype(np.float64)
-            else:
-                sym = self.SYM_PG_d.astype(np.float64)
-        elif space == 'r':
-            mat = self.rmt.astype(np.float64)
-            if applyLaue:
-                sym = self.SYM_PG_r_laue.astype(np.float64)
-            else:
-                sym = self.SYM_PG_r.astype(np.float64)
-        elif space == 'c':
-            mat = np.eye(3)
-            if applyLaue:
-                sym = self.SYM_PG_c_laue.astype(np.float64)
-            else:
-                sym = self.SYM_PG_c.astype(np.float64)
-        else:
+        if space not in ('d', 'r', 'c'):
             raise ValueError('CalcStar: unrecognized space.')
 
-        vv = np.array(v).astype(np.float64)
+        if space == 'c':
+            mat = np.eye(3)
+        else:
+            mat = (self.dmt if space == 'd' else self.rmt).astype(float)
+
+        suffix = '_laue' if applyLaue else ''
+        name = f'SYM_PG_{space}{suffix}'
+        sym = getattr(self, name).astype(float)
+
+        vv = np.asarray(v).astype(float)
         return _calcstar(vv, sym, mat)
 
     def CalcPositions(self):

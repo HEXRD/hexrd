@@ -1,24 +1,39 @@
-import numpy as np
-from hexrd.core.valunits import valWUnit
-from hexrd.core.material.spacegroup import Allowed_HKLs, SpaceGroup
-from hexrd.core import constants
-from hexrd.core.material import symmetry, symbols
-from hexrd.core.material import Material
-from hexrd.core.material.unitcell import _rqpDict
-from hexrd.powder.wppf import wppfsupport
-from hexrd.powder.wppf.xtal import (
-    _calc_dspacing,
-    _get_tth,
-    _calcxrsf,
-    _calc_extinction_factor,
-    _calc_absorption_factor,
-)
-import h5py
+from abc import ABC, abstractmethod
+import copy
 import importlib.resources
+from pathlib import Path
+import warnings
+
+import h5py
+import numpy as np
+import yaml
+
+from hexrd.core import constants
+from hexrd.core.material import Material, symmetry, symbols
+from hexrd.core.material.spacegroup import Allowed_HKLs, SpaceGroup
+from hexrd.core.material.unitcell import _calcstar, _rqpDict
+from hexrd.core.valunits import valWUnit
+from hexrd.powder.wppf.xtal import (
+    _calc_dspacing, _get_tth, _calcxrsf, _calc_extinction_factor,
+    _calc_absorption_factor, _get_sf_hkl_factors,
+)
 import hexrd.core.resources
 
 
-class Material_LeBail:
+def _kev(x):
+    return valWUnit('beamenergy', 'energy', x, 'keV')
+
+
+def _nm(x):
+    return valWUnit('lp', 'length', x, 'nm')
+
+
+class AbstractMaterial:
+    # This only exists as a placeholder for return annotation
+    pass
+
+
+class Material_LeBail(AbstractMaterial):
     """
     ========================================================================================
     ========================================================================================
@@ -35,68 +50,42 @@ class Material_LeBail:
     =========================================================================================
     =========================================================================================
     """
+    def __init__(self,
+                 fhdf=None,
+                 xtal=None,
+                 dmin=None,
+                 material_obj=None):
 
-    def __init__(self, fhdf=None, xtal=None, dmin=None, material_obj=None):
-
-        if material_obj is None:
-            self.dmin = dmin.value
-            self._readHDF(fhdf, xtal)
-            self._calcrmt()
-            self.sf_and_twin_probability()
-            (
-                _,
-                self.SYM_PG_d,
-                self.SYM_PG_d_laue,
-                self.centrosymmetric,
-                self.symmorphic,
-            ) = symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
-            self.latticeType = symmetry.latticeType(self.sgnum)
-            self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum - 1].strip()
-            self.GenerateRecipPGSym()
-            self.CalcMaxGIndex()
-            self._calchkls()
-            self.sg = SpaceGroup(self.sgnum)
-
-        else:
-            if isinstance(material_obj, Material):
-                self._init_from_materials(material_obj)
-            else:
-                raise ValueError(
-                    "Invalid material_obj argument. \
-                    only Material class can be passed here."
-                )
         self._shkl = np.zeros((15,))
 
-    def _readHDF(self, fhdf, xtal):
+        if isinstance(material_obj, Material):
+            self._init_from_materials(material_obj)
+            return
+        elif isinstance(material_obj, Material_Rietveld):
+            self._init_from_rietveld(material_obj)
+            return
+        elif material_obj is not None:
+            raise ValueError(
+                "Invalid material_obj argument. \
+                only Material class can be passed here.")
 
-        # fexist = path.exists(fhdf)
-        # if(fexist):
-        fid = h5py.File(fhdf, 'r')
-        name = xtal
-        xtal = "/" + xtal
-        if xtal not in fid:
-            raise IOError('crystal doesn' 't exist in material file.')
-        # else:
-        #   raise IOError('material file does not exist.')
-
-        gid = fid.get(xtal)
-
-        self.sgnum = np.asscalar(
-            np.array(gid.get('SpaceGroupNumber'), dtype=np.int32)
-        )
-        self.sgsetting = np.asscalar(
-            np.array(gid.get('SpaceGroupSetting'), dtype=np.int32)
-        )
+        # Default initialization without a material
         """
-            IMPORTANT NOTE:
-            note that the latice parameters is nm by default
-            hexrd on the other hand uses A as the default units, so we
-            need to be careful and convert it right here, so there is no
-            confusion later on
+        dmin in nm
         """
-        self.lparms = list(gid.get('LatticeParameters'))
-        self.name = name.replace('-', '_')
-        fid.close()
+        self.dmin = dmin.value
+        self._readHDF(fhdf, xtal)
+        self._calcrmt()
+        self.sf_and_twin_probability()
+        self.SYM_SG, self.SYM_PG_d, self.SYM_PG_d_laue, \
+            self.centrosymmetric, self.symmorphic = \
+            symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
+        self.latticeType = symmetry.latticeType(self.sgnum)
+        self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum-1].strip()
+        self.GenerateRecipPGSym()
+        self.CalcMaxGIndex()
+        self._calchkls()
+        self.sg = SpaceGroup(self.sgnum)
 
     def _init_from_materials(self, material_obj):
         """
@@ -114,36 +103,87 @@ class Material_LeBail:
         self.sg = SpaceGroup(self.sgnum)
         self.sf_and_twin_probability()
 
-        if material_obj.latticeParameters[0].unit == 'nm':
-            self.lparms = [x.value for x in material_obj.latticeParameters]
-        elif material_obj.latticeParameters[0].unit == 'angstrom':
-            lparms = [x.value for x in material_obj.latticeParameters]
-            for i in range(3):
-                lparms[i] /= 10.0
-            self.lparms = lparms
-
-        self.dmt = material_obj.unitcell.dmt
-        self.rmt = material_obj.unitcell.rmt
-        self.dsm = material_obj.unitcell.dsm
-        self.rsm = material_obj.unitcell.rsm
-        self.vol = material_obj.unitcell.vol
-
-        self.centrosymmetric = material_obj.unitcell.centrosymmetric
-        self.symmorphic = material_obj.unitcell.symmorphic
+        # lattice parameters
+        self.lparms = np.array([material_obj.unitcell.a,
+                                material_obj.unitcell.b,
+                                material_obj.unitcell.c,
+                                material_obj.unitcell.alpha,
+                                material_obj.unitcell.beta,
+                                material_obj.unitcell.gamma])
 
         self.latticeType = material_obj.unitcell.latticeType
         self.sg_hmsymbol = material_obj.unitcell.sg_hmsymbol
 
+        # get maximum indices for sampling hkl
         self.ih = material_obj.unitcell.ih
         self.ik = material_obj.unitcell.ik
         self.il = material_obj.unitcell.il
 
+        """ get all space and point group symmetry operators
+         in direct space, including the laue group. reciprocal
+         space point group symmetries also included """
+        self.SYM_SG = material_obj.unitcell.SYM_SG
         self.SYM_PG_d = material_obj.unitcell.SYM_PG_d
         self.SYM_PG_d_laue = material_obj.unitcell.SYM_PG_d_laue
         self.SYM_PG_r = material_obj.unitcell.SYM_PG_r
         self.SYM_PG_r_laue = material_obj.unitcell.SYM_PG_r_laue
 
+        self.centrosymmetric = material_obj.unitcell.centrosymmetric
+        self.symmorphic = material_obj.unitcell.symmorphic
+
         self.hkls = material_obj.planeData.getHKLs()
+
+        self._calcrmt()
+
+    def _init_from_rietveld(self, mat: 'Material_Rietveld'):
+        # Just copy over the attributes we need
+        attrs_to_copy = [
+            'name',
+            'dmin',
+            'sgnum',
+            'sgsetting',
+            'sg',
+            'lparms',
+            'latticeType',
+            'sg_hmsymbol',
+            'ih',
+            'ik',
+            'il',
+            'sf_alpha',
+            'twin_beta',
+            'SYM_SG',
+            'SYM_PG_d',
+            'SYM_PG_d_laue',
+            'SYM_PG_r',
+            'SYM_PG_r_laue',
+            'centrosymmetric',
+            'symmorphic',
+            'hkls',
+        ]
+        for name in attrs_to_copy:
+            setattr(self, name, copy.deepcopy(getattr(mat, name)))
+
+        self._calcrmt()
+
+    def _readHDF(self, fhdf, xtal):
+        with h5py.File(fhdf, 'r') as f:
+            name = xtal
+            if xtal not in f:
+                raise IOError("crystal doesn't exist in material file.")
+
+            group = f[xtal]
+
+            self.sgnum = group['SpaceGroupNumber']
+            self.sgsetting = group['SpaceGroupSetting']
+            """
+                IMPORTANT NOTE:
+                note that the latice parameters in EMsoft is nm by default
+                hexrd on the other hand uses A as the default units, so we
+                need to be careful and convert it right here, so there is no
+                confusion later on
+            """
+            self.lparms = list(group['LatticeParameters'])
+            self.name = name.replace('-', '_')
 
     def _calcrmt(self):
         """
@@ -161,8 +201,6 @@ class Material_LeBail:
         ca = np.cos(alpha)
         cb = np.cos(beta)
         cg = np.cos(gamma)
-        sa = np.sin(alpha)
-        sb = np.sin(beta)
         sg = np.sin(gamma)
         tg = np.tan(gamma)
 
@@ -189,63 +227,44 @@ class Material_LeBail:
         """
             direct structure matrix
         """
-        self.dsm = np.array(
-            [
-                [a, b * cg, c * cb],
-                [0.0, b * sg, -c * (cb * cg - ca) / sg],
-                [0.0, 0.0, self.vol / (a * b * sg)],
-            ]
-        )
-
+        self.dsm = np.array([[a, b*cg, c*cb],
+                             [0., b*sg, -c*(cb*cg - ca)/sg],
+                             [0., 0., self.vol/(a*b*sg)]])
         """
             reciprocal structure matrix
         """
-        self.rsm = np.array(
-            [
-                [1.0 / a, 0.0, 0.0],
-                [-1.0 / (a * tg), 1.0 / (b * sg), 0.0],
-                [
-                    b * c * (cg * ca - cb) / (self.vol * sg),
-                    a * c * (cb * cg - ca) / (self.vol * sg),
-                    a * b * sg / self.vol,
-                ],
-            ]
-        )
-
-    def _calchkls(self):
-        self.hkls = self.getHKLs(self.dmin)
+        self.rsm = np.array([[1./a, 0., 0.],
+                             [-1./(a*tg), 1./(b*sg), 0.],
+                             [b*c*(cg*ca - cb)/(self.vol*sg),
+                              a*c*(cb*cg - ca)/(self.vol*sg),
+                              a*b*sg/self.vol]])
 
     """ calculate dot product of two vectors in any space 'd' 'r' or 'c' """
 
     def CalcLength(self, u, space):
+        if space == 'c':
+            return np.linalg.norm(u)
 
-        if space == 'd':
-            vlen = np.sqrt(np.dot(u, np.dot(self.dmt, u)))
-        elif space == 'r':
-            vlen = np.sqrt(np.dot(u, np.dot(self.rmt, u)))
-        elif spec == 'c':
-            vlen = np.linalg.norm(u)
-        else:
+        if space not in ('d', 'r'):
             raise ValueError('incorrect space argument')
 
-        return vlen
+        lhs = self.dmt if space == 'd' else self.rmt
+        return np.sqrt(np.dot(u, np.dot(lhs, u)))
 
     def CalcDot(self, u, v, space):
-        if space == 'd':
-            dot = np.dot(u, np.dot(self.dmt, v))
-        elif space == 'r':
-            dot = np.dot(u, np.dot(self.rmt, v))
-        elif space == 'c':
-            dot = np.dot(u, v)
-        else:
+        if space == 'c':
+            return np.dot(u, v)
+
+        if space not in ('d', 'r'):
             raise ValueError('space is unidentified')
-        return dot
+
+        lhs = self.dmt if space == 'd' else self.rmt
+        return np.dot(u, np.dot(lhs, v))
 
     def getTTh(self, wavelength):
-
-        tth = []
         self.dsp = _calc_dspacing(
-            self.rmt.astype(np.float64), self.hkls.astype(np.float64)
+            self.rmt.astype(np.float64),
+            self.hkls.astype(np.float64),
         )
         tth, wavelength_allowed_hkls = _get_tth(self.dsp, wavelength)
         self.wavelength_allowed_hkls = wavelength_allowed_hkls.astype(bool)
@@ -264,30 +283,12 @@ class Material_LeBail:
         adding a guard rail so that the function only
         returns for sgnum 225
         """
-        if self.sgnum == 225:
-            hkls = self.hkls.astype(np.float64)
-            H2 = np.sum(hkls**2, axis=1)
-            sf_affected = []
-            multiplicity = []
-            Lfact = []
-            Lfact_broadening = []
-            for g in hkls:
-                gsym = self.CalcStar(g, 'r')
-                L0 = np.sum(gsym, axis=1)
-                sign = np.mod(L0, 3)
-                sign[sign == 2] = -1
-                multiplicity.append(gsym.shape[0])
-                Lfact.append(np.sum(L0 * sign))
-                Lfact_broadening.append(np.sum(np.abs(L0 * sign)))
-
-            Lfact = np.array(Lfact)
-            multiplicity = np.array(multiplicity)
-            Lfact_broadening = np.array(Lfact_broadening)
-            Lfact_broadening = Lfact_broadening / (np.sqrt(H2) * multiplicity)
-            sf_f = (90.0 * np.sqrt(3) / np.pi**2) * Lfact / (H2 * multiplicity)
-            return sf_f, Lfact_broadening
-        else:
+        if self.sgnum != 225:
             return None, None
+
+        sym = self.SYM_PG_r.astype(float)
+        mat = self.rmt.astype(float)
+        return _get_sf_hkl_factors(self.hkls, sym, mat)
 
     def sf_and_twin_probability(self):
         self.sf_alpha = None
@@ -327,18 +328,14 @@ class Material_LeBail:
         ):
             self.ih = self.ih + 1
         self.ik = 1
-        while (
-            1.0
-            / self.CalcLength(np.array([0, self.ik, 0], dtype=np.float64), 'r')
-            > self.dmin
-        ):
+        while (1.0 / self.CalcLength(
+                np.array([0, self.ik, 0], dtype=np.float64), 'r') >
+                self.dmin):
             self.ik = self.ik + 1
         self.il = 1
-        while (
-            1.0
-            / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64), 'r')
-            > self.dmin
-        ):
+        while (1.0 / self.CalcLength(
+                np.array([0, 0, self.il], dtype=np.float64), 'r') >
+                self.dmin):
             self.il = self.il + 1
 
     def CalcStar(self, v, space, applyLaue=False):
@@ -346,30 +343,15 @@ class Material_LeBail:
         this function calculates the symmetrically equivalent hkls (or uvws)
         for the reciprocal (or direct) point group symmetry.
         """
-        if space == 'd':
-            if applyLaue:
-                sym = self.SYM_PG_d_laue
-            else:
-                sym = self.SYM_PG_d
-        elif space == 'r':
-            if applyLaue:
-                sym = self.SYM_PG_r_laue
-            else:
-                sym = self.SYM_PG_r
-        else:
+        if space not in ('d', 'r'):
             raise ValueError('CalcStar: unrecognized space.')
-        vsym = np.atleast_2d(v)
-        for s in sym:
-            vp = np.dot(s, v)
-            # check if this is new
-            isnew = True
-            for vec in vsym:
-                if np.sum(np.abs(vp - vec)) < 1e-4:
-                    isnew = False
-                    break
-            if isnew:
-                vsym = np.vstack((vsym, vp))
-        return vsym
+
+        suffix = '_laue' if applyLaue else ''
+        name = f'SYM_PG_{space}{suffix}'
+        sym = getattr(self, name).astype(float)
+        v = np.asarray(v).astype(float)
+        mat = (self.dmt if space == 'd' else self.rmt).astype(float)
+        return _calcstar(v, sym, mat)
 
     def removeinversion(self, ksym):
         """
@@ -389,7 +371,7 @@ class Material_LeBail:
                     klist.append(nkk)
 
             else:
-                if (kk in klist) or (nkk in klist):
+                if kk in klist or nkk in klist:
                     pass
                 else:
                     klist.append(kk)
@@ -447,6 +429,9 @@ class Material_LeBail:
         isort = np.argsort(a, order=['glen', 'max', 'sum', 'l', 'k', 'h'])
         return hkllist[isort, :]
 
+    def _calchkls(self):
+        self.hkls = self.getHKLs(self.dmin)
+
     def getHKLs(self, dmin):
         """
         this function generates the symetrically unique set of
@@ -475,7 +460,6 @@ class Material_LeBail:
         )
         hkl_allowed = Allowed_HKLs(self.sgnum, hkllist)
         hkl = []
-        dsp = []
         hkl_dsp = []
         for g in hkl_allowed:
             # ignore [0 0 0] as it is the direct beam
@@ -500,8 +484,7 @@ class Material_LeBail:
         """
         finally sort in order of decreasing dspacing
         """
-        self.hkl = self.SortHKL(hkl)
-        return self.hkl
+        return self.SortHKL(hkl)
 
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)
@@ -516,207 +499,12 @@ class Material_LeBail:
         set the shkl as array
         """
         if len(val) != 15:
-            msg = f"incorrect shape for shkl. " f"shape should be (15, )."
-            raise ValueError(msg)
+            raise ValueError("shkl shape must be (15, )")
 
         self._shkl = val
 
 
-class Phases_LeBail:
-    """
-    ========================================================================================
-    ========================================================================================
-    >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-    >> @DATE:       05/20/2020 SS 1.0 original
-    >> @DETAILS:    class to handle different phases in the LeBail fit. this is a stripped down
-                    version of main Phase class for efficiency. only the
-                    components necessary for calculating peak positions are retained. further
-                    this will have a slight modification to account for different wavelengths
-                    in the same phase name
-    =========================================================================================
-    =========================================================================================
-    """
-
-    def _kev(x):
-        return valWUnit('beamenergy', 'energy', x, 'keV')
-
-    def _nm(x):
-        return valWUnit('lp', 'length', x, 'nm')
-
-    def __init__(
-        self,
-        material_file=None,
-        material_keys=None,
-        dmin=_nm(0.05),
-        wavelength={
-            'alpha1': [_nm(0.15406), 1.0],
-            'alpha2': [_nm(0.154443), 0.52],
-        },
-    ):
-
-        self.phase_dict = {}
-        self.num_phases = 0
-
-        """
-        set wavelength. check if wavelength is supplied in A, if it is
-        convert to nm since the rest of the code assumes those units
-        """
-        wavelength_nm = {}
-        for k, v in wavelength.items():
-            wavelength_nm[k] = [
-                valWUnit('lp', 'length', v[0].getVal('nm'), 'nm'),
-                v[1],
-            ]
-
-        self.wavelength = wavelength_nm
-
-        self.dmin = dmin
-
-        if material_file is not None:
-            if material_keys is not None:
-                if type(material_keys) is not list:
-                    self.add(material_file, material_keys)
-                else:
-                    self.add_many(material_file, material_keys)
-
-    def __str__(self):
-        resstr = 'Phases in calculation:\n'
-        for i, k in enumerate(self.phase_dict.keys()):
-            resstr += '\t' + str(i + 1) + '. ' + k + '\n'
-        return resstr
-
-    def __getitem__(self, key):
-        # Always sanitize the material name since lmfit won't accept '-'
-        key = key.replace('-', '_')
-
-        if(key in self.phase_dict.keys()):
-            return self.phase_dict[key]
-        else:
-            raise ValueError('phase with name not found')
-
-    def __setitem__(self, key, mat_cls):
-        # Always sanitize the material name since lmfit won't accept '-'
-        key = key.replace('-', '_')
-
-        if key in self.phase_dict.keys():
-            warnings.warn(
-                'phase already in parameter \
-                list. overwriting ...'
-            )
-        if isinstance(mat_cls, Material_LeBail):
-            self.phase_dict[key] = mat_cls
-        else:
-            raise ValueError('input not a material class')
-
-    def __iter__(self):
-        return iter(self.phase_dict)
-
-    def __len__(self):
-        return len(self.phase_dict)
-
-    def add(self, material_file, material_key):
-
-        self[material_key] = Material_LeBail(
-            fhdf=material_file, xtal=material_key, dmin=self.dmin
-        )
-
-    def add_many(self, material_file, material_keys):
-
-        for k in material_keys:
-
-            self[k] = Material_LeBail(
-                fhdf=material_file, xtal=k, dmin=self.dmin
-            )
-
-            self.num_phases += 1
-
-        for k in self:
-            self[k].pf = 1.0 / len(self)
-
-        self.material_file = material_file
-        self.material_keys = [k.replace('-', '_') for k in material_keys]
-
-    def load(self, fname):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       06/08/2020 SS 1.0 original
-        >> @DETAILS:    load parameters from yaml file
-        """
-        with open(fname) as file:
-            dic = yaml.load(file, Loader=yaml.FullLoader)
-
-        for mfile in dic.keys():
-            mat_keys = list(dic[mfile])
-            self.add_many(mfile, mat_keys)
-
-    def dump(self, fname):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       06/08/2020 SS 1.0 original
-        >> @DETAILS:    dump parameters to yaml file
-        """
-        dic = {}
-        k = self.material_file
-        dic[k] = [m for m in self]
-
-        with open(fname, 'w') as f:
-            data = yaml.safe_dump(dic, f, sort_keys=False)
-
-    def dump_hdf5(self, file):
-        """
-        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
-        >> @DATE:       01/15/2021 SS 1.0 original
-        >> @ DETAILS    dumps the information from each material in the phase class
-                        to a hdf5 file specified by filename or h5py.File object
-        """
-        if isinstance(file, str):
-            fexist = path.isfile(file)
-            if fexist:
-                fid = h5py.File(file, 'r+')
-            else:
-                fid = h5py.File(file, 'x')
-
-        elif isinstance(file, h5py.File):
-            fid = file
-
-        else:
-            raise RuntimeError(
-                'Parameters: dump_hdf5 Pass in a filename \
-                string or h5py.File object'
-            )
-
-        if "/Phases" in fid:
-            del fid["Phases"]
-        gid_top = fid.create_group("Phases")
-
-        for p in self:
-            mat = self[p]
-
-            sgnum = mat.sgnum
-            sgsetting = mat.sgsetting
-            lparms = mat.lparms
-            dmin = mat.dmin
-            hkls = mat.hkls
-
-            gid = gid_top.create_group(p)
-
-            did = gid.create_dataset("SpaceGroupNumber", (1,), dtype=np.int32)
-            did.write_direct(np.array(sgnum, dtype=np.int32))
-
-            did = gid.create_dataset("SpaceGroupSetting", (1,), dtype=np.int32)
-            did.write_direct(np.array(sgsetting, dtype=np.int32))
-
-            did = gid.create_dataset(
-                "LatticeParameters", (6,), dtype=np.float64
-            )
-            did.write_direct(np.array(lparms, dtype=np.float64))
-
-            did = gid.create_dataset("dmin", (1,), dtype=np.float64)
-            did.attrs["units"] = "nm"
-            did.write_direct(np.array(dmin, dtype=np.float64))
-
-
-class Material_Rietveld:
+class Material_Rietveld(Material_LeBail):
     """
     ===========================================================================================
     ===========================================================================================
@@ -733,94 +521,44 @@ class Material_Rietveld:
      ==========================================================================================
     """
 
-    def __init__(
-        self, fhdf=None, xtal=None, dmin=None, kev=None, material_obj=None
-    ):
+    def __init__(self,
+                 fhdf=None,
+                 xtal=None,
+                 dmin=None,
+                 kev=None,
+                 material_obj=None):
+        # First, initialize the LeBail-specific stuff
+        super().__init__(fhdf, xtal, dmin, material_obj)
 
-        self._shkl = np.zeros((15,))
+        # Now initialize Rietveld-specific stuff
+        # If `material_object` is not `None`, then
+        # `_init_from_materials()` will have already been called.
         self.abs_fact = 1e4
         if material_obj is None:
-            """
-            dmin in nm
-            """
-            self.dmin = dmin.value
             """
             voltage in ev
             """
             self.voltage = kev.value * 1000.0
 
-            self._readHDF(fhdf, xtal)
-            self._calcrmt()
-            self.sf_and_twin_probability()
             if self.aniU:
                 self.calcBetaij()
 
-            (
-                self.SYM_SG,
-                self.SYM_PG_d,
-                self.SYM_PG_d_laue,
-                self.centrosymmetric,
-                self.symmorphic,
-            ) = symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
-            self.latticeType = symmetry.latticeType(self.sgnum)
-            self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum - 1].strip()
-            self.GenerateRecipPGSym()
-            self.CalcMaxGIndex()
-            self._calchkls()
             self.InitializeInterpTable()
             self.CalcWavelength()
             self.CalcPositions()
-            self.sg = SpaceGroup(self.sgnum)
-
-        else:
-            if isinstance(material_obj, Material):
-                self._init_from_materials(material_obj)
-            else:
-                raise ValueError(
-                    "Invalid material_obj argument. \
-                    only Material class can be passed here."
-                )
 
     def _init_from_materials(self, material_obj):
-        """ """
-        # name
-        self.name = material_obj.name.replace('-', '_')
+        # Initialize the same stuff as LeBail
+        super()._init_from_materials(material_obj)
+
+        # Now grab Rietveld-specific stuff
 
         # inverse of absorption length
         self.abs_fact = 1e-4 * (1.0 / material_obj.absorption_length)
 
-        # min d-spacing for sampling hkl
-        self.dmin = material_obj.dmin
-
         # acceleration voltage and wavelength
         self.voltage = material_obj.unitcell.voltage
         self.wavelength = material_obj.unitcell.wavelength
-
-        # space group number
-        self.sgnum = material_obj.sgnum
-        self.sg = SpaceGroup(self.sgnum)
-        self.sf_and_twin_probability()
-
-        # space group setting
-        self.sgsetting = material_obj.sgsetting
-
-        # lattice type from sgnum
-        self.latticeType = material_obj.unitcell.latticeType
-
-        # Herman-Maugauin symbol
-        self.sg_hmsymbol = material_obj.unitcell.sg_hmsymbol
-
-        # lattice parameters
-        self.lparms = np.array(
-            [
-                material_obj.unitcell.a,
-                material_obj.unitcell.b,
-                material_obj.unitcell.c,
-                material_obj.unitcell.alpha,
-                material_obj.unitcell.beta,
-                material_obj.unitcell.gamma,
-            ]
-        )
 
         # asymmetric atomic positions
         self.atom_pos = material_obj.unitcell.atom_pos
@@ -836,32 +574,8 @@ class Material_Rietveld:
         self.atom_type = material_obj.unitcell.atom_type
         self.atom_ntype = material_obj.unitcell.atom_ntype
 
-        self._calcrmt()
-
-        """ get all space and point group symmetry operators
-         in direct space, including the laue group. reciprocal
-         space point group symmetries also included """
-        self.SYM_SG = material_obj.unitcell.SYM_SG
-        self.SYM_PG_d = material_obj.unitcell.SYM_PG_d
-        self.SYM_PG_d_laue = material_obj.unitcell.SYM_PG_d_laue
-        self.centrosymmetric = material_obj.unitcell.centrosymmetric
-        self.symmorphic = material_obj.unitcell.symmorphic
-        self.SYM_PG_r = material_obj.unitcell.SYM_PG_r
-        self.SYM_PG_r_laue = material_obj.unitcell.SYM_PG_r_laue
-
-        # get maximum indices for sampling hkl
-        self.ih = material_obj.unitcell.ih
-        self.ik = material_obj.unitcell.ik
-        self.il = material_obj.unitcell.il
-
-        # copy over the hkl but calculate the multiplicities
-        self.hkls = material_obj.planeData.getHKLs()
-        multiplicity = []
-        for g in self.hkls:
-            multiplicity.append(self.CalcStar(g, 'r').shape[0])
-
-        multiplicity = np.array(multiplicity)
-        self.multiplicity = multiplicity
+        # calculate the multiplicities
+        self.multiplicity = self.getMultiplicity(self.hkls)
 
         # interpolation tables and anomalous form factors
         # self.f1 = material_obj.unitcell.f1
@@ -875,51 +589,23 @@ class Material_Rietveld:
         self.InitializeInterpTable()
 
     def _readHDF(self, fhdf, xtal):
+        # First, read the same things as LeBail
+        super()._readHDF(fhdf, xtal)
 
-        # fexist = path.exists(fhdf)
-        # if(fexist):
-        fid = h5py.File(fhdf, 'r')
-        name = xtal
-        xtal = "/" + xtal
-        if xtal not in fid:
-            raise IOError('crystal doesn' 't exist in material file.')
-        # else:
-        #   raise IOError('material file does not exist.')
+        # Now read in Rietveld-specific stuff
+        with h5py.File(fhdf, 'r') as f:
+            group = f[xtal]
+            # the last field in this is already
+            self.atom_pos = group['AtomData'].T
 
-        gid = fid.get(xtal)
+            # the U factors are related to B by the relation B = 8pi^2 U
+            self.U = group['U'].T
 
-        self.sgnum = np.asscalar(
-            np.array(gid.get('SpaceGroupNumber'), dtype=np.int32)
-        )
-        self.sgsetting = np.asscalar(
-            np.array(gid.get('SpaceGroupSetting'), dtype=np.int32)
-        )
-        """
-            IMPORTANT NOTE:
-            note that the latice parameters in EMsoft is nm by default
-            hexrd on the other hand uses A as the default units, so we
-            need to be careful and convert it right here, so there is no
-            confusion later on
-        """
-        self.lparms = list(gid.get('LatticeParameters'))
-
-        # the last field in this is already
-        self.atom_pos = np.transpose(
-            np.array(gid.get('AtomData'), dtype=np.float64)
-        )
-
-        # the U factors are related to B by the relation B = 8pi^2 U
-        self.U = np.transpose(np.array(gid.get('U'), dtype=np.float64))
-
-        # read atom types (by atomic number, Z)
-        self.atom_type = np.array(gid.get('Atomtypes'), dtype=np.int32)
-        self.atom_ntype = self.atom_type.shape[0]
-        self.name = name.replace('-', '_')
-
-        fid.close()
+            # read atom types (by atomic number, Z)
+            self.atom_type = group['Atomtypes']
+            self.atom_ntype = self.atom_type.shape[0]
 
     def calcBetaij(self):
-
         self.betaij = np.zeros([3, 3, self.atom_ntype])
         for i in range(self.U.shape[0]):
             U = self.U[i, :]
@@ -951,71 +637,7 @@ class Material_Rietveld:
         self.kev *= 1e-3
 
     def _calcrmt(self):
-        """
-        O7/01/2021 SS ADDED DIRECT AND RECIPROCAL STRUCTURE MATRIX AS
-        FIELDS IN THE CLASS
-        """
-        a = self.lparms[0]
-        b = self.lparms[1]
-        c = self.lparms[2]
-
-        alpha = np.radians(self.lparms[3])
-        beta = np.radians(self.lparms[4])
-        gamma = np.radians(self.lparms[5])
-
-        ca = np.cos(alpha)
-        cb = np.cos(beta)
-        cg = np.cos(gamma)
-        sa = np.sin(alpha)
-        sb = np.sin(beta)
-        sg = np.sin(gamma)
-        tg = np.tan(gamma)
-
-        """
-            direct metric tensor
-        """
-        self.dmt = np.array(
-            [
-                [a**2, a * b * cg, a * c * cb],
-                [a * b * cg, b**2, b * c * ca],
-                [a * c * cb, b * c * ca, c**2],
-            ]
-        )
-        self.vol = np.sqrt(np.linalg.det(self.dmt))
-
-        if self.vol < 1e-5:
-            warnings.warn('unitcell volume is suspiciously small')
-
-        """
-            reciprocal metric tensor
-        """
-        self.rmt = np.linalg.inv(self.dmt)
-
-        """
-            direct structure matrix
-        """
-        self.dsm = np.array(
-            [
-                [a, b * cg, c * cb],
-                [0.0, b * sg, -c * (cb * cg - ca) / sg],
-                [0.0, 0.0, self.vol / (a * b * sg)],
-            ]
-        )
-        """
-            reciprocal structure matrix
-        """
-        self.rsm = np.array(
-            [
-                [1.0 / a, 0.0, 0.0],
-                [-1.0 / (a * tg), 1.0 / (b * sg), 0.0],
-                [
-                    b * c * (cg * ca - cb) / (self.vol * sg),
-                    a * c * (cb * cg - ca) / (self.vol * sg),
-                    a * b * sg / self.vol,
-                ],
-            ]
-        )
-
+        super()._calcrmt()
         ast = self.CalcLength([1, 0, 0], 'r')
         bst = self.CalcLength([0, 1, 0], 'r')
         cst = self.CalcLength([0, 0, 1], 'r')
@@ -1028,78 +650,9 @@ class Material_Rietveld:
             ]
         )
 
-    def get_sf_hkl_factors(self):
-        """
-        this function calculates the prefactor for
-        each hkl used to calculate the 2theta shifts
-        due to stacking faults. for details see EQ. 10
-        Velterop et. al., Stacking and twin faults
-        J. Appl. Cryst. (2000). 33, 296-306
-
-        currently only doing fcc. will be adding hcp and
-        bcc in the future
-        adding a guard rail so that the function only
-        returns for sgnum 225
-        """
-        if self.sgnum == 225:
-            hkls = self.hkls.astype(np.float64)
-            H2 = np.sum(hkls**2, axis=1)
-            sf_affected = []
-            multiplicity = []
-            Lfact = []
-            Lfact_broadening = []
-            for g in hkls:
-                gsym = self.CalcStar(g, 'r')
-                L0 = np.sum(gsym, axis=1)
-                sign = np.mod(L0, 3)
-                sign[sign == 2] = -1
-                multiplicity.append(gsym.shape[0])
-                Lfact.append(np.sum(L0 * sign))
-                Lfact_broadening.append(np.sum(np.abs(L0)))
-
-            Lfact = np.array(Lfact)
-            multiplicity = np.array(multiplicity)
-            Lfact_broadening = np.array(Lfact_broadening)
-            Lfact_broadening = (H2 * multiplicity) / Lfact_broadening
-            sf_f = (90.0 * np.sqrt(3) / np.pi**2) * Lfact / (H2 * multiplicity)
-            return sf_f, Lfact_broadening
-        else:
-            return None, None
-
-    def sf_and_twin_probability(self):
-        self.sf_alpha = None
-        self.twin_beta = None
-        if self.sgnum == 225:
-            self.sf_alpha = 0.0
-            self.twin_beta = 0.0
-
     def _calchkls(self):
-        self.hkls, self.multiplicity = self.getHKLs(self.dmin)
-
-    """ calculate dot product of two vectors in any space 'd' 'r' or 'c' """
-
-    def CalcLength(self, u, space):
-
-        if space == 'd':
-            vlen = np.sqrt(np.dot(u, np.dot(self.dmt, u)))
-        elif space == 'r':
-            vlen = np.sqrt(np.dot(u, np.dot(self.rmt, u)))
-        elif spec == 'c':
-            vlen = np.linalg.norm(u)
-        else:
-            raise ValueError('incorrect space argument')
-
-        return vlen
-
-    def getTTh(self, wavelength):
-
-        tth = []
-        self.dsp = _calc_dspacing(
-            self.rmt.astype(np.float64), self.hkls.astype(np.float64)
-        )
-        tth, wavelength_allowed_hkls = _get_tth(self.dsp, wavelength)
-        self.wavelength_allowed_hkls = wavelength_allowed_hkls.astype(bool)
-        return tth
+        super()._calc_hkls()
+        self.multiplicity = self.getMultiplicity(self.hkls)
 
     ''' transform between any crystal space to any other space.
         choices are 'd' (direct), 'r' (reciprocal) and 'c' (cartesian)'''
@@ -1136,193 +689,10 @@ class Material_Rietveld:
             raise ValueError('incorrect inspace argument')
         return v_out
 
-    def GenerateRecipPGSym(self):
-
-        self.SYM_PG_r = self.SYM_PG_d[0, :, :]
-        self.SYM_PG_r = np.broadcast_to(self.SYM_PG_r, [1, 3, 3])
-        self.SYM_PG_r_laue = self.SYM_PG_d[0, :, :]
-        self.SYM_PG_r_laue = np.broadcast_to(self.SYM_PG_r_laue, [1, 3, 3])
-
-        for i in range(1, self.SYM_PG_d.shape[0]):
-            g = self.SYM_PG_d[i, :, :]
-            g = np.dot(self.dmt, np.dot(g, self.rmt))
-            g = np.round(np.broadcast_to(g, [1, 3, 3]))
-            self.SYM_PG_r = np.concatenate((self.SYM_PG_r, g))
-
-        for i in range(1, self.SYM_PG_d_laue.shape[0]):
-            g = self.SYM_PG_d_laue[i, :, :]
-            g = np.dot(self.dmt, np.dot(g, self.rmt))
-            g = np.round(np.broadcast_to(g, [1, 3, 3]))
-            self.SYM_PG_r_laue = np.concatenate((self.SYM_PG_r_laue, g))
-
-        self.SYM_PG_r = self.SYM_PG_r.astype(np.int32)
-        self.SYM_PG_r_laue = self.SYM_PG_r_laue.astype(np.int32)
-
-    def CalcMaxGIndex(self):
-        self.ih = 1
-        while (
-            1.0
-            / self.CalcLength(np.array([self.ih, 0, 0], dtype=np.float64), 'r')
-            > self.dmin
-        ):
-            self.ih = self.ih + 1
-        self.ik = 1
-        while (
-            1.0
-            / self.CalcLength(np.array([0, self.ik, 0], dtype=np.float64), 'r')
-            > self.dmin
-        ):
-            self.ik = self.ik + 1
-        self.il = 1
-        while (
-            1.0
-            / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64), 'r')
-            > self.dmin
-        ):
-            self.il = self.il + 1
-
-    def CalcStar(self, v, space, applyLaue=False):
-        """
-        this function calculates the symmetrically equivalent hkls (or uvws)
-        for the reciprocal (or direct) point group symmetry.
-        """
-        if space == 'd':
-            if applyLaue:
-                sym = self.SYM_PG_d_laue
-            else:
-                sym = self.SYM_PG_d
-        elif space == 'r':
-            if applyLaue:
-                sym = self.SYM_PG_r_laue
-            else:
-                sym = self.SYM_PG_r
-        else:
-            raise ValueError('CalcStar: unrecognized space.')
-        vsym = np.atleast_2d(v)
-        for s in sym:
-            vp = np.dot(s, v)
-            # check if this is new
-            isnew = True
-            for vec in vsym:
-                if np.sum(np.abs(vp - vec)) < 1e-4:
-                    isnew = False
-                    break
-            if isnew:
-                vsym = np.vstack((vsym, vp))
-        return vsym
-
-    def ChooseSymmetric(self, hkllist, InversionSymmetry=True):
-        """
-        this function takes a list of hkl vectors and
-        picks out a subset of the list picking only one
-        of the symmetrically equivalent one. The convention
-        is to choose the hkl with the most positive components.
-        """
-        mask = np.ones(hkllist.shape[0], dtype=bool)
-        laue = InversionSymmetry
-        for i, g in enumerate(hkllist):
-            if mask[i]:
-                geqv = self.CalcStar(g, 'r', applyLaue=laue)
-                for r in geqv[1:,]:
-                    rid = np.where(np.all(r == hkllist, axis=1))
-                    mask[rid] = False
-        hkl = hkllist[mask, :].astype(np.int32)
-        hkl_max = []
-        for g in hkl:
-            geqv = self.CalcStar(g, 'r', applyLaue=laue)
-            loc = np.argmax(np.sum(geqv, axis=1))
-            gmax = geqv[loc, :]
-            hkl_max.append(gmax)
-        return np.array(hkl_max).astype(np.int32)
-
-    def SortHKL(self, hkllist):
-        """
-        this function sorts the hkllist by increasing |g|
-        i.e. decreasing d-spacing. If two vectors are same
-        length, then they are ordered with increasing
-        priority to l, k and h
-        """
-        glen = []
-        for g in hkllist:
-            glen.append(np.round(self.CalcLength(g, 'r'), 8))
-        # glen = np.atleast_2d(np.array(glen,dtype=float)).T
-        dtype = [
-            ('glen', float),
-            ('max', int),
-            ('sum', int),
-            ('h', int),
-            ('k', int),
-            ('l', int),
-        ]
-        a = []
-        for i, gl in enumerate(glen):
-            g = hkllist[i, :]
-            a.append((gl, np.max(g), np.sum(g), g[0], g[1], g[2]))
-        a = np.array(a, dtype=dtype)
-        isort = np.argsort(a, order=['glen', 'max', 'sum', 'l', 'k', 'h'])
-        return hkllist[isort, :]
-
-    def getHKLs(self, dmin):
-        """
-        this function generates the symetrically unique set of
-        hkls up to a given dmin.
-        dmin is in nm
-        """
-        """
-        always have the centrosymmetric condition because of
-        Friedels law for xrays so only 4 of the 8 octants
-        are sampled for unique hkls. By convention we will
-        ignore all l < 0
-        """
-        hmin = -self.ih - 1
-        hmax = self.ih
-        kmin = -self.ik - 1
-        kmax = self.ik
-        lmin = -1
-        lmax = self.il
-        hkllist = np.array(
-            [
-                [ih, ik, il]
-                for ih in np.arange(hmax, hmin, -1)
-                for ik in np.arange(kmax, kmin, -1)
-                for il in np.arange(lmax, lmin, -1)
-            ]
-        )
-        hkl_allowed = Allowed_HKLs(self.sgnum, hkllist)
-        hkl = []
-        dsp = []
-        hkl_dsp = []
-        for g in hkl_allowed:
-            # ignore [0 0 0] as it is the direct beam
-            if np.sum(np.abs(g)) != 0:
-                dspace = 1.0 / self.CalcLength(g, 'r')
-                if dspace >= dmin:
-                    hkl_dsp.append(g)
-        """
-        we now have a list of g vectors which are all within dmin range
-        plus the systematic absences due to lattice centering and glide
-        planes/screw axis has been taken care of
-        the next order of business is to go through the list and only pick
-        out one of the symetrically equivalent hkls from the list.
-        """
-        hkl_dsp = np.array(hkl_dsp).astype(np.int32)
-        """
-        the inversionsymmetry switch enforces the application of the inversion
-        symmetry regradless of whether the crystal has the symmetry or not
-        this is necessary in the case of xrays due to friedel's law
-        """
-        hkl = self.ChooseSymmetric(hkl_dsp, InversionSymmetry=True)
-        """
-        finally sort in order of decreasing dspacing
-        """
-        hkls = self.SortHKL(hkl)
-
-        multiplicity = []
-        for g in hkls:
-            multiplicity.append(self.CalcStar(g, 'r').shape[0])
-
-        multiplicity = np.array(multiplicity)
-        return hkls, multiplicity
+    def getMultiplicity(self, hkls):
+        return np.array([
+            self.CalcStar(g, 'r').shape[0] for g in hkls
+        ])
 
     def CalcPositions(self):
         """
@@ -1386,11 +756,9 @@ class Material_Rietveld:
                 f_anomalous_data.append(data)
 
         n = max([x.shape[0] for x in f_anomalous_data])
-        self.f_anomalous_data = np.zeros([self.atom_ntype, n, 3])
+        self.f_anomalous_data = np.zeros([self.atom_ntype,n,3])
         self.f_anomalous_data_sizes = np.zeros(
-            [
-                self.atom_ntype,
-            ],
+            [self.atom_ntype,],
             dtype=np.int32,
         )
 
@@ -1432,7 +800,7 @@ class Material_Rietveld:
 
         nref = self.hkls.shape[0]
 
-        sf, sf_raw = _calcxrsf(
+        return _calcxrsf(
             self.hkls.astype(np.float64),
             nref,
             self.multiplicity,
@@ -1452,26 +820,21 @@ class Material_Rietveld:
             self.f_anomalous_data_sizes,
         )
 
-        return sf, sf_raw
-
-    def calc_extinction(
-        self, wavelength, tth, f_sqr, shape_factor_K, particle_size_D
-    ):
-
-        hkls = self.hkls
-        v_unitcell = self.vol
-
-        extinction = _calc_extinction_factor(
-            hkls,
+    def calc_extinction(self,
+                        wavelength,
+                        tth,
+                        f_sqr,
+                        shape_factor_K,
+                        particle_size_D):
+        return _calc_extinction_factor(
+            self.hkls,
             tth,
-            v_unitcell * 1e3,
+            self.vol*1e3,
             wavelength,
             f_sqr,
             shape_factor_K,
             particle_size_D,
         )
-
-        return extinction
 
     def calc_absorption(self, tth, phi, wavelength):
         abs_fact = self.abs_fact
@@ -1479,59 +842,40 @@ class Material_Rietveld:
 
         return absorption
 
-    def Required_lp(self, p):
-        return _rqpDict[self.latticeType][1](p)
 
-    @property
-    def shkl(self):
-        return self._shkl
-
-    @shkl.setter
-    def shkl(self, val):
-        """
-        set the shkl as array
-        """
-        if len(val) != 15:
-            msg = f"incorrect shape for shkl. " f"shape should be (15, )."
-            raise ValueError(msg)
-
-        self._shkl = val
-
-
-class Phases_Rietveld:
+class AbstractPhases(ABC):
     """
-    ==============================================================================================
-    ==============================================================================================
-
+    ========================================================================================
+    ========================================================================================
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     >> @DATE:       05/20/2020 SS 1.0 original
-    >> @DETAILS:    class to handle different phases in the LeBail fit. this is a stripped down
-                    version of main Phase class for efficiency. only the components necessary for
-                    calculating peak positions are retained. further this will have a slight
-                    modification to account for different wavelengths in the same phase name
-    ==============================================================================================
-     =============================================================================================
+    >> @DETAILS:    class to handle different phases in the fits. this is a stripped down
+                    version of main Phase class for efficiency. only the
+                    components necessary for calculating peak positions are retained. further
+                    this will have a slight modification to account for different wavelengths
+                    in the same phase name
+    =========================================================================================
+    =========================================================================================
     """
+    # Abstract methods which must be defined for each phase type
+    @abstractmethod
+    def _get_phase(self, material_key: str,
+                   wavelength_name: str) -> AbstractMaterial:
+        pass
 
-    def _kev(x):
-        return valWUnit('beamenergy', 'energy', x, 'keV')
+    @abstractmethod
+    def add(self, material_file, material_key):
+        pass
 
-    def _nm(x):
-        return valWUnit('lp', 'length', x, 'nm')
-
-    def __init__(
-        self,
-        material_file=None,
-        material_keys=None,
-        dmin=_nm(0.05),
-        wavelength={
-            'alpha1': [_nm(0.15406), 1.0],
-            'alpha2': [_nm(0.154443), 0.52],
-        },
-    ):
+    # Shared methods which each phase uses
+    def __init__(self, material_file=None,
+                 material_keys=None,
+                 dmin=_nm(0.05),
+                 wavelength={'alpha1': [_nm(0.15406), 1.0],
+                             'alpha2': [_nm(0.154443), 0.52]}
+                 ):
 
         self.phase_dict = {}
-        self.num_phases = 0
 
         """
         set wavelength. check if wavelength is supplied in A, if it is
@@ -1546,42 +890,35 @@ class Phases_Rietveld:
                 ]
             else:
                 wavelength_nm[k] = v
+
         self.wavelength = wavelength_nm
 
         self.dmin = dmin
 
-        if material_file is not None:
-            if material_keys is not None:
-                if type(material_keys) is not list:
-                    self.add(material_file, material_keys)
-                else:
-                    self.add_many(material_file, material_keys)
+        if material_file is not None and material_keys is not None:
+            keys = material_keys
+            keys = keys if isinstance(keys, list) else [keys]
+            self.add_many(material_file, keys)
+
+    @property
+    def num_phases(self) -> int:
+        return len(self)
 
     def __str__(self):
         resstr = 'Phases in calculation:\n'
-        for i, k in enumerate(self.phase_dict.keys()):
-            resstr += '\t' + str(i + 1) + '. ' + k + '\n'
+        for i, k in enumerate(self.phase_dict):
+            resstr += f'\t{i+1}. {k}\n'
         return resstr
 
     def __getitem__(self, key):
         # Always sanitize the material name since lmfit won't accept '-'
         key = key.replace('-', '_')
-
-        if(key in self.phase_dict.keys()):
-            return self.phase_dict[key]
-        else:
-            raise ValueError('phase with name not found')
+        return self.phase_dict[key]
 
     def __setitem__(self, key, mat_cls):
         # Always sanitize the material name since lmfit won't accept '-'
         key = key.replace('-', '_')
-
-        if key in self.phase_dict.keys():
-            warnings.warn('phase already in parameter list. overwriting ...')
-        # if(isinstance(mat_cls, Material_Rietveld)):
         self.phase_dict[key] = mat_cls
-        # else:
-        # raise ValueError('input not a material class')
 
     def __iter__(self):
         return iter(self.phase_dict)
@@ -1589,44 +926,18 @@ class Phases_Rietveld:
     def __len__(self):
         return len(self.phase_dict)
 
-    def add(self, material_file, material_key):
-        self[material_key] = {}
-        self.num_phases += 1
-        for l in self.wavelength:
-            lam = self.wavelength[l][0].getVal('nm') * 1e-9
-            E = constants.cPlanck * constants.cLight / constants.cCharge / lam
-            E *= 1e-3
-            kev = valWUnit('beamenergy', 'energy', E, 'keV')
-            self[material_key][l] = Material_Rietveld(
-                material_file, material_key, dmin=self.dmin, kev=kev
-            )
-
+    def reset_phase_fractions(self):
+        pf = 1.0 / self.num_phases
         for k in self:
             for l in self.wavelength:
-                self[k][l].pf = 1.0 / self.num_phases
+                mat = self._get_phase(k, l)
+                mat.pf = pf
 
     def add_many(self, material_file, material_keys):
-
         for k in material_keys:
-            self[k] = {}
-            self.num_phases += 1
-            for l in self.wavelength:
-                lam = self.wavelength[l][0].getVal('nm') * 1e-9
-                E = (
-                    constants.cPlanck
-                    * constants.cLight
-                    / constants.cCharge
-                    / lam
-                )
-                E *= 1e-3
-                kev = valWUnit('beamenergy', 'energy', E, 'keV')
-                self[k][l] = Material_Rietveld(
-                    material_file, k, dmin=self.dmin, kev=kev
-                )
+            self.add(material_file, k, update_pf=False)
 
-        for k in self:
-            for l in self.wavelength:
-                self[k][l].pf = 1.0 / self.num_phases
+        self.reset_phase_fractions()
 
         self.material_file = material_file
         self.material_keys = [k.replace('-', '_') for k in material_keys]
@@ -1638,7 +949,7 @@ class Phases_Rietveld:
         >> @DETAILS:    load parameters from yaml file
         """
         with open(fname) as file:
-            dic = yaml.load(file, Loader=yaml.FullLoader)
+            dic = yaml.load(file, Loader=yaml.SafeLoader)
 
         for mfile in dic.keys():
             mat_keys = list(dic[mfile])
@@ -1650,36 +961,85 @@ class Phases_Rietveld:
         >> @DATE:       06/08/2020 SS 1.0 original
         >> @DETAILS:    dump parameters to yaml file
         """
-        dic = {}
-        k = self.material_file
-        dic[k] = [m for m in self]
-
+        dic = {self.material_file: [m for m in self]}
         with open(fname, 'w') as f:
-            data = yaml.safe_dump(dic, f, sort_keys=False)
+            yaml.safe_dump(dic, f, sort_keys=False)
+
+    def dump_hdf5(self, file):
+        """
+        >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
+        >> @DATE:       01/15/2021 SS 1.0 original
+        >> @ DETAILS    dumps the information from each material in the phase class
+                        to a hdf5 file specified by filename or h5py.File object
+        """
+        if isinstance(file, str):
+            mode = 'r+' if Path(file).exists() else 'x'
+            fid = h5py.File(mode)
+        elif isinstance(file, h5py.File):
+            fid = file
+        else:
+            raise RuntimeError(
+                'Parameters: dump_hdf5 Pass in a filename \
+                string or h5py.File object')
+
+        if "/Phases" in fid:
+            del fid["Phases"]
+
+        gid_top = fid.create_group("Phases")
+        # Only write out the first material
+        l = next(iter(self.wavelength))
+        for p in self:
+            mat = self._get_phase(p, l)
+            gid = gid_top.create_group(p)
+            gid["SpaceGroupNumber"] = mat.sgnum
+            gid["SpaceGroupSetting"] = mat.sgsetting
+            gid["LatticeParameters"] = np.asarray(mat.lparms)
+            gid["dmin"] = mat.dmin
+            gid["dmin"].attrs["units"] = "nm"
+            gid["hkls"] = np.asarray(mat.hkls)
+
+
+class Phases_LeBail(AbstractPhases):
+    def _get_phase(self, material_key: str,
+                   wavelength_name: str) -> Material_LeBail:
+        return self[material_key]
+
+    def add(self, material_file, material_key, update_pf=True):
+        self[material_key] = Material_LeBail(
+            fhdf=material_file, xtal=material_key, dmin=self.dmin)
+
+        if update_pf:
+            self.reset_phase_fractions()
+
+
+class Phases_Rietveld(AbstractPhases):
+    def _get_phase(self, material_key: str,
+                   wavelength_name: str) -> Material_Rietveld:
+        return self[material_key][wavelength_name]
+
+    def add(self, material_file, material_key, update_pf=True):
+        self[material_key] = {}
+        for l in self.wavelength:
+            lam = self.wavelength[l][0].getVal('nm') * 1e-9
+            E = constants.cPlanck * constants.cLight / constants.cCharge / lam
+            E *= 1e-3
+            kev = valWUnit('beamenergy', 'energy', E * 1e-3, 'keV')
+            self[material_key][l] = Material_Rietveld(
+                material_file, material_key, dmin=self.dmin, kev=kev)
+
+        if update_pf:
+            self.reset_phase_fractions()
 
     @property
     def phase_fraction(self):
-        pf = []
-        for k in self:
-            l = list(self.wavelength.keys())[0]
-            pf.append(self[k][l].pf)
-        pf = np.array(pf)
-        return pf / np.sum(pf)
+        l = next(iter(self.wavelength))
+        pf = np.array([self[k][l].pf for k in self])
+        return pf / pf.sum()
 
     @phase_fraction.setter
     def phase_fraction(self, val):
-        msg = (
-            f"phase_fraction setter: "
-            f"number of phases does not match"
-            f"size of input"
-        )
-
-        if isinstance(val, list):
-            if len(val) != len(self):
-                raise ValueError(msg)
-        elif isinstance(val, np.ndarray):
-            if val.shape[0] != len(self):
-                raise ValueError(msg)
+        if len(val) != len(self):
+            raise ValueError("number of phases does not match size of input")
 
         for ii, k in enumerate(self):
             for l in self.wavelength:

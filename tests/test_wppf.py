@@ -5,8 +5,8 @@ import lmfit
 import numpy as np
 import pytest
 
-from hexrd.material import _angstroms, load_materials_hdf5, Material
-from hexrd.wppf import LeBail, Rietveld
+from hexrd.core.material import _angstroms, load_materials_hdf5, Material
+from hexrd.powder.wppf import LeBail, Rietveld
 
 
 @pytest.fixture
@@ -72,14 +72,8 @@ def lebail_params(wppf_examples_path: Path) -> dict[str, lmfit.Parameter]:
     return params
 
 
-def _fix_all_params(parameters: lmfit.Parameters):
-    for param in parameters.values():
-        param.vary = False
-
-
-def test_wppf_rietveld(
-    expt_spectrum, spline_picks, ceo2_material, rietveld_params
-):
+def test_wppf_rietveld(expt_spectrum, spline_picks, ceo2_material,
+                       rietveld_params):
 
     beam_wavelength = 0.15358835358711712
     params = rietveld_params
@@ -95,32 +89,35 @@ def test_wppf_rietveld(
 
     rietveld = Rietveld(**kwargs)
 
+    # Just exercise this
+    rietveld.params_vary_on()
+
     # First, only vary the scale
-    _fix_all_params(params)
+    rietveld.params_vary_off()
     params['scale'].vary = True
     rietveld.Refine()
     assert rietveld.Rwp < 0.08
 
     # Next, vary the lattice constant
-    _fix_all_params(params)
+    rietveld.params_vary_off()
     params['CeO2_a'].vary = True
     rietveld.Refine()
 
     # Next, U, V, and W
-    _fix_all_params(params)
+    rietveld.params_vary_off()
     params['U'].vary = True
     params['V'].vary = True
     params['W'].vary = True
     rietveld.Refine()
 
     # Next, X and Y
-    _fix_all_params(params)
+    rietveld.params_vary_off()
     params['CeO2_X'].vary = True
     params['CeO2_Y'].vary = True
     rietveld.Refine()
 
     # Next, U, V, W, X and Y
-    _fix_all_params(params)
+    rietveld.params_vary_off()
     params['U'].vary = True
     params['V'].vary = True
     params['W'].vary = True
@@ -130,14 +127,14 @@ def test_wppf_rietveld(
     assert rietveld.Rwp < 0.072
 
     # Next, the debye-waller constants
-    _fix_all_params(params)
+    rietveld.params_vary_off()
     params['CeO2_O1_dw'].vary = True
     params['CeO2_Ce1_dw'].vary = True
     rietveld.Refine()
     assert rietveld.Rwp < 0.07
 
     # Finally, everything
-    _fix_all_params(params)
+    rietveld.params_vary_off()
     params['scale'].vary = True
     params['CeO2_a'].vary = True
     params['U'].vary = True
@@ -172,13 +169,13 @@ def test_wppf_lebail(expt_spectrum, ceo2_material, lebail_params):
     lebail = LeBail(**kwargs)
 
     # First, only vary the lattice constant
-    _fix_all_params(params)
+    lebail.params_vary_off()
     params['CeO2_a'].vary = True
     lebail.RefineCycle()
     assert lebail.Rwp < 0.25
 
     # Next, U, V, and W
-    _fix_all_params(params)
+    lebail.params_vary_off()
     params['U'].vary = True
     params['V'].vary = True
     params['W'].vary = True
@@ -186,14 +183,14 @@ def test_wppf_lebail(expt_spectrum, ceo2_material, lebail_params):
     assert lebail.Rwp < 0.1
 
     # Next, X and Y
-    _fix_all_params(params)
+    lebail.params_vary_off()
     params['CeO2_X'].vary = True
     params['CeO2_Y'].vary = True
     lebail.RefineCycle()
     assert lebail.Rwp < 0.08
 
     # Next, U, V, W, X and Y
-    _fix_all_params(params)
+    lebail.params_vary_off()
     params['U'].vary = True
     params['V'].vary = True
     params['W'].vary = True
@@ -203,7 +200,7 @@ def test_wppf_lebail(expt_spectrum, ceo2_material, lebail_params):
     assert lebail.Rwp < 0.07
 
     # Finally, everything
-    _fix_all_params(params)
+    lebail.params_vary_off()
     params['CeO2_a'].vary = True
     params['U'].vary = True
     params['V'].vary = True

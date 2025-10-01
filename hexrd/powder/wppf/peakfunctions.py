@@ -214,7 +214,7 @@ def _unit_lorentzian(p, x):
 
 @njit(cache=True, nogil=True)
 def _heaviside(x, x0):
-    y = np.zeros_like(x)
+    y = np.empty_like(x)
     for ii in np.arange(x.size):
         if x[ii] < 0.:
             y[ii] = 0.
@@ -261,7 +261,7 @@ def _split_unit_gaussian(p, x):
     gauss_l = _unit_gaussian(p_l, x)
     gauss_r = _unit_gaussian(p_r, x)
 
-    return (gauss_l*heav_l + 
+    return (gauss_l*heav_l +
             gauss_r*heav_r)
 
 # =========================================================
@@ -538,8 +538,6 @@ def _lorentzian_pink_beam(alpha, beta, fwhm_l, tth, tth_list):
     p = -alpha * del_tth + 1j * 0.5 * alpha * fwhm_l
     q = -beta * del_tth + 1j * 0.5 * beta * fwhm_l
 
-    y = np.zeros(tth_list.shape)
-
     f1 = exp1exp(p)
     f2 = exp1exp(q)
     # f1 = exp1(p)
@@ -736,7 +734,7 @@ def calc_Iobs_pvfcj(
     this is called for multiple wavelengths and phases to compute
     the final intensities
     """
-    Iobs = np.zeros(tth.shape)
+    Iobs = np.empty(tth.shape)
     nref = np.min(
         np.array([Icalc.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]])
     )
@@ -805,7 +803,7 @@ def calc_Iobs_pvtch(
     this is called for multiple wavelengths and phases to compute
     the final intensities
     """
-    Iobs = np.zeros(tth.shape)
+    Iobs = np.empty(tth.shape)
     nref = np.min(
         np.array([Icalc.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]])
     )
@@ -863,7 +861,7 @@ def calc_Iobs_pvpink(
     this is called for multiple wavelengths and phases to compute
     the final intensities
     """
-    Iobs = np.zeros(tth.shape)
+    Iobs = np.empty(tth.shape)
     nref = np.min(
         np.array([Icalc.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]])
     )

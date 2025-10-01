@@ -2941,6 +2941,12 @@ def _extract_ring_line_positions(
         # strip relevant objects out of current patch
         vtx_angs, vtx_xys, conn, areas, xys_eval, ijs = patch
 
+        # These areas can be negative if the beam vector is in
+        # the opposite direction than it normally is in (positive
+        # Z instead of the usual negative Z). Take the absolute
+        # value of the areas to ensure they are positive.
+        areas = np.abs(areas)
+
         # need to reshape eval pts for interpolation
         xy_eval = np.vstack([xys_eval[0].flatten(), xys_eval[1].flatten()]).T
 
