@@ -428,11 +428,6 @@ def fit_grains(
         logger.info("\tstarting fit on %d processes with chunksize %d",
                     nproc, chunksize)
         start = timeit.default_timer()
-        pool = multiprocessing.Pool(
-            nproc,
-            chunksize,
-        )
-        start = timeit.default_timer()
         pool = multiprocessing.Pool(nproc, fit_grain_FF_init, (params,))
 
         async_result = pool.map_async(
