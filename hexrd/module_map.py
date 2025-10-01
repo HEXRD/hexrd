@@ -137,6 +137,8 @@ class ModuleAliasImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
 
         extra_candidates: list[str] = []
         for old_path, new_paths in file_map.items():
+            if old_path.suffix not in ("", ".py") or not "hexrd" in old_path.parts:
+                continue
             if path_to_module(old_path) == fullname:
                 for p in new_paths:
                     candidate = path_to_module(p)
