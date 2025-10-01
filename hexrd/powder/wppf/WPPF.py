@@ -1503,6 +1503,7 @@ class Rietveld(AbstractWPPF):
         eta_min=-180,
         eta_max=180,
         eta_step=5.,
+        tthfull=None,
     ):
 
         self.bkgmethod = bkgmethod
@@ -1518,6 +1519,17 @@ class Rietveld(AbstractWPPF):
         self.eta_min = eta_min
         self.eta_max = eta_max
         self.eta_step = eta_step
+
+        '''for 2D texture computation with masked 
+        polar views, sometimes the two theta range
+        where data is present is not the same for all
+        rows. We will pass a full extent of the polar
+        view as an extra parameter and handle that 
+        internally.
+        '''
+        self.tthfull = tthfull
+        if tthfull is None:
+            self.tthfull = expt_spectrum[:,0]
 
         self._tstart = time.time()
 
@@ -2295,7 +2307,7 @@ class Rietveld(AbstractWPPF):
         mask = np.isnan(pv_binned)
         results = extract_intensities(**{
             'polar_view': np.ma.masked_array(pv_binned, mask=mask),
-            'tth_array': self.tth_list,
+            'tth_array': self.tthfull,
             'params': params,
             'phases': mats,
             'wavelength': self.wavelength,
@@ -2306,6 +2318,7 @@ class Rietveld(AbstractWPPF):
                 "max_iter": 10,
             },
             'peakshape': "pvtch",
+            'amorphous_model': self.amorphous_model,
         })
 
         # we have to divide by the computed instensites
@@ -2315,8 +2328,8 @@ class Rietveld(AbstractWPPF):
                 continue
 
             pfdata = {}
-            for ii in range(pv_binned.shape[0]):
-                eta = self.eta_min + (ii + 1) * np.radians(azimuthal_interval)
+            for ii, nnz in enumerate(results[3]):
+                eta = self.eta_min + (nnz + 1) * np.radians(azimuthal_interval)
                 t = results[2][ii][mat_key][lambda_key]
                 hkl = results[1][ii][mat_key][lambda_key]
                 ints = results[0][ii][mat_key][lambda_key]
@@ -2390,6 +2403,7 @@ def extract_intensities(
     intensity_init=None,
     termination_condition={"rwp_perct_change": 0.05, "max_iter": 100},
     peakshape="pvtch",
+    amorphous_model=None,
 ):
     """
     >> @AUTHOR:  Saransh Singh, Lanwrence Livermore National Lab,
@@ -2442,7 +2456,8 @@ def extract_intensities(
         # make sure that there is atleast one nonzero pixel
 
         if np.sum(~d.mask) > 1:
-            data = np.ma.stack((tth_array, d)).T
+            data = np.ma.stack((tth_array,
+                                d)).T
             data_inp_list.append(data)
             non_zeros_index.append(i)
 
@@ -2453,6 +2468,7 @@ def extract_intensities(
         "bkgmethod": bkgmethod,
         "termination_condition": termination_condition,
         "peakshape": peakshape,
+        "amorphous_model": amorphous_model,
     }
     func = partial(single_azimuthal_extraction, **kwargs)
 
@@ -2512,6 +2528,7 @@ def single_azimuthal_extraction(
     intensity_init=None,
     termination_condition=None,
     peakshape="pvtch",
+    amorphous_model=None,
 ):
 
     kwargs = {
@@ -2522,7 +2539,8 @@ def single_azimuthal_extraction(
         "wavelength": wavelength,
         "bkgmethod": bkgmethod,
         "peakshape": peakshape,
-        "intensity_init": intensity_init
+        "intensity_init": intensity_init,
+        "amorphous_model": amorphous_model,
     }
     L = LeBail(**kwargs)
 
