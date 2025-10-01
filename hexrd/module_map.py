@@ -139,15 +139,25 @@ class ModuleAliasImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         for old_path, new_paths in file_map.items():
             if old_path.suffix not in ("", ".py") or not "hexrd" in old_path.parts:
                 continue
-            if path_to_module(old_path) == fullname:
+            try:
+                old_mod = path_to_module(old_path)
+            except ValueError:
+                continue
+
+            if old_mod == fullname or old_mod.startswith(fullname + "."):
                 for p in new_paths:
                     candidate = path_to_module(p)
                     if candidate != mapped_module:
                         extra_candidates.append(candidate)
-                break
 
         if extra_candidates:
-            for candidate in extra_candidates:
+            seen = set()
+            deduped: list[str] = []
+            for c in extra_candidates:
+                if c not in seen:
+                    seen.add(c)
+                    deduped.append(c)
+            for candidate in deduped:
                 try:
                     cand_mod = importlib.import_module(candidate)
                 except Exception:
