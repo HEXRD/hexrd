@@ -1808,7 +1808,8 @@ class Rietveld(AbstractWPPF):
                               p,
                               k,
                               Ic,
-                              texture_factor=None):
+                              texture_factor=None,
+                              fullrange=False):
         '''this is a helper function so which is use by both the
         Rietveld.computspectrum and Rietveld.computespectrum_2d
         function to avoid code repetition.
@@ -1824,6 +1825,8 @@ class Rietveld(AbstractWPPF):
             azimuthally averaged texture factor
         '''
         tth_list = np.ascontiguousarray(self.tth_list)
+        if fullrange:
+            tth_list = np.ascontiguousarray(self.tthfull)
         name = self.phases[p][k].name
 
         tth, Xs = self.compute_tth_after_shifts(p, k)
@@ -1957,7 +1960,7 @@ class Rietveld(AbstractWPPF):
         simulated_2d: np.ndarray
             simulated 2D diffraction pattern
         '''
-        x = self.tth_list
+        x = self.tthfull
         y = np.zeros(x.shape)
 
         azimuth = np.arange(self.eta_min,
@@ -1974,8 +1977,9 @@ class Rietveld(AbstractWPPF):
                    y += self.computespectrum_phase(p,
                                                    k,
                                                    Icomputed[p][k],
-                                                   texture_factor=None)
-            y[self.global_mask] = np.nan
+                                                   texture_factor=None,
+                                                   fullrange=True)
+
             y += self.background.y
             if self.amorphous_model is not None:
                 y += self.amorphous_model.amorphous_lineout
@@ -2018,9 +2022,9 @@ class Rietveld(AbstractWPPF):
                         y += self.computespectrum_phase(p,
                                                         k,
                                                         Icomputed[p][k],
-                                                        texture_factor=texture_factor)
+                                                        texture_factor=texture_factor,
+                                                        fullrange=True)
 
-                y[self.global_mask] = np.nan
                 y += self.background.y
                 if self.amorphous_model is not None:
                     y += self.amorphous_model.amorphous_lineout
@@ -2281,9 +2285,9 @@ class Rietveld(AbstractWPPF):
 
         # Create LeBail params to use for intensity-finding. When possible,
         # we'll use the same params currently on the Rietveld object.
-        bkg_method = {'chebyshev': 1}
+        bkg_method = self.bkgmethod
         params = wppfsupport._generate_default_parameters_LeBail(
-            mats, 1, bkg_method)
+            mats, self.peakshape, bkg_method)
 
         for p in params:
             params[p].value = self.params[p].value
@@ -2293,10 +2297,14 @@ class Rietveld(AbstractWPPF):
         params['V'].vary = True
         params['W'].vary = True
 
-        # Allow lattice constants to vary as well
+        # Allow lattice constants and peak shapes to vary as well
         for mat in mats:
             lp_names = [f"{mat.name}_{x}" for x in wppfsupport._lpname]
+            peak_shape = [f"{mat.name}_{x}" for x in ['X', 'Y']]
             for name in lp_names:
+                if name in params:
+                    params[name].vary = True
+            for name in peak_shape:
                 if name in params:
                     params[name].vary = True
 
@@ -2335,7 +2343,9 @@ class Rietveld(AbstractWPPF):
                 ints = results[0][ii][mat_key][lambda_key]
                 ints_comp = ints_computed[mat_key][lambda_key]
 
-                nn = np.min((t.shape[0], ints_comp.shape[0]))
+                nn = np.min((t.shape[0], 
+                    ints_comp.shape[0], 
+                    ints.shape[0]))
                 for jj in range(nn):
                     angs = np.atleast_2d([np.radians(t[jj]), eta, 0])
                     v = angles_to_gvec(angs, beam_vec=bvec, eta_vec=evec)
