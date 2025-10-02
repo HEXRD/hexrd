@@ -866,7 +866,7 @@ class AbstractWPPF(ABC):
     @property
     def tth_list(self):
         if isinstance(self.spectrum_expt._x, np.ma.MaskedArray):
-            return self.spectrum_expt._x.filled()
+            return self.spectrum_expt.x.data
         else:
             return self.spectrum_expt._x
 
@@ -889,6 +889,11 @@ class AbstractWPPF(ABC):
 
         amorphous_area = self.amorphous_model.integrated_area
         return 1. - amorphous_area / self.total_area
+
+    @property
+    def tthfull(self):
+        return self.tth_list
+
 
 
 def _nm(x):
@@ -1503,7 +1508,6 @@ class Rietveld(AbstractWPPF):
         eta_min=-180,
         eta_max=180,
         eta_step=5.,
-        tthfull=None,
     ):
 
         self.bkgmethod = bkgmethod
@@ -1519,17 +1523,6 @@ class Rietveld(AbstractWPPF):
         self.eta_min = eta_min
         self.eta_max = eta_max
         self.eta_step = eta_step
-
-        '''for 2D texture computation with masked 
-        polar views, sometimes the two theta range
-        where data is present is not the same for all
-        rows. We will pass a full extent of the polar
-        view as an extra parameter and handle that 
-        internally.
-        '''
-        self.tthfull = tthfull
-        if tthfull is None:
-            self.tthfull = expt_spectrum[:,0]
 
         self._tstart = time.time()
 
