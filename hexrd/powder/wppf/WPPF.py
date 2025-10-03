@@ -1976,10 +1976,14 @@ class Rietveld(AbstractWPPF):
                 y += self.amorphous_model.amorphous_lineout
 
             simulated_2d = np.tile(y, (nspec, 1))
-
-            self.simulated_2d = np.ma.masked_array(
-                                simulated_2d,
-                                mask=self.mask_2d)
+            if hasattr(self, 'mask_2d'):
+                self.simulated_2d = np.ma.masked_array(
+                                    simulated_2d,
+                                    mask=self.mask_2d)
+            else:
+                self.simulated_2d = np.ma.masked_array(
+                                    simulated_2d,
+                                    mask=np.isnan(simulated_2d))
 
             return
 
@@ -2025,10 +2029,14 @@ class Rietveld(AbstractWPPF):
                     y += self.amorphous_model.amorphous_lineout
 
                 simulated_2d[irow, :] = y
-
-            self.simulated_2d = np.ma.masked_array(
-                                simulated_2d,
-                                mask=self.mask_2d)
+            if hasattr(self, 'mask_2d'):
+                self.simulated_2d = np.ma.masked_array(
+                                    simulated_2d,
+                                    mask=self.mask_2d)
+            else:
+                self.simulated_2d = np.ma.masked_array(
+                                    simulated_2d,
+                                    mask=np.isnan(simulated_2d))
 
 
     def Refine(self):
