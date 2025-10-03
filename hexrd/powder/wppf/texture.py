@@ -700,9 +700,8 @@ class HarmonicModel:
                                  eta_max,
                                  eta_step)
         elif calc_type == 'spectrum_2d':
-            eta_grid = np.arange(eta_min,
-                                 eta_max,
-                                 eta_step)
+            nspec = int((eta_max - eta_min)/eta_step)-1
+            eta_grid = eta_min + eta_step*np.arange(1, nspec+1)
 
         '''initialize all the dictionaries which will store the data
         '''
@@ -832,6 +831,9 @@ class HarmonicModel:
         eta_grid = np.arange(eta_min,
                              eta_max,
                              eta_step)
+        if calc_type == 'spectrum_2d':
+            nspec = int((eta_max - eta_min)/eta_step)-1
+            eta_grid = eta_min + eta_step*np.arange(1, nspec+1)
 
         if not calc_type in ['texture_factor', 'spectrum_2d']:
             msg = (f'unknown type of grid for precomputing'
