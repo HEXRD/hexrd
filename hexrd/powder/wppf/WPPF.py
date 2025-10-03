@@ -1956,10 +1956,8 @@ class Rietveld(AbstractWPPF):
         x = self.tthfull
         y = np.zeros(x.shape)
 
-        azimuth = np.arange(self.eta_min,
-                            self.eta_max,
-                            self.eta_step)
-        nazimuth = azimuth.shape[0]
+        nspec = int((self.eta_max - self.eta_min)/self.eta_step)-1
+        azimuth = self.eta_min + self.eta_step*np.arange(1, nspec)
 
         Icomputed = self.compute_intensities()
 
@@ -1977,14 +1975,18 @@ class Rietveld(AbstractWPPF):
             if self.amorphous_model is not None:
                 y += self.amorphous_model.amorphous_lineout
 
-            self.simulated_2d = np.tile(y, (nazimuth-1, 1))
+            simulated_2d = np.tile(y, (nspec, 1))
+
+            self.simulated_2d = np.ma.masked_array(
+                                simulated_2d,
+                                mask=self.mask_2d)
 
             return
 
         else:
             '''get pole figure intensities around the azimuth
             '''
-            self.simulated_2d = np.empty([nazimuth-1, x.shape[0]])
+            simulated_2d = np.empty([nspec, x.shape[0]])
             azimuth_texture_factor = {}
             for iph, p in enumerate(self.phases):
                 if p in self.texture_model:
@@ -1998,7 +2000,7 @@ class Rietveld(AbstractWPPF):
                 else:
                     azimuth_texture_factor[p] = None
 
-            for irow in range(1, nazimuth):
+            for irow in range(nspec):
                 y = np.zeros(x.shape)
                 for iph, p in enumerate(self.phases):
 
@@ -2022,7 +2024,12 @@ class Rietveld(AbstractWPPF):
                 if self.amorphous_model is not None:
                     y += self.amorphous_model.amorphous_lineout
 
-                self.simulated_2d[irow-1, :] = y
+                simulated_2d[irow, :] = y
+
+            self.simulated_2d = np.ma.masked_array(
+                                simulated_2d,
+                                mask=self.mask_2d)
+
 
     def Refine(self):
         """
@@ -2306,6 +2313,9 @@ class Rietveld(AbstractWPPF):
 
         # Extract the intensities from the data
         mask = np.isnan(pv_binned)
+        # save the mask for simulated data that will be displayed
+        self.mask_2d = mask.copy()
+
         results = extract_intensities(**{
             'polar_view': np.ma.masked_array(pv_binned, mask=mask),
             'tth_array': self.tthfull,
