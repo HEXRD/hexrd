@@ -458,7 +458,7 @@ class HarmonicModel:
                 ell_max=10,
                 bvec=bvec_ref,
                 evec=eta_ref,
-                sample_normal=-constants.lab_z,
+                sample_rmat=np.eye(3),
                 pfdata=None,
     ):
 
@@ -468,7 +468,7 @@ class HarmonicModel:
         self.ell_max = ell_max
         self.bvec = bvec
         self.etavec = evec
-        self.sample_normal = sample_normal
+        self.sample_rmat = sample_rmat
         self.pfdata = pfdata
 
     @property
@@ -528,8 +528,6 @@ class HarmonicModel:
     @bvec.setter
     def bvec(self, bHat_l):
         self._bvec = bHat_l
-        if hasattr(self, '_sample_normal'):
-            self.calc_ref_frame()
 
     @etavec.setter
     def etavec(self, eHat_l):
@@ -537,32 +535,26 @@ class HarmonicModel:
 
     @property
     def sample_normal(self):
-        return self._sample_normal
+        return np.dot(self.sample_rmat, np.array([0,0,1]))
 
-    @sample_normal.setter
-    def sample_normal(self, val):
-        self._sample_normal = val
-        if hasattr(self, '_bvec') and hasattr(self, '_etavec'):
-            self.calc_ref_frame()
+    @property
+    def sample_rmat(self):
+        return self._sample_rmat
+
+    @sample_rmat.setter
+    def sample_rmat(self, val):
+        if isinstance(val, np.ndarray):
+            if val.shape == (3,3):
+                self._sample_rmat = val
+                self._ref_frame_rmat = val
+                return
+        msg = (f'either sample_rmat is not an'
+               f'array, or the shape is not (3,3)')
+        raise ValueError(msg)
 
     @property
     def ref_frame_rmat(self):
-        return self._ref_frame_rmat
-
-    def calc_ref_frame(self):
-        an = np.arccos(np.dot(
-                self.bvec,
-                self.sample_normal))
-        ax = np.cross(self.bvec,
-                      self.sample_normal)
-        norm = np.linalg.norm(ax)
-        if norm == 0:
-            self._ref_frame_rmat = np.eye(3)
-        else:
-            ax = ax/norm
-            self._ref_frame_rmat = (
-                rotMatOfExpMap(an*ax)
-                )
+        return self._sample_rmat
 
     def get_total_sym_harm(self, symtype):
         '''function to return the total symmetrized harmonics
