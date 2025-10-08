@@ -1354,7 +1354,7 @@ class LeBail(AbstractWPPF):
         self.CalcIobs()
         self.Icalc = self.Iobs
 
-        self.res = self.Refine()
+        self.res = self.Refine(print_to_screen)
         if self.res is not None:
             self.update_parameters()
         self.niter += 1
@@ -1366,7 +1366,7 @@ class LeBail(AbstractWPPF):
                    f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}")
             print(msg)
 
-    def Refine(self):
+    def Refine(self, print_to_screen=True):
         """
         >> @AUTHOR:  Saransh Singh, Lawrence Livermore National Lab,
                      saransh1@llnl.gov
@@ -1389,8 +1389,9 @@ class LeBail(AbstractWPPF):
             res = fitter.least_squares(**fdict)
             return res
         else:
-            msg = "nothing to refine. updating intensities"
-            print(msg)
+            if print_to_screen:
+                msg = "nothing to refine. updating intensities"
+                print(msg)
             self.computespectrum()
             return getattr(self, 'res', None)
 
@@ -2340,26 +2341,26 @@ class Rietveld(AbstractWPPF):
         # we'll use the same params currently on the Rietveld object.
         bkg_method = self.bkgmethod
         params = wppfsupport._generate_default_parameters_LeBail(
-            mats, self.peakshape, bkg_method)
+            mats, self.peakshape, 
+            bkg_method, 
+            amorphous_model=self.amorphous_model)
 
         for p in params:
             params[p].value = self.params[p].value
+            params[p].min = self.params[p].min
+            params[p].max = self.params[p].max
 
         # Ensure these are marked as `Vary`
-        params['U'].vary = True
-        params['V'].vary = True
+        # params['U'].vary = True
+        # params['V'].vary = True
         params['W'].vary = True
 
         # Allow lattice constants and peak shapes to vary as well
         for mat in mats:
             lp_names = [f"{mat.name}_{x}" for x in wppfsupport._lpname]
-            peak_shape = [f"{mat.name}_{x}" for x in ['X', 'Y']]
             for name in lp_names:
                 if name in params:
-                    params[name].vary = True
-            for name in peak_shape:
-                if name in params:
-                    params[name].vary = True
+                    params[name].vary = False
 
         # Compute the current intensities from Rietveld
         ints_computed = self.compute_intensities()
@@ -2379,7 +2380,7 @@ class Rietveld(AbstractWPPF):
             'intensity_init': ints_computed,
             'termination_condition': {
                 "rwp_perct_change": 0.05,
-                "max_iter": 10,
+                "max_iter": 20,
             },
             'peakshape': "pvtch",
             'amorphous_model': self.amorphous_model,
