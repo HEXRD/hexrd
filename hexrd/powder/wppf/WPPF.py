@@ -1524,6 +1524,8 @@ class Rietveld(AbstractWPPF):
         self.eta_max = eta_max
         self.eta_step = eta_step
 
+        self._mask_2d = None
+
         self._tstart = time.time()
 
         if wavelength is not None:
@@ -1908,10 +1910,16 @@ class Rietveld(AbstractWPPF):
                 if self.texture_model[p] is None:
                     texture_factor = None
                 else:
+                    eta_mask = self.eta_mask
+                    if not eta_mask is None:
+                        eta_mask = eta_mask[p][k]
+
                     texture_factor = self.texture_model[p].calc_texture_factor(
                                             self.params,
                                             eta_min=self.eta_min,
-                                            eta_max=self.eta_max)
+                                            eta_max=self.eta_max,
+                                            eta_step=self.eta_step,
+                                            eta_mask=eta_mask)
                 y += self.computespectrum_phase(p,
                                     k,
                                     Icomputed[p][k],
@@ -1976,7 +1984,7 @@ class Rietveld(AbstractWPPF):
                 y += self.amorphous_model.amorphous_lineout
 
             simulated_2d = np.tile(y, (nspec, 1))
-            if hasattr(self, 'mask_2d'):
+            if not self.mask_2d is None:
                 self.simulated_2d = np.ma.masked_array(
                                     simulated_2d,
                                     mask=self.mask_2d)
@@ -2029,7 +2037,7 @@ class Rietveld(AbstractWPPF):
                     y += self.amorphous_model.amorphous_lineout
 
                 simulated_2d[irow, :] = y
-            if hasattr(self, 'mask_2d'):
+            if not self.mask_2d is None:
                 self.simulated_2d = np.ma.masked_array(
                                     simulated_2d,
                                     mask=self.mask_2d)
@@ -2271,6 +2279,42 @@ class Rietveld(AbstractWPPF):
     @eta_step.setter
     def eta_step(self, val):
         self._eta_step = np.radians(val)
+
+    @property
+    def mask_2d(self):
+        return self._mask_2d
+
+    @mask_2d.setter
+    def mask_2d(self, val):
+        if isinstance(val, np.ndarray):
+            self._mask_2d = val
+            self._eta_mask = {}
+            for p in self.phases:
+                self._eta_mask[p] = {}
+                for k in self.wavelength:
+                    self._eta_mask[p][k] = {}
+                    tth = self.tth[p][k]
+                    hkls = self.hkls[p][k]
+                    for t, h in zip(tth, hkls):
+                        idx = np.abs(self.tth_list - 
+                                      t).argmin()
+                        if idx < self.mask_2d.shape[1]:
+                            self._eta_mask[p][k][tuple(h)] = (
+                                self.mask_2d[:,idx])
+                        else:
+                            self._eta_mask = np.ones_like(
+                                self.mask_2d).astype(bool)
+        else:
+            msg = f'mask is not a numpy array'
+            raise ValueError(msg)
+
+    @property
+    def eta_mask(self):
+        if self.mask_2d is None:
+            return None
+        else:
+            return self._eta_mask
+
 
     def compute_texture_data(self,
                              pv_binned: np.ndarray,

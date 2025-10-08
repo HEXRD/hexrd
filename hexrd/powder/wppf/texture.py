@@ -687,13 +687,10 @@ class HarmonicModel:
         harmonic functions so we don't keep repeating
         the calculations
         '''
-        if calc_type == 'texture_factor':
-            self.eta_grid = np.arange(eta_min,
-                                 eta_max,
-                                 eta_step)
-        elif calc_type == 'spectrum_2d':
-            nspec = int((eta_max - eta_min)/eta_step)-1
-            eta_grid = eta_min + eta_step*np.arange(1, nspec+1)
+
+        nspec = int((eta_max - eta_min)/eta_step)-1
+        eta_grid = eta_min + eta_step*np.arange(1, nspec+1)
+        self.eta_grid = eta_grid
 
         '''initialize all the dictionaries which will store the data
         '''
@@ -820,12 +817,9 @@ class HarmonicModel:
         the full ring. eta_step is the angular step size in azimuth.
         Default value is 0.1 degrees for eta_step
         '''
-        eta_grid = np.arange(eta_min,
-                             eta_max,
-                             eta_step)
-        if calc_type == 'spectrum_2d':
-            nspec = int((eta_max - eta_min)/eta_step)-1
-            eta_grid = eta_min + eta_step*np.arange(1, nspec+1)
+
+        nspec = int((eta_max - eta_min)/eta_step)-1
+        eta_grid = eta_min + eta_step*np.arange(1, nspec+1)
 
         if not calc_type in ['texture_factor', 'spectrum_2d']:
             msg = (f'unknown type of grid for precomputing'
@@ -872,7 +866,8 @@ class HarmonicModel:
                             params,
                             eta_min=-np.pi,
                             eta_max=np.pi,
-                            eta_step=np.radians(1)):
+                            eta_step=np.radians(1),
+                            eta_mask=None):
 
         self.calc_pf_rings(params,
                            eta_min=eta_min,
@@ -881,7 +876,14 @@ class HarmonicModel:
                            calc_type='texture_factor')
         tf = np.zeros([len(self.intensities_rings), ])
         for ii, (k, v) in enumerate(self.intensities_rings.items()):
-            tf[ii] = np.mean(v)
+            if eta_mask is None:
+                tf[ii] = np.mean(v)
+            else:
+                if k in eta_mask:
+                    mask = eta_mask[k]
+                else:
+                    mask = np.zeros_like(v).astype(bool)
+                tf[ii] = np.mean(v[~mask])
         return tf
 
     def J(self, params):
@@ -1482,6 +1484,8 @@ class HarmonicModel:
             self._stereo_radius = self.stereographic_radius()
         self._weights = 1/self._weights
         self._weights = np.nan_to_num(self._weights)
+        mask = np.abs(self._weights) > 1E2
+        self._weights[mask] = 0.0
 
     @property
     def gvecs(self):
