@@ -2302,8 +2302,9 @@ class Rietveld(AbstractWPPF):
                             self._eta_mask[p][k][tuple(h)] = (
                                 self.mask_2d[:,idx])
                         else:
-                            self._eta_mask = np.ones_like(
-                                self.mask_2d).astype(bool)
+                            self._eta_mask[p][k][tuple(h)] = (
+                                np.ones_like(
+                                self.mask_2d).astype(bool))
         else:
             msg = f'mask is not a numpy array'
             raise ValueError(msg)
