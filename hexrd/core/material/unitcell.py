@@ -32,8 +32,14 @@ def _calclength(u, mat):
 
 @njit(cache=True, nogil=True)
 def _calcstar(v, sym, mat):
-    vsym = np.atleast_2d(v)
-    for s in sym:
+    # vsym = np.atleast_2d(v)
+    vsym = np.empty((sym.shape[0], v.shape[0]))
+    n = 0
+    vsym[n,:] = v
+    n = n + 1
+    # the first element is always the identity
+    # so we can safely skip that
+    for s in sym[1:,:,:]:
         vp = np.dot(np.ascontiguousarray(s), v)
         # check if this is new
         isnew = True
@@ -43,10 +49,10 @@ def _calcstar(v, sym, mat):
                 isnew = False
                 break
         if isnew:
-            vp = np.atleast_2d(vp)
-            vsym = np.vstack((vsym, vp))
+            vsym[n,:] = vp
+            n = n + 1
 
-    return vsym
+    return vsym[0:n,:]
 
 class unitcell:
     '''
