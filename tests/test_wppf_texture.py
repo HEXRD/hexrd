@@ -14,7 +14,7 @@ from hexrd.wppf.phase import Material_Rietveld
 from hexrd.wppf.texture import HarmonicModel
 from hexrd.wppf.WPPF import extract_intensities
 from hexrd.wppf.wppfsupport import _generate_default_parameters_LeBail
-
+from hexrd.rotations import quatOfAngleAxis, rotMatOfQuat
 
 @pytest.fixture
 def texture_examples_path(example_repo_path: Path) -> Path:
@@ -64,11 +64,12 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
     instr = texture_instrument
     img_dict = texture_img_dict
 
-    sample_normal = np.array([
-        np.sin(np.radians(22.5)),
-        0,
-        np.cos(np.radians(22.5)),
-    ])
+    q = quatOfAngleAxis(np.array(
+        [np.radians(22.5)]), 
+        np.atleast_2d(np.array([0,1,0])).T)
+
+    sample_rmat = rotMatOfQuat(q)
+
 
     mat = Material(dmin=_angstrom(0.5), kev=_kev(instr.beam_energy))
     exc = np.zeros_like(mat.planeData.exclusions).astype(bool)
@@ -121,7 +122,7 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
         'ell_max': 16,
         'bvec': instr.beam_vector,
         'evec': instr.eta_vector,
-        'sample_normal': sample_normal,
+        'sample_rmat': sample_rmat,
     }
     hm = HarmonicModel(**kwargs)
 
