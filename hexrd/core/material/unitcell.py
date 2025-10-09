@@ -1,5 +1,6 @@
 import importlib.resources
 import numpy as np
+from numba import njit
 from hexrd.core import constants
 from hexrd.core.material import spacegroup, symbols, symmetry
 # TODO: Resolve extra-core-dependency
