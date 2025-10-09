@@ -1,9 +1,7 @@
 import importlib.resources
 import numpy as np
-from numba import njit, prange
 from hexrd.core import constants
 from hexrd.core.material import spacegroup, symbols, symmetry
-from hexrd.core.matrixutil import uniqueVectors
 # TODO: Resolve extra-core-dependency
 from hexrd.hedm.ipfcolor import sphere_sector, colorspace
 from hexrd.core.valunits import valWUnit
