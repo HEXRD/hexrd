@@ -2379,7 +2379,7 @@ class Rietveld(AbstractWPPF):
             'bkgmethod': bkg_method,
             'intensity_init': ints_computed,
             'termination_condition': {
-                "rwp_perct_change": 0.05,
+                "rwp_perct_change": 0.01,
                 "max_iter": 20,
             },
             'peakshape': "pvtch",
