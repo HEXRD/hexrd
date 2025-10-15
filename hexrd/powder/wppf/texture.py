@@ -458,7 +458,7 @@ class HarmonicModel:
                 ell_max=10,
                 bvec=bvec_ref,
                 evec=eta_ref,
-                sample_normal=-constants.lab_z,
+                sample_rmat=np.eye(3),
                 pfdata=None,
     ):
 
@@ -468,7 +468,7 @@ class HarmonicModel:
         self.ell_max = ell_max
         self.bvec = bvec
         self.etavec = evec
-        self.sample_normal = sample_normal
+        self.sample_rmat = sample_rmat
         self.pfdata = pfdata
 
     @property
@@ -528,8 +528,6 @@ class HarmonicModel:
     @bvec.setter
     def bvec(self, bHat_l):
         self._bvec = bHat_l
-        if hasattr(self, '_sample_normal'):
-            self.calc_ref_frame()
 
     @etavec.setter
     def etavec(self, eHat_l):
@@ -537,32 +535,26 @@ class HarmonicModel:
 
     @property
     def sample_normal(self):
-        return self._sample_normal
+        return np.dot(self.sample_rmat, np.array([0,0,1]))
 
-    @sample_normal.setter
-    def sample_normal(self, val):
-        self._sample_normal = val
-        if hasattr(self, '_bvec') and hasattr(self, '_etavec'):
-            self.calc_ref_frame()
+    @property
+    def sample_rmat(self):
+        return self._sample_rmat
+
+    @sample_rmat.setter
+    def sample_rmat(self, val):
+        if isinstance(val, np.ndarray):
+            if val.shape == (3,3):
+                self._sample_rmat = val
+                self._ref_frame_rmat = val
+                return
+        msg = (f'either sample_rmat is not an'
+               f'array, or the shape is not (3,3)')
+        raise ValueError(msg)
 
     @property
     def ref_frame_rmat(self):
-        return self._ref_frame_rmat
-
-    def calc_ref_frame(self):
-        an = np.arccos(np.dot(
-                self.bvec,
-                self.sample_normal))
-        ax = np.cross(self.bvec,
-                      self.sample_normal)
-        norm = np.linalg.norm(ax)
-        if norm == 0:
-            self._ref_frame_rmat = np.eye(3)
-        else:
-            ax = ax/norm
-            self._ref_frame_rmat = (
-                rotMatOfExpMap(an*ax)
-                )
+        return self._sample_rmat
 
     def get_total_sym_harm(self, symtype):
         '''function to return the total symmetrized harmonics
@@ -695,14 +687,10 @@ class HarmonicModel:
         harmonic functions so we don't keep repeating
         the calculations
         '''
-        if calc_type == 'texture_factor':
-            self.eta_grid = np.arange(eta_min,
-                                 eta_max,
-                                 eta_step)
-        elif calc_type == 'spectrum_2d':
-            eta_grid = np.arange(eta_min,
-                                 eta_max,
-                                 eta_step)
+
+        nspec = int((eta_max - eta_min)/eta_step)-1
+        eta_grid = eta_min + eta_step*np.arange(1, nspec+1)
+        self.eta_grid = eta_grid
 
         '''initialize all the dictionaries which will store the data
         '''
@@ -829,9 +817,9 @@ class HarmonicModel:
         the full ring. eta_step is the angular step size in azimuth.
         Default value is 0.1 degrees for eta_step
         '''
-        eta_grid = np.arange(eta_min,
-                             eta_max,
-                             eta_step)
+
+        nspec = int((eta_max - eta_min)/eta_step)-1
+        eta_grid = eta_min + eta_step*np.arange(1, nspec+1)
 
         if not calc_type in ['texture_factor', 'spectrum_2d']:
             msg = (f'unknown type of grid for precomputing'
@@ -878,7 +866,8 @@ class HarmonicModel:
                             params,
                             eta_min=-np.pi,
                             eta_max=np.pi,
-                            eta_step=np.radians(1)):
+                            eta_step=np.radians(1),
+                            eta_mask=None):
 
         self.calc_pf_rings(params,
                            eta_min=eta_min,
@@ -887,7 +876,14 @@ class HarmonicModel:
                            calc_type='texture_factor')
         tf = np.zeros([len(self.intensities_rings), ])
         for ii, (k, v) in enumerate(self.intensities_rings.items()):
-            tf[ii] = np.mean(v)
+            if eta_mask is None:
+                tf[ii] = np.mean(v)
+            else:
+                if k in eta_mask:
+                    mask = eta_mask[k]
+                else:
+                    mask = np.zeros_like(v).astype(bool)
+                tf[ii] = np.mean(v[~mask])
         return tf
 
     def J(self, params):
@@ -1149,7 +1145,10 @@ class HarmonicModel:
 
             calculated = np.concatenate((calculated, term))
 
-        return np.sqrt(self.weights*(measured - calculated)**2)
+        residual = np.sqrt(self.weights*(measured - calculated)**2)
+        if np.all(np.isnan(residual)):
+            return 1E10
+        return residual[~np.isnan(residual)]
 
     def recalculated_pf(self,
                         params,
@@ -1257,8 +1256,8 @@ class HarmonicModel:
 
         '''
         if pfgrid is None:
-            t = np.radians(np.arange(0, 90, 5))
-            e = np.radians(np.arange(-180, 180, 10))
+            t = np.radians(np.linspace(0, 90, 19))
+            e = np.radians(np.linspace(-180, 180, 73))
             tt, ee = np.meshgrid(t, e)
 
             tt = tt.flatten()
@@ -1485,6 +1484,8 @@ class HarmonicModel:
             self._stereo_radius = self.stereographic_radius()
         self._weights = 1/self._weights
         self._weights = np.nan_to_num(self._weights)
+        mask = np.abs(self._weights) > 1E2
+        self._weights[mask] = 0.0
 
     @property
     def gvecs(self):
