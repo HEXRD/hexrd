@@ -1256,8 +1256,8 @@ class HarmonicModel:
 
         '''
         if pfgrid is None:
-            t = np.radians(np.arange(0, 90, 5))
-            e = np.radians(np.arange(-180, 180, 10))
+            t = np.radians(np.linspace(0, 90, 19))
+            e = np.radians(np.linspace(-180, 180, 73))
             tt, ee = np.meshgrid(t, e)
 
             tt = tt.flatten()
