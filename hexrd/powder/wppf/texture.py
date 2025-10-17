@@ -423,6 +423,106 @@ def get_num_sym_harm(ell, sym='oh'):
     elif sym == 'triclinic':
         return 2*ell + 1
 
+class MarchDollaseModel:
+    """this class implements the well known March Dollase 
+    texture model for axisymmetric textures. the functional
+    form used is the same as the Bragg-Brentano geometry which
+    is also valid from Debye-Scherrer geometry as detailed in 
+    Howard and Kisi, J. Appl. Cryst. (2000). 33, 1434-1435.
+
+    P_k = 1/m_k sum{i=1, m_k} (P^2cos^2alpha + sin^2 alpha/P)^-1.5
+
+    this is a simple model with just one refinement parameter.
+    However, we need to make sure that only one of the texture
+    models is used inside the wppf module.
+    """
+    def __init__(self,
+                material=None,
+                HKL=np.array([1.,1.,1.]),
+                P_MD=1.0):
+
+        self.material = material
+        self.HKL = HKL
+        self.P_MD = P_MD
+
+    def get_texture_factor(self):
+        hkls = self.material.hkls
+        self.texture_factors = np.empty(hkls.shape)
+
+        for ii, g in enumerate(hkls):
+            self.texture_factors[ii] = self.get_texture_factor_reflection(g)
+
+    def get_texture_factor_reflection(self, g):
+        """get the sum of symmetrically equivalent hkls
+        """
+        gsym = matr.CalcStar(g, 'r')
+        pre = 1./gsym.shape[0]
+        texture_factor = 0.
+        for h in gsym:
+            cos2_alpha, sin2_alpha = calc_cos_sin_alpha(self, h)
+            texture_factor += (self.P_MD**2 * cos2_alpha + 
+                            sin2_alpha/P_MD)**-1.5
+
+        return pre*texture_factor
+
+    def calc_cos_sin_alpha(self, g):
+
+        g_mag = self.material.CalcLength(g, 'r')
+        gdotHKL = self.material.CalcDot(g, self.HKL, 'r')
+        cos2_alpha = (gdotHKL/g_mag/self.HKL_length)**2
+        sin2_alpha = 1 - cos2_alpha
+
+        return cos2_alpha, sin2_alpha
+
+    @property
+    def material(self):
+        return self._material
+
+    @material.setter
+    def material(self, mat):
+        if not isinstance(mat, Material_Rietveld):
+            raise Exception(f'Invalid material: {mat}')
+
+        self._material = mat
+
+    @property
+    def HKL(self):
+        return self._HKL
+
+    @HKL.setter
+    def HKL(desl, hkl):
+        if isinstance(hkl, list):
+            hkl = np.array(hkl)
+            if g.shape != (3,):
+                msg = f'HKL should be a list of length 3'
+                raise ValueError(msg)
+        elif isinstance(hkl, np.ndarray):
+            if hkl.shape != (3,):
+                msg = f'HKL should be a an array with shape (3,)'
+                raise ValueError(msg)
+
+        else:
+            msg = 'HKL must be a list or numpy.ndarray'
+            raise TypeError(msg)
+        self._HKL = hkl
+        self._HKL_length = self.material.CalcLength(self._HKL, 'r')
+
+    @property
+    def HKL_length(self):
+        return self._HKL_length
+
+    @property
+    def P_MD(self):
+        return self._P_MD
+
+    @P_MD.setter
+    def P_MD(self, val):
+        if isinstance(val, float):
+            self._P_MD = val
+        else:
+            msg = f'P_MD must be a float'
+            raise TypeError(msg)
+
 class HarmonicModel:
     """this is the abstract class which is used by
     both the harmonic model as well as the pole figure
