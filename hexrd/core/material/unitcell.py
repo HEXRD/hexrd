@@ -32,22 +32,28 @@ def _calclength(u, mat):
 
 @njit(cache=True, nogil=True)
 def _calcstar(v, sym, mat):
-    # vsym = np.atleast_2d(v)
+
     vsym = np.empty((sym.shape[0], v.shape[0]))
+    nsym = sym.shape[0]
+
     n = 0
     vsym[n,:] = v
     n = n + 1
+
     # the first element is always the identity
     # so we can safely skip that
     for s in sym[1:,:,:]:
+
         vp = np.dot(np.ascontiguousarray(s), v)
+
         # check if this is new
         isnew = True
-        for vec in vsym:
+        for vec in vsym[0:n,:]:
             dist = np.sum((vp - vec)**2)
             if dist < 1e-4:
                 isnew = False
                 break
+
         if isnew:
             vsym[n,:] = vp
             n = n + 1
@@ -987,7 +993,7 @@ class unitcell:
         for i, g in enumerate(hkllist):
             if mask[i]:
 
-                geqv = self.CalcStar(g, 'r', applyLaue=laue)
+                geqv = self.CalcStar(g, 'r', applyLaue=laue).astype(int)
 
                 for r in geqv[1:,]:
                     rid = np.where(np.all(r == hkllist, axis=1))
