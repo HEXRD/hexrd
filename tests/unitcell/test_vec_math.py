@@ -85,19 +85,67 @@ def test_trans_space(cell: unitcell.unitcell):
 
 
 def test_calc_star(cell: unitcell.unitcell):
-    """
-    Just ensuring that the outspace doesn't matter
-    """
-    np.random.seed(0)
-    for _ in range(100):
-        v1 = np.random.rand(3) * 10 - 5
-        space = np.random.choice(['d', 'r'])
-        v1c = cell.TransSpace(v1, space, 'c')
-        assert np.allclose(
-            cell.CalcStar(v1, space, False),
-            cell.TransSpace(cell.CalcStar(v1c, 'c', False), 'c', space),
-        )
-        assert np.allclose(
-            cell.CalcStar(v1, space, True),
-            cell.TransSpace(cell.CalcStar(v1c, 'c', True), 'c', space),
-        )
+    v = [1.0, 2.0, 3.0]
+    vsym = cell.CalcStar(v, 'd', False)
+    assert vsym.shape[0] == 48
+
+    vsym = cell.CalcStar(v, 'r', False)
+    assert vsym.shape[0] == 48
+
+    vsym = cell.CalcStar(v, 'd', True)
+    assert vsym.shape[0] == 48
+
+    vsym = cell.CalcStar(v, 'r', True)
+    assert vsym.shape[0] == 48
+
+    v = [1.0, 1.0, 3.0]
+    vsym = cell.CalcStar(v, 'd', False)
+    assert vsym.shape[0] == 24
+
+    vsym = cell.CalcStar(v, 'r', False)
+    assert vsym.shape[0] == 24
+
+    vsym = cell.CalcStar(v, 'd', True)
+    assert vsym.shape[0] == 24
+
+    vsym = cell.CalcStar(v, 'r', True)
+    assert vsym.shape[0] == 24
+
+    v = [1.0, 1.0, 0.0]
+    vsym = cell.CalcStar(v, 'd', False)
+    assert vsym.shape[0] == 12
+
+    vsym = cell.CalcStar(v, 'r', False)
+    assert vsym.shape[0] == 12
+
+    vsym = cell.CalcStar(v, 'd', True)
+    assert vsym.shape[0] == 12
+
+    vsym = cell.CalcStar(v, 'r', True)
+    assert vsym.shape[0] == 12
+
+    v = [1.0, 1.0, 1.0]
+    vsym = cell.CalcStar(v, 'd', False)
+    assert vsym.shape[0] == 8
+
+    vsym = cell.CalcStar(v, 'r', False)
+    assert vsym.shape[0] == 8
+
+    vsym = cell.CalcStar(v, 'd', True)
+    assert vsym.shape[0] == 8
+
+    vsym = cell.CalcStar(v, 'r', True)
+    assert vsym.shape[0] == 8
+
+    v = [1.0, 0.0, 0.0]
+    vsym = cell.CalcStar(v, 'd', False)
+    assert vsym.shape[0] == 6
+
+    vsym = cell.CalcStar(v, 'r', False)
+    assert vsym.shape[0] == 6
+
+    vsym = cell.CalcStar(v, 'd', True)
+    assert vsym.shape[0] == 6
+
+    vsym = cell.CalcStar(v, 'r', True)
+    assert vsym.shape[0] == 6

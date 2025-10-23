@@ -33,22 +33,31 @@ def _calclength(u, mat):
 
 @njit(cache=True, nogil=True)
 def _calcstar(v, sym, mat):
-    vsym = np.atleast_2d(v)
-    for s in sym:
+    vsym = np.empty((sym.shape[0], v.shape[0]))
+    nsym = sym.shape[0]
+
+    n = 0
+    vsym[n, :] = v
+    n = n + 1
+
+    # the first element is always the identity
+    # so we can safely skip that
+    for s in sym[1:, :, :]:
         vp = np.dot(np.ascontiguousarray(s), v)
+
         # check if this is new
         isnew = True
-        for vec in vsym:
-            vv = vp - vec
-            dist = _calclength(vv, mat)
-            if dist < 1e-3:
+        for vec in vsym[0:n, :]:
+            dist = np.sum((vp - vec) ** 2)
+            if dist < 1e-4:
                 isnew = False
                 break
-        if isnew:
-            vp = np.atleast_2d(vp)
-            vsym = np.vstack((vsym, vp))
 
-    return vsym
+        if isnew:
+            vsym[n, :] = vp
+            n = n + 1
+
+    return vsym[0:n, :]
 
 
 class unitcell:
@@ -74,7 +83,6 @@ class unitcell:
         beamenergy,
         sgsetting=0,
     ):
-
         self._tstart = time.time()
         self.pref = 0.4178214
 
@@ -132,7 +140,6 @@ class unitcell:
         self.wavelength *= 1e9
 
     def calcBetaij(self):
-
         self.betaij = np.zeros([3, 3, self.atom_ntype])
         for i in range(self.U.shape[0]):
             U = self.U[i, :]
@@ -143,7 +150,6 @@ class unitcell:
             self.betaij[:, :, i] *= 2.0 * np.pi**2 * self._aij
 
     def calcmatrices(self):
-
         a = self.a
         b = self.b
         c = self.c
@@ -266,7 +272,6 @@ class unitcell:
     ''' calculate dot product of two vectors in any space 'd' 'r' or 'c' '''
 
     def CalcDot(self, u, v, space):
-
         if space == 'd':
             dot = np.dot(u, np.dot(self.dmt, v))
         elif space == 'r':
@@ -279,7 +284,6 @@ class unitcell:
         return dot
 
     def CalcLength(self, u, space):
-
         if space == 'd':
             mat = self.dmt
             # vlen = np.sqrt(np.dot(u, np.dot(self.dmt, u)))
@@ -304,7 +308,6 @@ class unitcell:
     ''' calculate angle between two vectors in any space'''
 
     def CalcAngle(self, u, v, space):
-
         ulen = self.CalcLength(u, space)
         vlen = self.CalcLength(v, space)
 
@@ -401,7 +404,6 @@ class unitcell:
         return pxq
 
     def GenerateRecipPGSym(self):
-
         self.SYM_PG_r = self.SYM_PG_d[0, :, :]
         self.SYM_PG_r = np.broadcast_to(self.SYM_PG_r, [1, 3, 3])
 
@@ -473,7 +475,6 @@ class unitcell:
             self.SYM_PG_supergroup_laue = sym_supergroup_laue
 
         else:
-
             self.SYM_PG_supergroup = []
             self.SYM_PG_supergroup_laue = []
 
@@ -506,7 +507,6 @@ class unitcell:
         SS 12/10/2020
         '''
         if self.latticeType == 'monoclinic':
-
             om = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]])
 
             for i, s in enumerate(self.SYM_PG_c):
@@ -616,7 +616,6 @@ class unitcell:
         asym_pos = []
 
         for i in range(self.atom_ntype):
-
             v = self.atom_pos[i, 0:3]
             apos, n = self.CalcOrbit(v)
 
@@ -784,7 +783,6 @@ class unitcell:
             self.il = self.il + 1
 
     def InitializeInterpTable(self):
-
         f_anomalous_data = []
         self.pe_cs = {}
         data = (
@@ -794,7 +792,6 @@ class unitcell:
         )
         with h5py.File(data, 'r') as fid:
             for i in range(0, self.atom_ntype):
-
                 Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
 
@@ -926,7 +923,6 @@ class unitcell:
         return 1e-12 * self.density * Na / M
 
     def calc_absorption_cross_sec(self):
-
         abs_cs_total = 0.0
         for i in range(self.atom_ntype):
             Z = self.atom_type[i]
@@ -983,8 +979,7 @@ class unitcell:
 
         for i, g in enumerate(hkllist):
             if mask[i]:
-
-                geqv = self.CalcStar(g, 'r', applyLaue=laue)
+                geqv = self.CalcStar(g, 'r', applyLaue=laue).astype(int)
 
                 for r in geqv[1:,]:
                     rid = np.where(np.all(r == hkllist, axis=1))
@@ -1069,10 +1064,8 @@ class unitcell:
         hkl_dsp = []
 
         for g in hkl_allowed:
-
             # ignore [0 0 0] as it is the direct beam
             if np.sum(np.abs(g)) != 0:
-
                 dspace = 1.0 / self.CalcLength(g, 'r')
 
                 if dspace >= dmin:
@@ -1125,7 +1118,6 @@ class unitcell:
         # initialize all zeros and fill the supplied values
         C = np.zeros([6, 6])
         for i, x in enumerate(_StiffnessDict[self._laueGroup][0]):
-
             C[x] = inp_Cvals[i]
 
         # enforce the equality constraints
@@ -1176,7 +1168,6 @@ class unitcell:
 
         mask = []
         for x in dir3:
-
             x2 = np.atleast_2d(x).T
             d1 = np.linalg.det(np.hstack((A, B, x2)))
             d2 = np.linalg.det(np.hstack((A, x2, C)))
@@ -1293,9 +1284,7 @@ class unitcell:
             sym = self.SYM_PG_supergroup_laue
 
         for sop in sym:
-
             if dir3_copy.size != 0:
-
                 dir3_sym = np.dot(sop, dir3_copy.T).T
 
                 mask = np.zeros(dir3_sym.shape[0]).astype(bool)
@@ -1783,7 +1772,6 @@ class unitcell:
         # vol per atom in A^3
         return 1e3 * self.vol / self.num_atom
 
-
     @property
     def chemical_formula(self):
         chemical_formula = ''
@@ -1797,7 +1785,7 @@ class unitcell:
             elem = constants.ptableinverse[Z]
             numat = self.numat[i]
             occ = self.atom_pos[i, 3]
-            abundance = str(numat*occ)
+            abundance = str(numat * occ)
             if abundance.endswith('.0'):
                 # We can remove the trailing decimal and zero.
                 # This looks nicer if you print the formula,
