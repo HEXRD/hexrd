@@ -85,8 +85,7 @@ def test_trans_space(cell: unitcell.unitcell):
 
 
 def test_calc_star(cell: unitcell.unitcell):
-
-    v = ([1., 2., 3.])
+    v = [1.0, 2.0, 3.0]
     vsym = cell.CalcStar(v, 'd', False)
     assert vsym.shape[0] == 48
 
@@ -99,7 +98,7 @@ def test_calc_star(cell: unitcell.unitcell):
     vsym = cell.CalcStar(v, 'r', True)
     assert vsym.shape[0] == 48
 
-    v = ([1., 1., 3.])
+    v = [1.0, 1.0, 3.0]
     vsym = cell.CalcStar(v, 'd', False)
     assert vsym.shape[0] == 24
 
@@ -112,7 +111,7 @@ def test_calc_star(cell: unitcell.unitcell):
     vsym = cell.CalcStar(v, 'r', True)
     assert vsym.shape[0] == 24
 
-    v = ([1., 1., 0.])
+    v = [1.0, 1.0, 0.0]
     vsym = cell.CalcStar(v, 'd', False)
     assert vsym.shape[0] == 12
 
@@ -125,7 +124,7 @@ def test_calc_star(cell: unitcell.unitcell):
     vsym = cell.CalcStar(v, 'r', True)
     assert vsym.shape[0] == 12
 
-    v = ([1., 1., 1.])
+    v = [1.0, 1.0, 1.0]
     vsym = cell.CalcStar(v, 'd', False)
     assert vsym.shape[0] == 8
 
@@ -138,7 +137,7 @@ def test_calc_star(cell: unitcell.unitcell):
     vsym = cell.CalcStar(v, 'r', True)
     assert vsym.shape[0] == 8
 
-    v = ([1., 0., 0.])
+    v = [1.0, 0.0, 0.0]
     vsym = cell.CalcStar(v, 'd', False)
     assert vsym.shape[0] == 6
 
