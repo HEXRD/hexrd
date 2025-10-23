@@ -65,7 +65,7 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
     img_dict = texture_img_dict
 
     q = quatOfAngleAxis(np.array(
-        [np.radians(22.5)]), 
+        [np.radians(22.5)]),
         np.atleast_2d(np.array([0,1,0])).T)
 
     sample_rmat = rotMatOfQuat(q)
@@ -205,17 +205,25 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
         'simulated_2d',
     ]
 
+    comparison_dict = {}
     for ref_name, hm_name in ref_map.items():
         if hm_name in ref_on_rietveld_obj:
             # This one is on the Rietveld object
             continue
 
-        d1 = ref_data[ref_name]
-        d2 = getattr(hm, hm_name)
-
-        assert sorted(list(d1)) == sorted(list(d2))
-        for key in d1:
-            assert np.allclose(d1[key], d2[key], rtol=1e-3)
+        comparison_dict[ref_name] = getattr(hm, hm_name)
 
     for name in ref_on_rietveld_obj:
-        assert np.allclose(ref_data[name], getattr(R, name), rtol=1e-2)
+        # Wrap this in a dict so we can do the same comparison later
+        comparison_dict[name] = {'result': getattr(R, name)}
+
+    # When the test data needs to be updated, save this out:
+    # np.save(ref_path, comparison_dict)
+
+    # Now do the comparison
+    for root_key in ref_data:
+        d1 = ref_data[root_key]
+        d2 = comparison_dict[root_key]
+        assert sorted(list(d1)) == sorted(list(d2))
+        for key in d1:
+            assert np.allclose(d1[key], d2[key], equal_nan=True, rtol=1e-3)
