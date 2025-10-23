@@ -150,16 +150,3 @@ def test_calc_star(cell: unitcell.unitcell):
 
     vsym = cell.CalcStar(v, 'r', True)
     assert vsym.shape[0] == 6
-    # np.random.seed(0)
-    # for _ in range(100):
-    #     v1 = np.random.rand(3) * 10 - 5
-    #     space = np.random.choice(['d', 'r'])
-    #     v1c = cell.TransSpace(v1, space, 'c')
-    #     assert np.allclose(
-    #         cell.CalcStar(v1, space, False),
-    #         cell.TransSpace(cell.CalcStar(v1c, 'c', False), 'c', space),
-    #     )
-    #     assert np.allclose(
-    #         cell.CalcStar(v1, space, True),
-    #         cell.TransSpace(cell.CalcStar(v1c, 'c', True), 'c', space),
-    #     )
