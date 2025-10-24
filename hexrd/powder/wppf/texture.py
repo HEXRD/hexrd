@@ -5,14 +5,12 @@ from warnings import warn
 
 # hexrd imports
 # -------------
-from hexrd.core.rotations import rotMatOfExpMap
 from hexrd.core.transforms.xfcapi import anglesToGVec
 from hexrd.core import constants
 from hexrd.powder.wppf.phase import Material_Rietveld
 
 # 3rd party imports
 # -----------------
-import h5py
 from lmfit import Parameters, Minimizer
 import numba
 import numpy as np
@@ -38,24 +36,25 @@ from matplotlib import pyplot as plt
 some constants that are used in the module
 '''
 bvec_ref = constants.beam_vec
-eta_ref  = constants.lab_x
+eta_ref = constants.lab_x
 
 SYMLIST = [
-'ci' ,
-'c2h',
-'d2h',
-'c4h',
-'d4h',
-'s6' ,
-'d3d',
-'c6h',
-'d6h',
-'th',
-'oh', # end of crystal symmtries
-'monoclinic',
-'orthorhombic',
-'triclinic',
-'axial'] # end of sample symmetries
+    'ci',
+    'c2h',
+    'd2h',
+    'c4h',
+    'd4h',
+    's6',
+    'd3d',
+    'c6h',
+    'd6h',
+    'th',
+    'oh',  # end of crystal symmtries
+    'monoclinic',
+    'orthorhombic',
+    'triclinic',
+    'axial',
+]  # end of sample symmetries
 
 '''
 in this section we will list the constants we need for symmetrizing
@@ -69,136 +68,339 @@ using the spherical python package. However, this will build an
 extra dependency, so not sure if we need that
 '''
 Blmn = {
-    'th':{
-        2:np.array([[0., 1., 0.]]),
-        4:np.array([[0.4564354645876387,0.0,
-        0.7637626158259737,0.0,
-        0.4564354645876387,]]),
-        6:np.array([[-0.39528470752104744,0.0,
-                0.5863019699779289,0.0,
-                0.5863019699779287,0.0,
-                -0.3952847075210474,],
-                 [0.0,0.6614378277661476,
-                0.0,-0.35355339059327384,
-                0.0,0.6614378277661477,
-                0.0,]]),
-        8:np.array([[0.4114253678777394,0.0,
-                0.27003086243366087,0.0,
-                0.7180703308172529,0.0,
-                0.270030862433661,0.0,
-                0.4114253678777394,]]),
-        10:np.array([[-0.32179907341941766,-0.3026705127825632,
-                0.08783983261480693,-0.25429409464318103,
-                0.4478970205736254,0.25236027118158605,
-                0.44789702057362524,-0.25429409464318115,
-                0.08783983261480709,-0.3026705127825629,
-                -0.3217990734194177,],
-                 [0.24992195050936286,-0.3897180314346175,
-                -0.06821990525403415,-0.3274286386826981,
-                -0.34785462810576917,0.32493865092120033,
-                -0.34785462810576934,-0.3274286386826982,
-                -0.06821990525403382,-0.38971803143461725,
-                0.24992195050936322,]]),
-        12:np.array([[-0.10774660850851898,0.35440527769341207,
-                0.042183172840390366,-0.5617029300070009,
-                -0.11564076236589332,0.14294418606853107,
-                -0.15291919171429025,0.1429441860685311,
-                -0.1156407623658934,-0.5617029300070007,
-                0.042183172840390734,0.35440527769341246,
-                -0.10774660850851901,],
-                 [0.3411000537498401,0.10028705753178294,
-                -0.2620437799555088,-0.15894665684441117,
-                0.42787445167677257,0.04044931809534165,
-                0.4357742152904641,0.040449318095341594,
-                0.4278744516767727,-0.15894665684441128,
-                -0.2620437799555087,0.100287057531783,
-                0.3411000537498399,],
-                 [0.19715691408140235,0.02017705548403037,
-                0.561512087862538,-0.03197895713646226,
-                -0.09548336992239026,0.00813812026783474,
-                0.5200389527975391,0.00813812026783466,
-                -0.09548336992239025,-0.0319789571364624,
-                0.5615120878625383,0.02017705548403026,
-                0.19715691408140232,]]),
-        14:np.array([[-0.28955062552019833,-0.2972304474122511,
-                0.010117717673205564,-0.2447888749918319,
-                0.12465750846560059,-0.22811657797300322,
-                0.38999831765926807,0.3102101852656362,
-                0.3899983176592681,-0.228116577973003,
-                0.1246575084656004,-0.24478887499183172,
-                0.010117717673205809,-0.297230447412251,
-                -0.2895506255201985,],
-                 [0.28772627934090717,-0.2991150553540337,
-                -0.010053969858649543,-0.2463409739167105,
-                -0.12387208985743604,-0.22956296517271021,
-                -0.387541089533881,0.31217709203398175,
-                -0.3875410895338812,-0.22956296517271035,
-                -0.12387208985743622,-0.2463409739167103,
-                -0.010053969858649592,-0.29911505535403393,
-                0.28772627934090733,]]),
-        16:np.array([[0.16618905573198167,-0.3654438510445056,
-                -0.059213072462354854,0.17954391047429719,
-                -0.002851898776857607,0.4610540410294765,
-                0.19021431714221818,-0.17805079589901174,
-                0.2127310570059948,-0.17805079589901207,
-                0.19021431714221823,0.4610540410294766,
-                -0.002851898776857436,0.1795439104742971,
-                -0.05921307246235514,-0.36544385104450566,
-                0.16618905573198162,],
-                 [0.30796148329941286,0.1641675465982823,
-                -0.26096265404956615,-0.08065612050929621,
-                -0.09371337438188433,-0.20711830435427173,
-                0.44600261056672585,0.07998537189520905,
-                0.305305250454509,0.07998537189520934,
-                0.4460026105667255,-0.20711830435427164,
-                -0.09371337438188454,-0.08065612050929624,
-                -0.26096265404956615,0.16416754659828256,
-                0.3079614832994129,],
-                 [0.21028019819195082,0.04839013590249786,
-                0.4381584188768272,-0.02377425205947472,
-                0.29639275890473565,-0.06105033000294009,
-                -0.07659622573459653,0.02357654174909582,
-                0.5707783675995487,0.02357654174909576,
-                -0.07659622573459626,-0.06105033000294006,
-                0.29639275890473576,-0.023774252059474876,
-                0.4381584188768272,0.048390135902498174,
-                0.2102801981919509,]]),
-        },
+    'th': {
+        2: np.array([[0.0, 1.0, 0.0]]),
+        4: np.array(
+            [
+                [
+                    0.4564354645876387,
+                    0.0,
+                    0.7637626158259737,
+                    0.0,
+                    0.4564354645876387,
+                ]
+            ]
+        ),
+        6: np.array(
+            [
+                [
+                    -0.39528470752104744,
+                    0.0,
+                    0.5863019699779289,
+                    0.0,
+                    0.5863019699779287,
+                    0.0,
+                    -0.3952847075210474,
+                ],
+                [
+                    0.0,
+                    0.6614378277661476,
+                    0.0,
+                    -0.35355339059327384,
+                    0.0,
+                    0.6614378277661477,
+                    0.0,
+                ],
+            ]
+        ),
+        8: np.array(
+            [
+                [
+                    0.4114253678777394,
+                    0.0,
+                    0.27003086243366087,
+                    0.0,
+                    0.7180703308172529,
+                    0.0,
+                    0.270030862433661,
+                    0.0,
+                    0.4114253678777394,
+                ]
+            ]
+        ),
+        10: np.array(
+            [
+                [
+                    -0.32179907341941766,
+                    -0.3026705127825632,
+                    0.08783983261480693,
+                    -0.25429409464318103,
+                    0.4478970205736254,
+                    0.25236027118158605,
+                    0.44789702057362524,
+                    -0.25429409464318115,
+                    0.08783983261480709,
+                    -0.3026705127825629,
+                    -0.3217990734194177,
+                ],
+                [
+                    0.24992195050936286,
+                    -0.3897180314346175,
+                    -0.06821990525403415,
+                    -0.3274286386826981,
+                    -0.34785462810576917,
+                    0.32493865092120033,
+                    -0.34785462810576934,
+                    -0.3274286386826982,
+                    -0.06821990525403382,
+                    -0.38971803143461725,
+                    0.24992195050936322,
+                ],
+            ]
+        ),
+        12: np.array(
+            [
+                [
+                    -0.10774660850851898,
+                    0.35440527769341207,
+                    0.042183172840390366,
+                    -0.5617029300070009,
+                    -0.11564076236589332,
+                    0.14294418606853107,
+                    -0.15291919171429025,
+                    0.1429441860685311,
+                    -0.1156407623658934,
+                    -0.5617029300070007,
+                    0.042183172840390734,
+                    0.35440527769341246,
+                    -0.10774660850851901,
+                ],
+                [
+                    0.3411000537498401,
+                    0.10028705753178294,
+                    -0.2620437799555088,
+                    -0.15894665684441117,
+                    0.42787445167677257,
+                    0.04044931809534165,
+                    0.4357742152904641,
+                    0.040449318095341594,
+                    0.4278744516767727,
+                    -0.15894665684441128,
+                    -0.2620437799555087,
+                    0.100287057531783,
+                    0.3411000537498399,
+                ],
+                [
+                    0.19715691408140235,
+                    0.02017705548403037,
+                    0.561512087862538,
+                    -0.03197895713646226,
+                    -0.09548336992239026,
+                    0.00813812026783474,
+                    0.5200389527975391,
+                    0.00813812026783466,
+                    -0.09548336992239025,
+                    -0.0319789571364624,
+                    0.5615120878625383,
+                    0.02017705548403026,
+                    0.19715691408140232,
+                ],
+            ]
+        ),
+        14: np.array(
+            [
+                [
+                    -0.28955062552019833,
+                    -0.2972304474122511,
+                    0.010117717673205564,
+                    -0.2447888749918319,
+                    0.12465750846560059,
+                    -0.22811657797300322,
+                    0.38999831765926807,
+                    0.3102101852656362,
+                    0.3899983176592681,
+                    -0.228116577973003,
+                    0.1246575084656004,
+                    -0.24478887499183172,
+                    0.010117717673205809,
+                    -0.297230447412251,
+                    -0.2895506255201985,
+                ],
+                [
+                    0.28772627934090717,
+                    -0.2991150553540337,
+                    -0.010053969858649543,
+                    -0.2463409739167105,
+                    -0.12387208985743604,
+                    -0.22956296517271021,
+                    -0.387541089533881,
+                    0.31217709203398175,
+                    -0.3875410895338812,
+                    -0.22956296517271035,
+                    -0.12387208985743622,
+                    -0.2463409739167103,
+                    -0.010053969858649592,
+                    -0.29911505535403393,
+                    0.28772627934090733,
+                ],
+            ]
+        ),
+        16: np.array(
+            [
+                [
+                    0.16618905573198167,
+                    -0.3654438510445056,
+                    -0.059213072462354854,
+                    0.17954391047429719,
+                    -0.002851898776857607,
+                    0.4610540410294765,
+                    0.19021431714221818,
+                    -0.17805079589901174,
+                    0.2127310570059948,
+                    -0.17805079589901207,
+                    0.19021431714221823,
+                    0.4610540410294766,
+                    -0.002851898776857436,
+                    0.1795439104742971,
+                    -0.05921307246235514,
+                    -0.36544385104450566,
+                    0.16618905573198162,
+                ],
+                [
+                    0.30796148329941286,
+                    0.1641675465982823,
+                    -0.26096265404956615,
+                    -0.08065612050929621,
+                    -0.09371337438188433,
+                    -0.20711830435427173,
+                    0.44600261056672585,
+                    0.07998537189520905,
+                    0.305305250454509,
+                    0.07998537189520934,
+                    0.4460026105667255,
+                    -0.20711830435427164,
+                    -0.09371337438188454,
+                    -0.08065612050929624,
+                    -0.26096265404956615,
+                    0.16416754659828256,
+                    0.3079614832994129,
+                ],
+                [
+                    0.21028019819195082,
+                    0.04839013590249786,
+                    0.4381584188768272,
+                    -0.02377425205947472,
+                    0.29639275890473565,
+                    -0.06105033000294009,
+                    -0.07659622573459653,
+                    0.02357654174909582,
+                    0.5707783675995487,
+                    0.02357654174909576,
+                    -0.07659622573459626,
+                    -0.06105033000294006,
+                    0.29639275890473576,
+                    -0.023774252059474876,
+                    0.4381584188768272,
+                    0.048390135902498174,
+                    0.2102801981919509,
+                ],
+            ]
+        ),
+    },
     'oh': {
-        2:np.array([[1.]]),
-        4:np.array([[-0.4564354645876382,-0.7637626158259734,
-        -0.4564354645876386,]]),
-        6:np.array([[0.6614378277661479,-0.3535533905932739,
-                0.6614378277661476,]]),
-        8:np.array([[-0.4114253678777393,-0.2700308624336607,
-                -0.7180703308172534,-0.2700308624336608,
-                -0.4114253678777394,]]),
-        10:np.array([[-0.4934466367636259,-0.41457809879442503,
-                0.4114253678777398,-0.41457809879442514,
-                -0.49344663676362605,]]),
-        12:np.array([[-0.40844758180620133,-0.04107687246151441,
-                -0.34173954767501197,-0.6552821453699549,
-                -0.34173954767501197,-0.04107687246151456,
-                -0.40844758180620117,],
-                 [0.0,0.6197216133464934,
-                -0.2979605473965942,0.23308639662726535,
-                -0.29796054739659417,0.6197216133464934,
-                0.0,]]),
-        14:np.array([[-0.421682054643464,-0.3472829807952012,
-                -0.32362992464387486,0.4400964619641172,
-                -0.32362992464387463,-0.34728298079520126,
-                -0.4216820546434642,]]),
-        16:np.array([[0.40826074902286213,0.004724991415765744,
-                0.0808097864409005,0.3744089876279584,
-                0.6108821877615941,0.3744089876279583,
-                0.0808097864409004,0.004724991415765709,
-                0.4082607490228618,],
-                 [0.0,-0.5133889064323339,
-                -0.3001812382731627,0.3174660719799944,
-                -0.3017891584619822,0.3174660719799949,
-                -0.30018123827316284,-0.5133889064323339,
-                0.0,]]),
-    }
+        2: np.array([[1.0]]),
+        4: np.array(
+            [
+                [
+                    -0.4564354645876382,
+                    -0.7637626158259734,
+                    -0.4564354645876386,
+                ]
+            ]
+        ),
+        6: np.array(
+            [
+                [
+                    0.6614378277661479,
+                    -0.3535533905932739,
+                    0.6614378277661476,
+                ]
+            ]
+        ),
+        8: np.array(
+            [
+                [
+                    -0.4114253678777393,
+                    -0.2700308624336607,
+                    -0.7180703308172534,
+                    -0.2700308624336608,
+                    -0.4114253678777394,
+                ]
+            ]
+        ),
+        10: np.array(
+            [
+                [
+                    -0.4934466367636259,
+                    -0.41457809879442503,
+                    0.4114253678777398,
+                    -0.41457809879442514,
+                    -0.49344663676362605,
+                ]
+            ]
+        ),
+        12: np.array(
+            [
+                [
+                    -0.40844758180620133,
+                    -0.04107687246151441,
+                    -0.34173954767501197,
+                    -0.6552821453699549,
+                    -0.34173954767501197,
+                    -0.04107687246151456,
+                    -0.40844758180620117,
+                ],
+                [
+                    0.0,
+                    0.6197216133464934,
+                    -0.2979605473965942,
+                    0.23308639662726535,
+                    -0.29796054739659417,
+                    0.6197216133464934,
+                    0.0,
+                ],
+            ]
+        ),
+        14: np.array(
+            [
+                [
+                    -0.421682054643464,
+                    -0.3472829807952012,
+                    -0.32362992464387486,
+                    0.4400964619641172,
+                    -0.32362992464387463,
+                    -0.34728298079520126,
+                    -0.4216820546434642,
+                ]
+            ]
+        ),
+        16: np.array(
+            [
+                [
+                    0.40826074902286213,
+                    0.004724991415765744,
+                    0.0808097864409005,
+                    0.3744089876279584,
+                    0.6108821877615941,
+                    0.3744089876279583,
+                    0.0808097864409004,
+                    0.004724991415765709,
+                    0.4082607490228618,
+                ],
+                [
+                    0.0,
+                    -0.5133889064323339,
+                    -0.3001812382731627,
+                    0.3174660719799944,
+                    -0.3017891584619822,
+                    0.3174660719799949,
+                    -0.30018123827316284,
+                    -0.5133889064323339,
+                    0.0,
+                ],
+            ]
+        ),
+    },
 }
 
 '''
@@ -222,8 +424,9 @@ laue_10 = 'th' # cubic low
 laue_11 = 'oh' # cubic high
 
 '''
-def check_symmetry(sym,
-                   symtype='either'):
+
+
+def check_symmetry(sym, symtype='either'):
     '''
     helper functio to check crystal and sample
     symmetry
@@ -236,15 +439,13 @@ def check_symmetry(sym,
         return sym in SYMLIST
     return False
 
-def check_degrees(ell,
-                  sym):
 
+def check_degrees(ell, sym):
     if ell < 0:
         msg = f'the degree is negative'
         raise ValueError(msg)
     if np.mod(ell, 2) != 0:
-        msg = (f'only even degrees allowed due to'
-               f'inversion symmetry')
+        msg = f'only even degrees allowed due to' f'inversion symmetry'
         raise ValueError(msg)
     if sym in ['td', 'oh']:
         if ell > 16:
@@ -252,10 +453,8 @@ def check_degrees(ell,
             raise ValueError(msg)
     return True
 
-def calc_sym_sph_harm(deg,
-                      theta,
-                      phi,
-                      sym='oh'):
+
+def calc_sym_sph_harm(deg, theta, phi, sym='oh'):
     '''
     get symmetrized harmonics with given degree
     and set of coefficients
@@ -281,10 +480,12 @@ def calc_sym_sph_harm(deg,
         spherical harmonics
     '''
     if not check_symmetry(sym):
-        msg = (f'unknown crystal/sample symmetry. '
-               f'It should be one of {symlist[0:11]} '
-               f'for crystal symmetries and {symlist[11:]} '
-               f'for sample symmetries')
+        msg = (
+            f'unknown crystal/sample symmetry. '
+            f'It should be one of {SYMLIST[0:11]} '
+            f'for crystal symmetries and {SYMLIST[11:]} '
+            f'for sample symmetries'
+        )
         raise ValueError(msg)
 
     if check_degrees(deg, sym=sym):
@@ -299,8 +500,7 @@ def calc_sym_sph_harm(deg,
         nfold = 6
 
     # cubic low, orthorhombic and monoclinic
-    elif sym in ['th', 'c2h', 'd2h',
-            'orthorhombic', 'monoclinic']:
+    elif sym in ['th', 'c2h', 'd2h', 'orthorhombic', 'monoclinic']:
         nfold = 2
 
     # trigonal
@@ -315,7 +515,7 @@ def calc_sym_sph_harm(deg,
     elif sym == 'axial':
         nfold = np.inf
 
-    n = int(deg/nfold)
+    n = int(deg / nfold)
 
     if sym in ['th', 'oh']:
         coeff = Blmn[sym][deg]
@@ -325,15 +525,15 @@ def calc_sym_sph_harm(deg,
         Intensity = np.zeros((theta.shape[0], num_sym)).astype(complex)
 
         for ii in range(num_sym):
-            for jj in range(-n, n+1):
-                Intensity[:,ii] += (coeff[ii, jj+n]*
-                    sph_harm_y(deg, nfold*jj, theta, phi))
+            for jj in range(-n, n + 1):
+                Intensity[:, ii] += coeff[ii, jj + n] * sph_harm_y(
+                    deg, nfold * jj, theta, phi
+                )
         Intensity = np.real(Intensity)
 
     elif sym == 'axial':
         Intensity = np.zeros((theta.shape[0], 1))
-        Intensity[:,0] = np.real(sph_harm_y(deg, 0,
-                                            theta, phi))
+        Intensity[:, 0] = np.real(sph_harm_y(deg, 0, theta, phi))
 
     elif sym in ['d2h', 'd3d', 'd4h', 'd6h', 'orthorhombic']:
         '''this is the dihedral symmetry with the
@@ -341,51 +541,57 @@ def calc_sym_sph_harm(deg,
         1. l = 2l'
         2. m = [0, nfold*m'] for all allowed m's
         '''
-        num_sym = n+1
-        Intensity = np.zeros((theta.shape[0],
-                            num_sym))
-        for ii in range(0, n+1):
+        num_sym = n + 1
+        Intensity = np.zeros((theta.shape[0], num_sym))
+        for ii in range(0, n + 1):
             if ii == 0:
-                Intensity[:,ii] = np.real(sph_harm_y(
-                                             deg, nfold*ii,
-                                             theta, phi))
+                Intensity[:, ii] = np.real(
+                    sph_harm_y(deg, nfold * ii, theta, phi)
+                )
             else:
                 '''we need special attention for laue
                 group d3d and d6h. for this cases the
                 real/imaginary component flips for
                 m = (2k+1)*nfold*m'
                 '''
-                Intensity[:,ii] = np.real((
-                    sph_harm_y(deg, -nfold*ii,
-                               theta, phi) +
-                    sph_harm_y(deg, nfold*ii,
-                               theta, phi)
-                    )/np.sqrt(2.))
-                if sym in ['d3d',] and np.mod(ii, 2) != 0:
-                    Intensity[:,ii] = np.imag((
-                        sph_harm_y(deg, -nfold*ii,
-                                   theta, phi) +
-                        sph_harm_y(deg, nfold*ii,
-                                   theta, phi)
-                        )/np.sqrt(2.))
+                Intensity[:, ii] = np.real(
+                    (
+                        sph_harm_y(deg, -nfold * ii, theta, phi)
+                        + sph_harm_y(deg, nfold * ii, theta, phi)
+                    )
+                    / np.sqrt(2.0)
+                )
+                if (
+                    sym
+                    in [
+                        'd3d',
+                    ]
+                    and np.mod(ii, 2) != 0
+                ):
+                    Intensity[:, ii] = np.imag(
+                        (
+                            sph_harm_y(deg, -nfold * ii, theta, phi)
+                            + sph_harm_y(deg, nfold * ii, theta, phi)
+                        )
+                        / np.sqrt(2.0)
+                    )
     elif sym in ['ci', 'c2h', 's6', 'c4h', 'c6h', 'monoclinic', 'triclinic']:
         '''this is the cyclic symmetry with the
         following selection rules:
         1. l = 2l'
         2. m = 2m' for all allowed m's
         '''
-        num_sym = 2*n+1
-        Intensity = np.zeros((theta.shape[0],
-                            num_sym))
-        for ii in range(-n, n+1):
+        num_sym = 2 * n + 1
+        Intensity = np.zeros((theta.shape[0], num_sym))
+        for ii in range(-n, n + 1):
             if ii < 0:
-                Intensity[:,ii+n] = np.imag(sph_harm_y(
-                                    deg, nfold*ii,
-                                    theta, phi))
+                Intensity[:, ii + n] = np.imag(
+                    sph_harm_y(deg, nfold * ii, theta, phi)
+                )
             else:
-                Intensity[:,ii+n] = np.real(sph_harm_y(
-                                    deg, nfold*ii,
-                                    theta, phi))
+                Intensity[:, ii + n] = np.real(
+                    sph_harm_y(deg, nfold * ii, theta, phi)
+                )
 
     return Intensity
 
@@ -395,33 +601,34 @@ def get_num_sym_harm(ell, sym='oh'):
     if sym in ['th', 'oh']:
         return Blmn[sym][ell].shape[0]
     elif sym == 'ci':
-        return 2*ell+1
+        return 2 * ell + 1
     elif sym == 'c2h':
-        return 2*int(ell/2)+1
+        return 2 * int(ell / 2) + 1
     elif sym == 'd2h':
-        return int(ell/2) + 1
+        return int(ell / 2) + 1
     elif sym == 'c4h':
-        return 2*int(ell/4)+1
+        return 2 * int(ell / 4) + 1
     elif sym == 'd4h':
-        return int(ell/4)+1
+        return int(ell / 4) + 1
     elif sym == 's6':
-        return 2*int(ell/3)+1
+        return 2 * int(ell / 3) + 1
     elif sym == 'd3h':
-        return int(ell/3)+1
+        return int(ell / 3) + 1
     elif sym == 'c6h':
-        return 2*int(ell/6)+1
+        return 2 * int(ell / 6) + 1
     elif sym == 'd6h':
-        return int(ell/6)+1
+        return int(ell / 6) + 1
 
     # sample symmetries
     elif sym == 'axial':
         return 1
     elif sym == 'monoclinic':
-        return 2*int(ell/2)+1
+        return 2 * int(ell / 2) + 1
     elif sym == 'orthorhombic':
-        return int(ell/2) + 1
+        return int(ell / 2) + 1
     elif sym == 'triclinic':
-        return 2*ell + 1
+        return 2 * ell + 1
+
 
 class HarmonicModel:
     """this is the abstract class which is used by
@@ -452,16 +659,16 @@ class HarmonicModel:
             value is 0, corresponding to no tilt.
     """
 
-    def __init__(self,
-                material=None,
-                ssym='axial',
-                ell_max=10,
-                bvec=bvec_ref,
-                evec=eta_ref,
-                sample_rmat=np.eye(3),
-                pfdata=None,
+    def __init__(
+        self,
+        material=None,
+        ssym='axial',
+        ell_max=10,
+        bvec=bvec_ref,
+        evec=eta_ref,
+        sample_rmat=np.eye(3),
+        pfdata=None,
     ):
-
         self.material = material
         self.ssym = ssym
         self.csym = self.material.sg.laueGroup
@@ -492,8 +699,7 @@ class HarmonicModel:
 
     @ssym.setter
     def ssym(self, val):
-        if check_symmetry(val,
-                symtype='sample'):
+        if check_symmetry(val, symtype='sample'):
             self._ssym = val
         else:
             msg = f'unknown sample symmetry'
@@ -501,8 +707,7 @@ class HarmonicModel:
 
     @csym.setter
     def csym(self, val):
-        if check_symmetry(val,
-                symtype='crystal'):
+        if check_symmetry(val, symtype='crystal'):
             self._csym = val
         else:
             msg = f'unknown sample symmetry'
@@ -535,7 +740,7 @@ class HarmonicModel:
 
     @property
     def sample_normal(self):
-        return np.dot(self.sample_rmat, np.array([0,0,1]))
+        return np.dot(self.sample_rmat, np.array([0, 0, 1]))
 
     @property
     def sample_rmat(self):
@@ -544,12 +749,13 @@ class HarmonicModel:
     @sample_rmat.setter
     def sample_rmat(self, val):
         if isinstance(val, np.ndarray):
-            if val.shape == (3,3):
+            if val.shape == (3, 3):
                 self._sample_rmat = val
                 self._ref_frame_rmat = val
                 return
-        msg = (f'either sample_rmat is not an'
-               f'array, or the shape is not (3,3)')
+        msg = (
+            f'either sample_rmat is not an' f'array, or the shape is not (3,3)'
+        )
         raise ValueError(msg)
 
     @property
@@ -565,14 +771,12 @@ class HarmonicModel:
         elif symtype == 'sample':
             sym = self.ssym
         num = 0
-        for ell in range(2, self.ell_max+1, 2):
+        for ell in range(2, self.ell_max + 1, 2):
             num += get_num_sym_harm(ell, sym=sym)
 
         return num
 
-    def get_parameters(self,
-                       params=None,
-                       vary=True):
+    def get_parameters(self, params=None, vary=True):
         '''
         make lmfit parameter class for refinement
         '''
@@ -580,7 +784,7 @@ class HarmonicModel:
             params = Parameters()
 
         for name in self.parameter_names:
-            params.add(name, value=0., vary=vary)
+            params.add(name, value=0.0, vary=vary)
 
         return params
 
@@ -588,7 +792,7 @@ class HarmonicModel:
     def parameter_names(self):
         phase = self.material.name
         ret = []
-        for ell in range(2, self.ell_max+1, 2):
+        for ell in range(2, self.ell_max + 1, 2):
             nc = get_num_sym_harm(ell, sym=self.csym)
             ns = get_num_sym_harm(ell, sym=self.ssym)
 
@@ -598,8 +802,7 @@ class HarmonicModel:
 
         return ret
 
-    def convert_hkls_to_cartesian(self,
-                                  hkls):
+    def convert_hkls_to_cartesian(self, hkls):
         """
         this routine converts hkls in the crystallographic frame to
         the cartesian frame and normalizes them
@@ -608,15 +811,13 @@ class HarmonicModel:
 
         for ii, g in enumerate(hkls):
             v = self.material.TransSpace(g, "r", "c")
-            v = v/np.linalg.norm(v)
-            hkls_c[ii,:] = v
+            v = v / np.linalg.norm(v)
+            hkls_c[ii, :] = v
         return hkls_c
 
     def get_c_matrix(self, params, ell):
-        nc = get_num_sym_harm(ell,
-                            sym=self.csym)
-        ns = get_num_sym_harm(ell,
-                            sym=self.ssym)
+        nc = get_num_sym_harm(ell, sym=self.csym)
+        ns = get_num_sym_harm(ell, sym=self.ssym)
         phase = self.material.name
         cmat = np.empty([ns, nc])
         for ii in range(ns):
@@ -625,11 +826,7 @@ class HarmonicModel:
                 cmat[ii, jj] = params[pname].value
         return cmat
 
-    def get_sph_s_matrix(self,
-                         h,
-                         ell,
-                         gridtype=None):
-
+    def get_sph_s_matrix(self, h, ell, gridtype=None):
         if gridtype is None:
             ngrid = self.angs[h].shape[0]
             Ylm = self.sph_s[h]
@@ -646,21 +843,16 @@ class HarmonicModel:
             ngrid = self.rotated_angs_rings_2d[h].shape[0]
             Ylm = self.sph_s_rings_2d[h]
 
-        ns = get_num_sym_harm(ell,
-                            sym=self.ssym)
+        ns = get_num_sym_harm(ell, sym=self.ssym)
 
         smat = np.empty((ngrid, ns))
         for ii in range(ns):
             yname = f's_{ell}_{ii}'
-            smat[:,ii] = Ylm[yname]
+            smat[:, ii] = Ylm[yname]
 
         return smat
 
-    def get_sph_c_matrix(self,
-                         h,
-                         ell,
-                         gridtype=None):
-
+    def get_sph_c_matrix(self, h, ell, gridtype=None):
         nc = get_num_sym_harm(ell, sym=self.csym)
 
         ngrid = 1
@@ -678,18 +870,16 @@ class HarmonicModel:
 
         return cmat
 
-    def precompute_spherical_harmonics(self,
-                                       eta_min,
-                                       eta_max,
-                                       eta_step,
-                                       calc_type='texture_factor'):
+    def precompute_spherical_harmonics(
+        self, eta_min, eta_max, eta_step, calc_type='texture_factor'
+    ):
         '''this function precomputes the spherical
         harmonic functions so we don't keep repeating
         the calculations
         '''
 
-        nspec = int((eta_max - eta_min)/eta_step)-1
-        eta_grid = eta_min + eta_step*np.arange(1, nspec+1)
+        nspec = int((eta_max - eta_min) / eta_step) - 1
+        eta_grid = eta_min + eta_step * np.arange(1, nspec + 1)
         self.eta_grid = eta_grid
 
         '''initialize all the dictionaries which will store the data
@@ -705,23 +895,28 @@ class HarmonicModel:
 
         hkls = self.material.hkls
         hkls_c = self.convert_hkls_to_cartesian(hkls)
-        tth = np.radians(self.material.getTTh(
-                              self.material.wavelength))
+        tth = np.radians(self.material.getTTh(self.material.wavelength))
 
         for ii, (t, h, hc) in enumerate(zip(tth, hkls, hkls_c)):
             hkey = tuple(h)
             if calc_type == 'texture_factor':
-                angs = np.vstack((np.full(self.eta_grid.shape, t),
-                                 self.eta_grid,
-                                 np.zeros_like(self.eta_grid))).T
+                angs = np.vstack(
+                    (
+                        np.full(self.eta_grid.shape, t),
+                        self.eta_grid,
+                        np.zeros_like(self.eta_grid),
+                    )
+                ).T
             elif calc_type == 'spectrum_2d':
-                angs = np.vstack((np.full(eta_grid.shape, t),
-                                 eta_grid,
-                                 np.zeros_like(eta_grid))).T
+                angs = np.vstack(
+                    (
+                        np.full(eta_grid.shape, t),
+                        eta_grid,
+                        np.zeros_like(eta_grid),
+                    )
+                ).T
 
-            pfgrid = anglesToGVec(angs,
-                                  bHat_l=self.bvec,
-                                  eHat_l=self.etavec)
+            pfgrid = anglesToGVec(angs, bHat_l=self.bvec, eHat_l=self.etavec)
 
             # Next part runs in a numba function to accelerate it.
             if calc_type == 'texture_factor':
@@ -759,16 +954,13 @@ class HarmonicModel:
                 self.sph_c_rings[hkey] = {}
 
                 theta = np.array([self.hkl_angles_rings[hkey][0]])
-                phi   = np.array([self.hkl_angles_rings[hkey][1]])
+                phi = np.array([self.hkl_angles_rings[hkey][1]])
 
-                for ell in range(2, self.ell_max+1, 2):
-                    Ylm = calc_sym_sph_harm(ell,
-                                            theta,
-                                            phi,
-                                            sym=self.csym)
+                for ell in range(2, self.ell_max + 1, 2):
+                    Ylm = calc_sym_sph_harm(ell, theta, phi, sym=self.csym)
                     for jj in range(Ylm.shape[1]):
                         kname = f'c_{ell}_{jj}'
-                        self.sph_c_rings[hkey][kname] = Ylm[:,jj]
+                        self.sph_c_rings[hkey][kname] = Ylm[:, jj]
 
             if calc_type == 'texture_factor':
                 if not hasattr(self, 'sph_s_rings'):
@@ -777,8 +969,8 @@ class HarmonicModel:
                 if hkey not in self.sph_s_rings:
                     self.sph_s_rings[hkey] = {}
 
-                theta_samp = self.angs_rings[hkey][:,0]
-                phi_samp   = self.angs_rings[hkey][:,1]
+                theta_samp = self.angs_rings[hkey][:, 0]
+                phi_samp = self.angs_rings[hkey][:, 1]
 
             elif calc_type == 'spectrum_2d':
                 if not hasattr(self, 'sph_s_rings_2d'):
@@ -787,29 +979,30 @@ class HarmonicModel:
                 if hkey not in self.sph_s_rings_2d:
                     self.sph_s_rings_2d[hkey] = {}
 
-                theta_samp = self.angs_rings_2d[hkey][:,0]
-                phi_samp   = self.angs_rings_2d[hkey][:,1]
+                theta_samp = self.angs_rings_2d[hkey][:, 0]
+                phi_samp = self.angs_rings_2d[hkey][:, 1]
 
-            for ell in range(2, self.ell_max+1, 2):
-                Ylm = calc_sym_sph_harm(ell,
-                                        theta_samp,
-                                        phi_samp,
-                                        sym=self.ssym)
+            for ell in range(2, self.ell_max + 1, 2):
+                Ylm = calc_sym_sph_harm(
+                    ell, theta_samp, phi_samp, sym=self.ssym
+                )
                 if calc_type == 'texture_factor':
                     for jj in range(Ylm.shape[1]):
                         kname = f's_{ell}_{jj}'
-                        self.sph_s_rings[hkey][kname] = Ylm[:,jj]
+                        self.sph_s_rings[hkey][kname] = Ylm[:, jj]
                 elif calc_type == 'spectrum_2d':
                     for jj in range(Ylm.shape[1]):
                         kname = f's_{ell}_{jj}'
-                        self.sph_s_rings_2d[hkey][kname] = Ylm[:,jj]
+                        self.sph_s_rings_2d[hkey][kname] = Ylm[:, jj]
 
-    def calc_pf_rings(self,
-                      params,
-                      eta_min=-np.pi,
-                      eta_max=np.pi,
-                      eta_step=np.radians(0.1),
-                      calc_type='texture_factor'):
+    def calc_pf_rings(
+        self,
+        params,
+        eta_min=-np.pi,
+        eta_max=np.pi,
+        eta_step=np.radians(0.1),
+        calc_type='texture_factor',
+    ):
         '''this functin computes the  intensity variation
         along the debye-scherrer rings for each hkl in the material.
         the intensity variation around the ring is computed between
@@ -818,12 +1011,13 @@ class HarmonicModel:
         Default value is 0.1 degrees for eta_step
         '''
 
-        nspec = int((eta_max - eta_min)/eta_step)-1
-        eta_grid = eta_min + eta_step*np.arange(1, nspec+1)
+        nspec = int((eta_max - eta_min) / eta_step) - 1
+        eta_grid = eta_min + eta_step * np.arange(1, nspec + 1)
 
         if not calc_type in ['texture_factor', 'spectrum_2d']:
-            msg = (f'unknown type of grid for precomputing'
-                   f'spherical harmonics')
+            msg = (
+                f'unknown type of grid for precomputing' f'spherical harmonics'
+            )
             raise ValueError(msg)
 
         if calc_type == 'texture_factor':
@@ -834,10 +1028,11 @@ class HarmonicModel:
             self.intensities_rings_2d = {}
 
         self.precompute_spherical_harmonics(
-                                       eta_min=eta_min,
-                                       eta_max=eta_max,
-                                       eta_step=eta_step,
-                                       calc_type=calc_type)
+            eta_min=eta_min,
+            eta_max=eta_max,
+            eta_step=eta_step,
+            calc_type=calc_type,
+        )
 
         for h in self.material.hkls:
             hkey = tuple(h)
@@ -845,36 +1040,38 @@ class HarmonicModel:
             '''
             term = np.ones_like(eta_grid)
 
-            for ell in range(2, self.ell_max+1, 2):
+            for ell in range(2, self.ell_max + 1, 2):
                 cmat = self.get_c_matrix(params, ell)
-                sph_s_mat = self.get_sph_s_matrix(hkey,
-                                                  ell,
-                                                  gridtype=gtype)
-                sph_c_mat = self.get_sph_c_matrix(hkey,
-                                                  ell,
-                                                  gridtype=gtype)
-                pre = 4*np.pi/(2*ell+1)
-                t = pre*np.dot(sph_s_mat, np.dot(
-                                   cmat, sph_c_mat))
+                sph_s_mat = self.get_sph_s_matrix(hkey, ell, gridtype=gtype)
+                sph_c_mat = self.get_sph_c_matrix(hkey, ell, gridtype=gtype)
+                pre = 4 * np.pi / (2 * ell + 1)
+                t = pre * np.dot(sph_s_mat, np.dot(cmat, sph_c_mat))
                 term += t.flatten()
             if calc_type == 'texture_factor':
                 self.intensities_rings[hkey] = term
             elif calc_type == 'spectrum_2d':
                 self.intensities_rings_2d[hkey] = term
 
-    def calc_texture_factor(self,
-                            params,
-                            eta_min=-np.pi,
-                            eta_max=np.pi,
-                            eta_step=np.radians(1),
-                            eta_mask=None):
-
-        self.calc_pf_rings(params,
-                           eta_min=eta_min,
-                           eta_max=eta_max,
-                           eta_step=eta_step,
-                           calc_type='texture_factor')
-        tf = np.zeros([len(self.intensities_rings), ])
+    def calc_texture_factor(
+        self,
+        params,
+        eta_min=-np.pi,
+        eta_max=np.pi,
+        eta_step=np.radians(1),
+        eta_mask=None,
+    ):
+        self.calc_pf_rings(
+            params,
+            eta_min=eta_min,
+            eta_max=eta_max,
+            eta_step=eta_step,
+            calc_type='texture_factor',
+        )
+        tf = np.zeros(
+            [
+                len(self.intensities_rings),
+            ]
+        )
         for ii, (k, v) in enumerate(self.intensities_rings.items()):
             if eta_mask is None:
                 tf[ii] = np.mean(v)
@@ -891,16 +1088,16 @@ class HarmonicModel:
         model. A value of 1 is a random texture and any
         value > 1 is preferred orientation.
         '''
-        J = 1.
+        J = 1.0
         phase = self.material.name
-        for ell in range(2, self.ell_max+1, 2):
+        for ell in range(2, self.ell_max + 1, 2):
             nc = get_num_sym_harm(ell, sym=self.csym)
             ns = get_num_sym_harm(ell, sym=self.ssym)
             for ii in range(ns):
                 for jj in range(nc):
                     pname = f'{phase}_c_{ell}_{ii}_{jj}'
-                    pre = 1/(2*ell+1)
-                    J += pre*(params[pname].value**2)
+                    pre = 1 / (2 * ell + 1)
+                    J += pre * (params[pname].value ** 2)
         return J
 
     """
@@ -939,27 +1136,28 @@ class HarmonicModel:
             data = np.hstack((angs, intensities))
             np.savetxt(fname, data, delimiter="\t")
 
-    def stereographic_radius(self,
-                             new=False):
+    def stereographic_radius(self, new=False):
         sr = {}
         angs = self.angs
         if new:
             angs = self.angs_new
         for h, angs in angs.items():
-            t = angs[:,0]
+            t = angs[:, 0]
             cth = np.cos(t)
             sth = np.sin(t)
-            sr[h] = sth/(1 + np.abs(cth))
+            sr[h] = sth / (1 + np.abs(cth))
         return sr
 
-    def plot_pf(self,
-                filled=False,
-                grid=False,
-                cmap='jet',
-                colorbar=True,
-                colorbar_label='m.r.d.',
-                show=True,
-                recalculated=False):
+    def plot_pf(
+        self,
+        filled=False,
+        grid=False,
+        cmap='jet',
+        colorbar=True,
+        colorbar_label='m.r.d.',
+        show=True,
+        recalculated=False,
+    ):
         '''
         # FIXME: there is a bug during plots when the
         0/2pi or -pi/pi points are not filled in for some
@@ -972,16 +1170,18 @@ class HarmonicModel:
         '''first get the layout of the subplot
         '''
         n = self.num_pfs
-        nrows = int(n/3)+1
+        nrows = int(n / 3) + 1
         if nrows == 1:
             ncols = np.min((3, n))
         else:
             ncols = 3
 
         self.fig, self.ax = plt.subplots(
-            nrows=nrows, ncols=ncols,
+            nrows=nrows,
+            ncols=ncols,
             subplot_kw={'projection': 'polar'},
-            figsize=(12,4*nrows))
+            figsize=(12, 4 * nrows),
+        )
         self.ax = np.atleast_2d(self.ax)
 
         [ax.set_axis_off() for ax in self.ax.flatten()]
@@ -990,9 +1190,9 @@ class HarmonicModel:
         [ax.grid(False) for ax in self.ax.flatten()]
 
         for ii, h in enumerate(self.pfdata):
-            nr = int(ii/3)
+            nr = int(ii / 3)
             nc = int(np.mod(ii, 3))
-            rho = self.angs[h][:,1]
+            rho = self.angs[h][:, 1]
             r = self.stereo_radius[h]
             I = self.intensities[h]
 
@@ -1012,11 +1212,13 @@ class HarmonicModel:
                 I = self.intensities_recalc[h]
                 I = np.concatenate((I, I[mask]))
             if filled:
-                pf = self.ax[nr][nc].tricontourf(rho, r,
-                                    I, levels=20, cmap=cmap)
+                pf = self.ax[nr][nc].tricontourf(
+                    rho, r, I, levels=20, cmap=cmap
+                )
             else:
-                pf = self.ax[nr][nc].tricontour(rho, r,
-                                    I, levels=20, cmap=cmap)
+                pf = self.ax[nr][nc].tricontour(
+                    rho, r, I, levels=20, cmap=cmap
+                )
             self.ax[nr][nc].set_yticklabels([])
             self.ax[nr][nc].grid(grid)
             self.ax[nr][nc].set_title(f'({h})')
@@ -1032,28 +1234,30 @@ class HarmonicModel:
 
         return self.fig_new.canvas.isVisible()
 
-    def plot_new_pf(self,
-                filled=False,
-                grid=False,
-                cmap='jet',
-                colorbar=True,
-                colorbar_label='m.r.d.',
-                show=True):
-
-        '''first get the layout of the subplot
-        '''
+    def plot_new_pf(
+        self,
+        filled=False,
+        grid=False,
+        cmap='jet',
+        colorbar=True,
+        colorbar_label='m.r.d.',
+        show=True,
+    ):
+        '''first get the layout of the subplot'''
         n = self.num_pfs_new
-        nrows = int(np.ceil(n/3))
+        nrows = int(np.ceil(n / 3))
         if nrows == 1:
             ncols = np.min((3, n))
         else:
             ncols = 3
 
         self.fig_new, self.ax_new = plt.subplots(
-            nrows=nrows, ncols=ncols,
+            nrows=nrows,
+            ncols=ncols,
             subplot_kw={'projection': 'polar'},
-            figsize=(12,4*nrows),
-            tight_layout=True)
+            figsize=(12, 4 * nrows),
+            tight_layout=True,
+        )
         self.ax_new = np.atleast_2d(self.ax_new)
 
         title = f'Pole Figures for {self.material.name}'
@@ -1085,9 +1289,9 @@ class HarmonicModel:
         grid = self.new_pf_grid
         colorbar_label = self.new_pf_colorbar_label
         for ii, h in enumerate(self.angs_new):
-            nr = int(ii/3)
+            nr = int(ii / 3)
             nc = int(np.mod(ii, 3))
-            rho = self.angs_new[h][:,1]
+            rho = self.angs_new[h][:, 1]
             r = self.stereo_radius_new[h]
             I = self.intensities_new[h]
 
@@ -1134,39 +1338,34 @@ class HarmonicModel:
         for h, v in self.intensities.items():
             term = np.ones_like(v)
 
-            for ell in range(2, self.ell_max+1, 2):
-                pre = 4*np.pi/(2*ell+1)
+            for ell in range(2, self.ell_max + 1, 2):
+                pre = 4 * np.pi / (2 * ell + 1)
                 cmat = self.get_c_matrix(params, ell)
                 sph_s_mat = self.get_sph_s_matrix(h, ell)
                 sph_c_mat = self.get_sph_c_matrix(h, ell)
-                t = pre*np.dot(sph_s_mat, np.dot(
-                                   cmat, sph_c_mat))
+                t = pre * np.dot(sph_s_mat, np.dot(cmat, sph_c_mat))
                 term += np.squeeze(t)
 
             calculated = np.concatenate((calculated, term))
 
-        residual = np.sqrt(self.weights*(measured - calculated)**2)
+        residual = np.sqrt(self.weights * (measured - calculated) ** 2)
         if np.all(np.isnan(residual)):
-            return 1E10
+            return 1e10
         return residual[~np.isnan(residual)]
 
-    def recalculated_pf(self,
-                        params,
-                        new=False):
-
+    def recalculated_pf(self, params, new=False):
         if not new:
             self.intensities_recalc = {}
 
             for h, v in self.intensities.items():
                 term = np.ones_like(v)
 
-                for ell in range(2, self.ell_max+1, 2):
-                    pre = 4*np.pi/(2*ell+1)
+                for ell in range(2, self.ell_max + 1, 2):
+                    pre = 4 * np.pi / (2 * ell + 1)
                     cmat = self.get_c_matrix(params, ell)
                     sph_s_mat = self.get_sph_s_matrix(h, ell)
                     sph_c_mat = self.get_sph_c_matrix(h, ell)
-                    t = pre*np.dot(sph_s_mat, np.dot(
-                                       cmat, sph_c_mat))
+                    t = pre * np.dot(sph_s_mat, np.dot(cmat, sph_c_mat))
                     term += np.squeeze(t)
 
                 self.intensities_recalc[h] = term
@@ -1174,24 +1373,19 @@ class HarmonicModel:
             self.intensities_new = {}
 
             for h, v in self.angs_new.items():
-                term = np.ones_like(v[:,0])
+                term = np.ones_like(v[:, 0])
 
-                for ell in range(2, self.ell_max+1, 2):
-                    pre = 4*np.pi/(2*ell+1)
+                for ell in range(2, self.ell_max + 1, 2):
+                    pre = 4 * np.pi / (2 * ell + 1)
                     cmat = self.get_c_matrix(params, ell)
                     sph_s_mat = self.get_sph_s_matrix(h, ell, gridtype='new')
                     sph_c_mat = self.get_sph_c_matrix(h, ell, gridtype='new')
-                    t = pre*np.dot(sph_s_mat, np.dot(
-                                       cmat, sph_c_mat))
+                    t = pre * np.dot(sph_s_mat, np.dot(cmat, sph_c_mat))
                     term += np.squeeze(t)
 
                 self.intensities_new[h] = term
 
-    def calc_new_pole_figure(self,
-                             params,
-                             hkls=None,
-                             pfgrid=None,
-                             plot=False):
+    def calc_new_pole_figure(self, params, hkls=None, pfgrid=None, plot=False):
         '''calculate pole figure for new poles
         given by hkls. the data will be computed
         on the same grid as the input grid. this
@@ -1216,23 +1410,21 @@ class HarmonicModel:
 
         if plot:
             self.plot_new_pf(
-                        filled=True,
-                        grid=False,
-                        cmap='jet',
-                        colorbar=True,
-                        colorbar_label='m.r.d.',
-                        show=True)
+                filled=True,
+                grid=False,
+                cmap='jet',
+                colorbar=True,
+                colorbar_label='m.r.d.',
+                show=True,
+            )
 
-    def calc_new_pfdata(self,
-                        params,
-                        hkls,
-                        pfgrid=None):
+    def calc_new_pfdata(self, params, hkls, pfgrid=None):
         '''this routine computes the new pfdata which will
         will be used in computing pole figures for a new hkl
         pole
         '''
 
-        #@TODO make the naming convention same as calc_pf_rings
+        # @TODO make the naming convention same as calc_pf_rings
         # currently the rotated angs are used for calculating the
         # values of the spherical harmonics, which is not the case
         # with the other function
@@ -1269,37 +1461,36 @@ class HarmonicModel:
             cee = np.cos(ee)
             see = np.sin(ee)
 
-            v = np.vstack((cee*stt,
-                           see*stt, ctt)).T
+            v = np.vstack((cee * stt, see * stt, ctt)).T
 
             vr = np.dot(self.ref_frame_rmat, v.T).T
 
-            tr = np.arccos(vr[:,2])
-            rhor = np.arctan2(vr[:,1],vr[:,0])
+            tr = np.arccos(vr[:, 2])
+            rhor = np.arctan2(vr[:, 1], vr[:, 0])
 
             angs = np.vstack((tt, ee)).T
 
             rotated_angs = np.vstack((tr, rhor)).T
 
         else:
-            norm = np.linalg.norm(pfgrid,axis=1)
-            v = pfgrid/np.tile(norm, [3,1]).T
+            norm = np.linalg.norm(pfgrid, axis=1)
+            v = pfgrid / np.tile(norm, [3, 1]).T
 
             # sanitize v[:, 2] for arccos operation
-            mask = np.abs(v[:,2]) > 1.
-            v[mask,2] = np.sign(v[mask,2])
+            mask = np.abs(v[:, 2]) > 1.0
+            v[mask, 2] = np.sign(v[mask, 2])
 
-            t = np.arccos(v[:,2])
-            rho = np.arctan2(v[:,1],v[:,0])
+            t = np.arccos(v[:, 2])
+            rho = np.arctan2(v[:, 1], v[:, 0])
 
-            vr = np.dot(self.ref_frame_rmat, v[:,0:3].T).T
+            vr = np.dot(self.ref_frame_rmat, v[:, 0:3].T).T
 
             # sanitize vr[:, 2] for arccos operation
-            mask = np.abs(vr[:,2]) > 1.
-            vr[mask,2] = np.sign(vr[mask,2])
+            mask = np.abs(vr[:, 2]) > 1.0
+            vr[mask, 2] = np.sign(vr[mask, 2])
 
-            tr = np.arccos(vr[:,2])
-            rhor = np.arctan2(vr[:,1],vr[:,0])
+            tr = np.arccos(vr[:, 2])
+            rhor = np.arctan2(vr[:, 1], vr[:, 0])
 
             angs = np.vstack((t, rho)).T
             rotated_angs = np.vstack((tr, rhor)).T
@@ -1311,10 +1502,12 @@ class HarmonicModel:
             self.angs_new[hkey] = angs.copy()
             self.rotated_angs_new[hkey] = rotated_angs.copy()
             self.stereo_radius_new = self.stereographic_radius(new=True)
-            self.hkl_angles_new[hkey] = np.array([np.arccos(
-                                         hkls_c[ii, 2]),
-                                         np.arctan2(hkls_c[ii, 1],
-                                                    hkls_c[ii, 0])])
+            self.hkl_angles_new[hkey] = np.array(
+                [
+                    np.arccos(hkls_c[ii, 2]),
+                    np.arctan2(hkls_c[ii, 1], hkls_c[ii, 0]),
+                ]
+            )
 
             v = self.hkl_angles_new[hkey]
             '''needs special attention for monoclininc case
@@ -1326,27 +1519,23 @@ class HarmonicModel:
             '''
             self.sph_c_new[hkey] = {}
 
-            for ell in range(2, self.ell_max+1, 2):
-                Ylm = calc_sym_sph_harm(ell,
-                                        theta,
-                                        phi,
-                                        sym=self.csym)
+            for ell in range(2, self.ell_max + 1, 2):
+                Ylm = calc_sym_sph_harm(ell, theta, phi, sym=self.csym)
                 for jj in range(Ylm.shape[1]):
                     kname = f'c_{ell}_{jj}'
-                    self.sph_c_new[hkey][kname] = Ylm[:,jj]
+                    self.sph_c_new[hkey][kname] = Ylm[:, jj]
 
             self.sph_s_new[hkey] = {}
-            theta_samp = self.rotated_angs_new[hkey][:,0]
-            phi_samp   = self.rotated_angs_new[hkey][:,1]
+            theta_samp = self.rotated_angs_new[hkey][:, 0]
+            phi_samp = self.rotated_angs_new[hkey][:, 1]
 
-            for ell in range(2, self.ell_max+1, 2):
-                Ylm = calc_sym_sph_harm(ell,
-                                        theta_samp,
-                                        phi_samp,
-                                        sym=self.ssym)
+            for ell in range(2, self.ell_max + 1, 2):
+                Ylm = calc_sym_sph_harm(
+                    ell, theta_samp, phi_samp, sym=self.ssym
+                )
                 for jj in range(Ylm.shape[1]):
                     kname = f's_{ell}_{jj}'
-                    self.sph_s_new[hkey][kname] = Ylm[:,jj]
+                    self.sph_s_new[hkey][kname] = Ylm[:, jj]
 
         self.recalculated_pf(params, new=True)
 
@@ -1373,46 +1562,48 @@ class HarmonicModel:
         hkl_angles = {}
         for ii, hkl in enumerate(hkls):
             k = tuple(hkl)
-            hkl_angles[k] = np.array([
-                np.arccos(hkls_c[ii, 2]),
-                np.arctan2(hkls_c[ii, 1], hkls_c[ii, 0]),
-            ])
+            hkl_angles[k] = np.array(
+                [
+                    np.arccos(hkls_c[ii, 2]),
+                    np.arctan2(hkls_c[ii, 1], hkls_c[ii, 0]),
+                ]
+            )
 
         for ii, (h, v) in enumerate(hkl_angles.items()):
             '''needs special attention for monoclininc case
-                since the 2-fold axis is aligned with b*
+            since the 2-fold axis is aligned with b*
             '''
             theta = np.array([v[0]])
             phi = np.array([v[1]])
             self.sph_c[h] = {}
             self.sph_s[h] = {}
-            for ell in range(2, self.ell_max+1, 2):
-                Ylm = calc_sym_sph_harm(ell,
-                                        theta,
-                                        phi,
-                                        sym=self.csym)
+            for ell in range(2, self.ell_max + 1, 2):
+                Ylm = calc_sym_sph_harm(ell, theta, phi, sym=self.csym)
                 for jj in range(Ylm.shape[1]):
                     kname = f'c_{ell}_{jj}'
-                    self.sph_c[h][kname] = Ylm[:,jj]
+                    self.sph_c[h][kname] = Ylm[:, jj]
 
             '''use the rotated angles to account for the
             misalignment between sample normal and beam
             propagation vector
             '''
-            theta = self.rotated_angs[h][:,0]
-            phi   = self.rotated_angs[h][:,1]
-            for ell in range(2, self.ell_max+1, 2):
-                Ylm = calc_sym_sph_harm(ell,
-                                        theta,
-                                        phi,
-                                        sym=self.ssym)
+            theta = self.rotated_angs[h][:, 0]
+            phi = self.rotated_angs[h][:, 1]
+            for ell in range(2, self.ell_max + 1, 2):
+                Ylm = calc_sym_sph_harm(ell, theta, phi, sym=self.ssym)
                 for jj in range(Ylm.shape[1]):
                     kname = f's_{ell}_{jj}'
-                    self.sph_s[h][kname] = Ylm[:,jj]
+                    self.sph_s[h][kname] = Ylm[:, jj]
 
-        fdict = {'ftol': 1e-6, 'xtol': 1e-6, 'gtol': 1e-6,
-         'verbose': 2, 'max_nfev': 20000, 'method':'trf',
-         'jac':'3-point'}
+        fdict = {
+            'ftol': 1e-6,
+            'xtol': 1e-6,
+            'gtol': 1e-6,
+            'verbose': 2,
+            'max_nfev': 20000,
+            'method': 'trf',
+            'jac': '3-point',
+        }
 
         fitter = Minimizer(self.calc_residual, harmonic_params)
         results = fitter.least_squares(**fdict)
@@ -1453,38 +1644,36 @@ class HarmonicModel:
         if not val:
             return
 
-        for ii, (k,v) in enumerate(val.items()):
-
-
-            norm = np.linalg.norm(v[:,0:3],axis=1)
-            v[:,0:3] = v[:,0:3]/np.tile(norm, [3,1]).T
+        for ii, (k, v) in enumerate(val.items()):
+            norm = np.linalg.norm(v[:, 0:3], axis=1)
+            v[:, 0:3] = v[:, 0:3] / np.tile(norm, [3, 1]).T
 
             # sanitize v[:, 2] for arccos operation
-            mask = np.abs(v[:,2]) > 1.
-            v[mask,2] = np.sign(v[mask,2])
+            mask = np.abs(v[:, 2]) > 1.0
+            v[mask, 2] = np.sign(v[mask, 2])
 
-            t = np.arccos(v[:,2])
-            rho = np.arctan2(v[:,1],v[:,0])
+            t = np.arccos(v[:, 2])
+            rho = np.arctan2(v[:, 1], v[:, 0])
 
-            vr = np.dot(self.ref_frame_rmat, v[:,0:3].T).T
+            vr = np.dot(self.ref_frame_rmat, v[:, 0:3].T).T
 
             # sanitize vr[:, 2] for arccos operation
-            mask = np.abs(vr[:,2]) > 1.
-            vr[mask,2] = np.sign(vr[mask,2])
+            mask = np.abs(vr[:, 2]) > 1.0
+            vr[mask, 2] = np.sign(vr[mask, 2])
 
-            tr = np.arccos(vr[:,2])
-            rhor = np.arctan2(vr[:,1],vr[:,0])
+            tr = np.arccos(vr[:, 2])
+            rhor = np.arctan2(vr[:, 1], vr[:, 0])
 
-            self._gvecs[k] = v[:,0:3]
+            self._gvecs[k] = v[:, 0:3]
             self._pfdata[k] = v
-            self._intensities[k] = v[:,3]
-            self._weights = np.concatenate((self._weights,v[:,3]))
+            self._intensities[k] = v[:, 3]
+            self._weights = np.concatenate((self._weights, v[:, 3]))
             self._angs[k] = np.vstack((t, rho)).T
             self._rotated_angs[k] = np.vstack((tr, rhor)).T
             self._stereo_radius = self.stereographic_radius()
-        self._weights = 1/self._weights
+        self._weights = 1 / self._weights
         self._weights = np.nan_to_num(self._weights)
-        mask = np.abs(self._weights) > 1E2
+        mask = np.abs(self._weights) > 1e2
         self._weights[mask] = 0.0
 
     @property
@@ -1551,7 +1740,7 @@ class InversePoleFigures:
         """
         if samplingtype.lower() == "equiangular":
             angs = []
-            for tth in range(0,91,resolution):
+            for tth in range(0, 91, resolution):
                 for eta in range(0, 360, resolution):
                     angs.append([np.radians(tth), np.radians(eta)])
                     if tth == 0:
@@ -1638,7 +1827,6 @@ class InversePoleFigures:
         return np.degrees(np.vstack((polar, az)).T)
 
 
-
 # These are here only for backward-compatibility
 harmonic_model = HarmonicModel
 inverse_polar_figures = InversePoleFigures
@@ -1651,23 +1839,22 @@ def _calc_ang_rings(pfgrid, t, hc, ref_frame_rmat, eta_grid):
     v = np.dot(ref_frame_rmat, v.T).T
 
     # sanitize v[:, 2] for arccos operation
-    mask = np.abs(v[:,2]) > 1.
+    mask = np.abs(v[:, 2]) > 1.0
     v[mask, 2] = np.sign(v[mask, 2])
 
     tt = np.arccos(v[:, 2])
-    rho = np.arctan2(v[:,1], v[:,0])
+    rho = np.arctan2(v[:, 1], v[:, 0])
 
     ang_rings = np.vstack((tt, rho)).T
 
     # in the beam frame
-    rotated_ang_rings = np.vstack((
-        np.pi/2-t/2*np.ones_like(eta_grid),
-        eta_grid,
-    )).T
+    rotated_ang_rings = np.vstack(
+        (
+            np.pi / 2 - t / 2 * np.ones_like(eta_grid),
+            eta_grid,
+        )
+    ).T
 
-    hkl_ang_rings = np.array([
-        np.arccos(hc[2]),
-        np.arctan2(hc[1], hc[0])
-    ])
+    hkl_ang_rings = np.array([np.arccos(hc[2]), np.arctan2(hc[1], hc[0])])
 
     return ang_rings, rotated_ang_rings, hkl_ang_rings

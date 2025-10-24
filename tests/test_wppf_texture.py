@@ -12,9 +12,8 @@ from hexrd.valunits import valWUnit
 from hexrd.wppf import Rietveld
 from hexrd.wppf.phase import Material_Rietveld
 from hexrd.wppf.texture import HarmonicModel
-from hexrd.wppf.WPPF import extract_intensities
-from hexrd.wppf.wppfsupport import _generate_default_parameters_LeBail
 from hexrd.rotations import quatOfAngleAxis, rotMatOfQuat
+
 
 @pytest.fixture
 def texture_examples_path(example_repo_path: Path) -> Path:
@@ -32,7 +31,7 @@ def texture_instrument(texture_examples_path: Path) -> HEDMInstrument:
 def texture_img_dict(
     texture_examples_path: Path,
     texture_instrument: HEDMInstrument,
-) -> dict[str: np.ndarray]:
+) -> dict[str : np.ndarray]:
     instr = texture_instrument
     img_dict = dict.fromkeys(instr.detectors.keys())
     for k in img_dict:
@@ -54,7 +53,6 @@ def get_lineout(pv):
 
 
 def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
-
     # get the basic hexrd objects
     # 1. instrument
     # 2. image dictionary
@@ -64,12 +62,11 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
     instr = texture_instrument
     img_dict = texture_img_dict
 
-    q = quatOfAngleAxis(np.array(
-        [np.radians(22.5)]),
-        np.atleast_2d(np.array([0,1,0])).T)
+    q = quatOfAngleAxis(
+        np.array([np.radians(22.5)]), np.atleast_2d(np.array([0, 1, 0])).T
+    )
 
     sample_rmat = rotMatOfQuat(q)
-
 
     mat = Material(dmin=_angstrom(0.5), kev=_kev(instr.beam_energy))
     exc = np.zeros_like(mat.planeData.exclusions).astype(bool)
@@ -80,15 +77,15 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
     polar_obj = PolarView(
         (2, 40),
         instr,
-        eta_min=-180.,
-        eta_max=180.,
+        eta_min=-180.0,
+        eta_max=180.0,
         pixel_size=(0.05, 0.1),
         cache_coordinate_map=True,
     )
 
-    pv = polar_obj.warp_image(img_dict,
-                              pad_with_nans=True,
-                              do_interpolation=True)
+    pv = polar_obj.warp_image(
+        img_dict, pad_with_nans=True, do_interpolation=True
+    )
 
     ttharray = np.degrees(polar_obj.angular_grid[1][0, :])
 
@@ -126,8 +123,9 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
     }
     hm = HarmonicModel(**kwargs)
 
-    expt_spec = np.vstack((ttharray[~lo_full.mask],
-                           lo_full.data[~lo_full.mask])).T
+    expt_spec = np.vstack(
+        (ttharray[~lo_full.mask], lo_full.data[~lo_full.mask])
+    ).T
 
     kwargs = {
         'expt_spectrum': expt_spec,
