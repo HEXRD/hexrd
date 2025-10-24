@@ -551,11 +551,13 @@ class Detector:
         dvecs = self.cart_to_dvecs(xy)
         mod_r = np.linalg.norm(dvecs, axis=1)
         return (
-            (self.pixel_area / mod_r**3) *
-            np.abs(np.sum(
-                self.pixel_normal * dvecs,
-                axis=1,
-            ))
+            (self.pixel_area / mod_r**3)
+            * np.abs(
+                np.sum(
+                    self.pixel_normal * dvecs,
+                    axis=1,
+                )
+            )
         ).reshape(self.shape)
 
     # =========================================================================
@@ -1572,7 +1574,6 @@ class Detector:
         valid_xys = []
         ang_pixel_size = []
         for gparm in grain_param_list:
-
             # make useful parameters
             rMat_c = make_rmat_of_expmap(gparm[:3])
             tVec_c = gparm[3:6]
@@ -1652,7 +1653,6 @@ class Detector:
     ):
         """ """
         if isinstance(crystal_data, PlaneData):
-
             plane_data = crystal_data
 
             # grab the expanded list of hkls from plane_data
@@ -1995,7 +1995,6 @@ class Detector:
         physics_package: AbstractPhysicsPackage,
         pp_layer: str,
     ) -> np.ndarray:
-
         if pp_layer == 'sample':
             formula = physics_package.sample_material
             density = physics_package.sample_density
@@ -2055,51 +2054,48 @@ class Detector:
         )
         return np.exp(-mu_w_prime * thickness_w * secb)
 
-    def calc_effective_pinhole_area(self, physics_package: AbstractPhysicsPackage) -> np.array:
+    def calc_effective_pinhole_area(
+        self, physics_package: AbstractPhysicsPackage
+    ) -> np.array:
         '''get the effective pinhole area correction
         @SS 04/01/25 a modification was made based on the
         CeO2 data recorded on NIF. An extra factor of sec(beta)
         was included as compared to RSI 91, 043902 (2020).
         '''
-        if (
-            np.isclose(
-            physics_package.pinhole_thickness,
-            0.0) or
-            np.isclose(
-            physics_package.pinhole_diameter,
-            0.0)):
+        if np.isclose(physics_package.pinhole_thickness, 0.0) or np.isclose(
+            physics_package.pinhole_diameter, 0.0
+        ):
             return np.ones(self.shape)
 
-        else:
-            hod = (
-                physics_package.pinhole_thickness /
-                physics_package.pinhole_diameter
-            )
+        hod = (
+            physics_package.pinhole_thickness
+            / physics_package.pinhole_diameter
+        )
 
-            '''we compute the beta angle using existing
-            functions by just changing beam vector
-            to be the z-axis with the right sign.
-            '''
-            bvec = np.array([0., 0., np.sign(self.bvec[2])])
-            beta, eta = self.pixel_angles(bvec=bvec)
+        '''we compute the beta angle using existing
+        functions by just changing beam vector
+        to be the z-axis with the right sign.
+        '''
+        bvec = np.array([0.0, 0.0, np.sign(self.bvec[2])])
+        beta, eta = self.pixel_angles(bvec=bvec)
 
-            tb = np.tan(beta)
-            jb = hod*tb
-            jb[jb > 1] = np.nan
-            jb2 = jb**2
-            mask = np.isclose(jb2, 0.)
+        tb = np.tan(beta)
+        jb = hod * tb
+        jb[jb > 1] = np.nan
+        jb2 = jb**2
+        mask = np.isclose(jb2, 0.0)
 
-            f1 = np.zeros_like(jb)
-            f3 = 1/jb2[~mask] - 1
-            f3[f3<0.] = np.nan
-            f1[~mask] = np.arctan(np.sqrt(f3))
-            f1[mask] = np.pi/2
+        f1 = np.zeros_like(jb)
+        f3 = 1 / jb2[~mask] - 1
+        f3[f3 < 0.0] = np.nan
+        f1[~mask] = np.arctan(np.sqrt(f3))
+        f1[mask] = np.pi / 2
 
-            f3 = 1 - jb2
-            f3[f3<0.] = np.nan
-            f2 = jb*np.sqrt(f3)
+        f3 = 1 - jb2
+        f3[f3 < 0.0] = np.nan
+        f2 = jb * np.sqrt(f3)
 
-            return 0.5*(f1 - f2)
+        return 0.5 * (f1 - f2)
 
     def calc_transmission_generic(
         self,
@@ -2134,6 +2130,7 @@ class Detector:
 # =============================================================================
 # UTILITY METHODS
 # =============================================================================
+
 
 def _fix_indices(idx, lo, hi):
     nidx = np.array(idx)
@@ -2205,8 +2202,8 @@ def _interpolate_bilinear_in_place(
     for i in range(on_panel_idx.shape[0]):
         idx = on_panel_idx[i]
         output_img[idx] += (
-            cc[i] * img[i_floor_img[i], j_floor_img[i]] +
-            fc[i] * img[i_floor_img[i], j_ceil_img[i]] +
-            cf[i] * img[i_ceil_img[i], j_floor_img[i]] +
-            ff[i] * img[i_ceil_img[i], j_ceil_img[i]]
+            cc[i] * img[i_floor_img[i], j_floor_img[i]]
+            + fc[i] * img[i_floor_img[i], j_ceil_img[i]]
+            + cf[i] * img[i_ceil_img[i], j_floor_img[i]]
+            + ff[i] * img[i_ceil_img[i], j_ceil_img[i]]
         )
