@@ -748,15 +748,14 @@ class HarmonicModel:
 
     @sample_rmat.setter
     def sample_rmat(self, val):
-        if isinstance(val, np.ndarray):
-            if val.shape == (3, 3):
-                self._sample_rmat = val
-                self._ref_frame_rmat = val
-                return
-        msg = (
-            f'either sample_rmat is not an' f'array, or the shape is not (3,3)'
-        )
-        raise ValueError(msg)
+        if not isinstance(val, np.ndarray) or val.shape != (3, 3):
+            msg = (
+                'either sample_rmat is not an array, or the shape is not (3,3)'
+            )
+            raise ValueError(msg)
+
+        self._sample_rmat = val
+        self._ref_frame_rmat = val
 
     @property
     def ref_frame_rmat(self):
@@ -1079,7 +1078,7 @@ class HarmonicModel:
                 if k in eta_mask:
                     mask = eta_mask[k]
                 else:
-                    mask = np.zeros_like(v).astype(bool)
+                    mask = np.zeros_like(v, dtype=bool)
                 tf[ii] = np.mean(v[~mask])
         return tf
 

@@ -1939,7 +1939,7 @@ class Rietveld(AbstractWPPF):
                     texture_factor = None
                 else:
                     eta_mask = self.eta_mask
-                    if not eta_mask is None:
+                    if eta_mask is not None:
                         eta_mask = eta_mask[p][k]
 
                     texture_factor = self.texture_model[p].calc_texture_factor(
@@ -2013,15 +2013,9 @@ class Rietveld(AbstractWPPF):
                 y += self.amorphous_model.amorphous_lineout
 
             simulated_2d = np.tile(y, (nspec, 1))
-            if not self.mask_2d is None:
-                self.simulated_2d = np.ma.masked_array(
-                    simulated_2d, mask=self.mask_2d
-                )
-            else:
-                self.simulated_2d = np.ma.masked_array(
-                    simulated_2d, mask=np.isnan(simulated_2d)
-                )
-
+            mask = self.mask_2d
+            mask = mask if mask is not None else np.isnan(simulated_2d)
+            self.simulated_2d = np.ma.masked_array(simulated_2d, mask=mask)
             return
 
         else:
@@ -2075,14 +2069,10 @@ class Rietveld(AbstractWPPF):
                     y += self.amorphous_model.amorphous_lineout
 
                 simulated_2d[irow, :] = y
-            if not self.mask_2d is None:
-                self.simulated_2d = np.ma.masked_array(
-                    simulated_2d, mask=self.mask_2d
-                )
-            else:
-                self.simulated_2d = np.ma.masked_array(
-                    simulated_2d, mask=np.isnan(simulated_2d)
-                )
+
+            mask = self.mask_2d
+            mask = mask if mask is not None else np.isnan(simulated_2d)
+            self.simulated_2d = np.ma.masked_array(simulated_2d, mask=mask)
 
     def Refine(self):
         """
@@ -2321,35 +2311,33 @@ class Rietveld(AbstractWPPF):
 
     @mask_2d.setter
     def mask_2d(self, val):
-        if isinstance(val, np.ndarray):
-            self._mask_2d = val
-            self._eta_mask = {}
-            for p in self.phases:
-                self._eta_mask[p] = {}
-                for k in self.wavelength:
-                    self._eta_mask[p][k] = {}
-                    tth = self.tth[p][k]
-                    hkls = self.hkls[p][k]
-                    for t, h in zip(tth, hkls):
-                        idx = np.abs(self.tth_list - t).argmin()
-                        if idx < self.mask_2d.shape[1]:
-                            self._eta_mask[p][k][tuple(h)] = self.mask_2d[
-                                :, idx
-                            ]
-                        else:
-                            self._eta_mask[p][k][tuple(h)] = np.ones_like(
-                                self.mask_2d
-                            ).astype(bool)
-        else:
+        if not isinstance(val, np.ndarray):
             msg = f'mask is not a numpy array'
             raise ValueError(msg)
+
+        self._mask_2d = val
+        self._eta_mask = {}
+        for p in self.phases:
+            self._eta_mask[p] = {}
+            for k in self.wavelength:
+                self._eta_mask[p][k] = {}
+                tth = self.tth[p][k]
+                hkls = self.hkls[p][k]
+                for t, h in zip(tth, hkls):
+                    idx = np.abs(self.tth_list - t).argmin()
+                    if idx < self.mask_2d.shape[1]:
+                        eta_mask = self.mask_2d[:, idx]
+                    else:
+                        eta_mask = np.ones_like(self.mask_2d, dtype=bool)
+
+                    self._eta_mask[p][k][tuple(h)] = eta_mask
 
     @property
     def eta_mask(self):
         if self.mask_2d is None:
             return None
-        else:
-            return self._eta_mask
+
+        return self._eta_mask
 
     def compute_texture_data(
         self,
