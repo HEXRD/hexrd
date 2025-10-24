@@ -2061,35 +2061,45 @@ class Detector:
         CeO2 data recorded on NIF. An extra factor of sec(beta)
         was included as compared to RSI 91, 043902 (2020).
         '''
-        hod = (
-            physics_package.pinhole_thickness /
-            physics_package.pinhole_diameter
-        )
+        if (
+            np.isclose(
+            physics_package.pinhole_thickness,
+            0.0) or
+            np.isclose(
+            physics_package.pinhole_diameter,
+            0.0)):
+            return np.ones(self.shape)
 
-        '''we compute the beta angle using existing
-        functions by just changing beam vector
-        to be the z-axis with the right sign.
-        '''
-        bvec = np.array([0., 0., np.sign(self.bvec[2])])
-        beta, eta = self.pixel_angles(bvec=bvec)
+        else:
+            hod = (
+                physics_package.pinhole_thickness /
+                physics_package.pinhole_diameter
+            )
 
-        tb = np.tan(beta)
-        jb = hod*tb
-        jb[jb > 1] = np.nan
-        jb2 = jb**2
-        mask = np.isclose(jb2, 0.)
+            '''we compute the beta angle using existing
+            functions by just changing beam vector
+            to be the z-axis with the right sign.
+            '''
+            bvec = np.array([0., 0., np.sign(self.bvec[2])])
+            beta, eta = self.pixel_angles(bvec=bvec)
 
-        f1 = np.zeros_like(jb)
-        f3 = 1/jb2[~mask] - 1
-        f3[f3<0.] = np.nan
-        f1[~mask] = np.arctan(np.sqrt(f3))
-        f1[mask] = np.pi/2
+            tb = np.tan(beta)
+            jb = hod*tb
+            jb[jb > 1] = np.nan
+            jb2 = jb**2
+            mask = np.isclose(jb2, 0.)
 
-        f3 = 1 - jb2
-        f3[f3<0.] = np.nan
-        f2 = jb*np.sqrt(f3)
+            f1 = np.zeros_like(jb)
+            f3 = 1/jb2[~mask] - 1
+            f3[f3<0.] = np.nan
+            f1[~mask] = np.arctan(np.sqrt(f3))
+            f1[mask] = np.pi/2
 
-        return 0.5*(f1 - f2)
+            f3 = 1 - jb2
+            f3[f3<0.] = np.nan
+            f2 = jb*np.sqrt(f3)
+
+            return 0.5*(f1 - f2)
 
     def calc_transmission_generic(
         self,
