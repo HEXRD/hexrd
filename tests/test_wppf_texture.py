@@ -224,4 +224,4 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
         d2 = comparison_dict[root_key]
         assert sorted(list(d1)) == sorted(list(d2))
         for key in d1:
-            assert np.allclose(d1[key], d2[key], equal_nan=True, atol=1e-2)
+            assert np.allclose(d1[key], d2[key], equal_nan=True, rtol=1e-2)
