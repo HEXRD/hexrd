@@ -2023,7 +2023,7 @@ class Rietveld(AbstractWPPF):
             simulated_2d = np.empty([nspec, x.shape[0]])
             azimuth_texture_factor = {}
             for iph, p in enumerate(self.phases):
-                if p in self.texture_model:
+                if self.texture_model.get(p) is not None:
                     self.texture_model[p].calc_pf_rings(
                         self.params,
                         eta_min=self.eta_min,
@@ -2112,15 +2112,20 @@ class Rietveld(AbstractWPPF):
             print("Nothing to refine...")
 
     def RefineTexture(self):
+        final_result = None
         for name, model in self.texture_model.items():
             if model is None:
                 continue
 
             print(f'Refining texture parameters for "{name}"')
             results = model.calculate_harmonic_coefficients(self.params)
+            if results is None:
+                print(f'No "{name}" parameters marked as "vary". Skipping...')
+
+            final_result = results if results is not None else final_result
 
         # Set the results to the final one
-        self.res = results
+        self.res = final_result
 
         self.computespectrum()
         self.niter += 1
@@ -2156,7 +2161,7 @@ class Rietveld(AbstractWPPF):
     @property
     def texture_models_have_pfdata(self):
         for model in self.texture_model.values():
-            if not model.pfdata:
+            if model is not None and not model.pfdata:
                 return False
 
         return True
@@ -2418,6 +2423,9 @@ class Rietveld(AbstractWPPF):
         for mat_key, model in self.texture_model.items():
             if model is None:
                 continue
+
+            # Sanitize the name
+            mat_key = mat_key.replace('-', '_')
 
             pfdata = {}
             for ii, nnz in enumerate(results[3]):
