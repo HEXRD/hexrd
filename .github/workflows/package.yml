@@ -80,7 +80,10 @@ jobs:
 
     - name: Build the package (container)
       if: ${{ matrix.config.name == 'Linux' }}
-      uses: docker://centos:7
+      # AlmaLinux 8 is used for manylinux_2_28 support. This supports glibc
+      # 2.28 and later, which supports linux OS's starting in August 2018.
+      # AlmaLinux 8 will be supported with security updates until 2029.
+      uses: docker://almalinux:8
       with:
         entrypoint: /github/workspace/.github/workflows/container_build.sh
 
