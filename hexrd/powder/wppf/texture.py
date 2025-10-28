@@ -1554,6 +1554,10 @@ class HarmonicModel:
         for name in self.parameter_names:
             harmonic_params[name] = copy.deepcopy(params[name])
 
+        if not any(param.vary for param in harmonic_params.values()):
+            # No parameters are marked as vary. Return early.
+            return None
+
         self.sph_c = {}
         self.sph_s = {}
 
