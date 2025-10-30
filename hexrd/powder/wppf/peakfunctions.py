@@ -72,6 +72,9 @@ def _gaussian_fwhm(uvw, P, gamma_ani_sqr, eta_mixing, tth, dsp):
     tanth = np.tan(th)
     cth2 = np.cos(th) ** 2.0
     sig2_ani = gamma_ani_sqr * (1.0 - eta_mixing) ** 2 * dsp**4
+    # sig2_ani is in radians and does not have the 1E4 factor
+    # built in to U. we will add it here
+    sig2_ani = np.degrees(sig2_ani) * 1e4
     sigsqr = (U + sig2_ani) * tanth**2 + V * tanth + W + P / cth2
     if sigsqr <= 0.0:
         sigsqr = 1.0e-12
@@ -99,6 +102,9 @@ def _lorentzian_fwhm(xy, xy_sf, gamma_ani_sqr, eta_mixing, tth, dsp):
     tanth = np.tan(th)
     cth = np.cos(th)
     sig_ani = np.sqrt(gamma_ani_sqr) * eta_mixing * dsp**2
+    # sig2_ani is in radians and does not have the 1E2 factor
+    # built in to Y. we will add it here
+    sig_ani = np.degrees(sig_ani) * 1e2
     gamma = (X + xy_sf) / cth + (Y + sig_ani) * tanth
     return gamma * 1e-2
 
@@ -212,16 +218,17 @@ def _unit_lorentzian(p, x):
     f = gamma / ((x - x0) ** 2 + gamma**2)
     return f
 
+
 @njit(cache=True, nogil=True)
 def _heaviside(x, x0):
     y = np.empty_like(x)
     for ii in np.arange(x.size):
-        if x[ii] < 0.:
-            y[ii] = 0.
-        elif x[ii] == 0.:
+        if x[ii] < 0.0:
+            y[ii] = 0.0
+        elif x[ii] == 0.0:
             y[ii] = x0
         else:
-            y[ii] = 1.
+            y[ii] = 1.0
 
     return y
 
@@ -245,15 +252,15 @@ def _split_unit_gaussian(p, x):
     y : numpy.ndarray
         intensity of split gaussian function
     '''
-    x0     = p[0]
+    x0 = p[0]
     fwhm_l = p[1]
     fwhm_r = p[2]
 
     sigma_l = fwhm_l / gauss_width_fact
     sigma_r = fwhm_r / gauss_width_fact
 
-    heav_l = _heaviside(x0-x, 1.0)
-    heav_r = _heaviside(x-x0, 1.0)
+    heav_l = _heaviside(x0 - x, 1.0)
+    heav_r = _heaviside(x - x0, 1.0)
 
     p_l = np.array([x0, fwhm_l])
     p_r = np.array([x0, fwhm_r])
@@ -261,8 +268,8 @@ def _split_unit_gaussian(p, x):
     gauss_l = _unit_gaussian(p_l, x)
     gauss_r = _unit_gaussian(p_r, x)
 
-    return (gauss_l*heav_l +
-            gauss_r*heav_r)
+    return gauss_l * heav_l + gauss_r * heav_r
+
 
 # =========================================================
 # 1-D split pseudo-voight functions
@@ -299,8 +306,8 @@ def _split_unit_pv(p, x):
     fwhm_g_r = p[3]
     fwhm_l_r = p[4]
 
-    heav_l = _heaviside(x0-x, 1.0)
-    heav_r = _heaviside(x-x0, 1.0)
+    heav_l = _heaviside(x0 - x, 1.0)
+    heav_r = _heaviside(x - x0, 1.0)
 
     eta_l, fwhm_l = _mixing_factor_pv(fwhm_g_l, fwhm_l_l)
     eta_r, fwhm_r = _mixing_factor_pv(fwhm_g_r, fwhm_l_r)
@@ -313,16 +320,17 @@ def _split_unit_pv(p, x):
     gamma_r = fwhm_r / lorentz_width_fact
 
     g_l = _unit_gaussian(np.array([x0, fwhm_l]), x)
-    l_l = _unit_lorentzian(np.array([x0, fwhm_l]), x)*gamma_l
+    l_l = _unit_lorentzian(np.array([x0, fwhm_l]), x) * gamma_l
 
     g_r = _unit_gaussian(np.array([x0, fwhm_r]), x)
-    l_r = _unit_lorentzian(np.array([x0, fwhm_r]), x)*gamma_r
+    l_r = _unit_lorentzian(np.array([x0, fwhm_r]), x) * gamma_r
 
     pv_l = eta_l * l_l + (1.0 - eta_l) * g_l
 
     pv_r = eta_r * l_r + (1.0 - eta_r) * g_r
 
-    return pv_l*heav_l + pv_r*heav_r
+    return pv_l * heav_l + pv_r * heav_r
+
 
 @njit(cache=True, nogil=True)
 def _mixing_factor_pv(fwhm_g, fwhm_l):
@@ -390,7 +398,6 @@ def _func_h(tau, tth_r):
 
 @njit(cache=True, nogil=True)
 def _func_W(HoL, SoL, tau, tau_min, tau_infl, tth):
-
     if tth < np.pi / 2.0:
         if tau >= 0.0 and tau <= tau_infl:
             res = 2.0 * min(HoL, SoL)
@@ -615,7 +622,6 @@ def computespectrum_pvfcj(
         np.array([Iobs.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]])
     )
     for ii in prange(nref):
-
         II = Iobs[ii]
         t = tth[ii]
         d = dsp[ii]
@@ -648,7 +654,6 @@ def computespectrum_pvtch(
         np.array([Iobs.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]])
     )
     for ii in prange(nref):
-
         II = Iobs[ii]
         t = tth[ii]
         d = dsp[ii]
@@ -691,7 +696,6 @@ def computespectrum_pvpink(
         np.array([Iobs.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]])
     )
     for ii in prange(nref):
-
         II = Iobs[ii]
         t = tth[ii]
         d = dsp[ii]
