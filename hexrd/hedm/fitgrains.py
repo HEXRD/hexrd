@@ -125,91 +125,9 @@ def fit_grain_FF_reduced(grain_id):
             interp='nearest',
         )
 
-        # ======= DETERMINE VALID REFLECTIONS =======
-
-        culled_results = dict.fromkeys(results)
-        num_refl_tot = 0
-        num_refl_valid = 0
-        for det_key in culled_results:
-            panel = instrument.detectors[det_key]
-
-            '''
-            grab panel results:
-                peak_id
-                hkl_id
-                hkl
-                sum_int
-                max_int,
-                pred_angs,
-                meas_angs,
-                meas_xy
-            '''
-            presults = results[det_key]
-            nrefl = len(presults)
-
-            # make data arrays
-            refl_ids = np.empty(nrefl)
-            max_int = np.empty(nrefl)
-            for i, spot_data in enumerate(presults):
-                refl_ids[i] = spot_data[0]
-                max_int[i] = spot_data[4]
-
-            valid_refl_ids = refl_ids >= 0
-
-            # find unsaturated spots on this panel
-            unsat_spots = np.ones(len(valid_refl_ids), dtype=bool)
-            if panel.saturation_level is not None:
-                unsat_spots[valid_refl_ids] = (
-                    max_int[valid_refl_ids] < panel.saturation_level
-                )
-
-            idx = np.logical_and(valid_refl_ids, unsat_spots)
-
-            # if an overlap table has been written, load it and use it
-            overlaps = np.zeros_like(idx, dtype=bool)
-            try:
-                ot = np.load(
-                    os.path.join(
-                        analysis_dirname,
-                        os.path.join(det_key, OVERLAP_TABLE_FILE),
-                    )
-                )
-                for key in ot.keys():
-                    for this_table in ot[key]:
-                        these_overlaps = np.where(
-                            this_table[:, 0] == grain_id
-                        )[0]
-                        if len(these_overlaps) > 0:
-                            mark_these = np.array(
-                                this_table[these_overlaps, 1], dtype=int
-                            )
-                            otidx = [
-                                np.where(refl_ids == mt)[0]
-                                for mt in mark_these
-                            ]
-                            overlaps[otidx] = True
-                idx = np.logical_and(idx, ~overlaps)
-                # logger.info("found overlap table for '%s'", det_key)
-            except (IOError, IndexError):
-                # logger.info("no overlap table found for '%s'", det_key)
-                pass
-
-            # attach to proper dict entry
-            # FIXME: want to avoid looping again here
-            culled_results[det_key] = [presults[i] for i in np.where(idx)[0]]
-            num_refl_tot += len(valid_refl_ids)
-            num_refl_valid += sum(valid_refl_ids)
-            # now we have culled data
-
-        # CAVEAT: completeness from pullspots only; incl saturated and overlaps
-        # <JVB 2015-12-15>
-        try:
-            completeness = num_refl_valid / float(num_refl_tot)
-        except ZeroDivisionError:
-            raise RuntimeError(
-                "simulated number of relfections is 0; "
-                + "check instrument config or grain parameters"
-            )
+        culled_results, num_refl_valid, completeness = determine_valid_reflections(
+            results, instrument, analysis_dirname
+        )
 
         # ======= DO LEASTSQ FIT =======
 
@@ -263,6 +181,7 @@ def fit_grain_FF_reduced(grain_id):
         culled_results_r = dict.fromkeys(culled_results)
         num_refl_valid = 0
         for det_key in culled_results_r:
+            panel = instrument.detectors[det_key]
             presults = culled_results[det_key]
 
             if not presults:
@@ -329,6 +248,111 @@ def fit_grain_FF_reduced(grain_id):
                 return_value_flag=2,
             )
     return grain_id, completeness, chisq, grain_params
+
+
+def determine_valid_reflections(results, instrument, analysis_dirname):
+    """Process results from `pull_spots()`
+
+    PARAMETERS
+    ----------
+    results: dict
+       output from `pull_spots()`
+    instrument:
+       the HEDM instrument
+    analysis_dirname: str or Path
+       the analysis output directory
+
+    RETURNS
+    -------
+    culled_results: dict
+       spot information for valid reflections
+    """
+
+    culled_results = dict.fromkeys(results)
+    num_refl_tot = 0
+    num_refl_valid = 0
+    for det_key in culled_results:
+        panel = instrument.detectors[det_key]
+
+        '''
+        grab panel results:
+            peak_id
+            hkl_id
+            hkl
+            sum_int
+            max_int,
+            pred_angs,
+            meas_angs,
+            meas_xy
+        '''
+        presults = results[det_key]
+        nrefl = len(presults)
+
+        # make data arrays
+        refl_ids = np.empty(nrefl)
+        max_int = np.empty(nrefl)
+        for i, spot_data in enumerate(presults):
+            refl_ids[i] = spot_data[0]
+            max_int[i] = spot_data[4]
+
+        valid_refl_ids = refl_ids >= 0
+
+        # find unsaturated spots on this panel
+        unsat_spots = np.ones(len(valid_refl_ids), dtype=bool)
+        if panel.saturation_level is not None:
+            unsat_spots[valid_refl_ids] = (
+                max_int[valid_refl_ids] < panel.saturation_level
+            )
+
+        idx = np.logical_and(valid_refl_ids, unsat_spots)
+
+        # if an overlap table has been written, load it and use it
+        overlaps = np.zeros_like(idx, dtype=bool)
+        try:
+            ot = np.load(
+                os.path.join(
+                    analysis_dirname,
+                    os.path.join(det_key, OVERLAP_TABLE_FILE),
+                )
+            )
+            for key in ot.keys():
+                for this_table in ot[key]:
+                    these_overlaps = np.where(
+                        this_table[:, 0] == grain_id
+                    )[0]
+                    if len(these_overlaps) > 0:
+                        mark_these = np.array(
+                            this_table[these_overlaps, 1], dtype=int
+                        )
+                        otidx = [
+                            np.where(refl_ids == mt)[0]
+                            for mt in mark_these
+                        ]
+                        overlaps[otidx] = True
+            idx = np.logical_and(idx, ~overlaps)
+            # logger.info("found overlap table for '%s'", det_key)
+        except (IOError, IndexError):
+            # logger.info("no overlap table found for '%s'", det_key)
+            pass
+
+        # attach to proper dict entry
+        # FIXME: want to avoid looping again here
+        culled_results[det_key] = [presults[i] for i in np.where(idx)[0]]
+        num_refl_tot += len(valid_refl_ids)
+        num_refl_valid += sum(valid_refl_ids)
+        # now we have culled data
+
+    # CAVEAT: completeness from pullspots only; incl saturated and overlaps
+    # <JVB 2015-12-15>
+    try:
+        completeness = num_refl_valid / float(num_refl_tot)
+    except ZeroDivisionError:
+        raise RuntimeError(
+            "simulated number of relfections is 0; "
+            + "check instrument config or grain parameters"
+        )
+
+    return culled_results, num_refl_valid, completeness
 
 
 def fit_grains(
