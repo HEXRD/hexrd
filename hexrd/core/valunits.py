@@ -312,6 +312,18 @@ def valWithDflt(val, dflt, toUnit=None):
     return retval
 
 
+def _nm(x):
+    return valWUnit("lp", "length", x, "nm")
+
+
+def _angstrom(x):
+    return valWUnit("lp", "length", x, "angstrom")
+
+
+def _kev(x):
+    return valWUnit("kev", "energy", x, "keV")
+
+
 if __name__ == '__main__':  # pragma: no cover
     #
     #  doc testing
