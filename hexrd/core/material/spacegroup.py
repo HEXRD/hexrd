@@ -87,7 +87,6 @@ __all__ = ['SpaceGroup']
 
 
 class SpaceGroup:
-
     def __init__(self, sgnum):
         """Constructor for SpaceGroup
 
@@ -371,6 +370,51 @@ _rqpDict = {
     ltype_6: ((0, 2), lambda p: (p[0], p[0], p[1], 90, 90, 120)),
     ltype_7: ((0,), lambda p: (p[0], p[0], p[0], 90, 90, 90)),
 }
+
+
+def get_symmetry_directions(mat):
+    """
+    helper function to get a list of primary,
+    secondary and tertiary directions of the
+    space group of mat. e.g. cubic systems have
+        primary: [001]
+        secondary: [111]
+        tertiary: [110]
+    """
+    ltype = mat.latticeType
+
+    if ltype == "triclinic":
+        primary = np.array([0, 0, 1])
+        secondary = np.array([0, 1, 0])
+        tertiary = np.array([1, 0, 0])
+    elif ltype == "monoclinic":
+        primary = np.array([0, 1, 0])
+        secondary = np.array([1, 0, 0])
+        tertiary = np.array([0, 0, 1])
+    elif ltype == "orthorhombic":
+        primary = np.array([1, 0, 0])
+        secondary = np.array([0, 1, 0])
+        tertiary = np.array([1, 0, 1])
+    elif ltype == "tetragonal":
+        primary = np.array([0, 0, 1])
+        secondary = np.array([1, 0, 0])
+        tertiary = np.array([1, 1, 0])
+    elif ltype == "trigonal":
+        # it is assumed that trigonal crystals are
+        # represented in the hexagonal basis
+        primary = np.array([0, 0, 1])
+        secondary = np.array([1, 0, 0])
+        tertiary = np.array([1, 2, 0])
+    elif ltype == "hexagonal":
+        primary = np.array([0, 0, 1])
+        secondary = np.array([1, 0, 0])
+        tertiary = np.array([1, 2, 0])
+    elif ltype == "cubic":
+        primary = np.array([0, 0, 1])
+        secondary = np.array([1, 1, 1])
+        tertiary = np.array([1, 1, 0])
+
+    return (primary, secondary, tertiary)
 
 
 def Allowed_HKLs(sgnum, hkllist):
