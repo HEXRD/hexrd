@@ -380,6 +380,15 @@ def get_symmetry_directions(mat):
         primary: [001]
         secondary: [111]
         tertiary: [110]
+
+    For some symmetries like monoclinic and trigonal,
+    some of the symmetry directions are not present. In
+    that case, we have choden them to be the same as the
+    crystal axis
+
+    For trigonal systems, it is ALWAYS assumed that they
+    are represented in the hexagonal basis. so the directions
+    are the same for the two
     """
     ltype = mat.latticeType
 
