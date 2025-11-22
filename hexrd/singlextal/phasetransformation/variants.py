@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 from hexrd.valunits import _angstrom, _kev
 import mplstereonet
 from numba import njit
+from hexrd.material.spacegroup import get_symmetry_directions
 
 """
 define some helper functions
@@ -137,8 +138,59 @@ def getOR(R1, R2, mat1, mat2):
     return rmat_t
 
 
+def plot_OR_mat(rmat, mat, fig, ax, title):
+    font = {
+        "family": "serif",
+        "weight": "bold",
+        "size": 20,
+    }
+
+    Gs = get_symmetry_directions(mat)
+    markers = ["ok", "^g", "sb"]
+
+    leg = []
+    for G in Gs:
+        leg.append(rf"$[{G[0]},{G[1]},{G[2]}]$")
+
+    for m, g in zip(markers, Gs):
+        hkl = mat.unitcell.CalcStar(g, "d")
+        dip = []
+        strike = []
+
+        for v in hkl:
+            vv = mat.unitcell.TransSpace(v, "d", "c")
+            vec = mat.unitcell.NormVec(vv, "c")
+            for r in rmat:
+                xyz = np.dot(r, vec)
+                if xyz[2] < 0.0:
+                    xyz = -xyz
+                dip.append(np.degrees(np.arccos(xyz[2])))
+                strike.append(180.0 + np.degrees(np.arctan2(xyz[1], xyz[0])))
+
+        ax.pole(strike, dip, m, markersize=16, markeredgecolor="red")
+    ax.set_azimuth_ticks([])
+    ax.tick_params(axis="both", which="major", size=24)
+    ax.grid()
+    ax.legend(leg, bbox_to_anchor=(1.15, 1.15), loc="upper right", prop=font)
+    ax.set_title(title, **font)
+
+
+def plot_OR(rmat_parent, rmat_variants, mat1, mat2, fig=None, ax=None):
+    if fig is None or ax is None:
+        fig, ax = mplstereonet.subplots(ncols=2, figsize=(16, 8))
+
+    plot_OR_mat(rmat_parent, mat1, fig, ax[0], title="Parent")
+    plot_OR_mat(rmat_variants, mat2, fig, ax[1], title="Variants")
+    fig.show()
+
+
 def getPhaseTransformationVariants(
-    mat1, mat2, parallel_planes, parallel_directions, plot=False
+    mat1,
+    mat2,
+    parallel_planes,
+    parallel_directions,
+    rmat_parent=[np.eye(3)],
+    plot=False,
 ):
     """
     main function to get the phase transformation variants between two materials
@@ -166,13 +218,16 @@ def getPhaseTransformationVariants(
     R1 = get_rmats(p1, d1, mat1)
     R2 = get_rmats(p2, d2, mat2)
 
-    rmat = getOR(R1, R2, mat1, mat2)
+    rmat_variants = getOR(R1, R2, mat1, mat2)
 
     num_var = expected_num_variants(mat1, mat2, R1, R2)
 
     print("Expected # of orientational variants = ", num_var)
     print(
         "number of orientation variants in phase transition = ",
-        len(rmat),
+        len(rmat_variants),
         "\n",
     )
+
+    if plot:
+        plot_OR(rmat_parent, rmat_variants, mat1, mat2, fig=None, ax=None)
