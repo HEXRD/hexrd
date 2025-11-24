@@ -199,6 +199,7 @@ def getPhaseTransformationVariants(
     parallel_directions,
     rmat_parent=[np.eye(3)],
     plot=False,
+    verbose=False,
 ):
     """
     main function to get the phase transformation variants between two materials
@@ -230,12 +231,15 @@ def getPhaseTransformationVariants(
 
     num_var = expected_num_variants(mat1, mat2, R1, R2)
 
-    print("Expected # of orientational variants = ", num_var)
-    print(
-        "number of orientation variants in phase transition = ",
-        len(rmat_variants),
-        "\n",
-    )
+    if verbose:
+        print("Expected # of orientational variants = ", num_var)
+        print(
+            "number of orientation variants in phase transition = ",
+            len(rmat_variants),
+            "\n",
+        )
 
     if plot:
         plot_OR(rmat_parent, rmat_variants, mat1, mat2, fig=None, ax=None)
+
+    return rmat_variants, num_var
