@@ -142,7 +142,7 @@ def plot_OR_mat(rmat, mat, fig, ax, title):
     font = {
         "family": "serif",
         "weight": "bold",
-        "size": 20,
+        "size": 12,
     }
 
     Gs = get_symmetry_directions(mat)
@@ -167,20 +167,28 @@ def plot_OR_mat(rmat, mat, fig, ax, title):
                 dip.append(np.degrees(np.arccos(xyz[2])))
                 strike.append(180.0 + np.degrees(np.arctan2(xyz[1], xyz[0])))
 
-        ax.pole(strike, dip, m, markersize=16, markeredgecolor="red")
+        ax.pole(strike, dip, m, markersize=12, markeredgecolor="red")
+    ax.tick_params(axis="both", size=24)
+    ax.grid(True, which="both", ls=":", lw=1)
+    ax.set_longitude_grid(10)
+    # ax.set_latitude_grid(10)
     ax.set_azimuth_ticks([])
-    ax.tick_params(axis="both", which="major", size=24)
-    ax.grid()
     ax.legend(leg, bbox_to_anchor=(1.15, 1.15), loc="upper right", prop=font)
     ax.set_title(title, **font)
 
 
 def plot_OR(rmat_parent, rmat_variants, mat1, mat2, fig=None, ax=None):
     if fig is None or ax is None:
-        fig, ax = mplstereonet.subplots(ncols=2, figsize=(16, 8))
+        fig, ax = mplstereonet.subplots(
+            ncols=2, figsize=(10, 5), projection='equal_angle_stereonet'
+        )
 
     plot_OR_mat(rmat_parent, mat1, fig, ax[0], title="Parent")
     plot_OR_mat(rmat_variants, mat2, fig, ax[1], title="Variants")
+    # cosmetic
+    fig.subplots_adjust(
+        hspace=0, wspace=0.05, left=0.01, bottom=0.1, right=0.99
+    )
     fig.show()
 
 
