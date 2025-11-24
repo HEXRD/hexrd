@@ -31,6 +31,7 @@ install_reqs = [
     'scipy',
     'tqdm',
     'xxhash',
+    'mplstereonet',
 ]
 
 if platform.machine() == 'x86_64':
