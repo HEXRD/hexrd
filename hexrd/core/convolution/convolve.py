@@ -268,9 +268,7 @@ def convolve(
             'arrays at this time'
         )
     elif array_internal.ndim != kernel_internal.ndim:
-        raise Exception(
-            'array and kernel have differing number of ' 'dimensions.'
-        )
+        raise ValueError('array and kernel have differing number of dimensions')
 
     array_shape = np.array(array_internal.shape)
     kernel_shape = np.array(kernel_internal.shape)
@@ -287,7 +285,7 @@ def convolve(
     # array_shape >= kernel_shape OR array_shape > kernel_shape-1 OR array_shape > 2*(kernel_shape//2).
     # Since the latter is equal to the former two for even lengths, the latter condition is complete.
     if boundary is None and not np.all(array_shape > 2 * pad_width):
-        raise KernelSizeError(
+        raise ValueError(
             "for boundary=None all kernel axes must be smaller than array's - "
             "use boundary in ['fill', 'extend', 'wrap'] instead."
         )
