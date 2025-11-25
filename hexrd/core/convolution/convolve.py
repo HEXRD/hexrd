@@ -253,7 +253,7 @@ def convolve(
 
     # Make sure kernel has all odd axes
     if has_even_axis(kernel_internal):
-        raise_even_kernel_exception()
+        raise ValueError("Kernel size must be odd in all axes.")
 
     # -----------------------------------------------------------------------
     # From this point onwards refer only to ``array_internal`` and
@@ -262,10 +262,7 @@ def convolve(
     # ``Kernel`` nor ``np.ma.maskedarray`` classes.
     # -----------------------------------------------------------------------
 
-    # Check dimensionality
-    if array_internal.ndim == 0:
-        raise Exception("cannot convolve 0-dimensional arrays")
-    elif array_internal.ndim > 3:
+    if array_internal.ndim > 3:
         raise NotImplementedError(
             'convolve only supports 1, 2, and 3-dimensional '
             'arrays at this time'
