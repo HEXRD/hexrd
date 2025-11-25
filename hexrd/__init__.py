@@ -1,10 +1,8 @@
 import importlib
-import importlib.abc
-import importlib.machinery
 import sys
+import types
 
 from .core.material import crystallography
-from .core.material import jcpds
 from .core.material import mksupport
 from .core.material import spacegroup
 from .core.material import symbols
@@ -28,20 +26,17 @@ for alias, module in module_aliases.items():
     except ImportError:
         file_exists = False
 
-    if file_exists:
-        raise Exception(f'"{alias}" is an alias path and should not exist')
-
     sys.modules[alias] = module
 
 
 from . import module_map
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> types.ModuleType:
     # __getattr__ is only called if the attribute doesn't exist
     module = module_map.get("hexrd." + name)
     if module is not None:
         if isinstance(module, str):
             return importlib.import_module(module)
-        return module
+
     raise AttributeError(f"Module `hexrd` has no attribute {name}")
