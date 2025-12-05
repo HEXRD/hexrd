@@ -1,5 +1,6 @@
 """Class for processing individual frames"""
 
+from typing import Any
 import copy
 
 import numpy as np
@@ -29,7 +30,6 @@ class ProcessedImageSeries(ImageSeries):
     GAUSS_LAPLACE = 'gauss_laplace'
 
     def __init__(self, imser, oplist, **kwargs):
-
         self._imser = imser
         self._meta = copy.deepcopy(imser.metadata)
         self._oplist = oplist
@@ -192,3 +192,9 @@ class ProcessedImageSeries(ImageSeries):
     def oplist(self):
         """list of operations to apply"""
         return self._oplist
+
+    def set_option(self, key: str, value: Any):
+        self._imser.set_option(key, value)
+
+    def option_values(self) -> dict:
+        return self._imser.option_values()

@@ -9,14 +9,12 @@ from .registry import Registry
 
 
 class _RegisterAdapterClass(abc.ABCMeta):
-
     def __init__(cls, name, bases, attrs):
         abc.ABCMeta.__init__(cls, name, bases, attrs)
         Registry.register(cls)
 
 
 class ImageSeriesAdapter(ImageSeriesABC, metaclass=_RegisterAdapterClass):
-
     format = None
 
     def get_region(self, frame_idx: int, region: RegionType) -> np.ndarray:
@@ -46,8 +44,9 @@ except ImportError:
     # Dectris compression is not available. Skip the eiger_stream_v1
     pass
 else:
-    # Eiger stream v1 is supported
+    # Eiger stream formats are supported
     from . import eiger_stream_v1
+    from . import eiger_stream_v2
 
 
 # for loader, name, ispkg in pkgutil.iter_modules(__path__):
