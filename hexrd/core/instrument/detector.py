@@ -34,6 +34,7 @@ from hexrd.core.transforms.xfcapi import (
 )
 
 from hexrd.core.utils.decorators import memoize
+from hexrd.core.utils.panel_buffer import panel_buffer_from_str
 from hexrd.core.gridutil import cellIndices
 from hexrd.core.instrument import detector_coatings
 from hexrd.core.material.utils import (
@@ -232,7 +233,8 @@ class Detector:
         panel_buffer : TYPE, optional
             If a scalar or len(2) array_like, the interpretation is a border
             in mm. If an array with shape (nrows, ncols), interpretation is a
-            boolean with True marking valid pixels.  The default is None.
+            boolean with True marking valid pixels. If a string, it must
+            much one of the known panel buffer names. The default is None.
         roi : TYPE, optional
             DESCRIPTION. The default is None.
         group : TYPE, optional
@@ -380,7 +382,7 @@ class Detector:
     def panel_buffer(self, x):
         """if not None, a buffer in mm (x, y)"""
         if x is not None:
-            assert len(x) == 2 or x.ndim == 2
+            assert isinstance(x, str) or len(x) == 2 or x.ndim == 2
         self._panel_buffer = x
 
     @property
@@ -803,7 +805,7 @@ class Detector:
             DESCRIPTION. The default is ct.beam_vec.
         sat_level : scalar, optional
             DESCRIPTION. The default is None.
-        panel_buffer : scalar, array_like (2,), optional
+        panel_buffer : scalar, array_like (2,), or str, optional
             DESCRIPTION. The default is None.
 
         Returns
@@ -875,7 +877,8 @@ class Detector:
 
         # panel buffer
         if panel_buffer is None:
-            # could be none, a 2-element list, or a 2-d array (rows, cols)
+            # could be none, a 2-element list, a 2-d array (rows, cols),
+            # or a str of a known panel buffer name
             panel_buffer = copy.deepcopy(self.panel_buffer)
         # !!! now we have to do some style-dependent munging of panel_buffer
         if isinstance(panel_buffer, np.ndarray):
@@ -895,13 +898,7 @@ class Detector:
                     "panel buffer ndim must be 1 or 2; you specified %d"
                     % panel_buffer.ndmin
                 )
-        elif panel_buffer is None:
-            # still None on self
-            # !!! this gets handled by unwrap_dict_to_h5 now
-
-            # if style.lower() == 'hdf5':
-            #     # !!! can't write None to hdf5; substitute with zeros
-            #     panel_buffer = np.r_[0., 0.]
+        elif panel_buffer is None or isinstance(panel_buffer, str):
             pass
         det_dict['buffer'] = panel_buffer
 
@@ -1062,7 +1059,12 @@ class Detector:
         xlim = 0.5 * self.col_dim
         ylim = 0.5 * self.row_dim
         if buffer_edges and self.panel_buffer is not None:
-            if self.panel_buffer.ndim == 2:
+            panel_buffer = self.panel_buffer
+            if isinstance(panel_buffer, str):
+                # Convert it to a known panel buffer
+                panel_buffer = panel_buffer_from_str(panel_buffer, self)
+
+            if panel_buffer.ndim == 2:
                 pix = self.cartToPixel(xy, pixels=True)
 
                 roff = np.logical_or(pix[:, 0] < 0, pix[:, 0] >= self.rows)
@@ -1072,12 +1074,12 @@ class Detector:
 
                 on_panel = np.full(pix.shape[0], False)
                 valid_pix = pix[~idx, :]
-                on_panel[~idx] = self.panel_buffer[
+                on_panel[~idx] = panel_buffer[
                     valid_pix[:, 0], valid_pix[:, 1]
                 ]
             else:
-                xlim -= self.panel_buffer[0]
-                ylim -= self.panel_buffer[1]
+                xlim -= panel_buffer[0]
+                ylim -= panel_buffer[1]
                 on_panel_x = np.logical_and(
                     xy[:, 0] >= -xlim, xy[:, 0] <= xlim
                 )
