@@ -12,6 +12,8 @@ cxx_compiler:
   - vs2019                 # [win]
 cxx_compiler_version:      # [osx]
   - 16                     # [osx]
+MACOSX_DEPLOYMENT_TARGET:  # [osx]
+  - 11.0                   # [osx]
 target_platform:
   - linux-64               # [linux]
   - osx-64                 # [osx]
