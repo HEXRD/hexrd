@@ -1,3 +1,4 @@
 pytest
 coloredlogs
 coverage
+dectris-compression
