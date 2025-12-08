@@ -22,7 +22,7 @@ install_reqs = [
     'lmfit',
     'matplotlib',
     'numba',
-    'numpy<1.27',  # noqa NOTE: bump this to support the latest version numba supports
+    'numpy<2.4',  # noqa NOTE: bump this to support the latest version numba supports
     'psutil',
     'pycifrw',
     'pyyaml',
