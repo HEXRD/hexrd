@@ -76,6 +76,11 @@ def panel_buffer_from_str(name: str, panel: Detector) -> np.ndarray:
     return roi_buffer
 
 
+def valid_panel_buffer_names() -> list[str]:
+    dir_path = importlib.resources.files(hexrd.core.resources.panel_buffers)
+    return [path.stem for path in dir_path.glob('*.npz')]
+
+
 # Cache this so we only read from disk once
 @cache
 def _load_panel_buffer_from_file(name: str) -> np.ndarray:
