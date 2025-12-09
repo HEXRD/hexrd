@@ -16,13 +16,12 @@ install_reqs = [
     'chemparse',
     'fabio>=0.11',
     'fast-histogram',
-    'h5py<3.12',  # Currently, h5py 3.12 on Windows fails to import.
-    # We can remove this version pin when that is fixed.
+    'h5py',
     'hdf5plugin',
     'lmfit',
     'matplotlib',
     'numba',
-    'numpy<1.27',  # noqa NOTE: bump this to support the latest version numba supports
+    'numpy<2.4',  # noqa NOTE: bump this to support the latest version numba supports
     'psutil',
     'pycifrw',
     'pyyaml',

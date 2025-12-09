@@ -1129,14 +1129,14 @@ def mapAngle(ang, ang_range=None, units=angularUnits):
     else:
         raise RuntimeError("unknown angular units: " + units)
 
-    ang = np.nan_to_num(np.atleast_1d(np.float_(ang)))
+    ang = np.nan_to_num(np.atleast_1d(np.float64(ang)))
 
     min_val = -period / 2
     max_val = period / 2
 
     # if we have a specified angular range, use that
     if ang_range is not None:
-        ang_range = np.atleast_1d(np.float_(ang_range))
+        ang_range = np.atleast_1d(np.float64(ang_range))
 
         min_val = ang_range.min()
         max_val = ang_range.max()
