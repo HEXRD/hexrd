@@ -27,6 +27,14 @@ jobs:
             name: "Windows",
             os: windows-latest
           }
+        # Exclude Python 3.13 on Windows due to pip 25.x build isolation bug
+        # We can include it whenever it gets fixed
+        exclude:
+          - python-version: 3.13
+            config: {
+                name: "Windows",
+                os: windows-latest
+            }
     defaults:
       run:
         shell: bash
