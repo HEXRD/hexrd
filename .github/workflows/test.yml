@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.11]
+        python-version: [3.11, 3.13]
         config:
         - {
             name: "Linux",
@@ -27,13 +27,21 @@ jobs:
             name: "Windows",
             os: windows-latest
           }
+        # Exclude Python 3.13 on Windows due to pip 25.x build isolation bug
+        # We can include it whenever it gets fixed
+        exclude:
+          - python-version: 3.13
+            config: {
+                name: "Windows",
+                os: windows-latest
+            }
     defaults:
       run:
         shell: bash
     steps:
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
