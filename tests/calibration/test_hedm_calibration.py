@@ -4,7 +4,7 @@ import yaml
 
 import pytest
 
-import hexrd.constants as cnst
+import hexrd.core.constants as cnst
 from hexrd.material.material import load_materials_hdf5
 from hexrd.instrument.hedm_instrument import HEDMInstrument
 
