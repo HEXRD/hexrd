@@ -23,8 +23,7 @@ conda install --override-channels -c conda-forge python=3.11 -y
 conda create --override-channels -c conda-forge -y -n hexrd python=3.11
 conda activate hexrd
 
-# Install the libmamba solver (it is much faster)
-conda install -n base -c conda-forge conda-libmamba-solver
+# Use the libmamba solver (it is much faster)
 conda config --set solver libmamba
 conda config --set conda_build.pkg_format 1 # force tar.bz2 files
 
