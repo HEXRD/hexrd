@@ -1,7 +1,9 @@
 python:
-  - 3.9
   - 3.10
   - 3.11
+  - 3.12
+  - 3.13
+  - 3.14
 c_compiler:
   - gcc                    # [linux]
   - clang                  # [osx]
@@ -12,6 +14,8 @@ cxx_compiler:
   - vs2019                 # [win]
 cxx_compiler_version:      # [osx]
   - 16                     # [osx]
+MACOSX_DEPLOYMENT_TARGET:  # [osx]
+  - 11.0                   # [osx]
 target_platform:
   - linux-64               # [linux]
   - osx-64                 # [osx]

@@ -21,7 +21,7 @@ jobs:
           }
         - {
             name: "MacOSX",
-            os: macos-13
+            os: macos-15-intel
           }
         - {
             name: "Windows",
@@ -58,6 +58,9 @@ jobs:
 
     - name: Build the package (host)
       if: ${{ matrix.config.name != 'Linux' }}
+      env:
+        CONDA_OVERRIDE_OSX: '11.0'
+        MACOSX_DEPLOYMENT_TARGET: '11.0'
       run: |
           conda activate hexrd
           # For some reason, we need to set this in the environment as well.

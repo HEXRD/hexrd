@@ -16,13 +16,12 @@ install_reqs = [
     'chemparse',
     'fabio>=0.11',
     'fast-histogram',
-    'h5py<3.12',  # Currently, h5py 3.12 on Windows fails to import.
-    # We can remove this version pin when that is fixed.
+    'h5py',
     'hdf5plugin',
     'lmfit',
     'matplotlib',
     'numba',
-    'numpy<1.27',  # noqa NOTE: bump this to support the latest version numba supports
+    'numpy<2.4',  # noqa NOTE: bump this to support the latest version numba supports
     'psutil',
     'pycifrw',
     'pyyaml',
@@ -217,15 +216,17 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
+        'Programming Language :: Python :: 3.14',
     ],
     entry_points=entry_points,
     ext_modules=ext_modules,
     packages=find_packages(),
     include_package_data=True,
     package_data={'': ['Anomalous.h5', 'file_table.tsv']},
-    python_requires='>=3.9',
+    python_requires='>=3.10',
     install_requires=install_reqs,
 )

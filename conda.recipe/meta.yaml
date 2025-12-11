@@ -17,13 +17,13 @@ requirements:
     - {{ compiler('cxx') }}
     - python {{ python }}                    # [build_platform != target_platform]
     - cross-python_{{ target_platform }}     # [build_platform != target_platform]
-    - numpy >=1.20,<2.0                      # [build_platform != target_platform]
+    - numpy >=2.0                            # [build_platform != target_platform]
     # Numba is only here to make sure we use a version of numpy that is compatible
     - numba                                  # [build_platform != target_platform]
     - pybind11                               # [build_platform != target_platform]
   host:
     - python {{ python }}
-    - numpy >=1.20,<2.0
+    - numpy >=2.0
     - setuptools
     - setuptools_scm
     # Numba is only here to make sure we use a version of numpy that is compatible

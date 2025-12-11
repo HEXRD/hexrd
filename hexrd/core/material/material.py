@@ -42,7 +42,7 @@ from hexrd.core.constants import ptable, ptableinverse, chargestate
 
 from os import path
 from pathlib import Path
-from CifFile import ReadCif
+from CifFile import ReadCif, CifFile, CifBlock
 import h5py
 from warnings import warn
 from hexrd.core.material.mksupport import Write2H5File
@@ -534,8 +534,8 @@ class Material(object):
                 ]
             )
             p[0] = alpha
-            p[2] = (1 - 2 * alpha)
-            p[4] = (alpha - 1)
+            p[2] = 1 - 2 * alpha
+            p[4] = alpha - 1
             p[9] = -2 * pressure / 3 / kt
             res = np.roots(p)
             res = res[np.isreal(res)]
@@ -1070,6 +1070,79 @@ class Material(object):
 
         Write2H5File(AtomInfo, lat_param, path)
 
+    def to_cif_block(self) -> CifBlock:
+        """Return a CifBlock for Material.
+
+        Written fields:
+        - _cell_length_[a,b,c]
+        - _cell_angle_[alpha,beta,gamma]
+        - _symmetry_Int_Tables_number
+        - loop_ for atomic sites with:
+          _atom_site_fract_x, _atom_site_fract_y, _atom_site_fract_z,
+          _atom_site_occupancy, _atom_site_type_symbol
+        """
+
+        # Lattice parameters
+        a = self._lparms[0].getVal('angstrom')
+        b = self._lparms[1].getVal('angstrom')
+        c = self._lparms[2].getVal('angstrom')
+        alpha = self._lparms[3].getVal('degrees')
+        beta = self._lparms[4].getVal('degrees')
+        gamma = self._lparms[5].getVal('degrees')
+
+        # Atom site data
+        ai = np.asarray(self._atominfo)
+        x_coords = [f"{v:.8f}" for v in ai[:, 0].tolist()]
+        y_coords = [f"{v:.8f}" for v in ai[:, 1].tolist()]
+        z_coords = [f"{v:.8f}" for v in ai[:, 2].tolist()]
+        occupancy = [f"{v:.8f}" for v in ai[:, 3].tolist()]
+
+        # Type symbols
+        type_symbols = []
+        for a_type, charge in zip(self._atomtype.tolist(), list(self._charge)):
+            symbol = ptableinverse[int(a_type)]
+            if charge != '0':
+                type_symbols.append(f"{symbol}{charge}")
+            else:
+                type_symbols.append(symbol)
+
+        # Site labels
+        base_symbols = [
+            ptableinverse[int(at)] for at in self._atomtype.tolist()
+        ]
+        labels = []
+        for idx, symbol in enumerate(base_symbols):
+            labels.append(f"{symbol}{idx}")
+
+        # Build block
+        cb = CifBlock()
+        cb.AddItem('_cell_length_a', f"{a:.8f}")
+        cb.AddItem('_cell_length_b', f"{b:.8f}")
+        cb.AddItem('_cell_length_c', f"{c:.8f}")
+        cb.AddItem('_cell_angle_alpha', f"{alpha:.8f}")
+        cb.AddItem('_cell_angle_beta', f"{beta:.8f}")
+        cb.AddItem('_cell_angle_gamma', f"{gamma:.8f}")
+        cb.AddItem('_cell_volume', f"{self.vol:.8f}")
+        cb.AddItem('_symmetry_Int_Tables_number', str(int(self.sgnum)))
+        cb.AddItem('_atom_site_label', labels)
+        cb.AddItem('_atom_site_type_symbol', type_symbols)
+        cb.AddItem('_atom_site_fract_x', x_coords)
+        cb.AddItem('_atom_site_fract_y', y_coords)
+        cb.AddItem('_atom_site_fract_z', z_coords)
+        cb.AddItem('_atom_site_occupancy', occupancy)
+
+        return cb
+
+    def write_cif(self, filepath: str) -> None:
+        """Write this Material to a CIF file."""
+        cf = CifFile()
+        cb = self.to_cif_block()
+        cf[self.name] = cb
+        cif_text = cf.WriteOut()
+        fp = Path(filepath)
+        with open(fp, 'w') as f:
+            f.write(cif_text)
+
     # ============================== API
     #
     #  ========== Properties
@@ -1435,6 +1508,7 @@ class Material(object):
         each atom's abundance will be occ. * numat
         '''
         return self.unitcell.chemical_formula
+
 
 #
 #  -----------------------------------------------END CLASS:  Material

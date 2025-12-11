@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [3.11]
+        python-version: [3.11, 3.14]
         config:
         - {
             name: "Linux",
@@ -33,7 +33,7 @@ jobs:
     steps:
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -47,17 +47,10 @@ jobs:
       with:
         repository: HEXRD/examples
         path: examples
-        # post hexrd/hexrd#454 ref reverts to default branch
-        # !!! leaving this here in case we pin to a specific examples release
-        # ref:
-
-    - name: Set environment variable to work around setuptools/numpy issue
-      run: echo 'SETUPTOOLS_USE_DISTUTILS=stdlib' >> $GITHUB_ENV
-      if: ${{ matrix.config.os == 'windows-latest'}}
 
     - name: Install HEXRD
-      # Install in editable mode for codecov
       run: |
+          # Install in editable mode for codecov
           pip install -e .
       working-directory: hexrd
 
@@ -92,4 +85,3 @@ jobs:
         file: coverage.xml
         working-directory: hexrd
       if: ${{ matrix.config.os == 'ubuntu-latest'}}
-
