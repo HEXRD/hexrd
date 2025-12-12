@@ -30,6 +30,7 @@
 #
 import sys
 
+import pytest
 import numpy as np
 from numba import njit
 from scipy.optimize import leastsq
@@ -554,14 +555,15 @@ def rotMatOfExpMap(expMap):
 
     return R.from_rotvec(expMap.T).as_matrix().squeeze()
 
-
+@pytest.mark.skip(reason="old code, marked for removal")
 @deprecated(new_func="Use `rotMatOfExpMap` instead", removal_date="2025-07-01")
-def rotMatOfExpMap_orig(expMap):
+def rotMatOfExpMap_orig(expMap): # pragma: no cover
     return rotMatOfExpMap(expMap)
 
 
+@pytest.mark.skip(reason="old code, marked for removal")
 @deprecated(new_func="Use `rotMatOfExpMap` instead", removal_date="2025-07-01")
-def rotMatOfExpMap_opt(expMap):
+def rotMatOfExpMap_opt(expMap): # pragma: no cover
     return rotMatOfExpMap(expMap)
 
 
@@ -1151,7 +1153,8 @@ def mapAngle(ang, ang_range=None, units=angularUnits):
     return val
 
 
-def angularDifference_orig(angList0, angList1, units=angularUnits):
+@pytest.mark.skip(reason="old code, marked for removal")
+def angularDifference_orig(angList0, angList1, units=angularUnits): # pragma: no cover
     """
     Do the proper (acute) angular difference in the context of a branch cut.
 
