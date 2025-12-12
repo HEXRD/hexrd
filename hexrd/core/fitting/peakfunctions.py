@@ -962,7 +962,7 @@ def gaussian3d(p, x, y, z):
     bg1y = p[9]
     bg1z = p[10]
 
-    f = _gaussian3d_no_bg(p[:5], x, y) + (bg0 + bg1x * x + bg1y * y + bg1z * z)
+    f = _gaussian3d_no_bg(p[:5], x, y, z) + (bg0 + bg1x * x + bg1y * y + bg1z * z)
     return f
 
 
