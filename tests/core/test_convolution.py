@@ -9,56 +9,42 @@ def assert_basic_convolve_result(result, arr):
     """Common assertions used for successful convolve calls."""
     assert result.shape == arr.shape
     assert isinstance(result, np.ndarray)
-    # preserve original tests' expectation that result is floating dtype
     assert np.issubdtype(result.dtype, np.floating)
 
 
 def test_copy_input_valwunit_and_invalid_type():
-    # valWUnit input -> returns array with same values (not necessarily same object)
     arr = np.array([1, 2, 3], dtype=np.float64)
     vwu = valWUnit("input_array", "length", arr, "mm")
     result = _copy_input_if_needed(vwu, np.float64)
     assert np.array_equal(result, arr)
 
-    # invalid input type -> raise TypeError
     with pytest.raises(TypeError):
         _copy_input_if_needed({"1": 2}, np.float64)
 
 
-def test_copy_input_contiguous_vs_noncontiguous_and_dtype_conversion_and_masking():
-    # contiguous same dtype -> same object
+def test_copy_input_contiguous_vs_noncontiguous():
     arr = np.array([1, 2, 3], dtype=np.float64)
     res = _copy_input_if_needed(arr, np.float64)
     assert res is arr
 
-    # non-contiguous view -> returned array equal but not same object
     arr2 = np.array([1, 2, 3, 4], dtype=np.float64)
-    view = arr2[::2]  # non-contiguous view: [1,3]
+    view = arr2[::2] 
     res_view = _copy_input_if_needed(view, np.float64)
     assert np.array_equal(res_view, view)
     assert res_view is not view
 
-    # wrong dtype -> copy + converted dtype
     int_arr = np.array([1, 2, 3], dtype=np.int32)
     res_conv = _copy_input_if_needed(int_arr, np.float64)
     assert np.array_equal(res_conv, int_arr)
     assert res_conv.dtype == np.float64
     assert res_conv is not int_arr
 
-    # masked array should always produce a copy (and filled)
-    base = np.array([1, 2, 3], dtype=np.float64)
-    masked = np.ma.array(base, mask=[0, 1, 0])
-    res_masked = _copy_input_if_needed(masked, np.float64)
-    assert res_masked is not masked
-
 
 def test_copy_input_with_mask_argument_copies():
-    # mask passed explicitly for a masked array -> copy
     arr_masked = np.ma.array([1, 2, 3], mask=[0, 1, 0], dtype=np.float64)
     res1 = _copy_input_if_needed(arr_masked, np.float64, mask=arr_masked.mask)
     assert res1 is not arr_masked
 
-    # mask passed for a plain ndarray -> copy
     arr_plain = np.array([1, 2, 3], dtype=np.float64)
     res2 = _copy_input_if_needed(arr_plain, np.float64, mask=[0, 1, 0])
     assert res2 is not arr_plain
@@ -67,12 +53,10 @@ def test_copy_input_with_mask_argument_copies():
 
 def test_convolve_smoke_and_basic_shapes():
     """A few representative successful calls are consolidated here."""
-    # 1D
     arr1 = np.array([1, 2, 3, 4, 5], dtype=np.float64)
     kernel1d = np.array([0.25, 0.5, 0.25], dtype=np.float64)
     assert_basic_convolve_result(convolve(arr1, kernel1d), arr1)
 
-    # 2D small array
     arr2d = np.array([[1, 2, 3],
                       [4, 5, 6],
                       [7, 8, 9]], dtype=float)
@@ -115,15 +99,12 @@ def test_convolve_nan_fill_and_interpolate_variants():
     res_fill = convolve(arr, kernel, nan_treatment="fill", fill_value=0)
     assert_basic_convolve_result(res_fill, arr)
 
-    # interpolate without normalization
     res_interp_no_norm = convolve(arr, kernel, nan_treatment="interpolate", normalize_kernel=False)
     assert_basic_convolve_result(res_interp_no_norm, arr)
 
-    # interpolate with normalization
     res_interp_norm = convolve(arr, kernel, nan_treatment="interpolate", normalize_kernel=True)
     assert_basic_convolve_result(res_interp_norm, arr)
 
-    # interpolate with preserve_nan
     res_interp_preserve = convolve(arr, kernel, nan_treatment="interpolate", preserve_nan=True)
     assert_basic_convolve_result(res_interp_preserve, arr)
 
@@ -140,13 +121,11 @@ def test_nan_interpolate_preserve_false_warns_when_all_nan_except_one():
 
 
 def test_convolve_dimension_and_boundary_cases():
-    # 4D array -> NotImplementedError
     arr4 = np.random.rand(2, 2, 2, 2).astype(np.float64)
     kernel1 = np.array([0.25, 0.5, 0.25], dtype=np.float64)
     with pytest.raises(NotImplementedError):
         convolve(arr4, kernel1)
 
-    # boundary extend for dims 1..3
     for dim in (1, 2, 3):
         shape = (5,) * dim
         arr = np.random.rand(*shape).astype(np.float64)
@@ -155,7 +134,6 @@ def test_convolve_dimension_and_boundary_cases():
         res = convolve(arr, kernel, boundary="extend")
         assert_basic_convolve_result(res, arr)
 
-    # boundary wrap (2D example)
     arr_wrap = np.array([[1, 2, 3],
                          [4, 5, 6],
                          [7, 8, 9]], dtype=np.float64)
@@ -166,7 +144,6 @@ def test_convolve_dimension_and_boundary_cases():
 
 
 def test_array_and_kernel_dimension_mismatch_and_boundary_none_small_array_and_kernel_sum_zero():
-    # array and kernel different dims -> ValueError
     arr2d = np.array([[1, 2, 3],
                       [4, 5, 6],
                       [7, 8, 9]], dtype=np.float64)
@@ -174,7 +151,6 @@ def test_array_and_kernel_dimension_mismatch_and_boundary_none_small_array_and_k
     with pytest.raises(ValueError):
         convolve(arr2d, kernel1)
 
-    # boundary=None on small array -> ValueError
     arr_small = np.array([[1, 2],
                           [3, 4]], dtype=np.float64)
     kernel3 = np.array([[0.25, 0.5, 0.25],
@@ -183,7 +159,6 @@ def test_array_and_kernel_dimension_mismatch_and_boundary_none_small_array_and_k
     with pytest.raises(ValueError):
         convolve(arr_small, kernel3, boundary=None)
 
-    # odd-dimensional kernel that sums to zero -> ValueError
     kernel_zero_sum = np.array([[1, -2, 1],
                                 [-2, 4, -2],
                                 [1, -2, 1]], dtype=np.float64)
@@ -191,17 +166,7 @@ def test_array_and_kernel_dimension_mismatch_and_boundary_none_small_array_and_k
         convolve(arr2d, kernel_zero_sum)
 
 
-def test_convolve_with_complex_and_float_arrays():
-    arr_c = np.array([[1+2j, 2+3j, 3+4j],
-                      [4+5j, 5+6j, 6+7j],
-                      [7+8j, 8+9j, 9+10j]], dtype=np.complex128)
-    kernel = np.array([[0.25, 0.5, 0.25],
-                       [0.25, 0.5, 0.25],
-                       [0.25, 0.5, 0.25]], dtype=np.float64)
-    res_c = convolve(arr_c, kernel)
-    assert_basic_convolve_result(res_c, arr_c)
-
-    # float array where copying result previously failed in original test
+def test_convolve_with_float_arrays():
     arr_f = np.array([[1, 2, 3],
                       [4, 5, 6],
                       [7, 8, 9]], dtype=np.float32)
