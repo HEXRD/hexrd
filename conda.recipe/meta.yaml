@@ -49,6 +49,7 @@ requirements:
     - {{ pin_compatible('numpy') }}
     - psutil
     - pycifrw
+    - pytest
     - python
     - python-xxhash
     - pyyaml
@@ -63,6 +64,8 @@ requirements:
 test:         # [build_platform == target_platform]
   imports:
     - hexrd
+  requires:
+    - pytest
 
 about:
   home: https://github.com/HEXRD/hexrd
