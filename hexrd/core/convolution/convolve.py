@@ -116,6 +116,7 @@ def _copy_input_if_needed(
     return output
 
 
+# TODO: This function does not work when array or kernel are 32-bit float types.
 def convolve(
     array,
     kernel,

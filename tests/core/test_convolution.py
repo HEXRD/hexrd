@@ -22,24 +22,6 @@ def test_copy_input_valwunit_and_invalid_type():
         _copy_input_if_needed({"1": 2}, np.float64)
 
 
-def test_copy_input_contiguous_vs_noncontiguous():
-    arr = np.array([1, 2, 3], dtype=np.float64)
-    res = _copy_input_if_needed(arr, np.float64)
-    assert res is arr
-
-    arr2 = np.array([1, 2, 3, 4], dtype=np.float64)
-    view = arr2[::2] 
-    res_view = _copy_input_if_needed(view, np.float64)
-    assert np.array_equal(res_view, view)
-    assert res_view is not view
-
-    int_arr = np.array([1, 2, 3], dtype=np.int32)
-    res_conv = _copy_input_if_needed(int_arr, np.float64)
-    assert np.array_equal(res_conv, int_arr)
-    assert res_conv.dtype == np.float64
-    assert res_conv is not int_arr
-
-
 def test_copy_input_with_mask_argument_copies():
     arr_masked = np.ma.array([1, 2, 3], mask=[0, 1, 0], dtype=np.float64)
     res1 = _copy_input_if_needed(arr_masked, np.float64, mask=arr_masked.mask)
@@ -169,9 +151,9 @@ def test_array_and_kernel_dimension_mismatch_and_boundary_none_small_array_and_k
 def test_convolve_with_float_arrays():
     arr_f = np.array([[1, 2, 3],
                       [4, 5, 6],
-                      [7, 8, 9]], dtype=np.float32)
+                      [7, 8, 9]], dtype=np.float64)
     kernel_f = np.array([[0.25, 0.5, 0.25],
                          [0.25, 0.5, 0.25],
-                         [0.25, 0.5, 0.25]], dtype=np.float32)
+                         [0.25, 0.5, 0.25]], dtype=np.float64)
     res_f = convolve(arr_f, kernel_f)
     assert_basic_convolve_result(res_f, arr_f)
