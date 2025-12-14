@@ -396,7 +396,8 @@ def angle_in_range(angle, ranges, ccw=True, units='degrees'):
 
 # ???: move to gridutil?
 def centers_of_edge_vec(edges):
-    assert np.asarray(edges).ndim == 1, "edges must be 1-d"
+    if np.asarray(edges).size < 2:
+        raise ValueError("edges must be an array-like with at least 2 elements")
     return np.average(np.vstack([edges[:-1], edges[1:]]), axis=0)
 
 
@@ -646,7 +647,8 @@ class HEDMInstrument(object):
                                     )
                                     raise BufferShapeMismatchError(msg)
                             else:
-                                assert len(det_buffer) == 2
+                                if len(det_buffer) != 2:
+                                    raise ValueError(f"Buffer length for {det_id} must be 2")
                             panel_buffer = det_buffer
                         elif isinstance(det_buffer, list):
                             panel_buffer = np.asarray(det_buffer)
@@ -839,10 +841,8 @@ class HEDMInstrument(object):
 
     @active_beam_name.setter
     def active_beam_name(self, name: str):
-        if self._active_beam_name not in self.beam_dict:
-            raise RuntimeError(
-                f'"{name}" is not present in "{self.beam_names}"'
-            )
+        if name not in self.beam_dict:
+            raise ValueError(f'"{name}" is not present in "{self.beam_names}"')
 
         self._active_beam_name = name
 
@@ -871,16 +871,18 @@ class HEDMInstrument(object):
 
     @beam_vector.setter
     def beam_vector(self, x: np.ndarray):
+        """ Accepts either a 3-element unit vector, or a 2-element
+            (azimuth, polar angle) pair in degrees to set the beam vector. """
         x = np.array(x).flatten()
+        if len(x) not in (2, 3):
+            raise ValueError("beam_vector must be a 2 or 3-element array-like")
+        
         if len(x) == 3:
-            assert (
-                sum(x * x) > 1 - ct.sqrt_epsf
-            ), 'input must have length = 3 and have unit magnitude'
+            if np.abs(np.linalg.norm(x) - 1) > np.finfo(float).eps:
+                raise ValueError("beam_vector must be a unit vector")
             bvec = x
         elif len(x) == 2:
             bvec = calc_beam_vec(*x)
-        else:
-            raise RuntimeError("input must be a unit vector or angle pair")
 
         # Modify the beam vector for the active beam dict
         self.active_beam['vector'] = bvec
@@ -927,11 +929,7 @@ class HEDMInstrument(object):
                 self.create_default_energy_correction()
             ))
             if keys != default_keys:
-                msg = (
-                    f'Keys in energy correction dict, "{keys}", do not match '
-                    f'the required keys: "{default_keys}"'
-                )
-                raise RuntimeError(msg)
+                raise ValueError(f'energy_correction keys do not match required keys: {default_keys}')
 
         self.active_beam['energy_correction'] = v
 
@@ -950,9 +948,10 @@ class HEDMInstrument(object):
     @eta_vector.setter
     def eta_vector(self, x):
         x = np.array(x).flatten()
-        assert (
-            len(x) == 3 and sum(x * x) > 1 - ct.sqrt_epsf
-        ), 'input must have length = 3 and have unit magnitude'
+        if len(x) != 3:
+            raise ValueError("eta_vector must be a 3-element array-like")
+        elif np.abs(np.linalg.norm(x) - 1) > np.finfo(float).eps:
+            raise ValueError("eta_vector must be a unit vector")
         self._eta_vector = x
         # ...maybe change dictionary item behavior for 3.x compatibility?
         for detector_id in self.detectors:
@@ -985,7 +984,7 @@ class HEDMInstrument(object):
                     'polar_angle': polar,
                 },
             }
-            if beam['distance'] != np.inf:
+            if beam.get('distance') != np.inf:
                 beam_dict[beam_name]['source_distance'] = beam['distance']
 
             if beam.get('energy_correction') is not None:
@@ -1850,6 +1849,8 @@ class HEDMInstrument(object):
                     ]
                     if -1 in frame_indices:
                         if not quiet:
+                            # TODO: Zack asks why this is not a warning.
+                            #       Also, why does this check exist if all it does is skip?
                             msg = """
                             window for (%d  %d  %d) falls outside omega range
                             """ % tuple(
