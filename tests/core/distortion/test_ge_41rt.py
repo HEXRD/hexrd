@@ -106,32 +106,6 @@ def test_inverse_distortion_numpy_works():
 import hexrd.core.distortion.ge_41rt as ge41rt_mod
 
 
-@pytest.fixture(autouse=True)
-def bypass_numba_for_coverage(monkeypatch, request):
-    """When coverage is active, replace njit wrappers with their Python bodies.
-
-    We must patch the functions on the module object (ge41rt_mod) and ensure
-    tests call the module attributes so coverage will see the Python lines.
-    """
-    cov_plugin = request.config.pluginmanager.getplugin("pytest_cov")
-    cov_active = cov_plugin is not None or getattr(request.config, "cov_controller", None)
-
-    if cov_active:
-        # Replace the njit wrappers with their original Python implementations.
-        # This preserves the decorators in source but ensures pytest-cov sees lines.
-        if hasattr(ge41rt_mod, "_ge_41rt_inverse_distortion"):
-            monkeypatch.setattr(
-                ge41rt_mod,
-                "_ge_41rt_inverse_distortion",
-                ge41rt_mod._ge_41rt_inverse_distortion.py_func,
-            )
-        if hasattr(ge41rt_mod, "_ge_41rt_distortion"):
-            monkeypatch.setattr(
-                ge41rt_mod,
-                "_ge_41rt_distortion",
-                ge41rt_mod._ge_41rt_distortion.py_func,
-            )
-
 
 def test_ge_41rt_class_trivial_and_param_checks():
     params = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]

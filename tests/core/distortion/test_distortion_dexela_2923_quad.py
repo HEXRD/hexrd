@@ -5,30 +5,6 @@ from hexrd.core.distortion.dexela_2923_quad import Dexela_2923_quad, _find_quadr
 import hexrd.core.distortion.dexela_2923_quad as dexela_2923_quad
 
 
-@pytest.fixture(autouse=True)
-def bypass_numba_for_coverage(monkeypatch, request):
-    """When coverage is active, replace njit wrappers with their Python bodies.
-
-    This keeps the @njit decorators in the source but ensures pytest-cov
-    / Codecov see the Python lines by executing the original functions via
-    .py_func during coverage runs.
-    """
-    cov_plugin = request.config.pluginmanager.getplugin("pytest_cov")
-    cov_active = cov_plugin is not None or getattr(request.config, "cov_controller", None)
-
-    if cov_active:
-        monkeypatch.setattr(
-            dexela_2923_quad,
-            "_dexela_2923_quad_distortion",
-            dexela_2923_quad._dexela_2923_quad_distortion.py_func,
-        )
-        monkeypatch.setattr(
-            dexela_2923_quad,
-            "_dexela_2923_quad_inverse_distortion",
-            dexela_2923_quad._dexela_2923_quad_inverse_distortion.py_func
-        )
-
-
 def test_find_quadrant_quad():
     xy_in = np.array([[1.0, 1.0],   # Quadrant 1
                       [-1.0, 1.0],  # Quadrant 2

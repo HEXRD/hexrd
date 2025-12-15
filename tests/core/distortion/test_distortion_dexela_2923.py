@@ -5,30 +5,6 @@ from hexrd.core.distortion.dexela_2923 import Dexela_2923, _find_quadrant
 import hexrd.core.distortion.dexela_2923 as dexela_2923
 
 
-@pytest.fixture(autouse=True)
-def bypass_numba_for_coverage(monkeypatch, request):
-    """When coverage is active, replace njit wrappers with their Python bodies.
-
-    This keeps the @njit decorators in the source but ensures pytest-cov
-    / Codecov see the Python lines by executing the original functions via
-    .py_func during coverage runs.
-    """
-    cov_plugin = request.config.pluginmanager.getplugin("pytest_cov")
-    cov_active = cov_plugin is not None or getattr(request.config, "cov_controller", None)
-
-    if cov_active:
-        monkeypatch.setattr(
-            dexela_2923,
-            "_dexela_2923_distortion",
-            dexela_2923._dexela_2923_distortion.py_func,
-        )
-        monkeypatch.setattr(
-            dexela_2923,
-            "_dexela_2923_inverse_distortion",
-            dexela_2923._dexela_2923_inverse_distortion.py_func,
-        )
-
-
 def test_dexela_2923_distortion_class():
     params = [0.0] * 8
     distortion_instance = Dexela_2923(params)
@@ -99,7 +75,6 @@ def test_dexela_2923_jitted_helpers():
     ])
     out = np.empty_like(sample_xy)
 
-    # Call via module attribute so monkeypatching (above) applies during coverage.
     dexela_2923._dexela_2923_distortion(out, sample_xy, params)
     assert np.array_equal(out[0], sample_xy[0] + params[0:2])
     assert np.array_equal(out[1], sample_xy[1] + params[2:4])
