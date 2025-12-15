@@ -262,7 +262,7 @@ def test_findDuplicateVectors():
 def test_findduplicatevectors_numba_coverage():
     """Explicitly test the pure python version of the numba function for coverage."""
     # Access the pure python function
-    func = matrixutil._findduplicatevectors.py_func
+    func = matrixutil._findduplicatevectors
     
     # 1. Standard Match
     # vec: [v1, v2, v1] -> 0 matches 2
@@ -300,7 +300,7 @@ def test_extract_ijv():
 
 def test_extract_ijv_numba_coverage():
     """Test pure python version of extract_ijv for coverage lines."""
-    func = matrixutil.extract_ijv.py_func
+    func = matrixutil.extract_ijv
     arr = np.array([[0, 10], [5, 0]])
     thresh = 1
     out_i = np.zeros(4, dtype=int)

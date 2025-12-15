@@ -63,36 +63,36 @@ def test_peak_center_bounds(mock_uniq, params):
     p = Parameters(); p.add('cen_1', 10.0)
     utils._set_peak_center_bounds(p, [0, 30])
 
-# --- Numba Math Utilities (.py_func) ---
+# --- Numba Math Utilities () ---
 
 def test_math_funcs():
-    assert np.isclose(utils.erfc.py_func(np.array([0.0, 100.0]))[0], 1.0)
-    assert np.isclose(utils.erfc.py_func(np.array([-100.0]))[0], 2.0)
+    assert np.isclose(utils.erfc(np.array([0.0, 100.0]))[0], 1.0)
+    assert np.isclose(utils.erfc(np.array([-100.0]))[0], 2.0)
     
-    assert not np.isnan(utils.exp1exp_under1.py_func(np.array([0.1+0j]))[0])
-    assert not np.isnan(utils.exp1exp_over1.py_func(np.array([2.0+0j]))[0])
-    assert not np.any(np.isnan(utils.exp1exp.py_func(np.array([0.1, 2.0], dtype=np.complex128))))
+    assert not np.isnan(utils.exp1exp_under1(np.array([0.1+0j]))[0])
+    assert not np.isnan(utils.exp1exp_over1(np.array([2.0+0j]))[0])
+    assert not np.any(np.isnan(utils.exp1exp(np.array([0.1, 2.0], dtype=np.complex128))))
 
-    assert utils._calc_alpha.py_func(np.array([1., 2.]), 0.0) == 1.0
-    assert utils._calc_beta.py_func(np.array([3., 4.]), 0.0) == 3.0
+    assert utils._calc_alpha(np.array([1., 2.]), 0.0) == 1.0
+    assert utils._calc_beta(np.array([3., 4.]), 0.0) == 3.0
 
-    assert np.isclose(utils._mixing_factor_pv.py_func(1.0, 0.0)[0], 0.0)
-    assert np.isclose(utils._mixing_factor_pv.py_func(0.0, 1.0)[0], 1.0)
-    assert 0 < utils._mixing_factor_pv.py_func(1.0, 1.0)[0] < 1
+    assert np.isclose(utils._mixing_factor_pv(1.0, 0.0)[0], 0.0)
+    assert np.isclose(utils._mixing_factor_pv(0.0, 1.0)[0], 1.0)
+    assert 0 < utils._mixing_factor_pv(1.0, 1.0)[0] < 1
 
 def test_pink_beam_funcs():
     p = np.array([10.0, 5.0, 1.0, 1.0, 0.5])
     x = np.array([5.0, 15.0]) 
     
     # Gaussian Pink Beam
-    res_g = utils._gaussian_pink_beam.py_func(p, x)
+    res_g = utils._gaussian_pink_beam(p, x)
     assert res_g[0] > 1.0 and res_g[1] == 0.0
-    assert utils._gaussian_pink_beam.py_func(p, np.array([np.nan]))[0] == 0.0
+    assert utils._gaussian_pink_beam(p, np.array([np.nan]))[0] == 0.0
 
     # Lorentzian Pink Beam
-    res_l = utils._lorentzian_pink_beam.py_func(p, x)
+    res_l = utils._lorentzian_pink_beam(p, x)
     assert not np.any(np.isnan(res_l))
-    assert utils._lorentzian_pink_beam.py_func(p, np.array([np.nan]))[0] == 0.0
+    assert utils._lorentzian_pink_beam(p, np.array([np.nan]))[0] == 0.0
 
 # --- Spectrum Fitting Wrapper ---
 

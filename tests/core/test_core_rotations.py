@@ -142,7 +142,7 @@ def test_rotMatOfQuat(rot_90z_quat):
 
 def test_rotmatofquat_numba_coverage(rot_90z_quat):
     """Test pure python version of _rotmatofquat for coverage."""
-    func = rotations._rotmatofquat.py_func
+    func = rotations._rotmatofquat
     
     rmat = func(rot_90z_quat)
     assert rmat.shape == (1, 3, 3)

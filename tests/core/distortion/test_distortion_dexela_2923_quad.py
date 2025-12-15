@@ -54,7 +54,7 @@ def test_dexela_2923_quad_jitted_helpers():
     The test computes the forward (inverse_distortion) mapping, then applies
     the algebraic solver (distortion) to recover the original coordinates.
     Calling the functions through the module ensures the coverage-time fixture
-    can patch them to their .py_func bodies.
+    can patch them to their  bodies.
     """
     params = np.array([0.5, 1.2, 0.1, -0.3, 0.05, 0.8], dtype=float)
 

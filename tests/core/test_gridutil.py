@@ -42,7 +42,7 @@ def test_cellIndices_nan_handling():
 def test_fill_connectivity_py_func():
     """Explicitly test the Numba kernel for coverage."""
     con = np.zeros((4, 4), dtype=np.int64)
-    gridutil._fill_connectivity.py_func(con, 2, 2, 1)
+    gridutil._fill_connectivity(con, 2, 2, 1)
     
     np.testing.assert_array_equal(con[0], [1, 0, 3, 4])
 
@@ -63,14 +63,14 @@ def test_cellConnectivity_3d():
     np.testing.assert_array_equal(con[0], [1, 0, 2, 3, 5, 4, 6, 7])
 
 # =============================================================================
-# Centroids and Areas (Numba .py_func)
+# Centroids and Areas (Numba )
 # =============================================================================
 
 def test_cellCentroids():
     crd = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
     con = np.array([[0, 1, 2, 3]])
     
-    cens = gridutil.cellCentroids.py_func(crd, con)
+    cens = gridutil.cellCentroids(crd, con)
     assert cens.shape == (1, 2)
     np.testing.assert_allclose(cens[0], [0.5, 0.5])
 
@@ -78,11 +78,11 @@ def test_compute_areas_numba():
     xy = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
     con = np.array([[0, 1, 2, 3]])
     
-    areas = gridutil.compute_areas.py_func(xy, con)
+    areas = gridutil.compute_areas(xy, con)
     assert np.isclose(areas[0], 1.0)
     
     con_cw = np.array([[0, 3, 2, 1]])
-    areas_cw = gridutil.compute_areas.py_func(xy, con_cw)
+    areas_cw = gridutil.compute_areas(xy, con_cw)
     assert np.isclose(areas_cw[0], -1.0)
 
 def test_computeArea_polygon():

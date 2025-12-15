@@ -23,14 +23,14 @@ def finite_diff_derivative(func, p, x, idx, rel_step=1e-6):
 
 def test_erfc_and_exp1exp_smoke():
     vals = np.array([-5.0, -1.0, 0.0, 0.5, 1.0, 3.2], dtype=float)
-    got = pf.erfc.py_func(vals)
+    got = pf.erfc(vals)
     assert got.shape == vals.shape
     assert np.all((got >= 0.0) & (got <= 2.0))
     assert np.allclose(got, scipy_erfc(vals), rtol=1e-6, atol=1e-6)
 
     x_pos = np.array([0.1, 0.5, 1.0, 2.0], dtype=float)
     for fn in (pf.exp1exp_under1, pf.exp1exp_over1, pf.exp1exp):
-        arr = fn.py_func(x_pos)
+        arr = fn(x_pos)
         assert arr.shape == x_pos.shape
         assert np.all(np.isfinite(arr))
 
@@ -244,15 +244,15 @@ def test_calc_alpha_beta_and_mixing_factor_behavior_and_wrappers():
     for x0 in [0.0, 30.0, 60.0, 120.0]:
         expected_alpha = a0 + a1 * np.tan(np.radians(0.5 * x0))
         expected_beta = b0 + b1 * np.tan(np.radians(0.5 * x0))
-        got_alpha = pf._calc_alpha.py_func(np.array([a0, a1], dtype=float), x0)
-        got_beta = pf._calc_beta.py_func(np.array([b0, b1], dtype=float), x0)
+        got_alpha = pf._calc_alpha(np.array([a0, a1], dtype=float), x0)
+        got_beta = pf._calc_beta(np.array([b0, b1], dtype=float), x0)
         assert np.isfinite(got_alpha) and np.isfinite(got_beta)
         assert np.allclose(got_alpha, expected_alpha, atol=1e-12)
         assert np.allclose(got_beta, expected_beta, atol=1e-12)
 
     # mixing-factor polynomial check
     for fwhm_g, fwhm_l in [(0.1, 0.2), (0.5, 0.5), (1.0, 2.0), (2.5, 0.3)]:
-        eta, fwhm = pf._mixing_factor_pv.py_func(
+        eta, fwhm = pf._mixing_factor_pv(
             np.float64(fwhm_g), np.float64(fwhm_l)
         )
         assert np.isfinite(eta) and np.isfinite(fwhm)
@@ -282,13 +282,13 @@ def test_calc_alpha_beta_and_mixing_factor_behavior_and_wrappers():
     )
     x = np.linspace(-1.0, 1.0, 201)
 
-    alpha = pf._calc_alpha.py_func(np.array([alpha0, alpha1], dtype=float), x0)
-    beta = pf._calc_beta.py_func(np.array([beta0, beta1], dtype=float), x0)
+    alpha = pf._calc_alpha(np.array([alpha0, alpha1], dtype=float), x0)
+    beta = pf._calc_beta(np.array([beta0, beta1], dtype=float), x0)
     p_g = np.hstack(([A, x0], np.array([alpha, beta, fwhm_g], dtype=float)))
     p_l = np.hstack(([A, x0], np.array([alpha, beta, fwhm_l], dtype=float)))
-    eta, _ = pf._mixing_factor_pv.py_func(fwhm_g, fwhm_l)
-    G = pf._gaussian_pink_beam.py_func(p_g, x)
-    L = pf._lorentzian_pink_beam.py_func(p_l, x)
+    eta, _ = pf._mixing_factor_pv(fwhm_g, fwhm_l)
+    G = pf._gaussian_pink_beam(p_g, x)
+    L = pf._lorentzian_pink_beam(p_l, x)
     expected_full = eta * L + (1.0 - eta) * G + b0 + b1 * x
     out_wrapper = pf.pink_beam_dcs(p_full, x)
     np.testing.assert_allclose(
@@ -300,20 +300,20 @@ def test_calc_alpha_beta_and_mixing_factor_behavior_and_wrappers():
     out_lm = pf.pink_beam_dcs_lmfit(
         x_lm, A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l
     )
-    alpha_lm = pf._calc_alpha.py_func(
+    alpha_lm = pf._calc_alpha(
         np.array([alpha0, alpha1], dtype=float), x0
     )
-    beta_lm = pf._calc_beta.py_func(np.array([beta0, beta1], dtype=float), x0)
+    beta_lm = pf._calc_beta(np.array([beta0, beta1], dtype=float), x0)
     p_g_lm = np.hstack(
         ([A, x0], np.array([alpha_lm, beta_lm, fwhm_g], dtype=float))
     )
     p_l_lm = np.hstack(
         ([A, x0], np.array([alpha_lm, beta_lm, fwhm_l], dtype=float))
     )
-    eta_lm, _ = pf._mixing_factor_pv.py_func(fwhm_g, fwhm_l)
-    expected_lm = eta_lm * pf._lorentzian_pink_beam.py_func(p_l_lm, x_lm) + (
+    eta_lm, _ = pf._mixing_factor_pv(fwhm_g, fwhm_l)
+    expected_lm = eta_lm * pf._lorentzian_pink_beam(p_l_lm, x_lm) + (
         1.0 - eta_lm
-    ) * pf._gaussian_pink_beam.py_func(p_g_lm, x_lm)
+    ) * pf._gaussian_pink_beam(p_g_lm, x_lm)
     np.testing.assert_allclose(out_lm, expected_lm, rtol=1e-8, atol=1e-12)
 
     # smoke for no-bg and lmfit equivalence for a small vector
@@ -321,7 +321,7 @@ def test_calc_alpha_beta_and_mixing_factor_behavior_and_wrappers():
         [10.0, 0.5, 0.01, 0.02, 0.03, 0.01, 0.15, 0.20, 1.0, 0.1], dtype=float
     )
     x_small = np.linspace(-1.0, 2.0, 7)
-    y_no_bg = pf._pink_beam_dcs_no_bg.py_func(p[:-2], x_small)
+    y_no_bg = pf._pink_beam_dcs_no_bg(p[:-2], x_small)
     y_full = pf.pink_beam_dcs(p, x_small)
     assert y_no_bg.shape == x_small.shape and y_full.shape == x_small.shape
     assert np.all(np.isfinite(y_no_bg)) and np.all(np.isfinite(y_full))
@@ -466,7 +466,7 @@ def test_mpeak_1d_no_bg_and_backgrounds(pktype):
         elif pktype == "split_pvoigt":
             expected += pf._split_pvoigt1d_no_bg(p_row, x)
         elif pktype == "pink_beam_dcs":
-            expected += pf._pink_beam_dcs_no_bg.py_func(p_row, x)
+            expected += pf._pink_beam_dcs_no_bg(p_row, x)
 
     np.testing.assert_allclose(out, expected, rtol=1e-12)
 
@@ -508,7 +508,7 @@ def test_mpeak_1d_no_bg_and_backgrounds(pktype):
 )
 def test_mixing_factor_clamps_negative_eta_to_zero(fwhm_g, fwhm_l):
     """When computed eta < 0.0 the function should clamp it to 0.0."""
-    eta, fwhm = pf._mixing_factor_pv.py_func(
+    eta, fwhm = pf._mixing_factor_pv(
         np.float64(fwhm_g), np.float64(fwhm_l)
     )
     assert np.isfinite(fwhm)
@@ -525,7 +525,7 @@ def test_mixing_factor_clamps_negative_eta_to_zero(fwhm_g, fwhm_l):
 )
 def test_mixing_factor_clamps_large_eta_to_one(fwhm_g, fwhm_l):
     """When computed eta > 1.0 the function should clamp it to 1.0."""
-    eta, fwhm = pf._mixing_factor_pv.py_func(
+    eta, fwhm = pf._mixing_factor_pv(
         np.float64(fwhm_g), np.float64(fwhm_l)
     )
     assert np.isfinite(fwhm)

@@ -159,14 +159,14 @@ def test_ge_41rt_jitted_helpers_directly():
     out = np.empty_like(xy_in)
     params = [1.0, 0.5, 0.25, 1.0, 1.0, 1.0]
 
-    # Call the forward distortion via module attribute (will be patched to .py_func
+    # Call the forward distortion via module attribute (will be patched to 
     # when coverage is active, otherwise executes the njit wrapper).
     res = ge41rt_mod._ge_41rt_distortion(out.copy(), xy_in, ge41rt_mod.RHO_MAX, np.array(params))
     assert res.shape == xy_in.shape
     assert isinstance(res, np.ndarray)
     assert not np.array_equal(res, xy_in)
 
-    # Call the inverse jitted function via module attribute (patched to .py_func under coverage).
+    # Call the inverse jitted function via module attribute (patched to  under coverage).
     res_inv = ge41rt_mod._ge_41rt_inverse_distortion(xy_in.copy(), ge41rt_mod.RHO_MAX, np.array(params[:3]))
     assert res_inv.shape == (2, 2)
     assert isinstance(res_inv, np.ndarray)

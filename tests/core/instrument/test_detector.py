@@ -928,8 +928,7 @@ def test_interpolate_bilinear_single_and_multiple_points():
     i_ceil = np.array([1], dtype=np.int64)
     j_ceil = np.array([1], dtype=np.int64)
 
-    top_py = _get_pyfunc(_interpolate_bilinear)
-    res = top_py(img, cc, fc, cf, ff, i_floor, j_floor, i_ceil, j_ceil)
+    res = _interpolate_bilinear(img, cc, fc, cf, ff, i_floor, j_floor, i_ceil, j_ceil)
     assert res.shape == (1,)
     assert pytest.approx(res[0], rel=1e-12) == 3.0  # (1+2+4+5)/4
 
@@ -943,7 +942,7 @@ def test_interpolate_bilinear_single_and_multiple_points():
     i_ceil2 = np.array([1, 2], dtype=np.int64)
     j_ceil2 = np.array([2, 2], dtype=np.int64)
 
-    res2 = top_py(img, cc2, fc2, cf2, ff2, i_floor2, j_floor2, i_ceil2, j_ceil2)
+    res2 = _interpolate_bilinear(img, cc2, fc2, cf2, ff2, i_floor2, j_floor2, i_ceil2, j_ceil2)
     assert res2.shape == (2,)
 
     expected = np.array([3.7, 7.7], dtype=float)
