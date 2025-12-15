@@ -33,8 +33,6 @@ from numpy.linalg import svd
 from scipy import sparse
 import numba
 
-import pytest
-
 
 from hexrd.core import constants
 
@@ -471,8 +469,8 @@ def uniqueVectors(v, tol=1.0e-12):
     return vSrt[:, ivInd[0:nUniq]]
 
 
-@pytest.mark.skip(reason="old code, marked for removal")
-def findDuplicateVectors_old(vec, tol=vTol, equivPM=False): # pragma: no cover
+# pragma: no cover
+def findDuplicateVectors_old(vec, tol=vTol, equivPM=False):  # pragma: no cover
     """
     Find vectors in an array that are equivalent to within
     a specified tolerance

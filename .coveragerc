@@ -7,3 +7,4 @@ sigterm = true
 exclude_lines =
     def .*NotImplemented
     raise NotImplementedError
+    pragma: no cover
