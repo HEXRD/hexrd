@@ -44,8 +44,10 @@ def test_2d_adapter_basic(tmp_path):
     assert len(adapter) == 1
 
     np.testing.assert_array_equal(adapter[0], arr)
-    with pytest.raises(IndexError): _ = adapter[1]
-    with pytest.raises(IndexError): adapter.get_region(0, ((1, 3), (2, 5)))
+    with pytest.raises(IndexError):
+        _ = adapter[1]
+    with pytest.raises(IndexError):
+        adapter.get_region(0, ((1, 3), (2, 5)))
 
     assert len(list(adapter)) == 1
 
@@ -53,21 +55,23 @@ def test_2d_adapter_basic(tmp_path):
     assert reloaded._ndim == 2
     assert reloaded.shape == arr.shape
     reloaded.close()
-    
+
     adapter.close()
 
     with h5py.File(fname, 'r') as f:
         a2 = HDF5ImageSeriesAdapter(f, path='entry')
         np.testing.assert_array_equal(a2[0], arr)
 
+
 def test_2d_adapter_del_warns_on_close_error(tmp_path, monkeypatch):
     p = tmp_path / "h2d_warn.h5"
     fname, _ = make_h5_file_2d(str(p))
 
     adapter = HDF5ImageSeriesAdapter(fname, path='entry')
-    
+
     def bad_close():
         raise RuntimeError("boom")
+
     adapter.close = bad_close
 
     with pytest.warns(UserWarning, match="could not close"):
@@ -89,8 +93,10 @@ def test_3d_adapter_indexing_and_shape(tmp_path):
     assert adapter[(1, 2, 1)] == data[1, 2, 1]
 
     region = ((0, 2), (0, 2))
-    np.testing.assert_array_equal(adapter.get_region(1, region), data[1, :2, :2])
-    
+    np.testing.assert_array_equal(
+        adapter.get_region(1, region), data[1, :2, :2]
+    )
+
     adapter.close()
 
 
@@ -116,6 +122,6 @@ def test_pickle_roundtrip(tmp_path):
 
     assert reloaded.dtype == adapter.dtype
     assert reloaded.shape == adapter.shape
-    
+
     reloaded.close()
     adapter.close()

@@ -8,7 +8,7 @@ def test_distortion_initialization():
 
 def test_get_mapping():
     maptype = distortion.maptypes()[0]
-    params = [0.0] * 8  # Example parameters; adjust as needed for specific distortion types
+    params = [0.0] * 8
     distortion_instance = distortion.get_mapping(maptype, params)
     assert distortion_instance is not None
     assert hasattr(distortion_instance, "maptype")

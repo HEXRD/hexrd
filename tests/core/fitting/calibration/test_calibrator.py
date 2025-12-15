@@ -3,9 +3,6 @@ from hexrd.core.fitting.calibration.calibrator import Calibrator
 
 
 class ConcreteCalibrator(Calibrator):
-    """
-    A minimal concrete implementation to allow instantiation.
-    """
     @property
     def type(self):
         return "test_type"
@@ -29,25 +26,25 @@ class ConcreteCalibrator(Calibrator):
 
 
 def test_cannot_instantiate_abstract_class():
-    """Ensure the abstract base class cannot be instantiated directly."""
     with pytest.raises(TypeError) as excinfo:
         Calibrator()
     assert "Can't instantiate abstract class" in str(excinfo.value)
 
+
 def test_incomplete_subclass_enforcement():
-    """Ensure a subclass missing methods cannot be instantiated."""
     class Incomplete(Calibrator):
         pass
 
     with pytest.raises(TypeError) as excinfo:
         Incomplete()
-    
+
     msg = str(excinfo.value)
     assert "type" in msg
     assert "create_lmfit_params" in msg
     assert "update_from_lmfit_params" in msg
     assert "residual" in msg
     assert "calibration_picks" in msg
+
 
 def test_concrete_subclass_instantiation():
     """Ensure a properly implemented subclass works."""
@@ -57,16 +54,18 @@ def test_concrete_subclass_instantiation():
     assert c.residual() == 0.0
     assert c.calibration_picks == {}
 
+
 def test_tth_distortion_default_behavior():
     """Test the default implementation of tth_distortion."""
     c = ConcreteCalibrator()
-    
+
     assert c.tth_distortion is None
 
-    c.tth_distortion = None 
+    c.tth_distortion = None
 
     with pytest.raises(NotImplementedError):
         c.tth_distortion = "some_value"
+
 
 def test_abstract_methods_raise_error():
     with pytest.raises(NotImplementedError):

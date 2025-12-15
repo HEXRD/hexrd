@@ -7,7 +7,6 @@ from hexrd.core.instrument.detector import (
     Detector,
     _fix_indices,
     _row_edge_vec,
-    _col_edge_vec,
     _interpolate_bilinear,
     _interpolate_bilinear_in_place,
 )
@@ -18,11 +17,6 @@ from hexrd.core.material import crystallography
 
 
 class ConcreteDetector(Detector):
-    """
-    Minimal concrete implementation of the abstract Detector base class.
-    Used to test shared functionality.
-    """
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._calibration_flags = [True] * 6
@@ -102,9 +96,10 @@ def make_physics_pkg():
     pkg.pinhole_diameter = 0.0
     return pkg
 
+
 def _get_pyfunc(f):
-    """Return the underlying Python function if numba produced .py_func"""
     return getattr(f, "py_func", f)
+
 
 # --- Fixtures ---
 
@@ -318,9 +313,7 @@ def test_get_and_set_properties(base_detector, mock_distortion_registry):
     assert d.distortion is None
     d.distortion = mock_distortion_registry()
     assert isinstance(d.distortion, mock_distortion_registry)
-    with pytest.raises(
-        TypeError, match="Input distortion is not in registry"
-    ):
+    with pytest.raises(TypeError, match="Input distortion is not in registry"):
         d.distortion = "invalid_distortion"
 
     d.normal
@@ -902,21 +895,18 @@ def test_calc_transmission_generic_and_phosphor():
     expected4 = pre_U0 * energy * ((1.0 - np.exp(-f1 * arg)) / arg)
     np.testing.assert_allclose(out4, expected4)
 
-    physics_package=make_physics_pkg()
+    physics_package = make_physics_pkg()
     physics_package.sample_thickness = 0.0
     physics_package.window_thickness = 0.0
 
-    d.calc_transmission_sample(
-        secb, secb, 20, physics_package
-    )
-    d.calc_transmission_window(
-        secb, 20, physics_package
-    )
+    d.calc_transmission_sample(secb, secb, 20, physics_package)
+    d.calc_transmission_window(secb, 20, physics_package)
+
 
 def test_interpolate_bilinear_single_and_multiple_points():
-    img = np.array([[1.0, 2.0, 3.0],
-                    [4.0, 5.0, 6.0],
-                    [7.0, 8.0, 9.0]], dtype=float)
+    img = np.array(
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]], dtype=float
+    )
 
     cc = np.array([0.25])
     fc = np.array([0.25])
@@ -928,7 +918,9 @@ def test_interpolate_bilinear_single_and_multiple_points():
     i_ceil = np.array([1], dtype=np.int64)
     j_ceil = np.array([1], dtype=np.int64)
 
-    res = _interpolate_bilinear(img, cc, fc, cf, ff, i_floor, j_floor, i_ceil, j_ceil)
+    res = _interpolate_bilinear(
+        img, cc, fc, cf, ff, i_floor, j_floor, i_ceil, j_ceil
+    )
     assert res.shape == (1,)
     assert pytest.approx(res[0], rel=1e-12) == 3.0  # (1+2+4+5)/4
 
@@ -942,7 +934,9 @@ def test_interpolate_bilinear_single_and_multiple_points():
     i_ceil2 = np.array([1, 2], dtype=np.int64)
     j_ceil2 = np.array([2, 2], dtype=np.int64)
 
-    res2 = _interpolate_bilinear(img, cc2, fc2, cf2, ff2, i_floor2, j_floor2, i_ceil2, j_ceil2)
+    res2 = _interpolate_bilinear(
+        img, cc2, fc2, cf2, ff2, i_floor2, j_floor2, i_ceil2, j_ceil2
+    )
     assert res2.shape == (2,)
 
     expected = np.array([3.7, 7.7], dtype=float)
@@ -955,8 +949,7 @@ def test_interpolate_bilinear_in_place_dtype_and_inplace_behavior():
     This also verifies that output_img is written to (in-place) and that if img is integer
     the output uses img.dtype (so values will be cast/truncated accordingly).
     """
-    img_int = np.array([[10, 20],
-                        [30, 40]], dtype=np.int64)
+    img_int = np.array([[10, 20], [30, 40]], dtype=np.int64)
 
     cc = np.array([0.25])
     fc = np.array([0.25])
@@ -972,11 +965,35 @@ def test_interpolate_bilinear_in_place_dtype_and_inplace_behavior():
     output = np.zeros(on_panel_idx.shape[0], dtype=img_int.dtype)
 
     in_place_py = _get_pyfunc(_interpolate_bilinear_in_place)
-    in_place_py(img_int, cc, fc, cf, ff, i_floor, j_floor, i_ceil, j_ceil, on_panel_idx, output)
+    in_place_py(
+        img_int,
+        cc,
+        fc,
+        cf,
+        ff,
+        i_floor,
+        j_floor,
+        i_ceil,
+        j_ceil,
+        on_panel_idx,
+        output,
+    )
 
     assert output.shape == (1,)
     assert output.dtype == img_int.dtype
     assert output[0] == 25
 
-    in_place_py(img_int, cc, fc, cf, ff, i_floor, j_floor, i_ceil, j_ceil, on_panel_idx, output)
+    in_place_py(
+        img_int,
+        cc,
+        fc,
+        cf,
+        ff,
+        i_floor,
+        j_floor,
+        i_ceil,
+        j_ceil,
+        on_panel_idx,
+        output,
+    )
     assert output[0] == 50

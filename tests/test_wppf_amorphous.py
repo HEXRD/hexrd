@@ -57,9 +57,11 @@ def wppf_amorphous_object(amorphous_expt_spectrum: np.ndarray) -> Amorphous:
 
 
 @pytest.fixture
-def wppf_amorphous_kwargs(amorphous_expt_spectrum: np.ndarray,
-                          wppf_amorphous_object: Amorphous,
-                          amorphous_materials_path: Path) -> dict:
+def wppf_amorphous_kwargs(
+    amorphous_expt_spectrum: np.ndarray,
+    wppf_amorphous_object: Amorphous,
+    amorphous_materials_path: Path,
+) -> dict:
     lam = _nm(0.123957521)
     dmin = _angstrom(0.5)
     kev = _kev(10.00215218)
@@ -98,7 +100,7 @@ def _kev(x):
 
 def test_wppf_amorphous_rietveld(wppf_amorphous_kwargs: dict):
     obj = Rietveld(**wppf_amorphous_kwargs)
-    obj.scale = 1E-8
+    obj.scale = 1e-8
 
     obj.params['scale'].vary = True
 

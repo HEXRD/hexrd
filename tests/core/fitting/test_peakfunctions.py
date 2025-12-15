@@ -79,7 +79,6 @@ def test_gaussian1d_full_and_derivatives():
     analytic_no_bg = pf._gaussian1d_no_bg_deriv(p[:3], x)
     np.testing.assert_allclose(dmat[0:3, :], analytic_no_bg)
 
-    # finite-difference check for the no-background analytic derivative
     for i in range(3):
         fd = finite_diff_derivative(
             pf._gaussian1d_no_bg, p[:3], x, i, rel_step=1e-6
@@ -100,7 +99,6 @@ def test_lorentzian_unit_and_full_and_deriv():
     c1 = -0.01
     x = np.linspace(-5.0, 5.0, 501)
 
-    # compute expected unit form
     lorentz_width_fact = __import__(
         'hexrd.core.fitting.peakfunctions', fromlist=['lorentz_width_fact']
     ).lorentz_width_fact
@@ -120,7 +118,6 @@ def test_lorentzian_unit_and_full_and_deriv():
     )
     assert int(np.argmax(no_bg_out)) == int(np.argmin(np.abs(x - x0)))
 
-    # derivative tests
     p = np.array([2.5, -0.3, 0.9], dtype=float)
     x_small = np.linspace(-4.0, 4.0, 301)
     analytic = pf._lorentzian1d_no_bg_deriv(p, x_small)
@@ -165,7 +162,6 @@ def test_pvoigt_and_split_variants():
     np.testing.assert_allclose(full, A * unit_expected + c0 + c1 * x)
     assert int(np.argmax(no_bg)) == int(np.argmin(np.abs(x - x0)))
 
-    # extremes: pure gaussian / pure lorentzian and zero amplitude
     p_g = np.array([A, x0, FWHM, 1.0, c0, c1], dtype=float)
     np.testing.assert_allclose(
         pf._unit_pvoigt1d(p_g[[1, 2, 3]], x),
@@ -189,7 +185,6 @@ def test_pvoigt_and_split_variants():
     p_zeroA = np.array([0.0, x0, FWHM, 0.5, c0, c1], dtype=float)
     np.testing.assert_allclose(pf.pvoigt1d(p_zeroA, x), c0 + c1 * x)
 
-    # split_pvoigt routing and symmetric/degenerate cases
     A = 1.2
     x0 = 0.0
     FWHM_minus = 0.8
@@ -218,7 +213,6 @@ def test_pvoigt_and_split_variants():
         expected + 0.05 - 0.01 * x_small,
     )
 
-    # symmetric and degenerate amplitude cases
     p_sym = np.array([1.1, -0.5, 1.1, 1.1, 0.3, 0.3], dtype=float)
     x_sym = np.linspace(-2.0, 2.0, 201)
     np.testing.assert_allclose(
@@ -250,7 +244,6 @@ def test_calc_alpha_beta_and_mixing_factor_behavior_and_wrappers():
         assert np.allclose(got_alpha, expected_alpha, atol=1e-12)
         assert np.allclose(got_beta, expected_beta, atol=1e-12)
 
-    # mixing-factor polynomial check
     for fwhm_g, fwhm_l in [(0.1, 0.2), (0.5, 0.5), (1.0, 2.0), (2.5, 0.3)]:
         eta, fwhm = pf._mixing_factor_pv(
             np.float64(fwhm_g), np.float64(fwhm_l)
@@ -268,7 +261,6 @@ def test_calc_alpha_beta_and_mixing_factor_behavior_and_wrappers():
         expected_fwhm = poly**0.20
         assert np.allclose(fwhm, expected_fwhm, rtol=1e-12)
 
-    # composition tests and wrapper equivalence
     A = 1.5
     x0 = 0.2
     alpha0, alpha1 = 0.05, 0.001
@@ -295,14 +287,11 @@ def test_calc_alpha_beta_and_mixing_factor_behavior_and_wrappers():
         out_wrapper, expected_full, rtol=1e-8, atol=1e-12
     )
 
-    # lmfit wrapper equivalence
     x_lm = np.linspace(-0.8, 0.8, 101)
     out_lm = pf.pink_beam_dcs_lmfit(
         x_lm, A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l
     )
-    alpha_lm = pf._calc_alpha(
-        np.array([alpha0, alpha1], dtype=float), x0
-    )
+    alpha_lm = pf._calc_alpha(np.array([alpha0, alpha1], dtype=float), x0)
     beta_lm = pf._calc_beta(np.array([beta0, beta1], dtype=float), x0)
     p_g_lm = np.hstack(
         ([A, x0], np.array([alpha_lm, beta_lm, fwhm_g], dtype=float))
@@ -316,7 +305,6 @@ def test_calc_alpha_beta_and_mixing_factor_behavior_and_wrappers():
     ) * pf._gaussian_pink_beam(p_g_lm, x_lm)
     np.testing.assert_allclose(out_lm, expected_lm, rtol=1e-8, atol=1e-12)
 
-    # smoke for no-bg and lmfit equivalence for a small vector
     p = np.array(
         [10.0, 0.5, 0.01, 0.02, 0.03, 0.01, 0.15, 0.20, 1.0, 0.1], dtype=float
     )
@@ -508,9 +496,7 @@ def test_mpeak_1d_no_bg_and_backgrounds(pktype):
 )
 def test_mixing_factor_clamps_negative_eta_to_zero(fwhm_g, fwhm_l):
     """When computed eta < 0.0 the function should clamp it to 0.0."""
-    eta, fwhm = pf._mixing_factor_pv(
-        np.float64(fwhm_g), np.float64(fwhm_l)
-    )
+    eta, fwhm = pf._mixing_factor_pv(np.float64(fwhm_g), np.float64(fwhm_l))
     assert np.isfinite(fwhm)
     assert eta == pytest.approx(0.0, abs=0.0)
 
@@ -525,8 +511,6 @@ def test_mixing_factor_clamps_negative_eta_to_zero(fwhm_g, fwhm_l):
 )
 def test_mixing_factor_clamps_large_eta_to_one(fwhm_g, fwhm_l):
     """When computed eta > 1.0 the function should clamp it to 1.0."""
-    eta, fwhm = pf._mixing_factor_pv(
-        np.float64(fwhm_g), np.float64(fwhm_l)
-    )
+    eta, fwhm = pf._mixing_factor_pv(np.float64(fwhm_g), np.float64(fwhm_l))
     assert np.isfinite(fwhm)
     assert eta == pytest.approx(1.0, rel=0.0, abs=0.0)

@@ -49,8 +49,10 @@ class FakeFabioImage:
 @pytest.fixture(autouse=True)
 def patch_fabio_open(monkeypatch):
     """Monkeypatch fabio.open to return our FakeFabioImage based on filename."""
+
     def fake_open(fname):
         return FakeFabioImage(fname)
+
     monkeypatch.setattr(imf.fabio, "open", fake_open)
     return fake_open
 
@@ -68,11 +70,13 @@ def write_yaml_file(tmp_path, directory, patterns, options=None, meta=None):
 
 def touch_files(tmp_path, names):
     for n in names:
-        (tmp_path / n).write_text("dummy") 
+        (tmp_path / n).write_text("dummy")
     return [str(tmp_path / n) for n in names]
 
 
-def test_yaml_string_input_and_basic_singleframe_behavior(tmp_path, patch_fabio_open):
+def test_yaml_string_input_and_basic_singleframe_behavior(
+    tmp_path, patch_fabio_open
+):
     files = touch_files(tmp_path, ["a.img", "b.img"])
     ydict = {
         "image-files": {"directory": str(tmp_path), "files": "*.img"},
@@ -106,7 +110,9 @@ def test_yaml_string_input_and_basic_singleframe_behavior(tmp_path, patch_fabio_
 
 def test_dtype_truncation_detection(tmp_path):
     touch_files(tmp_path, ["big.img"])
-    yfn, _ = write_yaml_file(tmp_path, tmp_path, "big.img", options={"dtype": "uint8"})
+    yfn, _ = write_yaml_file(
+        tmp_path, tmp_path, "big.img", options={"dtype": "uint8"}
+    )
     adapter = imf.ImageFilesImageSeriesAdapter(yfn)
 
     with pytest.raises(RuntimeError):
@@ -120,9 +126,15 @@ def test_multi_frame_indexing_and_file_and_frame_logic(tmp_path):
     try:
         assert adapter.singleframes is False
         assert len(adapter) == 3
-        np.testing.assert_array_equal(adapter[0], FakeFabioImage("multi.img").getframe(0).data)
-        np.testing.assert_array_equal(adapter[2], FakeFabioImage("multi.img").getframe(2).data)
-        np.testing.assert_array_equal(adapter[-1], FakeFabioImage("multi.img").getframe(2).data)
+        np.testing.assert_array_equal(
+            adapter[0], FakeFabioImage("multi.img").getframe(0).data
+        )
+        np.testing.assert_array_equal(
+            adapter[2], FakeFabioImage("multi.img").getframe(2).data
+        )
+        np.testing.assert_array_equal(
+            adapter[-1], FakeFabioImage("multi.img").getframe(2).data
+        )
 
         with pytest.raises(LookupError):
             adapter._file_and_frame(100)

@@ -9,7 +9,7 @@ from hexrd.core.distortion.ge_41rt import (
     _rho_scl_dfunc_inv,
     inverse_distortion_numpy,
     inverse_distortion,
-    RHO_MAX
+    RHO_MAX,
 )
 
 
@@ -22,7 +22,8 @@ def test_set_parameters():
     np.testing.assert_array_equal(ge.params, new_params)
 
     with pytest.raises(AssertionError):
-        ge.params = [0.0, 0.0]  # too short
+        ge.params = [0.0, 0.0]
+
 
 def test_ge_41rt_class_trivial_and_param_checks():
     params = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
@@ -34,18 +35,17 @@ def test_ge_41rt_class_trivial_and_param_checks():
     assert not ge_nt.is_trivial
 
     with pytest.raises(AssertionError):
-        ge.params = [0.0, 0.0]  # too short
+        ge.params = [0.0, 0.0]
 
 
 def test_ge_41rt_apply_and_inverse_trivial():
     params = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
     ge = GE_41RT(params)
     xy_in = np.array([[1.0, 2.0], [3.0, 4.0]])
-    
-    # trivial -> returns input unchanged
+
     xy_out = ge.apply(xy_in)
     np.testing.assert_array_equal(xy_out, xy_in)
-    
+
     xy_inv = ge.apply_inverse(xy_in)
     np.testing.assert_array_equal(xy_inv, xy_in)
 
@@ -54,13 +54,14 @@ def test_ge_41rt_apply_and_inverse_nontrivial():
     params = [1.0, 0.5, 0.25, 1.0, 1.0, 1.0]
     ge = GE_41RT(params)
     xy_in = np.array([[1.0, 2.0], [3.0, 4.0]])
-    
+
     xy_out = ge.apply(xy_in)
     assert not np.array_equal(xy_out, xy_in)
 
-    # bypass njit for inverse_distortion to cover it
     saved_func = inverse_distortion.ge_41rt_inverse_distortion
-    inverse_distortion.ge_41rt_inverse_distortion = lambda xy, rhoMax, p: xy * 2
+    inverse_distortion.ge_41rt_inverse_distortion = (
+        lambda xy, rhoMax, p: xy * 2
+    )
     xy_inv = ge.apply_inverse(xy_in)
     np.testing.assert_array_equal(xy_inv, xy_in * 2)
     inverse_distortion.ge_41rt_inverse_distortion = saved_func
@@ -75,8 +76,9 @@ def test_ge_41rt_jitted_helpers_directly():
     assert res.shape == xy_in.shape
     assert isinstance(res, np.ndarray)
 
-    # Call the inverse jitted function directly
-    res_inv = _ge_41rt_inverse_distortion(xy_in.copy(), 204.8, np.array(params[:3]))
+    res_inv = _ge_41rt_inverse_distortion(
+        xy_in.copy(), 204.8, np.array(params[:3])
+    )
     assert res_inv.shape == (2, 2)
 
 
@@ -103,8 +105,8 @@ def test_inverse_distortion_numpy_works():
     res = inverse_distortion_numpy(rho0, eta0, rhoMax, params)
     assert np.isscalar(res) or isinstance(res, float)
 
-import hexrd.core.distortion.ge_41rt as ge41rt_mod
 
+import hexrd.core.distortion.ge_41rt as ge41rt_mod
 
 
 def test_ge_41rt_class_trivial_and_param_checks():
@@ -117,7 +119,7 @@ def test_ge_41rt_class_trivial_and_param_checks():
     assert not ge_nt.is_trivial
 
     with pytest.raises(AssertionError):
-        ge.params = [0.0, 0.0]  # too short
+        ge.params = [0.0, 0.0]
 
 
 def test_ge_41rt_apply_and_inverse_trivial():
@@ -125,7 +127,6 @@ def test_ge_41rt_apply_and_inverse_trivial():
     ge = ge41rt_mod.GE_41RT(params)
     xy_in = np.array([[1.0, 2.0], [3.0, 4.0]])
 
-    # trivial -> returns input unchanged
     xy_out = ge.apply(xy_in)
     np.testing.assert_array_equal(xy_out, xy_in)
 
@@ -141,9 +142,6 @@ def test_ge_41rt_apply_and_inverse_nontrivial(monkeypatch):
     xy_out = ge.apply(xy_in)
     assert not np.array_equal(xy_out, xy_in)
 
-    # Patch the inverse_distortion implementation the module uses so apply_inverse
-    # calls a deterministic replacement (without altering the module source).
-    # Use monkeypatch to ensure automatic restore.
     monkeypatch.setattr(
         ge41rt_mod.inverse_distortion,
         "ge_41rt_inverse_distortion",
@@ -159,15 +157,16 @@ def test_ge_41rt_jitted_helpers_directly():
     out = np.empty_like(xy_in)
     params = [1.0, 0.5, 0.25, 1.0, 1.0, 1.0]
 
-    # Call the forward distortion via module attribute (will be patched to 
-    # when coverage is active, otherwise executes the njit wrapper).
-    res = ge41rt_mod._ge_41rt_distortion(out.copy(), xy_in, ge41rt_mod.RHO_MAX, np.array(params))
+    res = ge41rt_mod._ge_41rt_distortion(
+        out.copy(), xy_in, ge41rt_mod.RHO_MAX, np.array(params)
+    )
     assert res.shape == xy_in.shape
     assert isinstance(res, np.ndarray)
     assert not np.array_equal(res, xy_in)
 
-    # Call the inverse jitted function via module attribute (patched to  under coverage).
-    res_inv = ge41rt_mod._ge_41rt_inverse_distortion(xy_in.copy(), ge41rt_mod.RHO_MAX, np.array(params[:3]))
+    res_inv = ge41rt_mod._ge_41rt_inverse_distortion(
+        xy_in.copy(), ge41rt_mod.RHO_MAX, np.array(params[:3])
+    )
     assert res_inv.shape == (2, 2)
     assert isinstance(res_inv, np.ndarray)
 
@@ -193,12 +192,10 @@ def test_inverse_distortion_numpy_works():
     params = [1.0, 0.5, 0.25, 1.0, 1.0, 1.0]
 
     res = ge41rt_mod.inverse_distortion_numpy(rho0, eta0, rhoMax, params)
-    # newton may return a numpy scalar or a float depending on implementation
     assert np.isscalar(res) or isinstance(res, float)
 
 
 def test_extremely_small_radius():
-    """Test that extremely small radius values are handled without error."""
     params = [1.0, 0.5, 0.25, 1.0, 1.0, 1.0]
     ge = ge41rt_mod.GE_41RT(params)
     xy_in = np.array([[1e-10, 0.0], [0.0, 1e-10]])
@@ -215,4 +212,3 @@ def test_extremely_small_radius():
 
         xy_inv = ge.apply_inverse(xy_in)
         np.testing.assert_array_equal(xy_inv, xy_in * 2)
-
