@@ -929,7 +929,7 @@ class HEDMInstrument(object):
                 self.create_default_energy_correction()
             ))
             if keys != default_keys:
-                raise ValueError(f'energy_correction keys do not match required keys: {default_keys}')
+                raise ValueError(f'energy_correction keys do not match required keys.\nGot: {keys}\nExpected: {default_keys}')
 
         self.active_beam['energy_correction'] = v
 
@@ -965,9 +965,8 @@ class HEDMInstrument(object):
     def write_config(self, file=None, style='yaml', calibration_dict={}):
         """WRITE OUT YAML FILE"""
         # initialize output dictionary
-        assert style.lower() in ['yaml', 'hdf5'], (
-            "style must be either 'yaml', or 'hdf5'; you gave '%s'" % style
-        )
+        if style.lower() not in ['yaml', 'hdf5']:
+            raise ValueError(f"style must be 'yaml' or 'hdf5' but is '{style}'")
 
         par_dict = {}
 
@@ -1967,11 +1966,7 @@ class HEDMInstrument(object):
                             elif interp.lower() == 'nearest':
                                 patch_data = patch_data_raw  # * nrm_fac
                             else:
-                                msg = (
-                                    "interpolation option "
-                                    + "'%s' not understood"
-                                )
-                                raise RuntimeError(msg % interp)
+                                raise ValueError(f"interp='{interp}' invalid")
 
                             # now have interpolated patch data...
                             labels, num_peaks = ndimage.label(

@@ -419,6 +419,12 @@ def test_write_config(instr, tmp_path):
     instr.write_config(tmp_path / "test2.yml")
     instr.write_config(tmp_path / "test2.yml", calibration_dict={'collab': 'test2'}, style='yaml')
 
+    with pytest.raises(ValueError, match="style must be 'yaml' or 'hdf5'"):
+        instr.write_config(str(f), style='xml')
+
+    with pytest.raises(TypeError, match='Unexpected file type'):
+        instr.write_config(1234, style='hdf5')
+
 def test_simulate_powder_pattern(instr):
     mat = MagicMock()
     mat.name = 'SimulatedMat'
@@ -498,6 +504,291 @@ def test_simulate_powder_pattern_noise(instr):
                     assert mock_rn.call_count == 1
                     assert mock_rn.call_args[1]['mode'] == mode
 
+
+def test_pull_spots_check_only_frame_outside_range(instr, capsys):
+    """
+    Ensure that when check_only=True and omega_to_frame returns -1
+    the reflection is skipped and the informative message is printed.
+    """
+
+    instr.detectors['det1'].tvec = np.array([0.0, 0.0, -1000.0])
+    instr.tvec = np.zeros(3)
+
+    # --- OmegaImageSeries mock ---
+    ims = MagicMock(spec=OmegaImageSeries)
+    ims.metadata = {'omega': np.array([[0, 1]])}
+    ims.omegawedges.wedges = [{'ostart': 0, 'ostop': 360}]
+    ims.__getitem__.return_value = np.full((10, 10), 100.0)
+
+    # CRITICAL: return an integer -1 as the frame index (not a list)
+    # pull_spots uses ome_imgser.omega_to_frame(ome)[0] expecting an int
+    ims.omega_to_frame.return_value = (-1, 0)
+    ims.omega = np.array([[0, 0.1]])
+
+    imgser_dict = {'det1': ims}
+
+    # --- Simulated rotation output (1 reflection) ---
+    sim_res = {
+        'det1': [
+            [np.array([0])],
+            [np.array([[1, 2, 3]])],            # hkls_p used in print(msg)
+            [np.array([[0.1, 0.0, 0.0]])],
+            [np.array([[0.0, 0.0]])],
+            [np.array([[0.01, 0.01]])],
+        ]
+    }
+
+    # Keep simulate_rotation_series mocked so we don't run real sim
+    with patch.object(instr, 'simulate_rotation_series', return_value=sim_res):
+        det = instr.detectors['det1']
+
+        # Patch geometry helpers so we reach the frame check logic
+        with patch(
+            'hexrd.core.instrument.hedm_instrument._project_on_detector_plane',
+            return_value=(np.zeros((4, 2)), None, None),
+        ):
+            with patch.object(
+                det,
+                'clip_to_panel',
+                return_value=(None, np.array([True, True, True, True])),
+            ):
+                with patch.object(
+                    det,
+                    'cartToPixel',
+                    return_value=np.array([[0.0, 0.0]] * 4),
+                ):
+                    with patch(
+                        'hexrd.core.instrument.hedm_instrument.polygon',
+                        return_value=(np.array([0]), np.array([0])),
+                    ):
+                        compl, out = instr.pull_spots(
+                            plane_data='plane_data',
+                            grain_params=np.zeros(12),
+                            imgser_dict=imgser_dict,
+                            dirname='.',
+                            filename='spots',
+                            threshold=50,
+                            check_only=True,
+                            quiet=False,
+                        )
+
+                        _ = instr.pull_spots(
+                            plane_data='plane_data',
+                            grain_params=np.zeros(12),
+                            imgser_dict=imgser_dict,
+                            dirname='.',
+                            filename='spots',
+                            threshold=50,
+                            check_only=True,
+                            quiet=True,
+                        )
+
+    # The reflection should be skipped, so no completeness entry appended
+    assert compl == []
+    assert out['det1'] == []
+
+    # Verify the warning message was printed and includes hkls
+    captured = capsys.readouterr()
+    assert "falls outside omega range" in captured.out
+    assert "(1  2  3)" in captured.out
+
+def test_pull_spots_check_only_frame_inside_range(instr):
+    """
+    Ensure that when check_only=True and omega_to_frame returns valid frame
+    the reflection is processed and completeness is computed.
+    """
+
+    instr.detectors['det1'].tvec = np.array([0.0, 0.0, -1000.0])
+    instr.tvec = np.zeros(3)
+
+    # --- OmegaImageSeries mock ---
+    ims = MagicMock(spec=OmegaImageSeries)
+    ims.metadata = {'omega': np.array([[0, 1]])}
+    ims.omegawedges.wedges = [{'ostart': 0, 'ostop': 360}]
+    ims.__getitem__.return_value = np.full((10, 10), 100.0)
+    ims.omega_to_frame.return_value = ([0], 0) # Valid frame index
+    ims.omega = np.array([[0, 0.1]])
+
+    imgser_dict = {'det1': ims}
+
+    # --- Simulated rotation output (1 reflection) ---
+    sim_res = {
+        'det1': [
+            [np.array([0])],
+            [np.array([[1, 2, 3]])],            # hkls_p used in print(msg)
+            [np.array([[0.1, 0.0, 0.0]])],
+            [np.array([[0.0, 0.0]])],
+            [np.array([[0.01, 0.01]])],
+        ]
+    }
+
+    # Keep simulate_rotation_series mocked so we don't run real sim
+    with patch.object(instr, 'simulate_rotation_series', return_value=sim_res):
+        det = instr.detectors['det1']
+
+        # Patch geometry helpers so we reach the frame check logic
+        with patch(
+            'hexrd.core.instrument.hedm_instrument._project_on_detector_plane',
+            return_value=(np.zeros((4, 2)), None, None),
+        ):
+            with patch.object(
+                det,
+                'clip_to_panel',
+                return_value=(None, np.array([True, True, True, True])),
+            ):
+                with patch.object(
+                    det,
+                    'cartToPixel',
+                    return_value=np.array([[0.0, 0.0]] * 4),
+                ):
+                    with patch(
+                        'hexrd.core.instrument.hedm_instrument.polygon',
+                        return_value=(np.array([0]), np.array([0])),
+                    ):
+                        compl, out = instr.pull_spots(
+                            plane_data='plane_data',
+                            grain_params=np.zeros(12),
+                            imgser_dict=imgser_dict,
+                            dirname='.',
+                            filename='spots',
+                            threshold=50,
+                            check_only=True,
+                        )
+
+def test_pull_spots_no_check_only_frame_inside_range(instr):
+        """
+        Ensure that when check_only=False and omega_to_frame returns valid frame
+        the reflection is processed and completeness is computed.
+        """
+        
+        # --- Instrument Setup ---
+        det = instr.detectors['det1']
+        det.tvec = np.array([0.0, 0.0, -1000.0])
+        instr.tvec = np.zeros(3)
+        type(det).pixel_area = PropertyMock(return_value=1.0)
+
+        # --- OmegaImageSeries mock ---
+        ims = MagicMock(spec=OmegaImageSeries)
+        ims.metadata = {'omega': np.array([[0, 1]])}
+        ims.omegawedges.wedges = [{'ostart': 0, 'ostop': 360}]
+        ims.__getitem__.return_value = np.full((10, 10), 100.0)
+        # Force omega_to_frame to return a list of ints, not list of arrays
+        ims.omega_to_frame.return_value = ([0], 0) 
+        ims.omega = np.array([[0, 0.1]])
+        
+        imgser_dict = {'det1': ims}
+        
+        # --- Simulated rotation output ---
+        sim_res = {
+            'det1': [
+                [np.array([0])],
+                [np.array([[1, 2, 3]])],            # hkls
+                [np.array([[0.1, 0.0, 0.0]])],      # angles
+                [np.array([[0.0, 0.0]])],           # xy
+                [np.array([[0.01, 0.01]])],         # pixel size
+            ]
+        }
+        
+        # --- Mock Patch Data ---
+        mock_patch = (
+            (np.zeros((1, 2)), np.zeros((2, 1))), 
+            None, None,
+            np.ones((2, 2)), 
+            (np.array([0, 1]), np.array([0, 1])), 
+            (np.array([0]), np.array([0]))
+        )
+
+        with patch.object(instr, 'simulate_rotation_series', return_value=sim_res), \
+             patch('hexrd.core.instrument.hedm_instrument.xrdutil.make_reflection_patches', return_value=[mock_patch]), \
+             patch('hexrd.core.instrument.hedm_instrument.gvec_to_xy', return_value=np.array([0.0, 0.0])), \
+             patch('hexrd.core.instrument.hedm_instrument.angles_to_gvec', return_value=np.array([0.0, 0.0, 1.0])), \
+             patch('hexrd.core.instrument.hedm_instrument.make_sample_rmat', return_value=np.eye(3)):
+            
+            with patch.object(det, 'clip_to_panel', return_value=(None, np.array([True]*4))):
+                with patch.object(det, 'interpolate_bilinear', return_value=np.full((4,), 100.0)):
+                    
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        compl, out = instr.pull_spots(
+                            plane_data='plane_data',
+                            grain_params=np.zeros(12),
+                            imgser_dict=imgser_dict,
+                            dirname=tmpdir,
+                            filename='spots',
+                            threshold=50,
+                            check_only=False
+                        )
+                        
+                        assert compl[0] == True
+                        res = out['det1'][0]
+                        
+                        # Structure: [peak_id, id, hkl, sum, max, angs, meas_angs, meas_xy]
+                        assert len(res) == 8
+                        assert res[2].tolist() == [1, 2, 3] # HKL
+                        assert len(res[5]) == 3 # Sim Angles
+                        assert len(res[6]) == 4 # Meas Angles
+
+def test_pull_spots_bilinear_interpolation(instr):
+        """
+        Test the 'bilinear' interpolation branch of pull_spots.
+        """
+        # --- Setup Mocks ---
+        det = instr.detectors['det1']
+        det.tvec = np.array([0.0, 0.0, -1000.0], dtype=float)
+        type(det).pixel_area = PropertyMock(return_value=1.0)
+        
+        # ImageSeries with signal
+        ims = MagicMock(spec=OmegaImageSeries)
+        ims.metadata = {'omega': np.array([[0.0, 1.0]])}
+        ims.omegawedges.wedges = [{'ostart': 0, 'ostop': 360}]
+        ims.omega = np.array([[0.0, 0.1]]) 
+        ims.omega_to_frame.return_value = ([0], 0)
+        
+        # FIX: Return shape must match the interpolation patch shape (2x2)
+        # The mock patch defines areas as np.ones((2, 2))
+        ims.__getitem__.return_value = np.full((2, 2), 100.0) 
+        
+        imgser_dict = {'det1': ims}
+        
+        # Simulation Result (1 spot)
+        sim_res = {
+            'det1': [
+                [np.array([0])],            # ids
+                [np.array([[1, 1, 1]])],    # hkls
+                [np.array([[0.1, 0.0, 0.0]])], # ang_centers
+                [np.array([[0.0, 0.0]])],   # xy_centers
+                [np.array([[0.01, 0.01]])]  # pixel size
+            ]
+        }
+        
+        # Mock Patches
+        mock_patch = (
+            (np.zeros((1, 2)), np.zeros((2, 1))), # vtx_angs
+            None, None,
+            np.ones((2, 2)), # areas (shape 2x2)
+            (np.array([0, 1]), np.array([0, 1])), # xy_eval
+            (np.array([0]), np.array([0]))  # ijs
+        )
+        
+        # --- Execution ---
+        with patch.object(instr, 'simulate_rotation_series', return_value=sim_res):
+            with patch('hexrd.core.instrument.hedm_instrument.xrdutil.make_reflection_patches', return_value=[mock_patch]):
+                # Pass projection/clipping checks
+                with patch.object(det, 'clip_to_panel', return_value=(None, np.array([True]*4))):
+                    # Mock the specific method we are testing
+                    # interpolate_bilinear should return flat array matching size of xy_eval (4 points for 2x2)
+                    with patch.object(det, 'interpolate_bilinear', return_value=np.full((4,), 100.0)) as mock_bilinear:
+                        
+                        instr.pull_spots(
+                            plane_data=MagicMock(),
+                            grain_params=np.zeros(12),
+                            imgser_dict=imgser_dict,
+                            interp='bilinear',  # <--- Trigger the branch
+                            check_only=False
+                        )
+    
+                        # --- Assertion ---
+                        assert mock_bilinear.call_count == 11
+
 def test_simulate_laue_pattern(instr):
     # This just delegates to detector.simulate_laue_pattern
     det = instr.detectors['det1']
@@ -561,6 +852,15 @@ def test_pull_spots(instr):
                         assert len(compl) == 1
                         assert compl[0] == True 
 
+
+                    # Test with invalid interp option
+                    with pytest.raises(ValueError, match="interp='invalid_interp' invalid"):
+                        instr.pull_spots(
+                            plane_data='plane_data',
+                            grain_params=np.zeros(12),
+                            imgser_dict=imgser_dict,
+                            interp='invalid_interp'
+                        )
 
 # --- Writer Tests ---
 
