@@ -59,6 +59,9 @@ requirements:
     # Installing TBB means numba will use it instead of OpenMP.
     - tbb
     - tqdm
+    # needed for the phase transformation variants plotting.
+    # could also be used for pole density plotting in the future
+    - mplstereonet
 
 test:         # [build_platform == target_platform]
   imports:
