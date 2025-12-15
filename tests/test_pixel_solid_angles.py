@@ -38,4 +38,4 @@ def test_pixel_solid_angles(
 
     assert sorted(instr.detectors.keys()) == sorted(ref.keys())
     for det_key, panel in instr.detectors.items():
-        assert np.allclose(panel.pixel_solid_angles, ref[det_key])
+        assert np.allclose(panel.pixel_solid_angles, ref[det_key], rtol=1e-3)

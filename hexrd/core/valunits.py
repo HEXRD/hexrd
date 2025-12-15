@@ -313,7 +313,7 @@ def valWithDflt(val, dflt, toUnit=None):
     return retval
 
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover
     #
     #  doc testing
     #

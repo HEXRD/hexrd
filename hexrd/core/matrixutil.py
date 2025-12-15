@@ -469,7 +469,8 @@ def uniqueVectors(v, tol=1.0e-12):
     return vSrt[:, ivInd[0:nUniq]]
 
 
-def findDuplicateVectors_old(vec, tol=vTol, equivPM=False):
+# pragma: no cover
+def findDuplicateVectors_old(vec, tol=vTol, equivPM=False):  # pragma: no cover
     """
     Find vectors in an array that are equivalent to within
     a specified tolerance
