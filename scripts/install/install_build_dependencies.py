@@ -137,9 +137,9 @@ def download_eigen3(path):
 
 
 def download_pybind11(path):
-    url = 'https://github.com/pybind/pybind11/archive/refs/tags/v2.11.0.tar.gz'
-    md5sum = '90c4946e87c64d8d8fc0ae4edf35d780'
-    out_dir_name = 'pybind11-2.11.0'
+    url = 'https://github.com/pybind/pybind11/archive/refs/tags/v3.0.1.tar.gz'
+    md5sum = '81399a5277559163b3ee912b41de1b76'
+    out_dir_name = 'pybind11-3.0.1'
 
     with tempfile.TemporaryDirectory() as temp_dir:
         download_and_extract_tgz(url, md5sum, temp_dir)
