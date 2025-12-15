@@ -26,6 +26,9 @@ for alias, module in module_aliases.items():
     except ImportError:
         file_exists = False
 
+    if file_exists:
+        raise ImportError(f'"{alias}" is an alias path and should not exist')
+
     sys.modules[alias] = module
 
 
