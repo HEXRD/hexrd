@@ -36,7 +36,7 @@ import logging
 import os
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
-from typing import Optional, Union
+from typing import List, Optional, Tuple, Union, Dict
 
 from tqdm import tqdm
 
@@ -397,7 +397,9 @@ def angle_in_range(angle, ranges, ccw=True, units='degrees'):
 # ???: move to gridutil?
 def centers_of_edge_vec(edges):
     if np.asarray(edges).size < 2:
-        raise ValueError("edges must be an array-like with at least 2 elements")
+        raise ValueError(
+            "edges must be an array-like with at least 2 elements"
+        )
     return np.average(np.vstack([edges[:-1], edges[1:]]), axis=0)
 
 
@@ -486,8 +488,8 @@ def max_resolution(instr):
             .T
         )
         mask = ~np.logical_or(
-            np.isclose(angps[:,0], 0),
-            np.isclose(angps[:,1], 0))
+            np.isclose(angps[:, 0], 0), np.isclose(angps[:, 1], 0)
+        )
         max_tth = min(max_tth, np.min(angps[mask, 0]))
         max_eta = min(max_eta, np.min(angps[mask, 1]))
     return max_tth, max_eta
@@ -648,7 +650,9 @@ class HEDMInstrument(object):
                                     raise BufferShapeMismatchError(msg)
                             else:
                                 if len(det_buffer) != 2:
-                                    raise ValueError(f"Buffer length for {det_id} must be 2")
+                                    raise ValueError(
+                                        f"Buffer length for {det_id} must be 2"
+                                    )
                             panel_buffer = det_buffer
                         elif isinstance(det_buffer, list):
                             panel_buffer = np.asarray(det_buffer)
@@ -871,12 +875,12 @@ class HEDMInstrument(object):
 
     @beam_vector.setter
     def beam_vector(self, x: np.ndarray):
-        """ Accepts either a 3-element unit vector, or a 2-element
-            (azimuth, polar angle) pair in degrees to set the beam vector. """
+        """Accepts either a 3-element unit vector, or a 2-element
+        (azimuth, polar angle) pair in degrees to set the beam vector."""
         x = np.array(x).flatten()
         if len(x) not in (2, 3):
             raise ValueError("beam_vector must be a 2 or 3-element array-like")
-        
+
         if len(x) == 3:
             if np.abs(np.linalg.norm(x) - 1) > np.finfo(float).eps:
                 raise ValueError("beam_vector must be a unit vector")
@@ -901,22 +905,22 @@ class HEDMInstrument(object):
         self.beam_dict_modified()
 
     @property
-    def energy_correction(self) -> Union[dict,  None]:
+    def energy_correction(self) -> Union[dict, None]:
         """Energy correction dict appears as follows:
 
-            {
-                # The beam energy gradient center, along the specified
-                # axis, in millimeters.
-                'intercept': 0.0,
+        {
+            # The beam energy gradient center, along the specified
+            # axis, in millimeters.
+            'intercept': 0.0,
 
-                # The slope of the beam energy gradient along the
-                # specified axis, in eV/mm.
-                'slope': 0.0,
+            # The slope of the beam energy gradient along the
+            # specified axis, in eV/mm.
+            'slope': 0.0,
 
-                # The specified axis for the beam energy gradient,
-                # either 'x' or 'y'.
-                'axis': 'y',
-            }
+            # The specified axis for the beam energy gradient,
+            # either 'x' or 'y'.
+            'axis': 'y',
+        }
         """
         return self.active_beam['energy_correction']
 
@@ -925,11 +929,13 @@ class HEDMInstrument(object):
         if v is not None:
             # First validate
             keys = sorted(list(v))
-            default_keys = sorted(list(
-                self.create_default_energy_correction()
-            ))
+            default_keys = sorted(
+                list(self.create_default_energy_correction())
+            )
             if keys != default_keys:
-                raise ValueError(f'energy_correction keys do not match required keys.\nGot: {keys}\nExpected: {default_keys}')
+                raise ValueError(
+                    f'energy_correction keys do not match required keys.\nGot: {keys}\nExpected: {default_keys}'
+                )
 
         self.active_beam['energy_correction'] = v
 
@@ -937,7 +943,7 @@ class HEDMInstrument(object):
     def create_default_energy_correction() -> dict[str, float]:
         return {
             'intercept': 0.0,  # in mm
-            'slope': 0.0,      # eV/mm
+            'slope': 0.0,  # eV/mm
             'axis': 'y',
         }
 
@@ -966,7 +972,9 @@ class HEDMInstrument(object):
         """WRITE OUT YAML FILE"""
         # initialize output dictionary
         if style.lower() not in ['yaml', 'hdf5']:
-            raise ValueError(f"style must be 'yaml' or 'hdf5' but is '{style}'")
+            raise ValueError(
+                f"style must be 'yaml' or 'hdf5' but is '{style}'"
+            )
 
         par_dict = {}
 
@@ -1611,90 +1619,102 @@ class HEDMInstrument(object):
                 eta_ranges=eta_ranges,
                 ome_ranges=ome_ranges,
                 ome_period=ome_period,
-                chi=self.chi, tVec_s=self.tvec,
+                chi=self.chi,
+                tVec_s=self.tvec,
                 wavelength=wavelength,
-                energy_correction=self.energy_correction)
+                energy_correction=self.energy_correction,
+            )
         return results
 
     def pull_spots(
         self,
-        plane_data,
-        grain_params,
-        imgser_dict,
-        tth_tol=0.25,
-        eta_tol=1.0,
-        ome_tol=1.0,
-        npdiv=2,
-        threshold=10,
-        eta_ranges=[
+        plane_data: PlaneData,
+        grain_params: List | np.ndarray,
+        imgser_dict: Dict,
+        tth_tol: float = 0.25,
+        eta_tol: float = 1.0,
+        ome_tol: float = 1.0,
+        npdiv: int = 2,
+        threshold: int = 10,
+        eta_ranges: List[tuple] = [
             (-np.pi, np.pi),
         ],
-        ome_period=None,
-        dirname='results',
-        filename=None,
-        output_format='text',
-        return_spot_list=False,
-        quiet=True,
-        check_only=False,
-        interp='nearest',
-    ):
-        """
-        Exctract reflection info from a rotation series.
+        ome_period: tuple = None,
+        dirname: str = 'results',
+        filename: str = None,
+        output_format: str = 'text',
+        return_spot_list: bool = False,
+        quiet: bool = True,
+        check_only: bool = False,
+        interp: str = 'nearest',
+    ) -> Tuple[List, Dict]:
+        """Extract reflection info from a rotation series.
 
         Input must be encoded as an OmegaImageseries object.
 
-        Parameters
-        ----------
-        plane_data : TYPE
-            DESCRIPTION.
-        grain_params : TYPE
-            DESCRIPTION.
-        imgser_dict : TYPE
-            DESCRIPTION.
-        tth_tol : TYPE, optional
-            DESCRIPTION. The default is 0.25.
-        eta_tol : TYPE, optional
-            DESCRIPTION. The default is 1..
-        ome_tol : TYPE, optional
-            DESCRIPTION. The default is 1..
-        npdiv : TYPE, optional
-            DESCRIPTION. The default is 2.
-        threshold : TYPE, optional
-            DESCRIPTION. The default is 10.
-        eta_ranges : TYPE, optional
-            DESCRIPTION. The default is [(-np.pi, np.pi), ].
-        ome_period : TYPE, optional
-            DESCRIPTION. The default is (-np.pi, np.pi).
-        dirname : TYPE, optional
-            DESCRIPTION. The default is 'results'.
-        filename : TYPE, optional
-            DESCRIPTION. The default is None.
-        output_format : TYPE, optional
-            DESCRIPTION. The default is 'text'.
-        return_spot_list : TYPE, optional
-            DESCRIPTION. The default is False.
-        quiet : TYPE, optional
-            DESCRIPTION. The default is True.
-        check_only : TYPE, optional
-            DESCRIPTION. The default is False.
-        interp : TYPE, optional
-            DESCRIPTION. 'bilinear' or 'nearest'. The default is 'nearest'.
+        plane_data : PlaneData
+            Object containing crystallographic plane data
+        grain_params : list or np.ndarray
+            A 6-element array defining the grain's orientation and position.
+            The first 3 elements are orientation parameters (exponential map),
+            and the last 3 are the translation vector in the sample frame.
+        imgser_dict : dict
+            Map for detector IDs to OmegaImageSeries objects.
+        tth_tol : float, optional
+            Tolerance in 2-theta (radial direction) in degrees. Default 0.25.
+        eta_tol : float, optional
+            Tolerance in eta (azimuthal direction) in degrees. Default 1.0.
+        ome_tol : float, optional
+            Tolerance in omega (rotation) in degrees. Default 1.0.
+        npdiv : int, optional
+            Number of sub-pixel divisions for patch interpolation. Default 2.
+        threshold : int, optional
+            Intensity threshold for peak detection. Default 10.
+        eta_ranges : list of tuple, optional
+            List of (min, max) tuples defining valid eta ranges in radians.
+            Default [(-np.pi, np.pi)].
+        ome_period : tuple, optional
+            (min, max) tuple defining the periodicity of omega in radians.
+            If None, it is inferred from the image series. Default None.
+        dirname : str, optional
+            Directory path for saving output files. Default 'results'.
+        filename : str, optional
+            Base filename for output. If None, no files are written. Default None.
+        output_format : str, optional
+            Format for output files, either 'text' or 'hdf5'. Default 'text'.
+        return_spot_list : bool, optional
+            If True, the returned dictionary contains full patch data (images, coordinates)
+            rather than just summary statistics. Default False.
+        quiet : bool, optional
+            If True, suppresses logging. Default True.
+        check_only : bool, optional
+            If True, performs a geometric check to see if spots fall on the detector
+            without performing full interpolation or integration. Default False.
+        interp : str, optional
+            Interpolation method for patch extraction. Options are 'bilinear' or 'nearest'.
+            Default 'nearest'.
 
         Returns
         -------
-        compl : TYPE
-            DESCRIPTION.
-        output : TYPE
-            DESCRIPTION.
-
+        compl : list[bool]
+            A list indicating whether a signal > threshold was found for each predicted reflection.
+        output : dict[str, list]
+            A dictionary keyed by detector ID. The values are lists containing extracted
+            spot data. If `return_spot_list`, these lists contain full patch
+            arrays and coordinates; otherwise, they contain summary data.
         """
-        # Input argument validation
+        if type(grain_params) not in [list, np.ndarray]:
+            raise TypeError("grain_params must be a list or ndarray type")
+        grain_params = np.array(grain_params).flatten()
+        if grain_params.size < 6:
+            raise ValueError("grain_params must have at least 6 elements")
+
         if interp.lower() not in ['bilinear', 'nearest']:
             raise ValueError(f"interp='{interp}' invalid")
-        
+
         if type(filename) not in [type(None), str]:
             raise TypeError("filename must be a string type")
-        
+
         if type(output_format) not in [type(None), str]:
             raise TypeError("output_format must be a string type")
         output_format = output_format.lower()
@@ -1703,14 +1723,12 @@ class HEDMInstrument(object):
                 f"output_format='{output_format}' invalid; must be 'text' or 'hdf5'"
             )
 
-        # grain parameters
+        write_hdf5 = filename is not None and output_format == 'hdf5'
+        write_text = filename is not None and output_format == 'text'
+
         rMat_c = make_rmat_of_expmap(grain_params[:3])
         tVec_c = grain_params[3:6]
 
-        # grab omega ranges from first imageseries
-        #
-        # WARNING: all imageseries AND all wedges within are assumed to have
-        # the same omega values; put in a check that they are all the same???
         oims0 = next(iter(imgser_dict.values()))
         ome_ranges = [
             np.radians([i['ostart'], i['ostop']])
@@ -1724,8 +1742,7 @@ class HEDMInstrument(object):
         # delta omega in DEGREES grabbed from first imageseries in the dict
         delta_ome = oims0.omega[0, 1] - oims0.omega[0, 0]
 
-        # make omega grid for frame expansion around reference frame
-        # in DEGREES
+        # make omega grid for frame expansion around reference frame in DEGREES
         ndiv_ome, ome_del = make_tolerance_grid(
             delta_ome,
             ome_tol,
@@ -1739,12 +1756,9 @@ class HEDMInstrument(object):
         else:
             label_struct = ndimage.generate_binary_structure(3, 3)
 
-        # simulate rotation series
         sim_results = self.simulate_rotation_series(
             plane_data,
-            [
-                grain_params,
-            ],
+            [grain_params],
             eta_ranges=eta_ranges,
             ome_ranges=ome_ranges,
             ome_period=ome_period,
@@ -1764,8 +1778,7 @@ class HEDMInstrument(object):
             ]
         )
 
-        # prepare output if requested
-        if filename is not None and output_format == 'hdf5':
+        if write_hdf5:
             this_filename = os.path.join(dirname, filename)
             writer = GrainDataWriter_h5(
                 os.path.join(dirname, filename),
@@ -1803,28 +1816,17 @@ class HEDMInstrument(object):
             )
 
             # extract simulation results
-            hkl_ids = sim_results[detector_id][0][0]
-            hkls_p = sim_results[detector_id][1][0]
-            ang_centers = sim_results[detector_id][2][0]
-            xy_centers = sim_results[detector_id][3][0]
-            ang_pixel_size = sim_results[detector_id][4][0]
+            hkl_ids, hkls_p, ang_centers, xy_centers, ang_pixel_size = [
+                item[0] for item in sim_results[detector_id]
+            ]
 
-            # now verify that full patch falls on detector...
-            # ???: strictly necessary?
-            #
-            # patch vertex array from sim
-            nangs = len(ang_centers)
-            patch_vertices = (
-                np.tile(ang_centers[:, :2], (1, 4))
-                + np.tile(tol_vec, (nangs, 1))
-            ).reshape(4 * nangs, 2)
-            ome_dupl = np.tile(ang_centers[:, 2], (4, 1)).T.reshape(
-                len(patch_vertices), 1
-            )
+            offsets = np.zeros((4, 3))
+            offsets[:, :2] = tol_vec.reshape(4, 2)
 
-            # find vertices that all fall on the panel
+            lab_coords = (ang_centers[:, None, :] + offsets).reshape(-1, 3)
+
             det_xy, _, _ = _project_on_detector_plane(
-                np.hstack([patch_vertices, ome_dupl]),
+                lab_coords,
                 panel.rmat,
                 rMat_c,
                 self.chi,
@@ -1833,18 +1835,18 @@ class HEDMInstrument(object):
                 self.tvec,
                 panel.distortion,
             )
+
             _, on_panel = panel.clip_to_panel(det_xy, buffer_edges=True)
+            mask = on_panel.reshape(-1, 4).all(axis=1)
 
-            # all vertices must be on...
-            patch_is_on = np.all(on_panel.reshape(nangs, 4), axis=1)
-            patch_xys = det_xy.reshape(nangs, 4, 2)[patch_is_on]
+            patch_xys = det_xy.reshape(-1, 4, 2)[mask]
 
-            # re-filter...
-            hkl_ids = hkl_ids[patch_is_on]
-            hkls_p = hkls_p[patch_is_on, :]
-            ang_centers = ang_centers[patch_is_on, :]
-            xy_centers = xy_centers[patch_is_on, :]
-            ang_pixel_size = ang_pixel_size[patch_is_on, :]
+            # Apply mask to metadata
+            hkl_ids = hkl_ids[mask]
+            hkls_p = hkls_p[mask]
+            ang_centers = ang_centers[mask]
+            xy_centers = xy_centers[mask]
+            ang_pixel_size = ang_pixel_size[mask]
 
             if check_only:
                 patch_output = []
@@ -1859,13 +1861,21 @@ class HEDMInstrument(object):
                     ]
                     if -1 in frame_indices:
                         if not quiet:
-                            logging.info(f"window for {hkls_p[i_pt, :]} falls outside omega range")
+                            logging.info(
+                                f"window for {hkls_p[i_pt, :]} falls outside omega range"
+                            )
                         continue
                     else:
                         ijs = panel.cartToPixel(patch_xys[i_pt])
                         ii, jj = polygon(ijs[:, 0], ijs[:, 1])
-                        
-                        patch_data_raw = np.stack([ome_imgser[i_frame, ii, jj] for i_frame in frame_indices], axis=0)
+
+                        patch_data_raw = np.stack(
+                            [
+                                ome_imgser[i_frame, ii, jj]
+                                for i_frame in frame_indices
+                            ],
+                            axis=0,
+                        )
                         compl.append(np.any(patch_data_raw > threshold))
                         patch_output.append((ii, jj, frame_indices))
             else:
@@ -1911,7 +1921,9 @@ class HEDMInstrument(object):
 
                     if -1 in frame_indices:
                         if not quiet:
-                            logging.info(f"window for {hkl} falls outside omega range")
+                            logging.info(
+                                f"window for {hkl} falls outside omega range"
+                            )
                         continue
 
                     # initialize spot data parameters
@@ -1922,7 +1934,10 @@ class HEDMInstrument(object):
                     meas_xy = np.full(2, np.nan)
 
                     # quick check for intensity
-                    patch_data_raw = np.stack([ome_imgser[i, ijs[0], ijs[1]] for i in frame_indices], axis=0)
+                    patch_data_raw = np.stack(
+                        [ome_imgser[i, ijs[0], ijs[1]] for i in frame_indices],
+                        axis=0,
+                    )
                     contains_signal = np.any(patch_data_raw > threshold)
                     compl.append(contains_signal)
 
@@ -1931,7 +1946,8 @@ class HEDMInstrument(object):
                     if contains_signal:
                         # overwrite patch data if using bilinear option
                         if interp.lower() == 'bilinear':
-                            patch_data = np.stack([
+                            patch_data = np.stack(
+                                [
                                     panel.interpolate_bilinear(
                                         xy_eval,
                                         ome_imgser[i_frame],
@@ -1941,11 +1957,6 @@ class HEDMInstrument(object):
                                 ],
                                 axis=0,
                             )
-
-                        # now have interpolated patch data...
-                        labels, num_peaks = ndimage.label(
-                            patch_data > threshold, structure=label_struct
-                        )
 
                         # now have interpolated patch data...
                         labels, num_peaks = ndimage.label(
@@ -1962,18 +1973,24 @@ class HEDMInstrument(object):
                             if num_peaks > 1:
                                 center = np.array(patch_data.shape) / 2
                                 closest_peak_idx = np.argmin(
-                                    np.sum((coms - center)**2, axis=1)
+                                    np.sum((coms - center) ** 2, axis=1)
                                 )
                             else:
                                 closest_peak_idx = 0
 
                             coms = coms[closest_peak_idx]
-                            meas_omes = ome_edges[0] + (0.5 + coms[0])*delta_ome
-                            meas_angs = np.hstack([
-                                tth_edges[0] + (0.5 + coms[2]) * delta_tth,
-                                eta_edges[0] + (0.5 + coms[1]) * delta_eta,
-                                mapAngle(np.radians(meas_omes), ome_period)
-                            ])
+                            meas_omes = (
+                                ome_edges[0] + (0.5 + coms[0]) * delta_ome
+                            )
+                            meas_angs = np.hstack(
+                                [
+                                    tth_edges[0] + (0.5 + coms[2]) * delta_tth,
+                                    eta_edges[0] + (0.5 + coms[1]) * delta_eta,
+                                    mapAngle(
+                                        np.radians(meas_omes), ome_period
+                                    ),
+                                ]
+                            )
 
                             # Calculate the sum and max of the intensities
                             mask = labels == (closest_peak_idx + 1)
@@ -2000,7 +2017,7 @@ class HEDMInstrument(object):
                                 panel.tvec,
                                 self.tvec,
                                 tVec_c,
-                                self.beam_vector
+                                self.beam_vector,
                             )
                             if panel.distortion is not None:
                                 meas_xy = panel.distortion.apply_inverse(
@@ -2011,49 +2028,23 @@ class HEDMInstrument(object):
                         # The peak is invalid. Decrement next invalid peak ID.
                         next_invalid_peak_id -= 1
 
-                    # write output
-                    if filename is not None:
-                        if output_format == 'text':
-                            writer.dump_patch(
-                                peak_id,
-                                hkl_id,
-                                hkl,
-                                sum_int,
-                                max_int,
-                                ang_centers[i_pt],
-                                meas_angs,
-                                xy_centers[i_pt],
-                                meas_xy,
-                            )
-                        elif output_format == 'hdf5':
-                            xyc_arr = xy_eval.reshape(
-                                prows, pcols, 2
-                            ).transpose(2, 0, 1)
-                            writer.dump_patch(
-                                detector_id,
-                                iRefl,
-                                peak_id,
-                                hkl_id,
-                                hkl,
-                                tth_edges,
-                                eta_edges,
-                                np.radians(ome_eval),
-                                xyc_arr,
-                                ijs,
-                                frame_indices,
-                                patch_data,
-                                ang_centers[i_pt],
-                                xy_centers[i_pt],
-                                meas_angs,
-                                meas_xy,
-                            )
-
-                    if return_spot_list:
-                        # Full output
-                        xyc_arr = xy_eval.reshape(
-                            prows, pcols, 2
-                        ).transpose(2, 0, 1)
-                        patch_output.append([
+                    if write_text:
+                        writer.dump_patch(
+                            peak_id,
+                            hkl_id,
+                            hkl,
+                            sum_int,
+                            max_int,
+                            ang_centers[i_pt],
+                            meas_angs,
+                            xy_centers[i_pt],
+                            meas_xy,
+                        )
+                    elif write_hdf5:
+                        xyc_arr = xy_eval.reshape(prows, pcols, 2).transpose(
+                            2, 0, 1
+                        )
+                        writer.dump_patch(
                             detector_id,
                             iRefl,
                             peak_id,
@@ -2070,24 +2061,52 @@ class HEDMInstrument(object):
                             xy_centers[i_pt],
                             meas_angs,
                             meas_xy,
-                        ])
+                        )
+
+                    if return_spot_list:
+                        # Full output
+                        xyc_arr = xy_eval.reshape(prows, pcols, 2).transpose(
+                            2, 0, 1
+                        )
+                        patch_output.append(
+                            [
+                                detector_id,
+                                iRefl,
+                                peak_id,
+                                hkl_id,
+                                hkl,
+                                tth_edges,
+                                eta_edges,
+                                np.radians(ome_eval),
+                                xyc_arr,
+                                ijs,
+                                frame_indices,
+                                patch_data,
+                                ang_centers[i_pt],
+                                xy_centers[i_pt],
+                                meas_angs,
+                                meas_xy,
+                            ]
+                        )
                     else:
                         # Trimmed output
-                        patch_output.append([
-                            peak_id,
-                            hkl_id,
-                            hkl,
-                            sum_int,
-                            max_int,
-                            ang_centers[i_pt],
-                            meas_angs,
-                            meas_xy,
-                        ])
+                        patch_output.append(
+                            [
+                                peak_id,
+                                hkl_id,
+                                hkl,
+                                sum_int,
+                                max_int,
+                                ang_centers[i_pt],
+                                meas_angs,
+                                meas_xy,
+                            ]
+                        )
                     iRefl += 1
             output[detector_id] = patch_output
-            if filename is not None and output_format == 'text':
+            if write_text:
                 writer.close()
-        if filename is not None and output_format == 'hdf5':
+        if write_hdf5:
             writer.close()
         return compl, output
 
