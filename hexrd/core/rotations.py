@@ -554,14 +554,13 @@ def rotMatOfExpMap(expMap):
 
     return R.from_rotvec(expMap.T).as_matrix().squeeze()
 
-
 @deprecated(new_func="Use `rotMatOfExpMap` instead", removal_date="2025-07-01")
-def rotMatOfExpMap_orig(expMap):
+def rotMatOfExpMap_orig(expMap): # pragma: no cover
     return rotMatOfExpMap(expMap)
 
 
 @deprecated(new_func="Use `rotMatOfExpMap` instead", removal_date="2025-07-01")
-def rotMatOfExpMap_opt(expMap):
+def rotMatOfExpMap_opt(expMap): # pragma: no cover
     return rotMatOfExpMap(expMap)
 
 
@@ -1151,7 +1150,7 @@ def mapAngle(ang, ang_range=None, units=angularUnits):
     return val
 
 
-def angularDifference_orig(angList0, angList1, units=angularUnits):
+def angularDifference_orig(angList0, angList1, units=angularUnits): # pragma: no cover
     """
     Do the proper (acute) angular difference in the context of a branch cut.
 

@@ -167,7 +167,7 @@ class Detector:
 
     @abstractmethod
     def calc_filter_coating_transmission(self, energy):
-        pass
+        raise NotImplementedError
 
     @property
     @abstractmethod
@@ -391,7 +391,10 @@ class Detector:
     def tth_distortion(self, x):
         """if not None, a buffer in mm (x, y)"""
         if x is not None:
-            assert x.ndim == 2 and x.shape == self.shape
+            if x.ndim != 2 or x.shape != self.shape:
+                raise ValueError(
+                    'tth_distortion must have shape equal to detector shape'
+                )
         self._tth_distortion = x
 
     @property
@@ -404,13 +407,14 @@ class Detector:
         !!! vertex array must be (r0, c0)
         """
         if vertex_array is not None:
-            assert (
-                len(vertex_array) == 2
-            ), "roi is set via (start_row, start_col)"
-        self._roi = (
-            (vertex_array[0], vertex_array[0] + self.rows),
-            (vertex_array[1], vertex_array[1] + self.cols),
-        )
+            if len(vertex_array) != 2:
+                raise ValueError('roi must be a 2-element array-like')
+            self._roi = (
+                (vertex_array[0], vertex_array[0] + self.rows),
+                (vertex_array[1], vertex_array[1] + self.cols),
+            )
+        else:
+            self._roi = None
 
     @property
     def row_dim(self):
@@ -467,7 +471,8 @@ class Detector:
     @tvec.setter
     def tvec(self, x):
         x = np.array(x).flatten()
-        assert len(x) == 3, 'input must have length = 3'
+        if len(x) != 3:
+            raise ValueError('tvec must be a 3-element array-like')
         self._tvec = x
 
     @property
@@ -476,7 +481,8 @@ class Detector:
 
     @tilt.setter
     def tilt(self, x):
-        assert len(x) == 3, 'input must have length = 3'
+        if len(x) != 3:
+            raise ValueError('tilt must be a 3-element array-like')
         self._tilt = np.array(x).squeeze()
 
     @property
@@ -486,9 +492,10 @@ class Detector:
     @bvec.setter
     def bvec(self, x):
         x = np.array(x).flatten()
-        assert (
-            len(x) == 3 and sum(x * x) > 1 - ct.sqrt_epsf
-        ), 'input must have length = 3 and have unit magnitude'
+        if len(x) != 3 or sum(x * x) < 1 - ct.sqrt_epsf:
+            raise ValueError(
+                'bvec must be a 3-element array-like with unit magnitude'
+            )
         self._bvec = x
 
     @property
@@ -497,9 +504,9 @@ class Detector:
 
     @xrs_dist.setter
     def xrs_dist(self, x):
-        assert x is None or np.isscalar(
-            x
-        ), f"'source_distance' must be None or scalar; you input '{x}'"
+        if x is not None:
+            if not isinstance(x, (float, int)):
+                raise ValueError('xrs_dist must be a scalar value')
         self._xrs_dist = x
 
     @property
@@ -509,9 +516,10 @@ class Detector:
     @evec.setter
     def evec(self, x):
         x = np.array(x).flatten()
-        assert (
-            len(x) == 3 and sum(x * x) > 1 - ct.sqrt_epsf
-        ), 'input must have length = 3 and have unit magnitude'
+        if len(x) != 3 or sum(x * x) < 1 - ct.sqrt_epsf:
+            raise ValueError(
+                'evec must be a 3-element array-like with unit magnitude'
+            )
         self._evec = x
 
     @property
@@ -525,7 +533,10 @@ class Detector:
             check_arg = np.zeros(len(registry), dtype=bool)
             for i, dcls in enumerate(registry.values()):
                 check_arg[i] = isinstance(x, dcls)
-            assert np.any(check_arg), 'input distortion is not in registry!'
+            
+            if not np.any(check_arg):
+                raise TypeError('Input distortion is not in registry')
+                
         self._distortion = x
 
     @property
@@ -880,7 +891,8 @@ class Detector:
         # !!! now we have to do some style-dependent munging of panel_buffer
         if isinstance(panel_buffer, np.ndarray):
             if panel_buffer.ndim == 1:
-                assert len(panel_buffer) == 2, "length of 1-d buffer must be 2"
+                if len(panel_buffer) != 2:
+                    raise ValueError('panel_buffer must be a 2-element array-like or a 2-d array')
                 # if here is a 2-element array
                 if style.lower() == 'yaml':
                     panel_buffer = panel_buffer.tolist()
@@ -891,9 +903,8 @@ class Detector:
                     print("clobbering panel buffer array in yaml-ready output")
                     panel_buffer = [0.0, 0.0]
             else:
-                raise RuntimeError(
-                    "panel buffer ndim must be 1 or 2; you specified %d"
-                    % panel_buffer.ndmin
+                raise ValueError(
+                    'panel_buffer must be a 2-element array-like or a 2-d array'
                 )
         elif panel_buffer is None:
             # still None on self
@@ -1681,10 +1692,12 @@ class Detector:
         # parse energy ranges
         # TODO: allow for spectrum parsing
         multipleEnergyRanges = False
+
         if hasattr(maxEnergy, '__len__'):
-            assert len(maxEnergy) == len(
-                minEnergy
-            ), 'energy cutoff ranges must have the same length'
+            if not hasattr(minEnergy, '__len__'):
+                raise ValueError('minEnergy must be array-like if maxEnergy is')
+            if len(maxEnergy) != len(minEnergy):
+                raise ValueError('maxEnergy and minEnergy must be same length')
             multipleEnergyRanges = True
             lmin = []
             lmax = []

@@ -116,6 +116,7 @@ def _copy_input_if_needed(
     return output
 
 
+# TODO: This function does not work when array or kernel are 32-bit float types.
 def convolve(
     array,
     kernel,
@@ -253,7 +254,7 @@ def convolve(
 
     # Make sure kernel has all odd axes
     if has_even_axis(kernel_internal):
-        raise_even_kernel_exception()
+        raise ValueError("Kernel size must be odd in all axes.")
 
     # -----------------------------------------------------------------------
     # From this point onwards refer only to ``array_internal`` and
@@ -262,18 +263,13 @@ def convolve(
     # ``Kernel`` nor ``np.ma.maskedarray`` classes.
     # -----------------------------------------------------------------------
 
-    # Check dimensionality
-    if array_internal.ndim == 0:
-        raise Exception("cannot convolve 0-dimensional arrays")
-    elif array_internal.ndim > 3:
+    if array_internal.ndim > 3:
         raise NotImplementedError(
             'convolve only supports 1, 2, and 3-dimensional '
             'arrays at this time'
         )
     elif array_internal.ndim != kernel_internal.ndim:
-        raise Exception(
-            'array and kernel have differing number of ' 'dimensions.'
-        )
+        raise ValueError('array and kernel have differing number of dimensions')
 
     array_shape = np.array(array_internal.shape)
     kernel_shape = np.array(kernel_internal.shape)
@@ -290,7 +286,7 @@ def convolve(
     # array_shape >= kernel_shape OR array_shape > kernel_shape-1 OR array_shape > 2*(kernel_shape//2).
     # Since the latter is equal to the former two for even lengths, the latter condition is complete.
     if boundary is None and not np.all(array_shape > 2 * pad_width):
-        raise KernelSizeError(
+        raise ValueError(
             "for boundary=None all kernel axes must be smaller than array's - "
             "use boundary in ['fill', 'extend', 'wrap'] instead."
         )
