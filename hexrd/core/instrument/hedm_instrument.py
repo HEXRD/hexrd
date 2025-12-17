@@ -876,12 +876,12 @@ class HEDMInstrument(object):
 
     @beam_vector.setter
     def beam_vector(self, x: np.ndarray):
-        """Accepts either a 3-element unit vector, or a 2-element
-        (azimuth, polar angle) pair in degrees to set the beam vector."""
+        """ Accepts either a 3-element unit vector, or a 2-element
+            (azimuth, polar angle) pair in degrees to set the beam vector. """
         x = np.array(x).flatten()
         if len(x) not in (2, 3):
             raise ValueError("beam_vector must be a 2 or 3-element array-like")
-
+        
         if len(x) == 3:
             if np.abs(np.linalg.norm(x) - 1) > np.finfo(float).eps:
                 raise ValueError("beam_vector must be a unit vector")
@@ -934,9 +934,7 @@ class HEDMInstrument(object):
                 list(self.create_default_energy_correction())
             )
             if keys != default_keys:
-                raise ValueError(
-                    f'energy_correction keys do not match required keys.\nGot: {keys}\nExpected: {default_keys}'
-                )
+                raise ValueError(f'energy_correction keys do not match required keys.\nGot: {keys}\nExpected: {default_keys}')
 
         self.active_beam['energy_correction'] = v
 
@@ -973,9 +971,7 @@ class HEDMInstrument(object):
         """WRITE OUT YAML FILE"""
         # initialize output dictionary
         if style.lower() not in ['yaml', 'hdf5']:
-            raise ValueError(
-                f"style must be 'yaml' or 'hdf5' but is '{style}'"
-            )
+            raise ValueError(f"style must be 'yaml' or 'hdf5' but is '{style}'")
 
         par_dict = {}
 
