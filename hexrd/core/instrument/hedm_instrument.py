@@ -1637,9 +1637,7 @@ class HEDMInstrument(object):
         ome_tol: Optional[float] = 1.0,
         npdiv: Optional[int] = 2,
         threshold: Optional[int] = 10,
-        eta_ranges: Optional[List[tuple]] = [
-            (-np.pi, np.pi),
-        ],
+        eta_ranges: Optional[List[tuple]] = [(-np.pi, np.pi)],
         ome_period: Optional[tuple] = None,
         dirname: Optional[str] = 'results',
         filename: Optional[str] = None,
@@ -1696,18 +1694,26 @@ class HEDMInstrument(object):
 
         Returns
         -------
-        has_signal_flags : list[bool]
+        patch_has_signal : list[bool]
             A list indicating whether signal was found for each predicted reflection.
         output : dict[str, list]
             A dictionary keyed by detector ID. The values are lists containing extracted
             spot data. If `return_spot_list`, these lists contain full patch
             arrays and coordinates; otherwise, they contain summary data.
         """
-        if type(grain_params) not in [list, np.ndarray]:
-            raise TypeError("grain_params must be a list or ndarray type")
-        grain_params = np.array(grain_params).flatten()
-        if grain_params.size < 6:
-            raise ValueError("grain_params must have at least 6 elements")
+        if check_only:
+            return self._pull_spots_check_only(
+                plane_data,
+                grain_params,
+                imgser_dict,
+                tth_tol=tth_tol,
+                eta_tol=eta_tol,
+                ome_tol=ome_tol,
+                threshold=threshold,
+                eta_ranges=eta_ranges,
+                ome_period=ome_period,
+                filename=filename,
+            )
 
         if filename is not None and not isinstance(filename, str):
             raise TypeError("filename must be a string type")
@@ -1715,6 +1721,7 @@ class HEDMInstrument(object):
         if not isinstance(output_format, str):
             raise TypeError("output_format must be a string type")
         output_format = output_format.lower()
+        interp = interp.lower()
 
         write_hdf5 = filename is not None and output_format == 'hdf5'
         write_text = filename is not None and output_format == 'text'
@@ -1723,16 +1730,21 @@ class HEDMInstrument(object):
         tVec_c = grain_params[3:6]
 
         oims0 = next(iter(imgser_dict.values()))
-        ome_ranges = [np.radians([i['ostart'], i['ostop']]) for i in oims0.omegawedges.wedges]
+        omega_ranges = [
+            np.radians([i['ostart'], i['ostop']])
+            for i in oims0.omegawedges.wedges
+        ]
         if ome_period is None:
             ims = next(iter(imgser_dict.values()))
             ome_period = np.radians(ims.omega[0, 0] + np.array([0.0, 360.0]))
 
         # delta omega in DEGREES grabbed from first imageseries in the dict
-        delta_ome = oims0.omega[0, 1] - oims0.omega[0, 0]
+        delta_omega = oims0.omega[0, 1] - oims0.omega[0, 0]
 
         # make omega grid for frame expansion around reference frame in DEGREES
-        ndiv_ome, ome_grid = make_tolerance_grid(delta_ome, ome_tol, 1, adjust_window=True)
+        ndiv_ome, ome_grid = make_tolerance_grid(
+            delta_omega, ome_tol, 1, adjust_window=True
+        )
 
         # generate structuring element for connected component labeling
         if ndiv_ome == 1:
@@ -1740,161 +1752,409 @@ class HEDMInstrument(object):
         else:
             label_struct = ndimage.generate_binary_structure(3, 3)
 
-        sim_results = self.simulate_rotation_series(plane_data, [grain_params], eta_ranges=eta_ranges, ome_ranges=ome_ranges, ome_period=ome_period)
+        sim_results = self.simulate_rotation_series(
+            plane_data,
+            [grain_params],
+            eta_ranges=eta_ranges,
+            ome_ranges=omega_ranges,
+            ome_period=ome_period,
+        )
 
         # compute offsets for patch corners in lab frame
         offsets = 0.5 * np.radians(
             [
                 [-tth_tol, -eta_tol, 0],
-                [-tth_tol,  eta_tol, 0],
-                [ tth_tol,  eta_tol, 0],
-                [ tth_tol, -eta_tol, 0],
+                [-tth_tol, eta_tol, 0],
+                [tth_tol, eta_tol, 0],
+                [tth_tol, -eta_tol, 0],
             ]
         )
 
         if write_hdf5:
-            writer = GrainDataWriter_h5(os.path.join(dirname, filename), self.write_config(), grain_params)
+            writer = GrainDataWriter_h5(
+                os.path.join(dirname, filename),
+                self.write_config(),
+                grain_params,
+            )
 
         # =====================================================================
         # LOOP OVER PANELS
         # =====================================================================
         next_invalid_peak_id = -100
-        has_signal_flags = []
+        patch_has_signal = []
         output = defaultdict(list)
         for detector_id, panel in self.detectors.items():
+            hkl_ids, hkls_p, ang_centers, xy_centers, ang_pixel_size = [
+                item[0] for item in sim_results[detector_id]
+            ]
+
+            lab_coords = (ang_centers[:, None, :] + offsets).reshape(-1, 3)
+            det_xy, _, _ = _project_on_detector_plane(
+                lab_coords,
+                panel.rmat,
+                rMat_c,
+                self.chi,
+                panel.tvec,
+                tVec_c,
+                self.tvec,
+                panel.distortion,
+            )
+
+            _, on_panel = panel.clip_to_panel(det_xy, buffer_edges=True)
+            mask = on_panel.reshape(-1, 4).all(axis=1)
+
+            hkls_p = hkls_p[mask]
+            ang_centers = ang_centers[mask]
+            hkl_ids = hkl_ids[mask]
+            xy_centers = xy_centers[mask]
+            ang_pixel_size = ang_pixel_size[mask]
+
+            instrument_cfg = panel.config_dict(
+                self.chi,
+                self.tvec,
+                beam_energy=self.beam_energy,
+                beam_vector=self.beam_vector,
+                style='hdf5',
+            )
+            patches = xrdutil.make_reflection_patches(
+                instrument_cfg,
+                ang_centers[:, :2],
+                ang_pixel_size,
+                omega=ang_centers[:, 2],
+                tth_tol=tth_tol,
+                eta_tol=eta_tol,
+                rmat_c=rMat_c,
+                tvec_c=tVec_c,
+                npdiv=npdiv,
+            )
+            omega_image_series = _parse_imgser_dict(
+                imgser_dict, detector_id, roi=panel.roi
+            )
+
             if write_text:
                 output_dir = os.path.join(dirname, detector_id)
                 os.makedirs(output_dir, exist_ok=True)
                 writer = PatchDataWriter(os.path.join(output_dir, filename))
 
-            instr_cfg = panel.config_dict(self.chi, self.tvec, beam_energy=self.beam_energy, beam_vector=self.beam_vector, style='hdf5')
+            for patch_id, (vtx_angs, _, _, areas, xy_eval, ijs) in enumerate(
+                patches
+            ):
+                prows, pcols = areas.shape
+                hkl_id, hkl = hkl_ids[patch_id], hkls_p[patch_id, :]
 
+                tth_edges = vtx_angs[0][0, :]
+                delta_tth = tth_edges[1] - tth_edges[0]
+                eta_edges = vtx_angs[1][:, 0]
+                delta_eta = eta_edges[1] - eta_edges[0]
+
+                omega_eval = np.degrees(ang_centers[patch_id, 2]) + ome_grid
+
+                frame_indices = [
+                    omega_image_series.omega_to_frame(omega)[0]
+                    for omega in omega_eval
+                ]
+                if -1 in frame_indices:
+                    logging.info(f"window for {hkl} falls outside omega range")
+                    continue
+
+                omega_edges = [
+                    omega_image_series.omega[i][0] for i in frame_indices
+                ]
+                patch_data_raw = np.stack(
+                    [
+                        omega_image_series[i, ijs[0], ijs[1]]
+                        for i in frame_indices
+                    ],
+                    axis=0,
+                )
+                contains_signal = np.any(patch_data_raw > threshold)
+                patch_has_signal.append(contains_signal)
+
+                # initialize spot data parameters
+                peak_id = next_invalid_peak_id
+                sum_int = np.nan
+                max_int = np.nan
+                meas_angs = np.full(3, np.nan)
+                meas_xy = np.full(2, np.nan)
+
+                patch_data = patch_data_raw
+
+                # need to reshape eval pts for interpolation
+                xy_eval = np.vstack(
+                    [xy_eval[0].flatten(), xy_eval[1].flatten()]
+                ).T
+                xyc_arr = xy_eval.reshape(prows, pcols, 2).transpose(2, 0, 1)
+
+                if contains_signal:
+                    # overwrite patch data if using bilinear option
+                    if interp == 'bilinear':
+                        patch_data = np.stack(
+                            [
+                                panel.interpolate_bilinear(
+                                    xy_eval,
+                                    omega_image_series[i_frame],
+                                    pad_with_nans=False,
+                                ).reshape(prows, pcols)
+                                for i_frame in frame_indices
+                            ],
+                            axis=0,
+                        )
+
+                    # now we have interpolated patch data...
+                    labels, num_peaks = ndimage.label(
+                        patch_data > threshold, label_struct
+                    )
+
+                    if num_peaks == 0:
+                        continue
+
+                    peak_id = patch_id
+                    coms = np.vstack(
+                        [
+                            x.weighted_centroid
+                            for x in regionprops(labels, patch_data)
+                        ]
+                    )
+                    closest_peak_idx = np.argmin(
+                        np.sum(
+                            (coms - np.array(patch_data.shape) / 2) ** 2,
+                            axis=1,
+                        )
+                    )
+
+                    meas_angs = np.hstack(
+                        [
+                            tth_edges[0]
+                            + (0.5 + coms[closest_peak_idx][2]) * delta_tth,
+                            eta_edges[0]
+                            + (0.5 + coms[closest_peak_idx][1]) * delta_eta,
+                            mapAngle(
+                                np.radians(
+                                    (
+                                        omega_edges[0]
+                                        + (0.5 + coms[closest_peak_idx][0])
+                                        * delta_omega
+                                    )
+                                ),
+                                ome_period,
+                            ),
+                        ]
+                    )
+
+                    # Calculate the sum and max of the intensities
+                    mask = labels == (closest_peak_idx + 1)
+
+                    sum_int = patch_data[mask].sum()
+                    max_int = patch_data_raw[mask].max()
+
+                    gvec_c = angles_to_gvec(
+                        meas_angs,
+                        self.beam_vector,
+                        chi=self.chi,
+                        rmat_c=rMat_c,
+                    )
+                    rMat_s = make_sample_rmat(self.chi, meas_angs[2])
+                    meas_xy = gvec_to_xy(
+                        gvec_c,
+                        panel.rmat,
+                        rMat_s,
+                        rMat_c,
+                        panel.tvec,
+                        self.tvec,
+                        tVec_c,
+                        self.beam_vector,
+                    )
+
+                    if panel.distortion is not None:
+                        meas_xy = panel.distortion.apply_inverse(
+                            np.atleast_2d(meas_xy)
+                        ).flatten()
+
+                if peak_id < 0:
+                    # The peak is invalid. Decrement next invalid peak ID.
+                    next_invalid_peak_id -= 1
+
+                if write_text:
+                    writer.dump_patch(
+                        peak_id,
+                        hkl_id,
+                        hkl,
+                        sum_int,
+                        max_int,
+                        ang_centers[patch_id],
+                        meas_angs,
+                        xy_centers[patch_id],
+                        meas_xy,
+                    )
+                elif write_hdf5:
+                    writer.dump_patch(
+                        detector_id,
+                        patch_id,
+                        peak_id,
+                        hkl_id,
+                        hkl,
+                        tth_edges,
+                        eta_edges,
+                        np.radians(omega_eval),
+                        xyc_arr,
+                        ijs,
+                        frame_indices,
+                        patch_data,
+                        ang_centers[patch_id],
+                        xy_centers[patch_id],
+                        meas_angs,
+                        meas_xy,
+                    )
+
+                if return_spot_list:
+                    # Full output
+                    output[detector_id].append(
+                        [
+                            detector_id,
+                            patch_id,
+                            peak_id,
+                            hkl_id,
+                            hkl,
+                            tth_edges,
+                            eta_edges,
+                            np.radians(omega_eval),
+                            xyc_arr,
+                            ijs,
+                            frame_indices,
+                            patch_data,
+                            ang_centers[patch_id],
+                            xy_centers[patch_id],
+                            meas_angs,
+                            meas_xy,
+                        ]
+                    )
+                else:
+                    # Trimmed output
+                    output[detector_id].append(
+                        [
+                            peak_id,
+                            hkl_id,
+                            hkl,
+                            sum_int,
+                            max_int,
+                            ang_centers[patch_id],
+                            meas_angs,
+                            meas_xy,
+                        ]
+                    )
+            if write_text:
+                writer.close()
+        if write_hdf5:
+            writer.close()
+        return patch_has_signal, output
+
+    def _pull_spots_check_only(
+        self,
+        plane_data: PlaneData,
+        grain_params: List | np.ndarray,
+        imgser_dict: Dict,
+        tth_tol: Optional[float] = 0.25,
+        eta_tol: Optional[float] = 1.0,
+        ome_tol: Optional[float] = 1.0,
+        threshold: Optional[int] = 10,
+        eta_ranges: Optional[List[tuple]] = [(-np.pi, np.pi)],
+        ome_period: Optional[tuple] = None,
+    ):
+        rMat_c = make_rmat_of_expmap(grain_params[:3])
+        tVec_c = grain_params[3:6]
+
+        oims0 = next(iter(imgser_dict.values()))
+        omega_ranges = [
+            np.radians([i['ostart'], i['ostop']])
+            for i in oims0.omegawedges.wedges
+        ]
+        if ome_period is None:
+            ims = next(iter(imgser_dict.values()))
+            ome_period = np.radians(ims.omega[0, 0] + np.array([0.0, 360.0]))
+
+        delta_omega = oims0.omega[0, 1] - oims0.omega[0, 0]
+        _, ome_grid = make_tolerance_grid(
+            delta_omega, ome_tol, 1, adjust_window=True
+        )
+
+        sim_results = self.simulate_rotation_series(
+            plane_data,
+            [grain_params],
+            eta_ranges=eta_ranges,
+            ome_ranges=omega_ranges,
+            ome_period=ome_period,
+        )
+
+        offsets = 0.5 * np.radians(
+            [
+                [-tth_tol, -eta_tol, 0],
+                [-tth_tol, eta_tol, 0],
+                [tth_tol, eta_tol, 0],
+                [tth_tol, -eta_tol, 0],
+            ]
+        )
+
+        patch_has_signal = []
+        output = defaultdict(list)
+        for detector_id, panel in self.detectors.items():
             # pull out the OmegaImageSeries for this panel from input dict
-            ome_imgser = _parse_imgser_dict(imgser_dict, detector_id, roi=panel.roi)
+            omega_image_series = _parse_imgser_dict(
+                imgser_dict, detector_id, roi=panel.roi
+            )
 
-            hkl_ids, hkls_p, ang_centers, xy_centers, ang_pixel_size = [item[0] for item in sim_results[detector_id]]
+            hkl_ids, hkls_p, ang_centers, xy_centers, ang_pixel_size = [
+                item[0] for item in sim_results[detector_id]
+            ]
 
-            lab_coords = ang_centers[:, None, :] + offsets
-            det_xy, _, _ = _project_on_detector_plane(lab_coords, panel.rmat, rMat_c, self.chi, panel.tvec, tVec_c, self.tvec, panel.distortion)
+            lab_coords = (ang_centers[:, None, :] + offsets).reshape(-1, 3)
+            det_xy, _, _ = _project_on_detector_plane(
+                lab_coords,
+                panel.rmat,
+                rMat_c,
+                self.chi,
+                panel.tvec,
+                tVec_c,
+                self.tvec,
+                panel.distortion,
+            )
 
             _, on_panel = panel.clip_to_panel(det_xy, buffer_edges=True)
             mask = on_panel.reshape(-1, 4).all(axis=1)
 
             patch_xys = det_xy.reshape(-1, 4, 2)[mask]
-            hkl_ids = hkl_ids[mask]
             hkls_p = hkls_p[mask]
             ang_centers = ang_centers[mask]
+            hkl_ids = hkl_ids[mask]
             xy_centers = xy_centers[mask]
             ang_pixel_size = ang_pixel_size[mask]
 
-            if check_only:
-                for i_pt, angs in enumerate(ang_centers):
-                    ome_eval = np.degrees(angs[2]) + ome_grid
+            for ang_index, angs in enumerate(ang_centers):
+                omega_eval = np.degrees(angs[2]) + ome_grid
 
-                    frame_indices = [ome_imgser.omega_to_frame(ome)[0] for ome in ome_eval]
-                    if -1 in frame_indices:
-                        logging.info(f"window for {hkls_p[i_pt, :]} falls outside omega range")
-                        continue
-
-                    ijs = panel.cartToPixel(patch_xys[i_pt])
-                    ii, jj = polygon(ijs[:, 0], ijs[:, 1])
-
-                    patch_data_raw = np.stack(
-                        [ome_imgser[i_frame, ii, jj] for i_frame in frame_indices],
-                        axis=0,
+                frame_indices = [
+                    omega_image_series.omega_to_frame(omega)[0]
+                    for omega in omega_eval
+                ]
+                if -1 in frame_indices:
+                    logging.info(
+                        f"window for {hkls_p[ang_index, :]} falls outside omega range"
                     )
-                    has_signal_flags.append(np.any(patch_data_raw > threshold))
-                    output[detector_id].append((ii, jj, frame_indices))
-            else:
-                patches = xrdutil.make_reflection_patches(instr_cfg, ang_centers[:, :2], ang_pixel_size, omega=ang_centers[:, 2], tth_tol=tth_tol, eta_tol=eta_tol, rmat_c=rMat_c, tvec_c=tVec_c, npdiv=npdiv)
+                    continue
 
-                # GRAND LOOP over reflections for this panel
-                for i_pt, (vtx_angs, _, _, areas, xy_eval, ijs) in enumerate(patches):
-                    prows, pcols = areas.shape
-                    hkl = hkls_p[i_pt, :]
-                    hkl_id = hkl_ids[i_pt]
+                ijs = panel.cartToPixel(patch_xys[ang_index])
+                ii, jj = polygon(ijs[:, 0], ijs[:, 1])
 
-                    # edge arrays
-                    tth_edges = vtx_angs[0][0, :]
-                    delta_tth = tth_edges[1] - tth_edges[0]
-                    eta_edges = vtx_angs[1][:, 0]
-                    delta_eta = eta_edges[1] - eta_edges[0]
+                patch_data_raw = np.stack(
+                    [
+                        omega_image_series[i_frame, ii, jj]
+                        for i_frame in frame_indices
+                    ],
+                    axis=0,
+                )
+                patch_has_signal.append(np.any(patch_data_raw > threshold))
+                output[detector_id].append((ii, jj, frame_indices))
 
-                    # need to reshape eval pts for interpolation
-                    xy_eval = np.vstack([xy_eval[0].flatten(), xy_eval[1].flatten()]).T
-                    xyc_arr = xy_eval.reshape(prows, pcols, 2).transpose(2, 0, 1)
-
-                    ome_eval = np.degrees(ang_centers[i_pt, 2]) + ome_grid
-
-                    frame_indices = [ome_imgser.omega_to_frame(ome)[0] for ome in ome_eval]
-                    if -1 in frame_indices:
-                        logging.info(f"window for {hkl} falls outside omega range")
-                        continue
-
-                    ome_edges = [ome_imgser.omega[i][0] for i in frame_indices]
-
-                    # initialize spot data parameters
-                    peak_id = next_invalid_peak_id
-                    sum_int = np.nan
-                    max_int = np.nan
-                    meas_angs = np.full(3, np.nan)
-                    meas_xy = np.full(2, np.nan)
-
-                    # quick check for intensity
-                    patch_data_raw = np.stack([ome_imgser[i, ijs[0], ijs[1]] for i in frame_indices], axis=0)
-                    contains_signal = np.any(patch_data_raw > threshold)
-                    has_signal_flags.append(contains_signal)
-
-                    patch_data = patch_data_raw
-
-                    if contains_signal:
-                        # overwrite patch data if using bilinear option
-                        if interp == 'bilinear':
-                            patch_data = np.stack([panel.interpolate_bilinear(xy_eval, ome_imgser[i_frame], pad_with_nans=False).reshape(prows, pcols) for i_frame in frame_indices], axis=0)
-
-                        # now we have interpolated patch data...
-                        labels, num_peaks = ndimage.label(patch_data > threshold, label_struct)
-
-                        if num_peaks > 0:
-                            peak_id = i_pt
-                            coms = np.vstack([x.weighted_centroid for x in regionprops(labels, patch_data)])
-                            closest_peak_idx = np.argmin(np.sum((coms - np.array(patch_data.shape) / 2) ** 2, axis=1))
-
-                            meas_angs = np.hstack([tth_edges[0] + (0.5 + coms[closest_peak_idx][2]) * delta_tth, eta_edges[0] + (0.5 + coms[closest_peak_idx][1]) * delta_eta, mapAngle(np.radians((ome_edges[0] + (0.5 + coms[closest_peak_idx][0]) * delta_ome)), ome_period)])
-
-                            # Calculate the sum and max of the intensities
-                            mask = labels == (closest_peak_idx + 1)
-
-                            sum_int = patch_data[mask].sum()
-                            max_int = patch_data_raw[mask].max()
-
-                            gvec_c = angles_to_gvec(meas_angs, self.beam_vector, chi=self.chi, rmat_c=rMat_c)
-                            rMat_s = make_sample_rmat(self.chi, meas_angs[2])
-                            meas_xy = gvec_to_xy(gvec_c, panel.rmat, rMat_s, rMat_c, panel.tvec, self.tvec, tVec_c, self.beam_vector)
-
-                            if panel.distortion is not None:
-                                meas_xy = panel.distortion.apply_inverse(np.atleast_2d(meas_xy)).flatten()
-
-                    if peak_id < 0:
-                        # The peak is invalid. Decrement next invalid peak ID.
-                        next_invalid_peak_id -= 1
-
-                    if write_text:
-                        writer.dump_patch(peak_id, hkl_id, hkl, sum_int, max_int, ang_centers[i_pt], meas_angs, xy_centers[i_pt], meas_xy)
-                    elif write_hdf5:
-                        writer.dump_patch(detector_id, i_pt, peak_id, hkl_id, hkl, tth_edges, eta_edges, np.radians(ome_eval), xyc_arr, ijs, frame_indices, patch_data, ang_centers[i_pt], xy_centers[i_pt], meas_angs, meas_xy,)
-
-                    if return_spot_list:
-                        # Full output
-                        output[detector_id].append([detector_id, i_pt, peak_id, hkl_id, hkl, tth_edges, eta_edges, np.radians(ome_eval), xyc_arr, ijs, frame_indices, patch_data, ang_centers[i_pt], xy_centers[i_pt], meas_angs, meas_xy])
-                    else:
-                        # Trimmed output
-                        output[detector_id].append([peak_id, hkl_id, hkl, sum_int, max_int, ang_centers[i_pt], meas_angs, meas_xy])
-            if write_text:
-                writer.close()
-        if write_hdf5:
-            writer.close()
-        return has_signal_flags, output
+        return patch_has_signal, output
 
     def update_memoization_sizes(self):
         # Resize all known memoization functions to have a cache at least
