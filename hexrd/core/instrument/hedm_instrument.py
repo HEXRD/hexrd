@@ -1830,8 +1830,8 @@ class HEDMInstrument(object):
 
                 # initialize spot data parameters
                 peak_id = next_invalid_peak_id
-                sum_int = np.nan
-                max_int = np.nan
+                sum_intensities = np.nan
+                max_intensities = np.nan
                 meas_angs = np.full(3, np.nan)
                 meas_xy = np.full(2, np.nan)
 
@@ -1841,7 +1841,6 @@ class HEDMInstrument(object):
                 xy_eval = np.vstack(
                     [xy_eval[0].flatten(), xy_eval[1].flatten()]
                 ).T
-                xyc_arr = xy_eval.reshape(prows, pcols, 2).transpose(2, 0, 1)
 
                 if contains_signal:
                     # overwrite patch data if using bilinear option
@@ -1880,6 +1879,11 @@ class HEDMInstrument(object):
                         )
                     )
 
+                    mask = labels == (closest_peak_idx + 1)
+
+                    sum_intensities = patch_data[mask].sum()
+                    max_intensities = patch_data_raw[mask].max()
+
                     meas_angs = np.hstack(
                         [
                             tth_edges[0] + (0.5 + coms[closest_peak_idx][2]) * (tth_edges[1] - tth_edges[0]),
@@ -1897,34 +1901,12 @@ class HEDMInstrument(object):
                         ]
                     )
 
-                    # Calculate the sum and max of the intensities
-                    mask = labels == (closest_peak_idx + 1)
-
-                    sum_int = patch_data[mask].sum()
-                    max_int = patch_data_raw[mask].max()
-
-                    gvec_c = angles_to_gvec(
+                    meas_xy = self._get_meas_xy(
+                        panel,
                         meas_angs,
-                        self.beam_vector,
-                        chi=self.chi,
-                        rmat_c=rMat_c,
-                    )
-                    rMat_s = make_sample_rmat(self.chi, meas_angs[2])
-                    meas_xy = gvec_to_xy(
-                        gvec_c,
-                        panel.rmat,
-                        rMat_s,
                         rMat_c,
-                        panel.tvec,
-                        self.tvec,
                         tVec_c,
-                        self.beam_vector,
                     )
-
-                    if panel.distortion is not None:
-                        meas_xy = panel.distortion.apply_inverse(
-                            np.atleast_2d(meas_xy)
-                        ).flatten()
 
                 if peak_id < 0:
                     # The peak is invalid. Decrement next invalid peak ID.
@@ -1935,8 +1917,8 @@ class HEDMInstrument(object):
                         peak_id,
                         hkl_id,
                         hkl,
-                        sum_int,
-                        max_int,
+                        sum_intensities,
+                        max_intensities,
                         ang_centers[patch_id],
                         meas_angs,
                         xy_centers[patch_id],
@@ -1952,7 +1934,7 @@ class HEDMInstrument(object):
                         tth_edges,
                         eta_edges,
                         np.radians(omega_eval),
-                        xyc_arr,
+                        xy_eval.reshape(prows, pcols, 2).transpose(2, 0, 1),
                         ijs,
                         frame_indices,
                         patch_data,
@@ -1974,7 +1956,7 @@ class HEDMInstrument(object):
                             tth_edges,
                             eta_edges,
                             np.radians(omega_eval),
-                            xyc_arr,
+                            xy_eval.reshape(prows, pcols, 2).transpose(2, 0, 1),
                             ijs,
                             frame_indices,
                             patch_data,
@@ -1991,8 +1973,8 @@ class HEDMInstrument(object):
                             peak_id,
                             hkl_id,
                             hkl,
-                            sum_int,
-                            max_int,
+                            sum_intensities,
+                            max_intensities,
                             ang_centers[patch_id],
                             meas_angs,
                             meas_xy,
@@ -2136,6 +2118,31 @@ class HEDMInstrument(object):
             npdiv=npdiv,
         )
         return patches
+
+    def _get_meas_xy(self, panel: Any, meas_angles: np.array, rMat_c: np.array, tVec_c: np.array):
+        gvec_c = angles_to_gvec(
+            meas_angles,
+            self.beam_vector,
+            chi=self.chi,
+            rmat_c=rMat_c,
+        )
+        rMat_s = make_sample_rmat(self.chi, meas_angles[2])
+        meas_xy = gvec_to_xy(
+            gvec_c,
+            panel.rmat,
+            rMat_s,
+            rMat_c,
+            panel.tvec,
+            self.tvec,
+            tVec_c,
+            self.beam_vector,
+        )
+
+        if panel.distortion is not None:
+            meas_xy = panel.distortion.apply_inverse(
+                np.atleast_2d(meas_xy)
+            ).flatten()
+        return meas_xy
 
     def update_memoization_sizes(self):
         # Resize all known memoization functions to have a cache at least
