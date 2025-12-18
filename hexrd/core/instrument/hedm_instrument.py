@@ -876,12 +876,12 @@ class HEDMInstrument(object):
 
     @beam_vector.setter
     def beam_vector(self, x: np.ndarray):
-        """ Accepts either a 3-element unit vector, or a 2-element
-            (azimuth, polar angle) pair in degrees to set the beam vector. """
+        """Accepts either a 3-element unit vector, or a 2-element
+        (azimuth, polar angle) pair in degrees to set the beam vector."""
         x = np.array(x).flatten()
         if len(x) not in (2, 3):
             raise ValueError("beam_vector must be a 2 or 3-element array-like")
-        
+
         if len(x) == 3:
             if np.abs(np.linalg.norm(x) - 1) > np.finfo(float).eps:
                 raise ValueError("beam_vector must be a unit vector")
@@ -934,7 +934,9 @@ class HEDMInstrument(object):
                 list(self.create_default_energy_correction())
             )
             if keys != default_keys:
-                raise ValueError(f'energy_correction keys do not match required keys.\nGot: {keys}\nExpected: {default_keys}')
+                raise ValueError(
+                    f'energy_correction keys do not match required keys.\nGot: {keys}\nExpected: {default_keys}'
+                )
 
         self.active_beam['energy_correction'] = v
 
@@ -971,7 +973,9 @@ class HEDMInstrument(object):
         """WRITE OUT YAML FILE"""
         # initialize output dictionary
         if style.lower() not in ['yaml', 'hdf5']:
-            raise ValueError(f"style must be 'yaml' or 'hdf5' but is '{style}'")
+            raise ValueError(
+                f"style must be 'yaml' or 'hdf5' but is '{style}'"
+            )
 
         par_dict = {}
 
@@ -1774,7 +1778,9 @@ class HEDMInstrument(object):
                 item[0] for item in sim_results[detector_id]
             ]
 
-            _, mask = self._get_panel_mask(tth_tol, eta_tol, ang_centers, panel, rMat_c, tVec_c)
+            _, mask = self._get_panel_mask(
+                tth_tol, eta_tol, ang_centers, panel, rMat_c, tVec_c
+            )
 
             hkls_p = hkls_p[mask]
             ang_centers = ang_centers[mask]
@@ -1800,12 +1806,16 @@ class HEDMInstrument(object):
                 os.makedirs(output_dir, exist_ok=True)
                 writer = PatchDataWriter(os.path.join(output_dir, filename))
 
-            for patch_id, (vtx_angs, _, _, areas, xy_eval, ijs) in enumerate(patches):
+            for patch_id, (vtx_angs, _, _, areas, xy_eval, ijs) in enumerate(
+                patches
+            ):
                 prows, pcols = areas.shape
                 hkl_id, hkl = hkl_ids[patch_id], hkls_p[patch_id, :]
 
                 tth_edges = vtx_angs[0][0, :]
                 eta_edges = vtx_angs[1][:, 0]
+                delta_ttheta = tth_edges[1] - tth_edges[0]
+                delta_eta = eta_edges[1] - eta_edges[0]
 
                 omega_eval = np.degrees(ang_centers[patch_id, 2]) + ome_grid
 
@@ -1886,8 +1896,10 @@ class HEDMInstrument(object):
 
                     meas_angs = np.hstack(
                         [
-                            tth_edges[0] + (0.5 + coms[closest_peak_idx][2]) * (tth_edges[1] - tth_edges[0]),
-                            eta_edges[0] + (0.5 + coms[closest_peak_idx][1]) * (eta_edges[1] - eta_edges[0]),
+                            tth_edges[0]
+                            + (0.5 + coms[closest_peak_idx][2]) * delta_ttheta,
+                            eta_edges[0]
+                            + (0.5 + coms[closest_peak_idx][1]) * delta_eta,
                             mapAngle(
                                 np.radians(
                                     (
@@ -1934,7 +1946,7 @@ class HEDMInstrument(object):
                         tth_edges,
                         eta_edges,
                         np.radians(omega_eval),
-                        xy_eval.reshape(prows, pcols, 2).transpose(2, 0, 1),
+                        xy_eval.T.reshape(2, prows, pcols),
                         ijs,
                         frame_indices,
                         patch_data,
@@ -1956,7 +1968,7 @@ class HEDMInstrument(object):
                             tth_edges,
                             eta_edges,
                             np.radians(omega_eval),
-                            xy_eval.reshape(prows, pcols, 2).transpose(2, 0, 1),
+                            xy_eval.T.reshape(2, prows, pcols),
                             ijs,
                             frame_indices,
                             patch_data,
@@ -2035,7 +2047,9 @@ class HEDMInstrument(object):
                 item[0] for item in sim_results[detector_id]
             ]
 
-            det_xy, mask = self._get_panel_mask(tth_tol, eta_tol, ang_centers, panel, rMat_c, tVec_c)
+            det_xy, mask = self._get_panel_mask(
+                tth_tol, eta_tol, ang_centers, panel, rMat_c, tVec_c
+            )
 
             patch_xys = det_xy.reshape(-1, 4, 2)[mask]
             hkls_p = hkls_p[mask]
@@ -2072,8 +2086,15 @@ class HEDMInstrument(object):
 
         return patch_has_signal, output
 
-    def _get_panel_mask(self, tth_tol: float, eta_tol: float, ang_centers: np.array,
-                        panel: Any, rMat_c: np.ndarray, tVec_c: np.ndarray) -> np.ndarray:
+    def _get_panel_mask(
+        self,
+        tth_tol: float,
+        eta_tol: float,
+        ang_centers: np.array,
+        panel: Any,
+        rMat_c: np.ndarray,
+        tVec_c: np.ndarray,
+    ) -> np.ndarray:
         offsets = 0.5 * np.radians(
             [
                 [-tth_tol, -eta_tol, 0],
@@ -2098,7 +2119,17 @@ class HEDMInstrument(object):
         mask = on_panel.reshape(-1, 4).all(axis=1)
         return det_xy, mask
 
-    def _get_panel_patches(self, panel: Any, ang_centers: np.ndarray, ang_pixel_size: np.array, tth_tol: float, eta_tol: float, rMat_c: np.array, tvec_c: np.array, npdiv: int):
+    def _get_panel_patches(
+        self,
+        panel: Any,
+        ang_centers: np.ndarray,
+        ang_pixel_size: np.array,
+        tth_tol: float,
+        eta_tol: float,
+        rMat_c: np.array,
+        tvec_c: np.array,
+        npdiv: int,
+    ):
         instrument_config = panel.config_dict(
             self.chi,
             self.tvec,
@@ -2119,7 +2150,13 @@ class HEDMInstrument(object):
         )
         return patches
 
-    def _get_meas_xy(self, panel: Any, meas_angles: np.array, rMat_c: np.array, tVec_c: np.array):
+    def _get_meas_xy(
+        self,
+        panel: Any,
+        meas_angles: np.array,
+        rMat_c: np.array,
+        tVec_c: np.array,
+    ):
         gvec_c = angles_to_gvec(
             meas_angles,
             self.beam_vector,
