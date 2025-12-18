@@ -76,6 +76,7 @@ from hexrd.core.rotations import mapAngle
 from hexrd.core import distortion as distortion_pkg
 from hexrd.core.utils.concurrent import distribute_tasks
 from hexrd.core.utils.hdf5 import unwrap_dict_to_h5, unwrap_h5_to_dict
+from hexrd.core.utils.panel_buffer import panel_buffer_from_str
 from hexrd.core.utils.yaml import NumpyToNativeDumper
 from hexrd.core.valunits import valWUnit
 from hexrd.powder.wppf import LeBail
@@ -238,8 +239,12 @@ def chunk_instrument(instr, rects, labels, use_roi=False):
             new_icfg_dict['detectors'][panel_name] = copy.deepcopy(tmp_cfg)
 
             if panel.panel_buffer is not None:
-                if panel.panel_buffer.ndim == 2:  # have a mask array!
-                    submask = panel.panel_buffer[
+                buffer = panel.panel_buffer
+                if isinstance(buffer, str):
+                    buffer = panel_buffer_from_str(buffer, panel)
+
+                if buffer.ndim == 2:  # have a mask array!
+                    submask = buffer[
                         rect[0, 0] : rect[0, 1], rect[1, 0] : rect[1, 1]
                     ]
                     new_icfg_dict['detectors'][panel_name]['buffer'] = submask
@@ -652,6 +657,8 @@ class HEDMInstrument(object):
                             panel_buffer = det_buffer
                         elif isinstance(det_buffer, list):
                             panel_buffer = np.asarray(det_buffer)
+                        elif isinstance(det_buffer, str):
+                            panel_buffer = det_buffer
                         elif np.isscalar(det_buffer):
                             panel_buffer = det_buffer * np.ones(2)
                         else:
