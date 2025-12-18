@@ -37,7 +37,7 @@ import os
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
-from typing import List, Literal, Optional, Tuple, Union, Dict
+from typing import Any, List, Literal, Optional, Tuple, Union, Dict
 
 from tqdm import tqdm
 
@@ -1756,16 +1756,6 @@ class HEDMInstrument(object):
             ome_period=ome_period,
         )
 
-        # compute offsets for patch corners in lab frame
-        offsets = 0.5 * np.radians(
-            [
-                [-tth_tol, -eta_tol, 0],
-                [-tth_tol, eta_tol, 0],
-                [tth_tol, eta_tol, 0],
-                [tth_tol, -eta_tol, 0],
-            ]
-        )
-
         if write_hdf5:
             writer = GrainDataWriter_h5(
                 os.path.join(dirname, filename),
@@ -1784,44 +1774,22 @@ class HEDMInstrument(object):
                 item[0] for item in sim_results[detector_id]
             ]
 
-            lab_coords = (ang_centers[:, None, :] + offsets).reshape(-1, 3)
-            det_xy, _, _ = _project_on_detector_plane(
-                lab_coords,
-                panel.rmat,
-                rMat_c,
-                self.chi,
-                panel.tvec,
-                tVec_c,
-                self.tvec,
-                panel.distortion,
-            )
-
-            _, on_panel = panel.clip_to_panel(det_xy, buffer_edges=True)
-            mask = on_panel.reshape(-1, 4).all(axis=1)
+            _, mask = self._get_panel_mask(tth_tol, eta_tol, ang_centers, panel, rMat_c, tVec_c)
 
             hkls_p = hkls_p[mask]
             ang_centers = ang_centers[mask]
             hkl_ids = hkl_ids[mask]
             xy_centers = xy_centers[mask]
-            ang_pixel_size = ang_pixel_size[mask]
 
-            instrument_cfg = panel.config_dict(
-                self.chi,
-                self.tvec,
-                beam_energy=self.beam_energy,
-                beam_vector=self.beam_vector,
-                style='hdf5',
-            )
-            patches = xrdutil.make_reflection_patches(
-                instrument_cfg,
-                ang_centers[:, :2],
-                ang_pixel_size,
-                omega=ang_centers[:, 2],
-                tth_tol=tth_tol,
-                eta_tol=eta_tol,
-                rmat_c=rMat_c,
-                tvec_c=tVec_c,
-                npdiv=npdiv,
+            patches = self._get_panel_patches(
+                panel,
+                ang_centers,
+                ang_pixel_size[mask],
+                tth_tol,
+                eta_tol,
+                rMat_c,
+                tVec_c,
+                npdiv,
             )
             omega_image_series = _parse_imgser_dict(
                 imgser_dict, detector_id, roi=panel.roi
@@ -1832,16 +1800,12 @@ class HEDMInstrument(object):
                 os.makedirs(output_dir, exist_ok=True)
                 writer = PatchDataWriter(os.path.join(output_dir, filename))
 
-            for patch_id, (vtx_angs, _, _, areas, xy_eval, ijs) in enumerate(
-                patches
-            ):
+            for patch_id, (vtx_angs, _, _, areas, xy_eval, ijs) in enumerate(patches):
                 prows, pcols = areas.shape
                 hkl_id, hkl = hkl_ids[patch_id], hkls_p[patch_id, :]
 
                 tth_edges = vtx_angs[0][0, :]
-                delta_tth = tth_edges[1] - tth_edges[0]
                 eta_edges = vtx_angs[1][:, 0]
-                delta_eta = eta_edges[1] - eta_edges[0]
 
                 omega_eval = np.degrees(ang_centers[patch_id, 2]) + ome_grid
 
@@ -1853,9 +1817,7 @@ class HEDMInstrument(object):
                     logging.info(f"window for {hkl} falls outside omega range")
                     continue
 
-                omega_edges = [
-                    omega_image_series.omega[i][0] for i in frame_indices
-                ]
+                omega_edges = omega_image_series.omega[frame_indices[0]][0]
                 patch_data_raw = np.stack(
                     [
                         omega_image_series[i, ijs[0], ijs[1]]
@@ -1920,14 +1882,12 @@ class HEDMInstrument(object):
 
                     meas_angs = np.hstack(
                         [
-                            tth_edges[0]
-                            + (0.5 + coms[closest_peak_idx][2]) * delta_tth,
-                            eta_edges[0]
-                            + (0.5 + coms[closest_peak_idx][1]) * delta_eta,
+                            tth_edges[0] + (0.5 + coms[closest_peak_idx][2]) * (tth_edges[1] - tth_edges[0]),
+                            eta_edges[0] + (0.5 + coms[closest_peak_idx][1]) * (eta_edges[1] - eta_edges[0]),
                             mapAngle(
                                 np.radians(
                                     (
-                                        omega_edges[0]
+                                        omega_edges
                                         + (0.5 + coms[closest_peak_idx][0])
                                         * delta_omega
                                     )
@@ -2081,15 +2041,6 @@ class HEDMInstrument(object):
             ome_period=ome_period,
         )
 
-        offsets = 0.5 * np.radians(
-            [
-                [-tth_tol, -eta_tol, 0],
-                [-tth_tol, eta_tol, 0],
-                [tth_tol, eta_tol, 0],
-                [tth_tol, -eta_tol, 0],
-            ]
-        )
-
         patch_has_signal = []
         output = defaultdict(list)
         for detector_id, panel in self.detectors.items():
@@ -2102,20 +2053,7 @@ class HEDMInstrument(object):
                 item[0] for item in sim_results[detector_id]
             ]
 
-            lab_coords = (ang_centers[:, None, :] + offsets).reshape(-1, 3)
-            det_xy, _, _ = _project_on_detector_plane(
-                lab_coords,
-                panel.rmat,
-                rMat_c,
-                self.chi,
-                panel.tvec,
-                tVec_c,
-                self.tvec,
-                panel.distortion,
-            )
-
-            _, on_panel = panel.clip_to_panel(det_xy, buffer_edges=True)
-            mask = on_panel.reshape(-1, 4).all(axis=1)
+            det_xy, mask = self._get_panel_mask(tth_tol, eta_tol, ang_centers, panel, rMat_c, tVec_c)
 
             patch_xys = det_xy.reshape(-1, 4, 2)[mask]
             hkls_p = hkls_p[mask]
@@ -2151,6 +2089,53 @@ class HEDMInstrument(object):
                 output[detector_id].append((ii, jj, frame_indices))
 
         return patch_has_signal, output
+
+    def _get_panel_mask(self, tth_tol: float, eta_tol: float, ang_centers: np.array,
+                        panel: Any, rMat_c: np.ndarray, tVec_c: np.ndarray) -> np.ndarray:
+        offsets = 0.5 * np.radians(
+            [
+                [-tth_tol, -eta_tol, 0],
+                [-tth_tol, eta_tol, 0],
+                [tth_tol, eta_tol, 0],
+                [tth_tol, -eta_tol, 0],
+            ]
+        )
+        lab_coords = (ang_centers[:, None, :] + offsets).reshape(-1, 3)
+        det_xy, _, _ = _project_on_detector_plane(
+            lab_coords,
+            panel.rmat,
+            rMat_c,
+            self.chi,
+            panel.tvec,
+            tVec_c,
+            self.tvec,
+            panel.distortion,
+        )
+
+        _, on_panel = panel.clip_to_panel(det_xy, buffer_edges=True)
+        mask = on_panel.reshape(-1, 4).all(axis=1)
+        return det_xy, mask
+
+    def _get_panel_patches(self, panel: Any, ang_centers: np.ndarray, ang_pixel_size: np.array, tth_tol: float, eta_tol: float, rMat_c: np.array, tvec_c: np.array, npdiv: int):
+        instrument_config = panel.config_dict(
+            self.chi,
+            self.tvec,
+            beam_energy=self.beam_energy,
+            beam_vector=self.beam_vector,
+            style='hdf5',
+        )
+        patches = xrdutil.make_reflection_patches(
+            instrument_config,
+            ang_centers[:, :2],
+            ang_pixel_size,
+            omega=ang_centers[:, 2],
+            tth_tol=tth_tol,
+            eta_tol=eta_tol,
+            rmat_c=rMat_c,
+            tvec_c=tvec_c,
+            npdiv=npdiv,
+        )
+        return patches
 
     def update_memoization_sizes(self):
         # Resize all known memoization functions to have a cache at least
