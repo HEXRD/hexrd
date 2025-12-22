@@ -526,6 +526,7 @@ class HEDMInstrument(object):
         active_beam_name: Optional[str] = 'XRS1',
     ):
         self._id = instrument_name_DFLT
+        self._id = instrument_name if instrument_name is not None else self._id
 
         self._active_beam_name = active_beam_name
         self._beam_dict = {}
@@ -533,11 +534,10 @@ class HEDMInstrument(object):
 
         self.max_workers = max_workers
         self.physics_package = physics_package
+        self._detectors = {}
 
+        # Default instrument
         if instrument_config is None:
-            # Default instrument
-            if instrument_name is not None:
-                self._id = instrument_name
             self._num_panels = 1
             self._create_default_beam()
 
@@ -571,9 +571,7 @@ class HEDMInstrument(object):
                     f"instrument_config must be either an hdf5 file or dict but got {type(instrument_config)}"
                 )
 
-            if instrument_name is not None:
-                self._id = instrument_name
-            else:
+            if instrument_name is None:
                 self._id = instrument_config.get('id', self._id)
 
             self._num_panels = len(instrument_config['detectors'])
@@ -606,26 +604,23 @@ class HEDMInstrument(object):
 
             # now build detector dict
             detectors_config = instrument_config['detectors']
-            det_dict = dict.fromkeys(detectors_config)
+
             for det_id, det_info in detectors_config.items():
-                det_group = det_info.get('group')  # optional detector group
-                pixel_info = det_info['pixels']
-                affine_info = det_info['transform']
-                detector_type = det_info.get('detector_type', 'planar')
-                filter = det_info.get('filter', None)
-                coating = det_info.get('coating', None)
-                phosphor = det_info.get('phosphor', None)
-                saturation_level = det_info.get('saturation_level', 2**16)
+                pixel_info = det_info.get('pixels')
+                affine_info = det_info.get('transform')
+                detector_type = det_info.get('detector_type', 'planar').lower()
+                saturation_level = det_info.get('saturation_level', 2 ** 16)
                 shape = (pixel_info['rows'], pixel_info['columns'])
 
                 panel_buffer = None
-                det_buffer = det_info.get(buffer_key, None)
+                det_buffer = det_info.get(buffer_key)
 
                 if isinstance(det_buffer, np.ndarray):
-                    if det_buffer.ndim == 2 and det_buffer.shape != shape:
-                        msg = f'Buffer shape for {det_id} ({det_buffer.shape}) \
-                                does not match detector shape ({shape})'
-                        raise BufferShapeMismatchError(msg)
+                    if det_buffer.ndim == 2:
+                        if det_buffer.shape != shape:
+                            msg = f'Buffer shape for {det_id} ({det_buffer.shape}) \
+                                    does not match detector shape ({shape})'
+                            raise BufferShapeMismatchError(msg)
                     elif det_buffer.shape[0] != 2:
                         raise ValueError(f"Buffer size for {det_id} must be 2")
                     panel_buffer = det_buffer
@@ -636,9 +631,6 @@ class HEDMInstrument(object):
                 elif det_buffer is not None:
                     raise ValueError(f"panel buffer invalid for: {det_id}")
 
-                # optional roi
-                roi = pixel_info.get('roi')
-
                 # handle distortion
                 distortion = None
                 distortion_cfg = det_info.get(distortion_key, None)
@@ -646,11 +638,11 @@ class HEDMInstrument(object):
                     func_name = distortion_cfg.get('function_name', None)
                     dparams = distortion_cfg.get('parameters', {})
                     distortion = distortion_pkg.get_mapping(func_name, dparams)
-
-                if detector_type.lower() not in DETECTOR_TYPES:
+    
+                DetectorClass = DETECTOR_TYPES.get(detector_type)
+                if DetectorClass is None:
                     raise ValueError(f'Unknown detector type: {detector_type}')
 
-                DetectorClass = DETECTOR_TYPES[detector_type.lower()]
                 kwargs = dict(
                     name=det_id,
                     rows=pixel_info['rows'],
@@ -664,21 +656,19 @@ class HEDMInstrument(object):
                     xrs_dist=self.source_distance,
                     evec=self._eta_vector,
                     distortion=distortion,
-                    roi=roi,
-                    group=det_group,
+                    roi=pixel_info.get('roi'),
+                    group=det_info.get('group'),
                     max_workers=self.max_workers,
-                    detector_filter=filter,
-                    detector_coating=coating,
-                    phosphor=phosphor,
+                    detector_filter=det_info.get('filter'),
+                    detector_coating=det_info.get('coating'),
+                    phosphor=det_info.get('phosphor'),
                 )
 
                 if DetectorClass is CylindricalDetector:
                     # Add cylindrical detector kwargs
                     kwargs['radius'] = det_info.get('radius', 49.51)
 
-                det_dict[det_id] = DetectorClass(**kwargs)
-
-            self._detectors = det_dict
+                self._detectors[det_id] = DetectorClass(**kwargs)
 
             self._tvec = np.array(
                 [instrument_config['oscillation_stage']['translation']]
@@ -836,8 +826,6 @@ class HEDMInstrument(object):
         """Accepts either a 3-element unit vector, or a 2-element
         (azimuth, polar angle) pair in degrees to set the beam vector."""
         x = np.array(x).flatten()
-        if len(x) not in (2, 3):
-            raise ValueError("beam_vector must be a 2 or 3-element array-like")
 
         if len(x) == 3:
             if np.abs(np.linalg.norm(x) - 1) > np.finfo(float).eps:
@@ -845,6 +833,8 @@ class HEDMInstrument(object):
             bvec = x
         elif len(x) == 2:
             bvec = calc_beam_vec(*x)
+        else:
+            raise ValueError("beam_vector must be a 2 or 3-element array-like")
 
         # Modify the beam vector for the active beam dict
         self.active_beam['vector'] = bvec
