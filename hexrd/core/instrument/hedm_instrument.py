@@ -1701,10 +1701,7 @@ class HEDMInstrument(object):
             arrays and coordinates; otherwise, they contain summary data.
         """
         if quiet is not None:
-            logging.warning(
-                "'quiet' argument is deprecated and is marked for removal.",
-                DeprecationWarning,
-            )
+            logging.warning("'quiet' is deprecated and marked for removal.")
 
         if check_only:
             return self._pull_spots_check_only(
