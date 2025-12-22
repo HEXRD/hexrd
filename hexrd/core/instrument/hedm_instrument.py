@@ -54,6 +54,7 @@ from scipy.linalg import logm
 from skimage.measure import regionprops
 
 from hexrd.core import constants
+from hexrd.core.distortion.distortionabc import DistortionABC
 from hexrd.core.imageseries import ImageSeries
 from hexrd.core.imageseries.process import ProcessedImageSeries
 from hexrd.core.imageseries.omega import OmegaImageSeries
@@ -247,7 +248,9 @@ def chunk_instrument(instr, rects, labels, use_roi=False):
     return new_icfg_dict
 
 
-def _parse_imgser_dict(imgser_dict, det_key, roi=None):
+def _parse_imgser_dict(
+    imgser_dict: dict[str, ImageSeries], det_key: str, roi=None
+):
     """
     Associates a dict of imageseries to the target panel(s).
 
@@ -276,63 +279,52 @@ def _parse_imgser_dict(imgser_dict, det_key, roi=None):
         The desired imageseries object.
 
     """
-    # grab imageseries for this detector
-    try:
-        ims = imgser_dict[det_key]
-    except KeyError:
-        matched_det_keys = [det_key in k for k in imgser_dict]
-        if multi_ims_key in imgser_dict:
-            images_in = imgser_dict[multi_ims_key]
-        elif np.any(matched_det_keys):
-            if sum(matched_det_keys) != 1:
-                raise RuntimeError(f"multiple entries found for '{det_key}'")
-            # use boolean array to index the proper key
-            # !!! these should be in the same order
-            img_keys = img_keys = np.asarray(list(imgser_dict.keys()))
-            matched_det_key = img_keys[matched_det_keys][0]  # !!! only one
-            images_in = imgser_dict[matched_det_key]
-        else:
-            raise RuntimeError(
-                f"neither '{det_key}' nor '{multi_ims_key}' found"
-                + 'in imageseries input'
+    if det_key in imgser_dict:
+        return imgser_dict[det_key]
+
+    if multi_ims_key in imgser_dict:
+        images_in = imgser_dict[multi_ims_key]
+    else:
+        matches = [k for k in imgser_dict if det_key in k]
+
+        if len(matches) > 1:
+            raise RuntimeError(f"multiple entries found for '{det_key}'")
+        elif not any(matches):
+            raise KeyError(
+                f"neither '{det_key}' nor '{multi_ims_key}' is in imgser_dict"
             )
 
-        # have images now
-        if roi is None:
-            raise RuntimeError(
-                "roi must be specified to use shared imageseries"
-            )
+        images_in = imgser_dict[matches[0]]
 
-        if isinstance(images_in, ims_classes):
-            # input is an imageseries of some kind
-            ims = ProcessedImageSeries(
-                images_in,
-                [
-                    ('rectangle', roi),
-                ],
-            )
-            if isinstance(images_in, OmegaImageSeries):
-                # if it was an OmegaImageSeries, must re-cast
-                ims = OmegaImageSeries(ims)
-        elif isinstance(images_in, np.ndarray):
-            # 2- or 3-d array of images
-            ndim = images_in.ndim
-            if ndim == 2:
-                ims = images_in[roi[0][0] : roi[0][1], roi[1][0] : roi[1][1]]
-            elif ndim == 3:
-                nrows = roi[0][1] - roi[0][0]
-                ncols = roi[1][1] - roi[1][0]
-                n_images = len(images_in)
-                ims = np.empty((n_images, nrows, ncols), dtype=images_in.dtype)
-                for i, image in images_in:
-                    ims[i, :, :] = images_in[
-                        roi[0][0] : roi[0][1], roi[1][0] : roi[1][1]
-                    ]
-            else:
-                raise RuntimeError(
-                    f"image input dim must be 2 or 3; you gave {ndim}"
-                )
-    return ims
+    # have images now
+    if roi is None:
+        raise RuntimeError("roi must be specified to use shared imageseries")
+
+    if isinstance(images_in, ims_classes):
+        # input is an imageseries of some kind
+        ims = ProcessedImageSeries(images_in, [('rectangle', roi)])
+        if isinstance(images_in, OmegaImageSeries):
+            # if it was an OmegaImageSeries, must re-cast
+            ims = OmegaImageSeries(ims)
+        return ims
+
+    if isinstance(images_in, np.ndarray):
+        if images_in.ndim == 2:
+            return images_in[
+                roi[0][0] : roi[0][1],
+                roi[1][0] : roi[1][1],
+            ]
+
+        if images_in.ndim == 3:
+            return images_in[
+                :,
+                roi[0][0] : roi[0][1],
+                roi[1][0] : roi[1][1],
+            ]
+
+        raise ValueError(
+            f"image dimension must be 2 or 3, but got {images_in.ndim}"
+        )
 
 
 def calc_beam_vec(azim, pola):
@@ -344,9 +336,9 @@ def calc_beam_vec(azim, pola):
     """
     tht = np.radians(azim)
     phi = np.radians(pola)
-    bv = np.r_[
-        np.sin(phi) * np.cos(tht), np.cos(phi), np.sin(phi) * np.sin(tht)
-    ]
+    bv = np.array(
+        [np.sin(phi) * np.cos(tht), np.cos(phi), np.sin(phi) * np.sin(tht)]
+    )
     return -bv
 
 
@@ -531,20 +523,15 @@ class HEDMInstrument(object):
         tilt_calibration_mapping=None,
         max_workers=max_workers_DFLT,
         physics_package=None,
-        active_beam_name: Optional[str] = None,
+        active_beam_name: Optional[str] = 'XRS1',
     ):
         self._id = instrument_name_DFLT
 
         self._active_beam_name = active_beam_name
         self._beam_dict = {}
-
-        if eta_vector is None:
-            self._eta_vector = eta_vec_DFLT
-        else:
-            self._eta_vector = eta_vector
+        self._eta_vector = eta_vec_DFLT if eta_vector is None else eta_vector
 
         self.max_workers = max_workers
-
         self.physics_package = physics_package
 
         if instrument_config is None:
@@ -580,16 +567,14 @@ class HEDMInstrument(object):
                 unwrap_h5_to_dict(instrument_config, tmp)
                 instrument_config = tmp['instrument']
             elif not isinstance(instrument_config, dict):
-                raise RuntimeError(
-                    "instrument_config must be either an HDF5 file object"
-                    + "or a dictionary.  You gave a %s"
-                    % type(instrument_config)
+                raise TypeError(
+                    f"instrument_config must be either an hdf5 file or dict but got {type(instrument_config)}"
                 )
-            if instrument_name is None:
-                if 'id' in instrument_config:
-                    self._id = instrument_config['id']
-            else:
+
+            if instrument_name is not None:
                 self._id = instrument_name
+            else:
+                self._id = instrument_config.get('id', self._id)
 
             self._num_panels = len(instrument_config['detectors'])
 
@@ -597,9 +582,9 @@ class HEDMInstrument(object):
                 self.physics_package = instrument_config['physics_package']
 
             xrs_config = instrument_config['beam']
-            is_single_beam = 'energy' in xrs_config and 'vector' in xrs_config
-            if is_single_beam:
-                # Assume single beam. Load the same way as multibeam
+
+            # Assume single beam. Load the same way as multibeam
+            if 'energy' in xrs_config and 'vector' in xrs_config:
                 self._create_default_beam()
                 xrs_config = {self.active_beam_name: xrs_config}
 
@@ -630,61 +615,40 @@ class HEDMInstrument(object):
                 filter = det_info.get('filter', None)
                 coating = det_info.get('coating', None)
                 phosphor = det_info.get('phosphor', None)
-                try:
-                    saturation_level = det_info['saturation_level']
-                except KeyError:
-                    saturation_level = 2**16
+                saturation_level = det_info.get('saturation_level', 2**16)
                 shape = (pixel_info['rows'], pixel_info['columns'])
 
                 panel_buffer = None
-                if buffer_key in det_info:
-                    det_buffer = det_info[buffer_key]
-                    if det_buffer is not None:
-                        if isinstance(det_buffer, np.ndarray):
-                            if det_buffer.ndim == 2:
-                                if det_buffer.shape != shape:
-                                    msg = (
-                                        f'Buffer shape for {det_id} '
-                                        f'({det_buffer.shape}) does not match '
-                                        f'detector shape ({shape})'
-                                    )
-                                    raise BufferShapeMismatchError(msg)
-                            else:
-                                if len(det_buffer) != 2:
-                                    raise ValueError(
-                                        f"Buffer length for {det_id} must be 2"
-                                    )
-                            panel_buffer = det_buffer
-                        elif isinstance(det_buffer, list):
-                            panel_buffer = np.asarray(det_buffer)
-                        elif np.isscalar(det_buffer):
-                            panel_buffer = det_buffer * np.ones(2)
-                        else:
-                            raise RuntimeError(
-                                "panel buffer spec invalid for %s" % det_id
-                            )
+                det_buffer = det_info.get(buffer_key, None)
+
+                if isinstance(det_buffer, np.ndarray):
+                    if det_buffer.ndim == 2 and det_buffer.shape != shape:
+                        msg = f'Buffer shape for {det_id} ({det_buffer.shape}) \
+                                does not match detector shape ({shape})'
+                        raise BufferShapeMismatchError(msg)
+                    elif det_buffer.shape[0] != 2:
+                        raise ValueError(f"Buffer size for {det_id} must be 2")
+                    panel_buffer = det_buffer
+                elif isinstance(det_buffer, list):
+                    panel_buffer = np.asarray(det_buffer)
+                elif np.isscalar(det_buffer):
+                    panel_buffer = det_buffer * np.ones(2)
+                elif det_buffer is not None:
+                    raise ValueError(f"panel buffer invalid for: {det_id}")
 
                 # optional roi
                 roi = pixel_info.get('roi')
 
                 # handle distortion
                 distortion = None
-                if distortion_key in det_info:
-                    distortion_cfg = det_info[distortion_key]
-                    if distortion_cfg is not None:
-                        try:
-                            func_name = distortion_cfg['function_name']
-                            dparams = distortion_cfg['parameters']
-                            distortion = distortion_pkg.get_mapping(
-                                func_name, dparams
-                            )
-                        except KeyError:
-                            raise RuntimeError(
-                                "problem with distortion specification"
-                            )
+                distortion_cfg = det_info.get(distortion_key, None)
+                if distortion_cfg is not None:
+                    func_name = distortion_cfg.get('function_name', None)
+                    dparams = distortion_cfg.get('parameters', {})
+                    distortion = distortion_pkg.get_mapping(func_name, dparams)
+
                 if detector_type.lower() not in DETECTOR_TYPES:
-                    msg = f'Unknown detector type: {detector_type}'
-                    raise NotImplementedError(msg)
+                    raise ValueError(f'Unknown detector type: {detector_type}')
 
                 DetectorClass = DETECTOR_TYPES[detector_type.lower()]
                 kwargs = dict(
@@ -716,14 +680,10 @@ class HEDMInstrument(object):
 
             self._detectors = det_dict
 
-            self._tvec = np.r_[
-                instrument_config['oscillation_stage']['translation']
-            ]
+            self._tvec = np.array(
+                [instrument_config['oscillation_stage']['translation']]
+            ).flatten()
             self._chi = instrument_config['oscillation_stage']['chi']
-
-        # grab angles from beam vec
-        # !!! these are in DEGREES!
-        azim, pola = calc_angles_from_beam_vec(self.beam_vector)
 
         self.update_memoization_sizes()
 
@@ -826,9 +786,6 @@ class HEDMInstrument(object):
             'distance': np.inf,
             'energy_correction': None,
         }
-
-        if self._active_beam_name is None:
-            self._active_beam_name = name
 
     @property
     def beam_names(self) -> list[str]:
@@ -1051,12 +1008,12 @@ class HEDMInstrument(object):
 
     def extract_polar_maps(
         self,
-        plane_data,
-        imgser_dict,
-        active_hkls=None,
-        threshold=None,
-        tth_tol=None,
-        eta_tol=0.25,
+        plane_data: PlaneData,
+        imgser_dict: dict[str, ImageSeries],
+        active_hkls: Optional[list[int] | np.ndarray] = None,
+        threshold: Optional[float] = None,
+        tth_tol: Optional[float] = None,
+        eta_tol: Optional[float] = 0.25,
     ):
         """
         Extract eta-omega maps from an imageseries.
@@ -1183,18 +1140,18 @@ class HEDMInstrument(object):
 
     def extract_line_positions(
         self,
-        plane_data,
-        imgser_dict,
-        tth_tol=None,
-        eta_tol=1.0,
-        npdiv=2,
-        eta_centers=None,
-        collapse_eta=True,
-        collapse_tth=False,
-        do_interpolation=True,
-        do_fitting=False,
-        tth_distortion=None,
-        fitting_kwargs=None,
+        plane_data: PlaneData,
+        imgser_dict: dict[str, ImageSeries],
+        tth_tol: Optional[float] = None,
+        eta_tol: float = 1.0,
+        npdiv: int = 2,
+        eta_centers: Optional[np.ndarray] = None,
+        collapse_eta: bool = True,
+        collapse_tth: bool = False,
+        do_interpolation: bool = True,
+        do_fitting: bool = False,
+        tth_distortion: Optional[dict[str, DistortionABC]] = None,
+        fitting_kwargs: Optional[dict] = None,
     ):
         """
         Perform annular interpolation on diffraction images.
@@ -1530,11 +1487,11 @@ class HEDMInstrument(object):
 
     def simulate_laue_pattern(
         self,
-        crystal_data,
-        minEnergy=5.0,
-        maxEnergy=35.0,
-        rmat_s=None,
-        grain_params=None,
+        crystal_data: PlaneData | np.ndarray,
+        minEnergy: float = 5.0,
+        maxEnergy: float = 35.0,
+        rmat_s: np.ndarray = None,
+        grain_params: list[float] | np.ndarray = None,
     ):
         """
         Simulate Laue diffraction over the instrument.
@@ -1576,17 +1533,13 @@ class HEDMInstrument(object):
 
     def simulate_rotation_series(
         self,
-        plane_data,
-        grain_param_list,
-        eta_ranges=[
-            (-np.pi, np.pi),
-        ],
-        ome_ranges=[
-            (-np.pi, np.pi),
-        ],
-        ome_period=(-np.pi, np.pi),
-        wavelength=None,
-    ):
+        plane_data: PlaneData,
+        grain_param_list: list[float] | np.ndarray,
+        eta_ranges: list[tuple[float, float]] = [(-np.pi, np.pi)],
+        ome_ranges: list[tuple[float, float]] = [(-np.pi, np.pi)],
+        ome_period: tuple[float, float] = (-np.pi, np.pi),
+        wavelength: Optional[float] = None,
+    ) -> dict[str, dict]:
         """
         Simulate a monochromatic rotation series over the instrument.
 
@@ -1701,7 +1654,9 @@ class HEDMInstrument(object):
             arrays and coordinates; otherwise, they contain summary data.
         """
         if quiet is not None:
-            logging.warning("'quiet' is deprecated and marked for removal.")
+            logging.warning(
+                "'quiet' argument is deprecated and marked for removal."
+            )
 
         if check_only:
             return self._pull_spots_check_only(
@@ -2093,7 +2048,7 @@ class HEDMInstrument(object):
         tth_tol: float,
         eta_tol: float,
         ang_centers: np.array,
-        panel: Any,
+        panel: Detector,
         rMat_c: np.ndarray,
         tVec_c: np.ndarray,
     ) -> np.ndarray:
@@ -2123,7 +2078,7 @@ class HEDMInstrument(object):
 
     def _get_panel_patches(
         self,
-        panel: Any,
+        panel: Detector,
         ang_centers: np.ndarray,
         ang_pixel_size: np.array,
         tth_tol: float,
@@ -2154,7 +2109,7 @@ class HEDMInstrument(object):
 
     def _get_meas_xy(
         self,
-        panel: Any,
+        panel: Detector,
         meas_angles: np.array,
         rMat_c: np.array,
         tVec_c: np.array,
