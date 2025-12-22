@@ -609,7 +609,7 @@ class HEDMInstrument(object):
                 pixel_info = det_info.get('pixels')
                 affine_info = det_info.get('transform')
                 detector_type = det_info.get('detector_type', 'planar').lower()
-                saturation_level = det_info.get('saturation_level', 2 ** 16)
+                saturation_level = det_info.get('saturation_level', 2**16)
                 shape = (pixel_info['rows'], pixel_info['columns'])
 
                 panel_buffer = None
@@ -638,7 +638,7 @@ class HEDMInstrument(object):
                     func_name = distortion_cfg.get('function_name', None)
                     dparams = distortion_cfg.get('parameters', {})
                     distortion = distortion_pkg.get_mapping(func_name, dparams)
-    
+
                 DetectorClass = DETECTOR_TYPES.get(detector_type)
                 if DetectorClass is None:
                     raise ValueError(f'Unknown detector type: {detector_type}')
@@ -845,10 +845,9 @@ class HEDMInstrument(object):
         return self.active_beam['distance']
 
     @source_distance.setter
-    def source_distance(self, x):
-        assert np.isscalar(
-            x
-        ), f"'source_distance' must be a scalar; you input '{x}'"
+    def source_distance(self, x: float):
+        if not np.isscalar(x):
+            raise TypeError(f"source_distance must be a scalar, got {type(x)}")
         self.active_beam['distance'] = x
         self.beam_dict_modified()
 
@@ -874,16 +873,17 @@ class HEDMInstrument(object):
 
     @energy_correction.setter
     def energy_correction(self, v: Union[dict, None]):
-        if v is not None:
-            # First validate
-            keys = sorted(list(v))
-            default_keys = sorted(
-                list(self.create_default_energy_correction())
+        if v is None:
+            self.active_beam['energy_correction'] = None
+            return
+
+        keys = sorted(list(v))
+        default_keys = sorted(list(self.create_default_energy_correction()))
+
+        if keys != default_keys:
+            raise ValueError(
+                f'energy_correction keys do not match required keys.\nGot: {keys}\nExpected: {default_keys}'
             )
-            if keys != default_keys:
-                raise ValueError(
-                    f'energy_correction keys do not match required keys.\nGot: {keys}\nExpected: {default_keys}'
-                )
 
         self.active_beam['energy_correction'] = v
 
@@ -906,33 +906,35 @@ class HEDMInstrument(object):
             raise ValueError("eta_vector must be a 3-element array-like")
         elif np.abs(np.linalg.norm(x) - 1) > np.finfo(float).eps:
             raise ValueError("eta_vector must be a unit vector")
+
         self._eta_vector = x
-        # ...maybe change dictionary item behavior for 3.x compatibility?
         for detector_id in self.detectors:
-            panel = self.detectors[detector_id]
-            panel.evec = self._eta_vector
+            self.detectors[detector_id].evec = x
 
     # =========================================================================
     # METHODS
     # =========================================================================
 
-    def write_config(self, file=None, style='yaml', calibration_dict={}):
-        """WRITE OUT YAML FILE"""
-        # initialize output dictionary
-        if style.lower() not in ['yaml', 'hdf5']:
-            raise ValueError(
-                f"style must be 'yaml' or 'hdf5' but is '{style}'"
-            )
-
-        par_dict = {}
-
-        par_dict['id'] = self.id
+    def write_config(
+        self,
+        file: str = None,
+        style: Literal['yaml', 'hdf5'] = 'yaml',
+        calibration_dict={},
+    ):
+        par_dict = {
+            'id': self.id,
+            'beam': {},
+            'oscillation_stage': {
+                'chi': self.chi,
+                'translation': self.tvec.tolist(),
+            },
+            'detectors': {},
+        }
 
         # Multi beam writer
-        beam_dict = {}
         for beam_name, beam in self.beam_dict.items():
             azim, polar = calc_angles_from_beam_vec(beam['vector'])
-            beam_dict[beam_name] = {
+            par_dict['beam'][beam_name] = {
                 'energy': beam['energy'],
                 'vector': {
                     'azimuth': azim,
@@ -940,30 +942,23 @@ class HEDMInstrument(object):
                 },
             }
             if beam.get('distance') != np.inf:
-                beam_dict[beam_name]['source_distance'] = beam['distance']
+                par_dict['beam'][beam_name]['source_distance'] = beam[
+                    'distance'
+                ]
 
             if beam.get('energy_correction') is not None:
-                beam_dict[beam_name]['energy_correction'] = beam[
+                par_dict['beam'][beam_name]['energy_correction'] = beam[
                     'energy_correction'
                 ]
 
-        if len(beam_dict) == 1:
+        if len(par_dict['beam']) == 1:
             # Just write it out a single beam (classical way)
-            beam_dict = next(iter(beam_dict.values()))
-
-        par_dict['beam'] = beam_dict
+            par_dict['beam'] = next(iter(par_dict['beam'].values()))
 
         if calibration_dict:
             par_dict['calibration_crystal'] = calibration_dict
 
-        ostage = dict(chi=self.chi, translation=self.tvec.tolist())
-        par_dict['oscillation_stage'] = ostage
-
-        det_dict = dict.fromkeys(self.detectors)
         for det_name, detector in self.detectors.items():
-            # grab panel config
-            # !!! don't need beam or tvec
-            # !!! have vetted style
             pdict = detector.config_dict(
                 chi=self.chi,
                 tvec=self.tvec,
@@ -971,8 +966,7 @@ class HEDMInstrument(object):
                 beam_vector=self.beam_vector,
                 style=style,
             )
-            det_dict[det_name] = pdict['detector']
-        par_dict['detectors'] = det_dict
+            par_dict['detectors'][det_name] = pdict['detector']
 
         # handle output file if requested
         if file is not None:
@@ -980,19 +974,16 @@ class HEDMInstrument(object):
                 with open(file, 'w') as f:
                     yaml.dump(par_dict, stream=f, Dumper=NumpyToNativeDumper)
             else:
+                if not isinstance(file, (str, h5py.File)):
+                    raise TypeError(
+                        f"file must be either a string or h5py.File but got {type(file)}"
+                    )
 
-                def _write_group(file):
-                    instr_grp = file.create_group('instrument')
-                    unwrap_dict_to_h5(instr_grp, par_dict, asattr=False)
-
-                # hdf5
                 if isinstance(file, str):
-                    with h5py.File(file, 'w') as f:
-                        _write_group(f)
-                elif isinstance(file, h5py.File):
-                    _write_group(file)
-                else:
-                    raise TypeError("Unexpected file type.")
+                    file = h5py.File(file, 'w')
+                instr_grp = file.create_group('instrument')
+                unwrap_dict_to_h5(instr_grp, par_dict, asattr=False)
+                file.close()
 
         return par_dict
 
