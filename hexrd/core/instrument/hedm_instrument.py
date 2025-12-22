@@ -1640,13 +1640,12 @@ class HEDMInstrument(object):
         eta_ranges: Optional[tuple[tuple]] = [(-np.pi, np.pi)],
         ome_period: Optional[tuple] = None,
         dirname: Optional[str] = 'results',
-        filename: Optional[str] = None,
+        filename: Optional[os.PathLike] = None,
         output_format: Literal['text', 'hdf5'] = 'text',
         return_spot_list: Optional[bool] = False,
         check_only: Optional[bool] = False,
         interp: Literal['nearest', 'bilinear'] = 'nearest',
-        *args,
-        **kwargs,
+        quiet: Optional[Any] = None,
     ) -> tuple[tuple, dict]:
         """Extract reflection info from a rotation series.
 
@@ -1701,6 +1700,12 @@ class HEDMInstrument(object):
             spot data. If `return_spot_list`, these lists contain full patch
             arrays and coordinates; otherwise, they contain summary data.
         """
+        if quiet is not None:
+            logging.warning(
+                "'quiet' argument is deprecated and is marked for removal.",
+                DeprecationWarning,
+            )
+
         if check_only:
             return self._pull_spots_check_only(
                 plane_data,
