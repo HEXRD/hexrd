@@ -37,7 +37,7 @@ import os
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
-from typing import Any, List, Literal, Optional, Tuple, Union, Dict
+from typing import Any, Literal, Optional, Union
 
 from tqdm import tqdm
 
@@ -1630,14 +1630,14 @@ class HEDMInstrument(object):
     def pull_spots(
         self,
         plane_data: PlaneData,
-        grain_params: List | np.ndarray,
-        imgser_dict: Dict,
+        grain_params: tuple | np.ndarray,
+        imgser_dict: dict,
         tth_tol: Optional[float] = 0.25,
         eta_tol: Optional[float] = 1.0,
         ome_tol: Optional[float] = 1.0,
         npdiv: Optional[int] = 2,
         threshold: Optional[int] = 10,
-        eta_ranges: Optional[List[tuple]] = [(-np.pi, np.pi)],
+        eta_ranges: Optional[tuple[tuple]] = [(-np.pi, np.pi)],
         ome_period: Optional[tuple] = None,
         dirname: Optional[str] = 'results',
         filename: Optional[str] = None,
@@ -1647,7 +1647,7 @@ class HEDMInstrument(object):
         interp: Literal['nearest', 'bilinear'] = 'nearest',
         *args,
         **kwargs,
-    ) -> Tuple[List, Dict]:
+    ) -> tuple[tuple, dict]:
         """Extract reflection info from a rotation series.
 
         Input must be encoded as an OmegaImageseries object.
@@ -2001,13 +2001,13 @@ class HEDMInstrument(object):
     def _pull_spots_check_only(
         self,
         plane_data: PlaneData,
-        grain_params: List | np.ndarray,
-        imgser_dict: Dict,
+        grain_params: tuple | np.ndarray,
+        imgser_dict: dict,
         tth_tol: Optional[float] = 0.25,
         eta_tol: Optional[float] = 1.0,
         ome_tol: Optional[float] = 1.0,
         threshold: Optional[int] = 10,
-        eta_ranges: Optional[List[tuple]] = [(-np.pi, np.pi)],
+        eta_ranges: Optional[tuple[tuple]] = [(-np.pi, np.pi)],
         ome_period: Optional[tuple] = None,
     ):
         rMat_c = make_rmat_of_expmap(grain_params[:3])
