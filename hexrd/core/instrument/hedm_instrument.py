@@ -1218,7 +1218,7 @@ class HEDMInstrument(object):
         return {det: res for det, res in zip(self.detectors, results)}
 
     def simulate_powder_pattern(
-        self, mat_list, params=None, bkgmethod=None, origin=None, noise=None
+        self, mat_list, params=None, bkgmethod={'chebyshev': 3}, origin=None, noise=None
     ):
         """
         Generate powder diffraction iamges from specified materials.
@@ -1258,10 +1258,8 @@ class HEDMInstrument(object):
         if origin is None:
             origin = self.tvec
         origin = np.asarray(origin).squeeze()
-        assert len(origin) == 3, "origin must be a 3-element sequence"
-
-        if bkgmethod is None:
-            bkgmethod = {'chebyshev': 3}
+        if len(origin) != 3:
+            raise ValueError("origin must be a list or array-like of length 3")
 
         '''
         if params is none, fill in some sane default values
@@ -1294,17 +1292,10 @@ class HEDMInstrument(object):
         LeBail class, all that means is the initial intensity needs that factor
         in there
         '''
-        img_dict = dict.fromkeys(self.detectors)
 
-        # find min and max tth over all panels
-        tth_mi = np.inf
-        tth_ma = 0.0
         ptth_dict = dict.fromkeys(self.detectors)
         for det_key, panel in self.detectors.items():
-            ptth, peta = panel.pixel_angles(origin=origin)
-            tth_mi = min(tth_mi, ptth.min())
-            tth_ma = max(tth_ma, ptth.max())
-            ptth_dict[det_key] = ptth
+            ptth_dict[det_key] = panel.pixel_angles(origin=origin)[0]
 
         '''
         now make a list of two theta and dummy ones for the experimental
@@ -1316,15 +1307,9 @@ class HEDMInstrument(object):
         tth_mi = np.degrees(tth_mi)
         tth_ma = np.degrees(tth_ma)
 
-        # get tth angular resolution for instrument
-        ang_res = max_resolution(self)
-
-        # !!! calc nsteps by oversampling
-        nsteps = int(np.ceil(2 * (tth_ma - tth_mi) / np.degrees(ang_res[0])))
-
-        # evaulation vector for LeBail
+        angular_resolution = np.degrees(max_resolution(self)[0])
+        nsteps = int(np.ceil(2 * (tth_ma - tth_mi) / angular_resolution))
         tth = np.linspace(tth_mi, tth_ma, nsteps)
-
         expt = np.vstack([tth, np.ones_like(tth)]).T
 
         wavelength = [
@@ -1332,15 +1317,10 @@ class HEDMInstrument(object):
             1.0,
         ]
 
-        '''
-        now go through the material list and get the intensity dictionary
-        '''
         intensity = {}
-        for mat in mat_list:
-
-            multiplicity = mat.planeData.getMultiplicity()
-
-            tth = mat.planeData.getTTh()
+        for material in mat_list:
+            multiplicity = material.planeData.getMultiplicity()
+            tth = material.planeData.getTTh()
 
             LP = (
                 (1 + np.cos(tth) ** 2)
@@ -1348,10 +1328,9 @@ class HEDMInstrument(object):
                 / np.sin(0.5 * tth) ** 2
             )
 
-            intensity[mat.name] = {}
-            intensity[mat.name]['synchrotron'] = (
-                mat.planeData.structFact * LP * multiplicity
-            )
+            intensity[material.name] = {
+                'synchrotron': material.planeData.structFact * LP * multiplicity
+            }
 
         kwargs = {
             'expt_spectrum': expt,
@@ -1364,17 +1343,11 @@ class HEDMInstrument(object):
         }
 
         self.WPPFclass = LeBail(**kwargs)
-
         self.simulated_spectrum = self.WPPFclass.spectrum_sim
         self.background = self.WPPFclass.background
 
-        '''
-        now that we have the simulated intensities, its time to get the
-        two theta for the detector pixels and interpolate what the intensity
-        for each pixel should be
-        '''
-
-        img_dict = dict.fromkeys(self.detectors)
+        # Generate images for each detector
+        img_dict = {}
         for det_key, panel in self.detectors.items():
             ptth = ptth_dict[det_key]
 
@@ -1386,36 +1359,14 @@ class HEDMInstrument(object):
 
             if noise is None:
                 img_dict[det_key] = img
+                continue
 
-            else:
-                # Rescale to be between 0 and 1 so random_noise() will work
-                prev_max = img.max()
-                img /= prev_max
+            prev_max = img.max()
+            img /= prev_max
 
-                if noise.lower() == 'poisson':
-                    im_noise = random_noise(img, mode='poisson', clip=True)
-                    mi = im_noise.min()
-                    ma = im_noise.max()
-                    if ma > mi:
-                        im_noise = (im_noise - mi) / (ma - mi)
+            im_noise = random_noise(img, mode=noise.lower())
 
-                elif noise.lower() == 'gaussian':
-                    im_noise = random_noise(img, mode='gaussian', clip=True)
-
-                elif noise.lower() == 'salt':
-                    im_noise = random_noise(img, mode='salt')
-
-                elif noise.lower() == 'pepper':
-                    im_noise = random_noise(img, mode='pepper')
-
-                elif noise.lower() == 's&p':
-                    im_noise = random_noise(img, mode='s&p')
-
-                elif noise.lower() == 'speckle':
-                    im_noise = random_noise(img, mode='speckle', clip=True)
-
-                # Now scale back up
-                img_dict[det_key] = im_noise * prev_max
+            img_dict[det_key] = im_noise * prev_max
 
         return img_dict
 
