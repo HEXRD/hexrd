@@ -1102,7 +1102,7 @@ class HEDMInstrument(object):
         do_interpolation: bool = True,
         do_fitting: bool = False,
         tth_distortion: Optional[dict[str, DistortionABC]] = None,
-        fitting_kwargs: Optional[dict] = None,
+        fitting_kwargs: Optional[dict] = {},
     ):
         """
         Perform annular interpolation on diffraction images.
@@ -1170,13 +1170,6 @@ class HEDMInstrument(object):
         TODO: rename function.
 
         """
-
-        if fitting_kwargs is None:
-            fitting_kwargs = {}
-
-        # =====================================================================
-        # LOOP OVER DETECTORS
-        # =====================================================================
         logger.info("Interpolating ring data")
         pbar_dets = partial(
             tqdm,
@@ -1184,9 +1177,6 @@ class HEDMInstrument(object):
             desc="Detector",
             position=self.num_panels,
         )
-
-        # Split up the workers among the detectors
-        max_workers_per_detector = max(1, self.max_workers // self.num_panels)
 
         kwargs = {
             'plane_data': plane_data,
@@ -1200,7 +1190,7 @@ class HEDMInstrument(object):
             'do_fitting': do_fitting,
             'fitting_kwargs': fitting_kwargs,
             'tth_distortion': tth_distortion,
-            'max_workers': max_workers_per_detector,
+            'max_workers': max(1, self.max_workers // self.num_panels),
         }
         func = partial(_extract_detector_line_positions, **kwargs)
 
@@ -1213,26 +1203,19 @@ class HEDMInstrument(object):
                 style='hdf5',
             )
 
-        images = []
-        for detector_id, panel in self.detectors.items():
-            images.append(
-                _parse_imgser_dict(imgser_dict, detector_id, roi=panel.roi)
-            )
+        images = [
+            _parse_imgser_dict(imgser_dict, detector_id, roi=panel.roi)
+            for detector_id, panel in self.detectors.items()
+        ]
 
         panels = [self.detectors[k] for k in self.detectors]
         instr_cfgs = [make_instr_cfg(x) for x in panels]
         pbp_array = np.arange(self.num_panels)
         iter_args = zip(panels, instr_cfgs, images, pbp_array)
-        with ProcessPoolExecutor(
-            mp_context=constants.mp_context, max_workers=self.num_panels
-        ) as executor:
-            results = list(pbar_dets(executor.map(func, iter_args)))
+        with ProcessPoolExecutor(self.num_panels, constants.mp_context) as ex:
+            results = list(pbar_dets(ex.map(func, iter_args)))
 
-        panel_data = {}
-        for det, res in zip(self.detectors, results):
-            panel_data[det] = res
-
-        return panel_data
+        return {det: res for det, res in zip(self.detectors, results)}
 
     def simulate_powder_pattern(
         self, mat_list, params=None, bkgmethod=None, origin=None, noise=None
