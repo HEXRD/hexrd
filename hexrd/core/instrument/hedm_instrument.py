@@ -2037,22 +2037,17 @@ class HEDMInstrument(object):
         CylindricalDetector.update_memoization_sizes(all_panels)
 
     def calc_transmission(
-        self, rMat_s: np.ndarray = None
+        self, rMat_s: np.ndarray = ct.identity_3x3
     ) -> dict[str, np.ndarray]:
-        """calculate the transmission from the
-        filter and polymer coating. the inverse of this
-        number is the intensity correction that needs
-        to be applied. actual computation is done inside
-        the detector class
-        """
-        if rMat_s is None:
-            rMat_s = ct.identity_3x3
+        """ Calculate the transmission from the filter and polymer coating.
 
-        energy = self.beam_energy
+        The inverse of this number is the intensity correction that needs
+        to be applied. The actual computation is done inside the detector class
+        """
         transmissions = {}
         for det_name, det in self.detectors.items():
             transmission_filter, transmission_phosphor = (
-                det.calc_filter_coating_transmission(energy)
+                det.calc_filter_coating_transmission(self.beam_energy)
             )
 
             transmission = transmission_filter * transmission_phosphor
@@ -2060,18 +2055,11 @@ class HEDMInstrument(object):
             if self.physics_package is not None:
                 transmission_physics_package = (
                     det.calc_physics_package_transmission(
-                        energy, rMat_s, self.physics_package
+                        self.beam_energy, rMat_s, self.physics_package
                     )
                 )
-                effective_pinhole_area = det.calc_effective_pinhole_area(
-                    self.physics_package
-                )
-
-                transmission = (
-                    transmission
-                    * transmission_physics_package
-                    * effective_pinhole_area
-                )
+                ph_area = det.calc_effective_pinhole_area(self.physics_package)
+                transmission *= transmission_physics_package * ph_area
 
             transmissions[det_name] = transmission
         return transmissions
