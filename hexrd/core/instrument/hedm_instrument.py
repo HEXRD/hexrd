@@ -61,6 +61,7 @@ from hexrd.core.imageseries.omega import OmegaImageSeries
 from hexrd.core.fitting.utils import fit_ring
 from hexrd.core.gridutil import make_tolerance_grid
 from hexrd.core import matrixutil as mutil
+from hexrd.core.material.material import Material
 from hexrd.core.transforms.xfcapi import (
     angles_to_gvec,
     gvec_to_xy,
@@ -1018,13 +1019,11 @@ class HEDMInstrument(object):
         # !!! eta_edges is the list of eta bin EDGES; same for all
         #     detectors, so calculate it once
         panel = next(iter(self.detectors.values()))
-        _, _, tth_ranges, _, eta_edges = (
-            panel.make_powder_rings(
-                plane_data,
-                merge_hkls=False,
-                delta_eta=eta_tol,
-                full_output=True,
-            )
+        _, _, tth_ranges, _, eta_edges = panel.make_powder_rings(
+            plane_data,
+            merge_hkls=False,
+            delta_eta=eta_tol,
+            full_output=True,
         )
 
         if active_hkls is not None:
@@ -1050,7 +1049,7 @@ class HEDMInstrument(object):
 
             omegas = ims.metadata.get('omega')
             if omegas is None:
-                raise ValueError(f'imageseries for "{det_key}" has no omega info')
+                raise ValueError(f'imageseries for "{det_key}" has no omegas')
 
             shape = (len(tth_ranges), len(omegas), len(eta_edges) - 1)
             ring_maps = np.full(shape, np.nan)
@@ -1218,7 +1217,12 @@ class HEDMInstrument(object):
         return {det: res for det, res in zip(self.detectors, results)}
 
     def simulate_powder_pattern(
-        self, mat_list, params=None, bkgmethod={'chebyshev': 3}, origin=None, noise=None
+        self,
+        mat_list: list[Material],
+        params: dict[str, list[float, float, float, bool]]=None,
+        bkgmethod: dict[str, int] = {'chebyshev': 3},
+        origin: np.ndarray = None,
+        noise: str = None,
     ):
         """
         Generate powder diffraction iamges from specified materials.
@@ -1329,7 +1333,9 @@ class HEDMInstrument(object):
             )
 
             intensity[material.name] = {
-                'synchrotron': material.planeData.structFact * LP * multiplicity
+                'synchrotron': material.planeData.structFact
+                * LP
+                * multiplicity
             }
 
         kwargs = {
