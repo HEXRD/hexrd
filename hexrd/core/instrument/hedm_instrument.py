@@ -184,9 +184,9 @@ def generate_chunks(
     return rects, labels
 
 
+# Zack: Where is this used?
 def chunk_instrument(instr, rects, labels, use_roi=False):
-    """
-    Generate chunked config fro regularly tiled composite detectors.
+    """ Generate chunked config for regularly tiled composite detectors.
 
     Parameters
     ----------
@@ -204,16 +204,16 @@ def chunk_instrument(instr, rects, labels, use_roi=False):
 
     """
     icfg_dict = instr.write_config()
-    new_icfg_dict = dict(
-        beam=icfg_dict['beam'],
-        oscillation_stage=icfg_dict['oscillation_stage'],
-        detectors={},
-    )
+    new_icfg_dict = {
+        'beam': icfg_dict['beam'],
+        'oscillation_stage': icfg_dict['oscillation_stage'],
+        'detectors': {},
+    }
+
     for panel_id, panel in instr.detectors.items():
         pcfg_dict = panel.config_dict(instr.chi, instr.tvec)['detector']
 
-        for pnum, pdata in enumerate(zip(rects, labels)):
-            rect, label = pdata
+        for rect, label in zip(rects, labels):
             panel_name = f'{panel_id}_{label}'
 
             row_col_dim = np.diff(rect)  # (2, 1)
@@ -237,20 +237,20 @@ def chunk_instrument(instr, rects, labels, use_roi=False):
 
             # update tvec
             tmp_cfg['transform']['translation'] = tvec.tolist()
-
             new_icfg_dict['detectors'][panel_name] = copy.deepcopy(tmp_cfg)
 
             if panel.panel_buffer is not None:
                 if panel.panel_buffer.ndim == 2:  # have a mask array!
                     submask = panel.panel_buffer[
-                        rect[0, 0] : rect[0, 1], rect[1, 0] : rect[1, 1]
+                        rect[0, 0] : rect[0, 1],
+                        rect[1, 0] : rect[1, 1]
                     ]
                     new_icfg_dict['detectors'][panel_name]['buffer'] = submask
     return new_icfg_dict
 
 
 def _parse_imgser_dict(
-    imgser_dict: dict[str, ImageSeries], det_key: str, roi=None
+    imgser_dict: dict[str, ImageSeries], det_key: str, roi: tuple
 ):
     """
     Associates a dict of imageseries to the target panel(s).
@@ -298,9 +298,6 @@ def _parse_imgser_dict(
         images_in = imgser_dict[matches[0]]
 
     # have images now
-    if roi is None:
-        raise RuntimeError("roi must be specified to use shared imageseries")
-
     if isinstance(images_in, ims_classes):
         # input is an imageseries of some kind
         ims = ProcessedImageSeries(images_in, [('rectangle', roi)])
@@ -328,15 +325,25 @@ def _parse_imgser_dict(
         )
 
 
-def calc_beam_vec(azim, pola):
-    """
-    Calculate unit beam propagation vector from
-    spherical coordinate spec in DEGREES.
+def calc_beam_vec(azimuthal_angle, polar_angle):
+    """ Calculate unit beam propagation vector from spherical coordinate angles.
+    
+    Parameters
+    ----------
 
-    ...MAY CHANGE; THIS IS ALSO LOCATED IN XRDUTIL!
+    azimuthal_angle : float
+        Azimuthal angle in degrees.
+    polar_angle : float
+        Polar angle in degrees.
+
+    Returns
+    -------
+
+    bv : ndarray
+        Unit beam propagation vector.
     """
-    tht = np.radians(azim)
-    phi = np.radians(pola)
+    tht = np.radians(azimuthal_angle)
+    phi = np.radians(polar_angle)
     bv = np.array(
         [np.sin(phi) * np.cos(tht), np.cos(phi), np.sin(phi) * np.sin(tht)]
     )
@@ -344,10 +351,7 @@ def calc_beam_vec(azim, pola):
 
 
 def calc_angles_from_beam_vec(bvec):
-    """
-    Return the azimuth and polar angle from a beam
-    vector
-    """
+    """ Return the azimuthal and polar angles from a beam vector. """
     bvec = np.atleast_1d(bvec).flatten()
     nvec = unit_vector(-bvec)
     azim = float(np.degrees(np.arctan2(nvec[2], nvec[0])))
@@ -356,21 +360,18 @@ def calc_angles_from_beam_vec(bvec):
 
 
 def migrate_instrument_config(instrument_config):
-    """utility function to generate old instrument config dictionary"""
-    cfg_list = []
-    for detector_id in instrument_config['detectors']:
-        cfg_list.append(
-            dict(
-                detector=instrument_config['detectors'][detector_id],
-                oscillation_stage=instrument_config['oscillation_stage'],
-            )
-        )
-    return cfg_list
+    """ Utility function to generate old instrument config dictionary. """
+    return [
+        {
+            'detector': detector,
+            'oscillation_stage': instrument_config['oscillation_stage'],
+        }
+        for detector in instrument_config['detectors'].values()
+    ]
 
 
 def angle_in_range(angle, ranges, ccw=True, units='degrees'):
-    """
-    Return the index of the first wedge the angle is found in
+    """ Return the index of the first wedge the angle is found in
 
     WARNING: always clockwise; assumes wedges are not overlapping
     """
@@ -388,18 +389,15 @@ def angle_in_range(angle, ranges, ccw=True, units='degrees'):
     return w
 
 
-# ???: move to gridutil?
-def centers_of_edge_vec(edges):
-    if np.asarray(edges).size < 2:
-        raise ValueError(
-            "edges must be an array-like with at least 2 elements"
-        )
-    return np.average(np.vstack([edges[:-1], edges[1:]]), axis=0)
+def centers_of_edge_vec(edges: list | np.ndarray) -> np.ndarray:
+    edges = np.asarray(edges)
+    if edges.size < 2:
+        raise ValueError("edges must be array-like with at least 2 elements")
+    return 0.5 * (edges[:-1] + edges[1:])
 
 
-def max_tth(instr):
-    """
-    Return the maximum Bragg angle (in radians) subtended by the instrument.
+def max_tth(instr) -> float:
+    """ Return the maximum Bragg angle (in radians) subtended by instrument.
 
     Parameters
     ----------
@@ -411,11 +409,10 @@ def max_tth(instr):
     tth_max : float
         The maximum observable Bragg angle by the instrument in radians.
     """
-    tth_max = 0.0
-    for det in instr.detectors.values():
-        ptth, peta = det.pixel_angles()
-        tth_max = max(np.max(ptth), tth_max)
-    return tth_max
+    return max([
+        np.max(det.pixel_angles()[0])
+        for det in instr.detectors.values()
+    ])
 
 
 def pixel_resolution(instr):
@@ -457,8 +454,7 @@ def pixel_resolution(instr):
 
 
 def max_resolution(instr):
-    """
-    Return the maximum angular resolution of the instrument.
+    """ Return the maximum angular resolution of the instrument.
 
     Parameters
     ----------
@@ -471,10 +467,10 @@ def max_resolution(instr):
         Maximum tth resolution in radians.
     max_eta : TYPE
         maximum eta resolution in radians.
-
     """
     max_tth = np.inf
     max_eta = np.inf
+
     for panel in instr.detectors.values():
         angps = panel.angularPixelSize(
             np.stack(panel.pixel_coords, axis=0)
@@ -489,6 +485,7 @@ def max_resolution(instr):
     return max_tth, max_eta
 
 
+# Zack: Are these private functions used anywhere? If not, delete.
 def _gaussian_dist(x, cen, fwhm):
     sigm = fwhm / (2 * np.sqrt(2 * np.log(2)))
     return np.exp(-0.5 * (x - cen) ** 2 / sigm**2)
@@ -1045,7 +1042,7 @@ class HEDMInstrument(object):
             logger.info(f"working on detector '{det_key}'...")
 
             ptth, peta = panel.pixel_angles()
-            ims = _parse_imgser_dict(imgser_dict, det_key, roi=panel.roi)
+            ims = _parse_imgser_dict(imgser_dict, det_key, panel.roi)
 
             omegas = ims.metadata.get('omega')
             if omegas is None:
@@ -1203,7 +1200,7 @@ class HEDMInstrument(object):
             )
 
         images = [
-            _parse_imgser_dict(imgser_dict, detector_id, roi=panel.roi)
+            _parse_imgser_dict(imgser_dict, detector_id, panel.roi)
             for detector_id, panel in self.detectors.items()
         ]
 
@@ -1308,8 +1305,8 @@ class HEDMInstrument(object):
         simulate some realistic background. But thats for another day.
         '''
         # convert angles to degrees because thats what the WPPF expects
-        tth_mi = np.degrees(tth_mi)
-        tth_ma = np.degrees(tth_ma)
+        tth_mi = np.degrees(min([ptth.min() for ptth in ptth_dict.values()]))
+        tth_ma = np.degrees(max([ptth.max() for ptth in ptth_dict.values()]))
 
         angular_resolution = np.degrees(max_resolution(self)[0])
         nsteps = int(np.ceil(2 * (tth_ma - tth_mi) / angular_resolution))
@@ -1646,7 +1643,7 @@ class HEDMInstrument(object):
                 npdiv,
             )
             omega_image_series = _parse_imgser_dict(
-                imgser_dict, detector_id, roi=panel.roi
+                imgser_dict, detector_id, panel.roi
             )
 
             if write_text:
@@ -1888,7 +1885,7 @@ class HEDMInstrument(object):
         for detector_id, panel in self.detectors.items():
             # pull out the OmegaImageSeries for this panel from input dict
             omega_image_series = _parse_imgser_dict(
-                imgser_dict, detector_id, roi=panel.roi
+                imgser_dict, detector_id, panel.roi
             )
 
             hkl_ids, hkls_p, ang_centers, xy_centers, ang_pixel_size = [
@@ -2095,7 +2092,7 @@ class PatchDataWriter(object):
             self.fid = filename
         else:
             self.fid = open(filename, 'w')
-        print(self._header, file=self.fid)
+        # logging.info(f'{self._header}, file={self.fid}') # Zack wants to delete
 
     def __del__(self):
         self.close()
@@ -2106,9 +2103,6 @@ class PatchDataWriter(object):
     def dump_patch(
         self, peak_id, hkl_id, hkl, spot_int, max_int, pangs, mangs, pxy, mxy
     ):
-        """
-        !!! maybe need to check that last four inputs are arrays
-        """
         if mangs is None:
             spot_int = np.nan
             max_int = np.nan
@@ -2132,7 +2126,7 @@ class PatchDataWriter(object):
                 self._delim.join(np.tile('{:<23.16e}', 10)).format(*res[7:]),
             ]
         )
-        print(output_str, file=self.fid)
+        # logging.info(f'{output_str}, file={self.fid}') # Zack wants to delete
         return output_str
 
 
@@ -2140,12 +2134,9 @@ class GrainDataWriter(object):
     """Class for dumping grain data."""
 
     def __init__(self, filename=None, array=None):
-        """Writes to either file or np array
-
-        Array must be initialized with number of rows to be written.
-        """
+        # Array must be initialized with number of rows to be written.
         if filename is None and array is None:
-            raise RuntimeError(
+            raise ValueError(
                 'GrainDataWriter must be specified with filename or array'
             )
 
@@ -2276,10 +2267,6 @@ class GrainDataWriter_h5(object):
         for det_key in self.instr_grp['detectors'].keys():
             self.data_grp.create_group(det_key)
 
-    # FIXME: throws exception when called after close method
-    # def __del__(self):
-    #    self.close()
-
     def close(self):
         self.fid.close()
 
@@ -2299,15 +2286,11 @@ class GrainDataWriter_h5(object):
         spot_data,
         pangs,
         pxy,
-        mangs,
-        mxy,
+        mangs: np.ndarray=np.nan * np.ones(3),
+        mxy: np.ndarray=np.nan * np.ones(3),
         gzip=1,
     ):
-        """
-        to be called inside loop over patches
-
-        default GZIP level for data arrays is 1
-        """
+        """ Dump patches while looping over patches. """
         fi = np.array(frame_indices, dtype=int)
 
         panel_grp = self.data_grp[panel_id]
@@ -2317,79 +2300,62 @@ class GrainDataWriter_h5(object):
         spot_grp.attrs.create('hkl', np.array(hkl, dtype=int))
         spot_grp.attrs.create('predicted_angles', pangs)
         spot_grp.attrs.create('predicted_xy', pxy)
-        if mangs is None:
-            mangs = np.nan * np.ones(3)
         spot_grp.attrs.create('measured_angles', mangs)
-        if mxy is None:
-            mxy = np.nan * np.ones(3)
         spot_grp.attrs.create('measured_xy', mxy)
 
         # get centers crds from edge arrays
-        # FIXME: export full coordinate arrays, or just center vectors???
-        #
-        # ome_crd, eta_crd, tth_crd = np.meshgrid(
-        #     ome_centers,
-        #     centers_of_edge_vec(eta_edges),
-        #     centers_of_edge_vec(tth_edges),
-        #     indexing='ij')
-        #
-        # ome_dim, eta_dim, tth_dim = spot_data.shape
-
-        # !!! for now just exporting center vectors for spot_data
         tth_crd = centers_of_edge_vec(tth_edges)
         eta_crd = centers_of_edge_vec(eta_edges)
 
-        shuffle_data = True  # reduces size by 20%
         spot_grp.create_dataset(
             'tth_crd',
             data=tth_crd,
             compression="gzip",
             compression_opts=gzip,
-            shuffle=shuffle_data,
+            shuffle=True,
         )
         spot_grp.create_dataset(
             'eta_crd',
             data=eta_crd,
             compression="gzip",
             compression_opts=gzip,
-            shuffle=shuffle_data,
+            shuffle=True,
         )
         spot_grp.create_dataset(
             'ome_crd',
             data=ome_centers,
             compression="gzip",
             compression_opts=gzip,
-            shuffle=shuffle_data,
+            shuffle=True,
         )
         spot_grp.create_dataset(
             'xy_centers',
             data=xy_centers,
             compression="gzip",
             compression_opts=gzip,
-            shuffle=shuffle_data,
+            shuffle=True,
         )
         spot_grp.create_dataset(
             'ij_centers',
             data=ijs,
             compression="gzip",
             compression_opts=gzip,
-            shuffle=shuffle_data,
+            shuffle=True,
         )
         spot_grp.create_dataset(
             'frame_indices',
             data=fi,
             compression="gzip",
             compression_opts=gzip,
-            shuffle=shuffle_data,
+            shuffle=True,
         )
         spot_grp.create_dataset(
             'intensities',
             data=spot_data,
             compression="gzip",
             compression_opts=gzip,
-            shuffle=shuffle_data,
+            shuffle=True,
         )
-        return
 
 
 class GenerateEtaOmeMaps(object):
@@ -2412,40 +2378,28 @@ class GenerateEtaOmeMaps(object):
 
     def __init__(
         self,
-        image_series_dict,
-        instrument,
-        plane_data,
-        active_hkls=None,
-        eta_step=0.25,
-        threshold=None,
-        ome_period=(0, 360),
+        image_series_dict: dict[str, OmegaImageSeries],
+        instrument: HEDMInstrument,
+        plane_data: PlaneData,
+        active_hkls: list[int]=None,
+        eta_step: float=0.25,
+        threshold: float=None,
+        ome_period: tuple[float]=(0, 360),
     ):
-        """
-        image_series must be OmegaImageSeries class
-        instrument_params must be a dict (loaded from yaml spec)
-        active_hkls must be a list (required for now)
-
-        FIXME: get rid of omega period; should get it from imageseries
-        """
-
         self._planeData = plane_data
 
-        # ???: change name of iHKLList?
-        # ???: can we change the behavior of iHKLList?
         if active_hkls is None:
             self._iHKLList = plane_data.getHKLID(plane_data.hkls, master=True)
-            n_rings = len(self._iHKLList)
         else:
-            assert hasattr(
-                active_hkls, '__len__'
-            ), "active_hkls must be an iterable with __len__"
+            if not hasattr(active_hkls, '__iter__'):
+                raise TypeError("active_hkls must be an iterable")
             self._iHKLList = active_hkls
-            n_rings = len(active_hkls)
+        n_rings = len(self._iHKLList)
 
         # grab a det key and corresponding imageseries (first will do)
         # !!! assuming that the imageseries for all panels
         #     have the same length and omegas
-        det_key, this_det_ims = next(iter(image_series_dict.items()))
+        this_det_ims = next(iter(image_series_dict.values()))
 
         # handle omegas
         # !!! for multi wedge, enforncing monotonicity
@@ -2453,7 +2407,7 @@ class GenerateEtaOmeMaps(object):
         omegas_array = this_det_ims.metadata['omega']  # !!! DEGREES
         delta_ome = omegas_array[0][-1] - omegas_array[0][0]
         frame_mask = None
-        ome_period = omegas_array[0, 0] + np.r_[0.0, 360.0]  # !!! be careful
+        ome_period = omegas_array[0, 0] + np.array([0.0, 360.0])
         if this_det_ims.omegawedges.nwedges > 1:
             delta_omes = [
                 (i['ostop'] - i['ostart']) / i['nsteps']
@@ -2462,9 +2416,9 @@ class GenerateEtaOmeMaps(object):
             check_wedges = mutil.uniqueVectors(
                 np.atleast_2d(delta_omes), tol=1e-6
             ).squeeze()
-            assert (
-                check_wedges.size == 1
-            ), "all wedges must have the same delta omega to 1e-6"
+            if check_wedges.size != 1:
+                # Zack: This error message should be clearer.
+                raise ValueError("all wedges must have the same delta omega to 1e-6")
             # grab representative delta ome
             # !!! assuming positive delta consistent with OmegaImageSeries
             delta_ome = delta_omes[0]
@@ -2478,16 +2432,13 @@ class GenerateEtaOmeMaps(object):
             ostop = float(
                 mapAngle(owedges[-1]['ostop'], ome_period, units='degrees')
             )
-            # compute total nsteps
+
             # FIXME: need check for roundoff badness
-            nsteps = int((ostop - ostart) / delta_ome)
-            ome_edges_full = np.linspace(
-                ostart, ostop, num=nsteps + 1, endpoint=True
-            )
-            omegas_array = np.vstack(
+            nsteps = (ostop - ostart) // delta_ome
+            ome_edges_full = np.linspace(ostart, ostop, num=nsteps + 1)
+            ome_centers = np.average(np.vstack(
                 [ome_edges_full[:-1], ome_edges_full[1:]]
-            ).T
-            ome_centers = np.average(omegas_array, axis=1)
+            ).T, axis=1)
 
             # use OmegaImageSeries method to determine which bins have data
             # !!! this array has -1 outside a wedge
@@ -2505,7 +2456,6 @@ class GenerateEtaOmeMaps(object):
             image_series_dict,
             active_hkls=active_hkls,
             threshold=threshold,
-            tth_tol=None,
             eta_tol=eta_step,
         )
 
@@ -2532,8 +2482,7 @@ class GenerateEtaOmeMaps(object):
 
             # now omegas
             if frame_mask is not None:
-                # !!! must expand row dimension to include
-                #     skipped omegas
+                # !!! must expand row dimension to include skipped omegas
                 tmp = np.ones((len(frame_mask), map_shape[1])) * np.nan
                 tmp[frame_mask, :] = full_map
                 full_map = tmp
@@ -2802,15 +2751,13 @@ def _extract_ring_line_positions(
         quiet=True,
     )
 
-    # loop over patches
-    # FIXME: fix initialization
     if collapse_tth:
         patch_data = np.zeros((len(angs), n_images))
     else:
         patch_data = []
     for i_p, patch in enumerate(patches):
         # strip relevant objects out of current patch
-        vtx_angs, vtx_xys, conn, areas, xys_eval, ijs = patch
+        vtx_angs, _, _, areas, xys_eval, ijs = patch
 
         # These areas can be negative if the beam vector is in
         # the opposite direction than it normally is in (positive
@@ -2870,7 +2817,6 @@ def _extract_ring_line_positions(
             # catch collapsing options
             if collapse_tth:
                 patch_data[i_p, j_p] = np.average(p_img)
-                # ims_data.append(np.sum(p_img))
             else:
                 if collapse_eta:
                     lineout = np.average(p_img, axis=0)
