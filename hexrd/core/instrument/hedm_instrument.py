@@ -1017,9 +1017,8 @@ class HEDMInstrument(object):
         #     each entry are the integer indices into the bins
         # !!! eta_edges is the list of eta bin EDGES; same for all
         #     detectors, so calculate it once
-        # !!! grab first panel
         panel = next(iter(self.detectors.values()))
-        pow_angs, pow_xys, tth_ranges, eta_idx, eta_edges = (
+        _, _, tth_ranges, _, eta_edges = (
             panel.make_powder_rings(
                 plane_data,
                 merge_hkls=False,
@@ -1029,56 +1028,33 @@ class HEDMInstrument(object):
         )
 
         if active_hkls is not None:
-            assert hasattr(
-                active_hkls, '__len__'
-            ), "active_hkls must be an iterable with __len__"
-
-            # need to re-cast for element-wise operations
-            active_hkls = np.array(active_hkls)
+            if not isinstance(active_hkls, (list, np.ndarray)):
+                raise TypeError("active_hkls must be a list or array-like")
 
             # these are all active reflection unique hklIDs
             active_hklIDs = plane_data.getHKLID(plane_data.hkls, master=True)
 
-            # find indices
-            idx = np.zeros_like(active_hkls, dtype=int)
-            for i, input_hklID in enumerate(active_hkls):
-                try:
-                    idx[i] = np.where(active_hklIDs == input_hklID)[0]
-                except ValueError:
-                    raise RuntimeError(f"hklID '{input_hklID}' is invalid")
+            hkl_id = {hkl: i for i, hkl in enumerate(active_hklIDs)}
+            try:
+                idx = np.array([hkl_id[hkl] for hkl in active_hkls], dtype=int)
+            except KeyError as e:
+                raise RuntimeError(f"hklID '{e.args[0]}' is invalid")
             tth_ranges = tth_ranges[idx]
 
-        delta_eta = eta_edges[1] - eta_edges[0]
-        ncols_eta = len(eta_edges) - 1
-
         ring_maps_panel = dict.fromkeys(self.detectors)
-        for i_d, det_key in enumerate(self.detectors):
-            print("working on detector '%s'..." % det_key)
+        for det_key, panel in self.detectors.items():
+            logger.info(f"working on detector '{det_key}'...")
 
-            # grab panel
-            panel = self.detectors[det_key]
-            # native_area = panel.pixel_area  # pixel ref area
-
-            # pixel angular coords for the detector panel
             ptth, peta = panel.pixel_angles()
-
-            # grab imageseries for this detector
             ims = _parse_imgser_dict(imgser_dict, det_key, roi=panel.roi)
 
-            # grab omegas from imageseries and squawk if missing
-            try:
-                omegas = ims.metadata['omega']
-            except KeyError:
-                raise RuntimeError(
-                    f"imageseries for '{det_key}' has no omega info"
-                )
+            omegas = ims.metadata.get('omega')
+            if omegas is None:
+                raise ValueError(f'imageseries for "{det_key}" has no omega info')
 
-            # initialize maps and assing by row (omega/frame)
-            nrows_ome = len(omegas)
-
-            # init map with NaNs
-            shape = (len(tth_ranges), nrows_ome, ncols_eta)
+            shape = (len(tth_ranges), len(omegas), len(eta_edges) - 1)
             ring_maps = np.full(shape, np.nan)
+            ring_maps_panel[det_key] = ring_maps
 
             # Generate ring parameters once, and re-use them for each image
             ring_params = []
@@ -1088,7 +1064,7 @@ class HEDMInstrument(object):
                     'ptth': ptth,
                     'peta': peta,
                     'eta_edges': eta_edges,
-                    'delta_eta': delta_eta,
+                    'delta_eta': eta_edges[1] - eta_edges[0],
                 }
                 ring_params.append(_generate_ring_params(**kwargs))
 
@@ -1103,19 +1079,13 @@ class HEDMInstrument(object):
                 threshold=threshold,
             )
 
-            max_workers = self.max_workers
-            if max_workers == 1 or len(tasks) == 1:
-                # Just execute it serially.
+            if self.max_workers == 1 or len(tasks) == 1:
                 for task in tasks:
                     func(task)
             else:
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    # Evaluate the results via `list()`, so that if an
-                    # exception is raised in a thread, it will be re-raised
-                    # and visible to the user.
-                    list(executor.map(func, tasks))
-
-            ring_maps_panel[det_key] = ring_maps
+                with ThreadPoolExecutor(self.max_workers) as executor:
+                    for _ in executor.map(func, tasks):
+                        pass
 
         return ring_maps_panel, eta_edges
 
