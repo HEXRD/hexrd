@@ -12,6 +12,8 @@ import numpy as np
 import timeit
 import warnings
 
+from collections import defaultdict
+
 from hexrd.core import instrument
 from hexrd.core.transforms import xfcapi
 from hexrd.core import rotations
@@ -304,7 +306,11 @@ def determine_valid_reflections(results, instrument, analysis_dirname):
 
 
 def refine_valid_reflections(
-        culled_results, xyo_det_fit_dict, instrument, imgser_dict, refit
+        culled_results: dict,
+        xyo_det_fit_dict: dict,
+        instrument: instrument.HEDMInstrument,
+        imgser_dict: dict,
+        refit: tuple[float, float]
 ):
     """Refine valid reflections list using pixel distances
 
@@ -319,24 +325,22 @@ def refine_valid_reflections(
     tol_xy, tol_ome = refit
 
     # make dict to contain new culled results
-    culled_results_r = dict.fromkeys(culled_results)
+    culled_results_r = defaultdict(list)
     num_refl_valid = 0
-    for det_key in culled_results_r:
-        panel = instrument.detectors[det_key]
-        presults = culled_results[det_key]
-
+    for det_key, presults in culled_results.items():
         if not presults:
-            culled_results_r[det_key] = []
             continue
 
-        ims = next(iter(imgser_dict.values()))  # grab first for the omes
-        ome_step = sum(np.r_[-1, 1] * ims.metadata['omega'][0, :])
+        panel = instrument.detectors[det_key]
+        xyo_det_fit = xyo_det_fit_dict[det_key]
 
+        ims = next(iter(imgser_dict.values()))  # grab first for the omes
+        ome_step = sum(np.array([-1, 1]) * ims.metadata['omega'][0, :])
+
+        x = presults[0]
         xyo_det = np.atleast_2d(
             np.vstack([np.r_[x[7], x[6][-1]] for x in presults])
         )
-
-        xyo_det_fit = xyo_det_fit_dict[det_key]
 
         xpix_tol = tol_xy * panel.pixel_size_col
         ypix_tol = tol_xy * panel.pixel_size_row
@@ -353,17 +357,12 @@ def refine_valid_reflections(
 
         # filter out reflections with centroids more than
         # a pixel and delta omega away from predicted value
-        idx_new = np.logical_and(
-            x_diff <= xpix_tol,
-            np.logical_and(y_diff <= ypix_tol, ome_diff <= fome_tol),
-        )
+        idx_new = (x_diff <= xpix_tol) & (y_diff <= ypix_tol) & (ome_diff <= fome_tol)
 
         # attach to proper dict entry
         culled_results_r[det_key] = [
             presults[i] for i in np.where(idx_new)[0]
         ]
-
-        num_refl_valid += sum(idx_new)
 
     return culled_results_r, num_refl_valid
 
