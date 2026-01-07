@@ -151,16 +151,7 @@ def generate_orientation_fibers(cfg, eta_ome):
         chunksize = max(1, len(input_p) // (10 * ncpus))
         pool = mp.Pool(ncpus, discretefiber_init, (params,))
         qfib = pool.map(discretefiber_reduced, input_p, chunksize=chunksize)
-        '''
-        # This is an experiment...
-        ntotal= 10*ncpus + np.remainder(len(input_p), 10*ncpus) > 0
-        for _ in tqdm.tqdm(
-                pool.imap_unordered(
-                    discretefiber_reduced, input_p, chunksize=chunksize
-                ), total=ntotal
-            ):
-        print(_.shape)
-        '''
+
         pool.close()
         pool.join()
     else:

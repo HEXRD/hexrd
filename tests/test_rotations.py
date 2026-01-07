@@ -1,5 +1,6 @@
 """Test rotations module"""
 
+import logging
 import numpy as np
 import pytest
 
@@ -27,7 +28,7 @@ def test_misorientations():
         "oh",
     ]
     for lg in laue_groups:
-        print("group: ", lg)
+        logging.info(f"group: {lg}")
         qsym = symmetry.quatOfLaueGroup(lg)
         q1 = qsym[:, -1:]
         ang, mis = rotations.misorientation(q1, qsym, (qsym,))

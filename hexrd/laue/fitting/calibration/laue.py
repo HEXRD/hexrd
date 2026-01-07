@@ -338,11 +338,6 @@ class LaueCalibrator(AbstractGrainCalibrator):
                         fit_par = result[0]
                         #
                         coms = np.array([fit_par[5], fit_par[4]])
-                        '''
-                        print("%s, %d, (%.2f, %.2f), (%d, %d)"
-                              % (det_key, iRefl, coms[0], coms[1],
-                                 patch_size[0], patch_size[1]))
-                        '''
                         row_cen = fit_tth_tol * patch_size[0]
                         col_cen = fit_tth_tol * patch_size[1]
                         if np.any(

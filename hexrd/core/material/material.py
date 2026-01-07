@@ -31,6 +31,8 @@ Module for XRD material class
 Use the Material class directly for new materials.  Known
 materials are defined by name in materialDict.
 """
+import logging
+
 from configparser import ConfigParser as Parser
 import numpy as np
 
@@ -587,7 +589,7 @@ class Material(object):
         try:
             cif = ReadCif(fcif)
         except RuntimeError:
-            print("file not found")
+            logging.warning("File not found")
 
         # read the file
         for k in cif.keys():

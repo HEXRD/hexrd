@@ -1,9 +1,7 @@
-import numpy as np
-
+import logging
 import os
 
-
-# %%
+import numpy as np
 
 
 def output_grain_map_vtk(
@@ -19,7 +17,7 @@ def output_grain_map_vtk(
     Zss = [None] * num_scans
 
     for ii in np.arange(num_scans):
-        print('Loading Volume %d ....' % (ii))
+        logging.info(f'Loading Volume {ii}...')
         conf_data = np.load(
             os.path.join(data_location, data_stems[ii] + '_grain_map_data.npz')
         )
@@ -79,7 +77,7 @@ def output_grain_map_vtk(
                 ((i) * num_layers) : ((i) * num_layers + num_layers), :, :
             ] = (Yss[i] + vol_spacing * i)
 
-    print('Writing VTK data...')
+    logging.info('Writing VTK data...')
     # VTK Dump
     Xslist = Xs_stitched[:, :, :].ravel()
     Yslist = Ys_stitched[:, :, :].ravel()

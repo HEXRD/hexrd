@@ -1121,8 +1121,8 @@ class HEDMInstrument(object):
         ncols_eta = len(eta_edges) - 1
 
         ring_maps_panel = dict.fromkeys(self.detectors)
-        for i_d, det_key in enumerate(self.detectors):
-            print("working on detector '%s'..." % det_key)
+        for det_key in self.detectors:
+            logging.info(f"working on detector '{det_key}'...")
 
             # grab panel
             panel = self.detectors[det_key]

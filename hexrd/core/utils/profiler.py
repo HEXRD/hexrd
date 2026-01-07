@@ -8,6 +8,7 @@ full dot path.
 
 from __future__ import print_function, absolute_import
 
+import logging
 import warnings
 
 try:
@@ -102,12 +103,12 @@ def instrument_all(filenames):
 
 
 def dump_results(args):
-    print(" STATS ".center(72, '='))
+    logging.info(" STATS ".center(72, '='))
     fmt = "{2:>14}, {1:>8}, {0:<40}"
-    print(fmt.format("FUNCTION", "CALLS", "TIME"))
+    logging.info(fmt.format("FUNCTION", "CALLS", "TIME"))
     fmt = "{2:>14F}, {1:>8}, {0:<40}"
     sorted_by_time = sorted(
         nvtx.getstats().iteritems(), key=lambda tup: tup[1][1]
     )
     for key, val in sorted_by_time:
-        print(fmt.format(key, *val))
+        logging.debug(fmt.format(key, *val))

@@ -198,7 +198,7 @@ class Comparison:
             d1i, d2i = d1[ind], d2[ind]
             nnan1 = np.count_nonzero(np.isnan(d1i))
             nnan2 = np.count_nonzero(np.isnan(d2i))
-            # print("number nans: ", nnan1, nnan2)
+
             if nnan1 > 0:
                 d1i = np.nan_to_num(d1i)
             if nnan2 > 0:

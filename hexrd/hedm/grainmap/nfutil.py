@@ -1060,7 +1060,7 @@ def grand_loop_pool(ncpus, state):
     try:
         multiprocessing.set_start_method(_multiprocessing_start_method)
     except:
-        print('Multiprocessing context already set')
+        logging.info('Multiprocessing context already set')
 
     if _multiprocessing_start_method == 'fork':
         # Use FORK multiprocessing.
@@ -1183,9 +1183,9 @@ def gen_nf_dark(
 
     dark_stack = np.zeros([num_for_dark, nrows, ncols])
 
-    print('Loading data for dark generation...')
+    logging.info('Loading data for dark generation...')
     for ii in np.arange(num_for_dark):
-        print('Image #: ' + str(ii))
+        logging.info(f'Image #: {ii}')
         dark_stack[ii, :, :] = imgio.imread(
             data_folder
             + '%s' % (stem)
@@ -1195,10 +1195,10 @@ def gen_nf_dark(
         # image_stack[ii,:,:]=np.flipud(tmp_img>threshold)
 
     if dark_type == 'median':
-        print('making median...')
+        logging.info('Making median...')
         dark = np.median(dark_stack, axis=0)
     elif dark_type == 'min':
-        print('making min...')
+        logging.info('Making min...')
         dark = np.min(dark_stack, axis=0)
 
     return dark
@@ -1224,14 +1224,14 @@ def gen_nf_cleaned_image_stack(
 
     image_stack = np.zeros([img_nums.shape[0], nrows, ncols], dtype=bool)
 
-    print('Loading and Cleaning Images...')
+    logging.info('Loading and Cleaning Images...')
 
     if process_type == 'gaussian':
         sigma = process_args[0]
         size = process_args[1].astype(int)  # needs to be int
 
         for ii in np.arange(img_nums.shape[0]):
-            print('Image #: ' + str(ii))
+            logging.info(f'Image #: {ii}')
             tmp_img = (
                 imgio.imread(
                     data_folder
@@ -1255,7 +1255,7 @@ def gen_nf_cleaned_image_stack(
         num_dilations = process_args[1]
 
         for ii in np.arange(img_nums.shape[0]):
-            print('Image #: ' + str(ii))
+            logging.info(f'Image #: {ii}')
             tmp_img = (
                 imgio.imread(
                     data_folder
@@ -1274,7 +1274,7 @@ def gen_nf_cleaned_image_stack(
             )
 
     # %A final dilation that includes omega
-    print('Final Dilation Including Omega....')
+    logging.info('Final Dilation Including Omega....')
     image_stack = img.morphology.binary_dilation(
         image_stack, iterations=ome_dilation_iter
     )
@@ -1300,7 +1300,7 @@ def gen_trial_exp_data(
     beam_stop_parms,
 ):
 
-    print('Loading Grain Data...')
+    logging.info('Loading Grain Data...')
     # gen_grain_data
     ff_data = np.loadtxt(grain_out_file)
 
@@ -1354,7 +1354,7 @@ def gen_trial_exp_data(
 
     rMat_c = rotations.rotMatOfExpMap(exp_maps.T)
 
-    print('Loading Instrument Data...')
+    logging.info('Loading Instrument Data...')
     ome_period_deg = (
         ome_range_deg[0][0],
         (ome_range_deg[0][0] + 360.0),
@@ -1428,18 +1428,18 @@ def gen_trial_exp_data(
     # row_dilation = int(np.ceil(0.5 * max_diameter/row_ps))
     # col_dilation = int(np.ceil(0.5 * max_diameter/col_ps))
 
-    print('Loading Materials Data...')
+    logging.info('Loading Materials Data...')
     # crystallography data
     beam_energy = valunits.valWUnit(
         "beam_energy", "energy", instr.beam_energy, "keV"
     )
     beam_wavelength = constants.keVToAngstrom(beam_energy.getVal('keV'))
     if max_tth is not None:
-        dmin = valWUnit("dmin", "length",
+        dmin = valunits.valWUnit("dmin", "length",
                              0.5*beam_wavelength/np.sin(0.5*np.radians(max_tth)),
                              "angstrom")   
     else:
-        dmin = valWUnit("dmin", "length",
+        dmin = valunits.valWUnit("dmin", "length",
                              0.5*beam_wavelength/np.sin(0.5*max_pixel_tth),
                              "angstrom")
 
@@ -1452,7 +1452,7 @@ def gen_trial_exp_data(
     else:
         pd.tThMax = np.amax(max_pixel_tth)
 
-    print('Final Assembly...')
+    logging.info('Final Assembly...')
     experiment = argparse.Namespace()
     # grains related information
     experiment.n_grains = n_grains  # this can be derived from other values...
@@ -1496,7 +1496,7 @@ def process_raw_confidence(
     raw_confidence, vol_shape=None, id_remap=None, min_thresh=0.0
 ):
 
-    print('Compiling Confidence Map...')
+    logging.info('Compiling Confidence Map...')
     if vol_shape == None:
         confidence_map = np.max(raw_confidence, axis=0)
         grain_map = np.argmax(raw_confidence, axis=0)
@@ -1511,7 +1511,7 @@ def process_raw_confidence(
     if id_remap is not None:
         max_grain_no = np.max(grain_map)
         grain_map_copy = copy.copy(grain_map)
-        print('Remapping grain ids to ff...')
+        logging.info('Remapping grain ids to ff...')
         for ii in np.arange(max_grain_no):
             this_grain = np.where(grain_map == ii)
             grain_map_copy[this_grain] = id_remap[ii]
@@ -1522,7 +1522,7 @@ def process_raw_confidence(
 
 # %%
 def save_raw_confidence(save_dir, save_stem, raw_confidence, id_remap=None):
-    print('Saving raw confidence, might take a while...')
+    logging.info('Saving raw confidence, might take a while...')
     if id_remap is not None:
         np.savez(
             save_dir + save_stem + '_raw_confidence.npz',
@@ -1534,9 +1534,6 @@ def save_raw_confidence(save_dir, save_stem, raw_confidence, id_remap=None):
             save_dir + save_stem + '_raw_confidence.npz',
             raw_confidence=raw_confidence,
         )
-
-
-# %%
 
 
 def save_nf_data(
@@ -1550,7 +1547,7 @@ def save_nf_data(
     ori_list,
     id_remap=None,
 ):
-    print('Saving grain map data...')
+    logging.info('Saving grain map data...')
     if id_remap is not None:
         np.savez(
             save_dir + save_stem + '_grain_map_data.npz',
@@ -1572,9 +1569,6 @@ def save_nf_data(
             Zs=Zs,
             ori_list=ori_list,
         )
-
-
-# %%
 
 
 def scan_detector_parm(
@@ -1623,7 +1617,7 @@ def scan_detector_parm(
 
     tmp_td = copy.copy(experiment.tVec_d)
     for jj in np.arange(num_parm_pts):
-        print('cycle %d of %d' % (jj + 1, num_parm_pts))
+        logging.info(f'cycle {jj + 1} of {num_parm_pts}')
 
         # overwrite translation vector components
         if parm_to_opt == 0:
@@ -1668,11 +1662,6 @@ def scan_detector_parm(
             experiment.ome_edges = np.array(ome_edges - parm_vector[jj])
             experiment.base[2] = experiment.ome_edges[0]
 
-            # print(experiment.ome_range)
-            # print(experiment.ome_period)
-            # print(experiment.ome_edges)
-            # print(experiment.base)
-
         conf = test_orientations(
             image_stack,
             experiment,
@@ -1684,9 +1673,6 @@ def scan_detector_parm(
         trial_data[jj] = np.max(conf, axis=0).reshape(slice_shape)
 
     return trial_data, parm_vector
-
-
-# %%
 
 
 def plot_ori_map(
@@ -1724,9 +1710,7 @@ def plot_ori_map(
     fig1 = plt.figure()
     plt.imshow(rgb_image, interpolation='none')
     plt.title('Layer %d Grain Map' % layer_no)
-    # plt.show()
     plt.hold(True)
-    # fig2 = plt.figure()
     plt.imshow(
         conf_plot,
         vmin=0.0,
@@ -1737,60 +1721,6 @@ def plot_ori_map(
     )
     plt.title('Layer %d Confidence Map' % layer_no)
     plt.show()
-
-
-# ==============================================================================
-# %% SCRIPT ENTRY AND PARAMETER HANDLING
-# ==============================================================================
-# def main(args, controller):
-#     grain_params, experiment = mockup_experiment()
-#     controller.handle_result('experiment', experiment)
-#     controller.handle_result('grain_params', grain_params)
-#     image_stack = get_simulate_diffractions(grain_params, experiment,
-#                                             controller=controller)
-#     image_stack = get_dilated_image_stack(image_stack, experiment,
-#                                           controller)
-
-#     test_orientations(image_stack, experiment,
-#                       controller=controller)
-
-
-# def parse_args():
-#     try:
-#         default_ncpus = multiprocessing.cpu_count()
-#     except NotImplementedError:
-#         default_ncpus = 1
-
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("--inst-profile", action='append', default=[],
-#                         help="instrumented profile")
-#     parser.add_argument("--generate",
-#                         help="generate file with intermediate results")
-#     parser.add_argument("--check",
-#                         help="check against an file with intermediate results")
-#     parser.add_argument("--limit", type=int,
-#                         help="limit the size of the run")
-#     parser.add_argument("--ncpus", type=int, default=default_ncpus,
-#                         help="number of processes to use")
-#     parser.add_argument("--chunk-size", type=int, default=100,
-#                         help="chunk size for use in multiprocessing/reporting")
-#     parser.add_argument("--force-spawn-multiprocessing", action='store_true',
-#                         help="force using spawn as the multiprocessing method")
-#     args = parser.parse_args()
-
-#     '''
-#     keys = [
-#         'inst_profile',
-#         'generate',
-#         'check',
-#         'limit',
-#         'ncpus',
-#         'chunk_size']
-#     print(
-#         '\n'.join([': '.join([key, str(getattr(args, key))]) for key in keys])
-#     )
-#     '''
-#     return args
 
 
 def build_controller(
@@ -1818,10 +1748,6 @@ def build_controller(
         result_handler = saving_result_handler(generate)
     else:
         result_handler = forgetful_result_handler()
-
-    # if args.ncpus > 1 and os.name == 'nt':
-    #     logging.warn("Multiprocessing on Windows is disabled for now")
-    #     args.ncpus = 1
 
     controller = ProcessController(
         result_handler, progress_handler, ncpus=ncpus, chunk_size=chunk_size
@@ -1857,7 +1783,7 @@ def output_grain_map(
         vol_shifts = vol_spacing
 
     for ii in np.arange(num_scans):
-        print('Loading Volume %d ....' % (ii))
+        logging.info(f'Loading Volume {ii} ....')
         conf_data = np.load(
             os.path.join(data_location, data_stems[ii] + '_grain_map_data.npz')
         )
@@ -1920,8 +1846,7 @@ def output_grain_map(
     for ii in np.arange(len(save_type)):
 
         if save_type[ii] == 'hdf5':
-
-            print('Writing HDF5 data...')
+            logging.info('Writing HDF5 data...')
 
             hf = h5py.File(output_stem + '_assembled.h5', 'w')
             hf.create_dataset('grain_map', data=grain_map_stitched)
@@ -1931,8 +1856,7 @@ def output_grain_map(
             hf.create_dataset('Zs', data=Zs_stitched)
 
         elif save_type[ii] == 'npz':
-
-            print('Writing NPZ data...')
+            logging.info('Writing NPZ data...')
 
             np.savez(
                 output_stem + '_assembled.npz',
@@ -1944,8 +1868,7 @@ def output_grain_map(
             )
 
         elif save_type[ii] == 'vtk':
-
-            print('Writing VTK data...')
+            logging.info('Writing VTK data...')
             # VTK Dump
             Xslist = Xs_stitched[:, :, :].ravel()
             Yslist = Ys_stitched[:, :, :].ravel()
@@ -2008,7 +1931,7 @@ def output_grain_map(
             f.close()
 
         else:
-            print('Not a valid save option, npz, vtk, or hdf5 allowed.')
+            logging.error(f'{save_type[ii]} is not a valid: hdf5, npz, vtk allowed.')
 
     return (
         grain_map_stitched,
@@ -2018,37 +1941,3 @@ def output_grain_map(
         Zs_stitched,
     )
 
-
-# # assume that if os has fork, it will be used by multiprocessing.
-# # note that on python > 3.4 we could use multiprocessing get_start_method and
-# # set_start_method for a cleaner implementation of this functionality.
-# _multiprocessing_start_method = 'fork' if hasattr(os, 'fork') else 'spawn'
-
-# if __name__ == '__main__':
-#     LOG_LEVEL = logging.INFO
-#     FORMAT="%(relativeCreated)12d [%(process)6d/%(thread)6d] %(levelname)8s: %(message)s"
-
-#     logging.basicConfig(level=LOG_LEVEL, format=FORMAT)
-
-#     # Setting the root log level via logging.basicConfig() doesn't always work.
-#     # The next line ensures that it will get set.
-#     logging.getLogger().setLevel(LOG_LEVEL)
-
-#     args = parse_args()
-
-#     if len(args.inst_profile) > 0:
-#         from hexrd.core.utils import profiler
-
-#         logging.debug("Instrumenting functions")
-#         profiler.instrument_all(args.inst_profile)
-
-#     if args.force_spawn_multiprocessing:
-#         _multiprocessing_start_method = 'spawn'
-
-#     controller = build_controller(args)
-#     main(args, controller)
-#     del controller
-
-#     if len(args.inst_profile) > 0:
-#         logging.debug("Dumping profiler results")
-#         profiler.dump_results(args.inst_profile)

@@ -2,6 +2,7 @@
 
 import abc
 from concurrent.futures import ThreadPoolExecutor
+import logging
 import multiprocessing
 import os
 import threading
@@ -268,11 +269,8 @@ class WriteFrameCache(Writer):
         d = {}
         for k, v in list(self._meta.items()):
             if isinstance(v, dict):
-                print(
-                    'WARNING: NPZ files do not support nested metadata. '
-                    f'The metadata key "{k}" will not be written out.',
-                    file=sys.stderr,
-                )
+                logging.warning('NPZ files do not support nested metadata. '
+                    f'The metadata key "{k}" will not be written out.')
                 continue
 
             if isinstance(v, np.ndarray) and save_omegas:

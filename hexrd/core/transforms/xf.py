@@ -26,7 +26,8 @@
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # ============================================================
 
-import sys
+import logging
+
 import numpy as np
 import numba
 
@@ -654,7 +655,7 @@ def polarRebin(
         if log:
             log.write(msg)
         else:
-            print(msg)
+            logging.info(msg)
 
     rhoI = startRho - 10 * deltaRho
     rhoF = stopRho + 10 * deltaRho
@@ -665,7 +666,7 @@ def polarRebin(
             if log:
                 log.write(msg)
             else:
-                print(msg)
+                logging.info(msg)
 
         # import pdb;pdb.set_trace()
         etaI1 = rowEta[i] - 10.5 * deltaEta

@@ -19,31 +19,3 @@ def test_validate_angle_ranges_from_file(test_data_dir):
         )
         assert np.all(result == obj["result"])
 
-
-# def test_correct_validate_angle_ranges(test_data_dir):
-#     arr = [];
-
-#     for i in range(40):
-#         angs_list = np.random.rand(20) * 2 * np.pi
-#         start_angs = np.random.rand(2) * 2 * np.pi
-#         stop_angs = np.random.rand(2) * 2 * np.pi
-#         ccw = np.random.choice([True, False])
-
-#         result = validate_angle_ranges(
-#             angs_list,
-#             start_angs,
-#             stop_angs,
-#             ccw
-#         )
-#         print(result)
-#         # Add the result to the array
-#         obj = {
-#             "angs_list": angs_list,
-#             "start_angs": start_angs,
-#             "stop_angs": stop_angs,
-#             "ccw": ccw,
-#             "result": result
-#         }
-#         arr.append(obj)
-#     # Save the array to a file, move it to the tests/data folder
-#     np.save(test_data_dir / "test_correct_validate_angle_ranges.npy", arr)

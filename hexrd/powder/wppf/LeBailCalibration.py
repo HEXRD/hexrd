@@ -1,4 +1,5 @@
 import importlib.resources
+import logging
 import numpy as np
 from numpy.polynomial.chebyshev import Chebyshev
 import lmfit
@@ -234,11 +235,8 @@ class LeBailCalibrator:
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
 
         if np.mod(self.nfev, 10) == 0:
-            msg = (
-                f"refinement ongoing... \n weighted residual at "
-                f"iteration # {self.nfev} = {self.Rwp}\n"
-            )
-            print(msg)
+            logging.info(f"refinement ongoing... \n weighted residual at "
+                f"iteration # {self.nfev} = {self.Rwp}")
 
         return errvec
 
@@ -274,17 +272,15 @@ class LeBailCalibrator:
         self.res = res
 
         if self.res.success:
-            msg = (
-                f"\n \n optimization successful: {self.res.message}. \n"
+            logging.info(
+                f"\n \n optimization successful: {self.res.message}.\n"
                 f"weighted residual error = {self.Rwp}"
             )
         else:
-            msg = (
-                f"\n \n optimization unsuccessful: {self.res.message}. \n"
+            logging.info(
+                f"\n \n optimization unsuccessful: {self.res.message}.\n"
                 f"weighted residual error = {self.Rwp}"
             )
-
-        print(msg)
 
     def update_param_vals(self, params):
         """
@@ -465,24 +461,19 @@ class LeBailCalibrator:
         return self._refine_background
 
     @refine_background.setter
-    def refine_background(self, val):
+    def refine_background(self, val: bool):
         if "chebyshev" in self.bkgmethod.keys():
-            if isinstance(val, bool):
-                self._refine_background = val
-                prefix = "azpos"
-                for ii in range(len(self.lineouts)):
-                    pname = [
-                        f"{prefix}{ii}_bkg_C{jj}"
-                        for jj in range(self.bkgdegree)
-                    ]
-                    for p in pname:
-                        self.params[p].vary = val
-            else:
-                msg = "only boolean values accepted"
-                raise ValueError(msg)
+            self._refine_background = val
+            prefix = "azpos"
+            for ii in range(len(self.lineouts)):
+                pname = [
+                    f"{prefix}{ii}_bkg_C{jj}"
+                    for jj in range(self.bkgdegree)
+                ]
+                for p in pname:
+                    self.params[p].vary = val
         else:
-            msg = f"background method doesn't support refinement."
-            print(msg)
+            logging.warning("Background method doesn't support refinement.")
 
     @property
     def refine_instrument(self):

@@ -1,5 +1,6 @@
 import os
 import functools
+import logging
 
 
 class DeprecatedFunctionError(Exception):
@@ -19,8 +20,7 @@ def deprecated(new_func: str = None, removal_date: str = None):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if new_func is not None:
-                print(
-                    f"Warning: {func.__name__} is deprecated and is marked for"
+                logging.warning(f"{func.__name__} is deprecated and is marked for"
                     f" removal. Please use {new_func} instead."
                     f" Removal date: {removal_date}"
                 )

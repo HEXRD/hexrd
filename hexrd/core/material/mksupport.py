@@ -1,3 +1,5 @@
+import logging
+
 from hexrd.core.material.symbols import (
     pstr_Elements,
     two_origin_choice,
@@ -15,9 +17,7 @@ from hexrd.core.material.unitcell import _StiffnessDict, _pgDict
 
 
 def mk(filename, xtalname):
-
-    # print some initial information for the user
-    print(pstr_mkxtal)
+    logging.info(pstr_mkxtal)
 
     # get the crystal system. legend is printed above
     xtal_sys, bool_trigonal, bool_hexset = GetXtalSystem()
@@ -61,7 +61,7 @@ def GetXtalSystem():
     bhexset = False
 
     if xtal_sys == 5:
-        print(" 1. Hexagonal setting \n 2. Rhombohedral setting")
+        logging.info(" 1. Hexagonal setting \n 2. Rhombohedral setting")
         hexset = input("(1/2)? :    ")
 
         if not hexset.isdigit():
@@ -229,7 +229,6 @@ def GetLatticeParameters(xtal_sys, bool_trigonal):
         lat_param['beta'] = beta
         lat_param['gamma'] = gamma
 
-    print("\n")
     return lat_param
 
 
@@ -238,20 +237,19 @@ def GetSpaceGroup(xtal_sys, btrigonal, bhexset):
     if btrigonal:
         xtal_sys = 5
 
-    if btrigonal and (not bhexset):
-        print("\n The space groups below correspond to the ")
-        print("second (rhombohedral) setting.")
-        print(" Please select one of these space groups.\n")
+    if btrigonal and not bhexset:
+        logging.info("\n The space groups below correspond to the ")
+        logging.info("second (rhombohedral) setting.")
+        logging.info(" Please select one of these space groups.\n")
 
         for i in range(0, 7):
             pstr = str(TRIG[i]) + ":" + pstr_spacegroup[TRIG[i]]
             if (i + 1) % 4 == 0 or i == 6:
-                print(pstr)
+                logging.info(pstr)
             else:
-                print(pstr, end='')
+                logging.info(pstr)
 
-        print(50 * "-" + "\n")
-
+        logging.info(50 * "-" + "\n")
     else:
         sgmin, sgmax = PrintPossibleSG(xtal_sys)
 
@@ -299,21 +297,21 @@ def GetSpaceGroup(xtal_sys, btrigonal, bhexset):
 
 
 def SpaceGroupSetting(sgnum):
-
     iset = 1
+
     if sgnum in two_origin_choice:
         sitesym1 = two_origin_choice[sgnum][0]
         sitesym2 = two_origin_choice[sgnum][1]
-        print(' ---------------------------------------------')
-        print(' This space group has two origin settings.')
-        print(' The first setting has site symmetry    : ' + sitesym1)
-        print(' the second setting has site symmetry   : ' + sitesym2)
+        logging.info(' ---------------------------------------------')
+        logging.info(' This space group has two origin settings.')
+        logging.info(' The first setting has site symmetry    : ' + sitesym1)
+        logging.info(' the second setting has site symmetry   : ' + sitesym2)
         iset = input(' Which setting do you wish to use (1/2) : ')
         if not iset.isdigit():
-            raise ValueError("Invalid integer value for atomic number.")
+            raise ValueError(f"Invalid integer value for atomic number: {iset}")
         else:
             iset = int(iset)
-            print(iset)
+            logging.debug(iset)
             if not iset in [1, 2]:
                 raise ValueError(" Value entered for setting must be 1 or 2 !")
 
@@ -321,9 +319,8 @@ def SpaceGroupSetting(sgnum):
 
 
 def GetAtomInfo():
+    logging.info(pstr_Elements)
 
-    print(pstr_Elements)
-    ctr = 0
     Z = []
     APOS = []
     DW = []
@@ -349,7 +346,6 @@ def GetAtomInfo():
 
 
 def GetAsymmetricPositions(aniU):
-
     asym = input(
         "Enter asymmetric position of atom in unit cell \
          separated by comma (fractional coordinates) :  "
@@ -363,8 +359,6 @@ def GetAsymmetricPositions(aniU):
                 asym[i] = str(float(tmp[0]) / float(tmp[1]))
             else:
                 raise ValueError("Division by zero in fractional coordinates.")
-        else:
-            pass
 
     if len(asym) != 3:
         raise ValueError("Need 3 coordinates in x,y,z fractional coordinates.")
@@ -525,7 +519,7 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
 
     node = f'/{path}'
     if node in fid:
-        print("crystal already exists. overwriting...\n")
+        logging.warning(f"Crystal already exists for {node}. overwriting...")
         del fid[node]
 
     gid = fid.create_group(path)

@@ -1,9 +1,6 @@
-# %%
+import logging
 
 import numpy as np
-
-# import scipy as sp
-
 import scipy.ndimage as img
 
 try:
@@ -11,11 +8,7 @@ try:
 except ImportError:
     from skimage import io as imgio
 
-
 import skimage.transform as xformimg
-
-
-# %%
 
 
 def gen_bright_field(
@@ -33,23 +26,21 @@ def gen_bright_field(
 
     tbf_stack = np.zeros([tbf_num_imgs, nrows, ncols])
 
-    print('Loading data for median bright field...')
+    logging.info('Loading data for median bright field...')
     for ii in np.arange(tbf_num_imgs):
-        print('Image #: ' + str(ii))
+        logging.info(f'Image #: {ii}')
         tbf_stack[ii, :, :] = imgio.imread(
             tbf_data_folder
             + '%s' % (stem)
             + str(tbf_img_nums[ii]).zfill(num_digits)
             + ext
         )
-        # image_stack[ii,:,:]=np.flipud(tmp_img>threshold)
-    print('making median...')
+    logging.info('making median...')
 
-    tbf = np.median(tbf_stack, axis=0)
-
-    return tbf
+    return np.median(tbf_stack, axis=0)
 
 
+# TODO: Zack asks whether this function is identical to gen_bright_field.
 def gen_median_image(
     data_folder,
     img_start,
@@ -65,21 +56,18 @@ def gen_median_image(
 
     stack = np.zeros([num_imgs, nrows, ncols])
 
-    print('Loading data for median image...')
+    logging.info('Loading data for median image...')
     for ii in np.arange(num_imgs):
-        print('Image #: ' + str(ii))
+        logging.info(f'Image #: {ii}')
         stack[ii, :, :] = imgio.imread(
             data_folder
             + '%s' % (stem)
             + str(img_nums[ii]).zfill(num_digits)
             + ext
         )
-        # image_stack[ii,:,:]=np.flipud(tmp_img>threshold)
-    print('making median...')
+    logging.info('making median...')
 
-    med = np.median(stack, axis=0)
-
-    return med
+    return np.median(stack, axis=0)
 
 
 def gen_attenuation_rads(
@@ -94,7 +82,6 @@ def gen_attenuation_rads(
     ext='.tif',
     tdf=None,
 ):
-
     # Reconstructs a single tompgrahy layer to find the extent of the sample
     tomo_img_nums = np.arange(
         tomo_img_start, tomo_img_start + tomo_num_imgs, 1
@@ -106,9 +93,9 @@ def gen_attenuation_rads(
 
     rad_stack = np.zeros([tomo_num_imgs, nrows, ncols])
 
-    print('Loading and Calculating Absorption Radiographs ...')
+    logging.info('Loading and Calculating Absorption Radiographs ...')
     for ii in np.arange(tomo_num_imgs):
-        print('Image #: ' + str(ii))
+        logging.info(f'Image #: {ii}')
         tmp_img = imgio.imread(
             tomo_data_folder
             + '%s' % (stem)
@@ -157,7 +144,7 @@ def tomo_reconstruct_layer(
 
     sinogram_cut = sinogram_cut[:, dist_from_edge:-dist_from_edge]
 
-    print('Inverting Sinogram....')
+    logging.info('Inverting Sinogram....')
     reconstruction_fbp = xformimg.iradon(
         sinogram_cut.T, theta=theta, circle=True
     )
@@ -190,8 +177,7 @@ def threshold_and_clean_tomo_layer(
 
     labeled_img, num_labels = img.label(binary_recon)
 
-    print('Cleaning...')
-    print('Removing Noise...')
+    logging.info('Cleaning and removing Noise...')
     for ii in np.arange(1, num_labels):
         obj1 = np.where(labeled_img == ii)
         if obj1[0].shape[0] < noise_obj_size:
@@ -199,7 +185,7 @@ def threshold_and_clean_tomo_layer(
 
     labeled_img, num_labels = img.label(binary_recon != 1)
 
-    print('Closing Holes...')
+    logging.info('Closing Holes...')
     for ii in np.arange(1, num_labels):
 
         obj1 = np.where(labeled_img == ii)

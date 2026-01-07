@@ -1,3 +1,5 @@
+import logging
+
 from hexrd.core.imageseries.baseclass import ImageSeries
 from hexrd.core.imageseries.omega import OmegaWedges
 from hexrd.hedm.preprocess.profiles import (
@@ -105,8 +107,7 @@ class PP_Eiger(PP_Base):
         )
         self.raw = imageseries.open(self.fname, format=self.RAWFMT)
         self.use_frame_list = self.nframes != len(self.raw)
-        print(
-            f"On Init:\n\t{self.fname}, {self.nframes} frames,"
+        logging.info(f"On Init:\n\t{self.fname}, {self.nframes} frames, "
             f"{self.omwedges.nframes} omw, {len(self.raw)} total"
         )
 
@@ -152,8 +153,7 @@ class PP_Dexela(PP_Base):
         self.use_frame_list = self.nframes != len(
             self.raw
         )  # Framelist fix, DCP 6/18/18
-        print(
-            f"On Init:\n\t{self.fname}, {self.nframes} frames,"
+        logging.info(f"On Init:\n\t{self.fname}, {self.nframes} frames, "
             f"{self.omwedges.nframes} omw, {len(self.raw)} total"
         )
 
@@ -171,25 +171,15 @@ class PP_Dexela(PP_Base):
 
     @property
     def dark(self, nframes: int = 100) -> Union[NDArray, float32]:
-        """build and return dark image"""
+        """ Build and return dark image """
         if self._dark is None:
             usenframes = min(nframes, self.nframes)
-            print(
-                "building dark images using %s frames (may take a while)..."
-                % usenframes
-            )
+            logging.info(f"Building dark images using {usenframes} frames...")
+
             start = time.time()
-            #            self._dark = imageseries.stats.percentile(
-            #                    self.raw, self.DARKPCTILE, nframes=usenframes
-            #            )
-            self._dark = imageseries.stats.median(
-                self.raw, nframes=usenframes
-            )  # changed to median by DCP 11/18/17
+            self._dark = imageseries.stats.median(self.raw, nframes=usenframes)
             elapsed = time.time() - start
-            print(
-                "done building background (dark) image: "
-                + "elapsed time is %f seconds" % elapsed
-            )
+            logging.info(f"Done building background (dark) image. Took {elapsed} sec.")
 
         return self._dark
 

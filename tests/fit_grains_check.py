@@ -6,6 +6,7 @@ Created on Mon Aug 10 10:53:26 2020
 @author: joel
 """
 import argparse
+import logging
 
 import numpy as np
 
@@ -55,12 +56,12 @@ def compare_grain_fits(
         if ang <= mtol:
             cresult = True
         else:
-            print("orientations for grain %d do not agree." % ii)
+            logging.warning(f"orientations for grain {ii} do not agree.")
             return cresult
 
         # test position
         if np.linalg.norm(fg[3:6] - rg[3:6]) > ctol:
-            print("centroidal coordinates for grain %d do not agree." % ii)
+            logging.warning(f"centroidal coordinates for grain {ii} do not agree.")
             return False
 
         # test strain
@@ -71,7 +72,7 @@ def compare_grain_fits(
             np.linalg.inv(mutil.vecMVToSymm(rg[6:])), scale=False
         )
         if np.linalg.norm(vmat_fit - vmat_ref, ord=1) > vtol:
-            print("stretch components for grain %d do not agree." % ii)
+            logging.warning(f"stretch components for grain {ii} do not agree.")
             return False
 
         # index grain id

@@ -1,5 +1,6 @@
 from abc import abstractmethod
 import copy
+import logging
 import os
 from typing import Optional
 
@@ -903,7 +904,7 @@ class Detector:
                 if style.lower() == 'yaml':
                     # !!! can't practically write array-like buffers to YAML
                     #     so forced to clobber
-                    print("clobbering panel buffer array in yaml-ready output")
+                    logging.info("clobbering panel buffer array in yaml-ready output")
                     panel_buffer = [0.0, 0.0]
             else:
                 raise ValueError(
