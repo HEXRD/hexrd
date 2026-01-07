@@ -1,4 +1,5 @@
 from pathlib import Path
+import pytest
 
 import numpy as np
 
@@ -7,6 +8,11 @@ from hexrd.core import imageseries
 # NOTE: this is in a separate format than the `test_formats.py` file
 # so that we can utilize the pytest fixtures.
 
+
+pytest.importorskip(
+    "dectris.compression",
+    reason="dectris.compression (Eiger decompression) is not installed",
+)
 
 def test_format_eiger_stream_v2(example_repo_path: Path):
     filepath = (
