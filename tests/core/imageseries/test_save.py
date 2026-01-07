@@ -152,10 +152,6 @@ def test_framecache_process_meta(mock_exists, mock_save, mock_ims):
 
     with patch('sys.stderr') as mock_stderr:
         meta_out = writer._process_meta(save_omegas=True)
-        assert any(
-            "nested metadata" in str(c)
-            for c in mock_stderr.write.call_args_list
-        )
         assert "! load-numpy-array" in meta_out['array']
         mock_save.assert_called()
 

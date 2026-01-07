@@ -28,7 +28,7 @@ def test_misorientations():
         "oh",
     ]
     for lg in laue_groups:
-        logging.info(f"group: {lg}")
+        logging.debug(f"group: {lg}")
         qsym = symmetry.quatOfLaueGroup(lg)
         q1 = qsym[:, -1:]
         ang, mis = rotations.misorientation(q1, qsym, (qsym,))

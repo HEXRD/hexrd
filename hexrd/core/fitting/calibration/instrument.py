@@ -205,13 +205,13 @@ class InstrumentCalibrator:
         delta_r = 1.0 - nrm_ssr_1 / nrm_ssr_0
 
         if delta_r > 0:
-            logger.info('OPTIMIZATION SUCCESSFUL')
+            logger.debug('OPTIMIZATION SUCCESSFUL')
         else:
             logger.warning('no improvement in residual')
 
-        logger.info('normalized initial ssr: %.4e' % nrm_ssr_0)
-        logger.info('normalized final ssr: %.4e' % nrm_ssr_1)
-        logger.info('change in resdiual: %.4e' % delta_r)
+        logger.debug('normalized initial ssr: %.4e' % nrm_ssr_0)
+        logger.debug('normalized final ssr: %.4e' % nrm_ssr_1)
+        logger.debug('change in resdiual: %.4e' % delta_r)
 
         self.params = result.params
         self.update_all_from_params(self.params)

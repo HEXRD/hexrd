@@ -16,9 +16,7 @@ class GenericMultiprocessing:
         pass
 
     def _func_queue(self, func, q_in, q_out, *args, **kwargs):
-        """
-        Retrive processes from the queue
-        """
+        """ Retrive processes from the queue """
         while True:
             pos, var = q_in.get()
             if pos is None:
@@ -26,19 +24,10 @@ class GenericMultiprocessing:
 
             res = func(var, *args, **kwargs)
             q_out.put((pos, res))
-            logging.info(
-                "finished azimuthal position #",
-                pos,
-                "with rwp = ",
-                res[2] * 100.0,
-                "%",
-            )
-        return
+            logging.info(f"Finished azimuthal position #{pos} with rwp={res[2]*100}%")
 
     def parallelise_function(self, var, func, *args, **kwargs):
-        """
-        Split evaluations of func across processors
-        """
+        """ Split evaluations of func across processors """
         n = len(var)
 
         processes = []
@@ -47,7 +36,7 @@ class GenericMultiprocessing:
 
         # get the maximum number of processes that will be started
         nprocs = cpu_count()
-        logging.debug(f"Number of CPUs: {nprocs} - Running on all of them.")
+        logging.info(f"Number of CPUs: {nprocs} - Running on all of them.")
 
         for i in range(nprocs):
             pass_args = [func, q_in, q_out]

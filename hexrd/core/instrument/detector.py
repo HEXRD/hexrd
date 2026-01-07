@@ -904,7 +904,7 @@ class Detector:
                 if style.lower() == 'yaml':
                     # !!! can't practically write array-like buffers to YAML
                     #     so forced to clobber
-                    logging.info("clobbering panel buffer array in yaml-ready output")
+                    logging.debug("clobbering panel buffer array in yaml-ready output")
                     panel_buffer = [0.0, 0.0]
             else:
                 raise ValueError(

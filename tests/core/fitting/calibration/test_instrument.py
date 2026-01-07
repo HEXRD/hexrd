@@ -204,6 +204,7 @@ def test_relative_constraints_logic(instrument_calibrator):
         ),
     ],
 )
+
 def test_run_calibration(instrument_calibrator, residuals, expected_log):
     mock_res_obj = MagicMock()
     mock_res_obj.params = "optimized_params"
@@ -221,7 +222,7 @@ def test_run_calibration(instrument_calibrator, residuals, expected_log):
         instrument_calibrator.run_calibration(odict={})
 
         if expected_log == 'OPTIMIZATION SUCCESSFUL':
-            mock_logger.info.assert_any_call(expected_log)
+            mock_logger.debug.assert_any_call(expected_log)
             mock_upd.assert_called_with("optimized_params")
         else:
             mock_logger.warning.assert_any_call(expected_log)

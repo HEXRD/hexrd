@@ -17,7 +17,7 @@ from hexrd.core.material.unitcell import _StiffnessDict, _pgDict
 
 
 def mk(filename, xtalname):
-    logging.info(pstr_mkxtal)
+    logging.debug(pstr_mkxtal)
 
     # get the crystal system. legend is printed above
     xtal_sys, bool_trigonal, bool_hexset = GetXtalSystem()
@@ -238,16 +238,12 @@ def GetSpaceGroup(xtal_sys, btrigonal, bhexset):
         xtal_sys = 5
 
     if btrigonal and not bhexset:
-        logging.info("\n The space groups below correspond to the ")
-        logging.info("second (rhombohedral) setting.")
-        logging.info(" Please select one of these space groups.\n")
+        logging.info("The space groups below correspond to the second (rhombohedral)" \
+                     "setting. Please select one of these space groups.")
 
-        for i in range(0, 7):
-            pstr = str(TRIG[i]) + ":" + pstr_spacegroup[TRIG[i]]
-            if (i + 1) % 4 == 0 or i == 6:
-                logging.info(pstr)
-            else:
-                logging.info(pstr)
+        for i in range(7):
+            pstr = f'{TRIG[i]}:{pstr_spacegroup[TRIG[i]]}'
+            logging.info(pstr)
 
         logging.info(50 * "-" + "\n")
     else:
@@ -313,7 +309,7 @@ def SpaceGroupSetting(sgnum):
             iset = int(iset)
             logging.debug(iset)
             if not iset in [1, 2]:
-                raise ValueError(" Value entered for setting must be 1 or 2 !")
+                raise ValueError(" Value entered for setting must be 1 or 2!")
 
     return iset - 1
 

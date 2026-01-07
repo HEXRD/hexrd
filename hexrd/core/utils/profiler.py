@@ -103,9 +103,9 @@ def instrument_all(filenames):
 
 
 def dump_results(args):
-    logging.info(" STATS ".center(72, '='))
+    logging.debug(" STATS ".center(72, '='))
     fmt = "{2:>14}, {1:>8}, {0:<40}"
-    logging.info(fmt.format("FUNCTION", "CALLS", "TIME"))
+    logging.debug(fmt.format("FUNCTION", "CALLS", "TIME"))
     fmt = "{2:>14F}, {1:>8}, {0:<40}"
     sorted_by_time = sorted(
         nvtx.getstats().iteritems(), key=lambda tup: tup[1][1]

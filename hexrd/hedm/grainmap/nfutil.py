@@ -112,11 +112,8 @@ class ProcessController:
         entry = self.timing.pop()
         assert name == entry[0]
         total = t - entry[2]
-        logging.info(
-            "%s took %8.3fs (%8.6fs per item).",
-            entry[0],
-            total,
-            total / entry[1],
+        logging.debug(
+            f"{entry[0]} took {total:8.3f}s ({total / entry[1]:8.6f}s per item)."
         )
 
     def update(self, value):

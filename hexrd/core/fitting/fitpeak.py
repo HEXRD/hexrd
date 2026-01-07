@@ -267,11 +267,11 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
         # outflag = res['success']
     else:
         p = p0
-        logging.info('non-valid option, returning guess')
+        logging.warning('non-valid option, returning guess')
 
     if np.any(np.isnan(p)):
         p = p0
-        logging.info('failed fitting, returning guess')
+        logging.warning('failed fitting, returning guess')
 
     return p
 
@@ -913,7 +913,7 @@ def direct_pk_analysis(
         com = float('NaN')
         FWHM = float('NaN')
         total_int = total_int
-        logging.info('Analysis Failed... Intensity too low')
+        logging.error('Analysis Failed... Intensity too low')
     else:
         com = np.sum(xfine * ffine) / np.sum(ffine)
 
@@ -925,7 +925,7 @@ def direct_pk_analysis(
             com = float('NaN')
             FWHM = float('NaN')
             total_int = total_int
-            logging.info('Analysis Failed... Peak is not well defined')
+            logging.error('Analysis Failed... Peak is not well defined')
         else:
             """
             calculate positions on the left and right half of peaks at half

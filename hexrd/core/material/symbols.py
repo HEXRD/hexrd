@@ -234,9 +234,9 @@ def PrintPossibleSG(xtal_sys):
         j = i - sgmin + 1
         pstr = f'{i}:{pstr_spacegroup[i - 1]}\t'
         if j % 4 == 0 or j == sgmax:
-            logging.info(pstr)
+            logging.debug(pstr)
         else:
-            logging.info(pstr, end='')
+            logging.debug(pstr, end='')
 
     return sgmin, sgmax
 

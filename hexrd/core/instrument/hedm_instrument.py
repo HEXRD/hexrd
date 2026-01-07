@@ -1833,7 +1833,7 @@ class HEDMInstrument(object):
                     for omega in omega_eval
                 ]
                 if -1 in frame_indices:
-                    logging.info(f"window for {hkl} falls outside omega range")
+                    logging.warning(f"window for {hkl} falls outside omega range")
                     continue
 
                 omega_edges = omega_image_series.omega[frame_indices[0]][0]
@@ -2075,7 +2075,7 @@ class HEDMInstrument(object):
                     for omega in omega_eval
                 ]
                 if -1 in frame_indices:
-                    logging.info(
+                    logging.warning(
                         f"window for {hkls_p[ang_index, :]} falls outside omega range"
                     )
                     continue
