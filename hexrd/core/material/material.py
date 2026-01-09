@@ -587,18 +587,13 @@ class Material(object):
                         class. We will be using pycifrw for i/o
         """
 
-        try:
-            cif = ReadCif(fcif)
-        except RuntimeError:
-            logger.warning("File not found")
+        cif = ReadCif(fcif)
 
-        # read the file
         for k in cif.keys():
             if '_cell_length_a' in cif[k]:
                 m = k
                 break
         cifdata = cif[m]
-        # cifdata = cif[cif.keys()[0]]
 
         # make sure the space group is present in the cif file, either as
         # international table number, hermann-maguain or hall symbol
