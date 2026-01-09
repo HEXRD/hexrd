@@ -113,4 +113,4 @@ def dump_results(args):
         nvtx.getstats().iteritems(), key=lambda tup: tup[1][1]
     )
     for key, val in sorted_by_time:
-        logger.debug(fmt.format(key, *val))
+        logger.info(fmt.format(key, *val))
