@@ -18,7 +18,7 @@ from hexrd.core.material.unitcell import _StiffnessDict, _pgDict
 logger = logging.getLogger(__name__)
 
 def mk(filename, xtalname):
-    logger.debug(pstr_mkxtal)
+    logger.info(pstr_mkxtal)
 
     # get the crystal system. legend is printed above
     xtal_sys, bool_trigonal, bool_hexset = GetXtalSystem()
