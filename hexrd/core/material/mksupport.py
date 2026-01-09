@@ -15,9 +15,10 @@ import datetime
 import getpass
 from hexrd.core.material.unitcell import _StiffnessDict, _pgDict
 
+logger = logging.getLogger(__name__)
 
 def mk(filename, xtalname):
-    logging.debug(pstr_mkxtal)
+    logger.debug(pstr_mkxtal)
 
     # get the crystal system. legend is printed above
     xtal_sys, bool_trigonal, bool_hexset = GetXtalSystem()
@@ -61,7 +62,7 @@ def GetXtalSystem():
     bhexset = False
 
     if xtal_sys == 5:
-        logging.info(" 1. Hexagonal setting \n 2. Rhombohedral setting")
+        logger.info(" 1. Hexagonal setting \n 2. Rhombohedral setting")
         hexset = input("(1/2)? :    ")
 
         if not hexset.isdigit():
@@ -238,14 +239,14 @@ def GetSpaceGroup(xtal_sys, btrigonal, bhexset):
         xtal_sys = 5
 
     if btrigonal and not bhexset:
-        logging.info("The space groups below correspond to the second (rhombohedral)" \
+        logger.info("The space groups below correspond to the second (rhombohedral)" \
                      "setting. Please select one of these space groups.")
 
         for i in range(7):
             pstr = f'{TRIG[i]}:{pstr_spacegroup[TRIG[i]]}'
-            logging.info(pstr)
+            logger.info(pstr)
 
-        logging.info(50 * "-" + "\n")
+        logger.info(50 * "-" + "\n")
     else:
         sgmin, sgmax = PrintPossibleSG(xtal_sys)
 
@@ -298,16 +299,16 @@ def SpaceGroupSetting(sgnum):
     if sgnum in two_origin_choice:
         sitesym1 = two_origin_choice[sgnum][0]
         sitesym2 = two_origin_choice[sgnum][1]
-        logging.info(' ---------------------------------------------')
-        logging.info(' This space group has two origin settings.')
-        logging.info(' The first setting has site symmetry    : ' + sitesym1)
-        logging.info(' the second setting has site symmetry   : ' + sitesym2)
+        logger.info(' ---------------------------------------------')
+        logger.info(' This space group has two origin settings.')
+        logger.info(' The first setting has site symmetry    : ' + sitesym1)
+        logger.info(' the second setting has site symmetry   : ' + sitesym2)
         iset = input(' Which setting do you wish to use (1/2) : ')
         if not iset.isdigit():
             raise ValueError(f"Invalid integer value for atomic number: {iset}")
         else:
             iset = int(iset)
-            logging.debug(iset)
+            logger.debug(iset)
             if not iset in [1, 2]:
                 raise ValueError(" Value entered for setting must be 1 or 2!")
 
@@ -315,7 +316,7 @@ def SpaceGroupSetting(sgnum):
 
 
 def GetAtomInfo():
-    logging.info(pstr_Elements)
+    logger.info(pstr_Elements)
 
     Z = []
     APOS = []
@@ -515,7 +516,7 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
 
     node = f'/{path}'
     if node in fid:
-        logging.warning(f"Crystal already exists for {node}. overwriting...")
+        logger.warning(f"Crystal already exists for {node}. overwriting...")
         del fid[node]
 
     gid = fid.create_group(path)

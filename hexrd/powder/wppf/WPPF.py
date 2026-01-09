@@ -42,6 +42,7 @@ from hexrd.powder.wppf.phase import (
     Material_Rietveld,
 )
 
+logger = logging.getLogger(__name__)
 
 class AbstractWPPF(ABC):
     """Methods used by both LeBail and Rietveld"""
@@ -1389,7 +1390,7 @@ class LeBail(AbstractWPPF):
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
         if print_to_screen:
-            logging.debug("Finished iteration. Rwp: "
+            logger.debug("Finished iteration. Rwp: "
                 f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
             )
 
@@ -1417,7 +1418,7 @@ class LeBail(AbstractWPPF):
             return res
         else:
             if print_to_screen:
-                logging.info("nothing to refine. updating intensities")
+                logger.info("nothing to refine. updating intensities")
             self.computespectrum()
             return getattr(self, 'res', None)
 
@@ -2101,11 +2102,11 @@ class Rietveld(AbstractWPPF):
             self.Rwplist = np.append(self.Rwplist, self.Rwp)
             self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-            logging.debug("Finished iteration. Rwp: "
+            logger.debug("Finished iteration. Rwp: "
                 f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
             )
         else:
-            logging.info("Nothing to refine...")
+            logger.info("Nothing to refine...")
 
     def RefineTexture(self):
         final_result = None
@@ -2113,10 +2114,10 @@ class Rietveld(AbstractWPPF):
             if model is None:
                 continue
 
-            logging.info(f'Refining texture parameters for "{name}"')
+            logger.info(f'Refining texture parameters for "{name}"')
             results = model.calculate_harmonic_coefficients(self.params)
             if results is None:
-                logging.info(f'No "{name}" parameters marked as "vary". Skipping...')
+                logger.info(f'No "{name}" parameters marked as "vary". Skipping...')
 
             final_result = results if results is not None else final_result
 
@@ -2128,7 +2129,7 @@ class Rietveld(AbstractWPPF):
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-        logging.debug("Finished iteration. Rwp: "
+        logger.debug("Finished iteration. Rwp: "
             f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
         )
 

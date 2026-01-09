@@ -46,7 +46,7 @@ from hexrd.core.rotations import (
     angularDifference,
 )
 from hexrd.core.matrixutil import columnNorm, rowNorm
-
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Module Data
@@ -655,7 +655,7 @@ def polarRebin(
         if log:
             log.write(msg)
         else:
-            logging.info(msg)
+            logger.info(msg)
 
     rhoI = startRho - 10 * deltaRho
     rhoF = stopRho + 10 * deltaRho
@@ -666,7 +666,7 @@ def polarRebin(
             if log:
                 log.write(msg)
             else:
-                logging.info(msg)
+                logger.info(msg)
 
         # import pdb;pdb.set_trace()
         etaI1 = rowEta[i] - 10.5 * deltaEta

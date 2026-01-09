@@ -9,6 +9,8 @@ from typing import get_origin, get_args, Union
 
 import argparse
 
+logger = logging.getLogger(__name__)
+
 _description = 'Preprocess detector images'
 _help = "Preprocess data from detector and attach metadata"
 
@@ -33,7 +35,7 @@ def execute(args: argparse.Namespace, _: argparse.ArgumentParser) -> None:
     kwargs, extra = _remove_non_dataclass_args(vars(args))
 
     if extra["generate_default_config"]:
-        logging.info(HexrdPPScript_Arguments.create_default_config(extra["profile"]))
+        logger.info(HexrdPPScript_Arguments.create_default_config(extra["profile"]))
     else:
         if extra["config"] is not None:
             args_object = HexrdPPScript_Arguments.load_from_config(

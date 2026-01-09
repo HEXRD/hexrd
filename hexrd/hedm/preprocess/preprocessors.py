@@ -15,6 +15,8 @@ from typing import Any, Optional, Union, Sequence, cast
 from numpy.typing import NDArray
 from numpy import float32
 
+logger = logging.getLogger(__name__)
+
 
 class PP_Base(object):
     PROCFMT: Optional[str] = None
@@ -107,7 +109,7 @@ class PP_Eiger(PP_Base):
         )
         self.raw = imageseries.open(self.fname, format=self.RAWFMT)
         self.use_frame_list = self.nframes != len(self.raw)
-        logging.info(f"On Init:\n\t{self.fname}, {self.nframes} frames, "
+        logger.info(f"On Init:\n\t{self.fname}, {self.nframes} frames, "
             f"{self.omwedges.nframes} omw, {len(self.raw)} total"
         )
 
@@ -153,7 +155,7 @@ class PP_Dexela(PP_Base):
         self.use_frame_list = self.nframes != len(
             self.raw
         )  # Framelist fix, DCP 6/18/18
-        logging.info(f"On Init:\n\t{self.fname}, {self.nframes} frames, "
+        logger.info(f"On Init:\n\t{self.fname}, {self.nframes} frames, "
             f"{self.omwedges.nframes} omw, {len(self.raw)} total"
         )
 
@@ -174,12 +176,12 @@ class PP_Dexela(PP_Base):
         """ Build and return dark image """
         if self._dark is None:
             usenframes = min(nframes, self.nframes)
-            logging.info(f"Building dark images using {usenframes} frames...")
+            logger.info(f"Building dark images using {usenframes} frames...")
 
             start = time.time()
             self._dark = imageseries.stats.median(self.raw, nframes=usenframes)
             elapsed = time.time() - start
-            logging.info(f"Done building background (dark) image. Took {elapsed} sec.")
+            logger.info(f"Done building background (dark) image. Took {elapsed} sec.")
 
         return self._dark
 

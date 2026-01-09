@@ -4,6 +4,7 @@ import os
 import numpy as np
 import h5py
 
+logger = logging.getLogger(__name__)
 
 class Spectrum:
     """
@@ -46,7 +47,7 @@ class Spectrum:
             return Spectrum(x, y, name)
 
         except ValueError:
-            logging.warning('Wrong data format for spectrum file! - ' + filename)
+            logger.warning('Wrong data format for spectrum file! - ' + filename)
             return -1
 
     def save(self, filename, header=''):

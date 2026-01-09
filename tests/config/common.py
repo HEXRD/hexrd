@@ -6,6 +6,7 @@ import unittest
 
 from hexrd.hedm import config
 
+logger = logging.getLogger(__name__)
 
 test_data = {
     'existing_path': os.path.abspath('..'),
@@ -24,7 +25,7 @@ class TestConfig(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        logging.disable()
+        logger.disable()
         with tempfile.NamedTemporaryFile(delete=False, mode="w+") as f:
             cls.file_name = f.name
             f.file.write(cls.get_reference_data())

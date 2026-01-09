@@ -15,6 +15,8 @@ from hexrd.hedm.fitgrains import fit_grains
 from hexrd.core import matrixutil as mutil
 from hexrd.core import rotations as rot
 
+logger = logging.getLogger(__name__)
+
 
 def compare_grain_fits(
     fit_grain_params, ref_grain_params, mtol=1.0e-4, ctol=1.0e-3, vtol=1.0e-4
@@ -56,12 +58,12 @@ def compare_grain_fits(
         if ang <= mtol:
             cresult = True
         else:
-            logging.warning(f"orientations for grain {ii} do not agree.")
+            logger.warning(f"orientations for grain {ii} do not agree.")
             return cresult
 
         # test position
         if np.linalg.norm(fg[3:6] - rg[3:6]) > ctol:
-            logging.warning(f"centroidal coordinates for grain {ii} do not agree.")
+            logger.warning(f"centroidal coordinates for grain {ii} do not agree.")
             return False
 
         # test strain
@@ -72,7 +74,7 @@ def compare_grain_fits(
             np.linalg.inv(mutil.vecMVToSymm(rg[6:])), scale=False
         )
         if np.linalg.norm(vmat_fit - vmat_ref, ord=1) > vtol:
-            logging.warning(f"stretch components for grain {ii} do not agree.")
+            logger.warning(f"stretch components for grain {ii} do not agree.")
             return False
 
         # index grain id

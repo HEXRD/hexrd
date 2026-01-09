@@ -11,6 +11,8 @@ import logging
 
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 
 # TODO: Check that this test is still sensible after PlaneData change.
 from hexrd.core.material.crystallography import PlaneData
@@ -147,7 +149,7 @@ class Comparison:
         l1, l2 = len(eta1), len(eta2)
         if l1 != l2:
             msg = "eta: lengths differ: %d and %d" % (l1, l2)
-            logging.info(msg)
+            logger.info(msg)
             return False, msg
 
         nrmdiff = np.linalg.norm(eta1 - eta2)
@@ -155,7 +157,7 @@ class Comparison:
             return True, "eta: same"
         else:
             msg = "eta: norm of difference: %s" % nrmdiff
-            logging.info(msg)
+            logger.info(msg)
             return False, msg
 
     def omega(self):
@@ -165,7 +167,7 @@ class Comparison:
         l1, l2 = len(omega1), len(omega2)
         if l1 != l2:
             msg = "omega: lengths differ: %d and %d" % (l1, l2)
-            logging.info(msg)
+            logger.info(msg)
             return False, msg
 
         nrmdiff = np.linalg.norm(omega1 - omega2)
@@ -173,7 +175,7 @@ class Comparison:
             return True, "omega: same"
         else:
             msg = "omega: norm of difference: %s" % nrmdiff
-            logging.info(msg)
+            logger.info(msg)
             return False, msg
 
     def hkl_indices(self):
@@ -191,7 +193,7 @@ class Comparison:
         d1, d2 = self.e1.data, self.e2.data
         if d1.shape != d2.shape:
             msg = "data shapes do not match: " % (d1.shape, d2.shape)
-            logging.info(msg)
+            logger.info(msg)
             return False, msg
 
         for ind in range(d1.shape[0]):
@@ -212,7 +214,7 @@ class Comparison:
                     nnz1,
                     nnz2,
                 )
-                logging.info(msg)
+                logger.info(msg)
                 return False, msg
 
             overlapping = d1i.astype(bool) | d2i.astype(bool)
@@ -223,7 +225,7 @@ class Comparison:
                     nnz1,
                     nnz,
                 )
-                logging.info(msg)
+                logger.info(msg)
                 return False, msg
 
             d1over = d1i[overlapping]
@@ -233,7 +235,7 @@ class Comparison:
                 return True, "data: same"
             else:
                 msg = "data: map %s: map values differ" % (ind)
-                logging.info(msg)
+                logger.info(msg)
                 return False, msg
 
         return True, "data: same"

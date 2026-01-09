@@ -9,7 +9,7 @@ except ImportError:
     from skimage import io as imgio
 
 import skimage.transform as xformimg
-
+logger = logging.getLogger(__name__)
 
 def gen_bright_field(
     tbf_data_folder,
@@ -26,16 +26,16 @@ def gen_bright_field(
 
     tbf_stack = np.zeros([tbf_num_imgs, nrows, ncols])
 
-    logging.info('Loading data for median bright field...')
+    logger.info('Loading data for median bright field...')
     for ii in np.arange(tbf_num_imgs):
-        logging.info(f'Image #: {ii}')
+        logger.info(f'Image #: {ii}')
         tbf_stack[ii, :, :] = imgio.imread(
             tbf_data_folder
             + '%s' % (stem)
             + str(tbf_img_nums[ii]).zfill(num_digits)
             + ext
         )
-    logging.info('making median...')
+    logger.info('making median...')
 
     return np.median(tbf_stack, axis=0)
 
@@ -56,16 +56,16 @@ def gen_median_image(
 
     stack = np.zeros([num_imgs, nrows, ncols])
 
-    logging.info('Loading data for median image...')
+    logger.info('Loading data for median image...')
     for ii in np.arange(num_imgs):
-        logging.info(f'Image #: {ii}')
+        logger.info(f'Image #: {ii}')
         stack[ii, :, :] = imgio.imread(
             data_folder
             + '%s' % (stem)
             + str(img_nums[ii]).zfill(num_digits)
             + ext
         )
-    logging.info('making median...')
+    logger.info('making median...')
 
     return np.median(stack, axis=0)
 
@@ -93,9 +93,9 @@ def gen_attenuation_rads(
 
     rad_stack = np.zeros([tomo_num_imgs, nrows, ncols])
 
-    logging.info('Loading and Calculating Absorption Radiographs ...')
+    logger.info('Loading and Calculating Absorption Radiographs ...')
     for ii in np.arange(tomo_num_imgs):
-        logging.info(f'Image #: {ii}')
+        logger.info(f'Image #: {ii}')
         tmp_img = imgio.imread(
             tomo_data_folder
             + '%s' % (stem)
@@ -144,7 +144,7 @@ def tomo_reconstruct_layer(
 
     sinogram_cut = sinogram_cut[:, dist_from_edge:-dist_from_edge]
 
-    logging.info('Inverting Sinogram....')
+    logger.info('Inverting Sinogram....')
     reconstruction_fbp = xformimg.iradon(
         sinogram_cut.T, theta=theta, circle=True
     )
@@ -177,7 +177,7 @@ def threshold_and_clean_tomo_layer(
 
     labeled_img, num_labels = img.label(binary_recon)
 
-    logging.info('Cleaning and removing Noise...')
+    logger.info('Cleaning and removing Noise...')
     for ii in np.arange(1, num_labels):
         obj1 = np.where(labeled_img == ii)
         if obj1[0].shape[0] < noise_obj_size:
@@ -185,7 +185,7 @@ def threshold_and_clean_tomo_layer(
 
     labeled_img, num_labels = img.label(binary_recon != 1)
 
-    logging.info('Closing Holes...')
+    logger.info('Closing Holes...')
     for ii in np.arange(1, num_labels):
 
         obj1 = np.where(labeled_img == ii)

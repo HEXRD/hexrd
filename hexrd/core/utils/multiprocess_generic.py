@@ -1,6 +1,8 @@
 import logging
 from multiprocessing import Queue, Process, cpu_count
 
+logger = logging.getLogger(__name__)
+
 """
 this class was put in utils as there isn't any other obvious place where it
 belongs. this routine is a generic multiprocessing routine for taking a function
@@ -24,7 +26,7 @@ class GenericMultiprocessing:
 
             res = func(var, *args, **kwargs)
             q_out.put((pos, res))
-            logging.info(f"Finished azimuthal position #{pos} with rwp={res[2]*100}%")
+            logger.info(f"Finished azimuthal position #{pos} with rwp={res[2]*100}%")
 
     def parallelise_function(self, var, func, *args, **kwargs):
         """ Split evaluations of func across processors """
@@ -36,7 +38,7 @@ class GenericMultiprocessing:
 
         # get the maximum number of processes that will be started
         nprocs = cpu_count()
-        logging.info(f"Number of CPUs: {nprocs} - Running on all of them.")
+        logger.info(f"Number of CPUs: {nprocs} - Running on all of them.")
 
         for i in range(nprocs):
             pass_args = [func, q_in, q_out]

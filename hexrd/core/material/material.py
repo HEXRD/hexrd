@@ -58,6 +58,7 @@ from hexrd.core.fitting.peakfunctions import _unit_gaussian
 
 __all__ = ['Material', 'loadMaterialList']
 
+logger = logging.getLogger(__name__) 
 
 #
 # ================================================== Module Data
@@ -589,7 +590,7 @@ class Material(object):
         try:
             cif = ReadCif(fcif)
         except RuntimeError:
-            logging.warning("File not found")
+            logger.warning("File not found")
 
         # read the file
         for k in cif.keys():

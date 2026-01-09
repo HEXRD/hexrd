@@ -21,6 +21,8 @@ try:
 except ImportError:
     pass
 
+logger = logging.getLogger(__name__)
+
 
 def instrument_function(fn_desc):
     """Interpret a record for an instrumented function, and instrument
@@ -103,12 +105,12 @@ def instrument_all(filenames):
 
 
 def dump_results(args):
-    logging.debug(" STATS ".center(72, '='))
+    logger.debug(" STATS ".center(72, '='))
     fmt = "{2:>14}, {1:>8}, {0:<40}"
-    logging.debug(fmt.format("FUNCTION", "CALLS", "TIME"))
+    logger.debug(fmt.format("FUNCTION", "CALLS", "TIME"))
     fmt = "{2:>14F}, {1:>8}, {0:<40}"
     sorted_by_time = sorted(
         nvtx.getstats().iteritems(), key=lambda tup: tup[1][1]
     )
     for key, val in sorted_by_time:
-        logging.debug(fmt.format(key, *val))
+        logger.debug(fmt.format(key, *val))

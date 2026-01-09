@@ -51,6 +51,8 @@ from hexrd.core import valunits
 from hexrd.core.valunits import toFloat
 from hexrd.core.constants import d2r, r2d, sqrt3by2, epsf, sqrt_epsf
 
+logger = logging.getLogger(__name__) 
+
 """module vars"""
 
 # units
@@ -2001,9 +2003,9 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     # a little talkback...
     if dispFlag:
         if fableFlag:
-            logging.info('Using Fable angle convention')
+            logger.info('Using Fable angle convention')
         else:
-            logging.info('Using image-based angle convention')
+            logger.info('Using image-based angle convention')
 
     # mapped eta input
     #   - in DEGREES, thanks to c1

@@ -17,6 +17,8 @@ import yaml
 from hexrd.core.matrixutil import extract_ijv
 from hexrd.core.utils.hdf5 import unwrap_dict_to_h5
 
+logger = logging.getLogger(__name__) 
+
 MAX_NZ_FRACTION = 0.1  # 10% sparsity trigger for frame-cache write
 
 
@@ -269,7 +271,7 @@ class WriteFrameCache(Writer):
         d = {}
         for k, v in list(self._meta.items()):
             if isinstance(v, dict):
-                logging.warning('NPZ files do not support nested metadata. '
+                logger.warning('NPZ files do not support nested metadata. '
                     f'The metadata key "{k}" will not be written out.')
                 continue
 

@@ -25,6 +25,7 @@ from hexrd.core.imageseries import omega
 from hexrd.core.projections.polar import PolarView
 import time
 
+logger = logging.getLogger(__name__)
 
 class LeBailCalibrator:
     """
@@ -235,7 +236,7 @@ class LeBailCalibrator:
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
 
         if np.mod(self.nfev, 10) == 0:
-            logging.info(f"refinement ongoing... \n weighted residual at "
+            logger.info(f"refinement ongoing... \n weighted residual at "
                 f"iteration # {self.nfev} = {self.Rwp}")
 
         return errvec
@@ -272,12 +273,12 @@ class LeBailCalibrator:
         self.res = res
 
         if self.res.success:
-            logging.info(
+            logger.info(
                 f"\n \n optimization successful: {self.res.message}.\n"
                 f"weighted residual error = {self.Rwp}"
             )
         else:
-            logging.info(
+            logger.info(
                 f"\n \n optimization unsuccessful: {self.res.message}.\n"
                 f"weighted residual error = {self.Rwp}"
             )
@@ -473,7 +474,7 @@ class LeBailCalibrator:
                 for p in pname:
                     self.params[p].vary = val
         else:
-            logging.warning("Background method doesn't support refinement.")
+            logger.warning("Background method doesn't support refinement.")
 
     @property
     def refine_instrument(self):

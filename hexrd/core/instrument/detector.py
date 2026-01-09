@@ -43,6 +43,7 @@ from hexrd.core.material.utils import (
     calculate_incoherent_scattering,
 )
 
+logger = logging.getLogger(__name__) 
 distortion_registry = distortion_pkg.Registry()
 
 max_workers_DFLT = max(1, os.cpu_count() - 1)
@@ -904,7 +905,7 @@ class Detector:
                 if style.lower() == 'yaml':
                     # !!! can't practically write array-like buffers to YAML
                     #     so forced to clobber
-                    logging.debug("clobbering panel buffer array in yaml-ready output")
+                    logger.debug("clobbering panel buffer array in yaml-ready output")
                     panel_buffer = [0.0, 0.0]
             else:
                 raise ValueError(

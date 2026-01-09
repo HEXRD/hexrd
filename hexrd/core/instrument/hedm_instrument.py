@@ -1122,7 +1122,7 @@ class HEDMInstrument(object):
 
         ring_maps_panel = dict.fromkeys(self.detectors)
         for det_key in self.detectors:
-            logging.info(f"working on detector '{det_key}'...")
+            logger.info(f"working on detector '{det_key}'...")
 
             # grab panel
             panel = self.detectors[det_key]
@@ -1708,7 +1708,7 @@ class HEDMInstrument(object):
             arrays and coordinates; otherwise, they contain summary data.
         """
         if quiet is not None:
-            logging.warning("'quiet' is deprecated and marked for removal.")
+            logger.warning("'quiet' is deprecated and marked for removal.")
 
         if check_only:
             return self._pull_spots_check_only(
@@ -1833,7 +1833,7 @@ class HEDMInstrument(object):
                     for omega in omega_eval
                 ]
                 if -1 in frame_indices:
-                    logging.warning(f"window for {hkl} falls outside omega range")
+                    logger.warning(f"window for {hkl} falls outside omega range")
                     continue
 
                 omega_edges = omega_image_series.omega[frame_indices[0]][0]
@@ -2075,7 +2075,7 @@ class HEDMInstrument(object):
                     for omega in omega_eval
                 ]
                 if -1 in frame_indices:
-                    logging.warning(
+                    logger.warning(
                         f"window for {hkls_p[ang_index, :]} falls outside omega range"
                     )
                     continue
