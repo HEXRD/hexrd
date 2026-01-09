@@ -1,49 +1,35 @@
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 import numpy as np
-from hexrd.rotations import misorientation
-from hexrd.material import Material
-from matplotlib import pyplot as plt
-from hexrd.valunits import _angstrom, _kev
-import mplstereonet
-from numba import njit
-from hexrd.material.spacegroup import get_symmetry_directions
+
+from hexrd.core.material import Material
+from hexrd.core.material.spacegroup import get_symmetry_directions
+
 
 """
 define some helper functions
 """
 
-"""
-    remove all hkl, -hkl pairs from list of symmetrically
-equivalent hkls"""
 
-
-def removeinversion(ksym):
+def removeinversion(ksym: np.ndarray) -> np.ndarray:
+    """remove all hkl, -hkl pairs from list of symmetrically"""
     klist = []
     for i in range(ksym.shape[0]):
         k = ksym[i, :]
         kk = list(k)
         nkk = list(-k)
-        if klist == []:
-            if np.sum(k) > np.sum(-k):
-                klist.append(kk)
-            else:
-                klist.append(nkk)
-
+        if not klist:
+            klist.append(kk if np.sum(k) > np.sum(-k) else nkk)
         else:
-            if (kk in klist) or (nkk in klist):
-                pass
-            else:
+            if kk not in klist and nkk not in klist:
                 klist.append(kk)
-    klist = np.array(klist)
-    return klist
+
+    return np.array(klist)
 
 
-"""
-    get expected number of phase transformation variants
-    from group theoretic calculations
-"""
-
-
-def expected_num_variants(mat1, mat2, R1, R2):
+def expected_num_variants(
+    mat1: Material, mat2: Material, r1: np.ndarray, r2: np.ndarray
+) -> int:
     """
     calculate expected number of orientational
     variants using the formula given in
@@ -51,7 +37,7 @@ def expected_num_variants(mat1, mat2, R1, R2):
     page 2
     N_alpha = |G_beta|/|H_beta|
     """
-    T = np.dot(R1, R2.T)
+    T = np.dot(r1, r2.T)
     sym1 = mat1.unitcell.SYM_PG_c
     sym2 = mat2.unitcell.SYM_PG_c
     ctr = 0
@@ -64,12 +50,8 @@ def expected_num_variants(mat1, mat2, R1, R2):
     return int(len(sym1) / ctr)
 
 
-"""
-    get rotation matrix
-"""
-
-
-def get_rmats(p1, d1, mat, toprint=False):
+def get_rmats(p1: np.ndarray, d1: np.ndarray, mat: Material) -> np.ndarray:
+    """get rotation matrix"""
     sym = mat.unitcell.SYM_PG_c
     z = p1
     x = d1
@@ -77,24 +59,24 @@ def get_rmats(p1, d1, mat, toprint=False):
     return np.vstack((x, y, z)).T
 
 
-"""
-    check if rotation matrix generated is a new one
-"""
-
-
-def isnew(mat, rmat, sym):
-    res = True
+def isnew(mat: np.ndarray, rmat: list[np.ndarray], sym: np.ndarray) -> bool:
+    """check if rotation matrix generated is a new one"""
     for r in rmat:
         for s in sym:
             rr = np.dot(s, r)
             diff = np.sum(np.abs(rr - mat))
             if diff < 1e-6:
-                res = False
-                break
-    return res
+                return False
+
+    return True
 
 
-def prepare_data(mat1, mat2, parallel_planes, parallel_directions):
+def prepare_data(
+    mat1: Material,
+    mat2: Material,
+    parallel_planes: list[np.ndarray],
+    parallel_directions: list[np.ndarray],
+) -> tuple[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray]]:
     """
     prepare the planes and directions by:
         1. converting to cartesian space
@@ -117,28 +99,32 @@ def prepare_data(mat1, mat2, parallel_planes, parallel_directions):
 
 # main function
 # get the variants
-def getOR(R1, R2, mat1, mat2):
+def getOR(
+    r1: np.ndarray, r2: np.ndarray, mat1: Material, mat2: Material
+) -> np.ndarray:
     """
-    R1 ---> mat1
-    R2 ---> mat2
+    r1 ---> mat1
+    r2 ---> mat2
     """
     rmat = []
     sym1 = mat1.unitcell.SYM_PG_c
     sym2 = mat2.unitcell.SYM_PG_c
     for sa in sym1:
-        ma = np.dot(sa, R1)
+        ma = np.dot(sa, r1)
         # for sb in sym2:
-        #     mb = np.dot(sb, R2)
-        mb = R2
+        #     mb = np.dot(sb, r2)
+        mb = r2
         m = np.dot(mb, ma.T)
         if isnew(m, rmat, sym2):
             rmat.append(m)
 
     rmat_t = [r.T for r in rmat]
-    return rmat_t
+    return np.array(rmat_t)
 
 
-def plot_OR_mat(rmat, mat, fig, ax, title):
+def plot_OR_mat(
+    rmat: np.ndarray, mat: Material, fig: Figure, ax: Axes, title: str
+):
     font = {
         "family": "serif",
         "weight": "bold",
@@ -177,7 +163,16 @@ def plot_OR_mat(rmat, mat, fig, ax, title):
     ax.set_title(title, **font)
 
 
-def plot_OR(rmat_parent, rmat_variants, mat1, mat2, fig=None, ax=None):
+def plot_OR(
+    rmat_parent: np.ndarray,
+    rmat_variants: np.ndarray,
+    mat1: Material,
+    mat2: Material,
+    fig=None,
+    ax=None,
+):
+    import mplstereonet
+
     if fig is None or ax is None:
         fig, ax = mplstereonet.subplots(
             ncols=2, figsize=(10, 5), projection='equal_angle_stereonet'
@@ -193,14 +188,14 @@ def plot_OR(rmat_parent, rmat_variants, mat1, mat2, fig=None, ax=None):
 
 
 def getPhaseTransformationVariants(
-    mat1,
-    mat2,
-    parallel_planes,
-    parallel_directions,
-    rmat_parent=[np.eye(3)],
-    plot=False,
-    verbose=False,
-):
+    mat1: Material,
+    mat2: Material,
+    parallel_planes: np.ndarray,
+    parallel_directions: np.ndarray,
+    rmat_parent: np.ndarray | None = None,
+    plot: bool = False,
+    verbose: bool = False,
+) -> tuple[np.ndarray, int]:
     """
     main function to get the phase transformation variants between two materials
     give a set of parallel planes and parallel directions
@@ -211,25 +206,28 @@ def getPhaseTransformationVariants(
         Material class for parent phase
     mat2 : hexrd.material.Material
         Material class for child phase
-    parallel_planes : list/tuple
+    parallel_planes : np.ndarray
         list of numpy arrays with parallel planes, length=2
-    parallel_planes : list/tuple
+    parallel_planes : np.ndarray
         list of numpy arrays with parallel directions, length=2
+    rmat_parent : np.ndarray
+        ???, default is np.array([np.eye(3)])
     plot : boolean
         plot the data in stereographic projection if true
-
-
     """
+    if rmat_parent is None:
+        rmat_parent = np.array([np.eye(3)])
+
     (p1, p2), (d1, d2) = prepare_data(
         mat1, mat2, parallel_planes, parallel_directions
     )
 
-    R1 = get_rmats(p1, d1, mat1)
-    R2 = get_rmats(p2, d2, mat2)
+    r1 = get_rmats(p1, d1, mat1)
+    r2 = get_rmats(p2, d2, mat2)
 
-    rmat_variants = getOR(R1, R2, mat1, mat2)
+    rmat_variants = getOR(r1, r2, mat1, mat2)
 
-    num_var = expected_num_variants(mat1, mat2, R1, R2)
+    num_var = expected_num_variants(mat1, mat2, r1, r2)
 
     if verbose:
         print("Expected # of orientational variants = ", num_var)
