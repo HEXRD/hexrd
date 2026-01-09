@@ -1,11 +1,13 @@
 """Test rotations module"""
 
+import logging
 import numpy as np
 import pytest
 
 from hexrd.core.material import symmetry
 from hexrd.core import rotations
 
+logger = logging.getLogger(__name__)
 
 def test_misorientations():
     """Use Laue groups to test for zero misorientation"""
@@ -27,7 +29,7 @@ def test_misorientations():
         "oh",
     ]
     for lg in laue_groups:
-        print("group: ", lg)
+        logger.debug(f"group: {lg}")
         qsym = symmetry.quatOfLaueGroup(lg)
         q1 = qsym[:, -1:]
         ang, mis = rotations.misorientation(q1, qsym, (qsym,))

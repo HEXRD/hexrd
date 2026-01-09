@@ -2,6 +2,7 @@
 
 import abc
 from concurrent.futures import ThreadPoolExecutor
+import logging
 import multiprocessing
 import os
 import threading
@@ -15,6 +16,8 @@ import yaml
 
 from hexrd.core.matrixutil import extract_ijv
 from hexrd.core.utils.hdf5 import unwrap_dict_to_h5
+
+logger = logging.getLogger(__name__) 
 
 MAX_NZ_FRACTION = 0.1  # 10% sparsity trigger for frame-cache write
 
@@ -268,11 +271,8 @@ class WriteFrameCache(Writer):
         d = {}
         for k, v in list(self._meta.items()):
             if isinstance(v, dict):
-                print(
-                    'WARNING: NPZ files do not support nested metadata. '
-                    f'The metadata key "{k}" will not be written out.',
-                    file=sys.stderr,
-                )
+                logger.warning('NPZ files do not support nested metadata. '
+                    f'The metadata key "{k}" will not be written out.')
                 continue
 
             if isinstance(v, np.ndarray) and save_omegas:

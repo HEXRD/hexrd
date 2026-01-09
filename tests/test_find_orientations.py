@@ -19,8 +19,8 @@ from hexrd.core.material.crystallography import PlaneData
 
 import find_orientations_testing as test_utils
 
-root = logging.getLogger()
-root.setLevel(logging.DEBUG)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.INFO)
@@ -28,7 +28,7 @@ formatter = coloredlogs.ColoredFormatter(
     '%(asctime)s,%(msecs)03d - %(name)s - %(levelname)s - %(message)s'
 )
 handler.setFormatter(formatter)
-root.addHandler(handler)
+logger.addHandler(handler)
 
 
 @pytest.fixture

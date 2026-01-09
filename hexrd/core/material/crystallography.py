@@ -26,6 +26,7 @@
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # =============================================================================
 import re
+import logging
 import copy
 import csv
 import os
@@ -49,6 +50,8 @@ from hexrd.core.transforms import xfcapi
 from hexrd.core import valunits
 from hexrd.core.valunits import toFloat
 from hexrd.core.constants import d2r, r2d, sqrt3by2, epsf, sqrt_epsf
+
+logger = logging.getLogger(__name__) 
 
 """module vars"""
 
@@ -2000,9 +2003,9 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     # a little talkback...
     if dispFlag:
         if fableFlag:
-            print('\nUsing Fable angle convention\n')
+            logger.info('Using Fable angle convention')
         else:
-            print('\nUsing image-based angle convention\n')
+            logger.info('Using image-based angle convention')
 
     # mapped eta input
     #   - in DEGREES, thanks to c1

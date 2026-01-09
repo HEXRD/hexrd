@@ -43,7 +43,7 @@ class Config(object):
             res = temp[item]
         except KeyError:
             if default is not null:
-                logger.info('%s not specified, defaulting to %s', key, default)
+                logger.debug('%s not specified, defaulting to %s', key, default)
                 res = temp.get(item, default)
             else:
                 raise RuntimeError(

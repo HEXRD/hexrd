@@ -91,8 +91,7 @@ def arccosSafe(cosines):
     """
     cosines = np.atleast_1d(cosines)
     if (np.abs(cosines) > 1.00001).any():
-        print("attempt to take arccos of %s" % cosines, file=sys.stderr)
-        raise RuntimeError("unrecoverable error")
+        raise RuntimeError(f"Failed to take arccos of {cosines}")
     return np.arccos(np.clip(cosines, -1.0, 1.0))
 
 

@@ -6,6 +6,7 @@ import unittest
 
 from hexrd.hedm import config
 
+logger = logging.getLogger(__name__)
 
 test_data = {
     'existing_path': os.path.abspath('..'),

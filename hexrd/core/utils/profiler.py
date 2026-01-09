@@ -8,6 +8,7 @@ full dot path.
 
 from __future__ import print_function, absolute_import
 
+import logging
 import warnings
 
 try:
@@ -19,6 +20,8 @@ try:
     import nvtxpy as nvtx
 except ImportError:
     pass
+
+logger = logging.getLogger(__name__)
 
 
 def instrument_function(fn_desc):
@@ -102,12 +105,12 @@ def instrument_all(filenames):
 
 
 def dump_results(args):
-    print(" STATS ".center(72, '='))
+    logger.debug(" STATS ".center(72, '='))
     fmt = "{2:>14}, {1:>8}, {0:<40}"
-    print(fmt.format("FUNCTION", "CALLS", "TIME"))
+    logger.debug(fmt.format("FUNCTION", "CALLS", "TIME"))
     fmt = "{2:>14F}, {1:>8}, {0:<40}"
     sorted_by_time = sorted(
         nvtx.getstats().iteritems(), key=lambda tup: tup[1][1]
     )
     for key, val in sorted_by_time:
-        print(fmt.format(key, *val))
+        logger.info(fmt.format(key, *val))

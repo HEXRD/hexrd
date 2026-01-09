@@ -420,12 +420,8 @@ def arccosSafe(temp):
         if len(temp.shape) == 0:
             temp = temp.reshape(1)
 
-    if (temp > 1.00001).any():
-        print("attempt to take arccos of %s" % temp, file=sys.stderr)
-        raise RuntimeError("unrecoverable error")
-    elif (temp < -1.00001).any():
-        print("attempt to take arccos of %s" % temp, file=sys.stderr)
-        raise RuntimeError("unrecoverable error")
+    if (temp > 1.00001).any() or (temp < -1.00001).any():
+        raise RuntimeError(f"Failed to take arccos of {temp}")
 
     gte1 = temp >= 1.0
     lte1 = temp <= -1.0
@@ -433,9 +429,7 @@ def arccosSafe(temp):
     temp[gte1] = 1
     temp[lte1] = -1
 
-    ang = np.arccos(temp)
-
-    return ang
+    return np.arccos(temp)
 
 
 def angularDifference(angList0, angList1, units=angularUnits):

@@ -36,9 +36,7 @@ def main():
     if len(sys.argv) == 1:
         sys.argv.append('-h')
 
-    p = argparse.ArgumentParser(
-        description='High energy diffraction data analysis'
-    )
+    p = argparse.ArgumentParser(description='High energy diffraction data analysis')
     p.add_argument(
         "--debug",
         action="store_true",
@@ -77,6 +75,7 @@ def main():
         pass
 
     args = p.parse_args()
+    logging.info(f'HEXRD version: {_version}')
 
     log_level = logging.DEBUG if args.debug else logging.INFO
     ch = logging.StreamHandler()

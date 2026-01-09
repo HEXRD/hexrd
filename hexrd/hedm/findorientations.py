@@ -96,7 +96,7 @@ def generate_orientation_fibers(cfg, eta_ome):
     #       default values for each case?  They must be specified as of now.
     method = next(iter(method_dict.keys()))
     method_kwargs = method_dict[method]
-    logger.info('\tusing "%s" method for fiber generation' % method)
+    logger.debug('\tusing "%s" method for fiber generation' % method)
 
     # crystallography data from the pd object
     pd = eta_ome.planeData
@@ -151,16 +151,7 @@ def generate_orientation_fibers(cfg, eta_ome):
         chunksize = max(1, len(input_p) // (10 * ncpus))
         pool = mp.Pool(ncpus, discretefiber_init, (params,))
         qfib = pool.map(discretefiber_reduced, input_p, chunksize=chunksize)
-        '''
-        # This is an experiment...
-        ntotal= 10*ncpus + np.remainder(len(input_p), 10*ncpus) > 0
-        for _ in tqdm.tqdm(
-                pool.imap_unordered(
-                    discretefiber_reduced, input_p, chunksize=chunksize
-                ), total=ntotal
-            ):
-        print(_.shape)
-        '''
+
         pool.close()
         pool.join()
     else:
@@ -302,11 +293,11 @@ def run_cluster(
                 )
             else:
                 if algorithm == 'ort-dbscan':
-                    logger.info("using euclidean orthographic DBSCAN")
+                    logger.debug("using euclidean orthographic DBSCAN")
                     pts = qfib_r[1:, :].T
                     eps = 0.25 * np.radians(cl_radius)
                 else:
-                    logger.info("using euclidean DBSCAN")
+                    logger.debug("using euclidean DBSCAN")
                     pts = qfib_r.T
                     eps = 0.5 * np.radians(cl_radius)
 
@@ -431,7 +422,7 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
                 [f'[{i}]' for i in shkls],
             )
         except (AttributeError, IOError):
-            logger.info(
+            logger.warning(
                 f"specified maps file '{str(fn)}' not found "
                 f"and clean option not specified; "
                 f"recomputing eta/ome orientation maps"
@@ -546,7 +537,7 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
 
     # logging output
     shkls = plane_data.getHKLs(*active_hklIDs, asStr=True)
-    logger.info(
+    logger.debug(
         "building eta_ome maps using hkls: %s", [f'[{i}]' for i in shkls]
     )
 
@@ -569,7 +560,7 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
         ome_period=ome_period,
     )
 
-    logger.info("\t\t...took %f seconds", timeit.default_timer() - start)
+    logger.debug("\t\t...took %f seconds", timeit.default_timer() - start)
 
     if save:
         # save maps
@@ -769,8 +760,8 @@ def find_orientations(
         # handle search space
         if cfg.find_orientations.use_quaternion_grid is None:
             # doing seeded search
-            logger.info("Will perform seeded search")
-            logger.info(
+            logger.debug("Will perform seeded search")
+            logger.debug(
                 "\tgenerating search quaternion list using %d processes", ncpus
             )
             start = timeit.default_timer()
@@ -802,7 +793,7 @@ def find_orientations(
         pool.close()
         pool.join()
     else:
-        logger.info("\tusing map search with paintGrid on %d processes", ncpus)
+        logger.debug("\tusing map search with paintGrid on %d processes", ncpus)
 
         start = timeit.default_timer()
 
@@ -814,7 +805,7 @@ def find_orientations(
         # handle search space
         if cfg.find_orientations.use_quaternion_grid is None:
             # doing seeded search
-            logger.info(
+            logger.debug(
                 "\tgenerating search quaternion list using %d processes", ncpus
             )
             start = timeit.default_timer()
@@ -869,7 +860,7 @@ def find_orientations(
     # CLUSTERING AND GRAINS OUTPUT
     # =========================================================================
 
-    logger.info("\trunning clustering using '%s'", cl_algorithm)
+    logger.debug("\trunning clustering using '%s'", cl_algorithm)
 
     start = timeit.default_timer()
 

@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 pstr_mkxtal = "\n\n    This is a program to create a HDF5 file for storing crystallographic information.\n "
 pstr_mkxtal = pstr_mkxtal + " The following inputs are required:\n "
 pstr_mkxtal = pstr_mkxtal + "         Crystal System:\n"
@@ -230,12 +234,11 @@ def PrintPossibleSG(xtal_sys):
 
     for i in range(sgmin, sgmax + 1):
         j = i - sgmin + 1
-        pstr = str(i) + ":" + pstr_spacegroup[i - 1] + "\t"
+        pstr = f'{i}:{pstr_spacegroup[i - 1]}\t'
         if j % 4 == 0 or j == sgmax:
             print(pstr)
         else:
             print(pstr, end='')
-    print("\n")
 
     return sgmin, sgmax
 

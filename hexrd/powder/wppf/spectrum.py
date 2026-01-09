@@ -1,7 +1,10 @@
+import logging
+import os
+
 import numpy as np
 import h5py
-from os import path
 
+logger = logging.getLogger(__name__)
 
 class Spectrum:
     """
@@ -40,11 +43,11 @@ class Spectrum:
             data = np.loadtxt(filename, skiprows=skip_rows)
             x = data.T[0]
             y = data.T[1]
-            name = path.basename(filename).split('.')[:-1][0]
+            name = os.path.basename(filename).split('.')[:-1][0]
             return Spectrum(x, y, name)
 
         except ValueError:
-            print('Wrong data format for spectrum file! - ' + filename)
+            logger.warning('Wrong data format for spectrum file! - ' + filename)
             return -1
 
     def save(self, filename, header=''):
@@ -87,7 +90,7 @@ class Spectrum:
         """
 
         if isinstance(file, str):
-            fexist = path.isfile(file)
+            fexist = os.path.isfile(file)
             if fexist:
                 fid = h5py.File(file, 'r+')
             else:

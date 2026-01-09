@@ -31,6 +31,8 @@ Module for XRD material class
 Use the Material class directly for new materials.  Known
 materials are defined by name in materialDict.
 """
+import logging
+
 from configparser import ConfigParser as Parser
 import numpy as np
 
@@ -56,6 +58,7 @@ from hexrd.core.fitting.peakfunctions import _unit_gaussian
 
 __all__ = ['Material', 'loadMaterialList']
 
+logger = logging.getLogger(__name__) 
 
 #
 # ================================================== Module Data
@@ -584,18 +587,13 @@ class Material(object):
                         class. We will be using pycifrw for i/o
         """
 
-        try:
-            cif = ReadCif(fcif)
-        except RuntimeError:
-            print("file not found")
+        cif = ReadCif(fcif)
 
-        # read the file
         for k in cif.keys():
             if '_cell_length_a' in cif[k]:
                 m = k
                 break
         cifdata = cif[m]
-        # cifdata = cif[cif.keys()[0]]
 
         # make sure the space group is present in the cif file, either as
         # international table number, hermann-maguain or hall symbol

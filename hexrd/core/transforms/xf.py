@@ -26,7 +26,8 @@
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # ============================================================
 
-import sys
+import logging
+
 import numpy as np
 import numba
 
@@ -45,7 +46,7 @@ from hexrd.core.rotations import (
     angularDifference,
 )
 from hexrd.core.matrixutil import columnNorm, rowNorm
-
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Module Data
@@ -654,18 +655,18 @@ def polarRebin(
         if log:
             log.write(msg)
         else:
-            print(msg)
+            logger.info(msg)
 
     rhoI = startRho - 10 * deltaRho
     rhoF = stopRho + 10 * deltaRho
     inAnnulus = np.where((rho >= rhoI) & (rho <= rhoF))[0]
     for i in range(numEta):
         if verbose:
-            msg = "INFO: Processing sector %d of %d\n" % (i + 1, numEta)
+            msg = f"INFO: Processing sector {i + 1} of {numEta}\n"
             if log:
                 log.write(msg)
             else:
-                print(msg)
+                logger.info(msg)
 
         # import pdb;pdb.set_trace()
         etaI1 = rowEta[i] - 10.5 * deltaEta

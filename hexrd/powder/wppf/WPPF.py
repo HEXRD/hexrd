@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 import copy
 from functools import partial
+import logging
 from os import path
 import time
 import warnings
@@ -41,6 +42,7 @@ from hexrd.powder.wppf.phase import (
     Material_Rietveld,
 )
 
+logger = logging.getLogger(__name__)
 
 class AbstractWPPF(ABC):
     """Methods used by both LeBail and Rietveld"""
@@ -1388,11 +1390,9 @@ class LeBail(AbstractWPPF):
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
         if print_to_screen:
-            msg = (
-                f"Finished iteration. Rwp: "
+            logger.info("Finished iteration. Rwp: "
                 f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
             )
-            print(msg)
 
     def Refine(self, print_to_screen=True):
         """
@@ -1418,8 +1418,7 @@ class LeBail(AbstractWPPF):
             return res
         else:
             if print_to_screen:
-                msg = "nothing to refine. updating intensities"
-                print(msg)
+                logger.info("nothing to refine. updating intensities")
             self.computespectrum()
             return getattr(self, 'res', None)
 
@@ -2103,13 +2102,11 @@ class Rietveld(AbstractWPPF):
             self.Rwplist = np.append(self.Rwplist, self.Rwp)
             self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-            msg = (
-                f"Finished iteration. Rwp: "
+            logger.info("Finished iteration. Rwp: "
                 f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
             )
-            print(msg)
         else:
-            print("Nothing to refine...")
+            logger.info("Nothing to refine...")
 
     def RefineTexture(self):
         final_result = None
@@ -2117,10 +2114,10 @@ class Rietveld(AbstractWPPF):
             if model is None:
                 continue
 
-            print(f'Refining texture parameters for "{name}"')
+            logger.info(f'Refining texture parameters for "{name}"')
             results = model.calculate_harmonic_coefficients(self.params)
             if results is None:
-                print(f'No "{name}" parameters marked as "vary". Skipping...')
+                logger.info(f'No "{name}" parameters marked as "vary". Skipping...')
 
             final_result = results if results is not None else final_result
 
@@ -2132,11 +2129,9 @@ class Rietveld(AbstractWPPF):
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-        msg = (
-            f"Finished iteration. Rwp: "
+        logger.info("Finished iteration. Rwp: "
             f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
         )
-        print(msg)
 
     def texture_parameters_vary(self, vary=False):
         '''helper function to turn texture related

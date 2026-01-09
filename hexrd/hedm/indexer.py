@@ -185,7 +185,7 @@ def paintGrid(
         if len(threshold) != nHKLS:
             raise RuntimeError("threshold list is wrong length!")
         else:
-            print("INFO: using list of threshold values")
+            logging.debug("Using list of threshold values")
     else:
         raise RuntimeError(
             "unknown threshold option. should be a list of numbers or None"
@@ -193,7 +193,6 @@ def paintGrid(
     if bMat is None:
         bMat = planeData.latVecOps['B']
 
-    # ???
     # not positive why these are needed
     etaIndices = np.arange(numEtas)
     omeIndices = np.arange(numOmes)
@@ -240,13 +239,13 @@ def paintGrid(
     if multiProcMode:
         nCPUs = nCPUs or nCPUs_DFLT
         chunksize = min(quats.shape[1] // nCPUs, 10)
-        logger.info(
+        logger.debug(
             "using multiprocessing with %d processes and a chunk size of %d",
             nCPUs,
             chunksize,
         )
     else:
-        logger.info("running in serial mode")
+        logger.debug("running in serial mode")
         nCPUs = 1
 
     # Get the symHKLs for the selected hklIDs
@@ -511,14 +510,6 @@ def paintGridThis(quat):
     del_eta = abs(etaEdges[1] - etaEdges[0])
     dpix_ome = int(round(omeTol / del_ome))
     dpix_eta = int(round(etaTol / del_eta))
-
-    # FIXME
-    debug = False
-    if debug:
-        print(
-            "using ome, eta dilitations of (%d, %d) pixels"
-            % (dpix_ome, dpix_eta)
-        )
 
     # get the equivalent rotation of the quaternion in matrix form (as
     # expected by oscillAnglesOfHKLs

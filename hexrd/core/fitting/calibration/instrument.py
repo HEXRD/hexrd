@@ -205,7 +205,7 @@ class InstrumentCalibrator:
         delta_r = 1.0 - nrm_ssr_1 / nrm_ssr_0
 
         if delta_r > 0:
-            logger.info('OPTIMIZATION SUCCESSFUL')
+            logger.debug('OPTIMIZATION SUCCESSFUL')
         else:
             logger.warning('no improvement in residual')
 

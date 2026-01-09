@@ -25,6 +25,8 @@
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # ============================================================
 
+import logging
+
 import numpy as np
 
 # from numpy.polynomial import chebyshev
@@ -38,6 +40,8 @@ from hexrd.core.imageutil import snip1d
 from hexrd.core.fitting import peakfunctions as pkfuncs
 
 import matplotlib.pyplot as plt
+
+logger = logging.getLogger(__name__) 
 
 
 # =============================================================================
@@ -265,12 +269,11 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
         # outflag = res['success']
     else:
         p = p0
-        print('non-valid option, returning guess')
+        logger.warning('non-valid option, returning guess')
 
     if np.any(np.isnan(p)):
         p = p0
-        print('failed fitting, returning guess')
-
+        logger.warning('failed fitting, returning guess')
     return p
 
 
@@ -911,7 +914,7 @@ def direct_pk_analysis(
         com = float('NaN')
         FWHM = float('NaN')
         total_int = total_int
-        print('Analysis Failed... Intensity too low')
+        logger.error('Analysis Failed... Intensity too low')
     else:
         com = np.sum(xfine * ffine) / np.sum(ffine)
 
@@ -923,7 +926,7 @@ def direct_pk_analysis(
             com = float('NaN')
             FWHM = float('NaN')
             total_int = total_int
-            print('Analysis Failed... Peak is not well defined')
+            logger.error('Analysis Failed... Peak is not well defined')
         else:
             """
             calculate positions on the left and right half of peaks at half

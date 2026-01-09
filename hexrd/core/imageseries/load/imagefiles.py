@@ -1,14 +1,7 @@
 """Adapter class for list of image files"""
 
-# import sys
-import os
-
-# import logging
 import glob
-
-# # Put this before fabio import and reset level if you
-# # want to control its import warnings.
-# logging.basicConfig(level=logging.INFO)
+import os
 
 import numpy as np
 import fabio
@@ -36,7 +29,6 @@ class ImageFilesImageSeriesAdapter(ImageSeriesAdapter):
         self._load_yml()
         self._process_files()
 
-    # @memoize
     def __len__(self):
         if self._maxframes_tot > 0:
             return min(self._nframes, self._maxframes_tot)

@@ -1,5 +1,7 @@
+import logging
 from multiprocessing import Queue, Process, cpu_count
 
+logger = logging.getLogger(__name__)
 
 """
 this class was put in utils as there isn't any other obvious place where it
@@ -12,14 +14,11 @@ This is an example script from the Github repo https://github.com/brmather/pycur
 
 
 class GenericMultiprocessing:
-
     def __init__(self):
         pass
 
     def _func_queue(self, func, q_in, q_out, *args, **kwargs):
-        """
-        Retrive processes from the queue
-        """
+        """ Retrive processes from the queue """
         while True:
             pos, var = q_in.get()
             if pos is None:
@@ -27,19 +26,10 @@ class GenericMultiprocessing:
 
             res = func(var, *args, **kwargs)
             q_out.put((pos, res))
-            print(
-                "finished azimuthal position #",
-                pos,
-                "with rwp = ",
-                res[2] * 100.0,
-                "%",
-            )
-        return
+            logger.info(f"Finished azimuthal position #{pos} with rwp={res[2]*100}%")
 
     def parallelise_function(self, var, func, *args, **kwargs):
-        """
-        Split evaluations of func across processors
-        """
+        """ Split evaluations of func across processors """
         n = len(var)
 
         processes = []
@@ -48,7 +38,7 @@ class GenericMultiprocessing:
 
         # get the maximum number of processes that will be started
         nprocs = cpu_count()
-        print("# of cpu = ", nprocs, "running on all of them.")
+        logger.info(f"Number of CPUs: {nprocs} - Running on all of them.")
 
         for i in range(nprocs):
             pass_args = [func, q_in, q_out]
