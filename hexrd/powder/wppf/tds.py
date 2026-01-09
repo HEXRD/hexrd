@@ -1,0 +1,221 @@
+import numpy as np
+import warnings
+from hexrd.wppf.xtal import _calcxrayformfactor, _calcanomalousformfactor
+from hexrd.constants import (
+    ptableinverse,
+    fNT,
+    frel,
+    scatfac,
+    cPlanck,
+    cBoltzmann,
+    cAvogadro,
+    ATOM_WEIGHTS_DICT,
+)
+
+TDS_MODEL_TYPES = ['warren', 'experimental']
+
+
+def check_model_type(model):
+    if not model in TDS_MODEL_TYPES:
+        msg = f'unknown TDS model type'
+        raise ValueError(msg)
+
+
+class TDS:
+    '''
+    >> @AUTHOR:     Saransh Singh,
+                    Lawrence Livermore National Lab,
+                    saransh1@llnl.gov
+    >> @DATE:       01/09/2026 SS 1.0 original
+    >> @DETAILS:    thermal diffuse scattering class can be used
+                    to fit the broad, interpeak diffuse signal
+                    in the Rietveld refinement. The primary purpose is to
+                    extract temperature and also account for the diffuse signal
+                    when extracting incipient melt phase fraction. Currently,
+                    the models supported are experimentally extracted diffuse
+                    signal which can be scaled and shifted, or a theoretical
+                    model detailed in Warren's X-Ray diffraction textbook. The
+                    theoretical model is only given for FCC and BCC crystals, so
+                    only those space groups will be supported for now. Further
+                    development is needed to get the correct models for other
+                    symmetries.
+
+
+    Attributes
+    ----------
+    model_type : str
+        allowed model types are "warren" for the model described in
+        Chapter 11, B.E. Warren, X-Ray Diffraction, Dover publication (1969).
+        Additionally, the TDS signal can also specified as a text file which
+        can be imported. This is the "experimental" model type.
+        The experimental data can be shifted and scaled
+
+    material : hexrd.Material
+        material class
+
+    theta_D: float
+        Debye temperature for this phase. If the model type is
+        "warren" then this is a user input and should not be refined.
+        Otherwise, this is not required
+
+    model_data: numpy.ndarray
+        if the "experimental" model type is used, then model_data
+        is a numpy array containing the 2theta-intensity of the
+        measured TDS signal. the signal in model_data will
+        be shifted and scaled to get the best fit with the observed
+        data.
+
+    scale: if model is "experimental", then this quantifies the
+        scale factor. otherwise, not present
+
+    shift: if model is "experimental", then this quantifies the
+        shift in 2theta. otherwise, not present
+
+    smoothing: if model is "experimental", then this specifies how
+        much (if any) gaussian smoothing to apply to the lineout
+    '''
+
+    def __init__(
+        self,
+        model_type="warren",
+        material=None,
+        theta_D=None,
+        model_data=None,
+        scale=None,
+        shift=None,
+        smoothing=None,
+    ):
+        check_model_type(model_type)
+        self.model_type = model_type
+
+        if self.model_type == 'warren':
+            if material is None:
+                msg = f'material has to be specified for warren model'
+                raise ValueError(msg)
+            self.mat = material
+
+            if theta_D is None:
+                msg = f'theta_D has to be specified for warren model'
+                raise ValueError(msg)
+            self.that_D = theta_D
+
+        if self.model_type == 'experimental':
+            if model_data is None or not isinstance(model_type, np.ndarray):
+                msg = f'model_data needs to be nx2 numpy array'
+                raise ValueError(msg)
+            self.model_data = model_data
+
+            scalec = scale
+            if scale is None:
+                scalec = 1.0
+            self.scale = scalec
+
+            shiftc = shift
+            if shift is None:
+                shiftc = 0.0
+            self.shift = shiftc
+
+        self.smoothing = smoothing
+
+    def get_qb(self):
+        """get Brioullin zone radius of cubic crystal
+        (in A^-1)
+        """
+
+        pre = 2 * np.pi * (3 / np.pi) ** (1.0 / 3.0)
+        return pre / self.mat.latticeParameters[0].value
+
+    def WarrenFunctionalForm(self, x, xhkl):
+        pre = (3 / np.pi / 2) ** (1.0 / 3.0)
+        xx = np.abs(x - xhkl)
+        xx = pre / xx
+        mask = xx > 1.0
+        y = np.log(xx)
+        y[~mask] = 0.0
+        return y
+
+    def formfactor(self, q):
+        s = (q / 4 / np.pi) ** 2
+
+        formfact = {}
+        f_anomalous_data = self.mat.unitcell.f_anomalous_data
+        f_anomalous_data_sizes = self.mat.unitcell.f_anomalous_data_sizes
+
+        scattering_factors = np.zeros([self.mat.unitcell.atom_ntype, 11])
+        for i, a in enumerate(self.mat.atomtype):
+            k = ptableinverse[a]
+            scattering_factors[i, :] = scatfac[k]
+            k = ptableinverse[a]
+            fNT_k = np.array([fNT[k]])
+            frel_k = np.array([frel[k]])
+
+        formfact = {}
+        for i, a in enumerate(self.mat.atomtype):
+            k = ptableinverse[a]
+            formfact[k] = np.zeros_like(s)
+            for ii, ss in enumerate(s):
+                formfact[k][ii] = (
+                    np.squeeze(
+                        np.abs(
+                            _calcxrayformfactor(
+                                self.mat.unitcell.wavelength,
+                                ss,
+                                np.array([a]),
+                                scattering_factors,
+                                fNT_k,
+                                frel_k,
+                                f_anomalous_data,
+                                f_anomalous_data_sizes,
+                            )
+                        )
+                    )
+                    ** 2
+                )
+        return formfact
+
+    def get_TDS_contribution_hkl(self, g, j, q):
+        """texture factor for random powder crystal"""
+        glen = self.mat.unitcell.CalcLength(g, "r") / 10
+        xhkl = glen * self.mat.latticeParameters[0].value
+        x = self.mat.latticeParameters[0].value * q / np.pi / 2
+        if np.isclose(glen, 0):
+            x = self.mat.unitcell.a * 10 * q / 2 / np.pi
+            C = (3 / np.pi / 2) ** (2.0 / 3.0) / 3 / x**2
+        else:
+            pre = (3 / np.pi / 2) ** (2.0 / 3.0) * (j / xhkl) / (6 * x)
+            C = pre * self.WarrenFunctionalForm(x, xhkl)
+        return C
+
+    def calcTDS(self, tth, wavelength, M, thetaD):
+        thr = np.radians(tth * 0.5)
+        q = 4 * np.pi * np.sin(thr) / wavelength
+        s = q / 4 / np.pi
+
+        sth = np.sin(thr)
+        cth = np.cos(thr)
+        c2th = np.cos(2 * thr)
+
+        formfact = self.formfactor(self.mat, q)
+
+        expM = dict.fromkeys(formfact.keys())
+        for k in M.keys():
+            mass = ATOM_WEIGHTS_DICT[k]
+            expM[k] = np.exp(-2 * M[k])
+
+        qb = self.get_qb()
+
+        hkl = self.mat.planeData.getHKLs()
+        multiplicity = self.mat.planeData.getMultiplicity()
+
+        C = np.zeros_like(q)
+        C = self.get_TDS_contribution_hkl(m, np.array([0, 0, 0]), 1, q)
+        for g, j in zip(hkl, multiplicity):
+            C += self.get_TDS_contribution_hkl(g, j, q)
+
+        thermal_diffuse = np.zeros_like(tth)
+        for k, v in formfact.items():
+            thermal_diffuse = v * (
+                (1 - expM[k]) + expM[k] * (2 * M[k] + M[k] ** 2) * (C - 1)
+            )
+
+        return thermal_diffuse
