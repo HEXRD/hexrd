@@ -25,7 +25,7 @@ class TestConfig(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        logger.disable()
+        logger.disabled()
         with tempfile.NamedTemporaryFile(delete=False, mode="w+") as f:
             cls.file_name = f.name
             f.file.write(cls.get_reference_data())
