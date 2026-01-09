@@ -174,14 +174,11 @@ def misorientation(q1, q2, symmetries=None):
         raise RuntimeError("quaternion args are not of type `numpy ndarray'")
 
     if q1.ndim != 2 or q2.ndim != 2:
-        raise RuntimeError(
-            "quaternion args are the wrong shape; must be 2-d (columns)"
-        )
+        raise RuntimeError("quaternion args are the wrong shape; must be 2-d (columns)")
 
     if q1.shape[1] != 1:
         raise RuntimeError(
-            "first argument should be a single quaternion, got shape %s"
-            % (q1.shape,)
+            "first argument should be a single quaternion, got shape %s" % (q1.shape,)
         )
 
     if symmetries is None:
@@ -199,13 +196,10 @@ def misorientation(q1, q2, symmetries=None):
             if not isinstance(symmetries[0], np.ndarray) or not isinstance(
                 symmetries[1], np.ndarray
             ):
-                raise RuntimeError(
-                    "symmetry arguments are not an numpy arrays"
-                )
+                raise RuntimeError("symmetry arguments are not an numpy arrays")
         elif len(symmetries) > 2:
             raise RuntimeError(
-                "symmetry argument has %d entries; should be 1 or 2"
-                % (len(symmetries))
+                "symmetry argument has %d entries; should be 1 or 2" % (len(symmetries))
             )
 
     # set some lengths
@@ -495,9 +489,7 @@ def quatAverage(q_in, qsym):
             q_bar = np.c_[1.0, 0.0, 0.0, 0.0].T
         else:
             n = results[0] / phi
-            q_bar = np.hstack(
-                [np.cos(0.5 * phi), np.sin(0.5 * phi) * n]
-            ).reshape(4, 1)
+            q_bar = np.hstack([np.cos(0.5 * phi), np.sin(0.5 * phi) * n]).reshape(4, 1)
     return q_bar
 
 
@@ -553,13 +545,14 @@ def rotMatOfExpMap(expMap):
 
     return R.from_rotvec(expMap.T).as_matrix().squeeze()
 
+
 @deprecated(new_func="Use `rotMatOfExpMap` instead", removal_date="2025-07-01")
-def rotMatOfExpMap_orig(expMap): # pragma: no cover
+def rotMatOfExpMap_orig(expMap):  # pragma: no cover
     return rotMatOfExpMap(expMap)
 
 
 @deprecated(new_func="Use `rotMatOfExpMap` instead", removal_date="2025-07-01")
-def rotMatOfExpMap_opt(expMap): # pragma: no cover
+def rotMatOfExpMap_opt(expMap):  # pragma: no cover
     return rotMatOfExpMap(expMap)
 
 
@@ -917,9 +910,7 @@ class RotMatEuler(object):
 
         # Ignore Gimbal Lock warning. It is okay.
         with ignore_warnings(UserWarning):
-            self._angles = R.from_matrix(rmat).as_euler(
-                axo, self.units == 'degrees'
-            )
+            self._angles = R.from_matrix(rmat).as_euler(axo, self.units == 'degrees')
 
     @property
     def exponential_map(self):
@@ -1016,9 +1007,7 @@ def distanceToFiber(c, s, q, qsym, centrosymmetry=False, bmatrix=I3):
         rc = multMatArray(rmats, np.tile(csym, (nq, 1, 1)))  # apply q's to c's
 
         sdotrc = (
-            np.dot(s.T, rc.swapaxes(1, 2).reshape(nq * m, 3).T)
-            .reshape(nq, m)
-            .max(1)
+            np.dot(s.T, rc.swapaxes(1, 2).reshape(nq * m, 3).T).reshape(nq, m).max(1)
         )
 
     d = arccosSafe(np.array(sdotrc))
@@ -1099,9 +1088,7 @@ def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
         qh = quatOfAngleAxis(phi, np.tile(c[:, i_c], (ndiv, 1)).T)
 
         # the fibers, arraged as (npts, 4, ndiv)
-        qfib = np.dot(quatProductMatrix(qh, mult='right'), q0).transpose(
-            2, 1, 0
-        )
+        qfib = np.dot(quatProductMatrix(qh, mult='right'), q0).transpose(2, 1, 0)
         if csym is not None:
             retval.append(
                 toFundamentalRegion(qfib.squeeze(), crysSym=csym, sampSym=ssym)
@@ -1149,7 +1136,7 @@ def mapAngle(ang, ang_range=None, units=angularUnits):
     return val
 
 
-def angularDifference_orig(angList0, angList1, units=angularUnits): # pragma: no cover
+def angularDifference_orig(angList0, angList1, units=angularUnits):  # pragma: no cover
     """
     Do the proper (acute) angular difference in the context of a branch cut.
 
@@ -1201,10 +1188,7 @@ def applySym(vec, qsym, csFlag=False, cullPM=False, tol=cnst.sqrt_epsf):
             ]
         )
     allhkl = (
-        multMatArray(Rsym, np.tile(vec, (nsym, 1, 1)))
-        .swapaxes(1, 2)
-        .reshape(nsym, 3)
-        .T
+        multMatArray(Rsym, np.tile(vec, (nsym, 1, 1))).swapaxes(1, 2).reshape(nsym, 3).T
     )
 
     if csFlag:
@@ -1290,9 +1274,7 @@ def toFundamentalRegion(q, crysSym='Oh', sampSym=None):
         # [Gs[:, 0:p]*q[:,   0]*Gc[:, 0], ..., Gs[:, 0:p]*q[:,   0]*Gc[:, m-1],
         #  ...,
         #  Gs[:, 0:p]*q[:, n-1]*Gc[:, 0], ..., Gs[:, 0:p]*q[:, n-1]*Gc[:, m-1]]
-        qeqv = fixQuat(
-            np.dot(qsym_s, qeqv).transpose(2, 0, 1).reshape(p * m * n, 4).T
-        )
+        qeqv = fixQuat(np.dot(qsym_s, qeqv).transpose(2, 0, 1).reshape(p * m * n, 4).T)
 
         raise NotImplementedError
 

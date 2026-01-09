@@ -30,13 +30,14 @@ class AbstractLayer:
         same as the material name.
     """
 
-    def __init__(self,
-                 material: str | None = None,
-                 density: float | None = None,
-                 thickness: float | None = None,
-                 readout_length: float | None = None,
-                 pre_U0: float | None = None,
-                 formula: str | None = None,
+    def __init__(
+        self,
+        material: str | None = None,
+        density: float | None = None,
+        thickness: float | None = None,
+        readout_length: float | None = None,
+        pre_U0: float | None = None,
+        formula: str | None = None,
     ):
         self._material = material
         self._density = density

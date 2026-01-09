@@ -119,9 +119,7 @@ def MakeGenerators(genstr, setting):
             sym = np.squeeze(SYM_fillgen(t, sgn=-1))
             sym2 = np.squeeze(SYM_fillgen(t))
             for i in range(1, genmat.shape[0]):
-                generator = np.dot(
-                    sym2, np.dot(np.squeeze(genmat[i, :, :]), sym)
-                )
+                generator = np.dot(sym2, np.dot(np.squeeze(genmat[i, :, :]), sym))
                 frac = np.modf(generator[0:3, 3])[0]
                 frac[frac < 0.0] += 1.0
                 frac[np.abs(frac) < 1e-5] = 0.0

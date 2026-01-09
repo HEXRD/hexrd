@@ -13,19 +13,12 @@ pstr_mkxtal = pstr_mkxtal + "                 5. Trigonal\n"
 pstr_mkxtal = pstr_mkxtal + "                 6. Monoclinic\n"
 pstr_mkxtal = pstr_mkxtal + "                 7. Triclinic\n\n"
 pstr_mkxtal = pstr_mkxtal + "         Space group number\n"
+pstr_mkxtal = pstr_mkxtal + "         Atomic number (Z) for all species in unit cell\n"
+pstr_mkxtal = pstr_mkxtal + "         Asymmetric positions for all atoms in unit cell\n"
 pstr_mkxtal = (
-    pstr_mkxtal + "         Atomic number (Z) for all species in unit cell\n"
+    pstr_mkxtal + "         Debye-Waller factors for all atoms in the unit cell\n"
 )
-pstr_mkxtal = (
-    pstr_mkxtal + "         Asymmetric positions for all atoms in unit cell\n"
-)
-pstr_mkxtal = (
-    pstr_mkxtal
-    + "         Debye-Waller factors for all atoms in the unit cell\n"
-)
-pstr_mkxtal = (
-    pstr_mkxtal + "         You'll be prompted for these values now\n\n"
-)
+pstr_mkxtal = pstr_mkxtal + "         You'll be prompted for these values now\n\n"
 pstr_mkxtal = pstr_mkxtal + "\n Note about the trigonal system:\n"
 pstr_mkxtal = pstr_mkxtal + " -------------------------------\n"
 pstr_mkxtal = (
@@ -33,24 +26,19 @@ pstr_mkxtal = (
     + " Primitive trigonal crystals are defined with respect to a HEXAGONAL\n"
 )
 pstr_mkxtal = (
-    pstr_mkxtal
-    + " reference frame.  Rhombohedral crystals can be referenced with\n"
+    pstr_mkxtal + " reference frame.  Rhombohedral crystals can be referenced with\n"
 )
 pstr_mkxtal = (
-    pstr_mkxtal
-    + " respect to a HEXAGONAL basis (first setting), or with respect to\n"
+    pstr_mkxtal + " respect to a HEXAGONAL basis (first setting), or with respect to\n"
 )
 pstr_mkxtal = (
-    pstr_mkxtal
-    + " a RHOMBOHEDRAL basis (second setting).  The default setting for\n"
+    pstr_mkxtal + " a RHOMBOHEDRAL basis (second setting).  The default setting for\n"
 )
 pstr_mkxtal = (
-    pstr_mkxtal
-    + " trigonal symmetry is the hexagonal setting.  When you select\n"
+    pstr_mkxtal + " trigonal symmetry is the hexagonal setting.  When you select\n"
 )
 pstr_mkxtal = (
-    pstr_mkxtal
-    + " crystal system 5 above, you will be prompted for the setting. \n"
+    pstr_mkxtal + " crystal system 5 above, you will be prompted for the setting. \n"
 )
 
 # fmt: off

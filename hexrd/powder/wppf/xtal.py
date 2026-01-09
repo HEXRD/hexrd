@@ -69,24 +69,24 @@ def _calcxrayformfactor(
     f_anomalous_data_sizes,
 ):
     """we are using the following form factors for
-       x-aray scattering:
-        1. coherent x-ray scattering, f0 tabulated in
-           Acta Cryst. (1995). A51,416-431
-        2. Anomalous x-ray scattering (complex (f'+if"))
-           tabulated in J. Phys. Chem. Ref. Data, 24, 71 (1995)
-           and J. Phys. Chem. Ref. Data, 29, 597 (2000).
-        3. Thompson nuclear scattering, fNT tabulated in
-           Phys. Lett. B, 69, 281 (1977).
+      x-aray scattering:
+       1. coherent x-ray scattering, f0 tabulated in
+          Acta Cryst. (1995). A51,416-431
+       2. Anomalous x-ray scattering (complex (f'+if"))
+          tabulated in J. Phys. Chem. Ref. Data, 24, 71 (1995)
+          and J. Phys. Chem. Ref. Data, 29, 597 (2000).
+       3. Thompson nuclear scattering, fNT tabulated in
+          Phys. Lett. B, 69, 281 (1977).
 
-        the anomalous scattering is a complex number (f' + if"),
-        where the two terms are given by:
-        f' = f1 + frel - Z
-        f" = f2
+       the anomalous scattering is a complex number (f' + if"),
+       where the two terms are given by:
+       f' = f1 + frel - Z
+       f" = f2
 
-        f1 and f2 have been tabulated as a function of energy in
-        Anomalous.h5 in hexrd folder
+       f1 and f2 have been tabulated as a function of energy in
+       Anomalous.h5 in hexrd folder
 
-     overall f = (f0 + f' + if" +fNT)
+    overall f = (f0 + f' + if" +fNT)
     """
 
     f_anomalous = _calcanomalousformfactor(
@@ -197,13 +197,7 @@ def _calc_bragg_factor(x, tth):
 def _calc_laue_factor(x, tth):
     ctth = np.cos(np.radians(tth * 0.5)) ** 2
     if x <= 1.0:
-        El = (
-            1.0
-            - 0.5 * x
-            + 0.25 * x**2
-            - (5.0 / 48.0) * x**3
-            + (7.0 / 192.0) * x**4
-        )
+        El = 1.0 - 0.5 * x + 0.25 * x**2 - (5.0 / 48.0) * x**3 + (7.0 / 192.0) * x**4
     else:
         El = (2.0 / np.pi / x) ** 2 * (
             1.0
@@ -270,10 +264,10 @@ def _get_sf_hkl_factors(hkls, sym, mat):
         sign[sign == 2] = -1
 
         multiplicity[i] = gsym.shape[0]
-        Lfact[i] = np.sum(L0*sign)
+        Lfact[i] = np.sum(L0 * sign)
         Lfact_broadening[i] = np.sum(np.abs(L0))
 
     H2 = np.sum(hkls**2, axis=1)
     Lfact_broadening = H2 * multiplicity / Lfact_broadening
-    sf_f = (90. * np.sqrt(3) / np.pi**2 ) * Lfact / (H2 * multiplicity)
+    sf_f = (90.0 * np.sqrt(3) / np.pi**2) * Lfact / (H2 * multiplicity)
     return sf_f, Lfact_broadening

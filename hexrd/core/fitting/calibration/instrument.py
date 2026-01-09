@@ -172,9 +172,7 @@ class InstrumentCalibrator:
 
         current = getattr(self, '_relative_constraints', None)
         if current is None or current.type != v:
-            self.relative_constraints = create_relative_constraints(
-                v, self.instr
-            )
+            self.relative_constraints = create_relative_constraints(v, self.instr)
 
     @property
     def relative_constraints(self) -> RelativeConstraints:

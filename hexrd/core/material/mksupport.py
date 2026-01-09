@@ -17,6 +17,7 @@ from hexrd.core.material.unitcell import _StiffnessDict, _pgDict
 
 logger = logging.getLogger(__name__)
 
+
 def mk(filename, xtalname):
     logger.info(pstr_mkxtal)
 
@@ -70,9 +71,7 @@ def GetXtalSystem():
         else:
             hexset = int(hexset)
             if not hexset in [1, 2]:
-                raise ValueError(
-                    "Invalid value of integer. Only 1 or 2 is acceptable."
-                )
+                raise ValueError("Invalid value of integer. Only 1 or 2 is acceptable.")
 
         btrigonal = True
 
@@ -239,8 +238,10 @@ def GetSpaceGroup(xtal_sys, btrigonal, bhexset):
         xtal_sys = 5
 
     if btrigonal and not bhexset:
-        logger.info("The space groups below correspond to the second (rhombohedral)" \
-                     "setting. Please select one of these space groups.")
+        logger.info(
+            "The space groups below correspond to the second (rhombohedral)"
+            "setting. Please select one of these space groups."
+        )
 
         for i in range(7):
             pstr = f'{TRIG[i]}:{pstr_spacegroup[TRIG[i]]}'
@@ -362,9 +363,7 @@ def GetAsymmetricPositions(aniU):
 
     for i, x in enumerate(asym):
         if not x.replace('.', '', 1).isdigit():
-            raise ValueError(
-                "Invalid floating point value in fractional coordinates."
-            )
+            raise ValueError("Invalid floating point value in fractional coordinates.")
         else:
             asym[i] = float(x)
             if asym[i] < 0.0 or asym[i] >= 1.0:
@@ -387,9 +386,7 @@ def GetOccDW(aniU=0):
 
     occ = input("Enter site occupation :    ")
     if not occ.replace('.', '', 1).isdigit():
-        raise ValueError(
-            "Invalid floating point value in fractional coordinates."
-        )
+        raise ValueError("Invalid floating point value in fractional coordinates.")
     else:
         occ = float(occ)
         if occ > 1.0 or occ <= 0.0:
@@ -414,9 +411,7 @@ def GetOccDW(aniU=0):
 
         dw = input("Enter isotropic Debye-Waller factor [nm^(-2)] : ")
         if not dw.replace('.', '', 1).isdigit():
-            raise ValueError(
-                "Invalid floating point value in fractional coordinates."
-            )
+            raise ValueError("Invalid floating point value in fractional coordinates.")
         else:
             dw = float(dw)
 
@@ -521,9 +516,7 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
 
     gid = fid.create_group(path)
 
-    did = gid.create_dataset(
-        "Atomtypes", (len(AtomInfo['Z']),), dtype=np.int32
-    )
+    did = gid.create_dataset("Atomtypes", (len(AtomInfo['Z']),), dtype=np.int32)
     did.write_direct(np.array(AtomInfo['Z'], dtype=np.int32))
 
     did = gid.create_dataset("CrystalSystem", (1,), dtype=np.int32)
@@ -577,9 +570,7 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
 
     if 'hkls' in AtomInfo:
         if AtomInfo['hkls'].shape != (0,):
-            did = gid.create_dataset(
-                "hkls", AtomInfo['hkls'].shape, dtype=np.int32
-            )
+            did = gid.create_dataset("hkls", AtomInfo['hkls'].shape, dtype=np.int32)
             did.write_direct(AtomInfo['hkls'])
 
     if 'dmin' in AtomInfo:
@@ -590,9 +581,7 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
         did = gid.create_dataset("kev", (1,), dtype=np.float64)
         did.write_direct(np.array(AtomInfo['kev'], dtype=np.float64))
 
-    did = gid.create_dataset(
-        "AtomData", (4, len(AtomInfo['Z'])), dtype=np.float64
-    )
+    did = gid.create_dataset("AtomData", (4, len(AtomInfo['Z'])), dtype=np.float64)
     # this is done for contiguous c-allocation
     arr = np.array(AtomInfo['APOS'], dtype=np.float32).transpose()
     arr2 = arr.copy()
@@ -601,9 +590,7 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
     if 'charge' in AtomInfo:
         data = np.array(AtomInfo['charge'], dtype=object)
         dt = h5py.special_dtype(vlen=str)
-        did = gid.create_dataset(
-            "ChargeStates", (len(AtomInfo['Z']),), dtype=dt
-        )
+        did = gid.create_dataset("ChargeStates", (len(AtomInfo['Z']),), dtype=dt)
         did.write_direct(data)
 
     '''
@@ -612,9 +599,7 @@ def WriteH5Data(fid, AtomInfo, lat_param, path=None):
     '''
 
     if not isinstance(AtomInfo['U'][0], np.floating):
-        did = gid.create_dataset(
-            "U", (6, len(AtomInfo['Z'])), dtype=np.float64
-        )
+        did = gid.create_dataset("U", (6, len(AtomInfo['Z'])), dtype=np.float64)
         arr = np.array(AtomInfo['U'], dtype=np.float32).transpose()
         arr2 = arr.copy()
         did.write_direct(arr2)

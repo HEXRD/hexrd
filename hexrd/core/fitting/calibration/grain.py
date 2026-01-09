@@ -163,8 +163,12 @@ def sxcal_obj_func(
             )
 
             match_omes, calc_omes_tmp = grainutil.matchOmegas(
-                xyo, ghkls.T,
-                chi, rmat_c, bmat, corrected_wavelength,
+                xyo,
+                ghkls.T,
+                chi,
+                rmat_c,
+                bmat,
+                corrected_wavelength,
                 vInv=vinv_s,
                 beamVec=bvec,
                 omePeriod=ome_period,
@@ -193,9 +197,7 @@ def sxcal_obj_func(
             retval[det_key] = []
             for ig in range(ngrains):
                 retval[det_key].append(
-                    np.vstack(
-                        [calc_xy[det_key][ig].T, calc_omes[det_key][ig]]
-                    ).T
+                    np.vstack([calc_xy[det_key][ig].T, calc_omes[det_key][ig]]).T
                 )
     else:
         meas_xy_all = []
@@ -214,7 +216,5 @@ def sxcal_obj_func(
 
         diff_vecs_xy = calc_xy_all - meas_xy_all
         diff_ome = angularDifference(calc_omes_all, meas_omes_all)
-        retval = np.hstack(
-            [diff_vecs_xy, diff_ome.reshape(npts_tot, 1)]
-        ).flatten()
+        retval = np.hstack([diff_vecs_xy, diff_ome.reshape(npts_tot, 1)]).flatten()
     return retval

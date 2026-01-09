@@ -29,8 +29,7 @@ class ArrayImageSeriesAdapter(ImageSeriesAdapter):
             self._data = data_arr
         else:
             raise RuntimeError(
-                'input array must be 2-d or 3-d; you provided ndim=%d'
-                % data_arr.ndim
+                'input array must be 2-d or 3-d; you provided ndim=%d' % data_arr.ndim
             )
 
         self._meta = kwargs.pop('meta', dict())

@@ -241,16 +241,12 @@ def make_polar_net(
     TODO: options for generating net boundaries; fixed to Z proj.
     """
     ndiv_tth = int(np.floor(0.5 * ndiv)) + 1
-    wtths = np.radians(
-        np.linspace(0, 1, num=ndiv_tth, endpoint=True) * max_angle
-    )
+    wtths = np.radians(np.linspace(0, 1, num=ndiv_tth, endpoint=True) * max_angle)
     wetas = np.radians(np.linspace(-1, 1, num=ndiv + 1, endpoint=True) * 180.0)
     weta_gen = np.radians(np.linspace(-1, 1, num=181, endpoint=True) * 180.0)
     pts = []
     for eta in wetas:
-        net_ang = np.vstack(
-            [[wtths[0], wtths[-1]], np.tile(eta, 2), np.zeros(2)]
-        ).T
+        net_ang = np.vstack([[wtths[0], wtths[-1]], np.tile(eta, 2), np.zeros(2)]).T
         pts.append(zproject_sph_angles(net_ang, method=projection, source='d'))
         pts.append(np.nan * np.ones((1, 2)))
     for tth in wtths[1:]:
@@ -418,9 +414,7 @@ def simulateOmeEtaMaps(
                 for etas in etaRanges:
                     angMask_eta = np.logical_or(
                         angMask_eta,
-                        xfcapi.validate_angle_ranges(
-                            angList[:, 1], etas[0], etas[1]
-                        ),
+                        xfcapi.validate_angle_ranges(angList[:, 1], etas[0], etas[1]),
                     )
 
                 # do omega ranges
@@ -477,9 +471,7 @@ def simulateOmeEtaMaps(
                                 np.logical_and(i_sup >= 0, i_sup < i_max),
                                 np.logical_and(j_sup >= 0, j_sup < j_max),
                             )
-                            eta_ome[iHKL, i_sup[idx_mask], j_sup[idx_mask]] = (
-                                1.0
-                            )
+                            eta_ome[iHKL, i_sup[idx_mask], j_sup[idx_mask]] = 1.0
                         else:
                             eta_ome[
                                 iHKL,
@@ -499,9 +491,7 @@ def _filter_hkls_eta_ome(
     eta_range: list[tuple[float]],
     ome_range: list[tuple[float]],
     return_mask: bool = False,
-) -> Union[
-    tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray, np.ndarray]
-]:
+) -> Union[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray, np.ndarray]]:
     """
     given a set of hkls and angles, filter them by the
     eta and omega ranges
@@ -520,9 +510,7 @@ def _filter_hkls_eta_ome(
             ccw = False
         angMask_ome = np.logical_or(
             angMask_ome,
-            xfcapi.validate_angle_ranges(
-                angles[:, 2], omes[0], omes[1], ccw=ccw
-            ),
+            xfcapi.validate_angle_ranges(angles[:, 2], omes[0], omes[1], ccw=ccw),
         )
 
     angMask = np.logical_and(angMask_eta, angMask_ome)
@@ -637,13 +625,16 @@ def simulateGVecs(
     # first find valid G-vectors
     angList = np.vstack(
         xfcapi.oscill_angles_of_hkls(
-            full_hkls[:, 1:], chi, rMat_c, bMat, corrected_wlen, v_inv=vInv_s,
-            beam_vec=beam_vector
+            full_hkls[:, 1:],
+            chi,
+            rMat_c,
+            bMat,
+            corrected_wlen,
+            v_inv=vInv_s,
+            beam_vec=beam_vector,
         )
     )
-    allAngs, allHKLs = _filter_hkls_eta_ome(
-        full_hkls, angList, eta_range, ome_range
-    )
+    allAngs, allHKLs = _filter_hkls_eta_ome(full_hkls, angList, eta_range, ome_range)
 
     if len(allAngs) == 0:
         valid_ids = []
@@ -721,9 +712,7 @@ def _expand_pixels(
 
 
 @numba.njit(nogil=True, cache=True)
-def _compute_max(
-    tth: np.ndarray, eta: np.ndarray, result: np.ndarray
-) -> np.ndarray:
+def _compute_max(tth: np.ndarray, eta: np.ndarray, result: np.ndarray) -> np.ndarray:
     period = 2.0 * np.pi
     hperiod = np.pi
     for el in range(0, len(tth), 4):
@@ -733,9 +722,7 @@ def _compute_max(
         for i in range(3):
             curr_tth = np.abs(tth[el + i] - tth[el + i + 1])
             eta_diff = eta[el + i] - eta[el + i + 1]
-            curr_eta = np.abs(
-                np.remainder(eta_diff + hperiod, period) - hperiod
-            )
+            curr_eta = np.abs(np.remainder(eta_diff + hperiod, period) - hperiod)
             max_tth = np.maximum(curr_tth, max_tth)
             max_eta = np.maximum(curr_eta, max_eta)
         result[el // 4, 0] = max_tth
@@ -813,9 +800,7 @@ def make_reflection_patches(
     quiet: bool = False,  # TODO: Remove this parameter - it isn't used
     compute_areas_func: np.ndarray = gutil.compute_areas,
 ) -> Generator[
-    tuple[
-        np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray
-    ],
+    tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray],
     None,
     None,
 ]:
@@ -863,9 +848,7 @@ def make_reflection_patches(
         -0.5 * np.r_[frame_ncols * pixel_size[1], frame_nrows * pixel_size[0]],
         0.5 * np.r_[frame_ncols * pixel_size[1], frame_nrows * pixel_size[0]],
     )
-    row_edges = (
-        np.arange(frame_nrows + 1)[::-1] * pixel_size[1] + panel_dims[0][1]
-    )
+    row_edges = np.arange(frame_nrows + 1)[::-1] * pixel_size[1] + panel_dims[0][1]
     col_edges = np.arange(frame_ncols + 1) * pixel_size[0] + panel_dims[0][0]
 
     # handle distortion
@@ -919,9 +902,7 @@ def make_reflection_patches(
         # !!! will CHEAT and ignore the small perturbation the different
         #     omega angle values causes and simply use the central value
         gVec_angs_vtx = np.tile(angs, (npts_patch, 1)) + np.radians(
-            np.vstack(
-                [m_tth.flatten(), m_eta.flatten(), np.zeros(npts_patch)]
-            ).T
+            np.vstack([m_tth.flatten(), m_eta.flatten(), np.zeros(npts_patch)]).T
         )
 
         xy_eval_vtx, _, _ = _project_on_detector_plane(
@@ -940,13 +921,9 @@ def make_reflection_patches(
 
         # EVALUATION POINTS
         # !!! for lack of a better option will use centroids
-        tth_eta_cen = gutil.cellCentroids(
-            np.atleast_2d(gVec_angs_vtx[:, :2]), conn
-        )
+        tth_eta_cen = gutil.cellCentroids(np.atleast_2d(gVec_angs_vtx[:, :2]), conn)
 
-        gVec_angs = np.hstack(
-            [tth_eta_cen, np.tile(angs[2], (len(tth_eta_cen), 1))]
-        )
+        gVec_angs = np.hstack([tth_eta_cen, np.tile(angs[2], (len(tth_eta_cen), 1))])
 
         xy_eval, _, _ = _project_on_detector_plane(
             gVec_angs,

@@ -133,7 +133,5 @@ def _decompress_frame(d: dict) -> np.ndarray:
     if compression_type is None:
         return np.frombuffer(data, dtype=dtype).reshape(shape)
 
-    decompressed_bytes = decompress(
-        data, compression_type, elem_size=elem_size
-    )
+    decompressed_bytes = decompress(data, compression_type, elem_size=elem_size)
     return np.frombuffer(decompressed_bytes, dtype=dtype).reshape(shape)

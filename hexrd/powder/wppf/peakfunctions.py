@@ -522,9 +522,9 @@ def _gaussian_pink_beam(alpha, beta, fwhm_g, tth, tth_list):
     t2 = erfc(z)
     g = np.zeros(tth_list.shape)
     zmask = np.abs(del_tth) > 5.0
-    g[~zmask] = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(
-        u[~zmask]
-    ) * t1[~zmask] + np.exp(v[~zmask]) * t2[~zmask]
+    g[~zmask] = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(u[~zmask]) * t1[
+        ~zmask
+    ] + np.exp(v[~zmask]) * t2[~zmask]
     mask = np.isnan(g)
     g[mask] = 0.0
 
@@ -618,9 +618,7 @@ def computespectrum_pvfcj(
     """
 
     spec = np.zeros(tth_list.shape)
-    nref = np.min(
-        np.array([Iobs.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]])
-    )
+    nref = np.min(np.array([Iobs.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]]))
     for ii in prange(nref):
         II = Iobs[ii]
         t = tth[ii]
@@ -628,9 +626,7 @@ def computespectrum_pvfcj(
         g = hkl[ii]
         xs = xy_sf[ii]
 
-        pv = pvfcj(
-            uvw, p, xy, xs, shkl, eta_mixing, t, d, g, tth_list, HL, SL, xn, wn
-        )
+        pv = pvfcj(uvw, p, xy, xs, shkl, eta_mixing, t, d, g, tth_list, HL, SL, xn, wn)
 
         spec += II * pv
     return spec
@@ -650,9 +646,7 @@ def computespectrum_pvtch(
     """
 
     spec = np.zeros(tth_list.shape)
-    nref = np.min(
-        np.array([Iobs.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]])
-    )
+    nref = np.min(np.array([Iobs.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]]))
     for ii in prange(nref):
         II = Iobs[ii]
         t = tth[ii]
@@ -692,9 +686,7 @@ def computespectrum_pvpink(
     """
 
     spec = np.zeros(tth_list.shape)
-    nref = np.min(
-        np.array([Iobs.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]])
-    )
+    nref = np.min(np.array([Iobs.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]]))
     for ii in prange(nref):
         II = Iobs[ii]
         t = tth[ii]
@@ -739,9 +731,7 @@ def calc_Iobs_pvfcj(
     the final intensities
     """
     Iobs = np.empty(tth.shape)
-    nref = np.min(
-        np.array([Icalc.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]])
-    )
+    nref = np.min(np.array([Icalc.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]]))
 
     yo = spectrum_expt[:, 1]
     yc = spectrum_sim[:, 1]
@@ -808,9 +798,7 @@ def calc_Iobs_pvtch(
     the final intensities
     """
     Iobs = np.empty(tth.shape)
-    nref = np.min(
-        np.array([Icalc.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]])
-    )
+    nref = np.min(np.array([Icalc.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]]))
 
     yo = spectrum_expt[:, 1]
     yc = spectrum_sim[:, 1]
@@ -827,9 +815,7 @@ def calc_Iobs_pvtch(
         g = hkl[ii]
         xs = xy_sf[ii]
 
-        pv = pvoight_wppf(
-            uvw, p, xy, xs, shkl, eta_mixing, t, d, g, tth_list_mask
-        )
+        pv = pvoight_wppf(uvw, p, xy, xs, shkl, eta_mixing, t, d, g, tth_list_mask)
 
         y = Ic * pv
         y = y[mask]
@@ -866,9 +852,7 @@ def calc_Iobs_pvpink(
     the final intensities
     """
     Iobs = np.empty(tth.shape)
-    nref = np.min(
-        np.array([Icalc.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]])
-    )
+    nref = np.min(np.array([Icalc.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]]))
 
     yo = spectrum_expt[:, 1]
     yc = spectrum_sim[:, 1]

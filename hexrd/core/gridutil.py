@@ -177,9 +177,7 @@ def computeArea(polygon):
 
     area = 0
     for [s1, s2] in triv:
-        tvp = np.diff(
-            np.hstack([polygon[s1, :], polygon[s2, :]]), axis=0
-        ).flatten()
+        tvp = np.diff(np.hstack([polygon[s1, :], polygon[s2, :]]), axis=0).flatten()
         area += 0.5 * np.cross(tvp[:2], tvp[2:])
     return area
 
@@ -200,10 +198,7 @@ def make_tolerance_grid(
         ndiv *= 2
     else:
         ndiv = int(num_subdivisions * np.ceil(window_width / float(bin_width)))
-        grid = (
-            np.arange(0, ndiv + 1) * window_width / float(ndiv)
-            - 0.5 * window_width
-        )
+        grid = np.arange(0, ndiv + 1) * window_width / float(ndiv) - 0.5 * window_width
     return ndiv, grid
 
 
@@ -301,12 +296,8 @@ def sutherlandHodgman(subjectPolygon, clipPolygon):
                     )
                 outputList.append(curr_subjectVertex)
             elif isinside(prev_subjectVertex, clipBoundary):
-                subjectLineSegment = np.vstack(
-                    [curr_subjectVertex, prev_subjectVertex]
-                )
-                outputList.append(
-                    computeIntersection(subjectLineSegment, clipBoundary)
-                )
+                subjectLineSegment = np.vstack([curr_subjectVertex, prev_subjectVertex])
+                outputList.append(computeIntersection(subjectLineSegment, clipBoundary))
             prev_subjectVertex = curr_subjectVertex
             prev_clipVertex = curr_clipVertex
     return outputList

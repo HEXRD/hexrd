@@ -85,12 +85,8 @@ class GrainData(_BaseGrainData):
         gw = instrument.GrainDataWriter(filename=fname)
         n = len(self.id)
         for i in range(n):
-            gparams = np.hstack(
-                (self.expmap[i], self.centroid[i], self.inv_Vs[i])
-            )
-            gw.dump_grain(
-                self.id[i], self.completeness[i], self.chisq[i], gparams
-            )
+            gparams = np.hstack((self.expmap[i], self.centroid[i], self.inv_Vs[i]))
+            gw.dump_grain(self.id[i], self.completeness[i], self.chisq[i], gparams)
         gw.close()
 
     @property
@@ -279,8 +275,7 @@ def execute(args, parser):
 
         if grains_filename.exists() and not clobber:
             logger.error(
-                'Analysis "%s" already exists. '
-                'Change yml file or specify "force"',
+                'Analysis "%s" already exists. ' 'Change yml file or specify "force"',
                 cfg.analysis_name,
             )
             sys.exit()
@@ -318,9 +313,7 @@ def execute(args, parser):
         logfile = cfg.fit_grains.logfile
         fh = logging.FileHandler(logfile, mode='w')
         fh.setLevel(log_level)
-        ff = logging.Formatter(
-            '%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S'
-        )
+        ff = logging.Formatter('%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S')
         fh.setFormatter(ff)
         logger.info("logging to %s", logfile)
         logger.addHandler(fh)
@@ -353,9 +346,7 @@ def execute(args, parser):
         if args.clean or force_without_estimate or new_without_estimate:
             # need accepted orientations from indexing in this case
             if args.clean:
-                logger.info(
-                    "'clean' specified; ignoring estimate and using default"
-                )
+                logger.info("'clean' specified; ignoring estimate and using default")
             elif force_without_estimate:
                 logger.info(
                     "'force' option specified, but no initial estimate; "
@@ -368,9 +359,7 @@ def execute(args, parser):
                 for i_g, q in enumerate(qbar.T):
                     phi = 2 * np.arccos(q[0])
                     n = xfcapi.unit_vector(q[1:])
-                    grain_params = np.hstack(
-                        [phi * n, cnst.zeros_3, cnst.identity_6x1]
-                    )
+                    grain_params = np.hstack([phi * n, cnst.zeros_3, cnst.identity_6x1])
                     gw.dump_grain(int(i_g), 1.0, 0.0, grain_params)
                 gw.close()
             except IOError:

@@ -89,10 +89,7 @@ def parse_file(filename):
         profile_cfg = cfg['profile']
         if 'instrument' in profile_cfg:
             # instrument all
-            [
-                instrument_function(fn_desc)
-                for fn_desc in profile_cfg['instrument']
-            ]
+            [instrument_function(fn_desc) for fn_desc in profile_cfg['instrument']]
     except Exception as e:
         msg = 'Failed to include profile file: {0}'
         warnings.warn(msg.format(filename))
@@ -109,8 +106,6 @@ def dump_results(args):
     fmt = "{2:>14}, {1:>8}, {0:<40}"
     logger.debug(fmt.format("FUNCTION", "CALLS", "TIME"))
     fmt = "{2:>14F}, {1:>8}, {0:<40}"
-    sorted_by_time = sorted(
-        nvtx.getstats().iteritems(), key=lambda tup: tup[1][1]
-    )
+    sorted_by_time = sorted(nvtx.getstats().iteritems(), key=lambda tup: tup[1][1])
     for key, val in sorted_by_time:
         logger.info(fmt.format(key, *val))

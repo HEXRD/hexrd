@@ -24,9 +24,7 @@ examples:
 
 
 def configure_parser(sub_parsers):
-    p = sub_parsers.add_parser(
-        'find-orientations', description=descr, help=descr
-    )
+    p = sub_parsers.add_parser('find-orientations', description=descr, help=descr)
     p.add_argument('yml', type=str, help='YAML configuration file')
     p.add_argument(
         '-q',
@@ -99,9 +97,7 @@ def execute(args, parser):
     logger.setLevel(log_level)
     ch = logging.StreamHandler()
     ch.setLevel(logging.CRITICAL if args.quiet else log_level)
-    ch.setFormatter(
-        logging.Formatter('%(asctime)s - %(message)s', '%y-%m-%d %H:%M:%S')
-    )
+    ch.setFormatter(logging.Formatter('%(asctime)s - %(message)s', '%y-%m-%d %H:%M:%S'))
     logger.addHandler(ch)
     logger.info('=== begin find-orientations ===')
 
@@ -126,9 +122,7 @@ def execute(args, parser):
     fh = logging.FileHandler(logfile, mode='w')
     fh.setLevel(log_level)
     fh.setFormatter(
-        logging.Formatter(
-            '%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S'
-        )
+        logging.Formatter('%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S')
     )
     logger.info("logging to %s", logfile)
     logger.addHandler(fh)

@@ -50,9 +50,7 @@ def hsl2rgb(hsl):
     hsl[np.abs(hsl - np.ones(hsl.shape)) < eps] = 1.0
 
     if (hsl.min() < 0.0) or (hsl.max() > 1.0):
-        raise RuntimeError(
-            "value of not in range [0,1]. normalizing before conversion"
-        )
+        raise RuntimeError("value of not in range [0,1]. normalizing before conversion")
 
     if hsl.ndim != 2:
         raise RuntimeError("hsl_rgb: shape of hsl array is invalid.")
@@ -141,9 +139,7 @@ def rgb2hsl(rgb):
 
     rmask = rgb[:, 0] == Cmax
     rmask = np.logical_and(rmask, np.logical_not(zmask))
-    hsl[rmask, 0] = (
-        np.mod((rgb[rmask, 1] - rgb[rmask, 2]) / delta[rmask], 6) / 6.0
-    )
+    hsl[rmask, 0] = np.mod((rgb[rmask, 1] - rgb[rmask, 2]) / delta[rmask], 6) / 6.0
 
     gmask = rgb[:, 1] == Cmax
     gmask = np.logical_and(gmask, np.logical_not(zmask))

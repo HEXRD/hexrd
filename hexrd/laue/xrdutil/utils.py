@@ -61,6 +61,7 @@ nans_1x2 = np.nan * np.ones((1, 2))
 
 validateAngleRanges = xfcapi.validate_angle_ranges
 
+
 @deprecated(new_func=simlp, removal_date='2026-01-01')
 def simulateLauePattern(
     hkls,

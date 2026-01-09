@@ -158,9 +158,7 @@ def median(ims, nframes=0):
 
 
 def median_iter(ims, nchunks, nframes=0, use_buffer=True):
-    return percentile_iter(
-        ims, 50, nchunks, nframes=nframes, use_buffer=use_buffer
-    )
+    return percentile_iter(ims, 50, nchunks, nframes=nframes, use_buffer=use_buffer)
 
 
 # ==================== Utilities

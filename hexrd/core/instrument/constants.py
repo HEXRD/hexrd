@@ -23,9 +23,7 @@ COATING_DEFAULT = {
 
 PHOSPHOR_DEFAULT = {
     'material': 'Ba2263F2263Br1923I339C741H1730N247O494',
-    'density': DENSITY_COMPOUNDS[
-        'Ba2263F2263Br1923I339C741H1730N247O494'
-    ],  # g/cc
+    'density': DENSITY_COMPOUNDS['Ba2263F2263Br1923I339C741H1730N247O494'],  # g/cc
     'thickness': 115,  # microns
     'readout_length': 222,  # microns
     'pre_U0': 0.695,
@@ -43,7 +41,7 @@ class PHYSICS_PACKAGE_DEFAULTS:
         'reflective_thickness': 0,  # in microns
         'window_material': 'LiF',
         'window_density': DENSITY_COMPOUNDS['LiF'],
-        'window_thickness': 150, # in microns
+        'window_thickness': 150,  # in microns
         'ablator_material': 'C22H10N2O5',
         'ablator_density': DENSITY_COMPOUNDS['C22H10N2O5'],
         # No ablator by default, so thickness is 0

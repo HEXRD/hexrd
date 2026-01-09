@@ -200,9 +200,7 @@ def snip2d(y, w=4, numiter=2, order=1):
         # linear filter kernel
         kern1 = np.zeros((N, N))  # initialize a kernel with all zeros
         xx, yy = np.indices(kern1.shape)  # x-y indices of kernel points
-        ij = (
-            np.round(np.hypot(xx - p1, yy - p1)) == p1
-        )  # select circular shape
+        ij = np.round(np.hypot(xx - p1, yy - p1)) == p1  # select circular shape
         kern1[ij] = 1 / ij.sum()  # normalize so sum of kernel elements is 1
         kernels.append([kern1])
 

@@ -70,8 +70,7 @@ class SphericalView:
         x = np.atleast_2d(x)
         assert x.shape == (3, 3), "rmat must be (3, 3)"
         assert (
-            np.linalg.norm(np.dot(x.T, x) - constants.identity_3x3)
-            < constants.ten_epsf
+            np.linalg.norm(np.dot(x.T, x) - constants.identity_3x3) < constants.ten_epsf
         ), "input matrix is not orthogonal"
         self._rmat = x
 
@@ -170,14 +169,10 @@ class SphericalView:
         eta_cen = np.array(pimg['eta_coordinates'])[:, 0]
 
         tp, ep = np.meshgrid(tth_cen[::skip], eta_cen[::skip])
-        tc, ec = np.meshgrid(
-            np.arange(ncols_in)[::skip], np.arange(nrows_in)[::skip]
-        )
+        tc, ec = np.meshgrid(np.arange(ncols_in)[::skip], np.arange(nrows_in)[::skip])
         op = np.zeros_like(tp.flatten())
 
-        angs = np.radians(
-            np.vstack([tp.flatten(), ep.flatten(), op.flatten()]).T
-        )
+        angs = np.radians(np.vstack([tp.flatten(), ep.flatten(), op.flatten()]).T)
 
         ppts = zproject_sph_angles(
             angs,

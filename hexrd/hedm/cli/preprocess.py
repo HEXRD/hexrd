@@ -16,9 +16,7 @@ _help = "Preprocess data from detector and attach metadata"
 
 
 def configure_parser(sub_parsers: argparse._SubParsersAction) -> None:
-    parser = sub_parsers.add_parser(
-        'preprocess', description=_description, help=_help
-    )
+    parser = sub_parsers.add_parser('preprocess', description=_description, help=_help)
 
     subparsers = parser.add_subparsers(
         dest="profile", required=True, help="Select detector profile"

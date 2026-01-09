@@ -84,9 +84,8 @@ def valid_panel_buffer_names() -> list[str]:
 # Cache this so we only read from disk once
 @cache
 def _load_panel_buffer_from_file(name: str) -> np.ndarray:
-    path = (
-        importlib.resources.files(hexrd.core.resources.panel_buffers)
-        .joinpath(f'{name}.npz')
+    path = importlib.resources.files(hexrd.core.resources.panel_buffers).joinpath(
+        f'{name}.npz'
     )
     if not path.exists():
         raise NotImplementedError(f'Unknown panel buffer name: {name}')

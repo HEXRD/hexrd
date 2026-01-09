@@ -94,9 +94,7 @@ class PowderCalibrator(Calibrator):
     def create_lmfit_params(self, current_params):
         # There shouldn't be more than one calibrator for a given material, so
         # just assume we have a unique name...
-        params = create_material_params(
-            self.material, self.default_refinements
-        )
+        params = create_material_params(self.material, self.default_refinements)
 
         # If multiple powder calibrators were used for the same material (such
         # as in 2XRS), then don't add params again.
@@ -195,9 +193,7 @@ class PowderCalibrator(Calibrator):
         hkls = []
         for idx in self.plane_data.getMergedRanges()[0]:
             if len(idx) > 1:
-                eqv, uidx = mutil.findDuplicateVectors(
-                    np.atleast_2d(dsp_ideal[idx])
-                )
+                eqv, uidx = mutil.findDuplicateVectors(np.atleast_2d(dsp_ideal[idx]))
                 if len(uidx) < len(idx):
                     # if here, at least one peak is degenerate
                     uidx = np.asarray(idx)[uidx]
@@ -372,9 +368,7 @@ class PowderCalibrator(Calibrator):
                     )
                     retval = np.append(retval, calc_xy.flatten())
                 else:
-                    raise RuntimeError(
-                        "unrecognized output flag '%s'" % output
-                    )
+                    raise RuntimeError("unrecognized output flag '%s'" % output)
 
         return retval
 

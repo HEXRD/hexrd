@@ -2,6 +2,7 @@ import logging
 import os
 
 import numpy as np
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,15 +52,15 @@ def output_grain_map_vtk(
             confidence_stitched[
                 ((i) * num_layers) : ((i) * num_layers + num_layers), :, :
             ] = confidence_maps[num_scans - 1 - i]
-            Xs_stitched[
-                ((i) * num_layers) : ((i) * num_layers + num_layers), :, :
-            ] = Xss[num_scans - 1 - i]
-            Zs_stitched[
-                ((i) * num_layers) : ((i) * num_layers + num_layers), :, :
-            ] = Zss[num_scans - 1 - i]
-            Ys_stitched[
-                ((i) * num_layers) : ((i) * num_layers + num_layers), :, :
-            ] = (Yss[num_scans - 1 - i] + vol_spacing * i)
+            Xs_stitched[((i) * num_layers) : ((i) * num_layers + num_layers), :, :] = (
+                Xss[num_scans - 1 - i]
+            )
+            Zs_stitched[((i) * num_layers) : ((i) * num_layers + num_layers), :, :] = (
+                Zss[num_scans - 1 - i]
+            )
+            Ys_stitched[((i) * num_layers) : ((i) * num_layers + num_layers), :, :] = (
+                Yss[num_scans - 1 - i] + vol_spacing * i
+            )
         else:
 
             grain_map_stitched[
@@ -68,15 +69,15 @@ def output_grain_map_vtk(
             confidence_stitched[
                 ((i) * num_layers) : ((i) * num_layers + num_layers), :, :
             ] = confidence_maps[i]
-            Xs_stitched[
-                ((i) * num_layers) : ((i) * num_layers + num_layers), :, :
-            ] = Xss[i]
-            Zs_stitched[
-                ((i) * num_layers) : ((i) * num_layers + num_layers), :, :
-            ] = Zss[i]
-            Ys_stitched[
-                ((i) * num_layers) : ((i) * num_layers + num_layers), :, :
-            ] = (Yss[i] + vol_spacing * i)
+            Xs_stitched[((i) * num_layers) : ((i) * num_layers + num_layers), :, :] = (
+                Xss[i]
+            )
+            Zs_stitched[((i) * num_layers) : ((i) * num_layers + num_layers), :, :] = (
+                Zss[i]
+            )
+            Ys_stitched[((i) * num_layers) : ((i) * num_layers + num_layers), :, :] = (
+                Yss[i] + vol_spacing * i
+            )
 
     logger.info('Writing VTK data...')
     # VTK Dump
@@ -119,8 +120,7 @@ def output_grain_map_vtk(
                 p8 = base + scale2 + scale1
 
                 f.write(
-                    '8 %d %d %d %d %d %d %d %d \n'
-                    % (p1, p2, p3, p4, p5, p6, p7, p8)
+                    '8 %d %d %d %d %d %d %d %d \n' % (p1, p2, p3, p4, p5, p6, p7, p8)
                 )
 
     f.write('CELL_TYPES %d \n' % (num_cells))

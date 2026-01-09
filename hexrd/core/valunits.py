@@ -222,8 +222,7 @@ class valWUnit:
             if from_to == special_case or from_to == special_case[::-1]:
                 return keVToAngstrom(self.value)
             raise RuntimeError(
-                f"Unit conversion '{from_to[0]} --> "
-                + f"{from_to[1]}' not recognized"
+                f"Unit conversion '{from_to[0]} --> " + f"{from_to[1]}' not recognized"
             )
 
     def isLength(self):
@@ -313,7 +312,7 @@ def valWithDflt(val, dflt, toUnit=None):
     return retval
 
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     #
     #  doc testing
     #

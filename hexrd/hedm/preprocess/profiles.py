@@ -52,9 +52,7 @@ class HexrdPPScript_Arguments(yaml.YAMLObject):
         return ArgumentClassesFactory().get_args(name)().dump_config()
 
     @classmethod
-    def create_args(
-        cls, name: str, **kwargs: Any
-    ) -> 'HexrdPPScript_Arguments':
+    def create_args(cls, name: str, **kwargs: Any) -> 'HexrdPPScript_Arguments':
         """Create argument class of type name using kwargs to set the
         dataclass values"""
         return ArgumentClassesFactory().get_args(name)(**kwargs)
@@ -120,9 +118,7 @@ class Chess_Arguments(HexrdPPScript_Arguments):
             if getattr(self, f.name) is None:
                 collect_none.append(f.name)
         if len(collect_none) != 0:
-            raise RuntimeError(
-                f"Required argument are missing a value: {collect_none}"
-            )
+            raise RuntimeError(f"Required argument are missing a value: {collect_none}")
 
 
 @dataclass
@@ -191,9 +187,7 @@ class Dexelas_Arguments(Chess_Arguments):
 
     def validate_arguments(self) -> None:
         super().validate_arguments()
-        check_files_exist = [
-            os.path.exists(file_name) for file_name in self.file_names
-        ]
+        check_files_exist = [os.path.exists(file_name) for file_name in self.file_names]
         if not all(check_files_exist):
             raise RuntimeError("files don't exist!")
 

@@ -63,6 +63,7 @@ nans_1x2 = np.nan * np.ones((1, 2))
 
 validateAngleRanges = xfcapi.validate_angle_ranges
 
+
 def _project_on_detector_plane(
     allAngs: np.ndarray,
     rMat_d: np.ndarray,
@@ -78,9 +79,7 @@ def _project_on_detector_plane(
     utility routine for projecting a list of (tth, eta, ome) onto the
     detector plane parameterized by the args
     """
-    gVec_cs = xfcapi.angles_to_gvec(
-        allAngs, chi=chi, rmat_c=rMat_c, beam_vec=beamVec
-    )
+    gVec_cs = xfcapi.angles_to_gvec(allAngs, chi=chi, rmat_c=rMat_c, beam_vec=beamVec)
 
     rMat_ss = xfcapi.make_sample_rmat(chi, allAngs[:, 2])
 
@@ -255,9 +254,7 @@ def _clip_to_cylindrical_detector(
 
     tvec_c_l = np.dot(rmat_s, tVec_c)
 
-    delta = tVec_d - (
-        radius * naxis + np.squeeze(tVec_s) + np.squeeze(tvec_c_l)
-    )
+    delta = tVec_d - (radius * naxis + np.squeeze(tVec_s) + np.squeeze(tvec_c_l))
 
     delta_t = np.tile(delta, [num, 1])
 
@@ -312,9 +309,7 @@ def _dewarp_from_cylinder(
 
     tvec_c_l = np.dot(rmat_s, tVec_c)
 
-    delta = tVec_d - (
-        radius * naxis + np.squeeze(tVec_s) + np.squeeze(tvec_c_l)
-    )
+    delta = tVec_d - (radius * naxis + np.squeeze(tVec_s) + np.squeeze(tvec_c_l))
 
     delta_t = np.tile(delta, [num, 1])
 

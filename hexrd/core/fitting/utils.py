@@ -94,9 +94,7 @@ def _set_peak_center_bounds(params, window_range, min_sep=0.01):
             params[pname].max = window_range[1] - min_sep
 
         # make sure peak list does not include any peaks closer than min_sep
-        uvec = uniqueVectors(
-            np.atleast_2d(center_values), tol=min_sep
-        ).squeeze()
+        uvec = uniqueVectors(np.atleast_2d(center_values), tol=min_sep).squeeze()
         if len(uvec) < npks:
             raise RuntimeError(
                 "Params contain peaks separated by <="
@@ -153,9 +151,7 @@ def erfc(x):
 
     # A&S formula 7.1.26
     t = 1.0 / (1.0 + p * x)
-    y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * np.exp(
-        -x * x
-    )
+    y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * np.exp(-x * x)
     erf = sign * y  # erf(-x) = -erf(x)
     return 1.0 - erf
 
@@ -298,9 +294,9 @@ def _gaussian_pink_beam(p, x):
     g = np.zeros(x.shape)
     zmask = np.abs(del_tth) > 5.0
 
-    g[~zmask] = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(
-        u[~zmask]
-    ) * t1[~zmask] + np.exp(v[~zmask]) * t2[~zmask]
+    g[~zmask] = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(u[~zmask]) * t1[
+        ~zmask
+    ] + np.exp(v[~zmask]) * t2[~zmask]
 
     mask = np.isnan(g)
     g[mask] = 0.0
@@ -348,9 +344,7 @@ def _lorentzian_pink_beam(p, x):
 # =============================================================================
 
 
-def fit_ring(
-    tth_centers, lineout, tth_pred, spectrum_kwargs, int_cutoff, fit_tth_tol
-):
+def fit_ring(tth_centers, lineout, tth_pred, spectrum_kwargs, int_cutoff, fit_tth_tol):
     # tth_centers and tth_pred should be in degrees.
     # The returned tth_meas is in degrees as well.
 
@@ -380,9 +374,7 @@ def fit_ring(
 
     # !!! this is where we can kick out bunk fits
     center_err = 100 * abs(tth_meas / tth_pred - 1.0)
-    failed_fit_heuristic = np.logical_or(
-        pk_amp < int_cutoff, center_err > fit_tth_tol
-    )
+    failed_fit_heuristic = np.logical_or(pk_amp < int_cutoff, center_err > fit_tth_tol)
     if np.any(failed_fit_heuristic):
         return
 

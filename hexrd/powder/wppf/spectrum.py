@@ -6,6 +6,7 @@ import h5py
 
 logger = logging.getLogger(__name__)
 
+
 class Spectrum:
     """
     ==================================================================================
@@ -132,9 +133,7 @@ class Spectrum:
                 f_bkg = interp1d(x_bkg, y_bkg, kind='linear')
 
                 # find overlapping x and y values:
-                ind = np.where(
-                    (self._x <= np.max(x_bkg)) & (self._x >= np.min(x_bkg))
-                )
+                ind = np.where((self._x <= np.max(x_bkg)) & (self._x >= np.min(x_bkg)))
                 x = self._x[ind]
                 y = self._y[ind]
 
@@ -225,9 +224,7 @@ class Spectrum:
         x_min = np.min(self.x)
         x_max = np.max(self.x)
         if x_value < x_min:
-            x_fill = np.arange(
-                x_min - x_step, x_value - x_step * 0.5, -x_step
-            )[::-1]
+            x_fill = np.arange(x_min - x_step, x_value - x_step * 0.5, -x_step)[::-1]
             y_fill = np.zeros(x_fill.shape)
             y_fill.fill(y_value)
 
@@ -272,9 +269,7 @@ class Spectrum:
             other_fcn = interp1d(other_x, other_x, kind='linear')
 
             # find overlapping x and y values:
-            ind = np.where(
-                (orig_x <= np.max(other_x)) & (orig_x >= np.min(other_x))
-            )
+            ind = np.where((orig_x <= np.max(other_x)) & (orig_x >= np.min(other_x)))
             x = orig_x[ind]
             y = orig_y[ind]
 
@@ -295,9 +290,7 @@ class Spectrum:
             other_fcn = interp1d(other_x, other_x, kind='linear')
 
             # find overlapping x and y values:
-            ind = np.where(
-                (orig_x <= np.max(other_x)) & (orig_x >= np.min(other_x))
-            )
+            ind = np.where((orig_x <= np.max(other_x)) & (orig_x >= np.min(other_x)))
             x = orig_x[ind]
             y = orig_y[ind]
 

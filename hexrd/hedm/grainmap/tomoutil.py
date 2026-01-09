@@ -9,7 +9,9 @@ except ImportError:
     from skimage import io as imgio
 
 import skimage.transform as xformimg
+
 logger = logging.getLogger(__name__)
+
 
 def gen_bright_field(
     tbf_data_folder,
@@ -60,10 +62,7 @@ def gen_median_image(
     for ii in np.arange(num_imgs):
         logger.info(f'Image #: {ii}')
         stack[ii, :, :] = imgio.imread(
-            data_folder
-            + '%s' % (stem)
-            + str(img_nums[ii]).zfill(num_digits)
-            + ext
+            data_folder + '%s' % (stem) + str(img_nums[ii]).zfill(num_digits) + ext
         )
     logger.info('making median...')
 
@@ -83,9 +82,7 @@ def gen_attenuation_rads(
     tdf=None,
 ):
     # Reconstructs a single tompgrahy layer to find the extent of the sample
-    tomo_img_nums = np.arange(
-        tomo_img_start, tomo_img_start + tomo_num_imgs, 1
-    )
+    tomo_img_nums = np.arange(tomo_img_start, tomo_img_start + tomo_num_imgs, 1)
 
     # if tdf==None:
     if len(tdf) == None:
@@ -125,9 +122,7 @@ def tomo_reconstruct_layer(
     rotation_axis_pos = -int(np.round(center / pixel_size))
     # rotation_axis_pos=13
 
-    theta = np.linspace(
-        start_tomo_ang, end_tomo_ang, tomo_num_imgs, endpoint=False
-    )
+    theta = np.linspace(start_tomo_ang, end_tomo_ang, tomo_num_imgs, endpoint=False)
 
     max_rad = int(
         cross_sectional_dim / pixel_size / 2.0 * 1.1
@@ -138,16 +133,12 @@ def tomo_reconstruct_layer(
     else:
         sinogram_cut = sinogram[:, : (2 * rotation_axis_pos)]
 
-    dist_from_edge = (
-        np.round(sinogram_cut.shape[1] / 2.0).astype(int) - max_rad
-    )
+    dist_from_edge = np.round(sinogram_cut.shape[1] / 2.0).astype(int) - max_rad
 
     sinogram_cut = sinogram_cut[:, dist_from_edge:-dist_from_edge]
 
     logger.info('Inverting Sinogram....')
-    reconstruction_fbp = xformimg.iradon(
-        sinogram_cut.T, theta=theta, circle=True
-    )
+    reconstruction_fbp = xformimg.iradon(sinogram_cut.T, theta=theta, circle=True)
 
     reconstruction_fbp = np.rot90(
         reconstruction_fbp, 3
@@ -171,9 +162,7 @@ def threshold_and_clean_tomo_layer(
     binary_recon = img.morphology.binary_dilation(
         binary_recon, iterations=dilation_iter
     )
-    binary_recon = img.morphology.binary_erosion(
-        binary_recon, iterations=erosion_iter
-    )
+    binary_recon = img.morphology.binary_erosion(binary_recon, iterations=erosion_iter)
 
     labeled_img, num_labels = img.label(binary_recon)
 

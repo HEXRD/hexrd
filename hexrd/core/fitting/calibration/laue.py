@@ -231,15 +231,11 @@ class LaueCalibrator(AbstractGrainCalibrator):
                 # check for overrun
                 irow = patch[-1][0]
                 jcol = patch[-1][1]
-                if np.any(
-                    [irow < 0, irow >= det.rows, jcol < 0, jcol >= det.cols]
-                ):
+                if np.any([irow < 0, irow >= det.rows, jcol < 0, jcol >= det.cols]):
                     continue
                 if not np.all(
                     det.clip_to_panel(
-                        np.vstack(
-                            [patch[1][0].flatten(), patch[1][1].flatten()]
-                        ).T
+                        np.vstack([patch[1][0].flatten(), patch[1][1].flatten()]).T
                     )[1]
                 ):
                     continue
@@ -291,9 +287,7 @@ class LaueCalibrator(AbstractGrainCalibrator):
                         #
                         center = np.r_[spot_data.shape] * 0.5
                         com_diff = coms - np.tile(center, (numPeaks, 1))
-                        closest_peak_idx = np.argmin(
-                            np.sum(com_diff**2, axis=1)
-                        )
+                        closest_peak_idx = np.argmin(np.sum(com_diff**2, axis=1))
                         #
                     else:
                         closest_peak_idx = 0
@@ -411,9 +405,7 @@ class LaueCalibrator(AbstractGrainCalibrator):
                         meas_xy[iRefl, :],
                     ]
                 )
-            reflInfo = np.array(
-                [tuple(i) for i in reflInfoList], dtype=reflInfo_dtype
-            )
+            reflInfo = np.array([tuple(i) for i in reflInfoList], dtype=reflInfo_dtype)
             refl_dict[det_key] = reflInfo
 
         # Convert to our data_dict format

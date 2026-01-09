@@ -70,9 +70,7 @@ class ModuleAlias:
             else:
                 return importlib.import_module(module)
         current_module = ".".join(self.current_path)
-        raise AttributeError(
-            f"Module `{current_module}` has no attribute {name}"
-        )
+        raise AttributeError(f"Module `{current_module}` has no attribute {name}")
 
 
 flattened_module_map: dict[str, Union[ModuleAlias, str]] = {}
@@ -85,6 +83,7 @@ for key, (mapped_module, _mapped_fp) in module_map.items():
             flattened_module_map[module] = ModuleAlias(parts[:i])
     flattened_module_map[key] = mapped_module
 
+
 def get(alias: str) -> Union[ModuleAlias, str, None]:
     """
     Returns the the module or an alias to it if it exists.
@@ -95,9 +94,7 @@ def get(alias: str) -> Union[ModuleAlias, str, None]:
 
 
 class ModuleSpecWithParent(importlib.machinery.ModuleSpec):
-    def __init__(
-        self, name, loader, *, origin=None, parent=None, is_package=False
-    ):
+    def __init__(self, name, loader, *, origin=None, parent=None, is_package=False):
         super().__init__(name, loader, origin=origin, is_package=is_package)
         self._parent = parent
 
@@ -183,7 +180,14 @@ class ModuleAliasImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
                         base_mod.__all__ = base_all
 
                 for name, val in cand_mod.__dict__.items():
-                    if name in ("__name__", "__file__", "__package__", "__path__", "__loader__", "__spec__"):
+                    if name in (
+                        "__name__",
+                        "__file__",
+                        "__package__",
+                        "__path__",
+                        "__loader__",
+                        "__spec__",
+                    ):
                         continue
                     if name not in base_mod.__dict__:
                         base_mod.__dict__[name] = val

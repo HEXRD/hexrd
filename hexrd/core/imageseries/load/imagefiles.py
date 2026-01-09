@@ -116,15 +116,9 @@ number of files: %s
         self._files.sort()
         self.optsd = d['options'] if 'options' else None
         self._empty = self.optsd[EMPTY] if EMPTY in self.optsd else 0
-        self._maxframes_tot = (
-            self.optsd[MAXTOTF] if MAXTOTF in self.optsd else 0
-        )
-        self._maxframes_file = (
-            self.optsd[MAXFILF] if MAXFILF in self.optsd else 0
-        )
-        self._dtype = (
-            np.dtype(self.optsd[DTYPE]) if DTYPE in self.optsd else None
-        )
+        self._maxframes_tot = self.optsd[MAXTOTF] if MAXTOTF in self.optsd else 0
+        self._maxframes_file = self.optsd[MAXFILF] if MAXFILF in self.optsd else 0
+        self._dtype = np.dtype(self.optsd[DTYPE]) if DTYPE in self.optsd else None
 
         self._meta = yamlmeta(d['meta'])  # , path=imgsd)
 
@@ -139,19 +133,13 @@ number of files: %s
         for imgf in self._files:
             info = FileInfo(imgf, **kw)
             infolist.append(info)
-            shp = self._checkvalue(
-                shp, info.shape, "inconsistent image shapes"
-            )
+            shp = self._checkvalue(shp, info.shape, "inconsistent image shapes")
             if self._dtype is not None:
                 dtp = self._dtype
 
             else:
-                dtp = self._checkvalue(
-                    dtp, info.dtype, "inconsistent image dtypes"
-                )
-            fcl = self._checkvalue(
-                fcl, info.fabioclass, "inconsistent image types"
-            )
+                dtp = self._checkvalue(dtp, info.dtype, "inconsistent image dtypes")
+            fcl = self._checkvalue(fcl, info.fabioclass, "inconsistent image types")
             nf += info.nframes
             if info.nframes > 1:
                 self._singleframes = False

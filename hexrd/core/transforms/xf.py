@@ -46,6 +46,7 @@ from hexrd.core.rotations import (
     angularDifference,
 )
 from hexrd.core.matrixutil import columnNorm, rowNorm
+
 logger = logging.getLogger(__name__)
 
 # =============================================================================
@@ -185,9 +186,7 @@ def gvecToDetectorXY(
     bDot = np.dot(-bHat_l.T, gVec_l).squeeze()
 
     # see who can diffract; initialize output array with NaNs
-    canDiffract = np.atleast_1d(
-        np.logical_and(bDot >= ztol, bDot <= 1.0 - ztol)
-    )
+    canDiffract = np.atleast_1d(np.logical_and(bDot >= ztol, bDot <= 1.0 - ztol))
     npts = sum(canDiffract)
     retval = np.nan * np.ones_like(gVec_l)
     if np.any(canDiffract):
@@ -448,11 +447,7 @@ def oscillAnglesOfHKLs(
         - schi * gHat_s[2, :] * bHat_l[1]
         + cchi * gHat_s[2, :] * bHat_l[2]
     )
-    c = (
-        -sintht
-        - cchi * gHat_s[1, :] * bHat_l[1]
-        - schi * gHat_s[1, :] * bHat_l[2]
-    )
+    c = -sintht - cchi * gHat_s[1, :] * bHat_l[1] - schi * gHat_s[1, :] * bHat_l[2]
 
     # should all be 1-d: a = a.flatten(); b = b.flatten(); c = c.flatten()
 
@@ -604,9 +599,7 @@ def polarRebin(
     startRho = rhoRange[0]
     stopRho = rhoRange[1]
 
-    subPixArea = (
-        1 / float(npdiv) ** 2
-    )  # areal rescaling for subpixel intensities
+    subPixArea = 1 / float(npdiv) ** 2  # areal rescaling for subpixel intensities
 
     # MASTER COORDINATES
     #  - in pixel indices, UPPER LEFT PIXEL is [0, 0] --> (row, col)
@@ -692,14 +685,8 @@ def polarRebin(
         intY = np.tile(intY.flatten(), (nptsIn, 1)).T.flatten()
 
         # expand coords using pixel subdivision
-        tmpX = (
-            np.tile(tmpX, (npdiv**2, 1)).flatten()
-            + (intX - 0.5) * mmPerPixel[0]
-        )
-        tmpY = (
-            np.tile(tmpY, (npdiv**2, 1)).flatten()
-            + (intY - 0.5) * mmPerPixel[1]
-        )
+        tmpX = np.tile(tmpX, (npdiv**2, 1)).flatten() + (intX - 0.5) * mmPerPixel[0]
+        tmpY = np.tile(tmpY, (npdiv**2, 1)).flatten() + (intY - 0.5) * mmPerPixel[1]
         tmpI = np.tile(tmpI, (npdiv**2, 1)).flatten() / subPixArea
 
         if convertToTTh:
@@ -718,9 +705,7 @@ def polarRebin(
         else:
             tmpRho = np.sqrt(tmpX * tmpX + tmpY * tmpY)
             tmpEta = np.arctan2(tmpY, tmpX)
-        tmpEta = mapAngle(
-            tmpEta, [startEta, 2 * np.pi + startEta], units='radians'
-        )
+        tmpEta = mapAngle(tmpEta, [startEta, 2 * np.pi + startEta], units='radians')
 
         etaI2 = rowEta[i] - 0.5 * deltaEta
         etaF2 = rowEta[i] + 0.5 * deltaEta
@@ -747,9 +732,7 @@ def polarRebin(
 
             # Normalized contribution to the ith sector's radial bins
             binIdSum = np.asarray(binId.sum(1)).flatten()
-            whereNZ = np.asarray(
-                np.not_equal(polImg['intensity'][i, :], binIdSum)
-            )
+            whereNZ = np.asarray(np.not_equal(polImg['intensity'][i, :], binIdSum))
             polImg['intensity'][i, whereNZ] = (
                 np.asarray(tmpI.sum(1))[whereNZ].flatten() / binIdSum[whereNZ]
             )
@@ -862,8 +845,7 @@ def unitVector(a):
         _unitVectorMulti(a, result)
     else:
         raise ValueError(
-            "incorrect arg shape; must be 1-d or 2-d, "
-            + "yours is %d-d" % (a.ndim)
+            "incorrect arg shape; must be 1-d or 2-d, " + "yours is %d-d" % (a.ndim)
         )
     return result
 
@@ -884,15 +866,9 @@ def makeDetectorRotMat(tiltAngles):
     cos_gZ = np.cos(tiltAngles[2])
     sin_gZ = np.sin(tiltAngles[2])
 
-    rotXl = np.array(
-        [[1.0, 0.0, 0.0], [0.0, cos_gX, -sin_gX], [0.0, sin_gX, cos_gX]]
-    )
-    rotYl = np.array(
-        [[cos_gY, 0.0, sin_gY], [0.0, 1.0, 0.0], [-sin_gY, 0.0, cos_gY]]
-    )
-    rotZl = np.array(
-        [[cos_gZ, -sin_gZ, 0.0], [sin_gZ, cos_gZ, 0.0], [0.0, 0.0, 1.0]]
-    )
+    rotXl = np.array([[1.0, 0.0, 0.0], [0.0, cos_gX, -sin_gX], [0.0, sin_gX, cos_gX]])
+    rotYl = np.array([[cos_gY, 0.0, sin_gY], [0.0, 1.0, 0.0], [-sin_gY, 0.0, cos_gY]])
+    rotZl = np.array([[cos_gZ, -sin_gZ, 0.0], [sin_gZ, cos_gZ, 0.0], [0.0, 0.0, 1.0]])
     return np.dot(rotZl, np.dot(rotYl, rotXl))
 
 
@@ -1039,9 +1015,7 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
     stopAngs = np.asarray(stopAngs).ravel()  # needs to have len
 
     n_ranges = len(startAngs)
-    assert (
-        len(stopAngs) == n_ranges
-    ), "length of min and max angular limits must match!"
+    assert len(stopAngs) == n_ranges, "length of min and max angular limits must match!"
 
     # to avoid warnings in >=, <= later down, mark nans;
     # need these to trick output to False in the case of nan input
@@ -1060,9 +1034,7 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
     dp = np.sum(x0 * x1, axis=0)
     if np.any(dp >= 1.0 - sqrt_epsf) and n_ranges > 1:
         # ambiguous case
-        raise RuntimeError(
-            "At least one of your ranges is alread 360 degrees!"
-        )
+        raise RuntimeError("At least one of your ranges is alread 360 degrees!")
     elif dp[0] >= 1.0 - sqrt_epsf and n_ranges == 1:
         # trivial case!
         reflInRange = np.ones(angList.shape, dtype=bool)
@@ -1113,15 +1085,11 @@ def validateAngleRanges(angList, startAngs, stopAngs, ccw=True):
                 if ccw:
                     zStart[nan_mask] = 999.0
                     zStop[nan_mask] = -999.0
-                    reflInRange = reflInRange | np.logical_and(
-                        zStart <= 0, zStop >= 0
-                    )
+                    reflInRange = reflInRange | np.logical_and(zStart <= 0, zStop >= 0)
                 else:
                     zStart[nan_mask] = -999.0
                     zStop[nan_mask] = 999.0
-                    reflInRange = reflInRange | np.logical_and(
-                        zStart >= 0, zStop <= 0
-                    )
+                    reflInRange = reflInRange | np.logical_and(zStart >= 0, zStop <= 0)
     return reflInRange
 
 
@@ -1174,9 +1142,7 @@ def rotate_vecs_about_axis(angle, axis, vecs):
 
     # dot product with components along; cross product with components normal
     qdota = (
-        axis[0, :] * vecs[0, :]
-        + axis[1, :] * vecs[1, :]
-        + axis[2, :] * vecs[2, :]
+        axis[0, :] * vecs[0, :] + axis[1, :] * vecs[1, :] + axis[2, :] * vecs[2, :]
     ) * (axis[0, :] * qv[0, :] + axis[1, :] * qv[1, :] + axis[2, :] * qv[2, :])
     qcrossn = np.vstack(
         [

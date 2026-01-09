@@ -17,7 +17,7 @@ import yaml
 from hexrd.core.matrixutil import extract_ijv
 from hexrd.core.utils.hdf5 import unwrap_dict_to_h5
 
-logger = logging.getLogger(__name__) 
+logger = logging.getLogger(__name__)
 
 MAX_NZ_FRACTION = 0.1  # 10% sparsity trigger for frame-cache write
 
@@ -271,8 +271,10 @@ class WriteFrameCache(Writer):
         d = {}
         for k, v in list(self._meta.items()):
             if isinstance(v, dict):
-                logger.warning('NPZ files do not support nested metadata. '
-                    f'The metadata key "{k}" will not be written out.')
+                logger.warning(
+                    'NPZ files do not support nested metadata. '
+                    f'The metadata key "{k}" will not be written out.'
+                )
                 continue
 
             if isinstance(v, np.ndarray) and save_omegas:
@@ -412,12 +414,8 @@ class WriteFrameCache(Writer):
             unwrap_dict_to_h5(metadata, self._meta.copy())
 
             def initialize_buffers():
-                thread_local.data = np.empty(
-                    (max_frame_size, 1), dtype=self._ims.dtype
-                )
-                thread_local.indices = np.empty(
-                    (max_frame_size, 2), dtype=np.uint16
-                )
+                thread_local.data = np.empty((max_frame_size, 1), dtype=self._ims.dtype)
+                thread_local.indices = np.empty((max_frame_size, 2), dtype=np.uint16)
 
             def single_array_write_thread(i):
                 nonlocal file_position, total_size
@@ -425,9 +423,7 @@ class WriteFrameCache(Writer):
                 row_slice = thread_local.indices[:, 0]
                 col_slice = thread_local.indices[:, 1]
                 data_slice = thread_local.data[:, 0]
-                count = extract_ijv(
-                    im, self._thresh, row_slice, col_slice, data_slice
-                )
+                count = extract_ijv(im, self._thresh, row_slice, col_slice, data_slice)
 
                 self._check_sparsity(i, count, max_frame_size)
 
@@ -440,9 +436,7 @@ class WriteFrameCache(Writer):
                     end_file = file_position
                     total_size += end_file - start_file
                 # write within the appropriate ranges
-                data_dataset[start_file:end_file, :] = thread_local.data[
-                    :count, :
-                ]
+                data_dataset[start_file:end_file, :] = thread_local.data[:count, :]
                 indices_dataset[start_file:end_file, :] = thread_local.indices[
                     :count, :
                 ]

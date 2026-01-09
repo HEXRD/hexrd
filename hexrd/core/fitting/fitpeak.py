@@ -41,7 +41,7 @@ from hexrd.core.fitting import peakfunctions as pkfuncs
 
 import matplotlib.pyplot as plt
 
-logger = logging.getLogger(__name__) 
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -124,9 +124,7 @@ def estimate_pk_parms_1d(x, f, pktype='pvoigt'):
 
     # handle background
     # ??? make kernel width a kwarg?
-    bkg = snip1d(
-        np.atleast_2d(f), w=int(2 * npts / 3.0), max_workers=1
-    ).flatten()
+    bkg = snip1d(np.atleast_2d(f), w=int(2 * npts / 3.0), max_workers=1).flatten()
 
     # fit linear bg and grab params
     bp, _ = optimize.curve_fit(lin_fit_obj, x, bkg, jac=lin_fit_jac)
@@ -424,9 +422,7 @@ def estimate_mpk_parms_1d(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            amp_guess = _amplitude_guess(
-                x, pk_pos_0[ii], fsubtr, fwhm_guess[ii]
-            )
+            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess[ii])
             p0tmp[ii, :] = [amp_guess, pk_pos_0[ii], fwhm_guess[ii]]
             p0tmp_lb[ii, :] = [
                 amp_guess * amp_lim_mult[0],
@@ -442,9 +438,7 @@ def estimate_mpk_parms_1d(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            amp_guess = _amplitude_guess(
-                x, pk_pos_0[ii], fsubtr, fwhm_guess[ii]
-            )
+            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess[ii])
             p0tmp[ii, :] = [amp_guess, pk_pos_0[ii], fwhm_guess[ii], 0.5]
             p0tmp_lb[ii, :] = [
                 amp_guess * amp_lim_mult[0],
@@ -462,9 +456,7 @@ def estimate_mpk_parms_1d(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            amp_guess = _amplitude_guess(
-                x, pk_pos_0[ii], fsubtr, fwhm_guess[ii]
-            )
+            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess[ii])
             p0tmp[ii, :] = [
                 amp_guess,
                 pk_pos_0[ii],
@@ -493,9 +485,7 @@ def estimate_mpk_parms_1d(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            amp_guess = _amplitude_guess(
-                x, pk_pos_0[ii], fsubtr, fwhm_guess[ii]
-            )
+            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess[ii])
             p0tmp[ii, :] = [
                 amp_guess,
                 pk_pos_0[ii],
@@ -846,9 +836,7 @@ def goodness_of_fit(f, f0):
     return R, Rw
 
 
-def direct_pk_analysis(
-    x, f, remove_bg=True, low_int=1.0, edge_pts=3, pts_per_meas=100
-):
+def direct_pk_analysis(x, f, remove_bg=True, low_int=1.0, edge_pts=3, pts_per_meas=100):
     """
     Analyze a single peak that is not well matched to any analytic functions
 
@@ -979,20 +967,12 @@ def calc_pk_integrated_intensities(p, x, pktype, num_pks):
 
     for ii in np.arange(num_pks):
         if pktype == 'gaussian':
-            ints[ii] = integrate.simpson(
-                pkfuncs._gaussian1d_no_bg(p_fit[ii], x), x
-            )
+            ints[ii] = integrate.simpson(pkfuncs._gaussian1d_no_bg(p_fit[ii], x), x)
         elif pktype == 'lorentzian':
-            ints[ii] = integrate.simpson(
-                pkfuncs._lorentzian1d_no_bg(p_fit[ii], x), x
-            )
+            ints[ii] = integrate.simpson(pkfuncs._lorentzian1d_no_bg(p_fit[ii], x), x)
         elif pktype == 'pvoigt':
-            ints[ii] = integrate.simpson(
-                pkfuncs._pvoigt1d_no_bg(p_fit[ii], x), x
-            )
+            ints[ii] = integrate.simpson(pkfuncs._pvoigt1d_no_bg(p_fit[ii], x), x)
         elif pktype == 'split_pvoigt':
-            ints[ii] = integrate.simpson(
-                pkfuncs._split_pvoigt1d_no_bg(p_fit[ii], x), x
-            )
+            ints[ii] = integrate.simpson(pkfuncs._split_pvoigt1d_no_bg(p_fit[ii], x), x)
 
     return ints
