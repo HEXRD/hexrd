@@ -132,10 +132,7 @@ class unitcell:
     def CalcWavelength(self):
         # wavelength in nm
         self.wavelength = (
-            constants.cPlanck
-            * constants.cLight
-            / constants.cCharge
-            / self.voltage
+            constants.cPlanck * constants.cLight / constants.cCharge / self.voltage
         )
         self.wavelength *= 1e9
 
@@ -240,9 +237,7 @@ class unitcell:
             elif outspace == 'c':
                 v_out = np.dot(self.dsm, v_in)
             else:
-                raise ValueError(
-                    'inspace in "d" but outspace can\'t be identified'
-                )
+                raise ValueError('inspace in "d" but outspace can\'t be identified')
 
         elif inspace == 'r':
             if outspace == 'd':
@@ -250,9 +245,7 @@ class unitcell:
             elif outspace == 'c':
                 v_out = np.dot(self.rsm, v_in)
             else:
-                raise ValueError(
-                    'inspace in "r" but outspace can\'t be identified'
-                )
+                raise ValueError('inspace in "r" but outspace can\'t be identified')
 
         elif inspace == 'c':
             if outspace == 'r':
@@ -260,9 +253,7 @@ class unitcell:
             elif outspace == 'd':
                 v_out = np.dot(v_in, self.rsm)
             else:
-                raise ValueError(
-                    'inspace in "c" but outspace can\'t be identified'
-                )
+                raise ValueError('inspace in "c" but outspace can\'t be identified')
 
         else:
             raise ValueError('incorrect inspace argument')
@@ -360,9 +351,7 @@ class unitcell:
             elif outspace == 'c':
                 pxq = self.TransSpace(pxq, 'r', 'c')
             else:
-                raise ValueError(
-                    'inspace is ' 'd' ' but outspace is unidentified'
-                )
+                raise ValueError('inspace is ' 'd' ' but outspace is unidentified')
 
         elif inspace == 'r':
             '''
@@ -377,9 +366,7 @@ class unitcell:
             elif outspace == 'c':
                 pxq = self.TransSpace(pxq, 'd', 'c')
             else:
-                raise ValueError(
-                    'inspace is ' 'r' ' but outspace is unidentified'
-                )
+                raise ValueError('inspace is ' 'r' ' but outspace is unidentified')
 
         elif inspace == 'c':
             '''
@@ -394,9 +381,7 @@ class unitcell:
             elif outspace == 'c':
                 pass
             else:
-                raise ValueError(
-                    'inspace is ' 'c' ' but outspace is unidentified'
-                )
+                raise ValueError('inspace is ' 'c' ' but outspace is unidentified')
 
         else:
             raise ValueError('inspace is unidentified')
@@ -444,9 +429,7 @@ class unitcell:
             self.SYM_PG_c_laue = self.SYM_PG_c
         else:
             for sop in self.SYM_PG_d_laue:
-                self.SYM_PG_c_laue.append(
-                    np.dot(self.dsm, np.dot(sop, self.rsm.T))
-                )
+                self.SYM_PG_c_laue.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
             self.SYM_PG_c_laue = np.array(self.SYM_PG_c_laue)
             self.SYM_PG_c_laue[np.abs(self.SYM_PG_c_laue) < eps] = 0.0
 
@@ -479,9 +462,7 @@ class unitcell:
             self.SYM_PG_supergroup_laue = []
 
             for sop in sym_supergroup:
-                self.SYM_PG_supergroup.append(
-                    np.dot(self.dsm, np.dot(sop, self.rsm.T))
-                )
+                self.SYM_PG_supergroup.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
 
             self.SYM_PG_supergroup = np.array(self.SYM_PG_supergroup)
             self.SYM_PG_supergroup[np.abs(self.SYM_PG_supergroup) < eps] = 0.0
@@ -492,9 +473,7 @@ class unitcell:
                 )
 
         self.SYM_PG_supergroup_laue = np.array(self.SYM_PG_supergroup_laue)
-        self.SYM_PG_supergroup_laue[
-            np.abs(self.SYM_PG_supergroup_laue) < eps
-        ] = 0.0
+        self.SYM_PG_supergroup_laue[np.abs(self.SYM_PG_supergroup_laue) < eps] = 0.0
 
         '''
         the standard setting for the monoclinic system has the b-axis aligned
@@ -762,22 +741,19 @@ class unitcell:
         self.init_max_g_index()
 
         while (
-            1.0
-            / self.CalcLength(np.array([self.ih, 0, 0], dtype=np.float64), 'r')
+            1.0 / self.CalcLength(np.array([self.ih, 0, 0], dtype=np.float64), 'r')
             > self.dmin
         ):
             self.ih = self.ih + 1
 
         while (
-            1.0
-            / self.CalcLength(np.array([0, self.ik, 0], dtype=np.float64), 'r')
+            1.0 / self.CalcLength(np.array([0, self.ik, 0], dtype=np.float64), 'r')
             > self.dmin
         ):
             self.ik = self.ik + 1
 
         while (
-            1.0
-            / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64), 'r')
+            1.0 / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64), 'r')
             > self.dmin
         ):
             self.il = self.il + 1
@@ -928,9 +904,7 @@ class unitcell:
             Z = self.atom_type[i]
             elem = constants.ptableinverse[Z]
             abs_cs_total += (
-                self.pe_cs[elem](self.wavelength)
-                * self.numat[i]
-                / np.sum(self.numat)
+                self.pe_cs[elem](self.wavelength) * self.numat[i] / np.sum(self.numat)
             )
         return abs_cs_total
 
@@ -1303,9 +1277,7 @@ class unitcell:
 
                 if np.sum(mask) > 0:
                     if dir3_reduced.size != 0:
-                        dir3_reduced = np.vstack(
-                            (dir3_reduced, dir3_sym[mask, :])
-                        )
+                        dir3_reduced = np.vstack((dir3_reduced, dir3_sym[mask, :]))
                         idx_red = np.hstack((idx_red, idx[mask]))
                     else:
                         dir3_reduced = np.copy(dir3_sym[mask, :])
@@ -1346,9 +1318,7 @@ class unitcell:
             introduces inversion symmetry. For other probes, this is not the case.
             '''
             dir3_red = self.reduce_dirvector(dir3, switch='laue')
-            dir3_red_supergroup = self.reduce_dirvector(
-                dir3, switch='superlaue'
-            )
+            dir3_red_supergroup = self.reduce_dirvector(dir3, switch='superlaue')
             switch = 'superlaue'
 
         else:
@@ -1723,9 +1693,7 @@ class unitcell:
 
     @asym_pos.setter
     def asym_pos(self, val):
-        assert (
-            type(val) == list
-        ), 'input type to asymmetric positions should be list'
+        assert type(val) == list, 'input type to asymmetric positions should be list'
         self._asym_pos = val
 
     @property
@@ -1734,9 +1702,7 @@ class unitcell:
 
     @numat.setter
     def numat(self, val):
-        assert (
-            val.shape[0] == self.atom_ntype
-        ), 'shape of numat is not consistent'
+        assert val.shape[0] == self.atom_ntype, 'shape of numat is not consistent'
         self._numat = val
 
     # direct metric tensor is read only

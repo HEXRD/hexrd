@@ -85,9 +85,7 @@ def angles_to_gvec(
     eta_vec = eta_vec if eta_vec is not None else cnst.eta_vec
     eta_vec = np.ascontiguousarray(eta_vec.flatten())
     chi = 0.0 if chi is None else float(chi)
-    rmat_c = (
-        cnst.identity_3x3 if rmat_c is None else np.ascontiguousarray(rmat_c)
-    )
+    rmat_c = cnst.identity_3x3 if rmat_c is None else np.ascontiguousarray(rmat_c)
 
     result = cpp_transforms.anglesToGVec(angs, beam_vec, eta_vec, chi, rmat_c)
 
@@ -145,11 +143,7 @@ def angles_to_dvec(
 
     beam_vec = np.ascontiguousarray(beam_vec.flatten())
     eta_vec = np.ascontiguousarray(eta_vec.flatten())
-    rmat_c = (
-        np.ascontiguousarray(rmat_c)
-        if rmat_c is not None
-        else cnst.identity_3x3
-    )
+    rmat_c = np.ascontiguousarray(rmat_c) if rmat_c is not None else cnst.identity_3x3
     chi = 0.0 if chi is None else float(chi)
 
     return cpp_transforms.anglesToDVec(angs, beam_vec, eta_vec, chi, rmat_c)
@@ -483,8 +477,7 @@ def unit_vector(vec_in: np.ndarray) -> np.ndarray:
         return _impl.unitRowVectors(vec_in)
     else:
         raise ValueError(
-            "incorrect arg shape; must be 1-d or 2-d, yours is %d-d"
-            % (vec_in.ndim)
+            "incorrect arg shape; must be 1-d or 2-d, yours is %d-d" % (vec_in.ndim)
         )
 
 
@@ -667,9 +660,7 @@ def rotate_vecs_about_axis(
     return result.T
 
 
-def quat_distance(
-    q1: np.ndarray, q2: np.ndarray, qsym: np.ndarray
-) -> np.ndarray:
+def quat_distance(q1: np.ndarray, q2: np.ndarray, qsym: np.ndarray) -> np.ndarray:
     """
     Distance between two quaternions, taking quaternions of symmetry into
     account.

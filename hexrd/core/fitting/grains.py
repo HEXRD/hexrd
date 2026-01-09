@@ -304,8 +304,7 @@ def objFuncFitGrain(
     npts = len(meas_xyo_all)
     if np.any(np.isnan(calc_xy)):
         raise RuntimeError(
-            "infeasible pFull: may want to scale"
-            + "back finite difference step size"
+            "infeasible pFull: may want to scale" + "back finite difference step size"
         )
 
     # return values
@@ -325,9 +324,7 @@ def objFuncFitGrain(
         # return residual vector
         # IDEA: try angles instead of xys?
         diff_vecs_xy = calc_xy_all - meas_xyo_all[:, :2]
-        diff_ome = rotations.angularDifference(
-            calc_omes_all, meas_xyo_all[:, 2]
-        )
+        diff_ome = rotations.angularDifference(calc_omes_all, meas_xyo_all[:, 2])
         retval = np.hstack([diff_vecs_xy, diff_ome.reshape(npts, 1)]).flatten()
         if return_value_flag == 1:
             # return scalar sum of squared residuals
@@ -398,9 +395,7 @@ def matchOmegas(
             ]
         )
     # do angular difference
-    diff_omes = rotations.angularDifference(
-        np.tile(meas_omes, (2, 1)), calc_omes
-    )
+    diff_omes = rotations.angularDifference(np.tile(meas_omes, (2, 1)), calc_omes)
     match_omes = np.argsort(diff_omes, axis=0) == 0
     calc_omes = calc_omes.T.flatten()[match_omes.T.flatten()]
 

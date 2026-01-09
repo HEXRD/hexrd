@@ -44,29 +44,25 @@ def create_instr_params(
         energy = beam['energy']
 
         names = beam_param_names[beam_name]
-        parms_list.append((
-            names['beam_polar'], pol, False, pol - 1, pol + 1
-        ))
-        parms_list.append((
-            names['beam_azimuth'], azim, False, azim - 1, azim + 1
-        ))
-        parms_list.append((
-            names['beam_energy'], energy, False, energy - 0.2, energy + 0.2
-        ))
+        parms_list.append((names['beam_polar'], pol, False, pol - 1, pol + 1))
+        parms_list.append((names['beam_azimuth'], azim, False, azim - 1, azim + 1))
+        parms_list.append(
+            (names['beam_energy'], energy, False, energy - 0.2, energy + 0.2)
+        )
         if beam.get('energy_correction') is not None:
             base_name = names['beam_energy_correction']
             intercept = beam['energy_correction']['intercept']
             slope = beam['energy_correction']['slope']
-            parms_list.append((
-                f'{base_name}_intercept',
-                intercept,
-                False,
-                -np.inf,
-                np.inf,
-            ))
-            parms_list.append((
-                f'{base_name}_slope', slope, False, -np.inf, np.inf
-            ))
+            parms_list.append(
+                (
+                    f'{base_name}_intercept',
+                    intercept,
+                    False,
+                    -np.inf,
+                    np.inf,
+                )
+            )
+            parms_list.append((f'{base_name}_slope', slope, False, -np.inf, np.inf))
 
     parms_list.append(
         (
@@ -160,9 +156,7 @@ def add_unconstrained_detector_parameters(instr, euler_convention, parms_list):
                     )
                 )
         if panel.detector_type.lower() == 'cylindrical':
-            parms_list.append(
-                (f'{det}_radius', panel.radius, False, -np.inf, np.inf)
-            )
+            parms_list.append((f'{det}_radius', panel.radius, False, -np.inf, np.inf))
 
 
 def _add_constrained_detector_parameters(
@@ -294,9 +288,7 @@ def update_instrument_from_params(
     implemented.
     """
     if not isinstance(params, lmfit.Parameters):
-        msg = (
-            'Only lmfit.Parameters is acceptable input. ' f'Received: {params}'
-        )
+        msg = 'Only lmfit.Parameters is acceptable input. ' f'Received: {params}'
         raise NotImplementedError(msg)
 
     # This supports single XRS or multi XRS
@@ -428,9 +420,7 @@ def _update_constrained_detector_parameters(
             panel.tilt = _rmat_to_tilt(rmat_diff @ panel.rmat)
 
             # Also rotate the detectors about the rotation center
-            panel.tvec = (
-                rmat_diff @ (panel.tvec - rotation_center) + rotation_center
-            )
+            panel.tvec = rmat_diff @ (panel.tvec - rotation_center) + rotation_center
 
         # Update the tilt
         tilt[:] = _rmat_to_tilt(new_rmat)
@@ -494,9 +484,7 @@ def update_group_constrained_detector_parameters(
         )
 
 
-def _tilt_to_rmat(
-    tilt: np.ndarray, euler_convention: dict | tuple
-) -> np.ndarray:
+def _tilt_to_rmat(tilt: np.ndarray, euler_convention: dict | tuple) -> np.ndarray:
     # Convert the tilt to exponential map parameters, and then
     # to the rotation matrix, and return.
     if euler_convention is None:
@@ -535,9 +523,7 @@ def create_tth_parameters(
 
             val = np.degrees(np.mean(np.hstack(ds_ang)))
 
-            parms_list.append(
-                (f'{prefix}{ii}', val, True, val - 5.0, val + 5.0)
-            )
+            parms_list.append((f'{prefix}{ii}', val, True, val - 5.0, val + 5.0))
 
     return parms_list
 
@@ -577,13 +563,15 @@ def create_material_params(material, refinements=None):
         refine = True if refinements is None else refinements[refine_idx]
 
         val = material.lparms[i] * multiplier
-        parms_list.append((
-            f'{mat_name}_{lp_name}',
-            val,
-            refine,
-            val - diff,
-            val + diff,
-        ))
+        parms_list.append(
+            (
+                f'{mat_name}_{lp_name}',
+                val,
+                refine,
+                val - diff,
+                val + diff,
+            )
+        )
 
         refine_idx += 1
 

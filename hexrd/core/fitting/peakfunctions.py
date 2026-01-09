@@ -71,9 +71,7 @@ def erfc(x):
 
     # A&S formula 7.1.26
     t = 1.0 / (1.0 + p * x)
-    y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * np.exp(
-        -x * x
-    )
+    y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * np.exp(-x * x)
     erf = sign * y  # erf(-x) = -erf(x)
     return 1.0 - erf
 
@@ -209,9 +207,7 @@ def _gaussian1d_no_bg_deriv(p, x):
     dydx0 = _gaussian1d_no_bg(p, x) * ((x - x0) / (sigma**2.0))
     dydA = _unit_gaussian(p[[1, 2]], x)
     dydFWHM = (
-        _gaussian1d_no_bg(p, x)
-        * ((x - x0) ** 2.0 / (sigma**3.0))
-        / gauss_width_fact
+        _gaussian1d_no_bg(p, x) * ((x - x0) ** 2.0 / (sigma**3.0)) / gauss_width_fact
     )
 
     d_mat = np.zeros((len(p), len(x)))
@@ -312,9 +308,7 @@ def _lorentzian1d_no_bg_deriv(p, x):
 
     gamma = FWHM / lorentz_width_fact
 
-    dydx0 = _lorentzian1d_no_bg(p, x) * (
-        (2.0 * (x - x0)) / ((x - x0) ** 2 + gamma**2)
-    )
+    dydx0 = _lorentzian1d_no_bg(p, x) * ((2.0 * (x - x0)) / ((x - x0) ** 2 + gamma**2))
     dydA = _unit_lorentzian(p[[1, 2]], x)
     dydFWHM = (
         _lorentzian1d_no_bg(p, x)
@@ -556,9 +550,9 @@ def _gaussian_pink_beam(p, x):
     g = np.zeros(x.shape)
     zmask = np.abs(del_tth) > 5.0
 
-    g[~zmask] = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(
-        u[~zmask]
-    ) * t1[~zmask] + np.exp(v[~zmask]) * t2[~zmask]
+    g[~zmask] = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(u[~zmask]) * t1[
+        ~zmask
+    ] + np.exp(v[~zmask]) * t2[~zmask]
     mask = np.isnan(g)
     g[mask] = 0.0
     g *= A / g.max()
@@ -647,9 +641,7 @@ def pink_beam_dcs(p, x):
     return _pink_beam_dcs_no_bg(p[:-2], x) + p[-2] + p[-1] * x
 
 
-def pink_beam_dcs_lmfit(
-    x, A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l
-):
+def pink_beam_dcs_lmfit(x, A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 10/18/2021 SS 1.0 original
@@ -753,9 +745,7 @@ def _gaussian2d_rot_no_bg(p, x, y):
 
     theta = p[5]
 
-    x0prime, y0prime, xprime, yprime = _2d_coord_transform(
-        theta, p[1], p[2], x, y
-    )
+    x0prime, y0prime, xprime, yprime = _2d_coord_transform(theta, p[1], p[2], x, y)
 
     # this copy was needed so original parameters set isn't changed
     newp = copy.copy(p)
@@ -837,33 +827,25 @@ def _split_pvoigt2d_no_bg(p, x, y):
     # ++
     q1 = np.where(xr & yr)
     f[q1] = (
-        A
-        * _unit_pvoigt1d(p[[1, 4, 8]], x[q1])
-        * _unit_pvoigt1d(p[[2, 6, 10]], y[q1])
+        A * _unit_pvoigt1d(p[[1, 4, 8]], x[q1]) * _unit_pvoigt1d(p[[2, 6, 10]], y[q1])
     )
 
     # +-
     q2 = np.where(xr & yl)
     f[q2] = (
-        A
-        * _unit_pvoigt1d(p[[1, 4, 8]], x[q2])
-        * _unit_pvoigt1d(p[[2, 5, 9]], y[q2])
+        A * _unit_pvoigt1d(p[[1, 4, 8]], x[q2]) * _unit_pvoigt1d(p[[2, 5, 9]], y[q2])
     )
 
     # -+
     q3 = np.where(xl & yr)
     f[q3] = (
-        A
-        * _unit_pvoigt1d(p[[1, 3, 7]], x[q3])
-        * _unit_pvoigt1d(p[[2, 6, 10]], y[q3])
+        A * _unit_pvoigt1d(p[[1, 3, 7]], x[q3]) * _unit_pvoigt1d(p[[2, 6, 10]], y[q3])
     )
 
     # --
     q4 = np.where(xl & yl)
     f[q4] = (
-        A
-        * _unit_pvoigt1d(p[[1, 3, 7]], x[q4])
-        * _unit_pvoigt1d(p[[2, 5, 9]], y[q4])
+        A * _unit_pvoigt1d(p[[1, 3, 7]], x[q4]) * _unit_pvoigt1d(p[[2, 5, 9]], y[q4])
     )
 
     return f
@@ -882,9 +864,7 @@ def _split_pvoigt2d_rot_no_bg(p, x, y):
 
     theta = p[11]
 
-    x0prime, y0prime, xprime, yprime = _2d_coord_transform(
-        theta, p[1], p[2], x, y
-    )
+    x0prime, y0prime, xprime, yprime = _2d_coord_transform(theta, p[1], p[2], x, y)
 
     # this copy was needed so original parameters set isn't changed
     newp = copy.copy(p)
@@ -1036,8 +1016,6 @@ def mpeak_1d(p, x, pktype, num_pks, bgtype=None):
     elif bgtype == 'constant':
         f = f + p[-1]  # c0=p[-1]
     elif bgtype == 'quadratic':
-        f = (
-            f + p[-3] + p[-2] * x + p[-1] * x**2
-        )  # c0=p[-3], c1=p[-2], c2=p[-1],
+        f = f + p[-3] + p[-2] * x + p[-1] * x**2  # c0=p[-3], c1=p[-2], c2=p[-1],
 
     return f

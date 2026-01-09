@@ -44,6 +44,7 @@ from hexrd.powder.wppf.phase import (
 
 logger = logging.getLogger(__name__)
 
+
 class AbstractWPPF(ABC):
     """Methods used by both LeBail and Rietveld"""
 
@@ -68,8 +69,7 @@ class AbstractWPPF(ABC):
     def __str__(self):
         cls_name = self.__class__.__name__
         resstr = (
-            f"<{cls_name} Fit class>\n"
-            "resParameters of the model are as follows:\n"
+            f"<{cls_name} Fit class>\n" "resParameters of the model are as follows:\n"
         )
         resstr += self.params.__str__()
         return resstr
@@ -307,9 +307,7 @@ class AbstractWPPF(ABC):
     def spectrum_expt(self):
         vector_list = [s.y for s in self._spectrum_expt]
 
-        spec_masked = join_regions(
-            vector_list, self.global_index, self.global_shape
-        )
+        spec_masked = join_regions(vector_list, self.global_index, self.global_shape)
         return Spectrum(x=self._tth_list_global, y=spec_masked)
 
     @spectrum_expt.setter
@@ -374,9 +372,7 @@ class AbstractWPPF(ABC):
                     self._spectrum_expt = []
                     for s in expt_spec_list:
                         self._spectrum_expt.append(
-                            Spectrum(
-                                x=s[:, 0], y=s[:, 1], name="expt_spectrum"
-                            )
+                            Spectrum(x=s[:, 0], y=s[:, 1], name="expt_spectrum")
                         )
 
                 else:
@@ -395,9 +391,7 @@ class AbstractWPPF(ABC):
                         )
                     ]
 
-                    self.global_index = [
-                        (0, self._spectrum_expt[0].x.shape[0])
-                    ]
+                    self.global_index = [(0, self._spectrum_expt[0].x.shape[0])]
                     self.global_shape = expt_spectrum.shape[0]
                     self.global_mask = np.zeros(
                         [
@@ -420,9 +414,7 @@ class AbstractWPPF(ABC):
                         Spectrum.from_file(expt_spectrum, skip_rows=0)
                     ]
                     # self._spectrum_expt.nan_to_zero()
-                    self.global_index = [
-                        (0, self._spectrum_expt[0].x.shape[0])
-                    ]
+                    self.global_index = [(0, self._spectrum_expt[0].x.shape[0])]
                     self.global_shape = self._spectrum_expt[0].x.shape[0]
                     self.global_mask = np.zeros(
                         [
@@ -431,9 +423,7 @@ class AbstractWPPF(ABC):
                         dtype=bool,
                     )
                 else:
-                    raise FileNotFoundError(
-                        "input spectrum file doesn't exist."
-                    )
+                    raise FileNotFoundError("input spectrum file doesn't exist.")
 
                 self._tth_list = [self._spectrum_expt[0]._x]
                 self._tth_list_global = self._spectrum_expt[0]._x
@@ -510,9 +500,7 @@ class AbstractWPPF(ABC):
         else:
             vector_list = [s.y for s in self._background]
 
-        bkg_masked = join_regions(
-            vector_list, self.global_index, self.global_shape
-        )
+        bkg_masked = join_regions(vector_list, self.global_index, self.global_shape)
         return Spectrum(x=self.tth_list, y=bkg_masked)
 
     @property
@@ -573,9 +561,7 @@ class AbstractWPPF(ABC):
                     if path.exists(param_info):
                         params.load(param_info)
                     else:
-                        raise FileNotFoundError(
-                            "input spectrum file doesn't exist."
-                        )
+                        raise FileNotFoundError("input spectrum file doesn't exist.")
 
                 """
                 this part initializes the lattice parameters in the
@@ -713,9 +699,7 @@ class AbstractWPPF(ABC):
         elif "spline" in self.bkgmethod.keys():
             points = self.bkgmethod["spline"]
             if not points:
-                raise RuntimeError(
-                    "Background points must be set to use spline"
-                )
+                raise RuntimeError("Background points must be set to use spline")
 
             self.splinefit(np.squeeze(np.asarray(points)))
 
@@ -770,9 +754,7 @@ class AbstractWPPF(ABC):
 
                 numiter = self.bkgmethod["snip1d"][1]
 
-                yy = np.squeeze(
-                    snip1d_quad(np.atleast_2d(s.y), w=ww, numiter=numiter)
-                )
+                yy = np.squeeze(snip1d_quad(np.atleast_2d(s.y), w=ww, numiter=numiter))
                 self._background.append(Spectrum(x=self._tth_list[i], y=yy))
 
     @property
@@ -1074,9 +1056,7 @@ class LeBail(AbstractWPPF):
             for p in self.phases:
                 self.Icalc[p] = {}
                 for k in self.phases.wavelength.keys():
-                    self.Icalc[p][k] = (10**n10) * np.ones(
-                        self.tth[p][k].shape
-                    )
+                    self.Icalc[p][k] = (10**n10) * np.ones(self.tth[p][k].shape)
 
         elif isinstance(self.intensity_init, dict):
             """
@@ -1109,10 +1089,7 @@ class LeBail(AbstractWPPF):
                          from the dictionary."
                         )
 
-                    if (
-                        self.tth[p][k].shape[0]
-                        <= self.intensity_init[p][k].shape[0]
-                    ):
+                    if self.tth[p][k].shape[0] <= self.intensity_init[p][k].shape[0]:
                         self.Icalc[p][k] = self.intensity_init[p][k][
                             0 : self.tth[p][k].shape[0]
                         ]
@@ -1156,20 +1133,10 @@ class LeBail(AbstractWPPF):
                     Xs = np.degrees(
                         0.9
                         * (1.5 * alpha + beta)
-                        * (
-                            self.sf_lfactor[p][k]
-                            * lam
-                            / self.phases[p].lparms[0]
-                        )
+                        * (self.sf_lfactor[p][k] * lam / self.phases[p].lparms[0])
                     )
 
-                tth = (
-                    self.tth[p][k]
-                    + self.zero_error
-                    + shft_c
-                    + trns_c
-                    + sf_shift
-                )
+                tth = self.tth[p][k] + self.zero_error + shft_c + trns_c + sf_shift
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
@@ -1284,20 +1251,10 @@ class LeBail(AbstractWPPF):
                     Xs = np.degrees(
                         0.9
                         * (1.5 * alpha + beta)
-                        * (
-                            self.sf_lfactor[p][k]
-                            * lam
-                            / self.phases[p].lparms[0]
-                        )
+                        * (self.sf_lfactor[p][k] * lam / self.phases[p].lparms[0])
                     )
 
-                tth = (
-                    self.tth[p][k]
-                    + self.zero_error
-                    + shft_c
-                    + trns_c
-                    + sf_shift
-                )
+                tth = self.tth[p][k] + self.zero_error + shft_c + trns_c + sf_shift
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
@@ -1390,7 +1347,8 @@ class LeBail(AbstractWPPF):
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
         if print_to_screen:
-            logger.info("Finished iteration. Rwp: "
+            logger.info(
+                "Finished iteration. Rwp: "
                 f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
             )
 
@@ -1595,9 +1553,7 @@ class Rietveld(AbstractWPPF):
     def _add_phase_params(self, params: lmfit.Parameters):
         for p in self.phases:
             for lpi in self.phases[p]:
-                wppfsupport._add_atominfo_to_params(
-                    params, self.phases[p][lpi]
-                )
+                wppfsupport._add_atominfo_to_params(params, self.phases[p][lpi])
 
     def _set_phase_params_vals_to_class(self, params: lmfit.Parameters):
         # These indicate that *any* materials updated their lattice
@@ -1677,9 +1633,7 @@ class Rietveld(AbstractWPPF):
                     else:
                         dw = f"{p}_{elem}{atom_label[i]}_dw"
 
-                    atominfo_vary = any(
-                        params[name].vary for name in (nx, ny, nz, oc)
-                    )
+                    atominfo_vary = any(params[name].vary for name in (nx, ny, nz, oc))
                     x = params[nx].value
                     y = params[ny].value
                     z = params[nz].value
@@ -1738,9 +1692,7 @@ class Rietveld(AbstractWPPF):
                 tth = self.tth[p][k]
                 # allowed = self.phases[p][k].wavelength_allowed_hkls
                 # limit = self.limit[p][k]
-                self.sf[p][k], self.sf_raw[p][k] = self.phases[p][k].CalcXRSF(
-                    w, w_int
-                )
+                self.sf[p][k], self.sf_raw[p][k] = self.phases[p][k].CalcXRSF(w, w_int)
 
                 self.extinction[p][k] = self.phases[p][k].calc_extinction(
                     10.0 * w,
@@ -1832,9 +1784,7 @@ class Rietveld(AbstractWPPF):
 
         return tth, Xs
 
-    def computespectrum_phase(
-        self, p, k, Ic, texture_factor=None, fullrange=False
-    ):
+    def computespectrum_phase(self, p, k, Ic, texture_factor=None, fullrange=False):
         '''this is a helper function so which is use by both the
         Rietveld.computspectrum and Rietveld.computespectrum_2d
         function to avoid code repetition.
@@ -2051,9 +2001,9 @@ class Rietveld(AbstractWPPF):
                             )
                             for ii, h in enumerate(hkls):
                                 hkey = tuple(h)
-                                texture_factor[ii] = azimuth_texture_factor[p][
-                                    hkey
-                                ][irow]
+                                texture_factor[ii] = azimuth_texture_factor[p][hkey][
+                                    irow
+                                ]
 
                         y += self.computespectrum_phase(
                             p,
@@ -2102,7 +2052,8 @@ class Rietveld(AbstractWPPF):
             self.Rwplist = np.append(self.Rwplist, self.Rwp)
             self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-            logger.info("Finished iteration. Rwp: "
+            logger.info(
+                "Finished iteration. Rwp: "
                 f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
             )
         else:
@@ -2129,7 +2080,8 @@ class Rietveld(AbstractWPPF):
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-        logger.info("Finished iteration. Rwp: "
+        logger.info(
+            "Finished iteration. Rwp: "
             f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
         )
 
@@ -2608,9 +2560,7 @@ def extract_intensities(
     make the values outside detector NaNs and convert to masked array
     """
     pv_simulated[polar_view.mask] = np.nan
-    pv_simulated = np.ma.masked_array(
-        pv_simulated, mask=np.isnan(pv_simulated)
-    )
+    pv_simulated = np.ma.masked_array(pv_simulated, mask=np.isnan(pv_simulated))
 
     return extracted_intensities, hkls, tths, non_zeros_index, pv_simulated
 

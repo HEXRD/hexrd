@@ -159,11 +159,7 @@ class HEDPhysicsPackage(AbstractPhysicsPackage):
             formula = getattr(self, f'{layer}_material')
 
         layer = layer.lower()
-        args = (
-            density,
-            formula,
-            energy_inp
-        )
+        args = (density, formula, energy_inp)
         abs_length = calculate_linear_absorption_length(*args)
         if abs_length.shape[0] == 1:
             return abs_length[0]
@@ -173,7 +169,7 @@ class HEDPhysicsPackage(AbstractPhysicsPackage):
     def layer_standoff(self, layer: str) -> float:
         # Compute layer standoff from the pinhole
         idx = self.LAYER_TYPES.index(layer)
-        result = 0.
+        result = 0.0
         for i in range(idx + 1, len(self.LAYER_TYPES) - 1):
             name = self.LAYER_TYPES[i]
             result += self._layers[name].thickness
@@ -216,6 +212,4 @@ class HEDMPhysicsPackage(AbstractPhysicsPackage):
         if self.sample_geometry == 'cylinder':
             return self.sample_thickness
 
-        raise Exception(
-            'sample geometry does not have diameter associated with it.'
-        )
+        raise Exception('sample geometry does not have diameter associated with it.')

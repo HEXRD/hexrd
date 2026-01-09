@@ -46,9 +46,7 @@ class Dexela_2923(DistortionABC, metaclass=_RegisterDistortionClass):
             return xy_in
         else:
             xy_out = np.empty_like(xy_in)
-            _dexela_2923_inverse_distortion(
-                xy_out, xy_in, np.asarray(self.params)
-            )
+            _dexela_2923_inverse_distortion(xy_out, xy_in, np.asarray(self.params))
             return xy_out
 
 

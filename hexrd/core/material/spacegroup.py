@@ -419,9 +419,7 @@ def Allowed_HKLs(sgnum, hkllist):
         seo = np.mod(-hkllist[:, 0] + hkllist[:, 1] + hkllist[:, 2] + 90, 3)
         mask = seo == 0
     else:
-        raise RuntimeError(
-            'IsGAllowed: unknown lattice centering encountered.'
-        )
+        raise RuntimeError('IsGAllowed: unknown lattice centering encountered.')
 
     hkls = hkllist[mask, :]
     if not symmorphic:
@@ -714,9 +712,7 @@ def omitglideplaneabsences(sgnum, hkllist, plane, ip):
         mask1 = np.logical_and(mask1, mask4)
         mask2 = np.logical_and(mask2, mask4)
         mask3 = np.logical_and(mask3, mask4)
-        mask = np.logical_not(
-            np.logical_or(mask1, np.logical_or(mask2, mask3))
-        )
+        mask = np.logical_not(np.logical_or(mask1, np.logical_or(mask2, mask3)))
         hkllist = hkllist[mask, :]
 
     elif latticeType == 'hexagonal':
@@ -733,9 +729,7 @@ def omitglideplaneabsences(sgnum, hkllist, plane, ip):
             mask1 = np.logical_and(mask1, mask4)
             mask2 = np.logical_and(mask2, mask4)
             mask3 = np.logical_and(mask3, mask4)
-            mask = np.logical_not(
-                np.logical_or(mask1, np.logical_or(mask2, mask3))
-            )
+            mask = np.logical_not(np.logical_or(mask1, np.logical_or(mask2, mask3)))
 
         elif ip == 1:
             mask1 = hkllist[:, 1] == 0
@@ -745,9 +739,7 @@ def omitglideplaneabsences(sgnum, hkllist, plane, ip):
         mask1 = np.logical_and(mask1, mask4)
         mask2 = np.logical_and(mask2, mask4)
         mask3 = np.logical_and(mask3, mask4)
-        mask = np.logical_not(
-            np.logical_or(mask1, np.logical_or(mask2, mask3))
-        )
+        mask = np.logical_not(np.logical_or(mask1, np.logical_or(mask2, mask3)))
         hkllist = hkllist[mask, :]
 
     elif latticeType == 'cubic':
@@ -766,9 +758,7 @@ def omitglideplaneabsences(sgnum, hkllist, plane, ip):
                     np.logical_and(mask2, mask4), np.logical_and(mask2, mask6)
                 )
                 mask3 = np.logical_and(mask3, mask4)
-                mask = np.logical_not(
-                    np.logical_or(mask1, np.logical_or(mask2, mask3))
-                )
+                mask = np.logical_not(np.logical_or(mask1, np.logical_or(mask2, mask3)))
             elif plane == 'b':
                 mask1 = np.logical_and(mask1, mask5)
                 mask3 = np.logical_and(mask3, mask5)
@@ -898,10 +888,7 @@ def testHKLs():
     print('==================== Titanium (194)')
     ssmax = 20
     myHKLs = sg.getHKLs(ssmax)
-    print(
-        'Number of HKLs with sum of square %d or less:  %d'
-        % (ssmax, len(myHKLs))
-    )
+    print('Number of HKLs with sum of square %d or less:  %d' % (ssmax, len(myHKLs)))
     for hkl in myHKLs:
         ss = hkl[0] ** 2 + hkl[1] ** 2 + hkl[2] ** 2
         print((hkl, ss))
@@ -913,10 +900,7 @@ def testHKLs():
     print('==================== Ruby (167)')
     ssmax = 10
     myHKLs = sg.getHKLs(ssmax)
-    print(
-        'Number of HKLs with sum of square %d or less:  %d'
-        % (ssmax, len(myHKLs))
-    )
+    print('Number of HKLs with sum of square %d or less:  %d' % (ssmax, len(myHKLs)))
     for hkl in myHKLs:
         ss = hkl[0] ** 2 + hkl[1] ** 2 + hkl[2] ** 2
         print((hkl, ss))

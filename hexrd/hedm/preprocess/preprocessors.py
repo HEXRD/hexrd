@@ -109,7 +109,8 @@ class PP_Eiger(PP_Base):
         )
         self.raw = imageseries.open(self.fname, format=self.RAWFMT)
         self.use_frame_list = self.nframes != len(self.raw)
-        logger.info(f"On Init:\n\t{self.fname}, {self.nframes} frames, "
+        logger.info(
+            f"On Init:\n\t{self.fname}, {self.nframes} frames, "
             f"{self.omwedges.nframes} omw, {len(self.raw)} total"
         )
 
@@ -145,9 +146,7 @@ class PP_Dexela(PP_Base):
         self._panel_id = panel_id
         # TODO is this logic applicable also for Eiger ?
         if raw_format.lower() == "hdf5":
-            self.raw = imageseries.open(
-                self.fname, self.RAWFMT, path=self.RAWPATH
-            )
+            self.raw = imageseries.open(self.fname, self.RAWFMT, path=self.RAWPATH)
         else:
             self.raw = imageseries.open(self.fname, raw_format.lower())
         self._dark = dark
@@ -155,7 +154,8 @@ class PP_Dexela(PP_Base):
         self.use_frame_list = self.nframes != len(
             self.raw
         )  # Framelist fix, DCP 6/18/18
-        logger.info(f"On Init:\n\t{self.fname}, {self.nframes} frames, "
+        logger.info(
+            f"On Init:\n\t{self.fname}, {self.nframes} frames, "
             f"{self.omwedges.nframes} omw, {len(self.raw)} total"
         )
 
@@ -173,7 +173,7 @@ class PP_Dexela(PP_Base):
 
     @property
     def dark(self, nframes: int = 100) -> Union[NDArray, float32]:
-        """ Build and return dark image """
+        """Build and return dark image"""
         if self._dark is None:
             usenframes = min(nframes, self.nframes)
             logger.info(f"Building dark images using {usenframes} frames...")

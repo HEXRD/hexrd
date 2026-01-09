@@ -54,8 +54,7 @@ def columnNorm(a):
     """
     if len(a.shape) > 2:
         raise RuntimeError(
-            "incorrect shape: arg must be 1-d or 2-d, yours is %d"
-            % (len(a.shape))
+            "incorrect shape: arg must be 1-d or 2-d, yours is %d" % (len(a.shape))
         )
 
     return np.linalg.norm(a, axis=0)
@@ -67,8 +66,7 @@ def rowNorm(a):
     """
     if len(a.shape) > 2:
         raise RuntimeError(
-            "incorrect shape: arg must be 1-d or 2-d, yours is %d"
-            % (len(a.shape))
+            "incorrect shape: arg must be 1-d or 2-d, yours is %d" % (len(a.shape))
         )
 
     return np.linalg.norm(a, axis=1)
@@ -293,8 +291,7 @@ def skew(A):
         n = A.shape[1]
         if m != n:
             raise RuntimeError(
-                "this function only works for square arrays; yours is (%d, %d)"
-                % (m, n)
+                "this function only works for square arrays; yours is (%d, %d)" % (m, n)
             )
         A.resize(1, m, n)
     elif A.ndim == 3:
@@ -320,8 +317,7 @@ def symm(A):
         n = A.shape[1]
         if m != n:
             raise RuntimeError(
-                "this function only works for square arrays; yours is (%d, %d)"
-                % (m, n)
+                "this function only works for square arrays; yours is (%d, %d)" % (m, n)
             )
         A.resize(1, m, n)
     elif A.ndim == 3:
@@ -355,18 +351,14 @@ def skewMatrixOfVector(w):
             stackdim = 1
     elif dims == 2:
         if w.shape[0] != 3:
-            raise RuntimeError(
-                'input is of incorrect shape; expecting shape[0] = 3'
-            )
+            raise RuntimeError('input is of incorrect shape; expecting shape[0] = 3')
         else:
             stackdim = w.shape[1]
     else:
         raise RuntimeError('input is incorrect shape; expecting ndim = 1 or 2')
 
     zs = np.zeros((1, stackdim), dtype='float64')
-    W = np.vstack(
-        [zs, -w[2, :], w[1, :], w[2, :], zs, -w[0, :], -w[1, :], w[0, :], zs]
-    )
+    W = np.vstack([zs, -w[2, :], w[1, :], w[2, :], zs, -w[0, :], -w[1, :], w[0, :], zs])
 
     return np.squeeze(np.reshape(W.T, (stackdim, 3, 3)))
 

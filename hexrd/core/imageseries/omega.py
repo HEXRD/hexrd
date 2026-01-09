@@ -100,9 +100,7 @@ class OmegaImageSeries(ImageSeries):
             omcheck = omin + np.mod(om - omin, self.TAU)
             if omcheck < omax:
                 odel = self._wedge_om[i, 2]
-                f = self._wedge_f[i, 0] + int(
-                    np.floor((omcheck - omin) / odel)
-                )
+                f = self._wedge_f[i, 0] + int(np.floor((omcheck - omin) / odel))
                 w = i
                 break
 

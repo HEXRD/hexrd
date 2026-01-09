@@ -32,9 +32,7 @@ class Dexela_2923_quad(DistortionABC, metaclass=_RegisterDistortionClass):
         else:
             xy_in = np.asarray(xy_in, dtype=float)
             xy_out = np.empty_like(xy_in)
-            _dexela_2923_quad_distortion(
-                xy_out, xy_in, np.asarray(self.params)
-            )
+            _dexela_2923_quad_distortion(xy_out, xy_in, np.asarray(self.params))
             return xy_out
 
     def apply_inverse(self, xy_in):
@@ -43,9 +41,7 @@ class Dexela_2923_quad(DistortionABC, metaclass=_RegisterDistortionClass):
         else:
             xy_in = np.asarray(xy_in, dtype=float)
             xy_out = np.empty_like(xy_in)
-            _dexela_2923_quad_inverse_distortion(
-                xy_out, xy_in, np.asarray(self.params)
-            )
+            _dexela_2923_quad_inverse_distortion(xy_out, xy_in, np.asarray(self.params))
             return xy_out
 
 
@@ -68,9 +64,9 @@ def _dexela_2923_quad_distortion(out, in_, params):
     p0, p1, p2, p3, p4, p5 = params[0:6]
     p1 = p1 + 1e-12
     p5 = p5 + 1e-12
-    out[:, 0] = (
-        in_[:, 0] / p1 - p0 / p1 - (p2 / (p1 * p5) * (in_[:, 1] - p3))
-    ) / (1 - (p2 * p4) / (p1 * p5))
+    out[:, 0] = (in_[:, 0] / p1 - p0 / p1 - (p2 / (p1 * p5) * (in_[:, 1] - p3))) / (
+        1 - (p2 * p4) / (p1 * p5)
+    )
     out[:, 1] = (in_[:, 1] - p3 - p4 * out[:, 0]) / p5
 
     return out

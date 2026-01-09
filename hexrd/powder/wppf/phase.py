@@ -14,8 +14,12 @@ from hexrd.core.material.spacegroup import Allowed_HKLs, SpaceGroup
 from hexrd.core.material.unitcell import _calcstar, _rqpDict
 from hexrd.core.valunits import valWUnit
 from hexrd.powder.wppf.xtal import (
-    _calc_dspacing, _get_tth, _calcxrsf, _calc_extinction_factor,
-    _calc_absorption_factor, _get_sf_hkl_factors,
+    _calc_dspacing,
+    _get_tth,
+    _calcxrsf,
+    _calc_extinction_factor,
+    _calc_absorption_factor,
+    _get_sf_hkl_factors,
 )
 import hexrd.core.resources
 
@@ -50,11 +54,8 @@ class Material_LeBail(AbstractMaterial):
     =========================================================================================
     =========================================================================================
     """
-    def __init__(self,
-                 fhdf=None,
-                 xtal=None,
-                 dmin=None,
-                 material_obj=None):
+
+    def __init__(self, fhdf=None, xtal=None, dmin=None, material_obj=None):
 
         self._shkl = np.zeros((15,))
 
@@ -67,7 +68,8 @@ class Material_LeBail(AbstractMaterial):
         elif material_obj is not None:
             raise ValueError(
                 "Invalid material_obj argument. \
-                only Material class can be passed here.")
+                only Material class can be passed here."
+            )
 
         # Default initialization without a material
         """
@@ -77,11 +79,15 @@ class Material_LeBail(AbstractMaterial):
         self._readHDF(fhdf, xtal)
         self._calcrmt()
         self.sf_and_twin_probability()
-        self.SYM_SG, self.SYM_PG_d, self.SYM_PG_d_laue, \
-            self.centrosymmetric, self.symmorphic = \
-            symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
+        (
+            self.SYM_SG,
+            self.SYM_PG_d,
+            self.SYM_PG_d_laue,
+            self.centrosymmetric,
+            self.symmorphic,
+        ) = symmetry.GenerateSGSym(self.sgnum, self.sgsetting)
         self.latticeType = symmetry.latticeType(self.sgnum)
-        self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum-1].strip()
+        self.sg_hmsymbol = symbols.pstr_spacegroup[self.sgnum - 1].strip()
         self.GenerateRecipPGSym()
         self.CalcMaxGIndex()
         self._calchkls()
@@ -104,12 +110,16 @@ class Material_LeBail(AbstractMaterial):
         self.sf_and_twin_probability()
 
         # lattice parameters
-        self.lparms = np.array([material_obj.unitcell.a,
-                                material_obj.unitcell.b,
-                                material_obj.unitcell.c,
-                                material_obj.unitcell.alpha,
-                                material_obj.unitcell.beta,
-                                material_obj.unitcell.gamma])
+        self.lparms = np.array(
+            [
+                material_obj.unitcell.a,
+                material_obj.unitcell.b,
+                material_obj.unitcell.c,
+                material_obj.unitcell.alpha,
+                material_obj.unitcell.beta,
+                material_obj.unitcell.gamma,
+            ]
+        )
 
         self.latticeType = material_obj.unitcell.latticeType
         self.sg_hmsymbol = material_obj.unitcell.sg_hmsymbol
@@ -227,17 +237,27 @@ class Material_LeBail(AbstractMaterial):
         """
             direct structure matrix
         """
-        self.dsm = np.array([[a, b*cg, c*cb],
-                             [0., b*sg, -c*(cb*cg - ca)/sg],
-                             [0., 0., self.vol/(a*b*sg)]])
+        self.dsm = np.array(
+            [
+                [a, b * cg, c * cb],
+                [0.0, b * sg, -c * (cb * cg - ca) / sg],
+                [0.0, 0.0, self.vol / (a * b * sg)],
+            ]
+        )
         """
             reciprocal structure matrix
         """
-        self.rsm = np.array([[1./a, 0., 0.],
-                             [-1./(a*tg), 1./(b*sg), 0.],
-                             [b*c*(cg*ca - cb)/(self.vol*sg),
-                              a*c*(cb*cg - ca)/(self.vol*sg),
-                              a*b*sg/self.vol]])
+        self.rsm = np.array(
+            [
+                [1.0 / a, 0.0, 0.0],
+                [-1.0 / (a * tg), 1.0 / (b * sg), 0.0],
+                [
+                    b * c * (cg * ca - cb) / (self.vol * sg),
+                    a * c * (cb * cg - ca) / (self.vol * sg),
+                    a * b * sg / self.vol,
+                ],
+            ]
+        )
 
     """ calculate dot product of two vectors in any space 'd' 'r' or 'c' """
 
@@ -322,20 +342,21 @@ class Material_LeBail(AbstractMaterial):
     def CalcMaxGIndex(self):
         self.ih = 1
         while (
-            1.0
-            / self.CalcLength(np.array([self.ih, 0, 0], dtype=np.float64), 'r')
+            1.0 / self.CalcLength(np.array([self.ih, 0, 0], dtype=np.float64), 'r')
             > self.dmin
         ):
             self.ih = self.ih + 1
         self.ik = 1
-        while (1.0 / self.CalcLength(
-                np.array([0, self.ik, 0], dtype=np.float64), 'r') >
-                self.dmin):
+        while (
+            1.0 / self.CalcLength(np.array([0, self.ik, 0], dtype=np.float64), 'r')
+            > self.dmin
+        ):
             self.ik = self.ik + 1
         self.il = 1
-        while (1.0 / self.CalcLength(
-                np.array([0, 0, self.il], dtype=np.float64), 'r') >
-                self.dmin):
+        while (
+            1.0 / self.CalcLength(np.array([0, 0, self.il], dtype=np.float64), 'r')
+            > self.dmin
+        ):
             self.il = self.il + 1
 
     def CalcStar(self, v, space, applyLaue=False):
@@ -521,12 +542,7 @@ class Material_Rietveld(Material_LeBail):
      ==========================================================================================
     """
 
-    def __init__(self,
-                 fhdf=None,
-                 xtal=None,
-                 dmin=None,
-                 kev=None,
-                 material_obj=None):
+    def __init__(self, fhdf=None, xtal=None, dmin=None, kev=None, material_obj=None):
         # First, initialize the LeBail-specific stuff
         super().__init__(fhdf, xtal, dmin, material_obj)
 
@@ -618,20 +634,14 @@ class Material_Rietveld(Material_LeBail):
     def CalcWavelength(self):
         # wavelength in nm
         self.wavelength = (
-            constants.cPlanck
-            * constants.cLight
-            / constants.cCharge
-            / self.voltage
+            constants.cPlanck * constants.cLight / constants.cCharge / self.voltage
         )
         self.wavelength *= 1e9
         # self.CalcAnomalous()
 
     def CalcKeV(self):
         self.kev = (
-            constants.cPlanck
-            * constants.cLight
-            / constants.cCharge
-            / self.wavelength
+            constants.cPlanck * constants.cLight / constants.cCharge / self.wavelength
         )
 
         self.kev *= 1e-3
@@ -690,9 +700,7 @@ class Material_Rietveld(Material_LeBail):
         return v_out
 
     def getMultiplicity(self, hkls):
-        return np.array([
-            self.CalcStar(g, 'r').shape[0] for g in hkls
-        ])
+        return np.array([self.CalcStar(g, 'r').shape[0] for g in hkls])
 
     def CalcPositions(self):
         """
@@ -742,9 +750,7 @@ class Material_Rietveld(Material_LeBail):
     def InitializeInterpTable(self):
 
         f_anomalous_data = []
-        data = importlib.resources.open_binary(
-            hexrd.core.resources, 'Anomalous.h5'
-        )
+        data = importlib.resources.open_binary(hexrd.core.resources, 'Anomalous.h5')
         with h5py.File(data, 'r') as fid:
             for i in range(0, self.atom_ntype):
 
@@ -756,9 +762,11 @@ class Material_Rietveld(Material_LeBail):
                 f_anomalous_data.append(data)
 
         n = max([x.shape[0] for x in f_anomalous_data])
-        self.f_anomalous_data = np.zeros([self.atom_ntype,n,3])
+        self.f_anomalous_data = np.zeros([self.atom_ntype, n, 3])
         self.f_anomalous_data_sizes = np.zeros(
-            [self.atom_ntype,],
+            [
+                self.atom_ntype,
+            ],
             dtype=np.int32,
         )
 
@@ -820,16 +828,11 @@ class Material_Rietveld(Material_LeBail):
             self.f_anomalous_data_sizes,
         )
 
-    def calc_extinction(self,
-                        wavelength,
-                        tth,
-                        f_sqr,
-                        shape_factor_K,
-                        particle_size_D):
+    def calc_extinction(self, wavelength, tth, f_sqr, shape_factor_K, particle_size_D):
         return _calc_extinction_factor(
             self.hkls,
             tth,
-            self.vol*1e3,
+            self.vol * 1e3,
             wavelength,
             f_sqr,
             shape_factor_K,
@@ -857,10 +860,10 @@ class AbstractPhases(ABC):
     =========================================================================================
     =========================================================================================
     """
+
     # Abstract methods which must be defined for each phase type
     @abstractmethod
-    def _get_phase(self, material_key: str,
-                   wavelength_name: str) -> AbstractMaterial:
+    def _get_phase(self, material_key: str, wavelength_name: str) -> AbstractMaterial:
         pass
 
     @abstractmethod
@@ -868,12 +871,13 @@ class AbstractPhases(ABC):
         pass
 
     # Shared methods which each phase uses
-    def __init__(self, material_file=None,
-                 material_keys=None,
-                 dmin=_nm(0.05),
-                 wavelength={'alpha1': [_nm(0.15406), 1.0],
-                             'alpha2': [_nm(0.154443), 0.52]}
-                 ):
+    def __init__(
+        self,
+        material_file=None,
+        material_keys=None,
+        dmin=_nm(0.05),
+        wavelength={'alpha1': [_nm(0.15406), 1.0], 'alpha2': [_nm(0.154443), 0.52]},
+    ):
 
         self.phase_dict = {}
 
@@ -980,7 +984,8 @@ class AbstractPhases(ABC):
         else:
             raise RuntimeError(
                 'Parameters: dump_hdf5 Pass in a filename \
-                string or h5py.File object')
+                string or h5py.File object'
+            )
 
         if "/Phases" in fid:
             del fid["Phases"]
@@ -1000,21 +1005,20 @@ class AbstractPhases(ABC):
 
 
 class Phases_LeBail(AbstractPhases):
-    def _get_phase(self, material_key: str,
-                   wavelength_name: str) -> Material_LeBail:
+    def _get_phase(self, material_key: str, wavelength_name: str) -> Material_LeBail:
         return self[material_key]
 
     def add(self, material_file, material_key, update_pf=True):
         self[material_key] = Material_LeBail(
-            fhdf=material_file, xtal=material_key, dmin=self.dmin)
+            fhdf=material_file, xtal=material_key, dmin=self.dmin
+        )
 
         if update_pf:
             self.reset_phase_fractions()
 
 
 class Phases_Rietveld(AbstractPhases):
-    def _get_phase(self, material_key: str,
-                   wavelength_name: str) -> Material_Rietveld:
+    def _get_phase(self, material_key: str, wavelength_name: str) -> Material_Rietveld:
         return self[material_key][wavelength_name]
 
     def add(self, material_file, material_key, update_pf=True):
@@ -1025,7 +1029,8 @@ class Phases_Rietveld(AbstractPhases):
             E *= 1e-3
             kev = valWUnit('beamenergy', 'energy', E * 1e-3, 'keV')
             self[material_key][l] = Material_Rietveld(
-                material_file, material_key, dmin=self.dmin, kev=kev)
+                material_file, material_key, dmin=self.dmin, kev=kev
+            )
 
         if update_pf:
             self.reset_phase_fractions()

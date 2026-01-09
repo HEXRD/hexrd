@@ -4,7 +4,8 @@ from scipy.interpolate import CubicSpline
 from scipy.ndimage import gaussian_filter
 from hexrd.powder.wppf.peakfunctions import (
     _split_unit_gaussian as sp_gauss,
-    _split_unit_pv as sp_pv)
+    _split_unit_pv as sp_pv,
+)
 
 
 AMORPHOUS_MODEL_TYPES = {
@@ -57,16 +58,18 @@ class Amorphous:
     smoothing: if model is "experimental", then this specifies how
         much (if any) gaussian smoothing to apply to the lineout
     '''
-    def __init__(self,
-                 tth_list,
-                 model_type='split_gaussian',
-                 model_data=None,
-                 scale=None,
-                 shift=None,
-                 smoothing=0,
-                 center=None,
-                 fwhm=None
-        ):
+
+    def __init__(
+        self,
+        tth_list,
+        model_type='split_gaussian',
+        model_data=None,
+        scale=None,
+        shift=None,
+        smoothing=0,
+        center=None,
+        fwhm=None,
+    ):
         '''
         Parameters
         ----------
@@ -111,13 +114,13 @@ class Amorphous:
         '''
 
         if scale is None:
-            scale = {'c1':1.}
+            scale = {'c1': 1.0}
 
         if shift is None:
-            shift = {'c1':0.}
+            shift = {'c1': 0.0}
 
         if center is None:
-            center = {'c1': 30.}
+            center = {'c1': 30.0}
 
         if fwhm is None:
             if model_type == 'split_pv':
@@ -146,12 +149,10 @@ class Amorphous:
 
     @model_type.setter
     def model_type(self, mtype):
-        if mtype.lower() in ["split_pv",
-                             "split_gaussian",
-                             "experimental"]:
+        if mtype.lower() in ["split_pv", "split_gaussian", "experimental"]:
             self._model_type = mtype
         else:
-            msg = (f'{mtype} is an unknown model type')
+            msg = f'{mtype} is an unknown model type'
             raise ValueError(msg)
 
     @property
@@ -188,12 +189,10 @@ class Amorphous:
                     for k, v in data.items():
                         if v.ndim == 2:
                             # potential case with different tth step size
-                            mi = np.nanmin(v[:,1])
-                            data_interp[k] = np.interp(self.tth_list,
-                                                       v[:, 0],
-                                                       v[:, 1],
-                                                       left=mi,
-                                                       right=mi)
+                            mi = np.nanmin(v[:, 1])
+                            data_interp[k] = np.interp(
+                                self.tth_list, v[:, 0], v[:, 1], left=mi, right=mi
+                            )
                         elif v.ndim == 1:
                             data_interp[k] = v.copy()
                     self._model_data = data_interp
@@ -201,13 +200,17 @@ class Amorphous:
                     msg = f'data should be passed as a dictionary'
                     raise ValueError(msg)
             else:
-                msg = (f'experimental model is being used. '
-                       f'please supply the data array')
+                msg = (
+                    f'experimental model is being used. '
+                    f'please supply the data array'
+                )
                 raise ValueError(msg)
         else:
             if data is not None:
-                msg = (f'model data supplied will be ignored'
-                       f'for model type {self.model_type}')
+                msg = (
+                    f'model data supplied will be ignored'
+                    f'for model type {self.model_type}'
+                )
                 warnings.warn(msg)
 
     @property
@@ -237,8 +240,7 @@ class Amorphous:
                 msg = f'shift should be passed as a dictionary'
                 raise ValueError(msg)
         else:
-            msg = (f'can not set shift for '
-                   f'model_type {self.model_type}')
+            msg = f'can not set shift for ' f'model_type {self.model_type}'
             warnings.warn(msg)
 
     @property
@@ -252,60 +254,53 @@ class Amorphous:
         if self.model_type == "experimental":
             self._smoothing = val
         else:
-            msg = (f'can not set smoothing for '
-                   f'model_type {self.model_type}')
+            msg = f'can not set smoothing for ' f'model_type {self.model_type}'
             warnings.warn(msg)
 
     @property
     def center(self):
-        if self.model_type in ["split_gaussian",
-                               "split_pv"]:
+        if self.model_type in ["split_gaussian", "split_pv"]:
             return self._center
 
         return None
 
     @center.setter
     def center(self, val):
-        if self.model_type in ["split_gaussian",
-                               "split_pv"]:
+        if self.model_type in ["split_gaussian", "split_pv"]:
             if isinstance(val, dict):
                 self._center = val
             else:
                 msg = f'center should be passed as a dictionary'
                 raise ValueError(msg)
         else:
-            msg = (f'can not set center for '
-                   f'model_type {self.model_type}')
+            msg = f'can not set center for ' f'model_type {self.model_type}'
             warnings.warn(msg)
 
     @property
     def fwhm(self):
-        if self.model_type in ["split_gaussian",
-                               "split_pv"]:
+        if self.model_type in ["split_gaussian", "split_pv"]:
             return self._fwhm
 
         return None
 
     @fwhm.setter
     def fwhm(self, val):
-        if self.model_type in ["split_gaussian",
-                               "split_pv"]:
+        if self.model_type in ["split_gaussian", "split_pv"]:
             if isinstance(val, dict):
                 sizes = np.array([val[k].size for k in val])
                 if self.model_type == "split_gaussian":
-                    if np.all(sizes==2):
+                    if np.all(sizes == 2):
                         self._fwhm = val
                 elif self.model_type == "split_pv":
-                    if np.all(sizes==4):
+                    if np.all(sizes == 4):
                         self._fwhm = val
                 else:
-                    msg = (f'incompatible fwhm size')
+                    msg = f'incompatible fwhm size'
             else:
                 msg = f'fwhm should be passed as a dictionary'
                 raise ValueError(msg)
         else:
-            msg = (f'can not set fwhm for '
-                   f'model_type {self.model_type}')
+            msg = f'can not set fwhm for ' f'model_type {self.model_type}'
             warnings.warn(msg)
 
     @property
@@ -315,26 +310,28 @@ class Amorphous:
             lo = np.zeros_like(self.tth_list)
             for key in self.shift:
                 smooth_model_data = gaussian_filter(
-                                   self.model_data[key],
-                                   self.smoothing
-                                   )
+                    self.model_data[key], self.smoothing
+                )
 
                 mi = np.nanmin(smooth_model_data)
-                lo  += self.scale[key]*np.interp(
-                                    self.tth_list,
-                                    self.tth_list+self.shift[key],
-                                    smooth_model_data-mi,
-                                    left=0.,
-                                    right=0.) + mi
+                lo += (
+                    self.scale[key]
+                    * np.interp(
+                        self.tth_list,
+                        self.tth_list + self.shift[key],
+                        smooth_model_data - mi,
+                        left=0.0,
+                        right=0.0,
+                    )
+                    + mi
+                )
 
-        elif self.model_type in ["split_gaussian",
-                                 "split_pv"]:
+        elif self.model_type in ["split_gaussian", "split_pv"]:
             lo = np.zeros_like(self.tth_list)
             for key in self.center:
-                p = np.hstack((self.center[key],
-                           self.fwhm[key]))
+                p = np.hstack((self.center[key], self.fwhm[key]))
 
-                lo += self.scale[key]*self.peak_model(p, self.tth_list)
+                lo += self.scale[key] * self.peak_model(p, self.tth_list)
 
         return lo
 

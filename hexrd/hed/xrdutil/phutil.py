@@ -19,9 +19,15 @@ from hexrd.core.utils.concurrent import distribute_tasks
 
 
 class LayerDistortion:
-    def __init__(self, panel: Detector, layer_type: str,
-                 layer_standoff: float, layer_thickness: float,
-                 pinhole_thickness: float, pinhole_radius: float):
+    def __init__(
+        self,
+        panel: Detector,
+        layer_type: str,
+        layer_standoff: float,
+        layer_thickness: float,
+        pinhole_thickness: float,
+        pinhole_radius: float,
+    ):
         self._panel = panel
         self._layer_type = layer_type
         self._layer_standoff = layer_standoff
@@ -75,13 +81,16 @@ class LayerDistortion:
         self._pinhole_radius = float(x)
 
     def apply(self, xy_pts, return_nominal=True):
-        """
-        """
-        return tth_corr_layer(self.panel, xy_pts,
-                              self.layer_standoff, self.layer_thickness,
-                              self.pinhole_thickness,
-                              self.pinhole_radius,
-                              return_nominal=return_nominal)
+        """ """
+        return tth_corr_layer(
+            self.panel,
+            xy_pts,
+            self.layer_standoff,
+            self.layer_thickness,
+            self.pinhole_thickness,
+            self.pinhole_radius,
+            return_nominal=return_nominal,
+        )
 
 
 class JHEPinholeDistortion:
@@ -158,10 +167,15 @@ class RyggPinholeDistortion:
         )
 
 
-def tth_corr_layer(panel, xy_pts,
-                   layer_standoff, layer_thickness,
-                   pinhole_thickness, pinhole_radius,
-                   return_nominal=True):
+def tth_corr_layer(
+    panel,
+    xy_pts,
+    layer_standoff,
+    layer_thickness,
+    pinhole_thickness,
+    pinhole_radius,
+    return_nominal=True,
+):
     """
     Compute the Bragg angle distortion associated with a specific
     layer in a pinhole camera. Could be any layer before the pinhole,
@@ -210,9 +224,7 @@ def tth_corr_layer(panel, xy_pts,
     cos_beta[np.arccos(cos_beta) > critical_beta] = np.nan
     cos_tthn = np.cos(ref_tth)
     sin_tthn = np.sin(ref_tth)
-    tth_corr = np.arctan(
-        sin_tthn / (source_distance * cos_beta / zs - cos_tthn)
-    )
+    tth_corr = np.arctan(sin_tthn / (source_distance * cos_beta / zs - cos_tthn))
     if return_nominal:
         return np.vstack([ref_tth - tth_corr, ref_angs[:, 1]]).T
     else:
@@ -234,9 +246,9 @@ def invalidate_past_critical_beta(
     xy_pts[np.arccos(cos_beta) > critical_beta] = np.nan
 
 
-def tth_corr_map_layer(instrument,
-                       layer_standoff, layer_thickness,
-                       pinhole_thickness, pinhole_radius):
+def tth_corr_map_layer(
+    instrument, layer_standoff, layer_thickness, pinhole_thickness, pinhole_radius
+):
     """
     Compute the Bragg angle distortion fields for an instrument associated
     with a specific layer in a pinhole camera. Could be any layer before the
@@ -300,9 +312,9 @@ tth_corr_sample_layer = tth_corr_layer
 tth_corr_map_sample_layer = tth_corr_map_layer
 
 
-def tth_corr_pinhole(panel, xy_pts,
-                     pinhole_thickness, pinhole_radius,
-                     return_nominal=True):
+def tth_corr_pinhole(
+    panel, xy_pts, pinhole_thickness, pinhole_radius, return_nominal=True
+):
     """
     Compute the Bragg angle distortion associated with the pinhole as a source.
 
@@ -334,7 +346,7 @@ def tth_corr_pinhole(panel, xy_pts,
 
     # first we need the reference etas of the points wrt the pinhole axis
     cp_det = copy.deepcopy(panel)
-    cp_det.bvec = np.sign(cp_det.bvec[2])*ct.beam_vec  # !!! [0, 0, -1]
+    cp_det.bvec = np.sign(cp_det.bvec[2]) * ct.beam_vec  # !!! [0, 0, -1]
     ref_angs, _ = cp_det.cart_to_angles(
         xy_pts, rmat_s=None, tvec_s=None, tvec_c=None, apply_distortion=True
     )
@@ -387,7 +399,7 @@ def tth_corr_map_pinhole(instrument, pinhole_thickness, pinhole_radius):
     The follows a slightly modified version of Jon Eggert's pinhole correction.
     """
     cp_instr = copy.deepcopy(instrument)
-    cp_instr.beam_vector = np.sign(cp_det.bvec[2])*ct.beam_vec  # !!! [0, 0, -1]
+    cp_instr.beam_vector = np.sign(cp_det.bvec[2]) * ct.beam_vec  # !!! [0, 0, -1]
 
     tth_corr = dict.fromkeys(instrument.detectors)
     for det_key, panel in instrument.detectors.items():
@@ -395,9 +407,7 @@ def tth_corr_map_pinhole(instrument, pinhole_thickness, pinhole_radius):
         nom_ptth, _ = panel.pixel_angles()
 
         dpy, dpx = panel.pixel_coords
-        pcrds = np.ascontiguousarray(
-            np.vstack([dpx.flatten(), dpy.flatten()]).T
-        )
+        pcrds = np.ascontiguousarray(np.vstack([dpx.flatten(), dpy.flatten()]).T)
         ref_peta = ref_peta.flatten()
 
         new_ptth = np.zeros(len(ref_peta))
@@ -565,9 +575,7 @@ def calc_tth_rygg_pinhole(
     mu_p = 1000 * mu_p  # convert to [mm^-1]
 
     # Convert tth and eta to phi_d, beta, and r_d
-    dvec_arg = np.vstack(
-        (tth.flatten(), eta.flatten(), np.zeros(np.prod(eta.shape)))
-    )
+    dvec_arg = np.vstack((tth.flatten(), eta.flatten(), np.zeros(np.prod(eta.shape))))
     dvectors = xfcapi.angles_to_dvec(dvec_arg.T, bvec, eta_vec=eHat_l)
 
     v0 = np.array([0, 0, 1])
@@ -741,9 +749,7 @@ def _compute_qq_p(use_numba=True, *args, **kwargs):
 
     with np.errstate(divide='ignore', invalid='ignore'):
         # Ignore the errors this will inevitably produce
-        return (
-            np.nansum(V_i * qq_i, axis=(0, 1)) / V_p
-        )  # [Nu x Nv] <= detector
+        return np.nansum(V_i * qq_i, axis=(0, 1)) / V_p  # [Nu x Nv] <= detector
 
 
 def _compute_vi_qq_i(
@@ -783,9 +789,9 @@ def _compute_vi_qq_i(
         sin_b * np.cos(phi_d) - bd * cos_phii,
     )
 
-    arg = np.cos(alpha_i) * np.cos(beta_i) - np.sin(alpha_i) * np.sin(
-        beta_i
-    ) * np.cos(phi_di - phi_xi)
+    arg = np.cos(alpha_i) * np.cos(beta_i) - np.sin(alpha_i) * np.sin(beta_i) * np.cos(
+        phi_di - phi_xi
+    )
     # scattering angle for each P to each D
     qq_i = np.arccos(np.clip(arg, -1, 1))
 

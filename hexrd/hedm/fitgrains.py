@@ -133,8 +133,7 @@ def fit_grain_FF_reduced(grain_id):
 
         if num_refl_valid <= 12:  # not enough reflections to fit... exit
             warnings.warn(
-                f'Not enough valid reflections ({num_refl_valid}) to fit, '
-                f'exiting',
+                f'Not enough valid reflections ({num_refl_valid}) to fit, ' f'exiting',
                 RuntimeWarning,
             )
             return grain_id, completeness, np.inf, grain_params
@@ -205,9 +204,7 @@ def fit_grain_FF_reduced(grain_id):
             x_diff = abs(xyo_det[:, 0] - xyo_det_fit['calc_xy'][:, 0])
             y_diff = abs(xyo_det[:, 1] - xyo_det_fit['calc_xy'][:, 1])
             ome_diff = np.degrees(
-                rotations.angularDifference(
-                    xyo_det[:, 2], xyo_det_fit['calc_omes']
-                )
+                rotations.angularDifference(xyo_det[:, 2], xyo_det_fit['calc_omes'])
             )
 
             # filter out reflections with centroids more than
@@ -218,9 +215,7 @@ def fit_grain_FF_reduced(grain_id):
             )
 
             # attach to proper dict entry
-            culled_results_r[det_key] = [
-                presults[i] for i in np.where(idx_new)[0]
-            ]
+            culled_results_r[det_key] = [presults[i] for i in np.where(idx_new)[0]]
 
             num_refl_valid += sum(idx_new)
 
@@ -317,17 +312,10 @@ def determine_valid_reflections(results, instrument, analysis_dirname):
             )
             for key in ot.keys():
                 for this_table in ot[key]:
-                    these_overlaps = np.where(
-                        this_table[:, 0] == grain_id
-                    )[0]
+                    these_overlaps = np.where(this_table[:, 0] == grain_id)[0]
                     if len(these_overlaps) > 0:
-                        mark_these = np.array(
-                            this_table[these_overlaps, 1], dtype=int
-                        )
-                        otidx = [
-                            np.where(refl_ids == mt)[0]
-                            for mt in mark_these
-                        ]
+                        mark_these = np.array(this_table[these_overlaps, 1], dtype=int)
+                        otidx = [np.where(refl_ids == mt)[0] for mt in mark_these]
                         overlaps[otidx] = True
             idx = np.logical_and(idx, ~overlaps)
             # logger.info("found overlap table for '%s'", det_key)
@@ -438,7 +426,7 @@ def fit_grains(
         elapsed = timeit.default_timer() - start
     else:
         nproc = min(ncpus, len(grains_table))
-        chunksize = max(1, len(grains_table)//ncpus)
+        chunksize = max(1, len(grains_table) // ncpus)
 
         if multiprocessing.get_start_method() == 'fork':
             # For frame cache, we need to load in all of the data up-front
@@ -449,8 +437,9 @@ def fit_grains(
             for ims in imsd.values():
                 ims[0]
 
-        logger.info("\tstarting fit on %d processes with chunksize %d",
-                    nproc, chunksize)
+        logger.info(
+            "\tstarting fit on %d processes with chunksize %d", nproc, chunksize
+        )
         start = timeit.default_timer()
         pool = multiprocessing.Pool(nproc, fit_grain_FF_init, (params,))
 

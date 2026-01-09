@@ -211,9 +211,7 @@ class CylindricalDetector(Detector):
 
         transmission_filter = transmission_filter.reshape(self.shape)
         transmission_coating = transmission_coating.reshape(self.shape)
-        transmission_filter_coating = (
-            transmission_filter * transmission_coating
-        )
+        transmission_filter_coating = transmission_filter * transmission_coating
 
         return transmission_filter_coating, transmission_phosphor
 
@@ -326,9 +324,7 @@ class CylindricalDetector(Detector):
     def update_memoization_sizes(all_panels):
         Detector.update_memoization_sizes(all_panels)
 
-        num_matches = sum(
-            isinstance(x, CylindricalDetector) for x in all_panels
-        )
+        num_matches = sum(isinstance(x, CylindricalDetector) for x in all_panels)
         funcs = [
             _pixel_angles,
             _pixel_tth_gradient,
@@ -365,9 +361,7 @@ def _pixel_angles(
     if distortion is not None:
         xy = distortion.apply(xy)
 
-    dvecs = _warp_to_cylinder(
-        xy, tvec_d - origin, radius, caxis, paxis, normalize=True
-    )
+    dvecs = _warp_to_cylinder(xy, tvec_d - origin, radius, caxis, paxis, normalize=True)
 
     angs = xrdutil.utils._dvec_to_angs(dvecs, bvec, evec)
 
@@ -399,6 +393,4 @@ def _pixel_eta_gradient(origin, **pixel_angle_kwargs):
 
 
 def _fix_branch_cut_in_gradients(pgarray):
-    return np.min(
-        np.abs(np.stack([pgarray - np.pi, pgarray, pgarray + np.pi])), axis=0
-    )
+    return np.min(np.abs(np.stack([pgarray - np.pi, pgarray, pgarray + np.pi])), axis=0)

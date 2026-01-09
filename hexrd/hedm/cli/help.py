@@ -8,8 +8,7 @@ def configure_parser(sub_parsers):
         metavar='COMMAND',
         action="store",
         nargs='?',
-        help="print help information for COMMAND "
-        "(same as: conda COMMAND -h)",
+        help="print help information for COMMAND " "(same as: conda COMMAND -h)",
     )
     p.set_defaults(func=execute)
 

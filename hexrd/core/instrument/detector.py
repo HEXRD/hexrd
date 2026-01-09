@@ -43,7 +43,7 @@ from hexrd.core.material.utils import (
     calculate_incoherent_scattering,
 )
 
-logger = logging.getLogger(__name__) 
+logger = logging.getLogger(__name__)
 distortion_registry = distortion_pkg.Registry()
 
 max_workers_DFLT = max(1, os.cpu_count() - 1)
@@ -299,9 +299,7 @@ class Detector:
         self.group = group
 
         if detector_filter is None:
-            detector_filter = detector_coatings.Filter(
-                **FILTER_DEFAULTS.TARDIS
-            )
+            detector_filter = detector_coatings.Filter(**FILTER_DEFAULTS.TARDIS)
         self.filter = detector_filter
 
         if detector_coating is None:
@@ -430,9 +428,7 @@ class Detector:
 
     @property
     def row_pixel_vec(self):
-        return self.pixel_size_row * (
-            0.5 * (self.rows - 1) - np.arange(self.rows)
-        )
+        return self.pixel_size_row * (0.5 * (self.rows - 1) - np.arange(self.rows))
 
     @property
     def row_edge_vec(self):
@@ -440,9 +436,7 @@ class Detector:
 
     @property
     def col_pixel_vec(self):
-        return self.pixel_size_col * (
-            np.arange(self.cols) - 0.5 * (self.cols - 1)
-        )
+        return self.pixel_size_col * (np.arange(self.cols) - 0.5 * (self.cols - 1))
 
     @property
     def col_edge_vec(self):
@@ -497,9 +491,7 @@ class Detector:
     def bvec(self, x):
         x = np.array(x).flatten()
         if len(x) != 3 or sum(x * x) < 1 - ct.sqrt_epsf:
-            raise ValueError(
-                'bvec must be a 3-element array-like with unit magnitude'
-            )
+            raise ValueError('bvec must be a 3-element array-like with unit magnitude')
         self._bvec = x
 
     @property
@@ -521,9 +513,7 @@ class Detector:
     def evec(self, x):
         x = np.array(x).flatten()
         if len(x) != 3 or sum(x * x) < 1 - ct.sqrt_epsf:
-            raise ValueError(
-                'evec must be a 3-element array-like with unit magnitude'
-            )
+            raise ValueError('evec must be a 3-element array-like with unit magnitude')
         self._evec = x
 
     @property
@@ -537,10 +527,10 @@ class Detector:
             check_arg = np.zeros(len(registry), dtype=bool)
             for i, dcls in enumerate(registry.values()):
                 check_arg[i] = isinstance(x, dcls)
-            
+
             if not np.any(check_arg):
                 raise TypeError('Input distortion is not in registry')
-                
+
         self._distortion = x
 
     @property
@@ -712,9 +702,7 @@ class Detector:
             energy, rMat_s, physics_package
         )
 
-        t_w = self.calc_compton_window_transmission(
-            energy, rMat_s, physics_package
-        )
+        t_w = self.calc_compton_window_transmission(energy, rMat_s, physics_package)
 
         return inc_s * t_s + inc_w * t_w, t_s, t_w
 
@@ -878,9 +866,7 @@ class Detector:
             dparams = self.distortion.params
             if style.lower() == 'yaml':
                 dparams = dparams.tolist()
-            dist_d = dict(
-                function_name=self.distortion.maptype, parameters=dparams
-            )
+            dist_d = dict(function_name=self.distortion.maptype, parameters=dparams)
             det_dict['distortion'] = dist_d
 
         # saturation level
@@ -897,7 +883,9 @@ class Detector:
         if isinstance(panel_buffer, np.ndarray):
             if panel_buffer.ndim == 1:
                 if len(panel_buffer) != 2:
-                    raise ValueError('panel_buffer must be a 2-element array-like or a 2-d array')
+                    raise ValueError(
+                        'panel_buffer must be a 2-element array-like or a 2-d array'
+                    )
                 # if here is a 2-element array
                 if style.lower() == 'yaml':
                     panel_buffer = panel_buffer.tolist()
@@ -994,9 +982,7 @@ class Detector:
         ij_det = np.atleast_2d(ij_det)
 
         x = (ij_det[:, 1] + 0.5) * self.pixel_size_col + self.corner_ll[0]
-        y = (
-            self.rows - ij_det[:, 0] - 0.5
-        ) * self.pixel_size_row + self.corner_ll[1]
+        y = (self.rows - ij_det[:, 0] - 0.5) * self.pixel_size_row + self.corner_ll[1]
         return np.vstack([x, y]).T
 
     def angularPixelSize(self, xy, rMat_s=None, tVec_s=None, tVec_c=None):
@@ -1087,18 +1073,12 @@ class Detector:
 
                 on_panel = np.full(pix.shape[0], False)
                 valid_pix = pix[~idx, :]
-                on_panel[~idx] = panel_buffer[
-                    valid_pix[:, 0], valid_pix[:, 1]
-                ]
+                on_panel[~idx] = panel_buffer[valid_pix[:, 0], valid_pix[:, 1]]
             else:
                 xlim -= panel_buffer[0]
                 ylim -= panel_buffer[1]
-                on_panel_x = np.logical_and(
-                    xy[:, 0] >= -xlim, xy[:, 0] <= xlim
-                )
-                on_panel_y = np.logical_and(
-                    xy[:, 1] >= -ylim, xy[:, 1] <= ylim
-                )
+                on_panel_x = np.logical_and(xy[:, 0] >= -xlim, xy[:, 0] <= xlim)
+                on_panel_y = np.logical_and(xy[:, 1] >= -ylim, xy[:, 1] <= ylim)
                 on_panel = np.logical_and(on_panel_x, on_panel_y)
         elif not buffer_edges or self.panel_buffer is None:
             on_panel_x = np.logical_and(xy[:, 0] >= -xlim, xy[:, 0] <= xlim)
@@ -1113,9 +1093,7 @@ class Detector:
         """
         is_2d = img.ndim == 2
         right_shape = img.shape[0] == self.rows and img.shape[1] == self.cols
-        assert (
-            is_2d and right_shape
-        ), "input image must be 2-d with shape (%d, %d)" % (
+        assert is_2d and right_shape, "input image must be 2-d with shape (%d, %d)" % (
             self.rows,
             self.cols,
         )
@@ -1503,9 +1481,7 @@ class Detector:
         pts_lab = np.dot(self.rmat, pts_det.T) + tvec_d_lab
 
         # scaling along pts vectors to hit map plane
-        u = np.dot(nvec_map_lab.T, tvec_map_lab) / np.dot(
-            nvec_map_lab.T, pts_lab
-        )
+        u = np.dot(nvec_map_lab.T, tvec_map_lab) / np.dot(nvec_map_lab.T, pts_lab)
 
         # pts on map plane, in LAB FRAME
         pts_map_lab = np.tile(u, (3, 1)) * pts_lab
@@ -1688,9 +1664,7 @@ class Detector:
             bmat = crystal_data[1]
             gvec_c = np.dot(bmat, hkls)
         else:
-            raise RuntimeError(
-                f'argument list not understood: {crystal_data=}'
-            )
+            raise RuntimeError(f'argument list not understood: {crystal_data=}')
         nhkls_tot = hkls.shape[1]
 
         # parse energy ranges
@@ -1714,9 +1688,7 @@ class Detector:
 
         # parse grain parameters kwarg
         if grain_params is None:
-            grain_params = np.atleast_2d(
-                np.hstack([np.zeros(6), ct.identity_6x1])
-            )
+            grain_params = np.atleast_2d(np.hstack([np.zeros(6), ct.identity_6x1]))
         n_grains = len(grain_params)
 
         # sample rotation
@@ -1868,9 +1840,7 @@ class Detector:
         cosb[mask] = np.nan
         secb = 1.0 / cosb.reshape(self.shape)
 
-        T_sample = self.calc_transmission_sample(
-            seca, secb, energy, physics_package
-        )
+        T_sample = self.calc_transmission_sample(seca, secb, energy, physics_package)
         T_window = self.calc_transmission_window(secb, energy, physics_package)
 
         transmission_physics_package = T_sample * T_window
@@ -1917,9 +1887,7 @@ class Detector:
         T_sample = self.calc_compton_transmission(
             seca, secb, energy, physics_package, 'sample'
         )
-        T_window = self.calc_compton_transmission_window(
-            secb, energy, physics_package
-        )
+        T_window = self.calc_compton_transmission_window(secb, energy, physics_package)
 
         return T_sample * T_window
 
@@ -1965,9 +1933,7 @@ class Detector:
         T_window = self.calc_compton_transmission(
             seca, secb, energy, physics_package, 'window'
         )
-        T_sample = self.calc_compton_transmission_sample(
-            seca, energy, physics_package
-        )
+        T_sample = self.calc_compton_transmission_sample(seca, energy, physics_package)
 
         return T_sample * T_window
 
@@ -2084,10 +2050,7 @@ class Detector:
         ):
             return np.ones(self.shape)
 
-        hod = (
-            physics_package.pinhole_thickness
-            / physics_package.pinhole_diameter
-        )
+        hod = physics_package.pinhole_thickness / physics_package.pinhole_diameter
 
         '''we compute the beta angle using existing
         functions by just changing beam vector

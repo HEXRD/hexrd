@@ -54,9 +54,7 @@ for key, val in _function_dict_1d.items():
 
 pk_prefix_tmpl = "pk%d_"
 
-alpha0_DFLT, alpha1_DFLT, beta0_DFLT, beta1_DFLT = np.r_[
-    14.45, 0.0, 3.0162, -7.9411
-]
+alpha0_DFLT, alpha1_DFLT, beta0_DFLT, beta1_DFLT = np.r_[14.45, 0.0, 3.0162, -7.9411]
 
 param_hints_DFLT = (True, None, None, None, None)
 
@@ -96,17 +94,13 @@ def cubic_bkg(x, c0, c1, c2, c3):
 
 def quartic_bkg(x, c0, c1, c2, c3, c4):
     # return c0 + c1*x + c2*x**2 + c3*x**3
-    cheb_cls = chebyshev.Chebyshev(
-        [c0, c1, c2, c3, c4], domain=(min(x), max(x))
-    )
+    cheb_cls = chebyshev.Chebyshev([c0, c1, c2, c3, c4], domain=(min(x), max(x)))
     return cheb_cls(x)
 
 
 def quintic_bkg(x, c0, c1, c2, c3, c4, c5):
     # return c0 + c1*x + c2*x**2 + c3*x**3
-    cheb_cls = chebyshev.Chebyshev(
-        [c0, c1, c2, c3, c4, c5], domain=(min(x), max(x))
-    )
+    cheb_cls = chebyshev.Chebyshev([c0, c1, c2, c3, c4, c5], domain=(min(x), max(x)))
     return cheb_cls(x)
 
 
@@ -124,9 +118,9 @@ def lorentzian_1d(x, amp, cen, fwhm):
 
 
 def pvoigt_1d(x, amp, cen, fwhm, mixing):
-    return mixing * gaussian_1d(x, amp, cen, fwhm) + (
-        1 - mixing
-    ) * lorentzian_1d(x, amp, cen, fwhm)
+    return mixing * gaussian_1d(x, amp, cen, fwhm) + (1 - mixing) * lorentzian_1d(
+        x, amp, cen, fwhm
+    )
 
 
 def split_pvoigt_1d(x, amp, cen, fwhm_l, fwhm_h, mixing_l, mixing_h):
@@ -241,9 +235,7 @@ def _initial_guess(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            amp_guess = _amplitude_guess(
-                x, peak_positions[ii], fsubtr, fwhm_guess[ii]
-            )
+            amp_guess = _amplitude_guess(x, peak_positions[ii], fsubtr, fwhm_guess[ii])
             pkparams[ii, :] = [
                 max(amp_guess, min_ampl),
                 peak_positions[ii],
@@ -253,9 +245,7 @@ def _initial_guess(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            amp_guess = _amplitude_guess(
-                x, peak_positions[ii], fsubtr, fwhm_guess[ii]
-            )
+            amp_guess = _amplitude_guess(x, peak_positions[ii], fsubtr, fwhm_guess[ii])
             pkparams[ii, :] = [
                 max(amp_guess, min_ampl),
                 peak_positions[ii],
@@ -266,9 +256,7 @@ def _initial_guess(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            amp_guess = _amplitude_guess(
-                x, peak_positions[ii], fsubtr, fwhm_guess[ii]
-            )
+            amp_guess = _amplitude_guess(x, peak_positions[ii], fsubtr, fwhm_guess[ii])
             pkparams[ii, :] = [
                 max(amp_guess, min_ampl),
                 peak_positions[ii],
@@ -281,9 +269,7 @@ def _initial_guess(
         # x is just 2theta values
         # make guess for the initital parameters
         for ii in np.arange(num_pks):
-            amp_guess = _amplitude_guess(
-                x, peak_positions[ii], fsubtr, fwhm_guess[ii]
-            )
+            amp_guess = _amplitude_guess(x, peak_positions[ii], fsubtr, fwhm_guess[ii])
             pkparams[ii, :] = [
                 max(amp_guess, min_ampl),
                 peak_positions[ii],
@@ -394,9 +380,7 @@ class SpectrumModel(object):
 
         # spectrum data
         data = np.atleast_2d(data)
-        assert (
-            data.shape[1] == 2
-        ), "data must be [[tth_0, int_0], ..., [tth_N, int_N]"
+        assert data.shape[1] == 2, "data must be [[tth_0, int_0], ..., [tth_N, int_N]"
         assert len(
             data > 10
         ), "check your input spectrum; you provided fewer than 10 points."
@@ -415,9 +399,7 @@ class SpectrumModel(object):
         self._min_pk_sep = min_pk_sep
 
         # model
-        spectrum_model = _build_composite_model(
-            num_peaks, pktype=pktype, bgtype=bgtype
-        )
+        spectrum_model = _build_composite_model(num_peaks, pktype=pktype, bgtype=bgtype)
         self._model = spectrum_model
 
         p0 = _initial_guess(
@@ -438,9 +420,7 @@ class SpectrumModel(object):
         for i, pi in enumerate(p0_pks):
             new_keys = [pk_prefix_tmpl % i + k for k in master_keys_pks]
             initial_params_pks.add_many(
-                *_parameter_arg_constructor(
-                    dict(zip(new_keys, pi)), param_hints_DFLT
-                )
+                *_parameter_arg_constructor(dict(zip(new_keys, pi)), param_hints_DFLT)
             )
 
         # set some special constraints
@@ -452,9 +432,7 @@ class SpectrumModel(object):
         _set_bound_constraints(
             initial_params_pks, 'amp', min_val=min_ampl, max_val=1.5 * ymax
         )
-        _set_peak_center_bounds(
-            initial_params_pks, window_range, min_sep=min_pk_sep
-        )
+        _set_peak_center_bounds(initial_params_pks, window_range, min_sep=min_pk_sep)
         if pktype == 'pink_beam_dcs':
             # set bounds on fwhm params and mixing (where applicable)
             # !!! important for making pseudo-Voigt behave!
@@ -468,20 +446,12 @@ class SpectrumModel(object):
                 ),
             )
         elif pktype == 'split_pvoigt':
-            mparams = _extract_parameters_by_name(
-                initial_params_pks, 'mixing_l'
-            )
+            mparams = _extract_parameters_by_name(initial_params_pks, 'mixing_l')
             for mp in mparams[1:]:
-                _set_equality_constraints(
-                    initial_params_pks, ((mp, mparams[0]),)
-                )
-            mparams = _extract_parameters_by_name(
-                initial_params_pks, 'mixing_h'
-            )
+                _set_equality_constraints(initial_params_pks, ((mp, mparams[0]),))
+            mparams = _extract_parameters_by_name(initial_params_pks, 'mixing_h')
             for mp in mparams[1:]:
-                _set_equality_constraints(
-                    initial_params_pks, ((mp, mparams[0]),)
-                )
+                _set_equality_constraints(initial_params_pks, ((mp, mparams[0]),))
 
         # background
         initial_params_bkg = Parameters()

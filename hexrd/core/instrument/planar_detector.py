@@ -78,9 +78,7 @@ class PlanarDetector(Detector):
         ome = np.arccos(rmat_s[0, 0])
 
         angs = np.hstack([tth_eta, np.tile(ome, (len(tth_eta), 1))])
-        gvec = angles_to_gvec(
-            angs, beam_vec=self.bvec, eta_vec=self.evec, chi=chi
-        )
+        gvec = angles_to_gvec(angs, beam_vec=self.bvec, eta_vec=self.evec, chi=chi)
         xy_det = gvec_to_xy(
             gvec,
             self.rmat,
@@ -104,9 +102,17 @@ class PlanarDetector(Detector):
         if bvec is None:
             bvec = self.bvec
 
-        return _pixel_angles(origin, self.pixel_coords, self.distortion,
-                             self.rmat, self.tvec, bvec, self.evec,
-                             self.rows, self.cols)
+        return _pixel_angles(
+            origin,
+            self.pixel_coords,
+            self.distortion,
+            self.rmat,
+            self.tvec,
+            bvec,
+            self.evec,
+            self.rows,
+            self.cols,
+        )
 
     def pixel_tth_gradient(self, origin=ct.zeros_3):
         return _pixel_tth_gradient(
@@ -179,9 +185,7 @@ class PlanarDetector(Detector):
         transmission_phosphor = self.calc_transmission_phosphor(
             secb, t_p, al_p, L, energy, pre_U0
         )
-        transmission_filter_coating = (
-            transmission_filter * transmission_coating
-        )
+        transmission_filter_coating = transmission_filter * transmission_coating
 
         return transmission_filter_coating, transmission_phosphor
 
@@ -218,9 +222,7 @@ class PlanarDetector(Detector):
 
 
 @memoize
-def _pixel_angles(
-    origin, pixel_coords, distortion, rmat, tvec, bvec, evec, rows, cols
-):
+def _pixel_angles(origin, pixel_coords, distortion, rmat, tvec, bvec, evec, rows, cols):
     assert len(origin) == 3, "origin must have 3 elements"
 
     pix_i, pix_j = pixel_coords
@@ -269,6 +271,4 @@ def _pixel_eta_gradient(
 
 
 def _fix_branch_cut_in_gradients(pgarray):
-    return np.min(
-        np.abs(np.stack([pgarray - np.pi, pgarray, pgarray + np.pi])), axis=0
-    )
+    return np.min(np.abs(np.stack([pgarray - np.pi, pgarray, pgarray + np.pi])), axis=0)

@@ -134,12 +134,8 @@ def generate_orientation_fibers(cfg, eta_ome):
     for i, (this_hkl, this_tth) in enumerate(zip(seed_hkls, seed_tths)):
         for ispot in range(numSpots[i]):
             if not np.isnan(coms[i][ispot][0]):
-                ome_c = (
-                    eta_ome.omeEdges[0] + (0.5 + coms[i][ispot][0]) * del_ome
-                )
-                eta_c = (
-                    eta_ome.etaEdges[0] + (0.5 + coms[i][ispot][1]) * del_eta
-                )
+                ome_c = eta_ome.omeEdges[0] + (0.5 + coms[i][ispot][0]) * del_ome
+                eta_c = eta_ome.etaEdges[0] + (0.5 + coms[i][ispot][1]) * del_eta
                 input_p.append(np.hstack([this_hkl, this_tth, eta_c, ome_c]))
 
     # do the mapping
@@ -264,9 +260,7 @@ def run_cluster(
 
         if algorithm == 'dbscan' and not have_sklearn:
             algorithm = 'fclusterdata'
-            logger.warning(
-                "sklearn >= 0.14 required for dbscan; using fclusterdata"
-            )
+            logger.warning("sklearn >= 0.14 required for dbscan; using fclusterdata")
 
         if algorithm in ['dbscan', 'ort-dbscan', 'sph-dbscan']:
             # munge min_samples according to options
@@ -279,9 +273,7 @@ def run_cluster(
             if algorithm == 'sph-dbscan':
                 logger.info("using spherical DBSCAN")
                 # compute distance matrix
-                pdist = pairwise_distances(
-                    qfib_r.T, metric=quat_distance, n_jobs=1
-                )
+                pdist = pairwise_distances(qfib_r.T, metric=quat_distance, n_jobs=1)
 
                 # run dbscan
                 core_samples, labels = dbscan(
@@ -326,9 +318,7 @@ def run_cluster(
                 metric=quat_distance,
             )
         else:
-            raise RuntimeError(
-                "Clustering algorithm %s not recognized" % algorithm
-            )
+            raise RuntimeError("Clustering algorithm %s not recognized" % algorithm)
 
         # extract number of clusters
         if np.any(cl == -1):
@@ -340,9 +330,7 @@ def run_cluster(
         qbar = np.zeros((4, nblobs))
         for i in range(nblobs):
             npts = sum(cl == i + 1)
-            qbar[:, i] = rot.quatAverageCluster(
-                qfib_r[:, cl == i + 1], qsym
-            ).flatten()
+            qbar[:, i] = rot.quatAverageCluster(qfib_r[:, cl == i + 1], qsym).flatten()
 
     if algorithm in ('dbscan', 'ort-dbscan') and qbar.size / 4 > 1:
         logger.info("\tchecking for duplicate orientations...")
@@ -407,9 +395,7 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
     """
     fn = cfg.find_orientations.orientation_maps.file
     if clean:
-        logger.info(
-            'clean option specified; recomputing eta/ome orientation maps'
-        )
+        logger.info('clean option specified; recomputing eta/ome orientation maps')
         res = generate_eta_ome_maps(cfg, hkls=hkls)
     else:
         try:
@@ -443,9 +429,7 @@ def filter_maps_if_requested(eta_ome, cfg):
     if filter_maps:
         if not isinstance(filter_maps, bool):
             sigm = const.fwhm_to_sigma * filter_maps
-            logger.info(
-                "filtering eta/ome maps incl LoG with %.2f std dev", sigm
-            )
+            logger.info("filtering eta/ome maps incl LoG with %.2f std dev", sigm)
             _filter_eta_ome_maps(eta_ome, filter_stdev=sigm)
         else:
             logger.info("filtering eta/ome maps")
@@ -537,9 +521,7 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
 
     # logging output
     shkls = plane_data.getHKLs(*active_hklIDs, asStr=True)
-    logger.debug(
-        "building eta_ome maps using hkls: %s", [f'[{i}]' for i in shkls]
-    )
+    logger.debug("building eta_ome maps using hkls: %s", [f'[{i}]' for i in shkls])
 
     # grad imageseries dict from cfg
     imsd = cfg.image_series
@@ -676,9 +658,7 @@ def create_clustering_parameters(cfg, eta_ome):
                 [sum(refl_ids == hkl_id) for hkl_id in seed_hkl_ids]
             )
 
-    min_samples = max(
-        int(np.floor(0.5 * compl_thresh * min(seed_refl_per_grain))), 2
-    )
+    min_samples = max(int(np.floor(0.5 * compl_thresh * min(seed_refl_per_grain))), 2)
     mean_rpg = int(np.round(np.average(refl_per_grain)))
 
     return min_samples, mean_rpg
@@ -767,16 +747,12 @@ def find_orientations(
             start = timeit.default_timer()
 
             # need maps
-            eta_ome = load_eta_ome_maps(
-                cfg, plane_data, imsd, hkls=hkls, clean=clean
-            )
+            eta_ome = load_eta_ome_maps(cfg, plane_data, imsd, hkls=hkls, clean=clean)
 
             # generate trial orientations
             qfib = generate_orientation_fibers(cfg, eta_ome)
 
-            logger.info(
-                "\t\t...took %f seconds", timeit.default_timer() - start
-            )
+            logger.info("\t\t...took %f seconds", timeit.default_timer() - start)
         else:
             # doing grid search
             try:
@@ -798,9 +774,7 @@ def find_orientations(
         start = timeit.default_timer()
 
         # handle eta-ome maps
-        eta_ome = load_eta_ome_maps(
-            cfg, plane_data, imsd, hkls=hkls, clean=clean
-        )
+        eta_ome = load_eta_ome_maps(cfg, plane_data, imsd, hkls=hkls, clean=clean)
 
         # handle search space
         if cfg.find_orientations.use_quaternion_grid is None:
@@ -811,9 +785,7 @@ def find_orientations(
             start = timeit.default_timer()
 
             qfib = generate_orientation_fibers(cfg, eta_ome)
-            logger.info(
-                "\t\t...took %f seconds", timeit.default_timer() - start
-            )
+            logger.info("\t\t...took %f seconds", timeit.default_timer() - start)
         else:
             # doing grid search
             try:
@@ -826,9 +798,7 @@ def find_orientations(
         # do map-based indexing
         start = timeit.default_timer()
 
-        logger.info(
-            "will test %d quaternions using %d processes", qfib.shape[1], ncpus
-        )
+        logger.info("will test %d quaternions using %d processes", qfib.shape[1], ncpus)
 
         completeness = indexer.paintGrid(
             qfib,

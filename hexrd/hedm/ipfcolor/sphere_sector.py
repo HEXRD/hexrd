@@ -588,9 +588,7 @@ class sector:
                 omegap = np.arccos(omegap)
 
                 if omegap != 0.0:
-                    rho[i] = (
-                        2 * np.pi * omegap / omega / nn + f * 2.0 * np.pi / nn
-                    )
+                    rho[i] = 2 * np.pi * omegap / omega / nn + f * 2.0 * np.pi / nn
                 else:
                     rho[i] = f * 2.0 * np.pi / nn
 

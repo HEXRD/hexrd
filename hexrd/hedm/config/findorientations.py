@@ -104,9 +104,7 @@ class FindOrientationsConfig(Config):
 
     @property
     def extract_measured_g_vectors(self):
-        return self._cfg.get(
-            'find_orientations:extract_measured_g_vectors', False
-        )
+        return self._cfg.get('find_orientations:extract_measured_g_vectors', False)
 
 
 class ClusteringConfig(Config):
@@ -119,8 +117,7 @@ class ClusteringConfig(Config):
         if temp in choices:
             return temp
         raise RuntimeError(
-            '"%s": "%s" not recognized, must be one of %s'
-            % (key, temp, choices)
+            '"%s": "%s" not recognized, must be one of %s' % (key, temp, choices)
         )
 
     @property
@@ -160,9 +157,7 @@ class OmegaConfig(Config):
 
     @property
     def tolerance(self):
-        return self._cfg.get(
-            'find_orientations:omega:tolerance', self.tolerance_dflt
-        )
+        return self._cfg.get('find_orientations:omega:tolerance', self.tolerance_dflt)
 
 
 class EtaConfig(Config):
@@ -171,9 +166,7 @@ class EtaConfig(Config):
 
     @property
     def tolerance(self):
-        return self._cfg.get(
-            'find_orientations:eta:tolerance', self.tolerance_dflt
-        )
+        return self._cfg.get('find_orientations:eta:tolerance', self.tolerance_dflt)
 
     @property
     def mask(self):
@@ -184,9 +177,7 @@ class EtaConfig(Config):
         mask = self.mask
         if mask is None:
             return mask
-        return np.array(
-            [[-90.0 + mask, 90.0 - mask], [90.0 + mask, 270.0 - mask]]
-        )
+        return np.array([[-90.0 + mask, 90.0 - mask], [90.0 + mask, 270.0 - mask]])
 
 
 class SeedSearchConfig(Config):
@@ -203,9 +194,7 @@ class SeedSearchConfig(Config):
             return temp
         except:
             if self._cfg.find_orientations.use_quaternion_grid is None:
-                raise RuntimeError(
-                    '"%s" must be defined for seeded search' % key
-                )
+                raise RuntimeError('"%s" must be defined for seeded search' % key)
 
     @property
     def fiber_step(self):
@@ -223,9 +212,7 @@ class SeedSearchConfig(Config):
             if isinstance(temp, dict):
                 method_spec = next(iter(list(temp.keys())))
                 if method_spec.lower() not in seed_search_methods:
-                    raise RuntimeError(
-                        'invalid seed search method "%s"' % method_spec
-                    )
+                    raise RuntimeError('invalid seed search method "%s"' % method_spec)
                 else:
                     return temp
         except:
@@ -251,9 +238,7 @@ class OrientationMapsConfig(Config):
 
     @property
     def bin_frames(self):
-        return self._cfg.get(
-            'find_orientations:orientation_maps:bin_frames', default=1
-        )
+        return self._cfg.get('find_orientations:orientation_maps:bin_frames', default=1)
 
     @property
     def eta_step(self):
@@ -279,9 +264,7 @@ class OrientationMapsConfig(Config):
             mapf = root.working_dir / fname
 
         # Now check the YAML.
-        temp = self._cfg.get(
-            'find_orientations:orientation_maps:file', default=None
-        )
+        temp = self._cfg.get('find_orientations:orientation_maps:file', default=None)
         if temp is None:
             return mapf
         else:

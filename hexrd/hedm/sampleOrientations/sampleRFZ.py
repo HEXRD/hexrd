@@ -59,9 +59,7 @@ class sampleRFZ:
 
     """
 
-    def __init__(
-        self, pgnum, sampling_type='default', average_angular_spacing=3.0
-    ):
+    def __init__(self, pgnum, sampling_type='default', average_angular_spacing=3.0):
         """__init__ method of the sampleRFZ class.
 
 
@@ -91,13 +89,13 @@ class sampleRFZ:
 
         """
         if self.sampling_type.lower() == 'default':
-            return np.rint(
-                131.97049 / (self.avg_ang_spacing - 0.03732)
-            ).astype(np.int32)
+            return np.rint(131.97049 / (self.avg_ang_spacing - 0.03732)).astype(
+                np.int32
+            )
         elif self.sampling_type.lower() == 'special':
-            return np.rint(
-                125.70471 / (self.avg_ang_spacing - 0.07127)
-            ).astype(np.int32)
+            return np.rint(125.70471 / (self.avg_ang_spacing - 0.07127)).astype(
+                np.int32
+            )
 
     def sample(self):
         res = _sample(self.pgnum, self.cubN, self.delta, self.shift, self.ap_2)

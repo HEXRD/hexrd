@@ -58,7 +58,7 @@ from hexrd.core.fitting.peakfunctions import _unit_gaussian
 
 __all__ = ['Material', 'loadMaterialList']
 
-logger = logging.getLogger(__name__) 
+logger = logging.getLogger(__name__)
 
 #
 # ================================================== Module Data
@@ -385,9 +385,7 @@ class Material(object):
         '''
         tth_threshold = np.radians(tth_threshold)
 
-        tth = np.array(
-            [hkldata['tTheta'] for hkldata in self._pData.hklDataList]
-        )
+        tth = np.array([hkldata['tTheta'] for hkldata in self._pData.hklDataList])
         dflt_excl = np.ones(tth.shape, dtype=np.bool)
         dflt_excl2 = np.ones(tth.shape, dtype=np.bool)
 
@@ -401,16 +399,14 @@ class Material(object):
                     dflt_excl[i] = False
 
             dflt_excl2[~np.isnan(tth)] = ~(
-                (tth[~np.isnan(tth)] >= 0.0)
-                & (tth[~np.isnan(tth)] <= tth_threshold)
+                (tth[~np.isnan(tth)] >= 0.0) & (tth[~np.isnan(tth)] <= tth_threshold)
             )
 
             dflt_excl = np.logical_or(dflt_excl, dflt_excl2)
 
         else:
             dflt_excl[~np.isnan(tth)] = ~(
-                (tth[~np.isnan(tth)] >= 0.0)
-                & (tth[~np.isnan(tth)] <= tth_threshold)
+                (tth[~np.isnan(tth)] >= 0.0) & (tth[~np.isnan(tth)] <= tth_threshold)
             )
             dflt_excl[0] = False
 
@@ -514,9 +510,7 @@ class Material(object):
             ktp = self.ktp(temperature=temperature)
             f = 0.5 * ((vt / volume) ** (2.0 / 3.0) - 1)
 
-            return (
-                3.0 * kt * f * (1 - 1.5 * (4 - ktp) * f) * (1 + 2 * f) ** 2.5
-            )
+            return 3.0 * kt * f * (1 - 1.5 * (4 - ktp) * f) * (1 + 2 * f) ** 2.5
 
     def calc_volume(self, pressure=None, temperature=None):
         '''solve for volume in the birch-murnaghan EoS to
@@ -873,15 +867,11 @@ class Material(object):
         self._lparms = lparms
 
         # fill space group and lattice parameters
-        self._sgsetting = np.array(
-            gid.get('SpaceGroupSetting'), dtype=np.int32
-        ).item()
+        self._sgsetting = np.array(gid.get('SpaceGroupSetting'), dtype=np.int32).item()
         self.sgnum = sgnum
 
         # the U factors are related to B by the relation B = 8pi^2 U
-        self._atominfo = np.transpose(
-            np.array(gid.get('AtomData'), dtype=np.float64)
-        )
+        self._atominfo = np.transpose(np.array(gid.get('AtomData'), dtype=np.float64))
         self._U = np.transpose(np.array(gid.get('U'), dtype=np.float64))
 
         # read atom types (by atomic number, Z)
@@ -897,9 +887,7 @@ class Material(object):
             self.stiffness = np.array(gid.get('stiffness'))
         elif 'compliance' in gid:
             # we're assuming the compliance is in units of TPa^-1
-            self.stiffness = (
-                np.linalg.inv(np.array(gid.get('compliance'))) * 1.0e3
-            )
+            self.stiffness = np.linalg.inv(np.array(gid.get('compliance'))) * 1.0e3
         else:
             self.stiffness = np.zeros([6, 6])
 
@@ -908,15 +896,11 @@ class Material(object):
         '''
         self.pressure = 0
         if 'pressure' in gid:
-            self.pressure = np.array(
-                gid.get('pressure'), dtype=np.float64
-            ).item()
+            self.pressure = np.array(gid.get('pressure'), dtype=np.float64).item()
 
         self.temperature = 298
         if 'temperature' in gid:
-            self.temperature = np.array(
-                gid.get('temperature'), dtype=np.float64
-            ).item()
+            self.temperature = np.array(gid.get('temperature'), dtype=np.float64).item()
 
         self.k0 = 100.0
         if 'k0' in gid:
@@ -956,9 +940,7 @@ class Material(object):
         if 'dalpha_t_dt' in gid:
             # this is the temperature derivation of
             # the pressure derivative of isotropic bulk modulus
-            dalpha_t_dt = np.array(
-                gid.get('dalpha_t_dt'), dtype=np.float64
-            ).item()
+            dalpha_t_dt = np.array(gid.get('dalpha_t_dt'), dtype=np.float64).item()
             self.dalpha_t_dt = dalpha_t_dt
 
         '''Finished with the BM EOS
@@ -1105,9 +1087,7 @@ class Material(object):
                 type_symbols.append(symbol)
 
         # Site labels
-        base_symbols = [
-            ptableinverse[int(at)] for at in self._atomtype.tolist()
-        ]
+        base_symbols = [ptableinverse[int(at)] for at in self._atomtype.tolist()]
         labels = []
         for idx, symbol in enumerate(base_symbols):
             labels.append(f"{symbol}{idx}")
@@ -1278,9 +1258,7 @@ class Material(object):
         self.planeData.wavelength = keV
         self._hkls_changed()
 
-    beamEnergy = property(
-        _get_beamEnergy, _set_beamEnergy, None, "Beam energy in keV"
-    )
+    beamEnergy = property(_get_beamEnergy, _set_beamEnergy, None, "Beam energy in keV")
 
     """
     03/11/2021 SS 1.0 original
@@ -1356,8 +1334,7 @@ class Material(object):
         """
         if len(vals) != len(self.atomtype):
             msg = (
-                "incorrect size of charge. "
-                "must be same size as number of aom types."
+                "incorrect size of charge. " "must be same size as number of aom types."
             )
             raise ValueError(msg)
         """

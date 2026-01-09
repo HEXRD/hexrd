@@ -38,8 +38,7 @@ def _ge_41rt_inverse_distortion(
         (2 / np.sqrt(3))
         * sqrt_p_is
         * np.cos(
-            np.arccos(((-3 * np.sqrt(3) / 2) * radii / sqrt_p_is)) / 3
-            + 4 * np.pi / 3
+            np.arccos(((-3 * np.sqrt(3) / 2) * radii / sqrt_p_is)) / 3 + 4 * np.pi / 3
         )
     )
 
@@ -66,10 +65,7 @@ def _ge_41rt_distortion(out, in_, rhoMax, params):
         ratio = ri * rxi
 
         ri = (
-            p0 * ratio**p3 * cos2ni
-            + p1 * ratio**p4 * cos4ni
-            + p2 * ratio**p5
-            + 1
+            p0 * ratio**p3 * cos2ni + p1 * ratio**p4 * cos4ni + p2 * ratio**p5 + 1
         ) * ri
         xi = ri * cosni
         yi = ri * sinni
@@ -125,9 +121,7 @@ class GE_41RT(DistortionABC, metaclass=_RegisterDistortionClass):
 
     @property
     def is_trivial(self):
-        return (
-            self.params[0] == 0 and self.params[1] == 0 and self.params[2] == 0
-        )
+        return self.params[0] == 0 and self.params[1] == 0 and self.params[2] == 0
 
     def apply(self, xy_in):
         if self.is_trivial:
@@ -135,9 +129,7 @@ class GE_41RT(DistortionABC, metaclass=_RegisterDistortionClass):
         else:
             xy_in = np.asarray(xy_in, dtype=float)
             xy_out = np.empty_like(xy_in)
-            _ge_41rt_distortion(
-                xy_out, xy_in, float(RHO_MAX), np.asarray(self.params)
-            )
+            _ge_41rt_distortion(xy_out, xy_in, float(RHO_MAX), np.asarray(self.params))
             return xy_out
 
     def apply_inverse(self, xy_in):

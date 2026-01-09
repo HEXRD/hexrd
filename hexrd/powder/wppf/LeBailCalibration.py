@@ -4,13 +4,15 @@ import numpy as np
 from numpy.polynomial.chebyshev import Chebyshev
 import lmfit
 import warnings
-from hexrd.powder.wppf.peakfunctions import \
-calc_rwp, computespectrum_pvfcj, \
-computespectrum_pvtch,\
-computespectrum_pvpink,\
-calc_Iobs_pvfcj,\
-calc_Iobs_pvtch,\
-calc_Iobs_pvpink
+from hexrd.powder.wppf.peakfunctions import (
+    calc_rwp,
+    computespectrum_pvfcj,
+    computespectrum_pvtch,
+    computespectrum_pvpink,
+    calc_Iobs_pvfcj,
+    calc_Iobs_pvtch,
+    calc_Iobs_pvpink,
+)
 from hexrd.powder.wppf.spectrum import Spectrum
 from hexrd.powder.wppf import wppfsupport, LeBail
 from hexrd.powder.wppf.phase import Phases_LeBail, Material_LeBail
@@ -26,6 +28,7 @@ from hexrd.core.projections.polar import PolarView
 import time
 
 logger = logging.getLogger(__name__)
+
 
 class LeBailCalibrator:
     """
@@ -236,8 +239,10 @@ class LeBailCalibrator:
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
 
         if np.mod(self.nfev, 10) == 0:
-            logger.info(f"refinement ongoing... \n weighted residual at "
-                f"iteration # {self.nfev} = {self.Rwp}")
+            logger.info(
+                f"refinement ongoing... \n weighted residual at "
+                f"iteration # {self.nfev} = {self.Rwp}"
+            )
 
         return errvec
 
@@ -249,9 +254,7 @@ class LeBailCalibrator:
         for p in self.params:
             par = self.params[p]
             if par.vary:
-                params.add(
-                    p, value=par.value, min=par.min, max=par.max, vary=True
-                )
+                params.add(p, value=par.value, min=par.min, max=par.max, vary=True)
         return params
 
     def Refine(self):
@@ -467,10 +470,7 @@ class LeBailCalibrator:
             self._refine_background = val
             prefix = "azpos"
             for ii in range(len(self.lineouts)):
-                pname = [
-                    f"{prefix}{ii}_bkg_C{jj}"
-                    for jj in range(self.bkgdegree)
-                ]
+                pname = [f"{prefix}{ii}_bkg_C{jj}" for jj in range(self.bkgdegree)]
                 for p in pname:
                     self.params[p].vary = val
         else:
@@ -779,7 +779,8 @@ class LeBailCalibrator:
 
         if param_info is not None:
             pl = wppfsupport._generate_default_parameters_LeBail(
-                self.phases, self.peakshape)
+                self.phases, self.peakshape
+            )
             self.lebail_param_list = [p for p in pl]
             if isinstance(param_info, lmfit.Parameters):
                 """
@@ -823,13 +824,12 @@ class LeBailCalibrator:
         else:
 
             params = wppfsupport._generate_default_parameters_LeBail(
-                self.phases, self.peakshape)
+                self.phases, self.peakshape
+            )
             self.lebail_param_list = [p for p in params]
             wppfsupport._add_detector_geometry(params, self.instrument)
             if "chebyshev" in self.bkgmethod.keys():
-                wppfsupport._add_background(
-                    params, self.lineouts, self.bkgdegree
-                )
+                wppfsupport._add_background(params, self.lineouts, self.bkgdegree)
             self._params = params
 
     @property
@@ -906,19 +906,10 @@ class LeBaillight:
                 Ic = self.Icalc[p][k]
 
                 shft_c = (
-                    np.cos(0.5 * np.radians(self.tth[p][k]))
-                    * self.params["shft"].value
+                    np.cos(0.5 * np.radians(self.tth[p][k])) * self.params["shft"].value
                 )
-                trns_c = (
-                    np.sin(np.radians(self.tth[p][k]))
-                    * self.params["trns"].value
-                )
-                tth = (
-                    self.tth[p][k]
-                    + self.params["zero_error"].value
-                    + shft_c
-                    + trns_c
-                )
+                trns_c = np.sin(np.radians(self.tth[p][k])) * self.params["trns"].value
+                tth = self.tth[p][k] + self.params["zero_error"].value + shft_c + trns_c
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
@@ -938,9 +929,7 @@ class LeBaillight:
                     ]
                 )
                 gaussschrerr = self.params["P"].value
-                lorbroad = np.array(
-                    [self.params["X"].value, self.params["Y"].value]
-                )
+                lorbroad = np.array([self.params["X"].value, self.params["Y"].value])
                 anisbroad = np.array(
                     [
                         self.params["Xe"].value,
@@ -1043,19 +1032,10 @@ class LeBaillight:
                 Ic = self.Icalc[p][k]
 
                 shft_c = (
-                    np.cos(0.5 * np.radians(self.tth[p][k]))
-                    * self.params["shft"].value
+                    np.cos(0.5 * np.radians(self.tth[p][k])) * self.params["shft"].value
                 )
-                trns_c = (
-                    np.sin(np.radians(self.tth[p][k]))
-                    * self.params["trns"].value
-                )
-                tth = (
-                    self.tth[p][k]
-                    + self.params["zero_error"].value
-                    + shft_c
-                    + trns_c
-                )
+                trns_c = np.sin(np.radians(self.tth[p][k])) * self.params["trns"].value
+                tth = self.tth[p][k] + self.params["zero_error"].value + shft_c + trns_c
 
                 dsp = self.dsp[p][k]
                 hkls = self.hkls[p][k]
@@ -1075,9 +1055,7 @@ class LeBaillight:
                     ]
                 )
                 gaussschrerr = self.params["P"].value
-                lorbroad = np.array(
-                    [self.params["X"].value, self.params["Y"].value]
-                )
+                lorbroad = np.array([self.params["X"].value, self.params["Y"].value])
                 anisbroad = np.array(
                     [
                         self.params["Xe"].value,
@@ -1197,15 +1175,11 @@ class LeBaillight:
             bkg[mask] = np.nan
 
         elif 'snip1d' in self.bkgmethod.keys():
-            ww = np.rint(self.bkgmethod["snip1d"][0] / self.tth_step).astype(
-                np.int32
-            )
+            ww = np.rint(self.bkgmethod["snip1d"][0] / self.tth_step).astype(np.int32)
 
             numiter = self.bkgmethod["snip1d"][1]
 
-            bkg = np.squeeze(
-                snip1d_quad(np.atleast_2d(I), w=ww, numiter=numiter)
-            )
+            bkg = np.squeeze(snip1d_quad(np.atleast_2d(I), w=ww, numiter=numiter))
             bkg[mask] = np.nan
         return bkg
 

@@ -170,8 +170,7 @@ class RootConfig(Config):
             self.set('multiprocessing', int(val))
         else:
             raise RuntimeError(
-                '"multiprocessing": must be 1:%d, got %s'
-                % (mp.cpu_count(), val)
+                '"multiprocessing": must be 1:%d, got %s' % (mp.cpu_count(), val)
             )
 
     @property

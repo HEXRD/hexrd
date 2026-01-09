@@ -59,6 +59,4 @@ class NumPyIncludeDumper(yaml.Dumper):
         return super().represent(data)
 
 
-NumPyIncludeDumper.add_representer(
-    np.ndarray, NumPyIncludeDumper.ndarray_representer
-)
+NumPyIncludeDumper.add_representer(np.ndarray, NumPyIncludeDumper.ndarray_representer)

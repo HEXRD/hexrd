@@ -97,8 +97,7 @@ class FitGrainsConfig(Config):
         else:
             if not isinstance(temp, (int, float, list)):
                 raise RuntimeError(
-                    '"%s" must be None, a scalar, or a list, got "%s"'
-                    % (key, temp)
+                    '"%s" must be None, a scalar, or a list, got "%s"' % (key, temp)
                 )
             if isinstance(temp, (int, float)):
                 temp = [temp, temp]
@@ -114,9 +113,7 @@ class FitGrainsConfig(Config):
         temp = self._cfg.get(key, False)
         if temp in (True, False):
             return temp
-        raise RuntimeError(
-            '"%s" must be true or false, got "%s"' % (key, temp)
-        )
+        raise RuntimeError('"%s" must be true or false, got "%s"' % (key, temp))
 
     @property
     def fit_only(self):
@@ -124,9 +121,7 @@ class FitGrainsConfig(Config):
         temp = self._cfg.get(key, False)
         if temp in (True, False):
             return temp
-        raise RuntimeError(
-            '"%s" must be true or false, got "%s"' % (key, temp)
-        )
+        raise RuntimeError('"%s" must be true or false, got "%s"' % (key, temp))
 
     @property
     def tth_max(self):
@@ -137,6 +132,4 @@ class FitGrainsConfig(Config):
         if isinstance(temp, (int, float)):
             if temp > 0:
                 return temp
-        raise RuntimeError(
-            '"%s" must be > 0, true, or false, got "%s"' % (key, temp)
-        )
+        raise RuntimeError('"%s" must be > 0, true, or false, got "%s"' % (key, temp))

@@ -381,9 +381,7 @@ def _normalize_ranges(starts, stops, offset, ccw=False):
     stops = np.mod(stops - offset, two_pi) + offset
 
     order = np.argsort(starts)
-    result = np.hstack(
-        (starts[order, np.newaxis], stops[order, np.newaxis])
-    ).ravel()
+    result = np.hstack((starts[order, np.newaxis], stops[order, np.newaxis])).ravel()
     # at this point, result is in its final form unless there
     # is wrap-around in the last segment. Handle this case:
     if result[-1] < result[-2]:
@@ -517,9 +515,7 @@ def paintGridThis(quat):
     rMat = rotations.rotMatOfQuat(quat.T if quat.ndim == 2 else quat)
 
     # Compute the oscillation angles of all the symHKLs at once
-    oangs_pair = xfcapi.oscill_angles_of_hkls(
-        symHKLs, 0.0, rMat, bMat, wavelength
-    )
+    oangs_pair = xfcapi.oscill_angles_of_hkls(symHKLs, 0.0, rMat, bMat, wavelength)
     # pdb.set_trace()
     return _filter_and_count_hits(
         oangs_pair[0],

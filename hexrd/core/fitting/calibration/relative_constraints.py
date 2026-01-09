@@ -166,9 +166,7 @@ class RelativeConstraintsSystem(RelativeConstraints):
         raise NotImplementedError(self.rotation_center)
 
 
-def create_relative_constraints(
-    type: RelativeConstraintsType, instr: HEDMInstrument
-):
+def create_relative_constraints(type: RelativeConstraintsType, instr: HEDMInstrument):
     types = {
         'None': RelativeConstraintsNone,
         'Group': RelativeConstraintsGroup,

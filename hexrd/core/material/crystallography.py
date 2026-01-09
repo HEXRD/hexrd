@@ -51,7 +51,7 @@ from hexrd.core import valunits
 from hexrd.core.valunits import toFloat
 from hexrd.core.constants import d2r, r2d, sqrt3by2, epsf, sqrt_epsf
 
-logger = logging.getLogger(__name__) 
+logger = logging.getLogger(__name__)
 
 """module vars"""
 
@@ -282,9 +282,7 @@ def latticePlanes(
     """
     location = 'latticePlanes'
 
-    assert (
-        hkls.shape[0] == 3
-    ), f"hkls aren't column vectors in call to '{location}'!"
+    assert hkls.shape[0] == 3, f"hkls aren't column vectors in call to '{location}'!"
 
     tag = ltype
     wlen = wavelength
@@ -470,14 +468,10 @@ def latticeVectors(
         cellparms = np.r_[np.tile(lparms[0], (3,)), deg90 * np.ones((3,))]
     elif tag == lattStrings[1] or tag == lattStrings[2]:
         # hexagonal | trigonal (hex indices)
-        cellparms = np.r_[
-            lparms[0], lparms[0], lparms[1], deg90, deg90, deg120
-        ]
+        cellparms = np.r_[lparms[0], lparms[0], lparms[1], deg90, deg90, deg120]
     elif tag == lattStrings[3]:
         # rhombohedral
-        cellparms = np.r_[
-            np.tile(lparms[0], (3,)), np.tile(aconv * lparms[1], (3,))
-        ]
+        cellparms = np.r_[np.tile(lparms[0], (3,)), np.tile(aconv * lparms[1], (3,))]
     elif tag == lattStrings[4]:
         # tetragonal
         cellparms = np.r_[lparms[0], lparms[0], lparms[1], deg90, deg90, deg90]
@@ -509,9 +503,7 @@ def latticeVectors(
     b = cellparms[1] * np.r_[np.cos(gamma), np.sin(gamma), 0]
     c = (
         cellparms[2]
-        * np.r_[
-            np.cos(beta), -cosalfar * np.sin(beta), sinalfar * np.sin(beta)
-        ]
+        * np.r_[np.cos(beta), -cosalfar * np.sin(beta), sinalfar * np.sin(beta)]
     )
 
     ad = np.sqrt(np.sum(a**2))
@@ -751,9 +743,7 @@ class PlaneData(object):
             self._lparms = self._parseLParms(lparms)
         elif len(args) == 1 and isinstance(args[0], PlaneData):
             other = args[0]
-            lparms, laueGroup, wavelength, strainMag, tThWidth = (
-                other.getParams()
-            )
+            lparms, laueGroup, wavelength, strainMag, tThWidth = other.getParams()
             self._wavelength = wavelength
             self._lparms = lparms
             self._doTThSort = other._doTThSort
@@ -923,9 +913,7 @@ class PlaneData(object):
                     for r in exclusions:
                         excl[self.tThSort[r[0] : r[1]]] = True
                 else:
-                    raise RuntimeError(
-                        f'Unclear behavior for shape {exclusions.shape}'
-                    )
+                    raise RuntimeError(f'Unclear behavior for shape {exclusions.shape}')
         self._exclusions = excl
         self.nHKLs = np.sum(np.logical_not(self._exclusions))
 
@@ -1017,9 +1005,7 @@ class PlaneData(object):
                     # for lattice parameters
                     lparmsDUnit.append(lparmThis.getVal('degrees'))
                 else:
-                    raise RuntimeError(
-                        f'Do not know what to do with {lparmThis}'
-                    )
+                    raise RuntimeError(f'Do not know what to do with {lparmThis}')
             else:
                 lparmsDUnit.append(lparmThis)
         return lparmsDUnit
@@ -1119,9 +1105,7 @@ class PlaneData(object):
         multiplicity = self.getMultiplicity(allHKLs=True)
         tth = self.getTTh(allHKLs=True)
 
-        hedm_intensity = (
-            structFact * lorentz_factor(tth) * polarization_factor(tth)
-        )
+        hedm_intensity = structFact * lorentz_factor(tth) * polarization_factor(tth)
 
         powderI = hedm_intensity * multiplicity
 
@@ -1156,9 +1140,7 @@ class PlaneData(object):
         symmGroup,
         strainMag,
         wavelength,
-    ) -> Tuple[
-        Dict[str, np.ndarray], Dict[str, Union[np.ndarray, float]], List[Dict]
-    ]:
+    ) -> Tuple[Dict[str, np.ndarray], Dict[str, Union[np.ndarray, float]], List[Dict]]:
         """
         Generate lattice plane data from inputs.
 
@@ -1405,9 +1387,7 @@ class PlaneData(object):
 
         # if you end exlcusions in a doublet (or multiple close rings)
         # then this will 'fail'.  May need to revisit...
-        nonoverlapNexts = np.hstack(
-            (tThRanges[:-1, 1] < tThRanges[1:, 0], True)
-        )
+        nonoverlapNexts = np.hstack((tThRanges[:-1, 1] < tThRanges[1:, 0], True))
         iHKLLists = []
         mergedRanges = []
         hklsCur = []
@@ -1621,13 +1601,9 @@ class PlaneData(object):
                 try:
                     idx[i] = int(np.where(all_hkl_ids == hkl_id)[0])
                 except TypeError:
-                    raise RuntimeError(
-                        f"Requested hklID '{hkl_id}'is invalid!"
-                    )
+                    raise RuntimeError(f"Requested hklID '{hkl_id}'is invalid!")
                 if sorted_excl[idx[i]] and not opts['allHKLs']:
-                    raise RuntimeError(
-                        f"Requested hklID '{hkl_id}' is excluded!"
-                    )
+                    raise RuntimeError(f"Requested hklID '{hkl_id}' is excluded!")
                 hkls.append(self.hklDataList[idx[i]]['hkl'])
 
         # handle output kwarg
@@ -1811,11 +1787,7 @@ class PlaneData(object):
             # ???: probably have other functions for this
             # Calculate G for each hkl
             # Calculate magnitude of G for each hkl
-            G = (
-                hkls[0, jj] * B[:, 0]
-                + hkls[1, jj] * B[:, 1]
-                + hkls[2, jj] * B[:, 2]
-            )
+            G = hkls[0, jj] * B[:, 0] + hkls[1, jj] * B[:, 1] + hkls[2, jj] * B[:, 2]
             magG = np.sqrt(G[0] ** 2 + G[1] ** 2 + G[2] ** 2)
 
             # Begin calculating form factor
@@ -2112,9 +2084,7 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     return ome1, eta1
 
 
-def getDparms(
-    lp: np.ndarray, lpTag: str, radians: Optional[bool] = True
-) -> np.ndarray:
+def getDparms(lp: np.ndarray, lpTag: str, radians: Optional[bool] = True) -> np.ndarray:
     """
     Utility routine for getting dparms, that is the lattice parameters
     without symmetry -- 'triclinic'
@@ -2194,9 +2164,7 @@ def RetrieveAtomicFormFactor(elecNum, magG, sinThOverLamdaList, ffDataList):
     # lambda=2*sin(th)/G
     # 1/2*G=sin(th)/lambda
 
-    ff = np.interp(
-        sinThOverLambda, sinThOverLamdaList, ffDataList[:, (elecNum - 1)]
-    )
+    ff = np.interp(sinThOverLambda, sinThOverLamdaList, ffDataList[:, (elecNum - 1)])
 
     return ff
 

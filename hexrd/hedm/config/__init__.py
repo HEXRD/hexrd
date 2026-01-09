@@ -3,7 +3,6 @@ import os
 import yaml
 
 
-
 # The following were moved to core
 from hexrd.core.config import config, root, utils
 from hexrd.core.config import material

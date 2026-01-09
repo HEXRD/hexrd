@@ -100,9 +100,7 @@ def fitGrain(
             continue
 
         if isinstance(results, list):
-            hkls = np.atleast_2d(
-                np.vstack([x[2] for x in results])
-            ).T
+            hkls = np.atleast_2d(np.vstack([x[2] for x in results])).T
             meas_xyo = np.atleast_2d(
                 np.vstack([np.r_[x[7], x[6][-1]] for x in results])
             )
@@ -115,11 +113,24 @@ def fitGrain(
             'meas_xyo': meas_xyo,
         }
 
-    fitArgs = (gFull, gFlag, instrument, new_reflections_dict,
-               bMat, wavelength, omePeriod)
-    results = optimize.leastsq(objFuncFitGrain, gFit, args=fitArgs,
-                               diag=1./gScl[gFlag].flatten(),
-                               factor=0.1, xtol=xtol, ftol=ftol)
+    fitArgs = (
+        gFull,
+        gFlag,
+        instrument,
+        new_reflections_dict,
+        bMat,
+        wavelength,
+        omePeriod,
+    )
+    results = optimize.leastsq(
+        objFuncFitGrain,
+        gFit,
+        args=fitArgs,
+        diag=1.0 / gScl[gFlag].flatten(),
+        factor=0.1,
+        xtol=xtol,
+        ftol=ftol,
+    )
 
     gFit_opt = results[0]
 
@@ -290,9 +301,17 @@ def objFuncFitGrain(
 
         # !!!: check that this operates on UNWARPED xy
         match_omes, calc_omes = matchOmegas(
-            meas_xyo, hkls, chi, rMat_c, bMat, corrected_wavelength,
-            vInv=vInv_s, beamVec=bVec, etaVec=eVec,
-            omePeriod=omePeriod)
+            meas_xyo,
+            hkls,
+            chi,
+            rMat_c,
+            bMat,
+            corrected_wavelength,
+            vInv=vInv_s,
+            beamVec=bVec,
+            etaVec=eVec,
+            omePeriod=omePeriod,
+        )
 
         # append to omes dict
         calc_omes_dict[det_key] = calc_omes
@@ -325,8 +344,7 @@ def objFuncFitGrain(
     npts = len(meas_xyo_all)
     if np.any(np.isnan(calc_xy)):
         raise RuntimeError(
-            "infeasible pFull: may want to scale"
-            + "back finite difference step size"
+            "infeasible pFull: may want to scale" + "back finite difference step size"
         )
 
     # return values
@@ -346,9 +364,7 @@ def objFuncFitGrain(
         # return residual vector
         # IDEA: try angles instead of xys?
         diff_vecs_xy = calc_xy_all - meas_xyo_all[:, :2]
-        diff_ome = rotations.angularDifference(
-            calc_omes_all, meas_xyo_all[:, 2]
-        )
+        diff_ome = rotations.angularDifference(calc_omes_all, meas_xyo_all[:, 2])
         retval = np.hstack([diff_vecs_xy, diff_ome.reshape(npts, 1)]).flatten()
         if return_value_flag == 1:
             # return scalar sum of squared residuals
@@ -419,9 +435,7 @@ def matchOmegas(
             ]
         )
     # do angular difference
-    diff_omes = rotations.angularDifference(
-        np.tile(meas_omes, (2, 1)), calc_omes
-    )
+    diff_omes = rotations.angularDifference(np.tile(meas_omes, (2, 1)), calc_omes)
     match_omes = np.argsort(diff_omes, axis=0) == 0
     calc_omes = calc_omes.T.flatten()[match_omes.T.flatten()]
 

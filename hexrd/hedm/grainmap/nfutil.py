@@ -172,9 +172,7 @@ def progressbar_progress_observer():
         def start(self, name, count):
             from progressbar import ProgressBar, Percentage, Bar
 
-            self.pbar = ProgressBar(
-                widgets=[name, Percentage(), Bar()], maxval=count
-            )
+            self.pbar = ProgressBar(widgets=[name, Percentage(), Bar()], maxval=count)
             self.pbar.start()
 
         def update(self, value):
@@ -254,9 +252,7 @@ def checking_result_handler(filename):
                     value = value.T
 
                 check_len = min(len(reference), len(value))
-                test_passed = np.allclose(
-                    value[:check_len], reference[:check_len]
-                )
+                test_passed = np.allclose(value[:check_len], reference[:check_len])
 
                 if not test_passed:
                     msg = "'{0}': FAIL"
@@ -353,31 +349,13 @@ def _anglesToGVec(angs, rMat_ss, rMat_c):
 
         # with g being [cx*xy, cx*sy, sx]
         # result = dot(rMat_c, dot(rMat_ss[i], g))
-        t0_0 = (
-            rMat_ss[i, 0, 0] * g0
-            + rMat_ss[i, 1, 0] * g1
-            + rMat_ss[i, 2, 0] * g2
-        )
-        t0_1 = (
-            rMat_ss[i, 0, 1] * g0
-            + rMat_ss[i, 1, 1] * g1
-            + rMat_ss[i, 2, 1] * g2
-        )
-        t0_2 = (
-            rMat_ss[i, 0, 2] * g0
-            + rMat_ss[i, 1, 2] * g1
-            + rMat_ss[i, 2, 2] * g2
-        )
+        t0_0 = rMat_ss[i, 0, 0] * g0 + rMat_ss[i, 1, 0] * g1 + rMat_ss[i, 2, 0] * g2
+        t0_1 = rMat_ss[i, 0, 1] * g0 + rMat_ss[i, 1, 1] * g1 + rMat_ss[i, 2, 1] * g2
+        t0_2 = rMat_ss[i, 0, 2] * g0 + rMat_ss[i, 1, 2] * g1 + rMat_ss[i, 2, 2] * g2
 
-        result[i, 0] = (
-            rMat_c[0, 0] * t0_0 + rMat_c[1, 0] * t0_1 + rMat_c[2, 0] * t0_2
-        )
-        result[i, 1] = (
-            rMat_c[0, 1] * t0_0 + rMat_c[1, 1] * t0_1 + rMat_c[2, 1] * t0_2
-        )
-        result[i, 2] = (
-            rMat_c[0, 2] * t0_0 + rMat_c[1, 2] * t0_1 + rMat_c[2, 2] * t0_2
-        )
+        result[i, 0] = rMat_c[0, 0] * t0_0 + rMat_c[1, 0] * t0_1 + rMat_c[2, 0] * t0_2
+        result[i, 1] = rMat_c[0, 1] * t0_0 + rMat_c[1, 1] * t0_1 + rMat_c[2, 1] * t0_2
+        result[i, 2] = rMat_c[0, 2] * t0_0 + rMat_c[1, 2] * t0_1 + rMat_c[2, 2] * t0_2
 
     return result
 
@@ -446,9 +424,7 @@ def _gvec_to_detector_array(vG_sn, rD, rSn, rC, tD, tS, tC):
 
 
 @numba.njit(nogil=True, cache=True)
-def _quant_and_clip_confidence(
-    coords, angles, image, base, inv_deltas, clip_vals, bsp
-):
+def _quant_and_clip_confidence(coords, angles, image, base, inv_deltas, clip_vals, bsp):
     """quantize and clip the parametric coordinates in coords + angles
 
     coords - (..., 2) array: input 2d parametric coordinates
@@ -603,13 +579,9 @@ def get_dilated_image_stack(
 ):
 
     try:
-        dilated_image_stack = np.load(
-            cache_file, mmap_mode='r', allow_pickle=False
-        )
+        dilated_image_stack = np.load(cache_file, mmap_mode='r', allow_pickle=False)
     except Exception:
-        dilated_image_stack = dilate_image_stack(
-            image_stack, experiment, controller
-        )
+        dilated_image_stack = dilate_image_stack(image_stack, experiment, controller)
         np.save(cache_file, dilated_image_stack)
 
     return dilated_image_stack
@@ -624,9 +596,7 @@ def dilate_image_stack(image_stack, experiment, controller):
         dtype=np.uint8,
     )
     image_stack_dilated = np.empty_like(image_stack)
-    dilated = np.empty(
-        (image_stack.shape[-2], image_stack.shape[-1] << 3), dtype=bool
-    )
+    dilated = np.empty((image_stack.shape[-2], image_stack.shape[-1] << 3), dtype=bool)
     n_images = len(image_stack)
     controller.start(subprocess, n_images)
     for i_image in range(n_images):
@@ -693,9 +663,7 @@ def gather_confidence(controller, confidence, n_grains, n_coords):
     # Calculate the send buffer sizes
     coords_per_rank = n_coords // world_size
     send_counts = np.full(world_size, coords_per_rank * n_grains)
-    send_counts[-1] = (
-        n_coords - (coords_per_rank * (world_size - 1))
-    ) * n_grains
+    send_counts[-1] = (n_coords - (coords_per_rank * (world_size - 1))) * n_grains
 
     if rank == 0:
         # Time how long it takes to perform the MPI gather
@@ -703,9 +671,7 @@ def gather_confidence(controller, confidence, n_grains, n_coords):
 
     # Transpose so the data will be more easily re-shaped into its final shape
     # Must be flattened as well so the underlying data is modified...
-    comm.Gatherv(
-        confidence.T.flatten(), (global_confidence, send_counts), root=0
-    )
+    comm.Gatherv(confidence.T.flatten(), (global_confidence, send_counts), root=0)
     if rank == 0:
         controller.finish('gather_confidence')
         confidence = global_confidence.reshape(n_coords, n_grains).T
@@ -778,13 +744,9 @@ def test_orientations(
     finished = 0
     ncpus = min(ncpus, len(chunks))
 
-    logger.info(
-        f'For {rank=}, {offset=}, {size=}, {chunks=}, {len(chunks)=}, {ncpus=}'
-    )
+    logger.info(f'For {rank=}, {offset=}, {size=}, {chunks=}, {len(chunks)=}, {ncpus=}')
 
-    logger.info(
-        'Checking confidence for %d coords, %d grains.', n_coords, n_grains
-    )
+    logger.info('Checking confidence for %d coords, %d grains.', n_coords, n_grains)
     confidence = np.empty((n_grains, size))
     if ncpus > 1:
         global _multiprocessing_start_method
@@ -805,9 +767,7 @@ def test_orientations(
                 experiment,
             ),
         ) as pool:
-            for rslice, rvalues in pool.imap_unordered(
-                multiproc_inner_loop, chunks
-            ):
+            for rslice, rvalues in pool.imap_unordered(multiproc_inner_loop, chunks):
                 count = rvalues.shape[1]
                 # We need to adjust this slice for the offset
                 rslice = slice(rslice.start - offset, rslice.stop - offset)
@@ -941,9 +901,7 @@ def _grand_loop_inner(
             grains += 1
             for icrd in range(start, stop):
                 t0 = timeit.default_timer()
-                det_xy = _to_detector(
-                    gvec_cs, rD, rMat_ss, rC, tD, tS, coords[icrd]
-                )
+                det_xy = _to_detector(gvec_cs, rD, rMat_ss, rC, tD, tS, coords[icrd])
                 t1 = timeit.default_timer()
                 c = _quant_and_clip_confidence(
                     det_xy,
@@ -1093,12 +1051,8 @@ def grand_loop_pool(ncpus, state):
                 os.path.join(tmp_dir, 'grand-loop-experiment.gz'),
                 compress=True,
             )
-            id_state = joblib.dump(
-                state[:-1], os.path.join(tmp_dir, 'grand-loop-data')
-            )
-            pool = multiprocessing.Pool(
-                ncpus, worker_init, (id_state[0], id_exp[0])
-            )
+            id_state = joblib.dump(state[:-1], os.path.join(tmp_dir, 'grand-loop-data'))
+            pool = multiprocessing.Pool(ncpus, worker_init, (id_state[0], id_exp[0]))
             yield pool
         finally:
             logger.info('Deleting "%s".', tmp_dir)
@@ -1126,9 +1080,7 @@ def gen_nf_test_grid(cross_sectional_dim, v_bnds, voxel_spacing):
     else:
         Xs, Ys, Zs = np.meshgrid(
             Xs_list,
-            np.arange(
-                v_bnds[0] + voxel_spacing / 2.0, v_bnds[1], voxel_spacing
-            ),
+            np.arange(v_bnds[0] + voxel_spacing / 2.0, v_bnds[1], voxel_spacing),
             Zs_list,
         )
         # note numpy shaping of arrays is goofy, returns(length(y),length(x),length(z))
@@ -1148,9 +1100,7 @@ def gen_nf_test_grid_tomo(x_dim_pnts, z_dim_pnts, v_bnds, voxel_spacing):
     else:
         Xs, Ys, Zs = np.meshgrid(
             np.arange(x_dim_pnts),
-            np.arange(
-                v_bnds[0] + voxel_spacing / 2.0, v_bnds[1], voxel_spacing
-            ),
+            np.arange(v_bnds[0] + voxel_spacing / 2.0, v_bnds[1], voxel_spacing),
             np.arange(z_dim_pnts),
         )
         # note numpy shaping of arrays is goofy, returns(length(y),length(x),length(z))
@@ -1185,10 +1135,7 @@ def gen_nf_dark(
     for ii in np.arange(num_for_dark):
         logger.info(f'Image #: {ii}')
         dark_stack[ii, :, :] = imgio.imread(
-            data_folder
-            + '%s' % (stem)
-            + str(img_nums[ii]).zfill(num_digits)
-            + ext
+            data_folder + '%s' % (stem) + str(img_nums[ii]).zfill(num_digits) + ext
         )
         # image_stack[ii,:,:]=np.flipud(tmp_img>threshold)
 
@@ -1316,9 +1263,7 @@ def gen_trial_exp_data(
 
     rMat_c = rotations.rotMatOfExpMap(exp_maps.T)
 
-    cut = np.where(
-        np.logical_and(completeness > comp_thresh, chi2 < chi2_thresh)
-    )[0]
+    cut = np.where(np.logical_and(completeness > comp_thresh, chi2 < chi2_thresh))[0]
     exp_maps = exp_maps[cut, :]
     t_vec_ds = t_vec_ds[cut, :]
     chi2 = chi2[cut]
@@ -1357,9 +1302,7 @@ def gen_trial_exp_data(
         ome_range_deg[0][0],
         (ome_range_deg[0][0] + 360.0),
     )  # degrees
-    ome_step_deg = (
-        ome_range_deg[0][1] - ome_range_deg[0][0]
-    ) / nframes  # degrees
+    ome_step_deg = (ome_range_deg[0][1] - ome_range_deg[0][0]) / nframes  # degrees
 
     ome_period = (
         ome_period_deg[0] * np.pi / 180.0,
@@ -1373,9 +1316,7 @@ def gen_trial_exp_data(
     ]
     ome_step = ome_step_deg * np.pi / 180.0
 
-    ome_edges = (
-        np.arange(nframes + 1) * ome_step + ome_range[0][0]
-    )  # fixed 2/26/17
+    ome_edges = np.arange(nframes + 1) * ome_step + ome_range[0][0]  # fixed 2/26/17
 
     instr = load_instrument(det_file)
     panel = next(iter(instr.detectors.values()))  # !!! there is only 1
@@ -1428,18 +1369,22 @@ def gen_trial_exp_data(
 
     logger.info('Loading Materials Data...')
     # crystallography data
-    beam_energy = valunits.valWUnit(
-        "beam_energy", "energy", instr.beam_energy, "keV"
-    )
+    beam_energy = valunits.valWUnit("beam_energy", "energy", instr.beam_energy, "keV")
     beam_wavelength = constants.keVToAngstrom(beam_energy.getVal('keV'))
     if max_tth is not None:
-        dmin = valunits.valWUnit("dmin", "length",
-                             0.5*beam_wavelength/np.sin(0.5*np.radians(max_tth)),
-                             "angstrom")   
+        dmin = valunits.valWUnit(
+            "dmin",
+            "length",
+            0.5 * beam_wavelength / np.sin(0.5 * np.radians(max_tth)),
+            "angstrom",
+        )
     else:
-        dmin = valunits.valWUnit("dmin", "length",
-                             0.5*beam_wavelength/np.sin(0.5*max_pixel_tth),
-                             "angstrom")
+        dmin = valunits.valWUnit(
+            "dmin",
+            "length",
+            0.5 * beam_wavelength / np.sin(0.5 * max_pixel_tth),
+            "angstrom",
+        )
 
     # material loading
     mats = material.load_materials_hdf5(mat_file, dmin=dmin, kev=beam_energy)
@@ -1628,17 +1573,11 @@ def scan_detector_parm(
             tmp_td[1] = parm_vector[jj]
 
         if parm_to_opt == 3:
-            rMat_d_tmp = xfcapi.make_detector_rmat(
-                [parm_vector[jj], ytilt, ztilt]
-            )
+            rMat_d_tmp = xfcapi.make_detector_rmat([parm_vector[jj], ytilt, ztilt])
         elif parm_to_opt == 4:
-            rMat_d_tmp = xfcapi.make_detector_rmat(
-                [xtilt, parm_vector[jj], ztilt]
-            )
+            rMat_d_tmp = xfcapi.make_detector_rmat([xtilt, parm_vector[jj], ztilt])
         elif parm_to_opt == 5:
-            rMat_d_tmp = xfcapi.make_detector_rmat(
-                [xtilt, ytilt, parm_vector[jj]]
-            )
+            rMat_d_tmp = xfcapi.make_detector_rmat([xtilt, ytilt, parm_vector[jj]])
         else:
             rMat_d_tmp = xfcapi.make_detector_rmat([xtilt, ytilt, ztilt])
 
@@ -1673,9 +1612,7 @@ def scan_detector_parm(
     return trial_data, parm_vector
 
 
-def plot_ori_map(
-    grain_map, confidence_map, exp_maps, layer_no, mat, id_remap=None
-):
+def plot_ori_map(grain_map, confidence_map, exp_maps, layer_no, mat, id_remap=None):
 
     grains_plot = np.squeeze(grain_map[layer_no, :, :])
     conf_plot = np.squeeze(confidence_map[layer_no, :, :])
@@ -1721,9 +1658,7 @@ def plot_ori_map(
     plt.show()
 
 
-def build_controller(
-    check=None, generate=None, ncpus=2, chunk_size=10, limit=None
-):
+def build_controller(check=None, generate=None, ncpus=2, chunk_size=10, limit=None):
     # builds the controller to use based on the args
 
     # result handle
@@ -1774,9 +1709,7 @@ def output_grain_map(
     Zss = [None] * num_scans
 
     if len(vol_spacing) == 1:
-        vol_shifts = np.arange(
-            0, vol_spacing[0] * num_scans + 1e-12, vol_spacing[0]
-        )
+        vol_shifts = np.arange(0, vol_spacing[0] * num_scans + 1e-12, vol_spacing[0])
     else:
         vol_shifts = vol_spacing
 
@@ -1938,4 +1871,3 @@ def output_grain_map(
         Ys_stitched,
         Zs_stitched,
     )
-

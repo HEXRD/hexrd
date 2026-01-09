@@ -135,9 +135,7 @@ distortion_key = 'distortion'
 # =============================================================================
 
 
-def generate_chunks(
-    nrows, ncols, base_nrows, base_ncols, row_gap=0, col_gap=0
-):
+def generate_chunks(nrows, ncols, base_nrows, base_ncols, row_gap=0, col_gap=0):
     """
     Generate chunking data for regularly tiled composite detectors.
 
@@ -245,9 +243,7 @@ def chunk_instrument(instr, rects, labels, use_roi=False):
                     buffer = panel_buffer_from_str(buffer, panel)
 
                 if buffer.ndim == 2:  # have a mask array!
-                    submask = buffer[
-                        rect[0, 0] : rect[0, 1], rect[1, 0] : rect[1, 1]
-                    ]
+                    submask = buffer[rect[0, 0] : rect[0, 1], rect[1, 0] : rect[1, 1]]
                     new_icfg_dict['detectors'][panel_name]['buffer'] = submask
     return new_icfg_dict
 
@@ -304,9 +300,7 @@ def _parse_imgser_dict(imgser_dict, det_key, roi=None):
 
         # have images now
         if roi is None:
-            raise RuntimeError(
-                "roi must be specified to use shared imageseries"
-            )
+            raise RuntimeError("roi must be specified to use shared imageseries")
 
         if isinstance(images_in, ims_classes):
             # input is an imageseries of some kind
@@ -334,9 +328,7 @@ def _parse_imgser_dict(imgser_dict, det_key, roi=None):
                         roi[0][0] : roi[0][1], roi[1][0] : roi[1][1]
                     ]
             else:
-                raise RuntimeError(
-                    f"image input dim must be 2 or 3; you gave {ndim}"
-                )
+                raise RuntimeError(f"image input dim must be 2 or 3; you gave {ndim}")
     return ims
 
 
@@ -349,9 +341,7 @@ def calc_beam_vec(azim, pola):
     """
     tht = np.radians(azim)
     phi = np.radians(pola)
-    bv = np.r_[
-        np.sin(phi) * np.cos(tht), np.cos(phi), np.sin(phi) * np.sin(tht)
-    ]
+    bv = np.r_[np.sin(phi) * np.cos(tht), np.cos(phi), np.sin(phi) * np.sin(tht)]
     return -bv
 
 
@@ -403,9 +393,7 @@ def angle_in_range(angle, ranges, ccw=True, units='degrees'):
 # ???: move to gridutil?
 def centers_of_edge_vec(edges):
     if np.asarray(edges).size < 2:
-        raise ValueError(
-            "edges must be an array-like with at least 2 elements"
-        )
+        raise ValueError("edges must be an array-like with at least 2 elements")
     return np.average(np.vstack([edges[:-1], edges[1:]]), axis=0)
 
 
@@ -493,9 +481,7 @@ def max_resolution(instr):
             .reshape(2, np.cumprod(panel.shape)[-1])
             .T
         )
-        mask = ~np.logical_or(
-            np.isclose(angps[:, 0], 0), np.isclose(angps[:, 1], 0)
-        )
+        mask = ~np.logical_or(np.isclose(angps[:, 0], 0), np.isclose(angps[:, 1], 0))
         max_tth = min(max_tth, np.min(angps[mask, 0]))
         max_eta = min(max_eta, np.min(angps[mask, 1]))
     return max_tth, max_eta
@@ -587,8 +573,7 @@ class HEDMInstrument(object):
             elif not isinstance(instrument_config, dict):
                 raise RuntimeError(
                     "instrument_config must be either an HDF5 file object"
-                    + "or a dictionary.  You gave a %s"
-                    % type(instrument_config)
+                    + "or a dictionary.  You gave a %s" % type(instrument_config)
                 )
             if instrument_name is None:
                 if 'id' in instrument_config:
@@ -682,13 +667,9 @@ class HEDMInstrument(object):
                         try:
                             func_name = distortion_cfg['function_name']
                             dparams = distortion_cfg['parameters']
-                            distortion = distortion_pkg.get_mapping(
-                                func_name, dparams
-                            )
+                            distortion = distortion_pkg.get_mapping(func_name, dparams)
                         except KeyError:
-                            raise RuntimeError(
-                                "problem with distortion specification"
-                            )
+                            raise RuntimeError("problem with distortion specification")
                 if detector_type.lower() not in DETECTOR_TYPES:
                     msg = f'Unknown detector type: {detector_type}'
                     raise NotImplementedError(msg)
@@ -723,9 +704,7 @@ class HEDMInstrument(object):
 
             self._detectors = det_dict
 
-            self._tvec = np.r_[
-                instrument_config['oscillation_stage']['translation']
-            ]
+            self._tvec = np.r_[instrument_config['oscillation_stage']['translation']]
             self._chi = instrument_config['oscillation_stage']['chi']
 
         # grab angles from beam vec
@@ -742,9 +721,7 @@ class HEDMInstrument(object):
 
     def mean_group_center(self, group: str) -> np.ndarray:
         """Return the mean center for detectors belonging to a group"""
-        centers = np.array(
-            [x.tvec for x in self.detectors_in_group(group).values()]
-        )
+        centers = np.array([x.tvec for x in self.detectors_in_group(group).values()])
         return centers.sum(axis=0) / len(centers)
 
     @property
@@ -906,9 +883,7 @@ class HEDMInstrument(object):
 
     @source_distance.setter
     def source_distance(self, x):
-        assert np.isscalar(
-            x
-        ), f"'source_distance' must be a scalar; you input '{x}'"
+        assert np.isscalar(x), f"'source_distance' must be a scalar; you input '{x}'"
         self.active_beam['distance'] = x
         self.beam_dict_modified()
 
@@ -937,9 +912,7 @@ class HEDMInstrument(object):
         if v is not None:
             # First validate
             keys = sorted(list(v))
-            default_keys = sorted(
-                list(self.create_default_energy_correction())
-            )
+            default_keys = sorted(list(self.create_default_energy_correction()))
             if keys != default_keys:
                 raise ValueError(
                     f'energy_correction keys do not match required keys.\nGot: {keys}\nExpected: {default_keys}'
@@ -980,9 +953,7 @@ class HEDMInstrument(object):
         """WRITE OUT YAML FILE"""
         # initialize output dictionary
         if style.lower() not in ['yaml', 'hdf5']:
-            raise ValueError(
-                f"style must be 'yaml' or 'hdf5' but is '{style}'"
-            )
+            raise ValueError(f"style must be 'yaml' or 'hdf5' but is '{style}'")
 
         par_dict = {}
 
@@ -1003,9 +974,7 @@ class HEDMInstrument(object):
                 beam_dict[beam_name]['source_distance'] = beam['distance']
 
             if beam.get('energy_correction') is not None:
-                beam_dict[beam_name]['energy_correction'] = beam[
-                    'energy_correction'
-                ]
+                beam_dict[beam_name]['energy_correction'] = beam['energy_correction']
 
         if len(beam_dict) == 1:
             # Just write it out a single beam (classical way)
@@ -1088,13 +1057,11 @@ class HEDMInstrument(object):
         #     detectors, so calculate it once
         # !!! grab first panel
         panel = next(iter(self.detectors.values()))
-        pow_angs, pow_xys, tth_ranges, eta_idx, eta_edges = (
-            panel.make_powder_rings(
-                plane_data,
-                merge_hkls=False,
-                delta_eta=eta_tol,
-                full_output=True,
-            )
+        pow_angs, pow_xys, tth_ranges, eta_idx, eta_edges = panel.make_powder_rings(
+            plane_data,
+            merge_hkls=False,
+            delta_eta=eta_tol,
+            full_output=True,
         )
 
         if active_hkls is not None:
@@ -1138,9 +1105,7 @@ class HEDMInstrument(object):
             try:
                 omegas = ims.metadata['omega']
             except KeyError:
-                raise RuntimeError(
-                    f"imageseries for '{det_key}' has no omega info"
-                )
+                raise RuntimeError(f"imageseries for '{det_key}' has no omega info")
 
             # initialize maps and assing by row (omega/frame)
             nrows_ome = len(omegas)
@@ -1314,9 +1279,7 @@ class HEDMInstrument(object):
 
         images = []
         for detector_id, panel in self.detectors.items():
-            images.append(
-                _parse_imgser_dict(imgser_dict, detector_id, roi=panel.roi)
-            )
+            images.append(_parse_imgser_dict(imgser_dict, detector_id, roi=panel.roi))
 
         panels = [self.detectors[k] for k in self.detectors]
         instr_cfgs = [make_instr_cfg(x) for x in panels]
@@ -1458,11 +1421,7 @@ class HEDMInstrument(object):
 
             tth = mat.planeData.getTTh()
 
-            LP = (
-                (1 + np.cos(tth) ** 2)
-                / np.cos(0.5 * tth)
-                / np.sin(0.5 * tth) ** 2
-            )
+            LP = (1 + np.cos(tth) ** 2) / np.cos(0.5 * tth) / np.sin(0.5 * tth) ** 2
 
             intensity[mat.name] = {}
             intensity[mat.name]['synchrotron'] = (
@@ -1740,8 +1699,7 @@ class HEDMInstrument(object):
 
         oims0 = next(iter(imgser_dict.values()))
         omega_ranges = [
-            np.radians([i['ostart'], i['ostop']])
-            for i in oims0.omegawedges.wedges
+            np.radians([i['ostart'], i['ostop']]) for i in oims0.omegawedges.wedges
         ]
         if ome_period is None:
             ims = next(iter(imgser_dict.values()))
@@ -1815,9 +1773,7 @@ class HEDMInstrument(object):
                 os.makedirs(output_dir, exist_ok=True)
                 writer = PatchDataWriter(os.path.join(output_dir, filename))
 
-            for patch_id, (vtx_angs, _, _, areas, xy_eval, ijs) in enumerate(
-                patches
-            ):
+            for patch_id, (vtx_angs, _, _, areas, xy_eval, ijs) in enumerate(patches):
                 prows, pcols = areas.shape
                 hkl_id, hkl = hkl_ids[patch_id], hkls_p[patch_id, :]
 
@@ -1829,8 +1785,7 @@ class HEDMInstrument(object):
                 omega_eval = np.degrees(ang_centers[patch_id, 2]) + ome_grid
 
                 frame_indices = [
-                    omega_image_series.omega_to_frame(omega)[0]
-                    for omega in omega_eval
+                    omega_image_series.omega_to_frame(omega)[0] for omega in omega_eval
                 ]
                 if -1 in frame_indices:
                     logger.warning(f"window for {hkl} falls outside omega range")
@@ -1838,10 +1793,7 @@ class HEDMInstrument(object):
 
                 omega_edges = omega_image_series.omega[frame_indices[0]][0]
                 patch_data_raw = np.stack(
-                    [
-                        omega_image_series[i, ijs[0], ijs[1]]
-                        for i in frame_indices
-                    ],
+                    [omega_image_series[i, ijs[0], ijs[1]] for i in frame_indices],
                     axis=0,
                 )
                 contains_signal = np.any(patch_data_raw > threshold)
@@ -1857,9 +1809,7 @@ class HEDMInstrument(object):
                 patch_data = patch_data_raw
 
                 # need to reshape eval pts for interpolation
-                xy_eval = np.vstack(
-                    [xy_eval[0].flatten(), xy_eval[1].flatten()]
-                ).T
+                xy_eval = np.vstack([xy_eval[0].flatten(), xy_eval[1].flatten()]).T
 
                 if contains_signal:
                     # overwrite patch data if using bilinear option
@@ -1886,10 +1836,7 @@ class HEDMInstrument(object):
 
                     peak_id = patch_id
                     coms = np.vstack(
-                        [
-                            x.weighted_centroid
-                            for x in regionprops(labels, patch_data)
-                        ]
+                        [x.weighted_centroid for x in regionprops(labels, patch_data)]
                     )
                     closest_peak_idx = np.argmin(
                         np.sum(
@@ -2024,17 +1971,14 @@ class HEDMInstrument(object):
 
         oims0 = next(iter(imgser_dict.values()))
         omega_ranges = [
-            np.radians([i['ostart'], i['ostop']])
-            for i in oims0.omegawedges.wedges
+            np.radians([i['ostart'], i['ostop']]) for i in oims0.omegawedges.wedges
         ]
         if ome_period is None:
             ims = next(iter(imgser_dict.values()))
             ome_period = np.radians(ims.omega[0, 0] + np.array([0.0, 360.0]))
 
         delta_omega = oims0.omega[0, 1] - oims0.omega[0, 0]
-        _, ome_grid = make_tolerance_grid(
-            delta_omega, ome_tol, 1, adjust_window=True
-        )
+        _, ome_grid = make_tolerance_grid(delta_omega, ome_tol, 1, adjust_window=True)
 
         sim_results = self.simulate_rotation_series(
             plane_data,
@@ -2071,8 +2015,7 @@ class HEDMInstrument(object):
                 omega_eval = np.degrees(angs[2]) + ome_grid
 
                 frame_indices = [
-                    omega_image_series.omega_to_frame(omega)[0]
-                    for omega in omega_eval
+                    omega_image_series.omega_to_frame(omega)[0] for omega in omega_eval
                 ]
                 if -1 in frame_indices:
                     logger.warning(
@@ -2084,10 +2027,7 @@ class HEDMInstrument(object):
                 ii, jj = polygon(ijs[:, 0], ijs[:, 1])
 
                 patch_data_raw = np.stack(
-                    [
-                        omega_image_series[i_frame, ii, jj]
-                        for i_frame in frame_indices
-                    ],
+                    [omega_image_series[i_frame, ii, jj] for i_frame in frame_indices],
                     axis=0,
                 )
                 patch_has_signal.append(np.any(patch_data_raw > threshold))
@@ -2185,9 +2125,7 @@ class HEDMInstrument(object):
         )
 
         if panel.distortion is not None:
-            meas_xy = panel.distortion.apply_inverse(
-                np.atleast_2d(meas_xy)
-            ).flatten()
+            meas_xy = panel.distortion.apply_inverse(np.atleast_2d(meas_xy)).flatten()
         return meas_xy
 
     def update_memoization_sizes(self):
@@ -2197,9 +2135,7 @@ class HEDMInstrument(object):
         PlanarDetector.update_memoization_sizes(all_panels)
         CylindricalDetector.update_memoization_sizes(all_panels)
 
-    def calc_transmission(
-        self, rMat_s: np.ndarray = None
-    ) -> dict[str, np.ndarray]:
+    def calc_transmission(self, rMat_s: np.ndarray = None) -> dict[str, np.ndarray]:
         """calculate the transmission from the
         filter and polymer coating. the inverse of this
         number is the intensity correction that needs
@@ -2219,19 +2155,15 @@ class HEDMInstrument(object):
             transmission = transmission_filter * transmission_phosphor
 
             if self.physics_package is not None:
-                transmission_physics_package = (
-                    det.calc_physics_package_transmission(
-                        energy, rMat_s, self.physics_package
-                    )
+                transmission_physics_package = det.calc_physics_package_transmission(
+                    energy, rMat_s, self.physics_package
                 )
                 effective_pinhole_area = det.calc_effective_pinhole_area(
                     self.physics_package
                 )
 
                 transmission = (
-                    transmission
-                    * transmission_physics_package
-                    * effective_pinhole_area
+                    transmission * transmission_physics_package * effective_pinhole_area
                 )
 
             transmissions[det_name] = transmission
@@ -2370,25 +2302,21 @@ class GrainDataWriter(object):
             self.fid.close()
 
     def dump_grain(self, grain_id, completeness, chisq, grain_params):
-        assert (
-            len(grain_params) == 12
-        ), "len(grain_params) must be 12, not %d" % len(grain_params)
+        assert len(grain_params) == 12, "len(grain_params) must be 12, not %d" % len(
+            grain_params
+        )
 
         # extract strain
         emat = logm(np.linalg.inv(mutil.vecMVToSymm(grain_params[6:])))
         evec = mutil.symmToVecMV(emat, scale=False)
 
         res = (
-            [int(grain_id), completeness, chisq]
-            + grain_params.tolist()
-            + evec.tolist()
+            [int(grain_id), completeness, chisq] + grain_params.tolist() + evec.tolist()
         )
 
         if self.array is not None:
             row = self._array_row
-            assert (
-                row < self.array.shape[0]
-            ), f'invalid row {row} in array table'
+            assert row < self.array.shape[0], f'invalid row {row} in array table'
             self.array[row] = res
             self._array_row += 1
             return res
@@ -2396,12 +2324,8 @@ class GrainDataWriter(object):
         # (else) format and write to file
         output_str = self._delim.join(
             [
-                self._delim.join(['{:<12d}', '{:<12f}', '{:<12e}']).format(
-                    *res[:3]
-                ),
-                self._delim.join(np.tile('{:<23.16e}', len(res) - 3)).format(
-                    *res[3:]
-                ),
+                self._delim.join(['{:<12d}', '{:<12f}', '{:<12e}']).format(*res[:3]),
+                self._delim.join(np.tile('{:<23.16e}', len(res) - 3)).format(*res[3:]),
             ]
         )
         print(output_str, file=self.fid)
@@ -2648,28 +2572,19 @@ class GenerateEtaOmeMaps(object):
             #     the omegas attribute?
             owedges = this_det_ims.omegawedges.wedges
             ostart = owedges[0]['ostart']  # !!! DEGREES
-            ostop = float(
-                mapAngle(owedges[-1]['ostop'], ome_period, units='degrees')
-            )
+            ostop = float(mapAngle(owedges[-1]['ostop'], ome_period, units='degrees'))
             # compute total nsteps
             # FIXME: need check for roundoff badness
             nsteps = int((ostop - ostart) / delta_ome)
-            ome_edges_full = np.linspace(
-                ostart, ostop, num=nsteps + 1, endpoint=True
-            )
-            omegas_array = np.vstack(
-                [ome_edges_full[:-1], ome_edges_full[1:]]
-            ).T
+            ome_edges_full = np.linspace(ostart, ostop, num=nsteps + 1, endpoint=True)
+            omegas_array = np.vstack([ome_edges_full[:-1], ome_edges_full[1:]]).T
             ome_centers = np.average(omegas_array, axis=1)
 
             # use OmegaImageSeries method to determine which bins have data
             # !!! this array has -1 outside a wedge
             # !!! again assuming the valid frame order increases monotonically
             frame_mask = np.array(
-                [
-                    this_det_ims.omega_to_frame(ome)[0] != -1
-                    for ome in ome_centers
-                ]
+                [this_det_ims.omega_to_frame(ome)[0] != -1 for ome in ome_centers]
             )
 
         # ???: need to pass a threshold?
@@ -2691,9 +2606,7 @@ class GenerateEtaOmeMaps(object):
         for i_ring in range(n_rings):
             # first handle etas
             full_map = np.zeros(map_shape, dtype=float)
-            nan_mask_full = np.zeros(
-                (len(eta_mapping), map_shape[0], map_shape[1])
-            )
+            nan_mask_full = np.zeros((len(eta_mapping), map_shape[0], map_shape[1]))
             i_p = 0
             for det_key, eta_map in eta_mapping.items():
                 nan_mask = ~np.isnan(eta_map[i_ring])
@@ -2872,9 +2785,7 @@ def _extract_detector_line_positions(
     # =================================================================
     # LOOP OVER RING SETS
     # =================================================================
-    pbar_rings = partial(
-        tqdm, total=len(pow_angs), desc="Ringset", position=pbp
-    )
+    pbar_rings = partial(tqdm, total=len(pow_angs), desc="Ringset", position=pbp)
 
     kwargs = {
         'instr_cfg': instr_cfg,
@@ -3056,9 +2967,7 @@ def _extract_ring_line_positions(
                                     np.vstack(
                                         [
                                             np.radians(this_tth0),
-                                            np.tile(
-                                                ang_data[-1], len(this_tth0)
-                                            ),
+                                            np.tile(ang_data[-1], len(this_tth0)),
                                         ]
                                     ).T
                                 ),

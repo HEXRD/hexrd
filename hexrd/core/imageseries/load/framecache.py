@@ -1,5 +1,6 @@
 """Adapter class for frame caches
 """
+
 import functools
 import os
 from threading import Lock
@@ -76,9 +77,7 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
         with h5py.File(self._fname, "r") as file:
             if 'HEXRD_FRAMECACHE_VERSION' not in file.attrs.keys():
                 raise NotImplementedError(
-                    "Unsupported file. "
-                    "HEXRD_FRAMECACHE_VERSION "
-                    "is missing!"
+                    "Unsupported file. " "HEXRD_FRAMECACHE_VERSION " "is missing!"
                 )
             version = file.attrs.get('HEXRD_FRAMECACHE_VERSION', 0)
             if version != 1:
@@ -278,9 +277,7 @@ def _load_framecache_npz(
             row = arrs[f"{i}_row"]
             col = arrs[f"{i}_col"]
             data = arrs[f"{i}_data"]
-            frame = csr_array((data, (row, col)),
-                               shape=shape,
-                               dtype=dtype)
+            frame = csr_array((data, (row, col)), shape=shape, dtype=dtype)
 
             # Make the data unwriteable, so we can be sure it won't be modified
             frame.data.flags.writeable = False
@@ -310,14 +307,12 @@ def _load_framecache_fch5(
         indices = file["indices"]
 
         def read_list_arrays_method_thread(i):
-            frame_data = data[frame_id[2*i]: frame_id[2*i+1]]
-            frame_indices = indices[frame_id[2*i]: frame_id[2*i+1]]
+            frame_data = data[frame_id[2 * i] : frame_id[2 * i + 1]]
+            frame_indices = indices[frame_id[2 * i] : frame_id[2 * i + 1]]
             row = frame_indices[:, 0]
             col = frame_indices[:, 1]
             mat_data = frame_data[:, 0]
-            frame = csr_array((mat_data, (row, col)),
-                               shape=shape,
-                               dtype=dtype)
+            frame = csr_array((mat_data, (row, col)), shape=shape, dtype=dtype)
 
             # Make the data unwriteable, so we can be sure it won't be modified
             frame.data.flags.writeable = False
@@ -331,7 +326,6 @@ def _load_framecache_fch5(
             # Evaluate the results via `list()`, so that if an exception is
             # raised in a thread, it will be re-raised and visible to the
             # user.
-            list(executor.map(read_list_arrays_method_thread,
-                              range(num_frames)))
+            list(executor.map(read_list_arrays_method_thread, range(num_frames)))
 
     return framelist

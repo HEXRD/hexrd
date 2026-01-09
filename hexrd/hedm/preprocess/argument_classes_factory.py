@@ -24,9 +24,7 @@ class ArgumentClassesFactory:
         return tuple(cls._creators.values())
 
     @classmethod
-    def get_args(
-        cls, profile_name: str
-    ) -> Type["profiles.HexrdPPScript_Arguments"]:
+    def get_args(cls, profile_name: str) -> Type["profiles.HexrdPPScript_Arguments"]:
         creator = cls._creators.get(profile_name)
         if not creator:
             raise ValueError(format)

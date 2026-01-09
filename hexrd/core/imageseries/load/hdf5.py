@@ -81,9 +81,7 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
 
     def get_region(self, frame_idx: int, region: RegionType) -> np.ndarray:
         r = region
-        return self.__image_dataset[frame_idx][
-            r[0][0] : r[0][1], r[1][0] : r[1][1]
-        ]
+        return self.__image_dataset[frame_idx][r[0][0] : r[0][1], r[1][0] : r[1][1]]
 
     def __iter__(self):
         return ImageSeriesIterator(self)

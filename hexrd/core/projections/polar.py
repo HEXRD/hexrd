@@ -77,9 +77,7 @@ class PolarView:
         self._eta_min = np.radians(eta_min)
         self._eta_max = np.radians(eta_max)
 
-        assert np.all(
-            np.asarray(pixel_size) > 0
-        ), 'pixel sizes must be non-negative'
+        assert np.all(np.asarray(pixel_size) > 0), 'pixel sizes must be non-negative'
         self._tth_pixel_size = pixel_size[0]
         self._eta_pixel_size = pixel_size[1]
 
@@ -258,9 +256,7 @@ class PolarView:
     # =========================================================================
     #                         ####### METHODS #######
     # =========================================================================
-    def warp_image(
-        self, image_dict, pad_with_nans=False, do_interpolation=True
-    ):
+    def warp_image(self, image_dict, pad_with_nans=False, do_interpolation=True):
         """
         Performs the polar mapping of the input images.
 
@@ -339,9 +335,7 @@ class PolarView:
             args, kwargs = self._args_project_on_detector(gvec_angs, panel)
 
             xypts = np.nan * np.ones((len(gvec_angs), 2))
-            valid_xys, rmats_s, on_plane = _project_on_detector(
-                *args, **kwargs
-            )
+            valid_xys, rmats_s, on_plane = _project_on_detector(*args, **kwargs)
             xypts[on_plane, :] = valid_xys
 
             _, on_panel = panel.clip_to_panel(xypts, buffer_edges=True)
@@ -441,21 +435,21 @@ class PolarView:
             # We pad with nans manually here
             output_img[nan_mask] = np.nan
 
-        return np.ma.masked_array(
-            data=output_img, mask=nan_mask, fill_value=0.
-        )
+        return np.ma.masked_array(data=output_img, mask=nan_mask, fill_value=0.0)
 
     def tth_to_pixel(self, tth):
         """
         convert two-theta value to pixel value (float) along two-theta axis
         """
-        return np.degrees(tth - self.tth_min)/self.tth_pixel_size
+        return np.degrees(tth - self.tth_min) / self.tth_pixel_size
 
 
-def bin_polar_view(polar_obj: PolarView,
-                   pv: np.ndarray,
-                   azimuthal_interval: float,
-                   integration_range: float):
+def bin_polar_view(
+    polar_obj: PolarView,
+    pv: np.ndarray,
+    azimuthal_interval: float,
+    integration_range: float,
+):
     '''bin the polar view image into a coarser
     grid by integration around +/- "integration_range"
     every "azimuthal_interval" degree
@@ -463,7 +457,7 @@ def bin_polar_view(polar_obj: PolarView,
     eta_mi = np.degrees(polar_obj.eta_min)
     eta_ma = np.degrees(polar_obj.eta_max)
 
-    nspec = int((eta_ma - eta_mi)/azimuthal_interval)-1
+    nspec = int((eta_ma - eta_mi) / azimuthal_interval) - 1
 
     pv_binned = np.zeros((nspec, pv.shape[1]))
 

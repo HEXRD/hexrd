@@ -17,9 +17,7 @@ LIBRARY_PATH = os.path.dirname(__file__)
 try:
     _convolve = load_library("_convolve", LIBRARY_PATH)
 except Exception:
-    raise ImportError(
-        "Convolution C extension is missing. Try re-building astropy."
-    )
+    raise ImportError("Convolution C extension is missing. Try re-building astropy.")
 
 # The GIL is automatically released by default when calling functions imported
 # from libraries loaded by ctypes.cdll.LoadLibrary(<path>)
@@ -29,9 +27,7 @@ except Exception:
 _convolveNd_c = _convolve.convolveNd_c
 _convolveNd_c.restype = None
 _convolveNd_c.argtypes = [
-    ndpointer(
-        ctypes.c_double, flags={"C_CONTIGUOUS", "WRITEABLE"}
-    ),  # return array
+    ndpointer(ctypes.c_double, flags={"C_CONTIGUOUS", "WRITEABLE"}),  # return array
     ndpointer(ctypes.c_double, flags="C_CONTIGUOUS"),  # input array
     ctypes.c_uint,  # N dim
     # size array for input and result unless
@@ -72,11 +68,7 @@ def _copy_input_if_needed(
         # Anything that's masked must be turned into NaNs for the interpolation.
         # This requires copying. A copy is also needed for nan_treatment == 'fill'
         # A copy prevents possible function side-effects of the input array.
-        if (
-            nan_treatment == 'fill'
-            or np.ma.is_masked(input)
-            or mask is not None
-        ):
+        if nan_treatment == 'fill' or np.ma.is_masked(input) or mask is not None:
             if np.ma.is_masked(input):
                 # ``np.ma.maskedarray.filled()`` returns a copy, however there
                 # is no way to specify the return type or order etc. In addition
@@ -104,9 +96,7 @@ def _copy_input_if_needed(
             # The advantage of `subok=True` is that it won't copy when array is an ndarray subclass. If it
             # is and `subok=False` (default), then it will copy even if `copy=False`. This uses less memory
             # when ndarray subclasses are passed in.
-            output = np.array(
-                input, dtype=dtype, copy=False, order=order, subok=True
-            )
+            output = np.array(input, dtype=dtype, copy=False, order=order, subok=True)
     except (TypeError, ValueError) as e:
         raise TypeError(
             'input should be a Numpy array or something '
@@ -203,9 +193,7 @@ def convolve(
 
     if boundary not in BOUNDARY_OPTIONS:
         raise ValueError(
-            "Invalid boundary option: must be one of {}".format(
-                BOUNDARY_OPTIONS
-            )
+            "Invalid boundary option: must be one of {}".format(BOUNDARY_OPTIONS)
         )
 
     if nan_treatment not in ('interpolate', 'fill'):
@@ -265,8 +253,7 @@ def convolve(
 
     if array_internal.ndim > 3:
         raise NotImplementedError(
-            'convolve only supports 1, 2, and 3-dimensional '
-            'arrays at this time'
+            'convolve only supports 1, 2, and 3-dimensional ' 'arrays at this time'
         )
     elif array_internal.ndim != kernel_internal.ndim:
         raise ValueError('array and kernel have differing number of dimensions')
@@ -302,9 +289,7 @@ def convolve(
     # Check if kernel is normalizable
     if normalize_kernel or nan_interpolate:
         kernel_sum = kernel_internal.sum()
-        kernel_sums_to_zero = np.isclose(
-            kernel_sum, 0, atol=normalization_zero_tol
-        )
+        kernel_sums_to_zero = np.isclose(kernel_sum, 0, atol=normalization_zero_tol)
 
         if kernel_sum < 1.0 / MAX_NORMALIZATION or kernel_sums_to_zero:
             raise ValueError(
@@ -340,9 +325,9 @@ def convolve(
             # Use bounds [pad_width[0]:array_shape[0]+pad_width[0]] instead of [pad_width[0]:-pad_width[0]]
             # to account for when the kernel has size of 1 making pad_width = 0.
             if array_internal.ndim == 1:
-                array_to_convolve[
-                    pad_width[0] : array_shape[0] + pad_width[0]
-                ] = array_internal
+                array_to_convolve[pad_width[0] : array_shape[0] + pad_width[0]] = (
+                    array_internal
+                )
             elif array_internal.ndim == 2:
                 array_to_convolve[
                     pad_width[0] : array_shape[0] + pad_width[0],

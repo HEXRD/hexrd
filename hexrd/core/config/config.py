@@ -46,9 +46,7 @@ class Config(object):
                 logger.debug('%s not specified, defaulting to %s', key, default)
                 res = temp.get(item, default)
             else:
-                raise RuntimeError(
-                    '%s must be specified in configuration file' % key
-                )
+                raise RuntimeError('%s must be specified in configuration file' % key)
         return res
 
     def set(self, key, val):

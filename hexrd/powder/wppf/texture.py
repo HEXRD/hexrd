@@ -545,9 +545,7 @@ def calc_sym_sph_harm(deg, theta, phi, sym='oh'):
         Intensity = np.zeros((theta.shape[0], num_sym))
         for ii in range(0, n + 1):
             if ii == 0:
-                Intensity[:, ii] = np.real(
-                    sph_harm_y(deg, nfold * ii, theta, phi)
-                )
+                Intensity[:, ii] = np.real(sph_harm_y(deg, nfold * ii, theta, phi))
             else:
                 '''we need special attention for laue
                 group d3d and d6h. for this cases the
@@ -585,13 +583,9 @@ def calc_sym_sph_harm(deg, theta, phi, sym='oh'):
         Intensity = np.zeros((theta.shape[0], num_sym))
         for ii in range(-n, n + 1):
             if ii < 0:
-                Intensity[:, ii + n] = np.imag(
-                    sph_harm_y(deg, nfold * ii, theta, phi)
-                )
+                Intensity[:, ii + n] = np.imag(sph_harm_y(deg, nfold * ii, theta, phi))
             else:
-                Intensity[:, ii + n] = np.real(
-                    sph_harm_y(deg, nfold * ii, theta, phi)
-                )
+                Intensity[:, ii + n] = np.real(sph_harm_y(deg, nfold * ii, theta, phi))
 
     return Intensity
 
@@ -749,9 +743,7 @@ class HarmonicModel:
     @sample_rmat.setter
     def sample_rmat(self, val):
         if not isinstance(val, np.ndarray) or val.shape != (3, 3):
-            msg = (
-                'either sample_rmat is not an array, or the shape is not (3,3)'
-            )
+            msg = 'either sample_rmat is not an array, or the shape is not (3,3)'
             raise ValueError(msg)
 
         self._sample_rmat = val
@@ -982,9 +974,7 @@ class HarmonicModel:
                 phi_samp = self.angs_rings_2d[hkey][:, 1]
 
             for ell in range(2, self.ell_max + 1, 2):
-                Ylm = calc_sym_sph_harm(
-                    ell, theta_samp, phi_samp, sym=self.ssym
-                )
+                Ylm = calc_sym_sph_harm(ell, theta_samp, phi_samp, sym=self.ssym)
                 if calc_type == 'texture_factor':
                     for jj in range(Ylm.shape[1]):
                         kname = f's_{ell}_{jj}'
@@ -1014,9 +1004,7 @@ class HarmonicModel:
         eta_grid = eta_min + eta_step * np.arange(1, nspec + 1)
 
         if not calc_type in ['texture_factor', 'spectrum_2d']:
-            msg = (
-                f'unknown type of grid for precomputing' f'spherical harmonics'
-            )
+            msg = f'unknown type of grid for precomputing' f'spherical harmonics'
             raise ValueError(msg)
 
         if calc_type == 'texture_factor':
@@ -1211,13 +1199,9 @@ class HarmonicModel:
                 I = self.intensities_recalc[h]
                 I = np.concatenate((I, I[mask]))
             if filled:
-                pf = self.ax[nr][nc].tricontourf(
-                    rho, r, I, levels=20, cmap=cmap
-                )
+                pf = self.ax[nr][nc].tricontourf(rho, r, I, levels=20, cmap=cmap)
             else:
-                pf = self.ax[nr][nc].tricontour(
-                    rho, r, I, levels=20, cmap=cmap
-                )
+                pf = self.ax[nr][nc].tricontour(rho, r, I, levels=20, cmap=cmap)
             self.ax[nr][nc].set_yticklabels([])
             self.ax[nr][nc].grid(grid)
             self.ax[nr][nc].set_title(f'({h})')
@@ -1529,9 +1513,7 @@ class HarmonicModel:
             phi_samp = self.rotated_angs_new[hkey][:, 1]
 
             for ell in range(2, self.ell_max + 1, 2):
-                Ylm = calc_sym_sph_harm(
-                    ell, theta_samp, phi_samp, sym=self.ssym
-                )
+                Ylm = calc_sym_sph_harm(ell, theta_samp, phi_samp, sym=self.ssym)
                 for jj in range(Ylm.shape[1]):
                     kname = f's_{ell}_{jj}'
                     self.sph_s_new[hkey][kname] = Ylm[:, jj]
@@ -1816,9 +1798,7 @@ class InversePoleFigures:
     @sampling.setter
     def sampling(self, val):
         if val.lower() == "equiangular":
-            self.initialize_crystal_dir(
-                "equiangular", resolution=self.resolution
-            )
+            self.initialize_crystal_dir("equiangular", resolution=self.resolution)
 
         elif val.lower() == "fem":
             self.initialize_crystal_dir("FEM")
