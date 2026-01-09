@@ -165,7 +165,7 @@ def generate_orientation_fibers(cfg, eta_ome):
 
         discretefiber_cleanup()
     elapsed = timeit.default_timer() - start
-    logger.debug("\tfiber generation took %.3f seconds", elapsed)
+    logger.info("\tfiber generation took %.3f seconds", elapsed)
     return np.hstack(qfib)
 
 
@@ -367,7 +367,7 @@ def run_cluster(
                 ).flatten()
             qbar = tmp
 
-    logger.debug("clustering took %f seconds", timeit.default_timer() - start)
+    logger.info("clustering took %f seconds", timeit.default_timer() - start)
     logger.info(
         "Found %d orientation clusters with >=%.1f%% completeness"
         " and %2f misorientation",
