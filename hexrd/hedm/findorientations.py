@@ -567,7 +567,7 @@ def generate_eta_ome_maps(cfg, hkls=None, save=True):
         fn = cfg.find_orientations.orientation_maps.file
         eta_ome.save(fn)
 
-        logger.debug(f'saved eta/ome orientation maps to "{fn}"')
+        logger.info(f'saved eta/ome orientation maps to "{fn}"')
 
     return eta_ome
 
@@ -774,7 +774,7 @@ def find_orientations(
             # generate trial orientations
             qfib = generate_orientation_fibers(cfg, eta_ome)
 
-            logger.debug(
+            logger.info(
                 "\t\t...took %f seconds", timeit.default_timer() - start
             )
         else:
@@ -811,7 +811,7 @@ def find_orientations(
             start = timeit.default_timer()
 
             qfib = generate_orientation_fibers(cfg, eta_ome)
-            logger.debug(
+            logger.info(
                 "\t\t...took %f seconds", timeit.default_timer() - start
             )
         else:
@@ -841,10 +841,10 @@ def find_orientations(
             doMultiProc=ncpus > 1,
             nCPUs=ncpus,
         )
-        logger.debug("\t\t...took %f seconds", timeit.default_timer() - start)
+        logger.info("\t\t...took %f seconds", timeit.default_timer() - start)
     completeness = np.array(completeness)
 
-    logger.debug(
+    logger.info(
         "\tSaving %d scored orientations with max completeness %f%%",
         qfib.shape[1],
         100 * np.max(completeness),
@@ -883,8 +883,8 @@ def find_orientations(
         radius=cl_radius,
     )
 
-    logger.debug("\t\t...took %f seconds", (timeit.default_timer() - start))
-    logger.debug("\tfound %d grains", qbar.shape[1])
+    logger.info("\t\t...took %f seconds", (timeit.default_timer() - start))
+    logger.info("\tfound %d grains", qbar.shape[1])
 
     results['qbar'] = qbar
 
