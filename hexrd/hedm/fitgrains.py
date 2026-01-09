@@ -472,5 +472,5 @@ def fit_grains(
         pool.close()
         pool.join()
         elapsed = timeit.default_timer() - start
-    logger.debug("fitting took %f seconds", elapsed)
+    logger.info("fitting took %f seconds", elapsed)
     return fit_results

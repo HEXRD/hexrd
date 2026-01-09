@@ -1390,7 +1390,7 @@ class LeBail(AbstractWPPF):
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
         if print_to_screen:
-            logger.debug("Finished iteration. Rwp: "
+            logger.info("Finished iteration. Rwp: "
                 f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
             )
 
@@ -2102,7 +2102,7 @@ class Rietveld(AbstractWPPF):
             self.Rwplist = np.append(self.Rwplist, self.Rwp)
             self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-            logger.debug("Finished iteration. Rwp: "
+            logger.info("Finished iteration. Rwp: "
                 f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
             )
         else:
@@ -2129,7 +2129,7 @@ class Rietveld(AbstractWPPF):
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-        logger.debug("Finished iteration. Rwp: "
+        logger.info("Finished iteration. Rwp: "
             f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
         )
 

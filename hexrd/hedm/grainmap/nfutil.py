@@ -113,7 +113,7 @@ class ProcessController:
         entry = self.timing.pop()
         assert name == entry[0]
         total = t - entry[2]
-        logger.debug(
+        logger.info(
             f"{entry[0]} took {total:8.3f}s ({total / entry[1]:8.6f}s per item)."
         )
 
