@@ -37,6 +37,8 @@ the units to only those used by the heXRD package.
 import doctest
 import math
 
+import numpy as np
+
 from hexrd.core.constants import keVToAngstrom
 
 
@@ -311,6 +313,28 @@ def valWithDflt(val, dflt, toUnit=None):
         retval = toFloat(retval, toUnit)
     return retval
 
+
+FloatLike = float | np.floating
+
+
+def _nm(x: FloatLike) -> valWUnit:
+    return valWUnit("lp", "length", x, "nm")
+
+
+def _kev(x: FloatLike) -> valWUnit:
+    return valWUnit("kev", "energy", x, "keV")
+
+
+def _angstrom(x: FloatLike) -> valWUnit:
+    return valWUnit("lp", "length", x, "angstrom")
+
+
+def _degrees(x: FloatLike) -> valWUnit:
+    return valWUnit('lp', 'angle', x, 'degrees')
+
+
+# Function alias
+_angstroms = _angstrom
 
 if __name__ == '__main__':  # pragma: no cover
     #

@@ -12,7 +12,7 @@ from hexrd.core import constants
 from hexrd.core.material import Material, symmetry, symbols
 from hexrd.core.material.spacegroup import Allowed_HKLs, SpaceGroup
 from hexrd.core.material.unitcell import _calcstar, _rqpDict
-from hexrd.core.valunits import valWUnit
+from hexrd.core.valunits import _nm, valWUnit
 from hexrd.powder.wppf.xtal import (
     _calc_dspacing,
     _get_tth,
@@ -22,14 +22,6 @@ from hexrd.powder.wppf.xtal import (
     _get_sf_hkl_factors,
 )
 import hexrd.core.resources
-
-
-def _kev(x):
-    return valWUnit('beamenergy', 'energy', x, 'keV')
-
-
-def _nm(x):
-    return valWUnit('lp', 'length', x, 'nm')
 
 
 class AbstractMaterial:

@@ -8,7 +8,7 @@ import pytest
 from hexrd.instrument import HEDMInstrument
 from hexrd.material import Material
 from hexrd.projections.polar import bin_polar_view, PolarView
-from hexrd.valunits import valWUnit
+from hexrd.valunits import _angstrom, _kev
 from hexrd.wppf import Rietveld
 from hexrd.wppf.phase import Material_Rietveld
 from hexrd.wppf.texture import HarmonicModel
@@ -38,14 +38,6 @@ def texture_img_dict(
         path = texture_examples_path / f'{k}.tiff'
         img_dict[k] = np.array(Image.open(path))
     return img_dict
-
-
-def _angstrom(x):
-    return valWUnit('wavelength', 'length', x, 'angstrom')
-
-
-def _kev(x):
-    return valWUnit('xray_energy', 'energy', x, 'keV')
 
 
 def get_lineout(pv):
