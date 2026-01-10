@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from hexrd.material import load_materials_hdf5
-from hexrd.valunits import valWUnit
+from hexrd.valunits import _angstrom, _kev, _nm
 from hexrd.wppf import LeBail, Rietveld
 from hexrd.wppf.amorphous import Amorphous
 
@@ -84,18 +84,6 @@ def wppf_amorphous_kwargs(
         "peakshape": "pvtch",
         "amorphous_model": wppf_amorphous_object,
     }
-
-
-def _nm(x):
-    return valWUnit("lp", "LENGTH", x, "nm")
-
-
-def _angstrom(x):
-    return valWUnit("lp", "LENGTH", x, "angstrom")
-
-
-def _kev(x):
-    return valWUnit("accvoltage", "ENERGY", x, "keV")
 
 
 def test_wppf_amorphous_rietveld(wppf_amorphous_kwargs: dict):

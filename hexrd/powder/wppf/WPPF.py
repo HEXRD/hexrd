@@ -23,7 +23,7 @@ from hexrd.core import constants
 from hexrd.core.imageutil import snip1d_quad
 from hexrd.core.material import Material
 from hexrd.core.transforms.xfcapi import angles_to_gvec
-from hexrd.core.valunits import valWUnit
+from hexrd.core.valunits import _nm, valWUnit
 from hexrd.powder.wppf.peakfunctions import (
     calc_rwp,
     computespectrum_pvfcj,
@@ -883,10 +883,6 @@ class AbstractWPPF(ABC):
     @property
     def tthfull(self):
         return self.tth_list
-
-
-def _nm(x):
-    return valWUnit("lp", "length", x, "nm")
 
 
 class LeBail(AbstractWPPF):

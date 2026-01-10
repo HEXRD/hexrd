@@ -71,11 +71,15 @@ the HKL evaluation.
 
 from collections import OrderedDict
 from math import sqrt, floor
+from typing import TYPE_CHECKING
 
 from hexrd.core import constants
 from hexrd.core.material import symbols, symmetry
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from hexrd.core.material import Material
 
 #
 __all__ = ['SpaceGroup']
@@ -372,7 +376,7 @@ _rqpDict = {
 }
 
 
-def get_symmetry_directions(mat):
+def get_symmetry_directions(mat: 'Material') -> np.ndarray:
     """
     helper function to get a list of primary,
     secondary and tertiary directions of the
@@ -393,37 +397,37 @@ def get_symmetry_directions(mat):
     ltype = mat.latticeType
 
     if ltype == "triclinic":
-        primary = np.array([0, 0, 1])
-        secondary = np.array([0, 1, 0])
-        tertiary = np.array([1, 0, 0])
+        primary = [0, 0, 1]
+        secondary = [0, 1, 0]
+        tertiary = [1, 0, 0]
     elif ltype == "monoclinic":
-        primary = np.array([0, 1, 0])
-        secondary = np.array([1, 0, 0])
-        tertiary = np.array([0, 0, 1])
+        primary = [0, 1, 0]
+        secondary = [1, 0, 0]
+        tertiary = [0, 0, 1]
     elif ltype == "orthorhombic":
-        primary = np.array([1, 0, 0])
-        secondary = np.array([0, 1, 0])
-        tertiary = np.array([1, 0, 1])
+        primary = [1, 0, 0]
+        secondary = [0, 1, 0]
+        tertiary = [1, 0, 1]
     elif ltype == "tetragonal":
-        primary = np.array([0, 0, 1])
-        secondary = np.array([1, 0, 0])
-        tertiary = np.array([1, 1, 0])
+        primary = [0, 0, 1]
+        secondary = [1, 0, 0]
+        tertiary = [1, 1, 0]
     elif ltype == "trigonal":
         # it is assumed that trigonal crystals are
         # represented in the hexagonal basis
-        primary = np.array([0, 0, 1])
-        secondary = np.array([1, 0, 0])
-        tertiary = np.array([1, 2, 0])
+        primary = [0, 0, 1]
+        secondary = [1, 0, 0]
+        tertiary = [1, 2, 0]
     elif ltype == "hexagonal":
-        primary = np.array([0, 0, 1])
-        secondary = np.array([1, 0, 0])
-        tertiary = np.array([1, 2, 0])
+        primary = [0, 0, 1]
+        secondary = [1, 0, 0]
+        tertiary = [1, 2, 0]
     elif ltype == "cubic":
-        primary = np.array([0, 0, 1])
-        secondary = np.array([1, 1, 1])
-        tertiary = np.array([1, 1, 0])
+        primary = [0, 0, 1]
+        secondary = [1, 1, 1]
+        tertiary = [1, 1, 0]
 
-    return (primary, secondary, tertiary)
+    return np.array([primary, secondary, tertiary])
 
 
 def Allowed_HKLs(sgnum, hkllist):

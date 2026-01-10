@@ -1,3 +1,5 @@
+import logging
+
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 import numpy as np
@@ -5,6 +7,7 @@ import numpy as np
 from hexrd.core.material import Material
 from hexrd.core.material.spacegroup import get_symmetry_directions
 
+logger = logging.getLogger(__name__)
 
 """
 define some helper functions
@@ -50,9 +53,8 @@ def expected_num_variants(
     return int(len(sym1) / ctr)
 
 
-def get_rmats(p1: np.ndarray, d1: np.ndarray, mat: Material) -> np.ndarray:
+def get_rmats(p1: np.ndarray, d1: np.ndarray) -> np.ndarray:
     """get rotation matrix"""
-    sym = mat.unitcell.SYM_PG_c
     z = p1
     x = d1
     y = np.cross(z, x)
@@ -99,9 +101,7 @@ def prepare_data(
 
 # main function
 # get the variants
-def getOR(
-    r1: np.ndarray, r2: np.ndarray, mat1: Material, mat2: Material
-) -> np.ndarray:
+def getOR(r1: np.ndarray, r2: np.ndarray, mat1: Material, mat2: Material) -> np.ndarray:
     """
     r1 ---> mat1
     r2 ---> mat2
@@ -122,9 +122,7 @@ def getOR(
     return np.array(rmat_t)
 
 
-def plot_OR_mat(
-    rmat: np.ndarray, mat: Material, fig: Figure, ax: Axes, title: str
-):
+def plot_OR_mat(rmat: np.ndarray, mat: Material, fig: Figure, ax: Axes, title: str):
     font = {
         "family": "serif",
         "weight": "bold",
@@ -168,10 +166,13 @@ def plot_OR(
     rmat_variants: np.ndarray,
     mat1: Material,
     mat2: Material,
-    fig=None,
-    ax=None,
+    fig: Figure | None = None,
+    ax: Axes | None = None,
 ):
-    import mplstereonet
+    try:
+        import mplstereonet
+    except ImportError:
+        raise RuntimeError('mplstereonet must be installed to use plot_OR')
 
     if fig is None or ax is None:
         fig, ax = mplstereonet.subplots(
@@ -181,9 +182,7 @@ def plot_OR(
     plot_OR_mat(rmat_parent, mat1, fig, ax[0], title="Parent")
     plot_OR_mat(rmat_variants, mat2, fig, ax[1], title="Variants")
     # cosmetic
-    fig.subplots_adjust(
-        hspace=0, wspace=0.05, left=0.01, bottom=0.1, right=0.99
-    )
+    fig.subplots_adjust(hspace=0, wspace=0.05, left=0.01, bottom=0.1, right=0.99)
     fig.show()
 
 
@@ -218,23 +217,19 @@ def getPhaseTransformationVariants(
     if rmat_parent is None:
         rmat_parent = np.array([np.eye(3)])
 
-    (p1, p2), (d1, d2) = prepare_data(
-        mat1, mat2, parallel_planes, parallel_directions
-    )
+    (p1, p2), (d1, d2) = prepare_data(mat1, mat2, parallel_planes, parallel_directions)
 
-    r1 = get_rmats(p1, d1, mat1)
-    r2 = get_rmats(p2, d2, mat2)
+    r1 = get_rmats(p1, d1)
+    r2 = get_rmats(p2, d2)
 
     rmat_variants = getOR(r1, r2, mat1, mat2)
 
     num_var = expected_num_variants(mat1, mat2, r1, r2)
 
     if verbose:
-        print("Expected # of orientational variants = ", num_var)
-        print(
-            "number of orientation variants in phase transition = ",
-            len(rmat_variants),
-            "\n",
+        logger.info(f'Expected # of orientational variants = {num_var}')
+        logger.info(
+            f'number of orientation variants in phase transition = {len(rmat_variants)}'
         )
 
     if plot:

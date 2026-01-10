@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -7,14 +9,13 @@ from hexrd.valunits import _kev, _nm
 
 
 @pytest.fixture
-def test_variants_material_file(test_data_dir):
-    return f'{test_data_dir}/materials/materials_variants.h5'
+def test_variants_material_file(test_data_dir: Path) -> Path:
+    return test_data_dir / 'materials/materials_variants.h5'
 
 
-def test_variants(test_variants_material_file):
+def test_variants(test_variants_material_file: Path):
     beamenergy = _kev(10)
     dmin = _nm(0.075)
-    print(test_variants_material_file)
     mats = load_materials_hdf5(
         test_variants_material_file, dmin=dmin, kev=beamenergy
     )

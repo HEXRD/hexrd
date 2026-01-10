@@ -39,7 +39,7 @@ import numpy as np
 from hexrd.core.material.crystallography import PlaneData as PData
 from hexrd.core.material import symmetry, unitcell
 from hexrd.core.material.symbols import two_origin_choice
-from hexrd.core.valunits import valWUnit
+from hexrd.core.valunits import _angstroms, _degrees, _kev, valWUnit
 from hexrd.core.constants import ptable, ptableinverse, chargestate
 
 from os import path
@@ -63,18 +63,6 @@ logger = logging.getLogger(__name__)
 #
 # ================================================== Module Data
 #
-
-
-def _angstroms(x):
-    return valWUnit('lp', 'length', x, 'angstrom')
-
-
-def _degrees(x):
-    return valWUnit('lp', 'angle', x, 'degrees')
-
-
-def _kev(x):
-    return valWUnit('xrayenergy', 'energy', x, 'keV')
 
 
 def _key(x):
