@@ -39,6 +39,7 @@ from hexrd.core.material import symmetry, unitcell
 from hexrd.core.material.symbols import two_origin_choice
 from hexrd.core.valunits import valWUnit
 from hexrd.core.constants import ptable, ptableinverse, chargestate
+from hexrd.core.utils.logger import redirect_stdout_to_logger
 
 from os import path
 from pathlib import Path
@@ -1153,7 +1154,11 @@ class Material(object):
         cf = CifFile()
         cb = self.to_cif_block()
         cf[self.name] = cb
-        cif_text = cf.WriteOut()
+
+        with redirect_stdout_to_logger():
+            # WriteOut prints unwanted output to stdout; redirect to logger
+            cif_text = cf.WriteOut()
+
         fp = Path(filepath)
         with open(fp, 'w') as f:
             f.write(cif_text)
