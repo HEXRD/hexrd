@@ -1124,12 +1124,27 @@ class Material(object):
         cb.AddItem('_cell_angle_gamma', f"{gamma:.8f}")
         cb.AddItem('_cell_volume', f"{self.vol:.8f}")
         cb.AddItem('_symmetry_Int_Tables_number', str(int(self.sgnum)))
-        cb.AddItem('_atom_site_label', labels)
-        cb.AddItem('_atom_site_type_symbol', type_symbols)
-        cb.AddItem('_atom_site_fract_x', x_coords)
-        cb.AddItem('_atom_site_fract_y', y_coords)
-        cb.AddItem('_atom_site_fract_z', z_coords)
-        cb.AddItem('_atom_site_occupancy', occupancy)
+
+        # Atom site output (proper CIF loop_)
+        site_loop_names = [
+            '_atom_site_type_symbol',
+            '_atom_site_label',
+            '_atom_site_fract_x',
+            '_atom_site_fract_y',
+            '_atom_site_fract_z',
+            '_atom_site_occupancy',
+        ]
+        site_loop_data = [
+            type_symbols,
+            labels,
+            x_coords,
+            y_coords,
+            z_coords,
+            occupancy,
+        ]
+        for name, data in zip(site_loop_names, site_loop_data):
+            cb.AddItem(name, data)
+        cb.CreateLoop(site_loop_names)
 
         return cb
 
