@@ -41,8 +41,10 @@ from hexrd.core.material import symmetry, unitcell
 from hexrd.core.material.symbols import two_origin_choice
 from hexrd.core.valunits import _angstroms, _degrees, _kev, valWUnit
 from hexrd.core.constants import ptable, ptableinverse, chargestate
+from hexrd.core.utils.logger import redirect_stdout_to_logger
 
 from os import path
+import logging
 from pathlib import Path
 from CifFile import ReadCif, CifFile, CifBlock
 import h5py
@@ -1090,12 +1092,27 @@ class Material(object):
         cb.AddItem('_cell_angle_gamma', f"{gamma:.8f}")
         cb.AddItem('_cell_volume', f"{self.vol:.8f}")
         cb.AddItem('_symmetry_Int_Tables_number', str(int(self.sgnum)))
-        cb.AddItem('_atom_site_label', labels)
-        cb.AddItem('_atom_site_type_symbol', type_symbols)
-        cb.AddItem('_atom_site_fract_x', x_coords)
-        cb.AddItem('_atom_site_fract_y', y_coords)
-        cb.AddItem('_atom_site_fract_z', z_coords)
-        cb.AddItem('_atom_site_occupancy', occupancy)
+
+        # Atom site output (proper CIF loop_)
+        site_loop_names = [
+            '_atom_site_type_symbol',
+            '_atom_site_label',
+            '_atom_site_fract_x',
+            '_atom_site_fract_y',
+            '_atom_site_fract_z',
+            '_atom_site_occupancy',
+        ]
+        site_loop_data = [
+            type_symbols,
+            labels,
+            x_coords,
+            y_coords,
+            z_coords,
+            occupancy,
+        ]
+        for name, data in zip(site_loop_names, site_loop_data):
+            cb.AddItem(name, data)
+        cb.CreateLoop(site_loop_names)
 
         return cb
 
@@ -1104,7 +1121,11 @@ class Material(object):
         cf = CifFile()
         cb = self.to_cif_block()
         cf[self.name] = cb
-        cif_text = cf.WriteOut()
+
+        with redirect_stdout_to_logger(logger, level=logging.DEBUG):
+            # WriteOut prints unwanted output to stdout; redirect to logger
+            cif_text = cf.WriteOut()
+
         fp = Path(filepath)
         with open(fp, 'w') as f:
             f.write(cif_text)
