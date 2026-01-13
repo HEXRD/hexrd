@@ -42,6 +42,7 @@ from hexrd.core.constants import ptable, ptableinverse, chargestate
 from hexrd.core.utils.logger import redirect_stdout_to_logger
 
 from os import path
+import logging
 from pathlib import Path
 from CifFile import ReadCif, CifFile, CifBlock
 import h5py
@@ -57,6 +58,7 @@ from hexrd.core.fitting.peakfunctions import _unit_gaussian
 
 __all__ = ['Material', 'loadMaterialList']
 
+logger = logging.getLogger(__name__)
 
 #
 # ================================================== Module Data
@@ -1155,7 +1157,7 @@ class Material(object):
         cb = self.to_cif_block()
         cf[self.name] = cb
 
-        with redirect_stdout_to_logger():
+        with redirect_stdout_to_logger(logger, level=logging.DEBUG):
             # WriteOut prints unwanted output to stdout; redirect to logger
             cif_text = cf.WriteOut()
 

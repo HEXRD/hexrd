@@ -1,10 +1,13 @@
-import logging
 from contextlib import contextmanager, redirect_stdout
+from typing import Iterator
+import logging
 import io
 
 
 @contextmanager
-def redirect_stdout_to_logger(level=logging.DEBUG):
+def redirect_stdout_to_logger(
+    logger: logging.Logger, level: int = logging.DEBUG
+) -> Iterator[None]:
     """
     Context manager to redirect stdout to a logger.
 
@@ -12,13 +15,12 @@ def redirect_stdout_to_logger(level=logging.DEBUG):
     ----------
     level : int, optional
         Logging level (default: logging.DEBUG)
-    
+
     Examples
     --------
     >>> with redirect_stdout_to_logger(logging.DEBUG):
     ...     some_function_that_prints()
     """
-    logger = logging.getLogger(__name__)
     captured = io.StringIO()
 
     with redirect_stdout(captured):
