@@ -57,8 +57,6 @@ logger = logging.getLogger(__name__)
 
 # units
 dUnit = 'angstrom'
-outputDegrees = False
-outputDegrees_bak = outputDegrees
 
 
 def hklToStr(hkl: np.ndarray) -> str:
@@ -156,10 +154,6 @@ def latticeParameters(lvec):
     gama = np.arccos(np.dot(ahat, bhat))
     beta = np.arccos(np.dot(ahat, chat))
     alfa = np.arccos(np.dot(bhat, chat))
-    if outputDegrees:
-        gama = r2d * gama
-        beta = r2d * beta
-        alfa = r2d * alfa
 
     return [a, b, c, alfa, beta, gama]
 
@@ -264,8 +258,6 @@ def latticePlanes(
     d = 1 / np.sqrt(np.sum(G**2, 0))
 
     aconv = 1.0
-    if outputDegrees:
-        aconv = r2d
 
     # two thetas
     sth = wlen / 2.0 / d
@@ -515,12 +507,8 @@ def latticeVectors(
 
     BR = np.c_[afable, bfable, cfable]
     U0 = np.dot(B, np.linalg.inv(BR))
-    if outputDegrees:
-        dparms = np.r_[ad, bd, cd, r2d * np.r_[alpha, beta, gamma]]
-        rparms = np.r_[ar, br, cr, r2d * np.r_[alfar, betar, gamar]]
-    else:
-        dparms = np.r_[ad, bd, cd, np.r_[alpha, beta, gamma]]
-        rparms = np.r_[ar, br, cr, np.r_[alfar, betar, gamar]]
+    dparms = np.r_[ad, bd, cd, np.r_[alpha, beta, gamma]]
+    rparms = np.r_[ar, br, cr, np.r_[alfar, betar, gamar]]
 
     return {
         'F': F,
@@ -567,8 +555,6 @@ def rhombohedralParametersFromHexagonal(a_h, c_h):
     """
     a_r = np.sqrt(3 * a_h**2 + c_h**2) / 3.0
     alfa_r = 2 * np.arcsin(3.0 / (2 * np.sqrt(3 + (c_h / a_h) ** 2)))
-    if outputDegrees:
-        alfa_r = r2d * alfa_r
     return a_r, alfa_r
 
 
@@ -1852,8 +1838,7 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
        (i.e. ome1 = <result> + ome0).  Output is in DEGREES!
 
     2) eta1 contains the azimuthal coordinates of the Friedel
-       pairs associated with the n input reflections.  Output units are
-       controlled via the module variable 'outputDegrees'
+       pairs associated with the n input reflections.
 
     NOTES:
 
@@ -2042,9 +2027,8 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     # put eta1 in [-180, 180]
     eta1 = mapAngle(r2d * eta_min, [-180, 180], units='degrees')
 
-    if not outputDegrees:
-        ome1 *= d2r
-        eta1 *= d2r
+    ome1 *= d2r
+    eta1 *= d2r
 
     return ome1, eta1
 
