@@ -349,28 +349,6 @@ def keVToAngstrom(x):
     return (1e7 * scipyc.c * scipyc.h / scipyc.e) / np.array(x, dtype=float)
 
 
-def _readenv(name, ctor, default):
-    try:
-        res = os.environ[name]
-    except KeyError:
-        return default
-    else:
-        try:
-            return ctor(res)
-        except:
-            import warnings
-
-            warnings.warn(
-                "environ %s defined but failed to parse '%s'" % (name, res),
-                RuntimeWarning,
-            )
-            del warnings
-            return default
-
-
-del _readenv
-
-
 def set_numba_cache():
     """Set the numba cache only if the following are true:
 
@@ -428,9 +406,7 @@ cAvogadro = 6.02214076e23  # Avogadro's constant Na
 cBoltzmann = 1.380649e-23  # Boltzmann's constant, K
 cCharge = 1.602176634e-19  # charge of electron
 cJ2eV = 1.602176565e-19  # joule to ev, JperkeV*1e-3
-cLight = (
-    299792458.0  # speed of light, same as c above but name is more descriptive
-)
+cLight = 299792458.0  # speed of light, same as c above but name is more descriptive
 cMoment = 9.2740100707e-24  # magnetic moment of electron
 cPermea = 1.2566370616e-6  # permeability of free space
 cPermit = 8.8541878163e-12  # permittivity of free space
