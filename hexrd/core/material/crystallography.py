@@ -79,39 +79,6 @@ def hklToStr(hkl: np.ndarray) -> str:
     return re.sub(r'[\[\]\(\)\{\},]', '', str(hkl))
 
 
-def tempSetOutputDegrees(val: bool) -> None:
-    """
-    Set the global outputDegrees flag temporarily. Can be reverted with
-    revertOutputDegrees().
-
-    Parameters
-    ----------
-    val : bool
-        True to output angles in degrees, False to output angles in radians.
-
-    Returns
-    -------
-    None
-
-    """
-    global outputDegrees, outputDegrees_bak
-    outputDegrees_bak = outputDegrees
-    outputDegrees = val
-
-
-def revertOutputDegrees() -> None:
-    """
-    Revert the effect of tempSetOutputDegrees(), resetting the outputDegrees
-    flag to its previous value (True to output in degrees, False for radians).
-
-    Returns
-    -------
-    None
-    """
-    global outputDegrees, outputDegrees_bak
-    outputDegrees = outputDegrees_bak
-
-
 def cosineXform(
     a: np.ndarray, b: np.ndarray, c: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -1170,7 +1137,6 @@ class PlaneData(object):
             List of dictionaries, each containing the data for one hkl
         """
 
-        tempSetOutputDegrees(False)
         latPlaneData = latticePlanes(
             hkls,
             lparms,
@@ -1230,7 +1196,6 @@ class PlaneData(object):
                 )
             )
 
-        revertOutputDegrees()
         return latPlaneData, latVecOps, hklDataList
 
     @property
