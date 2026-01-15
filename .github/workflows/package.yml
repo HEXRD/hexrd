@@ -2,7 +2,7 @@ name: conda-package
 
 on:
   push:
-    branches: [ master, conda-build ]
+    branches: [ master ]
     tags: ["*"]
   pull_request:
     branches: [ master ]
@@ -83,29 +83,29 @@ jobs:
       # command works.
       shell: bash -l {0}
 
-    # - name: Upload the package to anaconda channel (tag push to master)
-    #   if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
-    #   run: |
-    #       conda activate hexrd
-    #       anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --force --user HEXRD output/**/*.tar.bz2
-    #   # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
-    #   # command works.
-    #   shell: bash -l {0}
+    - name: Upload the package to anaconda channel (tag push to master)
+      if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+      run: |
+          conda activate hexrd
+          anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --force --user HEXRD output/**/*.tar.bz2
+      # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
+      # command works.
+      shell: bash -l {0}
 
-    # - name: Upload the package to anaconda prerelease channel (upload push to master)
-    #   if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    #   run: |
-    #       conda activate hexrd
-    #       anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --force --user HEXRD --label prerelease output/**/*.tar.bz2
-    #   # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
-    #   # command works.
-    #   shell: bash -l {0}
+    - name: Upload the package to anaconda prerelease channel (upload push to master)
+      if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+      run: |
+          conda activate hexrd
+          anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --force --user HEXRD --label prerelease output/**/*.tar.bz2
+      # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
+      # command works.
+      shell: bash -l {0}
 
-    # - name: Get version for the artifact names
-    #   run: echo "HEXRD_GIT_DESCRIBE=$(git describe --tag)" >> $GITHUB_ENV
+    - name: Get version for the artifact names
+      run: echo "HEXRD_GIT_DESCRIBE=$(git describe --tag)" >> $GITHUB_ENV
 
-    # - name: Upload the package to github
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: HEXRD-${{ matrix.config.name }}-${{ env.HEXRD_GIT_DESCRIBE }}.tar.bz2
-    #     path: output/**/*.tar.bz2
+    - name: Upload the package to github
+      uses: actions/upload-artifact@v4
+      with:
+        name: HEXRD-${{ matrix.config.name }}-${{ env.HEXRD_GIT_DESCRIBE }}.tar.bz2
+        path: output/**/*.tar.bz2
