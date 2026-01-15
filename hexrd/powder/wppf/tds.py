@@ -125,14 +125,6 @@ class TDS:
         q = 4 * np.pi * np.sin(thr) / self.wavelength
         return q
 
-    # def get_qb(self):
-    #     """get Brioullin zone radius of cubic crystal
-    #     (in A^-1)
-    #     """
-    #     # factor of 10 for nm --> A
-    #     pre = 2 * np.pi * (3 / np.pi) ** (1.0 / 3.0)
-    #     return pre / (10 * self.mat.lparms[0])
-
     def WarrenFunctionalForm(self, x, xhkl):
         xx = np.abs(x - xhkl)
         xx = self.agm / xx
@@ -182,13 +174,16 @@ class TDS:
 
     def get_TDS_contribution_hkl(self, g, j, q):
         """texture factor for random powder crystal"""
+        glen = self.mat.CalcLength(g, "r")
+        # the factor of 10 cancels out here
+        xhkl = glen * self.mat.lparms[0]
         # factor of 10 in lparms for nm --> A
-        glen = self.mat.CalcLength(g, "r") / 10
-        xhkl = glen * 10 * self.mat.lparms[0]
         x = 10 * self.mat.lparms[0] * q / np.pi / 2
         if np.isclose(glen, 0):
-            x = 10 * self.mat.lparms[0] * 10 * q / 2 / np.pi
+            C = np.zeros_like(x)
             C = self.agm**2 / 3 / x**2
+            # mask = np.abs(x) < self.agm
+            # C[mask] = self.agm**2 / 3 / x[mask] ** 2
         else:
             pre = self.agm**2 * (j / xhkl) / (6 * x)
             C = pre * self.WarrenFunctionalForm(x, xhkl)
@@ -207,11 +202,11 @@ class TDS:
         formfact = self.formfactor(q)
 
         M = self.Mdict
-        expM = dict.fromkeys(M.keys())
+        exp2M = dict.fromkeys(M.keys())
 
         for k in M.keys():
             mass = ATOM_WEIGHTS_DICT[k]
-            expM[k] = np.exp(-2 * M[k])
+            exp2M[k] = np.exp(-2 * M[k])
 
         # qb = self.get_qb()
 
@@ -219,14 +214,14 @@ class TDS:
         multiplicity = self.mat.multiplicity
 
         C = np.zeros_like(q)
-        C = self.get_TDS_contribution_hkl(np.array([0, 0, 0]), 1, q)
+        # C = self.get_TDS_contribution_hkl(np.array([0, 0, 0]), 1, q)
         for g, j in zip(hkl, multiplicity):
             C += self.get_TDS_contribution_hkl(g, j, q)
 
         thermal_diffuse = np.zeros_like(tth)
         for k, v in formfact.items():
             thermal_diffuse = v * (
-                (1 - expM[k]) + expM[k] * (2 * M[k] + M[k] ** 2) * (C - 1)
+                (1 - exp2M[k]) + exp2M[k] * (2 * M[k] + M[k] ** 2) * (C - 1)
             )
 
         return thermal_diffuse
