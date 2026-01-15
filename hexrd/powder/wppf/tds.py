@@ -125,18 +125,17 @@ class TDS:
         q = 4 * np.pi * np.sin(thr) / self.wavelength
         return q
 
-    def get_qb(self):
-        """get Brioullin zone radius of cubic crystal
-        (in A^-1)
-        """
-        # factor of 10 for nm --> A
-        pre = 2 * np.pi * (3 / np.pi) ** (1.0 / 3.0)
-        return pre / (10 * self.mat.lparms[0])
+    # def get_qb(self):
+    #     """get Brioullin zone radius of cubic crystal
+    #     (in A^-1)
+    #     """
+    #     # factor of 10 for nm --> A
+    #     pre = 2 * np.pi * (3 / np.pi) ** (1.0 / 3.0)
+    #     return pre / (10 * self.mat.lparms[0])
 
     def WarrenFunctionalForm(self, x, xhkl):
-        pre = (3 / np.pi / 2) ** (1.0 / 3.0)
         xx = np.abs(x - xhkl)
-        xx = pre / xx
+        xx = self.agm / xx
         mask = xx > 1.0
         y = np.log(xx)
         y[~mask] = 0.0
@@ -189,9 +188,9 @@ class TDS:
         x = 10 * self.mat.lparms[0] * q / np.pi / 2
         if np.isclose(glen, 0):
             x = 10 * self.mat.lparms[0] * 10 * q / 2 / np.pi
-            C = (3 / np.pi / 2) ** (2.0 / 3.0) / 3 / x**2
+            C = self.agm**2 / 3 / x**2
         else:
-            pre = (3 / np.pi / 2) ** (2.0 / 3.0) * (j / xhkl) / (6 * x)
+            pre = self.agm**2 * (j / xhkl) / (6 * x)
             C = pre * self.WarrenFunctionalForm(x, xhkl)
         return C
 
@@ -214,7 +213,7 @@ class TDS:
             mass = ATOM_WEIGHTS_DICT[k]
             expM[k] = np.exp(-2 * M[k])
 
-        qb = self.get_qb()
+        # qb = self.get_qb()
 
         hkl = self.mat.hkls
         multiplicity = self.mat.multiplicity
@@ -251,3 +250,12 @@ class TDS:
     def wavelength(self):
         # factor of 10 going from nm --> A
         return self.mat.wavelength * 10.0
+
+    @property
+    def agm(self):
+        # value for FCC crystal
+        self._agm = (3 / np.pi) ** (1.0 / 3.0)
+        if self.mat.sgnum == 229:
+            # handle the BCC case
+            self._agm = (3 / np.pi / 2) ** (1.0 / 3.0)
+        return self._agm
