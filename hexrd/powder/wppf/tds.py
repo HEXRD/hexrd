@@ -11,6 +11,7 @@ from hexrd.constants import (
     cAvogadro,
     ATOM_WEIGHTS_DICT,
 )
+from scipy.ndimage import gaussian_filter1d
 
 TDS_MODEL_TYPES = ['warren', 'experimental']
 
@@ -280,7 +281,10 @@ class TDS_material:
 
     @property
     def tds_lineout(self):
-        return self.calcTDS()
+        lo = self.calcTDS()
+        if self.smoothing is not None:
+            lo = gaussian_filter1d(lo, self.smoothing)
+        return lo
 
     @property
     def q(self):
@@ -297,3 +301,11 @@ class TDS:
                     to loop over all materials in the phase and wavelength
                     and compute the overall signal
     '''
+
+    def __init__(
+        self,
+        model_type="warren",
+        phase=None,
+        theta_D_dict=None,
+    ):
+        pass
