@@ -21,7 +21,7 @@ def check_model_type(model):
         raise ValueError(msg)
 
 
-class TDS:
+class TDS_material:
     '''
     >> @AUTHOR:     Saransh Singh,
                     Lawrence Livermore National Lab,
@@ -53,6 +53,9 @@ class TDS:
     material : hexrd.wppf.Material_Rietveld
         rietveld material class
 
+    wavelength : float
+        wavelength of x-rays in A
+
     theta_D: float
         Debye temperature for this phase. If the model type is
         "warren" then this is a user input and should not be refined.
@@ -79,7 +82,9 @@ class TDS:
         self,
         model_type="warren",
         material=None,
+        wavelength=None,
         theta_D=None,
+        tth=None,
         model_data=None,
         scale=None,
         shift=None,
@@ -97,10 +102,20 @@ class TDS:
                 raise ValueError(msg)
             self.mat = material
 
-            if theta_D is None:
-                msg = f'theta_D has to be specified for warren model'
+            if wavelength is None:
+                msg = f'wavelength has to be specified for warren model'
                 raise ValueError(msg)
-            self.that_D = theta_D
+            self._wavelength = wavelength
+
+            if theta_D is not None:
+                self._that_D = theta_D
+            else:
+                self._theta_D = np.nan
+
+            if tth is None:
+                msg = f'tth has to be specified for warren model'
+                raise ValueError(msg)
+            self.tth = tth
 
         if self.model_type == 'experimental':
             if model_data is None or not isinstance(model_type, np.ndarray):
@@ -119,11 +134,6 @@ class TDS:
             self.shift = shiftc
 
         self.smoothing = smoothing
-
-    def convert_to_q(self, tth):
-        thr = np.radians(tth * 0.5)
-        q = 4 * np.pi * np.sin(thr) / self.wavelength
-        return q
 
     def WarrenFunctionalForm(self, x, xhkl):
         xx = np.abs(x - xhkl)
@@ -189,10 +199,10 @@ class TDS:
             C = pre * self.WarrenFunctionalForm(x, xhkl)
         return C
 
-    def calcTDS(self, tth, thetaD):
-        thr = np.radians(tth * 0.5)
+    def calcTDS(self):
+        thr = np.radians(self.tth * 0.5)
 
-        q = self.convert_to_q(tth)
+        q = self.q
         s = q / 4 / np.pi
 
         sth = np.sin(thr)
@@ -218,7 +228,7 @@ class TDS:
         for g, j in zip(hkl, multiplicity):
             C += self.get_TDS_contribution_hkl(g, j, q)
 
-        thermal_diffuse = np.zeros_like(tth)
+        thermal_diffuse = np.zeros_like(self.tth)
         for k, v in formfact.items():
             thermal_diffuse = v * (
                 (1 - exp2M[k]) + exp2M[k] * (2 * M[k] + M[k] ** 2) * (C - 1)
@@ -243,8 +253,21 @@ class TDS:
 
     @property
     def wavelength(self):
-        # factor of 10 going from nm --> A
-        return self.mat.wavelength * 10.0
+        return self._wavelength
+
+    @property
+    def theta_D(self):
+        return self._theta_D
+
+    @property
+    def tth(self):
+        return self._tth
+
+    @tth.setter
+    def tth(self, ttharray):
+        self._tth = ttharray
+        thr = np.radians(ttharray * 0.5)
+        self._q = 4 * np.pi * np.sin(thr) / self.wavelength
 
     @property
     def agm(self):
@@ -254,3 +277,23 @@ class TDS:
             # handle the BCC case
             self._agm = (3 / np.pi / 2) ** (1.0 / 3.0)
         return self._agm
+
+    @property
+    def tds_lineout(self):
+        return self.calcTDS()
+
+    @property
+    def q(self):
+        return self._q
+
+
+class TDS:
+    '''
+    >> @AUTHOR:     Saransh Singh,
+                    Lawrence Livermore National Lab,
+                    saransh1@llnl.gov
+    >> @DATE:       01/09/2026 SS 1.0 original
+    >> @DETAILS:    this is just a wrapper class for the TDS_amterials
+                    to loop over all materials in the phase and wavelength
+                    and compute the overall signal
+    '''
