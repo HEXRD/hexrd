@@ -2,7 +2,7 @@ name: conda-package
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, conda-build ]
     tags: ["*"]
   pull_request:
     branches: [ master ]
@@ -15,18 +15,18 @@ jobs:
       fail-fast: false
       matrix:
         config:
-        - {
-            name: "Linux",
-            os: ubuntu-latest
-          }
-        - {
-            name: "MacOSX",
-            os: macos-15-intel
-          }
-        - {
-            name: "Windows",
-            os: windows-latest
-          }
+        - name: Linux
+          os: ubuntu-latest
+        - name: MacOSX
+          os: macos-15-intel
+        - name: Windows
+          os: windows-latest
+        python-version:
+        - "3.10"
+        - "3.11"
+        - "3.12"
+        - "3.13"
+        - "3.14"
     defaults:
       run:
         shell: bash
@@ -35,13 +35,17 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Install conda
+    - name: Install conda (cached)
       uses: conda-incubator/setup-miniconda@v3
       with:
-        auto-update-conda: true
+        miniforge-variant: Miniforge3
+        miniforge-version: latest
         python-version: 3.11
         activate-environment: hexrd
         auto-activate-base: false
+        use-mamba: true
+        cache-environment: true
+        cache-downloads: true
 
     - name: Install build requirements
       run: |
@@ -57,7 +61,6 @@ jobs:
       shell: bash -l {0}
 
     - name: Build the package (host)
-      if: ${{ matrix.config.name != 'Linux' }}
       env:
         CONDA_OVERRIDE_OSX: '11.0'
         MACOSX_DEPLOYMENT_TARGET: '11.0'
@@ -69,50 +72,40 @@ jobs:
           conda install --override-channels -c conda-forge conda-libmamba-solver
           conda config --env --set solver libmamba
           conda config --set conda_build.pkg_format 1 # force tar.bz2 files
-          conda list
 
           mkdir output
           # Conda build is ignoring the .condarc for some reason, so we need to
           # set this environment variable instead.
           # Setting this variable via `env` did not seem to work for some reason.
           export CONDA_SOLVER=libmamba
-          conda build --override-channels -c conda-forge --output-folder output/ conda.recipe/
+          conda build --override-channels -c conda-forge --output-folder output/ conda.recipe/ --python=${{ matrix.python-version }}
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
       shell: bash -l {0}
 
-    - name: Build the package (container)
-      if: ${{ matrix.config.name == 'Linux' }}
-      # AlmaLinux 8 is used for manylinux_2_28 support. This supports glibc
-      # 2.28 and later, which supports linux OS's starting in August 2018.
-      # AlmaLinux 8 will be supported with security updates until 2029.
-      uses: docker://almalinux:8
-      with:
-        entrypoint: /github/workspace/.github/workflows/container_build.sh
+    # - name: Upload the package to anaconda channel (tag push to master)
+    #   if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    #   run: |
+    #       conda activate hexrd
+    #       anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --force --user HEXRD output/**/*.tar.bz2
+    #   # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
+    #   # command works.
+    #   shell: bash -l {0}
 
-    - name: Upload the package to anaconda channel (tag push to master)
-      if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
-      run: |
-          conda activate hexrd
-          anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --force --user HEXRD output/**/*.tar.bz2
-      # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
-      # command works.
-      shell: bash -l {0}
+    # - name: Upload the package to anaconda prerelease channel (upload push to master)
+    #   if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    #   run: |
+    #       conda activate hexrd
+    #       anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --force --user HEXRD --label prerelease output/**/*.tar.bz2
+    #   # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
+    #   # command works.
+    #   shell: bash -l {0}
 
-    - name: Upload the package to anaconda prerelease channel (upload push to master)
-      if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-      run: |
-          conda activate hexrd
-          anaconda --token ${{ secrets.ANACONDA_TOKEN }} upload --force --user HEXRD --label prerelease output/**/*.tar.bz2
-      # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
-      # command works.
-      shell: bash -l {0}
+    # - name: Get version for the artifact names
+    #   run: echo "HEXRD_GIT_DESCRIBE=$(git describe --tag)" >> $GITHUB_ENV
 
-    - name: Get version for the artifact names
-      run: echo "HEXRD_GIT_DESCRIBE=$(git describe --tag)" >> $GITHUB_ENV
-
-    - name: Upload the package to github
-      uses: actions/upload-artifact@v4
-      with:
-        name: HEXRD-${{ matrix.config.name }}-${{ env.HEXRD_GIT_DESCRIBE }}.tar.bz2
-        path: output/**/*.tar.bz2
+    # - name: Upload the package to github
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: HEXRD-${{ matrix.config.name }}-${{ env.HEXRD_GIT_DESCRIBE }}.tar.bz2
+    #     path: output/**/*.tar.bz2
