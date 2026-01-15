@@ -120,7 +120,6 @@ def fit_grain_FF_reduced(grain_id):
             dirname=analysis_dirname,
             filename=spots_filename,
             return_spot_list=False,
-            quiet=True,
             check_only=False,
             interp='nearest',
         )
