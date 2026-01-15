@@ -50,8 +50,8 @@ class TDS:
         can be imported. This is the "experimental" model type.
         The experimental data can be shifted and scaled
 
-    material : hexrd.Material
-        material class
+    material : hexrd.wppf.Material_Rietveld
+        rietveld material class
 
     theta_D: float
         Debye temperature for this phase. If the model type is
@@ -92,6 +92,9 @@ class TDS:
             if material is None:
                 msg = f'material has to be specified for warren model'
                 raise ValueError(msg)
+            if not material.sgnum in [225, 229]:
+                msg = f'only FCC and BCC crystals are supported at the moment.'
+                raise ValueError(msg)
             self.mat = material
 
             if theta_D is None:
@@ -117,13 +120,18 @@ class TDS:
 
         self.smoothing = smoothing
 
+    def convert_to_q(self, tth):
+        thr = np.radians(tth * 0.5)
+        q = 4 * np.pi * np.sin(thr) / self.wavelength
+        return q
+
     def get_qb(self):
         """get Brioullin zone radius of cubic crystal
         (in A^-1)
         """
-
+        # factor of 10 for nm --> A
         pre = 2 * np.pi * (3 / np.pi) ** (1.0 / 3.0)
-        return pre / self.mat.latticeParameters[0].value
+        return pre / (10 * self.mat.lparms[0])
 
     def WarrenFunctionalForm(self, x, xhkl):
         pre = (3 / np.pi / 2) ** (1.0 / 3.0)
@@ -138,11 +146,11 @@ class TDS:
         s = (q / 4 / np.pi) ** 2
 
         formfact = {}
-        f_anomalous_data = self.mat.unitcell.f_anomalous_data
-        f_anomalous_data_sizes = self.mat.unitcell.f_anomalous_data_sizes
+        f_anomalous_data = self.mat.f_anomalous_data
+        f_anomalous_data_sizes = self.mat.f_anomalous_data_sizes
 
-        scattering_factors = np.zeros([self.mat.unitcell.atom_ntype, 11])
-        for i, a in enumerate(self.mat.atomtype):
+        scattering_factors = np.zeros([self.mat.atom_ntype, 11])
+        for i, a in enumerate(self.mat.atom_type):
             k = ptableinverse[a]
             scattering_factors[i, :] = scatfac[k]
             k = ptableinverse[a]
@@ -150,7 +158,7 @@ class TDS:
             frel_k = np.array([frel[k]])
 
         formfact = {}
-        for i, a in enumerate(self.mat.atomtype):
+        for i, a in enumerate(self.mat.atom_type):
             k = ptableinverse[a]
             formfact[k] = np.zeros_like(s)
             for ii, ss in enumerate(s):
@@ -158,7 +166,7 @@ class TDS:
                     np.squeeze(
                         np.abs(
                             _calcxrayformfactor(
-                                self.mat.unitcell.wavelength,
+                                self.mat.wavelength,
                                 ss,
                                 np.array([a]),
                                 scattering_factors,
@@ -175,40 +183,44 @@ class TDS:
 
     def get_TDS_contribution_hkl(self, g, j, q):
         """texture factor for random powder crystal"""
-        glen = self.mat.unitcell.CalcLength(g, "r") / 10
-        xhkl = glen * self.mat.latticeParameters[0].value
-        x = self.mat.latticeParameters[0].value * q / np.pi / 2
+        # factor of 10 in lparms for nm --> A
+        glen = self.mat.CalcLength(g, "r") / 10
+        xhkl = glen * 10 * self.mat.lparms[0]
+        x = 10 * self.mat.lparms[0] * q / np.pi / 2
         if np.isclose(glen, 0):
-            x = self.mat.unitcell.a * 10 * q / 2 / np.pi
+            x = 10 * self.mat.lparms[0] * 10 * q / 2 / np.pi
             C = (3 / np.pi / 2) ** (2.0 / 3.0) / 3 / x**2
         else:
             pre = (3 / np.pi / 2) ** (2.0 / 3.0) * (j / xhkl) / (6 * x)
             C = pre * self.WarrenFunctionalForm(x, xhkl)
         return C
 
-    def calcTDS(self, tth, wavelength, M, thetaD):
+    def calcTDS(self, tth, thetaD):
         thr = np.radians(tth * 0.5)
-        q = 4 * np.pi * np.sin(thr) / wavelength
+
+        q = self.convert_to_q(tth)
         s = q / 4 / np.pi
 
         sth = np.sin(thr)
         cth = np.cos(thr)
         c2th = np.cos(2 * thr)
 
-        formfact = self.formfactor(self.mat, q)
+        formfact = self.formfactor(q)
 
-        expM = dict.fromkeys(formfact.keys())
+        M = self.Mdict
+        expM = dict.fromkeys(M.keys())
+
         for k in M.keys():
             mass = ATOM_WEIGHTS_DICT[k]
             expM[k] = np.exp(-2 * M[k])
 
         qb = self.get_qb()
 
-        hkl = self.mat.planeData.getHKLs()
-        multiplicity = self.mat.planeData.getMultiplicity()
+        hkl = self.mat.hkls
+        multiplicity = self.mat.multiplicity
 
         C = np.zeros_like(q)
-        C = self.get_TDS_contribution_hkl(m, np.array([0, 0, 0]), 1, q)
+        C = self.get_TDS_contribution_hkl(np.array([0, 0, 0]), 1, q)
         for g, j in zip(hkl, multiplicity):
             C += self.get_TDS_contribution_hkl(g, j, q)
 
@@ -219,3 +231,23 @@ class TDS:
             )
 
         return thermal_diffuse
+
+    @property
+    def Mdict(self):
+        self._Mdict = {}
+        if not self.mat.aniU:
+            for U, a in zip(self.mat.U, self.mat.atom_type):
+                key = ptableinverse[a]
+                self._Mdict[key] = 8.0 * np.pi**2 * U
+        else:
+            msg = (
+                f'at least one atom has an anisotropic debye-waller factor.'
+                f' That model is in development'
+            )
+            raise ValueError(msg)
+        return self._Mdict
+
+    @property
+    def wavelength(self):
+        # factor of 10 going from nm --> A
+        return self.mat.wavelength * 10.0
