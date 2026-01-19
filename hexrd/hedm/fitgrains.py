@@ -175,48 +175,9 @@ def fit_grain_FF_reduced(grain_id):
             return_value_flag=2,
         )
 
-        # make dict to contain new culled results
-        culled_results_r = dict.fromkeys(culled_results)
-        num_refl_valid = 0
-        for det_key in culled_results_r:
-            panel = instrument.detectors[det_key]
-            presults = culled_results[det_key]
-
-            if not presults:
-                culled_results_r[det_key] = []
-                continue
-
-            ims = next(iter(imgser_dict.values()))  # grab first for the omes
-            ome_step = sum(np.r_[-1, 1] * ims.metadata['omega'][0, :])
-
-            xyo_det = np.atleast_2d(
-                np.vstack([np.r_[x[7], x[6][-1]] for x in presults])
-            )
-
-            xyo_det_fit = xyo_det_fit_dict[det_key]
-
-            xpix_tol = refit[0] * panel.pixel_size_col
-            ypix_tol = refit[0] * panel.pixel_size_row
-            fome_tol = refit[1] * ome_step
-
-            # define difference vectors for spot fits
-            x_diff = abs(xyo_det[:, 0] - xyo_det_fit['calc_xy'][:, 0])
-            y_diff = abs(xyo_det[:, 1] - xyo_det_fit['calc_xy'][:, 1])
-            ome_diff = np.degrees(
-                rotations.angularDifference(xyo_det[:, 2], xyo_det_fit['calc_omes'])
-            )
-
-            # filter out reflections with centroids more than
-            # a pixel and delta omega away from predicted value
-            idx_new = np.logical_and(
-                x_diff <= xpix_tol,
-                np.logical_and(y_diff <= ypix_tol, ome_diff <= fome_tol),
-            )
-
-            # attach to proper dict entry
-            culled_results_r[det_key] = [presults[i] for i in np.where(idx_new)[0]]
-
-            num_refl_valid += sum(idx_new)
+        culled_results_r, num_refl_valid = refine_valid_reflections(
+            culled_results, xyo_det_fit_dict, instrument, imgser_dict, refit
+        )
 
         # only execute fit if left with enough reflections
         if num_refl_valid > 12:
@@ -340,6 +301,71 @@ def determine_valid_reflections(results, instrument, analysis_dirname):
         )
 
     return culled_results, num_refl_valid, completeness
+
+
+def refine_valid_reflections(
+        culled_results, xyo_det_fit_dict, instrument, imgser_dict, refit
+):
+    """Refine valid reflections list using pixel distances
+
+    Parameters
+    ----------
+    culled_results, xyo_det_fit_dict, instrument, imgser_dict, refit
+
+    Returns
+    -------
+    culled_results_r, num_refl_valid
+    """
+    tol_xy, tol_ome = refit
+
+    # make dict to contain new culled results
+    culled_results_r = dict.fromkeys(culled_results)
+    num_refl_valid = 0
+    for det_key in culled_results_r:
+        panel = instrument.detectors[det_key]
+        presults = culled_results[det_key]
+
+        if not presults:
+            culled_results_r[det_key] = []
+            continue
+
+        ims = next(iter(imgser_dict.values()))  # grab first for the omes
+        ome_step = sum(np.r_[-1, 1] * ims.metadata['omega'][0, :])
+
+        xyo_det = np.atleast_2d(
+            np.vstack([np.r_[x[7], x[6][-1]] for x in presults])
+        )
+
+        xyo_det_fit = xyo_det_fit_dict[det_key]
+
+        xpix_tol = tol_xy * panel.pixel_size_col
+        ypix_tol = tol_xy * panel.pixel_size_row
+        fome_tol = tol_ome * ome_step
+
+        # define difference vectors for spot fits
+        x_diff = abs(xyo_det[:, 0] - xyo_det_fit['calc_xy'][:, 0])
+        y_diff = abs(xyo_det[:, 1] - xyo_det_fit['calc_xy'][:, 1])
+        ome_diff = np.degrees(
+            rotations.angularDifference(
+                xyo_det[:, 2], xyo_det_fit['calc_omes']
+            )
+        )
+
+        # filter out reflections with centroids more than
+        # a pixel and delta omega away from predicted value
+        idx_new = np.logical_and(
+            x_diff <= xpix_tol,
+            np.logical_and(y_diff <= ypix_tol, ome_diff <= fome_tol),
+        )
+
+        # attach to proper dict entry
+        culled_results_r[det_key] = [
+            presults[i] for i in np.where(idx_new)[0]
+        ]
+
+        num_refl_valid += sum(idx_new)
+
+    return culled_results_r, num_refl_valid
 
 
 def fit_grains(
