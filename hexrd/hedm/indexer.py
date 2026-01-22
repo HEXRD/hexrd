@@ -32,7 +32,6 @@ import logging
 import multiprocessing
 
 import numpy as np
-import numba
 
 import timeit
 
