@@ -2686,7 +2686,7 @@ def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
 
     # grab relevant eta coords using histogram
     pixel_etas = peta[pixel_ids]
-    reta_hist = histogram(pixel_etas, bins=eta_edges)
+    reta_hist = histogram(pixel_etas, bins=eta_edges)[0]
     bins_on_detector = np.where(reta_hist)[0]
 
     return pixel_etas, eta_edges, pixel_ids, bins_on_detector
@@ -2710,7 +2710,7 @@ def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
 
             # Unpack the params
             pixel_etas, eta_edges, pixel_ids, bins_on_detector = params
-            result = histogram(pixel_etas, eta_edges, weights=image[pixel_ids])
+            result = histogram(pixel_etas, bins=eta_edges, weights=image[pixel_ids])[0]
 
             # Note that this preserves nan values for bins not on the detector.
             this_map[i_row, bins_on_detector] = result[bins_on_detector]
