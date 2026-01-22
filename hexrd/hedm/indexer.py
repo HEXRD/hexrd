@@ -300,37 +300,6 @@ def paintGrid(
     return retval
 
 
-def _meshgrid2d(x, y):
-    """
-    Special-cased implementation of np.meshgrid.
-
-    For just two arguments, (x, y). Found to be about 3x faster on some simple
-    test arguments.
-
-    Parameters
-    ----------
-    x : TYPE
-        DESCRIPTION.
-    y : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    r1 : TYPE
-        DESCRIPTION.
-    r2 : TYPE
-        DESCRIPTION.
-
-    """
-    x, y = (np.asarray(x), np.asarray(y))
-    shape = (len(y), len(x))
-    dt = np.result_type(x, y)
-    r1, r2 = (np.empty(shape, dt), np.empty(shape, dt))
-    r1[...] = x[np.newaxis, :]
-    r2[...] = y[:, np.newaxis]
-    return (r1, r2)
-
-
 def _normalize_ranges(starts, stops, offset, ccw=False):
     """
     Range normalization.
@@ -442,41 +411,6 @@ def paintgrid_init(params):
 ###############################################################################
 
 
-@numba.njit(nogil=True, cache=True)
-def _check_dilated(eta, ome, dpix_eta, dpix_ome, etaOmeMap, threshold):
-    """Part of paintGridThis.
-
-    check if there exists a sample over the given threshold in the etaOmeMap
-    at (eta, ome), with a tolerance of (dpix_eta, dpix_ome) samples.
-
-    Note this function is "numba friendly" and will be jitted when using numba.
-
-    TODO: currently behaves like "np.any" call for values above threshold.
-    There is some ambigutiy if there are NaNs in the dilation range, but it
-    hits a value above threshold first.  Is that ok???
-
-    FIXME: works in non-numba implementation of paintGridThis only
-    <JVB 2017-04-27>
-    """
-    i_max, j_max = etaOmeMap.shape
-    ome_start, ome_stop = (
-        max(ome - dpix_ome, 0),
-        min(ome + dpix_ome + 1, i_max),
-    )
-    eta_start, eta_stop = (
-        max(eta - dpix_eta, 0),
-        min(eta + dpix_eta + 1, j_max),
-    )
-
-    for i in range(ome_start, ome_stop):
-        for j in range(eta_start, eta_stop):
-            if etaOmeMap[i, j] > threshold:
-                return 1
-            if np.isnan(etaOmeMap[i, j]):
-                return -1
-    return 0
-
-
 def paintGridThis(quat):
     """Single instance paintGrid call.
 
@@ -534,115 +468,7 @@ def paintGridThis(quat):
         threshold,
     )
 
-
-@numba.njit(nogil=True, cache=True)
-def _find_in_range(value, spans):
-    """
-    Find the index in spans where value >= spans[i] and value < spans[i].
-
-    spans is an ordered array where spans[i] <= spans[i+1]
-    (most often < will hold).
-
-    If value is not in the range [spans[0], spans[-1]], then
-    -2 is returned.
-
-    This is equivalent to "bisect_right" in the bisect package, in which
-    code it is based, and it is somewhat similar to NumPy's searchsorted,
-    but non-vectorized
-    """
-    if value < spans[0] or value >= spans[-1]:
-        return -2
-
-    # from the previous check, we know 0 is not a possible result
-    li = 0
-    ri = len(spans)
-
-    while li < ri:
-        mi = (li + ri) // 2
-        if value < spans[mi]:
-            ri = mi
-        else:
-            li = mi + 1
-
-    return li
-
-
-@numba.njit(nogil=True, cache=True)
-def _angle_is_hit(
-    ang,
-    eta_offset,
-    ome_offset,
-    hkl,
-    valid_eta_spans,
-    valid_ome_spans,
-    etaEdges,
-    omeEdges,
-    etaOmeMaps,
-    etaIndices,
-    omeIndices,
-    dpix_eta,
-    dpix_ome,
-    threshold,
-):
-    """Perform work on one of the angles.
-
-    This includes:
-
-    - filtering nan values
-
-    - filtering out angles not in the specified spans
-
-    - checking that the discretized angle fits into the sensor range (maybe
-        this could be merged with the previous test somehow, for extra speed)
-
-    - actual check for a hit, using dilation for the tolerance.
-
-    Note the function returns both, if it was a hit and if it passed the
-    filtering, as we'll want to discard the filtered values when computing
-    the hit percentage.
-
-    CAVEAT: added map-based nan filtering to _check_dilated; this may not
-    be the best option.  Perhaps filter here? <JVB 2017-04-27>
-
-    """
-    tth, eta, ome = ang
-
-    if np.isnan(tth):
-        return 0, 0
-
-    eta = _map_angle(eta, eta_offset)
-    if _find_in_range(eta, valid_eta_spans) & 1 == 0:
-        # index is even: out of valid eta spans
-        return 0, 0
-
-    ome = _map_angle(ome, ome_offset)
-    if _find_in_range(ome, valid_ome_spans) & 1 == 0:
-        # index is even: out of valid ome spans
-        return 0, 0
-
-    # discretize the angles
-    eta_idx = _find_in_range(eta, etaEdges) - 1
-    if eta_idx < 0:
-        # out of range
-        return 0, 0
-
-    ome_idx = _find_in_range(ome, omeEdges) - 1
-    if ome_idx < 0:
-        # out of range
-        return 0, 0
-
-    eta = etaIndices[eta_idx]
-    ome = omeIndices[ome_idx]
-    isHit = _check_dilated(
-        eta, ome, dpix_eta, dpix_ome, etaOmeMaps[hkl], threshold[hkl]
-    )
-    if isHit == -1:
-        return 0, 0
-    else:
-        return isHit, 1
-
-
-@numba.njit(nogil=True, cache=True)
+# @numba.njit(nogil=True, cache=True)
 def _filter_and_count_hits(
     angs_0,
     angs_1,
@@ -671,63 +497,56 @@ def _filter_and_count_hits(
     reuse hkl computation. This may not be that important, though.
 
     """
-    eta_offset = -np.pi
     ome_offset = np.min(omePeriod)
     hits = 0
     total = 0
     curr_hkl_idx = 0
     end_curr = symHKLs_ix[1]
-    count = len(angs_0)
 
-    for i in range(count):
+    for i in range(len(angs_0)):
         if i >= end_curr:
             curr_hkl_idx += 1
             end_curr = symHKLs_ix[curr_hkl_idx + 1]
 
-        # first solution
-        hit, not_filtered = _angle_is_hit(
-            angs_0[i],
-            eta_offset,
-            ome_offset,
-            curr_hkl_idx,
-            valid_eta_spans,
-            valid_ome_spans,
-            etaEdges,
-            omeEdges,
-            etaOmeMaps,
-            etaIndices,
-            omeIndices,
-            dpix_eta,
-            dpix_ome,
-            threshold,
-        )
-        hits += hit
-        total += not_filtered
+        for (tth, eta, ome) in (angs_0[i], angs_1[i]):
+            if np.isnan(tth):
+                continue
 
-        # second solution
-        hit, not_filtered = _angle_is_hit(
-            angs_1[i],
-            eta_offset,
-            ome_offset,
-            curr_hkl_idx,
-            valid_eta_spans,
-            valid_ome_spans,
-            etaEdges,
-            omeEdges,
-            etaOmeMaps,
-            etaIndices,
-            omeIndices,
-            dpix_eta,
-            dpix_ome,
-            threshold,
-        )
-        hits += hit
-        total += not_filtered
+            eta = np.mod(eta + np.pi, 2 * np.pi) - np.pi
+            ome = np.mod(ome - ome_offset, 2 * np.pi) + ome_offset
+            if np.searchsorted(valid_eta_spans, eta, side='right') & 1 == 0:
+                continue
 
-    return float(hits) / float(total) if total != 0 else 0.0
+            if np.searchsorted(valid_ome_spans, ome, side='right') & 1 == 0:
+                continue
 
+            if (eta_idx := np.searchsorted(etaEdges, eta, side='right') - 1) < 0:
+                continue
 
-@numba.njit(nogil=True, cache=True)
-def _map_angle(angle, offset):
-    """Numba-firendly equivalent to xf.mapAngle."""
-    return np.mod(angle - offset, 2 * np.pi) + offset
+            if (ome_idx := np.searchsorted(omeEdges, ome, side='right') - 1) < 0:
+                continue
+
+            eta = etaIndices[eta_idx]
+            ome = omeIndices[ome_idx]
+
+            i_max, j_max = etaOmeMaps[curr_hkl_idx].shape
+            ome_start, ome_stop = (
+                max(ome - dpix_ome, 0),
+                min(ome + dpix_ome + 1, i_max),
+            )
+            eta_start, eta_stop = (
+                max(eta - dpix_eta, 0),
+                min(eta + dpix_eta + 1, j_max),
+            )
+            if np.any(np.isnan(etaOmeMaps[curr_hkl_idx][ome_start:ome_stop, eta_start:eta_stop])):
+                hits += -1
+            elif np.any(etaOmeMaps[curr_hkl_idx][ome_start:ome_stop, eta_start:eta_stop] > threshold[curr_hkl_idx]):
+                hits += 1
+                total += 1
+            else:
+                hits += 0
+                total += 1
+
+    if total == 0:
+        return 0.0
+    return hits / total
