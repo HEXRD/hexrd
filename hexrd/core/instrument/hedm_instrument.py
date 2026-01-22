@@ -90,14 +90,7 @@ from skimage.draw import polygon
 from skimage.util import random_noise
 from hexrd.powder.wppf import wppfsupport
 
-try:
-    from fast_histogram import histogram1d
-
-    fast_histogram = True
-except ImportError:
-    from numpy import histogram as histogram1d
-
-    fast_histogram = False
+from numpy import histogram
 
 logger = logging.getLogger()
 logger.setLevel('INFO')
@@ -2693,22 +2686,10 @@ def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
 
     # grab relevant eta coords using histogram
     pixel_etas = peta[pixel_ids]
-    reta_hist = histogram(pixel_etas, eta_edges)
+    reta_hist = histogram(pixel_etas, bins=eta_edges)[0]
     bins_on_detector = np.where(reta_hist)[0]
 
     return pixel_etas, eta_edges, pixel_ids, bins_on_detector
-
-
-def run_fast_histogram(x, bins, weights=None):
-    return histogram1d(x, len(bins) - 1, (bins[0], bins[-1]), weights=weights)
-
-
-def run_numpy_histogram(x, bins, weights=None):
-    return histogram1d(x, bins=bins, weights=weights)[0]
-
-
-histogram = run_fast_histogram if fast_histogram else run_numpy_histogram
-
 
 def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
     for i_row in range(*rows):
@@ -2729,7 +2710,7 @@ def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
 
             # Unpack the params
             pixel_etas, eta_edges, pixel_ids, bins_on_detector = params
-            result = histogram(pixel_etas, eta_edges, weights=image[pixel_ids])
+            result = histogram(pixel_etas, bins=eta_edges, weights=image[pixel_ids])[0]
 
             # Note that this preserves nan values for bins not on the detector.
             this_map[i_row, bins_on_detector] = result[bins_on_detector]
