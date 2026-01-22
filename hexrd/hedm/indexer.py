@@ -468,7 +468,6 @@ def paintGridThis(quat):
         threshold,
     )
 
-# @numba.njit(nogil=True, cache=True)
 def _filter_and_count_hits(
     angs_0,
     angs_1,
