@@ -32,6 +32,7 @@ import multiprocessing
 import timeit
 
 import numpy as np
+import numba
 
 from scipy.spatial.transform import Rotation as R
 
@@ -45,6 +46,64 @@ paramMP = None
 nCPUs_DFLT = multiprocessing.cpu_count()
 logger = logging.getLogger(__name__)
 
+
+# @numba.njit(cache=True, nogil=True)
+def _evaluate_windows_numba(
+    eta_idx,
+    ome_idx,
+    hkl_ids,
+    valid,
+    nan_masks,
+    gt_masks,
+    ds_shapes,
+    dpix_eta,
+    dpix_ome,
+):
+    """
+    Numba-accelerated evaluation of window hits.
+
+    Parameters
+    ----------
+    eta_idx, ome_idx : int64[:]
+        Bin indices for each candidate (same length).
+    hkl_ids : int64[:]
+        Parent HKL index for each candidate.
+    valid : bool[:]
+        Validity mask for candidates.
+    nan_masks, gt_masks : list of 2D boolean arrays
+        Precomputed per-HKL masks.
+    ds_shapes : int64[:, :]
+        Shape (ome, eta) per HKL.
+    dpix_eta, dpix_ome : int
+        Pixel tolerances.
+
+    Returns
+    -------
+    hits : int
+    total : int
+    """
+    hits = 0
+    total = 0
+
+    for i in range(valid.shape[0]):
+        if not valid[i]:
+            continue
+
+        o0 = max(0, ome_idx[i] - dpix_ome)
+        o1 = min(ome_idx[i] + dpix_ome + 1, ds_shapes[hkl_ids[i], 0])
+
+        e0 = max(0, eta_idx[i] - dpix_eta)
+        e1 = min(eta_idx[i] + dpix_eta + 1, ds_shapes[hkl_ids[i], 1])
+
+        if np.any(nan_masks[hkl_ids[i]][o0:o1, e0:e1]):
+            hits -= 1
+        elif np.any(gt_masks[hkl_ids[i]][o0:o1, e0:e1]):
+            hits += 1
+            total += 1
+        else:
+            total += 1
+
+    return hits, total
 
 def paintGrid(
     quats,
@@ -91,9 +150,13 @@ def paintGrid(
     hkl_for_sym = np.repeat(np.arange(nHKLS), np.diff(symHKLs_ix))
 
     data_store = etaOmeMaps.dataStore
-    ds_shapes = [ds.shape for ds in data_store]
     nan_masks = [np.isnan(ds) for ds in data_store]
     gt_masks = [ds > threshold[i] for i, ds in enumerate(data_store)]
+
+    ds_shapes = np.array(
+        [ds.shape for ds in etaOmeMaps.dataStore],
+        dtype=np.int64
+    )
 
     # --- ranges and tolerances (same semantics) ---
     if omegaRange is None:
@@ -118,8 +181,7 @@ def paintGrid(
     ome_offset = np.min(omePeriod)
 
     def interleave_two_solutions(a0, a1):
-        n = a0.shape[0]
-        out = np.empty((n * 2, 3), dtype=a0.dtype)
+        out = np.empty((a0.shape[0] * 2, 3), dtype=a0.dtype)
         out[0::2, :] = a0
         out[1::2, :] = a1
         return out
@@ -161,36 +223,17 @@ def paintGrid(
         eta_idx = eta_idx.astype(np.int64, copy=False)
         ome_idx = ome_idx.astype(np.int64, copy=False)
 
-        hits = 0
-        total = 0
-
-        for hkl in range(nHKLS):
-            sel = valid & (hkl_ids == hkl)
-            if not np.any(sel):
-                continue
-
-            ds_shape = ds_shapes[hkl]
-            nm = nan_masks[hkl]
-            gm = gt_masks[hkl]
-
-            indices = np.nonzero(sel)[0]
-            for idx in indices:
-                o_i = ome_idx[idx]
-                e_i = eta_idx[idx]
-
-                o0 = max(o_i - dpix_ome, 0)
-                o1 = min(o_i + dpix_ome + 1, ds_shape[0])
-                e0 = max(e_i - dpix_eta, 0)
-                e1 = min(e_i + dpix_eta + 1, ds_shape[1])
-
-                if np.any(nm[o0:o1, e0:e1]):
-                    hits -= 1
-                elif np.any(gm[o0:o1, e0:e1]):
-                    hits += 1
-                    total += 1
-                else:
-                    total += 1
-
+        hits, total = _evaluate_windows_numba(
+            eta_idx,
+            ome_idx,
+            hkl_ids,
+            valid,
+            nan_masks,
+            gt_masks,
+            ds_shapes,
+            dpix_eta,
+            dpix_ome,
+        )
         retval.append(0.0 if total == 0 else hits / total)
 
     elapsed = timeit.default_timer() - start

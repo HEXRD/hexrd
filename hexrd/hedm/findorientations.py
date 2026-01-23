@@ -808,8 +808,6 @@ def find_orientations(
             etaTol=np.radians(cfg.find_orientations.eta.tolerance),
             omePeriod=np.radians(cfg.find_orientations.omega.period),
             threshold=on_map_threshold,
-            doMultiProc=ncpus > 1,
-            nCPUs=ncpus,
         )
         logger.info("\t\t...took %f seconds", timeit.default_timer() - start)
     completeness = np.array(completeness)
