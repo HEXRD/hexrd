@@ -1488,6 +1488,7 @@ class Rietveld(AbstractWPPF):
         amorphous_model=None,
         reset_background_params=True,
         texture_model=None,
+        tds_model=None,
         eta_min=-180,
         eta_max=180,
         eta_step=5.0,
@@ -1499,6 +1500,7 @@ class Rietveld(AbstractWPPF):
         self.peakshape = peakshape
         self.spectrum_expt = expt_spectrum
         self.amorphous_model = amorphous_model
+        self.tds_model = tds_model
 
         # extent of 2D data in the azimuth
         # important for texture analysis
@@ -1901,6 +1903,9 @@ class Rietveld(AbstractWPPF):
         if self.amorphous_model is not None:
             y += self.amorphous_model.amorphous_lineout
 
+        if self.tds_model is not None:
+            y += self.scale * self.tds_model.tds_lineout
+
         self._spectrum_sim = Spectrum(x=x, y=y)
 
         errvec, self.Rwp, self.gofF = calc_rwp(
@@ -1957,6 +1962,9 @@ class Rietveld(AbstractWPPF):
             if self.amorphous_model is not None:
                 y += self.amorphous_model.amorphous_lineout
 
+            if self.tds_model is not None:
+                y += self.scale * self.tds_model.tds_lineout
+
             simulated_2d = np.tile(y, (nspec, 1))
             mask = self.mask_2d
             mask = mask if mask is not None else np.isnan(simulated_2d)
@@ -2012,6 +2020,9 @@ class Rietveld(AbstractWPPF):
                 y += self.background.y
                 if self.amorphous_model is not None:
                     y += self.amorphous_model.amorphous_lineout
+
+                if self.tds_model is not None:
+                    y += self.scale * self.tds_model.tds_lineout
 
                 simulated_2d[irow, :] = y
 

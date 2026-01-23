@@ -1,5 +1,9 @@
 import numpy as np
 import warnings
+from hexrd.powder.wppf.phase import (
+    Phases_Rietveld,
+    Material_Rietveld,
+)
 from hexrd.wppf.xtal import _calcxrayformfactor, _calcanomalousformfactor
 from hexrd.constants import (
     ptableinverse,
@@ -55,7 +59,7 @@ class TDS_material:
         rietveld material class
 
     wavelength : float
-        wavelength of x-rays in A
+        wavelength of x-rays in Angstrom
 
     theta_D: float
         Debye temperature for this phase. If the model type is
@@ -97,6 +101,9 @@ class TDS_material:
         if self.model_type == 'warren':
             if material is None:
                 msg = f'material has to be specified for warren model'
+                raise ValueError(msg)
+            if not isinstance(material, Material_Rietveld):
+                msg = f'specify material as Material_Rietveld class'
                 raise ValueError(msg)
             if not material.sgnum in [225, 229]:
                 msg = f'only FCC and BCC crystals are supported at the moment.'
@@ -305,7 +312,89 @@ class TDS:
     def __init__(
         self,
         model_type="warren",
-        phase=None,
+        phases=None,
         theta_D_dict=None,
+        tth=None,
+        model_data=None,
+        scale=None,
+        shift=None,
+        cagliotti_uvw=None,
     ):
-        pass
+        self.model_type = model_type
+        self.theta_D = theta_D_dict
+        self.tth = tth
+        self.cagliotti = cagliotti_uvw
+        self.model_data = model_data
+        self.scale = scale
+        self.shift = shift
+        self.phases = phases
+
+    @property
+    def phases(self):
+        return self._phases
+
+    @phases.setter
+    def phases(self, phases):
+        if not isinstance(phases, Phases_Rietveld):
+            msg = f'input phase as Phases_Rietveld class'
+            raise ValueError(msg)
+        self._phases = phases
+        self.TDSmodels = {}
+        kwargs = {
+            "model_type": "warren",
+            "tth": self.tth,
+            "model_data": self.model_data,
+            "scale": self.scale,
+            "shift": self.shift,
+            "smoothing": self.smoothing,
+        }
+        for pname in self.phases:
+            self.TDSmodels[pname] = {}
+            for wavn, lam in self.phases.wavelength.items():
+                matr = self.phases[pname][wavn]
+                kwargs = {
+                    **kwargs,
+                    "material": matr,
+                    "wavelength": 10 * lam[0].getVal("nm"),
+                    "theta_D": self.theta_D[pname],
+                }
+                self.TDSmodels[pname][wavn] = TDS_material(**kwargs)
+
+    @property
+    def tds_lineout(self):
+        lineout = np.zeros_like(self.tth)
+        for p in self.phases:
+            for l in self.phases.wavelength:
+                weight = self.phases.wavelength[l][1]
+                lineout += weight * self.TDSmodels[p][l].tds_lineout
+
+        return lineout
+
+    @property
+    def cagliotti(self):
+        return self._cagliotti
+
+    @cagliotti.setter
+    def cagliotti(self, uvw):
+        '''this number defines the smoothing
+        term for the tds model. the nstrumental
+        broadening will affect tds just like the
+        elastic scattering signal. we use the
+        averageinstrumental broadening across the
+        field of view as the first approximation
+        '''
+        self._cagliotti = uvw
+        th = np.radians(0.5 * self.tth)
+        tanth = np.tan(th)
+        sigsqr = uvw[0] * tanth**2 + uvw[1] * tanth + uvw[2]
+        sigsqr = np.mean(sigsqr)
+        if sigsqr <= 0.0:
+            sigsqr = 1.0e-12
+
+        self.instrumental_broadening = np.sqrt(sigsqr) * 1e-2
+
+        tth_step = self.tth[1] - self.tth[0]
+        if not np.isclose(tth_step, 0.0):
+            self.smoothing = int(np.rint(self.instrumental_broadening / tth_step))
+        else:
+            self.smoothing = 1

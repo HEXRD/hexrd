@@ -48,7 +48,6 @@ class Material_LeBail(AbstractMaterial):
     """
 
     def __init__(self, fhdf=None, xtal=None, dmin=None, material_obj=None):
-
         self._shkl = np.zeros((15,))
 
         if isinstance(material_obj, Material):
@@ -310,7 +309,6 @@ class Material_LeBail(AbstractMaterial):
             self.twin_beta = 0.0
 
     def GenerateRecipPGSym(self):
-
         self.SYM_PG_r = self.SYM_PG_d[0, :, :]
         self.SYM_PG_r = np.broadcast_to(self.SYM_PG_r, [1, 3, 3])
         self.SYM_PG_r_laue = self.SYM_PG_d[0, :, :]
@@ -704,7 +702,6 @@ class Material_Rietveld(Material_LeBail):
 
         # using the wigner-seitz notation
         for i in range(self.atom_ntype):
-
             n = 1
             r = self.atom_pos[i, 0:3]
             r = np.hstack((r, 1.0))
@@ -740,12 +737,10 @@ class Material_Rietveld(Material_LeBail):
         self.asym_pos = asym_pos
 
     def InitializeInterpTable(self):
-
         f_anomalous_data = []
         data = importlib.resources.open_binary(hexrd.core.resources, 'Anomalous.h5')
         with h5py.File(data, 'r') as fid:
             for i in range(0, self.atom_ntype):
-
                 Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
                 gid = fid.get('/' + elem)
@@ -870,7 +865,6 @@ class AbstractPhases(ABC):
         dmin=_nm(0.05),
         wavelength={'alpha1': [_nm(0.15406), 1.0], 'alpha2': [_nm(0.154443), 0.52]},
     ):
-
         self.phase_dict = {}
 
         """
