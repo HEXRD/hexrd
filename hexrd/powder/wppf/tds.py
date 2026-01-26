@@ -141,7 +141,10 @@ class TDS_material:
                 shiftc = 0.0
             self.shift = shiftc
 
-        self.smoothing = smoothing
+        if smoothing > 0:
+            self.smoothing = smoothing
+        else:
+            self.smoothing = None
 
     def WarrenFunctionalForm(self, x, xhkl):
         xx = np.abs(x - xhkl)
