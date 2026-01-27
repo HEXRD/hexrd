@@ -311,7 +311,7 @@ def refine_valid_reflections(
         instrument: instrument.HEDMInstrument,
         imgser_dict: dict,
         refit: tuple[float, float]
-):
+) -> tuple[dict, int]:
     """Refine valid reflections list using pixel distances
 
     Parameters
