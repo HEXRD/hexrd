@@ -1899,10 +1899,16 @@ class Rietveld(AbstractWPPF):
                 y += self.computespectrum_phase(
                     p, k, Icomputed[p][k], texture_factor=texture_factor
                 )
-                lp = self.LP[p][k]
+
                 if self.tds_model is not None:
+                    t = np.radians(self.tds_model.tth)
+                    lp = (
+                        (1 + self.Ph * np.cos(t) ** 2)
+                        / np.cos(0.5 * t)
+                        / np.sin(0.5 * t) ** 2
+                    )
                     tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
-                    weight = self.phases.wavelength[l][1]
+                    weight = self.phases.wavelength[k][1]
                     y += self.scale * weight * lp * tds_signal
 
         if self.amorphous_model is not None:
@@ -1959,10 +1965,16 @@ class Rietveld(AbstractWPPF):
                         texture_factor=None,
                         fullrange=True,
                     )
-                    lp = self.LP[p][k]
+
                     if self.tds_model is not None:
+                        t = np.radians(self.tds_model.tth)
+                        lp = (
+                            (1 + self.Ph * np.cos(t) ** 2)
+                            / np.cos(0.5 * t)
+                            / np.sin(0.5 * t) ** 2
+                        )
                         tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
-                        weight = self.phases.wavelength[l][1]
+                        weight = self.phases.wavelength[k][1]
                         y += self.scale * weight * lp * tds_signal
 
             y += self.background.y
@@ -2020,10 +2032,16 @@ class Rietveld(AbstractWPPF):
                             texture_factor=texture_factor,
                             fullrange=True,
                         )
-                        lp = self.LP[p][k]
+
                         if self.tds_model is not None:
+                            t = np.radians(self.tds_model.tth)
+                            lp = (
+                                (1 + self.Ph * np.cos(t) ** 2)
+                                / np.cos(0.5 * t)
+                                / np.sin(0.5 * t) ** 2
+                            )
                             tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
-                            weight = self.phases.wavelength[l][1]
+                            weight = self.phases.wavelength[k][1]
                             y += self.scale * weight * lp * tds_signal
 
                 y += self.background.y
