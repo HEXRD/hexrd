@@ -364,6 +364,8 @@ def refine_valid_reflections(
             presults[i] for i in np.where(idx_new)[0]
         ]
 
+        num_refl_valid += sum(idx_new)
+
     return culled_results_r, num_refl_valid
 
 
