@@ -1899,12 +1899,14 @@ class Rietveld(AbstractWPPF):
                 y += self.computespectrum_phase(
                     p, k, Icomputed[p][k], texture_factor=texture_factor
                 )
+                lp = self.LP[p][k]
+                if self.tds_model is not None:
+                    tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
+                    weight = self.phases.wavelength[l][1]
+                    y += self.scale * weight * lp * tds_signal
 
         if self.amorphous_model is not None:
             y += self.amorphous_model.amorphous_lineout
-
-        if self.tds_model is not None:
-            y += self.scale * self.tds_model.tds_lineout
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
@@ -1957,13 +1959,15 @@ class Rietveld(AbstractWPPF):
                         texture_factor=None,
                         fullrange=True,
                     )
+                    lp = self.LP[p][k]
+                    if self.tds_model is not None:
+                        tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
+                        weight = self.phases.wavelength[l][1]
+                        y += self.scale * weight * lp * tds_signal
 
             y += self.background.y
             if self.amorphous_model is not None:
                 y += self.amorphous_model.amorphous_lineout
-
-            if self.tds_model is not None:
-                y += self.scale * self.tds_model.tds_lineout
 
             simulated_2d = np.tile(y, (nspec, 1))
             mask = self.mask_2d
@@ -2016,13 +2020,15 @@ class Rietveld(AbstractWPPF):
                             texture_factor=texture_factor,
                             fullrange=True,
                         )
+                        lp = self.LP[p][k]
+                        if self.tds_model is not None:
+                            tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
+                            weight = self.phases.wavelength[l][1]
+                            y += self.scale * weight * lp * tds_signal
 
                 y += self.background.y
                 if self.amorphous_model is not None:
                     y += self.amorphous_model.amorphous_lineout
-
-                if self.tds_model is not None:
-                    y += self.scale * self.tds_model.tds_lineout
 
                 simulated_2d[irow, :] = y
 
