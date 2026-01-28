@@ -1902,11 +1902,7 @@ class Rietveld(AbstractWPPF):
 
                 if self.tds_model is not None:
                     t = np.radians(self.tds_model.tth)
-                    lp = (
-                        (1 + self.Ph * np.cos(t) ** 2)
-                        / np.cos(0.5 * t)
-                        / np.sin(0.5 * t) ** 2
-                    )
+                    lp = 1 + self.Ph * np.cos(t) ** 2
                     pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                     tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
                     weight = self.phases.wavelength[k][1]
@@ -1969,11 +1965,7 @@ class Rietveld(AbstractWPPF):
 
                     if self.tds_model is not None:
                         t = np.radians(self.tds_model.tth)
-                        lp = (
-                            (1 + self.Ph * np.cos(t) ** 2)
-                            / np.cos(0.5 * t)
-                            / np.sin(0.5 * t) ** 2
-                        )
+                        lp = 1 + self.Ph * np.cos(t) ** 2
                         pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                         tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
                         weight = self.phases.wavelength[k][1]
@@ -2037,11 +2029,7 @@ class Rietveld(AbstractWPPF):
 
                         if self.tds_model is not None:
                             t = np.radians(self.tds_model.tth)
-                            lp = (
-                                (1 + self.Ph * np.cos(t) ** 2)
-                                / np.cos(0.5 * t)
-                                / np.sin(0.5 * t) ** 2
-                            )
+                            lp = 1 + self.Ph * np.cos(t) ** 2
                             pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                             tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
                             weight = self.phases.wavelength[k][1]
