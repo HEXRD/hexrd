@@ -227,7 +227,7 @@ class TDS_material:
 
         for k in M.keys():
             mass = ATOM_WEIGHTS_DICT[k]
-            exp2M[k] = np.exp(-2 * M[k])
+            exp2M[k] = np.exp(-2 * M[k] * s**2)
 
         # qb = self.get_qb()
 
@@ -235,14 +235,15 @@ class TDS_material:
         multiplicity = self.mat.multiplicity
 
         C = np.zeros_like(q)
-        # C = self.get_TDS_contribution_hkl(np.array([0, 0, 0]), 1, q)
+        C = self.get_TDS_contribution_hkl(np.array([0, 0, 0]), 1, q)
         for g, j in zip(hkl, multiplicity):
             C += self.get_TDS_contribution_hkl(g, j, q)
 
         thermal_diffuse = np.zeros_like(self.tth)
         for k, v in formfact.items():
             thermal_diffuse = v * (
-                (1 - exp2M[k]) + exp2M[k] * (2 * M[k] + M[k] ** 2) * (C - 1)
+                (1 - exp2M[k])
+                + exp2M[k] * (2 * (M[k] * s**2) + (M[k] * s**2) ** 2) * (C - 1)
             )
 
         return thermal_diffuse
