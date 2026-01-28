@@ -224,10 +224,12 @@ class TDS_material:
 
         M = self.Mdict
         exp2M = dict.fromkeys(M.keys())
+        Ms = dict.fromkeys(M)
 
         for k in M.keys():
             mass = ATOM_WEIGHTS_DICT[k]
-            exp2M[k] = np.exp(-2 * M[k] * s**2)
+            Ms[k] = M[k] * s**2
+            exp2M[k] = np.exp(-2 * Ms[k])
 
         # qb = self.get_qb()
 
@@ -242,8 +244,7 @@ class TDS_material:
         thermal_diffuse = np.zeros_like(self.tth)
         for k, v in formfact.items():
             thermal_diffuse = v * (
-                (1 - exp2M[k])
-                + exp2M[k] * (2 * (M[k] * s**2) + (M[k] * s**2) ** 2) * (C - 1)
+                (1 - exp2M[k]) + exp2M[k] * (2 * Ms[k] + Ms[k] ** 2) * (C - 1)
             )
 
         return thermal_diffuse
