@@ -1907,9 +1907,10 @@ class Rietveld(AbstractWPPF):
                         / np.cos(0.5 * t)
                         / np.sin(0.5 * t) ** 2
                     )
+                    pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                     tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
                     weight = self.phases.wavelength[k][1]
-                    y += self.scale * weight * lp * tds_signal
+                    y += self.scale * weight * pf * lp * tds_signal
 
         if self.amorphous_model is not None:
             y += self.amorphous_model.amorphous_lineout
@@ -1973,9 +1974,10 @@ class Rietveld(AbstractWPPF):
                             / np.cos(0.5 * t)
                             / np.sin(0.5 * t) ** 2
                         )
+                        pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                         tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
                         weight = self.phases.wavelength[k][1]
-                        y += self.scale * weight * lp * tds_signal
+                        y += self.scale * weight * pf * lp * tds_signal
 
             y += self.background.y
             if self.amorphous_model is not None:
@@ -2040,9 +2042,10 @@ class Rietveld(AbstractWPPF):
                                 / np.cos(0.5 * t)
                                 / np.sin(0.5 * t) ** 2
                             )
+                            pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                             tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
                             weight = self.phases.wavelength[k][1]
-                            y += self.scale * weight * lp * tds_signal
+                            y += self.scale * weight * pf * lp * tds_signal
 
                 y += self.background.y
                 if self.amorphous_model is not None:
