@@ -8,7 +8,7 @@ from dectris.compression import decompress
 import h5py
 import numpy as np
 
-from hexrd.utils.hdf5 import unwrap_h5_to_dict
+from hexrd.core.utils.hdf5 import unwrap_h5_to_dict
 
 from . import ImageSeriesAdapter
 from ..imageseriesiter import ImageSeriesIterator

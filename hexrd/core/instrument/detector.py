@@ -53,7 +53,7 @@ from hexrd.core.material.utils import (
 logger = logging.getLogger(__name__)
 distortion_registry = Registry()
 
-max_workers_DFLT = max(1, os.cpu_count() - 1)
+max_workers_DFLT = max(1, (os.cpu_count() or 1) - 1)
 
 beam_energy_DFLT = 65.351
 

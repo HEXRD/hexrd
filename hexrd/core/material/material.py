@@ -1070,7 +1070,7 @@ class Material(object):
         # Type symbols
         type_symbols = []
         for a_type, charge in zip(self._atomtype.tolist(), list(self._charge)):
-            symbol = ptableinverse[int(a_type)]
+            symbol: str = ptableinverse[int(a_type)]
             if charge != '0':
                 type_symbols.append(f"{symbol}{charge}")
             else:

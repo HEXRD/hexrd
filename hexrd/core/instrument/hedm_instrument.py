@@ -1045,7 +1045,7 @@ class HEDMInstrument(object):
         active_hkls: Optional[list[int]]=None,
         threshold: Optional[float]=None,
         tth_tol: Optional[float]=None,
-        eta_tol: Optional[float]=0.25,
+        eta_tol: float=0.25,
     ) -> tuple[dict[str, np.ndarray], np.ndarray]:
         """
         Extract eta-omega maps from an imageseries.

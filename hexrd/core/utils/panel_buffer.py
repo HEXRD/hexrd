@@ -76,12 +76,14 @@ def panel_buffer_from_str(name: str, panel: Detector) -> np.ndarray:
     return roi_buffer
 
 
+# TODO: Broken function - dir_path.glob is not defined
 def valid_panel_buffer_names() -> list[str]:
     dir_path = importlib.resources.files(hexrd.core.resources.panel_buffers)
     return [path.stem for path in dir_path.glob('*.npz')]
 
 
 # Cache this so we only read from disk once
+# TODO: Broken function - path.exists is not defined
 @cache
 def _load_panel_buffer_from_file(name: str) -> np.ndarray:
     path = importlib.resources.files(hexrd.core.resources.panel_buffers).joinpath(
@@ -90,7 +92,7 @@ def _load_panel_buffer_from_file(name: str) -> np.ndarray:
     if not path.exists():
         raise NotImplementedError(f'Unknown panel buffer name: {name}')
 
-    npz = np.load(path)
+    npz = np.load(str(path))
     buffer = npz['panel_buffer']
 
     # Since the output here is memoized, make sure this is never modified
