@@ -61,11 +61,6 @@ class TDS_material:
     wavelength : float
         wavelength of x-rays in Angstrom
 
-    theta_D: float
-        Debye temperature for this phase. If the model type is
-        "warren" then this is a user input and should not be refined.
-        Otherwise, this is not required
-
     model_data: numpy.ndarray
         if the "experimental" model type is used, then model_data
         is a numpy array containing the 2theta-intensity of the
@@ -88,7 +83,6 @@ class TDS_material:
         model_type="warren",
         material=None,
         wavelength=None,
-        theta_D=None,
         tth=None,
         model_data=None,
         scale=None,
@@ -114,11 +108,6 @@ class TDS_material:
                 msg = f'wavelength has to be specified for warren model'
                 raise ValueError(msg)
             self._wavelength = wavelength
-
-            if theta_D is not None:
-                self._that_D = theta_D
-            else:
-                self._theta_D = np.nan
 
             if tth is None:
                 msg = f'tth has to be specified for warren model'
@@ -269,10 +258,6 @@ class TDS_material:
         return self._wavelength
 
     @property
-    def theta_D(self):
-        return self._theta_D
-
-    @property
     def tth(self):
         return self._tth
 
@@ -318,7 +303,6 @@ class TDS:
         self,
         model_type="warren",
         phases=None,
-        theta_D_dict=None,
         tth=None,
         model_data=None,
         scale=None,
@@ -326,7 +310,6 @@ class TDS:
         cagliotti_uvw=None,
     ):
         self.model_type = model_type
-        self.theta_D = theta_D_dict
         self.tth = tth
         self.cagliotti = cagliotti_uvw
         self.model_data = model_data
@@ -361,7 +344,6 @@ class TDS:
                     **kwargs,
                     "material": matr,
                     "wavelength": 10 * lam[0].getVal("nm"),
-                    "theta_D": self.theta_D[pname],
                 }
                 self.TDSmodels[pname][wavn] = TDS_material(**kwargs)
 
