@@ -711,7 +711,7 @@ class PlaneData(object):
         self._hkls = copy.deepcopy(hkls)
         self._strainMag = strainMag
         self._structFact = np.ones(self._hkls.shape[1])
-        self.tThWidth = tThWidth
+        self.tThWidth: float = tThWidth
 
         # ... need to implement tThMin too
         if 'doTThSort' in kwargs:
@@ -1409,7 +1409,7 @@ class PlaneData(object):
         self,
         hkl: Union[int, Tuple[int, int, int], np.ndarray],
         master: Optional[bool] = False,
-    ) -> Union[List[int], int]:
+    ) -> List[int] | int:
         """
         Return the unique ID of a list of hkls.
 
