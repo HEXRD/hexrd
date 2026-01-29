@@ -35,6 +35,7 @@ from hexrd.powder.wppf.peakfunctions import (
 )
 from hexrd.powder.wppf import wppfsupport
 from hexrd.powder.wppf.spectrum import Spectrum
+from hexrd.powder.wppf.tds import TDS
 from hexrd.powder.wppf.phase import (
     Phases_LeBail,
     Phases_Rietveld,
@@ -59,6 +60,11 @@ class AbstractWPPF(ABC):
 
     @abstractmethod
     def _set_phase_params_vals_to_class(self, params: lmfit.Parameters):
+        pass
+
+    @abstractmethod
+    def on_smoothing_modified():
+        # Update anything that depends on smoothing (i. e., UVW)
         pass
 
     @abstractmethod
@@ -595,6 +601,9 @@ class AbstractWPPF(ABC):
         if self.amorphous_model is not None:
             self._set_amorphous_params_vals_to_class(params)
 
+        # In case U, V, or W were modified...
+        self.on_smoothing_modified()
+
     def _set_amorphous_params_vals_to_class(self, params: lmfit.Parameters):
         if self.amorphous_model is None:
             # Can't do anything
@@ -1030,6 +1039,10 @@ class LeBail(AbstractWPPF):
 
         if updated_lp:
             self.calctth()
+
+    def on_smoothing_modified(self):
+        # Nothing to do in LeBail for now...
+        pass
 
     def _get_phase(self, name: str, wavelength_type: str):
         # LeBail just ignores the wavelength type for phases
@@ -1670,6 +1683,24 @@ class Rietveld(AbstractWPPF):
 
         self.phases.phase_fraction = pf / np.sum(pf)
 
+    def on_smoothing_modified(self):
+        self.update_tds_model_smoothing()
+
+    def update_tds_model_smoothing(self):
+        # Update any models that depend upon smoothing parameters.
+        # Currently, only the TDS models depend on the parameters.
+        if self.tds_model is None:
+            # Nothing to do
+            return
+
+        if any(not hasattr(self, x) for x in ['U', 'V', 'W']):
+            # They haven't been set yet. That's okay, we'll update when
+            # they are modified.
+            return
+
+        # Update smoothing on all materials from uvw
+        self.tds_model.cagliotti = [self.U, self.V, self.W]
+
     def _get_phase(self, name: str, wavelength_type: str):
         # Rietveld uses the wavelength type
         return self.phases[name][wavelength_type]
@@ -1900,7 +1931,7 @@ class Rietveld(AbstractWPPF):
                     p, k, Icomputed[p][k], texture_factor=texture_factor
                 )
 
-                if self.tds_model is not None:
+                if self._has_tds_model(p, k):
                     t = np.radians(self.tds_model.tth)
                     lp = 1 + self.Ph * np.cos(t) ** 2
                     pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
@@ -1963,7 +1994,7 @@ class Rietveld(AbstractWPPF):
                         fullrange=True,
                     )
 
-                    if self.tds_model is not None:
+                    if self._has_tds_model(p, k):
                         t = np.radians(self.tds_model.tth)
                         lp = 1 + self.Ph * np.cos(t) ** 2
                         pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
@@ -2027,7 +2058,7 @@ class Rietveld(AbstractWPPF):
                             fullrange=True,
                         )
 
-                        if self.tds_model is not None:
+                        if self._has_tds_model(p, k):
                             t = np.radians(self.tds_model.tth)
                             lp = 1 + self.Ph * np.cos(t) ** 2
                             pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
@@ -2134,6 +2165,22 @@ class Rietveld(AbstractWPPF):
                 return False
 
         return True
+
+    def _has_tds_model(self, phase: str, wlen_name: str) -> bool:
+        # Check if a TDS model exists for this phase and wavelength
+        if self.tds_model is None:
+            return False
+
+        return wlen_name in self.tds_model.TDSmodels.get(phase, {})
+
+    @property
+    def tds_model(self) -> TDS | None:
+        return self._tds_model
+
+    @tds_model.setter
+    def tds_model(self, v: TDS | None):
+        self._tds_model = v
+        self.update_tds_model_smoothing()
 
     @property
     def phases(self):

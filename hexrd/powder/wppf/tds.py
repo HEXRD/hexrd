@@ -20,7 +20,7 @@ from scipy.ndimage import gaussian_filter1d
 TDS_MODEL_TYPES = ['warren', 'experimental']
 
 
-def check_model_type(model):
+def check_model_type(model: str):
     if not model in TDS_MODEL_TYPES:
         msg = f'unknown TDS model type'
         raise ValueError(msg)
@@ -80,62 +80,55 @@ class TDS_material:
 
     def __init__(
         self,
-        model_type="warren",
-        material=None,
-        wavelength=None,
-        tth=None,
-        model_data=None,
-        scale=None,
-        shift=None,
-        smoothing=None,
+        model_type: str = "warren",
+        material: Material_Rietveld | None = None,
+        wavelength: float | None = None,
+        tth: np.ndarray | None = None,
+        # The next three are only used for `experimental` model type
+        model_data: np.ndarray | None = None,
+        scale: float = 1.0,
+        shift: float = 0.0,
+        smoothing: float | None = None,
     ):
         check_model_type(model_type)
         self.model_type = model_type
 
+        self.mat = material
+        self._wavelength = wavelength
+        self.tth = tth
+        self.model_data = model_data
+        self.scale = scale
+        self.shift = shift
+        self.smoothing = smoothing
+
+        self.validate()
+
+    def validate(self):
         if self.model_type == 'warren':
-            if material is None:
+            if self.mat is None:
                 msg = f'material has to be specified for warren model'
                 raise ValueError(msg)
-            if not isinstance(material, Material_Rietveld):
+            if not isinstance(self.mat, Material_Rietveld):
                 msg = f'specify material as Material_Rietveld class'
                 raise ValueError(msg)
-            if not material.sgnum in [225, 229]:
+            if self.mat.sgnum not in [225, 229]:
                 msg = f'only FCC and BCC crystals are supported at the moment.'
                 raise ValueError(msg)
-            self.mat = material
 
-            if wavelength is None:
+            if self.wavelength is None:
                 msg = f'wavelength has to be specified for warren model'
                 raise ValueError(msg)
-            self._wavelength = wavelength
 
-            if tth is None:
+            if self.tth is None:
                 msg = f'tth has to be specified for warren model'
                 raise ValueError(msg)
-            self.tth = tth
 
         if self.model_type == 'experimental':
-            if model_data is None or not isinstance(model_type, np.ndarray):
+            if self.model_data is None or not isinstance(self.model_data, np.ndarray):
                 msg = f'model_data needs to be nx2 numpy array'
                 raise ValueError(msg)
-            self.model_data = model_data
 
-            scalec = scale
-            if scale is None:
-                scalec = 1.0
-            self.scale = scalec
-
-            shiftc = shift
-            if shift is None:
-                shiftc = 0.0
-            self.shift = shiftc
-
-        if smoothing > 0:
-            self.smoothing = smoothing
-        else:
-            self.smoothing = None
-
-    def WarrenFunctionalForm(self, x, xhkl):
+    def WarrenFunctionalForm(self, x: np.ndarray, xhkl: float) -> np.ndarray:
         xx = np.abs(x - xhkl)
         xx = self.agm / xx
         mask = xx > 1.0
@@ -143,10 +136,9 @@ class TDS_material:
         y[~mask] = 0.0
         return y
 
-    def formfactor(self, q):
+    def formfactor(self, q: np.ndarray) -> dict[str, np.ndarray]:
         s = (q / 4 / np.pi) ** 2
 
-        formfact = {}
         f_anomalous_data = self.mat.f_anomalous_data
         f_anomalous_data_sizes = self.mat.f_anomalous_data_sizes
 
@@ -182,7 +174,7 @@ class TDS_material:
                 )
         return formfact
 
-    def get_TDS_contribution_hkl(self, g, j, q):
+    def get_TDS_contribution_hkl(self, g: np.ndarray, j: int, q: np.ndarray) -> np.ndarray:
         """texture factor for random powder crystal"""
         glen = self.mat.CalcLength(g, "r")
         # the factor of 10 cancels out here
@@ -199,7 +191,7 @@ class TDS_material:
             C = pre * self.WarrenFunctionalForm(x, xhkl)
         return C
 
-    def calcTDS(self):
+    def calcTDS(self) -> np.ndarray:
         thr = np.radians(self.tth * 0.5)
 
         q = self.q
@@ -239,7 +231,7 @@ class TDS_material:
         return thermal_diffuse
 
     @property
-    def Mdict(self):
+    def Mdict(self) -> dict[str, float]:
         self._Mdict = {}
         if not self.mat.aniU:
             for U, a in zip(self.mat.U, self.mat.atom_type):
@@ -254,11 +246,11 @@ class TDS_material:
         return self._Mdict
 
     @property
-    def wavelength(self):
+    def wavelength(self) -> float | None:
         return self._wavelength
 
     @property
-    def tth(self):
+    def tth(self) -> np.ndarray:
         return self._tth
 
     @tth.setter
@@ -268,7 +260,7 @@ class TDS_material:
         self._q = 4 * np.pi * np.sin(thr) / self.wavelength
 
     @property
-    def agm(self):
+    def agm(self) -> float:
         # value for FCC crystal
         self._agm = (3 / np.pi) ** (1.0 / 3.0)
         if self.mat.sgnum == 229:
@@ -277,15 +269,26 @@ class TDS_material:
         return self._agm
 
     @property
-    def tds_lineout(self):
+    def tds_lineout(self) -> np.ndarray:
         lo = self.calcTDS()
         if self.smoothing is not None:
             lo = gaussian_filter1d(lo, self.smoothing)
         return lo
 
     @property
-    def q(self):
+    def q(self) -> np.ndarray:
         return self._q
+
+    @property
+    def smoothing(self) -> float | None:
+        return self._smoothing
+
+    @smoothing.setter
+    def smoothing(self, v: float | None):
+        if v is None or v <= 0:
+            v = None
+
+        self._smoothing = v
 
 
 class TDS:
@@ -294,7 +297,7 @@ class TDS:
                     Lawrence Livermore National Lab,
                     saransh1@llnl.gov
     >> @DATE:       01/09/2026 SS 1.0 original
-    >> @DETAILS:    this is just a wrapper class for the TDS_amterials
+    >> @DETAILS:    this is just a wrapper class for the TDS_materials
                     to loop over all materials in the phase and wavelength
                     and compute the overall signal
     '''
@@ -311,25 +314,26 @@ class TDS:
     ):
         self.model_type = model_type
         self.tth = tth
-        self.cagliotti = cagliotti_uvw
         self.model_data = model_data
         self.scale = scale
         self.shift = shift
+
+        self.TDSmodels = {}
+        self.cagliotti = cagliotti_uvw
         self.phases = phases
 
     @property
-    def phases(self):
+    def phases(self) -> Phases_Rietveld:
         return self._phases
 
     @phases.setter
-    def phases(self, phases):
+    def phases(self, phases: Phases_Rietveld | None):
         if not isinstance(phases, Phases_Rietveld):
             msg = f'input phase as Phases_Rietveld class'
             raise ValueError(msg)
         self._phases = phases
-        self.TDSmodels = {}
         kwargs = {
-            "model_type": "warren",
+            "model_type": self.model_type,
             "tth": self.tth,
             "model_data": self.model_data,
             "scale": self.scale,
@@ -348,7 +352,7 @@ class TDS:
                 self.TDSmodels[pname][wavn] = TDS_material(**kwargs)
 
     @property
-    def tds_lineout(self):
+    def tds_lineout(self) -> np.ndarray:
         lineout = np.zeros_like(self.tth)
         for p in self.phases:
             for l in self.phases.wavelength:
@@ -358,30 +362,43 @@ class TDS:
         return lineout
 
     @property
-    def cagliotti(self):
+    def cagliotti(self) -> list[float] | None:
         return self._cagliotti
 
     @cagliotti.setter
-    def cagliotti(self, uvw):
-        '''this number defines the smoothing
-        term for the tds model. the nstrumental
-        broadening will affect tds just like the
-        elastic scattering signal. we use the
-        averageinstrumental broadening across the
-        field of view as the first approximation
-        '''
+    def cagliotti(self, uvw: list[float] | None):
         self._cagliotti = uvw
-        th = np.radians(0.5 * self.tth)
-        tanth = np.tan(th)
-        sigsqr = uvw[0] * tanth**2 + uvw[1] * tanth + uvw[2]
-        sigsqr = np.mean(sigsqr)
-        if sigsqr <= 0.0:
-            sigsqr = 1.0e-12
 
-        self.instrumental_broadening = np.sqrt(sigsqr) * 1e-2
-
-        tth_step = self.tth[1] - self.tth[0]
-        if not np.isclose(tth_step, 0.0):
-            self.smoothing = int(np.rint(self.instrumental_broadening / tth_step))
+        if uvw is not None:
+            self.smoothing = cagliotti_uvw_to_smoothing(uvw, self.tth)
         else:
-            self.smoothing = 1
+            self.smoothing = None
+
+        for p in self.TDSmodels:
+            for k in self.TDSmodels[p]:
+                tds_mat = self.TDSmodels[p][k]
+                tds_mat.smoothing = self.smoothing
+
+
+def cagliotti_uvw_to_smoothing(uvw: list[float], tth: np.ndarray) -> float:
+    '''this number defines the smoothing
+    term for the tds model. the instrumental
+    broadening will affect tds just like the
+    elastic scattering signal. we use the
+    average instrumental broadening across the
+    field of view as the first approximation
+    '''
+    th = np.radians(0.5 * tth)
+    tanth = np.tan(th)
+    sigsqr = uvw[0] * tanth**2 + uvw[1] * tanth + uvw[2]
+    sigsqr = np.mean(sigsqr)
+    if sigsqr <= 0.0:
+        sigsqr = 1.0e-12
+
+    instrumental_broadening = np.sqrt(sigsqr) * 1e-2
+
+    tth_step = tth[1] - tth[0]
+    if np.isclose(tth_step, 0):
+        return 1.0
+
+    return int(np.rint(instrumental_broadening / tth_step))
