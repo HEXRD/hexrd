@@ -3911,7 +3911,7 @@ ptable = {
     'Mt': 109,
 }
 
-ptableinverse = dict.fromkeys(ptable.values())
+ptableinverse: dict[int, str] = dict.fromkeys(ptable.values())
 for k, v in ptable.items():
     ptableinverse[v] = k
 

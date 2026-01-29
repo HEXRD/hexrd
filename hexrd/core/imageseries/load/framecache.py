@@ -319,10 +319,7 @@ def _load_framecache_fch5(
 
             framelist[i] = frame
 
-        kwargs = {
-            "max_workers": max_workers,
-        }
-        with ThreadPoolExecutor(**kwargs) as executor:
+        with ThreadPoolExecutor(max_workers) as executor:
             # Evaluate the results via `list()`, so that if an exception is
             # raised in a thread, it will be re-raised and visible to the
             # user.

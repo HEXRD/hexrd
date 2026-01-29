@@ -542,7 +542,7 @@ def make_sample_rmat(chi: float, ome: Union[float, np.ndarray]) -> np.ndarray:
     return result
 
 
-def make_rmat_of_expmap(exp_map: np.ndarray) -> np.ndarray:
+def make_rmat_of_expmap(exp_map: tuple[float] | np.ndarray) -> np.ndarray:
     """
     Calculate the rotation matrix of an exponential map.
 

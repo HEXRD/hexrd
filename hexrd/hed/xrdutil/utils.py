@@ -30,6 +30,8 @@
 # TODO: Resolve extra-workflow dependency
 from hexrd.core.distortion.distortionabc import DistortionABC
 
+from typing import Optional
+
 import numpy as np
 
 from hexrd.core import constants
@@ -72,7 +74,7 @@ def _project_on_detector_plane(
     tVec_d: np.ndarray,
     tVec_c: np.ndarray,
     tVec_s: np.ndarray,
-    distortion: DistortionABC,
+    distortion: Optional[DistortionABC] = None,
     beamVec: np.ndarray = constants.beam_vec,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -114,7 +116,7 @@ def _project_on_detector_cylinder(
     radius: float,
     physical_size: np.ndarray,
     angle_extent: float,
-    distortion: DistortionABC = None,
+    distortion: Optional[DistortionABC] = None,
     beamVec: np.ndarray = constants.beam_vec,
     etaVec: np.ndarray = constants.eta_vec,
     tVec_s: np.ndarray = constants.zeros_3x1,

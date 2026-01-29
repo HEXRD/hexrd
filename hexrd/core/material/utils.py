@@ -7,6 +7,8 @@ from hexrd.core.constants import (
 )
 import chemparse
 import numpy as np
+from numpy.typing import NDArray
+
 import h5py
 from copy import deepcopy
 from scipy.interpolate import interp1d
@@ -270,7 +272,7 @@ def calculate_f_squared_mean(
 
     formula = interpret_formula(composition)
     norm_elemental_abundances = normalize_composition(formula)
-    res = 0
+    res: NDArray[np.float64] = np.zeros_like(Q, dtype=np.float64)
     for key, value in norm_elemental_abundances.items():
         res += value * calculate_coherent_scattering_factor(key, Q) ** 2
     return res
@@ -286,7 +288,7 @@ def calculate_f_mean_squared(
 
     formula = interpret_formula(composition)
     norm_elemental_abundances = normalize_composition(formula)
-    res = 0
+    res: NDArray[np.float64] = np.zeros_like(Q, dtype=np.float64)
     for key, value in norm_elemental_abundances.items():
         res += value * calculate_coherent_scattering_factor(key, Q)
     return res**2
@@ -295,14 +297,14 @@ def calculate_f_mean_squared(
 def calculate_incoherent_scattering(
     composition: str,
     Q: np.ndarray,
-) -> np.ndarray:
+) -> NDArray[np.float64]:
 
     if composition is None:
         return np.zeros_like(Q)
 
     formula = interpret_formula(composition)
     norm_elemental_abundances = normalize_composition(formula)
-    res = 0
+    res: NDArray[np.float64] = np.zeros_like(Q, dtype=np.float64)
     for key, value in norm_elemental_abundances.items():
         res += (value * calculate_incoherent_scattering_factor(key, Q)) ** 2
     return res

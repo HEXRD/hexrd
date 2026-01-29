@@ -27,13 +27,13 @@
 # ============================================================
 
 
-from typing import Optional, Union, Any, Generator
+from typing import Callable, Optional, Union, Any, Generator
 from hexrd.core.material.crystallography import PlaneData
 from hexrd.core.distortion.distortionabc import DistortionABC
 
 import numba
 import numpy as np
-import numba
+from numpy.typing import NDArray
 
 from hexrd.core import constants
 from hexrd.core import matrixutil as mutil
@@ -488,8 +488,8 @@ def _fetch_hkls_from_planedata(pd: PlaneData):
 def _filter_hkls_eta_ome(
     hkls: np.ndarray,
     angles: np.ndarray,
-    eta_range: list[tuple[float]],
-    ome_range: list[tuple[float]],
+    eta_range: list[tuple[float, float]],
+    ome_range: list[tuple[float, float]],
     return_mask: bool = False,
 ) -> Union[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray, np.ndarray]]:
     """
@@ -555,16 +555,12 @@ def simulateGVecs(
     pd: PlaneData,
     detector_params: np.ndarray,
     grain_params: np.ndarray,
-    ome_range: list[tuple[float]] = [
-        (-np.pi, np.pi),
-    ],
-    ome_period: tuple[float] = (-np.pi, np.pi),
-    eta_range: list[tuple[float]] = [
-        (-np.pi, np.pi),
-    ],
-    panel_dims: list[tuple[float]] = [(-204.8, -204.8), (204.8, 204.8)],
-    pixel_pitch: tuple[float] = (0.2, 0.2),
-    distortion: DistortionABC = None,
+    ome_range: list[tuple[float, float]] = [(-np.pi, np.pi)],
+    ome_period: tuple[float, float] = (-np.pi, np.pi),
+    eta_range: list[tuple[float, float]] = [(-np.pi, np.pi)],
+    panel_dims: list[tuple[float, float]] = [(-204.8, -204.8), (204.8, 204.8)],
+    pixel_pitch: tuple[float, float] = (0.2, 0.2),
+    distortion: Optional[DistortionABC] = None,
     beam_vector: np.ndarray = constants.beam_vec,
     energy_correction: Union[dict, None] = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -637,11 +633,11 @@ def simulateGVecs(
     allAngs, allHKLs = _filter_hkls_eta_ome(full_hkls, angList, eta_range, ome_range)
 
     if len(allAngs) == 0:
-        valid_ids = []
-        valid_hkl = []
-        valid_ang = []
-        valid_xy = []
-        ang_ps = []
+        valid_ids = np.array([])
+        valid_hkl = np.array([])
+        valid_ang = np.array([])
+        valid_xy = np.array([])
+        ang_ps = np.array([])
     else:
         # ??? preallocate for speed?
         det_xy, rMat_ss, _ = _project_on_detector_plane(
@@ -733,15 +729,15 @@ def _compute_max(tth: np.ndarray, eta: np.ndarray, result: np.ndarray) -> np.nda
 
 def angularPixelSize(
     xy_det: np.ndarray,
-    xy_pixelPitch: tuple[float],
+    xy_pixelPitch: tuple[float, float],
     rMat_d: np.ndarray,
     rMat_s: np.ndarray,
     tVec_d: np.ndarray,
     tVec_s: np.ndarray,
     tVec_c: np.ndarray,
-    distortion: DistortionABC = None,
-    beamVec: np.ndarray = None,
-    etaVec: np.ndarray = None,
+    distortion: Optional[DistortionABC] = None,
+    beamVec: Optional[np.ndarray] = None,
+    etaVec: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
     Calculate angular pixel sizes on a detector.
@@ -798,7 +794,7 @@ def make_reflection_patches(
     tvec_c: np.ndarray = np.zeros((3, 1)),
     npdiv: int = 1,
     quiet: bool = False,  # TODO: Remove this parameter - it isn't used
-    compute_areas_func: np.ndarray = gutil.compute_areas,
+    compute_areas_func: Callable = gutil.compute_areas,
 ) -> Generator[
     tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray],
     None,
