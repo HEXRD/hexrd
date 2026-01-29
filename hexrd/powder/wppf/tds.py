@@ -174,7 +174,9 @@ class TDS_material:
                 )
         return formfact
 
-    def get_TDS_contribution_hkl(self, g: np.ndarray, j: int, q: np.ndarray) -> np.ndarray:
+    def get_TDS_contribution_hkl(
+        self, g: np.ndarray, j: int, q: np.ndarray
+    ) -> np.ndarray:
         """texture factor for random powder crystal"""
         glen = self.mat.CalcLength(g, "r")
         # the factor of 10 cancels out here
