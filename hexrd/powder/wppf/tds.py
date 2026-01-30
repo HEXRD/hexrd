@@ -19,6 +19,9 @@ from scipy.ndimage import gaussian_filter1d
 
 TDS_MODEL_TYPES = ['warren', 'experimental']
 
+# These are the space group numbers we currently support
+VALID_SGNUMS = [225, 229]
+
 
 def check_model_type(model: str):
     if not model in TDS_MODEL_TYPES:
@@ -111,7 +114,7 @@ class TDS_material:
             if not isinstance(self.mat, Material_Rietveld):
                 msg = f'specify material as Material_Rietveld class'
                 raise ValueError(msg)
-            if self.mat.sgnum not in [225, 229]:
+            if self.mat.sgnum not in VALID_SGNUMS:
                 msg = f'only FCC and BCC crystals are supported at the moment.'
                 raise ValueError(msg)
 
@@ -343,14 +346,18 @@ class TDS:
             "smoothing": self.smoothing,
         }
         for pname in self.phases:
-            self.TDSmodels[pname] = {}
             for wavn, lam in self.phases.wavelength.items():
                 matr = self.phases[pname][wavn]
+                if matr.sgnum not in VALID_SGNUMS:
+                    # Skip over materials we can't model yet.
+                    continue
+
                 kwargs = {
                     **kwargs,
                     "material": matr,
                     "wavelength": 10 * lam[0].getVal("nm"),
                 }
+                self.TDSmodels.setdefault(pname, {})
                 self.TDSmodels[pname][wavn] = TDS_material(**kwargs)
 
     @property
@@ -358,8 +365,9 @@ class TDS:
         lineout = np.zeros_like(self.tth)
         for p in self.phases:
             for l in self.phases.wavelength:
-                weight = self.phases.wavelength[l][1]
-                lineout += weight * self.TDSmodels[p][l].tds_lineout
+                if self.TDSmodels.get(p, {}).get(l) is not None:
+                    weight = self.phases.wavelength[l][1]
+                    lineout += weight * self.TDSmodels[p][l].tds_lineout
 
         return lineout
 
