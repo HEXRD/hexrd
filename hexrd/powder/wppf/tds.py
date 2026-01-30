@@ -306,13 +306,13 @@ class TDS:
 
     def __init__(
         self,
-        model_type="warren",
-        phases=None,
-        tth=None,
-        model_data=None,
-        scale=None,
-        shift=None,
-        cagliotti_uvw=None,
+        model_type: str = "warren",
+        phases: Phases_Rietveld | None = None,
+        tth: np.ndarray | None = None,
+        model_data: np.ndarray | None = None,
+        scale: float | None = None,
+        shift: float | None = None,
+        cagliotti_uvw: list[float] | None = None,
     ):
         self.model_type = model_type
         self.tth = tth
