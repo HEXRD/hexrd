@@ -1046,7 +1046,7 @@ class HEDMInstrument(object):
         threshold: Optional[float]=None,
         tth_tol: Optional[float]=None,
         eta_tol: float=0.25,
-    ) -> tuple[dict[str, np.ndarray], np.ndarray]:
+    ) -> tuple[dict[str, NDArray[np.float64]], NDArray[np.float64]]:
         """
         Extract eta-omega maps from an imageseries.
 
@@ -1634,7 +1634,7 @@ class HEDMInstrument(object):
         self,
         plane_data: PlaneData,
         grain_params: tuple | np.ndarray,
-        imgser_dict: dict,
+        imgser_dict: dict[str, OmegaImageSeries],
         tth_tol: float = 0.25,
         eta_tol: float = 1.0,
         ome_tol: float = 1.0,
@@ -2543,22 +2543,14 @@ class GenerateEtaOmeMaps(object):
 
     def __init__(
         self,
-        image_series_dict,
-        instrument,
-        plane_data,
-        active_hkls=None,
-        eta_step=0.25,
-        threshold=None,
-        ome_period=(0, 360),
+        image_series_dict: dict[str, OmegaImageSeries],
+        instrument: HEDMInstrument,
+        plane_data: PlaneData,
+        active_hkls: Optional[NDArray[np.float64] | list[int]] = None,
+        eta_step: float=0.25,
+        threshold: Optional[float]=None,
+        ome_period: tuple[float, float]=(0, 360), # TODO: Remove this - it does nothing.
     ):
-        """
-        image_series must be OmegaImageSeries class
-        instrument_params must be a dict (loaded from yaml spec)
-        active_hkls must be a list (required for now)
-
-        FIXME: get rid of omega period; should get it from imageseries
-        """
-
         self._planeData = plane_data
 
         # ???: change name of iHKLList?
@@ -2576,14 +2568,13 @@ class GenerateEtaOmeMaps(object):
         # grab a det key and corresponding imageseries (first will do)
         # !!! assuming that the imageseries for all panels
         #     have the same length and omegas
-        det_key, this_det_ims = next(iter(image_series_dict.items()))
+        this_det_ims = next(iter(image_series_dict.values()))
 
         # handle omegas
         # !!! for multi wedge, enforncing monotonicity
         # !!! wedges also cannot overlap or span more than 360
         omegas_array = this_det_ims.metadata['omega']  # !!! DEGREES
-        delta_ome = omegas_array[0][-1] - omegas_array[0][0]
-        frame_mask = None
+        frame_mask: Optional[NDArray[np.bool_]] = None
         ome_period = omegas_array[0, 0] + np.r_[0.0, 360.0]  # !!! be careful
         if this_det_ims.omegawedges.nwedges > 1:
             delta_omes = [
@@ -2636,25 +2627,25 @@ class GenerateEtaOmeMaps(object):
 
         # pack all detectors with masking
         # FIXME: add omega masking
-        data_store = []
+        data_store: list[NDArray[np.float64]] = []
         for i_ring in range(n_rings):
             # first handle etas
-            full_map = np.zeros(map_shape, dtype=float)
-            nan_mask_full = np.zeros((len(eta_mapping), map_shape[0], map_shape[1]))
+            full_map: NDArray[np.float64] = np.zeros(map_shape, dtype=float)
+            nan_mask_full: NDArray[np.bool_] = np.zeros((len(eta_mapping), map_shape[0], map_shape[1]))
             i_p = 0
-            for det_key, eta_map in eta_mapping.items():
+            for eta_map in eta_mapping.values():
                 nan_mask = ~np.isnan(eta_map[i_ring])
                 nan_mask_full[i_p] = nan_mask
                 full_map[nan_mask] += eta_map[i_ring][nan_mask]
                 i_p += 1
-            re_nan_these = np.sum(nan_mask_full, axis=0) == 0
+            re_nan_these: NDArray[np.bool_] = np.sum(nan_mask_full, axis=0) == 0
             full_map[re_nan_these] = np.nan
 
             # now omegas
             if frame_mask is not None:
                 # !!! must expand row dimension to include
                 #     skipped omegas
-                tmp = np.ones((len(frame_mask), map_shape[1])) * np.nan
+                tmp: NDArray[np.float64] = np.ones((len(frame_mask), map_shape[1])) * np.nan
                 tmp[frame_mask, :] = full_map
                 full_map = tmp
             data_store.append(full_map)

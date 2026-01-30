@@ -15,7 +15,7 @@ function.
 open_file = open
 
 
-def open(file_name=None):
+def open(file_name=None) -> list[root.RootConfig]:
     """
     Reads configuration settings from a yaml file.
 

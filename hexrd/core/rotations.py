@@ -32,6 +32,8 @@ import sys
 
 import numpy as np
 from numba import njit
+from numpy.typing import NDArray
+from typing import Literal, Optional
 from scipy.optimize import leastsq
 from scipy.spatial.transform import Rotation as R
 
@@ -1103,13 +1105,14 @@ def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
 #
 
 
-def mapAngle(ang, ang_range=None, units=angularUnits):
+def mapAngle(ang, ang_range: Optional[NDArray[np.float64]]=None,
+             units: Literal['degrees', 'radians']=angularUnits) -> NDArray[np.float64]:
     """
     Utility routine to map an angle into a specified period
     """
-    if units.lower() == 'degrees':
+    if units == 'degrees':
         period = 360.0
-    elif units.lower() == 'radians':
+    elif units == 'radians':
         period = 2.0 * np.pi
     else:
         raise RuntimeError("unknown angular units: " + units)
@@ -1136,6 +1139,7 @@ def mapAngle(ang, ang_range=None, units=angularUnits):
     return val
 
 
+# TODO: Delete this function.
 def angularDifference_orig(angList0, angList1, units=angularUnits):  # pragma: no cover
     """
     Do the proper (acute) angular difference in the context of a branch cut.

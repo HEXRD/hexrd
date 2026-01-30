@@ -19,8 +19,8 @@ class Config(object):
 
     _dirty = False
 
-    def __init__(self, cfg):
-        self._cfg = cfg
+    def __init__(self, cfg: 'Config'):
+        self._cfg = cfg # TODO: This should really be called "_parent"
 
     @property
     def parent(self):

@@ -77,6 +77,7 @@ from hexrd.core import constants
 from hexrd.core.material import symbols, symmetry
 
 import numpy as np
+from numpy.typing import NDArray
 
 if TYPE_CHECKING:
     from hexrd.core.material import Material
@@ -376,7 +377,7 @@ _rqpDict = {
 }
 
 
-def get_symmetry_directions(mat: 'Material') -> np.ndarray:
+def get_symmetry_directions(mat: 'Material') -> NDArray[np.int32]:
     """
     helper function to get a list of primary,
     secondary and tertiary directions of the
@@ -427,13 +428,11 @@ def get_symmetry_directions(mat: 'Material') -> np.ndarray:
         secondary = [1, 1, 1]
         tertiary = [1, 1, 0]
 
-    return np.array([primary, secondary, tertiary])
+    return np.array([primary, secondary, tertiary], dtype=np.int32)
 
 
-def Allowed_HKLs(sgnum, hkllist):
-    """
-    this function checks if a particular g vector is allowed
-    by lattice centering, screw axis or glide plane
+def Allowed_HKLs(sgnum: int, hkllist: NDArray[np.int32]) -> NDArray[np.int32]:
+    """ Checks if a g vector is allowed by lattice centering, screw axis or glide plane
     """
     sg_hmsymbol = symbols.pstr_spacegroup[sgnum - 1].strip()
     symmorphic = False
@@ -445,12 +444,7 @@ def Allowed_HKLs(sgnum, hkllist):
     centering = sg_hmsymbol[0]
     if centering == 'P':
         # all reflections are allowed
-        mask = np.ones(
-            [
-                hkllist.shape[0],
-            ],
-            dtype=bool,
-        )
+        mask = np.ones([hkllist.shape[0]], dtype=bool)
     elif centering == 'F':
         # same parity
         seo = np.sum(np.mod(hkllist + 100, 2), axis=1)
@@ -476,7 +470,7 @@ def Allowed_HKLs(sgnum, hkllist):
         seo = np.mod(-hkllist[:, 0] + hkllist[:, 1] + hkllist[:, 2] + 90, 3)
         mask = seo == 0
     else:
-        raise RuntimeError('IsGAllowed: unknown lattice centering encountered.')
+        raise ValueError(f'Unknown lattice centering: "{centering}"')
 
     hkls = hkllist[mask, :]
     if not symmorphic:

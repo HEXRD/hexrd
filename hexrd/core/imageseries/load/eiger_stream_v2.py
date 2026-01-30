@@ -190,7 +190,7 @@ class EigerStreamV2ImageSeriesAdapter(ImageSeriesAdapter):
     @property
     def dtype(self) -> np.dtype:
         if self.threshold_setting == 'man_diff':
-            return np.float64
+            return np.dtype('float64')
 
         return np.dtype(self._first_threshold_1_entry['dtype'][()])
 

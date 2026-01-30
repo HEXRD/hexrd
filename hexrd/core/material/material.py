@@ -36,7 +36,7 @@ import logging
 from configparser import ConfigParser as Parser
 import numpy as np
 
-from hexrd.core.material.crystallography import PlaneData as PData
+from hexrd.core.material.crystallography import PlaneData
 from hexrd.core.material import symmetry, unitcell
 from hexrd.core.material.symbols import two_origin_choice
 from hexrd.core.valunits import _angstroms, _degrees, _kev, valWUnit
@@ -312,7 +312,7 @@ class Material(object):
                 return
 
             # Copy over attributes from the previous PlaneData object
-            self._pData = PData(hkls, old_pdata, exclusions=None)
+            self._pData = PlaneData(hkls, old_pdata, exclusions=None)
 
             # Get a mapping to new hkl indices
             old_indices, new_indices = map_hkls_to_new(old_pdata, self._pData)
@@ -330,7 +330,7 @@ class Material(object):
             # Make the PlaneData object from scratch...
             lprm = self.reduced_lattice_parameters
             laue = self.unitcell._laueGroup
-            self._pData = PData(
+            self._pData = PlaneData(
                 hkls,
                 lprm,
                 laue,
@@ -1278,7 +1278,7 @@ class Material(object):
         return self._unitcell
 
     @property
-    def planeData(self):
+    def planeData(self) -> PlaneData:
         """(read only) Return the planeData attribute (lattice parameters)"""
         return self._pData
 

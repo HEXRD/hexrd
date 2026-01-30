@@ -4,6 +4,7 @@ from typing import Any
 
 import numpy as np
 
+from .load.framecache import ImageSeriesAdapter
 from .imageseriesabc import ImageSeriesABC, RegionType
 
 
@@ -14,15 +15,13 @@ class ImageSeries(ImageSeriesABC):
     metadata (possibly None).
     """
 
-    def __init__(self, adapter):
+    def __init__(self, adapter: ImageSeriesAdapter):
         """Build FrameSeries from adapter instance
 
         *adapter* - object instance based on abstract Sequence class with
         properties for image shape, data type and metadata.
         """
         self._adapter = adapter
-
-        return
 
     def __getitem__(self, key):
         return self._adapter[key]
@@ -49,10 +48,6 @@ class ImageSeries(ImageSeriesABC):
         return self._adapter.get_region(frame_idx, region)
 
     def set_option(self, key: str, value: Any):
-        if not hasattr(self._adapter, 'set_option'):
-            msg = f'"{type(self._adapter)}" has not implemented "set_option"'
-            raise NotImplementedError(msg)
-
         self._adapter.set_option(key, value)
 
     def option_values(self) -> dict:

@@ -57,7 +57,7 @@ uTDict = dict(
     energy=energyUN,
 )
 
-
+# TODO: Remove this class, it only adds complexity.
 class UNames(object):
     """Units used in this module"""
 
@@ -98,34 +98,31 @@ cv_dict = {
 }
 
 
+# Value with units
 class valWUnit:
-    "Value with units" ""
-
-    def __init__(self, name, unitType, value, unit):
-        """Initialization
-
-        INPUTS
-        name
-           (str) name of the item
-        unitType
-           (str) class of units, e.g. 'length', 'angle'
-        value
-           (float) numerical value
-        unit
-           (str) name of unit
+    def __init__(self, name: str, unitType: str, value: float, unit: str):
+        """
+        Parameters
+        ----------
+        name : str
+            Name of the item.
+        unitType : str
+            Class of units, e.g., 'length', 'angle', 'energy'.
+        value : float
+            Numerical value.
+        unit : str
+            Name of the unit.
         """
         self.name = name
         if unitType in uTDict:
             self.uT = uTDict[unitType]
         else:
+            # TODO: What does the below comment mean? Is this safe?
             # trust that unitType is correct -- may be a combined type
             self.uT = unitType
 
         self.value = value
         self.unit = unit
-        #
-        #  Original checked if unit is of unitType
-        #
 
     def __str__(self):
         tmpl = """item named "%s" representing %g %s"""
@@ -135,7 +132,7 @@ class valWUnit:
         tmpl = 'valWUnit("%s","%s",%s,"%s")'
         return tmpl % (self.name, self.uT, self.value, self.unit)
 
-    def __mul__(self, other):
+    def __mul__(self, other: 'valWUnit | float') -> 'valWUnit':
         if isinstance(other, float):
             new = valWUnit(self.name, self.uT, self.value * other, self.unit)
             return new
@@ -151,7 +148,7 @@ class valWUnit:
         else:
             raise RuntimeError("mul with unsupported operand")
 
-    def __add__(self, other):
+    def __add__(self, other: 'valWUnit | float') -> 'valWUnit':
         if isinstance(other, float):
             new = valWUnit(self.name, self.uT, self.value + other, self.unit)
             return new
@@ -166,7 +163,7 @@ class valWUnit:
         else:
             raise RuntimeError("add with unsupported operand")
 
-    def __sub__(self, other):
+    def __sub__(self, other: 'valWUnit | float') -> 'valWUnit':
         if isinstance(other, float):
             new = valWUnit(self.name, self.uT, self.value - other, self.unit)
             return new
@@ -181,7 +178,7 @@ class valWUnit:
         else:
             raise RuntimeError("add with unsupported operand")
 
-    def _convert(self, toUnit):
+    def _convert(self, toUnit: str) -> float:
         """
         Return the value of self in requested units.
 
@@ -227,20 +224,17 @@ class valWUnit:
                 f"Unit conversion '{from_to[0]} --> " + f"{from_to[1]}' not recognized"
             )
 
-    def isLength(self):
+    def isLength(self) -> bool:
         """Return true if quantity is a length"""
-        retval = self.uT == uTDict['length']
-        return retval
+        return self.uT == uTDict['length']
 
-    def isAngle(self):
+    def isAngle(self) -> bool:
         """Return true if quantity is an angle"""
-        retval = self.uT == uTDict['angle']
-        return retval
+        return self.uT == uTDict['angle']
 
-    def isEnergy(self):
+    def isEnergy(self) -> bool:
         """Return true if quantity  is an energy"""
-        retval = self.uT == uTDict['energy']
-        return retval
+        return self.uT == uTDict['energy']
 
     def getVal(self, toUnit):
         """

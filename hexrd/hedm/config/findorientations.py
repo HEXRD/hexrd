@@ -87,7 +87,7 @@ class FindOrientationsConfig(Config):
 
     # Simple Values
     @property
-    def threshold(self):
+    def threshold(self) -> int:
         return self._cfg.get('find_orientations:threshold', 1)
 
     @property
@@ -110,7 +110,7 @@ class FindOrientationsConfig(Config):
 class ClusteringConfig(Config):
 
     @property
-    def algorithm(self):
+    def algorithm(self) -> str:
         key = 'find_orientations:clustering:algorithm'
         choices = ['dbscan', 'ort-dbscan', 'sph-dbscan', 'fclusterdata']
         temp = self._cfg.get(key, 'dbscan').lower()
@@ -121,7 +121,7 @@ class ClusteringConfig(Config):
         )
 
     @property
-    def completeness(self):
+    def completeness(self) -> float:
         key = 'find_orientations:clustering:completeness'
         temp = self._cfg.get(key, None)
         if temp is not None:
@@ -129,7 +129,7 @@ class ClusteringConfig(Config):
         raise RuntimeError('"%s" must be specified' % key)
 
     @property
-    def radius(self):
+    def radius(self) -> float:
         key = 'find_orientations:clustering:radius'
         temp = self._cfg.get(key, None)
         if temp is not None:
@@ -224,20 +224,19 @@ class SeedSearchConfig(Config):
 
 
 class OrientationMapsConfig(Config):
-
     @property
-    def active_hkls(self):
-        temp = self._cfg.get(
+    def active_hkls(self) -> int | list[int] | None:
+        hkls: int | str | None = self._cfg.get(
             'find_orientations:orientation_maps:active_hkls', default='all'
         )
-        if isinstance(temp, int):
-            temp = [temp]
-        if temp == 'all':
-            temp = None
-        return temp
+        if isinstance(hkls, int):
+            hkls = [hkls]
+        if hkls == 'all':
+            hkls = None
+        return hkls
 
     @property
-    def bin_frames(self):
+    def bin_frames(self) -> int:
         return self._cfg.get('find_orientations:orientation_maps:bin_frames', default=1)
 
     @property
@@ -291,11 +290,11 @@ class OrientationMapsConfig(Config):
         return sof
 
     @property
-    def threshold(self):
+    def threshold(self) -> int:
         return self._cfg.get('find_orientations:orientation_maps:threshold')
 
     @property
-    def filter_maps(self):
+    def filter_maps(self) -> bool:
         return self._cfg.get(
             'find_orientations:orientation_maps:filter_maps', default=False
         )

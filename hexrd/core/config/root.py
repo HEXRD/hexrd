@@ -95,7 +95,7 @@ class RootConfig(Config):
         return self._fitgrain_config
 
     @property
-    def instrument(self):
+    def instrument(self) -> Instrument:
         if not hasattr(self, '_instr_config'):
             instr_file = self.get('instrument', None)
             if instr_file is not None:
@@ -104,11 +104,11 @@ class RootConfig(Config):
         return self._instr_config
 
     @instrument.setter
-    def instrument(self, instr_config):
+    def instrument(self, instr_config: Instrument):
         self._instr_config = instr_config
 
     @property
-    def material(self):
+    def material(self) -> MaterialConfig:
         if not hasattr(self, '_material_config'):
             self._material_config = MaterialConfig(self)
 
@@ -120,7 +120,7 @@ class RootConfig(Config):
         return self._material_config
 
     @material.setter
-    def material(self, material_config):
+    def material(self, material_config: MaterialConfig):
         self._material_config = material_config
 
     @property
@@ -174,10 +174,10 @@ class RootConfig(Config):
             )
 
     @property
-    def image_series(self):
+    def image_series(self) -> dict[str, imageseries.omega.OmegaImageSeries]:
         """Return the imageseries dictionary."""
         if not hasattr(self, '_image_dict'):
-            self._image_dict = dict()
+            self._image_dict: dict[str, imageseries.omega.OmegaImageSeries] = {}
             fmt = self.get('image_series:format')
             imsdata = self.get('image_series:data')
             for ispec in imsdata:

@@ -1,6 +1,8 @@
 import abc
 import pkgutil
+from typing import Any
 import numpy as np
+from numpy.typing import NDArray
 
 from ..imageseriesabc import ImageSeriesABC, RegionType
 from .registry import Registry
@@ -15,11 +17,37 @@ class _RegisterAdapterClass(abc.ABCMeta):
 
 
 class ImageSeriesAdapter(ImageSeriesABC, metaclass=_RegisterAdapterClass):
-    format = None
+    format: str | None = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._dtype: np.dtype = None
+
+    @property
+    def dtype(self):
+        return self._dtype
+
+    @dtype.setter
+    def dtype(self, value: np.dtype):
+        self._dtype = value
 
     def get_region(self, frame_idx: int, region: RegionType) -> np.ndarray:
         r = region
         return self[frame_idx][r[0][0] : r[0][1], r[1][0] : r[1][1]]
+
+    @property
+    def metadata(self) -> dict[str, NDArray[np.float64]]:
+        return {}
+    
+    @property
+    def shape(self) -> tuple[int, ...]:
+        raise NotImplementedError()
+
+    def option_values(self) -> dict:
+        raise NotImplementedError()
+    
+    def set_option(self, key: str, value: Any):
+        raise NotImplementedError()
 
     def __getitem__(self, _):
         pass

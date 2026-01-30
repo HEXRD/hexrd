@@ -94,8 +94,8 @@ def hklToStr(hkl: np.ndarray) -> str:
 
 
 def cosineXform(
-    a: np.ndarray, b: np.ndarray, c: np.ndarray
-) -> tuple[np.float64, np.float64]:
+    a: NDArray[np.float64] | np.float64, b: NDArray[np.float64] | np.float64, c: NDArray[np.float64] | np.float64
+) -> tuple[NDArray[np.float64], NDArray[np.float64]] | tuple[float, float]:
     """
     Spherical trig transform to take alpha, beta, gamma to expressions
     for cos(alpha*).  See ref below.
@@ -465,9 +465,9 @@ def latticeVectors(
     else:
         raise ValueError(f'lattice tag "{tag}" is not recognized')
 
-    alpha: float
-    beta: float
-    gamma: float
+    alpha: np.float64
+    beta: np.float64
+    gamma: np.float64
     alpha, beta, gamma = cellparms[3:6]
     cosalfar, sinalfar = cosineXform(alpha, beta, gamma)
 
@@ -1490,7 +1490,7 @@ class PlaneData(object):
                     f"hkl '{tuple(hkl)}' is not present in this material!"
                 )
 
-    def getHKLs(self, *hkl_ids: int, **kwargs) -> Union[List[str], np.ndarray]:
+    def getHKLs(self, *hkl_ids: int, **kwargs) -> List[str] | NDArray[np.float64]:
         """
         Returns the powder HKLs subject to specified options.
 
@@ -1603,7 +1603,7 @@ class PlaneData(object):
             List of symmetry HKLs for each HKL, either as strings or as a
             vstacked array.
         """
-        sym_hkls = []
+        sym_hkls: list[list[str] | NDArray[np.float64]] = []
         hkl_index = 0
         if indices is not None:
             indB = np.zeros(self.nHKLs, dtype=bool)
@@ -2048,14 +2048,14 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     return ome1, eta1
 
 
-def getDparms(lp: np.ndarray, lpTag: str, radians: Optional[bool] = True) -> np.ndarray:
+def getDparms(lp: np.ndarray, lpTag: str, radians: bool = True) -> NDArray[np.float64]:
     """
     Utility routine for getting dparms, that is the lattice parameters
     without symmetry -- 'triclinic'
 
     Parameters
     ----------
-    lp : np.ndarray
+    lp : NDArray[np.float64]
         Parsed lattice parameters
     lpTag : str
         Tag for the symmetry group of the lattice (from Laue group)
@@ -2064,7 +2064,7 @@ def getDparms(lp: np.ndarray, lpTag: str, radians: Optional[bool] = True) -> np.
 
     Returns
     -------
-    np.ndarray
+    NDArray[np.float64]
         The lattice parameters without symmetry.
     """
     latVecOps = latticeVectors(lp, tag=lpTag, radians=radians)
@@ -2160,8 +2160,8 @@ def lorentz_factor(tth: np.ndarray) -> np.ndarray:
 
 def polarization_factor(
     tth: np.ndarray,
-    unpolarized: Optional[bool] = True,
     eta: Optional[np.ndarray] = None,
+    unpolarized: Optional[bool] = True,
     f_hor: Optional[float] = None,
     f_vert: Optional[float] = None,
 ) -> np.ndarray:

@@ -57,14 +57,14 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
                 "'yaml', 'test'",
             )
 
-    def _load_yml(self):
+    def _load_yml(self) -> None:
         with open(self._fname, "r") as f:
             d = yaml.load(f)
         datad = d['data']
         self._cache = datad['file']
         self._nframes = datad['nframes']
         self._shape = tuple(datad['shape'])
-        self._dtype = np.dtype(datad['dtype'])
+        self._dtype: str = np.dtype(datad['dtype'])
         self._meta = yamlmeta(d['meta'], path=self._cache)
 
     def _load_cache(self):

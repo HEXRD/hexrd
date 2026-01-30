@@ -4,6 +4,7 @@ import numpy as np
 
 from hexrd.core import material
 from hexrd.core.constants import keVToAngstrom
+from hexrd.core.material.crystallography import PlaneData
 from hexrd.core.valunits import valWUnit
 
 from .config import Config
@@ -82,16 +83,13 @@ class MaterialConfig(Config):
         return self._exclusion_parameters
 
     @property
-    def plane_data(self):
+    def plane_data(self) -> PlaneData:
         """crystallographic information"""
-        #
-        # Only generate this once, not on each call.
-        #
         if not hasattr(self, "_plane_data"):
             self._plane_data = self._make_plane_data()
         return self._plane_data
 
-    def _make_plane_data(self):
+    def _make_plane_data(self) -> PlaneData:
         """Return the active material PlaneData class."""
         pd = self.materials[self.active].planeData
         pd.tThWidth = np.radians(self.tthw)
@@ -100,7 +98,7 @@ class MaterialConfig(Config):
         return pd
 
     @property
-    def beam_energy(self):
+    def beam_energy(self) -> float:
         return keVToAngstrom(self.plane_data.wavelength)
 
     @beam_energy.setter
