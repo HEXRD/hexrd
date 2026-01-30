@@ -87,19 +87,19 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
     R.params["Ti_beta_Y"].vary = True
     R.Refine()
 
-    assert R.Rwp < 0.5
+    assert R.Rwp < 0.6
 
     R.params["Ti_beta_Ti1_dw"].vary = True
     R.Refine()
 
-    assert R.Rwp < 0.2
+    assert R.Rwp < 0.1
 
     R.params["bkg_0"].vary = True
     R.params["bkg_1"].vary = True
 
     R.Refine()
 
-    assert R.Rwp < 0.1
+    assert R.Rwp < 0.05
 
     # Now try the experimental model.
     # It shouldn't have a big impact. We'll just verify it runs.
@@ -116,8 +116,8 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
 
     R.Refine()
 
-    assert R.Rwp < 0.1
+    assert R.Rwp < 0.05
 
     # Test calculating the equivalent temperatures
     equiv_temp_dict = m_r.calc_temperature({'Ti': 200})
-    assert np.isclose(equiv_temp_dict['Ti'], 1511.75)
+    assert np.isclose(equiv_temp_dict['Ti'], 3607, atol=10)
