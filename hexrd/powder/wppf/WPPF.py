@@ -1932,8 +1932,7 @@ class Rietveld(AbstractWPPF):
                 )
 
                 if self._has_tds_model(p, k):
-                    t = np.radians(self.tds_model.tth)
-                    lp = 1 + self.Ph * np.cos(t) ** 2
+                    lp = self.lpfactor_full
                     pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                     tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
                     weight = self.phases.wavelength[k][1]
@@ -1995,8 +1994,7 @@ class Rietveld(AbstractWPPF):
                     )
 
                     if self._has_tds_model(p, k):
-                        t = np.radians(self.tds_model.tth)
-                        lp = 1 + self.Ph * np.cos(t) ** 2
+                        lp = self.lpfactor_full
                         pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                         tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
                         weight = self.phases.wavelength[k][1]
@@ -2059,8 +2057,7 @@ class Rietveld(AbstractWPPF):
                         )
 
                         if self._has_tds_model(p, k):
-                            t = np.radians(self.tds_model.tth)
-                            lp = 1 + self.Ph * np.cos(t) ** 2
+                            lp = self.lpfactor_full
                             pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                             tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
                             weight = self.phases.wavelength[k][1]
@@ -2359,6 +2356,14 @@ class Rietveld(AbstractWPPF):
             return None
 
         return self._eta_mask
+
+    @property
+    def lpfactor_full(self):
+        t = np.radians(self.tds_model.tth)
+        ctth = np.cos(t)
+        cth = np.cos(t * 0.5)
+        sth = np.sin(t * 0.5)
+        return (1 + self.Ph * ctth**2) / sth**2 / cth
 
     def compute_texture_data(
         self,
