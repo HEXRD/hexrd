@@ -1932,11 +1932,7 @@ class Rietveld(AbstractWPPF):
                 )
 
                 if self._has_tds_model(p, k):
-                    lp = self.lpfactor_full
-                    pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
-                    tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
-                    weight = self.phases.wavelength[k][1]
-                    y += self.scale * weight * pf * lp * tds_signal
+                    y += self.calculate_scaled_tds_signal(p, k)
 
         if self.amorphous_model is not None:
             y += self.amorphous_model.amorphous_lineout
@@ -1994,11 +1990,7 @@ class Rietveld(AbstractWPPF):
                     )
 
                     if self._has_tds_model(p, k):
-                        lp = self.lpfactor_full
-                        pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
-                        tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
-                        weight = self.phases.wavelength[k][1]
-                        y += self.scale * weight * pf * lp * tds_signal
+                        y += self.calculate_scaled_tds_signal(p, k)
 
             y += self.background.y
             if self.amorphous_model is not None:
@@ -2057,11 +2049,7 @@ class Rietveld(AbstractWPPF):
                         )
 
                         if self._has_tds_model(p, k):
-                            lp = self.lpfactor_full
-                            pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
-                            tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
-                            weight = self.phases.wavelength[k][1]
-                            y += self.scale * weight * pf * lp * tds_signal
+                            y += self.calculate_scaled_tds_signal(p, k)
 
                 y += self.background.y
                 if self.amorphous_model is not None:
@@ -2178,6 +2166,18 @@ class Rietveld(AbstractWPPF):
     def tds_model(self, v: TDS | None):
         self._tds_model = v
         self.update_tds_model_smoothing()
+
+    def calculate_scaled_tds_signal(self, phase_name: str, wavelength_name: str) -> float:
+        # Note: the TDS models properly defined to call this function.
+        # Errors will occur if the phase/wavelength don't exist.
+        p = phase_name
+        k = wavelength_name
+
+        lp = self.lpfactor_full
+        pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
+        tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
+        weight = self.phases.wavelength[k][1]
+        return self.scale * weight * pf * lp * tds_signal
 
     @property
     def phases(self):
