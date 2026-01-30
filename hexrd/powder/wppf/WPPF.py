@@ -2167,13 +2167,15 @@ class Rietveld(AbstractWPPF):
         self._tds_model = v
         self.update_tds_model_smoothing()
 
-    def calculate_scaled_tds_signal(self, phase_name: str, wavelength_name: str) -> float:
+    def calculate_scaled_tds_signal(
+        self, phase_name: str, wavelength_name: str
+    ) -> float:
         # Note: the TDS models properly defined to call this function.
         # Errors will occur if the phase/wavelength don't exist.
         p = phase_name
         k = wavelength_name
 
-        lp = self.lpfactor_full
+        lp = self.polfactor_full
         pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
         tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
         weight = self.phases.wavelength[k][1]
@@ -2358,12 +2360,10 @@ class Rietveld(AbstractWPPF):
         return self._eta_mask
 
     @property
-    def lpfactor_full(self):
+    def polfactor_full(self):
         t = np.radians(self.tds_model.tth)
         ctth = np.cos(t)
-        cth = np.cos(t * 0.5)
-        sth = np.sin(t * 0.5)
-        return (1 + self.Ph * ctth**2) / sth**2 / cth
+        return 1 + self.Ph * ctth**2
 
     def compute_texture_data(
         self,
