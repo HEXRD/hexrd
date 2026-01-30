@@ -832,7 +832,7 @@ class Material_Rietveld(Material_LeBail):
 
         return absorption
 
-    def calc_temperature(self, T_debye):
+    def calc_temperature(self, T_debye: dict[str, float]) -> dict[str, float]:
         '''use the classical debye model to convert U factor to
         an equivalent temperature. The T_debye is a dictionary
         with the keys as atom types and the values are the debye
@@ -843,7 +843,7 @@ class Material_Rietveld(Material_LeBail):
         T = dict.fromkeys(T_debye)
         for U, a in zip(self.U, self.atom_type):
             key = constants.ptableinverse[a]
-            mass = constants.ATOM_WEIGHTS_DICT[k]
+            mass = constants.ATOM_WEIGHTS_DICT[key]
             # the standard are in m^2 in S.I. units and U is in A^2
             # so the 1E20 factor accounts for that
             pre = (

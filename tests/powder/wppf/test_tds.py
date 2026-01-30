@@ -117,3 +117,7 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
     R.Refine()
 
     assert R.Rwp < 0.1
+
+    # Test calculating the equivalent temperatures
+    equiv_temp_dict = m_r.calc_temperature({'Ti': 200})
+    assert np.isclose(equiv_temp_dict['Ti'], 1511.75)
