@@ -4,7 +4,7 @@ from abc import abstractmethod
 import copy
 import logging
 import os
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Sequence
 
 from hexrd.core.instrument.constants import (
     COATING_DEFAULT,
@@ -1209,8 +1209,8 @@ class Detector:
         merge_hkls: bool = False,
         delta_tth: Optional[float] = None,
         delta_eta: float = 10.0,
-        eta_period: list[float] | np.ndarray = [-np.pi, np.pi],
-        eta_list: Optional[list[float] | np.ndarray] = None,
+        eta_period: Sequence[float] | np.ndarray = (-np.pi, np.pi),
+        eta_list: Optional[Sequence[float] | np.ndarray] = None,
         rmat_s: NDArray[np.float64] = ct.identity_3x3,
         tvec_s: NDArray[np.float64] = ct.zeros_3,
         tvec_c: NDArray[np.float64] = ct.zeros_3,
@@ -1512,8 +1512,8 @@ class Detector:
         self,
         plane_data: PlaneData,
         grain_param_list: list[float],
-        eta_ranges: list[tuple[float, float]] = [(-np.pi, np.pi)],
-        ome_ranges: list[tuple[float, float]] = [(-np.pi, np.pi)],
+        eta_ranges: Sequence[tuple[float, float]] = ((-np.pi, np.pi)),
+        ome_ranges: Sequence[tuple[float, float]] = ((-np.pi, np.pi)),
         ome_period: tuple[float, float] = (-np.pi, np.pi),
         chi: float = 0.0,
         tVec_s: NDArray[np.float64] = ct.zeros_3,

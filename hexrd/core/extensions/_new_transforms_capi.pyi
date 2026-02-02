@@ -1,7 +1,5 @@
-# _new_transforms_CAPI.pyi
 from __future__ import annotations
 
-from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 

@@ -27,7 +27,7 @@
 # ============================================================
 
 
-from typing import Callable, Literal, Optional, Union, Any, Generator, overload
+from typing import Callable, Literal, Optional, Union, Any, Sequence, overload
 from hexrd.core.material.crystallography import PlaneData
 from hexrd.core.distortion.distortionabc import DistortionABC
 
@@ -574,10 +574,10 @@ def simulateGVecs(
     pd: PlaneData,
     detector_params: np.ndarray,
     grain_params: np.ndarray,
-    ome_range: list[tuple[float, float]] = [(-np.pi, np.pi)],
+    ome_range: Sequence[tuple[float, float]] = ((-np.pi, np.pi)),
     ome_period: tuple[float, float] = (-np.pi, np.pi),
-    eta_range: list[tuple[float, float]] = [(-np.pi, np.pi)],
-    panel_dims: list[tuple[float, float]] = [(-204.8, -204.8), (204.8, 204.8)],
+    eta_range: Sequence[tuple[float, float]] = ((-np.pi, np.pi)),
+    panel_dims: Sequence[tuple[float, float]] = ((-204.8, -204.8), (204.8, 204.8)),
     pixel_pitch: tuple[float, float] = (0.2, 0.2),
     distortion: Optional[DistortionABC] = None,
     beam_vector: np.ndarray = constants.beam_vec,
