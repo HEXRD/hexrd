@@ -1504,7 +1504,8 @@ class PlaneData(object):
                     f"hkl '{tuple(hkl)}' is not present in this material!"
                 )
 
-    def getHKLs(self, *hkl_ids: int, **kwargs) -> List[str] | NDArray[np.float64]:
+    def getHKLs(self, *hkl_ids: int, asStr: bool=False, thisTTh: float=None,
+                allHKLs: bool=False) -> Union[List[str], np.ndarray]:
         """
         Returns the powder HKLs subject to specified options.
 
@@ -1546,26 +1547,15 @@ class PlaneData(object):
             - Added functionality to handle optional hklID args
             - Updated docstring
         """
-        # kwarg parsing
-        opts = dict(asStr=False, thisTTh=None, allHKLs=False)
-        if len(kwargs) > 0:
-            # check keys
-            for k, v in kwargs.items():
-                if k not in opts:
-                    raise TypeError(
-                        f"getHKLs() got an unexpected keyword argument '{k}'"
-                    )
-            opts.update(kwargs)
-
         hkls = []
         if len(hkl_ids) == 0:
             for iHKLr, hklData in enumerate(self.hklDataList):
-                if not opts['allHKLs']:
+                if not allHKLs:
                     if not self._thisHKL(iHKLr):
                         continue
-                if opts['thisTTh'] is not None:
+                if thisTTh is not None:
                     tThLo, tThHi = self._getTThRange(iHKLr)
-                    if opts['thisTTh'] < tThHi and opts['thisTTh'] > tThLo:
+                    if thisTTh < tThHi and thisTTh > tThLo:
                         hkls.append(hklData['hkl'])
                 else:
                     hkls.append(hklData['hkl'])
@@ -1582,12 +1572,12 @@ class PlaneData(object):
                     idx[i] = int(np.where(all_hkl_ids == hkl_id)[0])
                 except TypeError:
                     raise RuntimeError(f"Requested hklID '{hkl_id}'is invalid!")
-                if sorted_excl[idx[i]] and not opts['allHKLs']:
+                if sorted_excl[idx[i]] and not allHKLs:
                     raise RuntimeError(f"Requested hklID '{hkl_id}' is excluded!")
                 hkls.append(self.hklDataList[idx[i]]['hkl'])
 
         # handle output kwarg
-        if opts['asStr']:
+        if asStr:
             return list(map(hklToStr, np.array(hkls)))
         else:
             return np.array(hkls)
