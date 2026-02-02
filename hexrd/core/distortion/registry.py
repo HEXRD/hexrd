@@ -2,12 +2,11 @@
 
 import abc
 
-from hexrd.core.distortion.distortionabc import DistortionABC
-
 __all__ = ['maptypes', 'get_mapping']
 
 
 class _RegisterDistortionClass(abc.ABCMeta):
+    maptype: str | None
 
     def __init__(cls, name, bases, attrs):
         abc.ABCMeta.__init__(cls, name, bases, attrs)
@@ -17,10 +16,10 @@ class _RegisterDistortionClass(abc.ABCMeta):
 class Registry(object):
     """Registry for imageseries adapters"""
 
-    distortion_registry: dict[str, DistortionABC] = dict()
+    distortion_registry: dict[str, _RegisterDistortionClass] = dict()
 
     @classmethod
-    def register(cls, acls: DistortionABC):
+    def register(cls, acls: _RegisterDistortionClass):
         """Register adapter class"""
         if acls.__name__ != 'DistortionBase':
             assert acls.maptype is not None
