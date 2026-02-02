@@ -430,9 +430,15 @@ def filter_maps_if_requested(eta_ome, cfg: root.RootConfig):
     #  if False/None don't do anything
     #  if True, only do median subtraction
     #  if scalar, do median + LoG filter with that many pixels std dev
-    if cfg.find_orientations.orientation_maps.filter_maps:
-        logger.info("filtering eta/ome maps")
-        _filter_eta_ome_maps(eta_ome)
+    filter_maps = cfg.find_orientations.orientation_maps.filter_maps
+    if filter_maps:
+        if not isinstance(filter_maps, bool):
+            sigm = const.fwhm_to_sigma * filter_maps
+            logger.info("filtering eta/ome maps incl LoG with %.2f std dev", sigm)
+            _filter_eta_ome_maps(eta_ome, filter_stdev=sigm)
+        else:
+            logger.info("filtering eta/ome maps")
+            _filter_eta_ome_maps(eta_ome)
 
 
 def generate_eta_ome_maps(cfg: root.RootConfig, hkls: Optional[NDArray[np.float64] | list[int]]=None, save: bool=True):
