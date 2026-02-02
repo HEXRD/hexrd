@@ -171,17 +171,17 @@ def makeGVector(hkl: NDArray[np.float64], bMat: NDArray[np.float64]) -> NDArray[
 
 
 def gvec_to_xy(
-    gvec_c: np.ndarray,
-    rmat_d: np.ndarray,
-    rmat_s: np.ndarray,
-    rmat_c: np.ndarray,
-    tvec_d: np.ndarray,
-    tvec_s: np.ndarray,
-    tvec_c: np.ndarray,
-    beam_vec: Optional[np.ndarray] = None,
-    vmat_inv: Optional[np.ndarray] = None,
-    bmat: Optional[np.ndarray] = None,
-) -> np.ndarray:
+    gvec_c: NDArray[np.float64],
+    rmat_d: NDArray[np.float64],
+    rmat_s: NDArray[np.float64],
+    rmat_c: NDArray[np.float64],
+    tvec_d: NDArray[np.float64],
+    tvec_s: NDArray[np.float64],
+    tvec_c: NDArray[np.float64],
+    beam_vec: Optional[NDArray[np.float64]] = None,
+    vmat_inv: Optional[NDArray[np.float64]] = None,
+    bmat: Optional[NDArray[np.float64]] = None,
+) -> NDArray[np.float64]:
     """
     Takes a concatenated list of reciprocal lattice vectors components in the
     CRYSTAL FRAME to the specified detector-relative frame, subject to the
@@ -269,16 +269,16 @@ def gvec_to_xy(
 
 
 def xy_to_gvec(
-    xy_d: np.ndarray,
-    rmat_d: np.ndarray,
-    rmat_s: np.ndarray,
-    tvec_d: np.ndarray,
-    tvec_s: np.ndarray,
-    tvec_c: np.ndarray,
-    rmat_b: Optional[np.ndarray] = None,
+    xy_d: NDArray[np.float64],
+    rmat_d: NDArray[np.float64],
+    rmat_s: NDArray[np.float64],
+    tvec_d: NDArray[np.float64],
+    tvec_s: NDArray[np.float64],
+    tvec_c: NDArray[np.float64],
+    rmat_b: Optional[NDArray[np.float64]] = None,
     distortion: Optional[DistortionABC] = None,
     output_ref: Optional[bool] = False,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[NDArray[np.float64], ...]:
     """
     Takes a list cartesian (x, y) pairs in the DETECTOR FRAME and calculates
     the associated reciprocal lattice (G) vectors and (bragg angle, azimuth)
@@ -347,15 +347,15 @@ def xy_to_gvec(
 
 
 def oscill_angles_of_hkls(
-    hkls: np.ndarray,
+    hkls: NDArray[np.float64],
     chi: float,
-    rmat_c: np.ndarray,
-    bmat: np.ndarray,
+    rmat_c: NDArray[np.float64],
+    bmat: NDArray[np.float64],
     wavelength: float,
-    v_inv: Optional[np.ndarray] = None,
-    beam_vec: np.ndarray = cnst.beam_vec,
-    eta_vec: np.ndarray = cnst.eta_vec,
-) -> Tuple[np.ndarray, np.ndarray]:
+    v_inv: Optional[NDArray[np.float64]] = None,
+    beam_vec: NDArray[np.float64] = cnst.beam_vec,
+    eta_vec: NDArray[np.float64] = cnst.eta_vec,
+) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Takes a list of unit reciprocal lattice vectors in crystal frame to the
     specified detector-relative frame, subject to the conditions:
@@ -476,7 +476,7 @@ def unit_vector(vec_in: NDArray[np.float64]) -> NDArray[np.float64]:
         )
 
 
-def make_detector_rmat(tilt_angles: np.ndarray) -> np.ndarray:
+def make_detector_rmat(tilt_angles: NDArray[np.float64]) -> NDArray[np.float64]:
     """
     Form the (3, 3) tilt rotations from the tilt angle list:
 
@@ -503,7 +503,7 @@ def make_oscill_rmat_array(chi, omeArray):
     return _impl.makeOscillRotMat(chi, arg)
 
 
-def make_sample_rmat(chi: float, ome: Union[float, np.ndarray]) -> np.ndarray:
+def make_sample_rmat(chi: float, ome: float | NDArray[np.float64]) -> NDArray[np.float64]:
     # TODO: Check this docstring
     """
     Make a rotation matrix representing the COB from sample frame to the lab

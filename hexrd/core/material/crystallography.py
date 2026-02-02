@@ -1504,7 +1504,7 @@ class PlaneData(object):
                     f"hkl '{tuple(hkl)}' is not present in this material!"
                 )
 
-    def getHKLs(self, *hkl_ids: int, asStr: bool=False, thisTTh: float=None,
+    def getHKLs(self, *hkl_ids: int, asStr: bool=False, thisTTh: Optional[float]=None,
                 allHKLs: bool=False) -> Union[List[str], np.ndarray]:
         """
         Returns the powder HKLs subject to specified options.

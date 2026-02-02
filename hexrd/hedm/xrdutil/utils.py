@@ -489,8 +489,8 @@ def _fetch_hkls_from_planedata(pd: PlaneData):
 def _filter_hkls_eta_ome(
     hkls: NDArray[np.float64],
     angles: NDArray[np.float64],
-    eta_range: list[tuple[float, float]],
-    ome_range: list[tuple[float, float]],
+    eta_range: Sequence[tuple[float, float]],
+    ome_range: Sequence[tuple[float, float]],
     return_mask: Literal[False] = False,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
 
@@ -498,8 +498,8 @@ def _filter_hkls_eta_ome(
 def _filter_hkls_eta_ome(
     hkls: NDArray[np.float64],
     angles: NDArray[np.float64],
-    eta_range: list[tuple[float, float]],
-    ome_range: list[tuple[float, float]],
+    eta_range: Sequence[tuple[float, float]],
+    ome_range: Sequence[tuple[float, float]],
     return_mask: Literal[True] = True,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]: ...
 
@@ -507,8 +507,8 @@ def _filter_hkls_eta_ome(
 def _filter_hkls_eta_ome(
     hkls: NDArray[np.float64],
     angles: NDArray[np.float64],
-    eta_range: list[tuple[float, float]],
-    ome_range: list[tuple[float, float]],
+    eta_range: Sequence[tuple[float, float]],
+    ome_range: Sequence[tuple[float, float]],
     return_mask: bool = False,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]] | tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """
@@ -574,14 +574,14 @@ def simulateGVecs(
     pd: PlaneData,
     detector_params: np.ndarray,
     grain_params: np.ndarray,
-    ome_range: Sequence[tuple[float, float]] = ((-np.pi, np.pi)),
+    ome_range: Sequence[tuple[float, float]] = ((-np.pi, np.pi),),
     ome_period: tuple[float, float] = (-np.pi, np.pi),
-    eta_range: Sequence[tuple[float, float]] = ((-np.pi, np.pi)),
+    eta_range: Sequence[tuple[float, float]] = ((-np.pi, np.pi),),
     panel_dims: Sequence[tuple[float, float]] = ((-204.8, -204.8), (204.8, 204.8)),
     pixel_pitch: tuple[float, float] = (0.2, 0.2),
     distortion: Optional[DistortionABC] = None,
     beam_vector: np.ndarray = constants.beam_vec,
-    energy_correction: Union[dict, None] = None,
+    energy_correction: Optional[dict[str, float]] = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     returns valid_ids, valid_hkl, valid_ang, valid_xy, ang_ps

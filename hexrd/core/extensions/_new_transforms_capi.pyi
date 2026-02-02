@@ -54,7 +54,7 @@ def detectorXYToGvec(
     beam_vec: NDArray[np.float64],
     eta_vec: NDArray[np.float64],
     /,
-) -> tuple[tuple[NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]]: ...
+) -> tuple[NDArray[np.float64], ...]: ...
 
 def oscillAnglesOfHKLs(
     hkls: NDArray[np.float64],
@@ -125,4 +125,4 @@ def quat_distance(
     q2: NDArray[np.float64],
     qsym: NDArray[np.float64],
     /,
-) -> float: ...
+) -> NDArray[np.float64]: ...
