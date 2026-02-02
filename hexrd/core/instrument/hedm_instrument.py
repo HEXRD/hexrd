@@ -249,13 +249,14 @@ def chunk_instrument(instr, rects, labels, use_roi=False):
     return new_icfg_dict
 
 
-def _parse_imgser_dict(imgser_dict, det_key, roi=None):
+def _parse_imgser_dict(imgser_dict: Mapping[str, OmegaImageSeries | NDArray[np.float64]],
+                       det_key: str, roi: Optional[tuple[tuple[int, int], ...]]=None) -> OmegaImageSeries | ProcessedImageSeries | NDArray[np.float64]:
     """
     Associates a dict of imageseries to the target panel(s).
 
     Parameters
     ----------
-    imgser_dict : dict
+    imgser_dict : dict[str, OmegaImageSeries | NDArray[np.float64]]
         The input dict of imageseries.  Either `det_key` is in imgser_dict, or
         the shared key is.  Entries can be an ImageSeries object or a 2- or 3-d
         ndarray of images.
@@ -290,8 +291,8 @@ def _parse_imgser_dict(imgser_dict, det_key, roi=None):
                 raise RuntimeError(f"multiple entries found for '{det_key}'")
             # use boolean array to index the proper key
             # !!! these should be in the same order
-            img_keys = img_keys = np.asarray(list(imgser_dict.keys()))
-            matched_det_key = img_keys[matched_det_keys][0]  # !!! only one
+            img_keys: NDArray[np.str_] = np.asarray(list(imgser_dict.keys()))
+            matched_det_key = img_keys[matched_det_keys][0]
             images_in = imgser_dict[matched_det_key]
         else:
             raise RuntimeError(
@@ -317,6 +318,7 @@ def _parse_imgser_dict(imgser_dict, det_key, roi=None):
         elif isinstance(images_in, np.ndarray):
             # 2- or 3-d array of images
             ndim = images_in.ndim
+            images_in = np.asarray(images_in)
             if ndim == 2:
                 ims = images_in[roi[0][0] : roi[0][1], roi[1][0] : roi[1][1]]
             elif ndim == 3:
@@ -1042,7 +1044,7 @@ class HEDMInstrument(object):
         self,
         plane_data: PlaneData,
         imgser_dict: dict[str, OmegaImageSeries],
-        active_hkls: Optional[list[int]]=None,
+        active_hkls: Optional[NDArray[np.int32] | list[int]]=None,
         threshold: Optional[float]=None,
         tth_tol: Optional[float]=None,
         eta_tol: float=0.25,
@@ -1085,9 +1087,14 @@ class HEDMInstrument(object):
         !!!: images must be non-negative!
         !!!: plane_data is NOT a copy!
         """
+        if plane_data.tThWidth is None and tth_tol is None:
+            raise RuntimeError(
+                "tth_tol was not specified and plane_data.tThWidth is not set"
+            )
         if tth_tol is not None:
             plane_data.tThWidth = np.radians(tth_tol)
         else:
+            assert plane_data.tThWidth is not None
             tth_tol = np.degrees(plane_data.tThWidth)
 
         # make rings clipped to panel
@@ -1137,6 +1144,7 @@ class HEDMInstrument(object):
 
             # grab imageseries for this detector
             ims = _parse_imgser_dict(imgser_dict, det_key, roi=panel.roi)
+            assert isinstance(ims, OmegaImageSeries)
 
             # grab omegas from imageseries and squawk if missing
             try:
@@ -1634,7 +1642,7 @@ class HEDMInstrument(object):
         self,
         plane_data: PlaneData,
         grain_params: tuple | np.ndarray,
-        imgser_dict: dict[str, OmegaImageSeries],
+        imgser_dict: Mapping[str, OmegaImageSeries | NDArray[np.float64]],
         tth_tol: float = 0.25,
         eta_tol: float = 1.0,
         ome_tol: float = 1.0,
@@ -1644,13 +1652,16 @@ class HEDMInstrument(object):
     ):
         rMat_c = make_rmat_of_expmap(grain_params[:3])
         tVec_c = np.asarray(grain_params[3:6])
-
+        
         oims0 = next(iter(imgser_dict.values()))
+        # Assert because subsequent nested function calls are too broadly typed
+        assert isinstance(oims0, OmegaImageSeries)
         omega_ranges = [
             np.radians([i['ostart'], i['ostop']]) for i in oims0.omegawedges.wedges
         ]
         if ome_period is None:
             ims = next(iter(imgser_dict.values()))
+            assert isinstance(ims, OmegaImageSeries)
             ome_period = np.radians(ims.omega[0, 0] + np.array([0.0, 360.0]))
 
         delta_omega = oims0.omega[0, 1] - oims0.omega[0, 0]
@@ -1671,6 +1682,7 @@ class HEDMInstrument(object):
             omega_image_series = _parse_imgser_dict(
                 imgser_dict, detector_id, roi=panel.roi
             )
+            assert isinstance(omega_image_series, OmegaImageSeries)
 
             hkl_ids, hkls_p, ang_centers, xy_centers, ang_pixel_size = [
                 item[0] for item in sim_results[detector_id]
@@ -1882,6 +1894,7 @@ class HEDMInstrument(object):
             omega_image_series = _parse_imgser_dict(
                 imgser_dict, detector_id, roi=panel.roi
             )
+            assert isinstance(omega_image_series, OmegaImageSeries)
 
             if write_text:
                 output_dir = Path(dirname) / detector_id
@@ -2546,7 +2559,7 @@ class GenerateEtaOmeMaps(object):
         image_series_dict: dict[str, OmegaImageSeries],
         instrument: HEDMInstrument,
         plane_data: PlaneData,
-        active_hkls: Optional[NDArray[np.float64] | list[int]] = None,
+        active_hkls: Optional[NDArray[np.int32] | list[int]] = None,
         eta_step: float=0.25,
         threshold: Optional[float]=None,
         ome_period: tuple[float, float]=(0, 360), # TODO: Remove this - it does nothing.
@@ -2557,12 +2570,13 @@ class GenerateEtaOmeMaps(object):
         # ???: can we change the behavior of iHKLList?
         if active_hkls is None:
             self._iHKLList = plane_data.getHKLID(plane_data.hkls, master=True)
+            assert isinstance(self._iHKLList, list)
             n_rings = len(self._iHKLList)
         else:
             assert hasattr(
                 active_hkls, '__len__'
             ), "active_hkls must be an iterable with __len__"
-            self._iHKLList = active_hkls
+            self._iHKLList = np.asarray(active_hkls, dtype=np.int32).tolist()
             n_rings = len(active_hkls)
 
         # grab a det key and corresponding imageseries (first will do)
@@ -2631,7 +2645,7 @@ class GenerateEtaOmeMaps(object):
         for i_ring in range(n_rings):
             # first handle etas
             full_map: NDArray[np.float64] = np.zeros(map_shape, dtype=float)
-            nan_mask_full: NDArray[np.bool_] = np.zeros((len(eta_mapping), map_shape[0], map_shape[1]))
+            nan_mask_full: NDArray[np.bool_] = np.zeros((len(eta_mapping), map_shape[0], map_shape[1]), dtype=bool)
             i_p = 0
             for eta_map in eta_mapping.values():
                 nan_mask = ~np.isnan(eta_map[i_ring])

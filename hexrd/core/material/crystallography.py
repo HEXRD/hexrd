@@ -1422,7 +1422,7 @@ class PlaneData(object):
 
     def getHKLID(
         self,
-        hkl: Union[int, Tuple[int, int, int], np.ndarray],
+        hkl: int | Tuple[int, int, int] | NDArray[np.int_],
         master: Optional[bool] = False,
     ) -> List[int] | int:
         """

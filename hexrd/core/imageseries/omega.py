@@ -8,14 +8,13 @@ from numpy.typing import NDArray
 
 from .baseclass import ImageSeries
 
-
 class OmegaImageSeries(ImageSeries):
     """ImageSeries with omega metadata"""
 
     DFLT_TOL = 1.0e-6
     TAU = 360
 
-    def __init__(self, ims: ImageSeries):
+    def __init__(self, ims: ImageSeries | 'OmegaImageSeries'):
         """This class is initialized with an existing imageseries"""
         # check for omega metadata
         if 'omega' in ims.metadata:

@@ -1831,7 +1831,7 @@ class Detector:
         energy: float,
         rMat_s: NDArray[np.float64],
         physics_package: AbstractPhysicsPackage,
-    ) -> np.float64:
+    ) -> NDArray[np.float64]:
         """get the transmission from the physics package
         need to consider HED and HEDM samples separately
         """

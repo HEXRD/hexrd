@@ -18,19 +18,18 @@ class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
 
     def __init__(self, fname, **kwargs):
         if isinstance(fname, h5py.File):
-            self.__h5name = fname.filename
-            self.__h5file = fname
+            self._h5name: str = fname.filename
+            self._h5file: h5py.File = fname
         else:
-            self.__h5name = fname
-            self.__h5file = h5py.File(self.__h5name, 'r')
+            self._h5name = fname
+            self._h5file = h5py.File(self._h5name, 'r')
 
-        self.__data_group_path = '/data'
         self._load_metadata()
 
     def close(self):
-        if self.__h5file is not None:
-            self.__h5file.close()
-            self.__h5file = None
+        if self._h5file is not None:
+            self._h5file.close()
+            self._h5file = None
 
     def __del__(self):
         # !!! Note this is not ideal, as the use of __del__ is problematic.
@@ -67,19 +66,10 @@ class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
         return len(self._data_group)
 
     def __getstate__(self):
-        # Remove any non-pickleable attributes
-        to_remove = [
-            '__h5file',
-        ]
+        # Remove any non-pickleable attributes. Prefix them with the private prefix
+        to_remove = [f'_{self.__class__.__name__}_h5file']
 
-        # Prefix them with the private prefix
-        prefix = f'_{self.__class__.__name__}'
-        to_remove = [f'{prefix}{x}' for x in to_remove]
-
-        # Make a copy of the dict to modify
         state = self.__dict__.copy()
-
-        # Remove them
         for attr in to_remove:
             state.pop(attr)
 
@@ -87,7 +77,7 @@ class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self.__h5file = h5py.File(self.__h5name, 'r')
+        self._h5file = h5py.File(self._h5name, 'r')
         self._load_metadata()
 
     def _load_metadata(self):
@@ -95,7 +85,7 @@ class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
 
     def _get_metadata(self):
         d = {}
-        unwrap_h5_to_dict(self.__h5file['/metadata'], d)
+        unwrap_h5_to_dict(self._h5file['/metadata'], d)
         return d
 
     @property
@@ -108,7 +98,7 @@ class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
 
     @property
     def _data_group(self):
-        return self.__h5file[self.__data_group_path]
+        return self._h5file['data']
 
     @property
     def _first_data_entry(self):
