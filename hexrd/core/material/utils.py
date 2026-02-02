@@ -232,8 +232,8 @@ def convert_density_to_atoms_per_cubic_angstrom(
 
 def calculate_coherent_scattering_factor(
     element: str,
-    Q: np.ndarray,
-) -> np.ndarray:
+    Q: NDArray[np.float64],
+) -> NDArray[np.float64]:
     s = Q / (4.0 * np.pi)
     sfact = constants.scatfac[element]
     fe = sfact[5]
@@ -244,8 +244,8 @@ def calculate_coherent_scattering_factor(
 
 def calculate_incoherent_scattering_factor(
     element: str,
-    Q: np.ndarray,
-) -> np.ndarray:
+    Q: NDArray[np.float64],
+) -> NDArray[np.float64]:
 
     with importlib.resources.open_binary(
         hexrd.resources,

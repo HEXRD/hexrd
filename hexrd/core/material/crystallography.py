@@ -1310,7 +1310,7 @@ class PlaneData(object):
             tThLo = hklData['tThetaLo']
         return (tThLo, tThHi)
 
-    def getTThRanges(self, strainMag: Optional[float] = None) -> np.ndarray:
+    def getTThRanges(self, strainMag: Optional[float] = None) -> NDArray[np.float64]:
         """
         Get the 2-theta ranges for included hkls
 
@@ -1340,7 +1340,7 @@ class PlaneData(object):
                     self._wavelength / 2.0 / (d * (1.0 - strainMag))
                 )
                 tThRanges.append((tThLo, tThHi))
-        return np.array(tThRanges)
+        return np.array(tThRanges, dtype=np.float64)
 
     def getMergedRanges(
         self, cullDupl: Optional[bool] = False

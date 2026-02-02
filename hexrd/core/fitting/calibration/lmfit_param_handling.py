@@ -19,7 +19,7 @@ from hexrd.core.rotations import (
     rotMatOfExpMap,
 )
 from hexrd.core.material.unitcell import _lpname
-from .relative_constraints import RelativeConstraints, RelativeConstraintsType
+from .relative_constraints import RelativeConstraints, RelativeConstraintsGroup, RelativeConstraintsSystem, RelativeConstraintsType
 from hexrd.core.fitting.calibration.relative_constraints import (
     RelativeConstraints,
     RelativeConstraintsType,
@@ -237,9 +237,9 @@ def add_group_constrained_detector_parameters(
         )
 
 
-def create_beam_param_names(instr: HEDMInstrument) -> dict[str, str]:
+def create_beam_param_names(instr: HEDMInstrument) -> dict[str, dict[str, str]]:
     param_names = {}
-    for k, v in instr.beam_dict.items():
+    for k in instr.beam_dict.keys():
         prefix = f'{k}_' if instr.has_multi_beam else ''
         param_names[k] = {
             'beam_polar': f'{prefix}beam_polar',
@@ -276,7 +276,7 @@ def fix_detector_y(
 
 def update_instrument_from_params(
     instr,
-    params,
+    params: lmfit.Parameters,
     euler_convention=DEFAULT_EULER_CONVENTION,
     relative_constraints: Optional[RelativeConstraints] = None,
 ):
@@ -442,7 +442,7 @@ def update_system_constrained_detector_parameters(
     instr: HEDMInstrument,
     params: dict,
     euler_convention: EULER_CONVENTION_TYPES,
-    relative_constraints: RelativeConstraints,
+    relative_constraints: RelativeConstraintsSystem,
 ):
     detectors = list(instr.detectors.values())
 
@@ -465,7 +465,7 @@ def update_group_constrained_detector_parameters(
     instr: HEDMInstrument,
     params: dict,
     euler_convention: EULER_CONVENTION_TYPES,
-    relative_constraints: RelativeConstraints,
+    relative_constraints: RelativeConstraintsGroup,
 ):
     for group in instr.detector_groups:
         detectors = list(instr.detectors_in_group(group).values())

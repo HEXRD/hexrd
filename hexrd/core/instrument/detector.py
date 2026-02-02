@@ -4,7 +4,7 @@ from abc import abstractmethod
 import copy
 import logging
 import os
-from typing import Optional, TYPE_CHECKING, Sequence
+from typing import Literal, Optional, TYPE_CHECKING, Sequence, overload
 
 from hexrd.core.instrument.constants import (
     COATING_DEFAULT,
@@ -549,6 +549,12 @@ class Detector:
     def normal(self):
         return self.rmat[:, 2]
 
+    @property
+    @abstractmethod
+    def pixel_normal(self) -> NDArray[np.float64]:
+        """Unit normal vector per pixel"""
+        raise NotImplementedError
+
     # ...memoize???
     @property
     def pixel_coords(self):
@@ -600,7 +606,7 @@ class Detector:
 
     def pixel_compton_energy_loss(
         self,
-        energy: np.floating,
+        energy: np.float64,
         origin: NDArray[np.float64] = ct.zeros_3,
     ) -> NDArray[np.float64]:
         '''inelastic compton scattering leads
@@ -669,7 +675,7 @@ class Detector:
 
     def compute_compton_scattering_intensity(
         self,
-        energy: np.floating,
+        energy: np.float64,
         rMat_s: NDArray[np.float64],
         physics_package: AbstractPhysicsPackage,
         origin: NDArray[np.float64] = ct.zeros_3,
@@ -1203,6 +1209,50 @@ class Detector:
             'j_ceil_img': j_ceil_img,
         }
 
+    @overload
+    def make_powder_rings(
+        self,
+        pd: PlaneData | NDArray[np.float64],
+        merge_hkls: bool = False,
+        delta_tth: Optional[float] = None,
+        delta_eta: float = 10.0,
+        eta_period: Sequence[float] | NDArray[np.float64] = (-np.pi, np.pi),
+        eta_list: Optional[Sequence[float] | NDArray[np.float64]] = None,
+        rmat_s: NDArray[np.float64] = ct.identity_3x3,
+        tvec_s: NDArray[np.float64] = ct.zeros_3,
+        tvec_c: NDArray[np.float64] = ct.zeros_3,
+        full_output: Literal[False] = False, # TODO: Remove this option completely
+        tth_distortion: Optional[RyggPinholeDistortion | JHEPinholeDistortion |
+                                 LayerDistortion] = None,
+    ) -> tuple[
+            list[NDArray[np.float64]],
+            list[NDArray[np.float64]],
+            NDArray[np.float64]
+        ]: ...
+    
+    @overload
+    def make_powder_rings(
+        self,
+        pd: PlaneData | NDArray[np.float64],
+        merge_hkls: bool = False,
+        delta_tth: Optional[float] = None,
+        delta_eta: float = 10.0,
+        eta_period: Sequence[float] | NDArray[np.float64] = (-np.pi, np.pi),
+        eta_list: Optional[Sequence[float] | NDArray[np.float64]] = None,
+        rmat_s: NDArray[np.float64] = ct.identity_3x3,
+        tvec_s: NDArray[np.float64] = ct.zeros_3,
+        tvec_c: NDArray[np.float64] = ct.zeros_3,
+        full_output: Literal[True] = True, # TODO: Remove this option completely
+        tth_distortion: Optional[RyggPinholeDistortion | JHEPinholeDistortion |
+                                 LayerDistortion] = None,
+    ) -> tuple[
+            list[NDArray[np.float64]],
+            list[NDArray[np.float64]],
+            NDArray[np.float64],
+            list[NDArray[np.float64]],
+            NDArray[np.float64]
+        ]: ...
+
     def make_powder_rings(
         self,
         pd: PlaneData | NDArray[np.float64], # TODO: Make a different function for array input
@@ -1221,6 +1271,10 @@ class Detector:
             list[NDArray[np.float64]],
             list[NDArray[np.float64]],
             NDArray[np.float64],
+            list[NDArray[np.float64]],
+            NDArray[np.float64]
+        ] | tuple[
+            list[NDArray[np.float64]],
             list[NDArray[np.float64]],
             NDArray[np.float64]
         ]:
@@ -1307,7 +1361,8 @@ class Detector:
 
             # do merging if asked
             if merge_hkls:
-                _, tth_ranges = pd.getMergedRanges(cullDupl=True)
+                _, tth_ranges_raw = pd.getMergedRanges(cullDupl=True)
+                tth_ranges = np.array(tth_ranges_raw)
                 tth = np.average(tth_ranges, axis=1)
             else:
                 tth_ranges = pd.getTThRanges()
@@ -1511,7 +1566,7 @@ class Detector:
     def simulate_rotation_series(
         self,
         plane_data: PlaneData,
-        grain_param_list: list[float],
+        grain_param_list: list[Sequence[float]],
         eta_ranges: Sequence[tuple[float, float]] = ((-np.pi, np.pi)),
         ome_ranges: Sequence[tuple[float, float]] = ((-np.pi, np.pi)),
         ome_period: tuple[float, float] = (-np.pi, np.pi),
@@ -1527,7 +1582,7 @@ class Detector:
         ----------
         plane_data : PlaneData
             DESCRIPTION.
-        grain_param_list : TYPE
+        grain_param_list : list[Sequence[float]]
             DESCRIPTION.
         eta_ranges : TYPE, optional
             DESCRIPTION. The default is [(-np.pi, np.pi)].

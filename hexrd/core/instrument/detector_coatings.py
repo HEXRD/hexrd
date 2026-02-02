@@ -82,7 +82,7 @@ class AbstractLayer:
         self._thickness = value
 
     @property
-    def formula(self) -> str:
+    def formula(self) -> str | None:
         return self._formula
 
     @formula.setter

@@ -82,7 +82,7 @@ class Writer(object, metaclass=_RegisterWriter):
        options specific to format
     """
 
-    fmt = None
+    fmt: str | None = None
 
     def __init__(self, ims, fname, **kwargs):
         self._ims = ims

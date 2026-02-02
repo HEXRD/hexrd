@@ -59,7 +59,7 @@ class AbstractPhysicsPackage:
     #   2. If the layer requires a special class (like `PinholeLayer`),
     #      specify that in `SPECIAL_LAYERS`
     LAYER_TYPES: list[str] = []
-    SPECIAL_LAYERS: dict[str, PhysicsPackageLayer] = {}
+    SPECIAL_LAYERS: dict[str, PhysicsPackageLayer | PinholeLayer] = {}
 
     def __init__(self, **kwargs):
         # The physics packages are set up so that you can access layer

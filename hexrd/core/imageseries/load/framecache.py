@@ -64,7 +64,7 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
         self._cache = datad['file']
         self._nframes = datad['nframes']
         self._shape = tuple(datad['shape'])
-        self._dtype: str = np.dtype(datad['dtype'])
+        self._dtype: np.dtype = np.dtype(datad['dtype'])
         self._meta = yamlmeta(d['meta'], path=self._cache)
 
     def _load_cache(self):
