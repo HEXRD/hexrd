@@ -577,9 +577,7 @@ class Detector:
     # METHODS
     # =========================================================================
 
-    def pixel_Q(
-        self, energy: np.floating, origin: np.ndarray = ct.zeros_3
-    ) -> np.ndarray:
+    def pixel_Q(self, energy: float, origin: np.ndarray = ct.zeros_3) -> NDArray[np.float64]:
         '''get the equivalent momentum transfer
         for the angles.
 
@@ -587,12 +585,12 @@ class Detector:
         ----------
         energy: float
             incident photon energy in keV
-        origin: np.ndarray
+        origin: NDArray[np.float64] = ct.zeros_3
             origin of diffraction volume
 
         Returns
         -------
-        np.ndarray
+        NDArray[np.float64]
             pixel wise Q in A^-1
 
         '''
@@ -1512,33 +1510,29 @@ class Detector:
 
     def simulate_rotation_series(
         self,
-        plane_data,
-        grain_param_list,
-        eta_ranges=[
-            (-np.pi, np.pi),
-        ],
-        ome_ranges=[
-            (-np.pi, np.pi),
-        ],
-        ome_period=(-np.pi, np.pi),
-        chi=0.0,
-        tVec_s=ct.zeros_3,
-        wavelength=None,
-        energy_correction=None,
+        plane_data: PlaneData,
+        grain_param_list: list[float],
+        eta_ranges: list[tuple[float, float]] = [(-np.pi, np.pi)],
+        ome_ranges: list[tuple[float, float]] = [(-np.pi, np.pi)],
+        ome_period: tuple[float, float] = (-np.pi, np.pi),
+        chi: float = 0.0,
+        tVec_s: NDArray[np.float64] = ct.zeros_3,
+        wavelength: Optional[float] = None,
+        energy_correction: Optional[dict[str, float]] = None,
     ):
         """
         Simulate a monochromatic rotation series for a list of grains.
 
         Parameters
         ----------
-        plane_data : TYPE
+        plane_data : PlaneData
             DESCRIPTION.
         grain_param_list : TYPE
             DESCRIPTION.
         eta_ranges : TYPE, optional
-            DESCRIPTION. The default is [(-np.pi, np.pi), ].
+            DESCRIPTION. The default is [(-np.pi, np.pi)].
         ome_ranges : TYPE, optional
-            DESCRIPTION. The default is [(-np.pi, np.pi), ].
+            DESCRIPTION. The default is [(-np.pi, np.pi)].
         ome_period : TYPE, optional
             DESCRIPTION. The default is (-np.pi, np.pi).
         chi : TYPE, optional
@@ -1571,6 +1565,7 @@ class Detector:
         if wavelength is None:
             wavelength = plane_data.wavelength
         else:
+            # TODO: This function should not be modifying input arguments
             if plane_data.wavelength != wavelength:
                 plane_data.wavelength = ct.keVToAngstrom(wavelength)
         assert not np.any(

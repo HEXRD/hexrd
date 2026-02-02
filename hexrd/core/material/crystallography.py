@@ -33,7 +33,7 @@ import copy
 import csv
 import os
 from math import pi
-from typing import Any, Mapping, Optional, Union, Dict, List, Tuple, TypedDict
+from typing import Any, Literal, Mapping, Optional, Union, Dict, List, Tuple, TypedDict, overload
 
 import numpy as np
 from numpy.typing import NDArray
@@ -62,7 +62,15 @@ logger = logging.getLogger(__name__)
 dUnit = 'angstrom'
 
 LatPlaneData = Mapping[str, NDArray[Any]]
-LatVecOps    = Mapping[str, NDArray[Any]]
+
+class LatVecOps(TypedDict):
+    F: NDArray[np.float64]
+    B: NDArray[np.float64]
+    BR: NDArray[np.float64]
+    U0: NDArray[np.float64]
+    vol: np.float64
+    dparms: NDArray[np.float64]
+    rparms: NDArray[np.float64]
 
 class HKLData(TypedDict):
     hklID: int
@@ -92,10 +100,14 @@ def hklToStr(hkl: np.ndarray) -> str:
     """
     return re.sub(r'[\[\]\(\)\{\},]', '', str(hkl))
 
+@overload
+def cosineXform(a: NDArray[np.float64], b: NDArray[np.float64], c: NDArray[np.float64]) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
+@overload
+def cosineXform(a: np.float64, b: np.float64, c: np.float64) -> tuple[np.float64, np.float64]: ...
 
 def cosineXform(
     a: NDArray[np.float64] | np.float64, b: NDArray[np.float64] | np.float64, c: NDArray[np.float64] | np.float64
-) -> tuple[NDArray[np.float64], NDArray[np.float64]] | tuple[float, float]:
+) -> tuple[NDArray[np.float64], NDArray[np.float64]] | tuple[np.float64, np.float64]:
     """
     Spherical trig transform to take alpha, beta, gamma to expressions
     for cos(alpha*).  See ref below.
@@ -304,7 +316,7 @@ def latticeVectors(
     lparms: NDArray[np.float64],
     tag: str = 'cubic',
     radians: bool = False,
-) -> Dict[str, NDArray[np.float64] | float]:
+) -> LatVecOps:
     """
     Generates direct and reciprocal lattice vector components in a
     crystal-relative RHON basis, X. The convention for fixing X to the
@@ -525,7 +537,7 @@ def latticeVectors(
     dparms: NDArray[np.float64] = np.r_[ad, bd, cd, np.r_[alpha, beta, gamma]]
     rparms: NDArray[np.float64] = np.r_[ar, br, cr, np.r_[alfar, betar, gamar]]
 
-    return {
+    return LatVecOps({
         'F': F,
         'B': B,
         'BR': BR,
@@ -533,7 +545,7 @@ def latticeVectors(
         'vol': V,
         'dparms': dparms,
         'rparms': rparms,
-    }
+    })
 
 
 def hexagonalIndicesFromRhombohedral(hkl):
@@ -725,7 +737,7 @@ class PlaneData(object):
         self._laueGroup = laueGroup
         self._hkls = copy.deepcopy(hkls)
         self._strainMag = strainMag
-        self._structFact = np.ones(self._hkls.shape[1])
+        self._structFact: Optional[NDArray[np.float64]] = np.ones(self._hkls.shape[1])
         self.tThWidth: float | None = tThWidth
 
         # ... need to implement tThMin too
@@ -822,7 +834,9 @@ class PlaneData(object):
         """
         hStacked Hkls of the plane data (Miller indices).
         """
-        return self.getHKLs().T
+        hkls = self.getHKLs()
+        assert type(hkls) == np.ndarray
+        return hkls.T
 
     @hkls.setter
     def hkls(self, hkls):
@@ -1065,6 +1079,7 @@ class PlaneData(object):
         np.ndarray
         """
         self._compute_sf_if_needed()
+        assert self._structFact is not None
         return self._structFact[~self.exclusions]
 
     @structFact.setter
@@ -1150,7 +1165,7 @@ class PlaneData(object):
 
         latVecOps = latticeVectors(lparms, symmGroup)
 
-        hklDataList = []
+        hklDataList: list[HKLData] = []
         for iHKL in range(len(hkls.T)):
             # need transpose because of convention for hkls ordering
 
@@ -1263,7 +1278,7 @@ class PlaneData(object):
         return dspacings
 
     @property
-    def latVecOps(self) -> Dict[str, Union[np.ndarray, float]]:
+    def latVecOps(self) -> LatVecOps:
         """
         gets lattice vector operators as a new (deepcopy)
 
@@ -1422,8 +1437,8 @@ class PlaneData(object):
 
     def getHKLID(
         self,
-        hkl: int | Tuple[int, int, int] | NDArray[np.int_],
-        master: Optional[bool] = False,
+        hkl: int | tuple[int, int, int] | NDArray[np.int_],
+        master: bool = False,
     ) -> List[int] | int:
         """
         Return the unique ID of a list of hkls.
@@ -1455,19 +1470,18 @@ class PlaneData(object):
         -------
         2020-05-21 (JVB) -- modified to handle all symmetric equavlent reprs.
         """
-        if hasattr(hkl, '__setitem__'):  # tuple does not have __setitem__
-            if isinstance(hkl, np.ndarray):
-                # if is ndarray, assume is 3xN
-                return [self._getHKLID(x, master=master) for x in hkl.T]
-            else:
-                return [self._getHKLID(x, master=master) for x in hkl]
+        if isinstance(hkl, np.ndarray):
+            # if is ndarray, assume is 3xN
+            return [self._getHKLID(x, master=master) for x in hkl.T]
+        elif isinstance(hkl, tuple) or isinstance(hkl, list):
+            return [self._getHKLID(x, master=master) for x in hkl]
         else:
             return self._getHKLID(hkl, master=master)
 
     def _getHKLID(
         self,
-        hkl: Union[int, Tuple[int, int, int], np.ndarray],
-        master: Optional[bool] = False,
+        hkl: int | tuple[int, int, int] | NDArray[np.float64],
+        master: bool = False,
     ) -> int:
         """
         for hkl that is a tuple, return externally visible hkl index
@@ -1578,12 +1592,36 @@ class PlaneData(object):
         else:
             return np.array(hkls)
 
+    @overload
     def getSymHKLs(
         self,
-        asStr: Optional[bool] = False,
-        withID: Optional[bool] = False,
-        indices: Optional[List[int]] = None,
-    ) -> Union[List[List[str]], List[np.ndarray]]:
+        asStr: Literal[True],
+        withID: bool = ...,
+        indices: Optional[list[int]] = ...,
+    ) -> list[list[str]]: ...
+        
+    @overload
+    def getSymHKLs(
+        self,
+        asStr: Literal[False] = ...,
+        withID: Literal[False] = ...,
+        indices: Optional[list[int]] = ...,
+    ) -> list[NDArray[np.float64]]: ...
+
+    @overload
+    def getSymHKLs(
+        self,
+        asStr: Literal[False] = ...,
+        withID: Literal[True] = ...,
+        indices: Optional[list[int]] = ...,
+    ) -> list[NDArray[np.float64]]: ...
+
+    def getSymHKLs(
+        self,
+        asStr: bool = False,
+        withID: bool = False,
+        indices: Optional[list[int]] = None,
+    ) -> list[list[str]] | list[NDArray[np.float64]]:
         """
         Return all symmetry HKLs.
 
@@ -1603,33 +1641,37 @@ class PlaneData(object):
             List of symmetry HKLs for each HKL, either as strings or as a
             vstacked array.
         """
-        sym_hkls: list[list[str] | NDArray[np.float64]] = []
         hkl_index = 0
         if indices is not None:
             indB = np.zeros(self.nHKLs, dtype=bool)
             indB[np.array(indices)] = True
         else:
             indB = np.ones(self.nHKLs, dtype=bool)
+
+        if asStr:
+            out_s: list[list[str]] = []
+            for iHKLr, hklData in enumerate(self.hklDataList):
+                if not self._thisHKL(iHKLr):
+                    continue
+                if indB[hkl_index]:
+                    hkls = hklData["symHKLs"]
+                    out_s.append(list(map(hklToStr, np.asarray(hkls).T)))
+                hkl_index += 1
+            return out_s
+
+        out_a: list[NDArray[np.float64]] = []
         for iHKLr, hklData in enumerate(self.hklDataList):
             if not self._thisHKL(iHKLr):
                 continue
             if indB[hkl_index]:
-                hkls = hklData['symHKLs']
-                if asStr:
-                    sym_hkls.append(list(map(hklToStr, np.array(hkls).T)))
-                elif withID:
-                    sym_hkls.append(
-                        np.vstack(
-                            [
-                                np.tile(hklData['hklID'], (1, hkls.shape[1])),
-                                hkls,
-                            ]
-                        )
-                    )
+                hkls = np.asarray(hklData["symHKLs"], dtype=np.float64)
+                if withID:
+                    hkl_id = np.asarray(hklData["hklID"], dtype=np.float64)
+                    out_a.append(np.vstack([np.tile(hkl_id, (1, hkls.shape[1])), hkls]))
                 else:
-                    sym_hkls.append(np.array(hkls))
+                    out_a.append(hkls)
             hkl_index += 1
-        return sym_hkls
+        return out_a
 
     @staticmethod
     def makeScatteringVectors(
@@ -2159,12 +2201,12 @@ def lorentz_factor(tth: np.ndarray) -> np.ndarray:
 
 
 def polarization_factor(
-    tth: np.ndarray,
-    eta: Optional[np.ndarray] = None,
+    tth: NDArray[np.float64],
+    eta: Optional[NDArray[np.float64]] = None,
     unpolarized: Optional[bool] = True,
     f_hor: Optional[float] = None,
     f_vert: Optional[float] = None,
-) -> np.ndarray:
+) -> NDArray[np.float64]:
     """
     06/14/2021 SS adding lorentz polarization factor computation
     to the detector so that it can be compenstated for in the
@@ -2184,11 +2226,13 @@ def polarization_factor(
     FIXME, called without parameters like eta, f_hor, f_vert, but they default
     to none in the current implementation, which will throw an error.
     """
-
     ctth2 = np.cos(tth) ** 2
 
     if unpolarized:
         return (1 + ctth2) / 2
+    assert eta is not None
+    assert f_hor is not None
+    assert f_vert is not None
 
     seta2 = np.sin(eta) ** 2
     ceta2 = np.cos(eta) ** 2

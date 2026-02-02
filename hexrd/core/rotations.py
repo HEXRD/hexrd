@@ -53,7 +53,7 @@ from hexrd.core.utils.warnings import ignore_warnings
 # Module Data
 # =============================================================================
 
-angularUnits = 'radians'  # module-level angle units
+angularUnits: Literal['radians', 'degrees'] = 'radians'  # module-level angle units
 periodDict = {'degrees': 360.0, 'radians': 2 * np.pi}
 conversion_to_dict = {'degrees': cnst.r2d, 'radians': cnst.d2r}
 
@@ -1123,7 +1123,7 @@ def mapAngle(ang, ang_range: Optional[tuple[float, float] | NDArray[np.float64]]
 
     # if we have a specified angular range, use that
     if ang_range is not None:
-        ang_range = np.atleast_1d(np.float64(ang_range))
+        ang_range = np.atleast_1d(np.asarray(ang_range, dtype=np.float64))
 
         min_val = ang_range.min()
         max_val = ang_range.max()

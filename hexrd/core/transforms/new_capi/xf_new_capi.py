@@ -551,7 +551,7 @@ def make_rmat_of_expmap(exp_map: tuple[float] | NDArray[np.float64]) -> NDArray[
     NDArray[np.float64]
         A 3x3 rotation matrix representing the input exponential map
     """
-    arg = np.ascontiguousarray(exp_map.flatten())
+    arg = np.ascontiguousarray(exp_map).flatten()
     return cpp_transforms.make_rot_mat_of_exp_map(arg)
 
 

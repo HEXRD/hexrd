@@ -108,7 +108,7 @@ class valWUnit:
             Name of the item.
         unitType : str
             Class of units, e.g., 'length', 'angle', 'energy'.
-        value : float
+        value : float | np.floating
             Numerical value.
         unit : str
             Name of the unit.
@@ -308,22 +308,19 @@ def valWithDflt(val, dflt, toUnit=None):
     return retval
 
 
-FloatLike = float | np.floating
-
-
-def _nm(x: FloatLike) -> valWUnit:
+def _nm(x: float) -> valWUnit:
     return valWUnit("lp", "length", x, "nm")
 
 
-def _kev(x: FloatLike) -> valWUnit:
+def _kev(x: float) -> valWUnit:
     return valWUnit("kev", "energy", x, "keV")
 
 
-def _angstrom(x: FloatLike) -> valWUnit:
+def _angstrom(x: float) -> valWUnit:
     return valWUnit("lp", "length", x, "angstrom")
 
 
-def _degrees(x: FloatLike) -> valWUnit:
+def _degrees(x: float) -> valWUnit:
     return valWUnit('lp', 'angle', x, 'degrees')
 
 

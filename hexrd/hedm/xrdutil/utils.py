@@ -27,7 +27,7 @@
 # ============================================================
 
 
-from typing import Callable, Optional, Union, Any, Generator
+from typing import Callable, Literal, Optional, Union, Any, Generator, overload
 from hexrd.core.material.crystallography import PlaneData
 from hexrd.core.distortion.distortionabc import DistortionABC
 
@@ -485,13 +485,32 @@ def _fetch_hkls_from_planedata(pd: PlaneData):
     return np.hstack(pd.getSymHKLs(withID=True)).T
 
 
+@overload
 def _filter_hkls_eta_ome(
-    hkls: np.ndarray,
-    angles: np.ndarray,
+    hkls: NDArray[np.float64],
+    angles: NDArray[np.float64],
+    eta_range: list[tuple[float, float]],
+    ome_range: list[tuple[float, float]],
+    return_mask: Literal[False] = False,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
+
+@overload
+def _filter_hkls_eta_ome(
+    hkls: NDArray[np.float64],
+    angles: NDArray[np.float64],
+    eta_range: list[tuple[float, float]],
+    ome_range: list[tuple[float, float]],
+    return_mask: Literal[True] = True,
+) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]: ...
+
+
+def _filter_hkls_eta_ome(
+    hkls: NDArray[np.float64],
+    angles: NDArray[np.float64],
     eta_range: list[tuple[float, float]],
     ome_range: list[tuple[float, float]],
     return_mask: bool = False,
-) -> Union[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray, np.ndarray]]:
+) -> tuple[NDArray[np.float64], NDArray[np.float64]] | tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """
     given a set of hkls and angles, filter them by the
     eta and omega ranges
@@ -785,21 +804,17 @@ def angularPixelSize(
 
 def make_reflection_patches(
     instr_cfg: dict[str, Any],
-    tth_eta: np.ndarray,
-    ang_pixel_size: np.ndarray,
-    omega: Optional[np.ndarray] = None,
+    tth_eta: NDArray[np.float64],
+    ang_pixel_size: NDArray[np.float64],
+    omega: Optional[NDArray[np.float64]] = None,
     tth_tol: float = 0.2,
     eta_tol: float = 1.0,
-    rmat_c: np.ndarray = np.eye(3),
-    tvec_c: np.ndarray = np.zeros((3, 1)),
+    rmat_c: NDArray[np.float64] = np.eye(3),
+    tvec_c: NDArray[np.float64] = np.zeros((3, 1)),
     npdiv: int = 1,
     quiet: bool = False,  # TODO: Remove this parameter - it isn't used
     compute_areas_func: Callable = gutil.compute_areas,
-) -> Generator[
-    tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray],
-    None,
-    None,
-]:
+):
     """Make angular patches on a detector.
 
     panel_dims are [(xmin, ymin), (xmax, ymax)] in mm
@@ -1007,9 +1022,9 @@ def extract_detector_transformation(
 
 def apply_correction_to_wavelength(
     wavelength: float,
-    energy_correction: Union[dict, None],
-    tvec_s: np.ndarray,
-    tvec_c: np.ndarray,
+    energy_correction: Optional[dict[str, float]] = None,
+    tvec_s: Optional[NDArray[np.float64]] = None,
+    tvec_c: Optional[NDArray[np.float64]] = None,
 ) -> float:
     """Apply an energy correction to the wavelength according to grain position
 
@@ -1036,6 +1051,8 @@ def apply_correction_to_wavelength(
         # No correction
         return wavelength
 
+    assert tvec_s is not None
+    assert tvec_c is not None
     # 'c' here is the conversion factor between keV and angstrom
     c = constants.keVToAngstrom(1)
 

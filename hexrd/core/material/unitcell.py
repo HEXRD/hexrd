@@ -1884,89 +1884,71 @@ Powder diffraction
 Edited by C. J. Gilmore, J. A. Kaduk and H. Schenk
 '''
 # independent components for the triclinic laue group
-type1 = []
-for i in range(6):
-    for j in range(i, 6):
-        type1.append((i, j))
-type1 = tuple(type1)
+type1: tuple[tuple[int, int], ...] = tuple((i, j) for i in range(6) for j in range(i, 6))
 
 # independent components for the monoclinic laue group
 # C14 = C15 = C24 = C25 = C34 = C35 = C46 = C56 = 0
-type2 = list(type1)
-type2.remove((0, 3))
-type2.remove((0, 4))
-type2.remove((1, 3))
-type2.remove((1, 4))
-type2.remove((2, 3))
-type2.remove((2, 4))
-type2.remove((3, 5))
-type2.remove((4, 5))
-type2 = tuple(type2)
+type2: tuple[tuple[int, int], ...] = tuple(
+    ij for ij in type1
+    if ij not in {
+        (0, 3), (0, 4), (1, 3), (1, 4),
+        (2, 3), (2, 4), (3, 5), (4, 5)
+    }
+)
 
 # independent components for the orthorhombic laue group
 # Above, plus C16 = C26 = C36 = C45 = 0
-type3 = list(type2)
-type3.remove((0, 5))
-type3.remove((1, 5))
-type3.remove((2, 5))
-type3.remove((3, 4))
-type3 = tuple(type3)
+# independent components for the orthorhombic laue group
+# Remove C16, C26, C36, C45 = 0 from monoclinic
+type3: tuple[tuple[int, int], ...] = tuple(
+    ij for ij in type2
+    if ij not in {(0, 5), (1, 5), (2, 5), (3, 4)}
+)
 
 # independent components for the cyclic tetragonal laue group
 # monoclinic, plus C36 = C45 = 0, C22 = C11, C23 = C13, C26 = −C16, C55 = C44
-type4 = list(type2)
-type4.remove((2, 5))
-type4.remove((3, 4))
-type4.remove((1, 1))
-type4.remove((1, 2))
-type4.remove((1, 5))
-type4.remove((4, 4))
-type4 = tuple(type4)
+# independent components for the cyclic tetragonal laue group
+type4: tuple[tuple[int, int], ...] = tuple(
+    ij for ij in type2
+    if ij not in {
+        (2, 5), (3, 4), (1, 1), (1, 2), (1, 5), (4, 4)
+    }
+)
 
 # independent components for the dihedral tetragonal laue group
 # Above,  plus C16 = 0
-type5 = list(type4)
-type5.remove((0, 5))
-type5 = tuple(type5)
+# independent components for the dihedral tetragonal laue group
+# Above, plus C16 = 0
+type5: tuple[tuple[int, int], ...] = tuple(
+    ij for ij in type4 if ij != (0, 5)
+)
 
 # independent components for the trigonal laue group
 # C16 = C26 = C34 = C35 = C36 = C45 = 0, C22 = C11, C23 = C13, C24 = −C14,
 # C25 = −C15, C46 = −C15, C55 = C44, C56 = C14, C66 = (C11 − C12)/2
-type6 = list(type1)
-type6.remove((0, 5))
-type6.remove((1, 5))
-type6.remove((2, 3))
-type6.remove((2, 4))
-type6.remove((2, 5))
-type6.remove((3, 4))
-type6.remove((1, 1))
-type6.remove((1, 2))
-type6.remove((1, 3))
-type6.remove((1, 4))
-type6.remove((3, 5))
-type6.remove((4, 4))
-type6.remove((4, 5))
-type6.remove((5, 5))
-type6 = tuple(type6)
+# independent components for the trigonal laue group
+type6: tuple[tuple[int, int], ...] = tuple(
+    ij for ij in type1
+    if ij not in {
+        (0, 5), (1, 5), (2, 3), (2, 4), (2, 5),
+        (3, 4), (1, 1), (1, 2), (1, 3), (1, 4),
+        (3, 5), (4, 4), (4, 5), (5, 5)
+    }
+)
 
 # independent components for the rhombohedral laue group
 # Above, plus C15 = 0
-type7 = list(type6)
-type7.remove((0, 4))
-type7 = tuple(type7)
+type7 = tuple(ij for ij in type6 if ij != (0, 4))
 
 # independent components for the hexagonal laue group
 # Above, plus C14 = 0
-type8 = list(type7)
-type8.remove((0, 3))
-type8 = tuple(type8)
+type8: tuple[tuple[int, int], ...] = tuple(ij for ij in type7 if ij != (0, 3))
 
 # independent components for the cubic laue group
 # As for dihedral tetragonal, plus C13 = C12, C33 = C11, C66 = C44
-type9 = list(type5)
-type9.remove((0, 2))
-type9.remove((2, 2))
-type9.remove((5, 5))
+type9: tuple[tuple[int, int], ...] = tuple(
+    ij for ij in type5 if ij not in {(0, 2), (2, 2), (5, 5)}
+)
 
 '''
 these lambda functions take care of the equality constrains in the

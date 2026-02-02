@@ -346,8 +346,8 @@ tp_12 = 2.0 - np.sqrt(3.0)
 # for energy/wavelength conversions
 
 
-def keVToAngstrom(x) -> NDArray[np.float64]:
-    return (1e7 * scipyc.c * scipyc.h / scipyc.e) / np.array(x, dtype=float)
+def keVToAngstrom(x: float) -> float:
+    return (1e7 * scipyc.c * scipyc.h / scipyc.e) / x
 
 
 def set_numba_cache():

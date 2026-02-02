@@ -1142,7 +1142,7 @@ class Material(object):
         return self._name
 
     @name.setter
-    def name(self, mat_name):
+    def name(self, mat_name: str):
         assert isinstance(mat_name, str), "must set name to a str"
         self._name = mat_name
 
@@ -1303,18 +1303,6 @@ class Material(object):
     def reduced_lattice_parameters(self):
         ltype = self.unitcell.latticeType
         return [self._lparms[i] for i in unitcell._rqpDict[ltype][0]]
-
-    def _get_name(self):
-        """Set method for name"""
-        return self._name
-
-    def _set_name(self, v):
-        """Set method for name"""
-        self._name = v
-
-        return
-
-    name = property(_get_name, _set_name, None, "Name of material")
 
     @property
     def dmin(self):
