@@ -558,7 +558,7 @@ class Detector:
         return pix_i, pix_j
 
     @property
-    def pixel_solid_angles(self) -> np.ndarray:
+    def pixel_solid_angles(self) -> NDArray[np.float64]:
         y, x = self.pixel_coords
         xy = np.vstack((x.flatten(), y.flatten())).T
         dvecs = self.cart_to_dvecs(xy)
@@ -577,7 +577,7 @@ class Detector:
     # METHODS
     # =========================================================================
 
-    def pixel_Q(self, energy: float, origin: np.ndarray = ct.zeros_3) -> NDArray[np.float64]:
+    def pixel_Q(self, energy: float, origin: NDArray[np.float64] = ct.zeros_3) -> NDArray[np.float64]:
         '''get the equivalent momentum transfer
         for the angles.
 
@@ -601,8 +601,8 @@ class Detector:
     def pixel_compton_energy_loss(
         self,
         energy: np.floating,
-        origin: np.ndarray = ct.zeros_3,
-    ) -> np.ndarray:
+        origin: NDArray[np.float64] = ct.zeros_3,
+    ) -> NDArray[np.float64]:
         '''inelastic compton scattering leads
         to energy loss of the incident photons.
         compute the final energy of the photons
@@ -612,12 +612,12 @@ class Detector:
         ----------
         energy: float
             incident photon energy in keV
-        origin: np.ndarray
+        origin: NDArray[np.float64]
             origin of diffraction volume
 
         Returns
         -------
-        np.ndarray
+        NDArray[np.float64]
             pixel wise energy of inelastically
             scatterd photons in keV
         '''
@@ -632,8 +632,8 @@ class Detector:
         energy: np.floating,
         density: np.floating,
         formula: str,
-        origin: np.ndarray = ct.zeros_3,
-    ) -> np.ndarray:
+        origin: NDArray[np.float64] = ct.zeros_3,
+    ) -> NDArray[np.float64]:
         '''each pixel intercepts inelastically
         scattered photons of different energy.
         the attenuation length and the transmission
@@ -649,12 +649,12 @@ class Detector:
             density of material in g/cc
         formula: str
             formula of the material scattering
-        origin: np.ndarray
+        origin: NDArray[np.float64]
             origin of diffraction volume
 
         Returns
         -------
-        np.ndarray
+        NDArray[np.float64]
             pixel wise attentuation length of compton
             scattered photons
         '''
@@ -684,13 +684,13 @@ class Detector:
         -----------
         energy: float
             energy of incident photon
-        rMat_s: np.ndarray
+        rMat_s: NDArray[np.float64]
             rotation matrix of sample orientation
         physics_package: AbstractPhysicsPackage
             physics package information
         Returns
         -------
-        compton_intensity: np.ndarray
+        compton_intensity: NDArray[np.float64]
             transmission corrected compton scattering
             intensity
         '''
@@ -1113,8 +1113,8 @@ class Detector:
 
     def interpolate_bilinear(
         self,
-        xy: np.ndarray,
-        img: np.ndarray,
+        xy: NDArray[np.float64],
+        img: NDArray[np.float64],
         pad_with_nans: bool = True,
     ):
         """
@@ -1156,8 +1156,8 @@ class Detector:
 
     def _generate_bilinear_interp_dict(
         self,
-        xy_clip: np.ndarray,
-    ) -> dict[str, np.ndarray]:
+        xy_clip: NDArray[np.float64],
+    ) -> dict[str, NDArray[np.float64]]:
         """Compute bilinear interpolation multipliers and indices for the panel
 
         If you are going to be using the same panel settings and performing
@@ -1205,12 +1205,12 @@ class Detector:
 
     def make_powder_rings(
         self,
-        pd: PlaneData | np.ndarray, # TODO: Make a different function for array input
+        pd: PlaneData | NDArray[np.float64], # TODO: Make a different function for array input
         merge_hkls: bool = False,
         delta_tth: Optional[float] = None,
         delta_eta: float = 10.0,
-        eta_period: Sequence[float] | np.ndarray = (-np.pi, np.pi),
-        eta_list: Optional[Sequence[float] | np.ndarray] = None,
+        eta_period: Sequence[float] | NDArray[np.float64] = (-np.pi, np.pi),
+        eta_list: Optional[Sequence[float] | NDArray[np.float64]] = None,
         rmat_s: NDArray[np.float64] = ct.identity_3x3,
         tvec_s: NDArray[np.float64] = ct.zeros_3,
         tvec_c: NDArray[np.float64] = ct.zeros_3,
@@ -1218,10 +1218,10 @@ class Detector:
         tth_distortion: Optional[RyggPinholeDistortion | JHEPinholeDistortion |
                                  LayerDistortion] = None,
     ) -> tuple[
-            list[np.ndarray],
-            list[np.ndarray],
-            np.ndarray,
-            list[np.ndarray],
+            list[NDArray[np.float64]],
+            list[NDArray[np.float64]],
+            NDArray[np.float64],
+            list[NDArray[np.float64]],
             NDArray[np.float64]
         ]:
         """ Generate points on Debye Scherrer rings over the detector.
@@ -1230,7 +1230,7 @@ class Detector:
 
         Parameters
         ----------
-        `pd` : PlaneData | np.ndarray
+        `pd` : PlaneData | NDArray[np.float64]
             Either a `PlaneData` object or an array of two-theta values in degrees.
         `merge_hkls` : bool, optional
             Merge hkls when `pd` is a `PlaneData` type. Defaults to `False`.
@@ -1242,19 +1242,19 @@ class Detector:
             is a `PlaneData` type.
         `delta_eta` : float, optional
             The azimuthal width of each ring sector in degrees. Defaults to `10.0`.
-        `eta_period` : list[float] | np.ndarray, optional
+        `eta_period` : list[float] | NDArray[np.float64], optional
             The azimuthal period over which to generate rings in radians. Defaults to
             `[-pi, pi]`.
-        `eta_list` : list[float] | np.ndarray, optional
+        `eta_list` : list[float] | NDArray[np.float64], optional
             Azimuthal angles in degrees at which to generate rings. If supplied, this
             overrides `delta_eta`. Defaults to `None`.
-        `rmat_s` : np.ndarray, optional
+        `rmat_s` : NDArray[np.float64], optional
             The (3, 3) rotation matrix of the sample orientation. Defaults to the
             identity matrix.
-        `tvec_s` : np.ndarray, optional
+        `tvec_s` : NDArray[np.float64], optional
             The (3,) translation vector from the lab origin to the center of the
             sample. Defaults to `<0, 0, 0>`.
-        `tvec_c` : np.ndarray, optional
+        `tvec_c` : NDArray[np.float64], optional
             The (3,) translation vector from the center of the sample to the center of
             the crystal or grain. Defaults to `<0, 0, 0>`.
         `full_output` : bool, optional
@@ -1273,19 +1273,19 @@ class Detector:
 
         Returns
         -------
-        `valid_ang`: list[np.ndarray]
+        `valid_ang`: list[NDArray[np.float64]]
             A list of arrays of shape `(neta, 2)` containing the valid ring sector
             angles (two-theta, eta) that fall on the detector for each ring.
-        `valid_xy`: list[np.ndarray]
+        `valid_xy`: list[NDArray[np.float64]]
             A list of arrays of shape `(neta, 2)` containing the valid ring sector
             cartesian coordinates (x, y) on the detector for each ring.
-        `tth_ranges`: np.ndarray
+        `tth_ranges`: NDArray[np.float64]
             An array of shape `(n_rings, 2)` containing the two-theta ranges (in
             radians) for each ring.
-        `map_indices`: list[np.ndarray]
+        `map_indices`: list[NDArray[np.float64]]
             A list of arrays of shape `(neta,)` indicating whether each ring point
             maps to a valid pixel on the panel. Returns if `full_output` is `True`.
-        `eta_edges`: np.ndarray
+        `eta_edges`: NDArray[np.float64]
             An array of shape `(neta + 1,)` containing the azimuthal edges (in
             radians) of the ring sectors. Returns if `full_output` is `True`.
 
@@ -1868,7 +1868,7 @@ class Detector:
         energy: np.floating,
         rMat_s: NDArray[np.float64],
         physics_package: AbstractPhysicsPackage,
-    ) -> np.ndarray:
+    ) -> NDArray[np.float64]:
         '''calculate the attenuation of inelastically
         scattered photons. since these photons lose energy,
         the attenuation length is angle dependent ergo a separate
@@ -1910,10 +1910,10 @@ class Detector:
 
     def calc_compton_window_transmission(
         self,
-        energy: np.floating,
-        rMat_s: np.ndarray,
+        energy: np.float64,
+        rMat_s: NDArray[np.float64],
         physics_package: AbstractPhysicsPackage,
-    ) -> np.ndarray:
+    ) -> NDArray[np.float64]:
         '''calculate the attenuation of inelastically
         scattered photons just fropm the window.
         since these photons lose energy, the attenuation length
@@ -1989,12 +1989,12 @@ class Detector:
 
     def calc_compton_transmission(
         self,
-        seca: np.ndarray,
-        secb: np.ndarray,
+        seca: NDArray[np.float64],
+        secb: NDArray[np.float64],
         energy: np.floating,
         physics_package: AbstractPhysicsPackage,
         pp_layer: str,
-    ) -> np.ndarray:
+    ) -> NDArray[np.float64]:
         if pp_layer == 'sample':
             formula = physics_package.sample_material
             density = physics_package.sample_density
@@ -2027,10 +2027,10 @@ class Detector:
 
     def calc_compton_transmission_sample(
         self,
-        seca: np.ndarray,
+        seca: NDArray[np.float64],
         energy: np.floating,
         physics_package: AbstractPhysicsPackage,
-    ) -> np.ndarray:
+    ) -> NDArray[np.float64]:
         thickness_s = physics_package.sample_thickness  # in microns
 
         mu_s = 1.0 / physics_package.sample_absorption_length(energy)
@@ -2038,10 +2038,10 @@ class Detector:
 
     def calc_compton_transmission_window(
         self,
-        secb: np.ndarray,
+        secb: NDArray[np.float64],
         energy: np.floating,
         physics_package: AbstractPhysicsPackage,
-    ) -> np.ndarray:
+    ) -> NDArray[np.float64]:
         formula = physics_package.window_material
         if formula is None:
             return np.ones(self.shape)
@@ -2148,16 +2148,16 @@ def _col_edge_vec(cols, pixel_size_col):
 
 @numba.njit(nogil=True, cache=True)
 def _interpolate_bilinear(
-    img: np.ndarray,
-    cc: np.ndarray,
-    fc: np.ndarray,
-    cf: np.ndarray,
-    ff: np.ndarray,
-    i_floor_img: np.ndarray,
-    j_floor_img: np.ndarray,
-    i_ceil_img: np.ndarray,
-    j_ceil_img: np.ndarray,
-) -> np.ndarray:
+    img: NDArray[np.float64],
+    cc: NDArray[np.float64],
+    fc: NDArray[np.float64],
+    cf: NDArray[np.float64],
+    ff: NDArray[np.float64],
+    i_floor_img: NDArray[np.float64],
+    j_floor_img: NDArray[np.float64],
+    i_ceil_img: NDArray[np.float64],
+    j_ceil_img: NDArray[np.float64],
+) -> NDArray[np.float64]:
     # The math is faster and uses the GIL less (which is more
     # multi-threading friendly) when we run this code in numba.
     result = np.zeros(i_floor_img.shape[0], dtype=img.dtype)
@@ -2180,17 +2180,17 @@ def _interpolate_bilinear(
 
 @numba.njit(nogil=True, cache=True)
 def _interpolate_bilinear_in_place(
-    img: np.ndarray,
-    cc: np.ndarray,
-    fc: np.ndarray,
-    cf: np.ndarray,
-    ff: np.ndarray,
-    i_floor_img: np.ndarray,
-    j_floor_img: np.ndarray,
-    i_ceil_img: np.ndarray,
-    j_ceil_img: np.ndarray,
-    on_panel_idx: np.ndarray,
-    output_img: np.ndarray,
+    img: NDArray[np.float64],
+    cc: NDArray[np.float64],
+    fc: NDArray[np.float64],
+    cf: NDArray[np.float64],
+    ff: NDArray[np.float64],
+    i_floor_img: NDArray[np.float64],
+    j_floor_img: NDArray[np.float64],
+    i_ceil_img: NDArray[np.float64],
+    j_ceil_img: NDArray[np.float64],
+    on_panel_idx: NDArray[np.float64],
+    output_img: NDArray[np.float64],
 ):
     # The math is faster and uses the GIL less (which is more
     # multi-threading friendly) when we run this code in numba.

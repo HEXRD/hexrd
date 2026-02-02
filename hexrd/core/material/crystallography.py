@@ -187,12 +187,12 @@ def latticeParameters(lvec):
 
 
 def latticePlanes(
-    hkls: np.ndarray,
-    lparms: np.ndarray,
+    hkls: NDArray[np.float64],
+    lparms: NDArray[np.float64],
     ltype: str = 'cubic',
     wavelength: float = 1.54059292,
     strainMag: Optional[float] = None,
-) -> Dict[str, np.ndarray]:
+) -> LatPlaneData:
     """
     Generates lattice plane data in the direct lattice for a given set
     of Miller indices.  Vector components are written in the
@@ -289,7 +289,7 @@ def latticePlanes(
     tth[~mask] = np.nan
     tth[mask] = 2.0 * np.arcsin(sth[mask])
 
-    p: dict[str, NDArray[np.float64]] = dict(normals=unitVector(G), dspacings=d, tThetas=tth)
+    p: LatPlaneData = dict(normals=unitVector(G), dspacings=d, tThetas=tth)
 
     if strainMag is not None:
         p['tThetasLo'] = np.zeros(sth.shape)
@@ -856,7 +856,7 @@ class PlaneData(object):
         self._tThMax = toFloat(t_th_max, 'radians')
 
     @property
-    def exclusions(self) -> np.ndarray:
+    def exclusions(self) -> NDArray[np.bool_]:
         """
         Excluded HKL's the plane data.
 

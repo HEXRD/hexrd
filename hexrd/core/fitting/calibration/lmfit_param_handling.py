@@ -2,6 +2,7 @@ from typing import Optional
 
 import lmfit
 import numpy as np
+from numpy.typing import NDArray
 
 from hexrd.core.instrument import (
     calc_angles_from_beam_vec,
@@ -385,7 +386,7 @@ def update_unconstrained_detector_parameters(instr, params, euler_convention):
 def _update_constrained_detector_parameters(
     detectors: list[Detector],
     params: dict,
-    rotation_center: np.ndarray,
+    rotation_center: NDArray[np.float64],
     euler_convention: EULER_CONVENTION_TYPES,
     prefix: str,
     constraint_params: dict,
@@ -484,7 +485,7 @@ def update_group_constrained_detector_parameters(
         )
 
 
-def _tilt_to_rmat(tilt: np.ndarray, euler_convention: dict | tuple) -> np.ndarray:
+def _tilt_to_rmat(tilt: NDArray[np.float64], euler_convention: dict | tuple) -> NDArray[np.float64]:
     # Convert the tilt to exponential map parameters, and then
     # to the rotation matrix, and return.
     if euler_convention is None:
@@ -498,14 +499,14 @@ def _tilt_to_rmat(tilt: np.ndarray, euler_convention: dict | tuple) -> np.ndarra
     )
 
 
-def _rmat_to_tilt(rmat: np.ndarray) -> np.ndarray:
+def _rmat_to_tilt(rmat: NDArray[np.float64]) -> NDArray[np.float64]:
     phi, n = angleAxisOfRotMat(rmat)
     return phi * n.flatten()
 
 
 def create_tth_parameters(
     instr: HEDMInstrument,
-    meas_angles: dict[str, np.ndarray],
+    meas_angles: dict[str, NDArray[np.float64]],
 ) -> list[lmfit.Parameter]:
 
     prefixes = tth_parameter_prefixes(instr)

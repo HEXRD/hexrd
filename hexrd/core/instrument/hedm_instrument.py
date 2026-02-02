@@ -326,7 +326,7 @@ def _parse_imgser_dict(imgser_dict: Mapping[str, OmegaImageSeries | NDArray[np.f
                 ncols = roi[1][1] - roi[1][0]
                 n_images = len(images_in)
                 ims = np.empty((n_images, nrows, ncols), dtype=images_in.dtype)
-                for i, image in images_in:
+                for i, image in images_in: # TODO: Is this meant to be an enumerate?
                     ims[i, :, :] = images_in[
                         roi[0][0] : roi[0][1], roi[1][0] : roi[1][1]
                     ]
@@ -729,12 +729,12 @@ class HEDMInstrument(object):
         self.update_memoization_sizes()
 
     @property
-    def mean_detector_center(self) -> np.ndarray:
+    def mean_detector_center(self) -> NDArray[np.float64]:
         """Return the mean center for all detectors"""
         centers = np.array([panel.tvec for panel in self.detectors.values()])
         return centers.sum(axis=0) / len(centers)
 
-    def mean_group_center(self, group: str) -> np.ndarray:
+    def mean_group_center(self, group: str) -> NDArray[np.float64]:
         """Return the mean center for detectors belonging to a group"""
         centers = np.array([x.tvec for x in self.detectors_in_group(group).values()])
         return centers.sum(axis=0) / len(centers)
@@ -870,11 +870,11 @@ class HEDMInstrument(object):
             panel.xrs_dist = self.source_distance
 
     @property
-    def beam_vector(self) -> np.ndarray:
+    def beam_vector(self) -> NDArray[np.float64]:
         return self.active_beam['vector']
 
     @beam_vector.setter
-    def beam_vector(self, x: np.ndarray):
+    def beam_vector(self, x: NDArray[np.float64]):
         """Accepts either a 3-element unit vector, or a 2-element
         (azimuth, polar angle) pair in degrees to set the beam vector."""
         x = np.array(x).flatten()
@@ -1076,10 +1076,10 @@ class HEDMInstrument(object):
         Returns
         -------
 
-        ring_maps_panel : dict[str, np.ndarray]
+        ring_maps_panel : dict[str, NDArray[np.float64]]
             Dictionary of eta-omega maps for each detector panel. Each map has
             shape (n_rings, n_omegas, n_eta_bins).
-        eta_edges : np.ndarray
+        eta_edges : NDArray[np.float64]
             The edges of the eta bins used in the histograms.
 
         TODO: streamline projection code
@@ -1130,7 +1130,7 @@ class HEDMInstrument(object):
         delta_eta = eta_edges[1] - eta_edges[0]
         ncols_eta = len(eta_edges) - 1
 
-        ring_maps_panel: dict[str, np.ndarray] = {
+        ring_maps_panel: dict[str, NDArray[np.float64]] = {
             k: np.empty((0, 0)) for k in self.detectors
         }
         for det_key in self.detectors:
@@ -1641,14 +1641,14 @@ class HEDMInstrument(object):
     def _pull_spots_check_only(
         self,
         plane_data: PlaneData,
-        grain_params: tuple | np.ndarray,
+        grain_params: tuple[float, ...] | NDArray[np.float64],
         imgser_dict: Mapping[str, OmegaImageSeries | NDArray[np.float64]],
         tth_tol: float = 0.25,
         eta_tol: float = 1.0,
         ome_tol: float = 1.0,
         threshold: int = 10,
-        eta_ranges: Sequence[tuple[float, float]] = ((-np.pi, np.pi)),
-        ome_period: Optional[tuple] = None,
+        eta_ranges: Sequence[tuple[float, float]] = ((-np.pi, np.pi),),
+        ome_period: Optional[tuple[float, float]] = None,
     ):
         rMat_c = make_rmat_of_expmap(grain_params[:3])
         tVec_c = np.asarray(grain_params[3:6])
@@ -1726,7 +1726,7 @@ class HEDMInstrument(object):
     def pull_spots(
         self,
         plane_data: PlaneData,
-        grain_params: tuple | np.ndarray,
+        grain_params: tuple | NDArray[np.float64],
         imgser_dict: dict,
         tth_tol: float = 0.25,
         eta_tol: float = 1.0,
@@ -1749,7 +1749,7 @@ class HEDMInstrument(object):
 
         plane_data : PlaneData
             Object containing crystallographic plane data
-        grain_params : list or np.ndarray
+        grain_params : list or NDArray[np.float64]
             A 6-element array defining the grain's orientation and position.
             The first 3 elements are orientation parameters (exponential map),
             and the last 3 are the translation vector in the sample frame.

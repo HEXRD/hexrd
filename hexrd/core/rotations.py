@@ -102,7 +102,7 @@ def arccosSafe(cosines):
 #
 
 
-def _quat_to_scipy_rotation(q: np.ndarray) -> R:
+def _quat_to_scipy_rotation(q: NDArray[np.float64]) -> R:
     """
     Scipy has quaternions in a differnt order, this method converts them
     q must be a 2d array of shape (4, n).
@@ -110,7 +110,7 @@ def _quat_to_scipy_rotation(q: np.ndarray) -> R:
     return R.from_quat(np.roll(q.T, -1, axis=1))
 
 
-def _scipy_rotation_to_quat(r: R) -> np.ndarray:
+def _scipy_rotation_to_quat(r: R) -> NDArray[np.float64]:
     quat = np.roll(np.atleast_2d(r.as_quat()), 1, axis=1).T
     # Fix quat would work, but it does too much.  Only need to check positive
     quat *= np.sign(quat[0, :])
@@ -921,7 +921,7 @@ class RotMatEuler(object):
 
         Returns
         -------
-        np.ndarray
+        NDArray[np.float64]
             The (3, ) array representing the exponential map parameters of
             the encoded rotation (self.rmat).
 
@@ -975,7 +975,7 @@ def distanceToFiber(c, s, q, qsym, centrosymmetry=False, bmatrix=I3):
         DESCRIPTION.
     centrosymmetry : bool, optional
         If True, apply centrosymmetry to c. The default is False.
-    bmatrix : np.ndarray, optional
+    bmatrix : NDArray[np.float64], optional
         (3,3) b matrix. Default is the identity
 
     Raises
