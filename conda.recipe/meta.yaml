@@ -40,7 +40,6 @@ requirements:
     # fabio uses lxml, and lxml 4.9.1 has some crashing issue on Windows
     # so, make sure lxml >= 4.9.2 is being used
     - lxml >=4.9.2
-    - fast-histogram
     - h5py
     - hdf5plugin
     - lmfit
