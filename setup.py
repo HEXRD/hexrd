@@ -15,7 +15,6 @@ install_reqs = [
     'appdirs',
     'chemparse',
     'fabio>=0.11',
-    'fast-histogram',
     'h5py',
     'hdf5plugin',
     'lmfit',
