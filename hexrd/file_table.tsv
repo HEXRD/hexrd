@@ -278,13 +278,9 @@ hexrd/resources/window_materials.h5	hexrd/core/resources/window_materials.h5
 hexrd/transforms/cpp_sublibrary/Makefile	hexrd/core/transforms/cpp_sublibrary/Makefile
 hexrd/transforms/cpp_sublibrary/src/inverse_distortion.cpp	hexrd/core/transforms/cpp_sublibrary/src/inverse_distortion.cpp
 hexrd/transforms/Makefile	hexrd/core/transforms/Makefile
-hexrd/transforms/new_capi/angles_to_dvec.c	hexrd/core/transforms/new_capi/angles_to_dvec.c
-hexrd/transforms/new_capi/angles_to_gvec.c	hexrd/core/transforms/new_capi/angles_to_gvec.c
 hexrd/transforms/new_capi/gvec_to_xy.c	hexrd/core/transforms/new_capi/gvec_to_xy.c
 hexrd/transforms/new_capi/make_beam_rmat.c	hexrd/core/transforms/new_capi/make_beam_rmat.c
-hexrd/transforms/new_capi/make_binary_rmat.c	hexrd/core/transforms/new_capi/make_binary_rmat.c
 hexrd/transforms/new_capi/make_detector_rmat.c	hexrd/core/transforms/new_capi/make_detector_rmat.c
-hexrd/transforms/new_capi/make_rmat_of_expmap.c	hexrd/core/transforms/new_capi/make_rmat_of_expmap.c
 hexrd/transforms/new_capi/make_sample_rmat.c	hexrd/core/transforms/new_capi/make_sample_rmat.c
 hexrd/transforms/new_capi/module.c	hexrd/core/transforms/new_capi/module.c
 hexrd/transforms/new_capi/ndargs_helper.c	hexrd/core/transforms/new_capi/ndargs_helper.c
@@ -466,13 +462,9 @@ hexrd\core\transforms\__init__.py	hexrd\core\transforms\__init__.py
 hexrd\core\transforms\cpp_sublibrary\Makefile	hexrd\core\transforms\cpp_sublibrary\Makefile
 hexrd\core\transforms\cpp_sublibrary\src\inverse_distortion.cpp	hexrd\core\transforms\cpp_sublibrary\src\inverse_distortion.cpp
 hexrd\core\transforms\Makefile	hexrd\core\transforms\Makefile
-hexrd\core\transforms\new_capi\angles_to_dvec.c	hexrd\core\transforms\new_capi\angles_to_dvec.c
-hexrd\core\transforms\new_capi\angles_to_gvec.c	hexrd\core\transforms\new_capi\angles_to_gvec.c
 hexrd\core\transforms\new_capi\gvec_to_xy.c	hexrd\core\transforms\new_capi\gvec_to_xy.c
 hexrd\core\transforms\new_capi\make_beam_rmat.c	hexrd\core\transforms\new_capi\make_beam_rmat.c
-hexrd\core\transforms\new_capi\make_binary_rmat.c	hexrd\core\transforms\new_capi\make_binary_rmat.c
 hexrd\core\transforms\new_capi\make_detector_rmat.c	hexrd\core\transforms\new_capi\make_detector_rmat.c
-hexrd\core\transforms\new_capi\make_rmat_of_expmap.c	hexrd\core\transforms\new_capi\make_rmat_of_expmap.c
 hexrd\core\transforms\new_capi\make_sample_rmat.c	hexrd\core\transforms\new_capi\make_sample_rmat.c
 hexrd\core\transforms\new_capi\module.c	hexrd\core\transforms\new_capi\module.c
 hexrd\core\transforms\new_capi\ndargs_helper.c	hexrd\core\transforms\new_capi\ndargs_helper.c

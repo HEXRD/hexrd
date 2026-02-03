@@ -61,16 +61,12 @@
 #include "ndargs_helper.h"
 
 #include "ndargs_helper.c"
-#include "angles_to_gvec.c"
-#include "angles_to_dvec.c"
 #include "gvec_to_xy.c"
 #include "xy_to_gvec.c"
 #include "oscill_angles_of_HKLs.c"
 #include "unit_row_vector.c"
 #include "make_detector_rmat.c"
 #include "make_sample_rmat.c"
-#include "make_rmat_of_expmap.c"
-#include "make_binary_rmat.c"
 #include "make_beam_rmat.c"
 #include "validate_angle_ranges.c"
 #include "rotate_vecs_about_axis.c"
@@ -91,8 +87,6 @@
     { STR(name), CONCAT(python_, name), METH_VARARGS, "" }
 
 static PyMethodDef _module_methods[] = {
-    EXPORT_METHOD(anglesToGVec), /* angles_to_gvec */
-    EXPORT_METHOD(anglesToDVec), /* angles_to_dvec */
     EXPORT_METHOD(gvecToDetectorXY),  /* gvec_to_xy */
     EXPORT_METHOD(gvecToDetectorXYArray), /* gvec_to_xy */
     EXPORT_METHOD(detectorXYToGvec), /* xy_to_gvec */
@@ -100,9 +94,7 @@ static PyMethodDef _module_methods[] = {
     EXPORT_METHOD(unitRowVector), /* unit_vector */
     EXPORT_METHOD(unitRowVectors), /* unit_vector */
     EXPORT_METHOD(makeOscillRotMat), /* make_sample_rmat */
-    EXPORT_METHOD(makeRotMatOfExpMap), /* make_rmat_of_expmap */
     EXPORT_METHOD(makeDetectorRotMat), /* make_detector_rmat */
-    EXPORT_METHOD(makeBinaryRotMat), /* make_binary_rmat */
     EXPORT_METHOD(makeEtaFrameRotMat), /* make_beam_rmat */
     EXPORT_METHOD(validateAngleRanges), /* validate_angle_ranges */
     EXPORT_METHOD(rotate_vecs_about_axis), /* rotate_vecs_about_axis */
