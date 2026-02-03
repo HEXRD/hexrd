@@ -66,11 +66,11 @@ make_beam_rmat(double * bPtr, double * ePtr, double * rPtr)
 #    include <numpy/arrayobject.h>
 #  endif /* XRD_SINGLE_COMPILE_UNIT */
 
-XRD_PYTHON_WRAPPER const char *docstring_makeEtaFrameRotMat =
+static const char *docstring_makeEtaFrameRotMat =
     "c module implementation of make_beam_mat.\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_makeEtaFrameRotMat(PyObject * self, PyObject * args)
 {
     PyArrayObject *rMat=NULL;

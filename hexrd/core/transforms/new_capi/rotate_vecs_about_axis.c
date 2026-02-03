@@ -65,11 +65,11 @@ rotate_vecs_about_axis(size_t na, double *angles,
 #    include "ndargs_helper.h"
 #  endif /* XRD_SINGLE_COMPILE_UNIT */
 
-XRD_PYTHON_WRAPPER const char *docstring_rotate_vecs_about_axis =
+static const char *docstring_rotate_vecs_about_axis =
     "c module implementation of rotate_vecs_about_axis.\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_rotate_vecs_about_axis(PyObject *self, PyObject *args)
 {
     /* API interface in Python is:

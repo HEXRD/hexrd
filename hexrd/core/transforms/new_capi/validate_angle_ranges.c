@@ -88,11 +88,11 @@ validate_angle_ranges(size_t na, double *aPtr, size_t nr, double *minPtr,
 #    include "ndargs_helper.h"
 #  endif /* XRD_SINGLE_COMPILE_UNIT */
 
-XRD_PYTHON_WRAPPER const char *docstring_validateAngleRanges =
+static const char *docstring_validateAngleRanges =
     "c module implementation of validate_angle_ranges.\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_validateAngleRanges(PyObject * self, PyObject * args)
 {
     nah_array ang_list = { NULL, "ang_list", NAH_TYPE_DP_FP, { NAH_DIM_ANY }};

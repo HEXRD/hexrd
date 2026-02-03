@@ -100,7 +100,7 @@ xy_to_gvec(size_t npts, double *xy, double *rMat_d, double *rMat_s,
 #    include <numpy/arrayobject.h>
 #  endif /* XRD_SINGLE_COMPILE_UNIT */
 
-XRD_PYTHON_WRAPPER const char *docstring_detectorXYToGvec =
+static const char *docstring_detectorXYToGvec =
     "c module implementation of xy_to_gvec.\n"
     "Please use the Python wrapper.\n";
 
@@ -127,7 +127,7 @@ XRD_PYTHON_WRAPPER const char *docstring_detectorXYToGvec =
   gvec_l -- (n, 3) ndarray containing the associated G vector directions in the
          LAB FRAME associated with gVecs
 */
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_detectorXYToGvec(PyObject * self, PyObject * args)
 {
     /* Right now, the Python wrapper guarantees that:

@@ -37,11 +37,11 @@ make_detector_rmat(double * tPtr, double * rPtr)
 #    include <numpy/arrayobject.h>
 #  endif /* XRD_SINGLE_COMPILE_UNIT */
 
-XRD_PYTHON_WRAPPER const char *docstring_makeDetectorRotMat =
+static const char *docstring_makeDetectorRotMat =
     "c module implementation of makeDetectorRotMat.\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_makeDetectorRotMat(PyObject * self, PyObject * args)
 {
     PyArrayObject *tiltAngles, *rMat;

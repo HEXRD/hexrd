@@ -57,11 +57,11 @@ quat_distance(size_t nsym, double * q1, double * q2, double * qsym)
 #    include "ndargs_helper.h"
 #  endif /* XRD_SINGLE_COMPILE_UNIT */
 
-XRD_PYTHON_WRAPPER const char *docstring_quat_distance =
+static const char *docstring_quat_distance =
     "c module implementation of quat_distance.\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_quat_distance(PyObject * self, PyObject * args)
 {
     nah_array q1 = { NULL, "q1", NAH_TYPE_DP_FP, { 4 }};

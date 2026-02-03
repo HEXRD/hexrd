@@ -185,11 +185,11 @@ oscill_angles_of_HKLs(size_t npts, double * hkls, double chi,
 #    include <numpy/arrayobject.h>
 #  endif /* XRD_SINGLE_COMPILE_UNIT */
 
-XRD_PYTHON_WRAPPER const char *docstring_oscillAnglesOfHKLs =
+static const char *docstring_oscillAnglesOfHKLs =
     "c module implementation of solve_omega.\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_oscillAnglesOfHKLs(PyObject * self, PyObject * args)
 {
     nah_array hkls = { NULL, "hkls", NAH_TYPE_DP_FP, { 3, NAH_DIM_ANY }};

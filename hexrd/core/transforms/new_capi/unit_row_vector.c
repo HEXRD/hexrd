@@ -65,15 +65,15 @@ unit_row_vectors(size_t m, size_t n, double *cIn, double *cOut)
 #    include <numpy/arrayobject.h>
 #  endif /* XRD_SINGLE_COMPILE_UNIT */
 
-XRD_PYTHON_WRAPPER const char *docstring_unitRowVector =
+static const char *docstring_unitRowVector =
     "c module implementation of unit_row_vector (one row).\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER const char *docstring_unitRowVectors =
+static const char *docstring_unitRowVectors =
     "c module implementation of unit_row_vector (multiple rows).\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_unitRowVector(PyObject * self, PyObject * args)
 {
     PyArrayObject *aop_out = NULL;
@@ -110,7 +110,7 @@ python_unitRowVector(PyObject * self, PyObject * args)
 }
 
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_unitRowVectors(PyObject *self, PyObject *args)
 {
     PyArrayObject *aop_out = NULL;

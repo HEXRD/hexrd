@@ -14,7 +14,7 @@
 #    include <numpy/arrayobject.h>
 #  endif /* XRD_SINGLE_COMPILE_UNIT */
 
-XRD_PYTHON_WRAPPER const char *<>_docstring =
+static const char *<>_docstring =
 "c module implementation of <>. Please use the Python wrapper.\n"
 
 

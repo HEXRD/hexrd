@@ -68,12 +68,12 @@ make_sample_rmat_array(double chi, const double *ome_ptr, size_t ome_count, doub
 #    include <numpy/arrayobject.h>
 #  endif /* XRD_SINGLE_COMPILE_UNIT */
 
-XRD_PYTHON_WRAPPER const char *docstring_makeOscillRotMat =
+static const char *docstring_makeOscillRotMat =
     "c module implementation of make_sample_rotmat.\n"
     "Please use the Python wrapper.\n";
 
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_makeOscillRotMat(PyObject * self, PyObject * args)
 {
     nah_array ome = { NULL, "ome", NAH_TYPE_DP_FP, { NAH_DIM_ANY }};
