@@ -44,7 +44,6 @@ hexrd/sampleOrientations/sampleRFZ.py	hexrd/hedm/sampleOrientations/sampleRFZ.py
 hexrd/transforms/xf.py	hexrd/core/transforms/xf.py
 hexrd/transforms/xfcapi.py	hexrd/core/transforms/xfcapi.py
 hexrd/transforms/__init__.py	hexrd/core/transforms/__init__.py
-hexrd/transforms/old_xfcapi.py	hexrd/core/transforms/old_xfcapi.py
 hexrd/transforms/new_capi/xf_new_capi.py	hexrd/core/transforms/new_capi/xf_new_capi.py
 hexrd/transforms/new_capi/reference.py	hexrd/core/transforms/new_capi/reference.py
 hexrd/extensions/__init__.py	hexrd/core/extensions/__init__.py
@@ -278,7 +277,6 @@ hexrd/resources/tardis_reference_config.yml	hexrd/core/resources/tardis_referenc
 hexrd/resources/window_materials.h5	hexrd/core/resources/window_materials.h5
 hexrd/transforms/cpp_sublibrary/Makefile	hexrd/core/transforms/cpp_sublibrary/Makefile
 hexrd/transforms/cpp_sublibrary/src/inverse_distortion.cpp	hexrd/core/transforms/cpp_sublibrary/src/inverse_distortion.cpp
-hexrd/transforms/debug_helpers.h	hexrd/core/transforms/debug_helpers.h
 hexrd/transforms/Makefile	hexrd/core/transforms/Makefile
 hexrd/transforms/new_capi/angles_to_dvec.c	hexrd/core/transforms/new_capi/angles_to_dvec.c
 hexrd/transforms/new_capi/angles_to_gvec.c	hexrd/core/transforms/new_capi/angles_to_gvec.c
@@ -467,7 +465,6 @@ hexrd\core\rotations.py	hexrd\core\rotations.py
 hexrd\core\transforms\__init__.py	hexrd\core\transforms\__init__.py
 hexrd\core\transforms\cpp_sublibrary\Makefile	hexrd\core\transforms\cpp_sublibrary\Makefile
 hexrd\core\transforms\cpp_sublibrary\src\inverse_distortion.cpp	hexrd\core\transforms\cpp_sublibrary\src\inverse_distortion.cpp
-hexrd\core\transforms\debug_helpers.h	hexrd\core\transforms\debug_helpers.h
 hexrd\core\transforms\Makefile	hexrd\core\transforms\Makefile
 hexrd\core\transforms\new_capi\angles_to_dvec.c	hexrd\core\transforms\new_capi\angles_to_dvec.c
 hexrd\core\transforms\new_capi\angles_to_gvec.c	hexrd\core\transforms\new_capi\angles_to_gvec.c
@@ -493,7 +490,6 @@ hexrd\core\transforms\new_capi\unit_row_vector.c	hexrd\core\transforms\new_capi\
 hexrd\core\transforms\new_capi\validate_angle_ranges.c	hexrd\core\transforms\new_capi\validate_angle_ranges.c
 hexrd\core\transforms\new_capi\xf_new_capi.py	hexrd\core\transforms\new_capi\xf_new_capi.py
 hexrd\core\transforms\new_capi\xy_to_gvec.c	hexrd\core\transforms\new_capi\xy_to_gvec.c
-hexrd\core\transforms\old_xfcapi.py	hexrd\core\transforms\old_xfcapi.py
 hexrd\core\transforms\stdbool.h	hexrd\core\transforms\stdbool.h
 hexrd\core\transforms\transforms_CAPI.c	hexrd\core\transforms\transforms_CAPI.c
 hexrd\core\transforms\transforms_CAPI.h	hexrd\core\transforms\transforms_CAPI.h

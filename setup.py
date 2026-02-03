@@ -155,7 +155,7 @@ def get_cpp_extensions():
 
 def get_new_xfcapi_extension_modules():
     transforms_mod = Extension(
-        'hexrd.core.extensions._new_transforms_capi',
+        'hexrd.core.extensions.transforms_c_api',
         sources=['hexrd/core/transforms/new_capi/module.c'],
         include_dirs=[np_include_dir],
         extra_compile_args=compiler_flags,
