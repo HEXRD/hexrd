@@ -66,12 +66,8 @@ class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
         return len(self._data_group)
 
     def __getstate__(self):
-        # Remove any non-pickleable attributes. Prefix them with the private prefix
-        to_remove = [f'_{self.__class__.__name__}_h5file']
-
         state = self.__dict__.copy()
-        for attr in to_remove:
-            state.pop(attr)
+        state.pop('_h5file')
 
         return state
 
