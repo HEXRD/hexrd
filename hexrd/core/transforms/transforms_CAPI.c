@@ -16,11 +16,6 @@ static PyMethodDef _transform_methods[] = {
   {"detectorXYToGvec",detectorXYToGvec,METH_VARARGS,"take cartesian coordinates to G-vectors"},
   {"detectorXYToGvecArray",detectorXYToGvecArray,METH_VARARGS,"take cartesian coordinates to G-vectors"},
   {"oscillAnglesOfHKLs",oscillAnglesOfHKLs,METH_VARARGS,"solve angle specs for G-vectors"},
-  {"arccosSafe",arccosSafe,METH_VARARGS,""},
-  {"angularDifference",angularDifference,METH_VARARGS,"difference for cyclical angles"},
-  {"mapAngle",mapAngle,METH_VARARGS,"map cyclical angles to specified range"},
-  {"columnNorm",columnNorm,METH_VARARGS,""},
-  {"rowNorm",rowNorm,METH_VARARGS,""},
   {"unitRowVector",unitRowVector,METH_VARARGS,"Normalize a single row vector"},
   {"unitRowVectors",unitRowVectors,METH_VARARGS,"Normalize a collection of row vectors"},
   {"makeDetectorRotMat",makeDetectorRotMat,METH_VARARGS,""},
@@ -715,31 +710,6 @@ static PyObject * oscillAnglesOfHKLs(PyObject * self, PyObject * args)
 
 /******************************************************************************/
 /* Utility Funtions */
-
-static PyObject * arccosSafe(PyObject * self, PyObject * args)
-{
-  return(NULL);
-}
-
-static PyObject * angularDifference(PyObject * self, PyObject * args)
-{
-  return(NULL);
-}
-
-static PyObject * mapAngle(PyObject * self, PyObject * args)
-{
-  return(NULL);
-}
-
-static PyObject * columnNorm(PyObject * self, PyObject * args)
-{
-  return(NULL);
-}
-
-static PyObject * rowNorm(PyObject * self, PyObject * args)
-{
-  return(NULL);
-}
 
 static PyObject * unitRowVector(PyObject * self, PyObject * args)
 {

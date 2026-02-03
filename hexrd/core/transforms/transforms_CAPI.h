@@ -42,16 +42,6 @@ static PyObject * oscillAnglesOfHKLs(PyObject * self, PyObject * args);
 /******************************************************************************/
 /* Utility Funtions */
 
-static PyObject * arccosSafe(PyObject * self, PyObject * args);
-
-static PyObject * angularDifference(PyObject * self, PyObject * args);
-
-static PyObject * mapAngle(PyObject * self, PyObject * args);
-
-static PyObject * columnNorm(PyObject * self, PyObject * args);
-
-static PyObject * rowNorm(PyObject * self, PyObject * args);
-
 static PyObject * unitRowVector(PyObject * self, PyObject * args);
 
 static PyObject * unitRowVectors(PyObject * self, PyObject * args);
