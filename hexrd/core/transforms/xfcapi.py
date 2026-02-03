@@ -2,29 +2,6 @@
 # add and test them.
 # NOTE: we are only importing what is currently being used in hexrd
 # and hexrdgui. This is so that we can see clearly what is in use.
-from .old_xfcapi import (
-    anglesToDVec,
-    anglesToGVec,
-    detectorXYToGvec,
-    gvecToDetectorXY,
-    gvecToDetectorXYArray,
-    oscillAnglesOfHKLs,
-    angularDifference,
-    makeDetectorRotMat,
-    makeEtaFrameRotMat,
-    makeOscillRotMat,
-    makeOscillRotMatArray,
-    makeRotMatOfExpMap,
-    makeRotMatOfQuat,
-    mapAngle,
-    rowNorm,
-    unitRowVector,
-    bVec_ref,
-    eta_ref,
-    Xl,
-    Yl,
-)
-
 
 from .new_capi.xf_new_capi import (
     angles_to_dvec,

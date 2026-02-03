@@ -5,7 +5,7 @@ from warnings import warn
 
 # hexrd imports
 # -------------
-from hexrd.core.transforms.xfcapi import anglesToGVec
+from hexrd.core.transforms.new_capi.xf_new_capi import angles_to_gvec
 from hexrd.core import constants
 from hexrd.powder.wppf.phase import Material_Rietveld
 
@@ -729,8 +729,8 @@ class HarmonicModel:
         self._bvec = bHat_l
 
     @etavec.setter
-    def etavec(self, eHat_l):
-        self._etavec = eHat_l
+    def etavec(self, eta_vec):
+        self._etavec = eta_vec
 
     @property
     def sample_normal(self):
@@ -907,7 +907,7 @@ class HarmonicModel:
                     )
                 ).T
 
-            pfgrid = anglesToGVec(angs, bHat_l=self.bvec, eHat_l=self.etavec)
+            pfgrid = angles_to_gvec(angs, beam_vec=self.bvec, eta_vec=self.etavec)
 
             # Next part runs in a numba function to accelerate it.
             if calc_type == 'texture_factor':
