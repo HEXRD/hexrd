@@ -6,7 +6,7 @@
 #endif
 
 
-XRD_CFUNCTION int
+static int
 unit_row_vector(size_t n, double * cIn, double * cOut)
 {
     size_t j;
@@ -31,7 +31,7 @@ unit_row_vector(size_t n, double * cIn, double * cOut)
     }
 }
 
-XRD_CFUNCTION void
+static void
 unit_row_vectors(size_t m, size_t n, double *cIn, double *cOut)
 {
     size_t i, j;

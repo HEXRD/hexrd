@@ -326,7 +326,7 @@ ray_plane_intersect(const double *origin, const double *vect,
 }
 
 
-XRD_CFUNCTION void
+static void
 gvec_to_xy(size_t npts, const double *gVec_cs,
            const double *rMat_d, const double *rMat_ss, const double *rMat_c,
            const double *tVec_d, const double *tVec_s, const double *tVec_c,
@@ -459,7 +459,7 @@ typedef void (*rays_to_detector_func) (const void *detector_data,
                                        double * restrict projected_xy, size_t projected_xy_count);
 /* experimental:
  */
-XRD_CFUNCTION void
+static void
 gvec_to_xy_detector(size_t npts, const double *gVec_cs,
                     const double *rMat_ss, const double *rMat_c,
                     const double *tVec_s, const double *tVec_c,
@@ -571,7 +571,7 @@ gvec_to_xy_detector(size_t npts, const double *gVec_cs,
     }
 }
 
-XRD_CFUNCTION void
+static void
 gvec_to_xy_vect(size_t npts, const double *gVec_cs,
                 const double *rMat_d, const double *rMat_ss, const double *rMat_c,
                 const double *tVec_d, const double *tVec_s, const double *tVec_c,

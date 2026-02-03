@@ -10,7 +10,7 @@
 #endif
 
 
-XRD_CFUNCTION double
+static double
 quat_distance(size_t nsym, double * q1, double * q2, double * qsym)
 {
     size_t i;

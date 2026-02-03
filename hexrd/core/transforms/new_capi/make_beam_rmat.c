@@ -6,7 +6,7 @@
 #endif
 
 
-XRD_CFUNCTION int 
+static int 
 make_beam_rmat(double * bPtr, double * ePtr, double * rPtr)
 {
     /*

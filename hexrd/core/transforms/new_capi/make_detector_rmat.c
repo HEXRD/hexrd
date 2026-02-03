@@ -5,7 +5,7 @@
 #endif
 
 
-XRD_CFUNCTION void
+static void
 make_detector_rmat(double * tPtr, double * rPtr)
 {
     int i;

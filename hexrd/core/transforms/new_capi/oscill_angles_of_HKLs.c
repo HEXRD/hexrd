@@ -6,7 +6,7 @@
 #endif
 
 
-XRD_CFUNCTION void
+static void
 oscill_angles_of_HKLs(size_t npts, double * hkls, double chi,
                       double * rMat_c, double * bMat, double wavelength,
                       double * vInv_s, double * beamVec, double * etaVec,

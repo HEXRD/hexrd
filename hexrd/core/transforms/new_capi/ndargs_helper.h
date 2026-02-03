@@ -33,6 +33,6 @@ typedef struct nah_array_struct
  * returns 1 on success, 0 otherwise. When returning 0, a python
  * exception has been setup.
  */
-XRD_CFUNCTION int nah_array_converter(PyObject *op, void *result);
+static int nah_array_converter(PyObject *op, void *result);
 
 #endif /* NDARRAY_ARGS_HELPER_H */

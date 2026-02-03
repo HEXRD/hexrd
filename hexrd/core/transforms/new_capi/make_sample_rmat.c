@@ -5,7 +5,7 @@
 #  include "ndargs_helper.h"
 #endif
 
-XRD_CFUNCTION void
+static void
 make_sample_rmat(double chi, double ome, double *result_rmat)
 {
     double cchi, schi, come, some;
@@ -28,7 +28,7 @@ make_sample_rmat(double chi, double ome, double *result_rmat)
 
 }
 
-XRD_CFUNCTION void
+static void
 make_sample_rmat_array(double chi, const double *ome_ptr, size_t ome_count, double *result_ptr)
 {
     double cchi,schi;

@@ -5,7 +5,7 @@
 #endif
 
 
-XRD_CFUNCTION void
+static void
 rotate_vecs_about_axis(size_t na, double *angles,
                        size_t nax, double *axes,
                        size_t nv, double *vecs,

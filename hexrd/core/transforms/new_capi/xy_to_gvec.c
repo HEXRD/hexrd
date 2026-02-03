@@ -6,7 +6,7 @@
 #endif
 
 
-XRD_CFUNCTION void
+static void
 xy_to_gvec(size_t npts, double *xy, double *rMat_d, double *rMat_s,
            double *tVec_d, double *tVec_s, double *tVec_c,
            double *beamVec, double *etaVec,

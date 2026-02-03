@@ -4,7 +4,7 @@
 #  include "transforms_prototypes.h"
 #endif
 
-XRD_CFUNCTION void
+static void
 validate_angle_ranges(size_t na, double *aPtr, size_t nr, double *minPtr,
                       double *maxPtr, bool *rPtr, int ccw)
 {
