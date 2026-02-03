@@ -16,7 +16,7 @@ class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
 
     format = 'eiger-stream-v1'
 
-    def __init__(self, fname, **kwargs):
+    def __init__(self, fname, **kwargs) -> None:
         if isinstance(fname, h5py.File):
             self._h5name: str = fname.filename
             self._h5file: h5py.File = fname
@@ -107,6 +107,10 @@ class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
     @property
     def dtype(self):
         return np.dtype(self._first_data_entry['dtype'][()])
+    
+    @dtype.setter
+    def dtype(self, value: np.dtype):
+        self._dtype = value
 
     @property
     def shape(self):

@@ -2,6 +2,8 @@
 and returns a 2D numpy array.
 """
 
+import numpy as np
+
 from . import ImageSeriesAdapter
 from ..imageseriesiter import ImageSeriesIterator
 
@@ -56,6 +58,10 @@ class FunctionImageSeriesAdapter(ImageSeriesAdapter):
     @property
     def dtype(self):
         return self._dtype
+    
+    @dtype.setter
+    def dtype(self, value: np.dtype):
+        self._dtype = value
 
     def __getitem__(self, key):
         if not isinstance(key, int):

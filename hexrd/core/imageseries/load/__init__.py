@@ -1,6 +1,6 @@
 import abc
 import pkgutil
-from typing import Any
+from typing import Any, Optional
 import numpy as np
 from numpy.typing import NDArray
 
@@ -19,16 +19,16 @@ class _RegisterAdapterClass(abc.ABCMeta):
 class ImageSeriesAdapter(ImageSeriesABC, metaclass=_RegisterAdapterClass):
     format: str | None = None
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._dtype: np.dtype = None
+        self._dtype: Optional[np.dtype] = None
 
     @property
     def dtype(self):
         return self._dtype
 
     @dtype.setter
-    def dtype(self, value: np.dtype):
+    def dtype(self, value: Optional[np.dtype]):
         self._dtype = value
 
     def get_region(self, frame_idx: int, region: RegionType) -> np.ndarray:

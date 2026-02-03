@@ -225,14 +225,14 @@ class SeedSearchConfig(Config):
 
 class OrientationMapsConfig(Config):
     @property
-    def active_hkls(self) -> int | list[int] | None:
+    def active_hkls(self) -> list[int] | str | None:
         hkls: int | str | None = self._cfg.get(
             'find_orientations:orientation_maps:active_hkls', default='all'
         )
         if isinstance(hkls, int):
-            hkls = [hkls]
+            return [hkls]
         if hkls == 'all':
-            hkls = None
+            return None
         return hkls
 
     @property

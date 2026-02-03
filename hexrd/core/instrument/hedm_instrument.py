@@ -1733,7 +1733,7 @@ class HEDMInstrument(object):
         ome_tol: float = 1.0,
         npdiv: int = 2,
         threshold: int = 10,
-        eta_ranges: Sequence[tuple] = ((-np.pi, np.pi)),
+        eta_ranges: Sequence[tuple] = ((-np.pi, np.pi),),
         ome_period: Optional[tuple] = None,
         dirname: str = 'results',
         filename: Optional[str] = None,

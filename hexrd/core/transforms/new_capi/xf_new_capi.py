@@ -23,7 +23,7 @@ module:
  - makeRotMatOfQuat
  - homochoricOfQuat
 """
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Sequence
 import numpy as np
 from numpy.typing import NDArray
 
@@ -537,7 +537,7 @@ def make_sample_rmat(chi: float, ome: float | NDArray[np.float64]) -> NDArray[np
     return result
 
 
-def make_rmat_of_expmap(exp_map: tuple[float] | NDArray[np.float64]) -> NDArray[np.float64]:
+def make_rmat_of_expmap(exp_map: Sequence[float] | NDArray[np.float64]) -> NDArray[np.float64]:
     """
     Calculate the rotation matrix of an exponential map.
 
