@@ -141,7 +141,7 @@ class OmegaWedges(object):
         number of frames in imageseries
     """
 
-    def __init__(self, nframes):
+    def __init__(self, nframes: int) -> None:
         self.nframes = nframes
         self._wedges: list[dict[str, int]] = []
 

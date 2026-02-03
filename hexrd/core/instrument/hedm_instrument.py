@@ -314,6 +314,7 @@ def _parse_imgser_dict(imgser_dict: Mapping[str, OmegaImageSeries | NDArray[np.f
             )
             if isinstance(images_in, OmegaImageSeries):
                 # if it was an OmegaImageSeries, must re-cast
+                assert isinstance(ims, ProcessedImageSeries)
                 ims = OmegaImageSeries(ims)
         elif isinstance(images_in, np.ndarray):
             # 2- or 3-d array of images

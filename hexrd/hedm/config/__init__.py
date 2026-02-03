@@ -29,7 +29,7 @@ def open(file_name=None) -> list[root.RootConfig]:
         raise ValueError(f'Config file not found: "{file_name}"')
 
     with open_file(file_name) as f:
-        res = []
+        res: list[config.Config] = []
         for cfg in yaml.load_all(f, Loader=yaml.SafeLoader):
             try:
                 # take the previous config section and update with values

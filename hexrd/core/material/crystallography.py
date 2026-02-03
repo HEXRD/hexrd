@@ -61,7 +61,14 @@ logger = logging.getLogger(__name__)
 # units
 dUnit = 'angstrom'
 
-LatPlaneData = Mapping[str, NDArray[Any]]
+# LatPlaneData = Mapping[str, NDArray[Any]]
+
+class LatPlaneData(TypedDict):
+    normals: NDArray[np.float64]
+    dspacings: NDArray[np.float64]
+    tThetas: NDArray[np.float64]
+    tThetasLo: NDArray[np.float64]
+    tThetasHi: NDArray[np.float64]
 
 class LatVecOps(TypedDict):
     F: NDArray[np.float64]
@@ -289,7 +296,8 @@ def latticePlanes(
     tth[~mask] = np.nan
     tth[mask] = 2.0 * np.arcsin(sth[mask])
 
-    p: LatPlaneData = dict(normals=unitVector(G), dspacings=d, tThetas=tth)
+    p: LatPlaneData = dict(normals=unitVector(G), dspacings=d, tThetas=tth,
+                           tThetasLo=np.array([]), tThetasHi=np.array([]))
 
     if strainMag is not None:
         p['tThetasLo'] = np.zeros(sth.shape)
@@ -691,7 +699,7 @@ class PlaneData(object):
     tThWidth
     """
 
-    def __init__(self, hkls: np.ndarray, *args, **kwargs) -> None:
+    def __init__(self, hkls: Optional[np.ndarray], *args, **kwargs) -> None:
         """
         Constructor for PlaneData
 
@@ -734,8 +742,11 @@ class PlaneData(object):
         else:
             raise NotImplementedError(f'args : {args}')
 
+        if hkls is None:
+            raise ValueError('hkls cannot be None if not passing PlaneData object')
+
         self._laueGroup = laueGroup
-        self._hkls = copy.deepcopy(hkls)
+        self._hkls: NDArray[np.int_] = copy.deepcopy(hkls)
         self._strainMag = strainMag
         self._structFact: Optional[NDArray[np.float64]] = np.ones(self._hkls.shape[1])
         self.tThWidth: float | None = tThWidth

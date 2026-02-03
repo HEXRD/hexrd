@@ -33,7 +33,7 @@ import sys
 import numpy as np
 from numba import njit
 from numpy.typing import NDArray
-from typing import Literal, Optional
+from typing import Literal, Optional, Sequence
 from scipy.optimize import leastsq
 from scipy.spatial.transform import Rotation as R
 
@@ -1105,7 +1105,7 @@ def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
 #
 
 
-def mapAngle(ang, ang_range: Optional[tuple[float, float] | NDArray[np.float64]]=None,
+def mapAngle(ang, ang_range: Optional[Sequence[float] | NDArray[np.float64]]=None,
              units: Literal['degrees', 'radians']=angularUnits) -> NDArray[np.float64]:
     """ Map an angle into a specified period
     """

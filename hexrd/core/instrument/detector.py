@@ -1354,8 +1354,12 @@ class Detector:
             pd = PlaneData(None, pd)
             if delta_tth is not None:
                 pd.tThWidth = np.radians(delta_tth)
-            else:
+            elif pd.tThWidth is not None:
                 delta_tth = np.degrees(pd.tThWidth)
+            else:
+                raise ValueError(
+                    "Must supply delta_tth if PlaneData has no tThWidth"
+                )
 
             del_eta = np.radians(delta_eta)
 
@@ -1639,8 +1643,8 @@ class Detector:
         for gparm in grain_param_list:
             # make useful parameters
             rMat_c = make_rmat_of_expmap(gparm[:3])
-            tVec_c = gparm[3:6]
-            vInv_s = gparm[6:]
+            tVec_c = np.array(gparm[3:6])
+            vInv_s = np.array(gparm[6:])
 
             # Apply an energy correction according to grain position
             corrected_wavelength = xrdutil.apply_correction_to_wavelength(
