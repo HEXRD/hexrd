@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import logging
+from typing import Literal
 
 import numpy as np
 
@@ -225,14 +226,16 @@ class SeedSearchConfig(Config):
 
 class OrientationMapsConfig(Config):
     @property
-    def active_hkls(self) -> list[int] | str | None:
-        hkls: int | str | None = self._cfg.get(
+    def active_hkls(self) -> list[int] | None:
+        hkls: list[int] | int | Literal['all'] | None = self._cfg.get(
             'find_orientations:orientation_maps:active_hkls', default='all'
         )
         if isinstance(hkls, int):
             return [hkls]
-        if hkls == 'all':
+        elif hkls == 'all' or hkls is None:
             return None
+        
+        assert isinstance(hkls, list)
         return hkls
 
     @property
