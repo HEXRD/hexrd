@@ -3,6 +3,7 @@
 from typing import List
 
 import numpy as np
+from numpy.typing import NDArray
 import numba
 
 from .distortionabc import DistortionABC
@@ -18,7 +19,7 @@ RHO_MAX = 204.8  # max radius in mm for ge detector
 # NOTE: Deprecated in favor of inverse_distortion.ge_41rt_inverse_distortion
 @numba.njit(nogil=True, cache=True, fastmath=True)
 def _ge_41rt_inverse_distortion(
-    inputs: np.ndarray[np.float64, np.float64],
+    inputs: NDArray[np.float64],
     rhoMax: float,
     params: List[float],
 ):

@@ -147,6 +147,10 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
     def dtype(self):
         return self.__image_dataset.dtype
 
+    @dtype.setter
+    def dtype(self, value: np.dtype):
+        self._dtype = value
+
     @property
     def shape(self):
         if self._ndim == 2:

@@ -2,6 +2,8 @@ import os
 import functools
 import logging
 
+from typing import Optional
+
 logger = logging.getLogger(__name__)
 
 
@@ -11,7 +13,7 @@ class DeprecatedFunctionError(Exception):
     pass
 
 
-def deprecated(new_func: str = None, removal_date: str = None):
+def deprecated(new_func: Optional[str] = None, removal_date: Optional[str] = None):
     """
     Decorator to mark functions as deprecated. Raises an error if
     the 'ACK_DEPRECATED' environment variable is not set. Alerts the

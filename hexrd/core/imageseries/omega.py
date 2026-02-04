@@ -4,10 +4,11 @@
 """
 
 import numpy as np
+from numpy.typing import NDArray
+
+from hexrd.core.imageseries.process import ProcessedImageSeries
 
 from .baseclass import ImageSeries
-
-OMEGA_KEY = 'omega'
 
 
 class OmegaImageSeries(ImageSeries):
@@ -16,11 +17,11 @@ class OmegaImageSeries(ImageSeries):
     DFLT_TOL = 1.0e-6
     TAU = 360
 
-    def __init__(self, ims):
+    def __init__(self, ims: 'ImageSeries | OmegaImageSeries | ProcessedImageSeries'):
         """This class is initialized with an existing imageseries"""
         # check for omega metadata
-        if OMEGA_KEY in ims.metadata:
-            self._omega = ims.metadata[OMEGA_KEY]
+        if 'omega' in ims.metadata:
+            self._omega: NDArray[np.float64] = ims.metadata['omega']
             if len(ims) != self._omega.shape[0]:
                 msg = 'omega array mismatch: array has %s frames, expecting %s'
                 msg = msg % (self._omega.shape[0], len(ims))
@@ -69,7 +70,7 @@ class OmegaImageSeries(ImageSeries):
         assert nf0 == nf
 
     @property
-    def omega(self):
+    def omega(self) -> NDArray[np.float64]:
         """return omega range array (nframes, 2)"""
         return self._omega
 
@@ -141,9 +142,9 @@ class OmegaWedges(object):
         number of frames in imageseries
     """
 
-    def __init__(self, nframes):
+    def __init__(self, nframes: int) -> None:
         self.nframes = nframes
-        self._wedges = []
+        self._wedges: list[dict[str, int]] = []
 
     #
     # ============================== API

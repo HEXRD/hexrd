@@ -77,6 +77,7 @@ from hexrd.core import constants
 from hexrd.core.material import symbols, symmetry
 
 import numpy as np
+from numpy.typing import NDArray
 
 if TYPE_CHECKING:
     from hexrd.core.material import Material
@@ -376,7 +377,7 @@ _rqpDict = {
 }
 
 
-def get_symmetry_directions(mat: 'Material') -> np.ndarray:
+def get_symmetry_directions(mat: 'Material') -> NDArray[np.int32]:
     """
     helper function to get a list of primary,
     secondary and tertiary directions of the
@@ -427,14 +428,11 @@ def get_symmetry_directions(mat: 'Material') -> np.ndarray:
         secondary = [1, 1, 1]
         tertiary = [1, 1, 0]
 
-    return np.array([primary, secondary, tertiary])
+    return np.array([primary, secondary, tertiary], dtype=np.int32)
 
 
-def Allowed_HKLs(sgnum, hkllist):
-    """
-    this function checks if a particular g vector is allowed
-    by lattice centering, screw axis or glide plane
-    """
+def Allowed_HKLs(sgnum: int, hkllist: NDArray[np.int32]) -> NDArray[np.int32]:
+    """Checks if a g vector is allowed by lattice centering, screw axis or glide plane"""
     sg_hmsymbol = symbols.pstr_spacegroup[sgnum - 1].strip()
     symmorphic = False
     if sgnum in constants.sgnum_symmorphic:
@@ -445,12 +443,7 @@ def Allowed_HKLs(sgnum, hkllist):
     centering = sg_hmsymbol[0]
     if centering == 'P':
         # all reflections are allowed
-        mask = np.ones(
-            [
-                hkllist.shape[0],
-            ],
-            dtype=bool,
-        )
+        mask = np.ones([hkllist.shape[0]], dtype=bool)
     elif centering == 'F':
         # same parity
         seo = np.sum(np.mod(hkllist + 100, 2), axis=1)
@@ -476,7 +469,7 @@ def Allowed_HKLs(sgnum, hkllist):
         seo = np.mod(-hkllist[:, 0] + hkllist[:, 1] + hkllist[:, 2] + 90, 3)
         mask = seo == 0
     else:
-        raise RuntimeError('IsGAllowed: unknown lattice centering encountered.')
+        raise ValueError(f'Unknown lattice centering: "{centering}"')
 
     hkls = hkllist[mask, :]
     if not symmorphic:
@@ -928,66 +921,3 @@ def _getHKLsBySS(ss):
                     hkls += [(h, k, l), (h, k, -l)]
 
     return hkls
-
-
-#
-# ================================================== Test Functions
-#
-
-
-def testHKLs():
-    #
-    #  Check reduced HKLs
-    #
-    #  1. Titanium (sg 194)
-    #
-    sg = SpaceGroup(194)
-    print('==================== Titanium (194)')
-    ssmax = 20
-    myHKLs = sg.getHKLs(ssmax)
-    print('Number of HKLs with sum of square %d or less:  %d' % (ssmax, len(myHKLs)))
-    for hkl in myHKLs:
-        ss = hkl[0] ** 2 + hkl[1] ** 2 + hkl[2] ** 2
-        print((hkl, ss))
-
-    #
-    #  2. Ruby (sg 167)
-    #
-    sg = SpaceGroup(167)
-    print('==================== Ruby (167)')
-    ssmax = 10
-    myHKLs = sg.getHKLs(ssmax)
-    print('Number of HKLs with sum of square %d or less:  %d' % (ssmax, len(myHKLs)))
-    for hkl in myHKLs:
-        ss = hkl[0] ** 2 + hkl[1] ** 2 + hkl[2] ** 2
-        print((hkl, ss))
-    #
-    #  Test Generic HKLs
-    #
-    for ss in range(1, 10):
-        print('==================== ss = %d' % ss)
-        hkls = _getHKLsBySS(ss)
-        print('                     number of hkls:  ', len(hkls))
-        print(hkls)
-
-
-if __name__ == '__main__':
-    #
-    import sys
-
-    #
-    if 'testHKLs' in sys.argv:
-        testHKLs()
-        sys.exit()
-    #
-    #  Test Space groups:
-    #
-    for n in range(1, 231):
-        try:
-            sg = SpaceGroup(n)
-            sg.getHKLs(10)
-            print(sg)
-            print('\n')
-        except:
-            print(('failed for space group number: ', n))
-            print(('Hall symbol:  ', lookupHall[n]))

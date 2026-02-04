@@ -4,7 +4,10 @@ import warnings
 
 
 @contextmanager
-def ignore_warnings(category: Optional[Warning] = None):
+def ignore_warnings(category: Optional[type[Warning]] = None):
     with warnings.catch_warnings():
-        warnings.simplefilter('ignore', category=category)
+        if category is not None:
+            warnings.simplefilter('ignore', category=category)
+        else:
+            warnings.simplefilter('ignore')
         yield

@@ -4,9 +4,10 @@ import os
 
 import yaml
 import numpy as np
+from numpy.typing import NDArray
 
 
-def yamlmeta(meta, path=None):
+def yamlmeta(meta, path=None) -> dict[str, NDArray[np.float64]]:
     """Image sequence metadata
 
         *path* is a full path or directory used to find the relative location

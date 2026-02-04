@@ -50,6 +50,10 @@ class ArrayImageSeriesAdapter(ImageSeriesAdapter):
     def dtype(self):
         return self._data.dtype
 
+    @dtype.setter
+    def dtype(self, value: np.dtype):
+        self._dtype = value
+
     def __getitem__(self, key):
         return self._data[key].copy()
 

@@ -4,7 +4,10 @@ import multiprocessing as mp
 import os
 import timeit
 
+from typing import Optional
+
 import numpy as np
+from numpy.typing import NDArray
 
 # np.seterr(over='ignore', invalid='ignore')
 
@@ -15,12 +18,15 @@ from scipy import ndimage
 
 from hexrd.core import constants as const
 from hexrd.core import matrixutil as mutil
+from hexrd.core.imageseries.omega import OmegaImageSeries
+from hexrd.core.material.crystallography import PlaneData
 from hexrd.hedm import indexer
 from hexrd.core import instrument
 from hexrd.core.imageutil import find_peaks_2d
 from hexrd.core import rotations as rot
 from hexrd.core.transforms import xfcapi
 from hexrd.hedm.xrdutil import EtaOmeMaps
+from hexrd.hedm.config import root
 
 # just require scikit-learn?
 have_sklearn = False
@@ -60,7 +66,9 @@ def write_scored_orientations(results, cfg):
     )
 
 
-def _process_omegas(omegaimageseries_dict):
+def _process_omegas(
+    omegaimageseries_dict: dict[str, OmegaImageSeries]
+) -> tuple[NDArray[np.float64], list[list[int]]]:
     """Extract omega period and ranges from an OmegaImageseries dictionary."""
     oims = next(iter(omegaimageseries_dict.values()))
     ome_period = oims.omega[0, 0] + np.r_[0.0, 360.0]
@@ -367,7 +375,15 @@ def run_cluster(
     return np.atleast_2d(qbar), cl
 
 
-def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
+# TODO: Remove image_series from this function signature.
+# TODO: Remove pd from this function signature.
+def load_eta_ome_maps(
+    cfg: root.RootConfig,
+    pd,
+    image_series,
+    hkls: Optional[NDArray[np.float64] | list[int]] = None,
+    clean: bool = False,
+):
     """
     Load the eta-ome maps specified by the config and CLI flags. If the
     maps file exists, it will return those values. If the file does not exist,
@@ -378,10 +394,8 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
     ----------
     cfg: Config instance
         root config file for this problem
-    pd: PlaneData instance
-        crystallographic properties
-    image_series: ImageSeries instance
-        stack of images
+    pd: Not used
+    image_series: Not used
     hkls: list, default = None
         list of HKLs used to generate the eta-omega maps
     clean: bool, default = False
@@ -393,15 +407,15 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
         list of eta-omega map arrays
 
     """
-    fn = cfg.find_orientations.orientation_maps.file
+    filename = cfg.find_orientations.orientation_maps.file
     if clean:
         logger.info('clean option specified; recomputing eta/ome orientation maps')
         res = generate_eta_ome_maps(cfg, hkls=hkls)
     else:
         try:
-            res = EtaOmeMaps(str(fn))
+            res = EtaOmeMaps(str(filename))
             pd = res.planeData
-            logger.info(f'loaded eta/ome orientation maps from {fn}')
+            logger.info(f'loaded eta/ome orientation maps from {filename}')
             shkls = pd.getHKLs(*res.iHKLList, asStr=True)
             logger.info(
                 'hkls used to generate orientation maps: %s',
@@ -409,7 +423,7 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
             )
         except (AttributeError, IOError):
             logger.warning(
-                f"specified maps file '{str(fn)}' not found "
+                f"specified maps file '{filename}' not found "
                 f"and clean option not specified; "
                 f"recomputing eta/ome orientation maps"
             )
@@ -419,13 +433,12 @@ def load_eta_ome_maps(cfg, pd, image_series, hkls=None, clean=False):
     return res
 
 
-def filter_maps_if_requested(eta_ome, cfg):
-    # filter if requested
-    filter_maps = cfg.find_orientations.orientation_maps.filter_maps
+def filter_maps_if_requested(eta_ome, cfg: root.RootConfig):
     # !!! current logic:
     #  if False/None don't do anything
     #  if True, only do median subtraction
     #  if scalar, do median + LoG filter with that many pixels std dev
+    filter_maps = cfg.find_orientations.orientation_maps.filter_maps
     if filter_maps:
         if not isinstance(filter_maps, bool):
             sigm = const.fwhm_to_sigma * filter_maps
@@ -436,7 +449,11 @@ def filter_maps_if_requested(eta_ome, cfg):
             _filter_eta_ome_maps(eta_ome)
 
 
-def generate_eta_ome_maps(cfg, hkls=None, save=True):
+def generate_eta_ome_maps(
+    cfg: root.RootConfig,
+    hkls: Optional[NDArray[np.float64] | list[int]] = None,
+    save: bool = True,
+):
     """
     Generates the eta-omega maps specified in the input config.
 
@@ -665,7 +682,11 @@ def create_clustering_parameters(cfg, eta_ome):
 
 
 def find_orientations(
-    cfg, hkls=None, clean=False, profile=False, use_direct_testing=False
+    cfg: root.RootConfig,
+    hkls: Optional[NDArray | list[int]] = None,
+    clean: bool = False,
+    profile: bool = False,
+    use_direct_testing: bool = False,
 ):
     """
 
@@ -701,7 +722,7 @@ def find_orientations(
     ome_tol = np.radians(cfg.find_orientations.omega.tolerance)
 
     # handle omega period
-    ome_period, ome_ranges = _process_omegas(imsd)
+    ome_period, _ = _process_omegas(imsd)
 
     # for multiprocessing
     ncpus = cfg.multiprocessing

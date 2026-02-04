@@ -36,7 +36,7 @@ import logging
 from configparser import ConfigParser as Parser
 import numpy as np
 
-from hexrd.core.material.crystallography import PlaneData as PData
+from hexrd.core.material.crystallography import PlaneData
 from hexrd.core.material import symmetry, unitcell
 from hexrd.core.material.symbols import two_origin_choice
 from hexrd.core.valunits import _angstroms, _degrees, _kev, valWUnit
@@ -312,7 +312,7 @@ class Material(object):
                 return
 
             # Copy over attributes from the previous PlaneData object
-            self._pData = PData(hkls, old_pdata, exclusions=None)
+            self._pData = PlaneData(hkls, old_pdata, exclusions=None)
 
             # Get a mapping to new hkl indices
             old_indices, new_indices = map_hkls_to_new(old_pdata, self._pData)
@@ -330,7 +330,7 @@ class Material(object):
             # Make the PlaneData object from scratch...
             lprm = self.reduced_lattice_parameters
             laue = self.unitcell._laueGroup
-            self._pData = PData(
+            self._pData = PlaneData(
                 hkls,
                 lprm,
                 laue,
@@ -1070,7 +1070,7 @@ class Material(object):
         # Type symbols
         type_symbols = []
         for a_type, charge in zip(self._atomtype.tolist(), list(self._charge)):
-            symbol = ptableinverse[int(a_type)]
+            symbol: str = ptableinverse[int(a_type)]
             if charge != '0':
                 type_symbols.append(f"{symbol}{charge}")
             else:
@@ -1142,7 +1142,7 @@ class Material(object):
         return self._name
 
     @name.setter
-    def name(self, mat_name):
+    def name(self, mat_name: str):
         assert isinstance(mat_name, str), "must set name to a str"
         self._name = mat_name
 
@@ -1278,7 +1278,7 @@ class Material(object):
         return self._unitcell
 
     @property
-    def planeData(self):
+    def planeData(self) -> PlaneData:
         """(read only) Return the planeData attribute (lattice parameters)"""
         return self._pData
 
@@ -1303,18 +1303,6 @@ class Material(object):
     def reduced_lattice_parameters(self):
         ltype = self.unitcell.latticeType
         return [self._lparms[i] for i in unitcell._rqpDict[ltype][0]]
-
-    def _get_name(self):
-        """Set method for name"""
-        return self._name
-
-    def _set_name(self, v):
-        """Set method for name"""
-        self._name = v
-
-        return
-
-    name = property(_get_name, _set_name, None, "Name of material")
 
     @property
     def dmin(self):

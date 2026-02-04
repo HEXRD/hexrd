@@ -4,7 +4,7 @@
 class Registry(object):
     """Registry for imageseries adapters"""
 
-    adapter_registry = dict()
+    adapter_registry: dict = dict()
 
     @classmethod
     def register(cls, acls):

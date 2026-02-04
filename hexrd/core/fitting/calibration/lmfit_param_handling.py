@@ -2,6 +2,7 @@ from typing import Optional
 
 import lmfit
 import numpy as np
+from numpy.typing import NDArray
 
 from hexrd.core.instrument import (
     calc_angles_from_beam_vec,
@@ -18,9 +19,14 @@ from hexrd.core.rotations import (
     rotMatOfExpMap,
 )
 from hexrd.core.material.unitcell import _lpname
-from .relative_constraints import RelativeConstraints, RelativeConstraintsType
-from hexrd.core.fitting.calibration.relative_constraints import (
+from .relative_constraints import (
     RelativeConstraints,
+    RelativeConstraintsGroup,
+    RelativeConstraintsSystem,
+    RelativeConstraintsType,
+    RelativeConstraintsNone,
+)
+from hexrd.core.fitting.calibration.relative_constraints import (
     RelativeConstraintsType,
 )
 
@@ -171,6 +177,9 @@ def _add_constrained_detector_parameters(
     if euler_convention is not None:
         # Convert the tilt to the specified Euler convention
         normalized = normalize_euler_convention(euler_convention)
+        if normalized is None:
+            raise ValueError('euler_convention cannot be None in this context.')
+
         rme = RotMatEuler(
             np.zeros(
                 3,
@@ -236,9 +245,9 @@ def add_group_constrained_detector_parameters(
         )
 
 
-def create_beam_param_names(instr: HEDMInstrument) -> dict[str, str]:
+def create_beam_param_names(instr: HEDMInstrument) -> dict[str, dict[str, str]]:
     param_names = {}
-    for k, v in instr.beam_dict.items():
+    for k in instr.beam_dict.keys():
         prefix = f'{k}_' if instr.has_multi_beam else ''
         param_names[k] = {
             'beam_polar': f'{prefix}beam_polar',
@@ -275,7 +284,7 @@ def fix_detector_y(
 
 def update_instrument_from_params(
     instr,
-    params,
+    params: lmfit.Parameters,
     euler_convention=DEFAULT_EULER_CONVENTION,
     relative_constraints: Optional[RelativeConstraints] = None,
 ):
@@ -325,6 +334,7 @@ def update_instrument_from_params(
 
     if (
         relative_constraints is None
+        or isinstance(relative_constraints, RelativeConstraintsNone)
         or relative_constraints.type == RelativeConstraintsType.none
     ):
         update_unconstrained_detector_parameters(
@@ -332,14 +342,20 @@ def update_instrument_from_params(
             params,
             euler_convention,
         )
-    elif relative_constraints.type == RelativeConstraintsType.group:
+    elif (
+        isinstance(relative_constraints, RelativeConstraintsGroup)
+        or relative_constraints.type == RelativeConstraintsType.group
+    ):
         update_group_constrained_detector_parameters(
             instr,
             params,
             euler_convention,
             relative_constraints,
         )
-    elif relative_constraints.type == RelativeConstraintsType.system:
+    elif (
+        isinstance(relative_constraints, RelativeConstraintsSystem)
+        or relative_constraints.type == RelativeConstraintsType.system
+    ):
         update_system_constrained_detector_parameters(
             instr,
             params,
@@ -385,7 +401,7 @@ def update_unconstrained_detector_parameters(instr, params, euler_convention):
 def _update_constrained_detector_parameters(
     detectors: list[Detector],
     params: dict,
-    rotation_center: np.ndarray,
+    rotation_center: NDArray[np.float64],
     euler_convention: EULER_CONVENTION_TYPES,
     prefix: str,
     constraint_params: dict,
@@ -441,7 +457,7 @@ def update_system_constrained_detector_parameters(
     instr: HEDMInstrument,
     params: dict,
     euler_convention: EULER_CONVENTION_TYPES,
-    relative_constraints: RelativeConstraints,
+    relative_constraints: RelativeConstraintsSystem,
 ):
     detectors = list(instr.detectors.values())
 
@@ -464,7 +480,7 @@ def update_group_constrained_detector_parameters(
     instr: HEDMInstrument,
     params: dict,
     euler_convention: EULER_CONVENTION_TYPES,
-    relative_constraints: RelativeConstraints,
+    relative_constraints: RelativeConstraintsGroup,
 ):
     for group in instr.detector_groups:
         detectors = list(instr.detectors_in_group(group).values())
@@ -484,13 +500,18 @@ def update_group_constrained_detector_parameters(
         )
 
 
-def _tilt_to_rmat(tilt: np.ndarray, euler_convention: dict | tuple) -> np.ndarray:
+def _tilt_to_rmat(
+    tilt: NDArray[np.float64], euler_convention: Optional[dict | tuple]
+) -> NDArray[np.float64]:
     # Convert the tilt to exponential map parameters, and then
     # to the rotation matrix, and return.
     if euler_convention is None:
         return rotMatOfExpMap(tilt)
 
     normalized = normalize_euler_convention(euler_convention)
+    if normalized is None:
+        raise ValueError('euler_convention cannot be None in this context.')
+
     return make_rmat_euler(
         np.radians(tilt),
         axes_order=normalized[0],
@@ -498,14 +519,14 @@ def _tilt_to_rmat(tilt: np.ndarray, euler_convention: dict | tuple) -> np.ndarra
     )
 
 
-def _rmat_to_tilt(rmat: np.ndarray) -> np.ndarray:
+def _rmat_to_tilt(rmat: NDArray[np.float64]) -> NDArray[np.float64]:
     phi, n = angleAxisOfRotMat(rmat)
     return phi * n.flatten()
 
 
 def create_tth_parameters(
     instr: HEDMInstrument,
-    meas_angles: dict[str, np.ndarray],
+    meas_angles: dict[str, NDArray[np.float64]],
 ) -> list[lmfit.Parameter]:
 
     prefixes = tth_parameter_prefixes(instr)
@@ -714,7 +735,9 @@ EULER_PARAM_NAMES_MAPPING = {
 }
 
 
-def normalize_euler_convention(euler_convention):
+def normalize_euler_convention(
+    euler_convention: EULER_CONVENTION_TYPES,
+) -> tuple | None:
     if isinstance(euler_convention, dict):
         return (
             euler_convention['axes_order'],

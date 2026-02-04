@@ -7,6 +7,8 @@ from threading import Lock
 
 import h5py
 import numpy as np
+from numpy.typing import NDArray
+from typing import Any
 import yaml
 from scipy.sparse import csr_array
 
@@ -57,15 +59,15 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
                 "'yaml', 'test'",
             )
 
-    def _load_yml(self):
+    def _load_yml(self) -> None:
         with open(self._fname, "r") as f:
             d = yaml.load(f)
         datad = d['data']
         self._cache = datad['file']
-        self._nframes = datad['nframes']
-        self._shape = tuple(datad['shape'])
-        self._dtype = np.dtype(datad['dtype'])
-        self._meta = yamlmeta(d['meta'], path=self._cache)
+        self._nframes: int = datad['nframes']
+        self._shape: tuple[int, ...] = tuple(datad['shape'])
+        self._dtype: np.dtype = np.dtype(datad['dtype'])
+        self._meta: dict[str, NDArray[Any]] = yamlmeta(d['meta'], path=self._cache)
 
     def _load_cache(self):
         if self._style == 'fch5':
@@ -95,37 +97,27 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
         with np.load(self._fname) as arrs:
             self._load_cache_npz_arrays(arrs)
 
-    def _load_cache_npz_arrays(self, arrs: np.lib.npyio.NpzFile):
-        # HACK: while the loaded npz file has a getitem method
-        # that mimicks a dict, it doesn't have a "pop" method.
-        # must make an empty dict to pop after assignment of
-        # class attributes so we can get to the metadata
-        keysd = dict.fromkeys(list(arrs.keys()))
-        self._nframes = int(arrs['nframes'])
-        self._shape = tuple(arrs['shape'])
-        # Check the type so we can read files written
-        # using Python 2.7
-        array_dtype = arrs['dtype'].dtype
-        # Python 3
-        if array_dtype.type == np.str_:
-            dtype_str = str(arrs['dtype'])
-        # Python 2.7
+    def _load_cache_npz_arrays(self, arrs: np.lib.npyio.NpzFile) -> None:
+        self._nframes = int(arrs["nframes"])
+        self._shape = tuple(int(x) for x in arrs["shape"])
+
+        array_dtype: np.dtype[Any] = arrs["dtype"].dtype
+
+        if array_dtype.type is np.str_:
+            dtype_str: str = str(arrs["dtype"])
         else:
-            dtype_str = arrs['dtype'].tobytes().decode()
+            dtype_str = arrs["dtype"].tobytes().decode()
+
         self._dtype = np.dtype(dtype_str)
 
-        keysd.pop('nframes')
-        keysd.pop('shape')
-        keysd.pop('dtype')
-        for i in range(self._nframes):
-            keysd.pop(f"{i}_row")
-            keysd.pop(f"{i}_col")
-            keysd.pop(f"{i}_data")
+        reserved = {
+            "nframes",
+            "shape",
+            "dtype",
+            *{f"{i}_{s}" for i in range(self._nframes) for s in ("row", "col", "data")},
+        }
 
-        # all rmaining keys should be metadata
-        for key in keysd:
-            keysd[key] = arrs[key]
-        self._meta = keysd
+        self._meta = {k: arrs[k] for k in arrs.keys() if k not in reserved}
 
     def _load_framelist(self):
         """load into list of csr sparse matrices"""
@@ -196,6 +188,10 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
     @property
     def dtype(self):
         return self._dtype
+
+    @dtype.setter
+    def dtype(self, value: np.dtype):
+        self._dtype = value
 
     @property
     def shape(self):
@@ -319,10 +315,7 @@ def _load_framecache_fch5(
 
             framelist[i] = frame
 
-        kwargs = {
-            "max_workers": max_workers,
-        }
-        with ThreadPoolExecutor(**kwargs) as executor:
+        with ThreadPoolExecutor(max_workers) as executor:
             # Evaluate the results via `list()`, so that if an exception is
             # raised in a thread, it will be re-raised and visible to the
             # user.

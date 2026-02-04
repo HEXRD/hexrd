@@ -8,7 +8,7 @@ from dectris.compression import decompress
 import h5py
 import numpy as np
 
-from hexrd.utils.hdf5 import unwrap_h5_to_dict
+from hexrd.core.utils.hdf5 import unwrap_h5_to_dict
 
 from . import ImageSeriesAdapter
 from ..imageseriesiter import ImageSeriesIterator
@@ -190,9 +190,13 @@ class EigerStreamV2ImageSeriesAdapter(ImageSeriesAdapter):
     @property
     def dtype(self) -> np.dtype:
         if self.threshold_setting == 'man_diff':
-            return np.float64
+            return np.dtype('float64')
 
         return np.dtype(self._first_threshold_1_entry['dtype'][()])
+
+    @dtype.setter
+    def dtype(self, value: np.dtype):
+        self._dtype = value
 
     @property
     def shape(self):

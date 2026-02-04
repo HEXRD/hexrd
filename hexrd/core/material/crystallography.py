@@ -25,15 +25,18 @@
 # the Free Software Foundation, Inc., 59 Temple Place, Suite 330,
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # =============================================================================
+from __future__ import annotations
+
 import re
 import logging
 import copy
 import csv
 import os
 from math import pi
-from typing import Optional, Union, Dict, List, Tuple
+from typing import Literal, Sequence, Optional, Union, List, Tuple, TypedDict, overload
 
 import numpy as np
+from numpy.typing import NDArray
 
 from hexrd.core.material.unitcell import unitcell
 from hexrd.core.deprecation import deprecated
@@ -58,6 +61,38 @@ logger = logging.getLogger(__name__)
 # units
 dUnit = 'angstrom'
 
+# LatPlaneData = Mapping[str, NDArray[Any]]
+
+
+class LatPlaneData(TypedDict):
+    normals: NDArray[np.float64]
+    dspacings: NDArray[np.float64]
+    tThetas: NDArray[np.float64]
+    tThetasLo: NDArray[np.float64]
+    tThetasHi: NDArray[np.float64]
+
+
+class LatVecOps(TypedDict):
+    F: NDArray[np.float64]
+    B: NDArray[np.float64]
+    BR: NDArray[np.float64]
+    U0: NDArray[np.float64]
+    vol: np.float64
+    dparms: NDArray[np.float64]
+    rparms: NDArray[np.float64]
+
+
+class HKLData(TypedDict):
+    hklID: int
+    hkl: NDArray[np.integer]
+    tTheta: np.floating
+    dSpacings: np.floating
+    tThetaLo: np.floating
+    tThetaHi: np.floating
+    latPlnNrmls: NDArray[np.floating]
+    symHKLs: NDArray[np.signedinteger]
+    centrosym: bool
+
 
 def hklToStr(hkl: np.ndarray) -> str:
     """
@@ -77,9 +112,21 @@ def hklToStr(hkl: np.ndarray) -> str:
     return re.sub(r'[\[\]\(\)\{\},]', '', str(hkl))
 
 
+@overload
 def cosineXform(
-    a: np.ndarray, b: np.ndarray, c: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
+    a: NDArray[np.float64], b: NDArray[np.float64], c: NDArray[np.float64]
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
+@overload
+def cosineXform(
+    a: np.float64, b: np.float64, c: np.float64
+) -> tuple[np.float64, np.float64]: ...
+
+
+def cosineXform(
+    a: NDArray[np.float64] | np.float64,
+    b: NDArray[np.float64] | np.float64,
+    c: NDArray[np.float64] | np.float64,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]] | tuple[np.float64, np.float64]:
     """
     Spherical trig transform to take alpha, beta, gamma to expressions
     for cos(alpha*).  See ref below.
@@ -99,9 +146,9 @@ def cosineXform(
 
     Returns
     -------
-    np.ndarray
+    np.float64
         List of cos(alpha*) values.
-    np.ndarray
+    np.float64
         List of sin(alpha*) values.
 
     """
@@ -159,12 +206,12 @@ def latticeParameters(lvec):
 
 
 def latticePlanes(
-    hkls: np.ndarray,
-    lparms: np.ndarray,
-    ltype: Optional[str] = 'cubic',
-    wavelength: Optional[float] = 1.54059292,
+    hkls: NDArray[np.float64],
+    lparms: NDArray[np.float64],
+    ltype: str = 'cubic',
+    wavelength: float = 1.54059292,
     strainMag: Optional[float] = None,
-) -> Dict[str, np.ndarray]:
+) -> LatPlaneData:
     """
     Generates lattice plane data in the direct lattice for a given set
     of Miller indices.  Vector components are written in the
@@ -241,60 +288,61 @@ def latticePlanes(
         0-201-01174-3
 
     """
-    location = 'latticePlanes'
-
-    assert hkls.shape[0] == 3, f"hkls aren't column vectors in call to '{location}'!"
-
-    tag = ltype
-    wlen = wavelength
+    if hkls.shape[0] != 3:
+        raise ValueError(f"hkls must be column vectors of shape (3, n)")
 
     # get B
-    L = latticeVectors(lparms, tag)
+    L = latticeVectors(lparms, ltype)
 
     # get G-vectors -- reciprocal vectors in crystal frame
-    G = np.dot(L['B'], hkls)
+    G: NDArray[np.float64] = np.dot(L['B'], hkls)
 
     # magnitudes
-    d = 1 / np.sqrt(np.sum(G**2, 0))
-
-    aconv = 1.0
+    d: NDArray[np.float64] = 1 / np.sqrt(np.sum(G**2, 0))
 
     # two thetas
-    sth = wlen / 2.0 / d
-    mask = np.abs(sth) < 1.0
-    tth = np.zeros(sth.shape)
+    sth: NDArray[np.float64] = wavelength / 2.0 / d
+    mask: NDArray[np.bool_] = np.abs(sth) < 1.0
+    tth: NDArray[np.float64] = np.zeros(sth.shape)
 
     tth[~mask] = np.nan
-    tth[mask] = aconv * 2.0 * np.arcsin(sth[mask])
+    tth[mask] = 2.0 * np.arcsin(sth[mask])
 
-    p = dict(normals=unitVector(G), dspacings=d, tThetas=tth)
+    p: LatPlaneData = dict(
+        normals=unitVector(G),
+        dspacings=d,
+        tThetas=tth,
+        tThetasLo=np.array([]),
+        tThetasHi=np.array([]),
+    )
 
     if strainMag is not None:
         p['tThetasLo'] = np.zeros(sth.shape)
         p['tThetasHi'] = np.zeros(sth.shape)
 
-        mask = (np.abs(wlen / 2.0 / (d * (1.0 + strainMag))) < 1.0) & (
-            np.abs(wlen / 2.0 / (d * (1.0 - strainMag))) < 1.0
+        mask = (np.abs(wavelength / 2.0 / (d * (1.0 + strainMag))) < 1.0) & (
+            np.abs(wavelength / 2.0 / (d * (1.0 - strainMag))) < 1.0
         )
 
         p['tThetasLo'][~mask] = np.nan
         p['tThetasHi'][~mask] = np.nan
 
-        p['tThetasLo'][mask] = (
-            aconv * 2 * np.arcsin(wlen / 2.0 / (d[mask] * (1.0 + strainMag)))
+        p['tThetasLo'][mask] = 2 * np.arcsin(
+            wavelength / 2.0 / (d[mask] * (1.0 + strainMag))
         )
-        p['tThetasHi'][mask] = (
-            aconv * 2 * np.arcsin(wlen / 2.0 / (d[mask] * (1.0 - strainMag)))
+        p['tThetasHi'][mask] = 2 * np.arcsin(
+            wavelength / 2.0 / (d[mask] * (1.0 - strainMag))
         )
 
     return p
 
 
+# TODO: Return a tuple of values instead of a dict - this adds needless complexity
 def latticeVectors(
-    lparms: np.ndarray,
-    tag: Optional[str] = 'cubic',
-    radians: Optional[bool] = False,
-) -> Dict[str, Union[np.ndarray, float]]:
+    lparms: NDArray[np.float64],
+    tag: str = 'cubic',
+    radians: bool = False,
+) -> LatVecOps:
     """
     Generates direct and reciprocal lattice vector components in a
     crystal-relative RHON basis, X. The convention for fixing X to the
@@ -421,10 +469,12 @@ def latticeVectors(
         aconv = pi / 180.0  # degToRad
     deg90 = pi / 2.0
     deg120 = 2.0 * pi / 3.0
-    #
+
     if tag == lattStrings[0]:
         # cubic
-        cellparms = np.r_[np.tile(lparms[0], (3,)), deg90 * np.ones((3,))]
+        cellparms: NDArray[np.float64] = np.r_[
+            np.tile(lparms[0], (3,)), deg90 * np.ones((3,))
+        ]
     elif tag == lattStrings[1] or tag == lattStrings[2]:
         # hexagonal | trigonal (hex indices)
         cellparms = np.r_[lparms[0], lparms[0], lparms[1], deg90, deg90, deg120]
@@ -453,72 +503,78 @@ def latticeVectors(
             aconv * lparms[5],
         ]
     else:
-        raise RuntimeError(f'lattice tag "{tag}" is not recognized')
+        raise ValueError(f'lattice tag "{tag}" is not recognized')
 
+    alpha: np.float64
+    beta: np.float64
+    gamma: np.float64
     alpha, beta, gamma = cellparms[3:6]
     cosalfar, sinalfar = cosineXform(alpha, beta, gamma)
 
-    a = cellparms[0] * np.r_[1, 0, 0]
-    b = cellparms[1] * np.r_[np.cos(gamma), np.sin(gamma), 0]
-    c = (
+    a: NDArray[np.float64] = cellparms[0] * np.array([1, 0, 0])
+    b: NDArray[np.float64] = cellparms[1] * np.array([np.cos(gamma), np.sin(gamma), 0])
+    c: NDArray[np.float64] = (
         cellparms[2]
         * np.r_[np.cos(beta), -cosalfar * np.sin(beta), sinalfar * np.sin(beta)]
     )
 
-    ad = np.sqrt(np.sum(a**2))
-    bd = np.sqrt(np.sum(b**2))
-    cd = np.sqrt(np.sum(c**2))
+    ad: np.float64 = np.sqrt(np.sum(a**2))
+    bd: np.float64 = np.sqrt(np.sum(b**2))
+    cd: np.float64 = np.sqrt(np.sum(c**2))
 
     # Cell volume
-    V = np.dot(a, np.cross(b, c))
+    V: np.float64 = np.dot(a, np.cross(b, c))
 
     # F takes components in the direct lattice to X
-    F = np.c_[a, b, c]
+    F = np.stack([a, b, c], axis=1)
 
     # Reciprocal lattice vectors
-    astar = np.cross(b, c) / V
-    bstar = np.cross(c, a) / V
-    cstar = np.cross(a, b) / V
+    astar: NDArray[np.float64] = np.cross(b, c) / V
+    bstar: NDArray[np.float64] = np.cross(c, a) / V
+    cstar: NDArray[np.float64] = np.cross(a, b) / V
 
     # and parameters
-    ar = np.sqrt(np.sum(astar**2))
-    br = np.sqrt(np.sum(bstar**2))
-    cr = np.sqrt(np.sum(cstar**2))
+    ar: np.float64 = np.sqrt(np.sum(astar**2))
+    br: np.float64 = np.sqrt(np.sum(bstar**2))
+    cr: np.float64 = np.sqrt(np.sum(cstar**2))
 
-    alfar = np.arccos(np.dot(bstar, cstar) / br / cr)
-    betar = np.arccos(np.dot(cstar, astar) / cr / ar)
-    gamar = np.arccos(np.dot(astar, bstar) / ar / br)
+    alfar: np.float64 = np.arccos(np.dot(bstar, cstar) / br / cr)
+    betar: np.float64 = np.arccos(np.dot(cstar, astar) / cr / ar)
+    gamar: np.float64 = np.arccos(np.dot(astar, bstar) / ar / br)
 
     # B takes components in the reciprocal lattice to X
-    B = np.c_[astar, bstar, cstar]
+    B: NDArray[np.float64] = np.stack([astar, bstar, cstar], axis=1)
 
+    cosalfar2: np.float64
+    sinalfar2: np.float64
     cosalfar2, sinalfar2 = cosineXform(alfar, betar, gamar)
 
-    afable = ar * np.r_[1, 0, 0]
-    bfable = br * np.r_[np.cos(gamar), np.sin(gamar), 0]
-    cfable = (
-        cr
-        * np.r_[
+    afable: NDArray[np.float64] = ar * np.array([1, 0, 0])
+    bfable: NDArray[np.float64] = br * np.array([np.cos(gamar), np.sin(gamar), 0])
+    cfable: NDArray[np.float64] = cr * np.array(
+        [
             np.cos(betar),
             -cosalfar2 * np.sin(betar),
             sinalfar2 * np.sin(betar),
         ]
     )
 
-    BR = np.c_[afable, bfable, cfable]
-    U0 = np.dot(B, np.linalg.inv(BR))
-    dparms = np.r_[ad, bd, cd, np.r_[alpha, beta, gamma]]
-    rparms = np.r_[ar, br, cr, np.r_[alfar, betar, gamar]]
+    BR: NDArray[np.float64] = np.stack([afable, bfable, cfable], axis=1)
+    U0: NDArray[np.float64] = np.dot(B, np.linalg.inv(BR))
+    dparms: NDArray[np.float64] = np.r_[ad, bd, cd, np.r_[alpha, beta, gamma]]
+    rparms: NDArray[np.float64] = np.r_[ar, br, cr, np.r_[alfar, betar, gamar]]
 
-    return {
-        'F': F,
-        'B': B,
-        'BR': BR,
-        'U0': U0,
-        'vol': V,
-        'dparms': dparms,
-        'rparms': rparms,
-    }
+    return LatVecOps(
+        {
+            'F': F,
+            'B': B,
+            'BR': BR,
+            'U0': U0,
+            'vol': V,
+            'dparms': dparms,
+            'rparms': rparms,
+        }
+    )
 
 
 def hexagonalIndicesFromRhombohedral(hkl):
@@ -707,11 +763,14 @@ class PlaneData(object):
         else:
             raise NotImplementedError(f'args : {args}')
 
+        if hkls is None:
+            raise ValueError('hkls cannot be None if not passing PlaneData object')
+
         self._laueGroup = laueGroup
-        self._hkls = copy.deepcopy(hkls)
+        self._hkls: NDArray[np.int_] = copy.deepcopy(hkls)
         self._strainMag = strainMag
-        self._structFact = np.ones(self._hkls.shape[1])
-        self.tThWidth = tThWidth
+        self._structFact: Optional[NDArray[np.float64]] = np.ones(self._hkls.shape[1])
+        self.tThWidth: float | None = tThWidth
 
         # ... need to implement tThMin too
         if 'doTThSort' in kwargs:
@@ -728,7 +787,7 @@ class PlaneData(object):
             )
 
         # This is only used to calculate the structure factor if invalidated
-        self._unitcell: unitcell = None
+        self._unitcell: unitcell | None = None
 
         self._calc()
 
@@ -807,7 +866,9 @@ class PlaneData(object):
         """
         hStacked Hkls of the plane data (Miller indices).
         """
-        return self.getHKLs().T
+        hkls = self.getHKLs()
+        assert type(hkls) == np.ndarray
+        return hkls.T
 
     @hkls.setter
     def hkls(self, hkls):
@@ -827,7 +888,7 @@ class PlaneData(object):
         self._tThMax = toFloat(t_th_max, 'radians')
 
     @property
-    def exclusions(self) -> np.ndarray:
+    def exclusions(self) -> NDArray[np.bool_]:
         """
         Excluded HKL's the plane data.
 
@@ -1050,6 +1111,7 @@ class PlaneData(object):
         np.ndarray
         """
         self._compute_sf_if_needed()
+        assert self._structFact is not None
         return self._structFact[~self.exclusions]
 
     @structFact.setter
@@ -1075,6 +1137,7 @@ class PlaneData(object):
         Powder intensity for each hkl.
         """
         self._compute_sf_if_needed()
+        assert self._powder_intensity is not None
         return self._powder_intensity[~self.exclusions]
 
     @property
@@ -1083,6 +1146,7 @@ class PlaneData(object):
         HEDM (high energy x-ray diffraction microscopy) intensity for each hkl.
         """
         self._compute_sf_if_needed()
+        assert self._hedm_intensity is not None
         return self._hedm_intensity[~self.exclusions]
 
     @staticmethod
@@ -1093,7 +1157,7 @@ class PlaneData(object):
         symmGroup,
         strainMag,
         wavelength,
-    ) -> Tuple[Dict[str, np.ndarray], Dict[str, Union[np.ndarray, float]], List[Dict]]:
+    ) -> Tuple[LatPlaneData, LatVecOps, List[HKLData]]:
         """
         Generate lattice plane data from inputs.
 
@@ -1133,7 +1197,7 @@ class PlaneData(object):
 
         latVecOps = latticeVectors(lparms, symmGroup)
 
-        hklDataList = []
+        hklDataList: list[HKLData] = []
         for iHKL in range(len(hkls.T)):
             # need transpose because of convention for hkls ordering
 
@@ -1169,17 +1233,17 @@ class PlaneData(object):
             )
 
             hklDataList.append(
-                dict(
-                    hklID=iHKL,
-                    hkl=hkls[:, iHKL],
-                    tTheta=latPlaneData['tThetas'][iHKL],
-                    dSpacings=latPlaneData['dspacings'][iHKL],
-                    tThetaLo=latPlaneData['tThetasLo'][iHKL],
-                    tThetaHi=latPlaneData['tThetasHi'][iHKL],
-                    latPlnNrmls=unitVector(latPlnNrmls),
-                    symHKLs=symHKLs,
-                    centrosym=csRefl,
-                )
+                {
+                    'hklID': iHKL,
+                    'hkl': hkls[:, iHKL],
+                    'tTheta': latPlaneData['tThetas'][iHKL],
+                    'dSpacings': latPlaneData['dspacings'][iHKL],
+                    'tThetaLo': latPlaneData['tThetasLo'][iHKL],
+                    'tThetaHi': latPlaneData['tThetasHi'][iHKL],
+                    'latPlnNrmls': unitVector(latPlnNrmls),
+                    'symHKLs': symHKLs,
+                    'centrosym': csRefl,
+                }
             )
 
         return latPlaneData, latVecOps, hklDataList
@@ -1248,7 +1312,7 @@ class PlaneData(object):
         return dspacings
 
     @property
-    def latVecOps(self) -> Dict[str, Union[np.ndarray, float]]:
+    def latVecOps(self) -> LatVecOps:
         """
         gets lattice vector operators as a new (deepcopy)
 
@@ -1280,7 +1344,7 @@ class PlaneData(object):
             tThLo = hklData['tThetaLo']
         return (tThLo, tThHi)
 
-    def getTThRanges(self, strainMag: Optional[float] = None) -> np.ndarray:
+    def getTThRanges(self, strainMag: Optional[float] = None) -> NDArray[np.float64]:
         """
         Get the 2-theta ranges for included hkls
 
@@ -1310,7 +1374,7 @@ class PlaneData(object):
                     self._wavelength / 2.0 / (d * (1.0 - strainMag))
                 )
                 tThRanges.append((tThLo, tThHi))
-        return np.array(tThRanges)
+        return np.array(tThRanges, dtype=np.float64)
 
     def getMergedRanges(
         self, cullDupl: Optional[bool] = False
@@ -1407,9 +1471,9 @@ class PlaneData(object):
 
     def getHKLID(
         self,
-        hkl: Union[int, Tuple[int, int, int], np.ndarray],
-        master: Optional[bool] = False,
-    ) -> Union[List[int], int]:
+        hkl: int | Sequence[int, int, int] | NDArray[np.int_],
+        master: bool = False,
+    ) -> List[int] | int:
         """
         Return the unique ID of a list of hkls.
 
@@ -1440,19 +1504,19 @@ class PlaneData(object):
         -------
         2020-05-21 (JVB) -- modified to handle all symmetric equavlent reprs.
         """
-        if hasattr(hkl, '__setitem__'):  # tuple does not have __setitem__
-            if isinstance(hkl, np.ndarray):
-                # if is ndarray, assume is 3xN
-                return [self._getHKLID(x, master=master) for x in hkl.T]
-            else:
-                return [self._getHKLID(x, master=master) for x in hkl]
+        if isinstance(hkl, np.ndarray):
+            # if is ndarray, assume is 3xN
+            return [self._getHKLID(x, master=master) for x in hkl.T]
+        elif isinstance(hkl, list):
+            return [self._getHKLID(x, master=master) for x in hkl]
         else:
+            assert isinstance(hkl, (int, tuple))
             return self._getHKLID(hkl, master=master)
 
     def _getHKLID(
         self,
-        hkl: Union[int, Tuple[int, int, int], np.ndarray],
-        master: Optional[bool] = False,
+        hkl: int | tuple[int, int, int] | NDArray[np.float64],
+        master: bool = False,
     ) -> int:
         """
         for hkl that is a tuple, return externally visible hkl index
@@ -1475,8 +1539,13 @@ class PlaneData(object):
                     f"hkl '{tuple(hkl)}' is not present in this material!"
                 )
 
-    def getHKLs(self, *hkl_ids: int, asStr: bool=False, thisTTh: float=None,
-                allHKLs: bool=False) -> Union[List[str], np.ndarray]:
+    def getHKLs(
+        self,
+        *hkl_ids: int,
+        asStr: bool = False,
+        thisTTh: Optional[float] = None,
+        allHKLs: bool = False,
+    ) -> Union[List[str], np.ndarray]:
         """
         Returns the powder HKLs subject to specified options.
 
@@ -1553,12 +1622,36 @@ class PlaneData(object):
         else:
             return np.array(hkls)
 
+    @overload
     def getSymHKLs(
         self,
-        asStr: Optional[bool] = False,
-        withID: Optional[bool] = False,
-        indices: Optional[List[int]] = None,
-    ) -> Union[List[List[str]], List[np.ndarray]]:
+        asStr: Literal[True],
+        withID: bool = ...,
+        indices: Optional[list[int]] = ...,
+    ) -> list[list[str]]: ...
+
+    @overload
+    def getSymHKLs(
+        self,
+        asStr: Literal[False] = ...,
+        withID: Literal[False] = ...,
+        indices: Optional[list[int]] = ...,
+    ) -> list[NDArray[np.float64]]: ...
+
+    @overload
+    def getSymHKLs(
+        self,
+        asStr: Literal[False] = ...,
+        withID: Literal[True] = ...,
+        indices: Optional[list[int]] = ...,
+    ) -> list[NDArray[np.float64]]: ...
+
+    def getSymHKLs(
+        self,
+        asStr: bool = False,
+        withID: bool = False,
+        indices: Optional[list[int]] = None,
+    ) -> list[list[str]] | list[NDArray[np.float64]]:
         """
         Return all symmetry HKLs.
 
@@ -1578,33 +1671,37 @@ class PlaneData(object):
             List of symmetry HKLs for each HKL, either as strings or as a
             vstacked array.
         """
-        sym_hkls = []
         hkl_index = 0
         if indices is not None:
             indB = np.zeros(self.nHKLs, dtype=bool)
             indB[np.array(indices)] = True
         else:
             indB = np.ones(self.nHKLs, dtype=bool)
+
+        if asStr:
+            out_s: list[list[str]] = []
+            for iHKLr, hklData in enumerate(self.hklDataList):
+                if not self._thisHKL(iHKLr):
+                    continue
+                if indB[hkl_index]:
+                    hkls = hklData["symHKLs"]
+                    out_s.append(list(map(hklToStr, np.asarray(hkls).T)))
+                hkl_index += 1
+            return out_s
+
+        out_a: list[NDArray[np.float64]] = []
         for iHKLr, hklData in enumerate(self.hklDataList):
             if not self._thisHKL(iHKLr):
                 continue
             if indB[hkl_index]:
-                hkls = hklData['symHKLs']
-                if asStr:
-                    sym_hkls.append(list(map(hklToStr, np.array(hkls).T)))
-                elif withID:
-                    sym_hkls.append(
-                        np.vstack(
-                            [
-                                np.tile(hklData['hklID'], (1, hkls.shape[1])),
-                                hkls,
-                            ]
-                        )
-                    )
+                hkls = np.asarray(hklData["symHKLs"], dtype=np.float64)
+                if withID:
+                    hkl_id = np.asarray(hklData["hklID"], dtype=np.float64)
+                    out_a.append(np.vstack([np.tile(hkl_id, (1, hkls.shape[1])), hkls]))
                 else:
-                    sym_hkls.append(np.array(hkls))
+                    out_a.append(hkls)
             hkl_index += 1
-        return sym_hkls
+        return out_a
 
     @staticmethod
     def makeScatteringVectors(
@@ -2023,14 +2120,14 @@ def getFriedelPair(tth0, eta0, *ome0, **kwargs):
     return ome1, eta1
 
 
-def getDparms(lp: np.ndarray, lpTag: str, radians: Optional[bool] = True) -> np.ndarray:
+def getDparms(lp: np.ndarray, lpTag: str, radians: bool = True) -> NDArray[np.float64]:
     """
     Utility routine for getting dparms, that is the lattice parameters
     without symmetry -- 'triclinic'
 
     Parameters
     ----------
-    lp : np.ndarray
+    lp : NDArray[np.float64]
         Parsed lattice parameters
     lpTag : str
         Tag for the symmetry group of the lattice (from Laue group)
@@ -2039,7 +2136,7 @@ def getDparms(lp: np.ndarray, lpTag: str, radians: Optional[bool] = True) -> np.
 
     Returns
     -------
-    np.ndarray
+    NDArray[np.float64]
         The lattice parameters without symmetry.
     """
     latVecOps = latticeVectors(lp, tag=lpTag, radians=radians)
@@ -2134,12 +2231,12 @@ def lorentz_factor(tth: np.ndarray) -> np.ndarray:
 
 
 def polarization_factor(
-    tth: np.ndarray,
+    tth: NDArray[np.float64],
     unpolarized: Optional[bool] = True,
-    eta: Optional[np.ndarray] = None,
+    eta: Optional[NDArray[np.float64]] = None,
     f_hor: Optional[float] = None,
     f_vert: Optional[float] = None,
-) -> np.ndarray:
+) -> NDArray[np.float64]:
     """
     06/14/2021 SS adding lorentz polarization factor computation
     to the detector so that it can be compenstated for in the
@@ -2159,11 +2256,13 @@ def polarization_factor(
     FIXME, called without parameters like eta, f_hor, f_vert, but they default
     to none in the current implementation, which will throw an error.
     """
-
     ctth2 = np.cos(tth) ** 2
 
     if unpolarized:
         return (1 + ctth2) / 2
+    assert eta is not None
+    assert f_hor is not None
+    assert f_vert is not None
 
     seta2 = np.sin(eta) ** 2
     ceta2 = np.cos(eta) ** 2

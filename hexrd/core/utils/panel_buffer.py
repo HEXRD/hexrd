@@ -78,7 +78,11 @@ def panel_buffer_from_str(name: str, panel: Detector) -> np.ndarray:
 
 def valid_panel_buffer_names() -> list[str]:
     dir_path = importlib.resources.files(hexrd.core.resources.panel_buffers)
-    return [path.stem for path in dir_path.glob('*.npz')]
+    return [
+        file_.name.removesuffix(".npz")
+        for file_ in dir_path.iterdir()
+        if file_.name.endswith('.npz')
+    ]
 
 
 # Cache this so we only read from disk once
@@ -87,10 +91,10 @@ def _load_panel_buffer_from_file(name: str) -> np.ndarray:
     path = importlib.resources.files(hexrd.core.resources.panel_buffers).joinpath(
         f'{name}.npz'
     )
-    if not path.exists():
+    if not path.is_file():
         raise NotImplementedError(f'Unknown panel buffer name: {name}')
 
-    npz = np.load(path)
+    npz = np.load(str(path))
     buffer = npz['panel_buffer']
 
     # Since the output here is memoized, make sure this is never modified

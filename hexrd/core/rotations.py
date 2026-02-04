@@ -32,6 +32,8 @@ import sys
 
 import numpy as np
 from numba import njit
+from numpy.typing import NDArray
+from typing import Literal, Optional, Sequence
 from scipy.optimize import leastsq
 from scipy.spatial.transform import Rotation as R
 
@@ -51,7 +53,7 @@ from hexrd.core.utils.warnings import ignore_warnings
 # Module Data
 # =============================================================================
 
-angularUnits = 'radians'  # module-level angle units
+angularUnits: Literal['radians', 'degrees'] = 'radians'  # module-level angle units
 periodDict = {'degrees': 360.0, 'radians': 2 * np.pi}
 conversion_to_dict = {'degrees': cnst.r2d, 'radians': cnst.d2r}
 
@@ -100,7 +102,7 @@ def arccosSafe(cosines):
 #
 
 
-def _quat_to_scipy_rotation(q: np.ndarray) -> R:
+def _quat_to_scipy_rotation(q: NDArray[np.float64]) -> R:
     """
     Scipy has quaternions in a differnt order, this method converts them
     q must be a 2d array of shape (4, n).
@@ -108,7 +110,7 @@ def _quat_to_scipy_rotation(q: np.ndarray) -> R:
     return R.from_quat(np.roll(q.T, -1, axis=1))
 
 
-def _scipy_rotation_to_quat(r: R) -> np.ndarray:
+def _scipy_rotation_to_quat(r: R) -> NDArray[np.float64]:
     quat = np.roll(np.atleast_2d(r.as_quat()), 1, axis=1).T
     # Fix quat would work, but it does too much.  Only need to check positive
     quat *= np.sign(quat[0, :])
@@ -919,7 +921,7 @@ class RotMatEuler(object):
 
         Returns
         -------
-        np.ndarray
+        NDArray[np.float64]
             The (3, ) array representing the exponential map parameters of
             the encoded rotation (self.rmat).
 
@@ -973,7 +975,7 @@ def distanceToFiber(c, s, q, qsym, centrosymmetry=False, bmatrix=I3):
         DESCRIPTION.
     centrosymmetry : bool, optional
         If True, apply centrosymmetry to c. The default is False.
-    bmatrix : np.ndarray, optional
+    bmatrix : NDArray[np.float64], optional
         (3,3) b matrix. Default is the identity
 
     Raises
@@ -1103,13 +1105,15 @@ def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
 #
 
 
-def mapAngle(ang, ang_range=None, units=angularUnits):
-    """
-    Utility routine to map an angle into a specified period
-    """
-    if units.lower() == 'degrees':
+def mapAngle(
+    ang,
+    ang_range: Optional[Sequence[float] | NDArray[np.float64]] = None,
+    units: Literal['degrees', 'radians'] = angularUnits,
+) -> NDArray[np.float64]:
+    """Map an angle into a specified period"""
+    if units == 'degrees':
         period = 360.0
-    elif units.lower() == 'radians':
+    elif units == 'radians':
         period = 2.0 * np.pi
     else:
         raise RuntimeError("unknown angular units: " + units)
@@ -1121,7 +1125,7 @@ def mapAngle(ang, ang_range=None, units=angularUnits):
 
     # if we have a specified angular range, use that
     if ang_range is not None:
-        ang_range = np.atleast_1d(np.float64(ang_range))
+        ang_range = np.atleast_1d(np.asarray(ang_range, dtype=np.float64))
 
         min_val = ang_range.min()
         max_val = ang_range.max()
@@ -1136,6 +1140,7 @@ def mapAngle(ang, ang_range=None, units=angularUnits):
     return val
 
 
+# TODO: Delete this function.
 def angularDifference_orig(angList0, angList1, units=angularUnits):  # pragma: no cover
     """
     Do the proper (acute) angular difference in the context of a branch cut.

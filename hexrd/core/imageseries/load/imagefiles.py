@@ -203,6 +203,10 @@ number of files: %s
     def dtype(self):
         return self._dtype
 
+    @dtype.setter
+    def dtype(self, value: np.dtype):
+        self._dtype = value
+
     @property
     def infolist(self):
         return self._infolist

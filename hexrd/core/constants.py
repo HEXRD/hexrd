@@ -33,6 +33,7 @@ import os
 import platform
 
 import numpy as np
+from numpy.typing import NDArray
 
 from scipy import constants as scipyc
 
@@ -57,8 +58,8 @@ sqrt3 = np.sqrt(3.0)
 sqrt3by2 = 0.5 * sqrt3
 
 # fwhm
-sigma_to_fwhm = 2.0 * np.sqrt(2.0 * np.log(2.0))
-fwhm_to_sigma = 1.0 / sigma_to_fwhm
+sigma_to_fwhm: float = 2.0 * np.sqrt(2.0 * np.log(2.0))
+fwhm_to_sigma: float = 1.0 / sigma_to_fwhm
 
 # tolerancing
 epsf = np.finfo(float).eps  # ~2.2e-16
@@ -72,17 +73,17 @@ d2r = pi / 180.0
 r2d = 180.0 / pi
 
 # identity arrays
-identity_3x3 = np.eye(3)  # (3, 3) identity
-identity_6x1 = np.r_[1.0, 1.0, 1.0, 0.0, 0.0, 0.0]
+identity_3x3 = np.eye(3, dtype=np.float64)  # (3, 3) identity
+identity_6x1 = np.array([1.0, 1.0, 1.0, 0.0, 0.0, 0.0], dtype=np.float64)
 
 # basis vectors
-lab_x = np.r_[1.0, 0.0, 0.0]  # X in the lab frame
-lab_y = np.r_[0.0, 1.0, 0.0]  # Y in the lab frame
-lab_z = np.r_[0.0, 0.0, 1.0]  # Z in the lab frame
+lab_x = np.array([1.0, 0.0, 0.0], dtype=np.float64)  # X in the lab frame
+lab_y = np.array([0.0, 1.0, 0.0], dtype=np.float64)  # Y in the lab frame
+lab_z = np.array([0.0, 0.0, 1.0], dtype=np.float64)  # Z in the lab frame
 
-zeros_3 = np.zeros(3)
-zeros_3x1 = np.zeros((3, 1))
-zeros_6x1 = np.zeros((6, 1))
+zeros_3 = np.zeros(3, dtype=np.float64)
+zeros_3x1 = np.zeros((3, 1), dtype=np.float64)
+zeros_6x1 = np.zeros((6, 1), dtype=np.float64)
 
 '''reference beam direction and
 eta=0 ref in LAB FRAME for standard geometry'''
@@ -345,8 +346,8 @@ tp_12 = 2.0 - np.sqrt(3.0)
 # for energy/wavelength conversions
 
 
-def keVToAngstrom(x):
-    return (1e7 * scipyc.c * scipyc.h / scipyc.e) / np.array(x, dtype=float)
+def keVToAngstrom(x: float) -> float:
+    return (1e7 * scipyc.c * scipyc.h / scipyc.e) / x
 
 
 def set_numba_cache():
@@ -402,18 +403,20 @@ del set_numba_cache
 
 
 # some physical constants
-cAvogadro = 6.02214076e23  # Avogadro's constant Na
-cBoltzmann = 1.380649e-23  # Boltzmann's constant, K
-cCharge = 1.602176634e-19  # charge of electron
-cJ2eV = 1.602176565e-19  # joule to ev, JperkeV*1e-3
-cLight = 299792458.0  # speed of light, same as c above but name is more descriptive
-cMoment = 9.2740100707e-24  # magnetic moment of electron
-cPermea = 1.2566370616e-6  # permeability of free space
-cPermit = 8.8541878163e-12  # permittivity of free space
-cPlanck = 6.62607015e-34  # same as h above but name is more descriptive
-cRestmass = 9.1093837090e-31  # rest mass of electron
-cClassicalelectronRad = 2.8179403e-6  # classical electron radius in nm
-cRestmasskeV = 510.99895069  # rest mass of electron in keV
+cAvogadro: float = 6.02214076e23  # Avogadro's constant Na
+cBoltzmann: float = 1.380649e-23  # Boltzmann's constant, K
+cCharge: float = 1.602176634e-19  # charge of electron
+cJ2eV: float = 1.602176565e-19  # joule to ev, JperkeV*1e-3
+cLight: float = (
+    299792458.0  # speed of light, same as c above but name is more descriptive
+)
+cMoment: float = 9.2740100707e-24  # magnetic moment of electron
+cPermea: float = 1.2566370616e-6  # permeability of free space
+cPermit: float = 8.8541878163e-12  # permittivity of free space
+cPlanck: float = 6.62607015e-34  # same as h above but name is more descriptive
+cRestmass: float = 9.1093837090e-31  # rest mass of electron
+cClassicalelectronRad: float = 2.8179403e-6  # classical electron radius in nm
+cRestmasskeV: float = 510.99895069  # rest mass of electron in keV
 
 '''
 adding another parametrization of the
@@ -425,7 +428,7 @@ New Analytical coherent Scattering-Factor Functions for Free Atoms and Ions
 BY D. WAASMAIER AND A. KIRFEL
 Acta Cryst. (1995). A51,416-431
 '''
-scatfac = {
+scatfac: dict[str, list[float]] = {
     'H': [
         0.413048,
         0.294953,
@@ -3171,7 +3174,7 @@ scatfac = {
     ],
 }
 
-chargestate = {
+chargestate: dict[str, list[str]] = {
     'H': ['0', '1-'],
     'He': ['0'],
     'Li': ['0', '1+'],
@@ -3276,7 +3279,7 @@ this dictionary tabulates the small
 nuclear Thomson term fNT for all
 elements up to Z=92
 '''
-fNT = {
+fNT: dict[str, float] = {
     'H': -0.00054423,
     'He': -0.00054817,
     'Li': -0.00071131,
@@ -3374,7 +3377,7 @@ fNT = {
 '''
 relativistic correction factor for in anomalous scattering for all elements upto Z=92
 '''
-frel = {
+frel: dict[str, float] = {
     'H': 0.0,
     'He': 0.0,
     'Li': -0.0006,
@@ -3474,6 +3477,7 @@ frel = {
 atomic weights for things like density computations
 (from NIST elemental data base)
 '''
+# TODO: Remove this, it's redundant with ATOM_WEIGHTS_DICT
 atom_weights = np.array(
     [
         1.00794,
@@ -3580,7 +3584,7 @@ atom_weights = np.array(
 """
 dictionary of atomic weights
 """
-ATOM_WEIGHTS_DICT = {
+ATOM_WEIGHTS_DICT: dict[str, float] = {
     'H': 1.00794,
     'He': 4.002602,
     'Li': 6.941,
@@ -3684,7 +3688,7 @@ ATOM_WEIGHTS_DICT = {
 """
 densities of elements in g/cc
 """
-DENSITY = {
+DENSITY: dict[str, float] = {
     'H': 8.99e-05,
     'He': 0.0001785,
     'Li': 0.535,
@@ -3786,7 +3790,7 @@ DENSITY = {
 }
 
 # some polymer densities commonly used in hexrd
-DENSITY_COMPOUNDS = {
+DENSITY_COMPOUNDS: dict[str, float] = {
     'C10H8O4': 1.4,
     'Ba2263F2263Br1923I339C741H1730N247O494': 3.3,
     'LiF': 2.64,
@@ -3799,7 +3803,7 @@ DENSITY_COMPOUNDS = {
 dictionary of atomic numbers with element symbol as keys
 used in I/O from cif file
 '''
-ptable = {
+ptable: dict[str, int] = {
     'H': 1,
     'He': 2,
     'Li': 3,
@@ -3911,14 +3915,14 @@ ptable = {
     'Mt': 109,
 }
 
-ptableinverse = dict.fromkeys(ptable.values())
+ptableinverse: dict[int, str] = dict.fromkeys(ptable.values())
 for k, v in ptable.items():
     ptableinverse[v] = k
 
 '''
 listing the symmorphic space groups
 '''
-sgnum_symmorphic = np.array(
+sgnum_symmorphic: NDArray[np.int32] = np.array(
     [
         1,
         2,
@@ -4001,7 +4005,7 @@ sgnum_symmorphic = np.array(
 will be used to compute the full space group symmetry
 operators
 '''
-SYM_GL = [
+SYM_GL: list[str] = [
     "000                                     ",
     "100                                     ",
     "01cOOO0                                 ",
@@ -4255,7 +4259,7 @@ and tertiary directions
 obv. this table only has the non-symmorphic groups
 taken from international table of crystallography vol A
 '''
-SYS_AB = {
+SYS_AB: dict[int, list[list[str]]] = {
     4: [['', '', ''], ['', '2_1', '']],
     7: [['', 'c', ''], ['', '', '']],
     9: [['', 'c', ''], ['', '', '']],
@@ -4425,7 +4429,7 @@ action of the generator matrix
 ''' rotational, inversions, mirrors etc. components
 '''
 
-SYM_GENERATORS = {}
+SYM_GENERATORS: dict[str, NDArray[np.float64]] = {}
 
 # now start to fill them in
 # identity
@@ -4538,7 +4542,7 @@ SYM_GENERATORS['Z'] = -1.0 / 8.0
              used will be the same as the one used for the
              space group without any translations.
 '''
-SYM_GL_PG = {
+SYM_GL_PG: dict[str, str] = {
     'c1': '1a',  # only identity rotation
     'ci': '1h',  # only inversion operation
     'c2': '1c',  # 2-fold rotation about z
@@ -4573,8 +4577,8 @@ SYM_GL_PG = {
     'oh': '3dgh',
 }
 # The above dict must be in the correct order for this to work
-SYM_PG_to_PGNUM = {pg: i + 1 for i, pg in enumerate(SYM_GL_PG)}
-SYM_PGNUM_to_PG = {v: k for k, v in SYM_PG_to_PGNUM.items()}
+SYM_PG_to_PGNUM: dict[str, int] = {pg: i + 1 for i, pg in enumerate(SYM_GL_PG)}
+SYM_PGNUM_to_PG: dict[int, str] = {v: k for k, v in SYM_PG_to_PGNUM.items()}
 
 # Set the __version__ variable
 try:

@@ -29,6 +29,7 @@
 import numpy as np
 
 from numpy.linalg import svd
+from numpy.typing import NDArray
 
 from scipy import sparse
 import numba
@@ -419,7 +420,7 @@ def multMatArray(ma1, ma2):
     return prod
 
 
-def uniqueVectors(v, tol=1.0e-12):
+def uniqueVectors(v: NDArray[np.float64], tol: float = 1.0e-12):
     """
     Sort vectors and discard duplicates.
 
@@ -437,7 +438,7 @@ def uniqueVectors(v, tol=1.0e-12):
 
     iv = np.zeros(vdims)
     for row in range(vdims[0]):
-        tmpord = np.argsort(v[row, :]).tolist()
+        tmpord: list[int] = np.argsort(v[row, :]).tolist()
         tmpsrt = v[np.ix_([row], tmpord)].squeeze()
         tmpcmp = abs(tmpsrt[1:] - tmpsrt[0:-1])
         indep = np.hstack([True, tmpcmp > tol])  # independent values

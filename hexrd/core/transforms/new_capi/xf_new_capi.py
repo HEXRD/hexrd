@@ -23,8 +23,9 @@ module:
  - makeRotMatOfQuat
  - homochoricOfQuat
 """
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Sequence
 import numpy as np
+from numpy.typing import NDArray
 
 from hexrd.core.extensions import _new_transforms_capi as _impl
 from hexrd.core.extensions import transforms as cpp_transforms
@@ -33,12 +34,12 @@ from hexrd.core import constants as cnst
 
 
 def angles_to_gvec(
-    angs: np.ndarray,
-    beam_vec: Optional[np.ndarray] = None,
-    eta_vec: Optional[np.ndarray] = None,
-    chi: Optional[float] = None,
-    rmat_c: Optional[np.ndarray] = None,
-) -> np.ndarray:
+    angs: NDArray[np.float64],
+    beam_vec: NDArray[np.float64] = cnst.beam_vec,
+    eta_vec: NDArray[np.float64] = cnst.eta_vec,
+    chi: float = 0.0,
+    rmat_c: NDArray[np.float64] = cnst.identity_3x3,
+) -> NDArray[np.float64]:
     """
 
     Takes triplets of angles in the beam frame (2*theta, eta[, omega])
@@ -80,12 +81,9 @@ def angles_to_gvec(
         angs = np.hstack((angs, np.zeros(angs.shape[:-1] + (1,))))
 
     angs = np.ascontiguousarray(np.atleast_2d(angs))
-    beam_vec = beam_vec if beam_vec is not None else cnst.beam_vec
     beam_vec = np.ascontiguousarray(beam_vec.flatten())
-    eta_vec = eta_vec if eta_vec is not None else cnst.eta_vec
     eta_vec = np.ascontiguousarray(eta_vec.flatten())
-    chi = 0.0 if chi is None else float(chi)
-    rmat_c = cnst.identity_3x3 if rmat_c is None else np.ascontiguousarray(rmat_c)
+    rmat_c = np.ascontiguousarray(rmat_c)
 
     result = cpp_transforms.anglesToGVec(angs, beam_vec, eta_vec, chi, rmat_c)
 
@@ -93,13 +91,13 @@ def angles_to_gvec(
 
 
 def angles_to_dvec(
-    angs: np.ndarray,
-    beam_vec: Optional[np.ndarray] = None,
-    eta_vec: Optional[np.ndarray] = None,
-    chi: Optional[float] = None,
-    rmat_c: Optional[np.ndarray] = None,
-) -> np.ndarray:
-    """
+    angs: NDArray[np.float64],
+    beam_vec: NDArray[np.float64] = cnst.beam_vec,
+    eta_vec: NDArray[np.float64] = cnst.eta_vec,
+    chi: float = 0.0,
+    rmat_c: NDArray[np.float64] = cnst.identity_3x3,
+) -> NDArray[np.float64]:
+    """Calculate diffraction vectors from beam frame angles.
 
     Takes triplets of angles in the beam frame (2*theta, eta[, omega])
     to components of unit diffraction vectors in the LAB frame.  If the omega
@@ -131,8 +129,6 @@ def angles_to_dvec(
         parameters
     """
     # TODO: Improve capi to avoid multiplications when rmat_c is None
-    beam_vec = beam_vec if beam_vec is not None else cnst.beam_vec
-    eta_vec = eta_vec if eta_vec is not None else cnst.eta_vec
 
     # if only a pair is provided... convert to a triplet with omegas == 0
     # so that behavior is preserved.
@@ -140,16 +136,16 @@ def angles_to_dvec(
         angs = np.hstack((angs, np.zeros(angs.shape[:-1] + (1,))))
 
     angs = np.ascontiguousarray(np.atleast_2d(angs))
-
     beam_vec = np.ascontiguousarray(beam_vec.flatten())
     eta_vec = np.ascontiguousarray(eta_vec.flatten())
-    rmat_c = np.ascontiguousarray(rmat_c) if rmat_c is not None else cnst.identity_3x3
-    chi = 0.0 if chi is None else float(chi)
+    rmat_c = np.ascontiguousarray(rmat_c)
 
     return cpp_transforms.anglesToDVec(angs, beam_vec, eta_vec, chi, rmat_c)
 
 
-def makeGVector(hkl: np.ndarray, bMat: np.ndarray) -> np.ndarray:
+def makeGVector(
+    hkl: NDArray[np.float64], bMat: NDArray[np.float64]
+) -> NDArray[np.float64]:
     """
     Take a crystal relative b matrix onto a list of hkls to output unit
     reciprocal latice vectors (a.k.a. lattice plane normals)
@@ -171,22 +167,23 @@ def makeGVector(hkl: np.ndarray, bMat: np.ndarray) -> np.ndarray:
         plane normals)
 
     """
-    assert hkl.shape[0] == 3, 'hkl input must be (3, n)'
+    if hkl.shape[0] != 3:
+        raise ValueError('hkl input must be (3, n)')
     return unit_vector(np.dot(bMat, hkl))
 
 
 def gvec_to_xy(
-    gvec_c: np.ndarray,
-    rmat_d: np.ndarray,
-    rmat_s: np.ndarray,
-    rmat_c: np.ndarray,
-    tvec_d: np.ndarray,
-    tvec_s: np.ndarray,
-    tvec_c: np.ndarray,
-    beam_vec: Optional[np.ndarray] = None,
-    vmat_inv: Optional[np.ndarray] = None,
-    bmat: Optional[np.ndarray] = None,
-) -> np.ndarray:
+    gvec_c: NDArray[np.float64],
+    rmat_d: NDArray[np.float64],
+    rmat_s: NDArray[np.float64],
+    rmat_c: NDArray[np.float64],
+    tvec_d: NDArray[np.float64],
+    tvec_s: NDArray[np.float64],
+    tvec_c: NDArray[np.float64],
+    beam_vec: Optional[NDArray[np.float64]] = None,
+    vmat_inv: Optional[NDArray[np.float64]] = None,
+    bmat: Optional[NDArray[np.float64]] = None,
+) -> NDArray[np.float64]:
     """
     Takes a concatenated list of reciprocal lattice vectors components in the
     CRYSTAL FRAME to the specified detector-relative frame, subject to the
@@ -274,16 +271,16 @@ def gvec_to_xy(
 
 
 def xy_to_gvec(
-    xy_d: np.ndarray,
-    rmat_d: np.ndarray,
-    rmat_s: np.ndarray,
-    tvec_d: np.ndarray,
-    tvec_s: np.ndarray,
-    tvec_c: np.ndarray,
-    rmat_b: Optional[np.ndarray] = None,
+    xy_d: NDArray[np.float64],
+    rmat_d: NDArray[np.float64],
+    rmat_s: NDArray[np.float64],
+    tvec_d: NDArray[np.float64],
+    tvec_s: NDArray[np.float64],
+    tvec_c: NDArray[np.float64],
+    rmat_b: Optional[NDArray[np.float64]] = None,
     distortion: Optional[DistortionABC] = None,
     output_ref: Optional[bool] = False,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[NDArray[np.float64], ...]:
     """
     Takes a list cartesian (x, y) pairs in the DETECTOR FRAME and calculates
     the associated reciprocal lattice (G) vectors and (bragg angle, azimuth)
@@ -352,15 +349,15 @@ def xy_to_gvec(
 
 
 def oscill_angles_of_hkls(
-    hkls: np.ndarray,
+    hkls: NDArray[np.float64],
     chi: float,
-    rmat_c: np.ndarray,
-    bmat: np.ndarray,
+    rmat_c: NDArray[np.float64],
+    bmat: NDArray[np.float64],
     wavelength: float,
-    v_inv: Optional[np.ndarray] = None,
-    beam_vec: np.ndarray = cnst.beam_vec,
-    eta_vec: np.ndarray = cnst.eta_vec,
-) -> Tuple[np.ndarray, np.ndarray]:
+    v_inv: Optional[NDArray[np.float64]] = None,
+    beam_vec: NDArray[np.float64] = cnst.beam_vec,
+    eta_vec: NDArray[np.float64] = cnst.eta_vec,
+) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Takes a list of unit reciprocal lattice vectors in crystal frame to the
     specified detector-relative frame, subject to the conditions:
@@ -451,7 +448,7 @@ def oscill_angles_of_hkls(
     )
 
 
-def unit_vector(vec_in: np.ndarray) -> np.ndarray:
+def unit_vector(vec_in: NDArray[np.float64]) -> NDArray[np.float64]:
     """
     Normalize the input vector(s) to unit length.
 
@@ -481,7 +478,7 @@ def unit_vector(vec_in: np.ndarray) -> np.ndarray:
         )
 
 
-def make_detector_rmat(tilt_angles: np.ndarray) -> np.ndarray:
+def make_detector_rmat(tilt_angles: NDArray[np.float64]) -> NDArray[np.float64]:
     """
     Form the (3, 3) tilt rotations from the tilt angle list:
 
@@ -508,7 +505,9 @@ def make_oscill_rmat_array(chi, omeArray):
     return _impl.makeOscillRotMat(chi, arg)
 
 
-def make_sample_rmat(chi: float, ome: Union[float, np.ndarray]) -> np.ndarray:
+def make_sample_rmat(
+    chi: float, ome: float | NDArray[np.float64]
+) -> NDArray[np.float64]:
     # TODO: Check this docstring
     """
     Make a rotation matrix representing the COB from sample frame to the lab
@@ -542,7 +541,9 @@ def make_sample_rmat(chi: float, ome: Union[float, np.ndarray]) -> np.ndarray:
     return result
 
 
-def make_rmat_of_expmap(exp_map: np.ndarray) -> np.ndarray:
+def make_rmat_of_expmap(
+    exp_map: Sequence[float] | NDArray[np.float64],
+) -> NDArray[np.float64]:
     """
     Calculate the rotation matrix of an exponential map.
 
@@ -553,14 +554,14 @@ def make_rmat_of_expmap(exp_map: np.ndarray) -> np.ndarray:
 
     Returns
     -------
-    ndarray
+    NDArray[np.float64]
         A 3x3 rotation matrix representing the input exponential map
     """
-    arg = np.ascontiguousarray(exp_map.flatten())
+    arg = np.ascontiguousarray(exp_map).flatten()
     return cpp_transforms.make_rot_mat_of_exp_map(arg)
 
 
-def make_binary_rmat(axis: np.ndarray) -> np.ndarray:
+def make_binary_rmat(axis: NDArray[np.float64]) -> NDArray[np.float64]:
     """
     Create a 180 degree rotation matrix about the input axis.
 
@@ -580,7 +581,9 @@ def make_binary_rmat(axis: np.ndarray) -> np.ndarray:
     return cpp_transforms.make_binary_rot_mat(arg)
 
 
-def make_beam_rmat(bvec_l: np.ndarray, evec_l: np.ndarray) -> np.ndarray:
+def make_beam_rmat(
+    bvec_l: NDArray[np.float64], evec_l: NDArray[np.float64]
+) -> NDArray[np.float64]:
     """
     Creates a COB matrix from the beam frame to the lab frame
     Note: beam and eta vectors must not be colinear
@@ -600,11 +603,11 @@ def make_beam_rmat(bvec_l: np.ndarray, evec_l: np.ndarray) -> np.ndarray:
 
 
 def validate_angle_ranges(
-    ang_list: Union[float, np.ndarray],
-    start_angs: Union[float, np.ndarray],
-    stop_angs: Union[float, np.ndarray],
+    ang_list: float | NDArray[np.float64],
+    start_angs: float | NDArray[np.float64],
+    stop_angs: float | NDArray[np.float64],
     ccw: bool = True,
-) -> np.ndarray[bool]:
+) -> NDArray[np.bool_]:
     """
     Find out if angles are in the CCW or CW range from start to stop
 
@@ -634,8 +637,10 @@ def validate_angle_ranges(
 
 
 def rotate_vecs_about_axis(
-    angle: np.ndarray, axis: np.ndarray, vecs: np.ndarray
-) -> np.ndarray:
+    angle: float | NDArray[np.float64],
+    axis: NDArray[np.float64],
+    vecs: NDArray[np.float64],
+) -> NDArray[np.float64]:
     """
     Rotate vectors about an axis
 
@@ -660,10 +665,10 @@ def rotate_vecs_about_axis(
     return result.T
 
 
-def quat_distance(q1: np.ndarray, q2: np.ndarray, qsym: np.ndarray) -> np.ndarray:
-    """
-    Distance between two quaternions, taking quaternions of symmetry into
-    account.
+def quat_distance(
+    q1: NDArray[np.float64], q2: NDArray[np.float64], qsym: NDArray[np.float64]
+) -> NDArray[np.float64]:
+    """Distance between two quaternions, taking quaternions of symmetry into account.
 
     Parameters
     ----------

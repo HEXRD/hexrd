@@ -3,7 +3,7 @@ import abc
 
 class DistortionABC(metaclass=abc.ABCMeta):
 
-    maptype = None
+    maptype: str | None = None
 
     @abc.abstractmethod
     def apply(self, xy_in):

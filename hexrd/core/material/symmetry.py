@@ -28,9 +28,11 @@
 # -*-python-*-
 #
 # Module containing functions relevant to symmetries
+from typing import Literal
 
 import numpy as np
 from numba import njit
+from numpy.typing import NDArray
 from numpy import array, sqrt, pi, vstack, c_, dot, argmax
 
 # from hexrd.core.rotations import quatOfAngleAxis, quatProductMatrix, fixQuat
@@ -63,7 +65,7 @@ piby6 = pi / 6.0
 # =============================================================================
 
 
-def GeneratorString(sgnum):
+def GeneratorString(sgnum: int) -> str:
     '''
     these rhombohedral space groups have a hexagonal setting
     with different symmetry matrices and generator strings
@@ -80,10 +82,8 @@ def GeneratorString(sgnum):
     return constants.SYM_GL[sg]
 
 
-def MakeGenerators(genstr, setting):
-
-    t = 'aOOO'
-    mat = SYM_fillgen(t)
+def MakeGenerators(genstr: str, setting: int) -> tuple[NDArray[np.float64], bool]:
+    mat = SYM_fillgen('aOOO')
     genmat = mat
 
     # genmat[0,:,:] = constants.SYM_GENERATORS['a']
@@ -91,33 +91,26 @@ def MakeGenerators(genstr, setting):
 
     # check if space group has inversion symmetry
     if genstr[0] == '1':
-        t = 'hOOO'
-        mat = SYM_fillgen(t)
+        mat = SYM_fillgen('hOOO')
         genmat = np.concatenate((genmat, mat))
         centrosymmetric = True
 
+    istop = 2
     n = int(genstr[1])
     if n > 0:
         for i in range(n):
             istart = 2 + i * 4
             istop = 2 + (i + 1) * 4
 
-            t = genstr[istart:istop]
-
-            mat = SYM_fillgen(t)
+            mat = SYM_fillgen(genstr[istart:istop])
             genmat = np.concatenate((genmat, mat))
-    else:
-        istop = 2
-    '''
-    if there is an alternate setting for this space group
-    check if the alternate setting needs to be used
-    '''
+
+    # if there is an alternate setting for this space group check if the alternate
+    # setting needs to be used
     if genstr[istop] != '0':
         if setting != 0:
-            t = genstr[istop + 1 : istop + 4]
-            t = 'a' + t  # get the translation without any rotation
-            sym = np.squeeze(SYM_fillgen(t, sgn=-1))
-            sym2 = np.squeeze(SYM_fillgen(t))
+            sym = np.squeeze(SYM_fillgen('a' + genstr[istop + 1 : istop + 4], sgn=-1))
+            sym2 = np.squeeze(SYM_fillgen('a' + genstr[istop + 1 : istop + 4]))
             for i in range(1, genmat.shape[0]):
                 generator = np.dot(sym2, np.dot(np.squeeze(genmat[i, :, :]), sym))
                 frac = np.modf(generator[0:3, 3])[0]
@@ -130,7 +123,7 @@ def MakeGenerators(genstr, setting):
     return genmat, centrosymmetric
 
 
-def SYM_fillgen(t, sgn=1):
+def SYM_fillgen(t: str, sgn: Literal[1, -1] = 1) -> NDArray[np.float64]:
     mat = np.zeros([4, 4])
     mat[3, 3] = 1.0
 
@@ -148,19 +141,17 @@ def SYM_fillgen(t, sgn=1):
 
 
 @memoize(maxsize=20)
-def GenerateSGSym(sgnum, setting=0):
-    '''
-    get the generators for a space group using the
-    generator string
-    '''
+def GenerateSGSym(
+    sgnum: int, setting: int = 0
+) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64], bool, bool]:
+    '''Get the generators for a space group using the generator string'''
     genstr = GeneratorString(sgnum)
     genmat, centrosymmetric = MakeGenerators(genstr, setting)
     symmorphic = False
     if sgnum in constants.sgnum_symmorphic:
         symmorphic = True
     '''
-    use the generator string to get the rest of the
-    factor group
+    use the generator string to get the rest of the factor group
 
     genmat has shape ngenerators x 4 x 4
     '''

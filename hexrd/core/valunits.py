@@ -57,62 +57,44 @@ uTDict = dict(
     energy=energyUN,
 )
 
-
-class UNames(object):
-    """Units used in this module"""
-
-    degrees = 'degrees'
-    radians = 'radians'
-
-    m = 'm'
-    mm = 'mm'
-    nm = 'nm'
-    meter = 'meter'
-    angstrom = 'angstrom'
-
-    keV = 'keV'
-    J = 'J'
-
-
 cv_dict = {
-    (UNames.degrees, UNames.radians): math.pi / 180.0,
-    (UNames.radians, UNames.degrees): 180 / math.pi,
-    (UNames.m, UNames.mm): 1.0e3,
-    (UNames.m, UNames.meter): 1.0,
-    (UNames.m, UNames.nm): 1.0e9,
-    (UNames.m, UNames.angstrom): 1.0e10,
-    (UNames.meter, UNames.mm): 1.0e3,
-    (UNames.meter, UNames.m): 1.0,
-    (UNames.meter, UNames.nm): 1.0e9,
-    (UNames.meter, UNames.angstrom): 1.0e10,
-    (UNames.mm, UNames.m): 1.0e-3,
-    (UNames.mm, UNames.meter): 1.0e-3,
-    (UNames.mm, UNames.nm): 1.0e6,
-    (UNames.mm, UNames.angstrom): 1.0e7,
-    (UNames.angstrom, UNames.m): 1.0e-10,
-    (UNames.angstrom, UNames.meter): 1.0e-10,
-    (UNames.angstrom, UNames.mm): 1.0e-7,
-    (UNames.angstrom, UNames.nm): 1.0e-1,
-    (UNames.keV, UNames.J): 1.60217646e-16,
-    (UNames.J, UNames.keV): (1 / 1.60217646e-16),
+    ('degrees', 'radians'): math.pi / 180.0,
+    ('radians', 'degrees'): 180 / math.pi,
+    ('m', 'mm'): 1.0e3,
+    ('m', 'meter'): 1.0,
+    ('m', 'nm'): 1.0e9,
+    ('m', 'angstrom'): 1.0e10,
+    ('meter', 'mm'): 1.0e3,
+    ('meter', 'm'): 1.0,
+    ('meter', 'nm'): 1.0e9,
+    ('meter', 'angstrom'): 1.0e10,
+    ('mm', 'm'): 1.0e-3,
+    ('mm', 'meter'): 1.0e-3,
+    ('mm', 'nm'): 1.0e6,
+    ('mm', 'angstrom'): 1.0e7,
+    ('angstrom', 'm'): 1.0e-10,
+    ('angstrom', 'meter'): 1.0e-10,
+    ('angstrom', 'mm'): 1.0e-7,
+    ('angstrom', 'nm'): 1.0e-1,
+    ('keV', 'J'): 1.60217646e-16,
+    ('J', 'keV'): (1 / 1.60217646e-16),
 }
 
 
+# Value with units
 class valWUnit:
-    "Value with units" ""
-
-    def __init__(self, name, unitType, value, unit):
-        """Initialization
-
-        INPUTS
-        name
-           (str) name of the item
-        unitType
-           (str) class of units, e.g. 'length', 'angle'
-        value
-           (float) numerical value
-        unit
-           (str) name of unit
+    def __init__(self, name: str, unitType: str, value: float, unit: str):
+        """
+        Parameters
+        ----------
+        name : str
+            Name of the item.
+        unitType : str
+            Class of units, e.g., 'length', 'angle', 'energy'.
+        value : float | np.floating
+            Numerical value.
+        unit : str
+            Name of the unit.
         """
         self.name = name
         if unitType in uTDict:
@@ -123,9 +105,6 @@ class valWUnit:
 
         self.value = value
         self.unit = unit
-        #
-        #  Original checked if unit is of unitType
-        #
 
     def __str__(self):
         tmpl = """item named "%s" representing %g %s"""
@@ -135,7 +114,7 @@ class valWUnit:
         tmpl = 'valWUnit("%s","%s",%s,"%s")'
         return tmpl % (self.name, self.uT, self.value, self.unit)
 
-    def __mul__(self, other):
+    def __mul__(self, other: 'valWUnit | float') -> 'valWUnit':
         if isinstance(other, float):
             new = valWUnit(self.name, self.uT, self.value * other, self.unit)
             return new
@@ -151,7 +130,7 @@ class valWUnit:
         else:
             raise RuntimeError("mul with unsupported operand")
 
-    def __add__(self, other):
+    def __add__(self, other: 'valWUnit | float') -> 'valWUnit':
         if isinstance(other, float):
             new = valWUnit(self.name, self.uT, self.value + other, self.unit)
             return new
@@ -166,7 +145,7 @@ class valWUnit:
         else:
             raise RuntimeError("add with unsupported operand")
 
-    def __sub__(self, other):
+    def __sub__(self, other: 'valWUnit | float') -> 'valWUnit':
         if isinstance(other, float):
             new = valWUnit(self.name, self.uT, self.value - other, self.unit)
             return new
@@ -181,7 +160,7 @@ class valWUnit:
         else:
             raise RuntimeError("add with unsupported operand")
 
-    def _convert(self, toUnit):
+    def _convert(self, toUnit: str) -> float:
         """
         Return the value of self in requested units.
 
@@ -227,20 +206,17 @@ class valWUnit:
                 f"Unit conversion '{from_to[0]} --> " + f"{from_to[1]}' not recognized"
             )
 
-    def isLength(self):
+    def isLength(self) -> bool:
         """Return true if quantity is a length"""
-        retval = self.uT == uTDict['length']
-        return retval
+        return self.uT == uTDict['length']
 
-    def isAngle(self):
+    def isAngle(self) -> bool:
         """Return true if quantity is an angle"""
-        retval = self.uT == uTDict['angle']
-        return retval
+        return self.uT == uTDict['angle']
 
-    def isEnergy(self):
+    def isEnergy(self) -> bool:
         """Return true if quantity  is an energy"""
-        retval = self.uT == uTDict['energy']
-        return retval
+        return self.uT == uTDict['energy']
 
     def getVal(self, toUnit):
         """
@@ -314,22 +290,19 @@ def valWithDflt(val, dflt, toUnit=None):
     return retval
 
 
-FloatLike = float | np.floating
-
-
-def _nm(x: FloatLike) -> valWUnit:
+def _nm(x: float) -> valWUnit:
     return valWUnit("lp", "length", x, "nm")
 
 
-def _kev(x: FloatLike) -> valWUnit:
+def _kev(x: float) -> valWUnit:
     return valWUnit("kev", "energy", x, "keV")
 
 
-def _angstrom(x: FloatLike) -> valWUnit:
+def _angstrom(x: float) -> valWUnit:
     return valWUnit("lp", "length", x, "angstrom")
 
 
-def _degrees(x: FloatLike) -> valWUnit:
+def _degrees(x: float) -> valWUnit:
     return valWUnit('lp', 'angle', x, 'degrees')
 
 
