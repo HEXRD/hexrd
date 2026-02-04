@@ -2204,8 +2204,8 @@ def lorentz_factor(tth: np.ndarray) -> np.ndarray:
 
 def polarization_factor(
     tth: NDArray[np.float64],
-    eta: Optional[NDArray[np.float64]] = None,
     unpolarized: Optional[bool] = True,
+    eta: Optional[NDArray[np.float64]] = None,
     f_hor: Optional[float] = None,
     f_vert: Optional[float] = None,
 ) -> NDArray[np.float64]:
