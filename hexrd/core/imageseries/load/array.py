@@ -49,7 +49,7 @@ class ArrayImageSeriesAdapter(ImageSeriesAdapter):
     @property
     def dtype(self):
         return self._data.dtype
-    
+
     @dtype.setter
     def dtype(self, value: np.dtype):
         self._dtype = value

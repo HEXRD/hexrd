@@ -234,7 +234,7 @@ class OrientationMapsConfig(Config):
             return [hkls]
         elif hkls == 'all' or hkls is None:
             return None
-        
+
         assert isinstance(hkls, list)
         return hkls
 

@@ -63,12 +63,14 @@ dUnit = 'angstrom'
 
 # LatPlaneData = Mapping[str, NDArray[Any]]
 
+
 class LatPlaneData(TypedDict):
     normals: NDArray[np.float64]
     dspacings: NDArray[np.float64]
     tThetas: NDArray[np.float64]
     tThetasLo: NDArray[np.float64]
     tThetasHi: NDArray[np.float64]
+
 
 class LatVecOps(TypedDict):
     F: NDArray[np.float64]
@@ -78,6 +80,7 @@ class LatVecOps(TypedDict):
     vol: np.float64
     dparms: NDArray[np.float64]
     rparms: NDArray[np.float64]
+
 
 class HKLData(TypedDict):
     hklID: int
@@ -89,6 +92,7 @@ class HKLData(TypedDict):
     latPlnNrmls: NDArray[np.floating]
     symHKLs: NDArray[np.signedinteger]
     centrosym: bool
+
 
 def hklToStr(hkl: np.ndarray) -> str:
     """
@@ -107,13 +111,21 @@ def hklToStr(hkl: np.ndarray) -> str:
     """
     return re.sub(r'[\[\]\(\)\{\},]', '', str(hkl))
 
+
 @overload
-def cosineXform(a: NDArray[np.float64], b: NDArray[np.float64], c: NDArray[np.float64]) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
+def cosineXform(
+    a: NDArray[np.float64], b: NDArray[np.float64], c: NDArray[np.float64]
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
 @overload
-def cosineXform(a: np.float64, b: np.float64, c: np.float64) -> tuple[np.float64, np.float64]: ...
+def cosineXform(
+    a: np.float64, b: np.float64, c: np.float64
+) -> tuple[np.float64, np.float64]: ...
+
 
 def cosineXform(
-    a: NDArray[np.float64] | np.float64, b: NDArray[np.float64] | np.float64, c: NDArray[np.float64] | np.float64
+    a: NDArray[np.float64] | np.float64,
+    b: NDArray[np.float64] | np.float64,
+    c: NDArray[np.float64] | np.float64,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]] | tuple[np.float64, np.float64]:
     """
     Spherical trig transform to take alpha, beta, gamma to expressions
@@ -296,8 +308,13 @@ def latticePlanes(
     tth[~mask] = np.nan
     tth[mask] = 2.0 * np.arcsin(sth[mask])
 
-    p: LatPlaneData = dict(normals=unitVector(G), dspacings=d, tThetas=tth,
-                           tThetasLo=np.array([]), tThetasHi=np.array([]))
+    p: LatPlaneData = dict(
+        normals=unitVector(G),
+        dspacings=d,
+        tThetas=tth,
+        tThetasLo=np.array([]),
+        tThetasHi=np.array([]),
+    )
 
     if strainMag is not None:
         p['tThetasLo'] = np.zeros(sth.shape)
@@ -310,14 +327,15 @@ def latticePlanes(
         p['tThetasLo'][~mask] = np.nan
         p['tThetasHi'][~mask] = np.nan
 
-        p['tThetasLo'][mask] = (
-            2 * np.arcsin(wavelength / 2.0 / (d[mask] * (1.0 + strainMag)))
+        p['tThetasLo'][mask] = 2 * np.arcsin(
+            wavelength / 2.0 / (d[mask] * (1.0 + strainMag))
         )
-        p['tThetasHi'][mask] = (
-            2 * np.arcsin(wavelength / 2.0 / (d[mask] * (1.0 - strainMag)))
+        p['tThetasHi'][mask] = 2 * np.arcsin(
+            wavelength / 2.0 / (d[mask] * (1.0 - strainMag))
         )
 
     return p
+
 
 # TODO: Return a tuple of values instead of a dict - this adds needless complexity
 def latticeVectors(
@@ -454,7 +472,9 @@ def latticeVectors(
 
     if tag == lattStrings[0]:
         # cubic
-        cellparms: NDArray[np.float64] = np.r_[np.tile(lparms[0], (3,)), deg90 * np.ones((3,))]
+        cellparms: NDArray[np.float64] = np.r_[
+            np.tile(lparms[0], (3,)), deg90 * np.ones((3,))
+        ]
     elif tag == lattStrings[1] or tag == lattStrings[2]:
         # hexagonal | trigonal (hex indices)
         cellparms = np.r_[lparms[0], lparms[0], lparms[1], deg90, deg90, deg120]
@@ -531,13 +551,12 @@ def latticeVectors(
 
     afable: NDArray[np.float64] = ar * np.array([1, 0, 0])
     bfable: NDArray[np.float64] = br * np.array([np.cos(gamar), np.sin(gamar), 0])
-    cfable: NDArray[np.float64] = (
-        cr
-        * np.array([
+    cfable: NDArray[np.float64] = cr * np.array(
+        [
             np.cos(betar),
             -cosalfar2 * np.sin(betar),
             sinalfar2 * np.sin(betar),
-        ])
+        ]
     )
 
     BR: NDArray[np.float64] = np.stack([afable, bfable, cfable], axis=1)
@@ -545,15 +564,17 @@ def latticeVectors(
     dparms: NDArray[np.float64] = np.r_[ad, bd, cd, np.r_[alpha, beta, gamma]]
     rparms: NDArray[np.float64] = np.r_[ar, br, cr, np.r_[alfar, betar, gamar]]
 
-    return LatVecOps({
-        'F': F,
-        'B': B,
-        'BR': BR,
-        'U0': U0,
-        'vol': V,
-        'dparms': dparms,
-        'rparms': rparms,
-    })
+    return LatVecOps(
+        {
+            'F': F,
+            'B': B,
+            'BR': BR,
+            'U0': U0,
+            'vol': V,
+            'dparms': dparms,
+            'rparms': rparms,
+        }
+    )
 
 
 def hexagonalIndicesFromRhombohedral(hkl):
@@ -1211,17 +1232,19 @@ class PlaneData(object):
                 np.round(np.dot(latVecOps['F'].T, latPlnNrmls)), dtype='int'
             )
 
-            hklDataList.append({
-                'hklID': iHKL,
-                'hkl': hkls[:, iHKL],
-                'tTheta': latPlaneData['tThetas'][iHKL],
-                'dSpacings': latPlaneData['dspacings'][iHKL],
-                'tThetaLo': latPlaneData['tThetasLo'][iHKL],
-                'tThetaHi': latPlaneData['tThetasHi'][iHKL],
-                'latPlnNrmls': unitVector(latPlnNrmls),
-                'symHKLs': symHKLs,
-                'centrosym': csRefl
-            })
+            hklDataList.append(
+                {
+                    'hklID': iHKL,
+                    'hkl': hkls[:, iHKL],
+                    'tTheta': latPlaneData['tThetas'][iHKL],
+                    'dSpacings': latPlaneData['dspacings'][iHKL],
+                    'tThetaLo': latPlaneData['tThetasLo'][iHKL],
+                    'tThetaHi': latPlaneData['tThetasHi'][iHKL],
+                    'latPlnNrmls': unitVector(latPlnNrmls),
+                    'symHKLs': symHKLs,
+                    'centrosym': csRefl,
+                }
+            )
 
         return latPlaneData, latVecOps, hklDataList
 
@@ -1516,8 +1539,13 @@ class PlaneData(object):
                     f"hkl '{tuple(hkl)}' is not present in this material!"
                 )
 
-    def getHKLs(self, *hkl_ids: int, asStr: bool=False, thisTTh: Optional[float]=None,
-                allHKLs: bool=False) -> Union[List[str], np.ndarray]:
+    def getHKLs(
+        self,
+        *hkl_ids: int,
+        asStr: bool = False,
+        thisTTh: Optional[float] = None,
+        allHKLs: bool = False,
+    ) -> Union[List[str], np.ndarray]:
         """
         Returns the powder HKLs subject to specified options.
 
@@ -1601,7 +1629,7 @@ class PlaneData(object):
         withID: bool = ...,
         indices: Optional[list[int]] = ...,
     ) -> list[list[str]]: ...
-        
+
     @overload
     def getSymHKLs(
         self,

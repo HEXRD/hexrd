@@ -19,7 +19,13 @@ from hexrd.core.rotations import (
     rotMatOfExpMap,
 )
 from hexrd.core.material.unitcell import _lpname
-from .relative_constraints import RelativeConstraints, RelativeConstraintsGroup, RelativeConstraintsSystem, RelativeConstraintsType, RelativeConstraintsNone
+from .relative_constraints import (
+    RelativeConstraints,
+    RelativeConstraintsGroup,
+    RelativeConstraintsSystem,
+    RelativeConstraintsType,
+    RelativeConstraintsNone,
+)
 from hexrd.core.fitting.calibration.relative_constraints import (
     RelativeConstraintsType,
 )
@@ -326,23 +332,30 @@ def update_instrument_from_params(
     ]
     instr.tvec = np.r_[instr_tvec]
 
-    if relative_constraints is None or isinstance(relative_constraints, RelativeConstraintsNone) or \
-        relative_constraints.type == RelativeConstraintsType.none:
+    if (
+        relative_constraints is None
+        or isinstance(relative_constraints, RelativeConstraintsNone)
+        or relative_constraints.type == RelativeConstraintsType.none
+    ):
         update_unconstrained_detector_parameters(
             instr,
             params,
             euler_convention,
         )
-    elif isinstance(relative_constraints, RelativeConstraintsGroup) or \
-        relative_constraints.type == RelativeConstraintsType.group:
+    elif (
+        isinstance(relative_constraints, RelativeConstraintsGroup)
+        or relative_constraints.type == RelativeConstraintsType.group
+    ):
         update_group_constrained_detector_parameters(
             instr,
             params,
             euler_convention,
             relative_constraints,
         )
-    elif isinstance(relative_constraints, RelativeConstraintsSystem) or \
-        relative_constraints.type == RelativeConstraintsType.system:
+    elif (
+        isinstance(relative_constraints, RelativeConstraintsSystem)
+        or relative_constraints.type == RelativeConstraintsType.system
+    ):
         update_system_constrained_detector_parameters(
             instr,
             params,
@@ -487,7 +500,9 @@ def update_group_constrained_detector_parameters(
         )
 
 
-def _tilt_to_rmat(tilt: NDArray[np.float64], euler_convention: Optional[dict | tuple]) -> NDArray[np.float64]:
+def _tilt_to_rmat(
+    tilt: NDArray[np.float64], euler_convention: Optional[dict | tuple]
+) -> NDArray[np.float64]:
     # Convert the tilt to exponential map parameters, and then
     # to the rotation matrix, and return.
     if euler_convention is None:
@@ -720,7 +735,9 @@ EULER_PARAM_NAMES_MAPPING = {
 }
 
 
-def normalize_euler_convention(euler_convention: EULER_CONVENTION_TYPES) -> tuple | None:
+def normalize_euler_convention(
+    euler_convention: EULER_CONVENTION_TYPES,
+) -> tuple | None:
     if isinstance(euler_convention, dict):
         return (
             euler_convention['axes_order'],

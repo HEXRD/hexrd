@@ -420,7 +420,7 @@ def multMatArray(ma1, ma2):
     return prod
 
 
-def uniqueVectors(v: NDArray[np.float64], tol: float=1.0e-12):
+def uniqueVectors(v: NDArray[np.float64], tol: float = 1.0e-12):
     """
     Sort vectors and discard duplicates.
 

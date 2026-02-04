@@ -306,11 +306,11 @@ def determine_valid_reflections(results, instrument, analysis_dirname):
 
 
 def refine_valid_reflections(
-        culled_results: dict,
-        xyo_det_fit_dict: dict,
-        instrument: instrument.HEDMInstrument,
-        imgser_dict: dict,
-        refit: tuple[float, float]
+    culled_results: dict,
+    xyo_det_fit_dict: dict,
+    instrument: instrument.HEDMInstrument,
+    imgser_dict: dict,
+    refit: tuple[float, float],
 ) -> tuple[dict, int]:
     """Refine valid reflections list using pixel distances
 
@@ -338,9 +338,7 @@ def refine_valid_reflections(
         ome_step = sum(np.array([-1, 1]) * ims.metadata['omega'][0, :])
 
         x = presults[0]
-        xyo_det = np.atleast_2d(
-            np.vstack([np.r_[x[7], x[6][-1]] for x in presults])
-        )
+        xyo_det = np.atleast_2d(np.vstack([np.r_[x[7], x[6][-1]] for x in presults]))
 
         xpix_tol = tol_xy * panel.pixel_size_col
         ypix_tol = tol_xy * panel.pixel_size_row
@@ -350,9 +348,7 @@ def refine_valid_reflections(
         x_diff = abs(xyo_det[:, 0] - xyo_det_fit['calc_xy'][:, 0])
         y_diff = abs(xyo_det[:, 1] - xyo_det_fit['calc_xy'][:, 1])
         ome_diff = np.degrees(
-            rotations.angularDifference(
-                xyo_det[:, 2], xyo_det_fit['calc_omes']
-            )
+            rotations.angularDifference(xyo_det[:, 2], xyo_det_fit['calc_omes'])
         )
 
         # filter out reflections with centroids more than
@@ -360,9 +356,7 @@ def refine_valid_reflections(
         idx_new = (x_diff <= xpix_tol) & (y_diff <= ypix_tol) & (ome_diff <= fome_tol)
 
         # attach to proper dict entry
-        culled_results_r[det_key] = [
-            presults[i] for i in np.where(idx_new)[0]
-        ]
+        culled_results_r[det_key] = [presults[i] for i in np.where(idx_new)[0]]
 
         num_refl_valid += sum(idx_new)
 

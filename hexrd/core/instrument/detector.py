@@ -22,8 +22,11 @@ from hexrd.core.distortion.distortionabc import DistortionABC
 from hexrd.core import matrixutil as mutil
 
 if TYPE_CHECKING:
-    from hexrd.hed.xrdutil.phutil import JHEPinholeDistortion, LayerDistortion, \
-    RyggPinholeDistortion
+    from hexrd.hed.xrdutil.phutil import (
+        JHEPinholeDistortion,
+        LayerDistortion,
+        RyggPinholeDistortion,
+    )
 # TODO: Resolve extra-core-dependency
 from hexrd.hedm import xrdutil
 from hexrd.hed.xrdutil import _project_on_detector_plane
@@ -164,8 +167,11 @@ class Detector:
         raise NotImplementedError
 
     @abstractmethod
-    def pixel_angles(self, origin: NDArray[np.float64]=ct.zeros_3,
-                     bvec: Optional[NDArray[np.float64]] = None):
+    def pixel_angles(
+        self,
+        origin: NDArray[np.float64] = ct.zeros_3,
+        bvec: Optional[NDArray[np.float64]] = None,
+    ):
         raise NotImplementedError
 
     @abstractmethod
@@ -583,7 +589,9 @@ class Detector:
     # METHODS
     # =========================================================================
 
-    def pixel_Q(self, energy: float, origin: NDArray[np.float64] = ct.zeros_3) -> NDArray[np.float64]:
+    def pixel_Q(
+        self, energy: float, origin: NDArray[np.float64] = ct.zeros_3
+    ) -> NDArray[np.float64]:
         '''get the equivalent momentum transfer
         for the angles.
 
@@ -1221,15 +1229,14 @@ class Detector:
         rmat_s: NDArray[np.float64] = ct.identity_3x3,
         tvec_s: NDArray[np.float64] = ct.zeros_3,
         tvec_c: NDArray[np.float64] = ct.zeros_3,
-        full_output: Literal[False] = False, # TODO: Remove this option completely
-        tth_distortion: Optional[RyggPinholeDistortion | JHEPinholeDistortion |
-                                 LayerDistortion] = None,
+        full_output: Literal[False] = False,  # TODO: Remove this option completely
+        tth_distortion: Optional[
+            RyggPinholeDistortion | JHEPinholeDistortion | LayerDistortion
+        ] = None,
     ) -> tuple[
-            list[NDArray[np.float64]],
-            list[NDArray[np.float64]],
-            NDArray[np.float64]
-        ]: ...
-    
+        list[NDArray[np.float64]], list[NDArray[np.float64]], NDArray[np.float64]
+    ]: ...
+
     @overload
     def make_powder_rings(
         self,
@@ -1242,20 +1249,23 @@ class Detector:
         rmat_s: NDArray[np.float64] = ct.identity_3x3,
         tvec_s: NDArray[np.float64] = ct.zeros_3,
         tvec_c: NDArray[np.float64] = ct.zeros_3,
-        full_output: Literal[True] = True, # TODO: Remove this option completely
-        tth_distortion: Optional[RyggPinholeDistortion | JHEPinholeDistortion |
-                                 LayerDistortion] = None,
+        full_output: Literal[True] = True,  # TODO: Remove this option completely
+        tth_distortion: Optional[
+            RyggPinholeDistortion | JHEPinholeDistortion | LayerDistortion
+        ] = None,
     ) -> tuple[
-            list[NDArray[np.float64]],
-            list[NDArray[np.float64]],
-            NDArray[np.float64],
-            list[NDArray[np.float64]],
-            NDArray[np.float64]
-        ]: ...
+        list[NDArray[np.float64]],
+        list[NDArray[np.float64]],
+        NDArray[np.float64],
+        list[NDArray[np.float64]],
+        NDArray[np.float64],
+    ]: ...
 
     def make_powder_rings(
         self,
-        pd: PlaneData | NDArray[np.float64], # TODO: Make a different function for array input
+        pd: (
+            PlaneData | NDArray[np.float64]
+        ),  # TODO: Make a different function for array input
         merge_hkls: bool = False,
         delta_tth: Optional[float] = None,
         delta_eta: float = 10.0,
@@ -1264,21 +1274,23 @@ class Detector:
         rmat_s: NDArray[np.float64] = ct.identity_3x3,
         tvec_s: NDArray[np.float64] = ct.zeros_3,
         tvec_c: NDArray[np.float64] = ct.zeros_3,
-        full_output: bool = False, # TODO: Remove this option completely
-        tth_distortion: Optional[RyggPinholeDistortion | JHEPinholeDistortion |
-                                 LayerDistortion] = None,
-    ) -> tuple[
+        full_output: bool = False,  # TODO: Remove this option completely
+        tth_distortion: Optional[
+            RyggPinholeDistortion | JHEPinholeDistortion | LayerDistortion
+        ] = None,
+    ) -> (
+        tuple[
             list[NDArray[np.float64]],
             list[NDArray[np.float64]],
             NDArray[np.float64],
             list[NDArray[np.float64]],
-            NDArray[np.float64]
-        ] | tuple[
-            list[NDArray[np.float64]],
-            list[NDArray[np.float64]],
-            NDArray[np.float64]
-        ]:
-        """ Generate points on Debye Scherrer rings over the detector.
+            NDArray[np.float64],
+        ]
+        | tuple[
+            list[NDArray[np.float64]], list[NDArray[np.float64]], NDArray[np.float64]
+        ]
+    ):
+        """Generate points on Debye Scherrer rings over the detector.
 
         Assumes that `rmat_s` is built from (chi, omega), as it the case for HEDM.
 
@@ -1357,9 +1369,7 @@ class Detector:
             elif pd.tThWidth is not None:
                 delta_tth = np.degrees(pd.tThWidth)
             else:
-                raise ValueError(
-                    "Must supply delta_tth if PlaneData has no tThWidth"
-                )
+                raise ValueError("Must supply delta_tth if PlaneData has no tThWidth")
 
             del_eta = np.radians(delta_eta)
 

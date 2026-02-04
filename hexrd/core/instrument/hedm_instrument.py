@@ -242,8 +242,11 @@ def chunk_instrument(instr, rects, labels, use_roi=False):
     return new_icfg_dict
 
 
-def _parse_imgser_dict(imgser_dict: Mapping[str, OmegaImageSeries | NDArray[np.float64]],
-                       det_key: str, roi: Optional[tuple[tuple[int, int], ...]]=None) -> OmegaImageSeries | ProcessedImageSeries | NDArray[np.float64]:
+def _parse_imgser_dict(
+    imgser_dict: Mapping[str, OmegaImageSeries | NDArray[np.float64]],
+    det_key: str,
+    roi: Optional[tuple[tuple[int, int], ...]] = None,
+) -> OmegaImageSeries | ProcessedImageSeries | NDArray[np.float64]:
     """
     Associates a dict of imageseries to the target panel(s).
 
@@ -319,7 +322,7 @@ def _parse_imgser_dict(imgser_dict: Mapping[str, OmegaImageSeries | NDArray[np.f
                 ncols = roi[1][1] - roi[1][0]
                 n_images = len(images_in)
                 ims = np.empty((n_images, nrows, ncols), dtype=images_in.dtype)
-                for i, image in images_in: # TODO: Is this meant to be an enumerate?
+                for i, image in images_in:  # TODO: Is this meant to be an enumerate?
                     ims[i, :, :] = images_in[
                         roi[0][0] : roi[0][1], roi[1][0] : roi[1][1]
                     ]
@@ -505,12 +508,14 @@ class OscillationStageConfig(TypedDict):
     translation: Sequence[float]
     chi: float
 
+
 class InstrumentConfig(TypedDict):
     detectors: dict[str, dict]
     beam: Mapping[str, dict]
     oscillation_stage: OscillationStageConfig
     id: NotRequired[str]
     physics_package: NotRequired[object]
+
 
 class HEDMInstrument(object):
     """
@@ -595,7 +600,6 @@ class HEDMInstrument(object):
                         'distance': beam.get('source_distance', np.inf),
                         'energy_correction': beam.get('energy_correction', None),
                     }
-                
 
             # Set the active beam name if not set already
             if self._active_beam_name is None:
@@ -1037,10 +1041,10 @@ class HEDMInstrument(object):
         self,
         plane_data: PlaneData,
         imgser_dict: dict[str, OmegaImageSeries],
-        active_hkls: Optional[NDArray[np.int32] | list[int]]=None,
-        threshold: Optional[float]=None,
-        tth_tol: Optional[float]=None,
-        eta_tol: float=0.25,
+        active_hkls: Optional[NDArray[np.int32] | list[int]] = None,
+        threshold: Optional[float] = None,
+        tth_tol: Optional[float] = None,
+        eta_tol: float = 0.25,
     ) -> tuple[dict[str, NDArray[np.float64]], NDArray[np.float64]]:
         """
         Extract eta-omega maps from an imageseries.
@@ -1064,7 +1068,7 @@ class HEDMInstrument(object):
             Tolerance for merging reflections in degrees. If None (default),
             falls back to `plane_data.tThWidth`.
         eta_tol : float, optional
-            Eta bin width in degrees. If None (default), 0.25 degrees is used.   
+            Eta bin width in degrees. If None (default), 0.25 degrees is used.
 
         Returns
         -------
@@ -1645,7 +1649,7 @@ class HEDMInstrument(object):
     ):
         rMat_c = make_rmat_of_expmap(grain_params[:3])
         tVec_c = np.asarray(grain_params[3:6])
-        
+
         oims0 = next(iter(imgser_dict.values()))
         # Assert because subsequent nested function calls are too broadly typed
         assert isinstance(oims0, OmegaImageSeries)
@@ -2175,12 +2179,13 @@ class HEDMInstrument(object):
         PlanarDetector.update_memoization_sizes(all_panels)
         CylindricalDetector.update_memoization_sizes(all_panels)
 
-    def calc_transmission(self, rMat_s: Optional[NDArray[np.float64]] = None
-                          ) -> dict[str, NDArray[np.float64]]:
-        """ Calculate the transmission from the filter and polymer coating.
-        
-            The inverse of this number is the intensity correction that needs to be
-            applied. Actual computation is done inside the detector class.
+    def calc_transmission(
+        self, rMat_s: Optional[NDArray[np.float64]] = None
+    ) -> dict[str, NDArray[np.float64]]:
+        """Calculate the transmission from the filter and polymer coating.
+
+        The inverse of this number is the intensity correction that needs to be
+        applied. Actual computation is done inside the detector class.
         """
         if rMat_s is None:
             rMat_s = ct.identity_3x3
@@ -2553,9 +2558,12 @@ class GenerateEtaOmeMaps(object):
         instrument: HEDMInstrument,
         plane_data: PlaneData,
         active_hkls: Optional[NDArray[np.int32] | list[int]] = None,
-        eta_step: float=0.25,
-        threshold: Optional[float]=None,
-        ome_period: tuple[float, float]=(0, 360), # TODO: Remove this - it does nothing.
+        eta_step: float = 0.25,
+        threshold: Optional[float] = None,
+        ome_period: tuple[float, float] = (
+            0,
+            360,
+        ),  # TODO: Remove this - it does nothing.
     ):
         self._planeData = plane_data
 
@@ -2638,7 +2646,9 @@ class GenerateEtaOmeMaps(object):
         for i_ring in range(n_rings):
             # first handle etas
             full_map: NDArray[np.float64] = np.zeros(map_shape, dtype=float)
-            nan_mask_full: NDArray[np.bool_] = np.zeros((len(eta_mapping), map_shape[0], map_shape[1]), dtype=bool)
+            nan_mask_full: NDArray[np.bool_] = np.zeros(
+                (len(eta_mapping), map_shape[0], map_shape[1]), dtype=bool
+            )
             i_p = 0
             for eta_map in eta_mapping.values():
                 nan_mask = ~np.isnan(eta_map[i_ring])
@@ -2652,7 +2662,9 @@ class GenerateEtaOmeMaps(object):
             if frame_mask is not None:
                 # !!! must expand row dimension to include
                 #     skipped omegas
-                tmp: NDArray[np.float64] = np.ones((len(frame_mask), map_shape[1])) * np.nan
+                tmp: NDArray[np.float64] = (
+                    np.ones((len(frame_mask), map_shape[1])) * np.nan
+                )
                 tmp[frame_mask, :] = full_map
                 full_map = tmp
             data_store.append(full_map)
@@ -2729,6 +2741,7 @@ def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
     bins_on_detector = np.where(reta_hist)[0]
 
     return pixel_etas, eta_edges, pixel_ids, bins_on_detector
+
 
 def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
     for i_row in range(*rows):

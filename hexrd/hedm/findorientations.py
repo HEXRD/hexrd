@@ -66,7 +66,9 @@ def write_scored_orientations(results, cfg):
     )
 
 
-def _process_omegas(omegaimageseries_dict: dict[str, OmegaImageSeries]) -> tuple[NDArray[np.float64], list[list[int]]]:
+def _process_omegas(
+    omegaimageseries_dict: dict[str, OmegaImageSeries]
+) -> tuple[NDArray[np.float64], list[list[int]]]:
     """Extract omega period and ranges from an OmegaImageseries dictionary."""
     oims = next(iter(omegaimageseries_dict.values()))
     ome_period = oims.omega[0, 0] + np.r_[0.0, 360.0]
@@ -375,7 +377,13 @@ def run_cluster(
 
 # TODO: Remove image_series from this function signature.
 # TODO: Remove pd from this function signature.
-def load_eta_ome_maps(cfg: root.RootConfig, pd, image_series, hkls: Optional[NDArray[np.float64] | list[int]] = None, clean: bool=False):
+def load_eta_ome_maps(
+    cfg: root.RootConfig,
+    pd,
+    image_series,
+    hkls: Optional[NDArray[np.float64] | list[int]] = None,
+    clean: bool = False,
+):
     """
     Load the eta-ome maps specified by the config and CLI flags. If the
     maps file exists, it will return those values. If the file does not exist,
@@ -441,7 +449,11 @@ def filter_maps_if_requested(eta_ome, cfg: root.RootConfig):
             _filter_eta_ome_maps(eta_ome)
 
 
-def generate_eta_ome_maps(cfg: root.RootConfig, hkls: Optional[NDArray[np.float64] | list[int]]=None, save: bool=True):
+def generate_eta_ome_maps(
+    cfg: root.RootConfig,
+    hkls: Optional[NDArray[np.float64] | list[int]] = None,
+    save: bool = True,
+):
     """
     Generates the eta-omega maps specified in the input config.
 
@@ -670,7 +682,11 @@ def create_clustering_parameters(cfg, eta_ome):
 
 
 def find_orientations(
-    cfg: root.RootConfig, hkls: Optional[NDArray | list[int]] = None, clean: bool=False, profile: bool=False, use_direct_testing: bool=False
+    cfg: root.RootConfig,
+    hkls: Optional[NDArray | list[int]] = None,
+    clean: bool = False,
+    profile: bool = False,
+    use_direct_testing: bool = False,
 ):
     """
 

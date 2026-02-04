@@ -432,8 +432,7 @@ def get_symmetry_directions(mat: 'Material') -> NDArray[np.int32]:
 
 
 def Allowed_HKLs(sgnum: int, hkllist: NDArray[np.int32]) -> NDArray[np.int32]:
-    """ Checks if a g vector is allowed by lattice centering, screw axis or glide plane
-    """
+    """Checks if a g vector is allowed by lattice centering, screw axis or glide plane"""
     sg_hmsymbol = symbols.pstr_spacegroup[sgnum - 1].strip()
     symmorphic = False
     if sgnum in constants.sgnum_symmorphic:
@@ -922,4 +921,3 @@ def _getHKLsBySS(ss):
                     hkls += [(h, k, l), (h, k, -l)]
 
     return hkls
-

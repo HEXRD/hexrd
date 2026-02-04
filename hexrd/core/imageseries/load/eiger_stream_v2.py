@@ -193,7 +193,7 @@ class EigerStreamV2ImageSeriesAdapter(ImageSeriesAdapter):
             return np.dtype('float64')
 
         return np.dtype(self._first_threshold_1_entry['dtype'][()])
-    
+
     @dtype.setter
     def dtype(self, value: np.dtype):
         self._dtype = value
