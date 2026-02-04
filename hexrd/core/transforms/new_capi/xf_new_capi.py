@@ -97,7 +97,7 @@ def angles_to_dvec(
     chi: float = 0.0,
     rmat_c: NDArray[np.float64] = cnst.identity_3x3,
 ) -> NDArray[np.float64]:
-    """ Calculate diffraction vectors from beam frame angles.
+    """Calculate diffraction vectors from beam frame angles.
 
     Takes triplets of angles in the beam frame (2*theta, eta[, omega])
     to components of unit diffraction vectors in the LAB frame.  If the omega
@@ -143,7 +143,9 @@ def angles_to_dvec(
     return cpp_transforms.anglesToDVec(angs, beam_vec, eta_vec, chi, rmat_c)
 
 
-def makeGVector(hkl: NDArray[np.float64], bMat: NDArray[np.float64]) -> NDArray[np.float64]:
+def makeGVector(
+    hkl: NDArray[np.float64], bMat: NDArray[np.float64]
+) -> NDArray[np.float64]:
     """
     Take a crystal relative b matrix onto a list of hkls to output unit
     reciprocal latice vectors (a.k.a. lattice plane normals)
@@ -503,7 +505,9 @@ def make_oscill_rmat_array(chi, omeArray):
     return transforms_c_api.makeOscillRotMat(chi, arg)
 
 
-def make_sample_rmat(chi: float, ome: float | NDArray[np.float64]) -> NDArray[np.float64]:
+def make_sample_rmat(
+    chi: float, ome: float | NDArray[np.float64]
+) -> NDArray[np.float64]:
     # TODO: Check this docstring
     """
     Make a rotation matrix representing the COB from sample frame to the lab
@@ -537,7 +541,9 @@ def make_sample_rmat(chi: float, ome: float | NDArray[np.float64]) -> NDArray[np
     return result
 
 
-def make_rmat_of_expmap(exp_map: Sequence[float] | NDArray[np.float64]) -> NDArray[np.float64]:
+def make_rmat_of_expmap(
+    exp_map: Sequence[float] | NDArray[np.float64],
+) -> NDArray[np.float64]:
     """
     Calculate the rotation matrix of an exponential map.
 
@@ -575,7 +581,9 @@ def make_binary_rmat(axis: NDArray[np.float64]) -> NDArray[np.float64]:
     return cpp_transforms.make_binary_rot_mat(arg)
 
 
-def make_beam_rmat(bvec_l: NDArray[np.float64], evec_l: NDArray[np.float64]) -> NDArray[np.float64]:
+def make_beam_rmat(
+    bvec_l: NDArray[np.float64], evec_l: NDArray[np.float64]
+) -> NDArray[np.float64]:
     """
     Creates a COB matrix from the beam frame to the lab frame
     Note: beam and eta vectors must not be colinear
@@ -629,7 +637,9 @@ def validate_angle_ranges(
 
 
 def rotate_vecs_about_axis(
-    angle: float | NDArray[np.float64], axis: NDArray[np.float64], vecs: NDArray[np.float64]
+    angle: float | NDArray[np.float64],
+    axis: NDArray[np.float64],
+    vecs: NDArray[np.float64],
 ) -> NDArray[np.float64]:
     """
     Rotate vectors about an axis
@@ -655,8 +665,10 @@ def rotate_vecs_about_axis(
     return result.T
 
 
-def quat_distance(q1: NDArray[np.float64], q2: NDArray[np.float64], qsym: NDArray[np.float64]) -> NDArray[np.float64]:
-    """ Distance between two quaternions, taking quaternions of symmetry into account.
+def quat_distance(
+    q1: NDArray[np.float64], q2: NDArray[np.float64], qsym: NDArray[np.float64]
+) -> NDArray[np.float64]:
+    """Distance between two quaternions, taking quaternions of symmetry into account.
 
     Parameters
     ----------

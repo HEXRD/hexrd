@@ -4,7 +4,6 @@ from typing import Final, TypeAlias
 import numpy as np
 from numpy.typing import NDArray
 
-
 FloatArray: TypeAlias = NDArray[np.float64]
 
 Vec3: TypeAlias = FloatArray
@@ -13,7 +12,6 @@ Mat3: TypeAlias = FloatArray
 RotMatStack: TypeAlias = FloatArray
 Angles: TypeAlias = FloatArray
 DetectorXY: TypeAlias = FloatArray
-
 
 def make_binary_rot_mat(a: Vec3, /) -> Mat3:
     """
@@ -29,7 +27,6 @@ def make_binary_rot_mat(a: Vec3, /) -> Mat3:
     3x3 rotation matrix.
     """
 
-
 def make_rot_mat_of_exp_map(e: Vec3, /) -> Mat3:
     """
     Compute a 3x3 rotation matrix from an exponential map vector `e`.
@@ -43,7 +40,6 @@ def make_rot_mat_of_exp_map(e: Vec3, /) -> Mat3:
     -------
     3x3 rotation matrix.
     """
-
 
 def makeOscillRotMat(chi: float, ome: FloatArray, /) -> RotMatStack:
     """
@@ -63,7 +59,6 @@ def makeOscillRotMat(chi: float, ome: FloatArray, /) -> RotMatStack:
     -------
     Array of shape (3*N, 3) containing N rotation matrices (3x3 blocks).
     """
-
 
 def anglesToGVec(
     angs: Angles,
@@ -94,7 +89,6 @@ def anglesToGVec(
     g-vectors, shape (N, 3).
     """
 
-
 def anglesToDVec(
     angs: Angles,
     bHat_l: Vec3,
@@ -108,7 +102,6 @@ def anglesToDVec(
 
     Returns an array of shape (N, 3).
     """
-
 
 def gvecToDetectorXY(
     gVec_c: FloatArray,
@@ -145,7 +138,6 @@ def gvecToDetectorXY(
     Detector XY, shape (N, 2). May contain NaNs for invalid intersections.
     """
 
-
 def gvec_to_detector_xy_one(
     gVec_c: Vec3,
     rMat_d: Mat3,
@@ -164,7 +156,6 @@ def gvec_to_detector_xy_one(
     -------
     XY vector, shape (2,). Returns NaNs if invalid.
     """
-
 
 def gvecToDetectorXYFromAngles(
     chi: float,
@@ -194,7 +185,6 @@ def gvecToDetectorXYFromAngles(
     -------
     Detector XY, shape (N, 2).
     """
-
 
 def anglesToDetectorXY(
     chi: float,

@@ -10,6 +10,7 @@ from hexrd.core.imageseries.process import ProcessedImageSeries
 
 from .baseclass import ImageSeries
 
+
 class OmegaImageSeries(ImageSeries):
     """ImageSeries with omega metadata"""
 

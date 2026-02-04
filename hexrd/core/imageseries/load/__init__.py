@@ -38,14 +38,14 @@ class ImageSeriesAdapter(ImageSeriesABC, metaclass=_RegisterAdapterClass):
     @property
     def metadata(self) -> dict[str, NDArray[np.float64]]:
         return {}
-    
+
     @property
     def shape(self) -> tuple[int, ...]:
         raise NotImplementedError()
 
     def option_values(self) -> dict:
         raise NotImplementedError()
-    
+
     def set_option(self, key: str, value: Any):
         raise NotImplementedError()
 

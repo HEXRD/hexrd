@@ -111,11 +111,13 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
         self._dtype = np.dtype(dtype_str)
 
         reserved = {
-            "nframes", "shape", "dtype",
-            *{f"{i}_{s}" for i in range(self._nframes) for s in ("row", "col", "data")}
+            "nframes",
+            "shape",
+            "dtype",
+            *{f"{i}_{s}" for i in range(self._nframes) for s in ("row", "col", "data")},
         }
 
-        self._meta = { k: arrs[k] for k in arrs.keys() if k not in reserved }
+        self._meta = {k: arrs[k] for k in arrs.keys() if k not in reserved}
 
     def _load_framelist(self):
         """load into list of csr sparse matrices"""

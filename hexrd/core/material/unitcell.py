@@ -1884,16 +1884,16 @@ Powder diffraction
 Edited by C. J. Gilmore, J. A. Kaduk and H. Schenk
 '''
 # independent components for the triclinic laue group
-type1: tuple[tuple[int, int], ...] = tuple((i, j) for i in range(6) for j in range(i, 6))
+type1: tuple[tuple[int, int], ...] = tuple(
+    (i, j) for i in range(6) for j in range(i, 6)
+)
 
 # independent components for the monoclinic laue group
 # C14 = C15 = C24 = C25 = C34 = C35 = C46 = C56 = 0
 type2: tuple[tuple[int, int], ...] = tuple(
-    ij for ij in type1
-    if ij not in {
-        (0, 3), (0, 4), (1, 3), (1, 4),
-        (2, 3), (2, 4), (3, 5), (4, 5)
-    }
+    ij
+    for ij in type1
+    if ij not in {(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (2, 4), (3, 5), (4, 5)}
 )
 
 # independent components for the orthorhombic laue group
@@ -1901,38 +1901,45 @@ type2: tuple[tuple[int, int], ...] = tuple(
 # independent components for the orthorhombic laue group
 # Remove C16, C26, C36, C45 = 0 from monoclinic
 type3: tuple[tuple[int, int], ...] = tuple(
-    ij for ij in type2
-    if ij not in {(0, 5), (1, 5), (2, 5), (3, 4)}
+    ij for ij in type2 if ij not in {(0, 5), (1, 5), (2, 5), (3, 4)}
 )
 
 # independent components for the cyclic tetragonal laue group
 # monoclinic, plus C36 = C45 = 0, C22 = C11, C23 = C13, C26 = −C16, C55 = C44
 # independent components for the cyclic tetragonal laue group
 type4: tuple[tuple[int, int], ...] = tuple(
-    ij for ij in type2
-    if ij not in {
-        (2, 5), (3, 4), (1, 1), (1, 2), (1, 5), (4, 4)
-    }
+    ij for ij in type2 if ij not in {(2, 5), (3, 4), (1, 1), (1, 2), (1, 5), (4, 4)}
 )
 
 # independent components for the dihedral tetragonal laue group
 # Above,  plus C16 = 0
 # independent components for the dihedral tetragonal laue group
 # Above, plus C16 = 0
-type5: tuple[tuple[int, int], ...] = tuple(
-    ij for ij in type4 if ij != (0, 5)
-)
+type5: tuple[tuple[int, int], ...] = tuple(ij for ij in type4 if ij != (0, 5))
 
 # independent components for the trigonal laue group
 # C16 = C26 = C34 = C35 = C36 = C45 = 0, C22 = C11, C23 = C13, C24 = −C14,
 # C25 = −C15, C46 = −C15, C55 = C44, C56 = C14, C66 = (C11 − C12)/2
 # independent components for the trigonal laue group
 type6: tuple[tuple[int, int], ...] = tuple(
-    ij for ij in type1
-    if ij not in {
-        (0, 5), (1, 5), (2, 3), (2, 4), (2, 5),
-        (3, 4), (1, 1), (1, 2), (1, 3), (1, 4),
-        (3, 5), (4, 4), (4, 5), (5, 5)
+    ij
+    for ij in type1
+    if ij
+    not in {
+        (0, 5),
+        (1, 5),
+        (2, 3),
+        (2, 4),
+        (2, 5),
+        (3, 4),
+        (1, 1),
+        (1, 2),
+        (1, 3),
+        (1, 4),
+        (3, 5),
+        (4, 4),
+        (4, 5),
+        (5, 5),
     }
 )
 

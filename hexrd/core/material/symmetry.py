@@ -128,20 +128,23 @@ def SYM_fillgen(t: str, sgn: Literal[1, -1] = 1) -> NDArray[np.float64]:
     mat[3, 3] = 1.0
 
     mat[0:3, 0:3] = constants.SYM_GENERATORS[t[0]]
-    mat[0:3, 3] = sgn * np.array([
-        constants.SYM_GENERATORS[t[1]],
-        constants.SYM_GENERATORS[t[2]],
-        constants.SYM_GENERATORS[t[3]],
-    ])
+    mat[0:3, 3] = sgn * np.array(
+        [
+            constants.SYM_GENERATORS[t[1]],
+            constants.SYM_GENERATORS[t[2]],
+            constants.SYM_GENERATORS[t[3]],
+        ]
+    )
 
     mat = np.broadcast_to(mat, [1, 4, 4])
     return mat
 
 
 @memoize(maxsize=20)
-def GenerateSGSym(sgnum: int, setting: int = 0) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64], bool, bool]:
-    ''' Get the generators for a space group using the generator string
-    '''
+def GenerateSGSym(
+    sgnum: int, setting: int = 0
+) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64], bool, bool]:
+    '''Get the generators for a space group using the generator string'''
     genstr = GeneratorString(sgnum)
     genmat, centrosymmetric = MakeGenerators(genstr, setting)
     symmorphic = False

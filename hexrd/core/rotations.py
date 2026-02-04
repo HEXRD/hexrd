@@ -1105,10 +1105,12 @@ def discreteFiber(c, s, B=I3, ndiv=120, invert=False, csym=None, ssym=None):
 #
 
 
-def mapAngle(ang, ang_range: Optional[Sequence[float] | NDArray[np.float64]]=None,
-             units: Literal['degrees', 'radians']=angularUnits) -> NDArray[np.float64]:
-    """ Map an angle into a specified period
-    """
+def mapAngle(
+    ang,
+    ang_range: Optional[Sequence[float] | NDArray[np.float64]] = None,
+    units: Literal['degrees', 'radians'] = angularUnits,
+) -> NDArray[np.float64]:
+    """Map an angle into a specified period"""
     if units == 'degrees':
         period = 360.0
     elif units == 'radians':
