@@ -312,7 +312,6 @@ def _parse_imgser_dict(imgser_dict: Mapping[str, OmegaImageSeries | NDArray[np.f
         elif isinstance(images_in, np.ndarray):
             # 2- or 3-d array of images
             ndim = images_in.ndim
-            images_in = np.asarray(images_in)
             if ndim == 2:
                 ims = images_in[roi[0][0] : roi[0][1], roi[1][0] : roi[1][1]]
             elif ndim == 3:
