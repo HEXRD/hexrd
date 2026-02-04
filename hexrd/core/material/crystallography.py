@@ -2227,7 +2227,7 @@ def lorentz_factor(tth: np.ndarray) -> np.ndarray:
     cth = np.cos(theta)
     sth2 = np.sin(theta) ** 2
 
-    return 1.0 / (4.0 * cth * sth2)
+    return 1.0 / (cth * sth2)
 
 
 def polarization_factor(
