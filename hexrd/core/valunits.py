@@ -117,7 +117,6 @@ class valWUnit:
         if unitType in uTDict:
             self.uT = uTDict[unitType]
         else:
-            # TODO: What does the below comment mean? Is this safe?
             # trust that unitType is correct -- may be a combined type
             self.uT = unitType
 
