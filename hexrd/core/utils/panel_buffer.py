@@ -78,7 +78,7 @@ def panel_buffer_from_str(name: str, panel: Detector) -> np.ndarray:
 
 def valid_panel_buffer_names() -> list[str]:
     dir_path = importlib.resources.files(hexrd.core.resources.panel_buffers)
-    return [importlib.resources.as_file(file_) for file_ in dir_path.iterdir() if file_.name.endswith('.npz')]
+    return [file_.name.removesuffix(".npz") for file_ in dir_path.iterdir() if file_.name.endswith('.npz')]
 
 
 # Cache this so we only read from disk once
