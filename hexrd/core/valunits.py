@@ -57,44 +57,27 @@ uTDict = dict(
     energy=energyUN,
 )
 
-# TODO: Remove this class, it only adds complexity.
-class UNames(object):
-    """Units used in this module"""
-
-    degrees = 'degrees'
-    radians = 'radians'
-
-    m = 'm'
-    mm = 'mm'
-    nm = 'nm'
-    meter = 'meter'
-    angstrom = 'angstrom'
-
-    keV = 'keV'
-    J = 'J'
-
-
 cv_dict = {
-    (UNames.degrees, UNames.radians): math.pi / 180.0,
-    (UNames.radians, UNames.degrees): 180 / math.pi,
-    (UNames.m, UNames.mm): 1.0e3,
-    (UNames.m, UNames.meter): 1.0,
-    (UNames.m, UNames.nm): 1.0e9,
-    (UNames.m, UNames.angstrom): 1.0e10,
-    (UNames.meter, UNames.mm): 1.0e3,
-    (UNames.meter, UNames.m): 1.0,
-    (UNames.meter, UNames.nm): 1.0e9,
-    (UNames.meter, UNames.angstrom): 1.0e10,
-    (UNames.mm, UNames.m): 1.0e-3,
-    (UNames.mm, UNames.meter): 1.0e-3,
-    (UNames.mm, UNames.nm): 1.0e6,
-    (UNames.mm, UNames.angstrom): 1.0e7,
-    (UNames.angstrom, UNames.m): 1.0e-10,
-    (UNames.angstrom, UNames.meter): 1.0e-10,
-    (UNames.angstrom, UNames.mm): 1.0e-7,
-    (UNames.angstrom, UNames.nm): 1.0e-1,
-    (UNames.keV, UNames.J): 1.60217646e-16,
-    (UNames.J, UNames.keV): (1 / 1.60217646e-16),
+    ('degrees', 'radians'): math.pi / 180.0,
+    ('radians', 'degrees'): 180 / math.pi,
+    ('m', 'mm'): 1.0e3,
+    ('m', 'meter'): 1.0,
+    ('m', 'nm'): 1.0e9,
+    ('m', 'angstrom'): 1.0e10,
+    ('meter', 'mm'): 1.0e3,
+    ('meter', 'm'): 1.0,
+    ('meter', 'nm'): 1.0e9,
+    ('meter', 'angstrom'): 1.0e10,
+    ('mm', 'm'): 1.0e-3,
+    ('mm', 'meter'): 1.0e-3,
+    ('mm', 'nm'): 1.0e6,
+    ('mm', 'angstrom'): 1.0e7,
+    ('angstrom', 'm'): 1.0e-10,
+    ('angstrom', 'meter'): 1.0e-10,
+    ('angstrom', 'mm'): 1.0e-7,
+    ('angstrom', 'nm'): 1.0e-1,
+    ('keV', 'J'): 1.60217646e-16,
+    ('J', 'keV'): (1 / 1.60217646e-16),
 }
 
 
