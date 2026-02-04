@@ -1,26 +1,27 @@
 import logging
+import os
+import time
+from typing import Any, Optional, Union, Sequence, cast
 
+import h5py
+from numpy.typing import NDArray
+from numpy import float32
+
+from hexrd.core import imageseries
 from hexrd.core.imageseries.baseclass import ImageSeries
 from hexrd.core.imageseries.omega import OmegaWedges
+from hexrd.core.imageseries.process import ProcessedImageSeries
 from hexrd.hedm.preprocess.profiles import (
     Eiger_Arguments,
     Dexelas_Arguments,
     HexrdPPScript_Arguments,
 )
-from hexrd.core import imageseries
-from hexrd.core.imageseries.process import ProcessedImageSeries
-import os
-import time
-from typing import Any, Optional, Union, Sequence, cast
-from numpy.typing import NDArray
-from numpy import float32
 
 logger = logging.getLogger(__name__)
 
 
 class PP_Base(object):
     PROCFMT: Optional[str] = None
-    RAWFMT: Optional[str] = None
 
     def __init__(
         self,
@@ -90,7 +91,6 @@ class PP_Eiger(PP_Base):
     """PP_Eiger"""
 
     PROCFMT = "frame-cache"
-    RAWFMT = "eiger-stream-v1"
 
     def __init__(
         self,
@@ -99,6 +99,8 @@ class PP_Eiger(PP_Base):
         panel_opts: list = [],
         frame_start: int = 0,
         style: str = "npz",
+        eiger_stream_v2_threshold: str = "threshold_1",
+        eiger_stream_v2_multiplier: float = 1.0,
     ) -> None:
         super().__init__(
             fname=fname,
@@ -107,19 +109,52 @@ class PP_Eiger(PP_Base):
             frame_start=frame_start,
             style=style,
         )
-        self.raw = imageseries.open(self.fname, format=self.RAWFMT)
+        self.raw = imageseries.open(self.fname, format=self.rawfmt)
         self.use_frame_list = self.nframes != len(self.raw)
+        self.eiger_stream_v2_threshold = eiger_stream_v2_threshold
+        self.eiger_stream_v2_multiplier = eiger_stream_v2_multiplier
         logger.info(
             f"On Init:\n\t{self.fname}, {self.nframes} frames, "
             f"{self.omwedges.nframes} omw, {len(self.raw)} total"
         )
+
+        if self.is_eiger_stream_v2:
+            logger.info(
+                "Eiger stream v2 file format detected. Threshold setting is: "
+                + self.eiger_stream_v2_threshold
+            )
+            if self.eiger_stream_v2_threshold == "man_diff":
+                logger.info(
+                    f"Eiger stream v2 multiplier is: {self.eiger_stream_v2_multiplier}"
+                )
+
+            self.raw.set_option('threshold_setting', self.eiger_stream_v2_threshold)
+            self.raw.set_option('multiplier', self.eiger_stream_v2_multiplier)
+
+    @property
+    def rawfmt(self) -> str:
+        # Open the file and check if it is eiger-stream-v1 or eiger-stream-v2
+        # Only check the format once. Cache it.
+        if not hasattr(self, '_rawfmt'):
+            v2_str = 'CHESS_EIGER_STREAM_V2'
+            fmt = 'eiger-stream-v1'
+            with h5py.File(self.fname, 'r') as f:
+                if f.attrs.get('version', None) == v2_str:
+                    fmt = 'eiger-stream-v2'
+
+            self._raw_fmt = fmt
+
+        return self._raw_fmt
+
+    @property
+    def is_eiger_stream_v2(self) -> bool:
+        return self.rawfmt == 'eiger-stream-v2'
 
 
 class PP_Dexela(PP_Base):
     """PP_Dexela"""
 
     PROCFMT = "frame-cache"
-    RAWFMT = "hdf5"
 
     RAWPATH = "/imageseries"
     DARKPCTILE = 50
@@ -143,10 +178,12 @@ class PP_Dexela(PP_Base):
             style=style,
         )
 
+        self.rawfmt = "hdf5"
+
         self._panel_id = panel_id
         # TODO is this logic applicable also for Eiger ?
         if raw_format.lower() == "hdf5":
-            self.raw = imageseries.open(self.fname, self.RAWFMT, path=self.RAWPATH)
+            self.raw = imageseries.open(self.fname, self.rawfmt, path=self.RAWPATH)
         else:
             self.raw = imageseries.open(self.fname, raw_format.lower())
         self._dark = dark
@@ -195,6 +232,8 @@ def preprocess(args: HexrdPPScript_Arguments) -> None:
             omw=omw,
             frame_start=args.start_frame,
             style=args.style,
+            eiger_stream_v2_threshold=args.eiger_stream_v2_threshold,
+            eiger_stream_v2_multiplier=args.eiger_stream_v2_multiplier,
         )
         ppe.save_processed(args.output, args.threshold)
     elif type(args) == Dexelas_Arguments:

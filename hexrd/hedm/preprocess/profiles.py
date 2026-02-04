@@ -128,10 +128,14 @@ class Eiger_Arguments(Chess_Arguments):
     profile_name = "eiger"
     # fields
     absolute_path: Optional[str] = None
+    eiger_stream_v2_threshold: str = 'threshold_1'
+    eiger_stream_v2_multiplier: float = 1.0
 
     help_messages = {
         **Chess_Arguments.help_messages,
         "absolute_path": "absolute path to image file",
+        "eiger_stream_v2_threshold": "Threshold to use for eiger-stream-v2 input file. Options are 'threshold_1', 'threshold_2', or 'man_diff', which is defined as `threshold_1 - multiplier * threshold_2`",
+        "eiger_stream_v2_multiplier": "Multiplier to use for threshold setting 'man_diff'. Unused otherwise.",
     }
 
     short_switches = {
