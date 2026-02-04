@@ -33,7 +33,7 @@ import copy
 import csv
 import os
 from math import pi
-from typing import Any, Literal, Mapping, Optional, Union, Dict, List, Tuple, TypedDict, overload
+from typing import Literal, Sequence, Optional, Union, List, Tuple, TypedDict, overload
 
 import numpy as np
 from numpy.typing import NDArray
@@ -1448,7 +1448,7 @@ class PlaneData(object):
 
     def getHKLID(
         self,
-        hkl: int | tuple[int, int, int] | NDArray[np.int_],
+        hkl: int | Sequence[int, int, int] | NDArray[np.int_],
         master: bool = False,
     ) -> List[int] | int:
         """
@@ -1484,9 +1484,10 @@ class PlaneData(object):
         if isinstance(hkl, np.ndarray):
             # if is ndarray, assume is 3xN
             return [self._getHKLID(x, master=master) for x in hkl.T]
-        elif isinstance(hkl, tuple) or isinstance(hkl, list):
+        elif isinstance(hkl, list):
             return [self._getHKLID(x, master=master) for x in hkl]
         else:
+            assert isinstance(hkl, (int, tuple))
             return self._getHKLID(hkl, master=master)
 
     def _getHKLID(
