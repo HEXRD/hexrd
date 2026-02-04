@@ -1,15 +1,3 @@
-
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-/* TODO: No printf should go here. Also, it should be possible to avoid malloc
- */
-#  include <stdio.h>
-#  include <sdlib.h>
-
-#  include "transforms_utils.h"
-#  include "transforms_prototypes.h"
-#endif
-
-
 static double
 quat_distance(size_t nsym, double * q1, double * q2, double * qsym)
 {
@@ -46,17 +34,6 @@ quat_distance(size_t nsym, double * q1, double * q2, double * qsym)
     return dist;
 }
 
-
-#if defined(XRD_INCLUDE_PYTHON_WRAPPERS) && XRD_INCLUDE_PYTHON_WRAPPERS
-
-#  if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#    define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-
-#    include <Python.h>
-#    include <numpy/arrayobject.h>
-#    include "ndargs_helper.h"
-#  endif /* XRD_SINGLE_COMPILE_UNIT */
-
 static const char *docstring_quat_distance =
     "c module implementation of quat_distance.\n"
     "Please use the Python wrapper.\n";
@@ -84,6 +61,3 @@ python_quat_distance(PyObject * self, PyObject * args)
     
     return PyFloat_FromDouble(dist);
 }
-
-
-#endif /* XRD_INCLUDE_PYTHON_WRAPPERS */

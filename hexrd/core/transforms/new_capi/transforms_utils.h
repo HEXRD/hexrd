@@ -1,10 +1,6 @@
 #ifndef TRANSFORMS_UTILS_H
 #define TRANSFORMS_UTILS_H
 
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#  include "transforms_types.h"
-#endif
-
 static const double
 m33_identity[3][3] = { { 1.0, 0.0, 0.0 },
                        { 0.0, 1.0, 0.0 },

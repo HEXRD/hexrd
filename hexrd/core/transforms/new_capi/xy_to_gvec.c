@@ -1,11 +1,3 @@
-
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#  include "transforms_utils.h"
-#  include "transforms_prototypes.h"
-#  include "ndargs_helper.h"
-#endif
-
-
 static void
 xy_to_gvec(size_t npts, double *xy, double *rMat_d, double *rMat_s,
            double *tVec_d, double *tVec_s, double *tVec_c,
@@ -89,16 +81,6 @@ xy_to_gvec(size_t npts, double *xy, double *rMat_d, double *rMat_s,
         rotate_vecs_about_axis(1, &phi, 1, n_g, 1, dHat_l, &gVec_l[3*i]);
     }
 }
-
-
-#if defined(XRD_INCLUDE_PYTHON_WRAPPERS) && XRD_INCLUDE_PYTHON_WRAPPERS
-
-#  if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#    define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-
-#    include <Python.h>
-#    include <numpy/arrayobject.h>
-#  endif /* XRD_SINGLE_COMPILE_UNIT */
 
 static const char *docstring_detectorXYToGvec =
     "c module implementation of xy_to_gvec.\n"
@@ -222,4 +204,3 @@ python_detectorXYToGvec(PyObject * self, PyObject * args)
     return PyErr_NoMemory();
 }
 
-#endif /* XRD_INCLUDE_PYTHON_WRAPPERS */

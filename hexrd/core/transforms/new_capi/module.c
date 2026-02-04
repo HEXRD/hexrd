@@ -50,9 +50,6 @@
  * statics.
  * =============================================================================
  */
-#define XRD_SINGLE_COMPILE_UNIT 1
-#define XRD_INCLUDE_PYTHON_WRAPPERS 1
-
 #include "transforms_types.h"
 #include "transforms_utils.h"
 #include "transforms_prototypes.h"

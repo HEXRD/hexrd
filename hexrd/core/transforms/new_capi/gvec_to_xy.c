@@ -1,10 +1,3 @@
-
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#  include "transforms_utils.h"
-#  include "transforms_prototypes.h"
-#  include "ndargs_helper.h"
-#endif
-
 #define GV2XY_GROUP_SIZE 128
 #define GVEC_TO_XY_FUNC gvec_to_xy_vect
 
@@ -592,15 +585,6 @@ gvec_to_xy_vect(size_t npts, const double *gVec_cs,
                         result, flags, rays_to_planar_detector, &planar_detector_data);
 }
 
-#if defined(XRD_INCLUDE_PYTHON_WRAPPERS) && XRD_INCLUDE_PYTHON_WRAPPERS
-
-#  if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#    define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-
-#    include <Python.h>
-#    include <numpy/arrayobject.h>
-#  endif /* XRD_SINGLE_COMPILE_UNIT */
-
 static const char *docstring_gvecToDetectorXY =
     "c module implementation of gvec_to_xy (single sample).\n"
     "Please use the Python wrapper.\n";
@@ -828,6 +812,3 @@ python_gvecToDetectorXYArray(PyObject * self, PyObject * args)
 
     return PyErr_NoMemory();
 }
-
-
-#endif /* XRD_INCLUDE_PYTHON_WRAPPERS */

@@ -1,10 +1,6 @@
 #ifndef XRD_TRANSFORMS_PROTOTYPES_H
 #define XRD_TRANSFORMS_PROTOTYPES_H
 
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#  include "transforms_types.h"
-#endif
-
 #define GV2XY_SINGLE_RMAT_S 1
 static void
 gvec_to_xy(size_t npts, const double *gVec_c_Ptr, const double *rMat_d_Ptr,

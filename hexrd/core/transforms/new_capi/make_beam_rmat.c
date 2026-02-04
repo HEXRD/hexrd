@@ -1,11 +1,3 @@
-
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#  include "transforms_utils.h"
-#  include "transforms_prototypes.h"
-#  include "ndargs_helper.h"
-#endif
-
-
 static int 
 make_beam_rmat(double * bPtr, double * ePtr, double * rPtr)
 {
@@ -55,16 +47,6 @@ make_beam_rmat(double * bPtr, double * ePtr, double * rPtr)
 
     return 0; /* no error */
 }
-
-
-#if defined(XRD_INCLUDE_PYTHON_WRAPPERS) && XRD_INCLUDE_PYTHON_WRAPPERS
-
-#  if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#    define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-
-#    include <Python.h>
-#    include <numpy/arrayobject.h>
-#  endif /* XRD_SINGLE_COMPILE_UNIT */
 
 static const char *docstring_makeEtaFrameRotMat =
     "c module implementation of make_beam_mat.\n"
@@ -127,6 +109,3 @@ python_makeEtaFrameRotMat(PyObject * self, PyObject * args)
  done:
     return (PyObject *)rMat;
 }
-
-
-#endif /* XRD_INCLUDE_PYTHON_WRAPPERS */
