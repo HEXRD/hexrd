@@ -138,7 +138,3 @@ if __name__ == '__main__':
         ctol=ctol,
         vtol=vtol,
     )
-    if cresult:
-        print("test passed")
-    else:
-        print("test failed")
