@@ -34,7 +34,7 @@ from hexrd.core.fitting.calibration.relative_constraints import (
 # First is the axes_order, second is extrinsic
 DEFAULT_EULER_CONVENTION = ('zxz', False)
 
-EULER_CONVENTION_TYPES = dict | tuple | None
+EULER_CONVENTION_TYPES = dict | tuple
 
 
 def create_instr_params(
@@ -177,9 +177,6 @@ def _add_constrained_detector_parameters(
     if euler_convention is not None:
         # Convert the tilt to the specified Euler convention
         normalized = normalize_euler_convention(euler_convention)
-        if normalized is None:
-            raise ValueError('euler_convention cannot be None in this context.')
-
         rme = RotMatEuler(
             np.zeros(
                 3,
@@ -509,9 +506,6 @@ def _tilt_to_rmat(
         return rotMatOfExpMap(tilt)
 
     normalized = normalize_euler_convention(euler_convention)
-    if normalized is None:
-        raise ValueError('euler_convention cannot be None in this context.')
-
     return make_rmat_euler(
         np.radians(tilt),
         axes_order=normalized[0],
@@ -735,9 +729,7 @@ EULER_PARAM_NAMES_MAPPING = {
 }
 
 
-def normalize_euler_convention(
-    euler_convention: EULER_CONVENTION_TYPES,
-) -> tuple | None:
+def normalize_euler_convention(euler_convention: EULER_CONVENTION_TYPES) -> tuple:
     if isinstance(euler_convention, dict):
         return (
             euler_convention['axes_order'],

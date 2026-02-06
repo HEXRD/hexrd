@@ -5,7 +5,7 @@
 
 from __future__ import absolute_import
 import numpy as np
-from hexrd.core.transforms.new_capi.xf_new_capi import make_detector_rmat
+from hexrd.core.transforms.xfcapi import make_detector_rmat
 
 
 def test_make_detector_rmat_from_file(test_data_dir):

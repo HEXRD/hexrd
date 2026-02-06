@@ -1,10 +1,4 @@
-
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#  include "transforms_utils.h"
-#  include "transforms_prototypes.h"
-#endif
-
-XRD_CFUNCTION void
+static void
 validate_angle_ranges(size_t na, double *aPtr, size_t nr, double *minPtr,
                       double *maxPtr, bool *rPtr, int ccw)
 {
@@ -77,22 +71,11 @@ validate_angle_ranges(size_t na, double *aPtr, size_t nr, double *minPtr,
     }
 }
 
-
-#if defined(XRD_INCLUDE_PYTHON_WRAPPERS) && XRD_INCLUDE_PYTHON_WRAPPERS
-
-#  if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#    define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-
-#    include <Python.h>
-#    include <numpy/arrayobject.h>
-#    include "ndargs_helper.h"
-#  endif /* XRD_SINGLE_COMPILE_UNIT */
-
-XRD_PYTHON_WRAPPER const char *docstring_validateAngleRanges =
+static const char *docstring_validateAngleRanges =
     "c module implementation of validate_angle_ranges.\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_validateAngleRanges(PyObject * self, PyObject * args)
 {
     nah_array ang_list = { NULL, "ang_list", NAH_TYPE_DP_FP, { NAH_DIM_ANY }};
@@ -145,6 +128,3 @@ python_validateAngleRanges(PyObject * self, PyObject * args)
   Py_XDECREF(result);
   return NULL;
 }
-
-#endif /* XRD_INCLUDE_PYTHON_WRAPPERS */
-

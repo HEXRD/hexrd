@@ -494,7 +494,6 @@ def _filter_hkls_eta_ome(
     return_mask: Literal[False] = False,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]: ...
 
-
 @overload
 def _filter_hkls_eta_ome(
     hkls: NDArray[np.float64],
@@ -511,10 +510,7 @@ def _filter_hkls_eta_ome(
     eta_range: Sequence[tuple[float, float]],
     ome_range: Sequence[tuple[float, float]],
     return_mask: bool = False,
-) -> (
-    tuple[NDArray[np.float64], NDArray[np.float64]]
-    | tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]
-):
+) -> tuple[NDArray[np.float64], NDArray[np.float64]] | tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """
     given a set of hkls and angles, filter them by the
     eta and omega ranges
