@@ -1961,7 +1961,7 @@ class HEDMInstrument(object):
 
                     peak_id = patch_id
                     coms = np.vstack(
-                        [x.weighted_centroid for x in regionprops(labels, patch_data)]
+                        [x.centroid_weighted for x in regionprops(labels, patch_data)]
                     )
                     closest_peak_idx = np.argmin(
                         np.sum(
