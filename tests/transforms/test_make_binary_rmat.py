@@ -5,8 +5,8 @@
 
 from __future__ import absolute_import
 import numpy as np
-from hexrd.transforms.new_capi.xf_new_capi import make_binary_rmat
-from hexrd.rotations import quatOfAngleAxis, rotMatOfQuat
+from hexrd.core.transforms.xfcapi import make_binary_rmat
+from hexrd.core.rotations import quatOfAngleAxis, rotMatOfQuat
 from transforms.common import random_unit_vectors
 
 

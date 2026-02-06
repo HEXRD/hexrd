@@ -4,7 +4,7 @@
 
 from __future__ import absolute_import
 import numpy as np
-from hexrd.core.transforms.new_capi.xf_new_capi import quat_distance
+from hexrd.core.transforms.xfcapi import quat_distance
 
 # from common import  random_unit_vectors
 # from hexrd.core.rotations import quatOfLaueGroup

@@ -5,7 +5,7 @@ from warnings import warn
 
 # hexrd imports
 # -------------
-from hexrd.core.transforms.new_capi.xf_new_capi import angles_to_gvec
+from hexrd.core.transforms.xfcapi import angles_to_gvec
 from hexrd.core import constants
 from hexrd.powder.wppf.phase import Material_Rietveld
 

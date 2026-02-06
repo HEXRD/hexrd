@@ -9,7 +9,7 @@ from __future__ import absolute_import
 from collections import namedtuple
 import pytest
 import numpy as np
-from hexrd.core.transforms.new_capi.xf_new_capi import xy_to_gvec
+from hexrd.core.transforms.xfcapi import xy_to_gvec
 
 
 Experiment = namedtuple(
