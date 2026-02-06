@@ -225,7 +225,7 @@ def PrintPossibleSG(xtal_sys):
         pstr = f"{i}:{pstr_spacegroup[i - 1]}\t"
         line += pstr
 
-        if j % 4 == 0 or i == sgmax:
+        if j % 4 == 0 or j == sgmax:
             logger.info(line.rstrip())
             line = ""
 
