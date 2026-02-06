@@ -183,5 +183,4 @@ if __name__ == '__main__':
     library = sys.argv[1]
     destination = sys.argv[2]
 
-    logger.debug(f'Installing "{library}" to "{destination}"')
     install(library, destination)
