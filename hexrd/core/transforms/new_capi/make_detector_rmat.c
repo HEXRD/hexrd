@@ -1,12 +1,4 @@
-
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#  include "transforms_utils.h"
-#  include "transforms_prototypes.h"
-#endif
-
-
-XRD_CFUNCTION void
-make_detector_rmat(double * tPtr, double * rPtr)
+static void make_detector_rmat(double * tPtr, double * rPtr)
 {
     int i;
     double c[3],s[3];
@@ -28,20 +20,11 @@ make_detector_rmat(double * tPtr, double * rPtr)
 }
 
 
-#if defined(XRD_INCLUDE_PYTHON_WRAPPERS) && XRD_INCLUDE_PYTHON_WRAPPERS
-
-#  if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#    define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-
-#    include <Python.h>
-#    include <numpy/arrayobject.h>
-#  endif /* XRD_SINGLE_COMPILE_UNIT */
-
-XRD_PYTHON_WRAPPER const char *docstring_makeDetectorRotMat =
+static const char *docstring_makeDetectorRotMat =
     "c module implementation of makeDetectorRotMat.\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_makeDetectorRotMat(PyObject * self, PyObject * args)
 {
     PyArrayObject *tiltAngles, *rMat;
@@ -74,5 +57,3 @@ python_makeDetectorRotMat(PyObject * self, PyObject * args)
 
     return((PyObject*)rMat);
 }
-
-#endif /* XRD_INCLUDE_PYTHON_WRAPPERS */
