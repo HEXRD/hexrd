@@ -35,6 +35,7 @@ from hexrd.powder.wppf.peakfunctions import (
 )
 from hexrd.powder.wppf import wppfsupport
 from hexrd.powder.wppf.spectrum import Spectrum
+from hexrd.powder.wppf.tds import TDS
 from hexrd.powder.wppf.phase import (
     Phases_LeBail,
     Phases_Rietveld,
@@ -59,6 +60,11 @@ class AbstractWPPF(ABC):
 
     @abstractmethod
     def _set_phase_params_vals_to_class(self, params: lmfit.Parameters):
+        pass
+
+    @abstractmethod
+    def on_smoothing_modified():
+        # Update anything that depends on smoothing (i. e., UVW)
         pass
 
     @abstractmethod
@@ -595,6 +601,9 @@ class AbstractWPPF(ABC):
         if self.amorphous_model is not None:
             self._set_amorphous_params_vals_to_class(params)
 
+        # In case U, V, or W were modified...
+        self.on_smoothing_modified()
+
     def _set_amorphous_params_vals_to_class(self, params: lmfit.Parameters):
         if self.amorphous_model is None:
             # Can't do anything
@@ -1030,6 +1039,10 @@ class LeBail(AbstractWPPF):
 
         if updated_lp:
             self.calctth()
+
+    def on_smoothing_modified(self):
+        # Nothing to do in LeBail for now...
+        pass
 
     def _get_phase(self, name: str, wavelength_type: str):
         # LeBail just ignores the wavelength type for phases
@@ -1488,6 +1501,7 @@ class Rietveld(AbstractWPPF):
         amorphous_model=None,
         reset_background_params=True,
         texture_model=None,
+        tds_model=None,
         eta_min=-180,
         eta_max=180,
         eta_step=5.0,
@@ -1499,6 +1513,7 @@ class Rietveld(AbstractWPPF):
         self.peakshape = peakshape
         self.spectrum_expt = expt_spectrum
         self.amorphous_model = amorphous_model
+        self.tds_model = tds_model
 
         # extent of 2D data in the azimuth
         # important for texture analysis
@@ -1667,6 +1682,24 @@ class Rietveld(AbstractWPPF):
             self.calcsf()
 
         self.phases.phase_fraction = pf / np.sum(pf)
+
+    def on_smoothing_modified(self):
+        self.update_tds_model_smoothing()
+
+    def update_tds_model_smoothing(self):
+        # Update any models that depend upon smoothing parameters.
+        # Currently, only the TDS models depend on the parameters.
+        if self.tds_model is None:
+            # Nothing to do
+            return
+
+        if any(not hasattr(self, x) for x in ['U', 'V', 'W']):
+            # They haven't been set yet. That's okay, we'll update when
+            # they are modified.
+            return
+
+        # Update smoothing on all materials from uvw
+        self.tds_model.cagliotti = [self.U, self.V, self.W]
 
     def _get_phase(self, name: str, wavelength_type: str):
         # Rietveld uses the wavelength type
@@ -1898,6 +1931,9 @@ class Rietveld(AbstractWPPF):
                     p, k, Icomputed[p][k], texture_factor=texture_factor
                 )
 
+                if self._has_tds_model(p, k):
+                    y += self.calculate_scaled_tds_signal(p, k)
+
         if self.amorphous_model is not None:
             y += self.amorphous_model.amorphous_lineout
 
@@ -1952,6 +1988,9 @@ class Rietveld(AbstractWPPF):
                         texture_factor=None,
                         fullrange=True,
                     )
+
+                    if self._has_tds_model(p, k):
+                        y += self.calculate_scaled_tds_signal(p, k)
 
             y += self.background.y
             if self.amorphous_model is not None:
@@ -2008,6 +2047,9 @@ class Rietveld(AbstractWPPF):
                             texture_factor=texture_factor,
                             fullrange=True,
                         )
+
+                        if self._has_tds_model(p, k):
+                            y += self.calculate_scaled_tds_signal(p, k)
 
                 y += self.background.y
                 if self.amorphous_model is not None:
@@ -2108,6 +2150,36 @@ class Rietveld(AbstractWPPF):
                 return False
 
         return True
+
+    def _has_tds_model(self, phase: str, wlen_name: str) -> bool:
+        # Check if a TDS model exists for this phase and wavelength
+        if self.tds_model is None:
+            return False
+
+        return wlen_name in self.tds_model.TDSmodels.get(phase, {})
+
+    @property
+    def tds_model(self) -> TDS | None:
+        return self._tds_model
+
+    @tds_model.setter
+    def tds_model(self, v: TDS | None):
+        self._tds_model = v
+        self.update_tds_model_smoothing()
+
+    def calculate_scaled_tds_signal(
+        self, phase_name: str, wavelength_name: str
+    ) -> float:
+        # Note: the TDS models properly defined to call this function.
+        # Errors will occur if the phase/wavelength don't exist.
+        p = phase_name
+        k = wavelength_name
+
+        lp = self.polfactor_full
+        pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
+        tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
+        weight = self.phases.wavelength[k][1]
+        return self.scale * weight * pf * lp * tds_signal
 
     @property
     def phases(self):
@@ -2286,6 +2358,12 @@ class Rietveld(AbstractWPPF):
             return None
 
         return self._eta_mask
+
+    @property
+    def polfactor_full(self):
+        t = np.radians(self.tds_model.tth)
+        ctth = np.cos(t)
+        return 1 + self.Ph * ctth**2
 
     def compute_texture_data(
         self,
