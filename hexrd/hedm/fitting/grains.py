@@ -248,7 +248,7 @@ def objFuncFitGrain(
             instrument.detector_parameters[det_key]
         )
 
-        results = reflections_dict[det_key]
+        results = reflections_dict.get(det_key, [])
         if not isinstance(results, dict) and len(results) == 0:
             continue
 
