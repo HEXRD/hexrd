@@ -222,11 +222,12 @@ def PrintPossibleSG(xtal_sys):
 
     for i in range(sgmin, sgmax + 1):
         j = i - sgmin + 1
-        pstr = f'{i}:{pstr_spacegroup[i - 1]}\t'
+        pstr = f"{i}:{pstr_spacegroup[i - 1]}\t"
+        line += pstr
+
         if j % 4 == 0 or j == sgmax:
-            print(pstr)
-        else:
-            print(pstr, end='')
+            logger.info(line.rstrip())
+            line = ""
 
     return sgmin, sgmax
 

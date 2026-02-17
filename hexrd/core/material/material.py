@@ -1562,26 +1562,3 @@ def map_hkls_to_new(old_pdata, new_pdata):
         'return_indices': True,
     }
     return np.intersect1d(**kwargs)[1:]
-
-
-#
-#  ============================== Executable section for testing
-#
-
-
-if __name__ == '__main__':
-    #
-    #  For testing
-    #
-    import sys
-
-    if len(sys.argv) == 1:
-        print("need argument:  materials.cfg")
-        sys.exit()
-
-    ml = loadMaterialList(sys.argv[1])
-
-    print('MATERIAL LIST\n')
-    print(('   from file:  ', sys.argv[1]))
-    for m in ml:
-        print(m)
