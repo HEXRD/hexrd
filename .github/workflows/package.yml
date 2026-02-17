@@ -61,6 +61,7 @@ jobs:
       env:
         CONDA_OVERRIDE_OSX: '11.0'
         MACOSX_DEPLOYMENT_TARGET: '11.0'
+        CONDA_PKGS_DIRS: ${{ runner.temp }}/conda_pkgs
       run: |
           conda activate hexrd
           # For some reason, we need to set this in the environment as well.
