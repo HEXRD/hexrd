@@ -689,3 +689,114 @@ def quat_distance(
     # C module expects quaternions in row major, numpy code in column major.
     qsym = np.ascontiguousarray(qsym.T)
     return transforms_c_api.quat_distance(q1, q2, qsym)
+
+####################
+# Sunset functions #
+####################
+
+
+def anglesToGVec(*args, **kwargs):
+    """Deprecated alias for angles_to_gvec."""
+    raise RuntimeError(
+        "anglesToGVec is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#anglestogvec"
+    )
+
+
+def anglesToDVec(*args, **kwargs):
+    """Deprecated alias for angles_to_dvec."""
+    raise RuntimeError(
+        "anglesToDVec is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#anglestodvec"
+    )
+
+
+def detectorXYToGvec(*args, **kwargs):
+    """Deprecated alias for xy_to_gvec."""
+    raise RuntimeError(
+        "detectorXYToGvec is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#detectorxytogvec"
+    )
+
+
+def gvecToDetectorXY(*args, **kwargs):
+    """Deprecated alias for gvec_to_xy."""
+    raise RuntimeError(
+        "gvecToDetectorXY is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#gvectodetectorxy"
+    )
+
+
+def gvecToDetectorXYArray(*args, **kwargs):
+    """Deprecated alias for gvec_to_xy."""
+    raise RuntimeError(
+        "gvecToDetectorXYArray is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#gvectodetectorxyarray"
+    )
+
+
+def oscillAnglesOfHKLs(*args, **kwargs):
+    """Deprecated alias for oscill_angles_of_hkls."""
+    raise RuntimeError(
+        "oscillAnglesOfHKLs is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#oscillanglesofhkls"
+    )
+
+
+def angularDifference(*args, **kwargs):
+    """Deprecated alias for angular_difference."""
+    raise RuntimeError(
+        "angularDifference is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#angulardifference"
+    )
+
+
+def makeEtaFrameRotMat(*args, **kwargs):
+    """Deprecated alias for make_beam_rmat."""
+    raise RuntimeError(
+        "makeEtaFrameRotMat is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#makeetaframerotmat"
+    )
+
+
+def makeOscillRotMat(*args, **kwargs):
+    """Deprecated alias for make_oscill_rmat."""
+    raise RuntimeError(
+        "makeOscillRotMat is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#makeoscillrotmat"
+    )
+
+
+def makeOscillRotMatArray(*args, **kwargs):
+    """Deprecated alias for make_oscill_rmat_array."""
+    raise RuntimeError(
+        "makeOscillRotMatArray is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#makeoscillrotmatarray"
+    )
+
+
+def makeRotMatOfExpMap(*args, **kwargs):
+    """Deprecated alias for make_rmat_of_expmap."""
+    raise RuntimeError(
+        "makeRotMatOfExpMap is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#makerotmatofexpmap"
+    )
+
+
+def makeRotMatOfQuat(*args, **kwargs):
+    """Deprecated alias for make_rot_mat_of_quat."""
+    raise RuntimeError(
+        "makeRotMatOfQuat is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#makerotmatofquat"
+    )
+
+
+def mapAngle(*args, **kwargs):
+    """Deprecated alias for map_angle."""
+    raise RuntimeError(
+        "mapAngle is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#mapangle"
+    )
+
+
+def rowNorm(*args, **kwargs):
+    """Deprecated alias for row_norm."""
+    raise RuntimeError(
+        "rowNorm is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#rownorm"
+    )
+
+
+def unitRowVector(*args, **kwargs):
+    """Deprecated alias for unit_vector."""
+    raise RuntimeError(
+        "unitRowVector is deprecated, refer to the transition instructions here: https://github.com/HEXRD/hexrd/wiki/old_xfcapi-Conversion-Guide#unitrowvector"
+    )
+
+
