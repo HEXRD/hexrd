@@ -154,23 +154,9 @@ def get_cpp_extensions():
     return [transforms_ext, inverse_distortion_ext]
 
 
-def get_old_xfcapi_extension_modules():
-    # for transforms
-    srclist = ['transforms_CAPI.c', 'transforms_CFUNC.c']
-    srclist = [os.path.join('hexrd/core/transforms', f) for f in srclist]
-    transforms_mod = Extension(
-        'hexrd.core.extensions._transforms_CAPI',
-        sources=srclist,
-        include_dirs=[np_include_dir],
-        extra_compile_args=compiler_flags,
-    )
-
-    return [transforms_mod]
-
-
 def get_new_xfcapi_extension_modules():
     transforms_mod = Extension(
-        'hexrd.core.extensions._new_transforms_capi',
+        'hexrd.core.extensions.transforms_c_api',
         sources=['hexrd/core/transforms/new_capi/module.c'],
         include_dirs=[np_include_dir],
         extra_compile_args=compiler_flags,
@@ -184,7 +170,6 @@ def get_extension_modules():
     return [
         item
         for sublist in (
-            get_old_xfcapi_extension_modules(),
             get_new_xfcapi_extension_modules(),
             get_convolution_extensions(),
             get_cpp_extensions(),

@@ -1,12 +1,4 @@
-
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#  include "transforms_utils.h"
-#  include "transforms_prototypes.h"
-#  include "ndargs_helper.h"
-#endif
-
-
-XRD_CFUNCTION int
+static int
 unit_row_vector(size_t n, double * cIn, double * cOut)
 {
     size_t j;
@@ -31,7 +23,7 @@ unit_row_vector(size_t n, double * cIn, double * cOut)
     }
 }
 
-XRD_CFUNCTION void
+static void
 unit_row_vectors(size_t m, size_t n, double *cIn, double *cOut)
 {
     size_t i, j;
@@ -55,25 +47,15 @@ unit_row_vectors(size_t m, size_t n, double *cIn, double *cOut)
     }
 }
 
-
-#if defined(XRD_INCLUDE_PYTHON_WRAPPERS) && XRD_INCLUDE_PYTHON_WRAPPERS
-
-#  if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#    define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-
-#    include <Python.h>
-#    include <numpy/arrayobject.h>
-#  endif /* XRD_SINGLE_COMPILE_UNIT */
-
-XRD_PYTHON_WRAPPER const char *docstring_unitRowVector =
+static const char *docstring_unitRowVector =
     "c module implementation of unit_row_vector (one row).\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER const char *docstring_unitRowVectors =
+static const char *docstring_unitRowVectors =
     "c module implementation of unit_row_vector (multiple rows).\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_unitRowVector(PyObject * self, PyObject * args)
 {
     PyArrayObject *aop_out = NULL;
@@ -110,7 +92,7 @@ python_unitRowVector(PyObject * self, PyObject * args)
 }
 
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_unitRowVectors(PyObject *self, PyObject *args)
 {
     PyArrayObject *aop_out = NULL;
@@ -140,6 +122,3 @@ python_unitRowVectors(PyObject *self, PyObject *args)
 
     return (PyObject*)aop_out;
 }
-
-
-#endif /* XRD_INCLUDE_PYTHON_WRAPPERS */

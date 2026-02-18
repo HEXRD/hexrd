@@ -1,13 +1,4 @@
-
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#  include "transforms_utils.h"
-#  include "transforms_prototypes.h"
-#  include "ndargs_helper.h"
-#endif
-
-
-XRD_CFUNCTION int 
-make_beam_rmat(double * bPtr, double * ePtr, double * rPtr)
+static int  make_beam_rmat(double * bPtr, double * ePtr, double * rPtr)
 {
     /*
      * This function generates a COB matrix that takes components in the
@@ -57,20 +48,11 @@ make_beam_rmat(double * bPtr, double * ePtr, double * rPtr)
 }
 
 
-#if defined(XRD_INCLUDE_PYTHON_WRAPPERS) && XRD_INCLUDE_PYTHON_WRAPPERS
-
-#  if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#    define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-
-#    include <Python.h>
-#    include <numpy/arrayobject.h>
-#  endif /* XRD_SINGLE_COMPILE_UNIT */
-
-XRD_PYTHON_WRAPPER const char *docstring_makeEtaFrameRotMat =
+static const char *docstring_makeEtaFrameRotMat =
     "c module implementation of make_beam_mat.\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_makeEtaFrameRotMat(PyObject * self, PyObject * args)
 {
     PyArrayObject *rMat=NULL;
@@ -127,6 +109,3 @@ python_makeEtaFrameRotMat(PyObject * self, PyObject * args)
  done:
     return (PyObject *)rMat;
 }
-
-
-#endif /* XRD_INCLUDE_PYTHON_WRAPPERS */

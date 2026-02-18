@@ -1,12 +1,4 @@
-
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#  include "transforms_utils.h"
-#  include "transforms_prototypes.h"
-#  include "ndargs_helper.h"
-#endif
-
-
-XRD_CFUNCTION void
+static void
 xy_to_gvec(size_t npts, double *xy, double *rMat_d, double *rMat_s,
            double *tVec_d, double *tVec_s, double *tVec_c,
            double *beamVec, double *etaVec,
@@ -90,17 +82,7 @@ xy_to_gvec(size_t npts, double *xy, double *rMat_d, double *rMat_s,
     }
 }
 
-
-#if defined(XRD_INCLUDE_PYTHON_WRAPPERS) && XRD_INCLUDE_PYTHON_WRAPPERS
-
-#  if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#    define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-
-#    include <Python.h>
-#    include <numpy/arrayobject.h>
-#  endif /* XRD_SINGLE_COMPILE_UNIT */
-
-XRD_PYTHON_WRAPPER const char *docstring_detectorXYToGvec =
+static const char *docstring_detectorXYToGvec =
     "c module implementation of xy_to_gvec.\n"
     "Please use the Python wrapper.\n";
 
@@ -127,7 +109,7 @@ XRD_PYTHON_WRAPPER const char *docstring_detectorXYToGvec =
   gvec_l -- (n, 3) ndarray containing the associated G vector directions in the
          LAB FRAME associated with gVecs
 */
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_detectorXYToGvec(PyObject * self, PyObject * args)
 {
     /* Right now, the Python wrapper guarantees that:
@@ -221,5 +203,3 @@ python_detectorXYToGvec(PyObject * self, PyObject * args)
     
     return PyErr_NoMemory();
 }
-
-#endif /* XRD_INCLUDE_PYTHON_WRAPPERS */
