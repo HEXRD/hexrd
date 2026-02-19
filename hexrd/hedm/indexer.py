@@ -80,7 +80,7 @@ def paintGrid(
     quats : (4, N) ndarray
         hstacked array of trial orientations in the form of unit quaternions.
     etaOmeMaps : object
-        an spherical map object of type `hexrd.hedm.instrument.GenerateEtaOmeMaps`.
+        an spherical map object of type `hexrd.core.instrument.GenerateEtaOmeMaps`.
     threshold : float, optional
         threshold value on the etaOmeMaps.
     bMat : (3, 3) ndarray, optional
