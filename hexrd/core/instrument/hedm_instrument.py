@@ -402,7 +402,7 @@ def max_tth(instr):
 
     Parameters
     ----------
-    instr : hexrd.hedm.instrument.HEDMInstrument instance
+    instr : hexrd.core.instrument.HEDMInstrument instance
         the instrument class to evalutate.
 
     Returns
