@@ -2,14 +2,14 @@
 
 import warnings
 
-from dectris.compression import decompress
 import h5py
 import numpy as np
 
 from hexrd.core.utils.hdf5 import unwrap_h5_to_dict
 
-from . import ImageSeriesAdapter
 from ..imageseriesiter import ImageSeriesIterator
+from . import ImageSeriesAdapter
+from .eiger import decompress_frame
 
 
 class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
@@ -53,7 +53,7 @@ class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
         entry = self._data_group[str(idx)]
         d = {}
         unwrap_h5_to_dict(entry, d)
-        data = _decompress_frame(d)
+        data = decompress_frame(d)
         if rest is None:
             return data
         else:
@@ -111,17 +111,3 @@ class EigerStreamV1ImageSeriesAdapter(ImageSeriesAdapter):
     @property
     def shape(self):
         return tuple(self._first_data_entry['shape'][()])
-
-
-def _decompress_frame(d: dict) -> np.ndarray:
-    compression_type = d['compression_type']
-    dtype = d['dtype']
-    shape = d['shape']
-    data = d['data']
-    elem_size = d['elem_size']
-
-    if compression_type is None:
-        return np.frombuffer(data, dtype=dtype).reshape(shape)
-
-    decompressed_bytes = decompress(data, compression_type, elem_size=elem_size)
-    return np.frombuffer(decompressed_bytes, dtype=dtype).reshape(shape)
