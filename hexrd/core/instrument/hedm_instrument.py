@@ -246,6 +246,7 @@ def _parse_imgser_dict(
     imgser_dict: Mapping[str, OmegaImageSeries | NDArray[np.float64]],
     det_key: str,
     roi: Optional[tuple[tuple[int, int], ...]] = None,
+    group: Optional[str] = None,
 ) -> OmegaImageSeries | ProcessedImageSeries | NDArray[np.float64]:
     """
     Associates a dict of imageseries to the target panel(s).
@@ -262,6 +263,9 @@ def _parse_imgser_dict(
         The roi of the target images.  Format is
             ((row_start, row_stop), (col_start, col_stop))
         The stops are used in the normal sense of a slice. The default is None.
+    group : str or None, optional
+        The detector group name. Used as a fallback key when `det_key` is not
+        found in `imgser_dict`. The default is None.
 
     Raises
     ------
@@ -290,6 +294,9 @@ def _parse_imgser_dict(
             img_keys: NDArray[np.str_] = np.asarray(list(imgser_dict.keys()))
             matched_det_key = img_keys[matched_det_keys][0]
             images_in = imgser_dict[matched_det_key]
+        elif group is not None and group in imgser_dict:
+            # match by detector group name
+            images_in = imgser_dict[group]
         else:
             raise RuntimeError(
                 f"neither '{det_key}' nor '{multi_ims_key}' found"
@@ -1140,7 +1147,9 @@ class HEDMInstrument(object):
             ptth, peta = panel.pixel_angles()
 
             # grab imageseries for this detector
-            ims = _parse_imgser_dict(imgser_dict, det_key, roi=panel.roi)
+            ims = _parse_imgser_dict(
+                imgser_dict, det_key, roi=panel.roi, group=panel.group
+            )
             assert isinstance(ims, OmegaImageSeries)
 
             # grab omegas from imageseries and squawk if missing
@@ -1321,7 +1330,9 @@ class HEDMInstrument(object):
 
         images = []
         for detector_id, panel in self.detectors.items():
-            images.append(_parse_imgser_dict(imgser_dict, detector_id, roi=panel.roi))
+            images.append(_parse_imgser_dict(
+                imgser_dict, detector_id, roi=panel.roi, group=panel.group
+            ))
 
         panels = [self.detectors[k] for k in self.detectors]
         instr_cfgs = [make_instr_cfg(x) for x in panels]
@@ -1677,7 +1688,7 @@ class HEDMInstrument(object):
         for detector_id, panel in self.detectors.items():
             # pull out the OmegaImageSeries for this panel from input dict
             omega_image_series = _parse_imgser_dict(
-                imgser_dict, detector_id, roi=panel.roi
+                imgser_dict, detector_id, roi=panel.roi, group=panel.group
             )
             assert isinstance(omega_image_series, OmegaImageSeries)
 
@@ -1889,7 +1900,7 @@ class HEDMInstrument(object):
                 npdiv,
             )
             omega_image_series = _parse_imgser_dict(
-                imgser_dict, detector_id, roi=panel.roi
+                imgser_dict, detector_id, roi=panel.roi, group=panel.group
             )
             assert isinstance(omega_image_series, OmegaImageSeries)
 
