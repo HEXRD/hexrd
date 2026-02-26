@@ -9,13 +9,6 @@ from scipy.sparse import csr_matrix, save_npz
 from hexrd.core.imageseries.load import eiger
 from hexrd.core.imageseries.load.eiger_stream_v1 import EigerStreamV1ImageSeriesAdapter
 
-try:
-    import lz4.block
-
-    has_lz4 = True
-except ImportError:
-    has_lz4 = False
-
 
 def _compress_array_lz4(array: np.ndarray):
     # Convert array to bytes
@@ -61,8 +54,8 @@ def _compress_array_csrnpz(array: np.ndarray):
     }
 
 
-@pytest.mark.skipif(not has_lz4, reason="lz4 is not available")
 def test_lz4_decompression():
+    pytest.importorskip("lz4", reason="lz4 is not available")
     # Create a random array
     original_array = np.random.randint(0, 256, size=(100, 100), dtype=np.uint8)
     compressed_dict = _compress_array_lz4(original_array)
@@ -132,6 +125,8 @@ def test_csrnpz_from_hdf5(tmp_path: Path):
 
 
 def test_lz4_from_hdf5(tmp_path: Path):
+    pytest.importorskip("lz4", reason="lz4 is not available")
+
     temp_file = tmp_path / "test_lz4.h5"
     # Create a random array
     original_array = np.random.randint(0, 256, size=(100, 100), dtype=np.uint8)

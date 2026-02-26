@@ -43,6 +43,8 @@ def test_csrnpz_from_hdf5(tmp_path: Path):
 
 
 def test_lz4_from_hdf5(tmp_path: Path):
+    pytest.importorskip("lz4", reason="lz4 is not available")
+
     temp_file = tmp_path / "test_lz4.h5"
     # Create a random array
     original_array = np.random.randint(0, 256, size=(100, 100), dtype=np.uint8)
