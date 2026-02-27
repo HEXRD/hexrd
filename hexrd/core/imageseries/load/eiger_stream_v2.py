@@ -1,23 +1,28 @@
-"""HDF5 adapter class
-"""
+"""HDF5 adapter class"""
 
-from typing import Any
 import warnings
+from typing import Any
 
-from dectris.compression import decompress
 import h5py
 import numpy as np
 
 from hexrd.core.utils.hdf5 import unwrap_h5_to_dict
 
-from . import ImageSeriesAdapter
 from ..imageseriesiter import ImageSeriesIterator
+from . import ImageSeriesAdapter
+from .eiger import decompress_frame
 
 
 class EigerStreamV2ImageSeriesAdapter(ImageSeriesAdapter):
     format = 'eiger-stream-v2'
 
-    def __init__(self, fname, **kwargs):
+    def __init__(
+        self,
+        fname,
+        threshold_setting: str = 'threshold_1',
+        multiplier: float = 1,
+        **kwargs,
+    ):
         if isinstance(fname, h5py.File):
             self.__h5name = fname.filename
             self.__h5file = fname
@@ -25,8 +30,8 @@ class EigerStreamV2ImageSeriesAdapter(ImageSeriesAdapter):
             self.__h5name = fname
             self.__h5file = h5py.File(self.__h5name, 'r')
 
-        self.threshold_setting = kwargs.pop('threshold_setting', 'threshold_1')
-        self.multiplier = kwargs.pop('multiplier', 1)
+        self.threshold_setting = threshold_setting
+        self.multiplier = multiplier
 
         self.__data_group_path = '/data'
         self._load_metadata()
@@ -207,7 +212,7 @@ class EigerStreamV2ImageSeriesAdapter(ImageSeriesAdapter):
 
         d = {}
         unwrap_h5_to_dict(entry, d)
-        return _decompress_frame(d)
+        return decompress_frame(d)
 
     def set_option(self, key: str, value: Any):
         possible_options = [
@@ -228,17 +233,3 @@ class EigerStreamV2ImageSeriesAdapter(ImageSeriesAdapter):
             'multiplier',
         ]
         return {k: getattr(self, k) for k in options}
-
-
-def _decompress_frame(d: dict) -> np.ndarray:
-    compression_type = d['compression_type']
-    dtype = d['dtype']
-    shape = d['shape']
-    data = d['data']
-    elem_size = d['elem_size']
-
-    if compression_type is None:
-        return np.frombuffer(data, dtype=dtype).reshape(shape)
-
-    decompressed_bytes = decompress(data, compression_type, elem_size=elem_size)
-    return np.frombuffer(decompressed_bytes, dtype=dtype).reshape(shape)
