@@ -11,6 +11,7 @@ from hexrd.core.imageseries.load.eiger_stream_v1 import EigerStreamV1ImageSeries
 
 
 def _compress_array_lz4(array: np.ndarray):
+    lz4_block = pytest.importorskip("lz4.block", reason="lz4 is not available")
     # Convert array to bytes
     arr_bytes = array.tobytes()
     elem_size = array.dtype.itemsize
@@ -19,7 +20,7 @@ def _compress_array_lz4(array: np.ndarray):
     block_size = orig_size
     block_size_bytes = block_size.to_bytes(4, "big")
     # Compress the data
-    compressed = lz4.block.compress(arr_bytes, store_size=False)
+    compressed = lz4_block.compress(arr_bytes, store_size=False)
     compressed_size = len(compressed)
     compressed_size_bytes = compressed_size.to_bytes(4, "big")
     # Prepend the original size as 8 bytes big-endian
@@ -55,7 +56,6 @@ def _compress_array_csrnpz(array: np.ndarray):
 
 
 def test_lz4_decompression():
-    pytest.importorskip("lz4", reason="lz4 is not available")
     # Create a random array
     original_array = np.random.randint(0, 256, size=(100, 100), dtype=np.uint8)
     compressed_dict = _compress_array_lz4(original_array)
@@ -125,8 +125,6 @@ def test_csrnpz_from_hdf5(tmp_path: Path):
 
 
 def test_lz4_from_hdf5(tmp_path: Path):
-    pytest.importorskip("lz4", reason="lz4 is not available")
-
     temp_file = tmp_path / "test_lz4.h5"
     # Create a random array
     original_array = np.random.randint(0, 256, size=(100, 100), dtype=np.uint8)
