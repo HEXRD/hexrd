@@ -76,7 +76,20 @@ jobs:
           # set this environment variable instead.
           # Setting this variable via `env` did not seem to work for some reason.
           export CONDA_SOLVER=libmamba
-          conda build --override-channels -c conda-forge --output-folder output/ conda.recipe/
+          # Retry conda build up to 3 times to handle transient checksum
+          # mismatch failures caused by stale cached repodata.
+          for attempt in 1 2 3; do
+            echo "conda build attempt $attempt"
+            conda clean --all -y
+            if conda build --override-channels -c conda-forge --output-folder output/ conda.recipe/; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "conda build failed after 3 attempts"
+              exit 1
+            fi
+            echo "Attempt $attempt failed, retrying..."
+          done
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
       shell: bash -l {0}
