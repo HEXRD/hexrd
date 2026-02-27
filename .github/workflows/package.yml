@@ -76,16 +76,17 @@ jobs:
           # set this environment variable instead.
           # Setting this variable via `env` did not seem to work for some reason.
           export CONDA_SOLVER=libmamba
-          # Retry conda build up to 3 times to handle transient checksum
+          # Retry conda build up to N times to handle transient checksum
           # mismatch failures caused by stale cached repodata.
-          for attempt in 1 2 3; do
+          max_attempts=5
+          for attempt in $(seq 1 $max_attempts); do
             echo "conda build attempt $attempt"
             conda clean --all -y
             if conda build --override-channels -c conda-forge --output-folder output/ conda.recipe/; then
               break
             fi
-            if [ "$attempt" -eq 3 ]; then
-              echo "conda build failed after 3 attempts"
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "conda build failed after $max_attempts attempts"
               exit 1
             fi
             echo "Attempt $attempt failed, retrying..."
