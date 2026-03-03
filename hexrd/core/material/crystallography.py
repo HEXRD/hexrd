@@ -1608,10 +1608,10 @@ class PlaneData(object):
             idx = np.zeros(len(self.hklDataList), dtype=int)
             for i, hkl_id in enumerate(hkl_ids):
                 # find ordinal index of current hklID
-                try:
-                    idx[i] = int(np.where(all_hkl_ids == hkl_id)[0])
-                except TypeError:
-                    raise RuntimeError(f"Requested hklID '{hkl_id}'is invalid!")
+                matches = np.where(all_hkl_ids == hkl_id)[0]
+                if len(matches) != 1:
+                    raise RuntimeError(f"Requested hklID '{hkl_id}' is invalid!")
+                idx[i] = matches[0]
                 if sorted_excl[idx[i]] and not allHKLs:
                     raise RuntimeError(f"Requested hklID '{hkl_id}' is excluded!")
                 hkls.append(self.hklDataList[idx[i]]['hkl'])

@@ -878,7 +878,7 @@ class AbstractWPPF(ABC):
         to protect against nans in the values
         '''
         mask = np.isnan(total_intensity)
-        sum_area = np.trapz(total_intensity[~mask], tth[~mask])
+        sum_area = np.trapezoid(total_intensity[~mask], tth[~mask])
         return sum_area
 
     @property
