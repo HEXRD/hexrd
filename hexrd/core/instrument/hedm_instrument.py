@@ -1125,10 +1125,10 @@ class HEDMInstrument(object):
             # find indices
             idx = np.zeros_like(active_hkls, dtype=int)
             for i, input_hklID in enumerate(active_hkls):
-                try:
-                    idx[i] = np.where(active_hklIDs == input_hklID)[0]
-                except ValueError:
+                matches = np.where(active_hklIDs == input_hklID)[0]
+                if len(matches) != 1:
                     raise RuntimeError(f"hklID '{input_hklID}' is invalid")
+                idx[i] = matches[0]
             tth_ranges = tth_ranges[idx]
 
         delta_eta = eta_edges[1] - eta_edges[0]

@@ -686,14 +686,14 @@ class sector:
         rho = self.calculate_rho(dir3, switch)
         r = np.linspace(0.0, 2 * np.pi, 1000)
         v = self.hue_speed(r)
-        cons = np.trapz(v, r)
+        cons = np.trapezoid(v, r)
 
         h = np.zeros(rho.shape)
 
         for i in range(rho.shape[0]):
             r = np.linspace(0.0, rho[i], 1000)
             v = self.hue_speed(r)
-            h[i] = np.trapz(v, r) / cons
+            h[i] = np.trapezoid(v, r) / cons
 
         return h
 

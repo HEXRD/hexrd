@@ -483,7 +483,7 @@ def pvfcj(
         res += pv * fact
 
     res = np.sin(tth_r) * res / den / 4.0 / HoL / SoL
-    a = np.trapz(res, tth_list)
+    a = np.trapezoid(res, tth_list)
     return res / a
 
 
@@ -580,8 +580,8 @@ def pvoight_pink_beam(
 
     g = _gaussian_pink_beam(alpha_exp, beta_exp, fwhm_g, tth, tth_list)
     l_val = _lorentzian_pink_beam(alpha_exp, beta_exp, fwhm_l, tth, tth_list)
-    ag = np.trapz(g, tth_list)
-    al = np.trapz(l_val, tth_list)
+    ag = np.trapezoid(g, tth_list)
+    al = np.trapezoid(l_val, tth_list)
     if np.abs(ag) < 1e-6:
         ag = 1.0
     if np.abs(al) < 1e-6:
@@ -768,7 +768,7 @@ def calc_Iobs_pvfcj(
         y = Ic * pv
         y = y[mask]
 
-        Iobs[ii] = np.trapz(yo * y / yc, tth_list_mask)
+        Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
 
     return Iobs
 
@@ -820,7 +820,7 @@ def calc_Iobs_pvtch(
         y = Ic * pv
         y = y[mask]
 
-        Iobs[ii] = np.trapz(yo * y / yc, tth_list_mask)
+        Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
 
     return Iobs
 
@@ -887,7 +887,7 @@ def calc_Iobs_pvpink(
         y = Ic * pv
         y = y[mask]
 
-        Iobs[ii] = np.trapz(yo * y / yc, tth_list_mask)
+        Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
 
     return Iobs
 

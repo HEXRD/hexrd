@@ -212,8 +212,8 @@ class LeBailCalibrator:
 
             weighted_expt = np.nan_to_num(ww * v.spectrum_expt._y**2)
 
-            wss = np.trapz(evec, v.tth_list)
-            den = np.trapz(weighted_expt, v.tth_list)
+            wss = np.trapezoid(evec, v.tth_list)
+            den = np.trapezoid(weighted_expt, v.tth_list)
             r = np.sqrt(wss / den) * 100.0
             if ~np.isnan(r):
                 rwp.append(r)

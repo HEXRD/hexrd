@@ -339,7 +339,7 @@ class Amorphous:
     def integrated_area(self):
         x = self.tth_list
         y = self.amorphous_lineout
-        return np.trapz(y, x)
+        return np.trapezoid(y, x)
 
     @property
     def peak_model(self):
