@@ -1,12 +1,4 @@
-
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#  include "transforms_utils.h"
-#  include "transforms_prototypes.h"
-#  include "ndargs_helper.h"
-#endif
-
-XRD_CFUNCTION void
-make_sample_rmat(double chi, double ome, double *result_rmat)
+static void make_sample_rmat(double chi, double ome, double *result_rmat)
 {
     double cchi, schi, come, some;
     double * restrict rmat = result_rmat;
@@ -28,7 +20,7 @@ make_sample_rmat(double chi, double ome, double *result_rmat)
 
 }
 
-XRD_CFUNCTION void
+static void
 make_sample_rmat_array(double chi, const double *ome_ptr, size_t ome_count, double *result_ptr)
 {
     double cchi,schi;
@@ -57,23 +49,11 @@ make_sample_rmat_array(double chi, const double *ome_ptr, size_t ome_count, doub
     }
 }
 
-
-
-#if defined(XRD_INCLUDE_PYTHON_WRAPPERS) && XRD_INCLUDE_PYTHON_WRAPPERS
-
-#  if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#    define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-
-#    include <Python.h>
-#    include <numpy/arrayobject.h>
-#  endif /* XRD_SINGLE_COMPILE_UNIT */
-
-XRD_PYTHON_WRAPPER const char *docstring_makeOscillRotMat =
+static const char *docstring_makeOscillRotMat =
     "c module implementation of make_sample_rotmat.\n"
     "Please use the Python wrapper.\n";
 
-
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_makeOscillRotMat(PyObject * self, PyObject * args)
 {
     nah_array ome = { NULL, "ome", NAH_TYPE_DP_FP, { NAH_DIM_ANY }};
@@ -105,5 +85,3 @@ python_makeOscillRotMat(PyObject * self, PyObject * args)
     
     return PyErr_NoMemory();
 }
-
-#endif /* XRD_INCLUDE_PYTHON_WRAPPERS */

@@ -1,13 +1,5 @@
 
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#  include "transforms_utils.h"
-#  include "transforms_prototypes.h"
-#  include "ndargs_helper.h"
-#endif
-
-
-XRD_CFUNCTION void
-oscill_angles_of_HKLs(size_t npts, double * hkls, double chi,
+static void oscill_angles_of_HKLs(size_t npts, double * hkls, double chi,
                       double * rMat_c, double * bMat, double wavelength,
                       double * vInv_s, double * beamVec, double * etaVec,
                       double * oangs0, double * oangs1)
@@ -175,21 +167,11 @@ oscill_angles_of_HKLs(size_t npts, double * hkls, double chi,
     }
 }
 
-
-#if defined(XRD_INCLUDE_PYTHON_WRAPPERS) && XRD_INCLUDE_PYTHON_WRAPPERS
-
-#  if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#    define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-
-#    include <Python.h>
-#    include <numpy/arrayobject.h>
-#  endif /* XRD_SINGLE_COMPILE_UNIT */
-
-XRD_PYTHON_WRAPPER const char *docstring_oscillAnglesOfHKLs =
+static const char *docstring_oscillAnglesOfHKLs =
     "c module implementation of solve_omega.\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_oscillAnglesOfHKLs(PyObject * self, PyObject * args)
 {
     nah_array hkls = { NULL, "hkls", NAH_TYPE_DP_FP, { 3, NAH_DIM_ANY }};
@@ -259,5 +241,3 @@ python_oscillAnglesOfHKLs(PyObject * self, PyObject * args)
     
     return PyErr_NoMemory();
 }
-
-#endif /* XRD_INCLUDE_PYTHON_WRAPPERS */

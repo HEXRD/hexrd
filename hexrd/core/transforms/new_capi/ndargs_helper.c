@@ -1,7 +1,6 @@
 #include "ndargs_helper.h"
 
-XRD_CFUNCTION int
-nah_array_converter(PyObject *op, void *result)
+static int nah_array_converter(PyObject *op, void *result)
 {
     nah_array *na = (nah_array*)result;
 

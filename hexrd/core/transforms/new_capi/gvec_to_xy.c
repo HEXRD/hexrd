@@ -1,10 +1,4 @@
 
-#if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#  include "transforms_utils.h"
-#  include "transforms_prototypes.h"
-#  include "ndargs_helper.h"
-#endif
-
 #define GV2XY_GROUP_SIZE 128
 #define GVEC_TO_XY_FUNC gvec_to_xy_vect
 
@@ -326,7 +320,7 @@ ray_plane_intersect(const double *origin, const double *vect,
 }
 
 
-XRD_CFUNCTION void
+static void
 gvec_to_xy(size_t npts, const double *gVec_cs,
            const double *rMat_d, const double *rMat_ss, const double *rMat_c,
            const double *tVec_d, const double *tVec_s, const double *tVec_c,
@@ -459,7 +453,7 @@ typedef void (*rays_to_detector_func) (const void *detector_data,
                                        double * restrict projected_xy, size_t projected_xy_count);
 /* experimental:
  */
-XRD_CFUNCTION void
+static void
 gvec_to_xy_detector(size_t npts, const double *gVec_cs,
                     const double *rMat_ss, const double *rMat_c,
                     const double *tVec_s, const double *tVec_c,
@@ -571,7 +565,7 @@ gvec_to_xy_detector(size_t npts, const double *gVec_cs,
     }
 }
 
-XRD_CFUNCTION void
+static void
 gvec_to_xy_vect(size_t npts, const double *gVec_cs,
                 const double *rMat_d, const double *rMat_ss, const double *rMat_c,
                 const double *tVec_d, const double *tVec_s, const double *tVec_c,
@@ -592,20 +586,11 @@ gvec_to_xy_vect(size_t npts, const double *gVec_cs,
                         result, flags, rays_to_planar_detector, &planar_detector_data);
 }
 
-#if defined(XRD_INCLUDE_PYTHON_WRAPPERS) && XRD_INCLUDE_PYTHON_WRAPPERS
-
-#  if !defined(XRD_SINGLE_COMPILE_UNIT) || !XRD_SINGLE_COMPILE_UNIT
-#    define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-
-#    include <Python.h>
-#    include <numpy/arrayobject.h>
-#  endif /* XRD_SINGLE_COMPILE_UNIT */
-
-XRD_PYTHON_WRAPPER const char *docstring_gvecToDetectorXY =
+static const char *docstring_gvecToDetectorXY =
     "c module implementation of gvec_to_xy (single sample).\n"
     "Please use the Python wrapper.\n";
 
-XRD_PYTHON_WRAPPER const char *docstring_gvecToDetectorXYArray =
+static const char *docstring_gvecToDetectorXYArray =
     "c module implementation of gvec_to_xy (multi sample).\n"
     "Please use the Python wrapper.\n";
 
@@ -671,7 +656,7 @@ normalize_beam(double *in, double *work)
   (m, 2) ndarray containing the intersections of m <= n diffracted beams
   associated with gVecs
 */
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_gvecToDetectorXY(PyObject * self, PyObject * args)
 {
     nah_array gVec_c = { NULL, "gvec_c", NAH_TYPE_DP_FP, { 3, NAH_DIM_ANY }};
@@ -756,7 +741,7 @@ python_gvecToDetectorXY(PyObject * self, PyObject * args)
   (m, 2) ndarray containing the intersections of m <= n diffracted beams
   associated with gVecs
 */
-XRD_PYTHON_WRAPPER PyObject *
+static PyObject *
 python_gvecToDetectorXYArray(PyObject * self, PyObject * args)
 {
     nah_array gVec_c = { NULL, "gVec_c", NAH_TYPE_DP_FP, { 3, NAH_DIM_ANY }};
@@ -828,6 +813,3 @@ python_gvecToDetectorXYArray(PyObject * self, PyObject * args)
 
     return PyErr_NoMemory();
 }
-
-
-#endif /* XRD_INCLUDE_PYTHON_WRAPPERS */

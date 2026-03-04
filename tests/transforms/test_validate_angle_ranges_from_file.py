@@ -4,7 +4,7 @@
 
 from __future__ import absolute_import
 import numpy as np
-from hexrd.core.transforms.new_capi.xf_new_capi import validate_angle_ranges
+from hexrd.core.transforms.xfcapi import validate_angle_ranges
 
 
 def test_validate_angle_ranges_from_file(test_data_dir):
