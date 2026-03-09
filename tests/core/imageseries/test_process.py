@@ -114,6 +114,35 @@ def test_op_rectangle(mock_series):
     assert res.shape == (2, 2)
 
 
+def test_dark_before_rectangle_with_fancy_indexing():
+    """Regression: fancy indexing with dark+rectangle must apply ops first.
+
+    This reproduces the actual bug from pull_spots, which accesses pixels
+    via omega_image_series[frame_idx, row_indices, col_indices]. When dark
+    is before rectangle in the oplist (the normal GUI ordering), fancy
+    indexing was being applied to the raw image BEFORE dark subtraction,
+    producing a small subarray that couldn't broadcast with the full dark.
+    """
+    data = np.arange(16, dtype=np.float32).reshape(4, 4) + 10
+    imser = MockImageSeries(shape=(4, 4), data={0: data})
+    dark = np.full((4, 4), 2.0)
+    roi = ((1, 3), (1, 3))
+    oplist = [('dark', dark), ('rectangle', roi)]
+    ps = ProcessedImageSeries(imser, oplist)
+
+    # Access with fancy indexing like pull_spots does
+    res = ps[0, 0, 0]
+    # Frame 0 data is all 10+offset, dark is 2, rectangle crops (1:3,1:3)
+    # After dark: data - 2, then rectangle crops rows 1-2, cols 1-2
+    # So pixel [0,0] of the result = data[1,1] - 2 = 15 - 2 = 13
+    expected_full = data[1:3, 1:3] - 2.0
+    assert res == expected_full[0, 0]
+
+    # Also test with slice indexing
+    res_slice = ps[(0, slice(0, 2))]
+    np.testing.assert_array_equal(res_slice, expected_full)
+
+
 def test_op_rectangle_optimized(mock_series):
     oplist = [('rectangle', ((0, 2), (0, 2)))]
     ps = ProcessedImageSeries(mock_series, oplist)

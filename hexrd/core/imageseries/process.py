@@ -76,33 +76,36 @@ class ProcessedImageSeries(ImageSeries):
         # note: key refers to original imageseries
         oplist = self.oplist
 
+        # Separate the frame index from any fancy indexing (row/col slices).
+        # Fancy indexing must be deferred until after all operations are
+        # applied, otherwise operations like dark subtraction will receive
+        # a spatially-indexed subarray that doesn't match the full-frame
+        # operation data (e.g. full-size dark image).
+        if isinstance(key, int):
+            idx = key
+            rest = []
+        else:
+            idx = key[0]
+            rest = key[1:]
+
         # when rectangle is the first operation we can try to call the
         # optimized version. If the adapter provides one it should be
         # significantly faster if not it will fallback to the same
         # implementation that _rectangle provides.
         if oplist and oplist[0][0] == self.RECT:
-            region = oplist[0][1]
-            if isinstance(key, int):
-                idx = key
-                rest = []
-            else:
-                # Handle fancy indexing
-                idx = key[0]
-                rest = key[1:]
-
-            img = self._rectangle_optimized(idx, region)
-
-            if rest:
-                img = img[*rest]
-
+            img = self._rectangle_optimized(idx, oplist[0][1])
             # remove the first operation since we already used it
             oplist = oplist[1:]
         else:
-            img = self._imser[key]
+            img = self._imser[idx]
 
         for k, d in oplist:
             func = self._opdict[k]
             img = func(img, d)
+
+        # Apply fancy indexing after all operations
+        if rest:
+            img = img[*rest]
 
         return img
 
