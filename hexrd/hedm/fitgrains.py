@@ -104,6 +104,8 @@ def fit_grain_FF_reduced(grain_id):
     prefix = paramMP['spots_filename']
     spots_filename = None if prefix is None else prefix % grain_id
 
+    return_pull_spots_data: bool = paramMP.get('return_pull_spots_data', False)
+
     grain = grains_table[grain_id]
     grain_params = grain[3:15]
 
@@ -137,7 +139,10 @@ def fit_grain_FF_reduced(grain_id):
                 f'Not enough valid reflections ({num_refl_valid}) to fit, ' f'exiting',
                 RuntimeWarning,
             )
-            return grain_id, completeness, np.inf, grain_params
+            result = (grain_id, completeness, np.inf, grain_params)
+            if return_pull_spots_data:
+                result += ((complvec, results),)
+            return result
         else:
             grain_params = fitGrain(
                 grain_params,
@@ -204,7 +209,10 @@ def fit_grain_FF_reduced(grain_id):
                 simOnly=False,
                 return_value_flag=2,
             )
-    return grain_id, completeness, chisq, grain_params
+    result = (grain_id, completeness, chisq, grain_params)
+    if return_pull_spots_data:
+        result += ((complvec, results),)
+    return result
 
 
 def determine_valid_reflections(results, instrument, analysis_dirname):
@@ -370,6 +378,7 @@ def fit_grains(
     ids_to_refine=None,
     write_spots_files=True,
     check_if_canceled_func=None,
+    return_pull_spots_data: bool = False,
 ):
     """
     Performs optimization of grain parameters.
@@ -428,6 +437,7 @@ def fit_grains(
         ome_period=ome_period,
         analysis_dirname=cfg.analysis_dir,
         spots_filename=spots_filename,
+        return_pull_spots_data=return_pull_spots_data,
     )
 
     # =====================================================================
@@ -482,4 +492,8 @@ def fit_grains(
         pool.join()
         elapsed = timeit.default_timer() - start
     logger.info("fitting took %f seconds", elapsed)
+    if return_pull_spots_data:
+        spots_data = {result[0]: result[4] for result in fit_results}
+        fit_results = [result[:4] for result in fit_results]
+        return fit_results, spots_data
     return fit_results

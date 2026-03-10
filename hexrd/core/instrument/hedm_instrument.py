@@ -2082,6 +2082,7 @@ class HEDMInstrument(object):
                             ang_centers[patch_id],
                             meas_angs,
                             meas_xy,
+                            xy_centers[patch_id],
                         ]
                     )
             if write_text:
