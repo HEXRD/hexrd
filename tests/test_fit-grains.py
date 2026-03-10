@@ -101,3 +101,85 @@ def test_fit_grains(
     )
 
     assert cresult
+
+
+def test_fit_grains_return_pull_spots_data(
+    single_ge_include_path: Path,
+    test_config: config.root.RootConfig,
+    grains_reference_file_path: Path,
+) -> None:
+    os.chdir(str(single_ge_include_path))
+
+    grains_table: np.ndarray = np.loadtxt(grains_reference_file_path, ndmin=2)
+
+    result = fit_grains(
+        test_config,
+        grains_table,
+        show_progress=False,
+        ids_to_refine=None,
+        write_spots_files=False,
+        return_pull_spots_data=True,
+    )
+
+    # Should return a (fit_results, spots_data) tuple
+    assert isinstance(result, tuple)
+    assert len(result) == 2
+
+    fit_results, spots_data = result
+
+    # fit_results should be a list of 4-element tuples
+    assert isinstance(fit_results, list)
+    assert len(fit_results) > 0
+    for grain_result in fit_results:
+        assert len(grain_result) == 4
+        grain_id, completeness, chisq, grain_params = grain_result
+        assert isinstance(grain_id, (int, np.integer))
+        assert isinstance(completeness, float)
+        assert isinstance(grain_params, np.ndarray)
+        assert grain_params.shape == (12,)
+
+    # spots_data should be a dict keyed by grain_id
+    assert isinstance(spots_data, dict)
+    assert len(spots_data) == len(fit_results)
+
+    for grain_id, (complvec, results) in spots_data.items():
+        # complvec is a list of booleans
+        assert isinstance(complvec, list)
+
+        # results is a dict keyed by detector name
+        assert isinstance(results, dict)
+        assert len(results) > 0
+
+        for det_key, det_results in results.items():
+            assert isinstance(det_key, str)
+            assert isinstance(det_results, list)
+            assert len(det_results) > 0
+
+            for spot in det_results:
+                # Each spot should have 9 elements (including pred_xy)
+                assert len(spot) == 9, (
+                    f'Expected 9 elements per spot, got {len(spot)}'
+                )
+
+                peak_id = spot[0]
+                hkl = spot[2]
+                pred_angs = spot[5]
+                meas_angs = spot[6]
+                meas_xy = spot[7]
+                pred_xy = spot[8]
+
+                assert isinstance(peak_id, (int, np.integer))
+                assert isinstance(hkl, np.ndarray)
+                assert hkl.shape == (3,)
+                assert isinstance(pred_angs, np.ndarray)
+                assert pred_angs.shape == (3,)
+
+                # meas_angs/meas_xy may be None for invalid spots
+                if peak_id >= 0:
+                    assert isinstance(meas_angs, np.ndarray)
+                    assert meas_angs.shape == (3,)
+                    assert isinstance(meas_xy, np.ndarray)
+                    assert meas_xy.shape == (2,)
+
+                assert isinstance(pred_xy, np.ndarray)
+                assert pred_xy.shape == (2,)
