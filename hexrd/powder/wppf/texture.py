@@ -1204,7 +1204,8 @@ class HarmonicModel:
                 pf = self.ax[nr][nc].tricontour(rho, r, I, levels=20, cmap=cmap)
             self.ax[nr][nc].set_yticklabels([])
             self.ax[nr][nc].grid(grid)
-            self.ax[nr][nc].set_title(f'({h})')
+            hkl_str = ', '.join(str(int(x)) for x in h)
+            self.ax[nr][nc].set_title(f'({hkl_str})')
             plt.colorbar(pf, label=colorbar_label)
 
         if show:
@@ -1305,7 +1306,8 @@ class HarmonicModel:
 
             ax.set_yticklabels([])
             ax.grid(grid)
-            ax.set_title(f'({h})')
+            hkl_str = ', '.join(str(int(x)) for x in h)
+            ax.set_title(f'({hkl_str})')
             ax._plt_colorbar = self.fig_new.colorbar(pf, label=colorbar_label)
 
     def calc_residual(self, params):
