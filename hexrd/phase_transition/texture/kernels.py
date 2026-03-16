@@ -1,7 +1,7 @@
 """
 SO(3) Kernel Functions for Texture Analysis
 
-Implements radial basis functions on the rotation group SO(3) used for 
+Implements radial basis functions on the rotation group SO(3) used for
 constructing smooth orientation distribution functions.
 """
 
@@ -46,6 +46,22 @@ def _symmetry_quaternions(
         raise ValueError(
             f"Invalid {symtype} symmetry: {symmetry!r}"
         ) from error
+
+
+def _is_trivial_symmetry(quats: Optional[np.ndarray]) -> bool:
+    """
+    Return True if a symmetry group performs no reduction.
+
+    A group is trivial when it is absent (None) or contains only the
+    identity rotation (e.g. triclinic). The identity quaternion has a
+    scalar part w = ±1 with a zero vector part, while every proper,
+    non-identity rotation has |w| < 1. A group whose elements are all
+    ±identity therefore leaves misorientation angles unchanged, so it can
+    safely take the fast (no-symmetry) evaluation path.
+    """
+    if quats is None:
+        return True
+    return bool(np.allclose(np.abs(quats[0]), 1.0))
 
 
 class SO3Kernel(ABC):
@@ -178,21 +194,53 @@ class DeLaValleePoussinKernel(SO3Kernel):
 
         # Normalization constant: C = B(3/2, 1/2) / B(3/2, κ + 1/2)
         self._C = betafn(1.5, 0.5) / betafn(1.5, self._kappa + 0.5)
-        self._crystal_symmetry = _symmetry_quaternions(
+        self._crystal_symmetry_quats = _symmetry_quaternions(
             crystal_symmetry,
             symtype='crystal',
         )
-        self._sample_symmetry = _symmetry_quaternions(
+        self._sample_symmetry_quats = _symmetry_quaternions(
             sample_symmetry,
             symtype='sample',
         )
 
+        # Retain the original symmetry labels (when given as strings) so the
+        # kernel can act as the single source of truth for symmetry. When
+        # symmetry is supplied as a quaternion array, no label is available.
+        self._crystal_symmetry_label = (
+            crystal_symmetry if isinstance(crystal_symmetry, str) else None
+        )
+        self._sample_symmetry_label = (
+            sample_symmetry if isinstance(sample_symmetry, str) else None
+        )
+
+    @property
+    def crystal_symmetry(self) -> Optional[str]:
+        """
+        str or None: Crystal symmetry label, if built from a label.
+
+        Returns None when the symmetry was supplied directly as a
+        quaternion array, even if symmetry reduction is active. Use
+        ``has_symmetry`` to test whether reduction is enabled.
+        """
+        return self._crystal_symmetry_label
+
+    @property
+    def sample_symmetry(self) -> Optional[str]:
+        """
+        str or None: Sample symmetry label, if built from a label.
+
+        Returns None when the symmetry was supplied directly as a
+        quaternion array, even if symmetry reduction is active. Use
+        ``has_symmetry`` to test whether reduction is enabled.
+        """
+        return self._sample_symmetry_label
+
     @property
     def has_symmetry(self) -> bool:
-        """bool: Whether symmetry reduction is enabled."""
-        return (
-            self._crystal_symmetry is not None
-            or self._sample_symmetry is not None
+        """bool: Whether non-trivial symmetry reduction is enabled."""
+        return not (
+            _is_trivial_symmetry(self._crystal_symmetry_quats)
+            and _is_trivial_symmetry(self._sample_symmetry_quats)
         )
 
     @property
@@ -297,12 +345,12 @@ class DeLaValleePoussinKernel(SO3Kernel):
         return angles.reshape(output_shape)
 
     def _misorientation_symmetries(self) -> tuple[np.ndarray, ...]:
-        crystal_symmetry = self._crystal_symmetry
-        if crystal_symmetry is None and self._sample_symmetry is not None:
+        crystal_symmetry = self._crystal_symmetry_quats
+        if crystal_symmetry is None and self._sample_symmetry_quats is not None:
             crystal_symmetry = _IDENTITY_SYMMETRY
         symmetries = (crystal_symmetry,) if crystal_symmetry is not None else ()
-        if self._sample_symmetry is not None:
-            symmetries = symmetries + (self._sample_symmetry,)
+        if self._sample_symmetry_quats is not None:
+            symmetries = symmetries + (self._sample_symmetry_quats,)
         return symmetries
 
     def eval(
