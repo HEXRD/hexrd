@@ -88,7 +88,7 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
         self.assertAlmostEqual(
             kernel.kappa, expected_kappa, places=10
         )
-    
+
     def test_kernel_evaluation_at_identity(self):
         """Test that K(0) equals the normalization constant.
 
@@ -123,7 +123,7 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
         self.assertIn('de la Vallée Poussin kernel', str_repr)
         self.assertIn('half-width', str_repr)
         self.assertIn('K(ω)', str_repr)
-        
+
     def test_kernel_decreases_with_misorientation(self):
         """Test that kernel value decreases as misorientation grows."""
         halfwidth_rad = np.radians(4.0)
@@ -360,4 +360,51 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
         # Remaining entries (90° away) should be near zero
         for val in values[1:]:
             self.assertAlmostEqual(float(val), 0.0, places=5)
+
+    # --- symmetry label properties ---
+
+    def test_symmetry_labels_retained(self):
+        """String symmetry labels are exposed via read-only properties."""
+        kernel = DeLaValleePoussinKernel(
+            halfwidth=np.radians(10),
+            crystal_symmetry='d4h',
+            sample_symmetry='orthorhombic',
+        )
+        self.assertEqual(kernel.crystal_symmetry, 'd4h')
+        self.assertEqual(kernel.sample_symmetry, 'orthorhombic')
+        self.assertTrue(kernel.has_symmetry)
+
+    def test_symmetry_labels_none_without_symmetry(self):
+        """A kernel built without symmetry reports None labels."""
+        kernel = DeLaValleePoussinKernel(halfwidth=np.radians(10))
+        self.assertIsNone(kernel.crystal_symmetry)
+        self.assertIsNone(kernel.sample_symmetry)
+        self.assertFalse(kernel.has_symmetry)
+
+    def test_symmetry_label_none_for_array_input(self):
+        """Symmetry given as a quaternion array has no recoverable label."""
+        kernel = DeLaValleePoussinKernel(
+            halfwidth=np.radians(10),
+            crystal_symmetry=rotations.quatOfLaueGroup('d4h'),
+        )
+        self.assertIsNone(kernel.crystal_symmetry)
+        self.assertTrue(kernel.has_symmetry)
+
+    def test_trivial_symmetry_takes_fast_path(self):
+        """Triclinic symmetry is the identity, so it enables no reduction."""
+        kernel = DeLaValleePoussinKernel(
+            halfwidth=np.radians(10),
+            crystal_symmetry='ci',
+            sample_symmetry='triclinic',
+        )
+        # Labels are still retained for the single-source-of-truth contract.
+        self.assertEqual(kernel.crystal_symmetry, 'ci')
+        self.assertEqual(kernel.sample_symmetry, 'triclinic')
+        # But the group is trivial, so the fast (no-reduction) path is used.
+        self.assertFalse(kernel.has_symmetry)
+
+        # A 90° misorientation is unchanged by the trivial symmetry group.
+        r90z = _rotation_about_z(np.radians(90))
+        angle = kernel.misorientation_angle(np.eye(3), r90z)
+        self.assertAlmostEqual(float(angle), np.radians(90), places=8)
 
