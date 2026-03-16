@@ -6,6 +6,7 @@ This module serves as a foundation for more complex ODF implementations.
 """
 
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 
 def validate_orientations(orientations):
@@ -72,7 +73,7 @@ def eval_odf(odf, orientations, validate_input=True):
 
     Examples
     --------
-    >>> from hexrd.texture import UniformODF, eval_odf
+    >>> from hexrd.phase_transition.texture import UniformODF, eval_odf
     >>> odf = UniformODF('oh', 'triclinic')
     >>>
     >>> # Single orientation
@@ -168,7 +169,7 @@ def eval_at_identity(odf):
     Examples
     --------
     >>> odf = UniformODF('oh', 'triclinic')
-    >>> value = eval_at_identity(odf)  # Should be 1/(8π²)
+    >>> value = eval_at_identity(odf)  # 1.0 for a uniform ODF (MRD)
     """
     identity = np.eye(3)
     return float(eval_odf(odf, identity, validate_input=False))
@@ -200,28 +201,10 @@ def eval_random_orientations(odf, n_orientations=1000, seed=None):
     --------
     >>> odf = UniformODF('oh', 'triclinic')
     >>> orientations, values = eval_random_orientations(odf, n_orientations=100)
-    >>> print(f"Mean ODF value: {np.mean(values)}")  # Should be ~1/(8π²)
+    >>> print(f"Mean ODF value: {np.mean(values)}")  # Should be ~1.0 (MRD)
     """
-    if seed is not None:
-        np.random.seed(seed)
-
-    # Generate random rotation matrices using method from
-    # "Fast Random Rotation Matrices" by James Arvo
-    # This is a simplified version - in practice might want scipy.spatial.transform
-
-    # Generate random quaternions and normalize
-    quaternions = np.random.normal(size=(n_orientations, 4))
-    quaternions = quaternions / np.linalg.norm(quaternions, axis=1, keepdims=True)
-
-    # Convert quaternions to rotation matrices
-    orientations = np.zeros((n_orientations, 3, 3))
-    for i, q in enumerate(quaternions):
-        w, x, y, z = q
-        orientations[i] = np.array([
-            [1-2*(y*y+z*z), 2*(x*y-w*z), 2*(x*z+w*y)],
-            [2*(x*y+w*z), 1-2*(x*x+z*z), 2*(y*z-w*x)],
-            [2*(x*z-w*y), 2*(y*z+w*x), 1-2*(x*x+y*y)]
-        ])
+    # Haar-uniform random rotations on SO(3).
+    orientations = Rotation.random(n_orientations, random_state=seed).as_matrix()
 
     # Evaluate ODF at these orientations
     values = eval_odf(odf, orientations, validate_input=False)
