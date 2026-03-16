@@ -38,7 +38,11 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Any, Literal, Optional, Union, TypedDict, NotRequired
+from typing import Any, Literal, Optional, Union, TypedDict
+try:
+    from typing import NotRequired
+except ImportError:
+    from typing_extensions import NotRequired
 from tqdm import tqdm
 
 import yaml
