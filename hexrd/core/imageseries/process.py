@@ -105,7 +105,7 @@ class ProcessedImageSeries(ImageSeries):
 
         # Apply fancy indexing after all operations
         if rest:
-            img = img[*rest]
+            img = img[tuple(rest)]
 
         return img
 
