@@ -116,8 +116,8 @@ def parse_args():
     parser.add_argument(
         '--generators',
         nargs='+',
-        default=['discrete-fibers', 'pairwise', 'pairwise-greedy'],
-        choices=['discrete-fibers', 'pairwise', 'pairwise-greedy'],
+        default=['discrete-fibers', 'pairwise', 'pairwise-greedy', 'pairwise-consensus'],
+        choices=['discrete-fibers', 'pairwise', 'pairwise-greedy', 'pairwise-consensus'],
         help='Candidate generators to benchmark',
     )
     parser.add_argument('--repeats', type=int, default=1, help='Runs per grain count')

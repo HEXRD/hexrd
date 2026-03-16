@@ -50,6 +50,10 @@ find_orientations:
     friedel_pairing: true
     pairwise_tolerance: 2.5
     pairwise_max_candidates: 250
+    pairwise_max_partners: 48
+    reflection_statistics_samples: 256
+    reflection_statistics_percentile: 25
+    reflection_statistics_seed: 17
   omega:
     tolerance: 3.0
   clustering:
@@ -269,12 +273,52 @@ class TestSeedSearchConfig(TestConfig):
             250,
         )
 
+    def test_pairwise_max_partners(self):
+        self.assertEqual(
+            self.cfgs[0].find_orientations.seed_search.pairwise_max_partners,
+            64,
+        )
+        self.assertEqual(
+            self.cfgs[2].find_orientations.seed_search.pairwise_max_partners,
+            48,
+        )
+
     def test_friedel_pairing(self):
         self.assertTrue(
             self.cfgs[0].find_orientations.seed_search.friedel_pairing,
         )
         self.assertTrue(
             self.cfgs[2].find_orientations.seed_search.friedel_pairing,
+        )
+
+    def test_reflection_statistics_samples(self):
+        self.assertEqual(
+            self.cfgs[0].find_orientations.seed_search.reflection_statistics_samples,
+            200,
+        )
+        self.assertEqual(
+            self.cfgs[2].find_orientations.seed_search.reflection_statistics_samples,
+            256,
+        )
+
+    def test_reflection_statistics_percentile(self):
+        self.assertEqual(
+            self.cfgs[0].find_orientations.seed_search.reflection_statistics_percentile,
+            10.0,
+        )
+        self.assertEqual(
+            self.cfgs[2].find_orientations.seed_search.reflection_statistics_percentile,
+            25.0,
+        )
+
+    def test_reflection_statistics_seed(self):
+        self.assertEqual(
+            self.cfgs[0].find_orientations.seed_search.reflection_statistics_seed,
+            0,
+        )
+        self.assertEqual(
+            self.cfgs[2].find_orientations.seed_search.reflection_statistics_seed,
+            17,
         )
 
 

@@ -11,6 +11,7 @@ import coloredlogs
 from hexrd.hedm.findorientations import (
     SeedReflection,
     SeedPeak,
+    _candidate_quaternions_from_pairwise_consensus,
     _candidate_quaternions_from_pairwise_intersections,
     _match_predicted_seed_peaks,
     merge_orientations_by_misorientation,
@@ -188,6 +189,59 @@ def test_pairwise_intersection_candidates():
     assert counts.tolist() == [1]
     assert candidates.shape == (4, 1)
     np.testing.assert_allclose(rot.rotMatOfQuat(candidates[:, 0]), rmat, atol=1.0e-8)
+
+
+def test_pairwise_consensus_candidates():
+    identity_qsym = np.array([[1.0], [0.0], [0.0], [0.0]])
+    bmat = np.eye(3)
+
+    crystal_dirs = [
+        np.array([1.0, 0.0, 0.0]),
+        np.array([0.0, 1.0, 0.0]),
+        np.array([0.0, 0.0, 1.0]),
+    ]
+    rmat = rot.rotMatOfExpMap(np.radians(np.array([12.0, -8.0, 17.0])))
+    sample_dirs = [np.dot(rmat, c) for c in crystal_dirs]
+
+    reflections = []
+    for idx, (cdir, sdir) in enumerate(zip(crystal_dirs, sample_dirs)):
+        reflections.append(
+            SeedReflection(
+                seed_index=idx,
+                hkl_id=idx,
+                hkl=np.asarray(cdir, dtype=float),
+                tth=0.0,
+                eta=0.0,
+                ome=0.0,
+                gvec_s=np.asarray(sdir, dtype=float),
+                support=2 if idx == 0 else 1,
+            )
+        )
+
+    seed_crystal_dirs = [c.reshape(3, 1) for c in crystal_dirs]
+    candidates, pair_tests, raw_proposals, metrics = (
+        _candidate_quaternions_from_pairwise_consensus(
+            reflections,
+            seed_crystal_dirs,
+            identity_qsym,
+            identity_qsym,
+            bmat,
+            np.radians(1.0),
+            max_candidates=5,
+            max_partners=4,
+            min_seed_support=3,
+            min_hkl_support=2,
+            ncpus=1,
+        )
+    )
+
+    assert pair_tests == 3
+    assert raw_proposals >= 1
+    assert candidates.shape[1] >= 1
+    np.testing.assert_allclose(rot.rotMatOfQuat(candidates[:, 0]), rmat, atol=1.0e-8)
+    assert metrics['seed_support'][0] == 3
+    assert metrics['hkl_support'][0] == 3
+    assert metrics['support_weight'][0] >= 4
 
 
 def test_pair_friedel_seed_peaks():

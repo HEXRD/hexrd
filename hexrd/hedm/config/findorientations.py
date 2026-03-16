@@ -183,7 +183,12 @@ class EtaConfig(Config):
 
 class SeedSearchConfig(Config):
 
-    candidate_generators = ['discrete-fibers', 'pairwise', 'pairwise-greedy']
+    candidate_generators = [
+        'discrete-fibers',
+        'pairwise',
+        'pairwise-greedy',
+        'pairwise-consensus',
+    ]
 
     @property
     def hkl_seeds(self):
@@ -257,11 +262,47 @@ class SeedSearchConfig(Config):
         )
 
     @property
+    def pairwise_max_partners(self) -> int:
+        return int(
+            self._cfg.get(
+                'find_orientations:seed_search:pairwise_max_partners',
+                64,
+            )
+        )
+
+    @property
     def friedel_pairing(self) -> bool:
         return bool(
             self._cfg.get(
                 'find_orientations:seed_search:friedel_pairing',
                 True,
+            )
+        )
+
+    @property
+    def reflection_statistics_samples(self) -> int:
+        return int(
+            self._cfg.get(
+                'find_orientations:seed_search:reflection_statistics_samples',
+                200,
+            )
+        )
+
+    @property
+    def reflection_statistics_percentile(self) -> float:
+        return float(
+            self._cfg.get(
+                'find_orientations:seed_search:reflection_statistics_percentile',
+                10.0,
+            )
+        )
+
+    @property
+    def reflection_statistics_seed(self) -> int:
+        return int(
+            self._cfg.get(
+                'find_orientations:seed_search:reflection_statistics_seed',
+                0,
             )
         )
 
