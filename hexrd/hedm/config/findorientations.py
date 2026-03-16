@@ -194,7 +194,11 @@ class SeedSearchConfig(Config):
     def hkl_seeds(self):
         key = 'find_orientations:seed_search:hkl_seeds'
         try:
-            temp = self._cfg.get(key)
+            temp = self._cfg.get(key, None)
+            if temp is None:
+                if self.hkl_seed_selection == 'auto':
+                    return None
+                raise KeyError(key)
             if isinstance(temp, int):
                 temp = [
                     temp,
@@ -203,6 +207,48 @@ class SeedSearchConfig(Config):
         except:
             if self._cfg.find_orientations.use_quaternion_grid is None:
                 raise RuntimeError('"%s" must be defined for seeded search' % key)
+
+    @property
+    def hkl_seed_selection(self) -> str:
+        key = 'find_orientations:seed_search:hkl_seed_selection'
+        raw = self._cfg.get(key, None)
+        if raw is None:
+            if bool(
+                self._cfg.get(
+                    'find_orientations:seed_search:auto_select_hkls',
+                    False,
+                )
+            ):
+                return 'auto'
+            return 'manual'
+
+        mode = str(raw).strip().lower()
+        if mode in ('manual', 'auto'):
+            return mode
+
+        raise RuntimeError(
+            '"%s": "%s" not recognized, must be one of ["manual", "auto"]'
+            % (key, raw)
+        )
+
+    @property
+    def auto_select_hkls(self) -> bool:
+        return self.hkl_seed_selection == 'auto'
+
+    @property
+    def auto_select_count(self) -> int:
+        key = 'find_orientations:seed_search:auto_select_count'
+        raw = self._cfg.get(key, None)
+        if raw is not None:
+            return max(int(raw), 1)
+
+        manual = self._cfg.get('find_orientations:seed_search:hkl_seeds', None)
+        if isinstance(manual, int):
+            return 1
+        if manual is not None:
+            return max(len(manual), 1)
+
+        return 3
 
     @property
     def fiber_step(self):
@@ -309,10 +355,28 @@ class SeedSearchConfig(Config):
 
 class OrientationMapsConfig(Config):
     @property
+    def active_hkl_selection(self) -> str:
+        key = 'find_orientations:orientation_maps:active_hkl_selection'
+        raw = self._cfg.get(key, None)
+        if raw is None:
+            return 'manual'
+
+        mode = str(raw).strip().lower()
+        if mode in ('manual', 'auto'):
+            return mode
+
+        raise RuntimeError(
+            '"%s": "%s" not recognized, must be one of ["manual", "auto"]'
+            % (key, raw)
+        )
+
+    @property
     def active_hkls(self) -> list[int] | None:
         hkls: list[int] | int | Literal['all'] | None = self._cfg.get(
             'find_orientations:orientation_maps:active_hkls', default='all'
         )
+        if self.active_hkl_selection == 'auto' and (hkls == 'all' or hkls is None):
+            return None
         if isinstance(hkls, int):
             return [hkls]
         elif hkls == 'all' or hkls is None:

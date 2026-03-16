@@ -41,10 +41,13 @@ image_series:
 find_orientations:
   orientation_maps:
     active_hkls: [1, 2]
+    active_hkl_selection: auto
     file: %(existing_file)s
   use_quaternion_grid: %(existing_file)s
   seed_search:
     hkl_seeds: 1
+    hkl_seed_selection: auto
+    auto_select_count: 2
     candidate_generator: pairwise-greedy
     fiber_step: 2.0
     friedel_pairing: true
@@ -231,6 +234,34 @@ class TestSeedSearchConfig(TestConfig):
             self.cfgs[3].find_orientations.seed_search.hkl_seeds, [1, 2]
         )
 
+    def test_auto_select_hkls(self):
+        self.assertFalse(
+            self.cfgs[0].find_orientations.seed_search.auto_select_hkls,
+        )
+        self.assertTrue(
+            self.cfgs[2].find_orientations.seed_search.auto_select_hkls,
+        )
+
+    def test_hkl_seed_selection(self):
+        self.assertEqual(
+            self.cfgs[0].find_orientations.seed_search.hkl_seed_selection,
+            'manual',
+        )
+        self.assertEqual(
+            self.cfgs[2].find_orientations.seed_search.hkl_seed_selection,
+            'auto',
+        )
+
+    def test_auto_select_count(self):
+        self.assertEqual(
+            self.cfgs[0].find_orientations.seed_search.auto_select_count,
+            3,
+        )
+        self.assertEqual(
+            self.cfgs[2].find_orientations.seed_search.auto_select_count,
+            2,
+        )
+
     def test_fiber_step(self):
         self.assertEqual(
             self.cfgs[0].find_orientations.seed_search.fiber_step, 0.5
@@ -337,6 +368,16 @@ class TestOrientationMapsConfig(TestConfig):
         )
         self.assertEqual(
             self.cfgs[2].find_orientations.orientation_maps.active_hkls, [1, 2]
+        )
+
+    def test_active_hkl_selection(self):
+        self.assertEqual(
+            self.cfgs[0].find_orientations.orientation_maps.active_hkl_selection,
+            'manual',
+        )
+        self.assertEqual(
+            self.cfgs[2].find_orientations.orientation_maps.active_hkl_selection,
+            'auto',
         )
 
     def test_bin_frames(self):

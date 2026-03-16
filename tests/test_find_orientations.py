@@ -9,11 +9,14 @@ import coloredlogs
 
 
 from hexrd.hedm.findorientations import (
+    MetaSeedReflection,
+    ReflectionStatistics,
     SeedReflection,
     SeedPeak,
     _candidate_quaternions_from_pairwise_consensus,
     _candidate_quaternions_from_pairwise_intersections,
     _match_predicted_seed_peaks,
+    _meta_reflections_from_peaks,
     merge_orientations_by_misorientation,
     _pair_friedel_seed_peaks,
     _predict_friedel_pair_angles,
@@ -219,10 +222,27 @@ def test_pairwise_consensus_candidates():
         )
 
     seed_crystal_dirs = [c.reshape(3, 1) for c in crystal_dirs]
+    stats = ReflectionStatistics(
+        sample_count=1,
+        active_reflections_per_grain=np.array([3]),
+        seed_reflections_raw_per_grain=np.array([3]),
+        seed_reflections_reduced_per_grain=np.array([3]),
+        seed_hkls_per_grain=np.array([3]),
+        seed_reflections_raw_by_hkl={0: np.array([1]), 1: np.array([1]), 2: np.array([1])},
+        seed_reflections_reduced_by_hkl={0: np.array([1]), 1: np.array([1]), 2: np.array([1])},
+        seed_family_ids=((1, 0, 0), (0, 1, 0), (0, 0, 1)),
+        seed_family_visibility_prob={(1, 0, 0): 1.0, (0, 1, 0): 1.0, (0, 0, 1): 1.0},
+        seed_family_pair_visibility_prob={
+            ((0, 0, 1), (0, 1, 0)): 1.0,
+            ((0, 0, 1), (1, 0, 0)): 1.0,
+            ((0, 1, 0), (1, 0, 0)): 1.0,
+        },
+    )
     candidates, pair_tests, raw_proposals, metrics = (
         _candidate_quaternions_from_pairwise_consensus(
             reflections,
             seed_crystal_dirs,
+            stats,
             identity_qsym,
             identity_qsym,
             bmat,
@@ -242,6 +262,60 @@ def test_pairwise_consensus_candidates():
     assert metrics['seed_support'][0] == 3
     assert metrics['hkl_support'][0] == 3
     assert metrics['support_weight'][0] >= 4
+
+
+def test_pairwise_candidates_skip_same_hkl_family():
+    identity_qsym = np.array([[1.0], [0.0], [0.0], [0.0]])
+
+    cdir = np.array([1.0, 0.0, 0.0])
+    cdir_2 = np.array([2.0, 0.0, 0.0])
+    rmat = rot.rotMatOfExpMap(np.radians(np.array([10.0, 15.0, -7.0])))
+    sample_dirs = [
+        np.dot(rmat, cdir),
+        np.dot(
+            rmat,
+            rot.rotMatOfExpMap(np.radians(np.array([0.0, 0.0, 25.0]))) @ cdir,
+        ),
+    ]
+
+    reflections = [
+        SeedReflection(
+            seed_index=0,
+            hkl_id=5,
+            hkl=np.asarray(cdir, dtype=float),
+            fiber_family_id=(1, 0, 0),
+            tth=0.0,
+            eta=0.0,
+            ome=0.0,
+            gvec_s=np.asarray(sample_dirs[0], dtype=float),
+            support=1,
+        ),
+        SeedReflection(
+            seed_index=1,
+            hkl_id=9,
+            hkl=np.asarray(cdir_2, dtype=float),
+            fiber_family_id=(1, 0, 0),
+            tth=0.0,
+            eta=0.0,
+            ome=0.0,
+            gvec_s=np.asarray(sample_dirs[1], dtype=float),
+            support=1,
+        ),
+    ]
+
+    seed_crystal_dirs = [cdir.reshape(3, 1), cdir.reshape(3, 1)]
+    candidates, raw_count, counts = _candidate_quaternions_from_pairwise_intersections(
+        reflections,
+        seed_crystal_dirs,
+        identity_qsym,
+        identity_qsym,
+        np.radians(1.0),
+        10,
+    )
+
+    assert raw_count == 0
+    assert counts.size == 0
+    assert candidates.shape == (4, 0)
 
 
 def test_pair_friedel_seed_peaks():
@@ -286,6 +360,72 @@ def test_pair_friedel_seed_peaks():
     assert paired_peak.intensity == pytest.approx(16.0)
     assert paired_peak.eta == pytest.approx(eta)
     assert paired_peak.ome == pytest.approx(ome)
+
+
+def test_meta_reflections_pair_friedel_peaks():
+    tth = np.radians(35.0)
+    eta = np.radians(22.0)
+    ome = np.radians(-47.0)
+    chi = 0.0
+
+    partner_ome, partner_eta = _predict_friedel_pair_angles(
+        tth,
+        np.array([eta]),
+        np.array([ome]),
+        chi=chi,
+    )
+
+    reflections = _meta_reflections_from_peaks(
+        [
+            SeedPeak(eta=eta, ome=ome, intensity=10.0),
+            SeedPeak(
+                eta=float(partner_eta[0]),
+                ome=float(partner_ome[0]),
+                intensity=8.0,
+            ),
+        ],
+        seed_index=0,
+        hkl_id=0,
+        hkl=np.array([1.0, 0.0, 0.0]),
+        fiber_family_id=(1, 0, 0),
+        tth=tth,
+        chi=chi,
+        eta_tol=np.radians(1.0),
+        ome_tol=np.radians(1.0),
+        eta_ranges=[(-np.pi, np.pi)],
+        ome_ranges=[(-np.pi, np.pi)],
+        use_friedel_pairing=True,
+    )
+
+    assert len(reflections) == 1
+    reflection = reflections[0]
+    assert isinstance(reflection, MetaSeedReflection)
+    assert reflection.friedel_status == 'paired_visible'
+    assert reflection.support == 2
+    assert reflection.weight == 4
+
+
+def test_meta_reflections_mark_missing_friedel_partner():
+    reflections = _meta_reflections_from_peaks(
+        [SeedPeak(eta=np.radians(22.0), ome=np.radians(-47.0), intensity=10.0)],
+        seed_index=0,
+        hkl_id=0,
+        hkl=np.array([1.0, 0.0, 0.0]),
+        fiber_family_id=(1, 0, 0),
+        tth=np.radians(35.0),
+        chi=0.0,
+        eta_tol=np.radians(1.0),
+        ome_tol=np.radians(1.0),
+        eta_ranges=[(-np.pi, np.pi)],
+        ome_ranges=[(-np.pi, np.pi)],
+        use_friedel_pairing=True,
+    )
+
+    assert len(reflections) == 1
+    reflection = reflections[0]
+    assert reflection.friedel_status == 'single_missing'
+    assert reflection.mate_expected
+    assert reflection.weight == 1
 
 
 def test_match_predicted_seed_peaks():

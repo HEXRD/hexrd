@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from math import gcd
 import copy
 import logging
 import os
@@ -48,6 +49,7 @@ filter_stdev_DFLT = 1.0
 logger = logging.getLogger(__name__)
 pairwiseConsensusMP = None
 reflectionStatisticsMP = None
+activeHklStatisticsMP = None
 
 
 def _pool_chunksize(num_items, ncpus, max_chunksize=10):
@@ -81,6 +83,7 @@ class SeedReflection:
     eta: float
     ome: float
     gvec_s: NDArray[np.float64]
+    fiber_family_id: tuple[int, ...] | None = None
     intensity: float = 0.0
     support: int = 1
 
@@ -94,6 +97,33 @@ class SeedPeak:
 
 
 @dataclass
+class MetaSeedReflection:
+    seed_index: int
+    hkl_id: int
+    hkl: NDArray[np.float64]
+    tth: float
+    eta: float
+    ome: float
+    gvec_s: NDArray[np.float64]
+    fiber_family_id: tuple[int, ...] | None = None
+    intensity: float = 0.0
+    support: int = 1
+    weight: int = 1
+    friedel_status: str = 'unpaired'
+    mate_expected: bool = False
+
+
+@dataclass
+class SeedPeakGroup:
+    seed_index: int
+    hkl_id: int
+    hkl: NDArray[np.float64]
+    tth: float
+    peaks: list[SeedPeak]
+    fiber_family_id: tuple[int, ...] | None = None
+
+
+@dataclass
 class ReflectionStatistics:
     sample_count: int
     active_reflections_per_grain: NDArray[np.int64]
@@ -102,6 +132,10 @@ class ReflectionStatistics:
     seed_hkls_per_grain: NDArray[np.int64]
     seed_reflections_raw_by_hkl: dict[int, NDArray[np.int64]]
     seed_reflections_reduced_by_hkl: dict[int, NDArray[np.int64]]
+    seed_family_ids: tuple[tuple[int, ...], ...] = ()
+    seed_family_visibility_prob: dict[tuple[int, ...], float] = field(default_factory=dict)
+    seed_family_pair_visibility_prob: dict[tuple[tuple[int, ...], tuple[int, ...]], float] = field(default_factory=dict)
+    seed_family_eta_reliability: dict[tuple[int, ...], float] = field(default_factory=dict)
 
     def seed_reflections_per_grain(
         self,
@@ -129,6 +163,40 @@ def _wrapped_angle_difference(angle_0, angle_1) -> float:
             np.asarray([angle_1], dtype=float),
         )[0]
     )
+
+
+def _fiber_family_key(hkl) -> tuple[int, ...]:
+    hkl = np.rint(np.asarray(hkl, dtype=float)).astype(int).reshape(-1)
+    nonzero = np.flatnonzero(hkl)
+    if nonzero.size == 0:
+        return tuple(int(x) for x in hkl)
+
+    divisor = 0
+    for value in np.abs(hkl[nonzero]):
+        divisor = gcd(divisor, int(value))
+    if divisor <= 0:
+        divisor = 1
+
+    primitive = (hkl // divisor).astype(int)
+    first_nonzero = primitive[nonzero[0]]
+    if first_nonzero < 0:
+        primitive = -primitive
+
+    return tuple(int(x) for x in primitive.tolist())
+
+
+def _reflection_family_id(reflection) -> tuple[int, ...]:
+    family_id = getattr(reflection, 'fiber_family_id', None)
+    if family_id is not None:
+        return tuple(int(x) for x in family_id)
+
+    return _fiber_family_key(reflection.hkl)
+
+
+def _eta_reliability(eta: float) -> float:
+    # HEDM reflections are most stable near the eta horizon (0, pi) and
+    # least stable near the rotation-axis projection (±pi/2).
+    return float(abs(np.cos(float(eta))) ** 2)
 
 
 def _rotate_vectors_about_axis(
@@ -209,15 +277,72 @@ def _predict_friedel_pair_angles(
     return partner_ome, partner_eta
 
 
-def _pair_friedel_seed_peaks(
+def _periodic_angle_in_ranges(angle, ranges) -> bool:
+    if np.isnan(angle):
+        return False
+
+    twopi = 2.0 * np.pi
+    angle = float(np.mod(angle, twopi))
+    for start, stop in ranges:
+        start = float(np.mod(start, twopi))
+        stop = float(np.mod(stop, twopi))
+        if np.isclose(start, stop):
+            return True
+        if start <= stop:
+            if start <= angle <= stop:
+                return True
+        else:
+            if angle >= start or angle <= stop:
+                return True
+
+    return False
+
+
+def _friedel_partner_visible(
+    eta: float,
+    ome: float,
+    eta_ranges,
+    ome_ranges,
+) -> bool:
+    return _periodic_angle_in_ranges(eta, eta_ranges) and _periodic_angle_in_ranges(
+        ome,
+        ome_ranges,
+    )
+
+
+def _friedel_status_weight(status: str, support: int) -> int:
+    support = max(int(support), 1)
+    if status == 'paired_visible':
+        return support + 2
+    if status == 'single_occluded':
+        return support + 1
+
+    return support
+
+
+def _reflection_axis_from_angles(
+    tth: float,
+    eta: float,
+    ome: float,
+    chi: float,
+) -> NDArray[np.float64]:
+    gvec_s = xfcapi.angles_to_gvec(
+        np.atleast_2d([tth, eta, ome]),
+        chi=chi,
+    ).T.reshape(3)
+    return mutil.unitVector(np.asarray(gvec_s, dtype=float).reshape(3, 1)).reshape(3)
+
+
+def _friedel_pair_matching(
     peaks: list[SeedPeak],
     tth: float,
     chi: float,
     eta_tol: float,
     ome_tol: float,
-) -> list[SeedPeak]:
-    if len(peaks) < 2:
-        return peaks
+):
+    peak_count = len(peaks)
+    if peak_count == 0:
+        return None
 
     eta_tol = max(float(eta_tol), np.radians(0.25))
     ome_tol = max(float(ome_tol), np.radians(0.25))
@@ -237,59 +362,210 @@ def _pair_friedel_seed_peaks(
 
     pred_omes, pred_etas = _predict_friedel_pair_angles(tth, etas, omes, chi=chi)
     valid = ~(np.isnan(pred_omes) | np.isnan(pred_etas))
-    if np.count_nonzero(valid) < 2:
+    best_match = np.full(peak_count, -1, dtype=int)
+    best_cost = np.full(peak_count, np.inf)
+
+    if np.count_nonzero(valid) >= 2:
+        scale = np.array([eta_tol, ome_tol], dtype=float)
+        obs_coords = np.column_stack([etas, omes]) / scale
+
+        periodic_shifts = np.array(
+            [
+                [deta, dome]
+                for deta in (-2.0 * np.pi, 0.0, 2.0 * np.pi)
+                for dome in (-2.0 * np.pi, 0.0, 2.0 * np.pi)
+            ],
+            dtype=float,
+        ) / scale
+        tiled_coords = np.vstack([obs_coords + shift for shift in periodic_shifts])
+        source_ids = np.tile(np.arange(peak_count), len(periodic_shifts))
+        tree = cKDTree(tiled_coords)
+
+        search_radius = np.sqrt(2.0)
+        intensity_weight = 0.05
+        for i in np.where(valid)[0]:
+            pred_point = np.array([pred_etas[i], pred_omes[i]], dtype=float) / scale
+            candidate_ids = np.unique(
+                source_ids[tree.query_ball_point(pred_point, search_radius)]
+            )
+
+            for j in candidate_ids:
+                if i == j or not valid[j]:
+                    continue
+
+                forward_eta = _wrapped_angle_difference(pred_etas[i], etas[j])
+                forward_ome = _wrapped_angle_difference(pred_omes[i], omes[j])
+                if forward_eta > eta_tol or forward_ome > ome_tol:
+                    continue
+
+                reverse_eta = _wrapped_angle_difference(pred_etas[j], etas[i])
+                reverse_ome = _wrapped_angle_difference(pred_omes[j], omes[i])
+                if reverse_eta > eta_tol or reverse_ome > ome_tol:
+                    continue
+
+                cost = (
+                    (forward_eta / eta_tol) ** 2
+                    + (forward_ome / ome_tol) ** 2
+                    + (reverse_eta / eta_tol) ** 2
+                    + (reverse_ome / ome_tol) ** 2
+                    + intensity_weight
+                    * abs(np.log((intensities[i] + 1.0) / (intensities[j] + 1.0)))
+                )
+                if cost < best_cost[i]:
+                    best_cost[i] = cost
+                    best_match[i] = j
+
+    return {
+        'etas': etas,
+        'omes': omes,
+        'intensities': intensities,
+        'pred_etas': pred_etas,
+        'pred_omes': pred_omes,
+        'valid': valid,
+        'best_match': best_match,
+        'best_cost': best_cost,
+    }
+
+
+def _meta_reflections_from_peaks(
+    peaks: list[SeedPeak],
+    seed_index: int,
+    hkl_id: int,
+    hkl: NDArray[np.float64],
+    fiber_family_id: tuple[int, ...] | None,
+    tth: float,
+    chi: float,
+    eta_tol: float,
+    ome_tol: float,
+    eta_ranges,
+    ome_ranges,
+    use_friedel_pairing: bool,
+) -> list[MetaSeedReflection]:
+    if not peaks:
+        return []
+
+    if not use_friedel_pairing:
+        reflections = []
+        for peak in peaks:
+            reflections.append(
+                MetaSeedReflection(
+                    seed_index=seed_index,
+                    hkl_id=int(hkl_id),
+                    hkl=np.asarray(hkl, dtype=float),
+                    fiber_family_id=fiber_family_id,
+                    tth=float(tth),
+                    eta=float(peak.eta),
+                    ome=float(peak.ome),
+                    gvec_s=_reflection_axis_from_angles(tth, peak.eta, peak.ome, chi),
+                    intensity=float(peak.intensity),
+                    support=int(peak.support),
+                    weight=int(peak.support),
+                    friedel_status='unpaired',
+                    mate_expected=False,
+                )
+            )
+        return reflections
+
+    match_data = _friedel_pair_matching(peaks, tth, chi, eta_tol, ome_tol)
+    if match_data is None:
+        return []
+
+    valid = match_data['valid']
+    best_match = match_data['best_match']
+    best_cost = match_data['best_cost']
+    pred_etas = match_data['pred_etas']
+    pred_omes = match_data['pred_omes']
+    intensities = match_data['intensities']
+
+    reflections = []
+    used = np.zeros(len(peaks), dtype=bool)
+    order = np.argsort(best_cost)
+
+    for i in order:
+        if used[i]:
+            continue
+
+        j = best_match[i]
+        if j < 0 or used[j] or best_match[j] != i:
+            continue
+
+        rep_idx = i if intensities[i] >= intensities[j] else j
+        rep_peak = peaks[rep_idx]
+        support = peaks[i].support + peaks[j].support
+        status = 'paired_visible'
+        reflections.append(
+            MetaSeedReflection(
+                seed_index=seed_index,
+                hkl_id=int(hkl_id),
+                hkl=np.asarray(hkl, dtype=float),
+                fiber_family_id=fiber_family_id,
+                tth=float(tth),
+                eta=float(rep_peak.eta),
+                ome=float(rep_peak.ome),
+                gvec_s=_reflection_axis_from_angles(
+                    tth,
+                    rep_peak.eta,
+                    rep_peak.ome,
+                    chi,
+                ),
+                intensity=float(peaks[i].intensity + peaks[j].intensity),
+                support=int(support),
+                weight=_friedel_status_weight(status, support),
+                friedel_status=status,
+                mate_expected=True,
+            )
+        )
+        used[i] = True
+        used[j] = True
+
+    for i, peak in enumerate(peaks):
+        if used[i]:
+            continue
+
+        mate_expected = bool(valid[i]) and _friedel_partner_visible(
+            pred_etas[i],
+            pred_omes[i],
+            eta_ranges,
+            ome_ranges,
+        )
+        status = 'single_missing' if mate_expected else 'single_occluded'
+        reflections.append(
+            MetaSeedReflection(
+                seed_index=seed_index,
+                hkl_id=int(hkl_id),
+                hkl=np.asarray(hkl, dtype=float),
+                fiber_family_id=fiber_family_id,
+                tth=float(tth),
+                eta=float(peak.eta),
+                ome=float(peak.ome),
+                gvec_s=_reflection_axis_from_angles(tth, peak.eta, peak.ome, chi),
+                intensity=float(peak.intensity),
+                support=int(peak.support),
+                weight=_friedel_status_weight(status, peak.support),
+                friedel_status=status,
+                mate_expected=mate_expected,
+            )
+        )
+
+    return reflections
+
+
+def _pair_friedel_seed_peaks(
+    peaks: list[SeedPeak],
+    tth: float,
+    chi: float,
+    eta_tol: float,
+    ome_tol: float,
+) -> list[SeedPeak]:
+    if len(peaks) < 2:
+        return peaks
+    match_data = _friedel_pair_matching(peaks, tth, chi, eta_tol, ome_tol)
+    if match_data is None or np.count_nonzero(match_data['valid']) < 2:
         return peaks
 
-    scale = np.array([eta_tol, ome_tol], dtype=float)
-    obs_coords = np.column_stack([etas, omes]) / scale
-
-    periodic_shifts = np.array(
-        [
-            [deta, dome]
-            for deta in (-2.0 * np.pi, 0.0, 2.0 * np.pi)
-            for dome in (-2.0 * np.pi, 0.0, 2.0 * np.pi)
-        ],
-        dtype=float,
-    ) / scale
-    tiled_coords = np.vstack([obs_coords + shift for shift in periodic_shifts])
-    source_ids = np.tile(np.arange(len(peaks)), len(periodic_shifts))
-    tree = cKDTree(tiled_coords)
-
-    best_match = np.full(len(peaks), -1, dtype=int)
-    best_cost = np.full(len(peaks), np.inf)
-    search_radius = np.sqrt(2.0)
-    intensity_weight = 0.05
-
-    for i in np.where(valid)[0]:
-        pred_point = np.array([pred_etas[i], pred_omes[i]], dtype=float) / scale
-        candidate_ids = np.unique(source_ids[tree.query_ball_point(pred_point, search_radius)])
-
-        for j in candidate_ids:
-            if i == j or not valid[j]:
-                continue
-
-            forward_eta = _wrapped_angle_difference(pred_etas[i], etas[j])
-            forward_ome = _wrapped_angle_difference(pred_omes[i], omes[j])
-            if forward_eta > eta_tol or forward_ome > ome_tol:
-                continue
-
-            reverse_eta = _wrapped_angle_difference(pred_etas[j], etas[i])
-            reverse_ome = _wrapped_angle_difference(pred_omes[j], omes[i])
-            if reverse_eta > eta_tol or reverse_ome > ome_tol:
-                continue
-
-            cost = (
-                (forward_eta / eta_tol) ** 2
-                + (forward_ome / ome_tol) ** 2
-                + (reverse_eta / eta_tol) ** 2
-                + (reverse_ome / ome_tol) ** 2
-                + intensity_weight
-                * abs(np.log((intensities[i] + 1.0) / (intensities[j] + 1.0)))
-            )
-            if cost < best_cost[i]:
-                best_cost[i] = cost
-                best_match[i] = j
-
+    best_match = match_data['best_match']
+    best_cost = match_data['best_cost']
+    intensities = match_data['intensities']
     reduced_peaks = []
     used = np.zeros(len(peaks), dtype=bool)
 
@@ -371,9 +647,592 @@ def _seed_pairing_tolerances(cfg, eta_ome) -> tuple[float, float]:
     return float(pair_eta_tol), float(pair_ome_tol)
 
 
-def _collect_seed_reflections(cfg, eta_ome):
+def _seed_selection_budget(cfg, candidate_pool_size: int) -> int:
+    requested = int(cfg.find_orientations.seed_search.auto_select_count)
+    return min(max(requested, 1), max(int(candidate_pool_size), 1))
+
+
+def _plane_data_hkl_records(
+    plane_data,
+    active_hkl_ids,
+):
+    active_hkl_ids = np.asarray(active_hkl_ids, dtype=int).reshape(-1)
+    active_hkls = np.asarray(plane_data.getHKLs(*active_hkl_ids).T, dtype=float)
+    pd_hkl_idx = np.asarray(
+        plane_data.getHKLID(active_hkls, master=False),
+        dtype=int,
+    )
+    tth = np.asarray(plane_data.getTTh()[pd_hkl_idx], dtype=float)
+    tth_width = getattr(plane_data, 'tThWidth', None)
+
+    records = []
+    for active_idx, (hkl_id, hkl, pd_idx, tth_value) in enumerate(
+        zip(active_hkl_ids, active_hkls, pd_hkl_idx, tth)
+    ):
+        if tth_width is not None and np.isfinite(float(tth_width)):
+            tth_lo = float(tth_value - 0.5 * float(tth_width))
+            tth_hi = float(tth_value + 0.5 * float(tth_width))
+        else:
+            hkl_data = plane_data.hklDataList[int(pd_idx)]
+            tth_lo = float(hkl_data['tThetaLo'])
+            tth_hi = float(hkl_data['tThetaHi'])
+
+        records.append(
+            {
+                'active_idx': int(active_idx),
+                'hkl_id': int(hkl_id),
+                'hkl': np.asarray(hkl, dtype=float),
+                'family_id': _fiber_family_key(hkl),
+                'pd_hkl_idx': int(pd_idx),
+                'tth': float(tth_value),
+                'tth_range': (float(tth_lo), float(tth_hi)),
+                'order': float(np.linalg.norm(np.asarray(hkl, dtype=float))),
+            }
+        )
+
+    return records
+
+
+def _active_hkl_records(eta_ome):
+    return _plane_data_hkl_records(
+        eta_ome.planeData,
+        np.asarray(eta_ome.iHKLList, dtype=int),
+    )
+
+
+def _merged_active_tth_groups(active_records):
+    if not active_records:
+        return []
+
+    sorted_records = sorted(
+        active_records,
+        key=lambda record: (record['tth_range'][0], record['tth_range'][1]),
+    )
+    groups = []
+    current_group = [sorted_records[0]]
+    current_hi = sorted_records[0]['tth_range'][1]
+    for record in sorted_records[1:]:
+        lo, hi = record['tth_range']
+        if lo <= current_hi:
+            current_group.append(record)
+            current_hi = max(current_hi, hi)
+        else:
+            groups.append(current_group)
+            current_group = [record]
+            current_hi = hi
+    groups.append(current_group)
+    return groups
+
+
+def _degenerate_tth_group(
+    group,
+    tol=const.sqrt_epsf,
+):
+    if len(group) < 2:
+        return False
+
+    tth_vals = np.asarray([record['tth'] for record in group], dtype=float)
+    return bool(np.max(tth_vals) - np.min(tth_vals) <= max(float(tol), const.sqrt_epsf))
+
+
+def _separable_seed_family_records(active_records):
+    groups = _merged_active_tth_groups(active_records)
+    separable = []
+    for group in groups:
+        family_ids = {record['family_id'] for record in group}
+        if len(group) != 1 or len(family_ids) != 1:
+            continue
+        separable.append(group[0].copy())
+
+    return separable
+
+
+def active_hkl_statistics_init(params):
+    global activeHklStatisticsMP
+    activeHklStatisticsMP = params
+
+
+def active_hkl_statistics_cleanup():
+    global activeHklStatisticsMP
+    activeHklStatisticsMP = None
+
+
+def active_hkl_statistics_reduced(grain_range):
+    params = activeHklStatisticsMP
+    grain_param_list = params['grain_param_list'][slice(*grain_range)]
+    active_hkl_ids = params['active_hkl_ids']
+    active_index_by_hkl = params['active_index_by_hkl']
+
+    sim_results = params['instr'].simulate_rotation_series(
+        params['plane_data'],
+        grain_param_list,
+        eta_ranges=params['eta_ranges'],
+        ome_ranges=params['ome_ranges'],
+        ome_period=params['ome_period'],
+    )
+
+    ngrains = grain_param_list.shape[0]
+    active_counts = np.zeros(ngrains, dtype=np.int64)
+    per_hkl_counts = np.zeros((len(active_hkl_ids), ngrains), dtype=np.int64)
+
+    for sim_result in sim_results.values():
+        valid_ids_by_grain = sim_result[0]
+        for igrain, valid_ids in enumerate(valid_ids_by_grain):
+            valid_ids = np.asarray(valid_ids, dtype=int)
+            if valid_ids.size == 0:
+                continue
+
+            mask = np.isin(valid_ids, active_hkl_ids)
+            visible_ids = valid_ids[mask]
+            if visible_ids.size == 0:
+                continue
+
+            active_counts[igrain] += int(visible_ids.size)
+            for hkl_id in visible_ids:
+                per_hkl_counts[active_index_by_hkl[int(hkl_id)], igrain] += 1
+
+    return {
+        'active_reflections_per_grain': active_counts,
+        'active_reflections_by_hkl': per_hkl_counts,
+    }
+
+
+def _compute_active_hkl_statistics(
+    cfg,
+    active_hkl_ids,
+):
+    plane_data = cfg.material.plane_data
+    instr = cfg.instrument.hedm
+    active_hkl_ids = np.asarray(active_hkl_ids, dtype=int).reshape(-1)
+    if active_hkl_ids.size == 0:
+        return {
+            'sample_count': 0,
+            'active_reflections_per_grain': np.array([], dtype=np.int64),
+            'active_reflections_by_hkl': {},
+        }
+
+    sample_count = max(
+        int(cfg.find_orientations.seed_search.reflection_statistics_samples),
+        1,
+    )
+    sample_seed = int(cfg.find_orientations.seed_search.reflection_statistics_seed)
+    eta_ranges = np.radians(cfg.find_orientations.eta.range)
+    ome_period, ome_ranges = _process_omegas(cfg.image_series)
+
+    rng = np.random.default_rng(sample_seed)
+    rand_q = mutil.unitVector(rng.normal(size=(4, sample_count)))
+    rand_e = rot.expMapOfQuat(rand_q)
+    if rand_e.ndim == 1:
+        rand_e = rand_e.reshape(3, 1)
+    grain_param_list = np.vstack(
+        [
+            rand_e,
+            np.zeros((3, sample_count)),
+            np.tile(const.identity_6x1, (sample_count, 1)).T,
+        ]
+    ).T
+
+    params = {
+        'plane_data': plane_data,
+        'instr': instr,
+        'grain_param_list': grain_param_list,
+        'active_hkl_ids': active_hkl_ids,
+        'active_index_by_hkl': {
+            int(hkl_id): idx for idx, hkl_id in enumerate(active_hkl_ids)
+        },
+        'eta_ranges': eta_ranges,
+        'ome_ranges': np.radians(ome_ranges),
+        'ome_period': np.radians(ome_period),
+    }
+
+    nworkers = _pool_worker_count(sample_count, cfg.multiprocessing)
+    if nworkers > 1 and _spawn_pool_is_expensive():
+        logger.info(
+            "\tusing serial active-hkl statistics simulation on spawn multiprocessing context"
+        )
+        nworkers = 1
+
+    grain_ranges = distribute_tasks(sample_count, nworkers)
+    if nworkers > 1:
+        with const.mp_context.Pool(
+            nworkers,
+            active_hkl_statistics_init,
+            (params,),
+        ) as pool:
+            results = pool.map(active_hkl_statistics_reduced, grain_ranges)
+    else:
+        active_hkl_statistics_init(params)
+        try:
+            results = list(map(active_hkl_statistics_reduced, grain_ranges))
+        finally:
+            active_hkl_statistics_cleanup()
+
+    active_reflections_per_grain = np.concatenate(
+        [result['active_reflections_per_grain'] for result in results]
+    )
+    active_reflections_by_hkl = {
+        int(hkl_id): np.concatenate(
+            [result['active_reflections_by_hkl'][idx] for result in results]
+        )
+        for idx, hkl_id in enumerate(active_hkl_ids)
+    }
+    return {
+        'sample_count': sample_count,
+        'active_reflections_per_grain': active_reflections_per_grain,
+        'active_reflections_by_hkl': active_reflections_by_hkl,
+    }
+
+
+def _select_seed_family_records(
+    family_records,
+    family_pair_priority,
+    budget: int,
+):
+    if not family_records:
+        return []
+
+    budget = min(max(int(budget), 1), len(family_records))
+    record_by_family = {record['family_id']: record for record in family_records}
+    selected = []
+    remaining = set(record_by_family)
+
+    while remaining and len(selected) < budget:
+        best_family = None
+        best_score = -np.inf
+        for family_id in remaining:
+            record = record_by_family[family_id]
+            score = float(record['unary_score'])
+            if selected:
+                pair_scores = [
+                    family_pair_priority.get(
+                        _family_pair_key(family_id, selected_family),
+                        0.0,
+                    )
+                    for selected_family in selected
+                ]
+                if pair_scores:
+                    score *= float(np.mean(pair_scores))
+
+            if score > best_score:
+                best_score = score
+                best_family = family_id
+
+        if best_family is None:
+            break
+
+        selected.append(best_family)
+        remaining.remove(best_family)
+
+    return [record_by_family[family_id] for family_id in selected]
+
+
+def _auto_select_seed_hkl_indices(
+    cfg,
+    eta_ome,
+    candidate_indices,
+):
+    candidate_indices = np.asarray(candidate_indices, dtype=int).reshape(-1)
+    if candidate_indices.size == 0:
+        return []
+
+    active_records = [
+        record
+        for record in _active_hkl_records(eta_ome)
+        if int(record['active_idx']) in set(candidate_indices.tolist())
+    ]
+    family_records = _separable_seed_family_records(active_records)
+    if not family_records:
+        logger.warning(
+            "\tno separable non-degenerate seed hkls were found in the active eta-omega maps"
+        )
+        return []
+
+    candidate_seed_indices = [record['active_idx'] for record in family_records]
+    try:
+        stats = compute_reflection_statistics(
+            cfg,
+            eta_ome,
+            seed_hkl_indices=candidate_seed_indices,
+        )
+    except Exception as exc:
+        logger.warning(
+            "\tseed auto-selection statistics failed (%s); falling back to geometry-only ranking",
+            exc,
+        )
+        stats = None
+
+    use_friedel_pairing = cfg.find_orientations.seed_search.friedel_pairing
+    plane_data = eta_ome.planeData
+    sym_hkls = plane_data.getSymHKLs()
+    bmat = plane_data.latVecOps['B']
+    pair_tol = np.radians(cfg.find_orientations.seed_search.pairwise_tolerance)
+    epsilon = 1.0 / max(getattr(stats, 'sample_count', 1), 1)
+
+    deduped_records = {}
+    for record in family_records:
+        crystal_dirs = mutil.unitVector(np.dot(bmat, sym_hkls[record['pd_hkl_idx']]))
+        crystal_dirs = np.asarray(crystal_dirs, dtype=float)
+        if crystal_dirs.ndim == 1:
+            crystal_dirs = crystal_dirs.reshape(3, 1)
+
+        visibility = epsilon
+        support = epsilon
+        eta_reliability = 1.0
+        if stats is not None:
+            per_hkl_counts = stats.seed_reflections_by_hkl(use_friedel_pairing)
+            counts = np.asarray(per_hkl_counts.get(record['hkl_id'], []), dtype=float)
+            if counts.size:
+                visibility = max(float(np.mean(counts > 0.0)), epsilon)
+                support = max(float(np.mean(counts)), epsilon)
+            eta_reliability = max(
+                float(stats.seed_family_eta_reliability.get(record['family_id'], 0.0)),
+                epsilon,
+            )
+
+        order_score = 1.0 / (1.0 + max(record['order'], 0.0))
+        unary_score = visibility * support * eta_reliability * order_score
+        ranked = dict(record)
+        ranked.update(
+            {
+                'visibility': float(visibility),
+                'support': float(support),
+                'eta_reliability': float(eta_reliability),
+                'order_score': float(order_score),
+                'crystal_dirs': crystal_dirs,
+                'multiplicity': int(crystal_dirs.shape[1]),
+                'unary_score': float(unary_score),
+            }
+        )
+        prev = deduped_records.get(record['family_id'])
+        if prev is None or (
+            ranked['unary_score'] > prev['unary_score']
+            or (
+                np.isclose(ranked['unary_score'], prev['unary_score'])
+                and ranked['tth'] < prev['tth']
+            )
+        ):
+            deduped_records[record['family_id']] = ranked
+
+    family_records = list(deduped_records.values())
+    if not family_records:
+        return []
+
+    family_pair_priority = {}
+    for i, record_i in enumerate(family_records):
+        family_i = record_i['family_id']
+        for j in range(i + 1, len(family_records)):
+            record_j = family_records[j]
+            family_j = record_j['family_id']
+            pair_key = _family_pair_key(family_i, family_j)
+            covis = (
+                stats.seed_family_pair_visibility_prob.get(pair_key, 0.0)
+                if stats is not None
+                else epsilon
+            )
+            geometry = _geometric_family_pair_score(
+                record_i['crystal_dirs'],
+                record_j['crystal_dirs'],
+                pair_tol,
+            )
+            family_pair_priority[pair_key] = float(
+                max(covis, epsilon)
+                * max(geometry, epsilon)
+            )
+
+    budget = _seed_selection_budget(cfg, len(family_records))
+    selected_records = _select_seed_family_records(
+        family_records,
+        family_pair_priority,
+        budget,
+    )
+    selected_indices = [int(record['active_idx']) for record in selected_records]
+
+    logger.info(
+        "\tauto-selected %d separable seed hkls from %d candidate maps: %s",
+        len(selected_records),
+        len(candidate_indices),
+        [str(record['hkl']) for record in selected_records],
+    )
+
+    return selected_indices
+
+
+def _active_observability_target(cfg) -> int:
+    seed_goal = max(int(cfg.find_orientations.seed_search.auto_select_count), 3)
+    return max(6, 2 * seed_goal)
+
+
+def _auto_select_active_hkl_ids(cfg, candidate_hkl_ids=None):
+    plane_data = cfg.material.plane_data
+    if candidate_hkl_ids is None:
+        candidate_hkl_ids = np.asarray(
+            plane_data.getHKLID(plane_data.hkls, master=True),
+            dtype=int,
+        )
+    else:
+        candidate_hkl_ids = np.asarray(candidate_hkl_ids, dtype=int).reshape(-1)
+
+    if candidate_hkl_ids.size == 0:
+        return np.array([], dtype=int)
+
+    active_records = _plane_data_hkl_records(plane_data, candidate_hkl_ids)
+    stats = _compute_active_hkl_statistics(cfg, candidate_hkl_ids)
+    sample_count = max(int(stats['sample_count']), 1)
+    epsilon = 1.0 / sample_count
+
+    for record in active_records:
+        counts = np.asarray(
+            stats['active_reflections_by_hkl'].get(record['hkl_id'], []),
+            dtype=float,
+        )
+        if counts.size == 0:
+            visibility = 0.0
+            support = 0.0
+        else:
+            visibility = float(np.mean(counts > 0.0))
+            support = float(np.mean(counts))
+        record['visibility'] = visibility
+        record['support'] = support
+        record['order_score'] = 1.0 / (1.0 + max(record['order'], 0.0))
+        record['active_score'] = (
+            max(visibility, epsilon)
+            * max(support, epsilon)
+            * record['order_score']
+        )
+
+    groups = _merged_active_tth_groups(active_records)
+    clean_records = []
+    degenerate_groups = []
+    for group in groups:
+        family_ids = {record['family_id'] for record in group}
+        if len(group) == 1 and len(family_ids) == 1:
+            clean_records.append(group[0])
+        elif _degenerate_tth_group(group):
+            degenerate_groups.append(group)
+
+    clean_records.sort(key=lambda record: (record['tth'], -record['active_score']))
+    selected = [record for record in clean_records if record['visibility'] > 0.0]
+    selected_ids = [int(record['hkl_id']) for record in selected]
+
+    target_reflections = _active_observability_target(cfg)
+    p10_active = _clipped_percentile(
+        np.sum(
+            np.vstack(
+                [
+                    stats['active_reflections_by_hkl'][hkl_id]
+                    for hkl_id in selected_ids
+                ]
+            ),
+            axis=0,
+        )
+        if selected_ids
+        else np.zeros(sample_count, dtype=float),
+        cfg.find_orientations.seed_search.reflection_statistics_percentile,
+    )
+
+    if p10_active < target_reflections and degenerate_groups:
+        degenerate_groups.sort(
+            key=lambda group: (
+                min(record['tth'] for record in group),
+                -max(record['active_score'] for record in group),
+            )
+        )
+        for group in degenerate_groups:
+            representatives = sorted(
+                group,
+                key=lambda record: (
+                    -record['active_score'],
+                    record['tth'],
+                ),
+            )
+            if not representatives:
+                continue
+
+            record = representatives[0]
+            if record['hkl_id'] in selected_ids or record['visibility'] <= 0.0:
+                continue
+
+            selected.append(record)
+            selected_ids.append(int(record['hkl_id']))
+            p10_active = _clipped_percentile(
+                np.sum(
+                    np.vstack(
+                        [
+                            stats['active_reflections_by_hkl'][hkl_id]
+                            for hkl_id in selected_ids
+                        ]
+                    ),
+                    axis=0,
+                ),
+                cfg.find_orientations.seed_search.reflection_statistics_percentile,
+            )
+            if p10_active >= target_reflections:
+                break
+
+    selected.sort(key=lambda record: record['tth'])
+    selected_ids = np.asarray([int(record['hkl_id']) for record in selected], dtype=int)
+    logger.info(
+        "\tauto-selected %d active hkls (target p%.1f active reflections/grain >= %.1f, achieved %.1f): %s",
+        selected_ids.size,
+        float(np.clip(cfg.find_orientations.seed_search.reflection_statistics_percentile, 0.0, 100.0)),
+        float(target_reflections),
+        float(p10_active),
+        [str(record['hkl']) for record in selected],
+    )
+    return selected_ids
+
+
+def _resolved_orientation_map_hkl_ids(cfg, hkls=None):
+    plane_data = cfg.material.plane_data
+    if hkls is not None:
+        hkls = np.asarray(hkls)
+        if hkls.ndim == 2:
+            hkls = plane_data.getHKLID(hkls.tolist(), master=True)
+        return np.asarray(hkls, dtype=int)
+
+    if cfg.find_orientations.orientation_maps.active_hkl_selection == 'auto':
+        return _auto_select_active_hkl_ids(cfg)
+
+    active_hkl_ids = np.asarray(
+        plane_data.getHKLID(plane_data.hkls, master=True),
+        dtype=int,
+    )
+    temp = np.asarray(cfg.find_orientations.orientation_maps.active_hkls)
+    if temp.ndim == 0:
+        return active_hkl_ids
+    if temp.ndim == 1:
+        return np.asarray(temp, dtype=int)
+    if temp.ndim == 2:
+        return np.asarray(
+            plane_data.getHKLID(temp.tolist(), master=True),
+            dtype=int,
+        )
+    raise RuntimeError(
+        'active_hkls spec must be 1-d or 2-d, not %d-d' % temp.ndim
+    )
+
+
+def _resolved_seed_hkl_indices(cfg, eta_ome):
+    manual_seed_indices = cfg.find_orientations.seed_search.hkl_seeds
+    auto_select = cfg.find_orientations.seed_search.auto_select_hkls
+
+    if manual_seed_indices is not None and not auto_select:
+        return [int(idx) for idx in manual_seed_indices]
+
+    if manual_seed_indices is None and not auto_select:
+        raise RuntimeError('"find_orientations:seed_search:hkl_seeds" must be defined for seeded search')
+
+    candidate_indices = (
+        np.asarray(manual_seed_indices, dtype=int)
+        if manual_seed_indices is not None
+        else np.arange(len(eta_ome.iHKLList), dtype=int)
+    )
+    return _auto_select_seed_hkl_indices(cfg, eta_ome, candidate_indices)
+
+
+def _collect_seed_peak_groups(cfg, eta_ome):
     chi = cfg.instrument.hedm.chi
-    seed_hkl_ids = cfg.find_orientations.seed_search.hkl_seeds
+    seed_hkl_ids = _resolved_seed_hkl_indices(cfg, eta_ome)
     method_dict = cfg.find_orientations.seed_search.method
     use_friedel_pairing = cfg.find_orientations.seed_search.friedel_pairing
 
@@ -408,9 +1267,8 @@ def _collect_seed_reflections(cfg, eta_ome):
             crystal_dirs = crystal_dirs.reshape(3, 1)
         seed_crystal_dirs.append(crystal_dirs)
 
-    reflections = []
+    peak_groups = []
     total_raw_spots = 0
-    total_reduced_spots = 0
     for seed_index, (active_hkl_index, this_hkl, this_tth) in enumerate(
         zip(seed_hkl_ids, seed_hkls, seed_tths)
     ):
@@ -435,40 +1293,15 @@ def _collect_seed_reflections(cfg, eta_ome):
             )
 
         total_raw_spots += len(seed_peaks)
-        if use_friedel_pairing:
-            seed_peaks = _pair_friedel_seed_peaks(
-                seed_peaks,
-                float(this_tth),
-                chi,
-                pair_eta_tol,
-                pair_ome_tol,
+        peak_groups.append(
+            SeedPeakGroup(
+                seed_index=seed_index,
+                hkl_id=int(pd_hkl_ids[seed_index]),
+                hkl=np.asarray(this_hkl, dtype=float),
+                fiber_family_id=_fiber_family_key(this_hkl),
+                tth=float(this_tth),
+                peaks=seed_peaks,
             )
-        total_reduced_spots += len(seed_peaks)
-
-        for seed_peak in seed_peaks:
-            gvec_s = xfcapi.angles_to_gvec(
-                np.atleast_2d([this_tth, seed_peak.eta, seed_peak.ome]),
-                chi=chi,
-            ).T.reshape(3)
-            reflections.append(
-                SeedReflection(
-                    seed_index=seed_index,
-                    hkl_id=int(pd_hkl_ids[seed_index]),
-                    hkl=np.asarray(this_hkl, dtype=float),
-                    tth=float(this_tth),
-                    eta=seed_peak.eta,
-                    ome=seed_peak.ome,
-                    gvec_s=np.asarray(gvec_s, dtype=float),
-                    intensity=seed_peak.intensity,
-                    support=seed_peak.support,
-                )
-            )
-
-    if use_friedel_pairing and total_raw_spots:
-        logger.info(
-            "\tFriedel pairing reduced seed spots from %d to %d",
-            total_raw_spots,
-            total_reduced_spots,
         )
 
     seed_plane_data = copy.deepcopy(pd)
@@ -492,7 +1325,97 @@ def _collect_seed_reflections(cfg, eta_ome):
             int(hkl_id): float(tth)
             for hkl_id, tth in zip(pd_hkl_ids, seed_tths)
         },
+        total_raw_spots=total_raw_spots,
     )
+    return peak_groups, seed_crystal_dirs, params
+
+
+def _collect_seed_reflections(cfg, eta_ome):
+    peak_groups, seed_crystal_dirs, params = _collect_seed_peak_groups(cfg, eta_ome)
+    reflections = []
+    total_reduced_spots = 0
+    for peak_group in peak_groups:
+        seed_peaks = peak_group.peaks
+        if params['use_friedel_pairing']:
+            seed_peaks = _pair_friedel_seed_peaks(
+                seed_peaks,
+                peak_group.tth,
+                params['chi'],
+                params['pair_eta_tol'],
+                params['pair_ome_tol'],
+            )
+        total_reduced_spots += len(seed_peaks)
+
+        for seed_peak in seed_peaks:
+            gvec_s = xfcapi.angles_to_gvec(
+                np.atleast_2d([peak_group.tth, seed_peak.eta, seed_peak.ome]),
+                chi=params['chi'],
+            ).T.reshape(3)
+            reflections.append(
+                SeedReflection(
+                    seed_index=peak_group.seed_index,
+                    hkl_id=peak_group.hkl_id,
+                    hkl=peak_group.hkl,
+                    fiber_family_id=peak_group.fiber_family_id,
+                    tth=peak_group.tth,
+                    eta=seed_peak.eta,
+                    ome=seed_peak.ome,
+                    gvec_s=np.asarray(gvec_s, dtype=float),
+                    intensity=seed_peak.intensity,
+                    support=seed_peak.support,
+                )
+            )
+
+    if params['use_friedel_pairing'] and params['total_raw_spots']:
+        logger.info(
+            "\tFriedel pairing reduced seed spots from %d to %d",
+            params['total_raw_spots'],
+            total_reduced_spots,
+        )
+
+    return reflections, seed_crystal_dirs, params
+
+
+def _collect_pairwise_consensus_reflections(cfg, eta_ome):
+    peak_groups, seed_crystal_dirs, params = _collect_seed_peak_groups(cfg, eta_ome)
+    reflections = []
+    status_counts = {
+        'paired_visible': 0,
+        'single_occluded': 0,
+        'single_missing': 0,
+        'unpaired': 0,
+    }
+
+    for peak_group in peak_groups:
+        meta_reflections = _meta_reflections_from_peaks(
+            peak_group.peaks,
+            peak_group.seed_index,
+            peak_group.hkl_id,
+            peak_group.hkl,
+            peak_group.fiber_family_id,
+            peak_group.tth,
+            params['chi'],
+            params['pair_eta_tol'],
+            params['pair_ome_tol'],
+            params['eta_ranges'],
+            params['ome_ranges'],
+            params['use_friedel_pairing'],
+        )
+        reflections.extend(meta_reflections)
+        for reflection in meta_reflections:
+            status_counts.setdefault(reflection.friedel_status, 0)
+            status_counts[reflection.friedel_status] += 1
+
+    if params['use_friedel_pairing'] and params['total_raw_spots']:
+        logger.info(
+            "\tpairwise-consensus condensed %d raw seed spots into %d Friedel-aware meta-reflections (%d paired, %d occluded singles, %d expected-missing singles)",
+            params['total_raw_spots'],
+            len(reflections),
+            status_counts['paired_visible'],
+            status_counts['single_occluded'],
+            status_counts['single_missing'],
+        )
+
     return reflections, seed_crystal_dirs, params
 
 
@@ -665,6 +1588,9 @@ def _candidate_quaternions_from_pairwise_intersections(
 
     for i, reflection_i in enumerate(reflections[:-1]):
         for reflection_j in reflections[i + 1 :]:
+            if _reflection_family_id(reflection_i) == _reflection_family_id(reflection_j):
+                continue
+
             pair_candidates = _pairwise_quaternions_for_reflection_pair(
                 reflection_i,
                 reflection_j,
@@ -800,6 +1726,9 @@ def reflection_statistics_reduced(grain_range):
     seed_hkl_counts = np.zeros(ngrains, dtype=np.int64)
     per_seed_raw = np.zeros((len(seed_hkl_ids), ngrains), dtype=np.int64)
     per_seed_reduced = np.zeros((len(seed_hkl_ids), ngrains), dtype=np.int64)
+    family_visible = np.zeros((len(params['seed_family_ids']), ngrains), dtype=bool)
+    family_eta_quality_sum = np.zeros((len(params['seed_family_ids']), ngrains), dtype=float)
+    family_eta_quality_count = np.zeros((len(params['seed_family_ids']), ngrains), dtype=np.int64)
     seed_peaks_by_grain = [dict() for _ in range(ngrains)]
 
     for sim_result in sim_results.values():
@@ -827,7 +1756,11 @@ def reflection_statistics_reduced(grain_range):
             for hkl_id, angs in zip(seed_ids, seed_angs):
                 hkl_id = int(hkl_id)
                 seed_idx = seed_index_by_hkl[hkl_id]
+                family_id = params['seed_family_id_by_hkl'][hkl_id]
+                family_idx = params['seed_family_index_by_id'][family_id]
                 per_seed_raw[seed_idx, igrain] += 1
+                family_eta_quality_sum[family_idx, igrain] += _eta_reliability(angs[1])
+                family_eta_quality_count[family_idx, igrain] += 1
                 seed_peaks_by_grain[igrain].setdefault(hkl_id, []).append(
                     SeedPeak(
                         eta=float(angs[1]),
@@ -843,7 +1776,15 @@ def reflection_statistics_reduced(grain_range):
 
     use_friedel_pairing = params['use_friedel_pairing']
     for igrain, predicted_by_hkl in enumerate(seed_peaks_by_grain):
-        seed_hkl_counts[igrain] = len(predicted_by_hkl)
+        seed_hkl_counts[igrain] = len(
+            {
+                params['seed_family_id_by_hkl'][int(hkl_id)]
+                for hkl_id in predicted_by_hkl
+            }
+        )
+        for hkl_id in predicted_by_hkl:
+            family_id = params['seed_family_id_by_hkl'][int(hkl_id)]
+            family_visible[params['seed_family_index_by_id'][family_id], igrain] = True
         if not predicted_by_hkl:
             continue
 
@@ -874,18 +1815,34 @@ def reflection_statistics_reduced(grain_range):
         'seed_hkls_per_grain': seed_hkl_counts,
         'seed_reflections_raw_by_hkl': per_seed_raw,
         'seed_reflections_reduced_by_hkl': per_seed_reduced,
+        'seed_family_visible': family_visible,
+        'seed_family_eta_quality_sum': family_eta_quality_sum,
+        'seed_family_eta_quality_count': family_eta_quality_count,
     }
 
 
-def compute_reflection_statistics(cfg, eta_ome) -> ReflectionStatistics:
+def compute_reflection_statistics(
+    cfg,
+    eta_ome,
+    seed_hkl_indices=None,
+) -> ReflectionStatistics:
     plane_data = cfg.material.plane_data
     instr = cfg.instrument.hedm
     active_hkl_ids = np.asarray(eta_ome.iHKLList, dtype=int)
-    seed_hkl_indices = np.asarray(
-        cfg.find_orientations.seed_search.hkl_seeds,
-        dtype=int,
-    )
+    if seed_hkl_indices is None:
+        seed_hkl_indices = np.asarray(
+            _resolved_seed_hkl_indices(cfg, eta_ome),
+            dtype=int,
+        )
+    else:
+        seed_hkl_indices = np.asarray(seed_hkl_indices, dtype=int)
     seed_hkl_ids = np.asarray(active_hkl_ids[seed_hkl_indices], dtype=int)
+    seed_family_ids = tuple(
+        dict.fromkeys(
+            _fiber_family_key(hkl)
+            for hkl in plane_data.getHKLs(*seed_hkl_ids).T
+        )
+    )
     percentile = cfg.find_orientations.seed_search.reflection_statistics_percentile
     sample_count = max(
         int(cfg.find_orientations.seed_search.reflection_statistics_samples),
@@ -930,6 +1887,17 @@ def compute_reflection_statistics(cfg, eta_ome) -> ReflectionStatistics:
         'seed_hkl_ids': seed_hkl_ids,
         'seed_index_by_hkl': {
             int(hkl_id): idx for idx, hkl_id in enumerate(seed_hkl_ids)
+        },
+        'seed_family_id_by_hkl': {
+            int(hkl_id): _fiber_family_key(hkl)
+            for hkl_id, hkl in zip(
+                seed_hkl_ids,
+                plane_data.getHKLs(*seed_hkl_ids).T,
+            )
+        },
+        'seed_family_ids': seed_family_ids,
+        'seed_family_index_by_id': {
+            family_id: idx for idx, family_id in enumerate(seed_family_ids)
         },
         'eta_ranges': eta_ranges,
         'ome_ranges': np.radians(ome_ranges),
@@ -989,6 +1957,39 @@ def compute_reflection_statistics(cfg, eta_ome) -> ReflectionStatistics:
         )
         for idx, hkl_id in enumerate(seed_hkl_ids)
     }
+    seed_family_visible = np.concatenate(
+        [result['seed_family_visible'] for result in results],
+        axis=1,
+    )
+    seed_family_visibility_prob = {
+        family_id: float(np.mean(seed_family_visible[idx]))
+        for idx, family_id in enumerate(seed_family_ids)
+    }
+    seed_family_pair_visibility_prob = {}
+    for i, family_i in enumerate(seed_family_ids):
+        for j in range(i + 1, len(seed_family_ids)):
+            family_j = seed_family_ids[j]
+            pair_key = tuple(sorted((family_i, family_j)))
+            seed_family_pair_visibility_prob[pair_key] = float(
+                np.mean(seed_family_visible[i] & seed_family_visible[j])
+            )
+    seed_family_eta_quality_sum = np.sum(
+        np.stack([result['seed_family_eta_quality_sum'] for result in results], axis=0),
+        axis=0,
+    )
+    seed_family_eta_quality_count = np.sum(
+        np.stack([result['seed_family_eta_quality_count'] for result in results], axis=0),
+        axis=0,
+    )
+    seed_family_eta_reliability = {}
+    for idx, family_id in enumerate(seed_family_ids):
+        total_count = int(np.sum(seed_family_eta_quality_count[idx]))
+        if total_count <= 0:
+            seed_family_eta_reliability[family_id] = 0.0
+        else:
+            seed_family_eta_reliability[family_id] = float(
+                np.sum(seed_family_eta_quality_sum[idx]) / total_count
+            )
 
     stats = ReflectionStatistics(
         sample_count=sample_count,
@@ -998,6 +1999,10 @@ def compute_reflection_statistics(cfg, eta_ome) -> ReflectionStatistics:
         seed_hkls_per_grain=seed_hkls_per_grain,
         seed_reflections_raw_by_hkl=seed_reflections_raw_by_hkl,
         seed_reflections_reduced_by_hkl=seed_reflections_reduced_by_hkl,
+        seed_family_ids=seed_family_ids,
+        seed_family_visibility_prob=seed_family_visibility_prob,
+        seed_family_pair_visibility_prob=seed_family_pair_visibility_prob,
+        seed_family_eta_reliability=seed_family_eta_reliability,
     )
 
     logger.info(
@@ -1022,6 +2027,12 @@ def compute_reflection_statistics(cfg, eta_ome) -> ReflectionStatistics:
         _clipped_percentile(stats.seed_hkls_per_grain, percentile),
         float(np.mean(stats.seed_hkls_per_grain)),
     )
+    if stats.seed_family_eta_reliability:
+        logger.info(
+            "\tseed-family eta reliability range: %.3f-%.3f",
+            float(min(stats.seed_family_eta_reliability.values())),
+            float(max(stats.seed_family_eta_reliability.values())),
+        )
 
     return stats
 
@@ -1036,7 +2047,9 @@ def _pairwise_consensus_support_thresholds(
     use_friedel_pairing = cfg.find_orientations.seed_search.friedel_pairing
 
     unique_seed_count = len({reflection.seed_index for reflection in reflections})
-    unique_hkl_count = len({reflection.hkl_id for reflection in reflections})
+    unique_hkl_count = len(
+        {_reflection_family_id(reflection) for reflection in reflections}
+    )
 
     seed_support_floor = _clipped_percentile(
         stats.seed_reflections_per_grain(use_friedel_pairing),
@@ -1059,6 +2072,142 @@ def _pairwise_consensus_support_thresholds(
         min_hkl_support = max(2, min_hkl_support)
 
     return int(min_seed_support), int(min_hkl_support)
+
+
+def _family_pair_key(
+    family_a: tuple[int, ...],
+    family_b: tuple[int, ...],
+) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    return tuple(sorted((tuple(family_a), tuple(family_b))))
+
+
+def _geometric_family_pair_score(
+    dirs_a: NDArray[np.float64],
+    dirs_b: NDArray[np.float64],
+    pair_tol: float,
+) -> float:
+    pair_tol = max(float(pair_tol), np.radians(0.25))
+    dot = np.clip(np.abs(np.dot(dirs_a.T, dirs_b)), -1.0, 1.0)
+    angles = np.sort(np.ravel(np.arccos(dot)))
+    if angles.size == 0:
+        return 0.0
+
+    unique_angles = [float(angles[0])]
+    merge_tol = 0.5 * pair_tol
+    for angle in angles[1:]:
+        if abs(float(angle) - unique_angles[-1]) > merge_tol:
+            unique_angles.append(float(angle))
+
+    unique_count = len(unique_angles)
+    if unique_count <= 0:
+        return 0.0
+
+    score = 1.0 / unique_count
+    if unique_count > 1:
+        min_sep = min(np.diff(unique_angles))
+        score *= 0.5 + 0.5 * min(1.0, float(min_sep) / pair_tol)
+
+    return float(score)
+
+
+def _build_family_pair_priority_table(
+    reflections,
+    seed_crystal_dirs,
+    stats: ReflectionStatistics,
+    pair_tol: float,
+):
+    family_dirs = {}
+    family_best_weight = {}
+    for reflection in reflections:
+        family_id = _reflection_family_id(reflection)
+        family_dirs.setdefault(family_id, seed_crystal_dirs[reflection.seed_index])
+        family_best_weight[family_id] = max(
+            family_best_weight.get(family_id, 0),
+            int(getattr(reflection, 'weight', reflection.support)),
+        )
+
+    family_pair_priority = {}
+    family_partner_rankings = {}
+    epsilon = 1.0 / max(stats.sample_count, 1)
+    family_ids = list(family_dirs)
+    for family_a in family_ids:
+        partner_scores = []
+        for family_b in family_ids:
+            if family_a == family_b:
+                continue
+
+            pair_key = _family_pair_key(family_a, family_b)
+            covis = stats.seed_family_pair_visibility_prob.get(pair_key, 0.0)
+            vis_a = stats.seed_family_visibility_prob.get(family_a, 0.0)
+            vis_b = stats.seed_family_visibility_prob.get(family_b, 0.0)
+            eta_a = stats.seed_family_eta_reliability.get(family_a, 0.0)
+            eta_b = stats.seed_family_eta_reliability.get(family_b, 0.0)
+            geometry = _geometric_family_pair_score(
+                family_dirs[family_a],
+                family_dirs[family_b],
+                pair_tol,
+            )
+            score = (
+                max(covis, epsilon)
+                * max(vis_a, epsilon)
+                * max(vis_b, epsilon)
+                * max(eta_a, epsilon)
+                * max(eta_b, epsilon)
+                * geometry
+            )
+            family_pair_priority[(family_a, family_b)] = float(score)
+            partner_scores.append(
+                (
+                    float(score),
+                    family_best_weight.get(family_b, 0),
+                    family_b,
+                )
+            )
+
+        partner_scores.sort(reverse=True)
+        family_partner_rankings[family_a] = [item[2] for item in partner_scores]
+
+    return family_pair_priority, family_partner_rankings
+
+
+def _interleaved_partner_order(
+    candidate_indices,
+    reflections,
+    anchor_family_id,
+    family_partner_rankings,
+    max_partners,
+):
+    by_family = {}
+    for idx in candidate_indices:
+        family_id = _reflection_family_id(reflections[idx])
+        if family_id == anchor_family_id:
+            continue
+        by_family.setdefault(family_id, []).append(idx)
+
+    if not by_family:
+        return []
+
+    ranked_families = list(family_partner_rankings.get(anchor_family_id, ()))
+    ranked_families.extend(
+        family_id for family_id in by_family if family_id not in ranked_families
+    )
+
+    ordered = []
+    while ranked_families and (max_partners <= 0 or len(ordered) < max_partners):
+        progress = False
+        for family_id in ranked_families:
+            queue = by_family.get(family_id)
+            if not queue:
+                continue
+            ordered.append(queue.pop(0))
+            progress = True
+            if max_partners > 0 and len(ordered) >= max_partners:
+                break
+
+        if not progress:
+            break
+
+    return ordered
 
 
 def _reflection_support_metrics(
@@ -1087,6 +2236,7 @@ def _reflection_support_metrics(
 
     for idx in active_indices:
         reflection = reflections[idx]
+        reflection_weight = int(getattr(reflection, 'weight', reflection.support))
         distance = rot.distanceToFiber(
             reflection.hkl.reshape(3, 1),
             reflection.gvec_s,
@@ -1098,11 +2248,11 @@ def _reflection_support_metrics(
         distance = float(np.ravel(distance)[0])
         if distance <= claim_tol:
             support_indices.append(idx)
-            support_weight += reflections[idx].support
+            support_weight += reflection_weight
             seed_ids.add(reflections[idx].seed_index)
-            hkl_ids.add(reflections[idx].hkl_id)
+            hkl_ids.add(_reflection_family_id(reflections[idx]))
             if claim_tol > const.sqrt_epsf:
-                proximity_score += reflections[idx].support * max(
+                proximity_score += reflection_weight * max(
                     0.0,
                     1.0 - distance / claim_tol,
                 )
@@ -1170,6 +2320,7 @@ def pairwise_consensus_reduced(anchor_range):
     local_keep = params['local_keep']
     min_seed_support = params['min_seed_support']
     min_hkl_support = params['min_hkl_support']
+    family_partner_rankings = params['family_partner_rankings']
 
     proposals = []
     pair_tests = 0
@@ -1177,23 +2328,16 @@ def pairwise_consensus_reduced(anchor_range):
     for anchor_pos in range(start, stop):
         anchor_idx = order[anchor_pos]
         anchor = reflections[anchor_idx]
-        remaining = order[anchor_pos + 1 :]
-        if not remaining:
+        anchor_family_id = _reflection_family_id(anchor)
+        partner_order = _interleaved_partner_order(
+            order[anchor_pos + 1 :],
+            reflections,
+            anchor_family_id,
+            family_partner_rankings,
+            max_partners,
+        )
+        if not partner_order:
             continue
-
-        distinct_seed_partners = [
-            idx
-            for idx in remaining
-            if reflections[idx].seed_index != anchor.seed_index
-        ]
-        same_seed_partners = [
-            idx
-            for idx in remaining
-            if reflections[idx].seed_index == anchor.seed_index
-        ]
-        partner_order = distinct_seed_partners + same_seed_partners
-        if max_partners > 0:
-            partner_order = partner_order[:max_partners]
 
         anchor_proposals = []
         for partner_idx in partner_order:
@@ -1265,6 +2409,7 @@ def pairwise_consensus_reduced(anchor_range):
 def _candidate_quaternions_from_pairwise_consensus(
     reflections,
     seed_crystal_dirs,
+    stats: ReflectionStatistics,
     csym,
     qsym,
     bmat,
@@ -1287,6 +2432,7 @@ def _candidate_quaternions_from_pairwise_consensus(
     order = sorted(
         range(len(reflections)),
         key=lambda idx: (
+            -getattr(reflections[idx], 'weight', reflections[idx].support),
             -reflections[idx].support,
             -reflections[idx].intensity,
             reflections[idx].seed_index,
@@ -1295,6 +2441,12 @@ def _candidate_quaternions_from_pairwise_consensus(
     )
     claim_tol = pair_tol
     local_keep = min(max(4, max_candidates // max(len(order), 1) + 1), 8)
+    family_pair_priority, family_partner_rankings = _build_family_pair_priority_table(
+        reflections,
+        seed_crystal_dirs,
+        stats,
+        pair_tol,
+    )
 
     params = {
         'reflections': reflections,
@@ -1310,6 +2462,8 @@ def _candidate_quaternions_from_pairwise_consensus(
         'local_keep': int(local_keep),
         'min_seed_support': int(min_seed_support),
         'min_hkl_support': int(min_hkl_support),
+        'family_pair_priority': family_pair_priority,
+        'family_partner_rankings': family_partner_rankings,
     }
 
     anchor_count = max(len(order) - 1, 0)
@@ -1551,7 +2705,10 @@ def generate_orientation_candidates_pairwise_consensus(cfg, eta_ome):
     max_candidates = cfg.find_orientations.seed_search.pairwise_max_candidates
     max_partners = cfg.find_orientations.seed_search.pairwise_max_partners
 
-    reflections, seed_crystal_dirs, params = _collect_seed_reflections(cfg, eta_ome)
+    reflections, seed_crystal_dirs, params = _collect_pairwise_consensus_reflections(
+        cfg,
+        eta_ome,
+    )
     stats = compute_reflection_statistics(cfg, eta_ome)
     min_seed_support, min_hkl_support = _pairwise_consensus_support_thresholds(
         cfg,
@@ -1564,6 +2721,7 @@ def generate_orientation_candidates_pairwise_consensus(cfg, eta_ome):
         _candidate_quaternions_from_pairwise_consensus(
             reflections,
             seed_crystal_dirs,
+            stats,
             params['csym'],
             eta_ome.planeData.q_sym,
             params['bMat'],
@@ -1636,10 +2794,14 @@ def generate_orientation_candidates_pairwise_greedy(cfg, eta_ome):
             [
                 idx
                 for idx in order
-                if idx != anchor_idx and active_mask[idx]
+                if (
+                    idx != anchor_idx
+                    and active_mask[idx]
+                    and _reflection_family_id(reflections[idx])
+                    != _reflection_family_id(anchor)
+                )
             ],
             key=lambda idx: (
-                reflections[idx].seed_index == anchor.seed_index,
                 -reflections[idx].support,
                 -reflections[idx].intensity,
             ),
@@ -2034,6 +3196,7 @@ def load_eta_ome_maps(
 
     """
     filename = cfg.find_orientations.orientation_maps.file
+    desired_hkls = _resolved_orientation_map_hkl_ids(cfg, hkls=hkls)
     if clean:
         logger.info('clean option specified; recomputing eta/ome orientation maps')
         res = generate_eta_ome_maps(cfg, hkls=hkls)
@@ -2041,12 +3204,21 @@ def load_eta_ome_maps(
         try:
             res = EtaOmeMaps(str(filename))
             pd = res.planeData
-            logger.info(f'loaded eta/ome orientation maps from {filename}')
-            shkls = pd.getHKLs(*res.iHKLList, asStr=True)
-            logger.info(
-                'hkls used to generate orientation maps: %s',
-                [f'[{i}]' for i in shkls],
-            )
+            if not np.array_equal(
+                np.asarray(res.iHKLList, dtype=int),
+                np.asarray(desired_hkls, dtype=int),
+            ):
+                logger.warning(
+                    "loaded eta/ome maps do not match requested active hkls; recomputing maps"
+                )
+                res = generate_eta_ome_maps(cfg, hkls=hkls)
+            else:
+                logger.info(f'loaded eta/ome orientation maps from {filename}')
+                shkls = pd.getHKLs(*res.iHKLList, asStr=True)
+                logger.info(
+                    'hkls used to generate orientation maps: %s',
+                    [f'[{i}]' for i in shkls],
+                )
         except (AttributeError, IOError):
             logger.warning(
                 f"specified maps file '{filename}' not found "
@@ -2110,57 +3282,25 @@ def generate_eta_ome_maps(
     plane_data = cfg.material.plane_data
 
     # all active hkl ids masked by exclusions
-    active_hklIDs = plane_data.getHKLID(plane_data.hkls, master=True)
+    allowed_hkl_ids = np.asarray(
+        plane_data.getHKLID(plane_data.hkls, master=True),
+        dtype=int,
+    )
+    active_hklIDs = np.asarray(
+        _resolved_orientation_map_hkl_ids(cfg, hkls=hkls),
+        dtype=int,
+    )
 
-    # need the below
-    use_all = False
+    # catch duplicates
+    assert len(np.unique(active_hklIDs)) == len(active_hklIDs), "duplicate hkls specified!"
 
-    # handle optional override
-    if hkls:
-        # overriding hkls are specified
-        hkls = np.asarray(hkls)
-
-        # if input is 2-d list of hkls, convert to hklIDs
-        if hkls.ndim == 2:
-            hkls = plane_data.getHKLID(hkls.tolist(), master=True)
-    else:
-        # handle logic for active hkl spec in config
-        # !!!: default to all hkls defined for material,
-        #      override with hkls from config, if specified;
-        temp = np.asarray(cfg.find_orientations.orientation_maps.active_hkls)
-        if temp.ndim == 0:
-            # !!! this is only possible if active_hkls is None
-            use_all = True
-        elif temp.ndim == 1:
-            # we have hklIDs
-            hkls = temp
-        elif temp.ndim == 2:
-            # we have actual hkls
-            hkls = plane_data.getHKLID(temp.tolist(), master=True)
-        else:
-            raise RuntimeError(
-                'active_hkls spec must be 1-d or 2-d, not %d-d' % temp.ndim
-            )
-
-    # apply some checks to active_hkls specificaton
-    if not use_all:
-        # !!! hkls --> list of hklIDs now
-        # catch duplicates
-        assert len(np.unique(hkls)) == len(hkls), "duplicate hkls specified!"
-
-        # catch excluded hkls
-        excluded = np.zeros_like(hkls, dtype=bool)
-        for i, hkl in enumerate(hkls):
-            if hkl not in active_hklIDs:
-                excluded[i] = True
-        if np.any(excluded):
-            raise RuntimeError(
-                "The following requested hkls are marked as excluded: "
-                + f"{hkls[excluded]}"
-            )
-
-        # ok, now re-assign active_hklIDs
-        active_hklIDs = hkls
+    # catch excluded hkls
+    excluded = np.array([hkl not in allowed_hkl_ids for hkl in active_hklIDs], dtype=bool)
+    if np.any(excluded):
+        raise RuntimeError(
+            "The following requested hkls are marked as excluded: "
+            + f"{active_hklIDs[excluded]}"
+        )
 
     # logging output
     shkls = plane_data.getHKLs(*active_hklIDs, asStr=True)
