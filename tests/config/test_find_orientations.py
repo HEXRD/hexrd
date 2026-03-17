@@ -45,7 +45,11 @@ find_orientations:
   use_quaternion_grid: %(existing_file)s
   seed_search:
     hkl_seeds: 1
+    candidate_generator: pairwise-greedy
     fiber_step: 2.0
+    friedel_pairing: true
+    pairwise_tolerance: 2.5
+    pairwise_max_candidates: 250
   omega:
     tolerance: 3.0
   clustering:
@@ -233,6 +237,44 @@ class TestSeedSearchConfig(TestConfig):
 
         self.assertEqual(
             self.cfgs[2].find_orientations.seed_search.fiber_step, 2.0
+        )
+
+    def test_candidate_generator(self):
+        self.assertEqual(
+            self.cfgs[0].find_orientations.seed_search.candidate_generator,
+            'discrete-fibers',
+        )
+        self.assertEqual(
+            self.cfgs[2].find_orientations.seed_search.candidate_generator,
+            'pairwise-greedy',
+        )
+
+    def test_pairwise_tolerance(self):
+        self.assertEqual(
+            self.cfgs[0].find_orientations.seed_search.pairwise_tolerance,
+            0.5,
+        )
+        self.assertEqual(
+            self.cfgs[2].find_orientations.seed_search.pairwise_tolerance,
+            2.5,
+        )
+
+    def test_pairwise_max_candidates(self):
+        self.assertEqual(
+            self.cfgs[0].find_orientations.seed_search.pairwise_max_candidates,
+            10000,
+        )
+        self.assertEqual(
+            self.cfgs[2].find_orientations.seed_search.pairwise_max_candidates,
+            250,
+        )
+
+    def test_friedel_pairing(self):
+        self.assertTrue(
+            self.cfgs[0].find_orientations.seed_search.friedel_pairing,
+        )
+        self.assertTrue(
+            self.cfgs[2].find_orientations.seed_search.friedel_pairing,
         )
 
 

@@ -1,6 +1,6 @@
+from dataclasses import dataclass
 import copy
 import logging
-import multiprocessing as mp
 import os
 import timeit
 
@@ -15,6 +15,8 @@ from numpy.typing import NDArray
 
 import scipy.cluster as cluster
 from scipy import ndimage
+from scipy.optimize import linear_sum_assignment
+from scipy.spatial import cKDTree
 
 from hexrd.core import constants as const
 from hexrd.core import matrixutil as mutil
@@ -45,9 +47,246 @@ filter_stdev_DFLT = 1.0
 logger = logging.getLogger(__name__)
 
 
+def _pool_chunksize(num_items, ncpus, max_chunksize=10):
+    num_items = int(num_items)
+    ncpus = max(int(ncpus), 1)
+    if num_items <= 0:
+        return 1
+
+    return max(1, num_items // (max_chunksize * ncpus))
+
+
+def _spawn_pool_is_expensive() -> bool:
+    return const.mp_context.get_start_method() == 'spawn'
+
+
+def _pool_worker_count(num_items, requested_ncpus) -> int:
+    return min(max(int(requested_ncpus), 1), max(int(num_items), 1))
+
+
 # =============================================================================
 # FUNCTIONS
 # =============================================================================
+
+
+@dataclass
+class SeedReflection:
+    seed_index: int
+    hkl_id: int
+    hkl: NDArray[np.float64]
+    tth: float
+    eta: float
+    ome: float
+    gvec_s: NDArray[np.float64]
+    intensity: float = 0.0
+    support: int = 1
+
+
+@dataclass
+class SeedPeak:
+    eta: float
+    ome: float
+    intensity: float
+    support: int = 1
+
+
+def _wrapped_angle_difference(angle_0, angle_1) -> float:
+    return float(
+        rot.angularDifference(
+            np.asarray([angle_0], dtype=float),
+            np.asarray([angle_1], dtype=float),
+        )[0]
+    )
+
+
+def _rotate_vectors_about_axis(
+    vecs: NDArray[np.float64],
+    axis: NDArray[np.float64],
+    angles: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    axis = np.asarray(axis, dtype=float).reshape(3)
+    axis /= np.linalg.norm(axis)
+
+    vecs = np.asarray(vecs, dtype=float)
+    angles = np.asarray(angles, dtype=float)
+
+    cos_ang = np.cos(angles)
+    sin_ang = np.sin(angles)
+    cross_term = np.cross(np.tile(axis, (vecs.shape[1], 1)), vecs.T).T
+    dot_term = np.dot(axis, vecs)
+    return (
+        vecs * cos_ang
+        + cross_term * sin_ang
+        + axis.reshape(3, 1) * dot_term * (1.0 - cos_ang)
+    )
+
+
+def _predict_friedel_pair_angles(
+    tth: NDArray[np.float64] | float,
+    eta0: NDArray[np.float64],
+    ome0: NDArray[np.float64],
+    chi: float = 0.0,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    eta0 = rot.mapAngle(np.asarray(eta0, dtype=float), [-np.pi, np.pi])
+    ome0 = rot.mapAngle(np.asarray(ome0, dtype=float), [-np.pi, np.pi])
+    tth = np.asarray(tth, dtype=float)
+    tth, eta0, ome0 = np.broadcast_arrays(tth, eta0, ome0)
+
+    tht0 = 0.5 * tth
+
+    cchi = np.cos(chi)
+    schi = np.sin(chi)
+    ceta = np.cos(eta0)
+    seta = np.sin(eta0)
+    ctht = np.cos(tht0)
+    stht = np.sin(tht0)
+
+    a = cchi * ceta * ctht
+    b = -cchi * stht
+    c = stht + schi * seta * ctht
+
+    ab_mag = np.sqrt(a * a + b * b)
+    if np.any(ab_mag <= const.sqrt_epsf):
+        raise RuntimeError("Beam vector specification is infeasible!")
+
+    phase_ang = np.arctan2(b, a)
+    rhs = c / ab_mag
+    invalid = np.abs(rhs) > 1.0
+    rhs = np.clip(rhs, -1.0, 1.0)
+    rhs_ang = np.arcsin(rhs)
+
+    ome_1 = rot.mapAngle(rhs_ang - phase_ang, [-np.pi, np.pi])
+    ome_2 = rot.mapAngle(np.pi - rhs_ang - phase_ang, [-np.pi, np.pi])
+
+    ome_stack = np.vstack([ome_1, ome_2])
+    min_idx = np.argmin(np.abs(ome_stack), axis=0)
+    ome_delta = ome_stack[min_idx, np.arange(ome_stack.shape[1])]
+    ome_delta[invalid] = np.nan
+
+    axis = np.array([0.0, cchi, schi], dtype=float)
+    ghat0_l = -np.vstack([ceta * ctht, seta * ctht, stht])
+    rotated_gvecs = _rotate_vectors_about_axis(ghat0_l, axis, ome_delta)
+
+    partner_ome = rot.mapAngle(ome0 + ome_delta, [-np.pi, np.pi])
+    partner_eta = rot.mapAngle(
+        np.arctan2(rotated_gvecs[1], rotated_gvecs[0]),
+        [-np.pi, np.pi],
+    )
+    partner_ome[invalid] = np.nan
+    partner_eta[invalid] = np.nan
+    return partner_ome, partner_eta
+
+
+def _pair_friedel_seed_peaks(
+    peaks: list[SeedPeak],
+    tth: float,
+    chi: float,
+    eta_tol: float,
+    ome_tol: float,
+) -> list[SeedPeak]:
+    if len(peaks) < 2:
+        return peaks
+
+    eta_tol = max(float(eta_tol), np.radians(0.25))
+    ome_tol = max(float(ome_tol), np.radians(0.25))
+
+    etas = rot.mapAngle(
+        np.asarray([peak.eta for peak in peaks], dtype=float),
+        [-np.pi, np.pi],
+    )
+    omes = rot.mapAngle(
+        np.asarray([peak.ome for peak in peaks], dtype=float),
+        [-np.pi, np.pi],
+    )
+    intensities = np.asarray(
+        [max(float(peak.intensity), const.sqrt_epsf) for peak in peaks],
+        dtype=float,
+    )
+
+    pred_omes, pred_etas = _predict_friedel_pair_angles(tth, etas, omes, chi=chi)
+    valid = ~(np.isnan(pred_omes) | np.isnan(pred_etas))
+    if np.count_nonzero(valid) < 2:
+        return peaks
+
+    scale = np.array([eta_tol, ome_tol], dtype=float)
+    obs_coords = np.column_stack([etas, omes]) / scale
+
+    periodic_shifts = np.array(
+        [
+            [deta, dome]
+            for deta in (-2.0 * np.pi, 0.0, 2.0 * np.pi)
+            for dome in (-2.0 * np.pi, 0.0, 2.0 * np.pi)
+        ],
+        dtype=float,
+    ) / scale
+    tiled_coords = np.vstack([obs_coords + shift for shift in periodic_shifts])
+    source_ids = np.tile(np.arange(len(peaks)), len(periodic_shifts))
+    tree = cKDTree(tiled_coords)
+
+    best_match = np.full(len(peaks), -1, dtype=int)
+    best_cost = np.full(len(peaks), np.inf)
+    search_radius = np.sqrt(2.0)
+    intensity_weight = 0.05
+
+    for i in np.where(valid)[0]:
+        pred_point = np.array([pred_etas[i], pred_omes[i]], dtype=float) / scale
+        candidate_ids = np.unique(source_ids[tree.query_ball_point(pred_point, search_radius)])
+
+        for j in candidate_ids:
+            if i == j or not valid[j]:
+                continue
+
+            forward_eta = _wrapped_angle_difference(pred_etas[i], etas[j])
+            forward_ome = _wrapped_angle_difference(pred_omes[i], omes[j])
+            if forward_eta > eta_tol or forward_ome > ome_tol:
+                continue
+
+            reverse_eta = _wrapped_angle_difference(pred_etas[j], etas[i])
+            reverse_ome = _wrapped_angle_difference(pred_omes[j], omes[i])
+            if reverse_eta > eta_tol or reverse_ome > ome_tol:
+                continue
+
+            cost = (
+                (forward_eta / eta_tol) ** 2
+                + (forward_ome / ome_tol) ** 2
+                + (reverse_eta / eta_tol) ** 2
+                + (reverse_ome / ome_tol) ** 2
+                + intensity_weight
+                * abs(np.log((intensities[i] + 1.0) / (intensities[j] + 1.0)))
+            )
+            if cost < best_cost[i]:
+                best_cost[i] = cost
+                best_match[i] = j
+
+    reduced_peaks = []
+    used = np.zeros(len(peaks), dtype=bool)
+
+    for i in np.argsort(best_cost):
+        if used[i]:
+            continue
+
+        j = best_match[i]
+        if j < 0 or used[j] or best_match[j] != i:
+            continue
+
+        rep_idx = i if intensities[i] >= intensities[j] else j
+        rep_peak = peaks[rep_idx]
+        reduced_peaks.append(
+            SeedPeak(
+                eta=rep_peak.eta,
+                ome=rep_peak.ome,
+                intensity=float(peaks[i].intensity + peaks[j].intensity),
+                support=peaks[i].support + peaks[j].support,
+            )
+        )
+        used[i] = True
+        used[j] = True
+
+    for i, peak in enumerate(peaks):
+        if not used[i]:
+            reduced_peaks.append(peak)
+
+    return reduced_peaks
 
 
 def write_scored_orientations(results, cfg):
@@ -86,78 +325,168 @@ def clean_map(this_map):
     this_map -= np.min(this_map)
 
 
-def generate_orientation_fibers(cfg, eta_ome):
-    """
-    From ome-eta maps and hklid spec, generate list of
-    quaternions from fibers
-    """
-    # grab the relevant parameters from the root config
-    ncpus = cfg.multiprocessing
+def _collect_seed_reflections(cfg, eta_ome):
     chi = cfg.instrument.hedm.chi
     seed_hkl_ids = cfg.find_orientations.seed_search.hkl_seeds
-    fiber_ndiv = cfg.find_orientations.seed_search.fiber_ndiv
     method_dict = cfg.find_orientations.seed_search.method
+    use_friedel_pairing = cfg.find_orientations.seed_search.friedel_pairing
 
-    # strip out method name and kwargs
-    # !!! note that the config enforces that method is a dict with length 1
-    # TODO: put a consistency check on required kwargs, or otherwise specify
-    #       default values for each case?  They must be specified as of now.
     method = next(iter(method_dict.keys()))
     method_kwargs = method_dict[method]
     logger.debug('\tusing "%s" method for fiber generation' % method)
 
-    # crystallography data from the pd object
     pd = eta_ome.planeData
     tTh = pd.getTTh()
     bMat = pd.latVecOps['B']
     csym = pd.laueGroup
+    instr = cfg.instrument.hedm
+    eta_ranges = np.radians(cfg.find_orientations.eta.range)
+    ome_period, ome_ranges = _process_omegas(cfg.image_series)
 
-    # !!! changed recently where iHKLList are now master hklIDs
     pd_hkl_ids = eta_ome.iHKLList[seed_hkl_ids]
     pd_hkl_idx = pd.getHKLID(pd.getHKLs(*eta_ome.iHKLList).T, master=False)
     seed_hkls = pd.getHKLs(*pd_hkl_ids)
     seed_tths = tTh[pd_hkl_idx][seed_hkl_ids]
     logger.info('\tusing seed hkls: %s' % [str(i) for i in seed_hkls])
 
-    # grab angular grid infor from maps
     del_ome = eta_ome.omegas[1] - eta_ome.omegas[0]
     del_eta = eta_ome.etas[1] - eta_ome.etas[0]
+    pair_eta_tol = max(abs(del_eta), np.radians(cfg.find_orientations.eta.tolerance))
+    pair_ome_tol = max(abs(del_ome), np.radians(cfg.find_orientations.omega.tolerance))
 
-    params = dict(bMat=bMat, chi=chi, csym=csym, fiber_ndiv=fiber_ndiv)
-
-    # =========================================================================
-    # Labeling of spots from seed hkls
-    # =========================================================================
-
-    numSpots = []
-    coms = []
+    sym_hkls = pd.getSymHKLs()
+    seed_crystal_dirs = []
     for i in seed_hkl_ids:
-        this_map = copy.deepcopy(eta_ome.dataStore[i])
-        clean_map(this_map)  # !!! need to get rid of NaNs for blob detection
-        numSpots_t, coms_t = find_peaks_2d(this_map, method, method_kwargs)
-        numSpots.append(numSpots_t)
-        coms.append(coms_t)
+        crystal_dirs = mutil.unitVector(np.dot(bMat, sym_hkls[pd_hkl_idx[i]]))
+        crystal_dirs = np.asarray(crystal_dirs)
+        if crystal_dirs.ndim == 1:
+            crystal_dirs = crystal_dirs.reshape(3, 1)
+        seed_crystal_dirs.append(crystal_dirs)
 
-    input_p = []
-    for i, (this_hkl, this_tth) in enumerate(zip(seed_hkls, seed_tths)):
-        for ispot in range(numSpots[i]):
-            if not np.isnan(coms[i][ispot][0]):
-                ome_c = eta_ome.omeEdges[0] + (0.5 + coms[i][ispot][0]) * del_ome
-                eta_c = eta_ome.etaEdges[0] + (0.5 + coms[i][ispot][1]) * del_eta
-                input_p.append(np.hstack([this_hkl, this_tth, eta_c, ome_c]))
+    reflections = []
+    total_raw_spots = 0
+    total_reduced_spots = 0
+    for seed_index, (active_hkl_index, this_hkl, this_tth) in enumerate(
+        zip(seed_hkl_ids, seed_hkls, seed_tths)
+    ):
+        this_map = np.array(eta_ome.dataStore[active_hkl_index], copy=True)
+        clean_map(this_map)
+        num_spots, coms = find_peaks_2d(this_map, method, method_kwargs)
+        seed_peaks = []
+        for ispot in range(num_spots):
+            if np.isnan(coms[ispot][0]):
+                continue
+
+            ome_c = eta_ome.omeEdges[0] + (0.5 + coms[ispot][0]) * del_ome
+            eta_c = eta_ome.etaEdges[0] + (0.5 + coms[ispot][1]) * del_eta
+            ome_idx = int(np.clip(np.rint(coms[ispot][0]), 0, this_map.shape[0] - 1))
+            eta_idx = int(np.clip(np.rint(coms[ispot][1]), 0, this_map.shape[1] - 1))
+            seed_peaks.append(
+                SeedPeak(
+                    eta=float(eta_c),
+                    ome=float(ome_c),
+                    intensity=float(this_map[ome_idx, eta_idx]),
+                )
+            )
+
+        total_raw_spots += len(seed_peaks)
+        if use_friedel_pairing:
+            seed_peaks = _pair_friedel_seed_peaks(
+                seed_peaks,
+                float(this_tth),
+                chi,
+                pair_eta_tol,
+                pair_ome_tol,
+            )
+        total_reduced_spots += len(seed_peaks)
+
+        for seed_peak in seed_peaks:
+            gvec_s = xfcapi.angles_to_gvec(
+                np.atleast_2d([this_tth, seed_peak.eta, seed_peak.ome]),
+                chi=chi,
+            ).T.reshape(3)
+            reflections.append(
+                SeedReflection(
+                    seed_index=seed_index,
+                    hkl_id=int(pd_hkl_ids[seed_index]),
+                    hkl=np.asarray(this_hkl, dtype=float),
+                    tth=float(this_tth),
+                    eta=seed_peak.eta,
+                    ome=seed_peak.ome,
+                    gvec_s=np.asarray(gvec_s, dtype=float),
+                    intensity=seed_peak.intensity,
+                    support=seed_peak.support,
+                )
+            )
+
+    if use_friedel_pairing and total_raw_spots:
+        logger.info(
+            "\tFriedel pairing reduced seed spots from %d to %d",
+            total_raw_spots,
+            total_reduced_spots,
+        )
+
+    seed_plane_data = copy.deepcopy(pd)
+    seed_exclusions = np.ones(seed_plane_data.getNhklRef(), dtype=bool)
+    seed_exclusions[np.asarray(pd_hkl_ids, dtype=int)] = False
+    seed_plane_data.exclusions = seed_exclusions
+
+    params = dict(
+        bMat=bMat,
+        chi=chi,
+        csym=csym,
+        instr=instr,
+        seed_plane_data=seed_plane_data,
+        eta_ranges=eta_ranges,
+        ome_ranges=np.radians(ome_ranges),
+        ome_period=np.radians(ome_period),
+        pair_eta_tol=pair_eta_tol,
+        pair_ome_tol=pair_ome_tol,
+        use_friedel_pairing=use_friedel_pairing,
+        seed_tth_by_hkl={
+            int(hkl_id): float(tth)
+            for hkl_id, tth in zip(pd_hkl_ids, seed_tths)
+        },
+    )
+    return reflections, seed_crystal_dirs, params
+
+
+def generate_orientation_fibers(cfg, eta_ome):
+    """
+    From ome-eta maps and hklid spec, generate list of
+    quaternions from fibers
+    """
+    ncpus = cfg.multiprocessing
+    fiber_ndiv = cfg.find_orientations.seed_search.fiber_ndiv
+    reflections, _seed_crystal_dirs, params = _collect_seed_reflections(cfg, eta_ome)
+    params['fiber_ndiv'] = fiber_ndiv
+
+    input_p = [
+        np.hstack([reflection.hkl, reflection.gvec_s])
+        for reflection in reflections
+    ]
+    if not input_p:
+        logger.warning("\tno seed reflections were found for fiber generation")
+        return np.empty((4, 0))
 
     # do the mapping
     start = timeit.default_timer()
     qfib = None
-    if ncpus > 1:
+    nworkers = _pool_worker_count(len(input_p), ncpus)
+    if nworkers > 1 and _spawn_pool_is_expensive():
+        logger.info(
+            "\tusing serial fiber generation on spawn multiprocessing context"
+        )
+        nworkers = 1
+    if nworkers > 1:
         # multiple process version
-        # ???: Need a chunksize in map?
-        chunksize = max(1, len(input_p) // (10 * ncpus))
-        pool = mp.Pool(ncpus, discretefiber_init, (params,))
-        qfib = pool.map(discretefiber_reduced, input_p, chunksize=chunksize)
-
-        pool.close()
-        pool.join()
+        chunksize = _pool_chunksize(len(input_p), nworkers)
+        with const.mp_context.Pool(
+            nworkers,
+            discretefiber_init,
+            (params,),
+        ) as pool:
+            qfib = pool.map(discretefiber_reduced, input_p, chunksize=chunksize)
     else:
         # single process version.
         discretefiber_init(params)  # sets paramMP
@@ -173,6 +502,497 @@ def generate_orientation_fibers(cfg, eta_ome):
     return np.hstack(qfib)
 
 
+def _rotation_from_vector_pair(c1, c2, s1, s2):
+    c1 = mutil.unitVector(np.asarray(c1).reshape(3, 1)).reshape(3)
+    c2 = mutil.unitVector(np.asarray(c2).reshape(3, 1)).reshape(3)
+    s1 = mutil.unitVector(np.asarray(s1).reshape(3, 1)).reshape(3)
+    s2 = mutil.unitVector(np.asarray(s2).reshape(3, 1)).reshape(3)
+
+    c2_perp = c2 - np.dot(c1, c2) * c1
+    s2_perp = s2 - np.dot(s1, s2) * s1
+
+    c2_perp_norm = np.linalg.norm(c2_perp)
+    s2_perp_norm = np.linalg.norm(s2_perp)
+    if c2_perp_norm <= const.sqrt_epsf or s2_perp_norm <= const.sqrt_epsf:
+        raise ValueError('vector pairs must not be parallel')
+
+    c2_perp /= c2_perp_norm
+    s2_perp /= s2_perp_norm
+
+    c3 = np.cross(c1, c2_perp)
+    s3 = np.cross(s1, s2_perp)
+
+    crystal_basis = np.column_stack([c1, c2_perp, c3])
+    sample_basis = np.column_stack([s1, s2_perp, s3])
+    return np.dot(sample_basis, crystal_basis.T)
+
+
+def _compress_pairwise_candidates(quats, qsym, pair_tol, max_candidates):
+    if quats.size == 0:
+        return np.empty((4, 0)), np.array([], dtype=int)
+
+    exp_maps = rot.expMapOfQuat(quats)
+    if exp_maps.ndim == 1:
+        exp_maps = exp_maps.reshape(3, 1)
+
+    bucket_scale = max(pair_tol, np.radians(0.25))
+    buckets = np.rint((exp_maps / bucket_scale).T).astype(int)
+    _uniq, inverse, counts = np.unique(
+        buckets,
+        axis=0,
+        return_inverse=True,
+        return_counts=True,
+    )
+    order = np.argsort(counts)[::-1]
+    if max_candidates is not None:
+        order = order[:max_candidates]
+
+    compressed = np.zeros((4, len(order)))
+    for out_idx, bucket_id in enumerate(order):
+        compressed[:, out_idx] = rot.quatAverageCluster(
+            quats[:, inverse == bucket_id],
+            qsym,
+        ).flatten()
+
+    return compressed, counts[order]
+
+
+def _pairwise_quaternions_for_reflection_pair(
+    reflection_i,
+    reflection_j,
+    seed_crystal_dirs,
+    csym,
+    pair_tol,
+):
+    min_pair_angle = max(pair_tol, np.radians(1.0))
+    min_pair_sin = np.sin(min_pair_angle)
+
+    s1 = reflection_i.gvec_s
+    s2 = reflection_j.gvec_s
+    if np.linalg.norm(np.cross(s1, s2)) <= min_pair_sin:
+        return np.empty((4, 0))
+
+    crystal_dirs_i = seed_crystal_dirs[reflection_i.seed_index]
+    crystal_dirs_j = seed_crystal_dirs[reflection_j.seed_index]
+
+    sample_dot = np.clip(np.dot(s1, s2), -1.0, 1.0)
+    sample_angle = np.arccos(sample_dot)
+    crystal_dot = np.clip(np.dot(crystal_dirs_i.T, crystal_dirs_j), -1.0, 1.0)
+    crystal_angles = np.arccos(crystal_dot)
+
+    raw_candidates = []
+    match_i, match_j = np.where(np.abs(crystal_angles - sample_angle) <= pair_tol)
+    for sym_i, sym_j in zip(match_i, match_j):
+        c1 = crystal_dirs_i[:, sym_i]
+        c2 = crystal_dirs_j[:, sym_j]
+        if np.linalg.norm(np.cross(c1, c2)) <= min_pair_sin:
+            continue
+
+        try:
+            rot_mat = _rotation_from_vector_pair(c1, c2, s1, s2)
+        except ValueError:
+            continue
+
+        quat = rot.quatOfRotMat(rot_mat)
+        quat = np.asarray(quat)
+        if quat.ndim == 1:
+            quat = quat.reshape(4, 1)
+        raw_candidates.append(rot.toFundamentalRegion(quat, crysSym=csym))
+
+    if not raw_candidates:
+        return np.empty((4, 0))
+
+    return np.hstack(raw_candidates)
+
+
+def _candidate_quaternions_from_pairwise_intersections(
+    reflections,
+    seed_crystal_dirs,
+    csym,
+    qsym,
+    pair_tol,
+    max_candidates,
+):
+    if len(reflections) < 2:
+        return np.empty((4, 0)), 0, np.array([], dtype=int)
+
+    raw_candidates = []
+
+    for i, reflection_i in enumerate(reflections[:-1]):
+        for reflection_j in reflections[i + 1 :]:
+            pair_candidates = _pairwise_quaternions_for_reflection_pair(
+                reflection_i,
+                reflection_j,
+                seed_crystal_dirs,
+                csym,
+                pair_tol,
+            )
+            if pair_candidates.size:
+                raw_candidates.append(pair_candidates)
+
+    if not raw_candidates:
+        return np.empty((4, 0)), 0, np.array([], dtype=int)
+
+    quats = np.hstack(raw_candidates)
+    compressed, counts = _compress_pairwise_candidates(
+        quats,
+        qsym,
+        pair_tol,
+        max_candidates,
+    )
+    return compressed, quats.shape[1], counts
+
+
+def _reflection_support_mask(
+    reflections,
+    active_mask,
+    quat,
+    qsym,
+    bmat,
+    claim_tol,
+):
+    quat = np.asarray(quat)
+    if quat.ndim == 1:
+        quat = quat.reshape(4, 1)
+
+    support_mask = np.zeros(len(reflections), dtype=bool)
+    for idx in np.where(active_mask)[0]:
+        reflection = reflections[idx]
+        distance = rot.distanceToFiber(
+            reflection.hkl.reshape(3, 1),
+            reflection.gvec_s,
+            quat,
+            qsym,
+            centrosymmetry=True,
+            bmatrix=bmat,
+        )
+        if float(np.ravel(distance)[0]) <= claim_tol:
+            support_mask[idx] = True
+
+    return support_mask
+
+
+def _simulate_seed_peak_map(
+    quat,
+    params,
+):
+    quat = np.asarray(quat)
+    if quat.ndim == 1:
+        quat = quat.reshape(4, 1)
+
+    grain_params = np.hstack(
+        [
+            rot.expMapOfQuat(quat).reshape(3),
+            np.zeros(3),
+            const.identity_6x1.flatten(),
+        ]
+    )
+    sim_results = params['instr'].simulate_rotation_series(
+        params['seed_plane_data'],
+        [grain_params],
+        eta_ranges=params['eta_ranges'],
+        ome_ranges=params['ome_ranges'],
+        ome_period=params['ome_period'],
+    )
+
+    predicted_by_hkl = {}
+    for sim_result in sim_results.values():
+        valid_ids = np.asarray(sim_result[0][0], dtype=int)
+        valid_angs = np.asarray(sim_result[2][0], dtype=float)
+        if valid_ids.size == 0:
+            continue
+
+        for hkl_id, angs in zip(valid_ids, valid_angs):
+            predicted_by_hkl.setdefault(int(hkl_id), []).append(
+                SeedPeak(
+                    eta=float(angs[1]),
+                    ome=float(rot.mapAngle(np.asarray([angs[2]]), [-np.pi, np.pi])[0]),
+                    intensity=1.0,
+                )
+            )
+
+    if params['use_friedel_pairing']:
+        for hkl_id, peaks in list(predicted_by_hkl.items()):
+            predicted_by_hkl[hkl_id] = _pair_friedel_seed_peaks(
+                peaks,
+                params['seed_tth_by_hkl'][int(hkl_id)],
+                params['chi'],
+                params['pair_eta_tol'],
+                params['pair_ome_tol'],
+            )
+
+    return predicted_by_hkl
+
+
+def _match_predicted_seed_peaks(
+    reflections,
+    active_mask,
+    predicted_by_hkl,
+    observed_by_hkl,
+    eta_tol,
+    ome_tol,
+):
+    support_mask = np.zeros(len(reflections), dtype=bool)
+    predicted_total = 0
+    matched_total = 0
+    matched_support = 0
+    matched_seed_ids = set()
+
+    for hkl_id, pred_peaks in predicted_by_hkl.items():
+        if not pred_peaks:
+            continue
+
+        predicted_total += len(pred_peaks)
+        obs_indices = [
+            idx for idx in observed_by_hkl.get(int(hkl_id), []) if active_mask[idx]
+        ]
+        if not obs_indices:
+            continue
+
+        pred_eta = np.asarray([peak.eta for peak in pred_peaks], dtype=float)
+        pred_ome = np.asarray([peak.ome for peak in pred_peaks], dtype=float)
+        obs_eta = np.asarray([reflections[idx].eta for idx in obs_indices], dtype=float)
+        obs_ome = np.asarray([reflections[idx].ome for idx in obs_indices], dtype=float)
+
+        eta_diff = np.abs(
+            np.arctan2(
+                np.sin(pred_eta[:, None] - obs_eta[None, :]),
+                np.cos(pred_eta[:, None] - obs_eta[None, :]),
+            )
+        )
+        ome_diff = np.abs(
+            np.arctan2(
+                np.sin(pred_ome[:, None] - obs_ome[None, :]),
+                np.cos(pred_ome[:, None] - obs_ome[None, :]),
+            )
+        )
+        cost = (eta_diff / eta_tol) ** 2 + (ome_diff / ome_tol) ** 2
+
+        max_cost = 2.0
+        padded_cost = np.array(cost, copy=True)
+        padded_cost[padded_cost > max_cost] = max_cost + 1.0
+        row_ind, col_ind = linear_sum_assignment(padded_cost)
+
+        for row_idx, col_idx in zip(row_ind, col_ind):
+            if cost[row_idx, col_idx] > max_cost:
+                continue
+
+            obs_idx = obs_indices[col_idx]
+            support_mask[obs_idx] = True
+            matched_total += 1
+            matched_support += reflections[obs_idx].support
+            matched_seed_ids.add(reflections[obs_idx].seed_index)
+
+    return support_mask, predicted_total, matched_total, matched_support, len(
+        matched_seed_ids
+    )
+
+
+def _simulate_seed_peak_matches(
+    reflections,
+    active_mask,
+    quat,
+    observed_by_hkl,
+    params,
+):
+    predicted_by_hkl = _simulate_seed_peak_map(quat, params)
+    return _match_predicted_seed_peaks(
+        reflections,
+        active_mask,
+        predicted_by_hkl,
+        observed_by_hkl,
+        params['pair_eta_tol'],
+        params['pair_ome_tol'],
+    )
+
+
+def _score_quaternion_completeness(cfg, eta_ome, quat):
+    quat = np.asarray(quat)
+    if quat.ndim == 1:
+        quat = quat.reshape(4, 1)
+
+    return float(
+        indexer.paintGrid(
+            quat,
+            eta_ome,
+            etaRange=np.radians(cfg.find_orientations.eta.range),
+            omeTol=np.radians(cfg.find_orientations.omega.tolerance),
+            etaTol=np.radians(cfg.find_orientations.eta.tolerance),
+            omePeriod=np.radians(cfg.find_orientations.omega.period),
+            threshold=cfg.find_orientations.threshold,
+            doMultiProc=False,
+            nCPUs=1,
+        )[0]
+    )
+
+
+def generate_orientation_candidates_pairwise(cfg, eta_ome):
+    pair_tol = np.radians(cfg.find_orientations.seed_search.pairwise_tolerance)
+    max_candidates = cfg.find_orientations.seed_search.pairwise_max_candidates
+
+    reflections, seed_crystal_dirs, params = _collect_seed_reflections(cfg, eta_ome)
+
+    start = timeit.default_timer()
+    qbar, raw_candidate_count, counts = _candidate_quaternions_from_pairwise_intersections(
+        reflections,
+        seed_crystal_dirs,
+        params['csym'],
+        eta_ome.planeData.q_sym,
+        pair_tol,
+        max_candidates,
+    )
+    elapsed = timeit.default_timer() - start
+
+    logger.info("\tpairwise candidate generation took %.3f seconds", elapsed)
+    logger.info(
+        "\tgenerated %d raw pairwise candidates and retained %d",
+        raw_candidate_count,
+        qbar.shape[1],
+    )
+    if counts.size:
+        logger.info(
+            "\tstrongest pairwise support count: %d",
+            int(np.max(counts)),
+        )
+
+    return qbar
+
+
+def generate_orientation_candidates_pairwise_greedy(cfg, eta_ome):
+    pair_tol = np.radians(cfg.find_orientations.seed_search.pairwise_tolerance)
+    claim_tol = pair_tol
+    max_candidates = cfg.find_orientations.seed_search.pairwise_max_candidates
+    compl_thresh = cfg.find_orientations.clustering.completeness
+
+    reflections, seed_crystal_dirs, params = _collect_seed_reflections(cfg, eta_ome)
+    if len(reflections) < 2:
+        return np.empty((4, 0))
+
+    qsym = eta_ome.planeData.q_sym
+    active_mask = np.ones(len(reflections), dtype=bool)
+    unique_seed_count = len({reflection.seed_index for reflection in reflections})
+    min_total_support = min(3, sum(reflection.support for reflection in reflections))
+    min_seed_support = min(2, unique_seed_count)
+
+    order = sorted(
+        range(len(reflections)),
+        key=lambda idx: (-reflections[idx].support, -reflections[idx].intensity),
+    )
+
+    accepted = []
+    pair_tests = 0
+    scored_candidates = 0
+
+    start = timeit.default_timer()
+    for anchor_idx in order:
+        if not active_mask[anchor_idx]:
+            continue
+
+        anchor = reflections[anchor_idx]
+        partner_order = sorted(
+            [
+                idx
+                for idx in order
+                if idx != anchor_idx and active_mask[idx]
+            ],
+            key=lambda idx: (
+                reflections[idx].seed_index == anchor.seed_index,
+                -reflections[idx].support,
+                -reflections[idx].intensity,
+            ),
+        )
+
+        accepted_anchor = False
+        for partner_idx in partner_order:
+            partner = reflections[partner_idx]
+            pair_tests += 1
+            pair_candidates = _pairwise_quaternions_for_reflection_pair(
+                anchor,
+                partner,
+                seed_crystal_dirs,
+                params['csym'],
+                pair_tol,
+            )
+            if pair_candidates.size == 0:
+                continue
+
+            pair_candidates, _ = _compress_pairwise_candidates(
+                pair_candidates,
+                qsym,
+                pair_tol,
+                None,
+            )
+
+            for cand_idx in range(pair_candidates.shape[1]):
+                quat = pair_candidates[:, cand_idx]
+                support_mask = _reflection_support_mask(
+                    reflections,
+                    active_mask,
+                    quat,
+                    qsym,
+                    params['bMat'],
+                    claim_tol,
+                )
+                support_weight = int(
+                    sum(
+                        reflections[idx].support
+                        for idx in np.where(support_mask)[0]
+                    )
+                )
+                seed_support = len(
+                    {
+                        reflections[idx].seed_index
+                        for idx in np.where(support_mask)[0]
+                    }
+                )
+                if support_weight < min_total_support or seed_support < min_seed_support:
+                    continue
+
+                scored_candidates += 1
+                completeness = _score_quaternion_completeness(cfg, eta_ome, quat)
+                if completeness < compl_thresh:
+                    continue
+
+                accepted.append(quat.reshape(4, 1))
+                active_mask[support_mask] = False
+                accepted_anchor = True
+                break
+
+            if accepted_anchor or len(accepted) >= max_candidates:
+                break
+
+        if len(accepted) >= max_candidates:
+            break
+
+    elapsed = timeit.default_timer() - start
+    logger.info("\tgreedy pairwise candidate generation took %.3f seconds", elapsed)
+    logger.info(
+        "\tgreedy pairwise tested %d reflection pairs and scored %d candidates",
+        pair_tests,
+        scored_candidates,
+    )
+    logger.info(
+        "\tgreedy pairwise retained %d candidates and left %d active reflections",
+        len(accepted),
+        int(np.count_nonzero(active_mask)),
+    )
+
+    if not accepted:
+        return np.empty((4, 0))
+
+    return np.hstack(accepted)
+
+
+def generate_orientation_candidates(cfg, eta_ome):
+    generator = cfg.find_orientations.seed_search.candidate_generator
+    if generator == 'pairwise':
+        return generate_orientation_candidates_pairwise(cfg, eta_ome)
+    if generator == 'pairwise-greedy':
+        return generate_orientation_candidates_pairwise_greedy(cfg, eta_ome)
+
+    return generate_orientation_fibers(cfg, eta_ome)
+
+
 def discretefiber_init(params):
     global paramMP
     paramMP = params
@@ -185,20 +1005,15 @@ def discretefiber_cleanup():
 
 def discretefiber_reduced(params_in):
     """
-    input parameters are [hkl_id, com_ome, com_eta]
+    input parameters are [hkl, gvec_s]
     """
     global paramMP
     bMat = paramMP['bMat']
-    chi = paramMP['chi']
     csym = paramMP['csym']
     fiber_ndiv = paramMP['fiber_ndiv']
 
     hkl = params_in[:3].reshape(3, 1)
-
-    gVec_s = xfcapi.angles_to_gvec(
-        np.atleast_2d(params_in[3:]),
-        chi=chi,
-    ).T
+    gVec_s = params_in[3:].reshape(3, 1)
 
     tmp = mutil.uniqueVectors(
         rot.discreteFiber(
@@ -373,6 +1188,72 @@ def run_cluster(
     )
 
     return np.atleast_2d(qbar), cl
+
+
+def merge_orientations_by_misorientation(
+    compl: NDArray[np.float64],
+    qfib: NDArray[np.float64],
+    qsym: NDArray[np.float64],
+    compl_thresh: float,
+    radius: float,
+):
+    valid_idx = np.where(np.asarray(compl, dtype=float) >= float(compl_thresh))[0]
+    if valid_idx.size == 0:
+        return np.empty((4, 0)), np.full(qfib.shape[1], -1, dtype=int)
+
+    merge_radius = np.radians(radius)
+    parent = np.arange(valid_idx.size, dtype=int)
+
+    def find(idx: int) -> int:
+        while parent[idx] != idx:
+            parent[idx] = parent[parent[idx]]
+            idx = parent[idx]
+        return idx
+
+    def union(idx_0: int, idx_1: int) -> None:
+        root_0 = find(idx_0)
+        root_1 = find(idx_1)
+        if root_0 != root_1:
+            parent[root_1] = root_0
+
+    for i in range(valid_idx.size):
+        quat_i = qfib[:, valid_idx[i]]
+        for j in range(i + 1, valid_idx.size):
+            quat_j = qfib[:, valid_idx[j]]
+            if xfcapi.quat_distance(quat_i, quat_j, qsym) <= merge_radius:
+                union(i, j)
+
+    groups: dict[int, list[int]] = {}
+    for local_idx, global_idx in enumerate(valid_idx):
+        root = find(local_idx)
+        groups.setdefault(root, []).append(int(global_idx))
+
+    ordered_groups = sorted(
+        groups.values(),
+        key=lambda members: np.max(compl[members]),
+        reverse=True,
+    )
+
+    qbar = np.zeros((4, len(ordered_groups)))
+    labels = np.full(qfib.shape[1], -1, dtype=int)
+    for out_idx, members in enumerate(ordered_groups, start=1):
+        member_quats = qfib[:, members]
+        if len(members) == 1:
+            qbar[:, out_idx - 1] = member_quats[:, 0]
+        else:
+            qbar[:, out_idx - 1] = rot.quatAverageCluster(
+                member_quats,
+                qsym,
+            ).flatten()
+        labels[members] = out_idx
+
+    logger.info(
+        "merged %d scored orientations into %d grains using %.3f deg misorientation",
+        valid_idx.size,
+        qbar.shape[1],
+        radius,
+    )
+    return qbar, labels
 
 
 # TODO: Remove image_series from this function signature.
@@ -771,7 +1652,7 @@ def find_orientations(
             eta_ome = load_eta_ome_maps(cfg, plane_data, imsd, hkls=hkls, clean=clean)
 
             # generate trial orientations
-            qfib = generate_orientation_fibers(cfg, eta_ome)
+            qfib = generate_orientation_candidates(cfg, eta_ome)
 
             logger.info("\t\t...took %f seconds", timeit.default_timer() - start)
         else:
@@ -784,11 +1665,31 @@ def find_orientations(
                     % cfg.find_orientations.use_quaternion_grid
                 )
 
+        if qfib.size == 0:
+            raise RuntimeError("seed search did not generate any orientation candidates")
+
         # execute direct search
-        pool = mp.Pool(ncpus, indexer.test_orientation_FF_init, (params,))
-        completeness = pool.map(indexer.test_orientation_FF_reduced, qfib.T)
-        pool.close()
-        pool.join()
+        nworkers = _pool_worker_count(qfib.shape[1], ncpus)
+        if nworkers > 1 and _spawn_pool_is_expensive():
+            logger.info(
+                "\tusing serial direct orientation testing on spawn multiprocessing context"
+            )
+            nworkers = 1
+        if nworkers > 1:
+            chunksize = _pool_chunksize(qfib.shape[1], nworkers)
+            with const.mp_context.Pool(
+                nworkers,
+                indexer.test_orientation_FF_init,
+                (params,),
+            ) as pool:
+                completeness = pool.map(
+                    indexer.test_orientation_FF_reduced,
+                    qfib.T,
+                    chunksize=chunksize,
+                )
+        else:
+            indexer.test_orientation_FF_init(params)
+            completeness = list(map(indexer.test_orientation_FF_reduced, qfib.T))
     else:
         logger.debug("\tusing map search with paintGrid on %d processes", ncpus)
 
@@ -805,7 +1706,7 @@ def find_orientations(
             )
             start = timeit.default_timer()
 
-            qfib = generate_orientation_fibers(cfg, eta_ome)
+            qfib = generate_orientation_candidates(cfg, eta_ome)
             logger.info("\t\t...took %f seconds", timeit.default_timer() - start)
         else:
             # doing grid search
@@ -816,6 +1717,9 @@ def find_orientations(
                     "specified quaternion grid file '%s' not found!"
                     % cfg.find_orientations.use_quaternion_grid
                 )
+        if qfib.size == 0:
+            raise RuntimeError("seed search did not generate any orientation candidates")
+
         # do map-based indexing
         start = timeit.default_timer()
 
@@ -855,7 +1759,37 @@ def find_orientations(
 
     start = timeit.default_timer()
 
-    if do_grid_search:
+    greedy_pairwise_search = (
+        not do_grid_search
+        and cfg.find_orientations.use_quaternion_grid is None
+        and cfg.find_orientations.seed_search.candidate_generator
+        == 'pairwise-greedy'
+    )
+
+    sparse_candidate_search = (
+        not do_grid_search
+        and cfg.find_orientations.use_quaternion_grid is None
+        and cfg.find_orientations.seed_search.candidate_generator
+        in ('pairwise', 'pairwise-greedy')
+    )
+
+    if greedy_pairwise_search:
+        logger.info(
+            "\tmerging greedy candidates using exact quaternion misorientation"
+        )
+        qbar, cl = merge_orientations_by_misorientation(
+            completeness,
+            qfib,
+            plane_data.q_sym,
+            compl_thresh,
+            cl_radius,
+        )
+        logger.info("\t\t...took %f seconds", (timeit.default_timer() - start))
+        logger.info("\tfound %d grains", qbar.shape[1])
+        results['qbar'] = qbar
+        return results
+
+    if do_grid_search or sparse_candidate_search:
         min_samples = 1
         mean_rpg = 1
     else:

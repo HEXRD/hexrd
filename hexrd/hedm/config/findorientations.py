@@ -183,6 +183,8 @@ class EtaConfig(Config):
 
 class SeedSearchConfig(Config):
 
+    candidate_generators = ['discrete-fibers', 'pairwise', 'pairwise-greedy']
+
     @property
     def hkl_seeds(self):
         key = 'find_orientations:seed_search:hkl_seeds'
@@ -222,6 +224,46 @@ class SeedSearchConfig(Config):
     @property
     def fiber_ndiv(self):
         return int(360.0 / self.fiber_step)
+
+    @property
+    def candidate_generator(self) -> str:
+        key = 'find_orientations:seed_search:candidate_generator'
+        temp = self._cfg.get(key, 'discrete-fibers').lower()
+        if temp in self.candidate_generators:
+            return temp
+
+        raise RuntimeError(
+            '"%s": "%s" not recognized, must be one of %s'
+            % (key, temp, self.candidate_generators)
+        )
+
+    @property
+    def pairwise_tolerance(self) -> float:
+        return self._cfg.get(
+            'find_orientations:seed_search:pairwise_tolerance',
+            max(
+                self._cfg.find_orientations.eta.tolerance,
+                self._cfg.find_orientations.omega.tolerance,
+            ),
+        )
+
+    @property
+    def pairwise_max_candidates(self) -> int:
+        return int(
+            self._cfg.get(
+                'find_orientations:seed_search:pairwise_max_candidates',
+                10000,
+            )
+        )
+
+    @property
+    def friedel_pairing(self) -> bool:
+        return bool(
+            self._cfg.get(
+                'find_orientations:seed_search:friedel_pairing',
+                True,
+            )
+        )
 
 
 class OrientationMapsConfig(Config):

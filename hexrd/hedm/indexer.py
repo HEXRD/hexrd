@@ -29,8 +29,6 @@
 
 import logging
 
-import multiprocessing
-
 import numpy as np
 import numba
 
@@ -47,8 +45,60 @@ from hexrd.core.transforms import xfcapi
 omega_period_DFLT = np.radians(np.r_[-180.0, 180.0])
 
 paramMP = None
-nCPUs_DFLT = multiprocessing.cpu_count()
+nCPUs_DFLT = constants.mp_context.cpu_count()
 logger = logging.getLogger(__name__)
+
+
+def _pool_chunksize(num_items, ncpus, max_chunksize=10):
+    num_items = int(num_items)
+    ncpus = max(int(ncpus), 1)
+    if num_items <= 0:
+        return 1
+
+    return max(1, min((num_items + ncpus - 1) // ncpus, max_chunksize))
+
+
+def _spawn_pool_is_expensive() -> bool:
+    return constants.mp_context.get_start_method() == 'spawn'
+
+
+def _map_bin_width(edges):
+    edges = np.asarray(edges, dtype=float)
+    if edges.size < 2:
+        raise ValueError("eta-omega map edges must contain at least two values")
+
+    return float(np.min(np.abs(np.diff(edges))))
+
+
+def _effective_map_tolerances(eta_ome_maps, eta_tol, ome_tol):
+    eta_tol = float(eta_tol)
+    ome_tol = float(ome_tol)
+
+    eta_bin_width = _map_bin_width(eta_ome_maps.etaEdges)
+    ome_bin_width = _map_bin_width(eta_ome_maps.omeEdges)
+
+    effective_eta_tol = max(abs(eta_tol), eta_bin_width)
+    effective_ome_tol = max(abs(ome_tol), ome_bin_width)
+
+    if effective_eta_tol > abs(eta_tol):
+        logger.warning(
+            "Requested eta tolerance %.4f deg is smaller than the eta map bin width %.4f deg; "
+            "using %.4f deg instead",
+            np.degrees(eta_tol),
+            np.degrees(eta_bin_width),
+            np.degrees(effective_eta_tol),
+        )
+
+    if effective_ome_tol > abs(ome_tol):
+        logger.warning(
+            "Requested omega tolerance %.4f deg is smaller than the omega map bin width %.4f deg; "
+            "using %.4f deg instead",
+            np.degrees(ome_tol),
+            np.degrees(ome_bin_width),
+            np.degrees(effective_ome_tol),
+        )
+
+    return effective_eta_tol, effective_ome_tol
 
 
 # =============================================================================
@@ -160,6 +210,7 @@ def paintGrid(
         quats = quats.reshape(4, 1)
 
     planeData = etaOmeMaps.planeData
+    etaTol, omeTol = _effective_map_tolerances(etaOmeMaps, etaTol, omeTol)
 
     # !!! these are master hklIDs
     hklIDs = np.asarray(etaOmeMaps.iHKLList)
@@ -234,11 +285,16 @@ def paintGrid(
     etaMin = np.asarray(etaMin)
     etaMax = np.asarray(etaMax)
 
-    multiProcMode = nCPUs_DFLT > 1 and doMultiProc
+    requested_ncpus = nCPUs or nCPUs_DFLT
+    nCPUs = max(1, min(int(requested_ncpus), quats.shape[1] or 1))
+    multiProcMode = nCPUs_DFLT > 1 and doMultiProc and nCPUs > 1
+    if multiProcMode and _spawn_pool_is_expensive():
+        logger.info("running paintGrid in serial mode on spawn multiprocessing context")
+        multiProcMode = False
+        nCPUs = 1
 
     if multiProcMode:
-        nCPUs = nCPUs or nCPUs_DFLT
-        chunksize = min(quats.shape[1] // nCPUs, 10)
+        chunksize = _pool_chunksize(quats.shape[1], nCPUs)
         logger.debug(
             "using multiprocessing with %d processes and a chunk size of %d",
             nCPUs,
@@ -285,9 +341,8 @@ def paintGrid(
     retval = None
     if multiProcMode:
         # multiple process version
-        pool = multiprocessing.Pool(nCPUs, paintgrid_init, (params,))
-        retval = pool.map(paintGridThis, quats.T, chunksize=chunksize)
-        pool.close()
+        with constants.mp_context.Pool(nCPUs, paintgrid_init, (params,)) as pool:
+            retval = pool.map(paintGridThis, quats.T, chunksize=chunksize)
     else:
         # single process version.
         global paramMP
