@@ -10,7 +10,10 @@ from hexrd.core.transforms import xfcapi
 from hexrd.core import constants
 from hexrd.core import rotations
 
-from hexrd.hedm.xrdutil import extract_detector_transformation
+from hexrd.hedm.xrdutil import (
+    apply_correction_to_wavelength,
+    extract_detector_transformation,
+)
 
 return_value_flag = None
 
@@ -86,11 +89,35 @@ def fitGrain(
 
     gFit = gFull[gFlag]
 
+    # objFuncFitGrain can run *significantly* faster if we convert the
+    # results to use a dictionary instead of lists or numpy arrays.
+    # Do that conversion here, if necessary.
+    new_reflections_dict = {}
+    for det_key, results in reflections_dict.items():
+        if not isinstance(results, (list, np.ndarray)) or len(results) == 0:
+            # Maybe it's already a dict...
+            new_reflections_dict[det_key] = results
+            continue
+
+        if isinstance(results, list):
+            hkls = np.atleast_2d(np.vstack([x[2] for x in results])).T
+            meas_xyo = np.atleast_2d(
+                np.vstack([np.r_[x[7], x[6][-1]] for x in results])
+            )
+        else:
+            hkls = np.atleast_2d(results[:, 2:5]).T
+            meas_xyo = np.atleast_2d(results[:, [15, 16, 12]])
+
+        new_reflections_dict[det_key] = {
+            'hkls': hkls,
+            'meas_xyo': meas_xyo,
+        }
+
     fitArgs = (
         gFull,
         gFlag,
         instrument,
-        reflections_dict,
+        new_reflections_dict,
         bMat,
         wavelength,
         omePeriod,
@@ -185,6 +212,8 @@ def objFuncFitGrain(
     """
     bVec = instrument.beam_vector
     eVec = instrument.eta_vector
+    tVec_s = instrument.tvec
+    energy_correction = instrument.energy_correction
 
     # fill out parameters
     gFull[gFlag] = gFit
@@ -194,6 +223,14 @@ def objFuncFitGrain(
     tVec_c = gFull[3:6].reshape(3, 1)
     vInv_s = gFull[6:]
     vMat_s = mutil.vecMVToSymm(vInv_s)  # NOTE: Inverse of V from F = V * R
+
+    # Apply an energy correction according to grain position
+    corrected_wavelength = apply_correction_to_wavelength(
+        wavelength,
+        energy_correction,
+        tVec_s,
+        tVec_c,
+    )
 
     # loop over instrument panels
     # CAVEAT: keeping track of key ordering in the "detectors" attribute of
@@ -211,8 +248,8 @@ def objFuncFitGrain(
             instrument.detector_parameters[det_key]
         )
 
-        results = reflections_dict[det_key]
-        if len(results) == 0:
+        results = reflections_dict.get(det_key, [])
+        if not isinstance(results, dict) and len(results) == 0:
             continue
 
         """
@@ -239,6 +276,9 @@ def objFuncFitGrain(
         elif isinstance(results, np.ndarray):
             hkls = np.atleast_2d(results[:, 2:5]).T
             meas_xyo = np.atleast_2d(results[:, [15, 16, 12]])
+        elif isinstance(results, dict):
+            hkls = results['hkls']
+            meas_xyo = results['meas_xyo']
 
         # distortion handling
         if panel.distortion is not None:
@@ -266,7 +306,7 @@ def objFuncFitGrain(
             chi,
             rMat_c,
             bMat,
-            wavelength,
+            corrected_wavelength,
             vInv=vInv_s,
             beamVec=bVec,
             etaVec=eVec,
