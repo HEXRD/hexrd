@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 import numpy as np
 
-from hexrd.core.fitting.calibration.grain import (
+from hexrd.hedm.fitting.calibration.grain import (
     GrainCalibrator,
     sxcal_obj_func,
 )
@@ -82,7 +82,7 @@ def test_evaluate(calibrator):
     np.testing.assert_array_equal(xys_dict['det1'][0][0], [10, 10, 0.1])
 
 
-@patch('hexrd.core.fitting.calibration.grain.sxcal_obj_func')
+@patch('hexrd.hedm.fitting.calibration.grain.sxcal_obj_func')
 def test_residual(mock_obj, calibrator):
     calibrator.data_dict = {
         'pick_xys': {'det1': [[10, 10, 0]]},
@@ -94,7 +94,7 @@ def test_residual(mock_obj, calibrator):
     assert mock_obj.call_args[1].get('sim_only', False) is False
 
 
-@patch('hexrd.core.fitting.calibration.grain.sxcal_obj_func')
+@patch('hexrd.hedm.fitting.calibration.grain.sxcal_obj_func')
 def test_model(mock_obj, calibrator):
     calibrator.data_dict = {
         'pick_xys': {'det1': [[10, 10, 0]]},
@@ -109,11 +109,11 @@ def test_model(mock_obj, calibrator):
 # --- Objective Function Tests ---
 
 
-@patch('hexrd.core.fitting.calibration.grain.angularDifference')
-@patch('hexrd.core.fitting.calibration.grain.xfcapi')
-@patch('hexrd.core.fitting.calibration.grain.grainutil')
-@patch('hexrd.core.fitting.calibration.grain.xrdutil')
-@patch('hexrd.core.fitting.calibration.grain.mutil')
+@patch('hexrd.hedm.fitting.calibration.grain.angularDifference')
+@patch('hexrd.hedm.fitting.calibration.grain.xfcapi')
+@patch('hexrd.hedm.fitting.calibration.grain.grainutil')
+@patch('hexrd.hedm.fitting.calibration.grain.xrdutil')
+@patch('hexrd.hedm.fitting.calibration.grain.mutil')
 def test_sxcal_obj_func_residual_mode(
     mock_mutil, mock_xrd, mock_gutil, mock_xfc, mock_ang, mock_instr
 ):
@@ -152,10 +152,10 @@ def test_sxcal_obj_func_residual_mode(
     np.testing.assert_allclose(result[2::3], 0.05)
 
 
-@patch('hexrd.core.fitting.calibration.grain.xfcapi')
-@patch('hexrd.core.fitting.calibration.grain.grainutil')
-@patch('hexrd.core.fitting.calibration.grain.xrdutil')
-@patch('hexrd.core.fitting.calibration.grain.mutil')
+@patch('hexrd.hedm.fitting.calibration.grain.xfcapi')
+@patch('hexrd.hedm.fitting.calibration.grain.grainutil')
+@patch('hexrd.hedm.fitting.calibration.grain.xrdutil')
+@patch('hexrd.hedm.fitting.calibration.grain.mutil')
 def test_sxcal_obj_func_sim_mode(
     mock_mutil, mock_xrd, mock_gutil, mock_xfc, mock_instr
 ):
@@ -184,11 +184,11 @@ def test_sxcal_obj_func_sim_mode(
     assert np.array_equal(retval['det1'][0][0], [100, 100, 0.5])
 
 
-@patch('hexrd.core.fitting.calibration.grain.logger')
-@patch('hexrd.core.fitting.calibration.grain.xfcapi')
-@patch('hexrd.core.fitting.calibration.grain.grainutil')
-@patch('hexrd.core.fitting.calibration.grain.xrdutil')
-@patch('hexrd.core.fitting.calibration.grain.mutil')
+@patch('hexrd.hedm.fitting.calibration.grain.logger')
+@patch('hexrd.hedm.fitting.calibration.grain.xfcapi')
+@patch('hexrd.hedm.fitting.calibration.grain.grainutil')
+@patch('hexrd.hedm.fitting.calibration.grain.xrdutil')
+@patch('hexrd.hedm.fitting.calibration.grain.mutil')
 def test_sxcal_obj_func_infeasible_warning(
     mock_mutil, mock_xrd, mock_gutil, mock_xfc, mock_log, mock_instr
 ):
@@ -215,10 +215,10 @@ def test_sxcal_obj_func_infeasible_warning(
     assert "infeasible parameters" in mock_log.warning.call_args[0][0]
 
 
-@patch('hexrd.core.fitting.calibration.grain.xfcapi')
-@patch('hexrd.core.fitting.calibration.grain.grainutil')
-@patch('hexrd.core.fitting.calibration.grain.xrdutil')
-@patch('hexrd.core.fitting.calibration.grain.mutil')
+@patch('hexrd.hedm.fitting.calibration.grain.xfcapi')
+@patch('hexrd.hedm.fitting.calibration.grain.grainutil')
+@patch('hexrd.hedm.fitting.calibration.grain.xrdutil')
+@patch('hexrd.hedm.fitting.calibration.grain.mutil')
 def test_sxcal_obj_func_with_distortion(
     mock_mutil, mock_xrd, mock_gutil, mock_xfc, mock_instr
 ):
@@ -236,7 +236,7 @@ def test_sxcal_obj_func_with_distortion(
     hkl = {'det1': [np.array([[1, 1, 1]])]}
 
     with patch(
-        'hexrd.core.fitting.calibration.grain.angularDifference',
+        'hexrd.hedm.fitting.calibration.grain.angularDifference',
         return_value=np.array([0]),
     ):
         sxcal_obj_func(

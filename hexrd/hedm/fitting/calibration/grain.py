@@ -7,11 +7,11 @@ from hexrd.core.rotations import angularDifference
 from hexrd.core.transforms import xfcapi
 from hexrd.hedm import xrdutil
 
-from .abstract_grain import AbstractGrainCalibrator
-from .lmfit_param_handling import (
+from hexrd.core.fitting.calibration.abstract_grain import AbstractGrainCalibrator
+from hexrd.core.fitting.calibration.lmfit_param_handling import (
     DEFAULT_EULER_CONVENTION,
 )
-from .. import grains as grainutil
+from hexrd.core.fitting import grains as grainutil
 
 logger = logging.getLogger(__name__)
 
