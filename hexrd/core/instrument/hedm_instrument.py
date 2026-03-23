@@ -2257,7 +2257,7 @@ class PatchDataWriter(object):
             self.fid = filename
         else:
             self.fid = open(filename, 'w')
-        logger.info(self._header, file=self.fid)
+        self.fid.write(self._header + '\n')
 
     def __del__(self):
         self.close()
