@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 import numpy as np
-from hexrd.core.fitting.grains import fitGrain, objFuncFitGrain, matchOmegas
+from hexrd.hedm.fitting.grains import fitGrain, objFuncFitGrain, matchOmegas
 
 # --- Fixtures ---
 
@@ -45,7 +45,7 @@ def env():
 # --- fitGrain Tests ---
 
 
-@patch('hexrd.core.fitting.grains.optimize.leastsq')
+@patch('hexrd.hedm.fitting.grains.optimize.leastsq')
 def test_fitGrain(mock_lsq, env):
     mock_lsq.return_value = (np.ones(12), None)
     res = fitGrain(env['g'], env['inst'], {}, env['B'], env['wl'])
@@ -61,9 +61,9 @@ def test_fitGrain(mock_lsq, env):
 
 
 @pytest.mark.parametrize("case", ["success", "period", "error"])
-@patch('hexrd.core.fitting.grains.xfcapi.oscill_angles_of_hkls')
+@patch('hexrd.hedm.fitting.grains.xfcapi.oscill_angles_of_hkls')
 @patch(
-    'hexrd.core.fitting.grains.rotations.mapAngle', return_value=np.array([0])
+    'hexrd.hedm.fitting.grains.rotations.mapAngle', return_value=np.array([0])
 )
 def test_matchOmegas(mock_map, mock_os, case, env):
     xyo = np.array([[0, 0, 0]])
@@ -106,12 +106,12 @@ def test_matchOmegas(mock_map, mock_os, case, env):
     ],
 )
 @patch(
-    'hexrd.core.fitting.grains.matchOmegas',
+    'hexrd.hedm.fitting.grains.matchOmegas',
     return_value=(None, np.array([0.0])),
 )
-@patch('hexrd.core.fitting.grains.extract_detector_transformation')
+@patch('hexrd.hedm.fitting.grains.extract_detector_transformation')
 @patch(
-    'hexrd.core.fitting.grains.xfcapi.gvec_to_xy',
+    'hexrd.hedm.fitting.grains.xfcapi.gvec_to_xy',
     return_value=np.array([[1.0, 1.0]]),
 )
 def test_objFunc_evaluation(mock_g2xy, mock_ext, mock_match, mode, env):
@@ -152,9 +152,9 @@ def test_objFunc_evaluation(mock_g2xy, mock_ext, mock_match, mode, env):
         assert isinstance(res, np.ndarray)
 
 
-@patch('hexrd.core.fitting.grains.matchOmegas')
-@patch('hexrd.core.fitting.grains.extract_detector_transformation')
-@patch('hexrd.core.fitting.grains.xfcapi.gvec_to_xy')
+@patch('hexrd.hedm.fitting.grains.matchOmegas')
+@patch('hexrd.hedm.fitting.grains.extract_detector_transformation')
+@patch('hexrd.hedm.fitting.grains.xfcapi.gvec_to_xy')
 def test_objFunc_empty_data(mock_g2xy, mock_ext, mock_match, env):
     det2 = MagicMock()
     det2.distortion = None
@@ -181,9 +181,9 @@ def test_objFunc_empty_data(mock_g2xy, mock_ext, mock_match, env):
     assert len(res) > 0
 
 
-@patch('hexrd.core.fitting.grains.matchOmegas')
-@patch('hexrd.core.fitting.grains.extract_detector_transformation')
-@patch('hexrd.core.fitting.grains.xfcapi.gvec_to_xy')
+@patch('hexrd.hedm.fitting.grains.matchOmegas')
+@patch('hexrd.hedm.fitting.grains.extract_detector_transformation')
+@patch('hexrd.hedm.fitting.grains.xfcapi.gvec_to_xy')
 def test_objFunc_mixed_empty(mock_g2xy, mock_ext, mock_mat, env):
     mock_ext.return_value = (np.eye(3), np.zeros(3), 0.0, np.zeros(3))
     mock_g2xy.return_value = np.array([[0.0, 0.0]])
@@ -208,11 +208,11 @@ def test_objFunc_mixed_empty(mock_g2xy, mock_ext, mock_mat, env):
 
 
 @patch(
-    'hexrd.core.fitting.grains.matchOmegas', return_value=(None, np.array([0]))
+    'hexrd.hedm.fitting.grains.matchOmegas', return_value=(None, np.array([0]))
 )
-@patch('hexrd.core.fitting.grains.extract_detector_transformation')
+@patch('hexrd.hedm.fitting.grains.extract_detector_transformation')
 @patch(
-    'hexrd.core.fitting.grains.xfcapi.gvec_to_xy',
+    'hexrd.hedm.fitting.grains.xfcapi.gvec_to_xy',
     return_value=np.array([[np.nan, np.nan]]),
 )
 def test_objFunc_infeasible(mock_g2xy, mock_ext, mock_mat, env):

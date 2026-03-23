@@ -11,7 +11,7 @@ from hexrd.core.fitting.calibration.abstract_grain import AbstractGrainCalibrato
 from hexrd.core.fitting.calibration.lmfit_param_handling import (
     DEFAULT_EULER_CONVENTION,
 )
-from hexrd.core.fitting import grains as grainutil
+from hexrd.hedm.fitting import grains as grainutil
 
 logger = logging.getLogger(__name__)
 
