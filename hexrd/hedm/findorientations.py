@@ -1,7 +1,6 @@
 import copy
 import logging
 import multiprocessing as mp
-import os
 import timeit
 
 from typing import Optional
@@ -9,19 +8,15 @@ from typing import Optional
 import numpy as np
 from numpy.typing import NDArray
 
-# np.seterr(over='ignore', invalid='ignore')
-
-# import tqdm
-
 import scipy.cluster as cluster
 from scipy import ndimage
 
 from hexrd.core import constants as const
 from hexrd.core import matrixutil as mutil
 from hexrd.core.imageseries.omega import OmegaImageSeries
-from hexrd.core.material.crystallography import PlaneData
 from hexrd.hedm import indexer
 from hexrd.core import instrument
+from hexrd.hedm.instrument import GenerateEtaOmeMaps
 from hexrd.core.imageutil import find_peaks_2d
 from hexrd.core import rotations as rot
 from hexrd.core.transforms import xfcapi
@@ -549,7 +544,7 @@ def generate_eta_ome_maps(
     start = timeit.default_timer()
 
     # make eta_ome maps
-    eta_ome = instrument.GenerateEtaOmeMaps(
+    eta_ome = GenerateEtaOmeMaps(
         imsd,
         cfg.instrument.hedm,
         plane_data,

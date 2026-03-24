@@ -2,7 +2,6 @@ from .hedm_instrument import (
     calc_angles_from_beam_vec,
     calc_beam_vec,
     centers_of_edge_vec,
-    GenerateEtaOmeMaps,
     GrainDataWriter,
     HEDMInstrument,
     max_tth,
