@@ -25,4 +25,4 @@
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # ============================================================
 
-from hexrd.hedm.fitting.grains import fitGrain, objFuncFitGrain, gFlag_ref
+from .grains import fitGrain, objFuncFitGrain, gFlag_ref
