@@ -2294,7 +2294,7 @@ class PatchDataWriter(object):
                 self._delim.join(np.tile('{:<23.16e}', 10)).format(*res[7:]),
             ]
         )
-        logger.info(output_str, file=self.fid)
+        self.fid.write(output_str + '\n')
         return output_str
 
 
