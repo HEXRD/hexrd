@@ -26,134 +26,159 @@
 # the Free Software Foundation, Inc., 59 Temple Place, Suite 330,
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # =============================================================================
+"""Spherical map-based orientation indexing for HEDM (paintGrid algorithm).
+
+This module implements the paintGrid algorithm, which scores a set of trial
+crystal orientations against measured eta-omega intensity maps produced by
+High Energy X-Ray Diffraction (HEXRD) experiments.
+
+For each trial orientation, the algorithm:
+
+1. Computes the predicted diffraction angles (tth, eta, omega) for every
+   symmetry-equivalent HKL reflection using the orientation matrix and the
+   reciprocal-lattice B-matrix.
+2. Filters predictions that fall outside the specified valid eta/omega ranges.
+3. Checks, with a pixel-dilation tolerance, whether each surviving prediction
+   coincides with measured intensity above a per-HKL threshold in the
+   corresponding eta-omega map.
+4. Returns a completeness score (hits / valid predictions) for each orientation.
+
+The main public entry point is :func:`paintGrid`.  Internal helpers
+:func:`paintgrid_init` and :func:`paintGridThis` support both serial and
+multiprocessing execution modes.  The innermost pixel-checking and angle-
+mapping routines are JIT-compiled with Numba for performance.
+"""
+
+from __future__ import annotations
 
 import logging
-
 import multiprocessing
+import timeit
+from typing import Any
 
 import numpy as np
 import numba
-
-import timeit
 
 from hexrd.core import constants
 from hexrd.core import rotations
 from hexrd.core.transforms import xfcapi
 
-
 # =============================================================================
 # Parameters
 # =============================================================================
-omega_period_DFLT = np.radians(np.r_[-180.0, 180.0])
+omega_period_DFLT: np.ndarray = np.radians(np.r_[-180.0, 180.0])
 
-paramMP = None
-nCPUs_DFLT = multiprocessing.cpu_count()
-logger = logging.getLogger(__name__)
+paramMP: dict[str, Any] | None = None
+nCPUs_DFLT: int = multiprocessing.cpu_count()
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 # =============================================================================
 # Methods
 # =============================================================================
 def paintGrid(
-    quats,
-    etaOmeMaps,
-    threshold=None,
-    bMat=None,
-    omegaRange=None,
-    etaRange=None,
-    omeTol=constants.d2r,
-    etaTol=constants.d2r,
-    omePeriod=omega_period_DFLT,
-    doMultiProc=False,
-    nCPUs=None,
-    debug=False,
-):
+    quats: np.ndarray,
+    etaOmeMaps: Any,
+    threshold: float | np.ndarray | None = None,
+    bMat: np.ndarray | None = None,
+    omegaRange: np.ndarray | None = None,
+    etaRange: np.ndarray | None = None,
+    omeTol: float = constants.d2r,
+    etaTol: float = constants.d2r,
+    omePeriod: np.ndarray = omega_period_DFLT,
+    doMultiProc: bool = False,
+    nCPUs: int | None = None,
+    debug: bool = False,
+) -> list[float]:
     r"""
     Spherical map-based indexing algorithm, i.e. paintGrid.
 
     Given a list of trial orientations `quats` and an eta-omega intensity map
     object `etaOmeMaps`, this method executes a test to produce a completeness
-    ratio for each orientation across the spherical inensity maps.
+    ratio for each orientation across the spherical intensity maps.
 
     Parameters
     ----------
     quats : (4, N) ndarray
         hstacked array of trial orientations in the form of unit quaternions.
     etaOmeMaps : object
-        an spherical map object of type `hexrd.hedm.instrument.GenerateEtaOmeMaps`.
-    threshold : float, optional
-        threshold value on the etaOmeMaps.
+        a spherical map object of type
+        ``hexrd.hedm.instrument.GenerateEtaOmeMaps``.
+    threshold : float or array_like or None, optional
+        Intensity threshold(s) applied to each HKL's eta-omega map when
+        deciding whether a predicted reflection constitutes a hit.
+
+        - ``None`` (default): a per-HKL threshold is computed automatically
+          as the mean of the per-map mean and median.
+        - scalar ``float``: the same threshold is used for every HKL.
+        - sequence of length ``nHKLS``: one threshold value per HKL.
     bMat : (3, 3) ndarray, optional
         the COB matrix from the reciprocal lattice to the reference crystal
-        frame.  In not provided, the B in the planeData class in the etaOmeMaps
-        is used.
+        frame.  If not provided, the B in the planeData class in the
+        etaOmeMaps is used.
     omegaRange : array_like, optional
         list of valid omega ranges in radians,
-        e.g. np.radians([(-60, 60), (120, 240)])
+        e.g. ``np.radians([(-60, 60), (120, 240)])``.
+        Defaults to the full range spanned by the omega edges in
+        ``etaOmeMaps``.
     etaRange : array_like, optional
         list of valid eta ranges in radians,
-        e.g. np.radians([(-85, 85), (95, 265)])
+        e.g. ``np.radians([(-85, 85), (95, 265)])``.
+        Defaults to ``[-pi, pi]``.
     omeTol : float, optional
         the tolerance to use in the omega dimension in radians.  Default is
-        1 degree (0.017453292519943295)
+        1 degree (0.017453292519943295).
     etaTol : float, optional
         the tolerance to use in the eta dimension in radians.  Default is
-        1 degree (0.017453292519943295)
+        1 degree (0.017453292519943295).
     omePeriod : (2, ) array_like, optional
         the period to use for omega angles in radians,
-        e.g. np.radians([-180, 180])
+        e.g. ``np.radians([-180, 180])``.
     doMultiProc : bool, optional
-        flag for enabling multiprocessing
-    nCPUs : int, optional
-        number of processes to use in case doMultiProc = True
+        flag for enabling multiprocessing.  Requires more than one CPU to
+        have any effect.  Default is ``False``.
+    nCPUs : int or None, optional
+        number of processes to use when ``doMultiProc=True``.  Defaults to
+        ``multiprocessing.cpu_count()`` when ``None``.
     debug : bool, optional
-        debugging mode flag
+        debugging mode flag.  Currently unused; reserved for future use.
 
     Raises
     ------
     RuntimeError
-        DESCRIPTION.
+        If ``threshold`` is a sequence whose length does not match the number
+        of HKLs in ``etaOmeMaps``, or if ``threshold`` is an unrecognised
+        type.
 
     Returns
     -------
-    retval : (N, ) list
-        completeness score list for `quats`.
-
+    retval : (N, ) list of float
+        Completeness score list for `quats`.  Each value is in ``[0, 1]``
+        and represents the fraction of symmetry-equivalent reflections that
+        were predicted within the valid angle ranges *and* found to have
+        intensity above threshold in the corresponding eta-omega map bin
+        (after applying the dilation tolerance).
 
     Notes
     -----
-    Notes about the implementation algorithm (if needed).
+    The completeness score for a given orientation is computed as::
 
-    This can have multiple paragraphs.
+        score = hits / total_valid
 
-    You may include some math:
+    where ``total_valid`` counts predicted reflections that pass the eta and
+    omega range filters, and ``hits`` counts the subset of those for which
+    the dilated pixel neighbourhood in the corresponding eta-omega map
+    contains at least one value above ``threshold``.
 
-    .. math:: X(e^{j\omega } ) = x(n)e^{ - j\omega n}
+    Both the first and second oscillation-angle solutions returned by
+    ``xfcapi.oscill_angles_of_hkls`` are evaluated independently.  Bins
+    containing ``NaN`` values are treated as misses and excluded from
+    ``total_valid``.
 
-    And even use a Greek symbol like :math:`\omega` inline.
-
-    References
-    ----------
-    Cite the relevant literature, e.g. [1]_.  You may also cite these
-    references in the notes section above.
-
-    .. [1] O. McNoleg, "The integration of GIS, remote sensing,
-       expert systems and adaptive co-kriging for environmental habitat
-       modelling of the Highland Haggis using object-oriented, fuzzy-logic
-       and neural-network techniques," Computers & Geosciences, vol. 22,
-       pp. 585-588, 1996.
-
-    Examples
-    --------
-    These are written in doctest format, and should illustrate how to
-    use the function.
-
-    >>> a = [1, 2, 3]
-    >>> print([x + 3 for x in a])
-    [4, 5, 6]
-    >>> print("a\nb")
-    a
-    b
+    When ``doMultiProc=True``, the quaternion array is partitioned into
+    chunks and distributed across ``nCPUs`` worker processes.  Each worker
+    shares a read-only parameter dictionary initialised by
+    :func:`paintgrid_init`.
     """
     quats = np.atleast_2d(quats)
     if quats.size == 4:
@@ -179,9 +204,9 @@ def paintGrid(
                     np.median(etaOmeMaps.dataStore[i]),
                 ]
             )
-    elif threshold is not None and not hasattr(threshold, '__len__'):
+    elif threshold is not None and not hasattr(threshold, "__len__"):
         threshold = threshold * np.ones(nHKLS)
-    elif hasattr(threshold, '__len__'):
+    elif hasattr(threshold, "__len__"):
         if len(threshold) != nHKLS:
             raise RuntimeError("threshold list is wrong length!")
         else:
@@ -191,7 +216,7 @@ def paintGrid(
             "unknown threshold option. should be a list of numbers or None"
         )
     if bMat is None:
-        bMat = planeData.latVecOps['B']
+        bMat = planeData.latVecOps["B"]
 
     # not positive why these are needed
     etaIndices = np.arange(numEtas)
@@ -248,6 +273,9 @@ def paintGrid(
         logger.debug("running in serial mode")
         nCPUs = 1
 
+    # DEBUGGING
+    # import pdb; pdb.set_trace()
+
     # Get the symHKLs for the selected hklIDs
     symHKLs = planeData.getSymHKLs()
     symHKLs = [symHKLs[id] for id in hkl_idx]
@@ -260,24 +288,24 @@ def paintGrid(
 
     # Pack together the common parameters for processing
     params = {
-        'symHKLs': symHKLs,
-        'symHKLs_ix': symHKLs_ix,
-        'wavelength': planeData.wavelength,
-        'hklList': hklList,
-        'omeMin': omeMin,
-        'omeMax': omeMax,
-        'omeTol': omeTol,
-        'omeIndices': omeIndices,
-        'omePeriod': omePeriod,
-        'omeEdges': etaOmeMaps.omeEdges,
-        'etaMin': etaMin,
-        'etaMax': etaMax,
-        'etaTol': etaTol,
-        'etaIndices': etaIndices,
-        'etaEdges': etaOmeMaps.etaEdges,
-        'etaOmeMaps': np.stack(etaOmeMaps.dataStore),
-        'bMat': bMat,
-        'threshold': np.asarray(threshold),
+        "symHKLs": symHKLs,
+        "symHKLs_ix": symHKLs_ix,
+        "wavelength": planeData.wavelength,
+        "hklList": hklList,
+        "omeMin": omeMin,
+        "omeMax": omeMax,
+        "omeTol": omeTol,
+        "omeIndices": omeIndices,
+        "omePeriod": omePeriod,
+        "omeEdges": etaOmeMaps.omeEdges,
+        "etaMin": etaMin,
+        "etaMax": etaMax,
+        "etaTol": etaTol,
+        "etaIndices": etaIndices,
+        "etaEdges": etaOmeMaps.etaEdges,
+        "etaOmeMaps": np.stack(etaOmeMaps.dataStore),
+        "bMat": bMat,
+        "threshold": np.asarray(threshold),
     }
 
     # do the mapping
@@ -300,27 +328,26 @@ def paintGrid(
     return retval
 
 
-def _meshgrid2d(x, y):
+def _meshgrid2d(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
-    Special-cased implementation of np.meshgrid.
+    Special-cased implementation of np.meshgrid for exactly two arguments.
 
-    For just two arguments, (x, y). Found to be about 3x faster on some simple
-    test arguments.
+    Found to be about 3x faster than ``np.meshgrid`` on typical inputs
+    because it avoids the general-case overhead of the NumPy implementation.
 
     Parameters
     ----------
-    x : TYPE
-        DESCRIPTION.
-    y : TYPE
-        DESCRIPTION.
+    x : (N,) array_like
+        1-D array of x-coordinates (broadcast along columns).
+    y : (M,) array_like
+        1-D array of y-coordinates (broadcast along rows).
 
     Returns
     -------
-    r1 : TYPE
-        DESCRIPTION.
-    r2 : TYPE
-        DESCRIPTION.
-
+    r1 : (M, N) ndarray
+        2-D array in which each row is a copy of ``x``.
+    r2 : (M, N) ndarray
+        2-D array in which each column is a copy of ``y``.
     """
     x, y = (np.asarray(x), np.asarray(y))
     shape = (len(y), len(x))
@@ -331,45 +358,58 @@ def _meshgrid2d(x, y):
     return (r1, r2)
 
 
-def _normalize_ranges(starts, stops, offset, ccw=False):
+def _normalize_ranges(
+    starts: np.ndarray,
+    stops: np.ndarray,
+    offset: float,
+    ccw: bool = False,
+) -> np.ndarray:
     """
-    Range normalization.
+    Normalize angle ranges into the interval ``[offset, offset + 2*pi)``.
 
-    Normalize in the range [offset, 2*pi+offset[ the ranges defined
-    by starts and stops.
-
-    Checking if an angle lies inside a range can be done in a way that
-    is more efficient than using validateAngleRanges.
-
-    Note this function assumes that ranges don't overlap.
+    Converts a set of ``(start, stop)`` angle ranges into a flat, sorted
+    array of ``[start, stop, start, stop, ...]`` pairs mapped into the
+    canonical window ``[offset, offset + 2*pi)``.  The resulting array can
+    be used with :func:`_find_in_range` for efficient membership tests:
+    an angle lies inside a valid span when ``_find_in_range`` returns an
+    odd index.
 
     Parameters
     ----------
-    starts : TYPE
-        DESCRIPTION.
-    stops : TYPE
-        DESCRIPTION.
-    offset : TYPE
-        DESCRIPTION.
-    ccw : TYPE, optional
-        DESCRIPTION. The default is False.
+    starts : (K,) array_like
+        Start angles for each range, in radians.  Must satisfy
+        ``starts[i] < stops[i]`` for all ``i``.
+    stops : (K,) array_like
+        Stop angles for each range, in radians.
+    offset : float
+        The lower bound of the target interval, in radians.
+        The output is normalised to ``[offset, offset + 2*pi)``.
+    ccw : bool, optional
+        If ``True``, treat ranges as counter-clockwise, which effectively
+        swaps ``starts`` and ``stops`` before processing.  Default is
+        ``False``.
 
     Raises
     ------
     ValueError
-        DESCRIPTION.
+        If any ``starts[i] >= stops[i]`` (invalid range), or if the
+        normalised ranges overlap.
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    result : (2*K,) or (2*K+2,) ndarray
+        Flat array of normalised ``[start, stop]`` pairs, sorted by start
+        angle.  An extra leading segment ``[offset, wrap_stop]`` is
+        prepended when the last range wraps around past ``offset + 2*pi``.
+        If any single range spans more than ``2*pi``, the full interval
+        ``[offset, offset + 2*pi]`` is returned instead.
     """
     if ccw:
         starts, stops = stops, starts
 
     # results are in the range of [0, 2*np.pi]
     if not np.all(starts < stops):
-        raise ValueError('Invalid angle ranges')
+        raise ValueError("Invalid angle ranges")
 
     # If there is a range that spans more than 2*pi,
     # return the full range
@@ -393,23 +433,31 @@ def _normalize_ranges(starts, stops, offset, ccw=False):
         result = new_result
 
     if not np.all(starts[1:] > stops[0:-2]):
-        raise ValueError('Angle ranges overlap')
+        raise ValueError("Angle ranges overlap")
 
     return result
 
 
-def paintgrid_init(params):
+def paintgrid_init(params: dict[str, Any]) -> None:
     """
     Initialize global variables for paintGrid.
+
+    Sets the module-level ``paramMP`` dictionary used by
+    :func:`paintGridThis` in both serial and multiprocessing execution
+    modes.  Also pre-computes ``valid_eta_spans`` and ``valid_ome_spans``
+    from the raw ``etaMin``/``etaMax`` and ``omeMin``/``omeMax`` entries in
+    ``params`` so that angle validity checks inside the hot loop are faster.
 
     Parameters
     ----------
     params : dict
-        multiprocessing parameter dictionary.
+        Parameter dictionary assembled by :func:`paintGrid`.  Must contain
+        at least the keys ``"etaMin"``, ``"etaMax"``, ``"omeMin"``,
+        ``"omeMax"``, and ``"omePeriod"``.
 
     Returns
     -------
-    None.
+    None
     """
     global paramMP
     paramMP = params
@@ -420,12 +468,12 @@ def paintgrid_init(params):
     #       instead of building etaMin/etaMax and omeMin/omeMax. It may also
     #       be worth handling range overlap and maybe "optimize" ranges if
     #       there happens to be contiguous spans.
-    paramMP['valid_eta_spans'] = _normalize_ranges(
-        paramMP['etaMin'], paramMP['etaMax'], -np.pi
+    paramMP["valid_eta_spans"] = _normalize_ranges(
+        paramMP["etaMin"], paramMP["etaMax"], -np.pi
     )
 
-    paramMP['valid_ome_spans'] = _normalize_ranges(
-        paramMP['omeMin'], paramMP['omeMax'], min(paramMP['omePeriod'])
+    paramMP["valid_ome_spans"] = _normalize_ranges(
+        paramMP["omeMin"], paramMP["omeMax"], min(paramMP["omePeriod"])
     )
     return
 
@@ -443,16 +491,52 @@ def paintgrid_init(params):
 
 
 @numba.njit(nogil=True, cache=True)
-def _check_dilated(eta, ome, dpix_eta, dpix_ome, etaOmeMap, threshold):
-    """Part of paintGridThis.
+def _check_dilated(
+    eta: int,
+    ome: int,
+    dpix_eta: int,
+    dpix_ome: int,
+    etaOmeMap: np.ndarray,
+    threshold: float,
+) -> int:
+    """Check for intensity above threshold in a dilated pixel neighbourhood.
 
-    check if there exists a sample over the given threshold in the etaOmeMap
-    at (eta, ome), with a tolerance of (dpix_eta, dpix_ome) samples.
+    Scans the rectangular region ``[ome-dpix_ome, ome+dpix_ome] x
+    [eta-dpix_eta, eta+dpix_eta]`` in ``etaOmeMap`` and returns 1 if any
+    pixel exceeds ``threshold``, -1 if a ``NaN`` is encountered before a
+    hit, and 0 if no value above threshold is found.
 
-    Note this function is "numba friendly" and will be jitted when using numba.
+    This function is Numba-JIT-compiled (``@numba.njit``) for performance
+    and is called from :func:`_angle_is_hit`.
 
-    TODO: currently behaves like "np.any" call for values above threshold.
-    There is some ambigutiy if there are NaNs in the dilation range, but it
+    Parameters
+    ----------
+    eta : int
+        Column index (eta pixel) of the centre of the dilation window.
+    ome : int
+        Row index (omega pixel) of the centre of the dilation window.
+    dpix_eta : int
+        Half-width of the dilation window in the eta dimension (pixels).
+    dpix_ome : int
+        Half-width of the dilation window in the omega dimension (pixels).
+    etaOmeMap : (M, N) ndarray
+        2-D intensity map for a single HKL family, indexed as
+        ``[ome_pixel, eta_pixel]``.
+    threshold : float
+        Intensity threshold; a pixel must strictly exceed this value to
+        count as a hit.
+
+    Returns
+    -------
+    int
+        ``1`` if at least one pixel in the window exceeds ``threshold``,
+        ``-1`` if a ``NaN`` is encountered before any hit is found,
+        ``0`` if no pixel in the window exceeds ``threshold``.
+
+    Notes
+    -----
+    TODO: currently behaves like ``np.any`` call for values above threshold.
+    There is some ambiguity if there are NaNs in the dilation range, but it
     hits a value above threshold first.  Is that ok???
 
     FIXME: works in non-numba implementation of paintGridThis only
@@ -477,29 +561,55 @@ def _check_dilated(eta, ome, dpix_eta, dpix_ome, etaOmeMap, threshold):
     return 0
 
 
-def paintGridThis(quat):
-    """Single instance paintGrid call.
+def paintGridThis(quat: np.ndarray) -> float:
+    """Score a single trial orientation against the eta-omega maps.
 
-    Note that this version does not use omeMin/omeMax to specify the valid
-    angles. It uses "valid_eta_spans" and "valid_ome_spans". These are
-    precomputed and make for a faster check of ranges than
-    "validateAngleRanges"
+    Computes the completeness of the orientation represented by ``quat``
+    by predicting the oscillation angles for all symmetry-equivalent HKL
+    reflections and checking each prediction against the eta-omega intensity
+    maps stored in the shared ``paramMP`` dictionary.
+
+    This function is designed to be called via ``map``/``Pool.map`` over
+    each column of the ``quats`` array in :func:`paintGrid`.  All parameters
+    other than the quaternion are read from the module-level ``paramMP``
+    dictionary, which must be initialised by :func:`paintgrid_init` before
+    calling this function.
+
+    Parameters
+    ----------
+    quat : (4,) ndarray
+        Unit quaternion representing a single trial orientation.
+
+    Returns
+    -------
+    float
+        Completeness score in ``[0, 1]``: the fraction of symmetry-
+        equivalent reflections that (a) fall within the valid eta and omega
+        ranges and (b) have intensity above threshold in the corresponding
+        eta-omega map bin (with pixel-dilation tolerance applied).
+        Returns ``0.0`` if no reflections pass the validity filters.
+
+    Notes
+    -----
+    Uses ``valid_eta_spans`` and ``valid_ome_spans`` from ``paramMP`` rather
+    than the raw ``omeMin``/``omeMax`` arrays.  These pre-normalised spans
+    allow faster range membership tests via :func:`_find_in_range`.
     """
-    symHKLs = paramMP['symHKLs']  # the HKLs
-    symHKLs_ix = paramMP['symHKLs_ix']  # index partitioning of symHKLs
-    bMat = paramMP['bMat']
-    wavelength = paramMP['wavelength']
-    omeEdges = paramMP['omeEdges']
-    omeTol = paramMP['omeTol']
-    omePeriod = paramMP['omePeriod']
-    valid_eta_spans = paramMP['valid_eta_spans']
-    valid_ome_spans = paramMP['valid_ome_spans']
-    omeIndices = paramMP['omeIndices']
-    etaEdges = paramMP['etaEdges']
-    etaTol = paramMP['etaTol']
-    etaIndices = paramMP['etaIndices']
-    etaOmeMaps = paramMP['etaOmeMaps']
-    threshold = paramMP['threshold']
+    symHKLs = paramMP["symHKLs"]  # the HKLs
+    symHKLs_ix = paramMP["symHKLs_ix"]  # index partitioning of symHKLs
+    bMat = paramMP["bMat"]
+    wavelength = paramMP["wavelength"]
+    omeEdges = paramMP["omeEdges"]
+    omeTol = paramMP["omeTol"]
+    omePeriod = paramMP["omePeriod"]
+    valid_eta_spans = paramMP["valid_eta_spans"]
+    valid_ome_spans = paramMP["valid_ome_spans"]
+    omeIndices = paramMP["omeIndices"]
+    etaEdges = paramMP["etaEdges"]
+    etaTol = paramMP["etaTol"]
+    etaIndices = paramMP["etaIndices"]
+    etaOmeMaps = paramMP["etaOmeMaps"]
+    threshold = paramMP["threshold"]
 
     # dpix_ome and dpix_eta are the number of pixels for the tolerance in
     # ome/eta. Maybe we should compute this per run instead of per
@@ -515,8 +625,11 @@ def paintGridThis(quat):
     rMat = rotations.rotMatOfQuat(quat.T if quat.ndim == 2 else quat)
 
     # Compute the oscillation angles of all the symHKLs at once
-    oangs_pair = xfcapi.oscill_angles_of_hkls(symHKLs, 0.0, rMat, bMat, wavelength)
-    # pdb.set_trace()
+    bv = np.array([0.0, 0.0, -1.0])
+    oangs_pair = xfcapi.oscill_angles_of_hkls(
+        symHKLs, 0.0, rMat, bMat, wavelength, beam_vec=bv
+    )
+    # import pdb; pdb.set_trace()
     return _filter_and_count_hits(
         oangs_pair[0],
         oangs_pair[1],
@@ -536,19 +649,34 @@ def paintGridThis(quat):
 
 
 @numba.njit(nogil=True, cache=True)
-def _find_in_range(value, spans):
+def _find_in_range(value: float, spans: np.ndarray) -> int:
     """
-    Find the index in spans where value >= spans[i] and value < spans[i].
+    Binary search for the interval in ``spans`` that contains ``value``.
 
-    spans is an ordered array where spans[i] <= spans[i+1]
-    (most often < will hold).
+    Returns the index ``i`` such that ``spans[i-1] <= value < spans[i]``,
+    which corresponds to ``bisect_right`` from the standard library.
+    This is the non-vectorised, Numba-friendly equivalent of
+    ``np.searchsorted(spans, value, side='right')``.
 
-    If value is not in the range [spans[0], spans[-1]], then
-    -2 is returned.
+    An odd return value means ``value`` falls *inside* a valid span (i.e.
+    between a start and a stop), while an even return value means it falls
+    *outside* — assuming ``spans`` was built by :func:`_normalize_ranges`
+    as an interleaved ``[start, stop, start, stop, ...]`` array.
 
-    This is equivalent to "bisect_right" in the bisect package, in which
-    code it is based, and it is somewhat similar to NumPy's searchsorted,
-    but non-vectorized
+    Parameters
+    ----------
+    value : float
+        The angle (or other scalar) to locate, in radians.
+    spans : (2*K,) ndarray
+        Sorted, non-overlapping array of ``[start, stop]`` pairs as
+        produced by :func:`_normalize_ranges`.
+
+    Returns
+    -------
+    int
+        Index in ``spans`` such that ``spans[index-1] <= value < spans[index]``,
+        or ``-2`` if ``value`` is outside the range
+        ``[spans[0], spans[-1])``.
     """
     if value < spans[0] or value >= spans[-1]:
         return -2
@@ -569,44 +697,90 @@ def _find_in_range(value, spans):
 
 @numba.njit(nogil=True, cache=True)
 def _angle_is_hit(
-    ang,
-    eta_offset,
-    ome_offset,
-    hkl,
-    valid_eta_spans,
-    valid_ome_spans,
-    etaEdges,
-    omeEdges,
-    etaOmeMaps,
-    etaIndices,
-    omeIndices,
-    dpix_eta,
-    dpix_ome,
-    threshold,
-):
-    """Perform work on one of the angles.
+    ang: np.ndarray,
+    eta_offset: float,
+    ome_offset: float,
+    hkl: int,
+    valid_eta_spans: np.ndarray,
+    valid_ome_spans: np.ndarray,
+    etaEdges: np.ndarray,
+    omeEdges: np.ndarray,
+    etaOmeMaps: np.ndarray,
+    etaIndices: np.ndarray,
+    omeIndices: np.ndarray,
+    dpix_eta: int,
+    dpix_ome: int,
+    threshold: np.ndarray,
+) -> tuple[int, int]:
+    """Determine whether a single predicted reflection angle is a hit.
 
-    This includes:
+    Applies a chain of filters to the predicted ``(tth, eta, ome)`` triple
+    and, if the angle passes all filters, calls :func:`_check_dilated` to
+    test for intensity above threshold in the eta-omega map.
 
-    - filtering nan values
+    Filtering steps (in order):
 
-    - filtering out angles not in the specified spans
+    1. Reject ``NaN`` values in ``tth``.
+    2. Map ``eta`` into ``[eta_offset, eta_offset + 2*pi)`` and reject if
+       outside the valid eta spans.
+    3. Map ``ome`` into ``[ome_offset, ome_offset + 2*pi)`` and reject if
+       outside the valid omega spans.
+    4. Discretise the mapped angles to pixel indices; reject if out of the
+       map bounds.
+    5. Check the dilated pixel neighbourhood for a hit.
 
-    - checking that the discretized angle fits into the sensor range (maybe
-        this could be merged with the previous test somehow, for extra speed)
+    Parameters
+    ----------
+    ang : (3,) ndarray
+        Predicted ``(tth, eta, ome)`` angles in radians for one reflection.
+    eta_offset : float
+        Lower bound of the canonical eta interval in radians (typically
+        ``-pi``).
+    ome_offset : float
+        Lower bound of the canonical omega interval in radians (typically
+        ``min(omePeriod)``).
+    hkl : int
+        Index into ``etaOmeMaps`` (and ``threshold``) for the current HKL
+        family.
+    valid_eta_spans : (2*K,) ndarray
+        Sorted interleaved array of valid eta ``[start, stop]`` pairs as
+        produced by :func:`_normalize_ranges`.
+    valid_ome_spans : (2*K,) ndarray
+        Sorted interleaved array of valid omega ``[start, stop]`` pairs.
+    etaEdges : (numEtas+1,) ndarray
+        Eta bin-edge array in radians.
+    omeEdges : (numOmes+1,) ndarray
+        Omega bin-edge array in radians.
+    etaOmeMaps : (nHKLS, numOmes, numEtas) ndarray
+        Stacked eta-omega intensity maps, one slice per HKL family.
+    etaIndices : (numEtas,) ndarray
+        Array of valid eta pixel indices (``np.arange(numEtas)``).
+    omeIndices : (numOmes,) ndarray
+        Array of valid omega pixel indices (``np.arange(numOmes)``).
+    dpix_eta : int
+        Dilation half-width in the eta direction (pixels).
+    dpix_ome : int
+        Dilation half-width in the omega direction (pixels).
+    threshold : (nHKLS,) ndarray
+        Per-HKL intensity threshold values.
 
-    - actual check for a hit, using dilation for the tolerance.
+    Returns
+    -------
+    is_hit : int
+        ``1`` if the angle is a hit (intensity above threshold within the
+        dilation window), ``0`` otherwise.
+    not_filtered : int
+        ``1`` if the angle passed all validity filters and was actually
+        tested, ``0`` if it was discarded by a filter.
 
-    Note the function returns both, if it was a hit and if it passed the
-    filtering, as we'll want to discard the filtered values when computing
-    the hit percentage.
-
+    Notes
+    -----
     CAVEAT: added map-based nan filtering to _check_dilated; this may not
     be the best option.  Perhaps filter here? <JVB 2017-04-27>
-
     """
     tth, eta, ome = ang
-
+    eta_0 = eta
+    ome_0 = ome
     if np.isnan(tth):
         return 0, 0
 
@@ -644,32 +818,71 @@ def _angle_is_hit(
 
 @numba.njit(nogil=True, cache=True)
 def _filter_and_count_hits(
-    angs_0,
-    angs_1,
-    symHKLs_ix,
-    etaEdges,
-    valid_eta_spans,
-    valid_ome_spans,
-    omeEdges,
-    omePeriod,
-    etaOmeMaps,
-    etaIndices,
-    omeIndices,
-    dpix_eta,
-    dpix_ome,
-    threshold,
-):
-    """Accumulate completeness scores.
+    angs_0: np.ndarray,
+    angs_1: np.ndarray,
+    symHKLs_ix: np.ndarray,
+    etaEdges: np.ndarray,
+    valid_eta_spans: np.ndarray,
+    valid_ome_spans: np.ndarray,
+    omeEdges: np.ndarray,
+    omePeriod: np.ndarray,
+    etaOmeMaps: np.ndarray,
+    etaIndices: np.ndarray,
+    omeIndices: np.ndarray,
+    dpix_eta: int,
+    dpix_ome: int,
+    threshold: np.ndarray,
+) -> float:
+    """Accumulate completeness hits across all symmetry-equivalent reflections.
 
-    assumes:
-    we want etas in -pi -> pi range
-    we want omes in ome_offset -> ome_offset + 2*pi range
+    Iterates over both oscillation-angle solutions (``angs_0`` and
+    ``angs_1``) for every symmetry-equivalent HKL reflection and delegates
+    to :func:`_angle_is_hit` for the per-angle validity check and hit
+    detection.  Tracks which HKL family each reflection belongs to using
+    the partition index array ``symHKLs_ix``.
 
-    Instead of creating an array with the angles of angs_0 and angs_1
-    interleaved, in this numba version calls for both arrays are performed
-    getting the angles from angs_0 and angs_1. this is done in this way to
-    reuse hkl computation. This may not be that important, though.
+    Parameters
+    ----------
+    angs_0 : (N, 3) ndarray
+        First oscillation-angle solution array.  Each row is a
+        ``(tth, eta, ome)`` triple in radians for one symmetry-equivalent
+        HKL reflection.
+    angs_1 : (N, 3) ndarray
+        Second oscillation-angle solution array, same layout as ``angs_0``.
+    symHKLs_ix : (nHKLS+1,) ndarray of int
+        Cumulative index array partitioning rows of ``angs_0``/``angs_1``
+        by HKL family.  Reflections ``symHKLs_ix[k] : symHKLs_ix[k+1]``
+        belong to HKL family ``k``.
+    etaEdges : (numEtas+1,) ndarray
+        Eta bin-edge array in radians.
+    valid_eta_spans : (2*K,) ndarray
+        Normalised valid eta spans from :func:`_normalize_ranges`.
+    valid_ome_spans : (2*K,) ndarray
+        Normalised valid omega spans from :func:`_normalize_ranges`.
+    omeEdges : (numOmes+1,) ndarray
+        Omega bin-edge array in radians.
+    omePeriod : (2,) array_like
+        ``[ome_min, ome_max]`` defining the omega period in radians.
+    etaOmeMaps : (nHKLS, numOmes, numEtas) ndarray
+        Stacked eta-omega intensity maps, one slice per HKL family.
+    etaIndices : (numEtas,) ndarray
+        Valid eta pixel indices (``np.arange(numEtas)``).
+    omeIndices : (numOmes,) ndarray
+        Valid omega pixel indices (``np.arange(numOmes)``).
+    dpix_eta : int
+        Dilation half-width in the eta direction (pixels).
+    dpix_ome : int
+        Dilation half-width in the omega direction (pixels).
+    threshold : (nHKLS,) ndarray
+        Per-HKL intensity threshold values.
 
+    Returns
+    -------
+    float
+        Completeness score: ``hits / total_valid``, where ``total_valid``
+        is the number of reflections that passed all validity filters.
+        Returns ``0.0`` if no reflections are valid (avoids division by
+        zero).
     """
     eta_offset = -np.pi
     ome_offset = np.min(omePeriod)
@@ -728,6 +941,22 @@ def _filter_and_count_hits(
 
 
 @numba.njit(nogil=True, cache=True)
-def _map_angle(angle, offset):
-    """Numba-firendly equivalent to xf.mapAngle."""
+def _map_angle(angle: float, offset: float) -> float:
+    """Numba-friendly equivalent to ``xf.mapAngle``.
+
+    Maps ``angle`` into the half-open interval ``[offset, offset + 2*pi)``
+    using a modulo operation.
+
+    Parameters
+    ----------
+    angle : float
+        Input angle in radians.
+    offset : float
+        Lower bound of the target interval in radians.
+
+    Returns
+    -------
+    float
+        ``angle`` mapped into ``[offset, offset + 2*pi)``.
+    """
     return np.mod(angle - offset, 2 * np.pi) + offset
