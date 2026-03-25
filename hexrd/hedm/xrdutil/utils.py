@@ -50,9 +50,6 @@ from hexrd.core import distortion as distortion_pkg
 
 from hexrd.core.deprecation import deprecated
 
-
-simlp = 'hexrd.hedm.instrument.hedm_instrument.HEDMInstrument.simulate_laue_pattern'
-
 # =============================================================================
 # PARAMETERS
 # =============================================================================

@@ -15,9 +15,8 @@ import warnings
 from collections import defaultdict
 
 from hexrd.core import instrument
-from hexrd.core.transforms import xfcapi
 from hexrd.core import rotations
-from hexrd.core.fitting import fitGrain, objFuncFitGrain, gFlag_ref
+from .fitting import fitGrain, objFuncFitGrain, gFlag_ref
 
 logger = logging.getLogger(__name__)
 

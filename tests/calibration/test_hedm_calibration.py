@@ -5,15 +5,11 @@ import yaml
 import pytest
 
 import hexrd.core.constants as cnst
-from hexrd.material.material import load_materials_hdf5
-from hexrd.instrument.hedm_instrument import HEDMInstrument
+from hexrd.core.material.material import load_materials_hdf5
+from hexrd.core.instrument.hedm_instrument import HEDMInstrument
 
-from hexrd.fitting.calibration import (
-    fix_detector_y,
-    GrainCalibrator,
-    InstrumentCalibrator,
-)
-
+from hexrd.core.fitting.calibration import fix_detector_y, InstrumentCalibrator
+from hexrd.hedm.fitting.calibration import GrainCalibrator
 
 @pytest.fixture
 def calibration_dir(example_repo_path):

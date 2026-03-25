@@ -38,9 +38,6 @@ from hexrd.core import constants
 from hexrd.core.material.crystallography import processWavelength, PlaneData
 from hexrd.core.transforms import xfcapi
 
-
-simlp = 'hexrd.hedm.instrument.hedm_instrument.HEDMInstrument.simulate_laue_pattern'
-
 # =============================================================================
 # PARAMETERS
 # =============================================================================
