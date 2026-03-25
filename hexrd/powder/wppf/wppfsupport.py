@@ -180,7 +180,6 @@ def _add_Shkl_terms(params, mat, return_dict=None):
     valid_shkl, eq_const, rqd_index, trig_ptype = _required_shkl_names(mat)
 
     if return_dict is None:
-
         for s in valid_shkl:
             n = f"{mname}_{s}"
             params.add(
@@ -244,7 +243,6 @@ def _add_atominfo_to_params(params, mat):
     atom_label = _getnumber(atom_type)
 
     for i in range(atom_type.shape[0]):
-
         Z = atom_type[i]
         elem = constants.ptableinverse[Z]
 
@@ -581,7 +579,6 @@ _rqd_shkl = {
 
 
 def _getnumber(arr):
-
     res = np.ones(arr.shape)
     for i in range(arr.shape[0]):
         res[i] = np.sum(arr[0 : i + 1] == arr[i])

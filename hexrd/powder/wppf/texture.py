@@ -682,7 +682,7 @@ class MarchDollaseModel:
         eta_min: float = -np.pi,
         eta_max: float = np.pi,
         eta_step: float = np.radians(0.1),
-        calc_type: str = 'texture_factor',
+        calc_type: str = 'spectrum_2d',
     ) -> dict:
         '''this functin computes the  intensity variation
         along the debye-scherrer rings for each hkl in the material.
@@ -691,7 +691,7 @@ class MarchDollaseModel:
         the full ring. eta_step is the angular step size in azimuth.
         Default value is 0.1 degrees for eta_step
         '''
-        pname = f'{self.material.name_P_MD}'
+        pname = f'{self.material.name}_p_md'
         self.P_MD = params[pname].value
         nspec = int((eta_max - eta_min) / eta_step) - 1
 
@@ -706,6 +706,19 @@ class MarchDollaseModel:
                     nspec,
                 ]
             )
+
+    def get_parameters(self, params=None, vary=True):
+        '''
+        make lmfit parameter class for refinement
+        '''
+        if params is None:
+            params = Parameters()
+
+        pname = f'{self.material.name}_p_md'
+
+        params.add(pname, value=1.0, vary=False)
+
+        return params
 
     @property
     def material(self) -> Material_Rietveld:
