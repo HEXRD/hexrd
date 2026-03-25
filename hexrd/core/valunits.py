@@ -34,7 +34,6 @@ the units to only those used by the heXRD package.
 
 """
 
-import doctest
 import math
 
 import numpy as np
@@ -308,31 +307,3 @@ def _degrees(x: float) -> valWUnit:
 
 # Function alias
 _angstroms = _angstrom
-
-if __name__ == '__main__':  # pragma: no cover
-    #
-    #  doc testing
-    #
-    print("running doctest")
-    doctest.testmod()
-
-    #
-    #  other tests
-    #
-    def testConversions():
-        print('===== Testing unit conversions ...')
-        print('..... angles:')
-        v = valWUnit('180d', 'angle', 180.0, 'degrees')
-        print(v)
-        print(('   in degrees:', v.getVal('degrees')))
-        print(('   in radians: ', v.getVal('radians')))
-
-        print('..... lengths:')
-        ulist = ['m', 'mm', 'meter', 'angstrom']
-        v = valWUnit('one meter', 'length', 1.0, 'meter')
-        print(v)
-        for u in ulist:
-            print(('   in ', u, ': ', v.getVal(u)))
-        return
-
-    testConversions()

@@ -2257,7 +2257,7 @@ class PatchDataWriter(object):
             self.fid = filename
         else:
             self.fid = open(filename, 'w')
-        print(self._header, file=self.fid)
+        self.fid.write(self._header + '\n')
 
     def __del__(self):
         self.close()
@@ -2294,7 +2294,7 @@ class PatchDataWriter(object):
                 self._delim.join(np.tile('{:<23.16e}', 10)).format(*res[7:]),
             ]
         )
-        print(output_str, file=self.fid)
+        self.fid.write(output_str + '\n')
         return output_str
 
 
@@ -2349,7 +2349,7 @@ class GrainDataWriter(object):
             self.fid = filename
         else:
             self.fid = open(filename, 'w')
-        print(self._header, file=self.fid)
+        self.fid.write(self._header + '\n')
 
     def __del__(self):
         self.close()
@@ -2385,7 +2385,7 @@ class GrainDataWriter(object):
                 self._delim.join(np.tile('{:<23.16e}', len(res) - 3)).format(*res[3:]),
             ]
         )
-        print(output_str, file=self.fid)
+        self.fid.write(output_str + '\n')
         return output_str
 
 
