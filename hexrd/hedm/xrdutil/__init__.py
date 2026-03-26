@@ -4,4 +4,3 @@ from .utils import _filter_hkls_eta_ome
 
 # TODO: Fully separate out the utils.py scripts
 from hexrd.hed.xrdutil.utils import *
-from hexrd.laue.xrdutil.utils import *
