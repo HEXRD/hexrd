@@ -1547,52 +1547,6 @@ class HEDMInstrument(object):
 
         return img_dict
 
-    def simulate_laue_pattern(
-        self,
-        crystal_data,
-        minEnergy=5.0,
-        maxEnergy=35.0,
-        rmat_s=None,
-        grain_params=None,
-    ):
-        """
-        Simulate Laue diffraction over the instrument.
-
-        Parameters
-        ----------
-        crystal_data : TYPE
-            DESCRIPTION.
-        minEnergy : TYPE, optional
-            DESCRIPTION. The default is 5..
-        maxEnergy : TYPE, optional
-            DESCRIPTION. The default is 35..
-        rmat_s : TYPE, optional
-            DESCRIPTION. The default is None.
-        grain_params : TYPE, optional
-            DESCRIPTION. The default is None.
-
-        Returns
-        -------
-        results : TYPE
-            DESCRIPTION.
-
-        xy_det, hkls_in, angles, dspacing, energy
-
-        TODO: revisit output; dict, or concatenated list?
-        """
-        results = dict.fromkeys(self.detectors)
-        for det_key, panel in self.detectors.items():
-            results[det_key] = panel.simulate_laue_pattern(
-                crystal_data,
-                minEnergy=minEnergy,
-                maxEnergy=maxEnergy,
-                rmat_s=rmat_s,
-                tvec_s=self.tvec,
-                grain_params=grain_params,
-                beam_vec=self.beam_vector,
-            )
-        return results
-
     def simulate_rotation_series(
         self,
         plane_data,
