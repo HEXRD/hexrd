@@ -54,7 +54,7 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import timeit
-from typing import Any
+from typing import Any, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
@@ -69,7 +69,39 @@ from hexrd.core.transforms import xfcapi
 # =============================================================================
 omega_period_DFLT: NDArray = np.radians(np.r_[-180.0, 180.0])
 
-paramMP: dict[str, Any] | None = None
+
+class PaintGridParams(TypedDict):
+    """Typed parameters dictionary shared across paintGrid workers.
+
+    The first 18 fields are populated by :func:`paintGrid` and passed to
+    :func:`paintgrid_init`.  The final two fields (``valid_eta_spans`` and
+    ``valid_ome_spans``) are computed and added by :func:`paintgrid_init`
+    before any worker calls :func:`paintGridThis`.
+    """
+
+    symHKLs: NDArray
+    symHKLs_ix: NDArray
+    wavelength: float
+    hklList: list[Any]
+    omeMin: NDArray
+    omeMax: NDArray
+    omeTol: float
+    omeIndices: NDArray
+    omePeriod: NDArray
+    omeEdges: NDArray
+    etaMin: NDArray
+    etaMax: NDArray
+    etaTol: float
+    etaIndices: NDArray
+    etaEdges: NDArray
+    etaOmeMaps: NDArray
+    bMat: NDArray
+    threshold: NDArray
+    valid_eta_spans: NDArray
+    valid_ome_spans: NDArray
+
+
+paramMP: PaintGridParams | None = None
 nCPUs_DFLT: int = multiprocessing.cpu_count()
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -436,7 +468,7 @@ def _normalize_ranges(
     return result
 
 
-def paintgrid_init(params: dict[str, Any]) -> None:
+def paintgrid_init(params: PaintGridParams) -> None:
     """
     Initialize global variables for paintGrid.
 
