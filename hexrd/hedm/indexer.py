@@ -273,9 +273,6 @@ def paintGrid(
         logger.debug("running in serial mode")
         nCPUs = 1
 
-    # DEBUGGING
-    # import pdb; pdb.set_trace()
-
     # Get the symHKLs for the selected hklIDs
     symHKLs = planeData.getSymHKLs()
     symHKLs = [symHKLs[id] for id in hkl_idx]
@@ -625,11 +622,9 @@ def paintGridThis(quat: np.ndarray) -> float:
     rMat = rotations.rotMatOfQuat(quat.T if quat.ndim == 2 else quat)
 
     # Compute the oscillation angles of all the symHKLs at once
-    bv = np.array([0.0, 0.0, -1.0])
     oangs_pair = xfcapi.oscill_angles_of_hkls(
-        symHKLs, 0.0, rMat, bMat, wavelength, beam_vec=bv
+        symHKLs, 0.0, rMat, bMat, wavelength
     )
-    # import pdb; pdb.set_trace()
     return _filter_and_count_hits(
         oangs_pair[0],
         oangs_pair[1],
@@ -779,8 +774,7 @@ def _angle_is_hit(
     be the best option.  Perhaps filter here? <JVB 2017-04-27>
     """
     tth, eta, ome = ang
-    eta_0 = eta
-    ome_0 = ome
+
     if np.isnan(tth):
         return 0, 0
 
