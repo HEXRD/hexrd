@@ -15,7 +15,7 @@ from hexrd.core.instrument import switch_xray_source
 from hexrd.core.rotations import angleAxisOfRotMat, RotMatEuler
 from hexrd.core.transforms import xfcapi
 from hexrd.core.utils.hkl import hkl_to_str, str_to_hkl
-from hexrd.laue.simulation import simulate_laue_pattern_on_panel
+from hexrd.laue.simulation import simulate_laue_pattern_on_panel, simulate_laue_pattern_on_instrument
 
 # TODO: Resolve extra-workflow-dependency
 from ....core.fitting.calibration.calibrator import Calibrator
