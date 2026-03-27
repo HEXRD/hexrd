@@ -961,7 +961,7 @@ class Material(object):
             tThWidth = np.array(gid.get('tThWidth'), dtype=np.float64).item()
             tThWidth = np.radians(tThWidth)
         else:
-            tThWidth = Material.DFLT_TTH
+            tThWidth = None
 
         self._tThWidth = tThWidth
 
@@ -991,9 +991,7 @@ class Material(object):
         AtomInfo['hkls'] = self.planeData.getHKLs()
         AtomInfo['dmin'] = self.unitcell.dmin
         AtomInfo['kev'] = self.beamEnergy.getVal("keV")
-        if self.planeData.tThWidth is None:
-            AtomInfo['tThWidth'] = np.degrees(Material.DFLT_TTH)
-        else:
+        if self.planeData.tThWidth is not None:
             AtomInfo['tThWidth'] = np.degrees(self.planeData.tThWidth)
 
         AtomInfo['pressure'] = self.pressure
