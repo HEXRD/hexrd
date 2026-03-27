@@ -7,6 +7,7 @@ import pytest
 
 from hexrd.core.material.material import load_materials_hdf5, Material
 from hexrd.core.instrument.hedm_instrument import HEDMInstrument
+from hexrd.laue.simulation import simulate_laue_pattern_on_instrument
 
 
 @pytest.fixture
@@ -54,8 +55,8 @@ def test_simulate_laue_spots(
     # Disable all exclusions on the plane data
     plane_data.exclusions = None
 
-    sim_data = instr.simulate_laue_pattern(
-        plane_data, minEnergy=5, maxEnergy=35, grain_params=[lif_grain_params]
+    sim_data = simulate_laue_pattern_on_instrument(
+        instr, plane_data, minEnergy=5, maxEnergy=35, grain_params=[lif_grain_params]
     )
 
     # A few manual expected results

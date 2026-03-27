@@ -10,6 +10,7 @@ from hexrd.core.instrument.detector import (
     _interpolate_bilinear,
     _interpolate_bilinear_in_place,
 )
+from hexrd.laue.simulation import simulate_laue_pattern_on_panel
 from hexrd.core.instrument.physics_package import AbstractPhysicsPackage
 from hexrd.core.material import crystallography
 
@@ -570,34 +571,39 @@ def test_simulate_laue_pattern(base_detector, mock_distortion_registry):
     pd.getSymHKLs.return_value = [np.array([[1], [0], [0]])]
     pd.latVecOps = {'B': np.eye(3)}
 
-    with patch('hexrd.core.instrument.detector.xy_to_gvec') as m_xy2g:
+    with patch('hexrd.laue.simulation.xy_to_gvec') as m_xy2g:
         m_xy2g.return_value = ([np.array([0.1, 0.0])], np.array([[0, 0, 1]]))
 
         with patch(
-            'hexrd.core.instrument.detector.gvec_to_xy',
+            'hexrd.laue.simulation.gvec_to_xy',
             return_value=np.array([[0.0, 0.0]]),
         ):
             with np.errstate(divide='ignore', invalid='ignore'):
-                base_detector.simulate_laue_pattern(
-                    pd, grain_params=[np.zeros(12)]
+                simulate_laue_pattern_on_panel(
+                    base_detector, pd, grain_params=[np.zeros(12)]
                 )
 
                 with pytest.raises(
-                    ValueError,
+                    TypeError,
                     match="minEnergy must be array-like if maxEnergy is",
                 ):
-                    base_detector.simulate_laue_pattern(pd, maxEnergy=[1, 2])
+                    simulate_laue_pattern_on_panel(
+                        base_detector, pd, maxEnergy=[1, 2]
+                    )
 
                 with pytest.raises(
                     ValueError,
                     match="maxEnergy and minEnergy must be same length",
                 ):
-                    base_detector.simulate_laue_pattern(
-                        pd, minEnergy=[1], maxEnergy=[1, 2]
+                    simulate_laue_pattern_on_panel(
+                        base_detector, pd, minEnergy=[1], maxEnergy=[1, 2]
                     )
 
-                base_detector.simulate_laue_pattern(
-                    pd, minEnergy=[5.0, 10.0], maxEnergy=[15.0, 20.0]
+                simulate_laue_pattern_on_panel(
+                    base_detector,
+                    pd,
+                    minEnergy=[5.0, 10.0],
+                    maxEnergy=[15.0, 20.0],
                 )
 
 
@@ -606,21 +612,21 @@ def test_simulate_laue_pattern_legacy_input(base_detector):
     bmat = np.eye(3)
 
     with patch(
-        'hexrd.core.instrument.detector.gvec_to_xy',
+        'hexrd.laue.simulation.gvec_to_xy',
         return_value=np.array([[0.0, 0.0]]),
     ):
-        with patch('hexrd.core.instrument.detector.xy_to_gvec') as m_xy2g:
+        with patch('hexrd.laue.simulation.xy_to_gvec') as m_xy2g:
             m_xy2g.return_value = (
                 [np.array([0.1, 0.0])],
                 np.array([[0, 0, 1]]),
             )
             with np.errstate(divide='ignore', invalid='ignore'):
-                base_detector.simulate_laue_pattern((hkls, bmat))
+                simulate_laue_pattern_on_panel(base_detector, (hkls, bmat))
 
 
 def test_simulate_laue_pattern_error(base_detector):
     with pytest.raises(RuntimeError):
-        base_detector.simulate_laue_pattern("invalid_input")
+        simulate_laue_pattern_on_panel(base_detector, "invalid_input")
 
 
 def test_polarization_factor(base_detector):
