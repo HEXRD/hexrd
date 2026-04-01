@@ -67,7 +67,7 @@ from hexrd.core.transforms import xfcapi
 # =============================================================================
 # Parameters
 # =============================================================================
-omega_period_DFLT: NDArray = np.radians(np.r_[-180.0, 180.0])
+omega_period_DFLT: NDArray[np.float64] = np.radians(np.r_[-180.0, 180.0])
 
 
 class PaintGridParams(TypedDict):
@@ -79,25 +79,25 @@ class PaintGridParams(TypedDict):
     before any worker calls :func:`paintGridThis`.
     """
 
-    symHKLs: NDArray
-    symHKLs_ix: NDArray
+    symHKLs: NDArray[np.int_]
+    symHKLs_ix: NDArray[np.intp]
     wavelength: float
-    omeMin: NDArray
-    omeMax: NDArray
+    omeMin: NDArray[np.float64]
+    omeMax: NDArray[np.float64]
     omeTol: float
-    omeIndices: NDArray
-    omePeriod: NDArray
-    omeEdges: NDArray
-    etaMin: NDArray
-    etaMax: NDArray
+    omeIndices: NDArray[np.intp]
+    omePeriod: NDArray[np.float64]
+    omeEdges: NDArray[np.float64]
+    etaMin: NDArray[np.float64]
+    etaMax: NDArray[np.float64]
     etaTol: float
-    etaIndices: NDArray
-    etaEdges: NDArray
-    etaOmeMaps: NDArray
-    bMat: NDArray
-    threshold: NDArray
-    valid_eta_spans: NDArray
-    valid_ome_spans: NDArray
+    etaIndices: NDArray[np.intp]
+    etaEdges: NDArray[np.float64]
+    etaOmeMaps: NDArray[np.float64]
+    bMat: NDArray[np.float64]
+    threshold: NDArray[np.float64]
+    valid_eta_spans: NDArray[np.float64]
+    valid_ome_spans: NDArray[np.float64]
 
 
 paramMP: PaintGridParams | None = None
@@ -109,15 +109,15 @@ logger: logging.Logger = logging.getLogger(__name__)
 # Methods
 # =============================================================================
 def paintGrid(
-    quats: NDArray,
+    quats: NDArray[np.float64],
     etaOmeMaps: Any,
-    threshold: float | NDArray | None = None,
-    bMat: NDArray | None = None,
-    omegaRange: NDArray | None = None,
-    etaRange: NDArray | None = None,
+    threshold: float | NDArray[np.float64] | None = None,
+    bMat: NDArray[np.float64] | None = None,
+    omegaRange: NDArray[np.float64] | None = None,
+    etaRange: NDArray[np.float64] | None = None,
     omeTol: float = constants.d2r,
     etaTol: float = constants.d2r,
-    omePeriod: NDArray = omega_period_DFLT,
+    omePeriod: NDArray[np.float64] = omega_period_DFLT,
     doMultiProc: bool = False,
     nCPUs: int | None = None,
     debug: bool = False,
@@ -356,7 +356,7 @@ def paintGrid(
     return retval
 
 
-def _meshgrid2d(x: NDArray, y: NDArray) -> tuple[NDArray, NDArray]:
+def _meshgrid2d(x: NDArray[np.float64], y: NDArray[np.float64]) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Special-cased implementation of np.meshgrid for exactly two arguments.
 
@@ -387,11 +387,11 @@ def _meshgrid2d(x: NDArray, y: NDArray) -> tuple[NDArray, NDArray]:
 
 
 def _normalize_ranges(
-    starts: NDArray,
-    stops: NDArray,
+    starts: NDArray[np.float64],
+    stops: NDArray[np.float64],
     offset: float,
     ccw: bool = False,
-) -> NDArray:
+) -> NDArray[np.float64]:
     """
     Normalize angle ranges into the interval ``[offset, offset + 2*pi)``.
 
@@ -524,7 +524,7 @@ def _check_dilated(
     ome: int,
     dpix_eta: int,
     dpix_ome: int,
-    etaOmeMap: NDArray,
+    etaOmeMap: NDArray[np.float64],
     threshold: float,
 ) -> int:
     """Check for intensity above threshold in a dilated pixel neighbourhood.
@@ -589,7 +589,7 @@ def _check_dilated(
     return 0
 
 
-def paintGridThis(quat: NDArray) -> float:
+def paintGridThis(quat: NDArray[np.float64]) -> float:
     """Score a single trial orientation against the eta-omega maps.
 
     Computes the completeness of the orientation represented by ``quat``
@@ -675,7 +675,7 @@ def paintGridThis(quat: NDArray) -> float:
 
 
 @numba.njit(nogil=True, cache=True)
-def _find_in_range(value: float, spans: NDArray) -> int:
+def _find_in_range(value: float, spans: NDArray[np.float64]) -> int:
     """
     Binary search for the interval in ``spans`` that contains ``value``.
 
@@ -723,20 +723,20 @@ def _find_in_range(value: float, spans: NDArray) -> int:
 
 @numba.njit(nogil=True, cache=True)
 def _angle_is_hit(
-    ang: NDArray,
+    ang: NDArray[np.float64],
     eta_offset: float,
     ome_offset: float,
     hkl: int,
-    valid_eta_spans: NDArray,
-    valid_ome_spans: NDArray,
-    etaEdges: NDArray,
-    omeEdges: NDArray,
-    etaOmeMaps: NDArray,
-    etaIndices: NDArray,
-    omeIndices: NDArray,
+    valid_eta_spans: NDArray[np.float64],
+    valid_ome_spans: NDArray[np.float64],
+    etaEdges: NDArray[np.float64],
+    omeEdges: NDArray[np.float64],
+    etaOmeMaps: NDArray[np.float64],
+    etaIndices: NDArray[np.intp],
+    omeIndices: NDArray[np.intp],
     dpix_eta: int,
     dpix_ome: int,
-    threshold: NDArray,
+    threshold: NDArray[np.float64],
 ) -> tuple[int, int]:
     """Determine whether a single predicted reflection angle is a hit.
 
@@ -843,20 +843,20 @@ def _angle_is_hit(
 
 @numba.njit(nogil=True, cache=True)
 def _filter_and_count_hits(
-    angs_0: NDArray,
-    angs_1: NDArray,
-    symHKLs_ix: NDArray,
-    etaEdges: NDArray,
-    valid_eta_spans: NDArray,
-    valid_ome_spans: NDArray,
-    omeEdges: NDArray,
-    omePeriod: NDArray,
-    etaOmeMaps: NDArray,
-    etaIndices: NDArray,
-    omeIndices: NDArray,
+    angs_0: NDArray[np.float64],
+    angs_1: NDArray[np.float64],
+    symHKLs_ix: NDArray[np.intp],
+    etaEdges: NDArray[np.float64],
+    valid_eta_spans: NDArray[np.float64],
+    valid_ome_spans: NDArray[np.float64],
+    omeEdges: NDArray[np.float64],
+    omePeriod: NDArray[np.float64],
+    etaOmeMaps: NDArray[np.float64],
+    etaIndices: NDArray[np.intp],
+    omeIndices: NDArray[np.intp],
     dpix_eta: int,
     dpix_ome: int,
-    threshold: NDArray,
+    threshold: NDArray[np.float64],
 ) -> float:
     """Accumulate completeness hits across all symmetry-equivalent reflections.
 
