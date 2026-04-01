@@ -82,7 +82,6 @@ class PaintGridParams(TypedDict):
     symHKLs: NDArray
     symHKLs_ix: NDArray
     wavelength: float
-    hklList: list[Any]
     omeMin: NDArray
     omeMax: NDArray
     omeTol: float
@@ -321,7 +320,6 @@ def paintGrid(
         "symHKLs": symHKLs,
         "symHKLs_ix": symHKLs_ix,
         "wavelength": planeData.wavelength,
-        "hklList": hklList,
         "omeMin": omeMin,
         "omeMax": omeMax,
         "omeTol": omeTol,
