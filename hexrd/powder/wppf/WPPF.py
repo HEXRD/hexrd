@@ -34,6 +34,7 @@ from hexrd.powder.wppf.peakfunctions import (
     calc_Iobs_pvpink,
 )
 from hexrd.powder.wppf import wppfsupport
+from hexrd.powder.wppf.texture import HarmonicModel, MarchDollaseModel
 from hexrd.powder.wppf.spectrum import Spectrum
 from hexrd.powder.wppf.tds import TDS
 from hexrd.powder.wppf.phase import (
@@ -1681,6 +1682,15 @@ class Rietveld(AbstractWPPF):
         if updated_lp or updated_atominfo:
             self.calcsf()
 
+        """
+        In case March-Dollase texture parameters were used, we can
+        update those here
+        """
+        name = f"{pre}p_md"
+        if name in params:
+            val = params[name].value
+            self.texture_model[p].P_MD = val
+
         self.phases.phase_fraction = pf / np.sum(pf)
 
     def on_smoothing_modified(self):
@@ -1919,14 +1929,16 @@ class Rietveld(AbstractWPPF):
                     eta_mask = self.eta_mask
                     if eta_mask is not None:
                         eta_mask = eta_mask[p][k]
-
-                    texture_factor = self.texture_model[p].calc_texture_factor(
-                        self.params,
-                        eta_min=self.eta_min,
-                        eta_max=self.eta_max,
-                        eta_step=self.eta_step,
-                        eta_mask=eta_mask,
-                    )
+                    if isinstance(self.texture_model[p], HarmonicModel):
+                        texture_factor = self.texture_model[p].calc_texture_factor(
+                            self.params,
+                            eta_min=self.eta_min,
+                            eta_max=self.eta_max,
+                            eta_step=self.eta_step,
+                            eta_mask=eta_mask,
+                        )
+                    elif isinstance(self.texture_model[p], MarchDollaseModel):
+                        texture_factor = self.texture_model[p].texture_factors
                 y += self.computespectrum_phase(
                     p, k, Icomputed[p][k], texture_factor=texture_factor
                 )
@@ -2296,7 +2308,10 @@ class Rietveld(AbstractWPPF):
         res = {}
         for p in self.phases:
             if self.texture_model[p] is not None:
-                res[p] = self.texture_model[p].J(self.params)
+                if isinstance(self.texture_model[p], HarmonicModel):
+                    res[p] = self.texture_model[p].J(self.params)
+                elif isinstance(self.texture_model[p], MarchDollaseModel):
+                    res[p] = self.texture_model[p].P_MD
             else:
                 res[p] = 1.0
         return res
