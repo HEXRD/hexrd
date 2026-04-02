@@ -1038,15 +1038,6 @@ class LeBail(AbstractWPPF):
                 mat._calcrmt()
                 updated_lp = True
 
-        """
-        In case March-Dollase texture parameters were used, we can
-        update those here
-        """
-        name = f"{pre}{p_md}"
-        if name in params:
-            val = params[name].value
-            self.texture_model[p].P_MD = val
-
         if updated_lp:
             self.calctth()
 
@@ -1690,6 +1681,15 @@ class Rietveld(AbstractWPPF):
 
         if updated_lp or updated_atominfo:
             self.calcsf()
+
+        """
+        In case March-Dollase texture parameters were used, we can
+        update those here
+        """
+        name = f"{pre}p_md"
+        if name in params:
+            val = params[name].value
+            self.texture_model[p].P_MD = val
 
         self.phases.phase_fraction = pf / np.sum(pf)
 
