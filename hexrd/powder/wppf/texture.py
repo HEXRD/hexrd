@@ -2,6 +2,7 @@
 # ---------
 import copy
 from warnings import warn
+from typing import Tuple
 
 # hexrd imports
 # -------------
