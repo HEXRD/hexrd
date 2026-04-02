@@ -679,7 +679,7 @@ class MarchDollaseModel:
 
     def calc_pf_rings(
         self,
-        params: lmfit.Parameters,
+        params: Parameters,
         eta_min: float = -np.pi,
         eta_max: float = np.pi,
         eta_step: float = np.radians(0.1),
