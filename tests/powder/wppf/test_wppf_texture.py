@@ -11,7 +11,7 @@ from hexrd.projections.polar import bin_polar_view, PolarView
 from hexrd.valunits import _angstrom, _kev
 from hexrd.wppf import Rietveld
 from hexrd.wppf.phase import Material_Rietveld
-from hexrd.wppf.texture import HarmonicModel
+from hexrd.wppf.texture import HarmonicModel, MarchDollaseModel
 from hexrd.rotations import quatOfAngleAxis, rotMatOfQuat
 
 
@@ -243,7 +243,7 @@ def test_wppf_texture(texture_instrument, texture_img_dict):
     HKL = np.array([1, 1, 1])
     P_MD = 1.0
 
-    march = texture.MarchDollaseModel(material=matr, HKL=HKL, P_MD=P_MD)
+    march = MarchDollaseModel(material=matr, HKL=HKL, P_MD=P_MD)
 
     kwargs = {
         'expt_spectrum': expt_spec,
