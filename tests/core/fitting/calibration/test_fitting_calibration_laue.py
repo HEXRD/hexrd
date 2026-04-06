@@ -97,7 +97,9 @@ def test_laue_attributes_and_setters(laue_calibrator):
 @patch('hexrd.core.fitting.calibration.laue.xrdutil')
 @patch('hexrd.core.fitting.calibration.laue.xfcapi')
 @patch('hexrd.core.fitting.calibration.laue.switch_xray_source')
+@patch('hexrd.core.fitting.calibration.laue.simulate_laue_pattern_on_instrument')
 def test_autopick_points(
+    mock_sim_instr,
     mock_switch,
     mock_xfc,
     mock_xrd,
@@ -123,7 +125,7 @@ def test_autopick_points(
         "lsq", ([100, 1, 0, 1, 5.0, 5.0, 0, 0, 0], 1)
     )
 
-    laue_calibrator.instr.simulate_laue_pattern.return_value = {
+    mock_sim_instr.return_value = {
         'det1': (
             np.array([[[100, 100]]]),
             np.array([[[1], [1], [1]]]),
@@ -176,10 +178,11 @@ def test_autopick_points(
 # --- Objective Function & Methods ---
 
 
+@patch('hexrd.core.fitting.calibration.laue.simulate_laue_pattern_on_panel')
 @patch('hexrd.core.fitting.calibration.laue.switch_xray_source')
 @patch('hexrd.core.fitting.calibration.laue.sxcal_obj_func')
 def test_laue_methods_and_obj_func(
-    mock_obj_func, mock_switch, laue_calibrator
+    mock_obj_func, mock_switch, mock_sim, laue_calibrator
 ):
     laue_calibrator.data_dict = {
         'pick_xys': {'det1': [[10, 10], [np.nan, np.nan]]},
@@ -196,12 +199,12 @@ def test_laue_methods_and_obj_func(
     assert mock_obj_func.call_args[1]['sim_only'] is True
 
     mock_instr = laue_calibrator.instr
-    mock_instr.detectors['det1'].simulate_laue_pattern.return_value = (
-        [np.array([[100, 100]])],
-        [np.zeros((1, 3))],
-        [np.array([[10, 20]])],
-        None,
-        None,
+    mock_sim.return_value = (
+        np.array([[[100, 100]]]),   # xy_det:   (n_grains, nhkls, 2)
+        np.zeros((1, 3, 1)),        # hkls_in:  (n_grains, 3, nhkls)
+        np.array([[[10, 20]]]),     # angles:   (n_grains, nhkls, 2)
+        np.array([[1.0]]),          # dspacing: (n_grains, nhkls)
+        np.array([[20.0]]),         # energy:   (n_grains, nhkls)
     )
 
     res_sim = sxcal_obj_func(

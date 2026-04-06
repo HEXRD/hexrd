@@ -15,6 +15,7 @@ from hexrd.core.instrument import switch_xray_source
 from hexrd.core.rotations import angleAxisOfRotMat, RotMatEuler
 from hexrd.core.transforms import xfcapi
 from hexrd.core.utils.hkl import hkl_to_str, str_to_hkl
+from hexrd.laue.simulation import simulate_laue_pattern_on_panel, simulate_laue_pattern_on_instrument
 
 # TODO: Resolve extra-workflow-dependency
 from ....core.fitting.calibration.calibrator import Calibrator
@@ -183,7 +184,8 @@ class LaueCalibrator(AbstractGrainCalibrator):
 
         # run simulation
         # ???: could we get this from overlays?
-        laue_sim = self.instr.simulate_laue_pattern(
+        laue_sim = simulate_laue_pattern_on_instrument(
+            self.instr,
             self.plane_data,
             minEnergy=self.energy_cutoffs[0],
             maxEnergy=self.energy_cutoffs[1],
@@ -516,7 +518,8 @@ def sxcal_obj_func(
     for det_key, panel in instr.detectors.items():
         # Simulate Laue pattern:
         # returns xy_det, hkls_in, angles, dspacing, energy
-        sim_results = panel.simulate_laue_pattern(
+        sim_results = simulate_laue_pattern_on_panel(
+            panel,
             [hkls_idx[det_key], bmat],
             minEnergy=energy_cutoffs[0],
             maxEnergy=energy_cutoffs[1],
