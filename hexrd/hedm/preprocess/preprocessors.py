@@ -85,6 +85,7 @@ class PP_Base(object):
             threshold=threshold,
             cache_file=cache,
         )
+        logger.info(f"Frame cache saved to {os.path.join(output_dir, cache)}.")
 
 
 class PP_Eiger(PP_Base):
@@ -114,8 +115,10 @@ class PP_Eiger(PP_Base):
         self.eiger_stream_v2_threshold = eiger_stream_v2_threshold
         self.eiger_stream_v2_multiplier = eiger_stream_v2_multiplier
         logger.info(
-            f"On Init:\n\t{self.fname}, {self.nframes} frames, "
-            f"{self.omwedges.nframes} omw, {len(self.raw)} total"
+            f"\nFile found at:      {self.fname}\n"
+            f"  File contains:    {len(self.raw)} frames\n"
+            f"  Frames requested: {self.nframes}\n"
+            f"  Skipping first:   {self.frame_start} frames"
         )
 
         if self.is_eiger_stream_v2:
@@ -191,9 +194,12 @@ class PP_Dexela(PP_Base):
         self.use_frame_list = self.nframes != len(
             self.raw
         )  # Framelist fix, DCP 6/18/18
+
         logger.info(
-            f"On Init:\n\t{self.fname}, {self.nframes} frames, "
-            f"{self.omwedges.nframes} omw, {len(self.raw)} total"
+            f"\nFile found at:      {self.fname}\n"
+            f"  File contains:    {len(self.raw)} frames\n"
+            f"  Frames requested: {self.nframes}\n"
+            f"  Skipping first:   {self.frame_start} frames"
         )
 
     def _attach_metadata(self, metadata: dict) -> None:
