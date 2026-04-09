@@ -224,7 +224,7 @@ class PP_Dexela(PP_Base):
 
 
 def preprocess(args: HexrdPPScript_Arguments) -> None:
-    if type(args) == Eiger_Arguments:
+    if isinstance(args, Eiger_Arguments):
         omw = imageseries.omega.OmegaWedges(args.num_frames)
         omw.addwedge(args.ome_start, args.ome_end, args.num_frames)
         ppe = PP_Eiger(
@@ -236,7 +236,7 @@ def preprocess(args: HexrdPPScript_Arguments) -> None:
             eiger_stream_v2_multiplier=args.eiger_stream_v2_multiplier,
         )
         ppe.save_processed(args.output, args.threshold)
-    elif type(args) == Dexelas_Arguments:
+    elif isinstance(args, Dexelas_Arguments):
         omw = imageseries.omega.OmegaWedges(args.num_frames)
         omw.addwedge(args.ome_start, args.ome_end, args.num_frames)
         for file_name in args.file_names:
