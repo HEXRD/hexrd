@@ -8,6 +8,7 @@ from scipy import signal, ndimage
 from skimage.feature import blob_dog, blob_log
 from skimage.exposure import rescale_intensity
 
+from hexrd.core import constants
 from hexrd.core import convolution
 from hexrd.core.constants import fwhm_to_sigma
 
@@ -88,7 +89,9 @@ def snip1d(y, w=4, numiter=2, threshold=None, max_workers=os.cpu_count()):
 
     if max_workers > 1:
         # Parallelize over tasks
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        with ProcessPoolExecutor(
+            mp_context=constants.mp_context, max_workers=max_workers
+        ) as executor:
             for k, result in executor.map(f, tasks):
                 bkg[k, :] = result
     else:
