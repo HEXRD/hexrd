@@ -1681,6 +1681,15 @@ class Rietveld(AbstractWPPF):
         if updated_lp or updated_atominfo:
             self.calcsf()
 
+        """
+        In case March-Dollase texture parameters were used, we can
+        update those here
+        """
+        name = f"{pre}p_md"
+        if name in params:
+            val = params[name].value
+            self.texture_model[p].P_MD = val
+
         self.phases.phase_fraction = pf / np.sum(pf)
 
     def on_smoothing_modified(self):
@@ -1919,7 +1928,6 @@ class Rietveld(AbstractWPPF):
                     eta_mask = self.eta_mask
                     if eta_mask is not None:
                         eta_mask = eta_mask[p][k]
-
                     texture_factor = self.texture_model[p].calc_texture_factor(
                         self.params,
                         eta_min=self.eta_min,
@@ -2296,7 +2304,7 @@ class Rietveld(AbstractWPPF):
         res = {}
         for p in self.phases:
             if self.texture_model[p] is not None:
-                res[p] = self.texture_model[p].J(self.params)
+                res[p] = self.texture_model[p].texture_index(self.params)
             else:
                 res[p] = 1.0
         return res

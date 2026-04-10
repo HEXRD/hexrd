@@ -2,6 +2,7 @@
 # ---------
 import copy
 from warnings import warn
+from typing import Tuple
 
 # hexrd imports
 # -------------
@@ -624,6 +625,181 @@ def get_num_sym_harm(ell, sym='oh'):
         return 2 * ell + 1
 
 
+class MarchDollaseModel:
+    """this class implements the well known March Dollase
+    texture model for axisymmetric textures. the functional
+    form used is the same as the Bragg-Brentano geometry which
+    is also valid from Debye-Scherrer geometry as detailed in
+    Howard and Kisi, J. Appl. Cryst. (2000). 33, 1434-1435.
+
+    P_k = 1/m_k sum{i=1, m_k} (P^2cos^2alpha + sin^2 alpha/P)^-1.5
+
+    this is a simple model with just one refinement parameter.
+    However, we need to make sure that only one of the texture
+    models is used inside the wppf module.
+    """
+
+    def __init__(
+        self,
+        material: Material_Rietveld = None,
+        HKL: np.ndarray = np.array([1.0, 1.0, 1.0]),
+        P_MD: float = 1.0,
+    ) -> None:
+        self.material = material
+        self.HKL = HKL
+        self.P_MD = P_MD
+
+    def get_texture_factor(self) -> None:
+        hkls = self.material.hkls
+        self.texture_factors = np.empty(hkls.shape[0])
+
+        for ii, g in enumerate(hkls):
+            self.texture_factors[ii] = self.get_texture_factor_reflection(g)
+
+    def get_texture_factor_reflection(self, g: np.ndarray) -> np.ndarray:
+        """get the sum of symmetrically equivalent hkls"""
+        gsym = self.material.CalcStar(g, 'r')
+        pre = 1.0 / gsym.shape[0]
+        texture_factor = 0.0
+        for h in gsym:
+            cos2_alpha, sin2_alpha = self.calc_cos_sin_alpha(h)
+            texture_factor += (
+                self.P_MD**2 * cos2_alpha + sin2_alpha / self.P_MD
+            ) ** -1.5
+
+        return pre * texture_factor
+
+    def calc_cos_sin_alpha(self, g: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        g_mag = self.material.CalcLength(g, 'r')
+        gdotHKL = self.material.CalcDot(g, self.HKL, 'r')
+        cos2_alpha = (gdotHKL / g_mag / self.HKL_length) ** 2
+        sin2_alpha = 1 - cos2_alpha
+
+        return cos2_alpha, sin2_alpha
+
+    def calc_pf_rings(
+        self,
+        params: Parameters,
+        eta_min: float = -np.pi,
+        eta_max: float = np.pi,
+        eta_step: float = np.radians(0.1),
+        calc_type: str = 'spectrum_2d',
+    ) -> dict:
+        '''this function computes the intensity variation
+        along the debye-scherrer rings for each hkl in the material.
+        the intensity variation around the ring is computed between
+        eta_min and eta_max. Default values are (-pi,pi) which gives
+        the full ring. eta_step is the angular step size in azimuth.
+        Default value is 0.1 degrees for eta_step
+        '''
+        pname = f'{self.material.name}_p_md'
+        self.P_MD = params[pname].value
+        nspec = int((eta_max - eta_min) / eta_step) - 1
+
+        if calc_type != 'spectrum_2d':
+            msg = 'calc_type parameter set incorrectly'
+            raise ValueError(msg)
+        self.intensities_rings_2d = {}
+        for ii, h in enumerate(self.material.hkls):
+            hkey = tuple(h)
+            self.intensities_rings_2d[hkey] = self.texture_factors[ii] * np.ones(
+                [
+                    nspec,
+                ]
+            )
+
+    def calc_texture_factor(
+        self,
+        params: Parameters,
+        eta_min: float = -np.pi,
+        eta_max: float = np.pi,
+        eta_step: float = np.radians(1),
+        eta_mask: dict | None = None,
+    ) -> np.ndarray:
+        """Return texture factors, matching the HarmonicModel interface."""
+        pname = f'{self.material.name}_p_md'
+        if pname in params:
+            self.P_MD = params[pname].value
+        return self.texture_factors
+
+    def texture_index(self, params: Parameters) -> float:
+        """Return P_MD as the texture index, analogous to HarmonicModel.J."""
+        pname = f'{self.material.name}_p_md'
+        if pname in params:
+            self.P_MD = params[pname].value
+        return self.P_MD
+
+    def get_parameters(
+        self, params: Parameters | None = None, vary: bool = True
+    ) -> Parameters:
+        '''
+        make lmfit parameter class for refinement
+        '''
+        if params is None:
+            params = Parameters()
+
+        pname = f'{self.material.name}_p_md'
+
+        params.add(pname, value=1.0, vary=False)
+
+        return params
+
+    @property
+    def material(self) -> Material_Rietveld:
+        return self._material
+
+    @material.setter
+    def material(self, mat: Material_Rietveld) -> None:
+        if mat is not None and not isinstance(mat, Material_Rietveld):
+            raise Exception(f'Invalid material: {mat}')
+
+        self._material = mat
+
+    @property
+    def HKL(self) -> np.ndarray:
+        return self._HKL
+
+    @HKL.setter
+    def HKL(self, hkl: list | np.ndarray) -> None:
+        if isinstance(hkl, list):
+            hkl = np.array(hkl)
+            if hkl.shape != (3,):
+                msg = 'HKL should be a list of length 3'
+                raise ValueError(msg)
+        elif isinstance(hkl, np.ndarray):
+            if hkl.shape != (3,):
+                msg = 'HKL should be an array with shape (3,)'
+                raise ValueError(msg)
+
+        else:
+            msg = 'HKL must be a list or numpy.ndarray'
+            raise TypeError(msg)
+        self._HKL = hkl
+        self._HKL_length = self.material.CalcLength(self._HKL, 'r')
+
+        if hasattr(self, '_P_MD'):
+            self.get_texture_factor()
+
+    @property
+    def HKL_length(self) -> float:
+        return self._HKL_length
+
+    @property
+    def P_MD(self) -> float:
+        return self._P_MD
+
+    @P_MD.setter
+    def P_MD(self, val: float | int):
+        if isinstance(val, (float, int)):
+            self._P_MD = float(val)
+        else:
+            msg = 'P_MD must be a float'
+            raise TypeError(msg)
+
+        if hasattr(self, '_HKL'):
+            self.get_texture_factor()
+
+
 class HarmonicModel:
     """this is the abstract class which is used by
     both the harmonic model as well as the pole figure
@@ -992,7 +1168,7 @@ class HarmonicModel:
         eta_step=np.radians(0.1),
         calc_type='texture_factor',
     ):
-        '''this functin computes the  intensity variation
+        '''this function computes the intensity variation
         along the debye-scherrer rings for each hkl in the material.
         the intensity variation around the ring is computed between
         eta_min and eta_max. Default values are (-pi,pi) which gives
@@ -1086,6 +1262,10 @@ class HarmonicModel:
                     pre = 1 / (2 * ell + 1)
                     J += pre * (params[pname].value ** 2)
         return J
+
+    def texture_index(self, params: Parameters) -> float:
+        """Return the texture index, matching the MarchDollaseModel interface."""
+        return self.J(params)
 
     """
     the following functions deal with everything related to pole figures.

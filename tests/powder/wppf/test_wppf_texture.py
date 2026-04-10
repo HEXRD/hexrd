@@ -11,7 +11,7 @@ from hexrd.projections.polar import bin_polar_view, PolarView
 from hexrd.valunits import _angstrom, _kev
 from hexrd.wppf import Rietveld
 from hexrd.wppf.phase import Material_Rietveld
-from hexrd.wppf.texture import HarmonicModel
+from hexrd.wppf.texture import HarmonicModel, MarchDollaseModel
 from hexrd.rotations import quatOfAngleAxis, rotMatOfQuat
 
 
@@ -75,9 +75,7 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
         cache_coordinate_map=True,
     )
 
-    pv = polar_obj.warp_image(
-        img_dict, pad_with_nans=True, do_interpolation=True
-    )
+    pv = polar_obj.warp_image(img_dict, pad_with_nans=True, do_interpolation=True)
 
     ttharray = np.degrees(polar_obj.angular_grid[1][0, :])
 
@@ -115,9 +113,7 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
     }
     hm = HarmonicModel(**kwargs)
 
-    expt_spec = np.vstack(
-        (ttharray[~lo_full.mask], lo_full.data[~lo_full.mask])
-    ).T
+    expt_spec = np.vstack((ttharray[~lo_full.mask], lo_full.data[~lo_full.mask])).T
 
     kwargs = {
         'expt_spectrum': expt_spec,
@@ -217,3 +213,202 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
         assert sorted(list(d1)) == sorted(list(d2))
         for key in d1:
             assert np.allclose(d1[key], d2[key], equal_nan=True, rtol=1e-2)
+
+
+def test_wppf_march_dollase_texture(texture_instrument, texture_img_dict):
+    instr = texture_instrument
+    img_dict = texture_img_dict
+
+    polar_obj = PolarView(
+        (2, 40),
+        instr,
+        eta_min=-180.0,
+        eta_max=180.0,
+        pixel_size=(0.05, 0.1),
+        cache_coordinate_map=True,
+    )
+
+    pv = polar_obj.warp_image(img_dict, pad_with_nans=True, do_interpolation=True)
+
+    ttharray = np.degrees(polar_obj.angular_grid[1][0, :])
+    lo_full = get_lineout(pv)
+
+    expt_spec = np.vstack((ttharray[~lo_full.mask], lo_full.data[~lo_full.mask])).T
+
+    mat = Material(dmin=_angstrom(0.5), kev=_kev(instr.beam_energy))
+    exc = np.zeros_like(mat.planeData.exclusions).astype(bool)
+    mat.planeData.exclusions = exc
+
+    matr = Material_Rietveld(material_obj=mat)
+    HKL = np.array([1, 1, 1])
+    P_MD = 1.0
+
+    march = MarchDollaseModel(material=matr, HKL=HKL, P_MD=P_MD)
+
+    kwargs = {
+        'expt_spectrum': expt_spec,
+        'wavelength': {'XFEL': [_angstrom(instr.beam_wavelength), 1.0]},
+        'bkgmethod': {'chebyshev': 1},
+        'peakshape': "pvtch",
+        'phases': [mat],
+        'texture_model': {'Ni': march},
+        'eta_min': -180,
+        'eta_max': 180,
+        'eta_step': 5,
+    }
+
+    R = Rietveld(**kwargs)
+    R.params['scale'].vary = True
+    R.params['bkg_0'].vary = True
+    R.params['bkg_1'].vary = True
+    R.params['Ni_X'].value = 0
+    R.params['Ni_Y'].value = 0
+    R.Refine()
+
+    R.params['scale'].vary = False
+    R.params['bkg_0'].vary = False
+    R.params['bkg_1'].vary = False
+    R.params['U'].vary = True
+    R.params['V'].vary = True
+    R.params['W'].vary = True
+    R.Refine()
+
+    R.params['scale'].vary = True
+    R.Refine()
+
+    assert R.Rwp < 0.20
+
+    rwp_before_pmd = R.Rwp
+
+    for p in R.params:
+        R.params[p].vary = False
+    R.params['scale'].vary = True
+    R.params["Ni_p_md"].vary = True
+
+    R.Refine()
+
+    # P_MD refinement should not make Rwp worse
+    assert R.Rwp <= rwp_before_pmd + 1e-4
+
+    # Test texture_index (polymorphic interface)
+    ti = R.texture_index
+    assert 'Ni' in ti
+    assert np.isclose(ti['Ni'], R.texture_model['Ni'].P_MD)
+
+    # Test calc_pf_rings
+    march = R.texture_model['Ni']
+    march.calc_pf_rings(R.params)
+    assert hasattr(march, 'intensities_rings_2d')
+    assert len(march.intensities_rings_2d) > 0
+    for hkey, vals in march.intensities_rings_2d.items():
+        assert len(hkey) == 3
+        assert vals.ndim == 1
+        assert np.all(np.isfinite(vals))
+        # Each ring should be constant (no azimuthal variation in MD model)
+        assert np.all(vals == vals[0])
+
+
+def test_march_dollase_texture_factors(texture_instrument, texture_img_dict):
+    """Test that texture factors and calc_pf_rings produce correct values
+    for a known P_MD, using recorded reference values."""
+    instr = texture_instrument
+    img_dict = texture_img_dict
+
+    mat = Material(dmin=_angstrom(0.5), kev=_kev(instr.beam_energy))
+    exc = np.zeros_like(mat.planeData.exclusions).astype(bool)
+    mat.planeData.exclusions = exc
+    matr = Material_Rietveld(material_obj=mat)
+
+    # P_MD=1.0 should give all texture factors = 1.0 (random texture)
+    md_random = MarchDollaseModel(material=matr, HKL=np.array([1, 1, 1]), P_MD=1.0)
+    assert np.allclose(md_random.texture_factors, 1.0)
+
+    # P_MD=1.5 should give known non-trivial texture factors
+    md = MarchDollaseModel(material=matr, HKL=np.array([1, 1, 1]), P_MD=1.5)
+    expected_texture_factors = np.array([
+        1.0437682967, 0.7660393300, 1.1397846812, 0.9461665933,
+        1.0437682967, 0.7660393300, 1.1080127852, 0.9800541809,
+        1.0294009260, 1.0437682967, 0.8465996891, 1.1397846812,
+        1.0383456645, 1.0812194483, 0.7660393300, 0.8771545998,
+        1.0466261309, 0.9461665933, 1.0437682967, 1.1270512730,
+        0.8094535100, 1.0698998879,
+    ])
+    assert np.allclose(md.texture_factors, expected_texture_factors, rtol=1e-6)
+
+    # Build Rietveld to get params for calc_pf_rings
+    polar_obj = PolarView(
+        (2, 40), instr,
+        eta_min=-180.0, eta_max=180.0,
+        pixel_size=(0.05, 0.1),
+        cache_coordinate_map=True,
+    )
+    pv = polar_obj.warp_image(img_dict, pad_with_nans=True, do_interpolation=True)
+    ttharray = np.degrees(polar_obj.angular_grid[1][0, :])
+    lo_full = get_lineout(pv)
+    expt_spec = np.vstack((ttharray[~lo_full.mask], lo_full.data[~lo_full.mask])).T
+
+    kwargs = {
+        'expt_spectrum': expt_spec,
+        'wavelength': {'XFEL': [_angstrom(instr.beam_wavelength), 1.0]},
+        'bkgmethod': {'chebyshev': 1},
+        'peakshape': "pvtch",
+        'phases': [mat],
+        'texture_model': {'Ni': md},
+        'eta_min': -180,
+        'eta_max': 180,
+        'eta_step': 5,
+    }
+    R = Rietveld(**kwargs)
+    R.params['Ni_p_md'].value = 1.5
+
+    # calc_pf_rings should produce constant rings matching texture_factors
+    md.calc_pf_rings(R.params)
+    for ii, hkey in enumerate(md.material.hkls):
+        ring_vals = md.intensities_rings_2d[tuple(hkey)]
+        assert np.allclose(ring_vals, md.texture_factors[ii])
+
+    # texture_index should return P_MD
+    assert np.isclose(md.texture_index(R.params), 1.5)
+
+    # calc_texture_factor should return the texture_factors array
+    tf = md.calc_texture_factor(R.params)
+    assert np.allclose(tf, expected_texture_factors, rtol=1e-6)
+
+
+def test_march_dollase_validation():
+    """Test property validation on MarchDollaseModel."""
+    from hexrd.wppf.phase import Material_Rietveld
+    from hexrd.material import Material
+    from hexrd.valunits import _angstrom, _kev
+
+    mat = Material(dmin=_angstrom(0.5), kev=_kev(50.0))
+    matr = Material_Rietveld(material_obj=mat)
+
+    # Construct via list HKL (exercises the branch we fixed)
+    md = MarchDollaseModel(material=matr, HKL=[1, 1, 1], P_MD=1.0)
+    assert md.HKL.shape == (3,)
+
+    # HKL setter: wrong shape list
+    with pytest.raises(ValueError):
+        md.HKL = [1, 1]
+
+    # HKL setter: wrong shape array
+    with pytest.raises(ValueError):
+        md.HKL = np.array([1, 1])
+
+    # HKL setter: wrong type
+    with pytest.raises(TypeError):
+        md.HKL = "111"
+
+    # P_MD setter: wrong type
+    with pytest.raises(TypeError):
+        md.P_MD = "bad"
+
+    # P_MD setter: int is accepted and stored as float
+    md.P_MD = 2
+    assert isinstance(md.P_MD, float)
+    assert md.P_MD == 2.0
+
+    # material setter: wrong type
+    with pytest.raises(Exception):
+        md.material = "not a material"
