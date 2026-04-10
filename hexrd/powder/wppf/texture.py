@@ -685,7 +685,7 @@ class MarchDollaseModel:
         eta_step: float = np.radians(0.1),
         calc_type: str = 'spectrum_2d',
     ) -> dict:
-        '''this functin computes the  intensity variation
+        '''this function computes the intensity variation
         along the debye-scherrer rings for each hkl in the material.
         the intensity variation around the ring is computed between
         eta_min and eta_max. Default values are (-pi,pi) which gives
@@ -697,7 +697,7 @@ class MarchDollaseModel:
         nspec = int((eta_max - eta_min) / eta_step) - 1
 
         if calc_type != 'spectrum_2d':
-            msg = f'calc_type parameter set incorrectly'
+            msg = 'calc_type parameter set incorrectly'
             raise ValueError(msg)
         self.intensities_rings_2d = {}
         for ii, h in enumerate(self.material.hkls):
@@ -707,6 +707,27 @@ class MarchDollaseModel:
                     nspec,
                 ]
             )
+
+    def calc_texture_factor(
+        self,
+        params,
+        eta_min=-np.pi,
+        eta_max=np.pi,
+        eta_step=np.radians(1),
+        eta_mask=None,
+    ):
+        """Return texture factors, matching the HarmonicModel interface."""
+        pname = f'{self.material.name}_p_md'
+        if pname in params:
+            self.P_MD = params[pname].value
+        return self.texture_factors
+
+    def texture_index(self, params):
+        """Return P_MD as the texture index, analogous to HarmonicModel.J."""
+        pname = f'{self.material.name}_p_md'
+        if pname in params:
+            self.P_MD = params[pname].value
+        return self.P_MD
 
     def get_parameters(self, params=None, vary=True):
         '''
@@ -727,7 +748,7 @@ class MarchDollaseModel:
 
     @material.setter
     def material(self, mat: Material_Rietveld) -> None:
-        if not isinstance(mat, Material_Rietveld):
+        if mat is not None and not isinstance(mat, Material_Rietveld):
             raise Exception(f'Invalid material: {mat}')
 
         self._material = mat
@@ -740,12 +761,12 @@ class MarchDollaseModel:
     def HKL(self, hkl: list | np.ndarray):
         if isinstance(hkl, list):
             hkl = np.array(hkl)
-            if g.shape != (3,):
-                msg = f'HKL should be a list of length 3'
+            if hkl.shape != (3,):
+                msg = 'HKL should be a list of length 3'
                 raise ValueError(msg)
         elif isinstance(hkl, np.ndarray):
             if hkl.shape != (3,):
-                msg = f'HKL should be a an array with shape (3,)'
+                msg = 'HKL should be an array with shape (3,)'
                 raise ValueError(msg)
 
         else:
@@ -770,7 +791,7 @@ class MarchDollaseModel:
         if isinstance(val, (float, int)):
             self._P_MD = float(val)
         else:
-            msg = f'P_MD must be a float'
+            msg = 'P_MD must be a float'
             raise TypeError(msg)
 
         if hasattr(self, '_HKL'):
@@ -1145,7 +1166,7 @@ class HarmonicModel:
         eta_step=np.radians(0.1),
         calc_type='texture_factor',
     ):
-        '''this functin computes the  intensity variation
+        '''this function computes the intensity variation
         along the debye-scherrer rings for each hkl in the material.
         the intensity variation around the ring is computed between
         eta_min and eta_max. Default values are (-pi,pi) which gives
@@ -1239,6 +1260,10 @@ class HarmonicModel:
                     pre = 1 / (2 * ell + 1)
                     J += pre * (params[pname].value ** 2)
         return J
+
+    def texture_index(self, params):
+        """Return the texture index, matching the MarchDollaseModel interface."""
+        return self.J(params)
 
     """
     the following functions deal with everything related to pole figures.
