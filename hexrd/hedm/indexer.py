@@ -341,7 +341,7 @@ def paintGrid(
     retval = None
     if multiProcMode:
         # multiple process version
-        pool = multiprocessing.Pool(nCPUs, paintgrid_init, (params,))
+        pool = constants.mp_context.Pool(nCPUs, paintgrid_init, (params,))
         retval = pool.map(paintGridThis, quats.T, chunksize=chunksize)
         pool.close()
     else:
