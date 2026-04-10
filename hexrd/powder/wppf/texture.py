@@ -710,26 +710,28 @@ class MarchDollaseModel:
 
     def calc_texture_factor(
         self,
-        params,
-        eta_min=-np.pi,
-        eta_max=np.pi,
-        eta_step=np.radians(1),
-        eta_mask=None,
-    ):
+        params: Parameters,
+        eta_min: float = -np.pi,
+        eta_max: float = np.pi,
+        eta_step: float = np.radians(1),
+        eta_mask: dict | None = None,
+    ) -> np.ndarray:
         """Return texture factors, matching the HarmonicModel interface."""
         pname = f'{self.material.name}_p_md'
         if pname in params:
             self.P_MD = params[pname].value
         return self.texture_factors
 
-    def texture_index(self, params):
+    def texture_index(self, params: Parameters) -> float:
         """Return P_MD as the texture index, analogous to HarmonicModel.J."""
         pname = f'{self.material.name}_p_md'
         if pname in params:
             self.P_MD = params[pname].value
         return self.P_MD
 
-    def get_parameters(self, params=None, vary=True):
+    def get_parameters(
+        self, params: Parameters | None = None, vary: bool = True
+    ) -> Parameters:
         '''
         make lmfit parameter class for refinement
         '''
@@ -758,7 +760,7 @@ class MarchDollaseModel:
         return self._HKL
 
     @HKL.setter
-    def HKL(self, hkl: list | np.ndarray):
+    def HKL(self, hkl: list | np.ndarray) -> None:
         if isinstance(hkl, list):
             hkl = np.array(hkl)
             if hkl.shape != (3,):
@@ -1261,7 +1263,7 @@ class HarmonicModel:
                     J += pre * (params[pname].value ** 2)
         return J
 
-    def texture_index(self, params):
+    def texture_index(self, params: Parameters) -> float:
         """Return the texture index, matching the MarchDollaseModel interface."""
         return self.J(params)
 
