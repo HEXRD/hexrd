@@ -215,7 +215,7 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
             assert np.allclose(d1[key], d2[key], equal_nan=True, rtol=1e-2)
 
 
-def test_wppf_texture(texture_instrument, texture_img_dict):
+def test_wppf_march_dollase_texture(texture_instrument, texture_img_dict):
     instr = texture_instrument
     img_dict = texture_img_dict
 
