@@ -153,7 +153,7 @@ def generate_orientation_fibers(cfg, eta_ome):
         # multiple process version
         # ???: Need a chunksize in map?
         chunksize = max(1, len(input_p) // (10 * ncpus))
-        pool = mp.Pool(ncpus, discretefiber_init, (params,))
+        pool = const.mp_context.Pool(ncpus, discretefiber_init, (params,))
         qfib = pool.map(discretefiber_reduced, input_p, chunksize=chunksize)
 
         pool.close()
@@ -785,7 +785,7 @@ def find_orientations(
                 )
 
         # execute direct search
-        pool = mp.Pool(ncpus, indexer.test_orientation_FF_init, (params,))
+        pool = const.mp_context.Pool(ncpus, indexer.test_orientation_FF_init, (params,))
         completeness = pool.map(indexer.test_orientation_FF_reduced, qfib.T)
         pool.close()
         pool.join()

@@ -14,6 +14,7 @@ import warnings
 
 from collections import defaultdict
 
+from hexrd.core import constants
 from hexrd.core import instrument
 from hexrd.core.transforms import xfcapi
 from hexrd.core import rotations
@@ -448,7 +449,7 @@ def fit_grains(
         nproc = min(ncpus, len(grains_table))
         chunksize = max(1, len(grains_table) // ncpus)
 
-        if multiprocessing.get_start_method() == 'fork':
+        if constants.mp_context.get_start_method() == 'fork':
             # For frame cache, we need to load in all of the data up-front
             # so it can use fork multiprocessing to share with the other
             # processes. Otherwise, every process will load in the data on
@@ -461,7 +462,7 @@ def fit_grains(
             "\tstarting fit on %d processes with chunksize %d", nproc, chunksize
         )
         start = timeit.default_timer()
-        pool = multiprocessing.Pool(nproc, fit_grain_FF_init, (params,))
+        pool = constants.mp_context.Pool(nproc, fit_grain_FF_init, (params,))
 
         async_result = pool.map_async(
             fit_grain_FF_reduced,
