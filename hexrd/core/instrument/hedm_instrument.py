@@ -1722,6 +1722,11 @@ class HEDMInstrument(object):
                 ijs = panel.cartToPixel(patch_xys[ang_index])
                 ii, jj = polygon(ijs[:, 0], ijs[:, 1])
 
+                # Clip pixel indices to valid detector dimensions
+                nrows, ncols = panel.shape
+                np.clip(ii, 0, nrows - 1, out=ii)
+                np.clip(jj, 0, ncols - 1, out=jj)
+
                 patch_data_raw = np.stack(
                     [omega_image_series[i_frame, ii, jj] for i_frame in frame_indices],
                     axis=0,
@@ -1909,6 +1914,7 @@ class HEDMInstrument(object):
                 output_dir.mkdir(parents=True, exist_ok=True)
                 writer_text = PatchDataWriter(output_dir / str(filename))
 
+            nrows, ncols = panel.shape
             for patch_id, (vtx_angs, _, _, areas, xy_eval, ijs) in enumerate(patches):
                 prows, pcols = areas.shape
                 hkl_id, hkl = hkl_ids[patch_id], hkls_p[patch_id, :]
@@ -1926,6 +1932,12 @@ class HEDMInstrument(object):
                 if -1 in frame_indices:
                     logger.warning(f"window for {hkl} falls outside omega range")
                     continue
+
+                # Clip pixel indices to valid detector dimensions
+                ijs = (
+                    np.clip(ijs[0], 0, nrows - 1),
+                    np.clip(ijs[1], 0, ncols - 1),
+                )
 
                 omega_edges = omega_image_series.omega[frame_indices[0]][0]
                 patch_data_raw = np.stack(
