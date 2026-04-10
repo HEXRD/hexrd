@@ -50,9 +50,8 @@ jobs:
           conda config --set solver libmamba
 
           conda activate hexrd
-          # Newer versions of anaconda-client expect setuptools to be present, so we need to
-          # install it also.
-          conda install --override-channels -c conda-forge anaconda-client conda-build conda setuptools
+          # anaconda-client needs pkg_resources, which was removed in setuptools 82.
+          conda install --override-channels -c conda-forge anaconda-client conda-build conda "setuptools<82"
 
       # This is need to ensure ~/.profile or ~/.bashrc are used so the activate
       # command works.
