@@ -288,6 +288,7 @@ def paintGrid(
         pool = constants.mp_context.Pool(nCPUs, paintgrid_init, (params,))
         retval = pool.map(paintGridThis, quats.T, chunksize=chunksize)
         pool.close()
+        pool.join()
     else:
         # single process version.
         global paramMP
