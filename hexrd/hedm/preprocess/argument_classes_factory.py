@@ -1,7 +1,9 @@
-from typing import Type, TYPE_CHECKING
+from typing import Type, TypeVar, TYPE_CHECKING
 
 if TYPE_CHECKING:
     import hexrd.hedm.preprocess.profiles as profiles
+
+_T = TypeVar("_T", bound="profiles.HexrdPPScript_Arguments")
 
 
 class ArgumentClassesFactory:
@@ -31,9 +33,7 @@ class ArgumentClassesFactory:
         return creator
 
 
-def autoregister(
-    cls: Type["profiles.HexrdPPScript_Arguments"],
-) -> Type["profiles.HexrdPPScript_Arguments"]:
+def autoregister(cls: Type[_T]) -> Type[_T]:
     """decorator that registers cls with ArgumentClassesFactory"""
     ArgumentClassesFactory().register(cls)
     return cls
