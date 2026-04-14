@@ -472,24 +472,25 @@ def fit_grains(
         )
         start = timeit.default_timer()
         pool = constants.mp_context.Pool(nproc, fit_grain_FF_init, (params,))
+        try:
+            async_result = pool.map_async(
+                fit_grain_FF_reduced,
+                np.array(grains_table[:, 0], dtype=int),
+                chunksize=chunksize,
+            )
+            while not async_result.ready():
+                if check_if_canceled_func and check_if_canceled_func():
+                    logger.info('Fit grains canceled.')
+                    # Perform an early return if we need to cancel.
+                    return None
 
-        async_result = pool.map_async(
-            fit_grain_FF_reduced,
-            np.array(grains_table[:, 0], dtype=int),
-            chunksize=chunksize,
-        )
-        while not async_result.ready():
-            if check_if_canceled_func and check_if_canceled_func():
-                pool.terminate()
-                logger.info('Fit grains canceled.')
-                # Perform an early return if we need to cancel.
-                return None
+                async_result.wait(0.25)
 
-            async_result.wait(0.25)
-
-        fit_results = async_result.get()
-        pool.close()
-        pool.join()
+            fit_results = async_result.get()
+            pool.close()
+        finally:
+            pool.terminate()
+            pool.join()
         elapsed = timeit.default_timer() - start
     logger.info("fitting took %f seconds", elapsed)
     if return_pull_spots_data:
