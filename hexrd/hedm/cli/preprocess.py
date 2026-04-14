@@ -136,7 +136,7 @@ def _get_supported_type(tp, default_value=None):
     # second condition is required in case the dataclass field is defined using
     # members of the typing module.
     if tp is dict or get_origin(tp) is dict:
-        return json.loads, f"'{json.dumps(default_value)}'"
+        return json.loads, json.dumps(default_value)
     elif is_optional(tp):
         return get_args(tp)[0], None
     else:

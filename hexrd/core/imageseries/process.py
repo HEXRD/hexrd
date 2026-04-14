@@ -28,6 +28,8 @@ class ProcessedImageSeries(ImageSeries):
     RECT = 'rectangle'
     ADD = 'add'
     GAUSS_LAPLACE = 'gauss_laplace'
+    ADD_ROW = 'add-row'
+    ADD_COL = 'add-column'
 
     def __init__(self, imser, oplist, **kwargs):
         self._imser = imser
@@ -44,6 +46,8 @@ class ProcessedImageSeries(ImageSeries):
         self.addop(self.RECT, self._rectangle)
         self.addop(self.ADD, self._add)
         self.addop(self.GAUSS_LAPLACE, self._gauss_laplace)
+        self.addop(self.ADD_ROW, self._add_row)
+        self.addop(self.ADD_COL, self._add_col)
 
     def __getitem__(self, key):
         if isinstance(key, int):
@@ -159,6 +163,14 @@ class ProcessedImageSeries(ImageSeries):
 
     def _gauss_laplace(self, img, sigma):
         return scipy.ndimage.gaussian_laplace(img, sigma)
+
+    def _add_row(self, img, index):
+        """Insert a zero row at the given row index."""
+        return np.insert(img, index, 0, axis=0)
+
+    def _add_col(self, img, index):
+        """Insert a zero column at the given column index."""
+        return np.insert(img, index, 0, axis=1)
 
     def _update_omega(self):
         """Update omega if there is a framelist"""
