@@ -1668,7 +1668,7 @@ class HEDMInstrument(object):
                     omega_image_series.omega_to_frame(omega)[0] for omega in omega_eval
                 ]
                 if -1 in frame_indices:
-                    logger.warning(
+                    logger.debug(
                         f"window for {hkls_p[ang_index, :]} falls outside omega range"
                     )
                     continue
