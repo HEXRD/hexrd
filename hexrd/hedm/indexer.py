@@ -120,7 +120,6 @@ def paintGrid(
     omePeriod: NDArray[np.float64] = omega_period_DFLT,
     doMultiProc: bool = False,
     nCPUs: int | None = None,
-    debug: bool = False,
 ) -> list[float]:
     r"""
     Spherical map-based indexing algorithm, i.e. paintGrid.
@@ -172,8 +171,6 @@ def paintGrid(
     nCPUs : int or None, optional
         number of processes to use when ``doMultiProc=True``.  Defaults to
         ``multiprocessing.cpu_count()`` when ``None``.
-    debug : bool, optional
-        debugging mode flag.  Currently unused; reserved for future use.
 
     Raises
     ------
