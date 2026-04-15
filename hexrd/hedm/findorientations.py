@@ -856,7 +856,7 @@ def find_orientations(
     else:
         min_samples, mean_rpg = create_clustering_parameters(cfg, eta_ome)
 
-    logger.info("\tmean reflections per grain: %d", mean_rpg)
+    logger.info("\testimated mean number of reflections per grain: %d", mean_rpg)
     logger.info("\tneighborhood size: %d", min_samples)
 
     qbar, cl = run_cluster(
