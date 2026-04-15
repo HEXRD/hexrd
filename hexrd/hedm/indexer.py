@@ -353,36 +353,6 @@ def paintGrid(
     return retval
 
 
-def _meshgrid2d(x: NDArray[np.float64], y: NDArray[np.float64]) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-    """
-    Special-cased implementation of np.meshgrid for exactly two arguments.
-
-    Found to be about 3x faster than ``np.meshgrid`` on typical inputs
-    because it avoids the general-case overhead of the NumPy implementation.
-
-    Parameters
-    ----------
-    x : (N,) array_like
-        1-D array of x-coordinates (broadcast along columns).
-    y : (M,) array_like
-        1-D array of y-coordinates (broadcast along rows).
-
-    Returns
-    -------
-    r1 : (M, N) ndarray
-        2-D array in which each row is a copy of ``x``.
-    r2 : (M, N) ndarray
-        2-D array in which each column is a copy of ``y``.
-    """
-    x, y = (np.asarray(x), np.asarray(y))
-    shape = (len(y), len(x))
-    dt = np.result_type(x, y)
-    r1, r2 = (np.empty(shape, dt), np.empty(shape, dt))
-    r1[...] = x[np.newaxis, :]
-    r2[...] = y[:, np.newaxis]
-    return (r1, r2)
-
-
 def _normalize_ranges(
     starts: NDArray[np.float64],
     stops: NDArray[np.float64],
