@@ -136,6 +136,24 @@ def _add_pvpink_parameters(params):
         )
 
 
+def _add_pvheating_parameters(params):
+    p = {
+        "tau0": [1.58, -2.0, 2.0, False],
+        "tau1": [-1.35, -2.0, 2.0, False],
+        "tau2": [0.36, -1.0, 1.0, False],
+        # "kappa0": [0.0, -1.0, 1.0, False],
+        # "kappa1": [0.05, -1.0, 1.0, False],
+    }
+    for k, v in p.items():
+        params.add(
+            name=k,
+            value=v[0],
+            min=v[1],
+            max=v[2],
+            vary=v[3],
+        )
+
+
 def _add_chebyshev_background(params, degree, init_val):
     """
     add coefficients for chebyshev background
@@ -375,6 +393,8 @@ def _generate_default_parameters_LeBail(
         pass
     elif peakshape == 2:
         _add_pvpink_parameters(params)
+    elif peakshape == 3:
+        _add_pvheating_parameters(params)
     else:
         msg = f"_generate_default_parameters_LeBail: " f"unknown peak shape."
         raise ValueError(msg)
