@@ -47,6 +47,7 @@ mpeak_nparams_dict = {
     'pvoigt': 4,
     'split_pvoigt': 6,
     'pink_beam_dcs': 8,
+    'pink_beam_heating': 7,
 }
 
 """
@@ -481,6 +482,14 @@ def _calc_beta(beta, x0):
 
 
 @njit(cache=True, nogil=True)
+def _calc_tau(tau, x0):
+    a0, a1, a2 = tau
+    return (
+        a0 + a1 * np.tan(np.radians(0.5 * x0)) + a2 * np.tan(np.radians(0.5 * x0)) ** 2
+    )
+
+
+@njit(cache=True, nogil=True)
 def _mixing_factor_pv(fwhm_g, fwhm_l):
     """
     @AUTHOR:  Saransh Singh, Lawrence Livermore National Lab,
@@ -627,6 +636,36 @@ def _pink_beam_dcs_no_bg(p, x):
     return eta * L + (1.0 - eta) * G
 
 
+@njit(nogil=True)
+def _pink_beam_heating_no_bg(p, x):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 12/05/2026 SS 1.0 original
+    @details pink beam profile for DCS data for heating
+    experiment
+
+    p has the following 7 parameters
+    p = [A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l]
+    """
+    tau = _calc_tau((p[2], p[3]), p[1])
+
+    arg1 = np.array([tau, p[5]]).astype(np.float64)
+    arg2 = np.array([tau, p[6]]).astype(np.float64)
+
+    p_g = np.hstack((p[0:2], arg1))
+    p_l = np.hstack((p[0:2], arg2))
+
+    # bkg = p[8] + p[9]*x + p[10]*(2.*x**2 - 1.)
+    # bkg = p[8] + p[9]*x  # !!! make like the other peak funcs here
+
+    eta, fwhm = _mixing_factor_pv(p[5], p[6])
+
+    G = _gaussian_heating(p_g, x)
+    L = _lorentzian_heating(p_l, x)
+
+    return eta * L + (1.0 - eta) * G
+
+
 def pink_beam_dcs(p, x):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
@@ -664,6 +703,106 @@ def pink_beam_dcs_lmfit(x, A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l):
     L = _lorentzian_pink_beam(p_l, x)
 
     return eta * L + (1.0 - eta) * G
+
+
+@njit(cache=True, nogil=True)
+def _gaussian_heating(p, x):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 04/22/2026 SS 1.0 original
+    @details the gaussian component of the pink beam peak profile
+    obtained by convolution of gaussian with single exponential.
+    """
+    A, x0, tau, fwhm_g = p
+
+    del_tth = x - x0
+
+    sigsqr = fwhm_g**2
+
+    f2 = sigsqr / tau - 2.0 * del_tth
+    f3 = np.sqrt(2.0) * fwhm_g
+
+    v = 0.5 * f2 / tau
+
+    z = (f2 + del_tth) / f3
+
+    t2 = erfc(z)
+
+    g = np.zeros(x.shape)
+
+    zmask = np.abs(del_tth) > 5.0
+    g[~zmask] = (0.5 / tau) * np.exp(v[~zmask]) * t2[~zmask]
+
+    mask = np.isnan(g)
+    g[mask] = 0.0
+
+    return g
+
+
+@njit(cache=True, nogil=True)
+def _lorentzian_heating(p, x):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 04/22/2026 SS 1.0 original
+    @details the lorentzian component of the heating peak profile
+    obtained by convolution of gaussian with single exponential.
+    """
+    A, x0, tau, fwhm_l = p
+
+    del_tth = x - x0
+
+    q = -del_tth / tau + 1j * 0.5 * fwhm_l / tau
+
+    f2 = exp1exp(q)
+
+    y = 1 / (np.pi * tau) * f2.imag
+
+    mask = np.isnan(y)
+    y[mask] = 0.0
+
+    return y
+
+
+def pink_beam_heating(p, x):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 10/18/2021 SS 1.0 original
+    @details pink beam profile for DCS data for calibration.
+    more details can be found in
+    Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
+
+    p has the following 10 parameters
+    p = [A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l, bkg_c0, bkg_c1]
+    """
+    return _pink_beam_heating_no_bg(p[:-2], x) + p[-2] + p[-1] * x
+
+
+@njit(cache=True, nogil=True)
+def pink_beam_heating_lmfit(x, A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 05/11/2026 SS 1.0 original
+    @details compute the pseudo voight peak shape for the pink
+    beam used in the heating experiment
+    """
+    tau_exp = _calc_tau((tau0, tau1, tau2), x0)
+
+    n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
+
+    p_g = np.array([A, x0, tau_exp, fwhm_g])
+    p_l = np.array([A, x0, tau_exp, fwhm_l])
+
+    g = _gaussian_heating(p_g, x)
+    l_val = _lorentzian_heating(p_l, x)
+
+    ag = np.trapezoid(g, x)
+    al = np.trapezoid(l_val, x)
+    if np.abs(ag) < 1e-6:
+        ag = 1.0
+    if np.abs(al) < 1e-6:
+        al = 1.0
+
+    return n * l_val / al + (1.0 - n) * g / ag
 
 
 """

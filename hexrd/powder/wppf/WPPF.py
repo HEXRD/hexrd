@@ -29,9 +29,11 @@ from hexrd.powder.wppf.peakfunctions import (
     computespectrum_pvfcj,
     computespectrum_pvtch,
     computespectrum_pvpink,
+    computespectrum_pvheating,
     calc_Iobs_pvfcj,
     calc_Iobs_pvtch,
     calc_Iobs_pvpink,
+    calc_Iobs_pvheating,
 )
 from hexrd.powder.wppf import wppfsupport
 from hexrd.powder.wppf.spectrum import Spectrum
@@ -814,17 +816,20 @@ class AbstractWPPF(ABC):
                 new_val = 1
             elif val == "pvpink":
                 new_val = 2
+            elif val == "pvheating":
+                new_val = 3
             else:
                 msg = (
                     "invalid peak shape string. "
                     "must be: \n"
                     "1. pvfcj: pseudo voight (Finger, Cox, Jephcoat)\n"
                     "2. pvtch: pseudo voight (Thompson, Cox, Hastings)\n"
-                    "3. pvpink: Pink beam (Von Dreele)"
+                    "3. pvpink: Pink beam (Von Dreele)\n"
+                    "4. pvheating: similar to pink beam"
                 )
                 raise ValueError(msg)
         elif isinstance(val, int):
-            if val >= 0 and val <= 2:
+            if val >= 0 and val <= 3:
                 new_val = val
             else:
                 msg = (
@@ -832,7 +837,8 @@ class AbstractWPPF(ABC):
                     "must be: \n"
                     "1. 0: pseudo voight (Finger, Cox, Jephcoat)\n"
                     "2. 1: pseudo voight (Thompson, Cox, Hastings)\n"
-                    "3. 2: Pink beam (Von Dreele)"
+                    "3. 2: Pink beam (Von Dreele)\n"
+                    "4. pvheating: similar to pink beam"
                 )
                 raise ValueError(msg)
 
@@ -861,6 +867,8 @@ class AbstractWPPF(ABC):
             return computespectrum_pvtch
         elif self.peakshape == 2:
             return computespectrum_pvpink
+        elif self.peakshape == 3:
+            return computespectrum_pvheating
 
     @property
     def calc_Iobs_fcn(self):
@@ -870,6 +878,8 @@ class AbstractWPPF(ABC):
             return calc_Iobs_pvtch
         elif self.peakshape == 2:
             return calc_Iobs_pvpink
+        elif self.peakshape == 3:
+            return calc_Iobs_pvheating
 
     @property
     def tth_list(self):
@@ -1220,6 +1230,23 @@ class LeBail(AbstractWPPF):
                         Ic,
                     )
 
+                elif self.peakshape == 3:
+                    args = (
+                        np.array([self.tau0, self.tau1, self.tau2]),
+                        # np.array([self.kappa0, self.kappa1]),
+                        np.array([self.U, self.V, self.W]),
+                        P,
+                        XY,
+                        Xs,
+                        shkl,
+                        eta_fwhm,
+                        tth,
+                        dsp,
+                        hkls,
+                        tth_list,
+                        Ic,
+                    )
+
                 y += self.computespectrum_fcn(*args)
 
         if self.amorphous_model is not None:
@@ -1329,6 +1356,24 @@ class LeBail(AbstractWPPF):
                     args = (
                         np.array([self.alpha0, self.alpha1]),
                         np.array([self.beta0, self.beta1]),
+                        np.array([self.U, self.V, self.W]),
+                        P,
+                        XY,
+                        Xs,
+                        shkl,
+                        eta_fwhm,
+                        tth,
+                        dsp,
+                        hkls,
+                        tth_list,
+                        Ic,
+                        spec_expt,
+                        spec_sim,
+                    )
+                elif self.peakshape == 3:
+                    args = (
+                        np.array([self.tau0, self.tau1, self.tau2]),
+                        # np.array([self.kappa0, self.kappa1]),
                         np.array([self.U, self.V, self.W]),
                         P,
                         XY,
@@ -1913,6 +1958,22 @@ class Rietveld(AbstractWPPF):
             args = (
                 np.array([self.alpha0, self.alpha1]),
                 np.array([self.beta0, self.beta1]),
+                np.array([self.U, self.V, self.W]),
+                P,
+                XY,
+                Xs,
+                shkl,
+                eta_fwhm,
+                tth,
+                dsp,
+                hkls,
+                tth_list,
+                Icmod,
+            )
+        elif self.peakshape == 3:
+            args = (
+                np.array([self.tau0, self.tau1, self.tau2]),
+                # np.array([self.kappa0, self.kappa1]),
                 np.array([self.U, self.V, self.W]),
                 P,
                 XY,
@@ -2719,4 +2780,5 @@ peakshape_dict = {
     "pvfcj": "pseudo-voight (finger, cox, jephcoat)",
     "pvtch": "pseudo-voight (thompson, cox, hastings)",
     "pvpink": "pseudo-voight (von dreele)",
+    "pvheating": "pseudo-voight (heating)",
 }

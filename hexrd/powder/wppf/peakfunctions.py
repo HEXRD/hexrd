@@ -559,6 +559,75 @@ def _lorentzian_pink_beam(alpha, beta, fwhm_l, tth, tth_list):
 
 
 @njit(cache=True, nogil=True)
+def _calc_tau(tau, tth):
+    a0, a1, a2 = tau
+    return (
+        a0
+        + a1 * np.tan(np.radians(0.5 * tth))
+        + a2 * np.tan(np.radians(0.5 * tth)) ** 2
+    )
+
+
+# @njit(cache=True, nogil=True)
+# def _calc_kappa(kappa, tth):
+#     a0, a1, a2 = kappa
+#     return a0 + a1 * np.tan(np.radians(0.5 * tth)) ** 2
+
+
+@njit(cache=True, nogil=True)
+def _gaussian_heating(tau, fwhm_g, tth, tth_list):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 04/22/2026 SS 1.0 original
+    @details the gaussian component of the pink beam peak profile
+    obtained by convolution of gaussian with single exponential.
+    """
+    del_tth = tth_list - tth
+    sigsqr = fwhm_g**2
+
+    f2 = sigsqr / tau - 2.0 * del_tth
+    f3 = np.sqrt(2.0) * fwhm_g
+
+    v = 0.5 * f2 / tau
+
+    z = (f2 + del_tth) / f3
+
+    t2 = erfc(z)
+
+    g = np.zeros(tth_list.shape)
+
+    zmask = np.abs(del_tth) > 5.0
+    g[~zmask] = (0.5 / tau) * np.exp(v[~zmask]) * t2[~zmask]
+
+    mask = np.isnan(g)
+    g[mask] = 0.0
+
+    return g
+
+
+@njit(cache=True, nogil=True)
+def _lorentzian_heating(tau, fwhm_l, tth, tth_list):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 04/22/2026 SS 1.0 original
+    @details the lorentzian component of the heating peak profile
+    obtained by convolution of gaussian with single exponential.
+    """
+    del_tth = tth_list - tth
+
+    q = -del_tth / tau + 1j * 0.5 * fwhm_l / tau
+
+    f2 = exp1exp(q)
+
+    y = 1 / (np.pi * tau) * f2.imag
+
+    mask = np.isnan(y)
+    y[mask] = 0.0
+
+    return y
+
+
+@njit(cache=True, nogil=True)
 def pvoight_pink_beam(
     alpha, beta, uvw, p, xy, xy_sf, shkl, eta_mixing, tth, dsp, hkl, tth_list
 ):
@@ -580,6 +649,37 @@ def pvoight_pink_beam(
 
     g = _gaussian_pink_beam(alpha_exp, beta_exp, fwhm_g, tth, tth_list)
     l_val = _lorentzian_pink_beam(alpha_exp, beta_exp, fwhm_l, tth, tth_list)
+    ag = np.trapezoid(g, tth_list)
+    al = np.trapezoid(l_val, tth_list)
+    if np.abs(ag) < 1e-6:
+        ag = 1.0
+    if np.abs(al) < 1e-6:
+        al = 1.0
+
+    return n * l_val / al + (1.0 - n) * g / ag
+
+
+@njit(cache=True, nogil=True)
+def pvoight_heating(tau, uvw, p, xy, xy_sf, shkl, eta_mixing, tth, dsp, hkl, tth_list):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/22/2021 SS 1.0 original
+    @details compute the pseudo voight peak shape for the pink
+    beam using von dreele's function
+    """
+    tau_exp = _calc_tau(tau, tth)
+    # kappa_exp = _calc_kappa(kappa, tth)
+
+    gamma_ani_sqr = _anisotropic_peak_broadening(shkl, hkl)
+
+    fwhm_g = _gaussian_fwhm(uvw, p, gamma_ani_sqr, eta_mixing, tth, dsp)
+    fwhm_l = _lorentzian_fwhm(xy, xy_sf, gamma_ani_sqr, eta_mixing, tth, dsp)
+
+    n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
+
+    g = _gaussian_heating(tau_exp, fwhm_g, tth, tth_list)
+    l_val = _lorentzian_heating(tau_exp, fwhm_l, tth, tth_list)
+
     ag = np.trapezoid(g, tth_list)
     al = np.trapezoid(l_val, tth_list)
     if np.abs(ag) < 1e-6:
@@ -697,6 +797,45 @@ def computespectrum_pvpink(
         pv = pvoight_pink_beam(
             alpha, beta, uvw, p, xy, xs, shkl, eta_mixing, t, d, g, tth_list
         )
+
+        spec += II * pv
+    return spec
+
+
+@njit(cache=True, nogil=True, parallel=True)
+def computespectrum_pvheating(
+    tau,
+    uvw,
+    p,
+    xy,
+    xy_sf,
+    shkl,
+    eta_mixing,
+    tth,
+    dsp,
+    hkl,
+    tth_list,
+    Iobs,
+):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 03/31/2021 SS 1.0 original
+    @details compute the spectrum given all the input parameters.
+    moved outside of the class to allow numba implementation
+    this is called for multiple wavelengths and phases to generate
+    the final spectrum
+    """
+
+    spec = np.zeros(tth_list.shape)
+    nref = np.min(np.array([Iobs.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]]))
+    for ii in prange(nref):
+        II = Iobs[ii]
+        t = tth[ii]
+        d = dsp[ii]
+        g = hkl[ii]
+        xs = xy_sf[ii]
+
+        pv = pvoight_heating(tau, uvw, p, xy, xs, shkl, eta_mixing, t, d, g, tth_list)
 
         spec += II * pv
     return spec
@@ -872,6 +1011,71 @@ def calc_Iobs_pvpink(
         pv = pvoight_pink_beam(
             alpha,
             beta,
+            uvw,
+            p,
+            xy,
+            xs,
+            shkl,
+            eta_mixing,
+            t,
+            d,
+            g,
+            tth_list_mask,
+        )
+
+        y = Ic * pv
+        y = y[mask]
+
+        Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
+
+    return Iobs
+
+
+@njit(cache=True, nogil=True)
+def calc_Iobs_pvheating(
+    tau,
+    uvw,
+    p,
+    xy,
+    xy_sf,
+    shkl,
+    eta_mixing,
+    tth,
+    dsp,
+    hkl,
+    tth_list,
+    Icalc,
+    spectrum_expt,
+    spectrum_sim,
+):
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 04/23/2026 SS 1.0 original
+    @details compute Iobs for each reflection given all parameters.
+    moved outside of the class to allow numba implementation
+    this is called for multiple wavelengths and phases to compute
+    the final intensities
+    """
+    Iobs = np.empty(tth.shape)
+    nref = np.min(np.array([Icalc.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]]))
+
+    yo = spectrum_expt[:, 1]
+    yc = spectrum_sim[:, 1]
+    mask = yc != 0.0
+    yo = yo[mask]
+    yc = yc[mask]
+    tth_list_mask = spectrum_expt[:, 0]
+    tth_list_mask = tth_list_mask[mask]
+
+    for ii in prange(nref):
+        Ic = Icalc[ii]
+        t = tth[ii]
+        d = dsp[ii]
+        g = hkl[ii]
+        xs = xy_sf[ii]
+
+        pv = pvoight_heating(
+            tau,
             uvw,
             p,
             xy,
