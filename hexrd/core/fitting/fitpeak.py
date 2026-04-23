@@ -57,6 +57,7 @@ minf = -inf
 # dcs param values
 # !!! converted from deg^-1 in Von Dreele's paper
 alpha0, alpha1, beta0, beta1 = np.r_[14.4, 0.0, 3.016, -7.94]
+tau0, tau1, tau2 = np.r_[-0.043, 2.442, -5.49]
 
 
 def cnst_fit_obj(x, b):
@@ -167,6 +168,9 @@ def estimate_pk_parms_1d(x, f, pktype='pvoigt'):
     elif pktype == 'pink_beam_dcs':
         # A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l
         p = [A, x0, alpha0, alpha1, beta0, beta1, FWHM, FWHM, bg0, bg1]
+    elif pktype == 'pink_beam_heating':
+        # A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l
+        p = [A, x0, tau0, tau1, tau2, FWHM, FWHM, bg0, bg1]
     else:
         raise RuntimeError("pktype '%s' not understood" % pktype)
 
@@ -265,6 +269,44 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
         )
         p = res['x']
         # outflag = res['success']
+    elif pktype == 'pink_beam_heating':
+        lb = np.array(
+            [
+                0.0,
+                x.min(),
+                -np.inf,
+                -np.inf,
+                -np.inf,
+                0.0,
+                0.0,
+                -np.inf,
+                -np.inf,
+            ]
+        )
+        ub = np.array(
+            [
+                np.inf,
+                x.max(),
+                np.inf,
+                np.inf,
+                np.inf,
+                10.0,
+                10.0,
+                np.inf,
+                np.inf,
+            ]
+        )
+        res = optimize.least_squares(
+            fit_pk_obj_1d,
+            p0,
+            jac='3-point',
+            # bounds=(),  # (lb, ub),
+            method='lm',
+            args=fitArgs,
+            ftol=ftol,
+            xtol=xtol,
+        )
+        p = res['x']
     else:
         p = p0
         logger.warning('non-valid option, returning guess')
@@ -517,6 +559,39 @@ def estimate_mpk_parms_1d(
                 fwhm_guess[ii] * fwhm_lim_mult[1],
             ]
 
+    elif pktype == 'pink_beam_heating':
+        # x is just 2theta values
+        # make guess for the initital parameters
+        for ii in np.arange(num_pks):
+            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess[ii])
+            p0tmp[ii, :] = [
+                amp_guess,
+                pk_pos_0[ii],
+                tau0,
+                tau1,
+                tau2,
+                fwhm_guess[ii],
+                fwhm_guess[ii],
+            ]
+            p0tmp_lb[ii, :] = [
+                amp_guess * amp_lim_mult[0],
+                pk_pos_0[ii] - center_bnd[ii],
+                -np.inf,
+                -np.inf,
+                -np.inf,
+                fwhm_guess[ii] * fwhm_lim_mult[0],
+                fwhm_guess[ii] * fwhm_lim_mult[0],
+            ]
+            p0tmp_ub[ii, :] = [
+                amp_guess * amp_lim_mult[1],
+                pk_pos_0[ii] + center_bnd[ii],
+                np.inf,
+                np.inf,
+                np.inf,
+                fwhm_guess[ii] * fwhm_lim_mult[1],
+                fwhm_guess[ii] * fwhm_lim_mult[1],
+            ]
+
     num_pk_parms = len(p0tmp.ravel())
     if bgtype == 'constant':
         p0 = np.zeros(num_pk_parms + 1)
@@ -608,7 +683,7 @@ def fit_pk_obj_1d(p, x, f0, pktype):
         definition in peakfuncs
     """
 
-    ww = np.ones(f0.shape)
+    # ww = np.ones(f0.shape)
     if pktype == 'gaussian':
         f = pkfuncs.gaussian1d(p, x)
     elif pktype == 'lorentzian':
@@ -621,10 +696,13 @@ def fit_pk_obj_1d(p, x, f0, pktype):
         f = pkfuncs.tanh_stepdown_nobg(p, x)
     elif pktype == 'dcs_pinkbeam':
         f = pkfuncs.pink_beam_dcs(p, x)
-        ww = 1.0 / np.sqrt(f0)
-        ww[np.isnan(ww)] = 0.0
+        # SS 05/11/26 don't need weighting for calibration
+        # ww = 1.0 / np.sqrt(f0)
+        # ww[np.isnan(ww)] = 0.0
+    elif pktype == 'dcs_heating':
+        f = pkfuncs.pink_beam_heating(p, x)
 
-    resd = (f - f0) * ww
+    resd = f - f0  # * ww
     return resd
 
 
@@ -639,8 +717,10 @@ def fit_pk_obj_1d_bnded(p, x, f0, pktype, weight, lb, ub):
         f = pkfuncs.split_pvoigt1d(p, x)
     elif pktype == 'dcs_pinkbeam':
         f = pkfuncs.pink_beam_dcs(p, x)
-        ww = 1.0 / np.sqrt(f0)
-        ww[np.isnan(ww)] = 0.0
+        # ww = 1.0 / np.sqrt(f0)
+        # ww[np.isnan(ww)] = 0.0
+    elif pktype == 'dcs_heating':
+        f = pkfuncs.pink_beam_heating(p, x)
 
     num_data = len(f)
     num_parm = len(p)
