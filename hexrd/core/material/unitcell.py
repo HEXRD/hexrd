@@ -1358,7 +1358,7 @@ class unitcell:
         first make sure that the rotation matric is size nx3x3
         '''
         if rmats.ndim == 2:
-            rmats = np.atleast_3d(rmats).T
+            rmats = np.atleast_3d(rmats.T).T
         else:
             assert (
                 rmats.ndim == 3
