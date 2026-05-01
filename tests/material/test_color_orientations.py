@@ -34,31 +34,31 @@ def test_color_orientations() -> None:
 
     # check if single matrix and multiple matrix behavior is the same
     mat = Material()
-    v1 = np.round(mat.unitcell.color_orientations(rmats), 6)
+    v1 = mat.unitcell.color_orientations(rmats)
     v2 = np.vstack(
         (
-            np.round(mat.unitcell.color_orientations(rmats[0]), 6),
-            np.round(mat.unitcell.color_orientations(rmats[1]), 6),
+            mat.unitcell.color_orientations(rmats[0]),
+            mat.unitcell.color_orientations(rmats[1]),
         )
     )
 
-    assert v1 == v2
+    np.testing.assert_allclose(v1, v2, atol=1e-6)
 
     # check actual color values step by step
 
     # check the coordinates of reduced directions
     dir3_nh_red_calc = mat.unitcell.reduce_dirvector(dir3_nh, switch="super")
 
-    assert dir3_nh_red == dir3_nh_red_calc
+    np.testing.assert_allclose(dir3_nh_red, dir3_nh_red_calc, atol=1e-6)
 
     # check theta and rho values
     th_calc = mat.unitcell.sphere_sector.calculate_theta(dir3_nh_red, "super")
-    rho_calc = mat.unitcell.sphere_sector.calculate_theta(dir3_nh_red, "super")
+    rho_calc = mat.unitcell.sphere_sector.calculate_rho(dir3_nh_red, "super")
 
-    assert th == th_calc
-    assert rho == rho_calc
+    np.testing.assert_allclose(th, th_calc, atol=1e-6)
+    np.testing.assert_allclose(rho, rho_calc, atol=1e-6)
 
     # check rgb values
     rgb_nh_calc = mat.unitcell.color_directions(dir3_nh, False)
 
-    assert rgb_nh == rgb_nh_calc
+    np.testing.assert_allclose(rgb_nh, rgb_nh_calc, atol=1e-6)
