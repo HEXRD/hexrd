@@ -16,6 +16,9 @@ chmod a+x Miniconda3-latest-Linux-x86_64.sh
 # Activate conda
 source $HOME/miniconda3/bin/activate
 
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+
 # The base needs to have the same python version (3.11, right now)
 conda install --override-channels -c conda-forge python=3.11 -y
 
