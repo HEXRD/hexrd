@@ -37,4 +37,4 @@ conda install --override-channels -c conda-forge conda-build -y
 mkdir output
 
 # Build the package
-conda build --override-channels -c conda-forge --output-folder output/ conda.recipe/
+conda-build --override-channels -c conda-forge --output-folder output/ conda.recipe/
