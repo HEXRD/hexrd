@@ -59,7 +59,9 @@ class AbstractWPPF(ABC):
         pass
 
     @abstractmethod
-    def _set_phase_params_vals_to_class(self, params: lmfit.Parameters):
+    def _set_phase_params_vals_to_class(
+        self, params: lmfit.Parameters, force: bool = False
+    ):
         pass
 
     @abstractmethod
@@ -586,7 +588,9 @@ class AbstractWPPF(ABC):
 
         self._set_params_vals_to_class(params, init=True, skip_phases=True)
 
-    def _set_params_vals_to_class(self, params, init=False, skip_phases=False):
+    def _set_params_vals_to_class(
+        self, params, init=False, skip_phases=False, force=False
+    ):
         """
         @date: 03/12/2021 SS 1.0 original
         @details: set the values from parameters to the WPPF class
@@ -596,7 +600,7 @@ class AbstractWPPF(ABC):
                 setattr(self, p, params[p].value)
 
         if not skip_phases:
-            self._set_phase_params_vals_to_class(params)
+            self._set_phase_params_vals_to_class(params, force=force)
 
         if self.amorphous_model is not None:
             self._set_amorphous_params_vals_to_class(params)
@@ -1001,7 +1005,9 @@ class LeBail(AbstractWPPF):
         for p in self.phases:
             wppfsupport._add_lp_to_params(params, self.phases[p])
 
-    def _set_phase_params_vals_to_class(self, params: lmfit.Parameters):
+    def _set_phase_params_vals_to_class(
+        self, params: lmfit.Parameters, force: bool = False
+    ):
         updated_lp = False
         for p in self.phases:
             mat = self.phases[p]
@@ -1012,16 +1018,16 @@ class LeBail(AbstractWPPF):
             if mat.sgnum == 225:
                 sf_alpha_name = f"{p}_sf_alpha"
                 twin_beta_name = f"{p}_twin_beta"
-                if params[sf_alpha_name].vary:
+                if force or params[sf_alpha_name].vary:
                     mat.sf_alpha = params[sf_alpha_name].value
-                if params[twin_beta_name].vary:
+                if force or params[twin_beta_name].vary:
                     mat.twin_beta = params[twin_beta_name].value
 
             """
             PART 2: update the lattice parameters
             """
             lp = []
-            lpvary = False
+            lpvary = force
             pre = f"{p}_"
 
             name = [f"{pre}{x}" for x in wppfsupport._lpname]
@@ -1369,6 +1375,9 @@ class LeBail(AbstractWPPF):
         >> @DETAILS: this routine performs the least squares refinement for all
                      variables which are allowed to be varied.
         """
+        self._set_params_vals_to_class(
+            self.params, init=False, skip_phases=False, force=True
+        )
         if self.num_vary > 0:
             fdict = {
                 "ftol": 1e-6,
@@ -1386,7 +1395,6 @@ class LeBail(AbstractWPPF):
         else:
             if print_to_screen:
                 logger.info("nothing to refine. updating intensities")
-            self._set_params_vals_to_class(self.params, init=False, skip_phases=False)
             self.computespectrum()
             return None
 
@@ -1567,7 +1575,9 @@ class Rietveld(AbstractWPPF):
             for lpi in self.phases[p]:
                 wppfsupport._add_atominfo_to_params(params, self.phases[p][lpi])
 
-    def _set_phase_params_vals_to_class(self, params: lmfit.Parameters):
+    def _set_phase_params_vals_to_class(
+        self, params: lmfit.Parameters, force: bool = False
+    ):
         # These indicate that *any* materials updated their lattice
         # parameters or atom info.
         updated_lp = False
@@ -1587,8 +1597,8 @@ class Rietveld(AbstractWPPF):
 
                 # This indicate *this* material updated its lattice parameter
                 # or atom info.
-                lpvary = False
-                atominfo_vary = False
+                lpvary = force
+                atominfo_vary = force
 
                 """
                 PART 1: update stacking fault and twin beta parameters
@@ -1596,9 +1606,9 @@ class Rietveld(AbstractWPPF):
                 if mat.sgnum == 225:
                     sf_alpha_name = f"{p}_sf_alpha"
                     twin_beta_name = f"{p}_twin_beta"
-                    if params[sf_alpha_name].vary:
+                    if force or params[sf_alpha_name].vary:
                         mat.sf_alpha = params[sf_alpha_name].value
-                    if params[twin_beta_name].vary:
+                    if force or params[twin_beta_name].vary:
                         mat.twin_beta = params[twin_beta_name].value
 
                 """
@@ -1645,7 +1655,9 @@ class Rietveld(AbstractWPPF):
                     else:
                         dw = f"{p}_{elem}{atom_label[i]}_dw"
 
-                    atominfo_vary = any(params[name].vary for name in (nx, ny, nz, oc))
+                    atominfo_vary = force or any(
+                        params[name].vary for name in (nx, ny, nz, oc)
+                    )
                     x = params[nx].value
                     y = params[ny].value
                     z = params[nz].value
@@ -2078,6 +2090,9 @@ class Rietveld(AbstractWPPF):
         >> @DETAILS: this routine performs the least squares refinement for all
                      variables that are allowed to be varied.
         """
+        self._set_params_vals_to_class(
+            self.params, init=False, skip_phases=False, force=True
+        )
         if self.num_vary > 0:
             fdict = {
                 "ftol": 1e-6,
@@ -2105,7 +2120,6 @@ class Rietveld(AbstractWPPF):
             )
         else:
             logger.info("Nothing to refine. Updating parameters...")
-            self._set_params_vals_to_class(self.params, init=False, skip_phases=False)
             self.computespectrum()
 
     def RefineTexture(self):
@@ -2124,7 +2138,9 @@ class Rietveld(AbstractWPPF):
         # Set the results to the final one
         self.res = final_result
 
-        self._set_params_vals_to_class(self.params, init=False, skip_phases=False)
+        self._set_params_vals_to_class(
+            self.params, init=False, skip_phases=False, force=True
+        )
         self.computespectrum()
         self.niter += 1
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
