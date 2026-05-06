@@ -1386,8 +1386,9 @@ class LeBail(AbstractWPPF):
         else:
             if print_to_screen:
                 logger.info("nothing to refine. updating intensities")
+            self._set_params_vals_to_class(self.params, init=False, skip_phases=False)
             self.computespectrum()
-            return getattr(self, 'res', None)
+            return None
 
     @property
     def phases(self):
@@ -2103,7 +2104,9 @@ class Rietveld(AbstractWPPF):
                 f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
             )
         else:
-            logger.info("Nothing to refine...")
+            logger.info("Nothing to refine. Updating parameters...")
+            self._set_params_vals_to_class(self.params, init=False, skip_phases=False)
+            self.computespectrum()
 
     def RefineTexture(self):
         final_result = None
@@ -2121,6 +2124,7 @@ class Rietveld(AbstractWPPF):
         # Set the results to the final one
         self.res = final_result
 
+        self._set_params_vals_to_class(self.params, init=False, skip_phases=False)
         self.computespectrum()
         self.niter += 1
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
