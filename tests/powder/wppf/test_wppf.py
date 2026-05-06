@@ -213,3 +213,67 @@ def test_wppf_lebail(expt_spectrum, ceo2_material, lebail_params):
 
     # Verify expected final values to some tolerances
     assert round(params['CeO2_a'].value, 5) == 0.54112
+
+
+def test_lebail_no_vary_preserves_edits(
+    expt_spectrum, ceo2_material, lebail_params
+):
+    beam_wavelength = 0.15358835358711712
+    params = lebail_params
+
+    kwargs = {
+        'expt_spectrum': expt_spectrum,
+        'params': params,
+        'phases': [ceo2_material],
+        'wavelength': {'synchrotron': [_angstroms(beam_wavelength), 1.0]},
+        'bkgmethod': {'chebyshev': 3},
+        'peakshape': 'pvfcj',
+    }
+
+    lebail = LeBail(**kwargs)
+
+    # Run once with a varying param to populate self.res
+    params['CeO2_a'].vary = True
+    lebail.RefineCycle()
+
+    # Now turn off all vary flags and manually edit U
+    lebail.params_vary_off()
+    edited_value = params['U'].value + 1.0
+    params['U'].value = edited_value
+
+    lebail.RefineCycle()
+
+    assert params['U'].value == edited_value
+    assert lebail.U == edited_value
+
+
+def test_rietveld_no_vary_preserves_edits(
+    expt_spectrum, spline_picks, ceo2_material, rietveld_params
+):
+    beam_wavelength = 0.15358835358711712
+    params = rietveld_params
+
+    kwargs = {
+        'expt_spectrum': expt_spectrum,
+        'params': params,
+        'phases': [ceo2_material],
+        'wavelength': {'synchrotron': [_angstroms(beam_wavelength), 1.0]},
+        'bkgmethod': {'spline': spline_picks.tolist()},
+        'peakshape': 'pvtch',
+    }
+
+    rietveld = Rietveld(**kwargs)
+
+    # Run once with a varying param to populate self.res
+    params['scale'].vary = True
+    rietveld.Refine()
+
+    # Now turn off all vary flags and manually edit U
+    rietveld.params_vary_off()
+    edited_value = params['U'].value + 1.0
+    params['U'].value = edited_value
+
+    rietveld.Refine()
+
+    assert params['U'].value == edited_value
+    assert rietveld.U == edited_value
