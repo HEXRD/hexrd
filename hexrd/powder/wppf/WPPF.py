@@ -809,11 +809,11 @@ class AbstractWPPF(ABC):
         """
         if isinstance(val, str):
             if val == "pvfcj":
-                self._peakshape = 0
+                new_val = 0
             elif val == "pvtch":
-                self._peakshape = 1
+                new_val = 1
             elif val == "pvpink":
-                self._peakshape = 2
+                new_val = 2
             else:
                 msg = (
                     "invalid peak shape string. "
@@ -825,7 +825,7 @@ class AbstractWPPF(ABC):
                 raise ValueError(msg)
         elif isinstance(val, int):
             if val >= 0 and val <= 2:
-                self._peakshape = val
+                new_val = val
             else:
                 msg = (
                     "invalid peak shape int. "
@@ -835,6 +835,11 @@ class AbstractWPPF(ABC):
                     "3. 2: Pink beam (Von Dreele)"
                 )
                 raise ValueError(msg)
+
+        if hasattr(self, "_peakshape") and self._peakshape == new_val:
+            return
+
+        self._peakshape = new_val
 
         """
         update parameters
