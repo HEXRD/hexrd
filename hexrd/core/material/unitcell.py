@@ -479,10 +479,12 @@ class unitcell:
         the standard setting for the monoclinic system has the b-axis aligned
         with the 2-fold axis. this needs to be accounted for when reduction to
         the standard stereographic triangle is performed. the siplest way is to
-        rotate all symmetry elements by 90 about the x-axis
+        rotate all symmetry elements by 90 about the x-axis.
 
-        the supergroups for the monoclinic groups are orthorhombic so they need
-        not be rotated as they have the c* axis already aligned with the z-axis
+        orthorhombic supergroups (c2v, d2h) are already compatible with
+        the zone definitions and must NOT be rotated. non-orthorhombic
+        supergroups (e.g. cs for the cs point group) must be rotated
+        to match the rotated PG frame.
         SS 12/10/2020
         """
         if self.latticeType == "monoclinic":
@@ -492,9 +494,27 @@ class unitcell:
                 ss = np.dot(om, np.dot(s, om.T))
                 self.SYM_PG_c[i, :, :] = ss
 
-            for i, s in enumerate(self.SYM_PG_c_laue):
-                ss = np.dot(om, np.dot(s, om.T))
-                self.SYM_PG_c_laue[i, :, :] = ss
+            # When PG == Laue group, SYM_PG_c_laue is the same object
+            # as SYM_PG_c and was already rotated above.
+            if self.SYM_PG_c_laue is not self.SYM_PG_c:
+                for i, s in enumerate(self.SYM_PG_c_laue):
+                    ss = np.dot(om, np.dot(s, om.T))
+                    self.SYM_PG_c_laue[i, :, :] = ss
+
+            # Orthorhombic supergroups (c2v, d2h) already have their zone-
+            # compatible operations in the standard setting (C2 along z,
+            # mirrors perp to x and y), so they must NOT be rotated.
+            # Non-orthorhombic supergroups (e.g. cs for the cs point
+            # group) must be rotated to match the PG frame.
+            _ortho = ("c2v", "d2", "d2h")
+            if self._supergroup not in _ortho:
+                for i, s in enumerate(self.SYM_PG_supergroup):
+                    ss = np.dot(om, np.dot(s, om.T))
+                    self.SYM_PG_supergroup[i, :, :] = ss
+            if self._supergroup_laue not in _ortho:
+                for i, s in enumerate(self.SYM_PG_supergroup_laue):
+                    ss = np.dot(om, np.dot(s, om.T))
+                    self.SYM_PG_supergroup_laue[i, :, :] = ss
         """
         for the triclinic group c1, the supergroups are the monoclinic group m
         therefore we need to rotate the mirror to be perpendicular to the z-axis
@@ -1310,6 +1330,14 @@ class unitcell:
         4. If different, then barycenter lightness is replaced by 1-L (equivalent to
            replaceing barycenter to pi-theta)
         """
+
+        # The monoclinic PG symmetry ops have been rotated 90 deg about x
+        # (in GenerateCartesianPGSym) to move the 2-fold from the b-axis
+        # (y) to z, matching the zone definitions in sphere_sector.py.
+        # The direction vectors must be rotated into the same frame.
+        if self.latticeType == "monoclinic":
+            om = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]])
+            dir3 = np.dot(dir3, om.T)
 
         if laueswitch:
             """
