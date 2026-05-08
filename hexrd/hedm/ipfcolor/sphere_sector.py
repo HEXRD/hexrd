@@ -31,7 +31,7 @@ from hexrd.hedm.ipfcolor import colorspace
 
 eps = constants.sqrt_epsf
 
-'''
+"""
 In this section we will list the vertices of the spherical triangles
 for each of the point group. this will be in the form of a dictionary
 conforming to the symbols in unitcell.py
@@ -61,7 +61,7 @@ groups. This will say 'upper' or 'both' depending on what hemisphere is consider
 
 there are no triangles for the triclininc cases and needs to be handles differently
 
-'''
+"""
 # fmt: off
 pg2vertex = {
     'c1': [3, np.array([[0., 0., 1.],
@@ -77,11 +77,12 @@ pg2vertex = {
                         [-0.5, -np.sqrt(3.)/2., 0.]]).T,
           np.array([[0, 1, 2], [0, 2, 3], [0, 3, 1]]).T, 'upper'],
 
-    'c2': [2, np.array([[0., 0., 1.],
+    'c2': [4, np.array([[0., 0., 1.],
                         [1., 0., 0.],
                         [0., 1., 0.],
-                        [-1., 0., 0.]]).T,
-           np.array([[0, 1, 2], [0, 2, 3]]).T,
+                        [-1., 0., 0.],
+                        [0., 0., -1.]]).T,
+           np.array([[0, 1, 2], [0, 2, 3], [4, 1, 2], [4, 2, 3]]).T,
            'both'],
 
     # supergroup 1 in our convention
@@ -286,7 +287,7 @@ pg2vertex = {
 
 
 class sector:
-    '''
+    """
     @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
     @DATE    10/28/2020 SS 1.0 original
     @DETAIL  this class is used to store spherical patch for a given point group.
@@ -299,10 +300,10 @@ class sector:
     All the methodology and equations have been taken from the paper:
     Orientations – perfectly colored, G. Nolze and R. Hielscher, J. Appl. Cryst. (2016). 49, 1786–1802
 
-    '''
+    """
 
     def __init__(self, pgsym, lauesym, supergroupsym, supergrouplauesym):
-        '''
+        """
         AUTHOR: Saransh Singh, Lawrence Livermore national Lab, saransh1@llnl.gov
         DATE:   11/11/2020 SS 1.0 original
                 11/12/2020 SS 1.1 added lauesym as additional input parameter
@@ -312,7 +313,7 @@ class sector:
         direction to the stereographic fundamental zone (standard
         stereographic triangle) for the pointgroup/lauegroup symmetry
         of the crystal.
-        '''
+        """
         self.vertices = {}
         self.ntriangle = {}
         self.barycenter = {}
@@ -320,69 +321,69 @@ class sector:
         self.hemisphere = {}
 
         data = pg2vertex[pgsym]
-        self.ntriangle['pg'] = data[0]
-        self.vertices['pg'] = data[1]
-        self.connectivity['pg'] = data[2]
-        self.hemisphere['pg'] = data[3]
+        self.ntriangle["pg"] = data[0]
+        self.vertices["pg"] = data[1]
+        self.connectivity["pg"] = data[2]
+        self.hemisphere["pg"] = data[3]
 
         data = pg2vertex[lauesym]
-        self.ntriangle['laue'] = data[0]
-        self.vertices['laue'] = data[1]
-        self.connectivity['laue'] = data[2]
-        self.hemisphere['laue'] = data[3]
+        self.ntriangle["laue"] = data[0]
+        self.vertices["laue"] = data[1]
+        self.connectivity["laue"] = data[2]
+        self.hemisphere["laue"] = data[3]
 
         data = pg2vertex[supergroupsym]
-        self.ntriangle['super'] = data[0]
-        self.vertices['super'] = data[1]
-        self.connectivity['super'] = data[2]
-        self.hemisphere['super'] = data[3]
+        self.ntriangle["super"] = data[0]
+        self.vertices["super"] = data[1]
+        self.connectivity["super"] = data[2]
+        self.hemisphere["super"] = data[3]
 
         data = pg2vertex[supergrouplauesym]
-        self.ntriangle['superlaue'] = data[0]
-        self.vertices['superlaue'] = data[1]
-        self.connectivity['superlaue'] = data[2]
-        self.hemisphere['superlaue'] = data[3]
+        self.ntriangle["superlaue"] = data[0]
+        self.vertices["superlaue"] = data[1]
+        self.connectivity["superlaue"] = data[2]
+        self.hemisphere["superlaue"] = data[3]
 
-        if self.ntriangle['pg'] != 0:
+        if self.ntriangle["pg"] != 0:
             # compute the barycenter or the centroid of point group
-            b = np.mean(self.vertices['pg'], axis=1)
+            b = np.mean(self.vertices["pg"], axis=1)
             b = b / np.linalg.norm(b)
-            self.barycenter['pg'] = b
+            self.barycenter["pg"] = b
         else:
-            self.barycenter['pg'] = np.array([0.0, 0.0, 1.0])
+            self.barycenter["pg"] = np.array([0.0, 0.0, 1.0])
 
-        if self.ntriangle['laue'] != 0:
+        if self.ntriangle["laue"] != 0:
             # compute the barycenter or the centroid of the laue group triangle
-            b = np.mean(self.vertices['laue'], axis=1)
+            b = np.mean(self.vertices["laue"], axis=1)
             b = b / np.linalg.norm(b)
-            self.barycenter['laue'] = b
+            self.barycenter["laue"] = b
         else:
-            self.barycenter['laue'] = np.array([0.0, 0.0, 1.0])
+            self.barycenter["laue"] = np.array([0.0, 0.0, 1.0])
 
-        if self.ntriangle['super'] != 0:
+        if self.ntriangle["super"] != 0:
             # compute the barycenter or the centroid of the supergroup group triangle
-            b = np.mean(self.vertices['super'], axis=1)
+            b = np.mean(self.vertices["super"], axis=1)
             b = b / np.linalg.norm(b)
-            self.barycenter['super'] = b
+            self.barycenter["super"] = b
         else:
-            self.barycenter['super'] = np.array([0.0, 0.0, 1.0])
+            self.barycenter["super"] = np.array([0.0, 0.0, 1.0])
 
-        if self.ntriangle['superlaue'] != 0:
+        if self.ntriangle["superlaue"] != 0:
             # compute the barycenter or the centroid of the supergroup group triangle
-            b = np.mean(self.vertices['superlaue'], axis=1)
+            b = np.mean(self.vertices["superlaue"], axis=1)
             b = b / np.linalg.norm(b)
-            self.barycenter['superlaue'] = b
+            self.barycenter["superlaue"] = b
         else:
-            self.barycenter['superlaue'] = np.array([0.0, 0.0, 1.0])
+            self.barycenter["superlaue"] = np.array([0.0, 0.0, 1.0])
 
     def check_norm(self, dir3):
-        '''
+        """
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/29/2020 SS 1.0 original
         @PARAM   dir3 direction in fundamental sector. size is nx3
         @DETAIL  this function is used to make sure the directions are all unit norm
 
-        '''
+        """
         n = np.linalg.norm(dir3, axis=1)
         mask = n > eps
         n = n[mask]
@@ -400,7 +401,7 @@ class sector:
             )
 
     def inside_sphericalpatch(self, vertex, dir3):
-        '''
+        """
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    12/09/2020 SS 1.0 original
         @PARAM   vertex vertices of the spherical triangle
@@ -413,7 +414,8 @@ class sector:
                  all same sign, then the sphere is inside the traingle
                  formed by A, B and C
                  returns a mask with inside as True and outside as False
-        '''
+        """
+
         nn = vertex.shape[1]
 
         mask = []
@@ -431,11 +433,11 @@ class sector:
                 B = np.atleast_2d(vertex[:, np.mod(ii + 1, nn)]).T
                 d[ii] = np.linalg.det(np.hstack((x2, A, B)))
 
-                '''
+                """
                 catching cases very close to FZ boundary when the
                 determinant can be very small positive or negative
                 number
-                '''
+                """
                 if np.abs(d[ii]) < eps:
                     d[ii] = 0.0
 
@@ -449,7 +451,7 @@ class sector:
         return mask
 
     def fillet_region(self, dir3, switch):
-        '''
+        """
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    12/09/2020 SS 1.0 original
         @PARAM   vertex vertices of the spherical triangle
@@ -468,7 +470,7 @@ class sector:
         case
 
         first make the vertices of the three fillets
-        '''
+        """
 
         vertex = np.copy(self.vertices[switch])
         fregion = -np.ones(
@@ -503,21 +505,20 @@ class sector:
         return fregion
 
     def point_on_boundary(self, dir3, switch):
-        '''
+        """
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    12/09/2020 SS 1.0 original
         @PARAM   dir3 direction in fundamental sector. size is nx3
                  switch color using pg or laue group
         @DETAIL  this function figures out the equivalent point on the boundary
         given that the point is inside the spherical triangle
-        '''
+        """
         vertex = self.vertices[switch]
         fregion = self.fillet_region(dir3, switch)
         dir3_b = np.zeros(dir3.shape)
         nn = vertex.shape[1]
 
         for i in range(fregion.shape[0]):
-
             f = fregion[i]
             d = dir3[i, :]
 
@@ -542,7 +543,7 @@ class sector:
         return dir3_b, fregion
 
     def calculate_rho(self, dir3, switch):
-        '''
+        """
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    12/09/2020 SS 1.0 original
         @PARAM   dir3 direction in fundamental sector. size is nx3
@@ -550,7 +551,7 @@ class sector:
         @DETAIL  this function is used to calculate the azimuthal angle
                  of a bunch of directions. it is assumed all directions
                  are indide the SST
-        '''
+        """
         vertex = self.vertices[switch]
         bar_cen = self.barycenter[switch]
         rho = np.zeros(
@@ -595,7 +596,7 @@ class sector:
         return rho
 
     def calculate_theta(self, dir3, switch):
-        '''
+        """
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    12/09/2020 SS 1.0 original
         @PARAM   dir3 direction in fundamental sector. size is nx3
@@ -603,7 +604,7 @@ class sector:
         @DETAIL  this function is used to calculate the polar angle
         of direction vectors. it is assumed that the direction vector
         lies inside the SST
-        '''
+        """
         vertex = self.vertices[switch]
         dir3_b, fregion = self.point_on_boundary(dir3, switch)
         theta = np.zeros(
@@ -643,14 +644,14 @@ class sector:
         return theta
 
     def hue_speed(self, rho):
-        '''
+        """
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    12/09/2020 SS 1.0 original
         @PARAM   rho azimuthal angle
         @DETAIL  calculate the hue speed for a vector of azimuthal angles
                 this is utilized in increasing the area of the red, blue and
                 green regions
-        '''
+        """
         rho = rho - np.pi
         v = (
             0.5
@@ -665,7 +666,7 @@ class sector:
         pass
 
     def calc_hue(self, dir3, switch):
-        '''
+        """
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
                  11/23/2020 SS 1.2 added mask argument which tell the directions
@@ -682,7 +683,7 @@ class sector:
         @DETAIL  calculate hue. this is aggigned based on the azimuthal angle in the
         stereographic triangle. the laueswitch controls which fundamental sector to use.
 
-        '''
+        """
         rho = self.calculate_rho(dir3, switch)
         r = np.linspace(0.0, 2 * np.pi, 1000)
         v = self.hue_speed(r)
@@ -698,7 +699,7 @@ class sector:
         return h
 
     def calc_saturation(self, l):
-        '''
+        """
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
                  11/12/2020 SS 1.1 added laueswitch as argument
@@ -712,12 +713,12 @@ class sector:
         @PARAM   L lightness values
         @DETAIL  calculate saturation. this is always set to 1.
 
-        '''
+        """
         s = 1.0 - 2.0 * 0.25 * np.abs(l - 0.5)
         return s
 
     def calc_lightness(self, dir3, mask, switch):
-        '''
+        """
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
                  11/12/2020 SS 1.1 added laueswitch as argument
@@ -736,7 +737,7 @@ class sector:
         @DETAIL  this function is used to calculate the hsl color for direction vectors
                 in dir3. if laueswitch is True, then color is assigned based on laue group
 
-        '''
+        """
         theta = np.pi - self.calculate_theta(dir3, switch)
         f1 = theta / np.pi
         f2 = np.sin(theta / 2.0) ** 2
@@ -746,7 +747,7 @@ class sector:
         return l
 
     def get_color(self, dir3, mask, switch):
-        '''
+        """
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    10/28/2020 SS 1.0 original
                  11/12/2020 SS 1.1 added laueswitch as argument
@@ -761,7 +762,7 @@ class sector:
         @DETAIL  this function is used to calculate the hsl color for direction vectors
                 in dir3. if laueswitch is True, then color is assigned based on laue group
 
-        '''
+        """
         hsl = np.zeros(dir3.shape)
 
         hsl[:, 0] = self.calc_hue(dir3, switch)

@@ -1140,43 +1140,13 @@ class unitcell:
         B = np.atleast_2d(vertex[:, conn[1]]).T
         C = np.atleast_2d(vertex[:, conn[2]]).T
 
-        mask = []
-        for x in dir3:
-            x2 = np.atleast_2d(x).T
-            d1 = np.linalg.det(np.hstack((A, B, x2)))
-            d2 = np.linalg.det(np.hstack((A, x2, C)))
-            d3 = np.linalg.det(np.hstack((x2, B, C)))
-            """
-            catching cases very close to FZ boundary when the
-            determinant can be very small positive or negative
-            number
-            """
-            if np.abs(d1) < eps:
-                d1 = 0.0
-            if np.abs(d2) < eps:
-                d2 = 0.0
-            if np.abs(d3) < eps:
-                d3 = 0.0
-
-            ss = np.unique(np.sign([d1, d2, d3]))
-            if hemisphere == "upper":
-                if np.all(ss >= 0.0):
-                    mask.append(True)
-                else:
-                    mask.append(False)
-
-            elif hemisphere == "both":
-                if len(ss) == 1:
-                    mask.append(True)
-                elif len(ss) == 2:
-                    if 0 in ss:
-                        mask.append(True)
-                    else:
-                        mask.append(False)
-                elif len(ss) == 3:
-                    mask.append(False)
-
-        mask = np.array(mask)
+        mat = np.hstack((A, B, C))
+        mat_inv = np.linalg.inv(mat)
+        dp = np.dot(mat_inv, dir3.T).T
+        zmask = np.isclose(dp, 0.0)
+        dp[zmask] = 0.0
+        mask = dp >= 0.0
+        mask = np.all(mask, axis=1)
         return mask
 
     """
@@ -1234,9 +1204,9 @@ class unitcell:
         points needs to be moved to the southern hemisphere or not
         """
         dir3_copy = np.copy(dir3n)
-        dir3_reduced = np.array([])
+        dir3_reduced = None
         idx_copy = np.copy(idx)
-        idx_red = np.array([], dtype=np.int32)
+        idx_red = None
         """
         laue switch is used to determine which set of symmetry operations to
         loop over
@@ -1276,12 +1246,12 @@ class unitcell:
                         mask = np.logical_or(mask, tmpmask)
 
                 if np.sum(mask) > 0:
-                    if dir3_reduced.size != 0:
+                    if dir3_reduced is None:
+                        dir3_reduced = dir3_sym[mask, :].copy()
+                        idx_red = idx[mask].copy()
+                    else:
                         dir3_reduced = np.vstack((dir3_reduced, dir3_sym[mask, :]))
                         idx_red = np.hstack((idx_red, idx[mask]))
-                    else:
-                        dir3_reduced = np.copy(dir3_sym[mask, :])
-                        idx_red = np.copy(idx[mask])
 
                 dir3_copy = dir3_copy[np.logical_not(mask), :]
                 idx = idx[np.logical_not(mask)]
@@ -1289,10 +1259,9 @@ class unitcell:
                 break
         dir3_r = np.zeros(dir3_reduced.shape)
         dir3_r[idx_red, :] = dir3_reduced
-
         return dir3_r
 
-    def color_directions(self, dir3, laueswitch):
+    def color_directions(self, dir3, laueswitch=True):
         """
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    11/12/2020 SS 1.0 original
@@ -1308,7 +1277,7 @@ class unitcell:
         2. reduce to fundamental zone of super group
         3. If both are same, then color (hsl) assigned by polar and azimuth
         4. If different, then barycenter lightness is replaced by 1-L (equivalent to
-           replaceing barycenter to pi-theta)
+           replacing barycenter to pi-theta)
         """
 
         if laueswitch:
