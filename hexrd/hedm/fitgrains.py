@@ -5,6 +5,7 @@ Created on Wed Mar 22 19:04:10 2017
 
 @author: bernier2
 """
+import importlib.util
 import os
 import logging
 import multiprocessing
@@ -29,6 +30,33 @@ OVERLAP_TABLE_FILE = 'overlap_table.npz'
 SPOTS_OUT_FILE = "spots_%05d.out"
 
 
+def _load_hkl_exclusion_func(filepath):
+    spec = importlib.util.spec_from_file_location(
+        "_hkl_exclusion_module", filepath
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    func = getattr(module, 'hkl_exclusion_func', None)
+    if func is None:
+        raise RuntimeError(
+            f"File '{filepath}' does not define 'hkl_exclusion_func'"
+        )
+    return func
+
+
+def _apply_hkl_exclusions(results, excluded_hkls):
+    if not excluded_hkls:
+        return results
+    excl_set = set(map(tuple, excluded_hkls))
+    filtered = {}
+    for det_key, entries in results.items():
+        filtered[det_key] = [
+            entry for entry in entries
+            if tuple(entry[2]) not in excl_set
+        ]
+    return filtered
+
+
 # multiprocessing fit funcs
 def fit_grain_FF_init(params):
     """
@@ -49,6 +77,11 @@ def fit_grain_FF_init(params):
     """
     global paramMP
     paramMP = params
+    path = paramMP.get('hkl_exclusion_func_path')
+    if path is not None:
+        paramMP['hkl_exclusion_func'] = _load_hkl_exclusion_func(path)
+    else:
+        paramMP['hkl_exclusion_func'] = None
 
 
 def fit_grain_FF_cleanup():
@@ -105,9 +138,20 @@ def fit_grain_FF_reduced(grain_id):
     spots_filename = None if prefix is None else prefix % grain_id
 
     return_pull_spots_data: bool = paramMP.get('return_pull_spots_data', False)
+    hkl_exclusion_func = paramMP.get('hkl_exclusion_func')
 
     grain = grains_table[grain_id]
     grain_params = grain[3:15]
+
+    if hkl_exclusion_func is not None:
+        excluded_hkls = hkl_exclusion_func(
+            grain_id=grain_id,
+            grains_table=grains_table,
+            plane_data=plane_data,
+            instrument=instrument,
+        )
+    else:
+        excluded_hkls = None
 
     for tols in zip(tth_tol, eta_tol, ome_tol):
         complvec, results = instrument.pull_spots(
@@ -127,6 +171,9 @@ def fit_grain_FF_reduced(grain_id):
             check_only=False,
             interp='nearest',
         )
+
+        if excluded_hkls:
+            results = _apply_hkl_exclusions(results, excluded_hkls)
 
         culled_results, num_refl_valid, completeness = determine_valid_reflections(
             results, instrument, analysis_dirname
@@ -438,6 +485,7 @@ def fit_grains(
         analysis_dirname=cfg.analysis_dir,
         spots_filename=spots_filename,
         return_pull_spots_data=return_pull_spots_data,
+        hkl_exclusion_func_path=cfg.fit_grains.hkl_exclusion_func,
     )
 
     # =====================================================================

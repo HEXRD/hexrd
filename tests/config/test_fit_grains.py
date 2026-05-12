@@ -48,6 +48,14 @@ fit_grains:
   tthmax: 1.2
   sfacmax: 1.3
   pintmax: 1.4
+---
+# cfg #7
+fit_grains:
+  hkl_exclusion_func: %(existing_file)s
+---
+# cfg #8
+fit_grains:
+  hkl_exclusion_func: %(nonexistent_file)s
 """
     % test_data
 )
@@ -87,6 +95,19 @@ class TestFitGrainsConfig(TestConfig):
         self.assertEqual(self.cfgs[2].fit_grains.tth_max, 15)
         self.assertRaises(
             RuntimeError, getattr, self.cfgs[3].fit_grains, 'tth_max'
+        )
+
+    def test_hkl_exclusion_func(self):
+        self.assertIsNone(self.cfgs[0].fit_grains.hkl_exclusion_func)
+        self.assertEqual(
+            self.cfgs[7].fit_grains.hkl_exclusion_func,
+            test_data['existing_file'],
+        )
+        self.assertRaises(
+            RuntimeError,
+            getattr,
+            self.cfgs[8].fit_grains,
+            'hkl_exclusion_func',
         )
 
 

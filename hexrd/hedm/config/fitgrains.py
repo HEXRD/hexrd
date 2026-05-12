@@ -133,3 +133,15 @@ class FitGrainsConfig(Config):
             if temp > 0:
                 return temp
         raise RuntimeError('"%s" must be > 0, true, or false, got "%s"' % (key, temp))
+
+    @property
+    def hkl_exclusion_func(self):
+        key = 'fit_grains:hkl_exclusion_func'
+        temp = self._cfg.get(key, None)
+        if temp is None:
+            return temp
+        if not os.path.isabs(temp):
+            temp = os.path.join(self._cfg.working_dir, temp)
+        if os.path.isfile(temp):
+            return temp
+        raise RuntimeError('"%s": "%s" does not exist' % (key, temp))
