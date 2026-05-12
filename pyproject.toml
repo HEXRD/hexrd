@@ -20,6 +20,12 @@ requires = ["setuptools", "wheel", "numpy", "setuptools_scm[toml]", "pybind11>=2
 line-length = 88
 skip-string-normalization = true
 
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.format]
+quote-style = "preserve"
+
 [project.optional-dependencies]
 test = [
     "pytest",
