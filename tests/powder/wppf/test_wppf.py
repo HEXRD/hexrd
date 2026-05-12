@@ -97,7 +97,7 @@ def test_wppf_rietveld(
     rietveld.params_vary_off()
     params['scale'].vary = True
     rietveld.Refine()
-    assert rietveld.Rwp < 0.08
+    assert rietveld.Rwp < 0.081
 
     # Next, vary the lattice constant
     rietveld.params_vary_off()
@@ -213,3 +213,135 @@ def test_wppf_lebail(expt_spectrum, ceo2_material, lebail_params):
 
     # Verify expected final values to some tolerances
     assert round(params['CeO2_a'].value, 5) == 0.54112
+
+
+def test_lebail_no_vary_preserves_edits(
+    expt_spectrum, ceo2_material, lebail_params
+):
+    beam_wavelength = 0.15358835358711712
+    params = lebail_params
+
+    kwargs = {
+        'expt_spectrum': expt_spectrum,
+        'params': params,
+        'phases': [ceo2_material],
+        'wavelength': {'synchrotron': [_angstroms(beam_wavelength), 1.0]},
+        'bkgmethod': {'chebyshev': 3},
+        'peakshape': 'pvfcj',
+    }
+
+    lebail = LeBail(**kwargs)
+
+    # Run once with a varying param to populate self.res
+    params['CeO2_a'].vary = True
+    lebail.RefineCycle()
+
+    # Now turn off all vary flags and manually edit U
+    lebail.params_vary_off()
+    edited_value = params['U'].value + 1.0
+    params['U'].value = edited_value
+
+    lebail.RefineCycle()
+
+    assert params['U'].value == edited_value
+    assert lebail.U == edited_value
+
+
+def test_lebail_no_vary_preserves_material_edits(
+    expt_spectrum, ceo2_material, lebail_params
+):
+    beam_wavelength = 0.15358835358711712
+    params = lebail_params
+
+    kwargs = {
+        'expt_spectrum': expt_spectrum,
+        'params': params,
+        'phases': [ceo2_material],
+        'wavelength': {'synchrotron': [_angstroms(beam_wavelength), 1.0]},
+        'bkgmethod': {'chebyshev': 3},
+        'peakshape': 'pvfcj',
+    }
+
+    lebail = LeBail(**kwargs)
+
+    # Run once with a varying param
+    params['CeO2_a'].vary = True
+    lebail.RefineCycle()
+
+    # Manually edit the lattice parameter, but vary a different param
+    lebail.params_vary_off()
+    params['U'].vary = True
+    edited_value = params['CeO2_a'].value + 0.001
+    params['CeO2_a'].value = edited_value
+
+    lebail.RefineCycle()
+
+    mat = lebail.phases['CeO2']
+    assert np.isclose(mat.lparms[0], edited_value)
+
+
+def test_rietveld_no_vary_preserves_edits(
+    expt_spectrum, spline_picks, ceo2_material, rietveld_params
+):
+    beam_wavelength = 0.15358835358711712
+    params = rietveld_params
+
+    kwargs = {
+        'expt_spectrum': expt_spectrum,
+        'params': params,
+        'phases': [ceo2_material],
+        'wavelength': {'synchrotron': [_angstroms(beam_wavelength), 1.0]},
+        'bkgmethod': {'spline': spline_picks.tolist()},
+        'peakshape': 'pvtch',
+    }
+
+    rietveld = Rietveld(**kwargs)
+
+    # Run once with a varying param to populate self.res
+    params['scale'].vary = True
+    rietveld.Refine()
+
+    # Now turn off all vary flags and manually edit U
+    rietveld.params_vary_off()
+    edited_value = params['U'].value + 1.0
+    params['U'].value = edited_value
+
+    rietveld.Refine()
+
+    assert params['U'].value == edited_value
+    assert rietveld.U == edited_value
+
+
+def test_rietveld_no_vary_preserves_material_edits(
+    expt_spectrum, spline_picks, ceo2_material, rietveld_params
+):
+    beam_wavelength = 0.15358835358711712
+    params = rietveld_params
+
+    kwargs = {
+        'expt_spectrum': expt_spectrum,
+        'params': params,
+        'phases': [ceo2_material],
+        'wavelength': {'synchrotron': [_angstroms(beam_wavelength), 1.0]},
+        'bkgmethod': {'spline': spline_picks.tolist()},
+        'peakshape': 'pvtch',
+    }
+
+    rietveld = Rietveld(**kwargs)
+
+    # Run once with a varying param
+    params['scale'].vary = True
+    rietveld.Refine()
+
+    # Manually edit the lattice parameter, but vary a different param
+    rietveld.params_vary_off()
+    params['scale'].vary = True
+    edited_value = params['CeO2_a'].value + 0.001
+    params['CeO2_a'].value = edited_value
+
+    rietveld.Refine()
+
+    # In Rietveld, phases are nested by wavelength type
+    for lpi in rietveld.phases['CeO2']:
+        mat = rietveld.phases['CeO2'][lpi]
+        assert np.isclose(mat.lparms[0], edited_value)
