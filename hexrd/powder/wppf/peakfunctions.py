@@ -26,6 +26,7 @@
 # ============================================================
 
 import numpy as np
+from numpy.typing import NDArray
 import copy
 from hexrd.core import constants
 from numba import vectorize, float64, njit, prange
@@ -565,7 +566,7 @@ def _lorentzian_pink_beam(alpha, beta, fwhm_l, tth, tth_list):
 
 
 @njit(cache=True, nogil=True)
-def _calc_tau(tau, tth):
+def _calc_tau(tau: NDArray, tth: float) -> float:
     a0, a1, a2 = tau
     return (
         a0
@@ -575,7 +576,9 @@ def _calc_tau(tau, tth):
 
 
 @njit(cache=True, nogil=True)
-def _gaussian_heating(tau, fwhm_g, tth, tth_list):
+def _gaussian_heating(
+    tau: float, fwhm_g: float, tth: float, tth_list: NDArray
+) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 04/22/2026 SS 1.0 original
@@ -606,7 +609,9 @@ def _gaussian_heating(tau, fwhm_g, tth, tth_list):
 
 
 @njit(cache=True, nogil=True)
-def _lorentzian_heating(tau, fwhm_l, tth, tth_list):
+def _lorentzian_heating(
+    tau: float, fwhm_l: float, tth: float, tth_list: NDArray
+) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 04/22/2026 SS 1.0 original
@@ -660,7 +665,19 @@ def pvoight_pink_beam(
 
 
 @njit(cache=True, nogil=True)
-def pvoight_heating(tau, uvw, p, xy, xy_sf, shkl, eta_mixing, tth, dsp, hkl, tth_list):
+def pvoight_heating(
+    tau: NDArray,
+    uvw: NDArray,
+    p: float,
+    xy: NDArray,
+    xy_sf: NDArray,
+    shkl: NDArray,
+    eta_mixing: float,
+    tth: float,
+    dsp: float,
+    hkl: NDArray,
+    tth_list: NDArray,
+) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/22/2021 SS 1.0 original
@@ -803,19 +820,19 @@ def computespectrum_pvpink(
 
 @njit(cache=True, nogil=True, parallel=True)
 def computespectrum_pvheating(
-    tau,
-    uvw,
-    p,
-    xy,
-    xy_sf,
-    shkl,
-    eta_mixing,
-    tth,
-    dsp,
-    hkl,
-    tth_list,
-    Iobs,
-):
+    tau: NDArray,
+    uvw: NDArray,
+    p: float,
+    xy: NDArray,
+    xy_sf: NDArray,
+    shkl: NDArray,
+    eta_mixing: float,
+    tth: NDArray,
+    dsp: NDArray,
+    hkl: NDArray,
+    tth_list: NDArray,
+    Iobs: NDArray,
+) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/31/2021 SS 1.0 original
@@ -1032,21 +1049,21 @@ def calc_Iobs_pvpink(
 
 @njit(cache=True, nogil=True)
 def calc_Iobs_pvheating(
-    tau,
-    uvw,
-    p,
-    xy,
-    xy_sf,
-    shkl,
-    eta_mixing,
-    tth,
-    dsp,
-    hkl,
-    tth_list,
-    Icalc,
-    spectrum_expt,
-    spectrum_sim,
-):
+    tau: NDArray,
+    uvw: NDArray,
+    p: float,
+    xy: NDArray,
+    xy_sf: NDArray,
+    shkl: NDArray,
+    eta_mixing: float,
+    tth: NDArray,
+    dsp: NDArray,
+    hkl: NDArray,
+    tth_list: NDArray,
+    Icalc: NDArray,
+    spectrum_expt: NDArray,
+    spectrum_sim: NDArray,
+) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 04/23/2026 SS 1.0 original
