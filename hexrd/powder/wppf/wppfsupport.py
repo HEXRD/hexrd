@@ -141,8 +141,6 @@ def _add_pvheating_parameters(params):
         "tau0": [1.58, -2.0, 2.0, False],
         "tau1": [-1.35, -2.0, 2.0, False],
         "tau2": [0.36, -1.0, 1.0, False],
-        # "kappa0": [0.0, -1.0, 1.0, False],
-        # "kappa1": [0.05, -1.0, 1.0, False],
     }
     for k, v in p.items():
         params.add(

@@ -270,37 +270,10 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
         p = res['x']
         # outflag = res['success']
     elif pktype == 'pink_beam_heating':
-        lb = np.array(
-            [
-                0.0,
-                x.min(),
-                -np.inf,
-                -np.inf,
-                -np.inf,
-                0.0,
-                0.0,
-                -np.inf,
-                -np.inf,
-            ]
-        )
-        ub = np.array(
-            [
-                np.inf,
-                x.max(),
-                np.inf,
-                np.inf,
-                np.inf,
-                10.0,
-                10.0,
-                np.inf,
-                np.inf,
-            ]
-        )
         res = optimize.least_squares(
             fit_pk_obj_1d,
             p0,
             jac='3-point',
-            # bounds=(),  # (lb, ub),
             method='lm',
             args=fitArgs,
             ftol=ftol,
@@ -699,7 +672,7 @@ def fit_pk_obj_1d(p, x, f0, pktype):
         # SS 05/11/26 don't need weighting for calibration
         # ww = 1.0 / np.sqrt(f0)
         # ww[np.isnan(ww)] = 0.0
-    elif pktype == 'dcs_heating':
+    elif pktype == 'pink_beam_heating':
         f = pkfuncs.pink_beam_heating(p, x)
 
     resd = f - f0  # * ww
@@ -719,7 +692,7 @@ def fit_pk_obj_1d_bnded(p, x, f0, pktype, weight, lb, ub):
         f = pkfuncs.pink_beam_dcs(p, x)
         # ww = 1.0 / np.sqrt(f0)
         # ww[np.isnan(ww)] = 0.0
-    elif pktype == 'dcs_heating':
+    elif pktype == 'pink_beam_heating':
         f = pkfuncs.pink_beam_heating(p, x)
 
     num_data = len(f)
@@ -1044,6 +1017,10 @@ def calc_pk_integrated_intensities(p, x, pktype, num_pks):
         p_fit = np.reshape(p[: 4 * num_pks], [num_pks, 4])
     elif pktype == 'split_pvoigt':
         p_fit = np.reshape(p[: 6 * num_pks], [num_pks, 6])
+    elif pktype == 'pink_beam_dcs':
+        p_fit = np.reshape(p[: 8 * num_pks], [num_pks, 8])
+    elif pktype == 'pink_beam_heating':
+        p_fit = np.reshape(p[: 7 * num_pks], [num_pks, 7])
 
     for ii in np.arange(num_pks):
         if pktype == 'gaussian':
@@ -1054,5 +1031,9 @@ def calc_pk_integrated_intensities(p, x, pktype, num_pks):
             ints[ii] = integrate.simpson(pkfuncs._pvoigt1d_no_bg(p_fit[ii], x), x)
         elif pktype == 'split_pvoigt':
             ints[ii] = integrate.simpson(pkfuncs._split_pvoigt1d_no_bg(p_fit[ii], x), x)
+        elif pktype == 'pink_beam_dcs':
+            ints[ii] = integrate.simpson(pkfuncs._pink_beam_dcs_no_bg(p_fit[ii], x), x)
+        elif pktype == 'pink_beam_heating':
+            ints[ii] = integrate.simpson(pkfuncs._pink_beam_heating_no_bg(p_fit[ii], x), x)
 
     return ints
