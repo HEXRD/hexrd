@@ -838,7 +838,7 @@ class AbstractWPPF(ABC):
                     "1. 0: pseudo voight (Finger, Cox, Jephcoat)\n"
                     "2. 1: pseudo voight (Thompson, Cox, Hastings)\n"
                     "3. 2: Pink beam (Von Dreele)\n"
-                    "4. pvheating: similar to pink beam"
+                    "4. 3: heating (similar to pink beam)"
                 )
                 raise ValueError(msg)
 
@@ -1233,7 +1233,6 @@ class LeBail(AbstractWPPF):
                 elif self.peakshape == 3:
                     args = (
                         np.array([self.tau0, self.tau1, self.tau2]),
-                        # np.array([self.kappa0, self.kappa1]),
                         np.array([self.U, self.V, self.W]),
                         P,
                         XY,
@@ -1373,7 +1372,6 @@ class LeBail(AbstractWPPF):
                 elif self.peakshape == 3:
                     args = (
                         np.array([self.tau0, self.tau1, self.tau2]),
-                        # np.array([self.kappa0, self.kappa1]),
                         np.array([self.U, self.V, self.W]),
                         P,
                         XY,
@@ -1973,7 +1971,6 @@ class Rietveld(AbstractWPPF):
         elif self.peakshape == 3:
             args = (
                 np.array([self.tau0, self.tau1, self.tau2]),
-                # np.array([self.kappa0, self.kappa1]),
                 np.array([self.U, self.V, self.W]),
                 P,
                 XY,

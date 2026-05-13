@@ -568,12 +568,6 @@ def _calc_tau(tau, tth):
     )
 
 
-# @njit(cache=True, nogil=True)
-# def _calc_kappa(kappa, tth):
-#     a0, a1, a2 = kappa
-#     return a0 + a1 * np.tan(np.radians(0.5 * tth)) ** 2
-
-
 @njit(cache=True, nogil=True)
 def _gaussian_heating(tau, fwhm_g, tth, tth_list):
     """
@@ -668,7 +662,6 @@ def pvoight_heating(tau, uvw, p, xy, xy_sf, shkl, eta_mixing, tth, dsp, hkl, tth
     beam using von dreele's function
     """
     tau_exp = _calc_tau(tau, tth)
-    # kappa_exp = _calc_kappa(kappa, tth)
 
     gamma_ani_sqr = _anisotropic_peak_broadening(shkl, hkl)
 

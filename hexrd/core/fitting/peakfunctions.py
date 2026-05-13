@@ -647,16 +647,13 @@ def _pink_beam_heating_no_bg(p, x):
     p has the following 7 parameters
     p = [A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l]
     """
-    tau = _calc_tau((p[2], p[3]), p[1])
+    tau = _calc_tau((p[2], p[3], p[4]), p[1])
 
     arg1 = np.array([tau, p[5]]).astype(np.float64)
     arg2 = np.array([tau, p[6]]).astype(np.float64)
 
     p_g = np.hstack((p[0:2], arg1))
     p_l = np.hstack((p[0:2], arg2))
-
-    # bkg = p[8] + p[9]*x + p[10]*(2.*x**2 - 1.)
-    # bkg = p[8] + p[9]*x  # !!! make like the other peak funcs here
 
     eta, fwhm = _mixing_factor_pv(p[5], p[6])
 
@@ -1125,6 +1122,8 @@ def _mpeak_1d_no_bg(p, x, pktype, num_pks):
             f += _split_pvoigt1d_no_bg(p_fit[ii], x)
         elif pktype == 'pink_beam_dcs':
             f += _pink_beam_dcs_no_bg(p_fit[ii], x)
+        elif pktype == 'pink_beam_heating':
+            f += _pink_beam_heating_no_bg(p_fit[ii], x)
 
     return f
 
