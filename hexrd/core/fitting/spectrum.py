@@ -561,7 +561,7 @@ class SpectrumModel(object):
         window_range = (np.min(xdata), np.max(xdata))
         if self.pktype == 'pink_beam_dcs':
             for pname, param in self.peak_params.items():
-                if 'alpha' in pname or 'beta' in pname or 'fwhm' in pname:
+                if 'tau' in pname or 'alpha' in pname or 'beta' in pname or 'fwhm' in pname:
                     param.vary = False
 
             res0 = self.model.fit(ydata, params=self.params, x=xdata)
