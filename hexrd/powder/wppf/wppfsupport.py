@@ -136,7 +136,7 @@ def _add_pvpink_parameters(params):
         )
 
 
-def _add_pvheating_parameters(params):
+def _add_pvheating_parameters(params: lmfit.Parameters) -> None:
     p = {
         "tau0": [1.58, -2.0, 2.0, False],
         "tau1": [-1.35, -2.0, 2.0, False],
