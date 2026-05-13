@@ -1034,6 +1034,8 @@ def calc_pk_integrated_intensities(p, x, pktype, num_pks):
         elif pktype == 'pink_beam_dcs':
             ints[ii] = integrate.simpson(pkfuncs._pink_beam_dcs_no_bg(p_fit[ii], x), x)
         elif pktype == 'pink_beam_heating':
-            ints[ii] = integrate.simpson(pkfuncs._pink_beam_heating_no_bg(p_fit[ii], x), x)
+            ints[ii] = integrate.simpson(
+                pkfuncs._pink_beam_heating_no_bg(p_fit[ii], x), x
+            )
 
     return ints
