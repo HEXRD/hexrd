@@ -598,7 +598,9 @@ class SpectrumModel(object):
             if res0.success:
                 new_p = res0.params
                 _set_refinement_by_name(new_p, 'tau', vary=True)
-                _set_equality_constraints(new_p, 'tau')
+                _set_equality_constraints(new_p, 'tau0')
+                _set_equality_constraints(new_p, 'tau1')
+                _set_equality_constraints(new_p, 'tau2')
                 _set_bound_constraints(new_p, 'tau', min_val=-20, max_val=20)
                 _set_width_mixing_bounds(
                     new_p,
