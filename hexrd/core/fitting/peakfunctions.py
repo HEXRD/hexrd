@@ -648,6 +648,8 @@ def _pink_beam_heating_no_bg(p, x):
     p = [A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l]
     """
     tau = _calc_tau((p[2], p[3], p[4]), p[1])
+    if np.abs(tau) < 0.01:
+        return np.zeros(x.shape)
 
     arg1 = np.array([tau, p[5]]).astype(np.float64)
     arg2 = np.array([tau, p[6]]).astype(np.float64)
@@ -660,7 +662,14 @@ def _pink_beam_heating_no_bg(p, x):
     G = _gaussian_heating(p_g, x)
     L = _lorentzian_heating(p_l, x)
 
-    return eta * L + (1.0 - eta) * G
+    ag = np.trapezoid(G, x)
+    al = np.trapezoid(L, x)
+    if np.abs(ag) < 1e-6:
+        ag = 1.0
+    if np.abs(al) < 1e-6:
+        al = 1.0
+
+    return p[0] * (eta * L / al + (1.0 - eta) * G / ag)
 
 
 def pink_beam_dcs(p, x):
@@ -783,6 +792,8 @@ def pink_beam_heating_lmfit(x, A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l):
     beam used in the heating experiment
     """
     tau_exp = _calc_tau((tau0, tau1, tau2), x0)
+    if np.abs(tau_exp) < 0.01:
+        return np.zeros(x.shape, dtype=np.float64)
 
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
@@ -799,7 +810,7 @@ def pink_beam_heating_lmfit(x, A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l):
     if np.abs(al) < 1e-6:
         al = 1.0
 
-    return n * l_val / al + (1.0 - n) * g / ag
+    return A * (n * l_val / al + (1.0 - n) * g / ag)
 
 
 """

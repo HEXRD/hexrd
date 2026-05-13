@@ -357,7 +357,12 @@ def fit_ring(tth_centers, lineout, tth_pred, spectrum_kwargs, int_cutoff, fit_tt
 
     # spectrum fitting
     sm = SpectrumModel(spec_data, tth_pred, **spectrum_kwargs)
-    fit_results = sm.fit()
+    # lmfit raises ValueError if the model produces NaN during fitting;
+    # treat it as a failed fit rather than crashing the whole batch.
+    try:
+        fit_results = sm.fit()
+    except ValueError:
+        return
     if not fit_results.success:
         return
 
