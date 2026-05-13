@@ -424,9 +424,9 @@ class SpectrumModel(object):
         # spectrum data
         data = np.atleast_2d(data)
         assert data.shape[1] == 2, "data must be [[tth_0, int_0], ..., [tth_N, int_N]"
-        assert len(
-            data > 10
-        ), "check your input spectrum; you provided fewer than 10 points."
+        assert len(data > 10), (
+            "check your input spectrum; you provided fewer than 10 points."
+        )
         self._data = data
 
         xdata, ydata = data.T
@@ -561,7 +561,12 @@ class SpectrumModel(object):
         window_range = (np.min(xdata), np.max(xdata))
         if self.pktype == 'pink_beam_dcs':
             for pname, param in self.peak_params.items():
-                if 'tau' in pname or 'alpha' in pname or 'beta' in pname or 'fwhm' in pname:
+                if (
+                    'tau' in pname
+                    or 'alpha' in pname
+                    or 'beta' in pname
+                    or 'fwhm' in pname
+                ):
                     param.vary = False
 
             res0 = self.model.fit(ydata, params=self.params, x=xdata)
