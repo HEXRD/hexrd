@@ -57,7 +57,7 @@ minf = -inf
 # dcs param values
 # !!! converted from deg^-1 in Von Dreele's paper
 alpha0, alpha1, beta0, beta1 = np.r_[14.4, 0.0, 3.016, -7.94]
-tau0_DFLT, tau1_DFLT, tau2_DFLT = np.r_[-0.043, 2.442, -5.49]
+tau0_DFLT, tau1_DFLT, tau2_DFLT = np.r_[1.58, -1.35, 0.36]
 
 
 def cnst_fit_obj(x, b):
