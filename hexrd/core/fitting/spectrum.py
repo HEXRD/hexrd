@@ -6,6 +6,7 @@ from lmfit import Model, Parameters
 from hexrd.core.constants import fwhm_to_sigma
 from hexrd.core.imageutil import snip1d
 
+from .fitpeak import tau0_DFLT, tau1_DFLT, tau2_DFLT
 from .peakfunctions import (
     pink_beam_heating_lmfit,
 )
@@ -67,7 +68,6 @@ for key, val in _function_dict_1d.items():
 pk_prefix_tmpl = "pk%d_"
 
 alpha0_DFLT, alpha1_DFLT, beta0_DFLT, beta1_DFLT = np.r_[14.45, 0.0, 3.0162, -7.9411]
-tau0_DFLT, tau1_DFLT, tau2_DFLT = np.r_[-0.043, 2.442, -5.49]
 
 param_hints_DFLT = (True, None, None, None, None)
 
