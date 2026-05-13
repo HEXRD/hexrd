@@ -26,6 +26,7 @@
 # ============================================================
 
 import numpy as np
+from numpy.typing import NDArray
 from numba import njit
 import copy
 from hexrd.core import constants
@@ -482,7 +483,7 @@ def _calc_beta(beta, x0):
 
 
 @njit(cache=True, nogil=True)
-def _calc_tau(tau, x0):
+def _calc_tau(tau: tuple[float, float, float], x0: float) -> float:
     a0, a1, a2 = tau
     return (
         a0 + a1 * np.tan(np.radians(0.5 * x0)) + a2 * np.tan(np.radians(0.5 * x0)) ** 2
@@ -637,7 +638,7 @@ def _pink_beam_dcs_no_bg(p, x):
 
 
 @njit(nogil=True)
-def _pink_beam_heating_no_bg(p, x):
+def _pink_beam_heating_no_bg(p: NDArray, x: NDArray) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 12/05/2026 SS 1.0 original
@@ -712,7 +713,7 @@ def pink_beam_dcs_lmfit(x, A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l):
 
 
 @njit(cache=True, nogil=True)
-def _gaussian_heating(p, x):
+def _gaussian_heating(p: NDArray, x: NDArray) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 04/22/2026 SS 1.0 original
@@ -746,7 +747,7 @@ def _gaussian_heating(p, x):
 
 
 @njit(cache=True, nogil=True)
-def _lorentzian_heating(p, x):
+def _lorentzian_heating(p: NDArray, x: NDArray) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 04/22/2026 SS 1.0 original
@@ -769,7 +770,7 @@ def _lorentzian_heating(p, x):
     return y
 
 
-def pink_beam_heating(p, x):
+def pink_beam_heating(p: NDArray, x: NDArray) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 10/18/2021 SS 1.0 original
@@ -784,7 +785,16 @@ def pink_beam_heating(p, x):
 
 
 @njit(cache=True, nogil=True)
-def pink_beam_heating_lmfit(x, A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l):
+def pink_beam_heating_lmfit(
+    x: NDArray,
+    A: float,
+    x0: float,
+    tau0: float,
+    tau1: float,
+    tau2: float,
+    fwhm_g: float,
+    fwhm_l: float,
+) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 05/11/2026 SS 1.0 original

@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.polynomial import chebyshev
+from numpy.typing import NDArray
 
 from lmfit import Model, Parameters
 
@@ -174,7 +175,16 @@ def pink_beam_dcs(x, amp, cen, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l):
 
 # Wrapper to rename A/x0 to amp/cen so lmfit parameter names
 # match the constraint infrastructure (e.g. _set_bound_constraints).
-def pink_beam_heating(x, amp, cen, tau0, tau1, tau2, fwhm_g, fwhm_l):
+def pink_beam_heating(
+    x: NDArray,
+    amp: float,
+    cen: float,
+    tau0: float,
+    tau1: float,
+    tau2: float,
+    fwhm_g: float,
+    fwhm_l: float,
+) -> NDArray:
     return pink_beam_heating_lmfit(x, amp, cen, tau0, tau1, tau2, fwhm_g, fwhm_l)
 
 
