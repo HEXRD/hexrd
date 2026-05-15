@@ -900,7 +900,7 @@ class PlaneData(object):
         retval = np.zeros(self.getNhklRef(), dtype=bool)
         if self._exclusions is not None:
             # report in current hkl ordering
-            retval[:] = self._exclusions[self.tThSortInv]
+            retval[:] = self._exclusions[self.tThSort]
         if self._tThMax is not None:
             for iHKLr, hklData in enumerate(self.hklDataList):
                 if hklData['tTheta'] > self._tThMax:
@@ -917,15 +917,15 @@ class PlaneData(object):
                     exclusions.dtype == 'bool'
                 ), 'Exclusions should be bool if full length'
                 # convert from current hkl ordering to _hkl ordering
-                excl[:] = exclusions[self.tThSort]
+                excl[:] = exclusions[self.tThSortInv]
             else:
                 if len(exclusions.shape) == 1:
                     # treat exclusions as indices
-                    excl[self.tThSort[exclusions]] = True
+                    excl[self.tThSortInv[exclusions]] = True
                 elif len(exclusions.shape) == 2:
                     # treat exclusions as ranges of indices
                     for r in exclusions:
-                        excl[self.tThSort[r[0] : r[1]]] = True
+                        excl[self.tThSortInv[r[0] : r[1]]] = True
                 else:
                     raise RuntimeError(f'Unclear behavior for shape {exclusions.shape}')
         self._exclusions = excl
