@@ -23,7 +23,7 @@ module:
  - makeRotMatOfQuat
  - homochoricOfQuat
 """
-from typing import Optional, Tuple, Sequence
+from typing import Optional, Tuple, Sequence, Union
 import numpy as np
 from numpy.typing import NDArray
 
@@ -353,7 +353,7 @@ def oscill_angles_of_hkls(
     chi: float,
     rmat_c: NDArray[np.float64],
     bmat: NDArray[np.float64],
-    wavelength: float,
+    wavelength: Union[float, NDArray[np.float64]],
     v_inv: Optional[NDArray[np.float64]] = None,
     beam_vec: NDArray[np.float64] = cnst.beam_vec,
     eta_vec: NDArray[np.float64] = cnst.eta_vec,
@@ -375,7 +375,9 @@ def oscill_angles_of_hkls(
                   to SAMPLE FRAME
     bmat       -- (3, 3) ndarray, the COB taking RECIPROCAL LATTICE components
                   to CRYSTAL FRAME
-    wavelength -- float representing the x-ray wavelength in Angstroms
+    wavelength -- float or (n,) ndarray of x-ray wavelength(s) in Angstroms.
+                  When an array is given, reflections are grouped by unique
+                  wavelength value and solved per group.
 
     Optional Keyword Arguments:
     v_inv      -- (6, ) ndarray, vec representation inverse stretch tensor
@@ -443,8 +445,15 @@ def oscill_angles_of_hkls(
     beam_vec = np.ascontiguousarray(beam_vec.flatten())
     eta_vec = np.ascontiguousarray(eta_vec.flatten())
     bmat = np.ascontiguousarray(bmat)
+
+    if np.ndim(wavelength) == 0:
+        wavelength = np.full(len(hkls), float(wavelength))
+    else:
+        wavelength = np.ascontiguousarray(wavelength, dtype=float)
+
     return transforms_c_api.oscillAnglesOfHKLs(
-        hkls, chi, rmat_c, bmat, wavelength, v_inv, beam_vec, eta_vec
+        hkls, chi, rmat_c, bmat, wavelength,
+        v_inv, beam_vec, eta_vec,
     )
 
 

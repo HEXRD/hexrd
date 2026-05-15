@@ -26,7 +26,7 @@ xy_to_gvec(size_t npts, double *xy, double *rMat_d, double *rMat_s,
 
 static void
 oscill_angles_of_HKLs(size_t npts, double *hkls, double chi, double *rMat_c,
-                      double *bMat, double wavelength, double *vInv_s,
+                      double *bMat, double *wavelength, double *vInv_s,
                       double *beamVec, double *etaVec, double *oangs0,
                       double *oangs1);
 

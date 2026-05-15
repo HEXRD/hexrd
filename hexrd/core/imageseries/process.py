@@ -38,7 +38,7 @@ class ProcessedImageSeries(ImageSeries):
         self._frames = kwargs.pop('frame_list', None)
         self._hasframelist = self._frames is not None
         if self._hasframelist:
-            self._update_omega()
+            self._update_metadata()
         self._opdict = {}
 
         self.addop(self.DARK, self._subtract_dark)
@@ -172,11 +172,11 @@ class ProcessedImageSeries(ImageSeries):
         """Insert a zero column at the given column index."""
         return np.insert(img, index, 0, axis=1)
 
-    def _update_omega(self):
-        """Update omega if there is a framelist"""
-        if "omega" in self.metadata:
-            omega = self.metadata["omega"]
-            self.metadata["omega"] = omega[self._frames]
+    def _update_metadata(self):
+        """Update per-frame metadata arrays if there is a framelist"""
+        for key in ("omega", "beam_energy"):
+            if key in self.metadata:
+                self.metadata[key] = self.metadata[key][self._frames]
 
     #
     # ==================== API

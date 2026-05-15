@@ -1,6 +1,10 @@
+from __future__ import annotations
+
 import logging
+from typing import Optional, Union
 
 import numpy as np
+from numpy.typing import NDArray
 
 from hexrd.core import matrixutil as mutil
 from hexrd.core.rotations import angularDifference
@@ -98,12 +102,20 @@ class GrainCalibrator(AbstractGrainCalibrator):
 
 # Objective function for multigrain fitting
 def sxcal_obj_func(
-    grain_params, instr, xyo_det, hkls_idx, bmat, ome_period, sim_only=False
-):
+    grain_params: list[NDArray[np.float64]],
+    instr: object,
+    xyo_det: dict[str, list[NDArray[np.float64]]],
+    hkls_idx: dict[str, list[NDArray[np.float64]]],
+    bmat: NDArray[np.float64],
+    ome_period: tuple[float, float],
+    sim_only: bool = False,
+    wavelength: Optional[Union[float, dict[str, NDArray[np.float64]]]] = None,
+) -> NDArray[np.float64] | dict:
     ngrains = len(grain_params)
 
     # assign some useful params
-    wavelength = instr.beam_wavelength
+    if wavelength is None:
+        wavelength = instr.beam_wavelength
     bvec = instr.beam_vector
     chi = instr.chi
     tvec_s = instr.tvec
@@ -154,9 +166,15 @@ def sxcal_obj_func(
             ghat_s = mutil.unitVector(np.dot(vmat_s, np.dot(rmat_c, gvec_c)))
             ghat_c = np.dot(rmat_c.T, ghat_s)
 
+            # Determine per-reflection or scalar wavelength
+            if isinstance(wavelength, dict):
+                det_wl = wavelength.get(det_key, instr.beam_wavelength)
+            else:
+                det_wl = wavelength
+
             # Apply an energy correction according to grain position
             corrected_wavelength = xrdutil.apply_correction_to_wavelength(
-                wavelength,
+                det_wl,
                 energy_correction,
                 tvec_s,
                 tvec_c,

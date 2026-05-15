@@ -1,6 +1,11 @@
 """Grain fitting functions"""
 
+from __future__ import annotations
+
+from typing import Union
+
 import numpy as np
+from numpy.typing import NDArray
 
 from scipy import optimize
 
@@ -31,12 +36,12 @@ gScl_ref = np.ones(12, dtype=bool)
 
 
 def fitGrain(
-    gFull,
-    instrument,
-    reflections_dict,
-    bMat,
-    wavelength,
-    gFlag=gFlag_ref,
+    gFull: NDArray[np.float64],
+    instrument: object,
+    reflections_dict: dict,
+    bMat: NDArray[np.float64],
+    wavelength: Union[float, dict[str, NDArray[np.float64]]],
+    gFlag: NDArray[np.bool_] = gFlag_ref,
     gScl=gScl_ref,
     omePeriod=None,
     factor=0.1,
@@ -140,17 +145,17 @@ def fitGrain(
 
 
 def objFuncFitGrain(
-    gFit,
-    gFull,
-    gFlag,
-    instrument,
-    reflections_dict,
-    bMat,
-    wavelength,
-    omePeriod,
-    simOnly=False,
-    return_value_flag=return_value_flag,
-):
+    gFit: NDArray[np.float64],
+    gFull: NDArray[np.float64],
+    gFlag: NDArray[np.bool_],
+    instrument: object,
+    reflections_dict: dict,
+    bMat: NDArray[np.float64],
+    wavelength: Union[float, dict[str, NDArray[np.float64]]],
+    omePeriod: tuple[float, float] | None,
+    simOnly: bool = False,
+    return_value_flag: int | None = return_value_flag,
+) -> NDArray[np.float64] | dict | float:
     """
     Calculate residual between measured and simulated ff-HEDM G-vectors.
 
@@ -224,14 +229,6 @@ def objFuncFitGrain(
     vInv_s = gFull[6:]
     vMat_s = mutil.vecMVToSymm(vInv_s)  # NOTE: Inverse of V from F = V * R
 
-    # Apply an energy correction according to grain position
-    corrected_wavelength = apply_correction_to_wavelength(
-        wavelength,
-        energy_correction,
-        tVec_s,
-        tVec_c,
-    )
-
     # loop over instrument panels
     # CAVEAT: keeping track of key ordering in the "detectors" attribute of
     # instrument here because I am not sure if instatiating them using
@@ -280,6 +277,14 @@ def objFuncFitGrain(
             hkls = results['hkls']
             meas_xyo = results['meas_xyo']
 
+        # Determine per-reflection or scalar wavelength for this detector.
+        # When wavelength is a dict, it holds per-reflection wavelength
+        # arrays keyed by detector name; otherwise it is a scalar float.
+        if isinstance(wavelength, dict):
+            det_wavelength = wavelength.get(det_key, instrument.beam_wavelength)
+        else:
+            det_wavelength = wavelength
+
         # distortion handling
         if panel.distortion is not None:
             meas_omes = meas_xyo[:, 2]
@@ -298,6 +303,16 @@ def objFuncFitGrain(
         gVec_c = np.dot(bMat, hkls)
         gVec_s = np.dot(vMat_s, np.dot(rMat_c, gVec_c))
         gHat_c = mutil.unitVector(np.dot(rMat_c.T, gVec_s))
+
+        # Apply energy correction (spatial gradient) to wavelength.
+        # det_wavelength may be scalar or per-reflection array; the
+        # correction formula broadcasts correctly in either case.
+        corrected_wavelength = apply_correction_to_wavelength(
+            det_wavelength,
+            energy_correction,
+            tVec_s,
+            tVec_c,
+        )
 
         # !!!: check that this operates on UNWARPED xy
         match_omes, calc_omes = matchOmegas(
@@ -382,20 +397,23 @@ def objFuncFitGrain(
 
 
 def matchOmegas(
-    xyo_det,
-    hkls_idx,
-    chi,
-    rMat_c,
-    bMat,
-    wavelength,
-    vInv=vInv_ref,
-    beamVec=bVec_ref,
-    etaVec=eta_ref,
-    omePeriod=None,
-):
+    xyo_det: NDArray[np.float64],
+    hkls_idx: NDArray[np.float64],
+    chi: float,
+    rMat_c: NDArray[np.float64],
+    bMat: NDArray[np.float64],
+    wavelength: Union[float, NDArray[np.float64]],
+    vInv: NDArray[np.float64] = vInv_ref,
+    beamVec: NDArray[np.float64] = bVec_ref,
+    etaVec: NDArray[np.float64] = eta_ref,
+    omePeriod: tuple[float, float] | None = None,
+) -> tuple[NDArray[np.bool_], NDArray[np.float64]]:
     """
     For a given list of (x, y, ome) points, outputs the index into the results
     from oscillAnglesOfHKLs, including the calculated omega values.
+
+    wavelength may be a scalar float or a 1-D array of per-reflection
+    wavelengths (one per column of hkls_idx).
     """
     # get omegas for rMat_s calculation
     if omePeriod is not None:

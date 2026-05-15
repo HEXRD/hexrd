@@ -1022,11 +1022,11 @@ def extract_detector_transformation(
 
 
 def apply_correction_to_wavelength(
-    wavelength: float,
+    wavelength: 'float | NDArray[np.float64]',
     energy_correction: Optional[dict[str, float]] = None,
     tvec_s: Optional[NDArray[np.float64]] = None,
     tvec_c: Optional[NDArray[np.float64]] = None,
-) -> float:
+) -> 'float | NDArray[np.float64]':
     """Apply an energy correction to the wavelength according to grain position
 
     The energy correction dict appears as follows:

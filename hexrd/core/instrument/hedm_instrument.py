@@ -1559,6 +1559,7 @@ class HEDMInstrument(object):
         ],
         ome_period=(-np.pi, np.pi),
         wavelength=None,
+        imgser_dict=None,
     ):
         """
         Simulate a monochromatic rotation series over the instrument.
@@ -1577,6 +1578,10 @@ class HEDMInstrument(object):
             DESCRIPTION. The default is (-np.pi, np.pi).
         wavelength : TYPE, optional
             DESCRIPTION. The default is None.
+        imgser_dict : dict, optional
+            Map of detector IDs to OmegaImageSeries objects.  When the
+            image series metadata contains ``beam_energy``, per-frame
+            energies are used to refine predicted omega angles.
 
         Returns
         -------
@@ -1587,6 +1592,14 @@ class HEDMInstrument(object):
         """
         results = dict.fromkeys(self.detectors)
         for det_key, panel in self.detectors.items():
+            beam_energies = None
+            ome_ims = None
+            if imgser_dict is not None:
+                ims = imgser_dict.get(det_key)
+                if ims is not None and 'beam_energy' in ims.metadata:
+                    beam_energies = ims.metadata['beam_energy']
+                    ome_ims = ims
+
             results[det_key] = panel.simulate_rotation_series(
                 plane_data,
                 grain_param_list,
@@ -1597,6 +1610,8 @@ class HEDMInstrument(object):
                 tVec_s=self.tvec,
                 wavelength=wavelength,
                 energy_correction=self.energy_correction,
+                beam_energies=beam_energies,
+                ome_image_series=ome_ims,
             )
         return results
 
@@ -1635,6 +1650,7 @@ class HEDMInstrument(object):
             eta_ranges=eta_ranges,
             ome_ranges=omega_ranges,
             ome_period=ome_period,
+            imgser_dict=imgser_dict,
         )
 
         patch_has_signal = []
@@ -1819,6 +1835,7 @@ class HEDMInstrument(object):
             eta_ranges=eta_ranges,
             ome_ranges=omega_ranges,
             ome_period=ome_period,
+            imgser_dict=imgser_dict,
         )
 
         if write_hdf5:

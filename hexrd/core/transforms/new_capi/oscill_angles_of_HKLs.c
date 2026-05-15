@@ -1,6 +1,6 @@
 
 static void oscill_angles_of_HKLs(size_t npts, double * hkls, double chi,
-                      double * rMat_c, double * bMat, double wavelength,
+                      double * rMat_c, double * bMat, double * wavelength,
                       double * vInv_s, double * beamVec, double * etaVec,
                       double * oangs0, double * oangs1)
 {
@@ -96,7 +96,7 @@ static void oscill_angles_of_HKLs(size_t npts, double * hkls, double chi,
         }
 
         /* Compute the sine of the Bragg angle */
-        sintht = 0.5*wavelength*nrm0;
+        sintht = 0.5*wavelength[i]*nrm0;
 
         /* Compute the coefficients of the harmonic equation */
         a = gHat_s[2]*bHat_l[0] + schi*gHat_s[0]*bHat_l[1] - cchi*gHat_s[0]*bHat_l[2];
@@ -177,19 +177,20 @@ python_oscillAnglesOfHKLs(PyObject * self, PyObject * args)
     nah_array hkls = { NULL, "hkls", NAH_TYPE_DP_FP, { 3, NAH_DIM_ANY }};
     nah_array rMat_c = { NULL, "rMat_c", NAH_TYPE_DP_FP, { 3, 3 }};
     nah_array bMat = { NULL, "bMat", NAH_TYPE_DP_FP, { 3, 3 }};
+    nah_array wavelength = { NULL, "wavelength", NAH_TYPE_DP_FP, { NAH_DIM_ANY }};
     nah_array vInv = { NULL, "vInv", NAH_TYPE_DP_FP, { 6 }};
     nah_array beamVec = { NULL, "beamVec", NAH_TYPE_DP_FP, { 3 }};
     nah_array etaVec = { NULL, "etaVec", NAH_TYPE_DP_FP, { 3 }};
-    double chi, wavelen;
+    double chi;
     PyArrayObject *oangs0 = NULL, *oangs1 = NULL;
     PyObject *result = NULL;
     /* Parse arguments */
-    if (!PyArg_ParseTuple(args,"O&dO&O&dO&O&O&",
+    if (!PyArg_ParseTuple(args,"O&dO&O&O&O&O&O&",
                           nah_array_converter, &hkls,
                           &chi,
                           nah_array_converter, &rMat_c,
                           nah_array_converter, &bMat,
-                          &wavelen,
+                          nah_array_converter, &wavelength,
                           nah_array_converter, &vInv,
                           nah_array_converter, &beamVec,
                           nah_array_converter, &etaVec))
@@ -220,7 +221,7 @@ python_oscillAnglesOfHKLs(PyObject * self, PyObject * args)
                           chi,
                           (double *)PyArray_DATA(rMat_c.pyarray),
                           (double *)PyArray_DATA(bMat.pyarray),
-                          wavelen,
+                          (double *)PyArray_DATA(wavelength.pyarray),
                           (double *)PyArray_DATA(vInv.pyarray),
                           (double *)PyArray_DATA(beamVec.pyarray),
                           (double *)PyArray_DATA(etaVec.pyarray),

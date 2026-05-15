@@ -22,6 +22,7 @@ from hexrd.core.distortion.distortionabc import DistortionABC
 from hexrd.core import matrixutil as mutil
 
 if TYPE_CHECKING:
+    from hexrd.core.imageseries.omega import OmegaImageSeries
     from hexrd.hed.xrdutil.phutil import (
         JHEPinholeDistortion,
         LayerDistortion,
@@ -64,6 +65,33 @@ beam_energy_DFLT = 65.351
 # has changed.
 _lorentz_factor = memoize(crystallography.lorentz_factor)
 _polarization_factor = memoize(crystallography.polarization_factor)
+
+
+def _omegas_to_wavelengths(
+    omegas_rad: NDArray[np.float64],
+    beam_energies: NDArray[np.float64],
+    ome_image_series: 'OmegaImageSeries',
+    default_wavelength: float,
+) -> NDArray[np.float64]:
+    """Map predicted omega angles (radians) to per-reflection wavelengths.
+
+    Uses the first omega solution to determine which frame each reflection
+    maps to, then looks up that frame's beam energy.
+    """
+    n = len(omegas_rad)
+    wavelengths = np.empty(n)
+    for k in range(n):
+        ome = omegas_rad[k]
+        if np.isnan(ome):
+            wl = default_wavelength
+        else:
+            frame = ome_image_series.omega_to_frame(np.degrees(ome))[0]
+            if frame >= 0:
+                wl = ct.keVToAngstrom(beam_energies[frame])
+            else:
+                wl = default_wavelength
+        wavelengths[k] = wl if np.isscalar(wl) else default_wavelength
+    return wavelengths
 
 
 class Detector:
@@ -1588,6 +1616,8 @@ class Detector:
         tVec_s: NDArray[np.float64] = ct.zeros_3,
         wavelength: Optional[float] = None,
         energy_correction: Optional[dict[str, float]] = None,
+        beam_energies: Optional[NDArray[np.float64]] = None,
+        ome_image_series=None,
     ):
         """
         Simulate a monochromatic rotation series for a list of grains.
@@ -1610,6 +1640,12 @@ class Detector:
             DESCRIPTION. The default is ct.zeros_3.
         wavelength : TYPE, optional
             DESCRIPTION. The default is None.
+        beam_energies : (nframes,) ndarray, optional
+            Per-frame beam energy in keV.  When provided together with
+            *ome_image_series*, predicted omega angles are refined using
+            the energy of the frame each reflection maps to.
+        ome_image_series : OmegaImageSeries, optional
+            Used with *beam_energies* for omega-to-frame mapping.
 
         Returns
         -------
@@ -1666,13 +1702,27 @@ class Detector:
 
             # All possible bragg conditions as vstacked [tth, eta, ome]
             # for each omega solution
+            solve_wl = corrected_wavelength
+            if beam_energies is not None and ome_image_series is not None:
+                oangs0, oangs1 = oscill_angles_of_hkls(
+                    full_hkls[:, 1:], chi, rMat_c, bMat,
+                    corrected_wavelength, v_inv=vInv_s, beam_vec=self.bvec,
+                )
+                per_refl_wl = _omegas_to_wavelengths(
+                    oangs0[:, 2], beam_energies, ome_image_series,
+                    corrected_wavelength,
+                )
+                solve_wl = xrdutil.apply_correction_to_wavelength(
+                    per_refl_wl, energy_correction, tVec_s, tVec_c,
+                )
+
             angList = np.vstack(
                 oscill_angles_of_hkls(
                     full_hkls[:, 1:],
                     chi,
                     rMat_c,
                     bMat,
-                    corrected_wavelength,
+                    solve_wl,
                     v_inv=vInv_s,
                     beam_vec=self.bvec,
                 )

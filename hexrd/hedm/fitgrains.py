@@ -5,10 +5,15 @@ Created on Wed Mar 22 19:04:10 2017
 
 @author: bernier2
 """
+from __future__ import annotations
+
 import os
 import logging
 import multiprocessing
+from typing import Union
+
 import numpy as np
+from numpy.typing import NDArray
 import timeit
 import warnings
 
@@ -27,6 +32,45 @@ logger = logging.getLogger(__name__)
 
 OVERLAP_TABLE_FILE = 'overlap_table.npz'
 SPOTS_OUT_FILE = "spots_%05d.out"
+
+
+def _per_refl_wavelengths(
+    culled_results: dict[str, list],
+    imgser_dict: dict,
+    default_wavelength: float,
+) -> Union[float, dict[str, NDArray[np.float64]]]:
+    """Build per-reflection wavelengths from imageseries beam_energy metadata.
+
+    Returns *default_wavelength* (a scalar float) when no per-frame energy
+    data is available, keeping the existing code path unchanged.  Otherwise
+    returns a ``dict[det_key, ndarray]`` of wavelengths aligned with each
+    detector's reflection list.
+    """
+    first_ims = next(iter(imgser_dict.values()))
+    if 'beam_energy' not in first_ims.metadata:
+        return default_wavelength
+
+    result = {}
+    for det_key, presults in culled_results.items():
+        if not presults:
+            result[det_key] = np.array([])
+            continue
+
+        ims = imgser_dict.get(det_key, first_ims)
+        beam_energies = ims.metadata.get('beam_energy')
+        if beam_energies is None:
+            beam_energies = first_ims.metadata['beam_energy']
+
+        wavelengths = np.empty(len(presults))
+        for j, x in enumerate(presults):
+            meas_ome_deg = np.degrees(x[6][-1])
+            frame = ims.omega_to_frame(meas_ome_deg)[0]
+            if frame >= 0:
+                wavelengths[j] = constants.keVToAngstrom(beam_energies[frame])
+            else:
+                wavelengths[j] = default_wavelength
+        result[det_key] = wavelengths
+    return result
 
 
 # multiprocessing fit funcs
@@ -144,12 +188,17 @@ def fit_grain_FF_reduced(grain_id):
                 result += ((complvec, results),)
             return result
         else:
+            # Per-frame beam energy: returns scalar when metadata absent
+            wavelength = _per_refl_wavelengths(
+                culled_results, imgser_dict, plane_data.wavelength,
+            )
+
             grain_params = fitGrain(
                 grain_params,
                 instrument,
                 culled_results,
                 plane_data.latVecOps['B'],
-                plane_data.wavelength,
+                wavelength,
             )
             # get chisq
             # TODO: do this while evaluating fit???
@@ -160,13 +209,18 @@ def fit_grain_FF_reduced(grain_id):
                 instrument,
                 culled_results,
                 plane_data.latVecOps['B'],
-                plane_data.wavelength,
+                wavelength,
                 ome_period,
                 simOnly=False,
                 return_value_flag=2,
             )
 
     if refit is not None:
+        # Per-frame beam energy for current culled_results
+        wavelength = _per_refl_wavelengths(
+            culled_results, imgser_dict, plane_data.wavelength,
+        )
+
         # first get calculated x, y, ome from previous solution
         # NOTE: this result is a dict
         xyo_det_fit_dict = objFuncFitGrain(
@@ -176,7 +230,7 @@ def fit_grain_FF_reduced(grain_id):
             instrument,
             culled_results,
             plane_data.latVecOps['B'],
-            plane_data.wavelength,
+            wavelength,
             ome_period,
             simOnly=True,
             return_value_flag=2,
@@ -188,12 +242,17 @@ def fit_grain_FF_reduced(grain_id):
 
         # only execute fit if left with enough reflections
         if num_refl_valid > 12:
+            # Recompute per-reflection wavelengths for refined set
+            wavelength_r = _per_refl_wavelengths(
+                culled_results_r, imgser_dict, plane_data.wavelength,
+            )
+
             grain_params = fitGrain(
                 grain_params,
                 instrument,
                 culled_results_r,
                 plane_data.latVecOps['B'],
-                plane_data.wavelength,
+                wavelength_r,
             )
             # get chisq
             # TODO: do this while evaluating fit???
@@ -204,7 +263,7 @@ def fit_grain_FF_reduced(grain_id):
                 instrument,
                 culled_results_r,
                 plane_data.latVecOps['B'],
-                plane_data.wavelength,
+                wavelength_r,
                 ome_period,
                 simOnly=False,
                 return_value_flag=2,
