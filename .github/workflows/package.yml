@@ -82,7 +82,7 @@ jobs:
           for attempt in $(seq 1 $max_attempts); do
             echo "conda build attempt $attempt"
             conda clean --all -y
-            if conda build --override-channels -c conda-forge --output-folder output/ conda.recipe/; then
+            if conda-build --override-channels -c conda-forge --output-folder output/ conda.recipe/; then
               break
             fi
             if [ "$attempt" -eq "$max_attempts" ]; then
