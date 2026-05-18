@@ -523,10 +523,11 @@ def _gaussian_pink_beam(alpha, beta, fwhm_g, tth, tth_list):
     t1 = erfc(y)
     t2 = erfc(z)
     g = np.zeros(tth_list.shape)
-    zmask = np.abs(del_tth) > 100.0
-    g[~zmask] = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(u[~zmask]) * t1[
-        ~zmask
-    ] + np.exp(v[~zmask]) * t2[~zmask]
+    # zmask = np.abs(del_tth) > 8.0
+    # g[~zmask] = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(u[~zmask]) * t1[
+    #     ~zmask
+    # ] + np.exp(v[~zmask]) * t2[~zmask]
+    g = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(u) * t1 + np.exp(v) * t2
     mask = np.isnan(g)
     g[mask] = 0.0
 
