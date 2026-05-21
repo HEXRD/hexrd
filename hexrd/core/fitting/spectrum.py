@@ -388,13 +388,14 @@ class SpectrumModel(object):
 
         xdata, ydata = data.T
         window_range = (np.min(xdata), np.max(xdata))
+        window_width = window_range[1] - window_range[0]
         ymax = np.max(ydata)
 
         self._tth0 = peak_centers
         num_peaks = len(peak_centers)
 
         if fwhm_init is None:
-            fwhm_init = np.diff(window_range) / (20.0 * num_peaks)
+            fwhm_init = window_width / (20.0 * num_peaks)
 
         self._min_pk_sep = min_pk_sep
 
@@ -427,7 +428,7 @@ class SpectrumModel(object):
         _set_width_mixing_bounds(
             initial_params_pks,
             min_w=fwhm_min,
-            max_w=0.9 * float(np.diff(window_range)),
+            max_w=0.9 * window_width,
         )
         _set_bound_constraints(
             initial_params_pks, 'amp', min_val=min_ampl, max_val=1.5 * ymax
@@ -507,6 +508,7 @@ class SpectrumModel(object):
     def fit(self):
         xdata, ydata = self.data.T
         window_range = (np.min(xdata), np.max(xdata))
+        window_width = window_range[1] - window_range[0]
         if self.pktype == 'pink_beam_dcs':
             for pname, param in self.peak_params.items():
                 if 'alpha' in pname or 'beta' in pname or 'fwhm' in pname:
@@ -525,7 +527,7 @@ class SpectrumModel(object):
                 _set_width_mixing_bounds(
                     new_p,
                     min_w=fwhm_min,
-                    max_w=0.9 * float(np.diff(window_range)),
+                    max_w=0.9 * window_width,
                 )
                 # !!! not sure on this, but it seems
                 #     to give more stable results with many peaks
