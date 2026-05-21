@@ -566,14 +566,13 @@ def gaussian_2d(p, data):
 
 
 def gaussian_2d_int(y, x, *p):
-    func = p[0] * np.exp(
+    return p[0] * np.exp(
         -(
             p[1] * (x - p[4]) * (x - p[4])
             + p[2] * (x - p[4]) * (y - p[5])
             + p[3] * (y - p[5]) * (y - p[5])
         )
     )
-    return func.flatten()
 
 
 reflInfo_dtype = [
