@@ -525,10 +525,7 @@ def _gaussian_pink_beam(alpha, beta, fwhm_g, tth, tth_list):
     t1 = erfc(y)
     t2 = erfc(z)
     g = np.zeros(tth_list.shape)
-    # zmask = np.abs(del_tth) > 8.0
-    # g[~zmask] = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(u[~zmask]) * t1[
-    #     ~zmask
-    # ] + np.exp(v[~zmask]) * t2[~zmask]
+
     g = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(u) * t1 + np.exp(v) * t2
     mask = np.isnan(g)
     g[mask] = 0.0
@@ -552,15 +549,10 @@ def _lorentzian_pink_beam(alpha, beta, fwhm_l, tth, tth_list):
 
     f1 = exp1exp(p)
     f2 = exp1exp(q)
-    # f1 = exp1(p)
-    # f2 = exp1(q)
 
     y = np.zeros(tth_list.shape)
-    zmask = np.abs(del_tth) > 100.0
 
-    y[~zmask] = (
-        -(alpha * beta) / (np.pi * (alpha + beta)) * (f1[~zmask] + f2[~zmask]).imag
-    )
+    y = -(alpha * beta) / (np.pi * (alpha + beta)) * (f1 + f2).imag
 
     mask = np.isnan(y)
     y[mask] = 0.0
@@ -608,8 +600,7 @@ def _gaussian_heating(
 
     g = np.zeros(tth_list.shape)
 
-    zmask = np.abs(del_tth) > 5.0
-    g[~zmask] = (0.5 / tau) * np.exp(v[~zmask]) * t2[~zmask]
+    g = (0.5 / tau) * np.exp(v) * t2
 
     mask = np.isnan(g)
     g[mask] = 0.0
@@ -640,9 +631,8 @@ def _gaussian_heating2(
     f3 = erfc(-(f1 / sqrt2) * (sigma / fwhm_g))
 
     g = np.zeros(tth_list.shape)
-    zmask = np.abs(del_tth) > 3.0
 
-    g[~zmask] = pre * f2[~zmask] * f3[~zmask]
+    g = pre * f2 * f3
     mask = np.isnan(g)
     g[mask] = 0.0
 
@@ -693,7 +683,7 @@ def _lorentzian_heating2(
     pre = 1 / (sigma * sqrt_2pi**3)
     f1 = np.exp(-lamsqr)
     f2 = exp1exp(-lamsqr)
-    f3 = np.pi * f1 * erfc(-1j * lam)
+    f3 = np.pi * wofz(lam)
 
     y = np.zeros(tth_list.shape)
 
