@@ -29,12 +29,9 @@ import numpy as np
 from numba import njit
 import copy
 from hexrd.core import constants
-from hexrd.core.constants import (
-    c_erf,
-    cnum_exp1exp,
-    cden_exp1exp,
-    c_coeff_exp1exp,
-)
+from hexrd.core.fitting.special import erfc, exp1_complex_numba, wofz
+
+exp1exp = exp1_complex_numba
 
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.0
@@ -48,88 +45,6 @@ mpeak_nparams_dict = {
     'split_pvoigt': 6,
     'pink_beam_dcs': 8,
 }
-
-"""
-cutom function to compute the complementary error function
-based on rational approximation of the convergent Taylor
-series. coefficients found in
-Formula 7.1.26
-Handbook of Mathematical Functions,
-Abramowitz and Stegun
-Error is < 1.5e-7 for all x
-"""
-
-
-@njit(cache=True, nogil=True)
-def erfc(x):
-    # save the sign of x
-    sign = np.sign(x)
-    x = np.abs(x)
-
-    # constants
-    a1, a2, a3, a4, a5, p = c_erf
-
-    # A&S formula 7.1.26
-    t = 1.0 / (1.0 + p * x)
-    y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * np.exp(-x * x)
-    erf = sign * y  # erf(-x) = -erf(x)
-    return 1.0 - erf
-
-
-"""
-cutom function to compute the exponential integral
-based on Padé approximation of exponential integral
-function. coefficients found in pg. 231 Abramowitz
-and Stegun, eq. 5.1.53
-"""
-
-
-@njit(cache=True, nogil=True)
-def exp1exp_under1(x):
-    f = np.zeros(x.shape).astype(np.complex128)
-    for i in range(6):
-        xx = x ** (i + 1)
-        f += c_coeff_exp1exp[i] * xx
-
-    return (f - np.log(x) - np.euler_gamma) * np.exp(x)
-
-
-"""
-cutom function to compute the exponential integral
-based on Padé approximation of exponential integral
-function. coefficients found in pg. 415 Y. Luke, The
-special functions and their approximations, vol 2
-(1969) Elsevier
-"""
-
-
-@njit(cache=True, nogil=True)
-def exp1exp_over1(x):
-    num = np.zeros(x.shape).astype(np.complex128)
-    den = np.zeros(x.shape).astype(np.complex128)
-
-    for i in range(11):
-        p = 10 - i
-        if p != 0:
-            xx = x**p
-            num += cnum_exp1exp[i] * xx
-            den += cden_exp1exp[i] * xx
-        else:
-            num += cnum_exp1exp[i]
-            den += cden_exp1exp[i]
-
-    return (num / den) * (1.0 / x)
-
-
-@njit(cache=True, nogil=True)
-def exp1exp(x):
-    mask = np.sign(x.real) * np.abs(x) > 1.0
-
-    f = np.zeros(x.shape).astype(np.complex128)
-    f[mask] = exp1exp_over1(x[mask])
-    f[~mask] = exp1exp_under1(x[~mask])
-
-    return f
 
 
 # =============================================================================

@@ -83,15 +83,6 @@ def test_peak_center_bounds(mock_uniq, params):
 
 
 def test_math_funcs():
-    assert np.isclose(utils.erfc(np.array([0.0, 100.0]))[0], 1.0)
-    assert np.isclose(utils.erfc(np.array([-100.0]))[0], 2.0)
-
-    assert not np.isnan(utils.exp1exp_under1(np.array([0.1 + 0j]))[0])
-    assert not np.isnan(utils.exp1exp_over1(np.array([2.0 + 0j]))[0])
-    assert not np.any(
-        np.isnan(utils.exp1exp(np.array([0.1, 2.0], dtype=np.complex128)))
-    )
-
     assert utils._calc_alpha(np.array([1.0, 2.0]), 0.0) == 1.0
     assert utils._calc_beta(np.array([3.0, 4.0]), 0.0) == 3.0
 
