@@ -32,6 +32,7 @@ the functions which are common to both the Rietveld and LeBail
 classes are put here to minimize code duplication. Some examples
 include initialize background, generate_default_parameter list etc.
 """
+
 import copy
 import warnings
 
@@ -138,9 +139,11 @@ def _add_pvpink_parameters(params):
 
 def _add_pvheating_parameters(params: lmfit.Parameters) -> None:
     p = {
-        "tau0": [1.58, -2.0, 2.0, False],
-        "tau1": [-1.35, -2.0, 2.0, False],
-        "tau2": [0.36, -1.0, 1.0, False],
+        # "tau0": [1.58, -2.0, 2.0, False],
+        # "tau1": [-1.35, -2.0, 2.0, False],
+        # "tau2": [0.36, -1.0, 1.0, False],
+        "sigma0": [0.1, -np.inf, np.inf, False],
+        "sigma1": [0.1, -np.inf, np.inf, False],
     }
     for k, v in p.items():
         params.add(
@@ -273,7 +276,7 @@ def _add_atominfo_to_params(params, mat):
         if mat.aniU:
             U = mat.U
             for j in range(6):
-                nn = f"{phase_name}_{elem}{atom_label[i]}" f"_{_nameU[j]}"
+                nn = f"{phase_name}_{elem}{atom_label[i]}_{_nameU[j]}"
                 params.add(
                     nn,
                     value=U[i, j],
@@ -394,7 +397,7 @@ def _generate_default_parameters_LeBail(
     elif peakshape == 3:
         _add_pvheating_parameters(params)
     else:
-        msg = f"_generate_default_parameters_LeBail: " f"unknown peak shape."
+        msg = f"_generate_default_parameters_LeBail: unknown peak shape."
         raise ValueError(msg)
 
     if "chebyshev" in bkgmethod:
@@ -702,7 +705,7 @@ background_methods = {
             'min': 0,
             'max': 99,
             'value': 3,
-            'tooltip': 'The polynomial degree used ' 'for polynomial fit.',
+            'tooltip': 'The polynomial degree used for polynomial fit.',
         }
     ],
     'snip1d': [
