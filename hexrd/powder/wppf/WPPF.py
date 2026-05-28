@@ -29,11 +29,13 @@ from hexrd.powder.wppf.peakfunctions import (
     computespectrum_pvfcj,
     computespectrum_pvtch,
     computespectrum_pvpink,
-    computespectrum_pvheating,
+    # computespectrum_pvheating,
+    computespectrum_pvheating2,
     calc_Iobs_pvfcj,
     calc_Iobs_pvtch,
     calc_Iobs_pvpink,
-    calc_Iobs_pvheating,
+    # calc_Iobs_pvheating,
+    calc_Iobs_pvheating2,
 )
 from hexrd.powder.wppf import wppfsupport
 from hexrd.powder.wppf.spectrum import Spectrum
@@ -78,9 +80,7 @@ class AbstractWPPF(ABC):
     # Shared methods which each WPPF type uses
     def __str__(self):
         cls_name = self.__class__.__name__
-        resstr = (
-            f"<{cls_name} Fit class>\n" "resParameters of the model are as follows:\n"
-        )
+        resstr = f"<{cls_name} Fit class>\nresParameters of the model are as follows:\n"
         resstr += self.params.__str__()
         return resstr
 
@@ -868,7 +868,7 @@ class AbstractWPPF(ABC):
         elif self.peakshape == 2:
             return computespectrum_pvpink
         elif self.peakshape == 3:
-            return computespectrum_pvheating
+            return computespectrum_pvheating2
 
     @property
     def calc_Iobs_fcn(self):
@@ -879,7 +879,7 @@ class AbstractWPPF(ABC):
         elif self.peakshape == 2:
             return calc_Iobs_pvpink
         elif self.peakshape == 3:
-            return calc_Iobs_pvheating
+            return calc_Iobs_pvheating2
 
     @property
     def tth_list(self):
@@ -1232,7 +1232,8 @@ class LeBail(AbstractWPPF):
 
                 elif self.peakshape == 3:
                     args = (
-                        np.array([self.tau0, self.tau1, self.tau2]),
+                        # np.array([self.tau0, self.tau1, self.tau2]),
+                        np.array([self.sigma0, self.sigma1]),
                         np.array([self.U, self.V, self.W]),
                         P,
                         XY,
@@ -1371,7 +1372,8 @@ class LeBail(AbstractWPPF):
                     )
                 elif self.peakshape == 3:
                     args = (
-                        np.array([self.tau0, self.tau1, self.tau2]),
+                        # np.array([self.tau0, self.tau1, self.tau2]),
+                        np.array([self.sigma0, self.sigma1]),
                         np.array([self.U, self.V, self.W]),
                         P,
                         XY,
@@ -1412,7 +1414,7 @@ class LeBail(AbstractWPPF):
         if print_to_screen:
             logger.info(
                 "Finished iteration. Rwp: "
-                f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
+                f"{self.Rwp * 100.0:.2f} % and chi^2: {self.gofF:.2f}"
             )
 
     def Refine(self, print_to_screen=True):
@@ -1694,11 +1696,7 @@ class Rietveld(AbstractWPPF):
                         Un = []
                         for j in range(6):
                             Un.append(
-                                (
-                                    f"{p}_{elem}"
-                                    f"{atom_label[i]}"
-                                    f"_{wppfsupport._nameU[j]}"
-                                )
+                                (f"{p}_{elem}{atom_label[i]}_{wppfsupport._nameU[j]}")
                             )
                     else:
                         dw = f"{p}_{elem}{atom_label[i]}_dw"
@@ -1813,9 +1811,7 @@ class Rietveld(AbstractWPPF):
             for k, l in self.phases.wavelength.items():
                 t = np.radians(self.tth[p][k])
                 self.LP[p][k] = (
-                    (1 + Ph * np.cos(t) ** 2)
-                    / np.cos(0.5 * t)
-                    / np.sin(0.5 * t) ** 2
+                    (1 + Ph * np.cos(t) ** 2) / np.cos(0.5 * t) / np.sin(0.5 * t) ** 2
                     # / (2.0 * (1 + Ph))
                 )
 
@@ -1970,7 +1966,8 @@ class Rietveld(AbstractWPPF):
             )
         elif self.peakshape == 3:
             args = (
-                np.array([self.tau0, self.tau1, self.tau2]),
+                # np.array([self.tau0, self.tau1, self.tau2]),
+                np.array([self.sigma0, self.sigma1]),
                 np.array([self.U, self.V, self.W]),
                 P,
                 XY,
@@ -2179,7 +2176,7 @@ class Rietveld(AbstractWPPF):
 
             logger.info(
                 "Finished iteration. Rwp: "
-                f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
+                f"{self.Rwp * 100.0:.2f} % and chi^2: {self.gofF:.2f}"
             )
         else:
             logger.info("Nothing to refine. Updating parameters...")
@@ -2211,7 +2208,7 @@ class Rietveld(AbstractWPPF):
 
         logger.info(
             "Finished iteration. Rwp: "
-            f"{self.Rwp*100.0:.2f} % and chi^2: {self.gofF:.2f}"
+            f"{self.Rwp * 100.0:.2f} % and chi^2: {self.gofF:.2f}"
         )
 
     def texture_parameters_vary(self, vary=False):

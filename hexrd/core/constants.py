@@ -51,6 +51,7 @@ piby2 = 0.5 * pi
 piby3 = pi / 3.0
 piby4 = 0.25 * pi
 piby6 = pi / 6.0
+sqrt_2pi = np.sqrt(2 * pi)
 
 # misc radicals
 sqrt2 = np.sqrt(2.0)
