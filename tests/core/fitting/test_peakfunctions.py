@@ -1,8 +1,9 @@
 # tests/test_peakfunctions_simplified.py
 import numpy as np
 import pytest
-from scipy.special import erfc as scipy_erfc
+from scipy.special import erfc as scipy_erfc, wofz as scipy_wofz, exp1 as scipy_exp1
 import hexrd.core.fitting.peakfunctions as pf
+import hexrd.core.fitting.special as sp
 
 # ----------------- small utilities -----------------
 
@@ -21,18 +22,41 @@ def finite_diff_derivative(func, p, x, idx, rel_step=1e-6):
 # ----------------- special functions -----------------
 
 
-def test_erfc_and_exp1exp_smoke():
-    vals = np.array([-5.0, -1.0, 0.0, 0.5, 1.0, 3.2], dtype=float)
-    got = pf.erfc(vals)
+def test_erfc():
+    # test real values
+    vals = np.random.uniform(-5, 5, 5)
+    got = sp.erfc(vals)
     assert got.shape == vals.shape
     assert np.all((got >= 0.0) & (got <= 2.0))
     assert np.allclose(got, scipy_erfc(vals), rtol=1e-6, atol=1e-6)
 
-    x_pos = np.array([0.1, 0.5, 1.0, 2.0], dtype=float)
-    for fn in (pf.exp1exp_under1, pf.exp1exp_over1, pf.exp1exp):
-        arr = fn(x_pos)
-        assert arr.shape == x_pos.shape
-        assert np.all(np.isfinite(arr))
+
+def test_wofz():
+    # test complex values
+    vals = np.random.uniform(-5, 5, 5) + 1j * np.random.uniform(-5, 5, 5)
+    got = sp.wofz(vals)
+    assert got.shape == vals.shape
+    assert np.allclose(got, scipy_wofz(vals), rtol=1e-6, atol=1e-6)
+
+
+def test_exp1():
+    # test real values
+    vals = np.random.uniform(-5, 5, 5)
+    got = sp.exp1_real_numba(vals)
+    assert got.shape == vals.shape
+    # filter out nans. these are infs in scipy
+    mask = ~np.isnan(got)
+    assert np.allclose(got[mask], scipy_exp1(vals)[mask], rtol=1e-6, atol=1e-6)
+
+    # test complex values
+    vals = np.random.uniform(-5, 5, 5) + 1j * np.random.uniform(-5, 5, 5)
+    got = sp.exp1_complex_numba(vals)
+    scipy_got = scipy_exp1(vals)
+    assert got.shape == vals.shape
+
+    # filter out nans. these are infs in scipy
+    mask = ~np.isnan(got)
+    assert np.allclose(got[mask], scipy_got[mask], rtol=1e-6, atol=1e-6)
 
 
 # ----------------- 1D Gaussian -----------------
@@ -80,12 +104,8 @@ def test_gaussian1d_full_and_derivatives():
     np.testing.assert_allclose(dmat[0:3, :], analytic_no_bg)
 
     for i in range(3):
-        fd = finite_diff_derivative(
-            pf._gaussian1d_no_bg, p[:3], x, i, rel_step=1e-6
-        )
-        np.testing.assert_allclose(
-            analytic_no_bg[i, :], fd, rtol=1e-5, atol=1e-8
-        )
+        fd = finite_diff_derivative(pf._gaussian1d_no_bg, p[:3], x, i, rel_step=1e-6)
+        np.testing.assert_allclose(analytic_no_bg[i, :], fd, rtol=1e-5, atol=1e-8)
 
 
 # ----------------- Lorentzian -----------------
@@ -113,9 +133,7 @@ def test_lorentzian_unit_and_full_and_deriv():
     np.testing.assert_allclose(no_bg_out, A * expected_unit, rtol=1e-12)
 
     full_out = pf.lorentzian1d(np.array([A, x0, FWHM, c0, c1]), x)
-    np.testing.assert_allclose(
-        full_out, A * expected_unit + c0 + c1 * x, rtol=1e-12
-    )
+    np.testing.assert_allclose(full_out, A * expected_unit + c0 + c1 * x, rtol=1e-12)
     assert int(np.argmax(no_bg_out)) == int(np.argmin(np.abs(x - x0)))
 
     p = np.array([2.5, -0.3, 0.9], dtype=float)
@@ -191,25 +209,19 @@ def test_pvoigt_and_split_variants():
     FWHM_plus = 1.6
     n_minus = 0.2
     n_plus = 0.7
-    p_no_bg = np.array(
-        [A, x0, FWHM_minus, FWHM_plus, n_minus, n_plus], dtype=float
-    )
+    p_no_bg = np.array([A, x0, FWHM_minus, FWHM_plus, n_minus, n_plus], dtype=float)
     x_small = np.linspace(-2.0, 2.0, 401)
     out_no_bg = pf._split_pvoigt1d_no_bg(p_no_bg, x_small)
     expected = np.zeros_like(x_small)
     xr = x_small >= x0
     xl = x_small < x0
-    expected[xr] = A * pf._unit_pvoigt1d(
-        np.array([x0, FWHM_plus, n_plus]), x_small[xr]
-    )
+    expected[xr] = A * pf._unit_pvoigt1d(np.array([x0, FWHM_plus, n_plus]), x_small[xr])
     expected[xl] = A * pf._unit_pvoigt1d(
         np.array([x0, FWHM_minus, n_minus]), x_small[xl]
     )
     np.testing.assert_allclose(out_no_bg, expected)
     np.testing.assert_allclose(
-        pf.split_pvoigt1d(
-            np.hstack([p_no_bg, np.array([0.05, -0.01])]), x_small
-        ),
+        pf.split_pvoigt1d(np.hstack([p_no_bg, np.array([0.05, -0.01])]), x_small),
         expected + 0.05 - 0.01 * x_small,
     )
 
@@ -217,8 +229,7 @@ def test_pvoigt_and_split_variants():
     x_sym = np.linspace(-2.0, 2.0, 201)
     np.testing.assert_allclose(
         pf._split_pvoigt1d_no_bg(p_sym, x_sym),
-        p_sym[0]
-        * pf._unit_pvoigt1d(np.array([p_sym[1], p_sym[2], p_sym[4]]), x_sym),
+        p_sym[0] * pf._unit_pvoigt1d(np.array([p_sym[1], p_sym[2], p_sym[4]]), x_sym),
     )
 
     p_zeroA = np.array(
@@ -245,9 +256,7 @@ def test_calc_alpha_beta_and_mixing_factor_behavior_and_wrappers():
         assert np.allclose(got_beta, expected_beta, atol=1e-12)
 
     for fwhm_g, fwhm_l in [(0.1, 0.2), (0.5, 0.5), (1.0, 2.0), (2.5, 0.3)]:
-        eta, fwhm = pf._mixing_factor_pv(
-            np.float64(fwhm_g), np.float64(fwhm_l)
-        )
+        eta, fwhm = pf._mixing_factor_pv(np.float64(fwhm_g), np.float64(fwhm_l))
         assert np.isfinite(eta) and np.isfinite(fwhm)
         assert 0.0 <= eta <= 1.0
         poly = (
@@ -283,9 +292,7 @@ def test_calc_alpha_beta_and_mixing_factor_behavior_and_wrappers():
     L = pf._lorentzian_pink_beam(p_l, x)
     expected_full = eta * L + (1.0 - eta) * G + b0 + b1 * x
     out_wrapper = pf.pink_beam_dcs(p_full, x)
-    np.testing.assert_allclose(
-        out_wrapper, expected_full, rtol=1e-8, atol=1e-12
-    )
+    np.testing.assert_allclose(out_wrapper, expected_full, rtol=1e-8, atol=1e-12)
 
     x_lm = np.linspace(-0.8, 0.8, 101)
     out_lm = pf.pink_beam_dcs_lmfit(
@@ -293,21 +300,15 @@ def test_calc_alpha_beta_and_mixing_factor_behavior_and_wrappers():
     )
     alpha_lm = pf._calc_alpha(np.array([alpha0, alpha1], dtype=float), x0)
     beta_lm = pf._calc_beta(np.array([beta0, beta1], dtype=float), x0)
-    p_g_lm = np.hstack(
-        ([A, x0], np.array([alpha_lm, beta_lm, fwhm_g], dtype=float))
-    )
-    p_l_lm = np.hstack(
-        ([A, x0], np.array([alpha_lm, beta_lm, fwhm_l], dtype=float))
-    )
+    p_g_lm = np.hstack(([A, x0], np.array([alpha_lm, beta_lm, fwhm_g], dtype=float)))
+    p_l_lm = np.hstack(([A, x0], np.array([alpha_lm, beta_lm, fwhm_l], dtype=float)))
     eta_lm, _ = pf._mixing_factor_pv(fwhm_g, fwhm_l)
     expected_lm = eta_lm * pf._lorentzian_pink_beam(p_l_lm, x_lm) + (
         1.0 - eta_lm
     ) * pf._gaussian_pink_beam(p_g_lm, x_lm)
     np.testing.assert_allclose(out_lm, expected_lm, rtol=1e-8, atol=1e-12)
 
-    p = np.array(
-        [10.0, 0.5, 0.01, 0.02, 0.03, 0.01, 0.15, 0.20, 1.0, 0.1], dtype=float
-    )
+    p = np.array([10.0, 0.5, 0.01, 0.02, 0.03, 0.01, 0.15, 0.20, 1.0, 0.1], dtype=float)
     x_small = np.linspace(-1.0, 2.0, 7)
     y_no_bg = pf._pink_beam_dcs_no_bg(p[:-2], x_small)
     y_full = pf.pink_beam_dcs(p, x_small)
@@ -346,9 +347,7 @@ def test_tanh_and_2d_coord_transform_and_gauss2d_rot_and_3d():
     assert np.allclose(out2, out2[0, 0])
 
     p_rot = np.array([1.0, 0.0, 0.0, 1.0, 1.0, np.pi / 3])
-    out_rot = pf._gaussian2d_rot_no_bg(
-        p_rot, np.zeros((3, 3)), np.zeros((3, 3))
-    )
+    out_rot = pf._gaussian2d_rot_no_bg(p_rot, np.zeros((3, 3)), np.zeros((3, 3)))
     assert out_rot.shape == (3, 3) and np.isfinite(out_rot).all()
 
     p_full = np.array([1.0, 0.0, 0.0, 1.0, 1.0, 2.0, 0.5, -0.5])
@@ -359,20 +358,14 @@ def test_tanh_and_2d_coord_transform_and_gauss2d_rot_and_3d():
 
     p_gr = np.array([1.0, 0.0, 0.0, 1.0, 1.0, np.pi / 4, 1.0, 0.3, 0.2])
     out_gr = pf.gaussian2d_rot(p_gr, np.zeros((3, 3)), np.zeros((3, 3)))
-    base_r = pf._gaussian2d_rot_no_bg(
-        p_gr[:6], np.zeros((3, 3)), np.zeros((3, 3))
-    )
+    base_r = pf._gaussian2d_rot_no_bg(p_gr[:6], np.zeros((3, 3)), np.zeros((3, 3)))
     assert np.allclose(out_gr, base_r + 1.0 + 0.3 * 0 - 0.2 * 0)
 
     xq = np.array([[-1.0, 1.0], [-1.0, 1.0]])
     yq = np.array([[-1.0, -1.0], [1.0, 1.0]])
     p2d = np.array([1.0, 0.0, 0.0, 1.0, 2.0, 1.5, 2.5, 0.1, 0.2, 0.3, 0.4])
     out2d = pf._split_pvoigt2d_no_bg(p2d, xq, yq)
-    assert (
-        out2d.shape == (2, 2)
-        and np.isfinite(out2d).all()
-        and (out2d >= 0).all()
-    )
+    assert out2d.shape == (2, 2) and np.isfinite(out2d).all() and (out2d >= 0).all()
 
     out2drot = pf._split_pvoigt2d_rot_no_bg(
         np.hstack((p2d, np.pi / 6)), np.zeros((3, 3)), np.zeros((3, 3))
@@ -380,9 +373,7 @@ def test_tanh_and_2d_coord_transform_and_gauss2d_rot_and_3d():
     assert out2drot.shape == (3, 3) and np.isfinite(out2drot).all()
 
     p_split_bg = np.hstack((p2d, np.pi / 7, 1.0, 0.2, -0.1))
-    out_sp_bg = pf.split_pvoigt2d_rot(
-        p_split_bg, np.zeros((4, 4)), np.zeros((4, 4))
-    )
+    out_sp_bg = pf.split_pvoigt2d_rot(p_split_bg, np.zeros((4, 4)), np.zeros((4, 4)))
     base_sp = pf._split_pvoigt2d_rot_no_bg(
         p_split_bg[:12], np.zeros((4, 4)), np.zeros((4, 4))
     )
@@ -417,9 +408,7 @@ def _build_peak_row(pktype):
     if pktype == "split_pvoigt":
         return np.array([0.9, 0.0, 0.7, 1.1, 0.25, 0.75], dtype=float)
     if pktype == "pink_beam_dcs":
-        return np.array(
-            [1.3, 0.1, 0.01, 0.002, 0.02, -0.0003, 0.2, 0.4], dtype=float
-        )
+        return np.array([1.3, 0.1, 0.01, 0.002, 0.02, -0.0003, 0.2, 0.4], dtype=float)
     raise ValueError
 
 
