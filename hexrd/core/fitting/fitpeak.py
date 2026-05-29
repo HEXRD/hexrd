@@ -58,6 +58,7 @@ minf = -inf
 # !!! converted from deg^-1 in Von Dreele's paper
 alpha0, alpha1, beta0, beta1 = np.r_[14.4, 0.0, 3.016, -7.94]
 tau0_DFLT, tau1_DFLT, tau2_DFLT = np.r_[-0.02053503975, 1.524138582, 0]
+sigma0_DFLT, sigma1_DFLT = np.r_[-0.005, 1.7894]
 
 
 def cnst_fit_obj(x, b):
@@ -170,7 +171,8 @@ def estimate_pk_parms_1d(x, f, pktype='pvoigt'):
         p = [A, x0, alpha0, alpha1, beta0, beta1, FWHM, FWHM, bg0, bg1]
     elif pktype == 'pink_beam_heating':
         # A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l
-        p = [A, x0, tau0_DFLT, tau1_DFLT, tau2_DFLT, FWHM, FWHM, bg0, bg1]
+        # p = [A, x0, tau0_DFLT, tau1_DFLT, tau2_DFLT, FWHM, FWHM, bg0, bg1]
+        p = [A, x0, sigma0_DFLT, sigma1_DFLT, FWHM, FWHM, bg0, bg1]
     else:
         raise RuntimeError("pktype '%s' not understood" % pktype)
 
@@ -540,9 +542,11 @@ def estimate_mpk_parms_1d(
             p0tmp[ii, :] = [
                 amp_guess,
                 pk_pos_0[ii],
-                tau0_DFLT,
-                tau1_DFLT,
-                tau2_DFLT,
+                sigma0_DFLT,
+                sigma1_DFLT,
+                # tau0_DFLT,
+                # tau1_DFLT,
+                # tau2_DFLT,
                 fwhm_guess[ii],
                 fwhm_guess[ii],
             ]
