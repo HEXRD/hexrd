@@ -7,7 +7,9 @@ from lmfit import Model, Parameters
 from hexrd.core.constants import fwhm_to_sigma
 from hexrd.core.imageutil import snip1d
 
-from .fitpeak import tau0_DFLT, tau1_DFLT, tau2_DFLT
+# from .fitpeak import tau0_DFLT, tau1_DFLT, tau2_DFLT, sigma0_DFLT, sigma1_DFLT
+from .fitpeak import sigma0_DFLT, sigma1_DFLT
+
 from .peakfunctions import (
     pink_beam_heating_lmfit,
 )
@@ -48,9 +50,11 @@ _function_dict_1d = {
     'pink_beam_heating': [
         'amp',
         'cen',
-        'tau0',
-        'tau1',
-        'tau2',
+        # 'tau0',
+        # 'tau1',
+        # 'tau2',
+        'sigma0',
+        'sigma1',
         'fwhm_g',
         'fwhm_l',
     ],
@@ -179,13 +183,16 @@ def pink_beam_heating(
     x: NDArray,
     amp: float,
     cen: float,
-    tau0: float,
-    tau1: float,
-    tau2: float,
+    sigma0: float,
+    sigma1: float,
+    # tau0: float,
+    # tau1: float,
+    # tau2: float,
     fwhm_g: float,
     fwhm_l: float,
 ) -> NDArray:
-    return pink_beam_heating_lmfit(x, amp, cen, tau0, tau1, tau2, fwhm_g, fwhm_l)
+    # return pink_beam_heating_lmfit(x, amp, cen, tau0, tau1, tau2, fwhm_g, fwhm_l)
+    return pink_beam_heating_lmfit(x, amp, cen, sigma0, sigma1, fwhm_g, fwhm_l)
 
 
 def _amplitude_guess(x, x0, y, fwhm):
@@ -315,9 +322,11 @@ def _initial_guess(
             pkparams[ii, :] = [
                 max(amp_guess, min_ampl),
                 peak_positions[ii],
-                tau0_DFLT,
-                tau1_DFLT,
-                tau2_DFLT,
+                # tau0_DFLT,
+                # tau1_DFLT,
+                # tau2_DFLT,
+                sigma0_DFLT,
+                sigma1_DFLT,
                 fwhm_guess[ii],
                 fwhm_guess[ii],
             ]
@@ -490,7 +499,7 @@ class SpectrumModel(object):
                 ),
             )
         elif pktype == 'pink_beam_heating':
-            _set_refinement_by_name(initial_params_pks, 'tau', vary=False)
+            _set_refinement_by_name(initial_params_pks, 'sigma', vary=False)
             _set_equality_constraints(
                 initial_params_pks,
                 zip(
@@ -565,6 +574,7 @@ class SpectrumModel(object):
             for pname, param in self.peak_params.items():
                 if (
                     'tau' in pname
+                    or 'sigma' in pname
                     or 'alpha' in pname
                     or 'beta' in pname
                     or 'fwhm' in pname
@@ -610,17 +620,21 @@ class SpectrumModel(object):
                 return res0
         elif self.pktype == 'pink_beam_heating':
             for pname, param in self.peak_params.items():
-                if 'tau' in pname or 'fwhm' in pname:
+                if 'sigma' in pname:
                     param.vary = False
 
             res0 = self.model.fit(ydata, params=self.params, x=xdata)
             if res0.success:
                 new_p = res0.params
-                _set_refinement_by_name(new_p, 'tau', vary=True)
-                _set_equality_constraints(new_p, 'tau0')
-                _set_equality_constraints(new_p, 'tau1')
-                _set_equality_constraints(new_p, 'tau2')
-                _set_bound_constraints(new_p, 'tau', min_val=-20, max_val=20)
+                # _set_refinement_by_name(new_p, 'tau', vary=True)
+                # _set_equality_constraints(new_p, 'tau0')
+                # _set_equality_constraints(new_p, 'tau1')
+                # _set_equality_constraints(new_p, 'tau2')
+                # _set_bound_constraints(new_p, 'tau', min_val=-20, max_val=20)
+                _set_refinement_by_name(new_p, 'sigma', vary=False)
+                _set_equality_constraints(new_p, 'sigma0')
+                _set_equality_constraints(new_p, 'sigma1')
+                _set_bound_constraints(new_p, 'sigma', min_val=-np.inf, max_val=np.inf)
                 _set_width_mixing_bounds(
                     new_p,
                     min_w=fwhm_min,
