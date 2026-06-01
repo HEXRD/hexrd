@@ -340,6 +340,7 @@ class SpectrumModel(object):
         fwhm_init=None,
         min_ampl=1e-4,
         min_pk_sep=pk_sep_min,
+        fixed_pink_asymmetry=None,
     ):
         """
         Instantiates spectrum model.
@@ -355,6 +356,13 @@ class SpectrumModel(object):
             DESCRIPTION. The default is 'pvoigt'.
         bgtype : TYPE, optional
             DESCRIPTION. The default is 'linear'.
+        fixed_pink_asymmetry : dict, optional
+            If provided and pktype == 'pink_beam_dcs', the pink-beam
+            asymmetry parameters (alpha0, alpha1, beta0, beta1) are
+            initialized from this dict and held fixed (vary=False) for
+            every peak across both fit stages. Intended for use with
+            values taken from a prior WPPF refinement. Ignored for other
+            peak types. The default is None.
 
         Returns
         -------
@@ -374,6 +382,11 @@ class SpectrumModel(object):
         )
         self._pktype = pktype
         self._bgtype = bgtype
+
+        # Only meaningful for pink_beam_dcs; ignored otherwise.
+        if fixed_pink_asymmetry is not None and pktype != 'pink_beam_dcs':
+            fixed_pink_asymmetry = None
+        self._fixed_pink_asymmetry = fixed_pink_asymmetry
 
         master_keys_pks = _function_dict_1d[pktype]
         master_keys_bkg = _function_dict_1d[bgtype]
@@ -446,6 +459,16 @@ class SpectrumModel(object):
                     _extract_parameters_by_name(initial_params_pks, 'fwhm_l'),
                 ),
             )
+            # If WPPF-derived asymmetry values were provided, write them into
+            # every peak's params. They are already vary=False from above and
+            # will stay that way through fit() (see the early return there).
+            if self._fixed_pink_asymmetry is not None:
+                for i in range(num_peaks):
+                    prefix = pk_prefix_tmpl % i
+                    for pname in ('alpha0', 'alpha1', 'beta0', 'beta1'):
+                        initial_params_pks[prefix + pname].value = (
+                            self._fixed_pink_asymmetry[pname]
+                        )
         elif pktype == 'split_pvoigt':
             mparams = _extract_parameters_by_name(initial_params_pks, 'mixing_l')
             for mp in mparams[1:]:
@@ -515,6 +538,12 @@ class SpectrumModel(object):
                     param.vary = False
 
             res0 = self.model.fit(ydata, params=self.params, x=xdata)
+            # When the user has supplied fixed pink-beam asymmetry values
+            # (typically from a prior WPPF refinement), skip the second-stage
+            # alpha/beta refinement entirely and return the first-stage fit
+            # in which only amp + cen vary.
+            if self._fixed_pink_asymmetry is not None:
+                return res0
             if res0.success:
                 new_p = res0.params
                 _set_refinement_by_name(new_p, 'alpha0', vary=True)
