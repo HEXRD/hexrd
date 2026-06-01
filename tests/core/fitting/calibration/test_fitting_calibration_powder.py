@@ -184,3 +184,29 @@ def test_evaluation(pc):
         pc._evaluate(output='bad')
     pc.data_dict = {'det1': []}
     assert pc.residual().size == 0
+
+
+# --- Fixed pink-beam asymmetry forwarding ---
+
+
+def test_fixed_pink_asymmetry_forwarded_to_spectrum_kwargs(mocks: dict) -> None:
+    # The asymmetry dict is stored and passed through to the SpectrumModel
+    # via spectrum_kwargs, so it reaches the per-ring fit.
+    fixed = {'alpha0': 11.0, 'alpha1': 0.4, 'beta0': 2.1, 'beta1': -5.2}
+    pc = PowderCalibrator(
+        mocks['instr'],
+        mocks['mat'],
+        {'det1': np.zeros((10, 10))},
+        tth_tol=0.5,
+        eta_tol=5.0,
+        pktype='pink_beam_dcs',
+        fixed_pink_asymmetry=fixed,
+    )
+    assert pc.fixed_pink_asymmetry == fixed
+    assert pc.spectrum_kwargs['fixed_pink_asymmetry'] == fixed
+
+
+def test_fixed_pink_asymmetry_defaults_to_none(pc: PowderCalibrator) -> None:
+    # Default behavior is unchanged: no asymmetry is forwarded.
+    assert pc.fixed_pink_asymmetry is None
+    assert pc.spectrum_kwargs['fixed_pink_asymmetry'] is None
