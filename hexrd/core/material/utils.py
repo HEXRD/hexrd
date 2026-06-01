@@ -93,33 +93,33 @@ def calculate_linear_absorption_length(density, formula, energy_vector):
         the attenuation length in microns
 
     """
-    data = importlib.resources.open_binary(hexrd.core.resources, 'mu_en.h5')
-    fid = h5py.File(data, 'r')
-
     formula_dict = interpret_formula(formula)
     molecular_mass = calculate_molecular_mass(formula)
 
     density_conv = density
 
+    resource = importlib.resources.files(hexrd.core.resources) / 'mu_en.h5'
     mu_rho = 0.0
-    for k, v in formula_dict.items():
-        wi = v * ATOM_WEIGHTS_DICT[k] / molecular_mass
+    with importlib.resources.as_file(resource) as data_path, \
+            h5py.File(data_path, 'r') as fid:
+        for k, v in formula_dict.items():
+            wi = v * ATOM_WEIGHTS_DICT[k] / molecular_mass
 
-        d = np.array(fid[f"/{k}/data"])
+            d = np.array(fid[f"/{k}/data"])
 
-        E = d[:, 0]
-        mu_rho_tab = d[:, 1]
+            E = d[:, 0]
+            mu_rho_tab = d[:, 1]
 
-        val = np.interp(
-            np.log(energy_vector),
-            np.log(E),
-            np.log(mu_rho_tab),
-            left=0.0,
-            right=0.0,
-        )
+            val = np.interp(
+                np.log(energy_vector),
+                np.log(E),
+                np.log(mu_rho_tab),
+                left=0.0,
+                right=0.0,
+            )
 
-        val = np.exp(val)
-        mu_rho += wi * val
+            val = np.exp(val)
+            mu_rho += wi * val
 
     mu = mu_rho * density_conv  # this is in cm^-1
     mu = mu * 1e-4  # this is in mm^-1
@@ -156,33 +156,33 @@ def calculate_energy_absorption_length(density, formula, energy_vector):
         the attenuation length in microns
 
     """
-    data = importlib.resources.open_binary(hexrd.core.resources, 'mu_en.h5')
-    fid = h5py.File(data, 'r')
-
     formula_dict = interpret_formula(formula)
     molecular_mass = calculate_molecular_mass(formula)
 
     density_conv = density
 
+    resource = importlib.resources.files(hexrd.core.resources) / 'mu_en.h5'
     mu_rho = 0.0
-    for k, v in formula_dict.items():
-        wi = v * ATOM_WEIGHTS_DICT[k] / molecular_mass
+    with importlib.resources.as_file(resource) as data_path, \
+            h5py.File(data_path, 'r') as fid:
+        for k, v in formula_dict.items():
+            wi = v * ATOM_WEIGHTS_DICT[k] / molecular_mass
 
-        d = np.array(fid[f"/{k}/data"])
+            d = np.array(fid[f"/{k}/data"])
 
-        E = d[:, 0]
-        mu_rho_tab = d[:, 2]
+            E = d[:, 0]
+            mu_rho_tab = d[:, 2]
 
-        val = np.interp(
-            np.log(energy_vector),
-            np.log(E),
-            np.log(mu_rho_tab),
-            left=0.0,
-            right=0.0,
-        )
-        val = np.exp(val)
+            val = np.interp(
+                np.log(energy_vector),
+                np.log(E),
+                np.log(mu_rho_tab),
+                left=0.0,
+                right=0.0,
+            )
+            val = np.exp(val)
 
-        mu_rho += wi * val
+            mu_rho += wi * val
 
     mu = mu_rho * density_conv  # this is in cm^-1
     mu = mu * 1e-4  # this is in microns^-1
@@ -247,11 +247,9 @@ def calculate_incoherent_scattering_factor(
     Q: NDArray[np.float64],
 ) -> NDArray[np.float64]:
 
-    with importlib.resources.open_binary(
-        hexrd.resources,
-        'Anomalous.h5',
-    ) as data:
-        with h5py.File(data, 'r') as f:
+    resource = importlib.resources.files(hexrd.resources) / 'Anomalous.h5'
+    with importlib.resources.as_file(resource) as data_path:
+        with h5py.File(data_path, 'r') as f:
             compton_table = f[element]['compton'][()]
 
     interp = interp1d(

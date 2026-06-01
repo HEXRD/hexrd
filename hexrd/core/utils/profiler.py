@@ -79,7 +79,7 @@ def parse_file(filename):
         import yaml
 
         with open(filename, 'r') as f:
-            cfg = yaml.load(f)
+            cfg = yaml.safe_load(f)
 
         if 'profile' not in cfg:
             msg = 'profile file "{0}" missing a profile section'

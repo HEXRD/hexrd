@@ -178,7 +178,9 @@ def computeArea(polygon):
     area = 0
     for [s1, s2] in triv:
         tvp = np.diff(np.hstack([polygon[s1, :], polygon[s2, :]]), axis=0).flatten()
-        area += 0.5 * np.cross(tvp[:2], tvp[2:])
+        # 2D cross product (z-component); np.cross on 2-vectors is
+        # deprecated in NumPy 2.0
+        area += 0.5 * (tvp[0] * tvp[3] - tvp[1] * tvp[2])
     return area
 
 

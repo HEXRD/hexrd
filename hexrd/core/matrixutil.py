@@ -260,8 +260,8 @@ def rankOneMatrix(vec1, *args):
         if len(vec1.shape) > 2:
             raise RuntimeError("input vec2 is the wrong shape")
 
-    m1, n1 = np.asmatrix(vec1).shape
-    m2, n2 = np.asmatrix(vec2).shape
+    m1, n1 = np.atleast_2d(vec1).shape
+    m2, n2 = np.atleast_2d(vec2).shape
 
     if n1 != n2:
         raise RuntimeError("Number of vectors differ in arguments.")

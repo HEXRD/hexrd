@@ -61,7 +61,7 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
 
     def _load_yml(self) -> None:
         with open(self._fname, "r") as f:
-            d = yaml.load(f)
+            d = yaml.safe_load(f)
         datad = d['data']
         self._cache = datad['file']
         self._nframes: int = datad['nframes']

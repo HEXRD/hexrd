@@ -738,8 +738,9 @@ class Material_Rietveld(Material_LeBail):
 
     def InitializeInterpTable(self):
         f_anomalous_data = []
-        data = importlib.resources.open_binary(hexrd.core.resources, 'Anomalous.h5')
-        with h5py.File(data, 'r') as fid:
+        resource = importlib.resources.files(hexrd.core.resources) / 'Anomalous.h5'
+        with importlib.resources.as_file(resource) as data_path, \
+                h5py.File(data_path, 'r') as fid:
             for i in range(0, self.atom_ntype):
                 Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
