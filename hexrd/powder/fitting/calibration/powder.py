@@ -35,6 +35,7 @@ class PowderCalibrator(Calibrator):
         tth_distortion=None,
         calibration_picks=None,
         xray_source: Optional[str] = None,
+        fixed_pink_asymmetry: Optional[dict] = None,
     ):
         assert list(instr.detectors.keys()) == list(
             img_dict.keys()
@@ -58,6 +59,11 @@ class PowderCalibrator(Calibrator):
         self.min_ampl = min_ampl
         self.pktype = pktype
         self.bgtype = bgtype
+        # Optional dict of fixed pink-beam shape params (typically from a prior
+        # WPPF run) applied to every peak with vary=False. Keys depend on
+        # pktype; see spectrum.pink_beam_asymmetry_params. Ignored for non-pink
+        # pktypes.
+        self.fixed_pink_asymmetry = fixed_pink_asymmetry
 
         self._tth_distortion = tth_distortion
         self._update_tth_distortion_panels()
@@ -130,6 +136,7 @@ class PowderCalibrator(Calibrator):
             fwhm_init=self.fwhm_estimate,
             min_ampl=self.min_ampl,
             min_pk_sep=self.min_pk_sep,
+            fixed_pink_asymmetry=self.fixed_pink_asymmetry,
         )
 
     @property

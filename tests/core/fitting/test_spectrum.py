@@ -285,3 +285,113 @@ def test_spectrummodel_background_params_and_none_fwhm_guess():
     n_pk = num_func_params["gaussian"]
     n_bg = num_func_params["linear"]
     assert p0.size == len(centers) * n_pk + n_bg
+
+
+# ---- fixed pink-beam shape params (from a prior WPPF refinement) ----
+
+# Per-pktype shape values, distinct from the module defaults so we can tell
+# they were actually written. Keys/order match s.pink_beam_asymmetry_params.
+FIXED_PINK_VALUES = {
+    'pink_beam_dcs': {
+        'alpha0': 12.0,
+        'alpha1': 0.5,
+        'beta0': 2.5,
+        'beta1': -6.5,
+    },
+    'pink_beam_heating': {'sigma0': 0.05, 'sigma1': 1.5},
+    'pink_beam_exponential': {'tau0': 1.5, 'tau1': -1.2, 'tau2': 0.3},
+}
+
+_PINK_FUNCS = {
+    'pink_beam_dcs': s.pink_beam_dcs,
+    'pink_beam_heating': s.pink_beam_heating,
+    'pink_beam_exponential': s.pink_beam_exponential,
+}
+
+PINK_TYPES = list(FIXED_PINK_VALUES)
+
+
+def _pink_data(pktype: str) -> tuple[np.ndarray, float]:
+    # Build a clean single-peak spectrum from the fixed shape values, so the
+    # fit is well-conditioned. The shape values slot in right after amp, cen
+    # and before the two fwhm args, matching every pink-beam signature.
+    fixed = FIXED_PINK_VALUES[pktype]
+    x = np.linspace(0.5, 1.5, 201)
+    amp, cen = 2.0, 1.0
+    y = _PINK_FUNCS[pktype](x, amp, cen, *fixed.values(), 0.05, 0.05) + 0.01
+    return np.vstack([x, y]).T, cen
+
+
+@pytest.mark.parametrize("pktype", PINK_TYPES)
+def test_fixed_pink_shape_written_and_held_fixed(pktype: str) -> None:
+    # When the shape params are supplied for a pink-beam profile, every peak
+    # takes the supplied values and is not refined.
+    fixed = FIXED_PINK_VALUES[pktype]
+    data, cen = _pink_data(pktype)
+    sm = SpectrumModel(
+        data,
+        [cen],
+        pktype=pktype,
+        bgtype="linear",
+        fwhm_init=0.05,
+        min_ampl=1e-8,
+        fixed_pink_asymmetry=fixed,
+    )
+    for name, value in fixed.items():
+        param = sm.peak_params['pk0_' + name]
+        assert param.value == value
+        assert param.vary is False
+
+
+@pytest.mark.parametrize("pktype", PINK_TYPES)
+def test_fixed_pink_shape_survives_fit(pktype: str) -> None:
+    # The supplied values stay fixed (vary=False, unchanged) through fit() for
+    # every pink-beam profile.
+    fixed = FIXED_PINK_VALUES[pktype]
+    data, cen = _pink_data(pktype)
+    sm = SpectrumModel(
+        data,
+        [cen],
+        pktype=pktype,
+        bgtype="linear",
+        fwhm_init=0.05,
+        min_ampl=1e-8,
+        fixed_pink_asymmetry=fixed,
+    )
+    res = sm.fit()
+    for name, value in fixed.items():
+        assert res.params['pk0_' + name].vary is False
+        assert res.params['pk0_' + name].value == pytest.approx(value)
+
+
+def test_fixed_pink_shape_ignored_for_other_pktypes() -> None:
+    # The option is only meaningful for pink-beam profiles; for anything else
+    # it is silently dropped.
+    data, cen = _pink_data('pink_beam_dcs')
+    sm = SpectrumModel(
+        data,
+        [cen],
+        pktype="gaussian",
+        bgtype="linear",
+        fwhm_init=0.05,
+        fixed_pink_asymmetry=FIXED_PINK_VALUES['pink_beam_dcs'],
+    )
+    assert sm._fixed_pink_asymmetry is None
+
+
+def test_fixed_pink_dcs_skips_second_stage_refinement() -> None:
+    # dcs is the one type whose second stage would otherwise free alpha0; the
+    # fixed flow must skip it. (heating/exponential never refine their shape
+    # params, so they have no equivalent contrast.)
+    data, cen = _pink_data('pink_beam_dcs')
+    sm_free = SpectrumModel(
+        data,
+        [cen],
+        pktype="pink_beam_dcs",
+        bgtype="linear",
+        fwhm_init=0.05,
+        min_ampl=1e-8,
+    )
+    res_free = sm_free.fit()
+    assert res_free.success
+    assert res_free.params['pk0_alpha0'].vary is True

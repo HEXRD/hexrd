@@ -84,6 +84,17 @@ for key, val in _function_dict_1d.items():
 
 pk_prefix_tmpl = "pk%d_"
 
+# The tth-dependent shape parameters for each pink-beam profile. These are the
+# parameters that can be supplied via ``fixed_pink_asymmetry`` (typically from a
+# prior WPPF refinement) to be held fixed during calibration. Each is a
+# polynomial in tan(theta): dcs has separate rising/falling edges (alpha, beta),
+# while the heating profiles have a single exponential term (sigma or tau).
+pink_beam_asymmetry_params = {
+    'pink_beam_dcs': ('alpha0', 'alpha1', 'beta0', 'beta1'),
+    'pink_beam_heating': ('sigma0', 'sigma1'),
+    'pink_beam_exponential': ('tau0', 'tau1', 'tau2'),
+}
+
 alpha0_DFLT, alpha1_DFLT, beta0_DFLT, beta1_DFLT = np.r_[14.45, 0.0, 3.0162, -7.9411]
 
 param_hints_DFLT = (True, None, None, None, None)
@@ -424,6 +435,7 @@ class SpectrumModel(object):
         fwhm_init=None,
         min_ampl=1e-4,
         min_pk_sep=pk_sep_min,
+        fixed_pink_asymmetry=None,
     ):
         """
         Instantiates spectrum model.
@@ -439,6 +451,16 @@ class SpectrumModel(object):
             DESCRIPTION. The default is 'pvoigt'.
         bgtype : TYPE, optional
             DESCRIPTION. The default is 'linear'.
+        fixed_pink_asymmetry : dict, optional
+            If provided and pktype is one of the pink-beam profiles, the
+            tth-dependent shape parameters for that profile are initialized
+            from this dict and held fixed (vary=False) for every peak. The
+            expected keys depend on the peak type (see
+            ``pink_beam_asymmetry_params``): alpha0/alpha1/beta0/beta1 for
+            'pink_beam_dcs', sigma0/sigma1 for 'pink_beam_heating', and
+            tau0/tau1/tau2 for 'pink_beam_exponential'. Intended for use with
+            values taken from a prior WPPF refinement. Ignored for other peak
+            types. The default is None.
 
         Returns
         -------
@@ -458,6 +480,14 @@ class SpectrumModel(object):
         )
         self._pktype = pktype
         self._bgtype = bgtype
+
+        # Only meaningful for the pink-beam profiles; ignored otherwise.
+        if (
+            fixed_pink_asymmetry is not None
+            and pktype not in pink_beam_asymmetry_params
+        ):
+            fixed_pink_asymmetry = None
+        self._fixed_pink_asymmetry = fixed_pink_asymmetry
 
         master_keys_pks = _function_dict_1d[pktype]
         master_keys_bkg = _function_dict_1d[bgtype]
@@ -556,6 +586,16 @@ class SpectrumModel(object):
             for mp in mparams[1:]:
                 _set_equality_constraints(initial_params_pks, ((mp, mparams[0]),))
 
+        # If WPPF-derived shape values were provided, write them into every
+        # peak's params. These params (alpha/beta for dcs, sigma for heating,
+        # tau for exponential) are already vary=False from the per-type setup
+        # above and stay fixed through fit().
+        if self._fixed_pink_asymmetry is not None:
+            for i in range(num_peaks):
+                prefix = pk_prefix_tmpl % i
+                for pname, value in self._fixed_pink_asymmetry.items():
+                    initial_params_pks[prefix + pname].value = value
+
         # background
         initial_params_bkg = Parameters()
         initial_params_bkg.add_many(
@@ -617,6 +657,10 @@ class SpectrumModel(object):
                     param.vary = False
 
             res0 = self.model.fit(ydata, params=self.params, x=xdata)
+            # With fixed asymmetry supplied, skip the second-stage alpha/beta
+            # refinement and return the first-stage fit (only amp + cen vary).
+            if self._fixed_pink_asymmetry is not None:
+                return res0
             if res0.success:
                 new_p = res0.params
                 _set_refinement_by_name(new_p, 'alpha0', vary=True)
