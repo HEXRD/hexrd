@@ -5,6 +5,7 @@ from numba import njit
 from hexrd.core.fitting.special import erfc, exp1exp
 
 from hexrd.core.matrixutil import uniqueVectors
+from hexrd.core.fitting.special import erfc, exp1exp, wofz
 
 # =============================================================================
 # LMFIT Parameter munging utilities
