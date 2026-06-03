@@ -303,29 +303,6 @@ class DeLaValleePoussinKernel(SO3Kernel):
         co2 = np.cos(omega / 2.0)
         return self._C * co2 ** (2.0 * self._kappa)
 
-    def eval_centered(
-        self, R: np.ndarray, center: np.ndarray
-    ) -> _AngleResult:
-        """
-        Evaluate kernel centered at a specific orientation.
-
-        Equivalent to eval(center, R) with clearer semantics
-        for unimodal distributions.
-
-        Parameters
-        ----------
-        R : array_like
-            Rotation matrices to evaluate at, shape (..., 3, 3)
-        center : array_like
-            Central (modal) orientation, shape (3, 3)
-
-        Returns
-        -------
-        float or numpy.ndarray
-            Kernel values relative to center orientation
-        """
-        return self.eval(center, R)
-
     def __repr__(self) -> str:
         """String representation of kernel."""
         hw_deg = np.degrees(self.halfwidth)

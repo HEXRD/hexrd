@@ -285,26 +285,6 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
                 np.eye(2), np.eye(3)
             )
 
-    # --- eval_centered test ---
-
-    def test_eval_centered_matches_eval(self):
-        """Test that eval_centered(R, center) == eval(center, R)."""
-        kernel = DeLaValleePoussinKernel(
-            halfwidth=np.radians(10)
-        )
-        center = np.eye(3)
-        R = np.array([
-            [0, -1, 0],
-            [1,  0, 0],
-            [0,  0, 1],
-        ], dtype=float)
-
-        val_eval = kernel.eval(center, R)
-        val_centered = kernel.eval_centered(R, center)
-        self.assertAlmostEqual(
-            float(val_eval), float(val_centered), places=10
-        )
-
     # --- Batch evaluation test ---
 
     def test_batch_evaluation(self):
