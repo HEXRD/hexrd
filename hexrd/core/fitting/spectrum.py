@@ -72,7 +72,7 @@ for key, val in _function_dict_1d.items():
 
 pk_prefix_tmpl = "pk%d_"
 
-alpha0_DFLT, alpha1_DFLT, beta0_DFLT, beta1_DFLT = np.r_[14.45, 0.0, 3.0162, -7.9411]
+alpha0_DFLT, alpha1_DFLT, beta0_DFLT, beta1_DFLT = np.r_[18.77, 0.0, 2.919, -10.83]
 
 param_hints_DFLT = (True, None, None, None, None)
 
@@ -591,8 +591,8 @@ class SpectrumModel(object):
                 _set_equality_constraints(new_p, 'alpha1')
                 _set_equality_constraints(new_p, 'beta0')
                 _set_equality_constraints(new_p, 'beta1')
-                _set_bound_constraints(new_p, 'alpha', min_val=-10, max_val=30)
-                _set_bound_constraints(new_p, 'beta', min_val=-10, max_val=30)
+                _set_bound_constraints(new_p, 'alpha', min_val=-np.inf, max_val=np.inf)
+                _set_bound_constraints(new_p, 'beta', min_val=-np.inf, max_val=np.inf)
                 _set_width_mixing_bounds(
                     new_p,
                     min_w=fwhm_min,
