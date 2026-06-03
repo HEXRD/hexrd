@@ -4,6 +4,7 @@ import numpy as np
 import unittest
 from scipy.special import beta as betafn
 
+from hexrd.core import rotations
 from hexrd.phase_transition.texture.kernels import DeLaValleePoussinKernel
 
 
@@ -42,7 +43,7 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
     """Test DeLaValleePoussinKernel."""
 
     def test_kernel_matches_mtex_ground_truth_values(self):
-        """Test kernel evaluation against values generated from MTEX."""
+        """Test kernel evaluation against ground truth generated values."""
         halfwidth = 2.0 * np.arccos(
             0.5 ** (1.0 / (2.0 * MTEX_KERNEL_KAPPA))
         )
@@ -64,7 +65,7 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
         )
 
     def test_halfwidth_conversion_matches_mtex_ground_truth(self):
-        """Test half-width to kappa conversion against MTEX output."""
+        """Test half-width to kappa conversion against ground truth values."""
         kernel = DeLaValleePoussinKernel(halfwidth=MTEX_HALFWIDTH_RAD)
 
         np.testing.assert_allclose(
@@ -276,6 +277,43 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
             [0.0, np.radians(45.0), 0.0],
             atol=1e-8,
         )
+
+    def test_misorientation_angle_accepts_quaternion_array_symmetry(self):
+        """Test passing precomputed quaternion symmetry matches the label."""
+        R90z = np.array([
+            [0, -1, 0],
+            [1,  0, 0],
+            [0,  0, 1],
+        ], dtype=float)
+
+        kernel_label = DeLaValleePoussinKernel(
+            halfwidth=np.radians(10),
+            crystal_symmetry='d4h',
+        )
+        kernel_array = DeLaValleePoussinKernel(
+            halfwidth=np.radians(10),
+            crystal_symmetry=rotations.quatOfLaueGroup('d4h'),
+        )
+
+        angle_label = kernel_label.misorientation_angle(np.eye(3), R90z)
+        angle_array = kernel_array.misorientation_angle(np.eye(3), R90z)
+        self.assertAlmostEqual(
+            float(angle_array), float(angle_label), places=10
+        )
+
+    def test_misorientation_angle_uses_sample_symmetry(self):
+        """Test sample-only symmetry reduces an equivalent misorientation."""
+        kernel = DeLaValleePoussinKernel(
+            halfwidth=np.radians(10),
+            sample_symmetry='orthorhombic',
+        )
+
+        # 180° rotation about z is a d2h (orthorhombic) sample operation,
+        # so its symmetry-reduced misorientation from identity is 0.
+        R180z = _rotation_about_z(np.radians(180.0))
+
+        angle = kernel.misorientation_angle(np.eye(3), R180z)
+        self.assertAlmostEqual(float(angle), 0.0, places=8)
 
     def test_misorientation_angle_bad_shape(self):
         """Test that non-(3,3) inputs raise ValueError."""
