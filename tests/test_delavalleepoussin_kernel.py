@@ -108,6 +108,20 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
         self.assertAlmostEqual(
             value, kernel.norm_constant, places=10
         )
+
+    def test_string_representations(self):
+        """Test string representation methods."""
+        kernel = DeLaValleePoussinKernel(halfwidth=np.radians(4.0))
+
+        repr_str = repr(kernel)
+        self.assertIn('DeLaValleePoussinKernel', repr_str)
+        self.assertIn('halfwidth=', repr_str)
+        self.assertIn('kappa=', repr_str)
+
+        str_repr = str(kernel)
+        self.assertIn('de la Vallée Poussin kernel', str_repr)
+        self.assertIn('half-width', str_repr)
+        self.assertIn('K(ω)', str_repr)
         
     def test_kernel_decreases_with_misorientation(self):
         """Test that kernel value decreases as misorientation grows."""
