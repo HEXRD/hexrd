@@ -21,6 +21,7 @@ _SAMPLE_SYMMETRY_TO_LAUE = {
     'monoclinic': 'c2h',
     'orthorhombic': 'd2h',
 }
+_AngleResult = Union[float, np.ndarray]
 _Symmetry = Optional[Union[str, np.ndarray]]
 
 
@@ -32,12 +33,19 @@ def _symmetry_quaternions(
     if symmetry is None:
         return None
     if isinstance(symmetry, np.ndarray):
+        if len(symmetry.shape) != 2 or symmetry.shape[0] != 4:
+            raise ValueError(f"{symtype} symmetry must have shape (4, n)")
         return symmetry
     if not isinstance(symmetry, str):
-        raise TypeError(f"{symtype} symmetry must be a string or ndarray")
+        raise ValueError(f"{symtype} symmetry must be a string or ndarray")
     if symtype == 'sample':
         symmetry = _SAMPLE_SYMMETRY_TO_LAUE.get(symmetry.lower(), symmetry)
-    return rotations.quatOfLaueGroup(symmetry)
+    try:
+        return rotations.quatOfLaueGroup(symmetry)
+    except RuntimeError as error:
+        raise ValueError(
+            f"Invalid {symtype} symmetry: {symmetry!r}"
+        ) from error
 
 
 class SO3Kernel(ABC):
@@ -51,7 +59,7 @@ class SO3Kernel(ABC):
     @abstractmethod
     def eval(
         self, R1: np.ndarray, R2: np.ndarray
-    ) -> np.ndarray:
+    ) -> _AngleResult:
         """
         Evaluate kernel between two rotations.
 
@@ -62,7 +70,7 @@ class SO3Kernel(ABC):
 
         Returns
         -------
-        numpy.ndarray
+        float or numpy.ndarray
             Kernel values
         """
         pass
@@ -187,11 +195,14 @@ class DeLaValleePoussinKernel(SO3Kernel):
 
     def misorientation_angle(
         self, R1: np.ndarray, R2: np.ndarray
-    ) -> np.ndarray:
+    ) -> _AngleResult:
         """
         Calculate misorientation angle between rotation matrices.
 
-        Uses the formula: cos(ω) = (trace(R1^T @ R2) - 1) / 2
+        Without symmetry, uses the formula:
+        cos(ω) = (trace(R1^T @ R2) - 1) / 2.
+        With crystal or sample symmetry, delegates to
+        hexrd.core.rotations.misorientation for symmetry-reduced angles.
 
         Parameters
         ----------
@@ -200,7 +211,7 @@ class DeLaValleePoussinKernel(SO3Kernel):
 
         Returns
         -------
-        numpy.ndarray
+        float or numpy.ndarray
             Misorientation angles in radians, shape matches input broadcasting
         """
         R1 = np.asarray(R1)
@@ -227,7 +238,7 @@ class DeLaValleePoussinKernel(SO3Kernel):
         self,
         R1: np.ndarray,
         R2: np.ndarray,
-    ) -> np.ndarray:
+    ) -> _AngleResult:
         output_shape = np.broadcast_shapes(R1.shape[:-2], R2.shape[:-2])
         R1_flat = np.broadcast_to(
             R1,
@@ -265,7 +276,7 @@ class DeLaValleePoussinKernel(SO3Kernel):
 
     def eval(
         self, R1: np.ndarray, R2: np.ndarray
-    ) -> np.ndarray:
+    ) -> _AngleResult:
         """
         Evaluate de la Vallée Poussin kernel between rotations.
 
@@ -278,7 +289,7 @@ class DeLaValleePoussinKernel(SO3Kernel):
 
         Returns
         -------
-        numpy.ndarray
+        float or numpy.ndarray
             Kernel values, shape matches broadcasting of R1 and R2
 
         Examples
@@ -294,7 +305,7 @@ class DeLaValleePoussinKernel(SO3Kernel):
 
     def eval_centered(
         self, R: np.ndarray, center: np.ndarray
-    ) -> np.ndarray:
+    ) -> _AngleResult:
         """
         Evaluate kernel centered at a specific orientation.
 
@@ -310,7 +321,7 @@ class DeLaValleePoussinKernel(SO3Kernel):
 
         Returns
         -------
-        numpy.ndarray
+        float or numpy.ndarray
             Kernel values relative to center orientation
         """
         return self.eval(center, R)

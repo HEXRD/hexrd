@@ -177,6 +177,30 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
         with self.assertWarns(UserWarning):
             DeLaValleePoussinKernel(halfwidth=np.radians(100))
 
+    def test_invalid_symmetry_type_raises_value_error(self):
+        """Test that invalid symmetry types raise ValueError."""
+        with self.assertRaises(ValueError):
+            DeLaValleePoussinKernel(
+                halfwidth=np.radians(10),
+                crystal_symmetry=123,
+            )
+
+    def test_invalid_symmetry_string_raises_value_error(self):
+        """Test that invalid symmetry strings raise ValueError."""
+        with self.assertRaises(ValueError):
+            DeLaValleePoussinKernel(
+                halfwidth=np.radians(10),
+                crystal_symmetry='invalid',
+            )
+
+    def test_invalid_symmetry_array_shape_raises_value_error(self):
+        """Test that invalid symmetry array shapes raise ValueError."""
+        with self.assertRaises(ValueError):
+            DeLaValleePoussinKernel(
+                halfwidth=np.radians(10),
+                crystal_symmetry=np.eye(3),
+            )
+
     # --- misorientation_angle tests ---
 
     def test_misorientation_angle_identity(self):
