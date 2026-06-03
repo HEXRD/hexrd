@@ -4,7 +4,7 @@ import numpy as np
 import unittest
 from scipy.special import beta as betafn
 
-from hexrd.texture.kernels import DeLaValleePoussinKernel
+from hexrd.phase_transition.texture.kernels import DeLaValleePoussinKernel
 
 
 MTEX_KERNEL_KAPPA = 90.0
