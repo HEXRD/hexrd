@@ -201,6 +201,58 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
             float(angle), np.radians(90), places=8
         )
 
+    def test_misorientation_angle_uses_crystal_symmetry(self):
+        """Test symmetry-reduced misorientation angle."""
+        kernel = DeLaValleePoussinKernel(
+            halfwidth=np.radians(10),
+            crystal_symmetry='d4h',
+        )
+
+        R90z = np.array([
+            [0, -1, 0],
+            [1,  0, 0],
+            [0,  0, 1],
+        ], dtype=float)
+
+        angle = kernel.misorientation_angle(np.eye(3), R90z)
+        self.assertAlmostEqual(float(angle), 0.0, places=8)
+
+    def test_symmetric_kernel_value_is_peak_for_equivalent_rotations(self):
+        """Test symmetry-equivalent rotations evaluate to the peak value."""
+        kernel = DeLaValleePoussinKernel(
+            halfwidth=np.radians(10),
+            crystal_symmetry='d4h',
+        )
+
+        R90z = np.array([
+            [0, -1, 0],
+            [1,  0, 0],
+            [0,  0, 1],
+        ], dtype=float)
+
+        value = kernel.eval(np.eye(3), R90z)
+        self.assertAlmostEqual(value, kernel.norm_constant, places=8)
+
+    def test_batch_misorientation_angle_uses_crystal_symmetry(self):
+        """Test symmetry-reduced misorientation for batches."""
+        kernel = DeLaValleePoussinKernel(
+            halfwidth=np.radians(10),
+            crystal_symmetry='d4h',
+        )
+
+        R45z = _rotation_about_z(np.radians(45.0))
+        R90z = _rotation_about_z(np.radians(90.0))
+        batch = np.stack([np.eye(3), R45z, R90z])
+
+        angles = kernel.misorientation_angle(np.eye(3), batch)
+
+        self.assertEqual(angles.shape, (3,))
+        np.testing.assert_allclose(
+            angles,
+            [0.0, np.radians(45.0), 0.0],
+            atol=1e-8,
+        )
+
     def test_misorientation_angle_bad_shape(self):
         """Test that non-(3,3) inputs raise ValueError."""
         kernel = DeLaValleePoussinKernel(halfwidth=np.radians(10))

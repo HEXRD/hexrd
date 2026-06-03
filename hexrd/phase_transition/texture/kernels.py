@@ -5,11 +5,39 @@ Implements radial basis functions on the rotation group SO(3) used for
 constructing smooth orientation distribution functions.
 """
 
+from abc import ABC, abstractmethod
+from typing import Optional, Union
 import warnings
 
 import numpy as np
-from abc import ABC, abstractmethod
 from scipy.special import beta as betafn
+
+from hexrd.core import rotations
+
+
+_IDENTITY_SYMMETRY = np.c_[1.0, 0.0, 0.0, 0.0].T
+_SAMPLE_SYMMETRY_TO_LAUE = {
+    'triclinic': 'ci',
+    'monoclinic': 'c2h',
+    'orthorhombic': 'd2h',
+}
+_Symmetry = Optional[Union[str, np.ndarray]]
+
+
+def _symmetry_quaternions(
+    symmetry: _Symmetry,
+    *,
+    symtype: str,
+) -> Optional[np.ndarray]:
+    if symmetry is None:
+        return None
+    if isinstance(symmetry, np.ndarray):
+        return symmetry
+    if not isinstance(symmetry, str):
+        raise TypeError(f"{symtype} symmetry must be a string or ndarray")
+    if symtype == 'sample':
+        symmetry = _SAMPLE_SYMMETRY_TO_LAUE.get(symmetry.lower(), symmetry)
+    return rotations.quatOfLaueGroup(symmetry)
 
 
 class SO3Kernel(ABC):
@@ -62,6 +90,14 @@ class DeLaValleePoussinKernel(SO3Kernel):
     halfwidth : float
         Half-width parameter in radians — the angle at which K drops
         to half its maximum. Must be > 0, typically in [π/180, π/2].
+    crystal_symmetry : str or numpy.ndarray, optional
+        Crystal symmetry used to compute symmetry-reduced misorientation
+        angles. Strings are interpreted as Laue group labels.
+    sample_symmetry : str or numpy.ndarray, optional
+        Sample symmetry used to compute symmetry-reduced misorientation
+        angles. Strings are interpreted as Laue group labels, with
+        triclinic, monoclinic, and orthorhombic sample labels mapped to
+        their corresponding finite Laue groups.
 
     Attributes
     ----------
@@ -80,7 +116,12 @@ class DeLaValleePoussinKernel(SO3Kernel):
     >>> value = kernel.eval(R1, R2)  # Maximum value = C
     """
 
-    def __init__(self, halfwidth: float) -> None:
+    def __init__(
+        self,
+        halfwidth: float,
+        crystal_symmetry: _Symmetry = None,
+        sample_symmetry: _Symmetry = None,
+    ) -> None:
         """
         Initialize de la Vallée Poussin kernel.
 
@@ -88,6 +129,10 @@ class DeLaValleePoussinKernel(SO3Kernel):
         ----------
         halfwidth : float
             Half-width parameter in radians
+        crystal_symmetry : str or numpy.ndarray, optional
+            Crystal symmetry for symmetry-reduced misorientation angles
+        sample_symmetry : str or numpy.ndarray, optional
+            Sample symmetry for symmetry-reduced misorientation angles
         """
         if halfwidth <= 0:
             raise ValueError("Half-width must be positive")
@@ -108,6 +153,22 @@ class DeLaValleePoussinKernel(SO3Kernel):
 
         # Normalization constant: C = B(3/2, 1/2) / B(3/2, κ + 1/2)
         self._C = betafn(1.5, 0.5) / betafn(1.5, self._kappa + 0.5)
+        self._crystal_symmetry = _symmetry_quaternions(
+            crystal_symmetry,
+            symtype='crystal',
+        )
+        self._sample_symmetry = _symmetry_quaternions(
+            sample_symmetry,
+            symtype='sample',
+        )
+
+    @property
+    def has_symmetry(self) -> bool:
+        """bool: Whether symmetry reduction is enabled."""
+        return (
+            self._crystal_symmetry is not None
+            or self._sample_symmetry is not None
+        )
 
     @property
     def halfwidth(self) -> float:
@@ -150,6 +211,9 @@ class DeLaValleePoussinKernel(SO3Kernel):
                 "Input matrices must have shape (..., 3, 3)"
             )
 
+        if self.has_symmetry:
+            return self._symmetry_reduced_misorientation_angle(R1, R2)
+
         # Relative rotation: R1^T @ R2
         R1_T = np.swapaxes(R1, -2, -1)
         relative = np.matmul(R1_T, R2)
@@ -158,6 +222,46 @@ class DeLaValleePoussinKernel(SO3Kernel):
         # cos(ω) = (tr(R) - 1) / 2, clamped for numerical safety
         cos_omega = np.clip((trace - 1.0) / 2.0, -1.0, 1.0)
         return np.arccos(cos_omega)
+
+    def _symmetry_reduced_misorientation_angle(
+        self,
+        R1: np.ndarray,
+        R2: np.ndarray,
+    ) -> np.ndarray:
+        output_shape = np.broadcast_shapes(R1.shape[:-2], R2.shape[:-2])
+        R1_flat = np.broadcast_to(
+            R1,
+            output_shape + (3, 3),
+        ).reshape(-1, 3, 3)
+        R2_flat = np.broadcast_to(
+            R2,
+            output_shape + (3, 3),
+        ).reshape(-1, 3, 3)
+
+        angles = np.empty(R1_flat.shape[0], dtype=float)
+        symmetries = self._misorientation_symmetries()
+        for i, (r1, r2) in enumerate(zip(R1_flat, R2_flat)):
+            q1 = rotations.quatOfRotMat(r1).reshape(4, 1)
+            q2 = rotations.quatOfRotMat(r2).reshape(4, 1)
+            angle, _ = rotations.misorientation(
+                q1,
+                q2,
+                symmetries=symmetries,
+            )
+            angles[i] = angle[0]
+
+        if output_shape == ():
+            return angles[0]
+        return angles.reshape(output_shape)
+
+    def _misorientation_symmetries(self) -> tuple[np.ndarray, ...]:
+        crystal_symmetry = self._crystal_symmetry
+        if crystal_symmetry is None and self._sample_symmetry is not None:
+            crystal_symmetry = _IDENTITY_SYMMETRY
+        symmetries = (crystal_symmetry,) if crystal_symmetry is not None else ()
+        if self._sample_symmetry is not None:
+            symmetries = symmetries + (self._sample_symmetry,)
+        return symmetries
 
     def eval(
         self, R1: np.ndarray, R2: np.ndarray
