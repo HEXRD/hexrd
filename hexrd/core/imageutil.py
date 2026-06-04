@@ -87,12 +87,25 @@ def snip1d(y, w=4, numiter=2, threshold=None, max_workers=os.cpu_count()):
     tasks = enumerate(zip(zfull, mask))
     f = partial(_run_snip1d_row, numiter=numiter, w=w, min_val=min_val)
 
-    if max_workers > 1:
-        # Parallelize over tasks
+    # The per-row tasks are tiny, so a process pool only pays off when workers
+    # can be created cheaply, i.e. with the "fork" start method (Linux). With
+    # "spawn" (macOS/Windows) each worker re-imports the whole stack on every
+    # call, which costs far more than the work itself - in practice it is even
+    # slower than running serially - so we fall back to serial there.
+    use_pool = (
+        max_workers > 1
+        and constants.mp_context.get_start_method() == 'fork'
+    )
+
+    if use_pool:
+        # Parallelize over rows. Chunk the rows so the (cheap) per-task
+        # dispatch cost is amortized rather than paid once per row.
+        n_rows = len(zfull)
+        chunksize = max(1, n_rows // max_workers)
         with ProcessPoolExecutor(
             mp_context=constants.mp_context, max_workers=max_workers
         ) as executor:
-            for k, result in executor.map(f, tasks):
+            for k, result in executor.map(f, tasks, chunksize=chunksize):
                 bkg[k, :] = result
     else:
         # Run the tasks in this process
