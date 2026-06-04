@@ -66,7 +66,15 @@ class MaterialConfig(Config):
     @property
     def tthw(self):
         """Return the specified tth tolerance."""
-        return self._cfg.get('material:tth_width', TTHW_DFLT)
+        # The HEDM workflow requires a fixed 2-theta width, so fall back to the
+        # default if one is not specified. A material may legitimately have a
+        # tThWidth of None (meaning "no fixed width"), which gets serialized as
+        # `tth_width: null`; treat that the same as an absent key rather than
+        # passing None through (which would crash the workflow).
+        tthw = self._cfg.get('material:tth_width', TTHW_DFLT)
+        if tthw is None:
+            tthw = TTHW_DFLT
+        return tthw
 
     @property
     def fminr(self):

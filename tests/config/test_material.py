@@ -1,5 +1,6 @@
 from .common import TestConfig, test_data
-from hexrd.core.config.material import TTHW_DFLT, DMIN_DFLT
+from hexrd.core.config.material import TTHW_DFLT
+from hexrd.core.config.root import RootConfig
 from hexrd.core.config.utils import get_exclusion_parameters
 
 
@@ -70,6 +71,13 @@ class TestMaterialConfig(TestConfig):
         self.assertEqual(self.cfgs[0].material.tthw, TTHW_DFLT)
         self.assertEqual(self.cfgs[1].material.tthw, 0.2)
         self.assertEqual(self.cfgs[2].material.tthw, 0.2)
+
+    def test_two_theta_width_null(self):
+        # A material with no fixed width serializes as `tth_width: null`. This
+        # must fall back to the default rather than passing None through (which
+        # would crash the HEDM workflow).
+        cfg = RootConfig({'material': {'tth_width': None}})
+        self.assertEqual(cfg.material.tthw, TTHW_DFLT)
 
     def test_reset_exclusions(self):
         self.assertEqual(self.cfgs[0].material.reset_exclusions, True)
