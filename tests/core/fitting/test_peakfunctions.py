@@ -56,7 +56,6 @@ def test_exp1():
     got = sp.exp1_complex_numba(vals)
     scipy_got = scipy_exp1(vals)
     assert got.shape == vals.shape
-
     # filter out nans. these are infs in scipy
     mask = ~np.isnan(got)
     assert np.allclose(got[mask], scipy_got[mask], rtol=1e-6, atol=1e-6)
