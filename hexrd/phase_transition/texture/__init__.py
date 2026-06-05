@@ -10,6 +10,8 @@ from hexrd.phase_transition.texture.evaluation import (
     eval_odf_batch,
     eval_at_identity,
     eval_random_orientations,
+    texture_index,
+    texture_norm,
 )
 
 __all__ = [
@@ -22,4 +24,6 @@ __all__ = [
     'eval_odf_batch',
     'eval_at_identity',
     'eval_random_orientations',
+    'texture_index',
+    'texture_norm',
 ]

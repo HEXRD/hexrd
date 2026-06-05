@@ -115,6 +115,59 @@ class UniformODF:
         """Constant ODF value in MRD."""
         return self._UNIFORM_VALUE
 
+    def analytic_texture_index(self) -> float:
+        """
+        Exact texture index J = <f^2> of the uniform ODF.
+
+        The uniform ODF is constant at 1 MRD, so J = 1 exactly.
+
+        Returns
+        -------
+        float
+            Texture index, always 1.0.
+        """
+        return self._UNIFORM_VALUE ** 2
+
+    def texture_index(self, n_orientations: int = 100000, seed=None) -> float:
+        """
+        Texture index J = <f^2> (always 1.0 for a uniform ODF).
+
+        Parameters
+        ----------
+        n_orientations : int, optional
+            Unused; accepted for API parity with sampled ODFs.
+        seed : int, optional
+            Unused; accepted for API parity with sampled ODFs.
+
+        Returns
+        -------
+        float
+            Texture index, always 1.0.
+        """
+        from .evaluation import texture_index as _texture_index
+
+        return _texture_index(self, n_orientations=n_orientations, seed=seed)
+
+    def norm(self, n_orientations: int = 100000, seed=None) -> float:
+        """
+        L2 norm ||f|| = sqrt(J) (always 1.0 for a uniform ODF).
+
+        Parameters
+        ----------
+        n_orientations : int, optional
+            Unused; accepted for API parity with sampled ODFs.
+        seed : int, optional
+            Unused; accepted for API parity with sampled ODFs.
+
+        Returns
+        -------
+        float
+            L2 norm, always 1.0.
+        """
+        from .evaluation import texture_norm as _texture_norm
+
+        return _texture_norm(self, n_orientations=n_orientations, seed=seed)
+
     def eval(
         self, orientations: np.ndarray,
     ) -> Union[float, np.ndarray]:

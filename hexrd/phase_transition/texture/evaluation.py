@@ -210,3 +210,89 @@ def eval_random_orientations(odf, n_orientations=1000, seed=None):
     values = eval_odf(odf, orientations, validate_input=False)
 
     return orientations, values
+
+
+def texture_index(odf, n_orientations=100000, seed=None):
+    """
+    Monte Carlo estimate of the texture index J of an ODF.
+
+    The texture index is the mean of the squared ODF over SO(3) with the
+    normalized Haar measure (so vol(SO(3)) = 1):
+
+        J = <f^2> = (1 / 8pi^2) * integral_{SO(3)} f(R)^2 dR
+
+    It is estimated here by averaging f^2 over Haar-uniform random
+    orientations. In MRD units the uniform (random) texture has f = 1
+    everywhere, giving J = 1; sharper textures give larger J.
+
+    Parameters
+    ----------
+    odf : ODF object
+        ODF object with an eval() method (e.g., UniformODF, UnimodalODF)
+    n_orientations : int, optional
+        Number of Haar-uniform samples used for the estimate, default
+        100000. Sharp textures need more samples for a given accuracy.
+    seed : int, optional
+        Random seed for reproducibility
+
+    Returns
+    -------
+    float
+        Estimated texture index J = <f^2> (>= 1 in MRD units)
+
+    Notes
+    -----
+    This is a stochastic estimate; its standard error decreases like
+    1/sqrt(n_orientations). For a single-mode de la Vallee Poussin ODF
+    without symmetry it converges to the analytic value
+    J = (2 C^2 / pi) * B(2*kappa + 1/2, 3/2), where C and kappa are the
+    kernel normalization constant and shape parameter.
+
+    If the ODF exposes an ``analytic_texture_index()`` method that returns
+    a value (not None), that exact result is used instead of sampling.
+    """
+    analytic = getattr(odf, 'analytic_texture_index', None)
+    if callable(analytic):
+        value = analytic()
+        if value is not None:
+            return float(value)
+
+    _, values = eval_random_orientations(
+        odf, n_orientations=n_orientations, seed=seed
+    )
+    return float(np.mean(values ** 2))
+
+
+def texture_norm(odf, n_orientations=100000, seed=None):
+    """
+    Monte Carlo estimate of the L2 norm of an ODF (MTEX ``norm``).
+
+    The L2 norm is the square root of the texture index:
+
+        ||f|| = sqrt(<f^2>) = sqrt( (1 / 8pi^2) * integral f(R)^2 dR )
+
+    In MRD units the uniform (random) texture has norm 1; sharper
+    textures have larger norms.
+
+    Parameters
+    ----------
+    odf : ODF object
+        ODF object with an eval() method
+    n_orientations : int, optional
+        Number of Haar-uniform samples used for the estimate, default
+        100000
+    seed : int, optional
+        Random seed for reproducibility
+
+    Returns
+    -------
+    float
+        Estimated L2 norm ||f|| = sqrt(J) (>= 1 in MRD units)
+
+    See Also
+    --------
+    texture_index : the squared L2 norm, J = <f^2>
+    """
+    return float(
+        np.sqrt(texture_index(odf, n_orientations=n_orientations, seed=seed))
+    )
