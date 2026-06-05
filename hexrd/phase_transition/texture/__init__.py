@@ -7,6 +7,8 @@ from hexrd.phase_transition.texture.unimodal_odf import UnimodalODF
 from hexrd.phase_transition.texture.evaluation import (
     eval_odf_batch,
     eval_random_orientations,
+    texture_index,
+    texture_norm,
 )
 
 __all__ = [
@@ -16,4 +18,6 @@ __all__ = [
     'UnimodalODF',
     'eval_odf_batch',
     'eval_random_orientations',
+    'texture_index',
+    'texture_norm',
 ]

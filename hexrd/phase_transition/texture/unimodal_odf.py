@@ -6,7 +6,11 @@ Uses a combination of modal orientations and kernel functions to create
 smooth, localized texture distributions.
 """
 
+from typing import Optional
+
 import numpy as np
+from scipy.special import beta as beta_fn
+
 from .kernels import SO3Kernel
 
 
@@ -253,6 +257,85 @@ class UnimodalODF:
         # nearby modes.
         modal_values = np.atleast_1d(self.eval(self._modal_orientations))
         return float(np.max(modal_values))
+
+    def analytic_texture_index(self) -> Optional[float]:
+        """
+        Exact texture index J = <f^2> when a closed form is available.
+
+        For a single mode with no kernel symmetry, the de la Vallee Poussin
+        ODF depends only on the misorientation angle from the mode, whose
+        Haar density on SO(3) is p(omega) = (1 - cos omega) / pi. Integrating
+        f^2 against it gives the closed form
+
+            J = (2 * C^2 / pi) * B(2*kappa + 1/2, 3/2),
+
+        where C and kappa are the kernel normalization constant and shape
+        parameter. Multi-modal ODFs (cross terms between modes) and
+        symmetry-reduced kernels have no simple closed form here, so this
+        returns None and callers fall back to Monte Carlo estimation.
+
+        Returns
+        -------
+        float or None
+            Exact texture index, or None if no closed form applies.
+        """
+        if self._n_components != 1 or self._kernel.has_symmetry:
+            return None
+
+        kappa = self._kernel.kappa
+        norm_c = self._kernel.norm_constant
+        return float(
+            (2.0 * norm_c ** 2 / np.pi) * beta_fn(2.0 * kappa + 0.5, 1.5)
+        )
+
+    def texture_index(self, n_orientations=100000, seed=None):
+        """
+        Texture index J = <f^2> of the ODF, in MRD^2.
+
+        Uses the exact closed form when available (see
+        ``analytic_texture_index``); otherwise estimates J by Monte Carlo
+        over Haar-uniform orientations.
+
+        Parameters
+        ----------
+        n_orientations : int, optional
+            Number of Haar-uniform samples for the Monte Carlo fallback,
+            default 100000. Ignored when the closed form applies.
+        seed : int, optional
+            Random seed for the Monte Carlo fallback.
+
+        Returns
+        -------
+        float
+            Texture index J = <f^2> (>= 1 in MRD units).
+        """
+        from .evaluation import texture_index as _texture_index
+
+        return _texture_index(self, n_orientations=n_orientations, seed=seed)
+
+    def norm(self, n_orientations=100000, seed=None):
+        """
+        L2 norm ||f|| = sqrt(J) of the ODF (MTEX ``norm``), in MRD.
+
+        Uses the exact closed form when available; otherwise estimates the
+        norm by Monte Carlo over Haar-uniform orientations.
+
+        Parameters
+        ----------
+        n_orientations : int, optional
+            Number of Haar-uniform samples for the Monte Carlo fallback,
+            default 100000. Ignored when the closed form applies.
+        seed : int, optional
+            Random seed for the Monte Carlo fallback.
+
+        Returns
+        -------
+        float
+            L2 norm ||f|| = sqrt(J) (>= 1 in MRD units).
+        """
+        from .evaluation import texture_norm as _texture_norm
+
+        return _texture_norm(self, n_orientations=n_orientations, seed=seed)
 
     def __repr__(self):
         """String representation of UnimodalODF."""
