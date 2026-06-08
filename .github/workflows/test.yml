@@ -10,6 +10,11 @@ jobs:
   pytest:
     name: ${{ matrix.config.name }}
     runs-on: ${{ matrix.config.os }}
+    # Single Python version that runs the coverage job. NUMBA_JIT_COVERAGE is
+    # incompatible with coverage.py's sys.monitoring tracer on Python 3.12+,
+    # so coverage only runs here; other versions run plain pytest.
+    env:
+      COVERAGE_PYTHON: '3.11'
     strategy:
       fail-fast: false
       matrix:
@@ -64,7 +69,8 @@ jobs:
         HEXRD_EXAMPLE_REPO_PATH: ${{ github.workspace }}/examples
       run: |
           pytest -s tests/
-      if: ${{ matrix.config.os != 'ubuntu-latest'}}
+      # Run plain tests everywhere except the single job that runs coverage.
+      if: ${{ matrix.config.os != 'ubuntu-latest' || matrix.python-version != env.COVERAGE_PYTHON }}
       working-directory: hexrd
 
     - name: Run tests with codecov
@@ -75,7 +81,7 @@ jobs:
           NUMBA_JIT_COVERAGE=1 coverage run --source hexrd -m pytest tests/
           coverage combine
           coverage xml -i
-      if: ${{ matrix.config.os == 'ubuntu-latest'}}
+      if: ${{ matrix.config.os == 'ubuntu-latest' && matrix.python-version == env.COVERAGE_PYTHON }}
       working-directory: hexrd
 
     - name: Upload coverage to Codecov
@@ -84,4 +90,4 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         file: coverage.xml
         working-directory: hexrd
-      if: ${{ matrix.config.os == 'ubuntu-latest'}}
+      if: ${{ matrix.config.os == 'ubuntu-latest' && matrix.python-version == env.COVERAGE_PYTHON }}
