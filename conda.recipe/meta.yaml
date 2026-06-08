@@ -29,6 +29,7 @@ requirements:
     # Numba is only here to make sure we use a version of numpy that is compatible
     - numba
     - pybind11
+    - eigen
     - xsimd
     - xtensor
     - xtensor-python
