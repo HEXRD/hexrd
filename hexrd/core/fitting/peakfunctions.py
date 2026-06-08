@@ -778,13 +778,12 @@ def _lorentzian_heating2(p: NDArray, x: NDArray) -> NDArray:
     lam = (del_tth + 1j * fwhm_l) / (sqrt2 * sigma)
     lamsqr = lam**2
     pre = 1 / (sigma * sqrt_2pi**3)
-    f1 = np.exp(-lamsqr)
-    f2 = exp1exp(-lamsqr)
-    f3 = np.pi * wofz(lam)
+    f1 = exp1exp(-lamsqr)
+    f2 = np.pi * wofz(lam)
 
     y = np.zeros(x.shape)
 
-    y = (f1 * f2).imag + f3.real
+    y = f1.imag + f2.real
     y = pre * y
 
     mask = np.isnan(y)
