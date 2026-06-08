@@ -29,7 +29,7 @@ import numpy as np
 import copy
 from hexrd.core import constants
 from numba import vectorize, float64, njit, prange
-from hexrd.core.fitting.peakfunctions import erfc, exp1exp
+from hexrd.core.fitting.special import erfc, exp1exp
 
 # from scipy.special import erfc, exp1
 
