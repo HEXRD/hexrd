@@ -23,8 +23,8 @@ _MAX_EXP = 709.782712893384  # approx log(float64 max)
 _MIN_EXP = -745.1332191019411  # exp(x) underflows to 0 below this
 
 
-@njit(cache=True, nopython=True)
-def erfc(x):
+@njit(cache=True, nogil=True)
+def erfc(x: np.ndarray) -> np.ndarray:
     # save the sign of x
     sign = np.sign(x)
     x = np.abs(x)
@@ -39,8 +39,8 @@ def erfc(x):
     return 1.0 - erf
 
 
-@njit(cache=True, nopython=True)
-def _complex_log_principal_numba(z):
+@njit(cache=True, nogil=True)
+def _complex_log_principal_numba(z: complex) -> complex:
     """
     Principal complex log, written manually so signed zero in imag
     is handled through atan2.
@@ -51,8 +51,8 @@ def _complex_log_principal_numba(z):
     )
 
 
-@njit(cache=True, nopython=True)
-def _exp_neg_complex_numba(z):
+@njit(cache=True, nogil=True)
+def _exp_neg_complex_numba(z: complex) -> complex:
     """
     Compute exp(-z) with simple overflow/underflow guards.
     """
@@ -70,8 +70,8 @@ def _exp_neg_complex_numba(z):
     return complex(scale * math.cos(y), -scale * math.sin(y))
 
 
-@njit(cache=True, nopython=True)
-def _exp1_series_numba(z):
+@njit(cache=True, nogil=True)
+def _exp1_series_numba(z: complex) -> complex:
     """
     Logarithmic power series:
 
@@ -93,8 +93,8 @@ def _exp1_series_numba(z):
     return complex(-_EULER_GAMMA, 0.0) - _complex_log_principal_numba(z) - s
 
 
-@njit(cache=True, nopython=True)
-def _exp1_contfrac_numba(z):
+@njit(cache=True, nogil=True)
+def _exp1_contfrac_numba(z: complex) -> complex:
     """
     Continued fraction via modified Lentz iteration.
     Good away from the origin and away from the difficult part
@@ -127,8 +127,8 @@ def _exp1_contfrac_numba(z):
     return h * _exp_neg_complex_numba(z)
 
 
-@njit(cache=True, nopython=True)
-def exp1_complex_scalar_numba(z):
+@njit(cache=True, nogil=True)
+def exp1_complex_scalar_numba(z: complex) -> complex:
     """
     Numba-compatible complex exponential integral E1(z).
 
@@ -175,15 +175,15 @@ def exp1_complex_scalar_numba(z):
 
 
 @vectorize([complex128(complex128)], nopython=True)
-def exp1_complex_numba(z):
+def exp1_complex_numba(z: complex) -> complex:
     """
     Vectorized complex ufunc version.
     """
     return exp1_complex_scalar_numba(z)
 
 
-@njit(cache=True, nopython=True)
-def exp1_real_scalar_numba(x):
+@njit(cache=True, nogil=True)
+def exp1_real_scalar_numba(x: float) -> float:
     """
     Real-valued SciPy-like wrapper.
 
@@ -206,7 +206,7 @@ def exp1_real_scalar_numba(x):
 
 
 @vectorize([float64(float64)], nopython=True)
-def exp1_real_numba(x):
+def exp1_real_numba(x: float) -> float:
     """
     Vectorized real ufunc version.
     """
@@ -220,8 +220,8 @@ def exp1_real_numba(x):
 #         return exp1_complex_numba(x)
 
 
-@njit(cache=True, nopython=True)
-def _signed_inf_from_trig(v):
+@njit(cache=True, nogil=True)
+def _signed_inf_from_trig(v: float) -> float:
     if v > 0.0:
         return math.inf
     if v < 0.0:
@@ -229,8 +229,8 @@ def _signed_inf_from_trig(v):
     return 0.0
 
 
-@njit(cache=True, nopython=True)
-def _cexp_parts(a, b):
+@njit(cache=True, nogil=True)
+def _cexp_parts(a: float, b: float) -> complex:
     """
     Compute exp(a + i b) with simple overflow/underflow guards.
     """
@@ -246,8 +246,8 @@ def _cexp_parts(a, b):
     return complex(ea * math.cos(b), ea * math.sin(b))
 
 
-@njit(cache=True, nopython=True)
-def _exp_neg_z2(z):
+@njit(cache=True, nogil=True)
+def _exp_neg_z2(z: complex) -> complex:
     """
     Compute exp(-z*z), where z = x + i y.
     -z^2 = (y^2 - x^2) - 2 i x y
@@ -257,8 +257,8 @@ def _exp_neg_z2(z):
     return _cexp_parts(y * y - x * x, -2.0 * x * y)
 
 
-@njit(cache=True, nopython=True)
-def _trap_correction(z, plus):
+@njit(cache=True, nogil=True)
+def _trap_correction(z: complex, plus: bool) -> complex:
     """
     Correction term:
 
@@ -303,8 +303,8 @@ def _trap_correction(z, plus):
             return a / (1.0 - b)
 
 
-@njit(cache=True, nopython=True)
-def _wofz_midpoint(z):
+@njit(cache=True, nogil=True)
+def _wofz_midpoint(z: complex) -> complex:
     """
     Midpoint-rule approximation used in part of the first quadrant.
     """
@@ -324,15 +324,15 @@ def _wofz_midpoint(z):
 
 
 @njit(cache=True, nogil=True)
-def _wofz_modified_midpoint(z):
+def _wofz_modified_midpoint(z: complex) -> complex:
     """
     Modified midpoint-rule approximation.
     """
     return _wofz_midpoint(z) + _trap_correction(z, True)
 
 
-@njit(cache=True, nopython=True)
-def _wofz_modified_trapezoid(z):
+@njit(cache=True, nogil=True)
+def _wofz_modified_trapezoid(z: complex) -> complex:
     """
     Modified trapezoidal-rule approximation.
     """
@@ -351,8 +351,8 @@ def _wofz_modified_trapezoid(z):
     return complex(0.0, 1.0 / _H_CAP) / z + az * s + _trap_correction(z, False)
 
 
-@njit(cache=True, nopython=True)
-def _wofz_first_quadrant(z):
+@njit(cache=True, nogil=True)
+def _wofz_first_quadrant(z: complex) -> complex:
     """
     Evaluate w(z) for Re(z) >= 0, Im(z) >= 0.
     """
@@ -372,8 +372,8 @@ def _wofz_first_quadrant(z):
         return _wofz_modified_midpoint(z)
 
 
-@njit(cache=True, nopython=True)
-def wofz_complex_scalar_numba(z):
+@njit(cache=True, nogil=True)
+def wofz_complex_scalar_numba(z: complex) -> complex:
     """
     Numba-compatible scalar complex Faddeeva function.
 
@@ -423,8 +423,8 @@ def wofz_complex_scalar_numba(z):
     return w
 
 
-@njit(cache=True, nopython=True)
-def wofz_real_scalar_numba(x):
+@njit(cache=True, nogil=True)
+def wofz_real_scalar_numba(x: float) -> complex:
     """
     Convenience wrapper for real x, returning complex w(x).
     """
@@ -435,7 +435,7 @@ def wofz_real_scalar_numba(x):
     [complex128(complex128), complex128(float64)],
     nopython=True,
 )
-def wofz(z):
+def wofz(z: complex) -> complex:
     """
     Vectorized ufunc version.
 
