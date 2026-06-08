@@ -24,6 +24,7 @@ def finite_diff_derivative(func, p, x, idx, rel_step=1e-6):
 
 def test_erfc():
     # test real values
+    np.random.seed(0)
     vals = np.random.uniform(-5, 5, 5)
     got = sp.erfc(vals)
     assert got.shape == vals.shape
@@ -33,6 +34,7 @@ def test_erfc():
 
 def test_wofz():
     # test complex values
+    np.random.seed(0)
     vals = np.random.uniform(-5, 5, 5) + 1j * np.random.uniform(-5, 5, 5)
     got = sp.wofz(vals)
     assert got.shape == vals.shape
@@ -41,6 +43,7 @@ def test_wofz():
 
 def test_exp1():
     # test real values
+    np.random.seed(0)
     vals = np.random.uniform(-5, 5, 5)
     got = sp.exp1_real_numba(vals)
     assert got.shape == vals.shape

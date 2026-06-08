@@ -29,7 +29,7 @@ import numpy as np
 from numba import njit
 import copy
 from hexrd.core import constants
-from hexrd.core.fitting.special import erfc, exp1_complex_numba, wofz
+from hexrd.core.fitting.special import erfc, exp1_complex_numba
 
 exp1exp = exp1_complex_numba
 
