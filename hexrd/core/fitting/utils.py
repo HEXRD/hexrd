@@ -2,12 +2,9 @@ import fnmatch
 
 import numpy as np
 from numba import njit
-from hexrd.core.fitting.special import erfc, exp1_complex_numba
+from hexrd.core.fitting.special import erfc, exp1exp
 
 from hexrd.core.matrixutil import uniqueVectors
-
-# alias for exp1 function
-exp1exp = exp1_complex_numba
 
 # =============================================================================
 # LMFIT Parameter munging utilities

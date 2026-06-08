@@ -29,9 +29,7 @@ import numpy as np
 from numba import njit
 import copy
 from hexrd.core import constants
-from hexrd.core.fitting.special import erfc, exp1_complex_numba
-
-exp1exp = exp1_complex_numba
+from hexrd.core.fitting.special import erfc, exp1exp
 
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.0
