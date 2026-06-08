@@ -183,6 +183,17 @@ def exp1_complex_numba(z: complex) -> complex:
 
 
 @njit(cache=True, nogil=True)
+def exp1exp(z: np.ndarray) -> np.ndarray:
+    """
+    E1(z) * exp(z), the combination used by the back-to-back-exponential
+    pink-beam Lorentzian (Von Dreele et al., J. Appl. Cryst. (2021) 54, 3-6).
+    The exp(z) factor cancels the exponential growth of E1, keeping the
+    result well-behaved across the peak.
+    """
+    return np.exp(z) * exp1_complex_numba(z)
+
+
+@njit(cache=True, nogil=True)
 def exp1_real_scalar_numba(x: float) -> float:
     """
     Real-valued SciPy-like wrapper.

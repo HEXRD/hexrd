@@ -29,9 +29,8 @@ import numpy as np
 import copy
 from hexrd.core import constants
 from numba import vectorize, float64, njit, prange
-from hexrd.core.fitting.special import erfc, exp1_complex_numba
+from hexrd.core.fitting.special import erfc, exp1exp
 
-exp1exp = exp1_complex_numba
 # from scipy.special import erfc, exp1
 
 # addr = get_cython_function_address("scipy.special.cython_special", "exp1")
@@ -522,7 +521,7 @@ def _gaussian_pink_beam(alpha, beta, fwhm_g, tth, tth_list):
     t1 = erfc(y)
     t2 = erfc(z)
     g = np.zeros(tth_list.shape)
-    zmask = np.abs(del_tth) > 100.0
+    zmask = np.abs(del_tth) > 5.0
     g[~zmask] = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(u[~zmask]) * t1[
         ~zmask
     ] + np.exp(v[~zmask]) * t2[~zmask]
@@ -551,12 +550,7 @@ def _lorentzian_pink_beam(alpha, beta, fwhm_l, tth, tth_list):
     # f1 = exp1(p)
     # f2 = exp1(q)
 
-    y = np.zeros(tth_list.shape)
-    zmask = np.abs(del_tth) > 100.0
-
-    y[~zmask] = (
-        -(alpha * beta) / (np.pi * (alpha + beta)) * (f1[~zmask] + f2[~zmask]).imag
-    )
+    y = -(alpha * beta) / (np.pi * (alpha + beta)) * (f1 + f2).imag
 
     mask = np.isnan(y)
     y[mask] = 0.0
