@@ -47,7 +47,9 @@ mpeak_nparams_dict = {
     'split_pvoigt': 6,
     'pink_beam_dcs': 8,
     'pink_beam_heating': 6,
+    'pink_beam_exponential': 7,
 }
+
 
 # =============================================================================
 # 1-D Gaussian Functions
@@ -559,12 +561,13 @@ def _pink_beam_dcs_no_bg(p, x):
 
 
 @njit(nogil=True)
-def _pink_beam_heating_no_bg(p: NDArray, x: NDArray) -> NDArray:
+def _pink_beam_exponential_no_bg(p: NDArray, x: NDArray) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 12/05/2026 SS 1.0 original
-    @details pink beam profile for DCS data for heating
-    experiment
+    @details peak profile obtained by convolving the pseudo-voight with a
+    single decaying exponential. This captures the beam profile when the
+    incident spectrum is an exponential.
 
     p has the following 7 parameters
     p = [A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l]
@@ -581,8 +584,8 @@ def _pink_beam_heating_no_bg(p: NDArray, x: NDArray) -> NDArray:
 
     eta, fwhm = _mixing_factor_pv(p[5], p[6])
 
-    G = _gaussian_heating(p_g, x)
-    L = _lorentzian_heating(p_l, x)
+    G = _gaussian_exponential(p_g, x)
+    L = _lorentzian_exponential(p_l, x)
 
     ag = np.trapezoid(G, x)
     al = np.trapezoid(L, x)
@@ -595,15 +598,17 @@ def _pink_beam_heating_no_bg(p: NDArray, x: NDArray) -> NDArray:
 
 
 @njit(nogil=True)
-def _pink_beam_heating2_no_bg(p: NDArray, x: NDArray) -> NDArray:
+def _pink_beam_heating_no_bg(p: NDArray, x: NDArray) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
-    @date 12/05/2026 SS 1.0 original
-    @details pink beam profile for DCS data for heating
-    experiment
+    @date 05/27/2026 SS 1.0 original
+    @details peak profile for a heating experiment, obtained by convolving
+    the pseudo-voight with a half-gaussian. The half-gaussian approximates
+    the temperature distribution within a sample heated by plasma-generated
+    x-rays together with 1-D heat flow.
 
-    p has the following 7 parameters
-    p = [A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l]
+    p has the following 6 parameters
+    p = [A, x0, sigma0, sigma1, fwhm_g, fwhm_l]
     """
     sigma = _calc_sigma((p[2], p[3]), p[1])
     if np.abs(sigma) < 0.01:
@@ -617,8 +622,8 @@ def _pink_beam_heating2_no_bg(p: NDArray, x: NDArray) -> NDArray:
 
     eta, fwhm = _mixing_factor_pv(p[4], p[5])
 
-    G = _gaussian_heating2(p_g, x)
-    L = _lorentzian_heating2(p_l, x)
+    G = _gaussian_heating(p_g, x)
+    L = _lorentzian_heating(p_l, x)
 
     ag = np.trapezoid(G, x)
     al = np.trapezoid(L, x)
@@ -670,7 +675,7 @@ def pink_beam_dcs_lmfit(x, A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l):
 
 
 @njit(cache=True, nogil=True)
-def _gaussian_heating(p: NDArray, x: NDArray) -> NDArray:
+def _gaussian_exponential(p: NDArray, x: NDArray) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 04/22/2026 SS 1.0 original
@@ -704,7 +709,7 @@ def _gaussian_heating(p: NDArray, x: NDArray) -> NDArray:
 
 
 @njit(cache=True, nogil=True)
-def _gaussian_heating2(p: NDArray, x: NDArray) -> NDArray:
+def _gaussian_heating(p: NDArray, x: NDArray) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 05/27/2026 SS 1.0 original
@@ -736,7 +741,7 @@ def _gaussian_heating2(p: NDArray, x: NDArray) -> NDArray:
 
 
 @njit(cache=True, nogil=True)
-def _lorentzian_heating(p: NDArray, x: NDArray) -> NDArray:
+def _lorentzian_exponential(p: NDArray, x: NDArray) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 04/22/2026 SS 1.0 original
@@ -760,7 +765,7 @@ def _lorentzian_heating(p: NDArray, x: NDArray) -> NDArray:
 
 
 @njit(cache=True, nogil=True)
-def _lorentzian_heating2(p: NDArray, x: NDArray) -> NDArray:
+def _lorentzian_heating(p: NDArray, x: NDArray) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 05/27/2026 SS 1.0 original
@@ -792,57 +797,69 @@ def _lorentzian_heating2(p: NDArray, x: NDArray) -> NDArray:
     return y
 
 
+def pink_beam_exponential(p: NDArray, x: NDArray) -> NDArray:
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 12/05/2026 SS 1.0 original
+    @details pseudo-voight convolved with a single exponential, plus a
+    linear background.
+
+    p has the following 9 parameters
+    p = [A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l, bkg_c0, bkg_c1]
+    """
+    return _pink_beam_exponential_no_bg(p[:-2], x) + p[-2] + p[-1] * x
+
+
 def pink_beam_heating(p: NDArray, x: NDArray) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
-    @date 10/18/2021 SS 1.0 original
-    @details pink beam profile for DCS data for calibration.
-    more details can be found in
-    Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
+    @date 05/27/2026 SS 1.0 original
+    @details pseudo-voight convolved with a half-gaussian (heating peak
+    shape), plus a linear background.
 
-    p has the following 10 parameters
-    p = [A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l, bkg_c0, bkg_c1]
+    p has the following 8 parameters
+    p = [A, x0, sigma0, sigma1, fwhm_g, fwhm_l, bkg_c0, bkg_c1]
     """
-    return _pink_beam_heating2_no_bg(p[:-2], x) + p[-2] + p[-1] * x
+    return _pink_beam_heating_no_bg(p[:-2], x) + p[-2] + p[-1] * x
 
 
-# @njit(cache=True, nogil=True)
-# def pink_beam_heating_lmfit(
-#     x: NDArray,
-#     A: float,
-#     x0: float,
-#     tau0: float,
-#     tau1: float,
-#     tau2: float,
-#     fwhm_g: float,
-#     fwhm_l: float,
-# ) -> NDArray:
-#     """
-#     @author Saransh Singh, Lawrence Livermore National Lab
-#     @date 05/11/2026 SS 1.0 original
-#     @details compute the pseudo voight peak shape for the pink
-#     beam used in the heating experiment
-#     """
-#     tau_exp = _calc_tau((tau0, tau1, tau2), x0)
-#     if np.abs(tau_exp) < 0.01:
-#         return np.zeros(x.shape, dtype=np.float64)
+@njit(cache=True, nogil=True)
+def pink_beam_exponential_lmfit(
+    x: NDArray,
+    A: float,
+    x0: float,
+    tau0: float,
+    tau1: float,
+    tau2: float,
+    fwhm_g: float,
+    fwhm_l: float,
+) -> NDArray:
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 05/11/2026 SS 1.0 original
+    @details compute the pseudo voight peak shape convolved with a single
+    exponential
+    """
+    tau_exp = _calc_tau((tau0, tau1, tau2), x0)
+    if np.abs(tau_exp) < 0.01:
+        return np.zeros(x.shape, dtype=np.float64)
 
-#     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
+    n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
-#     p_g = np.array([A, x0, tau_exp, fwhm_g])
-#     p_l = np.array([A, x0, tau_exp, fwhm_l])
+    p_g = np.array([A, x0, tau_exp, fwhm_g])
+    p_l = np.array([A, x0, tau_exp, fwhm_l])
 
-#     g = _gaussian_heating(p_g, x)
-#     l_val = _lorentzian_heating(p_l, x)
+    g = _gaussian_exponential(p_g, x)
+    l_val = _lorentzian_exponential(p_l, x)
 
-#     ag = np.trapezoid(g, x)
-#     al = np.trapezoid(l_val, x)
-#     if np.abs(ag) < 1e-6:
-#         ag = 1.0
-#     if np.abs(al) < 1e-6:
-#         al = 1.0
+    ag = np.trapezoid(g, x)
+    al = np.trapezoid(l_val, x)
+    if np.abs(ag) < 1e-6:
+        ag = 1.0
+    if np.abs(al) < 1e-6:
+        al = 1.0
 
-#     return A * (n * l_val / al + (1.0 - n) * g / ag)
+    return A * (n * l_val / al + (1.0 - n) * g / ag)
 
 
 @njit(cache=True, nogil=True)
@@ -870,8 +887,8 @@ def pink_beam_heating_lmfit(
     p_g = np.array([A, x0, sig_exp, fwhm_g])
     p_l = np.array([A, x0, sig_exp, fwhm_l])
 
-    g = _gaussian_heating2(p_g, x)
-    l_val = _lorentzian_heating2(p_l, x)
+    g = _gaussian_heating(p_g, x)
+    l_val = _lorentzian_heating(p_l, x)
 
     ag = np.trapezoid(g, x)
     al = np.trapezoid(l_val, x)
@@ -882,12 +899,6 @@ def pink_beam_heating_lmfit(
 
     return A * (n * l_val / al + (1.0 - n) * g / ag)
 
-
-"""
-================================================================
-======================FINISHED==================================
-================================================================
-"""
 
 # =============================================================================
 # Tanh Step Down
@@ -1204,7 +1215,9 @@ def _mpeak_1d_no_bg(p, x, pktype, num_pks):
         elif pktype == 'pink_beam_dcs':
             f += _pink_beam_dcs_no_bg(p_fit[ii], x)
         elif pktype == 'pink_beam_heating':
-            f += _pink_beam_heating2_no_bg(p_fit[ii], x)
+            f += _pink_beam_heating_no_bg(p_fit[ii], x)
+        elif pktype == 'pink_beam_exponential':
+            f += _pink_beam_exponential_no_bg(p_fit[ii], x)
 
     return f
 

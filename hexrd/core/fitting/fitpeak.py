@@ -170,9 +170,11 @@ def estimate_pk_parms_1d(x, f, pktype='pvoigt'):
         # A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l
         p = [A, x0, alpha0, alpha1, beta0, beta1, FWHM, FWHM, bg0, bg1]
     elif pktype == 'pink_beam_heating':
-        # A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l
-        # p = [A, x0, tau0_DFLT, tau1_DFLT, tau2_DFLT, FWHM, FWHM, bg0, bg1]
+        # A, x0, sigma0, sigma1, fwhm_g, fwhm_l
         p = [A, x0, sigma0_DFLT, sigma1_DFLT, FWHM, FWHM, bg0, bg1]
+    elif pktype == 'pink_beam_exponential':
+        # A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l
+        p = [A, x0, tau0_DFLT, tau1_DFLT, tau2_DFLT, FWHM, FWHM, bg0, bg1]
     else:
         raise RuntimeError("pktype '%s' not understood" % pktype)
 
@@ -271,7 +273,7 @@ def fit_pk_parms_1d(p0, x, f, pktype='pvoigt'):
         )
         p = res['x']
         # outflag = res['success']
-    elif pktype == 'pink_beam_heating':
+    elif pktype in ('pink_beam_heating', 'pink_beam_exponential'):
         res = optimize.least_squares(
             fit_pk_obj_1d,
             p0,
@@ -544,9 +546,37 @@ def estimate_mpk_parms_1d(
                 pk_pos_0[ii],
                 sigma0_DFLT,
                 sigma1_DFLT,
-                # tau0_DFLT,
-                # tau1_DFLT,
-                # tau2_DFLT,
+                fwhm_guess[ii],
+                fwhm_guess[ii],
+            ]
+            p0tmp_lb[ii, :] = [
+                amp_guess * amp_lim_mult[0],
+                pk_pos_0[ii] - center_bnd[ii],
+                -np.inf,
+                -np.inf,
+                fwhm_guess[ii] * fwhm_lim_mult[0],
+                fwhm_guess[ii] * fwhm_lim_mult[0],
+            ]
+            p0tmp_ub[ii, :] = [
+                amp_guess * amp_lim_mult[1],
+                pk_pos_0[ii] + center_bnd[ii],
+                np.inf,
+                np.inf,
+                fwhm_guess[ii] * fwhm_lim_mult[1],
+                fwhm_guess[ii] * fwhm_lim_mult[1],
+            ]
+
+    elif pktype == 'pink_beam_exponential':
+        # x is just 2theta values
+        # make guess for the initital parameters
+        for ii in np.arange(num_pks):
+            amp_guess = _amplitude_guess(x, pk_pos_0[ii], fsubtr, fwhm_guess[ii])
+            p0tmp[ii, :] = [
+                amp_guess,
+                pk_pos_0[ii],
+                tau0_DFLT,
+                tau1_DFLT,
+                tau2_DFLT,
                 fwhm_guess[ii],
                 fwhm_guess[ii],
             ]
@@ -660,7 +690,7 @@ def fit_pk_obj_1d(p, x, f0, pktype):
         definition in peakfuncs
     """
 
-    # ww = np.ones(f0.shape)
+    ww = np.ones(f0.shape)
     if pktype == 'gaussian':
         f = pkfuncs.gaussian1d(p, x)
     elif pktype == 'lorentzian':
@@ -673,13 +703,14 @@ def fit_pk_obj_1d(p, x, f0, pktype):
         f = pkfuncs.tanh_stepdown_nobg(p, x)
     elif pktype == 'dcs_pinkbeam':
         f = pkfuncs.pink_beam_dcs(p, x)
-        # SS 05/11/26 don't need weighting for calibration
-        # ww = 1.0 / np.sqrt(f0)
-        # ww[np.isnan(ww)] = 0.0
+        ww = 1.0 / np.sqrt(f0)
+        ww[np.isnan(ww)] = 0.0
     elif pktype == 'pink_beam_heating':
         f = pkfuncs.pink_beam_heating(p, x)
+    elif pktype == 'pink_beam_exponential':
+        f = pkfuncs.pink_beam_exponential(p, x)
 
-    resd = f - f0  # * ww
+    resd = (f - f0) * ww
     return resd
 
 
@@ -694,10 +725,12 @@ def fit_pk_obj_1d_bnded(p, x, f0, pktype, weight, lb, ub):
         f = pkfuncs.split_pvoigt1d(p, x)
     elif pktype == 'dcs_pinkbeam':
         f = pkfuncs.pink_beam_dcs(p, x)
-        # ww = 1.0 / np.sqrt(f0)
-        # ww[np.isnan(ww)] = 0.0
+        ww = 1.0 / np.sqrt(f0)
+        ww[np.isnan(ww)] = 0.0
     elif pktype == 'pink_beam_heating':
         f = pkfuncs.pink_beam_heating(p, x)
+    elif pktype == 'pink_beam_exponential':
+        f = pkfuncs.pink_beam_exponential(p, x)
 
     num_data = len(f)
     num_parm = len(p)
@@ -1024,6 +1057,8 @@ def calc_pk_integrated_intensities(p, x, pktype, num_pks):
     elif pktype == 'pink_beam_dcs':
         p_fit = np.reshape(p[: 8 * num_pks], [num_pks, 8])
     elif pktype == 'pink_beam_heating':
+        p_fit = np.reshape(p[: 6 * num_pks], [num_pks, 6])
+    elif pktype == 'pink_beam_exponential':
         p_fit = np.reshape(p[: 7 * num_pks], [num_pks, 7])
 
     for ii in np.arange(num_pks):
@@ -1040,6 +1075,10 @@ def calc_pk_integrated_intensities(p, x, pktype, num_pks):
         elif pktype == 'pink_beam_heating':
             ints[ii] = integrate.simpson(
                 pkfuncs._pink_beam_heating_no_bg(p_fit[ii], x), x
+            )
+        elif pktype == 'pink_beam_exponential':
+            ints[ii] = integrate.simpson(
+                pkfuncs._pink_beam_exponential_no_bg(p_fit[ii], x), x
             )
 
     return ints

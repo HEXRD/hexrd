@@ -139,11 +139,24 @@ def _add_pvpink_parameters(params):
 
 def _add_pvheating_parameters(params: lmfit.Parameters) -> None:
     p = {
-        # "tau0": [1.58, -2.0, 2.0, False],
-        # "tau1": [-1.35, -2.0, 2.0, False],
-        # "tau2": [0.36, -1.0, 1.0, False],
         "sigma0": [0.1, -np.inf, np.inf, False],
         "sigma1": [0.1, -np.inf, np.inf, False],
+    }
+    for k, v in p.items():
+        params.add(
+            name=k,
+            value=v[0],
+            min=v[1],
+            max=v[2],
+            vary=v[3],
+        )
+
+
+def _add_pvexponential_parameters(params: lmfit.Parameters) -> None:
+    p = {
+        "tau0": [1.58, -2.0, 2.0, False],
+        "tau1": [-1.35, -2.0, 2.0, False],
+        "tau2": [0.36, -1.0, 1.0, False],
     }
     for k, v in p.items():
         params.add(
@@ -396,8 +409,10 @@ def _generate_default_parameters_LeBail(
         _add_pvpink_parameters(params)
     elif peakshape == 3:
         _add_pvheating_parameters(params)
+    elif peakshape == 4:
+        _add_pvexponential_parameters(params)
     else:
-        msg = f"_generate_default_parameters_LeBail: unknown peak shape."
+        msg = "_generate_default_parameters_LeBail: unknown peak shape."
         raise ValueError(msg)
 
     if "chebyshev" in bkgmethod:

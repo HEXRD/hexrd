@@ -33,12 +33,6 @@ from numba import vectorize, float64, njit, prange
 
 from hexrd.core.fitting.special import erfc, exp1exp, wofz
 
-# from scipy.special import erfc, exp1
-
-# addr = get_cython_function_address("scipy.special.cython_special", "exp1")
-# functype = ctypes.CFUNCTYPE(ctypes.c_double, ctypes.c_double)
-# exp1_fn = functype(addr)
-
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.0
 sqrt_2pi = constants.sqrt_2pi
@@ -577,7 +571,7 @@ def _calc_sigma(sigma: NDArray, tth: float) -> float:
 
 
 @njit(cache=True, nogil=True)
-def _gaussian_heating(
+def _gaussian_exponential(
     tau: float, fwhm_g: float, tth: float, tth_list: NDArray
 ) -> NDArray:
     """
@@ -609,7 +603,7 @@ def _gaussian_heating(
 
 
 @njit(cache=True, nogil=True)
-def _gaussian_heating2(
+def _gaussian_heating(
     sigma: float, fwhm_g: float, tth: float, tth_list: NDArray
 ) -> NDArray:
     """
@@ -640,7 +634,7 @@ def _gaussian_heating2(
 
 
 @njit(cache=True, nogil=True)
-def _lorentzian_heating(
+def _lorentzian_exponential(
     tau: float, fwhm_l: float, tth: float, tth_list: NDArray
 ) -> NDArray:
     """
@@ -664,7 +658,7 @@ def _lorentzian_heating(
 
 
 @njit(cache=True, nogil=True)
-def _lorentzian_heating2(
+def _lorentzian_heating(
     sigma: float, fwhm_l: float, tth: float, tth_list: NDArray
 ) -> NDArray:
     """
@@ -728,7 +722,7 @@ def pvoight_pink_beam(
 
 
 @njit(cache=True, nogil=True)
-def pvoight_heating(
+def pvoight_exponential(
     tau: NDArray,
     uvw: NDArray,
     p: float,
@@ -756,8 +750,8 @@ def pvoight_heating(
 
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
-    g = _gaussian_heating(tau_exp, fwhm_g, tth, tth_list)
-    l_val = _lorentzian_heating(tau_exp, fwhm_l, tth, tth_list)
+    g = _gaussian_exponential(tau_exp, fwhm_g, tth, tth_list)
+    l_val = _lorentzian_exponential(tau_exp, fwhm_l, tth, tth_list)
 
     ag = np.trapezoid(g, tth_list)
     al = np.trapezoid(l_val, tth_list)
@@ -770,7 +764,7 @@ def pvoight_heating(
 
 
 @njit(cache=True, nogil=True)
-def pvoight_heating2(
+def pvoight_heating(
     sigma: NDArray,
     uvw: NDArray,
     p: float,
@@ -798,8 +792,8 @@ def pvoight_heating2(
 
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
-    g = _gaussian_heating2(sigma_exp, fwhm_g, tth, tth_list)
-    l_val = _lorentzian_heating2(sigma_exp, fwhm_l, tth, tth_list)
+    g = _gaussian_heating(sigma_exp, fwhm_g, tth, tth_list)
+    l_val = _lorentzian_heating(sigma_exp, fwhm_l, tth, tth_list)
 
     ag = np.trapezoid(g, tth_list)
     al = np.trapezoid(l_val, tth_list)
@@ -924,7 +918,7 @@ def computespectrum_pvpink(
 
 
 @njit(cache=True, nogil=True, parallel=True)
-def computespectrum_pvheating(
+def computespectrum_pvexponential(
     tau: NDArray,
     uvw: NDArray,
     p: float,
@@ -956,14 +950,16 @@ def computespectrum_pvheating(
         g = hkl[ii]
         xs = xy_sf[ii]
 
-        pv = pvoight_heating(tau, uvw, p, xy, xs, shkl, eta_mixing, t, d, g, tth_list)
+        pv = pvoight_exponential(
+            tau, uvw, p, xy, xs, shkl, eta_mixing, t, d, g, tth_list
+        )
 
         spec += II * pv
     return spec
 
 
 @njit(cache=True, nogil=True, parallel=True)
-def computespectrum_pvheating2(
+def computespectrum_pvheating(
     sigma: NDArray,
     uvw: NDArray,
     p: float,
@@ -995,9 +991,7 @@ def computespectrum_pvheating2(
         g = hkl[ii]
         xs = xy_sf[ii]
 
-        pv = pvoight_heating2(
-            sigma, uvw, p, xy, xs, shkl, eta_mixing, t, d, g, tth_list
-        )
+        pv = pvoight_heating(sigma, uvw, p, xy, xs, shkl, eta_mixing, t, d, g, tth_list)
 
         spec += II * pv
     return spec
@@ -1194,7 +1188,7 @@ def calc_Iobs_pvpink(
 
 
 @njit(cache=True, nogil=True)
-def calc_Iobs_pvheating(
+def calc_Iobs_pvexponential(
     tau: NDArray,
     uvw: NDArray,
     p: float,
@@ -1236,7 +1230,7 @@ def calc_Iobs_pvheating(
         g = hkl[ii]
         xs = xy_sf[ii]
 
-        pv = pvoight_heating(
+        pv = pvoight_exponential(
             tau,
             uvw,
             p,
@@ -1259,7 +1253,7 @@ def calc_Iobs_pvheating(
 
 
 @njit(cache=True, nogil=True)
-def calc_Iobs_pvheating2(
+def calc_Iobs_pvheating(
     sigma: NDArray,
     uvw: NDArray,
     p: float,
@@ -1301,7 +1295,7 @@ def calc_Iobs_pvheating2(
         g = hkl[ii]
         xs = xy_sf[ii]
 
-        pv = pvoight_heating2(
+        pv = pvoight_heating(
             sigma,
             uvw,
             p,
