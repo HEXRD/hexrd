@@ -26,13 +26,17 @@
 # ============================================================
 
 import numpy as np
+from numpy.typing import NDArray
 from numba import njit
 import copy
 from hexrd.core import constants
-from hexrd.core.fitting.special import erfc, exp1exp
+
+from hexrd.core.fitting.special import erfc, exp1exp, wofz
 
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.0
+sqrt_2pi = constants.sqrt_2pi
+sqrt2 = constants.sqrt2
 
 # FIXME: we need this for the time being to be able to parse multipeak fitting
 # results; need to wrap all this up in a class in the future!
@@ -42,6 +46,8 @@ mpeak_nparams_dict = {
     'pvoigt': 4,
     'split_pvoigt': 6,
     'pink_beam_dcs': 8,
+    'pink_beam_heating': 6,
+    'pink_beam_exponential': 7,
 }
 
 
@@ -394,6 +400,20 @@ def _calc_beta(beta, x0):
 
 
 @njit(cache=True, nogil=True)
+def _calc_tau(tau: tuple[float, float, float], x0: float) -> float:
+    a0, a1, a2 = tau
+    return (
+        a0 + a1 * np.tan(np.radians(0.5 * x0)) + a2 * np.tan(np.radians(0.5 * x0)) ** 2
+    )
+
+
+@njit(cache=True, nogil=True)
+def _calc_sigma(sigma: NDArray, tth: float) -> float:
+    a0, a1 = sigma
+    return a0 + a1 * np.tan(np.radians(0.5 * tth))
+
+
+@njit(cache=True, nogil=True)
 def _mixing_factor_pv(fwhm_g, fwhm_l):
     """
     @AUTHOR:  Saransh Singh, Lawrence Livermore National Lab,
@@ -540,6 +560,81 @@ def _pink_beam_dcs_no_bg(p, x):
     return eta * L + (1.0 - eta) * G
 
 
+@njit(nogil=True)
+def _pink_beam_exponential_no_bg(p: NDArray, x: NDArray) -> NDArray:
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 12/05/2026 SS 1.0 original
+    @details peak profile obtained by convolving the pseudo-voight with a
+    single decaying exponential. This captures the beam profile when the
+    incident spectrum is an exponential.
+
+    p has the following 7 parameters
+    p = [A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l]
+    """
+    tau = _calc_tau((p[2], p[3], p[4]), p[1])
+    if np.abs(tau) < 0.01:
+        return np.zeros(x.shape)
+
+    arg1 = np.array([tau, p[5]]).astype(np.float64)
+    arg2 = np.array([tau, p[6]]).astype(np.float64)
+
+    p_g = np.hstack((p[0:2], arg1))
+    p_l = np.hstack((p[0:2], arg2))
+
+    eta, fwhm = _mixing_factor_pv(p[5], p[6])
+
+    G = _gaussian_exponential(p_g, x)
+    L = _lorentzian_exponential(p_l, x)
+
+    ag = np.trapezoid(G, x)
+    al = np.trapezoid(L, x)
+    if np.abs(ag) < 1e-6:
+        ag = 1.0
+    if np.abs(al) < 1e-6:
+        al = 1.0
+
+    return p[0] * (eta * L / al + (1.0 - eta) * G / ag)
+
+
+@njit(nogil=True)
+def _pink_beam_heating_no_bg(p: NDArray, x: NDArray) -> NDArray:
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 05/27/2026 SS 1.0 original
+    @details peak profile for a heating experiment, obtained by convolving
+    the pseudo-voight with a half-gaussian. The half-gaussian approximates
+    the temperature distribution within a sample heated by plasma-generated
+    x-rays together with 1-D heat flow.
+
+    p has the following 6 parameters
+    p = [A, x0, sigma0, sigma1, fwhm_g, fwhm_l]
+    """
+    sigma = _calc_sigma((p[2], p[3]), p[1])
+    if np.abs(sigma) < 0.01:
+        return np.zeros(x.shape)
+
+    arg1 = np.array([sigma, p[4]]).astype(np.float64)
+    arg2 = np.array([sigma, p[5]]).astype(np.float64)
+
+    p_g = np.hstack((p[0:2], arg1))
+    p_l = np.hstack((p[0:2], arg2))
+
+    eta, fwhm = _mixing_factor_pv(p[4], p[5])
+
+    G = _gaussian_heating(p_g, x)
+    L = _lorentzian_heating(p_l, x)
+
+    ag = np.trapezoid(G, x)
+    al = np.trapezoid(L, x)
+    if np.abs(ag) < 1e-6:
+        ag = 1.0
+    if np.abs(al) < 1e-6:
+        al = 1.0
+
+    return p[0] * (eta * L / al + (1.0 - eta) * G / ag)
+
+
 def pink_beam_dcs(p, x):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
@@ -579,11 +674,231 @@ def pink_beam_dcs_lmfit(x, A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l):
     return eta * L + (1.0 - eta) * G
 
 
-"""
-================================================================
-======================FINISHED==================================
-================================================================
-"""
+@njit(cache=True, nogil=True)
+def _gaussian_exponential(p: NDArray, x: NDArray) -> NDArray:
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 04/22/2026 SS 1.0 original
+    @details the gaussian component of the pink beam peak profile
+    obtained by convolution of gaussian with single exponential.
+    """
+    A, x0, tau, fwhm_g = p
+
+    del_tth = x - x0
+
+    sigsqr = fwhm_g**2
+
+    f2 = sigsqr / tau - 2.0 * del_tth
+    f3 = np.sqrt(2.0) * fwhm_g
+
+    v = 0.5 * f2 / tau
+
+    z = (f2 + del_tth) / f3
+
+    t2 = erfc(z)
+
+    g = np.zeros(x.shape)
+
+    zmask = np.abs(del_tth) > 5.0
+    g[~zmask] = (0.5 / tau) * np.exp(v[~zmask]) * t2[~zmask]
+
+    mask = np.isnan(g)
+    g[mask] = 0.0
+
+    return g
+
+
+@njit(cache=True, nogil=True)
+def _gaussian_heating(p: NDArray, x: NDArray) -> NDArray:
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 05/27/2026 SS 1.0 original
+    @details the gaussian component of the heating peak profile
+    obtained by convolution of gaussian with half gaussian.
+    The half gaussian is a good approximation of temperature distribution
+    within the sample heated by plasma generated x-rays together with 1-D
+    heat flow
+    """
+    A, x0, sigma, fwhm_g = p
+
+    del_tth = x - x0
+
+    sigsqr = fwhm_g**2 + sigma**2
+    sig = np.sqrt(sigsqr)
+
+    f1 = del_tth / sig
+    pre = 0.5 / sig / sqrt_2pi
+    f2 = np.exp(-0.5 * f1**2)
+    f3 = erfc(-(f1 / sqrt2) * (sigma / fwhm_g))
+
+    g = np.zeros(x.shape)
+
+    g = pre * f2 * f3
+    mask = np.isnan(g)
+    g[mask] = 0.0
+
+    return g
+
+
+@njit(cache=True, nogil=True)
+def _lorentzian_exponential(p: NDArray, x: NDArray) -> NDArray:
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 04/22/2026 SS 1.0 original
+    @details the lorentzian component of the heating peak profile
+    obtained by convolution of gaussian with single exponential.
+    """
+    A, x0, tau, fwhm_l = p
+
+    del_tth = x - x0
+
+    q = -del_tth / tau + 1j * 0.5 * fwhm_l / tau
+
+    f2 = exp1exp(q)
+
+    y = 1 / (np.pi * tau) * f2.imag
+
+    mask = np.isnan(y)
+    y[mask] = 0.0
+
+    return y
+
+
+@njit(cache=True, nogil=True)
+def _lorentzian_heating(p: NDArray, x: NDArray) -> NDArray:
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 05/27/2026 SS 1.0 original
+    @details the lorentzian component of the heating peak profile
+    obtained by convolution of lorentzian with half gaussian.
+    The half gaussian is a good approximation of temperature distribution
+    within the sample heated by plasma generated x-rays together with 1-D
+    heat flow
+    """
+
+    A, x0, sigma, fwhm_l = p
+
+    del_tth = x - x0
+
+    lam = (del_tth + 1j * fwhm_l) / (sqrt2 * sigma)
+    lamsqr = lam**2
+    pre = 1 / (sigma * sqrt_2pi**3)
+    f1 = exp1exp(-lamsqr)
+    f2 = np.pi * wofz(lam)
+
+    y = np.zeros(x.shape)
+
+    y = f1.imag + f2.real
+    y = pre * y
+
+    mask = np.isnan(y)
+    y[mask] = 0.0
+
+    return y
+
+
+def pink_beam_exponential(p: NDArray, x: NDArray) -> NDArray:
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 12/05/2026 SS 1.0 original
+    @details pseudo-voight convolved with a single exponential, plus a
+    linear background.
+
+    p has the following 9 parameters
+    p = [A, x0, tau0, tau1, tau2, fwhm_g, fwhm_l, bkg_c0, bkg_c1]
+    """
+    return _pink_beam_exponential_no_bg(p[:-2], x) + p[-2] + p[-1] * x
+
+
+def pink_beam_heating(p: NDArray, x: NDArray) -> NDArray:
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 05/27/2026 SS 1.0 original
+    @details pseudo-voight convolved with a half-gaussian (heating peak
+    shape), plus a linear background.
+
+    p has the following 8 parameters
+    p = [A, x0, sigma0, sigma1, fwhm_g, fwhm_l, bkg_c0, bkg_c1]
+    """
+    return _pink_beam_heating_no_bg(p[:-2], x) + p[-2] + p[-1] * x
+
+
+@njit(cache=True, nogil=True)
+def pink_beam_exponential_lmfit(
+    x: NDArray,
+    A: float,
+    x0: float,
+    tau0: float,
+    tau1: float,
+    tau2: float,
+    fwhm_g: float,
+    fwhm_l: float,
+) -> NDArray:
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 05/11/2026 SS 1.0 original
+    @details compute the pseudo voight peak shape convolved with a single
+    exponential
+    """
+    tau_exp = _calc_tau((tau0, tau1, tau2), x0)
+    if np.abs(tau_exp) < 0.01:
+        return np.zeros(x.shape, dtype=np.float64)
+
+    n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
+
+    p_g = np.array([A, x0, tau_exp, fwhm_g])
+    p_l = np.array([A, x0, tau_exp, fwhm_l])
+
+    g = _gaussian_exponential(p_g, x)
+    l_val = _lorentzian_exponential(p_l, x)
+
+    ag = np.trapezoid(g, x)
+    al = np.trapezoid(l_val, x)
+    if np.abs(ag) < 1e-6:
+        ag = 1.0
+    if np.abs(al) < 1e-6:
+        al = 1.0
+
+    return A * (n * l_val / al + (1.0 - n) * g / ag)
+
+
+@njit(cache=True, nogil=True)
+def pink_beam_heating_lmfit(
+    x: NDArray,
+    A: float,
+    x0: float,
+    sigma0: float,
+    sigma1: float,
+    fwhm_g: float,
+    fwhm_l: float,
+) -> NDArray:
+    """
+    @author Saransh Singh, Lawrence Livermore National Lab
+    @date 05/11/2026 SS 1.0 original
+    @details compute the pseudo voight peak shape for the pink
+    beam used in the heating experiment
+    """
+    sig_exp = _calc_sigma((sigma0, sigma1), x0)
+    if np.abs(sig_exp) < 0.01:
+        return np.zeros(x.shape, dtype=np.float64)
+
+    n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
+
+    p_g = np.array([A, x0, sig_exp, fwhm_g])
+    p_l = np.array([A, x0, sig_exp, fwhm_l])
+
+    g = _gaussian_heating(p_g, x)
+    l_val = _lorentzian_heating(p_l, x)
+
+    ag = np.trapezoid(g, x)
+    al = np.trapezoid(l_val, x)
+    if np.abs(ag) < 1e-6:
+        ag = 1.0
+    if np.abs(al) < 1e-6:
+        al = 1.0
+
+    return A * (n * l_val / al + (1.0 - n) * g / ag)
+
 
 # =============================================================================
 # Tanh Step Down
@@ -899,6 +1214,10 @@ def _mpeak_1d_no_bg(p, x, pktype, num_pks):
             f += _split_pvoigt1d_no_bg(p_fit[ii], x)
         elif pktype == 'pink_beam_dcs':
             f += _pink_beam_dcs_no_bg(p_fit[ii], x)
+        elif pktype == 'pink_beam_heating':
+            f += _pink_beam_heating_no_bg(p_fit[ii], x)
+        elif pktype == 'pink_beam_exponential':
+            f += _pink_beam_exponential_no_bg(p_fit[ii], x)
 
     return f
 

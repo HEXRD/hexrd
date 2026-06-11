@@ -2,9 +2,9 @@ import fnmatch
 
 import numpy as np
 from numba import njit
-from hexrd.core.fitting.special import erfc, exp1exp
 
 from hexrd.core.matrixutil import uniqueVectors
+from hexrd.core.fitting.special import erfc, exp1exp
 
 # =============================================================================
 # LMFIT Parameter munging utilities
@@ -117,6 +117,11 @@ def _set_peak_center_bounds(params, window_range, min_sep=0.01):
             )
             curr_peak.expr = '+'.join([prev_peak.name, new_pname])
             prev_peak = curr_peak
+
+
+# =============================================================================
+# DCS-related utilities
+# =============================================================================
 
 
 @njit(cache=True, nogil=True)
@@ -264,7 +269,12 @@ def fit_ring(tth_centers, lineout, tth_pred, spectrum_kwargs, int_cutoff, fit_tt
 
     # spectrum fitting
     sm = SpectrumModel(spec_data, tth_pred, **spectrum_kwargs)
-    fit_results = sm.fit()
+    # lmfit raises ValueError if the model produces NaN during fitting;
+    # treat it as a failed fit rather than crashing the whole batch.
+    try:
+        fit_results = sm.fit()
+    except ValueError:
+        return
     if not fit_results.success:
         return
 

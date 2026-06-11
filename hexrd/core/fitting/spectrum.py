@@ -1,11 +1,24 @@
 import numpy as np
 from numpy.polynomial import chebyshev
+from numpy.typing import NDArray
 
 from lmfit import Model, Parameters
 
 from hexrd.core.constants import fwhm_to_sigma
 from hexrd.core.imageutil import snip1d
 
+from .fitpeak import (
+    tau0_DFLT,
+    tau1_DFLT,
+    tau2_DFLT,
+    sigma0_DFLT,
+    sigma1_DFLT,
+)
+
+from .peakfunctions import (
+    pink_beam_heating_lmfit,
+    pink_beam_exponential_lmfit,
+)
 from .utils import (
     _calc_alpha,
     _calc_beta,
@@ -37,6 +50,23 @@ _function_dict_1d = {
         'alpha1',
         'beta0',
         'beta1',
+        'fwhm_g',
+        'fwhm_l',
+    ],
+    'pink_beam_heating': [
+        'amp',
+        'cen',
+        'sigma0',
+        'sigma1',
+        'fwhm_g',
+        'fwhm_l',
+    ],
+    'pink_beam_exponential': [
+        'amp',
+        'cen',
+        'tau0',
+        'tau1',
+        'tau2',
         'fwhm_g',
         'fwhm_l',
     ],
@@ -157,6 +187,33 @@ def pink_beam_dcs(x, amp, cen, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l):
     L = _lorentzian_pink_beam(p_l, x)
 
     return eta * L + (1.0 - eta) * G
+
+
+# Wrappers to rename A/x0 to amp/cen so lmfit parameter names
+# match the constraint infrastructure (e.g. _set_bound_constraints).
+def pink_beam_heating(
+    x: NDArray,
+    amp: float,
+    cen: float,
+    sigma0: float,
+    sigma1: float,
+    fwhm_g: float,
+    fwhm_l: float,
+) -> NDArray:
+    return pink_beam_heating_lmfit(x, amp, cen, sigma0, sigma1, fwhm_g, fwhm_l)
+
+
+def pink_beam_exponential(
+    x: NDArray,
+    amp: float,
+    cen: float,
+    tau0: float,
+    tau1: float,
+    tau2: float,
+    fwhm_g: float,
+    fwhm_l: float,
+) -> NDArray:
+    return pink_beam_exponential_lmfit(x, amp, cen, tau0, tau1, tau2, fwhm_g, fwhm_l)
 
 
 def _amplitude_guess(x, x0, y, fwhm):
@@ -280,6 +337,29 @@ def _initial_guess(
                 fwhm_guess[ii],
                 fwhm_guess[ii],
             ]
+    elif pktype == 'pink_beam_heating':
+        for ii in np.arange(num_pks):
+            amp_guess = _amplitude_guess(x, peak_positions[ii], fsubtr, fwhm_guess[ii])
+            pkparams[ii, :] = [
+                max(amp_guess, min_ampl),
+                peak_positions[ii],
+                sigma0_DFLT,
+                sigma1_DFLT,
+                fwhm_guess[ii],
+                fwhm_guess[ii],
+            ]
+    elif pktype == 'pink_beam_exponential':
+        for ii in np.arange(num_pks):
+            amp_guess = _amplitude_guess(x, peak_positions[ii], fsubtr, fwhm_guess[ii])
+            pkparams[ii, :] = [
+                max(amp_guess, min_ampl),
+                peak_positions[ii],
+                tau0_DFLT,
+                tau1_DFLT,
+                tau2_DFLT,
+                fwhm_guess[ii],
+                fwhm_guess[ii],
+            ]
 
     if bgtype == 'constant':
         bgparams = np.average(bkg)
@@ -305,6 +385,10 @@ def _build_composite_model(npeaks=1, pktype='gaussian', bgtype='linear'):
         pkfunc = split_pvoigt_1d
     elif pktype == 'pink_beam_dcs':
         pkfunc = pink_beam_dcs
+    elif pktype == 'pink_beam_heating':
+        pkfunc = pink_beam_heating
+    elif pktype == 'pink_beam_exponential':
+        pkfunc = pink_beam_exponential
 
     spectrum_model = Model(pkfunc, prefix=pk_prefix_tmpl % 0)
     for i in range(1, npeaks):
@@ -381,9 +465,9 @@ class SpectrumModel(object):
         # spectrum data
         data = np.atleast_2d(data)
         assert data.shape[1] == 2, "data must be [[tth_0, int_0], ..., [tth_N, int_N]"
-        assert len(
-            data > 10
-        ), "check your input spectrum; you provided fewer than 10 points."
+        assert len(data > 10), (
+            "check your input spectrum; you provided fewer than 10 points."
+        )
         self._data = data
 
         xdata, ydata = data.T
@@ -439,6 +523,24 @@ class SpectrumModel(object):
             # !!! important for making pseudo-Voigt behave!
             _set_refinement_by_name(initial_params_pks, 'alpha', vary=False)
             _set_refinement_by_name(initial_params_pks, 'beta', vary=False)
+            _set_equality_constraints(
+                initial_params_pks,
+                zip(
+                    _extract_parameters_by_name(initial_params_pks, 'fwhm_g'),
+                    _extract_parameters_by_name(initial_params_pks, 'fwhm_l'),
+                ),
+            )
+        elif pktype == 'pink_beam_heating':
+            _set_refinement_by_name(initial_params_pks, 'sigma', vary=False)
+            _set_equality_constraints(
+                initial_params_pks,
+                zip(
+                    _extract_parameters_by_name(initial_params_pks, 'fwhm_g'),
+                    _extract_parameters_by_name(initial_params_pks, 'fwhm_l'),
+                ),
+            )
+        elif pktype == 'pink_beam_exponential':
+            _set_refinement_by_name(initial_params_pks, 'tau', vary=False)
             _set_equality_constraints(
                 initial_params_pks,
                 zip(
@@ -546,6 +648,75 @@ class SpectrumModel(object):
                     return res0
 
                 # refit
+                res1 = self.model.fit(ydata, params=new_p, x=xdata)
+            else:
+                return res0
+        elif self.pktype == 'pink_beam_heating':
+            for pname, param in self.peak_params.items():
+                if 'sigma' in pname:
+                    param.vary = False
+
+            res0 = self.model.fit(ydata, params=self.params, x=xdata)
+            if res0.success:
+                new_p = res0.params
+                _set_refinement_by_name(new_p, 'sigma', vary=False)
+                _set_equality_constraints(new_p, 'sigma0')
+                _set_equality_constraints(new_p, 'sigma1')
+                _set_bound_constraints(new_p, 'sigma', min_val=-np.inf, max_val=np.inf)
+                _set_width_mixing_bounds(
+                    new_p,
+                    min_w=fwhm_min,
+                    max_w=0.9 * window_width,
+                )
+                _set_equality_constraints(
+                    new_p,
+                    zip(
+                        _extract_parameters_by_name(new_p, 'fwhm_g'),
+                        _extract_parameters_by_name(new_p, 'fwhm_l'),
+                    ),
+                )
+                try:
+                    _set_peak_center_bounds(
+                        new_p, window_range, min_sep=self.min_pk_sep
+                    )
+                except RuntimeError:
+                    return res0
+
+                res1 = self.model.fit(ydata, params=new_p, x=xdata)
+            else:
+                return res0
+        elif self.pktype == 'pink_beam_exponential':
+            for pname, param in self.peak_params.items():
+                if 'tau' in pname:
+                    param.vary = False
+
+            res0 = self.model.fit(ydata, params=self.params, x=xdata)
+            if res0.success:
+                new_p = res0.params
+                _set_refinement_by_name(new_p, 'tau', vary=False)
+                _set_equality_constraints(new_p, 'tau0')
+                _set_equality_constraints(new_p, 'tau1')
+                _set_equality_constraints(new_p, 'tau2')
+                _set_bound_constraints(new_p, 'tau', min_val=-np.inf, max_val=np.inf)
+                _set_width_mixing_bounds(
+                    new_p,
+                    min_w=fwhm_min,
+                    max_w=0.9 * window_width,
+                )
+                _set_equality_constraints(
+                    new_p,
+                    zip(
+                        _extract_parameters_by_name(new_p, 'fwhm_g'),
+                        _extract_parameters_by_name(new_p, 'fwhm_l'),
+                    ),
+                )
+                try:
+                    _set_peak_center_bounds(
+                        new_p, window_range, min_sep=self.min_pk_sep
+                    )
+                except RuntimeError:
+                    return res0
+
                 res1 = self.model.fit(ydata, params=new_p, x=xdata)
             else:
                 return res0
