@@ -1326,11 +1326,24 @@ def calc_rwp(spectrum_sim, spectrum_expt, weights, background, P):
     moved outside of the class to allow numba implementation
     P : number of independent parameters in fitting
     """
-    err = weights[:, 1] * (spectrum_sim[:, 1] - spectrum_expt[:, 1]) ** 2
+    """check to make sure the lengths are the same. if they are not then 
+    some values were masked because of nans and we have entered a parameter
+    space which is giving nan vales. we should handle that by generating 
+    infinities in the err vector so this regio is avoided
+    """
+    if spectrum_sim.shape == spectrum_expt.shape == weights.shape:
+        err = weights[:, 1] * (spectrum_sim[:, 1] - spectrum_expt[:, 1]) ** 2
+    else:
+        err = np.finfo(np.float32).max * np.ones_like(spectrum_expt[:, 1])
 
     weighted_expt = weights[:, 1] * spectrum_expt[:, 1] ** 2
 
-    weighted_expt_bmins = weights[:, 1] * (spectrum_expt[:, 1] - background[:, 1]) ** 2
+    if spectrum_sim.shape == background.shape:
+        weighted_expt_bmins = (
+            weights[:, 1] * (spectrum_expt[:, 1] - background[:, 1]) ** 2
+        )
+    else:
+        weighted_expt_bmins = np.inf * np.ones_like(spectrum_expt[:, 1])
 
     """ weighted sum of square """
     wss = np.sum(err)
