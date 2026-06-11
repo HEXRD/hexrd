@@ -1277,10 +1277,11 @@ class LeBail(AbstractWPPF):
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
-        errvec, self.Rwp, self.gofF = calc_rwp(
+        errvec, self.Rwp, self.Rwpb, self.gofF, self.gofFb = calc_rwp(
             self.spectrum_sim.data_array,
             self.spectrum_expt.data_array,
             self.weights.data_array,
+            self.background.data_array,
             self.num_vary,
         )
         return errvec
@@ -1451,9 +1452,9 @@ class LeBail(AbstractWPPF):
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
         if print_to_screen:
+            logger.info(f"Rwp: {self.Rwp * 100.0:.2f} % and chi^2: {self.gofF:.2f}")
             logger.info(
-                "Finished iteration. Rwp: "
-                f"{self.Rwp * 100.0:.2f} % and chi^2: {self.gofF:.2f}"
+                f"Rwpb: {self.Rwpb * 100.0:.2f} % and chi_b^2: {self.gofFb:.2f}\n"
             )
 
     def Refine(self, print_to_screen=True):
@@ -2073,10 +2074,11 @@ class Rietveld(AbstractWPPF):
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
-        errvec, self.Rwp, self.gofF = calc_rwp(
+        errvec, self.Rwp, self.Rwpb, self.gofF, self.gofFb = calc_rwp(
             self.spectrum_sim.data_array,
             self.spectrum_expt.data_array,
             self.weights.data_array,
+            self.background.data_array,
             self.num_vary,
         )
         return errvec
@@ -2227,12 +2229,12 @@ class Rietveld(AbstractWPPF):
             self.Rwplist = np.append(self.Rwplist, self.Rwp)
             self.gofFlist = np.append(self.gofFlist, self.gofF)
 
+            logger.info(f"Rwp: {self.Rwp * 100.0:.2f} % and chi^2: {self.gofF:.2f}")
             logger.info(
-                "Finished iteration. Rwp: "
-                f"{self.Rwp * 100.0:.2f} % and chi^2: {self.gofF:.2f}"
+                f"Rwpb: {self.Rwpb * 100.0:.2f} % and chi_b^2: {self.gofFb:.2f}\n"
             )
         else:
-            logger.info("Nothing to refine. Updating parameters...")
+            logger.info("Nothing to refine.")
             self.computespectrum()
 
     def RefineTexture(self):

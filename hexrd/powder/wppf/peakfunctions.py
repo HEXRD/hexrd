@@ -1318,7 +1318,7 @@ def calc_Iobs_pvheating(
 
 
 @njit(cache=True, nogil=True)
-def calc_rwp(spectrum_sim, spectrum_expt, weights, P):
+def calc_rwp(spectrum_sim, spectrum_expt, weights, background, P):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/31/2021 SS 1.0 original
@@ -1330,11 +1330,14 @@ def calc_rwp(spectrum_sim, spectrum_expt, weights, P):
 
     weighted_expt = weights[:, 1] * spectrum_expt[:, 1] ** 2
 
+    weighted_expt_bmins = weights[:, 1] * (spectrum_expt[:, 1] - background[:, 1]) ** 2
+
     errvec = np.sqrt(err)
 
     """ weighted sum of square """
     wss = np.sum(err)
     den = np.sum(weighted_expt)
+    den_bmins = np.sum(weighted_expt_bmins)
 
     """ standard Rwp i.e. weighted residual """
     if den > 0.0:
@@ -1344,6 +1347,16 @@ def calc_rwp(spectrum_sim, spectrum_expt, weights, P):
             Rwp = np.inf
     else:
         Rwp = np.inf
+
+    """ background adjusted Rwp i.e. Rwpb for datasets with large background which 
+    is generally the case with HED experiments"""
+    if den_bmins > 0.0:
+        if wss / den_bmins > 0.0:
+            Rwpb = np.sqrt(wss / den_bmins)
+        else:
+            Rwpb = np.inf
+    else:
+        Rwpb = np.inf
 
     """ number of observations to fit i.e. number of data points """
     N = spectrum_sim.shape[0]
@@ -1356,10 +1369,25 @@ def calc_rwp(spectrum_sim, spectrum_expt, weights, P):
     else:
         Rexp = np.inf
 
+    """ background adjusted Rexp i.e. Rexpb"""
+    if den_bmins > 0.0:
+        if (N - P) / den_bmins > 0:
+            Rexpb = np.sqrt((N - P) / den_bmins)
+        else:
+            Rexpb = 0.0
+    else:
+        Rexpb = np.inf
+
     # Rwp and goodness of fit parameters
     if Rexp > 0.0:
         gofF = Rwp / Rexp
     else:
         gofF = np.inf
 
-    return errvec, Rwp, gofF
+    """background adjusted goodness of fit. this is much more meaningful"""
+    if Rexpb > 0.0:
+        gofFb = Rwpb / Rexpb
+    else:
+        gofFb = np.inf
+
+    return errvec, Rwp, Rwpb, gofF, gofFb
