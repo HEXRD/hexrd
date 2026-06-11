@@ -37,9 +37,9 @@ def download_and_extract_tgz(url, md5sum, path):
 
 
 def download_xtensor(path):
-    url = 'https://github.com/xtensor-stack/xtensor/archive/refs/tags/0.24.7.tar.gz'  # noqa
-    md5sum = 'e21a14d679db71e92a703bccd3c5866a'
-    out_dir_name = 'xtensor-0.24.7'
+    url = 'https://github.com/xtensor-stack/xtensor/archive/refs/tags/0.27.1.tar.gz'  # noqa
+    md5sum = 'ef143422b31b94dd0f5b95b69388cd48'
+    out_dir_name = 'xtensor-0.27.1'
 
     with tempfile.TemporaryDirectory() as temp_dir:
         download_and_extract_tgz(url, md5sum, temp_dir)
@@ -58,9 +58,9 @@ def download_xtensor(path):
 
 
 def download_xtensor_python(path):
-    url = 'https://github.com/xtensor-stack/xtensor-python/archive/refs/tags/0.26.1.tar.gz'  # noqa
-    md5sum = '5d05edf71ac948dc620968229320c791'
-    out_dir_name = 'xtensor-python-0.26.1'
+    url = 'https://github.com/xtensor-stack/xtensor-python/archive/refs/tags/0.29.0.tar.gz'  # noqa
+    md5sum = 'd943e73a742241931579444f19846872'
+    out_dir_name = 'xtensor-python-0.29.0'
 
     with tempfile.TemporaryDirectory() as temp_dir:
         download_and_extract_tgz(url, md5sum, temp_dir)
@@ -79,9 +79,9 @@ def download_xtensor_python(path):
 
 
 def download_xtl(path):
-    url = 'https://github.com/xtensor-stack/xtl/archive/refs/tags/0.7.7.tar.gz'  # noqa
-    md5sum = '6df56ae8bc30471f6773b3f18642c8ab'
-    out_dir_name = 'xtl-0.7.7'
+    url = 'https://github.com/xtensor-stack/xtl/archive/refs/tags/0.8.2.tar.gz'  # noqa
+    md5sum = 'a5a5b86d5695baff39fc9943481b2b5b'
+    out_dir_name = 'xtl-0.8.2'
 
     with tempfile.TemporaryDirectory() as temp_dir:
         download_and_extract_tgz(url, md5sum, temp_dir)
@@ -100,9 +100,9 @@ def download_xtl(path):
 
 
 def download_xsimd(path):
-    url = 'https://github.com/xtensor-stack/xsimd/archive/refs/tags/12.1.1.tar.gz'  # noqa
-    md5sum = 'e8887de343bd6036bdfa1f4a4752dc64'
-    out_dir_name = 'xsimd-12.1.1'
+    url = 'https://github.com/xtensor-stack/xsimd/archive/refs/tags/13.2.0.tar.gz'  # noqa
+    md5sum = 'f451a1c57d2a4fdc0ba663be438dced4'
+    out_dir_name = 'xsimd-13.2.0'
 
     with tempfile.TemporaryDirectory() as temp_dir:
         download_and_extract_tgz(url, md5sum, temp_dir)
@@ -121,9 +121,9 @@ def download_xsimd(path):
 
 
 def download_eigen3(path):
-    url = 'https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz'  # noqa
-    md5sum = '4c527a9171d71a72a9d4186e65bea559'
-    out_dir_name = 'eigen-3.4.0'
+    url = 'https://gitlab.com/libeigen/eigen/-/archive/3.4.1/eigen-3.4.1.tar.gz'  # noqa
+    md5sum = '77f2c00ce620767e4df74958c6d5c822'
+    out_dir_name = 'eigen-3.4.1'
 
     download_and_extract_tgz(url, md5sum, path)
 
@@ -137,9 +137,9 @@ def download_eigen3(path):
 
 
 def download_pybind11(path):
-    url = 'https://github.com/pybind/pybind11/archive/refs/tags/v3.0.1.tar.gz'
-    md5sum = '81399a5277559163b3ee912b41de1b76'
-    out_dir_name = 'pybind11-3.0.1'
+    url = 'https://github.com/pybind/pybind11/archive/refs/tags/v3.0.4.tar.gz'
+    md5sum = '933fa1b6b1fe34c9945ecb3fe67f5c4b'
+    out_dir_name = 'pybind11-3.0.4'
 
     with tempfile.TemporaryDirectory() as temp_dir:
         download_and_extract_tgz(url, md5sum, temp_dir)
