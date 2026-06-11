@@ -1332,8 +1332,6 @@ def calc_rwp(spectrum_sim, spectrum_expt, weights, background, P):
 
     weighted_expt_bmins = weights[:, 1] * (spectrum_expt[:, 1] - background[:, 1]) ** 2
 
-    errvec = np.sqrt(err)
-
     """ weighted sum of square """
     wss = np.sum(err)
     den = np.sum(weighted_expt)
@@ -1361,33 +1359,6 @@ def calc_rwp(spectrum_sim, spectrum_expt, weights, background, P):
     """ number of observations to fit i.e. number of data points """
     N = spectrum_sim.shape[0]
 
-    if den > 0.0:
-        if (N - P) / den > 0:
-            Rexp = np.sqrt((N - P) / den)
-        else:
-            Rexp = 0.0
-    else:
-        Rexp = np.inf
+    gofF = wss / (N - P)
 
-    """ background adjusted Rexp i.e. Rexpb"""
-    if den_bmins > 0.0:
-        if (N - P) / den_bmins > 0:
-            Rexpb = np.sqrt((N - P) / den_bmins)
-        else:
-            Rexpb = 0.0
-    else:
-        Rexpb = np.inf
-
-    # Rwp and goodness of fit parameters
-    if Rexp > 0.0:
-        gofF = Rwp / Rexp
-    else:
-        gofF = np.inf
-
-    """background adjusted goodness of fit. this is much more meaningful"""
-    if Rexpb > 0.0:
-        gofFb = Rwpb / Rexpb
-    else:
-        gofFb = np.inf
-
-    return errvec, Rwp, Rwpb, gofF, gofFb
+    return err, Rwp, Rwpb, gofF
