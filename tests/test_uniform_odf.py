@@ -130,6 +130,24 @@ class TestUniformODF(unittest.TestCase):
                 self.assertEqual(odf.value, 1.0)
                 self.assertEqual(odf.eval(np.eye(3)), 1.0)
 
+    def test_all_crystal_symmetries_accepted(self):
+        """Every supported crystal symmetry is accepted and stored."""
+        crystal_symmetries = [
+            'ci', 'c2h', 'd2h', 'c4h', 'd4h',
+            's6', 'd3d', 'c6h', 'd6h', 'th', 'oh',
+        ]
+        for sym in crystal_symmetries:
+            with self.subTest(crystal_symmetry=sym):
+                odf = UniformODF(sym, 'triclinic')
+                self.assertEqual(odf.crystal_symmetry, sym)
+
+    def test_all_sample_symmetries_accepted(self):
+        """Every supported sample symmetry is accepted and stored."""
+        for sym in ['triclinic', 'monoclinic', 'orthorhombic']:
+            with self.subTest(sample_symmetry=sym):
+                odf = UniformODF('oh', sym)
+                self.assertEqual(odf.sample_symmetry, sym)
+
     def test_invalid_crystal_symmetry(self):
         """Test that invalid crystal symmetry raises ValueError."""
         with self.assertRaises(ValueError):
