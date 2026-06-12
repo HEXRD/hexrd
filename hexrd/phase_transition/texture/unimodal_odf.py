@@ -215,14 +215,11 @@ class UnimodalODF:
             modal_i = self._modal_orientations[i]  # Shape (3, 3)
             weight_i = self._weights[i]
 
-            # Evaluate kernel between all query orientations and this modal orientation
-            # We need to broadcast: kernel.eval expects both args to have same leading dims
-            modal_broadcast = np.broadcast_to(
-                modal_i.reshape(1, 3, 3),
-                (n_query, 3, 3)
-            )
-
-            kernel_values = self.kernel.eval(orientations, modal_broadcast)
+            # Evaluate the kernel between all query orientations and this single
+            # modal orientation. Pass modal_i as a single (3, 3): the kernel
+            # broadcasts it across the query batch, and its symmetry-reduced
+            # path requires one operand to be a single reference orientation.
+            kernel_values = self.kernel.eval(orientations, modal_i)
 
             # Add weighted contribution to results
             results += weight_i * kernel_values
