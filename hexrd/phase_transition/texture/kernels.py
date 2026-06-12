@@ -116,12 +116,29 @@ class DeLaValleePoussinKernel(SO3Kernel):
     norm_constant : float
         Normalization constant from the Beta function
 
+    Notes
+    -----
+    Symmetry is opt-in and must be supplied explicitly. By default the
+    kernel applies NO crystal or sample symmetry: symmetry-equivalent
+    orientations are treated as distinct and the misorientation angle is
+    the raw geometric one. To have the kernel respect symmetry - i.e. treat
+    orientations related by a symmetry operation as identical and use the
+    smallest equivalent misorientation - you must pass ``crystal_symmetry``
+    (and/or ``sample_symmetry``). For example, a cubic material must be
+    built with ``crystal_symmetry='oh'``; omitting it silently ignores
+    cubic symmetry and will overestimate misorientation angles.
+
     Examples
     --------
     >>> kernel = DeLaValleePoussinKernel(halfwidth=np.radians(15))
     >>> R1 = np.eye(3)
     >>> R2 = np.eye(3)  # Same orientation
     >>> value = kernel.eval(R1, R2)  # Maximum value = C
+    >>>
+    >>> # Respect cubic crystal symmetry (otherwise it is ignored):
+    >>> kernel = DeLaValleePoussinKernel(
+    ...     halfwidth=np.radians(15), crystal_symmetry='oh'
+    ... )
     """
 
     def __init__(
@@ -200,9 +217,12 @@ class DeLaValleePoussinKernel(SO3Kernel):
         Calculate misorientation angle between rotation matrices.
 
         Without symmetry, uses the formula:
-        cos(ω) = (trace(R1^T @ R2) - 1) / 2.
+        cos(ω) = (trace(R1^T @ R2) - 1) / 2, and supports arbitrary
+        broadcasting of R1 and R2.
         With crystal or sample symmetry, delegates to
-        hexrd.core.rotations.misorientation for symmetry-reduced angles.
+        hexrd.core.rotations.misorientation for symmetry-reduced angles; in
+        that case one of R1/R2 must be a single orientation (shape (3, 3)),
+        which is reduced against the other as a batch.
 
         Parameters
         ----------
@@ -240,26 +260,37 @@ class DeLaValleePoussinKernel(SO3Kernel):
         R2: np.ndarray,
     ) -> _AngleResult:
         output_shape = np.broadcast_shapes(R1.shape[:-2], R2.shape[:-2])
-        R1_flat = np.broadcast_to(
-            R1,
-            output_shape + (3, 3),
-        ).reshape(-1, 3, 3)
-        R2_flat = np.broadcast_to(
-            R2,
-            output_shape + (3, 3),
-        ).reshape(-1, 3, 3)
-
-        angles = np.empty(R1_flat.shape[0], dtype=float)
         symmetries = self._misorientation_symmetries()
-        for i, (r1, r2) in enumerate(zip(R1_flat, R2_flat)):
-            q1 = rotations.quatOfRotMat(r1).reshape(4, 1)
-            q2 = rotations.quatOfRotMat(r2).reshape(4, 1)
-            angle, _ = rotations.misorientation(
-                q1,
-                q2,
-                symmetries=symmetries,
+
+        # rotations.misorientation reduces a single reference quaternion
+        # against a whole (4, n) batch in one vectorized call, and the reduced
+        # angle is symmetric in its two arguments. The kernel is always
+        # evaluated as one reference orientation against many (e.g. a single
+        # modal orientation vs many query orientations), so we require one
+        # operand to be a single orientation and reduce the other as a batch.
+        n1 = int(np.prod(R1.shape[:-2], dtype=int))
+        n2 = int(np.prod(R2.shape[:-2], dtype=int))
+        if n1 == 1:
+            ref, batch = R1, R2
+        elif n2 == 1:
+            ref, batch = R2, R1
+        else:
+            raise ValueError(
+                "symmetry-reduced evaluation requires one operand to be a "
+                "single orientation of shape (3, 3); got batches of shape "
+                f"{R1.shape} and {R2.shape}. Evaluate a single reference "
+                "orientation against a batch."
             )
-            angles[i] = angle[0]
+
+        q_ref = rotations.quatOfRotMat(ref.reshape(3, 3)).reshape(4, 1)
+        batch_flat = np.broadcast_to(
+            batch, output_shape + (3, 3)
+        ).reshape(-1, 3, 3)
+        q_batch = rotations.quatOfRotMat(batch_flat).reshape(4, -1)
+        angles, _ = rotations.misorientation(
+            q_ref, q_batch, symmetries=symmetries
+        )
+        angles = np.asarray(angles, dtype=float)
 
         if output_shape == ():
             return angles[0]

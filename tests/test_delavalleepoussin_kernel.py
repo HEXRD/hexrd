@@ -370,6 +370,24 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
         angle = kernel.misorientation_angle(np.eye(3), R90z)
         self.assertAlmostEqual(float(angle), 0.0, places=8)
 
+    def test_symmetry_requires_single_reference_orientation(self):
+        """Symmetry-reduced eval needs one operand to be a single orientation.
+
+        rotations.misorientation reduces one reference against a batch, so two
+        genuine batches (neither a single (3, 3)) are unsupported and raise.
+        """
+        kernel = DeLaValleePoussinKernel(
+            halfwidth=np.radians(10),
+            crystal_symmetry='d4h',
+        )
+
+        R90z = _rotation_about_z(np.radians(90.0))
+        R1 = np.stack([np.eye(3), R90z])
+        R2 = np.stack([R90z, np.eye(3)])
+
+        with self.assertRaises(ValueError):
+            kernel.misorientation_angle(R1, R2)
+
     def test_misorientation_angle_bad_shape(self):
         """Test that non-(3,3) inputs raise ValueError."""
         kernel = DeLaValleePoussinKernel(halfwidth=np.radians(10))
