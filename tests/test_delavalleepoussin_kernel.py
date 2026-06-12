@@ -2,6 +2,7 @@
 
 import numpy as np
 import unittest
+from scipy.integrate import quad
 from scipy.special import beta as betafn
 
 from hexrd.core import rotations
@@ -50,12 +51,12 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
         kernel = DeLaValleePoussinKernel(halfwidth=halfwidth)
 
         identity = np.eye(3)
-        rotations = np.array([
+        rotation_matrices = np.array([
             _rotation_about_z(angle)
             for angle in MTEX_KERNEL_OMEGA
         ])
 
-        values = kernel.eval(identity, rotations)
+        values = kernel.eval(identity, rotation_matrices)
 
         np.testing.assert_allclose(
             kernel.kappa, MTEX_KERNEL_KAPPA, rtol=0.0, atol=1e-10
@@ -146,20 +147,41 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
         self.assertAlmostEqual(value_rotated, 0.0, places=3)
 
     def test_halfwidth_is_half_maximum(self):
-        """Test that K(halfwidth) = K(0) / 2."""
+        """Test that K(halfwidth) = K(0) / 2 through the eval path."""
         halfwidth_rad = np.radians(4.0)
         kernel = DeLaValleePoussinKernel(halfwidth=halfwidth_rad)
 
         # K(0) = norm_constant
         peak = kernel.norm_constant
 
-        # Evaluate at exactly the halfwidth angle
-        co2 = np.cos(halfwidth_rad / 2.0)
-        value_at_hw = (
-            kernel.norm_constant * co2 ** (2.0 * kernel.kappa)
-        )
+        # A rotation about z by exactly the halfwidth has misorientation
+        # angle = halfwidth from the identity, so eval there must give K(0)/2.
+        R_hw = _rotation_about_z(halfwidth_rad)
+        value_at_hw = kernel.eval(np.eye(3), R_hw)
 
-        self.assertAlmostEqual(value_at_hw, peak / 2.0, places=5)
+        self.assertAlmostEqual(float(value_at_hw), peak / 2.0, places=5)
+
+    def test_kernel_is_normalized_on_so3(self):
+        """The kernel has mean 1 (MRD) over SO(3).
+
+        The normalization constant C is chosen so the kernel's mean over
+        SO(3) is 1, which makes it a valid ODF in MRD units (and is what
+        UnimodalODF relies on). Checked by quadrature against the SO(3)
+        Haar measure across a range of half-widths.
+        """
+        for halfwidth_deg in [5.0, 15.0, 30.0, 60.0]:
+            with self.subTest(halfwidth_deg=halfwidth_deg):
+                kernel = DeLaValleePoussinKernel(
+                    halfwidth=np.radians(halfwidth_deg)
+                )
+
+                def integrand(omega):
+                    R = _rotation_about_z(omega)
+                    haar_weight = (2.0 / np.pi) * np.sin(omega / 2.0) ** 2
+                    return float(kernel.eval(np.eye(3), R)) * haar_weight
+
+                mean_mrd, _ = quad(integrand, 0.0, np.pi, limit=200)
+                self.assertAlmostEqual(mean_mrd, 1.0, places=6)
 
     # --- Invalid input tests ---
 
@@ -203,6 +225,21 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
             )
 
     # --- misorientation_angle tests ---
+
+    def test_has_symmetry_reflects_configuration(self):
+        """has_symmetry is True iff a crystal or sample symmetry was given."""
+        plain = DeLaValleePoussinKernel(halfwidth=np.radians(10))
+        self.assertFalse(plain.has_symmetry)
+
+        crystal = DeLaValleePoussinKernel(
+            halfwidth=np.radians(10), crystal_symmetry='d4h'
+        )
+        self.assertTrue(crystal.has_symmetry)
+
+        sample = DeLaValleePoussinKernel(
+            halfwidth=np.radians(10), sample_symmetry='orthorhombic'
+        )
+        self.assertTrue(sample.has_symmetry)
 
     def test_misorientation_angle_identity(self):
         """Test misorientation angle between identical rotations is 0."""
@@ -313,6 +350,24 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
         R180z = _rotation_about_z(np.radians(180.0))
 
         angle = kernel.misorientation_angle(np.eye(3), R180z)
+        self.assertAlmostEqual(float(angle), 0.0, places=8)
+
+    def test_misorientation_angle_uses_crystal_and_sample_symmetry(self):
+        """Crystal and sample symmetry can be active together.
+
+        Exercises the combined branch of _misorientation_symmetries (both
+        groups present, not just one). A 90 deg rotation about z is a d4h
+        crystal operation, so its symmetry-reduced misorientation is 0.
+        """
+        kernel = DeLaValleePoussinKernel(
+            halfwidth=np.radians(10),
+            crystal_symmetry='d4h',
+            sample_symmetry='orthorhombic',
+        )
+        self.assertTrue(kernel.has_symmetry)
+
+        R90z = _rotation_about_z(np.radians(90.0))
+        angle = kernel.misorientation_angle(np.eye(3), R90z)
         self.assertAlmostEqual(float(angle), 0.0, places=8)
 
     def test_misorientation_angle_bad_shape(self):
