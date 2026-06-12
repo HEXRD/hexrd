@@ -1333,6 +1333,7 @@ def calc_rwp(spectrum_sim, spectrum_expt, weights, background, P):
     """
     if spectrum_sim.shape == spectrum_expt.shape == weights.shape:
         err = weights[:, 1] * (spectrum_sim[:, 1] - spectrum_expt[:, 1]) ** 2
+        errvec = np.sqrt(weights[:, 1]) * (spectrum_sim[:, 1] - spectrum_expt[:, 1])
     else:
         err = np.finfo(np.float32).max * np.ones_like(spectrum_expt[:, 1])
 
@@ -1374,4 +1375,4 @@ def calc_rwp(spectrum_sim, spectrum_expt, weights, background, P):
 
     gofF = wss / (N - P)
 
-    return err, Rwp, Rwpb, gofF
+    return errvec, Rwp, Rwpb, gofF
