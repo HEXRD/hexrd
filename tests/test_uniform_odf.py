@@ -165,21 +165,23 @@ class TestUniformODF(unittest.TestCase):
         with self.assertRaises(ValueError):
             UniformODF('oh', 'axial')
 
-    def test_symmetry_sets_in_sync_with_wppf(self):
-        """Guard against drift from WPPF's SYMLIST.
+    def test_no_symmetry_defaults_to_none(self):
+        """UniformODF can be built without symmetry; labels are None."""
+        odf = UniformODF()
+        self.assertIsNone(odf.crystal_symmetry)
+        self.assertIsNone(odf.sample_symmetry)
+        self.assertEqual(odf.value, 1.0)
+        self.assertEqual(odf.eval(np.eye(3)), 1.0)
 
-        Crystal symmetries must match WPPF's crystal portion exactly.
-        Sample symmetries must be a subset of WPPF's sample portion;
-        'axial' is intentionally excluded to match the kernel.
-        """
-        from hexrd.powder.wppf.texture import SYMLIST
-        from hexrd.phase_transition.texture.uniform_odf import (
-            _CRYSTAL_SYMMETRIES,
-            _SAMPLE_SYMMETRIES,
-        )
+    def test_array_symmetry_has_no_label(self):
+        """Symmetry given as a quaternion array is accepted; label is None."""
+        from hexrd.core import rotations
+        odf = UniformODF(rotations.quatOfLaueGroup('d4h'))
+        self.assertIsNone(odf.crystal_symmetry)
+        self.assertEqual(odf.eval(np.eye(3)), 1.0)
 
-        wppf_crystal = set(SYMLIST[0:11])
-        wppf_sample = set(SYMLIST[11:])
-
-        self.assertEqual(set(_CRYSTAL_SYMMETRIES), wppf_crystal)
-        self.assertTrue(set(_SAMPLE_SYMMETRIES) <= wppf_sample)
+    def test_string_representations_without_symmetry(self):
+        """repr/str render gracefully when no symmetry is set."""
+        odf = UniformODF()
+        self.assertIn('crystal_symmetry=None', repr(odf))
+        self.assertIn('none', str(odf))
