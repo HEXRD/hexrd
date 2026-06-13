@@ -7,21 +7,14 @@ orientations are equally likely. The uniform ODF has a constant value of
 for texture analysis on SO(3).
 """
 
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
 
-# Valid symmetry labels. Crystal symmetries mirror the crystal portion of
-# hexrd.powder.wppf.texture.SYMLIST. Sample symmetries are the subset
-# currently supported by DeLaValleePoussinKernel; 'axial' is intentionally
-# excluded to stay consistent with the kernel's sample symmetry handling.
-_CRYSTAL_SYMMETRIES = frozenset([
-    'ci', 'c2h', 'd2h', 'c4h', 'd4h',
-    's6', 'd3d', 'c6h', 'd6h', 'th', 'oh',
-])
-_SAMPLE_SYMMETRIES = frozenset([
-    'triclinic', 'monoclinic', 'orthorhombic',
-])
+from hexrd.phase_transition.texture.kernels import (
+    _symmetry_quaternions,
+    _Symmetry,
+)
 
 
 class UniformODF:
@@ -35,22 +28,24 @@ class UniformODF:
 
     Parameters
     ----------
-    crystal_symmetry : str
-        Crystal symmetry using standard crystallographic notation.
-        Supported: 'ci', 'c2h', 'd2h', 'c4h', 'd4h', 's6', 'd3d',
-                  'c6h', 'd6h', 'th', 'oh'
-    sample_symmetry : str
-        Sample symmetry. Supported: 'triclinic', 'monoclinic',
-                       'orthorhombic'
+    crystal_symmetry : str or numpy.ndarray, optional
+        Crystal symmetry as a Laue group label ('ci', 'c2h', 'd2h', 'c4h',
+        'd4h', 's6', 'd3d', 'c6h', 'd6h', 'th', 'oh') or a quaternion
+        symmetry array. Validated but inert (the value is 1 MRD regardless);
+        default None.
+    sample_symmetry : str or numpy.ndarray, optional
+        Sample symmetry as a label ('triclinic', 'monoclinic',
+        'orthorhombic') or a quaternion array. Validated but inert;
+        default None.
 
     Attributes
     ----------
     value : float
         Constant ODF value = 1.0 (MRD)
-    crystal_symmetry : str
-        Crystal symmetry string
-    sample_symmetry : str
-        Sample symmetry string
+    crystal_symmetry : str or None
+        Crystal symmetry label, or None if unset or given as an array
+    sample_symmetry : str or None
+        Sample symmetry label, or None if unset or given as an array
 
     Examples
     --------
@@ -65,49 +60,44 @@ class UniformODF:
 
     def __init__(
         self,
-        crystal_symmetry: str,
-        sample_symmetry: str = 'triclinic',
+        crystal_symmetry: _Symmetry = None,
+        sample_symmetry: _Symmetry = None,
     ) -> None:
         """
-        Initialize uniform ODF with specified symmetries.
+        Initialize uniform ODF with optional symmetries.
 
         Parameters
         ----------
-        crystal_symmetry : str
-            Crystal symmetry notation
-        sample_symmetry : str, optional
-            Sample symmetry notation, default 'triclinic'
+        crystal_symmetry : str or numpy.ndarray, optional
+            Crystal symmetry notation, default None
+        sample_symmetry : str or numpy.ndarray, optional
+            Sample symmetry notation, default None
         """
-        if crystal_symmetry not in _CRYSTAL_SYMMETRIES:
-            raise ValueError(
-                f"Invalid crystal symmetry '{crystal_symmetry}'. "
-                f"Must be one of: "
-                f"{', '.join(sorted(_CRYSTAL_SYMMETRIES))}"
-            )
+        # Validate through the same path the kernel uses, so the texture
+        # package shares one accepted symmetry set and one error behavior.
+        # Symmetry is inert for a uniform ODF (the value is 1 MRD for every
+        # orientation); it is kept as metadata and for parity with the
+        # kernel-backed ODFs (e.g. UnimodalODF).
+        _symmetry_quaternions(crystal_symmetry, symtype='crystal')
+        _symmetry_quaternions(sample_symmetry, symtype='sample')
 
-        if sample_symmetry not in _SAMPLE_SYMMETRIES:
-            raise ValueError(
-                f"Invalid sample symmetry '{sample_symmetry}'. "
-                f"Must be one of: "
-                f"{', '.join(sorted(_SAMPLE_SYMMETRIES))}"
-            )
-
-        # Symmetry is validated and stored to satisfy the common ODF
-        # interface used by the upcoming UnimodalODF work. It is
-        # intentionally inert here: the uniform ODF value is constant at
-        # 1 MRD for all orientations regardless of crystal or sample
-        # symmetry.
-        self._crystal_symmetry = crystal_symmetry
-        self._sample_symmetry = sample_symmetry
+        # Retain the string label; a symmetry given as a quaternion array
+        # has no recoverable label (mirrors the kernel's behavior).
+        self._crystal_symmetry = (
+            crystal_symmetry if isinstance(crystal_symmetry, str) else None
+        )
+        self._sample_symmetry = (
+            sample_symmetry if isinstance(sample_symmetry, str) else None
+        )
 
     @property
-    def crystal_symmetry(self) -> str:
-        """Crystal symmetry notation."""
+    def crystal_symmetry(self) -> Optional[str]:
+        """Crystal symmetry label, or None if unset or given as an array."""
         return self._crystal_symmetry
 
     @property
-    def sample_symmetry(self) -> str:
-        """Sample symmetry notation."""
+    def sample_symmetry(self) -> Optional[str]:
+        """Sample symmetry label, or None if unset or given as an array."""
         return self._sample_symmetry
 
     @property
@@ -134,9 +124,10 @@ class UniformODF:
 
         Returns
         -------
-        numpy.ndarray
-            ODF values with shape matching the leading dimensions of input.
-            All values equal to 1.0 (MRD).
+        float or numpy.ndarray
+            ODF values, all equal to 1.0 (MRD). A scalar float for a single
+            (3, 3) orientation; otherwise an array whose shape matches the
+            leading dimensions of the input.
 
         Examples
         --------
@@ -172,15 +163,15 @@ class UniformODF:
     def __repr__(self) -> str:
         """String representation of UniformODF."""
         return (
-            f"UniformODF(crystal_symmetry='{self.crystal_symmetry}', "
-            f"sample_symmetry='{self.sample_symmetry}', "
+            f"UniformODF(crystal_symmetry={self.crystal_symmetry!r}, "
+            f"sample_symmetry={self.sample_symmetry!r}, "
             f"value={self.value:.6f})"
         )
 
     def __str__(self) -> str:
         """String representation of UniformODF."""
         return (
-            f"Uniform ODF with {self.crystal_symmetry} crystal symmetry "
-            f"and {self.sample_symmetry} sample symmetry\n"
+            f"Uniform ODF with {self.crystal_symmetry or 'none'} crystal "
+            f"symmetry and {self.sample_symmetry or 'none'} sample symmetry\n"
             f"Constant value: {self.value:.6f} (random texture)"
         )
