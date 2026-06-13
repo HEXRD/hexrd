@@ -2260,8 +2260,9 @@ class Rietveld(AbstractWPPF):
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
         logger.info(
-            "Finished iteration. Rwp: "
-            f"{self.Rwp * 100.0:.2f} % and chi^2: {self.gofF:.2f}"
+            "Finished iteration. "
+            f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % "
+            f"and chi^2: {self.gofF:.2f}"
         )
 
     def texture_parameters_vary(self, vary=False):
