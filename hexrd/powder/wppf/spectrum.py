@@ -4,6 +4,9 @@ import os
 import numpy as np
 import h5py
 
+from scipy.ndimage import gaussian_filter1d
+from scipy.interpolate import interp1d
+
 logger = logging.getLogger(__name__)
 
 
@@ -140,7 +143,9 @@ class Spectrum:
                 if len(x) == 0:
                     """if there is no overlapping between background
                     and Spectrum, raise an error"""
-                    raise BkgNotInRangeError(self.name)
+                    raise RuntimeError(
+                        f"{self.name}: background and experimental spectra range don't match"
+                    )
 
                 y = y * self._scaling + self.offset - f_bkg(x)
             else:
@@ -266,7 +271,7 @@ class Spectrum:
             # todo different shape subtraction of spectra
             # seems the fail somehow...
             # the background will be interpolated
-            other_fcn = interp1d(other_x, other_x, kind='linear')
+            other_fcn = interp1d(other_x, other_y, kind='linear')
 
             # find overlapping x and y values:
             ind = np.where((orig_x <= np.max(other_x)) & (orig_x >= np.min(other_x)))
@@ -276,7 +281,9 @@ class Spectrum:
             if len(x) == 0:
                 # if there is no overlapping between
                 # background and Spectrum, raise an error
-                raise BkgNotInRangeError(self.name)
+                raise RuntimeError(
+                    f"{self.name}: background and experimental spectra range don't match"
+                )
             return Spectrum(x, y - other_fcn(x))
         else:
             return Spectrum(orig_x, orig_y - other_y)
@@ -287,7 +294,7 @@ class Spectrum:
 
         if orig_x.shape != other_x.shape:
             # the background will be interpolated
-            other_fcn = interp1d(other_x, other_x, kind='linear')
+            other_fcn = interp1d(other_x, other_y, kind='linear')
 
             # find overlapping x and y values:
             ind = np.where((orig_x <= np.max(other_x)) & (orig_x >= np.min(other_x)))
@@ -297,7 +304,9 @@ class Spectrum:
             if len(x) == 0:
                 # if there is no overlapping between
                 # background and Spectrum, raise an error
-                raise BkgNotInRangeError(self.name)
+                raise RuntimeError(
+                    f"{self.name}: background and experimental spectra range don't match"
+                )
             return Spectrum(x, y + other_fcn(x))
         else:
             return Spectrum(orig_x, orig_y + other_y)
