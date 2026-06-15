@@ -1318,7 +1318,7 @@ def calc_Iobs_pvheating(
 
 
 @njit(cache=True, nogil=True)
-def calc_rwp(spectrum_sim, spectrum_expt, weights, P):
+def calc_rwp(spectrum_sim, spectrum_expt, weights, background, P):
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/31/2021 SS 1.0 original
@@ -1326,15 +1326,37 @@ def calc_rwp(spectrum_sim, spectrum_expt, weights, P):
     moved outside of the class to allow numba implementation
     P : number of independent parameters in fitting
     """
-    err = weights[:, 1] * (spectrum_sim[:, 1] - spectrum_expt[:, 1]) ** 2
+    """check to make sure the lengths are the same. if they are not then
+    some values were masked because of nans and we have entered a parameter
+    space which is giving nan values. we should handle that by generating
+    a large finite penalty in the err vector so this region is avoided
+    """
+    if spectrum_sim.shape == spectrum_expt.shape == weights.shape:
+        err = weights[:, 1] * (spectrum_sim[:, 1] - spectrum_expt[:, 1]) ** 2
+        errvec = np.sqrt(weights[:, 1]) * (spectrum_sim[:, 1] - spectrum_expt[:, 1])
+    else:
+        # Bad parameter space: penalize with a large *finite* value rather than
+        # np.inf. errvec is handed back to the least-squares solver, which needs
+        # finite residuals of a constant length; float32.max keeps err (and so
+        # wss, Rwp and gofF) finite while still steering the optimizer away.
+        err = np.finfo(np.float32).max * np.ones_like(spectrum_expt[:, 1])
+        errvec = np.sqrt(err)
 
     weighted_expt = weights[:, 1] * spectrum_expt[:, 1] ** 2
 
-    errvec = np.sqrt(err)
+    if spectrum_sim.shape == background.shape:
+        weighted_expt_bmins = (
+            weights[:, 1] * (spectrum_expt[:, 1] - background[:, 1]) ** 2
+        )
+    else:
+        # Rwpb is only a reported diagnostic (never fed to the solver), so a
+        # non-finite sentinel is acceptable here.
+        weighted_expt_bmins = np.inf * np.ones_like(spectrum_expt[:, 1])
 
     """ weighted sum of square """
     wss = np.sum(err)
     den = np.sum(weighted_expt)
+    den_bmins = np.sum(weighted_expt_bmins)
 
     """ standard Rwp i.e. weighted residual """
     if den > 0.0:
@@ -1345,21 +1367,22 @@ def calc_rwp(spectrum_sim, spectrum_expt, weights, P):
     else:
         Rwp = np.inf
 
+    """ background adjusted Rwp i.e. Rwpb for datasets with large background which 
+    is generally the case with HED experiments"""
+    if den_bmins > 0.0:
+        if wss / den_bmins > 0.0:
+            Rwpb = np.sqrt(wss / den_bmins)
+        else:
+            Rwpb = np.inf
+    else:
+        Rwpb = np.inf
+
     """ number of observations to fit i.e. number of data points """
     N = spectrum_sim.shape[0]
 
-    if den > 0.0:
-        if (N - P) / den > 0:
-            Rexp = np.sqrt((N - P) / den)
-        else:
-            Rexp = 0.0
-    else:
-        Rexp = np.inf
-
-    # Rwp and goodness of fit parameters
-    if Rexp > 0.0:
-        gofF = Rwp / Rexp
+    if N > P:
+        gofF = wss / (N - P)
     else:
         gofF = np.inf
 
-    return errvec, Rwp, gofF
+    return errvec, Rwp, Rwpb, gofF
