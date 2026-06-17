@@ -132,6 +132,17 @@ class TDS_material:
                 raise ValueError(msg)
 
     def WarrenFunctionalForm(self, x: np.ndarray, xhkl: float) -> np.ndarray:
+        '''@NOTE: Details in Heighway et al., J. Appl. Phys. 138, 155903 (2025)
+        eqn 22 from the paper lists the integral of the Bragg peak shape
+        integrates to Nb*(2*pi)**3/vol_unitcell, where Nb is number of atoms in unit cell.
+        However, in eq. 23 the warren kernel W(q-G) [eq. 27] integrates to
+        q_B**3 * (2*pi)**3/vol_unitcell. I think to make them the same scale, we need to
+        divide the warren kernel q_B**3, but I'm not sure about it.
+
+        The Nb factor is taken care of in the formfactor. The complicating factor is that
+        the Bragg diffraction is per unit cell and TDS is per Brillouin zone with is
+        one atom always
+        '''
         xx = np.abs(x - xhkl)
         xx = self.agm / xx
         mask = xx > 1.0
@@ -140,6 +151,10 @@ class TDS_material:
         return y
 
     def formfactor(self, q: np.ndarray) -> dict[str, np.ndarray]:
+        '''this function returns the form factors scaled by the number
+        of atoms in the unit cell to have it on the same footing as
+        the coherent bragg scattering intensities
+        '''
         s = (q / 4 / np.pi) ** 2
 
         f_anomalous_data = self.mat.f_anomalous_data
@@ -154,11 +169,11 @@ class TDS_material:
             frel_k = np.array([frel[k]])
 
         formfact = {}
-        for i, a in enumerate(self.mat.atom_type):
+        for i, (a, nat) in enumerate(zip(self.mat.atom_type, self.mat.numat)):
             k = ptableinverse[a]
             formfact[k] = np.zeros_like(s)
             for ii, ss in enumerate(s):
-                formfact[k][ii] = (
+                formfact[k][ii] = nat * (
                     np.squeeze(
                         np.abs(
                             _calcxrayformfactor(
@@ -276,8 +291,8 @@ class TDS_material:
     @property
     def tds_lineout(self) -> np.ndarray:
         lo = self.calcTDS()
-        if self.smoothing is not None:
-            lo = gaussian_filter1d(lo, self.smoothing)
+        # if self.smoothing is not None:
+        #     lo = gaussian_filter1d(lo, self.smoothing)
         return lo
 
     @property
