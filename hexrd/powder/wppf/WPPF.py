@@ -2505,7 +2505,9 @@ class Rietveld(AbstractWPPF):
     def polfactor_full(self):
         t = np.radians(self.tds_model.tth)
         ctth = np.cos(t)
-        return 1 + self.Ph * ctth**2
+        cth = np.cos(0.5 * t)
+        sth2 = np.sin(0.5 * t) ** 2
+        return (1 + self.Ph * ctth**2) / sth2 / cth
 
     def compute_texture_data(
         self,
