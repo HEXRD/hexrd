@@ -9,96 +9,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 
-def validate_orientations(orientations):
-    """
-    Validate and normalize orientation input.
-
-    Parameters
-    ----------
-    orientations : array_like
-        Orientation matrices, expected shape (..., 3, 3)
-
-    Returns
-    -------
-    numpy.ndarray
-        Validated orientation matrices
-
-    Raises
-    ------
-    ValueError
-        If orientations don't have proper shape or aren't valid rotation matrices
-    """
-    orientations = np.asarray(orientations)
-
-    # Check basic shape requirements
-    if orientations.ndim < 2:
-        raise ValueError("Orientations must have at least 2 dimensions")
-
-    if orientations.shape[-2:] != (3, 3):
-        raise ValueError(
-            f"Orientations must have shape (..., 3, 3), got {orientations.shape}"
-        )
-
-    # Optional: Check if matrices are approximately orthogonal
-    # For performance, we'll skip this validation by default
-    # but could add a 'validate_rotation' parameter in the future
-
-    return orientations
-
-
-def eval_odf(odf, orientations, validate_input=True):
-    """
-    Generic ODF evaluation function.
-
-    Provides a unified interface for evaluating orientation distribution functions
-    at specified orientations. Supports both single orientations and batch evaluation.
-
-    Parameters
-    ----------
-    odf : ODF object
-        Any ODF object with an eval() method (e.g., UniformODF, UnimodalODF)
-    orientations : array_like
-        Orientation matrices of shape (..., 3, 3). Can be:
-        - Single 3x3 matrix
-        - Array of shape (N, 3, 3) for N orientations
-        - Higher dimensional arrays with shape (..., 3, 3)
-    validate_input : bool, optional
-        Whether to validate input orientations, default True
-
-    Returns
-    -------
-    numpy.ndarray
-        ODF values evaluated at the given orientations.
-        Shape matches the leading dimensions of input orientations.
-
-    Examples
-    --------
-    >>> from hexrd.phase_transition.texture import UniformODF, eval_odf
-    >>> odf = UniformODF('oh', 'triclinic')
-    >>>
-    >>> # Single orientation
-    >>> R = np.eye(3)
-    >>> value = eval_odf(odf, R)  # scalar result
-    >>>
-    >>> # Multiple orientations
-    >>> Rs = np.array([np.eye(3), np.eye(3)])  # shape (2, 3, 3)
-    >>> values = eval_odf(odf, Rs)  # shape (2,)
-    """
-    # Validate ODF object
-    if not hasattr(odf, 'eval'):
-        raise TypeError(
-            f"ODF object {type(odf).__name__} must have an eval() method"
-        )
-
-    # Validate and process orientations
-    if validate_input:
-        orientations = validate_orientations(orientations)
-
-    # Delegate to ODF's eval method
-    return odf.eval(orientations)
-
-
-def eval_odf_batch(odf, orientations, chunk_size=10000, validate_input=True):
+def eval_odf_batch(odf, orientations, chunk_size=10000):
     """
     Evaluate ODF on large batches of orientations with memory management.
 
@@ -113,8 +24,6 @@ def eval_odf_batch(odf, orientations, chunk_size=10000, validate_input=True):
         Large array of orientation matrices, shape (N, 3, 3)
     chunk_size : int, optional
         Number of orientations to process per chunk, default 10000
-    validate_input : bool, optional
-        Whether to validate input orientations, default True
 
     Returns
     -------
@@ -129,12 +38,11 @@ def eval_odf_batch(odf, orientations, chunk_size=10000, validate_input=True):
     >>> # In practice, use proper rotation matrices
     >>> values = eval_odf_batch(odf, Rs, chunk_size=5000)
     """
-    if validate_input:
-        orientations = validate_orientations(orientations)
+    orientations = np.asarray(orientations)
 
     # Handle single orientation or small batches normally
     if orientations.ndim == 2 or orientations.shape[0] <= chunk_size:
-        return eval_odf(odf, orientations, validate_input=False)
+        return odf.eval(orientations)
 
     # Process large batches in chunks
     n_orientations = orientations.shape[0]
@@ -143,36 +51,10 @@ def eval_odf_batch(odf, orientations, chunk_size=10000, validate_input=True):
     for start_idx in range(0, n_orientations, chunk_size):
         end_idx = min(start_idx + chunk_size, n_orientations)
         chunk = orientations[start_idx:end_idx]
-        chunk_results = eval_odf(odf, chunk, validate_input=False)
+        chunk_results = odf.eval(chunk)
         results.append(chunk_results)
 
     return np.concatenate(results)
-
-
-def eval_at_identity(odf):
-    """
-    Evaluate ODF at the identity orientation.
-
-    Convenience function for getting ODF value at the identity rotation.
-    Useful for normalization checks and texture strength calculations.
-
-    Parameters
-    ----------
-    odf : ODF object
-        ODF to evaluate
-
-    Returns
-    -------
-    float
-        ODF value at identity orientation
-
-    Examples
-    --------
-    >>> odf = UniformODF('oh', 'triclinic')
-    >>> value = eval_at_identity(odf)  # 1.0 for a uniform ODF (MRD)
-    """
-    identity = np.eye(3)
-    return float(eval_odf(odf, identity, validate_input=False))
 
 
 def eval_random_orientations(odf, n_orientations=1000, seed=None):
@@ -207,6 +89,6 @@ def eval_random_orientations(odf, n_orientations=1000, seed=None):
     orientations = Rotation.random(n_orientations, random_state=seed).as_matrix()
 
     # Evaluate ODF at these orientations
-    values = eval_odf(odf, orientations, validate_input=False)
+    values = odf.eval(orientations)
 
     return orientations, values
