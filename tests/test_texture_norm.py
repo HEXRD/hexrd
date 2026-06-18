@@ -155,6 +155,28 @@ class TestMonteCarloFallback(unittest.TestCase):
         odf = UnimodalODF(np.eye(3), kernel)
         self.assertIsNone(odf.analytic_texture_index())
 
+    def test_symmetric_index_is_scale_invariant(self):
+        # A symmetry-reduced kernel is not mean-1 over SO(3) (its mean is
+        # the symmetry-group order), so a raw <f^2> would be hugely inflated.
+        # texture_index normalizes by <f>^2, so it must still report a
+        # sane O(1-10) index that matches an independent <f^2>/<f>^2 estimate.
+        kernel = DeLaValleePoussinKernel(
+            halfwidth=np.radians(20), crystal_symmetry='oh'
+        )
+        odf = UnimodalODF(np.eye(3), kernel)
+        self.assertIsNone(odf.analytic_texture_index())  # MC path is taken
+
+        j = texture_index(odf, n_orientations=400000, seed=1)
+
+        orientations, values = eval_random_orientations(
+            odf, n_orientations=400000, seed=1
+        )
+        reference = float(np.mean(values ** 2) / np.mean(values) ** 2)
+        self.assertAlmostEqual(j / reference, 1.0, places=6)
+        # Sanity: a real texture, but nowhere near the un-normalized ~1700.
+        self.assertGreater(j, 1.0)
+        self.assertLess(j, 50.0)
+
     def test_multimode_fallback_is_reasonable(self):
         # 180° rotation about x-axis (proper rotation, det=+1)
         modes = np.array([np.eye(3), np.diag([1, -1, -1]).astype(float)])

@@ -105,9 +105,13 @@ def texture_index(odf, n_orientations=100000, seed=None):
 
         J = <f^2> = (1 / 8pi^2) * integral_{SO(3)} f(R)^2 dR
 
-    It is estimated here by averaging f^2 over Haar-uniform random
-    orientations. In MRD units the uniform (random) texture has f = 1
-    everywhere, giving J = 1; sharper textures give larger J.
+    It is estimated here as <f^2> / <f>^2 over Haar-uniform random
+    orientations. The <f>^2 denominator makes the estimate invariant to
+    the absolute scale of the ODF, so J = 1 for the uniform (random)
+    texture and J >= 1 for any texture, even when the ODF is not
+    pre-normalized to mean 1 MRD (e.g. symmetry-reduced kernels, whose
+    mean over SO(3) is the symmetry-group order rather than 1). For a
+    properly mean-1 ODF this reduces to the usual J = <f^2>.
 
     Parameters
     ----------
@@ -144,7 +148,9 @@ def texture_index(odf, n_orientations=100000, seed=None):
     _, values = eval_random_orientations(
         odf, n_orientations=n_orientations, seed=seed
     )
-    return float(np.mean(values ** 2))
+    # Normalize by <f>^2 so the index is independent of the ODF's absolute
+    # scale (it equals <f^2> exactly when the ODF is already mean-1 MRD).
+    return float(np.mean(values ** 2) / np.mean(values) ** 2)
 
 
 def texture_norm(odf, n_orientations=100000, seed=None):
