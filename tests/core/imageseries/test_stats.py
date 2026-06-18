@@ -82,6 +82,40 @@ def test_average_iter(mock_ims):
     assert np.all(res2 == 4.5)
 
 
+# --- Sum Tests ---
+
+
+def test_sum(mock_ims: MagicMock) -> None:
+    res = stats.sum(mock_ims)
+    assert np.all(res == 45.0)
+    # Accumulates in float64 regardless of input dtype.
+    assert res.dtype == np.float64
+
+    res = stats.sum(mock_ims, nframes=5)
+    assert np.all(res == 10.0)
+
+
+def test_sum_iter(mock_ims: MagicMock) -> None:
+    gen = stats.sum_iter(mock_ims, nchunk=2)
+
+    res1 = next(gen)
+    assert np.all(res1 == 10.0)
+
+    res2 = next(gen)
+    assert np.all(res2 == 45.0)
+
+    with pytest.raises(StopIteration):
+        next(gen)
+
+
+def test_sum_matches_average(mock_ims: MagicMock) -> None:
+    # sum should equal average * nframes, while average stays float32.
+    avg = stats.average(mock_ims)
+    total = stats.sum(mock_ims)
+    assert np.all(total == avg * len(mock_ims))
+    assert avg.dtype == np.float32
+
+
 def test_iterators_stop_zero_edge_case(mock_ims):
     nchunks = 10
 
@@ -95,6 +129,10 @@ def test_iterators_stop_zero_edge_case(mock_ims):
 
     gen_avg = stats.average_iter(mock_ims, nchunk=nchunks)
     res0 = next(gen_avg)
+    assert np.all(res0 == 0.0)
+
+    gen_sum = stats.sum_iter(mock_ims, nchunk=nchunks)
+    res0 = next(gen_sum)
     assert np.all(res0 == 0.0)
 
 
