@@ -280,7 +280,14 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
         self.assertAlmostEqual(float(angle), 0.0, places=8)
 
     def test_symmetric_kernel_value_is_peak_for_equivalent_rotations(self):
-        """Test symmetry-equivalent rotations evaluate to the peak value."""
+        """Symmetry-equivalent rotations evaluate to the same peak value.
+
+        The symmetrized kernel averages over the symmetry group, so a single
+        isolated peak has height C / |G| (one image at ω = 0, the rest ≈ 0)
+        rather than the raw constant C. The invariant property is that a
+        symmetry-equivalent orientation gives the SAME value as the
+        reference itself, and that value is the kernel maximum.
+        """
         kernel = DeLaValleePoussinKernel(
             halfwidth=np.radians(10),
             crystal_symmetry='d4h',
@@ -292,8 +299,14 @@ class TestDeLaValleePoussinKernel(unittest.TestCase):
             [0,  0, 1],
         ], dtype=float)
 
-        value = kernel.eval(np.eye(3), R90z)
-        self.assertAlmostEqual(value, kernel.norm_constant, places=8)
+        peak = kernel.eval(np.eye(3), np.eye(3))
+        equivalent = kernel.eval(np.eye(3), R90z)
+        # Equivalent orientation evaluates identically to the reference.
+        self.assertAlmostEqual(equivalent, peak, places=8)
+        # A non-equivalent orientation (45° about z is not a d4h image of
+        # the identity) evaluates strictly below that peak.
+        off_peak = kernel.eval(np.eye(3), _rotation_about_z(np.radians(45)))
+        self.assertLess(off_peak, peak)
 
     def test_batch_misorientation_angle_uses_crystal_symmetry(self):
         """Test symmetry-reduced misorientation for batches."""
