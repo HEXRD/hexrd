@@ -8,60 +8,9 @@ from hexrd.phase_transition.texture import (
     UniformODF,
     UnimodalODF,
     DeLaValleePoussinKernel,
-    validate_orientations,
-    eval_odf,
     eval_odf_batch,
-    eval_at_identity,
     eval_random_orientations,
 )
-
-
-class TestValidateOrientations(unittest.TestCase):
-    """Test validate_orientations."""
-
-    def test_valid_single(self):
-        result = validate_orientations(np.eye(3))
-        self.assertEqual(result.shape, (3, 3))
-
-    def test_valid_batch(self):
-        batch = np.tile(np.eye(3), (5, 1, 1))
-        result = validate_orientations(batch)
-        self.assertEqual(result.shape, (5, 3, 3))
-
-    def test_too_few_dimensions(self):
-        with self.assertRaises(ValueError):
-            validate_orientations(np.array([1.0, 2.0, 3.0]))
-
-    def test_wrong_trailing_shape(self):
-        with self.assertRaises(ValueError):
-            validate_orientations(np.zeros((4, 3, 2)))
-
-
-class TestEvalOdf(unittest.TestCase):
-    """Test eval_odf against the real ODF classes."""
-
-    def setUp(self):
-        self.uniform = UniformODF('oh', 'triclinic')
-        kernel = DeLaValleePoussinKernel(halfwidth=np.radians(15))
-        self.unimodal = UnimodalODF(np.eye(3), kernel)
-
-    def test_single_uniform_is_one_mrd(self):
-        self.assertEqual(eval_odf(self.uniform, np.eye(3)), 1.0)
-
-    def test_batch_uniform_is_ones(self):
-        batch = np.tile(np.eye(3), (4, 1, 1))
-        np.testing.assert_array_equal(eval_odf(self.uniform, batch), np.ones(4))
-
-    def test_matches_odf_eval(self):
-        orientations = Rotation.random(50, random_state=1).as_matrix()
-        np.testing.assert_allclose(
-            eval_odf(self.unimodal, orientations),
-            self.unimodal.eval(orientations),
-        )
-
-    def test_requires_eval_method(self):
-        with self.assertRaises(TypeError):
-            eval_odf(object(), np.eye(3))
 
 
 class TestEvalOdfBatch(unittest.TestCase):
@@ -72,11 +21,18 @@ class TestEvalOdfBatch(unittest.TestCase):
         kernel = DeLaValleePoussinKernel(halfwidth=np.radians(15))
         self.unimodal = UnimodalODF(np.eye(3), kernel)
 
-    def test_small_batch_matches_eval_odf(self):
+    def test_single_orientation_returns_scalar(self):
+        # A single (3, 3) goes through the no-chunk branch and returns
+        # whatever odf.eval returns for a single orientation: a scalar.
+        result = eval_odf_batch(self.uniform, np.eye(3))
+        self.assertEqual(result, 1.0)
+        self.assertEqual(np.ndim(result), 0)
+
+    def test_small_batch_matches_direct_eval(self):
         batch = np.tile(np.eye(3), (3, 1, 1))
         np.testing.assert_array_equal(
             eval_odf_batch(self.uniform, batch),
-            eval_odf(self.uniform, batch),
+            self.uniform.eval(batch),
         )
 
     def test_chunking_matches_direct_eval(self):
@@ -85,24 +41,25 @@ class TestEvalOdfBatch(unittest.TestCase):
         self.assertEqual(chunked.shape, (2500,))
         np.testing.assert_allclose(chunked, self.unimodal.eval(orientations))
 
+    def test_chunk_boundary_is_exact(self):
+        # n exactly divisible by chunk_size exercises the loop's final chunk
+        # ending precisely at n_orientations.
+        orientations = Rotation.random(2000, random_state=5).as_matrix()
+        chunked = eval_odf_batch(self.unimodal, orientations, chunk_size=1000)
+        self.assertEqual(chunked.shape, (2000,))
+        np.testing.assert_allclose(chunked, self.unimodal.eval(orientations))
+
     def test_chunking_preserves_uniform_value(self):
         batch = np.tile(np.eye(3), (2500, 1, 1))
         chunked = eval_odf_batch(self.uniform, batch, chunk_size=500)
         np.testing.assert_array_equal(chunked, np.ones(2500))
 
-
-class TestEvalAtIdentity(unittest.TestCase):
-    """Test eval_at_identity (and MRD convention)."""
-
-    def test_uniform_identity_is_one_mrd(self):
-        odf = UniformODF('oh', 'triclinic')
-        self.assertEqual(eval_at_identity(odf), 1.0)
-
-    def test_unimodal_identity_is_kernel_peak(self):
-        kernel = DeLaValleePoussinKernel(halfwidth=np.radians(15))
-        odf = UnimodalODF(np.eye(3), kernel)
-        self.assertAlmostEqual(
-            eval_at_identity(odf), kernel.norm_constant, places=6
+    def test_accepts_list_input(self):
+        # array_like (not just ndarray) is coerced via np.asarray.
+        batch = [np.eye(3) for _ in range(3)]
+        np.testing.assert_array_equal(
+            eval_odf_batch(self.uniform, batch),
+            np.ones(3),
         )
 
 
@@ -139,6 +96,12 @@ class TestEvalRandomOrientations(unittest.TestCase):
             self.uniform, n_orientations=1000, seed=3
         )
         self.assertAlmostEqual(np.mean(values), 1.0)
+
+    def test_values_match_direct_eval(self):
+        orientations, values = eval_random_orientations(
+            self.uniform, n_orientations=100, seed=7
+        )
+        np.testing.assert_array_equal(values, self.uniform.eval(orientations))
 
 
 if __name__ == '__main__':

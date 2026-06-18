@@ -102,9 +102,24 @@ class TestUnimodalODF(unittest.TestCase):
     # --- validation ---
 
     def test_invalid_kernel_type(self):
-        """A kernel that is not a DeLaValleePoussinKernel raises TypeError."""
+        """A kernel that is not an SO3Kernel raises TypeError."""
         with self.assertRaises(TypeError):
             UnimodalODF(self.modal, object())
+
+    def test_accepts_any_so3_kernel_subclass(self):
+        """Any SO3Kernel subclass is accepted, not just DeLaValleePoussin."""
+        from hexrd.phase_transition.texture.kernels import SO3Kernel
+
+        class _DummyKernel(SO3Kernel):
+            crystal_symmetry = None
+            sample_symmetry = None
+
+            def eval(self, orientations, reference=None):
+                return np.zeros(np.asarray(orientations).shape[:-2])
+
+        # Construction must succeed (does not raise TypeError).
+        odf = UnimodalODF(self.modal, _DummyKernel())
+        self.assertIsInstance(odf.kernel, SO3Kernel)
 
     def test_invalid_modal_orientation_shape(self):
         """Modal orientations must have shape (3, 3) or (N, 3, 3)."""

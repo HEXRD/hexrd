@@ -7,7 +7,7 @@ smooth, localized texture distributions.
 """
 
 import numpy as np
-from .kernels import DeLaValleePoussinKernel
+from .kernels import SO3Kernel
 
 
 class UnimodalODF:
@@ -85,8 +85,9 @@ class UnimodalODF:
         """
         # Validate and store kernel. The kernel is the single source of
         # truth for symmetry (validated when the kernel was constructed).
-        if not isinstance(kernel, DeLaValleePoussinKernel):
-            raise TypeError("kernel must be a DeLaValleePoussinKernel instance")
+        # Accept any SO3Kernel subclass rather than a single concrete type.
+        if not isinstance(kernel, SO3Kernel):
+            raise TypeError("kernel must be an SO3Kernel instance")
 
         self._kernel = kernel
 
@@ -197,7 +198,6 @@ class UnimodalODF:
         output_shape = orientations.shape[:-2]
         if output_shape == ():
             # Single orientation
-            output_shape = ()
             orientations = orientations.reshape(1, 3, 3)
             squeeze_output = True
         else:

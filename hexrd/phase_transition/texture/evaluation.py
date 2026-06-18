@@ -21,14 +21,16 @@ def eval_odf_batch(odf, orientations, chunk_size=10000):
     odf : ODF object
         ODF object with eval() method
     orientations : array_like
-        Large array of orientation matrices, shape (N, 3, 3)
+        Large array of orientation matrices, shape (N, 3, 3). A single
+        (3, 3) matrix is also accepted.
     chunk_size : int, optional
         Number of orientations to process per chunk, default 10000
 
     Returns
     -------
-    numpy.ndarray
-        ODF values, shape (N,)
+    numpy.ndarray or float
+        ODF values, shape (N,) for an (N, 3, 3) input, or a scalar float
+        for a single (3, 3) orientation.
 
     Examples
     --------
