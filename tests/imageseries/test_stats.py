@@ -21,6 +21,46 @@ class TestImageSeriesStats(ImageSeriesTest):
         self.assertAlmostEqual(err, 0.0, msg="stats.average failed")
         self.assertEqual(is_avg.dtype, np.float32)
 
+    def test_stats_sum(self) -> None:
+        """imageseries.stats: sum
+
+        Compares with numpy sum
+        """
+        a, is_a = make_array_ims()
+        is_sum = stats.sum(is_a)
+        np_sum = np.sum(a, axis=0)
+        err = np.linalg.norm(np_sum - is_sum)
+        self.assertAlmostEqual(err, 0.0, msg="stats.sum failed")
+        # Accumulates in float64 so totals can exceed the input dtype range.
+        self.assertEqual(is_sum.dtype, np.float64)
+
+    def test_stats_sum_chunked(self) -> None:
+        """imageseries.stats: chunked sum"""
+        a, is_a = make_array_ims()
+        a_sum = stats.sum(is_a)
+
+        # Run with 1 chunk
+        for issum1 in stats.sum_iter(is_a, 1):
+            pass
+        err = np.linalg.norm(a_sum - issum1)
+        self.assertAlmostEqual(err, 0.0, msg="stats.sum failed (1 chunk)")
+
+        # Run with 2 chunks
+        for issum2 in stats.sum_iter(is_a, 2):
+            pass
+        err = np.linalg.norm(a_sum - issum2)
+        self.assertAlmostEqual(err, 0.0, msg="stats.sum failed (2 chunks)")
+
+    def test_stats_sum_average_consistency(self) -> None:
+        """imageseries.stats: sum == average * nframes"""
+        a, is_a = make_array_ims()
+        is_sum = stats.sum(is_a)
+        is_avg = stats.average(is_a)
+        err = np.linalg.norm(is_sum - is_avg * len(is_a))
+        self.assertAlmostEqual(err, 0.0, msg="sum/average inconsistent")
+        # average stays float32 even though sum is float64.
+        self.assertEqual(is_avg.dtype, np.float32)
+
     def test_stats_median(self):
         """imageseries.stats: median"""
         a, is_a = make_array_ims()
