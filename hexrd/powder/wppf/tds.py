@@ -378,11 +378,25 @@ class TDS:
     @property
     def tds_lineout(self) -> np.ndarray:
         lineout = np.zeros_like(self.tth)
+        """
+        @note: the elastic scattering intensity has a factor of lambda^3/vol 
+        extra that is not present in the TDS scattering. to convert both
+        of them to the nominal electron units, we need to multiply the inverse
+        of that factor here.
+
+        vol: volume of unit cell
+        lambda: wavelength of x-rays
+        """
         for p in self.phases:
             for l in self.phases.wavelength:
                 if self.TDSmodels.get(p, {}).get(l) is not None:
+                    # pre is the lambda^3/vol factor
+                    pre = (
+                        self.phases[p].vol
+                        / self.phases.wavelength[l][0].getVal("nm") ** 3
+                    )
                     weight = self.phases.wavelength[l][1]
-                    lineout += weight * self.TDSmodels[p][l].tds_lineout
+                    lineout += pre * weight * self.TDSmodels[p][l].tds_lineout
 
         return lineout
 
