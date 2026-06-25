@@ -248,7 +248,9 @@ class TDS_material:
                 (1 - exp2M[k]) + exp2M[k] * (2 * Ms[k] + Ms[k] ** 2) * (C - 1)
             )
 
-        return thermal_diffuse
+        pre = self.mat.vol / self.mat.wavelength**3
+
+        return pre * thermal_diffuse
 
     @property
     def Mdict(self) -> dict[str, float]:
@@ -392,7 +394,7 @@ class TDS:
                 if self.TDSmodels.get(p, {}).get(l) is not None:
                     # pre is the lambda^3/vol factor
                     pre = (
-                        self.phases[p].vol
+                        self.phases[p][l].vol
                         / self.phases.wavelength[l][0].getVal("nm") ** 3
                     )
                     weight = self.phases.wavelength[l][1]
