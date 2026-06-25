@@ -2320,12 +2320,9 @@ class Rietveld(AbstractWPPF):
         lp = self.polfactor_full
         pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
         tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
-
-        """ weight is already accounted for in the TDS class
-        this was being applied twice. undoing it here
         weight = self.phases.wavelength[k][1]
-        """
-        return self.scale * pf * lp * tds_signal
+
+        return self.scale * weight * pf * lp * tds_signal
 
     @property
     def phases(self):
