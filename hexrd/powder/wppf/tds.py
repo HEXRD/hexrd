@@ -291,8 +291,8 @@ class TDS_material:
     @property
     def tds_lineout(self) -> np.ndarray:
         lo = self.calcTDS()
-        # if self.smoothing is not None:
-        #     lo = gaussian_filter1d(lo, self.smoothing)
+        if self.smoothing is not None:
+            lo = gaussian_filter1d(lo, self.smoothing)
         return lo
 
     @property
