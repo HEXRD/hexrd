@@ -4,6 +4,7 @@ from hexrd.powder.wppf.phase import (
     Phases_Rietveld,
     Material_Rietveld,
 )
+from hexrd.core.material.utils import calculate_incoherent_scattering_factor
 from hexrd.wppf.xtal import _calcxrayformfactor, _calcanomalousformfactor
 from hexrd.constants import (
     ptableinverse,
@@ -92,6 +93,7 @@ class TDS_material:
         scale: float = 1.0,
         shift: float = 0.0,
         smoothing: float | None = None,
+        include_compton: bool = True,
     ):
         check_model_type(model_type)
         self.model_type = model_type
@@ -105,6 +107,7 @@ class TDS_material:
         self.smoothing = smoothing
 
         self.validate()
+        self.include_compton = include_compton
 
     def validate(self):
         if self.model_type == 'warren':
@@ -140,6 +143,18 @@ class TDS_material:
         return y
 
     def formfactor(self, q: np.ndarray) -> dict[str, np.ndarray]:
+        """this function returns the form factors scaled by the number
+        of atoms in the unit cell to have it on the same footing as
+        the coherent bragg scattering intensities
+
+        @NOTE: Details on Pg. 59 and Pg. 210 of Warren, X-Ray diffraction.
+
+        The Nb factor is taken care of in the formfactor. this is the extra
+        "nat" factor!
+
+        The powder diffraction is per unit cell and TDS is per Brillouin zone with is
+        one atom always. so make sure they both are per unit cell quantities\
+        """
         s = (q / 4 / np.pi) ** 2
 
         f_anomalous_data = self.mat.f_anomalous_data
@@ -154,11 +169,11 @@ class TDS_material:
             frel_k = np.array([frel[k]])
 
         formfact = {}
-        for i, a in enumerate(self.mat.atom_type):
+        for i, (a, nat) in enumerate(zip(self.mat.atom_type, self.mat.numat)):
             k = ptableinverse[a]
             formfact[k] = np.zeros_like(s)
             for ii, ss in enumerate(s):
-                formfact[k][ii] = (
+                formfact[k][ii] = nat * (
                     np.squeeze(
                         np.abs(
                             _calcxrayformfactor(
@@ -197,6 +212,16 @@ class TDS_material:
         return C
 
     def calcTDS(self) -> np.ndarray:
+        """@NOTE: Details on Pg. 59 and Pg. 210 of Warren, X-Ray diffraction.
+
+        based on the scattered intensity expression derived in Warren, the powder
+        diffraction intenisty has an additional wavelength^3/volume of unit cell
+        factor multiplied to it. To make sure TDS signal and powder signal are both
+        in the same units, the inverse of the factor is multiplied to the TDS signal.
+
+        We have tested this with results from Patrick Heighway, University of Oxford
+        and also checked that the factor conserves scattered intensity due
+        """
         thr = np.radians(self.tth * 0.5)
 
         q = self.q
@@ -233,7 +258,9 @@ class TDS_material:
                 (1 - exp2M[k]) + exp2M[k] * (2 * Ms[k] + Ms[k] ** 2) * (C - 1)
             )
 
-        return thermal_diffuse
+        pre = self.mat.vol / self.mat.wavelength**3
+
+        return pre * thermal_diffuse
 
     @property
     def Mdict(self) -> dict[str, float]:
@@ -276,6 +303,8 @@ class TDS_material:
     @property
     def tds_lineout(self) -> np.ndarray:
         lo = self.calcTDS()
+        if self.include_compton:
+            lo += self.compton_scattering_intensity
         if self.smoothing is not None:
             lo = gaussian_filter1d(lo, self.smoothing)
         return lo
@@ -295,7 +324,28 @@ class TDS_material:
 
         self._smoothing = v
 
+    @property
+    def include_compton(self):
+        return self._include_compton
 
+    @include_compton.setter
+    def include_compton(self, val):
+        # make sure val is bool
+        if not isinstance(val, bool):
+            msg = f"input is not boolean type"
+            raise RuntimeError(msg)
+        self._include_compton = val
+        self.compton_scattering_intensity = np.zeros_like(self.q)
+
+        pre = self.mat.vol / self.mat.wavelength**3
+        for atype, nat in zip(self.mat.atom_type, self.mat.numat):
+            elem = ptableinverse[atype]
+            self.compton_scattering_intensity += (
+                pre * nat * calculate_incoherent_scattering_factor(elem, self.q)
+            )
+
+
+# !!!!!NOT USED IN WPPF!!!!!!
 class TDS:
     '''
     >> @AUTHOR:     Saransh Singh,
@@ -363,11 +413,25 @@ class TDS:
     @property
     def tds_lineout(self) -> np.ndarray:
         lineout = np.zeros_like(self.tth)
+        """
+        @note: the elastic scattering intensity has a factor of lambda^3/vol 
+        extra that is not present in the TDS scattering. to convert both
+        of them to the nominal electron units, we need to multiply the inverse
+        of that factor here.
+
+        vol: volume of unit cell
+        lambda: wavelength of x-rays
+        """
         for p in self.phases:
             for l in self.phases.wavelength:
                 if self.TDSmodels.get(p, {}).get(l) is not None:
+                    # pre is the lambda^3/vol factor
+                    pre = (
+                        self.phases[p][l].vol
+                        / self.phases.wavelength[l][0].getVal("nm") ** 3
+                    )
                     weight = self.phases.wavelength[l][1]
-                    lineout += weight * self.TDSmodels[p][l].tds_lineout
+                    lineout += pre * weight * self.TDSmodels[p][l].tds_lineout
 
         return lineout
 
