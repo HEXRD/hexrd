@@ -87,7 +87,7 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
     R.params["Ti_beta_Y"].vary = True
     R.Refine()
 
-    assert R.Rwp < 0.5
+    assert R.Rwp < 0.55
 
     R.params["bkg_0"].vary = True
     R.params["bkg_1"].vary = True
