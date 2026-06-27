@@ -320,7 +320,6 @@ class TDS_material:
         self._smoothing = v
 
 
-# !!!!!NOT USED IN WPPF!!!!!!
 class TDS:
     '''
     >> @AUTHOR:     Saransh Singh,
@@ -387,26 +386,22 @@ class TDS:
 
     @property
     def tds_lineout(self) -> np.ndarray:
-        lineout = np.zeros_like(self.tth)
-        """
-        @note: the elastic scattering intensity has a factor of lambda^3/vol 
-        extra that is not present in the TDS scattering. to convert both
-        of them to the nominal electron units, we need to multiply the inverse
-        of that factor here.
+        """Aggregate TDS signal summed over all phases and wavelengths.
 
-        vol: volume of unit cell
-        lambda: wavelength of x-rays
+        NOT USED: neither WPPF nor hexrdgui call this. Both build the TDS
+        signal per-(phase, wavelength) via Rietveld.calculate_scaled_tds_signal
+        instead. Kept only as a convenience for external callers.
+
+        @note: the vol/lambda^3 normalization that places the TDS signal on
+        the same scale as the elastic scattering is already applied per-material
+        in TDS_material.calcTDS, so it must not be applied again here.
         """
+        lineout = np.zeros_like(self.tth)
         for p in self.phases:
             for l in self.phases.wavelength:
                 if self.TDSmodels.get(p, {}).get(l) is not None:
-                    # pre is the lambda^3/vol factor
-                    pre = (
-                        self.phases[p][l].vol
-                        / self.phases.wavelength[l][0].getVal("nm") ** 3
-                    )
                     weight = self.phases.wavelength[l][1]
-                    lineout += pre * weight * self.TDSmodels[p][l].tds_lineout
+                    lineout += weight * self.TDSmodels[p][l].tds_lineout
 
         return lineout
 
