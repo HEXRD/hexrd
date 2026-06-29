@@ -4,6 +4,7 @@ import numpy as np
 from scipy.sparse import csr_array
 import pickle
 import os
+from pathlib import Path
 
 from hexrd.core.imageseries.load.framecache import FrameCacheImageSeriesAdapter
 
@@ -136,13 +137,20 @@ def test_yml_paths(mock_open, mock_yaml, mock_loader):
         num_frames=1,
         shape=(1,),
         dtype=np.dtype('f4'),
+        mtime_ns=ANY,
+        size=ANY,
     )
 
     # Absolute
     mock_yaml.return_value['data']['file'] = '/abs/c.npz'
     FrameCacheImageSeriesAdapter("d/t.yml", style="yml")[0]
     mock_loader.assert_called_with(
-        filepath='/abs/c.npz', num_frames=1, shape=(1,), dtype=np.dtype('f4')
+        filepath='/abs/c.npz',
+        num_frames=1,
+        shape=(1,),
+        dtype=np.dtype('f4'),
+        mtime_ns=ANY,
+        size=ANY,
     )
 
 
@@ -186,3 +194,29 @@ def test_pickle(mock_npz):
         ml.return_value.__enter__.return_value = mock_npz
         a = FrameCacheImageSeriesAdapter("t.npz", style="npz")
         assert hasattr(pickle.loads(pickle.dumps(a)), '_load_framelist_lock')
+
+
+def test_fch5_group_roundtrip(tmp_path: Path) -> None:
+    # Round-trip the new capability: write an fch5 frame cache into a group
+    # within an already-open HDF5 file, then read it back from that group.
+    import h5py
+    from hexrd.core import imageseries
+
+    data = np.zeros((4, 16, 16), dtype=np.uint16)
+    data[:, ::4, ::4] = 7  # sparse, non-negative
+    ims = imageseries.open(None, 'array', data=data)
+
+    path = tmp_path / 'state.h5'
+    with h5py.File(path, 'w') as f:
+        imageseries.write(
+            ims, f, 'frame-cache', style='fch5', threshold=0, path='images/det'
+        )
+        assert 'HEXRD_FRAMECACHE_VERSION' in f['images/det'].attrs
+
+    with h5py.File(path, 'r') as f:
+        loaded = imageseries.open(
+            f, 'frame-cache', style='fch5', path='images/det'
+        )
+        assert len(loaded) == len(data)
+        for i in range(len(data)):
+            assert np.array_equal(np.asarray(loaded[i]), data[i])

@@ -1,6 +1,7 @@
 """Adapter class for frame caches
 """
 
+import contextlib
 import functools
 import os
 from threading import Lock
@@ -34,6 +35,8 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
         *kwargs* - keyword arguments (none required)
         """
         self._fname = fname
+        # Optional group path when reading 'fch5' from an already-open file.
+        self._path = kwargs.get('path')
         self._framelist = []
         self._framelist_was_loaded = False
         self._load_framelist_lock = Lock()
@@ -75,8 +78,19 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
         else:
             self._load_cache_npz()
 
+    def _fch5_group_cm(self) -> contextlib.AbstractContextManager:
+        """Context manager yielding the h5py group holding the fch5 data.
+
+        ``fname`` may be a filename (open the file) or an already-open
+        group/file (use it directly, optionally under ``path``).
+        """
+        if isinstance(self._fname, h5py.Group):
+            group = self._fname[self._path] if self._path else self._fname
+            return contextlib.nullcontext(group)
+        return h5py.File(self._fname, "r")
+
     def _load_cache_fch5(self):
-        with h5py.File(self._fname, "r") as file:
+        with self._fch5_group_cm() as file:
             if 'HEXRD_FRAMECACHE_VERSION' not in file.attrs.keys():
                 raise NotImplementedError(
                     "Unsupported file. " "HEXRD_FRAMECACHE_VERSION " "is missing!"
@@ -127,14 +141,29 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
             self._load_framelist_npz()
 
     def _load_framelist_fch5(self):
+        if isinstance(self._fname, h5py.Group):
+            # Reading from an already-open group (e.g. a state file).
+            with self._fch5_group_cm() as group:
+                self._framelist = _read_framecache_fch5_group(
+                    group,
+                    int(self._nframes),
+                    tuple(self._shape),
+                    self._dtype,
+                    int(self._max_workers),
+                )
+            return
+
         # Perform a memoized load, so that if multiple imageseries are
         # utilizing the same file, they can all share the same csr matrices
+        mtime_ns, size = _stat_identity(str(self._fname))
         self._framelist = _load_framecache_fch5(
             filepath=str(self._fname),
             num_frames=int(self._nframes),
             shape=tuple(self._shape),
             dtype=self._dtype,
             max_workers=int(self._max_workers),
+            mtime_ns=mtime_ns,
+            size=size,
         )
 
     def _load_framelist_npz(self):
@@ -150,11 +179,14 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
 
         # Perform a memoized load, so that if multiple imageseries are
         # utilizing the same file, they can all share the same csr matrices
+        mtime_ns, size = _stat_identity(str(filepath))
         self._framelist = _load_framecache_npz(
             filepath=str(filepath),
             num_frames=int(self._nframes),
             shape=tuple(self._shape),
             dtype=self._dtype,
+            mtime_ns=mtime_ns,
+            size=size,
         )
 
     def get_region(self, frame_idx: int, region: RegionType) -> np.ndarray:
@@ -256,15 +288,36 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
         self._load_framelist_lock = Lock()
 
 
+def _stat_identity(filename: str) -> tuple[int, int]:
+    """Return ``(mtime_ns, size)`` for ``filename``, used to invalidate the
+    frame-cache memoization when a file is re-saved in place.
+
+    ``os.stat`` and the ``st_mtime_ns``/``st_size`` fields are available on
+    Windows, macOS and Linux. Falls back to ``(0, 0)`` if the file cannot be
+    stat'd, in which case the entry is effectively keyed by path alone (the
+    prior behavior). Note: filesystems with coarse mtime resolution (e.g. FAT)
+    could miss a same-size rewrite made within one timestamp tick; the size
+    component mitigates but does not fully eliminate this.
+    """
+    try:
+        info = os.stat(filename)
+        return info.st_mtime_ns, info.st_size
+    except OSError:
+        return 0, 0
+
+
 # This is memoized so that if multiple imageseries are sharing the
 # same file (such as 32 subpanel Eiger), all of the imageseries can
-# share the same sparse matrices.
+# share the same sparse matrices. `mtime_ns` and `size` are part of the cache
+# key only (so re-saving the file invalidates the entry); they are not used.
 @functools.lru_cache(maxsize=2)
 def _load_framecache_npz(
     filepath: str,
     num_frames: int,
     shape: tuple[int, int],
     dtype: np.dtype,
+    mtime_ns: int = 0,
+    size: int = 0,
 ) -> list[csr_array]:
 
     framelist = []
@@ -285,7 +338,8 @@ def _load_framecache_npz(
 
 # This is memoized so that if multiple imageseries are sharing the
 # same file (such as 32 subpanel Eiger), all of the imageseries can
-# share the same sparse matrices.
+# share the same sparse matrices. `mtime_ns` and `size` are part of the cache
+# key only (so re-saving the file invalidates the entry); they are not used.
 @functools.lru_cache(maxsize=2)
 def _load_framecache_fch5(
     filepath: str,
@@ -293,32 +347,46 @@ def _load_framecache_fch5(
     shape: tuple[int, int],
     dtype: np.dtype,
     max_workers: int,
+    mtime_ns: int = 0,
+    size: int = 0,
 ) -> list[csr_array]:
+    with h5py.File(filepath, "r") as file:
+        return _read_framecache_fch5_group(
+            file, num_frames, shape, dtype, max_workers
+        )
 
+
+def _read_framecache_fch5_group(
+    file: h5py.Group,
+    num_frames: int,
+    shape: tuple[int, int],
+    dtype: np.dtype,
+    max_workers: int,
+) -> list[csr_array]:
+    """Read a frame cache from an open h5py group (file root or sub-group)."""
     framelist = [None] * num_frames
 
-    with h5py.File(filepath, "r") as file:
-        frame_id = file["frame_ids"]
-        data = file["data"]
-        indices = file["indices"]
+    frame_id = file["frame_ids"]
+    data = file["data"]
+    indices = file["indices"]
 
-        def read_list_arrays_method_thread(i):
-            frame_data = data[frame_id[2 * i] : frame_id[2 * i + 1]]
-            frame_indices = indices[frame_id[2 * i] : frame_id[2 * i + 1]]
-            row = frame_indices[:, 0]
-            col = frame_indices[:, 1]
-            mat_data = frame_data[:, 0]
-            frame = csr_array((mat_data, (row, col)), shape=shape, dtype=dtype)
+    def read_list_arrays_method_thread(i: int) -> None:
+        frame_data = data[frame_id[2 * i] : frame_id[2 * i + 1]]
+        frame_indices = indices[frame_id[2 * i] : frame_id[2 * i + 1]]
+        row = frame_indices[:, 0]
+        col = frame_indices[:, 1]
+        mat_data = frame_data[:, 0]
+        frame = csr_array((mat_data, (row, col)), shape=shape, dtype=dtype)
 
-            # Make the data unwriteable, so we can be sure it won't be modified
-            frame.data.flags.writeable = False
+        # Make the data unwriteable, so we can be sure it won't be modified
+        frame.data.flags.writeable = False
 
-            framelist[i] = frame
+        framelist[i] = frame
 
-        with ThreadPoolExecutor(max_workers) as executor:
-            # Evaluate the results via `list()`, so that if an exception is
-            # raised in a thread, it will be re-raised and visible to the
-            # user.
-            list(executor.map(read_list_arrays_method_thread, range(num_frames)))
+    with ThreadPoolExecutor(max_workers) as executor:
+        # Evaluate the results via `list()`, so that if an exception is
+        # raised in a thread, it will be re-raised and visible to the
+        # user.
+        list(executor.map(read_list_arrays_method_thread, range(num_frames)))
 
     return framelist
