@@ -71,6 +71,10 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
         "model_data": None,
         "scale": None,
         "shift": None,
+        # The example dataset was simulated without compton, so disable it here
+        # to recover the true temperature. See the compton-on guard test for
+        # coverage of the include_compton path.
+        "include_compton": False,
     }
 
     tds_model = TDS(**kwargs)
@@ -87,7 +91,7 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
     R.params["Ti_beta_Y"].vary = True
     R.Refine()
 
-    assert R.Rwp < 0.55
+    assert R.Rwp < 0.5
 
     R.params["bkg_0"].vary = True
     R.params["bkg_1"].vary = True
@@ -110,6 +114,7 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
         "model_data": tds_expt_spectrum,
         "scale": 1,
         "shift": 0,
+        "include_compton": False,
     }
     tds_model = TDS(**kwargs)
     R.tds_model = tds_model
