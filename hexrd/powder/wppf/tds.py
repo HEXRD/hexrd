@@ -332,7 +332,7 @@ class TDS_material:
     def include_compton(self, val: bool) -> None:
         # make sure val is bool
         if not isinstance(val, bool):
-            msg = f"input is not boolean type"
+            msg = "input is not boolean type"
             raise RuntimeError(msg)
         self._include_compton = val
         self.compton_scattering_intensity = np.zeros_like(self.q)
