@@ -4,6 +4,7 @@ from hexrd.powder.wppf.phase import (
     Phases_Rietveld,
     Material_Rietveld,
 )
+from hexrd.core.material.utils import calculate_incoherent_scattering_factor
 from hexrd.wppf.xtal import _calcxrayformfactor, _calcanomalousformfactor
 from hexrd.constants import (
     ptableinverse,
@@ -92,6 +93,7 @@ class TDS_material:
         scale: float = 1.0,
         shift: float = 0.0,
         smoothing: float | None = None,
+        include_compton: bool = True,
     ):
         check_model_type(model_type)
         self.model_type = model_type
@@ -105,6 +107,7 @@ class TDS_material:
         self.smoothing = smoothing
 
         self.validate()
+        self.include_compton = include_compton
 
     def validate(self):
         if self.model_type == 'warren':
@@ -300,6 +303,8 @@ class TDS_material:
     @property
     def tds_lineout(self) -> np.ndarray:
         lo = self.calcTDS()
+        if self.include_compton:
+            lo += self.compton_scattering_intensity
         if self.smoothing is not None:
             lo = gaussian_filter1d(lo, self.smoothing)
         return lo
@@ -318,6 +323,26 @@ class TDS_material:
             v = None
 
         self._smoothing = v
+
+    @property
+    def include_compton(self) -> bool:
+        return self._include_compton
+
+    @include_compton.setter
+    def include_compton(self, val: bool) -> None:
+        # make sure val is bool
+        if not isinstance(val, bool):
+            msg = "input is not boolean type"
+            raise RuntimeError(msg)
+        self._include_compton = val
+        self.compton_scattering_intensity = np.zeros_like(self.q)
+
+        pre = self.mat.vol / self.mat.wavelength**3
+        for atype, nat in zip(self.mat.atom_type, self.mat.numat):
+            elem = ptableinverse[atype]
+            self.compton_scattering_intensity += (
+                pre * nat * calculate_incoherent_scattering_factor(elem, self.q)
+            )
 
 
 class TDS:
@@ -340,12 +365,14 @@ class TDS:
         scale: float | None = None,
         shift: float | None = None,
         cagliotti_uvw: list[float] | None = None,
+        include_compton: bool = True,
     ):
         self.model_type = model_type
         self.tth = tth
         self.model_data = model_data
         self.scale = scale
         self.shift = shift
+        self.include_compton = include_compton
 
         self.TDSmodels = {}
         self.cagliotti = cagliotti_uvw
@@ -368,6 +395,7 @@ class TDS:
             "scale": self.scale,
             "shift": self.shift,
             "smoothing": self.smoothing,
+            "include_compton": self.include_compton,
         }
         for pname in self.phases:
             for wavn, lam in self.phases.wavelength.items():
