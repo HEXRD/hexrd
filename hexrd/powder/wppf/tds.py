@@ -365,12 +365,14 @@ class TDS:
         scale: float | None = None,
         shift: float | None = None,
         cagliotti_uvw: list[float] | None = None,
+        include_compton: bool = True,
     ):
         self.model_type = model_type
         self.tth = tth
         self.model_data = model_data
         self.scale = scale
         self.shift = shift
+        self.include_compton = include_compton
 
         self.TDSmodels = {}
         self.cagliotti = cagliotti_uvw
@@ -393,6 +395,7 @@ class TDS:
             "scale": self.scale,
             "shift": self.shift,
             "smoothing": self.smoothing,
+            "include_compton": self.include_compton,
         }
         for pname in self.phases:
             for wavn, lam in self.phases.wavelength.items():
