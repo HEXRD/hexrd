@@ -166,3 +166,31 @@ def test_tds_aggregate_lineout_no_double_scaling(
             expected += weight * mat.tds_lineout
 
     np.testing.assert_allclose(tds_model.tds_lineout, expected)
+
+
+def test_tds_material_include_compton(tds_material_file: Path):
+    # include_compton adds a positive incoherent-scattering baseline on top of
+    # the Warren TDS lineout, and toggling it off removes exactly that baseline.
+    tth = np.linspace(15, 60, 4500)
+    m = Material(
+        name="Ti_beta",
+        material_file=tds_material_file,
+        kev=_kev(10.2505),
+        dmin=_nm(0.05),
+    )
+    m.planeData.exclusions = np.zeros_like(m.planeData.exclusions).astype(bool)
+    m_r = Material_Rietveld(material_obj=m)
+    wavelength = m_r.wavelength * 10  # convert to A
+
+    common = dict(material=m_r, tth=tth, wavelength=wavelength, smoothing=None)
+    with_compton = TDS_material(**common, include_compton=True)
+    without_compton = TDS_material(**common, include_compton=False)
+
+    assert np.all(with_compton.compton_scattering_intensity > 0)
+    np.testing.assert_allclose(
+        with_compton.tds_lineout,
+        without_compton.tds_lineout + with_compton.compton_scattering_intensity,
+    )
+
+    with pytest.raises(RuntimeError):
+        TDS_material(**common, include_compton="yes")

@@ -325,11 +325,11 @@ class TDS_material:
         self._smoothing = v
 
     @property
-    def include_compton(self):
+    def include_compton(self) -> bool:
         return self._include_compton
 
     @include_compton.setter
-    def include_compton(self, val):
+    def include_compton(self, val: bool) -> None:
         # make sure val is bool
         if not isinstance(val, bool):
             msg = f"input is not boolean type"
