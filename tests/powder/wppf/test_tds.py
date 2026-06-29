@@ -166,7 +166,7 @@ def test_wppf_tds(
     R2.params["scale"].vary = True
     R2.Refine()
 
-    assert R.Rwp < 0.6
+    assert R2.Rwp < 0.6
 
     R2.params["V"].vary = True
     R2.params["W"].vary = True
