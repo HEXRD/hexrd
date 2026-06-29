@@ -47,6 +47,8 @@ def mock_h5_env():
             *args, **kwargs
         )
         m_h5.File = FakeH5File
+        # An h5py.File is a Group; the writer type-checks against Group.
+        m_h5.Group = FakeH5File
 
         yield m_h5, constructor_spy, file_instance
 

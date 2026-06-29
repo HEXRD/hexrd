@@ -2,6 +2,7 @@
 
 import abc
 from concurrent.futures import ThreadPoolExecutor
+import contextlib
 import logging
 import multiprocessing
 import os
@@ -93,8 +94,11 @@ class Writer(object, metaclass=_RegisterWriter):
         self._fname = fname
         self._opts = kwargs
 
-        if isinstance(fname, h5py.File):
-            filename = fname.filename
+        if isinstance(fname, h5py.Group):
+            # An h5py.File is a Group too; this covers writing into an
+            # already-open file or a group within it. A Group exposes the
+            # filename via its parent file.
+            filename = fname.file.filename
         else:
             filename = fname
 
@@ -233,6 +237,8 @@ class WriteFrameCache(Writer):
     def __init__(self, ims, fname, style='npz', **kwargs):
         Writer.__init__(self, ims, fname, **kwargs)
         self._thresh = self._opts['threshold']
+        # Optional group path when writing 'fch5' into an already-open file.
+        self._path = self._opts.get('path')
         self._cache, self.cachename = self._set_cache()
 
         ncpus = multiprocessing.cpu_count()
@@ -249,6 +255,10 @@ class WriteFrameCache(Writer):
 
     def _set_cache(self):
         cf = self.opts.get('cache_file')
+
+        if isinstance(self.fname, h5py.Group):
+            # Writing 'fch5' into an already-open file/group; no cache file.
+            return self.fname, self.fname.file.filename
 
         if cf is None:
             cachename = cache = self.fname
@@ -403,8 +413,15 @@ class WriteFrameCache(Writer):
         thread_local = threading.local()
 
         # creating an array in memory will fail if data is too big or threshold
-        # too low, so we write to the file while iterating the frames
-        with h5py.File(self.cache, "w") as h5f:
+        # too low, so we write to the file while iterating the frames. The cache
+        # may be a filename (open a new file) or an already-open h5py group/file
+        # (write into it, optionally under self._path).
+        if isinstance(self.cache, h5py.Group):
+            target = self.cache.create_group(self._path) if self._path else self.cache
+            file_cm = contextlib.nullcontext(target)
+        else:
+            file_cm = h5py.File(self.cache, "w")
+        with file_cm as h5f:
             h5f.attrs['HEXRD_FRAMECACHE_VERSION'] = 1
             h5f["shape"] = shape
             h5f["nframes"] = nframes
