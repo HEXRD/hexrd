@@ -2321,6 +2321,7 @@ class Rietveld(AbstractWPPF):
         pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
         tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
         weight = self.phases.wavelength[k][1]
+
         return self.scale * weight * pf * lp * tds_signal
 
     @property

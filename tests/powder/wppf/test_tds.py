@@ -80,26 +80,26 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
     R.params["scale"].vary = True
     R.Refine()
 
-    assert R.Rwp < 1
+    assert R.Rwp < 0.6
 
     R.params["V"].vary = True
     R.params["W"].vary = True
     R.params["Ti_beta_Y"].vary = True
     R.Refine()
 
-    assert R.Rwp < 0.6
-
-    R.params["Ti_beta_Ti1_dw"].vary = True
-    R.Refine()
-
-    assert R.Rwp < 0.1
+    assert R.Rwp < 0.5
 
     R.params["bkg_0"].vary = True
     R.params["bkg_1"].vary = True
 
     R.Refine()
 
-    assert R.Rwp < 0.05
+    assert R.Rwp < 0.2
+
+    R.params["Ti_beta_Ti1_dw"].vary = True
+    R.Refine()
+
+    assert R.Rwp < 0.01
 
     # Now try the experimental model.
     # It shouldn't have a big impact. We'll just verify it runs.
@@ -119,5 +119,50 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
     assert R.Rwp < 0.05
 
     # Test calculating the equivalent temperatures
-    equiv_temp_dict = m_r.calc_temperature({'Ti': 200})
-    assert np.isclose(equiv_temp_dict['Ti'], 3607, atol=10)
+    equiv_temp_dict = m_r.calc_temperature({'Ti': 380})
+    assert np.isclose(equiv_temp_dict['Ti'], 3581, atol=10)
+
+
+def test_tds_aggregate_lineout_no_double_scaling(
+    tds_material_file: Path, tds_expt_spectrum: np.ndarray
+):
+    # The vol/lambda^3 normalization is applied per-material in
+    # TDS_material.calcTDS, so the aggregate TDS.tds_lineout must only sum the
+    # weighted per-material lineouts (no extra factor). WPPF/hexrdgui don't call
+    # this aggregate, so this guards it for any external caller that does.
+    m = Material(
+        name="Ti_beta",
+        material_file=tds_material_file,
+        kev=_kev(10.2505),
+        dmin=_nm(0.05),
+    )
+    m.planeData.exclusions = np.zeros_like(m.planeData.exclusions).astype(bool)
+
+    kwargs = {
+        "expt_spectrum": tds_expt_spectrum,
+        "wavelength": {"XFEL": [_angstrom(keVToAngstrom(10.2505)), 1.0]},
+        "bkgmethod": {"chebyshev": 1},
+        "peakshape": "pvtch",
+        "phases": [m],
+    }
+    R = Rietveld(**kwargs)
+
+    tds_model = TDS(
+        model_type="warren",
+        phases=R.phases,
+        tth=R.tth_list,
+        model_data=None,
+        scale=None,
+        shift=None,
+    )
+
+    expected = np.zeros_like(tds_model.tth)
+    for p in tds_model.phases:
+        for wlen in tds_model.phases.wavelength:
+            mat = tds_model.TDSmodels.get(p, {}).get(wlen)
+            if mat is None:
+                continue
+            weight = tds_model.phases.wavelength[wlen][1]
+            expected += weight * mat.tds_lineout
+
+    np.testing.assert_allclose(tds_model.tds_lineout, expected)
