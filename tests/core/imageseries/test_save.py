@@ -123,8 +123,16 @@ def test_writeh5_options(mock_ims):
     assert opts['chunks'] == (1, 2, 10)
     assert opts['shuffle'] is False
 
-    with pytest.raises(ValueError):
-        save.WriteH5(mock_ims, "t.h5", path="p", gzip=10).h5opts
+
+def test_writeh5_compression_option(mock_ims: MagicMock) -> None:
+    import hdf5plugin
+
+    blosc = hdf5plugin.Blosc(cname='zstd', clevel=5)
+    opts = save.WriteH5(mock_ims, "t.h5", path="p", compression=blosc).h5opts
+
+    # The explicit compression spec is used as-is (no gzip, no extra shuffle).
+    assert opts['compression'] == dict(blosc)['compression']
+    assert 'shuffle' not in opts
 
 
 # --- WriteFrameCache Tests ---
