@@ -28,6 +28,14 @@ conda remove -n base conda-anaconda-telemetry
 
 # Install conda build and create output directory
 conda install --override-channels -c conda-forge conda-build -y
+
+# conda-forge builds conda in an over-long placeholder prefix, so its `conda`
+# entry point ships with a "#!/usr/bin/env python" shebang instead of an
+# absolute one. During conda-build the host env (which has no conda) is first
+# on PATH, so `conda` runs under that python and dies with "No module named
+# 'conda'". Pin the shebang to this env's interpreter.
+sed -i "1s|^#!/usr/bin/env python.*|#!${CONDA_PREFIX}/bin/python|" "${CONDA_PREFIX}/bin/conda"
+
 mkdir output
 
 # Build the package
