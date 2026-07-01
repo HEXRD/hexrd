@@ -135,6 +135,10 @@ class WriteH5(Writer):
        number of rows per chunk; default is all
     shuffle: bool
        shuffle HDF5 data
+    compression: mapping, optional
+       an explicit set of ``create_dataset`` compression keyword arguments
+       (e.g. ``hdf5plugin.Blosc(cname='zstd', clevel=5)``). When given, it is
+       used as-is and overrides the ``gzip``/``shuffle`` options above.
     """
 
     fmt = 'hdf5'
@@ -179,17 +183,17 @@ class WriteH5(Writer):
     def h5opts(self):
         d = {}
 
-        # shuffle
-        shuffle = self._opts.pop('shuffle', self.dflt_shuffle)
-        d['shuffle'] = shuffle
-
-        # compression
-        compress = self._opts.pop('gzip', self.dflt_gzip)
-        if compress > 9:
-            raise ValueError('gzip compression cannot exceed 9: %s' % compress)
-        if compress > 0:
-            d['compression'] = 'gzip'
-            d['compression_opts'] = compress
+        # An explicit compression spec (e.g. hdf5plugin.Blosc(...)) is used
+        # as-is (it carries its own shuffle); otherwise fall back to gzip.
+        compression = self._opts.pop('compression', None)
+        if compression is not None:
+            d.update(dict(compression))
+        else:
+            d['shuffle'] = self._opts.pop('shuffle', self.dflt_shuffle)
+            compress = self._opts.pop('gzip', self.dflt_gzip)
+            if compress > 0:
+                d['compression'] = 'gzip'
+                d['compression_opts'] = compress
 
         # chunk size
         s0, s1 = self._shape
