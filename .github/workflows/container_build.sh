@@ -16,9 +16,6 @@ chmod a+x Miniconda3-latest-Linux-x86_64.sh
 # Activate conda
 source $HOME/miniconda3/bin/activate
 
-# The base needs to have the same python version (3.11, right now)
-conda install --override-channels -c conda-forge python=3.11 -y
-
 # Set up the hexrd channel
 conda create --override-channels -c conda-forge -y -n hexrd python=3.11
 conda activate hexrd
