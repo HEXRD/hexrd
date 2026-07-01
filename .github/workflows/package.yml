@@ -45,10 +45,6 @@ jobs:
 
     - name: Install build requirements
       run: |
-          # Change default solver to be libmamba, so that it runs much faster
-          conda install -n base --override-channels -c conda-forge conda-libmamba-solver
-          conda config --set solver libmamba
-
           conda activate hexrd
           conda install --override-channels -c conda-forge anaconda-client conda-build conda
 
@@ -63,19 +59,10 @@ jobs:
         MACOSX_DEPLOYMENT_TARGET: '11.0'
       run: |
           conda activate hexrd
-          # For some reason, we need to set this in the environment as well.
-          # It seems conda build sometimes needs the solver in the environment
-          # and sometimes in the base environment. I don't know why.
-          conda install --override-channels -c conda-forge conda-libmamba-solver
-          conda config --env --set solver libmamba
           conda config --set conda_build.pkg_format 1 # force tar.bz2 files
           conda list
 
           mkdir output
-          # Conda build is ignoring the .condarc for some reason, so we need to
-          # set this environment variable instead.
-          # Setting this variable via `env` did not seem to work for some reason.
-          export CONDA_SOLVER=libmamba
           # Retry conda build up to N times to handle transient checksum
           # mismatch failures caused by stale cached repodata.
           max_attempts=5
