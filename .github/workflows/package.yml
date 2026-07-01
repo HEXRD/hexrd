@@ -42,6 +42,12 @@ jobs:
         python-version: 3.11
         activate-environment: hexrd
         auto-activate-base: false
+        # Create the env from conda-forge only. Otherwise setup-miniconda mixes
+        # the Anaconda "defaults" channel in, and the incompatible python
+        # packaging breaks conda with "No module named 'conda'" (macOS).
+        channels: conda-forge
+        channel-priority: strict
+        conda-remove-defaults: true
 
     - name: Install build requirements
       run: |
