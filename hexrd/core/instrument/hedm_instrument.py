@@ -46,6 +46,7 @@ import yaml
 import h5py
 
 import numpy as np
+from numpy import histogram
 from numpy.typing import NDArray
 
 from io import IOBase
@@ -2563,6 +2564,40 @@ def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
 
             # Note that this preserves nan values for bins not on the detector.
             this_map[i_row, bins_on_detector] = result[bins_on_detector]
+
+
+def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
+    pixels_in_tthr = np.logical_and(ptth >= tthr[0], ptth <= tthr[1])
+    if not np.any(pixels_in_tthr):
+        return None
+
+    pixel_ids = np.where(pixels_in_tthr)
+    pixel_etas = peta[pixel_ids]
+    reta_hist = histogram(pixel_etas, bins=eta_edges)[0]
+    bins_on_detector = np.where(reta_hist)[0]
+
+    return pixel_etas, eta_edges, pixel_ids, bins_on_detector
+
+
+def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
+    for i_row in range(*rows):
+        image = ims[i_row]
+        if threshold is not None:
+            image = np.array(image)
+            image[image < threshold] = 0.0
+
+        for i_r, _ in enumerate(tth_ranges):
+            params = ring_params[i_r]
+            if params is None:
+                continue
+
+            pixel_etas, eta_edges, pixel_ids, bins_on_detector = params
+            result = histogram(
+                pixel_etas,
+                bins=eta_edges,
+                weights=np.asarray(image[pixel_ids], dtype=np.float64),
+            )[0]
+            ring_maps[i_r, i_row, bins_on_detector] = result[bins_on_detector]
 
 
 def _extract_detector_line_positions(
