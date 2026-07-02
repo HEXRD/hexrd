@@ -1120,7 +1120,11 @@ class HEDMInstrument(object):
                 raise TypeError("active_hkls must be an iterable with __len__")
 
             # these are all active reflection unique hklIDs
-            active_hklIDs = plane_data.getHKLID(plane_data.hkls, master=True)
+            # np.asarray: getHKLID may return a list, and `list == int` below is
+            # a scalar bool -> np.where(scalar) raises "0d array nonzero".
+            active_hklIDs = np.asarray(
+                plane_data.getHKLID(plane_data.hkls, master=True)
+            )
 
             # find indices
             idx = np.zeros_like(active_hkls, dtype=int)
