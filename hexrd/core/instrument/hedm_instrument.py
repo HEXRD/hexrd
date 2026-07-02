@@ -46,6 +46,7 @@ import yaml
 import h5py
 
 import numpy as np
+from numpy import histogram
 from numpy.typing import NDArray
 
 from io import IOBase
@@ -1043,6 +1044,169 @@ class HEDMInstrument(object):
 
         return par_dict
 
+    def extract_polar_maps(
+        self,
+        plane_data: PlaneData,
+        imgser_dict: dict[str, OmegaImageSeries],
+        active_hkls: Optional[NDArray[np.int32] | list[int]] = None,
+        threshold: Optional[float] = None,
+        tth_tol: Optional[float] = None,
+        eta_tol: float = 0.25,
+    ) -> tuple[dict[str, NDArray[np.float64]], NDArray[np.float64]]:
+        """
+        Extract eta-omega maps from an imageseries.
+
+        Quick and dirty way to histogram angular patch data for make
+        pole figures suitable for fiber generation
+
+        Parameters
+        ----------
+
+        plane_data : hexrd.crystallography.PlaneData object
+        imgser_dict : dict[str, OmegaImageSeries] object
+            Dictionary of imageseries, one for each panel.
+        active_hkls : list[int], optional
+            List of active HKL IDs to extract. If None (default), all non-excluded
+            reflections in plane_data are used.
+        threshold : float, optional
+            Intensity threshold for pixel inclusion. If None (default), no
+            thresholding is applied.
+        tth_tol : float, optional
+            Tolerance for merging reflections in degrees. If None (default),
+            falls back to `plane_data.tThWidth`.
+        eta_tol : float, optional
+            Eta bin width in degrees. If None (default), 0.25 degrees is used.
+
+        Returns
+        -------
+
+        ring_maps_panel : dict[str, NDArray[np.float64]]
+            Dictionary of eta-omega maps for each detector panel. Each map has
+            shape (n_rings, n_omegas, n_eta_bins).
+        eta_edges : NDArray[np.float64]
+            The edges of the eta bins used in the histograms.
+
+        TODO: streamline projection code
+        TODO: normalization
+        !!!: images must be non-negative!
+        !!!: plane_data is NOT a copy!
+        """
+        if plane_data.tThWidth is None and tth_tol is None:
+            raise RuntimeError(
+                "tth_tol was not specified and plane_data.tThWidth is not set"
+            )
+        if tth_tol is not None:
+            plane_data.tThWidth = np.radians(tth_tol)
+        else:
+            assert plane_data.tThWidth is not None
+            tth_tol = np.degrees(plane_data.tThWidth)
+
+        # make rings clipped to panel
+        # !!! eta_idx has the same length as plane_data.exclusions
+        #     each entry are the integer indices into the bins
+        # !!! eta_edges is the list of eta bin EDGES; same for all
+        #     detectors, so calculate it once
+        # !!! grab first panel
+        panel = next(iter(self.detectors.values()))
+        _, _, tth_ranges, _, eta_edges = panel.make_powder_rings(
+            plane_data,
+            merge_hkls=False,
+            delta_eta=eta_tol,
+            full_output=True,
+        )
+
+        if active_hkls is not None:
+            if not hasattr(active_hkls, '__len__'):
+                raise TypeError("active_hkls must be an iterable with __len__")
+
+            # these are all active reflection unique hklIDs
+            # np.asarray: getHKLID may return a list, and `list == int` below is
+            # a scalar bool -> np.where(scalar) raises "0d array nonzero".
+            active_hklIDs = np.asarray(
+                plane_data.getHKLID(plane_data.hkls, master=True)
+            )
+
+            # find indices
+            idx = np.zeros_like(active_hkls, dtype=int)
+            for i, input_hklID in enumerate(active_hkls):
+                matches = np.where(active_hklIDs == input_hklID)[0]
+                if len(matches) != 1:
+                    raise RuntimeError(f"hklID '{input_hklID}' is invalid")
+                idx[i] = matches[0]
+            tth_ranges = tth_ranges[idx]
+
+        delta_eta = eta_edges[1] - eta_edges[0]
+        ncols_eta = len(eta_edges) - 1
+
+        ring_maps_panel: dict[str, NDArray[np.float64]] = {
+            k: np.empty((0, 0)) for k in self.detectors
+        }
+        for det_key in self.detectors:
+            logger.info(f"working on detector '{det_key}'...")
+
+            # grab panel
+            panel = self.detectors[det_key]
+
+            # pixel angular coords for the detector panel
+            ptth, peta = panel.pixel_angles()
+
+            # grab imageseries for this detector
+            ims = _parse_imgser_dict(
+                imgser_dict, det_key, roi=panel.roi, group=panel.group
+            )
+            assert isinstance(ims, OmegaImageSeries)
+
+            # grab omegas from imageseries and squawk if missing
+            try:
+                omegas = ims.metadata['omega']
+            except KeyError:
+                raise RuntimeError(f"imageseries for '{det_key}' has no omega info")
+
+            # initialize maps and assign by row (omega/frame)
+            nrows_ome = len(omegas)
+
+            # init map with NaNs
+            shape = (len(tth_ranges), nrows_ome, ncols_eta)
+            ring_maps = np.full(shape, np.nan)
+
+            # Generate ring parameters once, and re-use them for each image
+            ring_params = []
+            for tthr in tth_ranges:
+                kwargs = {
+                    'tthr': tthr,
+                    'ptth': ptth,
+                    'peta': peta,
+                    'eta_edges': eta_edges,
+                    'delta_eta': delta_eta,
+                }
+                ring_params.append(_generate_ring_params(**kwargs))
+
+            # Divide up the images among processes
+            tasks = distribute_tasks(len(ims), self.max_workers)
+            func = partial(
+                _run_histograms,
+                ims=ims,
+                tth_ranges=tth_ranges,
+                ring_maps=ring_maps,
+                ring_params=ring_params,
+                threshold=threshold,
+            )
+
+            max_workers = self.max_workers
+            if max_workers == 1 or len(tasks) == 1:
+                # Just execute it serially.
+                for task in tasks:
+                    func(task)
+            else:
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    # Evaluate the results via `list()`, so that if an
+                    # exception is raised in a thread, it will be re-raised
+                    # and visible to the user.
+                    list(executor.map(func, tasks))
+
+            ring_maps_panel[det_key] = ring_maps
+
+        return ring_maps_panel, eta_edges
 
     def extract_line_positions(
         self,
@@ -2351,6 +2515,40 @@ class GrainDataWriter_h5(object):
         )
         return
 
+
+
+def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
+    pixels_in_tthr = np.logical_and(ptth >= tthr[0], ptth <= tthr[1])
+    if not np.any(pixels_in_tthr):
+        return None
+
+    pixel_ids = np.where(pixels_in_tthr)
+    pixel_etas = peta[pixel_ids]
+    reta_hist = histogram(pixel_etas, bins=eta_edges)[0]
+    bins_on_detector = np.where(reta_hist)[0]
+
+    return pixel_etas, eta_edges, pixel_ids, bins_on_detector
+
+
+def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
+    for i_row in range(*rows):
+        image = ims[i_row]
+        if threshold is not None:
+            image = np.array(image)
+            image[image < threshold] = 0.0
+
+        for i_r, _ in enumerate(tth_ranges):
+            params = ring_params[i_r]
+            if params is None:
+                continue
+
+            pixel_etas, eta_edges, pixel_ids, bins_on_detector = params
+            result = histogram(
+                pixel_etas,
+                bins=eta_edges,
+                weights=np.asarray(image[pixel_ids], dtype=np.float64),
+            )[0]
+            ring_maps[i_r, i_row, bins_on_detector] = result[bins_on_detector]
 
 
 def _extract_detector_line_positions(
