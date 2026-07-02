@@ -16,16 +16,10 @@ chmod a+x Miniconda3-latest-Linux-x86_64.sh
 # Activate conda
 source $HOME/miniconda3/bin/activate
 
-# The base needs to have the same python version (3.11, right now)
-conda install --override-channels -c conda-forge python=3.11 -y
-
 # Set up the hexrd channel
 conda create --override-channels -c conda-forge -y -n hexrd python=3.11
 conda activate hexrd
 
-# Install the libmamba solver (it is much faster)
-conda install -n base -c conda-forge conda-libmamba-solver
-conda config --set solver libmamba
 conda config --set conda_build.pkg_format 1 # force tar.bz2 files
 
 
@@ -34,6 +28,14 @@ conda remove -n base conda-anaconda-telemetry
 
 # Install conda build and create output directory
 conda install --override-channels -c conda-forge conda-build -y
+
+# conda-forge builds conda in an over-long placeholder prefix, so its `conda`
+# entry point ships with a "#!/usr/bin/env python" shebang instead of an
+# absolute one. During conda-build the host env (which has no conda) is first
+# on PATH, so `conda` runs under that python and dies with "No module named
+# 'conda'". Pin the shebang to this env's interpreter.
+sed -i "1s|^#!/usr/bin/env python.*|#!${CONDA_PREFIX}/bin/python|" "${CONDA_PREFIX}/bin/conda"
+
 mkdir output
 
 # Build the package
