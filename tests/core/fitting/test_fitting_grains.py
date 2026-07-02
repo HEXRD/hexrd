@@ -16,6 +16,9 @@ def env():
     det1 = MagicMock(distortion=None)
     instr.detectors = {'det1': det1}
     instr.detector_parameters = {'det1': MagicMock()}
+    # Real arrays (not bare MagicMocks) for values that flow into numpy ops
+    # such as apply_correction_to_wavelength (np.ravel(instr.tvec)).
+    instr.tvec = np.zeros(3)
 
     return {
         'inst': instr,
