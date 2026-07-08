@@ -195,6 +195,13 @@ def test_alloc_buffer(mock_ims):
         buf = stats._alloc_buffer(mock_ims, 10)
         assert buf.shape == (10, 4, 4)
 
+    # An ndarray shape (as the fch5 adapter reports) must concatenate,
+    # not broadcast-add
+    mock_ims.shape = np.array([4, 4])
+    with patch('hexrd.core.imageseries.stats.STATS_BUFFER', 1000):
+        buf = stats._alloc_buffer(mock_ims, 10)
+        assert buf.shape == (10, 4, 4)
+
 
 def test_toarray_buffering(mock_ims):
     arr = stats._toarray(mock_ims, 10)
