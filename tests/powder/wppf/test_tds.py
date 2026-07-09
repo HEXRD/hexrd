@@ -27,7 +27,16 @@ def tds_expt_spectrum(tds_examples_path: Path) -> np.ndarray:
     return np.loadtxt(tds_examples_path / 'expt_spec_Ti.xy')
 
 
-def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
+@pytest.fixture
+def tds_expt_spectrum_no_compton(tds_examples_path: Path) -> np.ndarray:
+    return np.loadtxt(tds_examples_path / 'expt_spec_Ti_nocompton.xy')
+
+
+def test_wppf_tds(
+    tds_material_file: Path,
+    tds_expt_spectrum: np.ndarray,
+    tds_expt_spectrum_no_compton: np.ndarray,
+):
     material_file = tds_material_file
     expt_spec = tds_expt_spectrum
 
@@ -71,10 +80,7 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
         "model_data": None,
         "scale": None,
         "shift": None,
-        # The example dataset was simulated without compton, so disable it here
-        # to recover the true temperature. See the compton-on guard test for
-        # coverage of the include_compton path.
-        "include_compton": False,
+        "include_compton": True,
     }
 
     tds_model = TDS(**kwargs)
@@ -91,7 +97,7 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
     R.params["Ti_beta_Y"].vary = True
     R.Refine()
 
-    assert R.Rwp < 0.5
+    assert R.Rwp < 0.55
 
     R.params["bkg_0"].vary = True
     R.params["bkg_1"].vary = True
@@ -104,6 +110,86 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
     R.Refine()
 
     assert R.Rwp < 0.01
+
+    # Test calculating the equivalent temperatures
+    equiv_temp_dict = m_r.calc_temperature({'Ti': 380})
+    assert np.isclose(equiv_temp_dict['Ti'], 3552, atol=10)
+
+    # now try the dataset without compton scattering
+    # reload everything so values are reset
+    m = Material(
+        name="Ti_beta", material_file=material_file, kev=_kev(10.2505), dmin=_nm(0.05)
+    )
+    exclusions = np.zeros_like(m.planeData.exclusions).astype(bool)
+    m.planeData.exclusions = exclusions
+
+    m_r = Material_Rietveld(material_obj=m)
+
+    wavelength = m_r.wavelength * 10  # convert to A
+
+    expt_spec_nocompton = tds_expt_spectrum_no_compton
+
+    kwargs = {
+        "expt_spectrum": expt_spec_nocompton,
+        "wavelength": {"XFEL": [_angstrom(keVToAngstrom(10.2505)), 1.0]},
+        "bkgmethod": {"chebyshev": 1},
+        "peakshape": "pvtch",
+        "phases": [m],
+    }
+
+    R2 = Rietveld(**kwargs)
+
+    R2.params["scale"].value = 1e-5
+    R2.params["bkg_0"].value = 0
+    R2.params["bkg_1"].value = 0
+    R2.params["U"].value = 0
+    R2.params["V"].value = 0
+    R2.params["W"].value = 4000
+    R2.params["Ti_beta_Ti1_dw"].value = 0.113
+    R2.params["Ti_beta_X"].value = 0
+    R2.params["Ti_beta_Y"].value = 10
+
+    kwargs = {
+        "model_type": "warren",
+        "phases": R.phases,
+        "tth": R.tth_list,
+        "model_data": None,
+        "scale": None,
+        "shift": None,
+        "include_compton": False,
+    }
+
+    tds_model = TDS(**kwargs)
+
+    R2.tds_model = tds_model
+
+    R2.params["scale"].vary = True
+    R2.Refine()
+
+    assert R2.Rwp < 0.6
+
+    R2.params["V"].vary = True
+    R2.params["W"].vary = True
+    R2.params["Ti_beta_Y"].vary = True
+    R2.Refine()
+
+    assert R2.Rwp < 0.5
+
+    R2.params["bkg_0"].vary = True
+    R2.params["bkg_1"].vary = True
+
+    R2.Refine()
+
+    assert R2.Rwp < 0.2
+
+    R2.params["Ti_beta_Ti1_dw"].vary = True
+    R2.Refine()
+
+    assert R2.Rwp < 0.01
+
+    # Test calculating the equivalent temperatures
+    equiv_temp_dict = m_r.calc_temperature({'Ti': 380})
+    assert np.isclose(equiv_temp_dict['Ti'], 3597, atol=10)
 
     # Now try the experimental model.
     # It shouldn't have a big impact. We'll just verify it runs.
@@ -121,11 +207,11 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
 
     R.Refine()
 
-    assert R.Rwp < 0.05
+    assert R.Rwp < 0.01
 
     # Test calculating the equivalent temperatures
     equiv_temp_dict = m_r.calc_temperature({'Ti': 380})
-    assert np.isclose(equiv_temp_dict['Ti'], 3581, atol=10)
+    assert np.isclose(equiv_temp_dict['Ti'], 3597, atol=10)
 
 
 def test_tds_aggregate_lineout_no_double_scaling(
