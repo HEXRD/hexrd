@@ -91,7 +91,6 @@ from skimage.draw import polygon
 from skimage.util import random_noise
 from hexrd.powder.wppf import wppfsupport
 
-from numpy import histogram
 
 logger = logging.getLogger()
 logger.setLevel('INFO')

@@ -10,7 +10,6 @@ from hexrd.core import config
 from hexrd.core import constants as cnst
 from hexrd.core import rotations
 from hexrd.core import instrument
-from hexrd.hedm.findorientations import find_orientations
 from hexrd.hedm.fitgrains import fit_grains
 from hexrd.core.transforms import xfcapi
 
@@ -262,8 +261,16 @@ def execute(args, parser):
         else:
             logger.info("Missing %s, running find-orientations", quats_f)
             logger.removeHandler(ch)
-            results = find_orientations(cfg)
-            qbar = results['qbar']
+            from hexrd.core.config.experiment import Experiment
+            from hexrd.hedm.find_orientations import (
+                find_orientations,
+                write_results,
+            )
+
+            experiment = Experiment(args.yml)
+            results = find_orientations(experiment)
+            write_results(results, experiment)
+            qbar = results.grain_orientations
             logger.addHandler(ch)
 
     logger.info('=== begin fit-grains ===')

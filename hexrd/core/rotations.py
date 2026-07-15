@@ -1134,8 +1134,9 @@ def mapAngle(
             raise RuntimeError('range is incomplete!')
 
     val = np.mod(ang - min_val, max_val - min_val) + min_val
-    # To match old implementation, map to closer value on the boundary
-    # Not doing this breaks hedm_instrument's _extract_polar_maps
+    # Map to the closer value on the boundary: angles landing exactly on the
+    # lower edge that started above it belong to the upper edge. Consumers
+    # binning over a full period (e.g. eta-omega map builders) rely on this.
     val[np.logical_and(val == min_val, ang > min_val)] = max_val
     return val
 

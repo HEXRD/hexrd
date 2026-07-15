@@ -5,9 +5,7 @@ hexrd/valunits.py	hexrd/core/valunits.py
 hexrd/fitgrains.py	hexrd/hedm/fitgrains.py
 hexrd/imageutil.py	hexrd/core/imageutil.py
 hexrd/rotations.py	hexrd/core/rotations.py
-hexrd/findorientations.py	hexrd/hedm/findorientations.py
 hexrd/deprecation.py	hexrd/core/deprecation.py
-hexrd/indexer.py	hexrd/hedm/indexer.py
 hexrd/matrixutil.py	hexrd/core/matrixutil.py
 hexrd/constants.py	hexrd/core/constants.py
 hexrd/gridutil.py	hexrd/core/gridutil.py
