@@ -44,7 +44,6 @@ from hexrd.hed.xrdutil.utils import _project_on_detector_plane
 from hexrd.core.material.crystallography import processWavelength, PlaneData
 
 from hexrd.core.transforms import xfcapi
-from hexrd.core.valunits import valWUnit
 
 from hexrd.core import distortion as distortion_pkg
 
@@ -67,59 +66,6 @@ bHat_l_DFLT = constants.beam_vec.flatten()
 eHat_l_DFLT = constants.eta_vec.flatten()
 
 nans_1x2 = np.nan * np.ones((1, 2))
-
-# =============================================================================
-# CLASSES
-# =============================================================================
-
-
-class EtaOmeMaps(object):
-    """
-    find-orientations loads pickled eta-ome data, but CollapseOmeEta is not
-    pickleable, because it holds a list of ReadGE, each of which holds a
-    reference to an open file object, which is not pickleable.
-    """
-
-    def __init__(self, ome_eta_archive: str):
-        ome_eta: np.ndarray = np.load(ome_eta_archive, allow_pickle=True)
-
-        planeData_args = ome_eta['planeData_args']
-        planeData_hkls = ome_eta['planeData_hkls']
-        self.planeData = PlaneData(planeData_hkls, *planeData_args)
-        self.planeData.exclusions = ome_eta['planeData_excl']
-        self.dataStore = ome_eta['dataStore']
-        self.iHKLList = ome_eta['iHKLList']
-        self.etaEdges = ome_eta['etaEdges']
-        self.omeEdges = ome_eta['omeEdges']
-        self.etas = ome_eta['etas']
-        self.omegas = ome_eta['omegas']
-
-    def save_eta_ome_maps(self, filename: str) -> None:
-        """
-        eta_ome.dataStore
-        eta_ome.planeData
-        eta_ome.iHKLList
-        eta_ome.etaEdges
-        eta_ome.omeEdges
-        eta_ome.etas
-        eta_ome.omegas
-        """
-        args = np.array(self.planeData.getParams(), dtype=object)[:4]
-        args[2] = valWUnit('wavelength', 'length', args[2], 'angstrom')
-        hkls = np.vstack([i['hkl'] for i in self.planeData.hklDataList]).T
-        save_dict = {
-            'dataStore': self.dataStore,
-            'etas': self.etas,
-            'etaEdges': self.etaEdges,
-            'iHKLList': self.iHKLList,
-            'omegas': self.omegas,
-            'omeEdges': self.omeEdges,
-            'planeData_args': args,
-            'planeData_hkls': hkls,
-            'planeData_excl': self.planeData.exclusions,
-        }
-        np.savez_compressed(filename, **save_dict)
-
 
 # =============================================================================
 # FUNCTIONS
