@@ -476,6 +476,7 @@ def test_build_maps_accumulates_in_float64():
     experiment = SimpleNamespace(
         find_orientations=fo,
         active_material=SimpleNamespace(two_theta_width=0.6),  # degrees
+        max_workers=1,
         detectors=[detector],
         image_series_list=[
             _Ims('p0', [hot, hot, faint]),
@@ -560,6 +561,7 @@ def test_build_maps_multi_wedge_leaves_nan_gap_rows():
     experiment = SimpleNamespace(
         find_orientations=fo,
         active_material=SimpleNamespace(two_theta_width=0.6),
+        max_workers=1,
         detectors=[detector],
         image_series_list=[_Ims()],
     )
@@ -585,7 +587,8 @@ def test_generate_orientation_fibers_skips_nan_spots(monkeypatch):
         'clustering': {'radius': 1.0, 'completeness': 0.5},
     })
     experiment = SimpleNamespace(find_orientations=fo,
-                                 oscillation_stage=SimpleNamespace(chi=0.0))
+                                 oscillation_stage=SimpleNamespace(chi=0.0),
+                                 max_workers=1)
     maps = _tiny_maps(np.zeros((1, 4, 8)))
 
     fibers = pipeline.generate_orientation_fibers(
@@ -600,7 +603,8 @@ def test_generate_orientation_fibers_requires_seeds():
         'clustering': {'radius': 1.0, 'completeness': 0.5},
     })
     experiment = SimpleNamespace(find_orientations=fo,
-                                 oscillation_stage=SimpleNamespace(chi=0.0))
+                                 oscillation_stage=SimpleNamespace(chi=0.0),
+                                 max_workers=1)
     maps = _tiny_maps(np.zeros((1, 4, 4)))
     with pytest.raises(ValueError, match='hkl_seeds'):
         generate_orientation_fibers(experiment, _fake_plane_data(), maps)
@@ -1025,3 +1029,39 @@ def test_multiruby_find_orientations_golden(example_repo_path, tmp_path,
     for i, q in enumerate(results.grain_orientations.T):
         angles, _ = misorientation(q.reshape(4, 1), reference.T, (qsym,))
         assert np.degrees(np.min(angles)) < 0.05, f'grain {i} misorientation'
+
+
+# ---------------------------------------------------------------------------
+# GPU scorer parity
+# ---------------------------------------------------------------------------
+def _gpu_module():
+    try:
+        from hexrd.hedm import find_orientations_gpu
+    except Exception:
+        return None
+    return find_orientations_gpu if find_orientations_gpu.available() else None
+
+
+@pytest.mark.skipif(_gpu_module() is None, reason='no usable CUDA device')
+def test_gpu_scorer_bit_identical_to_cpu(ruby_experiment, monkeypatch):
+    """The CUDA scorer must reproduce the CPU kernels bit for bit."""
+    from hexrd.hedm.find_orientations import (
+        generate_orientation_fibers,
+        load_or_build_eta_omega_maps,
+        score_orientations,
+    )
+
+    material = ruby_experiment.get_active_material()
+    pd = material.plane_data
+    maps = load_or_build_eta_omega_maps(ruby_experiment, pd)
+    fibers = generate_orientation_fibers(ruby_experiment, pd, maps)
+
+    monkeypatch.setenv('HEXRD_DISABLE_GPU', '1')
+    cpu_scores = score_orientations(ruby_experiment, pd, maps, fibers)
+    monkeypatch.delenv('HEXRD_DISABLE_GPU')
+    monkeypatch.setenv('HEXRD_GPU', '1')   # below the auto-GPU trial threshold
+    gpu_scores = score_orientations(ruby_experiment, pd, maps, fibers)
+
+    assert np.array_equal(cpu_scores, gpu_scores)
+    golden = np.load(DATA_DIR / 'ruby_completeness.npy')
+    assert np.array_equal(gpu_scores, golden)
