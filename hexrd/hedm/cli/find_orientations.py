@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 
-from hexrd.core.config.experiment import Experiment
+from hexrd.hedm.experiment import HedmExperiment
 from hexrd.hedm.find_orientations import find_orientations, write_results
 
 descr = 'Process rotation image series to find grain orientations'
@@ -59,7 +59,7 @@ def execute(args, parser):
     logger.addHandler(ch)
     logger.info('=== begin find-orientations ===')
 
-    experiment = Experiment(args.yml, study=args.study)
+    experiment = HedmExperiment(args.yml, study=args.study)
     material = experiment.get_active_material()
 
     actmat = experiment.active_material.active

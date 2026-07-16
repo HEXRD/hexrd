@@ -261,13 +261,13 @@ def execute(args, parser):
         else:
             logger.info("Missing %s, running find-orientations", quats_f)
             logger.removeHandler(ch)
-            from hexrd.core.config.experiment import Experiment
+            from hexrd.hedm.experiment import HedmExperiment
             from hexrd.hedm.find_orientations import (
                 find_orientations,
                 write_results,
             )
 
-            experiment = Experiment(args.yml)
+            experiment = HedmExperiment(args.yml)
             results = find_orientations(experiment)
             write_results(results, experiment)
             qbar = results.grain_orientations

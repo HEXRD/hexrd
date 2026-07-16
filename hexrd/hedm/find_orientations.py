@@ -11,7 +11,7 @@ its own function:
     4. cluster_grains                scored trials      -> one orientation per grain
     5. write_results                 grains             -> grains.out, etc.
 
-Inputs travel as two plain objects: an :class:`~hexrd.core.config.experiment.Experiment`
+Inputs travel as two plain objects: an :class:`~hexrd.hedm.experiment.HedmExperiment`
 (the parsed, typed config: instrument, image series, analysis parameters) and
 a :class:`~hexrd.core.material.material_data.Material` (the crystal, exposing
 a frozen PlaneData of arrays).  No stage reaches beyond those.
@@ -28,7 +28,9 @@ from hexrd.core import constants as const
 from hexrd.core import distortion as distortion_pkg
 from hexrd.core import matrixutil as mutil
 from hexrd.core import rotations
-from hexrd.core.config.experiment import Experiment
+from hexrd.hedm.experiment import (
+    ClusteringAlgorithm, HedmExperiment, SeedSearchMethod,
+)
 from hexrd.core.extensions import _new_transforms_capi, transforms
 from hexrd.core.material.material_data import Material, PlaneData
 from hexrd.core.transforms import xfcapi
@@ -45,9 +47,6 @@ ETA_VEC = np.array([1.0, 0.0, 0.0])
 def _prefetch_heavy_imports():
     from scipy import ndimage  # noqa: F401
     from sklearn.cluster import dbscan  # noqa: F401
-
-
-threading.Thread(target=_prefetch_heavy_imports, daemon=True).start()
 
 
 @dataclass
@@ -85,13 +84,13 @@ def _prefetch_skimage():
     from skimage.feature import blob_dog, blob_log  # noqa: F401
 
 
-def find_orientations(experiment: Experiment, material: Optional[Material] = None,
+def find_orientations(experiment: HedmExperiment, material: Optional[Material] = None,
                       clean: bool = False) -> FindOrientationsResult:
     """Find every grain orientation in the rotation series.
 
     clean regenerates the eta-omega maps even when a cached file exists.
     """
-    from hexrd.core.config.experiment import SeedSearchMethod
+    threading.Thread(target=_prefetch_heavy_imports, daemon=True).start()
 
     if material is None:
         material = experiment.get_active_material()
@@ -126,7 +125,7 @@ def find_orientations(experiment: Experiment, material: Optional[Material] = Non
 # ---------------------------------------------------------------------------
 # 1. eta-omega maps
 # ---------------------------------------------------------------------------
-def load_or_build_eta_omega_maps(experiment: Experiment, plane_data: PlaneData,
+def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneData,
                                  clean: bool = False) -> EtaOmegaMaps:
     """The eta-omega maps for this analysis, cached at experiment.eta_ome_maps_file.
 
@@ -152,26 +151,36 @@ def load_or_build_eta_omega_maps(experiment: Experiment, plane_data: PlaneData,
 
 def _resolve_active_rings(active_hkls: Optional[np.ndarray],
                           plane_data: PlaneData) -> np.ndarray:
-    """Ring indices (into the non-excluded hkl list) for the active hkl vectors.
+    """Ring indices (into the non-excluded hkl list) for the active hkls,
+    given as [h, k, l] vectors or as master hkl IDs.
 
     None selects every non-excluded ring.
     """
     if active_hkls is None:
         return np.arange(len(plane_data.unexcluded_hkls))
 
-    ring_of_vec = {tuple(h): i
-                   for i, h in enumerate(plane_data.unexcluded_hkls.tolist())}
-    missing = [h for h in active_hkls.tolist() if tuple(h) not in ring_of_vec]
-    if missing:
-        raise ValueError(
-            f'active hkls {missing} are not non-excluded hkls of the material')
-    rings = np.array([ring_of_vec[tuple(h)] for h in active_hkls.tolist()])
+    if active_hkls.ndim == 1:              # master hkl IDs
+        bad = [i for i in active_hkls.tolist()
+               if i >= len(plane_data.hkls) or plane_data.exclusions[i]]
+        if bad:
+            raise ValueError(
+                f'active hkl IDs {bad} are not non-excluded hkls of the material')
+        ring_of_hkl = np.cumsum(~plane_data.exclusions) - 1
+        rings = ring_of_hkl[active_hkls]
+    else:
+        ring_of_vec = {tuple(h): i
+                       for i, h in enumerate(plane_data.unexcluded_hkls.tolist())}
+        missing = [h for h in active_hkls.tolist() if tuple(h) not in ring_of_vec]
+        if missing:
+            raise ValueError(
+                f'active hkls {missing} are not non-excluded hkls of the material')
+        rings = np.array([ring_of_vec[tuple(h)] for h in active_hkls.tolist()])
     if len(np.unique(rings)) != len(rings):
         raise ValueError('duplicate active_hkls specified')
     return rings
 
 
-def build_eta_omega_maps(experiment: Experiment,
+def build_eta_omega_maps(experiment: HedmExperiment,
                          plane_data: PlaneData) -> EtaOmegaMaps:
     """Accumulate every detector panel's intensity into per-ring (omega, eta) maps.
 
@@ -190,45 +199,87 @@ def build_eta_omega_maps(experiment: Experiment,
     eta_step = np.radians(fo.orientation_maps.eta_step)
     eta_edges = _eta_bin_edges(eta_step)
     n_eta = len(eta_edges) - 1
-    n_frames = len(experiment.image_series_list[0])
-    ring_maps = np.full((len(two_theta_ranges), n_frames, n_eta), np.nan)
+    row_of_frame, omegas, omega_edges, period = _omega_grid(
+        experiment.image_series_list[0].omega)
+    ring_maps = np.full((len(two_theta_ranges), len(omegas), n_eta), np.nan)
 
     # Pair each image series with its detector panel (by name) and bin every
     # frame's intensity into the shared map. Summing across panels is what makes
-    # multi-panel instruments (e.g. Dexela) work.
+    # multi-panel instruments (e.g. Dexela) work.  Frames are sparse, so only
+    # the stored pixels are binned (frame intensities are integer-valued, and
+    # float64 sums of integers are exact in any order).
     detectors = {d.name: d for d in experiment.detectors}
     for ims in experiment.image_series_list:
         detector = detectors.get(ims.panel)
         if detector is None:
             continue
         ptth, peta = _panel_pixel_angles(detector)
+        # np.histogram on an explicit bin array searches exactly like this,
+        # with the last bin closed on the right
+        eta_bin = np.minimum(
+            np.searchsorted(eta_edges, peta, side='right') - 1, n_eta - 1)
         ring_pixels = [_ring_pixels(r, ptth, peta, eta_edges)
                        for r in two_theta_ranges]
 
         for frame, image in enumerate(ims.images):
-            # copy into float64; thresholding must never mutate the source
-            data = np.asarray(image.todense(), dtype=np.float64).ravel()
-            data[data < fo.orientation_maps.threshold] = 0.0
+            row = row_of_frame[frame]
+            coo = image.tocoo()
+            ids = coo.row.astype(np.int64) * image.shape[1] + coo.col
+            vals = coo.data.astype(np.float64)      # a copy: never mutate the source
+            vals[vals < fo.orientation_maps.threshold] = 0.0
             for ring, rp in enumerate(ring_pixels):
                 if rp is None:
                     continue
-                hist = np.histogram(rp.pixel_etas, bins=eta_edges,
-                                    weights=data[rp.pixel_ids])[0]
+                on_ring = rp.in_ring[ids]
+                hist = np.bincount(eta_bin[ids[on_ring]],
+                                   weights=vals[on_ring], minlength=n_eta)
                 bins = rp.bins
-                current = ring_maps[ring][frame, bins]
+                current = ring_maps[ring][row, bins]
                 # NaN until a panel covers a bin; sum where panels overlap.
-                ring_maps[ring][frame, bins] = np.where(
+                ring_maps[ring][row, bins] = np.where(
                     np.isnan(current), hist[bins], current + hist[bins])
-
-    omega = experiment.image_series_list[0].omega
-    period = omega[0, 0] + np.r_[0.0, 2 * np.pi]
-    span = period[1] - period[0]
-    omegas = np.mod(np.average(omega, axis=1) - period[0], span) + period[0]
-    omega_edges = np.mod(
-        np.r_[omega[:, 0], omega[-1, 1]] - period[0], span) + period[0]
 
     return EtaOmegaMaps(ring_maps, eta_edges, omega_edges, omegas, period,
                         two_theta_ranges, ring_ids, eta_step)
+
+
+def _omega_grid(omega: np.ndarray):
+    """Map rows and the omega axis for a scan's (n_frames, 2) omega spans.
+
+    A contiguous scan gets one row per frame with the scan's own frame
+    boundaries as bin edges.  A multi-wedge scan (gaps between frames) gets
+    a uniform grid over the whole range: frames land on their grid row and
+    the gap rows stay all-NaN, which excludes them from scoring the same
+    way off-detector bins are excluded.
+
+    Returns (row_of_frame, omegas, omega_edges, omega_period).
+    """
+    period = omega[0, 0] + np.r_[0.0, 2 * np.pi]
+    span = period[1] - period[0]
+
+    if np.allclose(omega[1:, 0], omega[:-1, 1]):     # contiguous scan
+        omegas = np.mod(np.average(omega, axis=1) - period[0], span) + period[0]
+        edges = np.mod(
+            np.r_[omega[:, 0], omega[-1, 1]] - period[0], span) + period[0]
+        # an exact full-circle scan wraps the final edge back onto the period
+        # start; keep the edges monotonic for the scorer's binary search
+        if edges[-1] <= edges[-2]:
+            edges[-1] += span
+        return np.arange(len(omega)), omegas, edges, period
+
+    widths = omega[:, 1] - omega[:, 0]
+    delta = float(widths[0])
+    if not np.allclose(widths, delta):
+        raise ValueError('a multi-wedge scan must use one omega step size')
+    lo = period[0]
+    rows_exact = (np.mod(omega[:, 0] - lo, span) + lo - lo) / delta
+    rows = np.rint(rows_exact).astype(int)
+    if not np.allclose(rows_exact, rows, atol=1e-3):
+        raise ValueError('omega wedges must align to the frame-width grid')
+    n_rows = rows[-1] + 1
+    edges = lo + delta * np.arange(n_rows + 1)
+    omegas = lo + delta * (np.arange(n_rows) + 0.5)
+    return rows, omegas, edges, period
 
 
 def _save_eta_omega_maps(maps: EtaOmegaMaps, path: str) -> None:
@@ -323,10 +374,9 @@ def _apply_distortion(detector, xy: np.ndarray) -> np.ndarray:
 
 
 class _RingPixels(NamedTuple):
-    """A panel's pixels on one ring: sorted flat (row-major) indices, their
-    eta angles, and the eta bins the ring covers on this panel."""
-    pixel_ids: np.ndarray
-    pixel_etas: np.ndarray
+    """A panel's pixels on one ring: a membership mask over the panel's flat
+    (row-major) pixel indices, and the eta bins the ring covers on it."""
+    in_ring: np.ndarray
     bins: np.ndarray
 
 
@@ -337,16 +387,14 @@ def _ring_pixels(tth_range: np.ndarray, panel_tth: np.ndarray,
     in_ring = np.logical_and(panel_tth >= tth_range[0], panel_tth <= tth_range[1])
     if not np.any(in_ring):
         return None
-    pixel_ids = np.nonzero(in_ring)[0]
-    pixel_etas = panel_eta[pixel_ids]
-    bins = np.where(np.histogram(pixel_etas, bins=eta_edges)[0])[0]
-    return _RingPixels(pixel_ids, pixel_etas, bins)
+    bins = np.where(np.histogram(panel_eta[in_ring], bins=eta_edges)[0])[0]
+    return _RingPixels(in_ring, bins)
 
 
 # ---------------------------------------------------------------------------
 # 2. orientation fibers from seed peaks
 # ---------------------------------------------------------------------------
-def generate_orientation_fibers(experiment: Experiment, plane_data: PlaneData,
+def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneData,
                                 maps: EtaOmegaMaps) -> np.ndarray:
     """Detect peaks in the seed-ring maps and expand each into a fiber of trial quats."""
     fo = experiment.find_orientations
@@ -369,7 +417,7 @@ def generate_orientation_fibers(experiment: Experiment, plane_data: PlaneData,
 
     # expand each spot into a discrete fiber of candidate orientations
     q_fibers = []
-    for (hkl, tth), (num_spots, coms) in zip(zip(seed_hkls, seed_tths), spots):
+    for hkl, tth, (num_spots, coms) in zip(seed_hkls, seed_tths, spots):
         for ispot in range(num_spots):
             com = coms[ispot]
             if np.isnan(com[0]):
@@ -384,8 +432,6 @@ def generate_orientation_fibers(experiment: Experiment, plane_data: PlaneData,
 def _find_peaks(ring_map: np.ndarray, seed_search) -> tuple[int, np.ndarray]:
     """Number of spots and their (omega, eta) centers in one ring map,
     dispatching on the config's seed-search method."""
-    from hexrd.core.config.experiment import SeedSearchMethod
-
     _clean_map(ring_map)
     method, kwargs = seed_search.method, seed_search.method_kwargs
 
@@ -434,7 +480,7 @@ def _fiber(hkl, tth, eta_c, ome_c, chi, b_matrix, fiber_ndiv, csym):
 # ---------------------------------------------------------------------------
 # 3. completeness scoring
 # ---------------------------------------------------------------------------
-def score_orientations(experiment: Experiment, plane_data: PlaneData,
+def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
                        maps: EtaOmegaMaps, q_fibers: np.ndarray) -> np.ndarray:
     """Completeness (fraction of expected reflections observed) for each trial
     orientation.
@@ -513,7 +559,9 @@ def normalize_ranges(starts: np.ndarray, stops: np.ndarray,
         new_result[-1] = offset + two_pi
         result = new_result
 
-    if not np.all(starts[1:] > stops[0:-2]):
+    # any overlap between ranges shows up as an inversion in the
+    # interleaved [start, stop, start, stop, ...] sequence
+    if not np.all(np.diff(result) >= 0):
         raise ValueError('Angle ranges overlap')
 
     return result
@@ -604,7 +652,7 @@ def _count_hits(angs_0, angs_1, ring_for_hkl, eta_edges, ome_edges,
 # ---------------------------------------------------------------------------
 # 4. clustering into grains
 # ---------------------------------------------------------------------------
-def estimate_min_samples(experiment: Experiment, plane_data: PlaneData,
+def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
                          maps: EtaOmegaMaps, n_grains: int = 100) -> int:
     """dbscan's min_samples, from the seed reflections a typical grain produces.
 
@@ -631,7 +679,11 @@ def estimate_min_samples(experiment: Experiment, plane_data: PlaneData,
     eta_ranges = fo.eta.range
     valid_eta = normalize_ranges(eta_ranges[:, 0], eta_ranges[:, 1], -np.pi)
     omega = experiment.image_series_list[0].omega
-    ome_lo, ome_hi = omega[0, 0], omega[-1, 1]
+    ome_lo = omega[0, 0]
+    # one span per omega wedge, so gaps in a multi-wedge scan don't count
+    new_wedge = np.r_[True, ~np.isclose(omega[1:, 0], omega[:-1, 1])]
+    valid_ome = normalize_ranges(omega[new_wedge, 0],
+                                 omega[np.r_[new_wedge[1:], True], 1], ome_lo)
 
     def in_spans(values, spans):
         idx = np.searchsorted(spans, values, side='right')
@@ -654,7 +706,7 @@ def estimate_min_samples(experiment: Experiment, plane_data: PlaneData,
         eta = np.mod(angs[:, 1] + np.pi, 2 * np.pi) - np.pi
         ok &= in_spans(eta, valid_eta)
         ome = np.mod(angs[:, 2] - ome_lo, 2 * np.pi) + ome_lo
-        ok &= (ome >= ome_lo) & (ome <= ome_hi)
+        ok &= in_spans(ome, valid_ome)
 
         # project onto each panel; a reflection counts once per panel it hits
         count = 0
@@ -696,7 +748,7 @@ def _clip_to_panel(detector, xy: np.ndarray) -> np.ndarray:
                 & (np.abs(xy[:, 1]) <= half_y - buf_y))
 
 
-def cluster_grains(experiment: Experiment, plane_data: PlaneData,
+def cluster_grains(experiment: HedmExperiment, plane_data: PlaneData,
                    q_fibers: np.ndarray, completeness: np.ndarray,
                    min_samples: int = 1) -> np.ndarray:
     """Cluster the high-completeness trials and average each cluster into one grain.
@@ -706,7 +758,7 @@ def cluster_grains(experiment: Experiment, plane_data: PlaneData,
     orthographic DBSCAN above 25000 candidates (they are O(n^2)), and the
     euclidean algorithms get a final duplicate-merging pass.
     """
-    from hexrd.core.config.experiment import ClusteringAlgorithm as Algo
+    Algo = ClusteringAlgorithm
 
     fo = experiment.find_orientations
     radius = fo.clustering.radius
@@ -786,7 +838,7 @@ def _merge_duplicates(qbar, qsym, quat_distance, radius) -> np.ndarray:
 # 5. output
 # ---------------------------------------------------------------------------
 def write_results(results: FindOrientationsResult,
-                  experiment: Experiment) -> str:
+                  experiment: HedmExperiment) -> str:
     """Write find-orientations outputs in the standard file formats;
     returns the analysis directory."""
     qbar = np.atleast_2d(results.grain_orientations)
