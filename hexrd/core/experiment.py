@@ -1,4 +1,11 @@
-import enum
+"""Typed experiment inputs, loaded from a config file.
+
+:class:`Experiment` holds what every analysis workflow starts from: the
+instrument (detector panels, oscillation stage, beam), the image series,
+the material selection, and the analysis naming.  Workflow packages extend
+it with their own analysis parameters (e.g.
+:class:`hexrd.hedm.experiment.HedmExperiment`).
+"""
 import io
 import os
 import struct
@@ -7,7 +14,7 @@ import zipfile
 import zlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional
 
 import numpy as np
 import h5py
@@ -16,157 +23,6 @@ from scipy.sparse import csr_array
 
 from hexrd.core.material.material_data import Material
 from hexrd.core.extensions import transforms
-
-
-class SeedSearchMethod(enum.StrEnum):
-    LABEL = 'label'
-    BLOB_LOG = 'blob_log'
-    BLOB_DOG = 'blob_dog'
-
-
-class ClusteringAlgorithm(enum.StrEnum):
-    DBSCAN = 'dbscan'
-    ORT_DBSCAN = 'ort-dbscan'
-    SPH_DBSCAN = 'sph-dbscan'
-    FCLUSTERDATA = 'fclusterdata'
-
-
-def _hkl_array(value: Any, key: str) -> Optional[np.ndarray]:
-    """Canonicalize an hkl selection to an (n, 3) int array, or None for all.
-
-    Exactly one form is accepted: a list of [h, k, l] triples. The looser
-    forms hexrd tolerates (hkl IDs, single ints, 'all') are rejected so that
-    one representation flows through the whole pipeline.
-    """
-    if value is None:
-        return None
-    hkls = np.asarray(value)
-    if hkls.ndim != 2 or hkls.shape[1] != 3 or not np.issubdtype(hkls.dtype, np.integer):
-        raise ValueError(
-            f'{key} must be a list of [h, k, l] integer triples '
-            f'(or null for all rings), got {value!r}')
-    return hkls
-
-
-# Numeric config defaults mirror hexrd.hedm.config.findorientations.
-@dataclass(frozen=True)
-class OrientationMaps:
-    threshold: float
-    active_hkls: Optional[np.ndarray]   # (n, 3) int hkl vectors; None -> all rings
-    eta_step: float                     # degrees
-    file: Optional[str]                 # maps cache; None -> default path
-    filter_maps: bool                   # subtract each eta column's median
-    filter_fwhm: Optional[float]        # additionally LoG-filter, this FWHM in pixels
-
-    @classmethod
-    def from_dict(cls, d: dict) -> 'OrientationMaps':
-        filter_maps = d.get('filter_maps', False)
-        if not isinstance(filter_maps, bool):
-            raise ValueError(
-                'filter_maps must be a boolean; give the LoG width (pixels) '
-                'separately as filter_fwhm')
-        filter_fwhm = d.get('filter_fwhm')
-        if filter_fwhm is not None and not filter_maps:
-            raise ValueError('filter_fwhm requires filter_maps: true')
-        return cls(float(d.get('threshold', 0)),
-                   _hkl_array(d.get('active_hkls'), 'active_hkls'),
-                   float(d.get('eta_step', 0.25)), d.get('file'),
-                   filter_maps,
-                   None if filter_fwhm is None else float(filter_fwhm))
-
-
-@dataclass(frozen=True)
-class SeedSearch:
-    hkl_seeds: np.ndarray               # indices into the active rings
-    fiber_step: float                   # radians
-    method: SeedSearchMethod
-    method_kwargs: dict[str, float]
-
-    @classmethod
-    def from_dict(cls, d: dict, omega_tolerance_deg: float) -> 'SeedSearch':
-        # `method` is a one-entry mapping: {name: {kwargs...}} (as in hexrd)
-        method_dict = d.get('method') or {'label': {}}
-        (name, kwargs), = method_dict.items()
-        seeds = np.asarray(d.get('hkl_seeds', []), dtype=np.intp)
-        if seeds.ndim != 1:
-            raise ValueError(f'hkl_seeds must be a list of ring indices, '
-                             f'got {d.get("hkl_seeds")!r}')
-        return cls(seeds, np.radians(d.get('fiber_step', omega_tolerance_deg)),
-                   SeedSearchMethod(name), kwargs or {})
-
-    @property
-    def fiber_ndiv(self) -> int:
-        return int(round(2 * np.pi / self.fiber_step))
-
-
-@dataclass(frozen=True)
-class Omega:
-    tolerance: float           # radians
-
-    @classmethod
-    def from_dict(cls, d: dict) -> 'Omega':
-        return cls(np.radians(d.get('tolerance', 0.5)))
-
-
-@dataclass(frozen=True)
-class Eta:
-    tolerance: float           # radians
-    mask: Optional[float]      # radians
-
-    @classmethod
-    def from_dict(cls, d: dict) -> 'Eta':
-        mask = d.get('mask', 5)
-        return cls(np.radians(d.get('tolerance', 0.5)),
-                   np.radians(mask) if mask is not None else None)
-
-    @property
-    def range(self) -> np.ndarray:
-        """Valid eta spans, masking the region near the rotation axis.
-
-        A null mask means no masking: the full circle is valid.
-        """
-        if self.mask is None:
-            return np.array([[-np.pi, np.pi]])
-        return np.array([[-np.pi / 2 + self.mask,     np.pi / 2 - self.mask],
-                         [np.pi / 2 + self.mask, 3 * np.pi / 2 - self.mask]])
-
-
-@dataclass(frozen=True)
-class Clustering:
-    radius: float
-    completeness: float
-    algorithm: ClusteringAlgorithm
-
-    @classmethod
-    def from_dict(cls, d: dict) -> 'Clustering':
-        missing = {'radius', 'completeness'} - d.keys()
-        if missing:
-            raise ValueError(f'clustering config requires {sorted(missing)}')
-        return cls(float(d['radius']), float(d['completeness']),
-                   ClusteringAlgorithm(d.get('algorithm', 'dbscan')))
-
-
-@dataclass(frozen=True)
-class FindOrientations:
-    orientation_maps: OrientationMaps
-    seed_search: SeedSearch
-    omega: Omega
-    eta: Eta
-    clustering: Clustering
-    threshold: float
-    use_quaternion_grid: Optional[str]  # .npy of trial quats; replaces seed search
-
-    @classmethod
-    def from_dict(cls, d: dict) -> 'FindOrientations':
-        omega = Omega.from_dict(d.get('omega', {}))
-        return cls(OrientationMaps.from_dict(d.get('orientation_maps', {})),
-                   SeedSearch.from_dict(d.get('seed_search', {}),
-                                        np.degrees(omega.tolerance)),
-                   omega,
-                   Eta.from_dict(d.get('eta', {})),
-                   Clustering.from_dict(d.get('clustering', {})),
-                   float(d.get('threshold', 1)),
-                   d.get('use_quaternion_grid'))
 
 
 @dataclass
@@ -213,10 +69,12 @@ class Pixels:
     columns: int
     rows: int
     size: list
+    roi: Optional[list]            # [row, col] offset into the parent frames
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d.get('columns', 0), d.get('rows', 0), d.get('size', [0.0, 0.0]))
+        return cls(d.get('columns', 0), d.get('rows', 0),
+                   d.get('size', [0.0, 0.0]), d.get('roi'))
 
 
 @dataclass
@@ -226,6 +84,7 @@ class Detector:
     pixels: Pixels
     transform: Transform
     buffer: Optional[np.ndarray]   # (2,) edge buffer in mm
+    group: Optional[str]           # parent panel for ROI instruments
 
     @classmethod
     def from_dict(cls, name, d):
@@ -233,7 +92,8 @@ class Detector:
         return cls(name, Distortion.from_dict(d.get('distortion', {})),
                    Pixels.from_dict(d.get('pixels', {})),
                    Transform.from_dict(d.get('transform', {})),
-                   None if buffer is None else np.asarray(buffer, dtype=np.float64))
+                   None if buffer is None else np.asarray(buffer, dtype=np.float64),
+                   d.get('group'))
 
     @property
     def pixel_coordinates(self):
@@ -351,6 +211,36 @@ class ImageSeries:
         return self._n_frames
 
 
+class RoiImageSeries:
+    """One sub-panel's view of a whole-panel :class:`ImageSeries`.
+
+    ROI instruments describe a physical panel as several detector entries,
+    each a rectangular region of the shared frames; the parent series is
+    decompressed once and every view slices it.
+    """
+
+    def __init__(self, panel: str, parent: ImageSeries,
+                 roi: list, shape: tuple[int, int]):
+        self.panel = panel
+        self._parent = parent
+        self._roi = roi
+        self._shape = shape
+        self.omega = parent.omega
+        self._images: list[csr_array] | None = None
+
+    @property
+    def images(self) -> list[csr_array]:
+        if self._images is None:
+            r0, c0 = self._roi
+            rows, cols = self._shape
+            self._images = [image[r0:r0 + rows, c0:c0 + cols]
+                            for image in self._parent.images]
+        return self._images
+
+    def __len__(self):
+        return len(self._parent)
+
+
 def _merge_config(base: dict, overlay: dict) -> dict:
     """Recursively overlay one config document on another (hexrd multi-doc yml)."""
     merged = dict(base)
@@ -362,8 +252,37 @@ def _merge_config(base: dict, overlay: dict) -> dict:
     return merged
 
 
+def _h5_to_dict(group) -> dict:
+    """An HDF5 group tree as nested plain dicts, mirroring the yaml layout."""
+    out = {}
+    for key, value in group.items():
+        if isinstance(value, h5py.Group):
+            out[key] = _h5_to_dict(value)
+        else:
+            item = value[()]
+            if isinstance(item, bytes):
+                item = item.decode()
+            elif isinstance(item, np.ndarray):
+                # a size-1 dataset is a scalar stored as an array
+                item = item.item() if item.size == 1 else item.tolist()
+            elif isinstance(item, np.generic):
+                item = item.item()
+            out[key] = item
+    return out
+
+
+def _load_instrument(path: str) -> dict:
+    """An instrument definition from a yaml file or a .hexrd HDF5 archive."""
+    if h5py.is_hdf5(path):
+        with h5py.File(path, 'r') as f:
+            return _h5_to_dict(f['instrument'])
+    with open(path) as f:
+        return yaml.safe_load(f)
+
+
 class Experiment:
-    """All inputs for one find-orientations analysis, loaded from a config file.
+    """The inputs every analysis workflow shares, loaded from a config file:
+    instrument, image series, material selection, analysis naming.
 
     The config may hold several yaml documents: a base followed by study
     overlays, each a sparse dict merged over the base (as in hexrd). ``study``
@@ -379,7 +298,7 @@ class Experiment:
             config = _merge_config(config, self.studies[study])
         self.config = config
 
-        instrument = yaml.safe_load(open(self._path(config['instrument'])))
+        instrument = _load_instrument(self._path(config['instrument']))
         self.detectors = [Detector.from_dict(name, d)
                           for name, d in instrument['detectors'].items()]
         self.beam_energy = instrument.get('beam', {}).get('energy')
@@ -387,12 +306,26 @@ class Experiment:
             instrument.get('oscillation_stage', {}))
 
         self.active_material = ActiveMaterial.from_dict(config['material'])
-        self.find_orientations = FindOrientations.from_dict(config['find_orientations'])
         self.max_workers = _parse_multiprocessing(config.get('multiprocessing', -1))
-        self.image_series_list = [
-            ImageSeries(d['panel'], self._path(d['file']), self.max_workers)
-            for d in config['image_series']['data']
-        ]
+        detector_of = {d.name: d for d in self.detectors}
+        self.image_series_list = []
+        for d in config['image_series']['data']:
+            panel = d['panel']
+            if isinstance(panel, str):
+                self.image_series_list.append(
+                    ImageSeries(panel, self._path(d['file']), self.max_workers))
+                continue
+            # a list of panels: shared frames split by each detector's ROI
+            parent = ImageSeries(None, self._path(d['file']), self.max_workers)
+            for name in panel:
+                det = detector_of[name]
+                if det.pixels.roi is None:
+                    raise ValueError(
+                        f'image series panel list needs "pixels: roi" on '
+                        f'detector {name}')
+                self.image_series_list.append(RoiImageSeries(
+                    name, parent, det.pixels.roi,
+                    (det.pixels.rows, det.pixels.columns)))
 
         self.analysis_name = config['analysis_name']
         self.analysis_dir = self._path(self.analysis_name)
@@ -400,23 +333,6 @@ class Experiment:
 
     def _path(self, name: str) -> str:
         return os.path.join(self.experiment_dir, name)
-
-    @property
-    def eta_ome_maps_file(self) -> str:
-        """Where the eta-omega maps cache lives (orientation_maps: file, or default)."""
-        configured = self.find_orientations.orientation_maps.file
-        if configured:
-            return configured if os.path.isabs(configured) else self._path(configured)
-        actmat = self.active_material.active.strip().replace(' ', '-')
-        return os.path.join(self.analysis_dir, f'eta-ome-maps-{actmat}.npz')
-
-    @property
-    def quaternion_grid_file(self) -> str | None:
-        """Absolute path of the trial-quaternion grid, if configured."""
-        grid = self.find_orientations.use_quaternion_grid
-        if grid is None:
-            return None
-        return grid if os.path.isabs(grid) else self._path(grid)
 
     def get_materials(self) -> list[Material]:
         """Load every crystal material defined in the materials HDF5 file."""
