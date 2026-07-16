@@ -166,7 +166,9 @@ python_detectorXYToGvec(PyObject * self, PyObject * args)
     if (!outer_tuple)
         goto fail_alloc;
     
-    /* Call the computational routine */
+    /* Call the computational routine; it touches no Python state, so drop
+       the GIL and let callers run panels in parallel threads */
+    Py_BEGIN_ALLOW_THREADS
     xy_to_gvec(npts,
                (double *)PyArray_DATA(xy_det.pyarray),
                (double *)PyArray_DATA(rmat_d.pyarray),
@@ -179,6 +181,7 @@ python_detectorXYToGvec(PyObject * self, PyObject * args)
                (double *)PyArray_DATA(tTh),
                (double *)PyArray_DATA(eta),
                (double *)PyArray_DATA(gvec_l));
+    Py_END_ALLOW_THREADS
 
     /*
       At this point, no allocation may fail. Release all redundant references

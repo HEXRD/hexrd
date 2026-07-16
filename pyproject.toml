@@ -25,3 +25,12 @@ test = [
     "pytest",
     "coloredlogs",
 ]
+# faster frame-cache decompression (ISA-L); pure speed-up, results identical
+performance = [
+    "isal",
+]
+# CUDA-accelerated orientation scoring; auto-detected at runtime with a CPU
+# fallback, results identical
+gpu = [
+    "numba-cuda[cu12]",
+]

@@ -18,6 +18,7 @@ a frozen PlaneData of arrays).  No stage reaches beyond those.
 """
 import os
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import NamedTuple, Optional
 
@@ -31,7 +32,7 @@ from hexrd.core import rotations
 from hexrd.hedm.experiment import (
     ClusteringAlgorithm, HedmExperiment, SeedSearchMethod,
 )
-from hexrd.core.extensions import _new_transforms_capi, transforms
+from hexrd.core.extensions import transforms, transforms_c_api
 from hexrd.core.material.material_data import Material, PlaneData
 from hexrd.core.transforms import xfcapi
 
@@ -206,14 +207,27 @@ def build_eta_omega_maps(experiment: HedmExperiment,
     # Pair each image series with its detector panel (by name) and bin every
     # frame's intensity into the shared map. Summing across panels is what makes
     # multi-panel instruments (e.g. Dexela) work.  Frames are sparse, so only
-    # the stored pixels are binned (frame intensities are integer-valued, and
-    # float64 sums of integers are exact in any order).
+    # the stored pixels are binned, in a numba kernel parallel over frames
+    # (frame intensities are integer-valued, and float64 sums of integers are
+    # exact in any order).
+    numba.set_num_threads(
+        max(1, min(experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
     detectors = {d.name: d for d in experiment.detectors}
-    for ims in experiment.image_series_list:
-        detector = detectors.get(ims.panel)
-        if detector is None:
-            continue
-        ptth, peta = _panel_pixel_angles(detector)
+    active = [ims for ims in experiment.image_series_list
+              if ims.panel in detectors]
+
+    # each panel's pixel angles and each series' frame decompression are
+    # independent, and the C geometry routine releases the GIL: overlap them
+    # all in one thread pool
+    with ThreadPoolExecutor(max(1, min(experiment.max_workers, 16))) as pool:
+        angle_futures = {panel: pool.submit(_panel_pixel_angles, detectors[panel])
+                         for panel in {ims.panel for ims in active}}
+        for ims in active:
+            pool.submit(lambda series: series.images, ims)
+        panel_angles = {panel: f.result() for panel, f in angle_futures.items()}
+
+    for ims in active:
+        ptth, peta = panel_angles[ims.panel]
         # np.histogram on an explicit bin array searches exactly like this,
         # with the last bin closed on the right
         eta_bin = np.minimum(
@@ -221,26 +235,76 @@ def build_eta_omega_maps(experiment: HedmExperiment,
         ring_pixels = [_ring_pixels(r, ptth, peta, eta_edges)
                        for r in two_theta_ranges]
 
-        for frame, image in enumerate(ims.images):
-            row = row_of_frame[frame]
-            coo = image.tocoo()
-            ids = coo.row.astype(np.int64) * image.shape[1] + coo.col
-            vals = coo.data.astype(np.float64)      # a copy: never mutate the source
-            vals[vals < fo.orientation_maps.threshold] = 0.0
-            for ring, rp in enumerate(ring_pixels):
-                if rp is None:
-                    continue
-                on_ring = rp.in_ring[ids]
-                hist = np.bincount(eta_bin[ids[on_ring]],
-                                   weights=vals[on_ring], minlength=n_eta)
-                bins = rp.bins
-                current = ring_maps[ring][row, bins]
-                # NaN until a panel covers a bin; sum where panels overlap.
-                ring_maps[ring][row, bins] = np.where(
-                    np.isnan(current), hist[bins], current + hist[bins])
+        # a bin is NaN until a panel covers it; from there intensity adds up,
+        # across overlapping panels too
+        rows = row_of_frame[:len(ims.images)]
+        for ring, rp in enumerate(ring_pixels):
+            if rp is None:
+                continue
+            covered = np.ix_(rows, rp.bins)
+            ring_maps[ring][covered] = np.nan_to_num(ring_maps[ring][covered])
+
+        # pack ring membership into per-pixel bitmasks (63 rings per pass)
+        threshold = float(fo.orientation_maps.threshold)
+        for first in range(0, len(ring_pixels), 63):
+            block = ring_pixels[first:first + 63]
+            if all(rp is None for rp in block):
+                continue
+            ring_mask = np.zeros(ptth.size, dtype=np.int64)
+            for bit, rp in enumerate(block):
+                if rp is not None:
+                    ring_mask[rp.in_ring] |= 1 << bit
+            for ids, vals, offsets, chunk_rows in _pixel_chunks(
+                    ims.images, rows):
+                _bin_pixels(offsets, ids, vals, chunk_rows, ring_mask,
+                            eta_bin, threshold,
+                            ring_maps[first:first + 63])
 
     return EtaOmegaMaps(ring_maps, eta_edges, omega_edges, omegas, period,
                         two_theta_ranges, ring_ids, eta_step)
+
+
+def _pixel_chunks(frames, row_of_frame, max_pixels: int = 8_000_000):
+    """The stored pixels of consecutive frames, concatenated into flat arrays
+    bounded by ``max_pixels``: (pixel_ids, values, frame offsets, map rows)."""
+    start = 0
+    while start < len(frames):
+        stop, total = start, 0
+        while stop < len(frames) and (
+                stop == start or total + frames[stop].nnz <= max_pixels):
+            total += frames[stop].nnz
+            stop += 1
+        chunk = [f.tocoo() for f in frames[start:stop]]
+        if total > 0:
+            ids = np.concatenate(
+                [c.row.astype(np.int64) * c.shape[1] + c.col for c in chunk])
+            vals = np.concatenate([c.data for c in chunk]).astype(np.float64)
+            offsets = np.r_[0, np.cumsum([c.nnz for c in chunk])]
+            yield ids, vals, offsets, np.asarray(row_of_frame[start:stop])
+        start = stop
+
+
+@numba.njit(nogil=True, cache=True, parallel=True)
+def _bin_pixels(offsets, ids, vals, rows, ring_mask, eta_bin, threshold, out):
+    """Add every stored pixel's intensity to its (ring, omega row, eta bin).
+
+    Parallel over frames: within one image series every frame owns its own
+    map row, so writes never collide.
+    """
+    for f in numba.prange(len(rows)):
+        row = rows[f]
+        for k in range(offsets[f], offsets[f + 1]):
+            value = vals[k]
+            if value < threshold:
+                continue
+            pixel = ids[k]
+            mask = ring_mask[pixel]
+            ring = 0
+            while mask:
+                if mask & 1:
+                    out[ring, row, eta_bin[pixel]] += value
+                mask >>= 1
+                ring += 1
 
 
 def _omega_grid(omega: np.ndarray):
@@ -353,7 +417,7 @@ def _panel_pixel_angles(detector):
     xy[:, 1] = grid_i.ravel()
     xy = _apply_distortion(detector, xy)
     ac = np.ascontiguousarray
-    (ptth, peta), _ = _new_transforms_capi.detectorXYToGvec(
+    (ptth, peta), _ = transforms_c_api.detectorXYToGvec(
         ac(xy),
         ac(detector.transform.rotation_matrix),
         ac(rmat_b),
@@ -410,22 +474,27 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
     seed_tths = np.average(maps.two_theta_ranges, axis=1)[seed_ids]
     d_omega = maps.omegas[1] - maps.omegas[0]
 
-    # find spots (peaks) in each seed-ring map (on a copy: scoring needs the
-    # original, un-cleaned maps)
-    spots = [_find_peaks(maps.ring_maps[i].copy(), fo.seed_search)
-             for i in seed_ids]
+    # Find spots (peaks) in each seed-ring map (on a copy: scoring needs the
+    # original, un-cleaned maps), then expand each spot into a discrete fiber
+    # of candidate orientations.  Rings are independent and so are the spots,
+    # so both passes run in a thread pool; order is preserved throughout.
+    with ThreadPoolExecutor(max(1, min(experiment.max_workers, 8))) as pool:
+        spots = list(pool.map(
+            lambda i: _find_peaks(maps.ring_maps[i].copy(), fo.seed_search),
+            seed_ids))
 
-    # expand each spot into a discrete fiber of candidate orientations
-    q_fibers = []
-    for hkl, tth, (num_spots, coms) in zip(seed_hkls, seed_tths, spots):
-        for ispot in range(num_spots):
-            com = coms[ispot]
-            if np.isnan(com[0]):
-                continue
-            ome_c = maps.omega_edges[0] + (0.5 + com[0]) * d_omega
-            eta_c = maps.eta_edges[0] + (0.5 + com[1]) * maps.eta_step
-            q_fibers.append(_fiber(hkl, tth, eta_c, ome_c, chi, plane_data.B,
-                                   fiber_ndiv, csym))
+        centers = []
+        for hkl, tth, (num_spots, coms) in zip(seed_hkls, seed_tths, spots):
+            for ispot in range(num_spots):
+                com = coms[ispot]
+                if np.isnan(com[0]):
+                    continue
+                ome_c = maps.omega_edges[0] + (0.5 + com[0]) * d_omega
+                eta_c = maps.eta_edges[0] + (0.5 + com[1]) * maps.eta_step
+                centers.append((hkl, tth, eta_c, ome_c))
+        q_fibers = list(pool.map(
+            lambda c: _fiber(*c, chi, plane_data.B, fiber_ndiv, csym),
+            centers))
     return np.hstack(q_fibers)
 
 
@@ -520,12 +589,45 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
         rmat = rotations.rotMatOfQuat(q_fibers[:, i])
         angs[0, i], angs[1, i] = xfcapi.oscill_angles_of_hkls(
             symm_hkls, 0.0, rmat, bmat, plane_data.wavelength)
+
+    gpu = _cuda_scorer(n)
+    if gpu is not None:
+        return gpu.count_hits_all(
+            angs, ring_for_hkl, maps.eta_edges, maps.omega_edges,
+            valid_eta, valid_ome, ome_offset, ring_maps,
+            dpix_eta, dpix_ome, float(fo.threshold))
     numba.set_num_threads(
         max(1, min(experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
     return _count_hits_all(
         angs[0], angs[1], ring_for_hkl, maps.eta_edges, maps.omega_edges,
         valid_eta, valid_ome, ome_offset, ring_maps,
         dpix_eta, dpix_ome, float(fo.threshold))
+
+
+# below this many trials, CUDA context setup outweighs the scoring itself
+# in a fresh process, so seeded searches stay on the CPU kernels
+_GPU_MIN_TRIALS = 100_000
+
+
+def _cuda_scorer(n_trials: int):
+    """The GPU scorer module when it's worth using, else None (CPU kernels).
+
+    Both paths give bit-identical scores.  A usable CUDA device is picked up
+    automatically for large searches (e.g. quaternion grids); set HEXRD_GPU=1
+    to use it for any size, or HEXRD_DISABLE_GPU=1 to never use it.
+    """
+    def _set(name):
+        return os.environ.get(name, '0').lower() not in ('0', '', 'false')
+
+    if _set('HEXRD_DISABLE_GPU'):
+        return None
+    if n_trials < _GPU_MIN_TRIALS and not _set('HEXRD_GPU'):
+        return None
+    try:
+        from hexrd.hedm import find_orientations_gpu
+    except Exception:
+        return None
+    return find_orientations_gpu if find_orientations_gpu.available() else None
 
 
 def normalize_ranges(starts: np.ndarray, stops: np.ndarray,
@@ -714,7 +816,7 @@ def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
         gvecs = xfcapi.angles_to_gvec(angs, chi=chi, rmat_c=rmat_c)
         rmats_s = _sample_rmats(chi, angs[:, 2])
         for detector in experiment.detectors:
-            xy = _new_transforms_capi.gvecToDetectorXYArray(
+            xy = transforms_c_api.gvecToDetectorXYArray(
                 ac(gvecs), ac(detector.transform.rotation_matrix), rmats_s,
                 rmat_c, ac(detector.transform.translation).ravel(),
                 np.zeros(3), np.zeros(3), BEAM_VEC)

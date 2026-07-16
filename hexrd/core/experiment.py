@@ -11,7 +11,6 @@ import os
 import struct
 import threading
 import zipfile
-import zlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Optional
@@ -23,6 +22,13 @@ from scipy.sparse import csr_array
 
 from hexrd.core.material.material_data import Material
 from hexrd.core.extensions import transforms
+
+try:
+    # ISA-L inflates ~3x faster than zlib and is bit-identical (DEFLATE is
+    # lossless); an optional dependency, installed via `hexrd[performance]`
+    from isal import isal_zlib as zlib
+except ImportError:
+    import zlib
 
 
 @dataclass
