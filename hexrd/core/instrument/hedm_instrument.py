@@ -78,7 +78,10 @@ from hexrd.core.rotations import mapAngle
 from hexrd.core import distortion as distortion_pkg
 from hexrd.core.utils.concurrent import distribute_tasks
 from hexrd.core.utils.hdf5 import unwrap_dict_to_h5, unwrap_h5_to_dict
-from hexrd.core.utils.panel_buffer import panel_buffer_from_str
+from hexrd.core.utils.panel_buffer import (
+    panel_buffer_as_2d_array,
+    panel_buffer_from_str,
+)
 from hexrd.core.utils.yaml import NumpyToNativeDumper
 from hexrd.core.valunits import valWUnit
 from hexrd.powder.wppf import LeBail
@@ -1059,6 +1062,9 @@ class HEDMInstrument(object):
         Quick and dirty way to histogram angular patch data for make
         pole figures suitable for fiber generation
 
+        Pixels excluded by the panel buffer are not histogrammed. Eta bins
+        with no unbuffered pixels are returned as NaN.
+
         Parameters
         ----------
 
@@ -1150,6 +1156,9 @@ class HEDMInstrument(object):
             # pixel angular coords for the detector panel
             ptth, peta = panel.pixel_angles()
 
+            # pixels excluded by the panel buffer do not contribute
+            panel_buffer = panel_buffer_as_2d_array(panel)
+
             # grab imageseries for this detector
             ims = _parse_imgser_dict(
                 imgser_dict, det_key, roi=panel.roi, group=panel.group
@@ -1178,6 +1187,7 @@ class HEDMInstrument(object):
                     'peta': peta,
                     'eta_edges': eta_edges,
                     'delta_eta': delta_eta,
+                    'panel_buffer': panel_buffer,
                 }
                 ring_params.append(_generate_ring_params(**kwargs))
 
@@ -1652,6 +1662,7 @@ class HEDMInstrument(object):
                 imgser_dict, detector_id, roi=panel.roi, group=panel.group
             )
             assert isinstance(omega_image_series, OmegaImageSeries)
+            panel_buffer = panel_buffer_as_2d_array(panel)
 
             hkl_ids, hkls_p, ang_centers, xy_centers, ang_pixel_size = [
                 item[0] for item in sim_results[detector_id]
@@ -1692,7 +1703,11 @@ class HEDMInstrument(object):
                     [omega_image_series[i_frame, ii, jj] for i_frame in frame_indices],
                     axis=0,
                 )
-                patch_has_signal.append(np.any(patch_data_raw > threshold))
+
+                # Pixels excluded by the panel buffer cannot count as signal
+                patch_has_signal.append(
+                    np.any(patch_data_raw[:, panel_buffer[ii, jj]] > threshold)
+                )
                 output[detector_id].append((ii, jj, frame_indices))
 
         return patch_has_signal, output
@@ -1760,6 +1775,8 @@ class HEDMInstrument(object):
         interp : str, optional
             Interpolation method for patch extraction. Options are 'bilinear' or 'nearest'.
             Default 'nearest'.
+            With 'bilinear', interpolation stencils may still include buffered
+            neighbors. Use 'nearest' to exclude their intensities completely.
 
         Returns
         -------
@@ -1876,6 +1893,7 @@ class HEDMInstrument(object):
                 writer_text = PatchDataWriter(output_dir / str(filename))
 
             nrows, ncols = panel.shape
+            panel_buffer = panel_buffer_as_2d_array(panel)
             for patch_id, (vtx_angs, _, _, areas, xy_eval, ijs) in enumerate(patches):
                 prows, pcols = areas.shape
                 hkl_id, hkl = hkl_ids[patch_id], hkls_p[patch_id, :]
@@ -1905,7 +1923,13 @@ class HEDMInstrument(object):
                     [omega_image_series[i, ijs[0], ijs[1]] for i in frame_indices],
                     axis=0,
                 )
-                contains_signal = np.any(patch_data_raw > threshold)
+
+                # zero out pixels excluded by the panel buffer so they
+                # cannot register as signal or contribute to intensities
+                valid_pixels = panel_buffer[ijs[0], ijs[1]]
+                patch_data_raw[:, ~valid_pixels] = 0
+
+                contains_signal = np.any(patch_data_raw[:, valid_pixels] > threshold)
                 patch_has_signal.append(contains_signal)
 
                 # initialize spot data parameters
@@ -1937,7 +1961,7 @@ class HEDMInstrument(object):
 
                     # now we have interpolated patch data...
                     labels, num_peaks = ndimage.label(
-                        patch_data > threshold, label_struct
+                        (patch_data > threshold) & valid_pixels, label_struct
                     )
 
                     if num_peaks == 0:
@@ -2519,9 +2543,27 @@ class GrainDataWriter_h5(object):
         return
 
 
-def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
-    # mark pixels in the spec'd tth range
+def _generate_ring_params(
+    tthr: NDArray[np.float64],
+    ptth: NDArray[np.float64],
+    peta: NDArray[np.float64],
+    eta_edges: NDArray[np.float64],
+    delta_eta: float,
+    panel_buffer: NDArray[np.bool_],
+) -> Optional[
+    tuple[
+        NDArray[np.float64],
+        NDArray[np.float64],
+        tuple[NDArray[np.intp], ...],
+        NDArray[np.intp],
+    ]
+]:
+    # mark pixels in the spec'd tth range, excluding pixels masked by the
+    # panel buffer (True marks valid pixels), so eta bins falling entirely
+    # within buffered regions are treated as off-detector (NaN in the
+    # maps) rather than as measured zeros
     pixels_in_tthr = np.logical_and(ptth >= tthr[0], ptth <= tthr[1])
+    pixels_in_tthr &= panel_buffer
 
     # catch case where ring isn't on detector
     if not np.any(pixels_in_tthr):

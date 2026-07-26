@@ -600,7 +600,13 @@ def _filter_eta_ome_maps(eta_ome, filter_stdev=False):
         if filter_stdev:
             if isinstance(filter_stdev, bool):
                 filter_stdev = filter_stdev_DFLT
+
+            # Filter unmeasured bins as background after median subtraction,
+            # then restore them so NaNs do not spread into measured neighbors
+            nan_mask = np.isnan(pf)
+            pf[nan_mask] = 0
             pf[:] = -gl_filter(pf, filter_stdev)
+            pf[nan_mask] = np.nan
 
 
 def create_clustering_parameters(cfg, eta_ome):
