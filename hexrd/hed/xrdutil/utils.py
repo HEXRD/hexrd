@@ -35,7 +35,6 @@ from typing import Optional
 import numpy as np
 
 from hexrd.core import constants
-from hexrd.core.material.crystallography import processWavelength, PlaneData
 from hexrd.core.transforms import xfcapi
 
 # =============================================================================
@@ -314,11 +313,9 @@ def _dewarp_from_cylinder(
 
     uvwp = uvw - delta_t
 
-    uvwpxy = uvwp - np.tile(np.dot(uvwp, cx), [1, 3]) * np.tile(cx, [1, num]).T
-
-    sgn = np.sign(np.dot(uvwpxy, px))
+    sgn = np.sign(np.dot(uvwp, px))
     sgn[sgn == 0.0] = 1.0
-    ang = np.dot(uvwpxy, nx) / radius
+    ang = np.dot(uvwp, nx) / radius
     ang[np.abs(ang) > 1.0] = np.sign(ang[np.abs(ang) > 1.0])
     ang = np.arccos(ang)
     xcrd = np.squeeze(radius * ang * sgn)
