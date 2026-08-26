@@ -54,7 +54,7 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import timeit
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -96,11 +96,28 @@ class PaintGridParams(TypedDict):
     etaOmeMaps: NDArray[np.float64]
     bMat: NDArray[np.float64]
     threshold: NDArray[np.float64]
+    dsgod: bool
+
+
+class InitializedPaintGridParams(PaintGridParams):
+    """Parameters after :func:`paintgrid_init` computes valid spans."""
+
     valid_eta_spans: NDArray[np.float64]
     valid_ome_spans: NDArray[np.float64]
 
 
-paramMP: PaintGridParams | None = None
+DSGODResult = tuple[
+    float,
+    list[float],
+    list[int],
+    list[int],
+    list[int],
+    list[int],
+]
+PaintGridResult = float | DSGODResult
+
+
+paramMP: InitializedPaintGridParams | None = None
 nCPUs_DFLT: int = multiprocessing.cpu_count()
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -121,7 +138,8 @@ def paintGrid(
     doMultiProc: bool = False,
     nCPUs: int | None = None,
     debug: bool = False,
-) -> list[float]:
+    dsgod: bool = False,
+) -> list[PaintGridResult]:
     r"""
     Spherical map-based indexing algorithm, i.e. paintGrid.
 
@@ -174,6 +192,9 @@ def paintGrid(
         ``multiprocessing.cpu_count()`` when ``None``.
     debug : bool, optional
         debugging mode flag.  Currently unused; reserved for future use.
+    dsgod : bool, optional
+        If ``True``, return detailed intensity, hit, filtering, and pixel-index
+        information for each orientation in addition to completeness.
 
     Raises
     ------
@@ -184,12 +205,11 @@ def paintGrid(
 
     Returns
     -------
-    retval : (N, ) list of float
-        Completeness score list for `quats`.  Each value is in ``[0, 1]``
-        and represents the fraction of symmetry-equivalent reflections that
-        were predicted within the valid angle ranges *and* found to have
-        intensity above threshold in the corresponding eta-omega map bin
-        (after applying the dilation tolerance).
+    retval : list of float or list of DSGOD result tuples
+        When ``dsgod=False``, the completeness score for each quaternion.
+        When ``dsgod=True``, each quaternion produces a six-element tuple of
+        completeness, intensities, hit flags, filter flags, eta indices, and
+        omega indices.
 
     Notes
     -----
@@ -316,7 +336,7 @@ def paintGrid(
     symHKLs = np.vstack([s.T for s in symHKLs])
 
     # Pack together the common parameters for processing
-    params = {
+    params: PaintGridParams = {
         "symHKLs": symHKLs,
         "symHKLs_ix": symHKLs_ix,
         "wavelength": planeData.wavelength,
@@ -334,6 +354,7 @@ def paintGrid(
         "etaOmeMaps": np.stack(etaOmeMaps.dataStore),
         "bMat": bMat,
         "threshold": np.asarray(threshold),
+        "dsgod": dsgod,
     }
 
     # do the mapping
@@ -357,7 +378,9 @@ def paintGrid(
     return retval
 
 
-def _meshgrid2d(x: NDArray[np.float64], y: NDArray[np.float64]) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+def _meshgrid2d(
+    x: NDArray[np.float64], y: NDArray[np.float64]
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Special-cased implementation of np.meshgrid for exactly two arguments.
 
@@ -489,7 +512,7 @@ def paintgrid_init(params: PaintGridParams) -> None:
     None
     """
     global paramMP
-    paramMP = params
+    initialized_params = cast(InitializedPaintGridParams, params)
 
     # create valid_eta_spans, valid_ome_spans from etaMin/Max and omeMin/Max
     # this allows using faster checks in the code.
@@ -497,13 +520,13 @@ def paintgrid_init(params: PaintGridParams) -> None:
     #       instead of building etaMin/etaMax and omeMin/omeMax. It may also
     #       be worth handling range overlap and maybe "optimize" ranges if
     #       there happens to be contiguous spans.
-    paramMP["valid_eta_spans"] = _normalize_ranges(
-        paramMP["etaMin"], paramMP["etaMax"], -np.pi
+    initialized_params["valid_eta_spans"] = _normalize_ranges(
+        params["etaMin"], params["etaMax"], -np.pi
     )
-
-    paramMP["valid_ome_spans"] = _normalize_ranges(
-        paramMP["omeMin"], paramMP["omeMax"], min(paramMP["omePeriod"])
+    initialized_params["valid_ome_spans"] = _normalize_ranges(
+        params["omeMin"], params["omeMax"], min(params["omePeriod"])
     )
+    paramMP = initialized_params
     return
 
 
@@ -590,7 +613,7 @@ def _check_dilated(
     return 0
 
 
-def paintGridThis(quat: NDArray[np.float64]) -> float:
+def paintGridThis(quat: NDArray[np.float64]) -> PaintGridResult:
     """Score a single trial orientation against the eta-omega maps.
 
     Computes the completeness of the orientation represented by ``quat``
@@ -611,12 +634,11 @@ def paintGridThis(quat: NDArray[np.float64]) -> float:
 
     Returns
     -------
-    float
-        Completeness score in ``[0, 1]``: the fraction of symmetry-
-        equivalent reflections that (a) fall within the valid eta and omega
-        ranges and (b) have intensity above threshold in the corresponding
-        eta-omega map bin (with pixel-dilation tolerance applied).
-        Returns ``0.0`` if no reflections pass the validity filters.
+    float or DSGODResult
+        With DSGOD disabled, the completeness score in ``[0, 1]``. With
+        DSGOD enabled, completeness and the per-reflection details as a
+        DSGOD result tuple. Completeness is zero if no reflections pass the
+        validity filters.
 
     Notes
     -----
@@ -624,21 +646,26 @@ def paintGridThis(quat: NDArray[np.float64]) -> float:
     than the raw ``omeMin``/``omeMax`` arrays.  These pre-normalised spans
     allow faster range membership tests via :func:`_find_in_range`.
     """
-    symHKLs = paramMP["symHKLs"]  # the HKLs
-    symHKLs_ix = paramMP["symHKLs_ix"]  # index partitioning of symHKLs
-    bMat = paramMP["bMat"]
-    wavelength = paramMP["wavelength"]
-    omeEdges = paramMP["omeEdges"]
-    omeTol = paramMP["omeTol"]
-    omePeriod = paramMP["omePeriod"]
-    valid_eta_spans = paramMP["valid_eta_spans"]
-    valid_ome_spans = paramMP["valid_ome_spans"]
-    omeIndices = paramMP["omeIndices"]
-    etaEdges = paramMP["etaEdges"]
-    etaTol = paramMP["etaTol"]
-    etaIndices = paramMP["etaIndices"]
-    etaOmeMaps = paramMP["etaOmeMaps"]
-    threshold = paramMP["threshold"]
+    params = paramMP
+    if params is None:
+        raise RuntimeError("paintgrid_init must be called before paintGridThis")
+
+    symHKLs = params["symHKLs"]
+    symHKLs_ix = params["symHKLs_ix"]
+    bMat = params["bMat"]
+    wavelength = params["wavelength"]
+    omeEdges = params["omeEdges"]
+    omeTol = params["omeTol"]
+    omePeriod = params["omePeriod"]
+    valid_eta_spans = params["valid_eta_spans"]
+    valid_ome_spans = params["valid_ome_spans"]
+    omeIndices = params["omeIndices"]
+    etaEdges = params["etaEdges"]
+    etaTol = params["etaTol"]
+    etaIndices = params["etaIndices"]
+    etaOmeMaps = params["etaOmeMaps"]
+    threshold = params["threshold"]
+    dsgod = params["dsgod"]
 
     # dpix_ome and dpix_eta are the number of pixels for the tolerance in
     # ome/eta. Maybe we should compute this per run instead of per
@@ -654,25 +681,41 @@ def paintGridThis(quat: NDArray[np.float64]) -> float:
     rMat = rotations.rotMatOfQuat(quat.T if quat.ndim == 2 else quat)
 
     # Compute the oscillation angles of all the symHKLs at once
-    oangs_pair = xfcapi.oscill_angles_of_hkls(
-        symHKLs, 0.0, rMat, bMat, wavelength
-    )
-    return _filter_and_count_hits(
-        oangs_pair[0],
-        oangs_pair[1],
-        symHKLs_ix,
-        etaEdges,
-        valid_eta_spans,
-        valid_ome_spans,
-        omeEdges,
-        omePeriod,
-        etaOmeMaps,
-        etaIndices,
-        omeIndices,
-        dpix_eta,
-        dpix_ome,
-        threshold,
-    )
+    oangs_pair = xfcapi.oscill_angles_of_hkls(symHKLs, 0.0, rMat, bMat, wavelength)
+    if dsgod:
+        return _filter_and_count_hits_dsgod(
+            oangs_pair[0],
+            oangs_pair[1],
+            symHKLs_ix,
+            etaEdges,
+            valid_eta_spans,
+            valid_ome_spans,
+            omeEdges,
+            omePeriod,
+            etaOmeMaps,
+            etaIndices,
+            omeIndices,
+            dpix_eta,
+            dpix_ome,
+            threshold,
+        )
+    else:
+        return _filter_and_count_hits(
+            oangs_pair[0],
+            oangs_pair[1],
+            symHKLs_ix,
+            etaEdges,
+            valid_eta_spans,
+            valid_ome_spans,
+            omeEdges,
+            omePeriod,
+            etaOmeMaps,
+            etaIndices,
+            omeIndices,
+            dpix_eta,
+            dpix_ome,
+            threshold,
+        )
 
 
 @numba.njit(nogil=True, cache=True)
@@ -964,6 +1007,228 @@ def _filter_and_count_hits(
         total += not_filtered
 
     return float(hits) / float(total) if total != 0 else 0.0
+
+
+@numba.njit(nogil=True, cache=True)
+def _check_dilated_dsgod(eta, ome, dpix_eta, dpix_ome, etaOmeMap, threshold):
+
+    i_max, j_max = etaOmeMap.shape
+    ome_start, ome_stop = (max(ome - dpix_ome, 0), min(ome + dpix_ome + 1, i_max))
+    eta_start, eta_stop = (max(eta - dpix_eta, 0), min(eta + dpix_eta + 1, j_max))
+
+    ome_range = range(ome_start, ome_stop)
+    eta_range = range(eta_start, eta_stop)
+
+    max_inten = 0
+    max_eta_ind = -1
+    max_ome_ind = -1
+
+    dist_thresh = 1.5
+
+    for i in ome_range:
+        for j in eta_range:
+            dist = abs(i - ome) + abs(j - eta)
+
+            if dist <= dist_thresh:
+                if etaOmeMap[i, j] > max_inten:
+                    max_inten = etaOmeMap[i, j]
+                    max_eta_ind = j
+                    max_ome_ind = i
+                if np.isnan(etaOmeMap[i, j]):
+                    # print('nan')
+                    return -1, -1, -1
+
+    # return [inten, eta, ome]
+    #   if inten > 0:  orientation is on map and is hit
+    #   if inten = 0:  orientation is on map and is not hit
+    #   if inten = -1: orientation is not on map and is not hit
+    return max_inten, max_eta_ind, max_ome_ind
+
+
+@numba.njit(nogil=True, cache=True)
+def _angle_is_hit_dsgod(
+    ang,
+    eta_offset,
+    ome_offset,
+    hkl,
+    valid_eta_spans,
+    valid_ome_spans,
+    etaEdges,
+    omeEdges,
+    etaOmeMaps,
+    etaIndices,
+    omeIndices,
+    dpix_eta,
+    dpix_ome,
+    threshold,
+):
+
+    tth, eta, ome = ang
+
+    if np.isnan(tth):
+        # print('nan_tth')
+        return -1, -1, -1
+
+    eta = _map_angle(eta, eta_offset)
+    if _find_in_range(eta, valid_eta_spans) & 1 == 0:
+        # index is even: out of valid eta spans
+        # print('nan_eta')
+        return -1, -1, -1
+
+    ome = _map_angle(ome, ome_offset)
+    if _find_in_range(ome, valid_ome_spans) & 1 == 0:
+        # index is even: out of valid ome spans
+        # print('nan_ome')
+        return -1, -1, -1
+
+    # discretize the angles
+    eta_idx = _find_in_range(eta, etaEdges) - 1
+    if eta_idx < 0:
+        # out of range
+        # print('idx_eta')
+        return -1, -1, -1
+
+    ome_idx = _find_in_range(ome, omeEdges) - 1
+    if ome_idx < 0:
+        # out of range
+        # print('idx_ome',omeEdges[0]*180/np.pi,omeEdges[-1]*180/np.pi, ome*180/np.pi)
+        return -1, -1, -1
+
+    # pixel indices for eta, omega
+    pix_ind_eta = etaIndices[eta_idx]
+    pix_ind_ome = omeIndices[ome_idx]
+    eta_ome_inten, pix_ind_eta, pix_ind_ome = _check_dilated_dsgod(
+        pix_ind_eta, pix_ind_ome, dpix_eta, dpix_ome, etaOmeMaps[hkl], threshold[hkl]
+    )
+
+    # return [inten, eta, ome]
+    #   if inten > 0:  orientation is on map and is hit
+    #   if inten = 0:  orientation is on map and is not hit
+    #   if inten = -1: orientation is not on map and is not hit
+    return eta_ome_inten, pix_ind_eta, pix_ind_ome
+
+
+def _filter_and_count_hits_dsgod(
+    angs_0,
+    angs_1,
+    symHKLs_ix,
+    etaEdges,
+    valid_eta_spans,
+    valid_ome_spans,
+    omeEdges,
+    omePeriod,
+    etaOmeMaps,
+    etaIndices,
+    omeIndices,
+    dpix_eta,
+    dpix_ome,
+    threshold,
+):
+    """assumes:
+    we want etas in -pi -> pi range
+    we want omes in ome_offset -> ome_offset + 2*pi range
+
+    Instead of creating an array with the angles of angs_0 and angs_1
+    interleaved, in this numba version calls for both arrays are performed
+    getting the angles from angs_0 and angs_1. this is done in this way to
+    reuse hkl computation. This may not be that important, though.
+
+    """
+    eta_offset = -np.pi
+    ome_offset = np.min(omePeriod)
+    hits = 0
+    total = 0
+    curr_hkl_idx = 0
+    end_curr = symHKLs_ix[1]
+    count = len(angs_0)
+
+    # the total summed intensity of one orientation at each of its measured
+    # diffraction events
+    inten_list = []
+    hit_list = []
+    filter_list = []
+    eta_ind_list = []
+    ome_ind_list = []
+
+    for i in range(count):
+        if i >= end_curr:
+            curr_hkl_idx += 1
+            end_curr = symHKLs_ix[curr_hkl_idx + 1]
+
+        # first solution
+        f_inten, f_eta_ind, f_ome_ind = _angle_is_hit_dsgod(
+            angs_0[i],
+            eta_offset,
+            ome_offset,
+            curr_hkl_idx,
+            valid_eta_spans,
+            valid_ome_spans,
+            etaEdges,
+            omeEdges,
+            etaOmeMaps,
+            etaIndices,
+            omeIndices,
+            dpix_eta,
+            dpix_ome,
+            threshold,
+        )
+
+        hit = 0
+        not_filter = 0
+        if f_inten > 0:
+            hit = 1
+        if f_inten > -1:
+            not_filter = 1
+
+        hits += hit
+        total += not_filter
+
+        inten_list.append(f_inten)
+        hit_list.append(hit)
+        filter_list.append(not_filter)
+        eta_ind_list.append(f_eta_ind)
+        ome_ind_list.append(f_ome_ind)
+
+        # second solution
+        f_inten, f_eta_ind, f_ome_ind = _angle_is_hit_dsgod(
+            angs_1[i],
+            eta_offset,
+            ome_offset,
+            curr_hkl_idx,
+            valid_eta_spans,
+            valid_ome_spans,
+            etaEdges,
+            omeEdges,
+            etaOmeMaps,
+            etaIndices,
+            omeIndices,
+            dpix_eta,
+            dpix_ome,
+            threshold,
+        )
+
+        hit = 0
+        not_filter = 0
+        if f_inten > 0:
+            hit = 1
+        if f_inten > -1:
+            not_filter = 1
+
+        hits += hit
+        total += not_filter
+
+        inten_list.append(f_inten)
+        hit_list.append(hit)
+        filter_list.append(not_filter)
+        eta_ind_list.append(f_eta_ind)
+        ome_ind_list.append(f_ome_ind)
+
+    if total != 0:
+        comp = float(hits) / float(total)
+    else:
+        comp = 0
+
+    return (comp, inten_list, hit_list, filter_list, eta_ind_list, ome_ind_list)
 
 
 @numba.njit(nogil=True, cache=True)
