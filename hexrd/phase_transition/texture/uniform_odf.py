@@ -11,13 +11,14 @@ from typing import Optional, Union
 
 import numpy as np
 
+from hexrd.phase_transition.texture.arithmetic import ODFArithmetic
 from hexrd.phase_transition.texture.kernels import (
     _symmetry_quaternions,
     _Symmetry,
 )
 
 
-class UniformODF:
+class UniformODF(ODFArithmetic):
     """
     Uniform (random) orientation distribution function.
 

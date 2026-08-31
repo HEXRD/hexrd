@@ -11,10 +11,11 @@ from typing import Optional
 import numpy as np
 from scipy.special import beta as beta_fn
 
+from .arithmetic import ODFArithmetic
 from .kernels import SO3Kernel
 
 
-class UnimodalODF:
+class UnimodalODF(ODFArithmetic):
     """
     Unimodal orientation distribution function.
 
