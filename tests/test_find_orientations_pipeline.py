@@ -477,7 +477,8 @@ def test_build_maps_accumulates_in_float64():
         find_orientations=fo,
         active_material=SimpleNamespace(two_theta_width=0.6),  # degrees
         max_workers=1,
-        detectors=[detector],
+        detectors={'p0': detector},
+        beam=SimpleNamespace(vector=np.array([0.0, 0.0, -1.0])),
         image_series_list=[
             _Ims('p0', [hot, hot, faint]),
             _Ims('unknown_panel', [hot, hot, faint]),   # no matching detector
@@ -562,7 +563,8 @@ def test_build_maps_multi_wedge_leaves_nan_gap_rows():
         find_orientations=fo,
         active_material=SimpleNamespace(two_theta_width=0.6),
         max_workers=1,
-        detectors=[detector],
+        detectors={'p0': detector},
+        beam=SimpleNamespace(vector=np.array([0.0, 0.0, -1.0])),
         image_series_list=[_Ims()],
     )
 

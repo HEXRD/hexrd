@@ -9,7 +9,7 @@ import coloredlogs
 
 from hexrd.core import matrixutil as mutil
 from hexrd.core import rotations as rot
-from hexrd.hedm import config
+from hexrd.hedm.experiment import HedmExperiment
 from hexrd.hedm.fitgrains import fit_grains
 
 
@@ -66,10 +66,7 @@ def grains_reference_file_path(single_ge_results_path):
 
 @pytest.fixture
 def test_config(single_ge_config_path, single_ge_include_path):
-    conf = config.open(single_ge_config_path)[0]
-    conf.working_dir = single_ge_include_path
-
-    return conf
+    return HedmExperiment(str(single_ge_config_path))
 
 def compare_grain_fits(
     fit_grain_params, ref_grain_params, mtol=1.0e-4, ctol=1.0e-3, vtol=1.0e-4
@@ -165,7 +162,7 @@ def test_fit_grains(
 
 def test_fit_grains_return_pull_spots_data(
     single_ge_include_path: Path,
-    test_config: config.root.RootConfig,
+    test_config: HedmExperiment,
     grains_reference_file_path: Path,
 ) -> None:
     os.chdir(str(single_ge_include_path))

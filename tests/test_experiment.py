@@ -16,6 +16,7 @@ import yaml
 from scipy.sparse import csr_array
 
 from hexrd.core.experiment import (
+    Beam,
     Detector,
     Experiment,
     ImageSeries,
@@ -63,6 +64,19 @@ def test_merge_config_nested_overlay():
     assert merged == {'a': 1, 'b': {'x': 1, 'y': 20, 'z': 30}, 'c': [3], 'd': 4}
     # the inputs are not mutated
     assert base['b'] == {'x': 1, 'y': 2} and overlay['b'] == {'y': 20, 'z': 30}
+
+
+def test_beam_from_dict():
+    beam = Beam.from_dict({
+        'energy': 80.725,
+        'vector': {'azimuth': 90.0, 'polar_angle': 90.0},
+    })
+    assert beam.energy == 80.725
+    assert np.allclose(beam.vector, [0.0, 0.0, -1.0])
+    assert np.isinf(beam.source_distance)
+
+    beams = {'XRS1': {'energy': 10.25, 'source_distance': 31.0}}
+    assert Beam.from_dict(beams).source_distance == 31.0
 
 
 def test_frame_csr_matches_scipy_constructor():
@@ -344,7 +358,8 @@ def test_find_orientations_from_dict():
 def synthetic_config(tmp_path):
     """A tiny but complete experiment: one 4x6-pixel panel, three frames."""
     instrument = {
-        'beam': {'energy': 80.0},
+        'beam': {'energy': 80.0,
+                 'vector': {'azimuth': 90.0, 'polar_angle': 90.0}},
         'oscillation_stage': {'chi': 0.01, 'translation': [0.0, 0.0, 0.0]},
         'detectors': {
             'p0': {
@@ -389,7 +404,7 @@ def synthetic_config(tmp_path):
 
 def test_experiment_parses_synthetic_config(synthetic_config):
     exp = HedmExperiment(str(synthetic_config))
-    assert [d.name for d in exp.detectors] == ['p0']
+    assert list(exp.detectors) == ['p0']
     assert exp.beam_energy == 80.0
     assert exp.oscillation_stage.chi == 0.01
     assert exp.max_workers == 1

@@ -372,8 +372,9 @@ def refine_valid_reflections(
 
 
 def fit_grains(
-    cfg,
+    experiment,
     grains_table,
+    material=None,
     show_progress=False,
     ids_to_refine=None,
     write_spots_files=True,
@@ -399,13 +400,13 @@ def fit_grains(
     grains_table = np.atleast_2d(grains_table)
 
     # grab imageseries dict
-    imsd = cfg.image_series
+    imsd = experiment.image_series
 
     # grab instrument
-    instr = cfg.instrument.hedm
+    instr = experiment.instrument
 
     # grab eta ranges and ome_period
-    eta_ranges = np.radians(cfg.find_orientations.eta.range)
+    eta_ranges = experiment.find_orientations.eta.range
 
     # handle omega period
     # !!! we assume all detector ims have the same ome ranges, so any will do!
@@ -413,10 +414,13 @@ def fit_grains(
     ome_period = np.radians(oims.omega[0, 0] + np.r_[0.0, 360.0])
 
     # number of processes
-    ncpus = cfg.multiprocessing
+    ncpus = experiment.max_workers
 
     # threshold for fitting
-    threshold = cfg.fit_grains.threshold
+    threshold = experiment.fit_grains.threshold
+
+    if material is None:
+        material = experiment.get_active_material()
 
     if ids_to_refine is not None:
         grains_table = np.atleast_2d(grains_table[ids_to_refine, :])
@@ -424,18 +428,18 @@ def fit_grains(
     spots_filename = SPOTS_OUT_FILE if write_spots_files else None
     params = dict(
         grains_table=grains_table,
-        plane_data=cfg.material.plane_data,
+        plane_data=material._material.planeData,
         instrument=instr,
         imgser_dict=imsd,
-        tth_tol=cfg.fit_grains.tolerance.tth,
-        eta_tol=cfg.fit_grains.tolerance.eta,
-        ome_tol=cfg.fit_grains.tolerance.omega,
-        npdiv=cfg.fit_grains.npdiv,
-        refit=cfg.fit_grains.refit,
+        tth_tol=experiment.fit_grains.tolerance.tth,
+        eta_tol=experiment.fit_grains.tolerance.eta,
+        ome_tol=experiment.fit_grains.tolerance.omega,
+        npdiv=experiment.fit_grains.npdiv,
+        refit=experiment.fit_grains.refit,
         threshold=threshold,
         eta_ranges=eta_ranges,
         ome_period=ome_period,
-        analysis_dirname=cfg.analysis_dir,
+        analysis_dirname=experiment.analysis_dir,
         spots_filename=spots_filename,
         return_pull_spots_data=return_pull_spots_data,
     )

@@ -46,10 +46,9 @@ def _hkl_array(value: Any, key: str) -> Optional[np.ndarray]:
     return hkls
 
 
-# Numeric config defaults mirror hexrd.hedm.config.findorientations.
 @dataclass(frozen=True)
 class OrientationMaps:
-    threshold: float
+    threshold: float | None
     active_hkls: Optional[np.ndarray]   # (n, 3) hkl vectors or (n,) master
                                         # hkl IDs; None -> all rings
     eta_step: float                     # degrees
@@ -169,6 +168,50 @@ class FindOrientations:
                    d.get('use_quaternion_grid'))
 
 
+def _pair(value):
+    return [value, value] if isinstance(value, (int, float)) else value
+
+
+@dataclass(frozen=True)
+class FitGrainsTolerance:
+    eta: list
+    omega: list
+    tth: list
+
+    @classmethod
+    def from_dict(cls, d: dict) -> 'FitGrainsTolerance':
+        return cls(_pair(d.get('eta')), _pair(d.get('omega')),
+                   _pair(d.get('tth')))
+
+
+@dataclass(frozen=True)
+class FitGrains:
+    do_fit: bool
+    estimate: str | None
+    npdiv: int
+    threshold: float
+    tolerance: FitGrainsTolerance
+    refit: list | None
+    tth_max: bool | float
+    reset_exclusions: bool
+    exclusion_parameters: dict
+
+    @classmethod
+    def from_dict(cls, d: dict, path) -> 'FitGrains':
+        estimate = d.get('estimate')
+        if estimate is not None and not os.path.isabs(estimate):
+            estimate = path(estimate)
+        names = ('dmin', 'dmax', 'tthmin', 'tthmax', 'sfacmin', 'sfacmax',
+                 'pintmin', 'pintmax')
+        exclusions = {name: d.get(name) for name in names}
+        exclusions['sfacmin'] = d.get('sfacmin', d.get('min_sfac_ratio'))
+        return cls(d.get('do_fit', True), estimate, d.get('npdiv', 2),
+                   d.get('threshold'),
+                   FitGrainsTolerance.from_dict(d.get('tolerance', {})),
+                   _pair(d.get('refit')), d.get('tth_max', True),
+                   d.get('reset_exclusions', True), exclusions)
+
+
 class HedmExperiment(Experiment):
     """An :class:`Experiment` plus the HEDM find-orientations parameters."""
 
@@ -176,6 +219,8 @@ class HedmExperiment(Experiment):
         super().__init__(filename, study)
         self.find_orientations = FindOrientations.from_dict(
             self.config['find_orientations'])
+        self.fit_grains = FitGrains.from_dict(
+            self.config.get('fit_grains', {}), self._path)
 
     @property
     def eta_ome_maps_file(self) -> str:
