@@ -36,11 +36,6 @@ from hexrd.core.extensions import transforms, transforms_c_api
 from hexrd.core.material.material_data import Material, PlaneData
 from hexrd.core.transforms import xfcapi
 
-# Reference beam / azimuth vectors shared by the whole workflow.
-BEAM_VEC = np.array([0.0, 0.0, -1.0])
-ETA_VEC = np.array([1.0, 0.0, 0.0])
-
-
 # scipy.ndimage and sklearn.cluster are only needed by the later stages
 # (peak finding, clustering), so pull them in on a background thread while
 # the earlier, numpy/IO-bound stages run.  The functions that use them do a
@@ -212,15 +207,15 @@ def build_eta_omega_maps(experiment: HedmExperiment,
     # exact in any order).
     numba.set_num_threads(
         max(1, min(experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
-    detectors = {d.name: d for d in experiment.detectors}
     active = [ims for ims in experiment.image_series_list
-              if ims.panel in detectors]
+              if ims.panel in experiment.detectors]
 
     # each panel's pixel angles and each series' frame decompression are
     # independent, and the C geometry routine releases the GIL: overlap them
     # all in one thread pool
     with ThreadPoolExecutor(max(1, min(experiment.max_workers, 16))) as pool:
-        angle_futures = {panel: pool.submit(_panel_pixel_angles, detectors[panel])
+        angle_futures = {panel: pool.submit(
+            _panel_pixel_angles, experiment.detectors[panel], experiment.beam.vector)
                          for panel in {ims.panel for ims in active}}
         for ims in active:
             pool.submit(lambda series: series.images, ims)
@@ -408,7 +403,7 @@ def _eta_bin_edges(step: float) -> np.ndarray:
     return edges
 
 
-def _panel_pixel_angles(detector):
+def _panel_pixel_angles(detector, beam_vector):
     """Map a panel's pixels to (two-theta, eta) using its geometry and distortion."""
     rmat_b = np.eye(3)
     grid_i, grid_j = detector.pixel_coordinates
@@ -423,7 +418,7 @@ def _panel_pixel_angles(detector):
         ac(rmat_b),
         ac(detector.transform.translation).ravel(),
         np.zeros(3), np.zeros(3),
-        ac(-rmat_b[:, 2]), ac(rmat_b[:, 0]))
+        ac(beam_vector), ac(rmat_b[:, 0]))
     return ptth, peta
 
 
@@ -581,14 +576,14 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     ring_maps = np.ascontiguousarray(maps.ring_maps)
     bmat = np.ascontiguousarray(plane_data.B)
 
-    # solve the Bragg condition for every trial (chi = 0, as always for the
-    # map-based search), then count hits for all trials in one parallel pass
+    beam_vector = experiment.beam.vector
     n = q_fibers.shape[1]
     angs = np.empty((2, n, len(symm_hkls), 3))
-    for i in range(n):
-        rmat = rotations.rotMatOfQuat(q_fibers[:, i])
+    rmats = rotations.rotMatOfQuat(q_fibers).reshape(n, 3, 3)
+    for i, rmat in enumerate(rmats):
         angs[0, i], angs[1, i] = xfcapi.oscill_angles_of_hkls(
-            symm_hkls, 0.0, rmat, bmat, plane_data.wavelength)
+            symm_hkls, 0.0, rmat, bmat, plane_data.wavelength,
+            beam_vec=beam_vector)
 
     gpu = _cuda_scorer(n)
     if gpu is not None:
@@ -800,7 +795,8 @@ def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
     for g in range(n_grains):
         rmat_c = ac(rotations.rotMatOfQuat(quats[:, g]))
         a0, a1 = xfcapi.oscill_angles_of_hkls(
-            symm_hkls, chi, rmat_c, bmat, plane_data.wavelength)
+            symm_hkls, chi, rmat_c, bmat, plane_data.wavelength,
+            beam_vec=experiment.beam.vector)
         angs = np.vstack([a0, a1])
         rings = np.tile(ring_for_hkl, 2)
         ok = ~np.isnan(angs[:, 0])
@@ -815,11 +811,11 @@ def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
         angs, rings = angs[ok], rings[ok]
         gvecs = xfcapi.angles_to_gvec(angs, chi=chi, rmat_c=rmat_c)
         rmats_s = _sample_rmats(chi, angs[:, 2])
-        for detector in experiment.detectors:
+        for detector in experiment.detectors.values():
             xy = transforms_c_api.gvecToDetectorXYArray(
                 ac(gvecs), ac(detector.transform.rotation_matrix), rmats_s,
                 rmat_c, ac(detector.transform.translation).ravel(),
-                np.zeros(3), np.zeros(3), BEAM_VEC)
+                np.zeros(3), np.zeros(3), experiment.beam.vector)
             on_panel = _clip_to_panel(detector, xy)
             count += np.isin(rings[on_panel], list(seed_rings)).sum()
         seed_refl_per_grain[g] = count

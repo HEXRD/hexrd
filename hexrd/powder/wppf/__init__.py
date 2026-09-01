@@ -1,2 +1,5 @@
-from hexrd.powder.wppf.WPPF import LeBail
-from hexrd.powder.wppf.WPPF import Rietveld
+def __getattr__(name):
+    if name in {'LeBail', 'Rietveld'}:
+        from hexrd.powder.wppf import WPPF
+        return getattr(WPPF, name)
+    raise AttributeError(name)

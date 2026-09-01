@@ -110,6 +110,31 @@ class Detector:
         return np.meshgrid(row, col, indexing='ij')
 
 
+@dataclass(frozen=True)
+class Beam:
+    energy: float
+    vector: np.ndarray
+    source_distance: float
+    energy_correction: Optional[dict] = None
+
+    @classmethod
+    def from_dict(cls, d: dict) -> 'Beam':
+        if not d:
+            d = {}
+        if 'energy' not in d:
+            d = next(iter(d.values()), {})
+        angles = d.get('vector', {})
+        azimuth = np.radians(angles.get('azimuth', 90.0))
+        polar = np.radians(angles.get('polar_angle', 90.0))
+        vector = -np.array([np.sin(polar) * np.cos(azimuth),
+                            np.cos(polar),
+                            np.sin(polar) * np.sin(azimuth)])
+        vector[np.abs(vector) < np.finfo(float).eps] = 0.0
+        return cls(float(d.get('energy', 0.0)), vector,
+                   float(d.get('source_distance', np.inf)),
+                   d.get('energy_correction'))
+
+
 @dataclass
 class OscillationStage:
     chi: float
@@ -216,6 +241,15 @@ class ImageSeries:
     def __len__(self):
         return self._n_frames
 
+    def __getitem__(self, key):
+        if isinstance(key, tuple):
+            return self.images[key[0]][key[1:]].toarray()
+        return self.images[key]
+
+    @property
+    def metadata(self):
+        return {'omega': np.degrees(self.omega)}
+
 
 class RoiImageSeries:
     """One sub-panel's view of a whole-panel :class:`ImageSeries`.
@@ -245,6 +279,15 @@ class RoiImageSeries:
 
     def __len__(self):
         return len(self._parent)
+
+    def __getitem__(self, key):
+        if isinstance(key, tuple):
+            return self.images[key[0]][key[1:]].toarray()
+        return self.images[key]
+
+    @property
+    def metadata(self):
+        return {'omega': np.degrees(self.omega)}
 
 
 def _merge_config(base: dict, overlay: dict) -> dict:
@@ -301,19 +344,20 @@ class Experiment:
             config, *studies = yaml.safe_load_all(f)
         self.studies = list(studies)
         if study is not None:
-            config = _merge_config(config, self.studies[study])
+            for overlay in self.studies[:study + 1]:
+                config = _merge_config(config, overlay)
         self.config = config
 
         instrument = _load_instrument(self._path(config['instrument']))
-        self.detectors = [Detector.from_dict(name, d)
-                          for name, d in instrument['detectors'].items()]
-        self.beam_energy = instrument.get('beam', {}).get('energy')
+        self._instrument_config = instrument
+        self.detectors = {name: Detector.from_dict(name, d)
+                          for name, d in instrument['detectors'].items()}
+        self.beam = Beam.from_dict(instrument.get('beam', {}))
         self.oscillation_stage = OscillationStage.from_dict(
             instrument.get('oscillation_stage', {}))
 
         self.active_material = ActiveMaterial.from_dict(config['material'])
         self.max_workers = _parse_multiprocessing(config.get('multiprocessing', -1))
-        detector_of = {d.name: d for d in self.detectors}
         self.image_series_list = []
         for d in config['image_series']['data']:
             panel = d['panel']
@@ -324,7 +368,7 @@ class Experiment:
             # a list of panels: shared frames split by each detector's ROI
             parent = ImageSeries(None, self._path(d['file']), self.max_workers)
             for name in panel:
-                det = detector_of[name]
+                det = self.detectors[name]
                 if det.pixels.roi is None:
                     raise ValueError(
                         f'image series panel list needs "pixels: roi" on '
@@ -336,6 +380,26 @@ class Experiment:
         self.analysis_name = config['analysis_name']
         self.analysis_dir = self._path(self.analysis_name)
         self._materials_file = self._path(config['material']['definitions'])
+
+    @property
+    def instrument(self):
+        if not hasattr(self, '_instrument'):
+            from hexrd.core.instrument import HEDMInstrument
+            self._instrument = HEDMInstrument(
+                instrument_config=self._instrument_config,
+                max_workers=self.max_workers,
+            )
+        return self._instrument
+
+    @property
+    def image_series(self):
+        if not hasattr(self, '_image_series'):
+            from hexrd.core.imageseries.omega import OmegaImageSeries
+            self._image_series = {
+                series.panel: OmegaImageSeries(series)
+                for series in self.image_series_list
+            }
+        return self._image_series
 
     def _path(self, name: str) -> str:
         return os.path.join(self.experiment_dir, name)
@@ -355,7 +419,11 @@ class Experiment:
         return Material(name, definitions,
                         dmin=self.active_material.dmin,
                         sfacmin=self.active_material.min_sfac_ratio,
-                        beam_energy=self.beam_energy)
+                        beam_energy=self.beam.energy)
+
+    @property
+    def beam_energy(self) -> float:
+        return self.beam.energy
 
     @property
     def analysis_id(self) -> str:
