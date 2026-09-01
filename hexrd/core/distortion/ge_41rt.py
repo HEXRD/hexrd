@@ -47,6 +47,60 @@ def _ge_41rt_inverse_distortion(
 
 
 @numba.njit(nogil=True, cache=True)
+def _ge_41rt_inverse_distortion_newton(out, in_, rhoMax, params):
+    """Newton solve of the forward model, per point.
+
+    This is the inverse hexrd used prior to the closed-form cubic solver, kept
+    verbatim so ``GE_41RT_newton`` reproduces the historical results exactly.
+    Unlike the closed form it uses all six parameters and makes no assumption
+    about the radial exponents.
+    """
+    maxiter = 100
+    prec = cnst.epsf
+
+    p0, p1, p2, p3, p4, p5 = params[0:6]
+    rxi = 1.0 / rhoMax
+    for el in range(len(in_)):
+        xi, yi = in_[el, 0:2]
+        ri = np.sqrt(xi * xi + yi * yi)
+        if ri < cnst.sqrt_epsf:
+            ri_inv = 0.0
+        else:
+            ri_inv = 1.0 / ri
+        sinni = yi * ri_inv
+        cosni = xi * ri_inv
+        ro = ri
+        cos2ni = cosni * cosni - sinni * sinni
+        sin2ni = 2 * sinni * cosni
+        cos4ni = cos2ni * cos2ni - sin2ni * sin2ni
+        # newton solver iteration
+        for i in range(maxiter):
+            ratio = ri * rxi
+            fx = (
+                p0 * ratio**p3 * cos2ni + p1 * ratio**p4 * cos4ni + p2 * ratio**p5 + 1
+            ) * ri - ro  # f(x)
+            fxp = (
+                p0 * ratio**p3 * cos2ni * (p3 + 1)
+                + p1 * ratio**p4 * cos4ni * (p4 + 1)
+                + p2 * ratio**p5 * (p5 + 1)
+                + 1
+            )  # f'(x)
+
+            delta = fx / fxp
+            ri = ri - delta
+            # convergence check for newton
+            if np.abs(delta) <= prec * np.abs(ri):
+                break
+
+        xi = ri * cosni
+        yi = ri * sinni
+        out[el, 0] = xi
+        out[el, 1] = yi
+
+    return out
+
+
+@numba.njit(nogil=True, cache=True)
 def _ge_41rt_distortion(out, in_, rhoMax, params):
     p0, p1, p2, p3, p4, p5 = params[0:6]
     rxi = 1.0 / rhoMax
@@ -140,5 +194,34 @@ class GE_41RT(DistortionABC, metaclass=_RegisterDistortionClass):
             xy_in = np.asarray(xy_in, dtype=float)
             xy_out = inverse_distortion.ge_41rt_inverse_distortion(
                 xy_in, float(RHO_MAX), np.asarray(self.params[:3])
+            )
+            return xy_out
+
+
+class GE_41RT_newton(GE_41RT, metaclass=_RegisterDistortionClass):
+    """GE41RT distortion using the iterative Newton inverse.
+
+    Identical to :class:`GE_41RT` in the forward direction. The difference is
+    ``apply_inverse``, which solves the forward model numerically instead of
+    using the closed-form cubic in ``inverse_distortion``.
+
+    The closed form is only exact for radial exponents ``(p3, p4, p5) ==
+    (2, 2, 2)``; for any other exponents (the canonical GE values are
+    ``(2, 4, 2)``) it silently treats them as 2, so the inverse no longer
+    inverts the forward map. It also uses only ``params[:3]``, and returns NaN
+    where the cubic has no valid root. Newton handles all six parameters and
+    the full parameter range, at the cost of speed.
+    """
+
+    maptype = "GE_41RT_newton"
+
+    def apply_inverse(self, xy_in):
+        if self.is_trivial:
+            return xy_in
+        else:
+            xy_in = np.asarray(xy_in, dtype=float)
+            xy_out = np.empty_like(xy_in)
+            _ge_41rt_inverse_distortion_newton(
+                xy_out, xy_in, float(RHO_MAX), np.asarray(self.params)
             )
             return xy_out
