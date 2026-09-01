@@ -314,7 +314,9 @@ def _toarray(
 
 def _alloc_buffer(ims: ImageInput, nf: int) -> np.ndarray:
     """Allocate buffer to save as many full frames as possible"""
-    shp, dt = ims.shape, ims.dtype
+    # Some adapters (e.g. fch5) report shape as an ndarray, which would
+    # broadcast-add with (nf,) instead of concatenating.
+    shp, dt = tuple(ims.shape), ims.dtype
     framesize = shp[0] * shp[1] * dt.itemsize
     nf = np.minimum(nf, np.floor(STATS_BUFFER / framesize).astype(int))
     bshp = (nf,) + shp
