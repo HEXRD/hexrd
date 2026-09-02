@@ -334,7 +334,7 @@ class Experiment:
     instrument, image series, material selection, analysis naming.
 
     The config may hold several yaml documents: a base followed by study
-    overlays, each a sparse dict merged over the base (as in hexrd). ``study``
+    overlays, each a sparse dict merged over the base. ``study``
     selects one by index; the default runs the base document alone.
     """
 
