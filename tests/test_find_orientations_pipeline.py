@@ -1031,39 +1031,3 @@ def test_multiruby_find_orientations_golden(example_repo_path, tmp_path,
     for i, q in enumerate(results.grain_orientations.T):
         angles, _ = misorientation(q.reshape(4, 1), reference.T, (qsym,))
         assert np.degrees(np.min(angles)) < 0.05, f'grain {i} misorientation'
-
-
-# ---------------------------------------------------------------------------
-# GPU scorer parity
-# ---------------------------------------------------------------------------
-def _gpu_module():
-    try:
-        from hexrd.hedm import find_orientations_gpu
-    except Exception:
-        return None
-    return find_orientations_gpu if find_orientations_gpu.available() else None
-
-
-@pytest.mark.skipif(_gpu_module() is None, reason='no usable CUDA device')
-def test_gpu_scorer_bit_identical_to_cpu(ruby_experiment, monkeypatch):
-    """The CUDA scorer must reproduce the CPU kernels bit for bit."""
-    from hexrd.hedm.find_orientations import (
-        generate_orientation_fibers,
-        load_or_build_eta_omega_maps,
-        score_orientations,
-    )
-
-    material = ruby_experiment.get_active_material()
-    pd = material.plane_data
-    maps = load_or_build_eta_omega_maps(ruby_experiment, pd)
-    fibers = generate_orientation_fibers(ruby_experiment, pd, maps)
-
-    monkeypatch.setenv('HEXRD_DISABLE_GPU', '1')
-    cpu_scores = score_orientations(ruby_experiment, pd, maps, fibers)
-    monkeypatch.delenv('HEXRD_DISABLE_GPU')
-    monkeypatch.setenv('HEXRD_GPU', '1')   # below the auto-GPU trial threshold
-    gpu_scores = score_orientations(ruby_experiment, pd, maps, fibers)
-
-    assert np.array_equal(cpu_scores, gpu_scores)
-    golden = np.load(DATA_DIR / 'ruby_completeness.npy')
-    assert np.array_equal(gpu_scores, golden)

@@ -585,45 +585,12 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
             symm_hkls, 0.0, rmat, bmat, plane_data.wavelength,
             beam_vec=beam_vector)
 
-    gpu = _cuda_scorer(n)
-    if gpu is not None:
-        return gpu.count_hits_all(
-            angs, ring_for_hkl, maps.eta_edges, maps.omega_edges,
-            valid_eta, valid_ome, ome_offset, ring_maps,
-            dpix_eta, dpix_ome, float(fo.threshold))
     numba.set_num_threads(
         max(1, min(experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
     return _count_hits_all(
         angs[0], angs[1], ring_for_hkl, maps.eta_edges, maps.omega_edges,
         valid_eta, valid_ome, ome_offset, ring_maps,
         dpix_eta, dpix_ome, float(fo.threshold))
-
-
-# below this many trials, CUDA context setup outweighs the scoring itself
-# in a fresh process, so seeded searches stay on the CPU kernels
-_GPU_MIN_TRIALS = 100_000
-
-
-def _cuda_scorer(n_trials: int):
-    """The GPU scorer module when it's worth using, else None (CPU kernels).
-
-    Both paths give bit-identical scores.  A usable CUDA device is picked up
-    automatically for large searches (e.g. quaternion grids); set HEXRD_GPU=1
-    to use it for any size, or HEXRD_DISABLE_GPU=1 to never use it.
-    """
-    def _set(name):
-        return os.environ.get(name, '0').lower() not in ('0', '', 'false')
-
-    if _set('HEXRD_DISABLE_GPU'):
-        return None
-    if n_trials < _GPU_MIN_TRIALS and not _set('HEXRD_GPU'):
-        return None
-    try:
-        from hexrd.hedm import find_orientations_gpu
-    except Exception:
-        return None
-    return find_orientations_gpu if find_orientations_gpu.available() else None
-
 
 def normalize_ranges(starts: np.ndarray, stops: np.ndarray,
                      offset: float) -> np.ndarray:

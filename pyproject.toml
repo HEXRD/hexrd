@@ -29,8 +29,3 @@ test = [
 performance = [
     "isal",
 ]
-# CUDA-accelerated orientation scoring; auto-detected at runtime with a CPU
-# fallback, results identical
-gpu = [
-    "numba-cuda[cu12]",
-]
