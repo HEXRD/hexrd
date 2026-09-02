@@ -83,7 +83,7 @@ class SeedSearch:
 
     @classmethod
     def from_dict(cls, d: dict, omega_tolerance_deg: float) -> 'SeedSearch':
-        # `method` is a one-entry mapping: {name: {kwargs...}} (as in hexrd)
+        # `method` is a one-entry mapping: {name: {kwargs...}}
         method_dict = d.get('method') or {'label': {}}
         (name, kwargs), = method_dict.items()
         seeds = np.asarray(d.get('hkl_seeds', []), dtype=np.intp)
