@@ -88,3 +88,6 @@ def main():
 
     if args.inst_profile:
         profiler.dump_results(args.inst_profile)
+
+if __name__ == '__main__':
+    main()
