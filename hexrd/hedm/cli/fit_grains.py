@@ -266,11 +266,11 @@ def execute(args, parser):
             logger.removeHandler(ch)
             from hexrd.hedm.find_orientations import (
                 find_orientations,
-                write_results,
+                write_results as write_find_orientations_results,
             )
 
             results = find_orientations(experiment)
-            write_results(results, experiment)
+            write_find_orientations_results(results, experiment)
             qbar = results.grain_orientations
             logger.addHandler(ch)
 
