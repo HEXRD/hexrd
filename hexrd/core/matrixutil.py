@@ -74,13 +74,25 @@ def rowNorm(a):
 
 
 def unitVector(a):
+    """ normalize array of column vectors (hstacked, axis = 0)
+
+    Parameters
+    ----------
+    a: numpy array
+       array to normalize; shape should be (m, n) or (m,)
+
+    Returns
+    -------
+    anrm: numpy array
+       array with shape (m, n)  with each column normalized to magnitude 1.0
     """
-    normalize array of column vectors (hstacked, axis = 0)
-    """
-    assert a.ndim in [
-        1,
-        2,
-    ], "incorrect arg shape; must be 1-d or 2-d, yours is %d-d" % (a.ndim)
+    if a.ndim not in [1, 2]:
+        raise ValueError(
+            "incorrect arg shape; must be 1-d or 2-d, yours is %d-d" % (a.ndim)
+        )
+
+    if a.ndim == 1:
+        a = a.reshape(len(a), 1)
 
     ztol = constants.ten_epsf
 
