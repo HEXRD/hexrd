@@ -72,10 +72,14 @@ def _key(x):
 
 
 def get_default_sgsetting(sgnum):
-    if sgnum in two_origin_choice:
-        return 1
-    else:
-        return 0
+    """Setting to assume when a space group admits more than one and the
+    source does not say which.
+
+    There is no reliable way to guess, so this returns the same default
+    the rest of hexrd uses (Material.DFLT_SGSETTING, unitcell), which is
+    origin choice 1.  Callers that can detect the ambiguity should warn.
+    """
+    return Material.DFLT_SGSETTING
 
 
 #
@@ -599,17 +603,21 @@ class Material(object):
             raise RuntimeError(' No space group information in CIF file! ')
 
         sgnum = 0
+        hm_setting_code = None
         if skey is sgkey[0]:
             sgnum = int(cifdata[sgkey[0]])
         elif skey is sgkey[1]:
             HM = cifdata[sgkey[1]]
             HM = HM.replace(" ", "")
             HM = HM.replace("_", "")
+            if ':' in HM:
+                # e.g. "F d -3 m :2"; the suffix names the setting
+                HM, _, hm_setting_code = HM.partition(':')
             sgnum = HM_to_sgnum[HM]
         elif skey is sgkey[2]:
             hall = cifdata[sgkey[2]]
             hall = hall.replace(" ", "")
-            sgnum = Hall_to_sgnum[HM]
+            sgnum = Hall_to_sgnum[hall]
         elif skey is sgkey[3]:
             sgnum = int(cifdata[sgkey[3]])
 
@@ -638,7 +646,41 @@ class Material(object):
                 lparms[i] = _degrees(lparms[i])
 
         self._lparms = lparms
-        self._sgsetting = get_default_sgsetting(sgnum)
+
+        # Space-group setting.  hexrd supports the standard descriptions
+        # only: origin choices 1 and 2 for the 24 space groups with two
+        # origins, hexagonal axes for rhombohedral groups, and unique
+        # axis b, cell choice 1 for monoclinic groups.
+        sgsetting = get_default_sgsetting(sgnum)
+        code = hm_setting_code
+        key = '_space_group_IT_coordinate_system_code'
+        if key in cifdata:
+            code = str(cifdata[key]).strip()
+        if code:
+            code = code.lower()
+            if code in ('1', '2'):
+                if sgnum in two_origin_choice:
+                    sgsetting = 0 if code == '1' else 1
+            elif code in ('h', 'b1'):
+                # hexagonal axes / unique axis b, cell choice 1: these
+                # are the descriptions hexrd already assumes
+                pass
+            else:
+                raise RuntimeError(
+                    f"The CIF file uses space-group setting '{code}', "
+                    "which hexrd does not support. Only the standard "
+                    "settings are available: origin choices 1 and 2, "
+                    "hexagonal axes for rhombohedral groups, and unique "
+                    "axis b, cell choice 1 for monoclinic groups."
+                )
+        elif sgnum in two_origin_choice:
+            logger.warning(
+                'The CIF file does not specify a space-group setting, and '
+                'space group %d has two origin choices. Assuming origin '
+                'choice %d; set the material\'s sgsetting if that is not '
+                'correct.', sgnum, sgsetting + 1
+            )
+        self._sgsetting = sgsetting
         self.sgnum = sgnum
 
         # fractional atomic site, occ and vibration amplitude
