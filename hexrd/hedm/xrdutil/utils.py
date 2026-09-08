@@ -1060,7 +1060,15 @@ def apply_correction_to_wavelength(
     ind = 1 if energy_correction['axis'] == 'y' else 0
 
     # Correct wavelength according to grain position. Position is in mm.
-    position = tvec_c[ind] + tvec_s[ind] - energy_correction['intercept']
+    # tvec_c/tvec_s may be shaped (3, 1) (e.g. objFuncFitGrain reshapes tVec_c
+    # to (3, 1)); ravel so `position` is a scalar. A stray (1,) here makes the
+    # corrected wavelength a length-1 array, which oscill_angles_of_hkls then
+    # treats as a per-reflection wavelength array (1 value vs N hkls) -> NaN ->
+    # "Infeasible parameters for hkls".
+    position = (
+        np.ravel(tvec_c)[ind] + np.ravel(tvec_s)[ind]
+        - energy_correction['intercept']
+    )
 
     # The slope is in eV/mm. Convert to keV.
     adjustment = position * energy_correction['slope'] / 1e3
