@@ -6,7 +6,13 @@ from hexrd.core import constants as ct
 
 # TODO: Resolve extra-core dependency
 from hexrd.hedm import xrdutil
-from hexrd.hed.xrdutil.utils import _warp_to_cylinder
+from hexrd.hed.xrdutil.utils import (
+    _clip_to_cylindrical_detector,
+    _dewarp_from_cylinder,
+    _project_on_detector_cylinder,
+    _unitvec_to_cylinder,
+    _warp_to_cylinder,
+)
 from hexrd.core.utils.decorators import memoize
 
 from .detector import Detector
@@ -112,7 +118,7 @@ class CylindricalDetector(Detector):
             self.distortion,
         )
 
-        proj_func = xrdutil.utils._project_on_detector_cylinder
+        proj_func = _project_on_detector_cylinder
         valid_xy, rMat_ss, valid_mask = proj_func(*args, **kwargs)
         xy_det = np.empty([angs.shape[0], 2])
         xy_det.fill(np.nan)
@@ -297,7 +303,7 @@ class CylindricalDetector(Detector):
             self.radius,
             self.tvec,
         )
-        pt_on_cylinder = xrdutil.utils._unitvec_to_cylinder(*args)
+        pt_on_cylinder = _unitvec_to_cylinder(*args)
 
         args = (
             pt_on_cylinder,
@@ -308,10 +314,10 @@ class CylindricalDetector(Detector):
             self.physical_size,
             self.angle_extent,
         )
-        pt_on_cylinder, _ = xrdutil.utils._clip_to_cylindrical_detector(*args)
+        pt_on_cylinder, _ = _clip_to_cylindrical_detector(*args)
 
         args = (pt_on_cylinder, self.tvec, self.caxis, self.paxis, self.radius)
-        output = xrdutil.utils._dewarp_from_cylinder(*args)
+        output = _dewarp_from_cylinder(*args)
         return output
 
     @property

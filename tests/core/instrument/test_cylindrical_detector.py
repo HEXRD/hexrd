@@ -22,7 +22,17 @@ def mock_warp():
 
 @pytest.fixture
 def mock_xrdutil():
-    with patch('hexrd.core.instrument.cylindrical_detector.xrdutil') as m:
+    prefix = 'hexrd.core.instrument.cylindrical_detector.'
+    with patch(prefix + 'xrdutil') as m, \
+            patch(prefix + '_project_on_detector_cylinder') as m_proj, \
+            patch(prefix + '_unitvec_to_cylinder') as m_unit, \
+            patch(prefix + '_clip_to_cylindrical_detector') as m_clip, \
+            patch(prefix + '_dewarp_from_cylinder') as m_dewarp:
+        m.utils._project_on_detector_cylinder = m_proj
+        m.utils._unitvec_to_cylinder = m_unit
+        m.utils._clip_to_cylindrical_detector = m_clip
+        m.utils._dewarp_from_cylinder = m_dewarp
+
         m.utils._dvec_to_angs.return_value = (np.array([0.1]), np.array([0.2]))
 
         m.utils._project_on_detector_cylinder.return_value = (
@@ -250,3 +260,48 @@ def test_branch_cut_fix():
     arr_cut = np.array([np.pi])
     res_cut = _fix_branch_cut_in_gradients(arr_cut)
     assert np.isclose(res_cut, 0.0, atol=1e-6)
+
+
+def test_angle_round_trip():
+    """Forward-project random diffraction directions onto a tilted
+    cylindrical panel and invert; no mocks, so this exercises the real
+    helper imports (regression test for the subpackage-split breakage)."""
+    from hexrd.core import instrument
+
+    config = {
+        'beam': {'energy': 30.0,
+                 'vector': {'azimuth': 90.0, 'polar_angle': 90.0}},
+        'oscillation_stage': {'chi': 0.0, 'translation': [0.0, 0.0, 0.0]},
+        'detectors': {'cyl': {
+            'detector_type': 'cylindrical',
+            'pixels': {'rows': 3000, 'columns': 5000, 'size': [0.1, 0.1]},
+            'transform': {'tilt': [0.31, -0.22, 0.13],
+                          'translation': [5.0, -3.0, -250.0]},
+            'radius': 300.0,
+        }},
+    }
+    instr = instrument.HEDMInstrument(instrument_config=config)
+    panel = instr.detectors['cyl']
+
+    rng = np.random.default_rng(7)
+    n = 200000
+    tth = np.radians(rng.uniform(5.0, 70.0, n))
+    eta = np.radians(rng.uniform(-180.0, 180.0, n))
+
+    xy = panel.angles_to_cart(np.column_stack([tth, eta]))
+    if isinstance(xy, tuple):
+        xy = xy[0]
+
+    on_panel = np.isfinite(xy).all(axis=1)
+    on_panel &= np.abs(xy[:, 0]) <= panel.col_dim / 2
+    on_panel &= np.abs(xy[:, 1]) <= panel.row_dim / 2
+    # a healthy fraction of the random directions must hit the panel
+    assert on_panel.sum() > n // 10
+
+    back, _ = panel.cart_to_angles(xy[on_panel])
+    d_tth = np.degrees(np.abs(back[:, 0] - tth[on_panel]))
+    d_eta = np.degrees(
+        np.abs(np.angle(np.exp(1j * (back[:, 1] - eta[on_panel]))))
+    )
+    assert d_tth.max() < 1e-7
+    assert d_eta.max() < 1e-7
