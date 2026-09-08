@@ -2553,7 +2553,11 @@ def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
 
             # Unpack the params
             pixel_etas, eta_edges, pixel_ids, bins_on_detector = params
-            result = histogram(pixel_etas, bins=eta_edges, weights=image[pixel_ids])[0]
+            result = histogram(
+                pixel_etas,
+                bins=eta_edges,
+                weights=np.asarray(image[pixel_ids], dtype=np.float64),
+            )[0]
 
             # Note that this preserves nan values for bins not on the detector.
             this_map[i_row, bins_on_detector] = result[bins_on_detector]
