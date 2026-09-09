@@ -316,7 +316,7 @@ class UnimodalODF(ODFArithmetic):
 
     def norm(self, n_orientations=100000, seed=None):
         """
-        L2 norm ||f|| = sqrt(J) of the ODF (MTEX ``norm``), in MRD.
+        L2 norm ||f|| = sqrt(J) of the ODF, in MRD.
 
         Uses the exact closed form when available; otherwise estimates the
         norm by Monte Carlo over Haar-uniform orientations.
