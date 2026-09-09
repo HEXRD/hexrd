@@ -9,25 +9,41 @@ from hexrd.core import rotations
 from hexrd.phase_transition.texture.kernels import DeLaValleePoussinKernel
 
 
-MTEX_KERNEL_KAPPA = 90.0
-MTEX_KERNEL_OMEGA = np.array([
-    0.0000000000,
-    0.5235987756,
-    0.7853981634,
-    1.0471975512,
-    1.5707963268,
-    3.1415926536,
+# The de la Vallée Poussin kernel has the closed form
+#
+#     K(ω) = C · cos^(2κ)(ω/2),    C = B(3/2, 1/2) / B(3/2, κ + 1/2),
+#
+# with κ fixed by the half-width through the defining condition
+# K(halfwidth) = K(0)/2, i.e. κ = ln(1/2) / (2·ln(cos(halfwidth/2))). The
+# expected values below are derived from those identities rather than
+# tabulated, so the tests check the implementation against the mathematics
+# it is meant to realize.
+
+REFERENCE_KAPPA = 90.0
+MISORIENTATION_ANGLES = np.array([
+    0.0,
+    np.pi / 6.0,
+    np.pi / 4.0,
+    np.pi / 3.0,
+    np.pi / 2.0,
+    np.pi,
 ])
-MTEX_KERNEL_VALUES = np.array([
-    1532.2892935006,
-    2.9869009813,
-    0.0009910670,
-    0.0000000087,
-    0.0000000000,
-    0.0000000000,
-])
-MTEX_HALFWIDTH_RAD = 0.1745329252
-MTEX_HALFWIDTH_KAPPA = 90.9031059932
+
+
+def _closed_form_kappa(halfwidth: float) -> float:
+    """κ such that K(halfwidth) = K(0)/2."""
+    return 0.5 * np.log(0.5) / np.log(np.cos(halfwidth / 2.0))
+
+
+def _closed_form_halfwidth(kappa: float) -> float:
+    """Half-width of a kernel with concentration κ; inverse of the above."""
+    return 2.0 * np.arccos(0.5 ** (1.0 / (2.0 * kappa)))
+
+
+def _closed_form_kernel(kappa: float, omega: np.ndarray) -> np.ndarray:
+    """K(ω) = C · cos^(2κ)(ω/2), evaluated from the definition."""
+    norm_constant = betafn(1.5, 0.5) / betafn(1.5, kappa + 0.5)
+    return norm_constant * np.cos(np.asarray(omega) / 2.0) ** (2.0 * kappa)
 
 
 def _rotation_about_z(angle: float) -> np.ndarray:
@@ -43,37 +59,48 @@ def _rotation_about_z(angle: float) -> np.ndarray:
 class TestDeLaValleePoussinKernel(unittest.TestCase):
     """Test DeLaValleePoussinKernel."""
 
-    def test_kernel_matches_mtex_ground_truth_values(self):
-        """Test kernel evaluation against ground truth generated values."""
-        halfwidth = 2.0 * np.arccos(
-            0.5 ** (1.0 / (2.0 * MTEX_KERNEL_KAPPA))
+    def test_kernel_matches_closed_form(self):
+        """eval reproduces K(ω) = C · cos^(2κ)(ω/2) across a range of ω.
+
+        The kernel is built from the half-width that corresponds to
+        κ = 90, which also checks that the half-width → κ conversion
+        inverts _closed_form_halfwidth exactly.
+        """
+        kernel = DeLaValleePoussinKernel(
+            halfwidth=_closed_form_halfwidth(REFERENCE_KAPPA)
         )
-        kernel = DeLaValleePoussinKernel(halfwidth=halfwidth)
 
         identity = np.eye(3)
         rotation_matrices = np.array([
             _rotation_about_z(angle)
-            for angle in MTEX_KERNEL_OMEGA
+            for angle in MISORIENTATION_ANGLES
         ])
 
         values = kernel.eval(identity, rotation_matrices)
 
         np.testing.assert_allclose(
-            kernel.kappa, MTEX_KERNEL_KAPPA, rtol=0.0, atol=1e-10
+            kernel.kappa, REFERENCE_KAPPA, rtol=0.0, atol=1e-10
         )
         np.testing.assert_allclose(
-            values, MTEX_KERNEL_VALUES, rtol=1e-8, atol=1e-10
+            values,
+            _closed_form_kernel(REFERENCE_KAPPA, MISORIENTATION_ANGLES),
+            rtol=1e-8,
+            atol=1e-10,
         )
 
-    def test_halfwidth_conversion_matches_mtex_ground_truth(self):
-        """Test half-width to kappa conversion against ground truth values."""
-        kernel = DeLaValleePoussinKernel(halfwidth=MTEX_HALFWIDTH_RAD)
+    def test_halfwidth_conversion_matches_closed_form(self):
+        """Half-width → κ follows κ = ln(1/2) / (2·ln(cos(halfwidth/2)))."""
+        halfwidth = np.radians(10.0)
+        kernel = DeLaValleePoussinKernel(halfwidth=halfwidth)
 
         np.testing.assert_allclose(
-            kernel.kappa, MTEX_HALFWIDTH_KAPPA, rtol=1e-10, atol=1e-10
+            kernel.kappa,
+            _closed_form_kappa(halfwidth),
+            rtol=1e-10,
+            atol=1e-10,
         )
         np.testing.assert_allclose(
-            kernel.halfwidth, MTEX_HALFWIDTH_RAD, rtol=0.0, atol=1e-10
+            kernel.halfwidth, halfwidth, rtol=0.0, atol=1e-10
         )
 
     def test_kappa_from_halfwidth(self):
