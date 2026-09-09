@@ -23,9 +23,8 @@ from hexrd.core import matrixutil as mutil
 
 if TYPE_CHECKING:
     from hexrd.hed.xrdutil.phutil import (
-        JHEPinholeDistortion,
         LayerDistortion,
-        RyggPinholeDistortion,
+        PinholeDistortion,
     )
 # TODO: Resolve extra-core-dependency
 from hexrd.hedm import xrdutil
@@ -1231,7 +1230,7 @@ class Detector:
         tvec_c: NDArray[np.float64] = ct.zeros_3,
         full_output: Literal[False] = False,  # TODO: Remove this option completely
         tth_distortion: Optional[
-            RyggPinholeDistortion | JHEPinholeDistortion | LayerDistortion
+            PinholeDistortion | LayerDistortion
         ] = None,
     ) -> tuple[
         list[NDArray[np.float64]], list[NDArray[np.float64]], NDArray[np.float64]
@@ -1251,7 +1250,7 @@ class Detector:
         tvec_c: NDArray[np.float64] = ct.zeros_3,
         full_output: Literal[True] = True,  # TODO: Remove this option completely
         tth_distortion: Optional[
-            RyggPinholeDistortion | JHEPinholeDistortion | LayerDistortion
+            PinholeDistortion | LayerDistortion
         ] = None,
     ) -> tuple[
         list[NDArray[np.float64]],
@@ -1276,7 +1275,7 @@ class Detector:
         tvec_c: NDArray[np.float64] = ct.zeros_3,
         full_output: bool = False,  # TODO: Remove this option completely
         tth_distortion: Optional[
-            RyggPinholeDistortion | JHEPinholeDistortion | LayerDistortion
+            PinholeDistortion | LayerDistortion
         ] = None,
     ) -> (
         tuple[
