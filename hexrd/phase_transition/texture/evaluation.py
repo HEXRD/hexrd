@@ -155,7 +155,7 @@ def texture_index(odf, n_orientations=100000, seed=None):
 
 def texture_norm(odf, n_orientations=100000, seed=None):
     """
-    Monte Carlo estimate of the L2 norm of an ODF (MTEX ``norm``).
+    Monte Carlo estimate of the L2 norm of an ODF.
 
     The L2 norm is the square root of the texture index:
 
