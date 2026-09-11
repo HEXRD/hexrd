@@ -1,13 +1,13 @@
 # standard imports
 # ---------
-from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor
 import copy
-from functools import partial
 import logging
-from os import path
 import time
 import warnings
+from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+from os import path
 
 # 3rd party imports
 # -----------------
@@ -24,28 +24,28 @@ from hexrd.core.imageutil import snip1d_quad
 from hexrd.core.material import Material
 from hexrd.core.transforms.xfcapi import angles_to_gvec
 from hexrd.core.valunits import _nm, valWUnit
-from hexrd.powder.wppf.peakfunctions import (
-    calc_rwp,
-    computespectrum_pvfcj,
-    computespectrum_pvtch,
-    computespectrum_pvpink,
-    computespectrum_pvheating,
-    computespectrum_pvexponential,
-    calc_Iobs_pvfcj,
-    calc_Iobs_pvtch,
-    calc_Iobs_pvpink,
-    calc_Iobs_pvheating,
-    calc_Iobs_pvexponential,
-)
 from hexrd.powder.wppf import wppfsupport
-from hexrd.powder.wppf.spectrum import Spectrum
-from hexrd.powder.wppf.tds import TDS
+from hexrd.powder.wppf.peakfunctions import (
+    calc_Iobs_pvexponential,
+    calc_Iobs_pvfcj,
+    calc_Iobs_pvheating,
+    calc_Iobs_pvpink,
+    calc_Iobs_pvtch,
+    calc_rwp,
+    computespectrum_pvexponential,
+    computespectrum_pvfcj,
+    computespectrum_pvheating,
+    computespectrum_pvpink,
+    computespectrum_pvtch,
+)
 from hexrd.powder.wppf.phase import (
-    Phases_LeBail,
-    Phases_Rietveld,
     Material_LeBail,
     Material_Rietveld,
+    Phases_LeBail,
+    Phases_Rietveld,
 )
+from hexrd.powder.wppf.spectrum import Spectrum
+from hexrd.powder.wppf.tds import TDS
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +139,7 @@ class AbstractWPPF(ABC):
     @bkgmethod.setter
     def bkgmethod(self, v):
         self._bkgmethod = v
-        if "chebyshev" in v and hasattr(self, 'bkg_coef'):
+        if "chebyshev" in v and hasattr(self, "bkg_coef"):
             degree = v["chebyshev"]
             # In case the degree has changed, slice off any extra at the end,
             # and in case it is less, pad with zeros.
@@ -202,7 +202,7 @@ class AbstractWPPF(ABC):
 
         params = self.params
         for i in range(len(self.bkg_coef)):
-            name = f'bkg_{i}'
+            name = f"bkg_{i}"
             if name in params:
                 params[name].value = self.bkg_coef[i]
 
@@ -264,7 +264,7 @@ class AbstractWPPF(ABC):
             self.sf_lfactor[p] = {}
             for k, l in self.phases.wavelength.items():
                 phase = self._get_phase(p, k)
-                t = phase.getTTh(l[0].getVal('nm'))
+                t = phase.getTTh(l[0].getVal("nm"))
                 sf_f, lfact_sf = phase.get_sf_hkl_factors()
                 allowed = phase.wavelength_allowed_hkls
                 t = t[allowed]
@@ -620,14 +620,14 @@ class AbstractWPPF(ABC):
         center = {}
         fwhm = {}
         for key in self.amorphous_model.scale:
-            nn = f'{key}_amorphous_scale'
+            nn = f"{key}_amorphous_scale"
             if nn in params:
                 scale[key] = params[nn].value
             else:
                 scale[key] = self.amorphous_model.scale[key]
 
             if self.amorphous_model.model_type == "experimental":
-                nn = f'{key}_amorphous_shift'
+                nn = f"{key}_amorphous_shift"
                 if nn in params:
                     shift[key] = params[nn].value
                 else:
@@ -637,20 +637,20 @@ class AbstractWPPF(ABC):
                 "split_gaussian",
                 "split_pv",
             ):
-                nn = f'{key}_amorphous_center'
+                nn = f"{key}_amorphous_center"
                 if nn in params:
                     center[key] = params[nn].value
                 else:
                     center[key] = self.amorphous_model.center[key]
 
             if self.amorphous_model.model_type == "split_gaussian":
-                nnl = f'{key}_amorphous_fwhm_l'
+                nnl = f"{key}_amorphous_fwhm_l"
                 if nnl in params:
                     fwhm_l = params[nnl].value
                 else:
                     fwhm_l = self.amorphous_model.fwhm[key][0]
 
-                nnr = f'{key}_amorphous_fwhm_r'
+                nnr = f"{key}_amorphous_fwhm_r"
                 if nnr in params:
                     fwhm_r = params[nnr].value
                 else:
@@ -658,25 +658,25 @@ class AbstractWPPF(ABC):
 
                 fwhm[key] = np.array([fwhm_l, fwhm_r])
             elif self.amorphous_model.model_type == "split_pv":
-                nnl = f'{key}_amorphous_fwhm_g_l'
+                nnl = f"{key}_amorphous_fwhm_g_l"
                 if nnl in params:
                     fwhm_g_l = params[nnl].value
                 else:
                     fwhm_g_l = self.amorphous_model.fwhm[key][0]
 
-                nnl = f'{key}_amorphous_fwhm_l_l'
+                nnl = f"{key}_amorphous_fwhm_l_l"
                 if nnl in params:
                     fwhm_l_l = params[nnl].value
                 else:
                     fwhm_l_l = self.amorphous_model.fwhm[key][1]
 
-                nnr = f'{key}_amorphous_fwhm_g_r'
+                nnr = f"{key}_amorphous_fwhm_g_r"
                 if nnr in params:
                     fwhm_g_r = params[nnr].value
                 else:
                     fwhm_g_r = self.amorphous_model.fwhm[key][2]
 
-                nnr = f'{key}_amorphous_fwhm_l_r'
+                nnr = f"{key}_amorphous_fwhm_l_r"
                 if nnr in params:
                     fwhm_l_r = params[nnr].value
                 else:
@@ -901,9 +901,9 @@ class AbstractWPPF(ABC):
         tth, intensity = self.spectrum_sim.data
         _, background = self.background.data
         total_intensity = intensity - background
-        '''put some guard rails around the total intensity
+        """put some guard rails around the total intensity
         to protect against nans in the values
-        '''
+        """
         mask = np.isnan(total_intensity)
         sum_area = np.trapezoid(total_intensity[~mask], tth[~mask])
         return sum_area
@@ -1735,7 +1735,7 @@ class Rietveld(AbstractWPPF):
                         Un = []
                         for j in range(6):
                             Un.append(
-                                (f"{p}_{elem}{atom_label[i]}_{wppfsupport._nameU[j]}")
+                                f"{p}_{elem}{atom_label[i]}_{wppfsupport._nameU[j]}"
                             )
                     else:
                         dw = f"{p}_{elem}{atom_label[i]}_dw"
@@ -1800,7 +1800,7 @@ class Rietveld(AbstractWPPF):
             # Nothing to do
             return
 
-        if any(not hasattr(self, x) for x in ['U', 'V', 'W']):
+        if any(not hasattr(self, x) for x in ["U", "V", "W"]):
             # They haven't been set yet. That's okay, we'll update when
             # they are modified.
             return
@@ -1826,9 +1826,21 @@ class Rietveld(AbstractWPPF):
                 w = l[0].getVal("nm")
                 w_int = l[1]
                 tth = self.tth[p][k]
-                # allowed = self.phases[p][k].wavelength_allowed_hkls
-                # limit = self.limit[p][k]
+
                 self.sf[p][k], self.sf_raw[p][k] = self.phases[p][k].CalcXRSF(w, w_int)
+
+                """the tth supplied here was filtered down to the observale set.
+                but the structure factors are not filtered leading to incorrect
+                indices for the hkl and corresponding structure factor. filter the
+                structure factor so the sizes are consistent and there is no 
+                misindexing
+                """
+                allowed = self.phases[p][k].wavelength_allowed_hkls
+                limit = self.limit[p][k]
+                self.sf[p][k] = self.sf[p][k][allowed]
+                self.sf[p][k] = self.sf[p][k][limit]
+                self.sf_raw[p][k] = self.sf_raw[p][k][allowed]
+                self.sf_raw[p][k] = self.sf_raw[p][k][limit]
 
                 self.extinction[p][k] = self.phases[p][k].calc_extinction(
                     10.0 * w,
@@ -1855,11 +1867,11 @@ class Rietveld(AbstractWPPF):
                 )
 
     def compute_intensities(self):
-        '''this function computes the intensities of the
+        """this function computes the intensities of the
         xray diffraction excluding any texture. this function
         will replace part of the code in the computespectrum
         function
-        '''
+        """
         Ic = {}
         for iph, p in enumerate(self.phases):
             Ic[p] = {}
@@ -1883,7 +1895,7 @@ class Rietveld(AbstractWPPF):
         return Ic
 
     def compute_tth_after_shifts(self, p, k):
-        '''another helper function to be used by both
+        """another helper function to be used by both
         Rietveld.computspectrum and Rietveld.computespectrum_2d
 
         Parameters
@@ -1893,7 +1905,7 @@ class Rietveld(AbstractWPPF):
             name of the phase
         k: str
             wavelength key
-        '''
+        """
         name = self.phases[p][k].name
         lam = self.phases.wavelength[k][0].getVal("nm")
         shft_c = np.cos(0.5 * np.radians(self.tth[p][k])) * self.shft
@@ -1919,7 +1931,7 @@ class Rietveld(AbstractWPPF):
         return tth, Xs
 
     def computespectrum_phase(self, p, k, Ic, texture_factor=None, fullrange=False):
-        '''this is a helper function so which is use by both the
+        """this is a helper function so which is use by both the
         Rietveld.computspectrum and Rietveld.computespectrum_2d
         function to avoid code repetition.
 
@@ -1932,7 +1944,7 @@ class Rietveld(AbstractWPPF):
             wavelength key
         texture_factor: numpy.ndarray
             azimuthally averaged texture factor
-        '''
+        """
         tth_list = np.ascontiguousarray(self.tth_list)
         if fullrange:
             tth_list = np.ascontiguousarray(self.tthfull)
@@ -2083,7 +2095,7 @@ class Rietveld(AbstractWPPF):
         return errvec
 
     def computespectrum_2D(self):
-        '''this function computes the 2D pattern for the
+        """this function computes the 2D pattern for the
         Rietevld model. if there is no texture, the pattern
         is  uniform in the azimuthal direction. if there is
         a texture model present, then the azimuthal intensities
@@ -2104,7 +2116,7 @@ class Rietveld(AbstractWPPF):
         --------
         simulated_2d: np.ndarray
             simulated 2D diffraction pattern
-        '''
+        """
         x = self.tthfull
         y = np.zeros(x.shape)
 
@@ -2138,7 +2150,7 @@ class Rietveld(AbstractWPPF):
             return
 
         else:
-            '''get pole figure intensities around the azimuth'''
+            """get pole figure intensities around the azimuth"""
             simulated_2d = np.empty([nspec, x.shape[0]])
             azimuth_texture_factor = {}
             for iph, p in enumerate(self.phases):
@@ -2148,7 +2160,7 @@ class Rietveld(AbstractWPPF):
                         eta_min=self.eta_min,
                         eta_max=self.eta_max,
                         eta_step=self.eta_step,
-                        calc_type='spectrum_2d',
+                        calc_type="spectrum_2d",
                     )
                     azimuth_texture_factor[p] = self.texture_model[
                         p
@@ -2266,11 +2278,11 @@ class Rietveld(AbstractWPPF):
         )
 
     def texture_parameters_vary(self, vary=False):
-        '''helper function to turn texture related
+        """helper function to turn texture related
         parameters on or off
-        '''
+        """
         for phase_name in self.phases:
-            prefix = f'{phase_name}_c_'
+            prefix = f"{phase_name}_c_"
             for p in self.params:
                 if p.startswith(prefix):
                     self.params[p].vary = vary
@@ -2278,7 +2290,7 @@ class Rietveld(AbstractWPPF):
     @property
     def any_texture_params_varied(self):
         for phase_name in self.phases:
-            prefix = f'{phase_name}_c_'
+            prefix = f"{phase_name}_c_"
             for param in self.params.values():
                 if param.name.startswith(prefix) and param.vary:
                     return True
@@ -2382,7 +2394,7 @@ class Rietveld(AbstractWPPF):
                         * constants.cPlanck
                         * constants.cLight
                         / constants.cCharge
-                        / v[0].getVal('nm')
+                        / v[0].getVal("nm")
                     )
                     mat.beamEnergy = valWUnit("kev", "ENERGY", E, "keV")
                     p[mat.name][k] = Material_Rietveld(
@@ -2413,19 +2425,19 @@ class Rietveld(AbstractWPPF):
 
     @texture_model.setter
     def texture_model(self, valdict):
-        '''only dictionary key value pairs are acceptable.
+        """only dictionary key value pairs are acceptable.
         key should match name of the phase. if a certain
         phase is not present, texture model for that phase
         is set to None
-        '''
+        """
         if valdict is None:
             valdict = {}
 
         if not isinstance(valdict, dict):
             msg = (
-                'only dictionary input allowed '
-                'where key are name of phase and '
-                'value is the harmonic_model instance'
+                "only dictionary input allowed "
+                "where key are name of phase and "
+                "value is the harmonic_model instance"
             )
             raise ValueError(msg)
 
@@ -2475,7 +2487,7 @@ class Rietveld(AbstractWPPF):
     @mask_2d.setter
     def mask_2d(self, val):
         if not isinstance(val, np.ndarray):
-            msg = f'mask is not a numpy array'
+            msg = "mask is not a numpy array"
             raise ValueError(msg)
 
         self._mask_2d = val
@@ -2547,7 +2559,7 @@ class Rietveld(AbstractWPPF):
         # Ensure these are marked as `Vary`
         # params['U'].vary = True
         # params['V'].vary = True
-        params['W'].vary = True
+        params["W"].vary = True
 
         # Allow lattice constants and peak shapes to vary as well
         for mat in mats:
@@ -2565,21 +2577,19 @@ class Rietveld(AbstractWPPF):
         self.mask_2d = mask.copy()
 
         results = extract_intensities(
-            **{
-                'polar_view': np.ma.masked_array(pv_binned, mask=mask),
-                'tth_array': self.tthfull,
-                'params': params,
-                'phases': mats,
-                'wavelength': self.wavelength,
-                'bkgmethod': bkg_method,
-                'intensity_init': ints_computed,
-                'termination_condition': {
-                    "rwp_perct_change": 0.01,
-                    "max_iter": 20,
-                },
-                'peakshape': "pvtch",
-                'amorphous_model': self.amorphous_model,
-            }
+            polar_view=np.ma.masked_array(pv_binned, mask=mask),
+            tth_array=self.tthfull,
+            params=params,
+            phases=mats,
+            wavelength=self.wavelength,
+            bkgmethod=bkg_method,
+            intensity_init=ints_computed,
+            termination_condition={
+                "rwp_perct_change": 0.01,
+                "max_iter": 20,
+            },
+            peakshape="pvtch",
+            amorphous_model=self.amorphous_model,
         )
 
         # we have to divide by the computed instensites
@@ -2589,7 +2599,7 @@ class Rietveld(AbstractWPPF):
                 continue
 
             # Sanitize the name
-            mat_key = mat_key.replace('-', '_')
+            mat_key = mat_key.replace("-", "_")
 
             pfdata = {}
             for ii, nnz in enumerate(results[3]):
@@ -2817,7 +2827,7 @@ def single_azimuthal_extraction(
     # when change in Rwp < 0.05% or reached maximum iteration
     while rel_error > del_rwp and niter < max_iter:
         L.RefineCycle(print_to_screen=False)
-        rel_error = 100.0 * np.abs((L.Rwp - init_error))
+        rel_error = 100.0 * np.abs(L.Rwp - init_error)
         init_error = L.Rwp
         niter += 1
 
