@@ -159,6 +159,46 @@ class UniformODF(ODFArithmetic):
 
         return _texture_norm(self, n_orientations=n_orientations, seed=seed)
 
+    def pole_density(
+        self,
+        crystal_direction: np.ndarray,
+        specimen_directions: np.ndarray,
+        antipodal: bool = True,
+    ) -> Union[float, np.ndarray]:
+        """
+        Pole density of a uniform ODF: 1 MRD in every direction.
+
+        Projecting an isotropic orientation distribution onto the sphere
+        leaves it isotropic, so the pole figure is flat regardless of the
+        crystal direction.
+
+        Parameters
+        ----------
+        crystal_direction : array_like
+            Cartesian crystal direction, shape (3,). Unused; accepted for
+            API parity with the other ODFs.
+        specimen_directions : array_like
+            Cartesian specimen directions, shape (..., 3).
+        antipodal : bool, optional
+            Unused; accepted for API parity.
+
+        Returns
+        -------
+        float or numpy.ndarray
+            Pole density, all 1.0 MRD.
+        """
+        specimen_directions = np.asarray(specimen_directions)
+        if specimen_directions.shape[-1] != 3:
+            raise ValueError(
+                f"Specimen directions must have shape (..., 3), "
+                f"got {specimen_directions.shape}"
+            )
+
+        output_shape = specimen_directions.shape[:-1]
+        if output_shape == ():
+            return self._UNIFORM_VALUE
+        return np.full(output_shape, self._UNIFORM_VALUE)
+
     def eval(
         self, orientations: np.ndarray,
     ) -> Union[float, np.ndarray]:
