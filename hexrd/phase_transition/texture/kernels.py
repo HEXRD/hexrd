@@ -48,6 +48,18 @@ def _symmetry_quaternions(
         ) from error
 
 
+def _symmetry_operations(quats: Optional[np.ndarray]) -> np.ndarray:
+    """
+    Rotation matrices for a symmetry group, shape (n, 3, 3).
+
+    An absent group becomes the identity alone, so callers can loop over
+    the result unconditionally.
+    """
+    if quats is None:
+        quats = _IDENTITY_SYMMETRY
+    return rotations.rotMatOfQuat(quats).reshape(-1, 3, 3)
+
+
 def _is_trivial_symmetry(quats: Optional[np.ndarray]) -> bool:
     """
     Return True if a symmetry group performs no reduction.
@@ -72,6 +84,27 @@ class SO3Kernel(ABC):
     the eval() method for kernel evaluation.
     """
 
+    @property
+    def crystal_symmetry_operations(self) -> np.ndarray:
+        """
+        numpy.ndarray: Crystal symmetry rotations, shape (n, 3, 3).
+
+        Defaults to the identity alone, i.e. no symmetry. Subclasses that
+        support symmetry override this. Callers can therefore always loop
+        over it without a special case.
+        """
+        return _symmetry_operations(None)
+
+    @property
+    def sample_symmetry_operations(self) -> np.ndarray:
+        """
+        numpy.ndarray: Sample symmetry rotations, shape (n, 3, 3).
+
+        Defaults to the identity alone; see
+        ``crystal_symmetry_operations``.
+        """
+        return _symmetry_operations(None)
+
     @abstractmethod
     def eval(
         self, R1: np.ndarray, R2: np.ndarray
@@ -90,6 +123,38 @@ class SO3Kernel(ABC):
             Kernel values
         """
         pass
+
+    def radon(self, cosine: np.ndarray) -> np.ndarray:
+        """
+        Radon transform of the kernel, as a function on the sphere.
+
+        The Radon (pole density) transform of a radially symmetric SO(3)
+        kernel is itself radially symmetric on S^2: it depends only on the
+        cosine of the angle between the rotated crystal direction and the
+        specimen direction. It is the building block of a pole figure, so
+        any kernel that wants to support pole figure calculation must
+        provide it.
+
+        Parameters
+        ----------
+        cosine : array_like
+            Cosine of the angle between two directions, in [-1, 1].
+
+        Returns
+        -------
+        numpy.ndarray
+            Radon transformed kernel values, normalized so the mean over
+            the sphere is 1 (MRD).
+
+        Raises
+        ------
+        NotImplementedError
+            If this kernel has no closed-form Radon transform.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not provide a Radon transform, so "
+            f"it cannot be used for pole figure calculations"
+        )
 
 
 class DeLaValleePoussinKernel(SO3Kernel):
@@ -268,6 +333,58 @@ class DeLaValleePoussinKernel(SO3Kernel):
         """float: Normalization constant from Beta function."""
         return self._C
 
+    @property
+    def crystal_symmetry_operations(self) -> np.ndarray:
+        """
+        numpy.ndarray: Crystal symmetry rotations, shape (n, 3, 3).
+
+        A single identity matrix when no crystal symmetry was supplied, so
+        callers can always loop over this without a special case.
+        """
+        return _symmetry_operations(self._crystal_symmetry_quats)
+
+    @property
+    def sample_symmetry_operations(self) -> np.ndarray:
+        """
+        numpy.ndarray: Sample symmetry rotations, shape (n, 3, 3).
+
+        A single identity matrix when no sample symmetry was supplied.
+        """
+        return _symmetry_operations(self._sample_symmetry_quats)
+
+    def radon(self, cosine: np.ndarray) -> np.ndarray:
+        """
+        Radon transform of the kernel: the de la Vallee Poussin kernel on S^2.
+
+        The Radon transform of the SO(3) de la Vallee Poussin kernel with
+        shape parameter kappa is the spherical de la Vallee Poussin kernel
+        with the same parameter,
+
+            RK(t) = (1 + kappa) * ((1 + t) / 2)^kappa,
+
+        where t is the cosine of the angle between a rotated crystal
+        direction and a specimen direction. It integrates to 1 over the
+        sphere (in MRD), so a pole figure built from it is normalized the
+        same way the ODF is.
+
+        Parameters
+        ----------
+        cosine : array_like
+            Cosine of the angle between two directions, in [-1, 1].
+
+        Returns
+        -------
+        numpy.ndarray
+            Radon transformed kernel values.
+
+        Examples
+        --------
+        >>> kernel = DeLaValleePoussinKernel(halfwidth=np.radians(10))
+        >>> kernel.radon(1.0)  # peak, at zero angle
+        """
+        cosine = np.clip(np.asarray(cosine, dtype=float), -1.0, 1.0)
+        return (1.0 + self._kappa) * ((1.0 + cosine) / 2.0) ** self._kappa
+
     def misorientation_angle(
         self, R1: np.ndarray, R2: np.ndarray
     ) -> _AngleResult:
@@ -429,12 +546,8 @@ class DeLaValleePoussinKernel(SO3Kernel):
                 "orientation against a batch."
             )
 
-        crystal = self._crystal_symmetry_quats
-        sample = self._sample_symmetry_quats
-        crystal = _IDENTITY_SYMMETRY if crystal is None else crystal
-        sample = _IDENTITY_SYMMETRY if sample is None else sample
-        crystal_ops = rotations.rotMatOfQuat(crystal).reshape(-1, 3, 3)
-        sample_ops = rotations.rotMatOfQuat(sample).reshape(-1, 3, 3)
+        crystal_ops = self.crystal_symmetry_operations
+        sample_ops = self.sample_symmetry_operations
 
         batch_T = np.swapaxes(batch, -2, -1)
         total = np.zeros(batch.shape[:-2])
