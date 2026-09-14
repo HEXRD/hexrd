@@ -38,50 +38,79 @@ EULER_CONVENTION_TYPES = dict | tuple | None
 
 
 def create_instr_params(
-    instr, euler_convention=DEFAULT_EULER_CONVENTION, relative_constraints=None
-):
+    instr: HEDMInstrument,
+    euler_convention: EULER_CONVENTION_TYPES = DEFAULT_EULER_CONVENTION,
+    relative_constraints: Optional[RelativeConstraints] = None,
+    include_geometry: bool = True,
+    stage_prefix: str = '',
+) -> list[tuple]:
     # add with tuples: (NAME VALUE VARY MIN  MAX  EXPR  BRUTE_STEP)
+    #
+    # `include_geometry` controls whether the shared geometry parameters (the
+    # beam and the detector tilts/translations/distortion) are emitted. When
+    # several instruments are calibrated together with a shared geometry, these
+    # are created only once (for the first instrument) and every other
+    # instrument references them by name.
+    #
+    # `stage_prefix` is prepended to the oscillation-stage parameters
+    # (`instr_chi` and `instr_tvec_*`). These are kept independent per
+    # instrument so each dataset may have its own rotation axis and sample
+    # offset while still sharing the detector geometry.
     parms_list = []
 
-    # This supports either single beam or multi-beam
-    beam_param_names = create_beam_param_names(instr)
-    for beam_name, beam in instr.beam_dict.items():
-        azim, pol = calc_angles_from_beam_vec(beam['vector'])
-        energy = beam['energy']
+    if include_geometry:
+        # This supports either single beam or multi-beam
+        beam_param_names = create_beam_param_names(instr)
+        for beam_name, beam in instr.beam_dict.items():
+            azim, pol = calc_angles_from_beam_vec(beam['vector'])
+            energy = beam['energy']
 
-        names = beam_param_names[beam_name]
-        parms_list.append((names['beam_polar'], pol, False, pol - 1, pol + 1))
-        parms_list.append((names['beam_azimuth'], azim, False, azim - 1, azim + 1))
-        parms_list.append(
-            (names['beam_energy'], energy, False, energy - 0.2, energy + 0.2)
-        )
-        if beam.get('energy_correction') is not None:
-            base_name = names['beam_energy_correction']
-            intercept = beam['energy_correction']['intercept']
-            slope = beam['energy_correction']['slope']
+            names = beam_param_names[beam_name]
+            parms_list.append((names['beam_polar'], pol, False, pol - 1, pol + 1))
             parms_list.append(
-                (
-                    f'{base_name}_intercept',
-                    intercept,
-                    False,
-                    -np.inf,
-                    np.inf,
-                )
+                (names['beam_azimuth'], azim, False, azim - 1, azim + 1)
             )
-            parms_list.append((f'{base_name}_slope', slope, False, -np.inf, np.inf))
+            parms_list.append(
+                (names['beam_energy'], energy, False, energy - 0.2, energy + 0.2)
+            )
+            if beam.get('energy_correction') is not None:
+                base_name = names['beam_energy_correction']
+                intercept = beam['energy_correction']['intercept']
+                slope = beam['energy_correction']['slope']
+                parms_list.append(
+                    (
+                        f'{base_name}_intercept',
+                        intercept,
+                        False,
+                        -np.inf,
+                        np.inf,
+                    )
+                )
+                parms_list.append(
+                    (f'{base_name}_slope', slope, False, -np.inf, np.inf)
+                )
 
     parms_list.append(
         (
-            'instr_chi',
+            f'{stage_prefix}instr_chi',
             np.degrees(instr.chi),
             False,
             np.degrees(instr.chi) - 1,
             np.degrees(instr.chi) + 1,
         )
     )
-    parms_list.append(('instr_tvec_x', instr.tvec[0], False, -np.inf, np.inf))
-    parms_list.append(('instr_tvec_y', instr.tvec[1], False, -np.inf, np.inf))
-    parms_list.append(('instr_tvec_z', instr.tvec[2], False, -np.inf, np.inf))
+    parms_list.append(
+        (f'{stage_prefix}instr_tvec_x', instr.tvec[0], False, -np.inf, np.inf)
+    )
+    parms_list.append(
+        (f'{stage_prefix}instr_tvec_y', instr.tvec[1], False, -np.inf, np.inf)
+    )
+    parms_list.append(
+        (f'{stage_prefix}instr_tvec_z', instr.tvec[2], False, -np.inf, np.inf)
+    )
+
+    if not include_geometry:
+        return parms_list
 
     if (
         relative_constraints is None
@@ -283,11 +312,12 @@ def fix_detector_y(
 
 
 def update_instrument_from_params(
-    instr,
+    instr: HEDMInstrument,
     params: lmfit.Parameters,
-    euler_convention=DEFAULT_EULER_CONVENTION,
+    euler_convention: EULER_CONVENTION_TYPES = DEFAULT_EULER_CONVENTION,
     relative_constraints: Optional[RelativeConstraints] = None,
-):
+    stage_prefix: str = '',
+) -> None:
     """
     this function updates the instrument from the
     lmfit parameter list. we don't have to keep track
@@ -295,6 +325,10 @@ def update_instrument_from_params(
     variables. this will become the standard in the
     future since bound constraints can be very easily
     implemented.
+
+    `stage_prefix` must match the prefix used when the oscillation-stage
+    parameters (`instr_chi` and `instr_tvec_*`) were created. The beam and
+    detector geometry are always read from their unprefixed (shared) names.
     """
     if not isinstance(params, lmfit.Parameters):
         msg = 'Only lmfit.Parameters is acceptable input. ' f'Received: {params}'
@@ -322,13 +356,13 @@ def update_instrument_from_params(
     # Trigger any needed updates from beam modifications
     instr.beam_dict_modified()
 
-    chi = np.radians(params['instr_chi'].value)
+    chi = np.radians(params[f'{stage_prefix}instr_chi'].value)
     instr.chi = chi
 
     instr_tvec = [
-        params['instr_tvec_x'].value,
-        params['instr_tvec_y'].value,
-        params['instr_tvec_z'].value,
+        params[f'{stage_prefix}instr_tvec_x'].value,
+        params[f'{stage_prefix}instr_tvec_y'].value,
+        params[f'{stage_prefix}instr_tvec_z'].value,
     ]
     instr.tvec = np.r_[instr_tvec]
 
