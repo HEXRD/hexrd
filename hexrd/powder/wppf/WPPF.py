@@ -1,13 +1,13 @@
 # standard imports
 # ---------
-from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor
 import copy
-from functools import partial
 import logging
-from os import path
 import time
 import warnings
+from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
+from os import path
 
 # 3rd party imports
 # -----------------
@@ -24,28 +24,28 @@ from hexrd.core.imageutil import snip1d_quad
 from hexrd.core.material import Material
 from hexrd.core.transforms.xfcapi import angles_to_gvec
 from hexrd.core.valunits import _nm, valWUnit
-from hexrd.powder.wppf.peakfunctions import (
-    calc_rwp,
-    computespectrum_pvfcj,
-    computespectrum_pvtch,
-    computespectrum_pvpink,
-    computespectrum_pvheating,
-    computespectrum_pvexponential,
-    calc_Iobs_pvfcj,
-    calc_Iobs_pvtch,
-    calc_Iobs_pvpink,
-    calc_Iobs_pvheating,
-    calc_Iobs_pvexponential,
-)
 from hexrd.powder.wppf import wppfsupport
-from hexrd.powder.wppf.spectrum import Spectrum
-from hexrd.powder.wppf.tds import TDS
+from hexrd.powder.wppf.peakfunctions import (
+    calc_Iobs_pvexponential,
+    calc_Iobs_pvfcj,
+    calc_Iobs_pvheating,
+    calc_Iobs_pvpink,
+    calc_Iobs_pvtch,
+    calc_rwp,
+    computespectrum_pvexponential,
+    computespectrum_pvfcj,
+    computespectrum_pvheating,
+    computespectrum_pvpink,
+    computespectrum_pvtch,
+)
 from hexrd.powder.wppf.phase import (
-    Phases_LeBail,
-    Phases_Rietveld,
     Material_LeBail,
     Material_Rietveld,
+    Phases_LeBail,
+    Phases_Rietveld,
 )
+from hexrd.powder.wppf.spectrum import Spectrum
+from hexrd.powder.wppf.tds import TDS
 
 logger = logging.getLogger(__name__)
 
@@ -1735,7 +1735,7 @@ class Rietveld(AbstractWPPF):
                         Un = []
                         for j in range(6):
                             Un.append(
-                                (f"{p}_{elem}{atom_label[i]}_{wppfsupport._nameU[j]}")
+                                f"{p}_{elem}{atom_label[i]}_{wppfsupport._nameU[j]}"
                             )
                     else:
                         dw = f"{p}_{elem}{atom_label[i]}_dw"
@@ -1826,9 +1826,21 @@ class Rietveld(AbstractWPPF):
                 w = l[0].getVal("nm")
                 w_int = l[1]
                 tth = self.tth[p][k]
-                # allowed = self.phases[p][k].wavelength_allowed_hkls
-                # limit = self.limit[p][k]
+
                 self.sf[p][k], self.sf_raw[p][k] = self.phases[p][k].CalcXRSF(w, w_int)
+
+                """the tth supplied here was filtered down to the observale set.
+                but the structure factors are not filtered leading to incorrect
+                indices for the hkl and corresponding structure factor. filter the
+                structure factor so the sizes are consistent and there is no 
+                misindexing
+                """
+                allowed = self.phases[p][k].wavelength_allowed_hkls
+                limit = self.limit[p][k]
+                self.sf[p][k] = self.sf[p][k][allowed]
+                self.sf[p][k] = self.sf[p][k][limit]
+                self.sf_raw[p][k] = self.sf_raw[p][k][allowed]
+                self.sf_raw[p][k] = self.sf_raw[p][k][limit]
 
                 self.extinction[p][k] = self.phases[p][k].calc_extinction(
                     10.0 * w,
@@ -2475,7 +2487,7 @@ class Rietveld(AbstractWPPF):
     @mask_2d.setter
     def mask_2d(self, val):
         if not isinstance(val, np.ndarray):
-            msg = f'mask is not a numpy array'
+            msg = 'mask is not a numpy array'
             raise ValueError(msg)
 
         self._mask_2d = val
@@ -2565,21 +2577,19 @@ class Rietveld(AbstractWPPF):
         self.mask_2d = mask.copy()
 
         results = extract_intensities(
-            **{
-                'polar_view': np.ma.masked_array(pv_binned, mask=mask),
-                'tth_array': self.tthfull,
-                'params': params,
-                'phases': mats,
-                'wavelength': self.wavelength,
-                'bkgmethod': bkg_method,
-                'intensity_init': ints_computed,
-                'termination_condition': {
-                    "rwp_perct_change": 0.01,
-                    "max_iter": 20,
-                },
-                'peakshape': "pvtch",
-                'amorphous_model': self.amorphous_model,
-            }
+            polar_view=np.ma.masked_array(pv_binned, mask=mask),
+            tth_array=self.tthfull,
+            params=params,
+            phases=mats,
+            wavelength=self.wavelength,
+            bkgmethod=bkg_method,
+            intensity_init=ints_computed,
+            termination_condition={
+                "rwp_perct_change": 0.01,
+                "max_iter": 20,
+            },
+            peakshape="pvtch",
+            amorphous_model=self.amorphous_model,
         )
 
         # we have to divide by the computed instensites
@@ -2817,7 +2827,7 @@ def single_azimuthal_extraction(
     # when change in Rwp < 0.05% or reached maximum iteration
     while rel_error > del_rwp and niter < max_iter:
         L.RefineCycle(print_to_screen=False)
-        rel_error = 100.0 * np.abs((L.Rwp - init_error))
+        rel_error = 100.0 * np.abs(L.Rwp - init_error)
         init_error = L.Rwp
         niter += 1
 
