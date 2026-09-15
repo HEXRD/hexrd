@@ -17,6 +17,10 @@ requirements:
     - {{ compiler('cxx') }}
     - python {{ python }}                    # [build_platform != target_platform]
     - cross-python_{{ target_platform }}     # [build_platform != target_platform]
+    # crossenv 1.6.1 raises "Unknown Apple compiler triple" on every macOS
+    # host, which breaks the osx-arm64 cross build. Drop this pin once the
+    # fix (robotpy/crossenv#166) is released on conda-forge.
+    - crossenv <1.6                          # [build_platform != target_platform]
     - numpy >=2.0                            # [build_platform != target_platform]
     # Numba is only here to make sure we use a version of numpy that is compatible
     - numba                                  # [build_platform != target_platform]
