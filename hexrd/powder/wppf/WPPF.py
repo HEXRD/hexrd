@@ -1459,9 +1459,6 @@ class LeBail(AbstractWPPF):
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-        if print_to_screen:
-            logger.info(
-                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
         # When nothing was refined, Refine() already printed the metrics
         if print_to_screen and self.res is not None:
             logger.info(
