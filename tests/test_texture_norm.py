@@ -121,7 +121,7 @@ class TestSingleModeAnalytic(unittest.TestCase):
 
 
 class TestNormMethodWrappers(unittest.TestCase):
-    """ODF method wrappers mirror the free functions (MTEX-style API)."""
+    """ODF method wrappers mirror the free functions."""
 
     def test_unimodal_methods_match_free_functions(self):
         kernel = DeLaValleePoussinKernel(halfwidth=np.radians(30))
