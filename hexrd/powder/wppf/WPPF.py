@@ -1487,9 +1487,12 @@ class LeBail(AbstractWPPF):
             res = fitter.least_squares(**fdict)
             return res
         else:
-            if print_to_screen:
-                logger.info("nothing to refine. updating intensities")
             self.computespectrum()
+            if print_to_screen:
+                logger.info(
+                    f"nothing to refine. updating intensities."
+                    f" Rwp: {self.Rwp * 100:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                )
             return None
 
     @property
@@ -2254,8 +2257,11 @@ class Rietveld(AbstractWPPF):
                 f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
             )
         else:
-            logger.info("Nothing to refine.")
             self.computespectrum()
+            logger.info(
+                f"Nothing to refine."
+                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+            )
 
     def RefineTexture(self):
         final_result = None
