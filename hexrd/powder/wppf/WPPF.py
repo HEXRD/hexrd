@@ -1467,6 +1467,11 @@ class LeBail(AbstractWPPF):
         self._set_params_vals_to_class(
             self.params, init=False, skip_phases=False, force=True
         )
+
+        # update other parameters too in case user manually updated them
+        self._update_shkl(self.params)
+        self._update_bkg(self.params)
+
         if self.num_vary > 0:
             fdict = {
                 "ftol": 1e-6,
@@ -2219,6 +2224,11 @@ class Rietveld(AbstractWPPF):
         self._set_params_vals_to_class(
             self.params, init=False, skip_phases=False, force=True
         )
+
+        # update other parameters too in case user manually updated them
+        self._update_shkl(self.params)
+        self._update_bkg(self.params)
+
         if self.num_vary > 0:
             fdict = {
                 "ftol": 1e-6,
