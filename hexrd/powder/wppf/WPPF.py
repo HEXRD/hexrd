@@ -1441,6 +1441,14 @@ class LeBail(AbstractWPPF):
                      typically few  10s to 100s of cycles may be required for
                      convergence
         """
+        # apply any manual parameter edits before partitioning the
+        # intensities, since CalcIobs uses the peak shape and shkl values
+        self._set_params_vals_to_class(
+            self.params, init=False, skip_phases=False, force=True
+        )
+        self._update_shkl(self.params)
+        self._update_bkg(self.params)
+
         self.CalcIobs()
         self.Icalc = self.Iobs
 
