@@ -2271,7 +2271,7 @@ class Rietveld(AbstractWPPF):
         else:
             self.computespectrum()
             logger.info(
-                f"Nothing to refine."
+                "Nothing to refine.\n"
                 f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
             )
 
