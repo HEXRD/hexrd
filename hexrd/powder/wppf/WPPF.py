@@ -1441,6 +1441,14 @@ class LeBail(AbstractWPPF):
                      typically few  10s to 100s of cycles may be required for
                      convergence
         """
+        # apply any manual parameter edits before partitioning the
+        # intensities, since CalcIobs uses the peak shape and shkl values
+        self._set_params_vals_to_class(
+            self.params, init=False, skip_phases=False, force=True
+        )
+        self._update_shkl(self.params)
+        self._update_bkg(self.params)
+
         self.CalcIobs()
         self.Icalc = self.Iobs
 
@@ -1451,7 +1459,8 @@ class LeBail(AbstractWPPF):
         self.Rwplist = np.append(self.Rwplist, self.Rwp)
         self.gofFlist = np.append(self.gofFlist, self.gofF)
 
-        if print_to_screen:
+        # When nothing was refined, Refine() already printed the metrics
+        if print_to_screen and self.res is not None:
             logger.info(
                 f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
             )
@@ -1467,6 +1476,11 @@ class LeBail(AbstractWPPF):
         self._set_params_vals_to_class(
             self.params, init=False, skip_phases=False, force=True
         )
+
+        # update other parameters too in case user manually updated them
+        self._update_shkl(self.params)
+        self._update_bkg(self.params)
+
         if self.num_vary > 0:
             fdict = {
                 "ftol": 1e-6,
@@ -1482,9 +1496,12 @@ class LeBail(AbstractWPPF):
             res = fitter.least_squares(**fdict)
             return res
         else:
-            if print_to_screen:
-                logger.info("nothing to refine. updating intensities")
             self.computespectrum()
+            if print_to_screen:
+                logger.info(
+                    f"nothing to refine. updating intensities."
+                    f" Rwp: {self.Rwp * 100:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                )
             return None
 
     @property
@@ -2219,6 +2236,11 @@ class Rietveld(AbstractWPPF):
         self._set_params_vals_to_class(
             self.params, init=False, skip_phases=False, force=True
         )
+
+        # update other parameters too in case user manually updated them
+        self._update_shkl(self.params)
+        self._update_bkg(self.params)
+
         if self.num_vary > 0:
             fdict = {
                 "ftol": 1e-6,
@@ -2244,8 +2266,11 @@ class Rietveld(AbstractWPPF):
                 f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
             )
         else:
-            logger.info("Nothing to refine.")
             self.computespectrum()
+            logger.info(
+                "Nothing to refine.\n"
+                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+            )
 
     def RefineTexture(self):
         final_result = None
