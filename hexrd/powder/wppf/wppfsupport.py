@@ -34,6 +34,7 @@ include initialize background, generate_default_parameter list etc.
 """
 
 import copy
+import logging
 import warnings
 
 import lmfit
@@ -479,6 +480,106 @@ def _add_phase_fractions(mat, params):
             expr = f'1 - {others}'
 
         params[fixed_name].expr = expr
+
+
+logger = logging.getLogger(__name__)
+
+PHASE_FRACTION_SUFFIX = '_phase_fraction'
+STICK_BREAKING_PREFIX = '_stick_'
+
+
+def _split_phase_fractions(params: lmfit.Parameters) -> tuple[list[str], list[str]]:
+    """Return the (fixed, free) phase fraction names in `params`.
+
+    A fraction is fixed when it is neither varied nor an expression.
+    """
+    names = [k for k in params if k.endswith(PHASE_FRACTION_SUFFIX)]
+    fixed = [k for k in names if not params[k].vary and params[k].expr is None]
+    return fixed, [k for k in names if k not in fixed]
+
+
+def reset_phase_fraction_bounds(params: lmfit.Parameters) -> None:
+    """Reset the bounds of the free phase fractions to [0, 1], in place.
+
+    Stick-breaking cannot honor narrower bounds on individual fractions, and
+    leaving them in place would clamp the values written back after the fit.
+    Fix a phase fraction to constrain it instead.
+    """
+    _, free = _split_phase_fractions(params)
+    narrowed = [k for k in free if params[k].min > 0 or params[k].max < 1]
+    for k in narrowed:
+        params[k].set(min=0, max=1)
+
+    if narrowed:
+        logger.warning(
+            'Bounds on varying phase fractions cannot be honored and were '
+            f'reset to [0, 1]: {narrowed}. Fix a phase fraction to constrain it.'
+        )
+
+
+def add_stick_breaking_params(params: lmfit.Parameters) -> lmfit.Parameters:
+    """Return a copy of `params` whose free phase fractions are expressions
+    of "stick-breaking" parameters t, each bounded in [0, 1].
+
+    The free fractions share the budget R = 1 - sum(fixed) as
+
+        f_1 = R * t_1
+        f_2 = R * (1 - t_1) * t_2
+        ...
+        f_m = R * (1 - t_1) * ... * (1 - t_{m-1})
+
+    so every point of the t box is physical: no fraction is negative, they
+    sum to one, and fixed fractions stay fixed. lmfit cannot enforce this
+    on its own, because it clamps an expression's result to the parameter's
+    bounds, which lets a fit run over budget without penalty.
+
+    Use `strip_stick_breaking_params` to map a result back.
+    """
+    params = params.copy()
+    fixed, free = _split_phase_fractions(params)
+
+    remaining = 1 - sum(params[k].value for k in fixed)
+    if remaining < -1e-8:
+        raise ValueError(f'The fixed phase fractions sum to more than 1: {fixed}')
+
+    # Keep the phase that is currently the expression as the remainder
+    free.sort(key=lambda k: params[k].expr is not None)
+
+    factors = [f'(1 - {" - ".join(fixed)})'] if fixed else ['1']
+    for k in free:
+        if k == free[-1]:
+            expr_factors = factors
+        else:
+            # Initialize t from the current fraction, projecting onto the
+            # simplex if the current fractions are inconsistent.
+            t_name = STICK_BREAKING_PREFIX + k.removesuffix(PHASE_FRACTION_SUFFIX)
+            t = params[k].value / remaining if remaining > 0 else 0.5
+            t = float(np.clip(t, 0, 1))
+            params.add(t_name, value=t, min=0, max=1, vary=True)
+            expr_factors = factors + [t_name]
+            factors = factors + [f'(1 - {t_name})']
+            remaining *= 1 - t
+
+        # An expression's result is clamped to the parameter's bounds,
+        # so the fractions must carry none during the fit.
+        params[k].set(expr=' * '.join(expr_factors), min=-np.inf, max=np.inf)
+
+    return params
+
+
+def strip_stick_breaking_params(
+    fit_params: lmfit.Parameters, params: lmfit.Parameters
+) -> lmfit.Parameters:
+    """Map the result of a fit that used `add_stick_breaking_params` back
+    onto a copy of the original `params`, with values and uncertainties.
+    """
+    result = params.copy()
+    for k, par in result.items():
+        # Setting the value is a no-op for the remainder expression
+        par.value = fit_params[k].value
+        par.stderr = fit_params[k].stderr
+
+    return result
 
 
 def _add_extinction_parameters(mat, params):

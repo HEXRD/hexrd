@@ -2252,9 +2252,16 @@ class Rietveld(AbstractWPPF):
                 "jac": "2-point",
             }
 
-            fitter = lmfit.Minimizer(self.calcRwp, self.params)
+            # Fit the phase fractions through a stick-breaking
+            # parametrization so they stay physical (see wppfsupport).
+            wppfsupport.reset_phase_fraction_bounds(self.params)
+            fit_params = wppfsupport.add_stick_breaking_params(self.params)
+            fitter = lmfit.Minimizer(self.calcRwp, fit_params)
 
             self.res = fitter.least_squares(**fdict)
+            self.res.params = wppfsupport.strip_stick_breaking_params(
+                self.res.params, self.params
+            )
 
             self.update_parameters()
 
