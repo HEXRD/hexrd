@@ -1,3 +1,4 @@
+import copy
 import json
 from pathlib import Path
 
@@ -357,3 +358,63 @@ def test_rietveld_no_vary_preserves_material_edits(
     for lpi in rietveld.phases['CeO2']:
         mat = rietveld.phases['CeO2'][lpi]
         assert np.isclose(mat.lparms[0], edited_value)
+
+
+def test_rietveld_phase_fractions_stay_physical(
+    expt_spectrum: np.ndarray,
+    spline_picks: np.ndarray,
+    ceo2_material: Material,
+    rietveld_params: lmfit.Parameters,
+) -> None:
+    def make_rietveld(spectrum: np.ndarray) -> Rietveld:
+        # Three CeO2-like phases with distinct lattice parameters
+        phases = []
+        for name, scale in [('A', 1.0), ('B', 1.04), ('C', 1.09)]:
+            mat = copy.deepcopy(ceo2_material)
+            mat.name = name
+            a = mat.latticeParameters[0].value * scale
+            mat.latticeParameters = [a, a, a, 90, 90, 90]
+            phases.append(mat)
+
+        rietveld = Rietveld(
+            expt_spectrum=spectrum,
+            phases=phases,
+            wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+            bkgmethod={'spline': spline_picks.tolist()},
+            peakshape='pvtch',
+        )
+        for k, v in rietveld_params.items():
+            if k in rietveld.params:
+                rietveld.params[k].value = v.value
+        rietveld.params_vary_off()
+        return rietveld
+
+    def refine(rietveld: Rietveld, vary: list[str]) -> np.ndarray:
+        for k in vary:
+            rietveld.params[k].vary = True
+        rietveld.Refine()
+        names = [f'{x}_phase_fraction' for x in 'ABC']
+        fractions = np.array([rietveld.params[k].value for k in names])
+        assert np.allclose(rietveld.phases.phase_fraction, fractions)
+        return fractions
+
+    # Simulate a spectrum with truth A=0.95, B=0.05, C=0
+    truth = make_rietveld(expt_spectrum)
+    truth.params['A_phase_fraction'].value = 0.95
+    truth.params['B_phase_fraction'].value = 0.05
+    truth.Refine()
+    sim = truth.spectrum_sim
+    synthetic = np.column_stack([sim.x, np.nan_to_num(sim.y)])
+
+    # Fit it with B wrongly fixed at 1/3, varying A. The fit wants A > 2/3,
+    # so the constrained optimum is A = 2/3 and C = 0. The old expression +
+    # renormalization approach let the fitter shrink the "fixed" B instead.
+    rietveld = make_rietveld(synthetic)
+    rietveld.params['B_phase_fraction'].value = 1 / 3
+    fractions = refine(rietveld, ['A_phase_fraction', 'scale'])
+    assert np.allclose(fractions, [2 / 3, 1 / 3, 0])
+
+    # Freeing B recovers the truth
+    fractions = refine(rietveld, ['B_phase_fraction'])
+    assert np.allclose(fractions, [0.95, 0.05, 0], atol=1e-4)
+    assert rietveld.Rwp < 1e-4

@@ -481,6 +481,21 @@ def _add_phase_fractions(mat, params):
         params[fixed_name].expr = expr
 
 
+PHASE_FRACTION_SUFFIX = '_phase_fraction'
+
+
+def fraction_groups(params: lmfit.Parameters) -> list[list[str]]:
+    """Return the groups of parameters in `params` that are fractions of a
+    whole: each fraction is non-negative, and each group sums to one.
+
+    At most one fraction in a group is an expression, the remainder.
+    Refine fits every group with `hexrd.core.fitting.stick_breaking`, so to
+    give new parameters the same treatment, add their group here.
+    """
+    groups = [[k for k in params if k.endswith(PHASE_FRACTION_SUFFIX)]]
+    return [g for g in groups if g]
+
+
 def _add_extinction_parameters(mat, params):
     return params
 
