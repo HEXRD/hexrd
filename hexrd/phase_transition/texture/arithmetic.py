@@ -18,8 +18,12 @@ def _is_constant(value: Any) -> bool:
 
 
 def _is_odf(value: Any) -> bool:
-    """Return True for anything that has `eval`."""
-    return callable(getattr(value, 'eval', None))
+    """Return True for anything with `eval`, excluding kernels."""
+    from .kernels import SO3Kernel
+
+    return callable(getattr(value, 'eval', None)) and not isinstance(
+        value, SO3Kernel
+    )
 
 
 class ODFArithmetic:
@@ -31,12 +35,16 @@ class ODFArithmetic:
     - `odf1 + odf2` and `odf1 - odf2` between ODFs
     - `odf + c`, `c + odf`, `odf - c` and `c - odf` for a real
       scalar `c`, which acts as a constant offset in MRD
+    - `-odf` (`+odf` returns the ODF itself)
 
     Every operation returns a
     :class:`~hexrd.phase_transition.texture.composite_odf.CompositeODF`,
     which evaluates as the linear combination of its terms. Sums are not
     renormalized.
     """
+
+    # Make numpy defer `array + odf` to __radd__ so arrays are rejected.
+    __array_ufunc__ = None
 
     def __add__(self, other: Any) -> Any:
         """`self + other`, where other is an ODF or a constant in MRD."""
@@ -53,6 +61,16 @@ class ODFArithmetic:
     def __rsub__(self, other: Any) -> Any:
         """`other - self`, where other is an ODF or a constant in MRD."""
         return self._combine(other, sign=-1.0, reflected=True)
+
+    def __neg__(self) -> Any:
+        """`-self`, the ODF with its sign flipped."""
+        from .composite_odf import CompositeODF
+
+        return CompositeODF([self], [-1.0])
+
+    def __pos__(self) -> Any:
+        """`+self`, the ODF itself."""
+        return self
 
     def _combine(self, other: Any, sign: float, reflected: bool) -> Any:
         """
