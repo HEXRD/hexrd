@@ -157,6 +157,16 @@ class UnimodalODF(ODFArithmetic):
         return self._kernel.sample_symmetry
 
     @property
+    def crystal_symmetry_quats(self):
+        """ndarray or None: Crystal symmetry operators, from the kernel."""
+        return self._kernel.crystal_symmetry_quats
+
+    @property
+    def sample_symmetry_quats(self):
+        """ndarray or None: Sample symmetry operators, from the kernel."""
+        return self._kernel.sample_symmetry_quats
+
+    @property
     def n_components(self):
         """int: Number of modal orientations."""
         return self._n_components
