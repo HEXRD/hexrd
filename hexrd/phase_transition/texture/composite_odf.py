@@ -22,6 +22,10 @@ from hexrd.phase_transition.texture.arithmetic import (
     ODFArithmetic,
     _is_odf,
 )
+from hexrd.phase_transition.texture.kernels import (
+    _is_trivial_symmetry,
+    _symmetry_quaternions,
+)
 from hexrd.phase_transition.texture.uniform_odf import UniformODF
 
 
@@ -30,27 +34,40 @@ def _shared_symmetry_label(
     attribute: str,
 ) -> Optional[str]:
     """
-    Return the one symmetry label shared by all components, or None.
+    Return the label of the one symmetry group shared by all components.
+
+    Groups are compared by their resolved quaternion operators, so alias
+    labels agree, array-valued symmetries are checked, and a component
+    with no symmetry (None) is the identity group rather than a wildcard.
 
     Raises
     ------
     ValueError
-        If two components carry different non-None labels.
+        If two components resolve to different symmetry groups.
     """
-    labels: list[str] = []
+    symtype = attribute.split('_')[0]
+    resolved = []
     for component in components:
-        label = getattr(component, attribute, None)
-        if label is not None and label not in labels:
-            labels.append(label)
+        quats = getattr(component, f'{attribute}_quats', None)
+        if quats is None:
+            label = getattr(component, attribute, None)
+            quats = _symmetry_quaternions(label, symtype=symtype)
+        resolved.append(None if _is_trivial_symmetry(quats) else quats)
 
-    if len(labels) > 1:
-        raise ValueError(
-            f"Cannot combine ODFs with incompatible {attribute}: "
-            f"{labels!r}. Addition and subtraction require all components "
-            f"to share the same symmetry."
-        )
+    first = resolved[0] if resolved else None
+    for quats in resolved[1:]:
+        if (quats is None) != (first is None) or (
+            first is not None and not np.array_equal(first, quats)
+        ):
+            labels = [getattr(c, attribute, None) for c in components]
+            raise ValueError(
+                f"Cannot combine ODFs with incompatible {attribute}: "
+                f"{labels!r}. Addition and subtraction require all "
+                f"components to share the same symmetry."
+            )
 
-    return labels[0] if labels else None
+    labels = (getattr(c, attribute, None) for c in components)
+    return next((label for label in labels if label is not None), None)
 
 
 class CompositeODF(ODFArithmetic):

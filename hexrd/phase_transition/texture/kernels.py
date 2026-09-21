@@ -236,6 +236,16 @@ class DeLaValleePoussinKernel(SO3Kernel):
         return self._sample_symmetry_label
 
     @property
+    def crystal_symmetry_quats(self) -> Optional[np.ndarray]:
+        """ndarray or None: Resolved crystal symmetry operators, (4, n)."""
+        return self._crystal_symmetry_quats
+
+    @property
+    def sample_symmetry_quats(self) -> Optional[np.ndarray]:
+        """ndarray or None: Resolved sample symmetry operators, (4, n)."""
+        return self._sample_symmetry_quats
+
+    @property
     def has_symmetry(self) -> bool:
         """bool: Whether non-trivial symmetry reduction is enabled."""
         return not (
