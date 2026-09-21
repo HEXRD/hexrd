@@ -337,8 +337,8 @@ class TestODFArithmetic(unittest.TestCase):
         self.assertEqual(total.crystal_symmetry, 'oh')
         self.assertEqual(total.constant, 1.0)
 
-    def test_unlabeled_symmetry_does_not_conflict(self):
-        """A component with no symmetry label is not checked against others."""
+    def test_unsymmetrized_conflicts_with_symmetrized(self):
+        """No symmetry is the identity group, not a wildcard."""
         cubic = UnimodalODF(
             np.eye(3),
             DeLaValleePoussinKernel(
@@ -346,8 +346,34 @@ class TestODFArithmetic(unittest.TestCase):
             ),
         )
 
-        total = cubic + self.odf_a
+        with self.assertRaises(ValueError):
+            cubic + self.odf_a
+
+    def test_symmetry_compared_by_operators(self):
+        """Alias labels agree; array-valued symmetries are checked."""
+        from hexrd.core.rotations import quatOfLaueGroup
+
+        def odf(**symmetry):
+            kernel = DeLaValleePoussinKernel(
+                halfwidth=np.radians(15), **symmetry
+            )
+            return UnimodalODF(np.eye(3), kernel)
+
+        total = odf(sample_symmetry='triclinic') + odf(sample_symmetry='ci')
+        self.assertEqual(total.sample_symmetry, 'triclinic')
+        self.assertEqual(
+            (odf(crystal_symmetry='oh') + odf(crystal_symmetry='Oh'))
+            .crystal_symmetry, 'oh'
+        )
+
+        oh_array = odf(crystal_symmetry=quatOfLaueGroup('oh'))
+        total = oh_array + odf(crystal_symmetry='oh')
         self.assertEqual(total.crystal_symmetry, 'oh')
+
+        with self.assertRaises(ValueError):
+            odf(crystal_symmetry='oh') + odf(
+                crystal_symmetry=quatOfLaueGroup('d6h')
+            )
 
     def test_symmetric_sum_is_not_renormalized(self):
         """With symmetry too, a sum of two ODFs has mean 2 MRD."""
