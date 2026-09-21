@@ -419,6 +419,13 @@ class TestODFArithmetic(unittest.TestCase):
         self.assertIsNone(total.analytic_texture_index())
         self.assertGreater(total.texture_index(n_orientations=5000, seed=0), 1.0)
 
+    def test_negative_composite_texture_index_warns(self):
+        """A difference of ODFs has no meaningful texture index."""
+        with self.assertWarns(RuntimeWarning):
+            (self.odf_a - self.odf_b).texture_index(
+                n_orientations=1000, seed=0
+            )
+
     def test_batch_evaluation_helper(self):
         """eval_odf_batch works on a composite."""
         from hexrd.phase_transition.texture import eval_odf_batch
