@@ -62,9 +62,12 @@ class TestODFArithmetic(unittest.TestCase):
             CompositeODF([self.odf_a, self.odf_b], [1.0])
 
     def test_non_odf_component_rejected(self):
-        """Components must expose an eval() method."""
-        with self.assertRaises(TypeError):
-            CompositeODF([self.odf_a, 'not an odf'])
+        """Components must be ODFs; a kernel's eval() is not an ODF."""
+        for bad in ('not an odf', self.kernel):
+            with self.assertRaises(TypeError):
+                CompositeODF([self.odf_a, bad])
+            with self.assertRaises(TypeError):
+                self.odf_a + bad
 
     def test_nested_coefficients_report_value_error(self):
         """A nested coefficient sequence reports the documented ValueError."""
@@ -176,6 +179,16 @@ class TestODFArithmetic(unittest.TestCase):
             2.0 - self.odf_a.eval(self.orientations),
         )
 
+    def test_unary_operators(self):
+        """-odf negates; +odf is the ODF itself."""
+        negated = -self.odf_a
+        np.testing.assert_allclose(
+            negated.eval(self.orientations),
+            -self.odf_a.eval(self.orientations),
+        )
+        self.assertEqual((-(self.odf_a + 1.0)).constant, -1.0)
+        self.assertIs(+self.odf_a, self.odf_a)
+
     def test_numpy_scalars_accepted_as_constants(self):
         """numpy real scalars work as constant offsets."""
         self.assertEqual((self.odf_a + np.float64(1.5)).constant, 1.5)
@@ -191,13 +204,17 @@ class TestODFArithmetic(unittest.TestCase):
         """An array operand raises: an ODF is a function, not a value."""
         array = np.array([1.0, 2.0, 3.0])
 
-        for symbol in ('+', '-'):
+        for symbol in ('+', '-', 'r+', 'r-'):
             with self.subTest(op=symbol):
                 with self.assertRaises(TypeError) as caught:
                     if symbol == '+':
                         self.odf_a + array
-                    else:
+                    elif symbol == '-':
                         self.odf_a - array
+                    elif symbol == 'r+':
+                        array + self.odf_a
+                    else:
+                        array - self.odf_a
 
                 self.assertIn(
                     'Cannot combine an ODF with an array',
