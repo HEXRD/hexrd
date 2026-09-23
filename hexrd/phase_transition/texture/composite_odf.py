@@ -265,6 +265,62 @@ class CompositeODF(ODFArithmetic):
             return float(results)
         return results
 
+    def pole_density(
+        self,
+        crystal_direction: np.ndarray,
+        specimen_directions: np.ndarray,
+        antipodal: bool = True,
+    ) -> Union[float, np.ndarray]:
+        """
+        Pole density of the composite, in MRD.
+
+        The Radon transform is linear, so the pole figure of a sum of ODFs
+        is the same combination of their pole figures:
+
+            P(r) = constant + Sum_i a_i * P_i(r).
+
+        Parameters
+        ----------
+        crystal_direction : array_like
+            Cartesian crystal direction, shape (3,).
+        specimen_directions : array_like
+            Cartesian specimen directions, shape (..., 3).
+        antipodal : bool, optional
+            Treat h and -h as equivalent, default True.
+
+        Returns
+        -------
+        float or numpy.ndarray
+            Pole density in MRD. May be negative where the composite
+            contains a subtraction.
+        """
+        from .pole_figure import pole_density as _pole_density
+
+        specimen_directions = np.asarray(specimen_directions, dtype=float)
+        if specimen_directions.shape[-1] != 3:
+            raise ValueError(
+                f"Specimen directions must have shape (..., 3), "
+                f"got {specimen_directions.shape}"
+            )
+
+        output_shape = specimen_directions.shape[:-1]
+        results = np.full(output_shape, self._constant, dtype=float)
+
+        for coefficient, component in zip(
+            self._coefficients, self._components
+        ):
+            results = results + coefficient * np.asarray(
+                _pole_density(
+                    component, crystal_direction, specimen_directions,
+                    antipodal=antipodal,
+                ),
+                dtype=float,
+            )
+
+        if output_shape == ():
+            return float(results)
+        return results
+
     def analytic_texture_index(self) -> Optional[float]:
         """
         Exact texture index J = <f^2> when a closed form is available.
