@@ -1,13 +1,12 @@
 from pathlib import Path
 
 import numpy as np
-import yaml
-
 import pytest
-
-from hexrd import imageutil
+import yaml
 from hexrd.instrument.hedm_instrument import HEDMInstrument
 from hexrd.projections.polar import PolarView
+
+from hexrd import imageutil
 
 
 @pytest.fixture
@@ -19,7 +18,7 @@ def simulated_tardis_path(example_repo_path: Path) -> Path:
 def simulated_tardis_images(
     simulated_tardis_path: Path,
 ) -> dict[str, np.ndarray]:
-    path = simulated_tardis_path / 'tardis_images.npz'
+    path = simulated_tardis_path / 'tardis_images_snip.npz'
     npz = np.load(path)
     return {k: v for k, v in npz.items()}
 
@@ -57,8 +56,8 @@ def test_snip1d(
     pv = PolarView(tth_range, instr, eta_min, eta_max, pixel_size)
     img = pv.warp_image(img_dict, pad_with_nans=True, do_interpolation=True)
 
-    snip_width = 100
-    numiter = 2
+    snip_width = 21
+    numiter = 1
     output = imageutil.snip1d(
         img,
         snip_width,

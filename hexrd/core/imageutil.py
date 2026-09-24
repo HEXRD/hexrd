@@ -1,17 +1,14 @@
+import os
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
-import os
 
 import numpy as np
-from scipy import signal, ndimage
-
-from skimage.feature import blob_dog, blob_log
+from scipy import ndimage, signal
 from skimage.exposure import rescale_intensity
+from skimage.feature import blob_dog, blob_log
 
-from hexrd.core import constants
-from hexrd.core import convolution
+from hexrd.core import constants, convolution
 from hexrd.core.constants import fwhm_to_sigma
-
 
 # =============================================================================
 # BACKGROUND REMOVAL
@@ -42,9 +39,9 @@ def _scale_image_snip(y, offset, invert=False):
 
     """
     if invert:
-        return (np.exp(np.exp(y) - 1.0) - 1.0) ** 2 + offset
+        return (np.exp(np.exp(y) - 1.0) - 1.0) + offset
     else:
-        return np.log(np.log(np.sqrt(y - offset) + 1.0) + 1.0)
+        return np.log(np.log(y - offset + 1.0) + 1.0)
 
 
 def fast_snip1d(y, w=4, numiter=2):
