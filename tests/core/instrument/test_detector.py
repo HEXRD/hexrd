@@ -886,20 +886,39 @@ def test_calc_transmission_generic_and_phosphor():
     )
     assert np.all(out3 == 1.0)
 
-    thickness = 1.0
-    readout_length = 1.0
-    absorption_length = 2.0
+    # Rygg et al., RSI 91, 043902 (2020), Eq. 49 with the sec(psi) factor
+    # from the erratum, RSI 97, 019901 (2026):
+    #   Q = U0 E sec(psi) [1 - exp(-mu h (sec(psi) + 1/(mu L)))]
+    #       / (sec(psi) + 1/(mu L)),   mu = 1 / absorption_length
+    thickness = 115.0
+    readout_length = 222.0
+    absorption_length = 25.0
     energy = 10.0
     pre_U0 = 0.1
-    secb_arr = np.ones(d.rows * d.cols).reshape(d.shape)
+    psi = np.radians(np.linspace(0.0, 70.0, d.rows * d.cols))
+    secb_arr = (1.0 / np.cos(psi)).reshape(d.shape)
     out4 = d.calc_transmission_phosphor(
-        secb_arr, thickness, readout_length, absorption_length, energy, pre_U0
+        secb_arr,
+        thickness=thickness,
+        readout_length=readout_length,
+        absorption_length=absorption_length,
+        energy=energy,
+        pre_U0=pre_U0,
     )
-    f1 = absorption_length * thickness
-    f2 = absorption_length * readout_length
-    arg = secb_arr + 1.0 / f2
-    expected4 = pre_U0 * energy * ((1.0 - np.exp(-f1 * arg)) / arg)
+    mu = 1.0 / absorption_length
+    arg = secb_arr + 1.0 / (mu * readout_length)
+    expected4 = (
+        pre_U0
+        * energy
+        * secb_arr
+        * (1.0 - np.exp(-mu * thickness * arg))
+        / arg
+    )
     np.testing.assert_allclose(out4, expected4)
+
+    # A thick phosphor (mu h >> 1) deposits more energy, not less, at
+    # oblique incidence: the sensitivity rises with sec(psi).
+    assert np.all(np.diff(out4.ravel()) > 0)
 
     physics_package = make_physics_pkg()
     physics_package.sample_thickness = 0.0
