@@ -5,6 +5,8 @@ Provides common evaluation functionality for orientation distribution functions.
 This module serves as a foundation for more complex ODF implementations.
 """
 
+import warnings
+
 import numpy as np
 from scipy.spatial.transform import Rotation
 
@@ -148,6 +150,13 @@ def texture_index(odf, n_orientations=100000, seed=None):
     _, values = eval_random_orientations(
         odf, n_orientations=n_orientations, seed=seed
     )
+    if np.any(values < 0):
+        warnings.warn(
+            "ODF takes negative values, so its texture index is not "
+            "meaningful (e.g. a difference of ODFs)",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     # Normalize by <f>^2 so the index is independent of the ODF's absolute
     # scale (it equals <f^2> exactly when the ODF is already mean-1 MRD).
     return float(np.mean(values ** 2) / np.mean(values) ** 2)
@@ -155,7 +164,7 @@ def texture_index(odf, n_orientations=100000, seed=None):
 
 def texture_norm(odf, n_orientations=100000, seed=None):
     """
-    Monte Carlo estimate of the L2 norm of an ODF (MTEX ``norm``).
+    Monte Carlo estimate of the L2 norm of an ODF.
 
     The L2 norm is the square root of the texture index:
 
