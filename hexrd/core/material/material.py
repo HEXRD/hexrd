@@ -528,21 +528,20 @@ class Material(object):
             res = res[np.isreal(res)]
             res = 1 / np.real(res) ** 3
 
-            mask = np.logical_and(res >= 0.0, res <= 1.0)
+            mask = np.logical_and(res >= 0.0, res <= 1.0 + 1e-8)
             res = res[mask]
             if len(res) == 0:
                 return vt
             else:
-                return np.nanmax(res) * vt
+                return min(np.nanmax(res), 1.0) * vt
 
     def calc_lp_factor(self, pressure=None, temperature=None):
         '''calculate the factor to multiply the lattice
         constants by. only the lengths will be modified, the
         angles will be kept constant.
         '''
-        vt = self.vt(temperature=temperature)
         vpt = self.calc_volume(pressure=pressure, temperature=temperature)
-        return (vpt / vt) ** (1.0 / 3.0)
+        return (vpt / self.v0) ** (1.0 / 3.0)
 
     def calc_lp_at_PT(self, pressure=None, temperature=None):
         '''calculate the lattice parameters for a given
