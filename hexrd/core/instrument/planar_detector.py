@@ -183,7 +183,12 @@ class PlanarDetector(Detector):
         transmission_filter = self.calc_transmission_generic(secb, t_f, al_f)
         transmission_coating = self.calc_transmission_generic(secb, t_c, al_c)
         transmission_phosphor = self.calc_transmission_phosphor(
-            secb, t_p, al_p, L, energy, pre_U0
+            secb,
+            thickness=t_p,
+            readout_length=L,
+            absorption_length=al_p,
+            energy=energy,
+            pre_U0=pre_U0,
         )
         transmission_filter_coating = transmission_filter * transmission_coating
 

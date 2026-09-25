@@ -1,25 +1,25 @@
 from __future__ import annotations
 
-from abc import abstractmethod
 import copy
 import logging
 import os
-from typing import Literal, Optional, TYPE_CHECKING, Sequence, overload
+from abc import abstractmethod
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Literal, overload
 
+import numba
+import numpy as np
+from numpy.typing import NDArray
+
+from hexrd.core import constants as ct
+from hexrd.core import matrixutil as mutil
+from hexrd.core.distortion import Registry
 from hexrd.core.instrument.constants import (
     COATING_DEFAULT,
     FILTER_DEFAULTS,
     PHOSPHOR_DEFAULT,
 )
 from hexrd.core.instrument.physics_package import AbstractPhysicsPackage
-import numba
-import numpy as np
-from numpy.typing import NDArray
-
-from hexrd.core import constants as ct
-from hexrd.core.distortion import Registry
-from hexrd.core.distortion.distortionabc import DistortionABC
-from hexrd.core import matrixutil as mutil
 
 if TYPE_CHECKING:
     from hexrd.hed.xrdutil.phutil import (
@@ -27,30 +27,24 @@ if TYPE_CHECKING:
         PinholeDistortion,
     )
 # TODO: Resolve extra-core-dependency
-from hexrd.hedm import xrdutil
-from hexrd.hed.xrdutil import _project_on_detector_plane
-from hexrd.core.rotations import mapAngle
-
-from hexrd.core.material import crystallography
-from hexrd.core.material.crystallography import PlaneData
-
-from hexrd.core.transforms.xfcapi import (
-    xy_to_gvec,
-    gvec_to_xy,
-    make_beam_rmat,
-    make_rmat_of_expmap,
-    oscill_angles_of_hkls,
-    angles_to_dvec,
-)
-
-from hexrd.core.utils.decorators import memoize
-from hexrd.core.utils.panel_buffer import panel_buffer_from_str
 from hexrd.core.gridutil import cellIndices
 from hexrd.core.instrument import detector_coatings
+from hexrd.core.material import crystallography
+from hexrd.core.material.crystallography import PlaneData
 from hexrd.core.material.utils import (
-    calculate_linear_absorption_length,
     calculate_incoherent_scattering,
+    calculate_linear_absorption_length,
 )
+from hexrd.core.rotations import mapAngle
+from hexrd.core.transforms.xfcapi import (
+    angles_to_dvec,
+    make_rmat_of_expmap,
+    oscill_angles_of_hkls,
+)
+from hexrd.core.utils.decorators import memoize
+from hexrd.core.utils.panel_buffer import panel_buffer_from_str
+from hexrd.hed.xrdutil import _project_on_detector_plane
+from hexrd.hedm import xrdutil
 
 logger = logging.getLogger(__name__)
 distortion_registry = Registry()
@@ -169,7 +163,7 @@ class Detector:
     def pixel_angles(
         self,
         origin: NDArray[np.float64] = ct.zeros_3,
-        bvec: Optional[NDArray[np.float64]] = None,
+        bvec: NDArray[np.float64] | None = None,
     ):
         raise NotImplementedError
 
@@ -218,9 +212,9 @@ class Detector:
         group=None,
         distortion=None,
         max_workers=max_workers_DFLT,
-        detector_filter: Optional[detector_coatings.Filter] = None,
-        detector_coating: Optional[detector_coatings.Coating] = None,
-        phosphor: Optional[detector_coatings.Phosphor] = None,
+        detector_filter: detector_coatings.Filter | None = None,
+        detector_coating: detector_coatings.Coating | None = None,
+        phosphor: detector_coatings.Phosphor | None = None,
     ):
         """
         Instantiate a PlanarDetector object.
@@ -1221,17 +1215,15 @@ class Detector:
         self,
         pd: PlaneData | NDArray[np.float64],
         merge_hkls: bool = False,
-        delta_tth: Optional[float] = None,
+        delta_tth: float | None = None,
         delta_eta: float = 10.0,
         eta_period: Sequence[float] | NDArray[np.float64] = (-np.pi, np.pi),
-        eta_list: Optional[Sequence[float] | NDArray[np.float64]] = None,
+        eta_list: Sequence[float] | NDArray[np.float64] | None = None,
         rmat_s: NDArray[np.float64] = ct.identity_3x3,
         tvec_s: NDArray[np.float64] = ct.zeros_3,
         tvec_c: NDArray[np.float64] = ct.zeros_3,
         full_output: Literal[False] = False,  # TODO: Remove this option completely
-        tth_distortion: Optional[
-            PinholeDistortion | LayerDistortion
-        ] = None,
+        tth_distortion: PinholeDistortion | LayerDistortion | None = None,
     ) -> tuple[
         list[NDArray[np.float64]], list[NDArray[np.float64]], NDArray[np.float64]
     ]: ...
@@ -1241,17 +1233,15 @@ class Detector:
         self,
         pd: PlaneData | NDArray[np.float64],
         merge_hkls: bool = False,
-        delta_tth: Optional[float] = None,
+        delta_tth: float | None = None,
         delta_eta: float = 10.0,
         eta_period: Sequence[float] | NDArray[np.float64] = (-np.pi, np.pi),
-        eta_list: Optional[Sequence[float] | NDArray[np.float64]] = None,
+        eta_list: Sequence[float] | NDArray[np.float64] | None = None,
         rmat_s: NDArray[np.float64] = ct.identity_3x3,
         tvec_s: NDArray[np.float64] = ct.zeros_3,
         tvec_c: NDArray[np.float64] = ct.zeros_3,
         full_output: Literal[True] = True,  # TODO: Remove this option completely
-        tth_distortion: Optional[
-            PinholeDistortion | LayerDistortion
-        ] = None,
+        tth_distortion: PinholeDistortion | LayerDistortion | None = None,
     ) -> tuple[
         list[NDArray[np.float64]],
         list[NDArray[np.float64]],
@@ -1266,17 +1256,15 @@ class Detector:
             PlaneData | NDArray[np.float64]
         ),  # TODO: Make a different function for array input
         merge_hkls: bool = False,
-        delta_tth: Optional[float] = None,
+        delta_tth: float | None = None,
         delta_eta: float = 10.0,
         eta_period: Sequence[float] | NDArray[np.float64] = (-np.pi, np.pi),
-        eta_list: Optional[Sequence[float] | NDArray[np.float64]] = None,
+        eta_list: Sequence[float] | NDArray[np.float64] | None = None,
         rmat_s: NDArray[np.float64] = ct.identity_3x3,
         tvec_s: NDArray[np.float64] = ct.zeros_3,
         tvec_c: NDArray[np.float64] = ct.zeros_3,
         full_output: bool = False,  # TODO: Remove this option completely
-        tth_distortion: Optional[
-            PinholeDistortion | LayerDistortion
-        ] = None,
+        tth_distortion: PinholeDistortion | LayerDistortion | None = None,
     ) -> (
         tuple[
             list[NDArray[np.float64]],
@@ -1585,8 +1573,8 @@ class Detector:
         ome_period: tuple[float, float] = (-np.pi, np.pi),
         chi: float = 0.0,
         tVec_s: NDArray[np.float64] = ct.zeros_3,
-        wavelength: Optional[float] = None,
-        energy_correction: Optional[dict[str, float]] = None,
+        wavelength: float | None = None,
+        energy_correction: dict[str, float] | None = None,
     ):
         """
         Simulate a monochromatic rotation series for a list of grains.
@@ -1636,9 +1624,9 @@ class Detector:
             # TODO: This function should not be modifying input arguments
             if plane_data.wavelength != wavelength:
                 plane_data.wavelength = ct.keVToAngstrom(wavelength)
-        assert not np.any(
-            np.isnan(plane_data.getTTh())
-        ), "plane data exclusions incompatible with wavelength"
+        assert not np.any(np.isnan(plane_data.getTTh())), (
+            "plane data exclusions incompatible with wavelength"
+        )
 
         # vstacked G-vector id, h, k, l
         full_hkls = xrdutil._fetch_hkls_from_planedata(plane_data)
@@ -2031,10 +2019,10 @@ class Detector:
         if np.isclose(thickness, 0):
             return np.ones(self.shape)
 
-        f1 = absorption_length * thickness
-        f2 = absorption_length * readout_length
+        f1 = thickness / absorption_length
+        f2 = readout_length / absorption_length
         arg = secb + 1 / f2
-        return pre_U0 * energy * ((1.0 - np.exp(-f1 * arg)) / arg)
+        return pre_U0 * energy * secb * ((1.0 - np.exp(-f1 * arg)) / arg)
 
 
 # =============================================================================
