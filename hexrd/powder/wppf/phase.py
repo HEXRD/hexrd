@@ -552,13 +552,13 @@ class Material_Rietveld(Material_LeBail):
         with h5py.File(fhdf, 'r') as f:
             group = f[xtal]
             # the last field in this is already
-            self.atom_pos = group['AtomData'].T
+            self.atom_pos = np.asarray(group['AtomData']).T
 
             # the U factors are related to B by the relation B = 8pi^2 U
-            self.U = group['U'].T
+            self.U = np.asarray(group['U']).T
 
             # read atom types (by atomic number, Z)
-            self.atom_type = group['Atomtypes']
+            self.atom_type = np.asarray(group['Atomtypes'])
             self.atom_ntype = self.atom_type.shape[0]
 
     def calcBetaij(self):
