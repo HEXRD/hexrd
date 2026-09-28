@@ -1377,8 +1377,8 @@ def calc_rwp(spectrum_sim, spectrum_expt, weights, background, P):
     else:
         Rwpb = np.inf
 
-    """ number of observations to fit i.e. number of data points """
-    N = spectrum_sim.shape[0]
+    """ number of observations with non-zero statistical weight """
+    N = np.count_nonzero(weights[:, 1])
 
     if N > P:
         gofF = wss / (N - P)
