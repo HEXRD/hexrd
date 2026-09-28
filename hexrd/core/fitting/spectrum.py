@@ -186,13 +186,12 @@ def pink_beam_dcs(x, amp, cen, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l):
     alpha = _calc_alpha((alpha0, alpha1), cen)
     beta = _calc_beta((beta0, beta1), cen)
 
-    arg1 = np.array([alpha, beta, fwhm_g], dtype=np.float64)
-    arg2 = np.array([alpha, beta, fwhm_l], dtype=np.float64)
+    eta, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
+    arg1 = np.array([alpha, beta, fwhm / 2.354820045], dtype=np.float64)
+    arg2 = np.array([alpha, beta, fwhm], dtype=np.float64)
 
     p_g = np.hstack([[amp, cen], arg1]).astype(np.float64, order='C')
     p_l = np.hstack([[amp, cen], arg2]).astype(np.float64, order='C')
-
-    eta, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
     G = _gaussian_pink_beam(p_g, x)
     L = _lorentzian_pink_beam(p_l, x)

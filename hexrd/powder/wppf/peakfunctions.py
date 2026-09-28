@@ -72,7 +72,7 @@ def _gaussian_fwhm(uvw, P, gamma_ani_sqr, eta_mixing, tth, dsp):
     sig2_ani = gamma_ani_sqr * (1.0 - eta_mixing) ** 2 * dsp**4
     # sig2_ani is in radians and does not have the 1E4 factor
     # built in to U. we will add it here
-    sig2_ani = np.degrees(sig2_ani) * 1e4
+    sig2_ani = np.degrees(np.degrees(sig2_ani)) * 1e4
     sigsqr = (U + sig2_ani) * tanth**2 + V * tanth + W + P / cth2
     if sigsqr <= 0.0:
         sigsqr = 1.0e-12
@@ -400,14 +400,14 @@ def _func_W(HoL, SoL, tau, tau_min, tau_infl, tth):
         if tau >= 0.0 and tau <= tau_infl:
             res = 2.0 * min(HoL, SoL)
         elif tau > tau_infl and tau <= tau_min:
-            res = HoL + SoL + _func_h(tau, tth)
+            res = HoL + SoL - _func_h(tau, tth)
         else:
             res = 0.0
     else:
         if tau <= 0.0 and tau >= tau_infl:
             res = 2.0 * min(HoL, SoL)
         elif tau < tau_infl and tau >= tau_min:
-            res = HoL + SoL + _func_h(tau, tth)
+            res = HoL + SoL - _func_h(tau, tth)
         else:
             res = 0.0
     return res
@@ -451,7 +451,7 @@ def pvfcj(
     cinv = np.arccos(arg)
     tau_infl = tth_r - cinv
 
-    tau = tau_min * xn
+    tau = tau_min * xn**2
 
     cx = np.cos(tau)
     res = np.zeros(tth_list.shape)
@@ -463,7 +463,7 @@ def pvfcj(
 
         W = _func_W(HoL, SoL, xx, tau_min, tau_infl, tth_r)
         h = _func_h(xx, tth_r)
-        fact = wn[i] * (W / h / cx[i])
+        fact = wn[i] * 2.0 * xn[i] * (W / h / cx[i])
         den += fact
 
         pv = pvoight_wppf(
@@ -520,7 +520,7 @@ def _gaussian_pink_beam(alpha, beta, fwhm_g, tth, tth_list):
     t2 = erfc(z)
     g = np.zeros(tth_list.shape)
 
-    g = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(u) * t1 + np.exp(v) * t2
+    g = (0.5 * (alpha * beta) / (alpha + beta)) * (np.exp(u) * t1 + np.exp(v) * t2)
     mask = np.isnan(g)
     g[mask] = 0.0
 
@@ -709,8 +709,8 @@ def pvoight_pink_beam(
 
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
-    g = _gaussian_pink_beam(alpha_exp, beta_exp, fwhm_g, tth, tth_list)
-    l_val = _lorentzian_pink_beam(alpha_exp, beta_exp, fwhm_l, tth, tth_list)
+    g = _gaussian_pink_beam(alpha_exp, beta_exp, fwhm / 2.354820045, tth, tth_list)
+    l_val = _lorentzian_pink_beam(alpha_exp, beta_exp, fwhm, tth, tth_list)
     ag = np.trapezoid(g, tth_list)
     al = np.trapezoid(l_val, tth_list)
     if np.abs(ag) < 1e-6:
