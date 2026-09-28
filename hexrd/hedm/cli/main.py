@@ -17,6 +17,7 @@ from hexrd.hedm.cli import find_orientations
 from hexrd.hedm.cli import fit_grains
 from hexrd.hedm.cli import pickle23
 from hexrd.hedm.cli import preprocess
+from hexrd.hedm.cli import cake_data
 
 
 try:
@@ -66,6 +67,7 @@ def main():
     fit_grains.configure_parser(sub_parsers)
     pickle23.configure_parser(sub_parsers)
     preprocess.configure_parser(sub_parsers)
+    cake_data.configure_parser(sub_parsers)
 
     try:
         import argcomplete

@@ -1,11 +1,11 @@
 # Persistent cake matrices
 
-The provisional `draft-csr-2` format stores a standard CSR matrix with
+The version `1` format stores a standard CSR matrix with
 full-image columns. Composite images use ordinary `C @ frame.ravel()` with
 no pixel extraction or column remapping. Interactive PolarView is unchanged.
 
 - example.hexrdcake
-  - Attributes: format = "HEXRD cake matrix", version = "draft-csr-2"
+  - Attributes: format = "HEXRD cake matrix", version = "1"
   - instrument/: Embedded instrument snapshot
   - grid/
     - tth: [start, step, count]
@@ -89,7 +89,7 @@ combination, omega integration/flooring, dark correction, or orientation changes
 Do not reorder those steps without numerical verification.
 
 The `draft-csr-1` compact reader remains supported, as do `CakeOperator` and
-its earlier version-1/2 bilinear prototypes. New GUI exports use draft-csr-2.
+its earlier version-1/2 bilinear prototypes. New GUI exports use version 1; draft-csr-2 files remain readable.
 
 ## Verification and performance research
 

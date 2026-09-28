@@ -34,15 +34,17 @@ def archive(tmp_path, instrument):
     return path, spec, summary
 
 
-def test_simple_csr_export_and_execution(archive, instrument):
+@pytest.mark.parametrize('version', ['1', 'draft-csr-2'])
+def test_simple_csr_export_and_execution(archive, instrument, version):
     path, spec, summary = archive
-    with h5py.File(path) as f:
+    with h5py.File(path, 'r+') as f:
         assert set(f) == {'instrument', 'grid', 'matrix'}
         assert set(f['grid']) == {'tth', 'eta'}
         assert f['matrix'].attrs['input_layout'] == 'composite'
-        assert f.attrs['version'] == 'draft-csr-2'
+        assert f.attrs['version'] == '1'
         assert set(f['matrix']) == {'data', 'indices', 'indptr'}
         assert f['matrix'].attrs['format'] == 'csr'
+        f.attrs['version'] = version  # Existing draft files remain readable.
     operator = CakeMatrix.load(path)
     assert operator.panel_names == ('a', 'z')  # Different from build order.
     assert operator._instrument is None

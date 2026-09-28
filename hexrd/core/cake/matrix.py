@@ -1,6 +1,6 @@
 """Self-contained CSR cake matrices with instrument-defined input layouts.
 
-The provisional format is documented in CAKE_OPERATOR.md. Geometry generation
+The format is documented in CAKE_OPERATOR.md. Geometry generation
 currently uses the bounded-memory bilinear builder before streaming into CSR.
 """
 
@@ -18,7 +18,7 @@ from ._builder import CakeOperatorSummary, export_cake_operator
 from .operator import _image_array
 
 FORMAT = 'HEXRD cake matrix'
-VERSION = 'draft-csr-2'
+VERSION = '1'
 LEGACY_VERSION = 'draft-csr-1'
 STORAGE = dict(compression='gzip', compression_opts=1, shuffle=True, fletcher32=True)
 
@@ -240,6 +240,7 @@ class CakeMatrix:
         with h5py.File(result.path) as f:
             if f.attrs.get('format') != FORMAT or f.attrs.get('version') not in (
                 VERSION,
+                'draft-csr-2',
                 LEGACY_VERSION,
             ):
                 raise ValueError('unsupported cake matrix format or version')
