@@ -11,8 +11,8 @@ import yaml
 import hexrd.core.resources
 from hexrd.core import constants
 from hexrd.core.material import Material, symbols, symmetry
-from hexrd.core.material.spacegroup import Allowed_HKLs, SpaceGroup
-from hexrd.core.material.unitcell import _calcstar, _rqpDict
+from hexrd.core.material.spacegroup import SpaceGroup
+from hexrd.core.material.unitcell import _calcstar, _rqpDict, unitcell
 from hexrd.core.valunits import _nm, valWUnit
 from hexrd.powder.wppf.xtal import (
     _calc_absorption_factor,
@@ -66,7 +66,7 @@ class Material_LeBail(AbstractMaterial):
         """
         dmin in nm
         """
-        self.dmin = dmin.getVal("nm")
+        self.dmin = dmin.getVal('nm')
         self._readHDF(fhdf, xtal)
         self._calcrmt()
         self.sf_and_twin_probability()
@@ -176,6 +176,7 @@ class Material_LeBail(AbstractMaterial):
 
             self.sgnum = np.asarray(group['SpaceGroupNumber']).item()
             self.sgsetting = np.asarray(group['SpaceGroupSetting']).item()
+
             """
                 IMPORTANT NOTE:
                 note that the latice parameters in EMsoft is nm by default
@@ -389,113 +390,13 @@ class Material_LeBail(AbstractMaterial):
         klist = np.array(klist)
         return klist
 
-    def ChooseSymmetric(self, hkllist, InversionSymmetry=True):
-        """
-        this function takes a list of hkl vectors and
-        picks out a subset of the list picking only one
-        of the symmetrically equivalent one. The convention
-        is to choose the hkl with the most positive components.
-        """
-        mask = np.ones(hkllist.shape[0], dtype=bool)
-        laue = InversionSymmetry
-        for i, g in enumerate(hkllist):
-            if mask[i]:
-                geqv = self.CalcStar(g, 'r', applyLaue=laue)
-                for r in geqv[1:,]:
-                    rid = np.where(np.all(r == hkllist, axis=1))
-                    mask[rid] = False
-        hkl = hkllist[mask, :].astype(np.int32)
-        hkl_max = []
-        for g in hkl:
-            geqv = self.CalcStar(g, 'r', applyLaue=laue)
-            loc = np.argmax(np.sum(geqv, axis=1))
-            gmax = geqv[loc, :]
-            hkl_max.append(gmax)
-        return np.array(hkl_max).astype(np.int32)
-
-    def SortHKL(self, hkllist):
-        """
-        this function sorts the hkllist by increasing |g|
-        i.e. decreasing d-spacing. If two vectors are same
-        length, then they are ordered with increasing
-        priority to l, k and h
-        """
-        glen = []
-        for g in hkllist:
-            glen.append(np.round(self.CalcLength(g, 'r'), 8))
-        # glen = np.atleast_2d(np.array(glen,dtype=float)).T
-        dtype = [
-            ('glen', float),
-            ('max', int),
-            ('sum', int),
-            ('h', int),
-            ('k', int),
-            ('l', int),
-        ]
-        a = []
-        for i, gl in enumerate(glen):
-            g = hkllist[i, :]
-            a.append((gl, np.max(g), np.sum(g), g[0], g[1], g[2]))
-        a = np.array(a, dtype=dtype)
-        isort = np.argsort(a, order=['glen', 'max', 'sum', 'l', 'k', 'h'])
-        return hkllist[isort, :]
+    # HKL generation is shared with the unitcell class
+    ChooseSymmetric = unitcell.ChooseSymmetric
+    SortHKL = unitcell.SortHKL
+    getHKLs = unitcell.getHKLs
 
     def _calchkls(self):
         self.hkls = self.getHKLs(self.dmin)
-
-    def getHKLs(self, dmin):
-        """
-        this function generates the symetrically unique set of
-        hkls up to a given dmin.
-        dmin is in nm
-        """
-        """
-        always have the centrosymmetric condition because of
-        Friedels law for xrays so only 4 of the 8 octants
-        are sampled for unique hkls. By convention we will
-        ignore all l < 0
-        """
-        hmin = -self.ih - 1
-        hmax = self.ih
-        kmin = -self.ik - 1
-        kmax = self.ik
-        lmin = -1
-        lmax = self.il
-        hkllist = np.array(
-            [
-                [ih, ik, il]
-                for ih in np.arange(hmax, hmin, -1)
-                for ik in np.arange(kmax, kmin, -1)
-                for il in np.arange(lmax, lmin, -1)
-            ]
-        )
-        hkl_allowed = Allowed_HKLs(self.sgnum, hkllist)
-        hkl = []
-        hkl_dsp = []
-        for g in hkl_allowed:
-            # ignore [0 0 0] as it is the direct beam
-            if np.sum(np.abs(g)) != 0:
-                dspace = 1.0 / self.CalcLength(g, 'r')
-                if dspace >= dmin:
-                    hkl_dsp.append(g)
-        """
-        we now have a list of g vectors which are all within dmin range
-        plus the systematic absences due to lattice centering and glide
-        planes/screw axis has been taken care of
-        the next order of business is to go through the list and only pick
-        out one of the symetrically equivalent hkls from the list.
-        """
-        hkl_dsp = np.array(hkl_dsp).astype(np.int32)
-        """
-        the inversionsymmetry switch enforces the application of the inversion
-        symmetry regradless of whether the crystal has the symmetry or not
-        this is necessary in the case of xrays due to friedel's law
-        """
-        hkl = self.ChooseSymmetric(hkl_dsp, InversionSymmetry=True)
-        """
-        finally sort in order of decreasing dspacing
-        """
-        return self.SortHKL(hkl)
 
     def Required_lp(self, p):
         return _rqpDict[self.latticeType][1](p)

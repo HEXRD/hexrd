@@ -26,6 +26,7 @@ from hexrd.core.transforms.xfcapi import angles_to_gvec
 from hexrd.core.valunits import _nm, valWUnit
 from hexrd.powder.wppf import wppfsupport
 from hexrd.powder.wppf.peakfunctions import (
+    _anisotropic_peak_broadening,
     calc_Iobs_pvexponential,
     calc_Iobs_pvfcj,
     calc_Iobs_pvheating,
@@ -48,6 +49,22 @@ from hexrd.powder.wppf.spectrum import Spectrum
 from hexrd.powder.wppf.tds import TDS
 
 logger = logging.getLogger(__name__)
+
+
+def _unique_profiles(tth, dsp, hkls, xs, shkl, intensity):
+    """
+    Merge reflections with identical peak profiles (e.g. cubic hkls sharing
+    h^2 + k^2 + l^2) so that each profile is only evaluated once. Returns
+    the unique tth, dsp, hkls and xs, their summed intensity, and the index
+    of the unique profile for every reflection.
+    """
+    n = min(len(tth), len(intensity))
+    gamma = _anisotropic_peak_broadening.py_func(shkl, hkls[:n].T.astype(float))
+    keys = np.column_stack((tth[:n], dsp[:n], xs[:n], gamma)).round(10)
+    _, idx, inv = np.unique(keys, axis=0, return_index=True, return_inverse=True)
+    inv = inv.ravel()
+    Isum = np.bincount(inv, weights=intensity[:n])
+    return tth[idx], dsp[idx], hkls[idx], xs[idx], Isum, inv
 
 
 class AbstractWPPF(ABC):
@@ -1187,6 +1204,11 @@ class LeBail(AbstractWPPF):
                 P = getattr(self, f"{name}_P")
                 XY = np.array([X, Y])
 
+                # evaluate each distinct peak profile only once
+                tth, dsp, hkls, Xs, Ic, _ = _unique_profiles(
+                    tth, dsp, hkls, Xs, shkl, Ic
+                )
+
                 if self.peakshape == 0:
                     args = (
                         np.array([self.U, self.V, self.W]),
@@ -1338,6 +1360,14 @@ class LeBail(AbstractWPPF):
                 P = getattr(self, f"{name}_P")
                 XY = np.array([X, Y])
 
+                # Iobs / Icalc is the same for identical peak profiles, so
+                # compute it once per profile (with unit Icalc) and scale
+                Icalc = Ic
+                tth, dsp, hkls, Xs, Ic, inv = _unique_profiles(
+                    tth, dsp, hkls, Xs, shkl, Ic
+                )
+                Ic = np.ones(Ic.shape)
+
                 if self.peakshape == 0:
                     args = (
                         np.array([self.U, self.V, self.W]),
@@ -1429,7 +1459,7 @@ class LeBail(AbstractWPPF):
                         spec_sim,
                     )
 
-                self.Iobs[p][k] = self.calc_Iobs_fcn(*args)
+                self.Iobs[p][k] = Icalc[: inv.size] * self.calc_Iobs_fcn(*args)[inv]
 
     def RefineCycle(self, print_to_screen=True):
         """
@@ -1983,6 +2013,11 @@ class Rietveld(AbstractWPPF):
         Y = getattr(self, f"{name}_Y")
         P = getattr(self, f"{name}_P")
         XY = np.array([X, Y])
+
+        # evaluate each distinct peak profile only once
+        tth, dsp, hkls, Xs, Icmod, _ = _unique_profiles(
+            tth, dsp, hkls, Xs, shkl, Icmod
+        )
 
         if self.peakshape == 0:
             args = (

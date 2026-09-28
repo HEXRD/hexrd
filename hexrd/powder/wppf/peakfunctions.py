@@ -380,11 +380,19 @@ def pvoight_wppf(uvw, p, xy, xy_sf, shkl, eta_mixing, tth, dsp, hkl, tth_list):
 
     Ag = 0.9394372787 / fwhm  # normalization factor for unit area
     Al = 1.0 / np.pi  # normalization factor for unit area
+    sigma = fwhm / gauss_width_fact
+    gamma = fwhm / lorentz_width_fact
 
-    g = Ag * _unit_gaussian(np.array([tth, fwhm]), tth_list)
-    l_val = Al * _unit_lorentzian(np.array([tth, fwhm]), tth_list)
-
-    return n * l_val + (1.0 - n) * g
+    # one loop instead of many array temporaries, and skip exp() where it
+    # underflows to zero anyway (most of the grid for a narrow peak)
+    res = np.empty_like(tth_list)
+    for i in range(tth_list.size):
+        dx2 = (tth_list[i] - tth) ** 2
+        arg = dx2 / (2.0 * sigma**2)
+        g = Ag * np.exp(-arg) if arg < 745.0 else 0.0
+        l_val = Al * gamma / (dx2 + gamma**2)
+        res[i] = n * l_val + (1.0 - n) * g
+    return res
 
 
 @njit(cache=True, nogil=True)
@@ -997,7 +1005,7 @@ def computespectrum_pvheating(
     return spec
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, parallel=True)
 def calc_Iobs_pvfcj(
     uvw,
     p,
@@ -1036,7 +1044,7 @@ def calc_Iobs_pvfcj(
     tth_list_mask = spectrum_expt[:, 0]
     tth_list_mask = tth_list_mask[mask]
 
-    for ii in np.arange(nref):
+    for ii in prange(nref):
         Ic = Icalc[ii]
         t = tth[ii]
         d = dsp[ii]
@@ -1061,14 +1069,13 @@ def calc_Iobs_pvfcj(
         )
 
         y = Ic * pv
-        y = y[mask]
 
         Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
 
     return Iobs
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, parallel=True)
 def calc_Iobs_pvtch(
     uvw,
     p,
@@ -1103,7 +1110,7 @@ def calc_Iobs_pvtch(
     tth_list_mask = spectrum_expt[:, 0]
     tth_list_mask = tth_list_mask[mask]
 
-    for ii in np.arange(nref):
+    for ii in prange(nref):
         Ic = Icalc[ii]
         t = tth[ii]
         d = dsp[ii]
@@ -1113,14 +1120,13 @@ def calc_Iobs_pvtch(
         pv = pvoight_wppf(uvw, p, xy, xs, shkl, eta_mixing, t, d, g, tth_list_mask)
 
         y = Ic * pv
-        y = y[mask]
 
         Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
 
     return Iobs
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, parallel=True)
 def calc_Iobs_pvpink(
     alpha,
     beta,
@@ -1180,14 +1186,13 @@ def calc_Iobs_pvpink(
         )
 
         y = Ic * pv
-        y = y[mask]
 
         Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
 
     return Iobs
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, parallel=True)
 def calc_Iobs_pvexponential(
     tau: NDArray,
     uvw: NDArray,
@@ -1245,14 +1250,13 @@ def calc_Iobs_pvexponential(
         )
 
         y = Ic * pv
-        y = y[mask]
 
         Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
 
     return Iobs
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, parallel=True)
 def calc_Iobs_pvheating(
     sigma: NDArray,
     uvw: NDArray,
@@ -1310,7 +1314,6 @@ def calc_Iobs_pvheating(
         )
 
         y = Ic * pv
-        y = y[mask]
 
         Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
 
