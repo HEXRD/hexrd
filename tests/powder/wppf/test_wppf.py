@@ -223,7 +223,8 @@ def test_wppf_lebail(expt_spectrum, ceo2_material, lebail_params):
     assert lebail.Rwp < 0.066
 
     # Verify expected final values to some tolerances
-    assert round(params['CeO2_a'].value, 5) == 0.54112
+    # Was 0.54112 before the FCJ fix
+    assert round(params['CeO2_a'].value, 5) == 0.54115
 
 
 def test_lebail_no_vary_preserves_edits(
