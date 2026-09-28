@@ -556,6 +556,7 @@ class Material_Rietveld(Material_LeBail):
 
             # the U factors are related to B by the relation B = 8pi^2 U
             self.U = np.asarray(group['U']).T
+            self.aniU = self.U.ndim > 1
 
             # read atom types (by atomic number, Z)
             self.atom_type = np.asarray(group['Atomtypes'])
