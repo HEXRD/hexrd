@@ -217,7 +217,7 @@ class JCPDS_extend:
                     alphat = float(jlinespl[1])
                     self.alpha_t = alphat
 
-                if jlinespl[0] == 'DALPHATDT:':
+                if jlinespl[0] in ('DALPHADT:', 'DALPHATDT:'):
                     dalphatdt = float(jlinespl[1])
                     self.dalpha_t_dt = dalphatdt
 
@@ -302,7 +302,9 @@ class JCPDS_extend:
         mat.k0p = self.k0p
         mat.dk0dt = self.dk0dt
         mat.dk0pdt = self.dk0pdt
-        mat.alpha_t = self.alpha_t
+        # JCPDS files give the expansivity as alpha_t + dalpha_t_dt * (T - 298),
+        # while the material uses alpha_t + dalpha_t_dt * T.
+        mat.alpha_t = self.alpha_t - 298.0 * self.dalpha_t_dt
         mat.dalpha_t_dt = self.dalpha_t_dt
 
     def update_v0(self):
