@@ -125,7 +125,8 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
 
     # Test calculating the equivalent temperatures
     equiv_temp_dict = m_r.calc_temperature({'Ti': 380})
-    assert np.isclose(equiv_temp_dict['Ti'], 3581, atol=10)
+    # Was 3581 before the dispersion fix
+    assert np.isclose(equiv_temp_dict['Ti'], 3601, atol=10)
 
 
 def test_tds_aggregate_lineout_no_double_scaling(
