@@ -287,9 +287,11 @@ def test_calc_alpha_beta_and_mixing_factor_behavior_and_wrappers():
 
     alpha = pf._calc_alpha(np.array([alpha0, alpha1], dtype=float), x0)
     beta = pf._calc_beta(np.array([beta0, beta1], dtype=float), x0)
-    p_g = np.hstack(([A, x0], np.array([alpha, beta, fwhm_g], dtype=float)))
-    p_l = np.hstack(([A, x0], np.array([alpha, beta, fwhm_l], dtype=float)))
-    eta, _ = pf._mixing_factor_pv(fwhm_g, fwhm_l)
+    # Both parts use the combined FWHM (the Gaussian as a standard deviation)
+    eta, fwhm = pf._mixing_factor_pv(fwhm_g, fwhm_l)
+    sigma = fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+    p_g = np.hstack(([A, x0], np.array([alpha, beta, sigma], dtype=float)))
+    p_l = np.hstack(([A, x0], np.array([alpha, beta, fwhm], dtype=float)))
     G = pf._gaussian_pink_beam(p_g, x)
     L = pf._lorentzian_pink_beam(p_l, x)
     expected_full = eta * L + (1.0 - eta) * G + b0 + b1 * x
@@ -302,9 +304,14 @@ def test_calc_alpha_beta_and_mixing_factor_behavior_and_wrappers():
     )
     alpha_lm = pf._calc_alpha(np.array([alpha0, alpha1], dtype=float), x0)
     beta_lm = pf._calc_beta(np.array([beta0, beta1], dtype=float), x0)
-    p_g_lm = np.hstack(([A, x0], np.array([alpha_lm, beta_lm, fwhm_g], dtype=float)))
-    p_l_lm = np.hstack(([A, x0], np.array([alpha_lm, beta_lm, fwhm_l], dtype=float)))
-    eta_lm, _ = pf._mixing_factor_pv(fwhm_g, fwhm_l)
+    eta_lm, fwhm_lm = pf._mixing_factor_pv(fwhm_g, fwhm_l)
+    sigma_lm = fwhm_lm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+    p_g_lm = np.hstack(
+        ([A, x0], np.array([alpha_lm, beta_lm, sigma_lm], dtype=float))
+    )
+    p_l_lm = np.hstack(
+        ([A, x0], np.array([alpha_lm, beta_lm, fwhm_lm], dtype=float))
+    )
     expected_lm = eta_lm * pf._lorentzian_pink_beam(p_l_lm, x_lm) + (
         1.0 - eta_lm
     ) * pf._gaussian_pink_beam(p_g_lm, x_lm)
