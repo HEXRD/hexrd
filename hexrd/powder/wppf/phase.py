@@ -601,7 +601,7 @@ class Material_Rietveld(Material_LeBail):
         )
 
     def _calchkls(self):
-        super()._calc_hkls()
+        super()._calchkls()
         self.multiplicity = self.getMultiplicity(self.hkls)
 
     ''' transform between any crystal space to any other space.
