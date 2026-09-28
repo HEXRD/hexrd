@@ -1,5 +1,7 @@
 from pytest import fixture
 from hexrd.core.material import Material, unitcell
+from hexrd.core.material.spacegroup import Allowed_HKLs
+from hexrd.core.material.unitcell import _hkls_within_dmin
 import numpy as np
 
 
@@ -149,3 +151,51 @@ def test_calc_star(cell: unitcell.unitcell):
 
     vsym = cell.CalcStar(v, 'r', True)
     assert vsym.shape[0] == 6
+
+
+def test_hkls_within_dmin_matches_reference(cell: unitcell.unitcell):
+    candidates = np.array(
+        [
+            [h, k, ell]
+            for h in np.arange(cell.ih, -cell.ih - 1, -1)
+            for k in np.arange(cell.ik, -cell.ik - 1, -1)
+            for ell in np.arange(cell.il, -1, -1)
+        ]
+    )
+    candidates = Allowed_HKLs(cell.sgnum, candidates)
+    expected = np.array(
+        [
+            hkl
+            for hkl in candidates
+            if np.any(hkl) and 1.0 / cell.CalcLength(hkl, 'r') >= cell.dmin
+        ],
+        dtype=np.int32,
+    )
+
+    result = _hkls_within_dmin(
+        cell.ih, cell.ik, cell.il, cell.rmt, cell.dmin, cell.sgnum
+    )
+    np.testing.assert_array_equal(result, expected)
+
+
+def test_choose_symmetric_matches_reference(cell: unitcell.unitcell):
+    hkls = _hkls_within_dmin(
+        cell.ih, cell.ik, cell.il, cell.rmt, cell.dmin, cell.sgnum
+    )
+    mask = np.ones(len(hkls), dtype=bool)
+    for i, hkl in enumerate(hkls):
+        if not mask[i]:
+            continue
+
+        equivalents = cell.CalcStar(hkl, 'r', applyLaue=True).astype(int)
+        for equivalent in equivalents[1:]:
+            matches = np.where(np.all(equivalent == hkls, axis=1))
+            mask[matches] = False
+
+    expected = []
+    for hkl in hkls[mask]:
+        equivalents = cell.CalcStar(hkl, 'r', applyLaue=True)
+        expected.append(equivalents[np.argmax(np.sum(equivalents, axis=1))])
+
+    result = cell.ChooseSymmetric(hkls, InversionSymmetry=True)
+    np.testing.assert_array_equal(result, np.asarray(expected, dtype=np.int32))

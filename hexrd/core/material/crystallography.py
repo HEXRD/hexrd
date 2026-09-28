@@ -36,6 +36,7 @@ from math import pi
 from typing import Literal, Sequence, Optional, Union, List, Tuple, TypedDict, overload
 
 import numpy as np
+from numba import njit
 from numpy.typing import NDArray
 
 from hexrd.core.material.unitcell import unitcell
@@ -45,9 +46,9 @@ from hexrd.core.matrixutil import unitVector
 from hexrd.core.rotations import (
     rotMatOfExpMap,
     mapAngle,
-    applySym,
     ltypeOfLaueGroup,
     quatOfLaueGroup,
+    rotMatOfQuat,
 )
 from hexrd.core.transforms import xfcapi
 from hexrd.core import valunits
@@ -92,6 +93,52 @@ class HKLData(TypedDict):
     latPlnNrmls: NDArray[np.floating]
     symHKLs: NDArray[np.signedinteger]
     centrosym: bool
+
+
+@njit(cache=True, nogil=True)
+def _expand_hkl_symmetry(hkls, operators):
+    """Expand all HKLs under symmetry while preserving operation order."""
+    n_hkls = hkls.shape[0]
+    n_operators = operators.shape[0]
+    equivalents = np.empty((n_hkls, 2 * n_operators, 3), dtype=np.int32)
+    counts = np.empty(n_hkls, dtype=np.int32)
+    centrosymmetric = np.empty(n_hkls, dtype=np.bool_)
+
+    for i in range(n_hkls):
+        count = 0
+        for j in range(n_operators):
+            candidate = np.empty(3, dtype=np.int32)
+            for row in range(3):
+                candidate[row] = (
+                    operators[j, row, 0] * hkls[i, 0]
+                    + operators[j, row, 1] * hkls[i, 1]
+                    + operators[j, row, 2] * hkls[i, 2]
+                )
+            is_new = True
+            for k in range(count):
+                if np.all(candidate == equivalents[i, k]):
+                    is_new = False
+                    break
+            if is_new:
+                equivalents[i, count] = candidate
+                count += 1
+
+        count_without_inversion = count
+        for j in range(count_without_inversion):
+            candidate = -equivalents[i, j]
+            is_new = True
+            for k in range(count):
+                if np.all(candidate == equivalents[i, k]):
+                    is_new = False
+                    break
+            if is_new:
+                equivalents[i, count] = candidate
+                count += 1
+
+        counts[i] = count
+        centrosymmetric[i] = count == count_without_inversion
+
+    return equivalents, counts, centrosymmetric
 
 
 def hklToStr(hkl: np.ndarray) -> str:
@@ -1197,40 +1244,26 @@ class PlaneData(object):
 
         latVecOps = latticeVectors(lparms, symmGroup)
 
+        rotation_matrices = rotMatOfQuat(qsym)
+        if rotation_matrices.ndim == 2:
+            rotation_matrices = rotation_matrices[None]
+        hkl_operators = np.rint(
+            np.einsum(
+                "ij,sjk,kl->sil",
+                latVecOps['F'].T,
+                rotation_matrices,
+                latVecOps['B'],
+            )
+        ).astype(np.int32)
+        symmetry_hkls, multiplicities, centrosymmetric = _expand_hkl_symmetry(
+            hkls.T.astype(np.int32), hkl_operators
+        )
+
         hklDataList: list[HKLData] = []
         for iHKL in range(len(hkls.T)):
-            # need transpose because of convention for hkls ordering
-
-            """
-            latVec = latPlaneData['normals'][:,iHKL]
-            # ... if not spots, may be able to work with a subset of these
-            latPlnNrmlList = applySym(
-                np.c_[latVec], qsym, csFlag=True, cullPM=False
-            )
-            """
-            # returns UN-NORMALIZED lattice plane normals
-            latPlnNrmls = applySym(
-                np.dot(latVecOps['B'], hkls[:, iHKL].reshape(3, 1)),
-                qsym,
-                csFlag=True,
-                cullPM=False,
-            )
-
-            # check for +/- in symmetry group
-            latPlnNrmlsM = applySym(
-                np.dot(latVecOps['B'], hkls[:, iHKL].reshape(3, 1)),
-                qsym,
-                csFlag=False,
-                cullPM=False,
-            )
-
-            csRefl = latPlnNrmls.shape[1] == latPlnNrmlsM.shape[1]
-
-            # added this so that I retain the actual symmetric
-            # integer hkls as well
-            symHKLs = np.array(
-                np.round(np.dot(latVecOps['F'].T, latPlnNrmls)), dtype='int'
-            )
+            count = multiplicities[iHKL]
+            symHKLs = symmetry_hkls[iHKL, :count].T
+            latPlnNrmls = unitVector(np.dot(latVecOps['B'], symHKLs))
 
             hklDataList.append(
                 {
@@ -1240,9 +1273,9 @@ class PlaneData(object):
                     'dSpacings': latPlaneData['dspacings'][iHKL],
                     'tThetaLo': latPlaneData['tThetasLo'][iHKL],
                     'tThetaHi': latPlaneData['tThetasHi'][iHKL],
-                    'latPlnNrmls': unitVector(latPlnNrmls),
+                    'latPlnNrmls': latPlnNrmls,
                     'symHKLs': symHKLs,
-                    'centrosym': csRefl,
+                    'centrosym': bool(centrosymmetric[iHKL]),
                 }
             )
 

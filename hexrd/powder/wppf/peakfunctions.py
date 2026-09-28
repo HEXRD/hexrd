@@ -452,33 +452,66 @@ def pvfcj(
     tau_infl = tth_r - cinv
 
     tau = tau_min * xn
-
-    cx = np.cos(tau)
+    nquad = tau.shape[0]
+    centers = np.empty(nquad)
+    mixing = np.empty(nquad)
+    gaussian_scale = np.empty(nquad)
+    inverse_two_sigma_sqr = np.empty(nquad)
+    lorentz_scale = np.empty(nquad)
+    gamma_sqr = np.empty(nquad)
+    factors = np.empty(nquad)
+    gamma_ani_sqr = _anisotropic_peak_broadening(shkl, hkl)
     res = np.zeros(tth_list.shape)
     den = 0.0
 
-    for i in np.arange(tau.shape[0]):
+    # Set up the quadrature profiles once.  The previous implementation
+    # allocated three full-sized temporary arrays for every quadrature point.
+    for i in range(nquad):
         x = tth_r - tau[i]
         xx = tau[i]
 
         W = _func_W(HoL, SoL, xx, tau_min, tau_infl, tth_r)
         h = _func_h(xx, tth_r)
-        fact = wn[i] * (W / h / cx[i])
+        fact = wn[i] * (W / h / np.cos(xx))
+        factors[i] = fact
         den += fact
 
-        pv = pvoight_wppf(
-            uvw,
-            p,
-            xy,
-            xy_sf,
-            shkl,
-            eta_mixing,
-            np.degrees(x),
-            dsp,
-            hkl,
-            tth_list,
+        center = np.degrees(x)
+        fwhm_g = _gaussian_fwhm(
+            uvw, p, gamma_ani_sqr, eta_mixing, center, dsp
         )
-        res += pv * fact
+        fwhm_l = _lorentzian_fwhm(
+            xy, xy_sf, gamma_ani_sqr, eta_mixing, center, dsp
+        )
+        eta, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
+        sigma = fwhm / gauss_width_fact
+        gamma = fwhm / lorentz_width_fact
+
+        centers[i] = center
+        mixing[i] = eta
+        gaussian_scale[i] = 0.9394372787 / fwhm
+        inverse_two_sigma_sqr[i] = 0.5 / (sigma * sigma)
+        lorentz_scale[i] = gamma / np.pi
+        gamma_sqr[i] = gamma * gamma
+
+    # Fuse the Gaussian and Lorentzian profile evaluation.  In particular,
+    # avoid evaluating exp() where the Gaussian is below floating-point
+    # range; almost every grid point is in that region for narrow peaks.
+    for j in range(tth_list.size):
+        value = 0.0
+        for i in range(nquad):
+            delta = tth_list[j] - centers[i]
+            delta_sqr = delta * delta
+            exponent = delta_sqr * inverse_two_sigma_sqr[i]
+            gaussian = 0.0
+            if exponent < 745.0:
+                gaussian = gaussian_scale[i] * np.exp(-exponent)
+            lorentzian = lorentz_scale[i] / (delta_sqr + gamma_sqr[i])
+            eta = mixing[i]
+            value += factors[i] * (
+                eta * lorentzian + (1.0 - eta) * gaussian
+            )
+        res[j] = value
 
     res = np.sin(tth_r) * res / den / 4.0 / HoL / SoL
     a = np.trapezoid(res, tth_list)
@@ -805,6 +838,54 @@ def pvoight_heating(
     return n * l_val / al + (1.0 - n) * g / ag
 
 
+@njit(cache=True, nogil=True)
+def _same_wppf_profile(tth, dsp, hkl, xy_sf, shkl, i, j):
+    """Return whether two reflections have the same peak profile.
+
+    Distinct reflection families can be exactly coincident in powder data.
+    Their WPPF profiles differ only through two-theta, d-spacing, stacking
+    fault broadening, and the scalar anisotropic broadening term.  Treat
+    roundoff-sized differences in the lattice-derived values as equal.
+    """
+    t_scale = max(1.0, abs(tth[i]), abs(tth[j]))
+    if abs(tth[i] - tth[j]) > 1.0e-12 * t_scale:
+        return False
+
+    d_scale = max(1.0, abs(dsp[i]), abs(dsp[j]))
+    if abs(dsp[i] - dsp[j]) > 1.0e-12 * d_scale:
+        return False
+
+    x_scale = max(abs(xy_sf[i]), abs(xy_sf[j]))
+    if abs(xy_sf[i] - xy_sf[j]) > 1.0e-14 * x_scale:
+        return False
+
+    gamma_i = _anisotropic_peak_broadening(shkl, hkl[i])
+    gamma_j = _anisotropic_peak_broadening(shkl, hkl[j])
+    gamma_scale = max(abs(gamma_i), abs(gamma_j))
+    return abs(gamma_i - gamma_j) <= 1.0e-14 * gamma_scale
+
+
+@njit(cache=True, nogil=True)
+def _build_wppf_profile_groups(tth, dsp, hkl, xy_sf, shkl, nref):
+    """Group adjacent, coincident reflections with identical profiles."""
+    starts = np.empty(nref, dtype=np.int64)
+    ends = np.empty(nref, dtype=np.int64)
+    ngroups = 0
+    i = 0
+    while i < nref:
+        j = i + 1
+        while j < nref and _same_wppf_profile(
+            tth, dsp, hkl, xy_sf, shkl, i, j
+        ):
+            j += 1
+        starts[ngroups] = i
+        ends[ngroups] = j
+        ngroups += 1
+        i = j
+
+    return starts[:ngroups], ends[:ngroups]
+
+
 @njit(cache=True, nogil=True, parallel=True)
 def computespectrum_pvfcj(
     uvw,
@@ -832,10 +913,18 @@ def computespectrum_pvfcj(
     the final spectrum
     """
 
-    spec = np.zeros(tth_list.shape)
     nref = np.min(np.array([Iobs.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]]))
-    for ii in prange(nref):
-        II = Iobs[ii]
+    starts, ends = _build_wppf_profile_groups(
+        tth, dsp, hkl, xy_sf, shkl, nref
+    )
+    group_intensity = np.empty(starts.size)
+    for group in range(starts.size):
+        group_intensity[group] = np.sum(Iobs[starts[group] : ends[group]])
+
+    spec = np.zeros(tth_list.shape)
+    for group in prange(starts.size):
+        ii = starts[group]
+        II = group_intensity[group]
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
@@ -997,7 +1086,7 @@ def computespectrum_pvheating(
     return spec
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, parallel=True)
 def calc_Iobs_pvfcj(
     uvw,
     p,
@@ -1025,7 +1114,7 @@ def calc_Iobs_pvfcj(
     this is called for multiple wavelengths and phases to compute
     the final intensities
     """
-    Iobs = np.empty(tth.shape)
+    Iobs = np.zeros(tth.shape)
     nref = np.min(np.array([Icalc.shape[0], tth.shape[0], dsp.shape[0], hkl.shape[0]]))
 
     yo = spectrum_expt[:, 1]
@@ -1036,8 +1125,11 @@ def calc_Iobs_pvfcj(
     tth_list_mask = spectrum_expt[:, 0]
     tth_list_mask = tth_list_mask[mask]
 
-    for ii in np.arange(nref):
-        Ic = Icalc[ii]
+    starts, ends = _build_wppf_profile_groups(
+        tth, dsp, hkl, xy_sf, shkl, nref
+    )
+    for group in prange(starts.size):
+        ii = starts[group]
         t = tth[ii]
         d = dsp[ii]
         g = hkl[ii]
@@ -1060,10 +1152,9 @@ def calc_Iobs_pvfcj(
             wn,
         )
 
-        y = Ic * pv
-        y = y[mask]
-
-        Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
+        scale = np.trapezoid(yo * pv / yc, tth_list_mask)
+        for jj in range(starts[group], ends[group]):
+            Iobs[jj] = Icalc[jj] * scale
 
     return Iobs
 
