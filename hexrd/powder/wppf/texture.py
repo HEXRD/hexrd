@@ -70,7 +70,7 @@ extra dependency, so not sure if we need that
 '''
 Blmn = {
     'th': {
-        2: np.array([[0.0, 1.0, 0.0]]),
+        2: np.zeros((0, 3)),
         4: np.array(
             [
                 [
@@ -299,7 +299,7 @@ Blmn = {
         ),
     },
     'oh': {
-        2: np.array([[1.0]]),
+        2: np.zeros((0, 1)),
         4: np.array(
             [
                 [
@@ -607,7 +607,7 @@ def get_num_sym_harm(ell, sym='oh'):
         return int(ell / 4) + 1
     elif sym == 's6':
         return 2 * int(ell / 3) + 1
-    elif sym == 'd3h':
+    elif sym == 'd3d':
         return int(ell / 3) + 1
     elif sym == 'c6h':
         return 2 * int(ell / 6) + 1
