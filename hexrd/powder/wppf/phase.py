@@ -557,6 +557,8 @@ class Material_Rietveld(Material_LeBail):
             # the U factors are related to B by the relation B = 8pi^2 U
             self.U = np.asarray(group['U']).T
             self.aniU = self.U.ndim > 1
+            if self.aniU:
+                self.calcBetaij()
 
             # read atom types (by atomic number, Z)
             self.atom_type = np.asarray(group['Atomtypes'])
@@ -570,7 +572,7 @@ class Material_Rietveld(Material_LeBail):
                 [[U[0], U[3], U[4]], [U[3], U[1], U[5]], [U[4], U[5], U[2]]]
             )
 
-            self.betaij[:, :, i] *= 2.0 * np.pi**2 * self.aij
+            self.betaij[:, :, i] *= 2.0 * np.pi**2 * self.aij * 1e-2
 
     def CalcWavelength(self):
         # wavelength in nm
