@@ -217,7 +217,7 @@ class JCPDS_extend:
                     alphat = float(jlinespl[1])
                     self.alpha_t = alphat
 
-                if jlinespl[0] == 'DALPHATDT:':
+                if jlinespl[0] in ('DALPHADT:', 'DALPHATDT:'):
                     dalphatdt = float(jlinespl[1])
                     self.dalpha_t_dt = dalphatdt
 
