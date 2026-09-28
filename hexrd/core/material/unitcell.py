@@ -144,7 +144,7 @@ class unitcell:
                 [[U[0], U[3], U[4]], [U[3], U[1], U[5]], [U[4], U[5], U[2]]]
             )
 
-            self.betaij[:, :, i] *= 2.0 * np.pi**2 * self._aij
+            self.betaij[:, :, i] *= 2.0 * np.pi**2 * self._aij * 1e-2
 
     def calcmatrices(self):
         a = self.a
@@ -778,6 +778,7 @@ class unitcell:
                         data[:, WAV_ID], data[:, MU_ID] + data[:, COH_INCOH_ID]
                     )
                     data = data[:, [WAV_ID, REAL_F1_ID, IMAG_F2_ID]]
+                    data = data[np.argsort(data[:, 0])]
                     f_anomalous_data.append(data)
                 else:
                     wav = np.linspace(1.16e2, 2.86399992e-03, 189)

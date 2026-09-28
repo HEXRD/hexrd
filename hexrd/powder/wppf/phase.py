@@ -619,7 +619,7 @@ class Material_Rietveld(Material_LeBail):
                 [[U[0], U[3], U[4]], [U[3], U[1], U[5]], [U[4], U[5], U[2]]]
             )
 
-            self.betaij[:, :, i] *= 2.0 * np.pi**2 * self.aij
+            self.betaij[:, :, i] *= 2.0 * np.pi**2 * self.aij * 1e-2
 
     def CalcWavelength(self):
         # wavelength in nm
@@ -747,6 +747,7 @@ class Material_Rietveld(Material_LeBail):
                 gid = fid.get('/' + elem)
                 data = np.array(gid.get('data'))
                 data = data[:, [7, 1, 2]]
+                data = data[np.argsort(data[:, 0])]
                 f_anomalous_data.append(data)
 
         n = max([x.shape[0] for x in f_anomalous_data])
