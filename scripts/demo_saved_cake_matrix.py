@@ -14,10 +14,12 @@ images = imageseries.open(
     dataname='data',
 )
 operator = CakeMatrix.load(
-    'hexrd-wip-branches/cake-data-research/presentation/coarse.hexrdcake'
+    'hexrd-wip-branches/cake-data-research/presentation/full-image.hexrdcake'
 )
-x = operator.gather_active_composite_pixels(images[0])
+C = operator.matrix
+assert images.shape == operator.composite_shape
+frame = images[0]
 del images
-cake = (operator.matrix @ x).reshape(operator.shape)
+cake = (C @ frame.ravel()).reshape(operator.shape)
 cake[operator.mask] = np.nan
 profile = np.nanmean(cake, axis=0)

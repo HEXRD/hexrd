@@ -1,107 +1,107 @@
 # Persistent cake matrices
 
-The first public implementation exports the agreed **provisional CSR format**.
-The matrix is ordinary SciPy-compatible CSR; geometry, the uniform grid, and
-compact detector-pixel mapping are saved alongside it. No output mask, duplicate
-panel names/shapes, or composite-frame shape/indices are stored.
+The provisional `draft-csr-2` format stores a standard CSR matrix with
+full-image columns. Composite images use ordinary `C @ frame.ravel()` with
+no pixel extraction or column remapping. Interactive PolarView is unchanged.
 
-```text
-example.hexrdcake
-  attributes: format = "HEXRD cake matrix", version = "draft-csr-1"
-  instrument/                 Embedded instrument snapshot
-  grid/
-    tth                       [start, step, count]
-    eta                       [start, step, count]
-  input/
-    panel_offsets
-    pixel_indices
-  matrix/
-    attributes: format = "csr", shape = [noutput, ninput]
-    data
-    indices
-    indptr
-```
+- example.hexrdcake
+  - Attributes: format = "HEXRD cake matrix", version = "draft-csr-2"
+  - instrument/: Embedded instrument snapshot
+  - grid/
+    - tth: [start, step, count]
+    - eta: [start, step, count]
+  - matrix/
+    - Attributes: format = "csr", shape, input_layout
+    - data
+    - indices
+    - indptr
 
-Angles are degrees. `start` is the first bin's lower edge; output order is
-`(eta, tth)` in C order. Input segments follow lexicographically sorted embedded
-instrument detector names, including empty segments for unused panels. Local
-pixel indices are sorted, unique, zero-based C-order positions within each panel.
-`panel_offsets` has one more entry than the number of panels. Matrix columns
-index this compact input vector. Empty matrix rows define missing coverage.
-Grid counts are positive integers stored in the numeric triples. The effective
-upper edge is `start + step * count`, which can differ slightly from a requested
-upper bound because PolarView rounds the number of bins.
+There is no input/ group, pixel-extraction list, stored output mask, duplicate
+panel names/shapes, frame shape, or mandatory hash/provenance hierarchy.
 
-## Build and use
+## Input and output conventions
+
+- `input_layout = "composite"`: columns address the complete C-order detector
+  image. For subpanels, its shape is the maximum ROI stop in each dimension;
+  a single panel without an ROI uses its panel dimensions. Unused columns store
+  no coefficients. Image dimensions and orientation must match this layout.
+- `input_layout = "panels"`: columns concatenate complete panel images in
+  lexicographically sorted detector-name order, each in C order. No compact
+  pixel selection is involved. This supports instruments with independent
+  detector images or multiple physical detector groups.
+- Automatic export chooses composite for one panel or disjoint ROIs in one
+  detector group; otherwise it chooses panels. Callers can specify the layout.
+- Geometry uses instrument-defined panel dimensions. Other HEXRD workflows
+  can extract ROIs from a larger padded raw frame; that does not establish
+  its total width from the instrument. This format deliberately requires the
+  defined composite shape and rejects differently shaped input, including
+  equal-size arrays with a different row/column shape. Apply any required image
+  orientation changes before caking. Same-shaped flips cannot be detected.
+- Output is `(eta, tth)` flattened in C order. Grid angles are degrees, start
+  is a lower bin edge, and upper edge is `start + step * count`. Rounding may
+  make that differ slightly from the originally requested range endpoint.
+- Empty CSR rows indicate missing coverage and define the output mask.
+
+## Build and apply
 
 ```python
+import numpy as np
 from hexrd.core.cake import CakeMatrix, CakeOperatorSpec, export_cake_matrix
 
-spec = CakeOperatorSpec((0, 16), (-180, 180), (0.04, 5))  # Coarse test grid.
+spec = CakeOperatorSpec((0, 16), (-180, 180), (0.04, 5))
 export_cake_matrix('example.hexrdcake', instrument, spec)
 operator = CakeMatrix.load('example.hexrdcake')
-x = operator.gather_active_composite_pixels(frame)
-cake = (operator.matrix @ x).reshape(operator.shape)
-cake[operator.mask] = float('nan')
+assert frame.shape == operator.composite_shape
+cake = (operator.matrix @ frame.ravel()).reshape(operator.shape)
+cake[operator.mask] = np.nan
 profile = np.nanmean(cake, axis=0)
 ```
 
-Import NumPy as `np` for the profile reduction. `operator.apply(panel_images)`
-and `operator.apply_composite(frame)` also return masked polar images.
-`apply_active_pixels` accepts `(pixels,)` or `(pixels, frames)` and returns
-`(eta, tth)` or `(eta, tth, frames)` respectively. Choose bounded batches.
-`tth_centers` and `eta_centers` expose the angular axes without a PolarView.
-The embedded instrument is constructed lazily through `operator.instrument`;
-application reads only saved arrays and the panel layout. Composite gather
-indices are cached in memory and rebuilt when the incoming frame shape changes.
+Load once for the series. `apply_composite(frame)` checks the shape and returns
+masked output without assembling panels or gathering selected pixels. A
+contiguous frame's ravel is a view; noncontiguous layouts and integer-to-float
+promotion may copy. `apply(panel_images)` remains an adapter for panel
+dictionaries; composite archives assemble the full image from those panels.
+Their ROIs must refer to the same physical composite. The direct composite
+API is the batch path. Separate-panel archives assemble a full panel vector.
 
-The loader checks format/version, grid values, instrument dimensions, ROIs,
-panel boundaries, local pixel bounds, CSR shape/pointers/indices, and finite
-coefficients before applying the matrix. `verify_cake_matrix` runs these checks.
-There are no mandatory cryptographic hashes in this simple format.
+`matrix_for_composite(frame_shape)` validates and returns the stored matrix
+without copying for new files. It can also prepare a legacy compact archive
+once for a raw shape. `apply_active_pixels` and gather methods remain for
+legacy callers; for new files their vectors contain all input pixels.
+`tth_centers`, `eta_centers`, and lazy `instrument` expose saved geometry.
 
-## Export behavior and numerical semantics
+## Persistence and numerical behavior
 
-- Export writes a temporary sibling and atomically replaces the destination
-  after success. `overwrite=False` is the default. Raising from the optional
-  `update_progress` callback cancels export and preserves the destination.
-- A contribution is omitted when any of its four source pixels is invalid in
-  the static instrument panel buffer. Weights are not renormalized.
-- Each output row retains original panel/contribution order; input sorting
-  remaps columns without changing accumulation order. CSR duplicates and zero
-  coefficients are retained. Standard sparse multiplication may still differ
-  in low floating-point bits from other executors; use tolerance comparisons.
-- Dynamic NaNs propagate through multiplication, including zero-weight terms.
-  Masked input arrays must be explicitly filled. Caller-side `np.nanmean`
-  ignores NaN results and static missing coverage after filling with NaN.
-- The file does not prescribe dark correction, thresholds, omega integration,
-  wedge reduction, image decoding, scan metadata, or result writing.
-- Current construction projects bounded eta chunks into an intermediate
-  bilinear archive, then streams its coefficients to CSR. This bounds geometry
-  memory but entails an extra disk pass and temporary disk usage. Direct CSR
-  streaming is a follow-up optimization.
-- HDF5 numeric datasets use portable gzip-1, shuffle and Fletcher32 when large;
-  consumers read their storage metadata directly. No required GPU dependencies.
+The loader validates format/version, grid, dimensions, ROIs, layout, matrix
+shape, pointers, indices, and finite coefficients. New files write atomically;
+`overwrite=False` is the default. Raising from the progress callback preserves
+an existing destination. Construction currently uses a bounded eta-chunk
+bilinear archive followed by streamed CSR conversion, so an extra temporary
+disk pass remains. Numeric datasets use gzip-1, shuffle and Fletcher32.
 
-`CakeOperator`, `export_cake_operator`, and their provisional version-1/2 readers
-remain for the earlier bilinear prototypes and research compatibility. New GUI
-exports use `CakeMatrix`/`export_cake_matrix`. The old cached `PolarView` API and
-interactive GUI rendering are unchanged.
+A bilinear contribution is omitted if any of its four pixels is invalid in the
+static panel buffer. Coefficients are not renormalized. Original contribution
+order, duplicate entries, and zero coefficients are preserved. Dynamic NaNs
+propagate, including through zero-weight terms; callers choose reduction and
+missing-data policies. Matrix application does not replace threshold-channel
+combination, omega integration/flooring, dark correction, or orientation changes.
+Do not reorder those steps without numerical verification.
 
-## Verification and next steps
+The `draft-csr-1` compact reader remains supported, as do `CakeOperator` and
+its earlier version-1/2 bilinear prototypes. New GUI exports use draft-csr-2.
 
-Coarse core tests cover sorted input ordering independent of contribution
-ordering, ordinary CSR multiplication, panel/composite input, padded composite
-frames, batches, lazy instrument loading, invalid archives, static masks,
-NaNs, and cancellation atomicity. The GUI branch exports through this API and
-has a menu-to-file-to-core-loader numerical test.
+## Verification and performance research
 
-Realistic CHESS example evidence lives outside this repository in the workspace's
-`hexrd-wip-branches/cake-data-research/realistic-2026-09-28/` bundle. Its large
-matrix is a demonstration artifact, not a dependency of the unit tests.
+Coarse tests cover direct multiplication, instrument-derived dimensions,
+separate panels/groups, single panels, masks, NaNs, invalid archives, legacy
+loading, noncontiguous frames, batches, and atomic cancellation. The GUI test
+exports via the actual handler, loads the file, and compares with PolarView.
+Real 32-panel coarse and CHESS-resolution files are separate research artifacts;
+both full-image files match their previous validated matrix output exactly.
 
-Alessandro owns CLI/workflow integration. Follow-up decisions are command naming,
-which geometry flags conflict with a supplied matrix, center-based wedge
-selection and partial edge wedges, NaN handling and full-profile normalization,
-and preserving existing omega averaging/flooring behavior. The current format
-remains provisional until that integration is agreed and exercised end to end.
+Research under the workspace's `cake-data-research` compares ordinary SciPy,
+parallel CSR rows, threaded row chunks, and cached PolarView on matching grids.
+The optimized executors remain benchmark prototypes; the public default is
+ordinary SciPy multiplication. Choose either frame-level or within-frame
+parallelism with a shared worker budget, then benchmark full workflow throughput.
