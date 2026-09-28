@@ -483,9 +483,9 @@ def _gaussian_pink_beam(p, x):
     g = np.zeros(x.shape)
     zmask = np.abs(del_tth) > 5.0
 
-    g[~zmask] = (0.5 * (alpha * beta) / (alpha + beta)) * np.exp(u[~zmask]) * t1[
-        ~zmask
-    ] + np.exp(v[~zmask]) * t2[~zmask]
+    g[~zmask] = (0.5 * (alpha * beta) / (alpha + beta)) * (
+        np.exp(u[~zmask]) * t1[~zmask] + np.exp(v[~zmask]) * t2[~zmask]
+    )
     mask = np.isnan(g)
     g[mask] = 0.0
     g *= A / g.max()
@@ -543,16 +543,15 @@ def _pink_beam_dcs_no_bg(p, x):
     alpha = _calc_alpha((p[2], p[3]), p[1])
     beta = _calc_beta((p[4], p[5]), p[1])
 
-    arg1 = np.array([alpha, beta, p[6]]).astype(np.float64)
-    arg2 = np.array([alpha, beta, p[7]]).astype(np.float64)
+    eta, fwhm = _mixing_factor_pv(p[6], p[7])
+    arg1 = np.array([alpha, beta, fwhm / 2.354820045]).astype(np.float64)
+    arg2 = np.array([alpha, beta, fwhm]).astype(np.float64)
 
     p_g = np.hstack((p[0:2], arg1))
     p_l = np.hstack((p[0:2], arg2))
 
     # bkg = p[8] + p[9]*x + p[10]*(2.*x**2 - 1.)
     # bkg = p[8] + p[9]*x  # !!! make like the other peak funcs here
-
-    eta, fwhm = _mixing_factor_pv(p[6], p[7])
 
     G = _gaussian_pink_beam(p_g, x)
     L = _lorentzian_pink_beam(p_l, x)
@@ -660,13 +659,12 @@ def pink_beam_dcs_lmfit(x, A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l):
     alpha = _calc_alpha((alpha0, alpha1), x0)
     beta = _calc_beta((beta0, beta1), x0)
 
-    arg1 = np.array([alpha, beta, fwhm_g], dtype=np.float64)
-    arg2 = np.array([alpha, beta, fwhm_l], dtype=np.float64)
+    eta, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
+    arg1 = np.array([alpha, beta, fwhm / 2.354820045], dtype=np.float64)
+    arg2 = np.array([alpha, beta, fwhm], dtype=np.float64)
 
     p_g = np.hstack([[A, x0], arg1]).astype(np.float64, order='C')
     p_l = np.hstack([[A, x0], arg2]).astype(np.float64, order='C')
-
-    eta, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
     G = _gaussian_pink_beam(p_g, x)
     L = _lorentzian_pink_beam(p_l, x)
