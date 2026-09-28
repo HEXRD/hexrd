@@ -283,7 +283,8 @@ def calc_phi_x(bvec, eHat_l):
         return 0.0
     else:
         bv = bv / bv_norm
-        return np.arccos(np.dot(bv, -eHat_l)).item()
+        v0 = np.array([0.0, 0.0, 1.0])
+        return azimuth(-bv[None, :], -v0, np.squeeze(eHat_l)).item()
 
 
 def azimuth(vv, v0, v1):
