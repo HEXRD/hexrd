@@ -11,7 +11,7 @@ import pytest
 from hexrd.powder.cake import CakeMatrix, CakeOperatorSpec, export_cake_matrix
 from hexrd.core.instrument import HEDMInstrument, PlanarDetector
 from hexrd.core.projections.polar import PolarView
-from hexrd.powder.cake_data import CakeDataConfig, cake_data, config_as_json
+from hexrd.powder.cake_data import CakeDataConfig, _profiles, cake_data, config_as_json
 from hexrd.powder.cli.cake_data import configure_parser
 
 
@@ -133,7 +133,6 @@ def test_saved_matrix_command_matches_polar_lineouts(tmp_path, small_scan):
             view.warp_image({'panel': image}, pad_with_nans=True)
             for image in integrated
         ]
-        expected_full = np.array([np.nanmean(cake, axis=0) for cake in cakes])
         expected_wedges = np.array(
             [
                 [
@@ -143,6 +142,7 @@ def test_saved_matrix_command_matches_polar_lineouts(tmp_path, small_scan):
                 for cake in cakes
             ]
         )
+        expected_full = np.nanmean(expected_wedges, axis=1)
     with h5py.File(tmp_path / 'out/sample.h5') as f:
         g = f['Cake/0']
         np.testing.assert_allclose(g['IvTTHvW'][:], expected_full, equal_nan=True)
@@ -183,3 +183,16 @@ def test_invalid_scan_keeps_previous_outputs(tmp_path, small_scan):
         cake_data(config)
     assert output.read_bytes() == original
     assert not list((tmp_path / 'out').glob('.cake-data-*'))
+
+
+def test_combined_lineout_weights_wedges_equally():
+    cake = np.ma.array(
+        [[10, 0, np.nan], [10, np.nan, np.nan], [20, 4, np.nan], [999, 999, 999]],
+        mask=[[False] * 3] * 3 + [[True] * 3],
+    )
+    # Two wedges have unequal coverage; the third has no samples at all.
+    full, wedges = _profiles(cake, [0, 2, 4, 4])
+    np.testing.assert_allclose(
+        wedges, [[10, 0, np.nan], [20, 4, np.nan], [np.nan] * 3], equal_nan=True
+    )
+    np.testing.assert_allclose(full, [15, 2, np.nan], equal_nan=True)

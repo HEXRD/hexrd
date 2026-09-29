@@ -1,7 +1,7 @@
 """Self-contained CSR cake matrices with instrument-defined input layouts.
 
-The format is documented in CAKE_OPERATOR.md. Geometry generation
-currently uses the bounded-memory bilinear builder before streaming into CSR.
+Geometry generation uses the bounded-memory bilinear builder before
+streaming into CSR.
 """
 
 from __future__ import annotations

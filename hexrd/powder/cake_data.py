@@ -331,7 +331,8 @@ def _profiles(
             for first, last in zip(bounds[:-1], bounds[1:])
         ]
     )
-    full = _mean(values, valid)
+    # Give each valid wedge equal weight, as in Chris's newer Eiger script.
+    full = _mean(profiles, ~np.isnan(profiles))
     return full, profiles
 
 
