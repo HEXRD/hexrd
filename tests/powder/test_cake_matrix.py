@@ -48,7 +48,7 @@ def test_matrix_matches_polar_view(
     expected = PolarView(
         (0, 3), instrument, eta_min=-180, eta_max=180, pixel_size=(0.2, 10)
     ).warp_image(images)
-    actual = matrix.apply_composite(frame) if composite else matrix.apply(images)
+    actual = matrix.apply(frame if composite else images)
     np.testing.assert_array_equal(actual.mask, expected.mask)
     np.testing.assert_allclose(actual.compressed(), expected.compressed(), atol=1e-14)
     # The stored CSR also works directly on raw pixels in the documented order.
@@ -73,7 +73,7 @@ def test_buffered_export_is_independent_of_chunk_size(
     export_cake_matrix(small, instrument, **GRID, eta_chunk_rows=7)
     export_cake_matrix(whole, instrument, **GRID, eta_chunk_rows=36)
     a, b = CakeMatrix.load(small), CakeMatrix.load(whole)
-    actual, expected = a.apply_composite(frame), b.apply_composite(frame)
+    actual, expected = a.apply(frame), b.apply(frame)
     np.testing.assert_array_equal(actual.mask, expected.mask)
     np.testing.assert_array_equal(actual.data, expected.data)
     # The other panel still contributes where z is buffered; NaNs stay excluded.

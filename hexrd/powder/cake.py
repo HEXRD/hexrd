@@ -1,0 +1,305 @@
+"""Persistent CSR matrices for bilinear polar caking."""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from copy import deepcopy
+from dataclasses import dataclass
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+import h5py
+import numpy as np
+from numpy.lib.stride_tricks import as_strided
+from scipy.sparse import csr_matrix
+
+from hexrd.core.instrument import HEDMInstrument
+from hexrd.core.projections.polar import PolarView
+from hexrd.core.utils.hdf5 import unwrap_dict_to_h5, unwrap_h5_to_dict
+from hexrd.core.utils.panel_buffer import panel_buffer_as_2d_array
+
+FORMAT = 'HEXRD cake matrix'
+VERSION = '1'
+STORAGE = dict(compression='gzip', compression_opts=1, shuffle=True, fletcher32=True)
+
+
+def _input_layout(
+    instrument: HEDMInstrument, layout: str = 'auto'
+) -> tuple[str, tuple[int, ...], dict[str, tuple[int, int]]]:
+    """Resolve the matrix input shared by writer and reader.
+
+    Composite inputs are one C-order raw frame with each panel at its ROI.
+    Independent panels are complete images concatenated in sorted name order.
+    Returns the layout, the input shape, and each panel's ``(start, stride)``:
+    panel pixel (i, j) is matrix column ``start + i * stride + j``.
+    """
+    panels = instrument.detectors
+    if not panels:
+        raise ValueError('instrument has no panels')
+    rois = [p.roi for p in panels.values()]
+    if layout == 'auto':
+        overlap = any(
+            a is not None
+            and b is not None
+            and all(a[k][0] < b[k][1] and b[k][0] < a[k][1] for k in (0, 1))
+            for i, a in enumerate(rois)
+            for b in rois[i + 1 :]
+        )
+        composite = len(panels) == 1 or (
+            None not in rois and len({p.group for p in panels.values()}) == 1
+        )
+        layout = 'composite' if composite and not overlap else 'panels'
+    if layout == 'composite':
+        if len(panels) > 1 and None in rois:
+            raise ValueError('composite inputs require an ROI for every panel')
+        origins = {
+            n: (p.roi[0][0], p.roi[1][0]) if p.roi else (0, 0)
+            for n, p in panels.items()
+        }
+        shape = tuple(
+            max(o[k] + p.shape[k] for o, p in zip(origins.values(), panels.values()))
+            for k in (0, 1)
+        )
+        columns = {n: (r * shape[1] + c, shape[1]) for n, (r, c) in origins.items()}
+    elif layout == 'panels':
+        columns, size = {}, 0
+        for name in sorted(panels):
+            columns[name] = (size, panels[name].cols)
+            size += panels[name].rows * panels[name].cols
+        shape = (size,)
+    else:
+        raise ValueError('input_layout must be auto, composite, or panels')
+    return layout, shape, columns
+
+
+class CakeMatrix:
+    """Loaded CSR matrix with its input layout and uniform polar grid.
+
+    Geometry is fixed by the file. Runtime NaNs propagate through the sparse
+    product; empty rows are masked. Composite matrices multiply a full raw
+    frame directly: ``matrix @ frame.ravel()``.
+    """
+
+    def __init__(self, path: str | Path):
+        self.path = Path(path).expanduser().resolve()
+        with h5py.File(self.path) as f:
+            if f.attrs.get('format') != FORMAT or f.attrs.get('version') not in (
+                VERSION,
+                'draft-csr-2',
+            ):
+                raise ValueError('unsupported cake matrix format or version')
+            self.tth, self.eta = (
+                (float(start), float(step), int(count))
+                for start, step, count in (f['grid/tth'][()], f['grid/eta'][()])
+            )
+            self.shape = (self.eta[2], self.tth[2])
+            config: dict = {}
+            unwrap_h5_to_dict(f['instrument'], config)
+            self.instrument = HEDMInstrument(
+                config, active_beam_name=f['instrument'].attrs.get('active_beam')
+            )
+            m = f['matrix']
+            self.input_layout, self.input_shape, self.columns = _input_layout(
+                self.instrument, m.attrs['input_layout']
+            )
+            shape = (int(np.prod(self.shape)), int(np.prod(self.input_shape)))
+            if tuple(m.attrs['shape']) != shape:
+                raise ValueError('CSR shape must match the grid and input layout')
+            self.matrix = csr_matrix(
+                (m['data'][:], m['indices'][:], m['indptr'][:]), shape=shape
+            )
+        self.matrix.check_format(full_check=True)
+        self.mask = (np.diff(self.matrix.indptr) == 0).reshape(self.shape)
+
+    @classmethod
+    def load(cls, path: str | Path) -> CakeMatrix:
+        return cls(path)
+
+    @property
+    def tth_centers(self) -> np.ndarray:
+        start, step, count = self.tth
+        return start + step * (np.arange(count) + 0.5)
+
+    @property
+    def eta_centers(self) -> np.ndarray:
+        start, step, count = self.eta
+        return start + step * (np.arange(count) + 0.5)
+
+    def assemble(self, images: Mapping[str, np.ndarray]) -> np.ndarray:
+        """Place complete panel images into the matrix input array."""
+        if set(images) != set(self.columns):
+            raise ValueError('input panel names must match the embedded instrument')
+        pixels = np.zeros(self.input_shape, dtype=np.result_type(*images.values()))
+        flat = pixels.reshape(-1)
+        for name, (start, stride) in self.columns.items():
+            image = np.asarray(images[name])
+            if image.shape != self.instrument.detectors[name].shape:
+                raise ValueError(f'panel {name} has the wrong shape')
+            strides = (stride * flat.itemsize, flat.itemsize)
+            as_strided(flat[start:], image.shape, strides)[...] = image
+        return pixels
+
+    def apply(self, images: np.ndarray | Mapping[str, np.ndarray]) -> np.ma.MaskedArray:
+        """Cake a full input array, or a mapping of complete panel images."""
+        pixels = self.assemble(images) if isinstance(images, Mapping) else images
+        if np.shape(pixels) != self.input_shape:
+            raise ValueError(f'input shape must be {self.input_shape}')
+        values = self.matrix @ np.ravel(pixels)
+        return np.ma.array(values.reshape(self.shape), mask=self.mask)
+
+
+@dataclass(frozen=True)
+class CakeOperatorSummary:
+    path: Path
+    grid_shape: tuple[int, int]
+    panel_count: int
+    active_pixel_count: int
+    full_panel_pixel_count: int
+    file_size: int
+
+
+def _csr_chunk(
+    view: PolarView,
+    eta_rows: slice,
+    columns: Mapping[str, tuple[int, int]],
+    valid_pixels: Mapping[str, np.ndarray],
+    used_pixels: Mapping[str, np.ndarray],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return the columns, weights, and row counts for a slice of eta rows."""
+    mapping = view._generate_coordinate_mapping(eta_rows)
+    rows, sources, weights = [], [], []
+    for name, panel in view.detectors.items():
+        interp = mapping[name]['bilinear_interp_dict']
+        panel_sources = np.column_stack(
+            [
+                interp[i + '_img'] * panel.cols + interp[j + '_img']
+                for i in ('i_floor', 'i_ceil')
+                for j in ('j_floor', 'j_ceil')
+            ]
+        )
+        # Exclude all four weights if any source pixel is buffered.
+        keep = valid_pixels[name].ravel()[panel_sources].all(axis=1)
+        panel_sources = panel_sources[keep]
+        used_pixels[name][panel_sources.ravel()] = True
+        start, stride = columns[name]
+        i, j = np.divmod(panel_sources, panel.cols)
+        rows.append(mapping[name]['on_panel_idx'][keep])
+        sources.append(start + i * stride + j)
+        weights.append(
+            np.column_stack([interp[k] for k in ('cc', 'fc', 'cf', 'ff')])[keep]
+        )
+    rows = np.concatenate(rows)
+    order = np.argsort(rows, kind='stable')
+    counts = np.bincount(rows, minlength=(eta_rows.stop - eta_rows.start) * view.ntth)
+    return (
+        np.concatenate(sources)[order].ravel(),
+        np.concatenate(weights)[order].ravel(),
+        4 * counts,
+    )
+
+
+def export_cake_matrix(
+    path: str | Path,
+    instrument: HEDMInstrument,
+    *,
+    tth_range: tuple[float, float],
+    eta_range: tuple[float, float],
+    pixel_size: tuple[float, float],
+    eta_chunk_rows: int = 64,
+    overwrite: bool = False,
+    update_progress: Callable[[int], None] | None = None,
+    input_layout: str = 'auto',
+) -> CakeOperatorSummary:
+    """Write a CSR cake matrix in bounded eta chunks, replacing atomically.
+
+    Contributions retain instrument order, including duplicate columns and
+    zero weights. Raising from update_progress cancels without replacing the
+    destination.
+    """
+    path = Path(path).expanduser().resolve()
+    if path.suffix.lower() != '.hexrdcake':
+        raise ValueError('cake matrix paths must end in .hexrdcake')
+    if path.exists() and not overwrite:
+        raise FileExistsError(path)
+    if (
+        tth_range[0] >= tth_range[1]
+        or eta_range[0] >= eta_range[1]
+        or min(pixel_size) <= 0
+    ):
+        raise ValueError('grid requires increasing ranges and positive pixel sizes')
+    view = PolarView(
+        tth_range,
+        instrument,
+        eta_min=eta_range[0],
+        eta_max=eta_range[1],
+        pixel_size=pixel_size,
+        cache_coordinate_map=False,
+    )
+    output_size = view.neta * view.ntth
+    panels = instrument.detectors
+    input_layout, input_shape, columns = _input_layout(instrument, input_layout)
+    input_size = int(np.prod(input_shape))
+    index_dtype = np.int32 if max(input_size, output_size) < 2**31 else np.int64
+    valid = {name: panel_buffer_as_2d_array(p) for name, p in panels.items()}
+    used = {name: np.zeros(p.rows * p.cols, dtype=bool) for name, p in panels.items()}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix=f'.{path.name}.', dir=path.parent) as temporary:
+        result = Path(temporary) / path.name
+        with h5py.File(result, 'w') as f:
+            f.attrs.update(format=FORMAT, version=VERSION)
+            snapshot = f.create_group('instrument')
+            # Compress array buffers, which can be as large as the detector.
+            config = deepcopy(instrument.write_config(style='hdf5'))
+            buffers = {
+                name: panel.pop('buffer')
+                for name, panel in config['detectors'].items()
+                if np.ndim(panel.get('buffer')) == 2
+            }
+            unwrap_dict_to_h5(snapshot, config)
+            for name, buffer in buffers.items():
+                snapshot['detectors'][name].create_dataset(
+                    'buffer', data=buffer, **STORAGE
+                )
+            if instrument.active_beam_name is not None:
+                snapshot.attrs['active_beam'] = instrument.active_beam_name
+            f['grid/tth'] = [tth_range[0], pixel_size[0], view.ntth]
+            f['grid/eta'] = [eta_range[0], pixel_size[1], view.neta]
+            matrix = f.create_group('matrix')
+            matrix.attrs.update(
+                format='csr', input_layout=input_layout, shape=(output_size, input_size)
+            )
+            data = matrix.create_dataset(
+                'data', (0,), maxshape=(None,), dtype='f8', **STORAGE
+            )
+            indices = matrix.create_dataset(
+                'indices', (0,), maxshape=(None,), dtype=index_dtype, **STORAGE
+            )
+            indptr = matrix.create_dataset(
+                'indptr', (output_size + 1,), dtype='i8', **STORAGE
+            )
+            indptr[0] = nnz = 0
+            for first in range(0, view.neta, eta_chunk_rows):
+                last = min(first + eta_chunk_rows, view.neta)
+                sources, weights, counts = _csr_chunk(
+                    view, slice(first, last), columns, valid, used
+                )
+                end = nnz + len(weights)
+                data.resize((end,))
+                indices.resize((end,))
+                data[nnz:end] = weights
+                indices[nnz:end] = sources
+                indptr[first * view.ntth + 1 : last * view.ntth + 1] = nnz + np.cumsum(
+                    counts
+                )
+                nnz = end
+                if update_progress is not None:
+                    update_progress(int(100 * last / view.neta))
+        result.replace(path)
+    return CakeOperatorSummary(
+        path,
+        view.shape,
+        len(panels),
+        sum(int(a.sum()) for a in used.values()),
+        sum(a.size for a in used.values()),
+        path.stat().st_size,
+    )

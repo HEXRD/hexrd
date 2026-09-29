@@ -68,12 +68,10 @@ class CakeDataConfig:
 
     @classmethod
     def from_json(cls, path: str | Path) -> CakeDataConfig:
-        with Path(path).open(encoding="utf-8") as stream:
-            values = json.load(stream)
+        values = json.loads(Path(path).read_text(encoding="utf-8"))
         if not isinstance(values, dict):
             raise ValueError("cake-data configuration must be a JSON object")
-        known = {field.name for field in fields(cls)}
-        unknown = set(values) - known
+        unknown = set(values) - {field.name for field in fields(cls)}
         if unknown:
             raise ValueError(f"unknown cake-data parameters: {sorted(unknown)}")
         return cls(**values)
@@ -92,53 +90,31 @@ class CakeDataConfig:
             raise ValueError(f"missing required cake-data parameters: {missing}")
         if bool(self.instrument) == bool(self.matrix):
             raise ValueError("provide exactly one of instrument or matrix")
-        overrides = [
-            name for name in GEOMETRY_DEFAULTS if getattr(self, name) is not None
-        ]
+        overrides = [n for n in GEOMETRY_DEFAULTS if getattr(self, n) is not None]
         if self.matrix and overrides:
             raise ValueError(
                 f"matrix fixes the geometry; remove these parameters: {overrides}"
             )
-        for name in (*GEOMETRY_DEFAULTS, 'cake_width', 'ome_start', 'ome_end', 'dome'):
-            value = getattr(self, name)
-            if value is None and name in GEOMETRY_DEFAULTS:
-                continue
-            if (
-                isinstance(value, bool)
-                or not isinstance(value, (int, float))
-                or not np.isfinite(value)
-            ):
-                raise ValueError(f"{name} must be a finite number")
-        for name in ('skip_frames', 'start_layer', 'par_version', 'max_input_frames'):
-            value = getattr(self, name)
-            if value is None and name == 'max_input_frames':
-                continue
-            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-                raise ValueError(f"{name} must be a non-negative integer")
-        if self.cake_width <= 0 or self.dome <= 0 or self.geometry['refinement'] <= 0:
+        geometry = self.geometry
+        if min(self.cake_width, self.dome, geometry['refinement']) <= 0:
             raise ValueError("cake_width, dome, and refinement must be positive")
-        if self.max_input_frames == 0:
-            raise ValueError("max_input_frames must be positive")
+        max_frames = 1 if self.max_input_frames is None else self.max_input_frames
+        if min(self.skip_frames, self.start_layer, max_frames - 1) < 0:
+            raise ValueError("frame and layer counts must be in range")
         _interval_count(self.ome_end - self.ome_start, self.dome, "omega")
         if not self.matrix:
-            geometry = self.geometry
             if geometry['tth_start'] >= geometry['tth_end']:
                 raise ValueError("tth_start must be less than tth_end")
-            if geometry['eta_start'] >= geometry['eta_end']:
+            eta_span = geometry['eta_end'] - geometry['eta_start']
+            if eta_span <= 0:
                 raise ValueError("eta_start must be less than eta_end")
-            _interval_count(
-                geometry['eta_end'] - geometry['eta_start'], self.cake_width, "eta"
-            )
+            _interval_count(eta_span, self.cake_width, "eta")
         if self.par_version != 5:
             raise ValueError("cake-data currently supports par version 5 only")
-        if not isinstance(self.image_options, dict):
-            raise ValueError("image_options must be a JSON object")
         if 'format' in self.image_options:
             raise ValueError("set image_format separately from image_options")
         if self.image_format not in imageseries.load.Registry.adapter_registry:
             raise ValueError(f'unknown image_format: {self.image_format}')
-        if self.image_format == 'hdf5' and 'path' not in self.image_options:
-            raise ValueError("hdf5 requires image_options with the dataset group path")
         for name in ('sample_name', 'output_par'):
             value = getattr(self, name)
             if value and (Path(value).name != value or value in ('.', '..')):
@@ -159,41 +135,20 @@ def load_instrument(path: str | Path) -> HEDMInstrument:
         return HEDMInstrument(yaml.safe_load(stream))
 
 
-def load_par_file(path: str | Path, version: int = 5) -> dict[str, np.ndarray]:
-    if version != 5:
-        raise ValueError("cake-data currently supports par version 5 only")
+def load_par_file(path: str | Path) -> dict[str, np.ndarray]:
     data = np.loadtxt(path, ndmin=2)
-    if not data.size or data.shape[1] <= 24:
+    if data.shape[1] < 25:
         raise ValueError("version-5 par input must contain at least 25 columns")
-    numbers = data[:, [3, 6, 24]]
-    if (
-        not np.isfinite(data[:, [3, 6, 7, 8, 9, 24]]).all()
-        or np.any(numbers != np.floor(numbers))
-        or np.any(numbers < 0)
-        or np.any(data[:, 24] == 0)
-    ):
-        raise ValueError(
-            "par metadata needs finite positions and non-negative integer scan/image numbers and positive frame counts"
-        )
-    # Read optional fly-axis columns from the same table; numeric JSON keys
-    # identify columns regardless of the order in which they were written.
+    # Optional fly-axis columns are named by numeric keys in a JSON sidecar.
     flips = np.zeros(len(data), dtype=bool)
     json_path = Path(path).with_suffix(".json")
     if json_path.exists():
-        with json_path.open(encoding="utf-8") as stream:
-            names = json.load(stream)
-        if not isinstance(names, dict):
-            raise ValueError("par JSON must map column indices to names")
+        names = json.loads(json_path.read_text(encoding="utf-8"))
         columns = {name: int(index) for index, name in names.items()}
-        if {"fly_axis0_rising", "fly_axis0_falling"} <= columns.keys():
-            indices = [columns["fly_axis0_rising"], columns["fly_axis0_falling"]]
-            if min(indices) < 0 or max(indices) >= data.shape[1]:
-                raise ValueError("par JSON fly-axis columns do not match the par data")
-            rising, falling = data[:, indices].T
-            if not np.isfinite([rising, falling]).all():
-                raise ValueError("par fly-axis values must be finite")
-            flips = rising > falling
-        else:
+        try:
+            rising = data[:, columns["fly_axis0_rising"]]
+            flips = rising > data[:, columns["fly_axis0_falling"]]
+        except KeyError:
             logger.warning("par JSON has no fly-axis columns; omega order is unchanged")
     return {
         "scan_number": data[:, 3].astype(int),
@@ -220,11 +175,9 @@ def _load_matrix(config: CakeDataConfig, temporary: Path) -> CakeMatrix:
                 np.degrees(eta_stats[1]),
             ),
         )
-    operator = CakeMatrix.load(path)
+    operator = CakeMatrix(path)
     if operator.input_layout != 'composite':
-        raise ValueError(
-            "cake-data needs a composite-layout matrix for its single input image series"
-        )
+        raise ValueError("cake-data needs a composite-layout matrix")
     return operator
 
 
@@ -260,39 +213,31 @@ def _read_integrated_frames(
     series = imageseries.open(
         raw_path, format=config.image_format, **config.image_options
     )
-    available = max(0, len(series) - config.skip_frames)
     count = min(frame_count, config.max_input_frames or frame_count)
-    if count > available:
-        raise ValueError(
-            f"par file requests {count} frame(s) after skipping {config.skip_frames}, but {raw_path} has only {available}"
-        )
+    if count > len(series) - config.skip_frames:
+        raise ValueError(f"{raw_path} has fewer than the {count} requested frame(s)")
     bins = _interval_count(config.ome_end - config.ome_start, config.dome, 'omega')
-    if frame_count < bins or frame_count % bins:
-        raise ValueError("input frame count is not divisible into omega intervals")
     frames_per_output = frame_count // bins
-    if count % frames_per_output:
-        raise ValueError("max_input_frames must end on a complete omega interval")
+    if frames_per_output < 1 or frame_count % bins or count % frames_per_output:
+        raise ValueError("frames must divide into complete omega intervals")
     starts = range(0, count, frames_per_output)
-    if flip:
-        starts = reversed(starts)
     step = np.copysign(config.dome, config.ome_end - config.ome_start)
-    for start in starts:
-        integrated = np.zeros(operator.composite_shape, dtype=np.float64)
+    for start in reversed(starts) if flip else starts:
+        integrated = np.zeros(operator.input_shape, dtype=np.float64)
         for index in range(start, start + frames_per_output):
             image = np.array(
                 series[config.skip_frames + index], dtype=np.float64, copy=True
             )
-            if image.shape != operator.composite_shape:
+            if image.shape != operator.input_shape:
                 raise ValueError(
-                    f"input image shape {image.shape} must match the instrument shape {operator.composite_shape}"
+                    f"input image shape {image.shape} must be {operator.input_shape}"
                 )
             image[image >= np.iinfo(np.uint32).max] = np.nan
             image /= frames_per_output
             integrated += image
         np.floor(integrated, out=integrated)
         bin_index = start // frames_per_output
-        if flip:
-            bin_index = bins - 1 - bin_index
+        bin_index = bins - 1 - bin_index if flip else bin_index
         omega = config.ome_start + step * (bin_index + 0.5)
         yield omega, integrated
 
@@ -300,14 +245,9 @@ def _read_integrated_frames(
 def _wedge_edges(config: CakeDataConfig, operator: CakeMatrix) -> np.ndarray:
     start, step, count = operator.eta
     stop = start + step * count
-    # The saved grid's rounded endpoint can extend a fraction of a pixel beyond
+    # The saved grid's rounded endpoint can extend up to half a pixel beyond
     # the requested range. Do not create an empty extra wedge for that sliver.
-    quotient = (stop - start) / config.cake_width
-    nearest = round(quotient)
-    if nearest and abs(stop - start - nearest * config.cake_width) <= step / 2 + 1e-10:
-        nwedges = nearest
-    else:
-        nwedges = int(np.ceil(quotient))
+    nwedges = int(np.ceil((stop - start - step / 2) / config.cake_width - 1e-10))
     edges = start + np.arange(nwedges + 1) * config.cake_width
     edges[-1] = stop
     return edges
@@ -339,7 +279,7 @@ def _profiles(
 def cake_data(config: CakeDataConfig) -> tuple[Path, Path]:
     """Run the CakeData workflow and return its HDF5 and par output paths."""
     config.validate()
-    metadata = load_par_file(config.par_file, config.par_version)
+    metadata = load_par_file(config.par_file)
     layers = range(config.start_layer, len(metadata['scan_number']))
     if not layers:
         raise ValueError("start_layer must select at least one par-file layer")
@@ -350,20 +290,6 @@ def cake_data(config: CakeDataConfig) -> tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     h5_path = output_dir / f"{config.sample_name}.h5"
     par_path = output_dir / (config.output_par or f"{config.sample_name}.par")
-    inputs = {
-        Path(config.par_file).resolve(),
-        Path(config.par_file).with_suffix(".json").resolve(),
-        Path(config.matrix or config.instrument).resolve(),
-        *(path.resolve() for path in raw_paths.values()),
-    }
-    if h5_path.resolve() == par_path.resolve() or inputs & {
-        h5_path.resolve(),
-        par_path.resolve(),
-    }:
-        raise ValueError("output paths must differ from each other and all input files")
-    for path in (h5_path, par_path):
-        if path.is_dir():
-            raise ValueError(f'output path is a directory: {path}')
     if config.start_layer and h5_path.exists():
         raise ValueError(
             'start_layer selects a new output; resuming an existing output is not supported'
@@ -395,7 +321,7 @@ def cake_data(config: CakeDataConfig) -> tuple[Path, Path]:
                     metadata["flip"][layer],
                 )
                 for index, (angle, frame) in enumerate(frames):
-                    full, wedges = _profiles(operator.apply_composite(frame), bounds)
+                    full, wedges = _profiles(operator.apply(frame), bounds)
                     full_profiles.append(full)
                     group[f'Ome/{index}/IvTTH'] = wedges
                     group[f'Ome/{index}/eta_key'] = eta_key
