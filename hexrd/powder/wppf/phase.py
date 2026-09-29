@@ -174,8 +174,8 @@ class Material_LeBail(AbstractMaterial):
 
             group = f[xtal]
 
-            self.sgnum = np.asarray(group['SpaceGroupNumber'])[0]
-            self.sgsetting = np.asarray(group['SpaceGroupSetting'])[0]
+            self.sgnum = np.asarray(group['SpaceGroupNumber']).item()
+            self.sgsetting = np.asarray(group['SpaceGroupSetting']).item()
             """
                 IMPORTANT NOTE:
                 note that the latice parameters in EMsoft is nm by default
@@ -988,7 +988,7 @@ class AbstractPhases(ABC):
         """
         if isinstance(file, str):
             mode = 'r+' if Path(file).exists() else 'x'
-            fid = h5py.File(mode)
+            fid = h5py.File(file, mode)
         elif isinstance(file, h5py.File):
             fid = file
         else:
@@ -1037,7 +1037,7 @@ class Phases_Rietveld(AbstractPhases):
             lam = self.wavelength[l][0].getVal('nm') * 1e-9
             E = constants.cPlanck * constants.cLight / constants.cCharge / lam
             E *= 1e-3
-            kev = valWUnit('beamenergy', 'energy', E * 1e-3, 'keV')
+            kev = valWUnit('beamenergy', 'energy', E, 'keV')
             self[material_key][l] = Material_Rietveld(
                 material_file, material_key, dmin=self.dmin, kev=kev
             )
