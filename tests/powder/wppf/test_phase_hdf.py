@@ -19,3 +19,8 @@ def test_rietveld_from_hdf_anisotropic_u(test_data_dir, tmp_path):
     mat = Material_Rietveld(fhdf=path, xtal='Ta', dmin=dmin, kev=kev)
     ref = Material('Ta', path, dmin=dmin, kev=kev)
     assert np.allclose(mat.betaij, ref.unitcell.betaij)
+
+    # betaij must follow in-place edits to U
+    mat.U[0, 0] *= 2
+    mat.CalcXRSF(0.0155, 1.0)
+    assert np.isclose(mat.betaij[0, 0, 0], 2 * ref.unitcell.betaij[0, 0, 0])

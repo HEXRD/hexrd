@@ -774,6 +774,8 @@ class Material_Rietveld(Material_LeBail):
         aniU = self.aniU
         occ = self.atom_pos[:, 3]
         if aniU:
+            # recompute in case U or the lattice changed in place
+            self.calcBetaij()
             betaij = self.betaij
         else:
             betaij = self.U
