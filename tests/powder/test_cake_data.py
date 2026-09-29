@@ -125,6 +125,14 @@ def test_invalid_scan_keeps_previous_outputs(
     cake_data(config)
     output = tmp_path / 'out/sample.h5'
     original = output.read_bytes()
+    # A typo in output settings must never replace the raw data or par input.
+    for overrides in (
+        dict(output_dir=str(tmp_path), sample_name='raw'),
+        dict(output_dir=str(tmp_path), output_par='input.par'),
+        dict(output_par='sample.h5'),
+    ):
+        with pytest.raises(ValueError, match='output paths must differ'):
+            cake_data(replace(config, **overrides))
     with h5py.File(tmp_path / 'raw.h5', 'w') as f:
         f['entry/data/data'] = np.ones((5, 16, 64))
     with pytest.raises(ValueError, match='input image shape'):
@@ -139,7 +147,7 @@ def test_combined_lineout_weights_wedges_equally() -> None:
         mask=[[False] * 3] * 3 + [[True] * 3],
     )
     # Two wedges have unequal coverage; the third has no samples at all.
-    full, wedges = _profiles(cake, [0, 2, 4, 4])
+    full, wedges = _profiles([cake[:2], cake[2:], cake[4:]])
     np.testing.assert_allclose(
         wedges, [[10, 0, np.nan], [20, 4, np.nan], [np.nan] * 3], equal_nan=True
     )

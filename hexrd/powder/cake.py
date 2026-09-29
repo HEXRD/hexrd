@@ -10,7 +10,6 @@ from tempfile import TemporaryDirectory
 
 import h5py
 import numpy as np
-from numpy.lib.stride_tricks import as_strided
 from scipy.sparse import csr_matrix
 
 from hexrd.core.instrument import HEDMInstrument
@@ -130,22 +129,44 @@ class CakeMatrix:
         if set(images) != set(self.columns):
             raise ValueError('input panel names must match the embedded instrument')
         pixels = np.zeros(self.input_shape, dtype=np.result_type(*images.values()))
-        flat = pixels.reshape(-1)
         for name, (start, stride) in self.columns.items():
             image = np.asarray(images[name])
             if image.shape != self.instrument.detectors[name].shape:
                 raise ValueError(f'panel {name} has the wrong shape')
-            strides = (stride * flat.itemsize, flat.itemsize)
-            as_strided(flat[start:], image.shape, strides)[...] = image
+            np.ndarray(
+                image.shape,
+                dtype=pixels.dtype,
+                buffer=pixels,
+                offset=start * pixels.itemsize,
+                strides=(stride * pixels.itemsize, pixels.itemsize),
+            )[...] = image
         return pixels
 
-    def apply(self, images: np.ndarray | Mapping[str, np.ndarray]) -> np.ma.MaskedArray:
-        """Cake a full input array, or a mapping of complete panel images."""
+    def apply(
+        self,
+        images: np.ndarray | Mapping[str, np.ndarray],
+        eta_rows: slice = slice(None),
+    ) -> np.ma.MaskedArray:
+        """Cake complete input images, optionally computing only some eta rows."""
         pixels = self.assemble(images) if isinstance(images, Mapping) else images
         if np.shape(pixels) != self.input_shape:
             raise ValueError(f'input shape must be {self.input_shape}')
-        values = self.matrix @ np.ravel(pixels)
-        return np.ma.array(values.reshape(self.shape), mask=self.mask)
+        matrix = self.matrix
+        if eta_rows != slice(None):
+            first, last, step = eta_rows.indices(self.shape[0])
+            if step != 1:
+                raise ValueError('eta rows must be contiguous')
+            first, last = first * self.shape[1], max(first, last) * self.shape[1]
+            start, stop = matrix.indptr[[first, last]]
+            # Assign shared CSR arrays directly: SciPy's tuple constructor can
+            # copy small views even with copy=False. Only indptr needs a copy.
+            matrix = csr_matrix((last - first, self.matrix.shape[1]))
+            matrix.data = self.matrix.data[start:stop]
+            matrix.indices = self.matrix.indices[start:stop]
+            matrix.indptr = self.matrix.indptr[first : last + 1] - start
+        mask = self.mask[eta_rows]
+        values = matrix @ np.ravel(pixels)
+        return np.ma.array(values.reshape(mask.shape), mask=mask)
 
 
 @dataclass(frozen=True)

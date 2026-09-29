@@ -5,7 +5,7 @@ from __future__ import annotations
 import glob
 import json
 import logging
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -223,7 +223,6 @@ def _read_integrated_frames(
     starts = range(0, count, frames_per_output)
     step = np.copysign(config.dome, config.ome_end - config.ome_start)
     for start in reversed(starts) if flip else starts:
-        integrated = np.zeros(operator.input_shape, dtype=np.float64)
         for index in range(start, start + frames_per_output):
             image = np.array(
                 series[config.skip_frames + index], dtype=np.float64, copy=True
@@ -233,8 +232,12 @@ def _read_integrated_frames(
                     f"input image shape {image.shape} must be {operator.input_shape}"
                 )
             image[image >= np.iinfo(np.uint32).max] = np.nan
-            image /= frames_per_output
-            integrated += image
+            if frames_per_output > 1:
+                image /= frames_per_output
+            if index == start:
+                integrated = image
+            else:
+                integrated += image
         np.floor(integrated, out=integrated)
         bin_index = start // frames_per_output
         bin_index = bins - 1 - bin_index if flip else bin_index
@@ -261,14 +264,13 @@ def _mean(values: np.ndarray, valid: np.ndarray) -> np.ndarray:
 
 
 def _profiles(
-    cake: np.ma.MaskedArray, bounds: Sequence[int] | np.ndarray
+    cakes: Iterable[np.ma.MaskedArray],
 ) -> tuple[np.ndarray, np.ndarray]:
-    values = cake.data
-    valid = ~np.ma.getmaskarray(cake) & ~np.isnan(values)
+    """Reduce each wedge while its small cake is still in cache."""
     profiles = np.array(
         [
-            _mean(values[first:last], valid[first:last])
-            for first, last in zip(bounds[:-1], bounds[1:])
+            _mean(cake.data, ~np.ma.getmaskarray(cake) & ~np.isnan(cake.data))
+            for cake in cakes
         ]
     )
     # Give each valid wedge equal weight, as in Chris's newer Eiger script.
@@ -290,6 +292,16 @@ def cake_data(config: CakeDataConfig) -> tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     h5_path = output_dir / f"{config.sample_name}.h5"
     par_path = output_dir / (config.output_par or f"{config.sample_name}.par")
+    inputs = {
+        Path(config.par_file).resolve(),
+        Path(config.par_file).with_suffix('.json').resolve(),
+        Path(config.matrix or config.instrument).resolve(),
+        *(path.resolve() for path in raw_paths.values()),
+    }
+    if h5_path.resolve() == par_path.resolve() or inputs.intersection(
+        (h5_path.resolve(), par_path.resolve())
+    ):
+        raise ValueError('output paths must differ from each other and all input files')
     if config.start_layer and h5_path.exists():
         raise ValueError(
             'start_layer selects a new output; resuming an existing output is not supported'
@@ -321,7 +333,10 @@ def cake_data(config: CakeDataConfig) -> tuple[Path, Path]:
                     metadata["flip"][layer],
                 )
                 for index, (angle, frame) in enumerate(frames):
-                    full, wedges = _profiles(operator.apply(frame), bounds)
+                    full, wedges = _profiles(
+                        operator.apply(frame, slice(first, last))
+                        for first, last in zip(bounds[:-1], bounds[1:])
+                    )
                     full_profiles.append(full)
                     group[f'Ome/{index}/IvTTH'] = wedges
                     group[f'Ome/{index}/eta_key'] = eta_key

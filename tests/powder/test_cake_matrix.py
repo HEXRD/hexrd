@@ -51,6 +51,17 @@ def test_matrix_matches_polar_view(
     actual = matrix.apply(frame if composite else images)
     np.testing.assert_array_equal(actual.mask, expected.mask)
     np.testing.assert_allclose(actual.compressed(), expected.compressed(), atol=1e-14)
+    np.testing.assert_allclose(
+        matrix.apply(images).filled(np.nan), actual.filled(np.nan), equal_nan=True
+    )
+    chunks = np.ma.concatenate(
+        [
+            matrix.apply(images, rows)
+            for rows in (slice(0, 0), slice(0, 7), slice(7, None))
+        ]
+    )
+    np.testing.assert_array_equal(chunks.mask, actual.mask)
+    np.testing.assert_allclose(chunks.data, actual.data)
     # The stored CSR also works directly on raw pixels in the documented order.
     pixels = (
         frame.ravel()
