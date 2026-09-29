@@ -1,27 +1,27 @@
-from abc import ABC, abstractmethod
 import copy
 import importlib.resources
-from pathlib import Path
 import warnings
+from abc import ABC, abstractmethod
+from pathlib import Path
 
 import h5py
 import numpy as np
 import yaml
 
+import hexrd.core.resources
 from hexrd.core import constants
-from hexrd.core.material import Material, symmetry, symbols
+from hexrd.core.material import Material, symbols, symmetry
 from hexrd.core.material.spacegroup import Allowed_HKLs, SpaceGroup
 from hexrd.core.material.unitcell import _calcstar, _rqpDict
 from hexrd.core.valunits import _nm, valWUnit
 from hexrd.powder.wppf.xtal import (
-    _calc_dspacing,
-    _get_tth,
-    _calcxrsf,
-    _calc_extinction_factor,
     _calc_absorption_factor,
+    _calc_dspacing,
+    _calc_extinction_factor,
+    _calcxrsf,
     _get_sf_hkl_factors,
+    _get_tth,
 )
-import hexrd.core.resources
 
 
 class AbstractMaterial:
@@ -66,7 +66,7 @@ class Material_LeBail(AbstractMaterial):
         """
         dmin in nm
         """
-        self.dmin = dmin.value
+        self.dmin = dmin.getVal("nm")
         self._readHDF(fhdf, xtal)
         self._calcrmt()
         self.sf_and_twin_probability()
@@ -170,12 +170,12 @@ class Material_LeBail(AbstractMaterial):
         with h5py.File(fhdf, 'r') as f:
             name = xtal
             if xtal not in f:
-                raise IOError("crystal doesn't exist in material file.")
+                raise OSError("crystal doesn't exist in material file.")
 
             group = f[xtal]
 
-            self.sgnum = group['SpaceGroupNumber']
-            self.sgsetting = group['SpaceGroupSetting']
+            self.sgnum = np.asarray(group['SpaceGroupNumber']).item()
+            self.sgsetting = np.asarray(group['SpaceGroupSetting']).item()
             """
                 IMPORTANT NOTE:
                 note that the latice parameters in EMsoft is nm by default
@@ -602,13 +602,14 @@ class Material_Rietveld(Material_LeBail):
         with h5py.File(fhdf, 'r') as f:
             group = f[xtal]
             # the last field in this is already
-            self.atom_pos = group['AtomData'].T
+            self.atom_pos = np.asarray(group['AtomData']).T
 
             # the U factors are related to B by the relation B = 8pi^2 U
-            self.U = group['U'].T
+            self.U = np.asarray(group['U']).T
+            self.aniU = self.U.ndim > 1
 
             # read atom types (by atomic number, Z)
-            self.atom_type = group['Atomtypes']
+            self.atom_type = np.asarray(group['Atomtypes'])
             self.atom_ntype = self.atom_type.shape[0]
 
     def calcBetaij(self):
@@ -651,7 +652,7 @@ class Material_Rietveld(Material_LeBail):
         )
 
     def _calchkls(self):
-        super()._calc_hkls()
+        super()._calchkls()
         self.multiplicity = self.getMultiplicity(self.hkls)
 
     ''' transform between any crystal space to any other space.
@@ -664,27 +665,21 @@ class Material_Rietveld(Material_LeBail):
             elif outspace == 'c':
                 v_out = np.dot(self.dsm, v_in)
             else:
-                raise ValueError(
-                    'inspace in ' 'd' ' but outspace can' 't be identified'
-                )
+                raise ValueError('inspace in d but outspace cant be identified')
         elif inspace == 'r':
             if outspace == 'd':
                 v_out = np.dot(v_in, self.rmt)
             elif outspace == 'c':
                 v_out = np.dot(self.rsm, v_in)
             else:
-                raise ValueError(
-                    'inspace in ' 'r' ' but outspace can' 't be identified'
-                )
+                raise ValueError('inspace in r but outspace cant be identified')
         elif inspace == 'c':
             if outspace == 'r':
                 v_out = np.dot(v_in, self.rsm)
             elif outspace == 'd':
                 v_out = np.dot(v_in, self.dsm)
             else:
-                raise ValueError(
-                    'inspace in ' 'c' ' but outspace can' 't be identified'
-                )
+                raise ValueError('inspace in c but outspace cant be identified')
         else:
             raise ValueError('incorrect inspace argument')
         return v_out
@@ -739,9 +734,11 @@ class Material_Rietveld(Material_LeBail):
     def InitializeInterpTable(self):
         f_anomalous_data = []
         resource = importlib.resources.files(hexrd.core.resources) / 'Anomalous.h5'
-        with importlib.resources.as_file(resource) as data_path, \
-                h5py.File(data_path, 'r') as fid:
-            for i in range(0, self.atom_ntype):
+        with (
+            importlib.resources.as_file(resource) as data_path,
+            h5py.File(data_path, 'r') as fid,
+        ):
+            for i in range(self.atom_ntype):
                 Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
                 gid = fid.get('/' + elem)
@@ -777,12 +774,14 @@ class Material_Rietveld(Material_LeBail):
         aniU = self.aniU
         occ = self.atom_pos[:, 3]
         if aniU:
+            # recompute in case U or the lattice changed in place
+            self.calcBetaij()
             betaij = self.betaij
         else:
             betaij = self.U
 
         self.numat = np.zeros(self.atom_ntype, dtype=np.int32)
-        for i in range(0, self.atom_ntype):
+        for i in range(self.atom_ntype):
             self.numat[i] = self.asym_pos[i].shape[0]
             Z = self.atom_type[i]
             elem = constants.ptableinverse[Z]
@@ -791,7 +790,7 @@ class Material_Rietveld(Material_LeBail):
             fNT[i] = constants.fNT[elem]
 
         self.asym_pos_arr = np.zeros([self.numat.max(), self.atom_ntype, 3])
-        for i in range(0, self.atom_ntype):
+        for i in range(self.atom_ntype):
             nn = self.numat[i]
             self.asym_pos_arr[:nn, i, :] = self.asym_pos[i]
 
@@ -924,7 +923,7 @@ class AbstractPhases(ABC):
     def __str__(self):
         resstr = 'Phases in calculation:\n'
         for i, k in enumerate(self.phase_dict):
-            resstr += f'\t{i+1}. {k}\n'
+            resstr += f'\t{i + 1}. {k}\n'
         return resstr
 
     def __getitem__(self, key):
@@ -991,7 +990,7 @@ class AbstractPhases(ABC):
         """
         if isinstance(file, str):
             mode = 'r+' if Path(file).exists() else 'x'
-            fid = h5py.File(mode)
+            fid = h5py.File(file, mode)
         elif isinstance(file, h5py.File):
             fid = file
         else:
@@ -1040,7 +1039,7 @@ class Phases_Rietveld(AbstractPhases):
             lam = self.wavelength[l][0].getVal('nm') * 1e-9
             E = constants.cPlanck * constants.cLight / constants.cCharge / lam
             E *= 1e-3
-            kev = valWUnit('beamenergy', 'energy', E * 1e-3, 'keV')
+            kev = valWUnit('beamenergy', 'energy', E, 'keV')
             self[material_key][l] = Material_Rietveld(
                 material_file, material_key, dmin=self.dmin, kev=kev
             )
