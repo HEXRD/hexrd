@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 
-from hexrd.hedm.cake_data import CakeDataConfig, cake_data, config_as_json
+from hexrd.powder.cake_data import CakeDataConfig, cake_data, config_as_json
 
 
 DESCRIPTION = "Create azimuthally segmented powder profiles from detector data"

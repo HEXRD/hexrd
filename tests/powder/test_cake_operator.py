@@ -10,8 +10,8 @@ import pytest
 from hexrd.core.instrument import HEDMInstrument
 from hexrd.core.projections.polar import PolarView
 
-from hexrd.core.cake import _builder as writer
-from hexrd.core.cake import CakeOperator
+from hexrd.powder.cake import _builder as writer
+from hexrd.powder.cake import CakeOperator
 
 
 @pytest.fixture

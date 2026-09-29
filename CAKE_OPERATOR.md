@@ -46,7 +46,7 @@ panel names/shapes, frame shape, or mandatory hash/provenance hierarchy.
 
 ```python
 import numpy as np
-from hexrd.core.cake import CakeMatrix, CakeOperatorSpec, export_cake_matrix
+from hexrd.powder.cake import CakeMatrix, CakeOperatorSpec, export_cake_matrix
 
 spec = CakeOperatorSpec((0, 16), (-180, 180), (0.04, 5))
 export_cake_matrix('example.hexrdcake', instrument, spec)

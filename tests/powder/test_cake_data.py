@@ -8,11 +8,11 @@ import h5py
 import numpy as np
 import pytest
 
-from hexrd.core.cake import CakeMatrix, CakeOperatorSpec, export_cake_matrix
+from hexrd.powder.cake import CakeMatrix, CakeOperatorSpec, export_cake_matrix
 from hexrd.core.instrument import HEDMInstrument, PlanarDetector
 from hexrd.core.projections.polar import PolarView
-from hexrd.hedm.cake_data import CakeDataConfig, cake_data, config_as_json
-from hexrd.hedm.cli.cake_data import configure_parser
+from hexrd.powder.cake_data import CakeDataConfig, cake_data, config_as_json
+from hexrd.powder.cli.cake_data import configure_parser
 
 
 def test_config_file_and_command_line_update(tmp_path):

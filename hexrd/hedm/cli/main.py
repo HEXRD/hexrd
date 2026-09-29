@@ -17,7 +17,7 @@ from hexrd.hedm.cli import find_orientations
 from hexrd.hedm.cli import fit_grains
 from hexrd.hedm.cli import pickle23
 from hexrd.hedm.cli import preprocess
-from hexrd.hedm.cli import cake_data
+from hexrd.powder.cli import cake_data
 
 
 try:

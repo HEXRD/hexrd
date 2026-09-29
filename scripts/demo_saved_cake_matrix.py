@@ -5,7 +5,7 @@ Run from the workspace root. The two paths identify matching example inputs.
 
 import numpy as np
 from hexrd.core import imageseries
-from hexrd.core.cake import CakeMatrix
+from hexrd.powder.cake import CakeMatrix
 
 images = imageseries.open(
     '/home/patrick/data/hexrd/caking/test_dataset.h5',

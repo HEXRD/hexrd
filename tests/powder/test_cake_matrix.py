@@ -4,7 +4,7 @@ import h5py
 import numpy as np
 import pytest
 
-from hexrd.core.cake import CakeMatrix, CakeOperatorSpec, export_cake_matrix
+from hexrd.powder.cake import CakeMatrix, CakeOperatorSpec, export_cake_matrix
 from hexrd.core.instrument import HEDMInstrument
 from hexrd.core.projections.polar import PolarView
 

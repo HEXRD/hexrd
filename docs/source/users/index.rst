@@ -9,4 +9,3 @@ Contents:
 
    transforms
    GrainData
-   cake-data

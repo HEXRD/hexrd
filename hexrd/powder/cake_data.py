@@ -16,7 +16,7 @@ import numpy as np
 import yaml
 
 from hexrd.core import imageseries
-from hexrd.core.cake import CakeMatrix, CakeOperatorSpec, export_cake_matrix
+from hexrd.powder.cake import CakeMatrix, CakeOperatorSpec, export_cake_matrix
 from hexrd.core.instrument import HEDMInstrument
 from hexrd.core.instrument.hedm_instrument import pixel_resolution
 

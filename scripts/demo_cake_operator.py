@@ -14,7 +14,7 @@ import h5py
 import numba
 import numpy as np
 
-from hexrd.core.cake import CakeOperator, CakeOperatorSpec, export_cake_operator
+from hexrd.powder.cake import CakeOperator, CakeOperatorSpec, export_cake_operator
 from hexrd.core.instrument import HEDMInstrument
 from hexrd.core.projections.polar import PolarView
 
