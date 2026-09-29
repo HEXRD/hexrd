@@ -608,6 +608,8 @@ def _write_operator(
 
     instrument_group = root.create_group('instrument', track_order=True)
     _write_mapping(instrument_group, instrument_config)
+    if instrument.active_beam_name is not None:
+        instrument_group.attrs['active_beam'] = instrument.active_beam_name
     if symbolic_buffers:
         instrument_group.attrs['symbolic_panel_buffers_json'] = json.dumps(
             symbolic_buffers, sort_keys=True

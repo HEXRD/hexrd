@@ -348,7 +348,10 @@ class CakeMatrix:
             config = {}
             with h5py.File(self.path) as f:
                 unwrap_h5_to_dict(f['instrument'], config)
+                active_beam = f['instrument'].attrs.get('active_beam')
             self._instrument = HEDMInstrument(config)
+            if active_beam is not None:
+                self._instrument.active_beam_name = active_beam
         return self._instrument
 
     @property

@@ -181,6 +181,9 @@ def test_separate_panels_without_rois(tmp_path, instrument):
 def test_single_panel_without_roi(tmp_path, instrument):
     del instrument.detectors['z']
     instrument.detectors['a'].roi = None
+    instrument.beam_dict['secondary'] = deepcopy(instrument.active_beam)
+    instrument.beam_dict['secondary']['energy'] = 80.0
+    instrument.active_beam_name = 'secondary'
     path = tmp_path / 'single.hexrdcake'
     export_cake_matrix(
         path, instrument, CakeOperatorSpec((0, 3), (-180, 180), (0.2, 10))
@@ -188,6 +191,8 @@ def test_single_panel_without_roi(tmp_path, instrument):
     operator = CakeMatrix.load(path)
     assert operator.input_layout == 'composite'
     assert operator.composite_shape == (32, 32)
+    assert operator.instrument.active_beam_name == 'secondary'
+    assert operator.instrument.beam_energy == 80.0
     frame = np.arange(1024).reshape(32, 32)
     np.testing.assert_array_equal(
         operator.apply_composite(frame), operator.apply({'a': frame})
