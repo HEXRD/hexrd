@@ -21,4 +21,6 @@ assert images.shape == operator.composite_shape
 frame = images[0]
 cake = (C @ frame.ravel()).reshape(operator.shape)
 cake[operator.mask] = np.nan
-profile = np.nanmean(cake, axis=0)
+rows_per_wedge = round(5 / operator.eta[1])  # 5-degree wedges on this grid
+lineouts = np.nanmean(cake.reshape(-1, rows_per_wedge, cake.shape[1]), axis=1)
+profile = np.nanmean(lineouts, axis=0)

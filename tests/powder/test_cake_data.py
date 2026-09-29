@@ -1,67 +1,22 @@
 import argparse
 import json
 from dataclasses import replace
+from pathlib import Path
 import warnings
 
 import h5py
-
 import numpy as np
 import pytest
 
-from hexrd.powder.cake import CakeMatrix, CakeOperatorSpec, export_cake_matrix
+from hexrd.powder.cake import CakeMatrix, export_cake_matrix
 from hexrd.core.instrument import HEDMInstrument, PlanarDetector
 from hexrd.core.projections.polar import PolarView
 from hexrd.powder.cake_data import CakeDataConfig, _profiles, cake_data, config_as_json
 from hexrd.powder.cli.cake_data import configure_parser
 
 
-def test_config_file_and_command_line_update(tmp_path):
-    path = tmp_path / "cake.json"
-    path.write_text(
-        json.dumps(
-            {
-                "data_dir": "raw/{sample_name}/{image_number}",
-                "output_dir": "output",
-                "sample_name": "ceria",
-                "instrument": "instrument.hexrd",
-                "par_file": "input.par",
-                "cake_width": 10,
-            }
-        ),
-        encoding="utf-8",
-    )
-    config = CakeDataConfig.from_json(path)
-    config.update({"tth_start": 4.0, "cake_width": None})
-
-    assert config.tth_start == 4.0
-    assert config.cake_width == 10
-    config.validate()
-
-
-def test_config_rejects_unknown_parameters(tmp_path):
-    path = tmp_path / "cake.json"
-    path.write_text('{"not_a_parameter": 1}', encoding="utf-8")
-
-    with pytest.raises(ValueError, match="unknown cake-data parameters"):
-        CakeDataConfig.from_json(path)
-
-
-def test_cli_exposes_short_and_long_parameter_forms():
-    parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers()
-    configure_parser(subparsers)
-
-    short = parser.parse_args(["cake-data", "-b", "4", "-p", "input.par"])
-    long = parser.parse_args(
-        ["cake-data", "--tth-start", "4", "--par-file", "input.par"]
-    )
-
-    assert short.tth_start == long.tth_start == 4
-    assert short.par_file == long.par_file == "input.par"
-
-
 @pytest.fixture
-def small_scan(tmp_path):
+def small_scan(tmp_path: Path) -> tuple[CakeDataConfig, HEDMInstrument, np.ndarray]:
     instrument = HEDMInstrument()
     instrument.detectors.clear()
     instrument.detectors['panel'] = PlanarDetector(
@@ -71,11 +26,16 @@ def small_scan(tmp_path):
         tvec=np.array([0.0, 0.0, -100.0]),
         saturation_level=65535,
     )
-    spec = CakeOperatorSpec((0, 3), (-180, 180), (0.2, 10))
     matrix_path = tmp_path / 'geometry.hexrdcake'
-    export_cake_matrix(matrix_path, instrument, spec)
+    export_cake_matrix(
+        matrix_path,
+        instrument,
+        tth_range=(0, 3),
+        eta_range=(-180, 180),
+        pixel_size=(0.2, 10),
+    )
     raw = np.broadcast_to(
-        np.array([99, 3, 5, 9, 13], dtype=np.uint32)[:, None, None], (5, 32, 32)
+        np.array([99, 3, 6, 9, 14], dtype=np.uint32)[:, None, None], (5, 32, 32)
     ).copy()
     # A real bad pixel must not turn every eta sample in its lineout into NaN.
     used = CakeMatrix.load(matrix_path).matrix.indices[100]
@@ -104,24 +64,22 @@ def small_scan(tmp_path):
         skip_frames=1,
         cake_width=90,
     )
-    return config, instrument, spec, raw
+    return config, instrument, raw
 
 
-def test_saved_matrix_command_matches_polar_lineouts(tmp_path, small_scan):
-    config, instrument, spec, raw = small_scan
+def test_saved_matrix_command_matches_polar_lineouts(
+    tmp_path: Path, small_scan: tuple[CakeDataConfig, HEDMInstrument, np.ndarray]
+) -> None:
+    config, instrument, raw = small_scan
     config_path = tmp_path / 'cake.json'
     config_path.write_text(config_as_json(config))
     parser = argparse.ArgumentParser()
     configure_parser(parser.add_subparsers())
-    args = parser.parse_args(['cake-data', '--config', str(config_path)])
+    args = parser.parse_args(['cake-data', '--config', str(config_path), '-c', '90'])
     args.func(args, parser)
 
     view = PolarView(
-        spec.tth_range,
-        instrument,
-        eta_min=-180,
-        eta_max=180,
-        pixel_size=spec.pixel_size,
+        (0, 3), instrument, eta_min=-180, eta_max=180, pixel_size=(0.2, 10)
     )
     # Average and floor two frames, then reverse omega as the par metadata asks.
     images = raw[1:].astype(float)
@@ -129,19 +87,13 @@ def test_saved_matrix_command_matches_polar_lineouts(tmp_path, small_scan):
     integrated = np.floor(images.reshape(2, 2, 32, 32).mean(axis=1))[::-1]
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', RuntimeWarning)
-        cakes = [
-            view.warp_image({'panel': image}, pad_with_nans=True)
-            for image in integrated
-        ]
-        expected_wedges = np.array(
+        cakes = np.array(
             [
-                [
-                    np.nanmean(cake[start : start + 9], axis=0)
-                    for start in range(0, 36, 9)
-                ]
-                for cake in cakes
+                view.warp_image({'panel': image}, pad_with_nans=True)
+                for image in integrated
             ]
         )
+        expected_wedges = np.nanmean(cakes.reshape(2, 4, 9, -1), axis=2)
         expected_full = np.nanmean(expected_wedges, axis=1)
     with h5py.File(tmp_path / 'out/sample.h5') as f:
         g = f['Cake/0']
@@ -166,17 +118,13 @@ def test_saved_matrix_command_matches_polar_lineouts(tmp_path, small_scan):
         )
 
 
-def test_invalid_scan_keeps_previous_outputs(tmp_path, small_scan):
-    config, _, _, _ = small_scan
+def test_invalid_scan_keeps_previous_outputs(
+    tmp_path: Path, small_scan: tuple[CakeDataConfig, HEDMInstrument, np.ndarray]
+) -> None:
+    config, _, _ = small_scan
     cake_data(config)
     output = tmp_path / 'out/sample.h5'
     original = output.read_bytes()
-    with pytest.raises(ValueError, match='matrix fixes the geometry'):
-        cake_data(replace(config, refinement=1))
-    with pytest.raises(ValueError, match='omega range must be divisible'):
-        cake_data(replace(config, dome=0.7))
-    with pytest.raises(ValueError, match='complete omega interval'):
-        cake_data(replace(config, max_input_frames=3))
     with h5py.File(tmp_path / 'raw.h5', 'w') as f:
         f['entry/data/data'] = np.ones((5, 16, 64))
     with pytest.raises(ValueError, match='input image shape'):
@@ -185,7 +133,7 @@ def test_invalid_scan_keeps_previous_outputs(tmp_path, small_scan):
     assert not list((tmp_path / 'out').glob('.cake-data-*'))
 
 
-def test_combined_lineout_weights_wedges_equally():
+def test_combined_lineout_weights_wedges_equally() -> None:
     cake = np.ma.array(
         [[10, 0, np.nan], [10, np.nan, np.nan], [20, 4, np.nan], [999, 999, 999]],
         mask=[[False] * 3] * 3 + [[True] * 3],

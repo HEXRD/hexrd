@@ -16,7 +16,7 @@ import numpy as np
 import yaml
 
 from hexrd.core import imageseries
-from hexrd.powder.cake import CakeMatrix, CakeOperatorSpec, export_cake_matrix
+from hexrd.powder.cake import CakeMatrix, export_cake_matrix
 from hexrd.core.instrument import HEDMInstrument
 from hexrd.core.instrument.hedm_instrument import pixel_resolution
 
@@ -210,16 +210,16 @@ def _load_matrix(config: CakeDataConfig, temporary: Path) -> CakeMatrix:
         instrument = load_instrument(config.instrument)
         geometry = config.geometry
         tth_stats, eta_stats = pixel_resolution(instrument)
-        spec = CakeOperatorSpec(
-            (geometry['tth_start'], geometry['tth_end']),
-            (geometry['eta_start'], geometry['eta_end']),
-            (
+        export_cake_matrix(
+            path,
+            instrument,
+            tth_range=(geometry['tth_start'], geometry['tth_end']),
+            eta_range=(geometry['eta_start'], geometry['eta_end']),
+            pixel_size=(
                 geometry['refinement'] * np.degrees(tth_stats[1]),
                 np.degrees(eta_stats[1]),
             ),
         )
-        # Use the same bounded-memory builder and buffer policy as GUI exports.
-        export_cake_matrix(path, instrument, spec)
     operator = CakeMatrix.load(path)
     if operator.input_layout != 'composite':
         raise ValueError(
@@ -336,36 +336,6 @@ def _profiles(
     return full, profiles
 
 
-def _initialize_output(path: Path, position_key: np.ndarray) -> None:
-    with h5py.File(path, "w") as stream:
-        stream["XYZ_key"] = position_key
-        for layer, xyz in enumerate(position_key[1:].T):
-            stream[f"Cake/{layer}/xyz"] = xyz
-
-
-def _write_layer(
-    path: Path,
-    layer: int,
-    tth: np.ndarray,
-    by_omega: np.ndarray,
-    by_eta: np.ndarray,
-    eta: np.ndarray,
-    omega: Sequence[float],
-) -> None:
-    with h5py.File(path, "r+") as stream:
-        group = stream[f"Cake/{layer}"]
-        group["tth"] = tth
-        group["IvTTH_Full"] = np.mean(by_omega, axis=0)
-        group["IvTTHvW"] = by_omega
-        group["ome_key"] = np.vstack((np.arange(len(omega)), omega))
-        group["nFrames"] = len(omega)
-        eta_key = np.vstack((np.arange(len(eta)), eta))
-        for index, values in enumerate(by_eta):
-            frame = group.create_group(f"Ome/{index}")
-            frame["IvTTH"] = values
-            frame["eta_key"] = eta_key
-
-
 def cake_data(config: CakeDataConfig) -> tuple[Path, Path]:
     """Run the CakeData workflow and return its HDF5 and par output paths."""
     config.validate()
@@ -406,32 +376,43 @@ def cake_data(config: CakeDataConfig) -> tuple[Path, Path]:
         edges = _wedge_edges(config, operator)
         bounds = np.searchsorted(operator.eta_centers, edges)
         eta = (edges[:-1] + edges[1:]) / 2
+        eta_key = np.vstack((np.arange(len(eta)), eta))
         tth = operator.tth_centers
         h5_path, par_path = temporary / h5_path.name, temporary / par_path.name
-        _initialize_output(h5_path, metadata["position_key"])
         par_rows = []
-        for layer in layers:
-            full_profiles, eta_profiles, omega = [], [], []
-            for angle, frame in _read_integrated_frames(
-                config,
-                operator,
-                raw_paths[layer],
-                metadata["num_frames"][layer],
-                metadata["flip"][layer],
-            ):
-                full, wedges = _profiles(operator.apply_composite(frame), bounds)
-                full_profiles.append(full)
-                eta_profiles.append(wedges)
-                omega.append(angle)
-            by_omega = np.asarray(full_profiles)
-            _write_layer(
-                h5_path, layer, tth, by_omega, np.asarray(eta_profiles), eta, omega
-            )
-            scan = metadata["scan_number"][layer]
-            image = metadata["image_number"][layer]
-            x, y, z = metadata["position_key"][1:, layer]
-            par_rows.append([10, 100, 1000, scan, image, image, x, x, y, z, 20, 0.6])
-            logger.info("processed cake-data layer %d", layer)
+        with h5py.File(h5_path, 'w') as stream:
+            stream['XYZ_key'] = metadata['position_key']
+            for layer, xyz in enumerate(metadata['position_key'][1:].T):
+                stream[f'Cake/{layer}/xyz'] = xyz
+            for layer in layers:
+                group = stream[f'Cake/{layer}']
+                full_profiles, omega = [], []
+                frames = _read_integrated_frames(
+                    config,
+                    operator,
+                    raw_paths[layer],
+                    metadata["num_frames"][layer],
+                    metadata["flip"][layer],
+                )
+                for index, (angle, frame) in enumerate(frames):
+                    full, wedges = _profiles(operator.apply_composite(frame), bounds)
+                    full_profiles.append(full)
+                    group[f'Ome/{index}/IvTTH'] = wedges
+                    group[f'Ome/{index}/eta_key'] = eta_key
+                    omega.append(angle)
+                by_omega = np.asarray(full_profiles)
+                group['tth'] = tth
+                group['IvTTH_Full'] = np.mean(by_omega, axis=0)
+                group['IvTTHvW'] = by_omega
+                group['ome_key'] = np.vstack((np.arange(len(omega)), omega))
+                group['nFrames'] = len(omega)
+                scan = metadata["scan_number"][layer]
+                image = metadata["image_number"][layer]
+                x, y, z = metadata["position_key"][1:, layer]
+                par_rows.append(
+                    [10, 100, 1000, scan, image, image, x, x, y, z, 20, 0.6]
+                )
+                logger.info("processed cake-data layer %d", layer)
         par_format = ["%d"] * 6 + ["%.6f"] * 6
         np.savetxt(par_path, np.asarray(par_rows), fmt=par_format, newline=" \n")
         for source, target in zip((h5_path, par_path), outputs):
