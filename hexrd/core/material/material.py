@@ -38,7 +38,6 @@ import numpy as np
 
 from hexrd.core.material.crystallography import PlaneData
 from hexrd.core.material import symmetry, unitcell
-from hexrd.core.material.symbols import two_origin_choice
 from hexrd.core.valunits import _angstroms, _degrees, _kev, valWUnit
 from hexrd.core.constants import ptable, ptableinverse, chargestate
 from hexrd.core.utils.logger import redirect_stdout_to_logger
@@ -72,10 +71,9 @@ def _key(x):
 
 
 def get_default_sgsetting(sgnum):
-    if sgnum in two_origin_choice:
-        return 1
-    else:
-        return 0
+    # Origin choice 1 for every group, like the bundled material library
+    # and the GUI; a CIF in origin choice 2 must be transformed first.
+    return 0
 
 
 #
