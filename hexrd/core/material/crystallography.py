@@ -45,7 +45,7 @@ from hexrd.core.matrixutil import unitVector
 from hexrd.core.rotations import (
     rotMatOfExpMap,
     mapAngle,
-    applySym,
+    rotMatOfQuat,
     ltypeOfLaueGroup,
     quatOfLaueGroup,
 )
@@ -1197,40 +1197,28 @@ class PlaneData(object):
 
         latVecOps = latticeVectors(lparms, symmGroup)
 
+        # apply all symmetry operators (and inversion) to all hkls at once
+        nsym = qsym.shape[1]
+        rmats = rotMatOfQuat(qsym).reshape(nsym, 3, 3)
+        ops = latVecOps['F'].T @ rmats @ latVecOps['B']
+        allHKLs = np.rint(np.einsum('sij,jn->nsi', ops, hkls)).astype(int)
+        allHKLs = np.concatenate([allHKLs, -allHKLs], axis=1)
+
+        # flag repeats of an earlier equivalent (a stable sort keeps the first)
+        m = 2 * np.abs(allHKLs).max(initial=0) + 1
+        codes = (allHKLs[..., 0] * m + allHKLs[..., 1]) * m + allHKLs[..., 2]
+        order = np.argsort(codes, axis=1, kind='stable')
+        srt = np.take_along_axis(codes, order, axis=1)
+        dup = np.zeros(codes.shape, dtype=bool)
+        np.put_along_axis(dup, order[:, 1:], srt[:, 1:] == srt[:, :-1], axis=1)
+
         hklDataList: list[HKLData] = []
         for iHKL in range(len(hkls.T)):
-            # need transpose because of convention for hkls ordering
-
-            """
-            latVec = latPlaneData['normals'][:,iHKL]
-            # ... if not spots, may be able to work with a subset of these
-            latPlnNrmlList = applySym(
-                np.c_[latVec], qsym, csFlag=True, cullPM=False
-            )
-            """
-            # returns UN-NORMALIZED lattice plane normals
-            latPlnNrmls = applySym(
-                np.dot(latVecOps['B'], hkls[:, iHKL].reshape(3, 1)),
-                qsym,
-                csFlag=True,
-                cullPM=False,
-            )
-
-            # check for +/- in symmetry group
-            latPlnNrmlsM = applySym(
-                np.dot(latVecOps['B'], hkls[:, iHKL].reshape(3, 1)),
-                qsym,
-                csFlag=False,
-                cullPM=False,
-            )
-
-            csRefl = latPlnNrmls.shape[1] == latPlnNrmlsM.shape[1]
-
-            # added this so that I retain the actual symmetric
-            # integer hkls as well
-            symHKLs = np.array(
-                np.round(np.dot(latVecOps['F'].T, latPlnNrmls)), dtype='int'
-            )
+            symHKLs = allHKLs[iHKL, ~dup[iHKL]].T
+            # UN-NORMALIZED lattice plane normals
+            latPlnNrmls = np.dot(latVecOps['B'], symHKLs)
+            # centrosymmetric if inversion adds no new equivalents
+            csRefl = bool(dup[iHKL, nsym:].all())
 
             hklDataList.append(
                 {

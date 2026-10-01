@@ -951,24 +951,17 @@ class unitcell:
         """
         mask = np.ones(hkllist.shape[0], dtype=bool)
         laue = InversionSymmetry
-
-        for i, g in enumerate(hkllist):
-            if mask[i]:
-                geqv = self.CalcStar(g, "r", applyLaue=laue).astype(int)
-
-                for r in geqv[1:,]:
-                    rid = np.where(np.all(r == hkllist, axis=1))
-                    mask[rid] = False
-
-        hkl = hkllist[mask, :].astype(np.int32)
+        index = {g: i for i, g in enumerate(map(tuple, hkllist.tolist()))}
 
         hkl_max = []
+        for i, g in enumerate(hkllist):
+            if mask[i]:
+                geqv = self.CalcStar(g, "r", applyLaue=laue)
+                hkl_max.append(geqv[np.argmax(np.sum(geqv, axis=1))])
 
-        for g in hkl:
-            geqv = self.CalcStar(g, "r", applyLaue=laue)
-            loc = np.argmax(np.sum(geqv, axis=1))
-            gmax = geqv[loc, :]
-            hkl_max.append(gmax)
+                for r in map(tuple, geqv[1:].astype(int).tolist()):
+                    if r in index:
+                        mask[index[r]] = False
 
         return np.array(hkl_max).astype(np.int32)
 
@@ -979,27 +972,10 @@ class unitcell:
         length, then they are ordered with increasing
         priority to l, k and h
         """
-        glen = []
-        for g in hkllist:
-            glen.append(np.round(self.CalcLength(g, "r"), 8))
-
-        # glen = np.atleast_2d(np.array(glen,dtype=float)).T
-        dtype = [
-            ("glen", float),
-            ("max", int),
-            ("sum", int),
-            ("h", int),
-            ("k", int),
-            ("l", int),
-        ]
-
-        a = []
-        for i, gl in enumerate(glen):
-            g = hkllist[i, :]
-            a.append((gl, np.max(g), np.sum(g), g[0], g[1], g[2]))
-        a = np.array(a, dtype=dtype)
-
-        isort = np.argsort(a, order=["glen", "max", "sum", "l", "k", "h"])
+        glen = np.sqrt(np.einsum("ij,jk,ik->i", hkllist, self.rmt, hkllist))
+        h, k, l_val = hkllist.T
+        keys = (h, k, l_val, hkllist.sum(axis=1), hkllist.max(axis=1), glen.round(8))
+        isort = np.lexsort(keys)
         return hkllist[isort, :]
 
     def getHKLs(self, dmin):
@@ -1022,29 +998,16 @@ class unitcell:
         lmin = -1
         lmax = self.il
 
-        hkllist = np.array(
-            [
-                [ih, ik, il]
-                for ih in np.arange(hmax, hmin, -1)
-                for ik in np.arange(kmax, kmin, -1)
-                for il in np.arange(lmax, lmin, -1)
-            ]
-        )
+        hkllist = np.mgrid[hmax:hmin:-1, kmax:kmin:-1, lmax:lmin:-1].reshape(3, -1).T
 
         hkl_allowed = spacegroup.Allowed_HKLs(self.sgnum, hkllist)
 
         hkl = []
         dsp = []
 
-        hkl_dsp = []
-
-        for g in hkl_allowed:
-            # ignore [0 0 0] as it is the direct beam
-            if np.sum(np.abs(g)) != 0:
-                dspace = 1.0 / self.CalcLength(g, "r")
-
-                if dspace >= dmin:
-                    hkl_dsp.append(g)
+        # ignore [0 0 0] as it is the direct beam
+        glen = np.sqrt(np.einsum("ij,jk,ik->i", hkl_allowed, self.rmt, hkl_allowed))
+        hkl_dsp = hkl_allowed[(glen > 0) & (glen <= 1.0 / dmin)]
 
         """
         we now have a list of g vectors which are all within dmin range
