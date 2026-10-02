@@ -1322,7 +1322,7 @@ class LeBail(AbstractWPPF):
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
-        errvec, self.Rwp, self.Rwpb, self.gofF = calc_rwp(
+        errvec, self.Rwp, self.Rwpb, self.chi2, self.gofF = calc_rwp(
             self.spectrum_sim.data_array,
             self.spectrum_expt.data_array,
             self.weights.data_array,
@@ -1507,7 +1507,7 @@ class LeBail(AbstractWPPF):
         # When nothing was refined, Refine() already printed the metrics
         if print_to_screen and self.res is not None:
             logger.info(
-                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
             )
 
     def Refine(self, print_to_screen=True):
@@ -1545,7 +1545,7 @@ class LeBail(AbstractWPPF):
             if print_to_screen:
                 logger.info(
                     f"nothing to refine. updating intensities."
-                    f" Rwp: {self.Rwp * 100:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                    f" Rwp: {self.Rwp * 100:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
                 )
             return None
 
@@ -2151,7 +2151,7 @@ class Rietveld(AbstractWPPF):
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
-        errvec, self.Rwp, self.Rwpb, self.gofF = calc_rwp(
+        errvec, self.Rwp, self.Rwpb, self.chi2, self.gofF = calc_rwp(
             self.spectrum_sim.data_array,
             self.spectrum_expt.data_array,
             self.weights.data_array,
@@ -2316,13 +2316,13 @@ class Rietveld(AbstractWPPF):
             self.gofFlist = np.append(self.gofFlist, self.gofF)
 
             logger.info(
-                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
             )
         else:
             self.computespectrum()
             logger.info(
                 "Nothing to refine.\n"
-                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
             )
 
     def RefineTexture(self):
@@ -2352,7 +2352,7 @@ class Rietveld(AbstractWPPF):
         logger.info(
             "Finished iteration. "
             f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % "
-            f"and chi^2: {self.gofF:.2f}"
+            f"and S (goodness-of-fit): {self.gofF:.2f}"
         )
 
     def texture_parameters_vary(self, vary=False):
